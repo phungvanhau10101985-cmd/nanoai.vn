@@ -6,8 +6,12 @@ import {
   fetchPartnerInventoryPriceHintsByIdsFromPg,
   matchPartnerInventoryByEmbeddingFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { insertMessagingPartnerImageEmbedUsageFromPg } from '@/lib/db/messaging-partner-image-embed-usage-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { embedImageBufferWithGemini } from '@/lib/messaging/partner-inventory-embedding'
+import {
+  embedImageBufferWithGemini,
+  type GeminiImageEmbedResult,
+} from '@/lib/messaging/partner-inventory-embedding'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
@@ -75,7 +79,10 @@ function cosineSimilarity(a: EmbeddingVector, b: EmbeddingVector): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb))
 }
 
-async function getOrCreateUrlEmbedding(imageUrl: string): Promise<EmbeddingVector | null> {
+async function getOrCreateUrlEmbedding(
+  imageUrl: string,
+  partnerId: string
+): Promise<EmbeddingVector | null> {
   const key = normalizeUrlForCache(imageUrl)
   const now = Date.now()
   const hit = imageEmbedCache.get(key)
@@ -87,9 +94,16 @@ async function getOrCreateUrlEmbedding(imageUrl: string): Promise<EmbeddingVecto
   const task = (async () => {
     const img = await fetchRemoteImageForCatalog(key, { timeoutMs: 12_000 })
     if (!img) return null
-    const vec = await embedImageBufferWithGemini(img.buf, img.contentType || detectImageMimeType(img.buf))
-    imageEmbedCache.set(key, { value: vec, expiresAt: now + CACHE_TTL_MS })
-    return vec
+    const res = await embedImageBufferWithGemini(img.buf, img.contentType || detectImageMimeType(img.buf))
+    void insertMessagingPartnerImageEmbedUsageFromPg({
+      partnerId,
+      source: 'guest_image_search',
+      model: GEMINI_EMBED_MODEL,
+      promptTokens: res.promptTokens,
+      totalTokens: res.totalTokens,
+    })
+    imageEmbedCache.set(key, { value: res.values, expiresAt: now + CACHE_TTL_MS })
+    return res.values
   })()
     .catch(() => null)
     .finally(() => {
@@ -104,12 +118,27 @@ export async function geminiProductSearchFromImageBuffer(
   imageBuffer: Buffer,
   partnerId: string,
   inventoryRows: InvRow[],
-  options?: { maxResults?: number; userId?: string | null }
+  options?: {
+    maxResults?: number
+    userId?: string | null
+    /** Đã embed ảnh truy vấn (tránh gọi API lặp khi fallback từ ViaVectorDb). */
+    queryEmbedPregen?: GeminiImageEmbedResult
+  }
 ): Promise<{ candidates: GeminiImageSearchCandidate[]; error?: string }> {
   try {
-    void partnerId
     const queryMime = detectImageMimeType(imageBuffer)
-    const queryVec = await embedImageBufferWithGemini(imageBuffer, queryMime)
+    const queryRes =
+      options?.queryEmbedPregen ?? (await embedImageBufferWithGemini(imageBuffer, queryMime))
+    if (!options?.queryEmbedPregen) {
+      void insertMessagingPartnerImageEmbedUsageFromPg({
+        partnerId,
+        source: 'guest_image_search',
+        model: GEMINI_EMBED_MODEL,
+        promptTokens: queryRes.promptTokens,
+        totalTokens: queryRes.totalTokens,
+      })
+    }
+    const queryVec = queryRes.values
 
     const rows = inventoryRows
       .filter((r) => r.is_active && /^https?:\/\//i.test((r.image_url || '').trim()))
@@ -127,7 +156,7 @@ export async function geminiProductSearchFromImageBuffer(
         const row = rows[idx]
         const invVec = Array.isArray(row.image_embedding_json)
           ? (row.image_embedding_json as number[])
-          : await getOrCreateUrlEmbedding(row.image_url)
+          : await getOrCreateUrlEmbedding(row.image_url, partnerId)
         if (!invVec) continue
         const sim = cosineSimilarity(queryVec, invVec)
         if (Number.isFinite(sim)) scored.push({ row, score: sim })
@@ -143,9 +172,9 @@ export async function geminiProductSearchFromImageBuffer(
       userId: options?.userId ?? null,
       model: GEMINI_EMBED_MODEL,
       feature: 'image_similarity_search',
-      promptTokenCount: 0,
+      promptTokenCount: queryRes.promptTokens,
       candidatesTokenCount: top.length,
-      totalTokenCount: 1,
+      totalTokenCount: Math.max(1, queryRes.totalTokens),
     })
 
     return {
@@ -183,7 +212,15 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
 ): Promise<{ candidates: GeminiImageSearchCandidate[]; error?: string }> {
   try {
     const queryMime = detectImageMimeType(imageBuffer)
-    const queryVec = await embedImageBufferWithGemini(imageBuffer, queryMime)
+    const queryRes = await embedImageBufferWithGemini(imageBuffer, queryMime)
+    void insertMessagingPartnerImageEmbedUsageFromPg({
+      partnerId,
+      source: 'guest_image_search',
+      model: GEMINI_EMBED_MODEL,
+      promptTokens: queryRes.promptTokens,
+      totalTokens: queryRes.totalTokens,
+    })
+    const queryVec = queryRes.values
     const maxResults = Math.min(25, Math.max(1, Math.floor(options?.maxResults ?? 8)))
 
     if (queryVec.length === DB_VECTOR_DIMS) {
@@ -245,9 +282,9 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
           userId: options?.userId ?? null,
           model: GEMINI_EMBED_MODEL,
           feature: 'image_similarity_search',
-          promptTokenCount: 0,
+          promptTokenCount: queryRes.promptTokens,
           candidatesTokenCount: candidates.length,
-          totalTokenCount: 1,
+          totalTokenCount: Math.max(1, queryRes.totalTokens),
         })
         return { candidates }
       }
@@ -265,7 +302,10 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
     }
     if (invRows === null) invRows = []
 
-    return geminiProductSearchFromImageBuffer(imageBuffer, partnerId, invRows, options)
+    return geminiProductSearchFromImageBuffer(imageBuffer, partnerId, invRows, {
+      ...options,
+      queryEmbedPregen: queryRes,
+    })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { candidates: [], error: msg }

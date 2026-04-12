@@ -117,7 +117,10 @@ export function CustomerCareInboxClient({ initialConversations, t }: { initialCo
                     ) : (
                       <CustomerCareMessageBody
                         row={m}
-                        labels={{ productCardOpenProduct: t.messageProductCardOpenProduct }}
+                        labels={{
+                          productCardOpenProduct: t.messageProductCardOpenProduct,
+                          productCardViewDetails: t.messageProductCardViewDetails,
+                        }}
                       />
                     )}
                     <div className="mt-1 text-[10px] opacity-70">

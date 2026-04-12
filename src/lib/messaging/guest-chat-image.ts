@@ -169,6 +169,12 @@ type VisionPickRaw = {
   image_caption?: string
   vision_selected_inventory_id?: string
   vision_selected_product_label?: string
+  page_context?: {
+    sku?: string
+    image_url?: string
+    product_url?: string
+    source?: string
+  }
 }
 
 const VISION_SELECTED_HINT_PREFIX = '[Customer confirmed product from image match:'
@@ -191,6 +197,21 @@ export function latestInboundTextForPartnerAi(textBody: string, rawPayload: Json
   const label = pl?.vision_selected_product_label?.trim()
   if (sid && label) {
     t += `\n[Customer confirmed product from image match: ${label} (inventory id: ${sid})]`
+  }
+  const pc = pl?.page_context
+  if (pc && typeof pc === 'object' && !Array.isArray(pc)) {
+    const hintLines: string[] = []
+    const sku = typeof pc.sku === 'string' ? pc.sku.trim().slice(0, 128) : ''
+    if (sku) hintLines.push(`[Customer product SKU: ${sku}]`)
+    const productUrl = typeof pc.product_url === 'string' ? pc.product_url.trim() : ''
+    if (productUrl && /^https?:\/\//i.test(productUrl)) {
+      hintLines.push(`[Customer product URL: ${productUrl}]`)
+    }
+    const productImg = typeof pc.image_url === 'string' ? pc.image_url.trim() : ''
+    if (productImg && /^https?:\/\//i.test(productImg) && !url) {
+      hintLines.push(`[Customer product image: ${productImg}]`)
+    }
+    if (hintLines.length) t = [t, ...hintLines].filter(Boolean).join('\n')
   }
   return t
 }

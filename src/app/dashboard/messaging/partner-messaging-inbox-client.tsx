@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
+  getPartnerAiComposingForConversation,
   listPartnerConversations,
   listPartnerMessages,
   removeMyMessagingWorkspace,
@@ -84,6 +85,7 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
   const [uploading, setUploading] = useState(false)
   const [composerHeight, setComposerHeight] = useState(0)
   const [inboxQuery, setInboxQuery] = useState('')
+  const [shopAiComposing, setShopAiComposing] = useState(false)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
@@ -122,15 +124,33 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
     return () => window.clearInterval(id)
   }, [selectedPartnerId, refreshConversations])
 
+  const refreshAiComposing = useCallback(() => {
+    if (!selectedPartnerId || !selectedConvId) return
+    void getPartnerAiComposingForConversation(selectedPartnerId, selectedConvId).then((res) => {
+      if ('composing' in res) setShopAiComposing(Boolean(res.composing))
+    })
+  }, [selectedPartnerId, selectedConvId])
+
+  useEffect(() => {
+    if (!selectedPartnerId || !selectedConvId) {
+      setShopAiComposing(false)
+      return
+    }
+    refreshAiComposing()
+    const id = window.setInterval(() => refreshAiComposing(), 2500)
+    return () => window.clearInterval(id)
+  }, [selectedPartnerId, selectedConvId, refreshAiComposing])
+
   useEffect(() => {
     if (!selectedPartnerId || !selectedConvId) return
     const id = window.setInterval(() => {
       listPartnerMessages(selectedPartnerId, selectedConvId).then((res) => {
         if ('rows' in res) setMessages(res.rows ?? [])
+        refreshAiComposing()
       })
     }, 14000)
     return () => window.clearInterval(id)
-  }, [selectedPartnerId, selectedConvId])
+  }, [selectedPartnerId, selectedConvId, refreshAiComposing])
 
   useEffect(() => {
     if (!partners.length) {
@@ -166,9 +186,10 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
           return
         }
         if ('rows' in res) setMessages(res.rows ?? [])
+        refreshAiComposing()
       })
       .finally(() => setLoadingMsgs(false))
-  }, [selectedPartnerId, selectedConvId, toast])
+  }, [selectedPartnerId, selectedConvId, toast, refreshAiComposing])
 
   useLayoutEffect(() => {
     if (!selectedConvId) {
@@ -516,7 +537,10 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
                             <CustomerCareMessageBody
                               row={m}
                               tone="onViolet"
-                              labels={{ productCardOpenProduct: t.messageProductCardOpenProduct }}
+                              labels={{
+                                productCardOpenProduct: t.messageProductCardOpenProduct,
+                                productCardViewDetails: t.messageProductCardViewDetails,
+                              }}
                             />
                           ) : (
                             <div className="whitespace-pre-wrap break-words">{m.body}</div>
@@ -524,7 +548,10 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
                         ) : (
                           <CustomerCareMessageBody
                             row={m}
-                            labels={{ productCardOpenProduct: t.messageProductCardOpenProduct }}
+                            labels={{
+                              productCardOpenProduct: t.messageProductCardOpenProduct,
+                              productCardViewDetails: t.messageProductCardViewDetails,
+                            }}
                           />
                         )}
                       </div>
@@ -536,6 +563,21 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
                     </div>
                   ))
                 )}
+                {shopAiComposing ? (
+                  <div
+                    className="mb-1.5 mr-auto flex max-w-[min(100%,560px)] items-center gap-2 rounded-2xl rounded-bl-md border border-violet-500/35 bg-violet-500/10 px-3 py-2 text-[12px] font-medium text-violet-950 dark:text-violet-100"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-violet-600 dark:text-violet-300" aria-hidden />
+                    <span className="tabular-nums">{t.inboxShopDrafting}</span>
+                    <span className="inline-flex gap-0.5" aria-hidden>
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-violet-600/80 dark:bg-violet-300/80 [animation-delay:0ms]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-violet-600/80 dark:bg-violet-300/80 [animation-delay:150ms]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-violet-600/80 dark:bg-violet-300/80 [animation-delay:300ms]" />
+                    </span>
+                  </div>
+                ) : null}
               </div>
             </>
           )}

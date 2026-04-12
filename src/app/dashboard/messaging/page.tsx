@@ -3,7 +3,6 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { isValidUuidString } from '@/lib/validate-uuid'
-import { Toaster } from '@/components/ui/toaster'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import type { Metadata } from 'next'
@@ -37,7 +36,6 @@ export default async function DashboardMessagingPage() {
   return (
     <MessagingInboxScrollLock>
       <div className="app-shell flex h-[calc(100dvh-5rem)] max-md:h-[calc(100dvh-9rem)] min-h-0 flex-col overflow-hidden">
-        <Toaster />
         <div className="flex min-h-0 flex-1 flex-col">
           <PartnerMessagingInboxClient initialPartners={rows ?? []} t={pm} />
         </div>

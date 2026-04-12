@@ -7,12 +7,25 @@ import { createPortal } from 'react-dom'
 import type { ChangeEvent, ClipboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { CustomerCareMessageBody } from '@/components/messaging/customer-care-message-body'
+import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
+import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
+import {
+  isProductConsultedInScopeSet,
+  makeConsultProductScopeKey,
+} from '@/lib/messaging/consult-product-scope-key'
 import { useToast } from '@/hooks/use-toast'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { Json } from '@/types/database.types'
-import { Camera, ImagePlus, Loader2, MessageSquareText, Send, Sparkles, Store, X } from 'lucide-react'
+import { Camera, CheckCircle, ImagePlus, Loader2, MessageSquareText, Send, Sparkles, Store, X } from 'lucide-react'
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
@@ -25,6 +38,7 @@ import {
   MESSAGING_GUEST_ACCOUNT_STORAGE_KEY,
   MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY,
 } from '@/lib/messaging/guest-account-session'
+import type { GuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
 
 type GuestMsg = {
   id: string
@@ -110,6 +124,7 @@ function collectRecentSuggestedCardsFromMessages(
           image_url: c.image_url || '',
           product_url: productUrl,
           ...(c.price_hint ? { price_hint: c.price_hint } : {}),
+          ...(c.sku && c.sku.trim() ? { sku: c.sku.trim().slice(0, 128) } : {}),
         }
         if (pushCard(card)) return out
       }
@@ -171,18 +186,6 @@ function parseVndFromHint(priceHint: string | undefined): number {
   return Number.isFinite(n) ? Math.max(0, n) : 0
 }
 
-function normalizeProductUrlKey(productUrl: string): string {
-  const raw = (productUrl || '').trim()
-  if (!raw) return ''
-  try {
-    const u = new URL(raw)
-    const normalizedPath = u.pathname.replace(/\/+$/, '')
-    return `${u.origin.toLowerCase()}${normalizedPath.toLowerCase()}`
-  } catch {
-    return raw.toLowerCase()
-  }
-}
-
 function normalizeIntentText(raw: string): string {
   return raw
     .toLowerCase()
@@ -237,6 +240,15 @@ const FALLBACK_SHOP_TYPING_WAIT_MS = 75_000
 const ORDER_PROFILE_STORAGE_PREFIX = 'nanoai_order_profile_v1'
 const GUEST_IMAGE_MAX_BYTES = 10 * 1024 * 1024
 
+/** Tổng số cái từ các dòng màu (mỗi dòng tối đa 99), tổng tối đa 99 theo DB đơn. */
+function sumPaletteLineUnits(imgs: string[], qtyByImg: Record<string, string>): number {
+  let s = 0
+  for (const img of imgs) {
+    s += Math.max(0, Math.min(99, Math.floor(Number(qtyByImg[img]) || 0)))
+  }
+  return Math.min(99, s)
+}
+
 type SelectedImage = {
   file: File | null
   previewUrl: string
@@ -275,6 +287,7 @@ type TopUpPayment = {
   transaction_content?: string
   bank_account?: string
   bank_name?: string
+  status?: string
 }
 
 function formatCredits(value: number) {
@@ -286,11 +299,13 @@ export function PartnerGuestChatClient({
   shopDisplayName,
   t,
   initialChatList = [],
+  guestPurchaseFlow = 'in_chat',
 }: {
   slug: string
   shopDisplayName: string
   t: T
   initialChatList?: ChatRailItem[]
+  guestPurchaseFlow?: GuestPurchaseFlow
 }) {
   const { toast } = useToast()
   const [authReady, setAuthReady] = useState(false)
@@ -321,6 +336,7 @@ export function PartnerGuestChatClient({
   const [topUpConfigs, setTopUpConfigs] = useState<TopUpPaymentConfig[]>([])
   const [topUpSelectedBank, setTopUpSelectedBank] = useState('')
   const [topUpPayment, setTopUpPayment] = useState<TopUpPayment | null>(null)
+  const [topUpSuccessCountdown, setTopUpSuccessCountdown] = useState<number | null>(null)
   const [portalMounted, setPortalMounted] = useState(false)
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null)
   const [orderFormOpen, setOrderFormOpen] = useState(false)
@@ -335,6 +351,12 @@ export function PartnerGuestChatClient({
   const [orderPhone, setOrderPhone] = useState('')
   const [orderAddress, setOrderAddress] = useState('')
   const [orderColor, setOrderColor] = useState('')
+  /** URL ảnh màu đã chọn — có thể nhiều; mỗi ảnh một loại, tránh trùng `name`. */
+  const [orderSelectedColorImgs, setOrderSelectedColorImgs] = useState<string[]>([])
+  /** SL theo từng ảnh màu (key = URL ảnh). */
+  const [orderQtyByColorImg, setOrderQtyByColorImg] = useState<Record<string, string>>({})
+  /** Size theo từng ảnh màu (key = URL ảnh). */
+  const [orderSizeByColorImg, setOrderSizeByColorImg] = useState<Record<string, string>>({})
   const [orderSize, setOrderSize] = useState('')
   const [orderQuantity, setOrderQuantity] = useState('1')
   const [orderNote, setOrderNote] = useState('')
@@ -346,6 +368,8 @@ export function PartnerGuestChatClient({
   const [imageStoragePath, setImageStoragePath] = useState<string | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
   const [visionPickBusyId, setVisionPickBusyId] = useState<string | null>(null)
+  /** Xem ảnh gợi ý / thẻ — overlay cùng trang (không mở tab). */
+  const [chatImageLightboxUrl, setChatImageLightboxUrl] = useState<string | null>(null)
   const pageContextRef = useRef<{ sku?: string; imageUrl?: string; productUrl?: string } | null>(null)
   const contextSeededRef = useRef(false)
   const galleryInputRef = useRef<HTMLInputElement>(null)
@@ -357,7 +381,7 @@ export function PartnerGuestChatClient({
   const draftTextareaRef = useRef<HTMLTextAreaElement>(null)
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
-  const consultedProductUrlsRef = useRef<Set<string>>(new Set())
+  const [consultedProductKeys, setConsultedProductKeys] = useState(() => new Set<string>())
 
   const recentSuggestedGarmentImages = useMemo(() => {
     const out: Array<{ name: string; imageUrl: string }> = []
@@ -508,6 +532,7 @@ export function PartnerGuestChatClient({
       captureGuestAccountFromResponse(res)
       const data = (await res.json()) as {
         messages?: GuestMsg[]
+        consultedProductKeys?: string[]
         error?: string
         authMode?: 'anonymous' | 'account'
       }
@@ -550,6 +575,11 @@ export function PartnerGuestChatClient({
         setAuthMode('anonymous')
       }
       setMessages(normalizedMessages)
+      if (Array.isArray(data.consultedProductKeys)) {
+        setConsultedProductKeys(
+          new Set(data.consultedProductKeys.filter((k): k is string => typeof k === 'string' && k.length > 0))
+        )
+      }
       const effectiveAuthMode = serverSaysAccount || hasGuestAccount ? 'account' : 'anonymous'
       setAuthMode(effectiveAuthMode)
       if (effectiveAuthMode === 'account') setAuthGateRequired(false)
@@ -877,11 +907,23 @@ export function PartnerGuestChatClient({
       product_url: x.product_url,
     }
     if (x.price_hint && x.price_hint.trim()) out.price_hint = x.price_hint.trim()
+    if (x.sku && x.sku.trim()) out.sku = x.sku.trim().slice(0, 128)
     return out
   }, [])
 
   const openOrderFormByOption = useCallback(
     async (x: BuyProductOption) => {
+      if (guestPurchaseFlow === 'external_site') {
+        const u = (x.product_url ?? '').trim()
+        if (/^https?:\/\//i.test(u)) {
+          window.open(u, '_blank', 'noopener,noreferrer')
+          toast({ title: t.purchaseOpenSiteToast })
+          setBuyOptionsOpen(false)
+          return
+        }
+        toast({ title: t.purchaseMissingProductUrlToast, variant: 'destructive' })
+        return
+      }
       const card = toCardFromBuyOption(x)
       setOrderFormBusy(true)
       try {
@@ -935,6 +977,9 @@ export function PartnerGuestChatClient({
         setActiveOrderCard(card)
         setActivePurchaseOptions(detail?.options ?? null)
         setOrderColor('')
+        setOrderSelectedColorImgs([])
+        setOrderQtyByColorImg({})
+        setOrderSizeByColorImg({})
         setOrderSize('')
         setOrderQuantity('1')
         setOrderNote('')
@@ -958,6 +1003,8 @@ export function PartnerGuestChatClient({
       slug,
       toCardFromBuyOption,
       toast,
+      guestPurchaseFlow,
+      t,
     ]
   )
 
@@ -1031,36 +1078,58 @@ export function PartnerGuestChatClient({
     void maybeOpenBuyOptionsFromInbound()
   }, [maybeOpenBuyOptionsFromInbound])
 
-  const submitProductCardPick = async (card: PartnerAiProductCard) => {
+  const submitProductCardPick = async (card: PartnerAiProductCard, sourceMessageId: string) => {
     const latestInboundText = [...messages].reverse().find((m) => m.direction === 'inbound')?.body ?? ''
     const intent = classifyOrderIntent(latestInboundText)
     const label = card.name?.trim() || 'mau san pham'
     const productUrl = card.product_url.trim()
     const productKey = normalizeProductUrlKey(productUrl)
-    if (productUrl && productKey && consultedProductUrlsRef.current.has(productKey)) {
-      if (typeof window !== 'undefined') {
-        const opened = window.open(productUrl, '_blank', 'noopener,noreferrer')
-        if (!opened) window.location.href = productUrl
-      }
+    const scopeKey =
+      productKey && sourceMessageId.trim() ? makeConsultProductScopeKey(sourceMessageId.trim(), productKey) : ''
+    if (productUrl && productKey && isProductConsultedInScopeSet(consultedProductKeys, productKey)) {
+      setBuyOptionsOpen(false)
+      await openOrderFormByOption({
+        name: card.name,
+        image_url: card.image_url,
+        product_url: productUrl,
+        price_hint: card.price_hint,
+        sku: card.sku?.trim() || null,
+      })
       return
     }
     if (intent !== 'purchase') {
       setBuyOptionsOpen(false)
+      const sku = (card.sku ?? '').trim().slice(0, 128)
+      const skuBit = sku ? ` Mã/SKU: ${sku}.` : ''
       const ask =
         intent === 'shipping_policy'
-          ? `Mình quan tâm mẫu này: ${label}. Shop tư vấn giúp mình chính sách vận chuyển, phí ship và thời gian giao nhé.`
-          : `Mình quan tâm mẫu này: ${label}. Shop tư vấn chi tiết giúp mình nhé.`
+          ? `Mình quan tâm mẫu này: ${label}.${skuBit} Shop tư vấn giúp mình chính sách vận chuyển, phí ship và thời gian giao nhé.`
+          : `Mình quan tâm mẫu này: ${label}.${skuBit} Shop tư vấn chi tiết giúp mình nhé.`
+      const imageUrl = (card.image_url ?? '').trim()
+      const pageContext: {
+        sku?: string
+        imageUrl?: string
+        productUrl?: string
+        source: string
+      } = { source: 'product_card_consult', productUrl }
+      if (sku) pageContext.sku = sku
+      if (imageUrl && /^https?:\/\//i.test(imageUrl)) pageContext.imageUrl = imageUrl
+      const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
       setSending(true)
       try {
         const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify({ text: ask }),
+          body: JSON.stringify({ text: ask, pageContext }),
         })
         captureGuestSessionFromResponse(res)
         captureGuestAccountFromResponse(res)
-        const data = (await res.json().catch(() => null)) as { error?: string } | null
+        const data = (await res.json().catch(() => null)) as {
+          error?: string
+          shopTyping?: { maxWaitMs: number }
+          visionPickRequired?: boolean
+        } | null
         if (res.status === 401 || data?.error?.startsWith('AUTH_REQUIRED_')) {
           setUserId(null)
           setAuthGateRequired(true)
@@ -1075,7 +1144,41 @@ export function PartnerGuestChatClient({
           toast({ title: data?.error || t.sendError, variant: 'destructive' })
           return
         }
-        if (productUrl && productKey) consultedProductUrlsRef.current.add(productKey)
+        if (data?.visionPickRequired === true) {
+          setShopTyping(null)
+        } else {
+          const waitMs =
+            data?.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0
+              ? data.shopTyping.maxWaitMs
+              : FALLBACK_SHOP_TYPING_WAIT_MS
+          setShopTyping({
+            deadline: Date.now() + waitMs,
+            baselineOutbound: outboundBaseline,
+          })
+        }
+        if (productUrl && productKey) {
+          try {
+            const rec = await fetch(
+              `/api/messaging/guest/${encodeURIComponent(slug)}/consult-product`,
+              {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({
+                  productUrlKey: productKey,
+                  sourceMessageId: sourceMessageId.trim(),
+                }),
+              }
+            )
+            captureGuestSessionFromResponse(rec)
+            captureGuestAccountFromResponse(rec)
+          } catch {
+            // vẫn cập nhật local + load(); có thể retry sau
+          }
+          if (scopeKey) {
+            setConsultedProductKeys((prev) => new Set(prev).add(scopeKey))
+          }
+        }
         await load()
       } catch {
         toast({ title: t.sendError, variant: 'destructive' })
@@ -1090,7 +1193,7 @@ export function PartnerGuestChatClient({
       image_url: card.image_url,
       product_url: card.product_url,
       price_hint: card.price_hint,
-      sku: null,
+      sku: card.sku?.trim() || null,
     })
   }
 
@@ -1101,16 +1204,62 @@ export function PartnerGuestChatClient({
     if (!orderName.trim()) missing.push('Họ tên')
     if (!orderPhone.trim()) missing.push('Số điện thoại')
     if (!orderAddress.trim()) missing.push('Địa chỉ')
-    if (!orderColor.trim()) missing.push('Màu')
-    if (!orderSize.trim()) missing.push('Size')
-    const qty = Math.max(0, parseInt(orderQuantity || '0', 10) || 0)
-    if (qty <= 0) missing.push('Số lượng')
+    const hasPalette = Boolean(activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0)
+    if (hasPalette) {
+      if (orderSelectedColorImgs.length === 0) missing.push('Màu')
+    } else if (!orderColor.trim()) {
+      missing.push('Màu')
+    }
+    if (hasPalette) {
+      for (const img of orderSelectedColorImgs) {
+        const q = Math.max(0, parseInt(orderQtyByColorImg[img] || '0', 10) || 0)
+        if (q <= 0) {
+          missing.push('Số lượng từng màu')
+          break
+        }
+        if (!(orderSizeByColorImg[img] ?? '').trim()) {
+          missing.push('Size từng màu')
+          break
+        }
+      }
+    } else if (!orderSize.trim()) {
+      missing.push('Size')
+    }
+    if (!hasPalette) {
+      const qtyOne = Math.max(0, parseInt(orderQuantity || '0', 10) || 0)
+      if (qtyOne <= 0) missing.push('Số lượng')
+    }
     if (missing.length > 0) {
       toast({
         title: `Vui lòng điền đầy đủ thông tin bắt buộc: ${missing.join(', ')}`,
         variant: 'destructive',
       })
       return
+    }
+    const totalQty = hasPalette
+      ? sumPaletteLineUnits(orderSelectedColorImgs, orderQtyByColorImg)
+      : Math.min(99, Math.max(1, parseInt(orderQuantity || '1', 10) || 1))
+    let colorPayload = orderColor.trim()
+    if (hasPalette && activePurchaseOptions?.colors) {
+      const parts: string[] = []
+      for (const img of orderSelectedColorImgs) {
+        const c = activePurchaseOptions.colors.find((x) => x.img === img)
+        const n = c?.name?.trim() || 'Mẫu'
+        const q = Math.max(1, Math.min(99, parseInt(orderQtyByColorImg[img] || '1', 10) || 1))
+        parts.push(`${n}×${q}`)
+      }
+      colorPayload = parts.join(', ').slice(0, 80)
+    }
+    let sizePayload = orderSize.trim()
+    if (hasPalette && activePurchaseOptions?.colors) {
+      const szParts: string[] = []
+      for (const img of orderSelectedColorImgs) {
+        const c = activePurchaseOptions.colors.find((x) => x.img === img)
+        const n = c?.name?.trim() || 'Mẫu'
+        const sz = (orderSizeByColorImg[img] ?? '').trim()
+        szParts.push(`${n}:${sz}`)
+      }
+      sizePayload = szParts.join(', ').slice(0, 80)
     }
     setOrderFormBusy(true)
     try {
@@ -1124,9 +1273,9 @@ export function PartnerGuestChatClient({
             customerName: orderName,
             customerPhone: orderPhone,
             shippingAddress: orderAddress,
-            color: orderColor,
-            size: orderSize,
-            quantity: qty,
+            color: colorPayload,
+            size: sizePayload,
+            quantity: totalQty,
             note: orderNote,
           },
         }),
@@ -1410,6 +1559,12 @@ export function PartnerGuestChatClient({
     }
   }, [authHeaders, hasVerifiedGuestAccount])
 
+  const closeTopUpModal = useCallback(() => {
+    setTopUpOpen(false)
+    setTopUpPayment(null)
+    setTopUpSuccessCountdown(null)
+  }, [])
+
   useEffect(() => {
     if (authMode !== 'account') {
       setTryOnCreditsBalance(null)
@@ -1430,11 +1585,11 @@ export function PartnerGuestChatClient({
   useEffect(() => {
     if (!topUpOpen) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setTopUpOpen(false)
+      if (e.key === 'Escape') closeTopUpModal()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [topUpOpen])
+  }, [topUpOpen, closeTopUpModal])
 
   useEffect(() => {
     if (!topUpOpen) return
@@ -1444,6 +1599,65 @@ export function PartnerGuestChatClient({
       document.body.style.overflow = prev
     }
   }, [topUpOpen])
+
+  useEffect(() => {
+    if (!topUpOpen || !topUpPayment?.id) return
+    if (topUpPayment.status === 'completed') return
+
+    const id = topUpPayment.id
+    let cancelled = false
+
+    const poll = async () => {
+      if (cancelled) return
+      try {
+        const res = await fetch(`/api/account/payments/${encodeURIComponent(id)}`, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { ...authHeaders() },
+        })
+        const j = (await res.json()) as { payment?: TopUpPayment; error?: string }
+        if (!res.ok || !j.payment) return
+        setTopUpPayment((prev) => {
+          if (!prev || prev.id !== j.payment!.id) return prev
+          return { ...prev, ...j.payment }
+        })
+        if (j.payment.status === 'completed') {
+          void loadTryOnCreditsBalance()
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    void poll()
+    const iv = window.setInterval(poll, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(iv)
+    }
+  }, [topUpOpen, topUpPayment?.id, topUpPayment?.status, authHeaders, loadTryOnCreditsBalance])
+
+  useEffect(() => {
+    if (!topUpOpen || topUpPayment?.status !== 'completed') {
+      setTopUpSuccessCountdown(null)
+      return
+    }
+
+    let remaining = 10
+    setTopUpSuccessCountdown(remaining)
+    const iv = window.setInterval(() => {
+      remaining -= 1
+      if (remaining <= 0) {
+        window.clearInterval(iv)
+        setTopUpOpen(false)
+        setTopUpPayment(null)
+        setTopUpSuccessCountdown(null)
+        return
+      }
+      setTopUpSuccessCountdown(remaining)
+    }, 1000)
+    return () => window.clearInterval(iv)
+  }, [topUpOpen, topUpPayment?.status, topUpPayment?.id])
 
   const buildTransferContent = useCallback(() => {
     const suffix = `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
@@ -1833,15 +2047,37 @@ export function PartnerGuestChatClient({
   ])
 
   const orderPreview = useMemo(() => {
-    const qty = Math.max(1, Math.min(99, Math.floor(Number(orderQuantity) || 1)))
+    const palette = activePurchaseOptions?.colors
+    const hasPalette = Boolean(palette && palette.length > 0)
+    const lineCount = hasPalette ? orderSelectedColorImgs.length : 1
+    let totalUnits = 0
+    if (hasPalette) {
+      totalUnits =
+        orderSelectedColorImgs.length === 0 ? 0 : sumPaletteLineUnits(orderSelectedColorImgs, orderQtyByColorImg)
+    } else {
+      totalUnits = Math.max(1, Math.min(99, Math.floor(Number(orderQuantity) || 1)))
+    }
+    const paletteDetail =
+      hasPalette && orderSelectedColorImgs.length > 0 && palette
+        ? orderSelectedColorImgs
+            .map((img) => {
+              const c = palette.find((x) => x.img === img)
+              const n = c?.name?.trim() || 'Mẫu'
+              const q = Math.max(0, Math.min(99, Math.floor(Number(orderQtyByColorImg[img]) || 0)))
+              return `${n}×${q}`
+            })
+            .join(', ')
+        : ''
     const unit = parseVndFromHint(activePurchaseOptions?.price_hint || activeOrderCard?.price_hint)
-    const subtotal = Math.max(0, unit * qty)
+    const subtotal = Math.max(0, unit * totalUnits)
     const policyMode = activePurchaseOptions?.deposit_policy?.mode ?? 'percent'
     const policyPercent = Math.max(0, Math.min(100, Math.round(Number(activePurchaseOptions?.deposit_policy?.percent) || 30)))
     const policyFixed = Math.max(0, Math.round(Number(activePurchaseOptions?.deposit_policy?.fixed_amount) || 0))
     if (policyMode === 'none') {
       return {
-        qty,
+        qty: totalUnits,
+        lineCount,
+        paletteDetail,
         subtotal,
         prepay: 0,
         cod: subtotal,
@@ -1853,7 +2089,9 @@ export function PartnerGuestChatClient({
       const fallback20 = policyFixed > subtotal && subtotal > 0
       const required = fallback20 ? Math.ceil(subtotal * 0.2) : policyFixed
       return {
-        qty,
+        qty: totalUnits,
+        lineCount,
+        paletteDetail,
         subtotal,
         prepay: required,
         cod: Math.max(0, subtotal - required),
@@ -1865,14 +2103,26 @@ export function PartnerGuestChatClient({
     }
     const required = Math.ceil((subtotal * policyPercent) / 100)
     return {
-      qty,
+      qty: totalUnits,
+      lineCount,
+      paletteDetail,
       subtotal,
       prepay: required,
       cod: Math.max(0, subtotal - required),
       text: `Đặt cọc theo cài đặt shop: ${policyPercent}%`,
       canCompute: subtotal > 0,
     }
-  }, [activeOrderCard?.price_hint, activePurchaseOptions?.deposit_policy?.fixed_amount, activePurchaseOptions?.deposit_policy?.mode, activePurchaseOptions?.deposit_policy?.percent, activePurchaseOptions?.price_hint, orderQuantity])
+  }, [
+    activeOrderCard?.price_hint,
+    activePurchaseOptions?.colors,
+    activePurchaseOptions?.deposit_policy?.fixed_amount,
+    activePurchaseOptions?.deposit_policy?.mode,
+    activePurchaseOptions?.deposit_policy?.percent,
+    activePurchaseOptions?.price_hint,
+    orderQuantity,
+    orderQtyByColorImg,
+    orderSelectedColorImgs,
+  ])
 
   if (!authReady) {
     return (
@@ -1889,91 +2139,133 @@ export function PartnerGuestChatClient({
             className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-3 sm:p-4"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="guest-top-up-title"
-            onClick={() => setTopUpOpen(false)}
+            aria-labelledby={
+              topUpPayment?.status === 'completed' ? 'guest-top-up-success-title' : 'guest-top-up-title'
+            }
+            onClick={() => closeTopUpModal()}
           >
             <div
               className="max-h-[min(90dvh,640px)] w-full max-w-md overflow-y-auto rounded-xl border border-border/70 bg-background p-3 shadow-lg"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-2">
-                <p id="guest-top-up-title" className="text-xs font-medium text-foreground">
-                  Nạp credit
+                <p
+                  id={topUpPayment?.status === 'completed' ? 'guest-top-up-success-title' : 'guest-top-up-title'}
+                  className="text-xs font-medium text-foreground"
+                >
+                  {topUpPayment?.status === 'completed' ? 'Nạp thành công' : 'Nạp credit'}
                 </p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="h-6 w-6 shrink-0 p-0"
-                  onClick={() => setTopUpOpen(false)}
+                  onClick={() => closeTopUpModal()}
                   aria-label="Đóng"
                   title="Đóng"
                 >
                   <X className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              <div className="mt-2 grid grid-cols-2 gap-1.5">
-                <input
-                  type="text"
-                  className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                  value={topUpAmount}
-                  onChange={(e) => setTopUpAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 9))}
-                  placeholder="Số tiền nạp (VND)"
-                />
-                <select
-                  className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                  value={topUpSelectedBank}
-                  onChange={(e) => setTopUpSelectedBank(e.target.value)}
-                >
-                  <option value="">Chọn ngân hàng</option>
-                  {topUpConfigs.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.bank_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="mt-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={topUpLoading || !topUpSelectedBank || !topUpAmount.trim()}
-                  onClick={() => void createTopUpPayment()}
-                >
-                  {topUpLoading ? 'Đang tạo mã QR...' : 'Tạo mã QR nạp tiền'}
-                </Button>
-              </div>
-              <p className="mt-2 text-[11px] text-muted-foreground">
-                Số dư hiện tại:{' '}
-                {tryOnCreditsLoading
-                  ? '...'
-                  : (typeof tryOnCreditsBalance === 'number' ? formatCredits(tryOnCreditsBalance) : '--')}{' '}
-                credit
-              </p>
-              {topUpPayment ? (
-                <div className="mt-2 rounded-md border border-border/70 bg-muted/20 p-2">
+
+              {topUpPayment?.status === 'completed' ? (
+                <div className="mt-4 flex flex-col items-center gap-3 py-2 text-center">
+                  <CheckCircle className="h-14 w-14 text-emerald-600" aria-hidden />
+                  <p className="text-sm font-semibold text-foreground">Đã nạp credit thành công</p>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Đã cộng{' '}
+                    <span className="font-medium text-foreground">
+                      {formatCredits(Math.max(0, Number(topUpPayment.credits_added) || 0))} credit
+                    </span>{' '}
+                    vào ví.
+                  </p>
                   <p className="text-[11px] text-muted-foreground">
-                    Nạp {new Intl.NumberFormat('vi-VN').format(topUpPayment.amount)}đ
-                    {' '}~ {Math.max(1, Math.floor(topUpPayment.amount / CREDIT_UNIT_PRICE_VND))} credit
+                    Số dư hiện tại:{' '}
+                    {tryOnCreditsLoading
+                      ? '...'
+                      : typeof tryOnCreditsBalance === 'number'
+                        ? formatCredits(tryOnCreditsBalance)
+                        : '--'}{' '}
+                    credit
                   </p>
-                  <p className="mt-1 text-[11px] text-foreground">
-                    Nội dung chuyển khoản:{' '}
-                    <span className="font-medium">{topUpPayment.transaction_content || '-'}</span>
+                  {typeof topUpSuccessCountdown === 'number' && topUpSuccessCountdown > 0 ? (
+                    <p className="text-[10px] text-muted-foreground">
+                      Tự đóng sau {topUpSuccessCountdown}s…
+                    </p>
+                  ) : null}
+                  <Button type="button" size="sm" className="mt-1" onClick={() => closeTopUpModal()}>
+                    Đóng
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-2 grid grid-cols-2 gap-1.5">
+                    <input
+                      type="text"
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      value={topUpAmount}
+                      onChange={(e) => setTopUpAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 9))}
+                      placeholder="Số tiền nạp (VND)"
+                    />
+                    <select
+                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      value={topUpSelectedBank}
+                      onChange={(e) => setTopUpSelectedBank(e.target.value)}
+                    >
+                      <option value="">Chọn ngân hàng</option>
+                      {topUpConfigs.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.bank_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={topUpLoading || !topUpSelectedBank || !topUpAmount.trim()}
+                      onClick={() => void createTopUpPayment()}
+                    >
+                      {topUpLoading ? 'Đang tạo mã QR...' : 'Tạo mã QR nạp tiền'}
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Số dư hiện tại:{' '}
+                    {tryOnCreditsLoading
+                      ? '...'
+                      : (typeof tryOnCreditsBalance === 'number' ? formatCredits(tryOnCreditsBalance) : '--')}{' '}
+                    credit
                   </p>
-                  {topUpPayment.qr_url ? (
-                    <div className="mt-2 flex justify-center">
-                      <Image
-                        src={topUpPayment.qr_url}
-                        alt="QR nạp credit"
-                        width={180}
-                        height={180}
-                        unoptimized
-                        className="h-[180px] w-[180px] rounded-md border border-border/70 bg-white object-contain"
-                      />
+                  {topUpPayment ? (
+                    <div className="mt-2 rounded-md border border-border/70 bg-muted/20 p-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        Nạp {new Intl.NumberFormat('vi-VN').format(topUpPayment.amount)}đ
+                        {' '}~ {Math.max(1, Math.floor(topUpPayment.amount / CREDIT_UNIT_PRICE_VND))} credit
+                      </p>
+                      <p className="mt-1 text-[11px] text-foreground">
+                        Nội dung chuyển khoản:{' '}
+                        <span className="font-medium">{topUpPayment.transaction_content || '-'}</span>
+                      </p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Sau khi chuyển khoản thành công, số dư sẽ cập nhật tự động trong vài giây.
+                      </p>
+                      {topUpPayment.qr_url ? (
+                        <div className="mt-2 flex justify-center">
+                          <Image
+                            src={topUpPayment.qr_url}
+                            alt="QR nạp credit"
+                            width={180}
+                            height={180}
+                            unoptimized
+                            className="h-[180px] w-[180px] rounded-md border border-border/70 bg-white object-contain"
+                          />
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
-                </div>
-              ) : null}
+                </>
+              )}
             </div>
           </div>,
           document.body
@@ -2011,10 +2303,19 @@ export function PartnerGuestChatClient({
                   >
                     <div className={isMe ? '[&_a]:text-white/90 [&_img]:border-white/25' : ''}>
                       <CustomerCareMessageBody
-                        row={{ body: m.body, raw_payload: m.raw_payload ?? null }}
+                        row={{ id: m.id, body: m.body, raw_payload: m.raw_payload ?? null }}
                         tone={isMe ? 'onViolet' : 'default'}
-                        labels={{ productCardOpenProduct: t.visionProductLink }}
-                        onProductCardPick={isMe ? undefined : (card) => void submitProductCardPick(card)}
+                        labels={{
+                          productCardOpenProduct: t.visionProductLink,
+                          productCardViewDetails: t.visionProductViewDetails,
+                          productCardViewVideo: t.visionProductVideo,
+                          productCardCloseVideo: t.visionVideoCloseAria,
+                          productCardBuyProduct: t.visionProductBuy,
+                          consultedProductKeys,
+                        }}
+                        onProductCardPick={
+                          isMe ? undefined : (card) => void submitProductCardPick(card, m.id)
+                        }
                       />
                     </div>
                     {(() => {
@@ -2030,6 +2331,14 @@ export function PartnerGuestChatClient({
                             {vs.candidates.map((c) => {
                               const isSelected = vs.selectedInventoryId === c.inventoryId
                               const isBusy = visionPickBusyId === m.id
+                              const puVision = (c.product_url || '').trim()
+                              const pkVision =
+                                puVision && /^https?:\/\//i.test(puVision)
+                                  ? normalizeProductUrlKey(puVision)
+                                  : ''
+                              const visionCtaBuy = Boolean(
+                                pkVision && isProductConsultedInScopeSet(consultedProductKeys, pkVision)
+                              )
                               return (
                                 <div
                                   key={c.inventoryId}
@@ -2057,32 +2366,70 @@ export function PartnerGuestChatClient({
                                   title={c.name}
                                 >
                                   {c.image_url ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                      src={c.image_url}
-                                      alt=""
-                                      className="h-28 w-full bg-white/10 object-contain"
-                                    />
+                                    <button
+                                      type="button"
+                                      className="block w-full outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-violet-700"
+                                      onClick={(ev) => {
+                                        ev.stopPropagation()
+                                        setChatImageLightboxUrl(c.image_url)
+                                      }}
+                                      aria-label={`Xem ảnh lớn: ${c.name}`}
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={c.image_url}
+                                        alt=""
+                                        className="h-28 w-full bg-white/10 object-contain"
+                                      />
+                                    </button>
                                   ) : (
                                     <div className="h-28 w-full bg-white/5" />
                                   )}
-                                  <div className="px-2 py-1.5">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <p className="min-w-0 flex-1 truncate text-[11px] tabular-nums text-white/85">
-                                        {formatVndPrice(c.price_hint) ?? ''}
-                                      </p>
-                                      {c.product_url ? (
-                                        <a
-                                          href={c.product_url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md bg-white/20 px-2 py-1 text-[10px] font-semibold leading-none text-white hover:bg-white/30"
-                                          onClick={(ev) => ev.stopPropagation()}
-                                        >
-                                          {t.visionProductLink}
-                                        </a>
-                                      ) : null}
-                                    </div>
+                                  <div className="flex flex-col gap-1 px-1.5 py-1.5">
+                                    <p
+                                      className="w-full min-w-0 truncate text-[11px] tabular-nums leading-none text-white/85"
+                                      title={formatVndPrice(c.price_hint) ?? undefined}
+                                    >
+                                      {formatVndPrice(c.price_hint) ?? '\u00a0'}
+                                    </p>
+                                    {puVision && /^https?:\/\//i.test(puVision.trim()) ? (
+                                      <a
+                                        href={puVision.trim()}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex h-7 w-full min-w-0 items-center justify-center rounded-md border border-white/35 bg-white/10 px-1 text-[9px] font-semibold leading-none text-white hover:bg-white/16 sm:text-[10px]"
+                                        onClick={(e) => e.stopPropagation()}
+                                        aria-label={`${c.name}. ${t.visionProductViewDetails}`}
+                                      >
+                                        <span className="block max-w-full truncate text-center">
+                                          {t.visionProductViewDetails}
+                                        </span>
+                                      </a>
+                                    ) : null}
+                                    <button
+                                      type="button"
+                                      disabled={isBusy}
+                                      className="flex h-7 w-full min-w-0 items-center justify-center rounded-md bg-white/20 px-1 text-[9px] font-semibold leading-none text-white hover:bg-white/30 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        void submitProductCardPick(
+                                          {
+                                            name: c.name,
+                                            image_url: c.image_url,
+                                            product_url: puVision && /^https?:\/\//i.test(puVision) ? puVision : '',
+                                            ...(c.price_hint && String(c.price_hint).trim()
+                                              ? { price_hint: String(c.price_hint).trim() }
+                                              : {}),
+                                          },
+                                          m.id
+                                        )
+                                      }}
+                                      aria-label={`${c.name}. ${visionCtaBuy ? t.visionProductBuy : t.visionProductLink}`}
+                                    >
+                                      <span className="block max-w-full truncate text-center">
+                                        {visionCtaBuy ? t.visionProductBuy : t.visionProductLink}
+                                      </span>
+                                    </button>
                                   </div>
                                 </div>
                               )
@@ -2189,25 +2536,53 @@ export function PartnerGuestChatClient({
                     </Button>
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-1">
-                    {buyOptions.map((item) => (
-                      <button
-                        key={`${item.product_url}-${item.name}`}
-                        type="button"
-                        className="w-28 shrink-0 rounded-md border border-border bg-background p-1.5 text-left"
-                        disabled={orderFormBusy}
-                        onClick={() => void openOrderFormByOption(item)}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="h-16 w-full rounded object-cover"
-                        />
-                        {item.price_hint ? (
-                          <p className="mt-1 text-[10px] text-muted-foreground">{formatVndPrice(item.price_hint)}</p>
-                        ) : null}
-                      </button>
-                    ))}
+                    {buyOptions.map((item) => {
+                      const pu = (item.product_url || '').trim()
+                      const href = pu && /^https?:\/\//i.test(pu) ? pu : ''
+                      return (
+                        <div
+                          key={`${item.product_url}-${item.name}`}
+                          className="flex w-28 shrink-0 flex-col rounded-md border border-border bg-background p-1.5"
+                        >
+                          {href ? (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              aria-label={`Mở trang sản phẩm: ${item.name}`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={item.image_url}
+                                alt={item.name}
+                                className="h-16 w-full rounded object-cover"
+                              />
+                            </a>
+                          ) : (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={item.image_url}
+                              alt={item.name}
+                              className="h-16 w-full rounded object-cover"
+                            />
+                          )}
+                          {item.price_hint ? (
+                            <p className="mt-1 text-[10px] text-muted-foreground">{formatVndPrice(item.price_hint)}</p>
+                          ) : null}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="mt-1 h-7 w-full px-1 text-[10px]"
+                            disabled={orderFormBusy}
+                            onClick={() => void openOrderFormByOption(item)}
+                          >
+                            Đặt hàng
+                          </Button>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               ) : null}
@@ -2231,12 +2606,30 @@ export function PartnerGuestChatClient({
                   {activeOrderCard ? (
                     <div className="rounded-md border border-border/70 bg-background p-2">
                       <div className="flex items-center gap-2">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={activeOrderCard.image_url}
-                          alt={activeOrderCard.name}
-                          className="h-10 w-10 rounded object-cover"
-                        />
+                        {activeOrderCard.product_url &&
+                        /^https?:\/\//i.test(activeOrderCard.product_url.trim()) ? (
+                          <a
+                            href={activeOrderCard.product_url.trim()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            aria-label={`Mở trang sản phẩm: ${activeOrderCard.name}`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={activeOrderCard.image_url}
+                              alt={activeOrderCard.name}
+                              className="h-10 w-10 rounded object-cover"
+                            />
+                          </a>
+                        ) : (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={activeOrderCard.image_url}
+                            alt={activeOrderCard.name}
+                            className="h-10 w-10 rounded object-cover"
+                          />
+                        )}
                         <div className="min-w-0">
                           <p className="truncate text-[12px] font-medium text-foreground">{activeOrderCard.name}</p>
                           {activePurchaseOptions?.sku ? (
@@ -2270,7 +2663,7 @@ export function PartnerGuestChatClient({
                     />
                     {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
                       <div className="h-8 rounded-md border border-border bg-muted/20 px-2 text-[11px] text-muted-foreground flex items-center">
-                        Chọn màu theo ảnh bên dưới
+                        Màu, SL & size — từng ô dưới
                       </div>
                     ) : (
                       <input
@@ -2281,19 +2674,27 @@ export function PartnerGuestChatClient({
                         onChange={(e) => setOrderColor(e.target.value)}
                       />
                     )}
-                    {activePurchaseOptions?.sizes && activePurchaseOptions.sizes.length > 0 ? (
-                      <select
-                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                        value={orderSize}
-                        onChange={(e) => setOrderSize(e.target.value)}
+                    {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
+                      <div className="h-8 rounded-md border border-border bg-muted/20 px-2 text-[11px] text-muted-foreground flex items-center">
+                        —
+                      </div>
+                    ) : activePurchaseOptions?.sizes && activePurchaseOptions.sizes.length > 0 ? (
+                      <Select
+                        value={orderSize || '__empty__'}
+                        onValueChange={(v) => setOrderSize(v === '__empty__' ? '' : v)}
                       >
-                        <option value="">Chọn size</option>
-                        {activePurchaseOptions.sizes.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger className="h-8 rounded-md border border-border bg-background px-2 text-[12px]">
+                          <SelectValue placeholder="Chọn size" />
+                        </SelectTrigger>
+                        <SelectContent position="popper" side="bottom" sideOffset={4} className="z-[300] max-h-64">
+                          <SelectItem value="__empty__">Chọn size</SelectItem>
+                          {activePurchaseOptions.sizes.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {s}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     ) : (
                       <input
                         type="text"
@@ -2303,20 +2704,27 @@ export function PartnerGuestChatClient({
                         onChange={(e) => setOrderSize(e.target.value)}
                       />
                     )}
-                    <input
-                      type="text"
-                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                      placeholder="Số lượng"
-                      value={orderQuantity}
-                      onChange={(e) => setOrderQuantity(e.target.value)}
-                    />
+                    {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
+                      <div className="h-8 rounded-md border border-border bg-muted/20 px-2 text-[11px] text-muted-foreground flex items-center">
+                        —
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                        placeholder="Số lượng"
+                        value={orderQuantity}
+                        onChange={(e) => setOrderQuantity(e.target.value)}
+                      />
+                    )}
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     Tiền đặt cọc được tính tự động theo cài đặt của shop.
                   </p>
                   <div className="rounded-md border border-violet-200 bg-violet-50/70 px-2 py-1.5 text-[11px] text-violet-900">
                     <p>
-                      Tạm tính ({orderPreview.qty} sản phẩm):
+                      Tạm tính ({orderPreview.qty} sản phẩm
+                      {orderPreview.paletteDetail ? `: ${orderPreview.paletteDetail}` : ''}):
                       {' '}Tổng đơn {new Intl.NumberFormat('vi-VN').format(orderPreview.subtotal)}đ
                       {' '}| Thanh toán trước {new Intl.NumberFormat('vi-VN').format(orderPreview.prepay)}đ
                       {' '}| Khi nhận hàng {new Intl.NumberFormat('vi-VN').format(orderPreview.cod)}đ
@@ -2328,22 +2736,127 @@ export function PartnerGuestChatClient({
                   </div>
                   {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
                     <div className="flex gap-2 overflow-x-auto pb-1">
-                      {activePurchaseOptions.colors.map((c) => (
-                        <button
-                          key={`${c.name}-${c.img}`}
-                          type="button"
-                          className={`w-16 shrink-0 rounded-md border p-1 ${
-                            orderColor === c.name ? 'border-violet-500' : 'border-border'
-                          }`}
-                          onClick={() => setOrderColor(c.name)}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={c.img} alt={c.name} className="h-10 w-full rounded object-cover" />
-                          <p className="mt-0.5 truncate text-[10px] text-foreground">
-                            {orderColor === c.name ? 'Da chon' : ''}
-                          </p>
-                        </button>
-                      ))}
+                      {activePurchaseOptions.colors.map((c, idx) => {
+                        const selected = orderSelectedColorImgs.includes(c.img)
+                        const lineQty = orderQtyByColorImg[c.img] ?? '1'
+                        const lineSize = orderSizeByColorImg[c.img] ?? ''
+                        const sizeList = activePurchaseOptions.sizes ?? []
+                        return (
+                          <div key={`${c.img}-${idx}`} className="flex w-28 shrink-0 flex-col gap-1">
+                            <button
+                              type="button"
+                              aria-pressed={selected}
+                              title={selected ? 'Bấm để bỏ chọn' : `Chọn loại ${c.name || 'mẫu'}`}
+                              className={`w-full rounded-md border p-1 ${
+                                selected ? 'border-violet-500' : 'border-border'
+                              }`}
+                              onClick={() => {
+                                if (orderSelectedColorImgs.includes(c.img)) {
+                                  setOrderSelectedColorImgs((prev) => prev.filter((x) => x !== c.img))
+                                  setOrderQtyByColorImg((q) => {
+                                    const n = { ...q }
+                                    delete n[c.img]
+                                    return n
+                                  })
+                                  setOrderSizeByColorImg((q) => {
+                                    const n = { ...q }
+                                    delete n[c.img]
+                                    return n
+                                  })
+                                } else {
+                                  setOrderSelectedColorImgs((prev) => [...prev, c.img])
+                                  setOrderQtyByColorImg((q) => ({ ...q, [c.img]: q[c.img] ?? '1' }))
+                                  setOrderSizeByColorImg((q) => ({ ...q, [c.img]: q[c.img] ?? '' }))
+                                }
+                              }}
+                            >
+                              <div className="flex h-28 w-full items-center justify-center overflow-hidden rounded bg-muted/40">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={c.img}
+                                  alt={c.name}
+                                  className="max-h-full max-w-full object-contain object-center"
+                                />
+                              </div>
+                              <p className="mt-0.5 truncate text-[10px] text-foreground">
+                                {selected ? 'Đã chọn' : '\u00a0'}
+                              </p>
+                            </button>
+                            {selected ? (
+                              <>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  className="h-7 w-full rounded border border-border bg-background px-1 text-center text-[10px] tabular-nums"
+                                  placeholder="SL"
+                                  aria-label={`Số lượng ${c.name || 'mẫu'}`}
+                                  value={lineQty}
+                                  onChange={(e) =>
+                                    setOrderQtyByColorImg((q) => ({ ...q, [c.img]: e.target.value }))
+                                  }
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                {sizeList.length > 0 ? (
+                                  <div
+                                    className="w-full"
+                                    onClick={(e) => e.stopPropagation()}
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onKeyDown={(e) => e.stopPropagation()}
+                                  >
+                                    <Select
+                                      value={lineSize || '__empty__'}
+                                      onValueChange={(v) =>
+                                        setOrderSizeByColorImg((q) => ({
+                                          ...q,
+                                          [c.img]: v === '__empty__' ? '' : v,
+                                        }))
+                                      }
+                                    >
+                                      <SelectTrigger
+                                        className="h-7 w-full rounded border border-border bg-background px-1 text-[10px]"
+                                        aria-label={`Size ${c.name || 'mẫu'}`}
+                                      >
+                                        <SelectValue placeholder="Size" />
+                                      </SelectTrigger>
+                                      <SelectContent
+                                        position="popper"
+                                        side="bottom"
+                                        align="start"
+                                        sideOffset={4}
+                                        className="z-[300] max-h-56 min-w-[var(--radix-select-trigger-width)]"
+                                      >
+                                        <SelectItem value="__empty__" className="py-1.5 text-[10px]">
+                                          Size
+                                        </SelectItem>
+                                        {sizeList.map((s) => (
+                                          <SelectItem key={s} value={s} className="py-1.5 text-[10px]">
+                                            {s}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    className="h-7 w-full rounded border border-border bg-background px-1 text-center text-[10px]"
+                                    placeholder="Size"
+                                    aria-label={`Size ${c.name || 'mẫu'}`}
+                                    value={lineSize}
+                                    onChange={(e) =>
+                                      setOrderSizeByColorImg((q) => ({
+                                        ...q,
+                                        [c.img]: e.target.value,
+                                      }))
+                                    }
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                )}
+                              </>
+                            ) : null}
+                          </div>
+                        )
+                      })}
                     </div>
                   ) : null}
                   <textarea
@@ -2806,6 +3319,12 @@ export function PartnerGuestChatClient({
 
         <div className="min-h-0 min-w-0 flex-1">{chatPane}</div>
       </div>
+      <MessageImagePreviewDialog
+        src={chatImageLightboxUrl}
+        onOpenChange={(open) => {
+          if (!open) setChatImageLightboxUrl(null)
+        }}
+      />
     </div>
   )
 }

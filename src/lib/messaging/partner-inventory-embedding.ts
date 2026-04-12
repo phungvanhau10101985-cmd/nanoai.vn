@@ -4,6 +4,7 @@ import {
   updatePartnerInventoryEmbeddingFieldsFromPg,
   type PartnerInventoryEmbeddingUpdatePatch,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { insertMessagingPartnerImageEmbedUsageFromPg } from '@/lib/db/messaging-partner-image-embed-usage-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchRemoteImageForCatalog, sniffImageContentType } from '@/lib/fetch-image-1688'
 import type { Database } from '@/types/database.types'
@@ -12,6 +13,17 @@ type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 const DB_VECTOR_DIMS = 768
 
 const GEMINI_EMBED_MODEL = process.env.GEMINI_IMAGE_EMBED_MODEL?.trim() || 'gemini-embedding-2-preview'
+/** Khi API không trả usageMetadata (hiếm), ước token billable cho một ảnh embed. */
+const GEMINI_IMAGE_EMBED_FALLBACK_TOKENS = Math.max(
+  1,
+  parseInt(process.env.GEMINI_IMAGE_EMBED_FALLBACK_TOKENS || '560', 10) || 560
+)
+
+export type GeminiImageEmbedResult = {
+  values: number[]
+  promptTokens: number
+  totalTokens: number
+}
 const GEMINI_EMBED_DIMS = Math.max(
   128,
   Math.min(3072, parseInt(process.env.GEMINI_IMAGE_EMBED_DIMS || '768', 10) || 768)
@@ -65,7 +77,12 @@ function rowAsEmbeddingComparable(
     price_hint: '',
     image_url: row.image_url ?? '',
     product_url: '',
+    product_video_url: '',
     consult_note: '',
+    material_note: '',
+    material_detail_image_url: '',
+    real_use_image_url: '',
+    real_use_image_url_2: '',
     is_active: Boolean(row.is_active),
     image_embedding_json: (row.image_embedding_json as number[] | null | undefined) ?? null,
     image_embedding_fingerprint: row.image_embedding_fingerprint ?? null,
@@ -138,7 +155,7 @@ function needsEmbeddingSync(row: EmbeddingComparableRow, force = false): boolean
 export async function embedImageBufferWithGemini(
   imageBuffer: Buffer,
   mimeType: string
-): Promise<number[]> {
+): Promise<GeminiImageEmbedResult> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) throw new Error('Missing GOOGLE_API_KEY for Gemini image embeddings.')
 
@@ -178,16 +195,30 @@ export async function embedImageBufferWithGemini(
     throw new Error('Gemini embed response is not valid JSON.')
   }
   const p = payload as
-    | { embedding?: { values?: number[] }; embeddings?: Array<{ values?: number[] }> }
+    | {
+        embedding?: { values?: number[] }
+        embeddings?: Array<{ values?: number[] }>
+        usageMetadata?: { promptTokenCount?: number; totalTokenCount?: number }
+      }
     | undefined
   const values = p?.embedding?.values ?? p?.embeddings?.[0]?.values
   if (!Array.isArray(values) || values.length === 0) {
     throw new Error('Gemini embed response is missing embedding values.')
   }
-  return values.map((v) => Number(v) || 0)
+  const um = p?.usageMetadata
+  const promptTok = Math.max(
+    1,
+    um?.promptTokenCount ?? um?.totalTokenCount ?? GEMINI_IMAGE_EMBED_FALLBACK_TOKENS
+  )
+  const totalTok = Math.max(1, um?.totalTokenCount ?? promptTok)
+  return {
+    values: values.map((v) => Number(v) || 0),
+    promptTokens: promptTok,
+    totalTokens: totalTok,
+  }
 }
 
-async function embedImageUrlWithGemini(imageUrl: string): Promise<number[] | null> {
+async function embedImageUrlWithGemini(imageUrl: string): Promise<GeminiImageEmbedResult | null> {
   const img = await fetchRemoteImageForCatalog(imageUrl, { timeoutMs: 12_000 })
   if (!img) return null
   return embedImageBufferWithGemini(img.buf, img.contentType || detectImageMimeType(img.buf))
@@ -257,7 +288,8 @@ export async function syncPartnerInventoryEmbeddings(
       const fp = rowFingerprint(row)
       const nowIso = new Date().toISOString()
       try {
-        const vec = await embedImageUrlWithGemini(imageUrl)
+        const embedOut = await embedImageUrlWithGemini(imageUrl)
+        const vec = embedOut?.values
         if (!vec || vec.length === 0) {
           failed += 1
           await persistInventoryEmbeddingPatch(partnerId, row.id, {
@@ -271,6 +303,14 @@ export async function syncPartnerInventoryEmbeddings(
           })
           continue
         }
+        void insertMessagingPartnerImageEmbedUsageFromPg({
+          partnerId,
+          source: 'inventory_sync',
+          model: GEMINI_EMBED_MODEL,
+          promptTokens: embedOut.promptTokens,
+          totalTokens: embedOut.totalTokens,
+          inventoryId: row.id,
+        })
         if (
           Array.isArray(row.image_embedding_json) &&
           vectorsEqual(row.image_embedding_json as number[], vec) &&

@@ -17,6 +17,7 @@ import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
 import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-image'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { buildPartnerAiContext, deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
+import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
 import { parsePartnerAiLlmStructured } from '@/lib/messaging/partner-ai-product-cards'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 
@@ -174,7 +175,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         continue
       }
 
-      const { system, user } = await buildPartnerAiContext(
+      const { system, user, materialDetailFollowup, realUseFollowup } = await buildPartnerAiContext(
         job.partner_id,
         job.conversation_id,
         settings,
@@ -202,17 +203,23 @@ async function runMessagingPartnerAiJobBatchUsingPg(
 
       if (!skipTypingDelay) await sleep(typingDelayMs(settings))
       const parsed = parsePartnerAiLlmStructured(llm.text)
+      const productsWithVideo = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
+        job.partner_id,
+        parsed.products
+      )
       const rawLlm = {
         source: 'ai_llm',
         model,
         usage: llm.usage ?? null,
-        ai_product_cards: parsed.products,
+        ai_product_cards: productsWithVideo,
       } as unknown as Json
       const d2 = await deliverAutomatedPartnerMessage({
         conversation: conv,
         settings,
         body: parsed.message,
         rawPayload: rawLlm,
+        materialDetailFollowup,
+        realUseFollowup,
       })
       if (d2.error) {
         await setPartnerAiJobStatus(job.id, { status: 'failed', error: d2.error })

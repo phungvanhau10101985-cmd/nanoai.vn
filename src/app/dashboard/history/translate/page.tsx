@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar, FileText } from 'lucide-react'
-import { Toaster } from '@/components/ui/toaster'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { DeleteHistoryButton } from '../delete-button'
 import { DownloadTranslateZipButton } from './download-zip-button'
@@ -74,7 +73,6 @@ export default async function TranslateHistoryPage() {
 
   return (
     <div className="app-shell space-y-6 md:space-y-8 lg:space-y-8 xl:space-y-10">
-      <Toaster />
       <div className="section-surface flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-3xl font-bold tracking-tight lg:text-[2rem] xl:text-4xl">
           {tr('Lịch sử dịch ảnh', 'Translation history', '翻译记录', '翻訳履歴', '번역 기록')}

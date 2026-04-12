@@ -197,6 +197,8 @@ export type Dictionary = {
     sendKeyboardHint: string
     /** Thẻ sản phẩm AI: mở trang sản phẩm */
     messageProductCardOpenProduct: string
+    /** Thẻ sản phẩm AI: nút mở trang chi tiết (phía trên tư vấn/mua) */
+    messageProductCardViewDetails: string
   }
   /** /admin/customer-care */
   customerCareAdmin: {
@@ -216,6 +218,7 @@ export type Dictionary = {
     noMessages: string
     sendKeyboardHint: string
     messageProductCardOpenProduct: string
+    messageProductCardViewDetails: string
   }
   /** /dashboard/messaging — đối tác B2B: inbox + FB/Zalo/widget */
   partnerMessaging: {
@@ -262,9 +265,12 @@ export type Dictionary = {
     channelWidget: string
     unknownUser: string
     noMessages: string
+    /** Inbox shop: trợ lý AI đang xử lý tin khách */
+    inboxShopDrafting: string
     replyKeyboardHint: string
     /** Thẻ sản phẩm AI trong inbox / guest chat */
     messageProductCardOpenProduct: string
+    messageProductCardViewDetails: string
     /** Shop gửi ảnh cho khách (dashboard inbox) */
     partnerAttachPhoto: string
     partnerTakePhoto: string
@@ -340,6 +346,53 @@ export type Dictionary = {
     tokenUsageColPrompt: string
     tokenUsageColCompletion: string
     tokenUsageColTotal: string
+    usageDetailApiTitle: string
+    usageDetailApiIntro: string
+    usageDetailColTime: string
+    usageDetailEmpty: string
+    usageCreditLedgerTitle: string
+    usageCreditLedgerIntro: string
+    usageCreditLedgerEmpty: string
+    usageCreditColType: string
+    usageCreditColAmount: string
+    usageCreditColCount: string
+    usageCreditDetailTitle: string
+    usageCreditColWhen: string
+    usageCreditColSingle: string
+    usageLogoCreditTitle: string
+    usageLogoCreditIntro: string
+    usageLogoCreditEmpty: string
+    usageLogoColModel: string
+    usageLogoColStatus: string
+    usageNoOwnerHint: string
+    usageEmbedImageTitle: string
+    usageEmbedImageIntro: string
+    usageEmbedImageEmpty: string
+    usageEmbedColSource: string
+    usageEmbedSourceInventory: string
+    usageEmbedSourceGuest: string
+    usageEmbedColPromptSum: string
+    usageEmbedColTotalSum: string
+    usageEmbedDetailTitle: string
+    usageEmbedColInventoryId: string
+    /** Thống kê Gemini tạo ảnh (chất liệu / thực tế) — tab Token API */
+    usageImageGenTitle: string
+    usageImageGenIntro: string
+    usageImageGenEmpty: string
+    usageImageGenColKind: string
+    usageImageGenKindMaterial: string
+    usageImageGenKindRealUse: string
+    usageImageGenColCalls: string
+    usageImageGenColTotalTokens: string
+    usageImageGenTotalCallsLabel: string
+    /** Tên gọi nội bộ / sản phẩm cho Gemini tạo ảnh inbox */
+    usageNanoBananaBadge: string
+    /** Gợi ý model — tab Token */
+    usageNanoBananaModelHint: string
+    /** Thống kê lượt gọi; placeholder {calls} */
+    usageNanoBananaStatCalls: string
+    /** Thống kê token; placeholder {tokens} */
+    usageNanoBananaStatTokens: string
     enableLabel: string
     enableHint: string
     delayLabel: string
@@ -351,6 +404,9 @@ export type Dictionary = {
     shopPolicyPlaceholder: string
     toneLabel: string
     tonePlaceholder: string
+    salesCoachingLabel: string
+    salesCoachingHint: string
+    salesCoachingPlaceholder: string
     disclosureToggle: string
     disclosureSuffixLabel: string
     disclosureSuffixHint: string
@@ -376,7 +432,10 @@ export type Dictionary = {
     inventoryImageUrlHint: string
     inventoryProductUrl: string
     inventoryProductUrlHint: string
+    inventoryProductVideoUrl: string
+    inventoryProductVideoUrlHint: string
     inventoryOpenProductPage: string
+    inventoryOpenProductVideo: string
     inventoryConsultNote: string
     inventoryConsultNoteHint: string
     inventoryDescHint: string
@@ -584,6 +643,10 @@ export type Dictionary = {
     imageSearchApiKeyCreated: string
     /** Link tới /dashboard/api-integration#partner-api-keys */
     imageSearchApiManageKeysLink: string
+    guestPurchaseFlowLabel: string
+    guestPurchaseFlowHint: string
+    guestPurchaseFlowInChat: string
+    guestPurchaseFlowExternal: string
   }
   /** /messaging/p/[slug] — khách chat với shop trên domain NanoAI */
   partnerGuestChat: {
@@ -648,6 +711,18 @@ export type Dictionary = {
     visionPickBusy: string
     visionPickError: string
     visionProductLink: string
+    /** Thẻ SP sau khi đã bấm «tư vấn» — mở form đặt hàng */
+    visionProductBuy: string
+    /** Mở trang sản phẩm trên thẻ (phía trên Tư vấn / Mua hàng) */
+    visionProductViewDetails: string
+    /** Ô video cạnh ảnh trên thẻ (khi kho có video) */
+    visionProductVideo: string
+    /** a11y đóng dialog video toàn màn hình */
+    visionVideoCloseAria: string
+    /** Toast khi chế độ mua trên web — đã mở tab */
+    purchaseOpenSiteToast: string
+    /** Chế độ web nhưng thiếu URL sản phẩm */
+    purchaseMissingProductUrlToast: string
   }
   /** /messaging/my-chats — danh sách shop đã chat (tài khoản Google) */
   messagingMyChats: {
@@ -1710,6 +1785,7 @@ const VI_DICTIONARY: Dictionary = {
     pollNote: 'Phản hồi từ admin có thể hiện sau vài giây; bạn có thể tải lại trang.',
     sendKeyboardHint: 'Enter để gửi · Shift+Enter xuống dòng',
     messageProductCardOpenProduct: 'Xem sản phẩm',
+    messageProductCardViewDetails: 'Xem chi tiết',
   },
   customerCareAdmin: {
     pageTitle: 'Chăm sóc khách hàng',
@@ -1729,6 +1805,7 @@ const VI_DICTIONARY: Dictionary = {
     noMessages: 'Chưa có tin nhắn.',
     sendKeyboardHint: 'Enter để gửi · Shift+Enter xuống dòng',
     messageProductCardOpenProduct: 'Xem sản phẩm',
+    messageProductCardViewDetails: 'Xem chi tiết',
   },
   partnerMessaging: {
     pageTitle: 'Nhắn tin cho khách (đối tác)',
@@ -1774,8 +1851,10 @@ const VI_DICTIONARY: Dictionary = {
     channelWidget: 'Web',
     unknownUser: 'Khách',
     noMessages: 'Chưa có tin.',
+    inboxShopDrafting: 'Cửa hàng đang soạn tin',
     replyKeyboardHint: 'Enter gửi · Shift+Enter xuống dòng · Ctrl+V dán ảnh',
     messageProductCardOpenProduct: 'Xem sản phẩm',
+    messageProductCardViewDetails: 'Xem chi tiết',
     partnerAttachPhoto: 'Ảnh từ máy',
     partnerTakePhoto: 'Chụp ảnh',
     partnerRemoveAttachmentAria: 'Bỏ ảnh đính kèm',
@@ -1850,6 +1929,52 @@ const VI_DICTIONARY: Dictionary = {
     tokenUsageColPrompt: 'Token đầu vào',
     tokenUsageColCompletion: 'Token đầu ra',
     tokenUsageColTotal: 'Tổng token',
+    usageDetailApiTitle: 'Chi tiết từng lần gọi LLM (inbox)',
+    usageDetailApiIntro:
+      'Mỗi dòng là một lần gọi API sau thời gian chờ — ghi nhận token thực tế. FAQ khớp sẵn không gọi LLM nên không có ở đây.',
+    usageDetailColTime: 'Thời điểm',
+    usageDetailEmpty: 'Chưa có lần gọi chi tiết trong khoảng này.',
+    usageCreditLedgerTitle: 'Trừ credit (nhật ký ví — spend có ghi nhận)',
+    usageCreditLedgerIntro:
+      'Các khoản dùng cơ chế trừ idempotent trên tài khoản của bạn (ví dụ giáo trình, English coach). Khác với bảng token inbox phía trên.',
+    usageCreditLedgerEmpty: 'Không có khoản trừ nào trong khoảng thời gian.',
+    usageCreditColType: 'Loại (charge_type)',
+    usageCreditColAmount: 'Tổng credit',
+    usageCreditColCount: 'Số lần',
+    usageCreditDetailTitle: 'Chi tiết các khoản trừ gần nhất',
+    usageCreditColWhen: 'Lúc',
+    usageCreditColSingle: 'Credit',
+    usageLogoCreditTitle: 'Chuẩn hóa logo (workspace shop)',
+    usageLogoCreditIntro: 'Trừ credit trực tiếp khi tạo/chỉnh logo brand; không đi qua bảng nhật ký spend ở trên.',
+    usageLogoCreditEmpty: 'Chưa có lần chuẩn hóa logo có trừ credit trong khoảng này.',
+    usageLogoColModel: 'Model',
+    usageLogoColStatus: 'Trạng thái',
+    usageNoOwnerHint: 'Workspace chưa gắn chủ tài khoản — không thống kê nhật ký trừ credit trên ví.',
+    usageEmbedImageTitle: 'Embedding ảnh (Gemini) — tạo vector',
+    usageEmbedImageIntro:
+      'Mỗi lần gọi API embedContent cho ảnh: đồng bộ vector kho (inventory_sync) hoặc khách gửi ảnh tìm hàng (guest_image_search). Token lấy từ usageMetadata của Google, nếu thiếu thì ước lượng (xem GEMINI_IMAGE_EMBED_FALLBACK_TOKENS).',
+    usageEmbedImageEmpty: 'Chưa có lần embed ảnh ghi nhận trong khoảng này.',
+    usageEmbedColSource: 'Nguồn',
+    usageEmbedSourceInventory: 'Đồng bộ kho',
+    usageEmbedSourceGuest: 'Khách gửi ảnh (tìm SP)',
+    usageEmbedColPromptSum: 'Tổng token (prompt)',
+    usageEmbedColTotalSum: 'Tổng token (billable)',
+    usageEmbedDetailTitle: 'Chi tiết từng lần embed',
+    usageEmbedColInventoryId: 'Mã dòng kho',
+    usageImageGenTitle: 'Nano Banana — tạo ảnh (inbox khách)',
+    usageImageGenIntro:
+      'Nano Banana là lối gọi nội bộ cho pipeline Gemini tạo ảnh (model gemini-3-pro-image-preview): ảnh chi tiết chất liệu/màu và ảnh đời thường (góc tự nhiên, nhìn sản phẩm chân thực) trong chat. Mỗi lần gọi API sinh ảnh mới và lưu URL vào kho — cùng khoảng thời gian với bảng token LLM phía trên. Ảnh đã cache trong kho không tạo lại nên không tính thêm.',
+    usageImageGenEmpty: 'Chưa có lượt tạo ảnh Nano Banana ghi nhận trong khoảng này.',
+    usageImageGenColKind: 'Loại ảnh',
+    usageImageGenKindMaterial: 'Chi tiết chất liệu / màu',
+    usageImageGenKindRealUse: 'Ảnh thực tế / feedback khách',
+    usageImageGenColCalls: 'Số lần gọi API',
+    usageImageGenColTotalTokens: 'Tổng token (ước lượng billable)',
+    usageImageGenTotalCallsLabel: 'Tổng lượt tạo ảnh (Nano Banana)',
+    usageNanoBananaBadge: 'Nano Banana',
+    usageNanoBananaModelHint: 'gemini-3-pro-image-preview · inbox',
+    usageNanoBananaStatCalls: 'Lượt gọi tạo ảnh: {calls}',
+    usageNanoBananaStatTokens: 'Tổng token (billable ước lượng): {tokens}',
     enableLabel: 'Bật trả lời tự động',
     enableHint: 'Khi tắt, chỉ còn tin nhắn thủ công từ bạn.',
     delayLabel: 'Chờ trước khi AI trả lời (giây)',
@@ -1863,6 +1988,11 @@ const VI_DICTIONARY: Dictionary = {
       'Ví dụ: đặt cọc 30%, không đổi hàng, đổi trong 7 ngày nếu lỗi sản xuất, freeship nội thành…',
     toneLabel: 'Giọng điệu / hướng dẫn trả lời',
     tonePlaceholder: 'Ví dụ: lịch sự, ngắn gọn, xưng em — anh/chị; không hứa chắc chắn nếu chưa rõ tồn kho.',
+    salesCoachingLabel: 'Gợi ý tư vấn & chốt đơn (tùy chọn)',
+    salesCoachingHint:
+      'Hệ thống đã có sẵn hướng dẫn tư vấn mềm. Ô này để shop bổ sung: đối tượng khách, cách hỏi size, ưu tiên ship/COD, nhãn hiệu — không thay thế chính sách ở trên.',
+    salesCoachingPlaceholder:
+      'Ví dụ: với váy — sau khi báo giá luôn hỏi size hoặc chiều cao/cân; gợi ý mặc dự tiệc/công sở; chỉ nhắc đổi size trong 24h nếu đã ghi trong chính sách.',
     disclosureToggle: 'Thêm dòng công bố tin nhắn từ AI',
     disclosureSuffixLabel: 'Nội dung công bố (cuối tin)',
     disclosureSuffixHint: 'Hiển thị ở cuối mỗi tin AI gửi để khách biết đây là trợ lý tự động.',
@@ -1890,7 +2020,11 @@ const VI_DICTIONARY: Dictionary = {
     inventoryProductUrl: 'Link trang sản phẩm (URL)',
     inventoryProductUrlHint:
       'Trang chi tiết trên website shop (https://…). Dùng trong kết quả tìm kiếm bằng ảnh và cột Excel “Link trang sản phẩm”.',
+    inventoryProductVideoUrl: 'Video sản phẩm (URL)',
+    inventoryProductVideoUrlHint:
+      'Link YouTube (xem / embed) hoặc URL https://… tới file .mp4 / player CDN. Cùng cột “Video sản phẩm” trong Excel.',
     inventoryOpenProductPage: 'Mở trang sản phẩm',
+    inventoryOpenProductVideo: 'Mở video',
     inventoryConsultNote: 'Ghi chú khi tư vấn',
     inventoryConsultNoteHint:
       'Ví dụ: bảo hành 12 tháng, giao 2–3 ngày, đang giảm 10%, chỉ đổi nếu lỗi sản xuất, freeship đơn từ…',
@@ -2109,6 +2243,11 @@ const VI_DICTIONARY: Dictionary = {
     imageSearchApiGenerating: 'Đang tạo khóa…',
     imageSearchApiKeyCreated: 'Đã tạo khóa (đã thử copy vào clipboard). Lưu ngay — không hiện lại.',
     imageSearchApiManageKeysLink: 'Mở trang Tích hợp API — quản lý khóa',
+    guestPurchaseFlowLabel: 'Cách khách mua hàng trên chat NanoAI',
+    guestPurchaseFlowHint:
+      '«Trong chat»: khách bấm Mua hàng và đặt/QR như hiện tại. «Trên website shop»: bấm Mua hàng mở trang sản phẩm (URL trong kho) trên tab mới — phù hợp khi thanh toán và vận chuyển đã cấu hình trên web.',
+    guestPurchaseFlowInChat: 'Đặt trong chat (form + thanh toán NanoAI)',
+    guestPurchaseFlowExternal: 'Mở trang shop (website) khi bấm Mua hàng',
   },
   partnerGuestChat: {
     notFoundTitle: 'Không tìm thấy trang chat',
@@ -2172,7 +2311,13 @@ const VI_DICTIONARY: Dictionary = {
     visionPickHint: '',
     visionPickBusy: 'Đang gửi…',
     visionPickError: 'Không gửi được lựa chọn. Thử lại.',
-    visionProductLink: 'Mua ngay',
+    visionProductLink: 'Tư vấn',
+    visionProductBuy: 'Mua hàng',
+    visionProductViewDetails: 'Xem chi tiết',
+    visionProductVideo: 'Video',
+    visionVideoCloseAria: 'Đóng video',
+    purchaseOpenSiteToast: 'Đã mở trang đặt hàng trên website shop trong tab mới.',
+    purchaseMissingProductUrlToast: 'Mẫu này chưa có link trang sản phẩm — shop vui lòng thêm URL trong kho.',
   },
   messagingMyChats: {
     pageTitle: 'Tin nhắn của tôi',
@@ -3235,6 +3380,7 @@ const EN_DICTIONARY: Dictionary = {
     pollNote: 'Replies may appear after a few seconds; you can refresh the page.',
     sendKeyboardHint: 'Enter to send · Shift+Enter for a new line',
     messageProductCardOpenProduct: 'View product',
+    messageProductCardViewDetails: 'View details',
   },
   customerCareAdmin: {
     pageTitle: 'Customer care',
@@ -3254,6 +3400,7 @@ const EN_DICTIONARY: Dictionary = {
     noMessages: 'No messages yet.',
     sendKeyboardHint: 'Enter to send · Shift+Enter for a new line',
     messageProductCardOpenProduct: 'View product',
+    messageProductCardViewDetails: 'View details',
   },
   partnerMessaging: {
     pageTitle: 'Partner messaging inbox',
@@ -3299,8 +3446,10 @@ const EN_DICTIONARY: Dictionary = {
     channelWidget: 'Web',
     unknownUser: 'Guest',
     noMessages: 'No messages yet.',
+    inboxShopDrafting: 'The shop is composing a reply',
     replyKeyboardHint: 'Enter to send · Shift+Enter for a new line · Ctrl+V / Cmd+V to paste an image',
     messageProductCardOpenProduct: 'View product',
+    messageProductCardViewDetails: 'View details',
     partnerAttachPhoto: 'Photo library',
     partnerTakePhoto: 'Take photo',
     partnerRemoveAttachmentAria: 'Remove attached image',
@@ -3374,6 +3523,54 @@ const EN_DICTIONARY: Dictionary = {
     tokenUsageColPrompt: 'Prompt tokens',
     tokenUsageColCompletion: 'Completion tokens',
     tokenUsageColTotal: 'Total tokens',
+    usageDetailApiTitle: 'Per-call LLM usage (inbox)',
+    usageDetailApiIntro:
+      'Each row is one API call after the wait time — actual token counts. FAQ exact matches do not call the LLM, so they do not appear here.',
+    usageDetailColTime: 'Time',
+    usageDetailEmpty: 'No per-call records in this period.',
+    usageCreditLedgerTitle: 'Credits deducted (wallet ledger — idempotent spend)',
+    usageCreditLedgerIntro:
+      'Spend events recorded on your account (e.g. curriculum, English coach). This is separate from the inbox token table above.',
+    usageCreditLedgerEmpty: 'No spend events in this period.',
+    usageCreditColType: 'Type (charge_type)',
+    usageCreditColAmount: 'Total credits',
+    usageCreditColCount: 'Count',
+    usageCreditDetailTitle: 'Recent spend events',
+    usageCreditColWhen: 'When',
+    usageCreditColSingle: 'Credits',
+    usageLogoCreditTitle: 'Logo normalization (shop workspace)',
+    usageLogoCreditIntro:
+      'Credits charged directly when generating/editing brand logo; not routed through the spend ledger above.',
+    usageLogoCreditEmpty: 'No logo normalization with credits in this period.',
+    usageLogoColModel: 'Model',
+    usageLogoColStatus: 'Status',
+    usageNoOwnerHint:
+      'Workspace has no linked owner account — wallet spend ledger cannot be shown.',
+    usageEmbedImageTitle: 'Image embeddings (Gemini)',
+    usageEmbedImageIntro:
+      'Each embedContent call for product images: inventory vector sync (inventory_sync) or customer photo search (guest_image_search). Tokens come from Google usageMetadata when present; otherwise estimated (GEMINI_IMAGE_EMBED_FALLBACK_TOKENS).',
+    usageEmbedImageEmpty: 'No image embedding calls recorded in this period.',
+    usageEmbedColSource: 'Source',
+    usageEmbedSourceInventory: 'Inventory sync',
+    usageEmbedSourceGuest: 'Customer image (search)',
+    usageEmbedColPromptSum: 'Sum prompt tokens',
+    usageEmbedColTotalSum: 'Sum billable tokens',
+    usageEmbedDetailTitle: 'Per-call embedding log',
+    usageEmbedColInventoryId: 'Inventory row',
+    usageImageGenTitle: 'Nano Banana — inbox image generation',
+    usageImageGenIntro:
+      'Nano Banana is our label for the Gemini image pipeline (model gemini-3-pro-image-preview): material/color detail renders and real-use style shots in chat. Each row counts a new API generation saved to inventory — same window as the LLM token table above. Cached rows are not regenerated.',
+    usageImageGenEmpty: 'No Nano Banana image generations recorded in this period.',
+    usageImageGenColKind: 'Image type',
+    usageImageGenKindMaterial: 'Material / color detail',
+    usageImageGenKindRealUse: 'On-body / real-use preview',
+    usageImageGenColCalls: 'API calls',
+    usageImageGenColTotalTokens: 'Total tokens (billable est.)',
+    usageImageGenTotalCallsLabel: 'Total image calls (Nano Banana)',
+    usageNanoBananaBadge: 'Nano Banana',
+    usageNanoBananaModelHint: 'gemini-3-pro-image-preview · inbox',
+    usageNanoBananaStatCalls: 'Image generation calls: {calls}',
+    usageNanoBananaStatTokens: 'Total tokens (billable est.): {tokens}',
     enableLabel: 'Enable auto-replies',
     enableHint: 'When off, only manual replies from you are sent.',
     delayLabel: 'Wait before AI replies (seconds)',
@@ -3387,6 +3584,11 @@ const EN_DICTIONARY: Dictionary = {
       'e.g. 30% deposit, no exchanges, 7-day exchange for defects only, free city shipping…',
     toneLabel: 'Tone / reply instructions',
     tonePlaceholder: 'e.g. polite, concise; avoid promising stock you are unsure about.',
+    salesCoachingLabel: 'Soft-sell & closing hints (optional)',
+    salesCoachingHint:
+      'A default “gentle conversion” block is always applied. Use this field to add shop-specific cues: audience, how to ask sizing, shipping/COD preference — it does not replace policies above.',
+    salesCoachingPlaceholder:
+      'e.g. for dresses — after price, ask size or height/weight; suggest occasion styling; mention exchange window only if it is in your policy text.',
     disclosureToggle: 'Append an AI disclosure line',
     disclosureSuffixLabel: 'Disclosure text (end of message)',
     disclosureSuffixHint: 'Shown at the end of each AI message so customers know it is automated.',
@@ -3414,7 +3616,11 @@ const EN_DICTIONARY: Dictionary = {
     inventoryProductUrl: 'Product page (URL)',
     inventoryProductUrlHint:
       'Product detail page on your shop website (https://…). Returned in image search results and in the Excel column “Link trang sản phẩm”.',
+    inventoryProductVideoUrl: 'Product video (URL)',
+    inventoryProductVideoUrlHint:
+      'YouTube watch/embed URL, or an https:// link to an .mp4 or hosted player (CDN). Same as the Excel “Video” column.',
     inventoryOpenProductPage: 'Open product page',
+    inventoryOpenProductVideo: 'Open video',
     inventoryConsultNote: 'Notes for advising customers',
     inventoryConsultNoteHint:
       'e.g. 12-month warranty, ships in 2–3 days, 10% off promo, exchange only for defects, free shipping over…',
@@ -3634,6 +3840,11 @@ const EN_DICTIONARY: Dictionary = {
     imageSearchApiGenerating: 'Generating key…',
     imageSearchApiKeyCreated: 'Key created (copied to clipboard if allowed). Save it now — it will not be shown again.',
     imageSearchApiManageKeysLink: 'Open API integration — manage keys',
+    guestPurchaseFlowLabel: 'How customers check out on NanoAI chat',
+    guestPurchaseFlowHint:
+      'In chat: Buy opens the same order/QR flow as today. On shop website: Buy opens the product page (inventory URL) in a new tab — use when checkout and shipping live on your site.',
+    guestPurchaseFlowInChat: 'Checkout in chat (form + NanoAI payment)',
+    guestPurchaseFlowExternal: 'Open shop website when tapping Buy',
   },
   partnerGuestChat: {
     notFoundTitle: 'Chat page not found',
@@ -3697,7 +3908,13 @@ const EN_DICTIONARY: Dictionary = {
     visionPickHint: 'Choose the right product (or wait for a manual reply).',
     visionPickBusy: 'Sending…',
     visionPickError: 'Could not send your choice. Try again.',
-    visionProductLink: 'Buy now',
+    visionProductLink: 'Advice',
+    visionProductBuy: 'Buy',
+    visionProductViewDetails: 'View details',
+    visionProductVideo: 'Video',
+    visionVideoCloseAria: 'Close video',
+    purchaseOpenSiteToast: 'Opened the shop product page in a new tab.',
+    purchaseMissingProductUrlToast: 'This item has no product URL — add it in inventory.',
   },
   messagingMyChats: {
     pageTitle: 'My messages',
@@ -4764,6 +4981,7 @@ const ZH_DICTIONARY: Dictionary = {
     pollNote: '管理员回复可能延迟数秒；您也可以刷新页面。',
     sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行',
     messageProductCardOpenProduct: '查看商品',
+    messageProductCardViewDetails: '查看详情',
   },
   customerCareAdmin: {
     pageTitle: '客户关怀',
@@ -4783,6 +5001,7 @@ const ZH_DICTIONARY: Dictionary = {
     noMessages: '暂无消息。',
     sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行',
     messageProductCardOpenProduct: '查看商品',
+    messageProductCardViewDetails: '查看详情',
   },
   partnerMessaging: {
     pageTitle: '合作伙伴客户消息',
@@ -4826,8 +5045,10 @@ const ZH_DICTIONARY: Dictionary = {
     channelWidget: '网页',
     unknownUser: '访客',
     noMessages: '暂无消息。',
+    inboxShopDrafting: '店铺正在输入回复',
     replyKeyboardHint: 'Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片',
     messageProductCardOpenProduct: '查看商品',
+    messageProductCardViewDetails: '查看详情',
     partnerAttachPhoto: '相册选图',
     partnerTakePhoto: '拍照',
     partnerRemoveAttachmentAria: '移除已选图片',
@@ -4898,6 +5119,52 @@ const ZH_DICTIONARY: Dictionary = {
     tokenUsageColPrompt: '输入 token',
     tokenUsageColCompletion: '输出 token',
     tokenUsageColTotal: '总 token',
+    usageDetailApiTitle: '每次 LLM 调用明细（收件箱）',
+    usageDetailApiIntro:
+      '每一行表示等待时间后的一次 API 调用及实际 token。匹配 FAQ 不会调用 LLM，因此不会出现在此表中。',
+    usageDetailColTime: '时间',
+    usageDetailEmpty: '此期间尚无逐次调用记录。',
+    usageCreditLedgerTitle: '扣除积分（钱包流水 — 幂等扣费）',
+    usageCreditLedgerIntro:
+      '记录在您账户上的消费（例如课程、English coach）。与上方的收件箱 token 表是不同机制。',
+    usageCreditLedgerEmpty: '此期间没有扣费记录。',
+    usageCreditColType: '类型 (charge_type)',
+    usageCreditColAmount: '总积分',
+    usageCreditColCount: '次数',
+    usageCreditDetailTitle: '最近扣费明细',
+    usageCreditColWhen: '时间',
+    usageCreditColSingle: '积分',
+    usageLogoCreditTitle: 'Logo 规范化（店铺工作区）',
+    usageLogoCreditIntro: '生成/编辑品牌 logo 时直接扣积分；不经过上方的消费流水表。',
+    usageLogoCreditEmpty: '此期间没有产生扣费的 logo 规范化记录。',
+    usageLogoColModel: '模型',
+    usageLogoColStatus: '状态',
+    usageNoOwnerHint: '工作区未关联账户所有者 — 无法显示钱包扣费流水。',
+    usageEmbedImageTitle: '图片向量（Gemini）',
+    usageEmbedImageIntro:
+      '每次对商品图调用 embedContent：库存同步向量（inventory_sync）或顾客发图找货（guest_image_search）。优先使用 Google 返回的 usageMetadata；缺失时用环境变量估算。',
+    usageEmbedImageEmpty: '此期间没有图片向量调用记录。',
+    usageEmbedColSource: '来源',
+    usageEmbedSourceInventory: '库存同步',
+    usageEmbedSourceGuest: '顾客发图（找商品）',
+    usageEmbedColPromptSum: 'Prompt token 合计',
+    usageEmbedColTotalSum: '计费 token 合计',
+    usageEmbedDetailTitle: '每次向量调用明细',
+    usageEmbedColInventoryId: '库存行 ID',
+    usageImageGenTitle: 'Nano Banana — 收件箱生图',
+    usageImageGenIntro:
+      'Nano Banana 为内部名称，指 Gemini 生图流程（模型 gemini-3-pro-image-preview）：材质/颜色细节图与上身/使用示意。每次新调用并写入库存才计入——时间范围与上方 LLM token 表一致。已缓存不会重复生成。',
+    usageImageGenEmpty: '此期间暂无 Nano Banana 生图记录。',
+    usageImageGenColKind: '类型',
+    usageImageGenKindMaterial: '材质 / 颜色细节',
+    usageImageGenKindRealUse: '上身 / 使用示意',
+    usageImageGenColCalls: 'API 调用次数',
+    usageImageGenColTotalTokens: '总 token（估算）',
+    usageImageGenTotalCallsLabel: '生图总次数（Nano Banana）',
+    usageNanoBananaBadge: 'Nano Banana',
+    usageNanoBananaModelHint: 'gemini-3-pro-image-preview · 收件箱',
+    usageNanoBananaStatCalls: '生图调用次数：{calls}',
+    usageNanoBananaStatTokens: '总 token（估算计费）：{tokens}',
     enableLabel: '启用自动回复',
     enableHint: '关闭后仅发送您手动编写的消息。',
     delayLabel: 'AI 回复前等待（秒）',
@@ -4910,6 +5177,11 @@ const ZH_DICTIONARY: Dictionary = {
     shopPolicyPlaceholder: '例如：定金 30%、不换货、质量问题 7 天内可换、同城包邮等。',
     toneLabel: '语气 / 回复指引',
     tonePlaceholder: '例如：礼貌、简短；不确定库存时不要绝对承诺。',
+    salesCoachingLabel: '软推销与促单提示（可选）',
+    salesCoachingHint:
+      '系统已内置温和的导购引导。此处补充店铺专属：客群、尺码询问方式、物流/货到付款偏好等——不替代上方政策。',
+    salesCoachingPlaceholder:
+      '例如：裙装——报价后询问尺码或身高体重；提示场合适配；仅在政策中已写时提及退换时限。',
     disclosureToggle: '在末尾附加 AI 说明',
     disclosureSuffixLabel: '说明文字（消息末尾）',
     disclosureSuffixHint: '每条 AI 消息末尾显示，提示为自动回复。',
@@ -4936,7 +5208,11 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryProductUrl: '商品页链接（URL）',
     inventoryProductUrlHint:
       '店铺网站上的商品详情页（https://…）。用于以图搜商品结果及 Excel 列“Link trang sản phẩm”。',
+    inventoryProductVideoUrl: '商品视频（URL）',
+    inventoryProductVideoUrlHint:
+      'YouTube 观看页/嵌入链接，或指向 .mp4 / CDN 播放器的 https:// 链接。与 Excel「Video」列一致。',
     inventoryOpenProductPage: '打开商品页',
+    inventoryOpenProductVideo: '打开视频',
     inventoryConsultNote: '咨询补充说明',
     inventoryConsultNoteHint: '例如：保修 12 个月、2–3 天发货、限时折扣、仅质量问题退换、满额包邮等。',
     inventoryDescHint: '尺码、颜色、材质、尺寸、套装包含内容等。',
@@ -5147,6 +5423,11 @@ const ZH_DICTIONARY: Dictionary = {
     imageSearchApiGenerating: '正在生成密钥…',
     imageSearchApiKeyCreated: '已生成密钥（若允许已尝试复制到剪贴板）。请立即保存 — 不会再次显示。',
     imageSearchApiManageKeysLink: '打开 API 集成 — 管理密钥',
+    guestPurchaseFlowLabel: '客户在 NanoAI 聊天中的购买方式',
+    guestPurchaseFlowHint:
+      '「聊天内」：点购买后使用当前下单/扫码流程。「店铺网站」：点购买在新标签打开商品页（库存中的 URL）— 适合已在网站配置支付与物流的店铺。',
+    guestPurchaseFlowInChat: '在聊天内下单（表单 + NanoAI 支付）',
+    guestPurchaseFlowExternal: '点「购买」时打开店铺网站',
   },
   partnerGuestChat: {
     notFoundTitle: '未找到聊天页面',
@@ -5209,7 +5490,13 @@ const ZH_DICTIONARY: Dictionary = {
     visionPickHint: '请选择正确商品（或等待人工回复）。',
     visionPickBusy: '发送中…',
     visionPickError: '无法提交选择，请重试。',
-    visionProductLink: '立即购买',
+    visionProductLink: '咨询商品',
+    visionProductBuy: '购买',
+    visionProductViewDetails: '查看详情',
+    visionProductVideo: '视频',
+    visionVideoCloseAria: '关闭视频',
+    purchaseOpenSiteToast: '已在新标签页打开店铺商品页。',
+    purchaseMissingProductUrlToast: '该商品缺少商品链接 — 请在库存中填写 URL。',
   },
   messagingMyChats: {
     pageTitle: '我的消息',
@@ -6231,6 +6518,7 @@ const JA_DICTIONARY: Dictionary = {
     pollNote: '管理者の返信は数秒遅れる場合があります。ページを更新しても構いません。',
     sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行',
     messageProductCardOpenProduct: '商品ページを開く',
+    messageProductCardViewDetails: '詳細を見る',
   },
   customerCareAdmin: {
     pageTitle: 'カスタマーケア',
@@ -6250,6 +6538,7 @@ const JA_DICTIONARY: Dictionary = {
     noMessages: 'メッセージはまだありません。',
     sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行',
     messageProductCardOpenProduct: '商品ページを開く',
+    messageProductCardViewDetails: '詳細を見る',
   },
   partnerMessaging: {
     pageTitle: 'パートナー向けメッセージ',
@@ -6295,8 +6584,10 @@ const JA_DICTIONARY: Dictionary = {
     channelWidget: 'Web',
     unknownUser: 'ゲスト',
     noMessages: 'メッセージはまだありません。',
+    inboxShopDrafting: '店舗が返信を入力中です',
     replyKeyboardHint: 'Enter で送信 · Shift+Enter で改行 · Ctrl+V / Cmd+V で画像を貼り付け',
     messageProductCardOpenProduct: '商品ページを開く',
+    messageProductCardViewDetails: '詳細を見る',
     partnerAttachPhoto: 'ライブラリ',
     partnerTakePhoto: 'カメラで撮影',
     partnerRemoveAttachmentAria: '添付画像を削除',
@@ -6369,6 +6660,54 @@ const JA_DICTIONARY: Dictionary = {
     tokenUsageColPrompt: '入力トークン',
     tokenUsageColCompletion: '出力トークン',
     tokenUsageColTotal: '合計トークン',
+    usageDetailApiTitle: 'LLM 呼び出しごとの詳細（受信トレイ）',
+    usageDetailApiIntro:
+      '各行は待機時間後の 1 回の API 呼び出しと実トークンです。FAQ に一致した場合は LLM を呼ばないためここに含まれません。',
+    usageDetailColTime: '日時',
+    usageDetailEmpty: 'この期間に詳細レコードはありません。',
+    usageCreditLedgerTitle: 'クレジット控除（ウォレット台帳 — べき等な spend）',
+    usageCreditLedgerIntro:
+      'アカウントに記録される利用（例：カリキュラム、English coach）。上の受信トレイ token 集計とは別です。',
+    usageCreditLedgerEmpty: 'この期間に控除はありません。',
+    usageCreditColType: '種別 (charge_type)',
+    usageCreditColAmount: '合計クレジット',
+    usageCreditColCount: '回数',
+    usageCreditDetailTitle: '直近の控除イベント',
+    usageCreditColWhen: '日時',
+    usageCreditColSingle: 'クレジット',
+    usageLogoCreditTitle: 'ロゴ正規化（ショップワークスペース）',
+    usageLogoCreditIntro:
+      'ブランドロゴの生成・編集時に直接クレジットを控除します。上の spend 台帳とは経路が異なります。',
+    usageLogoCreditEmpty: 'この期間に控除のあるロゴ正規化はありません。',
+    usageLogoColModel: 'モデル',
+    usageLogoColStatus: '状態',
+    usageNoOwnerHint:
+      'ワークスペースにオーナーアカウントが紐付いていないため、ウォレットの控除台帳を表示できません。',
+    usageEmbedImageTitle: '画像埋め込み（Gemini）',
+    usageEmbedImageIntro:
+      '商品画像の embedContent ごと：在庫ベクトル同期（inventory_sync）または顧客が画像送信（guest_image_search）。トークンは Google の usageMetadata を優先、なければ環境変数で推定。',
+    usageEmbedImageEmpty: 'この期間に画像埋め込みの記録がありません。',
+    usageEmbedColSource: 'ソース',
+    usageEmbedSourceInventory: '在庫同期',
+    usageEmbedSourceGuest: '顧客画像（検索）',
+    usageEmbedColPromptSum: 'プロンプトトークン計',
+    usageEmbedColTotalSum: '課金トークン計',
+    usageEmbedDetailTitle: '呼び出しごとのログ',
+    usageEmbedColInventoryId: '在庫行 ID',
+    usageImageGenTitle: 'Nano Banana — インボックス画像生成',
+    usageImageGenIntro:
+      'Nano Banana は内部名称です（モデル gemini-3-pro-image-preview）：素材・色の詳細画像と着用・使用イメージ。新規に生成して在庫に保存した API 呼び出しのみ——上の LLM トークン表と同じ期間。キャッシュ済みは再生成されません。',
+    usageImageGenEmpty: 'この期間に Nano Banana の記録はありません。',
+    usageImageGenColKind: '種類',
+    usageImageGenKindMaterial: '素材・色の詳細',
+    usageImageGenKindRealUse: '着用・使用イメージ',
+    usageImageGenColCalls: 'API呼び出し回数',
+    usageImageGenColTotalTokens: '合計トークン（概算）',
+    usageImageGenTotalCallsLabel: '画像生成の合計回数（Nano Banana）',
+    usageNanoBananaBadge: 'Nano Banana',
+    usageNanoBananaModelHint: 'gemini-3-pro-image-preview · インボックス',
+    usageNanoBananaStatCalls: '画像生成呼び出し: {calls}',
+    usageNanoBananaStatTokens: '合計トークン（概算）: {tokens}',
     enableLabel: '自動返信を有効にする',
     enableHint: 'オフにすると、手動の返信のみ送信されます。',
     delayLabel: 'AI が返信するまでの待ち時間（秒）',
@@ -6382,6 +6721,11 @@ const JA_DICTIONARY: Dictionary = {
       '例：手付け 30%、交換不可、不良品は 7 日以内交換、市内送料無料 など。',
     toneLabel: 'トーン・返信の指示',
     tonePlaceholder: '例：丁寧で簡潔に。在庫が不明なときは断定しない。',
+    salesCoachingLabel: 'ソフトセール・クロージングの補足（任意）',
+    salesCoachingHint:
+      '既定の「やわらかい購入導線」に加え、店舗固有の指示を追記できます（客層・サイズの聞き方・配送の好みなど）。上のポリシーは置き換えません。',
+    salesCoachingPlaceholder:
+      '例：ワンピースは価格後にサイズや身長・体重を確認；シーン提案；返品条件はポリシーに書いてある場合のみ。',
     disclosureToggle: 'AI である旨を文末に付ける',
     disclosureSuffixLabel: '表示文（メッセージ末尾）',
     disclosureSuffixHint: '各 AI メッセージの末尾に表示し、自動返信であることを示します。',
@@ -6409,7 +6753,11 @@ const JA_DICTIONARY: Dictionary = {
     inventoryProductUrl: '商品ページ（URL）',
     inventoryProductUrlHint:
       '店舗サイト上の商品詳細ページ（https://…）。画像検索の結果と Excel の「Link trang sản phẩm」列に使われます。',
+    inventoryProductVideoUrl: '商品動画（URL）',
+    inventoryProductVideoUrlHint:
+      'YouTube の視聴/埋め込み URL、または .mp4 / CDN プレーヤーへの https:// リンク。Excel の動画列と同じです。',
     inventoryOpenProductPage: '商品ページを開く',
+    inventoryOpenProductVideo: '動画を開く',
     inventoryConsultNote: '接客メモ',
     inventoryConsultNoteHint:
       '例：保証12ヶ月、2–3日で発送、10%オフ、不良時のみ交換、○○円以上送料無料 など。',
@@ -6628,6 +6976,11 @@ const JA_DICTIONARY: Dictionary = {
     imageSearchApiGenerating: 'キーを生成中…',
     imageSearchApiKeyCreated: 'キーを発行しました（可能ならクリップボードにコピー済み）。再表示されないので今すぐ保存してください。',
     imageSearchApiManageKeysLink: 'API 連携を開く — キー管理',
+    guestPurchaseFlowLabel: 'NanoAIチャットでの購入方法',
+    guestPurchaseFlowHint:
+      '「チャット内」：購入で従来どおり注文/QR。「ショップサイト」：購入で商品ページ（在庫のURL）を新しいタブで開く — 決済・配送をサイト側で運用する場合向け。',
+    guestPurchaseFlowInChat: 'チャット内で注文（フォーム＋NanoAI決済）',
+    guestPurchaseFlowExternal: '「購入」でショップサイトを開く',
   },
   partnerGuestChat: {
     notFoundTitle: 'チャットページが見つかりません',
@@ -6691,7 +7044,13 @@ const JA_DICTIONARY: Dictionary = {
     visionPickHint: '正しい商品を選ぶか、手動の返信をお待ちください。',
     visionPickBusy: '送信中…',
     visionPickError: '選択を送信できませんでした。もう一度お試しください。',
-    visionProductLink: '今すぐ購入',
+    visionProductLink: '相談',
+    visionProductBuy: '購入',
+    visionProductViewDetails: '詳細を見る',
+    visionProductVideo: '動画',
+    visionVideoCloseAria: '動画を閉じる',
+    purchaseOpenSiteToast: 'ショップの商品ページを新しいタブで開きました。',
+    purchaseMissingProductUrlToast: '商品URLがありません。在庫にURLを追加してください。',
   },
   messagingMyChats: {
     pageTitle: '自分のメッセージ',
@@ -7739,6 +8098,7 @@ const KO_DICTIONARY: Dictionary = {
     pollNote: '관리자 답변이 몇 초 지연될 수 있습니다. 페이지를 새로고침해도 됩니다.',
     sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈',
     messageProductCardOpenProduct: '상품 보기',
+    messageProductCardViewDetails: '자세히 보기',
   },
   customerCareAdmin: {
     pageTitle: '고객 케어',
@@ -7758,6 +8118,7 @@ const KO_DICTIONARY: Dictionary = {
     noMessages: '메시지가 없습니다.',
     sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈',
     messageProductCardOpenProduct: '상품 보기',
+    messageProductCardViewDetails: '자세히 보기',
   },
   partnerMessaging: {
     pageTitle: '파트너 고객 메시지',
@@ -7803,8 +8164,10 @@ const KO_DICTIONARY: Dictionary = {
     channelWidget: '웹',
     unknownUser: '고객',
     noMessages: '메시지가 없습니다.',
+    inboxShopDrafting: '매장에서 답장을 작성 중입니다',
     replyKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈 · Ctrl+V / Cmd+V로 이미지 붙여넣기',
     messageProductCardOpenProduct: '상품 보기',
+    messageProductCardViewDetails: '자세히 보기',
     partnerAttachPhoto: '사진 보관함',
     partnerTakePhoto: '사진 촬영',
     partnerRemoveAttachmentAria: '첨부 이미지 제거',
@@ -7876,6 +8239,53 @@ const KO_DICTIONARY: Dictionary = {
     tokenUsageColPrompt: '입력 토큰',
     tokenUsageColCompletion: '출력 토큰',
     tokenUsageColTotal: '총 토큰',
+    usageDetailApiTitle: 'LLM 호출별 상세(받은편지함)',
+    usageDetailApiIntro:
+      '각 행은 대기 시간 후 한 번의 API 호출과 실제 토큰입니다. FAQ 일치 시 LLM을 호출하지 않아 여기에 없습니다.',
+    usageDetailColTime: '시각',
+    usageDetailEmpty: '이 기간에 상세 호출 기록이 없습니다.',
+    usageCreditLedgerTitle: '크레딧 차감(지갑 원장 — 멱등 spend)',
+    usageCreditLedgerIntro:
+      '계정에 기록되는 사용(예: 커리큘럼, English coach). 위 받은편지함 토큰 표와는 별도입니다.',
+    usageCreditLedgerEmpty: '이 기간에 차감 내역이 없습니다.',
+    usageCreditColType: '유형 (charge_type)',
+    usageCreditColAmount: '합계 크레딧',
+    usageCreditColCount: '건수',
+    usageCreditDetailTitle: '최근 차감 내역',
+    usageCreditColWhen: '시각',
+    usageCreditColSingle: '크레딧',
+    usageLogoCreditTitle: '로고 정규화(샵 워크스페이스)',
+    usageLogoCreditIntro:
+      '브랜드 로고 생성/편집 시 직접 크레딧을 차감합니다. 위 spend 원장과는 경로가 다릅니다.',
+    usageLogoCreditEmpty: '이 기간에 차감이 있는 로고 정규화가 없습니다.',
+    usageLogoColModel: '모델',
+    usageLogoColStatus: '상태',
+    usageNoOwnerHint: '워크스페이스에 소유자 계정이 연결되지 않아 지갑 차감 원장을 표시할 수 없습니다.',
+    usageEmbedImageTitle: '이미지 임베딩(Gemini)',
+    usageEmbedImageIntro:
+      '상품 이미지 embedContent 호출마다: 재고 벡터 동기화(inventory_sync) 또는 고객 이미지 검색(guest_image_search). 토큰은 Google usageMetadata 우선, 없으면 환경 변수로 추정.',
+    usageEmbedImageEmpty: '이 기간에 이미지 임베딩 기록이 없습니다.',
+    usageEmbedColSource: '출처',
+    usageEmbedSourceInventory: '재고 동기화',
+    usageEmbedSourceGuest: '고객 이미지(검색)',
+    usageEmbedColPromptSum: '프롬프트 토큰 합',
+    usageEmbedColTotalSum: '과금 토큰 합',
+    usageEmbedDetailTitle: '호출별 로그',
+    usageEmbedColInventoryId: '재고 행 ID',
+    usageImageGenTitle: 'Nano Banana — 수신함 이미지 생성',
+    usageImageGenIntro:
+      'Nano Banana는 내부 이름입니다(모델 gemini-3-pro-image-preview): 소재·색 디테일과 착용·사용 예시 이미지. 새로 생성해 재고에 저장한 API만 집계——위 LLM 토큰 표와 동일 기간. 캐시된 항목은 재생성되지 않습니다.',
+    usageImageGenEmpty: '이 기간에 Nano Banana 기록이 없습니다.',
+    usageImageGenColKind: '유형',
+    usageImageGenKindMaterial: '소재 / 색 디테일',
+    usageImageGenKindRealUse: '착용 / 사용 예시',
+    usageImageGenColCalls: 'API 호출 수',
+    usageImageGenColTotalTokens: '총 토큰(추정)',
+    usageImageGenTotalCallsLabel: '이미지 생성 총 호출(Nano Banana)',
+    usageNanoBananaBadge: 'Nano Banana',
+    usageNanoBananaModelHint: 'gemini-3-pro-image-preview · 수신함',
+    usageNanoBananaStatCalls: '이미지 생성 호출: {calls}',
+    usageNanoBananaStatTokens: '총 토큰(추정): {tokens}',
     enableLabel: '자동 답장 사용',
     enableHint: '끄면 직접 보낸 메시지만 전송됩니다.',
     delayLabel: 'AI 답장 전 대기(초)',
@@ -7889,6 +8299,11 @@ const KO_DICTIONARY: Dictionary = {
       '예: 계약금 30%, 교환 불가, 불량 시 7일 이내 교환, 시내 무료배송 등.',
     toneLabel: '말투·답장 지침',
     tonePlaceholder: '예: 정중하고 간결하게. 재고가 불확실하면 단정 짓지 않기.',
+    salesCoachingLabel: '부드러운 상담·마무리 힌트(선택)',
+    salesCoachingHint:
+      '기본 «부드러운 구매 유도» 블록은 항상 적용됩니다. 여기에는 매장별 보완(고객층, 사이즈 질문 방식, 배송/COD 선호 등)을 적습니다. 위 정책을 대체하지 않습니다.',
+    salesCoachingPlaceholder:
+      '예: 원피스는 가격 안내 후 사이즈 또는 키·몸무게 확인; 착용 상황 제안; 교환은 정책에 적힌 경우만 언급.',
     disclosureToggle: '메시지 끝에 AI 안내 문구 추가',
     disclosureSuffixLabel: '안내 문구(메시지 끝)',
     disclosureSuffixHint: '각 AI 메시지 끝에 표시되어 자동 답장임을 알립니다.',
@@ -7916,7 +8331,11 @@ const KO_DICTIONARY: Dictionary = {
     inventoryProductUrl: '상품 페이지(URL)',
     inventoryProductUrlHint:
       '매장 웹사이트의 상품 상세 페이지(https://…). 이미지 검색 결과와 Excel 열 “Link trang sản phẩm”에 사용됩니다.',
+    inventoryProductVideoUrl: '상품 동영상(URL)',
+    inventoryProductVideoUrlHint:
+      'YouTube 시청/임베드 주소 또는 .mp4·CDN 플레이어용 https:// 링크. Excel 동영상 열과 동일합니다.',
     inventoryOpenProductPage: '상품 페이지 열기',
+    inventoryOpenProductVideo: '동영상 열기',
     inventoryConsultNote: '상담 시 추가 안내',
     inventoryConsultNoteHint:
       '예: 보증 12개월, 2–3일 배송, 10% 할인, 불량 시에만 교환, ○○원 이상 무료배송 등.',
@@ -8135,6 +8554,11 @@ const KO_DICTIONARY: Dictionary = {
     imageSearchApiGenerating: '키 생성 중…',
     imageSearchApiKeyCreated: '키가 생성되었습니다(가능하면 클립보드에 복사됨). 다시 표시되지 않으니 지금 저장하세요.',
     imageSearchApiManageKeysLink: 'API 연동 열기 — 키 관리',
+    guestPurchaseFlowLabel: 'NanoAI 채팅에서 구매 진행 방식',
+    guestPurchaseFlowHint:
+      '「채팅 내»: 구매 버튼으로 기존 주문/QR 흐름. 「쇼핑몰 사이트»: 구매 시 상품 페이지(재고 URL)를 새 탭으로 — 결제/배송을 웹에서 처리할 때 적합.',
+    guestPurchaseFlowInChat: '채팅에서 주문 (양식 + NanoAI 결제)',
+    guestPurchaseFlowExternal: '구매 시 쇼핑몰 사이트 열기',
   },
   partnerGuestChat: {
     notFoundTitle: '채팅 페이지를 찾을 수 없습니다',
@@ -8198,7 +8622,13 @@ const KO_DICTIONARY: Dictionary = {
     visionPickHint: '맞는 상품을 고르거나 직접 답장을 기다려 주세요.',
     visionPickBusy: '보내는 중…',
     visionPickError: '선택을 보낼 수 없습니다. 다시 시도해 주세요.',
-    visionProductLink: '지금 구매',
+    visionProductLink: '상담',
+    visionProductBuy: '구매',
+    visionProductViewDetails: '자세히 보기',
+    visionProductVideo: '동영상',
+    visionVideoCloseAria: '동영상 닫기',
+    purchaseOpenSiteToast: '쇼핑몰 상품 페이지를 새 탭에서 열었습니다.',
+    purchaseMissingProductUrlToast: '상품 URL이 없습니다. 재고에 URL을 추가하세요.',
   },
   messagingMyChats: {
     pageTitle: '내 메시지',

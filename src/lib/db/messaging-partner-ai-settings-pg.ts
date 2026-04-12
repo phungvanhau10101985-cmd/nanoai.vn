@@ -1,6 +1,7 @@
 import type { Database } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
+import { normalizeGuestPurchaseFlow, type GuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
 
 export type MessagingPartnerAiSettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 
@@ -30,6 +31,7 @@ function mapPgRowToAiSettingsFull(row: {
   typing_pause_max_ms: number | null
   shop_policy: string | null
   tone_instructions: string | null
+  sales_coaching_instructions: string | null
   append_ai_disclosure: boolean | null
   disclosure_suffix: string | null
   vision_product_search_enabled: boolean | null
@@ -51,6 +53,7 @@ function mapPgRowToAiSettingsFull(row: {
   vision_bg_sync_finished_at: unknown
   vision_bg_sync_error: string | null
   vision_bg_sync_report: string | null
+  guest_purchase_flow: string | null
   updated_at: unknown
 }): MessagingPartnerAiSettingsRow {
   return {
@@ -61,6 +64,7 @@ function mapPgRowToAiSettingsFull(row: {
     typing_pause_max_ms: num(row.typing_pause_max_ms, 3800),
     shop_policy: String(row.shop_policy ?? ''),
     tone_instructions: String(row.tone_instructions ?? ''),
+    sales_coaching_instructions: String(row.sales_coaching_instructions ?? ''),
     append_ai_disclosure: row.append_ai_disclosure !== false,
     disclosure_suffix: String(row.disclosure_suffix ?? ''),
     vision_product_search_enabled: row.vision_product_search_enabled !== false,
@@ -82,6 +86,7 @@ function mapPgRowToAiSettingsFull(row: {
     vision_bg_sync_finished_at: tsIso(row.vision_bg_sync_finished_at),
     vision_bg_sync_error: String(row.vision_bg_sync_error ?? ''),
     vision_bg_sync_report: String(row.vision_bg_sync_report ?? ''),
+    guest_purchase_flow: normalizeGuestPurchaseFlow(row.guest_purchase_flow),
     updated_at: tsIsoReq(row.updated_at),
   }
 }
@@ -103,6 +108,7 @@ export async function fetchMessagingPartnerAiSettingsFullFromPg(
         typing_pause_max_ms,
         coalesce(shop_policy, '') as shop_policy,
         coalesce(tone_instructions, '') as tone_instructions,
+        coalesce(sales_coaching_instructions, '') as sales_coaching_instructions,
         coalesce(append_ai_disclosure, true) as append_ai_disclosure,
         coalesce(disclosure_suffix, '') as disclosure_suffix,
         coalesce(vision_product_search_enabled, false) as vision_product_search_enabled,
@@ -124,6 +130,7 @@ export async function fetchMessagingPartnerAiSettingsFullFromPg(
         vision_bg_sync_finished_at,
         coalesce(vision_bg_sync_error, '') as vision_bg_sync_error,
         coalesce(vision_bg_sync_report, '') as vision_bg_sync_report,
+        coalesce(nullif(trim(guest_purchase_flow), ''), 'in_chat') as guest_purchase_flow,
         updated_at
        from public.messaging_partner_ai_settings
        where partner_id = $1::uuid
@@ -260,6 +267,7 @@ export type PartnerAiSettingsDashboardUpsert = {
   typing_pause_max_ms: number
   shop_policy: string
   tone_instructions: string
+  sales_coaching_instructions: string
   append_ai_disclosure: boolean
   disclosure_suffix: string
   vision_product_search_enabled: boolean
@@ -281,6 +289,7 @@ export type PartnerAiSettingsDashboardUpsert = {
   vision_bg_sync_finished_at: string | null
   vision_bg_sync_error: string
   vision_bg_sync_report: string
+  guest_purchase_flow: string
   updated_at: string
 }
 
@@ -293,16 +302,16 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
     await getPgPool().query(
       `insert into public.messaging_partner_ai_settings (
         partner_id, enabled, reply_delay_seconds, typing_pause_min_ms, typing_pause_max_ms,
-        shop_policy, tone_instructions, append_ai_disclosure, disclosure_suffix,
+        shop_policy, tone_instructions, sales_coaching_instructions, append_ai_disclosure, disclosure_suffix,
         vision_product_search_enabled, vision_location, vision_shop_country, vision_product_category, vision_gcs_bucket,
         vision_index_ready, vision_index_synced_at, vision_index_error,
         image_search_api_enabled, image_search_api_secret,
         vision_bg_sync_status, vision_bg_sync_resume_after_id, vision_bg_sync_rounds,
         vision_bg_sync_imported, vision_bg_sync_removed, vision_bg_sync_started_at, vision_bg_sync_finished_at,
-        vision_bg_sync_error, vision_bg_sync_report, updated_at
+        vision_bg_sync_error, vision_bg_sync_report, guest_purchase_flow, updated_at
       ) values (
-        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-        $20, $21, $22, $23, $24, $25, $26, $27, $28, $29::timestamptz
+        $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31::timestamptz
       )
       on conflict (partner_id) do update set
         enabled = excluded.enabled,
@@ -311,6 +320,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         typing_pause_max_ms = excluded.typing_pause_max_ms,
         shop_policy = excluded.shop_policy,
         tone_instructions = excluded.tone_instructions,
+        sales_coaching_instructions = excluded.sales_coaching_instructions,
         append_ai_disclosure = excluded.append_ai_disclosure,
         disclosure_suffix = excluded.disclosure_suffix,
         vision_product_search_enabled = excluded.vision_product_search_enabled,
@@ -332,6 +342,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         vision_bg_sync_finished_at = excluded.vision_bg_sync_finished_at,
         vision_bg_sync_error = excluded.vision_bg_sync_error,
         vision_bg_sync_report = excluded.vision_bg_sync_report,
+        guest_purchase_flow = excluded.guest_purchase_flow,
         updated_at = excluded.updated_at`,
       [
         row.partner_id,
@@ -341,6 +352,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         row.typing_pause_max_ms,
         row.shop_policy,
         row.tone_instructions,
+        row.sales_coaching_instructions,
         row.append_ai_disclosure,
         row.disclosure_suffix,
         row.vision_product_search_enabled,
@@ -362,6 +374,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         row.vision_bg_sync_finished_at,
         row.vision_bg_sync_error,
         row.vision_bg_sync_report,
+        row.guest_purchase_flow,
         row.updated_at,
       ]
     )
@@ -508,5 +521,24 @@ export async function peekMessagingPartnerAiImageSearchSecretFromPg(
   } catch (e) {
     console.warn('[peekMessagingPartnerAiImageSearchSecretFromPg]', e)
     return null
+  }
+}
+
+/** Chế độ mua trên trang guest `/messaging/p/{slug}`. Không có dòng settings → `in_chat`. */
+export async function fetchGuestPurchaseFlowForPartnerFromPg(partnerId: string): Promise<GuestPurchaseFlow> {
+  if (!isPgConfigured()) return 'in_chat'
+  try {
+    const row = await pgQueryOne<{ guest_purchase_flow: string | null }>(
+      `select guest_purchase_flow
+       from public.messaging_partner_ai_settings
+       where partner_id = $1::uuid
+       limit 1`,
+      [partnerId]
+    )
+    if (!row) return 'in_chat'
+    return normalizeGuestPurchaseFlow(row.guest_purchase_flow)
+  } catch (e) {
+    console.warn('[fetchGuestPurchaseFlowForPartnerFromPg]', e)
+    return 'in_chat'
   }
 }

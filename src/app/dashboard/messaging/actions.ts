@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getUserForAction } from '@/lib/auth'
 import { RESERVED_MESSAGING_GUEST_SLUGS } from '@/lib/messaging/reserved-guest-slugs'
+import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
 import {
   clearMessagingPartnerAiImageSearchSecretFromPg,
   emergencyDisablePartnerAiVisionFromPg,
@@ -59,12 +60,26 @@ import {
   updateMessagingPartnerProfileForOwnerFromPg,
 } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { fetchMessagingPartnerAiTokenStatsByModelFromPg } from '@/lib/db/messaging-partner-ai-token-usage-pg'
+import {
+  fetchMessagingPartnerAiImageGenStatsFromPg,
+  fetchMessagingPartnerAiTokenStatsByModelFromPg,
+  fetchMessagingPartnerAiTokenUsageDetailsFromPg,
+} from '@/lib/db/messaging-partner-ai-token-usage-pg'
+import {
+  fetchMessagingPartnerImageEmbedDetailsFromPg,
+  fetchMessagingPartnerImageEmbedStatsBySourceFromPg,
+} from '@/lib/db/messaging-partner-image-embed-usage-pg'
+import {
+  fetchOwnerCreditEventDetailsFromPg,
+  fetchOwnerCreditEventSummariesFromPg,
+  fetchPartnerLogoCreditRowsInRangeFromPg,
+} from '@/lib/db/partner-owner-credit-ledger-pg'
 import { pgQueryOne } from '@/lib/db/pg-query'
 import type { Database } from '@/types/database.types'
 import { sendFacebookMessengerImageUrl, sendFacebookMessengerText } from '@/lib/customer-care/facebook-messenger'
 import { sendZaloOaText } from '@/lib/customer-care/zalo-oa'
 import { cancelPendingAiJobsForConversation } from '@/lib/messaging/partner-ai-inbound'
+import { countActivePartnerAiJobsForConversationFromPg } from '@/lib/db/messaging-partner-ai-jobs-pg'
 import type { Json } from '@/types/database.types'
 import {
   buildPartnerMediaPayload,
@@ -103,7 +118,20 @@ import {
   updatePartnerOrderShippingStatusForOwnerFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
 
-export type { PartnerAiTokenUsageStatRow } from '@/lib/db/messaging-partner-ai-token-usage-pg'
+export type {
+  PartnerAiImageGenUsageStatRow,
+  PartnerAiTokenUsageStatRow,
+  PartnerAiTokenUsageDetailRow,
+} from '@/lib/db/messaging-partner-ai-token-usage-pg'
+export type {
+  OwnerCreditEventDetailRow,
+  OwnerCreditEventSummaryRow,
+  PartnerLogoCreditRow,
+} from '@/lib/db/partner-owner-credit-ledger-pg'
+export type {
+  PartnerImageEmbedUsageDetailRow,
+  PartnerImageEmbedUsageSummaryRow,
+} from '@/lib/db/messaging-partner-image-embed-usage-pg'
 
 const PARTNER_INVENTORY_PAGE_SIZE = Math.max(
   50,
@@ -699,6 +727,21 @@ export async function listPartnerMessages(partnerId: string, conversationId: str
   }
 }
 
+/** Trạng thái trợ lý AI đang chuẩn bị tin (job pending/processing) — hiển thị «đang soạn tin» trên inbox shop. */
+export async function getPartnerAiComposingForConversation(partnerId: string, conversationId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) {
+    return { error: 'DATABASE_URL is not set.' }
+  }
+  const n = await countActivePartnerAiJobsForConversationFromPg(partnerId, conversationId)
+  if (n === null) return { error: 'Failed to load AI status.' }
+  return { composing: n > 0 }
+}
+
 export async function sendPartnerReply(
   partnerId: string,
   conversationId: string,
@@ -899,6 +942,8 @@ export type PartnerAiSettingsPayload = {
   typing_pause_max_ms: number
   shop_policy: string
   tone_instructions: string
+  /** Gợi ý tư vấn mềm / chốt đơn — bổ sung trên khối mặc định trong LLM. */
+  sales_coaching_instructions: string
   append_ai_disclosure: boolean
   disclosure_suffix: string
   vision_product_search_enabled: boolean
@@ -908,9 +953,15 @@ export type PartnerAiSettingsPayload = {
   vision_product_category: string
   vision_gcs_bucket: string
   image_search_api_enabled: boolean
+  /** Đặt hàng trong chat vs mở trang sản phẩm (web shop). */
+  guest_purchase_flow: 'in_chat' | 'external_site'
 }
 
 const PARTNER_AI_TOKEN_STATS_LOOKBACK_DAYS = 30
+const PARTNER_AI_USAGE_DETAIL_ROW_LIMIT = 150
+const PARTNER_AI_CREDIT_EVENT_ROW_LIMIT = 80
+const PARTNER_AI_LOGO_CREDIT_ROW_LIMIT = 80
+const PARTNER_AI_IMAGE_EMBED_DETAIL_ROW_LIMIT = 80
 
 /** Tổng token theo model (API) trong N ngày gần đây — chủ shop xem trên dashboard. */
 export async function getPartnerAiTokenUsageStats(partnerId: string) {
@@ -925,12 +976,79 @@ export async function getPartnerAiTokenUsageStats(partnerId: string) {
   const since = new Date()
   since.setUTCDate(since.getUTCDate() - PARTNER_AI_TOKEN_STATS_LOOKBACK_DAYS)
   const sinceIso = since.toISOString()
-  const rows = await fetchMessagingPartnerAiTokenStatsByModelFromPg(partnerId, sinceIso)
+  const [rows, imageGenRows] = await Promise.all([
+    fetchMessagingPartnerAiTokenStatsByModelFromPg(partnerId, sinceIso),
+    fetchMessagingPartnerAiImageGenStatsFromPg(partnerId, sinceIso),
+  ])
   if (rows === null) return { error: 'Failed to load token usage stats.' }
   return {
     rows,
+    imageGenRows: imageGenRows ?? [],
     sinceIso,
     lookbackDays: PARTNER_AI_TOKEN_STATS_LOOKBACK_DAYS,
+  }
+}
+
+/**
+ * Thống kê chi tiết: từng lần gọi LLM inbox + các khoản trừ credit (ledger + chuẩn hóa logo).
+ * Lưu ý: inbox LLM hiện chỉ ghi token; trừ credit qua ví có thể là giáo trình/English coach (cùng user chủ shop) hoặc logo workspace.
+ */
+export async function getPartnerAiUsageAnalytics(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) {
+    return { error: 'DATABASE_URL is not set.' }
+  }
+
+  const since = new Date()
+  since.setUTCDate(since.getUTCDate() - PARTNER_AI_TOKEN_STATS_LOOKBACK_DAYS)
+  const sinceIso = since.toISOString()
+
+  const ownerRow = await pgQueryOne<{ owner: string | null }>(
+    `select owner_user_id::text as owner from public.messaging_partners where id = $1::uuid limit 1`,
+    [partnerId]
+  )
+  const ownerId = (ownerRow?.owner ?? '').trim() || null
+
+  const [tokenDetails, creditSummaries, creditDetails, logoRows, embedSummaries, embedDetails] =
+    await Promise.all([
+      fetchMessagingPartnerAiTokenUsageDetailsFromPg(
+        partnerId,
+        sinceIso,
+        PARTNER_AI_USAGE_DETAIL_ROW_LIMIT
+      ),
+      ownerId
+        ? fetchOwnerCreditEventSummariesFromPg(ownerId, sinceIso)
+        : Promise.resolve(null),
+      ownerId
+        ? fetchOwnerCreditEventDetailsFromPg(ownerId, sinceIso, PARTNER_AI_CREDIT_EVENT_ROW_LIMIT)
+        : Promise.resolve(null),
+      fetchPartnerLogoCreditRowsInRangeFromPg(partnerId, sinceIso, PARTNER_AI_LOGO_CREDIT_ROW_LIMIT),
+      fetchMessagingPartnerImageEmbedStatsBySourceFromPg(partnerId, sinceIso),
+      fetchMessagingPartnerImageEmbedDetailsFromPg(
+        partnerId,
+        sinceIso,
+        PARTNER_AI_IMAGE_EMBED_DETAIL_ROW_LIMIT
+      ),
+    ])
+
+  if (tokenDetails === null) {
+    return { error: 'Failed to load token usage details.' }
+  }
+
+  return {
+    sinceIso,
+    lookbackDays: PARTNER_AI_TOKEN_STATS_LOOKBACK_DAYS,
+    tokenDetails,
+    creditSummaries: creditSummaries ?? [],
+    creditDetails: creditDetails ?? [],
+    logoCreditRows: logoRows ?? [],
+    ownerAccountLinked: Boolean(ownerId),
+    imageEmbedSummaries: embedSummaries ?? [],
+    imageEmbedDetails: embedDetails ?? [],
   }
 }
 
@@ -1193,6 +1311,7 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
     typing_pause_max_ms: Math.max(tmin, tmax),
     shop_policy: payload.shop_policy ?? '',
     tone_instructions: payload.tone_instructions ?? '',
+    sales_coaching_instructions: (payload.sales_coaching_instructions ?? '').slice(0, 16000),
     append_ai_disclosure: Boolean(payload.append_ai_disclosure),
     disclosure_suffix: payload.disclosure_suffix?.trim() || '',
     vision_product_search_enabled: false,
@@ -1205,6 +1324,7 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
     vision_index_error: existingAi?.vision_index_error ?? '',
     image_search_api_enabled: Boolean(payload.image_search_api_enabled),
     image_search_api_secret: existingAi?.image_search_api_secret ?? null,
+    guest_purchase_flow: normalizeGuestPurchaseFlow(payload.guest_purchase_flow),
     ...(visionBgReset as Pick<
       PartnerAiSettingsDashboardUpsert,
       | 'vision_bg_sync_status'
@@ -1465,6 +1585,7 @@ export async function upsertPartnerInventoryItem(
     price_hint: string
     image_url: string
     product_url: string
+    product_video_url: string
     consult_note: string
     sort_order: number
   }
@@ -1481,6 +1602,7 @@ export async function upsertPartnerInventoryItem(
   const sku = fields.sku.trim() || null
   const imageUrl = validateInventoryImageUrl(fields.image_url ?? '')
   const productUrl = validateInventoryImageUrl(fields.product_url ?? '')
+  const productVideoUrl = validateInventoryImageUrl(fields.product_video_url ?? '')
   const consult = (fields.consult_note ?? '').trim().slice(0, 2000)
   if (itemId) {
     const ok = await updatePartnerInventoryDashboardItemFromPg(partnerId, itemId, {
@@ -1492,6 +1614,7 @@ export async function upsertPartnerInventoryItem(
       price_hint: fields.price_hint ?? '',
       image_url: imageUrl,
       product_url: productUrl,
+      product_video_url: productVideoUrl,
       consult_note: consult,
       sort_order: fields.sort_order,
       updated_at: now,
@@ -1508,6 +1631,7 @@ export async function upsertPartnerInventoryItem(
       price_hint: fields.price_hint ?? '',
       image_url: imageUrl,
       product_url: productUrl,
+      product_video_url: productVideoUrl,
       consult_note: consult,
       sort_order: fields.sort_order,
       created_at: now,

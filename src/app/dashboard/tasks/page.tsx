@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
-import { Toaster } from '@/components/ui/toaster'
 import { ListTodo } from 'lucide-react'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
@@ -26,7 +25,6 @@ export default async function DashboardTasksPage() {
 
   return (
     <div className="app-shell space-y-6 md:space-y-8">
-      <Toaster />
       <div className="section-surface space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">

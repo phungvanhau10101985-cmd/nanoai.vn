@@ -44,8 +44,10 @@ function asCard(x: unknown): PartnerAiProductCard | null {
   const image_url = typeof o.image_url === 'string' ? o.image_url.trim() : ''
   const product_url = typeof o.product_url === 'string' ? o.product_url.trim() : ''
   const price_hint = typeof o.price_hint === 'string' ? o.price_hint.trim() : ''
+  const sku = typeof o.sku === 'string' ? o.sku.trim().slice(0, 128) : ''
   if (!name || !/^https?:\/\//i.test(image_url) || !/^https?:\/\//i.test(product_url)) return null
-  return price_hint ? { name, image_url, product_url, price_hint } : { name, image_url, product_url }
+  const base = price_hint ? { name, image_url, product_url, price_hint } : { name, image_url, product_url }
+  return sku ? { ...base, sku } : base
 }
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {

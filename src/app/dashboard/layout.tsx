@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Metadata } from 'next'
+import { Toaster } from '@/components/ui/toaster'
 import { buildMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = buildMetadata({
@@ -10,5 +11,10 @@ export const metadata: Metadata = buildMetadata({
 })
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  return children
+  return (
+    <>
+      {children}
+      <Toaster />
+    </>
+  )
 }

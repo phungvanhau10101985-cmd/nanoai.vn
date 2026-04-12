@@ -55,6 +55,28 @@ export async function insertPartnerAiJobPg(params: {
   }
 }
 
+/** Job đang chờ chạy hoặc đang xử lý LLM — dùng cho UI «đang soạn tin» phía shop. */
+export async function countActivePartnerAiJobsForConversationFromPg(
+  partnerId: string,
+  conversationId: string
+): Promise<number | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ c: number }>(
+      `select count(*)::int as c
+       from public.messaging_partner_ai_jobs
+       where partner_id = $1::uuid
+         and conversation_id = $2::uuid
+         and status in ('pending', 'processing')`,
+      [partnerId, conversationId]
+    )
+    return typeof row?.c === 'number' && Number.isFinite(row.c) ? Math.max(0, row.c) : 0
+  } catch (e) {
+    console.error('[messaging-partner-ai-jobs-pg] countActivePartnerAiJobsForConversationFromPg', e)
+    return null
+  }
+}
+
 export async function fetchPendingJobsDueFromPg(nowIso: string, limit: number): Promise<PartnerAiJobRow[] | null> {
   if (!isPgConfigured()) return null
   try {

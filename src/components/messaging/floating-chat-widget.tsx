@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ExternalLink, MessageCircle, X } from 'lucide-react'
+import { Maximize2, MessageCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 type Props = {
@@ -69,8 +69,9 @@ export function FloatingChatWidget({
             className="h-8 w-8"
             onClick={() => window.open(fullPageUrl, '_blank', 'noopener,noreferrer')}
             title={openFullPageLabel}
+            aria-label={openFullPageLabel}
           >
-            <ExternalLink className="h-4 w-4" aria-hidden />
+            <Maximize2 className="h-4 w-4" aria-hidden />
           </Button>
           <Button
             type="button"

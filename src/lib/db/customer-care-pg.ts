@@ -1,4 +1,5 @@
 import type { Json } from '@/types/database.types'
+import { makeConsultProductScopeKey } from '@/lib/messaging/consult-product-scope-key'
 import type { Database } from '@/types/database.types'
 import type { CustomerCareChannel } from '@/lib/customer-care/types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
@@ -322,6 +323,81 @@ export async function fetchGuestWidgetMessagesSubsetFromPg(
   }
 }
 
+const MAX_CONSULTED_PRODUCT_URL_KEY_LEN = 4096
+
+/** Chuỗi composite `messageId\\u001fproductUrlKey` cho client. `null` = lỗi PG. */
+export async function fetchConsultedProductKeysForConversationFromPg(
+  conversationId: string
+): Promise<string[] | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const rows = await pgQuery<{ source_message_id: string; product_url_key: string }>(
+      `select source_message_id::text as source_message_id, product_url_key
+       from public.customer_care_consulted_products
+       where conversation_id = $1::uuid
+       order by consulted_at asc`,
+      [conversationId]
+    )
+    return rows
+      .map((r) => {
+        const mid = String(r.source_message_id ?? '').trim()
+        const pk = String(r.product_url_key ?? '').trim()
+        if (!mid || !pk) return ''
+        return makeConsultProductScopeKey(mid, pk)
+      })
+      .filter(Boolean)
+  } catch (e) {
+    console.error('[customer-care-pg] fetchConsultedProductKeysForConversationFromPg', e)
+    return null
+  }
+}
+
+export async function customerCareMessageBelongsToConversationFromPg(
+  conversationId: string,
+  messageId: string
+): Promise<boolean | null> {
+  if (!isPgConfigured()) return null
+  const mid = messageId.trim()
+  if (!mid) return false
+  try {
+    const row = await pgQueryOne<{ ok: number }>(
+      `select 1 as ok from public.customer_care_messages
+       where id = $1::uuid and conversation_id = $2::uuid
+       limit 1`,
+      [mid, conversationId]
+    )
+    return row != null
+  } catch (e) {
+    console.error('[customer-care-pg] customerCareMessageBelongsToConversationFromPg', e)
+    return null
+  }
+}
+
+export async function upsertConsultedProductKeyForConversationFromPg(
+  conversationId: string,
+  sourceMessageId: string,
+  productUrlKey: string
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const key = productUrlKey.trim()
+  const sid = sourceMessageId.trim()
+  if (!key || !sid || key.length > MAX_CONSULTED_PRODUCT_URL_KEY_LEN) return false
+  const belongs = await customerCareMessageBelongsToConversationFromPg(conversationId, sid)
+  if (belongs !== true) return false
+  try {
+    await pgQuery(
+      `insert into public.customer_care_consulted_products (conversation_id, source_message_id, product_url_key)
+       values ($1::uuid, $2::uuid, $3)
+       on conflict (conversation_id, source_message_id, product_url_key) do nothing`,
+      [conversationId, sid, key]
+    )
+    return true
+  } catch (e) {
+    console.error('[customer-care-pg] upsertConsultedProductKeyForConversationFromPg', e)
+    return false
+  }
+}
+
 /**
  * Merge session → account cho widget guest. Trả về `true` khi đã xử lý xong (kể cả không có conv cũ);
  * `false` khi lỗi PG (caller có thể báo lỗi / retry).
@@ -490,6 +566,54 @@ export async function updateCustomerCareMessageRawPayloadPg(
   } catch (e) {
     console.error('[customer-care-pg] updateCustomerCareMessageRawPayloadPg', e)
     return false
+  }
+}
+
+/** Đếm ảnh minh họa mặc/dùng đã gửi trong cuộc chat cho đúng mặt hàng (metadata trên tin outbound). */
+export async function countPartnerAiRealUseImagesSentForInventoryInConversationPg(
+  conversationId: string,
+  inventoryId: string
+): Promise<number | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ c: number }>(
+      `select count(*)::int as c
+       from public.customer_care_messages
+       where conversation_id = $1::uuid
+         and direction = 'outbound'
+         and coalesce(raw_payload->'partner_ai_image_followup'->>'kind','') = 'real_use'
+         and coalesce(raw_payload->'partner_ai_image_followup'->>'inventory_id','') = $2`,
+      [conversationId, inventoryId]
+    )
+    return row?.c ?? 0
+  } catch (e) {
+    console.warn('[customer-care-pg] countPartnerAiRealUseImagesSentForInventoryInConversationPg', e)
+    return null
+  }
+}
+
+/** Tin outbound mới nhất trước — để đọc `ai_product_cards` (mặt hàng vừa tư vấn). */
+export async function fetchOutboundRawPayloadsNewestFirstPg(
+  conversationId: string,
+  limit: number
+): Promise<Json[]> {
+  if (!isPgConfigured()) return []
+  const lim = Math.max(1, Math.min(80, Math.floor(limit)))
+  try {
+    const rows = await pgQuery<{ raw_payload: unknown }>(
+      `select raw_payload
+       from public.customer_care_messages
+       where conversation_id = $1::uuid and direction = 'outbound'
+       order by created_at desc
+       limit $2`,
+      [conversationId, lim]
+    )
+    return rows
+      .map((r) => (r.raw_payload ?? null) as Json)
+      .filter((p): p is Json => p !== null && typeof p === 'object' && !Array.isArray(p))
+  } catch (e) {
+    console.warn('[customer-care-pg] fetchOutboundRawPayloadsNewestFirstPg', e)
+    return []
   }
 }
 

@@ -160,6 +160,27 @@ export interface Database {
         }
         Relationships: []
       }
+      customer_care_consulted_products: {
+        Row: {
+          conversation_id: string
+          source_message_id: string
+          product_url_key: string
+          consulted_at: string
+        }
+        Insert: {
+          conversation_id: string
+          source_message_id: string
+          product_url_key: string
+          consulted_at?: string
+        }
+        Update: {
+          conversation_id?: string
+          source_message_id?: string
+          product_url_key?: string
+          consulted_at?: string
+        }
+        Relationships: []
+      }
       messaging_partners: {
         Row: {
           id: string
@@ -400,6 +421,7 @@ export interface Database {
           typing_pause_max_ms: number
           shop_policy: string
           tone_instructions: string
+          sales_coaching_instructions: string
           append_ai_disclosure: boolean
           disclosure_suffix: string
           vision_product_search_enabled: boolean
@@ -421,6 +443,7 @@ export interface Database {
           vision_bg_sync_finished_at: string | null
           vision_bg_sync_error: string
           vision_bg_sync_report: string
+          guest_purchase_flow: string
           updated_at: string
         }
         Insert: {
@@ -431,6 +454,7 @@ export interface Database {
           typing_pause_max_ms?: number
           shop_policy?: string
           tone_instructions?: string
+          sales_coaching_instructions?: string
           append_ai_disclosure?: boolean
           disclosure_suffix?: string
           vision_product_search_enabled?: boolean
@@ -452,6 +476,7 @@ export interface Database {
           vision_bg_sync_finished_at?: string | null
           vision_bg_sync_error?: string
           vision_bg_sync_report?: string
+          guest_purchase_flow?: string
           updated_at?: string
         }
         Update: {
@@ -462,6 +487,7 @@ export interface Database {
           typing_pause_max_ms?: number
           shop_policy?: string
           tone_instructions?: string
+          sales_coaching_instructions?: string
           append_ai_disclosure?: boolean
           disclosure_suffix?: string
           vision_product_search_enabled?: boolean
@@ -483,6 +509,7 @@ export interface Database {
           vision_bg_sync_finished_at?: string | null
           vision_bg_sync_error?: string
           vision_bg_sync_report?: string
+          guest_purchase_flow?: string
           updated_at?: string
         }
         Relationships: []
@@ -539,7 +566,12 @@ export interface Database {
           price_hint: string
           image_url: string
           product_url: string
+          product_video_url: string
           consult_note: string
+          material_note: string
+          material_detail_image_url: string
+          real_use_image_url: string
+          real_use_image_url_2: string
           is_active: boolean
           image_embedding_json: number[] | null
           image_embedding_vec: string | null
@@ -566,7 +598,12 @@ export interface Database {
           price_hint?: string
           image_url?: string
           product_url?: string
+          product_video_url?: string
           consult_note?: string
+          material_note?: string
+          material_detail_image_url?: string
+          real_use_image_url?: string
+          real_use_image_url_2?: string
           is_active?: boolean
           image_embedding_json?: number[] | null
           image_embedding_vec?: string | null
@@ -593,7 +630,12 @@ export interface Database {
           price_hint?: string
           image_url?: string
           product_url?: string
+          product_video_url?: string
           consult_note?: string
+          material_note?: string
+          material_detail_image_url?: string
+          real_use_image_url?: string
+          real_use_image_url_2?: string
           is_active?: boolean
           image_embedding_json?: number[] | null
           image_embedding_vec?: string | null
@@ -654,6 +696,7 @@ export interface Database {
           total_tokens: number | null
           conversation_id: string | null
           ai_job_id: string | null
+          usage_kind: string | null
           created_at: string
         }
         Insert: {
@@ -666,6 +709,7 @@ export interface Database {
           total_tokens?: number | null
           conversation_id?: string | null
           ai_job_id?: string | null
+          usage_kind?: string | null
           created_at?: string
         }
         Update: {
@@ -678,6 +722,40 @@ export interface Database {
           total_tokens?: number | null
           conversation_id?: string | null
           ai_job_id?: string | null
+          usage_kind?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      messaging_partner_image_embed_usage: {
+        Row: {
+          id: string
+          partner_id: string
+          source: 'inventory_sync' | 'guest_image_search'
+          model: string
+          prompt_tokens: number
+          total_tokens: number
+          inventory_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          source: 'inventory_sync' | 'guest_image_search'
+          model: string
+          prompt_tokens?: number
+          total_tokens?: number
+          inventory_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          source?: 'inventory_sync' | 'guest_image_search'
+          model?: string
+          prompt_tokens?: number
+          total_tokens?: number
+          inventory_id?: string | null
           created_at?: string
         }
         Relationships: []

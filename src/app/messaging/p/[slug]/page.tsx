@@ -9,6 +9,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { PartnerGuestChatClient } from './partner-guest-chat-client'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { fetchGuestPurchaseFlowForPartnerFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 
 const OG_LOCALE: Record<WebLocale, string> = {
   vi: 'vi_VN',
@@ -74,6 +75,7 @@ export default async function PartnerGuestChatPage(props: { params: Promise<{ sl
       : []
 
   const { t } = getServerDictionary()
+  const guestPurchaseFlow = await fetchGuestPurchaseFlowForPartnerFromPg(partner.id)
 
   return (
     <>
@@ -83,6 +85,7 @@ export default async function PartnerGuestChatPage(props: { params: Promise<{ sl
         shopDisplayName={partner.display_name}
         t={t.partnerGuestChat}
         initialChatList={chatList}
+        guestPurchaseFlow={guestPurchaseFlow}
       />
     </>
   )

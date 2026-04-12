@@ -5,8 +5,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar, Maximize2 } from 'lucide-react'
-import { Toaster } from '@/components/ui/toaster'
-
 // Client component for image preview
 import { ImagePreview } from '@/components/ui/image-preview'
 import { DownloadImageButton } from '@/components/download-image-button'
@@ -39,7 +37,6 @@ export default async function HistoryPage() {
 
   return (
     <div className="app-shell space-y-6 md:space-y-8 lg:space-y-8 xl:space-y-10">
-      <Toaster />
       <div className="section-surface flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-3xl font-bold tracking-tight lg:text-[2rem] xl:text-4xl">
           {tr('Ảnh đã xử lý', 'Processed images', '已处理图片', '処理済み画像', '처리된 이미지')}

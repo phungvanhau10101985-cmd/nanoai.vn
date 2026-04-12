@@ -1,26 +1,18 @@
 import type { AppUser } from '@/lib/auth/app-user'
 import { NextRequest, NextResponse } from 'next/server'
-import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { postWidgetGuestMessage } from '@/lib/messaging/widget-guest-post'
+import { writeGuestSessionCookie, writeGuestSessionHeader } from '@/lib/messaging/guest-auth-session'
+import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import {
-  createGuestSessionId,
-  readGuestSessionIdFromRequest,
-  writeGuestSessionCookie,
-  writeGuestSessionHeader,
-} from '@/lib/messaging/guest-auth-session'
-import { readGuestAccountIdFromRequest, writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
-import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
+  resolveGuestIdentity,
+  upsertGuestAccountForGoogleIdentity,
+} from '@/lib/messaging/guest-widget-identity'
 import {
+  fetchConsultedProductKeysForConversationFromPg,
   fetchGuestWidgetConversationIdFromPg,
   fetchGuestWidgetMessagesSubsetFromPg,
 } from '@/lib/db/customer-care-pg'
-import {
-  findGuestAccountIdByEmailPg,
-  insertGuestAccountPg,
-  updateGuestAccountLastLoginPg,
-  upsertGuestIdentityPg,
-} from '@/lib/db/messaging-guest-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
@@ -41,105 +33,6 @@ function guestCustomerName(displayName: string, user: AppUser | null) {
   const label = (fullName || email || sessionLabel || 'Guest').trim().slice(0, 48)
   const shopShort = displayName.trim().slice(0, 36) || 'Shop'
   return `${label} · ${shopShort}`
-}
-
-async function resolveGuestIdentity(request: NextRequest) {
-  const user = await getEmailSessionUser()
-
-  if (user?.id) {
-    return {
-      user,
-      externalThreadId: user.id,
-      linkedUserId: user.id,
-      guestAccountId: null as string | null,
-      newSessionId: null as string | null,
-    }
-  }
-
-  const accountId = readGuestAccountIdFromRequest(request)
-  if (accountId) {
-    return {
-      user: null,
-      externalThreadId: accountId,
-      linkedUserId: null,
-      guestAccountId: accountId,
-      newSessionId: null as string | null,
-    }
-  }
-
-  const existingSessionId = readGuestSessionIdFromRequest(request)
-  if (existingSessionId) {
-    return {
-      user: null,
-      externalThreadId: existingSessionId,
-      linkedUserId: null,
-      guestAccountId: null as string | null,
-      newSessionId: null as string | null,
-    }
-  }
-
-  const newSessionId = createGuestSessionId()
-  return {
-    user: null,
-    externalThreadId: newSessionId,
-    linkedUserId: null,
-    guestAccountId: null as string | null,
-    newSessionId,
-  }
-}
-
-function normalizeEmail(v: string): string {
-  return v.trim().toLowerCase()
-}
-
-async function upsertGuestAccountForGoogleIdentity(
-  partnerId: string,
-  request: NextRequest,
-  user: AppUser | null
-): Promise<string | null> {
-  if (!user?.email) return null
-  if (!isPgConfigured()) return null
-  const email = normalizeEmail(user.email)
-  const nowIso = new Date().toISOString()
-  let accountId: string | undefined
-
-  try {
-    let id: string | null = await findGuestAccountIdByEmailPg(partnerId, email)
-    if (!id) {
-      id = await insertGuestAccountPg({
-        partnerId,
-        emailRaw: user.email!,
-        emailNormalized: email,
-        firstVerifiedAt: nowIso,
-        lastLoginAt: nowIso,
-      })
-    } else {
-      await updateGuestAccountLastLoginPg(id, nowIso)
-    }
-    if (id) {
-      const identityOk = await upsertGuestIdentityPg({
-        partnerId,
-        guestAccountId: id,
-        provider: 'google',
-        providerSubject: email,
-      })
-      if (identityOk) {
-        accountId = id
-      }
-    }
-  } catch (e) {
-    console.warn('[guest] upsertGuestAccountForGoogleIdentity PG failed', e)
-  }
-
-  const anonymousSessionId = readGuestSessionIdFromRequest(request)
-  if (anonymousSessionId && accountId) {
-    await mergeGuestSessionConversationToAccount(partnerId, anonymousSessionId, accountId)
-  }
-  // Backward compatibility: older chat threads used auth user id as external_thread_id.
-  if (accountId && user?.id) {
-    await mergeGuestSessionConversationToAccount(partnerId, user.id, accountId)
-  }
-  return accountId ?? null
 }
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
@@ -171,6 +64,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     if (convIdPg === null) {
       const res = NextResponse.json({
         messages: [],
+        consultedProductKeys: [] as string[],
         authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
       })
       if (identity.newSessionId) {
@@ -182,8 +76,11 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     }
     const messagesPg = await fetchGuestWidgetMessagesSubsetFromPg(convIdPg)
     if (messagesPg !== null) {
+      const consultedProductKeys =
+        (await fetchConsultedProductKeysForConversationFromPg(convIdPg)) ?? []
       const res = NextResponse.json({
         messages: messagesPg,
+        consultedProductKeys,
         authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
       })
       if (identity.newSessionId) {

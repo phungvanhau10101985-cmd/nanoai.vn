@@ -5,6 +5,7 @@
  * Không phải proxy Shopee; đây là **chuẩn NanoAI** lấy cảm hứng từ tên trường phổ biến (item_sku, item_name, item_status, image_url_list).
  */
 
+import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import type { InventoryExcelInsert } from '@/lib/messaging/partner-inventory-excel'
 import {
   inventoryNameMatchKey,
@@ -182,6 +183,9 @@ export function openCatalogItemToInsert(obj: unknown): InventoryExcelInsert | nu
   const product_url = validateInventoryProductUrl(
     cellStr(o.item_url ?? o.product_url ?? o.url ?? o.shop_url)
   )
+  const product_video_url = validateInventoryHttpUrl(
+    cellStr(o.product_video_url ?? o.video_url ?? o.item_video ?? o.video)
+  )
 
   const consult_note = coalesceTextField(o.consult_note, o.seller_note, o.note).slice(0, 2000)
   const is_active = itemStatusToActive(o.item_status ?? o.status)
@@ -196,6 +200,7 @@ export function openCatalogItemToInsert(obj: unknown): InventoryExcelInsert | nu
     price_hint,
     image_url,
     product_url,
+    product_video_url,
     consult_note,
     is_active,
     removeFromInventory: false,
@@ -296,6 +301,7 @@ export function buildOpenCatalogReconcileRows(
         price_hint: row.price_hint ?? '',
         image_url: row.image_url ?? '',
         product_url: row.product_url ?? '',
+        product_video_url: row.product_video_url ?? '',
         consult_note: row.consult_note ?? '',
         is_active: row.is_active,
         removeFromInventory: true,
@@ -315,6 +321,7 @@ export function buildOpenCatalogReconcileRows(
       price_hint: row.price_hint ?? '',
       image_url: row.image_url ?? '',
       product_url: row.product_url ?? '',
+      product_video_url: row.product_video_url ?? '',
       consult_note: row.consult_note ?? '',
       is_active: row.is_active,
       removeFromInventory: true,

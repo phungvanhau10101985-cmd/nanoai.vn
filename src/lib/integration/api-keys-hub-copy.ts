@@ -42,8 +42,8 @@ export type ApiKeysHubStrings = {
 
 export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
   vi: {
-    backAdmin: 'Về trang quản trị',
-    backPartner: 'Về Bảng điều khiển',
+    backAdmin: 'Quay lại',
+    backPartner: 'Quay lại',
     pageTitle: 'Khóa API & cổng tích hợp',
     pageTitlePartner: 'Hướng dẫn tích hợp API (website shop)',
     pageLead:
@@ -95,8 +95,8 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       'Trên môi trường này chưa đặt NEXT_PUBLIC_APP_URL (hoặc NEXT_PUBLIC_BASE_URL): các URL ví dụ đang dùng placeholder. Trên production hãy cấu hình để hiển thị đúng domain NanoAI.',
   },
   en: {
-    backAdmin: 'Back to admin',
-    backPartner: 'Back to dashboard',
+    backAdmin: 'Back',
+    backPartner: 'Back',
     pageTitle: 'API keys & integration endpoints',
     pageTitlePartner: 'API integration guide (your shop website)',
     pageLead:
@@ -147,8 +147,8 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       'NEXT_PUBLIC_APP_URL (or NEXT_PUBLIC_BASE_URL) is not set in this environment: example URLs use a placeholder. Set it in production so snippets show your real NanoAI domain.',
   },
   zh: {
-    backAdmin: '返回管理页',
-    backPartner: '返回控制台',
+    backAdmin: '返回',
+    backPartner: '返回',
     pageTitle: 'API 密钥与集成入口',
     pageTitlePartner: 'API 集成说明（店铺网站）',
     pageLead:
@@ -199,8 +199,8 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       '当前环境未设置 NEXT_PUBLIC_APP_URL（或 NEXT_PUBLIC_BASE_URL）：示例 URL 为占位符。请在生产环境配置以显示真实 NanoAI 域名。',
   },
   ja: {
-    backAdmin: '管理ページへ戻る',
-    backPartner: 'ダッシュボードへ戻る',
+    backAdmin: '戻る',
+    backPartner: '戻る',
     pageTitle: 'API キーと連携エンドポイント',
     pageTitlePartner: 'API 連携ガイド（店舗サイト）',
     pageLead:
@@ -251,8 +251,8 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       'この環境では NEXT_PUBLIC_APP_URL（または NEXT_PUBLIC_BASE_URL）が未設定のため、例の URL はプレースホルダーです。本番では設定して実際の NanoAI ドメインを表示してください。',
   },
   ko: {
-    backAdmin: '관리로 돌아가기',
-    backPartner: '대시보드로 돌아가기',
+    backAdmin: '뒤로',
+    backPartner: '뒤로',
     pageTitle: 'API 키 및 연동 엔드포인트',
     pageTitlePartner: 'API 연동 안내(매장 웹사이트)',
     pageLead:

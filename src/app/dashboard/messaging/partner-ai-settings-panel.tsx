@@ -7,6 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
@@ -18,6 +25,13 @@ import type {
   PartnerAiSettingsClientRow,
   PartnerAiSettingsPayload,
   PartnerAiTokenUsageStatRow,
+  PartnerAiTokenUsageDetailRow,
+  PartnerAiImageGenUsageStatRow,
+  OwnerCreditEventSummaryRow,
+  OwnerCreditEventDetailRow,
+  PartnerLogoCreditRow,
+  PartnerImageEmbedUsageDetailRow,
+  PartnerImageEmbedUsageSummaryRow,
 } from '@/app/dashboard/messaging/actions'
 import {
   deletePartnerFaq,
@@ -27,6 +41,7 @@ import {
   triggerPartnerInventoryEmbeddingSync,
   getPartnerInventoryPage,
   getPartnerAiTokenUsageStats,
+  getPartnerAiUsageAnalytics,
   savePartnerAiSettings,
   upsertPartnerFaq,
   upsertPartnerInventoryItem,
@@ -34,6 +49,8 @@ import {
 import {
   PARTNER_FAQ_CUSTOM_KEYWORDS_REQUIRED,
 } from '@/lib/messaging/partner-faq-presets'
+import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
+import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
 import { Bot, Download, FileSpreadsheet, Sparkles, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
@@ -48,6 +65,25 @@ function parseStockQtyInput(raw: string): string {
 }
 
 const tokenFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
+const creditFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })
+
+function dateTimeForLocale(iso: string, locale: WebLocale): string {
+  const tag =
+    locale === 'vi'
+      ? 'vi-VN'
+      : locale === 'zh'
+        ? 'zh-CN'
+        : locale === 'ja'
+          ? 'ja-JP'
+          : locale === 'ko'
+            ? 'ko-KR'
+            : 'en-US'
+  try {
+    return new Date(iso).toLocaleString(tag, { dateStyle: 'short', timeStyle: 'short' })
+  } catch {
+    return iso
+  }
+}
 
 function defaultsFromSettings(s: SettingsRow | null) {
   return {
@@ -57,6 +93,7 @@ function defaultsFromSettings(s: SettingsRow | null) {
     typing_pause_max_ms: s?.typing_pause_max_ms ?? 1200,
     shop_policy: s?.shop_policy ?? '',
     tone_instructions: s?.tone_instructions ?? '',
+    sales_coaching_instructions: s?.sales_coaching_instructions ?? '',
     append_ai_disclosure: s?.append_ai_disclosure ?? true,
     disclosure_suffix: s?.disclosure_suffix ?? '',
     vision_product_search_enabled: false,
@@ -78,6 +115,7 @@ function defaultsFromSettings(s: SettingsRow | null) {
     vision_bg_sync_finished_at: null,
     vision_bg_sync_error: '',
     vision_bg_sync_report: '',
+    guest_purchase_flow: normalizeGuestPurchaseFlow(s?.guest_purchase_flow),
   }
 }
 
@@ -91,6 +129,7 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
     typing_pause_max_ms: f.typing_pause_max_ms,
     shop_policy: f.shop_policy,
     tone_instructions: f.tone_instructions,
+    sales_coaching_instructions: f.sales_coaching_instructions,
     append_ai_disclosure: f.append_ai_disclosure,
     disclosure_suffix: f.disclosure_suffix,
     vision_product_search_enabled: f.vision_product_search_enabled,
@@ -99,6 +138,7 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
     vision_product_category: f.vision_product_category,
     vision_gcs_bucket: f.vision_gcs_bucket,
     image_search_api_enabled: f.image_search_api_enabled,
+    guest_purchase_flow: f.guest_purchase_flow,
   }
 }
 
@@ -116,7 +156,6 @@ export function PartnerAiSettingsPanel({
   aiModelId: string
   locale: WebLocale
 }) {
-  void locale
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
   const [loadErr, setLoadErr] = useState<string | null>(null)
@@ -128,7 +167,15 @@ export function PartnerAiSettingsPanel({
   const [inventoryPage, setInventoryPage] = useState(0)
   const [inventoryLoadingMore, setInventoryLoadingMore] = useState(false)
   const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRow[]>([])
+  const [imageGenRows, setImageGenRows] = useState<PartnerAiImageGenUsageStatRow[]>([])
   const [tokenUsageLookbackDays, setTokenUsageLookbackDays] = useState(30)
+  const [tokenDetailRows, setTokenDetailRows] = useState<PartnerAiTokenUsageDetailRow[]>([])
+  const [creditSummaryRows, setCreditSummaryRows] = useState<OwnerCreditEventSummaryRow[]>([])
+  const [creditDetailRows, setCreditDetailRows] = useState<OwnerCreditEventDetailRow[]>([])
+  const [logoCreditRows, setLogoCreditRows] = useState<PartnerLogoCreditRow[]>([])
+  const [usageOwnerLinked, setUsageOwnerLinked] = useState(true)
+  const [imageEmbedSummaryRows, setImageEmbedSummaryRows] = useState<PartnerImageEmbedUsageSummaryRow[]>([])
+  const [imageEmbedDetailRows, setImageEmbedDetailRows] = useState<PartnerImageEmbedUsageDetailRow[]>([])
   const [embeddingStats, setEmbeddingStats] = useState<PartnerInventoryEmbeddingStats | null>(null)
   const [embeddingSyncing, setEmbeddingSyncing] = useState(false)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
@@ -155,17 +202,37 @@ export function PartnerAiSettingsPanel({
     setInventoryPage(0)
     setEmbeddingStats(null)
     return (async () => {
-      const [bundleRes, usageRes, embeddingRes] = await Promise.all([
+      const [bundleRes, usageRes, analyticsRes, embeddingRes] = await Promise.all([
         getPartnerAiBundle(partnerId),
         getPartnerAiTokenUsageStats(partnerId),
+        getPartnerAiUsageAnalytics(partnerId),
         getPartnerInventoryEmbeddingStats(partnerId),
       ])
       if (seq !== loadSeqRef.current) return
       if ('error' in usageRes) {
         setTokenUsageRows([])
+        setImageGenRows([])
       } else {
         setTokenUsageRows(usageRes.rows)
+        setImageGenRows(usageRes.imageGenRows ?? [])
         setTokenUsageLookbackDays(usageRes.lookbackDays)
+      }
+      if ('error' in analyticsRes) {
+        setTokenDetailRows([])
+        setCreditSummaryRows([])
+        setCreditDetailRows([])
+        setLogoCreditRows([])
+        setUsageOwnerLinked(true)
+        setImageEmbedSummaryRows([])
+        setImageEmbedDetailRows([])
+      } else {
+        setTokenDetailRows(analyticsRes.tokenDetails)
+        setCreditSummaryRows(analyticsRes.creditSummaries)
+        setCreditDetailRows(analyticsRes.creditDetails)
+        setLogoCreditRows(analyticsRes.logoCreditRows)
+        setUsageOwnerLinked(analyticsRes.ownerAccountLinked)
+        setImageEmbedSummaryRows(analyticsRes.imageEmbedSummaries)
+        setImageEmbedDetailRows(analyticsRes.imageEmbedDetails)
       }
       if ('error' in embeddingRes) {
         setEmbeddingStats(null)
@@ -488,6 +555,40 @@ export function PartnerAiSettingsPanel({
                 className="resize-y"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="ai-sales-coaching">{t.salesCoachingLabel}</Label>
+              <p className="text-xs text-muted-foreground">{t.salesCoachingHint}</p>
+              <Textarea
+                id="ai-sales-coaching"
+                rows={4}
+                placeholder={t.salesCoachingPlaceholder}
+                value={form.sales_coaching_instructions}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, sales_coaching_instructions: e.target.value }))
+                }
+                className="resize-y min-h-[96px]"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ai-guest-purchase-flow">{t.guestPurchaseFlowLabel}</Label>
+              <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowHint}</p>
+              <Select
+                value={form.guest_purchase_flow}
+                onValueChange={(v: string) =>
+                  persistPartial({ guest_purchase_flow: normalizeGuestPurchaseFlow(v) })
+                }
+                disabled={pending || !settingsLoaded}
+              >
+                <SelectTrigger id="ai-guest-purchase-flow" className="max-w-md">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in_chat">{t.guestPurchaseFlowInChat}</SelectItem>
+                  <SelectItem value="external_site">{t.guestPurchaseFlowExternal}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
               <div className="min-w-0">
@@ -612,6 +713,303 @@ export function PartnerAiSettingsPanel({
                 </table>
               </div>
             )}
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">{t.usageImageGenTitle}</h3>
+              {(() => {
+                const nanoCalls = imageGenRows.reduce((s, r) => s + r.call_count, 0)
+                const nanoTokens = imageGenRows.reduce((s, r) => s + r.sum_total_tokens, 0)
+                return (
+                  <div className="flex flex-col gap-1.5 rounded-lg border border-violet-500/25 bg-violet-500/[0.07] px-3 py-2.5 dark:border-violet-500/30 dark:bg-violet-950/25">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="shrink-0 font-semibold tracking-tight">
+                        {t.usageNanoBananaBadge}
+                      </Badge>
+                      <span className="text-[11px] text-muted-foreground">{t.usageNanoBananaModelHint}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                      <span className="font-medium tabular-nums text-foreground">
+                        {t.usageNanoBananaStatCalls.replace('{calls}', tokenFmt.format(nanoCalls))}
+                      </span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {t.usageNanoBananaStatTokens.replace('{tokens}', tokenFmt.format(nanoTokens))}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
+              <p className="text-xs text-muted-foreground leading-relaxed">{t.usageImageGenIntro}</p>
+              {imageGenRows.length === 0 || imageGenRows.every((r) => r.call_count === 0) ? (
+                <p className="text-sm text-muted-foreground">{t.usageImageGenEmpty}</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium tabular-nums text-foreground">
+                    {t.usageImageGenTotalCallsLabel}:{' '}
+                    {tokenFmt.format(imageGenRows.reduce((s, r) => s + r.call_count, 0))}
+                  </p>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-muted/40 text-left">
+                          <th className="p-2 font-medium">{t.usageImageGenColKind}</th>
+                          <th className="p-2 font-medium tabular-nums">{t.usageImageGenColCalls}</th>
+                          <th className="p-2 font-medium tabular-nums">{t.usageImageGenColTotalTokens}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {imageGenRows.map((row) => (
+                          <tr
+                            key={row.usage_kind}
+                            className="border-b border-border/60 last:border-0"
+                          >
+                            <td className="p-2">
+                              {row.usage_kind === 'image_material_detail'
+                                ? t.usageImageGenKindMaterial
+                                : t.usageImageGenKindRealUse}
+                            </td>
+                            <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                            <td className="p-2 tabular-nums font-medium">
+                              {tokenFmt.format(row.sum_total_tokens)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">{t.usageEmbedImageTitle}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{t.usageEmbedImageIntro}</p>
+              {imageEmbedSummaryRows.length === 0 && imageEmbedDetailRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t.usageEmbedImageEmpty}</p>
+              ) : (
+                <div className="space-y-3">
+                  {imageEmbedSummaryRows.length > 0 ? (
+                    <div className="overflow-x-auto rounded-lg border">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/40 text-left">
+                            <th className="p-2 font-medium">{t.usageEmbedColSource}</th>
+                            <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCalls}</th>
+                            <th className="p-2 font-medium tabular-nums">{t.usageEmbedColPromptSum}</th>
+                            <th className="p-2 font-medium tabular-nums">{t.usageEmbedColTotalSum}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {imageEmbedSummaryRows.map((row) => (
+                            <tr key={row.source} className="border-b border-border/60 last:border-0">
+                              <td className="p-2">
+                                {row.source === 'guest_image_search'
+                                  ? t.usageEmbedSourceGuest
+                                  : t.usageEmbedSourceInventory}
+                              </td>
+                              <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                              <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
+                              <td className="p-2 tabular-nums font-medium">
+                                {tokenFmt.format(row.sum_total_tokens)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                  {imageEmbedDetailRows.length > 0 ? (
+                    <div>
+                      <p className="mb-1 text-[11px] font-medium text-muted-foreground">
+                        {t.usageEmbedDetailTitle}
+                      </p>
+                      <div className="overflow-x-auto rounded-lg border">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b bg-muted/40 text-left">
+                              <th className="p-2 font-medium">{t.usageDetailColTime}</th>
+                              <th className="p-2 font-medium">{t.usageEmbedColSource}</th>
+                              <th className="p-2 font-medium">{t.tokenUsageColModel}</th>
+                              <th className="p-2 font-medium tabular-nums">{t.usageEmbedColPromptSum}</th>
+                              <th className="p-2 font-medium tabular-nums">{t.usageEmbedColTotalSum}</th>
+                              <th className="p-2 font-medium">{t.usageEmbedColInventoryId}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {imageEmbedDetailRows.map((row) => (
+                              <tr key={row.id} className="border-b border-border/60 last:border-0">
+                                <td className="p-2 whitespace-nowrap tabular-nums">
+                                  {dateTimeForLocale(row.created_at, locale)}
+                                </td>
+                                <td className="p-2">
+                                  {row.source === 'guest_image_search'
+                                    ? t.usageEmbedSourceGuest
+                                    : t.usageEmbedSourceInventory}
+                                </td>
+                                <td className="p-2 font-mono text-[11px]">{row.model || '—'}</td>
+                                <td className="p-2 tabular-nums">{tokenFmt.format(row.prompt_tokens)}</td>
+                                <td className="p-2 tabular-nums font-medium">
+                                  {tokenFmt.format(row.total_tokens)}
+                                </td>
+                                <td className="p-2 font-mono text-[10px] text-muted-foreground">
+                                  {row.inventory_id ? row.inventory_id.slice(0, 8) : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4 border-t border-border/60 pt-4">
+              <div>
+                <h3 className="text-sm font-medium">{t.usageDetailApiTitle}</h3>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageDetailApiIntro}</p>
+                {tokenDetailRows.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted-foreground">{t.usageDetailEmpty}</p>
+                ) : (
+                  <div className="mt-2 overflow-x-auto rounded-lg border">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-muted/40 text-left">
+                          <th className="p-2 font-medium">{t.usageDetailColTime}</th>
+                          <th className="p-2 font-medium">{t.tokenUsageColProvider}</th>
+                          <th className="p-2 font-medium">{t.tokenUsageColModel}</th>
+                          <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
+                          <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
+                          <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tokenDetailRows.map((row) => (
+                          <tr key={row.id} className="border-b border-border/60 last:border-0">
+                            <td className="p-2 whitespace-nowrap tabular-nums">
+                              {dateTimeForLocale(row.created_at, locale)}
+                            </td>
+                            <td className="p-2 capitalize">{row.provider}</td>
+                            <td className="p-2 font-mono text-[11px]">{row.model}</td>
+                            <td className="p-2 tabular-nums">{tokenFmt.format(row.prompt_tokens ?? 0)}</td>
+                            <td className="p-2 tabular-nums">{tokenFmt.format(row.completion_tokens ?? 0)}</td>
+                            <td className="p-2 tabular-nums font-medium">
+                              {tokenFmt.format(row.total_tokens ?? 0)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium">{t.usageCreditLedgerTitle}</h3>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageCreditLedgerIntro}</p>
+                {!usageOwnerLinked ? (
+                  <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">{t.usageNoOwnerHint}</p>
+                ) : creditSummaryRows.length === 0 && creditDetailRows.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted-foreground">{t.usageCreditLedgerEmpty}</p>
+                ) : (
+                  <div className="mt-2 space-y-3">
+                    {creditSummaryRows.length > 0 ? (
+                      <div className="overflow-x-auto rounded-lg border">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b bg-muted/40 text-left">
+                              <th className="p-2 font-medium">{t.usageCreditColType}</th>
+                              <th className="p-2 font-medium tabular-nums">{t.usageCreditColCount}</th>
+                              <th className="p-2 font-medium tabular-nums">{t.usageCreditColAmount}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {creditSummaryRows.map((row) => (
+                              <tr
+                                key={row.charge_type || '(empty)'}
+                                className="border-b border-border/60 last:border-0"
+                              >
+                                <td className="p-2 font-mono text-[11px]">{row.charge_type || '—'}</td>
+                                <td className="p-2 tabular-nums">{tokenFmt.format(row.event_count)}</td>
+                                <td className="p-2 tabular-nums font-medium">
+                                  {creditFmt.format(row.sum_amount)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : null}
+                    {creditDetailRows.length > 0 ? (
+                      <div>
+                        <p className="mb-1 text-[11px] font-medium text-muted-foreground">
+                          {t.usageCreditDetailTitle}
+                        </p>
+                        <div className="overflow-x-auto rounded-lg border">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b bg-muted/40 text-left">
+                                <th className="p-2 font-medium">{t.usageCreditColWhen}</th>
+                                <th className="p-2 font-medium">{t.usageCreditColType}</th>
+                                <th className="p-2 font-medium tabular-nums">{t.usageCreditColSingle}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {creditDetailRows.map((row) => (
+                                <tr key={row.id} className="border-b border-border/60 last:border-0">
+                                  <td className="p-2 whitespace-nowrap tabular-nums">
+                                    {dateTimeForLocale(row.created_at, locale)}
+                                  </td>
+                                  <td className="p-2 font-mono text-[11px]">{row.charge_type || '—'}</td>
+                                  <td className="p-2 tabular-nums font-medium">
+                                    {creditFmt.format(row.amount)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium">{t.usageLogoCreditTitle}</h3>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageLogoCreditIntro}</p>
+                {logoCreditRows.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted-foreground">{t.usageLogoCreditEmpty}</p>
+                ) : (
+                  <div className="mt-2 overflow-x-auto rounded-lg border">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-muted/40 text-left">
+                          <th className="p-2 font-medium">{t.usageDetailColTime}</th>
+                          <th className="p-2 font-medium">{t.usageLogoColModel}</th>
+                          <th className="p-2 font-medium">{t.usageLogoColStatus}</th>
+                          <th className="p-2 font-medium tabular-nums">{t.usageCreditColSingle}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {logoCreditRows.map((row) => (
+                          <tr key={row.id} className="border-b border-border/60 last:border-0">
+                            <td className="p-2 whitespace-nowrap tabular-nums">
+                              {dateTimeForLocale(row.created_at, locale)}
+                            </td>
+                            <td className="p-2 font-mono text-[11px]">{row.model || '—'}</td>
+                            <td className="p-2">{row.status || '—'}</td>
+                            <td className="p-2 tabular-nums font-medium">
+                              {creditFmt.format(row.charged_credits)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
       </CardContent>
@@ -1012,6 +1410,7 @@ function InventoryEditor({
     price_hint: '',
     image_url: '',
     product_url: '',
+    product_video_url: '',
     consult_note: '',
     sort_order: 0,
   })
@@ -1027,6 +1426,7 @@ function InventoryEditor({
       price_hint: '',
       image_url: '',
       product_url: '',
+      product_video_url: '',
       consult_note: '',
       sort_order: rows.length,
     })
@@ -1046,6 +1446,7 @@ function InventoryEditor({
       price_hint: r.price_hint,
       image_url: r.image_url ?? '',
       product_url: r.product_url ?? '',
+      product_video_url: r.product_video_url ?? '',
       consult_note: r.consult_note ?? '',
       sort_order: r.sort_order,
     })
@@ -1063,6 +1464,7 @@ function InventoryEditor({
         price_hint: draft.price_hint,
         image_url: draft.image_url,
         product_url: draft.product_url,
+        product_video_url: draft.product_video_url,
         consult_note: draft.consult_note,
         sort_order: draft.sort_order,
       })
@@ -1341,6 +1743,21 @@ function InventoryEditor({
                     </a>
                   </p>
                 ) : null}
+                {(() => {
+                  const vu = validateInventoryHttpUrl(r.product_video_url ?? '')
+                  return vu ? (
+                    <p className="mt-1 text-[11px]">
+                      <a
+                        href={vu}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-violet-600 underline underline-offset-2 dark:text-violet-400"
+                      >
+                        {t.inventoryOpenProductVideo}
+                      </a>
+                    </p>
+                  ) : null
+                })()}
                 {r.consult_note?.trim() ? (
                   <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{r.consult_note.trim()}</p>
                 ) : null}
@@ -1427,6 +1844,17 @@ function InventoryEditor({
               className="font-mono text-xs"
             />
             <p className="text-[11px] text-muted-foreground">{t.inventoryProductUrlHint}</p>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t.inventoryProductVideoUrl}</Label>
+            <Input
+              value={draft.product_video_url}
+              maxLength={2048}
+              onChange={(e) => setDraft((d) => ({ ...d, product_video_url: e.target.value }))}
+              placeholder="https:// (YouTube hoặc .mp4)"
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground">{t.inventoryProductVideoUrlHint}</p>
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>{t.inventoryConsultNote}</Label>

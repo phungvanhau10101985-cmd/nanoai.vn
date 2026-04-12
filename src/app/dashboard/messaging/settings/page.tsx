@@ -5,7 +5,6 @@ import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import { isValidUuidString } from '@/lib/validate-uuid'
 import { Button } from '@/components/ui/button'
-import { Toaster } from '@/components/ui/toaster'
 import { Settings } from 'lucide-react'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
@@ -41,7 +40,6 @@ export default async function DashboardMessagingSettingsPage() {
 
   return (
     <div className="app-shell flex min-h-[calc(100dvh-5rem)] flex-col space-y-6 md:space-y-8">
-      <Toaster />
       <div className="section-surface space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">

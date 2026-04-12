@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, KeyRound } from 'lucide-react'
+import { KeyRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -10,6 +10,7 @@ import {
 } from '@/lib/integration/api-keys-hub-copy'
 import { pickApiKeysHubLocale } from '@/lib/integration/api-keys-hub-locale-server'
 import { PartnerApiIntegrationWorkspace } from '@/components/integration/partner-api-integration-workspace'
+import { ApiKeysHubBackButton } from '@/components/integration/api-keys-hub-back-button'
 
 export type ApiKeysHubVariant = 'partner' | 'operator'
 
@@ -35,7 +36,6 @@ export function ApiKeysHub({
   const t = API_KEYS_HUB_COPY[locale]
   const isPartner = variant === 'partner'
 
-  const backHref = isPartner ? '/dashboard' : '/admin'
   const backLabel = isPartner ? t.backPartner : t.backAdmin
   const title = isPartner ? t.pageTitlePartner : t.pageTitle
   const lead = isPartner ? t.partnerPageLead : t.pageLead
@@ -45,12 +45,7 @@ export function ApiKeysHub({
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 py-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" asChild className="gap-1.5">
-          <Link href={backHref}>
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            {backLabel}
-          </Link>
-        </Button>
+        <ApiKeysHubBackButton label={backLabel} />
       </div>
 
       <div className="flex items-start gap-3 rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">

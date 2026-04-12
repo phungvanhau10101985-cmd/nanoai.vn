@@ -71,7 +71,12 @@ type PgInventoryRaw = {
   price_hint: string
   image_url: string
   product_url: string
+  product_video_url: string
   consult_note: string
+  material_note: string
+  material_detail_image_url: string
+  real_use_image_url: string
+  real_use_image_url_2: string
   is_active: boolean | null
   image_embedding_json: unknown
   image_embedding_vec: string | null
@@ -100,7 +105,12 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
     price_hint: String(r.price_hint ?? ''),
     image_url: String(r.image_url ?? ''),
     product_url: String(r.product_url ?? ''),
+    product_video_url: String(r.product_video_url ?? ''),
     consult_note: String(r.consult_note ?? ''),
+    material_note: String(r.material_note ?? ''),
+    material_detail_image_url: String(r.material_detail_image_url ?? ''),
+    real_use_image_url: String(r.real_use_image_url ?? ''),
+    real_use_image_url_2: String(r.real_use_image_url_2 ?? ''),
     is_active: r.is_active !== false,
     image_embedding_json: parseEmbeddingJson(r.image_embedding_json),
     image_embedding_vec: r.image_embedding_vec ?? null,
@@ -129,7 +139,12 @@ const INVENTORY_PAGE_SELECT = `select
   coalesce(mpi.price_hint, '') as price_hint,
   coalesce(mpi.image_url, '') as image_url,
   coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.product_video_url, '') as product_video_url,
   coalesce(mpi.consult_note, '') as consult_note,
+  coalesce(mpi.material_note, '') as material_note,
+  coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,
+  coalesce(mpi.real_use_image_url, '') as real_use_image_url,
+  coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
   coalesce(mpi.is_active, true) as is_active,
   mpi.image_embedding_json,
   mpi.image_embedding_vec::text as image_embedding_vec,
@@ -157,7 +172,12 @@ const INVENTORY_PAGE_SELECT_LEGACY = `select
   coalesce(mpi.price_hint, '') as price_hint,
   coalesce(mpi.image_url, '') as image_url,
   coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.product_video_url, '') as product_video_url,
   coalesce(mpi.consult_note, '') as consult_note,
+  coalesce(mpi.material_note, '') as material_note,
+  coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,
+  coalesce(mpi.real_use_image_url, '') as real_use_image_url,
+  coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
   coalesce(mpi.is_active, true) as is_active,
   mpi.image_embedding_json,
   mpi.image_embedding_vec::text as image_embedding_vec,
@@ -332,6 +352,58 @@ export async function fetchPartnerInventoryRowByProductUrlFromPg(
     return row ? mapPgInventoryRow(row) : null
   } catch (e) {
     console.warn('[fetchPartnerInventoryRowByProductUrlFromPg]', e)
+    return null
+  }
+}
+
+/** Khớp SKU đã chuẩn hoá (bỏ khoảng trắng, dấu gạch…) — dùng với mã trên thẻ sản phẩm AI. */
+export async function fetchPartnerInventoryRowByComparableSkuFromPg(
+  partnerId: string,
+  skuRaw: string
+): Promise<MessagingPartnerInventoryRow | null> {
+  if (!isPgConfigured()) return null
+  const norm = String(skuRaw ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s._-]+/g, '')
+    .replace(/[^a-z0-9]/g, '')
+  if (!norm) return null
+  try {
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true)
+         and regexp_replace(lower(trim(coalesce(mpi.sku,''))), '[^a-z0-9]', '', 'g') = $2
+       limit 1`,
+      [partnerId, norm]
+    )
+    const row = rows[0] ?? null
+    return row ? mapPgInventoryRow(row) : null
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryRowByComparableSkuFromPg]', e)
+    return null
+  }
+}
+
+/** Khớp đúng URL ảnh sản phẩm trên kho (thẻ AI thường trùng `image_url`). */
+export async function fetchPartnerInventoryRowByImageUrlFromPg(
+  partnerId: string,
+  imageUrl: string
+): Promise<MessagingPartnerInventoryRow | null> {
+  if (!isPgConfigured()) return null
+  const u = String(imageUrl ?? '').trim()
+  if (!u || !/^https?:\/\//i.test(u)) return null
+  try {
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true)
+         and trim(coalesce(mpi.image_url, '')) = $2
+       limit 1`,
+      [partnerId, u]
+    )
+    const row = rows[0] ?? null
+    return row ? mapPgInventoryRow(row) : null
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryRowByImageUrlFromPg]', e)
     return null
   }
 }
@@ -575,6 +647,7 @@ function inventoryInsertRowParams(r: MessagingPartnerInventoryInsert): unknown[]
     r.price_hint ?? '',
     r.image_url ?? '',
     r.product_url ?? '',
+    r.product_video_url ?? '',
     r.consult_note ?? '',
     r.is_active !== false,
     r.created_at ?? nowIso,
@@ -598,14 +671,14 @@ export async function insertPartnerInventoryChunkFromPg(
       const rowParams = inventoryInsertRowParams(r)
       if (!rowParams) return false
       valuesSql.push(
-        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
+        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
       )
       params.push(...rowParams)
     }
     await getPgPool().query(
       `insert into public.messaging_partner_inventory (
         id, partner_id, sort_order, sku, name, description, stock_note, stock_qty, price_hint,
-        image_url, product_url, consult_note, is_active, created_at, updated_at
+        image_url, product_url, product_video_url, consult_note, is_active, created_at, updated_at
       ) values ${valuesSql.join(', ')}`,
       params
     )
@@ -632,14 +705,14 @@ export async function upsertPartnerInventoryChunkFromPg(
       const rowParams = inventoryInsertRowParams(r)
       if (!rowParams) return false
       valuesSql.push(
-        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
+        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
       )
       params.push(...rowParams)
     }
     await getPgPool().query(
       `insert into public.messaging_partner_inventory (
         id, partner_id, sort_order, sku, name, description, stock_note, stock_qty, price_hint,
-        image_url, product_url, consult_note, is_active, created_at, updated_at
+        image_url, product_url, product_video_url, consult_note, is_active, created_at, updated_at
       ) values ${valuesSql.join(', ')}
       on conflict (id) do update set
         partner_id = excluded.partner_id,
@@ -652,6 +725,7 @@ export async function upsertPartnerInventoryChunkFromPg(
         price_hint = excluded.price_hint,
         image_url = excluded.image_url,
         product_url = excluded.product_url,
+        product_video_url = excluded.product_video_url,
         consult_note = excluded.consult_note,
         is_active = excluded.is_active,
         created_at = excluded.created_at,
@@ -727,6 +801,88 @@ export async function fetchPartnerInventoryEmbeddingStatsFromPg(
   }
 }
 
+/** Ghi chất liệu suy từ ảnh / shop — dùng lại cho lượt hỏi sau. */
+export async function updatePartnerInventoryMaterialNoteFromPg(
+  partnerId: string,
+  inventoryId: string,
+  materialNote: string
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const note = String(materialNote ?? '').trim().slice(0, 2000)
+  if (!note) return false
+  try {
+    const r = await getPgPool().query(
+      `update public.messaging_partner_inventory
+       set material_note = $3,
+           updated_at = now()
+       where partner_id = $1::uuid and id = $2::uuid`,
+      [partnerId, inventoryId, note]
+    )
+    return (r.rowCount ?? 0) > 0
+  } catch (e) {
+    console.warn('[updatePartnerInventoryMaterialNoteFromPg]', e)
+    return false
+  }
+}
+
+/** URL ảnh collage chi tiết chất liệu (public HTTPS) — cache theo mặt hàng. */
+export async function updatePartnerInventoryMaterialDetailImageUrlFromPg(
+  partnerId: string,
+  inventoryId: string,
+  materialDetailImageUrl: string
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const u = String(materialDetailImageUrl ?? '').trim().slice(0, 2000)
+  if (!u || !/^https?:\/\//i.test(u)) return false
+  try {
+    const r = await getPgPool().query(
+      `update public.messaging_partner_inventory
+       set material_detail_image_url = $3,
+           updated_at = now()
+       where partner_id = $1::uuid and id = $2::uuid`,
+      [partnerId, inventoryId, u]
+    )
+    return (r.rowCount ?? 0) > 0
+  } catch (e) {
+    console.warn('[updatePartnerInventoryMaterialDetailImageUrlFromPg]', e)
+    return false
+  }
+}
+
+/** Ảnh minh họa khách dùng/mặc sản phẩm (public HTTPS) — cache theo mặt hàng; slot 1 hoặc 2. */
+export async function updatePartnerInventoryRealUseImageUrlAtSlotFromPg(
+  partnerId: string,
+  inventoryId: string,
+  realUseImageUrl: string,
+  slot: 1 | 2
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const u = String(realUseImageUrl ?? '').trim().slice(0, 2000)
+  if (!u || !/^https?:\/\//i.test(u)) return false
+  const col = slot === 1 ? 'real_use_image_url' : 'real_use_image_url_2'
+  try {
+    const r = await getPgPool().query(
+      `update public.messaging_partner_inventory
+       set ${col} = $3,
+           updated_at = now()
+       where partner_id = $1::uuid and id = $2::uuid`,
+      [partnerId, inventoryId, u]
+    )
+    return (r.rowCount ?? 0) > 0
+  } catch (e) {
+    console.warn('[updatePartnerInventoryRealUseImageUrlAtSlotFromPg]', e)
+    return false
+  }
+}
+
+export async function updatePartnerInventoryRealUseImageUrlFromPg(
+  partnerId: string,
+  inventoryId: string,
+  realUseImageUrl: string
+): Promise<boolean> {
+  return updatePartnerInventoryRealUseImageUrlAtSlotFromPg(partnerId, inventoryId, realUseImageUrl, 1)
+}
+
 export async function updatePartnerInventoryDashboardItemFromPg(
   partnerId: string,
   itemId: string,
@@ -739,6 +895,7 @@ export async function updatePartnerInventoryDashboardItemFromPg(
     price_hint: string
     image_url: string
     product_url: string
+    product_video_url: string
     consult_note: string
     sort_order: number
     updated_at: string
@@ -756,10 +913,11 @@ export async function updatePartnerInventoryDashboardItemFromPg(
         price_hint = $8,
         image_url = $9,
         product_url = $10,
-        consult_note = $11,
-        sort_order = $12,
+        product_video_url = $11,
+        consult_note = $12,
+        sort_order = $13,
         is_active = true,
-        updated_at = $13::timestamptz
+        updated_at = $14::timestamptz
        where partner_id = $1::uuid and id = $2::uuid`,
       [
         partnerId,
@@ -772,6 +930,7 @@ export async function updatePartnerInventoryDashboardItemFromPg(
         fields.price_hint,
         fields.image_url,
         fields.product_url,
+        fields.product_video_url,
         fields.consult_note,
         fields.sort_order,
         fields.updated_at,
@@ -795,6 +954,7 @@ export async function insertPartnerInventoryDashboardItemFromPg(
     price_hint: string
     image_url: string
     product_url: string
+    product_video_url: string
     consult_note: string
     sort_order: number
     created_at: string
@@ -805,10 +965,10 @@ export async function insertPartnerInventoryDashboardItemFromPg(
   try {
     const row = await pgQueryOne<{ id: string }>(
       `insert into public.messaging_partner_inventory (
-        partner_id, name, sku, description, stock_note, stock_qty, price_hint, image_url, product_url, consult_note,
+        partner_id, name, sku, description, stock_note, stock_qty, price_hint, image_url, product_url, product_video_url, consult_note,
         sort_order, is_active, created_at, updated_at
       ) values (
-        $1::uuid, $2, $3, $4, $5, $6::int, $7, $8, $9, $10, $11, true, $12::timestamptz, $13::timestamptz
+        $1::uuid, $2, $3, $4, $5, $6::int, $7, $8, $9, $10, $11, $12, true, $13::timestamptz, $14::timestamptz
       )
       returning id::text as id`,
       [
@@ -821,6 +981,7 @@ export async function insertPartnerInventoryDashboardItemFromPg(
         fields.price_hint,
         fields.image_url,
         fields.product_url,
+        fields.product_video_url,
         fields.consult_note,
         fields.sort_order,
         fields.created_at,

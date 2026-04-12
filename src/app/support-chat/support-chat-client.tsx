@@ -172,7 +172,10 @@ export function SupportChatClient({ initialLoggedIn, t }: { initialLoggedIn: boo
                     <div className={isMe ? '[&_a]:text-white/90 [&_img]:border-white/25' : ''}>
                       <CustomerCareMessageBody
                         row={{ body: m.body, raw_payload: m.raw_payload ?? null }}
-                        labels={{ productCardOpenProduct: t.messageProductCardOpenProduct }}
+                        labels={{
+                          productCardOpenProduct: t.messageProductCardOpenProduct,
+                          productCardViewDetails: t.messageProductCardViewDetails,
+                        }}
                       />
                     </div>
                     <div className={`mt-1.5 text-[10px] ${isMe ? 'text-white/75' : 'text-muted-foreground'}`}>

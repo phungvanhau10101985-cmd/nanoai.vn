@@ -5,6 +5,10 @@ export type PartnerAiProductCard = {
   image_url: string
   product_url: string
   price_hint?: string
+  /** Mã kho — dùng khi khách bấm Tư vấn để gửi đúng ngữ cảnh cho AI. */
+  sku?: string
+  /** YouTube hoặc URL video trực tiếp — từ kho hoặc JSON LLM. */
+  product_video_url?: string
 }
 
 const URL_RE = /^https?:\/\//i
@@ -17,9 +21,17 @@ function sanitizeProductCard(x: unknown): PartnerAiProductCard | null {
   const product_url = typeof o.product_url === 'string' ? o.product_url.trim() : ''
   if (!name || !URL_RE.test(image_url) || !URL_RE.test(product_url)) return null
   const price_hint = typeof o.price_hint === 'string' ? o.price_hint.trim() : ''
-  return price_hint
+  const skuRaw = typeof o.sku === 'string' ? o.sku.trim().slice(0, 128) : ''
+  const sku = skuRaw.length > 0 ? skuRaw : ''
+  let product_video_url = typeof o.product_video_url === 'string' ? o.product_video_url.trim() : ''
+  if (product_video_url && !URL_RE.test(product_video_url)) product_video_url = ''
+  if (product_video_url.length > 2048) product_video_url = product_video_url.slice(0, 2048)
+
+  const base: PartnerAiProductCard = price_hint
     ? { name, image_url, product_url, price_hint }
     : { name, image_url, product_url }
+  const withSku = sku ? { ...base, sku } : base
+  return product_video_url ? { ...withSku, product_video_url } : withSku
 }
 
 /** Parse DeepSeek output: JSON with message + products, or fall back to plain text. */

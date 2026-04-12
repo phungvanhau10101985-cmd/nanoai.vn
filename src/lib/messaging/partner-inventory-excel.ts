@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import type { Database } from '@/types/database.types'
+import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 
 export type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
@@ -14,6 +15,7 @@ export const INVENTORY_EXCEL_HEADERS = [
   'price_hint',
   'image_url',
   'product_url',
+  'product_video_url',
   'consult_note',
   'is_active',
 ] as const
@@ -28,6 +30,7 @@ export const INVENTORY_EXCEL_HEADER_LABELS_VI = [
   'Giá',
   'Link ảnh',
   'Link trang sản phẩm',
+  'Video sản phẩm (YouTube hoặc MP4)',
   'Ghi chú tư vấn',
   /** Thêm/cập nhật = 1; xóa khỏi kho = 0 (khớp SKU hoặc tên). Tiêu đề dài giúp đọc file không cần mở hướng dẫn. */
   'Trạng thái thêm là 1 xóa 0',
@@ -43,6 +46,7 @@ export type InventoryExcelInsert = {
   price_hint: string
   image_url: string
   product_url: string
+  product_video_url: string
   consult_note: string
   is_active: boolean
   /** true: xóa dòng kho khớp SKU/tên (không thêm mới). */
@@ -119,6 +123,11 @@ const HEADER_ALIASES: Record<string, string> = {
   link_trang_san_pham: 'product_url',
   url_san_pham: 'product_url',
   trang_san_pham: 'product_url',
+  product_video_url: 'product_video_url',
+  video_san_pham: 'product_video_url',
+  link_video: 'product_video_url',
+  video_url: 'product_video_url',
+  video: 'product_video_url',
   consult_note: 'consult_note',
   ghi_chu: 'consult_note',
   ghi_chu_tu_van: 'consult_note',
@@ -139,22 +148,12 @@ function resolveCanonicalKey(headerCell: string): string | null {
 }
 
 export function validateInventoryImageUrl(raw: string): string {
-  let u = raw.trim()
-  if (!u || u.length > 2048) return ''
-  /** CDN (vd. Taobao/1688) hay dùng //domain/path — chuẩn hoá thành https để parse & lưu ổn định. */
-  if (u.startsWith('//')) u = `https:${u}`
-  try {
-    const parsed = new URL(u)
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return ''
-    return u
-  } catch {
-    return ''
-  }
+  return validateInventoryHttpUrl(raw)
 }
 
 /** URL trang sản phẩm (HTTP/HTTPS), cùng quy tắc với link ảnh. */
 export function validateInventoryProductUrl(raw: string): string {
-  return validateInventoryImageUrl(raw)
+  return validateInventoryHttpUrl(raw)
 }
 
 /**
@@ -296,7 +295,7 @@ function normalizeColorVariantsJsonLenient(raw: string): string {
 
 export function buildInventoryTemplateBuffer(): Buffer {
   const header = [...INVENTORY_EXCEL_HEADER_LABELS_VI]
-  /** Mỗi ô khớp đúng một cột tiêu đề (10 cột); không chèn thêm cột ẩn kẻo lệch cả file. */
+  /** Mỗi ô khớp đúng một cột tiêu đề (11 cột); không chèn thêm cột ẩn kẻo lệch cả file. */
   const example = [
     'AT-001',
     'Ví dụ: Áo thun cotton',
@@ -306,6 +305,7 @@ export function buildInventoryTemplateBuffer(): Buffer {
     '199000',
     'https://cdn.example.com/images/ao-thun-mau.jpg',
     'https://shop.example.com/san-pham/ao-thun',
+    '',
     'Bảo hành đổi size trong 7 ngày',
     '1',
   ]
@@ -327,6 +327,7 @@ export function buildInventoryExportBuffer(rows: InventoryRow[]): Buffer {
       r.price_hint ?? '',
       r.image_url ?? '',
       r.product_url ?? '',
+      r.product_video_url ?? '',
       r.consult_note ?? '',
       r.is_active === false ? 0 : 1,
     ])
@@ -363,10 +364,11 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
   })
 
   // Fallback cho file gần template chuẩn nhưng tiêu đề bị chỉnh/lệch nhẹ:
-  // [0]=sku, [1]=name, [2]=size JSON, [3]=màu JSON, [4]=số lượng tồn, [5]=giá, [6]=ảnh, [7]=link SP, [8]=ghi chú, [9]=trạng thái.
+  // 10 cột (cũ): … [7]=link SP, [8]=ghi chú, [9]=trạng thái.
+  // 11 cột (mới): … [7]=link SP, [8]=video, [9]=ghi chú, [10]=trạng thái.
   // Chỉ bật fallback khi sku/name đúng vị trí mẫu để tránh map sai với file custom order.
   if (colIndex.sku === 0 && colIndex.name === 1) {
-    const templateFallback: Array<[string, number]> = [
+    const templateFallback10: Array<[string, number]> = [
       ['description', 2],
       ['stock_note', 3],
       ['stock_qty', 4],
@@ -376,6 +378,18 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
       ['consult_note', 8],
       ['is_active', 9],
     ]
+    const templateFallback11: Array<[string, number]> = [
+      ['description', 2],
+      ['stock_note', 3],
+      ['stock_qty', 4],
+      ['price_hint', 5],
+      ['image_url', 6],
+      ['product_url', 7],
+      ['product_video_url', 8],
+      ['consult_note', 9],
+      ['is_active', 10],
+    ]
+    const templateFallback = headerRow.length >= 11 ? templateFallback11 : templateFallback10
     for (const [k, idx] of templateFallback) {
       if (colIndex[k] === undefined && idx < headerRow.length) {
         colIndex[k] = idx
@@ -422,6 +436,7 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
         price_hint: '',
         image_url: '',
         product_url: '',
+        product_video_url: '',
         consult_note: '',
         is_active: true,
         removeFromInventory: true,
@@ -506,6 +521,7 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
     }
     const image_url = validateInventoryImageUrl(get('image_url'))
     const product_url = validateInventoryProductUrl(get('product_url'))
+    const product_video_url = validateInventoryHttpUrl(get('product_video_url'))
     const consult_note = get('consult_note').trim().slice(0, 2000)
     out.push({
       sort_order,
@@ -517,6 +533,7 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
       price_hint: price_hint.slice(0, 500),
       image_url,
       product_url,
+      product_video_url,
       consult_note,
       is_active: true,
       removeFromInventory: false,

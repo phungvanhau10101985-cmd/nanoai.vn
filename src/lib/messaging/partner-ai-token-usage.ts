@@ -10,6 +10,8 @@ export type PartnerAiTokenUsageInsert = {
   total_tokens?: number | null
   conversation_id?: string | null
   ai_job_id?: string | null
+  /** null = chat LLM; image_material_detail | image_real_use = tạo ảnh Gemini (inbox). */
+  usage_kind?: string | null
 }
 
 /** Ghi token usage — chỉ Postgres. */
