@@ -223,7 +223,7 @@ Khi khách hỏi về chất liệu/vải/vật liệu: ưu tiên trả lời th
 Trong mỗi dòng kho, **ảnh chính sản phẩm (URL)** là ảnh gốc shop khai báo; hệ thống dùng đúng ảnh đó làm nguồn để tạo (1) ảnh chi tiết chất liệu/màu và (2) ảnh **đời thường / góc tự nhiên** (nhìn sản phẩm chân thực) — không dùng ảnh khác làm nguồn, và **không** gọi các ảnh sinh ra là "ảnh tham khảo" khi nói với khách.
 Nếu trong kho có "Ảnh chi tiết chất liệu/màu (đã lưu)" kèm URL, đó là ảnh phóng chi tiết chất liệu/màu **sinh từ ảnh chính** — nhắc khách xem ảnh đính kèm (không cần dán lại URL trong message).
 Khi khách hỏi ảnh chụp thực tế / mặc thật / dùng thật: nếu kho có mục **Ảnh đời thường — nhìn sản phẩm chân thực (đã lưu)** kèm URL — đó là ảnh được tạo từ **ảnh chính** theo phong cách **đời thường, góc tự nhiên** để khách **xem sản phẩm chân thực** (không phải ảnh studio); trong **tin gửi khách** giữ giọng thống nhất với chú thích hệ thống (ảnh đời thường / góc tự nhiên / nhìn sản phẩm chân thực), **không** gọi là "ảnh tham khảo", **không** tự nói "ảnh AI" hay "ảnh phần mềm tạo". Không khẳng định ảnh chụp tại showroom/shop trừ khi dữ liệu kho ghi rõ. Khi khách vừa xem thẻ sản phẩm và hỏi ảnh thực tế — mặc định hiểu đúng mẫu đó; không bảo "không có ảnh" nếu hệ thống đang hoặc sắp gửi kèm ảnh. Trong một cuộc chat, tối đa hai ảnh loại này cho cùng một mặt hàng; không hứa gửi thêm khi đã đủ.
-Khi khách hỏi tìm hàng theo thuộc tính (ví dụ: loại hàng, màu, kiểu dáng, chất liệu, chiều cao gót, khoảng giá), hãy chủ động đề xuất **nhiều** mặt hàng phù hợp từ danh sách kho (nếu có) trong mảng products — thường **8–15** mẫu khi kho có đủ, tối đa **${PARTNER_AI_PRODUCT_CARDS_MAX}** mẫu trong một tin; tránh chỉ trả lời chung chung khi trong kho vẫn có lựa chọn liên quan.
+Khi khách hỏi tìm hàng theo thuộc tính (ví dụ: loại hàng, màu, kiểu dáng, chất liệu, chiều cao gót, khoảng giá), hãy chủ động đề xuất mặt hàng phù hợp từ danh sách kho (nếu có) trong mảng products — thường **4–8** mẫu khi kho có đủ, tối đa **${PARTNER_AI_PRODUCT_CARDS_MAX}** mẫu trong một tin; tránh chỉ trả lời chung chung khi trong kho vẫn có lựa chọn liên quan.
 Nếu không có "khớp tuyệt đối", vẫn ưu tiên đưa các mẫu "khớp gần" đang có trong kho vào products để khách chọn tiếp — **nhưng "khớp gần" phải cùng nhóm/nhu cầu với điều khách đang hỏi** (cùng loại sản phẩm hoặc dùng thay thế hợp lý: ví dụ khách hỏi dép lê/giày dép mà kho không có đúng mẫu → chỉ gợi ý các mẫu giày/dép/sandal/dép nam nữ khác trong kho; **không** đưa ba lô, túi xách, ví, phụ kiện không liên quan chỉ vì tên có từ khóa trùng hoặc vì nằm đầu danh sách kho). Chỉ gợi ý ngành hàng khác khi khách **chủ động** hỏi rộng (ví dụ "shop còn gì hot") hoặc đã chuyển sang nhu cầu khác.
 Khi đã có products khác rỗng, message phải thật ngắn (1-2 câu), không liệt kê chi tiết từng mẫu, không bullet dài; có thể mở nhẹ (khách xem thẻ/ảnh khi muốn), **không** ép chọn mẫu hay chốt màu ngay.
 Khi giới thiệu mặt hàng có "Ảnh (URL)" và/hoặc "Trang sản phẩm (URL)" trong kho, đưa ảnh và link trang vào mảng products trong JSON đầu ra (khách sẽ thấy thẻ sản phẩm có ảnh và giá). Không dán URL ảnh hay URL trang sản phẩm dạng chữ trong trường message nếu đã khai báo đủ trong products.
@@ -300,6 +300,14 @@ export type DeepseekPartnerChatResult = {
   usage?: DeepseekPartnerChatUsage
 }
 
+/** Đủ chỗ cho JSON nhiều thẻ SP (URL dài); 1100 cũ hay cắt giữa chừng → chỉ còn 3–5 mặt hàng. */
+function deepseekPartnerAiMaxTokens(): number {
+  const raw = process.env.DEEPSEEK_PARTNER_AI_MAX_TOKENS?.trim()
+  const n = raw ? Number.parseInt(raw, 10) : 8192
+  if (!Number.isFinite(n) || n < 512) return 8192
+  return Math.min(16384, Math.max(512, Math.floor(n)))
+}
+
 export async function deepseekPartnerChat(system: string, user: string): Promise<DeepseekPartnerChatResult> {
   const key = process.env.DEEPSEEK_API_KEY?.trim()
   if (!key) return { error: 'DEEPSEEK_API_KEY not configured.' }
@@ -317,7 +325,7 @@ export async function deepseekPartnerChat(system: string, user: string): Promise
           { role: 'system', content: system },
           { role: 'user', content: user },
         ],
-        max_tokens: 1100,
+        max_tokens: deepseekPartnerAiMaxTokens(),
         temperature: 0.35,
       }),
     })

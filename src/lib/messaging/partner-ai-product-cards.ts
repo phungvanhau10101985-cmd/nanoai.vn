@@ -1,7 +1,7 @@
 import type { Json } from '@/types/database.types'
 
 /** Số thẻ sản phẩm tối đa trong một tin AI (JSON `products` + carousel). */
-export const PARTNER_AI_PRODUCT_CARDS_MAX = 18
+export const PARTNER_AI_PRODUCT_CARDS_MAX = 8
 
 export type PartnerAiProductCard = {
   name: string
