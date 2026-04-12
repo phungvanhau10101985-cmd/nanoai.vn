@@ -337,7 +337,18 @@ export type Dictionary = {
     tabInventory: string
     /** Tab thống kê token API LLM */
     tabUsage: string
-    /** {days} = số ngày lookback */
+    usagePeriodLabel: string
+    usagePeriodDay: string
+    usagePeriodWeek: string
+    usagePeriodMonth: string
+    usagePeriodScopeDay: string
+    usagePeriodScopeWeek: string
+    usagePeriodScopeMonth: string
+    usageSectionCreditTitle: string
+    usageSectionCreditIntro: string
+    usageSectionApiTitle: string
+    usageSectionApiIntro: string
+    /** {scope} = usagePeriodScopeDay | Week | Month */
     tokenUsageIntro: string
     tokenUsageEmpty: string
     tokenUsageColProvider: string
@@ -349,6 +360,9 @@ export type Dictionary = {
     usageDetailApiTitle: string
     usageDetailApiIntro: string
     usageDetailColTime: string
+    usageDetailColUsageKind: string
+    usageTokenKindInbox: string
+    usageTokenKindMaterialInfer: string
     usageDetailEmpty: string
     usageCreditLedgerTitle: string
     usageCreditLedgerIntro: string
@@ -368,6 +382,10 @@ export type Dictionary = {
     usageEmbedImageTitle: string
     usageEmbedImageIntro: string
     usageEmbedImageEmpty: string
+    usageEmbedTextTitle: string
+    usageEmbedTextIntro: string
+    usageEmbedTextEmpty: string
+    usageEmbedTextSourceQuery: string
     usageEmbedColSource: string
     usageEmbedSourceInventory: string
     usageEmbedSourceGuest: string
@@ -1923,8 +1941,21 @@ const VI_DICTIONARY: Dictionary = {
     tabFaq: 'FAQ',
     tabInventory: 'Hàng trong kho',
     tabUsage: 'Token API',
+    usagePeriodLabel: 'Khoảng',
+    usagePeriodDay: 'Ngày',
+    usagePeriodWeek: 'Tuần',
+    usagePeriodMonth: 'Tháng',
+    usagePeriodScopeDay: 'trong 24 giờ qua',
+    usagePeriodScopeWeek: 'trong 7 ngày gần nhất',
+    usagePeriodScopeMonth: 'trong 30 ngày gần nhất',
+    usageSectionCreditTitle: 'Trừ credit (ví & logo workspace)',
+    usageSectionCreditIntro:
+      'Các khoản đã trừ số dư trên tài khoản: nhật ký ví (giáo trình, English coach, …) và phí chuẩn hóa logo shop — khác với nhóm chỉ ghi nhận token API phía dưới.',
+    usageSectionApiTitle: 'Gọi API (token / ảnh / embedding)',
+    usageSectionApiIntro:
+      'LLM inbox, tạo ảnh Nano Banana, embedding ảnh/văn bản, suy chất liệu từ ảnh sản phẩm… — thống kê theo usage đã ghi, không đi qua ví như phần trên.',
     tokenUsageIntro:
-      'Tổng hợp trong {days} ngày gần nhất. Mỗi dòng là một model API đã gọi khi AI trả lời bằng LLM (sau thời gian chờ). Tin khớp FAQ không dùng LLM nên không có trong bảng này.',
+      'Tổng hợp {scope}. Mỗi dòng là một model API đã gọi khi AI trả lời bằng LLM (sau thời gian chờ). Tin khớp FAQ không dùng LLM nên không có trong bảng này.',
     tokenUsageEmpty: 'Chưa có lần gọi LLM nào trong khoảng thời gian này.',
     tokenUsageColProvider: 'Nhà cung cấp',
     tokenUsageColModel: 'Model',
@@ -1936,10 +1967,13 @@ const VI_DICTIONARY: Dictionary = {
     usageDetailApiIntro:
       'Mỗi dòng là một lần gọi API sau thời gian chờ — ghi nhận token thực tế. FAQ khớp sẵn không gọi LLM nên không có ở đây.',
     usageDetailColTime: 'Thời điểm',
+    usageDetailColUsageKind: 'Nhánh',
+    usageTokenKindInbox: 'LLM hội thoại',
+    usageTokenKindMaterialInfer: 'Suy chất liệu (ảnh SP)',
     usageDetailEmpty: 'Chưa có lần gọi chi tiết trong khoảng này.',
     usageCreditLedgerTitle: 'Trừ credit (nhật ký ví — spend có ghi nhận)',
     usageCreditLedgerIntro:
-      'Các khoản dùng cơ chế trừ idempotent trên tài khoản của bạn (ví dụ giáo trình, English coach). Khác với bảng token inbox phía trên.',
+      'Các khoản dùng cơ chế trừ idempotent trên tài khoản của bạn (ví dụ giáo trình, English coach). Khác với phần thống kê token API ở khối bên dưới.',
     usageCreditLedgerEmpty: 'Không có khoản trừ nào trong khoảng thời gian.',
     usageCreditColType: 'Loại (charge_type)',
     usageCreditColAmount: 'Tổng credit',
@@ -1957,6 +1991,11 @@ const VI_DICTIONARY: Dictionary = {
     usageEmbedImageIntro:
       'Mỗi lần gọi API embedContent cho ảnh: đồng bộ vector kho (inventory_sync) hoặc khách gửi ảnh tìm hàng (guest_image_search). Token lấy từ usageMetadata của Google, nếu thiếu thì ước lượng (xem GEMINI_IMAGE_EMBED_FALLBACK_TOKENS).',
     usageEmbedImageEmpty: 'Chưa có lần embed ảnh ghi nhận trong khoảng này.',
+    usageEmbedTextTitle: 'Embedding văn bản (Gemini) — vector tìm kiếm',
+    usageEmbedTextIntro:
+      'Mỗi lần gọi API embedContent cho văn bản: đồng bộ vector kho (inventory_sync) hoặc embed tin khách để tìm hàng theo ngữ nghĩa (customer_query). Token lấy từ usageMetadata của Google.',
+    usageEmbedTextEmpty: 'Chưa có lần embed văn bản ghi nhận trong khoảng này.',
+    usageEmbedTextSourceQuery: 'Tin khách (tìm SP theo ngữ nghĩa)',
     usageEmbedColSource: 'Nguồn',
     usageEmbedSourceInventory: 'Đồng bộ kho',
     usageEmbedSourceGuest: 'Khách gửi ảnh (tìm SP)',
@@ -3522,8 +3561,21 @@ const EN_DICTIONARY: Dictionary = {
     tabFaq: 'FAQ',
     tabInventory: 'In-stock items',
     tabUsage: 'API tokens',
+    usagePeriodLabel: 'Range',
+    usagePeriodDay: 'Day',
+    usagePeriodWeek: 'Week',
+    usagePeriodMonth: 'Month',
+    usagePeriodScopeDay: 'over the last 24 hours',
+    usagePeriodScopeWeek: 'over the last 7 days',
+    usagePeriodScopeMonth: 'over the last 30 days',
+    usageSectionCreditTitle: 'Credits deducted (wallet & logo)',
+    usageSectionCreditIntro:
+      'Balance deductions we record: your wallet spend ledger (e.g. curriculum, English coach) and shop logo normalization charges — separate from API token tallies below.',
+    usageSectionApiTitle: 'API usage (tokens / images / embeddings)',
+    usageSectionApiIntro:
+      'Inbox LLM, Nano Banana renders, image/text embeddings, material inference from product photos — counted from usage logs, not routed like wallet credits above.',
     tokenUsageIntro:
-      'Totals for the last {days} days. Each row is an API model used when the AI replies via LLM (after the wait time). FAQ matches do not call the LLM, so they are not listed here.',
+      'Aggregated {scope}. Each row is an API model used when the AI replies via LLM (after the wait time). FAQ matches do not call the LLM, so they are not listed here.',
     tokenUsageEmpty: 'No LLM calls in this period yet.',
     tokenUsageColProvider: 'Provider',
     tokenUsageColModel: 'Model',
@@ -3535,10 +3587,13 @@ const EN_DICTIONARY: Dictionary = {
     usageDetailApiIntro:
       'Each row is one API call after the wait time — actual token counts. FAQ exact matches do not call the LLM, so they do not appear here.',
     usageDetailColTime: 'Time',
+    usageDetailColUsageKind: 'Kind',
+    usageTokenKindInbox: 'Inbox LLM',
+    usageTokenKindMaterialInfer: 'Material (from photo)',
     usageDetailEmpty: 'No per-call records in this period.',
     usageCreditLedgerTitle: 'Credits deducted (wallet ledger — idempotent spend)',
     usageCreditLedgerIntro:
-      'Spend events recorded on your account (e.g. curriculum, English coach). This is separate from the inbox token table above.',
+      'Spend events recorded on your account (e.g. curriculum, English coach). Separate from the inbox API token tallies in the section below.',
     usageCreditLedgerEmpty: 'No spend events in this period.',
     usageCreditColType: 'Type (charge_type)',
     usageCreditColAmount: 'Total credits',
@@ -3558,6 +3613,11 @@ const EN_DICTIONARY: Dictionary = {
     usageEmbedImageIntro:
       'Each embedContent call for product images: inventory vector sync (inventory_sync) or customer photo search (guest_image_search). Tokens come from Google usageMetadata when present; otherwise estimated (GEMINI_IMAGE_EMBED_FALLBACK_TOKENS).',
     usageEmbedImageEmpty: 'No image embedding calls recorded in this period.',
+    usageEmbedTextTitle: 'Text embeddings (Gemini) — search vectors',
+    usageEmbedTextIntro:
+      'Each embedContent call for text: inventory vector sync (inventory_sync) or customer message for semantic product search (customer_query). Tokens from Google usageMetadata.',
+    usageEmbedTextEmpty: 'No text embedding calls recorded in this period.',
+    usageEmbedTextSourceQuery: 'Customer message (semantic search)',
     usageEmbedColSource: 'Source',
     usageEmbedSourceInventory: 'Inventory sync',
     usageEmbedSourceGuest: 'Customer image (search)',
@@ -5123,8 +5183,21 @@ const ZH_DICTIONARY: Dictionary = {
     tabFaq: '常见问题',
     tabInventory: '库存商品',
     tabUsage: 'API 用量',
+    usagePeriodLabel: '范围',
+    usagePeriodDay: '日',
+    usagePeriodWeek: '周',
+    usagePeriodMonth: '月',
+    usagePeriodScopeDay: '最近 24 小时',
+    usagePeriodScopeWeek: '最近 7 天',
+    usagePeriodScopeMonth: '最近 30 天',
+    usageSectionCreditTitle: '扣除积分（钱包与店铺 logo）',
+    usageSectionCreditIntro:
+      '已记录的余额扣减：钱包流水（课程、English coach 等）与店铺 logo 规范化费用 — 与下方仅统计 API token 不同。',
+    usageSectionApiTitle: 'API 用量（token / 图片 / 向量）',
+    usageSectionApiIntro:
+      '收件箱 LLM、Nano Banana 出图、图片/文本向量、从商品图推断面料等 — 按 usage 记录统计，不经上方钱包扣费路径。',
     tokenUsageIntro:
-      '最近 {days} 天的汇总。每一行表示在等待时间后通过 LLM 回复时使用的 API 模型。匹配 FAQ 不会调用 LLM，因此不会出现在此表中。',
+      '{scope}的汇总。每一行表示在等待时间后通过 LLM 回复时使用的 API 模型。匹配 FAQ 不会调用 LLM，因此不会出现在此表中。',
     tokenUsageEmpty: '此期间尚无 LLM 调用记录。',
     tokenUsageColProvider: '提供商',
     tokenUsageColModel: '模型',
@@ -5136,10 +5209,13 @@ const ZH_DICTIONARY: Dictionary = {
     usageDetailApiIntro:
       '每一行表示等待时间后的一次 API 调用及实际 token。匹配 FAQ 不会调用 LLM，因此不会出现在此表中。',
     usageDetailColTime: '时间',
+    usageDetailColUsageKind: '类型',
+    usageTokenKindInbox: '会话 LLM',
+    usageTokenKindMaterialInfer: '从商品图推断面料',
     usageDetailEmpty: '此期间尚无逐次调用记录。',
     usageCreditLedgerTitle: '扣除积分（钱包流水 — 幂等扣费）',
     usageCreditLedgerIntro:
-      '记录在您账户上的消费（例如课程、English coach）。与上方的收件箱 token 表是不同机制。',
+      '记录在您账户上的消费（例如课程、English coach）。与下方收件箱 API token 统计是不同机制。',
     usageCreditLedgerEmpty: '此期间没有扣费记录。',
     usageCreditColType: '类型 (charge_type)',
     usageCreditColAmount: '总积分',
@@ -5157,6 +5233,11 @@ const ZH_DICTIONARY: Dictionary = {
     usageEmbedImageIntro:
       '每次对商品图调用 embedContent：库存同步向量（inventory_sync）或顾客发图找货（guest_image_search）。优先使用 Google 返回的 usageMetadata；缺失时用环境变量估算。',
     usageEmbedImageEmpty: '此期间没有图片向量调用记录。',
+    usageEmbedTextTitle: '文本向量（Gemini）— 检索',
+    usageEmbedTextIntro:
+      '每次文本 embedContent：库存向量同步（inventory_sync）或顾客消息语义找货（customer_query）。Token 来自 Google usageMetadata。',
+    usageEmbedTextEmpty: '此期间没有文本向量调用记录。',
+    usageEmbedTextSourceQuery: '顾客消息（语义找货）',
     usageEmbedColSource: '来源',
     usageEmbedSourceInventory: '库存同步',
     usageEmbedSourceGuest: '顾客发图（找商品）',
@@ -6669,8 +6750,21 @@ const JA_DICTIONARY: Dictionary = {
     tabFaq: 'FAQ',
     tabInventory: '在庫商品',
     tabUsage: 'API トークン',
+    usagePeriodLabel: '期間',
+    usagePeriodDay: '日',
+    usagePeriodWeek: '週',
+    usagePeriodMonth: '月',
+    usagePeriodScopeDay: '過去 24 時間',
+    usagePeriodScopeWeek: '過去 7 日間',
+    usagePeriodScopeMonth: '過去 30 日間',
+    usageSectionCreditTitle: 'クレジット控除（ウォレットとロゴ）',
+    usageSectionCreditIntro:
+      '残高からの控除として記録されるもの：ウォレット台帳（カリキュラム、English coach など）と店舗ロゴの正規化 — 下の API トークン集計とは別です。',
+    usageSectionApiTitle: 'API 利用（トークン / 画像 / 埋め込み）',
+    usageSectionApiIntro:
+      '受信トレイ LLM、Nano Banana 画像、画像/テキスト埋め込み、商品画像からの素材推定など — usage ログに基づき、上のウォレット経路とは別に集計します。',
     tokenUsageIntro:
-      '直近 {days} 日間の集計です。各行は待機時間後に LLM で返信したときの API モデルです。FAQ に一致した場合は LLM を呼ばないためここに含まれません。',
+      '{scope}の集計です。各行は待機時間後に LLM で返信したときの API モデルです。FAQ に一致した場合は LLM を呼ばないためここに含まれません。',
     tokenUsageEmpty: 'この期間に LLM 呼び出しはまだありません。',
     tokenUsageColProvider: 'プロバイダー',
     tokenUsageColModel: 'モデル',
@@ -6682,10 +6776,13 @@ const JA_DICTIONARY: Dictionary = {
     usageDetailApiIntro:
       '各行は待機時間後の 1 回の API 呼び出しと実トークンです。FAQ に一致した場合は LLM を呼ばないためここに含まれません。',
     usageDetailColTime: '日時',
+    usageDetailColUsageKind: '種別',
+    usageTokenKindInbox: '受信トレイ LLM',
+    usageTokenKindMaterialInfer: '素材推定（商品画像）',
     usageDetailEmpty: 'この期間に詳細レコードはありません。',
     usageCreditLedgerTitle: 'クレジット控除（ウォレット台帳 — べき等な spend）',
     usageCreditLedgerIntro:
-      'アカウントに記録される利用（例：カリキュラム、English coach）。上の受信トレイ token 集計とは別です。',
+      'アカウントに記録される利用（例：カリキュラム、English coach）。下の受信トレイ API トークン集計とは別です。',
     usageCreditLedgerEmpty: 'この期間に控除はありません。',
     usageCreditColType: '種別 (charge_type)',
     usageCreditColAmount: '合計クレジット',
@@ -6705,6 +6802,11 @@ const JA_DICTIONARY: Dictionary = {
     usageEmbedImageIntro:
       '商品画像の embedContent ごと：在庫ベクトル同期（inventory_sync）または顧客が画像送信（guest_image_search）。トークンは Google の usageMetadata を優先、なければ環境変数で推定。',
     usageEmbedImageEmpty: 'この期間に画像埋め込みの記録がありません。',
+    usageEmbedTextTitle: 'テキスト埋め込み（Gemini）— 検索ベクトル',
+    usageEmbedTextIntro:
+      'テキストの embedContent ごと：在庫ベクトル同期（inventory_sync）または顧客メッセージの意味検索（customer_query）。トークンは Google の usageMetadata。',
+    usageEmbedTextEmpty: 'この期間にテキスト埋め込みの記録がありません。',
+    usageEmbedTextSourceQuery: '顧客メッセージ（意味検索）',
     usageEmbedColSource: 'ソース',
     usageEmbedSourceInventory: '在庫同期',
     usageEmbedSourceGuest: '顧客画像（検索）',
@@ -8253,8 +8355,21 @@ const KO_DICTIONARY: Dictionary = {
     tabFaq: 'FAQ',
     tabInventory: '재고 상품',
     tabUsage: 'API 토큰',
+    usagePeriodLabel: '범위',
+    usagePeriodDay: '일',
+    usagePeriodWeek: '주',
+    usagePeriodMonth: '월',
+    usagePeriodScopeDay: '최근 24시간',
+    usagePeriodScopeWeek: '최근 7일',
+    usagePeriodScopeMonth: '최근 30일',
+    usageSectionCreditTitle: '크레딧 차감(지갑·로고)',
+    usageSectionCreditIntro:
+      '잔액에서 차감된 기록: 지갑 원장(커리큘럼, English coach 등)과 매장 로고 정규화 — 아래 API 토큰 집계와는 별도입니다.',
+    usageSectionApiTitle: 'API 사용(토큰·이미지·임베딩)',
+    usageSectionApiIntro:
+      '받은편지함 LLM, Nano Banana 이미지, 이미지/텍스트 임베딩, 상품 사진에서 소재 추론 등 — usage 로그 기준이며 위 지갑 차감과는 다릅니다.',
     tokenUsageIntro:
-      '최근 {days}일 요약입니다. 각 행은 대기 시간 후 LLM으로 답할 때 사용한 API 모델입니다. FAQ 일치 시에는 LLM을 호출하지 않아 여기에 표시되지 않습니다.',
+      '{scope} 요약입니다. 각 행은 대기 시간 후 LLM으로 답할 때 사용한 API 모델입니다. FAQ 일치 시에는 LLM을 호출하지 않아 여기에 표시되지 않습니다.',
     tokenUsageEmpty: '이 기간에 LLM 호출이 없습니다.',
     tokenUsageColProvider: '제공자',
     tokenUsageColModel: '모델',
@@ -8266,10 +8381,13 @@ const KO_DICTIONARY: Dictionary = {
     usageDetailApiIntro:
       '각 행은 대기 시간 후 한 번의 API 호출과 실제 토큰입니다. FAQ 일치 시 LLM을 호출하지 않아 여기에 없습니다.',
     usageDetailColTime: '시각',
+    usageDetailColUsageKind: '구분',
+    usageTokenKindInbox: '받은편지함 LLM',
+    usageTokenKindMaterialInfer: '소재 추론(상품 사진)',
     usageDetailEmpty: '이 기간에 상세 호출 기록이 없습니다.',
     usageCreditLedgerTitle: '크레딧 차감(지갑 원장 — 멱등 spend)',
     usageCreditLedgerIntro:
-      '계정에 기록되는 사용(예: 커리큘럼, English coach). 위 받은편지함 토큰 표와는 별도입니다.',
+      '계정에 기록되는 사용(예: 커리큘럼, English coach). 아래 받은편지함 API 토큰 집계와는 별도입니다.',
     usageCreditLedgerEmpty: '이 기간에 차감 내역이 없습니다.',
     usageCreditColType: '유형 (charge_type)',
     usageCreditColAmount: '합계 크레딧',
@@ -8288,6 +8406,11 @@ const KO_DICTIONARY: Dictionary = {
     usageEmbedImageIntro:
       '상품 이미지 embedContent 호출마다: 재고 벡터 동기화(inventory_sync) 또는 고객 이미지 검색(guest_image_search). 토큰은 Google usageMetadata 우선, 없으면 환경 변수로 추정.',
     usageEmbedImageEmpty: '이 기간에 이미지 임베딩 기록이 없습니다.',
+    usageEmbedTextTitle: '텍스트 임베딩(Gemini) — 검색 벡터',
+    usageEmbedTextIntro:
+      '텍스트 embedContent 호출마다: 재고 벡터 동기화(inventory_sync) 또는 고객 메시지 의미 검색(customer_query). 토큰은 Google usageMetadata.',
+    usageEmbedTextEmpty: '이 기간에 텍스트 임베딩 기록이 없습니다.',
+    usageEmbedTextSourceQuery: '고객 메시지(의미 검색)',
     usageEmbedColSource: '출처',
     usageEmbedSourceInventory: '재고 동기화',
     usageEmbedSourceGuest: '고객 이미지(검색)',

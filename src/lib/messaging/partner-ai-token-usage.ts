@@ -10,7 +10,7 @@ export type PartnerAiTokenUsageInsert = {
   total_tokens?: number | null
   conversation_id?: string | null
   ai_job_id?: string | null
-  /** null = chat LLM; image_material_detail | image_real_use = tạo ảnh Gemini (inbox). */
+  /** null = chat LLM; image_* = tạo ảnh Gemini (inbox); material_infer = suy chất liệu từ ảnh SP (vision). */
   usage_kind?: string | null
 }
 

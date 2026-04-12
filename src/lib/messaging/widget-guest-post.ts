@@ -10,7 +10,9 @@ import {
   mimeFromGuestImagePath,
 } from '@/lib/messaging/guest-chat-image'
 import { downloadTryOnObject, getTryOnPublicUrlFromPath, tryOnObjectExistsByPath } from '@/lib/storage/try-on-public-upload'
-import { VISION_PICK_GRACE_AI_DELAY_SECONDS } from '@/lib/messaging/partner-vision-constants'
+import { WIDGET_PRODUCT_VECTOR_PICK_MAX } from '@/lib/messaging/partner-vision-constants'
+import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
+import { fetchInventoryRowsBySemanticTextForPartnerAi } from '@/lib/messaging/partner-inventory-text-embedding'
 import { countInboundMessagesForConversationPg } from '@/lib/db/customer-care-pg'
 import { fetchMessagingPartnerAiEnabledFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import { fetchPartnerInventoryPriceHintsByIdsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
@@ -68,7 +70,8 @@ export async function postWidgetGuestMessage(params: {
   let body: string
   let rawPayload: Json | null = null
   let imagePublicUrl: string | null = null
-  let visionCandidates: GuestVisionCandidatePayload[] = []
+  /** Gợi ý theo vector (ảnh hoặc chữ) — giống nhau; không lên lịch LLM cho đến khi khách chọn SP. */
+  let productPickCandidates: GuestVisionCandidatePayload[] = []
 
   if (imagePath) {
     if (!isGuestMessagingStoragePathForPartner(imagePath, params.partnerId)) {
@@ -93,7 +96,7 @@ export async function postWidgetGuestMessage(params: {
         const buf = await downloadTryOnObject(imagePath)
         if (buf) {
           const search = await geminiProductSearchFromImageBufferViaVectorDb(buf, params.partnerId, {
-            maxResults: 5,
+            maxResults: WIDGET_PRODUCT_VECTOR_PICK_MAX,
             userId: params.linkedUserId ?? null,
           })
           if (search.error) {
@@ -110,7 +113,7 @@ export async function postWidgetGuestMessage(params: {
               for (const [id, hint] of priceFromPg) priceById.set(id, hint)
             }
           }
-          visionCandidates = search.candidates.map((c) => ({
+          productPickCandidates = search.candidates.map((c) => ({
             inventoryId: c.inventoryId,
             name: c.name,
             sku: c.sku,
@@ -130,11 +133,11 @@ export async function postWidgetGuestMessage(params: {
     }
 
     rawPayload =
-      visionCandidates.length > 0
+      productPickCandidates.length > 0
         ? ({
             ...(basePayload && typeof basePayload === 'object' ? (basePayload as Record<string, unknown>) : {}),
             vision_pick_required: true,
-            vision_candidates: visionCandidates,
+            vision_candidates: productPickCandidates,
             ...(imageCaption ? { image_caption: imageCaption } : {}),
           } as Json)
         : ({
@@ -166,6 +169,63 @@ export async function postWidgetGuestMessage(params: {
           } as Json)
         : null
     body = text || '📦'
+
+    const trimmedText = text.trim()
+    const minCharsForVectorPick = 3
+    if (trimmedText.length >= minCharsForVectorPick) {
+      try {
+        let aiEnabled = false
+        if (isPgConfigured()) {
+          const fromPg = await fetchMessagingPartnerAiEnabledFromPg(params.partnerId)
+          if (fromPg !== null) aiEnabled = fromPg.enabled
+        }
+        if (aiEnabled) {
+          const faq = await findMatchingFaq(params.partnerId, trimmedText)
+          if (!faq) {
+            const rows = await fetchInventoryRowsBySemanticTextForPartnerAi(
+              params.partnerId,
+              trimmedText,
+              WIDGET_PRODUCT_VECTOR_PICK_MAX
+            )
+            if (rows.length > 0) {
+              const candidateIds = rows.map((r) => r.id)
+              const priceById = new Map<string, string>()
+              if (isPgConfigured()) {
+                const priceFromPg = await fetchPartnerInventoryPriceHintsByIdsFromPg(params.partnerId, candidateIds)
+                if (priceFromPg !== null) {
+                  for (const [id, hint] of priceFromPg) priceById.set(id, hint)
+                }
+              }
+              productPickCandidates = rows.map((row) => {
+                const purl = row.product_url?.trim() ?? ''
+                const ph =
+                  row.price_hint?.trim() ||
+                  priceById.get(row.id)?.trim() ||
+                  ''
+                return {
+                  inventoryId: row.id,
+                  name: row.name ?? '',
+                  sku: row.sku ?? null,
+                  image_url: row.image_url ?? '',
+                  ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
+                  ...(ph ? { price_hint: ph } : {}),
+                }
+              })
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[widget-guest-post] text vector candidate search', e)
+      }
+    }
+
+    if (productPickCandidates.length > 0) {
+      rawPayload = {
+        ...(rawPayload && typeof rawPayload === 'object' ? (rawPayload as Record<string, unknown>) : {}),
+        vision_pick_required: true,
+        vision_candidates: productPickCandidates,
+      } as Json
+    }
   }
 
   const conv = await ensureConversation({
@@ -207,7 +267,7 @@ export async function postWidgetGuestMessage(params: {
 
   const newMessageId = 'messageId' in ins ? ins.messageId : null
   let shopTyping: { maxWaitMs: number } | undefined
-  const visionPickRequired = visionCandidates.length > 0
+  const visionPickRequired = productPickCandidates.length > 0
 
   if (newMessageId) {
     const aiContextHints = [
@@ -217,8 +277,7 @@ export async function postWidgetGuestMessage(params: {
     ]
       .filter(Boolean)
       .join('\n')
-    // When vision picks are available, wait for customer product selection first.
-    // This avoids premature text-based replies for image+caption turns.
+    // Khi đã có gợi ý vector (ảnh hoặc chữ), chờ khách chọn SP — không gọi LLM tư vấn trước.
     if (!visionPickRequired) {
       const inboundForAi = [inboundTextForPartnerAi(body, imagePublicUrl), aiContextHints].filter(Boolean).join('\n')
       const hint = await handlePartnerInboundForAi({
@@ -228,9 +287,6 @@ export async function postWidgetGuestMessage(params: {
         inboundBody: inboundForAi,
         channel: 'widget',
         skipEagerBatchRun: true,
-        ...(visionPickRequired
-          ? { scheduleAiAfterSeconds: VISION_PICK_GRACE_AI_DELAY_SECONDS }
-          : {}),
       })
       if (hint.show) shopTyping = { maxWaitMs: hint.maxWaitMs }
     }

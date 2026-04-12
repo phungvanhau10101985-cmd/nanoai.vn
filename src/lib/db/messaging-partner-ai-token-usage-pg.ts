@@ -64,6 +64,8 @@ export type PartnerAiTokenUsageDetailRow = {
   prompt_tokens: number | null
   completion_tokens: number | null
   total_tokens: number | null
+  /** null = chat LLM inbox; image_* | material_infer xem usage_kind trong DB */
+  usage_kind: string | null
 }
 
 export type PartnerAiImageGenUsageKind = 'image_material_detail' | 'image_real_use'
@@ -149,6 +151,7 @@ export async function fetchMessagingPartnerAiTokenUsageDetailsFromPg(
       prompt_tokens: number | null
       completion_tokens: number | null
       total_tokens: number | null
+      usage_kind: string | null
     }>(
       `select
         u.id::text,
@@ -157,7 +160,8 @@ export async function fetchMessagingPartnerAiTokenUsageDetailsFromPg(
         u.model,
         u.prompt_tokens,
         u.completion_tokens,
-        u.total_tokens
+        u.total_tokens,
+        u.usage_kind
       from public.messaging_partner_ai_token_usage u
       where u.partner_id = $1::uuid
         and u.created_at >= $2::timestamptz
@@ -173,6 +177,7 @@ export async function fetchMessagingPartnerAiTokenUsageDetailsFromPg(
       prompt_tokens: r.prompt_tokens == null ? null : Math.max(0, Math.floor(Number(r.prompt_tokens))),
       completion_tokens: r.completion_tokens == null ? null : Math.max(0, Math.floor(Number(r.completion_tokens))),
       total_tokens: r.total_tokens == null ? null : Math.max(0, Math.floor(Number(r.total_tokens))),
+      usage_kind: r.usage_kind == null || String(r.usage_kind).trim() === '' ? null : String(r.usage_kind),
     }))
   } catch (e) {
     console.warn('[fetchMessagingPartnerAiTokenUsageDetailsFromPg]', e)

@@ -165,7 +165,7 @@ export async function geminiProductSearchFromImageBuffer(
     await Promise.all(workers)
 
     scored.sort((a, b) => b.score - a.score || a.row.sort_order - b.row.sort_order)
-    const maxResults = Math.min(25, Math.max(1, Math.floor(options?.maxResults ?? 8)))
+    const maxResults = Math.min(50, Math.max(1, Math.floor(options?.maxResults ?? 8)))
     const top = scored.slice(0, maxResults)
 
     void trackApiUsage({
@@ -221,7 +221,7 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
       totalTokens: queryRes.totalTokens,
     })
     const queryVec = queryRes.values
-    const maxResults = Math.min(25, Math.max(1, Math.floor(options?.maxResults ?? 8)))
+    const maxResults = Math.min(50, Math.max(1, Math.floor(options?.maxResults ?? 8)))
 
     if (queryVec.length === DB_VECTOR_DIMS) {
       const qLit = toPgVectorLiteral(queryVec)

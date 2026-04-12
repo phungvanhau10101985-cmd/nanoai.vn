@@ -71,6 +71,10 @@ import {
   fetchMessagingPartnerImageEmbedStatsBySourceFromPg,
 } from '@/lib/db/messaging-partner-image-embed-usage-pg'
 import {
+  fetchMessagingPartnerTextEmbedDetailsFromPg,
+  fetchMessagingPartnerTextEmbedStatsBySourceFromPg,
+} from '@/lib/db/messaging-partner-text-embed-usage-pg'
+import {
   fetchOwnerCreditEventDetailsFromPg,
   fetchOwnerCreditEventSummariesFromPg,
   fetchPartnerLogoCreditRowsInRangeFromPg,
@@ -134,6 +138,10 @@ export type {
   PartnerImageEmbedUsageDetailRow,
   PartnerImageEmbedUsageSummaryRow,
 } from '@/lib/db/messaging-partner-image-embed-usage-pg'
+export type {
+  PartnerTextEmbedUsageDetailRow,
+  PartnerTextEmbedUsageSummaryRow,
+} from '@/lib/db/messaging-partner-text-embed-usage-pg'
 
 const PARTNER_INVENTORY_PAGE_SIZE = Math.max(
   50,
@@ -961,14 +969,27 @@ export type PartnerAiSettingsPayload = {
   guest_purchase_flow: 'in_chat' | 'external_site'
 }
 
-const PARTNER_AI_TOKEN_STATS_LOOKBACK_DAYS = 30
 const PARTNER_AI_USAGE_DETAIL_ROW_LIMIT = 150
 const PARTNER_AI_CREDIT_EVENT_ROW_LIMIT = 80
 const PARTNER_AI_LOGO_CREDIT_ROW_LIMIT = 80
 const PARTNER_AI_IMAGE_EMBED_DETAIL_ROW_LIMIT = 80
+const PARTNER_AI_TEXT_EMBED_DETAIL_ROW_LIMIT = 80
 
-/** Tổng token theo model (API) trong N ngày gần đây — chủ shop xem trên dashboard. */
-export async function getPartnerAiTokenUsageStats(partnerId: string) {
+export type PartnerAiUsagePeriod = 'day' | 'week' | 'month'
+
+function partnerAiUsageSinceIso(period: PartnerAiUsagePeriod): { sinceIso: string; lookbackDays: number } {
+  const ms =
+    period === 'day' ? 86400000 : period === 'week' ? 7 * 86400000 : 30 * 86400000
+  const since = new Date(Date.now() - ms)
+  const lookbackDays = period === 'day' ? 1 : period === 'week' ? 7 : 30
+  return { sinceIso: since.toISOString(), lookbackDays }
+}
+
+/** Tổng token theo model (API) trong cửa sổ thời gian đã chọn — chủ shop xem trên dashboard. */
+export async function getPartnerAiTokenUsageStats(
+  partnerId: string,
+  period: PartnerAiUsagePeriod = 'month'
+) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
@@ -977,9 +998,7 @@ export async function getPartnerAiTokenUsageStats(partnerId: string) {
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
-  const since = new Date()
-  since.setUTCDate(since.getUTCDate() - PARTNER_AI_TOKEN_STATS_LOOKBACK_DAYS)
-  const sinceIso = since.toISOString()
+  const { sinceIso, lookbackDays } = partnerAiUsageSinceIso(period)
   const [rows, imageGenRows] = await Promise.all([
     fetchMessagingPartnerAiTokenStatsByModelFromPg(partnerId, sinceIso),
     fetchMessagingPartnerAiImageGenStatsFromPg(partnerId, sinceIso),
@@ -989,7 +1008,8 @@ export async function getPartnerAiTokenUsageStats(partnerId: string) {
     rows,
     imageGenRows: imageGenRows ?? [],
     sinceIso,
-    lookbackDays: PARTNER_AI_TOKEN_STATS_LOOKBACK_DAYS,
+    lookbackDays,
+    period,
   }
 }
 
@@ -997,7 +1017,10 @@ export async function getPartnerAiTokenUsageStats(partnerId: string) {
  * Thống kê chi tiết: từng lần gọi LLM inbox + các khoản trừ credit (ledger + chuẩn hóa logo).
  * Lưu ý: inbox LLM hiện chỉ ghi token; trừ credit qua ví có thể là giáo trình/English coach (cùng user chủ shop) hoặc logo workspace.
  */
-export async function getPartnerAiUsageAnalytics(partnerId: string) {
+export async function getPartnerAiUsageAnalytics(
+  partnerId: string,
+  period: PartnerAiUsagePeriod = 'month'
+) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
@@ -1007,9 +1030,7 @@ export async function getPartnerAiUsageAnalytics(partnerId: string) {
     return { error: 'DATABASE_URL is not set.' }
   }
 
-  const since = new Date()
-  since.setUTCDate(since.getUTCDate() - PARTNER_AI_TOKEN_STATS_LOOKBACK_DAYS)
-  const sinceIso = since.toISOString()
+  const { sinceIso, lookbackDays } = partnerAiUsageSinceIso(period)
 
   const ownerRow = await pgQueryOne<{ owner: string | null }>(
     `select owner_user_id::text as owner from public.messaging_partners where id = $1::uuid limit 1`,
@@ -1017,7 +1038,7 @@ export async function getPartnerAiUsageAnalytics(partnerId: string) {
   )
   const ownerId = (ownerRow?.owner ?? '').trim() || null
 
-  const [tokenDetails, creditSummaries, creditDetails, logoRows, embedSummaries, embedDetails] =
+  const [tokenDetails, creditSummaries, creditDetails, logoRows, embedSummaries, embedDetails, textEmbedSummaries, textEmbedDetails] =
     await Promise.all([
       fetchMessagingPartnerAiTokenUsageDetailsFromPg(
         partnerId,
@@ -1037,6 +1058,12 @@ export async function getPartnerAiUsageAnalytics(partnerId: string) {
         sinceIso,
         PARTNER_AI_IMAGE_EMBED_DETAIL_ROW_LIMIT
       ),
+      fetchMessagingPartnerTextEmbedStatsBySourceFromPg(partnerId, sinceIso),
+      fetchMessagingPartnerTextEmbedDetailsFromPg(
+        partnerId,
+        sinceIso,
+        PARTNER_AI_TEXT_EMBED_DETAIL_ROW_LIMIT
+      ),
     ])
 
   if (tokenDetails === null) {
@@ -1045,7 +1072,8 @@ export async function getPartnerAiUsageAnalytics(partnerId: string) {
 
   return {
     sinceIso,
-    lookbackDays: PARTNER_AI_TOKEN_STATS_LOOKBACK_DAYS,
+    lookbackDays,
+    period,
     tokenDetails,
     creditSummaries: creditSummaries ?? [],
     creditDetails: creditDetails ?? [],
@@ -1053,6 +1081,8 @@ export async function getPartnerAiUsageAnalytics(partnerId: string) {
     ownerAccountLinked: Boolean(ownerId),
     imageEmbedSummaries: embedSummaries ?? [],
     imageEmbedDetails: embedDetails ?? [],
+    textEmbedSummaries: textEmbedSummaries ?? [],
+    textEmbedDetails: textEmbedDetails ?? [],
   }
 }
 

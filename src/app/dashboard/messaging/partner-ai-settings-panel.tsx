@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,8 @@ import type {
   PartnerLogoCreditRow,
   PartnerImageEmbedUsageDetailRow,
   PartnerImageEmbedUsageSummaryRow,
+  PartnerTextEmbedUsageDetailRow,
+  PartnerTextEmbedUsageSummaryRow,
 } from '@/app/dashboard/messaging/actions'
 import {
   deletePartnerFaq,
@@ -43,6 +45,7 @@ import {
   getPartnerInventoryPage,
   getPartnerAiTokenUsageStats,
   getPartnerAiUsageAnalytics,
+  type PartnerAiUsagePeriod,
   savePartnerAiSettings,
   upsertPartnerFaq,
   upsertPartnerInventoryItem,
@@ -84,6 +87,15 @@ function dateTimeForLocale(iso: string, locale: WebLocale): string {
   } catch {
     return iso
   }
+}
+
+function tokenUsageDetailKindLabel(row: PartnerAiTokenUsageDetailRow, t: AiT): string {
+  const k = row.usage_kind
+  if (!k) return t.usageTokenKindInbox
+  if (k === 'material_infer') return t.usageTokenKindMaterialInfer
+  if (k === 'image_material_detail') return t.usageImageGenKindMaterial
+  if (k === 'image_real_use') return t.usageImageGenKindRealUse
+  return k
 }
 
 function defaultsFromSettings(s: SettingsRow | null) {
@@ -170,7 +182,9 @@ export function PartnerAiSettingsPanel({
   const [inventoryLoadingMore, setInventoryLoadingMore] = useState(false)
   const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRow[]>([])
   const [imageGenRows, setImageGenRows] = useState<PartnerAiImageGenUsageStatRow[]>([])
-  const [tokenUsageLookbackDays, setTokenUsageLookbackDays] = useState(30)
+  const [usagePeriod, setUsagePeriod] = useState<PartnerAiUsagePeriod>('month')
+  const usagePeriodRef = useRef(usagePeriod)
+  usagePeriodRef.current = usagePeriod
   const [tokenDetailRows, setTokenDetailRows] = useState<PartnerAiTokenUsageDetailRow[]>([])
   const [creditSummaryRows, setCreditSummaryRows] = useState<OwnerCreditEventSummaryRow[]>([])
   const [creditDetailRows, setCreditDetailRows] = useState<OwnerCreditEventDetailRow[]>([])
@@ -178,6 +192,8 @@ export function PartnerAiSettingsPanel({
   const [usageOwnerLinked, setUsageOwnerLinked] = useState(true)
   const [imageEmbedSummaryRows, setImageEmbedSummaryRows] = useState<PartnerImageEmbedUsageSummaryRow[]>([])
   const [imageEmbedDetailRows, setImageEmbedDetailRows] = useState<PartnerImageEmbedUsageDetailRow[]>([])
+  const [textEmbedSummaryRows, setTextEmbedSummaryRows] = useState<PartnerTextEmbedUsageSummaryRow[]>([])
+  const [textEmbedDetailRows, setTextEmbedDetailRows] = useState<PartnerTextEmbedUsageDetailRow[]>([])
   const [embeddingStats, setEmbeddingStats] = useState<PartnerInventoryEmbeddingStats | null>(null)
   const [textEmbeddingStats, setTextEmbeddingStats] = useState<PartnerInventoryEmbeddingStats | null>(null)
   const [embeddingSyncing, setEmbeddingSyncing] = useState(false)
@@ -197,6 +213,45 @@ export function PartnerAiSettingsPanel({
   const textEmbeddingPendingRef = useRef(0)
   textEmbeddingPendingRef.current = textEmbeddingStats?.pending ?? 0
 
+  const loadUsageAnalyticsWithSeq = useCallback(
+    async (seq: number, period: PartnerAiUsagePeriod) => {
+      const [usageRes, analyticsRes] = await Promise.all([
+        getPartnerAiTokenUsageStats(partnerId, period),
+        getPartnerAiUsageAnalytics(partnerId, period),
+      ])
+      if (seq !== loadSeqRef.current) return
+      if ('error' in usageRes) {
+        setTokenUsageRows([])
+        setImageGenRows([])
+      } else {
+        setTokenUsageRows(usageRes.rows)
+        setImageGenRows(usageRes.imageGenRows ?? [])
+      }
+      if ('error' in analyticsRes) {
+        setTokenDetailRows([])
+        setCreditSummaryRows([])
+        setCreditDetailRows([])
+        setLogoCreditRows([])
+        setUsageOwnerLinked(true)
+        setImageEmbedSummaryRows([])
+        setImageEmbedDetailRows([])
+        setTextEmbedSummaryRows([])
+        setTextEmbedDetailRows([])
+      } else {
+        setTokenDetailRows(analyticsRes.tokenDetails)
+        setCreditSummaryRows(analyticsRes.creditSummaries)
+        setCreditDetailRows(analyticsRes.creditDetails)
+        setLogoCreditRows(analyticsRes.logoCreditRows)
+        setUsageOwnerLinked(analyticsRes.ownerAccountLinked)
+        setImageEmbedSummaryRows(analyticsRes.imageEmbedSummaries)
+        setImageEmbedDetailRows(analyticsRes.imageEmbedDetails)
+        setTextEmbedSummaryRows(analyticsRes.textEmbedSummaries ?? [])
+        setTextEmbedDetailRows(analyticsRes.textEmbedDetails ?? [])
+      }
+    },
+    [partnerId]
+  )
+
   const load = useCallback((): Promise<void> => {
     const seq = ++loadSeqRef.current
     setLoadErr(null)
@@ -208,39 +263,14 @@ export function PartnerAiSettingsPanel({
     setEmbeddingStats(null)
     setTextEmbeddingStats(null)
     return (async () => {
-      const [bundleRes, usageRes, analyticsRes, embeddingRes, textEmbeddingRes] = await Promise.all([
+      const [bundleRes, embeddingRes, textEmbeddingRes] = await Promise.all([
         getPartnerAiBundle(partnerId),
-        getPartnerAiTokenUsageStats(partnerId),
-        getPartnerAiUsageAnalytics(partnerId),
         getPartnerInventoryEmbeddingStats(partnerId),
         getPartnerInventoryTextEmbeddingStats(partnerId),
       ])
       if (seq !== loadSeqRef.current) return
-      if ('error' in usageRes) {
-        setTokenUsageRows([])
-        setImageGenRows([])
-      } else {
-        setTokenUsageRows(usageRes.rows)
-        setImageGenRows(usageRes.imageGenRows ?? [])
-        setTokenUsageLookbackDays(usageRes.lookbackDays)
-      }
-      if ('error' in analyticsRes) {
-        setTokenDetailRows([])
-        setCreditSummaryRows([])
-        setCreditDetailRows([])
-        setLogoCreditRows([])
-        setUsageOwnerLinked(true)
-        setImageEmbedSummaryRows([])
-        setImageEmbedDetailRows([])
-      } else {
-        setTokenDetailRows(analyticsRes.tokenDetails)
-        setCreditSummaryRows(analyticsRes.creditSummaries)
-        setCreditDetailRows(analyticsRes.creditDetails)
-        setLogoCreditRows(analyticsRes.logoCreditRows)
-        setUsageOwnerLinked(analyticsRes.ownerAccountLinked)
-        setImageEmbedSummaryRows(analyticsRes.imageEmbedSummaries)
-        setImageEmbedDetailRows(analyticsRes.imageEmbedDetails)
-      }
+      await loadUsageAnalyticsWithSeq(seq, usagePeriodRef.current)
+      if (seq !== loadSeqRef.current) return
       if ('error' in embeddingRes) {
         setEmbeddingStats(null)
       } else {
@@ -273,7 +303,7 @@ export function PartnerAiSettingsPanel({
         setSettingsLoaded(true)
       }
     })()
-  }, [partnerId, t.loadError, toast])
+  }, [partnerId, t.loadError, toast, loadUsageAnalyticsWithSeq])
 
   useEffect(() => {
     load()
@@ -447,6 +477,12 @@ export function PartnerAiSettingsPanel({
       window.clearInterval(timer)
     }
   }, [partnerId])
+
+  const usageScopeLabel = useMemo(() => {
+    if (usagePeriod === 'day') return t.usagePeriodScopeDay
+    if (usagePeriod === 'week') return t.usagePeriodScopeWeek
+    return t.usagePeriodScopeMonth
+  }, [t, usagePeriod])
 
   return (
     <Card className="overflow-hidden border-violet-200/60 bg-gradient-to-br from-violet-50/40 via-background to-background dark:border-violet-900/40 dark:from-violet-950/20 shadow-sm">
@@ -735,10 +771,152 @@ export function PartnerAiSettingsPanel({
             />
           </TabsContent>
 
-          <TabsContent value="usage" className="mt-0 space-y-3">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {t.tokenUsageIntro.replace(/\{days\}/g, String(tokenUsageLookbackDays))}
-            </p>
+          <TabsContent value="usage" className="mt-0 space-y-4">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <p className="min-w-0 flex-1 text-xs text-muted-foreground leading-relaxed">
+                {t.tokenUsageIntro.replace(/\{scope\}/g, usageScopeLabel)}
+              </p>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="whitespace-nowrap text-xs text-muted-foreground">{t.usagePeriodLabel}</span>
+                <Select
+                  value={usagePeriod}
+                  onValueChange={(v) => {
+                    const p = v as PartnerAiUsagePeriod
+                    setUsagePeriod(p)
+                    const seq = ++loadSeqRef.current
+                    void loadUsageAnalyticsWithSeq(seq, p)
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[128px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="day">{t.usagePeriodDay}</SelectItem>
+                    <SelectItem value="week">{t.usagePeriodWeek}</SelectItem>
+                    <SelectItem value="month">{t.usagePeriodMonth}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3 dark:border-amber-500/25 dark:bg-amber-950/20">
+              <div>
+                <h3 className="text-sm font-semibold">{t.usageSectionCreditTitle}</h3>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageSectionCreditIntro}</p>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium">{t.usageCreditLedgerTitle}</h4>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageCreditLedgerIntro}</p>
+                {!usageOwnerLinked ? (
+                  <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">{t.usageNoOwnerHint}</p>
+                ) : creditSummaryRows.length === 0 && creditDetailRows.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted-foreground">{t.usageCreditLedgerEmpty}</p>
+                ) : (
+                  <div className="mt-2 space-y-3">
+                    {creditSummaryRows.length > 0 ? (
+                      <div className="overflow-x-auto rounded-lg border">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b bg-muted/40 text-left">
+                              <th className="p-2 font-medium">{t.usageCreditColType}</th>
+                              <th className="p-2 font-medium tabular-nums">{t.usageCreditColCount}</th>
+                              <th className="p-2 font-medium tabular-nums">{t.usageCreditColAmount}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {creditSummaryRows.map((row) => (
+                              <tr
+                                key={row.charge_type || '(empty)'}
+                                className="border-b border-border/60 last:border-0"
+                              >
+                                <td className="p-2 font-mono text-[11px]">{row.charge_type || '—'}</td>
+                                <td className="p-2 tabular-nums">{tokenFmt.format(row.event_count)}</td>
+                                <td className="p-2 tabular-nums font-medium">
+                                  {creditFmt.format(row.sum_amount)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : null}
+                    {creditDetailRows.length > 0 ? (
+                      <div>
+                        <p className="mb-1 text-[11px] font-medium text-muted-foreground">
+                          {t.usageCreditDetailTitle}
+                        </p>
+                        <div className="overflow-x-auto rounded-lg border">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b bg-muted/40 text-left">
+                                <th className="p-2 font-medium">{t.usageCreditColWhen}</th>
+                                <th className="p-2 font-medium">{t.usageCreditColType}</th>
+                                <th className="p-2 font-medium tabular-nums">{t.usageCreditColSingle}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {creditDetailRows.map((row) => (
+                                <tr key={row.id} className="border-b border-border/60 last:border-0">
+                                  <td className="p-2 whitespace-nowrap tabular-nums">
+                                    {dateTimeForLocale(row.created_at, locale)}
+                                  </td>
+                                  <td className="p-2 font-mono text-[11px]">{row.charge_type || '—'}</td>
+                                  <td className="p-2 tabular-nums font-medium">
+                                    {creditFmt.format(row.amount)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium">{t.usageLogoCreditTitle}</h4>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageLogoCreditIntro}</p>
+                {logoCreditRows.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted-foreground">{t.usageLogoCreditEmpty}</p>
+                ) : (
+                  <div className="mt-2 overflow-x-auto rounded-lg border">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-muted/40 text-left">
+                          <th className="p-2 font-medium">{t.usageDetailColTime}</th>
+                          <th className="p-2 font-medium">{t.usageLogoColModel}</th>
+                          <th className="p-2 font-medium">{t.usageLogoColStatus}</th>
+                          <th className="p-2 font-medium tabular-nums">{t.usageCreditColSingle}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {logoCreditRows.map((row) => (
+                          <tr key={row.id} className="border-b border-border/60 last:border-0">
+                            <td className="p-2 whitespace-nowrap tabular-nums">
+                              {dateTimeForLocale(row.created_at, locale)}
+                            </td>
+                            <td className="p-2 font-mono text-[11px]">{row.model || '—'}</td>
+                            <td className="p-2">{row.status || '—'}</td>
+                            <td className="p-2 tabular-nums font-medium">
+                              {creditFmt.format(row.charged_credits)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border/60 bg-muted/15 p-3 dark:bg-muted/10">
+              <div>
+                <h3 className="text-sm font-semibold">{t.usageSectionApiTitle}</h3>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageSectionApiIntro}</p>
+              </div>
             {tokenUsageRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t.tokenUsageEmpty}</p>
             ) : (
@@ -920,7 +1098,91 @@ export function PartnerAiSettingsPanel({
               )}
             </div>
 
-            <div className="space-y-4 border-t border-border/60 pt-4">
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">{t.usageEmbedTextTitle}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{t.usageEmbedTextIntro}</p>
+              {textEmbedSummaryRows.length === 0 && textEmbedDetailRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t.usageEmbedTextEmpty}</p>
+              ) : (
+                <div className="space-y-3">
+                  {textEmbedSummaryRows.length > 0 ? (
+                    <div className="overflow-x-auto rounded-lg border">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/40 text-left">
+                            <th className="p-2 font-medium">{t.usageEmbedColSource}</th>
+                            <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCalls}</th>
+                            <th className="p-2 font-medium tabular-nums">{t.usageEmbedColPromptSum}</th>
+                            <th className="p-2 font-medium tabular-nums">{t.usageEmbedColTotalSum}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {textEmbedSummaryRows.map((row) => (
+                            <tr key={row.source} className="border-b border-border/60 last:border-0">
+                              <td className="p-2">
+                                {row.source === 'customer_query'
+                                  ? t.usageEmbedTextSourceQuery
+                                  : t.usageEmbedSourceInventory}
+                              </td>
+                              <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                              <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
+                              <td className="p-2 tabular-nums font-medium">
+                                {tokenFmt.format(row.sum_total_tokens)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                  {textEmbedDetailRows.length > 0 ? (
+                    <div>
+                      <p className="mb-1 text-[11px] font-medium text-muted-foreground">
+                        {t.usageEmbedDetailTitle}
+                      </p>
+                      <div className="overflow-x-auto rounded-lg border">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b bg-muted/40 text-left">
+                              <th className="p-2 font-medium">{t.usageDetailColTime}</th>
+                              <th className="p-2 font-medium">{t.usageEmbedColSource}</th>
+                              <th className="p-2 font-medium">{t.tokenUsageColModel}</th>
+                              <th className="p-2 font-medium tabular-nums">{t.usageEmbedColPromptSum}</th>
+                              <th className="p-2 font-medium tabular-nums">{t.usageEmbedColTotalSum}</th>
+                              <th className="p-2 font-medium">{t.usageEmbedColInventoryId}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {textEmbedDetailRows.map((row) => (
+                              <tr key={row.id} className="border-b border-border/60 last:border-0">
+                                <td className="p-2 whitespace-nowrap tabular-nums">
+                                  {dateTimeForLocale(row.created_at, locale)}
+                                </td>
+                                <td className="p-2">
+                                  {row.source === 'customer_query'
+                                    ? t.usageEmbedTextSourceQuery
+                                    : t.usageEmbedSourceInventory}
+                                </td>
+                                <td className="p-2 font-mono text-[11px]">{row.model || '—'}</td>
+                                <td className="p-2 tabular-nums">{tokenFmt.format(row.prompt_tokens)}</td>
+                                <td className="p-2 tabular-nums font-medium">
+                                  {tokenFmt.format(row.total_tokens)}
+                                </td>
+                                <td className="p-2 font-mono text-[10px] text-muted-foreground">
+                                  {row.inventory_id ? row.inventory_id.slice(0, 8) : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2 border-t border-border/50 pt-3">
               <div>
                 <h3 className="text-sm font-medium">{t.usageDetailApiTitle}</h3>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageDetailApiIntro}</p>
@@ -934,6 +1196,7 @@ export function PartnerAiSettingsPanel({
                           <th className="p-2 font-medium">{t.usageDetailColTime}</th>
                           <th className="p-2 font-medium">{t.tokenUsageColProvider}</th>
                           <th className="p-2 font-medium">{t.tokenUsageColModel}</th>
+                          <th className="p-2 font-medium">{t.usageDetailColUsageKind}</th>
                           <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
                           <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
                           <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
@@ -947,6 +1210,7 @@ export function PartnerAiSettingsPanel({
                             </td>
                             <td className="p-2 capitalize">{row.provider}</td>
                             <td className="p-2 font-mono text-[11px]">{row.model}</td>
+                            <td className="p-2 text-[11px] text-muted-foreground">{tokenUsageDetailKindLabel(row, t)}</td>
                             <td className="p-2 tabular-nums">{tokenFmt.format(row.prompt_tokens ?? 0)}</td>
                             <td className="p-2 tabular-nums">{tokenFmt.format(row.completion_tokens ?? 0)}</td>
                             <td className="p-2 tabular-nums font-medium">
@@ -959,112 +1223,7 @@ export function PartnerAiSettingsPanel({
                   </div>
                 )}
               </div>
-
-              <div>
-                <h3 className="text-sm font-medium">{t.usageCreditLedgerTitle}</h3>
-                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageCreditLedgerIntro}</p>
-                {!usageOwnerLinked ? (
-                  <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">{t.usageNoOwnerHint}</p>
-                ) : creditSummaryRows.length === 0 && creditDetailRows.length === 0 ? (
-                  <p className="mt-2 text-sm text-muted-foreground">{t.usageCreditLedgerEmpty}</p>
-                ) : (
-                  <div className="mt-2 space-y-3">
-                    {creditSummaryRows.length > 0 ? (
-                      <div className="overflow-x-auto rounded-lg border">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b bg-muted/40 text-left">
-                              <th className="p-2 font-medium">{t.usageCreditColType}</th>
-                              <th className="p-2 font-medium tabular-nums">{t.usageCreditColCount}</th>
-                              <th className="p-2 font-medium tabular-nums">{t.usageCreditColAmount}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {creditSummaryRows.map((row) => (
-                              <tr
-                                key={row.charge_type || '(empty)'}
-                                className="border-b border-border/60 last:border-0"
-                              >
-                                <td className="p-2 font-mono text-[11px]">{row.charge_type || '—'}</td>
-                                <td className="p-2 tabular-nums">{tokenFmt.format(row.event_count)}</td>
-                                <td className="p-2 tabular-nums font-medium">
-                                  {creditFmt.format(row.sum_amount)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : null}
-                    {creditDetailRows.length > 0 ? (
-                      <div>
-                        <p className="mb-1 text-[11px] font-medium text-muted-foreground">
-                          {t.usageCreditDetailTitle}
-                        </p>
-                        <div className="overflow-x-auto rounded-lg border">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b bg-muted/40 text-left">
-                                <th className="p-2 font-medium">{t.usageCreditColWhen}</th>
-                                <th className="p-2 font-medium">{t.usageCreditColType}</th>
-                                <th className="p-2 font-medium tabular-nums">{t.usageCreditColSingle}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {creditDetailRows.map((row) => (
-                                <tr key={row.id} className="border-b border-border/60 last:border-0">
-                                  <td className="p-2 whitespace-nowrap tabular-nums">
-                                    {dateTimeForLocale(row.created_at, locale)}
-                                  </td>
-                                  <td className="p-2 font-mono text-[11px]">{row.charge_type || '—'}</td>
-                                  <td className="p-2 tabular-nums font-medium">
-                                    {creditFmt.format(row.amount)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h3 className="text-sm font-medium">{t.usageLogoCreditTitle}</h3>
-                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageLogoCreditIntro}</p>
-                {logoCreditRows.length === 0 ? (
-                  <p className="mt-2 text-sm text-muted-foreground">{t.usageLogoCreditEmpty}</p>
-                ) : (
-                  <div className="mt-2 overflow-x-auto rounded-lg border">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b bg-muted/40 text-left">
-                          <th className="p-2 font-medium">{t.usageDetailColTime}</th>
-                          <th className="p-2 font-medium">{t.usageLogoColModel}</th>
-                          <th className="p-2 font-medium">{t.usageLogoColStatus}</th>
-                          <th className="p-2 font-medium tabular-nums">{t.usageCreditColSingle}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {logoCreditRows.map((row) => (
-                          <tr key={row.id} className="border-b border-border/60 last:border-0">
-                            <td className="p-2 whitespace-nowrap tabular-nums">
-                              {dateTimeForLocale(row.created_at, locale)}
-                            </td>
-                            <td className="p-2 font-mono text-[11px]">{row.model || '—'}</td>
-                            <td className="p-2">{row.status || '—'}</td>
-                            <td className="p-2 tabular-nums font-medium">
-                              {creditFmt.format(row.charged_credits)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+            </div>
             </div>
           </TabsContent>
         </Tabs>

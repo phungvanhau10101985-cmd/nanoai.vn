@@ -7,6 +7,7 @@ import {
   type MessagingPartnerInventoryRow,
   type PartnerInventoryTextEmbeddingUpdatePatch,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { insertMessagingPartnerTextEmbedUsageFromPg } from '@/lib/db/messaging-partner-text-embed-usage-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import type { Database } from '@/types/database.types'
 
@@ -244,13 +245,24 @@ function normalizeCustomerMessageForInventorySearch(raw: string): string {
 
 /** Embed tin khách để so khớp ANN với kho (RETRIEVAL_QUERY). Trả null nếu không cấu hình API. */
 export async function embedCustomerQueryTextForInventorySearch(
-  customerMessage: string
+  customerMessage: string,
+  options?: { partnerId?: string }
 ): Promise<number[] | null> {
   const t = normalizeCustomerMessageForInventorySearch(customerMessage)
   if (!t || t.length < 2) return null
   if (!process.env.GOOGLE_API_KEY?.trim()) return null
   try {
     const out = await embedTextWithGemini(t, 'query')
+    const pid = options?.partnerId?.trim()
+    if (pid && out.promptTokens > 0) {
+      void insertMessagingPartnerTextEmbedUsageFromPg({
+        partnerId: pid,
+        source: 'customer_query',
+        model: GEMINI_EMBED_MODEL,
+        promptTokens: out.promptTokens,
+        totalTokens: out.totalTokens,
+      })
+    }
     return out.values.length === GEMINI_EMBED_DIMS ? out.values : null
   } catch (e) {
     console.warn('[embedCustomerQueryTextForInventorySearch]', e)
@@ -349,6 +361,14 @@ export async function syncPartnerInventoryTextEmbeddings(
           continue
         }
         const embedOut = await embedTextWithGemini(catalog, 'document')
+        void insertMessagingPartnerTextEmbedUsageFromPg({
+          partnerId,
+          source: 'inventory_sync',
+          model: GEMINI_EMBED_MODEL,
+          promptTokens: embedOut.promptTokens,
+          totalTokens: embedOut.totalTokens,
+          inventoryId: row.id,
+        })
         const vec = embedOut.values
         if (!vec || vec.length === 0) {
           failed += 1
@@ -425,7 +445,7 @@ export async function fetchInventoryRowsBySemanticTextForPartnerAi(
   customerMessage: string,
   limit: number
 ): Promise<MessagingPartnerInventoryRow[]> {
-  const vec = await embedCustomerQueryTextForInventorySearch(customerMessage)
+  const vec = await embedCustomerQueryTextForInventorySearch(customerMessage, { partnerId })
   if (!vec || vec.length !== DB_VECTOR_DIMS) return []
   const literal = toPgVectorLiteral(vec)
   const lim = Math.max(1, Math.min(50, Math.floor(limit)))

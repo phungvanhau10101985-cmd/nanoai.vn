@@ -515,7 +515,7 @@ export async function matchPartnerInventoryByEmbeddingFromPg(
   minScore: number
 ): Promise<MatchPartnerInventoryEmbeddingRow[] | null> {
   if (!isPgConfigured()) return null
-  const lim = Math.max(1, Math.min(25, Math.floor(limit)))
+  const lim = Math.max(1, Math.min(50, Math.floor(limit)))
   try {
     const rows = await pgQuery<{
       inventory_id: string

@@ -7,6 +7,7 @@ import {
   extractInventorySearchTokens,
   scoreInventoryRowMatch,
 } from '@/lib/messaging/partner-inventory-ai-search'
+import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
@@ -120,7 +121,10 @@ async function fetchImageAsInlinePart(url: string): Promise<{ mimeType: string; 
   }
 }
 
-async function inferMaterialFromProductImageUrl(imageUrl: string): Promise<string | null> {
+async function inferMaterialFromProductImageUrl(
+  imageUrl: string,
+  partnerId: string
+): Promise<string | null> {
   const key = process.env.GOOGLE_API_KEY?.trim()
   if (!key) return null
   const inline = await fetchImageAsInlinePart(imageUrl)
@@ -137,7 +141,21 @@ async function inferMaterialFromProductImageUrl(imageUrl: string): Promise<strin
       { text: prompt },
       { inlineData: { mimeType: inline.mimeType, data: inline.data } },
     ] as never)
-    const raw = result.response
+    const response = result.response
+    const um = response.usageMetadata
+    const prompt_tokens = Math.max(0, um?.promptTokenCount ?? 0)
+    const completion_tokens = Math.max(0, um?.candidatesTokenCount ?? 0)
+    const total_tokens = Math.max(0, um?.totalTokenCount ?? prompt_tokens + completion_tokens)
+    void insertPartnerAiTokenUsage({
+      partner_id: partnerId,
+      provider: 'google',
+      model: GEMINI_25_FLASH_NO_THINKING.model,
+      prompt_tokens,
+      completion_tokens,
+      total_tokens,
+      usage_kind: 'material_infer',
+    })
+    const raw = response
       .text()
       .trim()
       .replace(/^["']|["']$/g, '')
@@ -187,7 +205,7 @@ export async function enrichInventoryRowsWithMaterialIfNeeded(
   }
   if (!target) return input
 
-  const inferred = await inferMaterialFromProductImageUrl(target.image_url.trim())
+  const inferred = await inferMaterialFromProductImageUrl(target.image_url.trim(), partnerId)
   if (!inferred) return input
 
   const ok = await updatePartnerInventoryMaterialNoteFromPg(partnerId, target.id, inferred)

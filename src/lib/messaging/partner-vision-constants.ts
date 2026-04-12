@@ -2,6 +2,9 @@
  * Hằng số Vision (Vertex AI Vision Warehouse) — không import server/Node-only để dùng được từ Client Components.
  */
 
+/** Widget hosted: số mặt hàng gợi ý tối đa khi tìm theo vector (ảnh hoặc chữ) — không gọi LLM tư vấn cho đến khi khách chọn SP. */
+export const WIDGET_PRODUCT_VECTOR_PICK_MAX = 36
+
 export const VISION_PRODUCT_CATEGORIES = [
   'general-v1',
   'apparel-v2',

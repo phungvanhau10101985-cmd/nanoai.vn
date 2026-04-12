@@ -781,6 +781,39 @@ export interface Database {
         }
         Relationships: []
       }
+      messaging_partner_text_embed_usage: {
+        Row: {
+          id: string
+          partner_id: string
+          source: 'inventory_sync' | 'customer_query'
+          model: string
+          prompt_tokens: number
+          total_tokens: number
+          inventory_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          source: 'inventory_sync' | 'customer_query'
+          model: string
+          prompt_tokens?: number
+          total_tokens?: number
+          inventory_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          source?: 'inventory_sync' | 'customer_query'
+          model?: string
+          prompt_tokens?: number
+          total_tokens?: number
+          inventory_id?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       partner_try_on_clients: {
         Row: {
           id: string
