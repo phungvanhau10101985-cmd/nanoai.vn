@@ -88,9 +88,10 @@ function dateTimeForLocale(iso: string, locale: WebLocale): string {
 function defaultsFromSettings(s: SettingsRow | null) {
   return {
     enabled: s?.enabled ?? false,
-    reply_delay_seconds: s?.reply_delay_seconds ?? 10,
-    typing_pause_min_ms: s?.typing_pause_min_ms ?? 700,
-    typing_pause_max_ms: s?.typing_pause_max_ms ?? 1200,
+    reply_delay_seconds: s?.reply_delay_seconds ?? 0,
+    /** Chỉ áp cho tin FAQ khớp kho (gần tức thì); tin do model sinh không dùng. */
+    typing_pause_min_ms: s?.typing_pause_min_ms ?? 650,
+    typing_pause_max_ms: s?.typing_pause_max_ms ?? 1150,
     shop_policy: s?.shop_policy ?? '',
     tone_instructions: s?.tone_instructions ?? '',
     sales_coaching_instructions: s?.sales_coaching_instructions ?? '',
@@ -493,12 +494,16 @@ export function PartnerAiSettingsPanel({
                 <Input
                   id="ai-delay"
                   type="number"
-                  min={5}
+                  min={0}
                   max={30}
                   value={form.reply_delay_seconds}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, reply_delay_seconds: Number(e.target.value) || 20 }))
-                  }
+                  onChange={(e) => {
+                    const v = Math.floor(Number(e.target.value))
+                    setForm((f) => ({
+                      ...f,
+                      reply_delay_seconds: Number.isFinite(v) ? Math.min(30, Math.max(0, v)) : f.reply_delay_seconds,
+                    }))
+                  }}
                 />
                 <p className="text-xs text-muted-foreground">{t.delayHint}</p>
               </div>

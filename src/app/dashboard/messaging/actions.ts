@@ -1278,9 +1278,21 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
-  const delay = Math.min(30, Math.max(5, Math.floor(Number(payload.reply_delay_seconds) || 10)))
-  const tmin = Math.min(30000, Math.max(0, Math.floor(Number(payload.typing_pause_min_ms) || 700)))
-  const tmax = Math.min(30000, Math.max(0, Math.floor(Number(payload.typing_pause_max_ms) || 1200)))
+  const rawDelay = Number(payload.reply_delay_seconds)
+  const delay = Math.min(
+    30,
+    Math.max(0, Number.isFinite(rawDelay) ? Math.floor(rawDelay) : 0)
+  )
+  const tminRaw = Number(payload.typing_pause_min_ms)
+  const tmaxRaw = Number(payload.typing_pause_max_ms)
+  const tmin = Math.min(
+    30000,
+    Math.max(0, Number.isFinite(tminRaw) ? Math.floor(tminRaw) : 0)
+  )
+  const tmax = Math.min(
+    30000,
+    Math.max(0, Number.isFinite(tmaxRaw) ? Math.floor(tmaxRaw) : 0)
+  )
   const vision_shop_country: string | null = null
   const vision_location = 'us-central1'
   const vision_product_category = 'general-v1'

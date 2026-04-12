@@ -201,7 +201,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         ai_job_id: job.id,
       })
 
-      if (!skipTypingDelay) await sleep(typingDelayMs(settings))
+      // Không thêm độ trễ «đang gõ» sau khi LLM đã trả lời — API đã tốn thời gian; chỉ FAQ (nhánh trên) dùng typing_pause_*.
       const parsed = parsePartnerAiLlmStructured(llm.text)
       const productsWithVideo = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
         job.partner_id,

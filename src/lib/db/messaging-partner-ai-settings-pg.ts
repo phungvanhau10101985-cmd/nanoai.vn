@@ -59,9 +59,9 @@ function mapPgRowToAiSettingsFull(row: {
   return {
     partner_id: row.partner_id,
     enabled: row.enabled !== false,
-    reply_delay_seconds: num(row.reply_delay_seconds, 60),
-    typing_pause_min_ms: num(row.typing_pause_min_ms, 1200),
-    typing_pause_max_ms: num(row.typing_pause_max_ms, 3800),
+    reply_delay_seconds: num(row.reply_delay_seconds, 0),
+    typing_pause_min_ms: num(row.typing_pause_min_ms, 650),
+    typing_pause_max_ms: num(row.typing_pause_max_ms, 1150),
     shop_policy: String(row.shop_policy ?? ''),
     tone_instructions: String(row.tone_instructions ?? ''),
     sales_coaching_instructions: String(row.sales_coaching_instructions ?? ''),

@@ -1979,10 +1979,11 @@ const VI_DICTIONARY: Dictionary = {
     enableHint: 'Khi tắt, chỉ còn tin nhắn thủ công từ bạn.',
     delayLabel: 'Chờ trước khi AI trả lời (giây)',
     delayHint:
-      '5–30 giây (tối đa 30 giây — sau tin khách; phù hợp bán hàng). Mặc định 20. Sau bước này còn độ trễ «đang gõ» (ms) rồi mới gửi tin. Nếu bạn trả lời trước, AI sẽ không gửi.',
+      '0–30 giây: chờ trước khi lên lịch xử lý câu cần model AI (sau tin khách; không cộng thêm sau khi model đã trả lời). Mặc định 0. Nếu bạn trả lời trước, AI sẽ không gửi.',
     typingMinLabel: 'Độ trễ gõ tối thiểu (ms)',
     typingMaxLabel: 'Độ trễ gõ tối đa (ms)',
-    typingHint: 'Dùng cho FAQ: ngẫu nhiên trong khoảng này trước khi gửi (0–30000).',
+    typingHint:
+      'Chỉ dùng khi gửi câu FAQ có sẵn (không qua model): chọn ngẫu nhiên trong khoảng trước khi gửi (0–30000) để không quá «máy móc». Tin do model AI sinh không thêm bước này. Đặt cả hai 0 để tắt.',
     shopPolicyLabel: 'Chính sách & quy định shop',
     shopPolicyPlaceholder:
       'Ví dụ: đặt cọc 30%, không đổi hàng, đổi trong 7 ngày nếu lỗi sản xuất, freeship nội thành…',
@@ -3575,10 +3576,11 @@ const EN_DICTIONARY: Dictionary = {
     enableHint: 'When off, only manual replies from you are sent.',
     delayLabel: 'Wait before AI replies (seconds)',
     delayHint:
-      '5–30 seconds (max 30s after a customer message; suited to sales chat). Default 20. A short “typing” delay (ms) is applied before the message is sent. If you reply first, the AI will not send.',
+      '0–30 seconds: wait before scheduling work that needs the model (after a customer message; not added after the model finishes). Default 0. If you reply first, the AI will not send.',
     typingMinLabel: 'Typing delay min (ms)',
     typingMaxLabel: 'Typing delay max (ms)',
-    typingHint: 'Used for FAQ: random delay in this range before sending (0–30000).',
+    typingHint:
+      'Only for preset FAQ replies (no LLM): random delay in this range before sending (0–30000) so replies do not feel instant-on. LLM-generated messages skip this. Set both to 0 to disable.',
     shopPolicyLabel: 'Shop policies & rules',
     shopPolicyPlaceholder:
       'e.g. 30% deposit, no exchanges, 7-day exchange for defects only, free city shipping…',
@@ -5169,10 +5171,11 @@ const ZH_DICTIONARY: Dictionary = {
     enableHint: '关闭后仅发送您手动编写的消息。',
     delayLabel: 'AI 回复前等待（秒）',
     delayHint:
-      '5–30 秒（顾客发消息后最多等 30 秒再进入回复流程，适合售前）。默认 20。之后还有「正在输入」延迟（毫秒）才发出。若您先回复，AI 不会发送。',
+      '0–30 秒：在需要模型处理前排队等待（顾客发消息后；最多 30；模型生成完成后不再叠加）。默认 0。若您先回复，AI 不会发送。',
     typingMinLabel: '输入延迟下限（毫秒）',
     typingMaxLabel: '输入延迟上限（毫秒）',
-    typingHint: '用于 FAQ：发送前在此范围内随机延迟（0–30000）。',
+    typingHint:
+      '仅用于预设 FAQ 直发（不经模型）：发送前在此范围随机延迟（0–30000），避免过于生硬。模型生成的回复不加此延迟。两项均 0 则关闭。',
     shopPolicyLabel: '店铺政策与规则',
     shopPolicyPlaceholder: '例如：定金 30%、不换货、质量问题 7 天内可换、同城包邮等。',
     toneLabel: '语气 / 回复指引',
@@ -6712,10 +6715,11 @@ const JA_DICTIONARY: Dictionary = {
     enableHint: 'オフにすると、手動の返信のみ送信されます。',
     delayLabel: 'AI が返信するまでの待ち時間（秒）',
     delayHint:
-      '5〜30 秒（顧客メッセージ後、最大 30 秒まで待ってから返信処理。接客向け）。既定 20。その後「入力中」遅延（ms）を経て送信。先に返信した場合は AI は送りません。',
+      '0〜30 秒：モデル処理が必要な応答をスケジュールする前の待ち（顧客メッセージ後、最大 30；モデル完了後は足しません）。既定 0。先に返信した場合は AI は送りません。',
     typingMinLabel: '入力遅延 最小（ms）',
     typingMaxLabel: '入力遅延 最大（ms）',
-    typingHint: 'FAQ 用：送信前にこの範囲でランダム遅延（0〜30000）。',
+    typingHint:
+      'プリセット FAQ の即時送信のみ（LLM なし）：送信前にこの範囲でランダム遅延（0〜30000）。LLM 生成メッセージには適用しません。両方 0 でオフ。',
     shopPolicyLabel: '店舗ポリシー・ルール',
     shopPolicyPlaceholder:
       '例：手付け 30%、交換不可、不良品は 7 日以内交換、市内送料無料 など。',
@@ -8290,10 +8294,11 @@ const KO_DICTIONARY: Dictionary = {
     enableHint: '끄면 직접 보낸 메시지만 전송됩니다.',
     delayLabel: 'AI 답장 전 대기(초)',
     delayHint:
-      '5–30초(고객 메시지 후 최대 30초까지 대기 후 답장 시작, 판매 채팅용). 기본 20. 이후 «입력 중» 지연(ms) 뒤 전송. 먼저 답하면 AI는 보내지 않습니다.',
+      '0–30초: 모델이 필요한 답변을 예약하기 전 대기(고객 메시지 후, 최대 30; 모델 응답 후에는 추가 안 함). 기본 0. 먼저 답하면 AI는 보내지 않습니다.',
     typingMinLabel: '입력 지연 최소(ms)',
     typingMaxLabel: '입력 지연 최대(ms)',
-    typingHint: 'FAQ용: 전송 전 이 범위에서 무작위 지연(0–30000).',
+    typingHint:
+      '저장된 FAQ 즉시 발송에만 사용(LLM 없음): 전송 전 이 범위에서 무작위 지연(0–30000). LLM 생성 메시지에는 적용하지 않음. 둘 다 0이면 끔.',
     shopPolicyLabel: '매장 정책·규정',
     shopPolicyPlaceholder:
       '예: 계약금 30%, 교환 불가, 불량 시 7일 이내 교환, 시내 무료배송 등.',
