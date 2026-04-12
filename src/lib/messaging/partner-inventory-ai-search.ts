@@ -1,8 +1,6 @@
 import type { Database } from '@/types/database.types'
-import {
-  fetchPartnerInventoryDefaultForAiFromPg,
-  fetchPartnerInventoryRowsByTokenIlikeFromPg,
-} from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerInventoryRowsByTokenIlikeFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchInventoryRowsBySemanticTextForPartnerAi } from '@/lib/messaging/partner-inventory-text-embedding'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export type PartnerInventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
@@ -12,9 +10,14 @@ export function sanitizeInventorySearchToken(raw: string): string {
   return raw.replace(/[%_,().]/g, '').trim().slice(0, 64)
 }
 
-const SEARCH_TOKEN_MAX = 4
+/**
+ * Giới hạn số pattern ILIKE gửi Postgres (đủ để phủ gần hết tin khách; tránh câu cực dài làm query nặng).
+ * Trước đây 4–8 token khiến lệch nhiều so với ý khách.
+ */
+const SEARCH_TOKEN_MAX = 48
 const PER_TOKEN_QUERY_LIMIT = 45
-export const PARTNER_AI_INVENTORY_CONTEXT_LIMIT = 50
+/** Số mặt hàng tối đa đưa vào ngữ cảnh AI — chỉ lấy theo vector văn bản (ANN), từ gần đến xa. */
+export const PARTNER_AI_INVENTORY_CONTEXT_LIMIT = 20
 const EXPLICIT_SKU_MAX = 6
 
 type TokenCandidate = { token: string; priority: number }
@@ -85,22 +88,22 @@ function collectTokenCandidates(text: string): TokenCandidate[] {
 }
 
 function buildPriceUnitHintTokens(text: string): TokenCandidate[] {
+  const seen = new Set<number>()
   const out: TokenCandidate[] = []
-  const push = (token: string, priority: number) => {
-    const t = sanitizeInventorySearchToken(token)
-    if (!t) return
-    out.push({ token: t, priority })
+  const addAmount = (amount: number, priDigits: number, priVi: number) => {
+    if (!Number.isFinite(amount) || amount <= 0) return
+    if (seen.has(amount)) return
+    seen.add(amount)
+    const d = String(amount)
+    const vi = amount.toLocaleString('vi-VN')
+    out.push({ token: sanitizeInventorySearchToken(d) || d, priority: priDigits })
+    if (vi && vi !== d) out.push({ token: sanitizeInventorySearchToken(vi) || vi, priority: priVi })
   }
-  // 700k / 700 K / 700ngan -> 700000 (+ variants with separators)
   for (const m of text.matchAll(/\b(\d{1,4})\s*(k|ngan|ngàn|nghin|nghìn)\b/gi)) {
     const n = Number.parseInt(m[1], 10)
     if (!Number.isFinite(n) || n <= 0) continue
-    const amount = n * 1000
-    push(String(amount), 92)
-    push(amount.toLocaleString('vi-VN'), 86)
-    push(amount.toLocaleString('en-US'), 84)
+    addAmount(n * 1000, 91, 86)
   }
-  // 1tr2 / 1tr / 1.2tr / 1,2tr -> VND number
   for (const m of text.matchAll(/\b(\d{1,3})(?:[.,](\d{1,2}))?\s*(tr|trieu|triệu)\b/gi)) {
     const major = Number.parseInt(m[1], 10)
     if (!Number.isFinite(major) || major < 0) continue
@@ -108,20 +111,137 @@ function buildPriceUnitHintTokens(text: string): TokenCandidate[] {
     const minor = minorRaw ? Number.parseInt(minorRaw.padEnd(2, '0').slice(0, 2), 10) : 0
     if (!Number.isFinite(minor) || minor < 0) continue
     const amount = major * 1_000_000 + minor * 10_000
-    if (amount <= 0) continue
-    push(String(amount), 94)
-    push(amount.toLocaleString('vi-VN'), 88)
-    push(amount.toLocaleString('en-US'), 86)
+    addAmount(amount, 93, 88)
+  }
+  return out
+}
+
+/** Chuẩn hóa nhẹ: bỏ emoji 📷, gom khoảng trắng — không đổi nội dung tiếng Việt có dấu. */
+export function normalizeCustomerMessageForInventorySearch(raw: string): string {
+  return raw.replace(/^📷\s*/u, '').replace(/\s+/g, ' ').trim()
+}
+
+/** Từ dừng rất ngắn — chỉ lọc nhiễu tìm ILIKE, không “phân loại SP” bằng AI. */
+const VI_INVENTORY_STOP_WORDS = new Set([
+  'ạ',
+  'ơi',
+  'nhé',
+  'nhá',
+  'nak',
+  'dạ',
+  'em',
+  'anh',
+  'chị',
+  'shop',
+  'cho',
+  'mình',
+  'bạn',
+  'với',
+  'và',
+  'của',
+  'có',
+  'không',
+  'được',
+  'giúp',
+  'tìm',
+  'xin',
+  'hỏi',
+  'muốn',
+  'cần',
+  'gì',
+  'là',
+  'thì',
+  'đến',
+  'từ',
+  'trong',
+  'ngoài',
+  'để',
+  'này',
+  'nào',
+  'đó',
+  'khi',
+  'đã',
+  'sẽ',
+  'bị',
+  'bằng',
+  'các',
+  'một',
+  'theo',
+  'như',
+  'vậy',
+  'tầm',
+  'khoảng',
+  'đồng',
+  'vnd',
+  'giá',
+])
+
+/**
+ * Đưa gần như toàn bộ từ/cụm 2 từ có nghĩa từ tin khách (sau lọc stopword) để ILIKE không bỏ sót ý.
+ */
+function collectFullMessageLexicalTokens(text: string): TokenCandidate[] {
+  const out: TokenCandidate[] = []
+  const consider = (raw: string, priority: number) => {
+    const t = sanitizeInventorySearchToken(raw)
+    if (t.length < 2) return
+    const lw = t.toLowerCase()
+    if (VI_INVENTORY_STOP_WORDS.has(lw)) return
+    out.push({ token: t, priority })
+  }
+  const words = text.split(/[\s,.;:!?'"()[\]{}<>\/\\]+/).filter(Boolean)
+  for (const w of words) {
+    consider(w, 43)
+  }
+  for (let i = 0; i < words.length - 1; i++) {
+    const a = words[i].toLowerCase()
+    const b = words[i + 1].toLowerCase()
+    if (VI_INVENTORY_STOP_WORDS.has(a) || VI_INVENTORY_STOP_WORDS.has(b)) continue
+    const phrase = `${words[i]} ${words[i + 1]}`
+    const t = sanitizeInventorySearchToken(phrase)
+    if (t.length >= 4) consider(phrase, 50)
+  }
+  return out
+}
+
+/** Cụm “loại hàng” thường gặp — ưu tiên cao, bổ sung cho từ tách riêng. */
+function collectStandardProductPhrases(lower: string): TokenCandidate[] {
+  const phrases: Array<[string, number]> = [
+    ['váy maxi', 100],
+    ['váy midi', 99],
+    ['váy mini', 99],
+    ['đầm maxi', 99],
+    ['đầm ôm', 96],
+    ['đầm suông', 96],
+    ['đi biển', 95],
+    ['đầm công sở', 97],
+    ['công sở', 93],
+    ['dạo phố', 93],
+    ['đi tiệc', 93],
+    ['dự tiệc', 93],
+    ['áo khoác', 96],
+    ['áo thun', 95],
+    ['quần jean', 96],
+    ['quần tây', 96],
+    ['giày cao gót', 98],
+    ['dép quai hậu', 96],
+  ]
+  const out: TokenCandidate[] = []
+  for (const [p, pr] of phrases) {
+    if (lower.includes(p)) out.push({ token: p, priority: pr })
   }
   return out
 }
 
 /** Tokens for coarse inventory match (SKU / name fragments). */
 export function extractInventorySearchTokens(message: string): string[] {
-  const text = message.replace(/^📷\s*/u, '').trim()
+  const text = normalizeCustomerMessageForInventorySearch(message)
   if (!text) return []
-  const candidates = collectTokenCandidates(text)
+  const lower = text.toLowerCase()
+  const candidates: TokenCandidate[] = []
+  candidates.push(...collectTokenCandidates(text))
+  candidates.push(...collectFullMessageLexicalTokens(text))
   candidates.push(...buildPriceUnitHintTokens(text))
+  candidates.push(...collectStandardProductPhrases(lower))
   // Keep color/style tokens so text queries can suggest similar products better.
   const styleHints: Array<{ token: string; priority: number }> = []
   const addHint = (token: string, priority: number) => {
@@ -129,7 +249,6 @@ export function extractInventorySearchTokens(message: string): string[] {
     if (!t) return
     styleHints.push({ token: t, priority })
   }
-  const lower = text.toLowerCase()
   const hintWords = [
     'đỏ',
     'đen',
@@ -151,9 +270,34 @@ export function extractInventorySearchTokens(message: string): string[] {
   for (const w of hintWords) {
     if (lower.includes(w)) addHint(w, 58)
   }
+  // Ưu tiên cao hơn cả biến thể giá (thường ~92) để ILIKE vẫn lấy được name/mô tả «váy maxi» khi khách vừa hỏi kiểu vừa nêu giá.
+  const garmentHints: Array<[string, number]> = [
+    ['váy maxi', 99],
+    ['maxi', 97],
+    ['midi', 96],
+    ['mini', 96],
+    ['váy', 95],
+    ['đầm', 95],
+    ['đi biển', 94],
+    ['dạo phố', 93],
+    ['tiệc', 93],
+    ['công sở', 93],
+  ]
+  for (const [w, p] of garmentHints) {
+    if (lower.includes(w)) addHint(w, p)
+  }
   candidates.push(...styleHints)
   candidates.sort((a, b) => b.priority - a.priority || b.token.length - a.token.length)
-  return candidates.slice(0, SEARCH_TOKEN_MAX).map((c) => c.token)
+  const seenTok = new Set<string>()
+  const out: string[] = []
+  for (const c of candidates) {
+    const k = c.token.toLowerCase()
+    if (seenTok.has(k)) continue
+    seenTok.add(k)
+    out.push(c.token)
+    if (out.length >= SEARCH_TOKEN_MAX) break
+  }
+  return out
 }
 
 export function scoreInventoryRowMatch(row: PartnerInventoryRow, needles: string[]): number {
@@ -178,17 +322,6 @@ export function scoreInventoryRowMatch(row: PartnerInventoryRow, needles: string
     if (priceHint.includes(n)) score += 26
   }
   return score
-}
-
-async function fetchDefaultInventory(partnerId: string): Promise<PartnerInventoryRow[]> {
-  if (!isPgConfigured()) return []
-  try {
-    const rows = await fetchPartnerInventoryDefaultForAiFromPg(partnerId, PARTNER_AI_INVENTORY_CONTEXT_LIMIT)
-    return rows ?? []
-  } catch (e) {
-    console.warn('[partner-inventory-ai-search] fetchDefaultInventory PG failed', e)
-    return []
-  }
 }
 
 async function fetchRowsMatchingToken(partnerId: string, token: string): Promise<PartnerInventoryRow[]> {
@@ -229,52 +362,16 @@ export async function fetchInventoryRowsByExplicitSku(
 }
 
 /**
- * Up to 50 active rows: prioritize DB ILIKE hits on sku/name/description/price_hint from the customer message,
- * scored in-app; fill remainder with default sort_order list (same as before).
+ * Top `PARTNER_AI_INVENTORY_CONTEXT_LIMIT` mặt hàng theo **vector văn bản** (ANN), điểm cao → thấp.
+ * Không gộp ILIKE / điểm từ khóa; không lấy danh sách mặc định khi vector rỗng.
  */
 export async function fetchInventoryRowsForPartnerAi(
   partnerId: string,
   customerMessage: string
 ): Promise<PartnerInventoryRow[]> {
-  const needles = extractInventorySearchTokens(customerMessage)
-
-  if (!needles.length) {
-    return fetchDefaultInventory(partnerId)
-  }
-
-  const [defaultRowsParallel, ...searchChunks] = await Promise.all([
-    fetchDefaultInventory(partnerId),
-    ...needles.map((t) => fetchRowsMatchingToken(partnerId, t)),
-  ])
-
-  const merged = new Map<string, PartnerInventoryRow>()
-  for (const chunk of searchChunks) {
-    for (const r of chunk) merged.set(r.id, r)
-  }
-
-  if (!merged.size) return defaultRowsParallel
-
-  const scored = Array.from(merged.values()).map((r) => ({
-    row: r,
-    score: scoreInventoryRowMatch(r, needles),
-  }))
-  scored.sort((a, b) => b.score - a.score || a.row.sort_order - b.row.sort_order)
-
-  const seen = new Set<string>()
-  const result: PartnerInventoryRow[] = []
-  for (const { row } of scored) {
-    if (seen.has(row.id)) continue
-    seen.add(row.id)
-    result.push(row)
-    if (result.length >= PARTNER_AI_INVENTORY_CONTEXT_LIMIT) return result
-  }
-
-  for (const row of defaultRowsParallel) {
-    if (seen.has(row.id)) continue
-    seen.add(row.id)
-    result.push(row)
-    if (result.length >= PARTNER_AI_INVENTORY_CONTEXT_LIMIT) break
-  }
-
-  return result
+  return fetchInventoryRowsBySemanticTextForPartnerAi(
+    partnerId,
+    customerMessage,
+    PARTNER_AI_INVENTORY_CONTEXT_LIMIT
+  )
 }

@@ -12,6 +12,7 @@ import { config } from 'dotenv'
 import { isPgConfigured } from '../src/lib/db/pool'
 import { pgQuery } from '../src/lib/db/pg-query'
 import { syncPartnerInventoryEmbeddings } from '../src/lib/messaging/partner-inventory-embedding'
+import { syncPartnerInventoryTextEmbeddings } from '../src/lib/messaging/partner-inventory-text-embedding'
 
 const cwd = process.cwd()
 const envPath = resolve(cwd, '.env')
@@ -57,17 +58,23 @@ async function main() {
   for (const partnerId of partnerIds) {
     const startedAt = Date.now()
     const res = await syncPartnerInventoryEmbeddings(partnerId, { force })
+    const resText = await syncPartnerInventoryTextEmbeddings(partnerId, { force })
     const elapsedMs = Date.now() - startedAt
     if (!res.ok) {
       partnerErrors += 1
-      console.error(`- ${partnerId}: ERROR ${res.error} (${elapsedMs}ms)`)
+      console.error(`- ${partnerId}: IMAGE ERROR ${res.error} (${elapsedMs}ms)`)
       continue
     }
-    totalSynced += res.synced
-    totalFailed += res.failed
-    totalSkipped += res.skipped
+    if (!resText.ok) {
+      partnerErrors += 1
+      console.error(`- ${partnerId}: TEXT ERROR ${resText.error} (${elapsedMs}ms)`)
+      continue
+    }
+    totalSynced += res.synced + resText.synced
+    totalFailed += res.failed + resText.failed
+    totalSkipped += res.skipped + resText.skipped
     console.log(
-      `- ${partnerId}: synced=${res.synced}, failed=${res.failed}, skipped=${res.skipped} (${elapsedMs}ms)`
+      `- ${partnerId}: image synced=${res.synced} text synced=${resText.synced}, failed=${res.failed + resText.failed}, skipped=${res.skipped + resText.skipped} (${elapsedMs}ms)`
     )
   }
 

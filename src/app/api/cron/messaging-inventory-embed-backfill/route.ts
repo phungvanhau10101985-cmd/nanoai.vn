@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchActivePartnerInventoryScanRowsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
+import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -82,15 +83,23 @@ async function handleCron(req: NextRequest) {
       results.push({ partnerId, ok: false, error: one.error })
       continue
     }
-    totalSynced += one.synced
-    totalFailed += one.failed
-    totalSkipped += one.skipped
+    const oneText = await syncPartnerInventoryTextEmbeddings(partnerId, {
+      limit: LIMIT_PER_PARTNER,
+      force: false,
+    })
+    if (!oneText.ok) {
+      results.push({ partnerId, ok: false, error: oneText.error })
+      continue
+    }
+    totalSynced += one.synced + oneText.synced
+    totalFailed += one.failed + oneText.failed
+    totalSkipped += one.skipped + oneText.skipped
     results.push({
       partnerId,
       ok: true,
-      synced: one.synced,
-      failed: one.failed,
-      skipped: one.skipped,
+      synced: one.synced + oneText.synced,
+      failed: one.failed + oneText.failed,
+      skipped: one.skipped + oneText.skipped,
     })
   }
 

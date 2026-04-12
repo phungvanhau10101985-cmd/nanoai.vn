@@ -580,6 +580,13 @@ export interface Database {
           image_embedding_fingerprint: string | null
           image_embedding_updated_at: string | null
           image_embedding_error: string | null
+          text_embedding_json: number[] | null
+          text_embedding_vec: string | null
+          text_embedding_model: string | null
+          text_embedding_dims: number | null
+          text_embedding_fingerprint: string | null
+          text_embedding_updated_at: string | null
+          text_embedding_error: string | null
           vision_catalog_checksum: string | null
           vision_catalog_synced_at: string | null
           vision_catalog_excluded: boolean
@@ -612,6 +619,13 @@ export interface Database {
           image_embedding_fingerprint?: string | null
           image_embedding_updated_at?: string | null
           image_embedding_error?: string | null
+          text_embedding_json?: number[] | null
+          text_embedding_vec?: string | null
+          text_embedding_model?: string | null
+          text_embedding_dims?: number | null
+          text_embedding_fingerprint?: string | null
+          text_embedding_updated_at?: string | null
+          text_embedding_error?: string | null
           vision_catalog_checksum?: string | null
           vision_catalog_synced_at?: string | null
           vision_catalog_excluded?: boolean
@@ -644,6 +658,13 @@ export interface Database {
           image_embedding_fingerprint?: string | null
           image_embedding_updated_at?: string | null
           image_embedding_error?: string | null
+          text_embedding_json?: number[] | null
+          text_embedding_vec?: string | null
+          text_embedding_model?: string | null
+          text_embedding_dims?: number | null
+          text_embedding_fingerprint?: string | null
+          text_embedding_updated_at?: string | null
+          text_embedding_error?: string | null
           vision_catalog_checksum?: string | null
           vision_catalog_synced_at?: string | null
           vision_catalog_excluded?: boolean
@@ -931,6 +952,22 @@ export interface Database {
         Returns: null
       }
       match_messaging_partner_inventory_by_embedding: {
+        Args: {
+          p_partner_id: string
+          p_query: string
+          p_limit?: number
+          p_min_score?: number
+        }
+        Returns: {
+          inventory_id: string
+          name: string
+          sku: string | null
+          image_url: string
+          product_url: string | null
+          score: number
+        }[]
+      }
+      match_messaging_partner_inventory_by_text_embedding: {
         Args: {
           p_partner_id: string
           p_query: string

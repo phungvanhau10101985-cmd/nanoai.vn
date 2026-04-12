@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { parseInventoryWorkbook } from '@/lib/messaging/partner-inventory-excel'
 import { upsertPartnerInventoryBatch } from '@/lib/messaging/partner-inventory-upsert-batch'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
+import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
 import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-route-auth'
 
 export const dynamic = 'force-dynamic'
@@ -55,6 +56,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
       })
       .catch((e) => {
         console.warn('[inventory-import] embedding warmup error', { partnerId, error: e })
+      })
+    void syncPartnerInventoryTextEmbeddings(partnerId, { force: false, limit: warmupLimit })
+      .then((warmup) => {
+        if (!warmup.ok) {
+          console.warn('[inventory-import] text embedding warmup failed', { partnerId, error: warmup.error })
+        }
+      })
+      .catch((e) => {
+        console.warn('[inventory-import] text embedding warmup error', { partnerId, error: e })
       })
   }
 

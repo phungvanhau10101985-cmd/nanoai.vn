@@ -85,6 +85,13 @@ type PgInventoryRaw = {
   image_embedding_fingerprint: string | null
   image_embedding_updated_at: unknown
   image_embedding_error: string | null
+  text_embedding_json: unknown
+  text_embedding_vec: string | null
+  text_embedding_model: string | null
+  text_embedding_dims: number | null
+  text_embedding_fingerprint: string | null
+  text_embedding_updated_at: unknown
+  text_embedding_error: string | null
   vision_catalog_checksum: string | null
   vision_catalog_synced_at: unknown
   vision_catalog_excluded: boolean | null
@@ -119,6 +126,13 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
     image_embedding_fingerprint: r.image_embedding_fingerprint ?? null,
     image_embedding_updated_at: tsIso(r.image_embedding_updated_at),
     image_embedding_error: r.image_embedding_error ?? null,
+    text_embedding_json: parseEmbeddingJson(r.text_embedding_json),
+    text_embedding_vec: r.text_embedding_vec ?? null,
+    text_embedding_model: r.text_embedding_model ?? null,
+    text_embedding_dims: numOrNull(r.text_embedding_dims),
+    text_embedding_fingerprint: r.text_embedding_fingerprint ?? null,
+    text_embedding_updated_at: tsIso(r.text_embedding_updated_at),
+    text_embedding_error: r.text_embedding_error ?? null,
     vision_catalog_checksum: r.vision_catalog_checksum ?? null,
     vision_catalog_synced_at: tsIso(r.vision_catalog_synced_at),
     vision_catalog_excluded: r.vision_catalog_excluded !== false,
@@ -153,6 +167,13 @@ const INVENTORY_PAGE_SELECT = `select
   mpi.image_embedding_fingerprint,
   mpi.image_embedding_updated_at,
   mpi.image_embedding_error,
+  mpi.text_embedding_json,
+  mpi.text_embedding_vec::text as text_embedding_vec,
+  mpi.text_embedding_model,
+  mpi.text_embedding_dims,
+  mpi.text_embedding_fingerprint,
+  mpi.text_embedding_updated_at,
+  mpi.text_embedding_error,
   mpi.vision_catalog_checksum,
   mpi.vision_catalog_synced_at,
   coalesce(mpi.vision_catalog_excluded, false) as vision_catalog_excluded,
@@ -186,6 +207,13 @@ const INVENTORY_PAGE_SELECT_LEGACY = `select
   mpi.image_embedding_fingerprint,
   mpi.image_embedding_updated_at,
   mpi.image_embedding_error,
+  mpi.text_embedding_json,
+  mpi.text_embedding_vec::text as text_embedding_vec,
+  mpi.text_embedding_model,
+  mpi.text_embedding_dims,
+  mpi.text_embedding_fingerprint,
+  mpi.text_embedding_updated_at,
+  mpi.text_embedding_error,
   mpi.vision_catalog_checksum,
   mpi.vision_catalog_synced_at,
   coalesce(mpi.vision_catalog_excluded, false) as vision_catalog_excluded,
@@ -328,6 +356,45 @@ export async function fetchPartnerInventoryRowsByTokenIlikeFromPg(
     return rows.map(mapPgInventoryRow)
   } catch (e) {
     console.warn('[fetchPartnerInventoryRowsByTokenIlikeFromPg]', e)
+    return null
+  }
+}
+
+/**
+ * Một lần query: hàng nào khớp **bất kỳ** pattern ILIKE nào (sku/name/description/price_hint).
+ * Dùng cho AI inbox — thay vì N vòng gọi theo từng token.
+ */
+export async function fetchPartnerInventoryRowsByTokensIlikeAnyFromPg(
+  partnerId: string,
+  tokens: string[],
+  limit: number
+): Promise<MessagingPartnerInventoryRow[] | null> {
+  if (!isPgConfigured()) return null
+  const patterns: string[] = []
+  for (const raw of tokens) {
+    const clean = sanitizeTokenForInventoryLike(raw).replace(/[%_]/g, '')
+    if (clean.length >= 2) patterns.push(`%${clean}%`)
+  }
+  if (!patterns.length) return []
+  const lim = Math.min(500, Math.max(80, Math.floor(limit)))
+  try {
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+         and exists (
+           select 1
+           from unnest($2::text[]) as q(pattern)
+           where coalesce(mpi.sku, '') ilike q.pattern
+              or coalesce(mpi.name, '') ilike q.pattern
+              or coalesce(mpi.description, '') ilike q.pattern
+              or coalesce(mpi.price_hint, '') ilike q.pattern
+         )
+       limit $3`,
+      [partnerId, patterns, lim]
+    )
+    return rows.map(mapPgInventoryRow)
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryRowsByTokensIlikeAnyFromPg]', e)
     return null
   }
 }
@@ -480,6 +547,46 @@ export async function matchPartnerInventoryByEmbeddingFromPg(
   }
 }
 
+/** ANN theo embedding văn bản (tên + giá + ghi chú tư vấn). */
+export async function matchPartnerInventoryByTextEmbeddingFromPg(
+  partnerId: string,
+  queryVectorLiteral: string,
+  limit: number,
+  minScore: number
+): Promise<MatchPartnerInventoryEmbeddingRow[] | null> {
+  if (!isPgConfigured()) return null
+  const lim = Math.max(1, Math.min(50, Math.floor(limit)))
+  try {
+    const rows = await pgQuery<{
+      inventory_id: string
+      name: string
+      sku: string | null
+      image_url: string
+      product_url: string | null
+      score: string | number
+    }>(
+      `select * from public.match_messaging_partner_inventory_by_text_embedding(
+        $1::uuid,
+        $2::vector(768),
+        $3::int,
+        $4::double precision
+      )`,
+      [partnerId, queryVectorLiteral, lim, minScore]
+    )
+    return rows.map((r) => ({
+      inventory_id: String(r.inventory_id),
+      name: String(r.name ?? ''),
+      sku: r.sku ?? null,
+      image_url: String(r.image_url ?? ''),
+      product_url: r.product_url ?? null,
+      score: typeof r.score === 'number' ? r.score : Number(r.score),
+    }))
+  } catch (e) {
+    console.warn('[matchPartnerInventoryByTextEmbeddingFromPg]', e)
+    return null
+  }
+}
+
 /**
  * Nhiều id inventory của partner (đồng bộ embedding).
  * `null` = lỗi — caller xử lý khi không có PG.
@@ -537,6 +644,16 @@ export type PartnerInventoryEmbeddingUpdatePatch = {
   image_embedding_error: string | null
 }
 
+export type PartnerInventoryTextEmbeddingUpdatePatch = {
+  text_embedding_json: number[] | null
+  text_embedding_fingerprint: string
+  text_embedding_model: string
+  text_embedding_dims: number
+  text_embedding_vec: string | null
+  text_embedding_updated_at: string
+  text_embedding_error: string | null
+}
+
 /**
  * Cập nhật các cột embedding sau khi gọi Gemini. `true` nếu có đúng 1 dòng đổi.
  * `false` = không pool hoặc lỗi — caller cập nhật bằng đường khác nếu còn hỗ trợ.
@@ -577,6 +694,68 @@ export async function updatePartnerInventoryEmbeddingFieldsFromPg(
   } catch (e) {
     console.warn('[updatePartnerInventoryEmbeddingFieldsFromPg]', e)
     return false
+  }
+}
+
+export async function updatePartnerInventoryTextEmbeddingFieldsFromPg(
+  partnerId: string,
+  inventoryId: string,
+  patch: PartnerInventoryTextEmbeddingUpdatePatch
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const jsonPayload =
+    patch.text_embedding_json == null ? null : JSON.stringify(patch.text_embedding_json)
+  try {
+    const rows = await pgQuery<{ id: string }>(
+      `update public.messaging_partner_inventory set
+        text_embedding_json = $3::jsonb,
+        text_embedding_fingerprint = $4,
+        text_embedding_model = $5,
+        text_embedding_dims = $6,
+        text_embedding_vec = $7::vector(768),
+        text_embedding_updated_at = $8::timestamptz,
+        text_embedding_error = $9
+      where partner_id = $1::uuid and id = $2::uuid
+      returning id::text as id`,
+      [
+        partnerId,
+        inventoryId,
+        jsonPayload,
+        patch.text_embedding_fingerprint,
+        patch.text_embedding_model,
+        patch.text_embedding_dims,
+        patch.text_embedding_vec,
+        patch.text_embedding_updated_at,
+        patch.text_embedding_error,
+      ]
+    )
+    return rows.length > 0
+  } catch (e) {
+    console.warn('[updatePartnerInventoryTextEmbeddingFieldsFromPg]', e)
+    return false
+  }
+}
+
+/**
+ * Lấy đủ dòng inventory theo thứ tự `ids` (giữ thứ tự để merge với điểm ANN).
+ */
+export async function fetchPartnerInventoryRowsByIdsInOrderFromPg(
+  partnerId: string,
+  ids: string[]
+): Promise<MessagingPartnerInventoryRow[] | null> {
+  if (!isPgConfigured() || ids.length === 0) return null
+  const clean = ids.map((x) => x.trim()).filter(Boolean)
+  if (!clean.length) return null
+  try {
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid and mpi.id = any($2::uuid[])
+       order by array_position($2::uuid[], mpi.id)`,
+      [partnerId, clean]
+    )
+    return rows.map(mapPgInventoryRow)
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryRowsByIdsInOrderFromPg]', e)
+    return null
   }
 }
 
@@ -797,6 +976,62 @@ export async function fetchPartnerInventoryEmbeddingStatsFromPg(
       return { total: 0, eligible: 0, done: 0, pending: 0, failed: 0 }
     }
     console.warn('[fetchPartnerInventoryEmbeddingStatsFromPg]', e)
+    return null
+  }
+}
+
+/**
+ * Thống kê embedding văn bản (tên + giá + ghi chú tư vấn). `eligible` = dòng active có ít nhất một trường để embed.
+ */
+export async function fetchPartnerInventoryTextEmbeddingStatsFromPg(
+  partnerId: string
+): Promise<PartnerInventoryEmbeddingStatsAgg | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{
+      total: string | number
+      eligible: string | number
+      done: string | number
+      pending: string | number
+      failed: string | number
+    }>(
+      `with inv as (
+         select *
+         from public.messaging_partner_inventory
+         where partner_id = $1::uuid
+       ),
+       el as (
+         select *
+         from inv
+         where coalesce(is_active, true)
+           and (
+             trim(coalesce(name, '')) <> ''
+             or trim(coalesce(price_hint, '')) <> ''
+             or trim(coalesce(consult_note, '')) <> ''
+           )
+       )
+       select
+         (select count(*)::bigint from inv) as total,
+         (select count(*)::bigint from el) as eligible,
+         (select count(*)::bigint from el where text_embedding_updated_at is not null) as done,
+         (select count(*)::bigint from el where text_embedding_updated_at is null) as pending,
+         (select count(*)::bigint from el where trim(coalesce(text_embedding_error, '')) <> '') as failed`,
+      [partnerId]
+    )
+    if (!row) return null
+    const n = (v: string | number) => Math.max(0, Math.floor(Number(v)))
+    return {
+      total: n(row.total),
+      eligible: n(row.eligible),
+      done: n(row.done),
+      pending: n(row.pending),
+      failed: n(row.failed),
+    }
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) {
+      return { total: 0, eligible: 0, done: 0, pending: 0, failed: 0 }
+    }
+    console.warn('[fetchPartnerInventoryTextEmbeddingStatsFromPg]', e)
     return null
   }
 }

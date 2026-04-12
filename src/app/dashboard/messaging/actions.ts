@@ -31,6 +31,7 @@ import {
   deletePartnerInventoryItemForPartnerFromPg,
   fetchPartnerInventoryActivePageWithCountFromPg,
   fetchPartnerInventoryEmbeddingStatsFromPg,
+  fetchPartnerInventoryTextEmbeddingStatsFromPg,
   insertPartnerInventoryDashboardItemFromPg,
   updatePartnerInventoryDashboardItemFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
@@ -97,6 +98,7 @@ import {
   presetSortOrder,
 } from '@/lib/messaging/partner-faq-presets'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
+import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
 import { isValidUuidString } from '@/lib/validate-uuid'
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
@@ -1254,6 +1256,28 @@ export async function getPartnerInventoryEmbeddingStats(partnerId: string) {
   return { stats }
 }
 
+export async function getPartnerInventoryTextEmbeddingStats(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+
+  if (!isPgConfigured()) {
+    return { error: 'DATABASE_URL is not set.' }
+  }
+  const agg = await fetchPartnerInventoryTextEmbeddingStatsFromPg(partnerId)
+  if (agg === null) return { error: 'Failed to load text embedding stats.' }
+  const stats: PartnerInventoryEmbeddingStats = {
+    total: agg.total,
+    eligible: agg.eligible,
+    done: agg.done,
+    pending: agg.pending,
+    failed: agg.failed,
+  }
+  return { stats }
+}
+
 export async function triggerPartnerInventoryEmbeddingSync(partnerId: string, limit = 400) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -1267,8 +1291,15 @@ export async function triggerPartnerInventoryEmbeddingSync(partnerId: string, li
   const batchLimit = Math.max(20, Math.min(5000, Math.floor(Number(limit) || 400)))
   const run = await syncPartnerInventoryEmbeddings(partnerId, { force: false, limit: batchLimit })
   if (!run.ok) return { error: run.error }
+  const runText = await syncPartnerInventoryTextEmbeddings(partnerId, { force: false, limit: batchLimit })
+  if (!runText.ok) return { error: runText.error }
   revalidateMessagingDashboard()
-  return run
+  return {
+    ok: true as const,
+    synced: run.synced + runText.synced,
+    failed: run.failed + runText.failed,
+    skipped: run.skipped + runText.skipped,
+  }
 }
 
 export async function savePartnerAiSettings(partnerId: string, payload: PartnerAiSettingsPayload) {
@@ -1653,6 +1684,7 @@ export async function upsertPartnerInventoryItem(
     })
     if (!newId) return { error: 'Failed to insert inventory item.' }
     await syncPartnerInventoryEmbeddings(partnerId, { inventoryIds: [newId], force: false })
+    await syncPartnerInventoryTextEmbeddings(partnerId, { inventoryIds: [newId], force: false })
   }
   revalidateMessagingDashboard()
   return { ok: true as const }

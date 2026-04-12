@@ -477,6 +477,9 @@ export type Dictionary = {
     inventoryEmbeddingSyncDoneBody: string
     /** Gợi ý: đồng bộ tự động khi mở trang + cron nền */
     inventoryEmbeddingAutoHint: string
+    inventoryTextEmbeddingTitle: string
+    inventoryTextEmbeddingSummary: string
+    inventoryTextEmbeddingAutoHint: string
     cronSetupHint: string
     /** Trạng thái nút gạt AI */
     toggleStatusOn: string
@@ -2064,10 +2067,14 @@ const VI_DICTIONARY: Dictionary = {
     inventoryEmbeddingSummary: 'Đã tạo {done}/{eligible}. Còn thiếu {pending}. Lỗi {failed}.',
     inventoryEmbeddingSyncNow: 'Đồng bộ ngay',
     inventoryEmbeddingSyncRunning: 'Đang đồng bộ...',
-    inventoryEmbeddingSyncDoneTitle: 'Đã chạy đồng bộ vector ảnh',
-    inventoryEmbeddingSyncDoneBody: 'Đã xử lý {synced} ảnh. Lỗi {failed}.',
+    inventoryEmbeddingSyncDoneTitle: 'Đã chạy đồng bộ vector kho',
+    inventoryEmbeddingSyncDoneBody: 'Đã xử lý {synced} mục (ảnh + văn bản). Lỗi {failed}.',
     inventoryEmbeddingAutoHint:
       'Trên trình duyệt: tự chạy nối nhiều lô khi trang Messaging → Cài đặt AI đang mở; đóng tab thì dừng. Chạy ngầm 24/7: bật cron — deploy Vercel (file vercel.json, biến CRON_SECRET + MESSAGING_INVENTORY_EMBED_CRON_SECRET) hoặc crontab curl POST /api/cron/messaging-inventory-embed-backfill — chi tiết .env.example.',
+    inventoryTextEmbeddingTitle: 'Tiến độ tạo vector văn bản',
+    inventoryTextEmbeddingSummary: 'Đã tạo {done}/{eligible}. Còn thiếu {pending}. Lỗi {failed}.',
+    inventoryTextEmbeddingAutoHint:
+      'Vector văn bản (tên + giá + ghi chú tư vấn) dùng cho tìm kiếm ngữ nghĩa trong chat. Cùng lệnh «Đồng bộ ngay» với vector ảnh; trang mở thì tự chạy nối lô khi còn thiếu ảnh hoặc văn bản; cron /api/cron/messaging-inventory-embed-backfill xử lý nền.',
     cronSetupHint:
       'Production: cấu hình cron gọi GET hoặc POST /api/cron/messaging-partner-ai kèm Bearer MESSAGING_PARTNER_AI_CRON_SECRET (ví dụ mỗi phút) và DEEPSEEK_API_KEY. Không có cron thì job vẫn tạo nhưng AI không bao giờ gửi. Môi trường `next dev` tự chạy xử lý job sau thời gian chờ (không cần cron). Chạy `next start` local mà chưa có cron: thêm MESSAGING_PARTNER_AI_DEV_WAKE=1 vào .env.',
     toggleStatusOn: 'Đang bật',
@@ -3661,10 +3668,14 @@ const EN_DICTIONARY: Dictionary = {
     inventoryEmbeddingSummary: 'Embedded {done}/{eligible}. Pending {pending}. Errors {failed}.',
     inventoryEmbeddingSyncNow: 'Sync now',
     inventoryEmbeddingSyncRunning: 'Syncing...',
-    inventoryEmbeddingSyncDoneTitle: 'Image embedding sync completed',
-    inventoryEmbeddingSyncDoneBody: 'Processed {synced} image(s). Failed {failed}.',
+    inventoryEmbeddingSyncDoneTitle: 'Inventory embedding sync completed',
+    inventoryEmbeddingSyncDoneBody: 'Processed {synced} item(s) (image + text). Failed {failed}.',
     inventoryEmbeddingAutoHint:
       'In the browser: back-to-back batches while Messaging → AI settings stays open; closing the tab stops it. For 24/7 background runs: enable cron — on Vercel use vercel.json + CRON_SECRET and MESSAGING_INVENTORY_EMBED_CRON_SECRET; or use system crontab to POST /api/cron/messaging-inventory-embed-backfill. See .env.example.',
+    inventoryTextEmbeddingTitle: 'Text embedding progress',
+    inventoryTextEmbeddingSummary: 'Embedded {done}/{eligible}. Pending {pending}. Errors {failed}.',
+    inventoryTextEmbeddingAutoHint:
+      'Text vectors (name + price + consult note) power semantic search in chat. Uses the same “Sync now” as image vectors; while this page is open, batches continue until image or text backlog clears; cron /api/cron/messaging-inventory-embed-backfill covers background.',
     cronSetupHint:
       'Production: schedule GET or POST /api/cron/messaging-partner-ai with Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET (e.g. every minute) and set DEEPSEEK_API_KEY. Without cron, jobs stay pending and AI never sends. `next dev` auto-runs the processor after the delay (no cron). For `next start` locally without cron, set MESSAGING_PARTNER_AI_DEV_WAKE=1 in .env.',
     toggleStatusOn: 'On',
@@ -5251,10 +5262,14 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryEmbeddingSummary: '已完成 {done}/{eligible}。待处理 {pending}。错误 {failed}。',
     inventoryEmbeddingSyncNow: '立即同步',
     inventoryEmbeddingSyncRunning: '同步中...',
-    inventoryEmbeddingSyncDoneTitle: '图片向量同步已完成',
-    inventoryEmbeddingSyncDoneBody: '已处理 {synced} 张图片。失败 {failed}。',
+    inventoryEmbeddingSyncDoneTitle: '库存向量同步已完成',
+    inventoryEmbeddingSyncDoneBody: '已处理 {synced} 项（图片 + 文本）。失败 {failed}。',
     inventoryEmbeddingAutoHint:
       '在「消息 → AI 设置」页保持打开时会自动连续分批同步（约每批 1200 张）；关闭标签即停止。若需后台持续处理：请配置 cron 定期 POST /api/cron/messaging-inventory-embed-backfill（Bearer MESSAGING_INVENTORY_EMBED_CRON_SECRET），见 .env.example。',
+    inventoryTextEmbeddingTitle: '文本向量进度',
+    inventoryTextEmbeddingSummary: '已完成 {done}/{eligible}。待处理 {pending}。错误 {failed}。',
+    inventoryTextEmbeddingAutoHint:
+      '文本向量（名称 + 价格 + 咨询备注）用于对话中的语义检索。与图片向量共用「立即同步」；页面打开时会自动连跑直至图片或文本待处理清零；cron /api/cron/messaging-inventory-embed-backfill 负责后台。',
     cronSetupHint:
       '生产环境：配置定时任务 GET 或 POST /api/cron/messaging-partner-ai，请求头 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET（建议每分钟），并设置 DEEPSEEK_API_KEY。无 cron 时任务会一直排队、AI 不会发出。`next dev` 会在等待时间后自动处理（无需 cron）。本地 `next start` 且无 cron 时，可在 .env 设置 MESSAGING_PARTNER_AI_DEV_WAKE=1。',
     toggleStatusOn: '已开启',
@@ -6800,10 +6815,14 @@ const JA_DICTIONARY: Dictionary = {
     inventoryEmbeddingSummary: '完了 {done}/{eligible}。未処理 {pending}。エラー {failed}。',
     inventoryEmbeddingSyncNow: '今すぐ同期',
     inventoryEmbeddingSyncRunning: '同期中...',
-    inventoryEmbeddingSyncDoneTitle: '画像ベクトル同期が完了しました',
-    inventoryEmbeddingSyncDoneBody: '{synced}件を処理。失敗 {failed}。',
+    inventoryEmbeddingSyncDoneTitle: '在庫ベクトル同期が完了しました',
+    inventoryEmbeddingSyncDoneBody: '{synced}件を処理（画像+テキスト）。失敗 {failed}。',
     inventoryEmbeddingAutoHint:
       'Messaging → AI 設定ページを開いている間、自動で連続バッチ（約1200件ずつ）が走ります。タブを閉じると止まります。常時バックグラウンドで処理する場合は、cron で POST /api/cron/messaging-inventory-embed-backfill（Bearer MESSAGING_INVENTORY_EMBED_CRON_SECRET）を用意してください。.env.example を参照。',
+    inventoryTextEmbeddingTitle: 'テキストベクトル進捗',
+    inventoryTextEmbeddingSummary: '完了 {done}/{eligible}。未処理 {pending}。エラー {failed}。',
+    inventoryTextEmbeddingAutoHint:
+      'テキストベクトル（商品名+価格+相談メモ）はチャットの意味検索用です。画像と同じ「今すぐ同期」；ページ表示中は画像またはテキストの未処理がなくなるまで連続実行；cron でバックグラウンド処理。',
     cronSetupHint:
       '本番：GET または POST /api/cron/messaging-partner-ai を Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET で定期実行（例：毎分）し、DEEPSEEK_API_KEY を設定。cron がないとジョブは保留のまま AI は送りません。`next dev` は待機後に自動処理（cron 不要）。ローカルで `next start` かつ cron なしの場合は .env に MESSAGING_PARTNER_AI_DEV_WAKE=1。',
     toggleStatusOn: 'オン',
@@ -8379,10 +8398,14 @@ const KO_DICTIONARY: Dictionary = {
     inventoryEmbeddingSummary: '완료 {done}/{eligible}. 대기 {pending}. 오류 {failed}.',
     inventoryEmbeddingSyncNow: '지금 동기화',
     inventoryEmbeddingSyncRunning: '동기화 중...',
-    inventoryEmbeddingSyncDoneTitle: '이미지 벡터 동기화 완료',
-    inventoryEmbeddingSyncDoneBody: '{synced}개 처리됨. 실패 {failed}.',
+    inventoryEmbeddingSyncDoneTitle: '재고 벡터 동기화 완료',
+    inventoryEmbeddingSyncDoneBody: '{synced}개 처리(이미지+텍스트). 실패 {failed}.',
     inventoryEmbeddingAutoHint:
       'Messaging → AI 설정 페이지를 연 상태에서 자동으로 연속 배치(약 1200개)가 실행됩니다. 탭을 닫으면 중지됩니다. 백그라운드 상시 처리는 cron으로 POST /api/cron/messaging-inventory-embed-backfill(Bearer MESSAGING_INVENTORY_EMBED_CRON_SECRET)을 구성하세요. .env.example 참고.',
+    inventoryTextEmbeddingTitle: '텍스트 벡터 진행률',
+    inventoryTextEmbeddingSummary: '완료 {done}/{eligible}. 대기 {pending}. 오류 {failed}.',
+    inventoryTextEmbeddingAutoHint:
+      '텍스트 벡터(이름+가격+상담 메모)는 채팅 의미 검색에 사용됩니다. 이미지와 같은 «지금 동기화»; 페이지가 열린 동안 이미지 또는 텍스트 대기가 없어질 때까지 연속 실행; cron으로 백그라운드.',
     cronSetupHint:
       '운영: GET 또는 POST /api/cron/messaging-partner-ai를 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET으로 주기 호출(예: 매분)하고 DEEPSEEK_API_KEY를 설정하세요. cron이 없으면 작업이 대기만 하고 AI가 보내지 않습니다. `next dev`는 대기 시간 후 자동 처리(cron 불필요). 로컬 `next start`에 cron이 없으면 .env에 MESSAGING_PARTNER_AI_DEV_WAKE=1.',
     toggleStatusOn: '켜짐',

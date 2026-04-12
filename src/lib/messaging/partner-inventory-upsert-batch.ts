@@ -13,6 +13,7 @@ import {
   inventorySkuMatchKey,
 } from '@/lib/messaging/partner-inventory-excel'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
+import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
 
 type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 type InventoryInsert = Database['public']['Tables']['messaging_partner_inventory']['Insert']
@@ -139,6 +140,13 @@ function toInventoryRow(id: string, partnerId: string, base: InventoryUpsertBase
     image_embedding_vec: null,
     image_embedding_updated_at: null,
     image_embedding_error: null,
+    text_embedding_json: null,
+    text_embedding_fingerprint: null,
+    text_embedding_model: null,
+    text_embedding_dims: null,
+    text_embedding_vec: null,
+    text_embedding_updated_at: null,
+    text_embedding_error: null,
     vision_catalog_checksum: null,
     vision_catalog_synced_at: null,
     vision_catalog_excluded: false,
@@ -353,8 +361,13 @@ export async function upsertPartnerInventoryBatch(
   }
 
   if (changedIds.size > 0) {
+    const ids = Array.from(changedIds)
     await syncPartnerInventoryEmbeddings(partnerId, {
-      inventoryIds: Array.from(changedIds),
+      inventoryIds: ids,
+      force: false,
+    })
+    await syncPartnerInventoryTextEmbeddings(partnerId, {
+      inventoryIds: ids,
       force: false,
     })
   }

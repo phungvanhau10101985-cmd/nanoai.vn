@@ -38,6 +38,7 @@ import {
   deletePartnerInventoryItem,
   getPartnerAiBundle,
   getPartnerInventoryEmbeddingStats,
+  getPartnerInventoryTextEmbeddingStats,
   triggerPartnerInventoryEmbeddingSync,
   getPartnerInventoryPage,
   getPartnerAiTokenUsageStats,
@@ -178,6 +179,7 @@ export function PartnerAiSettingsPanel({
   const [imageEmbedSummaryRows, setImageEmbedSummaryRows] = useState<PartnerImageEmbedUsageSummaryRow[]>([])
   const [imageEmbedDetailRows, setImageEmbedDetailRows] = useState<PartnerImageEmbedUsageDetailRow[]>([])
   const [embeddingStats, setEmbeddingStats] = useState<PartnerInventoryEmbeddingStats | null>(null)
+  const [textEmbeddingStats, setTextEmbeddingStats] = useState<PartnerInventoryEmbeddingStats | null>(null)
   const [embeddingSyncing, setEmbeddingSyncing] = useState(false)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
@@ -192,6 +194,8 @@ export function PartnerAiSettingsPanel({
   /** Đồng bộ ref mỗi render — không đưa vào deps của useEffect auto-sync (tránh cắt chuỗi lô khi pending đổi). */
   const embeddingPendingRef = useRef(0)
   embeddingPendingRef.current = embeddingStats?.pending ?? 0
+  const textEmbeddingPendingRef = useRef(0)
+  textEmbeddingPendingRef.current = textEmbeddingStats?.pending ?? 0
 
   const load = useCallback((): Promise<void> => {
     const seq = ++loadSeqRef.current
@@ -202,12 +206,14 @@ export function PartnerAiSettingsPanel({
     setInventoryTotalCount(0)
     setInventoryPage(0)
     setEmbeddingStats(null)
+    setTextEmbeddingStats(null)
     return (async () => {
-      const [bundleRes, usageRes, analyticsRes, embeddingRes] = await Promise.all([
+      const [bundleRes, usageRes, analyticsRes, embeddingRes, textEmbeddingRes] = await Promise.all([
         getPartnerAiBundle(partnerId),
         getPartnerAiTokenUsageStats(partnerId),
         getPartnerAiUsageAnalytics(partnerId),
         getPartnerInventoryEmbeddingStats(partnerId),
+        getPartnerInventoryTextEmbeddingStats(partnerId),
       ])
       if (seq !== loadSeqRef.current) return
       if ('error' in usageRes) {
@@ -239,6 +245,11 @@ export function PartnerAiSettingsPanel({
         setEmbeddingStats(null)
       } else {
         setEmbeddingStats(embeddingRes.stats)
+      }
+      if ('error' in textEmbeddingRes) {
+        setTextEmbeddingStats(null)
+      } else {
+        setTextEmbeddingStats(textEmbeddingRes.stats)
       }
       if ('error' in bundleRes && bundleRes.error) {
         setLoadErr(bundleRes.error)
@@ -374,7 +385,7 @@ export function PartnerAiSettingsPanel({
     const runChainedSync = async (fromWake: boolean) => {
       const state = autoEmbedSyncStateRef.current
       if (state.running || manualEmbedLockRef.current) return
-      if (embeddingPendingRef.current <= 0) return
+      if (embeddingPendingRef.current <= 0 && textEmbeddingPendingRef.current <= 0) return
       const now = Date.now()
       if (
         fromWake &&
@@ -389,16 +400,36 @@ export function PartnerAiSettingsPanel({
       try {
         let rounds = 0
         while (!cancelled && !manualEmbedLockRef.current && rounds < CHAIN_MAX_ROUNDS) {
-          if (embeddingPendingRef.current <= 0) break
+          if (embeddingPendingRef.current <= 0 && textEmbeddingPendingRef.current <= 0) break
           state.lastRunAt = Date.now()
           const res = await triggerPartnerInventoryEmbeddingSync(partnerId, 1200)
           if (cancelled || ('error' in res && res.error)) break
-          const refreshed = await getPartnerInventoryEmbeddingStats(partnerId)
-          if (cancelled || ('error' in refreshed && refreshed.error)) break
-          if ('stats' in refreshed && refreshed.stats) setEmbeddingStats(refreshed.stats)
-          embeddingPendingRef.current = refreshed.stats?.pending ?? 0
-          const stillPending = embeddingPendingRef.current
-          if (stillPending <= 0) break
+          const [refreshed, textRefreshed] = await Promise.all([
+            getPartnerInventoryEmbeddingStats(partnerId),
+            getPartnerInventoryTextEmbeddingStats(partnerId),
+          ])
+          if (cancelled) break
+          if ('stats' in refreshed && refreshed.stats) {
+            setEmbeddingStats(refreshed.stats)
+            embeddingPendingRef.current = refreshed.stats.pending ?? 0
+          } else {
+            embeddingPendingRef.current = 0
+          }
+          if ('stats' in textRefreshed && textRefreshed.stats) {
+            setTextEmbeddingStats(textRefreshed.stats)
+            textEmbeddingPendingRef.current = textRefreshed.stats.pending ?? 0
+          } else {
+            textEmbeddingPendingRef.current = 0
+          }
+          if (
+            ('error' in refreshed && refreshed.error) ||
+            ('error' in textRefreshed && textRefreshed.error)
+          ) {
+            break
+          }
+          const stillPending =
+            (embeddingPendingRef.current > 0 || textEmbeddingPendingRef.current > 0)
+          if (!stillPending) break
           rounds += 1
           await new Promise<void>((r) => window.setTimeout(r, CHAIN_COOLDOWN_MS))
         }
@@ -664,6 +695,26 @@ export function PartnerAiSettingsPanel({
                 </p>
                 <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground border-t border-border/40 pt-2">
                   {t.inventoryEmbeddingAutoHint}
+                </p>
+              </div>
+            ) : null}
+            {textEmbeddingStats ? (
+              <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-xs">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium text-foreground">{t.inventoryTextEmbeddingTitle}</p>
+                  <Button type="button" size="sm" variant="outline" onClick={runEmbeddingSync} disabled={embeddingSyncing}>
+                    {embeddingSyncing ? t.inventoryEmbeddingSyncRunning : t.inventoryEmbeddingSyncNow}
+                  </Button>
+                </div>
+                <p className="mt-1 text-muted-foreground">
+                  {t.inventoryTextEmbeddingSummary
+                    .replace('{done}', String(textEmbeddingStats.done))
+                    .replace('{eligible}', String(textEmbeddingStats.eligible))
+                    .replace('{pending}', String(textEmbeddingStats.pending))
+                    .replace('{failed}', String(textEmbeddingStats.failed))}
+                </p>
+                <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground border-t border-border/40 pt-2">
+                  {t.inventoryTextEmbeddingAutoHint}
                 </p>
               </div>
             ) : null}
