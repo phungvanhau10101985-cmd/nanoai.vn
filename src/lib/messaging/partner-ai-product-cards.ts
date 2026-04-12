@@ -1,5 +1,8 @@
 import type { Json } from '@/types/database.types'
 
+/** Số thẻ sản phẩm tối đa trong một tin AI (JSON `products` + carousel). */
+export const PARTNER_AI_PRODUCT_CARDS_MAX = 18
+
 export type PartnerAiProductCard = {
   name: string
   image_url: string
@@ -53,7 +56,7 @@ export function parsePartnerAiLlmStructured(raw: string): { message: string; pro
     for (const item of arr) {
       const c = sanitizeProductCard(item)
       if (c) products.push(c)
-      if (products.length >= 4) break
+      if (products.length >= PARTNER_AI_PRODUCT_CARDS_MAX) break
     }
     if (!message && products.length === 0) {
       return { message: fallbackMessage, products: [] }
@@ -75,7 +78,7 @@ export function aiProductCardsFromPayload(raw: Json | null): PartnerAiProductCar
   for (const item of arr) {
     const c = sanitizeProductCard(item)
     if (c) products.push(c)
-    if (products.length >= 4) break
+    if (products.length >= PARTNER_AI_PRODUCT_CARDS_MAX) break
   }
   return products
 }
