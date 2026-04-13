@@ -164,7 +164,8 @@ function inferVietQrBankCodeFromName(rawBankName: string): string {
   if (!s) return ''
   const map: Array<[RegExp, string]> = [
     [/vietcombank|vcb/, '970436'],
-    [/vietinbank|vietin/, '970415'],
+    /** VietinBank — cả lỗi gõ hay gấp đôi chữ t (viettinbank). */
+    [/viettinbank|vietinbank|vietin|icb\b/, '970415'],
     [/bidv/, '970418'],
     [/agribank/, '970405'],
     [/acb|a chau/, '970416'],
@@ -451,9 +452,12 @@ export async function completeOrderCheckout(input: {
   const expectedAmount = calc.requiredAmount
   let qrUrl = ''
   if (expectedAmount > 0) {
-    const effectiveBankBin = String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
-    if (!settings.account_number || !effectiveBankBin) {
-      return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
+    if (!useSepayQr) {
+      const effectiveBankBin =
+        String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
+      if (!String(settings.account_number ?? '').trim() || !effectiveBankBin) {
+        return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
+      }
     }
     qrUrl = buildOrderPaymentQrBySettings({
       amount: expectedAmount,
