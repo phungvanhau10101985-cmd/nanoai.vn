@@ -758,6 +758,15 @@ const PRODUCT_CATEGORY_TOKEN_RE =
   /giày|dép|sandal|boot|loafer|sneaker|váy|đầm|áo|quần|blazer|vest|khoác|cardigan|sơ\s*mi|som|quần\s*tây|jumpsuit|bodysuit|chân\s*váy|shorts?|legging|bộ\s+đồ|túi|ví|balo|mũ|nón|đồng\s*hồ|kính|thắt\s*lưng|dây\s*nịch|vòng\s*tay|dây\s*chuyền/i
 
 /**
+ * «có / còn + loại hàng» (vd. «có váy ngắn không», «còn giày nam không») — tìm trong kho / embed vector,
+ * không phải hỏi thuộc tính neo SP cũ. Khác «có màu gì» (không mở bằng loại hàng ngay sau có/còn).
+ */
+const STANDALONE_CO_CON_PLUS_CATEGORY_RE = new RegExp(
+  `\\b(?:có|còn)\\s+(?:một\\s+)?(?:${PRODUCT_CATEGORY_TOKEN_RE.source})\\b`,
+  'i'
+)
+
+/**
  * «Loại SP + đại từ» (giày này giá bao nhiêu, có màu gì…) — hỏi tiếp theo SP đang bàn, không phải tìm mới.
  */
 const CATEGORY_WITH_DEICTIC_RE =
@@ -775,6 +784,7 @@ const STANDALONE_MIN_LEN_WITH_CATEGORY = 30
 
 /**
  * Câu có **loại sản phẩm** + dấu hiệu câu độc lập (chủ/vị đủ) → tìm kho theo đúng ý khách, không neo SP cũ.
+ * Gồm cả «có/còn + loại hàng» (vd. có váy ngắn không) → embed/vector kho, không xếp nhầm vào hỏi tiếp vì từ ngắn/dài.
  * Không dùng parser tiếng Việt; proxy bằng độ dài + intent + ngân sách + ngữ cảnh mặc.
  */
 export function looksLikeStandaloneProductQuestion(customerMessage: string): boolean {
@@ -783,6 +793,7 @@ export function looksLikeStandaloneProductQuestion(customerMessage: string): boo
   /** Câu chỉ trỏ «cái này / hàng này / cái cũ…» — không bao giờ là tìm kiếm độc lập. */
   if (CONTEXT_REFERENCE_DEICTIC_RE.test(text)) return false
   if (CATEGORY_WITH_DEICTIC_RE.test(text)) return false
+  if (STANDALONE_CO_CON_PLUS_CATEGORY_RE.test(text)) return true
   if (!PRODUCT_CATEGORY_TOKEN_RE.test(text)) return false
   if (extractExplicitSkuCandidates(customerMessage).length > 0) return true
   if (extractCustomerBudgetTargetVnd(text) !== null) return true
