@@ -37,6 +37,20 @@ export function buildSePayQrImgUrl(options: SePayQrOptions): string {
 }
 
 /**
+ * URL hiển thị QR (đã có sẵn trên đơn) → thêm `download=true` để SePay trả ảnh dạng tải về khi bấm.
+ */
+export function sepayQrUrlForDownload(displayUrl: string): string {
+  try {
+    const u = new URL(displayUrl.trim())
+    if (u.hostname !== 'qr.sepay.vn') return displayUrl.trim()
+    u.searchParams.set('download', 'true')
+    return u.toString()
+  } catch {
+    return displayUrl.trim()
+  }
+}
+
+/**
  * Map bank_id (SePay format) sang VietQR appId để mở app ngân hàng trực tiếp.
  * VietQR dl.vietqr.io mở app; SePay qr.sepay.vn/dl chỉ mở trang web.
  * Nguồn: https://api.vietqr.io/v2/ios-app-deeplinks

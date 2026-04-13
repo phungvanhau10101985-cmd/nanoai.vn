@@ -1,4 +1,5 @@
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
+import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { sendSmtpMail } from '@/lib/email/smtp'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
@@ -129,7 +130,12 @@ export async function emailCustomerOrderCheckoutSubmitted(input: {
     `Số tiền cần đặt cọc trước: ${toVnd(input.order.required_amount)} (${input.order.deposit_percent}% cọc).`,
     '',
     input.order.required_amount > 0
-      ? 'Vui lòng chuyển khoản đúng số tiền và nội dung trong khung «Thanh toán chuyển khoản» trên chat, rồi gửi ảnh biên lai nếu được yêu cầu.'
+      ? isSepayStyleOrderPayment({
+          payment_qr_url: input.order.payment_qr_url,
+          payment_reference: input.order.payment_reference,
+        })
+        ? 'Vui lòng chuyển khoản đúng số tiền và nội dung CK; xác nhận qua SePay — không cần gửi ảnh biên lai.'
+        : 'Vui lòng chuyển khoản đúng số tiền và nội dung trong khung «Thanh toán chuyển khoản» trên chat, rồi gửi ảnh biên lai nếu được yêu cầu.'
       : 'Đơn không yêu cầu cọc trước — shop sẽ liên hệ xác nhận và giao hàng.',
     '',
     `Địa chỉ nhận: ${trim(input.order.shipping_address, 500)}`,

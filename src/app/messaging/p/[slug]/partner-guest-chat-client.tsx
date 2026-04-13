@@ -47,6 +47,7 @@ import {
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
+import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import {
   MESSAGING_GUEST_SESSION_STORAGE_KEY,
@@ -388,6 +389,8 @@ export function PartnerGuestChatClient({
   const [orderQuantity, setOrderQuantity] = useState('1')
   const [orderNote, setOrderNote] = useState('')
   const [proofOrderId, setProofOrderId] = useState<string | null>(null)
+  /** Đơn đang chờ CK dùng SePay — không gợi ý gửi ảnh biên lai dưới ô nhập. */
+  const [proofOrderIsSepay, setProofOrderIsSepay] = useState(false)
   const [paymentProofBusyOrderId, setPaymentProofBusyOrderId] = useState<string | null>(null)
   const [embedOrderDetailId, setEmbedOrderDetailId] = useState<string | null>(null)
   const [embedMyOrdersOpen, setEmbedMyOrdersOpen] = useState(false)
@@ -427,6 +430,10 @@ export function PartnerGuestChatClient({
       setProofOrderId(null)
     }
   }, [proofOrderId, sepayWebhookPaidOrderIds])
+
+  useEffect(() => {
+    if (!proofOrderId) setProofOrderIsSepay(false)
+  }, [proofOrderId])
 
   const recentSuggestedGarmentImages = useMemo(() => {
     const out: Array<{ name: string; imageUrl: string }> = []
@@ -1373,7 +1380,12 @@ export function PartnerGuestChatClient({
       const data = (await res.json()) as {
         ok?: boolean
         error?: string
-        order?: { id?: string; required_amount?: number }
+        order?: {
+          id?: string
+          required_amount?: number
+          payment_qr_url?: string | null
+          payment_reference?: string | null
+        }
       }
       if (res.status === 401) {
         setUserId(null)
@@ -1391,16 +1403,24 @@ export function PartnerGuestChatClient({
       })
       setOrderFormOpen(false)
       const requiredAmount = Math.max(0, Math.round(Number(data.order?.required_amount) || 0))
+      const checkoutSepay = isSepayStyleOrderPayment({
+        payment_qr_url: data.order?.payment_qr_url,
+        payment_reference: data.order?.payment_reference,
+      })
       if (requiredAmount > 0) {
+        setProofOrderIsSepay(checkoutSepay)
         setProofOrderId(String(data.order?.id ?? oid))
       } else {
         setProofOrderId(null)
+        setProofOrderIsSepay(false)
       }
       await load()
       toast({
         title:
           requiredAmount > 0
-            ? 'Đã tạo đơn hàng và QR. Sau khi chuyển khoản, bấm «Gửi ảnh giao dịch» ngay dưới khối QR trong chat.'
+            ? checkoutSepay
+              ? 'Đã tạo đơn hàng và QR. Chuyển khoản đúng «Nội dung CK» trong khối thanh toán — xác nhận tự động, không cần gửi ảnh biên lai.'
+              : 'Đã tạo đơn hàng và QR. Sau khi chuyển khoản, bấm «Gửi ảnh giao dịch» ngay dưới khối QR trong chat.'
             : 'Đã tạo đơn hàng thành công. Đơn này không yêu cầu đặt cọc trước, khách thanh toán khi nhận hàng.',
       })
     } catch {
@@ -3035,7 +3055,9 @@ export function PartnerGuestChatClient({
               {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
               {proofOrderId && !sepayWebhookPaidOrderIds.has(proofOrderId) ? (
                 <p className="text-[11px] leading-snug text-muted-foreground">
-                  Biên lai CK: nút «Gửi ảnh giao dịch» dưới mã QR trong chat (không đính ảnh ở đây).
+                  {proofOrderIsSepay
+                    ? 'SePay: chuyển đúng số tiền và «Nội dung CK» trong khối QR — xác nhận tự động; không cần đính ảnh ở đây.'
+                    : 'Biên lai CK: nút «Gửi ảnh giao dịch» dưới mã QR trong chat (không đính ảnh ở đây).'}
                 </p>
               ) : null}
 

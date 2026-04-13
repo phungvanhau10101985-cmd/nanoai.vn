@@ -13,6 +13,9 @@ import { isProductConsultedInScopeSet } from '@/lib/messaging/consult-product-sc
 import { aiProductCardsFromPayload, type PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { youtubeThumbnailUrl } from '@/lib/messaging/guest-product-video'
 import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-display-enrich'
+import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
+import { sepayQrUrlForDownload } from '@/lib/sepay-qr'
+import { MessageTextWithLinks } from '@/components/messaging/message-text-with-links'
 
 /** Gỡ hậu tố «(BIN …)» còn sót từ bản cũ. */
 function displayBankName(raw: string): string {
@@ -191,8 +194,19 @@ function OrderPaymentPanel({
   const orderStatus = typeof o.order_status === 'string' ? o.order_status.trim() : ''
   const sepayAlready =
     Boolean(orderId) && Boolean(orderPaymentProof?.sepayWebhookPaidOrderIds?.has(orderId))
+  const isSepay = isSepayStyleOrderPayment({ payment_qr_url: qrUrl, payment_reference: ref })
   const showProofCta =
-    orderPaymentProof && orderId && orderStatus === 'awaiting_payment' && !sepayAlready
+    orderPaymentProof &&
+    orderId &&
+    orderStatus === 'awaiting_payment' &&
+    !sepayAlready &&
+    !isSepay
+  const showSepayDownloadCta =
+    orderPaymentProof &&
+    orderId &&
+    orderStatus === 'awaiting_payment' &&
+    !sepayAlready &&
+    isSepay
   const busyThis = showProofCta && orderPaymentProof.busyOrderId === orderId
   const viewInEmbed = Boolean(orderId && orderPaymentProof && typeof orderPaymentProof.onViewOrderDetail === 'function')
   const detailHref =
@@ -205,7 +219,7 @@ function OrderPaymentPanel({
       orderStatus === 'awaiting_payment' &&
       (viewInEmbed || Boolean(detailHref))
   )
-  const showPaymentActionRow = Boolean(showProofCta || showOrderDetailCta)
+  const showPaymentActionRow = Boolean(showProofCta || showSepayDownloadCta || showOrderDetailCta)
 
   return (
     <div
@@ -248,7 +262,14 @@ function OrderPaymentPanel({
         ) : null}
       </div>
       <p className={`mt-1.5 text-[10px] leading-snug sm:text-[11px] ${onViolet ? 'text-white/75' : 'text-muted-foreground'}`}>
-        «Nội dung CK» chính là nội dung chuyển khoản (memo) trên app — nhập đúng chuỗi bên trên. Có thể quét QR để điền sẵn.
+        {isSepay ? (
+          <>
+            «Nội dung CK» là memo trên app — nhập đúng chuỗi bên trên (hoặc quét QR). Thanh toán qua SePay: shop nhận xác nhận tự động —{' '}
+            <strong className={onViolet ? 'text-white' : 'text-foreground'}>không cần gửi ảnh biên lai</strong>.
+          </>
+        ) : (
+          <>«Nội dung CK» chính là nội dung chuyển khoản (memo) trên app — nhập đúng chuỗi bên trên. Có thể quét QR để điền sẵn.</>
+        )}
       </p>
       <div className="mt-2 flex justify-center px-0.5">
         {/* eslint-disable-next-line @next/next/no-img-element -- URL VietQR/SePay ngoài, domain động */}
@@ -267,10 +288,31 @@ function OrderPaymentPanel({
         <div className="mt-2 space-y-2">
           <div
             className={`grid gap-1.5 ${
-              showProofCta && showOrderDetailCta ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'
+              (showProofCta || showSepayDownloadCta) && showOrderDetailCta ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'
             }`}
           >
-            {showProofCta ? (
+            {showSepayDownloadCta ? (
+              <Button
+                type="button"
+                size="sm"
+                className={`h-10 w-full text-sm font-medium ${
+                  onViolet
+                    ? 'border border-white/35 bg-white/15 text-white hover:bg-white/25'
+                    : ''
+                }`}
+                variant={onViolet ? 'outline' : 'default'}
+                asChild
+              >
+                <a
+                  href={sepayQrUrlForDownload(qrUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download
+                >
+                  Tải mã QR đơn hàng
+                </a>
+              </Button>
+            ) : showProofCta ? (
               <Button
                 type="button"
                 size="sm"
@@ -329,6 +371,10 @@ function OrderPaymentPanel({
           {showProofCta ? (
             <p className={`text-center text-xs leading-snug sm:text-[13px] ${onViolet ? 'text-white/75' : 'text-muted-foreground'}`}>
               Chỉ dùng nút gửi ảnh cho biên lai đúng mã đơn; không gửi qua ô đính ảnh chat.
+            </p>
+          ) : showSepayDownloadCta ? (
+            <p className={`text-center text-[10px] leading-snug sm:text-[11px] ${onViolet ? 'text-white/75' : 'text-muted-foreground'}`}>
+              Tải ảnh QR về máy khi cần — chuyển khoản đúng «Nội dung CK»; SePay xác nhận tự động.
             </p>
           ) : null}
         </div>
@@ -542,7 +588,15 @@ export function CustomerCareMessageBody({
         </button>
       ) : null}
       {caption ? (
-        <div className={`whitespace-pre-wrap break-words ${onViolet ? 'text-white' : ''}`}>{caption}</div>
+        <MessageTextWithLinks
+          text={caption}
+          className={`whitespace-pre-wrap break-words ${onViolet ? 'text-white' : ''}`}
+          linkClassName={
+            onViolet
+              ? 'break-all text-white/90 underline underline-offset-2 hover:text-white'
+              : 'break-all text-primary underline underline-offset-2 hover:text-primary/90'
+          }
+        />
       ) : null}
       <OrderPaymentPanel raw={row.raw_payload} onViolet={onViolet} orderPaymentProof={orderPaymentProof} />
       <AiProductCards
@@ -554,7 +608,15 @@ export function CustomerCareMessageBody({
         onPreviewVideo={setVideoLightboxSrc}
       />
       {!url && !caption && !productCards.length && row.body ? (
-        <div className={`whitespace-pre-wrap break-words ${onViolet ? 'text-white' : ''}`}>{row.body}</div>
+        <MessageTextWithLinks
+          text={row.body}
+          className={`whitespace-pre-wrap break-words ${onViolet ? 'text-white' : ''}`}
+          linkClassName={
+            onViolet
+              ? 'break-all text-white/90 underline underline-offset-2 hover:text-white'
+              : 'break-all text-primary underline underline-offset-2 hover:text-primary/90'
+          }
+        />
       ) : null}
       <MessageImagePreviewDialog src={lightboxSrc} onOpenChange={(open) => !open && setLightboxSrc(null)} />
       <MessageVideoFullscreenDialog

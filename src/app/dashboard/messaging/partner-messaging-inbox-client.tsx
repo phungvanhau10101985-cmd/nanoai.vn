@@ -19,6 +19,7 @@ import {
   sendPartnerReply,
 } from '@/app/dashboard/messaging/actions'
 import { CustomerCareMessageBody } from '@/components/messaging/customer-care-message-body'
+import { MessageTextWithLinks } from '@/components/messaging/message-text-with-links'
 import {
   CalendarDays,
   Camera,
@@ -543,7 +544,11 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
                               }}
                             />
                           ) : (
-                            <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                            <MessageTextWithLinks
+                              text={m.body}
+                              className="whitespace-pre-wrap break-words"
+                              linkClassName="break-all text-white/90 underline underline-offset-2 hover:text-white"
+                            />
                           )
                         ) : (
                           <CustomerCareMessageBody

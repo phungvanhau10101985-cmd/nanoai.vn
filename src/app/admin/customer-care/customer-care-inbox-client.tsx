@@ -12,6 +12,7 @@ import {
   sendCustomerCareReply,
 } from '@/app/admin/customer-care/actions'
 import { CustomerCareMessageBody } from '@/components/messaging/customer-care-message-body'
+import { MessageTextWithLinks } from '@/components/messaging/message-text-with-links'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 
 type ConvRow = Database['public']['Tables']['customer_care_conversations']['Row']
@@ -113,7 +114,11 @@ export function CustomerCareInboxClient({ initialConversations, t }: { initialCo
                     }`}
                   >
                     {m.direction === 'outbound' ? (
-                      <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                      <MessageTextWithLinks
+                        text={m.body}
+                        className="whitespace-pre-wrap break-words"
+                        linkClassName="break-all text-primary-foreground underline underline-offset-2 opacity-95 hover:opacity-100"
+                      />
                     ) : (
                       <CustomerCareMessageBody
                         row={m}

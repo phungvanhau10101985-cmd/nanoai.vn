@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-display-enrich'
+import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
+import { sepayQrUrlForDownload } from '@/lib/sepay-qr'
 
 function displayBankName(raw: string): string {
   return raw.replace(/\s*\(BIN\s+\d+\)\s*$/i, '').trim() || raw.trim()
@@ -58,7 +60,7 @@ function CompactCopyRow({
 }
 
 /**
- * Khối QR + STK + gửi biên lai — dùng trong dialog đơn (danh sách / chi tiết), cùng API verify-payment với chat.
+ * Khối QR + STK (+ gửi biên lai nếu **không** phải SePay) — dialog đơn, cùng API verify-payment với chat.
  */
 export function GuestWidgetOrderDepositPanel({
   order,
@@ -85,6 +87,10 @@ export function GuestWidgetOrderDepositPanel({
   const holder = enriched.account_holder
   const amount = Math.max(0, Math.round(order.required_amount))
   const busy = busyOrderId === order.id
+  const isSepay = isSepayStyleOrderPayment({
+    payment_qr_url: order.payment_qr_url,
+    payment_reference: order.payment_reference,
+  })
 
   return (
     <div className={`rounded-lg border border-amber-300/60 bg-amber-50/50 p-2.5 dark:border-amber-700/50 dark:bg-amber-950/25 ${className}`}>
@@ -106,7 +112,9 @@ export function GuestWidgetOrderDepositPanel({
         ) : null}
       </div>
       <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
-        Nhập đúng nội dung chuyển khoản. Có thể quét QR để điền sẵn.
+        {isSepay
+          ? 'Chuyển đúng số tiền và «Nội dung CK» (memo). Quét QR để điền sẵn. Shop nhận xác nhận qua SePay — không cần gửi ảnh biên lai.'
+          : 'Nhập đúng nội dung chuyển khoản. Có thể quét QR để điền sẵn.'}
       </p>
       <div className="mt-2 flex justify-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -119,27 +127,45 @@ export function GuestWidgetOrderDepositPanel({
           loading="lazy"
         />
       </div>
-      <div className="mt-2">
-        <Button
-          type="button"
-          size="sm"
-          className="h-10 w-full gap-1.5 text-sm font-medium"
-          disabled={Boolean(busyOrderId)}
-          onClick={() => onPickProof(order.id)}
-        >
-          {busy ? (
-            <>
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-              Đang tải ảnh và đối chiếu…
-            </>
-          ) : (
-            <>Gửi ảnh giao dịch{ref ? ` · ${ref}` : ''}</>
-          )}
-        </Button>
-        <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
-          Chỉ gửi biên lai qua nút này (đúng mã đơn); không gửi qua ô ảnh chat.
-        </p>
-      </div>
+      {isSepay ? (
+        <div className="mt-2 space-y-1.5">
+          <Button type="button" size="sm" className="h-10 w-full text-sm font-medium" asChild>
+            <a
+              href={sepayQrUrlForDownload(qrUrl)}
+              target="_blank"
+              rel="noopener noreferrer"
+              download
+            >
+              Tải mã QR đơn hàng
+            </a>
+          </Button>
+          <p className="text-center text-[10px] text-muted-foreground">
+            Tải ảnh QR về máy (SePay) — chuyển khoản đúng «Nội dung CK»; xác nhận tự động, không cần ảnh biên lai.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-2">
+          <Button
+            type="button"
+            size="sm"
+            className="h-10 w-full gap-1.5 text-sm font-medium"
+            disabled={Boolean(busyOrderId)}
+            onClick={() => onPickProof(order.id)}
+          >
+            {busy ? (
+              <>
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                Đang tải ảnh và đối chiếu…
+              </>
+            ) : (
+              <>Gửi ảnh giao dịch{ref ? ` · ${ref}` : ''}</>
+            )}
+          </Button>
+          <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
+            Chỉ gửi biên lai qua nút này (đúng mã đơn); không gửi qua ô ảnh chat.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
