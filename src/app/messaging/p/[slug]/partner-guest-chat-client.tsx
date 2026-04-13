@@ -23,6 +23,7 @@ import { GuestWidgetOrderDetailDialog } from '@/components/messaging/guest-widge
 import { GuestWidgetMyOrdersDialog } from '@/components/messaging/guest-widget-my-orders-dialog'
 import { isOpenMyOrdersMessage } from '@/lib/messaging/widget-parent-bridge'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
+import { collectSepayWebhookConfirmedOrderIds } from '@/lib/messaging/order-sepay-message-helpers'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import {
   isProductConsultedInScopeSet,
@@ -415,6 +416,17 @@ export function PartnerGuestChatClient({
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
   const [consultedProductKeys, setConsultedProductKeys] = useState(() => new Set<string>())
+
+  const sepayWebhookPaidOrderIds = useMemo(
+    () => collectSepayWebhookConfirmedOrderIds(messages),
+    [messages]
+  )
+
+  useEffect(() => {
+    if (proofOrderId && sepayWebhookPaidOrderIds.has(proofOrderId)) {
+      setProofOrderId(null)
+    }
+  }, [proofOrderId, sepayWebhookPaidOrderIds])
 
   const recentSuggestedGarmentImages = useMemo(() => {
     const out: Array<{ name: string; imageUrl: string }> = []
@@ -1489,6 +1501,7 @@ export function PartnerGuestChatClient({
     busyOrderId: paymentProofBusyOrderId,
     onPickProof: pickAndVerifyPaymentProof,
     onViewOrderDetail: (oid) => setEmbedOrderDetailId(oid),
+    sepayWebhookPaidOrderIds,
   }
 
   const uploadFile = async (file: File) => {
@@ -3020,7 +3033,7 @@ export function PartnerGuestChatClient({
                 </div>
               ) : null}
               {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
-              {proofOrderId ? (
+              {proofOrderId && !sepayWebhookPaidOrderIds.has(proofOrderId) ? (
                 <p className="text-[11px] leading-snug text-muted-foreground">
                   Biên lai CK: nút «Gửi ảnh giao dịch» dưới mã QR trong chat (không đính ảnh ở đây).
                 </p>

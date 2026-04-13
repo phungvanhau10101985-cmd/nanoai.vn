@@ -3,9 +3,11 @@ import { fetchCustomerCareTranscriptLinesFromPg } from '@/lib/db/customer-care-p
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
+  buildInventorySearchQueryWithLastConsulted,
   fetchInventoryRowsByExplicitSku,
   fetchInventoryRowsForPartnerAi,
   PARTNER_AI_INVENTORY_CONTEXT_LIMIT,
+  shouldAugmentInventorySearchWithLastConsulted,
 } from '@/lib/messaging/partner-inventory-ai-search'
 import { enrichInventoryRowsWithMaterialIfNeeded } from '@/lib/messaging/partner-inventory-material-enrichment'
 import {
@@ -84,7 +86,27 @@ export async function buildPartnerAiContext(
 }> {
   let explicitSkuRows = await fetchInventoryRowsByExplicitSku(partnerId, latestCustomerMessage)
   const selectedInventoryId = selectedInventoryIdFromTrigger(triggerRawPayload)
-  const inv = await fetchInventoryRowsForPartnerAi(partnerId, latestCustomerMessage)
+
+  let lastConsultedRow: Database['public']['Tables']['messaging_partner_inventory']['Row'] | null = null
+  if (isPgConfigured()) {
+    try {
+      lastConsultedRow = await fetchLastConsultedInventoryRowFromConversationPg(partnerId, conversationId)
+    } catch (e) {
+      console.warn('[partner-ai-llm] lastConsulted inventory', e)
+    }
+  }
+
+  const inventorySearchMessage =
+    lastConsultedRow &&
+    shouldAugmentInventorySearchWithLastConsulted(latestCustomerMessage, {
+      visionInventorySelected: Boolean(selectedInventoryId),
+    })
+      ? buildInventorySearchQueryWithLastConsulted(lastConsultedRow, latestCustomerMessage)
+      : latestCustomerMessage
+
+  const inv = await fetchInventoryRowsForPartnerAi(partnerId, inventorySearchMessage, {
+    budgetSourceMessage: latestCustomerMessage,
+  })
   let selectedRowBlock = ''
   let invForContext = inv
   let selectedRowForEnrich: Database['public']['Tables']['messaging_partner_inventory']['Row'] | null = null
@@ -97,15 +119,6 @@ export async function buildPartnerAiContext(
       }
     } catch (e) {
       console.warn('[partner-ai-llm] selected inventory PG failed', e)
-    }
-  }
-
-  let lastConsultedRow: Database['public']['Tables']['messaging_partner_inventory']['Row'] | null = null
-  if (isPgConfigured()) {
-    try {
-      lastConsultedRow = await fetchLastConsultedInventoryRowFromConversationPg(partnerId, conversationId)
-    } catch (e) {
-      console.warn('[partner-ai-llm] lastConsulted inventory', e)
     }
   }
   if (lastConsultedRow) {
@@ -223,6 +236,7 @@ Khi khách hỏi về chất liệu/vải/vật liệu: ưu tiên trả lời th
 Trong mỗi dòng kho, **ảnh chính sản phẩm (URL)** là ảnh gốc shop khai báo; hệ thống dùng đúng ảnh đó làm nguồn để tạo (1) ảnh chi tiết chất liệu/màu và (2) ảnh **đời thường / góc tự nhiên** (nhìn sản phẩm chân thực) — không dùng ảnh khác làm nguồn, và **không** gọi các ảnh sinh ra là "ảnh tham khảo" khi nói với khách.
 Nếu trong kho có "Ảnh chi tiết chất liệu/màu (đã lưu)" kèm URL, đó là ảnh phóng chi tiết chất liệu/màu **sinh từ ảnh chính** — nhắc khách xem ảnh đính kèm (không cần dán lại URL trong message).
 Khi khách hỏi ảnh chụp thực tế / mặc thật / dùng thật: nếu kho có mục **Ảnh đời thường — nhìn sản phẩm chân thực (đã lưu)** kèm URL — đó là ảnh được tạo từ **ảnh chính** theo phong cách **đời thường, góc tự nhiên** để khách **xem sản phẩm chân thực** (không phải ảnh studio); trong **tin gửi khách** giữ giọng thống nhất với chú thích hệ thống (ảnh đời thường / góc tự nhiên / nhìn sản phẩm chân thực), **không** gọi là "ảnh tham khảo", **không** tự nói "ảnh AI" hay "ảnh phần mềm tạo". Không khẳng định ảnh chụp tại showroom/shop trừ khi dữ liệu kho ghi rõ. Khi khách vừa xem thẻ sản phẩm và hỏi ảnh thực tế — mặc định hiểu đúng mẫu đó; không bảo "không có ảnh" nếu hệ thống đang hoặc sắp gửi kèm ảnh. Trong một cuộc chat, tối đa hai ảnh loại này cho cùng một mặt hàng; không hứa gửi thêm khi đã đủ.
+Khi tin khách **ngắn** và chỉ hỏi thuộc tính (màu, size, tồn, giá, ship…) **mà không nêu tên/mã sản phẩm mới**: mặc định hiểu là đang hỏi về **mặt hàng shop vừa giới thiệu** trong lịch sử gần hoặc khối «mặt hàng đang thảo luận / đã chọn» nếu có — không trả lời như câu hỏi độc lập không có ngữ cảnh.
 Khi khách hỏi tìm hàng theo thuộc tính (ví dụ: loại hàng, màu, kiểu dáng, chất liệu, chiều cao gót, khoảng giá), hãy chủ động đề xuất mặt hàng phù hợp từ danh sách kho (nếu có) trong mảng products — thường **4–8** mẫu khi kho có đủ, tối đa **${PARTNER_AI_PRODUCT_CARDS_MAX}** mẫu trong một tin; tránh chỉ trả lời chung chung khi trong kho vẫn có lựa chọn liên quan.
 Nếu không có "khớp tuyệt đối", vẫn ưu tiên đưa các mẫu "khớp gần" đang có trong kho vào products để khách chọn tiếp — **nhưng "khớp gần" phải cùng nhóm/nhu cầu với điều khách đang hỏi** (cùng loại sản phẩm hoặc dùng thay thế hợp lý: ví dụ khách hỏi dép lê/giày dép mà kho không có đúng mẫu → chỉ gợi ý các mẫu giày/dép/sandal/dép nam nữ khác trong kho; **không** đưa ba lô, túi xách, ví, phụ kiện không liên quan chỉ vì tên có từ khóa trùng hoặc vì nằm đầu danh sách kho). Chỉ gợi ý ngành hàng khác khi khách **chủ động** hỏi rộng (ví dụ "shop còn gì hot") hoặc đã chuyển sang nhu cầu khác.
 Khi đã có products khác rỗng, message phải thật ngắn (1-2 câu), không liệt kê chi tiết từng mẫu, không bullet dài; có thể mở nhẹ (khách xem thẻ/ảnh khi muốn), **không** ép chọn mẫu hay chốt màu ngay.
@@ -237,6 +251,18 @@ Giọng tư vấn **mở, nhẹ**: làm rõ lo lắng / nhu cầu của khách t
 ${formatInventoryLines(explicitSkuRows)}`
     : ''
 
+  const inventoryFollowupAugmented =
+    Boolean(lastConsultedRow) &&
+    shouldAugmentInventorySearchWithLastConsulted(latestCustomerMessage, {
+      visionInventorySelected: Boolean(selectedInventoryId),
+    })
+  const conversationFocusBlock =
+    inventoryFollowupAugmented && lastConsultedRow
+      ? `\n\n[Ngữ cảnh bắt buộc — tin khách gần như chắc chắn là hỏi tiếp về mặt hàng này, không phải tìm sản phẩm mới]
+${formatInventoryLines([lastConsultedRow])}
+Trả lời đúng theo dữ liệu kho của mặt hàng trên (màu/size/tồn trong mô tả hoặc ghi chú nếu có). Trong JSON **products**, nếu cần hiển thị thẻ thì ưu tiên đúng mặt hàng này; không đưa carousel mẫu khác trừ khi khách yêu cầu so sánh hoặc xem thêm mẫu.`
+      : ''
+
   const user = `Danh sách kho (do shop khai báo; có thể không đầy đủ so với toàn bộ hàng thực tế). Các dòng đầu là mặt hàng được ưu tiên theo mã/tên/từ khóa gần với tin nhắn khách (nếu có), sau đó là các mặt hàng còn lại theo thứ tự shop sắp xếp — tất cả đều có thể dùng để tư vấn; khi chọn mặt hàng đưa vào JSON **products**, vẫn phải **lọc theo đúng chủ đề khách đang hỏi** (đừng chọn mặt hàng chỉ vì xuất hiện sớm trong danh sách nếu khác ngành hàng).
 ${formatInventoryLines(invForContext)}
 ${explicitSkuBlock}
@@ -244,6 +270,7 @@ ${selectedRowBlock}
 
 Lịch sử hội thoại gần đây:
 ${transcript}
+${conversationFocusBlock}
 
 Tin nhắn mới nhất của khách:
 ${latestCustomerMessage}

@@ -439,13 +439,102 @@ function reorderInventoryRowsByBudgetBand(
  */
 export async function fetchInventoryRowsForPartnerAi(
   partnerId: string,
-  customerMessage: string
+  customerMessage: string,
+  opts?: { budgetSourceMessage?: string }
 ): Promise<PartnerInventoryRow[]> {
   const lim = PARTNER_AI_INVENTORY_CONTEXT_LIMIT
-  const budget = extractCustomerBudgetTargetVnd(customerMessage)
+  const budget = extractCustomerBudgetTargetVnd(opts?.budgetSourceMessage ?? customerMessage)
   const fetchLim = budget !== null ? Math.min(50, lim * 3) : lim
   const rows = await fetchInventoryRowsBySemanticTextForPartnerAi(partnerId, customerMessage, fetchLim)
   if (!rows.length) return []
   if (budget === null) return rows.slice(0, lim)
   return reorderInventoryRowsByBudgetBand(rows, budget, lim)
+}
+
+/**
+ * Heuristic follow-up (trước khi gọi model): neo vector search với SP đang focus khi tin giống
+ * «hỏi tiếp» — ngắn / đại từ chỉ thị / chỉ hỏi thuộc tính; không thay cho phân loại đầy đủ.
+ * - Có mã/SKU rõ trong câu → không gộp (xử lý độc lập theo mã).
+ * - Tin dài (>200 ký tự) → không gộp (thường là mô tả / tìm mới).
+ * - Có **loại sản phẩm** + câu đủ chủ/vị (proxy: độ dài / ý tìm-xem / ngân sách) → **câu độc lập**, không neo.
+ */
+const FOLLOWUP_ATTR_HINT_RE =
+  /màu|mầu|size|cỡ|giá|số\s*(giày|chân)|tồn|kho|còn\s*hàng|ship|giao\s*hàng|đế|gót|chất\s*liệu|bảo\s*hành|đổi\s*trả|bao\s*nhiêu|những\s+gì|có\s+gì|mấy\s+loại|mấy\s+màu|kiểu\s+nào|giống\s+vậy|như\s+vậy|nữa\s+không|còn\s+không/i
+
+/**
+ * Tham chiếu tới SP / lượt trước (cái này, hàng này, cái cũ…) — luôn neo ngữ cảnh, không phải tìm mới.
+ * Giữ đồng bộ với CATEGORY_WITH_DEICTIC (loại hàng + này/đó/…).
+ */
+const CONTEXT_REFERENCE_DEICTIC_RE =
+  /(?:^|[\s,.;:!?])(?:nó|nó\s+này|nó\s+vừa\s+rồi|cái\s+đó|cái\s+này|cái\s+cũ|cái\s+mới|cái\s+vừa|cái\s+(?:trước|hồi\s+nãy|nãy|đó)|mẫu\s+đó|mẫu\s+này|mẫu\s+cũ|mẫu\s+vừa\s+rồi|loại\s+đó|loại\s+này|sp\s+đó|sp\s+này|hàng\s+đó|hàng\s+này|hàng\s+vừa|hàng\s+nãy|món\s+này|món\s+đó|đôi\s+này|đôi\s+đó|chiếc\s+này|chiếc\s+đó|sản\s*phẩm\s+đó|sản\s*phẩm\s+này|cái\s+vừa\s+nói|cái\s+(?:đang|vừa)\s+xem)(?:$|[\s,.;:!?]|\b)/i
+
+/** Đại từ / từ chỉ thị — alias tới CONTEXT_REFERENCE_DEICTIC_RE (dùng trong shouldAugment). */
+const FOLLOWUP_DEICTIC_RE = CONTEXT_REFERENCE_DEICTIC_RE
+
+/** Danh từ loại hàng phổ biến — có trong câu thường là chủ đề tìm/mô tả mới (câu độc lập). */
+const PRODUCT_CATEGORY_TOKEN_RE =
+  /giày|dép|sandal|boot|loafer|sneaker|váy|đầm|áo|quần|blazer|vest|túi|ví|balo|mũ|nón|đồng\s*hồ|kính|thắt\s*lưng|dây\s*nịch|vòng\s*tay|dây\s*chuyền/i
+
+/**
+ * «Loại SP + đại từ» (giày này giá bao nhiêu, có màu gì…) — hỏi tiếp theo SP đang bàn, không phải tìm mới.
+ */
+const CATEGORY_WITH_DEICTIC_RE =
+  /(?:giày|dép|sandal|boot|váy|đầm|túi|áo|quần)\s+(này|đó|kia|ấy|cũ|mới|vừa\s+rồi|nãy|trước)|(?:mẫu|đôi|kiểu|loại|cái|sp|chiếc)\s+(này|đó|kia|ấy|cũ|mới)|(?:đôi|chiếc)\s+(này|đó|kia|ấy)/i
+
+/** Ý tìm / xem / hỏi mua rõ — thường là câu đầy đủ chủ đích. */
+const STANDALONE_INTENT_RE =
+  /\b(?:tìm|tìm\s+giúp|cho\s+(?:em|mình|anh|chị)\s+(?:xem|biết)|(?:shop|bên)\s+(?:có|bán)|cần\s+(?:mua|xem)|muốn\s+(?:mua|xem)|giới\s*thiệu|tham\s*khảo|đặt\s+hàng)\b/i
+
+/** Ngữ cảnh / đối tượng — thường đi kèm loại hàng trong câu mô tả đầy đủ. */
+const STANDALONE_CONTEXT_RE =
+  /\b(?:nam|nữ|unisex|trẻ\s*em|đi\s+làm|đi\s+tiệc|đi\s+biển|công\s+sở|thể\s+thao|dạo\s+phố)\b/i
+
+const STANDALONE_MIN_LEN_WITH_CATEGORY = 30
+
+/**
+ * Câu có **loại sản phẩm** + dấu hiệu câu độc lập (chủ/vị đủ) → tìm kho theo đúng ý khách, không neo SP cũ.
+ * Không dùng parser tiếng Việt; proxy bằng độ dài + intent + ngân sách + ngữ cảnh mặc.
+ */
+export function looksLikeStandaloneProductQuestion(customerMessage: string): boolean {
+  const text = normalizeCustomerMessageForInventorySearch(customerMessage)
+  if (!text) return false
+  /** Câu chỉ trỏ «cái này / hàng này / cái cũ…» — không bao giờ là tìm kiếm độc lập. */
+  if (CONTEXT_REFERENCE_DEICTIC_RE.test(text)) return false
+  if (CATEGORY_WITH_DEICTIC_RE.test(text)) return false
+  if (!PRODUCT_CATEGORY_TOKEN_RE.test(text)) return false
+  if (extractExplicitSkuCandidates(customerMessage).length > 0) return true
+  if (extractCustomerBudgetTargetVnd(text) !== null) return true
+  if (STANDALONE_INTENT_RE.test(text)) return true
+  if (STANDALONE_CONTEXT_RE.test(text)) return true
+  if (text.length >= STANDALONE_MIN_LEN_WITH_CATEGORY) return true
+  return false
+}
+
+/** Dưới ngưỡng này: coi là «rất ngắn», thường thiếu chủ ngữ/SP — gộp neo ANN (không cần thêm từ khóa). */
+const FOLLOWUP_VERY_SHORT_MAX = 36
+
+export function shouldAugmentInventorySearchWithLastConsulted(
+  customerMessage: string,
+  opts?: { visionInventorySelected?: boolean }
+): boolean {
+  if (opts?.visionInventorySelected) return false
+  const text = normalizeCustomerMessageForInventorySearch(customerMessage)
+  if (!text) return false
+  if (extractExplicitSkuCandidates(customerMessage).length > 0) return false
+  if (text.length > 200) return false
+  if (looksLikeStandaloneProductQuestion(customerMessage)) return false
+  if (text.length <= FOLLOWUP_VERY_SHORT_MAX) return true
+  if (FOLLOWUP_DEICTIC_RE.test(text)) return true
+  return FOLLOWUP_ATTR_HINT_RE.test(text)
+}
+
+/** Chuỗi đưa vào embedding + ANN: neo SP đang bàn + ý khách. */
+export function buildInventorySearchQueryWithLastConsulted(
+  row: PartnerInventoryRow,
+  customerMessage: string
+): string {
+  const name = row.name?.trim() ?? ''
+  const sku = row.sku?.trim() ?? ''
+  const tail = normalizeCustomerMessageForInventorySearch(customerMessage)
+  return [name, sku, tail].filter(Boolean).join(' ').trim()
 }

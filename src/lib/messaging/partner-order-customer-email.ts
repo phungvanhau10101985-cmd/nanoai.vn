@@ -126,7 +126,7 @@ export async function emailCustomerOrderCheckoutSubmitted(input: {
     `Sản phẩm: ${trim(input.order.product_name, 200)}`,
     `Số lượng: ${input.order.quantity}`,
     `Tổng tiền hàng: ${toVnd(input.order.subtotal_amount)}`,
-    `Số tiền cần thanh toán trước: ${toVnd(input.order.required_amount)} (${input.order.deposit_percent}% cọc).`,
+    `Số tiền cần đặt cọc trước: ${toVnd(input.order.required_amount)} (${input.order.deposit_percent}% cọc).`,
     '',
     input.order.required_amount > 0
       ? 'Vui lòng chuyển khoản đúng số tiền và nội dung trong khung «Thanh toán chuyển khoản» trên chat, rồi gửi ảnh biên lai nếu được yêu cầu.'

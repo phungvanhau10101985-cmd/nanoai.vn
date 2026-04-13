@@ -89,6 +89,8 @@ export type OrderPaymentProofSlot = {
   highlightOrderId: string | null
   busyOrderId: string | null
   onPickProof: (orderId: string) => void
+  /** Đơn đã khớp qua webhook SePay — ẩn nút «Gửi ảnh giao dịch» trên khối QR (payload tin cũ vẫn là awaiting_payment). */
+  sepayWebhookPaidOrderIds?: ReadonlySet<string>
   /** Trang «Đơn hàng của tôi» — `/messaging/my-orders?order=…` (khi không dùng `onViewOrderDetail`). */
   buildOrderDetailHref?: (orderId: string) => string
   /** Ưu tiên: mở chi tiết trong app (vd. modal trong khung nhúng), không cần đăng nhập NanoAI. */
@@ -187,13 +189,23 @@ function OrderPaymentPanel({
   const amount = typeof reqRaw === 'number' && Number.isFinite(reqRaw) ? Math.max(0, Math.round(reqRaw)) : 0
   const orderId = typeof o.order_id === 'string' ? o.order_id.trim() : ''
   const orderStatus = typeof o.order_status === 'string' ? o.order_status.trim() : ''
-  const showProofCta = orderPaymentProof && orderId && orderStatus === 'awaiting_payment'
+  const sepayAlready =
+    Boolean(orderId) && Boolean(orderPaymentProof?.sepayWebhookPaidOrderIds?.has(orderId))
+  const showProofCta =
+    orderPaymentProof && orderId && orderStatus === 'awaiting_payment' && !sepayAlready
   const busyThis = showProofCta && orderPaymentProof.busyOrderId === orderId
-  const viewInEmbed = Boolean(showProofCta && orderId && typeof orderPaymentProof?.onViewOrderDetail === 'function')
+  const viewInEmbed = Boolean(orderId && orderPaymentProof && typeof orderPaymentProof.onViewOrderDetail === 'function')
   const detailHref =
-    !viewInEmbed && showProofCta && orderPaymentProof?.buildOrderDetailHref && orderId
+    !viewInEmbed && orderPaymentProof?.buildOrderDetailHref && orderId
       ? orderPaymentProof.buildOrderDetailHref(orderId)
       : ''
+  const showOrderDetailCta = Boolean(
+    orderPaymentProof &&
+      orderId &&
+      orderStatus === 'awaiting_payment' &&
+      (viewInEmbed || Boolean(detailHref))
+  )
+  const showPaymentActionRow = Boolean(showProofCta || showOrderDetailCta)
 
   return (
     <div
@@ -251,31 +263,37 @@ function OrderPaymentPanel({
           loading="lazy"
         />
       </div>
-      {showProofCta && orderPaymentProof ? (
+      {showPaymentActionRow && orderPaymentProof ? (
         <div className="mt-2 space-y-2">
-          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            <Button
-              type="button"
-              size="sm"
-              className={`h-10 w-full gap-1.5 text-sm font-medium ${
-                onViolet
-                  ? 'border border-white/35 bg-white/15 text-white hover:bg-white/25'
-                  : ''
-              }`}
-              variant={onViolet ? 'outline' : 'default'}
-              disabled={Boolean(orderPaymentProof.busyOrderId)}
-              onClick={() => orderPaymentProof.onPickProof(orderId)}
-            >
-              {busyThis ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
-                  Đang tải ảnh và đối chiếu…
-                </>
-              ) : (
-                <>Gửi ảnh giao dịch{ref ? ` · ${ref}` : ''}</>
-              )}
-            </Button>
-            {viewInEmbed && orderPaymentProof?.onViewOrderDetail ? (
+          <div
+            className={`grid gap-1.5 ${
+              showProofCta && showOrderDetailCta ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'
+            }`}
+          >
+            {showProofCta ? (
+              <Button
+                type="button"
+                size="sm"
+                className={`h-10 w-full gap-1.5 text-sm font-medium ${
+                  onViolet
+                    ? 'border border-white/35 bg-white/15 text-white hover:bg-white/25'
+                    : ''
+                }`}
+                variant={onViolet ? 'outline' : 'default'}
+                disabled={Boolean(orderPaymentProof.busyOrderId)}
+                onClick={() => orderPaymentProof.onPickProof(orderId)}
+              >
+                {busyThis ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+                    Đang tải ảnh và đối chiếu…
+                  </>
+                ) : (
+                  <>Gửi ảnh giao dịch{ref ? ` · ${ref}` : ''}</>
+                )}
+              </Button>
+            ) : null}
+            {showOrderDetailCta && viewInEmbed && orderPaymentProof?.onViewOrderDetail ? (
               <Button
                 type="button"
                 size="sm"
@@ -287,7 +305,7 @@ function OrderPaymentPanel({
               >
                 Xem chi tiết đơn hàng
               </Button>
-            ) : detailHref ? (
+            ) : showOrderDetailCta && detailHref ? (
               <Button
                 type="button"
                 size="sm"
@@ -308,9 +326,11 @@ function OrderPaymentPanel({
               </Button>
             ) : null}
           </div>
-          <p className={`text-center text-xs leading-snug sm:text-[13px] ${onViolet ? 'text-white/75' : 'text-muted-foreground'}`}>
-            Chỉ dùng nút gửi ảnh cho biên lai đúng mã đơn; không gửi qua ô đính ảnh chat.
-          </p>
+          {showProofCta ? (
+            <p className={`text-center text-xs leading-snug sm:text-[13px] ${onViolet ? 'text-white/75' : 'text-muted-foreground'}`}>
+              Chỉ dùng nút gửi ảnh cho biên lai đúng mã đơn; không gửi qua ô đính ảnh chat.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

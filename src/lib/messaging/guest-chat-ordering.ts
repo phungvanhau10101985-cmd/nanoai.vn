@@ -518,7 +518,7 @@ export async function completeOrderCheckout(input: {
     body:
       updated.required_amount > 0
         ? `Đơn hàng đã được tạo thành công.\n` +
-          `Tổng ${toVnd(updated.subtotal_amount)} — cần thanh toán ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
+          `Tổng ${toVnd(updated.subtotal_amount)} — cần đặt cọc trước ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
           `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới (có nút sao chép từng mục).\n` +
           `${calc.fallbackApplied ? 'Lưu ý: Số tiền đặt cọc vượt giá trị đơn, hệ thống đã fallback về 20% giá trị đơn.\n' : ''}` +
           `Sau khi chuyển khoản: bấm nút gửi ảnh biên lai ngay dưới mã QR.`
@@ -532,7 +532,7 @@ export async function completeOrderCheckout(input: {
     orderId: updated.id,
     eventType: 'checkout_submitted',
     title: 'Khách gửi thông tin nhận hàng',
-    detail: `Số lượng ${updated.quantity}, cần thanh toán ${toVnd(updated.required_amount)}.`,
+    detail: `Số lượng ${updated.quantity}, cần đặt cọc trước ${toVnd(updated.required_amount)}.`,
     source: 'customer',
   })
   try {
