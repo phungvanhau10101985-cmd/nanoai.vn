@@ -9,7 +9,6 @@ import {
 import {
   fetchLatestAwaitingPaymentOrderForPartnerThreadFromPg,
   fetchPartnerOrderByIdForPartnerFromPg,
-  fetchPartnerOrderForThreadFromPg,
   fetchPartnerPaymentSettingsFromPg,
   insertPartnerOrderDraftFromPg,
   insertPartnerOrderEventFromPg,
