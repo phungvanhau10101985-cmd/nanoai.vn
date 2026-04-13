@@ -412,6 +412,170 @@ export function extractCustomerBudgetTargetVnd(raw: string): number | null {
   return null
 }
 
+/** Giới tính / đối tượng trong tin tìm kho — vector dễ nhầm (áo khoác nam vs nữ). */
+export type CustomerGenderSearchIntent = 'male' | 'female' | null
+
+/**
+ * Khách nêu rõ nam hoặc nữ (không đồng thời cả hai) → lọc/sắp kết quả ANN.
+ */
+export function extractCustomerGenderSearchIntent(raw: string): CustomerGenderSearchIntent {
+  const t = normalizeCustomerMessageForInventorySearch(raw).toLowerCase()
+  if (!t) return null
+  if (/\bunisex\b/u.test(t)) return null
+  const hasNam = /\bnam\b/u.test(t) || /\bđàn\s*ông\b/u.test(t) || /\bnam\s*giới\b/u.test(t)
+  const hasNu = /\bnữ\b/u.test(t) || /\bphụ\s*nữ\b/u.test(t) || /\bnữ\s*giới\b/u.test(t)
+  if (hasNam && hasNu) return null
+  if (hasNam && !hasNu) return 'male'
+  if (hasNu && !hasNam) return 'female'
+  return null
+}
+
+function expandInventoryEmbeddingQueryWithGender(
+  customerMessage: string,
+  intent: CustomerGenderSearchIntent
+): string {
+  if (!intent) return customerMessage
+  const base = normalizeCustomerMessageForInventorySearch(customerMessage)
+  if (!base) return customerMessage
+  if (intent === 'male') {
+    return `${base} nam giới đàn ông đồ nam cho nam men's jacket men's`
+  }
+  return `${base} nữ giới phụ nữ đồ nữ women's ladies`
+}
+
+function inventoryRowGenderAffinityScore(row: PartnerInventoryRow, intent: CustomerGenderSearchIntent): number {
+  if (!intent) return 0
+  const blob = `${row.name} ${row.description ?? ''} ${row.consult_note ?? ''}`.toLowerCase()
+  if (intent === 'male') {
+    let s = 0
+    if (/\bnam\b|nam\s*giới|đàn\s*ông|\bmen'?s\b/i.test(blob)) s += 95
+    if (/\bunisex\b/i.test(blob)) s += 20
+    if (/\bnữ\b|phụ\s*nữ/i.test(blob) && !/\bnam\b/i.test(blob)) s -= 160
+    if (/váy|đầm(?:\s|$)|chân\s*váy|váy\s*liền/i.test(blob) && !/\bnam\b/i.test(blob)) s -= 140
+    return s
+  }
+  if (intent === 'female') {
+    let s = 0
+    if (/\bnữ\b|phụ\s*nữ|nữ\s*giới/i.test(blob)) s += 95
+    if (/\bunisex\b/i.test(blob)) s += 20
+    if (/\b(?:quần|giày|dép|áo|blazer)\s+nam\b/i.test(blob) && !/\bnữ\b/i.test(blob)) s -= 130
+    return s
+  }
+  return 0
+}
+
+/** Sắp lại ứng viên vector sau khi khách nêu nam/nữ — đẩy mặt hàng trái giới xuống. */
+export function reorderInventoryRowsByGenderIntent(
+  rows: PartnerInventoryRow[],
+  intent: CustomerGenderSearchIntent
+): PartnerInventoryRow[] {
+  if (!intent || rows.length < 2) return rows
+  return [...rows].sort(
+    (a, b) => inventoryRowGenderAffinityScore(b, intent) - inventoryRowGenderAffinityScore(a, intent)
+  )
+}
+
+/** Chuỗi đưa vào Gemini embed (ANN) — bổ sung từ khóa giới khi cần. */
+export function buildInventoryEmbeddingQueryWithGenderHint(customerMessage: string): string {
+  return expandInventoryEmbeddingQueryWithGender(
+    customerMessage,
+    extractCustomerGenderSearchIntent(customerMessage)
+  )
+}
+
+export function reorderSemanticInventoryRowsByCustomerGender(
+  rows: PartnerInventoryRow[],
+  customerMessage: string
+): PartnerInventoryRow[] {
+  return reorderInventoryRowsByGenderIntent(rows, extractCustomerGenderSearchIntent(customerMessage))
+}
+
+/** Widget / UI gợi ý: cùng pipeline hợp nhất ILIKE + vector + giới như `fetchInventoryRowsForPartnerAi`. */
+export async function enrichSemanticInventoryRowsForWidget(
+  partnerId: string,
+  originalCustomerMessage: string,
+  vectorRows: PartnerInventoryRow[],
+  maxRows: number
+): Promise<PartnerInventoryRow[]> {
+  let rows = await mergeVectorRowsWithLexicalTokenSearch(partnerId, originalCustomerMessage, vectorRows, maxRows)
+  const gender = extractCustomerGenderSearchIntent(originalCustomerMessage)
+  rows = reorderInventoryRowsByGenderIntent(rows, gender)
+  rows = excludeRowsConflictingWithMaleIntent(rows, gender)
+  return rows
+}
+
+/** Điểm tối thiểu để đưa dòng ILIKE lên trước ANN — tránh nhiễu từ token quá ngắn. */
+const LEXICAL_MERGE_MIN_SCORE = 28
+const LEXICAL_TOKEN_QUERIES_MAX = 14
+/** Số dòng lấy từ ILIKE ưu tiên (đầu danh sách) khi hợp nhất với vector. */
+const LEXICAL_PRIORITY_CAP = 14
+
+/**
+ * ANN dễ lệch (áo khoác nam vs set nữ). Gộp kết quả ILIKE theo từ khóa tin khách —
+ * ưu tiên mặt hàng có tên/mô tả **trùng chữ** với câu hỏi, rồi mới nối ứng viên vector.
+ * Khi vector rỗng (embed lỗi / chưa sync), coi đây là nguồn chính.
+ */
+async function mergeVectorRowsWithLexicalTokenSearch(
+  partnerId: string,
+  messageForTokens: string,
+  vectorRows: PartnerInventoryRow[],
+  maxRows: number
+): Promise<PartnerInventoryRow[]> {
+  const needles = extractInventorySearchTokens(messageForTokens)
+  if (needles.length === 0) return vectorRows
+
+  const tokenSlice = needles.slice(0, LEXICAL_TOKEN_QUERIES_MAX)
+  const chunks = await Promise.all(tokenSlice.map((t) => fetchRowsMatchingToken(partnerId, t)))
+  const bestById = new Map<string, { row: PartnerInventoryRow; score: number }>()
+  for (const chunk of chunks) {
+    for (const r of chunk) {
+      const sc = scoreInventoryRowMatch(r, needles)
+      const prev = bestById.get(r.id)
+      if (!prev || sc > prev.score) bestById.set(r.id, { row: r, score: sc })
+    }
+  }
+
+  const lexicalSorted = [...bestById.values()]
+    .filter((x) => x.score >= LEXICAL_MERGE_MIN_SCORE)
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.row)
+
+  const seen = new Set<string>()
+  const out: PartnerInventoryRow[] = []
+
+  for (const r of lexicalSorted.slice(0, LEXICAL_PRIORITY_CAP)) {
+    if (seen.has(r.id)) continue
+    out.push(r)
+    seen.add(r.id)
+  }
+  for (const r of vectorRows) {
+    if (seen.has(r.id)) continue
+    out.push(r)
+    seen.add(r.id)
+    if (out.length >= maxRows) break
+  }
+  return out.slice(0, maxRows)
+}
+
+/** Bỏ mặt hàng rõ ràng chỉ nữ (váy/đầm + không ghi nam) khi khách hỏi đồ nam — nếu còn đủ lựa chọn. */
+function excludeRowsConflictingWithMaleIntent(
+  rows: PartnerInventoryRow[],
+  intent: CustomerGenderSearchIntent
+): PartnerInventoryRow[] {
+  if (intent !== 'male' || rows.length <= 5) return rows
+  const blob = (r: PartnerInventoryRow) =>
+    `${r.name} ${r.description ?? ''} ${r.consult_note ?? ''}`.toLowerCase()
+  const isFemaleOnly = (r: PartnerInventoryRow) => {
+    const b = blob(r)
+    if (/\bnam\b|nam\s*giới|đàn\s*ông|unisex/i.test(b)) return false
+    if (/\bnữ\b|phụ\s*nữ/i.test(b)) return true
+    if (/váy|đầm(?:\s|$)|chân\s*váy|set\s*nữ/i.test(b)) return true
+    return false
+  }
+  const kept = rows.filter((r) => !isFemaleOnly(r))
+  return kept.length >= 5 ? kept : rows
+}
+
 /** Ưu tiên SP có giá parse được nằm trong [budget×0.9, budget×1.1]; nếu không có SP nào trong dải → giữ thứ tự gốc. */
 function reorderInventoryRowsByBudgetBand(
   rows: PartnerInventoryRow[],
@@ -443,43 +607,162 @@ export async function fetchInventoryRowsForPartnerAi(
   opts?: { budgetSourceMessage?: string }
 ): Promise<PartnerInventoryRow[]> {
   const lim = PARTNER_AI_INVENTORY_CONTEXT_LIMIT
-  const budget = extractCustomerBudgetTargetVnd(opts?.budgetSourceMessage ?? customerMessage)
+  const hintSource = opts?.budgetSourceMessage ?? customerMessage
+  const budget = extractCustomerBudgetTargetVnd(hintSource)
+  const genderIntent = extractCustomerGenderSearchIntent(hintSource)
+  const queryForEmbedding = expandInventoryEmbeddingQueryWithGender(customerMessage, genderIntent)
   const fetchLim = budget !== null ? Math.min(50, lim * 3) : lim
-  const rows = await fetchInventoryRowsBySemanticTextForPartnerAi(partnerId, customerMessage, fetchLim)
+  let rows = await fetchInventoryRowsBySemanticTextForPartnerAi(partnerId, queryForEmbedding, fetchLim)
+  rows = await mergeVectorRowsWithLexicalTokenSearch(partnerId, hintSource, rows, fetchLim)
   if (!rows.length) return []
+  rows = reorderInventoryRowsByGenderIntent(rows, genderIntent)
+  rows = excludeRowsConflictingWithMaleIntent(rows, genderIntent)
   if (budget === null) return rows.slice(0, lim)
   return reorderInventoryRowsByBudgetBand(rows, budget, lim)
 }
 
 /**
- * Heuristic follow-up (trước khi gọi model): neo vector search với SP đang focus khi tin giống
- * «hỏi tiếp» — ngắn / đại từ chỉ thị / chỉ hỏi thuộc tính; không thay cho phân loại đầy đủ.
- * - Có mã/SKU rõ trong câu → không gộp (xử lý độc lập theo mã).
- * - Tin dài (>200 ký tự) → không gộp (thường là mô tả / tìm mới).
- * - Có **loại sản phẩm** + câu đủ chủ/vị (proxy: độ dài / ý tìm-xem / ngân sách) → **câu độc lập**, không neo.
+ * Chuẩn hóa tin nhắn trước heuristic «hỏi tiếp»: gom khoảng trắng, thường hóa, mở rộng viết tắt chat hay gặp.
+ * Không gọi từ `extractExplicitSkuCandidates` (vẫn dùng tin gốc).
  */
-const FOLLOWUP_ATTR_HINT_RE =
-  /màu|mầu|size|cỡ|giá|số\s*(giày|chân)|tồn|kho|còn\s*hàng|ship|giao\s*hàng|đế|gót|chất\s*liệu|bảo\s*hành|đổi\s*trả|bao\s*nhiêu|những\s+gì|có\s+gì|mấy\s+loại|mấy\s+màu|kiểu\s+nào|giống\s+vậy|như\s+vậy|nữa\s+không|còn\s+không/i
+function normalizeTextForFollowUpHeuristic(raw: string): string {
+  let s = normalizeCustomerMessageForInventorySearch(raw).toLowerCase()
+  if (!s) return ''
+  s = s.replace(/\b(ko|khong)\b/g, 'không')
+  s = s.replace(/\b(sz)\b/g, 'size')
+  s = s.replace(/\b(đc|dc)\b/g, 'được')
+  s = s.replace(/\b(ib|ibox|inbox)\b/g, 'inbox')
+  s = s.replace(/\b(rep|reply)\b/g, 'trả lời')
+  s = s.replace(/(có|còn|size|cỡ|màu|mầu|loại|hàng|sp)\s+j\b/g, '$1 gì')
+  s = s.replace(/\bj\b(?=\s*\?)/g, 'gì')
+  s = s.replace(/\s+/g, ' ').trim()
+  return s
+}
+
+/**
+ * Khách muốn **xem thêm mẫu / SP tương tự** so với mẫu đang bàn (không phải chỉ hỏi thuộc tính một mẫu).
+ * Dùng để: lấy ANN **embedding ảnh** của SP neo + so khắp cả kho; không khóa chế độ «một dòng kho».
+ */
+const SIMILAR_CATALOG_INTENT_RE = new RegExp(
+  [
+    'mẫu\\s+khác|kiểu\\s+khác|loại\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
+    'gần\\s+giống|giống\\s+nhau|na\\s+ná|tương\\s+tự|hàng\\s+tương\\s+tự|cùng\\s+kiểu|cùng\\s+loại',
+    'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|thay\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|option\\s+khác',
+  ].join('|'),
+  'i'
+)
+
+export function customerMessageWantsSimilarCatalogVersusLastConsulted(message: string): boolean {
+  const text = normalizeTextForFollowUpHeuristic(message)
+  if (!text) return false
+  return SIMILAR_CATALOG_INTENT_RE.test(text)
+}
+
+/**
+ * Neo vector + prompt với SP vừa tư vấn khi tin là «hỏi tiếp» (không dùng model phân loại riêng).
+ * - ≤ `FOLLOWUP_MAX_WORDS` từ → mặc định neo ngữ cảnh (embedding kèm tên/sku SP đang bàn).
+ * - Hoặc đại từ / (loại hàng + này đó) / từ khóa thuộc tính (FOLLOWUP_ATTR_*).
+ * - Câu dài giống tìm mới + chỉ trùng từ khóa rộng (vd. cotton) → không neo trừ khi trùng STRONG.
+ * - Có mã/SKU trong câu → không gộp.
+ *
+ * **Câu mẫu khách (hỏi tiếp — neo SP shop vừa tư vấn):**
+ * - Màu / size / giá / tồn / ship / chất / form / ảnh / sale / đổi trả / chi tiết (cổ tay ống…)
+ * - Viết tắt: «có j», «sz M», «ko», «còn ko», «ship bnhieu»
+ * - Chỉ thị: «cái này», «mẫu đó», «trong ảnh», «tin vừa», «sp shop rep»
+ * - Mẫu khác / gần giống / tương tự (so với SP vừa bàn): «có mẫu khác gần giống không», «sp tương tự», «na ná»
+ */
+const FOLLOWUP_ATTR_HINT_RE = new RegExp(
+  [
+    // mẫu khác / tương tự / so sánh (neo last consulted)
+    'mẫu\\s+khác|kiểu\\s+khác|loại\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
+    'gần\\s+giống|giống\\s+nhau|na\\s+ná|tương\\s+tự|hàng\\s+tương\\s+tự|cùng\\s+kiểu|cùng\\s+loại',
+    'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|thay\\s+mẫu|option\\s+khác',
+    // màu / ngoại hình
+    'màu|mầu|tone|đậm|nhạt|be\\s*ige|kem|nude|pastel|neon',
+    // size / form
+    'size|cỡ|big\\s*size|free\\s*size|oversize|over\\s*size|form|dáng|ôm|rộng|suông|body|a\\s*line|croptop|lệch\\s*vai',
+    // giá / KM (hint rộng; chữ «km» viết tắt KM chỉ khi có ngữ cảnh khuyến mãi)
+    'giá|giá\\s*cả|bao\\s*nhiêu|tổng\\s*tiền|sale|flash\\s*sale|giảm|khuyến\\s*mãi|voucher|tích\\s*điểm|freeship|free\\s*ship',
+    // tồn / đặt
+    'tồn|kho|còn\\s*hàng|hết\\s*hàng|sold\\s*out|restock|nhập\\s*hàng|về\\s*hàng|order|đặt\\s*hàng|booking|cọc',
+    // giao / thanh toán (hint; câu dài «tìm shop có cod» không ép follow-up nếu không trùng STRONG)
+    'ship|giao\\s*hàng|giao\\s*nhanh|cod|chuyển\\s*khoản|thanh\\s*toán|momo|zalopay|ví|lấy\\s*hàng',
+    // chất liệu / phụ kiện may
+    'chất\\s*liệu|vải|cotton|polyester|len|lụa|linen|jean|jeans|denim|kaki|thun|ren|voan|satin|da|pu|lót|đệm',
+    // giày / váy chi tiết
+    'số\\s*(?:giày|chân)|đế|gót|quai|khóa|dây\\s*kéo|ống|tay\\s*áo|tà|eo|cổ|dài|ngắn|chiều\\s*dài',
+    // media / uy tín
+    'ảnh\\s*thật|ảnh\\s*live|xem\\s*thêm|thêm\\s*ảnh|video|clip|feedback(?:\\s*thật)?|review',
+    // chính sách
+    'bảo\\s*hành|đổi\\s*trả|warranty|giặt|sấy|bạc\\s*màu|co\\s*giãn',
+    // hỏi mở (thường hỏi tiếp)
+    'những\\s+gì|có\\s+gì|mấy\\s+loại|mấy\\s+màu|kiểu\\s+nào|giống\\s+vậy|như\\s+vậy|nữa\\s+không|còn\\s+không|thế\\s+nào|sao\\s+rồi|ổn\\s+không',
+    'bảng\\s*size|mặc\\s+thử|mẫu\\s+thử',
+  ].join('|'),
+  'i'
+)
+
+/**
+ * Thuộc tính «hỏi tiếp» rõ — dùng khi câu dài + trông như tìm mới (standalone) nhưng vẫn có thể là follow-up.
+ * Tránh đưa từ quá rộng (vd. cotton, cod) — chỉ dùng kèm HINT và nhánh standalone.
+ */
+const FOLLOWUP_ATTR_STRONG_RE = new RegExp(
+  [
+    'mẫu\\s+khác|kiểu\\s+khác|loại\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
+    'gần\\s+giống|giống\\s+nhau|na\\s+ná|tương\\s+tự|hàng\\s+tương\\s+tự|cùng\\s+kiểu|cùng\\s+loại',
+    'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|thay\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|option\\s+khác',
+    'chất\\s*liệu|vải|màu|mầu|tồn|còn\\s*hàng|ship|giao\\s*hàng|đế|gót|bảo\\s*hành|đổi\\s*trả',
+    'những\\s+gì|có\\s+gì|mấy\\s+loại|mấy\\s+màu|kiểu\\s+nào|giống\\s+vậy|như\\s+vậy|nữa\\s+không|còn\\s+không',
+    'số\\s*(?:giày|chân)|bao\\s+nhiêu|form|dáng|ôm|rộng',
+    'ảnh\\s*thật|ảnh\\s*live|xem\\s+thêm|thêm\\s+ảnh|video|sale|giảm|khuyến\\s*mãi|bảng\\s*size|mặc\\s+thử',
+    'thế\\s+nào|ổn\\s+không',
+  ].join('|'),
+  'i'
+)
 
 /**
  * Tham chiếu tới SP / lượt trước (cái này, hàng này, cái cũ…) — luôn neo ngữ cảnh, không phải tìm mới.
  * Giữ đồng bộ với CATEGORY_WITH_DEICTIC (loại hàng + này/đó/…).
  */
-const CONTEXT_REFERENCE_DEICTIC_RE =
-  /(?:^|[\s,.;:!?])(?:nó|nó\s+này|nó\s+vừa\s+rồi|cái\s+đó|cái\s+này|cái\s+cũ|cái\s+mới|cái\s+vừa|cái\s+(?:trước|hồi\s+nãy|nãy|đó)|mẫu\s+đó|mẫu\s+này|mẫu\s+cũ|mẫu\s+vừa\s+rồi|loại\s+đó|loại\s+này|sp\s+đó|sp\s+này|hàng\s+đó|hàng\s+này|hàng\s+vừa|hàng\s+nãy|món\s+này|món\s+đó|đôi\s+này|đôi\s+đó|chiếc\s+này|chiếc\s+đó|sản\s*phẩm\s+đó|sản\s*phẩm\s+này|cái\s+vừa\s+nói|cái\s+(?:đang|vừa)\s+xem)(?:$|[\s,.;:!?]|\b)/i
+const CONTEXT_REFERENCE_DEICTIC_RE = new RegExp(
+  [
+    '(?:^|[\\s,.;:!?])',
+    '(?:',
+    [
+      'nó|nó\\s+này|nó\\s+vừa\\s+rồi',
+      'cái\\s+đó|cái\\s+này|cái\\s+cũ|cái\\s+mới|cái\\s+vừa|cái\\s+(?:trước|hồi\\s+nãy|nãy|đó)',
+      'mẫu\\s+đó|mẫu\\s+này|mẫu\\s+cũ|mẫu\\s+vừa\\s+rồi',
+      'loại\\s+đó|loại\\s+này',
+      'sp\\s+đó|sp\\s+này|hàng\\s+đó|hàng\\s+này|hàng\\s+vừa|hàng\\s+nãy',
+      'món\\s+này|món\\s+đó|đôi\\s+này|đôi\\s+đó|chiếc\\s+này|chiếc\\s+đó',
+      'sản\\s*phẩm\\s+đó|sản\\s*phẩm\\s+này',
+      'cái\\s+vừa\\s+nói|cái\\s+vừa\\s+gửi|cái\\s+vừa\\s+tư\\s*vấn|cái\\s+(?:đang|vừa)\\s+xem',
+      'shop\\s+vừa\\s+gửi|shop\\s+vừa\\s+rep|shop\\s+vừa\\s+trả\\s*lời',
+      'bên\\s+em\\s+vừa|bên\\s+shop\\s+vừa',
+      'mã\\s+đó|mã\\s+này',
+      'vừa\\s+nói|vừa\\s+tư\\s*vấn|vừa\\s+show|vừa\\s+inbox',
+      'trong\\s+(?:ảnh|hình|tin)|ảnh\\s+(?:trên|vừa|shop\\s+gửi)|tin\\s+(?:vừa|trên|nhắn\\s+vừa)|đoạn\\s+(?:chat\\s+)?vừa',
+      'câu\\s+(?:vừa|trên)|mess(?:age)?\\s+vừa',
+      'bạn\\s+vừa|ad\\s+vừa',
+    ].join('|'),
+    ')',
+    '(?:$|[\\s,.;:!?]|\\b)',
+  ].join(''),
+  'i'
+)
 
 /** Đại từ / từ chỉ thị — alias tới CONTEXT_REFERENCE_DEICTIC_RE (dùng trong shouldAugment). */
 const FOLLOWUP_DEICTIC_RE = CONTEXT_REFERENCE_DEICTIC_RE
 
 /** Danh từ loại hàng phổ biến — có trong câu thường là chủ đề tìm/mô tả mới (câu độc lập). */
 const PRODUCT_CATEGORY_TOKEN_RE =
-  /giày|dép|sandal|boot|loafer|sneaker|váy|đầm|áo|quần|blazer|vest|túi|ví|balo|mũ|nón|đồng\s*hồ|kính|thắt\s*lưng|dây\s*nịch|vòng\s*tay|dây\s*chuyền/i
+  /giày|dép|sandal|boot|loafer|sneaker|váy|đầm|áo|quần|blazer|vest|khoác|cardigan|sơ\s*mi|som|quần\s*tây|jumpsuit|bodysuit|chân\s*váy|shorts?|legging|bộ\s+đồ|túi|ví|balo|mũ|nón|đồng\s*hồ|kính|thắt\s*lưng|dây\s*nịch|vòng\s*tay|dây\s*chuyền/i
 
 /**
  * «Loại SP + đại từ» (giày này giá bao nhiêu, có màu gì…) — hỏi tiếp theo SP đang bàn, không phải tìm mới.
  */
 const CATEGORY_WITH_DEICTIC_RE =
-  /(?:giày|dép|sandal|boot|váy|đầm|túi|áo|quần)\s+(này|đó|kia|ấy|cũ|mới|vừa\s+rồi|nãy|trước)|(?:mẫu|đôi|kiểu|loại|cái|sp|chiếc)\s+(này|đó|kia|ấy|cũ|mới)|(?:đôi|chiếc)\s+(này|đó|kia|ấy)/i
+  /(?:giày|dép|sandal|boot|váy|đầm|túi|áo|quần|blazer|vest|khoác|cardigan|sơ\s*mi|som|quần\s*tây|jumpsuit|bodysuit|chân\s*váy|shorts?|legging|set|combo|bộ|kính|balo)\s+(?:này|đó|kia|ấy|cũ|mới|vừa\s+rồi|vừa\s+gửi|vừa\s+nói|nãy|trước|trên)|(?:mẫu|đôi|kiểu|loại|cái|sp|chiếc|bộ)\s+(?:này|đó|kia|ấy|cũ|mới)|(?:đôi|chiếc)\s+(?:này|đó|kia|ấy)/i
 
 /** Ý tìm / xem / hỏi mua rõ — thường là câu đầy đủ chủ đích. */
 const STANDALONE_INTENT_RE =
@@ -496,7 +779,7 @@ const STANDALONE_MIN_LEN_WITH_CATEGORY = 30
  * Không dùng parser tiếng Việt; proxy bằng độ dài + intent + ngân sách + ngữ cảnh mặc.
  */
 export function looksLikeStandaloneProductQuestion(customerMessage: string): boolean {
-  const text = normalizeCustomerMessageForInventorySearch(customerMessage)
+  const text = normalizeTextForFollowUpHeuristic(customerMessage)
   if (!text) return false
   /** Câu chỉ trỏ «cái này / hàng này / cái cũ…» — không bao giờ là tìm kiếm độc lập. */
   if (CONTEXT_REFERENCE_DEICTIC_RE.test(text)) return false
@@ -510,22 +793,50 @@ export function looksLikeStandaloneProductQuestion(customerMessage: string): boo
   return false
 }
 
-/** Dưới ngưỡng này: coi là «rất ngắn», thường thiếu chủ ngữ/SP — gộp neo ANN (không cần thêm từ khóa). */
-const FOLLOWUP_VERY_SHORT_MAX = 36
+/** Không vượt quá số từ này → mặc định coi là hỏi tiếp (câu dài hơn cần đại từ / từ khóa FOLLOWUP_*). Giữ 4 để tránh nhầm «cho em tìm váy …» thành hỏi tiếp. */
+const FOLLOWUP_MAX_WORDS = 4
 
 export function shouldAugmentInventorySearchWithLastConsulted(
   customerMessage: string,
   opts?: { visionInventorySelected?: boolean }
 ): boolean {
   if (opts?.visionInventorySelected) return false
-  const text = normalizeCustomerMessageForInventorySearch(customerMessage)
+  const text = normalizeTextForFollowUpHeuristic(customerMessage)
   if (!text) return false
   if (extractExplicitSkuCandidates(customerMessage).length > 0) return false
-  if (text.length > 200) return false
-  if (looksLikeStandaloneProductQuestion(customerMessage)) return false
-  if (text.length <= FOLLOWUP_VERY_SHORT_MAX) return true
+
+  const words = text.split(' ').filter(Boolean)
+  if (words.length <= FOLLOWUP_MAX_WORDS) return true
+
   if (FOLLOWUP_DEICTIC_RE.test(text)) return true
-  return FOLLOWUP_ATTR_HINT_RE.test(text)
+  if (CATEGORY_WITH_DEICTIC_RE.test(text)) return true
+
+  if (FOLLOWUP_ATTR_HINT_RE.test(text)) {
+    if (!looksLikeStandaloneProductQuestion(customerMessage)) return true
+    return FOLLOWUP_ATTR_STRONG_RE.test(text)
+  }
+
+  return false
+}
+
+/**
+ * Tin khách có phải dạng «hỏi tiếp theo SP shop vừa tư vấn» không (cùng logic neo vector / ngữ cảnh):
+ * ≤4 từ, hoặc đại từ / loại+này đó / từ khóa thuộc tính theo `FOLLOWUP_*` ở file này.
+ * Dùng khi cần gói câu hỏi + snapshot SP cho prompt AI.
+ */
+export function customerMessageIsFollowUpContextQuery(
+  customerMessage: string,
+  opts?: { visionInventorySelected?: boolean }
+): boolean {
+  return shouldAugmentInventorySearchWithLastConsulted(customerMessage, opts)
+}
+
+/**
+ * Chỉ dựa vào nội dung tin khách (không cần lastConsultedRow) — cùng heuristic với neo ngữ cảnh.
+ * Dùng ở widget: **không** gắn thanh gợi ý vector cho «có màu gì» / tin hỏi tiếp ngắn (tránh lệch sang tìm kho rộng).
+ */
+export function inboundTextLooksLikeFollowUpConsultHeuristic(message: string): boolean {
+  return shouldAugmentInventorySearchWithLastConsulted(message, { visionInventorySelected: false })
 }
 
 /** Chuỗi đưa vào embedding + ANN: neo SP đang bàn + ý khách. */

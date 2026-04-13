@@ -4,6 +4,7 @@ import type { Database } from '@/types/database.types'
 import {
   fetchPartnerInventoryDefaultForAiFromPg,
   fetchPartnerInventoryPriceHintsByIdsFromPg,
+  fetchPartnerInventoryRowsByIdsInOrderFromPg,
   matchPartnerInventoryByEmbeddingFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { insertMessagingPartnerImageEmbedUsageFromPg } from '@/lib/db/messaging-partner-image-embed-usage-pg'
@@ -315,4 +316,59 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
 export function clearGeminiImageEmbeddingCache() {
   imageEmbedCache.clear()
   inflightImageEmbed.clear()
+}
+
+/**
+ * Lấy danh sách mặt hàng **tương tự ảnh** so với một SP neo (embedding ảnh chính của anchor → ANN trên pgvector).
+ * Ưu tiên `image_embedding_json` đã sync; không có thì tải `image_url` và embed một lần.
+ * Bỏ qua chính `anchorRow` trong kết quả (trừ khi DB trả trùng id).
+ */
+export async function fetchInventoryRowsSimilarToAnchorProductImage(
+  partnerId: string,
+  anchorRow: InvRow,
+  options?: { limit?: number }
+): Promise<InvRow[]> {
+  if (!isPgConfigured()) return []
+  const limit = Math.min(50, Math.max(1, Math.floor(options?.limit ?? 20)))
+  const fetchLim = limit + 6
+
+  let queryVec: number[] | null = null
+  if (Array.isArray(anchorRow.image_embedding_json)) {
+    const j = anchorRow.image_embedding_json as number[]
+    if (j.length === DB_VECTOR_DIMS) queryVec = j
+  }
+  if (!queryVec) {
+    const url = (anchorRow.image_url ?? '').trim()
+    if (!/^https?:\/\//i.test(url)) return []
+    const img = await fetchRemoteImageForCatalog(url, { timeoutMs: 12_000 })
+    if (!img) return []
+    const mime = img.contentType || detectImageMimeType(img.buf)
+    try {
+      const res = await embedImageBufferWithGemini(img.buf, mime)
+      queryVec = res.values
+      void insertMessagingPartnerImageEmbedUsageFromPg({
+        partnerId,
+        source: 'guest_image_search',
+        model: GEMINI_EMBED_MODEL,
+        promptTokens: res.promptTokens,
+        totalTokens: res.totalTokens,
+        inventoryId: anchorRow.id,
+      })
+    } catch {
+      return []
+    }
+  }
+
+  if (!queryVec || queryVec.length !== DB_VECTOR_DIMS) return []
+
+  const qLit = toPgVectorLiteral(queryVec)
+  const matches = await matchPartnerInventoryByEmbeddingFromPg(partnerId, qLit, fetchLim, SEARCH_MIN_SCORE)
+  if (!matches?.length) return []
+
+  const anchorId = anchorRow.id
+  const ids = matches.map((m) => m.inventory_id).filter((id) => id !== anchorId).slice(0, limit)
+  if (ids.length === 0) return []
+
+  const rows = await fetchPartnerInventoryRowsByIdsInOrderFromPg(partnerId, ids)
+  return rows ?? []
 }

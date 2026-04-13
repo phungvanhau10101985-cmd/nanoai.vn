@@ -14,6 +14,12 @@ import { WIDGET_PRODUCT_VECTOR_PICK_MAX } from '@/lib/messaging/partner-vision-c
 import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
 import { fetchInventoryRowsBySemanticTextForPartnerAi } from '@/lib/messaging/partner-inventory-text-embedding'
 import {
+  buildInventoryEmbeddingQueryWithGenderHint,
+  customerMessageWantsSimilarCatalogVersusLastConsulted,
+  enrichSemanticInventoryRowsForWidget,
+  inboundTextLooksLikeFollowUpConsultHeuristic,
+} from '@/lib/messaging/partner-inventory-ai-search'
+import {
   countInboundMessagesForConversationPg,
   resolveLinkedUserIdForCustomerCarePg,
 } from '@/lib/db/customer-care-pg'
@@ -208,7 +214,11 @@ export async function postWidgetGuestMessage(params: {
     const skipTextVectorPick =
       typeof params.pageContext?.source === 'string' &&
       params.pageContext.source === 'product_card_consult'
-    if (trimmedText.length >= minCharsForVectorPick && !skipTextVectorPick) {
+    /** Tin kiểu «có màu gì» — không chạy embedding/vector trên cả kho (tránh vision_pick + lệch luồng hỏi tiếp). Ngoại lệ: «mẫu khác / tương tự» vẫn gợi ý vector để widget có ứng viên. */
+    const skipFollowUpStyleVectorPick =
+      inboundTextLooksLikeFollowUpConsultHeuristic(trimmedText) &&
+      !customerMessageWantsSimilarCatalogVersusLastConsulted(trimmedText)
+    if (trimmedText.length >= minCharsForVectorPick && !skipTextVectorPick && !skipFollowUpStyleVectorPick) {
       try {
         let aiEnabled = false
         if (isPgConfigured()) {
@@ -218,9 +228,16 @@ export async function postWidgetGuestMessage(params: {
         if (aiEnabled) {
           const faq = await findMatchingFaq(params.partnerId, trimmedText)
           if (!faq) {
-            const rows = await fetchInventoryRowsBySemanticTextForPartnerAi(
+            const embedQuery = buildInventoryEmbeddingQueryWithGenderHint(trimmedText)
+            const rowsRaw = await fetchInventoryRowsBySemanticTextForPartnerAi(
+              params.partnerId,
+              embedQuery,
+              WIDGET_PRODUCT_VECTOR_PICK_MAX
+            )
+            const rows = await enrichSemanticInventoryRowsForWidget(
               params.partnerId,
               trimmedText,
+              rowsRaw,
               WIDGET_PRODUCT_VECTOR_PICK_MAX
             )
             if (rows.length > 0) {

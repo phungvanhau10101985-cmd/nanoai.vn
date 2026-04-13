@@ -689,6 +689,35 @@ export async function fetchOutboundRawPayloadsNewestFirstPg(
   }
 }
 
+/** Giống `fetchOutboundRawPayloadsNewestFirstPg` nhưng kèm `body` — trích mã SP trong nội dung tin khi thẻ không khớp kho. */
+export async function fetchOutboundPayloadsAndBodiesNewestFirstPg(
+  conversationId: string,
+  limit: number
+): Promise<Array<{ raw_payload: Json | null; body: string }>> {
+  if (!isPgConfigured()) return []
+  const lim = Math.max(1, Math.min(80, Math.floor(limit)))
+  try {
+    const rows = await pgQuery<{ raw_payload: unknown; body: unknown }>(
+      `select body, raw_payload
+       from public.customer_care_messages
+       where conversation_id = $1::uuid and direction = 'outbound'
+       order by created_at desc
+       limit $2`,
+      [conversationId, lim]
+    )
+    return rows.map((r) => ({
+      body: typeof r.body === 'string' ? r.body : '',
+      raw_payload:
+        r.raw_payload !== null && typeof r.raw_payload === 'object' && !Array.isArray(r.raw_payload)
+          ? (r.raw_payload as Json)
+          : null,
+    }))
+  } catch (e) {
+    console.warn('[customer-care-pg] fetchOutboundPayloadsAndBodiesNewestFirstPg', e)
+    return []
+  }
+}
+
 export async function fetchCustomerCareTranscriptLinesFromPg(
   conversationId: string,
   limit: number

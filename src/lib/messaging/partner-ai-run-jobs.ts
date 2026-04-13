@@ -18,6 +18,7 @@ import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-im
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { buildPartnerAiContext, deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
 import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
+import { clampProductCardsToLastConsultedRow } from '@/lib/messaging/partner-ai-followup-product-cards-clamp'
 import { parsePartnerAiLlmStructured } from '@/lib/messaging/partner-ai-product-cards'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 
@@ -175,7 +176,15 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         continue
       }
 
-      const { system, user, materialDetailFollowup, realUseFollowup } = await buildPartnerAiContext(
+      const {
+        system,
+        user,
+        materialDetailFollowup,
+        realUseFollowup,
+        useLastConsultedContext,
+        lastConsultedRow,
+        similarCatalogVersusLastConsulted,
+      } = await buildPartnerAiContext(
         job.partner_id,
         job.conversation_id,
         settings,
@@ -202,7 +211,18 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       })
 
       // Không thêm độ trễ «đang gõ» sau khi LLM đã trả lời — API đã tốn thời gian; chỉ FAQ (nhánh trên) dùng typing_pause_*.
-      const parsed = parsePartnerAiLlmStructured(llm.text)
+      let parsed = parsePartnerAiLlmStructured(llm.text)
+      if (
+        useLastConsultedContext &&
+        lastConsultedRow &&
+        parsed.products.length > 0 &&
+        !similarCatalogVersusLastConsulted
+      ) {
+        parsed = {
+          ...parsed,
+          products: clampProductCardsToLastConsultedRow(parsed.products, lastConsultedRow),
+        }
+      }
       const productsWithVideo = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
         job.partner_id,
         parsed.products

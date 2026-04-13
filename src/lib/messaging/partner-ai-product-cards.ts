@@ -71,9 +71,9 @@ export function parsePartnerAiLlmStructured(raw: string): { message: string; pro
 export function aiProductCardsFromPayload(raw: Json | null): PartnerAiProductCard[] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return []
   const o = raw as Record<string, unknown>
-  if (o.source !== 'ai_llm') return []
   const arr = o.ai_product_cards
-  if (!Array.isArray(arr)) return []
+  if (!Array.isArray(arr) || arr.length === 0) return []
+  /** Có `ai_product_cards` là đủ — một số tin lưu thiếu `source: 'ai_llm'` khiến trước đây không đọc được thẻ. */
   const products: PartnerAiProductCard[] = []
   for (const item of arr) {
     const c = sanitizeProductCard(item)
