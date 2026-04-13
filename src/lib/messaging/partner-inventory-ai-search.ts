@@ -1,6 +1,9 @@
 import type { Database } from '@/types/database.types'
 import { fetchPartnerInventoryRowsByTokenIlikeFromPg } from '@/lib/db/messaging-partner-inventory-pg'
-import { fetchInventoryRowsBySemanticTextForPartnerAi } from '@/lib/messaging/partner-inventory-text-embedding'
+import {
+  fetchInventoryRowsBySemanticTextForPartnerAi,
+  tryParseVndAmountForEmbedding,
+} from '@/lib/messaging/partner-inventory-text-embedding'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export type PartnerInventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
@@ -361,17 +364,88 @@ export async function fetchInventoryRowsByExplicitSku(
   return Array.from(merged.values()).sort((a, b) => a.sort_order - b.sort_order)
 }
 
+const BUDGET_PARSE_MIN = 20_000
+const BUDGET_PARSE_MAX = 500_000_000
+/** Khớp ngân sách khách nêu (vd. «tầm 600k») — ±10% lọc SP theo `price_hint`. */
+const BUDGET_BAND_LOW = 0.9
+const BUDGET_BAND_HIGH = 1.1
+
+function clampBudgetVnd(v: number | null): number | null {
+  if (v === null || !Number.isFinite(v)) return null
+  if (v < BUDGET_PARSE_MIN || v > BUDGET_PARSE_MAX) return null
+  return v
+}
+
+/**
+ * Suy ra một mức giá mục tiêu (VNĐ) từ tin khách để lọc kho ±10%.
+ * Ưu tiên cụm sau «tầm / khoảng / giá tầm …», sau đó các dạng 600k / 1,5tr / 1.500.000đ.
+ */
+export function extractCustomerBudgetTargetVnd(raw: string): number | null {
+  const text = normalizeCustomerMessageForInventorySearch(raw).trim()
+  if (!text) return null
+
+  const hintRe =
+    /(?:tầm|tam|khoảng|khoang|chừng|độ|giá\s*tầm|ngân\s*sách|khoảng\s+giá|giá\s*khoảng|~)\s*[:\s]?\s*([^\n,.;!?]{1,55})/gi
+  for (const m of text.matchAll(hintRe)) {
+    const v = clampBudgetVnd(tryParseVndAmountForEmbedding(m[1].trim()))
+    if (v !== null) return v
+  }
+
+  const kMatches = [...text.matchAll(/\b(\d+(?:[.,]\d+)?)\s*k(?:\s|đ|\b)/gi)]
+  for (let i = kMatches.length - 1; i >= 0; i--) {
+    const v = clampBudgetVnd(tryParseVndAmountForEmbedding(kMatches[i][0]))
+    if (v !== null) return v
+  }
+
+  const trMatches = [...text.matchAll(/\b(\d+(?:[.,]\d+)?)\s*(?:tr|triệu|trieu)\b/gi)]
+  for (let i = trMatches.length - 1; i >= 0; i--) {
+    const v = clampBudgetVnd(tryParseVndAmountForEmbedding(trMatches[i][0]))
+    if (v !== null) return v
+  }
+
+  const dotted = text.match(/\b(\d{1,3}(?:\.\d{3})+)\s*đ\b/i)
+  if (dotted) {
+    const v = clampBudgetVnd(tryParseVndAmountForEmbedding(dotted[0]))
+    if (v !== null) return v
+  }
+
+  return null
+}
+
+/** Ưu tiên SP có giá parse được nằm trong [budget×0.9, budget×1.1]; nếu không có SP nào trong dải → giữ thứ tự gốc. */
+function reorderInventoryRowsByBudgetBand(
+  rows: PartnerInventoryRow[],
+  budgetVnd: number,
+  limit: number
+): PartnerInventoryRow[] {
+  if (rows.length === 0) return []
+  const minV = Math.round(budgetVnd * BUDGET_BAND_LOW)
+  const maxV = Math.round(budgetVnd * BUDGET_BAND_HIGH)
+  const inRange: PartnerInventoryRow[] = []
+  const outRange: PartnerInventoryRow[] = []
+  for (const r of rows) {
+    const p = tryParseVndAmountForEmbedding(String(r.price_hint ?? '').trim())
+    if (p !== null && p >= minV && p <= maxV) inRange.push(r)
+    else outRange.push(r)
+  }
+  if (inRange.length === 0) return rows.slice(0, limit)
+  return [...inRange, ...outRange].slice(0, limit)
+}
+
 /**
  * Top `PARTNER_AI_INVENTORY_CONTEXT_LIMIT` mặt hàng theo **vector văn bản** (ANN), điểm cao → thấp.
  * Không gộp ILIKE / điểm từ khóa; không lấy danh sách mặc định khi vector rỗng.
+ * Khi khách nêu ngân sách (vd. tầm 600k): lấy thêm ứng viên vector rồi **ưu tiên** SP có giá trong ±10%.
  */
 export async function fetchInventoryRowsForPartnerAi(
   partnerId: string,
   customerMessage: string
 ): Promise<PartnerInventoryRow[]> {
-  return fetchInventoryRowsBySemanticTextForPartnerAi(
-    partnerId,
-    customerMessage,
-    PARTNER_AI_INVENTORY_CONTEXT_LIMIT
-  )
+  const lim = PARTNER_AI_INVENTORY_CONTEXT_LIMIT
+  const budget = extractCustomerBudgetTargetVnd(customerMessage)
+  const fetchLim = budget !== null ? Math.min(50, lim * 3) : lim
+  const rows = await fetchInventoryRowsBySemanticTextForPartnerAi(partnerId, customerMessage, fetchLim)
+  if (!rows.length) return []
+  if (budget === null) return rows.slice(0, lim)
+  return reorderInventoryRowsByBudgetBand(rows, budget, lim)
 }
