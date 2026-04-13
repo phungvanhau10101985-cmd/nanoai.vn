@@ -660,8 +660,7 @@ export function customerMessageWantsSimilarCatalogVersusLastConsulted(message: s
 
 /**
  * Neo vector + prompt với SP vừa tư vấn khi tin là «hỏi tiếp» (không dùng model phân loại riêng).
- * - ≤ `FOLLOWUP_MAX_WORDS` từ → mặc định neo ngữ cảnh (embedding kèm tên/sku SP đang bàn).
- * - Hoặc đại từ / (loại hàng + này đó) / từ khóa thuộc tính (FOLLOWUP_ATTR_*).
+ * Chỉ theo **nhóm từ**: đại từ / (loại hàng + này đó) / FOLLOWUP_ATTR_* (kèm phân nhánh standalone + STRONG khi cần).
  * - Câu dài giống tìm mới + chỉ trùng từ khóa rộng (vd. cotton) → không neo trừ khi trùng STRONG.
  * - Có mã/SKU trong câu → không gộp.
  *
@@ -793,9 +792,6 @@ export function looksLikeStandaloneProductQuestion(customerMessage: string): boo
   return false
 }
 
-/** Không vượt quá số từ này → mặc định coi là hỏi tiếp (câu dài hơn cần đại từ / từ khóa FOLLOWUP_*). Giữ 4 để tránh nhầm «cho em tìm váy …» thành hỏi tiếp. */
-const FOLLOWUP_MAX_WORDS = 4
-
 export function shouldAugmentInventorySearchWithLastConsulted(
   customerMessage: string,
   opts?: { visionInventorySelected?: boolean }
@@ -804,9 +800,6 @@ export function shouldAugmentInventorySearchWithLastConsulted(
   const text = normalizeTextForFollowUpHeuristic(customerMessage)
   if (!text) return false
   if (extractExplicitSkuCandidates(customerMessage).length > 0) return false
-
-  const words = text.split(' ').filter(Boolean)
-  if (words.length <= FOLLOWUP_MAX_WORDS) return true
 
   if (FOLLOWUP_DEICTIC_RE.test(text)) return true
   if (CATEGORY_WITH_DEICTIC_RE.test(text)) return true
@@ -821,7 +814,7 @@ export function shouldAugmentInventorySearchWithLastConsulted(
 
 /**
  * Tin khách có phải dạng «hỏi tiếp theo SP shop vừa tư vấn» không (cùng logic neo vector / ngữ cảnh):
- * ≤4 từ, hoặc đại từ / loại+này đó / từ khóa thuộc tính theo `FOLLOWUP_*` ở file này.
+ * chỉ khi khớp đại từ / loại+này đó / `FOLLOWUP_*` (không còn neo theo độ dài tin).
  * Dùng khi cần gói câu hỏi + snapshot SP cho prompt AI.
  */
 export function customerMessageIsFollowUpContextQuery(
