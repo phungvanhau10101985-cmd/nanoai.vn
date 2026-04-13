@@ -14,6 +14,7 @@ import {
   MessageSquare,
   MessagesSquare,
   KeyRound,
+  ShoppingBag,
 } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { DepositCreditMenuItem } from '@/components/deposit-credit-menu-item'
@@ -124,6 +125,12 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
             <Link href="/messaging/my-chats" className="flex items-center gap-2">
               <MessagesSquare className="h-4 w-4" aria-hidden />
               {t.menu.myChats}
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/messaging/my-orders" className="flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4" aria-hidden />
+              {t.menu.myOrders}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>

@@ -161,15 +161,19 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   const shippingAddress = String(f.shippingAddress ?? '').trim()
   const color = String(f.color ?? '').trim()
   const size = String(f.size ?? '').trim()
-  const quantityRaw = Math.floor(Number(f.quantity) || 0)
-  const quantity = Math.max(1, quantityRaw || 1)
+  /** Tránh Number(null)=0 làm nhầm với thiếu field; JSON có thể gửi null nếu client lỗi NaN. */
+  let quantityRaw = 0
+  if (f.quantity !== undefined && f.quantity !== null) {
+    const n = Number(f.quantity)
+    if (Number.isFinite(n)) quantityRaw = Math.floor(n)
+  }
   const missing: string[] = []
   if (!customerName) missing.push('customerName')
   if (!customerPhone) missing.push('customerPhone')
   if (!shippingAddress) missing.push('shippingAddress')
   if (!color) missing.push('color')
   if (!size) missing.push('size')
-  if (quantityRaw <= 0) missing.push('quantity')
+  if (quantityRaw < 1) missing.push('quantity')
   if (missing.length > 0) {
     const labelMap: Record<string, string> = {
       customerName: 'Họ tên',
@@ -185,6 +189,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       { status: 400 }
     )
   }
+  const quantity = Math.max(1, Math.min(99, quantityRaw))
   const done = await completeOrderCheckout({
     partnerId: partner.partnerId,
     externalThreadId: thread.externalThreadId,

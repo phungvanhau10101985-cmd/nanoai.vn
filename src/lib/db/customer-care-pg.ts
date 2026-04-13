@@ -2,8 +2,20 @@ import type { Json } from '@/types/database.types'
 import { makeConsultProductScopeKey } from '@/lib/messaging/consult-product-scope-key'
 import type { Database } from '@/types/database.types'
 import type { CustomerCareChannel } from '@/lib/customer-care/types'
+import { authUserIdExistsInPg } from '@/lib/db/auth-user-email-pg'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+
+/** Chỉ trả về id khi có hàng trong `auth.users` — tránh FK 23503 (session/JWT lệch DB local). */
+export async function resolveLinkedUserIdForCustomerCarePg(
+  linkedUserId?: string | null
+): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  if (linkedUserId == null || linkedUserId === '') return null
+  const id = linkedUserId.trim()
+  if (!id) return null
+  return (await authUserIdExistsInPg(id)) ? id : null
+}
 
 export type CustomerCareConversationRow = Database['public']['Tables']['customer_care_conversations']['Row']
 export type CustomerCareMessageRow = Database['public']['Tables']['customer_care_messages']['Row']
@@ -77,6 +89,9 @@ export async function ensureConversationPg(params: {
     metadata,
   } = params
 
+  /** Một lần SELECT auth.users — widget có thể đã resolve sớm cho AI/giới hạn ẩn danh (gọi lại an toàn). */
+  const effectiveLinkedUserId = await resolveLinkedUserIdForCustomerCarePg(linkedUserId)
+
   const existing = await pgQueryOne<{ id: string; linked_user_id: string | null }>(
     `select id::text as id, linked_user_id::text as linked_user_id
      from public.customer_care_conversations
@@ -90,11 +105,10 @@ export async function ensureConversationPg(params: {
     if (customerName != null && customerName !== '') patch.customer_name = customerName
     if (channelExternalRef != null && channelExternalRef !== '') patch.channel_external_ref = channelExternalRef
     if (
-      linkedUserId != null &&
-      linkedUserId !== '' &&
+      effectiveLinkedUserId != null &&
       (existing.linked_user_id == null || existing.linked_user_id === '')
     ) {
-      patch.linked_user_id = linkedUserId
+      patch.linked_user_id = effectiveLinkedUserId
     }
     const keys = Object.keys(patch)
     if (keys.length > 0) {
@@ -122,7 +136,7 @@ export async function ensureConversationPg(params: {
       channelExternalRef ?? null,
       customerName ?? null,
       customerAvatarUrl ?? null,
-      linkedUserId && linkedUserId !== '' ? linkedUserId : null,
+      effectiveLinkedUserId,
       metadata ?? {},
     ]
   )
@@ -162,6 +176,42 @@ export type WidgetConvListPgRow = {
   partner_id: string
   last_message_at: string | null
   last_message_preview: string | null
+}
+
+/**
+ * Gắn `linked_user_id` cho hội thoại widget đã có `messaging_guest_accounts` cùng email
+ * nhưng chưa gắn user (vd. chat nhúng trên site shop không gửi được cookie đăng nhập).
+ */
+export async function linkWidgetConversationsByGuestAccountEmailFromPg(
+  linkedUserId: string,
+  emailNormalized: string
+): Promise<number> {
+  if (!isPgConfigured()) return 0
+  const uid = linkedUserId.trim()
+  const em = emailNormalized.trim().toLowerCase()
+  if (!uid || !em) return 0
+  try {
+    const res = await getPgPool().query(
+      `update public.customer_care_conversations c
+       set linked_user_id = $1::uuid, updated_at = now()
+       where c.channel = 'widget'
+         and c.linked_user_id is null
+         and exists (
+           select 1 from public.messaging_guest_accounts ga
+           where ga.partner_id = c.partner_id
+             and ga.email_normalized = $2
+             and (
+               ga.id::text = trim(both from c.external_thread_id)
+               or (c.guest_account_id is not null and ga.id = c.guest_account_id::uuid)
+             )
+         )`,
+      [uid, em]
+    )
+    return res.rowCount ?? 0
+  } catch (e) {
+    console.warn('[customer-care-pg] linkWidgetConversationsByGuestAccountEmailFromPg', e)
+    return 0
+  }
 }
 
 export async function fetchWidgetConversationsForLinkedUserFromPg(
@@ -326,6 +376,28 @@ export async function fetchGuestWidgetMessagesSubsetFromPg(
 const MAX_CONSULTED_PRODUCT_URL_KEY_LEN = 4096
 
 /** Chuỗi composite `messageId\\u001fproductUrlKey` cho client. `null` = lỗi PG. */
+/** Khóa URL (đã chuẩn hoá) của lần bấm «Tư vấn» gần nhất — neo đúng mặt hàng với kho. */
+export async function fetchLatestConsultedProductUrlKeyForConversationFromPg(
+  conversationId: string
+): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ product_url_key: string }>(
+      `select trim(product_url_key) as product_url_key
+       from public.customer_care_consulted_products
+       where conversation_id = $1::uuid
+       order by consulted_at desc
+       limit 1`,
+      [conversationId]
+    )
+    const k = row?.product_url_key?.trim()
+    return k || null
+  } catch (e) {
+    console.error('[customer-care-pg] fetchLatestConsultedProductUrlKeyForConversationFromPg', e)
+    return null
+  }
+}
+
 export async function fetchConsultedProductKeysForConversationFromPg(
   conversationId: string
 ): Promise<string[] | null> {

@@ -16,3 +16,20 @@ export async function getAuthUserEmailFromPg(userId: string): Promise<string | n
     return null
   }
 }
+
+/** Dùng trước khi ghi FK tới `auth.users` — tránh 23503 khi session trỏ user không tồn tại (DB khác / đã xóa). */
+export async function authUserIdExistsInPg(userId: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const uid = userId.trim()
+  if (!uid) return false
+  try {
+    const row = await pgQueryOne<{ ok: number }>(
+      'select 1 as ok from auth.users where id = $1::uuid limit 1',
+      [uid]
+    )
+    return row != null
+  } catch (e) {
+    console.warn('[auth-user-email-pg] authUserIdExistsInPg:', e instanceof Error ? e.message : e)
+    return false
+  }
+}

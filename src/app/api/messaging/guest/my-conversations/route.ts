@@ -11,7 +11,9 @@ export async function GET() {
   }
   const user = auth.user
 
-  const { items, error } = await listWidgetChatsForLinkedUser(user.id)
+  const { items, error } = await listWidgetChatsForLinkedUser(user.id, {
+    accountEmailNormalized: user.email,
+  })
   if (error) {
     return NextResponse.json({ error }, { status: 500 })
   }

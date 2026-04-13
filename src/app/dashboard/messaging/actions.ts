@@ -120,9 +120,14 @@ import {
   type PartnerOrderAdminRow,
   type PartnerOrderEventRow,
   upsertPartnerPaymentSettingsFromPg,
+  fetchPartnerOrderForOwnerFromPg,
   updatePartnerOrderStatusForOwnerFromPg,
   updatePartnerOrderShippingStatusForOwnerFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
+import {
+  emailCustomerOrderPaymentStatusChanged,
+  emailCustomerShippingStatusChanged,
+} from '@/lib/messaging/partner-order-customer-email'
 
 export type {
   PartnerAiImageGenUsageStatRow,
@@ -469,6 +474,14 @@ export async function updateMyMessagingOrderStatus(input: {
     verifiedNote: (input.verifiedNote ?? '').trim().slice(0, 1000),
   })
   if (!ok) return { error: 'Khong cap nhat duoc trang thai don.' }
+  const row = await fetchPartnerOrderForOwnerFromPg(user.id, input.orderId)
+  if (row) {
+    try {
+      await emailCustomerOrderPaymentStatusChanged({ order: row })
+    } catch (e) {
+      console.warn('[updateMyMessagingOrderStatus] customer email', e)
+    }
+  }
   revalidateMessagingDashboard()
   return { ok: true }
 }
@@ -529,6 +542,11 @@ export async function updateMyMessagingOrderShipping(input: {
       order_note: note,
     },
   })
+  try {
+    await emailCustomerShippingStatusChanged({ order: updated })
+  } catch (e) {
+    console.warn('[updateMyMessagingOrderShipping] customer email', e)
+  }
   revalidateMessagingDashboard()
   return { ok: true }
 }

@@ -9,7 +9,16 @@ import {
   sepayFindPendingPaymentMatch,
   sepayMarkPaymentCompleted,
 } from '@/lib/db/payments-repo'
-import { fetchPartnerOrderByPaymentReferenceFromPg, updatePartnerOrderPaymentVerificationFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import {
+  fetchPartnerOrderByIdForPartnerFromPg,
+  fetchPartnerOrderByPaymentReferenceFromPg,
+  fetchPartnerPaymentSettingsFromPg,
+  updatePartnerOrderPaymentVerificationFromPg,
+} from '@/lib/db/messaging-partner-orders-pg'
+import {
+  emailCustomerOrderPaymentManualReview,
+  emailCustomerOrderPaymentVerified,
+} from '@/lib/messaging/partner-order-customer-email'
 import { insertMessagePg } from '@/lib/db/customer-care-pg'
 import { insertPartnerOrderEventFromPg } from '@/lib/db/messaging-partner-orders-pg'
 
@@ -74,6 +83,10 @@ const verifySePaySignature = (rawBody: string, secretKey: string, signature: str
     signaturesEqual(normalizedSignature.toLowerCase(), expectedHex.toLowerCase()) ||
     signaturesEqual(normalizedSignature, expectedBase64)
   )
+}
+
+function formatVnd(n: number): string {
+  return `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(n)))}đ`
 }
 
 export async function POST(request: NextRequest) {
@@ -211,19 +224,31 @@ export async function POST(request: NextRequest) {
             ? 'SePay webhook doi chieu thanh cong.'
             : `SePay webhook can duyet tay (accountMatched=${String(accountMatched)}, amountMatched=${String(amountMatched)}).`,
       })
+      const refreshed = await fetchPartnerOrderByIdForPartnerFromPg(partnerId, order.id)
+      const subtotal = Math.round(refreshed?.subtotal_amount ?? 0)
+      const paidRounded = Math.round(refreshed?.paid_amount ?? amountIn)
+      const remainingOnDelivery = Math.max(0, subtotal - paidRounded)
+      const refMemo = (refreshed?.payment_reference ?? order.payment_reference).trim()
+      const chatBody =
+        refreshed
+          ? nextStatus === 'paid_verified'
+            ? `Shop đã xác nhận thanh toán cho đơn ${refMemo} (SePay). Đã nhận: ${formatVnd(amountIn)}. Thanh toán khi nhận hàng: ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}).`
+            : `Shop đã nhận ${formatVnd(amountIn)} qua SePay; đơn ${refMemo} đang chờ kiểm tra thêm. Thanh toán khi nhận hàng (ước tính): ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}).`
+          : nextStatus === 'paid_verified'
+            ? `Shop da xac nhan thanh toan thanh cong cho don ${order.payment_reference} qua SePay webhook.`
+            : `Shop da nhan giao dich qua SePay webhook, dang can duyet tay them cho don ${order.payment_reference}.`
       await insertMessagePg({
         conversationId: order.conversation_id,
         direction: 'outbound',
-        body:
-          nextStatus === 'paid_verified'
-            ? `Shop da xac nhan thanh toan thanh cong cho don ${order.payment_reference} qua SePay webhook.`
-            : `Shop da nhan giao dich qua SePay webhook, dang can duyet tay them cho don ${order.payment_reference}.`,
+        body: chatBody,
         rawPayload: {
           source: 'system_order',
           order_id: order.id,
           order_status: nextStatus,
           payment_webhook_source: 'sepay',
           payment_amount_detected: amountIn,
+          payment_subtotal: subtotal,
+          payment_remaining_on_delivery: remainingOnDelivery,
           payment_receiver_detected: receivedAccount,
         },
       })
@@ -241,6 +266,24 @@ export async function POST(request: NextRequest) {
           amount_matched: amountMatched,
         },
       })
+      try {
+        const paySettings = await fetchPartnerPaymentSettingsFromPg(partnerId)
+        if (refreshed && paySettings) {
+          if (nextStatus === 'paid_verified') {
+            await emailCustomerOrderPaymentVerified({
+              order: refreshed,
+              shopNotifyEmail: paySettings.notify_email || '',
+            })
+          } else {
+            await emailCustomerOrderPaymentManualReview({
+              order: refreshed,
+              shopNotifyEmail: paySettings.notify_email || '',
+            })
+          }
+        }
+      } catch (e) {
+        console.warn('[sepay-webhook partner order] email', e)
+      }
       return NextResponse.json({
         success: true,
         message: 'Partner order webhook processed',

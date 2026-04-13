@@ -94,12 +94,14 @@ export type Dictionary = {
     tasksHub: string
     /** Menu → /support-chat */
     supportChat: string
-    /** Menu → /dashboard/messaging (inbox khách của shop) */
+    /** Menu → /dashboard/messaging (inbox khách — chủ shop) */
     partnerInbox: string
-    /** Menu → /dashboard/api-integration (đối tác: khóa API, nhúng chat) */
+    /** Menu → /dashboard/api-integration (chủ shop: API, nhúng chat) */
     partnerApiIntegration: string
-    /** Menu → /messaging/my-chats (khách xem shop đã chat) */
+    /** Menu → /messaging/my-chats (khách: tin với các shop khác, không phải inbox chủ shop) */
     myChats: string
+    /** Menu → /messaging/my-orders (đơn đặt qua chat widget) */
+    myOrders: string
   }
   home: {
     title: string
@@ -754,6 +756,43 @@ export type Dictionary = {
     lastActivity: string
     loadFailed: string
     backHomeAria: string
+  }
+  /** /messaging/my-orders — đơn widget khi user đã liên kết tài khoản */
+  messagingMyOrders: {
+    pageTitle: string
+    pageDescription: string
+    emptyList: string
+    loadFailed: string
+    backHomeAria: string
+    openChat: string
+    createdAt: string
+    totalLabel: string
+    payStatus: string
+    shipStatus: string
+    stAwaiting: string
+    stChecking: string
+    stPaid: string
+    stManual: string
+    stCancelled: string
+    shPending: string
+    shConfirmed: string
+    shPacking: string
+    shShipping: string
+    shDelivered: string
+    shReturned: string
+    shCancelled: string
+    orderIdLabel: string
+    transferMemoLabel: string
+    qtyLabel: string
+    colorLabel: string
+    sizeLabel: string
+    noteLabel: string
+    unitPriceLabel: string
+    depositPctLabel: string
+    amountDueLabel: string
+    paidRecordedLabel: string
+    shipToLabel: string
+    productPhotoAlt: string
   }
   footer: {
     platformTitle: string
@@ -1713,9 +1752,10 @@ const VI_DICTIONARY: Dictionary = {
     topUpCredits: 'Nạp credit',
     tasksHub: 'Tác vụ & hàng đợi',
     supportChat: 'Chat hỗ trợ',
-    partnerInbox: 'Inbox khách (shop)',
-    partnerApiIntegration: 'Tích hợp API (shop)',
-    myChats: 'Tin nhắn của tôi (shop)',
+    partnerInbox: 'Inbox khách (chủ shop)',
+    partnerApiIntegration: 'Tích hợp API (chủ shop)',
+    myChats: 'Tin của tôi',
+    myOrders: 'Đơn hàng của tôi',
   },
   home: {
     title: 'NanoAI - Sáng tạo không giới hạn cùng AI',
@@ -2374,6 +2414,42 @@ const VI_DICTIONARY: Dictionary = {
     lastActivity: 'Hoạt động gần nhất',
     loadFailed: 'Không tải được danh sách.',
     backHomeAria: 'Về trang chủ',
+  },
+  messagingMyOrders: {
+    pageTitle: 'Đơn hàng của tôi',
+    pageDescription: 'Đơn đặt qua chat NanoAI — trạng thái thanh toán và giao hàng theo từng đơn.',
+    emptyList: 'Chưa có đơn hàng. Đặt trong chat với shop để thấy đơn tại đây.',
+    loadFailed: 'Không tải được danh sách.',
+    backHomeAria: 'Về trang chủ',
+    openChat: 'Mở chat',
+    createdAt: 'Đặt lúc',
+    totalLabel: 'Tổng đơn',
+    payStatus: 'Thanh toán',
+    shipStatus: 'Giao hàng',
+    stAwaiting: 'Chờ đặt cọc (chuyển khoản)',
+    stChecking: 'Đang xác nhận CK',
+    stPaid: 'Đã thanh toán',
+    stManual: 'Chờ shop xử lý',
+    stCancelled: 'Đã hủy',
+    shPending: 'Chờ xử lý',
+    shConfirmed: 'Đã xác nhận',
+    shPacking: 'Đang đóng gói',
+    shShipping: 'Đang giao',
+    shDelivered: 'Đã giao',
+    shReturned: 'Hoàn / trả',
+    shCancelled: 'Hủy giao',
+    orderIdLabel: 'Mã đơn',
+    transferMemoLabel: 'Mã CK (nội dung chuyển khoản)',
+    qtyLabel: 'Số lượng',
+    colorLabel: 'Màu / mẫu',
+    sizeLabel: 'Size',
+    noteLabel: 'Ghi chú',
+    unitPriceLabel: 'Đơn giá',
+    depositPctLabel: 'Tỷ lệ cọc',
+    amountDueLabel: 'Cần thanh toán (cọc)',
+    paidRecordedLabel: 'Đã thanh toán',
+    shipToLabel: 'Giao đến',
+    productPhotoAlt: 'Ảnh sản phẩm đã đặt',
   },
   footer: {
     platformTitle: 'NanoAI Platform',
@@ -3338,9 +3414,10 @@ const EN_DICTIONARY: Dictionary = {
     topUpCredits: 'Top up credits',
     tasksHub: 'Tasks & queue',
     supportChat: 'Support chat',
-    partnerInbox: 'Customer inbox (shop)',
-    partnerApiIntegration: 'Shop API integration',
-    myChats: 'My messages (shops)',
+    partnerInbox: 'Customer inbox (shop owner)',
+    partnerApiIntegration: 'API integration (shop owner)',
+    myChats: 'Messages with shops',
+    myOrders: 'My orders',
   },
   referral: {
     pageTitle: 'Invite friends – earn credits',
@@ -3997,6 +4074,42 @@ const EN_DICTIONARY: Dictionary = {
     lastActivity: 'Last activity',
     loadFailed: 'Could not load the list.',
     backHomeAria: 'Back to home',
+  },
+  messagingMyOrders: {
+    pageTitle: 'My orders',
+    pageDescription: 'Orders placed via NanoAI chat — payment and shipping status per order.',
+    emptyList: 'No orders yet. Place an order in a shop chat to see it here.',
+    loadFailed: 'Could not load the list.',
+    backHomeAria: 'Back to home',
+    openChat: 'Open chat',
+    createdAt: 'Placed at',
+    totalLabel: 'Order total',
+    payStatus: 'Payment',
+    shipStatus: 'Shipping',
+    stAwaiting: 'Awaiting deposit (bank transfer)',
+    stChecking: 'Verifying payment',
+    stPaid: 'Paid',
+    stManual: 'Pending shop review',
+    stCancelled: 'Cancelled',
+    shPending: 'Pending',
+    shConfirmed: 'Confirmed',
+    shPacking: 'Packing',
+    shShipping: 'Shipping',
+    shDelivered: 'Delivered',
+    shReturned: 'Returned',
+    shCancelled: 'Cancelled',
+    orderIdLabel: 'Order ID',
+    transferMemoLabel: 'Transfer memo',
+    qtyLabel: 'Qty',
+    colorLabel: 'Color',
+    sizeLabel: 'Size',
+    noteLabel: 'Note',
+    unitPriceLabel: 'Unit price',
+    depositPctLabel: 'Deposit',
+    amountDueLabel: 'Due now (deposit)',
+    paidRecordedLabel: 'Paid',
+    shipToLabel: 'Ship to',
+    productPhotoAlt: 'Ordered product',
   },
   footer: {
     platformTitle: 'NanoAI Platform',
@@ -4971,9 +5084,10 @@ const ZH_DICTIONARY: Dictionary = {
     topUpCredits: '充值积分',
     tasksHub: '任务与队列',
     supportChat: '在线客服',
-    partnerInbox: '客户收件箱（店铺）',
-    partnerApiIntegration: '店铺 API 集成',
-    myChats: '我的消息（店铺）',
+    partnerInbox: '客户收件箱（店主）',
+    partnerApiIntegration: 'API 集成（店主）',
+    myChats: '与店铺消息',
+    myOrders: '我的订单',
   },
   referral: {
     pageTitle: '邀请好友 – 获得积分',
@@ -5605,6 +5719,42 @@ const ZH_DICTIONARY: Dictionary = {
     lastActivity: '最近活动',
     loadFailed: '无法加载列表。',
     backHomeAria: '返回首页',
+  },
+  messagingMyOrders: {
+    pageTitle: '我的订单',
+    pageDescription: '通过 NanoAI 聊天下单的订单 — 每笔订单的付款与发货状态。',
+    emptyList: '暂无订单。在店铺聊天中下单后即可在此查看。',
+    loadFailed: '无法加载列表。',
+    backHomeAria: '返回首页',
+    openChat: '打开聊天',
+    createdAt: '下单时间',
+    totalLabel: '订单总额',
+    payStatus: '付款',
+    shipStatus: '发货',
+    stAwaiting: '待付定金（转账）',
+    stChecking: '核对付款中',
+    stPaid: '已付款',
+    stManual: '待店铺处理',
+    stCancelled: '已取消',
+    shPending: '待处理',
+    shConfirmed: '已确认',
+    shPacking: '打包中',
+    shShipping: '配送中',
+    shDelivered: '已送达',
+    shReturned: '退货',
+    shCancelled: '已取消',
+    orderIdLabel: '订单号',
+    transferMemoLabel: '转账备注',
+    qtyLabel: '数量',
+    colorLabel: '颜色/款式',
+    sizeLabel: '尺码',
+    noteLabel: '备注',
+    unitPriceLabel: '单价',
+    depositPctLabel: '定金比例',
+    amountDueLabel: '应付定金',
+    paidRecordedLabel: '已付金额',
+    shipToLabel: '收货地址',
+    productPhotoAlt: '所购商品图',
   },
   meetingRecorder: {
     cardTitle: '会议录音 → AI 纪要',
@@ -6529,9 +6679,10 @@ const JA_DICTIONARY: Dictionary = {
     topUpCredits: 'クレジットをチャージ',
     tasksHub: 'タスクとキュー',
     supportChat: 'サポートチャット',
-    partnerInbox: 'お客様受信箱（店舗）',
-    partnerApiIntegration: '店舗 API 連携',
-    myChats: '自分のメッセージ（店舗）',
+    partnerInbox: 'お客様受信箱（店主）',
+    partnerApiIntegration: 'API 連携（店主）',
+    myChats: '店舗とのメッセージ',
+    myOrders: '自分の注文',
   },
   referral: {
     pageTitle: '友達招待 – クレジット獲得',
@@ -7185,6 +7336,42 @@ const JA_DICTIONARY: Dictionary = {
     lastActivity: '最終アクティビティ',
     loadFailed: '一覧を読み込めませんでした。',
     backHomeAria: 'ホームへ戻る',
+  },
+  messagingMyOrders: {
+    pageTitle: '自分の注文',
+    pageDescription: 'NanoAI チャット経由の注文 — 支払いと発送の状況。',
+    emptyList: '注文はまだありません。店舗チャットで注文するとここに表示されます。',
+    loadFailed: '一覧を読み込めませんでした。',
+    backHomeAria: 'ホームへ戻る',
+    openChat: 'チャットを開く',
+    createdAt: '注文日時',
+    totalLabel: '合計',
+    payStatus: '支払い',
+    shipStatus: '配送',
+    stAwaiting: '入金待ち（手付金）',
+    stChecking: '入金確認中',
+    stPaid: '支払い済み',
+    stManual: '店舗確認待ち',
+    stCancelled: 'キャンセル',
+    shPending: '処理待ち',
+    shConfirmed: '確認済み',
+    shPacking: '梱包中',
+    shShipping: '配送中',
+    shDelivered: '配達済み',
+    shReturned: '返品',
+    shCancelled: 'キャンセル',
+    orderIdLabel: '注文ID',
+    transferMemoLabel: '振込備考',
+    qtyLabel: '数量',
+    colorLabel: '色・柄',
+    sizeLabel: 'サイズ',
+    noteLabel: 'メモ',
+    unitPriceLabel: '単価',
+    depositPctLabel: '手付け率',
+    amountDueLabel: 'お支払い額（手付け）',
+    paidRecordedLabel: '支払済み',
+    shipToLabel: 'お届け先',
+    productPhotoAlt: '注文商品画像',
   },
   navGroup: {
     try_on: '試着・コーデ',
@@ -8135,9 +8322,10 @@ const KO_DICTIONARY: Dictionary = {
     topUpCredits: '크레딧 충전',
     tasksHub: '작업 및 대기열',
     supportChat: '고객 채팅',
-    partnerInbox: '고객 수신함(매장)',
-    partnerApiIntegration: '매장 API 연동',
-    myChats: '내 메시지(매장)',
+    partnerInbox: '고객 수신함(점주)',
+    partnerApiIntegration: 'API 연동(점주)',
+    myChats: '매장과 메시지',
+    myOrders: '내 주문',
   },
   referral: {
     pageTitle: '친구 초대 – 크레딧 받기',
@@ -8789,6 +8977,42 @@ const KO_DICTIONARY: Dictionary = {
     lastActivity: '최근 활동',
     loadFailed: '목록을 불러오지 못했습니다.',
     backHomeAria: '홈으로',
+  },
+  messagingMyOrders: {
+    pageTitle: '내 주문',
+    pageDescription: 'NanoAI 채팅으로 주문한 내역 — 결제 및 배송 상태.',
+    emptyList: '주문이 없습니다. 매장 채팅에서 주문하면 여기에 표시됩니다.',
+    loadFailed: '목록을 불러오지 못했습니다.',
+    backHomeAria: '홈으로',
+    openChat: '채팅 열기',
+    createdAt: '주문 시각',
+    totalLabel: '주문 합계',
+    payStatus: '결제',
+    shipStatus: '배송',
+    stAwaiting: '입금 대기 (계약금)',
+    stChecking: '입금 확인 중',
+    stPaid: '결제 완료',
+    stManual: '매장 확인 대기',
+    stCancelled: '취소됨',
+    shPending: '처리 대기',
+    shConfirmed: '확인됨',
+    shPacking: '포장 중',
+    shShipping: '배송 중',
+    shDelivered: '배송 완료',
+    shReturned: '반품',
+    shCancelled: '취소',
+    orderIdLabel: '주문 ID',
+    transferMemoLabel: '입금 통장 메모',
+    qtyLabel: '수량',
+    colorLabel: '색상',
+    sizeLabel: '사이즈',
+    noteLabel: '메모',
+    unitPriceLabel: '단가',
+    depositPctLabel: '계약금 비율',
+    amountDueLabel: '결제할 금액(계약금)',
+    paidRecordedLabel: '결제 완료 금액',
+    shipToLabel: '배송지',
+    productPhotoAlt: '주문 상품 이미지',
   },
   navGroup: {
     try_on: '가상 피팅·스타일링',

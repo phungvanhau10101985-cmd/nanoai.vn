@@ -23,7 +23,9 @@ export default async function MessagingLayout({ children }: { children: ReactNod
   const user = await getUserOrBypass()
   let chatItems: Array<{ conversationId: string; shopName: string; slug: string; lastMessageAt: string | null }> = []
   if (user?.id) {
-    const { items } = await listWidgetChatsForLinkedUser(user.id)
+    const { items } = await listWidgetChatsForLinkedUser(user.id, {
+      accountEmailNormalized: user.email,
+    })
     chatItems = items
   }
 
@@ -53,6 +55,14 @@ export default async function MessagingLayout({ children }: { children: ReactNod
               <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t.messagingMyChats.pageTitle}
               </p>
+              {user?.id ? (
+                <Link
+                  href="/messaging/my-orders"
+                  className="mb-1 block rounded-lg border border-border/60 bg-card/70 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-violet-300 hover:bg-violet-50/60 dark:hover:bg-violet-900/20"
+                >
+                  {t.messagingMyOrders.pageTitle}
+                </Link>
+              ) : null}
               {chatItems.length === 0 ? (
                 <p className="rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-sm text-muted-foreground">
                   {t.messagingMyChats.emptyList}
@@ -82,7 +92,7 @@ export default async function MessagingLayout({ children }: { children: ReactNod
               )}
             </div>
           </aside>
-          <div className="w-full min-w-0 max-w-[780px] xl:justify-self-end">{children}</div>
+          <div className="w-full min-w-0 max-w-[min(100%,960px)] xl:justify-self-end">{children}</div>
         </div>
       </main>
     </div>

@@ -15,7 +15,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { CustomerCareMessageBody } from '@/components/messaging/customer-care-message-body'
+import {
+  CustomerCareMessageBody,
+  type OrderPaymentProofSlot,
+} from '@/components/messaging/customer-care-message-body'
+import { GuestWidgetOrderDetailDialog } from '@/components/messaging/guest-widget-order-detail-dialog'
+import { GuestWidgetMyOrdersDialog } from '@/components/messaging/guest-widget-my-orders-dialog'
+import { isOpenMyOrdersMessage } from '@/lib/messaging/widget-parent-bridge'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import {
@@ -25,7 +31,18 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { Json } from '@/types/database.types'
-import { Camera, CheckCircle, ImagePlus, Loader2, MessageSquareText, Send, Sparkles, Store, X } from 'lucide-react'
+import {
+  Camera,
+  CheckCircle,
+  ImagePlus,
+  Loader2,
+  MessageSquareText,
+  Package,
+  Send,
+  Sparkles,
+  Store,
+  X,
+} from 'lucide-react'
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
@@ -131,6 +148,12 @@ function collectRecentSuggestedCardsFromMessages(
     }
   }
   return out
+}
+
+/** Tin hệ thống đơn hàng (tóm tắt / thanh toán) — hiển thị bubble khác tin chat thường. */
+function isSystemOrderMessage(raw: Json | null | undefined): boolean {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
+  return o?.source === 'system_order'
 }
 
 function getVisionPickState(raw: Json | null | undefined): {
@@ -298,12 +321,15 @@ export function PartnerGuestChatClient({
   slug,
   shopDisplayName,
   t,
+  orderDetailT,
   initialChatList = [],
   guestPurchaseFlow = 'in_chat',
 }: {
   slug: string
   shopDisplayName: string
   t: T
+  /** Nhãn cho modal «Đơn hàng» trong khung nhúng (không cần đăng nhập NanoAI). */
+  orderDetailT: Dictionary['messagingMyOrders']
   initialChatList?: ChatRailItem[]
   guestPurchaseFlow?: GuestPurchaseFlow
 }) {
@@ -361,6 +387,13 @@ export function PartnerGuestChatClient({
   const [orderQuantity, setOrderQuantity] = useState('1')
   const [orderNote, setOrderNote] = useState('')
   const [proofOrderId, setProofOrderId] = useState<string | null>(null)
+  const [paymentProofBusyOrderId, setPaymentProofBusyOrderId] = useState<string | null>(null)
+  const [embedOrderDetailId, setEmbedOrderDetailId] = useState<string | null>(null)
+  const [embedMyOrdersOpen, setEmbedMyOrdersOpen] = useState(false)
+  /** Tăng sau gửi biên lai thành công — tải lại dialog đơn / danh sách. */
+  const [embedWidgetDataNonce, setEmbedWidgetDataNonce] = useState(0)
+  /** Chat nhúng iframe trên site shop (`?embed=1`) — không có header FloatingChatWidget của nanoai.vn. */
+  const [isEmbedUi, setIsEmbedUi] = useState(false)
   const [tryOnUserFile, setTryOnUserFile] = useState<File | null>(null)
   const [tryOnGarmentFiles, setTryOnGarmentFiles] = useState<SelectedImage[]>([])
   const [tryOnGarmentPickerOpen, setTryOnGarmentPickerOpen] = useState(false)
@@ -418,6 +451,9 @@ export function PartnerGuestChatClient({
   useEffect(() => {
     if (typeof window === 'undefined') return
     const q = new URLSearchParams(window.location.search)
+    const ev = (q.get('embed') || '').trim().toLowerCase()
+    const inIframe = window.self !== window.top
+    setIsEmbedUi(ev === '1' || ev === 'true' || ev === 'yes' || inIframe)
     const sku = (q.get('ctx_sku') || '').trim()
     const imageUrl = (q.get('ctx_image') || '').trim()
     const productUrl = (q.get('ctx_product_url') || '').trim()
@@ -429,6 +465,11 @@ export function PartnerGuestChatClient({
           ...(productUrl ? { productUrl } : {}),
         }
       : null
+    /** Từ email / liên kết chia sẻ: `?order=<uuid>` mở chi tiết đơn trong widget. */
+    const orderParam = (q.get('order') || '').trim().toLowerCase()
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(orderParam)) {
+      setEmbedOrderDetailId(orderParam)
+    }
   }, [])
 
   const authHeaders = useCallback((): Record<string, string> => {
@@ -458,6 +499,16 @@ export function PartnerGuestChatClient({
       window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY, aid)
       window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY, aid)
     }
+  }, [])
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return
+      if (!isOpenMyOrdersMessage(e.data)) return
+      setEmbedMyOrdersOpen(true)
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
   }, [])
 
   /** Khách đã có guest account (OTP/cookie) — không được coi 401 từ /api/account/* là “mất đăng nhập chat”. */
@@ -1200,45 +1251,65 @@ export function PartnerGuestChatClient({
   const submitOrderCheckout = async () => {
     const oid = activeOrderId
     if (!oid) return
+
     const missing: string[] = []
-    if (!orderName.trim()) missing.push('Họ tên')
-    if (!orderPhone.trim()) missing.push('Số điện thoại')
-    if (!orderAddress.trim()) missing.push('Địa chỉ')
-    const hasPalette = Boolean(activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0)
-    if (hasPalette) {
-      if (orderSelectedColorImgs.length === 0) missing.push('Màu')
-    } else if (!orderColor.trim()) {
-      missing.push('Màu')
+    const pushMissing = (msg: string) => {
+      if (!missing.includes(msg)) missing.push(msg)
     }
-    if (hasPalette) {
+
+    if (!orderName.trim()) pushMissing('họ tên')
+    if (!orderPhone.trim()) pushMissing('số điện thoại')
+    if (!orderAddress.trim()) pushMissing('địa chỉ')
+
+    const paletteColors = activePurchaseOptions?.colors
+    const hasPalette = Boolean(paletteColors && paletteColors.length > 0)
+    const shopSizes = activePurchaseOptions?.sizes ?? []
+    const productHasShopSizes = shopSizes.length > 0
+
+    const variantLabel = (imgUrl: string) => {
+      const c = paletteColors?.find((x) => x.img === imgUrl)
+      return (c?.name || '').trim() || 'mẫu đã chọn'
+    }
+
+    if (hasPalette && paletteColors) {
+      if (orderSelectedColorImgs.length === 0) {
+        pushMissing('chọn ít nhất một màu/mẫu (bấm vào ảnh)')
+      }
       for (const img of orderSelectedColorImgs) {
+        const label = variantLabel(img)
         const q = Math.max(0, parseInt(orderQtyByColorImg[img] || '0', 10) || 0)
-        if (q <= 0) {
-          missing.push('Số lượng từng màu')
-          break
-        }
-        if (!(orderSizeByColorImg[img] ?? '').trim()) {
-          missing.push('Size từng màu')
-          break
+        if (q <= 0) pushMissing(`số lượng cho "${label}"`)
+        if (productHasShopSizes) {
+          const sz = (orderSizeByColorImg[img] ?? '').trim()
+          if (!sz) {
+            pushMissing(`size cho "${label}" (chọn trong danh sách)`)
+          }
         }
       }
-    } else if (!orderSize.trim()) {
-      missing.push('Size')
-    }
-    if (!hasPalette) {
+    } else {
+      if (!orderColor.trim()) pushMissing('màu')
+      if (productHasShopSizes && !orderSize.trim()) {
+        pushMissing('size (chọn trong danh sách shop)')
+      }
       const qtyOne = Math.max(0, parseInt(orderQuantity || '0', 10) || 0)
-      if (qtyOne <= 0) missing.push('Số lượng')
+      if (qtyOne <= 0) pushMissing('số lượng')
     }
+
     if (missing.length > 0) {
       toast({
-        title: `Vui lòng điền đầy đủ thông tin bắt buộc: ${missing.join(', ')}`,
+        title:
+          missing.length === 1
+            ? `Thiếu: ${missing[0]}.`
+            : `Thiếu các mục sau: ${missing.join('; ')}.`,
         variant: 'destructive',
       })
       return
     }
-    const totalQty = hasPalette
+    const totalQtyRaw = hasPalette
       ? sumPaletteLineUnits(orderSelectedColorImgs, orderQtyByColorImg)
       : Math.min(99, Math.max(1, parseInt(orderQuantity || '1', 10) || 1))
+    /** Luôn là số nguyên 1–99 — tránh JSON.stringify(NaN)→null khiến API coi thiếu SL. */
+    const totalQty = Math.max(1, Math.min(99, Math.floor(Number(totalQtyRaw)) || 1))
     let colorPayload = orderColor.trim()
     if (hasPalette && activePurchaseOptions?.colors) {
       const parts: string[] = []
@@ -1250,13 +1321,18 @@ export function PartnerGuestChatClient({
       }
       colorPayload = parts.join(', ').slice(0, 80)
     }
-    let sizePayload = orderSize.trim()
+    if (!colorPayload.trim()) colorPayload = '-'
+    /** Ký tự ASCII — API/DB tránh lỗi với dấu gạch Unicode. */
+    const noSizePlaceholder = '-'
+    let sizePayload = productHasShopSizes ? orderSize.trim() : noSizePlaceholder
     if (hasPalette && activePurchaseOptions?.colors) {
       const szParts: string[] = []
       for (const img of orderSelectedColorImgs) {
         const c = activePurchaseOptions.colors.find((x) => x.img === img)
         const n = c?.name?.trim() || 'Mẫu'
-        const sz = (orderSizeByColorImg[img] ?? '').trim()
+        const sz = productHasShopSizes
+          ? (orderSizeByColorImg[img] ?? '').trim()
+          : noSizePlaceholder
         szParts.push(`${n}:${sz}`)
       }
       sizePayload = szParts.join(', ').slice(0, 80)
@@ -1274,7 +1350,7 @@ export function PartnerGuestChatClient({
             customerPhone: orderPhone,
             shippingAddress: orderAddress,
             color: colorPayload,
-            size: sizePayload,
+            size: sizePayload.trim() || noSizePlaceholder,
             quantity: totalQty,
             note: orderNote,
           },
@@ -1312,7 +1388,7 @@ export function PartnerGuestChatClient({
       toast({
         title:
           requiredAmount > 0
-            ? 'Đã tạo đơn hàng thành công và tạo QR thanh toán. Vui lòng gửi ảnh chứng từ để xác nhận.'
+            ? 'Đã tạo đơn hàng và QR. Sau khi chuyển khoản, bấm «Gửi ảnh giao dịch» ngay dưới khối QR trong chat.'
             : 'Đã tạo đơn hàng thành công. Đơn này không yêu cầu đặt cọc trước, khách thanh toán khi nhận hàng.',
       })
     } catch {
@@ -1322,78 +1398,104 @@ export function PartnerGuestChatClient({
     }
   }
 
-  const submitPaymentProof = async () => {
-    const oid = proofOrderId
-    if (!oid || !imageStoragePath) return
-    setSending(true)
-    try {
-      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order/verify-payment`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({
-          orderId: oid,
-          proofImageStoragePath: imageStoragePath,
-        }),
-      })
-      captureGuestSessionFromResponse(res)
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null
-      if (!res.ok) {
-        if (res.status === 401 || data?.error?.startsWith('AUTH_REQUIRED_')) {
-          setUserId(null)
-          promptLoginForPurchase()
-          return
-        }
-        toast({ title: data?.error || 'Không đối chiếu được thanh toán.', variant: 'destructive' })
-        return
-      }
-      await load()
-      clearAttachment()
-      setProofOrderId(null)
-    } catch {
-      toast({ title: 'Không đối chiếu được thanh toán.', variant: 'destructive' })
-    } finally {
-      setSending(false)
+  /** Upload ảnh lên storage guest — dùng cho đính kèm chat và cho luồng biên lai riêng. */
+  const uploadGuestImageToStorage = async (file: File): Promise<{ path: string; publicUrl?: string } | null> => {
+    if (!file.type.startsWith('image/')) {
+      toast({ title: t.guestImageInvalidType, variant: 'destructive' })
+      return null
     }
+    if (file.size > GUEST_IMAGE_MAX_BYTES) {
+      toast({ title: t.guestImageTooLarge, variant: 'destructive' })
+      return null
+    }
+    const fd = new FormData()
+    fd.set('file', file)
+    const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/image`, {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      headers: { ...authHeaders() },
+    })
+    captureGuestSessionFromResponse(res)
+    const data = (await res.json()) as { path?: string; publicUrl?: string; error?: string; requireAuth?: boolean }
+    if (res.status === 401 || data.requireAuth || data.error?.startsWith('AUTH_REQUIRED_')) {
+      setUserId(null)
+      setAuthGateRequired(true)
+      setAuthMode('anonymous')
+      toast({
+        title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+        variant: 'destructive',
+      })
+      return null
+    }
+    if (!res.ok || !data.path) {
+      const msg = data.error || t.sendError
+      if (/large|too large|lớn/i.test(msg)) toast({ title: t.guestImageTooLarge, variant: 'destructive' })
+      else if (/type|unsupported|hỗ trợ/i.test(msg)) toast({ title: t.guestImageInvalidType, variant: 'destructive' })
+      else toast({ title: msg, variant: 'destructive' })
+      return null
+    }
+    return { path: data.path, publicUrl: data.publicUrl }
+  }
+
+  const pickAndVerifyPaymentProof = (orderId: string) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/jpeg,image/png,image/webp,image/gif'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) return
+      void (async () => {
+        setPaymentProofBusyOrderId(orderId)
+        try {
+          const uploaded = await uploadGuestImageToStorage(file)
+          if (!uploaded) return
+          const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order/verify-payment`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({
+              orderId,
+              proofImageStoragePath: uploaded.path,
+            }),
+          })
+          captureGuestSessionFromResponse(res)
+          const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null
+          if (!res.ok) {
+            if (res.status === 401 || data?.error?.startsWith('AUTH_REQUIRED_')) {
+              setUserId(null)
+              promptLoginForPurchase()
+              return
+            }
+            toast({ title: data?.error || 'Không đối chiếu được thanh toán.', variant: 'destructive' })
+            return
+          }
+          await load()
+          setProofOrderId(null)
+          setEmbedWidgetDataNonce((n) => n + 1)
+          toast({ title: 'Đã gửi biên lai. Kết quả đối chiếu hiển thị trong chat.' })
+        } catch {
+          toast({ title: 'Không đối chiếu được thanh toán.', variant: 'destructive' })
+        } finally {
+          setPaymentProofBusyOrderId(null)
+        }
+      })()
+    }
+    input.click()
+  }
+
+  const orderPaymentProofSlot: OrderPaymentProofSlot = {
+    highlightOrderId: proofOrderId,
+    busyOrderId: paymentProofBusyOrderId,
+    onPickProof: pickAndVerifyPaymentProof,
+    onViewOrderDetail: (oid) => setEmbedOrderDetailId(oid),
   }
 
   const uploadFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast({ title: t.guestImageInvalidType, variant: 'destructive' })
-      return
-    }
     setUploading(true)
     try {
-      if (file.size > GUEST_IMAGE_MAX_BYTES) {
-        toast({ title: t.guestImageTooLarge, variant: 'destructive' })
-        clearAttachment()
-        return
-      }
-      const fd = new FormData()
-      fd.set('file', file)
-      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/image`, {
-        method: 'POST',
-        body: fd,
-        credentials: 'same-origin',
-        headers: { ...authHeaders() },
-      })
-      captureGuestSessionFromResponse(res)
-      const data = (await res.json()) as { path?: string; publicUrl?: string; error?: string; requireAuth?: boolean }
-      if (res.status === 401 || data.requireAuth || data.error?.startsWith('AUTH_REQUIRED_')) {
-        setUserId(null)
-        setAuthGateRequired(true)
-        setAuthMode('anonymous')
-        toast({
-          title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
-          variant: 'destructive',
-        })
-        return
-      }
-      if (!res.ok || !data.path) {
-        const msg = data.error || t.sendError
-        if (/large|too large|lớn/i.test(msg)) toast({ title: t.guestImageTooLarge, variant: 'destructive' })
-        else if (/type|unsupported|hỗ trợ/i.test(msg)) toast({ title: t.guestImageInvalidType, variant: 'destructive' })
-        else toast({ title: msg, variant: 'destructive' })
+      const data = await uploadGuestImageToStorage(file)
+      if (!data) {
         clearAttachment()
         return
       }
@@ -1832,6 +1934,7 @@ export function PartnerGuestChatClient({
         error?: string
         shopTyping?: { maxWaitMs: number }
         visionPickRequired?: boolean
+        paymentVerificationHandled?: boolean
         requireAuth?: boolean
         authMode?: 'anonymous' | 'account'
       }
@@ -1870,8 +1973,12 @@ export function PartnerGuestChatClient({
         setAuthGateRequired(false)
         void refreshAuthAndReload()
       }
-      // For image-first flow waiting for customer product selection, do not show "shop is typing" yet.
-      if (data.visionPickRequired === true) {
+      if (data.paymentVerificationHandled === true) {
+        setProofOrderId(null)
+        setShopTyping(null)
+        toast({ title: 'Đã gửi biên lai. Kết quả đối chiếu hiển thị trong chat.' })
+      } else if (data.visionPickRequired === true) {
+        // For image-first flow waiting for customer product selection, do not show "shop is typing" yet.
         setShopTyping(null)
       } else {
         const waitMs =
@@ -2276,9 +2383,26 @@ export function PartnerGuestChatClient({
     <>
       <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-background rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md">
         <h1 className="sr-only">{shopDisplayName}</h1>
-        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+        {isEmbedUi ? (
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/35 px-3 py-2">
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">{shopDisplayName}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 gap-1 border-violet-300/80 bg-violet-50/90 px-2.5 text-xs font-medium text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55"
+              onClick={() => setEmbedMyOrdersOpen(true)}
+              title={orderDetailT.pageTitle}
+            >
+              <Package className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="max-w-[9.5rem] truncate sm:max-w-none">{orderDetailT.pageTitle}</span>
+            </Button>
+          </div>
+        ) : null}
+        <CardContent className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+          <div className="relative flex min-h-0 flex-1 flex-col">
           <div
-            className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain bg-muted/20 px-3 py-2"
+            className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden overscroll-contain break-words bg-muted/20 px-3 py-2 [word-break:break-word]"
             role="log"
             aria-live="polite"
             aria-relevant="additions"
@@ -2292,13 +2416,16 @@ export function PartnerGuestChatClient({
             ) : (
               messages.map((m) => {
                 const isMe = m.direction === 'inbound'
+                const isOrderTrackingBubble = !isMe && isSystemOrderMessage(m.raw_payload)
                 return (
                   <div
                     key={m.id}
                     className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-base shadow-sm ${
                       isMe
                         ? 'ml-auto rounded-br-md bg-gradient-to-br from-violet-600 to-violet-700 text-white'
-                        : 'mr-auto rounded-bl-md border border-border/60 bg-card text-foreground'
+                        : isOrderTrackingBubble
+                          ? 'mr-auto rounded-bl-md border-2 border-amber-400/70 bg-gradient-to-br from-amber-50 via-orange-50/90 to-amber-100/40 text-foreground shadow-[0_2px_12px_rgba(217,119,6,0.12)] ring-1 ring-amber-300/40 dark:border-amber-500/45 dark:from-amber-950/70 dark:via-orange-950/50 dark:to-amber-950/30 dark:shadow-[0_2px_16px_rgba(0,0,0,0.35)] dark:ring-amber-700/35'
+                          : 'mr-auto rounded-bl-md border border-border/60 bg-card text-foreground'
                     }`}
                   >
                     <div className={isMe ? '[&_a]:text-white/90 [&_img]:border-white/25' : ''}>
@@ -2316,6 +2443,7 @@ export function PartnerGuestChatClient({
                         onProductCardPick={
                           isMe ? undefined : (card) => void submitProductCardPick(card, m.id)
                         }
+                        orderPaymentProof={!isMe ? orderPaymentProofSlot : undefined}
                       />
                     </div>
                     {(() => {
@@ -2465,60 +2593,15 @@ export function PartnerGuestChatClient({
             <div ref={scrollAnchorRef} className="h-px w-full shrink-0" aria-hidden />
           </div>
 
-            <div className="shrink-0 space-y-2 border-t border-border bg-background p-2">
-            <input
-              ref={galleryInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="hidden"
-              onChange={onPickGallery}
-            />
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={onPickCamera}
-            />
-
-            <div className="space-y-1.5 rounded-xl border-2 border-border bg-background p-1.5">
-              {imagePreviewUrl ? (
-                <div className="flex items-center gap-2 overflow-hidden rounded-xl border bg-muted/30 p-1.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imagePreviewUrl}
-                    alt=""
-                    className="h-12 w-12 shrink-0 rounded-md object-cover"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="icon"
-                    className="ml-auto h-7 w-7 shrink-0 rounded-md"
-                    onClick={clearAttachment}
-                    disabled={sending || uploading}
-                    aria-label={t.guestRemoveAttachment}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : null}
-              {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
-              {proofOrderId && imageStoragePath ? (
-                <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-8 text-[11px]"
-                    disabled={sending}
-                    onClick={() => void submitPaymentProof()}
-                  >
-                    {sending ? 'Đang đối chiếu thanh toán...' : 'Gửi ảnh giao dịch và đối chiếu thanh toán'}
-                  </Button>
-                </div>
-              ) : null}
-              {buyOptionsOpen && buyOptions.length > 0 ? (
+          {((buyOptionsOpen && buyOptions.length > 0) || orderFormOpen) ? (
+            <div
+              className="absolute inset-0 z-50 flex min-h-0 flex-col border-b border-border/70 bg-background shadow-[0_-6px_24px_rgba(0,0,0,0.08)] dark:shadow-[0_-6px_24px_rgba(0,0,0,0.35)]"
+              role="dialog"
+              aria-modal="true"
+              aria-label={orderFormOpen ? 'Thông tin nhận hàng' : 'Chọn sản phẩm'}
+            >
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2 [scrollbar-width:thin]">
+              {buyOptionsOpen && buyOptions.length > 0 && !orderFormOpen ? (
                 <div className="space-y-1.5 rounded-lg border border-border/70 bg-muted/20 p-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-medium text-foreground">Anh/chị muốn mua sản phẩm nào?</p>
@@ -2587,7 +2670,7 @@ export function PartnerGuestChatClient({
                 </div>
               ) : null}
               {orderFormOpen ? (
-                <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-2">
+                <div className="mt-2 space-y-2 rounded-lg border border-border/70 bg-muted/20 p-2 sm:mt-0">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-xs font-medium text-foreground">Thông tin nhận hàng</p>
                     <Button
@@ -2656,67 +2739,49 @@ export function PartnerGuestChatClient({
                     />
                     <input
                       type="text"
-                      className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                      className={`h-8 rounded-md border border-border bg-background px-2 text-[12px] ${
+                        activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? 'col-span-2' : ''
+                      }`}
                       placeholder="Địa chỉ"
                       value={orderAddress}
                       onChange={(e) => setOrderAddress(e.target.value)}
                     />
-                    {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
-                      <div className="h-8 rounded-md border border-border bg-muted/20 px-2 text-[11px] text-muted-foreground flex items-center">
-                        Màu, SL & size — từng ô dưới
-                      </div>
-                    ) : (
-                      <input
-                        type="text"
-                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                        placeholder="Màu"
-                        value={orderColor}
-                        onChange={(e) => setOrderColor(e.target.value)}
-                      />
-                    )}
-                    {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
-                      <div className="h-8 rounded-md border border-border bg-muted/20 px-2 text-[11px] text-muted-foreground flex items-center">
-                        —
-                      </div>
-                    ) : activePurchaseOptions?.sizes && activePurchaseOptions.sizes.length > 0 ? (
-                      <Select
-                        value={orderSize || '__empty__'}
-                        onValueChange={(v) => setOrderSize(v === '__empty__' ? '' : v)}
-                      >
-                        <SelectTrigger className="h-8 rounded-md border border-border bg-background px-2 text-[12px]">
-                          <SelectValue placeholder="Chọn size" />
-                        </SelectTrigger>
-                        <SelectContent position="popper" side="bottom" sideOffset={4} className="z-[300] max-h-64">
-                          <SelectItem value="__empty__">Chọn size</SelectItem>
-                          {activePurchaseOptions.sizes.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {s}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <input
-                        type="text"
-                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                        placeholder="Size"
-                        value={orderSize}
-                        onChange={(e) => setOrderSize(e.target.value)}
-                      />
-                    )}
-                    {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
-                      <div className="h-8 rounded-md border border-border bg-muted/20 px-2 text-[11px] text-muted-foreground flex items-center">
-                        —
-                      </div>
-                    ) : (
-                      <input
-                        type="text"
-                        className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
-                        placeholder="Số lượng"
-                        value={orderQuantity}
-                        onChange={(e) => setOrderQuantity(e.target.value)}
-                      />
-                    )}
+                    {!(activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0) ? (
+                      <>
+                        <input
+                          type="text"
+                          className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                          placeholder="Màu"
+                          value={orderColor}
+                          onChange={(e) => setOrderColor(e.target.value)}
+                        />
+                        {activePurchaseOptions?.sizes && activePurchaseOptions.sizes.length > 0 ? (
+                          <Select
+                            value={orderSize || '__empty__'}
+                            onValueChange={(v) => setOrderSize(v === '__empty__' ? '' : v)}
+                          >
+                            <SelectTrigger className="h-8 rounded-md border border-border bg-background px-2 text-[12px]">
+                              <SelectValue placeholder="Chọn size" />
+                            </SelectTrigger>
+                            <SelectContent position="popper" side="bottom" sideOffset={4} className="z-[300] max-h-64">
+                              <SelectItem value="__empty__">Chọn size</SelectItem>
+                              {activePurchaseOptions.sizes.map((s) => (
+                                <SelectItem key={s} value={s}>
+                                  {s}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : null}
+                        <input
+                          type="text"
+                          className="h-8 rounded-md border border-border bg-background px-2 text-[12px]"
+                          placeholder="Số lượng"
+                          value={orderQuantity}
+                          onChange={(e) => setOrderQuantity(e.target.value)}
+                        />
+                      </>
+                    ) : null}
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     Tiền đặt cọc được tính tự động theo cài đặt của shop.
@@ -2735,20 +2800,41 @@ export function PartnerGuestChatClient({
                     </p>
                   </div>
                   {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
-                    <div className="flex gap-2 overflow-x-auto pb-1">
+                    <div className="space-y-1.5">
+                      <div>
+                        <p className="text-[11px] font-medium text-foreground">Chọn màu / mẫu</p>
+                        <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                          Bấm vào ảnh sản phẩm để chọn hoặc bỏ chọn. Có thể chọn nhiều màu; sau khi chọn, nhập số
+                          lượng
+                          {activePurchaseOptions.sizes && activePurchaseOptions.sizes.length > 0
+                            ? ' và chọn size ngay dưới ảnh.'
+                            : ' ngay dưới ảnh.'}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 overflow-x-auto pb-1">
                       {activePurchaseOptions.colors.map((c, idx) => {
                         const selected = orderSelectedColorImgs.includes(c.img)
                         const lineQty = orderQtyByColorImg[c.img] ?? '1'
                         const lineSize = orderSizeByColorImg[c.img] ?? ''
                         const sizeList = activePurchaseOptions.sizes ?? []
+                        const variantLabel = (c.name || '').trim() || 'Mẫu này'
                         return (
                           <div key={`${c.img}-${idx}`} className="flex w-28 shrink-0 flex-col gap-1">
                             <button
                               type="button"
                               aria-pressed={selected}
-                              title={selected ? 'Bấm để bỏ chọn' : `Chọn loại ${c.name || 'mẫu'}`}
-                              className={`w-full rounded-md border p-1 ${
-                                selected ? 'border-violet-500' : 'border-border'
+                              aria-label={
+                                selected
+                                  ? `Đã chọn ${variantLabel}. Bấm để bỏ chọn`
+                                  : `Chọn màu / mẫu: ${variantLabel}`
+                              }
+                              title={
+                                selected ? 'Bấm để bỏ chọn mẫu này' : 'Bấm vào ảnh để chọn màu / mẫu này'
+                              }
+                              className={`w-full cursor-pointer rounded-md border p-1 text-left transition-colors ${
+                                selected
+                                  ? 'border-violet-500 bg-violet-50/50 ring-1 ring-violet-200'
+                                  : 'border-dashed border-muted-foreground/45 bg-muted/15 hover:border-muted-foreground/70 hover:bg-muted/25'
                               }`}
                               onClick={() => {
                                 if (orderSelectedColorImgs.includes(c.img)) {
@@ -2774,12 +2860,23 @@ export function PartnerGuestChatClient({
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={c.img}
-                                  alt={c.name}
+                                  alt=""
                                   className="max-h-full max-w-full object-contain object-center"
                                 />
                               </div>
-                              <p className="mt-0.5 truncate text-[10px] text-foreground">
-                                {selected ? 'Đã chọn' : '\u00a0'}
+                              <p className="mt-0.5 min-h-[2rem] truncate text-center text-[10px] leading-tight">
+                                {selected ? (
+                                  <span className="font-semibold text-violet-700">Đã chọn</span>
+                                ) : (
+                                  <span className="block text-muted-foreground">
+                                    <span className="font-medium text-foreground/90">Bấm để chọn</span>
+                                    {variantLabel !== 'Mẫu này' ? (
+                                      <span className="mt-0.5 block truncate text-[9px] normal-case text-muted-foreground">
+                                        {variantLabel}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                )}
                               </p>
                             </button>
                             {selected ? (
@@ -2836,27 +2933,13 @@ export function PartnerGuestChatClient({
                                       </SelectContent>
                                     </Select>
                                   </div>
-                                ) : (
-                                  <input
-                                    type="text"
-                                    className="h-7 w-full rounded border border-border bg-background px-1 text-center text-[10px]"
-                                    placeholder="Size"
-                                    aria-label={`Size ${c.name || 'mẫu'}`}
-                                    value={lineSize}
-                                    onChange={(e) =>
-                                      setOrderSizeByColorImg((q) => ({
-                                        ...q,
-                                        [c.img]: e.target.value,
-                                      }))
-                                    }
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                )}
+                                ) : null}
                               </>
                             ) : null}
                           </div>
                         )
                       })}
+                      </div>
                     </div>
                   ) : null}
                   <textarea
@@ -2891,6 +2974,56 @@ export function PartnerGuestChatClient({
                     </Button>
                   </div>
                 </div>
+              ) : null}
+              </div>
+            </div>
+          ) : null}
+          </div>
+
+            <div className="shrink-0 space-y-2 border-t border-border bg-background p-2">
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={onPickGallery}
+            />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={onPickCamera}
+            />
+
+            <div className="space-y-1.5 rounded-xl border-2 border-border bg-background p-1.5">
+              {imagePreviewUrl ? (
+                <div className="flex items-center gap-2 overflow-hidden rounded-xl border bg-muted/30 p-1.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imagePreviewUrl}
+                    alt=""
+                    className="h-12 w-12 shrink-0 rounded-md object-cover"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className="ml-auto h-7 w-7 shrink-0 rounded-md"
+                    onClick={clearAttachment}
+                    disabled={sending || uploading}
+                    aria-label={t.guestRemoveAttachment}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null}
+              {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
+              {proofOrderId ? (
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  Biên lai CK: nút «Gửi ảnh giao dịch» dưới mã QR trong chat (không đính ảnh ở đây).
+                </p>
               ) : null}
 
               {authMode !== 'account' && authGateRequired ? (
@@ -3253,77 +3386,117 @@ export function PartnerGuestChatClient({
 
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-background sm:bg-muted/20">
-      <div className="mx-auto flex h-full w-full max-w-[1600px] gap-0 px-0 py-0 sm:gap-3 sm:px-3 sm:py-2">
-        <aside className="hidden min-h-0 w-72 shrink-0 flex-col rounded-2xl border border-border/70 bg-background p-3 shadow-sm xl:flex">
-          <div className="mb-2 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-600" aria-hidden />
-            <p className="text-sm font-semibold">{t.pageTitleSuffix}</p>
-          </div>
-          <p className="text-xs leading-relaxed text-muted-foreground">{t.subline}</p>
-          <div className="mt-4 space-y-2">
-            <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm">{t.tryOnOpen}</div>
-            <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm">{t.guestAttachPhoto}</div>
-            <Link
-              href="/messaging/my-chats"
-              className="block rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm hover:bg-muted/50"
-            >
-              {t.linkMyShops}
-            </Link>
-          </div>
-          <p className="mt-auto text-[11px] text-muted-foreground">{t.pollNote}</p>
-        </aside>
-
-        <aside className="hidden min-h-0 w-80 shrink-0 flex-col rounded-2xl border border-border/70 bg-background p-2 shadow-sm lg:flex">
-          <div className="mb-2 flex items-center gap-2 px-2">
-            <MessageSquareText className="h-4 w-4 text-violet-600" aria-hidden />
-            <p className="text-sm font-semibold">{t.linkMyShops}</p>
-          </div>
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
-            {activeChatList.length === 0 ? (
-              <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
-                {t.emptyThread}
+      <div className="mx-auto grid h-full w-full max-w-[1800px] grid-cols-1 gap-3 px-2 py-2 sm:px-3 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
+        <aside className="hidden min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm lg:flex">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3 [scrollbar-width:thin]">
+            <section className="space-y-2">
+              <div className="flex items-start gap-2">
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" aria-hidden />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold leading-tight">{t.pageTitleSuffix}</p>
+                  <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{t.subline}</p>
+                </div>
               </div>
-            ) : (
-              activeChatList.map((row) => {
-                const active = row.slug === slug
-                return (
-                  <Link
-                    key={row.conversationId}
-                    href={`/messaging/p/${encodeURIComponent(row.slug)}`}
-                    className={`block rounded-xl border px-3 py-2 transition-colors ${
-                      active
-                        ? 'border-violet-300/70 bg-violet-50/70 dark:border-violet-700/70 dark:bg-violet-950/30'
-                        : 'border-border/60 bg-background hover:bg-muted/40'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <Store className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{row.shopName}</p>
-                        {row.lastMessagePreview ? (
-                          <p className="line-clamp-1 text-xs text-muted-foreground">{row.lastMessagePreview}</p>
-                        ) : null}
-                        {row.lastMessageAt ? (
-                          <p className="text-[11px] text-muted-foreground">
-                            {new Date(row.lastMessageAt).toLocaleString()}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })
-            )}
+              <div className="flex flex-wrap gap-1.5">
+                <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-[11px] text-foreground/90">
+                  {t.tryOnOpen}
+                </span>
+                <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-[11px] text-foreground/90">
+                  {t.guestAttachPhoto}
+                </span>
+              </div>
+              <Link
+                href="/messaging/my-chats"
+                className="block rounded-lg border border-violet-200/90 bg-violet-50/90 px-3 py-2 text-center text-sm font-medium text-violet-900 shadow-sm hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-50"
+              >
+                {t.linkMyShops}
+              </Link>
+            </section>
+
+            <section className="flex min-h-0 flex-1 flex-col border-t border-border/60 pt-3">
+              <div className="mb-2 flex items-center gap-2">
+                <MessageSquareText className="h-4 w-4 shrink-0 text-violet-600" aria-hidden />
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.shopLabel}</p>
+              </div>
+              <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-0.5 [scrollbar-width:thin]">
+                {activeChatList.length === 0 ? (
+                  <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+                    {t.emptyThread}
+                  </div>
+                ) : (
+                  activeChatList.map((row) => {
+                    const active = row.slug === slug
+                    return (
+                      <Link
+                        key={row.conversationId}
+                        href={`/messaging/p/${encodeURIComponent(row.slug)}`}
+                        className={`block rounded-xl border px-3 py-2 transition-colors ${
+                          active
+                            ? 'border-violet-300/70 bg-violet-50/70 dark:border-violet-700/70 dark:bg-violet-950/30'
+                            : 'border-border/60 bg-background hover:bg-muted/40'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <Store className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{row.shopName}</p>
+                            {row.lastMessagePreview ? (
+                              <p className="line-clamp-2 text-xs text-muted-foreground">{row.lastMessagePreview}</p>
+                            ) : null}
+                            {row.lastMessageAt ? (
+                              <p className="text-[11px] text-muted-foreground">
+                                {new Date(row.lastMessageAt).toLocaleString()}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  })
+                )}
+              </div>
+            </section>
+
+            <p className="text-[10px] leading-snug text-muted-foreground">{t.pollNote}</p>
           </div>
         </aside>
 
-        <div className="min-h-0 min-w-0 flex-1">{chatPane}</div>
+        <div className="min-h-0 min-w-0 overflow-hidden">{chatPane}</div>
       </div>
       <MessageImagePreviewDialog
         src={chatImageLightboxUrl}
         onOpenChange={(open) => {
           if (!open) setChatImageLightboxUrl(null)
         }}
+      />
+      <GuestWidgetOrderDetailDialog
+        open={Boolean(embedOrderDetailId)}
+        onOpenChange={(open) => {
+          if (!open) setEmbedOrderDetailId(null)
+        }}
+        slug={slug}
+        orderId={embedOrderDetailId}
+        t={orderDetailT}
+        authHeaders={authHeaders}
+        captureGuestSessionFromResponse={captureGuestSessionFromResponse}
+        loadErrorLabel={orderDetailT.loadFailed}
+        depositBusyOrderId={paymentProofBusyOrderId}
+        onDepositPickProof={pickAndVerifyPaymentProof}
+        dataRefreshNonce={embedWidgetDataNonce}
+      />
+      <GuestWidgetMyOrdersDialog
+        open={embedMyOrdersOpen}
+        onOpenChange={setEmbedMyOrdersOpen}
+        slug={slug}
+        t={orderDetailT}
+        detailActionLabel={t.visionProductViewDetails}
+        onSelectOrderId={(id) => setEmbedOrderDetailId(id)}
+        authHeaders={authHeaders}
+        captureGuestSessionFromResponse={captureGuestSessionFromResponse}
+        loadErrorLabel={orderDetailT.loadFailed}
+        depositBusyOrderId={paymentProofBusyOrderId}
+        onDepositPickProof={pickAndVerifyPaymentProof}
+        dataRefreshNonce={embedWidgetDataNonce}
       />
     </div>
   )

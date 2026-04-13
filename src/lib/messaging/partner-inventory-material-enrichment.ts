@@ -11,8 +11,9 @@ import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usag
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
+/** Không dùng `ren` đơn lẻ — tránh nhầm «Phối Ren» trong tên mẫu với hỏi chất ren. */
 const ASKS_MATERIAL_RE =
-  /(chất\s*liệu|vật\s*liệu|chất\s*liệu\s+gì|vải\s+gì|loại\s+vải|fabric|material|vải\s+thun|vải\s+len|kiểu\s+vải|gồm\s+vải|thành\s+phần|polyester|cotton|lụa|denim|jean|ren|da\s+pu)/i
+  /(chất\s*liệu|vật\s*liệu|chất\s*liệu\s+gì|vải\s+gì|loại\s+vải|fabric|material|vải\s+thun|vải\s+len|kiểu\s+vải|gồm\s+vải|thành\s+phần|polyester|cotton|lụa|denim|jean|da\s+pu|vải\s+ren|chất\s+ren|có\s+ren|ren\s+gì|ren\s+không|viền\s+ren|đồ\s+ren|váy\s+ren|áo\s+ren)/i
 
 /** Khách đang hỏi về chất liệu / vải. */
 export function customerMessageAsksAboutMaterial(body: string): boolean {
@@ -22,7 +23,7 @@ export function customerMessageAsksAboutMaterial(body: string): boolean {
 }
 
 const FABRIC_HINT_RE =
-  /(vải|chất\s*liệu|cotton|polyester|spandex|len|lụa|tơ|satin|voan|thun|jean|denim|kaki|linen|lanh|nỉ|dạ|ren|mesh|sợi|dệt|knit|woven|lông|da|giả\s*da|PU|nylon|viscose|modal|bamboo|silk|wool)/i
+  /(vải|chất\s*liệu|cotton|polyester|spandex|len|lụa|tơ|satin|voan|thun|jean|denim|kaki|linen|lanh|nỉ|dạ|vải\s*ren|chất\s*ren|mesh|sợi|dệt|knit|woven|lông|da|giả\s*da|PU|nylon|viscose|modal|bamboo|silk|wool)/i
 
 /** Đã có mô tả chất liệu trong text kho (không cần gọi vision). */
 export function textBlockLikelyContainsMaterialDetail(text: string): boolean {

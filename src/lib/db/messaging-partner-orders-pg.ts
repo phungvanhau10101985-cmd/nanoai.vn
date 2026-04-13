@@ -360,13 +360,13 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
            shipping_address = $8,
            variant_color = $9,
            variant_size = $10,
-           quantity = $11,
+           quantity = $11::integer,
            note = $12,
            deposit_percent = $13,
-           subtotal_amount = coalesce(unit_price, 0) * $11::numeric,
-           required_amount = $14::numeric,
-           payment_reference = $15,
-           payment_qr_url = $16,
+           subtotal_amount = coalesce(unit_price, 0::numeric) * $14::numeric,
+           required_amount = $15::numeric,
+           payment_reference = $16,
+           payment_qr_url = $17,
            status = 'awaiting_payment',
            updated_at = now()
        where id = $1::uuid
@@ -395,6 +395,7 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
         qty,
         input.note,
         Math.max(0, Math.min(100, Math.round(num(depositPercentValue, 0)))),
+        qty,
         Math.max(0, Math.round(num(input.requiredAmount, 0))),
         input.paymentReference,
         input.paymentQrUrl,
@@ -418,6 +419,95 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
   }
 }
 
+const ORDER_ROW_SELECT = `select id::text, partner_id::text, conversation_id::text, external_thread_id, status,
+              customer_name, customer_email, customer_phone, shipping_address,
+              variant_color, variant_size, quantity, note,
+              product_inventory_id::text, product_name, product_image_url, product_url,
+              unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
+              currency, payment_reference, payment_qr_url, verified_note, shipping_status,
+              created_at, updated_at, verified_at, locked_at
+       from public.messaging_partner_orders`
+
+/** Đọc đơn theo id + shop — dùng khi khách đổi phiên (guest ↔ đăng nhập) vẫn phải khớp đơn nháp. */
+export async function fetchPartnerOrderByIdForPartnerFromPg(
+  partnerId: string,
+  orderId: string
+): Promise<PartnerOrderRow | null> {
+  if (!isPgConfigured()) return null
+  const oid = String(orderId ?? '').trim()
+  const pid = String(partnerId ?? '').trim()
+  if (!oid || !pid) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `${ORDER_ROW_SELECT}
+       where id = $1::uuid and partner_id = $2::uuid
+       limit 1`,
+      [oid, pid]
+    )
+    return row ? mapOrderRow(row) : null
+  } catch (e) {
+    console.warn('[fetchPartnerOrderByIdForPartnerFromPg]', e)
+    return null
+  }
+}
+
+/** Đơn thuộc shop của owner (dashboard). */
+export async function fetchPartnerOrderForOwnerFromPg(
+  ownerUserId: string,
+  orderId: string
+): Promise<PartnerOrderRow | null> {
+  if (!isPgConfigured()) return null
+  const oid = String(orderId ?? '').trim()
+  const uid = String(ownerUserId ?? '').trim()
+  if (!oid || !uid) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `select o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
+              o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
+              o.variant_color, o.variant_size, o.quantity, o.note,
+              o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
+              o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
+              o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
+              o.created_at, o.updated_at, o.verified_at, o.locked_at
+       from public.messaging_partner_orders o
+       inner join public.messaging_partners mp on mp.id = o.partner_id
+       where o.id = $1::uuid and mp.owner_user_id = $2::uuid
+       limit 1`,
+      [oid, uid]
+    )
+    return row ? mapOrderRow(row) : null
+  } catch (e) {
+    console.warn('[fetchPartnerOrderForOwnerFromPg]', e)
+    return null
+  }
+}
+
+/** Đơn trong cùng hội thoại widget (khách + shop). */
+export async function fetchPartnerOrdersForConversationFromPg(
+  partnerId: string,
+  conversationId: string,
+  limit = 80
+): Promise<PartnerOrderRow[] | null> {
+  if (!isPgConfigured()) return null
+  const pid = String(partnerId ?? '').trim()
+  const cid = String(conversationId ?? '').trim()
+  if (!pid || !cid) return null
+  const lim = Math.max(1, Math.min(120, Math.floor(limit) || 80))
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `${ORDER_ROW_SELECT}
+       where partner_id = $1::uuid and conversation_id = $2::uuid
+       order by created_at desc
+       limit $3`,
+      [pid, cid, lim]
+    )
+    return rows.map((r) => mapOrderRow(r))
+  } catch (e) {
+    console.warn('[fetchPartnerOrdersForConversationFromPg]', e)
+    return null
+  }
+}
+
 export async function fetchPartnerOrderForThreadFromPg(input: {
   orderId: string
   partnerId: string
@@ -427,14 +517,7 @@ export async function fetchPartnerOrderForThreadFromPg(input: {
   if (!isPgConfigured()) return null
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
-      `select id::text, partner_id::text, conversation_id::text, external_thread_id, status,
-              customer_name, customer_email, customer_phone, shipping_address,
-              variant_color, variant_size, quantity, note,
-              product_inventory_id::text, product_name, product_image_url, product_url,
-              unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
-              currency, payment_reference, payment_qr_url, verified_note, shipping_status,
-              created_at, updated_at, verified_at, locked_at
-       from public.messaging_partner_orders
+      `${ORDER_ROW_SELECT}
        where id = $1::uuid
          and partner_id = $2::uuid
          and conversation_id = $3::uuid
@@ -445,6 +528,84 @@ export async function fetchPartnerOrderForThreadFromPg(input: {
     return row ? mapOrderRow(row) : null
   } catch (e) {
     console.warn('[fetchPartnerOrderForThreadFromPg]', e)
+    return null
+  }
+}
+
+/** Đơn gần nhất đang chờ cọc — khi khách gửi ảnh biên lai trong chat (không cần bấm nút riêng). */
+export type WidgetOrderListRow = PartnerOrderRow & {
+  partner_display_name: string
+  partner_slug: string
+}
+
+function mapWidgetOrderListRow(r: Record<string, unknown>): WidgetOrderListRow {
+  return {
+    ...mapOrderRow(r),
+    partner_display_name: String(r.partner_display_name ?? ''),
+    partner_slug: String(r.partner_slug ?? ''),
+  }
+}
+
+/** Đơn widget của user đã liên kết (cùng nguồn «Tin nhắn của tôi»). */
+export async function fetchWidgetOrdersForLinkedUserFromPg(
+  linkedUserId: string,
+  limit = 120
+): Promise<WidgetOrderListRow[] | null> {
+  if (!isPgConfigured()) return null
+  const uid = String(linkedUserId ?? '').trim()
+  if (!uid) return null
+  const lim = Math.max(1, Math.min(300, Math.floor(limit) || 120))
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `select o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
+              o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
+              o.variant_color, o.variant_size, o.quantity, o.note,
+              o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
+              o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
+              o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
+              o.created_at, o.updated_at, o.verified_at, o.locked_at,
+              coalesce(mp.display_name, '') as partner_display_name,
+              coalesce(mp.slug, '') as partner_slug
+       from public.messaging_partner_orders o
+       inner join public.customer_care_conversations c on c.id = o.conversation_id
+       inner join public.messaging_partners mp on mp.id = o.partner_id
+       where c.channel = 'widget'
+         and c.linked_user_id = $1::uuid
+         and coalesce(mp.is_active, true) = true
+       order by o.created_at desc
+       limit $2`,
+      [uid, lim]
+    )
+    return rows.map(mapWidgetOrderListRow)
+  } catch (e) {
+    console.warn('[fetchWidgetOrdersForLinkedUserFromPg]', e)
+    return null
+  }
+}
+
+export async function fetchLatestAwaitingPaymentOrderForPartnerThreadFromPg(
+  partnerId: string,
+  externalThreadId: string
+): Promise<PartnerOrderRow | null> {
+  if (!isPgConfigured()) return null
+  const pid = String(partnerId ?? '').trim()
+  const tid = String(externalThreadId ?? '').trim()
+  if (!pid || !tid) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `${ORDER_ROW_SELECT}
+       where partner_id = $1::uuid
+         and external_thread_id = $2
+         and status = 'awaiting_payment'
+         and required_amount > 0
+         and locked_at is null
+       order by updated_at desc
+       limit 1`,
+      [pid, tid]
+    )
+    return row ? mapOrderRow(row) : null
+  } catch (e) {
+    console.warn('[fetchLatestAwaitingPaymentOrderForPartnerThreadFromPg]', e)
     return null
   }
 }

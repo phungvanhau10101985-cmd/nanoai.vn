@@ -1,6 +1,7 @@
 import type { Database } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 
 export type MessagingPartnerInventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 export type MessagingPartnerInventoryInsert = Database['public']['Tables']['messaging_partner_inventory']['Insert']
@@ -421,6 +422,39 @@ export async function fetchPartnerInventoryRowByProductUrlFromPg(
     console.warn('[fetchPartnerInventoryRowByProductUrlFromPg]', e)
     return null
   }
+}
+
+/** Khớp dòng kho theo `normalizeProductUrlKey` (URL trên kho có thể khác dấu `/` cuối). */
+export async function fetchPartnerInventoryRowByProductUrlNormKeyFromPg(
+  partnerId: string,
+  productUrlKey: string
+): Promise<MessagingPartnerInventoryRow | null> {
+  if (!isPgConfigured()) return null
+  const want = normalizeProductUrlKey(productUrlKey.trim())
+  if (!want) return null
+  const exact = await fetchPartnerInventoryRowByProductUrlFromPg(partnerId, want)
+  if (exact) return exact
+  const alt = want.endsWith('/') ? want.replace(/\/+$/, '') : `${want}/`
+  const exact2 = await fetchPartnerInventoryRowByProductUrlFromPg(partnerId, alt)
+  if (exact2) return exact2
+  try {
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+         and trim(coalesce(mpi.product_url, '')) <> ''
+       order by mpi.sort_order asc`,
+      [partnerId]
+    )
+    for (const raw of rows) {
+      const row = mapPgInventoryRow(raw)
+      const pu = row.product_url.trim()
+      if (!pu) continue
+      if (normalizeProductUrlKey(pu) === want) return row
+    }
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryRowByProductUrlNormKeyFromPg]', e)
+  }
+  return null
 }
 
 /** Khớp SKU đã chuẩn hoá (bỏ khoảng trắng, dấu gạch…) — dùng với mã trên thẻ sản phẩm AI. */

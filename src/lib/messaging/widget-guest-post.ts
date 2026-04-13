@@ -13,10 +13,18 @@ import { downloadTryOnObject, getTryOnPublicUrlFromPath, tryOnObjectExistsByPath
 import { WIDGET_PRODUCT_VECTOR_PICK_MAX } from '@/lib/messaging/partner-vision-constants'
 import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
 import { fetchInventoryRowsBySemanticTextForPartnerAi } from '@/lib/messaging/partner-inventory-text-embedding'
-import { countInboundMessagesForConversationPg } from '@/lib/db/customer-care-pg'
+import {
+  countInboundMessagesForConversationPg,
+  resolveLinkedUserIdForCustomerCarePg,
+} from '@/lib/db/customer-care-pg'
 import { fetchMessagingPartnerAiEnabledFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import { fetchPartnerInventoryPriceHintsByIdsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import {
+  prepareDeferredGuestPaymentVerification,
+  verifyOrderPaymentProof,
+  type TransferReceiptOcrResult,
+} from '@/lib/messaging/guest-chat-ordering'
 
 const ANONYMOUS_INBOUND_AUTH_THRESHOLD = 5
 type GuestVisionCandidatePayload = {
@@ -48,7 +56,12 @@ export async function postWidgetGuestMessage(params: {
     source?: string
   }
 }): Promise<
-  | { ok: true; shopTyping?: { maxWaitMs: number }; visionPickRequired?: boolean }
+  | {
+      ok: true
+      shopTyping?: { maxWaitMs: number }
+      visionPickRequired?: boolean
+      paymentVerificationHandled?: boolean
+    }
   | { error: string; requireAuth?: boolean }
 > {
   const text = params.text?.trim() ?? ''
@@ -67,11 +80,15 @@ export async function postWidgetGuestMessage(params: {
     return { error: 'Invalid message.' }
   }
 
+  const linkedUserId = await resolveLinkedUserIdForCustomerCarePg(params.linkedUserId)
+
   let body: string
   let rawPayload: Json | null = null
   let imagePublicUrl: string | null = null
   /** Gợi ý theo vector (ảnh hoặc chữ) — giống nhau; không lên lịch LLM cho đến khi khách chọn SP. */
   let productPickCandidates: GuestVisionCandidatePayload[] = []
+  /** Ảnh biên lai CK — đối chiếu sau khi lưu tin inbound (tránh LLM gợi ý SP). */
+  let deferredPaymentVerify: { orderId: string; ocr: TransferReceiptOcrResult } | null = null
 
   if (imagePath) {
     if (!isGuestMessagingStoragePathForPartner(imagePath, params.partnerId)) {
@@ -85,6 +102,21 @@ export async function postWidgetGuestMessage(params: {
     const imageCaption = text.trim()
 
     try {
+      if (isPgConfigured() && imagePublicUrl) {
+        const prep = await prepareDeferredGuestPaymentVerification({
+          partnerId: params.partnerId,
+          externalThreadId: params.externalThreadId,
+          imagePublicUrl,
+        })
+        if (prep.defer) {
+          deferredPaymentVerify = { orderId: prep.orderId, ocr: prep.ocr }
+        }
+      }
+    } catch (e) {
+      console.warn('[widget-guest-post] payment receipt detection', e)
+    }
+
+    try {
       let aiEnabled = false
       if (isPgConfigured()) {
         const fromPg = await fetchMessagingPartnerAiEnabledFromPg(params.partnerId)
@@ -92,12 +124,12 @@ export async function postWidgetGuestMessage(params: {
           aiEnabled = fromPg.enabled
         }
       }
-      if (aiEnabled) {
+      if (aiEnabled && !deferredPaymentVerify) {
         const buf = await downloadTryOnObject(imagePath)
         if (buf) {
           const search = await geminiProductSearchFromImageBufferViaVectorDb(buf, params.partnerId, {
             maxResults: WIDGET_PRODUCT_VECTOR_PICK_MAX,
-            userId: params.linkedUserId ?? null,
+            userId: linkedUserId,
           })
           if (search.error) {
             console.error('[widget-guest-post] image candidate search error', {
@@ -172,7 +204,11 @@ export async function postWidgetGuestMessage(params: {
 
     const trimmedText = text.trim()
     const minCharsForVectorPick = 3
-    if (trimmedText.length >= minCharsForVectorPick) {
+    /** Khách đã bấm «Tư vấn» trên thẻ SP — không gắn lại thanh gợi ý vector (tránh lặp UI, vẫn gọi LLM với page_context). */
+    const skipTextVectorPick =
+      typeof params.pageContext?.source === 'string' &&
+      params.pageContext.source === 'product_card_consult'
+    if (trimmedText.length >= minCharsForVectorPick && !skipTextVectorPick) {
       try {
         let aiEnabled = false
         if (isPgConfigured()) {
@@ -233,14 +269,14 @@ export async function postWidgetGuestMessage(params: {
     channel: 'widget',
     externalThreadId: params.externalThreadId,
     customerName: params.customerName,
-    linkedUserId: params.linkedUserId ?? null,
+    linkedUserId,
     metadata: params.metadata,
   })
   if ('error' in conv) return { error: conv.error ?? 'Conversation error.' }
   const conversationId = conv.conversationId
   if (!conversationId) return { error: 'Conversation failed.' }
 
-  if (!params.linkedUserId && !params.guestAccountId) {
+  if (!linkedUserId && !params.guestAccountId) {
     let inboundCount: number | null = null
     if (isPgConfigured()) {
       try {
@@ -268,6 +304,25 @@ export async function postWidgetGuestMessage(params: {
   const newMessageId = 'messageId' in ins ? ins.messageId : null
   let shopTyping: { maxWaitMs: number } | undefined
   const visionPickRequired = productPickCandidates.length > 0
+  let paymentVerificationHandled = false
+
+  if (newMessageId && imagePath && deferredPaymentVerify) {
+    try {
+      const v = await verifyOrderPaymentProof({
+        partnerId: params.partnerId,
+        externalThreadId: params.externalThreadId,
+        orderId: deferredPaymentVerify.orderId,
+        proofImageStoragePath: imagePath,
+        linkedUserId: params.linkedUserId,
+        guestAccountId: params.guestAccountId,
+        preReadOcr: deferredPaymentVerify.ocr,
+      })
+      if ('error' in v) console.warn('[widget-guest-post] verifyOrderPaymentProof', v.error)
+      else paymentVerificationHandled = true
+    } catch (e) {
+      console.warn('[widget-guest-post] verifyOrderPaymentProof', e)
+    }
+  }
 
   if (newMessageId) {
     const aiContextHints = [
@@ -278,7 +333,8 @@ export async function postWidgetGuestMessage(params: {
       .filter(Boolean)
       .join('\n')
     // Khi đã có gợi ý vector (ảnh hoặc chữ), chờ khách chọn SP — không gọi LLM tư vấn trước.
-    if (!visionPickRequired) {
+    // Ảnh biên lai CK: đã định tuyến đối chiếu thanh toán — không gọi LLM gợi ý SP.
+    if (!visionPickRequired && !deferredPaymentVerify) {
       const inboundForAi = [inboundTextForPartnerAi(body, imagePublicUrl), aiContextHints].filter(Boolean).join('\n')
       const hint = await handlePartnerInboundForAi({
         partnerId: params.partnerId,
@@ -292,5 +348,10 @@ export async function postWidgetGuestMessage(params: {
     }
   }
 
-  return { ok: true, shopTyping, visionPickRequired: visionPickRequired || undefined }
+  return {
+    ok: true,
+    shopTyping,
+    visionPickRequired: visionPickRequired || undefined,
+    paymentVerificationHandled: paymentVerificationHandled || undefined,
+  }
 }

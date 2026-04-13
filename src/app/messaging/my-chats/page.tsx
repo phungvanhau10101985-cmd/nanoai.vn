@@ -38,7 +38,9 @@ export default async function MyMessagingChatsPage() {
     redirect(`/auth/login?next=${encodeURIComponent(sanitizeLoginNext(PATH))}`)
   }
 
-  const { items, error } = await listWidgetChatsForLinkedUser(user.id)
+  const { items, error } = await listWidgetChatsForLinkedUser(user.id, {
+    accountEmailNormalized: user.email,
+  })
 
   const { t } = getServerDictionary()
 

@@ -294,6 +294,16 @@ export default async function RootLayout({
             : locale === 'ko'
               ? '전체 페이지 열기'
               : 'Mở toàn trang',
+    myOrdersLabel:
+      locale === 'en'
+        ? 'My orders'
+        : locale === 'zh'
+          ? '我的订单'
+          : locale === 'ja'
+            ? '注文一覧'
+            : locale === 'ko'
+              ? '내 주문'
+              : 'Đơn hàng của tôi',
   }
   const shouldRenderGlobalChatWidget =
     Boolean(hostedChatIframe && hostedChatUrl) &&
@@ -384,6 +394,7 @@ export default async function RootLayout({
                   openLabel={widgetText.openLabel}
                   closeLabel={widgetText.closeLabel}
                   openFullPageLabel={widgetText.openFullPageLabel}
+                  myOrdersLabel={widgetText.myOrdersLabel}
                 />
               ) : null}
             </DepositCreditProvider>

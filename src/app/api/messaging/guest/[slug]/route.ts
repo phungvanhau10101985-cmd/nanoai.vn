@@ -172,6 +172,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     ok: true,
     shopTyping: posted.shopTyping,
     visionPickRequired: posted.visionPickRequired ?? false,
+    paymentVerificationHandled: posted.paymentVerificationHandled ?? false,
     authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
   })
   if (identity.newSessionId) {

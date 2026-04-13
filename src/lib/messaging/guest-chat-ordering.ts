@@ -1,8 +1,14 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import type { Json } from '@/types/database.types'
-import { ensureConversationPg, fetchPartnerMessagesFromPg, insertMessagePg } from '@/lib/db/customer-care-pg'
 import {
+  ensureConversationPg,
+  fetchCustomerCareConversationByIdPg,
+  insertMessagePg,
+} from '@/lib/db/customer-care-pg'
+import {
+  fetchLatestAwaitingPaymentOrderForPartnerThreadFromPg,
+  fetchPartnerOrderByIdForPartnerFromPg,
   fetchPartnerOrderForThreadFromPg,
   fetchPartnerPaymentSettingsFromPg,
   insertPartnerOrderDraftFromPg,
@@ -10,21 +16,65 @@ import {
   insertPartnerPaymentProofFromPg,
   parseVndAmountFromText,
   type PartnerOrderRow,
+  type PartnerPaymentSettingsRow,
   updatePartnerOrderCheckoutFromPg,
   updatePartnerOrderPaymentVerificationFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
+import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-display-enrich'
+import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import {
   fetchPartnerInventoryDefaultForAiFromPg,
   fetchPartnerInventoryRowByProductUrlFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { guestImageObjectExists } from '@/lib/messaging/guest-chat-image'
 import { getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
-import { sendSmtpMail } from '@/lib/email/smtp'
+import {
+  emailCustomerOrderCheckoutSubmitted,
+  emailCustomerOrderPaymentManualReview,
+  emailCustomerOrderPaymentVerified,
+} from '@/lib/messaging/partner-order-customer-email'
+import { buildSepayOrderPaymentReference, buildStablePaymentReference } from '@/lib/messaging/shop-payment-reference'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
 import {
   fetchPartnerCustomerProfileByEmailFromPg,
   upsertPartnerCustomerProfileByEmailFromPg,
 } from '@/lib/db/messaging-partner-customer-profiles-pg'
+
+/** Quyền trên đơn nháp khi `external_thread_id` trên đơn không còn trùng phiên (đổi guest ↔ Google). */
+async function assertGuestOwnsPartnerOrderForWidgetCheckout(
+  partnerId: string,
+  order: PartnerOrderRow,
+  thread: { externalThreadId: string; linkedUserId: string | null; guestAccountId: string | null }
+): Promise<boolean> {
+  if (order.partner_id !== partnerId) return false
+  const tid = thread.externalThreadId.trim()
+  const oidEt = order.external_thread_id.trim()
+  if (tid && oidEt === tid) return true
+
+  const conv = await fetchCustomerCareConversationByIdPg(order.conversation_id)
+  if (!conv || conv.partner_id !== partnerId) return false
+  if (tid && conv.external_thread_id.trim() === tid) return true
+  const lid = thread.linkedUserId?.trim() ?? ''
+  if (lid && conv.linked_user_id?.trim() === lid) return true
+  const gid = thread.guestAccountId?.trim() ?? ''
+  if (gid) {
+    if (conv.guest_account_id?.trim() === gid) return true
+    if (conv.external_thread_id.trim() === gid) return true
+  }
+  return false
+}
+
+/** Chi tiết đơn trong widget nhúng: chỉ trả khi đơn thuộc phiên/thread hiện tại (cùng logic checkout). */
+export async function fetchPartnerOrderDetailForGuestWidgetIfAllowed(
+  partnerId: string,
+  orderId: string,
+  thread: { externalThreadId: string; linkedUserId: string | null; guestAccountId: string | null }
+): Promise<PartnerOrderRow | null> {
+  const order = await fetchPartnerOrderByIdForPartnerFromPg(partnerId, orderId)
+  if (!order) return null
+  const allowed = await assertGuestOwnsPartnerOrderForWidgetCheckout(partnerId, order, thread)
+  return allowed ? order : null
+}
 
 export type CheckoutFormInput = {
   customerName: string
@@ -177,11 +227,6 @@ function parseColorVariantsJson(raw: string): Array<{ name: string; img: string 
   }
 }
 
-function stablePaymentRef(orderId: string): string {
-  const clean = orderId.replace(/-/g, '').slice(0, 10).toUpperCase()
-  return `NANOAI-${clean}`
-}
-
 /**
  * QR chuyen khoan thong thuong (VietQR image endpoint), chi gom:
  * - STK nhan
@@ -244,9 +289,36 @@ function buildOrderPaymentQrBySettings(input: {
   })
 }
 
-function orderCardPayload(order: PartnerOrderRow): Record<string, unknown> {
-  const remaining = Math.max(0, Math.round(order.subtotal_amount - order.required_amount))
+/** STK / ngân hàng hiển thị cho khách — khớp với tài khoản dùng để tạo QR (SePay hoặc VietQR). */
+function partnerPaymentDisplayFromSettings(settings: PartnerPaymentSettingsRow): {
+  bank_name: string
+  account_number: string
+  account_holder: string
+} {
+  const sepayOk =
+    settings.sepay_enabled === true &&
+    String(settings.sepay_bank_code ?? '').trim() &&
+    String(settings.sepay_account_number ?? '').trim()
+  if (sepayOk) {
+    return {
+      bank_name: String(settings.bank_name ?? '').trim() || String(settings.sepay_bank_code ?? '').trim(),
+      account_number: String(settings.sepay_account_number ?? '').trim(),
+      account_holder: String(settings.account_holder ?? '').trim(),
+    }
+  }
   return {
+    bank_name: String(settings.bank_name ?? '').trim(),
+    account_number: String(settings.account_number ?? '').trim(),
+    account_holder: String(settings.account_holder ?? '').trim(),
+  }
+}
+
+function orderCardPayload(
+  order: PartnerOrderRow,
+  paymentDisplay: { bank_name: string; account_number: string; account_holder: string } | null
+): Record<string, unknown> {
+  const remaining = Math.max(0, Math.round(order.subtotal_amount - order.required_amount))
+  const base: Record<string, unknown> = {
     source: 'system_order',
     order_id: order.id,
     order_status: order.status,
@@ -264,6 +336,12 @@ function orderCardPayload(order: PartnerOrderRow): Record<string, unknown> {
       price_hint: String(Math.max(0, Math.round(order.unit_price))),
     },
   }
+  if (paymentDisplay && order.required_amount > 0) {
+    base.order_bank_name = paymentDisplay.bank_name
+    base.order_bank_account = paymentDisplay.account_number
+    base.order_bank_holder = paymentDisplay.account_holder
+  }
+  return base
 }
 
 function toJson(v: Record<string, unknown>): Json {
@@ -336,28 +414,29 @@ export async function completeOrderCheckout(input: {
   linkedUserId?: string | null
   guestAccountId?: string | null
 }): Promise<{ ok: true; order: PartnerOrderRow } | { error: string }> {
-  const conv = await ensureConversationPg({
-    partnerId: input.partnerId,
-    channel: 'widget',
-    externalThreadId: input.externalThreadId,
-    customerName: firstLine(input.form.customerName),
-    linkedUserId: input.linkedUserId ?? null,
-    metadata: { source: 'hosted_chat_page', auth_mode: input.guestAccountId ? 'account' : 'anonymous' },
-  })
-  if (!conv?.conversationId) return { error: 'Không tạo được hội thoại.' }
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   if (!settings) return { error: 'Shop chưa cài đặt thanh toán.' }
 
-  const oldOrder = await fetchPartnerOrderForThreadFromPg({
-    orderId: input.orderId,
-    partnerId: input.partnerId,
-    conversationId: conv.conversationId,
-    externalThreadId: input.externalThreadId,
-  })
+  const oldOrder = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, input.orderId)
   if (!oldOrder) return { error: 'Không tìm thấy đơn hàng.' }
+  const thread = {
+    externalThreadId: input.externalThreadId,
+    linkedUserId: input.linkedUserId ?? null,
+    guestAccountId: input.guestAccountId ?? null,
+  }
+  const allowed = await assertGuestOwnsPartnerOrderForWidgetCheckout(input.partnerId, oldOrder, thread)
+  if (!allowed) return { error: 'Không tìm thấy đơn hàng.' }
   if (oldOrder.locked_at) return { error: 'Đơn đã khóa sau khi xác nhận, không thể sửa.' }
 
-  const paymentReference = stablePaymentRef(oldOrder.id)
+  const partnerRow = await fetchMessagingPartnersByIdsFromPg([input.partnerId])
+  const shopDisplayName = String(partnerRow?.[0]?.display_name ?? '').trim()
+  const useSepayQr =
+    settings.sepay_enabled === true &&
+    Boolean(String(settings.sepay_bank_code ?? '').trim()) &&
+    Boolean(String(settings.sepay_account_number ?? '').trim())
+  const paymentReference = useSepayQr
+    ? buildSepayOrderPaymentReference(oldOrder.id, shopDisplayName)
+    : buildStablePaymentReference(oldOrder.id, shopDisplayName)
   const qty = Math.max(1, Math.floor(input.form.quantity || 1))
   const subtotal = Math.max(0, oldOrder.unit_price) * qty
   // Deposit is controlled entirely by shop settings; customer cannot override.
@@ -397,8 +476,8 @@ export async function completeOrderCheckout(input: {
   const updated = await updatePartnerOrderCheckoutFromPg({
     orderId: oldOrder.id,
     partnerId: input.partnerId,
-    conversationId: conv.conversationId,
-    externalThreadId: input.externalThreadId,
+    conversationId: oldOrder.conversation_id,
+    externalThreadId: oldOrder.external_thread_id,
     customerName: trim(input.form.customerName, 120),
     customerEmail: trim(input.form.customerEmail, 180),
     customerPhone: trim(input.form.customerPhone, 40),
@@ -425,21 +504,26 @@ export async function completeOrderCheckout(input: {
     })
   }
 
+  const paymentDisplayRaw = updated.required_amount > 0 ? partnerPaymentDisplayFromSettings(settings) : null
+  const paymentDisplay =
+    paymentDisplayRaw && updated.required_amount > 0 && String(updated.payment_qr_url ?? '').trim()
+      ? enrichPaymentDisplayFromQrUrl(String(updated.payment_qr_url).trim(), paymentDisplayRaw)
+      : paymentDisplayRaw
   await insertMessagePg({
-    conversationId: conv.conversationId,
+    conversationId: oldOrder.conversation_id,
     direction: 'outbound',
     body:
       updated.required_amount > 0
         ? `Đơn hàng đã được tạo thành công.\n` +
-          `Tổng tiền: ${toVnd(updated.subtotal_amount)} | Cần thanh toán: ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
-          `Nội dung chuyển khoản: ${updated.payment_reference}\n` +
+          `Tổng ${toVnd(updated.subtotal_amount)} — cần thanh toán ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
+          `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới (có nút sao chép từng mục).\n` +
           `${calc.fallbackApplied ? 'Lưu ý: Số tiền đặt cọc vượt giá trị đơn, hệ thống đã fallback về 20% giá trị đơn.\n' : ''}` +
-          `Vui lòng gửi ảnh chứng từ sau khi chuyển khoản để shop xác nhận.`
+          `Sau khi chuyển khoản: bấm nút gửi ảnh biên lai ngay dưới mã QR.`
         : `Đơn hàng đã được tạo thành công.\n` +
           `Tổng tiền: ${toVnd(updated.subtotal_amount)} | Thanh toán trước: 0đ.\n` +
           `Thanh toán khi nhận hàng: ${toVnd(updated.subtotal_amount)}.\n` +
           `Đơn này không yêu cầu đặt cọc trước. Shop sẽ liên hệ xác nhận đơn và giao hàng.`,
-    rawPayload: toJson(orderCardPayload(updated)),
+    rawPayload: toJson(orderCardPayload(updated, paymentDisplay)),
   })
   await insertPartnerOrderEventFromPg({
     orderId: updated.id,
@@ -448,6 +532,14 @@ export async function completeOrderCheckout(input: {
     detail: `Số lượng ${updated.quantity}, cần thanh toán ${toVnd(updated.required_amount)}.`,
     source: 'customer',
   })
+  try {
+    await emailCustomerOrderCheckoutSubmitted({
+      order: updated,
+      shopNotifyEmail: settings.notify_email || '',
+    })
+  } catch (e) {
+    console.warn('[completeOrderCheckout] email', e)
+  }
   return { ok: true, order: updated }
 }
 
@@ -545,14 +637,14 @@ export async function getCustomerDeliveryProfile(input: {
   }
 }
 
-type OcrResult = {
+export type TransferReceiptOcrResult = {
   receiverAccount: string
   amount: number
   transactionRef: string
   fullText: string
 }
 
-async function runGeminiTransferOcr(imageUrl: string): Promise<OcrResult | null> {
+async function runGeminiTransferOcr(imageUrl: string): Promise<TransferReceiptOcrResult | null> {
   if (!process.env.GOOGLE_API_KEY?.trim()) return null
   const resp = await fetch(imageUrl)
   if (!resp.ok) return null
@@ -561,8 +653,8 @@ async function runGeminiTransferOcr(imageUrl: string): Promise<OcrResult | null>
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
   const prompt =
-    'Read this bank transfer receipt image and return strict JSON only with keys: receiverAccount, amount, transactionRef, fullText. ' +
-    'amount must be integer VND number.'
+    'Read this Vietnamese mobile banking screenshot or transfer receipt. Return strict JSON only with keys: receiverAccount (digits of beneficiary account if visible), amount, transactionRef, fullText. ' +
+    'amount must be integer VND. fullText must include all readable text especially transfer memo/content (order reference like PREFIX-XXXXXXXXXX), bank name, and success wording.'
   try {
     const result = await model.generateContent([
       prompt,
@@ -581,36 +673,50 @@ async function runGeminiTransferOcr(imageUrl: string): Promise<OcrResult | null>
   }
 }
 
-async function sendOrderEmails(input: {
-  order: PartnerOrderRow
-  shopNotifyEmail: string
-  customerFallbackEmail: string
-}): Promise<void> {
-  const customerEmail = input.order.customer_email || input.customerFallbackEmail
-  const shopEmail = trim(input.shopNotifyEmail || '')
-  const toShop = shopEmail || ''
+/**
+ * Gọi trước khi gợi ý SP / LLM: có đơn chờ cọc + ảnh giống biên lai CK thì định tuyến sang đối chiếu thanh toán.
+ */
+export function shouldTreatGuestImageAsOrderPaymentProof(
+  order: PartnerOrderRow,
+  ocr: TransferReceiptOcrResult
+): boolean {
+  if (order.required_amount <= 0 || order.status !== 'awaiting_payment') return false
+  const req = Math.round(order.required_amount)
+  const low = ocr.fullText.toLowerCase()
+  const ref = order.payment_reference.trim().toLowerCase()
+  const refOk = ref.length >= 6 && low.includes(ref)
+  const amtOk = ocr.amount >= req && ocr.amount <= Math.ceil(req * 1.005)
+  const bankCue =
+    /vietin|vietcom|techcom|bidv|acb|mbbank|vpbank|shb|hdbank|seabank|sacombank|msb|ocb|vib|giao\s*dịch|giao\s*dich|chuyển\s*khoản|chuyen\s*khoan|thành\s*công|thanh\s*cong|ứng\s*dụng|ung\s*dung|ipay|vnd|số\s*tiền|so\s*tien|nhận\s*tiền|nhan\s*tien/i.test(
+      low
+    )
+  const recvDigits = ocr.receiverAccount.replace(/\D/g, '')
+  const hasReceiverDigits = recvDigits.length >= 8
 
-  const subjectCustomer = `[NanoAI] Xac nhan don ${input.order.payment_reference}`
-  const textCustomer = [
-    `Don hang cua ban da duoc xac nhan thanh toan.`,
-    `Ma don: ${input.order.payment_reference}`,
-    `San pham: ${input.order.product_name}`,
-    `So tien da nhan: ${toVnd(input.order.paid_amount)}`,
-    `Shop se lien he theo SĐT: ${input.order.customer_phone}`,
-  ].join('\n')
+  if (refOk && amtOk) return true
+  if (refOk && bankCue) return true
+  if (amtOk && bankCue && hasReceiverDigits) return true
+  return false
+}
 
-  const subjectShop = `[NanoAI] Don moi da thanh toan ${input.order.payment_reference}`
-  const textShop = [
-    `Co khach vua chot don va da doi chieu thanh toan thanh cong.`,
-    `Ma don: ${input.order.payment_reference}`,
-    `San pham: ${input.order.product_name}`,
-    `Khach: ${input.order.customer_name} | ${input.order.customer_phone} | ${input.order.customer_email}`,
-    `Dia chi: ${input.order.shipping_address}`,
-    `So tien: ${toVnd(input.order.paid_amount)}`,
-  ].join('\n')
-
-  if (customerEmail) await sendSmtpMail({ to: customerEmail, subject: subjectCustomer, text: textCustomer })
-  if (toShop) await sendSmtpMail({ to: toShop, subject: subjectShop, text: textShop })
+/**
+ * OCR một lần; nếu khớp đơn chờ thanh toán thì caller gọi `verifyOrderPaymentProof` sau khi đã lưu tin ảnh inbound.
+ */
+export async function prepareDeferredGuestPaymentVerification(input: {
+  partnerId: string
+  externalThreadId: string
+  imagePublicUrl: string
+}): Promise<{ defer: false } | { defer: true; orderId: string; ocr: TransferReceiptOcrResult }> {
+  if (!process.env.GOOGLE_API_KEY?.trim()) return { defer: false }
+  const pending = await fetchLatestAwaitingPaymentOrderForPartnerThreadFromPg(
+    input.partnerId,
+    input.externalThreadId
+  )
+  if (!pending) return { defer: false }
+  const ocr = await runGeminiTransferOcr(input.imagePublicUrl)
+  if (!ocr) return { defer: false }
+  if (!shouldTreatGuestImageAsOrderPaymentProof(pending, ocr)) return { defer: false }
+  return { defer: true, orderId: pending.id, ocr }
 }
 
 export async function verifyOrderPaymentProof(input: {
@@ -620,34 +726,35 @@ export async function verifyOrderPaymentProof(input: {
   proofImageStoragePath: string
   linkedUserId?: string | null
   guestAccountId?: string | null
+  /** Đã OCR ở bước nhận diện ảnh trong chat — tránh gọi Gemini hai lần. */
+  preReadOcr?: TransferReceiptOcrResult | null
 }): Promise<{ ok: true; order: PartnerOrderRow; verification: 'verified' | 'manual_review' | 'failed' } | { error: string }> {
-  const conv = await ensureConversationPg({
-    partnerId: input.partnerId,
-    channel: 'widget',
-    externalThreadId: input.externalThreadId,
-    linkedUserId: input.linkedUserId ?? null,
-    metadata: { source: 'hosted_chat_page', auth_mode: input.guestAccountId ? 'account' : 'anonymous' },
-  })
-  if (!conv?.conversationId) return { error: 'Không tạo được hội thoại.' }
-
   const exists = await guestImageObjectExists(input.proofImageStoragePath)
   if (!exists) return { error: 'Không tìm thấy ảnh chứng từ.' }
 
-  const order = await fetchPartnerOrderForThreadFromPg({
-    orderId: input.orderId,
-    partnerId: input.partnerId,
-    conversationId: conv.conversationId,
-    externalThreadId: input.externalThreadId,
-  })
+  const order = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, input.orderId)
   if (!order) return { error: 'Không tìm thấy đơn cần đối chiếu.' }
+  const thread = {
+    externalThreadId: input.externalThreadId,
+    linkedUserId: input.linkedUserId ?? null,
+    guestAccountId: input.guestAccountId ?? null,
+  }
+  const allowed = await assertGuestOwnsPartnerOrderForWidgetCheckout(input.partnerId, order, thread)
+  if (!allowed) return { error: 'Không tìm thấy đơn cần đối chiếu.' }
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   if (!settings) return { error: 'Shop chưa cấu hình thanh toán.' }
   const imageUrl = getTryOnPublicUrlFromPath(input.proofImageStoragePath)
-  const ocr = await runGeminiTransferOcr(imageUrl)
+  const ocr = input.preReadOcr ?? (await runGeminiTransferOcr(imageUrl))
   if (!ocr) return { error: 'Không đọc được ảnh chuyển khoản.' }
 
-  const expectedAccount = settings.account_number.replace(/[^\d]/g, '')
-  const accountMatched = expectedAccount && ocr.receiverAccount.includes(expectedAccount)
+  const expectedPrimary = settings.account_number.replace(/[^\d]/g, '')
+  const expectedSepay =
+    settings.sepay_enabled === true && String(settings.sepay_account_number ?? '').trim().length > 0
+      ? String(settings.sepay_account_number).replace(/[^\d]/g, '')
+      : ''
+  const accountMatched =
+    (expectedPrimary.length >= 6 && ocr.receiverAccount.includes(expectedPrimary)) ||
+    (expectedSepay.length >= 6 && ocr.receiverAccount.includes(expectedSepay))
   const amountMatched = ocr.amount >= Math.round(order.required_amount)
   const transactionHintMatched =
     !order.payment_reference || ocr.fullText.toLowerCase().includes(order.payment_reference.toLowerCase())
@@ -694,16 +801,11 @@ export async function verifyOrderPaymentProof(input: {
   })
   if (!ok) return { error: 'Không cập nhật được kết quả đối chiếu.' }
 
-  const refreshed = await fetchPartnerOrderForThreadFromPg({
-    orderId: order.id,
-    partnerId: input.partnerId,
-    conversationId: conv.conversationId,
-    externalThreadId: input.externalThreadId,
-  })
+  const refreshed = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, order.id)
   if (!refreshed) return { error: 'Không tải lại được đơn hàng.' }
 
   await insertMessagePg({
-    conversationId: conv.conversationId,
+    conversationId: order.conversation_id,
     direction: 'outbound',
     body:
       verification === 'verified'
@@ -730,20 +832,23 @@ export async function verifyOrderPaymentProof(input: {
   })
 
   if (verification === 'verified') {
-    const convRows = await fetchPartnerMessagesFromPg(conv.conversationId)
-    const customerFallbackEmail = trim(
-      refreshed.customer_email ||
-        (convRows ?? [])
-          .map((m) => (m.direction === 'inbound' ? m.body : ''))
-          .join('\n')
-          .match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] ||
-        ''
-    )
-    await sendOrderEmails({
-      order: refreshed,
-      shopNotifyEmail: settings.notify_email || '',
-      customerFallbackEmail,
-    })
+    try {
+      await emailCustomerOrderPaymentVerified({
+        order: refreshed,
+        shopNotifyEmail: settings.notify_email || '',
+      })
+    } catch (e) {
+      console.warn('[verifyOrderPaymentProof] email verified', e)
+    }
+  } else if (verification === 'manual_review') {
+    try {
+      await emailCustomerOrderPaymentManualReview({
+        order: refreshed,
+        shopNotifyEmail: settings.notify_email || '',
+      })
+    } catch (e) {
+      console.warn('[verifyOrderPaymentProof] email manual_review', e)
+    }
   }
   return { ok: true, order: refreshed, verification }
 }

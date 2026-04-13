@@ -1,14 +1,23 @@
 'use client'
 
-import { useState } from 'react'
-import { Play } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import Link from 'next/link'
+import { Copy, Loader2, Play } from 'lucide-react'
 import type { Json } from '@/types/database.types'
+import { Button } from '@/components/ui/button'
+import { useToast } from '@/hooks/use-toast'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { MessageVideoFullscreenDialog } from '@/components/messaging/message-video-fullscreen-dialog'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { isProductConsultedInScopeSet } from '@/lib/messaging/consult-product-scope-key'
 import { aiProductCardsFromPayload, type PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { youtubeThumbnailUrl } from '@/lib/messaging/guest-product-video'
+import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-display-enrich'
+
+/** Gỡ hậu tố «(BIN …)» còn sót từ bản cũ. */
+function displayBankName(raw: string): string {
+  return raw.replace(/\s*\(BIN\s+\d+\)\s*$/i, '').trim() || raw.trim()
+}
 
 type Row = { id?: string; body: string; raw_payload: Json | null }
 
@@ -73,6 +82,239 @@ function imageUrlFromPayload(raw: Json | null): string | null {
   const m = gm as Record<string, unknown>
   if (m.kind !== 'image' || typeof m.url !== 'string') return null
   return m.url
+}
+
+export type OrderPaymentProofSlot = {
+  /** Đơn vừa checkout (gợi ý dưới ô nhập) — không ẩn nút gửi biên lai trên tin cũ. */
+  highlightOrderId: string | null
+  busyOrderId: string | null
+  onPickProof: (orderId: string) => void
+  /** Trang «Đơn hàng của tôi» — `/messaging/my-orders?order=…` (khi không dùng `onViewOrderDetail`). */
+  buildOrderDetailHref?: (orderId: string) => string
+  /** Ưu tiên: mở chi tiết trong app (vd. modal trong khung nhúng), không cần đăng nhập NanoAI. */
+  onViewOrderDetail?: (orderId: string) => void
+}
+
+/** Một dòng: nhãn ngắn | giá trị | copy — gọn, ít chiều cao. */
+function CompactPaymentField({
+  label,
+  value,
+  copyText,
+  monospace,
+  onViolet,
+}: {
+  label: string
+  value: ReactNode
+  copyText: string
+  monospace?: boolean
+  onViolet: boolean
+}) {
+  const { toast } = useToast()
+  const copy = async () => {
+    const t = copyText.trim()
+    if (!t) return
+    try {
+      await navigator.clipboard.writeText(t)
+      toast({ title: 'Đã sao chép' })
+    } catch {
+      toast({ title: 'Không sao chép được', variant: 'destructive' })
+    }
+  }
+  return (
+    <div
+      className={`grid grid-cols-[minmax(3.5rem,4.5rem)_minmax(0,1fr)_2rem] items-center gap-x-1.5 border-b py-1 last:border-b-0 sm:grid-cols-[5rem_1fr_2rem] ${
+        onViolet ? 'border-white/10 text-white' : 'border-border/50 text-foreground'
+      }`}
+    >
+      <span className={`text-[11px] leading-none sm:text-xs ${onViolet ? 'text-white/70' : 'text-muted-foreground'}`}>
+        {label}
+      </span>
+      <span
+        className={`min-w-0 break-words text-sm font-semibold leading-tight sm:text-[15px] ${
+          monospace ? 'font-mono tabular-nums' : ''
+        }`}
+      >
+        {value}
+      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={`h-7 w-8 shrink-0 sm:h-8 sm:w-9 ${
+          onViolet
+            ? 'text-white/90 hover:bg-white/15 hover:text-white'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+        onClick={() => void copy()}
+        aria-label={`Sao chép ${label}`}
+        title="Sao chép"
+      >
+        <Copy className="h-3.5 w-3.5" aria-hidden />
+      </Button>
+    </div>
+  )
+}
+
+/** Tin hệ thống sau checkout: QR + STK (raw_payload từ guest-chat-ordering). */
+function OrderPaymentPanel({
+  raw,
+  onViolet,
+  orderPaymentProof,
+}: {
+  raw: Json | null
+  onViolet: boolean
+  orderPaymentProof?: OrderPaymentProofSlot | null
+}) {
+  if (!raw || typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
+  const o = raw as Record<string, unknown>
+  if (o.source !== 'system_order' || o.order_payment_timing !== 'pay_now') return null
+  const qrUrl = typeof o.order_payment_qr_url === 'string' ? o.order_payment_qr_url.trim() : ''
+  if (!qrUrl || !/^https?:\/\//i.test(qrUrl)) return null
+
+  const ref = typeof o.order_payment_reference === 'string' ? o.order_payment_reference.trim() : ''
+  const bankRaw = typeof o.order_bank_name === 'string' ? o.order_bank_name.trim() : ''
+  const accRaw = typeof o.order_bank_account === 'string' ? o.order_bank_account.trim() : ''
+  const holderRaw = typeof o.order_bank_holder === 'string' ? o.order_bank_holder.trim() : ''
+  const enriched = enrichPaymentDisplayFromQrUrl(qrUrl, {
+    bank_name: bankRaw,
+    account_number: accRaw,
+    account_holder: holderRaw,
+  })
+  const bank = displayBankName(enriched.bank_name)
+  const acc = enriched.account_number
+  const holder = enriched.account_holder
+  const reqRaw = o.order_required_amount
+  const amount = typeof reqRaw === 'number' && Number.isFinite(reqRaw) ? Math.max(0, Math.round(reqRaw)) : 0
+  const orderId = typeof o.order_id === 'string' ? o.order_id.trim() : ''
+  const orderStatus = typeof o.order_status === 'string' ? o.order_status.trim() : ''
+  const showProofCta = orderPaymentProof && orderId && orderStatus === 'awaiting_payment'
+  const busyThis = showProofCta && orderPaymentProof.busyOrderId === orderId
+  const viewInEmbed = Boolean(showProofCta && orderId && typeof orderPaymentProof?.onViewOrderDetail === 'function')
+  const detailHref =
+    !viewInEmbed && showProofCta && orderPaymentProof?.buildOrderDetailHref && orderId
+      ? orderPaymentProof.buildOrderDetailHref(orderId)
+      : ''
+
+  return (
+    <div
+      className={`mt-2 max-w-full rounded-lg border p-2.5 sm:p-3 ${
+        onViolet ? 'border-white/25 bg-white/10' : 'border-border/60 bg-muted/25'
+      }`}
+    >
+      <p className={`text-sm font-semibold sm:text-base ${onViolet ? 'text-white' : 'text-foreground'}`}>
+        Thanh toán chuyển khoản
+      </p>
+      <div
+        className={`mt-1.5 space-y-0 overflow-hidden rounded-md border px-1 sm:px-1.5 ${
+          onViolet ? 'border-white/15 bg-black/10' : 'border-border/60 bg-background/50'
+        }`}
+      >
+        {bank ? <CompactPaymentField label="Ngân hàng" value={bank} copyText={bank} onViolet={onViolet} /> : null}
+        {acc ? (
+          <CompactPaymentField label="STK" value={acc} copyText={acc} monospace onViolet={onViolet} />
+        ) : null}
+        {holder ? (
+          <CompactPaymentField label="Chủ TK" value={holder} copyText={holder} onViolet={onViolet} />
+        ) : null}
+        {amount > 0 ? (
+          <CompactPaymentField
+            label="Số tiền"
+            value={<>{new Intl.NumberFormat('vi-VN').format(amount)}đ</>}
+            copyText={String(amount)}
+            monospace
+            onViolet={onViolet}
+          />
+        ) : null}
+        {ref ? (
+          <CompactPaymentField
+            label="Nội dung CK"
+            value={<span className="font-mono">{ref}</span>}
+            copyText={ref}
+            monospace
+            onViolet={onViolet}
+          />
+        ) : null}
+      </div>
+      <p className={`mt-1.5 text-[10px] leading-snug sm:text-[11px] ${onViolet ? 'text-white/75' : 'text-muted-foreground'}`}>
+        «Nội dung CK» chính là nội dung chuyển khoản (memo) trên app — nhập đúng chuỗi bên trên. Có thể quét QR để điền sẵn.
+      </p>
+      <div className="mt-2 flex justify-center px-0.5">
+        {/* eslint-disable-next-line @next/next/no-img-element -- URL VietQR/SePay ngoài, domain động */}
+        <img
+          src={qrUrl}
+          alt="Mã QR chuyển khoản thanh toán đơn hàng"
+          width={280}
+          height={280}
+          className={`h-auto w-full max-w-[280px] rounded-md border object-contain ${
+            onViolet ? 'border-white/30 bg-white' : 'border-border/60 bg-white'
+          }`}
+          loading="lazy"
+        />
+      </div>
+      {showProofCta && orderPaymentProof ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            <Button
+              type="button"
+              size="sm"
+              className={`h-10 w-full gap-1.5 text-sm font-medium ${
+                onViolet
+                  ? 'border border-white/35 bg-white/15 text-white hover:bg-white/25'
+                  : ''
+              }`}
+              variant={onViolet ? 'outline' : 'default'}
+              disabled={Boolean(orderPaymentProof.busyOrderId)}
+              onClick={() => orderPaymentProof.onPickProof(orderId)}
+            >
+              {busyThis ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+                  Đang tải ảnh và đối chiếu…
+                </>
+              ) : (
+                <>Gửi ảnh giao dịch{ref ? ` · ${ref}` : ''}</>
+              )}
+            </Button>
+            {viewInEmbed && orderPaymentProof?.onViewOrderDetail ? (
+              <Button
+                type="button"
+                size="sm"
+                className={`h-10 w-full text-sm font-medium ${
+                  onViolet ? 'border-white/35 bg-white/10 text-white hover:bg-white/18' : ''
+                }`}
+                variant={onViolet ? 'outline' : 'secondary'}
+                onClick={() => orderPaymentProof.onViewOrderDetail!(orderId)}
+              >
+                Xem chi tiết đơn hàng
+              </Button>
+            ) : detailHref ? (
+              <Button
+                type="button"
+                size="sm"
+                className={`h-10 w-full text-sm font-medium ${
+                  onViolet ? 'border-white/35 bg-white/10 text-white hover:bg-white/18' : ''
+                }`}
+                variant={onViolet ? 'outline' : 'secondary'}
+                asChild
+              >
+                <Link
+                  href={detailHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Mở tab mới để giữ phiên đăng nhập NanoAI"
+                >
+                  Xem chi tiết đơn hàng
+                </Link>
+              </Button>
+            ) : null}
+          </div>
+          <p className={`text-center text-xs leading-snug sm:text-[13px] ${onViolet ? 'text-white/75' : 'text-muted-foreground'}`}>
+            Chỉ dùng nút gửi ảnh cho biên lai đúng mã đơn; không gửi qua ô đính ảnh chat.
+          </p>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 export type CustomerCareMessageBodyTone = 'default' | 'onViolet'
@@ -243,11 +485,14 @@ export function CustomerCareMessageBody({
   tone = 'default',
   labels,
   onProductCardPick,
+  orderPaymentProof,
 }: {
   row: Row
   tone?: CustomerCareMessageBodyTone
   labels?: CustomerCareMessageBodyLabels
   onProductCardPick?: (card: PartnerAiProductCard) => void
+  /** Trang guest: nút gửi biên lai gắn với đơn trong khối QR. */
+  orderPaymentProof?: OrderPaymentProofSlot | null
 }) {
   const url = imageUrlFromPayload(row.raw_payload)
   const caption = row.body.replace(/^📷\s*/u, '').trim()
@@ -257,7 +502,9 @@ export function CustomerCareMessageBody({
   const [videoLightboxSrc, setVideoLightboxSrc] = useState<string | null>(null)
 
   return (
-    <div className={`space-y-2 ${onViolet ? '[&_a]:text-white/90 [&_img]:border-white/25' : ''}`}>
+    <div
+      className={`min-w-0 max-w-full space-y-2 break-words [overflow-wrap:anywhere] ${onViolet ? '[&_a]:text-white/90 [&_img]:border-white/25' : ''}`}
+    >
       {url ? (
         <button
           type="button"
@@ -277,6 +524,7 @@ export function CustomerCareMessageBody({
       {caption ? (
         <div className={`whitespace-pre-wrap break-words ${onViolet ? 'text-white' : ''}`}>{caption}</div>
       ) : null}
+      <OrderPaymentPanel raw={row.raw_payload} onViolet={onViolet} orderPaymentProof={orderPaymentProof} />
       <AiProductCards
         cards={productCards}
         onViolet={onViolet}

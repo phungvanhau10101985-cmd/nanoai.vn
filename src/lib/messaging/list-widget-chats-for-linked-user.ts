@@ -1,4 +1,7 @@
-import { fetchWidgetConversationsForLinkedUserFromPg } from '@/lib/db/customer-care-pg'
+import {
+  fetchWidgetConversationsForLinkedUserFromPg,
+  linkWidgetConversationsByGuestAccountEmailFromPg,
+} from '@/lib/db/customer-care-pg'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 
@@ -15,10 +18,18 @@ export type WidgetChatListItem = {
  * Chỉ Postgres — không còn REST/HTTP client cũ cho bảng này.
  */
 export async function listWidgetChatsForLinkedUser(
-  linkedUserId: string
+  linkedUserId: string,
+  options?: { accountEmailNormalized?: string | null }
 ): Promise<{ items: WidgetChatListItem[]; error: string | null }> {
   if (!isPgConfigured()) {
     return { items: [], error: 'Database not configured.' }
+  }
+
+  const email = String(options?.accountEmailNormalized ?? '')
+    .trim()
+    .toLowerCase()
+  if (email) {
+    await linkWidgetConversationsByGuestAccountEmailFromPg(linkedUserId, email)
   }
 
   const convs = await fetchWidgetConversationsForLinkedUserFromPg(linkedUserId)

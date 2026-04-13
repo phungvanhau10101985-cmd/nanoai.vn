@@ -71,7 +71,11 @@ export default async function PartnerGuestChatPage(props: { params: Promise<{ sl
   const user = await getUserOrBypass()
   const chatList =
     user?.id
-      ? (await listWidgetChatsForLinkedUser(user.id)).items
+      ? (
+          await listWidgetChatsForLinkedUser(user.id, {
+            accountEmailNormalized: user.email,
+          })
+        ).items
       : []
 
   const { t } = getServerDictionary()
@@ -84,6 +88,7 @@ export default async function PartnerGuestChatPage(props: { params: Promise<{ sl
         slug={slug}
         shopDisplayName={partner.display_name}
         t={t.partnerGuestChat}
+        orderDetailT={t.messagingMyOrders}
         initialChatList={chatList}
         guestPurchaseFlow={guestPurchaseFlow}
       />
