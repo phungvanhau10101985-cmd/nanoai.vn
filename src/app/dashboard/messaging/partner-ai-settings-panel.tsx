@@ -24,8 +24,10 @@ import type {
   PartnerInventoryEmbeddingStats,
   PartnerAiSettingsClientRow,
   PartnerAiSettingsPayload,
-  PartnerAiTokenUsageStatRow,
-  PartnerAiTokenUsageDetailRow,
+  PartnerAiTokenUsageStatRowWithCostEstimate,
+  PartnerAiTokenUsageKindStatRow,
+  PartnerAiTokenDailyStatRow,
+  PartnerAiTokenUsageDetailRowWithCostEstimate,
   PartnerAiImageGenUsageStatRow,
   OwnerCreditEventSummaryRow,
   OwnerCreditEventDetailRow,
@@ -70,6 +72,7 @@ function parseStockQtyInput(raw: string): string {
 
 const tokenFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
 const creditFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })
+const vndFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
 
 function dateTimeForLocale(iso: string, locale: WebLocale): string {
   const tag =
@@ -89,13 +92,43 @@ function dateTimeForLocale(iso: string, locale: WebLocale): string {
   }
 }
 
-function tokenUsageDetailKindLabel(row: PartnerAiTokenUsageDetailRow, t: AiT): string {
+/** `dayUtc` dạng YYYY-MM-DD — hiển thị theo locale, múi UTC. */
+function dayUtcForLocale(dayUtc: string, locale: WebLocale): string {
+  const tag =
+    locale === 'vi'
+      ? 'vi-VN'
+      : locale === 'zh'
+        ? 'zh-CN'
+        : locale === 'ja'
+          ? 'ja-JP'
+          : locale === 'ko'
+            ? 'ko-KR'
+            : 'en-US'
+  try {
+    const [y, m, d] = dayUtc.split('-').map((x) => Number.parseInt(x, 10))
+    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return dayUtc
+    const dt = new Date(Date.UTC(y, m - 1, d))
+    return dt.toLocaleDateString(tag, { timeZone: 'UTC', dateStyle: 'medium' })
+  } catch {
+    return dayUtc
+  }
+}
+
+function tokenUsageDetailKindLabel(row: PartnerAiTokenUsageDetailRowWithCostEstimate, t: AiT): string {
   const k = row.usage_kind
   if (!k) return t.usageTokenKindInbox
   if (k === 'material_infer') return t.usageTokenKindMaterialInfer
   if (k === 'image_material_detail') return t.usageImageGenKindMaterial
   if (k === 'image_real_use') return t.usageImageGenKindRealUse
   return k
+}
+
+function tokenUsageKindStatLabel(kind: string | null, t: AiT): string {
+  if (kind == null || kind === '') return t.usageTokenKindInbox
+  if (kind === 'material_infer') return t.usageTokenKindMaterialInfer
+  if (kind === 'image_material_detail') return t.usageImageGenKindMaterial
+  if (kind === 'image_real_use') return t.usageImageGenKindRealUse
+  return kind
 }
 
 function defaultsFromSettings(s: SettingsRow | null) {
@@ -180,12 +213,16 @@ export function PartnerAiSettingsPanel({
   const [inventoryPageSize, setInventoryPageSize] = useState(120)
   const [inventoryPage, setInventoryPage] = useState(0)
   const [inventoryLoadingMore, setInventoryLoadingMore] = useState(false)
-  const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRow[]>([])
+  const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRowWithCostEstimate[]>([])
+  const [tokenUsageKindRows, setTokenUsageKindRows] = useState<PartnerAiTokenUsageKindStatRow[]>([])
+  const [tokenDailyRows, setTokenDailyRows] = useState<PartnerAiTokenDailyStatRow[]>([])
   const [imageGenRows, setImageGenRows] = useState<PartnerAiImageGenUsageStatRow[]>([])
   const [usagePeriod, setUsagePeriod] = useState<PartnerAiUsagePeriod>('month')
   const usagePeriodRef = useRef(usagePeriod)
   usagePeriodRef.current = usagePeriod
-  const [tokenDetailRows, setTokenDetailRows] = useState<PartnerAiTokenUsageDetailRow[]>([])
+  const [tokenDetailRows, setTokenDetailRows] = useState<PartnerAiTokenUsageDetailRowWithCostEstimate[]>([])
+  const [tokenUsageEstimatedCostVndTotal, setTokenUsageEstimatedCostVndTotal] = useState(0)
+  const [tokenDetailsEstimatedCostVndTotal, setTokenDetailsEstimatedCostVndTotal] = useState(0)
   const [creditSummaryRows, setCreditSummaryRows] = useState<OwnerCreditEventSummaryRow[]>([])
   const [creditDetailRows, setCreditDetailRows] = useState<OwnerCreditEventDetailRow[]>([])
   const [logoCreditRows, setLogoCreditRows] = useState<PartnerLogoCreditRow[]>([])
@@ -222,13 +259,20 @@ export function PartnerAiSettingsPanel({
       if (seq !== loadSeqRef.current) return
       if ('error' in usageRes) {
         setTokenUsageRows([])
+        setTokenUsageKindRows([])
+        setTokenDailyRows([])
         setImageGenRows([])
+        setTokenUsageEstimatedCostVndTotal(0)
       } else {
         setTokenUsageRows(usageRes.rows)
+        setTokenUsageEstimatedCostVndTotal(usageRes.tokenUsageEstimatedCostVndTotal ?? 0)
+        setTokenUsageKindRows(usageRes.usageKindRows ?? [])
+        setTokenDailyRows(usageRes.dailyRows ?? [])
         setImageGenRows(usageRes.imageGenRows ?? [])
       }
       if ('error' in analyticsRes) {
         setTokenDetailRows([])
+        setTokenDetailsEstimatedCostVndTotal(0)
         setCreditSummaryRows([])
         setCreditDetailRows([])
         setLogoCreditRows([])
@@ -239,6 +283,7 @@ export function PartnerAiSettingsPanel({
         setTextEmbedDetailRows([])
       } else {
         setTokenDetailRows(analyticsRes.tokenDetails)
+        setTokenDetailsEstimatedCostVndTotal(analyticsRes.tokenDetailsEstimatedCostVndTotal ?? 0)
         setCreditSummaryRows(analyticsRes.creditSummaries)
         setCreditDetailRows(analyticsRes.creditDetails)
         setLogoCreditRows(analyticsRes.logoCreditRows)
@@ -916,6 +961,17 @@ export function PartnerAiSettingsPanel({
               <div>
                 <h3 className="text-sm font-semibold">{t.usageSectionApiTitle}</h3>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageSectionApiIntro}</p>
+                <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground border-t border-border/40 pt-2">
+                  {t.tokenUsageCostDisclaimer}
+                </p>
+                {tokenUsageEstimatedCostVndTotal > 0 ? (
+                  <p className="mt-2 text-sm font-semibold tabular-nums text-foreground">
+                    {t.tokenUsageEstimatedTotalLabel.replace(
+                      '{amount}',
+                      vndFmt.format(tokenUsageEstimatedCostVndTotal)
+                    )}
+                  </p>
+                ) : null}
               </div>
             {tokenUsageRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t.tokenUsageEmpty}</p>
@@ -930,6 +986,7 @@ export function PartnerAiSettingsPanel({
                       <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
                       <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
                       <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                      <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -941,12 +998,88 @@ export function PartnerAiSettingsPanel({
                         <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
                         <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
                         <td className="p-2 tabular-nums font-medium">{tokenFmt.format(row.sum_total_tokens)}</td>
+                        <td className="p-2 tabular-nums font-medium text-foreground">
+                          {vndFmt.format(row.estimated_cost_vnd)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
+
+            {tokenUsageKindRows.length > 0 ? (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">{t.tokenUsageByKindTitle}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{t.tokenUsageByKindIntro}</p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-left">
+                        <th className="p-2 font-medium">{t.usageDetailColUsageKind}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCalls}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tokenUsageKindRows.map((row) => (
+                        <tr
+                          key={row.usage_kind ?? '__inbox__'}
+                          className="border-b border-border/60 last:border-0"
+                        >
+                          <td className="p-2 text-[11px] text-muted-foreground">
+                            {tokenUsageKindStatLabel(row.usage_kind, t)}
+                          </td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
+                          <td className="p-2 tabular-nums font-medium">
+                            {tokenFmt.format(row.sum_total_tokens)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {tokenDailyRows.length > 0 ? (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">{t.tokenUsageByDayTitle}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{t.tokenUsageByDayIntro}</p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-left">
+                        <th className="p-2 font-medium">{t.tokenUsageColDay}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCalls}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tokenDailyRows.map((row) => (
+                        <tr key={row.day_utc} className="border-b border-border/60 last:border-0">
+                          <td className="p-2 whitespace-nowrap tabular-nums">
+                            {dayUtcForLocale(row.day_utc, locale)}
+                          </td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
+                          <td className="p-2 tabular-nums font-medium">
+                            {tokenFmt.format(row.sum_total_tokens)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <h3 className="text-sm font-medium">{t.usageImageGenTitle}</h3>
@@ -1186,6 +1319,14 @@ export function PartnerAiSettingsPanel({
               <div>
                 <h3 className="text-sm font-medium">{t.usageDetailApiTitle}</h3>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageDetailApiIntro}</p>
+                {tokenDetailsEstimatedCostVndTotal > 0 ? (
+                  <p className="mt-2 text-xs font-medium tabular-nums text-foreground">
+                    {t.tokenUsageDetailEstimatedTotalLabel.replace(
+                      '{amount}',
+                      vndFmt.format(tokenDetailsEstimatedCostVndTotal)
+                    )}
+                  </p>
+                ) : null}
                 {tokenDetailRows.length === 0 ? (
                   <p className="mt-2 text-sm text-muted-foreground">{t.usageDetailEmpty}</p>
                 ) : (
@@ -1200,6 +1341,7 @@ export function PartnerAiSettingsPanel({
                           <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
                           <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
                           <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                          <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1215,6 +1357,9 @@ export function PartnerAiSettingsPanel({
                             <td className="p-2 tabular-nums">{tokenFmt.format(row.completion_tokens ?? 0)}</td>
                             <td className="p-2 tabular-nums font-medium">
                               {tokenFmt.format(row.total_tokens ?? 0)}
+                            </td>
+                            <td className="p-2 tabular-nums font-medium text-foreground">
+                              {vndFmt.format(row.estimated_cost_vnd)}
                             </td>
                           </tr>
                         ))}

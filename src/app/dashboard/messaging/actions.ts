@@ -74,8 +74,15 @@ import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   fetchMessagingPartnerAiImageGenStatsFromPg,
+  fetchMessagingPartnerAiTokenDailyStatsFromPg,
   fetchMessagingPartnerAiTokenStatsByModelFromPg,
+  fetchMessagingPartnerAiTokenStatsByUsageKindFromPg,
   fetchMessagingPartnerAiTokenUsageDetailsFromPg,
+  type PartnerAiImageGenUsageStatRow,
+  type PartnerAiTokenDailyStatRow,
+  type PartnerAiTokenUsageKindStatRow,
+  type PartnerAiTokenUsageDetailRow,
+  type PartnerAiTokenUsageStatRow,
 } from '@/lib/db/messaging-partner-ai-token-usage-pg'
 import {
   fetchMessagingPartnerImageEmbedDetailsFromPg,
@@ -145,12 +152,25 @@ import {
   emailCustomerShippingStatusChanged,
 } from '@/lib/messaging/partner-order-customer-email'
 import { buildPartnerOrdersXlsxBuffer } from '@/lib/messaging/partner-orders-excel-export'
+import {
+  partnerAiAggregatedModelRowsEstimatedCostVnd,
+  partnerAiTokenDetailRowEstimatedCostVnd,
+} from '@/lib/pricing/api-token-cost'
 
 export type {
   PartnerAiImageGenUsageStatRow,
+  PartnerAiTokenDailyStatRow,
+  PartnerAiTokenUsageKindStatRow,
   PartnerAiTokenUsageStatRow,
   PartnerAiTokenUsageDetailRow,
-} from '@/lib/db/messaging-partner-ai-token-usage-pg'
+}
+
+export type PartnerAiTokenUsageStatRowWithCostEstimate = PartnerAiTokenUsageStatRow & {
+  estimated_cost_vnd: number
+}
+export type PartnerAiTokenUsageDetailRowWithCostEstimate = PartnerAiTokenUsageDetailRow & {
+  estimated_cost_vnd: number
+}
 export type {
   OwnerCreditEventDetailRow,
   OwnerCreditEventSummaryRow,
@@ -1207,7 +1227,7 @@ export type PartnerAiSettingsPayload = {
   guest_purchase_flow: 'in_chat' | 'external_site'
 }
 
-const PARTNER_AI_USAGE_DETAIL_ROW_LIMIT = 150
+const PARTNER_AI_USAGE_DETAIL_ROW_LIMIT = 250
 const PARTNER_AI_CREDIT_EVENT_ROW_LIMIT = 80
 const PARTNER_AI_LOGO_CREDIT_ROW_LIMIT = 80
 const PARTNER_AI_IMAGE_EMBED_DETAIL_ROW_LIMIT = 80
@@ -1237,14 +1257,20 @@ export async function getPartnerAiTokenUsageStats(
     return { error: 'DATABASE_URL is not set.' }
   }
   const { sinceIso, lookbackDays } = partnerAiUsageSinceIso(period)
-  const [rows, imageGenRows] = await Promise.all([
+  const [rows, imageGenRows, usageKindRows, dailyRows] = await Promise.all([
     fetchMessagingPartnerAiTokenStatsByModelFromPg(partnerId, sinceIso),
     fetchMessagingPartnerAiImageGenStatsFromPg(partnerId, sinceIso),
+    fetchMessagingPartnerAiTokenStatsByUsageKindFromPg(partnerId, sinceIso),
+    fetchMessagingPartnerAiTokenDailyStatsFromPg(partnerId, sinceIso),
   ])
   if (rows === null) return { error: 'Failed to load token usage stats.' }
+  const costed = partnerAiAggregatedModelRowsEstimatedCostVnd(rows)
   return {
-    rows,
+    rows: costed.rows,
+    tokenUsageEstimatedCostVndTotal: costed.totalVnd,
     imageGenRows: imageGenRows ?? [],
+    usageKindRows: usageKindRows ?? [],
+    dailyRows: dailyRows ?? [],
     sinceIso,
     lookbackDays,
     period,
@@ -1308,11 +1334,18 @@ export async function getPartnerAiUsageAnalytics(
     return { error: 'Failed to load token usage details.' }
   }
 
+  const tokenDetailsWithCost: PartnerAiTokenUsageDetailRowWithCostEstimate[] = tokenDetails.map((r) => ({
+    ...r,
+    estimated_cost_vnd: partnerAiTokenDetailRowEstimatedCostVnd(r),
+  }))
+  const tokenDetailsEstimatedCostVndTotal = tokenDetailsWithCost.reduce((s, r) => s + r.estimated_cost_vnd, 0)
+
   return {
     sinceIso,
     lookbackDays,
     period,
-    tokenDetails,
+    tokenDetails: tokenDetailsWithCost,
+    tokenDetailsEstimatedCostVndTotal,
     creditSummaries: creditSummaries ?? [],
     creditDetails: creditDetails ?? [],
     logoCreditRows: logoRows ?? [],

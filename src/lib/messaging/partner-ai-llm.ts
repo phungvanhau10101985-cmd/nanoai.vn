@@ -15,6 +15,7 @@ import {
   customerMessageWantsSimilarCatalogVersusLastConsulted,
   fetchInventoryRowsByExplicitSku,
   fetchInventoryRowsForPartnerAi,
+  fetchInventoryRowsFromPageContextSku,
   PARTNER_AI_INVENTORY_CONTEXT_LIMIT,
   customerMessageIsFollowUpContextQuery,
   inboundTextLooksLikeFollowUpConsultHeuristic,
@@ -302,6 +303,9 @@ export async function buildPartnerAiContext(
   const invFmtOpts = { markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts) }
 
   let explicitSkuRows = await fetchInventoryRowsByExplicitSku(partnerId, latestCustomerMessage)
+  if (explicitSkuRows.length === 0) {
+    explicitSkuRows = await fetchInventoryRowsFromPageContextSku(partnerId, triggerRawPayload)
+  }
   const selectedInventoryId = selectedInventoryIdFromTrigger(triggerRawPayload)
 
   let lastConsultedRow: Database['public']['Tables']['messaging_partner_inventory']['Row'] | null = null
@@ -346,6 +350,7 @@ export async function buildPartnerAiContext(
    */
   /** Một dòng kho + không vector: trừ khi khách đang chọn SP từ ảnh (vision) trong **tin này** và không phải hỏi tiếp; trừ khi hỏi **mẫu tương tự** (cần vector ảnh + cả kho). */
   const followUpSingleProductNoVector =
+    explicitSkuRows.length === 0 &&
     useLastConsultedContext &&
     (!selectedInventoryId || followUpStyleMessage) &&
     !similarCatalogVersusLastConsulted
@@ -395,7 +400,9 @@ export async function buildPartnerAiContext(
     invForContext = [row]
   } else {
     let inv: Database['public']['Tables']['messaging_partner_inventory']['Row'][] = []
-    if (similarCatalogVersusLastConsulted && lastConsultedRow && !selectedInventoryId) {
+    if (explicitSkuRows.length > 0) {
+      inv = explicitSkuRows.slice(0, PARTNER_AI_INVENTORY_CONTEXT_LIMIT)
+    } else if (similarCatalogVersusLastConsulted && lastConsultedRow && !selectedInventoryId) {
       try {
         inv = await fetchInventoryRowsSimilarToAnchorProductImage(partnerId, lastConsultedRow, {
           limit: PARTNER_AI_INVENTORY_CONTEXT_LIMIT,
@@ -414,7 +421,7 @@ export async function buildPartnerAiContext(
       })
     }
     invForContext = inv
-    if (selectedInventoryId && isPgConfigured()) {
+    if (selectedInventoryId && isPgConfigured() && explicitSkuRows.length === 0) {
       try {
         const sel = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, selectedInventoryId)
         if (sel) {
@@ -425,7 +432,7 @@ export async function buildPartnerAiContext(
         console.warn('[partner-ai-llm] selected inventory PG failed', e)
       }
     }
-    if (useLastConsultedContext && lastConsultedRow) {
+    if (useLastConsultedContext && lastConsultedRow && explicitSkuRows.length === 0) {
       const lid = lastConsultedRow.id
       if (!invForContext.some((r) => r.id === lid)) {
         invForContext = [lastConsultedRow, ...invForContext.filter((r) => r.id !== lid)].slice(
@@ -496,7 +503,9 @@ ${salesExtra}`
   /** Khối mặc định — luôn có; shop mở rộng qua `sales_coaching_instructions` + chính sách. */
   const khoContextInstructionForSystem = followUpSingleProductNoVector
     ? `Trong prompt user, phần «Danh sách kho» chỉ có **đúng một dòng** — sản phẩm shop/AI **vừa tư vấn**; **không** phải kết quả tìm (vector/embedding) trên toàn kho. Nhiệm vụ của bạn: **đọc câu hỏi khách** và trả lời bằng cách **phân tích trực tiếp** các trường trên dòng đó (tên, mô tả, giá, màu, tồn, ghi chú…). Không xử lý như khách đang lần đầu tìm hàng hay cần gợi ý nhiều mẫu.`
-    : `Danh sách kho trong prompt user đã được hệ thống lấy bằng **khớp từ khóa + vector** theo đúng tin khách (kể cả nam/nữ); dùng để tư vấn.`
+    : explicitSkuRows.length > 0
+      ? `Trong prompt user, phần «Danh sách kho» đã được **neo theo mã/SKU** (tin khách hoặc trang sản phẩm đang xem); **không** phải kết quả tìm rộng (vector) trên toàn kho. Chỉ tư vấn theo các dòng khớp mã; không lẫn sang mẫu khác, không gợi ý carousel nhiều thẻ thay thế trừ khi khách chủ động muốn xem thêm hoặc so sánh.`
+      : `Danh sách kho trong prompt user đã được hệ thống lấy bằng **khớp từ khóa + vector** theo đúng tin khách (kể cả nam/nữ); dùng để tư vấn.`
 
   const salesDefaultBlock = `
 Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
@@ -536,12 +545,16 @@ ${formatInventoryLines(explicitSkuRows, invFmtOpts)}`
 
   const inventoryFollowupAugmented = useLastConsultedContext
   const conversationFocusBlock =
-    inventoryFollowupAugmented && lastConsultedRow && !similarCatalogVersusLastConsulted
-      ? `\n\n[Ngữ cảnh bắt buộc — tin khách gần như chắc chắn là hỏi tiếp về mặt hàng này, không phải tìm sản phẩm mới]
+    explicitSkuRows.length > 0 && !similarCatalogVersusLastConsulted
+      ? `\n\n[Ngữ cảnh bắt buộc — neo mã/SKU khách đã chọn (tin nhắn hoặc trang đang xem), không phải tìm rộng trên cả kho]
+${formatInventoryLines(explicitSkuRows, invFmtOpts)}
+Trả lời đúng theo **các dòng kho khớp mã** ở trên. Trong JSON: **products** chỉ được **không quá 1** phần tử — nếu cần thẻ thì **chỉ** mặt hàng khớp mã (copy name/image_url/product_url/price_hint/sku từ dòng kho). **Cấm** điền nhiều mẫu lạc mã, **cấm** carousel gợi ý mẫu khác thay thế. Trong **message** không bảo khách «chọn sản phẩm» như thể chưa chọn mẫu. Chỉ để products = [] nếu không cần gửi lại thẻ.`
+      : inventoryFollowupAugmented && lastConsultedRow && !similarCatalogVersusLastConsulted
+        ? `\n\n[Ngữ cảnh bắt buộc — tin khách gần như chắc chắn là hỏi tiếp về mặt hàng này, không phải tìm sản phẩm mới]
 ${formatInventoryLines([lastConsultedRow], invFmtOpts)}
 Trả lời đúng theo **toàn bộ** dòng kho trên: tên, mô tả, ghi chú, và dòng «Màu sắc (trích từ tên/mô tả/ghi chú kho)» nếu có — đó là nguồn màu đúng cho câu «có màu gì» / «còn màu nào» (không đoán ngoài kho).
 Trong JSON: **products** chỉ được **không quá 1** phần tử — nếu cần thẻ thì **chỉ** đúng mặt hàng trên (copy name/image_url/product_url/price_hint/sku từ dòng kho). **Cấm** điền nhiều mẫu, **cấm** carousel gợi ý mẫu khác. Trong **message** không được bảo khách «chọn sản phẩm», «chọn mẫu ưng ý», hay như thể khách chưa đang xem sản phẩm nào — khách đang hỏi tiếp về đúng mẫu này. Chỉ để products = [] nếu không cần gửi lại thẻ (trả lời thuần chữ đủ).`
-      : ''
+        : ''
 
   const followUpSnapshotBlock =
     lastConsultedRow &&
@@ -561,7 +574,11 @@ Dưới đây là **toàn bộ dữ liệu kho** của **một** sản phẩm �
       ? `[Gợi ý mẫu tương tự — danh sách kho bên dười lấy theo **embedding ảnh chính** của mặt hàng shop/AI vừa thảo luận (so khớp **cả kho** qua pgvector). Dòng đầu thường gần mẫu đang xem nhất. Trả lời ngắn rồi đưa **nhiều thẻ** (4–8 nếu kho có) trong JSON **products** — không giới hạn một mẫu; có thể gồm cả mẫu neo nếu vẫn nằm trong danh sách.
 
 `
-      : `Danh sách kho (do shop khai báo; có thể không đầy đủ so với toàn bộ hàng thực tế). Các dòng đầu là mặt hàng được ưu tiên theo mã/tên/từ khóa gần với tin nhắn khách (nếu có), sau đó là các mặt hàng còn lại theo thứ tự shop sắp xếp — tất cả đều có thể dùng để tư vấn; khi chọn mặt hàng đưa vào JSON **products**, vẫn phải **lọc theo đúng chủ đề khách đang hỏi** (đừng chọn mặt hàng chỉ vì xuất hiện sớm trong danh sách nếu khác ngành hàng).
+      : explicitSkuRows.length > 0 && !similarCatalogVersusLastConsulted
+        ? `[Neo mã sản phẩm — danh sách kho bên dười chỉ gồm mặt hàng **khớp mã/SKU** (từ tin khách hoặc trang sản phẩm đang xem). **Không** phải kết quả tìm vector trên toàn kho; khi điền **products**, tối đa **một** thẻ đúng mã đang thảo luận.
+
+`
+        : `Danh sách kho (do shop khai báo; có thể không đầy đủ so với toàn bộ hàng thực tế). Các dòng đầu là mặt hàng được ưu tiên theo mã/tên/từ khóa gần với tin nhắn khách (nếu có), sau đó là các mặt hàng còn lại theo thứ tự shop sắp xếp — tất cả đều có thể dùng để tư vấn; khi chọn mặt hàng đưa vào JSON **products**, vẫn phải **lọc theo đúng chủ đề khách đang hỏi** (đừng chọn mặt hàng chỉ vì xuất hiện sớm trong danh sách nếu khác ngành hàng).
 
 `
 

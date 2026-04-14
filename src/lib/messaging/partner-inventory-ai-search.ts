@@ -1,4 +1,4 @@
-import type { Database } from '@/types/database.types'
+import type { Database, Json } from '@/types/database.types'
 import { fetchPartnerInventoryRowsByTokenIlikeFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import {
   fetchInventoryRowsBySemanticTextForPartnerAi,
@@ -56,7 +56,33 @@ export function extractExplicitSkuCandidates(message: string): string[] {
     push(m[1])
     if (out.length >= EXPLICIT_SKU_MAX) return out
   }
+  // Chuỗi hệ thống chèn khi khách xem SP trên web (widget-guest-post → latestInboundTextForPartnerAi)
+  for (const m of text.matchAll(/\[Customer product SKU:\s*([^\]\n]{1,128})\]/gi)) {
+    push(m[1].trim())
+    if (out.length >= EXPLICIT_SKU_MAX) return out
+  }
+  // Mã thuần số (4–14 chữ số) sau nhãn mã/SKU — hay gặp trên sàn TMĐT
+  for (const m of text.matchAll(
+    /(?:mã|ma|sku|code|mã\s*sp|mã\s*sản\s*phẩm)\s*[:#]?\s*(\d{4,14})(?=\s|$|[,.;!?]|[\]\n])/gi
+  )) {
+    push(m[1])
+    if (out.length >= EXPLICIT_SKU_MAX) return out
+  }
   return out
+}
+
+/**
+ * Lấy dòng kho khi khách gửi tin kèm `page_context.sku` (xem SP trên site, không gõ [Customer product SKU]).
+ */
+export async function fetchInventoryRowsFromPageContextSku(
+  partnerId: string,
+  rawPayload: Json | null | undefined
+): Promise<PartnerInventoryRow[]> {
+  if (!rawPayload || typeof rawPayload !== 'object' || Array.isArray(rawPayload)) return []
+  const pc = (rawPayload as { page_context?: { sku?: string } }).page_context
+  const sku = typeof pc?.sku === 'string' ? pc.sku.trim() : ''
+  if (sku.length < 2) return []
+  return fetchInventoryRowsByExplicitSku(partnerId, `[Customer product SKU: ${sku}]`)
 }
 
 function collectTokenCandidates(text: string): TokenCandidate[] {

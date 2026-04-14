@@ -456,6 +456,21 @@ export type Dictionary = {
     tokenUsageColPrompt: string
     tokenUsageColCompletion: string
     tokenUsageColTotal: string
+    /** Ước tính chi phí (VNĐ) theo bảng giá tham khảo — cột bảng token theo model */
+    tokenUsageColEstimatedCost: string
+    /** Đoạn giải thích + tỷ giá; có thể ghi env PARTNER_AI_TOKEN_COST_USD_TO_VND */
+    tokenUsageCostDisclaimer: string
+    /** Tổng ước tính; placeholder {amount} = số VNĐ định dạng */
+    tokenUsageEstimatedTotalLabel: string
+    /** Tổng chi tiết từng lần gọi; placeholder {amount} */
+    tokenUsageDetailEstimatedTotalLabel: string
+    /** Gom theo usage_kind (inbox / material_infer / …) */
+    tokenUsageByKindTitle: string
+    tokenUsageByKindIntro: string
+    /** Gom theo ngày UTC */
+    tokenUsageByDayTitle: string
+    tokenUsageByDayIntro: string
+    tokenUsageColDay: string
     usageDetailApiTitle: string
     usageDetailApiIntro: string
     usageDetailColTime: string
@@ -2205,6 +2220,17 @@ const VI_DICTIONARY: Dictionary = {
     tokenUsageColPrompt: 'Token đầu vào',
     tokenUsageColCompletion: 'Token đầu ra',
     tokenUsageColTotal: 'Tổng token',
+    tokenUsageColEstimatedCost: 'Ước tính (₫)',
+    tokenUsageCostDisclaimer:
+      'Chi phí là ước tính từ token đã ghi và bảng giá tham khảo (USD/1M token), quy đổi sang VNĐ. Model không có trong bảng giá dùng mức gemini-3-flash-preview. Có thể chỉnh tỷ giá USD→VNĐ bằng biến môi trường PARTNER_AI_TOKEN_COST_USD_TO_VND.',
+    tokenUsageEstimatedTotalLabel: 'Tổng ước tính (khoảng {amount} ₫)',
+    tokenUsageDetailEstimatedTotalLabel: 'Cộng các dòng chi tiết (khoảng {amount} ₫)',
+    tokenUsageByKindTitle: 'Theo loại gọi (usage_kind)',
+    tokenUsageByKindIntro:
+      'Gom tất cả lần ghi token LLM: inbox (job hội thoại), suy chất liệu, tạo ảnh inbox, v.v.',
+    tokenUsageByDayTitle: 'Theo ngày (UTC)',
+    tokenUsageByDayIntro: 'Tổng token và số lần gọi từng ngày theo giờ UTC.',
+    tokenUsageColDay: 'Ngày (UTC)',
     usageDetailApiTitle: 'Chi tiết từng lần gọi LLM (inbox)',
     usageDetailApiIntro:
       'Mỗi dòng là một lần gọi API sau thời gian chờ — ghi nhận token thực tế. FAQ khớp sẵn không gọi LLM nên không có ở đây.',
@@ -3963,6 +3989,17 @@ const EN_DICTIONARY: Dictionary = {
     tokenUsageColPrompt: 'Prompt tokens',
     tokenUsageColCompletion: 'Completion tokens',
     tokenUsageColTotal: 'Total tokens',
+    tokenUsageColEstimatedCost: 'Est. (₫)',
+    tokenUsageCostDisclaimer:
+      'Costs are estimates from logged tokens and reference USD-per-1M-token rates converted to VND. Unknown models fall back to gemini-3-flash-preview pricing. Override USD→VND with env PARTNER_AI_TOKEN_COST_USD_TO_VND.',
+    tokenUsageEstimatedTotalLabel: 'Estimated total (~{amount} ₫)',
+    tokenUsageDetailEstimatedTotalLabel: 'Sum of detail rows (~{amount} ₫)',
+    tokenUsageByKindTitle: 'By call type (usage_kind)',
+    tokenUsageByKindIntro:
+      'Aggregates all LLM token rows: inbox chat jobs, material inference, inbox image generation, etc.',
+    tokenUsageByDayTitle: 'By day (UTC)',
+    tokenUsageByDayIntro: 'Calls and token totals per calendar day in UTC.',
+    tokenUsageColDay: 'Day (UTC)',
     usageDetailApiTitle: 'Per-call LLM usage (inbox)',
     usageDetailApiIntro:
       'Each row is one API call after the wait time — actual token counts. FAQ exact matches do not call the LLM, so they do not appear here.',
@@ -5722,6 +5759,16 @@ const ZH_DICTIONARY: Dictionary = {
     tokenUsageColPrompt: '输入 token',
     tokenUsageColCompletion: '输出 token',
     tokenUsageColTotal: '总 token',
+    tokenUsageColEstimatedCost: '估算 (₫)',
+    tokenUsageCostDisclaimer:
+      '费用为根据已记录 token 与参考单价（每百万 token 美元）换算成越南盾的估算；未知模型按 gemini-3-flash-preview。可用环境变量 PARTNER_AI_TOKEN_COST_USD_TO_VND 调整美元兑越南盾汇率。',
+    tokenUsageEstimatedTotalLabel: '估算合计（约 {amount} ₫）',
+    tokenUsageDetailEstimatedTotalLabel: '明细行合计（约 {amount} ₫）',
+    tokenUsageByKindTitle: '按调用类型 (usage_kind)',
+    tokenUsageByKindIntro: '汇总所有 LLM token 记录：收件箱、面料推断、收件箱出图等。',
+    tokenUsageByDayTitle: '按日（UTC）',
+    tokenUsageByDayIntro: '按 UTC 日历日汇总的调用次数与 token。',
+    tokenUsageColDay: '日期（UTC）',
     usageDetailApiTitle: '每次 LLM 调用明细（收件箱）',
     usageDetailApiIntro:
       '每一行表示等待时间后的一次 API 调用及实际 token。匹配 FAQ 不会调用 LLM，因此不会出现在此表中。',
@@ -7427,6 +7474,17 @@ const JA_DICTIONARY: Dictionary = {
     tokenUsageColPrompt: '入力トークン',
     tokenUsageColCompletion: '出力トークン',
     tokenUsageColTotal: '合計トークン',
+    tokenUsageColEstimatedCost: '見積 (₫)',
+    tokenUsageCostDisclaimer:
+      '費用は記録済みトークンと参考単価（100万トークンあたりUSD）からVNDに換算した概算です。未登録モデルは gemini-3-flash-preview 相当。為替は環境変数 PARTNER_AI_TOKEN_COST_USD_TO_VND で調整可能です。',
+    tokenUsageEstimatedTotalLabel: '見積合計（約 {amount} ₫）',
+    tokenUsageDetailEstimatedTotalLabel: '明細行の合計（約 {amount} ₫）',
+    tokenUsageByKindTitle: '呼び出し種別（usage_kind）',
+    tokenUsageByKindIntro:
+      'LLM トークン記録の集計：受信トレイ、素材推定、受信トレイ画像生成など。',
+    tokenUsageByDayTitle: '日別（UTC）',
+    tokenUsageByDayIntro: 'UTC の暦日ごとの呼び出し回数とトークン合計。',
+    tokenUsageColDay: '日付（UTC）',
     usageDetailApiTitle: 'LLM 呼び出しごとの詳細（受信トレイ）',
     usageDetailApiIntro:
       '各行は待機時間後の 1 回の API 呼び出しと実トークンです。FAQ に一致した場合は LLM を呼ばないためここに含まれません。',
@@ -9169,6 +9227,16 @@ const KO_DICTIONARY: Dictionary = {
     tokenUsageColPrompt: '입력 토큰',
     tokenUsageColCompletion: '출력 토큰',
     tokenUsageColTotal: '총 토큰',
+    tokenUsageColEstimatedCost: '추정 (₫)',
+    tokenUsageCostDisclaimer:
+      '비용은 기록된 토큰과 참고 단가(백만 토큰당 USD)를 VND로 환산한 추정치입니다. 미등록 모델은 gemini-3-flash-preview 요금을 사용합니다. 환율은 환경 변수 PARTNER_AI_TOKEN_COST_USD_TO_VND로 조정할 수 있습니다.',
+    tokenUsageEstimatedTotalLabel: '추정 합계(약 {amount} ₫)',
+    tokenUsageDetailEstimatedTotalLabel: '상세 행 합계(약 {amount} ₫)',
+    tokenUsageByKindTitle: '호출 유형(usage_kind)',
+    tokenUsageByKindIntro: '모든 LLM 토큰 기록 합산: 받은편지함, 소재 추론, 받은편지함 이미지 생성 등.',
+    tokenUsageByDayTitle: '일별(UTC)',
+    tokenUsageByDayIntro: 'UTC 기준 일자별 호출 수와 토큰 합계.',
+    tokenUsageColDay: '날짜(UTC)',
     usageDetailApiTitle: 'LLM 호출별 상세(받은편지함)',
     usageDetailApiIntro:
       '각 행은 대기 시간 후 한 번의 API 호출과 실제 토큰입니다. FAQ 일치 시 LLM을 호출하지 않아 여기에 없습니다.',
