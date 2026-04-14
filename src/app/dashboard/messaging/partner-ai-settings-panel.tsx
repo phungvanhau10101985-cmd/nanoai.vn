@@ -36,6 +36,7 @@ import type {
   PartnerImageEmbedUsageSummaryRow,
   PartnerTextEmbedUsageDetailRow,
   PartnerTextEmbedUsageSummaryRow,
+  PartnerAiUsageCostBreakdown,
 } from '@/app/dashboard/messaging/actions'
 import {
   deletePartnerFaq,
@@ -48,6 +49,7 @@ import {
   getPartnerAiTokenUsageStats,
   getPartnerAiUsageAnalytics,
   type PartnerAiUsagePeriod,
+  type PartnerAiUsageQuery,
   savePartnerAiSettings,
   upsertPartnerFaq,
   upsertPartnerInventoryItem,
@@ -73,6 +75,10 @@ function parseStockQtyInput(raw: string): string {
 const tokenFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
 const creditFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })
 const vndFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
+
+function utcYmdToday(): string {
+  return new Date().toISOString().slice(0, 10)
+}
 
 function dateTimeForLocale(iso: string, locale: WebLocale): string {
   const tag =
@@ -217,11 +223,15 @@ export function PartnerAiSettingsPanel({
   const [tokenUsageKindRows, setTokenUsageKindRows] = useState<PartnerAiTokenUsageKindStatRow[]>([])
   const [tokenDailyRows, setTokenDailyRows] = useState<PartnerAiTokenDailyStatRow[]>([])
   const [imageGenRows, setImageGenRows] = useState<PartnerAiImageGenUsageStatRow[]>([])
+  const [usageRangeMode, setUsageRangeMode] = useState<'rolling' | 'calendar'>('rolling')
   const [usagePeriod, setUsagePeriod] = useState<PartnerAiUsagePeriod>('month')
-  const usagePeriodRef = useRef(usagePeriod)
-  usagePeriodRef.current = usagePeriod
+  const [usageCalendarFrom, setUsageCalendarFrom] = useState(utcYmdToday)
+  const [usageCalendarTo, setUsageCalendarTo] = useState(utcYmdToday)
   const [tokenDetailRows, setTokenDetailRows] = useState<PartnerAiTokenUsageDetailRowWithCostEstimate[]>([])
   const [tokenUsageEstimatedCostVndTotal, setTokenUsageEstimatedCostVndTotal] = useState(0)
+  const [tokenUsageCostBreakdown, setTokenUsageCostBreakdown] = useState<PartnerAiUsageCostBreakdown | null>(
+    null
+  )
   const [tokenDetailsEstimatedCostVndTotal, setTokenDetailsEstimatedCostVndTotal] = useState(0)
   const [creditSummaryRows, setCreditSummaryRows] = useState<OwnerCreditEventSummaryRow[]>([])
   const [creditDetailRows, setCreditDetailRows] = useState<OwnerCreditEventDetailRow[]>([])
@@ -251,24 +261,31 @@ export function PartnerAiSettingsPanel({
   textEmbeddingPendingRef.current = textEmbeddingStats?.pending ?? 0
 
   const loadUsageAnalyticsWithSeq = useCallback(
-    async (seq: number, period: PartnerAiUsagePeriod) => {
+    async (seq: number, usageQuery: PartnerAiUsageQuery) => {
       const [usageRes, analyticsRes] = await Promise.all([
-        getPartnerAiTokenUsageStats(partnerId, period),
-        getPartnerAiUsageAnalytics(partnerId, period),
+        getPartnerAiTokenUsageStats(partnerId, usageQuery),
+        getPartnerAiUsageAnalytics(partnerId, usageQuery),
       ])
       if (seq !== loadSeqRef.current) return
+      const rangeErr =
+        'error' in usageRes ? usageRes.error : 'error' in analyticsRes ? analyticsRes.error : null
+      if (rangeErr) {
+        toast({ title: t.loadError, description: rangeErr, variant: 'destructive' })
+      }
       if ('error' in usageRes) {
         setTokenUsageRows([])
         setTokenUsageKindRows([])
         setTokenDailyRows([])
         setImageGenRows([])
         setTokenUsageEstimatedCostVndTotal(0)
+        setTokenUsageCostBreakdown(null)
       } else {
         setTokenUsageRows(usageRes.rows)
         setTokenUsageEstimatedCostVndTotal(usageRes.tokenUsageEstimatedCostVndTotal ?? 0)
         setTokenUsageKindRows(usageRes.usageKindRows ?? [])
         setTokenDailyRows(usageRes.dailyRows ?? [])
         setImageGenRows(usageRes.imageGenRows ?? [])
+        setTokenUsageCostBreakdown(usageRes.costBreakdown ?? null)
       }
       if ('error' in analyticsRes) {
         setTokenDetailRows([])
@@ -294,7 +311,7 @@ export function PartnerAiSettingsPanel({
         setTextEmbedDetailRows(analyticsRes.textEmbedDetails ?? [])
       }
     },
-    [partnerId]
+    [partnerId, t.loadError, toast]
   )
 
   const load = useCallback((): Promise<void> => {
@@ -314,7 +331,11 @@ export function PartnerAiSettingsPanel({
         getPartnerInventoryTextEmbeddingStats(partnerId),
       ])
       if (seq !== loadSeqRef.current) return
-      await loadUsageAnalyticsWithSeq(seq, usagePeriodRef.current)
+      const usageQuery: PartnerAiUsageQuery =
+        usageRangeMode === 'rolling'
+          ? { type: 'rolling', period: usagePeriod }
+          : { type: 'calendar', fromDayUtc: usageCalendarFrom, toDayUtc: usageCalendarTo }
+      await loadUsageAnalyticsWithSeq(seq, usageQuery)
       if (seq !== loadSeqRef.current) return
       if ('error' in embeddingRes) {
         setEmbeddingStats(null)
@@ -348,7 +369,16 @@ export function PartnerAiSettingsPanel({
         setSettingsLoaded(true)
       }
     })()
-  }, [partnerId, t.loadError, toast, loadUsageAnalyticsWithSeq])
+  }, [
+    partnerId,
+    t.loadError,
+    toast,
+    loadUsageAnalyticsWithSeq,
+    usageRangeMode,
+    usagePeriod,
+    usageCalendarFrom,
+    usageCalendarTo,
+  ])
 
   useEffect(() => {
     load()
@@ -524,10 +554,15 @@ export function PartnerAiSettingsPanel({
   }, [partnerId])
 
   const usageScopeLabel = useMemo(() => {
+    if (usageRangeMode === 'calendar') {
+      return t.usagePeriodScopeCalendar
+        .replace('{from}', usageCalendarFrom)
+        .replace('{to}', usageCalendarTo)
+    }
     if (usagePeriod === 'day') return t.usagePeriodScopeDay
     if (usagePeriod === 'week') return t.usagePeriodScopeWeek
     return t.usagePeriodScopeMonth
-  }, [t, usagePeriod])
+  }, [t, usageRangeMode, usageCalendarFrom, usageCalendarTo, usagePeriod])
 
   return (
     <Card className="overflow-hidden border-violet-200/60 bg-gradient-to-br from-violet-50/40 via-background to-background dark:border-violet-900/40 dark:from-violet-950/20 shadow-sm">
@@ -821,26 +856,108 @@ export function PartnerAiSettingsPanel({
               <p className="min-w-0 flex-1 text-xs text-muted-foreground leading-relaxed">
                 {t.tokenUsageIntro.replace(/\{scope\}/g, usageScopeLabel)}
               </p>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="whitespace-nowrap text-xs text-muted-foreground">{t.usagePeriodLabel}</span>
-                <Select
-                  value={usagePeriod}
-                  onValueChange={(v) => {
-                    const p = v as PartnerAiUsagePeriod
-                    setUsagePeriod(p)
-                    const seq = ++loadSeqRef.current
-                    void loadUsageAnalyticsWithSeq(seq, p)
-                  }}
-                >
-                  <SelectTrigger className="h-8 w-[128px] text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="day">{t.usagePeriodDay}</SelectItem>
-                    <SelectItem value="week">{t.usagePeriodWeek}</SelectItem>
-                    <SelectItem value="month">{t.usagePeriodMonth}</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex shrink-0 flex-wrap items-end justify-end gap-2">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-muted-foreground">{t.usageRangeModeLabel}</span>
+                  <Select
+                    value={usageRangeMode}
+                    onValueChange={(v) => {
+                      const mode = v as 'rolling' | 'calendar'
+                      setUsageRangeMode(mode)
+                      const seq = ++loadSeqRef.current
+                      if (mode === 'rolling') {
+                        void loadUsageAnalyticsWithSeq(seq, { type: 'rolling', period: usagePeriod })
+                      } else {
+                        void loadUsageAnalyticsWithSeq(seq, {
+                          type: 'calendar',
+                          fromDayUtc: usageCalendarFrom,
+                          toDayUtc: usageCalendarTo,
+                        })
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[168px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rolling">{t.usageRangeModeRolling}</SelectItem>
+                      <SelectItem value="calendar">{t.usageRangeModeCalendar}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {usageRangeMode === 'rolling' ? (
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[11px] text-muted-foreground">{t.usagePeriodLabel}</span>
+                    <Select
+                      value={usagePeriod}
+                      onValueChange={(v) => {
+                        const p = v as PartnerAiUsagePeriod
+                        setUsagePeriod(p)
+                        const seq = ++loadSeqRef.current
+                        void loadUsageAnalyticsWithSeq(seq, { type: 'rolling', period: p })
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-[128px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="day">{t.usagePeriodDay}</SelectItem>
+                        <SelectItem value="week">{t.usagePeriodWeek}</SelectItem>
+                        <SelectItem value="month">{t.usagePeriodMonth}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-0.5">
+                      <Label className="text-[11px] font-normal text-muted-foreground">
+                        {t.usageCalendarFromLabel}
+                      </Label>
+                      <Input
+                        type="date"
+                        className="h-8 w-[142px] text-xs"
+                        value={usageCalendarFrom}
+                        max={usageCalendarTo}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          if (!v) return
+                          setUsageCalendarFrom(v)
+                          let to = usageCalendarTo
+                          if (v > to) {
+                            to = v
+                            setUsageCalendarTo(to)
+                          }
+                          const seq = ++loadSeqRef.current
+                          void loadUsageAnalyticsWithSeq(seq, { type: 'calendar', fromDayUtc: v, toDayUtc: to })
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <Label className="text-[11px] font-normal text-muted-foreground">
+                        {t.usageCalendarToLabel}
+                      </Label>
+                      <Input
+                        type="date"
+                        className="h-8 w-[142px] text-xs"
+                        value={usageCalendarTo}
+                        min={usageCalendarFrom}
+                        max={utcYmdToday()}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          if (!v) return
+                          setUsageCalendarTo(v)
+                          let from = usageCalendarFrom
+                          if (v < from) {
+                            from = v
+                            setUsageCalendarFrom(from)
+                          }
+                          const seq = ++loadSeqRef.current
+                          void loadUsageAnalyticsWithSeq(seq, { type: 'calendar', fromDayUtc: from, toDayUtc: v })
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -964,6 +1081,9 @@ export function PartnerAiSettingsPanel({
                 <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground border-t border-border/40 pt-2">
                   {t.tokenUsageCostDisclaimer}
                 </p>
+                {tokenUsageCostBreakdown ? (
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t.tokenUsageCostTablesNote}</p>
+                ) : null}
                 {tokenUsageEstimatedCostVndTotal > 0 ? (
                   <p className="mt-2 text-sm font-semibold tabular-nums text-foreground">
                     {t.tokenUsageEstimatedTotalLabel.replace(
@@ -1008,7 +1128,47 @@ export function PartnerAiSettingsPanel({
               </div>
             )}
 
-            {tokenUsageKindRows.length > 0 ? (
+            {tokenUsageCostBreakdown && tokenUsageCostBreakdown.byKind.length > 0 ? (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">{t.tokenUsageByKindTitle}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{t.tokenUsageByKindIntro}</p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-left">
+                        <th className="p-2 font-medium">{t.usageDetailColUsageKind}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCalls}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tokenUsageCostBreakdown.byKind.map((row) => (
+                        <tr
+                          key={row.usage_kind ?? '__inbox__'}
+                          className="border-b border-border/60 last:border-0"
+                        >
+                          <td className="p-2 text-[11px] text-muted-foreground">
+                            {tokenUsageKindStatLabel(row.usage_kind, t)}
+                          </td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
+                          <td className="p-2 tabular-nums font-medium">
+                            {tokenFmt.format(row.sum_total_tokens)}
+                          </td>
+                          <td className="p-2 tabular-nums font-medium text-foreground">
+                            {vndFmt.format(row.estimated_cost_vnd)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : tokenUsageKindRows.length > 0 ? (
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">{t.tokenUsageByKindTitle}</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">{t.tokenUsageByKindIntro}</p>
@@ -1046,7 +1206,92 @@ export function PartnerAiSettingsPanel({
               </div>
             ) : null}
 
-            {tokenDailyRows.length > 0 ? (
+            {tokenUsageCostBreakdown && tokenUsageCostBreakdown.byKindAndModel.length > 0 ? (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">{t.tokenUsageCostByKindAndModelTitle}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {t.tokenUsageCostByKindAndModelIntro}
+                </p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-left">
+                        <th className="p-2 font-medium">{t.usageDetailColUsageKind}</th>
+                        <th className="p-2 font-medium">{t.tokenUsageColProvider}</th>
+                        <th className="p-2 font-medium">{t.tokenUsageColModel}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCalls}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tokenUsageCostBreakdown.byKindAndModel.map((row, idx) => (
+                        <tr
+                          key={`${row.usage_kind ?? 'inbox'}:${row.provider}:${row.model}:${idx}`}
+                          className="border-b border-border/60 last:border-0"
+                        >
+                          <td className="p-2 text-[11px] text-muted-foreground">
+                            {tokenUsageKindStatLabel(row.usage_kind, t)}
+                          </td>
+                          <td className="p-2 capitalize">{row.provider}</td>
+                          <td className="p-2 font-mono text-[11px]">{row.model}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
+                          <td className="p-2 tabular-nums font-medium">
+                            {tokenFmt.format(row.sum_total_tokens)}
+                          </td>
+                          <td className="p-2 tabular-nums font-medium text-foreground">
+                            {vndFmt.format(row.estimated_cost_vnd)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {tokenUsageCostBreakdown && tokenUsageCostBreakdown.daily.length > 0 ? (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">{t.tokenUsageByDayTitle}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{t.tokenUsageByDayIntro}</p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-left">
+                        <th className="p-2 font-medium">{t.tokenUsageColDay}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCalls}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tokenUsageCostBreakdown.daily.map((row) => (
+                        <tr key={row.day_utc} className="border-b border-border/60 last:border-0">
+                          <td className="p-2 whitespace-nowrap tabular-nums">
+                            {dayUtcForLocale(row.day_utc, locale)}
+                          </td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
+                          <td className="p-2 tabular-nums font-medium">
+                            {tokenFmt.format(row.sum_total_tokens)}
+                          </td>
+                          <td className="p-2 tabular-nums font-medium text-foreground">
+                            {vndFmt.format(row.estimated_cost_vnd)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : tokenDailyRows.length > 0 ? (
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">{t.tokenUsageByDayTitle}</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">{t.tokenUsageByDayIntro}</p>
@@ -1072,6 +1317,84 @@ export function PartnerAiSettingsPanel({
                           <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
                           <td className="p-2 tabular-nums font-medium">
                             {tokenFmt.format(row.sum_total_tokens)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {tokenUsageCostBreakdown && tokenUsageCostBreakdown.weekly.length > 0 ? (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">{t.tokenUsageCostByWeekTitle}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{t.tokenUsageCostByWeekIntro}</p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-left">
+                        <th className="p-2 font-medium">{t.tokenUsageColWeekStart}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCalls}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tokenUsageCostBreakdown.weekly.map((row) => (
+                        <tr key={row.week_start_utc} className="border-b border-border/60 last:border-0">
+                          <td className="p-2 whitespace-nowrap tabular-nums">
+                            {dayUtcForLocale(row.week_start_utc, locale)}
+                          </td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
+                          <td className="p-2 tabular-nums font-medium">
+                            {tokenFmt.format(row.sum_total_tokens)}
+                          </td>
+                          <td className="p-2 tabular-nums font-medium text-foreground">
+                            {vndFmt.format(row.estimated_cost_vnd)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {tokenUsageCostBreakdown && tokenUsageCostBreakdown.monthly.length > 0 ? (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">{t.tokenUsageCostByMonthTitle}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{t.tokenUsageCostByMonthIntro}</p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-left">
+                        <th className="p-2 font-medium">{t.tokenUsageColMonthUtc}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCalls}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tokenUsageCostBreakdown.monthly.map((row) => (
+                        <tr key={row.month_utc} className="border-b border-border/60 last:border-0">
+                          <td className="p-2 whitespace-nowrap font-mono text-[11px] tabular-nums">
+                            {row.month_utc}
+                          </td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
+                          <td className="p-2 tabular-nums font-medium">
+                            {tokenFmt.format(row.sum_total_tokens)}
+                          </td>
+                          <td className="p-2 tabular-nums font-medium text-foreground">
+                            {vndFmt.format(row.estimated_cost_vnd)}
                           </td>
                         </tr>
                       ))}

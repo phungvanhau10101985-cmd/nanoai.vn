@@ -74,8 +74,10 @@ import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   fetchMessagingPartnerAiImageGenStatsFromPg,
+  fetchMessagingPartnerAiTokenDailyByModelFromPg,
   fetchMessagingPartnerAiTokenDailyStatsFromPg,
   fetchMessagingPartnerAiTokenStatsByModelFromPg,
+  fetchMessagingPartnerAiTokenStatsByUsageKindAndModelFromPg,
   fetchMessagingPartnerAiTokenStatsByUsageKindFromPg,
   fetchMessagingPartnerAiTokenUsageDetailsFromPg,
   type PartnerAiImageGenUsageStatRow,
@@ -153,8 +155,10 @@ import {
 } from '@/lib/messaging/partner-order-customer-email'
 import { buildPartnerOrdersXlsxBuffer } from '@/lib/messaging/partner-orders-excel-export'
 import {
+  buildPartnerAiUsageCostBreakdown,
   partnerAiAggregatedModelRowsEstimatedCostVnd,
   partnerAiTokenDetailRowEstimatedCostVnd,
+  type PartnerAiUsageCostBreakdown,
 } from '@/lib/pricing/api-token-cost'
 
 export type {
@@ -163,6 +167,7 @@ export type {
   PartnerAiTokenUsageKindStatRow,
   PartnerAiTokenUsageStatRow,
   PartnerAiTokenUsageDetailRow,
+  PartnerAiUsageCostBreakdown,
 }
 
 export type PartnerAiTokenUsageStatRowWithCostEstimate = PartnerAiTokenUsageStatRow & {
@@ -1235,6 +1240,13 @@ const PARTNER_AI_TEXT_EMBED_DETAIL_ROW_LIMIT = 80
 
 export type PartnerAiUsagePeriod = 'day' | 'week' | 'month'
 
+/** Cửa sổ lăn (24h / 7d / 30d) hoặc khoảng ngày lịch UTC [from, to] (YYYY-MM-DD). */
+export type PartnerAiUsageQuery =
+  | { type: 'rolling'; period: PartnerAiUsagePeriod }
+  | { type: 'calendar'; fromDayUtc: string; toDayUtc: string }
+
+const PARTNER_AI_USAGE_MAX_CALENDAR_DAYS = 400
+
 function partnerAiUsageSinceIso(period: PartnerAiUsagePeriod): { sinceIso: string; lookbackDays: number } {
   const ms =
     period === 'day' ? 86400000 : period === 'week' ? 7 * 86400000 : 30 * 86400000
@@ -1243,10 +1255,58 @@ function partnerAiUsageSinceIso(period: PartnerAiUsagePeriod): { sinceIso: strin
   return { sinceIso: since.toISOString(), lookbackDays }
 }
 
+function parsePartnerAiUsageDayUtcStrict(raw: string): string | null {
+  const s = raw.trim()
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
+  if (!m) return null
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const da = Number(m[3])
+  const d = new Date(Date.UTC(y, mo - 1, da))
+  if (d.getUTCFullYear() !== y || d.getUTCMonth() !== mo - 1 || d.getUTCDate() !== da) return null
+  return `${String(y).padStart(4, '0')}-${String(mo).padStart(2, '0')}-${String(da).padStart(2, '0')}`
+}
+
+function resolvePartnerAiUsageWindow(query: PartnerAiUsageQuery):
+  | { error: string }
+  | {
+      sinceIso: string
+      untilIsoExclusive: string | null
+      lookbackDays: number
+      usageQuery: PartnerAiUsageQuery
+    } {
+  if (query.type === 'rolling') {
+    const { sinceIso, lookbackDays } = partnerAiUsageSinceIso(query.period)
+    return { sinceIso, untilIsoExclusive: null, lookbackDays, usageQuery: query }
+  }
+  const from = parsePartnerAiUsageDayUtcStrict(query.fromDayUtc)
+  const to = parsePartnerAiUsageDayUtcStrict(query.toDayUtc)
+  if (!from || !to) {
+    return { error: 'Invalid date. Use YYYY-MM-DD (UTC calendar day).' }
+  }
+  if (from > to) {
+    return { error: 'Start date must be on or before end date.' }
+  }
+  const startMs = Date.parse(`${from}T00:00:00.000Z`)
+  const endMs = Date.parse(`${to}T00:00:00.000Z`)
+  const spanDays = Math.floor((endMs - startMs) / 86400000) + 1
+  if (spanDays > PARTNER_AI_USAGE_MAX_CALENDAR_DAYS) {
+    return { error: `Date range cannot exceed ${PARTNER_AI_USAGE_MAX_CALENDAR_DAYS} days.` }
+  }
+  const sinceIso = `${from}T00:00:00.000Z`
+  const untilIsoExclusive = new Date(endMs + 86400000).toISOString()
+  return {
+    sinceIso,
+    untilIsoExclusive,
+    lookbackDays: spanDays,
+    usageQuery: { type: 'calendar', fromDayUtc: from, toDayUtc: to },
+  }
+}
+
 /** Tổng token theo model (API) trong cửa sổ thời gian đã chọn — chủ shop xem trên dashboard. */
 export async function getPartnerAiTokenUsageStats(
   partnerId: string,
-  period: PartnerAiUsagePeriod = 'month'
+  usageQuery: PartnerAiUsageQuery = { type: 'rolling', period: 'month' }
 ) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -1256,24 +1316,37 @@ export async function getPartnerAiTokenUsageStats(
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
-  const { sinceIso, lookbackDays } = partnerAiUsageSinceIso(period)
-  const [rows, imageGenRows, usageKindRows, dailyRows] = await Promise.all([
-    fetchMessagingPartnerAiTokenStatsByModelFromPg(partnerId, sinceIso),
-    fetchMessagingPartnerAiImageGenStatsFromPg(partnerId, sinceIso),
-    fetchMessagingPartnerAiTokenStatsByUsageKindFromPg(partnerId, sinceIso),
-    fetchMessagingPartnerAiTokenDailyStatsFromPg(partnerId, sinceIso),
-  ])
+  const win = resolvePartnerAiUsageWindow(usageQuery)
+  if ('error' in win) return { error: win.error }
+  const { sinceIso, untilIsoExclusive, lookbackDays, usageQuery: normalizedQuery } = win
+  const [rows, imageGenRows, usageKindRows, dailyRows, dailyModelRows, kindModelRows] =
+    await Promise.all([
+      fetchMessagingPartnerAiTokenStatsByModelFromPg(partnerId, sinceIso, untilIsoExclusive),
+      fetchMessagingPartnerAiImageGenStatsFromPg(partnerId, sinceIso, untilIsoExclusive),
+      fetchMessagingPartnerAiTokenStatsByUsageKindFromPg(partnerId, sinceIso, untilIsoExclusive),
+      fetchMessagingPartnerAiTokenDailyStatsFromPg(partnerId, sinceIso, untilIsoExclusive),
+      fetchMessagingPartnerAiTokenDailyByModelFromPg(partnerId, sinceIso, untilIsoExclusive),
+      fetchMessagingPartnerAiTokenStatsByUsageKindAndModelFromPg(partnerId, sinceIso, untilIsoExclusive),
+    ])
   if (rows === null) return { error: 'Failed to load token usage stats.' }
   const costed = partnerAiAggregatedModelRowsEstimatedCostVnd(rows)
+  let costBreakdown: PartnerAiUsageCostBreakdown | null = null
+  if (dailyModelRows != null && kindModelRows != null) {
+    costBreakdown = {
+      ...buildPartnerAiUsageCostBreakdown(dailyModelRows, kindModelRows),
+      periodTotalEstimatedVnd: costed.totalVnd,
+    }
+  }
   return {
     rows: costed.rows,
     tokenUsageEstimatedCostVndTotal: costed.totalVnd,
     imageGenRows: imageGenRows ?? [],
     usageKindRows: usageKindRows ?? [],
     dailyRows: dailyRows ?? [],
+    costBreakdown,
     sinceIso,
     lookbackDays,
-    period,
+    usageQuery: normalizedQuery,
   }
 }
 
@@ -1283,7 +1356,7 @@ export async function getPartnerAiTokenUsageStats(
  */
 export async function getPartnerAiUsageAnalytics(
   partnerId: string,
-  period: PartnerAiUsagePeriod = 'month'
+  usageQuery: PartnerAiUsageQuery = { type: 'rolling', period: 'month' }
 ) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -1294,7 +1367,9 @@ export async function getPartnerAiUsageAnalytics(
     return { error: 'DATABASE_URL is not set.' }
   }
 
-  const { sinceIso, lookbackDays } = partnerAiUsageSinceIso(period)
+  const win = resolvePartnerAiUsageWindow(usageQuery)
+  if ('error' in win) return { error: win.error }
+  const { sinceIso, untilIsoExclusive, lookbackDays, usageQuery: normalizedQuery } = win
 
   const ownerRow = await pgQueryOne<{ owner: string | null }>(
     `select owner_user_id::text as owner from public.messaging_partners where id = $1::uuid limit 1`,
@@ -1307,26 +1382,39 @@ export async function getPartnerAiUsageAnalytics(
       fetchMessagingPartnerAiTokenUsageDetailsFromPg(
         partnerId,
         sinceIso,
-        PARTNER_AI_USAGE_DETAIL_ROW_LIMIT
+        PARTNER_AI_USAGE_DETAIL_ROW_LIMIT,
+        untilIsoExclusive
       ),
       ownerId
-        ? fetchOwnerCreditEventSummariesFromPg(ownerId, sinceIso)
+        ? fetchOwnerCreditEventSummariesFromPg(ownerId, sinceIso, untilIsoExclusive)
         : Promise.resolve(null),
       ownerId
-        ? fetchOwnerCreditEventDetailsFromPg(ownerId, sinceIso, PARTNER_AI_CREDIT_EVENT_ROW_LIMIT)
+        ? fetchOwnerCreditEventDetailsFromPg(
+            ownerId,
+            sinceIso,
+            PARTNER_AI_CREDIT_EVENT_ROW_LIMIT,
+            untilIsoExclusive
+          )
         : Promise.resolve(null),
-      fetchPartnerLogoCreditRowsInRangeFromPg(partnerId, sinceIso, PARTNER_AI_LOGO_CREDIT_ROW_LIMIT),
-      fetchMessagingPartnerImageEmbedStatsBySourceFromPg(partnerId, sinceIso),
+      fetchPartnerLogoCreditRowsInRangeFromPg(
+        partnerId,
+        sinceIso,
+        PARTNER_AI_LOGO_CREDIT_ROW_LIMIT,
+        untilIsoExclusive
+      ),
+      fetchMessagingPartnerImageEmbedStatsBySourceFromPg(partnerId, sinceIso, untilIsoExclusive),
       fetchMessagingPartnerImageEmbedDetailsFromPg(
         partnerId,
         sinceIso,
-        PARTNER_AI_IMAGE_EMBED_DETAIL_ROW_LIMIT
+        PARTNER_AI_IMAGE_EMBED_DETAIL_ROW_LIMIT,
+        untilIsoExclusive
       ),
-      fetchMessagingPartnerTextEmbedStatsBySourceFromPg(partnerId, sinceIso),
+      fetchMessagingPartnerTextEmbedStatsBySourceFromPg(partnerId, sinceIso, untilIsoExclusive),
       fetchMessagingPartnerTextEmbedDetailsFromPg(
         partnerId,
         sinceIso,
-        PARTNER_AI_TEXT_EMBED_DETAIL_ROW_LIMIT
+        PARTNER_AI_TEXT_EMBED_DETAIL_ROW_LIMIT,
+        untilIsoExclusive
       ),
     ])
 
@@ -1343,7 +1431,7 @@ export async function getPartnerAiUsageAnalytics(
   return {
     sinceIso,
     lookbackDays,
-    period,
+    usageQuery: normalizedQuery,
     tokenDetails: tokenDetailsWithCost,
     tokenDetailsEstimatedCostVndTotal,
     creditSummaries: creditSummaries ?? [],

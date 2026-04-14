@@ -1,6 +1,11 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 
+function embedCreatedAtRangeSql(alias: string): string {
+  return `and ${alias}.created_at >= $2::timestamptz
+        and ($3::timestamptz is null or ${alias}.created_at < $3::timestamptz)`
+}
+
 export type PartnerImageEmbedSource = 'inventory_sync' | 'guest_image_search'
 
 export type PartnerImageEmbedUsageSummaryRow = {
@@ -62,7 +67,8 @@ export async function insertMessagingPartnerImageEmbedUsageFromPg(params: {
 
 export async function fetchMessagingPartnerImageEmbedStatsBySourceFromPg(
   partnerId: string,
-  sinceIso: string
+  sinceIso: string,
+  untilIsoExclusive?: string | null
 ): Promise<PartnerImageEmbedUsageSummaryRow[] | null> {
   if (!isPgConfigured()) return null
   try {
@@ -79,10 +85,10 @@ export async function fetchMessagingPartnerImageEmbedStatsBySourceFromPg(
         coalesce(sum(u.total_tokens), 0)::bigint as sum_total_tokens
       from public.messaging_partner_image_embed_usage u
       where u.partner_id = $1::uuid
-        and u.created_at >= $2::timestamptz
+        ${embedCreatedAtRangeSql('u')}
       group by u.source
       order by u.source asc`,
-      [partnerId, sinceIso]
+      [partnerId, sinceIso, untilIsoExclusive ?? null]
     )
     return rows.map((r) => ({
       source: (r.source === 'guest_image_search' ? 'guest_image_search' : 'inventory_sync') as PartnerImageEmbedSource,
@@ -101,7 +107,8 @@ export async function fetchMessagingPartnerImageEmbedStatsBySourceFromPg(
 export async function fetchMessagingPartnerImageEmbedDetailsFromPg(
   partnerId: string,
   sinceIso: string,
-  limit: number
+  limit: number,
+  untilIsoExclusive?: string | null
 ): Promise<PartnerImageEmbedUsageDetailRow[] | null> {
   if (!isPgConfigured()) return null
   const lim = Math.min(200, Math.max(1, Math.floor(limit)))
@@ -118,10 +125,10 @@ export async function fetchMessagingPartnerImageEmbedDetailsFromPg(
       `select u.id::text, u.source, u.model, u.prompt_tokens, u.total_tokens, u.inventory_id::text, u.created_at
        from public.messaging_partner_image_embed_usage u
        where u.partner_id = $1::uuid
-         and u.created_at >= $2::timestamptz
+         ${embedCreatedAtRangeSql('u')}
        order by u.created_at desc
-       limit $3`,
-      [partnerId, sinceIso, lim]
+       limit $4`,
+      [partnerId, sinceIso, untilIsoExclusive ?? null, lim]
     )
     return rows.map((r) => ({
       id: r.id,

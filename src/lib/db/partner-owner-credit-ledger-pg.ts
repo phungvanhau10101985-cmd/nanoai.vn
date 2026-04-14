@@ -1,6 +1,11 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 
+function rowCreatedAtRangeSql(alias: string): string {
+  return `and ${alias}.created_at >= $2::timestamptz
+        and ($3::timestamptz is null or ${alias}.created_at < $3::timestamptz)`
+}
+
 export type OwnerCreditEventSummaryRow = {
   charge_type: string
   event_count: number
@@ -25,7 +30,8 @@ function toIso(v: unknown): string {
  */
 export async function fetchOwnerCreditEventSummariesFromPg(
   userId: string,
-  sinceIso: string
+  sinceIso: string,
+  untilIsoExclusive?: string | null
 ): Promise<OwnerCreditEventSummaryRow[] | null> {
   if (!isPgConfigured()) return null
   try {
@@ -40,10 +46,10 @@ export async function fetchOwnerCreditEventSummariesFromPg(
         coalesce(sum(e.amount), 0)::numeric as sum_amount
       from public.language_coach_credit_events e
       where e.user_id = $1::uuid
-        and e.created_at >= $2::timestamptz
+        ${rowCreatedAtRangeSql('e')}
       group by e.charge_type
       order by sum(e.amount) desc nulls last, e.charge_type asc`,
-      [userId, sinceIso]
+      [userId, sinceIso, untilIsoExclusive ?? null]
     )
     return rows.map((r) => ({
       charge_type: String(r.charge_type ?? ''),
@@ -59,7 +65,8 @@ export async function fetchOwnerCreditEventSummariesFromPg(
 export async function fetchOwnerCreditEventDetailsFromPg(
   userId: string,
   sinceIso: string,
-  limit: number
+  limit: number,
+  untilIsoExclusive?: string | null
 ): Promise<OwnerCreditEventDetailRow[] | null> {
   if (!isPgConfigured()) return null
   const lim = Math.min(200, Math.max(1, Math.floor(limit)))
@@ -73,10 +80,10 @@ export async function fetchOwnerCreditEventDetailsFromPg(
       `select e.id::text, e.charge_type, e.amount, e.created_at
        from public.language_coach_credit_events e
        where e.user_id = $1::uuid
-         and e.created_at >= $2::timestamptz
+         ${rowCreatedAtRangeSql('e')}
        order by e.created_at desc
-       limit $3`,
-      [userId, sinceIso, lim]
+       limit $4`,
+      [userId, sinceIso, untilIsoExclusive ?? null, lim]
     )
     return rows.map((r) => ({
       id: r.id,
@@ -102,7 +109,8 @@ export type PartnerLogoCreditRow = {
 export async function fetchPartnerLogoCreditRowsInRangeFromPg(
   partnerId: string,
   sinceIso: string,
-  limit: number
+  limit: number,
+  untilIsoExclusive?: string | null
 ): Promise<PartnerLogoCreditRow[] | null> {
   if (!isPgConfigured()) return null
   const lim = Math.min(200, Math.max(1, Math.floor(limit)))
@@ -119,9 +127,10 @@ export async function fetchPartnerLogoCreditRowsInRangeFromPg(
        where partner_id = $1::uuid
          and coalesce(charged_credits, 0) > 0
          and created_at >= $2::timestamptz
+         and ($3::timestamptz is null or created_at < $3::timestamptz)
        order by created_at desc
-       limit $3`,
-      [partnerId, sinceIso, lim]
+       limit $4`,
+      [partnerId, sinceIso, untilIsoExclusive ?? null, lim]
     )
     return rows.map((r) => ({
       id: r.id,

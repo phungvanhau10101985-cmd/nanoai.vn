@@ -1,6 +1,12 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 
+/** Lọc [since, until) — untilIsoExclusive = null → không giới hạn trên. */
+function tokenUsageCreatedAtRangeSql(alias: string): string {
+  return `and ${alias}.created_at >= $2::timestamptz
+        and ($3::timestamptz is null or ${alias}.created_at < $3::timestamptz)`
+}
+
 export type PartnerAiTokenUsageStatRow = {
   provider: string
   model: string
@@ -25,7 +31,8 @@ export type PartnerAiTokenUsageKindStatRow = {
 
 export async function fetchMessagingPartnerAiTokenStatsByUsageKindFromPg(
   partnerId: string,
-  sinceIso: string
+  sinceIso: string,
+  untilIsoExclusive?: string | null
 ): Promise<PartnerAiTokenUsageKindStatRow[] | null> {
   if (!isPgConfigured()) return null
   try {
@@ -47,10 +54,10 @@ export async function fetchMessagingPartnerAiTokenStatsByUsageKindFromPg(
         coalesce(sum(u.total_tokens), 0)::bigint as sum_total_tokens
       from public.messaging_partner_ai_token_usage u
       where u.partner_id = $1::uuid
-        and u.created_at >= $2::timestamptz
+        ${tokenUsageCreatedAtRangeSql('u')}
       group by 1
       order by sum_total_tokens desc nulls last, usage_kind asc nulls first`,
-      [partnerId, sinceIso]
+      [partnerId, sinceIso, untilIsoExclusive ?? null]
     )
     return rows.map((r) => ({
       usage_kind: r.usage_kind == null || String(r.usage_kind).trim() === '' ? null : String(r.usage_kind),
@@ -74,9 +81,132 @@ export type PartnerAiTokenDailyStatRow = {
   sum_total_tokens: number
 }
 
+/** Gom token theo ngày UTC + model — dùng tính chi phí VNĐ chính xác theo ngày. */
+export type PartnerAiTokenDailyModelStatRow = {
+  day_utc: string
+  provider: string
+  model: string
+  call_count: number
+  sum_prompt_tokens: number
+  sum_completion_tokens: number
+  sum_total_tokens: number
+}
+
+export async function fetchMessagingPartnerAiTokenDailyByModelFromPg(
+  partnerId: string,
+  sinceIso: string,
+  untilIsoExclusive?: string | null
+): Promise<PartnerAiTokenDailyModelStatRow[] | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const rows = await pgQuery<{
+      day_utc: string | Date | null
+      provider: string | null
+      model: string | null
+      call_count: string | number | null
+      sum_prompt_tokens: string | number | null
+      sum_completion_tokens: string | number | null
+      sum_total_tokens: string | number | null
+    }>(
+      `select
+        (date_trunc('day', u.created_at at time zone 'UTC'))::date as day_utc,
+        u.provider,
+        u.model,
+        count(*)::bigint as call_count,
+        coalesce(sum(u.prompt_tokens), 0)::bigint as sum_prompt_tokens,
+        coalesce(sum(u.completion_tokens), 0)::bigint as sum_completion_tokens,
+        coalesce(sum(u.total_tokens), 0)::bigint as sum_total_tokens
+      from public.messaging_partner_ai_token_usage u
+      where u.partner_id = $1::uuid
+        ${tokenUsageCreatedAtRangeSql('u')}
+      group by 1, 2, 3
+      order by 1 desc, u.model asc`,
+      [partnerId, sinceIso, untilIsoExclusive ?? null]
+    )
+    return rows.map((r) => {
+      const d = r.day_utc
+      const dayStr =
+        d instanceof Date ? d.toISOString().slice(0, 10) : String(d ?? '').slice(0, 10)
+      return {
+        day_utc: dayStr,
+        provider: String(r.provider ?? ''),
+        model: String(r.model ?? ''),
+        call_count: Math.max(0, Math.floor(Number(r.call_count ?? 0))),
+        sum_prompt_tokens: Math.max(0, Math.floor(Number(r.sum_prompt_tokens ?? 0))),
+        sum_completion_tokens: Math.max(0, Math.floor(Number(r.sum_completion_tokens ?? 0))),
+        sum_total_tokens: Math.max(0, Math.floor(Number(r.sum_total_tokens ?? 0))),
+      }
+    })
+  } catch (e) {
+    console.warn('[fetchMessagingPartnerAiTokenDailyByModelFromPg]', e)
+    return null
+  }
+}
+
+/** Gom theo usage_kind + model — tính tổng chi phí theo hạng mục (cộng các model). */
+export type PartnerAiTokenUsageKindModelStatRow = {
+  usage_kind: string | null
+  provider: string
+  model: string
+  call_count: number
+  sum_prompt_tokens: number
+  sum_completion_tokens: number
+  sum_total_tokens: number
+}
+
+export async function fetchMessagingPartnerAiTokenStatsByUsageKindAndModelFromPg(
+  partnerId: string,
+  sinceIso: string,
+  untilIsoExclusive?: string | null
+): Promise<PartnerAiTokenUsageKindModelStatRow[] | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const rows = await pgQuery<{
+      usage_kind: string | null
+      provider: string | null
+      model: string | null
+      call_count: string | number | null
+      sum_prompt_tokens: string | number | null
+      sum_completion_tokens: string | number | null
+      sum_total_tokens: string | number | null
+    }>(
+      `select
+        case
+          when u.usage_kind is null or trim(u.usage_kind) = '' then null
+          else trim(u.usage_kind)
+        end as usage_kind,
+        u.provider,
+        u.model,
+        count(*)::bigint as call_count,
+        coalesce(sum(u.prompt_tokens), 0)::bigint as sum_prompt_tokens,
+        coalesce(sum(u.completion_tokens), 0)::bigint as sum_completion_tokens,
+        coalesce(sum(u.total_tokens), 0)::bigint as sum_total_tokens
+      from public.messaging_partner_ai_token_usage u
+      where u.partner_id = $1::uuid
+        ${tokenUsageCreatedAtRangeSql('u')}
+      group by 1, 2, 3
+      order by usage_kind asc nulls first, sum_total_tokens desc nulls last`,
+      [partnerId, sinceIso, untilIsoExclusive ?? null]
+    )
+    return rows.map((r) => ({
+      usage_kind: r.usage_kind == null || String(r.usage_kind).trim() === '' ? null : String(r.usage_kind),
+      provider: String(r.provider ?? ''),
+      model: String(r.model ?? ''),
+      call_count: Math.max(0, Math.floor(Number(r.call_count ?? 0))),
+      sum_prompt_tokens: Math.max(0, Math.floor(Number(r.sum_prompt_tokens ?? 0))),
+      sum_completion_tokens: Math.max(0, Math.floor(Number(r.sum_completion_tokens ?? 0))),
+      sum_total_tokens: Math.max(0, Math.floor(Number(r.sum_total_tokens ?? 0))),
+    }))
+  } catch (e) {
+    console.warn('[fetchMessagingPartnerAiTokenStatsByUsageKindAndModelFromPg]', e)
+    return null
+  }
+}
+
 export async function fetchMessagingPartnerAiTokenDailyStatsFromPg(
   partnerId: string,
-  sinceIso: string
+  sinceIso: string,
+  untilIsoExclusive?: string | null
 ): Promise<PartnerAiTokenDailyStatRow[] | null> {
   if (!isPgConfigured()) return null
   try {
@@ -95,11 +225,11 @@ export async function fetchMessagingPartnerAiTokenDailyStatsFromPg(
         coalesce(sum(u.total_tokens), 0)::bigint as sum_total_tokens
       from public.messaging_partner_ai_token_usage u
       where u.partner_id = $1::uuid
-        and u.created_at >= $2::timestamptz
+        ${tokenUsageCreatedAtRangeSql('u')}
       group by 1
       order by 1 desc
       limit 120`,
-      [partnerId, sinceIso]
+      [partnerId, sinceIso, untilIsoExclusive ?? null]
     )
     return rows.map((r) => {
       const d = r.day_utc
@@ -123,7 +253,8 @@ export async function fetchMessagingPartnerAiTokenDailyStatsFromPg(
 
 export async function fetchMessagingPartnerAiTokenStatsByModelFromPg(
   partnerId: string,
-  sinceIso: string
+  sinceIso: string,
+  untilIsoExclusive?: string | null
 ): Promise<PartnerAiTokenUsageStatRow[] | null> {
   if (!isPgConfigured()) return null
   try {
@@ -144,10 +275,10 @@ export async function fetchMessagingPartnerAiTokenStatsByModelFromPg(
         coalesce(sum(u.total_tokens), 0)::bigint as sum_total_tokens
       from public.messaging_partner_ai_token_usage u
       where u.partner_id = $1::uuid
-        and u.created_at >= $2::timestamptz
+        ${tokenUsageCreatedAtRangeSql('u')}
       group by u.provider, u.model
       order by sum_total_tokens desc nulls last, u.model asc`,
-      [partnerId, sinceIso]
+      [partnerId, sinceIso, untilIsoExclusive ?? null]
     )
     return rows.map((r) => ({
       provider: String(r.provider ?? ''),
@@ -186,7 +317,8 @@ export type PartnerAiImageGenUsageStatRow = {
 /** Gom lượt gọi Gemini tạo ảnh (inbox) theo loại — cùng khoảng thời gian với thống kê token LLM. */
 export async function fetchMessagingPartnerAiImageGenStatsFromPg(
   partnerId: string,
-  sinceIso: string
+  sinceIso: string,
+  untilIsoExclusive?: string | null
 ): Promise<PartnerAiImageGenUsageStatRow[] | null> {
   if (!isPgConfigured()) return null
   try {
@@ -201,11 +333,11 @@ export async function fetchMessagingPartnerAiImageGenStatsFromPg(
         coalesce(sum(u.total_tokens), 0)::bigint as sum_total_tokens
       from public.messaging_partner_ai_token_usage u
       where u.partner_id = $1::uuid
-        and u.created_at >= $2::timestamptz
+        ${tokenUsageCreatedAtRangeSql('u')}
         and u.usage_kind in ('image_material_detail', 'image_real_use')
       group by u.usage_kind
       order by u.usage_kind asc`,
-      [partnerId, sinceIso]
+      [partnerId, sinceIso, untilIsoExclusive ?? null]
     )
     const byKind = new Map<PartnerAiImageGenUsageKind, PartnerAiImageGenUsageStatRow>()
     for (const r of rows) {
@@ -245,7 +377,8 @@ function toIso(v: unknown): string {
 export async function fetchMessagingPartnerAiTokenUsageDetailsFromPg(
   partnerId: string,
   sinceIso: string,
-  limit: number
+  limit: number,
+  untilIsoExclusive?: string | null
 ): Promise<PartnerAiTokenUsageDetailRow[] | null> {
   if (!isPgConfigured()) return null
   const lim = Math.min(500, Math.max(1, Math.floor(limit)))
@@ -271,10 +404,10 @@ export async function fetchMessagingPartnerAiTokenUsageDetailsFromPg(
         u.usage_kind
       from public.messaging_partner_ai_token_usage u
       where u.partner_id = $1::uuid
-        and u.created_at >= $2::timestamptz
+        ${tokenUsageCreatedAtRangeSql('u')}
       order by u.created_at desc
-      limit $3`,
-      [partnerId, sinceIso, lim]
+      limit $4`,
+      [partnerId, sinceIso, untilIsoExclusive ?? null, lim]
     )
     return rows.map((r) => ({
       id: r.id,

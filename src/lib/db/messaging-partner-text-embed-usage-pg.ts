@@ -1,6 +1,11 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 
+function embedCreatedAtRangeSql(alias: string): string {
+  return `and ${alias}.created_at >= $2::timestamptz
+        and ($3::timestamptz is null or ${alias}.created_at < $3::timestamptz)`
+}
+
 export type PartnerTextEmbedSource = 'inventory_sync' | 'customer_query'
 
 export type PartnerTextEmbedUsageSummaryRow = {
@@ -62,7 +67,8 @@ export async function insertMessagingPartnerTextEmbedUsageFromPg(params: {
 
 export async function fetchMessagingPartnerTextEmbedStatsBySourceFromPg(
   partnerId: string,
-  sinceIso: string
+  sinceIso: string,
+  untilIsoExclusive?: string | null
 ): Promise<PartnerTextEmbedUsageSummaryRow[] | null> {
   if (!isPgConfigured()) return null
   try {
@@ -101,7 +107,8 @@ export async function fetchMessagingPartnerTextEmbedStatsBySourceFromPg(
 export async function fetchMessagingPartnerTextEmbedDetailsFromPg(
   partnerId: string,
   sinceIso: string,
-  limit: number
+  limit: number,
+  untilIsoExclusive?: string | null
 ): Promise<PartnerTextEmbedUsageDetailRow[] | null> {
   if (!isPgConfigured()) return null
   const lim = Math.min(200, Math.max(1, Math.floor(limit)))
@@ -118,10 +125,10 @@ export async function fetchMessagingPartnerTextEmbedDetailsFromPg(
       `select u.id::text, u.source, u.model, u.prompt_tokens, u.total_tokens, u.inventory_id::text, u.created_at
        from public.messaging_partner_text_embed_usage u
        where u.partner_id = $1::uuid
-         and u.created_at >= $2::timestamptz
+         ${embedCreatedAtRangeSql('u')}
        order by u.created_at desc
-       limit $3`,
-      [partnerId, sinceIso, lim]
+       limit $4`,
+      [partnerId, sinceIso, untilIsoExclusive ?? null, lim]
     )
     return rows.map((r) => ({
       id: r.id,
