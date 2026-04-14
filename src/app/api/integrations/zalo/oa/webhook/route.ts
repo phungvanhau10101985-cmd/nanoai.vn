@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ensureConversation, insertMessage } from '@/lib/customer-care/conversation-service'
 import { parseZaloOaInbound, verifyZaloWebhookSecret } from '@/lib/customer-care/zalo-oa'
 import { findZaloChannelByWebhookSecret } from '@/lib/messaging/partner-channels-db'
+import { fetchMessagingPartnerByIdFromPg, isMessagingPartnerInboundOpen } from '@/lib/db/messaging-partners-pg'
 import { PLATFORM_MESSAGING_PARTNER_ID } from '@/lib/messaging/platform-partner'
 import { handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
 
@@ -52,6 +53,11 @@ export async function POST(request: NextRequest) {
   const items = parseZaloOaInbound(body)
   if (items.length === 0) {
     return NextResponse.json({ ok: true, received: 0 })
+  }
+
+  const inboundGate = await fetchMessagingPartnerByIdFromPg(partnerId)
+  if (!inboundGate || !isMessagingPartnerInboundOpen(inboundGate)) {
+    return NextResponse.json({ ok: true, received: 0, skipped: true })
   }
 
   let received = 0

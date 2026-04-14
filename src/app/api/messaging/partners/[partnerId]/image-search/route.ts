@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { fetchMessagingPartnerAiImageSearchAuthFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
-import { fetchMessagingPartnerByIdFromPg } from '@/lib/db/messaging-partners-pg'
+import { fetchMessagingPartnerByIdFromPg, isMessagingPartnerInboundOpen } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   getClientIpFromRequest,
@@ -110,8 +110,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
   if (!partner) {
     return jsonWithCors(req, { error: 'Shop not found.' }, 404)
   }
-  if (!partner.is_active) {
-    return jsonWithCors(req, { error: 'Shop is not active.' }, 403)
+  if (!isMessagingPartnerInboundOpen(partner)) {
+    return jsonWithCors(req, { error: 'Shop is not active or not accepting API traffic.' }, 403)
   }
 
   const settings = await fetchMessagingPartnerAiImageSearchAuthFromPg(partnerId)

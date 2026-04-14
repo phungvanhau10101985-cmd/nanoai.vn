@@ -26,6 +26,7 @@ import {
 import { fetchMessagingPartnerAiEnabledFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import { fetchPartnerInventoryPriceHintsByIdsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { fetchMessagingPartnerByIdFromPg, isMessagingPartnerInboundOpen } from '@/lib/db/messaging-partners-pg'
 import {
   prepareDeferredGuestPaymentVerification,
   verifyOrderPaymentProof,
@@ -84,6 +85,13 @@ export async function postWidgetGuestMessage(params: {
     Boolean(pageContextSku) || Boolean(pageContextImageUrl) || Boolean(pageContextProductUrl)
   if ((!text && !imagePath && !pageContextHasAny) || text.length > 8000) {
     return { error: 'Invalid message.' }
+  }
+
+  if (isPgConfigured()) {
+    const gate = await fetchMessagingPartnerByIdFromPg(params.partnerId)
+    if (!gate || !isMessagingPartnerInboundOpen(gate)) {
+      return { error: 'Shop is not accepting messages.' }
+    }
   }
 
   const linkedUserId = await resolveLinkedUserIdForCustomerCarePg(params.linkedUserId)

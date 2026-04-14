@@ -192,6 +192,8 @@ export interface Database {
           owner_user_id: string | null
           embed_key: string
           is_active: boolean
+          purge_at: string | null
+          deletion_requested_at: string | null
           created_at: string
           updated_at: string
         }
@@ -205,6 +207,8 @@ export interface Database {
           owner_user_id?: string | null
           embed_key?: string
           is_active?: boolean
+          purge_at?: string | null
+          deletion_requested_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -218,6 +222,8 @@ export interface Database {
           owner_user_id?: string | null
           embed_key?: string
           is_active?: boolean
+          purge_at?: string | null
+          deletion_requested_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -364,6 +370,33 @@ export interface Database {
           zalo_webhook_secret?: string | null
           created_at?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      messaging_partner_deletion_otps: {
+        Row: {
+          id: string
+          partner_id: string
+          owner_user_id: string
+          otp_hash: string
+          expires_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          owner_user_id: string
+          otp_hash: string
+          expires_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          owner_user_id?: string
+          otp_hash?: string
+          expires_at?: string
+          created_at?: string
         }
         Relationships: []
       }

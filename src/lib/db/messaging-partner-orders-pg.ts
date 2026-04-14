@@ -784,6 +784,56 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
   }
 }
 
+const _exportMaxParsed = parseInt(process.env.MESSAGING_PARTNER_ORDERS_EXPORT_MAX || '50000', 10)
+const EXPORT_ORDERS_MAX = Math.min(
+  100_000,
+  Math.max(1000, Number.isFinite(_exportMaxParsed) ? _exportMaxParsed : 50000)
+)
+
+/** Xuất Excel: cùng bộ lọc với danh sách đơn, giới hạn tối đa lớn (mặc định 50k). */
+export async function fetchPartnerOrdersForOwnerExportFromPg(input: {
+  ownerUserId: string
+  partnerId?: string | null
+  status?: string | null
+}): Promise<PartnerOrderAdminRow[] | null> {
+  if (!isPgConfigured()) return null
+  const status = String(input.status ?? '').trim()
+  const partnerId = String(input.partnerId ?? '').trim()
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `select o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
+              o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
+              o.variant_color, o.variant_size, o.quantity, o.note,
+              o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
+              o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
+              o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
+              o.created_at, o.updated_at, o.verified_at, o.locked_at,
+              coalesce(mp.display_name, '') as partner_display_name,
+              lp.image_url as latest_proof_image_url,
+              lp.verification_status as latest_proof_status,
+              lp.verification_reason as latest_proof_reason
+       from public.messaging_partner_orders o
+       join public.messaging_partners mp on mp.id = o.partner_id and mp.owner_user_id = $1::uuid
+       left join lateral (
+         select image_url, verification_status, verification_reason
+         from public.messaging_partner_payment_proofs p
+         where p.order_id = o.id
+         order by p.created_at desc
+         limit 1
+       ) lp on true
+       where ($2::uuid is null or o.partner_id = $2::uuid)
+         and ($3 = '' or o.status = $3)
+       order by o.created_at desc
+       limit $4`,
+      [input.ownerUserId, partnerId || null, status, EXPORT_ORDERS_MAX]
+    )
+    return rows.map(mapOrderAdminRow)
+  } catch (e) {
+    console.warn('[fetchPartnerOrdersForOwnerExportFromPg]', e)
+    return null
+  }
+}
+
 export async function updatePartnerOrderStatusForOwnerFromPg(input: {
   ownerUserId: string
   orderId: string

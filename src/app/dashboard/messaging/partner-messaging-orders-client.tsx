@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { RefreshCw } from 'lucide-react'
+import { Download, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import {
+  exportMyMessagingOrdersExcel,
   listMyMessagingOrderEvents,
   listMyMessagingOrders,
   updateMyMessagingOrderShipping,
@@ -114,6 +115,33 @@ export function PartnerMessagingOrdersClient({ initialPartners }: { initialPartn
     })
   }
 
+  const exportExcel = () => {
+    startTransition(async () => {
+      const res = await exportMyMessagingOrdersExcel({
+        partnerId: selectedPartnerId === 'all' ? '' : selectedPartnerId,
+        status: selectedStatus === 'all' ? '' : selectedStatus,
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      if (!('ok' in res) || !res.ok) return
+      const bin = atob(res.base64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i)
+      const blob = new Blob([bytes], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = res.filename
+      a.click()
+      URL.revokeObjectURL(url)
+      toast({ title: `Đã tải ${res.count.toLocaleString('vi-VN')} đơn (${res.filename}).` })
+    })
+  }
+
   useEffect(() => {
     loadOrders()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,6 +242,18 @@ export function PartnerMessagingOrdersClient({ initialPartners }: { initialPartn
             placeholder="Tim theo ma don / ten KH / sdt / san pham"
             className="h-9 min-w-[260px] flex-1"
           />
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-9"
+            onClick={() => exportExcel()}
+            disabled={pending}
+            title="Xuat tat ca don khop bo loc workspace + trang thai (khong theo o tim kiem nhanh)."
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" />
+            Xuất Excel
+          </Button>
           <Button type="button" variant="outline" size="sm" className="h-9" onClick={loadOrders} disabled={pending}>
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
             Tai lai

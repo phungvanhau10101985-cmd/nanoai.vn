@@ -310,6 +310,15 @@ export type Dictionary = {
     deleteWorkspaceButton: string
     deleteWorkspaceConfirm: string
     deleteWorkspaceSuccess: string
+    /** Xóa workspace: OTP + lên lịch */
+    deleteWorkspaceOtpIntro: string
+    deleteWorkspaceOtpSend: string
+    deleteWorkspaceOtpLabel: string
+    deleteWorkspaceOtpConfirm: string
+    deleteWorkspaceScheduledBanner: string
+    deleteWorkspaceCancelSchedule: string
+    deleteWorkspaceOtpSentToast: string
+    deleteWorkspaceScheduleCancelled: string
     fbLinkedLine: string
     zaloLinkedLine: string
     credentialsKeepHint: string
@@ -323,6 +332,8 @@ export type Dictionary = {
     messagingInboxDescription: string
     noWorkspaceInboxCta: string
     goToInbox: string
+    /** Nút quay lại danh sách hội thoại (inbox shop, mobile) */
+    inboxMobileBackAria: string
     /** Link tới /dashboard/api-integration */
     apiIntegrationGuideLink: string
     apiIntegrationGuideShort: string
@@ -1955,6 +1966,16 @@ const VI_DICTIONARY: Dictionary = {
     deleteWorkspaceConfirm:
       'Canh bao: xoa workspace nay se xoa vinh vien va KHONG THE KHOI PHUC. Hay go "XOA" de xac nhan.',
     deleteWorkspaceSuccess: 'Đã xóa workspace.',
+    deleteWorkspaceOtpIntro:
+      'Workspace sẽ được lên lịch xóa sau 7 ngày. Trong thời gian chờ shop không nhận tin khách. Chúng tôi gửi mã OTP tới email đăng nhập của bạn.',
+    deleteWorkspaceOtpSend: 'Gửi mã OTP',
+    deleteWorkspaceOtpLabel: 'Mã OTP (6 số)',
+    deleteWorkspaceOtpConfirm: 'Xác nhận lên lịch xóa',
+    deleteWorkspaceScheduledBanner:
+      'Đang chờ xóa workspace — không nhận tin từ khách. Bạn có thể hủy trong Cài đặt nhắn tin trước khi hết hạn.',
+    deleteWorkspaceCancelSchedule: 'Hủy lịch xóa',
+    deleteWorkspaceOtpSentToast: 'Đã gửi mã OTP tới email của bạn.',
+    deleteWorkspaceScheduleCancelled: 'Đã hủy lịch xóa workspace.',
     fbLinkedLine: 'Facebook Page đã liên kết: {pageId}',
     zaloLinkedLine: 'Zalo OA đã cấu hình webhook & token.',
     credentialsKeepHint:
@@ -1967,6 +1988,7 @@ const VI_DICTIONARY: Dictionary = {
       'Danh sách khách bên trái; khi mở một hội thoại, ô soạn tin cố định dưới cùng màn hình.',
     noWorkspaceInboxCta: 'Bạn chưa có workspace nhắn tin. Vào trang cài đặt để tạo shop và kết nối Facebook / Zalo / chat.',
     goToInbox: 'Về hộp thư',
+    inboxMobileBackAria: 'Danh sách hội thoại',
     apiIntegrationGuideLink: 'Hướng dẫn tích hợp API (khóa & endpoint)',
     apiIntegrationGuideShort: 'Dành cho dev tích hợp web shop: nhúng chat, tìm ảnh sản phẩm, API thử đồ B2B.',
     messagingSettingsApiHubCardTitle: 'Nhúng chat & API',
@@ -3613,6 +3635,16 @@ const EN_DICTIONARY: Dictionary = {
     deleteWorkspaceConfirm:
       'Warning: deleting this workspace is permanent and cannot be undone. Type "XOA" to confirm.',
     deleteWorkspaceSuccess: 'Workspace deleted.',
+    deleteWorkspaceOtpIntro:
+      'Your workspace will be scheduled for deletion after a grace period. While waiting, the shop will not accept customer messages. We will email a one-time code to your login address.',
+    deleteWorkspaceOtpSend: 'Send OTP email',
+    deleteWorkspaceOtpLabel: 'OTP code (6 digits)',
+    deleteWorkspaceOtpConfirm: 'Confirm scheduled deletion',
+    deleteWorkspaceScheduledBanner:
+      'This workspace is scheduled for deletion and is not accepting inbound messages. You can cancel from Messaging settings before the deadline.',
+    deleteWorkspaceCancelSchedule: 'Cancel deletion schedule',
+    deleteWorkspaceOtpSentToast: 'OTP sent to your email.',
+    deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     fbLinkedLine: 'Facebook Page linked: {pageId}',
     zaloLinkedLine: 'Zalo OA webhook & token are saved.',
     credentialsKeepHint: 'Leave token or secret blank to keep the saved values.',
@@ -3624,6 +3656,7 @@ const EN_DICTIONARY: Dictionary = {
       'Customer list on the left; when a thread is open, the composer stays fixed at the bottom of the screen.',
     noWorkspaceInboxCta: 'You have no messaging workspace yet. Open settings to create a shop and connect Facebook / Zalo / chat.',
     goToInbox: 'Back to inbox',
+    inboxMobileBackAria: 'Back to conversations',
     apiIntegrationGuideLink: 'API integration guide (keys & endpoints)',
     apiIntegrationGuideShort: 'For developers integrating your shop site: embed chat, image product search, B2B try-on API.',
     messagingSettingsApiHubCardTitle: 'Embed chat & APIs',
@@ -5273,6 +5306,16 @@ const ZH_DICTIONARY: Dictionary = {
     deleteWorkspaceButton: '删除工作区',
     deleteWorkspaceConfirm: '警告：删除工作区后将无法恢复。请输入 "XOA" 进行确认。',
     deleteWorkspaceSuccess: '工作区已删除。',
+    deleteWorkspaceOtpIntro:
+      'Your workspace will be scheduled for deletion after a grace period. While waiting, the shop will not accept customer messages. We will email a one-time code to your login address.',
+    deleteWorkspaceOtpSend: 'Send OTP email',
+    deleteWorkspaceOtpLabel: 'OTP code (6 digits)',
+    deleteWorkspaceOtpConfirm: 'Confirm scheduled deletion',
+    deleteWorkspaceScheduledBanner:
+      'This workspace is scheduled for deletion and is not accepting inbound messages. You can cancel from Messaging settings before the deadline.',
+    deleteWorkspaceCancelSchedule: 'Cancel deletion schedule',
+    deleteWorkspaceOtpSentToast: 'OTP sent to your email.',
+    deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     fbLinkedLine: '已关联 Facebook Page：{pageId}',
     zaloLinkedLine: '已保存 Zalo OA webhook 与 token。',
     credentialsKeepHint: '不修改时请留空 token 或 secret — 将保留已保存的值。',
@@ -5283,6 +5326,7 @@ const ZH_DICTIONARY: Dictionary = {
     messagingInboxDescription: '左侧为客户列表；打开会话后，输入框固定在屏幕底部。',
     noWorkspaceInboxCta: '您还没有消息工作区。前往设置创建店铺并连接 Facebook / Zalo / 聊天。',
     goToInbox: '返回收件箱',
+    inboxMobileBackAria: '返回会话列表',
     apiIntegrationGuideLink: 'API 集成说明（密钥与接口）',
     apiIntegrationGuideShort: '供开发将店铺网站接入：嵌入聊天、以图搜商品、B2B 试衣 API。',
     messagingSettingsApiHubCardTitle: '嵌入聊天与 API',
@@ -6876,6 +6920,16 @@ const JA_DICTIONARY: Dictionary = {
     deleteWorkspaceButton: 'ワークスペースを削除',
     deleteWorkspaceConfirm: '警告: このワークスペースを削除すると元に戻せません。確認のため "XOA" と入力してください。',
     deleteWorkspaceSuccess: 'ワークスペースを削除しました。',
+    deleteWorkspaceOtpIntro:
+      'Your workspace will be scheduled for deletion after a grace period. While waiting, the shop will not accept customer messages. We will email a one-time code to your login address.',
+    deleteWorkspaceOtpSend: 'Send OTP email',
+    deleteWorkspaceOtpLabel: 'OTP code (6 digits)',
+    deleteWorkspaceOtpConfirm: 'Confirm scheduled deletion',
+    deleteWorkspaceScheduledBanner:
+      'This workspace is scheduled for deletion and is not accepting inbound messages. You can cancel from Messaging settings before the deadline.',
+    deleteWorkspaceCancelSchedule: 'Cancel deletion schedule',
+    deleteWorkspaceOtpSentToast: 'OTP sent to your email.',
+    deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     fbLinkedLine: 'Facebook Page を連携済み: {pageId}',
     zaloLinkedLine: 'Zalo OA の webhook とトークンを保存済みです。',
     credentialsKeepHint:
@@ -6887,6 +6941,7 @@ const JA_DICTIONARY: Dictionary = {
     messagingInboxDescription: '左に顧客一覧。会話を開くと、入力欄は画面下に固定されます。',
     noWorkspaceInboxCta: 'メッセージ用ワークスペースがありません。設定で店舗を作成し Facebook / Zalo / チャットを接続してください。',
     goToInbox: '受信箱へ',
+    inboxMobileBackAria: '会話一覧に戻る',
     apiIntegrationGuideLink: 'API 連携ガイド（キーとエンドポイント）',
     apiIntegrationGuideShort: '店舗サイト連携向け：埋め込みチャット、画像検索、B2B 試着 API。',
     messagingSettingsApiHubCardTitle: '埋め込みチャットと API',
@@ -8519,6 +8574,16 @@ const KO_DICTIONARY: Dictionary = {
     deleteWorkspaceButton: '워크스페이스 삭제',
     deleteWorkspaceConfirm: '경고: 이 워크스페이스를 삭제하면 복구할 수 없습니다. 확인하려면 "XOA"를 입력하세요.',
     deleteWorkspaceSuccess: '워크스페이스를 삭제했습니다.',
+    deleteWorkspaceOtpIntro:
+      'Your workspace will be scheduled for deletion after a grace period. While waiting, the shop will not accept customer messages. We will email a one-time code to your login address.',
+    deleteWorkspaceOtpSend: 'Send OTP email',
+    deleteWorkspaceOtpLabel: 'OTP code (6 digits)',
+    deleteWorkspaceOtpConfirm: 'Confirm scheduled deletion',
+    deleteWorkspaceScheduledBanner:
+      'This workspace is scheduled for deletion and is not accepting inbound messages. You can cancel from Messaging settings before the deadline.',
+    deleteWorkspaceCancelSchedule: 'Cancel deletion schedule',
+    deleteWorkspaceOtpSentToast: 'OTP sent to your email.',
+    deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     fbLinkedLine: 'Facebook Page 연결됨: {pageId}',
     zaloLinkedLine: 'Zalo OA webhook 및 토큰이 저장되었습니다.',
     credentialsKeepHint: '바꾸지 않을 토큰이나 시크릿은 비워 두면 저장된 값이 유지됩니다.',
@@ -8529,6 +8594,7 @@ const KO_DICTIONARY: Dictionary = {
     messagingInboxDescription: '왼쪽에 고객 목록. 대화를 열면 입력창이 화면 하단에 고정됩니다.',
     noWorkspaceInboxCta: '메시징 워크스페이스가 없습니다. 설정에서 매장을 만들고 Facebook / Zalo / 채팅을 연결하세요.',
     goToInbox: '받은편지함으로',
+    inboxMobileBackAria: '대화 목록으로',
     apiIntegrationGuideLink: 'API 연동 안내(키 및 엔드포인트)',
     apiIntegrationGuideShort: '매장 사이트 연동용: 임베드 채팅, 이미지 상품 검색, B2B 피팅 API.',
     messagingSettingsApiHubCardTitle: '임베드 채팅 및 API',

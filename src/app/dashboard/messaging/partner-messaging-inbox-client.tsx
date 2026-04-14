@@ -12,17 +12,28 @@ import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
+  cancelMessagingWorkspaceDeletionSchedule,
+  confirmMessagingWorkspaceDeletionWithOtp,
   getPartnerAiComposingForConversation,
   listPartnerConversations,
   listPartnerMessages,
-  removeMyMessagingWorkspace,
+  requestMessagingWorkspaceDeletionOtp,
   sendPartnerReply,
 } from '@/app/dashboard/messaging/actions'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { CustomerCareMessageBody } from '@/components/messaging/customer-care-message-body'
 import { MessageTextWithLinks } from '@/components/messaging/message-text-with-links'
 import {
   CalendarDays,
   Camera,
+  ChevronLeft,
   ClipboardList,
   Headphones,
   ImagePlus,
@@ -38,8 +49,19 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
-const DELETE_WORKSPACE_CONFIRM_TOKEN = 'XOA'
+function useMatchMediaMaxMd() {
+  const [match, setMatch] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const apply = () => setMatch(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+  return match
+}
 
 type ConvRow = Database['public']['Tables']['customer_care_conversations']['Row']
 type MsgRow = Database['public']['Tables']['customer_care_messages']['Row']
@@ -87,11 +109,20 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
   const [composerHeight, setComposerHeight] = useState(0)
   const [inboxQuery, setInboxQuery] = useState('')
   const [shopAiComposing, setShopAiComposing] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteOtpStep, setDeleteOtpStep] = useState<'send' | 'confirm'>('send')
+  const [deleteOtpInput, setDeleteOtpInput] = useState('')
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const isMobileLayout = useMatchMediaMaxMd()
 
   const selectedConv = selectedConvId ? conversations.find((c) => c.id === selectedConvId) : undefined
+  const selectedPartner = useMemo(
+    () => partners.find((p) => p.id === selectedPartnerId) ?? null,
+    [partners, selectedPartnerId]
+  )
 
   const filteredConversations = useMemo(() => {
     const q = inboxQuery.trim().toLowerCase()
@@ -206,6 +237,11 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
     return () => ro.disconnect()
   }, [selectedConvId, imagePreviewUrl, draft, uploading])
 
+  useEffect(() => {
+    if (!selectedConvId || loadingMsgs) return
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages, selectedConvId, loadingMsgs, shopAiComposing])
+
   const uploadPartnerImage = async (file: File) => {
     if (!selectedPartnerId) return
     if (!file.type.startsWith('image/')) {
@@ -299,30 +335,66 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
     })
   }
 
-  const removeWorkspace = () => {
+  const openDeleteWorkspaceDialog = () => {
+    if (!selectedPartnerId || selectedPartner?.purge_at) return
+    setDeleteOtpStep('send')
+    setDeleteOtpInput('')
+    setDeleteDialogOpen(true)
+  }
+
+  const sendDeleteOtp = () => {
     if (!selectedPartnerId) return
-    const confirmation = window.prompt(t.deleteWorkspaceConfirm, '')
-    if (confirmation === null) return
-    if (confirmation.trim().toUpperCase() !== DELETE_WORKSPACE_CONFIRM_TOKEN) {
-      toast({ title: `Xac nhan khong dung (${DELETE_WORKSPACE_CONFIRM_TOKEN}).`, variant: 'destructive' })
-      return
-    }
-    const removingId = selectedPartnerId
     startTransition(async () => {
-      const res = await removeMyMessagingWorkspace(removingId)
+      const res = await requestMessagingWorkspaceDeletionOtp(selectedPartnerId)
       if ('error' in res && res.error) {
         toast({ title: res.error, variant: 'destructive' })
         return
       }
-      setPartners((prev) => {
-        const next = prev.filter((p) => p.id !== removingId)
-        setSelectedPartnerId(next[0]?.id ?? null)
-        return next
+      toast({ title: t.deleteWorkspaceOtpSentToast })
+      setDeleteOtpStep('confirm')
+    })
+  }
+
+  const confirmDeleteWorkspaceWithOtp = () => {
+    if (!selectedPartnerId) return
+    const otp = deleteOtpInput.replace(/\D/g, '').trim()
+    if (otp.length !== 6) {
+      toast({ title: 'Nhap du 6 so OTP.', variant: 'destructive' })
+      return
+    }
+    startTransition(async () => {
+      const res = await confirmMessagingWorkspaceDeletionWithOtp(selectedPartnerId, otp)
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      if ('purge_at' in res && res.purge_at) {
+        setPartners((prev) =>
+          prev.map((p) => (p.id === selectedPartnerId ? { ...p, purge_at: res.purge_at } : p))
+        )
+      }
+      setDeleteDialogOpen(false)
+      setDeleteOtpInput('')
+      toast({
+        title:
+          'Da len lich xoa workspace. Shop khong nhan tin khach cho den khi hoan tat hoac ban huy lich.',
       })
-      setSelectedConvId(null)
-      setMessages([])
-      setConversations([])
-      toast({ title: t.deleteWorkspaceSuccess })
+      router.refresh()
+    })
+  }
+
+  const cancelScheduledDeletion = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await cancelMessagingWorkspaceDeletionSchedule(selectedPartnerId)
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      setPartners((prev) =>
+        prev.map((p) => (p.id === selectedPartnerId ? { ...p, purge_at: null, deletion_requested_at: null } : p))
+      )
+      toast({ title: t.deleteWorkspaceScheduleCancelled })
       router.refresh()
     })
   }
@@ -339,8 +411,70 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col gap-0.5">
-      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border/40 pb-0.5">
+    <div className="relative flex h-full min-h-0 flex-col gap-1 max-md:gap-1.5">
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t.deleteWorkspaceButton}</DialogTitle>
+            <DialogDescription className="text-left">{t.deleteWorkspaceOtpIntro}</DialogDescription>
+          </DialogHeader>
+          {deleteOtpStep === 'send' ? (
+            <DialogFooter className="gap-2 sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                {t.cancelAddWorkspace}
+              </Button>
+              <Button type="button" onClick={sendDeleteOtp} disabled={pending}>
+                {t.deleteWorkspaceOtpSend}
+              </Button>
+            </DialogFooter>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="ws-del-otp">
+                  {t.deleteWorkspaceOtpLabel}
+                </label>
+                <Input
+                  id="ws-del-otp"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={8}
+                  value={deleteOtpInput}
+                  onChange={(e) => setDeleteOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                />
+              </div>
+              <DialogFooter className="gap-2 sm:justify-end">
+                <Button type="button" variant="outline" onClick={() => setDeleteOtpStep('send')}>
+                  {t.deleteWorkspaceOtpSend}
+                </Button>
+                <Button type="button" variant="destructive" onClick={confirmDeleteWorkspaceWithOtp} disabled={pending}>
+                  {t.deleteWorkspaceOtpConfirm}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {selectedPartner?.purge_at ? (
+        <div className="rounded-lg border border-amber-500/50 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex-1">{t.deleteWorkspaceScheduledBanner}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 border-amber-700/40"
+              onClick={cancelScheduledDeletion}
+              disabled={pending}
+            >
+              {t.deleteWorkspaceCancelSchedule}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex shrink-0 flex-col gap-1.5 border-b border-border/40 pb-1.5 md:flex-row md:flex-wrap md:items-center md:gap-1 md:pb-0.5">
         <Select
           value={selectedPartnerId ?? undefined}
           onValueChange={(v) => {
@@ -348,54 +482,99 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
             setSelectedConvId(null)
           }}
         >
-          <SelectTrigger className="h-7 w-full max-w-xs bg-background text-[11px]">
+          <SelectTrigger className="h-9 w-full bg-background text-xs md:h-7 md:w-full md:max-w-xs md:text-[11px]">
             <SelectValue placeholder={t.workspaceLabel} />
           </SelectTrigger>
           <SelectContent>
             {partners.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.display_name} ({p.industry_key || 'fashion'})
+                {p.purge_at ? ' — chờ xóa' : ''}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 px-2 text-[11px]"
-          onClick={refreshConversations}
-          disabled={pending || !selectedPartnerId}
-        >
-          <RefreshCw className="mr-1 h-3 w-3" aria-hidden />
-          {t.refresh}
-        </Button>
-        <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
-          <Link href="/dashboard/messaging/settings">
-            <Settings className="h-3 w-3" aria-hidden />
-            {t.messagingSettingsLink}
-          </Link>
-        </Button>
-        <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
-          <Link href="/dashboard/messaging/orders">
-            <ClipboardList className="h-3 w-3" aria-hidden />
-            Don hang
-          </Link>
-        </Button>
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          className="h-7 gap-1 px-2 text-[11px]"
-          onClick={removeWorkspace}
-          disabled={pending || !selectedPartnerId}
-        >
-          <Trash2 className="h-3 w-3" aria-hidden />
-          {t.deleteWorkspaceButton}
-        </Button>
+        <div className="flex items-center gap-1 md:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 min-w-0 flex-1 px-2 text-xs"
+            onClick={refreshConversations}
+            disabled={pending || !selectedPartnerId}
+          >
+            <RefreshCw className="mr-1 h-3.5 w-3.5 shrink-0" aria-hidden />
+            {t.refresh}
+          </Button>
+          <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title={t.messagingSettingsLink}>
+            <Link href="/dashboard/messaging/settings" aria-label={t.messagingSettingsLink}>
+              <Settings className="h-4 w-4" aria-hidden />
+            </Link>
+          </Button>
+          <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title="Đơn hàng">
+            <Link href="/dashboard/messaging/orders" aria-label="Đơn hàng">
+              <ClipboardList className="h-4 w-4" aria-hidden />
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="icon"
+            className="h-9 w-9 shrink-0"
+            onClick={openDeleteWorkspaceDialog}
+            disabled={pending || !selectedPartnerId || Boolean(selectedPartner?.purge_at)}
+            title={t.deleteWorkspaceButton}
+            aria-label={t.deleteWorkspaceButton}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden />
+          </Button>
+        </div>
+        <div className="hidden flex-wrap items-center gap-1 md:flex">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-[11px]"
+            onClick={refreshConversations}
+            disabled={pending || !selectedPartnerId}
+          >
+            <RefreshCw className="mr-1 h-3 w-3" aria-hidden />
+            {t.refresh}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
+            <Link href="/dashboard/messaging/settings">
+              <Settings className="h-3 w-3" aria-hidden />
+              {t.messagingSettingsLink}
+            </Link>
+          </Button>
+          <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
+            <Link href="/dashboard/messaging/orders">
+              <ClipboardList className="h-3 w-3" aria-hidden />
+              Don hang
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            className="h-7 gap-1 px-2 text-[11px]"
+            onClick={openDeleteWorkspaceDialog}
+            disabled={pending || !selectedPartnerId || Boolean(selectedPartner?.purge_at)}
+          >
+            <Trash2 className="h-3 w-3" aria-hidden />
+            {t.deleteWorkspaceButton}
+          </Button>
+        </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] divide-y divide-border/60 overflow-hidden overscroll-y-contain rounded-md border border-border/60 bg-muted/20 md:grid-cols-[minmax(0,270px)_1fr] md:grid-rows-1 md:divide-x md:divide-y-0 md:items-stretch lg:grid-cols-[34px_minmax(0,270px)_minmax(0,1fr)_minmax(0,250px)]">
+      <div
+        className={cn(
+          'min-h-0 flex-1 overflow-hidden overscroll-y-contain rounded-md border border-border/60 bg-muted/20',
+          'flex flex-col',
+          'md:grid md:grid-cols-[minmax(0,270px)_minmax(0,1fr)] md:items-stretch md:gap-0 md:divide-x md:divide-y-0 md:divide-border/60',
+          'lg:grid-cols-[34px_minmax(0,270px)_minmax(0,1fr)_minmax(0,250px)]'
+        )}
+      >
         <aside className="hidden min-h-0 flex-col border-r border-border/60 bg-violet-50/60 lg:flex">
           <div className="flex h-10 items-center justify-center border-b border-border/60">
             <MessageSquare className="h-4 w-4 text-violet-700" aria-hidden />
@@ -416,7 +595,13 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
           </div>
         </aside>
 
-        <aside className="flex h-[min(34vh,300px)] min-h-[170px] max-md:shrink-0 flex-col overflow-hidden overscroll-y-contain md:h-full md:min-h-0 md:border-b-0 md:border-r md:border-border/40">
+        <aside
+          className={cn(
+            'flex min-h-0 flex-col overflow-hidden overscroll-y-contain md:h-full md:min-h-0 md:border-b-0 md:border-r md:border-border/40',
+            'max-md:min-h-0 max-md:flex-1',
+            isMobileLayout && selectedConvId && 'hidden'
+          )}
+        >
           <div className="shrink-0 space-y-1 border-b border-border/40 bg-muted/15 px-2 py-1">
             <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t.inboxTitle}</p>
             <div className="relative">
@@ -484,7 +669,13 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
           </ul>
         </aside>
 
-        <section className="flex min-h-0 flex-col overflow-hidden overscroll-y-contain bg-muted/30 md:h-full">
+        <section
+          className={cn(
+            'flex min-h-0 flex-col overflow-hidden overscroll-y-contain bg-muted/30 md:h-full',
+            'max-md:min-h-0 max-md:flex-1',
+            isMobileLayout && !selectedConvId && 'hidden'
+          )}
+        >
           {!selectedConvId ? (
             <div className="flex min-h-[10rem] flex-1 items-center justify-center px-4 py-6 text-center text-[13px] text-muted-foreground md:min-h-0">
               {t.pickConversation}
@@ -492,20 +683,30 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
           ) : (
             <>
               {selectedConv ? (
-                <div className="flex shrink-0 items-center gap-1.5 border-b border-border/60 bg-background/95 px-2 py-1">
+                <div className="flex shrink-0 items-center gap-1 border-b border-border/60 bg-background/95 px-1.5 py-1.5 md:gap-1.5 md:px-2 md:py-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 md:hidden"
+                    onClick={() => setSelectedConvId(null)}
+                    aria-label={t.inboxMobileBackAria}
+                  >
+                    <ChevronLeft className="h-5 w-5" aria-hidden />
+                  </Button>
                   {selectedConv.customer_avatar_url ? (
                     <img
                       src={selectedConv.customer_avatar_url}
                       alt=""
-                      className="h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-border/40"
+                      className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-border/40 md:h-6 md:w-6"
                     />
                   ) : (
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-semibold text-muted-foreground ring-1 ring-border/40">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-1 ring-border/40 md:h-6 md:w-6 md:text-[9px]">
                       {customerInitials(selectedConv.customer_name, t.unknownUser)}
                     </div>
                   )}
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate text-xs font-semibold leading-none">
+                    <span className="truncate text-sm font-semibold leading-none md:text-xs">
                       {selectedConv.customer_name || t.unknownUser}
                     </span>
                     <Badge variant="secondary" className="max-h-5 shrink-0 px-1 py-0 text-[8px] font-normal leading-tight">
@@ -526,7 +727,7 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
                   messages.map((m) => (
                     <div
                       key={m.id}
-                      className={`mb-1.5 max-w-[min(100%,560px)] ${
+                      className={`mb-1.5 w-full max-w-[min(100%,560px)] max-md:max-w-[calc(100vw-1.25rem)] ${
                         m.direction === 'outbound'
                           ? 'ml-auto rounded-2xl rounded-br-sm bg-gradient-to-br from-violet-600 to-violet-700 px-2.5 py-1.5 text-[12px] leading-relaxed text-white shadow-md'
                           : 'mr-auto rounded-2xl rounded-bl-sm border border-border/70 bg-card px-2.5 py-1.5 text-[12px] leading-relaxed shadow-sm'
@@ -570,7 +771,7 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
                 )}
                 {shopAiComposing ? (
                   <div
-                    className="mb-1.5 mr-auto flex max-w-[min(100%,560px)] items-center gap-2 rounded-2xl rounded-bl-md border border-violet-500/35 bg-violet-500/10 px-3 py-2 text-[12px] font-medium text-violet-950 dark:text-violet-100"
+                    className="mb-1.5 mr-auto flex w-full max-w-[min(100%,560px)] max-md:max-w-[calc(100vw-1.25rem)] items-center gap-2 rounded-2xl rounded-bl-md border border-violet-500/35 bg-violet-500/10 px-3 py-2 text-[12px] font-medium text-violet-950 dark:text-violet-100"
                     role="status"
                     aria-live="polite"
                   >
@@ -583,6 +784,7 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
                     </span>
                   </div>
                 ) : null}
+                <div ref={messagesEndRef} className="h-px w-full shrink-0 scroll-mt-4" aria-hidden />
               </div>
             </>
           )}

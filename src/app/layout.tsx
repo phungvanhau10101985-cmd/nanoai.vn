@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import dynamic from "next/dynamic";
 import Script from "next/script";
 import { loadAdminIntegrationsValueJsonByKey } from "@/lib/db/admin-integrations-settings-pg";
+import { fetchMessagingPartnerBySlugFromPg } from "@/lib/db/messaging-partners-pg";
 import { isPgConfigured } from "@/lib/db/pool";
 import { headers } from "next/headers";
 import "./globals.css";
@@ -14,6 +15,7 @@ import { JsonLd } from "@/components/seo-json-ld";
 import { readLoginNextFromHeaders } from '@/lib/auth/app-request-headers'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { FloatingChatWidget } from '@/components/messaging/floating-chat-widget'
+import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 
 const AnalyticsTracker = dynamic(
   () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
@@ -114,6 +116,16 @@ function parseIframeEmbed(raw: string): IframeEmbedPayload | null {
     loading,
     referrerPolicy: referrerPolicy as React.IframeHTMLAttributes<HTMLIFrameElement>["referrerPolicy"],
   };
+}
+
+function extractMessagingPartnerSlugFromChatUrl(chatUrl: string): string | null {
+  try {
+    const u = new URL(chatUrl);
+    const m = u.pathname.match(/\/messaging\/p\/([^/]+)/);
+    return m?.[1] ? decodeURIComponent(m[1]) : null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizeShopName(title: string): string {
@@ -263,6 +275,17 @@ export default async function RootLayout({
   const hostedChatUrl = hostedChatIframe
     ? normalizeEmbedSrc(hostedChatIframe.src, requestOrigin)
     : "";
+
+  /** Logo tròn trên nút nổi «Mở chat» (khi đóng); header khi mở chỉ hiển thị tiêu đề chữ. */
+  let widgetLauncherLogoUrl: string | null = null;
+  if (hostedChatUrl && isPgConfigured()) {
+    const slug = extractMessagingPartnerSlugFromChatUrl(hostedChatUrl);
+    if (slug && !isReservedMessagingGuestSlug(slug)) {
+      const row = await fetchMessagingPartnerBySlugFromPg(slug);
+      widgetLauncherLogoUrl = row?.logo_url?.trim() || null;
+    }
+  }
+
   const widgetText = {
     openLabel:
       locale === 'en'
@@ -294,16 +317,6 @@ export default async function RootLayout({
             : locale === 'ko'
               ? '전체 페이지 열기'
               : 'Mở toàn trang',
-    myOrdersLabel:
-      locale === 'en'
-        ? 'My orders'
-        : locale === 'zh'
-          ? '我的订单'
-          : locale === 'ja'
-            ? '注文一覧'
-            : locale === 'ko'
-              ? '내 주문'
-              : 'Đơn hàng của tôi',
   }
   const shouldRenderGlobalChatWidget =
     Boolean(hostedChatIframe && hostedChatUrl) &&
@@ -389,12 +402,12 @@ export default async function RootLayout({
                   chatUrl={hostedChatUrl}
                   title={hostedChatIframe?.title || 'Chat widget'}
                   shopName={normalizeShopName(hostedChatIframe?.title || '')}
+                  launcherLogoUrl={widgetLauncherLogoUrl}
                   loading={hostedChatIframe?.loading || 'lazy'}
                   referrerPolicy={hostedChatIframe?.referrerPolicy}
                   openLabel={widgetText.openLabel}
                   closeLabel={widgetText.closeLabel}
                   openFullPageLabel={widgetText.openFullPageLabel}
-                  myOrdersLabel={widgetText.myOrdersLabel}
                 />
               ) : null}
             </DepositCreditProvider>

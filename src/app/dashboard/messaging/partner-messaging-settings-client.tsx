@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,24 +12,33 @@ import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
+  cancelMessagingWorkspaceDeletionSchedule,
+  confirmMessagingWorkspaceDeletionWithOtp,
   createMessagingWorkspaceProfile,
   getMessagingWorkspacePaymentSettings,
   getPartnerChannelStatus,
   listMessagingWorkspaceLogoVersions,
   listMyMessagingPartners,
   normalizeMessagingWorkspaceLogo,
-  removeMyMessagingWorkspace,
+  requestMessagingWorkspaceDeletionOtp,
   saveMessagingWorkspacePaymentSettings,
   savePartnerFacebookChannel,
   savePartnerZaloChannel,
   setMessagingWorkspaceActiveLogo,
   updateMessagingWorkspaceProfile,
 } from '@/app/dashboard/messaging/actions'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { PartnerAiSettingsPanel } from '@/app/dashboard/messaging/partner-ai-settings-panel'
 import { ArrowLeft, RefreshCw, Trash2, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
-const DELETE_WORKSPACE_CONFIRM_TOKEN = 'XOA'
 const INDUSTRY_OPTIONS = [
   { value: 'fashion', label: 'Thoi trang' },
   { value: 'hotel', label: 'Khach san' },
@@ -118,6 +127,14 @@ export function PartnerMessagingSettingsClient({
   const paymentHydratingRef = useRef(false)
   const paymentLastSavedSnapshotRef = useRef('')
   const paymentAutoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteOtpStep, setDeleteOtpStep] = useState<'send' | 'confirm'>('send')
+  const [deleteOtpInput, setDeleteOtpInput] = useState('')
+
+  const selectedPartner = useMemo(
+    () => partners.find((p) => p.id === selectedPartnerId) ?? null,
+    [partners, selectedPartnerId]
+  )
 
   const setSelectedPartnerAndPersist = useCallback(
     (partnerId: string | null) => {
@@ -461,29 +478,66 @@ export function PartnerMessagingSettingsClient({
     })
   }
 
-  const removeWs = () => {
+  const openDeleteWorkspaceDialog = () => {
+    if (!selectedPartnerId || selectedPartner?.purge_at) return
+    setDeleteOtpStep('send')
+    setDeleteOtpInput('')
+    setDeleteDialogOpen(true)
+  }
+
+  const sendDeleteOtp = () => {
     if (!selectedPartnerId) return
-    const confirmation = window.prompt(t.deleteWorkspaceConfirm, '')
-    if (confirmation === null) return
-    if (confirmation.trim().toUpperCase() !== DELETE_WORKSPACE_CONFIRM_TOKEN) {
-      toast({ title: `Xac nhan khong dung (${DELETE_WORKSPACE_CONFIRM_TOKEN}).`, variant: 'destructive' })
-      return
-    }
-    const removingId = selectedPartnerId
     startTransition(async () => {
-      const res = await removeMyMessagingWorkspace(removingId)
+      const res = await requestMessagingWorkspaceDeletionOtp(selectedPartnerId)
       if ('error' in res && res.error) {
         toast({ title: res.error, variant: 'destructive' })
         return
       }
-      setPartners((prev) => {
-        const next = prev.filter((p) => p.id !== removingId)
-        const fallback = next[0]?.id ?? null
-        setSelectedPartnerAndPersist(fallback)
-        return next
+      toast({ title: t.deleteWorkspaceOtpSentToast })
+      setDeleteOtpStep('confirm')
+    })
+  }
+
+  const confirmDeleteWorkspaceWithOtp = () => {
+    if (!selectedPartnerId) return
+    const otp = deleteOtpInput.replace(/\D/g, '').trim()
+    if (otp.length !== 6) {
+      toast({ title: 'Nhap du 6 so OTP.', variant: 'destructive' })
+      return
+    }
+    startTransition(async () => {
+      const res = await confirmMessagingWorkspaceDeletionWithOtp(selectedPartnerId, otp)
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      if ('purge_at' in res && res.purge_at) {
+        setPartners((prev) =>
+          prev.map((p) => (p.id === selectedPartnerId ? { ...p, purge_at: res.purge_at } : p))
+        )
+      }
+      setDeleteDialogOpen(false)
+      setDeleteOtpInput('')
+      toast({
+        title:
+          'Da len lich xoa workspace. Shop khong nhan tin khach cho den khi hoan tat hoac ban huy lich.',
       })
-      setShowAddWorkspace(false)
-      toast({ title: t.deleteWorkspaceSuccess })
+      router.refresh()
+    })
+  }
+
+  const cancelScheduledDeletion = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await cancelMessagingWorkspaceDeletionSchedule(selectedPartnerId)
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      setPartners((prev) =>
+        prev.map((p) => (p.id === selectedPartnerId ? { ...p, purge_at: null, deletion_requested_at: null } : p))
+      )
+      toast({ title: t.deleteWorkspaceScheduleCancelled })
       router.refresh()
     })
   }
@@ -641,6 +695,50 @@ export function PartnerMessagingSettingsClient({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t.deleteWorkspaceButton}</DialogTitle>
+            <DialogDescription className="text-left">{t.deleteWorkspaceOtpIntro}</DialogDescription>
+          </DialogHeader>
+          {deleteOtpStep === 'send' ? (
+            <DialogFooter className="gap-2 sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                {t.cancelAddWorkspace}
+              </Button>
+              <Button type="button" onClick={sendDeleteOtp} disabled={pending}>
+                {t.deleteWorkspaceOtpSend}
+              </Button>
+            </DialogFooter>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="ws-del-otp-settings">
+                  {t.deleteWorkspaceOtpLabel}
+                </label>
+                <Input
+                  id="ws-del-otp-settings"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={8}
+                  value={deleteOtpInput}
+                  onChange={(e) => setDeleteOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                />
+              </div>
+              <DialogFooter className="gap-2 sm:justify-end">
+                <Button type="button" variant="outline" onClick={() => setDeleteOtpStep('send')}>
+                  {t.deleteWorkspaceOtpSend}
+                </Button>
+                <Button type="button" variant="destructive" onClick={confirmDeleteWorkspaceWithOtp} disabled={pending}>
+                  {t.deleteWorkspaceOtpConfirm}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" asChild className="gap-1.5">
           <Link href="/dashboard/messaging">
@@ -731,6 +829,24 @@ export function PartnerMessagingSettingsClient({
         <div className="space-y-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t.setupColumnTitle}</p>
 
+          {selectedPartner?.purge_at ? (
+            <div className="rounded-lg border border-amber-500/50 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="flex-1">{t.deleteWorkspaceScheduledBanner}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 border-amber-700/40"
+                  onClick={cancelScheduledDeletion}
+                  disabled={pending}
+                >
+                  {t.deleteWorkspaceCancelSchedule}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           <Card className="border-border/70 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">{t.workspaceLabel}</CardTitle>
@@ -748,6 +864,7 @@ export function PartnerMessagingSettingsClient({
                   {partners.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.display_name} ({p.industry_key || 'fashion'})
+                      {p.purge_at ? ' — chờ xóa' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -760,8 +877,8 @@ export function PartnerMessagingSettingsClient({
                   type="button"
                   variant="destructive"
                   size="sm"
-                  onClick={removeWs}
-                  disabled={pending || !selectedPartnerId}
+                  onClick={openDeleteWorkspaceDialog}
+                  disabled={pending || !selectedPartnerId || Boolean(selectedPartner?.purge_at)}
                   className="gap-1.5"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden />

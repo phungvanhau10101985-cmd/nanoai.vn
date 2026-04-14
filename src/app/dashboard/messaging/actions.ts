@@ -54,12 +54,22 @@ import {
   upsertZaloOaChannelPg,
 } from '@/lib/db/messaging-partner-channels-pg'
 import {
-  deactivateMessagingPartnerForOwnerFromPg,
   fetchMessagingPartnerEmbedKeyForOwnerFromPg,
   fetchMessagingPartnersByOwnerFromPg,
   insertMessagingPartnerForOwnerFromPg,
   updateMessagingPartnerProfileForOwnerFromPg,
 } from '@/lib/db/messaging-partners-pg'
+import {
+  cancelScheduledPartnerPurgeFromPg,
+  generateWorkspaceDeletionOtp6,
+  hashWorkspaceDeletionOtp,
+  isWorkspaceDeletionOtpCooldownActiveFromPg,
+  partnerPurgeGraceDays,
+  replaceWorkspaceDeletionOtpForPartnerFromPg,
+  verifyDeletionOtpAndSchedulePartnerPurgeFromPg,
+} from '@/lib/db/messaging-partner-purge-pg'
+import { sendSmtpMail, isSmtpConfigured } from '@/lib/email/smtp'
+import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   fetchMessagingPartnerAiImageGenStatsFromPg,
@@ -79,7 +89,7 @@ import {
   fetchOwnerCreditEventSummariesFromPg,
   fetchPartnerLogoCreditRowsInRangeFromPg,
 } from '@/lib/db/partner-owner-credit-ledger-pg'
-import { pgQueryOne } from '@/lib/db/pg-query'
+import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { Database } from '@/types/database.types'
 import { sendFacebookMessengerImageUrl, sendFacebookMessengerText } from '@/lib/customer-care/facebook-messenger'
 import { sendZaloOaText } from '@/lib/customer-care/zalo-oa'
@@ -116,6 +126,7 @@ import {
   fetchPartnerOrderEventsForOwnerFromPg,
   fetchPartnerPaymentSettingsFromPg,
   fetchPartnerOrdersForOwnerFromPg,
+  fetchPartnerOrdersForOwnerExportFromPg,
   insertPartnerOrderEventFromPg,
   type PartnerOrderAdminRow,
   type PartnerOrderEventRow,
@@ -128,6 +139,7 @@ import {
   emailCustomerOrderPaymentStatusChanged,
   emailCustomerShippingStatusChanged,
 } from '@/lib/messaging/partner-order-customer-email'
+import { buildPartnerOrdersXlsxBuffer } from '@/lib/messaging/partner-orders-excel-export'
 
 export type {
   PartnerAiImageGenUsageStatRow,
@@ -263,7 +275,8 @@ function logoNormalizePrompt(brandName: string): string {
     'Create a compact circular logo icon from this customer logo reference.',
     `Brand name to preserve exactly: "${brandName}".`,
     'Goal: keep the same brand identity in a circular simplified icon for chat bubble usage.',
-    'Preserve key brand elements and orange color family, but remove tiny unreadable details.',
+    'CRITICAL — COLORS: Keep the exact brand colors from the reference image (same hues and saturation; same perceived palette). Do not recolor, shift hue, desaturate into gray, or apply a new color scheme. The mark must look like the same brand colors as the source.',
+    'Preserve key brand elements but remove tiny unreadable details.',
     'CRITICAL: Inside the circle, include the Vietnamese words "nhắn tin" (meaning chat/contact) clearly readable — typically under or beside the main brand mark — so customers know this icon opens messaging. Use normal weight, high contrast; do not omit this label.',
     'Requirements: aspect ratio 1:1, white background, true circular icon composition, centered, crisp edges.',
     'Scale the main mark as large as possible (about 88-92% of circular safe area) without clipping.',
@@ -279,6 +292,7 @@ function logoNormalizePromptImpressive(brandName: string): string {
     'Create an impressive bold circular logo icon from this customer logo reference.',
     `Brand name to preserve exactly when retained: "${brandName}".`,
     'Goal: make an impressive, memorable circular icon while keeping original brand feel recognizable.',
+    'CRITICAL — COLORS: Preserve the source logo colors exactly (same brand hues and saturation; no recoloring, no new palette, no color grading that changes the brand look). Bolder shapes and lighting are OK only if colors stay true to the reference.',
     'CRITICAL: Inside the circle, include the Vietnamese words "nhắn tin" clearly and boldly — under or beside the main mark — so users recognize this as the chat/contact button. High contrast, readable at small sizes; do not omit.',
     'Simplify more aggressively: remove tiny unreadable details and keep only strongest identity elements.',
     'Prioritize the main mark/text (e.g. "188") and scale it as large as possible.',
@@ -455,6 +469,32 @@ export async function listMyMessagingOrders(input?: {
   })
   if (rows === null) return { error: 'Khong tai duoc don hang.' }
   return { rows }
+}
+
+/** Xuất tất cả đơn khớp bộ lọc (workspace + trạng thái) ra file .xlsx — tối đa theo biến môi trường / 50k dòng. */
+export async function exportMyMessagingOrdersExcel(input?: {
+  partnerId?: string
+  status?: string
+}): Promise<{ ok: true; base64: string; filename: string; count: number } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const rows = await fetchPartnerOrdersForOwnerExportFromPg({
+    ownerUserId: user.id,
+    partnerId: input?.partnerId?.trim() || null,
+    status: input?.status?.trim() || '',
+  })
+  if (rows === null) return { error: 'Không tải được đơn hàng.' }
+  if (rows.length === 0) return { error: 'Không có đơn để xuất (thử đổi bộ lọc).' }
+  const buf = buildPartnerOrdersXlsxBuffer(rows)
+  const dateStr = new Date().toISOString().slice(0, 10)
+  return {
+    ok: true,
+    base64: buf.toString('base64'),
+    filename: `don_hang_${dateStr}.xlsx`,
+    count: rows.length,
+  }
 }
 
 export async function updateMyMessagingOrderStatus(input: {
@@ -704,16 +744,140 @@ export async function listMyMessagingPartners() {
   return { rows: fromPg }
 }
 
-export async function removeMyMessagingWorkspace(partnerId: string) {
+function formatVnScheduleDate(iso: string): string {
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
+
+/** Gửi mã OTP 6 số tới email đăng nhập — bước trước khi lên lịch xóa workspace. */
+export async function requestMessagingWorkspaceDeletionOtp(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
   if (!isValidUuidString(partnerId)) return { error: 'Invalid workspace.' }
-  if (!isPgConfigured()) {
-    return { error: 'DATABASE_URL is not set.' }
+  const email = user.email?.trim()
+  if (!email) return { error: 'Tài khoản chưa có email — không gửi được OTP.' }
+  if (!isSmtpConfigured()) return { error: 'Máy chủ chưa cấu hình gửi email (SMTP).' }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+
+  const pending = await pgQueryOne<{ purge_at: string | null }>(
+    `select purge_at from public.messaging_partners where id = $1::uuid and owner_user_id = $2::uuid limit 1`,
+    [partnerId, user.id]
+  )
+  if (pending?.purge_at) {
+    return { error: 'Workspace đã được lên lịch xóa. Bạn có thể hủy lịch trước khi hết hạn.' }
   }
-  const ok = await deactivateMessagingPartnerForOwnerFromPg(partnerId, user.id)
-  if (!ok) return { error: 'Không xóa được workspace.' }
+
+  if (await isWorkspaceDeletionOtpCooldownActiveFromPg(partnerId)) {
+    return { error: 'Vui lòng đợi vài chục giây trước khi gửi lại mã.' }
+  }
+
+  const otp = generateWorkspaceDeletionOtp6()
+  const otpHash = hashWorkspaceDeletionOtp(partnerId, user.id, otp)
+  const saved = await replaceWorkspaceDeletionOtpForPartnerFromPg({
+    partnerId,
+    ownerUserId: user.id,
+    otpHash,
+  })
+  if (!saved) return { error: 'Không lưu được mã xác nhận.' }
+
+  const sent = await sendSmtpMail({
+    to: email,
+    subject: 'Mã OTP xóa workspace nhắn tin',
+    text: `Mã OTP của bạn: ${otp}\n\nMã có hiệu lực 10 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.`,
+    html: `<p>Mã OTP của bạn: <b>${otp}</b></p><p>Mã có hiệu lực 10 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p>`,
+  })
+
+  if (!sent.ok) {
+    try {
+      await pgQuery(`delete from public.messaging_partner_deletion_otps where partner_id = $1::uuid`, [partnerId])
+    } catch (e) {
+      console.warn('[requestMessagingWorkspaceDeletionOtp] rollback otp', e)
+    }
+    return { error: 'Không gửi được email. Kiểm tra SMTP hoặc thử lại sau.' }
+  }
+
+  return { ok: true as const }
+}
+
+/** Xác nhận OTP và lên lịch xóa sau grace (mặc định 7 ngày); gửi email thông báo lịch xóa. */
+export async function confirmMessagingWorkspaceDeletionWithOtp(partnerId: string, otpRaw: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  if (!isValidUuidString(partnerId)) return { error: 'Invalid workspace.' }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+
+  const scheduled = await verifyDeletionOtpAndSchedulePartnerPurgeFromPg({
+    partnerId,
+    ownerUserId: user.id,
+    otp: otpRaw,
+  })
+  if (!scheduled) {
+    return { error: 'Mã OTP không đúng hoặc đã hết hạn.' }
+  }
+
+  const email = user.email?.trim()
+  const baseUrl = getPublicAppUrlForServer()
+  const graceDays = partnerPurgeGraceDays()
+  const when = formatVnScheduleDate(scheduled.purge_at)
+
+  if (email && isSmtpConfigured()) {
+    const sent = await sendSmtpMail({
+      to: email,
+      subject: `Đã lên lịch xóa workspace — hủy trong ${graceDays} ngày`,
+      text: [
+        `Đã lên lịch xóa workspace nhắn tin của bạn.`,
+        `Thời điểm dự kiến xóa hoàn toàn: ${when} (giờ Việt Nam), sau ${graceDays} ngày.`,
+        `Trong thời gian chờ, shop sẽ không nhận tin từ khách (widget / Facebook / Zalo).`,
+        `Bạn có thể hủy lịch xóa trong dashboard: ${baseUrl}/dashboard/messaging/settings`,
+        ``,
+        `Nếu không phải bạn thao tác, hãy đăng nhập và hủy ngay.`,
+      ].join('\n'),
+      html: `<p>Đã <b>lên lịch xóa</b> workspace nhắn tin của bạn.</p>
+<p>Thời điểm dự kiến xóa hoàn toàn: <b>${when}</b> (giờ Việt Nam), sau <b>${graceDays} ngày</b>.</p>
+<p>Trong thời gian chờ, shop <b>không nhận tin</b> từ khách (widget / Facebook / Zalo).</p>
+<p><a href="${baseUrl}/dashboard/messaging/settings">Hủy lịch xóa</a> trong dashboard nếu đổi ý.</p>`,
+    })
+    if (!sent.ok) {
+      console.warn('[confirmMessagingWorkspaceDeletionWithOtp] schedule notice email failed', sent.error)
+    }
+  }
+
+  revalidateMessagingDashboard()
+  return { ok: true as const, purge_at: scheduled.purge_at }
+}
+
+/** Hủy lịch xóa (không cần OTP). */
+export async function cancelMessagingWorkspaceDeletionSchedule(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  if (!isValidUuidString(partnerId)) return { error: 'Invalid workspace.' }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+
+  const ok = await cancelScheduledPartnerPurgeFromPg(partnerId, user.id)
+  if (!ok) return { error: 'Không hủy được lịch xóa (hoặc workspace không còn lịch xóa).' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }

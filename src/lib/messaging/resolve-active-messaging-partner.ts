@@ -1,4 +1,4 @@
-import { fetchMessagingPartnerBySlugFromPg } from '@/lib/db/messaging-partners-pg'
+import { fetchMessagingPartnerBySlugFromPg, isMessagingPartnerInboundOpen } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 
@@ -6,6 +6,8 @@ export type ActiveMessagingPartner = {
   id: string
   display_name: string
   embed_key: string
+  /** URL logo shop — hiển thị tròn (crop góc vuông). */
+  logo_url: string | null
 }
 
 /**
@@ -19,10 +21,11 @@ export async function resolveActiveMessagingPartnerBySlug(slug: string): Promise
   }
   const fromPg = await fetchMessagingPartnerBySlugFromPg(slug)
   if (!fromPg) return null
-  if (!fromPg.is_active) return null
+  if (!isMessagingPartnerInboundOpen(fromPg)) return null
   return {
     id: fromPg.id,
     display_name: fromPg.display_name,
     embed_key: fromPg.embed_key,
+    logo_url: fromPg.logo_url,
   }
 }

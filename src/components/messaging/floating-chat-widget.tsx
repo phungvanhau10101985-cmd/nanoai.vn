@@ -3,31 +3,30 @@
 import { useMemo, useRef, useState } from 'react'
 import { Maximize2, MessageCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { NANOAI_WIDGET_MSG_SOURCE } from '@/lib/messaging/widget-parent-bridge'
 
 type Props = {
   chatUrl: string
   title: string
   shopName: string
+  /** Logo shop trên nút nổi khi đóng — chỉ hiển thị **tròn** (`rounded-full` + `object-cover`). Không dùng trong header khi mở. */
+  launcherLogoUrl?: string | null
   loading?: 'lazy' | 'eager'
   referrerPolicy?: React.IframeHTMLAttributes<HTMLIFrameElement>['referrerPolicy']
   openLabel: string
   closeLabel: string
   openFullPageLabel: string
-  /** Nút «Đơn hàng của tôi» — gửi postMessage vào iframe chat. */
-  myOrdersLabel: string
 }
 
 export function FloatingChatWidget({
   chatUrl,
   title,
   shopName,
+  launcherLogoUrl,
   loading,
   referrerPolicy,
   openLabel,
   closeLabel,
   openFullPageLabel,
-  myOrdersLabel,
 }: Props) {
   const [closed, setClosed] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -45,28 +44,38 @@ export function FloatingChatWidget({
     }
   }, [chatUrl])
 
-  const postOpenMyOrdersToIframe = () => {
-    try {
-      const w = iframeRef.current?.contentWindow
-      if (!w) return
-      w.postMessage({ source: NANOAI_WIDGET_MSG_SOURCE, type: 'OPEN_MY_ORDERS' } as const, window.location.origin)
-    } catch {
-      /* ignore */
-    }
-  }
+  const launcherSrc = typeof launcherLogoUrl === 'string' ? launcherLogoUrl.trim() : ''
+  const showLauncherLogo = Boolean(launcherSrc && /^https?:\/\//i.test(launcherSrc))
 
   if (closed) {
+    if (showLauncherLogo) {
+      return (
+        <button
+          type="button"
+          className={`fixed ${anchorClass} ${topLayerClass} h-14 w-14 cursor-pointer overflow-hidden rounded-full border-0 bg-transparent p-0 shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
+          onClick={() => setClosed(false)}
+          title={openLabel}
+          aria-label={openLabel}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={launcherSrc}
+            alt=""
+            className="pointer-events-none h-full w-full object-cover object-center select-none"
+          />
+        </button>
+      )
+    }
     return (
-      <Button
+      <button
         type="button"
-        size="sm"
-        className={`fixed ${anchorClass} ${topLayerClass} h-10 rounded-full px-3 shadow-xl`}
+        className={`fixed ${anchorClass} ${topLayerClass} flex h-14 w-14 cursor-pointer items-center justify-center rounded-full border border-border/40 bg-background/95 p-0 shadow-lg transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
         onClick={() => setClosed(false)}
         title={openLabel}
+        aria-label={openLabel}
       >
-        <MessageCircle className="mr-1.5 h-4 w-4" aria-hidden />
-        {openLabel}
-      </Button>
+        <MessageCircle className="h-7 w-7 text-muted-foreground" aria-hidden />
+      </button>
     )
   }
 
@@ -76,16 +85,6 @@ export function FloatingChatWidget({
     >
       <div className="flex items-center gap-2 border-b border-border/60 bg-muted/40 px-2 py-2 sm:px-3">
         <div className="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base">{shopName}</div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 shrink-0 whitespace-nowrap px-2 text-[11px] font-medium sm:px-2.5 sm:text-xs"
-          onClick={postOpenMyOrdersToIframe}
-          title={myOrdersLabel}
-        >
-          {myOrdersLabel}
-        </Button>
         <div className="flex shrink-0 items-center gap-0.5">
           <Button
             type="button"

@@ -15,7 +15,7 @@ import {
   upsertPartnerInventoryBatch,
 } from '@/lib/messaging/partner-inventory-upsert-batch'
 import { fetchMessagingPartnerAiImageSearchAuthFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
-import { fetchMessagingPartnerByIdFromPg } from '@/lib/db/messaging-partners-pg'
+import { fetchMessagingPartnerByIdFromPg, isMessagingPartnerInboundOpen } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
@@ -155,8 +155,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
   if (!partner) {
     return jsonWithCors(req, { error: 'Shop not found.', code: 'SHOP_NOT_FOUND' }, 404)
   }
-  if (!partner.is_active) {
-    return jsonWithCors(req, { error: 'Shop is not active.', code: 'SHOP_INACTIVE' }, 403)
+  if (!isMessagingPartnerInboundOpen(partner)) {
+    return jsonWithCors(req, { error: 'Shop is not active or scheduled for deletion.', code: 'SHOP_INACTIVE' }, 403)
   }
 
   const settings = await fetchMessagingPartnerAiImageSearchAuthFromPg(partnerId)

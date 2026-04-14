@@ -37,15 +37,31 @@ function isMissingPartnerProfileColumnError(e: unknown): boolean {
   const err = e as { code?: string; message?: string } | null
   if (!err || err.code !== '42703') return false
   const msg = String(err.message ?? '').toLowerCase()
-  return msg.includes('industry_key') || msg.includes('brand_name') || msg.includes('logo_url')
+  return (
+    msg.includes('industry_key') ||
+    msg.includes('brand_name') ||
+    msg.includes('logo_url') ||
+    msg.includes('purge_at') ||
+    msg.includes('deletion_requested_at')
+  )
+}
+
+/** Shop nhận tin công khai (widget/FB/Zalo) chỉ khi active và không trong lịch xóa / chờ purge. */
+export function isMessagingPartnerInboundOpen(row: { is_active: boolean; purge_at: string | null }): boolean {
+  if (!row.is_active) return false
+  if (row.purge_at) return false
+  return true
 }
 
 export type MessagingPartnerBySlugRow = {
   id: string
   display_name: string
   is_active: boolean
+  purge_at: string | null
   /** Dùng cho embed widget; có thể rỗng. */
   embed_key: string
+  /** Logo shop (URL https); hiển thị tròn trên widget. */
+  logo_url: string | null
 }
 
 /**
@@ -58,18 +74,24 @@ export async function fetchMessagingPartnerBySlugFromPg(slug: string): Promise<M
       id: string
       display_name: string | null
       is_active: boolean | null
+      purge_at: string | null
       embed_key: string | null
+      logo_url: string | null
     }>(
-      `select id::text, display_name, is_active, coalesce(embed_key::text, '') as embed_key
+      `select id::text, display_name, is_active, purge_at, coalesce(embed_key::text, '') as embed_key,
+              logo_url
        from public.messaging_partners where slug = $1 limit 1`,
       [slug]
     )
     if (!row) return null
+    const logoRaw = row.logo_url != null ? String(row.logo_url).trim() : ''
     return {
       id: row.id,
       display_name: String(row.display_name ?? ''),
       is_active: row.is_active !== false,
+      purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
       embed_key: String(row.embed_key ?? ''),
+      logo_url: logoRaw && /^https?:\/\//i.test(logoRaw) ? logoRaw : null,
     }
   } catch (e) {
     console.warn('[fetchMessagingPartnerBySlugFromPg]', e)
@@ -80,6 +102,7 @@ export async function fetchMessagingPartnerBySlugFromPg(slug: string): Promise<M
 export type MessagingPartnerByIdRow = {
   id: string
   is_active: boolean
+  purge_at: string | null
 }
 
 /**
@@ -93,12 +116,20 @@ export async function fetchMessagingPartnerByIdFromPg(partnerId: string): Promis
     return null
   }
   try {
-    const row = await pgQueryOne<{ id: string; is_active: boolean | null }>(
-      `select id::text, is_active from public.messaging_partners where id = $1::uuid limit 1`,
+    const row = await pgQueryOne<{
+      id: string
+      is_active: boolean | null
+      purge_at: string | null
+    }>(
+      `select id::text, is_active, purge_at from public.messaging_partners where id = $1::uuid limit 1`,
       [pid]
     )
     if (!row) return null
-    return { id: row.id, is_active: row.is_active !== false }
+    return {
+      id: row.id,
+      is_active: row.is_active !== false,
+      purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
+    }
   } catch (e) {
     console.warn('[fetchMessagingPartnerByIdFromPg]', e)
     return null
@@ -192,6 +223,8 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       owner_user_id: string | null
       embed_key: string | null
       is_active: boolean | null
+      purge_at: string | null
+      deletion_requested_at: string | null
       created_at: unknown
       updated_at: unknown
     }>(
@@ -199,6 +232,7 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
               industry_key, brand_name, logo_url,
               coalesce(embed_key::text, '') as embed_key,
               coalesce(is_active, true) as is_active,
+              purge_at, deletion_requested_at,
               created_at, updated_at
        from public.messaging_partners
        where (
@@ -226,6 +260,8 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       owner_user_id: r.owner_user_id,
       embed_key: String(r.embed_key ?? ''),
       is_active: r.is_active !== false,
+      purge_at: r.purge_at ? mapTimestamptz(r.purge_at) : null,
+      deletion_requested_at: r.deletion_requested_at ? mapTimestamptz(r.deletion_requested_at) : null,
       created_at: mapTimestamptz(r.created_at),
       updated_at: mapTimestamptz(r.updated_at),
     }))
@@ -239,12 +275,15 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
           owner_user_id: string | null
           embed_key: string | null
           is_active: boolean | null
+          purge_at: string | null
+          deletion_requested_at: string | null
           created_at: unknown
           updated_at: unknown
         }>(
           `select id::text, slug, display_name, owner_user_id::text,
                   coalesce(embed_key::text, '') as embed_key,
                   coalesce(is_active, true) as is_active,
+                  purge_at, deletion_requested_at,
                   created_at, updated_at
            from public.messaging_partners
            where (
@@ -272,6 +311,8 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
           owner_user_id: r.owner_user_id,
           embed_key: String(r.embed_key ?? ''),
           is_active: r.is_active !== false,
+          purge_at: r.purge_at ? mapTimestamptz(r.purge_at) : null,
+          deletion_requested_at: r.deletion_requested_at ? mapTimestamptz(r.deletion_requested_at) : null,
           created_at: mapTimestamptz(r.created_at),
           updated_at: mapTimestamptz(r.updated_at),
         }))
@@ -342,6 +383,8 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
       owner_user_id: string | null
       embed_key: string | null
       is_active: boolean | null
+      purge_at: string | null
+      deletion_requested_at: string | null
       created_at: unknown
       updated_at: unknown
     }>(
@@ -349,7 +392,8 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
        values ($1, $2, $3, $4, $5, $6::uuid)
        returning id::text, slug, display_name, industry_key, brand_name, logo_url,
                  owner_user_id::text, embed_key::text as embed_key,
-                 coalesce(is_active, true) as is_active, created_at, updated_at`,
+                 coalesce(is_active, true) as is_active,
+                 purge_at, deletion_requested_at, created_at, updated_at`,
       [
         params.slug,
         params.display_name,
@@ -370,6 +414,8 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
       owner_user_id: row.owner_user_id,
       embed_key: String(row.embed_key ?? ''),
       is_active: row.is_active !== false,
+      purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
+      deletion_requested_at: row.deletion_requested_at ? mapTimestamptz(row.deletion_requested_at) : null,
       created_at: mapTimestamptz(row.created_at),
       updated_at: mapTimestamptz(row.updated_at),
     }
@@ -383,13 +429,16 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
           owner_user_id: string | null
           embed_key: string | null
           is_active: boolean | null
+          purge_at: string | null
+          deletion_requested_at: string | null
           created_at: unknown
           updated_at: unknown
         }>(
           `insert into public.messaging_partners (slug, display_name, owner_user_id)
            values ($1, $2, $3::uuid)
            returning id::text, slug, display_name, owner_user_id::text, embed_key::text as embed_key,
-                     coalesce(is_active, true) as is_active, created_at, updated_at`,
+                     coalesce(is_active, true) as is_active,
+                     purge_at, deletion_requested_at, created_at, updated_at`,
           [params.slug, params.display_name, safeOwnerUuid(params.owner_user_id)!]
         )
         if (!row) return null
@@ -403,6 +452,8 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
           owner_user_id: row.owner_user_id,
           embed_key: String(row.embed_key ?? ''),
           is_active: row.is_active !== false,
+          purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
+          deletion_requested_at: row.deletion_requested_at ? mapTimestamptz(row.deletion_requested_at) : null,
           created_at: mapTimestamptz(row.created_at),
           updated_at: mapTimestamptz(row.updated_at),
         }
@@ -439,6 +490,8 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
       owner_user_id: string | null
       embed_key: string | null
       is_active: boolean | null
+      purge_at: string | null
+      deletion_requested_at: string | null
       created_at: unknown
       updated_at: unknown
     }>(
@@ -451,7 +504,8 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
        where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
        returning id::text, slug, display_name, industry_key, brand_name, logo_url,
                  owner_user_id::text, coalesce(embed_key::text, '') as embed_key,
-                 coalesce(is_active, true) as is_active, created_at, updated_at`,
+                 coalesce(is_active, true) as is_active,
+                 purge_at, deletion_requested_at, created_at, updated_at`,
       [pid, uid, params.display_name, params.industry_key, params.brand_name, params.logo_url]
     )
     if (!row) return null
@@ -465,6 +519,8 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
       owner_user_id: row.owner_user_id,
       embed_key: String(row.embed_key ?? ''),
       is_active: row.is_active !== false,
+      purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
+      deletion_requested_at: row.deletion_requested_at ? mapTimestamptz(row.deletion_requested_at) : null,
       created_at: mapTimestamptz(row.created_at),
       updated_at: mapTimestamptz(row.updated_at),
     }
@@ -478,6 +534,8 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
           owner_user_id: string | null
           embed_key: string | null
           is_active: boolean | null
+          purge_at: string | null
+          deletion_requested_at: string | null
           created_at: unknown
           updated_at: unknown
         }>(
@@ -485,7 +543,8 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
            set display_name = $3, updated_at = now()
            where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
            returning id::text, slug, display_name, owner_user_id::text, coalesce(embed_key::text, '') as embed_key,
-                     coalesce(is_active, true) as is_active, created_at, updated_at`,
+                     coalesce(is_active, true) as is_active,
+                     purge_at, deletion_requested_at, created_at, updated_at`,
           [pid, uid, params.display_name]
         )
         if (!row) return null
@@ -499,6 +558,8 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
           owner_user_id: row.owner_user_id,
           embed_key: String(row.embed_key ?? ''),
           is_active: row.is_active !== false,
+          purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
+          deletion_requested_at: row.deletion_requested_at ? mapTimestamptz(row.deletion_requested_at) : null,
           created_at: mapTimestamptz(row.created_at),
           updated_at: mapTimestamptz(row.updated_at),
         }

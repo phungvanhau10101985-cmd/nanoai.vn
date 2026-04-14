@@ -5,6 +5,7 @@ import {
   verifyFacebookMessengerSignature,
 } from '@/lib/customer-care/facebook-messenger'
 import { findFacebookChannelByPageId, findFacebookChannelByVerifyToken } from '@/lib/messaging/partner-channels-db'
+import { fetchMessagingPartnerByIdFromPg, isMessagingPartnerInboundOpen } from '@/lib/db/messaging-partners-pg'
 import { handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
 
 export const dynamic = 'force-dynamic'
@@ -74,6 +75,10 @@ export async function POST(request: NextRequest) {
     }
     if (!ch.channel) {
       console.warn('[facebook-messenger-webhook] No partner channel for page', pageId)
+      continue
+    }
+    const inboundGate = await fetchMessagingPartnerByIdFromPg(ch.channel.partner_id)
+    if (!inboundGate || !isMessagingPartnerInboundOpen(inboundGate)) {
       continue
     }
     const conv = await ensureConversation({
