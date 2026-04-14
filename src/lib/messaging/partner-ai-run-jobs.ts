@@ -2,6 +2,7 @@ import type { Database, Json } from '@/types/database.types'
 import {
   fetchCustomerCareConversationByIdPg,
   fetchCustomerCareMessageByIdPg,
+  fetchInboundTailForPartnerAiJobPg,
   hasAutoOutboundAfterTriggerPg,
   hasHumanOutboundAfterTriggerPg,
 } from '@/lib/db/customer-care-pg'
@@ -115,7 +116,17 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       }
 
       const triggerAt = triggerFull.created_at
-      const inboundForAi = latestInboundTextForPartnerAi(triggerFull.body, triggerFull.raw_payload)
+      let inboundForAi = latestInboundTextForPartnerAi(triggerFull.body, triggerFull.raw_payload)
+      const inboundTail = await fetchInboundTailForPartnerAiJobPg(job.conversation_id, triggerAt)
+      if (inboundTail && inboundTail.length > 0) {
+        const parts = inboundTail
+          .map((row) => latestInboundTextForPartnerAi(row.body, row.raw_payload))
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
+        if (parts.length > 0) {
+          inboundForAi = parts.join('\n\n')
+        }
+      }
       const allowRepeatedReplyForVisionPick = hasVisionRepickSelection(triggerFull.raw_payload)
       const visionSelectedAtMs = getVisionSelectedAtEpochMs(triggerFull.raw_payload)
       const jobCreatedAtMs = Date.parse(String(job.created_at ?? ''))
@@ -192,6 +203,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         useLastConsultedContext,
         lastConsultedRow,
         similarCatalogVersusLastConsulted,
+        clarifyShoppingIntent,
       } = await buildPartnerAiContext(
         job.partner_id,
         job.conversation_id,
@@ -224,6 +236,9 @@ async function runMessagingPartnerAiJobBatchUsingPg(
 
       // Không thêm độ trễ «đang gõ» sau khi LLM đã trả lời — API đã tốn thời gian; chỉ FAQ (nhánh trên) dùng typing_pause_*.
       let parsed = parsePartnerAiLlmStructured(llm.text)
+      if (clarifyShoppingIntent) {
+        parsed = { ...parsed, products: [] }
+      }
       if (
         useLastConsultedContext &&
         lastConsultedRow &&

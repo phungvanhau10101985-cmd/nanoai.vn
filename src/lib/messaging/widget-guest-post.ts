@@ -21,6 +21,7 @@ import {
 } from '@/lib/messaging/partner-inventory-ai-search'
 import {
   countInboundMessagesForConversationPg,
+  fetchLastOutboundCustomerCareMessageBodyPg,
   mergeConversationUiLocaleFromPg,
   resolveLinkedUserIdForCustomerCarePg,
 } from '@/lib/db/customer-care-pg'
@@ -34,6 +35,9 @@ import {
   verifyOrderPaymentProof,
   type TransferReceiptOcrResult,
 } from '@/lib/messaging/guest-chat-ordering'
+import type { PartnerAiWidgetIntent } from '@/lib/messaging/partner-ai-unclear-intent'
+import { partnerAiMessageAloneSuggestsClarifyIntent } from '@/lib/messaging/partner-ai-unclear-intent'
+import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
 
 const ANONYMOUS_INBOUND_AUTH_THRESHOLD = 5
 type GuestVisionCandidatePayload = {
@@ -220,6 +224,7 @@ export async function postWidgetGuestMessage(params: {
         : null
     body = text || '📦'
 
+    let partnerAiWidgetIntentForPayload: PartnerAiWidgetIntent | null = null
     const trimmedText = text.trim()
     const minCharsForVectorPick = 3
     /** Khách đã bấm «Tư vấn» trên thẻ SP — không gắn lại thanh gợi ý vector (tránh lặp UI, vẫn gọi LLM với page_context). */
@@ -230,6 +235,8 @@ export async function postWidgetGuestMessage(params: {
     const skipFollowUpStyleVectorPick =
       inboundTextLooksLikeFollowUpConsultHeuristic(trimmedText) &&
       !customerMessageWantsSimilarCatalogVersusLastConsulted(trimmedText)
+    /** Heuristic «không rõ ý định» — khi LLM phân loại không chạy hoặc trả null. */
+    const skipClarifyIntentVectorHeuristic = partnerAiMessageAloneSuggestsClarifyIntent(trimmedText)
     if (trimmedText.length >= minCharsForVectorPick && !skipTextVectorPick && !skipFollowUpStyleVectorPick) {
       try {
         let aiEnabled = false
@@ -241,42 +248,70 @@ export async function postWidgetGuestMessage(params: {
           const faqUiLoc = normalizeWebLocale(String(params.uiLocale ?? '').trim())
           const faq = await findMatchingFaq(params.partnerId, trimmedText, { locale: faqUiLoc })
           if (!faq) {
-            const embedQuery = buildInventoryEmbeddingQueryWithGenderHint(trimmedText)
-            const rowsRaw = await fetchInventoryRowsBySemanticTextForPartnerAi(
-              params.partnerId,
-              embedQuery,
-              WIDGET_PRODUCT_VECTOR_PICK_MAX
-            )
-            const rows = await enrichSemanticInventoryRowsForWidget(
-              params.partnerId,
-              trimmedText,
-              rowsRaw,
-              WIDGET_PRODUCT_VECTOR_PICK_MAX
-            )
-            if (rows.length > 0) {
-              const candidateIds = rows.map((r) => r.id)
-              const priceById = new Map<string, string>()
-              if (isPgConfigured()) {
-                const priceFromPg = await fetchPartnerInventoryPriceHintsByIdsFromPg(params.partnerId, candidateIds)
-                if (priceFromPg !== null) {
-                  for (const [id, hint] of priceFromPg) priceById.set(id, hint)
-                }
-              }
-              productPickCandidates = rows.map((row) => {
-                const purl = row.product_url?.trim() ?? ''
-                const ph =
-                  row.price_hint?.trim() ||
-                  priceById.get(row.id)?.trim() ||
-                  ''
-                return {
-                  inventoryId: row.id,
-                  name: row.name ?? '',
-                  sku: row.sku ?? null,
-                  image_url: row.image_url ?? '',
-                  ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
-                  ...(ph ? { price_hint: ph } : {}),
-                }
+            let allowTextVectorSearch = true
+            const convEarly = await ensureConversation({
+              partnerId: params.partnerId,
+              channel: 'widget',
+              externalThreadId: params.externalThreadId,
+              customerName: params.customerName,
+              linkedUserId,
+              metadata: params.metadata,
+            })
+            if ('conversationId' in convEarly) {
+              const lastShop = await fetchLastOutboundCustomerCareMessageBodyPg(convEarly.conversationId)
+              const classified = await classifyWidgetInboundIntent({
+                customerText: trimmedText,
+                lastShopMessage: lastShop,
               })
+              if (classified) {
+                partnerAiWidgetIntentForPayload = classified
+                if (classified === 'clarify' || classified === 'context_reply') allowTextVectorSearch = false
+                if (classified === 'product_search') allowTextVectorSearch = true
+              } else {
+                allowTextVectorSearch = !skipClarifyIntentVectorHeuristic
+              }
+            } else {
+              allowTextVectorSearch = !skipClarifyIntentVectorHeuristic
+            }
+
+            if (allowTextVectorSearch) {
+              const embedQuery = buildInventoryEmbeddingQueryWithGenderHint(trimmedText)
+              const rowsRaw = await fetchInventoryRowsBySemanticTextForPartnerAi(
+                params.partnerId,
+                embedQuery,
+                WIDGET_PRODUCT_VECTOR_PICK_MAX
+              )
+              const rows = await enrichSemanticInventoryRowsForWidget(
+                params.partnerId,
+                trimmedText,
+                rowsRaw,
+                WIDGET_PRODUCT_VECTOR_PICK_MAX
+              )
+              if (rows.length > 0) {
+                const candidateIds = rows.map((r) => r.id)
+                const priceById = new Map<string, string>()
+                if (isPgConfigured()) {
+                  const priceFromPg = await fetchPartnerInventoryPriceHintsByIdsFromPg(params.partnerId, candidateIds)
+                  if (priceFromPg !== null) {
+                    for (const [id, hint] of priceFromPg) priceById.set(id, hint)
+                  }
+                }
+                productPickCandidates = rows.map((row) => {
+                  const purl = row.product_url?.trim() ?? ''
+                  const ph =
+                    row.price_hint?.trim() ||
+                    priceById.get(row.id)?.trim() ||
+                    ''
+                  return {
+                    inventoryId: row.id,
+                    name: row.name ?? '',
+                    sku: row.sku ?? null,
+                    image_url: row.image_url ?? '',
+                    ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
+                    ...(ph ? { price_hint: ph } : {}),
+                  }
+                })
+              }
             }
           }
         }
@@ -290,6 +325,12 @@ export async function postWidgetGuestMessage(params: {
         ...(rawPayload && typeof rawPayload === 'object' ? (rawPayload as Record<string, unknown>) : {}),
         vision_pick_required: true,
         vision_candidates: productPickCandidates,
+      } as Json
+    }
+    if (partnerAiWidgetIntentForPayload) {
+      rawPayload = {
+        ...(rawPayload && typeof rawPayload === 'object' ? (rawPayload as Record<string, unknown>) : {}),
+        partner_ai_widget_intent: partnerAiWidgetIntentForPayload,
       } as Json
     }
   }

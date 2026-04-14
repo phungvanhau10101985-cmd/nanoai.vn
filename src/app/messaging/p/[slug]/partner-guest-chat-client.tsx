@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -13,7 +14,7 @@ import {
   useTransition,
 } from 'react'
 import { createPortal } from 'react-dom'
-import type { ChangeEvent, ClipboardEvent } from 'react'
+import type { ChangeEvent, ClipboardEvent, RefObject } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -583,6 +584,152 @@ function GuestChatLocaleSwitches({
   )
 }
 
+type GuestChatDraftComposerProps = {
+  submitGuestMessage: (text: string) => Promise<boolean>
+  enqueueGuestSend: (run: () => Promise<void>) => void
+  imageStoragePath: string | null
+  uploading: boolean
+  sending: boolean
+  tryOnBusy: boolean
+  authGateRequired: boolean
+  authMode: 'anonymous' | 'account'
+  onDraftPaste: (e: ClipboardEvent<HTMLTextAreaElement>) => void
+  onToggleTryOn: () => void
+  galleryInputRef: RefObject<HTMLInputElement | null>
+  cameraInputRef: RefObject<HTMLInputElement | null>
+  showCameraButton: boolean
+  labels: {
+    placeholder: string
+    sendKeyboardHint: string
+    tryOnOpen: string
+    guestAttachPhoto: string
+    guestTakePhoto: string
+    send: string
+    guestUploading: string
+  }
+}
+
+/** State draft cục bộ — gõ không re-render toàn bộ PartnerGuestChatClient (tránh lag ô nhập). */
+const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
+  submitGuestMessage,
+  enqueueGuestSend,
+  imageStoragePath,
+  uploading,
+  sending,
+  tryOnBusy,
+  authGateRequired,
+  authMode,
+  onDraftPaste,
+  onToggleTryOn,
+  galleryInputRef,
+  cameraInputRef,
+  showCameraButton,
+  labels,
+}: GuestChatDraftComposerProps) {
+  const [draft, setDraft] = useState('')
+  const draftTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+
+  const autoResizeDraft = useCallback(() => {
+    const el = draftTextareaRef.current
+    if (!el) return
+    el.style.height = '0px'
+    const minHeight = 15
+    const maxHeight = 48
+    const next = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight)
+    el.style.height = `${next}px`
+    el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  }, [])
+
+  useLayoutEffect(() => {
+    autoResizeDraft()
+  }, [draft, autoResizeDraft])
+
+  const canSend = Boolean(
+    (draft.trim() || imageStoragePath) && !uploading && !(authGateRequired && authMode !== 'account')
+  )
+
+  const send = useCallback(() => {
+    enqueueGuestSend(async () => {
+      const text = draftRef.current.trim()
+      const ok = await submitGuestMessage(text)
+      if (ok) setDraft('')
+    })
+  }, [enqueueGuestSend, submitGuestMessage])
+
+  return (
+    <div className="space-y-1.5">
+      <div className="relative">
+        <Textarea
+          ref={draftTextareaRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onInput={autoResizeDraft}
+          onPaste={onDraftPaste}
+          placeholder={labels.placeholder}
+          rows={1}
+          className="resize-none border-0 bg-transparent px-0 pb-8 pt-0.5 pr-10 text-base leading-tight shadow-none focus-visible:ring-0"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              if (canSend && !sending) void send()
+            }
+          }}
+        />
+        <Button
+          type="button"
+          className="absolute right-0 top-0 h-7 w-7 min-w-0 px-0"
+          onClick={() => void send()}
+          disabled={!canSend || sending}
+          aria-label={labels.send}
+        >
+          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        </Button>
+        <div className="absolute bottom-0 left-0 z-10 flex max-w-[calc(100%-2.5rem)] items-center gap-1 overflow-x-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
+            disabled={uploading || sending || tryOnBusy}
+            onClick={onToggleTryOn}
+          >
+            {tryOnBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {labels.tryOnOpen}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
+            disabled={uploading || sending}
+            onClick={() => galleryInputRef.current?.click()}
+          >
+            {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+            {labels.guestAttachPhoto}
+          </Button>
+          {showCameraButton ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
+              disabled={uploading || sending}
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              <Camera className="h-3.5 w-3.5" />
+              {labels.guestTakePhoto}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      {uploading ? <p className="text-[10px] text-muted-foreground">{labels.guestUploading}</p> : null}
+      <p className="hidden text-[10px] leading-tight text-muted-foreground sm:block">{labels.sendKeyboardHint}</p>
+    </div>
+  )
+})
+
 export function PartnerGuestChatClient({
   slug,
   shopDisplayName,
@@ -607,7 +754,6 @@ export function PartnerGuestChatClient({
   const [userId, setUserId] = useState<string | null>(null)
   const [messages, setMessages] = useState<GuestMsg[]>([])
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
-  const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [authMode, setAuthMode] = useState<'anonymous' | 'account'>('anonymous')
@@ -617,6 +763,8 @@ export function PartnerGuestChatClient({
   const [guestAuthSending, setGuestAuthSending] = useState(false)
   const [guestAuthVerifying, setGuestAuthVerifying] = useState(false)
   const otpLastAutoSubmittedRef = useRef<string>('')
+  /** Chuỗi hóa POST `/api/messaging/guest` — tránh race khi khách gửi nhiều tin nhanh (job AI + thứ tự DB). */
+  const guestMessagePostChainRef = useRef(Promise.resolve())
   /** Sau khi gửi tin: server báo AI/FAQ đang trả lời — poll nhanh và hiện “đang soạn tin”. */
   const [shopTyping, setShopTyping] = useState<{ deadline: number; baselineOutbound: number } | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -682,7 +830,6 @@ export function PartnerGuestChatClient({
   const tryOnGarmentInputRef = useRef<HTMLInputElement>(null)
   const scrollAnchorRef = useRef<HTMLDivElement>(null)
   const didInitialAutoScrollRef = useRef(false)
-  const draftTextareaRef = useRef<HTMLTextAreaElement>(null)
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
   const [consultedProductKeys, setConsultedProductKeys] = useState(() => new Set<string>())
@@ -1037,21 +1184,6 @@ export function PartnerGuestChatClient({
       document.removeEventListener('visibilitychange', onFocus)
     }
   }, [refreshAuthAndReload])
-
-  const autoResizeDraft = useCallback(() => {
-    const el = draftTextareaRef.current
-    if (!el) return
-    el.style.height = '0px'
-    const minHeight = 15
-    const maxHeight = 48
-    const next = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight)
-    el.style.height = `${next}px`
-    el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
-  }, [])
-
-  useEffect(() => {
-    autoResizeDraft()
-  }, [draft, autoResizeDraft])
 
   useEffect(() => {
     if (!tryOnUserFile) {
@@ -2184,122 +2316,164 @@ export function PartnerGuestChatClient({
     topUpSelectedBank,
   ])
 
-  const send = async () => {
-    const text = draft.trim()
-    if (authGateRequired && authMode !== 'account') {
-      toast({
-        title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
-        variant: 'destructive',
-      })
-      return
-    }
-    if (!text && !imageStoragePath) return
-    if (text) {
-      // Customer continues with normal consultation instead of choosing from buy rail.
-      setBuyOptionsOpen(false)
-    }
-    const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
-    setSending(true)
-    try {
-      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({
-          text:
-            text ||
-            (!contextSeededRef.current && pageContextRef.current
-              ? [
-                  pageContextRef.current.sku ? `Khách đang xem mã sản phẩm: ${pageContextRef.current.sku}` : '',
-                  pageContextRef.current.productUrl ? `Link sản phẩm: ${pageContextRef.current.productUrl}` : '',
-                ]
-                  .filter(Boolean)
-                  .join('\n')
-              : undefined),
-          imageStoragePath: imageStoragePath || undefined,
-          uiLocale,
-          pageContext:
-            !contextSeededRef.current && pageContextRef.current
-              ? {
-                  sku: pageContextRef.current.sku,
-                  imageUrl: pageContextRef.current.imageUrl,
-                  productUrl: pageContextRef.current.productUrl,
-                  source: 'widget_page',
-                }
-              : undefined,
-        }),
-      })
-      captureGuestSessionFromResponse(res)
-      const data = (await res.json()) as {
-        ok?: boolean
-        error?: string
-        shopTyping?: { maxWaitMs: number }
-        visionPickRequired?: boolean
-        paymentVerificationHandled?: boolean
-        requireAuth?: boolean
-        authMode?: 'anonymous' | 'account'
-      }
-      if (res.status === 401) {
-        setUserId(null)
-        return
-      }
-      if (!res.ok) {
-        if (data.requireAuth) {
-          setAuthGateRequired(true)
-          toast({
-            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
-            variant: 'destructive',
-          })
-          return
-        }
-        if (data.error?.startsWith('AUTH_REQUIRED_')) {
-          setAuthGateRequired(true)
-          toast({
-            title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
-            variant: 'destructive',
-          })
-          return
-        }
-        const msg = data.error || t.sendError
-        if (/large|too large|lớn/i.test(msg)) toast({ title: t.guestImageTooLarge, variant: 'destructive' })
-        else if (/type|Unsupported|hỗ trợ/i.test(msg)) toast({ title: t.guestImageInvalidType, variant: 'destructive' })
-        else toast({ title: msg, variant: 'destructive' })
-        return
-      }
-      setDraft('')
-      clearAttachment()
-      if (pageContextRef.current) contextSeededRef.current = true
-      if (data.authMode === 'account') {
-        setAuthMode('account')
-        setAuthGateRequired(false)
-        void refreshAuthAndReload()
-      }
-      if (data.paymentVerificationHandled === true) {
-        setProofOrderId(null)
-        setShopTyping(null)
-        toast({ title: 'Đã gửi biên lai. Kết quả đối chiếu hiển thị trong chat.' })
-      } else if (data.visionPickRequired === true) {
-        // For image-first flow waiting for customer product selection, do not show "shop is typing" yet.
-        setShopTyping(null)
-      } else {
-        const waitMs =
-          data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0
-            ? data.shopTyping.maxWaitMs
-            : FALLBACK_SHOP_TYPING_WAIT_MS
-        setShopTyping({
-          deadline: Date.now() + waitMs,
-          baselineOutbound: outboundBaseline,
-        })
-      }
-      await load()
-    } catch {
-      toast({ title: t.sendError, variant: 'destructive' })
-    } finally {
-      setSending(false)
-    }
-  }
+  const enqueueGuestSend = useCallback((run: () => Promise<void>) => {
+    const next = guestMessagePostChainRef.current.then(run)
+    guestMessagePostChainRef.current = next.catch(() => {})
+    void next
+  }, [])
 
-  const canSend = Boolean((draft.trim() || imageStoragePath) && !uploading && !(authGateRequired && authMode !== 'account'))
+  const submitGuestMessage = useCallback(
+    async (text: string): Promise<boolean> => {
+      const trimmed = text.trim()
+      if (authGateRequired && authMode !== 'account') {
+        toast({
+          title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+          variant: 'destructive',
+        })
+        return false
+      }
+      if (!trimmed && !imageStoragePath) return false
+      if (trimmed) {
+        // Customer continues with normal consultation instead of choosing from buy rail.
+        setBuyOptionsOpen(false)
+      }
+      const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
+      setSending(true)
+      try {
+        const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({
+            text:
+              trimmed ||
+              (!contextSeededRef.current && pageContextRef.current
+                ? [
+                    pageContextRef.current.sku ? `Khách đang xem mã sản phẩm: ${pageContextRef.current.sku}` : '',
+                    pageContextRef.current.productUrl ? `Link sản phẩm: ${pageContextRef.current.productUrl}` : '',
+                  ]
+                    .filter(Boolean)
+                    .join('\n')
+                : undefined),
+            imageStoragePath: imageStoragePath || undefined,
+            uiLocale,
+            pageContext:
+              !contextSeededRef.current && pageContextRef.current
+                ? {
+                    sku: pageContextRef.current.sku,
+                    imageUrl: pageContextRef.current.imageUrl,
+                    productUrl: pageContextRef.current.productUrl,
+                    source: 'widget_page',
+                  }
+                : undefined,
+          }),
+        })
+        captureGuestSessionFromResponse(res)
+        const data = (await res.json()) as {
+          ok?: boolean
+          error?: string
+          shopTyping?: { maxWaitMs: number }
+          visionPickRequired?: boolean
+          paymentVerificationHandled?: boolean
+          requireAuth?: boolean
+          authMode?: 'anonymous' | 'account'
+        }
+        if (res.status === 401) {
+          setUserId(null)
+          return false
+        }
+        if (!res.ok) {
+          if (data.requireAuth) {
+            setAuthGateRequired(true)
+            toast({
+              title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+              variant: 'destructive',
+            })
+            return false
+          }
+          if (data.error?.startsWith('AUTH_REQUIRED_')) {
+            setAuthGateRequired(true)
+            toast({
+              title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+              variant: 'destructive',
+            })
+            return false
+          }
+          const msg = data.error || t.sendError
+          if (/large|too large|lớn/i.test(msg)) toast({ title: t.guestImageTooLarge, variant: 'destructive' })
+          else if (/type|Unsupported|hỗ trợ/i.test(msg)) toast({ title: t.guestImageInvalidType, variant: 'destructive' })
+          else toast({ title: msg, variant: 'destructive' })
+          return false
+        }
+        clearAttachment()
+        if (pageContextRef.current) contextSeededRef.current = true
+        if (data.authMode === 'account') {
+          setAuthMode('account')
+          setAuthGateRequired(false)
+          void refreshAuthAndReload()
+        }
+        if (data.paymentVerificationHandled === true) {
+          setProofOrderId(null)
+          setShopTyping(null)
+          toast({ title: 'Đã gửi biên lai. Kết quả đối chiếu hiển thị trong chat.' })
+        } else if (data.visionPickRequired === true) {
+          // For image-first flow waiting for customer product selection, do not show "shop is typing" yet.
+          setShopTyping(null)
+        } else {
+          const waitMs =
+            data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0
+              ? data.shopTyping.maxWaitMs
+              : FALLBACK_SHOP_TYPING_WAIT_MS
+          setShopTyping({
+            deadline: Date.now() + waitMs,
+            baselineOutbound: outboundBaseline,
+          })
+        }
+        await load()
+        return true
+      } catch {
+        toast({ title: t.sendError, variant: 'destructive' })
+        return false
+      } finally {
+        setSending(false)
+      }
+    },
+    [
+      authGateRequired,
+      authMode,
+      authHeaders,
+      captureGuestSessionFromResponse,
+      clearAttachment,
+      imageStoragePath,
+      load,
+      messages,
+      refreshAuthAndReload,
+      setShopTyping,
+      slug,
+      t.guestAuthRequiredAfterLimit,
+      t.guestImageInvalidType,
+      t.guestImageTooLarge,
+      t.sendError,
+      toast,
+      uiLocale,
+    ]
+  )
+
+  const draftComposerLabels = useMemo(
+    () => ({
+      placeholder: t.placeholder,
+      sendKeyboardHint: t.sendKeyboardHint,
+      tryOnOpen: t.tryOnOpen,
+      guestAttachPhoto: t.guestAttachPhoto,
+      guestTakePhoto: t.guestTakePhoto,
+      send: t.send,
+      guestUploading: t.guestUploading,
+    }),
+    [t]
+  )
+
+  const toggleTryOnPanel = useCallback(() => setTryOnOpen((v) => !v), [])
+
   const showCameraButton = isTouchDevice
 
   const requestGuestAuthEmail = async () => {
@@ -3623,74 +3797,22 @@ export function PartnerGuestChatClient({
                 </div>
               ) : null}
 
-              <div className="space-y-1.5">
-                <div className="relative">
-                  <Textarea
-                    ref={draftTextareaRef}
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onInput={autoResizeDraft}
-                    onPaste={onDraftPaste}
-                    placeholder={t.placeholder}
-                    rows={1}
-                    className="resize-none border-0 bg-transparent px-0 pb-8 pt-0.5 pr-10 text-base leading-tight shadow-none focus-visible:ring-0"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        if (canSend && !sending) void send()
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    className="absolute right-0 top-0 h-7 w-7 min-w-0 px-0"
-                    onClick={() => void send()}
-                    disabled={!canSend || sending}
-                    aria-label={t.send}
-                  >
-                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </Button>
-                  <div className="absolute bottom-0 left-0 z-10 flex max-w-[calc(100%-2.5rem)] items-center gap-1 overflow-x-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
-                      disabled={uploading || sending || tryOnBusy}
-                      onClick={() => setTryOnOpen((v) => !v)}
-                    >
-                      {tryOnBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                      {t.tryOnOpen}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
-                      disabled={uploading || sending}
-                      onClick={() => galleryInputRef.current?.click()}
-                    >
-                      {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
-                      {t.guestAttachPhoto}
-                    </Button>
-                    {showCameraButton ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
-                        disabled={uploading || sending}
-                        onClick={() => cameraInputRef.current?.click()}
-                      >
-                        <Camera className="h-3.5 w-3.5" />
-                        {t.guestTakePhoto}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-                {uploading ? <p className="text-[10px] text-muted-foreground">{t.guestUploading}</p> : null}
-                <p className="hidden text-[10px] leading-tight text-muted-foreground sm:block">{t.sendKeyboardHint}</p>
-              </div>
+              <GuestChatDraftComposer
+                submitGuestMessage={submitGuestMessage}
+                enqueueGuestSend={enqueueGuestSend}
+                imageStoragePath={imageStoragePath}
+                uploading={uploading}
+                sending={sending}
+                tryOnBusy={tryOnBusy}
+                authGateRequired={authGateRequired}
+                authMode={authMode}
+                onDraftPaste={onDraftPaste}
+                onToggleTryOn={toggleTryOnPanel}
+                galleryInputRef={galleryInputRef}
+                cameraInputRef={cameraInputRef}
+                showCameraButton={showCameraButton}
+                labels={draftComposerLabels}
+              />
             </div>
           </div>
         </CardContent>

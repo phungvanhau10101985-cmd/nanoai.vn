@@ -33,6 +33,10 @@ import {
   type PartnerRealUseImageFollowup,
 } from '@/lib/messaging/partner-inventory-real-use-image'
 import { PARTNER_AI_PRODUCT_CARDS_MAX } from '@/lib/messaging/partner-ai-product-cards'
+import {
+  partnerAiInboundNeedsShoppingIntentClarify,
+  partnerAiShouldUseClarifyBranchFromWidgetPayload,
+} from '@/lib/messaging/partner-ai-unclear-intent'
 
 export type { PartnerMaterialDetailFollowup, PartnerRealUseImageFollowup }
 
@@ -212,6 +216,68 @@ async function resolvePartnerAiLocaleOpts(
   return localeOpts
 }
 
+function formatPartnerAiTranscriptLines(
+  chronological: {
+    direction: string
+    body: string
+    created_at: string
+    raw_payload: Json | null
+  }[]
+): string {
+  return chronological
+    .map((m) => {
+      const label = m.direction === 'inbound' ? 'Khách' : 'Shop'
+      const pl = m.raw_payload as { guest_media?: { kind?: string; url?: string } } | null
+      const img = pl?.guest_media?.kind === 'image' && pl.guest_media.url ? pl.guest_media.url : null
+      const cap = m.body.replace(/^📷\s*/u, '').trim()
+      if (img) {
+        const line = [cap || '(ảnh)', img].filter(Boolean).join(' — ')
+        return `${label}: ${line}`
+      }
+      return `${label}: ${m.body}`
+    })
+    .join('\n')
+}
+
+function buildPartnerAiClarifyShoppingIntentSystem(
+  settings: SettingsRow,
+  effectiveLocaleOpts: { channel?: string | null; uiLocale?: string | null } | undefined
+): string {
+  const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
+  return `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
+Giọng điệu: ${tone}
+
+[Tình huống bắt buộc — làm rõ ý định khách / tư vấn mua hàng]
+Tin khách **chưa rõ** (kể cả than phiền kiểu «không vào được», «lỗi», «không mở được» — **đừng** coi đó là yêu cầu hỗ trợ kỹ thuật web/app hay hỏi lỗi cụ thể).
+- **Cấm** hỏi: trang nào, ứng dụng hay web, mã lỗi, bước khắc phục truy cập, trình duyệt gì — **không** xử lý như ticket IT.
+- **Ưu tiên** chuyển sang **tư vấn sản phẩm**: mời khách nói **đang cần tư vấn sản phẩm gì** — có thể **gửi ảnh** mẫu hoặc **tên loại / kiểu**; xưng hô **anh/chị/em** bám **tin khách và lịch sử** (không mặc định «chị» nếu khách xưng «anh»).
+- **Ví dụ gợi ý loại hàng** phải **khớp giới** khách thể hiện trong tin/lịch sử:
+  - Khách xưng **anh** / rõ **nam** → chỉ ví dụ **đồ nam** (vd. áo sơ mi, quần tây, áo thun/polo, blazer nam, giày/dép nam…); **cấm** lấy váy/đầm/chân váy làm ví dụ mặc định.
+  - Khách xưng **chị/em** / rõ **nữ** → ví dụ **đồ nữ** (váy, đầm, set, áo kiểu…).
+  - Chưa rõ giới → ví dụ **trung tính** (áo, quần, set đồ…) hoặc hỏi ngắn một ý, **không** ép ví dụ một giới.
+- **Không** giới thiệu sản phẩm cụ thể từ kho trong tin này, **không** gắn thẻ/carousel; \`products\` = [].
+- Trả lời **ngắn (2–4 câu)**, ấm, lịch sự — đúng ngôn ngữ giao diện khách (theo phần mở đầu system).
+
+Định dạng đầu ra: JSON đúng schema ở cuối prompt user — trường \`products\` **bắt buộc** là mảng rỗng \`[]\`.`
+}
+
+function buildPartnerAiClarifyShoppingIntentUser(
+  effectiveLocaleOpts: { channel?: string | null; uiLocale?: string | null } | undefined,
+  transcript: string,
+  latestCustomerMessage: string
+): string {
+  return `${partnerAiUserPromptOutputLanguageBanner(effectiveLocaleOpts)}Lịch sử hội thoại gần đây:
+${transcript}
+
+Tin nhắn mới nhất của khách:
+${latestCustomerMessage}
+
+Trả lời BẮT BUỘC là một JSON hợp lệ duy nhất (không bọc markdown, không text ngoài JSON), đúng schema:
+{"message":"nội dung gửi khách (plain text)","products":[]}
+products **phải** là [] (rỗng). Không thêm trường khác.
+Trong \`message\`: **không** hỏi khắc phục lỗi truy cập web/app; hướng khách **nêu nhu cầu tư vấn sản phẩm** (ảnh hoặc tên loại). Nếu khách xưng **anh** → ví dụ chỉ **đồ nam**; nếu **chị/em** → ví dụ **đồ nữ**; không lẫn ví dụ nam/nữ sai xưng hô.`
+}
+
 export async function buildPartnerAiContext(
   partnerId: string,
   conversationId: string,
@@ -229,6 +295,8 @@ export async function buildPartnerAiContext(
   lastConsultedRow: Database['public']['Tables']['messaging_partner_inventory']['Row'] | null
   /** Hỏi mẫu tương tự — không clamp thẻ về đúng một SKU. */
   similarCatalogVersusLastConsulted: boolean
+  /** Không gọi tìm kho; chỉ hỏi khách làm rõ nhu cầu — `products` luôn []. */
+  clarifyShoppingIntent: boolean
 }> {
   const effectiveLocaleOpts = await resolvePartnerAiLocaleOpts(conversationId, localeOpts)
   const invFmtOpts = { markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts) }
@@ -281,6 +349,33 @@ export async function buildPartnerAiContext(
     useLastConsultedContext &&
     (!selectedInventoryId || followUpStyleMessage) &&
     !similarCatalogVersusLastConsulted
+
+  const heuristicClarifyShoppingIntent = partnerAiInboundNeedsShoppingIntentClarify({
+    message: latestCustomerMessage,
+    hasExplicitSku: explicitSkuRows.length > 0,
+    hasVisionInventorySelection: Boolean(selectedInventoryId),
+    similarCatalogVersusLastConsulted,
+    followUpSingleProductNoVector,
+  })
+  if (
+    partnerAiShouldUseClarifyBranchFromWidgetPayload(
+      effectiveLocaleOpts?.channel,
+      triggerRawPayload,
+      heuristicClarifyShoppingIntent
+    )
+  ) {
+    const transcriptBlock = formatPartnerAiTranscriptLines(chronological)
+    return {
+      system: buildPartnerAiClarifyShoppingIntentSystem(settings, effectiveLocaleOpts),
+      user: buildPartnerAiClarifyShoppingIntentUser(effectiveLocaleOpts, transcriptBlock, latestCustomerMessage),
+      materialDetailFollowup: null,
+      realUseFollowup: null,
+      useLastConsultedContext: false,
+      lastConsultedRow: null,
+      similarCatalogVersusLastConsulted: false,
+      clarifyShoppingIntent: true,
+    }
+  }
 
   let invForContext: Database['public']['Tables']['messaging_partner_inventory']['Row'][] = []
   let selectedRowBlock = ''
@@ -385,19 +480,7 @@ export async function buildPartnerAiContext(
 Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng cách **nêu ưu điểm / giá trị cho khách** — tự tin hơn, chỉn chu, tôn dáng, gọn gàng, phù hợp dịp mặc, dễ phối đồ… — diễn giải từ đúng các trường trong dòng kho (tên, mô tả, ghi chú tư vấn, chất liệu/kiểu nếu có); không chỉ đọc máy mã/giá. Không bịa công dụng y tế hay hứa hiệu quả tuyệt đối.`
   }
 
-  const transcript = chronological
-    .map((m) => {
-      const label = m.direction === 'inbound' ? 'Khách' : 'Shop'
-      const pl = m.raw_payload as { guest_media?: { kind?: string; url?: string } } | null
-      const img = pl?.guest_media?.kind === 'image' && pl.guest_media.url ? pl.guest_media.url : null
-      const cap = m.body.replace(/^📷\s*/u, '').trim()
-      if (img) {
-        const line = [cap || '(ảnh)', img].filter(Boolean).join(' — ')
-        return `${label}: ${line}`
-      }
-      return `${label}: ${m.body}`
-    })
-    .join('\n')
+  const transcript = formatPartnerAiTranscriptLines(chronological)
 
   const policy = settings.shop_policy?.trim() || '(Shop chưa nhập chính sách.)'
   const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
@@ -537,6 +620,7 @@ Chỉ để products = [] khi thực sự không tìm được mặt hàng phù 
     useLastConsultedContext,
     lastConsultedRow,
     similarCatalogVersusLastConsulted,
+    clarifyShoppingIntent: false,
   }
 }
 

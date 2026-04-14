@@ -770,6 +770,28 @@ export async function fetchOutboundPayloadsAndBodiesNewestFirstPg(
   }
 }
 
+/** Tin shop (outbound) mới nhất — dùng cho phân loại ý định widget (LLM). */
+export async function fetchLastOutboundCustomerCareMessageBodyPg(
+  conversationId: string
+): Promise<string | null> {
+  if (!isPgConfigured() || !conversationId.trim()) return null
+  try {
+    const row = await pgQueryOne<{ body: unknown }>(
+      `select body from public.customer_care_messages
+       where conversation_id = $1::uuid and direction = 'outbound'
+       order by created_at desc
+       limit 1`,
+      [conversationId]
+    )
+    if (!row) return null
+    const b = String(row.body ?? '').trim()
+    return b.length ? b : null
+  } catch (e) {
+    console.error('[customer-care-pg] fetchLastOutboundCustomerCareMessageBodyPg', e)
+    return null
+  }
+}
+
 export async function fetchCustomerCareTranscriptLinesFromPg(
   conversationId: string,
   limit: number
@@ -833,6 +855,43 @@ export async function hasAutoOutboundAfterTriggerPg(
     return row != null
   } catch (e) {
     console.error('[customer-care-pg] hasAutoOutboundAfterTriggerPg', e)
+    return null
+  }
+}
+
+/**
+ * Các tin inbound của khách **sau** tin shop gần nhất, tới hết lượt (đến `triggerCreatedAtIso` gồm cả tin trigger).
+ * Dùng gộp burst (2–3 tin liên tiục) thành một ngữ cảnh LLM — giữ đúng thứ tự.
+ */
+export async function fetchInboundTailForPartnerAiJobPg(
+  conversationId: string,
+  triggerCreatedAtIso: string
+): Promise<Array<{ id: string; body: string; raw_payload: Json | null }> | null> {
+  if (!isPgConfigured() || !conversationId.trim()) return null
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `select id::text as id, body, raw_payload
+       from public.customer_care_messages m
+       where m.conversation_id = $1::uuid
+         and m.direction = 'inbound'
+         and m.created_at <= $2::timestamptz
+         and m.created_at > coalesce(
+           (select max(created_at)
+            from public.customer_care_messages
+            where conversation_id = $1::uuid and direction = 'outbound'),
+           '-infinity'::timestamptz
+         )
+       order by m.created_at asc, m.id asc
+       limit 40`,
+      [conversationId, triggerCreatedAtIso]
+    )
+    return rows.map((r) => ({
+      id: String(r.id ?? ''),
+      body: typeof r.body === 'string' ? r.body : '',
+      raw_payload: (r.raw_payload ?? null) as Json | null,
+    }))
+  } catch (e) {
+    console.error('[customer-care-pg] fetchInboundTailForPartnerAiJobPg', e)
     return null
   }
 }
