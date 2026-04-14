@@ -748,10 +748,15 @@ export async function fetchPartnerOrderStatsForOwnerFromPg(input: {
   ownerUserId: string
   partnerId?: string | null
   status?: string | null
+  /** Lọc theo ngày tạo đơn (Asia/Ho_Chi_Minh), định dạng YYYY-MM-DD */
+  createdFrom?: string | null
+  createdTo?: string | null
 }): Promise<PartnerOrderOwnerStats | null> {
   if (!isPgConfigured()) return null
   const status = String(input.status ?? '').trim()
   const partnerId = String(input.partnerId ?? '').trim()
+  const dateFrom = parseOrderDateFilterParam(input.createdFrom)
+  const dateTo = parseOrderDateFilterParam(input.createdTo)
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `select count(*)::int as order_count,
@@ -772,8 +777,10 @@ export async function fetchPartnerOrderStatsForOwnerFromPg(input: {
        from public.messaging_partner_orders o
        join public.messaging_partners mp on mp.id = o.partner_id and mp.owner_user_id = $1::uuid
        where ($2::uuid is null or o.partner_id = $2::uuid)
-         and ($3 = '' or o.status = $3)`,
-      [input.ownerUserId, partnerId || null, status]
+         and ($3 = '' or o.status = $3)
+         and ($4::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $4::date)
+         and ($5::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $5::date)`,
+      [input.ownerUserId, partnerId || null, status, dateFrom, dateTo]
     )
     if (!row) {
       return {
@@ -809,6 +816,13 @@ export async function fetchPartnerOrderStatsForOwnerFromPg(input: {
   }
 }
 
+/** Ngày tạo đơn theo giờ VN; chỉ chấp nhận `YYYY-MM-DD`. */
+function parseOrderDateFilterParam(v: string | null | undefined): string | null {
+  const s = String(v ?? '').trim()
+  if (!s) return null
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null
+}
+
 function mapOrderAdminRow(r: Record<string, unknown>): PartnerOrderAdminRow {
   return {
     ...mapOrderRow(r),
@@ -823,12 +837,16 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
   ownerUserId: string
   partnerId?: string | null
   status?: string | null
+  createdFrom?: string | null
+  createdTo?: string | null
   limit?: number
 }): Promise<PartnerOrderAdminRow[] | null> {
   if (!isPgConfigured()) return null
   const lim = Math.max(20, Math.min(300, Math.floor(Number(input.limit) || 120)))
   const status = String(input.status ?? '').trim()
   const partnerId = String(input.partnerId ?? '').trim()
+  const dateFrom = parseOrderDateFilterParam(input.createdFrom)
+  const dateTo = parseOrderDateFilterParam(input.createdTo)
   try {
     const rows = await pgQuery<Record<string, unknown>>(
       `select o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
@@ -853,9 +871,11 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
        ) lp on true
        where ($2::uuid is null or o.partner_id = $2::uuid)
          and ($3 = '' or o.status = $3)
+         and ($4::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $4::date)
+         and ($5::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $5::date)
        order by o.created_at desc
-       limit $4`,
-      [input.ownerUserId, partnerId || null, status, lim]
+       limit $6`,
+      [input.ownerUserId, partnerId || null, status, dateFrom, dateTo, lim]
     )
     return rows.map(mapOrderAdminRow)
   } catch (e) {
@@ -875,10 +895,14 @@ export async function fetchPartnerOrdersForOwnerExportFromPg(input: {
   ownerUserId: string
   partnerId?: string | null
   status?: string | null
+  createdFrom?: string | null
+  createdTo?: string | null
 }): Promise<PartnerOrderAdminRow[] | null> {
   if (!isPgConfigured()) return null
   const status = String(input.status ?? '').trim()
   const partnerId = String(input.partnerId ?? '').trim()
+  const dateFrom = parseOrderDateFilterParam(input.createdFrom)
+  const dateTo = parseOrderDateFilterParam(input.createdTo)
   try {
     const rows = await pgQuery<Record<string, unknown>>(
       `select o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
@@ -903,9 +927,11 @@ export async function fetchPartnerOrdersForOwnerExportFromPg(input: {
        ) lp on true
        where ($2::uuid is null or o.partner_id = $2::uuid)
          and ($3 = '' or o.status = $3)
+         and ($4::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $4::date)
+         and ($5::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $5::date)
        order by o.created_at desc
-       limit $4`,
-      [input.ownerUserId, partnerId || null, status, EXPORT_ORDERS_MAX]
+       limit $6`,
+      [input.ownerUserId, partnerId || null, status, dateFrom, dateTo, EXPORT_ORDERS_MAX]
     )
     return rows.map(mapOrderAdminRow)
   } catch (e) {

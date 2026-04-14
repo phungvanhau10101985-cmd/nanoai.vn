@@ -344,6 +344,89 @@ export type Dictionary = {
     customerCareShopSetupGuideTitle: string
     customerCareShopSetupGuideBody: string
   }
+  /** /dashboard/messaging/orders — đơn tạo từ widget chat */
+  partnerMessagingOrders: {
+    pageTitle: string
+    pageDescription: string
+    introLine: string
+    allWorkspaces: string
+    allStatuses: string
+    searchPlaceholder: string
+    exportExcel: string
+    exportExcelTitle: string
+    reload: string
+    filterCreatedFrom: string
+    filterCreatedTo: string
+    summaryTitle: string
+    summaryDescription: string
+    statOrders: string
+    statSubtotal: string
+    statSubtotalHint: string
+    statRequired: string
+    statRequiredHint: string
+    statPaid: string
+    statPaidHint: string
+    statOutstanding: string
+    statOutstandingHint: string
+    statusAwaitingPayment: string
+    statusPaymentChecking: string
+    statusPaidVerified: string
+    statusPendingManualReview: string
+    statusCancelled: string
+    emptyList: string
+    shippingPending: string
+    shippingConfirmed: string
+    shippingPacking: string
+    shippingShipping: string
+    shippingDelivered: string
+    shippingReturned: string
+    shippingCancelled: string
+    proofVerified: string
+    proofManualReview: string
+    proofFailed: string
+    proofPending: string
+    proofNone: string
+    labelWorkspace: string
+    labelCustomer: string
+    labelEmail: string
+    labelAddress: string
+    labelProduct: string
+    labelMoneyPrefix: string
+    /** {subtotal}{required}{paid} — đã format tiền */
+    moneyLine: string
+    openProduct: string
+    openProofImage: string
+    openInbox: string
+    openChat: string
+    orderLocked: string
+    notePlaceholder: string
+    btnConfirmPaid: string
+    btnMarkManualReview: string
+    btnCancelOrder: string
+    btnViewTimeline: string
+    timelineTitle: string
+    timelinePickOrder: string
+    timelineNoEvents: string
+    toastStatusUpdated: string
+    toastShippingUpdated: string
+    /** {count} {filename} */
+    toastExportDone: string
+    /** Tiền cọc so với mức yêu cầu */
+    depositNone: string
+    depositPartial: string
+    depositFull: string
+    /** Kênh thanh toán cọc */
+    pathSepay: string
+    pathManual: string
+    /** SePay: không cần ảnh CK */
+    sepayAutoHint: string
+    /** Biên lai ảnh — dạng ngắn trên dải tóm tắt */
+    proofReceiptShortVerified: string
+    proofReceiptShortPending: string
+    proofReceiptShortFailed: string
+    proofReceiptShortManual: string
+    proofReceiptShortNone: string
+  }
   /** /dashboard/messaging — trợ lý AI tự động (FAQ + delay + DeepSeek) */
   partnerMessagingAi: {
     panelTitle: string
@@ -2006,6 +2089,85 @@ const VI_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideTitle: 'Hướng dẫn tạo shop chăm sóc khách hàng',
     customerCareShopSetupGuideBody:
       'Bước 1 — Vào Bảng điều khiển → Nhắn tin → Cài đặt kênh & AI (trang này).\n\nBước 2 — Ở mục «Tạo workspace nhắn tin», nhập tên hiển thị, tên thương hiệu, chọn ngành; có thể dán URL logo hoặc tải ảnh lên.\n\nBước 3 — Nhấn «Tạo mới». Đây là workspace của shop: mọi tin từ Facebook Page, Zalo OA, chat trên NanoAI và chat nhúng trên web shop đều vào cùng một inbox.\n\nBước 4 — Sau đó kết nối kênh (Facebook/Zalo), sao chép liên kết chat hoặc mã nhúng iframe, và tùy chọn bật trợ lý AI cùng kho hàng ngay trên trang cài đặt này.',
+  },
+  partnerMessagingOrders: {
+    pageTitle: 'Quản lý đơn hàng chat',
+    pageDescription: 'Danh sách đơn hàng được tạo trong widget chat.',
+    introLine:
+      'Theo dõi đơn đã tạo trong khung chat, xác nhận thủ công khi cần và cập nhật trạng thái.',
+    allWorkspaces: 'Tất cả workspace',
+    allStatuses: 'Tất cả trạng thái',
+    searchPlaceholder: 'Tìm theo mã đơn / tên KH / SĐT / sản phẩm',
+    exportExcel: 'Xuất Excel',
+    exportExcelTitle:
+      'Xuất tất cả đơn khớp bộ lọc workspace + trạng thái + khoảng ngày (nếu chọn; không theo ô tìm kiếm nhanh).',
+    reload: 'Tải lại',
+    filterCreatedFrom: 'Từ ngày',
+    filterCreatedTo: 'Đến ngày',
+    summaryTitle: 'Tóm tắt theo bộ lọc (workspace + trạng thái + ngày tạo đơn)',
+    summaryDescription:
+      'Toàn bộ đơn khớp bộ lọc (không giới hạn 200 dòng như danh sách bên dưới). Lọc ngày theo giờ Việt Nam (ngày tạo đơn). Để trống cả hai ô = không giới hạn ngày. Ô tìm nhanh chỉ lọc trên trang, không đổi các số này.',
+    statOrders: 'Số đơn',
+    statSubtotal: 'Tổng tiền hàng',
+    statSubtotalHint: 'Tổng giá trị đơn (subtotal)',
+    statRequired: 'Tiền cọc / khoản yêu cầu',
+    statRequiredHint: 'Theo cấu hình từng đơn',
+    statPaid: 'Đã thu (ghi nhận)',
+    statPaidHint: 'Khách đã chuyển / hệ thống ghi nhận',
+    statOutstanding: 'Còn phải thu (ước tính)',
+    statOutstandingHint: 'Đơn chưa hủy: max(0, tiền hàng − đã thu)',
+    statusAwaitingPayment: 'Chờ thanh toán',
+    statusPaymentChecking: 'Đang đối soát',
+    statusPaidVerified: 'Đã xác nhận TT',
+    statusPendingManualReview: 'Cần duyệt tay',
+    statusCancelled: 'Đã hủy',
+    emptyList: 'Chưa có đơn hàng nào.',
+    shippingPending: 'Chờ xác nhận',
+    shippingConfirmed: 'Đã xác nhận đơn',
+    shippingPacking: 'Đang đóng gói',
+    shippingShipping: 'Đang giao hàng',
+    shippingDelivered: 'Đã giao thành công',
+    shippingReturned: 'Hoàn / trả hàng',
+    shippingCancelled: 'Đã hủy',
+    proofVerified: 'Proof: khớp',
+    proofManualReview: 'Proof: cần duyệt tay',
+    proofFailed: 'Proof: không khớp',
+    proofPending: 'Proof: đang xử lý',
+    proofNone: 'Proof: chưa có',
+    labelWorkspace: 'Workspace',
+    labelCustomer: 'Khách',
+    labelEmail: 'Email',
+    labelAddress: 'Địa chỉ',
+    labelProduct: 'Sản phẩm',
+    labelMoneyPrefix: 'Tiền',
+    moneyLine: 'Tổng {subtotal} · Cần thanh toán {required} · Đã ghi nhận {paid}',
+    openProduct: 'Mở sản phẩm',
+    openProofImage: 'Mở ảnh chứng từ',
+    openInbox: 'Mở inbox',
+    openChat: 'Mở chat',
+    orderLocked: 'Đã khóa đơn',
+    notePlaceholder: 'Ghi chú xác nhận / lý do (tùy chọn)',
+    btnConfirmPaid: 'Xác nhận đã thanh toán',
+    btnMarkManualReview: 'Đánh dấu cần duyệt tay',
+    btnCancelOrder: 'Hủy đơn',
+    btnViewTimeline: 'Xem timeline',
+    timelineTitle: 'Lịch sử đơn hàng',
+    timelinePickOrder: 'Chọn một đơn bên trái để xem lịch sử sự kiện.',
+    timelineNoEvents: 'Chưa có sự kiện.',
+    toastStatusUpdated: 'Đã cập nhật trạng thái đơn.',
+    toastShippingUpdated: 'Đã cập nhật giao hàng và thông báo về chat.',
+    toastExportDone: 'Đã tải {count} đơn ({filename}).',
+    depositNone: 'Chưa cọc',
+    depositPartial: 'Cọc một phần',
+    depositFull: 'Đã cọc đủ',
+    pathSepay: 'SePay (tự động)',
+    pathManual: 'CK ngân hàng · ảnh biên lai',
+    sepayAutoHint: 'Đối soát qua SePay — không cần ảnh giao dịch.',
+    proofReceiptShortVerified: 'Biên lai: khớp',
+    proofReceiptShortPending: 'Biên lai: chờ xử lý',
+    proofReceiptShortFailed: 'Biên lai: không khớp',
+    proofReceiptShortManual: 'Biên lai: cần duyệt tay',
+    proofReceiptShortNone: 'Biên lai: chưa có',
   },
   partnerMessagingAi: {
     panelTitle: 'Trợ lý AI tự động',
@@ -3681,6 +3843,84 @@ const EN_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideTitle: 'Set up your customer-care shop',
     customerCareShopSetupGuideBody:
       'Step 1 — Open Dashboard → Messaging → Channel & AI settings (this page).\n\nStep 2 — Under «Create messaging workspace», enter display name, brand name, and industry; you can paste a logo URL or upload an image.\n\nStep 3 — Click «Create». This is your shop workspace: messages from Facebook Page, Zalo OA, NanoAI-hosted chat, and embedded chat on your site all go to one inbox.\n\nStep 4 — Then connect channels (Facebook/Zalo), copy the hosted chat link or iframe snippet, and optionally enable the AI assistant and inventory on the same settings page.',
+  },
+  partnerMessagingOrders: {
+    pageTitle: 'Chat order management',
+    pageDescription: 'Orders created from the chat widget.',
+    introLine: 'Track orders created in chat, confirm manually when needed, and update status.',
+    allWorkspaces: 'All workspaces',
+    allStatuses: 'All statuses',
+    searchPlaceholder: 'Search by order ref / customer name / phone / product',
+    exportExcel: 'Export Excel',
+    exportExcelTitle:
+      'Export all orders matching workspace + status + optional date range (not the quick search box).',
+    reload: 'Reload',
+    filterCreatedFrom: 'From',
+    filterCreatedTo: 'To',
+    summaryTitle: 'Summary for current filters (workspace + status + order date)',
+    summaryDescription:
+      'All orders matching the filters (not limited to 200 rows like the list below). Date filter uses Vietnam time (order created date). Leave both empty for no date limit. Quick search only filters this page and does not change these totals.',
+    statOrders: 'Orders',
+    statSubtotal: 'Gross merchandise',
+    statSubtotalHint: 'Subtotal sum',
+    statRequired: 'Deposit / amount due',
+    statRequiredHint: 'Per order configuration',
+    statPaid: 'Collected (recorded)',
+    statPaidHint: 'Customer transfer / system recorded',
+    statOutstanding: 'Outstanding (estimate)',
+    statOutstandingHint: 'Non-cancelled orders: max(0, subtotal − collected)',
+    statusAwaitingPayment: 'Awaiting payment',
+    statusPaymentChecking: 'Payment checking',
+    statusPaidVerified: 'Payment verified',
+    statusPendingManualReview: 'Needs manual review',
+    statusCancelled: 'Cancelled',
+    emptyList: 'No orders yet.',
+    shippingPending: 'Pending confirmation',
+    shippingConfirmed: 'Order confirmed',
+    shippingPacking: 'Packing',
+    shippingShipping: 'Shipping',
+    shippingDelivered: 'Delivered',
+    shippingReturned: 'Return / refund',
+    shippingCancelled: 'Cancelled',
+    proofVerified: 'Proof: matched',
+    proofManualReview: 'Proof: manual review',
+    proofFailed: 'Proof: mismatch',
+    proofPending: 'Proof: pending',
+    proofNone: 'Proof: none',
+    labelWorkspace: 'Workspace',
+    labelCustomer: 'Customer',
+    labelEmail: 'Email',
+    labelAddress: 'Address',
+    labelProduct: 'Product',
+    labelMoneyPrefix: 'Amounts',
+    moneyLine: 'Subtotal {subtotal} · Due {required} · Recorded {paid}',
+    openProduct: 'Open product',
+    openProofImage: 'Open proof image',
+    openInbox: 'Open inbox',
+    openChat: 'Open chat',
+    orderLocked: 'Order locked',
+    notePlaceholder: 'Verification note / reason (optional)',
+    btnConfirmPaid: 'Mark as paid',
+    btnMarkManualReview: 'Flag for manual review',
+    btnCancelOrder: 'Cancel order',
+    btnViewTimeline: 'View timeline',
+    timelineTitle: 'Order timeline',
+    timelinePickOrder: 'Select an order on the left to see events.',
+    timelineNoEvents: 'No events yet.',
+    toastStatusUpdated: 'Order status updated.',
+    toastShippingUpdated: 'Shipping updated and chat notified.',
+    toastExportDone: 'Downloaded {count} orders ({filename}).',
+    depositNone: 'No deposit yet',
+    depositPartial: 'Partial deposit',
+    depositFull: 'Deposit paid',
+    pathSepay: 'SePay (auto)',
+    pathManual: 'Bank transfer · receipt photo',
+    sepayAutoHint: 'Matched via SePay — no receipt photo needed.',
+    proofReceiptShortVerified: 'Receipt: matched',
+    proofReceiptShortPending: 'Receipt: pending',
+    proofReceiptShortFailed: 'Receipt: mismatch',
+    proofReceiptShortManual: 'Receipt: manual review',
+    proofReceiptShortNone: 'Receipt: none',
   },
   partnerMessagingAi: {
     panelTitle: 'AI auto-replies',
@@ -5359,6 +5599,83 @@ const ZH_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideBody:
       '第 1 步 — 打开 控制台 → 消息 → 渠道与 AI 设置（本页）。\n\n第 2 步 — 在「创建消息工作区」中填写显示名称、品牌名称、选择行业；可填写 logo 链接或上传图片。\n\n第 3 步 — 点击「创建」。即店铺工作区：来自 Facebook 公共主页、Zalo OA、NanoAI 托管聊天与网站嵌入聊天的消息会进入同一收件箱。\n\n第 4 步 — 随后连接渠道（Facebook/Zalo）、复制托管聊天链接或 iframe 代码，并可在本页选择开启 AI 助手与库存。',
   },
+  partnerMessagingOrders: {
+    pageTitle: '聊天订单管理',
+    pageDescription: '在聊天小组件中创建的订单列表。',
+    introLine: '跟踪聊天中创建的订单，必要时人工确认并更新状态。',
+    allWorkspaces: '全部工作区',
+    allStatuses: '全部状态',
+    searchPlaceholder: '按订单号 / 客户名 / 手机 / 商品搜索',
+    exportExcel: '导出 Excel',
+    exportExcelTitle: '导出符合工作区、状态与可选日期范围的全部订单（不含快速搜索框条件）。',
+    reload: '重新加载',
+    filterCreatedFrom: '开始日期',
+    filterCreatedTo: '结束日期',
+    summaryTitle: '按筛选汇总（工作区 + 状态 + 下单日期）',
+    summaryDescription:
+      '符合筛选的全部订单（不像下方列表限制 200 行）。日期按越南时区、以订单创建日为准；两项都留空表示不限制日期。快速搜索仅过滤本页列表，不改变此处数字。',
+    statOrders: '订单数',
+    statSubtotal: '商品总额',
+    statSubtotalHint: '小计合计',
+    statRequired: '定金 / 应付金额',
+    statRequiredHint: '按各单配置',
+    statPaid: '已收（入账）',
+    statPaidHint: '客户已转款 / 系统记录',
+    statOutstanding: '待收（估算）',
+    statOutstandingHint: '未取消订单：max(0, 货款 − 已收)',
+    statusAwaitingPayment: '待付款',
+    statusPaymentChecking: '对账中',
+    statusPaidVerified: '已确认收款',
+    statusPendingManualReview: '需人工审核',
+    statusCancelled: '已取消',
+    emptyList: '暂无订单。',
+    shippingPending: '待确认',
+    shippingConfirmed: '已确认订单',
+    shippingPacking: '打包中',
+    shippingShipping: '配送中',
+    shippingDelivered: '已送达',
+    shippingReturned: '退货/退款',
+    shippingCancelled: '已取消',
+    proofVerified: '凭证：匹配',
+    proofManualReview: '凭证：需人工',
+    proofFailed: '凭证：不匹配',
+    proofPending: '凭证：处理中',
+    proofNone: '凭证：无',
+    labelWorkspace: '工作区',
+    labelCustomer: '客户',
+    labelEmail: '邮箱',
+    labelAddress: '地址',
+    labelProduct: '商品',
+    labelMoneyPrefix: '金额',
+    moneyLine: '小计 {subtotal} · 应付 {required} · 已记录 {paid}',
+    openProduct: '打开商品',
+    openProofImage: '打开凭证图',
+    openInbox: '打开收件箱',
+    openChat: '打开聊天',
+    orderLocked: '订单已锁定',
+    notePlaceholder: '确认备注 / 原因（可选）',
+    btnConfirmPaid: '确认已付款',
+    btnMarkManualReview: '标记需人工审核',
+    btnCancelOrder: '取消订单',
+    btnViewTimeline: '查看时间线',
+    timelineTitle: '订单时间线',
+    timelinePickOrder: '在左侧选择一个订单查看事件记录。',
+    timelineNoEvents: '暂无事件。',
+    toastStatusUpdated: '订单状态已更新。',
+    toastShippingUpdated: '物流已更新并已通知聊天。',
+    toastExportDone: '已下载 {count} 条订单（{filename}）。',
+    depositNone: '未付定金',
+    depositPartial: '部分定金',
+    depositFull: '定金已付清',
+    pathSepay: 'SePay（自动）',
+    pathManual: '银行转账 · 回单照片',
+    sepayAutoHint: '通过 SePay 对账 — 无需交易截图。',
+    proofReceiptShortVerified: '回单：已匹配',
+    proofReceiptShortPending: '回单：处理中',
+    proofReceiptShortFailed: '回单：不匹配',
+    proofReceiptShortManual: '回单：需人工',
+    proofReceiptShortNone: '回单：无',
+  },
   partnerMessagingAi: {
     panelTitle: 'AI 自动回复',
     panelSubtitle:
@@ -6980,6 +7297,84 @@ const JA_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideTitle: 'カスタマーケア店舗の作成手順',
     customerCareShopSetupGuideBody:
       '手順 1 — ダッシュボード → メッセージ → チャネル・AI 設定（このページ）を開きます。\n\n手順 2 — 「メッセージワークスペースを作成」に表示名・ブランド名・業種を入力します。ロゴは URL の入力または画像アップロードが可能です。\n\n手順 3 — 「作成」をクリックします。これが店舗ワークスペースです。Facebook ページ、Zalo OA、NanoAI 上のチャット、サイト埋め込みチャットのメッセージはすべて同じ受信箱に入ります。\n\n手順 4 — 続けてチャネル（Facebook/Zalo）を接続し、ホストされたチャットリンクまたは iframe コードをコピーし、同じ設定画面で AI アシスタントや在庫を任意で有効にします。',
+  },
+  partnerMessagingOrders: {
+    pageTitle: 'チャット注文の管理',
+    pageDescription: 'チャットウィジェットから作成された注文一覧です。',
+    introLine: 'チャットで作成した注文を追跡し、必要に応じて手動確認し、ステータスを更新します。',
+    allWorkspaces: 'すべてのワークスペース',
+    allStatuses: 'すべてのステータス',
+    searchPlaceholder: '注文番号 / 顧客名 / 電話 / 商品で検索',
+    exportExcel: 'Excel に出力',
+    exportExcelTitle:
+      'ワークスペース・ステータス・日付範囲（任意）に一致する注文をすべて出力（クイック検索は対象外）。',
+    reload: '再読み込み',
+    filterCreatedFrom: '開始日',
+    filterCreatedTo: '終了日',
+    summaryTitle: 'フィルター別サマリー（ワークスペース + ステータス + 注文日）',
+    summaryDescription:
+      '条件に一致する注文の全体（下の一覧の 200 件制限なし）。日付はベトナム時間・注文作成日。両方空欄で日付制限なし。クイック検索はこのページの表示のみ絞り込み、ここの数値は変わりません。',
+    statOrders: '注文件数',
+    statSubtotal: '商品計',
+    statSubtotalHint: '小計の合計',
+    statRequired: '手付金 / 請求額',
+    statRequiredHint: '注文ごとの設定に従う',
+    statPaid: '入金済（記録）',
+    statPaidHint: '顧客振込 / システム記録',
+    statOutstanding: '未収（見積）',
+    statOutstandingHint: '未キャンセル: max(0, 商品代 − 入金)',
+    statusAwaitingPayment: '入金待ち',
+    statusPaymentChecking: '照合中',
+    statusPaidVerified: '入金確認済',
+    statusPendingManualReview: '手動確認要',
+    statusCancelled: 'キャンセル',
+    emptyList: '注文はまだありません。',
+    shippingPending: '未確認',
+    shippingConfirmed: '注文確認済',
+    shippingPacking: '梱包中',
+    shippingShipping: '配送中',
+    shippingDelivered: '配達完了',
+    shippingReturned: '返品・返金',
+    shippingCancelled: 'キャンセル',
+    proofVerified: '証憑: 一致',
+    proofManualReview: '証憑: 手動確認',
+    proofFailed: '証憑: 不一致',
+    proofPending: '証憑: 処理中',
+    proofNone: '証憑: なし',
+    labelWorkspace: 'ワークスペース',
+    labelCustomer: '顧客',
+    labelEmail: 'メール',
+    labelAddress: '住所',
+    labelProduct: '商品',
+    labelMoneyPrefix: '金額',
+    moneyLine: '小計 {subtotal} · 請求 {required} · 記録 {paid}',
+    openProduct: '商品を開く',
+    openProofImage: '証憑画像を開く',
+    openInbox: '受信箱を開く',
+    openChat: 'チャットを開く',
+    orderLocked: '注文ロック済',
+    notePlaceholder: '確認メモ / 理由（任意）',
+    btnConfirmPaid: '入金を確認',
+    btnMarkManualReview: '手動確認が必要にする',
+    btnCancelOrder: '注文をキャンセル',
+    btnViewTimeline: 'タイムライン',
+    timelineTitle: '注文タイムライン',
+    timelinePickOrder: '左の一覧で注文を選ぶとイベント履歴が表示されます。',
+    timelineNoEvents: 'イベントはまだありません。',
+    toastStatusUpdated: '注文ステータスを更新しました。',
+    toastShippingUpdated: '配送を更新しチャットに通知しました。',
+    toastExportDone: '{count} 件をダウンロードしました（{filename}）。',
+    depositNone: '未入金',
+    depositPartial: '一部入金',
+    depositFull: '手付け済み',
+    pathSepay: 'SePay（自動）',
+    pathManual: '銀行振込・領収写真',
+    sepayAutoHint: 'SePay で照合 — 取引画像は不要です。',
+    proofReceiptShortVerified: '領収：一致',
+    proofReceiptShortPending: '領収：処理中',
+    proofReceiptShortFailed: '領収：不一致',
+    proofReceiptShortManual: '領収：要確認',
+    proofReceiptShortNone: '領収：なし',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自動返信',
@@ -8640,6 +9035,83 @@ const KO_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideTitle: '고객 응대 매장 만들기 안내',
     customerCareShopSetupGuideBody:
       '1단계 — 대시보드 → 메시지 → 채널·AI 설정(이 페이지)으로 이동합니다.\n\n2단계 — «메시징 워크스페이스 만들기»에서 표시 이름, 브랜드 이름, 업종을 입력합니다. 로고는 URL을 넣거나 이미지를 업로드할 수 있습니다.\n\n3단계 — «만들기»를 누릅니다. 이것이 매장 워크스페이스입니다. Facebook 페이지, Zalo OA, NanoAI 호스팅 채팅, 사이트에 임베드한 채팅의 메시지가 모두 같은 받은편지함으로 들어옵니다.\n\n4단계 — 이어서 채널(Facebook/Zalo)을 연결하고 호스팅 채팅 링크 또는 iframe 코드를 복사한 뒤, 같은 설정 페이지에서 AI 어시스트와 재고를 선택적으로 켤 수 있습니다.',
+  },
+  partnerMessagingOrders: {
+    pageTitle: '채팅 주문 관리',
+    pageDescription: '채팅 위젯에서 생성된 주문 목록입니다.',
+    introLine: '채팅에서 만든 주문을 추적하고, 필요 시 수동 확인 후 상태를 업데이트합니다.',
+    allWorkspaces: '모든 워크스페이스',
+    allStatuses: '모든 상태',
+    searchPlaceholder: '주문번호 / 고객명 / 전화 / 상품으로 검색',
+    exportExcel: 'Excel 내보내기',
+    exportExcelTitle: '워크스페이스·상태·선택한 기간(선택)에 맞는 모든 주문 내보내기(빠른 검색 제외).',
+    reload: '새로고침',
+    filterCreatedFrom: '시작일',
+    filterCreatedTo: '종료일',
+    summaryTitle: '필터 요약(워크스페이스 + 상태 + 주문일)',
+    summaryDescription:
+      '필터에 맞는 전체 주문(아래 목록의 200건 제한 없음). 날짜는 베트남 시간·주문 생성일 기준. 둘 다 비우면 날짜 제한 없음. 빠른 검색은 이 페이지 목록만 걸러내며 여기 숫자는 바뀌지 않습니다.',
+    statOrders: '주문 수',
+    statSubtotal: '상품 합계',
+    statSubtotalHint: '소계 합계',
+    statRequired: '예치금 / 청구액',
+    statRequiredHint: '주문별 설정',
+    statPaid: '입금(기록)',
+    statPaidHint: '고객 송금 / 시스템 기록',
+    statOutstanding: '미수(추정)',
+    statOutstandingHint: '미취소: max(0, 상품금액 − 입금)',
+    statusAwaitingPayment: '결제 대기',
+    statusPaymentChecking: '대사 중',
+    statusPaidVerified: '결제 확인됨',
+    statusPendingManualReview: '수동 검토 필요',
+    statusCancelled: '취소됨',
+    emptyList: '주문이 없습니다.',
+    shippingPending: '확인 대기',
+    shippingConfirmed: '주문 확인됨',
+    shippingPacking: '포장 중',
+    shippingShipping: '배송 중',
+    shippingDelivered: '배송 완료',
+    shippingReturned: '반품/환불',
+    shippingCancelled: '취소됨',
+    proofVerified: '증빙: 일치',
+    proofManualReview: '증빙: 수동 검토',
+    proofFailed: '증빙: 불일치',
+    proofPending: '증빙: 처리 중',
+    proofNone: '증빙: 없음',
+    labelWorkspace: '워크스페이스',
+    labelCustomer: '고객',
+    labelEmail: '이메일',
+    labelAddress: '주소',
+    labelProduct: '상품',
+    labelMoneyPrefix: '금액',
+    moneyLine: '소계 {subtotal} · 청구 {required} · 기록 {paid}',
+    openProduct: '상품 열기',
+    openProofImage: '증빙 이미지 열기',
+    openInbox: '받은편지함 열기',
+    openChat: '채팅 열기',
+    orderLocked: '주문 잠금',
+    notePlaceholder: '확인 메모 / 사유(선택)',
+    btnConfirmPaid: '결제 확인',
+    btnMarkManualReview: '수동 검토 필요로 표시',
+    btnCancelOrder: '주문 취소',
+    btnViewTimeline: '타임라인 보기',
+    timelineTitle: '주문 타임라인',
+    timelinePickOrder: '왼쪽에서 주문을 선택하면 이벤트 기록을 볼 수 있습니다.',
+    timelineNoEvents: '이벤트가 없습니다.',
+    toastStatusUpdated: '주문 상태를 업데이트했습니다.',
+    toastShippingUpdated: '배송을 업데이트하고 채팅에 알렸습니다.',
+    toastExportDone: '{count}건을 다운로드했습니다({filename}).',
+    depositNone: '미입금',
+    depositPartial: '부분 입금',
+    depositFull: '입금 완료',
+    pathSepay: 'SePay(자동)',
+    pathManual: '계좌이체 · 영수증 사진',
+    sepayAutoHint: 'SePay로 대사 — 거래 캡처 불필요.',
+    proofReceiptShortVerified: '영수증: 일치',
+    proofReceiptShortPending: '영수증: 대기',
+    proofReceiptShortFailed: '영수증: 불일치',
+    proofReceiptShortManual: '영수증: 수동 검토',
+    proofReceiptShortNone: '영수증: 없음',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 자동 답장',

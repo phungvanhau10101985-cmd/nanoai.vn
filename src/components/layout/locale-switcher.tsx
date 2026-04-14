@@ -38,7 +38,7 @@ export function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
   }
 
   return (
-    <div className="hidden md:flex items-center gap-1 rounded-md border p-1">
+    <div className="flex max-w-[min(100%,13.5rem)] shrink-0 items-center gap-0.5 overflow-x-auto rounded-md border border-border/70 bg-card/60 p-0.5 [scrollbar-width:none] sm:max-w-none sm:gap-1 sm:p-1 md:bg-card/80 [&::-webkit-scrollbar]:hidden">
       {WEB_LOCALES.map((locale) => (
         <Button
           key={locale}
@@ -47,7 +47,7 @@ export function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
           size="sm"
           onClick={() => setLocale(locale)}
           disabled={pending}
-          className="h-7 px-2 text-xs"
+          className="h-7 shrink-0 px-1.5 text-[10px] sm:px-2 sm:text-xs"
         >
           {LABELS[locale]}
         </Button>

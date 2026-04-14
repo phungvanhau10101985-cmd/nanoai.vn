@@ -457,10 +457,19 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
   return { ok: true as const }
 }
 
+function normalizeOrderDateQuery(v: unknown): string | undefined {
+  const s = String(v ?? '').trim()
+  if (!s) return undefined
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : undefined
+}
+
 export async function listMyMessagingOrders(input?: {
   partnerId?: string
   status?: string
   limit?: number
+  /** YYYY-MM-DD — ngày tạo đơn (Asia/Ho_Chi_Minh) */
+  createdFrom?: string
+  createdTo?: string
 }): Promise<{ rows: PartnerOrderAdminRow[]; stats: PartnerOrderOwnerStats } | { error: string }> {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
@@ -468,17 +477,28 @@ export async function listMyMessagingOrders(input?: {
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const partnerId = input?.partnerId?.trim() || null
   const status = input?.status?.trim() || ''
+  let createdFrom = normalizeOrderDateQuery(input?.createdFrom)
+  let createdTo = normalizeOrderDateQuery(input?.createdTo)
+  if (createdFrom && createdTo && createdFrom > createdTo) {
+    const tmp = createdFrom
+    createdFrom = createdTo
+    createdTo = tmp
+  }
   const [rows, stats] = await Promise.all([
     fetchPartnerOrdersForOwnerFromPg({
       ownerUserId: user.id,
       partnerId,
       status,
+      createdFrom,
+      createdTo,
       limit: input?.limit,
     }),
     fetchPartnerOrderStatsForOwnerFromPg({
       ownerUserId: user.id,
       partnerId,
       status,
+      createdFrom,
+      createdTo,
     }),
   ])
   if (rows === null || stats === null) return { error: 'Khong tai duoc don hang.' }
@@ -491,15 +511,26 @@ export type { PartnerOrderOwnerStats }
 export async function exportMyMessagingOrdersExcel(input?: {
   partnerId?: string
   status?: string
+  createdFrom?: string
+  createdTo?: string
 }): Promise<{ ok: true; base64: string; filename: string; count: number } | { error: string }> {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
   const { user } = auth
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  let createdFrom = normalizeOrderDateQuery(input?.createdFrom)
+  let createdTo = normalizeOrderDateQuery(input?.createdTo)
+  if (createdFrom && createdTo && createdFrom > createdTo) {
+    const tmp = createdFrom
+    createdFrom = createdTo
+    createdTo = tmp
+  }
   const rows = await fetchPartnerOrdersForOwnerExportFromPg({
     ownerUserId: user.id,
     partnerId: input?.partnerId?.trim() || null,
     status: input?.status?.trim() || '',
+    createdFrom,
+    createdTo,
   })
   if (rows === null) return { error: 'Không tải được đơn hàng.' }
   if (rows.length === 0) return { error: 'Không có đơn để xuất (thử đổi bộ lọc).' }
