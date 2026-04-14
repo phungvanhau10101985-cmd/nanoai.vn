@@ -2312,7 +2312,7 @@ const VI_DICTIONARY: Dictionary = {
     usageEmbedColInventoryId: 'Mã dòng kho',
     usageImageGenTitle: 'Nano Banana — tạo ảnh (inbox khách)',
     usageImageGenIntro:
-      'Nano Banana là lối gọi nội bộ cho pipeline Gemini tạo ảnh (model gemini-3-pro-image-preview): ảnh chi tiết chất liệu/màu và ảnh đời thường (góc tự nhiên, nhìn sản phẩm chân thực) trong chat. Mỗi lần gọi API sinh ảnh mới và lưu URL vào kho — cùng khoảng thời gian với bảng token LLM phía trên. Ảnh đã cache trong kho không tạo lại nên không tính thêm.',
+      'Nano Banana là lối gọi nội bộ cho pipeline Gemini tạo ảnh (model gemini-3-pro-image-preview). Cả hai nhánh — ảnh chi tiết chất liệu/màu và ảnh thực tế / đời thường — đều lấy một ảnh sản phẩm trong kho làm đầu vào và model sinh một ảnh mới từ ảnh đó (không chỉ tái dùng file gốc). Mỗi lần gọi API sinh ảnh mới và lưu URL vào kho — cùng khoảng thời gian với bảng token LLM phía trên. Ảnh đã cache trong kho không tạo lại nên không tính thêm.',
     usageImageGenEmpty: 'Chưa có lượt tạo ảnh Nano Banana ghi nhận trong khoảng này.',
     usageImageGenColKind: 'Loại ảnh',
     usageImageGenKindMaterial: 'Chi tiết chất liệu / màu',
@@ -4101,7 +4101,7 @@ const EN_DICTIONARY: Dictionary = {
     usageEmbedColInventoryId: 'Inventory row',
     usageImageGenTitle: 'Nano Banana — inbox image generation',
     usageImageGenIntro:
-      'Nano Banana is our label for the Gemini image pipeline (model gemini-3-pro-image-preview): material/color detail renders and real-use style shots in chat. Each row counts a new API generation saved to inventory — same window as the LLM token table above. Cached rows are not regenerated.',
+      'Nano Banana is our label for the Gemini image pipeline (model gemini-3-pro-image-preview). Both branches — material/color detail collages and real-use / lifestyle shots — take one on-file product photo as input and generate a new image from it (not a simple reuse of the original file). Each row counts a new API generation saved to inventory — same window as the LLM token table above. Cached rows are not regenerated.',
     usageImageGenEmpty: 'No Nano Banana image generations recorded in this period.',
     usageImageGenColKind: 'Image type',
     usageImageGenKindMaterial: 'Material / color detail',

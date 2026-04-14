@@ -125,13 +125,26 @@ export function calcCostVnd(
   const pricingMode = options.pricingMode ?? 'per_call'
   const { inputRate, outputRate } = resolveInputOutputRates(rates, promptTokens, pricingMode)
 
-  const isImage = imageSize === '1K' || imageSize === '2K' || imageSize === '4K'
+  const isImageSizeTier = imageSize === '1K' || imageSize === '2K' || imageSize === '4K'
   const imageUsdPerM = rates.outputImage
-  const outRate = imageUsdPerM != null && isImage ? imageUsdPerM : outputRate
-  const effectiveOutputTokens =
-    imageUsdPerM != null && isImage && imageSize && imageSize in IMAGE_TOKENS
-      ? IMAGE_TOKENS[imageSize as keyof typeof IMAGE_TOKENS]
-      : outputTokens
+
+  /**
+   * Đầu ra ảnh (Gemini): 120 USD/1M token ảnh; 1K–2K cố định 1120 token/ảnh, 4K là 2000 — khớp tài liệu Google.
+   * Khi không có imageSize trong DB: metadata completion vẫn là token đầu ra ảnh → phải nhân `imageUsdPerM`, không dùng giá output chữ (12 USD/1M).
+   * Khi có tier (per-call ước lượng): có thể gắn cố định 1120/2000 thay cho số API.
+   */
+  let outRate: number
+  let effectiveOutputTokens: number
+  if (imageUsdPerM != null && isImageSizeTier && imageSize != null && imageSize in IMAGE_TOKENS) {
+    outRate = imageUsdPerM
+    effectiveOutputTokens = IMAGE_TOKENS[imageSize as keyof typeof IMAGE_TOKENS]
+  } else if (imageUsdPerM != null) {
+    outRate = imageUsdPerM
+    effectiveOutputTokens = outputTokens
+  } else {
+    outRate = outputRate
+    effectiveOutputTokens = outputTokens
+  }
 
   const usd = (promptTokens / 1_000_000) * inputRate + (effectiveOutputTokens / 1_000_000) * outRate
   return Math.round(usd * usdToVnd)
