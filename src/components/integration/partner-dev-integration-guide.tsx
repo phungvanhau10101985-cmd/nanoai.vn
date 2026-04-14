@@ -91,7 +91,7 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   const [embedSide, setEmbedSide] = useState<'left' | 'right'>('right')
   const [embedBottomPxInput, setEmbedBottomPxInput] = useState('24')
   const [embedHorizontalPxInput, setEmbedHorizontalPxInput] = useState('16')
-  const [embedDesktopWidthPxInput, setEmbedDesktopWidthPxInput] = useState('380')
+  const [embedDesktopWidthPxInput, setEmbedDesktopWidthPxInput] = useState('340')
   const [embedDesktopHeightPxInput, setEmbedDesktopHeightPxInput] = useState('560')
   const [embedRadiusPxInput, setEmbedRadiusPxInput] = useState('12')
   const selectedPartner = useMemo(
@@ -105,7 +105,7 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   const guestBase = `${baseUrl}/api/messaging/guest/${slug}`
   const safeBottomPx = parsePxInput(embedBottomPxInput, 24, 0, EMBED_BOTTOM_OFFSET_MAX_PX)
   const safeHorizontalPx = parsePxInput(embedHorizontalPxInput, 16, 0, 300)
-  const safeDesktopWidthPx = parsePxInput(embedDesktopWidthPxInput, 380, 280, 1200)
+  const safeDesktopWidthPx = parsePxInput(embedDesktopWidthPxInput, 340, 280, 1200)
   const safeDesktopHeightPx = parsePxInput(embedDesktopHeightPxInput, 560, 320, 1200)
   const safeRadiusPx = parsePxInput(embedRadiusPxInput, 12, 0, 60)
 

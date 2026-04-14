@@ -340,6 +340,9 @@ export type Dictionary = {
     /** /dashboard/messaging/settings — thẻ dẫn sang trang tích hợp API (nhúng/keys không còn trên trang này) */
     messagingSettingsApiHubCardTitle: string
     messagingSettingsApiHubCardBody: string
+    /** Hướng dẫn tạo workspace shop chăm sóc khách (đa ngôn ngữ) */
+    customerCareShopSetupGuideTitle: string
+    customerCareShopSetupGuideBody: string
   }
   /** /dashboard/messaging — trợ lý AI tự động (FAQ + delay + DeepSeek) */
   partnerMessagingAi: {
@@ -2000,6 +2003,9 @@ const VI_DICTIONARY: Dictionary = {
     messagingSettingsApiHubCardTitle: 'Nhúng chat & API',
     messagingSettingsApiHubCardBody:
       'URL hosted, mã iframe, endpoint embed, khóa X-Embed-Key / Bearer và tài liệu cho developer đã chuyển sang trang «Tích hợp API» — không còn hiển thị trên trang cài đặt này.',
+    customerCareShopSetupGuideTitle: 'Hướng dẫn tạo shop chăm sóc khách hàng',
+    customerCareShopSetupGuideBody:
+      'Bước 1 — Vào Bảng điều khiển → Nhắn tin → Cài đặt kênh & AI (trang này).\n\nBước 2 — Ở mục «Tạo workspace nhắn tin», nhập tên hiển thị, tên thương hiệu, chọn ngành; có thể dán URL logo hoặc tải ảnh lên.\n\nBước 3 — Nhấn «Tạo mới». Đây là workspace của shop: mọi tin từ Facebook Page, Zalo OA, chat trên NanoAI và chat nhúng trên web shop đều vào cùng một inbox.\n\nBước 4 — Sau đó kết nối kênh (Facebook/Zalo), sao chép liên kết chat hoặc mã nhúng iframe, và tùy chọn bật trợ lý AI cùng kho hàng ngay trên trang cài đặt này.',
   },
   partnerMessagingAi: {
     panelTitle: 'Trợ lý AI tự động',
@@ -3672,6 +3678,9 @@ const EN_DICTIONARY: Dictionary = {
     messagingSettingsApiHubCardTitle: 'Embed chat & APIs',
     messagingSettingsApiHubCardBody:
       'Hosted URL, iframe snippet, embed endpoint, keys, and developer docs now live on the API integration page — they are no longer shown on this settings screen.',
+    customerCareShopSetupGuideTitle: 'Set up your customer-care shop',
+    customerCareShopSetupGuideBody:
+      'Step 1 — Open Dashboard → Messaging → Channel & AI settings (this page).\n\nStep 2 — Under «Create messaging workspace», enter display name, brand name, and industry; you can paste a logo URL or upload an image.\n\nStep 3 — Click «Create». This is your shop workspace: messages from Facebook Page, Zalo OA, NanoAI-hosted chat, and embedded chat on your site all go to one inbox.\n\nStep 4 — Then connect channels (Facebook/Zalo), copy the hosted chat link or iframe snippet, and optionally enable the AI assistant and inventory on the same settings page.',
   },
   partnerMessagingAi: {
     panelTitle: 'AI auto-replies',
@@ -5346,6 +5355,9 @@ const ZH_DICTIONARY: Dictionary = {
     messagingSettingsApiHubCardTitle: '嵌入聊天与 API',
     messagingSettingsApiHubCardBody:
       '托管链接、iframe 代码、嵌入接口、密钥与开发者文档已移至「API 集成」页面 — 本设置页不再展示。',
+    customerCareShopSetupGuideTitle: '创建客服店铺指引',
+    customerCareShopSetupGuideBody:
+      '第 1 步 — 打开 控制台 → 消息 → 渠道与 AI 设置（本页）。\n\n第 2 步 — 在「创建消息工作区」中填写显示名称、品牌名称、选择行业；可填写 logo 链接或上传图片。\n\n第 3 步 — 点击「创建」。即店铺工作区：来自 Facebook 公共主页、Zalo OA、NanoAI 托管聊天与网站嵌入聊天的消息会进入同一收件箱。\n\n第 4 步 — 随后连接渠道（Facebook/Zalo）、复制托管聊天链接或 iframe 代码，并可在本页选择开启 AI 助手与库存。',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自动回复',
@@ -6965,6 +6977,9 @@ const JA_DICTIONARY: Dictionary = {
     messagingSettingsApiHubCardTitle: '埋め込みチャットと API',
     messagingSettingsApiHubCardBody:
       'ホスト URL、iframe スニペット、埋め込みエンドポイント、キー、開発者向けドキュメントは「API 連携」ページに移しました — 本設定画面には表示しません。',
+    customerCareShopSetupGuideTitle: 'カスタマーケア店舗の作成手順',
+    customerCareShopSetupGuideBody:
+      '手順 1 — ダッシュボード → メッセージ → チャネル・AI 設定（このページ）を開きます。\n\n手順 2 — 「メッセージワークスペースを作成」に表示名・ブランド名・業種を入力します。ロゴは URL の入力または画像アップロードが可能です。\n\n手順 3 — 「作成」をクリックします。これが店舗ワークスペースです。Facebook ページ、Zalo OA、NanoAI 上のチャット、サイト埋め込みチャットのメッセージはすべて同じ受信箱に入ります。\n\n手順 4 — 続けてチャネル（Facebook/Zalo）を接続し、ホストされたチャットリンクまたは iframe コードをコピーし、同じ設定画面で AI アシスタントや在庫を任意で有効にします。',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自動返信',
@@ -8622,6 +8637,9 @@ const KO_DICTIONARY: Dictionary = {
     messagingSettingsApiHubCardTitle: '임베드 채팅 및 API',
     messagingSettingsApiHubCardBody:
       '호스팅 URL, iframe 스니펫, 임베드 엔드포인트, 키, 개발자 문서는 「API 연동」 페이지로 옮겼습니다 — 이 설정 화면에는 더 이상 표시하지 않습니다.',
+    customerCareShopSetupGuideTitle: '고객 응대 매장 만들기 안내',
+    customerCareShopSetupGuideBody:
+      '1단계 — 대시보드 → 메시지 → 채널·AI 설정(이 페이지)으로 이동합니다.\n\n2단계 — «메시징 워크스페이스 만들기»에서 표시 이름, 브랜드 이름, 업종을 입력합니다. 로고는 URL을 넣거나 이미지를 업로드할 수 있습니다.\n\n3단계 — «만들기»를 누릅니다. 이것이 매장 워크스페이스입니다. Facebook 페이지, Zalo OA, NanoAI 호스팅 채팅, 사이트에 임베드한 채팅의 메시지가 모두 같은 받은편지함으로 들어옵니다.\n\n4단계 — 이어서 채널(Facebook/Zalo)을 연결하고 호스팅 채팅 링크 또는 iframe 코드를 복사한 뒤, 같은 설정 페이지에서 AI 어시스트와 재고를 선택적으로 켤 수 있습니다.',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 자동 답장',

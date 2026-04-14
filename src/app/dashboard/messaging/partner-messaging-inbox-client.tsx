@@ -401,11 +401,19 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
 
   if (partners.length === 0) {
     return (
-      <div className="rounded-xl border border-border/70 bg-card/90 p-6 shadow-sm">
-        <p className="text-sm text-muted-foreground mb-4">{t.noWorkspaceInboxCta}</p>
-        <Button asChild>
-          <Link href="/dashboard/messaging/settings">{t.messagingSettingsLink}</Link>
-        </Button>
+      <div className="space-y-4">
+        <div className="rounded-xl border border-border/70 bg-card/90 p-6 shadow-sm">
+          <p className="mb-3 text-sm text-muted-foreground">{t.noWorkspaceInboxCta}</p>
+          <Button asChild>
+            <Link href="/dashboard/messaging/settings">{t.messagingSettingsLink}</Link>
+          </Button>
+        </div>
+        <div className="rounded-xl border border-violet-200/80 bg-violet-50/50 p-6 shadow-sm dark:border-violet-900/50 dark:bg-violet-950/25">
+          <p className="text-sm font-medium text-foreground">{t.customerCareShopSetupGuideTitle}</p>
+          <p className="mt-3 max-h-[min(50vh,22rem)] overflow-y-auto text-sm leading-relaxed text-muted-foreground whitespace-pre-line [scrollbar-width:thin]">
+            {t.customerCareShopSetupGuideBody}
+          </p>
+        </div>
       </div>
     )
   }

@@ -805,6 +805,17 @@ export function PartnerMessagingSettingsClient({
       </div>
 
       {partners.length === 0 ? (
+        <>
+        <Card className="border-violet-200/80 bg-violet-50/50 shadow-sm dark:border-violet-900/50 dark:bg-violet-950/25">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">{t.customerCareShopSetupGuideTitle}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
+              {t.customerCareShopSetupGuideBody}
+            </p>
+          </CardContent>
+        </Card>
         <Card className="border-border/70 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">{t.createWorkspace}</CardTitle>
@@ -877,6 +888,7 @@ export function PartnerMessagingSettingsClient({
             </Button>
           </CardContent>
         </Card>
+        </>
       ) : (
         <div
           className={cn(

@@ -3,7 +3,15 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from 'react'
 import { createPortal } from 'react-dom'
 import type { ChangeEvent, ClipboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
@@ -42,6 +50,7 @@ import type { Json } from '@/types/database.types'
 import {
   Camera,
   CheckCircle,
+  ChevronDown,
   ImagePlus,
   Loader2,
   MessageSquareText,
@@ -334,6 +343,18 @@ const GUEST_CHAT_LOCALE_SHORT: Record<WebLocale, string> = {
   ko: '한국어',
 }
 
+/** Ước độ rộng ô select (px) theo nhãn — tránh lần paint đầu bị browser giãn theo option dài nhất. */
+function initialEmbedLocaleSelectWidthPx(locale: WebLocale): number {
+  const label = GUEST_CHAT_LOCALE_SHORT[locale]
+  let textPx = 0
+  for (const ch of label) {
+    const cp = ch.codePointAt(0) ?? 0
+    textPx += cp > 0xff ? 13 : 8
+  }
+  const chromePx = 40
+  return Math.max(48, Math.min(200, Math.ceil(textPx + chromePx)))
+}
+
 /** Đổi cookie locale, đồng bộ `metadata.ui_locale` hội thoại (tin hệ thống/AI đúng ngôn ngữ), rồi refresh. */
 function GuestChatLocaleSwitches({
   currentLocale,
@@ -347,6 +368,28 @@ function GuestChatLocaleSwitches({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  /** Đo độ rộng nhãn đang chọn — native <select> mặc định rộng theo option dài nhất nếu không ép width. */
+  const localeLabelMeasureRef = useRef<HTMLSpanElement>(null)
+  const [embedSelectWidthPx, setEmbedSelectWidthPx] = useState(() => initialEmbedLocaleSelectWidthPx(currentLocale))
+
+  useLayoutEffect(() => {
+    if (variant !== 'select') return
+    const measure = () => {
+      const el = localeLabelMeasureRef.current
+      if (!el) {
+        setEmbedSelectWidthPx(initialEmbedLocaleSelectWidthPx(currentLocale))
+        return
+      }
+      const textW = el.getBoundingClientRect().width
+      const raw = Math.ceil(textW + 38)
+      const maxPx = Math.min(12 * 16, Math.floor(window.innerWidth * 0.34))
+      setEmbedSelectWidthPx(Math.min(Math.max(raw, 48), maxPx))
+    }
+    measure()
+    window.addEventListener('resize', measure, { passive: true })
+    return () => window.removeEventListener('resize', measure)
+  }, [variant, currentLocale])
+
   const setLocale = (locale: WebLocale) => {
     if (locale === currentLocale) return
     const maxAge = 31536000
@@ -371,24 +414,37 @@ function GuestChatLocaleSwitches({
   }
 
   if (variant === 'select') {
+    // Native <select>: reliable inside embedded iframes (Radix portal/popper often fails taps vs OS picker).
     return (
-      <div className="relative z-[1] w-[min(100%,9.5rem)] shrink-0 pointer-events-auto">
-        <Select
+      <div className="relative z-[100] inline-block w-fit max-w-[min(100%,12rem)] shrink-0 pointer-events-auto touch-manipulation">
+        <span
+          ref={localeLabelMeasureRef}
+          className="pointer-events-none absolute left-0 top-0 whitespace-nowrap font-sans text-xs font-semibold leading-none [visibility:hidden]"
+          aria-hidden
+        >
+          {GUEST_CHAT_LOCALE_SHORT[currentLocale]}
+        </span>
+        <select
+          className="box-border h-8 min-w-0 max-w-full cursor-pointer appearance-none rounded-md border border-input bg-background py-1 pl-2 pr-7 font-sans text-xs font-semibold leading-none shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            width: embedSelectWidthPx,
+            maxWidth: 'min(100%, 12rem)',
+          }}
           value={currentLocale}
           disabled={pending}
-          onValueChange={(v) => setLocale(v as WebLocale)}
+          onChange={(e) => setLocale(e.target.value as WebLocale)}
+          aria-label="Language"
         >
-          <SelectTrigger className="h-8 w-full min-w-[7rem] px-2 text-xs font-semibold" aria-label="Language">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent position="popper" side="bottom" align="end" sideOffset={4} className="z-[300] max-h-64">
-            {WEB_LOCALES.map((locale) => (
-              <SelectItem key={locale} value={locale} className="text-xs font-medium">
-                {GUEST_CHAT_LOCALE_SHORT[locale]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {WEB_LOCALES.map((locale) => (
+            <option key={locale} value={locale}>
+              {GUEST_CHAT_LOCALE_SHORT[locale]}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-50"
+          aria-hidden
+        />
       </div>
     )
   }
@@ -2518,7 +2574,7 @@ export function PartnerGuestChatClient({
       <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-background rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md">
         <h1 className="sr-only">{shopDisplayName}</h1>
         {isEmbedUi ? (
-          <div className="relative z-10 flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/35 px-3 py-2 pointer-events-auto">
+          <div className="relative z-[100] flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/35 px-3 py-2 pointer-events-auto touch-manipulation">
             <p className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">{shopDisplayName}</p>
             <div className="flex shrink-0 items-center gap-2">
               <GuestChatLocaleSwitches currentLocale={uiLocale} slug={slug} variant="select" />

@@ -36,7 +36,7 @@
     var side = getAttr('data-side', 'right') === 'left' ? 'left' : 'right'
     var bottom = num(getAttr('data-bottom', '24'), 24, 0, 800)
     var offsetX = num(getAttr('data-offset-x', '16'), 16, 0, 300)
-    var desktopWidth = num(getAttr('data-width', '380'), 380, 280, 1200)
+    var desktopWidth = num(getAttr('data-width', '340'), 340, 280, 1200)
     var desktopHeight = num(getAttr('data-height', '560'), 560, 320, 1200)
     var radius = num(getAttr('data-radius', '12'), 12, 0, 60)
     var mobileBreakpoint = num(getAttr('data-mobile-breakpoint', '768'), 768, 320, 1600)
@@ -222,9 +222,10 @@
         iframe = document.createElement('iframe')
         iframe.src = nextSrc
         iframe.title = 'Chat NanoAI'
-        iframe.loading = 'lazy'
+        iframe.loading = 'eager'
         iframe.referrerPolicy = 'no-referrer-when-downgrade'
-        iframe.style.cssText = 'width:100%;height:100%;border:0;pointer-events:auto;'
+        iframe.style.cssText =
+          'width:100%;height:100%;border:0;pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;'
         body.appendChild(iframe)
         return
       }
@@ -301,7 +302,7 @@
         }
         panel.style.top = 'auto'
         panel.style.bottom = panelBottom + 'px'
-        panel.style.width = 'min(40vw,' + desktopWidth + 'px)'
+        panel.style.width = 'min(34vw,' + desktopWidth + 'px)'
         panel.style.height = finalHeight + 'px'
       }
       panel.style.borderRadius = radius + 'px'
