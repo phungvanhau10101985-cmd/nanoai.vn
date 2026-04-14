@@ -25,6 +25,12 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import {
   CustomerCareMessageBody,
   type OrderPaymentProofSlot,
 } from '@/components/messaging/customer-care-message-body'
@@ -360,20 +366,44 @@ function GuestChatLocaleSwitches({
   currentLocale,
   slug,
   variant = 'buttons',
+  embedTouchSheet = false,
 }: {
   currentLocale: WebLocale
   slug: string
   /** `select`: gọn cho khung nhúng (iframe). */
   variant?: 'buttons' | 'select'
+  /**
+   * Nhúng (`embed=1`): trên cảm ứng / iframe hẹp, `<select>` trong iframe thường không mở được (iOS Safari).
+   * Khi bật: dùng nút + bottom sheet thay cho native select.
+   */
+  embedTouchSheet?: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [embedLocaleSheetOpen, setEmbedLocaleSheetOpen] = useState(false)
+  /** Nhúng: mặc định ưu tiên sheet (tránh <select> iframe iOS); layout effect có thể chuyển sang native select nếu khung rất rộng + chuột. */
+  const [useEmbedLocaleSheet, setUseEmbedLocaleSheet] = useState(() => embedTouchSheet)
   /** Đo độ rộng nhãn đang chọn — native <select> mặc định rộng theo option dài nhất nếu không ép width. */
   const localeLabelMeasureRef = useRef<HTMLSpanElement>(null)
   const [embedSelectWidthPx, setEmbedSelectWidthPx] = useState(() => initialEmbedLocaleSelectWidthPx(currentLocale))
 
   useLayoutEffect(() => {
-    if (variant !== 'select') return
+    if (variant !== 'select' || !embedTouchSheet) return
+    const pick = () => {
+      if (typeof window === 'undefined') return true
+      const w = window.innerWidth
+      const coarse = window.matchMedia('(pointer: coarse)').matches
+      const touch = (navigator.maxTouchPoints ?? 0) > 0
+      return w <= 900 || coarse || touch
+    }
+    setUseEmbedLocaleSheet(pick())
+    const onResize = () => setUseEmbedLocaleSheet(pick())
+    window.addEventListener('resize', onResize, { passive: true })
+    return () => window.removeEventListener('resize', onResize)
+  }, [variant, embedTouchSheet])
+
+  useLayoutEffect(() => {
+    if (variant !== 'select' || embedTouchSheet) return
     const measure = () => {
       const el = localeLabelMeasureRef.current
       if (!el) {
@@ -388,7 +418,7 @@ function GuestChatLocaleSwitches({
     measure()
     window.addEventListener('resize', measure, { passive: true })
     return () => window.removeEventListener('resize', measure)
-  }, [variant, currentLocale])
+  }, [variant, embedTouchSheet, currentLocale])
 
   const setLocale = (locale: WebLocale) => {
     if (locale === currentLocale) return
@@ -413,8 +443,53 @@ function GuestChatLocaleSwitches({
     })()
   }
 
+  if (variant === 'select' && embedTouchSheet && useEmbedLocaleSheet) {
+    return (
+      <>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={pending}
+          className="relative z-[100] h-8 shrink-0 gap-1 px-2 font-sans text-xs font-semibold touch-manipulation"
+          aria-label="Language"
+          aria-haspopup="dialog"
+          aria-expanded={embedLocaleSheetOpen}
+          onClick={() => setEmbedLocaleSheetOpen(true)}
+        >
+          <span className="max-w-[6.5rem] truncate">{GUEST_CHAT_LOCALE_SHORT[currentLocale]}</span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+        </Button>
+        <Sheet open={embedLocaleSheetOpen} onOpenChange={setEmbedLocaleSheetOpen}>
+          <SheetContent side="bottom" highZIndex className="z-[500] max-h-[min(85dvh,520px)] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle className="text-left text-base">Language</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4 grid gap-2 pb-2">
+              {WEB_LOCALES.map((locale) => (
+                <Button
+                  key={locale}
+                  type="button"
+                  variant={locale === currentLocale ? 'default' : 'outline'}
+                  disabled={pending}
+                  className="h-12 w-full justify-center text-base font-semibold"
+                  onClick={() => {
+                    setEmbedLocaleSheetOpen(false)
+                    setLocale(locale)
+                  }}
+                >
+                  {GUEST_CHAT_LOCALE_SHORT[locale]}
+                </Button>
+              ))}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </>
+    )
+  }
+
   if (variant === 'select') {
-    // Native <select>: reliable inside embedded iframes (Radix portal/popper often fails taps vs OS picker).
+    // Desktop / chuột: native <select> gọn; trong iframe hẹp + cảm ứng dùng nhánh sheet ở trên.
     return (
       <div className="relative z-[100] inline-block w-fit max-w-[min(100%,12rem)] shrink-0 pointer-events-auto touch-manipulation">
         <span
@@ -2577,7 +2652,12 @@ export function PartnerGuestChatClient({
           <div className="relative z-[100] flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/35 px-3 py-2 pointer-events-auto touch-manipulation">
             <p className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">{shopDisplayName}</p>
             <div className="flex shrink-0 items-center gap-2">
-              <GuestChatLocaleSwitches currentLocale={uiLocale} slug={slug} variant="select" />
+              <GuestChatLocaleSwitches
+                currentLocale={uiLocale}
+                slug={slug}
+                variant="select"
+                embedTouchSheet={isEmbedUi}
+              />
               <Button
                 type="button"
                 variant="outline"
