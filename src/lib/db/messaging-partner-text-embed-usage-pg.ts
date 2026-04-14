@@ -85,10 +85,10 @@ export async function fetchMessagingPartnerTextEmbedStatsBySourceFromPg(
         coalesce(sum(u.total_tokens), 0)::bigint as sum_total_tokens
       from public.messaging_partner_text_embed_usage u
       where u.partner_id = $1::uuid
-        and u.created_at >= $2::timestamptz
+        ${embedCreatedAtRangeSql('u')}
       group by u.source
       order by u.source asc`,
-      [partnerId, sinceIso]
+      [partnerId, sinceIso, untilIsoExclusive ?? null]
     )
     return rows.map((r) => ({
       source: (r.source === 'customer_query' ? 'customer_query' : 'inventory_sync') as PartnerTextEmbedSource,
