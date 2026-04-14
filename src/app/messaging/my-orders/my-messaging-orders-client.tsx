@@ -1,13 +1,19 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { WidgetOrderListRow } from '@/lib/db/messaging-partner-orders-pg'
 import { guestFacingOrderRef } from '@/lib/messaging/widget-order-ref-display'
-import { ArrowLeft, Package } from 'lucide-react'
+import { ArrowLeft, History, Package } from 'lucide-react'
 
 type T = Dictionary['messagingMyOrders']
 
@@ -118,6 +124,14 @@ export function MyMessagingOrdersClient({
   )
 }
 
+type OrderEventApiRow = {
+  id: string
+  title: string
+  detail: string
+  source: string
+  created_at: string
+}
+
 function OrderRow({
   row,
   t,
@@ -127,6 +141,41 @@ function OrderRow({
   t: T
   highlight: boolean
 }) {
+  const [timelineOpen, setTimelineOpen] = useState(false)
+  const [timelineEvents, setTimelineEvents] = useState<OrderEventApiRow[]>([])
+  const [timelineLoading, setTimelineLoading] = useState(false)
+  const [timelineError, setTimelineError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!timelineOpen) return
+    let cancelled = false
+    setTimelineLoading(true)
+    setTimelineError(null)
+    void (async () => {
+      try {
+        const res = await fetch(`/api/messaging/my-orders/${encodeURIComponent(row.id)}/events`)
+        const data = (await res.json()) as { rows?: OrderEventApiRow[]; error?: string }
+        if (cancelled) return
+        if (!res.ok) {
+          setTimelineError(data?.error || t.timelineLoadFailed)
+          setTimelineEvents([])
+          return
+        }
+        setTimelineEvents(Array.isArray(data.rows) ? data.rows : [])
+      } catch {
+        if (!cancelled) {
+          setTimelineError(t.timelineLoadFailed)
+          setTimelineEvents([])
+        }
+      } finally {
+        if (!cancelled) setTimelineLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [timelineOpen, row.id, t.timelineLoadFailed])
+
   const ref = useRef<HTMLLIElement>(null)
   useEffect(() => {
     if (!highlight) return
@@ -150,6 +199,8 @@ function OrderRow({
   const paid = Math.max(0, Math.round(row.paid_amount))
   const due = Math.max(0, Math.round(row.required_amount))
   const subtotal = Math.max(0, Math.round(row.subtotal_amount))
+  const balanceOnDelivery =
+    row.status === 'cancelled' ? 0 : Math.max(0, subtotal - paid)
   const unit = Math.max(0, Math.round(row.unit_price))
   const addr = row.shipping_address.trim()
   const note = row.note.trim()
@@ -255,6 +306,20 @@ function OrderRow({
                   <span className="font-medium tabular-nums text-emerald-800 dark:text-emerald-300">{formatVnd(paid)}</span>
                 </p>
               ) : null}
+              {row.status !== 'cancelled' ? (
+                <p>
+                  <span className="text-muted-foreground">{t.balanceOnDeliveryLabel}: </span>
+                  <span
+                    className={
+                      balanceOnDelivery > 0
+                        ? 'font-semibold tabular-nums text-amber-900 dark:text-amber-200'
+                        : 'font-medium tabular-nums text-muted-foreground'
+                    }
+                  >
+                    {formatVnd(balanceOnDelivery)}
+                  </span>
+                </p>
+              ) : null}
             </div>
             {meaningfulText(addr) ? (
               <div className="border-t border-border/40 pt-2">
@@ -269,11 +334,51 @@ function OrderRow({
               </div>
             ) : null}
           </dl>
-          {slug ? (
-            <Button asChild className="w-full sm:w-auto" variant="default">
-              <Link href={`/messaging/p/${encodeURIComponent(slug)}`}>{t.openChat}</Link>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setTimelineOpen(true)}
+            >
+              <History className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+              {t.viewTimelineButton}
             </Button>
-          ) : null}
+            {slug ? (
+              <Button asChild className="w-full sm:w-auto" variant="default">
+                <Link href={`/messaging/p/${encodeURIComponent(slug)}`}>{t.openChat}</Link>
+              </Button>
+            ) : null}
+          </div>
+          <Dialog open={timelineOpen} onOpenChange={setTimelineOpen}>
+            <DialogContent className="max-h-[min(85vh,560px)] max-w-lg overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{t.timelineTitle}</DialogTitle>
+              </DialogHeader>
+              {timelineLoading ? (
+                <p className="text-sm text-muted-foreground">…</p>
+              ) : timelineError ? (
+                <p className="text-sm text-destructive">{timelineError}</p>
+              ) : timelineEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t.timelineEmpty}</p>
+              ) : (
+                <ul className="space-y-3">
+                  {timelineEvents.map((e) => (
+                    <li key={e.id} className="rounded-md border border-border/60 p-2.5">
+                      <p className="text-sm font-semibold leading-snug">{e.title}</p>
+                      {e.detail ? (
+                        <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{e.detail}</p>
+                      ) : null}
+                      <p className="mt-1.5 text-[10px] text-muted-foreground">
+                        {e.created_at ? new Date(e.created_at).toLocaleString() : ''}
+                        {e.source ? ` · ${e.source}` : ''}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
     </li>

@@ -894,8 +894,14 @@ export type Dictionary = {
     depositPctLabel: string
     amountDueLabel: string
     paidRecordedLabel: string
+    /** Còn lại phải trả khi nhận hàng ≈ tổng đơn − đã ghi nhận */
+    balanceOnDeliveryLabel: string
     shipToLabel: string
     productPhotoAlt: string
+    viewTimelineButton: string
+    timelineTitle: string
+    timelineLoadFailed: string
+    timelineEmpty: string
   }
   footer: {
     platformTitle: string
@@ -2648,8 +2654,13 @@ const VI_DICTIONARY: Dictionary = {
     depositPctLabel: 'Tỷ lệ cọc',
     amountDueLabel: 'Cần thanh toán (cọc)',
     paidRecordedLabel: 'Đã thanh toán',
+    balanceOnDeliveryLabel: 'Cần thanh toán khi nhận hàng (còn lại)',
     shipToLabel: 'Giao đến',
     productPhotoAlt: 'Ảnh sản phẩm đã đặt',
+    viewTimelineButton: 'Xem timeline đơn hàng',
+    timelineTitle: 'Timeline đơn hàng',
+    timelineLoadFailed: 'Không tải được lịch sử đơn.',
+    timelineEmpty: 'Chưa có sự kiện nào.',
   },
   footer: {
     platformTitle: 'NanoAI Platform',
@@ -4404,8 +4415,13 @@ const EN_DICTIONARY: Dictionary = {
     depositPctLabel: 'Deposit',
     amountDueLabel: 'Due now (deposit)',
     paidRecordedLabel: 'Paid',
+    balanceOnDeliveryLabel: 'Due on delivery (remaining)',
     shipToLabel: 'Ship to',
     productPhotoAlt: 'Ordered product',
+    viewTimelineButton: 'Order timeline',
+    timelineTitle: 'Order timeline',
+    timelineLoadFailed: 'Could not load order history.',
+    timelineEmpty: 'No events yet.',
   },
   footer: {
     platformTitle: 'NanoAI Platform',
@@ -6144,8 +6160,13 @@ const ZH_DICTIONARY: Dictionary = {
     depositPctLabel: '定金比例',
     amountDueLabel: '应付定金',
     paidRecordedLabel: '已付金额',
+    balanceOnDeliveryLabel: '收货时需付（尾款）',
     shipToLabel: '收货地址',
     productPhotoAlt: '所购商品图',
+    viewTimelineButton: '订单时间线',
+    timelineTitle: '订单时间线',
+    timelineLoadFailed: '无法加载订单记录。',
+    timelineEmpty: '暂无事件。',
   },
   meetingRecorder: {
     cardTitle: '会议录音 → AI 纪要',
@@ -7857,8 +7878,13 @@ const JA_DICTIONARY: Dictionary = {
     depositPctLabel: '手付け率',
     amountDueLabel: 'お支払い額（手付け）',
     paidRecordedLabel: '支払済み',
+    balanceOnDeliveryLabel: '受取時のお支払い（残額）',
     shipToLabel: 'お届け先',
     productPhotoAlt: '注文商品画像',
+    viewTimelineButton: '注文タイムライン',
+    timelineTitle: '注文タイムライン',
+    timelineLoadFailed: '履歴を読み込めませんでした。',
+    timelineEmpty: 'イベントはまだありません。',
   },
   navGroup: {
     try_on: '試着・コーデ',
@@ -9593,8 +9619,13 @@ const KO_DICTIONARY: Dictionary = {
     depositPctLabel: '계약금 비율',
     amountDueLabel: '결제할 금액(계약금)',
     paidRecordedLabel: '결제 완료 금액',
+    balanceOnDeliveryLabel: '수령 시 추가 결제(잔액)',
     shipToLabel: '배송지',
     productPhotoAlt: '주문 상품 이미지',
+    viewTimelineButton: '주문 타임라인',
+    timelineTitle: '주문 타임라인',
+    timelineLoadFailed: '주문 기록을 불러오지 못했습니다.',
+    timelineEmpty: '이벤트가 없습니다.',
   },
   navGroup: {
     try_on: '가상 피팅·스타일링',

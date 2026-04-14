@@ -1080,3 +1080,45 @@ export async function fetchPartnerOrderEventsForOwnerFromPg(input: {
     return null
   }
 }
+
+/** Lịch sử đơn — khách đã liên kết tài khoản (cùng nguồn «Đơn hàng của tôi»). */
+export async function fetchPartnerOrderEventsForLinkedUserFromPg(input: {
+  linkedUserId: string
+  orderId: string
+  limit?: number
+}): Promise<PartnerOrderEventRow[] | null> {
+  if (!isPgConfigured()) return null
+  const uid = String(input.linkedUserId ?? '').trim()
+  const oid = String(input.orderId ?? '').trim()
+  if (!uid || !oid) return null
+  const lim = Math.max(10, Math.min(200, Math.floor(Number(input.limit) || 80)))
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `select e.id::text, e.order_id::text, e.event_type, e.title, e.detail, e.source, e.created_by, e.created_at
+       from public.messaging_partner_order_events e
+       join public.messaging_partner_orders o on o.id = e.order_id
+       join public.customer_care_conversations c on c.id = o.conversation_id
+       join public.messaging_partners mp on mp.id = o.partner_id
+       where c.channel = 'widget'
+         and c.linked_user_id = $1::uuid
+         and e.order_id = $2::uuid
+         and coalesce(mp.is_active, true) = true
+       order by e.created_at desc
+       limit $3`,
+      [uid, oid, lim]
+    )
+    return rows.map((r) => ({
+      id: String(r.id),
+      order_id: String(r.order_id),
+      event_type: String(r.event_type ?? ''),
+      title: String(r.title ?? ''),
+      detail: String(r.detail ?? ''),
+      source: String(r.source ?? ''),
+      created_by: String(r.created_by ?? ''),
+      created_at: String(r.created_at ?? ''),
+    }))
+  } catch (e) {
+    console.warn('[fetchPartnerOrderEventsForLinkedUserFromPg]', e)
+    return null
+  }
+}
