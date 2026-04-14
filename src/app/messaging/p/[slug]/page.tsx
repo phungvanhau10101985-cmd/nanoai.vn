@@ -64,7 +64,19 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
   })
 }
 
-export default async function PartnerGuestChatPage(props: { params: Promise<{ slug: string }> }) {
+function firstSearchParam(
+  sp: Record<string, string | string[] | undefined>,
+  key: string
+): string {
+  const v = sp[key]
+  if (Array.isArray(v)) return String(v[0] ?? '').trim()
+  return String(v ?? '').trim()
+}
+
+export default async function PartnerGuestChatPage(props: {
+  params: Promise<{ slug: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>
+}) {
   const { slug } = await props.params
   if (isReservedMessagingGuestSlug(slug)) notFound()
 
@@ -81,14 +93,25 @@ export default async function PartnerGuestChatPage(props: { params: Promise<{ sl
         ).items
       : []
 
+  const rawSp = props.searchParams
+  const sp = rawSp
+    ? await (rawSp instanceof Promise ? rawSp : Promise.resolve(rawSp))
+    : {}
+  const urlNorm = normalizeWebLocale(firstSearchParam(sp, 'ui_locale'))
+
   const cookieLocale = getCurrentWebLocale()
   let uiLocale: WebLocale = cookieLocale
+
+  let dbNorm: WebLocale | null = null
   if (isPgConfigured()) {
     const extId = await resolveGuestExternalThreadIdFromCookies()
     const dbRaw = await fetchGuestWidgetUiLocaleForPartnerFromPg(partner.id, extId)
-    const dbNorm = normalizeWebLocale(dbRaw ?? '')
-    if (dbNorm) uiLocale = dbNorm
+    dbNorm = normalizeWebLocale(dbRaw ?? '')
   }
+
+  /** Trong iframe site khách, cookie locale thường không tin cậy — ưu tiên `?ui_locale=` rồi DB rồi cookie. */
+  if (urlNorm) uiLocale = urlNorm
+  else if (dbNorm) uiLocale = dbNorm
   const dict = getDictionary(uiLocale)
   const guestPurchaseFlow = await fetchGuestPurchaseFlowForPartnerFromPg(partner.id)
 

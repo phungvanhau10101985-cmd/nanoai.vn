@@ -218,7 +218,9 @@
     function ensureIframe(ctx) {
       var nextCtx = ctx || extractPageContext()
       pageContext = nextCtx
-      var nextSrc = buildChatUrlWithContext(chatUrl, nextCtx)
+      // Giữ `ui_locale` (và query khác) sau khi khách đổi ngôn ngữ trong iframe — không ghi đè bằng data-chat-url gốc.
+      var baseForBuild = iframe && iframe.src ? iframe.src : chatUrl
+      var nextSrc = buildChatUrlWithContext(baseForBuild, nextCtx)
       if (!iframe) {
         iframe = document.createElement('iframe')
         iframe.src = nextSrc

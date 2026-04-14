@@ -446,7 +446,13 @@ function GuestChatLocaleSwitches({
         // Cookie vẫn đổi — UI refresh; metadata có thể cập nhật ở tin sau
       }
       startTransition(() => {
-        router.refresh()
+        if (typeof window !== 'undefined') {
+          const u = new URL(window.location.href)
+          u.searchParams.set('ui_locale', locale)
+          router.replace(`${u.pathname}${u.search}${u.hash}`)
+        } else {
+          router.refresh()
+        }
       })
     })()
   }
