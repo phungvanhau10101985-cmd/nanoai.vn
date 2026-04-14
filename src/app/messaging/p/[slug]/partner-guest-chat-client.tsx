@@ -335,7 +335,16 @@ const GUEST_CHAT_LOCALE_SHORT: Record<WebLocale, string> = {
 }
 
 /** Đổi cookie locale, đồng bộ `metadata.ui_locale` hội thoại (tin hệ thống/AI đúng ngôn ngữ), rồi refresh. */
-function GuestChatLocaleSwitches({ currentLocale, slug }: { currentLocale: WebLocale; slug: string }) {
+function GuestChatLocaleSwitches({
+  currentLocale,
+  slug,
+  variant = 'buttons',
+}: {
+  currentLocale: WebLocale
+  slug: string
+  /** `select`: gọn cho khung nhúng (iframe). */
+  variant?: 'buttons' | 'select'
+}) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const setLocale = (locale: WebLocale) => {
@@ -360,9 +369,33 @@ function GuestChatLocaleSwitches({ currentLocale, slug }: { currentLocale: WebLo
       })
     })()
   }
+
+  if (variant === 'select') {
+    return (
+      <div className="relative z-[1] w-[min(100%,9.5rem)] shrink-0 pointer-events-auto">
+        <Select
+          value={currentLocale}
+          disabled={pending}
+          onValueChange={(v) => setLocale(v as WebLocale)}
+        >
+          <SelectTrigger className="h-8 w-full min-w-[7rem] px-2 text-xs font-semibold" aria-label="Language">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent position="popper" side="bottom" align="end" sideOffset={4} className="z-[300] max-h-64">
+            {WEB_LOCALES.map((locale) => (
+              <SelectItem key={locale} value={locale} className="text-xs font-medium">
+                {GUEST_CHAT_LOCALE_SHORT[locale]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    )
+  }
+
   return (
     <div
-      className="flex flex-wrap items-center justify-end gap-0.5 rounded-md border border-border/50 bg-background/80 p-0.5"
+      className="relative z-[1] flex flex-wrap items-center justify-end gap-0.5 rounded-md border border-border/50 bg-background/80 p-0.5 pointer-events-auto"
       role="group"
       aria-label="Language"
     >
@@ -2485,10 +2518,10 @@ export function PartnerGuestChatClient({
       <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-background rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md">
         <h1 className="sr-only">{shopDisplayName}</h1>
         {isEmbedUi ? (
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/35 px-3 py-2">
+          <div className="relative z-10 flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/35 px-3 py-2 pointer-events-auto">
             <p className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">{shopDisplayName}</p>
             <div className="flex shrink-0 items-center gap-2">
-              <GuestChatLocaleSwitches currentLocale={uiLocale} slug={slug} />
+              <GuestChatLocaleSwitches currentLocale={uiLocale} slug={slug} variant="select" />
               <Button
                 type="button"
                 variant="outline"

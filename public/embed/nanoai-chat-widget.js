@@ -105,7 +105,7 @@
 
     var header = document.createElement('div')
     header.style.cssText =
-      'height:44px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;padding:0 10px;'
+      'height:44px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;padding:0 10px;pointer-events:auto;'
     header.innerHTML = '<div style="font-weight:700;font-size:15px;color:#111">NanoAI</div>'
     panel.appendChild(header)
 
@@ -134,7 +134,7 @@
     header.appendChild(headerActions)
 
     var body = document.createElement('div')
-    body.style.cssText = 'width:100%;height:calc(100% - 44px);'
+    body.style.cssText = 'width:100%;height:calc(100% - 44px);pointer-events:auto;'
     panel.appendChild(body)
 
     var iframe = null
@@ -224,7 +224,7 @@
         iframe.title = 'Chat NanoAI'
         iframe.loading = 'lazy'
         iframe.referrerPolicy = 'no-referrer-when-downgrade'
-        iframe.style.cssText = 'width:100%;height:100%;border:0;'
+        iframe.style.cssText = 'width:100%;height:100%;border:0;pointer-events:auto;'
         body.appendChild(iframe)
         return
       }
@@ -344,6 +344,10 @@
     function applyLayout() {
       if (window.innerWidth <= mobileBreakpoint) placeMobile()
       else placeDesktop()
+      // Host root uses pointer-events:none so clicks pass through empty areas; panel/iframe must stay clickable (some browsers need this reinforced after layout).
+      panel.style.pointerEvents = 'auto'
+      body.style.pointerEvents = 'auto'
+      if (iframe) iframe.style.pointerEvents = 'auto'
     }
     function onResize() {
       if (resizeTimer) window.clearTimeout(resizeTimer)
