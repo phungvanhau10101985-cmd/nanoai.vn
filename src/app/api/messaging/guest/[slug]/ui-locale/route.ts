@@ -27,11 +27,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   }
 
   let effectiveExternalThreadId = identity.externalThreadId
-  let effectiveGuestAccountId = identity.guestAccountId
   if (identity.user?.id) {
     const accountId = await upsertGuestAccountForGoogleIdentity(active.id, request, identity.user)
     if (accountId) {
-      effectiveGuestAccountId = accountId
       effectiveExternalThreadId = accountId
     }
   }

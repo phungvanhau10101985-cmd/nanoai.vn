@@ -45,7 +45,6 @@ import {
   Plug,
   RefreshCw,
   Share2,
-  Sparkles,
   Trash2,
   Upload,
 } from 'lucide-react'
