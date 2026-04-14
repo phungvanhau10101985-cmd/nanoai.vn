@@ -729,6 +729,86 @@ export type PartnerOrderAdminRow = PartnerOrderRow & {
   latest_proof_reason: string | null
 }
 
+/** Tổng hợp đơn chat (cùng bộ lọc workspace + trạng thái với danh sách; không giới hạn 200 dòng). */
+export type PartnerOrderOwnerStats = {
+  orderCount: number
+  countAwaitingPayment: number
+  countPaymentChecking: number
+  countPaidVerified: number
+  countPendingManual: number
+  countCancelled: number
+  sumSubtotalVnd: number
+  sumRequiredVnd: number
+  sumPaidVnd: number
+  /** Đơn chưa hủy: max(0, subtotal − paid) */
+  sumOutstandingVnd: number
+}
+
+export async function fetchPartnerOrderStatsForOwnerFromPg(input: {
+  ownerUserId: string
+  partnerId?: string | null
+  status?: string | null
+}): Promise<PartnerOrderOwnerStats | null> {
+  if (!isPgConfigured()) return null
+  const status = String(input.status ?? '').trim()
+  const partnerId = String(input.partnerId ?? '').trim()
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `select count(*)::int as order_count,
+              count(*) filter (where o.status = 'awaiting_payment')::int as c_awaiting,
+              count(*) filter (where o.status = 'payment_checking')::int as c_checking,
+              count(*) filter (where o.status = 'paid_verified')::int as c_paid,
+              count(*) filter (where o.status = 'pending_manual_review')::int as c_manual,
+              count(*) filter (where o.status = 'cancelled')::int as c_cancelled,
+              coalesce(sum(o.subtotal_amount), 0)::double precision as sum_subtotal,
+              coalesce(sum(o.required_amount), 0)::double precision as sum_required,
+              coalesce(sum(o.paid_amount), 0)::double precision as sum_paid,
+              coalesce(sum(
+                case
+                  when o.status = 'cancelled' then 0::numeric
+                  else greatest(0::numeric, coalesce(o.subtotal_amount, 0) - coalesce(o.paid_amount, 0))
+                end
+              ), 0)::double precision as sum_outstanding
+       from public.messaging_partner_orders o
+       join public.messaging_partners mp on mp.id = o.partner_id and mp.owner_user_id = $1::uuid
+       where ($2::uuid is null or o.partner_id = $2::uuid)
+         and ($3 = '' or o.status = $3)`,
+      [input.ownerUserId, partnerId || null, status]
+    )
+    if (!row) {
+      return {
+        orderCount: 0,
+        countAwaitingPayment: 0,
+        countPaymentChecking: 0,
+        countPaidVerified: 0,
+        countPendingManual: 0,
+        countCancelled: 0,
+        sumSubtotalVnd: 0,
+        sumRequiredVnd: 0,
+        sumPaidVnd: 0,
+        sumOutstandingVnd: 0,
+      }
+    }
+    const rnd = (k: string) => Math.round(Number(row[k]) || 0)
+    const rni = (k: string) => Math.max(0, Math.floor(Number(row[k]) || 0))
+    return {
+      orderCount: rni('order_count'),
+      countAwaitingPayment: rni('c_awaiting'),
+      countPaymentChecking: rni('c_checking'),
+      countPaidVerified: rni('c_paid'),
+      countPendingManual: rni('c_manual'),
+      countCancelled: rni('c_cancelled'),
+      sumSubtotalVnd: rnd('sum_subtotal'),
+      sumRequiredVnd: rnd('sum_required'),
+      sumPaidVnd: rnd('sum_paid'),
+      sumOutstandingVnd: rnd('sum_outstanding'),
+    }
+  } catch (e) {
+    console.warn('[fetchPartnerOrderStatsForOwnerFromPg]', e)
+    return null
+  }
+}
+
 function mapOrderAdminRow(r: Record<string, unknown>): PartnerOrderAdminRow {
   return {
     ...mapOrderRow(r),

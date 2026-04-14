@@ -81,12 +81,15 @@ export default async function PartnerGuestChatPage(props: { params: Promise<{ sl
   const { t } = getServerDictionary()
   const guestPurchaseFlow = await fetchGuestPurchaseFlowForPartnerFromPg(partner.id)
 
+  const uiLocale = getCurrentWebLocale()
+
   return (
     <>
       <Toaster />
       <PartnerGuestChatClient
         slug={slug}
         shopDisplayName={partner.display_name}
+        uiLocale={uiLocale}
         t={t.partnerGuestChat}
         orderDetailT={t.messagingMyOrders}
         initialChatList={chatList}

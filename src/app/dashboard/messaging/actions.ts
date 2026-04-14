@@ -42,6 +42,7 @@ import {
 } from '@/lib/db/vision-warehouse-runner-pg'
 import {
   fetchConversationFullForPartnerFromPg,
+  fetchConversationUiLocaleFromPg,
   fetchPartnerConversationsFromPg,
   insertMessagePg,
   listPartnerMessagesBundleFromPg,
@@ -90,12 +91,11 @@ import {
   fetchPartnerLogoCreditRowsInRangeFromPg,
 } from '@/lib/db/partner-owner-credit-ledger-pg'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
-import type { Database } from '@/types/database.types'
+import type { Database, Json } from '@/types/database.types'
 import { sendFacebookMessengerImageUrl, sendFacebookMessengerText } from '@/lib/customer-care/facebook-messenger'
 import { sendZaloOaText } from '@/lib/customer-care/zalo-oa'
 import { cancelPendingAiJobsForConversation } from '@/lib/messaging/partner-ai-inbound'
 import { countActivePartnerAiJobsForConversationFromPg } from '@/lib/db/messaging-partner-ai-jobs-pg'
-import type { Json } from '@/types/database.types'
 import {
   buildPartnerMediaPayload,
   isPartnerMessagingStoragePathForPartner,
@@ -105,6 +105,7 @@ import {
 import { getTryOnPublicUrlFromPath, tryOnObjectExistsByPath } from '@/lib/storage/try-on-public-upload'
 import { validateInventoryImageUrl } from '@/lib/messaging/partner-inventory-excel'
 import { parseTriggerKeywords } from '@/lib/messaging/partner-ai-faq'
+import { translateFaqAnswerToAllLocales } from '@/lib/messaging/partner-faq-i18n-deepseek'
 import {
   isPartnerFaqPresetKey,
   PARTNER_FAQ_CUSTOM_KEYWORDS_REQUIRED,
@@ -114,6 +115,8 @@ import {
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
 import { isValidUuidString } from '@/lib/validate-uuid'
+import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
+import { formatShippingUpdateChatBodyForCustomer } from '@/lib/messaging/order-customer-notify-i18n'
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
@@ -127,8 +130,10 @@ import {
   fetchPartnerPaymentSettingsFromPg,
   fetchPartnerOrdersForOwnerFromPg,
   fetchPartnerOrdersForOwnerExportFromPg,
+  fetchPartnerOrderStatsForOwnerFromPg,
   insertPartnerOrderEventFromPg,
   type PartnerOrderAdminRow,
+  type PartnerOrderOwnerStats,
   type PartnerOrderEventRow,
   upsertPartnerPaymentSettingsFromPg,
   fetchPartnerOrderForOwnerFromPg,
@@ -456,20 +461,31 @@ export async function listMyMessagingOrders(input?: {
   partnerId?: string
   status?: string
   limit?: number
-}): Promise<{ rows: PartnerOrderAdminRow[] } | { error: string }> {
+}): Promise<{ rows: PartnerOrderAdminRow[]; stats: PartnerOrderOwnerStats } | { error: string }> {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
   const { user } = auth
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
-  const rows = await fetchPartnerOrdersForOwnerFromPg({
-    ownerUserId: user.id,
-    partnerId: input?.partnerId?.trim() || null,
-    status: input?.status?.trim() || '',
-    limit: input?.limit,
-  })
-  if (rows === null) return { error: 'Khong tai duoc don hang.' }
-  return { rows }
+  const partnerId = input?.partnerId?.trim() || null
+  const status = input?.status?.trim() || ''
+  const [rows, stats] = await Promise.all([
+    fetchPartnerOrdersForOwnerFromPg({
+      ownerUserId: user.id,
+      partnerId,
+      status,
+      limit: input?.limit,
+    }),
+    fetchPartnerOrderStatsForOwnerFromPg({
+      ownerUserId: user.id,
+      partnerId,
+      status,
+    }),
+  ])
+  if (rows === null || stats === null) return { error: 'Khong tai duoc don hang.' }
+  return { rows, stats }
 }
+
+export type { PartnerOrderOwnerStats }
 
 /** Xuất tất cả đơn khớp bộ lọc (workspace + trạng thái) ra file .xlsx — tối đa theo biến môi trường / 50k dòng. */
 export async function exportMyMessagingOrdersExcel(input?: {
@@ -570,20 +586,29 @@ export async function updateMyMessagingOrderShipping(input: {
     source: 'shop',
     createdBy: user.id,
   })
+  const customerLocaleRaw = await fetchConversationUiLocaleFromPg(updated.conversation_id)
+  const customerLocale = normalizeWebLocale(customerLocaleRaw ?? '') ?? DEFAULT_WEB_LOCALE
+  const outboundOrderBody = formatShippingUpdateChatBodyForCustomer({
+    locale: customerLocale,
+    paymentReference: updated.payment_reference,
+    shippingStatus: input.shippingStatus,
+    shopNote: note || undefined,
+  })
   await insertMessagePg({
     conversationId: updated.conversation_id,
     direction: 'outbound',
-    body: `Cap nhat don ${updated.payment_reference}: trang thai giao hang la "${input.shippingStatus}".`,
+    body: outboundOrderBody,
     rawPayload: {
       source: 'system_order',
       order_id: updated.id,
       order_status: updated.status,
       order_shipping_status: input.shippingStatus,
       order_note: note,
+      customer_ui_locale: customerLocale,
     },
   })
   try {
-    await emailCustomerShippingStatusChanged({ order: updated })
+    await emailCustomerShippingStatusChanged({ order: updated, customerLocale: customerLocaleRaw })
   } catch (e) {
     console.warn('[updateMyMessagingOrderShipping] customer email', e)
   }
@@ -1724,11 +1749,13 @@ export async function upsertPartnerFaq(
   }
   const now = new Date().toISOString()
   const title = fields.custom_title.trim()
+  const answerI18n: Json = fields.answer.trim() ? await translateFaqAnswerToAllLocales(fields.answer) : {}
   if (faqId) {
     const ok = await updateMessagingPartnerFaqByIdFromPg(partnerId, faqId, {
       custom_title: title,
       trigger_keywords: fields.trigger_keywords,
       answer: fields.answer,
+      answer_i18n: answerI18n,
       sort_order: fields.sort_order,
       is_active: fields.is_active,
       updated_at: now,
@@ -1741,6 +1768,7 @@ export async function upsertPartnerFaq(
       custom_title: title,
       trigger_keywords: fields.trigger_keywords,
       answer: fields.answer,
+      answer_i18n: answerI18n,
       sort_order: fields.sort_order,
       is_active: fields.is_active,
       created_at: now,
@@ -1787,10 +1815,13 @@ export async function savePartnerFaqPreset(
     return { ok: true as const }
   }
 
+  const answerI18n: Json = answer ? await translateFaqAnswerToAllLocales(answer) : {}
+
   if (existingId) {
     const ok = await updateMessagingPartnerFaqPresetRowFromPg(partnerId, existingId, {
       custom_title: customTitle,
       answer,
+      answer_i18n: answerI18n,
       is_active: fields.is_active,
       sort_order: sortOrder,
       preset_key: presetKey,
@@ -1804,6 +1835,7 @@ export async function savePartnerFaqPreset(
       custom_title: customTitle,
       trigger_keywords: '',
       answer,
+      answer_i18n: answerI18n,
       sort_order: sortOrder,
       is_active: fields.is_active,
       created_at: now,

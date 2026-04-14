@@ -2,7 +2,8 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import type { ChangeEvent, ClipboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,12 @@ import {
 } from '@/lib/messaging/consult-product-scope-key'
 import { useToast } from '@/hooks/use-toast'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import {
+  LOCALE_COOKIE_NAME,
+  LOCALE_COOKIE_NAME_LEGACY,
+  WEB_LOCALES,
+  type WebLocale,
+} from '@/lib/i18n/config'
 import type { Json } from '@/types/database.types'
 import {
   Camera,
@@ -319,9 +326,67 @@ function formatCredits(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
+const GUEST_CHAT_LOCALE_SHORT: Record<WebLocale, string> = {
+  vi: 'VI',
+  en: 'EN',
+  zh: '中文',
+  ja: '日本語',
+  ko: '한국어',
+}
+
+/** Đổi cookie locale, đồng bộ `metadata.ui_locale` hội thoại (tin hệ thống/AI đúng ngôn ngữ), rồi refresh. */
+function GuestChatLocaleSwitches({ currentLocale, slug }: { currentLocale: WebLocale; slug: string }) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const setLocale = (locale: WebLocale) => {
+    if (locale === currentLocale) return
+    const maxAge = 31536000
+    const tail = `; path=/; max-age=${maxAge}; samesite=lax`
+    document.cookie = `${LOCALE_COOKIE_NAME}=${locale}${tail}`
+    document.cookie = `${LOCALE_COOKIE_NAME_LEGACY}=${locale}${tail}`
+    void (async () => {
+      try {
+        await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/ui-locale`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uiLocale: locale }),
+        })
+      } catch {
+        // Cookie vẫn đổi — UI refresh; metadata có thể cập nhật ở tin sau
+      }
+      startTransition(() => {
+        router.refresh()
+      })
+    })()
+  }
+  return (
+    <div
+      className="flex flex-wrap items-center justify-end gap-0.5 rounded-md border border-border/50 bg-background/80 p-0.5"
+      role="group"
+      aria-label="Language"
+    >
+      {WEB_LOCALES.map((locale) => (
+        <Button
+          key={locale}
+          type="button"
+          variant={locale === currentLocale ? 'default' : 'ghost'}
+          size="sm"
+          disabled={pending}
+          onClick={() => setLocale(locale)}
+          className="h-7 min-w-[1.75rem] px-1.5 text-[10px] font-semibold"
+        >
+          {GUEST_CHAT_LOCALE_SHORT[locale]}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
 export function PartnerGuestChatClient({
   slug,
   shopDisplayName,
+  uiLocale,
   t,
   orderDetailT,
   initialChatList = [],
@@ -329,6 +394,8 @@ export function PartnerGuestChatClient({
 }: {
   slug: string
   shopDisplayName: string
+  /** Ngôn ngữ UI khách (cookie trang) — gửi kèm API để tin hệ thống đơn đúng ngôn ngữ. */
+  uiLocale: WebLocale
   t: T
   /** Nhãn cho modal «Đơn hàng» trong khung nhúng (không cần đăng nhập NanoAI). */
   orderDetailT: Dictionary['messagingMyOrders']
@@ -1170,11 +1237,11 @@ export function PartnerGuestChatClient({
     if (intent !== 'purchase') {
       setBuyOptionsOpen(false)
       const sku = (card.sku ?? '').trim().slice(0, 128)
-      const skuBit = sku ? ` Mã/SKU: ${sku}.` : ''
+      const skuPart = sku ? t.productConsultSkuPart.replace('{sku}', sku) : ''
       const ask =
         intent === 'shipping_policy'
-          ? `Mình quan tâm mẫu này: ${label}.${skuBit} Shop tư vấn giúp mình chính sách vận chuyển, phí ship và thời gian giao nhé.`
-          : `Mình quan tâm mẫu này: ${label}.${skuBit} Shop tư vấn chi tiết giúp mình nhé.`
+          ? t.productConsultAskShipping.replace('{name}', label).replace('{skuPart}', skuPart)
+          : t.productConsultAskDetail.replace('{name}', label).replace('{skuPart}', skuPart)
       const imageUrl = (card.image_url ?? '').trim()
       const pageContext: {
         sku?: string
@@ -1191,7 +1258,7 @@ export function PartnerGuestChatClient({
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify({ text: ask, pageContext }),
+          body: JSON.stringify({ text: ask, pageContext, uiLocale }),
         })
         captureGuestSessionFromResponse(res)
         captureGuestAccountFromResponse(res)
@@ -1950,6 +2017,7 @@ export function PartnerGuestChatClient({
                   .join('\n')
               : undefined),
           imageStoragePath: imageStoragePath || undefined,
+          uiLocale,
           pageContext:
             !contextSeededRef.current && pageContextRef.current
               ? {
@@ -2419,19 +2487,26 @@ export function PartnerGuestChatClient({
         {isEmbedUi ? (
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/35 px-3 py-2">
             <p className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">{shopDisplayName}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 shrink-0 gap-1 border-violet-300/80 bg-violet-50/90 px-2.5 text-xs font-medium text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55"
-              onClick={() => setEmbedMyOrdersOpen(true)}
-              title={orderDetailT.pageTitle}
-            >
-              <Package className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="max-w-[9.5rem] truncate sm:max-w-none">{orderDetailT.pageTitle}</span>
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <GuestChatLocaleSwitches currentLocale={uiLocale} slug={slug} />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 gap-1 border-violet-300/80 bg-violet-50/90 px-2.5 text-xs font-medium text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55"
+                onClick={() => setEmbedMyOrdersOpen(true)}
+                title={orderDetailT.pageTitle}
+              >
+                <Package className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="max-w-[9.5rem] truncate sm:max-w-none">{orderDetailT.pageTitle}</span>
+              </Button>
+            </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="flex shrink-0 justify-end border-b border-border/60 bg-muted/25 px-3 py-1.5">
+            <GuestChatLocaleSwitches currentLocale={uiLocale} slug={slug} />
+          </div>
+        )}
         <CardContent className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-0">
           <div className="relative flex min-h-0 flex-1 flex-col">
           <div

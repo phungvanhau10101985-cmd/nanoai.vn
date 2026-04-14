@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Download, RefreshCw } from 'lucide-react'
+import { Banknote, ClipboardList, Download, Layers, PiggyBank, Receipt, RefreshCw, Wallet } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
@@ -16,6 +16,7 @@ import {
   listMyMessagingOrders,
   updateMyMessagingOrderShipping,
   updateMyMessagingOrderStatus,
+  type PartnerOrderOwnerStats,
 } from '@/app/dashboard/messaging/actions'
 
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
@@ -99,6 +100,7 @@ export function PartnerMessagingOrdersClient({ initialPartners }: { initialPartn
   const [noteByOrder, setNoteByOrder] = useState<Record<string, string>>({})
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [eventsByOrder, setEventsByOrder] = useState<Record<string, OrderEventRow[]>>({})
+  const [stats, setStats] = useState<PartnerOrderOwnerStats | null>(null)
 
   const loadOrders = () => {
     startTransition(async () => {
@@ -111,7 +113,10 @@ export function PartnerMessagingOrdersClient({ initialPartners }: { initialPartn
         toast({ title: res.error, variant: 'destructive' })
         return
       }
-      if ('rows' in res) setRows((res.rows ?? []) as unknown as OrderRow[])
+      if ('rows' in res && 'stats' in res) {
+        setRows((res.rows ?? []) as unknown as OrderRow[])
+        setStats(res.stats)
+      }
     })
   }
 
@@ -260,6 +265,80 @@ export function PartnerMessagingOrdersClient({ initialPartners }: { initialPartn
           </Button>
         </CardContent>
       </Card>
+
+      {stats ? (
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Layers className="h-5 w-5 text-violet-600" aria-hidden />
+              Tóm tắt theo bộ lọc (workspace + trạng thái)
+            </CardTitle>
+            <CardDescription>
+              Toàn bộ đơn khớp bộ lọc (không giới hạn 200 dòng như danh sách bên dưới). Ô tìm nhanh chỉ lọc trên trang, không đổi các số này.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <ClipboardList className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Số đơn
+                </div>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{stats.orderCount.toLocaleString('vi-VN')}</p>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Tổng tiền hàng
+                </div>
+                <p className="mt-1 text-lg font-semibold tabular-nums leading-snug">{money(stats.sumSubtotalVnd)}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Tổng giá trị đơn (subtotal)</p>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-muted/25 p-3">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <PiggyBank className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Tiền cọc / khoản yêu cầu
+                </div>
+                <p className="mt-1 text-lg font-semibold tabular-nums leading-snug">{money(stats.sumRequiredVnd)}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Theo cấu hình từng đơn</p>
+              </div>
+              <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
+                <div className="flex items-center gap-2 text-xs font-medium text-emerald-800 dark:text-emerald-200">
+                  <Wallet className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Đã thu (ghi nhận)
+                </div>
+                <p className="mt-1 text-lg font-semibold tabular-nums text-emerald-900 dark:text-emerald-100">{money(stats.sumPaidVnd)}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Khách đã chuyển / hệ thống ghi nhận</p>
+              </div>
+              <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+                <div className="flex items-center gap-2 text-xs font-medium text-amber-900 dark:text-amber-100">
+                  <Banknote className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Còn phải thu (ước tính)
+                </div>
+                <p className="mt-1 text-lg font-semibold tabular-nums">{money(stats.sumOutstandingVnd)}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Đơn chưa hủy: max(0, tiền hàng − đã thu)</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 rounded-lg border border-dashed border-border/80 bg-muted/15 px-3 py-2 text-[11px] text-muted-foreground">
+              <span>
+                Chờ thanh toán: <strong className="text-foreground">{stats.countAwaitingPayment}</strong>
+              </span>
+              <span>
+                Đang đối soát: <strong className="text-foreground">{stats.countPaymentChecking}</strong>
+              </span>
+              <span>
+                Đã xác nhận TT: <strong className="text-foreground">{stats.countPaidVerified}</strong>
+              </span>
+              <span>
+                Cần duyệt tay: <strong className="text-foreground">{stats.countPendingManual}</strong>
+              </span>
+              <span>
+                Đã hủy: <strong className="text-foreground">{stats.countCancelled}</strong>
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-3">

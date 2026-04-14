@@ -21,6 +21,7 @@ import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messa
 import { clampProductCardsToLastConsultedRow } from '@/lib/messaging/partner-ai-followup-product-cards-clamp'
 import { parsePartnerAiLlmStructured } from '@/lib/messaging/partner-ai-product-cards'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
+import { normalizeWebLocale } from '@/lib/i18n/config'
 
 type TriggerRawForVisionRepick = { vision_selected_inventory_id?: string }
 type TriggerRawWithVisionSelectedAt = { vision_selected_at?: string }
@@ -42,6 +43,12 @@ function getVisionSelectedAtEpochMs(raw: Json | null | undefined): number | null
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
+}
+
+function uiLocaleFromConversationMetadata(metadata: Json | null | undefined): string | null {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
+  const v = (metadata as { ui_locale?: unknown }).ui_locale
+  return typeof v === 'string' && v.trim() ? v.trim().slice(0, 24) : null
 }
 
 function typingDelayMs(settings: Database['public']['Tables']['messaging_partner_ai_settings']['Row']) {
@@ -156,7 +163,8 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       const skipTypingDelay = shouldSkipTypingDelayForJobChannel(conv.channel as string | null | undefined)
 
       const skipFaq = inboundTextHasVisionSelectionHint(inboundForAi)
-      const faq = skipFaq ? null : await findMatchingFaq(job.partner_id, inboundForAi)
+      const convUiLoc = normalizeWebLocale(uiLocaleFromConversationMetadata(conv.metadata))
+      const faq = skipFaq ? null : await findMatchingFaq(job.partner_id, inboundForAi, { locale: convUiLoc })
       if (faq) {
         if (!skipTypingDelay) await sleep(typingDelayMs(settings))
         const rawFaq = { source: 'ai_faq', faq_id: faq.id } as unknown as Json
@@ -189,7 +197,11 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         job.conversation_id,
         settings,
         inboundForAi,
-        triggerFull.raw_payload
+        triggerFull.raw_payload,
+        {
+          channel: conv.channel as string | null | undefined,
+          uiLocale: convUiLoc,
+        }
       )
       const llm = await deepseekPartnerChat(system, user)
       if (llm.error || !llm.text) {

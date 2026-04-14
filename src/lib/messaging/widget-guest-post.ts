@@ -21,8 +21,10 @@ import {
 } from '@/lib/messaging/partner-inventory-ai-search'
 import {
   countInboundMessagesForConversationPg,
+  mergeConversationUiLocaleFromPg,
   resolveLinkedUserIdForCustomerCarePg,
 } from '@/lib/db/customer-care-pg'
+import { normalizeWebLocale } from '@/lib/i18n/config'
 import { fetchMessagingPartnerAiEnabledFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import { fetchPartnerInventoryPriceHintsByIdsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -54,6 +56,8 @@ export async function postWidgetGuestMessage(params: {
   guestAccountId?: string | null
   customerName: string
   metadata: Json
+  /** Ngôn ngữ giao diện khách (vi/en/zh/ja/ko) — lưu vào metadata hội thoại để tin hệ thống đơn hàng đúng ngôn ngữ. */
+  uiLocale?: string | null
   text?: string
   imageStoragePath?: string
   pageContext?: {
@@ -234,7 +238,8 @@ export async function postWidgetGuestMessage(params: {
           if (fromPg !== null) aiEnabled = fromPg.enabled
         }
         if (aiEnabled) {
-          const faq = await findMatchingFaq(params.partnerId, trimmedText)
+          const faqUiLoc = normalizeWebLocale(String(params.uiLocale ?? '').trim())
+          const faq = await findMatchingFaq(params.partnerId, trimmedText, { locale: faqUiLoc })
           if (!faq) {
             const embedQuery = buildInventoryEmbeddingQueryWithGenderHint(trimmedText)
             const rowsRaw = await fetchInventoryRowsBySemanticTextForPartnerAi(
@@ -300,6 +305,11 @@ export async function postWidgetGuestMessage(params: {
   if ('error' in conv) return { error: conv.error ?? 'Conversation error.' }
   const conversationId = conv.conversationId
   if (!conversationId) return { error: 'Conversation failed.' }
+
+  const locNorm = normalizeWebLocale(String(params.uiLocale ?? '').trim())
+  if (locNorm) {
+    await mergeConversationUiLocaleFromPg(conversationId, locNorm)
+  }
 
   if (!linkedUserId && !params.guestAccountId) {
     let inboundCount: number | null = null
@@ -368,6 +378,8 @@ export async function postWidgetGuestMessage(params: {
         inboundBody: inboundForAi,
         channel: 'widget',
         skipEagerBatchRun: true,
+        /** Đã merge vào DB — dùng để bỏ FAQ tiếng Việt khi khách chọn UI khác `vi`. */
+        widgetUiLocale: locNorm ?? null,
       })
       if (hint.show) shopTyping = { maxWaitMs: hint.maxWaitMs }
     }

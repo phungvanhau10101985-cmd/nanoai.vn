@@ -171,6 +171,47 @@ export async function insertMessagePg(params: {
   return { ok: true as const, messageId: row.id }
 }
 
+/** Ghi đè / cập nhật `metadata.ui_locale` (ngôn ngữ giao diện khách đang dùng trên trang chat). */
+export async function mergeConversationUiLocaleFromPg(conversationId: string, uiLocale: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const id = conversationId.trim()
+  const loc = uiLocale.trim().slice(0, 24)
+  if (!id || !loc) return false
+  try {
+    const res = await getPgPool().query(
+      `update public.customer_care_conversations
+       set metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object('ui_locale', $2::text),
+           updated_at = now()
+       where id = $1::uuid`,
+      [id, loc]
+    )
+    return (res.rowCount ?? 0) > 0
+  } catch (e) {
+    console.warn('[mergeConversationUiLocaleFromPg]', e)
+    return false
+  }
+}
+
+export async function fetchConversationUiLocaleFromPg(conversationId: string): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  const id = conversationId.trim()
+  if (!id) return null
+  try {
+    const row = await pgQueryOne<{ ui_locale: string | null }>(
+      `select metadata->>'ui_locale' as ui_locale
+       from public.customer_care_conversations
+       where id = $1::uuid
+       limit 1`,
+      [id]
+    )
+    const v = row?.ui_locale?.trim()
+    return v || null
+  } catch (e) {
+    console.warn('[fetchConversationUiLocaleFromPg]', e)
+    return null
+  }
+}
+
 export type WidgetConvListPgRow = {
   id: string
   partner_id: string

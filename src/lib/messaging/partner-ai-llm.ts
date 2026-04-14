@@ -1,5 +1,13 @@
 import type { Database, Json } from '@/types/database.types'
-import { fetchCustomerCareTranscriptLinesFromPg } from '@/lib/db/customer-care-pg'
+import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
+import {
+  fetchConversationUiLocaleFromPg,
+  fetchCustomerCareTranscriptLinesFromPg,
+} from '@/lib/db/customer-care-pg'
+import {
+  buildPartnerAiWarehouseVndPricingNote,
+  shouldMarkInventoryPricesAsVndForAi,
+} from '@/lib/messaging/partner-ai-currency-context'
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -54,10 +62,15 @@ function colorHintsFromInventoryRow(r: InvRow): string {
 }
 
 /** Gói cho AI: câu hỏi khách + mã SKU, tên, giá, màu (từ kho — đúng SP AI/shop vừa tư vấn gần nhất). */
-function followUpConsultationSnapshotBlock(message: string, row: InvRow): string {
+function followUpConsultationSnapshotBlock(
+  message: string,
+  row: InvRow,
+  options?: { markPricesAsVnd?: boolean }
+): string {
   const sku = row.sku?.trim() || '(chưa ghi mã SKU trong kho)'
   const name = row.name?.trim() || '(chưa có tên trong kho)'
   const price = row.price_hint?.trim() || '(chưa ghi giá trong kho)'
+  const priceLabel = options?.markPricesAsVnd ? 'Giá (kho, đơn vị VNĐ / ₫)' : 'Giá (kho)'
   const colors = colorLabelsFromInventoryRow(row)
   const colorLine = colors
     ? colors
@@ -68,20 +81,22 @@ function followUpConsultationSnapshotBlock(message: string, row: InvRow): string
 Câu hỏi của khách: ${message}
 - Mã SKU (kho): ${sku}
 - Tên (kho): ${name}
-- Giá (kho): ${price}
+- ${priceLabel}: ${price}
 - Màu sắc (kho — trích từ tên/mô tả/ghi chú): ${colorLine}
 Trả lời bám đúng bốn dòng trên và dòng kho chi tiết; không gợi ý carousel mẫu khác khi khách chỉ hỏi thuộc tính mẫu này.`
 }
 
 function formatInventoryLines(
-  rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][]
+  rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][],
+  options?: { markPricesAsVnd?: boolean }
 ): string {
   if (!rows.length) return '(Chưa có mặt hàng nào trong danh sách kho.)'
+  const priceKey = options?.markPricesAsVnd ? 'Giá (đơn vị VNĐ / ₫)' : 'Giá'
   return rows
     .map((r, i) => {
       const sku = r.sku?.trim() ? ` [Mã/SKU: ${r.sku.trim()}]` : ''
       const stock = r.stock_note?.trim() ? ` | Tồn kho: ${r.stock_note.trim()}` : ''
-      const price = r.price_hint?.trim() ? ` | Giá: ${r.price_hint.trim()}` : ''
+      const price = r.price_hint?.trim() ? ` | ${priceKey}: ${r.price_hint.trim()}` : ''
       const desc = r.description?.trim() ? ` — Thông số/mô tả: ${r.description.trim()}` : ''
       const img = r.image_url?.trim()
         ? ` | Ảnh chính sản phẩm (URL — nguồn duy nhất để tạo ảnh chi tiết chất liệu và ảnh đời thường/góc tự nhiên): ${r.image_url.trim()}`
@@ -120,12 +135,90 @@ function selectedInventoryIdFromTrigger(raw: Json | null | undefined): string | 
   return typeof v === 'string' && v.trim() ? v.trim() : null
 }
 
+/** Tên ngôn ngữ đích (tiếng Anh) — neo model + banner thống nhất cho mọi locale. */
+const WIDGET_TARGET_LANG_EN: Record<WebLocale, string> = {
+  vi: 'Vietnamese',
+  en: 'English',
+  zh: 'Simplified Chinese',
+  ja: 'Japanese',
+  ko: 'Korean',
+}
+
+/**
+ * Đoạn đầu system theo từng locale — cùng một vai trò: đặt ngôn ngữ đích cho JSON `message` (không ưu tiên locale nào hơn locale nào).
+ * Widget + thiếu locale → fallback tiếng Việt như trước.
+ */
+const WIDGET_SYSTEM_OPENING: Record<WebLocale, string> = {
+  vi:
+    'Bạn là trợ lý chat của một cửa hàng trên nền tảng NanoAI. Khách đang dùng giao diện chat bằng tiếng Việt — trả lời **toàn bộ** nội dung trong trường `message` của JSON bằng tiếng Việt. Giữ tên/mã/URL sản phẩm khớp dữ liệu kho khi cần. Không đổi sang ngôn ngữ khác trừ khi khách yêu cầu rõ trong tin này.',
+  en:
+    'You are the in-chat assistant for a store on the NanoAI platform. The customer’s chosen UI language is **English** — write the entire JSON `message` field in **English** only. Warehouse lines may contain non-English product names; explain to the customer in English.',
+  zh:
+    '你是 NanoAI 平台上店铺的内嵌聊天助手。顾客选择的界面语言是**简体中文** — JSON 中发给顾客的 `message` 必须**全文使用简体中文**。库存原文可能含其他语言，仅作事实参考；向顾客说明时请用简体中文。',
+  ja:
+    'あなたは NanoAI 上の店舗向けチャットアシスタントです。お客様が選んだ UI 言語は**日本語**です。JSON の `message` は**日本語のみ**でお客様向けに全文を書いてください。在庫行の表記が混在していても、説明は日本語で。',
+  ko:
+    '당신은 NanoAI 플랫폼 매장용 채팅 어시스턴트입니다. 고객이 선택한 UI 언어는 **한국어**입니다. JSON `message`는 **한국어로만** 고객에게 전체 작성합니다. 재고 줄에 다른 언어가 섞여 있어도 안내는 한국어로 합니다.',
+}
+
+function partnerAiOpeningLanguageLine(opts?: {
+  channel?: string | null
+  uiLocale?: string | null
+}): string {
+  if (String(opts?.channel || '').trim().toLowerCase() !== 'widget') {
+    return 'Bạn là trợ lý chat của một cửa hàng trên nền tảng NanoAI. Trả lời bằng tiếng Việt trừ khi khách dùng ngôn ngữ khác thì theo ngôn ngữ khách.'
+  }
+  const loc = normalizeWebLocale(opts?.uiLocale ?? null) ?? 'vi'
+  return WIDGET_SYSTEM_OPENING[loc] ?? WIDGET_SYSTEM_OPENING.vi
+}
+
+/** Một dòng neo tiếng Anh — cùng công thức cho mọi locale đích (kể cả vi không dùng). */
+function partnerAiWidgetTargetRoutingLine(opts?: { channel?: string | null; uiLocale?: string | null }): string {
+  if (String(opts?.channel || '').trim().toLowerCase() !== 'widget') return ''
+  const loc = normalizeWebLocale(opts?.uiLocale ?? null)
+  if (!loc || loc === 'vi') return ''
+  const name = WIDGET_TARGET_LANG_EN[loc]
+  return `\n(Routing — read first) Customer UI locale: **${loc}**. Target language for JSON \`message\` to the customer: **${name}**. Policy/inventory text below may be Vietnamese or mixed — use as data only; write \`message\` entirely in **${name}** (not Vietnamese), unless the UI locale is Vietnamese.`
+}
+
+/**
+ * Đầu prompt user — cùng cấu trúc cho mọi ngôn ngữ đích (chỉ đổi mã + tên đích).
+ */
+function partnerAiUserPromptOutputLanguageBanner(opts?: { channel?: string | null; uiLocale?: string | null }): string {
+  if (String(opts?.channel || '').trim().toLowerCase() !== 'widget') return ''
+  const loc = normalizeWebLocale(opts?.uiLocale ?? null)
+  if (!loc || loc === 'vi') return ''
+  const name = WIDGET_TARGET_LANG_EN[loc]
+  return `[REQUIRED OUTPUT LANGUAGE: ${name} (UI=${loc})]
+Write the JSON "message" field **entirely in ${name}** for the customer. Warehouse lines below may be Vietnamese or mixed — treat as source facts; paraphrase advice and explanations only in **${name}**.
+
+`
+}
+
+async function resolvePartnerAiLocaleOpts(
+  conversationId: string,
+  localeOpts?: { channel?: string | null; uiLocale?: string | null }
+): Promise<{ channel?: string | null; uiLocale?: string | null } | undefined> {
+  if (!localeOpts || String(localeOpts.channel || '').trim().toLowerCase() !== 'widget') return localeOpts
+  if (normalizeWebLocale(localeOpts.uiLocale ?? null)) return localeOpts
+  if (!isPgConfigured() || !conversationId.trim()) return localeOpts
+  try {
+    const raw = await fetchConversationUiLocaleFromPg(conversationId)
+    const n = normalizeWebLocale(raw ?? null)
+    if (n) return { ...localeOpts, uiLocale: n }
+  } catch {
+    /* ignore */
+  }
+  return localeOpts
+}
+
 export async function buildPartnerAiContext(
   partnerId: string,
   conversationId: string,
   settings: SettingsRow,
   latestCustomerMessage: string,
-  triggerRawPayload?: Json | null
+  triggerRawPayload?: Json | null,
+  localeOpts?: { channel?: string | null; uiLocale?: string | null }
 ): Promise<{
   system: string
   user: string
@@ -137,6 +230,9 @@ export async function buildPartnerAiContext(
   /** Hỏi mẫu tương tự — không clamp thẻ về đúng một SKU. */
   similarCatalogVersusLastConsulted: boolean
 }> {
+  const effectiveLocaleOpts = await resolvePartnerAiLocaleOpts(conversationId, localeOpts)
+  const invFmtOpts = { markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts) }
+
   let explicitSkuRows = await fetchInventoryRowsByExplicitSku(partnerId, latestCustomerMessage)
   const selectedInventoryId = selectedInventoryIdFromTrigger(triggerRawPayload)
 
@@ -284,7 +380,7 @@ export async function buildPartnerAiContext(
   }
 
   if (selectedRowForEnrich) {
-    selectedRowBlock = `\n\nMặt hàng khách đã CHỌN từ danh sách ảnh gợi ý (ưu tiên cao nhất, chỉ tư vấn theo hàng này nếu không có yêu cầu đổi mẫu):\n${formatInventoryLines([selectedRowForEnrich])}
+    selectedRowBlock = `\n\nMặt hàng khách đã CHỌN từ danh sách ảnh gợi ý (ưu tiên cao nhất, chỉ tư vấn theo hàng này nếu không có yêu cầu đổi mẫu):\n${formatInventoryLines([selectedRowForEnrich], invFmtOpts)}
 
 Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng cách **nêu ưu điểm / giá trị cho khách** — tự tin hơn, chỉn chu, tôn dáng, gọn gàng, phù hợp dịp mặc, dễ phối đồ… — diễn giải từ đúng các trường trong dòng kho (tên, mô tả, ghi chú tư vấn, chất liệu/kiểu nếu có); không chỉ đọc máy mã/giá. Không bịa công dụng y tế hay hứa hiệu quả tuyệt đối.`
   }
@@ -328,7 +424,7 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 - Nhấn mạnh giá trị (phù hợp dáng, dịp mặc, chất liệu) thay vì ép mua; tránh nhiều câu hỏi trong một tin — tối đa một lời mở / gợi ý nhẹ, không xếp hàng nhiều câu hỏi.
 - Không hứa giảm giá hay khuyến mãi ngoài chính sách đã cho.${salesShopBlock}`
 
-  const system = `Bạn là trợ lý chat của một cửa hàng trên nền tảng NanoAI. Trả lời bằng tiếng Việt trừ khi khách dùng ngôn ngữ khác thì theo ngôn ngữ khách.
+  const system = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
 ${policy}
@@ -352,14 +448,14 @@ Giọng tư vấn **mở, nhẹ**: làm rõ lo lắng / nhu cầu của khách t
 
   const explicitSkuBlock = explicitSkuRows.length
     ? `\n\nCác mặt hàng khớp chính xác mã/SKU khách vừa nhắn (ưu tiên kiểm tra nhóm này trước):
-${formatInventoryLines(explicitSkuRows)}`
+${formatInventoryLines(explicitSkuRows, invFmtOpts)}`
     : ''
 
   const inventoryFollowupAugmented = useLastConsultedContext
   const conversationFocusBlock =
     inventoryFollowupAugmented && lastConsultedRow && !similarCatalogVersusLastConsulted
       ? `\n\n[Ngữ cảnh bắt buộc — tin khách gần như chắc chắn là hỏi tiếp về mặt hàng này, không phải tìm sản phẩm mới]
-${formatInventoryLines([lastConsultedRow])}
+${formatInventoryLines([lastConsultedRow], invFmtOpts)}
 Trả lời đúng theo **toàn bộ** dòng kho trên: tên, mô tả, ghi chú, và dòng «Màu sắc (trích từ tên/mô tả/ghi chú kho)» nếu có — đó là nguồn màu đúng cho câu «có màu gì» / «còn màu nào» (không đoán ngoài kho).
 Trong JSON: **products** chỉ được **không quá 1** phần tử — nếu cần thẻ thì **chỉ** đúng mặt hàng trên (copy name/image_url/product_url/price_hint/sku từ dòng kho). **Cấm** điền nhiều mẫu, **cấm** carousel gợi ý mẫu khác. Trong **message** không được bảo khách «chọn sản phẩm», «chọn mẫu ưng ý», hay như thể khách chưa đang xem sản phẩm nào — khách đang hỏi tiếp về đúng mẫu này. Chỉ để products = [] nếu không cần gửi lại thẻ (trả lời thuần chữ đủ).`
       : ''
@@ -370,7 +466,7 @@ Trong JSON: **products** chỉ được **không quá 1** phần tử — nếu 
     customerMessageIsFollowUpContextQuery(latestCustomerMessage, {
       visionInventorySelected: Boolean(selectedInventoryId) && !followUpStyleMessage,
     })
-      ? followUpConsultationSnapshotBlock(latestCustomerMessage, lastConsultedRow)
+      ? followUpConsultationSnapshotBlock(latestCustomerMessage, lastConsultedRow, invFmtOpts)
       : ''
 
   const userInventoryPreamble = followUpSingleProductNoVector
@@ -386,7 +482,7 @@ Dưới đây là **toàn bộ dữ liệu kho** của **một** sản phẩm �
 
 `
 
-  const user = `${userInventoryPreamble}${formatInventoryLines(invForContext)}
+  const user = `${partnerAiUserPromptOutputLanguageBanner(effectiveLocaleOpts)}${buildPartnerAiWarehouseVndPricingNote(effectiveLocaleOpts)}${userInventoryPreamble}${formatInventoryLines(invForContext, invFmtOpts)}
 ${explicitSkuBlock}
 ${selectedRowBlock}
 

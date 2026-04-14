@@ -104,6 +104,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const body = (await request.json().catch(() => null)) as {
     text?: string
     imageStoragePath?: string
+    /** Ngôn ngữ UI khách (vi | en | zh | ja | ko) — đồng bộ tin hệ thống đơn hàng. */
+    uiLocale?: string
     pageContext?: {
       sku?: string
       imageUrl?: string
@@ -138,6 +140,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     linkedUserId: identity.linkedUserId,
     guestAccountId: effectiveGuestAccountId,
     customerName: guestCustomerName(displayName, identity.user),
+    uiLocale: typeof body?.uiLocale === 'string' ? body.uiLocale : undefined,
     metadata: {
       source: 'hosted_chat_page',
       auth_mode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',

@@ -1,5 +1,6 @@
 import type { Json } from '@/types/database.types'
 import {
+  fetchConversationUiLocaleFromPg,
   fetchGuestWidgetConversationIdFromPg,
   fetchCustomerCareMessageByIdForConversationPg,
   updateCustomerCareMessageRawPayloadPg,
@@ -7,6 +8,7 @@ import {
 import { isPgConfigured } from '@/lib/db/pool'
 import { cancelPendingAiJobsForConversation, handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
+import { normalizeWebLocale } from '@/lib/i18n/config'
 
 type GuestMessageVisionPayload = {
   vision_candidates?: Array<{
@@ -105,6 +107,14 @@ export async function executeGuestVisionPick(input: {
   // Ensure stale pending jobs are removed before scheduling the selected-product reply.
   await cancelPendingAiJobsForConversation(msg.conversation_id)
 
+  let widgetUiLocale: string | null = null
+  try {
+    const raw = await fetchConversationUiLocaleFromPg(msg.conversation_id)
+    widgetUiLocale = normalizeWebLocale(raw ?? null)
+  } catch {
+    widgetUiLocale = null
+  }
+
   const hint = await handlePartnerInboundForAi({
     partnerId,
     conversationId: msg.conversation_id,
@@ -113,6 +123,7 @@ export async function executeGuestVisionPick(input: {
     channel: 'widget',
     // Vision pick is a confirmed user action; run immediately and bypass burst merge delay.
     scheduleAiAfterSeconds: 0,
+    widgetUiLocale,
   })
 
   return {

@@ -1,5 +1,5 @@
 import type { Database, Json } from '@/types/database.types'
-import { fetchCustomerCareConversationByIdPg } from '@/lib/db/customer-care-pg'
+import { fetchConversationUiLocaleFromPg, fetchCustomerCareConversationByIdPg } from '@/lib/db/customer-care-pg'
 import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import {
   cancelPendingAiJobsForConversationPg,
@@ -11,6 +11,7 @@ import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
 import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-image'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
+import { normalizeWebLocale } from '@/lib/i18n/config'
 
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 
@@ -87,6 +88,8 @@ export async function handlePartnerInboundForAi(input: {
   capReplyDelaySeconds?: number
   scheduleAiAfterSeconds?: number
   skipEagerBatchRun?: boolean
+  /** Widget: locale vừa merge (vi/en/…) — chọn bản FAQ trong `answer_i18n`. */
+  widgetUiLocale?: string | null
 }): Promise<PartnerInboundShopTypingHint> {
   if (input.channel === 'internal') return { show: false }
 
@@ -96,7 +99,16 @@ export async function handlePartnerInboundForAi(input: {
     if (!settings?.enabled) return { show: false }
 
     const skipFaq = inboundTextHasVisionSelectionHint(input.inboundBody)
-    const faq = skipFaq ? null : await findMatchingFaq(input.partnerId, input.inboundBody)
+    let faqLocale = normalizeWebLocale(input.widgetUiLocale ?? null)
+    if (input.channel === 'widget' && faqLocale === null && isPgConfigured()) {
+      try {
+        const raw = await fetchConversationUiLocaleFromPg(input.conversationId)
+        faqLocale = normalizeWebLocale(raw ?? null)
+      } catch {
+        faqLocale = null
+      }
+    }
+    const faq = skipFaq ? null : await findMatchingFaq(input.partnerId, input.inboundBody, { locale: faqLocale })
     if (faq) {
       const fastWidgetReply = input.channel === 'widget'
       void runInstantFaq({

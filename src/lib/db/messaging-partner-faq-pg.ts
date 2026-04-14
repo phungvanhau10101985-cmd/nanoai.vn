@@ -1,4 +1,4 @@
-import type { Database } from '@/types/database.types'
+import type { Database, Json } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
@@ -10,6 +10,7 @@ type PgFaqRaw = {
   sort_order: number | null
   trigger_keywords: string | null
   answer: string | null
+  answer_i18n: unknown
   is_active: boolean | null
   preset_key: string | null
   custom_title: string | null
@@ -31,11 +32,17 @@ function num(v: unknown, fallback = 0): number {
 const FAQ_SELECT = `select id::text, partner_id::text, sort_order,
               coalesce(trigger_keywords, '') as trigger_keywords,
               coalesce(answer, '') as answer,
+              coalesce(answer_i18n, '{}'::jsonb) as answer_i18n,
               coalesce(is_active, true) as is_active,
               preset_key,
               coalesce(custom_title, '') as custom_title,
               created_at, updated_at
        from public.messaging_partner_faq`
+
+function mapAnswerI18n(raw: unknown): Json {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw as Json
+  return {} as Json
+}
 
 function mapPgFaqRows(rows: PgFaqRaw[]): MessagingPartnerFaqRow[] {
   return rows.map((r) => ({
@@ -44,6 +51,7 @@ function mapPgFaqRows(rows: PgFaqRaw[]): MessagingPartnerFaqRow[] {
     sort_order: num(r.sort_order, 0),
     trigger_keywords: String(r.trigger_keywords ?? ''),
     answer: String(r.answer ?? ''),
+    answer_i18n: mapAnswerI18n(r.answer_i18n),
     is_active: r.is_active !== false,
     preset_key: r.preset_key ?? null,
     custom_title: String(r.custom_title ?? ''),
@@ -120,6 +128,7 @@ export async function updateMessagingPartnerFaqByIdFromPg(
     custom_title: string
     trigger_keywords: string
     answer: string
+    answer_i18n: Json
     sort_order: number
     is_active: boolean
     updated_at: string
@@ -132,9 +141,10 @@ export async function updateMessagingPartnerFaqByIdFromPg(
         custom_title = $3,
         trigger_keywords = $4,
         answer = $5,
-        sort_order = $6,
-        is_active = $7,
-        updated_at = $8::timestamptz
+        answer_i18n = $6::jsonb,
+        sort_order = $7,
+        is_active = $8,
+        updated_at = $9::timestamptz
        where id = $2::uuid and partner_id = $1::uuid`,
       [
         partnerId,
@@ -142,6 +152,7 @@ export async function updateMessagingPartnerFaqByIdFromPg(
         fields.custom_title,
         fields.trigger_keywords,
         fields.answer,
+        fields.answer_i18n,
         fields.sort_order,
         fields.is_active,
         fields.updated_at,
@@ -160,6 +171,7 @@ export async function insertMessagingPartnerFaqFromPg(fields: {
   custom_title: string
   trigger_keywords: string
   answer: string
+  answer_i18n: Json
   sort_order: number
   is_active: boolean
   created_at: string
@@ -169,14 +181,15 @@ export async function insertMessagingPartnerFaqFromPg(fields: {
   try {
     await getPgPool().query(
       `insert into public.messaging_partner_faq (
-        partner_id, preset_key, custom_title, trigger_keywords, answer, sort_order, is_active, created_at, updated_at
-      ) values ($1::uuid, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9::timestamptz)`,
+        partner_id, preset_key, custom_title, trigger_keywords, answer, answer_i18n, sort_order, is_active, created_at, updated_at
+      ) values ($1::uuid, $2, $3, $4, $5, $6::jsonb, $7, $8, $9::timestamptz, $10::timestamptz)`,
       [
         fields.partner_id,
         fields.preset_key,
         fields.custom_title,
         fields.trigger_keywords,
         fields.answer,
+        fields.answer_i18n,
         fields.sort_order,
         fields.is_active,
         fields.created_at,
@@ -196,6 +209,7 @@ export async function updateMessagingPartnerFaqPresetRowFromPg(
   fields: {
     custom_title: string
     answer: string
+    answer_i18n: Json
     is_active: boolean
     sort_order: number
     preset_key: string
@@ -208,17 +222,19 @@ export async function updateMessagingPartnerFaqPresetRowFromPg(
       `update public.messaging_partner_faq set
         custom_title = $3,
         answer = $4,
-        is_active = $5,
+        answer_i18n = $5::jsonb,
+        is_active = $6,
         trigger_keywords = '',
-        sort_order = $6,
-        preset_key = $7,
-        updated_at = $8::timestamptz
+        sort_order = $7,
+        preset_key = $8,
+        updated_at = $9::timestamptz
        where id = $2::uuid and partner_id = $1::uuid`,
       [
         partnerId,
         faqId,
         fields.custom_title,
         fields.answer,
+        fields.answer_i18n,
         fields.is_active,
         fields.sort_order,
         fields.preset_key,

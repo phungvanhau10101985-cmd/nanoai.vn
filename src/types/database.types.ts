@@ -554,6 +554,7 @@ export interface Database {
           sort_order: number
           trigger_keywords: string
           answer: string
+          answer_i18n: Json
           is_active: boolean
           preset_key: string | null
           custom_title: string
@@ -566,6 +567,7 @@ export interface Database {
           sort_order?: number
           trigger_keywords?: string
           answer: string
+          answer_i18n?: Json
           is_active?: boolean
           preset_key?: string | null
           custom_title?: string
@@ -578,6 +580,7 @@ export interface Database {
           sort_order?: number
           trigger_keywords?: string
           answer?: string
+          answer_i18n?: Json
           is_active?: boolean
           preset_key?: string | null
           custom_title?: string

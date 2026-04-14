@@ -1,4 +1,4 @@
-import type { Database } from '@/types/database.types'
+import type { Database, Json } from '@/types/database.types'
 import { fetchMessagingPartnerFaqsActiveFromPg } from '@/lib/db/messaging-partner-faq-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -7,6 +7,8 @@ import {
   presetSortOrder,
   type PartnerFaqPresetKey,
 } from '@/lib/messaging/partner-faq-presets'
+import type { WebLocale } from '@/lib/i18n/config'
+import { resolveFaqAnswerForLocale } from '@/lib/messaging/partner-faq-i18n-deepseek'
 
 export type FaqRow = Database['public']['Tables']['messaging_partner_faq']['Row']
 
@@ -44,8 +46,12 @@ function matchKeysForRow(row: FaqRow): string[] {
   return parseTriggerKeywords(row.trigger_keywords)
 }
 
-/** Trả về FAQ đầu tiên khớp (preset mẫu trước, rồi FAQ tuỳ chỉnh). Chỉ Postgres. */
-export async function findMatchingFaq(partnerId: string, customerMessage: string): Promise<FaqRow | null> {
+/** Trả về FAQ đầu tiên khớp (preset mẫu trước, rồi FAQ tuỳ chỉnh). `answer` đã chọn theo locale khách. Chỉ Postgres. */
+export async function findMatchingFaq(
+  partnerId: string,
+  customerMessage: string,
+  opts?: { locale?: WebLocale | null }
+): Promise<FaqRow | null> {
   const text = normalize(customerMessage)
   if (!text) return null
   if (!isPgConfigured()) return null
@@ -55,7 +61,10 @@ export async function findMatchingFaq(partnerId: string, customerMessage: string
   for (const row of rows) {
     const keys = matchKeysForRow(row)
     for (const k of keys) {
-      if (k && text.includes(k)) return row
+      if (k && text.includes(k)) {
+        const resolved = resolveFaqAnswerForLocale(row.answer, row.answer_i18n as Json, opts?.locale ?? null)
+        return { ...row, answer: resolved }
+      }
     }
   }
   return null

@@ -3,6 +3,8 @@ import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { sendSmtpMail } from '@/lib/email/smtp'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
+import { formatShippingStatusEmailContentForCustomer } from '@/lib/messaging/order-customer-notify-i18n'
 
 function trim(s: string, max = 240): string {
   return String(s || '')
@@ -242,29 +244,27 @@ export async function emailCustomerOrderPaymentManualReview(input: {
 
 export async function emailCustomerShippingStatusChanged(input: {
   order: PartnerOrderRow
+  /** `metadata.ui_locale` trên hội thoại widget — đồng bộ với tin chat. */
+  customerLocale?: string | null
 }): Promise<void> {
   const meta = await fetchPartnerEmailMeta(input.order.partner_id)
   const shopLabel = meta.displayName
   const to = customerEmailTo(input.order)
   if (!to) return
   const ref = trim(input.order.payment_reference, 64)
-  const label = shipVi[input.order.shipping_status] ?? input.order.shipping_status
-  const lines = [
-    `Xin chào ${trim(input.order.customer_name, 80) || 'quý khách'},`,
-    '',
-    `Trạng thái giao hàng đơn của bạn: ${label}.`,
-    `Mã đơn: ${ref}`,
-    `Sản phẩm: ${trim(input.order.product_name, 200)}`,
-    '',
-    'Bạn có thể xem lại chi tiết trong khung chat hoặc mục «Đơn hàng» trên trang chat.',
-    '',
-    'Trân trọng,',
+  const loc = normalizeWebLocale(input.customerLocale ?? '') ?? DEFAULT_WEB_LOCALE
+  const { subject, lines } = formatShippingStatusEmailContentForCustomer({
+    locale: loc,
     shopLabel,
-  ]
+    customerName: trim(input.order.customer_name, 80),
+    paymentRef: ref,
+    productName: trim(input.order.product_name, 200),
+    shippingStatus: input.order.shipping_status,
+  })
   const { text, html } = await customerMailBodyWithOrderCta(input.order, lines, meta)
   await sendSmtpMail({
     to,
-    subject: `${shopLabel} — Đơn ${ref} — cập nhật giao hàng: ${label}`,
+    subject,
     text,
     html,
   })

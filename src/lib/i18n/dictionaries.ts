@@ -757,6 +757,12 @@ export type Dictionary = {
     purchaseOpenSiteToast: string
     /** Chế độ web nhưng thiếu URL sản phẩm */
     purchaseMissingProductUrlToast: string
+    /** Chèn sau tên SP khi có mã — có khoảng trắng đầu; `{sku}` = mã */
+    productConsultSkuPart: string
+    /** Khách bấm Tư vấn — hỏi vận chuyển; `{name}` tên SP, `{skuPart}` rỗng hoặc từ productConsultSkuPart */
+    productConsultAskShipping: string
+    /** Khách bấm Tư vấn — hỏi chi tiết SP */
+    productConsultAskDetail: string
   }
   /** /messaging/my-chats — danh sách shop đã chat (tài khoản Google) */
   messagingMyChats: {
@@ -2427,6 +2433,10 @@ const VI_DICTIONARY: Dictionary = {
     visionVideoCloseAria: 'Đóng video',
     purchaseOpenSiteToast: 'Đã mở trang đặt hàng trên website shop trong tab mới.',
     purchaseMissingProductUrlToast: 'Mẫu này chưa có link trang sản phẩm — shop vui lòng thêm URL trong kho.',
+    productConsultSkuPart: ' Mã/SKU: {sku}.',
+    productConsultAskShipping:
+      'Mình quan tâm mẫu này: {name}.{skuPart} Shop tư vấn giúp mình chính sách vận chuyển, phí ship và thời gian giao nhé.',
+    productConsultAskDetail: 'Mình quan tâm mẫu này: {name}.{skuPart} Shop tư vấn chi tiết giúp mình nhé.',
   },
   messagingMyChats: {
     pageTitle: 'Tin nhắn của tôi',
@@ -4098,6 +4108,10 @@ const EN_DICTIONARY: Dictionary = {
     visionVideoCloseAria: 'Close video',
     purchaseOpenSiteToast: 'Opened the shop product page in a new tab.',
     purchaseMissingProductUrlToast: 'This item has no product URL — add it in inventory.',
+    productConsultSkuPart: ' SKU: {sku}.',
+    productConsultAskShipping:
+      "I'm interested in this item: {name}.{skuPart} Please advise on shipping policy, fees, and delivery time.",
+    productConsultAskDetail: "I'm interested in this item: {name}.{skuPart} Please share more details.",
   },
   messagingMyChats: {
     pageTitle: 'My messages',
@@ -5754,6 +5768,10 @@ const ZH_DICTIONARY: Dictionary = {
     visionVideoCloseAria: '关闭视频',
     purchaseOpenSiteToast: '已在新标签页打开店铺商品页。',
     purchaseMissingProductUrlToast: '该商品缺少商品链接 — 请在库存中填写 URL。',
+    productConsultSkuPart: ' SKU：{sku}。',
+    productConsultAskShipping:
+      '我想了解这款商品：{name}。{skuPart} 请说明运费政策、费用和预计送达时间。',
+    productConsultAskDetail: '我想了解这款商品：{name}。{skuPart} 请详细介绍。',
   },
   messagingMyChats: {
     pageTitle: '我的消息',
@@ -7382,6 +7400,10 @@ const JA_DICTIONARY: Dictionary = {
     visionVideoCloseAria: '動画を閉じる',
     purchaseOpenSiteToast: 'ショップの商品ページを新しいタブで開きました。',
     purchaseMissingProductUrlToast: '商品URLがありません。在庫にURLを追加してください。',
+    productConsultSkuPart: ' SKU：{sku}',
+    productConsultAskShipping:
+      'この商品に興味があります：{name}。{skuPart} 送料ポリシー、送料、お届け目安を教えてください。',
+    productConsultAskDetail: 'この商品に興味があります：{name}。{skuPart} 詳しく教えてください。',
   },
   messagingMyChats: {
     pageTitle: '自分のメッセージ',
@@ -9034,6 +9056,10 @@ const KO_DICTIONARY: Dictionary = {
     visionVideoCloseAria: '동영상 닫기',
     purchaseOpenSiteToast: '쇼핑몰 상품 페이지를 새 탭에서 열었습니다.',
     purchaseMissingProductUrlToast: '상품 URL이 없습니다. 재고에 URL을 추가하세요.',
+    productConsultSkuPart: ' SKU: {sku}.',
+    productConsultAskShipping:
+      '이 상품이 궁금합니다: {name}.{skuPart} 배송 정책, 배송비, 예상 배송 기간을 알려 주세요.',
+    productConsultAskDetail: '이 상품이 궁금합니다: {name}.{skuPart} 자세히 알려 주세요.',
   },
   messagingMyChats: {
     pageTitle: '내 메시지',
