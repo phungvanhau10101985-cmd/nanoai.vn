@@ -389,6 +389,17 @@ export async function fetchGuestWidgetConversationIdFromPg(
   }
 }
 
+/** `metadata->>'ui_locale'` của hội thoại widget (nếu có). */
+export async function fetchGuestWidgetUiLocaleForPartnerFromPg(
+  partnerId: string,
+  externalThreadId: string | null
+): Promise<string | null> {
+  if (!isPgConfigured() || !externalThreadId?.trim()) return null
+  const convId = await fetchGuestWidgetConversationIdFromPg(partnerId, externalThreadId.trim())
+  if (!convId) return null
+  return fetchConversationUiLocaleFromPg(convId)
+}
+
 export async function fetchGuestWidgetMessagesSubsetFromPg(
   conversationId: string
 ): Promise<Pick<CustomerCareMessageRow, 'id' | 'direction' | 'body' | 'created_at' | 'raw_payload'>[] | null> {

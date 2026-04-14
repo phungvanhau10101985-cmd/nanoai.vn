@@ -99,7 +99,7 @@
     var panel = document.createElement('div')
     panel.style.cssText =
       'pointer-events:auto;display:none;position:absolute;background:#fff;overflow:hidden;' +
-      'box-shadow:0 16px 40px rgba(0,0,0,.28);border:1px solid #e5e7eb;'
+      'box-shadow:0 16px 40px rgba(0,0,0,.28);border:1px solid #e5e7eb;touch-action:auto;-webkit-tap-highlight-color:transparent;'
     root.appendChild(panel)
     root.setAttribute('data-nanoai-ready', '1')
 
@@ -134,7 +134,8 @@
     header.appendChild(headerActions)
 
     var body = document.createElement('div')
-    body.style.cssText = 'width:100%;height:calc(100% - 44px);pointer-events:auto;'
+    body.style.cssText =
+      'width:100%;height:calc(100% - 44px);pointer-events:auto;touch-action:auto;-webkit-overflow-scrolling:touch;'
     panel.appendChild(body)
 
     var iframe = null

@@ -37,10 +37,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   try {
     const convId = await fetchGuestWidgetConversationIdFromPg(active.id, effectiveExternalThreadId)
     if (!convId) {
-      return NextResponse.json({ ok: true, merged: false })
+      return NextResponse.json({ ok: true, merged: false, uiLocale: loc })
     }
     const merged = await mergeConversationUiLocaleFromPg(convId, loc)
-    return NextResponse.json({ ok: true, merged })
+    return NextResponse.json({ ok: true, merged, uiLocale: loc })
   } catch (e) {
     console.warn('[guest ui-locale POST]', e)
     return NextResponse.json({ error: 'Failed to update locale.' }, { status: 500 })

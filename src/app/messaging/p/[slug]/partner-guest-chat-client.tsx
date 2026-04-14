@@ -25,12 +25,6 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import {
   CustomerCareMessageBody,
   type OrderPaymentProofSlot,
 } from '@/components/messaging/customer-care-message-body'
@@ -381,11 +375,25 @@ function GuestChatLocaleSwitches({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [embedLocaleSheetOpen, setEmbedLocaleSheetOpen] = useState(false)
+  const [embedLocalePortalReady, setEmbedLocalePortalReady] = useState(false)
   /** Nhúng: mặc định ưu tiên sheet (tránh <select> iframe iOS); layout effect có thể chuyển sang native select nếu khung rất rộng + chuột. */
   const [useEmbedLocaleSheet, setUseEmbedLocaleSheet] = useState(() => embedTouchSheet)
   /** Đo độ rộng nhãn đang chọn — native <select> mặc định rộng theo option dài nhất nếu không ép width. */
   const localeLabelMeasureRef = useRef<HTMLSpanElement>(null)
   const [embedSelectWidthPx, setEmbedSelectWidthPx] = useState(() => initialEmbedLocaleSelectWidthPx(currentLocale))
+
+  useEffect(() => {
+    setEmbedLocalePortalReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (variant !== 'select' || !embedTouchSheet || !useEmbedLocaleSheet || !embedLocaleSheetOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [variant, embedTouchSheet, useEmbedLocaleSheet, embedLocaleSheetOpen])
 
   useLayoutEffect(() => {
     if (variant !== 'select' || !embedTouchSheet) return
@@ -444,14 +452,59 @@ function GuestChatLocaleSwitches({
   }
 
   if (variant === 'select' && embedTouchSheet && useEmbedLocaleSheet) {
+    const embedLocaleLayer =
+      embedLocalePortalReady && embedLocaleSheetOpen ? (
+        createPortal(
+          <>
+            <div
+              aria-hidden
+              className="fixed inset-0 z-[540] cursor-pointer bg-black/50"
+              style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'auto' }}
+              onClick={() => setEmbedLocaleSheetOpen(false)}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Language"
+              className="fixed inset-x-0 bottom-0 z-[550] max-h-[min(78dvh,480px)] overflow-y-auto overscroll-contain rounded-t-2xl border border-border/80 bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_32px_rgba(0,0,0,0.2)]"
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <p className="mb-3 text-center text-sm font-semibold text-foreground">Language</p>
+              <div className="grid gap-2 pb-2">
+                {WEB_LOCALES.map((locale) => (
+                  <button
+                    key={locale}
+                    type="button"
+                    disabled={pending}
+                    className={`min-h-[48px] w-full rounded-lg border px-3 py-3 text-base font-semibold transition-colors active:opacity-90 ${
+                      locale === currentLocale
+                        ? 'border-violet-500 bg-violet-600 text-white'
+                        : 'border-border/80 bg-muted/40 text-foreground hover:bg-muted/70'
+                    } disabled:opacity-50`}
+                    style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                    onClick={() => {
+                      setEmbedLocaleSheetOpen(false)
+                      setLocale(locale)
+                    }}
+                  >
+                    {GUEST_CHAT_LOCALE_SHORT[locale]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>,
+          document.body
+        )
+      ) : null
+
     return (
       <>
-        <Button
+        <button
           type="button"
-          variant="outline"
-          size="sm"
           disabled={pending}
-          className="relative z-[100] h-8 shrink-0 gap-1 px-2 font-sans text-xs font-semibold touch-manipulation"
+          className="relative z-[100] inline-flex h-10 min-h-[44px] min-w-[44px] shrink-0 items-center gap-1 rounded-md border border-input bg-background px-2.5 font-sans text-xs font-semibold text-foreground shadow-sm outline-none ring-offset-background hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
           aria-label="Language"
           aria-haspopup="dialog"
           aria-expanded={embedLocaleSheetOpen}
@@ -459,31 +512,8 @@ function GuestChatLocaleSwitches({
         >
           <span className="max-w-[6.5rem] truncate">{GUEST_CHAT_LOCALE_SHORT[currentLocale]}</span>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-        </Button>
-        <Sheet open={embedLocaleSheetOpen} onOpenChange={setEmbedLocaleSheetOpen}>
-          <SheetContent side="bottom" highZIndex className="z-[500] max-h-[min(85dvh,520px)] overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle className="text-left text-base">Language</SheetTitle>
-            </SheetHeader>
-            <div className="mt-4 grid gap-2 pb-2">
-              {WEB_LOCALES.map((locale) => (
-                <Button
-                  key={locale}
-                  type="button"
-                  variant={locale === currentLocale ? 'default' : 'outline'}
-                  disabled={pending}
-                  className="h-12 w-full justify-center text-base font-semibold"
-                  onClick={() => {
-                    setEmbedLocaleSheetOpen(false)
-                    setLocale(locale)
-                  }}
-                >
-                  {GUEST_CHAT_LOCALE_SHORT[locale]}
-                </Button>
-              ))}
-            </div>
-          </SheetContent>
-        </Sheet>
+        </button>
+        {embedLocaleLayer}
       </>
     )
   }
