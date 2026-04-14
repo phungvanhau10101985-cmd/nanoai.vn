@@ -269,6 +269,9 @@ export function extractInventorySearchTokens(message: string): string[] {
     'sneaker',
     'sandal',
     'loafer',
+    'dép',
+    'tông',
+    'xăng đan',
   ]
   for (const w of hintWords) {
     if (lower.includes(w)) addHint(w, 58)
@@ -325,6 +328,30 @@ export function scoreInventoryRowMatch(row: PartnerInventoryRow, needles: string
     if (priceHint.includes(n)) score += 26
   }
   return score
+}
+
+/**
+ * Sau khi ANN đã trả đủ top-k: **chỉ sắp xếp lại** các dòng đó theo độ khớp chữ (tên/SKU/mô tả)
+ * với token rút từ tin khách — điểm cao → thấp; cùng điểm giữ thứ tự vector gốc.
+ * Không thêm SP ngoài tập vector (tránh lệch loại hàng do ILIKE rộng).
+ */
+export function rerankInventoryRowsByCustomerTextNameMatch(
+  customerMessage: string,
+  rows: PartnerInventoryRow[]
+): PartnerInventoryRow[] {
+  if (rows.length <= 1) return rows
+  const needles = extractInventorySearchTokens(customerMessage)
+  if (needles.length === 0) return rows
+  const scored = rows.map((row, originalIndex) => ({
+    row,
+    originalIndex,
+    score: scoreInventoryRowMatch(row, needles),
+  }))
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    return a.originalIndex - b.originalIndex
+  })
+  return scored.map((s) => s.row)
 }
 
 async function fetchRowsMatchingToken(partnerId: string, token: string): Promise<PartnerInventoryRow[]> {
@@ -497,11 +524,16 @@ export async function enrichSemanticInventoryRowsForWidget(
   vectorRows: PartnerInventoryRow[],
   maxRows: number
 ): Promise<PartnerInventoryRow[]> {
-  let rows = await mergeVectorRowsWithLexicalTokenSearch(partnerId, originalCustomerMessage, vectorRows, maxRows)
+  let rows: PartnerInventoryRow[]
+  if (vectorRows.length > 0) {
+    rows = rerankInventoryRowsByCustomerTextNameMatch(originalCustomerMessage, vectorRows)
+  } else {
+    rows = await mergeVectorRowsWithLexicalTokenSearch(partnerId, originalCustomerMessage, vectorRows, maxRows)
+  }
   const gender = extractCustomerGenderSearchIntent(originalCustomerMessage)
   rows = reorderInventoryRowsByGenderIntent(rows, gender)
   rows = excludeRowsConflictingWithMaleIntent(rows, gender)
-  return rows
+  return rows.slice(0, maxRows)
 }
 
 /** Điểm tối thiểu để đưa dòng ILIKE lên trước ANN — tránh nhiễu từ token quá ngắn. */
@@ -613,7 +645,11 @@ export async function fetchInventoryRowsForPartnerAi(
   const queryForEmbedding = expandInventoryEmbeddingQueryWithGender(customerMessage, genderIntent)
   const fetchLim = budget !== null ? Math.min(50, lim * 3) : lim
   let rows = await fetchInventoryRowsBySemanticTextForPartnerAi(partnerId, queryForEmbedding, fetchLim)
-  rows = await mergeVectorRowsWithLexicalTokenSearch(partnerId, hintSource, rows, fetchLim)
+  if (rows.length > 0) {
+    rows = rerankInventoryRowsByCustomerTextNameMatch(hintSource, rows)
+  } else {
+    rows = await mergeVectorRowsWithLexicalTokenSearch(partnerId, hintSource, rows, fetchLim)
+  }
   if (!rows.length) return []
   rows = reorderInventoryRowsByGenderIntent(rows, genderIntent)
   rows = excludeRowsConflictingWithMaleIntent(rows, genderIntent)
