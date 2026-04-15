@@ -136,7 +136,7 @@ export async function emailCustomerOrderCheckoutSubmitted(input: {
           payment_qr_url: input.order.payment_qr_url,
           payment_reference: input.order.payment_reference,
         })
-        ? 'Vui lòng chuyển khoản đúng số tiền và nội dung CK; xác nhận qua SePay — không cần gửi ảnh biên lai.'
+        ? `Vui lòng chuyển khoản đúng số tiền và nội dung CK; xác nhận tự động qua hệ thống của ${shopLabel} — không cần gửi ảnh biên lai.`
         : 'Vui lòng chuyển khoản đúng số tiền và nội dung trong khung «Thanh toán chuyển khoản» trên chat, rồi gửi ảnh biên lai nếu được yêu cầu.'
       : 'Đơn không yêu cầu cọc trước — shop sẽ liên hệ xác nhận và giao hàng.',
     '',

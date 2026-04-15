@@ -564,7 +564,7 @@ export async function completeOrderCheckout(input: {
           `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới (có nút sao chép từng mục).\n` +
           `${calc.fallbackApplied ? 'Lưu ý: Số tiền đặt cọc vượt giá trị đơn, hệ thống đã fallback về 20% giá trị đơn.\n' : ''}` +
           (useSepayQr
-            ? `Sau khi chuyển khoản đúng số tiền và nội dung CK: xác nhận qua SePay — không cần gửi ảnh biên lai.`
+            ? `Sau khi chuyển khoản đúng số tiền và nội dung CK: hệ thống của ${shopDisplayName || 'shop'} xác nhận tự động — không cần gửi ảnh biên lai.`
             : `Sau khi chuyển khoản: bấm nút gửi ảnh biên lai ngay dưới mã QR.`)
         : `Đơn hàng đã được tạo thành công.\n` +
           `Tổng tiền: ${toVnd(updated.subtotal_amount)} | Thanh toán trước: 0đ.\n` +

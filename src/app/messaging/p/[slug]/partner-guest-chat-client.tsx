@@ -26,6 +26,12 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import {
   CustomerCareMessageBody,
   type OrderPaymentProofSlot,
 } from '@/components/messaging/customer-care-message-body'
@@ -33,7 +39,7 @@ import { GuestWidgetOrderDetailDialog } from '@/components/messaging/guest-widge
 import { GuestWidgetMyOrdersDialog } from '@/components/messaging/guest-widget-my-orders-dialog'
 import { isOpenMyOrdersMessage } from '@/lib/messaging/widget-parent-bridge'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
-import { collectSepayWebhookConfirmedOrderIds } from '@/lib/messaging/order-sepay-message-helpers'
+import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order-sepay-message-helpers'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import {
   isProductConsultedInScopeSet,
@@ -163,6 +169,60 @@ function collectRecentSuggestedCardsFromMessages(
           ...(c.sku && c.sku.trim() ? { sku: c.sku.trim().slice(0, 128) } : {}),
         }
         if (pushCard(card)) return out
+      }
+    }
+  }
+  return out
+}
+
+type RecentProductWithSource = { card: PartnerAiProductCard; sourceMessageId: string }
+
+/** Thẻ SP gần đây (shop gửi / gợi ý ảnh) kèm id tin nguồn — cần cho «Tư vấn» + DB consulted. */
+function collectRecentSuggestedProductsWithSource(
+  messages: GuestMsg[],
+  limit = 20,
+  anchorInboundId?: string
+): RecentProductWithSource[] {
+  const out: RecentProductWithSource[] = []
+  const seen = new Set<string>()
+  const push = (card: PartnerAiProductCard, sourceMessageId: string) => {
+    const productUrl = card.product_url.trim()
+    const imageUrl = card.image_url.trim()
+    if (!/^https?:\/\//i.test(productUrl) || !/^https?:\/\//i.test(imageUrl)) return false
+    const key = productUrl.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    out.push({ card, sourceMessageId })
+    return out.length >= limit
+  }
+  const anchorIdx =
+    anchorInboundId
+      ? messages.findIndex((m) => m.id === anchorInboundId && m.direction === 'inbound')
+      : -1
+  const startIdx = anchorIdx >= 0 ? anchorIdx - 1 : messages.length - 1
+  const minIdx = Math.max(0, startIdx - 24)
+  for (let i = startIdx; i >= minIdx; i -= 1) {
+    const msg = messages[i]
+    const raw = msg.raw_payload ?? null
+    if (msg.direction === 'outbound') {
+      const cards = aiProductCardsFromPayload(raw)
+      for (const c of cards) {
+        if (push(c, msg.id)) return out
+      }
+    }
+    const vision = getVisionPickState(raw)
+    if (vision.candidates.length > 0) {
+      for (const c of vision.candidates) {
+        const productUrl = typeof c.product_url === 'string' ? c.product_url.trim() : ''
+        if (!productUrl) continue
+        const card: PartnerAiProductCard = {
+          name: c.name || 'San pham',
+          image_url: c.image_url || '',
+          product_url: productUrl,
+          ...(c.price_hint ? { price_hint: c.price_hint } : {}),
+          ...(c.sku && c.sku.trim() ? { sku: c.sku.trim().slice(0, 128) } : {}),
+        }
+        if (push(card, msg.id)) return out
       }
     }
   }
@@ -598,6 +658,8 @@ type GuestChatDraftComposerProps = {
   galleryInputRef: RefObject<HTMLInputElement | null>
   cameraInputRef: RefObject<HTMLInputElement | null>
   showCameraButton: boolean
+  onOpenProductShelf?: () => void
+  productShelfButtonLabel?: string
   labels: {
     placeholder: string
     sendKeyboardHint: string
@@ -624,6 +686,8 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   galleryInputRef,
   cameraInputRef,
   showCameraButton,
+  onOpenProductShelf,
+  productShelfButtonLabel,
   labels,
 }: GuestChatDraftComposerProps) {
   const [draft, setDraft] = useState('')
@@ -720,6 +784,19 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
             >
               <Camera className="h-3.5 w-3.5" />
               {labels.guestTakePhoto}
+            </Button>
+          ) : null}
+          {productShelfButtonLabel && onOpenProductShelf ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
+              disabled={uploading || sending}
+              onClick={() => onOpenProductShelf()}
+            >
+              <Package className="h-3.5 w-3.5" />
+              {productShelfButtonLabel}
             </Button>
           ) : null}
         </div>
@@ -835,17 +912,23 @@ export function PartnerGuestChatClient({
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
   const [consultedProductKeys, setConsultedProductKeys] = useState(() => new Set<string>())
+  const [recentProductsOpen, setRecentProductsOpen] = useState(false)
 
-  const sepayWebhookPaidOrderIds = useMemo(
-    () => collectSepayWebhookConfirmedOrderIds(messages),
+  const recentProductRows = useMemo(
+    () => collectRecentSuggestedProductsWithSource(messages, 24),
+    [messages]
+  )
+
+  const { paidDepositOrderIds, sepayWebhookOrderIds } = useMemo(
+    () => collectGuestOrderDepositConfirmationSplit(messages),
     [messages]
   )
 
   useEffect(() => {
-    if (proofOrderId && sepayWebhookPaidOrderIds.has(proofOrderId)) {
+    if (proofOrderId && paidDepositOrderIds.has(proofOrderId)) {
       setProofOrderId(null)
     }
-  }, [proofOrderId, sepayWebhookPaidOrderIds])
+  }, [proofOrderId, paidDepositOrderIds])
 
   /** Khi tin SePay xác nhận xuất hiện trong chat, tải lại chi tiết đơn (ẩn QR theo trạng thái mới). */
   const embedDetailRefetchNonceOidRef = useRef<string | null>(null)
@@ -855,11 +938,11 @@ export function PartnerGuestChatClient({
       embedDetailRefetchNonceOidRef.current = null
       return
     }
-    if (!sepayWebhookPaidOrderIds.has(oid)) return
+    if (!paidDepositOrderIds.has(oid)) return
     if (embedDetailRefetchNonceOidRef.current === oid) return
     embedDetailRefetchNonceOidRef.current = oid
     setEmbedWidgetDataNonce((n) => n + 1)
-  }, [embedOrderDetailId, sepayWebhookPaidOrderIds])
+  }, [embedOrderDetailId, paidDepositOrderIds])
 
   useEffect(() => {
     if (!proofOrderId) setProofOrderIsSepay(false)
@@ -1947,7 +2030,8 @@ export function PartnerGuestChatClient({
     busyOrderId: paymentProofBusyOrderId,
     onPickProof: pickAndVerifyPaymentProof,
     onViewOrderDetail: (oid) => setEmbedOrderDetailId(oid),
-    sepayWebhookPaidOrderIds,
+    paidDepositOrderIds,
+    sepayWebhookOrderIds,
   }
 
   const uploadFile = async (file: File) => {
@@ -2959,6 +3043,7 @@ export function PartnerGuestChatClient({
                           isMe ? undefined : (card) => void submitProductCardPick(card, m.id)
                         }
                         orderPaymentProof={!isMe ? orderPaymentProofSlot : undefined}
+                        shopDisplayName={shopDisplayName}
                       />
                     </div>
                     {(() => {
@@ -3535,10 +3620,10 @@ export function PartnerGuestChatClient({
                 </div>
               ) : null}
               {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
-              {proofOrderId && !sepayWebhookPaidOrderIds.has(proofOrderId) ? (
+                  {proofOrderId && !paidDepositOrderIds.has(proofOrderId) ? (
                 <p className="text-[11px] leading-snug text-muted-foreground">
                   {proofOrderIsSepay
-                    ? 'SePay: chuyển đúng số tiền và «Nội dung CK» trong khối QR — xác nhận tự động; không cần đính ảnh ở đây.'
+                    ? `${shopDisplayName.trim() || 'Shop'}: chuyển đúng số tiền và «Nội dung CK» trong khối QR — xác nhận tự động; không cần đính ảnh ở đây.`
                     : 'Biên lai CK: nút «Gửi ảnh giao dịch» dưới mã QR trong chat (không đính ảnh ở đây).'}
                 </p>
               ) : null}
@@ -3839,6 +3924,8 @@ export function PartnerGuestChatClient({
                 galleryInputRef={galleryInputRef}
                 cameraInputRef={cameraInputRef}
                 showCameraButton={showCameraButton}
+                onOpenProductShelf={() => setRecentProductsOpen(true)}
+                productShelfButtonLabel={t.productShelfButton}
                 labels={draftComposerLabels}
               />
             </div>
@@ -3943,6 +4030,82 @@ export function PartnerGuestChatClient({
           if (!open) setChatImageLightboxUrl(null)
         }}
       />
+      <Sheet open={recentProductsOpen} onOpenChange={setRecentProductsOpen}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[88dvh] overflow-y-auto rounded-t-2xl p-3 pb-6 pt-6 sm:max-w-lg sm:mx-auto"
+        >
+          <SheetHeader className="pb-3 text-left">
+            <SheetTitle className="text-base">{t.productShelfTitle}</SheetTitle>
+          </SheetHeader>
+          {recentProductRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t.productShelfEmpty}</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2.5">
+              {recentProductRows.map((row) => {
+                const pk = normalizeProductUrlKey(row.card.product_url.trim())
+                const consulted = pk ? isProductConsultedInScopeSet(consultedProductKeys, pk) : false
+                const href = row.card.product_url.trim()
+                return (
+                  <div
+                    key={`${row.sourceMessageId}-${href}`}
+                    className="flex flex-col gap-1.5 rounded-lg border border-border/70 bg-muted/15 p-2"
+                  >
+                    <div className="relative aspect-square w-full overflow-hidden rounded-md border border-border/50 bg-background">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- URL ngoài từ shop */}
+                      <img
+                        src={row.card.image_url.trim()}
+                        alt=""
+                        className="h-full w-full object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                    <p className="line-clamp-2 min-h-[2.25rem] text-[11px] font-medium leading-snug text-foreground">
+                      {row.card.name.trim() || '—'}
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {consulted ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 w-full px-1 text-[11px]"
+                          disabled={sending}
+                          onClick={() => void submitProductCardPick(row.card, row.sourceMessageId).then(() => setRecentProductsOpen(false))}
+                        >
+                          {t.productShelfBuy}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="h-8 w-full px-1 text-[11px]"
+                          disabled={sending}
+                          onClick={() => void submitProductCardPick(row.card, row.sourceMessageId).then(() => setRecentProductsOpen(false))}
+                        >
+                          {t.visionProductLink}
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 w-full px-1 text-[11px]"
+                        onClick={() => {
+                          if (!/^https?:\/\//i.test(href)) return
+                          window.open(href, '_blank', 'noopener,noreferrer')
+                        }}
+                      >
+                        {t.visionProductViewDetails}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
       <GuestWidgetOrderDetailDialog
         open={Boolean(embedOrderDetailId)}
         onOpenChange={(open) => {
@@ -3971,6 +4134,7 @@ export function PartnerGuestChatClient({
         depositBusyOrderId={paymentProofBusyOrderId}
         onDepositPickProof={pickAndVerifyPaymentProof}
         dataRefreshNonce={embedWidgetDataNonce}
+        shopDisplayName={shopDisplayName}
       />
     </div>
   )

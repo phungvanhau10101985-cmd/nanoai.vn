@@ -415,10 +415,10 @@ export type Dictionary = {
     depositNone: string
     depositPartial: string
     depositFull: string
-    /** Kênh thanh toán cọc */
+    /** Kênh thanh toán cọc — dùng `{shop}` = tên shop. */
     pathSepay: string
     pathManual: string
-    /** SePay: không cần ảnh CK */
+    /** Gợi ý đối soát tự động — `{shop}` = tên shop. */
     sepayAutoHint: string
     /** Biên lai ảnh — dạng ngắn trên dải tóm tắt */
     proofReceiptShortVerified: string
@@ -877,6 +877,12 @@ export type Dictionary = {
     visionProductVideo: string
     /** a11y đóng dialog video toàn màn hình */
     visionVideoCloseAria: string
+    /** Nút mở danh sách sản phẩm đã xem / quan tâm gần đây */
+    productShelfButton: string
+    productShelfTitle: string
+    productShelfEmpty: string
+    /** Nút «Mua» ngắn trên kệ SP (sau khi đã tư vấn) */
+    productShelfBuy: string
     /** Toast khi chế độ mua trên web — đã mở tab */
     purchaseOpenSiteToast: string
     /** Chế độ web nhưng thiếu URL sản phẩm */
@@ -2204,9 +2210,9 @@ const VI_DICTIONARY: Dictionary = {
     depositNone: 'Chưa cọc',
     depositPartial: 'Cọc một phần',
     depositFull: 'Đã cọc đủ',
-    pathSepay: 'SePay (tự động)',
+    pathSepay: '{shop} (tự động)',
     pathManual: 'CK ngân hàng · ảnh biên lai',
-    sepayAutoHint: 'Đối soát qua SePay — không cần ảnh giao dịch.',
+    sepayAutoHint: 'Đối soát tự động qua hệ thống của {shop} — không cần ảnh giao dịch.',
     proofReceiptShortVerified: 'Biên lai: khớp',
     proofReceiptShortPending: 'Biên lai: chờ xử lý',
     proofReceiptShortFailed: 'Biên lai: không khớp',
@@ -2619,7 +2625,7 @@ const VI_DICTIONARY: Dictionary = {
     loadError: 'Không tải được tin nhắn.',
     sendError: 'Không gửi được tin nhắn.',
     pollNote: 'Phản hồi từ cửa hàng có thể hiện sau vài giây.',
-    guestAttachPhoto: 'Ảnh từ máy',
+    guestAttachPhoto: 'Gửi ảnh',
     guestTakePhoto: 'Chụp ảnh',
     guestRemoveAttachment: 'Bỏ ảnh',
     guestUploading: 'Đang tải ảnh…',
@@ -2633,7 +2639,7 @@ const VI_DICTIONARY: Dictionary = {
     linkMyShops: 'Tin nhắn của tôi',
     linkMyOrders: 'Đơn hàng của tôi',
     sendKeyboardHint: 'Enter gửi · Shift+Enter xuống dòng · Ctrl+V dán ảnh',
-    tryOnOpen: 'Thử đồ AI',
+    tryOnOpen: 'Thử đồ',
     tryOnTitle: 'Thử đồ ngay trong chat',
     tryOnModelPhoto: 'Ảnh người mẫu',
     tryOnGarmentPhoto: 'Ảnh trang phục',
@@ -2673,6 +2679,11 @@ const VI_DICTIONARY: Dictionary = {
     visionProductViewDetails: 'Xem chi tiết',
     visionProductVideo: 'Video',
     visionVideoCloseAria: 'Đóng video',
+    productShelfButton: 'Sản phẩm',
+    productShelfTitle: 'Sản phẩm bạn quan tâm gần đây',
+    productShelfEmpty:
+      'Chưa có sản phẩm gợi ý. Xem tin từ shop hoặc gửi ảnh để nhận gợi ý nhé.',
+    productShelfBuy: 'Mua',
     purchaseOpenSiteToast: 'Đã mở trang đặt hàng trên website shop trong tab mới.',
     purchaseMissingProductUrlToast: 'Mẫu này chưa có link trang sản phẩm — shop vui lòng thêm URL trong kho.',
     productConsultSkuPart: ' Mã/SKU: {sku}.',
@@ -3992,9 +4003,9 @@ const EN_DICTIONARY: Dictionary = {
     depositNone: 'No deposit yet',
     depositPartial: 'Partial deposit',
     depositFull: 'Deposit paid',
-    pathSepay: 'SePay (auto)',
+    pathSepay: '{shop} (auto)',
     pathManual: 'Bank transfer · receipt photo',
-    sepayAutoHint: 'Matched via SePay — no receipt photo needed.',
+    sepayAutoHint: 'Auto-matched via {shop} — no receipt photo needed.',
     proofReceiptShortVerified: 'Receipt: matched',
     proofReceiptShortPending: 'Receipt: pending',
     proofReceiptShortFailed: 'Receipt: mismatch',
@@ -4464,6 +4475,10 @@ const EN_DICTIONARY: Dictionary = {
     visionProductViewDetails: 'View details',
     visionProductVideo: 'Video',
     visionVideoCloseAria: 'Close video',
+    productShelfButton: 'Products',
+    productShelfTitle: 'Products you recently viewed',
+    productShelfEmpty: 'No suggested products yet. Read the shop messages or send a photo to get picks.',
+    productShelfBuy: 'Buy',
     purchaseOpenSiteToast: 'Opened the shop product page in a new tab.',
     purchaseMissingProductUrlToast: 'This item has no product URL — add it in inventory.',
     productConsultSkuPart: ' SKU: {sku}.',
@@ -5781,9 +5796,9 @@ const ZH_DICTIONARY: Dictionary = {
     depositNone: '未付定金',
     depositPartial: '部分定金',
     depositFull: '定金已付清',
-    pathSepay: 'SePay（自动）',
+    pathSepay: '{shop}（自动）',
     pathManual: '银行转账 · 回单照片',
-    sepayAutoHint: '通过 SePay 对账 — 无需交易截图。',
+    sepayAutoHint: '通过 {shop} 系统自动对账 — 无需交易截图。',
     proofReceiptShortVerified: '回单：已匹配',
     proofReceiptShortPending: '回单：处理中',
     proofReceiptShortFailed: '回单：不匹配',
@@ -6236,6 +6251,10 @@ const ZH_DICTIONARY: Dictionary = {
     visionProductViewDetails: '查看详情',
     visionProductVideo: '视频',
     visionVideoCloseAria: '关闭视频',
+    productShelfButton: '商品',
+    productShelfTitle: '您最近关注的商品',
+    productShelfEmpty: '暂无推荐。请查看店铺消息或发送图片以获取推荐。',
+    productShelfBuy: '购买',
     purchaseOpenSiteToast: '已在新标签页打开店铺商品页。',
     purchaseMissingProductUrlToast: '该商品缺少商品链接 — 请在库存中填写 URL。',
     productConsultSkuPart: ' SKU：{sku}。',
@@ -7513,9 +7532,9 @@ const JA_DICTIONARY: Dictionary = {
     depositNone: '未入金',
     depositPartial: '一部入金',
     depositFull: '手付け済み',
-    pathSepay: 'SePay（自動）',
+    pathSepay: '{shop}（自動）',
     pathManual: '銀行振込・領収写真',
-    sepayAutoHint: 'SePay で照合 — 取引画像は不要です。',
+    sepayAutoHint: '{shop} のシステムで自動照合 — 取引画像は不要です。',
     proofReceiptShortVerified: '領収：一致',
     proofReceiptShortPending: '領収：処理中',
     proofReceiptShortFailed: '領収：不一致',
@@ -7984,6 +8003,10 @@ const JA_DICTIONARY: Dictionary = {
     visionProductViewDetails: '詳細を見る',
     visionProductVideo: '動画',
     visionVideoCloseAria: '動画を閉じる',
+    productShelfButton: '商品',
+    productShelfTitle: '最近関心のある商品',
+    productShelfEmpty: 'まだおすすめがありません。店舗のメッセージを見るか、写真を送ってください。',
+    productShelfBuy: '購入',
     purchaseOpenSiteToast: 'ショップの商品ページを新しいタブで開きました。',
     purchaseMissingProductUrlToast: '商品URLがありません。在庫にURLを追加してください。',
     productConsultSkuPart: ' SKU：{sku}',
@@ -9285,9 +9308,9 @@ const KO_DICTIONARY: Dictionary = {
     depositNone: '미입금',
     depositPartial: '부분 입금',
     depositFull: '입금 완료',
-    pathSepay: 'SePay(자동)',
+    pathSepay: '{shop}(자동)',
     pathManual: '계좌이체 · 영수증 사진',
-    sepayAutoHint: 'SePay로 대사 — 거래 캡처 불필요.',
+    sepayAutoHint: '{shop} 시스템으로 자동 대사 — 거래 캡처 불필요.',
     proofReceiptShortVerified: '영수증: 일치',
     proofReceiptShortPending: '영수증: 대기',
     proofReceiptShortFailed: '영수증: 불일치',
@@ -9753,6 +9776,10 @@ const KO_DICTIONARY: Dictionary = {
     visionProductViewDetails: '자세히 보기',
     visionProductVideo: '동영상',
     visionVideoCloseAria: '동영상 닫기',
+    productShelfButton: '상품',
+    productShelfTitle: '최근 관심 상품',
+    productShelfEmpty: '아직 추천이 없습니다. 매장 메시지를 보거나 사진을 보내 주세요.',
+    productShelfBuy: '구매',
     purchaseOpenSiteToast: '쇼핑몰 상품 페이지를 새 탭에서 열었습니다.',
     purchaseMissingProductUrlToast: '상품 URL이 없습니다. 재고에 URL을 추가하세요.',
     productConsultSkuPart: ' SKU: {sku}.',

@@ -237,6 +237,7 @@ export function GuestWidgetOrderDetailDialog({
                   busyOrderId={depositBusyOrderId}
                   onPickProof={onDepositPickProof}
                   className="mb-1"
+                  shopDisplayName={shop !== '—' ? shop : 'Shop'}
                 />
               ) : null}
               <dl className="grid gap-2 text-[13px] sm:grid-cols-1">

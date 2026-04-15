@@ -21,6 +21,7 @@ import {
 } from '@/lib/messaging/partner-order-customer-email'
 import { insertMessagePg } from '@/lib/db/customer-care-pg'
 import { insertPartnerOrderEventFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 
 type SePayBody = Record<string, string | number | boolean | null | undefined>
 
@@ -210,6 +211,8 @@ export async function POST(request: NextRequest) {
       if (!cfgToken || cfgToken !== token) {
         return NextResponse.json({ error: 'Invalid partner webhook token.' }, { status: 401 })
       }
+      const partnerRows = await fetchMessagingPartnersByIdsFromPg([partnerId])
+      const shopBrand = (partnerRows?.[0]?.display_name ?? '').trim() || 'Shop'
       const expectedAccount = String(order.expected_account_number ?? '').replace(/[^\d]/g, '')
       const receivedAccount = String(bankAccount ?? '').replace(/[^\d]/g, '')
       const accountMatched = expectedAccount ? receivedAccount.includes(expectedAccount) : true
@@ -221,8 +224,8 @@ export async function POST(request: NextRequest) {
         paidAmount: amountIn,
         verifiedNote:
           nextStatus === 'paid_verified'
-            ? 'SePay webhook doi chieu thanh cong.'
-            : `SePay webhook can duyet tay (accountMatched=${String(accountMatched)}, amountMatched=${String(amountMatched)}).`,
+            ? 'Webhook doi chieu thanh cong.'
+            : `Webhook can duyet tay (accountMatched=${String(accountMatched)}, amountMatched=${String(amountMatched)}).`,
       })
       const refreshed = await fetchPartnerOrderByIdForPartnerFromPg(partnerId, order.id)
       const subtotal = Math.round(refreshed?.subtotal_amount ?? 0)
@@ -232,11 +235,11 @@ export async function POST(request: NextRequest) {
       const chatBody =
         refreshed
           ? nextStatus === 'paid_verified'
-            ? `Shop đã xác nhận thanh toán cho đơn ${refMemo} (SePay). Đã nhận: ${formatVnd(amountIn)}. Thanh toán khi nhận hàng: ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}). Cảm ơn bạn đã đặt hàng!`
-            : `Shop đã nhận ${formatVnd(amountIn)} qua SePay; đơn ${refMemo} đang chờ kiểm tra thêm. Thanh toán khi nhận hàng (ước tính): ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}). Cảm ơn bạn đã đặt hàng — shop sẽ cập nhật ngay khi đối chiếu xong.`
+            ? `${shopBrand} đã xác nhận thanh toán cho đơn ${refMemo}. Đã nhận: ${formatVnd(amountIn)}. Thanh toán khi nhận hàng: ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}). Cảm ơn bạn đã đặt hàng!`
+            : `${shopBrand} đã nhận ${formatVnd(amountIn)}; đơn ${refMemo} đang chờ kiểm tra thêm. Thanh toán khi nhận hàng (ước tính): ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}). Cảm ơn bạn đã đặt hàng — shop sẽ cập nhật ngay khi đối chiếu xong.`
           : nextStatus === 'paid_verified'
-            ? `Shop da xac nhan thanh toan thanh cong cho don ${order.payment_reference} qua SePay webhook. Cam on ban da dat hang!`
-            : `Shop da nhan giao dich qua SePay webhook, dang can duyet tay them cho don ${order.payment_reference}. Cam on ban — shop se cap nhat sau khi doi chieu.`
+            ? `${shopBrand} da xac nhan thanh toan thanh cong cho don ${order.payment_reference}. Cam on ban da dat hang!`
+            : `${shopBrand} da nhan giao dich, don ${order.payment_reference} dang can duyet tay them. Cam on ban — shop se cap nhat sau khi doi chieu.`
       await insertMessagePg({
         conversationId: order.conversation_id,
         direction: 'outbound',
@@ -255,8 +258,8 @@ export async function POST(request: NextRequest) {
       await insertPartnerOrderEventFromPg({
         orderId: order.id,
         eventType: 'sepay_webhook_received',
-        title: 'Nhan webhook SePay',
-        detail: `Webhook SePay da vao. So tien ${amountIn}. Ket qua ${nextStatus}.`,
+        title: 'Nhan webhook thanh toan',
+        detail: `Webhook da vao. So tien ${amountIn}. Ket qua ${nextStatus}.`,
         source: 'system',
         metadata: {
           transaction_id: transactionId ?? '',

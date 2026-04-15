@@ -67,11 +67,13 @@ export function GuestWidgetOrderDepositPanel({
   busyOrderId,
   onPickProof,
   className = '',
+  shopDisplayName = 'Shop',
 }: {
   order: PartnerOrderRow
   busyOrderId: string | null
   onPickProof: (orderId: string) => void
   className?: string
+  shopDisplayName?: string
 }) {
   if (!guestOrderNeedsDepositUi(order)) return null
 
@@ -91,6 +93,7 @@ export function GuestWidgetOrderDepositPanel({
     payment_qr_url: order.payment_qr_url,
     payment_reference: order.payment_reference,
   })
+  const brand = shopDisplayName.trim() || 'Shop'
 
   return (
     <div className={`rounded-lg border border-amber-300/60 bg-amber-50/50 p-2.5 dark:border-amber-700/50 dark:bg-amber-950/25 ${className}`}>
@@ -113,7 +116,7 @@ export function GuestWidgetOrderDepositPanel({
       </div>
       <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
         {isSepay
-          ? 'Chuyển đúng số tiền và «Nội dung CK» (memo). Quét QR để điền sẵn. Shop nhận xác nhận qua SePay — không cần gửi ảnh biên lai.'
+          ? `Chuyển đúng số tiền và «Nội dung CK» (memo). Quét QR để điền sẵn. ${brand} nhận xác nhận tự động — không cần gửi ảnh biên lai.`
           : 'Nhập đúng nội dung chuyển khoản. Có thể quét QR để điền sẵn.'}
       </p>
       <div className="mt-2 flex justify-center">
@@ -140,7 +143,7 @@ export function GuestWidgetOrderDepositPanel({
             </a>
           </Button>
           <p className="text-center text-[10px] text-muted-foreground">
-            Tải ảnh QR về máy (SePay) — chuyển khoản đúng «Nội dung CK»; xác nhận tự động, không cần ảnh biên lai.
+            {`Tải ảnh QR về máy — chuyển khoản đúng «Nội dung CK»; ${brand} nhận xác nhận tự động, không cần ảnh biên lai.`}
           </p>
         </div>
       ) : (

@@ -92,8 +92,10 @@ export type OrderPaymentProofSlot = {
   highlightOrderId: string | null
   busyOrderId: string | null
   onPickProof: (orderId: string) => void
-  /** Đơn đã khớp qua webhook SePay — ẩn nút «Gửi ảnh giao dịch» trên khối QR (payload tin cũ vẫn là awaiting_payment). */
-  sepayWebhookPaidOrderIds?: ReadonlySet<string>
+  /** Đơn đã đặt cọc / đang đối chiếu (tin SePay, OCR biên lai, …) — ẩn QR trên tin checkout cũ. */
+  paidDepositOrderIds?: ReadonlySet<string>
+  /** Chỉ tin webhook SePay — dùng cho nội dung gợi ý riêng SePay. */
+  sepayWebhookOrderIds?: ReadonlySet<string>
   /** Trang «Đơn hàng của tôi» — `/messaging/my-orders?order=…` (khi không dùng `onViewOrderDetail`). */
   buildOrderDetailHref?: (orderId: string) => string
   /** Ưu tiên: mở chi tiết trong app (vd. modal trong khung nhúng), không cần đăng nhập NanoAI. */
@@ -160,16 +162,25 @@ function CompactPaymentField({
   )
 }
 
-/** Tin nhắn checkout lưu `order_status` lúc gửi; SePay xác nhận sau qua tin khác — dùng `sepayAlready` + status. */
-function chatOrderDepositResolved(orderStatus: string, sepayAlready: boolean): boolean {
-  if (sepayAlready) return true
+/** Tin checkout cũ vẫn `awaiting_payment` — cần `paidInThread` từ tin hệ thống mới hơn. */
+function chatOrderDepositResolved(orderStatus: string, paidInThread: boolean): boolean {
+  if (paidInThread) return true
   const s = orderStatus.trim()
   if (!s || s === 'awaiting_payment') return false
   return true
 }
 
-function depositResolvedMessage(orderStatus: string, sepayAlready: boolean): string {
-  if (sepayAlready) return 'Đơn đã đặt cọc — SePay đã xác nhận. Quét lại QR trên app ngân hàng có thể báo đã thanh toán; không cần chuyển thêm.'
+function depositResolvedMessage(
+  orderStatus: string,
+  paidInThread: boolean,
+  sepayWebhookOnly: boolean,
+  shopBrand: string
+): string {
+  if (!paidInThread) return ''
+  const brand = shopBrand.trim() || 'Shop'
+  if (sepayWebhookOnly) {
+    return `Đơn đã đặt cọc — ${brand} đã nhận xác nhận thanh toán tự động. Quét lại QR trên app ngân hàng có thể báo đã thanh toán; không cần chuyển thêm.`
+  }
   switch (orderStatus.trim()) {
     case 'paid_verified':
       return 'Đơn đã đặt cọc — shop đã xác nhận thanh toán.'
@@ -178,7 +189,7 @@ function depositResolvedMessage(orderStatus: string, sepayAlready: boolean): str
     case 'payment_checking':
       return 'Đơn đang được đối chiếu thanh toán.'
     default:
-      return 'Đơn đã cập nhật trạng thái thanh toán.'
+      return 'Đơn đã đặt cọc — cảm ơn bạn! Shop đã nhận hoặc đang đối chiếu chuyển khoản.'
   }
 }
 
@@ -187,10 +198,13 @@ function OrderPaymentPanel({
   raw,
   onViolet,
   orderPaymentProof,
+  shopDisplayName = '',
 }: {
   raw: Json | null
   onViolet: boolean
   orderPaymentProof?: OrderPaymentProofSlot | null
+  /** Tên thương hiệu shop (không dùng tên nhà cung cấp thanh toán). */
+  shopDisplayName?: string
 }) {
   if (!raw || typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
   const o = raw as Record<string, unknown>
@@ -214,21 +228,22 @@ function OrderPaymentPanel({
   const amount = typeof reqRaw === 'number' && Number.isFinite(reqRaw) ? Math.max(0, Math.round(reqRaw)) : 0
   const orderId = typeof o.order_id === 'string' ? o.order_id.trim() : ''
   const orderStatus = typeof o.order_status === 'string' ? o.order_status.trim() : ''
-  const sepayAlready =
-    Boolean(orderId) && Boolean(orderPaymentProof?.sepayWebhookPaidOrderIds?.has(orderId))
-  const depositDone = chatOrderDepositResolved(orderStatus, sepayAlready)
+  const paidInThread = Boolean(orderId && orderPaymentProof?.paidDepositOrderIds?.has(orderId))
+  const sepayWebhookOnly = Boolean(orderId && orderPaymentProof?.sepayWebhookOrderIds?.has(orderId))
+  const depositDone = chatOrderDepositResolved(orderStatus, paidInThread)
   const isSepay = isSepayStyleOrderPayment({ payment_qr_url: qrUrl, payment_reference: ref })
+  const shopBrand = shopDisplayName.trim() || 'Shop'
   const showProofCta =
     orderPaymentProof &&
     orderId &&
     orderStatus === 'awaiting_payment' &&
-    !sepayAlready &&
+    !paidInThread &&
     !isSepay
   const showSepayDownloadCta =
     orderPaymentProof &&
     orderId &&
     orderStatus === 'awaiting_payment' &&
-    !sepayAlready &&
+    !paidInThread &&
     isSepay
   const busyThis = showProofCta && orderPaymentProof.busyOrderId === orderId
   const viewInEmbed = Boolean(orderId && orderPaymentProof && typeof orderPaymentProof.onViewOrderDetail === 'function')
@@ -257,7 +272,7 @@ function OrderPaymentPanel({
       }`}
     >
       <p className={`text-sm font-semibold sm:text-base ${onViolet ? 'text-white' : 'text-foreground'}`}>
-        {depositDone ? 'Đặt cọc' : 'Thanh toán chuyển khoản'}
+        {depositDone ? 'Đã đặt cọc' : 'Thanh toán chuyển khoản'}
       </p>
       {depositDone ? (
         <p
@@ -265,7 +280,7 @@ function OrderPaymentPanel({
             onViolet ? 'text-emerald-100' : 'text-emerald-900 dark:text-emerald-100'
           }`}
         >
-          {depositResolvedMessage(orderStatus, sepayAlready)}
+          {depositResolvedMessage(orderStatus, paidInThread, sepayWebhookOnly, shopBrand)}
         </p>
       ) : null}
       {!depositDone ? (
@@ -304,7 +319,7 @@ function OrderPaymentPanel({
       <p className={`mt-1.5 text-[10px] leading-snug sm:text-[11px] ${onViolet ? 'text-white/75' : 'text-muted-foreground'}`}>
         {isSepay ? (
           <>
-            «Nội dung CK» là memo trên app — nhập đúng chuỗi bên trên (hoặc quét QR). Thanh toán qua SePay: shop nhận xác nhận tự động —{' '}
+            «Nội dung CK» là memo trên app — nhập đúng chuỗi bên trên (hoặc quét QR). {shopBrand} nhận xác nhận tự động —{' '}
             <strong className={onViolet ? 'text-white' : 'text-foreground'}>không cần gửi ảnh biên lai</strong>.
           </>
         ) : (
@@ -312,7 +327,7 @@ function OrderPaymentPanel({
         )}
       </p>
       <div className="mt-2 flex justify-center px-0.5">
-        {/* eslint-disable-next-line @next/next/no-img-element -- URL VietQR/SePay ngoài, domain động */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- URL VietQR ngoài, domain động */}
         <img
           src={qrUrl}
           alt="Mã QR chuyển khoản thanh toán đơn hàng"
@@ -452,7 +467,7 @@ function OrderPaymentPanel({
             </p>
           ) : showSepayDownloadCta ? (
             <p className={`text-center text-[10px] leading-snug sm:text-[11px] ${onViolet ? 'text-white/75' : 'text-muted-foreground'}`}>
-              Tải ảnh QR về máy khi cần — chuyển khoản đúng «Nội dung CK»; SePay xác nhận tự động.
+              Tải ảnh QR về máy khi cần — chuyển khoản đúng «Nội dung CK»; {shopBrand} nhận xác nhận tự động.
             </p>
           ) : null}
         </div>
@@ -630,6 +645,7 @@ export function CustomerCareMessageBody({
   labels,
   onProductCardPick,
   orderPaymentProof,
+  shopDisplayName = '',
 }: {
   row: Row
   tone?: CustomerCareMessageBodyTone
@@ -637,6 +653,8 @@ export function CustomerCareMessageBody({
   onProductCardPick?: (card: PartnerAiProductCard) => void
   /** Trang guest: nút gửi biên lai gắn với đơn trong khối QR. */
   orderPaymentProof?: OrderPaymentProofSlot | null
+  /** Tên hiển thị của shop (widget khách). */
+  shopDisplayName?: string
 }) {
   const url = imageUrlFromPayload(row.raw_payload)
   const caption = row.body.replace(/^📷\s*/u, '').trim()
@@ -676,7 +694,12 @@ export function CustomerCareMessageBody({
           }
         />
       ) : null}
-      <OrderPaymentPanel raw={row.raw_payload} onViolet={onViolet} orderPaymentProof={orderPaymentProof} />
+      <OrderPaymentPanel
+        raw={row.raw_payload}
+        onViolet={onViolet}
+        orderPaymentProof={orderPaymentProof}
+        shopDisplayName={shopDisplayName}
+      />
       <AiProductCards
         cards={productCards}
         onViolet={onViolet}

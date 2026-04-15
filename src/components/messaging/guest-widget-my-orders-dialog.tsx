@@ -70,6 +70,7 @@ export function GuestWidgetMyOrdersDialog({
   depositBusyOrderId,
   onDepositPickProof,
   dataRefreshNonce = 0,
+  shopDisplayName = 'Shop',
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -85,6 +86,7 @@ export function GuestWidgetMyOrdersDialog({
   onDepositPickProof: (orderId: string) => void
   /** Tăng sau khi gửi biên lai để tải lại danh sách. */
   dataRefreshNonce?: number
+  shopDisplayName?: string
 }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -214,6 +216,7 @@ export function GuestWidgetMyOrdersDialog({
                       order={row}
                       busyOrderId={depositBusyOrderId}
                       onPickProof={onDepositPickProof}
+                      shopDisplayName={shopDisplayName}
                     />
                   ) : null}
                 </li>

@@ -27,6 +27,11 @@ import {
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
 type OrderStatus = 'awaiting_payment' | 'payment_checking' | 'paid_verified' | 'pending_manual_review' | 'cancelled'
 
+function messagingOrderShopTemplate(template: string, partnerDisplayName: string): string {
+  const name = (partnerDisplayName ?? '').trim() || 'Shop'
+  return template.replace(/\{shop\}/g, name)
+}
+
 type OrderRow = {
   id: string
   partner_id: string
@@ -494,13 +499,15 @@ export function PartnerMessagingOrdersClient({
                       sepay ? 'text-violet-900 dark:text-violet-100' : 'text-amber-950 dark:text-amber-50'
                     )}
                   >
-                    {sepay ? t.pathSepay : t.pathManual}
+                    {sepay ? messagingOrderShopTemplate(t.pathSepay, r.partner_display_name) : t.pathManual}
                   </span>
                   <span className="text-muted-foreground" aria-hidden>
                     ·
                   </span>
                   {sepay ? (
-                    <span className="text-xs leading-snug text-muted-foreground">{t.sepayAutoHint}</span>
+                    <span className="text-xs leading-snug text-muted-foreground">
+                      {messagingOrderShopTemplate(t.sepayAutoHint, r.partner_display_name)}
+                    </span>
                   ) : (
                     <span className="text-xs font-medium text-foreground">{proofReceiptShort(t, r.latest_proof_status)}</span>
                   )}
