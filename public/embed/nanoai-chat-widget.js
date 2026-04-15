@@ -309,6 +309,43 @@
       } catch (_) {}
     })
 
+    function extractGuestSlugFromChatUrl(urlStr) {
+      try {
+        var u = new URL(urlStr, window.location.href)
+        var m = u.pathname.match(/\/messaging\/p\/([^/]+)/)
+        return m && m[1] ? decodeURIComponent(m[1]) : ''
+      } catch (_) {
+        return ''
+      }
+    }
+
+    function applyResolvedShopName(name) {
+      var dn = String(name || '').trim()
+      if (!dn) return
+      shopName = dn
+      brandEl.textContent = dn
+      if (iframe) iframe.title = dn + ' — Chat'
+    }
+
+    if (!String(shopNameRaw || '').trim()) {
+      var slugBrand = extractGuestSlugFromChatUrl(chatUrl)
+      if (slugBrand) {
+        try {
+          var bu = new URL(chatUrl, window.location.href)
+          var brandFetchUrl = bu.origin + '/api/messaging/guest/' + encodeURIComponent(slugBrand) + '/brand'
+          fetch(brandFetchUrl, { credentials: 'omit', mode: 'cors' })
+            .then(function (r) {
+              return r.ok ? r.json() : null
+            })
+            .then(function (j) {
+              if (!j || typeof j.displayName !== 'string') return
+              applyResolvedShopName(j.displayName)
+            })
+            .catch(function () {})
+        } catch (_) {}
+      }
+    }
+
     function viewportHeight() {
       return (
         window.innerHeight ||
