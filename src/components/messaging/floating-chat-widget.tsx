@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Maximize2, MessageCircle, MessageSquare, Package, X } from 'lucide-react'
+import { Maximize2, MessageCircle, Package, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
@@ -10,11 +10,7 @@ import {
   isAllowedHttpNavigationUrl,
   isNavigateTopFromIframe,
 } from '@/lib/messaging/widget-parent-bridge'
-import {
-  clearReturnChatIframeHref,
-  readReturnChatIframeHref,
-  writeReturnChatIframeHref,
-} from '@/lib/messaging/widget-embed-session'
+import { readReturnChatIframeHref, writeReturnChatIframeHref } from '@/lib/messaging/widget-embed-session'
 
 const LOCALE_SHORT: Record<WebLocale, string> = {
   vi: 'VI',
@@ -48,10 +44,6 @@ type Props = {
   openFullPageLabel: string
   /** Nút «Đơn hàng» trên thanh widget (cùng hàng với chọn ngôn ngữ). */
   ordersButtonLabel: string
-  /** Sau khi mở SP từ chat nhúng: thanh «Quay lại chat» (trên cùng tab). */
-  returnToChatBarLabel?: string
-  /** Nút mở lại đúng phiên chat đã lưu (khi không dùng nút quay lại). */
-  reopenSavedChatLabel?: string
 }
 
 export function FloatingChatWidget({
@@ -65,15 +57,12 @@ export function FloatingChatWidget({
   closeLabel,
   openFullPageLabel,
   ordersButtonLabel,
-  returnToChatBarLabel = 'Quay lại chat',
-  reopenSavedChatLabel = 'Mở lại chat đang có',
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [duplicateMount, setDuplicateMount] = useState(false)
   const [closed, setClosed] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [uiLocale, setUiLocale] = useState<WebLocale>(() => parseUiLocaleFromChatUrl(chatUrl))
-  const [resumeIframeHref, setResumeIframeHref] = useState<string | null>(() => readReturnChatIframeHref())
   const [iframeSrc, setIframeSrc] = useState(() => readReturnChatIframeHref() ?? chatUrl)
   // Keep NanoAI widget above common social/contact bubbles (e.g. Zalo).
   const anchorClass = 'bottom-[10.5rem] right-3 md:bottom-6 md:right-4'
@@ -95,7 +84,6 @@ export function FloatingChatWidget({
 
   useEffect(() => {
     const stored = readReturnChatIframeHref()
-    setResumeIframeHref(stored)
     if (stored) setIframeSrc(stored)
     else setIframeSrc(chatUrl)
   }, [chatUrl])
@@ -149,7 +137,6 @@ export function FloatingChatWidget({
       const ret = typeof e.data.returnChatUrl === 'string' ? e.data.returnChatUrl.trim() : ''
       if (ret && isAllowedHttpNavigationUrl(ret)) {
         writeReturnChatIframeHref(ret)
-        setResumeIframeHref(ret)
       }
       window.location.assign(raw)
     }
@@ -163,17 +150,6 @@ export function FloatingChatWidget({
     setClosed(false)
   }, [chatUrl])
 
-  const goBackToChatContext = useCallback(() => {
-    if (typeof window === 'undefined') return
-    if (window.history.length > 1) {
-      clearReturnChatIframeHref()
-      setResumeIframeHref(null)
-      window.history.back()
-      return
-    }
-    openPanelWithSavedChat()
-  }, [openPanelWithSavedChat])
-
   const launcherSrc = typeof launcherLogoUrl === 'string' ? launcherLogoUrl.trim() : ''
   const showLauncherLogo = Boolean(launcherSrc && /^https?:\/\//i.test(launcherSrc))
 
@@ -181,40 +157,10 @@ export function FloatingChatWidget({
     return null
   }
 
-  const resumeBar = resumeIframeHref ? (
-    <div
-      className={`fixed left-0 right-0 top-0 z-[2147482999] flex flex-wrap items-center justify-center gap-2 border-b border-border/70 bg-background/95 px-2 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] shadow-sm backdrop-blur-sm`}
-    >
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        className="h-9 gap-1.5 text-xs font-medium"
-        onClick={goBackToChatContext}
-      >
-        <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
-        {returnToChatBarLabel}
-      </Button>
-      <Button
-        type="button"
-        variant="default"
-        size="sm"
-        className="h-9 gap-1.5 text-xs font-medium"
-        onClick={() => {
-          openPanelWithSavedChat()
-        }}
-      >
-        <MessageSquare className="h-4 w-4 shrink-0" aria-hidden />
-        {reopenSavedChatLabel}
-      </Button>
-    </div>
-  ) : null
-
   if (closed) {
     if (showLauncherLogo) {
       return (
         <div ref={rootRef} data-nanoai-widget-root className="contents">
-          {resumeBar}
           <button
           type="button"
           className={`fixed ${anchorClass} ${topLayerClass} h-14 w-14 cursor-pointer overflow-hidden rounded-full border-0 bg-transparent p-0 shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
@@ -234,7 +180,6 @@ export function FloatingChatWidget({
     }
     return (
       <div ref={rootRef} data-nanoai-widget-root className="contents">
-        {resumeBar}
         <button
         type="button"
         className={`fixed ${anchorClass} ${topLayerClass} flex h-14 w-14 cursor-pointer items-center justify-center rounded-full border border-border/40 bg-background/95 p-0 shadow-lg transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
@@ -254,7 +199,6 @@ export function FloatingChatWidget({
       data-nanoai-widget-root
       className={`fixed ${anchorClass} ${topLayerClass} flex h-[min(70vh,560px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border border-border/60 bg-background/95 shadow-2xl backdrop-blur-sm`}
     >
-      {resumeBar}
       <div className="flex shrink-0 items-center gap-1 border-b border-border/60 bg-muted/40 px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2">
         <div className="min-w-0 max-w-[32%] shrink truncate text-sm font-semibold sm:text-base">{shopName}</div>
         <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">

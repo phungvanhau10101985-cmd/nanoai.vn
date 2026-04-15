@@ -1,4 +1,4 @@
-/** NanoAI chat widget (nhúng site shop). Bản cập nhật: NAVIGATE_TOP + session quay lại chat — nên cache-bust: .../nanoai-chat-widget.js?v=20260413 */
+/** NanoAI chat widget (nhúng site shop). NAVIGATE_TOP + session iframe — cache-bust: .../nanoai-chat-widget.js?v= */
 (function () {
   var script = document.currentScript
   if (!script) {
@@ -225,12 +225,6 @@
       } catch (_) {}
     }
 
-    function clearReturnChatHref() {
-      try {
-        sessionStorage.removeItem(RETURN_CHAT_SESSION_KEY)
-      } catch (_) {}
-    }
-
     /** iframe → cả tab shop: mở SP thay trang host (trước đây không có listener → chỉ iframe tự assign → lồng UI). */
     window.addEventListener(
       'message',
@@ -248,49 +242,6 @@
       },
       false
     )
-
-    var returnBarEl = null
-    function removeReturnBar() {
-      try {
-        if (returnBarEl && returnBarEl.parentNode) returnBarEl.parentNode.removeChild(returnBarEl)
-      } catch (_) {}
-      returnBarEl = null
-    }
-
-    function ensureReturnBar() {
-      var saved = readReturnChatHref()
-      if (!saved) {
-        removeReturnBar()
-        return
-      }
-      if (returnBarEl) return
-      returnBarEl = document.createElement('div')
-      returnBarEl.setAttribute('data-nanoai-return-bar', '1')
-      returnBarEl.style.cssText =
-        'position:fixed;left:0;right:0;top:0;z-index:2147482999;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;padding:10px 10px calc(10px + env(safe-area-inset-top,0px));background:rgba(255,255,255,.97);border-bottom:1px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,.06);font-family:Arial,sans-serif;pointer-events:auto;'
-      var backBtn = document.createElement('button')
-      backBtn.type = 'button'
-      backBtn.textContent = '← Quay lại chat'
-      backBtn.style.cssText =
-        'font-size:13px;font-weight:600;padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;color:#111;cursor:pointer;'
-      backBtn.addEventListener('click', function () {
-        clearReturnChatHref()
-        removeReturnBar()
-        if (window.history.length > 1) window.history.back()
-        else openChat()
-      })
-      var reopenBtn = document.createElement('button')
-      reopenBtn.type = 'button'
-      reopenBtn.textContent = 'Mở lại chat đang có'
-      reopenBtn.style.cssText =
-        'font-size:13px;font-weight:600;padding:8px 12px;border-radius:8px;border:none;background:#7c3aed;color:#fff;cursor:pointer;'
-      reopenBtn.addEventListener('click', function () {
-        openChat()
-      })
-      returnBarEl.appendChild(backBtn)
-      returnBarEl.appendChild(reopenBtn)
-      document.body.appendChild(returnBarEl)
-    }
 
     var pendingUiLocale = 'vi'
     try {
@@ -577,7 +528,6 @@
     }
     applyLayout()
     window.addEventListener('resize', onResize, { passive: true })
-    ensureReturnBar()
   }
 
   if (document.readyState === 'loading') {
