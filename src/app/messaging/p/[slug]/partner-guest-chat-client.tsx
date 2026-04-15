@@ -1300,13 +1300,13 @@ export function PartnerGuestChatClient({
     })
   }
 
-  const clearAttachment = () => {
+  const clearAttachment = useCallback(() => {
     setImageStoragePath(null)
     setImagePreviewUrl(null)
     setTryOnGarmentPickerOpen(false)
     if (galleryInputRef.current) galleryInputRef.current.value = ''
     if (cameraInputRef.current) cameraInputRef.current.value = ''
-  }
+  }, [])
 
   const submitVisionPick = async (messageId: string, inventoryId: string) => {
     setVisionPickBusyId(messageId)
