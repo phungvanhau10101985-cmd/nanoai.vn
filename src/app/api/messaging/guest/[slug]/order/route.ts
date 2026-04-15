@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
-import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
-import { readGuestAccountIdFromRequest } from '@/lib/messaging/guest-account-session'
 import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
+import { resolveWidgetOrderThreadFromRequest } from '@/lib/messaging/resolve-widget-order-thread'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import {
   completeOrderCheckout,
@@ -20,16 +19,6 @@ async function resolvePartner(slug: string) {
   const active = await resolveActiveMessagingPartnerBySlug(slug)
   if (!active) return { error: 'not_found' as const }
   return { partnerId: active.id, displayName: active.display_name }
-}
-
-async function resolveThread(request: NextRequest): Promise<{ externalThreadId: string; linkedUserId: string | null; guestAccountId: string | null } | null> {
-  const user = await getEmailSessionUser()
-  if (user?.id) return { externalThreadId: user.id, linkedUserId: user.id, guestAccountId: null }
-  const accountId = readGuestAccountIdFromRequest(request)
-  if (accountId) return { externalThreadId: accountId, linkedUserId: null, guestAccountId: accountId }
-  const sessionId = readGuestSessionIdFromRequest(request)
-  if (!sessionId) return null
-  return { externalThreadId: sessionId, linkedUserId: null, guestAccountId: null }
 }
 
 function guestName(userEmail: string | null): string {
@@ -54,7 +43,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const { slug } = await ctx.params
   const partner = await resolvePartner(slug)
   if ('error' in partner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const thread = await resolveThread(request)
+  const thread = await resolveWidgetOrderThreadFromRequest(request, partner.partnerId)
   if (!thread) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = (await request.json().catch(() => null)) as
     | {
@@ -128,7 +117,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   const partner = await resolvePartner(slug)
   if ('error' in partner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const loginUser = await getEmailSessionUser()
-  const thread = await resolveThread(request)
+  const thread = await resolveWidgetOrderThreadFromRequest(request, partner.partnerId)
   if (!thread) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const accountEmail = thread.guestAccountId
     ? await fetchGuestAccountEmailByIdPg(partner.partnerId, thread.guestAccountId)
@@ -196,6 +185,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     orderId,
     linkedUserId: thread.linkedUserId,
     guestAccountId: thread.guestAccountId,
+    anonymousSessionId: thread.anonymousSessionId,
     form: {
       customerName,
       customerEmail: sessionEmail,
@@ -207,6 +197,14 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       note: String(f.note ?? '').trim(),
     },
   })
-  if ('error' in done) return NextResponse.json({ error: done.error }, { status: 400 })
+  if ('error' in done) {
+    const code = 'code' in done ? done.code : undefined
+    const status =
+      code === 'ORDER_NOT_FOUND' ? 404 : code === 'ORDER_ACCESS_DENIED' ? 403 : 400
+    return NextResponse.json(
+      { error: done.error, ...(code ? { code } : {}) },
+      { status }
+    )
+  }
   return NextResponse.json({ ok: true, order: done.order })
 }

@@ -160,6 +160,28 @@ function CompactPaymentField({
   )
 }
 
+/** Tin nhắn checkout lưu `order_status` lúc gửi; SePay xác nhận sau qua tin khác — dùng `sepayAlready` + status. */
+function chatOrderDepositResolved(orderStatus: string, sepayAlready: boolean): boolean {
+  if (sepayAlready) return true
+  const s = orderStatus.trim()
+  if (!s || s === 'awaiting_payment') return false
+  return true
+}
+
+function depositResolvedMessage(orderStatus: string, sepayAlready: boolean): string {
+  if (sepayAlready) return 'Đơn đã đặt cọc — SePay đã xác nhận. Quét lại QR trên app ngân hàng có thể báo đã thanh toán; không cần chuyển thêm.'
+  switch (orderStatus.trim()) {
+    case 'paid_verified':
+      return 'Đơn đã đặt cọc — shop đã xác nhận thanh toán.'
+    case 'pending_manual_review':
+      return 'Đơn đã đặt cọc — shop đang kiểm tra giao dịch.'
+    case 'payment_checking':
+      return 'Đơn đang được đối chiếu thanh toán.'
+    default:
+      return 'Đơn đã cập nhật trạng thái thanh toán.'
+  }
+}
+
 /** Tin hệ thống sau checkout: QR + STK (raw_payload từ guest-chat-ordering). */
 function OrderPaymentPanel({
   raw,
@@ -194,6 +216,7 @@ function OrderPaymentPanel({
   const orderStatus = typeof o.order_status === 'string' ? o.order_status.trim() : ''
   const sepayAlready =
     Boolean(orderId) && Boolean(orderPaymentProof?.sepayWebhookPaidOrderIds?.has(orderId))
+  const depositDone = chatOrderDepositResolved(orderStatus, sepayAlready)
   const isSepay = isSepayStyleOrderPayment({ payment_qr_url: qrUrl, payment_reference: ref })
   const showProofCta =
     orderPaymentProof &&
@@ -224,12 +247,29 @@ function OrderPaymentPanel({
   return (
     <div
       className={`mt-2 max-w-full rounded-lg border p-2.5 sm:p-3 ${
-        onViolet ? 'border-white/25 bg-white/10' : 'border-border/60 bg-muted/25'
+        depositDone
+          ? onViolet
+            ? 'border-emerald-400/40 bg-emerald-950/35'
+            : 'border-emerald-300/70 bg-emerald-50/90 dark:border-emerald-800/60 dark:bg-emerald-950/30'
+          : onViolet
+            ? 'border-white/25 bg-white/10'
+            : 'border-border/60 bg-muted/25'
       }`}
     >
       <p className={`text-sm font-semibold sm:text-base ${onViolet ? 'text-white' : 'text-foreground'}`}>
-        Thanh toán chuyển khoản
+        {depositDone ? 'Đặt cọc' : 'Thanh toán chuyển khoản'}
       </p>
+      {depositDone ? (
+        <p
+          className={`mt-1.5 text-sm leading-snug ${
+            onViolet ? 'text-emerald-100' : 'text-emerald-900 dark:text-emerald-100'
+          }`}
+        >
+          {depositResolvedMessage(orderStatus, sepayAlready)}
+        </p>
+      ) : null}
+      {!depositDone ? (
+        <>
       <div
         className={`mt-1.5 space-y-0 overflow-hidden rounded-md border px-1 sm:px-1.5 ${
           onViolet ? 'border-white/15 bg-black/10' : 'border-border/60 bg-background/50'
@@ -284,6 +324,44 @@ function OrderPaymentPanel({
           loading="lazy"
         />
       </div>
+        </>
+      ) : null}
+      {depositDone && orderId && orderPaymentProof?.onViewOrderDetail ? (
+        <div className="mt-2">
+          <Button
+            type="button"
+            size="sm"
+            className={`h-10 w-full text-sm font-medium ${
+              onViolet ? 'border-white/35 bg-white/10 text-white hover:bg-white/18' : ''
+            }`}
+            variant={onViolet ? 'outline' : 'secondary'}
+            onClick={() => orderPaymentProof.onViewOrderDetail!(orderId)}
+          >
+            Xem chi tiết đơn hàng
+          </Button>
+        </div>
+      ) : depositDone && orderId && detailHref ? (
+        <div className="mt-2">
+          <Button
+            type="button"
+            size="sm"
+            className={`h-10 w-full text-sm font-medium ${
+              onViolet ? 'border-white/35 bg-white/10 text-white hover:bg-white/18' : ''
+            }`}
+            variant={onViolet ? 'outline' : 'secondary'}
+            asChild
+          >
+            <Link
+              href={detailHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Mở tab mới để giữ phiên đăng nhập NanoAI"
+            >
+              Xem chi tiết đơn hàng
+            </Link>
+          </Button>
+        </div>
+      ) : null}
       {showPaymentActionRow && orderPaymentProof ? (
         <div className="mt-2 space-y-2">
           <div

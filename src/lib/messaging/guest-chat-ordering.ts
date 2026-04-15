@@ -38,27 +38,56 @@ import {
   fetchPartnerCustomerProfileByEmailFromPg,
   upsertPartnerCustomerProfileByEmailFromPg,
 } from '@/lib/db/messaging-partner-customer-profiles-pg'
+import { guestAccountEmailMatchesAuthUserFromPg } from '@/lib/db/messaging-guest-pg'
+
+const ORDER_THREAD_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export type WidgetOrderThreadForCheckout = {
+  externalThreadId: string
+  linkedUserId: string | null
+  guestAccountId: string | null
+  /** Cùng `x-guest-session-id` khi khách đã đăng nhập Google — đơn tạo lúc ẩn danh. */
+  anonymousSessionId?: string | null
+}
 
 /** Quyền trên đơn nháp khi `external_thread_id` trên đơn không còn trùng phiên (đổi guest ↔ Google). */
 async function assertGuestOwnsPartnerOrderForWidgetCheckout(
   partnerId: string,
   order: PartnerOrderRow,
-  thread: { externalThreadId: string; linkedUserId: string | null; guestAccountId: string | null }
+  thread: WidgetOrderThreadForCheckout
 ): Promise<boolean> {
   if (order.partner_id !== partnerId) return false
-  const tid = thread.externalThreadId.trim()
-  const oidEt = order.external_thread_id.trim()
+  const lc = (s: string) => s.trim().toLowerCase()
+  const tid = lc(thread.externalThreadId)
+  const oidEt = lc(order.external_thread_id)
   if (tid && oidEt === tid) return true
+
+  const anon = lc(thread.anonymousSessionId ?? '')
+  /** Đơn nháp neo phiên ẩn danh; PATCH dùng `user.id` nhưng header vẫn gửi session. */
+  if (anon && oidEt === anon) return true
 
   const conv = await fetchCustomerCareConversationByIdPg(order.conversation_id)
   if (!conv || conv.partner_id !== partnerId) return false
-  if (tid && conv.external_thread_id.trim() === tid) return true
-  const lid = thread.linkedUserId?.trim() ?? ''
-  if (lid && conv.linked_user_id?.trim() === lid) return true
-  const gid = thread.guestAccountId?.trim() ?? ''
+  const convEt = lc(conv.external_thread_id)
+  if (anon && convEt === anon) return true
+  if (tid && convEt === tid) return true
+  const lid = lc(thread.linkedUserId ?? '')
+  if (lid && lc(conv.linked_user_id ?? '') === lid) return true
+  const gid = lc(thread.guestAccountId ?? '')
   if (gid) {
-    if (conv.guest_account_id?.trim() === gid) return true
-    if (conv.external_thread_id.trim() === gid) return true
+    if (lc(conv.guest_account_id ?? '') === gid) return true
+    if (convEt === gid) return true
+  }
+  /** Đơn/hội thoại neo `guest_account` sau merge; PATCH dùng `user.id` (Google) — khớp email tài khoản. */
+  if (lid) {
+    const gaFromConv = lc(conv.guest_account_id ?? '')
+    const gaFromOrder = !gaFromConv && ORDER_THREAD_UUID_RE.test(oidEt) ? oidEt : ''
+    const guestId = gaFromConv || gaFromOrder
+    if (guestId) {
+      const ok = await guestAccountEmailMatchesAuthUserFromPg(partnerId, guestId, lid)
+      if (ok) return true
+    }
   }
   return false
 }
@@ -67,7 +96,7 @@ async function assertGuestOwnsPartnerOrderForWidgetCheckout(
 export async function fetchPartnerOrderDetailForGuestWidgetIfAllowed(
   partnerId: string,
   orderId: string,
-  thread: { externalThreadId: string; linkedUserId: string | null; guestAccountId: string | null }
+  thread: WidgetOrderThreadForCheckout
 ): Promise<PartnerOrderRow | null> {
   const order = await fetchPartnerOrderByIdForPartnerFromPg(partnerId, orderId)
   if (!order) return null
@@ -406,6 +435,8 @@ export async function createOrderDraftFromProductPick(input: {
   return { ok: true, order: draft, conversationId: conv.conversationId }
 }
 
+export type GuestOrderCheckoutErrorCode = 'ORDER_NOT_FOUND' | 'ORDER_ACCESS_DENIED'
+
 export async function completeOrderCheckout(input: {
   partnerId: string
   externalThreadId: string
@@ -413,19 +444,30 @@ export async function completeOrderCheckout(input: {
   form: CheckoutFormInput
   linkedUserId?: string | null
   guestAccountId?: string | null
-}): Promise<{ ok: true; order: PartnerOrderRow } | { error: string }> {
+  anonymousSessionId?: string | null
+}): Promise<
+  | { ok: true; order: PartnerOrderRow }
+  | { error: string; code?: GuestOrderCheckoutErrorCode }
+> {
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   if (!settings) return { error: 'Shop chưa cài đặt thanh toán.' }
 
   const oldOrder = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, input.orderId)
-  if (!oldOrder) return { error: 'Không tìm thấy đơn hàng.' }
-  const thread = {
+  if (!oldOrder) return { error: 'Không tìm thấy đơn hàng.', code: 'ORDER_NOT_FOUND' }
+  const thread: WidgetOrderThreadForCheckout = {
     externalThreadId: input.externalThreadId,
     linkedUserId: input.linkedUserId ?? null,
     guestAccountId: input.guestAccountId ?? null,
+    anonymousSessionId: input.anonymousSessionId ?? null,
   }
   const allowed = await assertGuestOwnsPartnerOrderForWidgetCheckout(input.partnerId, oldOrder, thread)
-  if (!allowed) return { error: 'Không tìm thấy đơn hàng.' }
+  if (!allowed) {
+    return {
+      error:
+        'Không xác thực được đơn (phiên hoặc tài khoản không khớp). Thử tải lại trang chat hoặc đặt lại từ tin nhắn shop.',
+      code: 'ORDER_ACCESS_DENIED',
+    }
+  }
   if (oldOrder.locked_at) return { error: 'Đơn đã khóa sau khi xác nhận, không thể sửa.' }
 
   const partnerRow = await fetchMessagingPartnersByIdsFromPg([input.partnerId])
@@ -731,6 +773,7 @@ export async function verifyOrderPaymentProof(input: {
   proofImageStoragePath: string
   linkedUserId?: string | null
   guestAccountId?: string | null
+  anonymousSessionId?: string | null
   /** Đã OCR ở bước nhận diện ảnh trong chat — tránh gọi Gemini hai lần. */
   preReadOcr?: TransferReceiptOcrResult | null
 }): Promise<{ ok: true; order: PartnerOrderRow; verification: 'verified' | 'manual_review' | 'failed' } | { error: string }> {
@@ -739,10 +782,11 @@ export async function verifyOrderPaymentProof(input: {
 
   const order = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, input.orderId)
   if (!order) return { error: 'Không tìm thấy đơn cần đối chiếu.' }
-  const thread = {
+  const thread: WidgetOrderThreadForCheckout = {
     externalThreadId: input.externalThreadId,
     linkedUserId: input.linkedUserId ?? null,
     guestAccountId: input.guestAccountId ?? null,
+    anonymousSessionId: input.anonymousSessionId ?? null,
   }
   const allowed = await assertGuestOwnsPartnerOrderForWidgetCheckout(input.partnerId, order, thread)
   if (!allowed) return { error: 'Không tìm thấy đơn cần đối chiếu.' }

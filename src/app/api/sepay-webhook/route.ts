@@ -232,11 +232,11 @@ export async function POST(request: NextRequest) {
       const chatBody =
         refreshed
           ? nextStatus === 'paid_verified'
-            ? `Shop đã xác nhận thanh toán cho đơn ${refMemo} (SePay). Đã nhận: ${formatVnd(amountIn)}. Thanh toán khi nhận hàng: ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}).`
-            : `Shop đã nhận ${formatVnd(amountIn)} qua SePay; đơn ${refMemo} đang chờ kiểm tra thêm. Thanh toán khi nhận hàng (ước tính): ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}).`
+            ? `Shop đã xác nhận thanh toán cho đơn ${refMemo} (SePay). Đã nhận: ${formatVnd(amountIn)}. Thanh toán khi nhận hàng: ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}). Cảm ơn bạn đã đặt hàng!`
+            : `Shop đã nhận ${formatVnd(amountIn)} qua SePay; đơn ${refMemo} đang chờ kiểm tra thêm. Thanh toán khi nhận hàng (ước tính): ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}). Cảm ơn bạn đã đặt hàng — shop sẽ cập nhật ngay khi đối chiếu xong.`
           : nextStatus === 'paid_verified'
-            ? `Shop da xac nhan thanh toan thanh cong cho don ${order.payment_reference} qua SePay webhook.`
-            : `Shop da nhan giao dich qua SePay webhook, dang can duyet tay them cho don ${order.payment_reference}.`
+            ? `Shop da xac nhan thanh toan thanh cong cho don ${order.payment_reference} qua SePay webhook. Cam on ban da dat hang!`
+            : `Shop da nhan giao dich qua SePay webhook, dang can duyet tay them cho don ${order.payment_reference}. Cam on ban — shop se cap nhat sau khi doi chieu.`
       await insertMessagePg({
         conversationId: order.conversation_id,
         direction: 'outbound',

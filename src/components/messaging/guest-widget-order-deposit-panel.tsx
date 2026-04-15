@@ -13,13 +13,13 @@ function displayBankName(raw: string): string {
   return raw.replace(/\s*\(BIN\s+\d+\)\s*$/i, '').trim() || raw.trim()
 }
 
+/** Chỉ hiện QR đặt cọc khi đơn vẫn chờ CK; đã cọc / đang kiểm tra / đã xác nhận → không hiện QR. */
 export function guestOrderNeedsDepositUi(order: PartnerOrderRow): boolean {
   const qr = String(order.payment_qr_url ?? '').trim()
-  return (
-    order.status === 'awaiting_payment' &&
-    order.required_amount > 0 &&
-    /^https?:\/\//i.test(qr)
-  )
+  if (order.status !== 'awaiting_payment') return false
+  if (order.required_amount <= 0) return false
+  if (!/^https?:\/\//i.test(qr)) return false
+  return true
 }
 
 function CompactCopyRow({

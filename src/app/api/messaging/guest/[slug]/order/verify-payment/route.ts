@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
-import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
-import { readGuestAccountIdFromRequest } from '@/lib/messaging/guest-account-session'
 import { verifyOrderPaymentProof } from '@/lib/messaging/guest-chat-ordering'
+import { resolveWidgetOrderThreadFromRequest } from '@/lib/messaging/resolve-widget-order-thread'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -14,21 +12,11 @@ async function resolvePartner(slug: string) {
   return { partnerId: active.id }
 }
 
-async function resolveThread(request: NextRequest): Promise<{ externalThreadId: string; linkedUserId: string | null; guestAccountId: string | null } | null> {
-  const user = await getEmailSessionUser()
-  if (user?.id) return { externalThreadId: user.id, linkedUserId: user.id, guestAccountId: null }
-  const accountId = readGuestAccountIdFromRequest(request)
-  if (accountId) return { externalThreadId: accountId, linkedUserId: null, guestAccountId: accountId }
-  const sessionId = readGuestSessionIdFromRequest(request)
-  if (!sessionId) return null
-  return { externalThreadId: sessionId, linkedUserId: null, guestAccountId: null }
-}
-
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
   const partner = await resolvePartner(slug)
   if ('error' in partner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const thread = await resolveThread(request)
+  const thread = await resolveWidgetOrderThreadFromRequest(request, partner.partnerId)
   if (!thread) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = (await request.json().catch(() => null)) as {
@@ -48,6 +36,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     proofImageStoragePath,
     linkedUserId: thread.linkedUserId,
     guestAccountId: thread.guestAccountId,
+    anonymousSessionId: thread.anonymousSessionId,
   })
   if ('error' in verified) return NextResponse.json({ error: verified.error }, { status: 400 })
   return NextResponse.json({ ok: true, order: verified.order, verification: verified.verification })

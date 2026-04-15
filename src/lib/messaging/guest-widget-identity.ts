@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import {
   createGuestSessionId,
-  readGuestSessionIdFromRequest,
+  readGuestSessionIdFromRequestStrictOrLoose,
 } from '@/lib/messaging/guest-auth-session'
 import { readGuestAccountIdFromRequest } from '@/lib/messaging/guest-account-session'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
@@ -39,7 +39,7 @@ export async function resolveGuestIdentity(request: NextRequest) {
     }
   }
 
-  const existingSessionId = readGuestSessionIdFromRequest(request)
+  const existingSessionId = readGuestSessionIdFromRequestStrictOrLoose(request)
   if (existingSessionId) {
     return {
       user: null,
@@ -103,7 +103,7 @@ export async function upsertGuestAccountForGoogleIdentity(
     console.warn('[guest] upsertGuestAccountForGoogleIdentity PG failed', e)
   }
 
-  const anonymousSessionId = readGuestSessionIdFromRequest(request)
+  const anonymousSessionId = readGuestSessionIdFromRequestStrictOrLoose(request)
   if (anonymousSessionId && accountId) {
     await mergeGuestSessionConversationToAccount(partnerId, anonymousSessionId, accountId)
   }

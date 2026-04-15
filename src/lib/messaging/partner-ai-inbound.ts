@@ -1,4 +1,5 @@
 import type { Database, Json } from '@/types/database.types'
+import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { fetchConversationUiLocaleFromPg, fetchCustomerCareConversationByIdPg } from '@/lib/db/customer-care-pg'
 import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import {
@@ -12,6 +13,11 @@ import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-im
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
 import { normalizeWebLocale } from '@/lib/i18n/config'
+import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
+import {
+  buildPurchasePickListCardsFromConversation,
+  purchasePickListMessageBody,
+} from '@/lib/messaging/partner-ai-purchase-pick-list'
 
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 
@@ -71,6 +77,34 @@ async function runInstantFaq(ctx: {
   if (err.error) console.error('[partner-ai] instant FAQ deliver', err.error)
 }
 
+async function runInstantPurchasePickList(ctx: {
+  partnerId: string
+  conversationId: string
+  settings: SettingsRow
+  body: string
+  cards: PartnerAiProductCard[]
+}) {
+  let conv: Database['public']['Tables']['customer_care_conversations']['Row'] | null = null
+  try {
+    conv = await fetchCustomerCareConversationByIdPg(ctx.conversationId)
+  } catch (e) {
+    console.warn('[partner-ai] runInstantPurchasePickList PG conv failed', e)
+  }
+  if (!conv) return
+  await sleep(typingDelayMs(ctx.settings))
+  const rawPayload = {
+    source: 'ai_purchase_pick_list',
+    ai_product_cards: ctx.cards,
+  } as unknown as Json
+  const err = await deliverAutomatedPartnerMessage({
+    conversation: conv,
+    settings: ctx.settings,
+    body: ctx.body,
+    rawPayload,
+  })
+  if (err.error) console.error('[partner-ai] instant purchase pick list deliver', err.error)
+}
+
 /** Gợi ý UI phía khách: hiện “đang trả lời” trong khoảng maxWaitMs (poll nhanh hơn). */
 export type PartnerInboundShopTypingHint = { show: false } | { show: true; maxWaitMs: number }
 
@@ -120,6 +154,32 @@ export async function handlePartnerInboundForAi(input: {
       })
       const typingHi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
       return { show: true, maxWaitMs: typingHi + 10_000 }
+    }
+
+    const skipPurchasePickBranch = skipFaq
+    let pickUiLocale = normalizeWebLocale(input.widgetUiLocale ?? null)
+    if (input.channel === 'widget' && pickUiLocale === null && isPgConfigured()) {
+      try {
+        const raw = await fetchConversationUiLocaleFromPg(input.conversationId)
+        pickUiLocale = normalizeWebLocale(raw ?? null)
+      } catch {
+        pickUiLocale = null
+      }
+    }
+    if (!skipPurchasePickBranch && inboundTextLooksLikePurchasePickListIntent(input.inboundBody)) {
+      const cards = await buildPurchasePickListCardsFromConversation(input.partnerId, input.conversationId)
+      if (cards.length > 0) {
+        await cancelPendingAiJobsForConversation(input.conversationId)
+        void runInstantPurchasePickList({
+          partnerId: input.partnerId,
+          conversationId: input.conversationId,
+          settings,
+          body: purchasePickListMessageBody(pickUiLocale),
+          cards,
+        })
+        const typingHi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
+        return { show: true, maxWaitMs: typingHi + 10_000 }
+      }
     }
 
     // Gộp burst: nếu khách nhắn dày trong thời gian ngắn, chỉ giữ job mới nhất.

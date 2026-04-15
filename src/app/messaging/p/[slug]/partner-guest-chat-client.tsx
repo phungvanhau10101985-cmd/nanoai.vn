@@ -847,6 +847,20 @@ export function PartnerGuestChatClient({
     }
   }, [proofOrderId, sepayWebhookPaidOrderIds])
 
+  /** Khi tin SePay xác nhận xuất hiện trong chat, tải lại chi tiết đơn (ẩn QR theo trạng thái mới). */
+  const embedDetailRefetchNonceOidRef = useRef<string | null>(null)
+  useEffect(() => {
+    const oid = embedOrderDetailId?.trim() ?? ''
+    if (!oid) {
+      embedDetailRefetchNonceOidRef.current = null
+      return
+    }
+    if (!sepayWebhookPaidOrderIds.has(oid)) return
+    if (embedDetailRefetchNonceOidRef.current === oid) return
+    embedDetailRefetchNonceOidRef.current = oid
+    setEmbedWidgetDataNonce((n) => n + 1)
+  }, [embedOrderDetailId, sepayWebhookPaidOrderIds])
+
   useEffect(() => {
     if (!proofOrderId) setProofOrderIsSepay(false)
   }, [proofOrderId])
@@ -3856,12 +3870,21 @@ export function PartnerGuestChatClient({
                   {t.guestAttachPhoto}
                 </span>
               </div>
-              <Link
-                href="/messaging/my-chats"
-                className="block rounded-lg border border-violet-200/90 bg-violet-50/90 px-3 py-2 text-center text-sm font-medium text-violet-900 shadow-sm hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-50"
-              >
-                {t.linkMyShops}
-              </Link>
+              <div className="space-y-2">
+                <Link
+                  href="/messaging/my-chats"
+                  className="block rounded-lg border border-violet-200/90 bg-violet-50/90 px-3 py-2 text-center text-sm font-medium text-violet-900 shadow-sm hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-50"
+                >
+                  {t.linkMyShops}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setEmbedMyOrdersOpen(true)}
+                  className="block w-full rounded-lg border border-violet-200/90 bg-violet-50/90 px-3 py-2 text-center text-sm font-medium text-violet-900 shadow-sm transition-colors hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-50 dark:hover:bg-violet-900/40"
+                >
+                  {t.linkMyOrders}
+                </button>
+              </div>
             </section>
 
             <section className="flex min-h-0 flex-1 flex-col border-t border-border/60 pt-3">

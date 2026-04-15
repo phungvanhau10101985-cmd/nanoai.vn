@@ -450,6 +450,40 @@ export async function fetchLatestConsultedProductUrlKeyForConversationFromPg(
   }
 }
 
+/**
+ * Các `product_url_key` đã bấm «Tư vấn», **mới nhất trước** — mỗi URL một lần (lần tư vấn gần nhất của mỗi SP quyết định thứ hạng).
+ */
+export async function fetchConsultedProductUrlKeysByRecencyFromPg(
+  conversationId: string,
+  limit: number
+): Promise<string[] | null> {
+  if (!isPgConfigured()) return null
+  const lim = Math.max(1, Math.min(30, Math.floor(Number(limit)) || 10))
+  try {
+    const rows = await pgQuery<{ product_url_key: string }>(
+      `select trim(product_url_key) as product_url_key
+       from (
+         select product_url_key, max(consulted_at) as last_at
+         from public.customer_care_consulted_products
+         where conversation_id = $1::uuid
+         group by product_url_key
+       ) t
+       order by last_at desc
+       limit $2`,
+      [conversationId, lim]
+    )
+    const out: string[] = []
+    for (const r of rows) {
+      const k = String(r.product_url_key ?? '').trim()
+      if (k) out.push(k)
+    }
+    return out.length ? out : []
+  } catch (e) {
+    console.error('[customer-care-pg] fetchConsultedProductUrlKeysByRecencyFromPg', e)
+    return null
+  }
+}
+
 export async function fetchConsultedProductKeysForConversationFromPg(
   conversationId: string
 ): Promise<string[] | null> {
@@ -567,6 +601,13 @@ export async function mergeGuestSessionConversationToAccountPg(
         await client.query('rollback')
         return false
       }
+      /** Đơn nháp / thanh toán neo `external_thread_id` — đồng bộ với thread mới (tránh PATCH 400 sau khi gộp). */
+      await client.query(
+        `update public.messaging_partner_orders
+         set external_thread_id = $1, updated_at = now()
+         where conversation_id = $2::uuid and partner_id = $3::uuid`,
+        [guestAccountId, oldId, partnerId]
+      )
       await client.query('commit')
       return true
     }
@@ -575,6 +616,46 @@ export async function mergeGuestSessionConversationToAccountPg(
       await client.query('commit')
       return true
     }
+
+    /**
+     * Trước khi xóa hội thoại cũ: chuyển mọi thứ neo `conversation_id` — nếu không,
+     * `on delete cascade` sẽ xóa đơn hàng / job AI / đã tư vấn (mất đơn nháp → PATCH «Không tìm thấy đơn»).
+     */
+    await client.query(
+      `update public.messaging_partner_orders
+       set conversation_id = $1::uuid,
+           external_thread_id = $2,
+           updated_at = now()
+       where conversation_id = $3::uuid and partner_id = $4::uuid`,
+      [targetId, guestAccountId.trim(), oldId, partnerId]
+    )
+    await client.query(
+      `update public.messaging_partner_ai_jobs
+       set conversation_id = $1::uuid
+       where conversation_id = $2::uuid`,
+      [targetId, oldId]
+    )
+    await client.query(
+      `update public.messaging_partner_ai_token_usage
+       set conversation_id = $1::uuid
+       where conversation_id = $2::uuid`,
+      [targetId, oldId]
+    )
+    await client.query(
+      `delete from public.customer_care_consulted_products o
+       using public.customer_care_consulted_products t
+       where o.conversation_id = $2::uuid
+         and t.conversation_id = $1::uuid
+         and t.source_message_id = o.source_message_id
+         and t.product_url_key = o.product_url_key`,
+      [targetId, oldId]
+    )
+    await client.query(
+      `update public.customer_care_consulted_products
+       set conversation_id = $1::uuid
+       where conversation_id = $2::uuid`,
+      [targetId, oldId]
+    )
 
     await client.query(
       `update public.customer_care_messages

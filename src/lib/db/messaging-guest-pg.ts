@@ -1,3 +1,4 @@
+import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
 
@@ -241,5 +242,37 @@ export async function findMagicLinkChallengePg(
     id: String(row.id),
     expires_at: String(row.expires_at ?? ''),
     consumed_at: row.consumed_at != null ? String(row.consumed_at) : null,
+  }
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Đơn neo `guest_account` (sau merge phiên) + khách PATCH bằng session Google:
+ * cùng email `messaging_guest_accounts` ↔ `auth.users` → vẫn là chủ đơn.
+ */
+export async function guestAccountEmailMatchesAuthUserFromPg(
+  partnerId: string,
+  guestAccountId: string,
+  linkedUserId: string
+): Promise<boolean> {
+  const authEmail = (await getAuthUserEmailFromPg(linkedUserId))?.trim().toLowerCase()
+  if (!authEmail) return false
+  const aid = guestAccountId.trim()
+  const pid = partnerId.trim()
+  if (!aid || !pid || !UUID_RE.test(aid)) return false
+  try {
+    const row = await pgQueryOne<{ ok: number }>(
+      `select 1 as ok from public.messaging_guest_accounts
+       where partner_id = $1::uuid and id = $2::uuid
+         and email_normalized = $3
+       limit 1`,
+      [pid, aid, authEmail]
+    )
+    return row != null
+  } catch (e) {
+    console.warn('[messaging-guest-pg] guestAccountEmailMatchesAuthUserFromPg', e)
+    return false
   }
 }
