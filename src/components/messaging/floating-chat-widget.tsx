@@ -127,7 +127,7 @@ export function FloatingChatWidget({
     }
   }, [chatUrl, iframeSrc])
 
-  /** iframe chat → thay cả tab trang shop bằng URL SP (đồng bộ với `openGuestProductDetailUrl` khi cross-origin). */
+  /** iframe chat → thay cả tab trang shop bằng URL SP (`postMessage` từ `openGuestProductDetailUrl`; không assign trong iframe). */
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (!isNavigateTopFromIframe(e.data)) return

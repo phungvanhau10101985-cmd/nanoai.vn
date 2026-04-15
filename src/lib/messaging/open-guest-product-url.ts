@@ -1,4 +1,7 @@
-import { isAllowedHttpNavigationUrl } from '@/lib/messaging/widget-parent-bridge'
+import {
+  NANOAI_WIDGET_MSG_SOURCE,
+  isAllowedHttpNavigationUrl,
+} from '@/lib/messaging/widget-parent-bridge'
 
 /** Safari / WebKit trên iPhone, iPod; iPad (kể cả báo desktop). */
 function isIosLike(): boolean {
@@ -17,22 +20,6 @@ function isEmbeddedInFrame(): boolean {
   }
 }
 
-/** Trang chat mở với `?embed=1` (cùng tab, không iframe) — vẫn là UI nhúng shop. */
-function isGuestChatEmbedQueryMode(): boolean {
-  if (typeof window === 'undefined') return false
-  try {
-    const q = new URLSearchParams(window.location.search)
-    const ev = (q.get('embed') || '').trim().toLowerCase()
-    return ev === '1' || ev === 'true' || ev === 'yes'
-  } catch {
-    return false
-  }
-}
-
-function isGuestEmbedNavigationBlocked(): boolean {
-  return isEmbeddedInFrame() || isGuestChatEmbedQueryMode()
-}
-
 /** Chuẩn hóa URL tuyệt đối (path tương đối trong iframe). */
 function resolveNavigationUrl(raw: string): string | null {
   const t = raw.trim()
@@ -46,9 +33,41 @@ function resolveNavigationUrl(raw: string): string | null {
 }
 
 /**
+ * Trong iframe chat: mở SP trên **tab trang shop** (top / postMessage), không `assign` trong iframe —
+ * nếu assign trong iframe thì SP thay thế UI chat, không nút quay lại và mở chat lại dễ lồng khung.
+ */
+function openProductUrlFromEmbedIframe(resolved: string): void {
+  const returnChatUrl =
+    typeof window.location.href === 'string' ? window.location.href.trim() : ''
+
+  try {
+    if (window.top && window.top !== window.self) {
+      window.top.location.assign(resolved)
+      return
+    }
+  } catch {
+    /* cross-origin: không đọc được top */
+  }
+
+  try {
+    window.parent.postMessage(
+      {
+        source: NANOAI_WIDGET_MSG_SOURCE,
+        type: 'NAVIGATE_TOP',
+        url: resolved,
+        ...(returnChatUrl ? { returnChatUrl } : {}),
+      },
+      '*'
+    )
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
  * Mở liên kết từ cửa sổ chat khách (SP, đơn, URL trong tin, mở full page…).
  *
- * **Nhúng (iframe hoặc `?embed=1`):** không điều hướng sang trang chi tiết sản phẩm — tránh thoát / đổi tab shop.
+ * **iframe:** điều hướng **cửa sổ cha / top** (đồng bộ với `FloatingChatWidget` / `nanoai-chat-widget.js`).
  *
  * Trang chat đứng một mình:
  * - **iOS**: luôn cùng tab (`assign`).
@@ -59,7 +78,8 @@ export function openGuestProductDetailUrl(url: string): void {
   const resolved = resolveNavigationUrl(typeof url === 'string' ? url : '')
   if (!resolved || !isAllowedHttpNavigationUrl(resolved)) return
 
-  if (isGuestEmbedNavigationBlocked()) {
+  if (isEmbeddedInFrame()) {
+    openProductUrlFromEmbedIframe(resolved)
     return
   }
 
