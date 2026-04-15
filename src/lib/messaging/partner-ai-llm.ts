@@ -16,6 +16,7 @@ import {
   fetchInventoryRowsByExplicitSku,
   fetchInventoryRowsForPartnerAi,
   fetchInventoryRowsFromPageContextSku,
+  fetchInventoryRowsFromProductCardConsultPageContext,
   PARTNER_AI_INVENTORY_CONTEXT_LIMIT,
   customerMessageIsFollowUpContextQuery,
   inboundTextLooksLikeFollowUpConsultHeuristic,
@@ -279,6 +280,11 @@ products **phải** là [] (rỗng). Không thêm trường khác.
 Trong \`message\`: **không** hỏi khắc phục lỗi truy cập web/app; hướng khách **nêu nhu cầu tư vấn sản phẩm** (ảnh hoặc tên loại). Nếu khách xưng **anh** → ví dụ chỉ **đồ nam**; nếu **chị/em** → ví dụ **đồ nữ**; không lẫn ví dụ nam/nữ sai xưng hô.`
 }
 
+function rawPayloadIsProductCardConsult(raw: Json | null | undefined): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
+  return (raw as { page_context?: { source?: string } }).page_context?.source === 'product_card_consult'
+}
+
 export async function buildPartnerAiContext(
   partnerId: string,
   conversationId: string,
@@ -302,9 +308,25 @@ export async function buildPartnerAiContext(
   const effectiveLocaleOpts = await resolvePartnerAiLocaleOpts(conversationId, localeOpts)
   const invFmtOpts = { markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts) }
 
-  let explicitSkuRows = await fetchInventoryRowsByExplicitSku(partnerId, latestCustomerMessage)
-  if (explicitSkuRows.length === 0) {
+  /**
+   * Bấm «Tư vấn» trên thẻ: ưu tiên **SKU / URL / ảnh / vector ảnh** từ `page_context` — **không** trích SKU
+   * từ cả đoạn tin dài (dễ khớp nhầm token trong câu mẫu).
+   */
+  const isConsultCardPick = rawPayloadIsProductCardConsult(triggerRawPayload)
+  let explicitSkuRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] = []
+  if (isConsultCardPick) {
     explicitSkuRows = await fetchInventoryRowsFromPageContextSku(partnerId, triggerRawPayload)
+    if (explicitSkuRows.length === 0) {
+      explicitSkuRows = await fetchInventoryRowsFromProductCardConsultPageContext(partnerId, triggerRawPayload)
+    }
+  } else {
+    explicitSkuRows = await fetchInventoryRowsByExplicitSku(partnerId, latestCustomerMessage)
+    if (explicitSkuRows.length === 0) {
+      explicitSkuRows = await fetchInventoryRowsFromPageContextSku(partnerId, triggerRawPayload)
+    }
+    if (explicitSkuRows.length === 0) {
+      explicitSkuRows = await fetchInventoryRowsFromProductCardConsultPageContext(partnerId, triggerRawPayload)
+    }
   }
   const selectedInventoryId = selectedInventoryIdFromTrigger(triggerRawPayload)
 

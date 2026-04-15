@@ -1,8 +1,11 @@
-import { fetchPartnerInventoryRowByProductUrlFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  fetchPartnerInventoryRowByProductUrlNormKeyFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 
 /**
- * Gắn `product_video_url` từ kho (theo link trang SP) để khách xem video trên thẻ — không phụ thuộc LLM.
+ * Gắn `product_video_url` và `inventory_id` từ kho (theo URL trang SP đã chuẩn hoá) — không phụ thuộc LLM.
+ * `inventory_id` dùng cho «Tư vấn» (neo thẳng dòng kho, không embed lại ảnh thẻ).
  */
 export async function enrichPartnerAiProductCardsWithInventoryVideoFromPg(
   partnerId: string,
@@ -16,12 +19,20 @@ export async function enrichPartnerAiProductCardsWithInventoryVideoFromPg(
       continue
     }
     try {
-      const row = await fetchPartnerInventoryRowByProductUrlFromPg(partnerId, pu)
-      const vid = (row?.product_video_url ?? '').trim()
-      if (vid && /^https?:\/\//i.test(vid)) {
-        out.push({ ...c, product_video_url: vid })
+      const row = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(partnerId, pu)
+      if (!row) {
+        out.push(c)
         continue
       }
+      const id = row.id?.trim()
+      const vid = (row.product_video_url ?? '').trim()
+      const withId = id ? { ...c, inventory_id: id } : c
+      if (vid && /^https?:\/\//i.test(vid)) {
+        out.push({ ...withId, product_video_url: vid })
+        continue
+      }
+      out.push(withId)
+      continue
     } catch {
       /* giữ card gốc */
     }

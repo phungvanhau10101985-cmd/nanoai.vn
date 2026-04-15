@@ -24,6 +24,7 @@ import {
   fetchLastOutboundCustomerCareMessageBodyPg,
   mergeConversationUiLocaleFromPg,
   resolveLinkedUserIdForCustomerCarePg,
+  upsertConsultedProductKeyForConversationFromPg,
 } from '@/lib/db/customer-care-pg'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { fetchMessagingPartnerAiEnabledFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
@@ -38,6 +39,7 @@ import {
 import type { PartnerAiWidgetIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { partnerAiMessageAloneSuggestsClarifyIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
+import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 
 const ANONYMOUS_INBOUND_AUTH_THRESHOLD = 5
 type GuestVisionCandidatePayload = {
@@ -68,6 +70,8 @@ export async function postWidgetGuestMessage(params: {
     sku?: string
     imageUrl?: string
     productUrl?: string
+    /** UUID dòng kho — neo «Tư vấn» trực tiếp, không embed lại ảnh thẻ. */
+    inventoryId?: string
     source?: string
   }
 }): Promise<
@@ -89,8 +93,18 @@ export async function postWidgetGuestMessage(params: {
   const pageContextProductUrlRaw =
     typeof params.pageContext?.productUrl === 'string' ? params.pageContext.productUrl.trim() : ''
   const pageContextProductUrl = /^https?:\/\//i.test(pageContextProductUrlRaw) ? pageContextProductUrlRaw : ''
+  const pageContextInventoryIdRaw =
+    typeof params.pageContext?.inventoryId === 'string' ? params.pageContext.inventoryId.trim() : ''
+  const pageContextInventoryId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    pageContextInventoryIdRaw
+  )
+    ? pageContextInventoryIdRaw
+    : ''
   const pageContextHasAny =
-    Boolean(pageContextSku) || Boolean(pageContextImageUrl) || Boolean(pageContextProductUrl)
+    Boolean(pageContextSku) ||
+    Boolean(pageContextImageUrl) ||
+    Boolean(pageContextProductUrl) ||
+    Boolean(pageContextInventoryId)
   if ((!text && !imagePath && !pageContextHasAny) || text.length > 8000) {
     return { error: 'Invalid message.' }
   }
@@ -205,6 +219,7 @@ export async function postWidgetGuestMessage(params: {
           ...(pageContextSku ? { sku: pageContextSku } : {}),
           ...(pageContextImageUrl ? { image_url: pageContextImageUrl } : {}),
           ...(pageContextProductUrl ? { product_url: pageContextProductUrl } : {}),
+          ...(pageContextInventoryId ? { inventory_id: pageContextInventoryId } : {}),
           ...(typeof params.pageContext?.source === 'string' ? { source: params.pageContext.source } : {}),
         },
       } as Json
@@ -218,6 +233,7 @@ export async function postWidgetGuestMessage(params: {
               ...(pageContextSku ? { sku: pageContextSku } : {}),
               ...(pageContextImageUrl ? { image_url: pageContextImageUrl } : {}),
               ...(pageContextProductUrl ? { product_url: pageContextProductUrl } : {}),
+              ...(pageContextInventoryId ? { inventory_id: pageContextInventoryId } : {}),
               ...(typeof params.pageContext?.source === 'string' ? { source: params.pageContext.source } : {}),
             },
           } as Json)
@@ -378,6 +394,23 @@ export async function postWidgetGuestMessage(params: {
   if ('error' in ins) return { error: ins.error ?? 'Insert failed.' }
 
   const newMessageId = 'messageId' in ins ? ins.messageId : null
+  if (
+    newMessageId &&
+    isPgConfigured() &&
+    typeof params.pageContext?.source === 'string' &&
+    params.pageContext.source === 'product_card_consult' &&
+    pageContextProductUrl
+  ) {
+    try {
+      const pk = normalizeProductUrlKey(pageContextProductUrl)
+      if (pk) {
+        await upsertConsultedProductKeyForConversationFromPg(conversationId, newMessageId, pk)
+      }
+    } catch (e) {
+      console.warn('[widget-guest-post] upsert consulted product key', e)
+    }
+  }
+
   let shopTyping: { maxWaitMs: number } | undefined
   const visionPickRequired = productPickCandidates.length > 0
   let paymentVerificationHandled = false
@@ -404,6 +437,7 @@ export async function postWidgetGuestMessage(params: {
     const aiContextHints = [
       pageContextSku ? `[Customer product SKU: ${pageContextSku}]` : '',
       pageContextProductUrl ? `[Customer product URL: ${pageContextProductUrl}]` : '',
+      pageContextInventoryId ? `[Customer product inventory id: ${pageContextInventoryId}]` : '',
       !imagePublicUrl && pageContextImageUrl ? `[Customer product image: ${pageContextImageUrl}]` : '',
     ]
       .filter(Boolean)

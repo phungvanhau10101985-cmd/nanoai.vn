@@ -313,6 +313,31 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
   }
 }
 
+/**
+ * Thẻ «Tư vấn» không khớp URL/SKU tĩnh: embed ảnh trên thẻ → ANN pgvector trên kho (vector ảnh đã sync).
+ */
+export async function fetchTopInventoryRowByConsultCardImageVectorAnn(
+  partnerId: string,
+  imageUrl: string
+): Promise<InvRow | null> {
+  if (!isPgConfigured()) return null
+  const u = imageUrl.trim()
+  if (!/^https?:\/\//i.test(u)) return null
+  try {
+    const img = await fetchRemoteImageForCatalog(u, { timeoutMs: 12_000 })
+    if (!img) return null
+    const res = await geminiProductSearchFromImageBufferViaVectorDb(img.buf, partnerId, { maxResults: 1 })
+    if (res.error || !res.candidates?.length) return null
+    const id = res.candidates[0].inventoryId
+    if (!id) return null
+    const rows = await fetchPartnerInventoryRowsByIdsInOrderFromPg(partnerId, [id])
+    return rows?.[0] ?? null
+  } catch (e) {
+    console.warn('[fetchTopInventoryRowByConsultCardImageVectorAnn]', e)
+    return null
+  }
+}
+
 export function clearGeminiImageEmbeddingCache() {
   imageEmbedCache.clear()
   inflightImageEmbed.clear()

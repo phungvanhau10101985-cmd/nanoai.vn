@@ -110,6 +110,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       sku?: string
       imageUrl?: string
       productUrl?: string
+      /** UUID dòng kho — neo «Tư vấn» theo id, không embed lại ảnh. */
+      inventoryId?: string
       source?: string
     }
   } | null
@@ -150,6 +152,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
               ...(typeof body.pageContext.sku === 'string' ? { sku: body.pageContext.sku } : {}),
               ...(typeof body.pageContext.imageUrl === 'string' ? { image_url: body.pageContext.imageUrl } : {}),
               ...(typeof body.pageContext.productUrl === 'string' ? { product_url: body.pageContext.productUrl } : {}),
+              ...(typeof body.pageContext.inventoryId === 'string' ? { inventory_id: body.pageContext.inventoryId } : {}),
               ...(typeof body.pageContext.source === 'string' ? { source: body.pageContext.source } : {}),
             },
           }

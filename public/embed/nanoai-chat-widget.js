@@ -113,7 +113,7 @@
 
     var header = document.createElement('div')
     header.style.cssText =
-      'height:44px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 10px;pointer-events:auto;'
+      'height:44px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 8px 0 10px;pointer-events:auto;'
     var brandEl = document.createElement('div')
     brandEl.style.cssText =
       'font-weight:700;font-size:15px;color:#111;min-width:0;flex:0 1 auto;max-width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
@@ -122,7 +122,7 @@
 
     var toolbar = document.createElement('div')
     toolbar.style.cssText =
-      'flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:nowrap;'
+      'flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:nowrap;'
     var localeSelect = document.createElement('select')
     localeSelect.setAttribute('aria-label', 'Language')
     localeSelect.style.cssText =
@@ -158,23 +158,29 @@
     var closeBtn = document.createElement('button')
     closeBtn.type = 'button'
     closeBtn.setAttribute('aria-label', 'Close chat')
-    closeBtn.style.cssText =
-      'width:28px;height:28px;border:none;border-radius:8px;cursor:pointer;background:#f3f4f6;color:#111;font-size:18px;line-height:1;'
+    var iconBtnBase =
+      'width:30px;height:30px;border:none;border-radius:9999px;cursor:pointer;background:#f3f4f6;color:#111;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;'
+    closeBtn.style.cssText = iconBtnBase + 'font-size:17px;padding:0;'
     closeBtn.textContent = '×'
     var expandBtn = document.createElement('button')
     expandBtn.type = 'button'
     expandBtn.setAttribute('aria-label', 'Expand chat')
-    expandBtn.style.cssText =
-      'width:28px;height:28px;border:none;border-radius:8px;cursor:pointer;background:#f3f4f6;color:#111;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;'
+    expandBtn.style.cssText = iconBtnBase + 'padding:0;'
     function setExpandButtonIcon(expanded) {
-      // Use SVG icon to avoid font-dependent glyph issues on host sites.
+      // Lucide maximize-2 / minimize-2 (góc chéo) — tránh icon «ô vuông» chỉ có rect.
+      var g =
+        '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
       expandBtn.innerHTML = expanded
-        ? '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="5" width="11" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 9h10v10" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19 9v10H9" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>'
-        : '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>'
+        ? '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">' +
+          g +
+          '<path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></g></svg>'
+        : '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">' +
+          g +
+          '<path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/></g></svg>'
     }
     setExpandButtonIcon(false)
     var headerActions = document.createElement('div')
-    headerActions.style.cssText = 'display:flex;align-items:center;gap:6px;'
+    headerActions.style.cssText = 'display:flex;align-items:center;gap:4px;flex-shrink:0;'
     headerActions.appendChild(expandBtn)
     headerActions.appendChild(closeBtn)
     header.appendChild(headerActions)

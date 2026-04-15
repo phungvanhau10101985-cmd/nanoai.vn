@@ -143,9 +143,9 @@ export function FloatingChatWidget({
     <div
       className={`fixed ${anchorClass} ${topLayerClass} flex h-[min(70vh,560px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border border-border/60 bg-background/95 shadow-2xl backdrop-blur-sm`}
     >
-      <div className="flex shrink-0 items-center gap-1.5 border-b border-border/60 bg-muted/40 px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2">
-        <div className="min-w-0 max-w-[34%] shrink truncate text-sm font-semibold sm:text-base">{shopName}</div>
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 sm:gap-2">
+      <div className="flex shrink-0 items-center gap-1 border-b border-border/60 bg-muted/40 px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2">
+        <div className="min-w-0 max-w-[32%] shrink truncate text-sm font-semibold sm:text-base">{shopName}</div>
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
           <select
             value={uiLocale}
             onChange={(e) => applyLocaleToIframe(e.target.value as WebLocale)}
@@ -170,12 +170,12 @@ export function FloatingChatWidget({
             <span className="min-w-0 truncate">{ordersButtonLabel}</span>
           </Button>
         </div>
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-1">
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 rounded-full"
             onClick={() => window.open(fullPageUrl, '_blank', 'noopener,noreferrer')}
             title={openFullPageLabel}
             aria-label={openFullPageLabel}
@@ -186,7 +186,7 @@ export function FloatingChatWidget({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 rounded-full"
             onClick={() => setClosed(true)}
             title={closeLabel}
             aria-label={closeLabel}

@@ -1587,10 +1587,15 @@ export function PartnerGuestChatClient({
         sku?: string
         imageUrl?: string
         productUrl?: string
+        inventoryId?: string
         source: string
       } = { source: 'product_card_consult', productUrl }
       if (sku) pageContext.sku = sku
       if (imageUrl && /^https?:\/\//i.test(imageUrl)) pageContext.imageUrl = imageUrl
+      const invId = (card.inventory_id ?? '').trim()
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invId)) {
+        pageContext.inventoryId = invId
+      }
       const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
       setSending(true)
       try {

@@ -1,9 +1,16 @@
 import type { Database, Json } from '@/types/database.types'
-import { fetchPartnerInventoryRowsByTokenIlikeFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  fetchPartnerInventoryRowByComparableSkuFromPg,
+  fetchPartnerInventoryRowByIdForPartnerFromPg,
+  fetchPartnerInventoryRowByImageUrlFromPg,
+  fetchPartnerInventoryRowByProductUrlNormKeyFromPg,
+  fetchPartnerInventoryRowsByTokenIlikeFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
 import {
   fetchInventoryRowsBySemanticTextForPartnerAi,
   tryParseVndAmountForEmbedding,
 } from '@/lib/messaging/partner-inventory-text-embedding'
+import { fetchTopInventoryRowByConsultCardImageVectorAnn } from '@/lib/messaging/partner-gemini-image-search'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export type PartnerInventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
@@ -78,11 +85,61 @@ export async function fetchInventoryRowsFromPageContextSku(
   partnerId: string,
   rawPayload: Json | null | undefined
 ): Promise<PartnerInventoryRow[]> {
+  if (!isPgConfigured()) return []
   if (!rawPayload || typeof rawPayload !== 'object' || Array.isArray(rawPayload)) return []
   const pc = (rawPayload as { page_context?: { sku?: string } }).page_context
   const sku = typeof pc?.sku === 'string' ? pc.sku.trim() : ''
   if (sku.length < 2) return []
-  return fetchInventoryRowsByExplicitSku(partnerId, `[Customer product SKU: ${sku}]`)
+  /** Khớp trực tiếp SKU trong kho — không qua ILIKE/tin nhắn (tránh nhiễu từ cả đoạn câu dài). */
+  const row = await fetchPartnerInventoryRowByComparableSkuFromPg(partnerId, sku)
+  return row ? [row] : []
+}
+
+/**
+ * Bấm «Tư vấn» trên thẻ SP: neo đúng dòng kho theo URL/ảnh — không chỉ SKU (nhiều thẻ không có SKU hoặc SKU lệch).
+ * Tránh rơi vào tìm vector trên cả câu dài của khách → carousel không liên quan.
+ */
+export async function fetchInventoryRowsFromProductCardConsultPageContext(
+  partnerId: string,
+  rawPayload: Json | null | undefined
+): Promise<PartnerInventoryRow[]> {
+  if (!isPgConfigured()) return []
+  if (!rawPayload || typeof rawPayload !== 'object' || Array.isArray(rawPayload)) return []
+  const pc = (rawPayload as {
+    page_context?: {
+      source?: string
+      product_url?: string
+      image_url?: string
+      inventory_id?: string
+    }
+  }).page_context
+  if (!pc || pc.source !== 'product_card_consult') return []
+
+  const invId = typeof pc.inventory_id === 'string' ? pc.inventory_id.trim() : ''
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invId)) {
+    const byId = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, invId)
+    if (byId) return [byId]
+  }
+
+  const productUrl = typeof pc.product_url === 'string' ? pc.product_url.trim() : ''
+  if (productUrl && /^https?:\/\//i.test(productUrl)) {
+    const row = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(partnerId, productUrl)
+    if (row) return [row]
+  }
+
+  const imageUrl = typeof pc.image_url === 'string' ? pc.image_url.trim() : ''
+  if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
+    const variants = [imageUrl, imageUrl.split('?')[0]].filter((u, idx, a) => u && a.indexOf(u) === idx)
+    for (const u of variants) {
+      const row = await fetchPartnerInventoryRowByImageUrlFromPg(partnerId, u)
+      if (row) return [row]
+    }
+    /** Thẻ cũ không có `inventory_id`: tải ảnh để embed truy vấn — kho đích vẫn dùng vector đã lưu (pgvector). */
+    const rowVec = await fetchTopInventoryRowByConsultCardImageVectorAnn(partnerId, imageUrl)
+    if (rowVec) return [rowVec]
+  }
+
+  return []
 }
 
 function collectTokenCandidates(text: string): TokenCandidate[] {
