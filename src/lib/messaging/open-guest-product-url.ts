@@ -3,15 +3,6 @@ import {
   isAllowedHttpNavigationUrl,
 } from '@/lib/messaging/widget-parent-bridge'
 
-/** Safari / WebKit trên iPhone, iPod; iPad (kể cả báo desktop). */
-function isIosLike(): boolean {
-  if (typeof navigator === 'undefined') return false
-  const ua = navigator.userAgent || ''
-  if (/iPad|iPhone|iPod/i.test(ua)) return true
-  if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) return true
-  return false
-}
-
 function isEmbeddedInFrame(): boolean {
   try {
     return typeof window !== 'undefined' && window.self !== window.top
@@ -69,9 +60,8 @@ function openProductUrlFromEmbedIframe(resolved: string): void {
  *
  * **iframe:** điều hướng **cửa sổ cha / top** (đồng bộ với `FloatingChatWidget` / `nanoai-chat-widget.js`).
  *
- * Trang chat đứng một mình:
- * - **iOS**: luôn cùng tab (`assign`).
- * - **Không phải iOS**: màn ≤768px cùng tab; màn rộng tab mới (Android/desktop).
+ * Trang chat đứng một mình: luôn **cùng tab** (`assign`). Không `window.open` — tab mới không chia sẻ
+ * `sessionStorage` / trạng thái phiên chat trên iOS và nhiều trình duyệt, dễ mất tin khi mở lại chat.
  */
 export function openGuestProductDetailUrl(url: string): void {
   if (typeof window === 'undefined') return
@@ -83,17 +73,6 @@ export function openGuestProductDetailUrl(url: string): void {
     return
   }
 
-  if (isIosLike()) {
-    window.location.assign(resolved)
-    return
-  }
-
-  const preferSameTab =
-    typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 768px)').matches
-
-  if (preferSameTab) {
-    window.location.assign(resolved)
-    return
-  }
-  window.open(resolved, '_blank', 'noopener,noreferrer')
+  // Một tab: cookie / IndexedDB / bfcache khi bấm Quay lại; tránh tab phụ trống phiên.
+  window.location.assign(resolved)
 }
