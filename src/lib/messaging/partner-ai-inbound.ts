@@ -110,17 +110,16 @@ export async function handlePartnerInboundForAi(input: {
     }
     const faq = skipFaq ? null : await findMatchingFaq(input.partnerId, input.inboundBody, { locale: faqLocale })
     if (faq) {
-      const fastWidgetReply = input.channel === 'widget'
+      /** Nền: sleep theo `typing_pause_*` rồi mới gửi — khách thấy «shop đang trả lời» trong lúc đó (maxWaitMs bên dưới). */
       void runInstantFaq({
         partnerId: input.partnerId,
         conversationId: input.conversationId,
         settings,
         answer: faq.answer,
         faqId: faq.id,
-        skipTypingDelay: fastWidgetReply,
       })
-      const hi = fastWidgetReply ? 0 : Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
-      return { show: true, maxWaitMs: hi + 10_000 }
+      const typingHi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
+      return { show: true, maxWaitMs: typingHi + 10_000 }
     }
 
     // Gộp burst: nếu khách nhắn dày trong thời gian ngắn, chỉ giữ job mới nhất.

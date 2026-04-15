@@ -42,24 +42,20 @@ function getVisionSelectedAtEpochMs(raw: Json | null | undefined): number | null
   return Number.isFinite(ms) ? ms : null
 }
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms))
-}
-
 function uiLocaleFromConversationMetadata(metadata: Json | null | undefined): string | null {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
   const v = (metadata as { ui_locale?: unknown }).ui_locale
   return typeof v === 'string' && v.trim() ? v.trim().slice(0, 24) : null
 }
 
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms))
+}
+
 function typingDelayMs(settings: Database['public']['Tables']['messaging_partner_ai_settings']['Row']) {
   const a = Math.min(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
   const b = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
   return a + Math.floor(Math.random() * Math.max(1, b - a + 1))
-}
-
-function shouldSkipTypingDelayForJobChannel(channel: string | null | undefined): boolean {
-  return String(channel || '').trim().toLowerCase() === 'widget'
 }
 
 async function setPartnerAiJobStatus(
@@ -171,13 +167,11 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         skipped += 1
         continue
       }
-      const skipTypingDelay = shouldSkipTypingDelayForJobChannel(conv.channel as string | null | undefined)
-
       const skipFaq = inboundTextHasVisionSelectionHint(inboundForAi)
       const convUiLoc = normalizeWebLocale(uiLocaleFromConversationMetadata(conv.metadata))
       const faq = skipFaq ? null : await findMatchingFaq(job.partner_id, inboundForAi, { locale: convUiLoc })
       if (faq) {
-        if (!skipTypingDelay) await sleep(typingDelayMs(settings))
+        await sleep(typingDelayMs(settings))
         const rawFaq = { source: 'ai_faq', faq_id: faq.id } as unknown as Json
         const d1 = await deliverAutomatedPartnerMessage({
           conversation: conv,
@@ -234,7 +228,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         ai_job_id: job.id,
       })
 
-      // Không thêm độ trễ «đang gõ» sau khi LLM đã trả lời — API đã tốn thời gian; chỉ FAQ (nhánh trên) dùng typing_pause_*.
+      // Không thêm độ trễ «đang gõ» sau khi LLM đã trả lời — API đã tốn thời gian.
       let parsed = parsePartnerAiLlmStructured(llm.text)
       if (clarifyShoppingIntent) {
         parsed = { ...parsed, products: [] }
