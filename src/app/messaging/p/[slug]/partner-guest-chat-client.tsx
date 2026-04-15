@@ -1714,9 +1714,7 @@ export function PartnerGuestChatClient({
       setBuyOptions(data.products.slice(0, 20))
       setBuyOptionsOpen(data.products.length > 0)
       setBuyPromptMessageId(inbound.id)
-      if (data.products.length > 0) {
-        toast({ title: 'Anh/chị muốn mua sản phẩm nào? Mình gợi ý 20 mẫu liên quan nhất.' })
-      } else {
+      if (data.products.length === 0) {
         toast({ title: 'Mình chưa thấy sản phẩm phù hợp để lên đơn. Shop tư vấn thêm giúp bạn ngay nhé.' })
       }
     } catch {
@@ -3143,10 +3141,6 @@ export function PartnerGuestChatClient({
                       if (!isMe || vs.candidates.length === 0) return null
                       return (
                         <div className="mt-2 space-y-2 border-t border-white/20 pt-2">
-                          <p className="text-[11px] font-medium leading-snug text-white/95">{t.visionMatchTitle}</p>
-                          {vs.required && t.visionPickHint.trim() ? (
-                            <p className="text-[10px] leading-snug text-white/80">{t.visionPickHint}</p>
-                          ) : null}
                           <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
                             {vs.candidates.map((c) => {
                               const isSelected = vs.selectedInventoryId === c.inventoryId
