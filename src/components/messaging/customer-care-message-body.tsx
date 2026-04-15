@@ -541,25 +541,46 @@ function AiProductCards({
             <div className="flex gap-1">
               <div className="min-w-0 flex-1">
                 {p.image_url ? (
-                  <button
-                    type="button"
-                    className={`block w-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                      onViolet ? 'focus-visible:ring-offset-violet-700' : ''
-                    }`}
-                    onClick={(ev) => {
-                      ev.stopPropagation()
-                      onPreviewImage(p.image_url)
-                    }}
-                    aria-label={`Xem ảnh lớn: ${p.name}`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={p.image_url}
-                      alt=""
-                      className={`h-28 w-full object-contain ${onViolet ? 'bg-white/10 opacity-95' : 'bg-muted/30'}`}
-                      loading="lazy"
-                    />
-                  </button>
+                  productHref ? (
+                    <a
+                      href={productHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                        onViolet ? 'focus-visible:ring-offset-violet-700' : ''
+                      }`}
+                      onClick={(ev) => ev.stopPropagation()}
+                      aria-label={detailAria}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={p.image_url}
+                        alt=""
+                        className={`h-28 w-full object-contain ${onViolet ? 'bg-white/10 opacity-95' : 'bg-muted/30'}`}
+                        loading="lazy"
+                      />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`block w-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                        onViolet ? 'focus-visible:ring-offset-violet-700' : ''
+                      }`}
+                      onClick={(ev) => {
+                        ev.stopPropagation()
+                        onPreviewImage(p.image_url)
+                      }}
+                      aria-label={`Xem ảnh lớn: ${p.name}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={p.image_url}
+                        alt=""
+                        className={`h-28 w-full object-contain ${onViolet ? 'bg-white/10 opacity-95' : 'bg-muted/30'}`}
+                        loading="lazy"
+                      />
+                    </button>
+                  )
                 ) : (
                   <div className={`h-28 w-full ${onViolet ? 'bg-white/10' : 'bg-muted/30'}`} />
                 )}

@@ -178,6 +178,9 @@ function collectRecentSuggestedCardsFromMessages(
 type RecentProductWithSource = { card: PartnerAiProductCard; sourceMessageId: string }
 
 const PRODUCT_SHELF_MAX = 500
+/** Số ô render ban đầu + mỗi lần cuộn tới sentinel (tránh treo DOM khi danh sách dài). */
+const PRODUCT_SHELF_LAZY_INITIAL = 24
+const PRODUCT_SHELF_LAZY_STEP = 24
 
 function shuffleInPlace<T>(arr: T[]): void {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -701,8 +704,8 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
     const el = draftTextareaRef.current
     if (!el) return
     el.style.height = '0px'
-    const minHeight = 15
-    const maxHeight = 48
+    const minHeight = 22
+    const maxHeight = 72
     const next = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight)
     el.style.height = `${next}px`
     el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
@@ -735,7 +738,7 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
           onPaste={onDraftPaste}
           placeholder={labels.placeholder}
           rows={1}
-          className="resize-none border-0 bg-transparent px-0 pb-8 pt-0.5 pr-10 text-base leading-tight shadow-none focus-visible:ring-0"
+          className="resize-none border-0 bg-transparent px-0 pb-12 pt-1 pr-12 text-[17px] leading-snug shadow-none focus-visible:ring-0 sm:text-lg"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
@@ -745,49 +748,49 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
         />
         <Button
           type="button"
-          className="absolute right-0 top-0 h-7 w-7 min-w-0 px-0"
+          className="absolute right-0 top-0.5 h-9 w-9 min-w-0 shrink-0 px-0 sm:h-10 sm:w-10"
           onClick={() => void send()}
           disabled={!canSend || sending}
           aria-label={labels.send}
         >
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
         </Button>
-        <div className="absolute bottom-0 left-0 z-10 flex max-w-[calc(100%-2.5rem)] items-center gap-1 overflow-x-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="absolute bottom-0 left-0 z-10 flex max-w-[calc(100%-3rem)] items-center gap-1.5 overflow-x-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
+            className="h-9 shrink-0 gap-1.5 px-3 text-sm font-medium sm:h-10 sm:px-3.5 sm:text-[15px]"
             disabled={uploading || sending || tryOnBusy}
             onClick={onToggleTryOn}
           >
-            {tryOnBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {tryOnBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
             {labels.tryOnOpen}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-6 w-6 shrink-0 p-0 sm:h-7 sm:w-7"
+            className="h-9 w-9 shrink-0 p-0 sm:h-10 sm:w-10"
             disabled={uploading || sending}
             onClick={() => galleryInputRef.current?.click()}
             aria-label={labels.guestAttachPhoto}
             title={labels.guestAttachPhoto}
           >
-            {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+            {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
           </Button>
           {showCameraButton ? (
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="h-6 w-6 shrink-0 p-0 sm:h-7 sm:w-7"
+              className="h-9 w-9 shrink-0 p-0 sm:h-10 sm:w-10"
               disabled={uploading || sending}
               onClick={() => cameraInputRef.current?.click()}
               aria-label={labels.guestTakePhoto}
               title={labels.guestTakePhoto}
             >
-              <Camera className="h-3.5 w-3.5" />
+              <Camera className="h-5 w-5" />
             </Button>
           ) : null}
           {productShelfButtonLabel && onOpenProductShelf ? (
@@ -795,18 +798,18 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
               type="button"
               variant="outline"
               size="sm"
-              className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
+              className="h-9 shrink-0 gap-1.5 px-3 text-sm font-medium sm:h-10 sm:px-3.5 sm:text-[15px]"
               disabled={uploading || sending}
               onClick={() => onOpenProductShelf()}
             >
-              <Package className="h-3.5 w-3.5" />
+              <Package className="h-5 w-5" />
               {productShelfButtonLabel}
             </Button>
           ) : null}
         </div>
       </div>
-      {uploading ? <p className="text-[10px] text-muted-foreground">{labels.guestUploading}</p> : null}
-      <p className="hidden text-[10px] leading-tight text-muted-foreground sm:block">{labels.sendKeyboardHint}</p>
+      {uploading ? <p className="text-xs text-muted-foreground sm:text-sm">{labels.guestUploading}</p> : null}
+      <p className="hidden text-xs leading-tight text-muted-foreground sm:block sm:text-sm">{labels.sendKeyboardHint}</p>
     </div>
   )
 })
@@ -918,6 +921,10 @@ export function PartnerGuestChatClient({
   const [consultedProductKeys, setConsultedProductKeys] = useState(() => new Set<string>())
   const [recentProductsOpen, setRecentProductsOpen] = useState(false)
   const [productShelfShuffleNonce, setProductShelfShuffleNonce] = useState(0)
+  const [productShelfVisibleCount, setProductShelfVisibleCount] = useState(PRODUCT_SHELF_LAZY_INITIAL)
+  const productShelfScrollRef = useRef<HTMLDivElement>(null)
+  const productShelfSentinelRef = useRef<HTMLDivElement>(null)
+  const prevRecentProductsOpenRef = useRef(false)
 
   const recentProductRows = useMemo(() => {
     void productShelfShuffleNonce
@@ -925,6 +932,43 @@ export function PartnerGuestChatClient({
     shuffleInPlace(rows)
     return rows
   }, [messages, productShelfShuffleNonce])
+
+  useEffect(() => {
+    const open = recentProductsOpen
+    const prev = prevRecentProductsOpenRef.current
+    if (open && !prev) {
+      setProductShelfVisibleCount(Math.min(PRODUCT_SHELF_LAZY_INITIAL, recentProductRows.length))
+    }
+    if (!open && prev) {
+      setProductShelfVisibleCount(PRODUCT_SHELF_LAZY_INITIAL)
+    }
+    prevRecentProductsOpenRef.current = open
+  }, [recentProductsOpen, recentProductRows.length])
+
+  useEffect(() => {
+    if (!recentProductsOpen) return
+    setProductShelfVisibleCount((v) => Math.min(v, recentProductRows.length))
+  }, [recentProductRows.length, recentProductsOpen])
+
+  useEffect(() => {
+    if (!recentProductsOpen) return
+    const root = productShelfScrollRef.current
+    const sentinel = productShelfSentinelRef.current
+    if (!root || !sentinel) return
+    if (productShelfVisibleCount >= recentProductRows.length) return
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return
+        setProductShelfVisibleCount((v) =>
+          Math.min(v + PRODUCT_SHELF_LAZY_STEP, recentProductRows.length)
+        )
+      },
+      { root, rootMargin: '280px 0px', threshold: 0 }
+    )
+    io.observe(sentinel)
+    return () => io.disconnect()
+  }, [recentProductsOpen, recentProductRows.length, productShelfVisibleCount])
 
   const { paidDepositOrderIds, sepayWebhookOrderIds } = useMemo(
     () => collectGuestOrderDepositConfirmationSplit(messages),
@@ -2978,7 +3022,7 @@ export function PartnerGuestChatClient({
         <h1 className="sr-only">{shopDisplayName}</h1>
         {isEmbedUi && !guestInIframe ? (
           <div className="relative z-[100] grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-border/60 bg-muted/35 px-3 py-2 pointer-events-auto touch-manipulation">
-            <p className="min-w-0 justify-self-start truncate text-sm font-semibold tracking-tight">{shopDisplayName}</p>
+            <p className="min-w-0 justify-self-start truncate text-base font-semibold tracking-tight sm:text-[17px]">{shopDisplayName}</p>
             <div className="flex shrink-0 items-center justify-center gap-2 justify-self-center">
               <GuestChatLocaleSwitches
                 currentLocale={uiLocale}
@@ -3014,11 +3058,11 @@ export function PartnerGuestChatClient({
             aria-relevant="additions"
           >
             {loading && !hasLoadedOnce ? (
-              <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+              <div className="flex flex-1 items-center justify-center gap-2 text-base text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               </div>
             ) : messages.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">{t.emptyThread}</p>
+              <p className="py-8 text-center text-base text-muted-foreground">{t.emptyThread}</p>
             ) : (
               messages.map((m) => {
                 const isMe = m.direction === 'inbound'
@@ -3026,7 +3070,7 @@ export function PartnerGuestChatClient({
                 return (
                   <div
                     key={m.id}
-                    className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-base shadow-sm ${
+                    className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-[17px] leading-relaxed shadow-sm sm:text-lg ${
                       isMe
                         ? 'ml-auto rounded-br-md bg-gradient-to-br from-violet-600 to-violet-700 text-white'
                         : isOrderTrackingBubble
@@ -3101,22 +3145,40 @@ export function PartnerGuestChatClient({
                                   title={c.name}
                                 >
                                   {c.image_url ? (
-                                    <button
-                                      type="button"
-                                      className="block w-full outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-violet-700"
-                                      onClick={(ev) => {
-                                        ev.stopPropagation()
-                                        setChatImageLightboxUrl(c.image_url)
-                                      }}
-                                      aria-label={`Xem ảnh lớn: ${c.name}`}
-                                    >
-                                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                                      <img
-                                        src={c.image_url}
-                                        alt=""
-                                        className="h-28 w-full bg-white/10 object-contain"
-                                      />
-                                    </button>
+                                    puVision && /^https?:\/\//i.test(puVision.trim()) ? (
+                                      <a
+                                        href={puVision.trim()}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-violet-700"
+                                        onClick={(ev) => ev.stopPropagation()}
+                                        aria-label={`${c.name}. ${t.visionProductViewDetails}`}
+                                      >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={c.image_url}
+                                          alt=""
+                                          className="h-28 w-full bg-white/10 object-contain"
+                                        />
+                                      </a>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="block w-full outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-violet-700"
+                                        onClick={(ev) => {
+                                          ev.stopPropagation()
+                                          setChatImageLightboxUrl(c.image_url)
+                                        }}
+                                        aria-label={`Xem ảnh lớn: ${c.name}`}
+                                      >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={c.image_url}
+                                          alt=""
+                                          className="h-28 w-full bg-white/10 object-contain"
+                                        />
+                                      </button>
+                                    )
                                   ) : (
                                     <div className="h-28 w-full bg-white/5" />
                                   )}
@@ -3176,7 +3238,7 @@ export function PartnerGuestChatClient({
                         </div>
                       )
                     })()}
-                    <div className={`mt-1.5 text-[10px] ${isMe ? 'text-white/75' : 'text-muted-foreground'}`}>
+                    <div className={`mt-1.5 text-xs ${isMe ? 'text-white/75' : 'text-muted-foreground'}`}>
                       {new Date(m.created_at).toLocaleString()}
                     </div>
                   </div>
@@ -3185,7 +3247,7 @@ export function PartnerGuestChatClient({
             )}
             {shopTyping ? (
               <div
-                className="mr-auto flex max-w-[92%] items-center gap-2 rounded-2xl rounded-bl-md border border-border/60 bg-card px-3.5 py-2.5 text-base text-muted-foreground shadow-sm"
+                className="mr-auto flex max-w-[92%] items-center gap-2 rounded-2xl rounded-bl-md border border-border/60 bg-card px-3.5 py-2.5 text-[17px] text-muted-foreground shadow-sm sm:text-lg"
                 role="status"
                 aria-live="polite"
               >
@@ -3626,9 +3688,11 @@ export function PartnerGuestChatClient({
                   </Button>
                 </div>
               ) : null}
-              {imageStoragePath ? <p className="text-[11px] text-muted-foreground">{t.guestCaptionHint}</p> : null}
+              {imageStoragePath ? (
+                <p className="text-xs text-muted-foreground sm:text-sm">{t.guestCaptionHint}</p>
+              ) : null}
                   {proofOrderId && !paidDepositOrderIds.has(proofOrderId) ? (
-                <p className="text-[11px] leading-snug text-muted-foreground">
+                <p className="text-xs leading-snug text-muted-foreground sm:text-sm">
                   {proofOrderIsSepay
                     ? `${shopDisplayName.trim() || 'Shop'}: chuyển đúng số tiền và «Nội dung CK» trong khối QR — xác nhận tự động; không cần đính ảnh ở đây.`
                     : 'Biên lai CK: nút «Gửi ảnh giao dịch» dưới mã QR trong chat (không đính ảnh ở đây).'}
@@ -4045,17 +4109,21 @@ export function PartnerGuestChatClient({
           side="bottom"
           className="flex max-h-[88dvh] flex-col gap-0 overflow-hidden rounded-t-2xl p-0 sm:max-w-lg sm:mx-auto"
         >
-          <div className="shrink-0 border-b border-border/60 bg-background px-3 pb-3 pl-3 pr-12 pt-14 text-left">
+          <div className="shrink-0 border-b border-border/60 bg-background px-3 pb-2 pl-3 pr-11 pt-10 text-left sm:pr-12 sm:pt-11">
             <SheetHeader className="space-y-0 p-0 text-left">
-              <SheetTitle className="text-base leading-tight">{t.productShelfTitle}</SheetTitle>
+              <SheetTitle className="text-sm font-semibold leading-snug sm:text-base">{t.productShelfTitle}</SheetTitle>
             </SheetHeader>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-3">
+          <div
+            ref={productShelfScrollRef}
+            className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-3"
+          >
           {recentProductRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t.productShelfEmpty}</p>
           ) : (
+            <>
             <div className="grid grid-cols-2 gap-2.5">
-              {recentProductRows.map((row) => {
+              {recentProductRows.slice(0, productShelfVisibleCount).map((row) => {
                 const pk = normalizeProductUrlKey(row.card.product_url.trim())
                 const consulted = pk ? isProductConsultedInScopeSet(consultedProductKeys, pk) : false
                 const href = row.card.product_url.trim()
@@ -4063,17 +4131,49 @@ export function PartnerGuestChatClient({
                 return (
                   <div
                     key={`${row.sourceMessageId}-${href}`}
-                    className="flex flex-col gap-1.5 rounded-lg border border-border/70 bg-muted/15 p-2"
+                    className="flex flex-col gap-1.5 rounded-lg border border-border/70 bg-muted/15 p-2 [content-visibility:auto] supports-[content-visibility:auto]:[contain-intrinsic-size:12rem]"
                   >
-                    <div className="relative aspect-square w-full overflow-hidden rounded-md border border-border/50 bg-background">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- URL ngoài từ shop */}
-                      <img
-                        src={row.card.image_url.trim()}
-                        alt=""
-                        className="h-full w-full object-contain"
-                        loading="lazy"
-                      />
-                    </div>
+                    {/^https?:\/\//i.test(href) ? (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="relative block aspect-square w-full overflow-hidden rounded-md border border-border/50 bg-background outline-none ring-offset-background transition-opacity hover:opacity-95 active:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={`${row.card.name.trim() || t.visionProductViewDetails} — ${t.visionProductViewDetails}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- URL ngoài từ shop */}
+                        <img
+                          src={row.card.image_url.trim()}
+                          alt=""
+                          className="h-full w-full object-contain"
+                          loading="lazy"
+                          decoding="async"
+                          fetchPriority="low"
+                        />
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        className="relative block aspect-square w-full cursor-zoom-in overflow-hidden rounded-md border border-border/50 bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const src = row.card.image_url.trim()
+                          if (src) setChatImageLightboxUrl(src)
+                        }}
+                        aria-label="Xem ảnh lớn"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- URL ngoài từ shop */}
+                        <img
+                          src={row.card.image_url.trim()}
+                          alt=""
+                          className="h-full w-full object-contain"
+                          loading="lazy"
+                          decoding="async"
+                          fetchPriority="low"
+                        />
+                      </button>
+                    )}
                     <p className="line-clamp-2 min-h-[2.25rem] text-[11px] font-medium leading-snug text-foreground">
                       {row.card.name.trim() || '—'}
                     </p>
@@ -4122,6 +4222,14 @@ export function PartnerGuestChatClient({
                 )
               })}
             </div>
+            {productShelfVisibleCount < recentProductRows.length ? (
+              <div
+                ref={productShelfSentinelRef}
+                className="h-4 w-full shrink-0"
+                aria-hidden
+              />
+            ) : null}
+            </>
           )}
           </div>
         </SheetContent>
