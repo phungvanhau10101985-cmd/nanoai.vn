@@ -111,9 +111,13 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
 
   const hostedUrl = `${baseUrl}/messaging/p/${slug}?embed=1`
   const hostedPageUrl = `${baseUrl}/messaging/p/${slug}`
+  const shopNameForEmbed = (selectedPartner?.display_name ?? '').trim() || 'Chat'
+  const shopNameAttr = shopNameForEmbed.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
   const hostedScript = `<script
   src="${baseUrl}/embed/nanoai-chat-widget.js"
   data-chat-url="${hostedUrl}"
+  data-shop-name="${shopNameAttr}"
+  data-orders-label="Đơn hàng của tôi"
   data-logo-url="${logoUrl}"
   data-side="${embedSide}"
   data-bottom="${safeBottomPx}"
@@ -129,7 +133,7 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
 ></script>`
   const hostedIframe = `<iframe
   src="${hostedUrl}"
-  title="Chat NanoAI"
+  title="${shopNameAttr} — Chat"
   width="100%"
   height="${safeDesktopHeightPx}"
   style="border:0;border-radius:${safeRadiusPx}px;max-width:100%;"

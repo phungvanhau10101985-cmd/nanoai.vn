@@ -813,6 +813,8 @@ export function PartnerGuestChatClient({
   const [embedWidgetDataNonce, setEmbedWidgetDataNonce] = useState(0)
   /** Chat nhúng iframe trên site shop (`?embed=1`) — không có header FloatingChatWidget của nanoai.vn. */
   const [isEmbedUi, setIsEmbedUi] = useState(false)
+  /** `true` khi trang chat chạy trong iframe (FloatingChatWidget / script nhúng); toolbar locale/đơn ở frame cha — ẩn hàng trùng trong iframe. */
+  const [guestInIframe, setGuestInIframe] = useState(false)
   const [tryOnUserFile, setTryOnUserFile] = useState<File | null>(null)
   const [tryOnGarmentFiles, setTryOnGarmentFiles] = useState<SelectedImage[]>([])
   const [tryOnGarmentPickerOpen, setTryOnGarmentPickerOpen] = useState(false)
@@ -883,6 +885,11 @@ export function PartnerGuestChatClient({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    try {
+      setGuestInIframe(window.self !== window.top)
+    } catch {
+      setGuestInIframe(true)
+    }
     const q = new URLSearchParams(window.location.search)
     const ev = (q.get('embed') || '').trim().toLowerCase()
     const inIframe = window.self !== window.top
@@ -936,8 +943,9 @@ export function PartnerGuestChatClient({
 
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
-      if (e.origin !== window.location.origin) return
       if (!isOpenMyOrdersMessage(e.data)) return
+      // Parent nhúng có thể khác origin (site shop → iframe nanoai); chỉ chấp nhận tin từ `parent`.
+      if (e.source !== window.parent) return
       setEmbedMyOrdersOpen(true)
     }
     window.addEventListener('message', onMsg)
@@ -2858,10 +2866,10 @@ export function PartnerGuestChatClient({
     <>
       <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-background rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md">
         <h1 className="sr-only">{shopDisplayName}</h1>
-        {isEmbedUi ? (
-          <div className="relative z-[100] flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/35 px-3 py-2 pointer-events-auto touch-manipulation">
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">{shopDisplayName}</p>
-            <div className="flex shrink-0 items-center gap-2">
+        {isEmbedUi && !guestInIframe ? (
+          <div className="relative z-[100] grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-border/60 bg-muted/35 px-3 py-2 pointer-events-auto touch-manipulation">
+            <p className="min-w-0 justify-self-start truncate text-sm font-semibold tracking-tight">{shopDisplayName}</p>
+            <div className="flex shrink-0 items-center justify-center gap-2 justify-self-center">
               <GuestChatLocaleSwitches
                 currentLocale={uiLocale}
                 slug={slug}
@@ -2880,12 +2888,13 @@ export function PartnerGuestChatClient({
                 <span className="max-w-[9.5rem] truncate sm:max-w-none">{orderDetailT.pageTitle}</span>
               </Button>
             </div>
+            <span className="min-w-0 justify-self-end" aria-hidden />
           </div>
-        ) : (
+        ) : !isEmbedUi ? (
           <div className="flex shrink-0 justify-end border-b border-border/60 bg-muted/25 px-3 py-1.5">
             <GuestChatLocaleSwitches currentLocale={uiLocale} slug={slug} />
           </div>
-        )}
+        ) : null}
         <CardContent className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-0">
           <div className="relative flex min-h-0 flex-1 flex-col">
           <div

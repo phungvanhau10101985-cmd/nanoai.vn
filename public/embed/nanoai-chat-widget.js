@@ -32,6 +32,14 @@
     var chatUrl = getAttr('data-chat-url', '')
     if (!chatUrl) return
 
+    /** Tên thương hiệu / shop hiển thị trên thanh widget (thay «NanoAI»). */
+    var shopNameRaw = getAttr('data-shop-name', '')
+    var shopName = String(shopNameRaw || '').trim()
+    if (!shopName) shopName = 'Chat'
+
+    var ordersLabelRaw = getAttr('data-orders-label', '')
+    var ordersLabel = String(ordersLabelRaw || '').trim() || 'Đơn hàng của tôi'
+
     var logoUrl = getAttr('data-logo-url', '')
     var side = getAttr('data-side', 'right') === 'left' ? 'left' : 'right'
     var bottom = num(getAttr('data-bottom', '24'), 24, 0, 800)
@@ -105,8 +113,46 @@
 
     var header = document.createElement('div')
     header.style.cssText =
-      'height:44px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;padding:0 10px;pointer-events:auto;'
-    header.innerHTML = '<div style="font-weight:700;font-size:15px;color:#111">NanoAI</div>'
+      'height:44px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 10px;pointer-events:auto;'
+    var brandEl = document.createElement('div')
+    brandEl.style.cssText =
+      'font-weight:700;font-size:15px;color:#111;min-width:0;flex:0 1 auto;max-width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
+    brandEl.textContent = shopName
+    header.appendChild(brandEl)
+
+    var toolbar = document.createElement('div')
+    toolbar.style.cssText =
+      'flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:nowrap;'
+    var localeSelect = document.createElement('select')
+    localeSelect.setAttribute('aria-label', 'Language')
+    localeSelect.style.cssText =
+      'max-width:80px;flex-shrink:0;font-size:12px;padding:2px 6px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;color:#111;cursor:pointer;'
+    var LOCALE_CHOICES = [
+      ['vi', 'VI'],
+      ['en', 'EN'],
+      ['zh', 'ZH'],
+      ['ja', 'JA'],
+      ['ko', 'KO'],
+    ]
+    for (var li = 0; li < LOCALE_CHOICES.length; li += 1) {
+      var opt = document.createElement('option')
+      opt.value = LOCALE_CHOICES[li][0]
+      opt.textContent = LOCALE_CHOICES[li][1]
+      localeSelect.appendChild(opt)
+    }
+    toolbar.appendChild(localeSelect)
+
+    var ordersBtn = document.createElement('button')
+    ordersBtn.type = 'button'
+    ordersBtn.setAttribute('aria-label', ordersLabel)
+    ordersBtn.style.cssText =
+      'flex:0 1 auto;min-width:0;max-width:min(140px,42vw);display:inline-flex;align-items:center;justify-content:center;gap:4px;height:28px;padding:0 8px;font-size:11px;font-weight:600;border-radius:8px;border:1px solid #c4b5fd;background:#f5f3ff;color:#1e1b4b;cursor:pointer;'
+    ordersBtn.innerHTML =
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="nanoai-orders-lbl" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>'
+    var ordersLbl = ordersBtn.querySelector('.nanoai-orders-lbl')
+    if (ordersLbl) ordersLbl.textContent = ordersLabel
+    toolbar.appendChild(ordersBtn)
+    header.appendChild(toolbar)
     panel.appendChild(header)
 
     var closeBtn = document.createElement('button')
@@ -132,6 +178,7 @@
     headerActions.appendChild(expandBtn)
     headerActions.appendChild(closeBtn)
     header.appendChild(headerActions)
+    // Một hàng: [tên shop][ngôn ngữ + đơn hàng][mở rộng|đóng]
 
     var body = document.createElement('div')
     body.style.cssText =
@@ -141,6 +188,16 @@
     var iframe = null
     var pageContext = null
     var isExpanded = false
+
+    var pendingUiLocale = 'vi'
+    try {
+      var _u0 = new URL(chatUrl, window.location.href)
+      var _pl = (_u0.searchParams.get('ui_locale') || 'vi').trim().toLowerCase()
+      if (['vi', 'en', 'zh', 'ja', 'ko'].indexOf(_pl) >= 0) pendingUiLocale = _pl
+    } catch (_) {}
+    try {
+      localeSelect.value = pendingUiLocale
+    } catch (_) {}
 
     function toHttpUrl(raw) {
       var t = String(raw || '').trim()
@@ -220,20 +277,37 @@
       pageContext = nextCtx
       // Giữ `ui_locale` (và query khác) sau khi khách đổi ngôn ngữ trong iframe — không ghi đè bằng data-chat-url gốc.
       var baseForBuild = iframe && iframe.src ? iframe.src : chatUrl
+      try {
+        var uLoc = new URL(baseForBuild, window.location.href)
+        uLoc.searchParams.set('ui_locale', pendingUiLocale)
+        baseForBuild = uLoc.toString()
+      } catch (_) {}
       var nextSrc = buildChatUrlWithContext(baseForBuild, nextCtx)
       if (!iframe) {
         iframe = document.createElement('iframe')
         iframe.src = nextSrc
-        iframe.title = 'Chat NanoAI'
         iframe.loading = 'eager'
         iframe.referrerPolicy = 'no-referrer-when-downgrade'
         iframe.style.cssText =
           'width:100%;height:100%;border:0;pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;'
+        iframe.title = shopName + ' — Chat'
         body.appendChild(iframe)
         return
       }
       if (iframe.src !== nextSrc) iframe.src = nextSrc
     }
+
+    localeSelect.addEventListener('change', function () {
+      pendingUiLocale = localeSelect.value
+      if (iframe) ensureIframe(pageContext)
+    })
+    ordersBtn.addEventListener('click', function () {
+      try {
+        if (!iframe || !iframe.contentWindow) return
+        var targetOrigin = new URL(iframe.src || chatUrl, window.location.href).origin
+        iframe.contentWindow.postMessage({ source: 'nanoai-widget', type: 'OPEN_MY_ORDERS' }, targetOrigin)
+      } catch (_) {}
+    })
 
     function viewportHeight() {
       return (

@@ -276,13 +276,16 @@ export default async function RootLayout({
     ? normalizeEmbedSrc(hostedChatIframe.src, requestOrigin)
     : "";
 
-  /** Logo tròn trên nút nổi «Mở chat» (khi đóng); header khi mở chỉ hiển thị tiêu đề chữ. */
+  /** Logo tròn trên nút nổi «Mở chat» (khi đóng); header khi mở: ưu tiên tên shop từ DB, không dùng «NanoAI» mặc định từ title iframe. */
   let widgetLauncherLogoUrl: string | null = null;
+  let widgetShopName = normalizeShopName(hostedChatIframe?.title || "");
   if (hostedChatUrl && isPgConfigured()) {
     const slug = extractMessagingPartnerSlugFromChatUrl(hostedChatUrl);
     if (slug && !isReservedMessagingGuestSlug(slug)) {
       const row = await fetchMessagingPartnerBySlugFromPg(slug);
       widgetLauncherLogoUrl = row?.logo_url?.trim() || null;
+      const dn = row?.display_name?.trim();
+      if (dn) widgetShopName = dn;
     }
   }
 
@@ -317,6 +320,16 @@ export default async function RootLayout({
             : locale === 'ko'
               ? '전체 페이지 열기'
               : 'Mở toàn trang',
+    ordersButtonLabel:
+      locale === 'en'
+        ? 'My orders'
+        : locale === 'zh'
+          ? '我的订单'
+          : locale === 'ja'
+            ? '注文一覧'
+            : locale === 'ko'
+              ? '내 주문'
+              : 'Đơn hàng của tôi',
   }
   const shouldRenderGlobalChatWidget =
     Boolean(hostedChatIframe && hostedChatUrl) &&
@@ -401,13 +414,14 @@ export default async function RootLayout({
                 <FloatingChatWidget
                   chatUrl={hostedChatUrl}
                   title={hostedChatIframe?.title || 'Chat widget'}
-                  shopName={normalizeShopName(hostedChatIframe?.title || '')}
+                  shopName={widgetShopName}
                   launcherLogoUrl={widgetLauncherLogoUrl}
                   loading={hostedChatIframe?.loading || 'lazy'}
                   referrerPolicy={hostedChatIframe?.referrerPolicy}
                   openLabel={widgetText.openLabel}
                   closeLabel={widgetText.closeLabel}
                   openFullPageLabel={widgetText.openFullPageLabel}
+                  ordersButtonLabel={widgetText.ordersButtonLabel}
                 />
               ) : null}
             </DepositCreditProvider>
