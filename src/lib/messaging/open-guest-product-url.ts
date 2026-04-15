@@ -1,7 +1,4 @@
-import {
-  NANOAI_WIDGET_MSG_SOURCE,
-  isAllowedHttpNavigationUrl,
-} from '@/lib/messaging/widget-parent-bridge'
+import { isAllowedHttpNavigationUrl } from '@/lib/messaging/widget-parent-bridge'
 
 /** Safari / WebKit trên iPhone, iPod; iPad (kể cả báo desktop). */
 function isIosLike(): boolean {
@@ -20,6 +17,22 @@ function isEmbeddedInFrame(): boolean {
   }
 }
 
+/** Trang chat mở với `?embed=1` (cùng tab, không iframe) — vẫn là UI nhúng shop. */
+function isGuestChatEmbedQueryMode(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const q = new URLSearchParams(window.location.search)
+    const ev = (q.get('embed') || '').trim().toLowerCase()
+    return ev === '1' || ev === 'true' || ev === 'yes'
+  } catch {
+    return false
+  }
+}
+
+function isGuestEmbedNavigationBlocked(): boolean {
+  return isEmbeddedInFrame() || isGuestChatEmbedQueryMode()
+}
+
 /** Chuẩn hóa URL tuyệt đối (path tương đối trong iframe). */
 function resolveNavigationUrl(raw: string): string | null {
   const t = raw.trim()
@@ -35,9 +48,7 @@ function resolveNavigationUrl(raw: string): string | null {
 /**
  * Mở liên kết từ cửa sổ chat khách (SP, đơn, URL trong tin, mở full page…).
  *
- * **Nhúng iframe (site shop → chat):** ưu tiên thay **cả tab trình duyệt** (trang host lúc mở chat),
- * không chỉ document trong iframe — cùng origin dùng `top`; khác origin gửi `postMessage` tới
- * `FloatingChatWidget`.
+ * **Nhúng (iframe hoặc `?embed=1`):** không điều hướng sang trang chi tiết sản phẩm — tránh thoát / đổi tab shop.
  *
  * Trang chat đứng một mình:
  * - **iOS**: luôn cùng tab (`assign`).
@@ -48,29 +59,7 @@ export function openGuestProductDetailUrl(url: string): void {
   const resolved = resolveNavigationUrl(typeof url === 'string' ? url : '')
   if (!resolved || !isAllowedHttpNavigationUrl(resolved)) return
 
-  if (isEmbeddedInFrame()) {
-    const returnChatUrl =
-      typeof window.location.href === 'string' ? window.location.href.trim() : ''
-    try {
-      window.parent.postMessage(
-        {
-          source: NANOAI_WIDGET_MSG_SOURCE,
-          type: 'NAVIGATE_TOP',
-          url: resolved,
-          ...(returnChatUrl ? { returnChatUrl } : {}),
-        },
-        '*'
-      )
-    } catch {
-      /* ignore */
-    }
-    window.setTimeout(() => {
-      try {
-        window.location.assign(resolved)
-      } catch {
-        /* ignore */
-      }
-    }, 400)
+  if (isGuestEmbedNavigationBlocked()) {
     return
   }
 
