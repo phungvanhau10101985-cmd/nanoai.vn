@@ -3,8 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Maximize2, MessageCircle, Package, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
-import { NANOAI_WIDGET_MSG_SOURCE } from '@/lib/messaging/widget-parent-bridge'
+import {
+  NANOAI_WIDGET_MSG_SOURCE,
+  isAllowedHttpNavigationUrl,
+  isNavigateTopFromIframe,
+} from '@/lib/messaging/widget-parent-bridge'
 
 const LOCALE_SHORT: Record<WebLocale, string> = {
   vi: 'VI',
@@ -104,6 +109,19 @@ export function FloatingChatWidget({
     }
   }, [chatUrl])
 
+  /** iframe chat → thay cả tab trang shop bằng URL SP (đồng bộ với `openGuestProductDetailUrl` khi cross-origin). */
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (!isNavigateTopFromIframe(e.data)) return
+      if (e.source !== iframeRef.current?.contentWindow) return
+      const raw = e.data.url.trim()
+      if (!isAllowedHttpNavigationUrl(raw)) return
+      window.location.assign(raw)
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+  }, [])
+
   const launcherSrc = typeof launcherLogoUrl === 'string' ? launcherLogoUrl.trim() : ''
   const showLauncherLogo = Boolean(launcherSrc && /^https?:\/\//i.test(launcherSrc))
 
@@ -177,7 +195,7 @@ export function FloatingChatWidget({
             size="icon"
             className="h-8 w-8 rounded-full"
             onClick={() => {
-              window.location.assign(fullPageUrl)
+              openGuestProductDetailUrl(fullPageUrl)
             }}
             title={openFullPageLabel}
             aria-label={openFullPageLabel}

@@ -687,7 +687,7 @@ export function CustomerCareMessageBody({
   orderPaymentProof?: OrderPaymentProofSlot | null
   /** Tên hiển thị của shop (widget khách). */
   shopDisplayName?: string
-  /** Trang `/messaging/p/...`: URL trong chữ tin nhắn mở cùng tab (đồng bộ với phiên chat, kể cả iOS). */
+  /** Trang `/messaging/p/...`: URL trong tin dùng policy guest (iOS luôn cùng tab; Android/desktop màn rộng tab mới). */
   openMessageLinksInSameTab?: boolean
 }) {
   const url = imageUrlFromPayload(row.raw_payload)

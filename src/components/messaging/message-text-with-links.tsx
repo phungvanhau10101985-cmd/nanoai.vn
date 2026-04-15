@@ -1,6 +1,7 @@
 'use client'
 
 import type { MouseEvent, ReactNode } from 'react'
+import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 
 /** Bắt URL trong tin nhắn (không dùng markdown). */
 const URL_CHUNK = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
@@ -60,7 +61,7 @@ export function MessageTextWithLinks({
                 rel: 'noopener noreferrer' as const,
                 onClick: (e: MouseEvent<HTMLAnchorElement>) => {
                   e.preventDefault()
-                  window.location.assign(href)
+                  openGuestProductDetailUrl(href)
                 },
               }
             : { target: '_blank' as const, rel: 'noopener noreferrer' })}

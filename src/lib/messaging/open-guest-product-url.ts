@@ -1,11 +1,89 @@
+import {
+  NANOAI_WIDGET_MSG_SOURCE,
+  isAllowedHttpNavigationUrl,
+} from '@/lib/messaging/widget-parent-bridge'
+
+/** Safari / WebKit trên iPhone, iPod; iPad (kể cả báo desktop). */
+function isIosLike(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  if (/iPad|iPhone|iPod/i.test(ua)) return true
+  if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) return true
+  return false
+}
+
+function isEmbeddedInFrame(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.self !== window.top
+  } catch {
+    return true
+  }
+}
+
+/** Chuẩn hóa URL tuyệt đối (path tương đối trong iframe). */
+function resolveNavigationUrl(raw: string): string | null {
+  const t = raw.trim()
+  if (!t) return null
+  try {
+    if (/^https?:\/\//i.test(t)) return t
+    return new URL(t, typeof window !== 'undefined' ? window.location.href : 'https://localhost').href
+  } catch {
+    return null
+  }
+}
+
 /**
- * Mở liên kết từ cửa sổ chat khách (SP, đơn, URL trong tin…).
- * Luôn **cùng tab** (`location.assign`) — kể cả desktop và iOS — để phiên chat / widget
- * không bị tách sang tab khác hoặc trang trắng.
+ * Mở liên kết từ cửa sổ chat khách (SP, đơn, URL trong tin, mở full page…).
+ *
+ * **Nhúng iframe (site shop → chat):** ưu tiên thay **cả tab trình duyệt** (trang host lúc mở chat),
+ * không chỉ document trong iframe — cùng origin dùng `top`; khác origin gửi `postMessage` tới
+ * `FloatingChatWidget`.
+ *
+ * Trang chat đứng một mình:
+ * - **iOS**: luôn cùng tab (`assign`).
+ * - **Không phải iOS**: màn ≤768px cùng tab; màn rộng tab mới (Android/desktop).
  */
 export function openGuestProductDetailUrl(url: string): void {
-  const u = typeof url === 'string' ? url.trim() : ''
-  if (!u) return
   if (typeof window === 'undefined') return
-  window.location.assign(u)
+  const resolved = resolveNavigationUrl(typeof url === 'string' ? url : '')
+  if (!resolved || !isAllowedHttpNavigationUrl(resolved)) return
+
+  if (isEmbeddedInFrame()) {
+    try {
+      window.top!.location.assign(resolved)
+      return
+    } catch {
+      /* cross-origin: không đọc được top */
+    }
+    try {
+      window.parent.postMessage(
+        { source: NANOAI_WIDGET_MSG_SOURCE, type: 'NAVIGATE_TOP', url: resolved },
+        '*'
+      )
+    } catch {
+      /* ignore */
+    }
+    window.setTimeout(() => {
+      try {
+        window.location.assign(resolved)
+      } catch {
+        /* ignore */
+      }
+    }, 400)
+    return
+  }
+
+  if (isIosLike()) {
+    window.location.assign(resolved)
+    return
+  }
+
+  const preferSameTab =
+    typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 768px)').matches
+
+  if (preferSameTab) {
+    window.location.assign(resolved)
+    return
+  }
+  window.open(resolved, '_blank', 'noopener,noreferrer')
 }
