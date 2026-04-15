@@ -377,7 +377,7 @@ function OrderPaymentPanel({
           </Button>
         </div>
       ) : null}
-      {showPaymentActionRow && orderPaymentProof ? (
+      {showPaymentActionRow && orderPaymentProof && !depositDone ? (
         <div className="mt-2 space-y-2">
           <div
             className={`grid gap-1.5 ${

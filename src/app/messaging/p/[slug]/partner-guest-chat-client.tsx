@@ -177,56 +177,58 @@ function collectRecentSuggestedCardsFromMessages(
 
 type RecentProductWithSource = { card: PartnerAiProductCard; sourceMessageId: string }
 
-/** Thẻ SP gần đây (shop gửi / gợi ý ảnh) kèm id tin nguồn — cần cho «Tư vấn» + DB consulted. */
-function collectRecentSuggestedProductsWithSource(
-  messages: GuestMsg[],
-  limit = 20,
-  anchorInboundId?: string
-): RecentProductWithSource[] {
-  const out: RecentProductWithSource[] = []
-  const seen = new Set<string>()
-  const push = (card: PartnerAiProductCard, sourceMessageId: string) => {
-    const productUrl = card.product_url.trim()
-    const imageUrl = card.image_url.trim()
-    if (!/^https?:\/\//i.test(productUrl) || !/^https?:\/\//i.test(imageUrl)) return false
-    const key = productUrl.toLowerCase()
-    if (seen.has(key)) return false
-    seen.add(key)
-    out.push({ card, sourceMessageId })
-    return out.length >= limit
+const PRODUCT_SHELF_MAX = 500
+
+function shuffleInPlace<T>(arr: T[]): void {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const a = arr[i]!
+    arr[i] = arr[j]!
+    arr[j] = a
   }
-  const anchorIdx =
-    anchorInboundId
-      ? messages.findIndex((m) => m.id === anchorInboundId && m.direction === 'inbound')
-      : -1
-  const startIdx = anchorIdx >= 0 ? anchorIdx - 1 : messages.length - 1
-  const minIdx = Math.max(0, startIdx - 24)
-  for (let i = startIdx; i >= minIdx; i -= 1) {
+}
+
+/**
+ * Mọi SP khách đã thấy trong hội thoại (thẻ AI + gợi ý ảnh), mỗi URL một dòng — gắn tin nguồn **mới nhất**.
+ */
+function collectAllSuggestedProductsWithSource(messages: GuestMsg[]): RecentProductWithSource[] {
+  const byUrl = new Map<string, RecentProductWithSource>()
+  for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i]
     const raw = msg.raw_payload ?? null
     if (msg.direction === 'outbound') {
       const cards = aiProductCardsFromPayload(raw)
       for (const c of cards) {
-        if (push(c, msg.id)) return out
+        const productUrl = c.product_url.trim()
+        const imageUrl = c.image_url.trim()
+        if (!/^https?:\/\//i.test(productUrl) || !/^https?:\/\//i.test(imageUrl)) continue
+        const key = productUrl.toLowerCase()
+        if (!byUrl.has(key)) {
+          byUrl.set(key, { card: c, sourceMessageId: msg.id })
+        }
       }
     }
     const vision = getVisionPickState(raw)
-    if (vision.candidates.length > 0) {
-      for (const c of vision.candidates) {
-        const productUrl = typeof c.product_url === 'string' ? c.product_url.trim() : ''
-        if (!productUrl) continue
+    for (const c of vision.candidates) {
+      const productUrl = typeof c.product_url === 'string' ? c.product_url.trim() : ''
+      if (!productUrl) continue
+      const imageUrl = (c.image_url ?? '').trim()
+      if (!/^https?:\/\//i.test(imageUrl)) continue
+      const key = productUrl.toLowerCase()
+      if (!byUrl.has(key)) {
         const card: PartnerAiProductCard = {
           name: c.name || 'San pham',
-          image_url: c.image_url || '',
+          image_url: imageUrl,
           product_url: productUrl,
           ...(c.price_hint ? { price_hint: c.price_hint } : {}),
           ...(c.sku && c.sku.trim() ? { sku: c.sku.trim().slice(0, 128) } : {}),
         }
-        if (push(card, msg.id)) return out
+        byUrl.set(key, { card, sourceMessageId: msg.id })
       }
     }
   }
-  return out
+  const list = Array.from(byUrl.values())
+  return list.length > PRODUCT_SHELF_MAX ? list.slice(0, PRODUCT_SHELF_MAX) : list
 }
 
 /** Tin hệ thống đơn hàng (tóm tắt / thanh toán) — hiển thị bubble khác tin chat thường. */
@@ -766,24 +768,26 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
             type="button"
             variant="outline"
             size="sm"
-            className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
+            className="h-6 w-6 shrink-0 p-0 sm:h-7 sm:w-7"
             disabled={uploading || sending}
             onClick={() => galleryInputRef.current?.click()}
+            aria-label={labels.guestAttachPhoto}
+            title={labels.guestAttachPhoto}
           >
             {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
-            {labels.guestAttachPhoto}
           </Button>
           {showCameraButton ? (
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="h-6 shrink-0 gap-1 px-2 text-[11px] sm:h-7 sm:text-xs"
+              className="h-6 w-6 shrink-0 p-0 sm:h-7 sm:w-7"
               disabled={uploading || sending}
               onClick={() => cameraInputRef.current?.click()}
+              aria-label={labels.guestTakePhoto}
+              title={labels.guestTakePhoto}
             >
               <Camera className="h-3.5 w-3.5" />
-              {labels.guestTakePhoto}
             </Button>
           ) : null}
           {productShelfButtonLabel && onOpenProductShelf ? (
@@ -913,11 +917,14 @@ export function PartnerGuestChatClient({
   const guestAccountIdRef = useRef<string | null>(null)
   const [consultedProductKeys, setConsultedProductKeys] = useState(() => new Set<string>())
   const [recentProductsOpen, setRecentProductsOpen] = useState(false)
+  const [productShelfShuffleNonce, setProductShelfShuffleNonce] = useState(0)
 
-  const recentProductRows = useMemo(
-    () => collectRecentSuggestedProductsWithSource(messages, 24),
-    [messages]
-  )
+  const recentProductRows = useMemo(() => {
+    void productShelfShuffleNonce
+    const rows = collectAllSuggestedProductsWithSource(messages)
+    shuffleInPlace(rows)
+    return rows
+  }, [messages, productShelfShuffleNonce])
 
   const { paidDepositOrderIds, sepayWebhookOrderIds } = useMemo(
     () => collectGuestOrderDepositConfirmationSplit(messages),
@@ -3924,7 +3931,10 @@ export function PartnerGuestChatClient({
                 galleryInputRef={galleryInputRef}
                 cameraInputRef={cameraInputRef}
                 showCameraButton={showCameraButton}
-                onOpenProductShelf={() => setRecentProductsOpen(true)}
+                onOpenProductShelf={() => {
+                  setProductShelfShuffleNonce((n) => n + 1)
+                  setRecentProductsOpen(true)
+                }}
                 productShelfButtonLabel={t.productShelfButton}
                 labels={draftComposerLabels}
               />
@@ -4033,11 +4043,14 @@ export function PartnerGuestChatClient({
       <Sheet open={recentProductsOpen} onOpenChange={setRecentProductsOpen}>
         <SheetContent
           side="bottom"
-          className="max-h-[88dvh] overflow-y-auto rounded-t-2xl p-3 pb-6 pt-6 sm:max-w-lg sm:mx-auto"
+          className="flex max-h-[88dvh] flex-col gap-0 overflow-hidden rounded-t-2xl p-0 sm:max-w-lg sm:mx-auto"
         >
-          <SheetHeader className="pb-3 text-left">
-            <SheetTitle className="text-base">{t.productShelfTitle}</SheetTitle>
-          </SheetHeader>
+          <div className="shrink-0 border-b border-border/60 bg-background px-3 pb-3 pl-3 pr-12 pt-14 text-left">
+            <SheetHeader className="space-y-0 p-0 text-left">
+              <SheetTitle className="text-base leading-tight">{t.productShelfTitle}</SheetTitle>
+            </SheetHeader>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-3">
           {recentProductRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t.productShelfEmpty}</p>
           ) : (
@@ -4046,6 +4059,7 @@ export function PartnerGuestChatClient({
                 const pk = normalizeProductUrlKey(row.card.product_url.trim())
                 const consulted = pk ? isProductConsultedInScopeSet(consultedProductKeys, pk) : false
                 const href = row.card.product_url.trim()
+                const priceLabel = formatVndPrice(row.card.price_hint)
                 return (
                   <div
                     key={`${row.sourceMessageId}-${href}`}
@@ -4063,6 +4077,11 @@ export function PartnerGuestChatClient({
                     <p className="line-clamp-2 min-h-[2.25rem] text-[11px] font-medium leading-snug text-foreground">
                       {row.card.name.trim() || '—'}
                     </p>
+                    {priceLabel ? (
+                      <p className="text-[11px] font-semibold tabular-nums text-violet-700 dark:text-violet-300">
+                        {priceLabel}
+                      </p>
+                    ) : null}
                     <div className="grid grid-cols-2 gap-1.5">
                       {consulted ? (
                         <Button
@@ -4104,6 +4123,7 @@ export function PartnerGuestChatClient({
               })}
             </div>
           )}
+          </div>
         </SheetContent>
       </Sheet>
       <GuestWidgetOrderDetailDialog
