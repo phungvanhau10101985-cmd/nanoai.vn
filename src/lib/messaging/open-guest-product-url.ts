@@ -49,15 +49,16 @@ export function openGuestProductDetailUrl(url: string): void {
   if (!resolved || !isAllowedHttpNavigationUrl(resolved)) return
 
   if (isEmbeddedInFrame()) {
-    try {
-      window.top!.location.assign(resolved)
-      return
-    } catch {
-      /* cross-origin: không đọc được top */
-    }
+    const returnChatUrl =
+      typeof window.location.href === 'string' ? window.location.href.trim() : ''
     try {
       window.parent.postMessage(
-        { source: NANOAI_WIDGET_MSG_SOURCE, type: 'NAVIGATE_TOP', url: resolved },
+        {
+          source: NANOAI_WIDGET_MSG_SOURCE,
+          type: 'NAVIGATE_TOP',
+          url: resolved,
+          ...(returnChatUrl ? { returnChatUrl } : {}),
+        },
         '*'
       )
     } catch {

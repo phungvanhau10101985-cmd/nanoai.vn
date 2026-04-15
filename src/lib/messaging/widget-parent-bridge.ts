@@ -11,6 +11,8 @@ export type NanoaiIframeToParentMessage = {
   source: typeof NANOAI_WIDGET_MSG_SOURCE
   type: 'NAVIGATE_TOP'
   url: string
+  /** URL đầy đủ của document iframe chat — lưu trên domain shop để quay lại / mở lại đúng phiên. */
+  returnChatUrl?: string
 }
 
 export function isOpenMyOrdersMessage(data: unknown): data is NanoaiWidgetToIframeMessage {
