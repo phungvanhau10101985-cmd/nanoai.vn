@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import Link from 'next/link'
 import { Copy, Loader2, Play } from 'lucide-react'
 import type { Json } from '@/types/database.types'
 import { Button } from '@/components/ui/button'
@@ -16,6 +15,7 @@ import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-displa
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { sepayQrUrlForDownload } from '@/lib/sepay-qr'
 import { MessageTextWithLinks } from '@/components/messaging/message-text-with-links'
+import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 
 /** Gỡ hậu tố «(BIN …)» còn sót từ bản cũ. */
 function displayBankName(raw: string): string {
@@ -366,14 +366,16 @@ function OrderPaymentPanel({
             variant={onViolet ? 'outline' : 'secondary'}
             asChild
           >
-            <Link
+            <a
               href={detailHref}
-              target="_blank"
               rel="noopener noreferrer"
-              title="Mở tab mới để giữ phiên đăng nhập NanoAI"
+              onClick={(e) => {
+                e.preventDefault()
+                openGuestProductDetailUrl(detailHref)
+              }}
             >
               Xem chi tiết đơn hàng
-            </Link>
+            </a>
           </Button>
         </div>
       ) : null}
@@ -450,14 +452,16 @@ function OrderPaymentPanel({
                 variant={onViolet ? 'outline' : 'secondary'}
                 asChild
               >
-                <Link
+                <a
                   href={detailHref}
-                  target="_blank"
                   rel="noopener noreferrer"
-                  title="Mở tab mới để giữ phiên đăng nhập NanoAI"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openGuestProductDetailUrl(detailHref)
+                  }}
                 >
                   Xem chi tiết đơn hàng
-                </Link>
+                </a>
               </Button>
             ) : null}
           </div>
@@ -544,12 +548,15 @@ function AiProductCards({
                   productHref ? (
                     <a
                       href={productHref}
-                      target="_blank"
                       rel="noopener noreferrer"
                       className={`block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                         onViolet ? 'focus-visible:ring-offset-violet-700' : ''
                       }`}
-                      onClick={(ev) => ev.stopPropagation()}
+                      onClick={(ev) => {
+                        ev.preventDefault()
+                        ev.stopPropagation()
+                        openGuestProductDetailUrl(productHref)
+                      }}
                       aria-label={detailAria}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -621,14 +628,17 @@ function AiProductCards({
               {showDetailRow ? (
                 <a
                   href={productHref}
-                  target="_blank"
                   rel="noopener noreferrer"
                   className={`flex h-7 w-full min-w-0 items-center justify-center rounded-md border px-1 text-[9px] font-semibold leading-none sm:text-[10px] ${
                     onViolet
                       ? 'border-white/35 bg-white/10 text-white hover:bg-white/16'
                       : 'border-border/80 bg-background text-foreground hover:bg-muted/60'
                   }`}
-                  onClick={(ev) => ev.stopPropagation()}
+                  onClick={(ev) => {
+                    ev.preventDefault()
+                    ev.stopPropagation()
+                    openGuestProductDetailUrl(productHref)
+                  }}
                   aria-label={detailAria}
                 >
                   <span className="block max-w-full truncate text-center">{viewDetailsLabel}</span>
@@ -667,6 +677,7 @@ export function CustomerCareMessageBody({
   onProductCardPick,
   orderPaymentProof,
   shopDisplayName = '',
+  openMessageLinksInSameTab = false,
 }: {
   row: Row
   tone?: CustomerCareMessageBodyTone
@@ -676,6 +687,8 @@ export function CustomerCareMessageBody({
   orderPaymentProof?: OrderPaymentProofSlot | null
   /** Tên hiển thị của shop (widget khách). */
   shopDisplayName?: string
+  /** Trang `/messaging/p/...`: URL trong chữ tin nhắn mở cùng tab (đồng bộ với phiên chat, kể cả iOS). */
+  openMessageLinksInSameTab?: boolean
 }) {
   const url = imageUrlFromPayload(row.raw_payload)
   const caption = row.body.replace(/^📷\s*/u, '').trim()
@@ -707,6 +720,7 @@ export function CustomerCareMessageBody({
       {caption ? (
         <MessageTextWithLinks
           text={caption}
+          sameTab={openMessageLinksInSameTab}
           className={`whitespace-pre-wrap break-words ${onViolet ? 'text-white' : ''}`}
           linkClassName={
             onViolet
@@ -732,6 +746,7 @@ export function CustomerCareMessageBody({
       {!url && !caption && !productCards.length && row.body ? (
         <MessageTextWithLinks
           text={row.body}
+          sameTab={openMessageLinksInSameTab}
           className={`whitespace-pre-wrap break-words ${onViolet ? 'text-white' : ''}`}
           linkClassName={
             onViolet

@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 
 /** Bắt URL trong tin nhắn (không dùng markdown). */
 const URL_CHUNK = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
@@ -23,12 +23,22 @@ export type MessageTextWithLinksProps = {
   text: string
   className?: string
   linkClassName?: string
+  /**
+   * true: điều hướng cùng tab (dùng cho trang chat khách / iOS tránh mở tab mới).
+   * false/mặc định: `target="_blank"` như trước (inbox đối tác, admin).
+   */
+  sameTab?: boolean
 }
 
 /**
- * Giữ nguyên xuống dòng; các đoạn `https://...` thành thẻ `<a>` (tab mới).
+ * Giữ nguyên xuống dòng; các đoạn `https://...` thành thẻ `<a>`.
  */
-export function MessageTextWithLinks({ text, className, linkClassName }: MessageTextWithLinksProps): ReactNode {
+export function MessageTextWithLinks({
+  text,
+  className,
+  linkClassName,
+  sameTab = false,
+}: MessageTextWithLinksProps): ReactNode {
   const nodes: ReactNode[] = []
   let last = 0
   let k = 0
@@ -45,8 +55,15 @@ export function MessageTextWithLinks({ text, className, linkClassName }: Message
         <a
           key={`a-${k++}`}
           href={href}
-          target="_blank"
-          rel="noopener noreferrer"
+          {...(sameTab
+            ? {
+                rel: 'noopener noreferrer' as const,
+                onClick: (e: MouseEvent<HTMLAnchorElement>) => {
+                  e.preventDefault()
+                  window.location.assign(href)
+                },
+              }
+            : { target: '_blank' as const, rel: 'noopener noreferrer' })}
           className={linkClassName ?? 'break-all underline underline-offset-2'}
         >
           {href}

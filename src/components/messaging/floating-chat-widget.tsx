@@ -176,7 +176,9 @@ export function FloatingChatWidget({
             variant="ghost"
             size="icon"
             className="h-8 w-8 rounded-full"
-            onClick={() => window.open(fullPageUrl, '_blank', 'noopener,noreferrer')}
+            onClick={() => {
+              window.location.assign(fullPageUrl)
+            }}
             title={openFullPageLabel}
             aria-label={openFullPageLabel}
           >

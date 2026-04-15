@@ -70,6 +70,7 @@ import {
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
+import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import {
@@ -1541,7 +1542,7 @@ export function PartnerGuestChatClient({
       if (guestPurchaseFlow === 'external_site') {
         const u = (x.product_url ?? '').trim()
         if (/^https?:\/\//i.test(u)) {
-          window.open(u, '_blank', 'noopener,noreferrer')
+          openGuestProductDetailUrl(u)
           toast({ title: t.purchaseOpenSiteToast })
           setBuyOptionsOpen(false)
           return
@@ -3082,6 +3083,7 @@ export function PartnerGuestChatClient({
                       <CustomerCareMessageBody
                         row={{ id: m.id, body: m.body, raw_payload: m.raw_payload ?? null }}
                         tone={isMe ? 'onViolet' : 'default'}
+                        openMessageLinksInSameTab
                         labels={{
                           productCardOpenProduct: t.visionProductLink,
                           productCardViewDetails: t.visionProductViewDetails,
@@ -3148,10 +3150,13 @@ export function PartnerGuestChatClient({
                                     puVision && /^https?:\/\//i.test(puVision.trim()) ? (
                                       <a
                                         href={puVision.trim()}
-                                        target="_blank"
                                         rel="noopener noreferrer"
                                         className="block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-violet-700"
-                                        onClick={(ev) => ev.stopPropagation()}
+                                        onClick={(ev) => {
+                                          ev.preventDefault()
+                                          ev.stopPropagation()
+                                          openGuestProductDetailUrl(puVision.trim())
+                                        }}
                                         aria-label={`${c.name}. ${t.visionProductViewDetails}`}
                                       >
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -3192,10 +3197,13 @@ export function PartnerGuestChatClient({
                                     {puVision && /^https?:\/\//i.test(puVision.trim()) ? (
                                       <a
                                         href={puVision.trim()}
-                                        target="_blank"
                                         rel="noopener noreferrer"
                                         className="flex h-7 w-full min-w-0 items-center justify-center rounded-md border border-white/35 bg-white/10 px-1 text-[9px] font-semibold leading-none text-white hover:bg-white/16 sm:text-[10px]"
-                                        onClick={(e) => e.stopPropagation()}
+                                        onClick={(e) => {
+                                          e.preventDefault()
+                                          e.stopPropagation()
+                                          openGuestProductDetailUrl(puVision.trim())
+                                        }}
                                         aria-label={`${c.name}. ${t.visionProductViewDetails}`}
                                       >
                                         <span className="block max-w-full truncate text-center">
@@ -3299,10 +3307,13 @@ export function PartnerGuestChatClient({
                           {href ? (
                             <a
                               href={href}
-                              target="_blank"
                               rel="noopener noreferrer"
                               className="block shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                               aria-label={`Mở trang sản phẩm: ${item.name}`}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                openGuestProductDetailUrl(href)
+                              }}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
@@ -3362,10 +3373,13 @@ export function PartnerGuestChatClient({
                         /^https?:\/\//i.test(activeOrderCard.product_url.trim()) ? (
                           <a
                             href={activeOrderCard.product_url.trim()}
-                            target="_blank"
                             rel="noopener noreferrer"
                             className="shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             aria-label={`Mở trang sản phẩm: ${activeOrderCard.name}`}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              openGuestProductDetailUrl(activeOrderCard.product_url.trim())
+                            }}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
@@ -4136,11 +4150,14 @@ export function PartnerGuestChatClient({
                     {/^https?:\/\//i.test(href) ? (
                       <a
                         href={href}
-                        target="_blank"
                         rel="noopener noreferrer"
                         className="relative block aspect-square w-full overflow-hidden rounded-md border border-border/50 bg-background outline-none ring-offset-background transition-opacity hover:opacity-95 active:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
                         aria-label={`${row.card.name.trim() || t.visionProductViewDetails} — ${t.visionProductViewDetails}`}
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          openGuestProductDetailUrl(href)
+                        }}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- URL ngoài từ shop */}
                         <img
@@ -4212,7 +4229,7 @@ export function PartnerGuestChatClient({
                         className="h-8 w-full px-1 text-[11px]"
                         onClick={() => {
                           if (!/^https?:\/\//i.test(href)) return
-                          window.open(href, '_blank', 'noopener,noreferrer')
+                          openGuestProductDetailUrl(href)
                         }}
                       >
                         {t.visionProductViewDetails}
