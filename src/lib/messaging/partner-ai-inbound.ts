@@ -1,6 +1,11 @@
 import type { Database, Json } from '@/types/database.types'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
-import { fetchConversationUiLocaleFromPg, fetchCustomerCareConversationByIdPg } from '@/lib/db/customer-care-pg'
+import {
+  fetchConversationUiLocaleFromPg,
+  fetchCustomerCareConversationByIdPg,
+  fetchLastOutboundCustomerCareMessageBodyPg,
+  mergeCustomerCareMessageRawPayloadPatchPg,
+} from '@/lib/db/customer-care-pg'
 import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import {
   cancelPendingAiJobsForConversationPg,
@@ -18,8 +23,48 @@ import {
   buildPurchasePickListCardsFromConversation,
   purchasePickListMessageBody,
 } from '@/lib/messaging/partner-ai-purchase-pick-list'
+import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
 
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
+
+/** Bỏ dòng gợi ý hệ thống / tiền tố 📷 — dùng cho phân loại ý định (khớp tin khách thuần). */
+export function stripInboundBodyForIntentClassify(body: string): string {
+  const lines = body.split('\n').map((l) => l.trimEnd())
+  const kept: string[] = []
+  for (const line of lines) {
+    const t = line.trim()
+    if (!t) continue
+    if (new RegExp('^\\[Customer product (?:SKU|URL|inventory id|image):', 'i').test(t)) continue
+    kept.push(line)
+  }
+  return kept.join('\n').replace(/^📷\s*/u, '').trim()
+}
+
+async function mergePartnerAiWidgetIntentFromClassifier(input: {
+  partnerId: string
+  conversationId: string
+  messageId: string
+  inboundBody: string
+  intentClassifyText?: string | null
+}): Promise<void> {
+  if (process.env.PARTNER_AI_WIDGET_INTENT_CLASSIFIER === '0') return
+  const raw = (input.intentClassifyText ?? stripInboundBodyForIntentClassify(input.inboundBody)).trim()
+  if (raw.length < 1) return
+  try {
+    const lastShop = await fetchLastOutboundCustomerCareMessageBodyPg(input.conversationId)
+    const intent = await classifyWidgetInboundIntent({
+      partnerId: input.partnerId,
+      customerText: raw,
+      lastShopMessage: lastShop,
+    })
+    if (!intent) return
+    await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, {
+      partner_ai_widget_intent: intent,
+    })
+  } catch (e) {
+    console.warn('[partner-ai-inbound] mergePartnerAiWidgetIntentFromClassifier', e)
+  }
+}
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -124,6 +169,8 @@ export async function handlePartnerInboundForAi(input: {
   skipEagerBatchRun?: boolean
   /** Widget: locale vừa merge (vi/en/…) — chọn bản FAQ trong `answer_i18n`. */
   widgetUiLocale?: string | null
+  /** Tin thuần để phân loại ý định (khác `inboundBody` khi có dòng [Customer product …]). */
+  intentClassifyText?: string | null
 }): Promise<PartnerInboundShopTypingHint> {
   if (input.channel === 'internal') return { show: false }
 
@@ -131,6 +178,14 @@ export async function handlePartnerInboundForAi(input: {
     const settings = await fetchMessagingPartnerAiSettingsFullFromPg(input.partnerId)
 
     if (!settings?.enabled) return { show: false }
+
+    await mergePartnerAiWidgetIntentFromClassifier({
+      partnerId: input.partnerId,
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+      inboundBody: input.inboundBody,
+      intentClassifyText: input.intentClassifyText,
+    })
 
     const skipFaq = inboundTextHasVisionSelectionHint(input.inboundBody)
     let faqLocale = normalizeWebLocale(input.widgetUiLocale ?? null)

@@ -922,6 +922,14 @@ export function looksLikeStandaloneProductQuestion(customerMessage: string): boo
   return false
 }
 
+/**
+ * «Giày/sandal… cao gót» = **loại hàng** (tìm trong cả kho), không phải hỏi chiều **gót** của mẫu đang xem.
+ * Từ `gót` trong FOLLOWUP_ATTR_* khớp nhầm → neo SP cũ (vd. dép nam) + một dòng kho → AI báo shop không có giày cao gót.
+ */
+function messageQueriesHighHeelFootwearCategory(text: string): boolean {
+  return /\b(?:giày|sandal|dép|guốc)\s+cao\s+gót\b/i.test(text)
+}
+
 export function shouldAugmentInventorySearchWithLastConsulted(
   customerMessage: string,
   opts?: { visionInventorySelected?: boolean }
@@ -930,6 +938,7 @@ export function shouldAugmentInventorySearchWithLastConsulted(
   const text = normalizeTextForFollowUpHeuristic(customerMessage)
   if (!text) return false
   if (extractExplicitSkuCandidates(customerMessage).length > 0) return false
+  if (messageQueriesHighHeelFootwearCategory(text)) return false
 
   if (FOLLOWUP_DEICTIC_RE.test(text)) return true
   if (CATEGORY_WITH_DEICTIC_RE.test(text)) return true

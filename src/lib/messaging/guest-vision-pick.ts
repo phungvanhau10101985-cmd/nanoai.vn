@@ -6,7 +6,11 @@ import {
   updateCustomerCareMessageRawPayloadPg,
 } from '@/lib/db/customer-care-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { cancelPendingAiJobsForConversation, handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
+import {
+  cancelPendingAiJobsForConversation,
+  handlePartnerInboundForAi,
+  stripInboundBodyForIntentClassify,
+} from '@/lib/messaging/partner-ai-inbound'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 
@@ -124,6 +128,7 @@ export async function executeGuestVisionPick(input: {
     // Vision pick is a confirmed user action; run immediately and bypass burst merge delay.
     scheduleAiAfterSeconds: 0,
     widgetUiLocale,
+    intentClassifyText: stripInboundBodyForIntentClassify(msg.body) || null,
   })
 
   return {

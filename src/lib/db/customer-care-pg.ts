@@ -774,6 +774,27 @@ export async function updateCustomerCareMessageRawPayloadPg(
   }
 }
 
+/** Gộp patch vào `raw_payload` (jsonb merge) — không ghi đè toàn bộ payload. */
+export async function mergeCustomerCareMessageRawPayloadPatchPg(
+  messageId: string,
+  patch: Record<string, unknown>
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    const pool = getPgPool()
+    const res = await pool.query(
+      `update public.customer_care_messages
+         set raw_payload = coalesce(raw_payload, '{}'::jsonb) || $1::jsonb
+       where id = $2::uuid`,
+      [JSON.stringify(patch), messageId]
+    )
+    return (res.rowCount ?? 0) > 0
+  } catch (e) {
+    console.error('[customer-care-pg] mergeCustomerCareMessageRawPayloadPatchPg', e)
+    return false
+  }
+}
+
 /** Đếm ảnh minh họa mặc/dùng đã gửi trong cuộc chat cho đúng mặt hàng (metadata trên tin outbound). */
 export async function countPartnerAiRealUseImagesSentForInventoryInConversationPg(
   conversationId: string,

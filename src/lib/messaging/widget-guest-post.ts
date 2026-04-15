@@ -276,6 +276,7 @@ export async function postWidgetGuestMessage(params: {
             if ('conversationId' in convEarly) {
               const lastShop = await fetchLastOutboundCustomerCareMessageBodyPg(convEarly.conversationId)
               const classified = await classifyWidgetInboundIntent({
+                partnerId: params.partnerId,
                 customerText: trimmedText,
                 lastShopMessage: lastShop,
               })
@@ -455,6 +456,7 @@ export async function postWidgetGuestMessage(params: {
         skipEagerBatchRun: true,
         /** Đã merge vào DB — dùng để bỏ FAQ tiếng Việt khi khách chọn UI khác `vi`. */
         widgetUiLocale: locNorm ?? null,
+        intentClassifyText: text?.trim() ? text.trim() : null,
       })
       if (hint.show) shopTyping = { maxWaitMs: hint.maxWaitMs }
     }
