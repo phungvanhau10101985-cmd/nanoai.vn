@@ -6,9 +6,8 @@ import {
 } from '@/lib/messaging/guest-chat-image'
 import {
   createGuestSessionId,
+  mirrorGuestSessionToClient,
   readGuestSessionIdFromRequest,
-  writeGuestSessionCookie,
-  writeGuestSessionHeader,
 } from '@/lib/messaging/guest-auth-session'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 
@@ -57,9 +56,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ error: up.error }, { status: 400 })
   }
   const res = NextResponse.json({ path: up.path, publicUrl: up.publicUrl })
-  if (newSessionId) {
-    writeGuestSessionCookie(res, request, newSessionId)
-    writeGuestSessionHeader(res, newSessionId)
+  const sessionToMirror = newSessionId ?? existingSessionId
+  if (sessionToMirror) {
+    mirrorGuestSessionToClient(res, request, sessionToMirror)
   }
   return res
 }

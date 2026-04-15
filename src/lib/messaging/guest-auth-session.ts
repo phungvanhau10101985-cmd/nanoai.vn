@@ -1,4 +1,5 @@
 import type { NextRequest, NextResponse } from 'next/server'
+import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import {
   isValidMessagingGuestSessionId,
   LOOSE_RFC4122_UUID_STRING_RE,
@@ -6,6 +7,8 @@ import {
 
 export const MESSAGING_GUEST_SESSION_COOKIE = 'app_guest_session_id'
 export const MESSAGING_GUEST_SESSION_COOKIE_LEGACY = 'nanoai_guest_session_id'
+/** Cookie không HttpOnly — iOS/Safari hay xóa localStorage; JS đọc được để gửi header trước fetch đầu. */
+export const MESSAGING_GUEST_SESSION_SYNC_COOKIE = 'app_guest_session_sync'
 export const MESSAGING_GUEST_SESSION_HEADER = 'x-guest-session-id'
 
 /** Khớp cookie HttpOnly (đồng bộ với localStorage phía client). */
@@ -23,6 +26,7 @@ export function readGuestSessionIdFromRequest(request: NextRequest): string | nu
     const raw =
       request.cookies.get(MESSAGING_GUEST_SESSION_COOKIE)?.value?.trim()
       ?? request.cookies.get(MESSAGING_GUEST_SESSION_COOKIE_LEGACY)?.value?.trim()
+      ?? request.cookies.get(MESSAGING_GUEST_SESSION_SYNC_COOKIE)?.value?.trim()
       ?? ''
     if (!raw) return null
     return isValidMessagingGuestSessionId(raw) ? raw : null
@@ -36,6 +40,7 @@ export function readLooseGuestSessionIdFromRequest(request: NextRequest): string
   const raw =
     request.cookies.get(MESSAGING_GUEST_SESSION_COOKIE)?.value?.trim()
     ?? request.cookies.get(MESSAGING_GUEST_SESSION_COOKIE_LEGACY)?.value?.trim()
+    ?? request.cookies.get(MESSAGING_GUEST_SESSION_SYNC_COOKIE)?.value?.trim()
     ?? ''
   if (raw && LOOSE_RFC4122_UUID_STRING_RE.test(raw)) return raw
   return null
@@ -58,10 +63,61 @@ export function writeGuestSessionCookie(response: NextResponse, request: NextReq
     path: '/',
     maxAge: 60 * 60 * 24 * 365,
   }
+  const syncOpts = {
+    httpOnly: false,
+    sameSite: 'lax' as const,
+    secure: request.nextUrl.protocol === 'https:',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+  }
   response.cookies.set(MESSAGING_GUEST_SESSION_COOKIE, sessionId, opts)
   response.cookies.set(MESSAGING_GUEST_SESSION_COOKIE_LEGACY, sessionId, opts)
+  response.cookies.set(MESSAGING_GUEST_SESSION_SYNC_COOKIE, sessionId, syncOpts)
 }
 
 export function writeGuestSessionHeader(response: NextResponse, sessionId: string) {
   response.headers.set(MESSAGING_GUEST_SESSION_HEADER, sessionId)
+}
+
+/**
+ * Gia hạn cookie phiên (maxAge) và gửi header — client đồng bộ lại localStorage.
+ * Gọi cho **mọi** response khi khách ẩn danh đã có session (không chỉ lần tạo mới),
+ * tránh mất lịch sử trên iOS/Safari khi WebKit xóa storage nhưng cookie HttpOnly còn.
+ */
+export function mirrorGuestSessionToClient(response: NextResponse, request: NextRequest, sessionId: string) {
+  if (!isValidMessagingGuestSessionId(sessionId)) return
+  writeGuestSessionCookie(response, request, sessionId)
+  writeGuestSessionHeader(response, sessionId)
+}
+
+type GuestIdentityMirrorOpts = {
+  newSessionId: string | null
+  user?: { id?: string } | null
+  effectiveExternalThreadId: string
+  effectiveGuestAccountId: string | null
+}
+
+/**
+ * Đồng bộ cookie + header tài khoản / session khách sau mỗi API thành công.
+ */
+export function applyGuestIdentityToResponse(
+  response: NextResponse,
+  request: NextRequest,
+  opts: GuestIdentityMirrorOpts
+): void {
+  const { newSessionId, user, effectiveExternalThreadId, effectiveGuestAccountId } = opts
+  if (effectiveGuestAccountId) {
+    writeGuestAccountCookie(response, request, effectiveGuestAccountId)
+  }
+  if (newSessionId) {
+    mirrorGuestSessionToClient(response, request, newSessionId)
+    return
+  }
+  if (
+    !effectiveGuestAccountId &&
+    !user?.id &&
+    isValidMessagingGuestSessionId(effectiveExternalThreadId)
+  ) {
+    mirrorGuestSessionToClient(response, request, effectiveExternalThreadId)
+  }
 }

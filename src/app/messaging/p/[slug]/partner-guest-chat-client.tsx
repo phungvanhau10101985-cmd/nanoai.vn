@@ -76,12 +76,26 @@ import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import {
   MESSAGING_GUEST_SESSION_STORAGE_KEY,
   MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY,
+  MESSAGING_GUEST_SESSION_SYNC_COOKIE,
 } from '@/lib/messaging/guest-auth-session'
 import {
   MESSAGING_GUEST_ACCOUNT_STORAGE_KEY,
   MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY,
+  MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE,
 } from '@/lib/messaging/guest-account-session'
 import type { GuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
+
+function readDocumentCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null
+  const prefixed = `; ${document.cookie}`
+  const key = `; ${name}=`
+  const idx = prefixed.indexOf(key)
+  if (idx === -1) return null
+  const start = idx + key.length
+  const end = prefixed.indexOf(';', start)
+  const raw = (end === -1 ? prefixed.slice(start) : prefixed.slice(start, end)).trim()
+  return raw ? decodeURIComponent(raw) : null
+}
 
 type GuestMsg = {
   id: string
@@ -1018,18 +1032,43 @@ export function PartnerGuestChatClient({
     return out
   }, [messages])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof window === 'undefined') return
-    const existing =
+    let session =
       window.localStorage.getItem(MESSAGING_GUEST_SESSION_STORAGE_KEY)?.trim()
       ?? window.localStorage.getItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY)?.trim()
       ?? ''
-    if (existing) guestSessionIdRef.current = existing
-    const accountExisting =
+    if (!session) {
+      const fromCookie = readDocumentCookie(MESSAGING_GUEST_SESSION_SYNC_COOKIE)?.trim() ?? ''
+      if (fromCookie) {
+        session = fromCookie
+        try {
+          window.localStorage.setItem(MESSAGING_GUEST_SESSION_STORAGE_KEY, session)
+          window.localStorage.setItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY, session)
+        } catch {
+          // ignore quota / private mode
+        }
+      }
+    }
+    if (session) guestSessionIdRef.current = session
+
+    let account =
       window.localStorage.getItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY)?.trim()
       ?? window.localStorage.getItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY)?.trim()
       ?? ''
-    if (accountExisting) guestAccountIdRef.current = accountExisting
+    if (!account) {
+      const fromCookie = readDocumentCookie(MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE)?.trim() ?? ''
+      if (fromCookie) {
+        account = fromCookie
+        try {
+          window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY, account)
+          window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY, account)
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (account) guestAccountIdRef.current = account
   }, [])
 
   useEffect(() => {
@@ -4280,6 +4319,7 @@ export function PartnerGuestChatClient({
         onDepositPickProof={pickAndVerifyPaymentProof}
         dataRefreshNonce={embedWidgetDataNonce}
         shopDisplayName={shopDisplayName}
+        embedUi={isEmbedUi || guestInIframe}
       />
     </div>
   )

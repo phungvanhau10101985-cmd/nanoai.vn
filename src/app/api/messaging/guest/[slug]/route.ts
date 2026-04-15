@@ -2,8 +2,7 @@ import type { AppUser } from '@/lib/auth/app-user'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { postWidgetGuestMessage } from '@/lib/messaging/widget-guest-post'
-import { writeGuestSessionCookie, writeGuestSessionHeader } from '@/lib/messaging/guest-auth-session'
-import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
+import { applyGuestIdentityToResponse, mirrorGuestSessionToClient } from '@/lib/messaging/guest-auth-session'
 import {
   resolveGuestIdentity,
   upsertGuestAccountForGoogleIdentity,
@@ -67,11 +66,12 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
         consultedProductKeys: [] as string[],
         authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
       })
-      if (identity.newSessionId) {
-        writeGuestSessionCookie(res, request, identity.newSessionId)
-        writeGuestSessionHeader(res, identity.newSessionId)
-      }
-      if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
+      applyGuestIdentityToResponse(res, request, {
+        newSessionId: identity.newSessionId,
+        user: identity.user ?? null,
+        effectiveExternalThreadId,
+        effectiveGuestAccountId,
+      })
       return res
     }
     const messagesPg = await fetchGuestWidgetMessagesSubsetFromPg(convIdPg)
@@ -83,11 +83,12 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
         consultedProductKeys,
         authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
       })
-      if (identity.newSessionId) {
-        writeGuestSessionCookie(res, request, identity.newSessionId)
-        writeGuestSessionHeader(res, identity.newSessionId)
-      }
-      if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
+      applyGuestIdentityToResponse(res, request, {
+        newSessionId: identity.newSessionId,
+        user: identity.user ?? null,
+        effectiveExternalThreadId,
+        effectiveGuestAccountId,
+      })
       return res
     }
     return NextResponse.json({ error: 'Failed to load messages.' }, { status: 500 })
@@ -169,8 +170,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       { status }
     )
     if (identity.newSessionId) {
-      writeGuestSessionCookie(res, request, identity.newSessionId)
-      writeGuestSessionHeader(res, identity.newSessionId)
+      mirrorGuestSessionToClient(res, request, identity.newSessionId)
     }
     return res
   }
@@ -181,10 +181,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     paymentVerificationHandled: posted.paymentVerificationHandled ?? false,
     authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
   })
-  if (identity.newSessionId) {
-    writeGuestSessionCookie(res, request, identity.newSessionId)
-    writeGuestSessionHeader(res, identity.newSessionId)
-  }
-  if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
+  applyGuestIdentityToResponse(res, request, {
+    newSessionId: identity.newSessionId,
+    user: identity.user ?? null,
+    effectiveExternalThreadId,
+    effectiveGuestAccountId,
+  })
   return res
 }

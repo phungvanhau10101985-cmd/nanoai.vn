@@ -2,6 +2,8 @@ import type { NextRequest, NextResponse } from 'next/server'
 
 export const MESSAGING_GUEST_ACCOUNT_COOKIE = 'app_guest_account_id'
 export const MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY = 'nanoai_guest_account_id'
+/** Không HttpOnly — đồng bộ ref khi localStorage bị WebKit xóa (iOS). */
+export const MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE = 'app_guest_account_sync'
 export const MESSAGING_GUEST_ACCOUNT_HEADER = 'x-guest-account-id'
 export const MESSAGING_GUEST_ACCOUNT_STORAGE_KEY = 'app_guest_account_id'
 export const MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY = 'nanoai_guest_account_id'
@@ -12,6 +14,7 @@ export function readGuestAccountIdFromRequest(request: NextRequest): string | nu
     request.headers.get(MESSAGING_GUEST_ACCOUNT_HEADER)?.trim()
     ?? request.cookies.get(MESSAGING_GUEST_ACCOUNT_COOKIE)?.value?.trim()
     ?? request.cookies.get(MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY)?.value?.trim()
+    ?? request.cookies.get(MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE)?.value?.trim()
     ?? ''
   if (!raw) return null
   return UUID_RE.test(raw) ? raw : null
@@ -25,7 +28,15 @@ export function writeGuestAccountCookie(response: NextResponse, request: NextReq
     path: '/',
     maxAge: 60 * 60 * 24 * 365,
   }
+  const syncOpts = {
+    httpOnly: false,
+    sameSite: 'lax' as const,
+    secure: request.nextUrl.protocol === 'https:',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+  }
   response.cookies.set(MESSAGING_GUEST_ACCOUNT_COOKIE, accountId, opts)
   response.cookies.set(MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY, accountId, opts)
+  response.cookies.set(MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE, accountId, syncOpts)
   response.headers.set(MESSAGING_GUEST_ACCOUNT_HEADER, accountId)
 }

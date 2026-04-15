@@ -4,8 +4,7 @@ import {
   resolveGuestIdentity,
   upsertGuestAccountForGoogleIdentity,
 } from '@/lib/messaging/guest-widget-identity'
-import { writeGuestSessionCookie, writeGuestSessionHeader } from '@/lib/messaging/guest-auth-session'
-import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
+import { applyGuestIdentityToResponse } from '@/lib/messaging/guest-auth-session'
 import { fetchGuestWidgetConversationIdFromPg } from '@/lib/db/customer-care-pg'
 import { fetchPartnerOrdersForConversationFromPg } from '@/lib/db/messaging-partner-orders-pg'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -44,20 +43,22 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     const convIdPg = await fetchGuestWidgetConversationIdFromPg(partnerId, effectiveExternalThreadId)
     if (convIdPg === null) {
       const res = NextResponse.json({ orders: [] as unknown[] })
-      if (identity.newSessionId) {
-        writeGuestSessionCookie(res, request, identity.newSessionId)
-        writeGuestSessionHeader(res, identity.newSessionId)
-      }
-      if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
+      applyGuestIdentityToResponse(res, request, {
+        newSessionId: identity.newSessionId,
+        user: identity.user ?? null,
+        effectiveExternalThreadId,
+        effectiveGuestAccountId,
+      })
       return res
     }
     const orders = await fetchPartnerOrdersForConversationFromPg(partnerId, convIdPg, 80)
     const res = NextResponse.json({ orders: orders ?? [] })
-    if (identity.newSessionId) {
-      writeGuestSessionCookie(res, request, identity.newSessionId)
-      writeGuestSessionHeader(res, identity.newSessionId)
-    }
-    if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
+    applyGuestIdentityToResponse(res, request, {
+      newSessionId: identity.newSessionId,
+      user: identity.user ?? null,
+      effectiveExternalThreadId,
+      effectiveGuestAccountId,
+    })
     return res
   } catch (e) {
     console.warn('[guest widget orders GET]', e)

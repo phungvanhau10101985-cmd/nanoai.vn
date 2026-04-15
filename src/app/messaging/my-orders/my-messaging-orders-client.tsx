@@ -79,16 +79,16 @@ export function MyMessagingOrdersClient({
   highlightOrderId: string
 }) {
   return (
-    <div className="flex w-full max-w-2xl flex-col gap-6 pb-8">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" asChild className="shrink-0">
+    <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 overflow-x-hidden px-3 pb-8 sm:px-0">
+      <div className="flex min-w-0 items-start gap-2 sm:items-center sm:gap-3">
+        <Button variant="ghost" size="icon" asChild className="mt-0.5 shrink-0 sm:mt-0">
           <Link href="/" aria-label={t.backHomeAria}>
             <ArrowLeft className="h-5 w-5" />
           </Link>
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t.pageTitle}</h1>
-          <p className="text-sm text-muted-foreground">{t.pageDescription}</p>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{t.pageTitle}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t.pageDescription}</p>
         </div>
       </div>
 
@@ -208,29 +208,31 @@ function OrderRow({
   return (
     <li ref={ref}>
       <Card
-        className={`overflow-hidden border-border/70 shadow-sm transition-shadow hover:shadow-md ${
+        className={`min-w-0 max-w-full overflow-hidden border-border/70 shadow-sm transition-shadow hover:shadow-md ${
           highlight ? 'ring-2 ring-violet-500/80 ring-offset-2 ring-offset-background' : ''
         }`}
       >
         <CardHeader className="space-y-2 pb-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-            <div className="shrink-0">
+            <div className="mx-auto shrink-0 sm:mx-0">
               {showImg ? (
                 // eslint-disable-next-line @next/next/no-img-element -- URL ngoài từ kho shop
                 <img
                   src={img}
                   alt={t.productPhotoAlt}
-                  className="h-28 w-full max-w-[7.5rem] rounded-lg border border-border/60 bg-muted/30 object-contain sm:h-32 sm:w-32"
+                  className="mx-auto h-28 w-full max-w-[7.5rem] rounded-lg border border-border/60 bg-muted/30 object-contain sm:mx-0 sm:h-32 sm:w-32"
                   loading="lazy"
                 />
               ) : (
-                <div className="flex h-28 w-full max-w-[7.5rem] items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/25 text-[11px] text-muted-foreground sm:h-32 sm:w-32">
+                <div className="mx-auto flex h-28 w-full max-w-[7.5rem] items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/25 text-[11px] text-muted-foreground sm:mx-0 sm:h-32 sm:w-32">
                   —
                 </div>
               )}
             </div>
-            <div className="min-w-0 flex-1 space-y-2">
-              <CardTitle className="text-base font-semibold leading-snug sm:text-lg">{row.product_name.trim() || '—'}</CardTitle>
+            <div className="min-w-0 flex-1 space-y-2 overflow-hidden">
+              <CardTitle className="break-words text-pretty text-base font-semibold leading-snug sm:text-lg">
+                {row.product_name.trim() || '—'}
+              </CardTitle>
               <CardDescription className="text-sm font-medium text-foreground/90">{shop}</CardDescription>
               <div className="flex flex-wrap gap-2">
                 <span className="inline-flex items-center rounded-full border border-amber-200/90 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
@@ -248,8 +250,8 @@ function OrderRow({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3 border-t border-border/50 pt-3 text-sm">
-          <dl className="grid gap-2 text-[13px] sm:grid-cols-1">
+        <CardContent className="min-w-0 space-y-3 overflow-x-hidden border-t border-border/50 pt-3 text-sm">
+          <dl className="grid min-w-0 gap-2 text-[13px] sm:grid-cols-1">
             <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
               <dt className="shrink-0 text-muted-foreground">{t.orderIdLabel}</dt>
               <dd className="min-w-0 break-all font-mono text-xs text-foreground sm:text-[13px]" title={row.id}>
@@ -351,7 +353,7 @@ function OrderRow({
             ) : null}
           </div>
           <Dialog open={timelineOpen} onOpenChange={setTimelineOpen}>
-            <DialogContent className="max-h-[min(85vh,560px)] max-w-lg overflow-y-auto">
+            <DialogContent className="max-h-[min(85vh,560px)] w-[calc(100vw-1.5rem)] max-w-lg overflow-x-hidden overflow-y-auto sm:w-full">
               <DialogHeader>
                 <DialogTitle>{t.timelineTitle}</DialogTitle>
               </DialogHeader>

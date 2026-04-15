@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
-import { writeGuestSessionCookie, writeGuestSessionHeader } from '@/lib/messaging/guest-auth-session'
-import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
+import { applyGuestIdentityToResponse } from '@/lib/messaging/guest-auth-session'
 import {
   resolveGuestIdentity,
   upsertGuestAccountForGoogleIdentity,
@@ -66,10 +65,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   }
 
   const res = NextResponse.json({ ok: true })
-  if (identity.newSessionId) {
-    writeGuestSessionCookie(res, request, identity.newSessionId)
-    writeGuestSessionHeader(res, identity.newSessionId)
-  }
-  if (effectiveGuestAccountId) writeGuestAccountCookie(res, request, effectiveGuestAccountId)
+  applyGuestIdentityToResponse(res, request, {
+    newSessionId: identity.newSessionId,
+    user: identity.user ?? null,
+    effectiveExternalThreadId,
+    effectiveGuestAccountId,
+  })
   return res
 }

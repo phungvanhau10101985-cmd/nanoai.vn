@@ -3,10 +3,12 @@ import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import {
   MESSAGING_GUEST_ACCOUNT_COOKIE,
   MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY,
+  MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE,
 } from '@/lib/messaging/guest-account-session'
 import {
   MESSAGING_GUEST_SESSION_COOKIE,
   MESSAGING_GUEST_SESSION_COOKIE_LEGACY,
+  MESSAGING_GUEST_SESSION_SYNC_COOKIE,
 } from '@/lib/messaging/guest-auth-session'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import { isValidUuidString } from '@/lib/validate-uuid'
@@ -23,12 +25,14 @@ export async function resolveGuestExternalThreadIdFromCookies(): Promise<string 
   const acc =
     c.get(MESSAGING_GUEST_ACCOUNT_COOKIE)?.value?.trim() ??
     c.get(MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY)?.value?.trim() ??
+    c.get(MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE)?.value?.trim() ??
     ''
   if (acc && isValidUuidString(acc)) return acc
 
   const sess =
     c.get(MESSAGING_GUEST_SESSION_COOKIE)?.value?.trim() ??
     c.get(MESSAGING_GUEST_SESSION_COOKIE_LEGACY)?.value?.trim() ??
+    c.get(MESSAGING_GUEST_SESSION_SYNC_COOKIE)?.value?.trim() ??
     ''
   if (sess && isValidMessagingGuestSessionId(sess)) return sess
 
