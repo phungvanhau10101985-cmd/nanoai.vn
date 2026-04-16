@@ -138,6 +138,7 @@ export interface Database {
           body: string
           raw_payload: Json | null
           sender_admin_id: string | null
+          landing_source_url: string | null
           read_at: string | null
           created_at: string
         }
@@ -148,6 +149,7 @@ export interface Database {
           body: string
           raw_payload?: Json | null
           sender_admin_id?: string | null
+          landing_source_url?: string | null
           read_at?: string | null
           created_at?: string
         }
@@ -158,6 +160,7 @@ export interface Database {
           body?: string
           raw_payload?: Json | null
           sender_admin_id?: string | null
+          landing_source_url?: string | null
           read_at?: string | null
           created_at?: string
         }

@@ -78,6 +78,108 @@ export async function uploadGuestChatImageBuffer(
   }
 }
 
+/** Tránh SSRF khi server tải ảnh từ URL shop (ctx_image). */
+function isPublicHttpUrlSafeForServerFetch(raw: string): boolean {
+  try {
+    const parsed = new URL(raw)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+    const host = parsed.hostname.toLowerCase()
+    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return false
+    if (host.startsWith('[')) return false
+    const oct = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
+    if (oct) {
+      const a = Number(oct[1])
+      const b = Number(oct[2])
+      if (a === 10) return false
+      if (a === 127) return false
+      if (a === 0) return false
+      if (a === 172 && b >= 16 && b <= 31) return false
+      if (a === 192 && b === 168) return false
+      if (a === 169 && b === 254) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+function sniffImageMimeFromMagic(buf: Buffer): string | null {
+  if (buf.length < 12) return null
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg'
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png'
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif'
+  if (
+    buf[0] === 0x52 &&
+    buf[1] === 0x49 &&
+    buf[2] === 0x46 &&
+    buf[3] === 0x46 &&
+    buf[8] === 0x57 &&
+    buf[9] === 0x45 &&
+    buf[10] === 0x42 &&
+    buf[11] === 0x50
+  ) {
+    return 'image/webp'
+  }
+  return null
+}
+
+/**
+ * Tải ảnh HTTPS công khai (link sản phẩm) → bucket guest — cùng đường như khách upload ảnh tư vấn.
+ * Dùng khi POST có `pageContext.imageUrl` mà không có `imageStoragePath`.
+ */
+export async function fetchRemoteProductImageIntoGuestStorage(
+  partnerId: string,
+  imageUrl: string
+): Promise<{ path: string; publicUrl: string } | { error: string }> {
+  const trimmed = imageUrl.trim()
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return { error: 'Image URL must be http(s).' }
+  }
+  if (!isPublicHttpUrlSafeForServerFetch(trimmed)) {
+    return { error: 'Invalid image URL.' }
+  }
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 25_000)
+  try {
+    const res = await fetch(trimmed, {
+      redirect: 'follow',
+      signal: ctrl.signal,
+      headers: { Accept: 'image/*', 'User-Agent': 'NanoAI-Widget/1.0' },
+    })
+    if (!res.ok) {
+      return { error: `Could not download image (${res.status}).` }
+    }
+    const cl = res.headers.get('content-length')
+    if (cl) {
+      const n = Number.parseInt(cl, 10)
+      if (Number.isFinite(n) && n > GUEST_CHAT_IMAGE_MAX_BYTES) {
+        return { error: 'Image too large.' }
+      }
+    }
+    const buf = Buffer.from(await res.arrayBuffer())
+    if (buf.length > GUEST_CHAT_IMAGE_MAX_BYTES) {
+      return { error: 'Image too large.' }
+    }
+    if (buf.length < 32) {
+      return { error: 'Invalid image.' }
+    }
+    const ctRaw = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
+    let mime = ctRaw && isAllowedGuestImageMime(ctRaw) ? ctRaw : ''
+    if (!mime) {
+      mime = sniffImageMimeFromMagic(buf) ?? ''
+    }
+    if (!mime || !isAllowedGuestImageMime(mime)) {
+      return { error: 'Unsupported image type.' }
+    }
+    return uploadGuestChatImageBuffer(partnerId, buf, mime)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { error: msg || 'Download failed.' }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function uploadPartnerChatImageBuffer(
   partnerId: string,
   buffer: Buffer,

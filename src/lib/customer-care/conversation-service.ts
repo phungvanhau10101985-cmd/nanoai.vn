@@ -36,6 +36,7 @@ export async function insertMessage(params: {
   body: string
   rawPayload?: Json | null
   senderAdminId?: string | null
+  landingSourceUrl?: string | null
 }): Promise<{ ok: true; messageId: string } | { error: string }> {
   if (!isPgConfigured()) {
     return { error: 'Database is not configured (DATABASE_URL).' }

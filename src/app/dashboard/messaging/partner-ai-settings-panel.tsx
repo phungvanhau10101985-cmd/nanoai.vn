@@ -57,9 +57,10 @@ import {
 import {
   PARTNER_FAQ_CUSTOM_KEYWORDS_REQUIRED,
 } from '@/lib/messaging/partner-faq-presets'
+import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/lib/messaging/build-guest-consult-chat-link'
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
-import { Bot, Download, FileSpreadsheet, Sparkles, Upload } from 'lucide-react'
+import { Bot, Copy, Download, FileSpreadsheet, Sparkles, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
 type AiT = Dictionary['partnerMessagingAi']
@@ -197,12 +198,15 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
 
 export function PartnerAiSettingsPanel({
   partnerId,
+  partnerChatSlug,
   t,
   saveOkMessage,
   aiModelId,
   locale,
 }: {
   partnerId: string
+  /** Slug workspace — `/messaging/p/{slug}` (link tư vấn kèm ảnh SP). */
+  partnerChatSlug: string
   t: AiT
   saveOkMessage: string
   /** Model id from server (DEEPSEEK_MODEL / default deepseek-chat) */
@@ -836,6 +840,7 @@ export function PartnerAiSettingsPanel({
             ) : null}
             <InventoryEditor
               partnerId={partnerId}
+              partnerChatSlug={partnerChatSlug}
               t={t}
               rows={inventory}
               onChanged={load}
@@ -2051,6 +2056,7 @@ function mapInventoryImportError(code: string | undefined, t: AiT): string {
 
 function InventoryEditor({
   partnerId,
+  partnerChatSlug,
   t,
   rows,
   onChanged,
@@ -2065,6 +2071,7 @@ function InventoryEditor({
   onLoadMore,
 }: {
   partnerId: string
+  partnerChatSlug: string
   t: AiT
   rows: InvRow[]
   onChanged: () => void
@@ -2079,6 +2086,10 @@ function InventoryEditor({
   onLoadMore: () => void
 }) {
   const importInputRef = useRef<HTMLInputElement>(null)
+  const [browserOrigin, setBrowserOrigin] = useState('')
+  useEffect(() => {
+    if (typeof window !== 'undefined') setBrowserOrigin(window.location.origin)
+  }, [])
   const [excelBusy, setExcelBusy] = useState(false)
   /** Chỉ khi nhập Excel: % hoặc null = không xác định (thanh pulse) */
   const [excelImportProgress, setExcelImportProgress] = useState<{ percent: number | null } | null>(null)
@@ -2117,6 +2128,26 @@ function InventoryEditor({
   useEffect(() => {
     if (!draft.id) setDraft((d) => ({ ...d, sort_order: rows.length }))
   }, [rows.length, draft.id])
+
+  const draftGuestConsultFullUrl = useMemo(() => {
+    if (!draft.id?.trim() || !partnerChatSlug.trim()) return ''
+    return buildGuestConsultChatAbsoluteUrl(browserOrigin, partnerChatSlug, {
+      id: draft.id,
+      image_url: draft.image_url,
+      product_url: draft.product_url,
+      sku: draft.sku,
+    })
+  }, [browserOrigin, draft.id, draft.image_url, draft.product_url, draft.sku, partnerChatSlug])
+
+  const copyDraftGuestConsultUrl = useCallback(async () => {
+    if (!draftGuestConsultFullUrl) return
+    try {
+      await navigator.clipboard.writeText(draftGuestConsultFullUrl)
+      toast({ title: t.inventoryGuestConsultLinkCopied })
+    } catch {
+      toast({ title: t.inventoryGuestConsultLinkCopied, variant: 'destructive' })
+    }
+  }, [draftGuestConsultFullUrl, t.inventoryGuestConsultLinkCopied, toast])
 
   const editRow = (r: InvRow) => {
     setDraft({
@@ -2441,6 +2472,23 @@ function InventoryEditor({
                     </p>
                   ) : null
                 })()}
+                {partnerChatSlug.trim() ? (() => {
+                  const consultPath = buildGuestConsultChatPath(partnerChatSlug, r)
+                  if (!consultPath) return null
+                  const href = browserOrigin ? `${browserOrigin}${consultPath}` : consultPath
+                  return (
+                    <p className="mt-1 text-[11px]">
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-violet-600 underline underline-offset-2 dark:text-violet-400"
+                      >
+                        {t.inventoryGuestConsultLink}
+                      </a>
+                    </p>
+                  )
+                })() : null}
                 {r.consult_note?.trim() ? (
                   <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{r.consult_note.trim()}</p>
                 ) : null}
@@ -2527,6 +2575,30 @@ function InventoryEditor({
               className="font-mono text-xs"
             />
             <p className="text-[11px] text-muted-foreground">{t.inventoryProductUrlHint}</p>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t.inventoryGuestConsultLink}</Label>
+            {!draft.id?.trim() ? (
+              <p className="text-[11px] text-muted-foreground">{t.inventoryGuestConsultLinkNeedSave}</p>
+            ) : !partnerChatSlug.trim() ? null : (
+              <>
+                <div className="flex gap-2">
+                  <Input readOnly value={draftGuestConsultFullUrl} className="min-w-0 font-mono text-xs" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 gap-1"
+                    onClick={() => void copyDraftGuestConsultUrl()}
+                    disabled={!draftGuestConsultFullUrl}
+                    aria-label={t.inventoryGuestConsultLink}
+                  >
+                    <Copy className="h-3.5 w-3.5" aria-hidden />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">{t.inventoryGuestConsultLinkHint}</p>
+              </>
+            )}
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>{t.inventoryProductVideoUrl}</Label>

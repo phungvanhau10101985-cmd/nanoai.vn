@@ -155,6 +155,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const body = (await request.json().catch(() => null)) as {
     text?: string
     imageStoragePath?: string
+    /** URL trang lúc gửi — lưu `customer_care_messages.landing_source_url` (http/https). */
+    landingSourceUrl?: string
     /** Ngôn ngữ UI khách (vi | en | zh | ja | ko) — đồng bộ tin hệ thống đơn hàng. */
     uiLocale?: string
     pageContext?: {
@@ -211,6 +213,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     },
     text: body?.text,
     imageStoragePath: body?.imageStoragePath,
+    landingSourceUrl: typeof body?.landingSourceUrl === 'string' ? body.landingSourceUrl : undefined,
     pageContext: body?.pageContext,
   })
   if ('error' in posted) {

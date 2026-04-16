@@ -589,6 +589,11 @@ export type Dictionary = {
     inventoryProductVideoUrlHint: string
     inventoryOpenProductPage: string
     inventoryOpenProductVideo: string
+    /** Link /messaging/p/{slug}?ctx_* — mở chat tư vấn kèm ảnh SP */
+    inventoryGuestConsultLink: string
+    inventoryGuestConsultLinkHint: string
+    inventoryGuestConsultLinkNeedSave: string
+    inventoryGuestConsultLinkCopied: string
     inventoryConsultNote: string
     inventoryConsultNoteHint: string
     inventoryDescHint: string
@@ -2395,6 +2400,11 @@ const VI_DICTIONARY: Dictionary = {
       'Link YouTube (xem / embed) hoặc URL https://… tới file .mp4 / player CDN. Cùng cột “Video sản phẩm” trong Excel.',
     inventoryOpenProductPage: 'Mở trang sản phẩm',
     inventoryOpenProductVideo: 'Mở video',
+    inventoryGuestConsultLink: 'Mở chat tư vấn',
+    inventoryGuestConsultLinkHint:
+      'Link trang chat NanoAI kèm ảnh & ngữ cảnh mặt hàng (đặt vào website, QR, quảng cáo). Khách mở sẽ tự gửi tin tư vấn kèm ảnh.',
+    inventoryGuestConsultLinkNeedSave: 'Lưu mặt hàng trước để có link chat đầy đủ.',
+    inventoryGuestConsultLinkCopied: 'Đã copy link chat.',
     inventoryConsultNote: 'Ghi chú khi tư vấn',
     inventoryConsultNoteHint:
       'Ví dụ: bảo hành 12 tháng, giao 2–3 ngày, đang giảm 10%, chỉ đổi nếu lỗi sản xuất, freeship đơn từ…',
@@ -4203,6 +4213,11 @@ const EN_DICTIONARY: Dictionary = {
       'YouTube watch/embed URL, or an https:// link to an .mp4 or hosted player (CDN). Same as the Excel “Video” column.',
     inventoryOpenProductPage: 'Open product page',
     inventoryOpenProductVideo: 'Open video',
+    inventoryGuestConsultLink: 'Open consult chat',
+    inventoryGuestConsultLinkHint:
+      'NanoAI chat URL with this product’s image and context (website, QR, ads). Opens with an auto consult message.',
+    inventoryGuestConsultLinkNeedSave: 'Save the item first to get the full chat link.',
+    inventoryGuestConsultLinkCopied: 'Chat link copied.',
     inventoryConsultNote: 'Notes for advising customers',
     inventoryConsultNoteHint:
       'e.g. 12-month warranty, ships in 2–3 days, 10% off promo, exchange only for defects, free shipping over…',
@@ -6002,6 +6017,11 @@ const ZH_DICTIONARY: Dictionary = {
       'YouTube 观看页/嵌入链接，或指向 .mp4 / CDN 播放器的 https:// 链接。与 Excel「Video」列一致。',
     inventoryOpenProductPage: '打开商品页',
     inventoryOpenProductVideo: '打开视频',
+    inventoryGuestConsultLink: '打开咨询聊天',
+    inventoryGuestConsultLinkHint:
+      '带商品图片与上下文的 NanoAI 聊天链接（网站、二维码、广告）。顾客打开后会自动发送咨询消息。',
+    inventoryGuestConsultLinkNeedSave: '请先保存商品以生成完整聊天链接。',
+    inventoryGuestConsultLinkCopied: '已复制聊天链接。',
     inventoryConsultNote: '咨询补充说明',
     inventoryConsultNoteHint: '例如：保修 12 个月、2–3 天发货、限时折扣、仅质量问题退换、满额包邮等。',
     inventoryDescHint: '尺码、颜色、材质、尺寸、套装包含内容等。',
@@ -7758,6 +7778,11 @@ const JA_DICTIONARY: Dictionary = {
       'YouTube の視聴/埋め込み URL、または .mp4 / CDN プレーヤーへの https:// リンク。Excel の動画列と同じです。',
     inventoryOpenProductPage: '商品ページを開く',
     inventoryOpenProductVideo: '動画を開く',
+    inventoryGuestConsultLink: '相談チャットを開く',
+    inventoryGuestConsultLinkHint:
+      '商品画像と文脈付きの NanoAI チャット URL（サイト・QR・広告）。開くと自動で相談メッセージが送られます。',
+    inventoryGuestConsultLinkNeedSave: '先に商品を保存するとチャットリンクが揃います。',
+    inventoryGuestConsultLinkCopied: 'チャットリンクをコピーしました。',
     inventoryConsultNote: '接客メモ',
     inventoryConsultNoteHint:
       '例：保証12ヶ月、2–3日で発送、10%オフ、不良時のみ交換、○○円以上送料無料 など。',
@@ -9544,6 +9569,11 @@ const KO_DICTIONARY: Dictionary = {
       'YouTube 시청/임베드 주소 또는 .mp4·CDN 플레이어용 https:// 링크. Excel 동영상 열과 동일합니다.',
     inventoryOpenProductPage: '상품 페이지 열기',
     inventoryOpenProductVideo: '동영상 열기',
+    inventoryGuestConsultLink: '상담 채팅 열기',
+    inventoryGuestConsultLinkHint:
+      '상품 이미지·맥락이 포함된 NanoAI 채팅 링크(웹사이트·QR·광고). 열면 자동으로 상담 메시지가 전송됩니다.',
+    inventoryGuestConsultLinkNeedSave: '먼저 상품을 저장하면 전체 채팅 링크를 받을 수 있습니다.',
+    inventoryGuestConsultLinkCopied: '채팅 링크를 복사했습니다.',
     inventoryConsultNote: '상담 시 추가 안내',
     inventoryConsultNoteHint:
       '예: 보증 12개월, 2–3일 배송, 10% 할인, 불량 시에만 교환, ○○원 이상 무료배송 등.',

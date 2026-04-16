@@ -1462,6 +1462,7 @@ export function PartnerMessagingSettingsClient({
               <PartnerAiSettingsPanel
                 key={selectedPartnerId}
                 partnerId={selectedPartnerId}
+                partnerChatSlug={selectedPartner?.slug?.trim() ?? ''}
                 locale={locale}
                 t={tAi}
                 saveOkMessage={t.saveOk}

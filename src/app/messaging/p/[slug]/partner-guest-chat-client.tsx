@@ -126,6 +126,8 @@ type GuestMsg = {
   body: string
   created_at: string
   raw_payload?: Json | null
+  /** URL trang khi gửi tin (widget) — nguồn traffic / export feed. */
+  landing_source_url?: string | null
 }
 
 type GuestVisionCandidate = {
@@ -276,6 +278,37 @@ function collectAllSuggestedProductsWithSource(messages: GuestMsg[]): RecentProd
 function isSystemOrderMessage(raw: Json | null | undefined): boolean {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
   return o?.source === 'system_order'
+}
+
+/** Ngữ cảnh SP từ query `?ctx_sku=&ctx_image=&ctx_product_url=&ctx_inventory=` — gửi kèm tin đầu / tự động tư vấn. */
+type WidgetPageContextSeed = {
+  sku?: string
+  imageUrl?: string
+  productUrl?: string
+  inventoryId?: string
+}
+
+function hasWidgetPageContextSeed(pc: WidgetPageContextSeed | null | undefined): boolean {
+  if (!pc) return false
+  return Boolean(
+    (pc.sku && pc.sku.trim()) ||
+      (pc.imageUrl && pc.imageUrl.trim()) ||
+      (pc.productUrl && pc.productUrl.trim()) ||
+      (pc.inventoryId && pc.inventoryId.trim())
+  )
+}
+
+function buildWidgetPageContextInboundText(pc: WidgetPageContextSeed): string {
+  const lines: string[] = []
+  if (pc.sku?.trim()) lines.push(`Khách đang xem mã sản phẩm: ${pc.sku.trim()}`)
+  if (pc.productUrl?.trim()) lines.push(`Link sản phẩm: ${pc.productUrl.trim()}`)
+  if (pc.inventoryId?.trim()) lines.push(`Mã kho (inventory): ${pc.inventoryId.trim()}`)
+  const joined = lines.join('\n')
+  if (joined) return joined
+  if (pc.imageUrl?.trim()) {
+    return 'Khách mở link sản phẩm — ảnh đã gửi kèm tin để shop tư vấn (giống đính ảnh).'
+  }
+  return ''
 }
 
 function getVisionPickState(raw: Json | null | undefined): {
@@ -974,8 +1007,10 @@ export function PartnerGuestChatClient({
   const [visionPickBusyId, setVisionPickBusyId] = useState<string | null>(null)
   /** Xem ảnh gợi ý / thẻ — overlay cùng trang (không mở tab). */
   const [chatImageLightboxUrl, setChatImageLightboxUrl] = useState<string | null>(null)
-  const pageContextRef = useRef<{ sku?: string; imageUrl?: string; productUrl?: string } | null>(null)
+  const pageContextRef = useRef<WidgetPageContextSeed | null>(null)
   const contextSeededRef = useRef(false)
+  /** `auto_consult=0|false|no` — chỉ điền ngữ cảnh, không tự gửi tin. */
+  const autoConsultFromUrlDisabledRef = useRef(false)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const tryOnUserInputRef = useRef<HTMLInputElement>(null)
@@ -1133,15 +1168,23 @@ export function PartnerGuestChatClient({
     const ev = (q.get('embed') || '').trim().toLowerCase()
     const inIframe = window.self !== window.top
     setIsEmbedUi(ev === '1' || ev === 'true' || ev === 'yes' || inIframe)
+    const autoOff = (q.get('auto_consult') || '').trim().toLowerCase()
+    autoConsultFromUrlDisabledRef.current =
+      autoOff === '0' || autoOff === 'false' || autoOff === 'no'
     const sku = (q.get('ctx_sku') || '').trim()
     const imageUrl = (q.get('ctx_image') || '').trim()
     const productUrl = (q.get('ctx_product_url') || '').trim()
-    const hasAny = Boolean(sku || imageUrl || productUrl)
+    const invRaw = (q.get('ctx_inventory') || '').trim()
+    const inventoryId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invRaw)
+      ? invRaw
+      : ''
+    const hasAny = Boolean(sku || imageUrl || productUrl || inventoryId)
     pageContextRef.current = hasAny
       ? {
           ...(sku ? { sku } : {}),
           ...(imageUrl ? { imageUrl } : {}),
           ...(productUrl ? { productUrl } : {}),
+          ...(inventoryId ? { inventoryId } : {}),
         }
       : null
     /** Từ email / liên kết chia sẻ: `?order=<uuid>` mở chi tiết đơn trong widget. */
@@ -1937,7 +1980,13 @@ export function PartnerGuestChatClient({
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify({ text: ask, pageContext, uiLocale }),
+          body: JSON.stringify({
+            text: ask,
+            pageContext,
+            uiLocale,
+            landingSourceUrl:
+              typeof window !== 'undefined' ? window.location.href.slice(0, 4000) : undefined,
+          }),
         })
         captureGuestSessionFromResponse(res)
         captureGuestAccountFromResponse(res)
@@ -2680,7 +2729,14 @@ export function PartnerGuestChatClient({
         })
         return false
       }
-      if (!trimmed && !imageStoragePath) return false
+      const pcSeed = pageContextRef.current
+      if (
+        !trimmed &&
+        !imageStoragePath &&
+        !hasWidgetPageContextSeed(pcSeed)
+      ) {
+        return false
+      }
       if (trimmed) {
         // Customer continues with normal consultation instead of choosing from buy rail.
         setBuyOptionsOpen(false)
@@ -2688,30 +2744,31 @@ export function PartnerGuestChatClient({
       const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
       setSending(true)
       try {
+        const seedText =
+          !contextSeededRef.current && hasWidgetPageContextSeed(pcSeed)
+            ? buildWidgetPageContextInboundText(pcSeed!)
+            : ''
+        const textOut = trimmed || seedText || undefined
         const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({
-            text:
-              trimmed ||
-              (!contextSeededRef.current && pageContextRef.current
-                ? [
-                    pageContextRef.current.sku ? `Khách đang xem mã sản phẩm: ${pageContextRef.current.sku}` : '',
-                    pageContextRef.current.productUrl ? `Link sản phẩm: ${pageContextRef.current.productUrl}` : '',
-                  ]
-                    .filter(Boolean)
-                    .join('\n')
-                : undefined),
+            text: textOut,
             imageStoragePath: imageStoragePath || undefined,
             uiLocale,
+            landingSourceUrl:
+              typeof window !== 'undefined' ? window.location.href.slice(0, 4000) : undefined,
             pageContext:
-              !contextSeededRef.current && pageContextRef.current
+              !contextSeededRef.current && hasWidgetPageContextSeed(pcSeed)
                 ? {
-                    sku: pageContextRef.current.sku,
-                    imageUrl: pageContextRef.current.imageUrl,
-                    productUrl: pageContextRef.current.productUrl,
-                    source: 'widget_page',
+                    sku: pcSeed?.sku,
+                    imageUrl: pcSeed?.imageUrl,
+                    productUrl: pcSeed?.productUrl,
+                    inventoryId: pcSeed?.inventoryId,
+                    source: pcSeed?.productUrl?.trim()
+                      ? 'product_card_consult'
+                      : 'widget_page',
                   }
                 : undefined,
           }),
@@ -2806,6 +2863,67 @@ export function PartnerGuestChatClient({
       uiLocale,
     ]
   )
+
+  /**
+   * Link sản phẩm: `.../messaging/p/{slug}?ctx_product_url=&ctx_image=&ctx_sku=&ctx_inventory=` — tự gửi tin tư vấn.
+   * `auto_consult=0` — chỉ đổ ngữ cảnh, không tự gửi.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!hasLoadedOnce || !authReady) return
+    if (autoConsultFromUrlDisabledRef.current) return
+    if (contextSeededRef.current) return
+    const pc = pageContextRef.current
+    if (!hasWidgetPageContextSeed(pc)) return
+    const sig = [slug, pc?.sku ?? '', pc?.imageUrl ?? '', pc?.productUrl ?? '', pc?.inventoryId ?? ''].join('\t')
+    const storageKey = `messaging_auto_ctx:${sig}`
+    try {
+      const st = window.sessionStorage.getItem(storageKey)
+      if (st === '1' || st === 'pending') return
+      window.sessionStorage.setItem(storageKey, 'pending')
+    } catch {
+      /* ignore */
+    }
+    let cancelled = false
+    void (async () => {
+      const ok = await submitGuestMessage('')
+      if (cancelled) {
+        try {
+          window.sessionStorage.removeItem(storageKey)
+        } catch {
+          /* ignore */
+        }
+        return
+      }
+      try {
+        if (ok) {
+          window.sessionStorage.setItem(storageKey, '1')
+        } else {
+          window.sessionStorage.removeItem(storageKey)
+        }
+      } catch {
+        /* ignore */
+      }
+      if (!ok) return
+      try {
+        const u = new URL(window.location.href)
+        const keys = ['ctx_sku', 'ctx_image', 'ctx_product_url', 'ctx_inventory', 'auto_consult']
+        let changed = false
+        for (const k of keys) {
+          if (u.searchParams.has(k)) {
+            u.searchParams.delete(k)
+            changed = true
+          }
+        }
+        if (changed) window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`)
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [authReady, hasLoadedOnce, slug, submitGuestMessage])
 
   const draftComposerLabels = useMemo(
     () => ({

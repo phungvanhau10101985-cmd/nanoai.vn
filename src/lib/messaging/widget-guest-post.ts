@@ -4,6 +4,7 @@ import { handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
 import { geminiProductSearchFromImageBufferViaVectorDb } from '@/lib/messaging/partner-gemini-image-search'
 import {
   buildGuestMediaPayload,
+  fetchRemoteProductImageIntoGuestStorage,
   guestMediaPayloadToJson,
   inboundTextForPartnerAi,
   isGuestMessagingStoragePathForPartner,
@@ -66,6 +67,8 @@ export async function postWidgetGuestMessage(params: {
   uiLocale?: string | null
   text?: string
   imageStoragePath?: string
+  /** URL trang lúc gửi (vd. `window.location.href`) — cột `landing_source_url` cho nguồn traffic / feed Google Facebook. */
+  landingSourceUrl?: string | null
   pageContext?: {
     sku?: string
     imageUrl?: string
@@ -84,12 +87,23 @@ export async function postWidgetGuestMessage(params: {
   | { error: string; requireAuth?: boolean }
 > {
   const text = params.text?.trim() ?? ''
-  const imagePath = params.imageStoragePath?.trim() ?? ''
   const pageContextSku =
     typeof params.pageContext?.sku === 'string' ? params.pageContext.sku.trim().slice(0, 128) : ''
   const pageContextImageUrlRaw =
     typeof params.pageContext?.imageUrl === 'string' ? params.pageContext.imageUrl.trim() : ''
   const pageContextImageUrl = /^https?:\/\//i.test(pageContextImageUrlRaw) ? pageContextImageUrlRaw : ''
+
+  let imagePath = params.imageStoragePath?.trim() ?? ''
+  /** Giống khách gửi ảnh: tải `ctx_image` → storage → vector tìm SP. */
+  if (!imagePath && pageContextImageUrl) {
+    const ing = await fetchRemoteProductImageIntoGuestStorage(params.partnerId, pageContextImageUrl)
+    if ('path' in ing) {
+      imagePath = ing.path
+    } else {
+      console.warn('[widget-guest-post] ctx_image ingest', ing.error)
+    }
+  }
+
   const pageContextProductUrlRaw =
     typeof params.pageContext?.productUrl === 'string' ? params.pageContext.productUrl.trim() : ''
   const pageContextProductUrl = /^https?:\/\//i.test(pageContextProductUrlRaw) ? pageContextProductUrlRaw : ''
@@ -391,6 +405,7 @@ export async function postWidgetGuestMessage(params: {
     direction: 'inbound',
     body,
     rawPayload,
+    landingSourceUrl: params.landingSourceUrl,
   })
   if ('error' in ins) return { error: ins.error ?? 'Insert failed.' }
 

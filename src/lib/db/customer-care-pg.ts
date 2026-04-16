@@ -62,6 +62,7 @@ function mapMessageRow(r: Record<string, unknown>): CustomerCareMessageRow {
     body: String(r.body ?? ''),
     raw_payload: (r.raw_payload ?? null) as Json | null,
     sender_admin_id: r.sender_admin_id != null ? String(r.sender_admin_id) : null,
+    landing_source_url: r.landing_source_url != null ? String(r.landing_source_url) : null,
     read_at: isoTimestamp(r.read_at),
     created_at: isoTimestampRequired(r.created_at),
   }
@@ -150,13 +151,22 @@ export async function insertMessagePg(params: {
   body: string
   rawPayload?: Json | null
   senderAdminId?: string | null
+  /** Chỉ inbound widget: URL trang (http/https) để gắn nguồn traffic / feed. */
+  landingSourceUrl?: string | null
 }): Promise<{ ok: true; messageId: string } | null> {
   if (!isPgConfigured()) return null
+  let landing: string | null = null
+  if (params.direction === 'inbound') {
+    const s = params.landingSourceUrl?.trim()
+    if (s && /^https?:\/\//i.test(s)) {
+      landing = s.slice(0, 4000)
+    }
+  }
   const row = await pgQueryOne<{ id: string }>(
     `insert into public.customer_care_messages (
-       conversation_id, direction, body, raw_payload, sender_admin_id
+       conversation_id, direction, body, raw_payload, sender_admin_id, landing_source_url
      ) values (
-       $1::uuid, $2, $3, $4::jsonb, $5::uuid
+       $1::uuid, $2, $3, $4::jsonb, $5::uuid, $6
      )
      returning id::text as id`,
     [
@@ -165,6 +175,7 @@ export async function insertMessagePg(params: {
       params.body,
       params.rawPayload ?? null,
       params.senderAdminId && params.senderAdminId !== '' ? params.senderAdminId : null,
+      landing,
     ]
   )
   if (!row?.id) return null
@@ -333,7 +344,7 @@ export async function fetchPartnerMessagesFromPg(
   try {
     const rows = await pgQuery<Record<string, unknown>>(
       `select id::text, conversation_id::text, direction, body, raw_payload,
-              sender_admin_id::text, read_at, created_at
+              sender_admin_id::text, landing_source_url, read_at, created_at
        from public.customer_care_messages
        where conversation_id = $1::uuid
        order by created_at asc`,
@@ -402,11 +413,16 @@ export async function fetchGuestWidgetUiLocaleForPartnerFromPg(
 
 export async function fetchGuestWidgetMessagesSubsetFromPg(
   conversationId: string
-): Promise<Pick<CustomerCareMessageRow, 'id' | 'direction' | 'body' | 'created_at' | 'raw_payload'>[] | null> {
+): Promise<
+  (Pick<
+    CustomerCareMessageRow,
+    'id' | 'direction' | 'body' | 'created_at' | 'raw_payload' | 'landing_source_url'
+  >[]) | null
+> {
   if (!isPgConfigured()) return null
   try {
     const rows = await pgQuery<Record<string, unknown>>(
-      `select id::text as id, direction, body, created_at, raw_payload
+      `select id::text as id, direction, body, created_at, raw_payload, landing_source_url
        from public.customer_care_messages
        where conversation_id = $1::uuid
        order by created_at asc`,
@@ -418,6 +434,7 @@ export async function fetchGuestWidgetMessagesSubsetFromPg(
       body: String(r.body ?? ''),
       created_at: isoTimestampRequired(r.created_at),
       raw_payload: (r.raw_payload ?? null) as Json | null,
+      landing_source_url: r.landing_source_url != null ? String(r.landing_source_url) : null,
     }))
   } catch (e) {
     console.error('[customer-care-pg] fetchGuestWidgetMessagesSubsetFromPg', e)
@@ -725,7 +742,7 @@ export async function fetchCustomerCareMessageByIdForConversationPg(
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `select id::text, conversation_id::text, direction, body, raw_payload,
-              sender_admin_id::text, read_at, created_at
+              sender_admin_id::text, landing_source_url, read_at, created_at
        from public.customer_care_messages
        where id = $1::uuid and conversation_id = $2::uuid
        limit 1`,
@@ -743,7 +760,7 @@ export async function fetchCustomerCareMessageByIdPg(messageId: string): Promise
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `select id::text, conversation_id::text, direction, body, raw_payload,
-              sender_admin_id::text, read_at, created_at
+              sender_admin_id::text, landing_source_url, read_at, created_at
        from public.customer_care_messages
        where id = $1::uuid
        limit 1`,
