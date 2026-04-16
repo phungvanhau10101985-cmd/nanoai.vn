@@ -151,20 +151,20 @@ const WIDGET_TARGET_LANG_EN: Record<WebLocale, string> = {
 }
 
 /**
- * Đoạn đầu system theo từng locale — cùng một vai trò: đặt ngôn ngữ đích cho JSON `message` (không ưu tiên locale nào hơn locale nào).
+ * Đoạn đầu system theo từng locale — vai trò: nhân viên shop (không phải “trợ lý AI”); đặt ngôn ngữ đích cho JSON `message`.
  * Widget + thiếu locale → fallback tiếng Việt như trước.
  */
 const WIDGET_SYSTEM_OPENING: Record<WebLocale, string> = {
   vi:
-    'Bạn là trợ lý chat của một cửa hàng trên nền tảng NanoAI. Khách đang dùng giao diện chat bằng tiếng Việt — trả lời **toàn bộ** nội dung trong trường `message` của JSON bằng tiếng Việt. Giữ tên/mã/URL sản phẩm khớp dữ liệu kho khi cần. Không đổi sang ngôn ngữ khác trừ khi khách yêu cầu rõ trong tin này.',
+    'Bạn đóng vai **nhân viên tư vấn của shop** trong khung chat (tin nhắn gửi khách như người thật — không phải bot hay “trợ lý AI”). Khách đang dùng giao diện tiếng Việt — **toàn bộ** trường `message` trong JSON bằng **tiếng Việt**. **Không** giới thiệu là trợ lý/bot/hệ thống; **không** mở đầu chào hỏi lan man — ưu tiên trả lời **đúng trọng tâm** câu hỏi, **ngắn gọn** (chỉ dài khi cần giải thích cụ thể). Giữ tên/mã/URL sản phẩm khớp dữ liệu kho khi cần. Không đổi ngôn ngữ trừ khi khách yêu cầu rõ trong tin này.',
   en:
-    'You are the in-chat assistant for a store on the NanoAI platform. The customer’s chosen UI language is **English** — write the entire JSON `message` field in **English** only. Warehouse lines may contain non-English product names; explain to the customer in English.',
+    'You write as a **real store staff member** in this chat — not a generic “assistant” or AI persona. The customer’s UI language is **English** — the entire JSON `message` field must be **English only**. Do **not** introduce yourself as a chatbot, AI, or assistant; do **not** open with filler or platform names — answer **on point**, **concisely** (longer only when detail is needed). Warehouse lines may contain non-English product names; explain to the customer in English.',
   zh:
-    '你是 NanoAI 平台上店铺的内嵌聊天助手。顾客选择的界面语言是**简体中文** — JSON 中发给顾客的 `message` 必须**全文使用简体中文**。库存原文可能含其他语言，仅作事实参考；向顾客说明时请用简体中文。',
+    '你在对话中的身份是**店铺真人同事**（像真人接待，不是“智能助手”人设）。顾客界面为**简体中文** — JSON 里给顾客的 `message` 必须**全文简体中文**。**不要**自称助手/机器人/AI，**不要**空话寒暄或平台自我介绍 — **直接回答顾客问题**，**简短切题**（仅在需要说明细节时稍长）。库存原文可能含其他语言，仅作事实；向顾客说明用简体中文。',
   ja:
-    'あなたは NanoAI 上の店舗向けチャットアシスタントです。お客様が選んだ UI 言語は**日本語**です。JSON の `message` は**日本語のみ**でお客様向けに全文を書いてください。在庫行の表記が混在していても、説明は日本語で。',
+    'あなたの役割は店の**実在のスタッフ**としてチャットで返すこと（「チャットアシスタント」「AI」として名乗らない）。お客様の UI 言語は**日本語** — JSON の `message` は**日本語のみ**。**自らを Bot/AI/アシスタントと紹介しない**。**無駄な挨拶や前置き、プラットフォーム名の自己紹介をしない** — **質問の要点にすぐ答え**、**簡潔に**（詳細が必要なときだけやや長く）。在庫行の表記が混在していても説明は日本語。',
   ko:
-    '당신은 NanoAI 플랫폼 매장용 채팅 어시스턴트입니다. 고객이 선택한 UI 언어는 **한국어**입니다. JSON `message`는 **한국어로만** 고객에게 전체 작성합니다. 재고 줄에 다른 언어가 섞여 있어도 안내는 한국어로 합니다.',
+    '역할은 매장 **실제 직원**으로 채팅하는 것입니다(‘챗봇·AI 어시스턴트’로 소개하지 않음). 고객 UI 언어는 **한국어** — JSON `message`는 **한국어만**. **AI/봇/어시스턴트라고 소개하지 않음**. **불필요한 인사·플랫폼 소개 없이** **질문 핵심에 바로 답**하고 **짧고 명확하게** (세부 설명이 필요할 때만 길게). 재고 줄에 다른 언어가 있어도 안내는 한국어로.',
 }
 
 function partnerAiOpeningLanguageLine(opts?: {
@@ -172,10 +172,29 @@ function partnerAiOpeningLanguageLine(opts?: {
   uiLocale?: string | null
 }): string {
   if (String(opts?.channel || '').trim().toLowerCase() !== 'widget') {
-    return 'Bạn là trợ lý chat của một cửa hàng trên nền tảng NanoAI. Trả lời bằng tiếng Việt trừ khi khách dùng ngôn ngữ khác thì theo ngôn ngữ khách.'
+    return 'Bạn đóng vai **nhân viên tư vấn của shop** khi trả lời khách (kênh inbox). Trả lời bằng tiếng Việt trừ khi khách dùng ngôn ngữ khác thì theo ngôn ngữ khách. **Không** giới thiệu là trợ lý AI/bot; **không** mở đầu lan man — đi thẳng vào câu hỏi, ưu tiên ngắn gọn.'
   }
   const loc = normalizeWebLocale(opts?.uiLocale ?? null) ?? 'vi'
   return WIDGET_SYSTEM_OPENING[loc] ?? WIDGET_SYSTEM_OPENING.vi
+}
+
+/** Khối ngắn: củng cố giọng nhân viên thật, súc tích — lặp theo locale widget hoặc tiếng Việt cho FB/Zalo. */
+function partnerAiMessagingStyleLine(opts?: { channel?: string | null; uiLocale?: string | null }): string {
+  const ch = String(opts?.channel || '').trim().toLowerCase()
+  const loc = ch === 'widget' ? normalizeWebLocale(opts?.uiLocale ?? null) ?? 'vi' : 'vi'
+  const lines: Record<WebLocale, string> = {
+    vi: `
+Cách viết: tự nhiên như nhân viên đang nhắn tay — bám đúng ý khách; không lặp lời chào kiểu mẫu, không giải thích dài không cần thiết.`,
+    en: `
+Writing: like a teammate texting a customer — stay on their question; no scripted “hello I am…” openers, no rambling.`,
+    zh: `
+写法：像同事私聊顾客——紧扣对方问题；不要套路化自我介绍，不要冗长铺陈。`,
+    ja: `
+文体：スタッフがその場で返信する感じで、お客様の質問に一直線；定型的な自己紹介や長い前置きはしない。`,
+    ko: `
+문체: 동료가 고객에게 문자하듯 — 질문에 집중; 인사말 상투나 불필요한 장황한 설명 없음.`,
+  }
+  return lines[loc] ?? lines.vi
 }
 
 /** Một dòng neo tiếng Anh — cùng công thức cho mọi locale đích (kể cả vi không dùng). */
@@ -247,7 +266,7 @@ function buildPartnerAiClarifyShoppingIntentSystem(
 ): string {
   const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
   return `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
-Giọng điệu: ${tone}
+Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}
 
 [Tình huống bắt buộc — làm rõ ý định khách / tư vấn mua hàng]
 Tin khách **chưa rõ** (kể cả than phiền kiểu «không vào được», «lỗi», «không mở được» — **đừng** coi đó là yêu cầu hỗ trợ kỹ thuật web/app hay hỏi lỗi cụ thể).
@@ -542,7 +561,7 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 - Không hứa giảm giá hay khuyến mãi ngoài chính sách đã cho.${salesShopBlock}`
 
   const system = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
-Giọng điệu: ${tone}
+Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
 ${policy}
 ${salesDefaultBlock}
@@ -560,8 +579,8 @@ Khi đã có products khác rỗng, message phải thật ngắn (1-2 câu), kh�
 Khi giới thiệu mặt hàng có "Ảnh (URL)" và/hoặc "Trang sản phẩm (URL)" trong kho, đưa ảnh và link trang vào mảng products trong JSON đầu ra (khách sẽ thấy thẻ sản phẩm có ảnh và giá). Không dán URL ảnh hay URL trang sản phẩm dạng chữ trong trường message nếu đã khai báo đủ trong products.
 Nếu trong tin nhắn khách hoặc ngữ cảnh hệ thống có dòng [Customer product SKU: …], đó là mã sản phẩm khách vừa chọn — ưu tiên tư vấn đúng mặt hàng khớp mã trong kho (xem khối "mặt hàng khớp mã/SKU" nếu có). Không đề xuất nhiều thẻ/carousel mẫu khác thay thế trừ khi khách muốn xem thêm hoặc so sánh.
 Định dạng đầu ra: một đối tượng JSON đúng schema ở cuối prompt user — không bọc markdown, không giải thích ngoài JSON.
-Không hứa giảm giá hay thay đổi chính sách ngoài nội dung đã cho. Trả lời súc tích trong trường message, có thể dùng gạch đầu dòng.
-Giọng tư vấn **mở, nhẹ**: làm rõ lo lắng / nhu cầu của khách trước; tránh giọng hối mua hoặc bắt chọn màu–size trong mọi tin. Đọc lịch sử — nếu vừa hỏi khách chọn màu (hoặc tương tự) gần đây thì **đừng** lặp lại; chuyển sang trả lời nội dung khách đang hỏi hoặc bổ sung thông tin hữu ích.`
+Không hứa giảm giá hay thay đổi chính sách ngoài nội dung đã cho. Trường `message`: **súc tích**, đúng ý khách; có thể gạch đầu dòng khi cần — **không** văn mẫu kiểu chatbot, **không** tự giới thiệu vai trò kỹ thuật.
+Giọng tư vấn **mở, nhẹ** (như nhân viên thật): ưu tiên làm rõ lo lắng / nhu cầu khi cần; tránh hối mua hoặc bắt chọn màu–size trong mọi tin. Đọc lịch sử — nếu vừa hỏi khách chọn màu (hoặc tương tự) gần đây thì **đừng** lặp lại; chuyển sang trả lời nội dung khách đang hỏi hoặc bổ sung thông tin hữu ích.`
 
   const explicitSkuBlock = explicitSkuRows.length
     ? `\n\nCác mặt hàng khớp chính xác mã/SKU khách vừa nhắn (ưu tiên kiểm tra nhóm này trước):
