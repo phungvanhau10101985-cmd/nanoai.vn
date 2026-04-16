@@ -24,6 +24,7 @@ export interface Database {
           english_coach_age: number | null
           english_coach_gender: string | null
           gender: string | null
+          birth_date: string | null
         }
         Insert: {
           id: string
@@ -38,6 +39,7 @@ export interface Database {
           english_coach_age?: number | null
           english_coach_gender?: string | null
           gender?: string | null
+          birth_date?: string | null
         }
         Update: {
           id?: string
@@ -52,6 +54,7 @@ export interface Database {
           english_coach_age?: number | null
           english_coach_gender?: string | null
           gender?: string | null
+          birth_date?: string | null
         }
         Relationships: []
       }

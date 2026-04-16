@@ -6,6 +6,19 @@ import { buildPartnerMediaPayload, partnerMediaPayloadToJson } from '@/lib/messa
 import type { PartnerMaterialDetailFollowup } from '@/lib/messaging/partner-inventory-material-detail-image'
 import type { PartnerRealUseImageFollowup } from '@/lib/messaging/partner-inventory-real-use-image'
 import { getFacebookSendToken, getZaloSendToken } from '@/lib/messaging/partner-channels-db'
+import { splitAutomatedReplyIntoChunks } from '@/lib/messaging/partner-ai-split-reply'
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** Khoảng cách giữa các bong bóng khi AI chia tin (ms). Env: MESSAGING_AI_SPLIT_GAP_MS */
+function messagingAiSplitGapMs(): number {
+  const raw = process.env.MESSAGING_AI_SPLIT_GAP_MS?.trim()
+  if (!raw) return 2200
+  const n = parseInt(raw, 10)
+  return Number.isFinite(n) ? Math.min(20000, Math.max(250, n)) : 2200
+}
 
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 type ConvRow = Database['public']['Tables']['customer_care_conversations']['Row']
@@ -38,8 +51,21 @@ function applyDisclosure(body: string, settings: SettingsRow): string {
   return `${body.trim()}\n\n${s}`
 }
 
+/** Chỉ bản tin cuối mang đủ payload (vd. thẻ SP); các bản trước bỏ `ai_product_cards` để UI không lặp. */
+function rawPayloadForSplitChunk(full: Json, isLast: boolean): Json {
+  if (isLast) return full
+  if (full !== null && typeof full === 'object' && !Array.isArray(full)) {
+    const o = { ...(full as Record<string, unknown>) }
+    delete o.ai_product_cards
+    o.ai_reply_continuation = true
+    return o as Json
+  }
+  return { ai_reply_continuation: true } as Json
+}
+
 /**
  * Gửi tin outbound tự động (FAQ/AI): lưu DB, đẩy FB/Zalo nếu cần. sender_admin_id = null.
+ * Nội dung dài được chia thành nhiều tin ngắt ý (widget/FB/Zalo + DB).
  */
 export async function deliverAutomatedPartnerMessage(params: {
   conversation: ConvRow
@@ -50,8 +76,17 @@ export async function deliverAutomatedPartnerMessage(params: {
   realUseFollowup?: PartnerRealUseImageFollowup | null
 }): Promise<{ error?: string }> {
   const { conversation, settings, body, rawPayload, materialDetailFollowup, realUseFollowup } = params
-  let text = applyDisclosure(body, settings)
-  if (!text) return { error: 'Empty body' }
+  const base = body.trim()
+  if (!base) return { error: 'Empty body' }
+
+  const split = splitAutomatedReplyIntoChunks(base)
+  if (split.length === 0) return { error: 'Empty body' }
+
+  const withDisclosure = split.map((chunk, i) =>
+    i === split.length - 1 ? applyDisclosure(chunk, settings) : chunk.trim()
+  )
+  const textParts = withDisclosure.map((t) => t.trim()).filter(Boolean)
+  if (textParts.length === 0) return { error: 'Empty body' }
 
   const imageFollowup: PartnerMaterialDetailFollowup | PartnerRealUseImageFollowup | null =
     realUseFollowup?.publicUrl ? realUseFollowup : materialDetailFollowup?.publicUrl ? materialDetailFollowup : null
@@ -61,15 +96,18 @@ export async function deliverAutomatedPartnerMessage(params: {
       ? 'material'
       : null
 
+  let outboundTexts = textParts
   if (conversation.channel === 'zalo' && imageFollowup?.publicUrl) {
     const zaloLine =
       imageKind === 'real_use'
         ? `📷 Em gửi ảnh đời thường góc tự nhiên để mình xem sản phẩm chân thực ạ: ${imageFollowup.publicUrl}`
         : `📷 Chi tiết chất liệu & màu sắc (từ ảnh sản phẩm chính): ${imageFollowup.publicUrl}`
-    text = `${text}\n\n${zaloLine}`
+    const last = outboundTexts[outboundTexts.length - 1]
+    outboundTexts = [...outboundTexts.slice(0, -1), `${last}\n\n${zaloLine}`]
   }
 
   const externalId = conversation.external_thread_id
+  const gapMs = messagingAiSplitGapMs()
 
   if (conversation.channel === 'facebook') {
     let pageToken: string | null = null
@@ -80,8 +118,12 @@ export async function deliverAutomatedPartnerMessage(params: {
       pageToken = r.token ?? null
     }
     if (!pageToken) return { error: 'Facebook Page token missing.' }
-    const sent = await sendFacebookMessengerText(externalId, text, pageToken)
-    if ('error' in sent) return { error: sent.error }
+    for (let fi = 0; fi < outboundTexts.length; fi++) {
+      if (fi > 0) await sleep(gapMs)
+      const part = outboundTexts[fi]
+      const sent = await sendFacebookMessengerText(externalId, part, pageToken)
+      if ('error' in sent) return { error: sent.error }
+    }
     if (imageFollowup?.publicUrl) {
       const imgSent = await sendFacebookMessengerImageUrl(externalId, imageFollowup.publicUrl, pageToken)
       if ('error' in imgSent) return { error: imgSent.error }
@@ -91,23 +133,37 @@ export async function deliverAutomatedPartnerMessage(params: {
     if (r.error) return { error: r.error }
     const tok = r.token ?? null
     if (!tok) return { error: 'Zalo OA token missing.' }
-    const sent = await sendZaloOaText(externalId, text, tok)
-    if ('error' in sent) return { error: sent.error }
+    for (let zi = 0; zi < outboundTexts.length; zi++) {
+      if (zi > 0) await sleep(gapMs)
+      const part = outboundTexts[zi]
+      const sent = await sendZaloOaText(externalId, part, tok)
+      if ('error' in sent) return { error: sent.error }
+    }
   }
 
-  const ins = await insertMessage({
-    conversationId: conversation.id,
-    direction: 'outbound',
-    body: text,
-    rawPayload: mergeAutomatedOutboundPayload(rawPayload, realUseFollowup),
-    senderAdminId: null,
-  })
-  if ('error' in ins) return { error: ins.error }
+  const n = outboundTexts.length
+  for (let i = 0; i < n; i++) {
+    if (i > 0) await sleep(gapMs)
+    const isLast = i === n - 1
+    const payload = mergeAutomatedOutboundPayload(
+      rawPayloadForSplitChunk(rawPayload, isLast),
+      isLast ? realUseFollowup : undefined
+    )
+    const ins = await insertMessage({
+      conversationId: conversation.id,
+      direction: 'outbound',
+      body: outboundTexts[i],
+      rawPayload: payload,
+      senderAdminId: null,
+    })
+    if ('error' in ins) return { error: ins.error }
+  }
 
   if (
     imageFollowup?.publicUrl &&
     (conversation.channel === 'widget' || conversation.channel === 'internal')
   ) {
+    await sleep(gapMs)
     const storagePath =
       imageFollowup.storagePath?.trim() ||
       (imageKind === 'real_use'

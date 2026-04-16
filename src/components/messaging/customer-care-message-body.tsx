@@ -501,6 +501,7 @@ function AiProductCards({
   onViolet,
   labels,
   onProductCardPick,
+  onProductCardBuy,
   onPreviewImage,
   onPreviewVideo,
 }: {
@@ -508,6 +509,8 @@ function AiProductCards({
   onViolet: boolean
   labels?: CustomerCareMessageBodyLabels
   onProductCardPick?: (card: PartnerAiProductCard) => void
+  /** Widget khách: mua ngay (trái) — mở form đặt, không gửi tin tư vấn. */
+  onProductCardBuy?: (card: PartnerAiProductCard) => void
   onPreviewImage: (imageUrl: string) => void
   onPreviewVideo: (videoUrl: string) => void
 }) {
@@ -527,6 +530,13 @@ function AiProductCards({
         const showBuy = Boolean(
           buyLabel && urlKey && isProductConsultedInScopeSet(labels?.consultedProductKeys, urlKey)
         )
+        const showDualBuyConsult =
+          Boolean(pickable) &&
+          Boolean(consultLabel) &&
+          Boolean(buyLabel) &&
+          Boolean(productHref) &&
+          typeof onProductCardBuy === 'function' &&
+          !showBuy
         const cta = showBuy ? buyLabel : consultLabel
         const ctaAria = cta ? `${p.name}. ${cta}` : p.name
         const detailAria = `${p.name}. ${viewDetailsLabel}`
@@ -629,7 +639,7 @@ function AiProductCards({
                 <a
                   href={productHref}
                   rel="noopener noreferrer"
-                  className={`flex h-7 w-full min-w-0 items-center justify-center rounded-md border px-1 text-[9px] font-semibold leading-none sm:text-[10px] ${
+                  className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug sm:text-[10px] ${
                     onViolet
                       ? 'border-white/35 bg-white/10 text-white hover:bg-white/16'
                       : 'border-border/80 bg-background text-foreground hover:bg-muted/60'
@@ -640,14 +650,50 @@ function AiProductCards({
                     openGuestProductDetailUrl(productHref)
                   }}
                   aria-label={detailAria}
+                  lang="vi"
                 >
-                  <span className="block max-w-full truncate text-center">{viewDetailsLabel}</span>
+                  <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">{viewDetailsLabel}</span>
                 </a>
               ) : null}
-              {cta && pickable ? (
+              {showDualBuyConsult ? (
+                <div className="grid grid-cols-2 gap-1">
+                  <button
+                    type="button"
+                    className={`flex h-8 min-w-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold leading-snug sm:text-[10px] ${
+                      onViolet
+                        ? 'bg-white text-violet-800 hover:bg-white/95'
+                        : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    }`}
+                    onClick={(ev) => {
+                      ev.stopPropagation()
+                      onProductCardBuy?.(p)
+                    }}
+                    aria-label={`${p.name}. ${buyLabel ?? ''}`}
+                    lang="vi"
+                  >
+                    <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">{buyLabel}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex h-8 min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug sm:text-[10px] ${
+                      onViolet
+                        ? 'border-white/35 bg-white/10 text-white hover:bg-white/16'
+                        : 'border-border/80 bg-background text-foreground hover:bg-muted/60'
+                    }`}
+                    onClick={(ev) => {
+                      ev.stopPropagation()
+                      onProductCardPick?.(p)
+                    }}
+                    aria-label={`${p.name}. ${consultLabel ?? ''}`}
+                    lang="vi"
+                  >
+                    <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">{consultLabel}</span>
+                  </button>
+                </div>
+              ) : cta && pickable ? (
                 <button
                   type="button"
-                  className={`flex h-7 w-full min-w-0 items-center justify-center rounded-md px-1 text-[9px] font-semibold leading-none sm:text-[10px] ${
+                  className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold leading-snug sm:text-[10px] ${
                     onViolet
                       ? 'bg-white/20 text-white hover:bg-white/30'
                       : 'bg-primary/10 text-primary hover:bg-primary/15'
@@ -657,8 +703,9 @@ function AiProductCards({
                     onProductCardPick?.(p)
                   }}
                   aria-label={ctaAria}
+                  lang="vi"
                 >
-                  <span className="block max-w-full truncate text-center">{cta}</span>
+                  <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">{cta}</span>
                 </button>
               ) : null}
             </div>
@@ -675,6 +722,7 @@ export function CustomerCareMessageBody({
   tone = 'default',
   labels,
   onProductCardPick,
+  onProductCardBuy,
   orderPaymentProof,
   shopDisplayName = '',
   openMessageLinksInSameTab = false,
@@ -683,6 +731,8 @@ export function CustomerCareMessageBody({
   tone?: CustomerCareMessageBodyTone
   labels?: CustomerCareMessageBodyLabels
   onProductCardPick?: (card: PartnerAiProductCard) => void
+  /** Trang guest: «Mua ngay» (cột trái khi có cặp Mua | Tư vấn). */
+  onProductCardBuy?: (card: PartnerAiProductCard) => void
   /** Trang guest: nút gửi biên lai gắn với đơn trong khối QR. */
   orderPaymentProof?: OrderPaymentProofSlot | null
   /** Tên hiển thị của shop (widget khách). */
@@ -740,6 +790,7 @@ export function CustomerCareMessageBody({
         onViolet={onViolet}
         labels={labels}
         onProductCardPick={onProductCardPick}
+        onProductCardBuy={onProductCardBuy}
         onPreviewImage={setLightboxSrc}
         onPreviewVideo={setVideoLightboxSrc}
       />

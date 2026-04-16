@@ -17,12 +17,23 @@ import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
 import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-image'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
-import { buildPartnerAiContext, deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
+import {
+  buildPartnerAiContext,
+  deepseekPartnerChat,
+  rawPayloadIsProductCardConsult,
+} from '@/lib/messaging/partner-ai-llm'
+import { resolveProductCardConsultInventoryIdFromPg } from '@/lib/messaging/partner-inventory-ai-search'
+import {
+  fetchGuestGenderForPartnerConsultCachePg,
+  fetchPartnerProductConsultCacheFromPg,
+  upsertPartnerProductConsultCachePg,
+} from '@/lib/db/partner-product-consult-cache-pg'
+import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
 import { clampProductCardsToLastConsultedRow } from '@/lib/messaging/partner-ai-followup-product-cards-clamp'
 import { parsePartnerAiLlmStructured } from '@/lib/messaging/partner-ai-product-cards'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
-import { normalizeWebLocale } from '@/lib/i18n/config'
+import { DEFAULT_WEB_LOCALE, normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 
 type TriggerRawForVisionRepick = { vision_selected_inventory_id?: string }
 type TriggerRawWithVisionSelectedAt = { vision_selected_at?: string }
@@ -114,6 +125,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       const triggerAt = triggerFull.created_at
       let inboundForAi = latestInboundTextForPartnerAi(triggerFull.body, triggerFull.raw_payload)
       const inboundTail = await fetchInboundTailForPartnerAiJobPg(job.conversation_id, triggerAt)
+      const inboundTailCount = inboundTail?.length ?? 0
       if (inboundTail && inboundTail.length > 0) {
         const parts = inboundTail
           .map((row) => latestInboundTextForPartnerAi(row.body, row.raw_payload))
@@ -189,6 +201,8 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         continue
       }
 
+      const cacheUiLocale: WebLocale = convUiLoc ?? DEFAULT_WEB_LOCALE
+
       const {
         system,
         user,
@@ -209,6 +223,65 @@ async function runMessagingPartnerAiJobBatchUsingPg(
           uiLocale: convUiLoc,
         }
       )
+
+      if (
+        !clarifyShoppingIntent &&
+        !materialDetailFollowup &&
+        !realUseFollowup &&
+        inboundTailCount === 1 &&
+        rawPayloadIsProductCardConsult(triggerFull.raw_payload)
+      ) {
+        try {
+          const invIdCached = await resolveProductCardConsultInventoryIdFromPg(
+            job.partner_id,
+            triggerFull.raw_payload
+          )
+          const genderCached = await fetchGuestGenderForPartnerConsultCachePg(conv.linked_user_id)
+          if (invIdCached && genderCached) {
+            const cached = await fetchPartnerProductConsultCacheFromPg(
+              job.partner_id,
+              invIdCached,
+              genderCached,
+              cacheUiLocale
+            )
+            if (cached?.message_text) {
+              const cachedCards = Array.isArray(cached.ai_product_cards)
+                ? (cached.ai_product_cards as PartnerAiProductCard[])
+                : []
+              const productsWithVideoCached = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
+                job.partner_id,
+                cachedCards
+              )
+              const rawLlmCached = {
+                source: 'ai_llm',
+                model: 'gender_product_cache',
+                usage: null,
+                gender_product_cache: true,
+                ai_product_cards: productsWithVideoCached,
+              } as unknown as Json
+              const dCache = await deliverAutomatedPartnerMessage({
+                conversation: conv,
+                settings,
+                body: cached.message_text,
+                rawPayload: rawLlmCached,
+                materialDetailFollowup: null,
+                realUseFollowup: null,
+              })
+              if (dCache.error) {
+                await setPartnerAiJobStatus(job.id, { status: 'failed', error: dCache.error })
+                failed += 1
+              } else {
+                await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
+                completed += 1
+              }
+              continue
+            }
+          }
+        } catch (e) {
+          console.warn('[partner-ai-run-jobs] gender product cache read', e)
+        }
+      }
+
       const llm = await deepseekPartnerChat(system, user)
       if (llm.error || !llm.text) {
         await setPartnerAiJobStatus(job.id, { status: 'failed', error: llm.error || 'empty llm' })
@@ -268,6 +341,33 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       } else {
         await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
         completed += 1
+        try {
+          if (
+            inboundTailCount === 1 &&
+            rawPayloadIsProductCardConsult(triggerFull.raw_payload) &&
+            !clarifyShoppingIntent &&
+            !materialDetailFollowup &&
+            !realUseFollowup
+          ) {
+            const invIdWrite = await resolveProductCardConsultInventoryIdFromPg(
+              job.partner_id,
+              triggerFull.raw_payload
+            )
+            const genderWrite = await fetchGuestGenderForPartnerConsultCachePg(conv.linked_user_id)
+            if (invIdWrite && genderWrite) {
+              await upsertPartnerProductConsultCachePg({
+                partnerId: job.partner_id,
+                inventoryId: invIdWrite,
+                gender: genderWrite,
+                uiLocale: cacheUiLocale,
+                messageText: parsed.message,
+                aiProductCards: productsWithVideo as unknown as Json,
+              })
+            }
+          }
+        } catch (e) {
+          console.warn('[partner-ai-run-jobs] gender product cache write', e)
+        }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'unknown'

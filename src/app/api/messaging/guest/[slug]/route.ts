@@ -1,4 +1,13 @@
 import type { AppUser } from '@/lib/auth/app-user'
+import {
+  EMAIL_SESSION_COOKIE,
+  EMAIL_SESSION_COOKIE_LEGACY,
+} from '@/lib/auth/email-auth-config'
+import { resolveCanonicalUserIdByEmail } from '@/lib/auth/resolve-canonical-email-user'
+import {
+  createEmailSessionTokenString,
+  getEmailSessionCookieOptions,
+} from '@/lib/auth/email-session-token'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { postWidgetGuestMessage } from '@/lib/messaging/widget-guest-post'
@@ -12,6 +21,7 @@ import {
   fetchGuestWidgetConversationIdFromPg,
   fetchGuestWidgetMessagesSubsetFromPg,
 } from '@/lib/db/customer-care-pg'
+import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
@@ -58,13 +68,49 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     }
   }
 
+  const jwtUid = identity.user?.id?.trim()
+  const sessionEmail = identity.user?.email?.trim()
+  let profileUid: string | undefined = jwtUid
+  let emailSessionRemapToken: string | null = null
+  if (jwtUid && sessionEmail) {
+    const canon = await resolveCanonicalUserIdByEmail(sessionEmail)
+    if (canon) {
+      profileUid = canon
+      if (canon !== jwtUid) {
+        emailSessionRemapToken = await createEmailSessionTokenString(canon, sessionEmail)
+      }
+    }
+  }
+
+  const attachEmailSessionRemap = (res: NextResponse) => {
+    if (!emailSessionRemapToken) return
+    const opts = getEmailSessionCookieOptions()
+    res.cookies.set(EMAIL_SESSION_COOKIE, emailSessionRemapToken, opts)
+    res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, emailSessionRemapToken, opts)
+  }
+
+  const buildGuestProfilePayload = async () => {
+    if (!profileUid) {
+      return { guestProfile: null as { birthDate: string | null; gender: string | null } | null, needsProfile: false }
+    }
+    const prof = await fetchNanoaiChatProfileFromPg(profileUid)
+    const birthDate = prof?.birthDate ?? null
+    const gender = prof?.gender ?? null
+    return {
+      guestProfile: { birthDate, gender },
+      needsProfile: !birthDate || !gender,
+    }
+  }
+
   try {
     const convIdPg = await fetchGuestWidgetConversationIdFromPg(partnerId, effectiveExternalThreadId)
     if (convIdPg === null) {
+      const gp = await buildGuestProfilePayload()
       const res = NextResponse.json({
         messages: [],
         consultedProductKeys: [] as string[],
         authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
+        ...gp,
       })
       applyGuestIdentityToResponse(res, request, {
         newSessionId: identity.newSessionId,
@@ -72,16 +118,19 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
         effectiveExternalThreadId,
         effectiveGuestAccountId,
       })
+      attachEmailSessionRemap(res)
       return res
     }
     const messagesPg = await fetchGuestWidgetMessagesSubsetFromPg(convIdPg)
     if (messagesPg !== null) {
       const consultedProductKeys =
         (await fetchConsultedProductKeysForConversationFromPg(convIdPg)) ?? []
+      const gp = await buildGuestProfilePayload()
       const res = NextResponse.json({
         messages: messagesPg,
         consultedProductKeys,
         authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
+        ...gp,
       })
       applyGuestIdentityToResponse(res, request, {
         newSessionId: identity.newSessionId,
@@ -89,6 +138,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
         effectiveExternalThreadId,
         effectiveGuestAccountId,
       })
+      attachEmailSessionRemap(res)
       return res
     }
     return NextResponse.json({ error: 'Failed to load messages.' }, { status: 500 })

@@ -32,14 +32,16 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
   /** Mặc định true. Đặt false khi chỉ dùng nút quay lại / hành động khác (vd. sửa phiếu bài tập). */
   showCloseButton?: boolean
+  /** Tuỳ chỉnh lớp phủ (vd. chat nhúng có thanh bar z cao hơn z-50 mặc định). */
+  overlayClassName?: string
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, showCloseButton = true, ...props }, ref) => (
+>(({ className, children, showCloseButton = true, overlayClassName, ...props }, ref) => (
   <DialogPortal>
-    <DialogOverlay />
+    <DialogOverlay className={overlayClassName} />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(

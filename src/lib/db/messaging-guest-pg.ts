@@ -2,6 +2,8 @@ import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
 
+export type GuestProfileGender = 'male' | 'female'
+
 export async function findGuestAccountIdByEmailPg(
   partnerId: string,
   emailNormalized: string
@@ -276,3 +278,4 @@ export async function guestAccountEmailMatchesAuthUserFromPg(
     return false
   }
 }
+

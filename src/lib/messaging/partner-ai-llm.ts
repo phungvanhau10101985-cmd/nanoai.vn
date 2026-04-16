@@ -2,8 +2,11 @@ import type { Database, Json } from '@/types/database.types'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import {
   fetchConversationUiLocaleFromPg,
+  fetchCustomerCareConversationByIdPg,
   fetchCustomerCareTranscriptLinesFromPg,
 } from '@/lib/db/customer-care-pg'
+import type { GuestProfileGender } from '@/lib/db/messaging-guest-pg'
+import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import {
   buildPartnerAiWarehouseVndPricingNote,
   shouldMarkInventoryPricesAsVndForAi,
@@ -299,7 +302,41 @@ products **phải** là [] (rỗng). Không thêm trường khác.
 Trong \`message\`: **không** hỏi khắc phục lỗi truy cập web/app; hướng khách **nêu nhu cầu tư vấn sản phẩm** (ảnh hoặc tên loại). Nếu khách xưng **anh** → ví dụ chỉ **đồ nam**; nếu **chị/em** → ví dụ **đồ nữ**; không lẫn ví dụ nam/nữ sai xưng hô.`
 }
 
-function rawPayloadIsProductCardConsult(raw: Json | null | undefined): boolean {
+function estimatedAgeFromBirthDateIso(iso: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim())
+  if (!m) return null
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const da = Number(m[3])
+  if (!mo || !da) return null
+  const birth = new Date(y, mo - 1, da)
+  if (Number.isNaN(birth.getTime())) return null
+  const now = new Date()
+  let age = now.getFullYear() - birth.getFullYear()
+  const md = now.getMonth() - birth.getMonth()
+  if (md < 0 || (md === 0 && now.getDate() < birth.getDate())) age -= 1
+  return age >= 0 && age < 130 ? age : null
+}
+
+/** Khối ngữ cảnh cố định từ DB — không bịa ngoài các dòng này. */
+export function formatGuestProfileContextBlockForPartnerAi(profile: {
+  birthDate: string | null
+  gender: GuestProfileGender | null
+}): string {
+  const parts: string[] = []
+  if (profile.gender === 'male') parts.push('Giới tính khai báo: nam — gợi ý xưng «anh» khi phù hợp.')
+  else if (profile.gender === 'female') parts.push('Giới tính khai báo: nữ — gợi ý xưng «chị» khi phù hợp.')
+  if (profile.birthDate?.trim()) {
+    const iso = profile.birthDate.trim()
+    parts.push(`Ngày sinh đã khai (YYYY-MM-DD): ${iso}.`)
+    const age = estimatedAgeFromBirthDateIso(iso)
+    if (age != null) parts.push(`Tuổi ước lượng từ ngày sinh: ${age}.`)
+  }
+  if (parts.length === 0) return ''
+  return `[Thông tin khách đã lưu trên hệ thống — chỉ dùng để xưng hô và gợi ý độ tuổi phù hợp; không suy diễn thêm ngoài các ý sau:\n${parts.join('\n')}]`
+}
+
+export function rawPayloadIsProductCardConsult(raw: Json | null | undefined): boolean {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
   return (raw as { page_context?: { source?: string } }).page_context?.source === 'product_card_consult'
 }
@@ -326,6 +363,21 @@ export async function buildPartnerAiContext(
 }> {
   const effectiveLocaleOpts = await resolvePartnerAiLocaleOpts(conversationId, localeOpts)
   const invFmtOpts = { markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts) }
+
+  let guestProfileBlockForAi = ''
+  if (isPgConfigured()) {
+    try {
+      const conv = await fetchCustomerCareConversationByIdPg(conversationId)
+      if (conv?.linked_user_id && conv.partner_id === partnerId) {
+        const prof = await fetchNanoaiChatProfileFromPg(conv.linked_user_id)
+        if (prof && (prof.birthDate || prof.gender)) {
+          guestProfileBlockForAi = formatGuestProfileContextBlockForPartnerAi(prof)
+        }
+      }
+    } catch (e) {
+      console.warn('[partner-ai-llm] guest profile context', e)
+    }
+  }
 
   /**
    * Bấm «Tư vấn» trên thẻ: ưu tiên **SKU / URL / ảnh / vector ảnh** từ `page_context` — **không** trích SKU
@@ -411,9 +463,14 @@ export async function buildPartnerAiContext(
     )
   ) {
     const transcriptBlock = formatPartnerAiTranscriptLines(chronological)
+    const clarifyUser = buildPartnerAiClarifyShoppingIntentUser(
+      effectiveLocaleOpts,
+      transcriptBlock,
+      latestCustomerMessage
+    )
     return {
       system: buildPartnerAiClarifyShoppingIntentSystem(settings, effectiveLocaleOpts),
-      user: buildPartnerAiClarifyShoppingIntentUser(effectiveLocaleOpts, transcriptBlock, latestCustomerMessage),
+      user: guestProfileBlockForAi ? `${clarifyUser}\n\n${guestProfileBlockForAi}\n` : clarifyUser,
       materialDetailFollowup: null,
       realUseFollowup: null,
       useLastConsultedContext: false,
@@ -626,7 +683,7 @@ Dưới đây là **toàn bộ dữ liệu kho** của **một** sản phẩm �
 
 `
 
-  const user = `${partnerAiUserPromptOutputLanguageBanner(effectiveLocaleOpts)}${buildPartnerAiWarehouseVndPricingNote(effectiveLocaleOpts)}${userInventoryPreamble}${formatInventoryLines(invForContext, invFmtOpts)}
+  const user = `${partnerAiUserPromptOutputLanguageBanner(effectiveLocaleOpts)}${buildPartnerAiWarehouseVndPricingNote(effectiveLocaleOpts)}${guestProfileBlockForAi ? `${guestProfileBlockForAi}\n\n` : ''}${userInventoryPreamble}${formatInventoryLines(invForContext, invFmtOpts)}
 ${explicitSkuBlock}
 ${selectedRowBlock}
 

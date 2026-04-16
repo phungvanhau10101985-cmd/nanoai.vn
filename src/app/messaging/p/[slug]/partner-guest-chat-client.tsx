@@ -32,6 +32,14 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   CustomerCareMessageBody,
   type OrderPaymentProofSlot,
 } from '@/components/messaging/customer-care-message-body'
@@ -84,6 +92,21 @@ import {
   MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE,
 } from '@/lib/messaging/guest-account-session'
 import type { GuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
+
+/** Ghép ngày sinh từ ba dropdown — trả ISO `YYYY-MM-DD` hoặc null. */
+function buildIsoDateFromBirthParts(day: string, month: string, year: string): string | null {
+  const d = Number.parseInt(day, 10)
+  const m = Number.parseInt(month, 10)
+  const y = Number.parseInt(year, 10)
+  if (!Number.isFinite(d) || !Number.isFinite(m) || !Number.isFinite(y)) return null
+  if (y < 1900 || y > 2100) return null
+  const dt = new Date(y, m - 1, d)
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null
+  const today = new Date()
+  const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  if (dt > endOfToday) return null
+  return `${y.toString().padStart(4, '0')}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`
+}
 
 function readDocumentCookie(name: string): string | null {
   if (typeof document === 'undefined') return null
@@ -856,6 +879,13 @@ export function PartnerGuestChatClient({
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [authMode, setAuthMode] = useState<'anonymous' | 'account'>('anonymous')
+  const [guestNeedsProfile, setGuestNeedsProfile] = useState(false)
+  const [guestProfileOpen, setGuestProfileOpen] = useState(false)
+  const [guestBirthDay, setGuestBirthDay] = useState('')
+  const [guestBirthMonth, setGuestBirthMonth] = useState('')
+  const [guestBirthYear, setGuestBirthYear] = useState('')
+  const [guestProfileGender, setGuestProfileGender] = useState<'male' | 'female' | ''>('')
+  const [guestProfileSaving, setGuestProfileSaving] = useState(false)
   const [authGateRequired, setAuthGateRequired] = useState(false)
   const [guestAuthEmail, setGuestAuthEmail] = useState('')
   const [guestAuthOtp, setGuestAuthOtp] = useState('')
@@ -914,6 +944,27 @@ export function PartnerGuestChatClient({
   const [isEmbedUi, setIsEmbedUi] = useState(false)
   /** `true` khi trang chat chạy trong iframe (FloatingChatWidget / script nhúng); toolbar locale/đơn ở frame cha — ẩn hàng trùng trong iframe. */
   const [guestInIframe, setGuestInIframe] = useState(false)
+
+  const guestBirthMaxDay = useMemo(() => {
+    const m = Number.parseInt(guestBirthMonth, 10)
+    const y = Number.parseInt(guestBirthYear, 10)
+    if (!Number.isFinite(m) || !Number.isFinite(y) || m < 1 || m > 12) return 31
+    return new Date(y, m, 0).getDate()
+  }, [guestBirthMonth, guestBirthYear])
+
+  const guestBirthYearOptions = useMemo(() => {
+    const cy = new Date().getFullYear()
+    const out: number[] = []
+    for (let y = cy; y >= 1900; y -= 1) out.push(y)
+    return out
+  }, [])
+
+  useEffect(() => {
+    const d = Number.parseInt(guestBirthDay, 10)
+    if (!guestBirthDay || !Number.isFinite(d)) return
+    if (d > guestBirthMaxDay) setGuestBirthDay('')
+  }, [guestBirthMaxDay, guestBirthDay])
+
   const [tryOnUserFile, setTryOnUserFile] = useState<File | null>(null)
   const [tryOnGarmentFiles, setTryOnGarmentFiles] = useState<SelectedImage[]>([])
   const [tryOnGarmentPickerOpen, setTryOnGarmentPickerOpen] = useState(false)
@@ -1215,6 +1266,8 @@ export function PartnerGuestChatClient({
         consultedProductKeys?: string[]
         error?: string
         authMode?: 'anonymous' | 'account'
+        needsProfile?: boolean
+        guestProfile?: { birthDate?: string | null; gender?: string | null } | null
       }
       if (res.status === 401) {
         setUserId(null)
@@ -1263,6 +1316,22 @@ export function PartnerGuestChatClient({
       const effectiveAuthMode = serverSaysAccount || hasGuestAccount ? 'account' : 'anonymous'
       setAuthMode(effectiveAuthMode)
       if (effectiveAuthMode === 'account') setAuthGateRequired(false)
+      setGuestNeedsProfile(Boolean(data.needsProfile))
+      const gp = data.guestProfile
+      if (gp?.birthDate && typeof gp.birthDate === 'string') {
+        const p = gp.birthDate.trim()
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(p)
+        if (m) {
+          const [, y, mo, d] = m
+          setGuestBirthYear((prev) => prev || y)
+          setGuestBirthMonth((prev) => prev || String(Number(mo)))
+          setGuestBirthDay((prev) => prev || String(Number(d)))
+        }
+      }
+      if (gp?.gender === 'male' || gp?.gender === 'female') {
+        const g = gp.gender
+        setGuestProfileGender((prev) => prev || g)
+      }
       setHasLoadedOnce(true)
       setShopTyping((prev) => {
         if (!prev) return null
@@ -1277,6 +1346,69 @@ export function PartnerGuestChatClient({
       setLoading(false)
     }
   }, [slug, toast, t.guestAuthRequiredAfterLimit, t.loadError, authHeaders, captureGuestSessionFromResponse, captureGuestAccountFromResponse])
+
+  const dismissGuestProfilePrompt = useCallback(() => {
+    try {
+      sessionStorage.setItem(`messaging_guest_profile_skip_${slug}`, '1')
+    } catch {
+      /* ignore */
+    }
+    setGuestProfileOpen(false)
+  }, [slug])
+
+  const saveGuestProfile = useCallback(async () => {
+    const birthIso = buildIsoDateFromBirthParts(guestBirthDay, guestBirthMonth, guestBirthYear)
+    if (!birthIso || !guestProfileGender) {
+      toast({ title: t.guestProfileInvalid, variant: 'destructive' })
+      return
+    }
+    setGuestProfileSaving(true)
+    try {
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/profile`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ birthDate: birthIso, gender: guestProfileGender }),
+      })
+      const j = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) {
+        toast({ title: j.error || t.loadError, variant: 'destructive' })
+        return
+      }
+      setGuestNeedsProfile(false)
+      setGuestProfileOpen(false)
+      void load()
+    } catch {
+      toast({ title: t.loadError, variant: 'destructive' })
+    } finally {
+      setGuestProfileSaving(false)
+    }
+  }, [
+    slug,
+    toast,
+    t.loadError,
+    t.guestProfileInvalid,
+    authHeaders,
+    load,
+    guestBirthDay,
+    guestBirthMonth,
+    guestBirthYear,
+    guestProfileGender,
+  ])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!hasLoadedOnce || authMode !== 'account' || !guestNeedsProfile) {
+      if (!guestNeedsProfile) setGuestProfileOpen(false)
+      return
+    }
+    try {
+      if (sessionStorage.getItem(`messaging_guest_profile_skip_${slug}`)) return
+    } catch {
+      /* ignore */
+    }
+    setGuestProfileOpen(true)
+  }, [hasLoadedOnce, authMode, guestNeedsProfile, slug])
 
   const refreshAuthAndReload = useCallback(async () => {
     try {
@@ -1354,12 +1486,12 @@ export function PartnerGuestChatClient({
           JSON.stringify({ ts: Date.now(), slug })
         )
       } catch {}
-      void load()
+      void refreshAuthAndReload()
     }
     sp.delete('auth')
     const next = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`
     window.history.replaceState(null, '', next)
-  }, [load, slug])
+  }, [refreshAuthAndReload, slug])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1740,6 +1872,22 @@ export function PartnerGuestChatClient({
   useEffect(() => {
     void maybeOpenBuyOptionsFromInbound()
   }, [maybeOpenBuyOptionsFromInbound])
+
+  const openGuestProductOrderFormFromCard = useCallback(
+    async (card: PartnerAiProductCard) => {
+      const productUrl = (card.product_url ?? '').trim()
+      if (!/^https?:\/\//i.test(productUrl)) return
+      setBuyOptionsOpen(false)
+      await openOrderFormByOption({
+        name: card.name,
+        image_url: card.image_url,
+        product_url: productUrl,
+        price_hint: card.price_hint,
+        sku: (card.sku ?? '').trim() || null,
+      })
+    },
+    [openOrderFormByOption]
+  )
 
   const submitProductCardPick = async (card: PartnerAiProductCard, sourceMessageId: string) => {
     const latestInboundText = [...messages].reverse().find((m) => m.direction === 'inbound')?.body ?? ''
@@ -2906,6 +3054,19 @@ export function PartnerGuestChatClient({
     orderSelectedColorImgs,
   ])
 
+  /** Xen kẽ nền tin shop — phải gọi trước mọi `return` có điều kiện (Rules of Hooks). */
+  const shopOutboundStripeById = useMemo(() => {
+    const map = new Map<string, 0 | 1>()
+    let k = 0
+    for (const m of messages) {
+      if (m.direction === 'outbound' && !isSystemOrderMessage(m.raw_payload)) {
+        map.set(m.id, (k % 2) as 0 | 1)
+        k += 1
+      }
+    }
+    return map
+  }, [messages])
+
   if (!authReady) {
     return (
       <div className="flex w-full max-w-lg justify-center py-16">
@@ -3105,15 +3266,20 @@ export function PartnerGuestChatClient({
               messages.map((m) => {
                 const isMe = m.direction === 'inbound'
                 const isOrderTrackingBubble = !isMe && isSystemOrderMessage(m.raw_payload)
+                const shopStripe = !isMe && !isOrderTrackingBubble ? shopOutboundStripeById.get(m.id) ?? 0 : null
+                const shopBubbleClass =
+                  shopStripe === 1
+                    ? 'mr-auto rounded-bl-md border border-violet-200/75 bg-violet-50/95 text-foreground shadow-sm ring-1 ring-violet-500/[0.07] dark:border-violet-800/55 dark:bg-violet-950/45 dark:ring-violet-400/10'
+                    : 'mr-auto rounded-bl-md border border-slate-200/85 bg-white text-foreground shadow-sm ring-1 ring-slate-900/[0.04] dark:border-slate-600/65 dark:bg-slate-900/55 dark:ring-white/[0.06]'
                 return (
                   <div
                     key={m.id}
-                    className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-[17px] leading-relaxed shadow-sm sm:text-lg ${
+                    className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-[17px] leading-relaxed sm:text-lg ${
                       isMe
-                        ? 'ml-auto rounded-br-md bg-gradient-to-br from-violet-600 to-violet-700 text-white'
+                        ? 'ml-auto rounded-br-md bg-gradient-to-br from-violet-600 to-violet-700 text-white shadow-sm'
                         : isOrderTrackingBubble
                           ? 'mr-auto rounded-bl-md border-2 border-amber-400/70 bg-gradient-to-br from-amber-50 via-orange-50/90 to-amber-100/40 text-foreground shadow-[0_2px_12px_rgba(217,119,6,0.12)] ring-1 ring-amber-300/40 dark:border-amber-500/45 dark:from-amber-950/70 dark:via-orange-950/50 dark:to-amber-950/30 dark:shadow-[0_2px_16px_rgba(0,0,0,0.35)] dark:ring-amber-700/35'
-                          : 'mr-auto rounded-bl-md border border-border/60 bg-card text-foreground'
+                          : shopBubbleClass
                     }`}
                   >
                     <div className={isMe ? '[&_a]:text-white/90 [&_img]:border-white/25' : ''}>
@@ -3129,6 +3295,7 @@ export function PartnerGuestChatClient({
                           productCardBuyProduct: t.visionProductBuy,
                           consultedProductKeys,
                         }}
+                        onProductCardBuy={isMe ? undefined : (card) => void openGuestProductOrderFormFromCard(card)}
                         onProductCardPick={
                           isMe ? undefined : (card) => void submitProductCardPick(card, m.id)
                         }
@@ -3231,43 +3398,96 @@ export function PartnerGuestChatClient({
                                       <a
                                         href={puVision.trim()}
                                         rel="noopener noreferrer"
-                                        className="flex h-7 w-full min-w-0 items-center justify-center rounded-md border border-white/35 bg-white/10 px-1 text-[9px] font-semibold leading-none text-white hover:bg-white/16 sm:text-[10px]"
+                                        className="flex h-8 w-full min-w-0 items-center justify-center rounded-md border border-white/35 bg-white/10 px-1 text-[10px] font-semibold leading-snug text-white hover:bg-white/16 sm:text-[10px]"
                                         onClick={(e) => {
                                           e.preventDefault()
                                           e.stopPropagation()
                                           openGuestProductDetailUrl(puVision.trim())
                                         }}
                                         aria-label={`${c.name}. ${t.visionProductViewDetails}`}
+                                        lang="vi"
                                       >
-                                        <span className="block max-w-full truncate text-center">
+                                        <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
                                           {t.visionProductViewDetails}
                                         </span>
                                       </a>
                                     ) : null}
-                                    <button
-                                      type="button"
-                                      disabled={isBusy}
-                                      className="flex h-7 w-full min-w-0 items-center justify-center rounded-md bg-white/20 px-1 text-[9px] font-semibold leading-none text-white hover:bg-white/30 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        void submitProductCardPick(
-                                          {
-                                            name: c.name,
-                                            image_url: c.image_url,
-                                            product_url: puVision && /^https?:\/\//i.test(puVision) ? puVision : '',
-                                            ...(c.price_hint && String(c.price_hint).trim()
-                                              ? { price_hint: String(c.price_hint).trim() }
-                                              : {}),
-                                          },
-                                          m.id
-                                        )
-                                      }}
-                                      aria-label={`${c.name}. ${visionCtaBuy ? t.visionProductBuy : t.visionProductLink}`}
-                                    >
-                                      <span className="block max-w-full truncate text-center">
-                                        {visionCtaBuy ? t.visionProductBuy : t.visionProductLink}
-                                      </span>
-                                    </button>
+                                    {puVision && /^https?:\/\//i.test(puVision.trim()) ? (
+                                      visionCtaBuy ? (
+                                        <button
+                                          type="button"
+                                          disabled={isBusy}
+                                          className="flex h-8 w-full min-w-0 items-center justify-center rounded-md bg-white/20 px-1 text-[10px] font-semibold leading-snug text-white hover:bg-white/30 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            void openGuestProductOrderFormFromCard({
+                                              name: c.name,
+                                              image_url: c.image_url,
+                                              product_url: puVision.trim(),
+                                              ...(c.price_hint && String(c.price_hint).trim()
+                                                ? { price_hint: String(c.price_hint).trim() }
+                                                : {}),
+                                            })
+                                          }}
+                                          aria-label={`${c.name}. ${t.visionProductBuy}`}
+                                          lang="vi"
+                                        >
+                                          <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
+                                            {t.visionProductBuy}
+                                          </span>
+                                        </button>
+                                      ) : (
+                                        <div className="grid grid-cols-2 gap-1">
+                                          <button
+                                            type="button"
+                                            disabled={isBusy}
+                                            className="flex h-8 min-w-0 items-center justify-center rounded-md bg-white px-1 text-[10px] font-semibold leading-snug text-violet-800 hover:bg-white/95 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              void openGuestProductOrderFormFromCard({
+                                                name: c.name,
+                                                image_url: c.image_url,
+                                                product_url: puVision.trim(),
+                                                ...(c.price_hint && String(c.price_hint).trim()
+                                                  ? { price_hint: String(c.price_hint).trim() }
+                                                  : {}),
+                                              })
+                                            }}
+                                            aria-label={`${c.name}. ${t.visionProductBuy}`}
+                                            lang="vi"
+                                          >
+                                            <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
+                                              {t.visionProductBuy}
+                                            </span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={isBusy}
+                                            className="flex h-8 min-w-0 items-center justify-center rounded-md border border-white/35 bg-white/10 px-1 text-[10px] font-semibold leading-snug text-white hover:bg-white/16 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              void submitProductCardPick(
+                                                {
+                                                  name: c.name,
+                                                  image_url: c.image_url,
+                                                  product_url: puVision.trim(),
+                                                  ...(c.price_hint && String(c.price_hint).trim()
+                                                    ? { price_hint: String(c.price_hint).trim() }
+                                                    : {}),
+                                                },
+                                                m.id
+                                              )
+                                            }}
+                                            aria-label={`${c.name}. ${t.visionProductLink}`}
+                                            lang="vi"
+                                          >
+                                            <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
+                                              {t.visionProductLink}
+                                            </span>
+                                          </button>
+                                        </div>
+                                      )
+                                    ) : null}
                                   </div>
                                 </div>
                               )
@@ -4145,6 +4365,115 @@ export function PartnerGuestChatClient({
 
         <div className="min-h-0 min-w-0 overflow-hidden">{chatPane}</div>
       </div>
+      <Dialog
+        open={guestProfileOpen}
+        onOpenChange={(next) => {
+          if (next) setGuestProfileOpen(true)
+        }}
+      >
+        <DialogContent
+          className={isEmbedUi || guestInIframe ? 'z-[210] sm:max-w-md' : 'sm:max-w-md'}
+          overlayClassName={isEmbedUi || guestInIframe ? 'z-[200]' : undefined}
+          showCloseButton={false}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>{t.guestProfileDialogTitle}</DialogTitle>
+            <DialogDescription className="text-left text-sm leading-relaxed">
+              {t.guestProfileDialogDescription}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <span className="text-sm font-medium leading-none">{t.guestProfileBirthLabel}</span>
+              <div className="grid grid-cols-3 gap-2">
+                <Select
+                  value={guestBirthDay || undefined}
+                  onValueChange={setGuestBirthDay}
+                >
+                  <SelectTrigger className="h-10 w-full min-w-0" aria-label={t.guestProfileBirthDayPlaceholder}>
+                    <SelectValue placeholder={t.guestProfileBirthDayPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="max-h-[min(280px,50dvh)]">
+                    {Array.from({ length: guestBirthMaxDay }, (_, i) => i + 1).map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={guestBirthMonth || undefined}
+                  onValueChange={setGuestBirthMonth}
+                >
+                  <SelectTrigger className="h-10 w-full min-w-0" aria-label={t.guestProfileBirthMonthPlaceholder}>
+                    <SelectValue placeholder={t.guestProfileBirthMonthPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="max-h-[min(280px,50dvh)]">
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={guestBirthYear || undefined}
+                  onValueChange={setGuestBirthYear}
+                >
+                  <SelectTrigger className="h-10 w-full min-w-0" aria-label={t.guestProfileBirthYearPlaceholder}>
+                    <SelectValue placeholder={t.guestProfileBirthYearPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="max-h-[min(280px,50dvh)]">
+                    {guestBirthYearOptions.map((y) => (
+                      <SelectItem key={y} value={String(y)}>
+                        {y}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <span className="text-sm font-medium leading-none">{t.guestProfileGenderLabel}</span>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ['male', t.guestProfileGenderMale],
+                    ['female', t.guestProfileGenderFemale],
+                  ] as const
+                ).map(([value, label]) => (
+                  <Button
+                    key={value}
+                    type="button"
+                    variant={guestProfileGender === value ? 'default' : 'outline'}
+                    size="sm"
+                    className="rounded-full"
+                    onClick={() => setGuestProfileGender(value)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="ghost" disabled={guestProfileSaving} onClick={dismissGuestProfilePrompt}>
+              {t.guestProfileRemindLater}
+            </Button>
+            <Button
+              type="button"
+              disabled={guestProfileSaving}
+              className="inline-flex items-center gap-2"
+              onClick={() => void saveGuestProfile()}
+            >
+              {guestProfileSaving ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden /> : null}
+              {t.guestProfileSave}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <MessageImagePreviewDialog
         src={chatImageLightboxUrl}
         onOpenChange={(open) => {

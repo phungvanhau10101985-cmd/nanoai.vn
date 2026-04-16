@@ -142,6 +142,16 @@ export async function fetchInventoryRowsFromProductCardConsultPageContext(
   return []
 }
 
+/** Một UUID dòng kho cho thẻ «Tư vấn» — dùng làm khóa cache theo SP. */
+export async function resolveProductCardConsultInventoryIdFromPg(
+  partnerId: string,
+  rawPayload: Json | null | undefined
+): Promise<string | null> {
+  const rows = await fetchInventoryRowsFromProductCardConsultPageContext(partnerId, rawPayload)
+  const id = rows[0]?.id?.trim()
+  return id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : null
+}
+
 function collectTokenCandidates(text: string): TokenCandidate[] {
   const best = new Map<string, { token: string; priority: number }>()
 

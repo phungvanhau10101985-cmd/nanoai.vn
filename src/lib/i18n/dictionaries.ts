@@ -893,6 +893,18 @@ export type Dictionary = {
     productConsultAskShipping: string
     /** Khách bấm Tư vấn — hỏi chi tiết SP */
     productConsultAskDetail: string
+    guestProfileDialogTitle: string
+    guestProfileDialogDescription: string
+    guestProfileBirthLabel: string
+    guestProfileBirthDayPlaceholder: string
+    guestProfileBirthMonthPlaceholder: string
+    guestProfileBirthYearPlaceholder: string
+    guestProfileGenderLabel: string
+    guestProfileGenderMale: string
+    guestProfileGenderFemale: string
+    guestProfileSave: string
+    guestProfileRemindLater: string
+    guestProfileInvalid: string
   }
   /** /messaging/my-chats — danh sách shop đã chat (tài khoản Google) */
   messagingMyChats: {
@@ -2675,7 +2687,7 @@ const VI_DICTIONARY: Dictionary = {
     visionPickBusy: 'Đang gửi…',
     visionPickError: 'Không gửi được lựa chọn. Thử lại.',
     visionProductLink: 'Tư vấn',
-    visionProductBuy: 'Mua hàng',
+    visionProductBuy: 'Mua ngay',
     visionProductViewDetails: 'Xem chi tiết',
     visionProductVideo: 'Video',
     visionVideoCloseAria: 'Đóng video',
@@ -2690,6 +2702,19 @@ const VI_DICTIONARY: Dictionary = {
     productConsultAskShipping:
       'Mình quan tâm mẫu này: {name}.{skuPart} Shop tư vấn giúp mình chính sách vận chuyển, phí ship và thời gian giao nhé.',
     productConsultAskDetail: 'Mình quan tâm mẫu này: {name}.{skuPart} Shop tư vấn chi tiết giúp mình nhé.',
+    guestProfileDialogTitle: 'Giúp shop xưng hô đúng ý bạn',
+    guestProfileDialogDescription:
+      'Thông tin lưu một lần trên tài khoản NanoAI (dùng cho mọi shop): ngày sinh và giới tính (nam hoặc nữ) để xưng hô anh/chị và gợi ý tư vấn phù hợp. Bạn có thể bỏ qua và nhập sau.',
+    guestProfileBirthLabel: 'Ngày sinh',
+    guestProfileBirthDayPlaceholder: 'Ngày',
+    guestProfileBirthMonthPlaceholder: 'Tháng',
+    guestProfileBirthYearPlaceholder: 'Năm',
+    guestProfileGenderLabel: 'Giới tính',
+    guestProfileGenderMale: 'Nam',
+    guestProfileGenderFemale: 'Nữ',
+    guestProfileSave: 'Lưu',
+    guestProfileRemindLater: 'Để sau',
+    guestProfileInvalid: 'Vui lòng chọn đủ ngày sinh và giới tính.',
   },
   messagingMyChats: {
     pageTitle: 'Tin nhắn của tôi',
@@ -4471,7 +4496,7 @@ const EN_DICTIONARY: Dictionary = {
     visionPickBusy: 'Sending…',
     visionPickError: 'Could not send your choice. Try again.',
     visionProductLink: 'Advice',
-    visionProductBuy: 'Buy',
+    visionProductBuy: 'Buy now',
     visionProductViewDetails: 'View details',
     visionProductVideo: 'Video',
     visionVideoCloseAria: 'Close video',
@@ -4485,6 +4510,19 @@ const EN_DICTIONARY: Dictionary = {
     productConsultAskShipping:
       "I'm interested in this item: {name}.{skuPart} Please advise on shipping policy, fees, and delivery time.",
     productConsultAskDetail: "I'm interested in this item: {name}.{skuPart} Please share more details.",
+    guestProfileDialogTitle: 'Help us address you correctly',
+    guestProfileDialogDescription:
+      'Saved once on your NanoAI account (all shops): date of birth and gender (male or female) for natural honorifics and age-appropriate suggestions. You can skip and fill this in later.',
+    guestProfileBirthLabel: 'Date of birth',
+    guestProfileBirthDayPlaceholder: 'Day',
+    guestProfileBirthMonthPlaceholder: 'Month',
+    guestProfileBirthYearPlaceholder: 'Year',
+    guestProfileGenderLabel: 'Gender',
+    guestProfileGenderMale: 'Male',
+    guestProfileGenderFemale: 'Female',
+    guestProfileSave: 'Save',
+    guestProfileRemindLater: 'Later',
+    guestProfileInvalid: 'Please enter your date of birth and choose a gender.',
   },
   messagingMyChats: {
     pageTitle: 'My messages',
@@ -6247,7 +6285,7 @@ const ZH_DICTIONARY: Dictionary = {
     visionPickBusy: '发送中…',
     visionPickError: '无法提交选择，请重试。',
     visionProductLink: '咨询商品',
-    visionProductBuy: '购买',
+    visionProductBuy: '立即购买',
     visionProductViewDetails: '查看详情',
     visionProductVideo: '视频',
     visionVideoCloseAria: '关闭视频',
@@ -6261,6 +6299,19 @@ const ZH_DICTIONARY: Dictionary = {
     productConsultAskShipping:
       '我想了解这款商品：{name}。{skuPart} 请说明运费政策、费用和预计送达时间。',
     productConsultAskDetail: '我想了解这款商品：{name}。{skuPart} 请详细介绍。',
+    guestProfileDialogTitle: '帮助我们正确称呼您',
+    guestProfileDialogDescription:
+      '信息仅保存在您的 NanoAI 账户一次（适用于所有店铺）：出生日期和性别（男或女），用于自然称呼与适龄建议。您也可以稍后再填。',
+    guestProfileBirthLabel: '出生日期',
+    guestProfileBirthDayPlaceholder: '日',
+    guestProfileBirthMonthPlaceholder: '月',
+    guestProfileBirthYearPlaceholder: '年',
+    guestProfileGenderLabel: '性别',
+    guestProfileGenderMale: '男',
+    guestProfileGenderFemale: '女',
+    guestProfileSave: '保存',
+    guestProfileRemindLater: '稍后',
+    guestProfileInvalid: '请填写出生日期并选择性别。',
   },
   messagingMyChats: {
     pageTitle: '我的消息',
@@ -7999,7 +8050,7 @@ const JA_DICTIONARY: Dictionary = {
     visionPickBusy: '送信中…',
     visionPickError: '選択を送信できませんでした。もう一度お試しください。',
     visionProductLink: '相談',
-    visionProductBuy: '購入',
+    visionProductBuy: '今すぐ購入',
     visionProductViewDetails: '詳細を見る',
     visionProductVideo: '動画',
     visionVideoCloseAria: '動画を閉じる',
@@ -8013,6 +8064,19 @@ const JA_DICTIONARY: Dictionary = {
     productConsultAskShipping:
       'この商品に興味があります：{name}。{skuPart} 送料ポリシー、送料、お届け目安を教えてください。',
     productConsultAskDetail: 'この商品に興味があります：{name}。{skuPart} 詳しく教えてください。',
+    guestProfileDialogTitle: '適切な呼び方のために',
+    guestProfileDialogDescription:
+      'NanoAIアカウントに一度だけ保存されます（全店舗共通）：生年月日と性別（男性または女性）で自然な敬称と年齢に合った提案に使います。後からでも入力できます。',
+    guestProfileBirthLabel: '生年月日',
+    guestProfileBirthDayPlaceholder: '日',
+    guestProfileBirthMonthPlaceholder: '月',
+    guestProfileBirthYearPlaceholder: '年',
+    guestProfileGenderLabel: '性別',
+    guestProfileGenderMale: '男性',
+    guestProfileGenderFemale: '女性',
+    guestProfileSave: '保存',
+    guestProfileRemindLater: 'あとで',
+    guestProfileInvalid: '生年月日と性別を入力してください。',
   },
   messagingMyChats: {
     pageTitle: '自分のメッセージ',
@@ -9772,7 +9836,7 @@ const KO_DICTIONARY: Dictionary = {
     visionPickBusy: '보내는 중…',
     visionPickError: '선택을 보낼 수 없습니다. 다시 시도해 주세요.',
     visionProductLink: '상담',
-    visionProductBuy: '구매',
+    visionProductBuy: '바로 구매',
     visionProductViewDetails: '자세히 보기',
     visionProductVideo: '동영상',
     visionVideoCloseAria: '동영상 닫기',
@@ -9786,6 +9850,19 @@ const KO_DICTIONARY: Dictionary = {
     productConsultAskShipping:
       '이 상품이 궁금합니다: {name}.{skuPart} 배송 정책, 배송비, 예상 배송 기간을 알려 주세요.',
     productConsultAskDetail: '이 상품이 궁금합니다: {name}.{skuPart} 자세히 알려 주세요.',
+    guestProfileDialogTitle: '호칭을 맞추기 위해',
+    guestProfileDialogDescription:
+      'NanoAI 계정에 한 번만 저장됩니다(모든 매장 공통): 생년월일과 성별(남성 또는 여성)로 자연스러운 호칭과 나이에 맞는 추천에 씁니다. 나중에 입력해도 됩니다.',
+    guestProfileBirthLabel: '생년월일',
+    guestProfileBirthDayPlaceholder: '일',
+    guestProfileBirthMonthPlaceholder: '월',
+    guestProfileBirthYearPlaceholder: '년',
+    guestProfileGenderLabel: '성별',
+    guestProfileGenderMale: '남성',
+    guestProfileGenderFemale: '여성',
+    guestProfileSave: '저장',
+    guestProfileRemindLater: '나중에',
+    guestProfileInvalid: '생년월일과 성별을 선택해 주세요.',
   },
   messagingMyChats: {
     pageTitle: '내 메시지',
