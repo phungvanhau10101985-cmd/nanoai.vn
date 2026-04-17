@@ -1144,7 +1144,12 @@ export function PartnerGuestChatClient({
    * Bật khi khách bấm chip thumbnail, hoặc `auto_consult=1` (tự gửi như trước).
    */
   const attachUrlPageContextRef = useRef(false)
-  /** `auto_consult=1|true|yes` — mở chat tự gửi một tin ngữ cảnh SP (hành vi cũ). Mặc định không bật. */
+  /**
+   * Tự gửi tin ngữ cảnh SP (ảnh / mã kho trong payload) như bấm chip.
+   * - Trang `/tu-van/{uuid}` mở **trực tiếp** (không iframe, không `embed=1`): bật mặc định.
+   * - **Nhúng** (iframe hoặc `embed=1`): chỉ bật khi `auto_consult=1` (hành vi cũ).
+   * - `auto_consult=0|false|no`: tắt cả trên link trực tiếp.
+   */
   const autoConsultFromUrlEnabledRef = useRef(false)
   /** Hiển thị chip thumbnail «gửi SP đang xem» — đồng bộ ref khi mount; ẩn sau gửi / bỏ qua / đã có trong thread. */
   const [pendingUrlPageContextChip, setPendingUrlPageContextChip] = useState<WidgetPageContextSeed | null>(null)
@@ -1295,22 +1300,28 @@ export function PartnerGuestChatClient({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    try {
-      setGuestInIframe(window.self !== window.top)
-    } catch {
-      setGuestInIframe(true)
-    }
     const q = new URLSearchParams(window.location.search)
     const ev = (q.get('embed') || '').trim().toLowerCase()
-    const inIframe = window.self !== window.top
-    setIsEmbedUi(ev === '1' || ev === 'true' || ev === 'yes' || inIframe)
+    let inIframe = false
+    try {
+      inIframe = window.self !== window.top
+    } catch {
+      inIframe = true
+    }
+    setGuestInIframe(inIframe)
+    const embedLike = ev === '1' || ev === 'true' || ev === 'yes' || inIframe
+    setIsEmbedUi(embedLike)
     const autoOn = (q.get('auto_consult') || '').trim().toLowerCase()
-    autoConsultFromUrlEnabledRef.current =
-      autoOn === '1' || autoOn === 'true' || autoOn === 'yes'
+    const autoOff = autoOn === '0' || autoOn === 'false' || autoOn === 'no'
+    const autoOnExplicit = autoOn === '1' || autoOn === 'true' || autoOn === 'yes'
 
     const invBootstrap = (consultFromInventory?.inventoryId ?? '').trim()
     const uuidOk =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invBootstrap)
+
+    const isConsultInventoryRoute = Boolean(consultFromInventory) && uuidOk
+    autoConsultFromUrlEnabledRef.current =
+      !autoOff && (autoOnExplicit || (isConsultInventoryRoute && !embedLike))
 
     if (uuidOk && consultFromInventory) {
       const c = consultFromInventory
@@ -1326,7 +1337,8 @@ export function PartnerGuestChatClient({
       }
       const next = hasAny ? sanitizeWidgetPageContextSeed(rawSeed) : null
       pageContextRef.current = hasWidgetPageContextSeed(next) ? next : null
-      setPendingUrlPageContextChip(pageContextRef.current)
+      const consultWillAutoSend = !autoOff && (autoOnExplicit || !embedLike)
+      setPendingUrlPageContextChip(consultWillAutoSend ? null : pageContextRef.current)
     } else {
       const sku = (q.get('ctx_sku') || '').trim()
       const imageUrl = (q.get('ctx_image') || '').trim()
@@ -3195,8 +3207,8 @@ export function PartnerGuestChatClient({
 
   /**
    * Ngữ cảnh SP: `/messaging/p/{slug}/tu-van/{uuid}` hoặc `?ctx_*=`.
-   * Mặc định không tự gửi — khách bấm chip hoặc gõ tin (bỏ qua ngữ cảnh).
-   * `auto_consult=1` — tự gửi một tin ngữ cảnh như trước (nhúng website cũ).
+   * - `/tu-van/{uuid}` **full tab**: tự gửi một tin (ảnh + pageContext) trừ khi `auto_consult=0` hoặc đang nhúng.
+   * - **Nhúng** hoặc `?ctx_*=` trên `/messaging/p/{slug}`: chip + chỉ tự gửi khi `auto_consult=1`.
    */
   useEffect(() => {
     if (typeof window === 'undefined') return
