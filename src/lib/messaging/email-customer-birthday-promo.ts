@@ -1,4 +1,4 @@
-import { sendSmtpMail, isSmtpConfigured } from '@/lib/email/smtp'
+import { sendSmtpMail } from '@/lib/email/smtp'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 
 function escapeHtml(s: string): string {
