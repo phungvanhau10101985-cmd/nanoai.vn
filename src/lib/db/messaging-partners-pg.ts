@@ -42,7 +42,9 @@ function isMissingPartnerProfileColumnError(e: unknown): boolean {
     msg.includes('brand_name') ||
     msg.includes('logo_url') ||
     msg.includes('purge_at') ||
-    msg.includes('deletion_requested_at')
+    msg.includes('deletion_requested_at') ||
+    msg.includes('facebook_pixel_id') ||
+    msg.includes('facebook_capi_access_token')
   )
 }
 
@@ -62,6 +64,10 @@ export type MessagingPartnerBySlugRow = {
   embed_key: string
   /** Logo shop (URL https); hiển thị tròn trên widget. */
   logo_url: string | null
+  /** Meta Pixel — công khai cho fbq trên trang tư vấn */
+  facebook_pixel_id: string | null
+  /** Chỉ đọc server-side khi gửi CAPI */
+  facebook_capi_access_token: string | null
 }
 
 /**
@@ -77,9 +83,13 @@ export async function fetchMessagingPartnerBySlugFromPg(slug: string): Promise<M
       purge_at: string | null
       embed_key: string | null
       logo_url: string | null
+      facebook_pixel_id: string | null
+      facebook_capi_access_token: string | null
     }>(
       `select id::text, display_name, is_active, purge_at, coalesce(embed_key::text, '') as embed_key,
-              logo_url
+              logo_url,
+              nullif(trim(coalesce(facebook_pixel_id, '')), '') as facebook_pixel_id,
+              nullif(trim(coalesce(facebook_capi_access_token, '')), '') as facebook_capi_access_token
        from public.messaging_partners where slug = $1 limit 1`,
       [slug]
     )
@@ -92,10 +102,89 @@ export async function fetchMessagingPartnerBySlugFromPg(slug: string): Promise<M
       purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
       embed_key: String(row.embed_key ?? ''),
       logo_url: logoRaw && /^https?:\/\//i.test(logoRaw) ? logoRaw : null,
+      facebook_pixel_id: row.facebook_pixel_id ? String(row.facebook_pixel_id).trim() : null,
+      facebook_capi_access_token: row.facebook_capi_access_token
+        ? String(row.facebook_capi_access_token).trim()
+        : null,
     }
   } catch (e) {
     console.warn('[fetchMessagingPartnerBySlugFromPg]', e)
     return null
+  }
+}
+
+/**
+ * Pixel + CAPI token cho partner (chỉ gọi server sau khi đã xác thực slug/partner).
+ * Không trả token ra client.
+ */
+export async function fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg(
+  partnerId: string
+): Promise<{ facebook_pixel_id: string | null; facebook_capi_access_token: string | null } | null> {
+  if (!isPgConfigured()) return null
+  const pid = safeUuid(partnerId)
+  if (!pid) return null
+  try {
+    const row = await pgQueryOne<{
+      facebook_pixel_id: string | null
+      facebook_capi_access_token: string | null
+    }>(
+      `select nullif(trim(coalesce(facebook_pixel_id, '')), '') as facebook_pixel_id,
+              nullif(trim(coalesce(facebook_capi_access_token, '')), '') as facebook_capi_access_token
+       from public.messaging_partners where id = $1::uuid limit 1`,
+      [pid]
+    )
+    if (!row) return null
+    return {
+      facebook_pixel_id: row.facebook_pixel_id ? String(row.facebook_pixel_id).trim() : null,
+      facebook_capi_access_token: row.facebook_capi_access_token
+        ? String(row.facebook_capi_access_token).trim()
+        : null,
+    }
+  } catch (e) {
+    console.warn('[fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg]', e)
+    return null
+  }
+}
+
+export async function updateMessagingPartnerFacebookMetaForOwnerFromPg(params: {
+  partner_id: string
+  owner_user_id: string
+  facebook_pixel_id: string | null
+  /** `true` = cập nhật token theo `facebook_capi_access_token`; `false` = giữ nguyên trong DB */
+  update_capi_token: boolean
+  facebook_capi_access_token: string | null
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = safeUuid(params.partner_id)
+  const uid = safeOwnerUuid(params.owner_user_id)
+  if (!pid || !uid) return false
+  const pixel = params.facebook_pixel_id != null ? String(params.facebook_pixel_id).trim() : ''
+  const capi = params.facebook_capi_access_token != null ? String(params.facebook_capi_access_token).trim() : ''
+  try {
+    if (params.update_capi_token) {
+      const row = await pgQueryOne<{ id: string }>(
+        `update public.messaging_partners
+         set facebook_pixel_id = $3,
+             facebook_capi_access_token = $4,
+             updated_at = now()
+         where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+         returning id::text`,
+        [pid, uid, pixel || null, capi || null]
+      )
+      return Boolean(row?.id)
+    }
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partners
+       set facebook_pixel_id = $3,
+           updated_at = now()
+       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       returning id::text`,
+      [pid, uid, pixel || null]
+    )
+    return Boolean(row?.id)
+  } catch (e) {
+    console.warn('[updateMessagingPartnerFacebookMetaForOwnerFromPg]', e)
+    return false
   }
 }
 
@@ -225,6 +314,7 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       is_active: boolean | null
       purge_at: string | null
       deletion_requested_at: string | null
+      facebook_pixel_id: string | null
       created_at: unknown
       updated_at: unknown
     }>(
@@ -233,6 +323,7 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
               coalesce(embed_key::text, '') as embed_key,
               coalesce(is_active, true) as is_active,
               purge_at, deletion_requested_at,
+              nullif(trim(coalesce(facebook_pixel_id, '')), '') as facebook_pixel_id,
               created_at, updated_at
        from public.messaging_partners
        where (
@@ -262,6 +353,8 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       is_active: r.is_active !== false,
       purge_at: r.purge_at ? mapTimestamptz(r.purge_at) : null,
       deletion_requested_at: r.deletion_requested_at ? mapTimestamptz(r.deletion_requested_at) : null,
+      facebook_pixel_id: r.facebook_pixel_id ? String(r.facebook_pixel_id).trim() : null,
+      facebook_capi_access_token: null,
       created_at: mapTimestamptz(r.created_at),
       updated_at: mapTimestamptz(r.updated_at),
     }))
@@ -313,6 +406,8 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
           is_active: r.is_active !== false,
           purge_at: r.purge_at ? mapTimestamptz(r.purge_at) : null,
           deletion_requested_at: r.deletion_requested_at ? mapTimestamptz(r.deletion_requested_at) : null,
+          facebook_pixel_id: null,
+          facebook_capi_access_token: null,
           created_at: mapTimestamptz(r.created_at),
           updated_at: mapTimestamptz(r.updated_at),
         }))
@@ -416,6 +511,8 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
       is_active: row.is_active !== false,
       purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
       deletion_requested_at: row.deletion_requested_at ? mapTimestamptz(row.deletion_requested_at) : null,
+      facebook_pixel_id: null,
+      facebook_capi_access_token: null,
       created_at: mapTimestamptz(row.created_at),
       updated_at: mapTimestamptz(row.updated_at),
     }
@@ -454,6 +551,8 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
           is_active: row.is_active !== false,
           purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
           deletion_requested_at: row.deletion_requested_at ? mapTimestamptz(row.deletion_requested_at) : null,
+          facebook_pixel_id: null,
+          facebook_capi_access_token: null,
           created_at: mapTimestamptz(row.created_at),
           updated_at: mapTimestamptz(row.updated_at),
         }
@@ -521,6 +620,8 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
       is_active: row.is_active !== false,
       purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
       deletion_requested_at: row.deletion_requested_at ? mapTimestamptz(row.deletion_requested_at) : null,
+      facebook_pixel_id: null,
+      facebook_capi_access_token: null,
       created_at: mapTimestamptz(row.created_at),
       updated_at: mapTimestamptz(row.updated_at),
     }
@@ -560,6 +661,8 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
           is_active: row.is_active !== false,
           purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
           deletion_requested_at: row.deletion_requested_at ? mapTimestamptz(row.deletion_requested_at) : null,
+          facebook_pixel_id: null,
+          facebook_capi_access_token: null,
           created_at: mapTimestamptz(row.created_at),
           updated_at: mapTimestamptz(row.updated_at),
         }

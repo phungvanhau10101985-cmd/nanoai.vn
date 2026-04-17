@@ -11,6 +11,8 @@ import {
   getProductPurchaseOptions,
   listRelatedBuyProducts,
 } from '@/lib/messaging/guest-chat-ordering'
+import { runMetaPurchaseAfterOrderComplete } from '@/lib/tracking/meta-purchase-after-order'
+import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -206,5 +208,23 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       { status }
     )
   }
-  return NextResponse.json({ ok: true, order: done.order })
+
+  let metaPurchase = null as Awaited<ReturnType<typeof runMetaPurchaseAfterOrderComplete>>
+  if (isPgConfigured()) {
+    try {
+      metaPurchase = await runMetaPurchaseAfterOrderComplete({
+        partnerId: partner.partnerId,
+        order: done.order,
+        request,
+      })
+    } catch (e) {
+      console.warn('[order PATCH] meta purchase', e)
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    order: done.order,
+    ...(metaPurchase ? { metaPurchase } : {}),
+  })
 }

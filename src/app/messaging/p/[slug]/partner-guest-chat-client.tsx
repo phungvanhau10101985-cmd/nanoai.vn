@@ -43,6 +43,11 @@ import {
   CustomerCareMessageBody,
   type OrderPaymentProofSlot,
 } from '@/components/messaging/customer-care-message-body'
+import type { MetaViewContentClientPayload } from '@/lib/tracking/meta-view-content'
+import { fireMetaBuyNowPixelEvents } from './meta-buy-now-pixel-fire'
+import { fireMetaConsultViewContentPixelEvent } from './meta-view-content-consult-click-pixel-fire'
+import { fireMetaPurchasePixelEvents } from './meta-purchase-pixel-fire'
+import { MetaPixelViewContentTracker } from './meta-pixel-view-content-tracker'
 import { GuestWidgetOrderDetailDialog } from '@/components/messaging/guest-widget-order-detail-dialog'
 import { GuestWidgetMyOrdersDialog } from '@/components/messaging/guest-widget-my-orders-dialog'
 import { isOpenMyOrdersMessage } from '@/lib/messaging/widget-parent-bridge'
@@ -73,6 +78,7 @@ import {
 } from 'lucide-react'
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
+import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
@@ -327,6 +333,30 @@ function hasWidgetPageContextSeed(pc: WidgetPageContextSeed | null | undefined):
   )
 }
 
+/** Trang shop đôi khi gửi URL .mp4 trong ctx_image (ô video lấy nhầm data-src) — chỉ giữ URL ảnh hợp lệ. */
+function sanitizeWidgetPageContextSeed(raw: WidgetPageContextSeed): WidgetPageContextSeed {
+  const sku = raw.sku?.trim() ? raw.sku.trim().slice(0, 128) : undefined
+  let imageUrl = (raw.imageUrl ?? '').trim()
+  let imageUrl2 = (raw.imageUrl2 ?? '').trim()
+  if (imageUrl && isLikelyVideoOrStreamUrl(imageUrl)) imageUrl = ''
+  if (imageUrl2 && isLikelyVideoOrStreamUrl(imageUrl2)) imageUrl2 = ''
+  if (!imageUrl && imageUrl2) {
+    imageUrl = imageUrl2
+    imageUrl2 = ''
+  }
+  const productUrl = (raw.productUrl ?? '').trim() || undefined
+  const inventoryId = (raw.inventoryId ?? '').trim() || undefined
+  const source = raw.source
+  const out: WidgetPageContextSeed = {}
+  if (sku) out.sku = sku
+  if (imageUrl) out.imageUrl = imageUrl
+  if (imageUrl2) out.imageUrl2 = imageUrl2
+  if (productUrl) out.productUrl = productUrl
+  if (inventoryId) out.inventoryId = inventoryId
+  if (source) out.source = source
+  return out
+}
+
 function buildWidgetPageContextInboundText(pc: WidgetPageContextSeed): string {
   const lines: string[] = []
   if (pc.sku?.trim()) lines.push(`Khách đang xem mã sản phẩm: ${pc.sku.trim()}`)
@@ -371,6 +401,61 @@ function getVisionPickState(raw: Json | null | undefined): {
       ? o.vision_selected_inventory_id.trim()
       : null
   return { required: o.vision_pick_required === true, candidates: out, selectedInventoryId }
+}
+
+/** Xóa query ngữ cảnh SP khỏi URL sau khi đã gửi (tránh lần sau vào lại tự gắn). */
+function stripWidgetPageContextParamsFromBrowserUrl() {
+  if (typeof window === 'undefined') return
+  try {
+    const u = new URL(window.location.href)
+    const keys = ['ctx_sku', 'ctx_image', 'ctx_image_2', 'ctx_product_url', 'ctx_inventory', 'auto_consult']
+    let changed = false
+    for (const k of keys) {
+      if (u.searchParams.has(k)) {
+        u.searchParams.delete(k)
+        changed = true
+      }
+    }
+    if (changed) window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`)
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * SP từ URL đã xuất hiện trong thread gần đây (thẻ shop / gợi ý ảnh / tin khách) — không cần chip gửi lại.
+ */
+function isPageContextRedundantWithRecentThread(
+  pc: WidgetPageContextSeed,
+  messages: GuestMsg[],
+  maxScan = 80
+): boolean {
+  const sku = pc.sku?.trim().toLowerCase() ?? ''
+  const inv = pc.inventoryId?.trim().toLowerCase() ?? ''
+  const puKey = normalizeProductUrlKey(pc.productUrl ?? '')
+  const start = Math.max(0, messages.length - maxScan)
+  for (let i = messages.length - 1; i >= start; i--) {
+    const m = messages[i]!
+    const raw = m.raw_payload ?? null
+    if (m.direction === 'inbound') {
+      const body = (m.body ?? '').toLowerCase()
+      if (sku && (body.includes(`mã sản phẩm: ${sku}`) || body.includes(`sku: ${sku}`))) return true
+      const vision = getVisionPickState(raw)
+      for (const c of vision.candidates) {
+        if (inv && c.inventoryId.toLowerCase() === inv) return true
+        if (sku && (c.sku ?? '').trim().toLowerCase() === sku) return true
+        const cPu = normalizeProductUrlKey(c.product_url ?? '')
+        if (puKey && cPu && cPu === puKey) return true
+      }
+    } else {
+      for (const c of aiProductCardsFromPayload(raw)) {
+        if (inv && (c.inventory_id ?? '').trim().toLowerCase() === inv) return true
+        if (sku && (c.sku ?? '').trim().toLowerCase() === sku) return true
+        if (puKey && normalizeProductUrlKey(c.product_url) === puKey) return true
+      }
+    }
+  }
+  return false
 }
 
 function formatVndPrice(priceHint: string | undefined): string | null {
@@ -922,6 +1007,7 @@ export function PartnerGuestChatClient({
   initialChatList = [],
   guestPurchaseFlow = 'in_chat',
   consultFromInventory,
+  metaViewContent,
 }: {
   slug: string
   shopDisplayName: string
@@ -941,6 +1027,8 @@ export function PartnerGuestChatClient({
     imageUrl?: string
     productUrl?: string
   } | null
+  /** Meta Pixel ViewContent — server đã gửi CAPI; client dedupe bằng `eventId`. */
+  metaViewContent?: MetaViewContentClientPayload | null
 }) {
   const { toast } = useToast()
   const [authReady, setAuthReady] = useState(false)
@@ -1049,8 +1137,15 @@ export function PartnerGuestChatClient({
   const [chatImageLightboxUrl, setChatImageLightboxUrl] = useState<string | null>(null)
   const pageContextRef = useRef<WidgetPageContextSeed | null>(null)
   const contextSeededRef = useRef(false)
-  /** `auto_consult=0|false|no` — chỉ điền ngữ cảnh, không tự gửi tin. */
-  const autoConsultFromUrlDisabledRef = useRef(false)
+  /**
+   * Chỉ khi `true`: gửi `pageContext` (từ ?ctx_* / tu-vân) lên server.
+   * Bật khi khách bấm chip thumbnail, hoặc `auto_consult=1` (tự gửi như trước).
+   */
+  const attachUrlPageContextRef = useRef(false)
+  /** `auto_consult=1|true|yes` — mở chat tự gửi một tin ngữ cảnh SP (hành vi cũ). Mặc định không bật. */
+  const autoConsultFromUrlEnabledRef = useRef(false)
+  /** Hiển thị chip thumbnail «gửi SP đang xem» — đồng bộ ref khi mount; ẩn sau gửi / bỏ qua / đã có trong thread. */
+  const [pendingUrlPageContextChip, setPendingUrlPageContextChip] = useState<WidgetPageContextSeed | null>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const tryOnUserInputRef = useRef<HTMLInputElement>(null)
@@ -1207,9 +1302,9 @@ export function PartnerGuestChatClient({
     const ev = (q.get('embed') || '').trim().toLowerCase()
     const inIframe = window.self !== window.top
     setIsEmbedUi(ev === '1' || ev === 'true' || ev === 'yes' || inIframe)
-    const autoOff = (q.get('auto_consult') || '').trim().toLowerCase()
-    autoConsultFromUrlDisabledRef.current =
-      autoOff === '0' || autoOff === 'false' || autoOff === 'no'
+    const autoOn = (q.get('auto_consult') || '').trim().toLowerCase()
+    autoConsultFromUrlEnabledRef.current =
+      autoOn === '1' || autoOn === 'true' || autoOn === 'yes'
 
     const invBootstrap = (consultFromInventory?.inventoryId ?? '').trim()
     const uuidOk =
@@ -1221,14 +1316,15 @@ export function PartnerGuestChatClient({
       const imageUrlB = (c.imageUrl ?? '').trim()
       const productUrlB = (c.productUrl ?? '').trim()
       const hasAny = Boolean(skuB || imageUrlB || productUrlB || invBootstrap)
-      pageContextRef.current = hasAny
-        ? {
-            ...(skuB ? { sku: skuB.slice(0, 128) } : {}),
-            ...(imageUrlB ? { imageUrl: imageUrlB } : {}),
-            ...(productUrlB ? { productUrl: productUrlB } : {}),
-            inventoryId: invBootstrap,
-          }
-        : null
+      const rawSeed: WidgetPageContextSeed = {
+        ...(skuB ? { sku: skuB.slice(0, 128) } : {}),
+        ...(imageUrlB ? { imageUrl: imageUrlB } : {}),
+        ...(productUrlB ? { productUrl: productUrlB } : {}),
+        inventoryId: invBootstrap,
+      }
+      const next = hasAny ? sanitizeWidgetPageContextSeed(rawSeed) : null
+      pageContextRef.current = hasWidgetPageContextSeed(next) ? next : null
+      setPendingUrlPageContextChip(pageContextRef.current)
     } else {
       const sku = (q.get('ctx_sku') || '').trim()
       const imageUrl = (q.get('ctx_image') || '').trim()
@@ -1239,15 +1335,16 @@ export function PartnerGuestChatClient({
         ? invRaw
         : ''
       const hasAny = Boolean(sku || imageUrl || imageUrl2 || productUrl || inventoryId)
-      pageContextRef.current = hasAny
-        ? {
-            ...(sku ? { sku } : {}),
-            ...(imageUrl ? { imageUrl } : {}),
-            ...(imageUrl2 ? { imageUrl2 } : {}),
-            ...(productUrl ? { productUrl } : {}),
-            ...(inventoryId ? { inventoryId } : {}),
-          }
-        : null
+      const rawSeed: WidgetPageContextSeed = {
+        ...(sku ? { sku } : {}),
+        ...(imageUrl ? { imageUrl } : {}),
+        ...(imageUrl2 ? { imageUrl2 } : {}),
+        ...(productUrl ? { productUrl } : {}),
+        ...(inventoryId ? { inventoryId } : {}),
+      }
+      const next = hasAny ? sanitizeWidgetPageContextSeed(rawSeed) : null
+      pageContextRef.current = hasWidgetPageContextSeed(next) ? next : null
+      setPendingUrlPageContextChip(pageContextRef.current)
     }
     /** Từ email / liên kết chia sẻ: `?order=<uuid>` mở chi tiết đơn trong widget. */
     const orderParam = (q.get('order') || '').trim().toLowerCase()
@@ -1974,6 +2071,66 @@ export function PartnerGuestChatClient({
 
   const openGuestProductOrderFormFromCard = useCallback(
     async (card: PartnerAiProductCard) => {
+      const invForMeta = (card.inventory_id ?? '').trim()
+      if (
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invForMeta) &&
+        typeof window !== 'undefined'
+      ) {
+        void (async () => {
+          try {
+            const res = await fetch(
+              `/api/messaging/guest/${encodeURIComponent(slug)}/meta-commerce`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  inventoryId: invForMeta,
+                  eventSourceUrl: window.location.href.slice(0, 4000),
+                }),
+              }
+            )
+            const data = (await res.json().catch(() => null)) as {
+              ok?: boolean
+              skipped?: boolean
+              pixelId?: string
+              viewContentEventId?: string
+              addToCartEventId?: string
+              content_ids?: string[]
+              content_name?: string
+              content_type?: string
+              currency?: string
+              value?: number
+              remarketing_id?: string
+            } | null
+            if (!data?.ok || data.skipped) return
+            if (
+              data.pixelId &&
+              data.viewContentEventId &&
+              data.addToCartEventId &&
+              Array.isArray(data.content_ids) &&
+              data.content_name &&
+              data.content_type === 'product' &&
+              data.currency === 'VND' &&
+              typeof data.value === 'number'
+            ) {
+              fireMetaBuyNowPixelEvents({
+                pixelId: data.pixelId,
+                viewContentEventId: data.viewContentEventId,
+                addToCartEventId: data.addToCartEventId,
+                content_ids: data.content_ids,
+                content_name: data.content_name,
+                content_type: 'product',
+                currency: 'VND',
+                value: data.value,
+                ...(data.remarketing_id ? { remarketing_id: data.remarketing_id } : {}),
+              })
+            }
+          } catch {
+            // Meta tùy chọn — không chặn mở form đặt hàng
+          }
+        })()
+      }
+
       const productUrl = (card.product_url ?? '').trim()
       if (!/^https?:\/\//i.test(productUrl)) return
       setBuyOptionsOpen(false)
@@ -1985,10 +2142,51 @@ export function PartnerGuestChatClient({
         sku: (card.sku ?? '').trim() || null,
       })
     },
-    [openOrderFormByOption]
+    [openOrderFormByOption, slug]
+  )
+
+  const fireMetaViewContentOnConsultClick = useCallback(
+    (card: PartnerAiProductCard) => {
+      if (typeof window === 'undefined') return
+      const inv = (card.inventory_id ?? '').trim()
+      const productUrl = (card.product_url ?? '').trim()
+      const uuidOk =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv)
+      if (!uuidOk && (!productUrl || !/^https?:\/\//i.test(productUrl))) return
+
+      void (async () => {
+        try {
+          const body: { eventSourcePath: string; inventoryId?: string; productUrl?: string } = {
+            eventSourcePath: `${window.location.pathname}${window.location.search}`.slice(0, 2000),
+          }
+          if (uuidOk) body.inventoryId = inv
+          else body.productUrl = productUrl
+
+          const res = await fetch(
+            `/api/messaging/guest/${encodeURIComponent(slug)}/meta-view-content`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            }
+          )
+          const data = (await res.json().catch(() => null)) as {
+            ok?: boolean
+            skipped?: boolean
+            meta?: MetaViewContentClientPayload
+          } | null
+          if (!data?.ok || data.skipped || !data.meta) return
+          fireMetaConsultViewContentPixelEvent(data.meta)
+        } catch {
+          // Meta tùy chọn — không chặn gửi tin tư vấn
+        }
+      })()
+    },
+    [slug]
   )
 
   const submitProductCardPick = async (card: PartnerAiProductCard, sourceMessageId: string) => {
+    void fireMetaViewContentOnConsultClick(card)
     const latestInboundText = [...messages].reverse().find((m) => m.direction === 'inbound')?.body ?? ''
     const intent = classifyOrderIntent(latestInboundText)
     const label = card.name?.trim() || 'mau san pham'
@@ -2222,6 +2420,18 @@ export function PartnerGuestChatClient({
           payment_qr_url?: string | null
           payment_reference?: string | null
         }
+        metaPurchase?: {
+          pixelId?: string
+          eventId?: string
+          value?: number
+          currency?: string
+          content_ids?: string[]
+          content_type?: string
+          num_items?: number
+          contents?: Array<{ id: string; quantity: number; item_price: number; title?: string }>
+          order_id?: string
+          remarketing_id?: string
+        }
       }
       if (res.status === 401) {
         setUserId(null)
@@ -2231,6 +2441,35 @@ export function PartnerGuestChatClient({
       if (!res.ok) {
         toast({ title: data.error || `Không cập nhật được đơn hàng (mã lỗi ${res.status}).`, variant: 'destructive' })
         return
+      }
+      const mp = data.metaPurchase
+      if (
+        mp?.pixelId &&
+        mp.eventId &&
+        typeof mp.value === 'number' &&
+        mp.currency === 'VND' &&
+        Array.isArray(mp.content_ids) &&
+        mp.content_type === 'product' &&
+        typeof mp.num_items === 'number' &&
+        Array.isArray(mp.contents) &&
+        mp.order_id
+      ) {
+        try {
+          fireMetaPurchasePixelEvents({
+            pixelId: mp.pixelId,
+            eventId: mp.eventId,
+            value: mp.value,
+            currency: 'VND',
+            content_ids: mp.content_ids,
+            content_type: 'product',
+            num_items: mp.num_items,
+            contents: mp.contents,
+            order_id: mp.order_id,
+            ...(mp.remarketing_id ? { remarketing_id: mp.remarketing_id } : {}),
+          })
+        } catch {
+          // Meta tùy chọn
+        }
       }
       saveLocalOrderProfile({
         customerName: orderName,
@@ -2771,12 +3010,12 @@ export function PartnerGuestChatClient({
         return false
       }
       const pcSeed = pageContextRef.current
-      if (
-        !trimmed &&
-        !imageStoragePath &&
-        !hasWidgetPageContextSeed(pcSeed)
-      ) {
-        return false
+      const hasSeed = hasWidgetPageContextSeed(pcSeed)
+      const shouldAttachPageContext =
+        !contextSeededRef.current && hasSeed && attachUrlPageContextRef.current
+      if (!trimmed && !imageStoragePath) {
+        if (!hasSeed) return false
+        if (!attachUrlPageContextRef.current) return false
       }
       if (trimmed) {
         // Customer continues with normal consultation instead of choosing from buy rail.
@@ -2786,9 +3025,7 @@ export function PartnerGuestChatClient({
       setSending(true)
       try {
         const seedText =
-          !contextSeededRef.current && hasWidgetPageContextSeed(pcSeed)
-            ? buildWidgetPageContextInboundText(pcSeed!)
-            : ''
+          shouldAttachPageContext && pcSeed ? buildWidgetPageContextInboundText(pcSeed) : ''
         const textOut = trimmed || seedText || undefined
         const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
           method: 'POST',
@@ -2801,21 +3038,18 @@ export function PartnerGuestChatClient({
             landingSourceUrl:
               typeof window !== 'undefined' ? window.location.href.slice(0, 4000) : undefined,
             pageContext:
-              !contextSeededRef.current && hasWidgetPageContextSeed(pcSeed)
+              shouldAttachPageContext && pcSeed
                 ? (() => {
-                    const fromCard = pcSeed?.source === 'product_card_consult'
-                    const ctxImg = (pcSeed?.imageUrl ?? '').trim()
-                    const ctxImg2 = (pcSeed?.imageUrl2 ?? '').trim()
+                    const ctxImg = (pcSeed.imageUrl ?? '').trim()
+                    const ctxImg2 = (pcSeed.imageUrl2 ?? '').trim()
+                    const pu = (pcSeed.productUrl ?? '').trim()
                     return {
-                      sku: pcSeed?.sku,
-                      inventoryId: pcSeed?.inventoryId,
-                      /** Gửi kèm: server ưu tiên ảnh kho → `ctx_image_2` → `ctx_image`. */
+                      sku: pcSeed.sku,
+                      inventoryId: pcSeed.inventoryId,
                       ...(ctxImg ? { imageUrl: ctxImg } : {}),
                       ...(ctxImg2 ? { imageUrl2: ctxImg2 } : {}),
-                      ...(fromCard && pcSeed?.productUrl?.trim()
-                        ? { productUrl: pcSeed.productUrl }
-                        : {}),
-                      source: fromCard ? 'product_card_consult' : 'widget_page',
+                      ...(pu ? { productUrl: pu } : {}),
+                      source: 'widget_page',
                     }
                   })()
                 : undefined,
@@ -2859,7 +3093,19 @@ export function PartnerGuestChatClient({
           return false
         }
         clearAttachment()
-        if (pageContextRef.current) contextSeededRef.current = true
+        attachUrlPageContextRef.current = false
+        if (hasSeed) {
+          if (!shouldAttachPageContext) {
+            pageContextRef.current = null
+          }
+          setPendingUrlPageContextChip(null)
+          contextSeededRef.current = true
+        } else if (pageContextRef.current) {
+          contextSeededRef.current = true
+        }
+        if (shouldAttachPageContext) {
+          stripWidgetPageContextParamsFromBrowserUrl()
+        }
         if (data.authMode === 'account') {
           setAuthMode('account')
           setAuthGateRequired(false)
@@ -2912,15 +3158,26 @@ export function PartnerGuestChatClient({
     ]
   )
 
+  /** SP từ URL đã có trong hội thoại gần đây — ẩn chip, không gửi trùng. */
+  useEffect(() => {
+    if (!hasLoadedOnce) return
+    if (!pendingUrlPageContextChip) return
+    if (!hasWidgetPageContextSeed(pendingUrlPageContextChip)) return
+    if (!isPageContextRedundantWithRecentThread(pendingUrlPageContextChip, messages)) return
+    pageContextRef.current = null
+    setPendingUrlPageContextChip(null)
+    contextSeededRef.current = true
+  }, [hasLoadedOnce, messages, pendingUrlPageContextChip])
+
   /**
-   * Ngữ cảnh SP: `/messaging/p/{slug}/tu-van/{uuid}` (props) hoặc
-   * `...?ctx_product_url=&ctx_image=&ctx_sku=&ctx_inventory=` — tự gửi tin tư vấn.
-   * `auto_consult=0` — chỉ đổ ngữ cảnh, không tự gửi.
+   * Ngữ cảnh SP: `/messaging/p/{slug}/tu-van/{uuid}` hoặc `?ctx_*=`.
+   * Mặc định không tự gửi — khách bấm chip hoặc gõ tin (bỏ qua ngữ cảnh).
+   * `auto_consult=1` — tự gửi một tin ngữ cảnh như trước (nhúng website cũ).
    */
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (!hasLoadedOnce || !authReady) return
-    if (autoConsultFromUrlDisabledRef.current) return
+    if (!autoConsultFromUrlEnabledRef.current) return
     if (contextSeededRef.current) return
     const pc = pageContextRef.current
     if (!hasWidgetPageContextSeed(pc)) return
@@ -2942,6 +3199,7 @@ export function PartnerGuestChatClient({
     }
     let cancelled = false
     void (async () => {
+      attachUrlPageContextRef.current = true
       const ok = await submitGuestMessage('')
       if (cancelled) {
         try {
@@ -2957,21 +3215,6 @@ export function PartnerGuestChatClient({
         } else {
           window.sessionStorage.removeItem(storageKey)
         }
-      } catch {
-        /* ignore */
-      }
-      if (!ok) return
-      try {
-        const u = new URL(window.location.href)
-        const keys = ['ctx_sku', 'ctx_image', 'ctx_image_2', 'ctx_product_url', 'ctx_inventory', 'auto_consult']
-        let changed = false
-        for (const k of keys) {
-          if (u.searchParams.has(k)) {
-            u.searchParams.delete(k)
-            changed = true
-          }
-        }
-        if (changed) window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`)
       } catch {
         /* ignore */
       }
@@ -3243,9 +3486,12 @@ export function PartnerGuestChatClient({
 
   if (!authReady) {
     return (
-      <div className="flex w-full max-w-lg justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden />
-      </div>
+      <>
+        {metaViewContent ? <MetaPixelViewContentTracker payload={metaViewContent} /> : null}
+        <div className="flex w-full max-w-lg justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden />
+        </div>
+      </>
     )
   }
 
@@ -3637,6 +3883,7 @@ export function PartnerGuestChatClient({
                                                 name: c.name,
                                                 image_url: c.image_url,
                                                 product_url: puVision.trim(),
+                                                inventory_id: c.inventoryId,
                                                 ...(c.price_hint && String(c.price_hint).trim()
                                                   ? { price_hint: String(c.price_hint).trim() }
                                                   : {}),
@@ -4086,6 +4333,75 @@ export function PartnerGuestChatClient({
               onChange={onPickCamera}
             />
 
+            {pendingUrlPageContextChip && hasWidgetPageContextSeed(pendingUrlPageContextChip) ? (
+              <div className="relative w-full max-w-full rounded-xl border border-violet-200/80 bg-violet-50/90 shadow-sm dark:border-violet-800/60 dark:bg-violet-950/40">
+                <button
+                  type="button"
+                  className="absolute right-1 top-1 z-10 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background/90 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 dark:hover:bg-violet-900/60"
+                  aria-label={t.urlProductContextChipDismissAria}
+                  title={t.urlProductContextChipDismissAria}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    pageContextRef.current = null
+                    setPendingUrlPageContextChip(null)
+                    contextSeededRef.current = true
+                  }}
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    sending ||
+                    uploading ||
+                    tryOnBusy ||
+                    (authGateRequired && authMode !== 'account')
+                  }
+                  className="flex w-full max-w-full items-center gap-3 px-3 py-2.5 pr-11 text-left transition-colors hover:bg-violet-100/90 disabled:pointer-events-none disabled:opacity-60 dark:hover:bg-violet-900/45"
+                  aria-label={t.urlProductContextChipAria}
+                  title={t.urlProductContextChipAria}
+                  onClick={() => {
+                    if (sending) return
+                    attachUrlPageContextRef.current = true
+                    enqueueGuestSend(async () => {
+                      await submitGuestMessage('')
+                    })
+                  }}
+                >
+                  <span className="relative flex h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-background shadow-sm">
+                    {(() => {
+                      const u = (pendingUrlPageContextChip.imageUrl ?? '').trim()
+                      const u2 = (pendingUrlPageContextChip.imageUrl2 ?? '').trim()
+                      const pick =
+                        u && /^https?:\/\//i.test(u) && !isLikelyVideoOrStreamUrl(u)
+                          ? u
+                          : u2 && /^https?:\/\//i.test(u2) && !isLikelyVideoOrStreamUrl(u2)
+                            ? u2
+                            : ''
+                      return pick ? (
+                        <Image
+                          src={pick}
+                          alt=""
+                          width={48}
+                          height={48}
+                          unoptimized
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center text-muted-foreground">
+                          <Package className="h-6 w-6" aria-hidden />
+                        </span>
+                      )
+                    })()}
+                  </span>
+                  <span className="min-w-0 flex-1 text-[15px] font-medium leading-snug text-foreground sm:text-base">
+                    {t.urlProductContextChipLabel}
+                  </span>
+                </button>
+              </div>
+            ) : null}
+
             <div className="space-y-1.5 rounded-xl border-2 border-border bg-background p-1.5">
               {imagePreviewUrl ? (
                 <div className="flex items-center gap-2 overflow-hidden rounded-xl border bg-muted/30 p-1.5">
@@ -4431,7 +4747,9 @@ export function PartnerGuestChatClient({
   )
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-background sm:bg-muted/20">
+    <>
+      {metaViewContent ? <MetaPixelViewContentTracker payload={metaViewContent} /> : null}
+      <div className="h-[100dvh] w-full overflow-hidden bg-background sm:bg-muted/20">
       <div className="mx-auto grid h-full w-full max-w-[1800px] grid-cols-1 gap-3 px-2 py-2 sm:px-3 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
         <aside className="hidden min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm lg:flex">
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3 [scrollbar-width:thin]">
@@ -4818,5 +5136,6 @@ export function PartnerGuestChatClient({
         embedUi={isEmbedUi || guestInIframe}
       />
     </div>
+    </>
   )
 }

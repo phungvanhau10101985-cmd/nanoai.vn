@@ -58,6 +58,7 @@ import {
   fetchMessagingPartnerEmbedKeyForOwnerFromPg,
   fetchMessagingPartnersByOwnerFromPg,
   insertMessagingPartnerForOwnerFromPg,
+  updateMessagingPartnerFacebookMetaForOwnerFromPg,
   updateMessagingPartnerProfileForOwnerFromPg,
 } from '@/lib/db/messaging-partners-pg'
 import {
@@ -394,6 +395,52 @@ export async function updateMessagingWorkspaceProfile(input: {
   if (!updated) return { error: 'Không cập nhật được thông tin workspace.' }
   revalidateMessagingDashboard()
   return { partner: updated }
+}
+
+export async function getPartnerMessagingFacebookMeta(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  try {
+    const row = await pgQueryOne<{ pixel: string | null; capi_set: boolean }>(
+      `select nullif(trim(coalesce(facebook_pixel_id, '')), '') as pixel,
+              (facebook_capi_access_token is not null and length(trim(coalesce(facebook_capi_access_token, ''))) > 0) as capi_set
+       from public.messaging_partners where id = $1::uuid and owner_user_id = $2::uuid limit 1`,
+      [partnerId, user.id]
+    )
+    return {
+      pixelId: row?.pixel ?? null,
+      capiConfigured: row?.capi_set ?? false,
+    }
+  } catch (e) {
+    console.warn('[getPartnerMessagingFacebookMeta]', e)
+    return { error: 'Không đọc được cài đặt Meta Pixel.' }
+  }
+}
+
+export async function savePartnerMessagingFacebookMeta(partnerId: string, input: { pixelId: string; capiToken: string }) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const pixel = input.pixelId.trim()
+  const capiTok = input.capiToken.trim()
+  const updateCapi = capiTok.length > 0
+  const ok = await updateMessagingPartnerFacebookMetaForOwnerFromPg({
+    partner_id: partnerId,
+    owner_user_id: user.id,
+    facebook_pixel_id: pixel || null,
+    update_capi_token: updateCapi,
+    facebook_capi_access_token: updateCapi ? capiTok : null,
+  })
+  if (!ok) return { error: 'Không lưu được Pixel / Conversions API.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
 }
 
 export async function getMessagingWorkspacePaymentSettings(partnerId: string) {

@@ -43,6 +43,7 @@ import {
 import type { PartnerAiWidgetIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { partnerAiMessageAloneSuggestsClarifyIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
+import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
 const ANONYMOUS_INBOUND_AUTH_THRESHOLD = 5
 type GuestVisionCandidatePayload = {
   inventoryId: string
@@ -94,10 +95,20 @@ export async function postWidgetGuestMessage(params: {
     typeof params.pageContext?.sku === 'string' ? params.pageContext.sku.trim().slice(0, 128) : ''
   const pageContextImageUrlRaw =
     typeof params.pageContext?.imageUrl === 'string' ? params.pageContext.imageUrl.trim() : ''
-  const pageContextImageUrl = /^https?:\/\//i.test(pageContextImageUrlRaw) ? pageContextImageUrlRaw : ''
   const pageContextImageUrl2Raw =
     typeof params.pageContext?.imageUrl2 === 'string' ? params.pageContext.imageUrl2.trim() : ''
-  const pageContextImageUrl2 = /^https?:\/\//i.test(pageContextImageUrl2Raw) ? pageContextImageUrl2Raw : ''
+  let pageContextImageUrl =
+    /^https?:\/\//i.test(pageContextImageUrlRaw) && !isLikelyVideoOrStreamUrl(pageContextImageUrlRaw)
+      ? pageContextImageUrlRaw
+      : ''
+  let pageContextImageUrl2 =
+    /^https?:\/\//i.test(pageContextImageUrl2Raw) && !isLikelyVideoOrStreamUrl(pageContextImageUrl2Raw)
+      ? pageContextImageUrl2Raw
+      : ''
+  if (!pageContextImageUrl && pageContextImageUrl2) {
+    pageContextImageUrl = pageContextImageUrl2
+    pageContextImageUrl2 = ''
+  }
 
   const pageContextProductUrlRaw =
     typeof params.pageContext?.productUrl === 'string' ? params.pageContext.productUrl.trim() : ''

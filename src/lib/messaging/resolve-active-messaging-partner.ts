@@ -8,6 +8,8 @@ export type ActiveMessagingPartner = {
   embed_key: string
   /** URL logo shop — hiển thị tròn (crop góc vuông). */
   logo_url: string | null
+  /** Meta Pixel ID — fbq trên trang tư vấn (không bí mật). */
+  facebook_pixel_id: string | null
 }
 
 /**
@@ -27,5 +29,6 @@ export async function resolveActiveMessagingPartnerBySlug(slug: string): Promise
     display_name: fromPg.display_name,
     embed_key: fromPg.embed_key,
     logo_url: fromPg.logo_url,
+    facebook_pixel_id: fromPg.facebook_pixel_id?.trim() || null,
   }
 }

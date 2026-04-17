@@ -1,11 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { Copy } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { AlertCircle, Check, Copy } from 'lucide-react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useToast } from '@/hooks/use-toast'
 import type { PartnerDevIntegrationStrings } from '@/lib/integration/partner-dev-integration-copy'
 
 /** Giới hạn tối đa «Cách đáy» (px) trong form — script vẫn clamp cùng giá trị. */
@@ -39,15 +38,22 @@ function CodeBlock({
   copySuccessMessage?: string
   copyErrorMessage?: string
 }) {
-  const { toast } = useToast()
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'ok' | 'err'>('idle')
   const showToolbar = Boolean(title || copyButtonLabel)
+
+  useEffect(() => {
+    if (copyStatus === 'idle') return
+    const ms = copyStatus === 'ok' ? 2200 : 3200
+    const id = window.setTimeout(() => setCopyStatus('idle'), ms)
+    return () => window.clearTimeout(id)
+  }, [copyStatus])
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(children)
-      if (copySuccessMessage) toast({ title: copySuccessMessage })
+      if (copySuccessMessage) setCopyStatus('ok')
     } catch {
-      if (copyErrorMessage) toast({ title: copyErrorMessage, variant: 'destructive' })
+      if (copyErrorMessage) setCopyStatus('err')
     }
   }
 
@@ -63,13 +69,32 @@ function CodeBlock({
           {copyButtonLabel ? (
             <Button
               type="button"
-              variant="outline"
+              variant={copyStatus === 'ok' ? 'default' : 'outline'}
               size="sm"
-              className="h-8 shrink-0 gap-1.5 px-2 text-[11px]"
+              className={`h-auto min-h-8 max-w-[min(100%,20rem)] shrink-0 gap-1.5 whitespace-normal px-2 py-1.5 text-left text-[11px] leading-snug sm:max-w-xs sm:text-right ${
+                copyStatus === 'ok'
+                  ? 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-600/90 dark:border-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-700/90'
+                  : copyStatus === 'err'
+                    ? 'border-destructive/70 bg-destructive/10 text-destructive hover:bg-destructive/15 dark:hover:bg-destructive/20'
+                    : ''
+              }`}
               onClick={() => void handleCopy()}
+              aria-live="polite"
             >
-              <Copy className="h-3.5 w-3.5" aria-hidden />
-              {copyButtonLabel}
+              {copyStatus === 'ok' ? (
+                <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              ) : copyStatus === 'err' ? (
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              ) : (
+                <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              )}
+              <span className="min-w-0">
+                {copyStatus === 'ok' && copySuccessMessage
+                  ? copySuccessMessage
+                  : copyStatus === 'err' && copyErrorMessage
+                    ? copyErrorMessage
+                    : copyButtonLabel}
+              </span>
             </Button>
           ) : null}
         </div>

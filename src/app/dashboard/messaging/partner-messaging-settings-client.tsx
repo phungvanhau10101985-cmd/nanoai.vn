@@ -27,6 +27,8 @@ import {
   savePartnerZaloChannel,
   setMessagingWorkspaceActiveLogo,
   updateMessagingWorkspaceProfile,
+  getPartnerMessagingFacebookMeta,
+  savePartnerMessagingFacebookMeta,
 } from '@/app/dashboard/messaging/actions'
 import {
   Dialog,
@@ -45,6 +47,7 @@ import {
   Plug,
   RefreshCw,
   Share2,
+  LineChart,
   Trash2,
   Upload,
 } from 'lucide-react'
@@ -175,6 +178,9 @@ export function PartnerMessagingSettingsClient({
   const [paymentSePayWebhookToken, setPaymentSePayWebhookToken] = useState('')
   const [paymentSePaySecretKey, setPaymentSePaySecretKey] = useState('')
   const [paymentSePayWebhookUrl, setPaymentSePayWebhookUrl] = useState('')
+  const [metaPixelId, setMetaPixelId] = useState('')
+  const [metaCapiToken, setMetaCapiToken] = useState('')
+  const [metaCapiConfigured, setMetaCapiConfigured] = useState(false)
   const [paymentAutoSaveStatus, setPaymentAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const paymentHydratingRef = useRef(false)
   const paymentLastSavedSnapshotRef = useRef('')
@@ -262,7 +268,22 @@ export function PartnerMessagingSettingsClient({
     setWorkspaceBrandName(cur.brand_name || cur.display_name || '')
     setWorkspaceIndustry(cur.industry_key || 'fashion')
     setWorkspaceLogoUrl(cur.logo_url || '')
+    setMetaPixelId((cur.facebook_pixel_id ?? '').trim())
+    setMetaCapiToken('')
   }, [partners, selectedPartnerId])
+
+  useEffect(() => {
+    if (!selectedPartnerId) {
+      setMetaCapiConfigured(false)
+      return
+    }
+    void (async () => {
+      const res = await getPartnerMessagingFacebookMeta(selectedPartnerId)
+      if ('error' in res && res.error) return
+      if ('capiConfigured' in res) setMetaCapiConfigured(Boolean(res.capiConfigured))
+      if ('pixelId' in res) setMetaPixelId((res.pixelId ?? '').trim())
+    })()
+  }, [selectedPartnerId])
 
   const loadPaymentSettings = useCallback(() => {
     if (!selectedPartnerId) return
@@ -617,6 +638,25 @@ export function PartnerMessagingSettingsClient({
       }
       toast({ title: t.saveOk })
       loadChannelStatus()
+    })
+  }
+
+  const saveMetaConsult = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await savePartnerMessagingFacebookMeta(selectedPartnerId, {
+        pixelId: metaPixelId,
+        capiToken: metaCapiToken,
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      setMetaCapiToken('')
+      const snap = await getPartnerMessagingFacebookMeta(selectedPartnerId)
+      if ('capiConfigured' in snap) setMetaCapiConfigured(Boolean(snap.capiConfigured))
+      toast({ title: t.saveOk })
+      router.refresh()
     })
   }
 
@@ -1246,6 +1286,56 @@ export function PartnerMessagingSettingsClient({
               </div>
             </CardContent>
           </Card>
+          </SettingsBlock>
+
+          <SettingsBlock
+            id="messaging-meta-consult"
+            icon={LineChart}
+            title={t.metaConsultTrackingSection}
+            description={t.metaConsultTrackingHint}
+          >
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Meta Pixel &amp; CAPI</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.facebookPixelLabel}</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={metaPixelId}
+                    onChange={(e) => setMetaPixelId(e.target.value)}
+                    placeholder={t.facebookPixelPlaceholder}
+                    inputMode="numeric"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Label className="text-xs font-medium">{t.metaConsultCapiTokenLabel}</Label>
+                    {metaCapiConfigured ? (
+                      <span className="rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-900 dark:text-emerald-100">
+                        {t.metaConsultCapiConfiguredBadge}
+                      </span>
+                    ) : null}
+                  </div>
+                  <Input
+                    className="h-9 text-sm"
+                    value={metaCapiToken}
+                    onChange={(e) => setMetaCapiToken(e.target.value)}
+                    placeholder={t.metaConsultCapiTokenPlaceholder}
+                    type="password"
+                    autoComplete="new-password"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    {metaCapiConfigured ? t.metaConsultCapiSavedHint : t.credentialsKeepHint}
+                  </p>
+                </div>
+                <Button type="button" size="sm" onClick={saveMetaConsult} disabled={pending || !selectedPartnerId}>
+                  {t.metaConsultSaveButton}
+                </Button>
+              </CardContent>
+            </Card>
           </SettingsBlock>
 
           <SettingsBlock

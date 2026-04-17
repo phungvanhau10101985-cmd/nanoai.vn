@@ -200,6 +200,8 @@ export interface Database {
           is_active: boolean
           purge_at: string | null
           deletion_requested_at: string | null
+          facebook_pixel_id: string | null
+          facebook_capi_access_token: string | null
           created_at: string
           updated_at: string
         }
@@ -215,6 +217,8 @@ export interface Database {
           is_active?: boolean
           purge_at?: string | null
           deletion_requested_at?: string | null
+          facebook_pixel_id?: string | null
+          facebook_capi_access_token?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -230,6 +234,8 @@ export interface Database {
           is_active?: boolean
           purge_at?: string | null
           deletion_requested_at?: string | null
+          facebook_pixel_id?: string | null
+          facebook_capi_access_token?: string | null
           created_at?: string
           updated_at?: string
         }

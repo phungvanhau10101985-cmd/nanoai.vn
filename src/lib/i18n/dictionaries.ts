@@ -298,6 +298,15 @@ export type Dictionary = {
     googleTagPlaceholder: string
     facebookPixelLabel: string
     facebookPixelPlaceholder: string
+    /** Meta Pixel + CAPI cho trang tư vấn / link có ctx_inventory */
+    metaConsultTrackingSection: string
+    metaConsultTrackingHint: string
+    metaConsultCapiTokenLabel: string
+    metaConsultCapiTokenPlaceholder: string
+    /** Hiển thị cạnh nhãn khi DB đã có token CAPI */
+    metaConsultCapiConfiguredBadge: string
+    metaConsultCapiSavedHint: string
+    metaConsultSaveButton: string
     nanoaiEmbedCodeLabel: string
     facebookChatEmbedCodeLabel: string
     zaloChatEmbedCodeLabel: string
@@ -884,6 +893,11 @@ export type Dictionary = {
     visionVideoCloseAria: string
     /** Nút mở danh sách sản phẩm đã xem / quan tâm gần đây */
     productShelfButton: string
+    /** Chip tùy chọn: gửi ngữ cảnh SP từ trang (thumbnail) — không tự gửi khi mở chat */
+    urlProductContextChipLabel: string
+    urlProductContextChipAria: string
+    /** Nút X đóng chip — không gửi ngữ cảnh SP từ trang */
+    urlProductContextChipDismissAria: string
     productShelfTitle: string
     productShelfEmpty: string
     /** Nút «Mua» ngắn trên kệ SP (sau khi đã tư vấn) */
@@ -2112,6 +2126,15 @@ const VI_DICTIONARY: Dictionary = {
     googleTagPlaceholder: 'Ví dụ: G-XXXXXXXXXX hoặc GTM-XXXXXXX',
     facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
     facebookPixelPlaceholder: 'Ví dụ: 123456789012345',
+    metaConsultTrackingSection: 'Meta Pixel & Conversions API (tư vấn sản phẩm)',
+    metaConsultTrackingHint:
+      'Khi khách mở link tư vấn từng sản phẩm (trang /tu-van/… hoặc chat có ?ctx_inventory=), hệ thống gửi ViewContent trùng tham số trên Pixel và máy chủ (dedupe bằng event_id).',
+    metaConsultCapiTokenLabel: 'Access token Conversions API (máy chủ)',
+    metaConsultCapiTokenPlaceholder: 'Dán token từ Meta Events Manager',
+    metaConsultCapiConfiguredBadge: 'Đã lưu token',
+    metaConsultCapiSavedHint:
+      'Sau khi lưu, ô này cố ý để trống — không hiển thị lại token vì bảo mật; token vẫn nằm trên máy chủ. Chỉ dán token mới khi muốn thay; để trống nếu chỉ đổi Pixel ID.',
+    metaConsultSaveButton: 'Lưu Pixel & CAPI',
     nanoaiEmbedCodeLabel: 'Mã nhúng chat NanoAI',
     facebookChatEmbedCodeLabel: 'Mã nhúng chat Facebook',
     zaloChatEmbedCodeLabel: 'Mã nhúng chat Zalo',
@@ -2702,6 +2725,10 @@ const VI_DICTIONARY: Dictionary = {
     visionProductVideo: 'Video',
     visionVideoCloseAria: 'Đóng video',
     productShelfButton: 'Sản phẩm',
+    urlProductContextChipLabel: 'Gửi mã SP đang xem',
+    urlProductContextChipAria:
+      'Gửi shop ngữ cảnh sản phẩm trên trang này (mã, ảnh). Bỏ qua nếu bạn nhập tin nhắn khác trước.',
+    urlProductContextChipDismissAria: 'Đóng — không gửi mã sản phẩm đang xem',
     productShelfTitle: 'Sản phẩm bạn quan tâm gần đây',
     productShelfEmpty:
       'Chưa có sản phẩm gợi ý. Xem tin từ shop hoặc gửi ảnh để nhận gợi ý nhé.',
@@ -3925,6 +3952,15 @@ const EN_DICTIONARY: Dictionary = {
     googleTagPlaceholder: 'Example: G-XXXXXXXXXX or GTM-XXXXXXX',
     facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
     facebookPixelPlaceholder: 'Example: 123456789012345',
+    metaConsultTrackingSection: 'Meta Pixel & Conversions API (product consult pages)',
+    metaConsultTrackingHint:
+      'When a guest opens a per-product consult link (/tu-van/… or chat with ?ctx_inventory=), ViewContent is sent on both Pixel and server with matching parameters (deduped via event_id).',
+    metaConsultCapiTokenLabel: 'Conversions API access token (server)',
+    metaConsultCapiTokenPlaceholder: 'Paste token from Meta Events Manager',
+    metaConsultCapiConfiguredBadge: 'Token saved',
+    metaConsultCapiSavedHint:
+      'After saving, this field stays empty on purpose — stored tokens are never shown again. The token remains on the server. Paste a new value only to replace it; leave blank if you only change the Pixel ID.',
+    metaConsultSaveButton: 'Save Pixel & CAPI',
     nanoaiEmbedCodeLabel: 'NanoAI chat embed code',
     facebookChatEmbedCodeLabel: 'Facebook chat embed code',
     zaloChatEmbedCodeLabel: 'Zalo chat embed code',
@@ -4516,6 +4552,10 @@ const EN_DICTIONARY: Dictionary = {
     visionProductVideo: 'Video',
     visionVideoCloseAria: 'Close video',
     productShelfButton: 'Products',
+    urlProductContextChipLabel: 'Send viewed product',
+    urlProductContextChipAria:
+      'Share which product you are viewing on this page with the shop. Skip by typing a message first.',
+    urlProductContextChipDismissAria: 'Dismiss — do not send viewed product context',
     productShelfTitle: 'Products you recently viewed',
     productShelfEmpty: 'No suggested products yet. Read the shop messages or send a photo to get picks.',
     productShelfBuy: 'Buy',
@@ -5739,6 +5779,15 @@ const ZH_DICTIONARY: Dictionary = {
     googleTagPlaceholder: '例如：G-XXXXXXXXXX 或 GTM-XXXXXXX',
     facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
     facebookPixelPlaceholder: '例如：123456789012345',
+    metaConsultTrackingSection: 'Meta Pixel 与转化 API（商品咨询页）',
+    metaConsultTrackingHint:
+      '访客打开单商品咨询链接（/tu-van/… 或带 ?ctx_inventory= 的聊天）时，系统会在 Pixel 与服务器发送一致的 ViewContent（event_id 去重）。',
+    metaConsultCapiTokenLabel: '转化 API 访问令牌（服务器）',
+    metaConsultCapiTokenPlaceholder: '从 Meta Events Manager 粘贴令牌',
+    metaConsultCapiConfiguredBadge: '已保存令牌',
+    metaConsultCapiSavedHint:
+      '保存后输入框会留空（出于安全不再次显示）。令牌仍在服务器。仅在更换令牌时粘贴；若只改 Pixel ID 请留空。',
+    metaConsultSaveButton: '保存 Pixel 与 CAPI',
     nanoaiEmbedCodeLabel: 'NanoAI 聊天嵌入代码',
     facebookChatEmbedCodeLabel: 'Facebook 聊天嵌入代码',
     zaloChatEmbedCodeLabel: 'Zalo 聊天嵌入代码',
@@ -6310,6 +6359,9 @@ const ZH_DICTIONARY: Dictionary = {
     visionProductVideo: '视频',
     visionVideoCloseAria: '关闭视频',
     productShelfButton: '商品',
+    urlProductContextChipLabel: '发送当前商品',
+    urlProductContextChipAria: '将本页正在浏览的商品信息发送给店铺。先输入其他消息则不会附带。',
+    urlProductContextChipDismissAria: '关闭 — 不发送正在浏览的商品',
     productShelfTitle: '您最近关注的商品',
     productShelfEmpty: '暂无推荐。请查看店铺消息或发送图片以获取推荐。',
     productShelfBuy: '购买',
@@ -7491,6 +7543,15 @@ const JA_DICTIONARY: Dictionary = {
     googleTagPlaceholder: '例: G-XXXXXXXXXX または GTM-XXXXXXX',
     facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
     facebookPixelPlaceholder: '例: 123456789012345',
+    metaConsultTrackingSection: 'Meta Pixel と Conversions API（商品相談ページ）',
+    metaConsultTrackingHint:
+      'お客様が商品ごとの相談リンク（/tu-van/… または ?ctx_inventory= 付きチャット）を開くと、Pixel とサーバーに同じ ViewContent を送信します（event_id で重複排除）。',
+    metaConsultCapiTokenLabel: 'Conversions API アクセストークン（サーバー）',
+    metaConsultCapiTokenPlaceholder: 'Meta Events Manager のトークンを貼り付け',
+    metaConsultCapiConfiguredBadge: '保存済み',
+    metaConsultCapiSavedHint:
+      '保存後、フィールドは空のままです（再表示しません）。トークンはサーバーに残ります。差し替えるときだけ貼り付け、Pixel ID だけ変える場合は空のままにしてください。',
+    metaConsultSaveButton: 'Pixel と CAPI を保存',
     nanoaiEmbedCodeLabel: 'NanoAI チャット埋め込みコード',
     facebookChatEmbedCodeLabel: 'Facebook チャット埋め込みコード',
     zaloChatEmbedCodeLabel: 'Zalo チャット埋め込みコード',
@@ -8080,6 +8141,10 @@ const JA_DICTIONARY: Dictionary = {
     visionProductVideo: '動画',
     visionVideoCloseAria: '動画を閉じる',
     productShelfButton: '商品',
+    urlProductContextChipLabel: '閲覧中の商品を送る',
+    urlProductContextChipAria:
+      'このページで見ている商品の文脈（コード・画像）を店舗に送ります。先に別のメッセージを送ると付きません。',
+    urlProductContextChipDismissAria: '閉じる — 閲覧中商品の文脈を送らない',
     productShelfTitle: '最近関心のある商品',
     productShelfEmpty: 'まだおすすめがありません。店舗のメッセージを見るか、写真を送ってください。',
     productShelfBuy: '購入',
@@ -9287,6 +9352,15 @@ const KO_DICTIONARY: Dictionary = {
     googleTagPlaceholder: '예: G-XXXXXXXXXX 또는 GTM-XXXXXXX',
     facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
     facebookPixelPlaceholder: '예: 123456789012345',
+    metaConsultTrackingSection: 'Meta Pixel 및 Conversions API(상품 상담 페이지)',
+    metaConsultTrackingHint:
+      '고객이 상품별 상담 링크(/tu-van/… 또는 ?ctx_inventory= 채팅)를 열면 Pixel과 서버에 동일한 ViewContent를 보냅니다(event_id로 중복 제거).',
+    metaConsultCapiTokenLabel: 'Conversions API 액세스 토큰(서버)',
+    metaConsultCapiTokenPlaceholder: 'Meta Events Manager에서 토큰 붙여넣기',
+    metaConsultCapiConfiguredBadge: '토큰 저장됨',
+    metaConsultCapiSavedHint:
+      '저장 후 입력란은 비워 둡니다(보안상 다시 표시하지 않음). 토큰은 서버에 남아 있습니다. 바꿀 때만 붙여 넣고, Pixel ID만 바꿀 때는 비워 두세요.',
+    metaConsultSaveButton: 'Pixel 및 CAPI 저장',
     nanoaiEmbedCodeLabel: 'NanoAI 채팅 임베드 코드',
     facebookChatEmbedCodeLabel: 'Facebook 채팅 임베드 코드',
     zaloChatEmbedCodeLabel: 'Zalo 채팅 임베드 코드',
@@ -9871,6 +9945,10 @@ const KO_DICTIONARY: Dictionary = {
     visionProductVideo: '동영상',
     visionVideoCloseAria: '동영상 닫기',
     productShelfButton: '상품',
+    urlProductContextChipLabel: '보는 상품 보내기',
+    urlProductContextChipAria:
+      '이 페이지에서 보고 있는 상품 정보를 매장에 보냅니다. 먼저 다른 메시지를 보내면 포함되지 않습니다.',
+    urlProductContextChipDismissAria: '닫기 — 보는 상품 정보 보내지 않음',
     productShelfTitle: '최근 관심 상품',
     productShelfEmpty: '아직 추천이 없습니다. 매장 메시지를 보거나 사진을 보내 주세요.',
     productShelfBuy: '구매',

@@ -265,6 +265,28 @@
       return /^https?:\/\//i.test(t) ? t : ''
     }
 
+    /** `data-src` ô video thường là .mp4; `src` mới là poster JPG — không dùng URL video làm ctx_image. */
+    function isLikelyVideoUrl(u) {
+      var s = String(u || '').trim().toLowerCase()
+      if (!s) return false
+      var pathOnly = s.split(/[?#]/)[0] || s
+      if (/\.(mp4|webm|m3u8|mov|mkv|ogv|ogg|avi)$/i.test(pathOnly)) return true
+      if (/\.(mp4|webm|m3u8)([?&]|$)/i.test(s)) return true
+      return false
+    }
+
+    function pickGalleryImgUrl(img) {
+      var ds = toHttpUrl(img.getAttribute('data-src') || '')
+      var sr = toHttpUrl(img.getAttribute('src') || '')
+      if (ds && isLikelyVideoUrl(ds)) {
+        if (sr && !isLikelyVideoUrl(sr)) return sr
+        return ''
+      }
+      if (sr && !isLikelyVideoUrl(sr)) return sr
+      if (ds && !isLikelyVideoUrl(ds)) return ds
+      return sr || ds
+    }
+
     function pickSkuFromText(raw) {
       var text = String(raw || '').replace(/\s+/g, ' ').trim()
       if (!text) return ''
@@ -292,8 +314,7 @@
         )
         var urls = []
         for (var i = 0; i < imgs.length; i += 1) {
-          var img = imgs[i]
-          var imgUrl = toHttpUrl(img.getAttribute('data-src') || img.getAttribute('src') || '')
+          var imgUrl = pickGalleryImgUrl(imgs[i])
           if (imgUrl && urls.indexOf(imgUrl) === -1) urls.push(imgUrl)
         }
         if (urls[0]) out.imageUrl = urls[0]

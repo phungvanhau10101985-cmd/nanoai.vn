@@ -15,6 +15,7 @@ import { PartnerGuestChatClient } from '../../partner-guest-chat-client'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { fetchGuestPurchaseFlowForPartnerFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
+import { runMetaViewContentForConsultInventoryPage } from '@/lib/tracking/meta-view-content-consult-server'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -137,6 +138,14 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
   const dict = getDictionary(uiLocale)
   const guestPurchaseFlow = await fetchGuestPurchaseFlowForPartnerFromPg(partner.id)
 
+  const metaViewContent = isPgConfigured()
+    ? await runMetaViewContentForConsultInventoryPage({
+        partnerId: partner.id,
+        inventoryRow: row,
+        eventSourcePath: `/messaging/p/${slug}/tu-van/${inventoryId.trim()}`,
+      })
+    : null
+
   const imageUrl = (row.image_url ?? '').trim()
   const productUrl = (row.product_url ?? '').trim()
   const sku = (row.sku ?? '').trim()
@@ -158,6 +167,7 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
           imageUrl: imageUrl || undefined,
           productUrl: productUrl || undefined,
         }}
+        metaViewContent={metaViewContent}
       />
     </>
   )

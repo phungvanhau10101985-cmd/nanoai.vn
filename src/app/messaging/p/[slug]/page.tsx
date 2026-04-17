@@ -14,6 +14,23 @@ import { PartnerGuestChatClient } from './partner-guest-chat-client'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { fetchGuestPurchaseFlowForPartnerFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
+import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { runMetaViewContentForConsultInventoryPage } from '@/lib/tracking/meta-view-content-consult-server'
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function searchParamsToQueryString(sp: Record<string, string | string[] | undefined>): string {
+  const q = new URLSearchParams()
+  for (const [k, raw] of Object.entries(sp)) {
+    if (raw === undefined) continue
+    const v = Array.isArray(raw) ? raw[0] : raw
+    const s = v != null ? String(v).trim() : ''
+    if (s) q.set(k, s)
+  }
+  const t = q.toString()
+  return t ? `?${t}` : ''
+}
 
 const OG_LOCALE: Record<WebLocale, string> = {
   vi: 'vi_VN',
@@ -115,6 +132,19 @@ export default async function PartnerGuestChatPage(props: {
   const dict = getDictionary(uiLocale)
   const guestPurchaseFlow = await fetchGuestPurchaseFlowForPartnerFromPg(partner.id)
 
+  const ctxInventory = firstSearchParam(sp, 'ctx_inventory')
+  let metaViewContent = null
+  if (isPgConfigured() && UUID_RE.test(ctxInventory)) {
+    const inv = await fetchPartnerInventoryRowByIdForPartnerFromPg(partner.id, ctxInventory)
+    if (inv) {
+      metaViewContent = await runMetaViewContentForConsultInventoryPage({
+        partnerId: partner.id,
+        inventoryRow: inv,
+        eventSourcePath: `/messaging/p/${slug}${searchParamsToQueryString(sp)}`,
+      })
+    }
+  }
+
   return (
     <>
       <Toaster />
@@ -126,6 +156,7 @@ export default async function PartnerGuestChatPage(props: {
         orderDetailT={dict.messagingMyOrders}
         initialChatList={chatList}
         guestPurchaseFlow={guestPurchaseFlow}
+        metaViewContent={metaViewContent}
       />
     </>
   )
