@@ -307,6 +307,16 @@ export type Dictionary = {
     metaConsultCapiConfiguredBadge: string
     metaConsultCapiSavedHint: string
     metaConsultSaveButton: string
+    shopGa4MeasurementLabel: string
+    shopGa4MeasurementHint: string
+    shopGa4MeasurementPlaceholder: string
+    shopGa4InvalidIdToast: string
+    shopGa4SaveButton: string
+    /** URL feed CSV cho Meta Commerce / Facebook danh mục sản phẩm */
+    facebookCatalogFeedTitle: string
+    facebookCatalogFeedHint: string
+    facebookCatalogFeedCopyButton: string
+    facebookCatalogFeedCopiedToast: string
     nanoaiEmbedCodeLabel: string
     facebookChatEmbedCodeLabel: string
     zaloChatEmbedCodeLabel: string
@@ -630,6 +640,15 @@ export type Dictionary = {
     inventoryErrFileTooLarge: string
     inventoryErrTooManyRows: string
     inventoryLoadMore: string
+    /** Tìm kho bằng vector (tab Kho) */
+    inventoryVectorSearchPlaceholder: string
+    inventoryVectorSearchHint: string
+    inventoryVectorSearchByText: string
+    inventoryVectorSearchByImage: string
+    inventoryVectorSearchClear: string
+    inventoryVectorSearching: string
+    inventoryVectorSearchFailed: string
+    inventoryVectorSearchNoResults: string
     addInventory: string
     edit: string
     emptyFaq: string
@@ -900,6 +919,14 @@ export type Dictionary = {
     urlProductContextChipDismissAria: string
     productShelfTitle: string
     productShelfEmpty: string
+    /** Tìm trên kệ SP (vector) */
+    productShelfSearchPlaceholder: string
+    productShelfSearchButton: string
+    productShelfSearchImage: string
+    productShelfSearchClear: string
+    productShelfSearching: string
+    productShelfSearchFailed: string
+    productShelfSearchNoResults: string
     /** Nút «Mua» ngắn trên kệ SP (sau khi đã tư vấn) */
     productShelfBuy: string
     /** Toast khi chế độ mua trên web — đã mở tab */
@@ -2135,6 +2162,17 @@ const VI_DICTIONARY: Dictionary = {
     metaConsultCapiSavedHint:
       'Sau khi lưu, ô này cố ý để trống — không hiển thị lại token vì bảo mật; token vẫn nằm trên máy chủ. Chỉ dán token mới khi muốn thay; để trống nếu chỉ đổi Pixel ID.',
     metaConsultSaveButton: 'Lưu Pixel & CAPI',
+    shopGa4MeasurementLabel: 'Mã Google Analytics 4 (GA4)',
+    shopGa4MeasurementHint:
+      'Nhập mã G-… để đo lượt trên trang tư vấn/shop của bạn. Trong GA4 mở Báo cáo → Thời gian thực (Realtime) để xem có bao nhiêu người đang xem.',
+    shopGa4MeasurementPlaceholder: 'Ví dụ: G-XXXXXXXXXX',
+    shopGa4InvalidIdToast: 'Mã GA4 không hợp lệ. Định dạng: G-XXXXXXXXXX',
+    shopGa4SaveButton: 'Lưu mã GA4',
+    facebookCatalogFeedTitle: 'Facebook — link danh mục sản phẩm (CSV)',
+    facebookCatalogFeedHint:
+      'Dán URL này vào Commerce Manager khi chọn «URL hoặc Google Trang tính». CSV gồm sản phẩm đang bật; cột link là trang tư vấn trên NanoAI (không phải link web shop). Cần ảnh URL, giá VND; key = khóa nhúng (giữ bí mật).',
+    facebookCatalogFeedCopyButton: 'Sao chép URL feed',
+    facebookCatalogFeedCopiedToast: 'Đã sao chép URL feed danh mục.',
     nanoaiEmbedCodeLabel: 'Mã nhúng chat NanoAI',
     facebookChatEmbedCodeLabel: 'Mã nhúng chat Facebook',
     zaloChatEmbedCodeLabel: 'Mã nhúng chat Zalo',
@@ -2456,6 +2494,15 @@ const VI_DICTIONARY: Dictionary = {
     inventoryErrFileTooLarge: 'File quá lớn (tối đa ~20 MB).',
     inventoryErrTooManyRows: 'File có quá nhiều dòng. Tối đa {max} dòng mỗi lần import.',
     inventoryLoadMore: 'Tải thêm ({shown}/{total})',
+    inventoryVectorSearchPlaceholder: 'Gõ mô tả (vd áo len, giày da…) — tìm ngữ nghĩa',
+    inventoryVectorSearchHint:
+      'Tìm theo vector văn bản (tên, giá, ghi chú) hoặc ảnh tương tự (vector ảnh). Cần đã «Đồng bộ ngay» và GOOGLE_API_KEY.',
+    inventoryVectorSearchByText: 'Tìm',
+    inventoryVectorSearchByImage: 'Ảnh',
+    inventoryVectorSearchClear: 'Xóa lọc',
+    inventoryVectorSearching: 'Đang tìm…',
+    inventoryVectorSearchFailed: 'Không tìm được. Kiểm tra API key và vector đã đồng bộ.',
+    inventoryVectorSearchNoResults: 'Không có mặt hàng khớp.',
     addInventory: 'Thêm mặt hàng',
     edit: 'Sửa',
     emptyFaq: 'Chọn câu hỏi mẫu bên dưới và chỉ cần nhập cách shop trả lời.',
@@ -2732,6 +2779,13 @@ const VI_DICTIONARY: Dictionary = {
     productShelfTitle: 'Sản phẩm bạn quan tâm gần đây',
     productShelfEmpty:
       'Chưa có sản phẩm gợi ý. Xem tin từ shop hoặc gửi ảnh để nhận gợi ý nhé.',
+    productShelfSearchPlaceholder: 'Tìm trong kho (mô tả, kiểu dáng…)',
+    productShelfSearchButton: 'Tìm',
+    productShelfSearchImage: 'Ảnh',
+    productShelfSearchClear: 'Xóa lọc',
+    productShelfSearching: 'Đang tìm…',
+    productShelfSearchFailed: 'Không tìm được. Thử lại sau khi đồng bộ vector kho.',
+    productShelfSearchNoResults: 'Không có sản phẩm khớp.',
     productShelfBuy: 'Mua',
     purchaseOpenSiteToast: 'Đã mở trang đặt hàng trên website shop trong tab mới.',
     purchaseMissingProductUrlToast: 'Mẫu này chưa có link trang sản phẩm — shop vui lòng thêm URL trong kho.',
@@ -3961,6 +4015,17 @@ const EN_DICTIONARY: Dictionary = {
     metaConsultCapiSavedHint:
       'After saving, this field stays empty on purpose — stored tokens are never shown again. The token remains on the server. Paste a new value only to replace it; leave blank if you only change the Pixel ID.',
     metaConsultSaveButton: 'Save Pixel & CAPI',
+    shopGa4MeasurementLabel: 'Google Analytics 4 (GA4) measurement ID',
+    shopGa4MeasurementHint:
+      'Enter your G-… ID to measure visits to your consult/shop page. In GA4 open Reports → Realtime to see active users.',
+    shopGa4MeasurementPlaceholder: 'Example: G-XXXXXXXXXX',
+    shopGa4InvalidIdToast: 'Invalid GA4 ID. Expected format: G-XXXXXXXXXX',
+    shopGa4SaveButton: 'Save GA4 ID',
+    facebookCatalogFeedTitle: 'Facebook — product catalog feed (CSV)',
+    facebookCatalogFeedHint:
+      'Paste this URL in Commerce Manager (scheduled feed). CSV lists active items; the link column is the NanoAI consult page, not your shop website. Requires image URL and VND price. The key query param is your embed key — keep it private.',
+    facebookCatalogFeedCopyButton: 'Copy feed URL',
+    facebookCatalogFeedCopiedToast: 'Catalog feed URL copied.',
     nanoaiEmbedCodeLabel: 'NanoAI chat embed code',
     facebookChatEmbedCodeLabel: 'Facebook chat embed code',
     zaloChatEmbedCodeLabel: 'Zalo chat embed code',
@@ -4282,6 +4347,15 @@ const EN_DICTIONARY: Dictionary = {
     inventoryErrFileTooLarge: 'File is too large (max ~20 MB).',
     inventoryErrTooManyRows: 'File has too many rows. Maximum {max} rows per import.',
     inventoryLoadMore: 'Load more ({shown}/{total})',
+    inventoryVectorSearchPlaceholder: 'Describe the product (e.g. wool sweater, leather shoes) — semantic search',
+    inventoryVectorSearchHint:
+      'Uses text vectors (name, price, notes) or image similarity (image vectors). Requires “Sync now” and GOOGLE_API_KEY.',
+    inventoryVectorSearchByText: 'Search',
+    inventoryVectorSearchByImage: 'Image',
+    inventoryVectorSearchClear: 'Clear filter',
+    inventoryVectorSearching: 'Searching…',
+    inventoryVectorSearchFailed: 'Search failed. Check API key and embedding sync.',
+    inventoryVectorSearchNoResults: 'No matching items.',
     addInventory: 'Add item',
     edit: 'Edit',
     emptyFaq: 'Pick a preset question below and enter how your shop replies.',
@@ -4558,6 +4632,13 @@ const EN_DICTIONARY: Dictionary = {
     urlProductContextChipDismissAria: 'Dismiss — do not send viewed product context',
     productShelfTitle: 'Products you recently viewed',
     productShelfEmpty: 'No suggested products yet. Read the shop messages or send a photo to get picks.',
+    productShelfSearchPlaceholder: 'Search inventory (style, description…)',
+    productShelfSearchButton: 'Search',
+    productShelfSearchImage: 'Image',
+    productShelfSearchClear: 'Clear',
+    productShelfSearching: 'Searching…',
+    productShelfSearchFailed: 'Search failed. Try again after inventory embeddings sync.',
+    productShelfSearchNoResults: 'No matching products.',
     productShelfBuy: 'Buy',
     purchaseOpenSiteToast: 'Opened the shop product page in a new tab.',
     purchaseMissingProductUrlToast: 'This item has no product URL — add it in inventory.',
@@ -5788,6 +5869,17 @@ const ZH_DICTIONARY: Dictionary = {
     metaConsultCapiSavedHint:
       '保存后输入框会留空（出于安全不再次显示）。令牌仍在服务器。仅在更换令牌时粘贴；若只改 Pixel ID 请留空。',
     metaConsultSaveButton: '保存 Pixel 与 CAPI',
+    shopGa4MeasurementLabel: 'Google Analytics 4 (GA4) 衡量 ID',
+    shopGa4MeasurementHint:
+      '输入 G-… 以统计咨询/店铺页访问。在 GA4 中打开「报告 → 实时」查看当前在线人数。',
+    shopGa4MeasurementPlaceholder: '例如：G-XXXXXXXXXX',
+    shopGa4InvalidIdToast: 'GA4 ID 无效。格式：G-XXXXXXXXXX',
+    shopGa4SaveButton: '保存 GA4 ID',
+    facebookCatalogFeedTitle: 'Facebook — 商品目录 Feed（CSV）',
+    facebookCatalogFeedHint:
+      '在商务管理平台粘贴此 Feed URL。CSV 中 link 列为 NanoAI 咨询页，不是店铺官网。需图片 URL 与越南盾价格。key 为嵌入密钥，请保密。',
+    facebookCatalogFeedCopyButton: '复制 Feed URL',
+    facebookCatalogFeedCopiedToast: '已复制目录 Feed URL。',
     nanoaiEmbedCodeLabel: 'NanoAI 聊天嵌入代码',
     facebookChatEmbedCodeLabel: 'Facebook 聊天嵌入代码',
     zaloChatEmbedCodeLabel: 'Zalo 聊天嵌入代码',
@@ -6097,6 +6189,14 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryErrFileTooLarge: '文件过大（最大约 20 MB）。',
     inventoryErrTooManyRows: '文件行数过多。每次导入最多 {max} 行。',
     inventoryLoadMore: '加载更多（{shown}/{total}）',
+    inventoryVectorSearchPlaceholder: '输入描述（如羊毛衫、皮鞋）— 语义搜索',
+    inventoryVectorSearchHint: '文本向量（名称、价格、备注）或图片相似度。需已同步向量与 GOOGLE_API_KEY。',
+    inventoryVectorSearchByText: '搜索',
+    inventoryVectorSearchByImage: '图片',
+    inventoryVectorSearchClear: '清除筛选',
+    inventoryVectorSearching: '搜索中…',
+    inventoryVectorSearchFailed: '搜索失败。请检查 API 与向量同步。',
+    inventoryVectorSearchNoResults: '没有匹配的商品。',
     addInventory: '添加商品',
     edit: '编辑',
     emptyFaq: '请从下方预设问题中选择，并填写店铺回复内容。',
@@ -6364,6 +6464,13 @@ const ZH_DICTIONARY: Dictionary = {
     urlProductContextChipDismissAria: '关闭 — 不发送正在浏览的商品',
     productShelfTitle: '您最近关注的商品',
     productShelfEmpty: '暂无推荐。请查看店铺消息或发送图片以获取推荐。',
+    productShelfSearchPlaceholder: '搜索库存（款式、描述等）',
+    productShelfSearchButton: '搜索',
+    productShelfSearchImage: '图片',
+    productShelfSearchClear: '清除',
+    productShelfSearching: '搜索中…',
+    productShelfSearchFailed: '搜索失败。请同步库存向量后重试。',
+    productShelfSearchNoResults: '没有匹配的商品。',
     productShelfBuy: '购买',
     purchaseOpenSiteToast: '已在新标签页打开店铺商品页。',
     purchaseMissingProductUrlToast: '该商品缺少商品链接 — 请在库存中填写 URL。',
@@ -7552,6 +7659,17 @@ const JA_DICTIONARY: Dictionary = {
     metaConsultCapiSavedHint:
       '保存後、フィールドは空のままです（再表示しません）。トークンはサーバーに残ります。差し替えるときだけ貼り付け、Pixel ID だけ変える場合は空のままにしてください。',
     metaConsultSaveButton: 'Pixel と CAPI を保存',
+    shopGa4MeasurementLabel: 'Google Analytics 4（GA4）測定 ID',
+    shopGa4MeasurementHint:
+      'G-… を入力すると相談/ショップページの訪問を計測します。GA4 の「レポート → リアルタイム」で現在のユーザー数を確認できます。',
+    shopGa4MeasurementPlaceholder: '例: G-XXXXXXXXXX',
+    shopGa4InvalidIdToast: 'GA4 ID の形式が正しくありません。形式: G-XXXXXXXXXX',
+    shopGa4SaveButton: 'GA4 ID を保存',
+    facebookCatalogFeedTitle: 'Facebook — 商品カタログフィード（CSV）',
+    facebookCatalogFeedHint:
+      'Commerce Manager のデータソース URL に貼り付けます。link は NanoAI の相談ページで、店舗サイトの URL ではありません。画像 URL と VND 価格が必要です。key は埋め込みキーなので秘密にしてください。',
+    facebookCatalogFeedCopyButton: 'フィード URL をコピー',
+    facebookCatalogFeedCopiedToast: 'フィード URL をコピーしました。',
     nanoaiEmbedCodeLabel: 'NanoAI チャット埋め込みコード',
     facebookChatEmbedCodeLabel: 'Facebook チャット埋め込みコード',
     zaloChatEmbedCodeLabel: 'Zalo チャット埋め込みコード',
@@ -7872,6 +7990,15 @@ const JA_DICTIONARY: Dictionary = {
     inventoryErrFileTooLarge: 'ファイルが大きすぎます（最大約20MB）。',
     inventoryErrTooManyRows: '行数が多すぎます。1回のインポートは最大 {max} 行です。',
     inventoryLoadMore: 'さらに読み込む（{shown}/{total}）',
+    inventoryVectorSearchPlaceholder: '説明を入力（例：ニット、革靴）— 意味検索',
+    inventoryVectorSearchHint:
+      'テキストベクトル（名前・価格・メモ）または画像の類似。同期と GOOGLE_API_KEY が必要です。',
+    inventoryVectorSearchByText: '検索',
+    inventoryVectorSearchByImage: '画像',
+    inventoryVectorSearchClear: 'フィルタ解除',
+    inventoryVectorSearching: '検索中…',
+    inventoryVectorSearchFailed: '検索に失敗。API とベクトル同期を確認してください。',
+    inventoryVectorSearchNoResults: '該当する商品がありません。',
     addInventory: '商品を追加',
     edit: '編集',
     emptyFaq: '下のよくある質問から選び、店舗の返信文だけ入力してください。',
@@ -8147,6 +8274,13 @@ const JA_DICTIONARY: Dictionary = {
     urlProductContextChipDismissAria: '閉じる — 閲覧中商品の文脈を送らない',
     productShelfTitle: '最近関心のある商品',
     productShelfEmpty: 'まだおすすめがありません。店舗のメッセージを見るか、写真を送ってください。',
+    productShelfSearchPlaceholder: '在庫を検索（スタイル・説明）',
+    productShelfSearchButton: '検索',
+    productShelfSearchImage: '画像',
+    productShelfSearchClear: '解除',
+    productShelfSearching: '検索中…',
+    productShelfSearchFailed: '検索に失敗。ベクトル同期後に再試行。',
+    productShelfSearchNoResults: '該当する商品がありません。',
     productShelfBuy: '購入',
     purchaseOpenSiteToast: 'ショップの商品ページを新しいタブで開きました。',
     purchaseMissingProductUrlToast: '商品URLがありません。在庫にURLを追加してください。',
@@ -9361,6 +9495,17 @@ const KO_DICTIONARY: Dictionary = {
     metaConsultCapiSavedHint:
       '저장 후 입력란은 비워 둡니다(보안상 다시 표시하지 않음). 토큰은 서버에 남아 있습니다. 바꿀 때만 붙여 넣고, Pixel ID만 바꿀 때는 비워 두세요.',
     metaConsultSaveButton: 'Pixel 및 CAPI 저장',
+    shopGa4MeasurementLabel: 'Google Analytics 4(GA4) 측정 ID',
+    shopGa4MeasurementHint:
+      'G-… ID를 입력하면 상담/샵 페이지 방문을 측정합니다. GA4에서 보고서 → 실시간으로 현재 사용자 수를 확인하세요.',
+    shopGa4MeasurementPlaceholder: '예: G-XXXXXXXXXX',
+    shopGa4InvalidIdToast: 'GA4 ID 형식이 올바르지 않습니다. 형식: G-XXXXXXXXXX',
+    shopGa4SaveButton: 'GA4 ID 저장',
+    facebookCatalogFeedTitle: 'Facebook — 상품 카탈로그 피드(CSV)',
+    facebookCatalogFeedHint:
+      '커머스 관리자 데이터 소스 URL에 붙여 넣습니다. link 열은 NanoAI 상담 페이지이며 쇼핑몰 사이트 링크가 아닙니다. 이미지 URL·VND 가격 필요. key는 임베드 키로 비공개 유지.',
+    facebookCatalogFeedCopyButton: '피드 URL 복사',
+    facebookCatalogFeedCopiedToast: '피드 URL을 복사했습니다.',
     nanoaiEmbedCodeLabel: 'NanoAI 채팅 임베드 코드',
     facebookChatEmbedCodeLabel: 'Facebook 채팅 임베드 코드',
     zaloChatEmbedCodeLabel: 'Zalo 채팅 임베드 코드',
@@ -9676,6 +9821,15 @@ const KO_DICTIONARY: Dictionary = {
     inventoryErrFileTooLarge: '파일이 너무 큽니다(최대 약 20MB).',
     inventoryErrTooManyRows: '행 수가 너무 많습니다. 한 번에 최대 {max}행까지 가져올 수 있습니다.',
     inventoryLoadMore: '더 불러오기 ({shown}/{total})',
+    inventoryVectorSearchPlaceholder: '설명 입력(예: 니트, 가죽 신발) — 의미 검색',
+    inventoryVectorSearchHint:
+      '텍스트 벡터(이름·가격·메모) 또는 이미지 유사도. 동기화와 GOOGLE_API_KEY가 필요합니다.',
+    inventoryVectorSearchByText: '검색',
+    inventoryVectorSearchByImage: '이미지',
+    inventoryVectorSearchClear: '필터 해제',
+    inventoryVectorSearching: '검색 중…',
+    inventoryVectorSearchFailed: '검색 실패. API와 벡터 동기화를 확인하세요.',
+    inventoryVectorSearchNoResults: '일치하는 상품이 없습니다.',
     addInventory: '상품 추가',
     edit: '편집',
     emptyFaq: '아래에서 미리 준비된 질문을 고르고 매장 답변만 입력하세요.',
@@ -9951,6 +10105,13 @@ const KO_DICTIONARY: Dictionary = {
     urlProductContextChipDismissAria: '닫기 — 보는 상품 정보 보내지 않음',
     productShelfTitle: '최근 관심 상품',
     productShelfEmpty: '아직 추천이 없습니다. 매장 메시지를 보거나 사진을 보내 주세요.',
+    productShelfSearchPlaceholder: '재고 검색(스타일·설명)',
+    productShelfSearchButton: '검색',
+    productShelfSearchImage: '이미지',
+    productShelfSearchClear: '필터 해제',
+    productShelfSearching: '검색 중…',
+    productShelfSearchFailed: '검색 실패. 벡터 동기화 후 다시 시도하세요.',
+    productShelfSearchNoResults: '일치하는 상품이 없습니다.',
     productShelfBuy: '구매',
     purchaseOpenSiteToast: '쇼핑몰 상품 페이지를 새 탭에서 열었습니다.',
     purchaseMissingProductUrlToast: '상품 URL이 없습니다. 재고에 URL을 추가하세요.',

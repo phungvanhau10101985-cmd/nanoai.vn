@@ -10,6 +10,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { fetchGuestWidgetUiLocaleForPartnerFromPg } from '@/lib/db/customer-care-pg'
 import { resolveGuestExternalThreadIdFromCookies } from '@/lib/messaging/resolve-guest-external-thread-server'
 import { Toaster } from '@/components/ui/toaster'
+import { PartnerGuestGa4Config } from './partner-guest-ga4-config'
 import { PartnerGuestChatClient } from './partner-guest-chat-client'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
@@ -148,6 +149,7 @@ export default async function PartnerGuestChatPage(props: {
   return (
     <>
       <Toaster />
+      <PartnerGuestGa4Config measurementId={partner.ga4_measurement_id} />
       <PartnerGuestChatClient
         slug={slug}
         shopDisplayName={partner.display_name}

@@ -55,10 +55,15 @@ import {
   upsertZaloOaChannelPg,
 } from '@/lib/db/messaging-partner-channels-pg'
 import {
+  fetchBirthdayPromoForPartnerFromPg,
+  upsertBirthdayPromoForPartnerFromPg,
+} from '@/lib/db/messaging-partner-birthday-promo-pg'
+import {
   fetchMessagingPartnerEmbedKeyForOwnerFromPg,
   fetchMessagingPartnersByOwnerFromPg,
   insertMessagingPartnerForOwnerFromPg,
   updateMessagingPartnerFacebookMetaForOwnerFromPg,
+  updateMessagingPartnerGa4ForOwnerFromPg,
   updateMessagingPartnerProfileForOwnerFromPg,
 } from '@/lib/db/messaging-partners-pg'
 import {
@@ -439,6 +444,27 @@ export async function savePartnerMessagingFacebookMeta(partnerId: string, input:
     facebook_capi_access_token: updateCapi ? capiTok : null,
   })
   if (!ok) return { error: 'Không lưu được Pixel / Conversions API.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function savePartnerMessagingGa4(partnerId: string, measurementId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const raw = measurementId.trim()
+  if (raw && !/^G-[A-Z0-9]+$/i.test(raw)) {
+    return { error: 'INVALID_GA4_ID' as const }
+  }
+  const ok = await updateMessagingPartnerGa4ForOwnerFromPg({
+    partner_id: partnerId,
+    owner_user_id: user.id,
+    ga4_measurement_id: raw || null,
+  })
+  if (!ok) return { error: 'Không lưu được mã GA4.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -2227,6 +2253,51 @@ export async function emergencyDisableVisionForPartner(partnerId: string) {
     return { error: 'Failed to apply emergency Vision disable.' }
   }
 
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function getPartnerBirthdayPromoSettings(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const row = await fetchBirthdayPromoForPartnerFromPg(partnerId)
+  return {
+    settings: row ?? {
+      partner_id: partnerId,
+      enabled: false,
+      discount_percent: 10,
+      offer_days_before_max: 14,
+      offer_days_before_min: 1,
+      updated_at: new Date().toISOString(),
+    },
+  }
+}
+
+export async function savePartnerBirthdayPromoSettings(
+  partnerId: string,
+  input: {
+    enabled: boolean
+    discountPercent: number
+    offerDaysBeforeMax: number
+    offerDaysBeforeMin: number
+  }
+) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const ok = await upsertBirthdayPromoForPartnerFromPg({
+    partnerId,
+    enabled: input.enabled,
+    discountPercent: input.discountPercent,
+    offerDaysBeforeMax: input.offerDaysBeforeMax,
+    offerDaysBeforeMin: input.offerDaysBeforeMin,
+  })
+  if (!ok) return { error: 'Failed to save birthday promo settings.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }

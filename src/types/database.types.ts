@@ -202,6 +202,7 @@ export interface Database {
           deletion_requested_at: string | null
           facebook_pixel_id: string | null
           facebook_capi_access_token: string | null
+          ga4_measurement_id: string | null
           created_at: string
           updated_at: string
         }
@@ -219,6 +220,7 @@ export interface Database {
           deletion_requested_at?: string | null
           facebook_pixel_id?: string | null
           facebook_capi_access_token?: string | null
+          ga4_measurement_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -236,6 +238,7 @@ export interface Database {
           deletion_requested_at?: string | null
           facebook_pixel_id?: string | null
           facebook_capi_access_token?: string | null
+          ga4_measurement_id?: string | null
           created_at?: string
           updated_at?: string
         }

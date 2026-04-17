@@ -68,6 +68,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       partnerId: partner.partnerId,
       recentCards,
       limit: 20,
+      linkedUserId: thread.linkedUserId,
     })
     return NextResponse.json({ ok: true, products: related })
   }
@@ -91,6 +92,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     const options = await getProductPurchaseOptions({
       partnerId: partner.partnerId,
       productUrl,
+      linkedUserId: thread.linkedUserId,
     })
     const profile = sessionEmailNormalized
       ? await getCustomerDeliveryProfile({

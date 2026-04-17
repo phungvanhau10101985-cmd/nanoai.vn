@@ -10,6 +10,8 @@ export type ActiveMessagingPartner = {
   logo_url: string | null
   /** Meta Pixel ID — fbq trên trang tư vấn (không bí mật). */
   facebook_pixel_id: string | null
+  /** GA4 measurement ID — gtag config thứ hai trên trang tư vấn (Realtime trong GA4). */
+  ga4_measurement_id: string | null
 }
 
 /**
@@ -30,5 +32,6 @@ export async function resolveActiveMessagingPartnerBySlug(slug: string): Promise
     embed_key: fromPg.embed_key,
     logo_url: fromPg.logo_url,
     facebook_pixel_id: fromPg.facebook_pixel_id?.trim() || null,
+    ga4_measurement_id: fromPg.ga4_measurement_id?.trim() || null,
   }
 }

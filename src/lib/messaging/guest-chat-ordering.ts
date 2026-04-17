@@ -25,6 +25,7 @@ import {
   fetchPartnerInventoryDefaultForAiFromPg,
   fetchPartnerInventoryRowByProductUrlFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { resolveActiveBirthdayDiscountPercentForLinkedUser } from '@/lib/db/messaging-partner-birthday-promo-pg'
 import { guestImageObjectExists } from '@/lib/messaging/guest-chat-image'
 import { getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 import {
@@ -221,6 +222,15 @@ function deriveUnitPriceFromCard(card: PartnerAiProductCard): number {
   return Math.max(0, fromHint)
 }
 
+/** Giá hiển thị sau giảm CMSN (đồng bộ với đơn nháp). */
+function applyBirthdayDiscountToPriceHint(priceHint: string, pct: number): string {
+  const n = parseVndAmountFromText(priceHint)
+  if (n <= 0) return priceHint
+  const p = Math.max(0, Math.min(100, Math.round(pct)))
+  const d = Math.max(0, Math.round((n * (100 - p)) / 100))
+  return `${new Intl.NumberFormat('vi-VN').format(d)}đ`
+}
+
 function parseSizeJson(raw: string): string[] {
   const t = String(raw ?? '').trim()
   if (!t) return []
@@ -397,11 +407,26 @@ export async function createOrderDraftFromProductPick(input: {
   })
   if (!conv?.conversationId) return { error: 'Không tạo được hội thoại.' }
 
+  const inv = await fetchPartnerInventoryRowByProductUrlFromPg(input.partnerId, input.card.product_url)
+  let baseUnit = deriveUnitPriceFromCard(input.card)
+  const invHint = inv?.price_hint?.trim()
+  if (invHint) {
+    const fromInv = parseVndAmountFromText(invHint)
+    if (fromInv > 0) baseUnit = fromInv
+  }
+  const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
+    input.partnerId,
+    input.linkedUserId ?? null
+  )
+  const unitPrice =
+    bdayPct != null && bdayPct > 0
+      ? Math.max(0, Math.round((baseUnit * (100 - bdayPct)) / 100))
+      : Math.max(0, Math.round(baseUnit))
+
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   const settingsMode = settings?.default_deposit_mode ?? 'percent'
   const depositPercent = clampPercent(settings?.default_deposit_percent ?? 30, 30)
   const depositAmount = normalizeMoney(settings?.default_deposit_amount ?? 0)
-  const unitPrice = deriveUnitPriceFromCard(input.card)
   const subtotal = Math.max(0, Math.round(unitPrice))
   const calc = resolveRequiredAmountByDepositRule({
     subtotal,
@@ -409,7 +434,6 @@ export async function createOrderDraftFromProductPick(input: {
     percent: depositPercent,
     fixedAmount: depositAmount,
   })
-  const inv = await fetchPartnerInventoryRowByProductUrlFromPg(input.partnerId, input.card.product_url)
   const draft = await insertPartnerOrderDraftFromPg({
     partnerId: input.partnerId,
     conversationId: conv.conversationId,
@@ -596,8 +620,15 @@ export async function listRelatedBuyProducts(input: {
   partnerId: string
   recentCards: PartnerAiProductCard[]
   limit?: number
+  linkedUserId?: string | null
 }): Promise<RelatedBuyProduct[]> {
   const lim = Math.max(1, Math.min(20, Math.floor(Number(input.limit) || 20)))
+  const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
+    input.partnerId,
+    input.linkedUserId ?? null
+  )
+  const priceWithBday = (hint: string) =>
+    bdayPct != null && bdayPct > 0 && hint.trim() ? applyBirthdayDiscountToPriceHint(hint, bdayPct) : hint
   const recentDedup: PartnerAiProductCard[] = []
   const seenRecent = new Set<string>()
   for (const c of input.recentCards) {
@@ -629,7 +660,7 @@ export async function listRelatedBuyProducts(input: {
         name: row?.name?.trim() ? row.name : c.name,
         image_url: row?.image_url?.trim() ? row.image_url : c.image_url,
         product_url: row?.product_url?.trim() ? row.product_url : c.product_url,
-        price_hint: row?.price_hint?.trim() ? row.price_hint : c.price_hint ?? '',
+        price_hint: priceWithBday(row?.price_hint?.trim() ? row.price_hint : c.price_hint ?? ''),
         sku: row?.sku ?? null,
         ...(row?.id && String(row.id).trim() ? { inventory_id: String(row.id).trim() } : {}),
       })
@@ -643,7 +674,7 @@ export async function listRelatedBuyProducts(input: {
     name: x.name,
     image_url: x.image_url ?? '',
     product_url: x.product_url ?? '',
-    price_hint: x.price_hint ?? '',
+    price_hint: priceWithBday(x.price_hint ?? ''),
     sku: x.sku ?? null,
     ...(x.id && String(x.id).trim() ? { inventory_id: String(x.id).trim() } : {}),
   }))
@@ -652,6 +683,7 @@ export async function listRelatedBuyProducts(input: {
 export async function getProductPurchaseOptions(input: {
   partnerId: string
   productUrl: string
+  linkedUserId?: string | null
 }): Promise<ProductPurchaseOptions | null> {
   const row = await fetchPartnerInventoryRowByProductUrlFromPg(input.partnerId, input.productUrl)
   if (!row) return null
@@ -659,12 +691,21 @@ export async function getProductPurchaseOptions(input: {
   const mode = settings?.default_deposit_mode ?? 'percent'
   const percent = clampPercent(settings?.default_deposit_percent ?? 30, 30)
   const fixedAmount = normalizeMoney(settings?.default_deposit_amount ?? 0)
+  const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
+    input.partnerId,
+    input.linkedUserId ?? null
+  )
+  const rawHint = row.price_hint ?? ''
+  const priceHint =
+    bdayPct != null && bdayPct > 0 && rawHint.trim()
+      ? applyBirthdayDiscountToPriceHint(rawHint, bdayPct)
+      : rawHint
   return {
     sku: row.sku ?? null,
     name: row.name,
     image_url: row.image_url ?? '',
     product_url: row.product_url ?? '',
-    price_hint: row.price_hint ?? '',
+    price_hint: priceHint,
     sizes: parseSizeJson(row.description),
     colors: parseColorVariantsJson(row.stock_note),
     deposit_policy: {

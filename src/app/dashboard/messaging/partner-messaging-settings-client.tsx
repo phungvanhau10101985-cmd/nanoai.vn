@@ -29,6 +29,7 @@ import {
   updateMessagingWorkspaceProfile,
   getPartnerMessagingFacebookMeta,
   savePartnerMessagingFacebookMeta,
+  savePartnerMessagingGa4,
 } from '@/app/dashboard/messaging/actions'
 import {
   Dialog,
@@ -181,6 +182,7 @@ export function PartnerMessagingSettingsClient({
   const [metaPixelId, setMetaPixelId] = useState('')
   const [metaCapiToken, setMetaCapiToken] = useState('')
   const [metaCapiConfigured, setMetaCapiConfigured] = useState(false)
+  const [shopGa4MeasurementId, setShopGa4MeasurementId] = useState('')
   const [paymentAutoSaveStatus, setPaymentAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const paymentHydratingRef = useRef(false)
   const paymentLastSavedSnapshotRef = useRef('')
@@ -193,6 +195,15 @@ export function PartnerMessagingSettingsClient({
     () => partners.find((p) => p.id === selectedPartnerId) ?? null,
     [partners, selectedPartnerId]
   )
+
+  const facebookCatalogFeedUrl = useMemo(() => {
+    const s = selectedPartner?.slug?.trim()
+    const k = selectedPartner?.embed_key?.trim()
+    if (!s || !k) return ''
+    if (typeof window === 'undefined') return ''
+    const origin = window.location.origin
+    return `${origin}/api/messaging/catalog/${encodeURIComponent(s)}/facebook-feed?key=${encodeURIComponent(k)}`
+  }, [selectedPartner?.slug, selectedPartner?.embed_key])
 
   const setSelectedPartnerAndPersist = useCallback(
     (partnerId: string | null) => {
@@ -270,6 +281,7 @@ export function PartnerMessagingSettingsClient({
     setWorkspaceLogoUrl(cur.logo_url || '')
     setMetaPixelId((cur.facebook_pixel_id ?? '').trim())
     setMetaCapiToken('')
+    setShopGa4MeasurementId((cur.ga4_measurement_id ?? '').trim())
   }, [partners, selectedPartnerId])
 
   useEffect(() => {
@@ -659,6 +671,34 @@ export function PartnerMessagingSettingsClient({
       router.refresh()
     })
   }
+
+  const saveShopGa4 = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await savePartnerMessagingGa4(selectedPartnerId, shopGa4MeasurementId)
+      if ('error' in res && res.error) {
+        if (res.error === 'INVALID_GA4_ID') {
+          toast({ title: t.shopGa4InvalidIdToast, variant: 'destructive' })
+          return
+        }
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      const nextId = shopGa4MeasurementId.trim() || null
+      setPartners((prev) =>
+        prev.map((p) => (p.id === selectedPartnerId ? { ...p, ga4_measurement_id: nextId } : p))
+      )
+      toast({ title: t.saveOk })
+      router.refresh()
+    })
+  }
+
+  const copyFacebookCatalogFeedUrl = useCallback(() => {
+    if (!facebookCatalogFeedUrl) return
+    void navigator.clipboard.writeText(facebookCatalogFeedUrl).then(() => {
+      toast({ title: t.facebookCatalogFeedCopiedToast })
+    })
+  }, [facebookCatalogFeedUrl, t.facebookCatalogFeedCopiedToast, toast])
 
   const paymentSnapshot = useCallback(
     (partnerId: string) =>
@@ -1334,6 +1374,45 @@ export function PartnerMessagingSettingsClient({
                 <Button type="button" size="sm" onClick={saveMetaConsult} disabled={pending || !selectedPartnerId}>
                   {t.metaConsultSaveButton}
                 </Button>
+              </CardContent>
+            </Card>
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Google Analytics 4</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.shopGa4MeasurementLabel}</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={shopGa4MeasurementId}
+                    onChange={(e) => setShopGa4MeasurementId(e.target.value)}
+                    placeholder={t.shopGa4MeasurementPlaceholder}
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t.shopGa4MeasurementHint}</p>
+                </div>
+                <Button type="button" size="sm" onClick={saveShopGa4} disabled={pending || !selectedPartnerId}>
+                  {t.shopGa4SaveButton}
+                </Button>
+              </CardContent>
+            </Card>
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t.facebookCatalogFeedTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{t.facebookCatalogFeedHint}</p>
+                {facebookCatalogFeedUrl ? (
+                  <>
+                    <Input readOnly className="h-9 font-mono text-[11px]" value={facebookCatalogFeedUrl} />
+                    <Button type="button" size="sm" variant="outline" onClick={copyFacebookCatalogFeedUrl}>
+                      {t.facebookCatalogFeedCopyButton}
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">—</p>
+                )}
               </CardContent>
             </Card>
           </SettingsBlock>

@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/messaging-logo-cleanup",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/partner-birthday-promo",
+      "schedule": "15 2 * * *"
     }
   ]
 }

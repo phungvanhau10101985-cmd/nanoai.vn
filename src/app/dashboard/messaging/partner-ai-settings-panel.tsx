@@ -20,39 +20,39 @@ import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
-import type {
-  PartnerInventoryEmbeddingStats,
-  PartnerAiSettingsClientRow,
-  PartnerAiSettingsPayload,
-  PartnerAiTokenUsageStatRowWithCostEstimate,
-  PartnerAiTokenUsageKindStatRow,
-  PartnerAiTokenDailyStatRow,
-  PartnerAiTokenUsageDetailRowWithCostEstimate,
-  PartnerAiImageGenUsageStatRow,
-  OwnerCreditEventSummaryRow,
-  OwnerCreditEventDetailRow,
-  PartnerLogoCreditRow,
-  PartnerImageEmbedUsageDetailRow,
-  PartnerImageEmbedUsageSummaryRow,
-  PartnerTextEmbedUsageDetailRow,
-  PartnerTextEmbedUsageSummaryRow,
-  PartnerAiUsageCostBreakdown,
-} from '@/app/dashboard/messaging/actions'
 import {
   deletePartnerFaq,
   deletePartnerInventoryItem,
   getPartnerAiBundle,
+  getPartnerBirthdayPromoSettings,
+  savePartnerBirthdayPromoSettings,
   getPartnerInventoryEmbeddingStats,
   getPartnerInventoryTextEmbeddingStats,
   triggerPartnerInventoryEmbeddingSync,
   getPartnerInventoryPage,
   getPartnerAiTokenUsageStats,
   getPartnerAiUsageAnalytics,
-  type PartnerAiUsagePeriod,
-  type PartnerAiUsageQuery,
   savePartnerAiSettings,
   upsertPartnerFaq,
   upsertPartnerInventoryItem,
+  type PartnerInventoryEmbeddingStats,
+  type PartnerAiSettingsClientRow,
+  type PartnerAiSettingsPayload,
+  type PartnerAiTokenUsageStatRowWithCostEstimate,
+  type PartnerAiTokenUsageKindStatRow,
+  type PartnerAiTokenDailyStatRow,
+  type PartnerAiTokenUsageDetailRowWithCostEstimate,
+  type PartnerAiImageGenUsageStatRow,
+  type OwnerCreditEventSummaryRow,
+  type OwnerCreditEventDetailRow,
+  type PartnerLogoCreditRow,
+  type PartnerImageEmbedUsageDetailRow,
+  type PartnerImageEmbedUsageSummaryRow,
+  type PartnerTextEmbedUsageDetailRow,
+  type PartnerTextEmbedUsageSummaryRow,
+  type PartnerAiUsageCostBreakdown,
+  type PartnerAiUsagePeriod,
+  type PartnerAiUsageQuery,
 } from '@/app/dashboard/messaging/actions'
 import {
   PARTNER_FAQ_CUSTOM_KEYWORDS_REQUIRED,
@@ -60,7 +60,7 @@ import {
 import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/lib/messaging/build-guest-consult-chat-link'
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
-import { Bot, Copy, Download, FileSpreadsheet, Sparkles, Upload } from 'lucide-react'
+import { Bot, Cake, Copy, Download, FileSpreadsheet, Image as ImageIcon, Search, Sparkles, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
 type AiT = Dictionary['partnerMessagingAi']
@@ -250,6 +250,10 @@ export function PartnerAiSettingsPanel({
   const [embeddingSyncing, setEmbeddingSyncing] = useState(false)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
+  const [bdayEnabled, setBdayEnabled] = useState(false)
+  const [bdayDiscountPct, setBdayDiscountPct] = useState(10)
+  const [bdayDaysMax, setBdayDaysMax] = useState(14)
+  const [bdayDaysMin, setBdayDaysMin] = useState(1)
   const loadSeqRef = useRef(0)
   const autoEmbedSyncStateRef = useRef<{ running: boolean; lastRunAt: number; partnerId: string | null }>({
     running: false,
@@ -329,10 +333,11 @@ export function PartnerAiSettingsPanel({
     setEmbeddingStats(null)
     setTextEmbeddingStats(null)
     return (async () => {
-      const [bundleRes, embeddingRes, textEmbeddingRes] = await Promise.all([
+      const [bundleRes, embeddingRes, textEmbeddingRes, bdayRes] = await Promise.all([
         getPartnerAiBundle(partnerId),
         getPartnerInventoryEmbeddingStats(partnerId),
         getPartnerInventoryTextEmbeddingStats(partnerId),
+        getPartnerBirthdayPromoSettings(partnerId),
       ])
       if (seq !== loadSeqRef.current) return
       const usageQuery: PartnerAiUsageQuery =
@@ -355,6 +360,13 @@ export function PartnerAiSettingsPanel({
         setLoadErr(bundleRes.error)
         toast({ title: t.loadError, description: bundleRes.error, variant: 'destructive' })
         return
+      }
+      if (!('error' in bdayRes) && bdayRes && 'settings' in bdayRes && bdayRes.settings) {
+        const bs = bdayRes.settings
+        setBdayEnabled(Boolean(bs.enabled))
+        setBdayDiscountPct(Math.max(0, Math.min(100, Number(bs.discount_percent) || 10)))
+        setBdayDaysMax(Math.max(1, Math.min(120, Number(bs.offer_days_before_max) || 14)))
+        setBdayDaysMin(Math.max(1, Math.min(120, Number(bs.offer_days_before_min) || 1)))
       }
       if ('settings' in bundleRes) {
         const next = defaultsFromSettings(bundleRes.settings ?? null)
@@ -724,6 +736,96 @@ export function PartnerAiSettingsPanel({
                 }
                 className="resize-y min-h-[96px]"
               />
+            </div>
+
+            <div className="rounded-lg border border-violet-200/80 bg-violet-50/50 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Cake className="h-4 w-4 text-violet-600" aria-hidden />
+                    Chúc mừng sinh nhật — email &amp; ưu đãi
+                  </div>
+                  <p className="text-xs text-muted-foreground max-w-xl">
+                    Gửi email cho khách đã chat, đã đăng nhập (email/Google) và có ngày sinh trên tài khoản, trong
+                    khoảng ngày trước sinh nhật bạn chọn. Trong thời gian đó, giá các sản phẩm trong kho trên chat được
+                    giảm theo % bạn cài — tự động khi đặt qua chat, không cần mã. Email kèm link mở chat và gợi ý sản phẩm
+                    khách đã quan tâm / đặt. Cron chạy hằng ngày (cần SMTP).
+                  </p>
+                </div>
+                <Switch
+                  checked={bdayEnabled}
+                  onCheckedChange={(c) => setBdayEnabled(c)}
+                  disabled={pending || !settingsLoaded}
+                  aria-label="Bật chương trình sinh nhật"
+                />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="bday-pct">Giảm giá (%)</Label>
+                  <Input
+                    id="bday-pct"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={bdayDiscountPct}
+                    onChange={(e) =>
+                      setBdayDiscountPct(Math.max(0, Math.min(100, Math.floor(Number(e.target.value) || 0))))
+                    }
+                    disabled={pending || !settingsLoaded}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="bday-max">Trước SN — từ (ngày)</Label>
+                  <Input
+                    id="bday-max"
+                    type="number"
+                    min={1}
+                    max={120}
+                    title="Số ngày trước sinh nhật — mốc xa (vd 14)"
+                    value={bdayDaysMax}
+                    onChange={(e) => setBdayDaysMax(Math.max(1, Math.min(120, Math.floor(Number(e.target.value) || 14))))}
+                    disabled={pending || !settingsLoaded}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="bday-min">Trước SN — đến (ngày)</Label>
+                  <Input
+                    id="bday-min"
+                    type="number"
+                    min={1}
+                    max={120}
+                    title="Số ngày trước sinh nhật — mốc gần (vd 1 = đến hôm trước sinh nhật)"
+                    value={bdayDaysMin}
+                    onChange={(e) => setBdayDaysMin(Math.max(1, Math.min(120, Math.floor(Number(e.target.value) || 1))))}
+                    disabled={pending || !settingsLoaded}
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={pending || !settingsLoaded}
+                  onClick={() => {
+                    startTransition(async () => {
+                      const res = await savePartnerBirthdayPromoSettings(partnerId, {
+                        enabled: bdayEnabled,
+                        discountPercent: bdayDiscountPct,
+                        offerDaysBeforeMax: bdayDaysMax,
+                        offerDaysBeforeMin: bdayDaysMin,
+                      })
+                      if ('error' in res && res.error) {
+                        toast({ title: res.error, variant: 'destructive' })
+                        return
+                      }
+                      toast({ title: saveOkMessage })
+                    })
+                  }}
+                >
+                  Lưu cài đặt sinh nhật
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -2086,6 +2188,10 @@ function InventoryEditor({
   onLoadMore: () => void
 }) {
   const importInputRef = useRef<HTMLInputElement>(null)
+  const vectorImageInputRef = useRef<HTMLInputElement>(null)
+  const [vectorQuery, setVectorQuery] = useState('')
+  const [vectorSearchRows, setVectorSearchRows] = useState<InvRow[] | null>(null)
+  const [vectorSearchLoading, setVectorSearchLoading] = useState(false)
   const [browserOrigin, setBrowserOrigin] = useState('')
   useEffect(() => {
     if (typeof window !== 'undefined') setBrowserOrigin(window.location.origin)
@@ -2128,6 +2234,76 @@ function InventoryEditor({
   useEffect(() => {
     if (!draft.id) setDraft((d) => ({ ...d, sort_order: rows.length }))
   }, [rows.length, draft.id])
+
+  useEffect(() => {
+    setVectorSearchRows(null)
+    setVectorQuery('')
+  }, [partnerId])
+
+  const displayRows = vectorSearchRows ?? rows
+  const vectorFilterActive = vectorSearchRows !== null
+
+  const runVectorTextSearch = () => {
+    const q = vectorQuery.trim()
+    if (q.length < 2) return
+    setVectorSearchLoading(true)
+    void (async () => {
+      try {
+        const fd = new FormData()
+        fd.set('mode', 'text')
+        fd.set('q', q)
+        const res = await fetch(
+          `/api/messaging/partners/${encodeURIComponent(partnerId)}/inventory/vector-search`,
+          { method: 'POST', body: fd, credentials: 'same-origin' }
+        )
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; rows?: InvRow[]; error?: string } | null
+        if (!res.ok || !data?.ok || !Array.isArray(data.rows)) {
+          toast({ title: t.inventoryVectorSearchFailed, variant: 'destructive' })
+          return
+        }
+        setVectorSearchRows(data.rows)
+      } catch {
+        toast({ title: t.inventoryVectorSearchFailed, variant: 'destructive' })
+      } finally {
+        setVectorSearchLoading(false)
+      }
+    })()
+  }
+
+  const onPickVectorImage = () => vectorImageInputRef.current?.click()
+
+  const onVectorImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !file.size) return
+    setVectorSearchLoading(true)
+    void (async () => {
+      try {
+        const fd = new FormData()
+        fd.set('mode', 'image')
+        fd.set('file', file)
+        const res = await fetch(
+          `/api/messaging/partners/${encodeURIComponent(partnerId)}/inventory/vector-search`,
+          { method: 'POST', body: fd, credentials: 'same-origin' }
+        )
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; rows?: InvRow[]; error?: string } | null
+        if (!res.ok || !data?.ok || !Array.isArray(data.rows)) {
+          toast({ title: t.inventoryVectorSearchFailed, variant: 'destructive' })
+          return
+        }
+        setVectorSearchRows(data.rows)
+      } catch {
+        toast({ title: t.inventoryVectorSearchFailed, variant: 'destructive' })
+      } finally {
+        setVectorSearchLoading(false)
+      }
+    })()
+  }
+
+  const clearVectorSearch = () => {
+    setVectorSearchRows(null)
+    setVectorQuery('')
+  }
 
   const draftGuestConsultFullUrl = useMemo(() => {
     if (!draft.id?.trim() || !partnerChatSlug.trim()) return ''
@@ -2405,9 +2581,74 @@ function InventoryEditor({
           {t.inventoryOpenApiLink}
         </Link>
       </p>
-      {rows.length === 0 ? <p className="text-sm text-muted-foreground">{t.emptyInventory}</p> : null}
+      <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5 space-y-2">
+        <p className="text-[11px] leading-relaxed text-muted-foreground">{t.inventoryVectorSearchHint}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-nowrap">
+            <Input
+              value={vectorQuery}
+              onChange={(e) => setVectorQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  runVectorTextSearch()
+                }
+              }}
+              placeholder={t.inventoryVectorSearchPlaceholder}
+              disabled={vectorSearchLoading || pending || excelBusy}
+              className="min-w-[12rem] flex-1 text-sm"
+              aria-label={t.inventoryVectorSearchPlaceholder}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="gap-1.5 shrink-0"
+              disabled={vectorSearchLoading || pending || excelBusy || vectorQuery.trim().length < 2}
+              onClick={() => runVectorTextSearch()}
+            >
+              {vectorSearchLoading ? (
+                <span className="text-xs">{t.inventoryVectorSearching}</span>
+              ) : (
+                <>
+                  <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  {t.inventoryVectorSearchByText}
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="gap-1.5 shrink-0"
+              disabled={vectorSearchLoading || pending || excelBusy}
+              onClick={() => onPickVectorImage()}
+            >
+              <ImageIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {t.inventoryVectorSearchByImage}
+            </Button>
+            <input
+              ref={vectorImageInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={(ev) => void onVectorImageFile(ev)}
+            />
+          </div>
+          {vectorFilterActive ? (
+            <Button type="button" size="sm" variant="outline" onClick={() => clearVectorSearch()} disabled={pending}>
+              {t.inventoryVectorSearchClear}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      {displayRows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {vectorFilterActive ? t.inventoryVectorSearchNoResults : t.emptyInventory}
+        </p>
+      ) : null}
       <ul className="space-y-2 max-h-[36vh] overflow-y-auto pr-1">
-        {rows.map((r) => (
+        {displayRows.map((r) => (
           <li key={r.id} className="rounded-lg border bg-card p-3 text-sm shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="flex min-w-0 gap-2">
@@ -2506,7 +2747,7 @@ function InventoryEditor({
           </li>
         ))}
       </ul>
-      {hasMore ? (
+      {hasMore && !vectorFilterActive ? (
         <div className="flex justify-center">
           <Button type="button" variant="outline" size="sm" disabled={loadingMore || pending} onClick={onLoadMore}>
             {loadingMore

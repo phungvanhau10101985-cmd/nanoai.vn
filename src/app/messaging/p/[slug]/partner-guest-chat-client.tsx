@@ -16,6 +16,7 @@ import {
 import { createPortal } from 'react-dom'
 import type { ChangeEvent, ClipboardEvent, RefObject } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
@@ -68,7 +69,9 @@ import {
   CheckCircle,
   ChevronDown,
   ImagePlus,
+  Image as LucideImage,
   Loader2,
+  Search,
   MessageSquareText,
   Package,
   Send,
@@ -233,8 +236,10 @@ type RecentProductWithSource = { card: PartnerAiProductCard; sourceMessageId: st
 
 const PRODUCT_SHELF_MAX = 500
 /** Số ô render ban đầu + mỗi lần cuộn tới sentinel (tránh treo DOM khi danh sách dài). */
-const PRODUCT_SHELF_LAZY_INITIAL = 24
-const PRODUCT_SHELF_LAZY_STEP = 24
+const PRODUCT_SHELF_LAZY_INITIAL = 36
+const PRODUCT_SHELF_LAZY_STEP = 36
+/** Sheet portal: thử gắn IntersectionObserver sau khi ref sẵn sàng. */
+const PRODUCT_SHELF_IO_ATTACH_MAX_FRAMES = 48
 
 function shuffleInPlace<T>(arr: T[]): void {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -410,7 +415,16 @@ function stripWidgetPageContextParamsFromBrowserUrl() {
   if (typeof window === 'undefined') return
   try {
     const u = new URL(window.location.href)
-    const keys = ['ctx_sku', 'ctx_image', 'ctx_image_2', 'ctx_product_url', 'ctx_inventory', 'auto_consult']
+    const keys = [
+      'ctx_sku',
+      'ctx_image',
+      'ctx_image_2',
+      'ctx_product_url',
+      'ctx_inventory',
+      'auto_consult',
+      'interested_inv',
+      'bday_discount',
+    ]
     let changed = false
     for (const k of keys) {
       if (u.searchParams.has(k)) {
@@ -477,6 +491,21 @@ function parseVndFromHint(priceHint: string | undefined): number {
   if (!digits) return 0
   const n = Number.parseInt(digits, 10)
   return Number.isFinite(n) ? Math.max(0, n) : 0
+}
+
+function discountVndNumberForBirthday(amount: number, pct: number | null): number {
+  if (pct == null || pct <= 0 || amount <= 0) return amount
+  const p = Math.max(0, Math.min(100, Math.floor(pct)))
+  return Math.max(0, Math.round((amount * (100 - p)) / 100))
+}
+
+/** Giá kệ: giảm CMSN khi shop bật chương trình và khách đang trong cửa sổ ưu đãi (không cần mã). */
+function formatVndPriceWithBirthday(priceHint: string | undefined, pct: number | null): string | null {
+  const base = formatVndPrice(priceHint)
+  if (base == null || pct == null || pct <= 0) return base
+  const n = parseVndFromHint(priceHint)
+  if (n <= 0) return base
+  return `${new Intl.NumberFormat('vi-VN').format(discountVndNumberForBirthday(n, pct))}đ`
 }
 
 function normalizeIntentText(raw: string): string {
@@ -1162,55 +1191,99 @@ export function PartnerGuestChatClient({
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
   const [recentProductsOpen, setRecentProductsOpen] = useState(false)
+  /** SP từ email CMSN / deep link ?interested_inv= */
+  const [birthdayPromoExtraRows, setBirthdayPromoExtraRows] = useState<RecentProductWithSource[]>([])
+  const [birthdayPromoDiscountPct, setBirthdayPromoDiscountPct] = useState<number | null>(null)
   const [productShelfShuffleNonce, setProductShelfShuffleNonce] = useState(0)
   const [productShelfVisibleCount, setProductShelfVisibleCount] = useState(PRODUCT_SHELF_LAZY_INITIAL)
   const productShelfScrollRef = useRef<HTMLDivElement>(null)
   const productShelfSentinelRef = useRef<HTMLDivElement>(null)
+  const productShelfImageInputRef = useRef<HTMLInputElement>(null)
   const prevRecentProductsOpenRef = useRef(false)
+  const [productShelfSearchQuery, setProductShelfSearchQuery] = useState('')
+  const [productShelfVectorRows, setProductShelfVectorRows] = useState<RecentProductWithSource[] | null>(null)
+  const [productShelfSearchLoading, setProductShelfSearchLoading] = useState(false)
 
   const recentProductRows = useMemo(() => {
     void productShelfShuffleNonce
-    const rows = collectAllSuggestedProductsWithSource(messages)
-    shuffleInPlace(rows)
-    return rows
-  }, [messages, productShelfShuffleNonce])
+    const base = collectAllSuggestedProductsWithSource(messages)
+    shuffleInPlace(base)
+    if (birthdayPromoExtraRows.length === 0) return base
+    const seen = new Set(base.map((r) => r.card.product_url.trim().toLowerCase()))
+    const extra = birthdayPromoExtraRows.filter((r) => !seen.has(r.card.product_url.trim().toLowerCase()))
+    return [...extra, ...base]
+  }, [messages, productShelfShuffleNonce, birthdayPromoExtraRows])
+
+  const productShelfDisplayRows = useMemo(() => {
+    if (productShelfVectorRows !== null) return productShelfVectorRows
+    return recentProductRows
+  }, [productShelfVectorRows, recentProductRows])
+
+  const productShelfDisplayLenRef = useRef(0)
+  productShelfDisplayLenRef.current = productShelfDisplayRows.length
 
   useEffect(() => {
     const open = recentProductsOpen
     const prev = prevRecentProductsOpenRef.current
-    if (open && !prev) {
-      setProductShelfVisibleCount(Math.min(PRODUCT_SHELF_LAZY_INITIAL, recentProductRows.length))
-    }
     if (!open && prev) {
       setProductShelfVisibleCount(PRODUCT_SHELF_LAZY_INITIAL)
+      setProductShelfVectorRows(null)
+      setProductShelfSearchQuery('')
     }
     prevRecentProductsOpenRef.current = open
-  }, [recentProductsOpen, recentProductRows.length])
+  }, [recentProductsOpen])
 
+  /** Đồng bộ số ô hiển thị khi danh sách đổi / mở sheet — tránh kẹt 0 ô khi có dữ liệu sau. */
   useEffect(() => {
     if (!recentProductsOpen) return
-    setProductShelfVisibleCount((v) => Math.min(v, recentProductRows.length))
-  }, [recentProductRows.length, recentProductsOpen])
+    const len = productShelfDisplayRows.length
+    setProductShelfVisibleCount((v) => {
+      if (len === 0) return 0
+      const capped = Math.min(v, len)
+      if (capped === 0) return Math.min(PRODUCT_SHELF_LAZY_INITIAL, len)
+      return capped
+    })
+  }, [productShelfDisplayRows.length, recentProductsOpen])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!recentProductsOpen) return
-    const root = productShelfScrollRef.current
-    const sentinel = productShelfSentinelRef.current
-    if (!root || !sentinel) return
-    if (productShelfVisibleCount >= recentProductRows.length) return
+    if (productShelfVisibleCount >= productShelfDisplayRows.length) return
 
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return
-        setProductShelfVisibleCount((v) =>
-          Math.min(v + PRODUCT_SHELF_LAZY_STEP, recentProductRows.length)
-        )
-      },
-      { root, rootMargin: '280px 0px', threshold: 0 }
-    )
-    io.observe(sentinel)
-    return () => io.disconnect()
-  }, [recentProductsOpen, recentProductRows.length, productShelfVisibleCount])
+    let cancelled = false
+    let io: IntersectionObserver | null = null
+    let frames = 0
+
+    const tryAttach = () => {
+      if (cancelled) return
+      frames += 1
+      const root = productShelfScrollRef.current
+      const sentinel = productShelfSentinelRef.current
+      if (!root || !sentinel) {
+        if (frames < PRODUCT_SHELF_IO_ATTACH_MAX_FRAMES) {
+          requestAnimationFrame(tryAttach)
+        }
+        return
+      }
+      io?.disconnect()
+      io = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((e) => e.isIntersecting)) return
+          setProductShelfVisibleCount((v) =>
+            Math.min(v + PRODUCT_SHELF_LAZY_STEP, productShelfDisplayLenRef.current)
+          )
+        },
+        { root, rootMargin: '320px 0px', threshold: 0 }
+      )
+      io.observe(sentinel)
+    }
+
+    requestAnimationFrame(tryAttach)
+
+    return () => {
+      cancelled = true
+      io?.disconnect()
+    }
+  }, [recentProductsOpen, productShelfDisplayRows.length, productShelfVisibleCount])
 
   const { paidDepositOrderIds, sepayWebhookOrderIds } = useMemo(
     () => collectGuestOrderDepositConfirmationSplit(messages),
@@ -1375,6 +1448,78 @@ export function PartnerGuestChatClient({
     if (accountId) h['x-guest-account-id'] = accountId
     return h
   }, [])
+
+  const runProductShelfTextSearch = useCallback(() => {
+    const q = productShelfSearchQuery.trim()
+    if (q.length < 2) return
+    setProductShelfSearchLoading(true)
+    void (async () => {
+      try {
+        const fd = new FormData()
+        fd.set('mode', 'text')
+        fd.set('q', q)
+        const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/inventory-vector-search`, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: authHeaders(),
+        })
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; cards?: PartnerAiProductCard[] } | null
+        if (!res.ok || !data?.ok || !Array.isArray(data.cards)) {
+          toast({ title: t.productShelfSearchFailed, variant: 'destructive' })
+          return
+        }
+        const mapped: RecentProductWithSource[] = data.cards.map((card) => ({
+          card,
+          sourceMessageId: 'vector-search-text',
+        }))
+        setProductShelfVectorRows(mapped)
+        setProductShelfVisibleCount(Math.min(PRODUCT_SHELF_LAZY_INITIAL, mapped.length))
+      } catch {
+        toast({ title: t.productShelfSearchFailed, variant: 'destructive' })
+      } finally {
+        setProductShelfSearchLoading(false)
+      }
+    })()
+  }, [slug, authHeaders, productShelfSearchQuery, toast, t.productShelfSearchFailed])
+
+  const onProductShelfImageFile = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = ''
+      if (!file?.size) return
+      setProductShelfSearchLoading(true)
+      void (async () => {
+        try {
+          const fd = new FormData()
+          fd.set('mode', 'image')
+          fd.set('file', file)
+          const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/inventory-vector-search`, {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin',
+            headers: authHeaders(),
+          })
+          const data = (await res.json().catch(() => null)) as { ok?: boolean; cards?: PartnerAiProductCard[] } | null
+          if (!res.ok || !data?.ok || !Array.isArray(data.cards)) {
+            toast({ title: t.productShelfSearchFailed, variant: 'destructive' })
+            return
+          }
+          const mapped: RecentProductWithSource[] = data.cards.map((card) => ({
+            card,
+            sourceMessageId: 'vector-search-image',
+          }))
+          setProductShelfVectorRows(mapped)
+          setProductShelfVisibleCount(Math.min(PRODUCT_SHELF_LAZY_INITIAL, mapped.length))
+        } catch {
+          toast({ title: t.productShelfSearchFailed, variant: 'destructive' })
+        } finally {
+          setProductShelfSearchLoading(false)
+        }
+      })()
+    },
+    [slug, authHeaders, toast, t.productShelfSearchFailed]
+  )
 
   const captureGuestSessionFromResponse = useCallback((res: Response) => {
     const sid = res.headers.get('x-guest-session-id')?.trim() ?? ''
@@ -3260,6 +3405,95 @@ export function PartnerGuestChatClient({
     }
   }, [authReady, hasLoadedOnce, slug, submitGuestMessage])
 
+  /** Email CMSN / link có ?interested_inv= & bday_discount= — mở kệ SP + banner ưu đãi. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!hasLoadedOnce || !authReady) return
+    const q = new URLSearchParams(window.location.search)
+    const raw = (q.get('interested_inv') ?? '').trim()
+    const discRaw = (q.get('bday_discount') ?? '').trim()
+    const disc = parseInt(discRaw, 10)
+    if (Number.isFinite(disc) && disc > 0) setBirthdayPromoDiscountPct(disc)
+    if (!raw) {
+      if (Number.isFinite(disc) && disc > 0) stripWidgetPageContextParamsFromBrowserUrl()
+      return
+    }
+
+    const sig = `bday_shelf:${slug}:${raw}:${discRaw}`
+    try {
+      if (window.sessionStorage.getItem(sig) === '1') return
+    } catch {
+      /* ignore */
+    }
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/messaging/guest/${encodeURIComponent(slug)}/inventory-cards?ids=${encodeURIComponent(raw)}`
+        )
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean
+          cards?: PartnerAiProductCard[]
+        } | null
+        if (cancelled || !data?.ok || !Array.isArray(data.cards) || data.cards.length === 0) return
+        const rows: RecentProductWithSource[] = data.cards.map((card) => ({
+          card,
+          sourceMessageId: 'birthday-email',
+        }))
+        setBirthdayPromoExtraRows(rows)
+        setRecentProductsOpen(true)
+        try {
+          window.sessionStorage.setItem(sig, '1')
+        } catch {
+          /* ignore */
+        }
+        stripWidgetPageContextParamsFromBrowserUrl()
+        toast({
+          title:
+            Number.isFinite(disc) && disc > 0
+              ? `Ưu đãi sinh nhật: giảm ${disc}% — xem sản phẩm bạn quan tâm bên dưới.`
+              : 'Đã mở sản phẩm từ email chúc mừng sinh nhật.',
+        })
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [authReady, hasLoadedOnce, slug, toast])
+
+  /** Đăng nhập email: % giảm CMSN từ server (cùng logic đơn hàng — tự động, không cần ?bday_discount). */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!hasLoadedOnce || !authReady || authMode !== 'account') return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/birthday-promo`, {
+          credentials: 'same-origin',
+        })
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean
+          authenticated?: boolean
+          discountPercent?: number | null
+        } | null
+        if (cancelled || !data?.ok) return
+        if (data.authenticated) {
+          setBirthdayPromoDiscountPct(
+            data.discountPercent != null && data.discountPercent > 0 ? data.discountPercent : null
+          )
+        }
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [authReady, hasLoadedOnce, slug, authMode])
+
   const draftComposerLabels = useMemo(
     () => ({
       placeholder: t.placeholder,
@@ -3451,7 +3685,13 @@ export function PartnerGuestChatClient({
             })
             .join(', ')
         : ''
-    const unit = parseVndFromHint(activePurchaseOptions?.price_hint || activeOrderCard?.price_hint)
+    const optsHint = activePurchaseOptions?.price_hint?.trim()
+    const cardHint = activeOrderCard?.price_hint
+    const rawUnit = parseVndFromHint(optsHint || cardHint)
+    const unit =
+      optsHint && optsHint.length > 0
+        ? rawUnit
+        : discountVndNumberForBirthday(rawUnit, birthdayPromoDiscountPct)
     const subtotal = Math.max(0, unit * totalUnits)
     const policyMode = activePurchaseOptions?.deposit_policy?.mode ?? 'percent'
     const policyPercent = Math.max(0, Math.min(100, Math.round(Number(activePurchaseOptions?.deposit_policy?.percent) || 30)))
@@ -3502,6 +3742,7 @@ export function PartnerGuestChatClient({
     activePurchaseOptions?.deposit_policy?.mode,
     activePurchaseOptions?.deposit_policy?.percent,
     activePurchaseOptions?.price_hint,
+    birthdayPromoDiscountPct,
     orderQuantity,
     orderQtyByColorImg,
     orderSelectedColorImgs,
@@ -3846,9 +4087,9 @@ export function PartnerGuestChatClient({
                                   <div className="flex flex-col gap-1 px-1.5 py-1.5 text-foreground">
                                     <p
                                       className="w-full min-w-0 truncate text-[11px] tabular-nums leading-none text-muted-foreground"
-                                      title={formatVndPrice(c.price_hint) ?? undefined}
+                                      title={formatVndPriceWithBirthday(c.price_hint, birthdayPromoDiscountPct) ?? undefined}
                                     >
-                                      {formatVndPrice(c.price_hint) ?? '\u00a0'}
+                                      {formatVndPriceWithBirthday(c.price_hint, birthdayPromoDiscountPct) ?? '\u00a0'}
                                     </p>
                                     {puVision && /^https?:\/\//i.test(puVision.trim()) ? (
                                       <a
@@ -4021,7 +4262,9 @@ export function PartnerGuestChatClient({
                             />
                           )}
                           {item.price_hint ? (
-                            <p className="mt-1 text-[10px] text-muted-foreground">{formatVndPrice(item.price_hint)}</p>
+                            <p className="mt-1 text-[10px] text-muted-foreground">
+                              {formatVndPriceWithBirthday(item.price_hint, birthdayPromoDiscountPct)}
+                            </p>
                           ) : null}
                           <Button
                             type="button"
@@ -4354,6 +4597,14 @@ export function PartnerGuestChatClient({
           </div>
 
             <div className="shrink-0 space-y-2 border-t border-border bg-background p-2">
+            {birthdayPromoDiscountPct != null && birthdayPromoDiscountPct > 0 ? (
+              <div
+                role="status"
+                className="rounded-lg border border-violet-200/90 bg-violet-50/95 px-3 py-2 text-center text-[13px] font-medium text-violet-950 dark:border-violet-800/60 dark:bg-violet-950/50 dark:text-violet-100"
+              >
+                Ưu đãi sinh nhật: giảm {birthdayPromoDiscountPct}% — áp dụng tự động cho giá các sản phẩm trong kho (theo cài đặt số ngày trước sinh nhật) khi đặt qua chat, không cần mã giảm giá.
+              </div>
+            ) : null}
             <input
               ref={galleryInputRef}
               type="file"
@@ -5010,23 +5261,90 @@ export function PartnerGuestChatClient({
           side="bottom"
           className="flex max-h-[88dvh] flex-col gap-0 overflow-hidden rounded-t-2xl p-0 sm:max-w-lg sm:mx-auto"
         >
-          <div className="shrink-0 border-b border-border/60 bg-background px-3 pb-2 pl-3 pr-11 pt-10 text-left sm:pr-12 sm:pt-11">
+          <div className="shrink-0 border-b border-border/60 bg-background px-3 pb-3 pl-3 pr-11 pt-10 text-left sm:pr-12 sm:pt-11">
             <SheetHeader className="space-y-0 p-0 text-left">
               <SheetTitle className="text-sm font-semibold leading-snug sm:text-base">{t.productShelfTitle}</SheetTitle>
             </SheetHeader>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Input
+                value={productShelfSearchQuery}
+                onChange={(e) => setProductShelfSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    runProductShelfTextSearch()
+                  }
+                }}
+                placeholder={t.productShelfSearchPlaceholder}
+                disabled={productShelfSearchLoading}
+                className="h-9 min-w-0 flex-1 text-sm sm:max-w-[min(100%,20rem)]"
+                aria-label={t.productShelfSearchPlaceholder}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-9 shrink-0 gap-1"
+                disabled={productShelfSearchLoading || productShelfSearchQuery.trim().length < 2}
+                onClick={() => runProductShelfTextSearch()}
+              >
+                {productShelfSearchLoading ? (
+                  <span className="text-xs">{t.productShelfSearching}</span>
+                ) : (
+                  <>
+                    <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    {t.productShelfSearchButton}
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-9 shrink-0 gap-1"
+                disabled={productShelfSearchLoading}
+                onClick={() => productShelfImageInputRef.current?.click()}
+              >
+                <LucideImage className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                {t.productShelfSearchImage}
+              </Button>
+              {productShelfVectorRows !== null ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-9 shrink-0"
+                  onClick={() => {
+                    setProductShelfVectorRows(null)
+                    setProductShelfSearchQuery('')
+                  }}
+                >
+                  {t.productShelfSearchClear}
+                </Button>
+              ) : null}
+              <input
+                ref={productShelfImageInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={onProductShelfImageFile}
+              />
+            </div>
           </div>
           <div
             ref={productShelfScrollRef}
             className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-3"
           >
-          {recentProductRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t.productShelfEmpty}</p>
+          {productShelfDisplayRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {productShelfVectorRows !== null ? t.productShelfSearchNoResults : t.productShelfEmpty}
+            </p>
           ) : (
             <>
             <div className="grid grid-cols-2 gap-2.5">
-              {recentProductRows.slice(0, productShelfVisibleCount).map((row) => {
+              {productShelfDisplayRows.slice(0, productShelfVisibleCount).map((row) => {
                 const href = row.card.product_url.trim()
-                const priceLabel = formatVndPrice(row.card.price_hint)
+                const priceLabel = formatVndPriceWithBirthday(row.card.price_hint, birthdayPromoDiscountPct)
                 return (
                   <div
                     key={`${row.sourceMessageId}-${href}`}
@@ -5129,7 +5447,7 @@ export function PartnerGuestChatClient({
                 )
               })}
             </div>
-            {productShelfVisibleCount < recentProductRows.length ? (
+            {productShelfVisibleCount < productShelfDisplayRows.length ? (
               <div
                 ref={productShelfSentinelRef}
                 className="h-4 w-full shrink-0"
