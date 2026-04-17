@@ -1,5 +1,7 @@
 import * as XLSX from 'xlsx'
 import type { Database } from '@/types/database.types'
+import { buildGuestConsultChatAbsoluteUrl } from '@/lib/messaging/build-guest-consult-chat-link'
+import { defaultPublicOrigin } from '@/lib/public-app-origin'
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 
 export type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
@@ -17,6 +19,7 @@ export const INVENTORY_EXCEL_HEADERS = [
   'product_url',
   'product_video_url',
   'consult_note',
+  'remarketing_id',
   'is_active',
 ] as const
 
@@ -32,9 +35,13 @@ export const INVENTORY_EXCEL_HEADER_LABELS_VI = [
   'Link trang sản phẩm',
   'Video sản phẩm (YouTube hoặc MP4)',
   'Ghi chú tư vấn',
+  'Id remarketing',
   /** Thêm/cập nhật = 1; xóa khỏi kho = 0 (khớp SKU hoặc tên). Tiêu đề dài giúp đọc file không cần mở hướng dẫn. */
   'Trạng thái thêm là 1 xóa 0',
 ] as const
+
+/** Hai cột chỉ có trên file xuất (không nhập lại). */
+export const INVENTORY_EXPORT_ONLY_HEADER_LABELS_VI = ['Link tư vấn', 'Id kho'] as const
 
 export type InventoryExcelInsert = {
   sort_order: number
@@ -48,6 +55,7 @@ export type InventoryExcelInsert = {
   product_url: string
   product_video_url: string
   consult_note: string
+  remarketing_id: string
   is_active: boolean
   /** true: xóa dòng kho khớp SKU/tên (không thêm mới). */
   removeFromInventory: boolean
@@ -131,6 +139,10 @@ const HEADER_ALIASES: Record<string, string> = {
   consult_note: 'consult_note',
   ghi_chu: 'consult_note',
   ghi_chu_tu_van: 'consult_note',
+  remarketing_id: 'remarketing_id',
+  id_remarketing: 'remarketing_id',
+  ma_remarketing: 'remarketing_id',
+  pixel_id: 'remarketing_id',
   is_active: 'is_active',
   dang_dung: 'is_active',
   active: 'is_active',
@@ -295,7 +307,7 @@ function normalizeColorVariantsJsonLenient(raw: string): string {
 
 export function buildInventoryTemplateBuffer(): Buffer {
   const header = [...INVENTORY_EXCEL_HEADER_LABELS_VI]
-  /** Mỗi ô khớp đúng một cột tiêu đề (11 cột); không chèn thêm cột ẩn kẻo lệch cả file. */
+  /** Mỗi ô khớp đúng một cột tiêu đề (12 cột); không chèn thêm cột ẩn kẻo lệch cả file. */
   const example = [
     'AT-001',
     'Ví dụ: Áo thun cotton',
@@ -307,6 +319,7 @@ export function buildInventoryTemplateBuffer(): Buffer {
     'https://shop.example.com/san-pham/ao-thun',
     '',
     'Bảo hành đổi size trong 7 ngày',
+    '',
     '1',
   ]
   const ws = XLSX.utils.aoa_to_sheet([header, example])
@@ -315,9 +328,25 @@ export function buildInventoryTemplateBuffer(): Buffer {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
 }
 
-export function buildInventoryExportBuffer(rows: InventoryRow[]): Buffer {
-  const aoa: (string | number)[][] = [[...INVENTORY_EXCEL_HEADER_LABELS_VI]]
+export function buildInventoryExportBuffer(
+  rows: InventoryRow[],
+  options: { partnerChatSlug: string }
+): Buffer {
+  const origin = defaultPublicOrigin()
+  const slug = options.partnerChatSlug.trim()
+  const aoa: (string | number)[][] = [
+    [...INVENTORY_EXCEL_HEADER_LABELS_VI, ...INVENTORY_EXPORT_ONLY_HEADER_LABELS_VI],
+  ]
   for (const r of rows) {
+    const consultUrl =
+      slug && r.id
+        ? buildGuestConsultChatAbsoluteUrl(origin, slug, {
+            id: r.id,
+            image_url: r.image_url,
+            product_url: r.product_url,
+            sku: r.sku,
+          })
+        : ''
     aoa.push([
       r.sku ?? '',
       r.name,
@@ -329,7 +358,10 @@ export function buildInventoryExportBuffer(rows: InventoryRow[]): Buffer {
       r.product_url ?? '',
       r.product_video_url ?? '',
       r.consult_note ?? '',
+      r.remarketing_id ?? '',
       r.is_active === false ? 0 : 1,
+      consultUrl,
+      r.id,
     ])
   }
   const ws = XLSX.utils.aoa_to_sheet(aoa)
@@ -365,7 +397,8 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
 
   // Fallback cho file gần template chuẩn nhưng tiêu đề bị chỉnh/lệch nhẹ:
   // 10 cột (cũ): … [7]=link SP, [8]=ghi chú, [9]=trạng thái.
-  // 11 cột (mới): … [7]=link SP, [8]=video, [9]=ghi chú, [10]=trạng thái.
+  // 11 cột: … [8]=video, [9]=ghi chú, [10]=trạng thái.
+  // 12 cột (mới): … [9]=ghi chú, [10]=id remarketing, [11]=trạng thái.
   // Chỉ bật fallback khi sku/name đúng vị trí mẫu để tránh map sai với file custom order.
   if (colIndex.sku === 0 && colIndex.name === 1) {
     const templateFallback10: Array<[string, number]> = [
@@ -389,7 +422,20 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
       ['consult_note', 9],
       ['is_active', 10],
     ]
-    const templateFallback = headerRow.length >= 11 ? templateFallback11 : templateFallback10
+    const templateFallback12: Array<[string, number]> = [
+      ['description', 2],
+      ['stock_note', 3],
+      ['stock_qty', 4],
+      ['price_hint', 5],
+      ['image_url', 6],
+      ['product_url', 7],
+      ['product_video_url', 8],
+      ['consult_note', 9],
+      ['remarketing_id', 10],
+      ['is_active', 11],
+    ]
+    const templateFallback =
+      headerRow.length >= 12 ? templateFallback12 : headerRow.length >= 11 ? templateFallback11 : templateFallback10
     for (const [k, idx] of templateFallback) {
       if (colIndex[k] === undefined && idx < headerRow.length) {
         colIndex[k] = idx
@@ -438,6 +484,7 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
         product_url: '',
         product_video_url: '',
         consult_note: '',
+        remarketing_id: '',
         is_active: true,
         removeFromInventory: true,
       })
@@ -523,6 +570,7 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
     const product_url = validateInventoryProductUrl(get('product_url'))
     const product_video_url = validateInventoryHttpUrl(get('product_video_url'))
     const consult_note = get('consult_note').trim().slice(0, 2000)
+    const remarketing_id = get('remarketing_id').trim().slice(0, 500)
     out.push({
       sort_order,
       name: name.slice(0, 500),
@@ -535,6 +583,7 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
       product_url,
       product_video_url,
       consult_note,
+      remarketing_id,
       is_active: true,
       removeFromInventory: false,
     })

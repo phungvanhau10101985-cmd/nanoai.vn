@@ -28,7 +28,11 @@ import {
 } from '@/lib/db/customer-care-pg'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { fetchMessagingPartnerAiEnabledFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
-import { fetchPartnerInventoryPriceHintsByIdsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  fetchPartnerInventoryPriceHintsByIdsFromPg,
+  fetchPartnerInventoryRowByComparableSkuFromPg,
+  fetchPartnerInventoryRowByIdForPartnerFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchMessagingPartnerByIdFromPg, isMessagingPartnerInboundOpen } from '@/lib/db/messaging-partners-pg'
 import {
@@ -69,6 +73,8 @@ export async function postWidgetGuestMessage(params: {
   pageContext?: {
     sku?: string
     imageUrl?: string
+    /** Ảnh thứ 2 trong gallery trang SP (embed đặt `ctx_image_2`) — ưu tiên sau ảnh kho, trước `ctx_image`. */
+    imageUrl2?: string
     productUrl?: string
     /** UUID dòng kho — neo «Tư vấn» trực tiếp, không embed lại ảnh thẻ. */
     inventoryId?: string
@@ -89,17 +95,9 @@ export async function postWidgetGuestMessage(params: {
   const pageContextImageUrlRaw =
     typeof params.pageContext?.imageUrl === 'string' ? params.pageContext.imageUrl.trim() : ''
   const pageContextImageUrl = /^https?:\/\//i.test(pageContextImageUrlRaw) ? pageContextImageUrlRaw : ''
-
-  let imagePath = params.imageStoragePath?.trim() ?? ''
-  /** Giống khách gửi ảnh: tải `ctx_image` → storage → vector tìm SP. */
-  if (!imagePath && pageContextImageUrl) {
-    const ing = await fetchRemoteProductImageIntoGuestStorage(params.partnerId, pageContextImageUrl)
-    if ('path' in ing) {
-      imagePath = ing.path
-    } else {
-      console.warn('[widget-guest-post] ctx_image ingest', ing.error)
-    }
-  }
+  const pageContextImageUrl2Raw =
+    typeof params.pageContext?.imageUrl2 === 'string' ? params.pageContext.imageUrl2.trim() : ''
+  const pageContextImageUrl2 = /^https?:\/\//i.test(pageContextImageUrl2Raw) ? pageContextImageUrl2Raw : ''
 
   const pageContextProductUrlRaw =
     typeof params.pageContext?.productUrl === 'string' ? params.pageContext.productUrl.trim() : ''
@@ -111,11 +109,48 @@ export async function postWidgetGuestMessage(params: {
   )
     ? pageContextInventoryIdRaw
     : ''
+
+  /** Kho → ảnh thứ 2 gallery (`ctx_image_2`) → ảnh đầu (`ctx_image`). */
+  let pageContextImageUrlForVector = ''
+  if (isPgConfigured() && (pageContextInventoryId || pageContextSku)) {
+    let row = null as Awaited<ReturnType<typeof fetchPartnerInventoryRowByIdForPartnerFromPg>>
+    if (pageContextInventoryId) {
+      row = await fetchPartnerInventoryRowByIdForPartnerFromPg(params.partnerId, pageContextInventoryId)
+    }
+    if (!row && pageContextSku) {
+      row = await fetchPartnerInventoryRowByComparableSkuFromPg(params.partnerId, pageContextSku)
+    }
+    const img = row?.image_url ? String(row.image_url).trim() : ''
+    if (img && /^https?:\/\//i.test(img)) pageContextImageUrlForVector = img
+  }
+  if (!pageContextImageUrlForVector && pageContextImageUrl2) {
+    pageContextImageUrlForVector = pageContextImageUrl2
+  }
+  if (!pageContextImageUrlForVector && pageContextImageUrl) {
+    pageContextImageUrlForVector = pageContextImageUrl
+  }
+
+  let imagePath = params.imageStoragePath?.trim() ?? ''
+  /** Ảnh ngữ cảnh → storage → vector (ảnh kho hoặc — nếu không có SKU/id — `ctx_image` legacy). */
+  if (!imagePath && pageContextImageUrlForVector) {
+    const ing = await fetchRemoteProductImageIntoGuestStorage(params.partnerId, pageContextImageUrlForVector)
+    if ('path' in ing) {
+      imagePath = ing.path
+    } else {
+      console.warn('[widget-guest-post] page context image ingest', ing.error)
+    }
+  }
+
+  const pageContextImageForPayload = pageContextImageUrlForVector
   const pageContextHasAny =
     Boolean(pageContextSku) ||
     Boolean(pageContextImageUrl) ||
+    Boolean(pageContextImageUrl2) ||
     Boolean(pageContextProductUrl) ||
     Boolean(pageContextInventoryId)
+  /** Bấm «Tư vấn» trên thẻ SP — ảnh chỉ là ngữ cảnh cho LLM; không chạy vision_pick (tránh chỉ hiển thị carousel, không tư vấn). */
+  const isProductCardConsult =
+    typeof params.pageContext?.source === 'string' && params.pageContext.source.trim() === 'product_card_consult'
   if ((!text && !imagePath && !pageContextHasAny) || text.length > 8000) {
     return { error: 'Invalid message.' }
   }
@@ -171,7 +206,7 @@ export async function postWidgetGuestMessage(params: {
           aiEnabled = fromPg.enabled
         }
       }
-      if (aiEnabled && !deferredPaymentVerify) {
+      if (aiEnabled && !deferredPaymentVerify && !isProductCardConsult) {
         const buf = await downloadTryOnObject(imagePath)
         if (buf) {
           const search = await geminiProductSearchFromImageBufferViaVectorDb(buf, params.partnerId, {
@@ -224,14 +259,16 @@ export async function postWidgetGuestMessage(params: {
             ...(imageCaption ? { image_caption: imageCaption } : {}),
           } as Json)
     if (pageContextHasAny && rawPayload && typeof rawPayload === 'object') {
+      const src = typeof params.pageContext?.source === 'string' ? params.pageContext.source : ''
       rawPayload = {
         ...(rawPayload as Record<string, unknown>),
         page_context: {
           ...(pageContextSku ? { sku: pageContextSku } : {}),
-          ...(pageContextImageUrl ? { image_url: pageContextImageUrl } : {}),
-          ...(pageContextProductUrl ? { product_url: pageContextProductUrl } : {}),
+          ...(pageContextImageForPayload ? { image_url: pageContextImageForPayload } : {}),
+          ...(pageContextImageUrl2 ? { image_url_2: pageContextImageUrl2 } : {}),
+          ...(src === 'product_card_consult' && pageContextProductUrl ? { product_url: pageContextProductUrl } : {}),
           ...(pageContextInventoryId ? { inventory_id: pageContextInventoryId } : {}),
-          ...(typeof params.pageContext?.source === 'string' ? { source: params.pageContext.source } : {}),
+          ...(src ? { source: src } : {}),
         },
       } as Json
     }
@@ -242,8 +279,13 @@ export async function postWidgetGuestMessage(params: {
         ? ({
             page_context: {
               ...(pageContextSku ? { sku: pageContextSku } : {}),
-              ...(pageContextImageUrl ? { image_url: pageContextImageUrl } : {}),
-              ...(pageContextProductUrl ? { product_url: pageContextProductUrl } : {}),
+              ...(pageContextImageForPayload ? { image_url: pageContextImageForPayload } : {}),
+              ...(pageContextImageUrl2 ? { image_url_2: pageContextImageUrl2 } : {}),
+              ...(typeof params.pageContext?.source === 'string' &&
+              params.pageContext.source === 'product_card_consult' &&
+              pageContextProductUrl
+                ? { product_url: pageContextProductUrl }
+                : {}),
               ...(pageContextInventoryId ? { inventory_id: pageContextInventoryId } : {}),
               ...(typeof params.pageContext?.source === 'string' ? { source: params.pageContext.source } : {}),
             },
@@ -255,9 +297,7 @@ export async function postWidgetGuestMessage(params: {
     const trimmedText = text.trim()
     const minCharsForVectorPick = 3
     /** Khách đã bấm «Tư vấn» trên thẻ SP — không gắn lại thanh gợi ý vector (tránh lặp UI, vẫn gọi LLM với page_context). */
-    const skipTextVectorPick =
-      typeof params.pageContext?.source === 'string' &&
-      params.pageContext.source === 'product_card_consult'
+    const skipTextVectorPick = isProductCardConsult
     /** Tin kiểu «có màu gì» — không chạy embedding/vector trên cả kho (tránh vision_pick + lệch luồng hỏi tiếp). Ngoại lệ: «mẫu khác / tương tự» vẫn gợi ý vector để widget có ứng viên. */
     const skipFollowUpStyleVectorPick =
       inboundTextLooksLikeFollowUpConsultHeuristic(trimmedText) &&
@@ -434,9 +474,7 @@ export async function postWidgetGuestMessage(params: {
   if (newMessageId) {
     const aiContextHints = [
       pageContextSku ? `[Customer product SKU: ${pageContextSku}]` : '',
-      pageContextProductUrl ? `[Customer product URL: ${pageContextProductUrl}]` : '',
       pageContextInventoryId ? `[Customer product inventory id: ${pageContextInventoryId}]` : '',
-      !imagePublicUrl && pageContextImageUrl ? `[Customer product image: ${pageContextImageUrl}]` : '',
     ]
       .filter(Boolean)
       .join('\n')

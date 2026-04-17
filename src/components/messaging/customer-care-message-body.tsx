@@ -512,6 +512,13 @@ function AiProductCards({
   onPreviewVideo: (videoUrl: string) => void
 }) {
   if (!cards.length) return null
+  /** Nút đã bấm — đổi màu cố định để khách biết thao tác đã nhận. */
+  const [tappedBtns, setTappedBtns] = useState(() => new Set<string>())
+  const markTapped = (id: string) => {
+    setTappedBtns((prev) => new Set(prev).add(id))
+  }
+  const isTapped = (id: string) => tappedBtns.has(id)
+
   const consultLabel = labels?.productCardOpenProduct?.trim()
   const buyLabel = labels?.productCardBuyProduct?.trim()
   const viewDetailsLabel = labels?.productCardViewDetails?.trim() || 'Xem chi tiết'
@@ -536,6 +543,11 @@ function AiProductCards({
         const rawVideo = (p.product_video_url ?? '').trim()
         const videoUrl = rawVideo && /^https?:\/\//i.test(rawVideo) ? rawVideo : ''
         const ytThumb = videoUrl ? youtubeThumbnailUrl(videoUrl) : null
+        const cardBtnBase = `${idx}::${p.product_url ?? p.name ?? ''}`
+        const idDetail = `${cardBtnBase}::detail`
+        const idBuy = `${cardBtnBase}::buy`
+        const idConsult = `${cardBtnBase}::consult`
+        const idCtaOnly = `${cardBtnBase}::cta`
         return (
           <div
             key={`${idx}-${p.product_url}`}
@@ -631,15 +643,20 @@ function AiProductCards({
                 <a
                   href={productHref}
                   rel="noopener noreferrer"
-                  className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug sm:text-[10px] ${
-                    onViolet
-                      ? 'border-white/35 bg-white/10 text-white hover:bg-white/16'
-                      : 'border-border/80 bg-background text-foreground hover:bg-muted/60'
+                  className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
+                    isTapped(idDetail)
+                      ? onViolet
+                        ? 'border-emerald-300/70 bg-emerald-500/35 text-white ring-1 ring-emerald-400/45'
+                        : 'border-emerald-600/45 bg-emerald-100 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-50'
+                      : onViolet
+                        ? 'border-white/35 bg-white/10 text-white hover:bg-white/16'
+                        : 'border-border/80 bg-background text-foreground hover:bg-muted/60'
                   }`}
                   onClick={(ev) => {
                     ev.preventDefault()
                     ev.stopPropagation()
                     openGuestProductDetailUrl(productHref)
+                    markTapped(idDetail)
                   }}
                   aria-label={detailAria}
                   lang="vi"
@@ -651,32 +668,44 @@ function AiProductCards({
                 <div className="grid grid-cols-2 gap-1">
                   <button
                     type="button"
-                    className={`flex h-8 min-w-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold leading-snug sm:text-[10px] ${
-                      onViolet
-                        ? 'bg-white text-violet-800 hover:bg-white/95'
-                        : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    className={`flex h-8 min-w-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
+                      isTapped(idBuy)
+                        ? onViolet
+                          ? 'bg-emerald-300 text-violet-950 ring-2 ring-emerald-200/80'
+                          : 'bg-emerald-600 text-white ring-1 ring-emerald-500/60'
+                        : onViolet
+                          ? 'bg-white text-violet-800 hover:bg-white/95'
+                          : 'bg-primary text-primary-foreground hover:bg-primary/90'
                     }`}
                     onClick={(ev) => {
                       ev.stopPropagation()
                       onProductCardBuy?.(p)
+                      markTapped(idBuy)
                     }}
                     aria-label={`${p.name}. ${buyLabel ?? ''}`}
+                    aria-pressed={isTapped(idBuy)}
                     lang="vi"
                   >
                     <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">{buyLabel}</span>
                   </button>
                   <button
                     type="button"
-                    className={`flex h-8 min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug sm:text-[10px] ${
-                      onViolet
-                        ? 'border-white/35 bg-white/10 text-white hover:bg-white/16'
-                        : 'border-border/80 bg-background text-foreground hover:bg-muted/60'
+                    className={`flex h-8 min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
+                      isTapped(idConsult)
+                        ? onViolet
+                          ? 'border-emerald-300/70 bg-emerald-500/35 text-white ring-1 ring-emerald-400/45'
+                          : 'border-emerald-600/45 bg-emerald-100 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-50'
+                        : onViolet
+                          ? 'border-white/35 bg-white/10 text-white hover:bg-white/16'
+                          : 'border-border/80 bg-background text-foreground hover:bg-muted/60'
                     }`}
                     onClick={(ev) => {
                       ev.stopPropagation()
                       onProductCardPick?.(p)
+                      markTapped(idConsult)
                     }}
                     aria-label={`${p.name}. ${consultLabel ?? ''}`}
+                    aria-pressed={isTapped(idConsult)}
                     lang="vi"
                   >
                     <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">{consultLabel}</span>
@@ -685,16 +714,22 @@ function AiProductCards({
               ) : cta && pickable ? (
                 <button
                   type="button"
-                  className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold leading-snug sm:text-[10px] ${
-                    onViolet
-                      ? 'bg-white/20 text-white hover:bg-white/30'
-                      : 'bg-primary/10 text-primary hover:bg-primary/15'
+                  className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
+                    isTapped(idCtaOnly)
+                      ? onViolet
+                        ? 'bg-emerald-500/40 text-white ring-1 ring-emerald-400/50'
+                        : 'bg-emerald-600/15 text-emerald-950 ring-1 ring-emerald-600/35 dark:bg-emerald-500/25 dark:text-emerald-50'
+                      : onViolet
+                        ? 'bg-white/20 text-white hover:bg-white/30'
+                        : 'bg-primary/10 text-primary hover:bg-primary/15'
                   }`}
                   onClick={(ev) => {
                     ev.stopPropagation()
                     onProductCardPick?.(p)
+                    markTapped(idCtaOnly)
                   }}
                   aria-label={ctaAria}
+                  aria-pressed={isTapped(idCtaOnly)}
                   lang="vi"
                 >
                   <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">{cta}</span>

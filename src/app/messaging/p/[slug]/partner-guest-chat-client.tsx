@@ -286,12 +286,16 @@ function isSystemOrderMessage(raw: Json | null | undefined): boolean {
   return o?.source === 'system_order'
 }
 
-/** Ngữ cảnh SP từ query `?ctx_sku=&ctx_image=&ctx_product_url=&ctx_inventory=` — gửi kèm tin đầu / tự động tư vấn. */
+/** Ngữ cảnh SP từ query `?ctx_sku=&ctx_image=&ctx_image_2=&ctx_product_url=&ctx_inventory=` — gửi kèm tin đầu / tự động tư vấn. */
 type WidgetPageContextSeed = {
   sku?: string
   imageUrl?: string
+  /** Ảnh thứ 2 trong gallery (embed/widget). */
+  imageUrl2?: string
   productUrl?: string
   inventoryId?: string
+  /** Chỉ khi bấm «Tư vấn» trên thẻ SP trong chat — gửi kèm productUrl cho cache. */
+  source?: string
 }
 
 function hasWidgetPageContextSeed(pc: WidgetPageContextSeed | null | undefined): boolean {
@@ -299,6 +303,7 @@ function hasWidgetPageContextSeed(pc: WidgetPageContextSeed | null | undefined):
   return Boolean(
     (pc.sku && pc.sku.trim()) ||
       (pc.imageUrl && pc.imageUrl.trim()) ||
+      (pc.imageUrl2 && pc.imageUrl2.trim()) ||
       (pc.productUrl && pc.productUrl.trim()) ||
       (pc.inventoryId && pc.inventoryId.trim())
   )
@@ -307,7 +312,6 @@ function hasWidgetPageContextSeed(pc: WidgetPageContextSeed | null | undefined):
 function buildWidgetPageContextInboundText(pc: WidgetPageContextSeed): string {
   const lines: string[] = []
   if (pc.sku?.trim()) lines.push(`Khách đang xem mã sản phẩm: ${pc.sku.trim()}`)
-  if (pc.productUrl?.trim()) lines.push(`Link sản phẩm: ${pc.productUrl.trim()}`)
   if (pc.inventoryId?.trim()) lines.push(`Mã kho (inventory): ${pc.inventoryId.trim()}`)
   const joined = lines.join('\n')
   if (joined) return joined
@@ -1208,16 +1212,18 @@ export function PartnerGuestChatClient({
     } else {
       const sku = (q.get('ctx_sku') || '').trim()
       const imageUrl = (q.get('ctx_image') || '').trim()
+      const imageUrl2 = (q.get('ctx_image_2') || '').trim()
       const productUrl = (q.get('ctx_product_url') || '').trim()
       const invRaw = (q.get('ctx_inventory') || '').trim()
       const inventoryId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invRaw)
         ? invRaw
         : ''
-      const hasAny = Boolean(sku || imageUrl || productUrl || inventoryId)
+      const hasAny = Boolean(sku || imageUrl || imageUrl2 || productUrl || inventoryId)
       pageContextRef.current = hasAny
         ? {
             ...(sku ? { sku } : {}),
             ...(imageUrl ? { imageUrl } : {}),
+            ...(imageUrl2 ? { imageUrl2 } : {}),
             ...(productUrl ? { productUrl } : {}),
             ...(inventoryId ? { inventoryId } : {}),
           }
@@ -2776,15 +2782,22 @@ export function PartnerGuestChatClient({
               typeof window !== 'undefined' ? window.location.href.slice(0, 4000) : undefined,
             pageContext:
               !contextSeededRef.current && hasWidgetPageContextSeed(pcSeed)
-                ? {
-                    sku: pcSeed?.sku,
-                    imageUrl: pcSeed?.imageUrl,
-                    productUrl: pcSeed?.productUrl,
-                    inventoryId: pcSeed?.inventoryId,
-                    source: pcSeed?.productUrl?.trim()
-                      ? 'product_card_consult'
-                      : 'widget_page',
-                  }
+                ? (() => {
+                    const fromCard = pcSeed?.source === 'product_card_consult'
+                    const ctxImg = (pcSeed?.imageUrl ?? '').trim()
+                    const ctxImg2 = (pcSeed?.imageUrl2 ?? '').trim()
+                    return {
+                      sku: pcSeed?.sku,
+                      inventoryId: pcSeed?.inventoryId,
+                      /** Gửi kèm: server ưu tiên ảnh kho → `ctx_image_2` → `ctx_image`. */
+                      ...(ctxImg ? { imageUrl: ctxImg } : {}),
+                      ...(ctxImg2 ? { imageUrl2: ctxImg2 } : {}),
+                      ...(fromCard && pcSeed?.productUrl?.trim()
+                        ? { productUrl: pcSeed.productUrl }
+                        : {}),
+                      source: fromCard ? 'product_card_consult' : 'widget_page',
+                    }
+                  })()
                 : undefined,
           }),
         })
@@ -2891,7 +2904,14 @@ export function PartnerGuestChatClient({
     if (contextSeededRef.current) return
     const pc = pageContextRef.current
     if (!hasWidgetPageContextSeed(pc)) return
-    const sig = [slug, pc?.sku ?? '', pc?.imageUrl ?? '', pc?.productUrl ?? '', pc?.inventoryId ?? ''].join('\t')
+    const sig = [
+      slug,
+      pc?.sku ?? '',
+      pc?.imageUrl ?? '',
+      pc?.imageUrl2 ?? '',
+      pc?.productUrl ?? '',
+      pc?.inventoryId ?? '',
+    ].join('\t')
     const storageKey = `messaging_auto_ctx:${sig}`
     try {
       const st = window.sessionStorage.getItem(storageKey)
@@ -2923,7 +2943,7 @@ export function PartnerGuestChatClient({
       if (!ok) return
       try {
         const u = new URL(window.location.href)
-        const keys = ['ctx_sku', 'ctx_image', 'ctx_product_url', 'ctx_inventory', 'auto_consult']
+        const keys = ['ctx_sku', 'ctx_image', 'ctx_image_2', 'ctx_product_url', 'ctx_inventory', 'auto_consult']
         let changed = false
         for (const k of keys) {
           if (u.searchParams.has(k)) {

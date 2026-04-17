@@ -60,6 +60,14 @@ function isMissingInventoryStockQtyColumnError(e: unknown): boolean {
   return msg.includes('stock_qty') && msg.includes('messaging_partner_inventory')
 }
 
+function isMissingRemarketingIdColumnError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (err.code !== '42703') return false
+  const msg = String(err.message ?? '').toLowerCase()
+  return msg.includes('remarketing_id') && msg.includes('messaging_partner_inventory')
+}
+
 type PgInventoryRaw = {
   id: string
   partner_id: string
@@ -74,6 +82,7 @@ type PgInventoryRaw = {
   product_url: string
   product_video_url: string
   consult_note: string
+  remarketing_id: string
   material_note: string
   material_detail_image_url: string
   real_use_image_url: string
@@ -115,6 +124,7 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
     product_url: String(r.product_url ?? ''),
     product_video_url: String(r.product_video_url ?? ''),
     consult_note: String(r.consult_note ?? ''),
+    remarketing_id: String(r.remarketing_id ?? ''),
     material_note: String(r.material_note ?? ''),
     material_detail_image_url: String(r.material_detail_image_url ?? ''),
     real_use_image_url: String(r.real_use_image_url ?? ''),
@@ -156,6 +166,49 @@ const INVENTORY_PAGE_SELECT = `select
   coalesce(mpi.product_url, '') as product_url,
   coalesce(mpi.product_video_url, '') as product_video_url,
   coalesce(mpi.consult_note, '') as consult_note,
+  coalesce(mpi.remarketing_id, '') as remarketing_id,
+  coalesce(mpi.material_note, '') as material_note,
+  coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,
+  coalesce(mpi.real_use_image_url, '') as real_use_image_url,
+  coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
+  coalesce(mpi.is_active, true) as is_active,
+  mpi.image_embedding_json,
+  mpi.image_embedding_vec::text as image_embedding_vec,
+  mpi.image_embedding_model,
+  mpi.image_embedding_dims,
+  mpi.image_embedding_fingerprint,
+  mpi.image_embedding_updated_at,
+  mpi.image_embedding_error,
+  mpi.text_embedding_json,
+  mpi.text_embedding_vec::text as text_embedding_vec,
+  mpi.text_embedding_model,
+  mpi.text_embedding_dims,
+  mpi.text_embedding_fingerprint,
+  mpi.text_embedding_updated_at,
+  mpi.text_embedding_error,
+  mpi.vision_catalog_checksum,
+  mpi.vision_catalog_synced_at,
+  coalesce(mpi.vision_catalog_excluded, false) as vision_catalog_excluded,
+  mpi.created_at,
+  mpi.updated_at
+from public.messaging_partner_inventory mpi`
+
+/** DB chưa migration `remarketing_id` — giữ đủ cột khác (gồm stock_qty). */
+const INVENTORY_PAGE_SELECT_PRE_REMARKETING = `select
+  mpi.id::text as id,
+  mpi.partner_id::text as partner_id,
+  mpi.sort_order,
+  mpi.sku,
+  coalesce(mpi.name, '') as name,
+  coalesce(mpi.description, '') as description,
+  coalesce(mpi.stock_note, '') as stock_note,
+  coalesce(mpi.stock_qty, 0) as stock_qty,
+  coalesce(mpi.price_hint, '') as price_hint,
+  coalesce(mpi.image_url, '') as image_url,
+  coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.product_video_url, '') as product_video_url,
+  coalesce(mpi.consult_note, '') as consult_note,
+  ''::text as remarketing_id,
   coalesce(mpi.material_note, '') as material_note,
   coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,
   coalesce(mpi.real_use_image_url, '') as real_use_image_url,
@@ -196,6 +249,7 @@ const INVENTORY_PAGE_SELECT_LEGACY = `select
   coalesce(mpi.product_url, '') as product_url,
   coalesce(mpi.product_video_url, '') as product_video_url,
   coalesce(mpi.consult_note, '') as consult_note,
+  ''::text as remarketing_id,
   coalesce(mpi.material_note, '') as material_note,
   coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,
   coalesce(mpi.real_use_image_url, '') as real_use_image_url,
@@ -229,8 +283,21 @@ async function runInventorySelectWithStockQtyFallback(
   try {
     return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT}\n${sqlFromSelect}`, params)
   } catch (e) {
-    if (!isMissingInventoryStockQtyColumnError(e)) throw e
-    return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_LEGACY}\n${sqlFromSelect}`, params)
+    if (isMissingRemarketingIdColumnError(e)) {
+      try {
+        return await pgQuery<PgInventoryRaw>(
+          `${INVENTORY_PAGE_SELECT_PRE_REMARKETING}\n${sqlFromSelect}`,
+          params
+        )
+      } catch (e2) {
+        if (!isMissingInventoryStockQtyColumnError(e2)) throw e2
+        return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_LEGACY}\n${sqlFromSelect}`, params)
+      }
+    }
+    if (isMissingInventoryStockQtyColumnError(e)) {
+      return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_LEGACY}\n${sqlFromSelect}`, params)
+    }
+    throw e
   }
 }
 
@@ -862,6 +929,7 @@ function inventoryInsertRowParams(r: MessagingPartnerInventoryInsert): unknown[]
     r.product_url ?? '',
     r.product_video_url ?? '',
     r.consult_note ?? '',
+    r.remarketing_id ?? '',
     r.is_active !== false,
     r.created_at ?? nowIso,
     r.updated_at ?? nowIso,
@@ -884,14 +952,14 @@ export async function insertPartnerInventoryChunkFromPg(
       const rowParams = inventoryInsertRowParams(r)
       if (!rowParams) return false
       valuesSql.push(
-        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
+        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
       )
       params.push(...rowParams)
     }
     await getPgPool().query(
       `insert into public.messaging_partner_inventory (
         id, partner_id, sort_order, sku, name, description, stock_note, stock_qty, price_hint,
-        image_url, product_url, product_video_url, consult_note, is_active, created_at, updated_at
+        image_url, product_url, product_video_url, consult_note, remarketing_id, is_active, created_at, updated_at
       ) values ${valuesSql.join(', ')}`,
       params
     )
@@ -918,14 +986,14 @@ export async function upsertPartnerInventoryChunkFromPg(
       const rowParams = inventoryInsertRowParams(r)
       if (!rowParams) return false
       valuesSql.push(
-        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
+        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
       )
       params.push(...rowParams)
     }
     await getPgPool().query(
       `insert into public.messaging_partner_inventory (
         id, partner_id, sort_order, sku, name, description, stock_note, stock_qty, price_hint,
-        image_url, product_url, product_video_url, consult_note, is_active, created_at, updated_at
+        image_url, product_url, product_video_url, consult_note, remarketing_id, is_active, created_at, updated_at
       ) values ${valuesSql.join(', ')}
       on conflict (id) do update set
         partner_id = excluded.partner_id,
@@ -940,6 +1008,7 @@ export async function upsertPartnerInventoryChunkFromPg(
         product_url = excluded.product_url,
         product_video_url = excluded.product_video_url,
         consult_note = excluded.consult_note,
+        remarketing_id = excluded.remarketing_id,
         is_active = excluded.is_active,
         created_at = excluded.created_at,
         updated_at = excluded.updated_at

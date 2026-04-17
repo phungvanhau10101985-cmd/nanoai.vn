@@ -290,14 +290,14 @@
         var imgs = document.querySelectorAll(
           '.image_list img, .image-list img, [class*="image_list"] img, [class*="image-list"] img'
         )
+        var urls = []
         for (var i = 0; i < imgs.length; i += 1) {
           var img = imgs[i]
           var imgUrl = toHttpUrl(img.getAttribute('data-src') || img.getAttribute('src') || '')
-          if (imgUrl) {
-            out.imageUrl = imgUrl
-            break
-          }
+          if (imgUrl && urls.indexOf(imgUrl) === -1) urls.push(imgUrl)
         }
+        if (urls[0]) out.imageUrl = urls[0]
+        if (urls[1]) out.imageUrl2 = urls[1]
       } catch (_) {}
 
       try {
@@ -316,8 +316,9 @@
         var u = new URL(baseUrl, window.location.href)
         if (ctx && ctx.sku) u.searchParams.set('ctx_sku', ctx.sku)
         if (ctx && ctx.imageUrl) u.searchParams.set('ctx_image', ctx.imageUrl)
+        if (ctx && ctx.imageUrl2) u.searchParams.set('ctx_image_2', ctx.imageUrl2)
         if (ctx && ctx.productUrl) u.searchParams.set('ctx_product_url', ctx.productUrl)
-        if (ctx && (ctx.sku || ctx.imageUrl || ctx.productUrl)) {
+        if (ctx && (ctx.sku || ctx.imageUrl || ctx.imageUrl2 || ctx.productUrl)) {
           u.searchParams.set('ctx_source', 'widget_page')
         }
         return u.toString()

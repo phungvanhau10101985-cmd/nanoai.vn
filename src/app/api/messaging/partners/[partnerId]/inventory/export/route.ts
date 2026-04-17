@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { buildInventoryExportBuffer } from '@/lib/messaging/partner-inventory-excel'
 import { listPartnerInventoryRows } from '@/lib/messaging/partner-inventory-upsert-batch'
 import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-route-auth'
@@ -13,7 +14,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ partnerId: str
 
   const listed = await listPartnerInventoryRows(partnerId)
   if (!listed.ok) return NextResponse.json({ error: listed.error }, { status: 500 })
-  const buf = buildInventoryExportBuffer(listed.rows)
+  const partners = await fetchMessagingPartnersByIdsFromPg([partnerId])
+  const slug = partners?.[0]?.slug?.trim() ?? ''
+  const buf = buildInventoryExportBuffer(listed.rows, { partnerChatSlug: slug })
   const dateStr = new Date().toISOString().slice(0, 10)
   return new NextResponse(new Uint8Array(buf), {
     status: 200,

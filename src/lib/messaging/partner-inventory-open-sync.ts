@@ -188,6 +188,7 @@ export function openCatalogItemToInsert(obj: unknown): InventoryExcelInsert | nu
   )
 
   const consult_note = coalesceTextField(o.consult_note, o.seller_note, o.note).slice(0, 2000)
+  const remarketing_id = coalesceTextField(o.remarketing_id, o.remarketingId, o.pixel_id).slice(0, 500)
   const is_active = itemStatusToActive(o.item_status ?? o.status)
 
   return {
@@ -202,6 +203,7 @@ export function openCatalogItemToInsert(obj: unknown): InventoryExcelInsert | nu
     product_url,
     product_video_url,
     consult_note,
+    remarketing_id,
     is_active,
     removeFromInventory: false,
   }
@@ -303,6 +305,7 @@ export function buildOpenCatalogReconcileRows(
         product_url: row.product_url ?? '',
         product_video_url: row.product_video_url ?? '',
         consult_note: row.consult_note ?? '',
+        remarketing_id: row.remarketing_id ?? '',
         is_active: row.is_active,
         removeFromInventory: true,
       })
@@ -323,6 +326,7 @@ export function buildOpenCatalogReconcileRows(
       product_url: row.product_url ?? '',
       product_video_url: row.product_video_url ?? '',
       consult_note: row.consult_note ?? '',
+      remarketing_id: row.remarketing_id ?? '',
       is_active: row.is_active,
       removeFromInventory: true,
     })

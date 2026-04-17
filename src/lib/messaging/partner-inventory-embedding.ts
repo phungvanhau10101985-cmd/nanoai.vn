@@ -79,6 +79,7 @@ function rowAsEmbeddingComparable(
     product_url: '',
     product_video_url: '',
     consult_note: '',
+    remarketing_id: '',
     material_note: '',
     material_detail_image_url: '',
     real_use_image_url: '',

@@ -610,6 +610,7 @@ export interface Database {
           product_url: string
           product_video_url: string
           consult_note: string
+          remarketing_id: string
           material_note: string
           material_detail_image_url: string
           real_use_image_url: string
@@ -649,6 +650,7 @@ export interface Database {
           product_url?: string
           product_video_url?: string
           consult_note?: string
+          remarketing_id?: string
           material_note?: string
           material_detail_image_url?: string
           real_use_image_url?: string
@@ -688,6 +690,7 @@ export interface Database {
           product_url?: string
           product_video_url?: string
           consult_note?: string
+          remarketing_id?: string
           material_note?: string
           material_detail_image_url?: string
           real_use_image_url?: string

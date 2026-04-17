@@ -30,6 +30,7 @@ type InventoryUpsertBase = {
   product_url: string
   product_video_url: string
   consult_note: string
+  remarketing_id: string
   sort_order: number
   is_active: boolean
   updated_at: string
@@ -47,6 +48,7 @@ function sameInventoryData(row: InventoryRow, base: InventoryUpsertBase): boolea
     row.product_url === base.product_url &&
     row.product_video_url === base.product_video_url &&
     row.consult_note === base.consult_note &&
+    (row.remarketing_id ?? '') === base.remarketing_id &&
     row.sort_order === base.sort_order &&
     row.is_active === base.is_active
   )
@@ -128,6 +130,7 @@ function toInventoryRow(id: string, partnerId: string, base: InventoryUpsertBase
     product_url: base.product_url,
     product_video_url: base.product_video_url,
     consult_note: base.consult_note,
+    remarketing_id: base.remarketing_id,
     material_note: '',
     material_detail_image_url: '',
     real_use_image_url: '',
@@ -287,6 +290,7 @@ export async function upsertPartnerInventoryBatch(
       product_url: r.product_url,
       product_video_url: r.product_video_url,
       consult_note: r.consult_note,
+      remarketing_id: r.remarketing_id ?? '',
       sort_order: r.sort_order,
       is_active: r.is_active,
       updated_at: now,
