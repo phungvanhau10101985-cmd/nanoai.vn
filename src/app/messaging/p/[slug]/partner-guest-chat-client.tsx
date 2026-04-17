@@ -108,6 +108,16 @@ function buildIsoDateFromBirthParts(day: string, month: string, year: string): s
   return `${y.toString().padStart(4, '0')}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`
 }
 
+/** Select (Radix) portal ra ngoài `DialogContent` — cần nhận diện để không chặn click / đóng dialog nhầm. */
+function isRadixSelectOutsideDialog(node: EventTarget | null): boolean {
+  if (!(node instanceof Element)) return false
+  return Boolean(
+    node.closest('[data-radix-select-viewport]') ||
+      node.closest('[role="listbox"]') ||
+      node.closest('[role="option"]')
+  )
+}
+
 function readDocumentCookie(name: string): string | null {
   if (typeof document === 'undefined') return null
   const prefixed = `; ${document.cookie}`
@@ -4493,7 +4503,15 @@ export function PartnerGuestChatClient({
           className={isEmbedUi || guestInIframe ? 'z-[210] sm:max-w-md' : 'sm:max-w-md'}
           overlayClassName={isEmbedUi || guestInIframe ? 'z-[200]' : undefined}
           showCloseButton={false}
-          onPointerDownOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => {
+            if (isRadixSelectOutsideDialog(e.target)) return
+            e.preventDefault()
+          }}
+          onInteractOutside={(e) => {
+            if (isRadixSelectOutsideDialog(e.target)) {
+              e.preventDefault()
+            }
+          }}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
           <DialogHeader>
@@ -4513,7 +4531,10 @@ export function PartnerGuestChatClient({
                   <SelectTrigger className="h-10 w-full min-w-0" aria-label={t.guestProfileBirthDayPlaceholder}>
                     <SelectValue placeholder={t.guestProfileBirthDayPlaceholder} />
                   </SelectTrigger>
-                  <SelectContent position="popper" className="max-h-[min(280px,50dvh)]">
+                  <SelectContent
+                    position="popper"
+                    className="z-[300] max-h-[min(280px,50dvh)]"
+                  >
                     {Array.from({ length: guestBirthMaxDay }, (_, i) => i + 1).map((n) => (
                       <SelectItem key={n} value={String(n)}>
                         {n}
@@ -4528,7 +4549,10 @@ export function PartnerGuestChatClient({
                   <SelectTrigger className="h-10 w-full min-w-0" aria-label={t.guestProfileBirthMonthPlaceholder}>
                     <SelectValue placeholder={t.guestProfileBirthMonthPlaceholder} />
                   </SelectTrigger>
-                  <SelectContent position="popper" className="max-h-[min(280px,50dvh)]">
+                  <SelectContent
+                    position="popper"
+                    className="z-[300] max-h-[min(280px,50dvh)]"
+                  >
                     {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
                       <SelectItem key={n} value={String(n)}>
                         {n}
@@ -4543,7 +4567,10 @@ export function PartnerGuestChatClient({
                   <SelectTrigger className="h-10 w-full min-w-0" aria-label={t.guestProfileBirthYearPlaceholder}>
                     <SelectValue placeholder={t.guestProfileBirthYearPlaceholder} />
                   </SelectTrigger>
-                  <SelectContent position="popper" className="max-h-[min(280px,50dvh)]">
+                  <SelectContent
+                    position="popper"
+                    className="z-[300] max-h-[min(280px,50dvh)]"
+                  >
                     {guestBirthYearOptions.map((y) => (
                       <SelectItem key={y} value={String(y)}>
                         {y}
