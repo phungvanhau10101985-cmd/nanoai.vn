@@ -25,7 +25,6 @@ import {
   fetchLastOutboundCustomerCareMessageBodyPg,
   mergeConversationUiLocaleFromPg,
   resolveLinkedUserIdForCustomerCarePg,
-  upsertConsultedProductKeyForConversationFromPg,
 } from '@/lib/db/customer-care-pg'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { fetchMessagingPartnerAiEnabledFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
@@ -40,8 +39,6 @@ import {
 import type { PartnerAiWidgetIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { partnerAiMessageAloneSuggestsClarifyIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
-import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
-
 const ANONYMOUS_INBOUND_AUTH_THRESHOLD = 5
 type GuestVisionCandidatePayload = {
   inventoryId: string
@@ -410,22 +407,7 @@ export async function postWidgetGuestMessage(params: {
   if ('error' in ins) return { error: ins.error ?? 'Insert failed.' }
 
   const newMessageId = 'messageId' in ins ? ins.messageId : null
-  if (
-    newMessageId &&
-    isPgConfigured() &&
-    typeof params.pageContext?.source === 'string' &&
-    params.pageContext.source === 'product_card_consult' &&
-    pageContextProductUrl
-  ) {
-    try {
-      const pk = normalizeProductUrlKey(pageContextProductUrl)
-      if (pk) {
-        await upsertConsultedProductKeyForConversationFromPg(conversationId, newMessageId, pk)
-      }
-    } catch (e) {
-      console.warn('[widget-guest-post] upsert consulted product key', e)
-    }
-  }
+  /** Không ghi «đã tư vấn» ở đây — chỉ khi khách bấm «Tư vấn» (`POST …/consult-product`). Tin mở link kèm ảnh/URL chỉ là ngữ cảnh, chưa coi là đã chọn tư vấn. */
 
   let shopTyping: { maxWaitMs: number } | undefined
   const visionPickRequired = productPickCandidates.length > 0

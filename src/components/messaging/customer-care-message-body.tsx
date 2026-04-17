@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { MessageVideoFullscreenDialog } from '@/components/messaging/message-video-fullscreen-dialog'
-import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
-import { isProductConsultedInScopeSet } from '@/lib/messaging/consult-product-scope-key'
 import { aiProductCardsFromPayload, type PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { youtubeThumbnailUrl } from '@/lib/messaging/guest-product-video'
 import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-display-enrich'
@@ -491,9 +489,8 @@ export type CustomerCareMessageBodyLabels = {
   productCardViewVideo?: string
   /** a11y nút đóng dialog video. */
   productCardCloseVideo?: string
-  /** Sau khi đã «tư vấn» lần đầu (cùng URL SP trong phiên). */
+  /** Nút mua (cạnh «Tư vấn» trên thẻ SP). */
   productCardBuyProduct?: string
-  consultedProductKeys?: ReadonlySet<string> | null
 }
 
 function AiProductCards({
@@ -526,18 +523,13 @@ function AiProductCards({
         const pickable = typeof onProductCardPick === 'function'
         const productHref =
           typeof p.product_url === 'string' && /^https?:\/\//i.test(p.product_url.trim()) ? p.product_url.trim() : ''
-        const urlKey = normalizeProductUrlKey(productHref)
-        const showBuy = Boolean(
-          buyLabel && urlKey && isProductConsultedInScopeSet(labels?.consultedProductKeys, urlKey)
-        )
         const showDualBuyConsult =
           Boolean(pickable) &&
           Boolean(consultLabel) &&
           Boolean(buyLabel) &&
           Boolean(productHref) &&
-          typeof onProductCardBuy === 'function' &&
-          !showBuy
-        const cta = showBuy ? buyLabel : consultLabel
+          typeof onProductCardBuy === 'function'
+        const cta = consultLabel
         const ctaAria = cta ? `${p.name}. ${cta}` : p.name
         const detailAria = `${p.name}. ${viewDetailsLabel}`
         const showDetailRow = Boolean(productHref && viewDetailsLabel)

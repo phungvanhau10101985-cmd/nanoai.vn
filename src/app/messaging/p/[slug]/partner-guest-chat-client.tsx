@@ -49,10 +49,7 @@ import { isOpenMyOrdersMessage } from '@/lib/messaging/widget-parent-bridge'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order-sepay-message-helpers'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
-import {
-  isProductConsultedInScopeSet,
-  makeConsultProductScopeKey,
-} from '@/lib/messaging/consult-product-scope-key'
+import { makeConsultProductScopeKey } from '@/lib/messaging/consult-product-scope-key'
 import { useToast } from '@/hooks/use-toast'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
@@ -903,6 +900,7 @@ export function PartnerGuestChatClient({
   orderDetailT,
   initialChatList = [],
   guestPurchaseFlow = 'in_chat',
+  consultFromInventory,
 }: {
   slug: string
   shopDisplayName: string
@@ -913,6 +911,15 @@ export function PartnerGuestChatClient({
   orderDetailT: Dictionary['messagingMyOrders']
   initialChatList?: ChatRailItem[]
   guestPurchaseFlow?: GuestPurchaseFlow
+  /**
+   * Trang `/messaging/p/{slug}/tu-van/{uuid}` — ngữ cảnh từ kho (URL gọn, không query `ctx_*` dài).
+   */
+  consultFromInventory?: {
+    inventoryId: string
+    sku?: string
+    imageUrl?: string
+    productUrl?: string
+  } | null
 }) {
   const { toast } = useToast()
   const [authReady, setAuthReady] = useState(false)
@@ -1181,28 +1188,49 @@ export function PartnerGuestChatClient({
     const autoOff = (q.get('auto_consult') || '').trim().toLowerCase()
     autoConsultFromUrlDisabledRef.current =
       autoOff === '0' || autoOff === 'false' || autoOff === 'no'
-    const sku = (q.get('ctx_sku') || '').trim()
-    const imageUrl = (q.get('ctx_image') || '').trim()
-    const productUrl = (q.get('ctx_product_url') || '').trim()
-    const invRaw = (q.get('ctx_inventory') || '').trim()
-    const inventoryId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invRaw)
-      ? invRaw
-      : ''
-    const hasAny = Boolean(sku || imageUrl || productUrl || inventoryId)
-    pageContextRef.current = hasAny
-      ? {
-          ...(sku ? { sku } : {}),
-          ...(imageUrl ? { imageUrl } : {}),
-          ...(productUrl ? { productUrl } : {}),
-          ...(inventoryId ? { inventoryId } : {}),
-        }
-      : null
+
+    const invBootstrap = (consultFromInventory?.inventoryId ?? '').trim()
+    const uuidOk =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invBootstrap)
+
+    if (uuidOk && consultFromInventory) {
+      const c = consultFromInventory
+      const skuB = (c.sku ?? '').trim()
+      const imageUrlB = (c.imageUrl ?? '').trim()
+      const productUrlB = (c.productUrl ?? '').trim()
+      const hasAny = Boolean(skuB || imageUrlB || productUrlB || invBootstrap)
+      pageContextRef.current = hasAny
+        ? {
+            ...(skuB ? { sku: skuB.slice(0, 128) } : {}),
+            ...(imageUrlB ? { imageUrl: imageUrlB } : {}),
+            ...(productUrlB ? { productUrl: productUrlB } : {}),
+            inventoryId: invBootstrap,
+          }
+        : null
+    } else {
+      const sku = (q.get('ctx_sku') || '').trim()
+      const imageUrl = (q.get('ctx_image') || '').trim()
+      const productUrl = (q.get('ctx_product_url') || '').trim()
+      const invRaw = (q.get('ctx_inventory') || '').trim()
+      const inventoryId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invRaw)
+        ? invRaw
+        : ''
+      const hasAny = Boolean(sku || imageUrl || productUrl || inventoryId)
+      pageContextRef.current = hasAny
+        ? {
+            ...(sku ? { sku } : {}),
+            ...(imageUrl ? { imageUrl } : {}),
+            ...(productUrl ? { productUrl } : {}),
+            ...(inventoryId ? { inventoryId } : {}),
+          }
+        : null
+    }
     /** Từ email / liên kết chia sẻ: `?order=<uuid>` mở chi tiết đơn trong widget. */
     const orderParam = (q.get('order') || '').trim().toLowerCase()
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(orderParam)) {
       setEmbedOrderDetailId(orderParam)
     }
-  }, [])
+  }, [consultFromInventory])
 
   const authHeaders = useCallback((): Record<string, string> => {
     const h: Record<string, string> = {}
@@ -1950,17 +1978,7 @@ export function PartnerGuestChatClient({
     const productKey = normalizeProductUrlKey(productUrl)
     const scopeKey =
       productKey && sourceMessageId.trim() ? makeConsultProductScopeKey(sourceMessageId.trim(), productKey) : ''
-    if (productUrl && productKey && isProductConsultedInScopeSet(consultedProductKeys, productKey)) {
-      setBuyOptionsOpen(false)
-      await openOrderFormByOption({
-        name: card.name,
-        image_url: card.image_url,
-        product_url: productUrl,
-        price_hint: card.price_hint,
-        sku: card.sku?.trim() || null,
-      })
-      return
-    }
+    /** Nút «Mua» gọi `openGuestProductOrderFormFromCard`; «Tư vấn» luôn vào nhánh dưới — đã tư vấn vẫn bấm lại (consult-product cache hit DB). */
     if (intent !== 'purchase') {
       setBuyOptionsOpen(false)
       const sku = (card.sku ?? '').trim().slice(0, 128)
@@ -2875,7 +2893,8 @@ export function PartnerGuestChatClient({
   )
 
   /**
-   * Link sản phẩm: `.../messaging/p/{slug}?ctx_product_url=&ctx_image=&ctx_sku=&ctx_inventory=` — tự gửi tin tư vấn.
+   * Ngữ cảnh SP: `/messaging/p/{slug}/tu-van/{uuid}` (props) hoặc
+   * `...?ctx_product_url=&ctx_image=&ctx_sku=&ctx_inventory=` — tự gửi tin tư vấn.
    * `auto_consult=0` — chỉ đổ ngữ cảnh, không tự gửi.
    */
   useEffect(() => {
@@ -3421,7 +3440,6 @@ export function PartnerGuestChatClient({
                           productCardViewVideo: t.visionProductVideo,
                           productCardCloseVideo: t.visionVideoCloseAria,
                           productCardBuyProduct: t.visionProductBuy,
-                          consultedProductKeys,
                         }}
                         onProductCardBuy={isMe ? undefined : (card) => void openGuestProductOrderFormFromCard(card)}
                         onProductCardPick={
@@ -3441,13 +3459,6 @@ export function PartnerGuestChatClient({
                               const isSelected = vs.selectedInventoryId === c.inventoryId
                               const isBusy = visionPickBusyId === m.id
                               const puVision = (c.product_url || '').trim()
-                              const pkVision =
-                                puVision && /^https?:\/\//i.test(puVision)
-                                  ? normalizeProductUrlKey(puVision)
-                                  : ''
-                              const visionCtaBuy = Boolean(
-                                pkVision && isProductConsultedInScopeSet(consultedProductKeys, pkVision)
-                              )
                               return (
                                 <div
                                   key={c.inventoryId}
@@ -3541,11 +3552,11 @@ export function PartnerGuestChatClient({
                                       </a>
                                     ) : null}
                                     {puVision && /^https?:\/\//i.test(puVision.trim()) ? (
-                                      visionCtaBuy ? (
+                                      <div className="grid grid-cols-2 gap-1">
                                         <button
                                           type="button"
                                           disabled={isBusy}
-                                          className="flex h-8 w-full min-w-0 items-center justify-center rounded-md bg-white/20 px-1 text-[10px] font-semibold leading-snug text-white hover:bg-white/30 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
+                                          className="flex h-8 min-w-0 items-center justify-center rounded-md bg-white px-1 text-[10px] font-semibold leading-snug text-violet-800 hover:bg-white/95 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
                                           onClick={(e) => {
                                             e.stopPropagation()
                                             void openGuestProductOrderFormFromCard({
@@ -3564,57 +3575,32 @@ export function PartnerGuestChatClient({
                                             {t.visionProductBuy}
                                           </span>
                                         </button>
-                                      ) : (
-                                        <div className="grid grid-cols-2 gap-1">
-                                          <button
-                                            type="button"
-                                            disabled={isBusy}
-                                            className="flex h-8 min-w-0 items-center justify-center rounded-md bg-white px-1 text-[10px] font-semibold leading-snug text-violet-800 hover:bg-white/95 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              void openGuestProductOrderFormFromCard({
+                                        <button
+                                          type="button"
+                                          disabled={isBusy}
+                                          className="flex h-8 min-w-0 items-center justify-center rounded-md border border-white/35 bg-white/10 px-1 text-[10px] font-semibold leading-snug text-white hover:bg-white/16 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            void submitProductCardPick(
+                                              {
                                                 name: c.name,
                                                 image_url: c.image_url,
                                                 product_url: puVision.trim(),
                                                 ...(c.price_hint && String(c.price_hint).trim()
                                                   ? { price_hint: String(c.price_hint).trim() }
                                                   : {}),
-                                              })
-                                            }}
-                                            aria-label={`${c.name}. ${t.visionProductBuy}`}
-                                            lang="vi"
-                                          >
-                                            <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
-                                              {t.visionProductBuy}
-                                            </span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            disabled={isBusy}
-                                            className="flex h-8 min-w-0 items-center justify-center rounded-md border border-white/35 bg-white/10 px-1 text-[10px] font-semibold leading-snug text-white hover:bg-white/16 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              void submitProductCardPick(
-                                                {
-                                                  name: c.name,
-                                                  image_url: c.image_url,
-                                                  product_url: puVision.trim(),
-                                                  ...(c.price_hint && String(c.price_hint).trim()
-                                                    ? { price_hint: String(c.price_hint).trim() }
-                                                    : {}),
-                                                },
-                                                m.id
-                                              )
-                                            }}
-                                            aria-label={`${c.name}. ${t.visionProductLink}`}
-                                            lang="vi"
-                                          >
-                                            <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
-                                              {t.visionProductLink}
-                                            </span>
-                                          </button>
-                                        </div>
-                                      )
+                                              },
+                                              m.id
+                                            )
+                                          }}
+                                          aria-label={`${c.name}. ${t.visionProductLink}`}
+                                          lang="vi"
+                                        >
+                                          <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
+                                            {t.visionProductLink}
+                                          </span>
+                                        </button>
+                                      </div>
                                     ) : null}
                                   </div>
                                 </div>
@@ -4645,8 +4631,6 @@ export function PartnerGuestChatClient({
             <>
             <div className="grid grid-cols-2 gap-2.5">
               {recentProductRows.slice(0, productShelfVisibleCount).map((row) => {
-                const pk = normalizeProductUrlKey(row.card.product_url.trim())
-                const consulted = pk ? isProductConsultedInScopeSet(consultedProductKeys, pk) : false
                 const href = row.card.product_url.trim()
                 const priceLabel = formatVndPrice(row.card.price_hint)
                 return (
@@ -4706,29 +4690,34 @@ export function PartnerGuestChatClient({
                         {priceLabel}
                       </p>
                     ) : null}
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {consulted ? (
+                    <div className="flex flex-col gap-1.5">
+                      <div className="grid grid-cols-2 gap-1.5">
                         <Button
                           type="button"
                           size="sm"
                           className="h-8 w-full px-1 text-[11px]"
                           disabled={sending}
-                          onClick={() => void submitProductCardPick(row.card, row.sourceMessageId).then(() => setRecentProductsOpen(false))}
+                          onClick={() =>
+                            void openGuestProductOrderFormFromCard(row.card).then(() => setRecentProductsOpen(false))
+                          }
                         >
                           {t.productShelfBuy}
                         </Button>
-                      ) : (
                         <Button
                           type="button"
                           size="sm"
                           variant="secondary"
                           className="h-8 w-full px-1 text-[11px]"
                           disabled={sending}
-                          onClick={() => void submitProductCardPick(row.card, row.sourceMessageId).then(() => setRecentProductsOpen(false))}
+                          onClick={() =>
+                            void submitProductCardPick(row.card, row.sourceMessageId).then(() =>
+                              setRecentProductsOpen(false)
+                            )
+                          }
                         >
                           {t.visionProductLink}
                         </Button>
-                      )}
+                      </div>
                       <Button
                         type="button"
                         size="sm"
