@@ -49,7 +49,6 @@ import { isOpenMyOrdersMessage } from '@/lib/messaging/widget-parent-bridge'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order-sepay-message-helpers'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
-import { makeConsultProductScopeKey } from '@/lib/messaging/consult-product-scope-key'
 import { useToast } from '@/hooks/use-toast'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
@@ -1036,7 +1035,6 @@ export function PartnerGuestChatClient({
   const didInitialAutoScrollRef = useRef(false)
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
-  const [consultedProductKeys, setConsultedProductKeys] = useState(() => new Set<string>())
   const [recentProductsOpen, setRecentProductsOpen] = useState(false)
   const [productShelfShuffleNonce, setProductShelfShuffleNonce] = useState(0)
   const [productShelfVisibleCount, setProductShelfVisibleCount] = useState(PRODUCT_SHELF_LAZY_INITIAL)
@@ -1344,7 +1342,6 @@ export function PartnerGuestChatClient({
       captureGuestAccountFromResponse(res)
       const data = (await res.json()) as {
         messages?: GuestMsg[]
-        consultedProductKeys?: string[]
         error?: string
         authMode?: 'anonymous' | 'account'
         needsProfile?: boolean
@@ -1389,11 +1386,6 @@ export function PartnerGuestChatClient({
         setAuthMode('anonymous')
       }
       setMessages(normalizedMessages)
-      if (Array.isArray(data.consultedProductKeys)) {
-        setConsultedProductKeys(
-          new Set(data.consultedProductKeys.filter((k): k is string => typeof k === 'string' && k.length > 0))
-        )
-      }
       const effectiveAuthMode = serverSaysAccount || hasGuestAccount ? 'account' : 'anonymous'
       setAuthMode(effectiveAuthMode)
       if (effectiveAuthMode === 'account') setAuthGateRequired(false)
@@ -1976,8 +1968,6 @@ export function PartnerGuestChatClient({
     const label = card.name?.trim() || 'mau san pham'
     const productUrl = card.product_url.trim()
     const productKey = normalizeProductUrlKey(productUrl)
-    const scopeKey =
-      productKey && sourceMessageId.trim() ? makeConsultProductScopeKey(sourceMessageId.trim(), productKey) : ''
     /** Nút «Mua» gọi `openGuestProductOrderFormFromCard`; «Tư vấn» luôn vào nhánh dưới — đã tư vấn vẫn bấm lại (consult-product cache hit DB). */
     if (intent !== 'purchase') {
       setBuyOptionsOpen(false)
@@ -2067,9 +2057,6 @@ export function PartnerGuestChatClient({
             captureGuestAccountFromResponse(rec)
           } catch {
             // vẫn cập nhật local + load(); có thể retry sau
-          }
-          if (scopeKey) {
-            setConsultedProductKeys((prev) => new Set(prev).add(scopeKey))
           }
         }
         await load()
