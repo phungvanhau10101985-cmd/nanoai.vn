@@ -30,7 +30,10 @@ import {
 } from '@/lib/db/partner-product-consult-cache-pg'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
-import { clampProductCardsToLastConsultedRow } from '@/lib/messaging/partner-ai-followup-product-cards-clamp'
+import {
+  clampProductCardsToLastConsultedRow,
+  partnerAiProductCardFromInventoryRow,
+} from '@/lib/messaging/partner-ai-followup-product-cards-clamp'
 import { parsePartnerAiLlmStructured } from '@/lib/messaging/partner-ai-product-cards'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
@@ -307,15 +310,20 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         parsed = { ...parsed, products: [] }
       }
       if (
+        !clarifyShoppingIntent &&
         useLastConsultedContext &&
         lastConsultedRow &&
-        parsed.products.length > 0 &&
         !similarCatalogVersusLastConsulted
       ) {
-        parsed = {
-          ...parsed,
-          products: clampProductCardsToLastConsultedRow(parsed.products, lastConsultedRow),
+        let nextProducts = parsed.products
+        if (nextProducts.length > 0) {
+          nextProducts = clampProductCardsToLastConsultedRow(nextProducts, lastConsultedRow)
         }
+        if (nextProducts.length === 0) {
+          const fb = partnerAiProductCardFromInventoryRow(lastConsultedRow)
+          if (fb) nextProducts = [fb]
+        }
+        parsed = { ...parsed, products: nextProducts }
       }
       const productsWithVideo = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
         job.partner_id,

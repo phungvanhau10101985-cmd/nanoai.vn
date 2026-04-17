@@ -286,6 +286,24 @@ function isSystemOrderMessage(raw: Json | null | undefined): boolean {
   return o?.source === 'system_order'
 }
 
+/** Chỉ báo đang chờ tin shop — một dòng ở cuối luồng, ẩn khi đã có tin mới (không xen vào lịch sử giữa các bubble). */
+function GuestShopTypingPill({ label }: { label: string }) {
+  return (
+    <div
+      className="mr-auto flex max-w-[92%] items-center gap-2 rounded-2xl rounded-bl-md border border-border/60 bg-card px-3.5 py-2.5 text-[17px] text-muted-foreground shadow-sm sm:text-lg"
+      role="status"
+      aria-live="polite"
+    >
+      <span className="tabular-nums">{label}</span>
+      <span className="inline-flex gap-0.5" aria-hidden>
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:0ms]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:150ms]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:300ms]" />
+      </span>
+    </div>
+  )
+}
+
 /** Ngữ cảnh SP từ query `?ctx_sku=&ctx_image=&ctx_image_2=&ctx_product_url=&ctx_inventory=` — gửi kèm tin đầu / tự động tư vấn. */
 type WidgetPageContextSeed = {
   sku?: string
@@ -1025,6 +1043,8 @@ export function PartnerGuestChatClient({
   const [imageStoragePath, setImageStoragePath] = useState<string | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
   const [visionPickBusyId, setVisionPickBusyId] = useState<string | null>(null)
+  /** Thẻ vision 3 nút: mỗi nút một khóa (`messageId\u001finventoryId::detail|buy|consult`). */
+  const [visionButtonTappedKeys, setVisionButtonTappedKeys] = useState(() => new Set<string>())
   /** Xem ảnh gợi ý / thẻ — overlay cùng trang (không mở tab). */
   const [chatImageLightboxUrl, setChatImageLightboxUrl] = useState<string | null>(null)
   const pageContextRef = useRef<WidgetPageContextSeed | null>(null)
@@ -3460,22 +3480,30 @@ export function PartnerGuestChatClient({
                       const vs = getVisionPickState(m.raw_payload)
                       if (!isMe || vs.candidates.length === 0) return null
                       return (
-                        <div className="mt-2 space-y-2 border-t border-white/20 pt-2">
+                        <div className="mt-2 space-y-2 border-t border-white/20 pt-2 isolate text-foreground [&_a]:!text-foreground">
                           <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
                             {vs.candidates.map((c) => {
                               const isSelected = vs.selectedInventoryId === c.inventoryId
                               const isBusy = visionPickBusyId === m.id
                               const puVision = (c.product_url || '').trim()
+                              const vk = `${m.id}\u001f${c.inventoryId}`
+                              const idVisDetail = `${vk}::detail`
+                              const idVisBuy = `${vk}::buy`
+                              const idVisConsult = `${vk}::consult`
+                              const visionTapped = (id: string) => visionButtonTappedKeys.has(id)
+                              const markVisionBtn = (id: string) => {
+                                setVisionButtonTappedKeys((prev) => new Set(prev).add(id))
+                              }
                               return (
                                 <div
                                   key={c.inventoryId}
                                   role="button"
                                   tabIndex={isBusy ? -1 : 0}
                                   aria-disabled={isBusy}
-                                  className={`w-36 shrink-0 snap-start overflow-hidden rounded-lg border text-left text-xs text-white transition-all ${
+                                  className={`w-36 shrink-0 snap-start overflow-hidden rounded-lg border border-border/60 bg-card text-left text-xs text-foreground shadow-sm transition-all ${
                                     isSelected
-                                      ? 'border-white ring-2 ring-white/90 ring-offset-1 ring-offset-violet-700 opacity-100'
-                                      : 'border-white/25 hover:border-white/45'
+                                      ? 'ring-2 ring-primary/30 ring-offset-0 border-primary/45'
+                                      : 'hover:border-primary/25'
                                   } ${isBusy ? 'opacity-50' : 'cursor-pointer'}`}
                                   onClick={() => {
                                     if (isBusy) return
@@ -3497,7 +3525,7 @@ export function PartnerGuestChatClient({
                                       <a
                                         href={puVision.trim()}
                                         rel="noopener noreferrer"
-                                        className="block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-violet-700"
+                                        className="block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                         onClick={(ev) => {
                                           ev.preventDefault()
                                           ev.stopPropagation()
@@ -3509,13 +3537,13 @@ export function PartnerGuestChatClient({
                                         <img
                                           src={c.image_url}
                                           alt=""
-                                          className="h-28 w-full bg-white/10 object-contain"
+                                          className="h-28 w-full bg-muted/30 object-contain"
                                         />
                                       </a>
                                     ) : (
                                       <button
                                         type="button"
-                                        className="block w-full outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-violet-700"
+                                        className="block w-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                         onClick={(ev) => {
                                           ev.stopPropagation()
                                           setChatImageLightboxUrl(c.image_url)
@@ -3526,16 +3554,16 @@ export function PartnerGuestChatClient({
                                         <img
                                           src={c.image_url}
                                           alt=""
-                                          className="h-28 w-full bg-white/10 object-contain"
+                                          className="h-28 w-full bg-muted/30 object-contain"
                                         />
                                       </button>
                                     )
                                   ) : (
-                                    <div className="h-28 w-full bg-white/5" />
+                                    <div className="h-28 w-full bg-muted/30" />
                                   )}
-                                  <div className="flex flex-col gap-1 px-1.5 py-1.5">
+                                  <div className="flex flex-col gap-1 px-1.5 py-1.5 text-foreground">
                                     <p
-                                      className="w-full min-w-0 truncate text-[11px] tabular-nums leading-none text-white/85"
+                                      className="w-full min-w-0 truncate text-[11px] tabular-nums leading-none text-muted-foreground"
                                       title={formatVndPrice(c.price_hint) ?? undefined}
                                     >
                                       {formatVndPrice(c.price_hint) ?? '\u00a0'}
@@ -3544,10 +3572,15 @@ export function PartnerGuestChatClient({
                                       <a
                                         href={puVision.trim()}
                                         rel="noopener noreferrer"
-                                        className="flex h-8 w-full min-w-0 items-center justify-center rounded-md border border-white/35 bg-white/10 px-1 text-[10px] font-semibold leading-snug text-white hover:bg-white/16 sm:text-[10px]"
+                                        className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
+                                          visionTapped(idVisDetail)
+                                            ? 'border-emerald-600/45 bg-emerald-100 !text-emerald-950 ring-1 ring-emerald-500/40 dark:bg-emerald-950/50 dark:!text-emerald-50'
+                                            : 'border-border/80 bg-background !text-foreground hover:bg-muted/60 hover:!text-foreground'
+                                        }`}
                                         onClick={(e) => {
                                           e.preventDefault()
                                           e.stopPropagation()
+                                          markVisionBtn(idVisDetail)
                                           openGuestProductDetailUrl(puVision.trim())
                                         }}
                                         aria-label={`${c.name}. ${t.visionProductViewDetails}`}
@@ -3563,9 +3596,14 @@ export function PartnerGuestChatClient({
                                         <button
                                           type="button"
                                           disabled={isBusy}
-                                          className="flex h-8 min-w-0 items-center justify-center rounded-md bg-white px-1 text-[10px] font-semibold leading-snug text-violet-800 hover:bg-white/95 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
+                                          className={`flex h-8 min-w-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 sm:text-[10px] ${
+                                            visionTapped(idVisBuy)
+                                              ? 'bg-emerald-600 !text-white ring-1 ring-emerald-500/60'
+                                              : 'bg-primary !text-primary-foreground hover:bg-primary/90'
+                                          }`}
                                           onClick={(e) => {
                                             e.stopPropagation()
+                                            markVisionBtn(idVisBuy)
                                             void openGuestProductOrderFormFromCard({
                                               name: c.name,
                                               image_url: c.image_url,
@@ -3576,6 +3614,7 @@ export function PartnerGuestChatClient({
                                             })
                                           }}
                                           aria-label={`${c.name}. ${t.visionProductBuy}`}
+                                          aria-pressed={visionTapped(idVisBuy)}
                                           lang="vi"
                                         >
                                           <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
@@ -3585,9 +3624,14 @@ export function PartnerGuestChatClient({
                                         <button
                                           type="button"
                                           disabled={isBusy}
-                                          className="flex h-8 min-w-0 items-center justify-center rounded-md border border-white/35 bg-white/10 px-1 text-[10px] font-semibold leading-snug text-white hover:bg-white/16 disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
+                                          className={`flex h-8 min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] disabled:pointer-events-none disabled:opacity-50 ${
+                                            visionTapped(idVisConsult)
+                                              ? 'border-emerald-600/45 bg-emerald-100 !text-emerald-950 ring-1 ring-emerald-500/40 dark:bg-emerald-950/50 dark:!text-emerald-50'
+                                              : 'border-border/80 bg-background !text-foreground hover:bg-muted/60 hover:!text-foreground'
+                                          }`}
                                           onClick={(e) => {
                                             e.stopPropagation()
+                                            markVisionBtn(idVisConsult)
                                             void submitProductCardPick(
                                               {
                                                 name: c.name,
@@ -3601,6 +3645,7 @@ export function PartnerGuestChatClient({
                                             )
                                           }}
                                           aria-label={`${c.name}. ${t.visionProductLink}`}
+                                          aria-pressed={visionTapped(idVisConsult)}
                                           lang="vi"
                                         >
                                           <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
@@ -3627,20 +3672,7 @@ export function PartnerGuestChatClient({
                 )
               })
             )}
-            {shopTyping ? (
-              <div
-                className="mr-auto flex max-w-[92%] items-center gap-2 rounded-2xl rounded-bl-md border border-border/60 bg-card px-3.5 py-2.5 text-[17px] text-muted-foreground shadow-sm sm:text-lg"
-                role="status"
-                aria-live="polite"
-              >
-                <span className="tabular-nums">{t.shopTypingHint}</span>
-                <span className="inline-flex gap-0.5" aria-hidden>
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:0ms]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:150ms]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:300ms]" />
-                </span>
-              </div>
-            ) : null}
+            {shopTyping ? <GuestShopTypingPill label={t.shopTypingHint} /> : null}
             <div ref={scrollAnchorRef} className="h-px w-full shrink-0" aria-hidden />
           </div>
 

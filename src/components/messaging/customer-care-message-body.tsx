@@ -495,7 +495,6 @@ export type CustomerCareMessageBodyLabels = {
 
 function AiProductCards({
   cards,
-  onViolet,
   labels,
   onProductCardPick,
   onProductCardBuy,
@@ -503,7 +502,6 @@ function AiProductCards({
   onPreviewVideo,
 }: {
   cards: PartnerAiProductCard[]
-  onViolet: boolean
   labels?: CustomerCareMessageBodyLabels
   onProductCardPick?: (card: PartnerAiProductCard) => void
   /** Widget khách: mua ngay (trái) — mở form đặt, không gửi tin tư vấn. */
@@ -511,7 +509,7 @@ function AiProductCards({
   onPreviewImage: (imageUrl: string) => void
   onPreviewVideo: (videoUrl: string) => void
 }) {
-  /** Nút đã bấm — đổi màu cố định để khách biết thao tác đã nhận. */
+  /** Mỗi nút một trạng thái — chỉ nút vừa bấm đổi màu. */
   const [tappedBtns, setTappedBtns] = useState(() => new Set<string>())
   const markTapped = (id: string) => {
     setTappedBtns((prev) => new Set(prev).add(id))
@@ -552,9 +550,7 @@ function AiProductCards({
         return (
           <div
             key={`${idx}-${p.product_url}`}
-            className={`${videoUrl ? 'w-[13.25rem]' : 'w-36'} shrink-0 snap-start overflow-hidden rounded-lg border shadow-sm transition-opacity hover:opacity-95 ${
-              onViolet ? 'border-white/25 bg-white/10' : 'border-border/60 bg-card'
-            }`}
+            className={`${videoUrl ? 'w-[13.25rem]' : 'w-36'} shrink-0 snap-start overflow-hidden rounded-lg border border-border/60 bg-card text-foreground shadow-sm transition-opacity hover:opacity-95`}
             aria-label={pickable ? undefined : showDetailRow ? detailAria : ctaAria}
           >
             <div className="flex gap-1">
@@ -564,9 +560,7 @@ function AiProductCards({
                     <a
                       href={productHref}
                       rel="noopener noreferrer"
-                      className={`block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                        onViolet ? 'focus-visible:ring-offset-violet-700' : ''
-                      }`}
+                      className="block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       onClick={(ev) => {
                         ev.preventDefault()
                         ev.stopPropagation()
@@ -578,16 +572,14 @@ function AiProductCards({
                       <img
                         src={p.image_url}
                         alt=""
-                        className={`h-28 w-full object-contain ${onViolet ? 'bg-white/10 opacity-95' : 'bg-muted/30'}`}
+                        className="h-28 w-full bg-muted/30 object-contain"
                         loading="lazy"
                       />
                     </a>
                   ) : (
                     <button
                       type="button"
-                      className={`block w-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                        onViolet ? 'focus-visible:ring-offset-violet-700' : ''
-                      }`}
+                      className="block w-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       onClick={(ev) => {
                         ev.stopPropagation()
                         onPreviewImage(p.image_url)
@@ -598,23 +590,19 @@ function AiProductCards({
                       <img
                         src={p.image_url}
                         alt=""
-                        className={`h-28 w-full object-contain ${onViolet ? 'bg-white/10 opacity-95' : 'bg-muted/30'}`}
+                        className="h-28 w-full bg-muted/30 object-contain"
                         loading="lazy"
                       />
                     </button>
                   )
                 ) : (
-                  <div className={`h-28 w-full ${onViolet ? 'bg-white/10' : 'bg-muted/30'}`} />
+                  <div className="h-28 w-full bg-muted/30" />
                 )}
               </div>
               {videoUrl ? (
                 <button
                   type="button"
-                  className={`relative h-28 w-[4.25rem] shrink-0 overflow-hidden rounded-md border text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                    onViolet
-                      ? 'border-white/25 bg-black/20 focus-visible:ring-offset-violet-700'
-                      : 'border-border/60 bg-muted/40 focus-visible:ring-offset-background'
-                  }`}
+                  className="relative h-28 w-[4.25rem] shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted/40 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   onClick={(ev) => {
                     ev.stopPropagation()
                     onPreviewVideo(videoUrl)
@@ -625,7 +613,7 @@ function AiProductCards({
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={ytThumb} alt="" className="h-full w-full object-cover" loading="lazy" />
                   ) : (
-                    <DirectVideoStripThumbnail src={videoUrl} onViolet={onViolet} />
+                    <DirectVideoStripThumbnail src={videoUrl} onViolet={false} />
                   )}
                   <span className="absolute inset-0 flex items-center justify-center bg-black/30">
                     <Play className="h-7 w-7 text-white drop-shadow-md" strokeWidth={1.75} aria-hidden />
@@ -633,9 +621,9 @@ function AiProductCards({
                 </button>
               ) : null}
             </div>
-            <div className={`flex flex-col gap-1 px-1.5 py-1.5 text-left ${onViolet ? 'text-white' : ''}`}>
+            <div className="flex flex-col gap-1 px-1.5 py-1.5 text-left text-foreground">
               <p
-                className={`w-full min-w-0 truncate text-[11px] tabular-nums leading-none ${onViolet ? 'text-white/85' : 'text-muted-foreground'}`}
+                className="w-full min-w-0 truncate text-[11px] tabular-nums leading-none text-muted-foreground"
                 title={priceLabel ?? undefined}
               >
                 {priceLabel ?? '\u00a0'}
@@ -646,12 +634,8 @@ function AiProductCards({
                   rel="noopener noreferrer"
                   className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
                     isTapped(idDetail)
-                      ? onViolet
-                        ? 'border-emerald-300/70 bg-emerald-500/35 text-white ring-1 ring-emerald-400/45'
-                        : 'border-emerald-600/45 bg-emerald-100 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-50'
-                      : onViolet
-                        ? 'border-white/35 bg-white/10 text-white hover:bg-white/16'
-                        : 'border-border/80 bg-background text-foreground hover:bg-muted/60'
+                      ? 'border-emerald-600/45 bg-emerald-100 !text-emerald-950 ring-1 ring-emerald-500/40 dark:bg-emerald-950/50 dark:!text-emerald-50'
+                      : 'border-border/80 bg-background !text-foreground hover:bg-muted/60 hover:!text-foreground'
                   }`}
                   onClick={(ev) => {
                     ev.preventDefault()
@@ -671,12 +655,8 @@ function AiProductCards({
                     type="button"
                     className={`flex h-8 min-w-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
                       isTapped(idBuy)
-                        ? onViolet
-                          ? 'bg-emerald-300 text-violet-950 ring-2 ring-emerald-200/80'
-                          : 'bg-emerald-600 text-white ring-1 ring-emerald-500/60'
-                        : onViolet
-                          ? 'bg-white text-violet-800 hover:bg-white/95'
-                          : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                        ? 'bg-emerald-600 !text-white ring-1 ring-emerald-500/60'
+                        : 'bg-primary !text-primary-foreground hover:bg-primary/90'
                     }`}
                     onClick={(ev) => {
                       ev.stopPropagation()
@@ -693,12 +673,8 @@ function AiProductCards({
                     type="button"
                     className={`flex h-8 min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
                       isTapped(idConsult)
-                        ? onViolet
-                          ? 'border-emerald-300/70 bg-emerald-500/35 text-white ring-1 ring-emerald-400/45'
-                          : 'border-emerald-600/45 bg-emerald-100 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-50'
-                        : onViolet
-                          ? 'border-white/35 bg-white/10 text-white hover:bg-white/16'
-                          : 'border-border/80 bg-background text-foreground hover:bg-muted/60'
+                        ? 'border-emerald-600/45 bg-emerald-100 !text-emerald-950 ring-1 ring-emerald-500/40 dark:bg-emerald-950/50 dark:!text-emerald-50'
+                        : 'border-border/80 bg-background !text-foreground hover:bg-muted/60 hover:!text-foreground'
                     }`}
                     onClick={(ev) => {
                       ev.stopPropagation()
@@ -717,12 +693,8 @@ function AiProductCards({
                   type="button"
                   className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
                     isTapped(idCtaOnly)
-                      ? onViolet
-                        ? 'bg-emerald-500/40 text-white ring-1 ring-emerald-400/50'
-                        : 'bg-emerald-600/15 text-emerald-950 ring-1 ring-emerald-600/35 dark:bg-emerald-500/25 dark:text-emerald-50'
-                      : onViolet
-                        ? 'bg-white/20 text-white hover:bg-white/30'
-                        : 'bg-primary/10 text-primary hover:bg-primary/15'
+                      ? 'bg-emerald-600/15 !text-emerald-950 ring-1 ring-emerald-600/35 dark:bg-emerald-500/25 dark:!text-emerald-50'
+                      : 'bg-primary/10 !text-primary hover:bg-primary/15 hover:!text-primary'
                   }`}
                   onClick={(ev) => {
                     ev.stopPropagation()
@@ -813,15 +785,27 @@ export function CustomerCareMessageBody({
         orderPaymentProof={orderPaymentProof}
         shopDisplayName={shopDisplayName}
       />
-      <AiProductCards
-        cards={productCards}
-        onViolet={onViolet}
-        labels={labels}
-        onProductCardPick={onProductCardPick}
-        onProductCardBuy={onProductCardBuy}
-        onPreviewImage={setLightboxSrc}
-        onPreviewVideo={setVideoLightboxSrc}
-      />
+      {onViolet ? (
+        <div className="isolate text-foreground [&_a]:!text-foreground">
+          <AiProductCards
+            cards={productCards}
+            labels={labels}
+            onProductCardPick={onProductCardPick}
+            onProductCardBuy={onProductCardBuy}
+            onPreviewImage={setLightboxSrc}
+            onPreviewVideo={setVideoLightboxSrc}
+          />
+        </div>
+      ) : (
+        <AiProductCards
+          cards={productCards}
+          labels={labels}
+          onProductCardPick={onProductCardPick}
+          onProductCardBuy={onProductCardBuy}
+          onPreviewImage={setLightboxSrc}
+          onPreviewVideo={setVideoLightboxSrc}
+        />
+      )}
       {!url && !caption && !productCards.length && row.body ? (
         <MessageTextWithLinks
           text={row.body}

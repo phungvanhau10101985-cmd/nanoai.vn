@@ -46,3 +46,23 @@ export function clampProductCardsToLastConsultedRow(
   if (matched.length > 0) return matched.slice(0, 1)
   return []
 }
+
+/** Thẻ SP từ dòng kho — dùng khi LLM không trả products hoặc clamp không khớp (tư vấn lại vẫn có 3 nút). */
+export function partnerAiProductCardFromInventoryRow(row: InvRow): PartnerAiProductCard | null {
+  const name = row.name.trim()
+  const image_url = row.image_url.trim()
+  const product_url = row.product_url.trim()
+  if (!name || !/^https?:\/\//i.test(image_url) || !/^https?:\/\//i.test(product_url)) return null
+  const price_hint = row.price_hint?.trim() || ''
+  const sku = (row.sku ?? '').trim().slice(0, 128)
+  let card: PartnerAiProductCard = price_hint
+    ? { name, image_url, product_url, price_hint }
+    : { name, image_url, product_url }
+  if (sku) card = { ...card, sku }
+  card = { ...card, inventory_id: row.id }
+  const pv = (row.product_video_url ?? '').trim()
+  if (pv && /^https?:\/\//i.test(pv) && pv.length <= 2048) {
+    card = { ...card, product_video_url: pv }
+  }
+  return card
+}
