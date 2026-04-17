@@ -511,13 +511,14 @@ function AiProductCards({
   onPreviewImage: (imageUrl: string) => void
   onPreviewVideo: (videoUrl: string) => void
 }) {
-  if (!cards.length) return null
   /** Nút đã bấm — đổi màu cố định để khách biết thao tác đã nhận. */
   const [tappedBtns, setTappedBtns] = useState(() => new Set<string>())
   const markTapped = (id: string) => {
     setTappedBtns((prev) => new Set(prev).add(id))
   }
   const isTapped = (id: string) => tappedBtns.has(id)
+
+  if (!cards.length) return null
 
   const consultLabel = labels?.productCardOpenProduct?.trim()
   const buyLabel = labels?.productCardBuyProduct?.trim()
