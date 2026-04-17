@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  fetchPartnerInventoryRowByIdForPartnerFromPg,
+  fetchPartnerInventoryRowByProductUrlNormKeyFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
@@ -27,6 +30,7 @@ export const dynamic = 'force-dynamic'
 
 /**
  * Khách bấm «Mua ngay» — ViewContent + AddToCart (CAPI) + payload cho Pixel (client gọi fbq).
+ * Body: `inventoryId` (UUID) **hoặc** `productUrl` (HTTP) để tra kho — ít nhất một trong hai.
  */
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
@@ -34,16 +38,19 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ ok: false, error: 'database_unavailable' }, { status: 503 })
   }
 
-  let body: { inventoryId?: string; eventSourceUrl?: string }
+  let body: { inventoryId?: string; productUrl?: string; eventSourceUrl?: string }
   try {
-    body = (await request.json()) as { inventoryId?: string; eventSourceUrl?: string }
+    body = (await request.json()) as typeof body
   } catch {
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 })
   }
 
   const inventoryId = String(body.inventoryId ?? '').trim()
-  if (!UUID_RE.test(inventoryId)) {
-    return NextResponse.json({ ok: false, error: 'invalid_inventory_id' }, { status: 400 })
+  const productUrlRaw = String(body.productUrl ?? '').trim()
+  const hasUuid = UUID_RE.test(inventoryId)
+  const hasProductUrl = /^https?:\/\//i.test(productUrlRaw)
+  if (!hasUuid && !hasProductUrl) {
+    return NextResponse.json({ ok: false, error: 'missing_inventory_id_or_product_url' }, { status: 400 })
   }
 
   const eventSourceUrl = String(body.eventSourceUrl ?? '').trim().slice(0, 2000) || ''
@@ -53,7 +60,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
   }
 
-  const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partner.id, inventoryId)
+  let row = null as Awaited<ReturnType<typeof fetchPartnerInventoryRowByIdForPartnerFromPg>>
+  if (hasUuid) {
+    row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partner.id, inventoryId)
+  } else {
+    row = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(partner.id, productUrlRaw)
+  }
   if (!row) {
     return NextResponse.json({ ok: false, error: 'inventory_not_found' }, { status: 404 })
   }

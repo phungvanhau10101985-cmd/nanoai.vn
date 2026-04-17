@@ -158,6 +158,8 @@ type BuyProductOption = {
   product_url: string
   price_hint?: string
   sku?: string | null
+  /** UUID kho — Meta ViewContent + AddToCart khi chọn «mua luôn». */
+  inventory_id?: string
 }
 
 type PurchaseOptionsPayload = {
@@ -1901,8 +1903,82 @@ export function PartnerGuestChatClient({
     }
     if (x.price_hint && x.price_hint.trim()) out.price_hint = x.price_hint.trim()
     if (x.sku && x.sku.trim()) out.sku = x.sku.trim().slice(0, 128)
+    const inv = (x.inventory_id ?? '').trim()
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv)) {
+      out.inventory_id = inv
+    }
     return out
   }, [])
+
+  /** ViewContent + AddToCart (CAPI + Pixel) — thẻ có UUID kho hoặc URL khớp kho. */
+  const fireMetaBuyNowFromProductCard = useCallback(
+    (card: PartnerAiProductCard) => {
+      if (typeof window === 'undefined') return
+      const inv = (card.inventory_id ?? '').trim()
+      const pu = (card.product_url ?? '').trim()
+      const uuidOk =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv)
+      if (!uuidOk && !/^https?:\/\//i.test(pu)) return
+
+      void (async () => {
+        try {
+          const body: { eventSourceUrl: string; inventoryId?: string; productUrl?: string } = {
+            eventSourceUrl: window.location.href.slice(0, 4000),
+          }
+          if (uuidOk) body.inventoryId = inv
+          else body.productUrl = pu
+
+          const res = await fetch(
+            `/api/messaging/guest/${encodeURIComponent(slug)}/meta-commerce`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            }
+          )
+          const data = (await res.json().catch(() => null)) as {
+            ok?: boolean
+            skipped?: boolean
+            pixelId?: string
+            viewContentEventId?: string
+            addToCartEventId?: string
+            content_ids?: string[]
+            content_name?: string
+            content_type?: string
+            currency?: string
+            value?: number
+            remarketing_id?: string
+          } | null
+          if (!data?.ok || data.skipped) return
+          if (
+            data.pixelId &&
+            data.viewContentEventId &&
+            data.addToCartEventId &&
+            Array.isArray(data.content_ids) &&
+            data.content_name &&
+            data.content_type === 'product' &&
+            data.currency === 'VND' &&
+            typeof data.value === 'number'
+          ) {
+            fireMetaBuyNowPixelEvents({
+              pixelId: data.pixelId,
+              viewContentEventId: data.viewContentEventId,
+              addToCartEventId: data.addToCartEventId,
+              content_ids: data.content_ids,
+              content_name: data.content_name,
+              content_type: 'product',
+              currency: 'VND',
+              value: data.value,
+              ...(data.remarketing_id ? { remarketing_id: data.remarketing_id } : {}),
+            })
+          }
+        } catch {
+          // Meta tùy chọn — không chặn mở form đặt hàng
+        }
+      })()
+    },
+    [slug]
+  )
 
   const openOrderFormByOption = useCallback(
     async (x: BuyProductOption) => {
@@ -1918,6 +1994,7 @@ export function PartnerGuestChatClient({
         return
       }
       const card = toCardFromBuyOption(x)
+      void fireMetaBuyNowFromProductCard(card)
       setOrderFormBusy(true)
       try {
         const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
@@ -1995,6 +2072,7 @@ export function PartnerGuestChatClient({
       readLocalOrderProfile,
       slug,
       toCardFromBuyOption,
+      fireMetaBuyNowFromProductCard,
       toast,
       guestPurchaseFlow,
       t,
@@ -2071,66 +2149,6 @@ export function PartnerGuestChatClient({
 
   const openGuestProductOrderFormFromCard = useCallback(
     async (card: PartnerAiProductCard) => {
-      const invForMeta = (card.inventory_id ?? '').trim()
-      if (
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invForMeta) &&
-        typeof window !== 'undefined'
-      ) {
-        void (async () => {
-          try {
-            const res = await fetch(
-              `/api/messaging/guest/${encodeURIComponent(slug)}/meta-commerce`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  inventoryId: invForMeta,
-                  eventSourceUrl: window.location.href.slice(0, 4000),
-                }),
-              }
-            )
-            const data = (await res.json().catch(() => null)) as {
-              ok?: boolean
-              skipped?: boolean
-              pixelId?: string
-              viewContentEventId?: string
-              addToCartEventId?: string
-              content_ids?: string[]
-              content_name?: string
-              content_type?: string
-              currency?: string
-              value?: number
-              remarketing_id?: string
-            } | null
-            if (!data?.ok || data.skipped) return
-            if (
-              data.pixelId &&
-              data.viewContentEventId &&
-              data.addToCartEventId &&
-              Array.isArray(data.content_ids) &&
-              data.content_name &&
-              data.content_type === 'product' &&
-              data.currency === 'VND' &&
-              typeof data.value === 'number'
-            ) {
-              fireMetaBuyNowPixelEvents({
-                pixelId: data.pixelId,
-                viewContentEventId: data.viewContentEventId,
-                addToCartEventId: data.addToCartEventId,
-                content_ids: data.content_ids,
-                content_name: data.content_name,
-                content_type: 'product',
-                currency: 'VND',
-                value: data.value,
-                ...(data.remarketing_id ? { remarketing_id: data.remarketing_id } : {}),
-              })
-            }
-          } catch {
-            // Meta tùy chọn — không chặn mở form đặt hàng
-          }
-        })()
-      }
-
       const productUrl = (card.product_url ?? '').trim()
       if (!/^https?:\/\//i.test(productUrl)) return
       setBuyOptionsOpen(false)
@@ -2140,9 +2158,12 @@ export function PartnerGuestChatClient({
         product_url: productUrl,
         price_hint: card.price_hint,
         sku: (card.sku ?? '').trim() || null,
+        ...((card.inventory_id ?? '').trim()
+          ? { inventory_id: (card.inventory_id ?? '').trim() }
+          : {}),
       })
     },
-    [openOrderFormByOption, slug]
+    [openOrderFormByOption]
   )
 
   const fireMetaViewContentOnConsultClick = useCallback(
@@ -2298,6 +2319,9 @@ export function PartnerGuestChatClient({
       product_url: card.product_url,
       price_hint: card.price_hint,
       sku: card.sku?.trim() || null,
+      ...((card.inventory_id ?? '').trim()
+        ? { inventory_id: (card.inventory_id ?? '').trim() }
+        : {}),
     })
   }
 
@@ -3854,6 +3878,7 @@ export function PartnerGuestChatClient({
                                               name: c.name,
                                               image_url: c.image_url,
                                               product_url: puVision.trim(),
+                                              inventory_id: c.inventoryId,
                                               ...(c.price_hint && String(c.price_hint).trim()
                                                 ? { price_hint: String(c.price_hint).trim() }
                                                 : {}),

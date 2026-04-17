@@ -121,6 +121,8 @@ export type RelatedBuyProduct = {
   product_url: string
   price_hint: string
   sku: string | null
+  /** UUID dòng kho — gửi Meta «Mua ngay» / AddToCart. */
+  inventory_id?: string
 }
 
 export type ProductPurchaseOptions = {
@@ -629,6 +631,7 @@ export async function listRelatedBuyProducts(input: {
         product_url: row?.product_url?.trim() ? row.product_url : c.product_url,
         price_hint: row?.price_hint?.trim() ? row.price_hint : c.price_hint ?? '',
         sku: row?.sku ?? null,
+        ...(row?.id && String(row.id).trim() ? { inventory_id: String(row.id).trim() } : {}),
       })
       if (out.length >= lim) break
     }
@@ -642,6 +645,7 @@ export async function listRelatedBuyProducts(input: {
     product_url: x.product_url ?? '',
     price_hint: x.price_hint ?? '',
     sku: x.sku ?? null,
+    ...(x.id && String(x.id).trim() ? { inventory_id: String(x.id).trim() } : {}),
   }))
 }
 
