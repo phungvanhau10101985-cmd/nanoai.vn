@@ -254,6 +254,13 @@ export function PartnerAiSettingsPanel({
   const [bdayDiscountPct, setBdayDiscountPct] = useState(10)
   const [bdayDaysMax, setBdayDaysMax] = useState(14)
   const [bdayDaysMin, setBdayDaysMin] = useState(1)
+  const bdayPersistRef = useRef({
+    enabled: false,
+    discountPct: 10,
+    daysMax: 14,
+    daysMin: 1,
+  })
+  const bdayDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadSeqRef = useRef(0)
   const autoEmbedSyncStateRef = useRef<{ running: boolean; lastRunAt: number; partnerId: string | null }>({
     running: false,
@@ -403,6 +410,90 @@ export function PartnerAiSettingsPanel({
   useEffect(() => {
     formRef.current = form
   }, [form])
+
+  useEffect(() => {
+    bdayPersistRef.current = {
+      enabled: bdayEnabled,
+      discountPct: bdayDiscountPct,
+      daysMax: bdayDaysMax,
+      daysMin: bdayDaysMin,
+    }
+  }, [bdayEnabled, bdayDiscountPct, bdayDaysMax, bdayDaysMin])
+
+  useEffect(() => {
+    return () => {
+      if (bdayDebounceTimerRef.current) {
+        clearTimeout(bdayDebounceTimerRef.current)
+        bdayDebounceTimerRef.current = null
+      }
+    }
+  }, [])
+
+  const applyBirthdaySettingsFromServer = useCallback((bs: {
+    enabled?: boolean
+    discount_percent?: number
+    offer_days_before_max?: number
+    offer_days_before_min?: number
+  }) => {
+    if (typeof bs.enabled === 'boolean') setBdayEnabled(bs.enabled)
+    if (bs.discount_percent != null) {
+      setBdayDiscountPct(Math.max(0, Math.min(100, Number(bs.discount_percent) || 10)))
+    }
+    if (bs.offer_days_before_max != null) {
+      setBdayDaysMax(Math.max(1, Math.min(120, Number(bs.offer_days_before_max) || 14)))
+    }
+    if (bs.offer_days_before_min != null) {
+      setBdayDaysMin(Math.max(1, Math.min(120, Number(bs.offer_days_before_min) || 1)))
+    }
+  }, [])
+
+  /** Không bọc trong startTransition(async): React không theo dõi promise; transition + pending còn có thể khóa UI giữa chừng. */
+  const flushBirthdayPromoSave = useCallback(
+    (payload: {
+      enabled: boolean
+      discountPercent: number
+      offerDaysBeforeMax: number
+      offerDaysBeforeMin: number
+    }) => {
+      void (async () => {
+        try {
+          const res = await savePartnerBirthdayPromoSettings(partnerId, payload)
+          if ('error' in res && res.error) {
+            toast({ title: res.error, variant: 'destructive' })
+            await load()
+            return
+          }
+          const verify = await getPartnerBirthdayPromoSettings(partnerId)
+          if (!('error' in verify) && verify && 'settings' in verify && verify.settings) {
+            applyBirthdaySettingsFromServer(verify.settings)
+          }
+          toast({ title: saveOkMessage })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          toast({
+            title: msg || 'Lưu cài đặt sinh nhật thất bại.',
+            variant: 'destructive',
+          })
+          await load()
+        }
+      })()
+    },
+    [partnerId, saveOkMessage, toast, load, applyBirthdaySettingsFromServer]
+  )
+
+  const scheduleBirthdayPromoSaveDebounced = useCallback(() => {
+    if (bdayDebounceTimerRef.current) clearTimeout(bdayDebounceTimerRef.current)
+    bdayDebounceTimerRef.current = setTimeout(() => {
+      bdayDebounceTimerRef.current = null
+      const s = bdayPersistRef.current
+      flushBirthdayPromoSave({
+        enabled: s.enabled,
+        discountPercent: s.discountPct,
+        offerDaysBeforeMax: s.daysMax,
+        offerDaysBeforeMin: s.daysMin,
+      })
+    }, 450)
+  }, [flushBirthdayPromoSave])
 
   const persistPartial = useCallback(
     (partial: Partial<FormState>) => {
@@ -754,7 +845,20 @@ export function PartnerAiSettingsPanel({
                 </div>
                 <Switch
                   checked={bdayEnabled}
-                  onCheckedChange={(c) => setBdayEnabled(c)}
+                  onCheckedChange={(c) => {
+                    if (bdayDebounceTimerRef.current) {
+                      clearTimeout(bdayDebounceTimerRef.current)
+                      bdayDebounceTimerRef.current = null
+                    }
+                    setBdayEnabled(c)
+                    bdayPersistRef.current.enabled = c
+                    flushBirthdayPromoSave({
+                      enabled: c,
+                      discountPercent: bdayPersistRef.current.discountPct,
+                      offerDaysBeforeMax: bdayPersistRef.current.daysMax,
+                      offerDaysBeforeMin: bdayPersistRef.current.daysMin,
+                    })
+                  }}
                   disabled={pending || !settingsLoaded}
                   aria-label="Bật chương trình sinh nhật"
                 />
@@ -768,9 +872,12 @@ export function PartnerAiSettingsPanel({
                     min={0}
                     max={100}
                     value={bdayDiscountPct}
-                    onChange={(e) =>
-                      setBdayDiscountPct(Math.max(0, Math.min(100, Math.floor(Number(e.target.value) || 0))))
-                    }
+                    onChange={(e) => {
+                      const v = Math.max(0, Math.min(100, Math.floor(Number(e.target.value) || 0)))
+                      setBdayDiscountPct(v)
+                      bdayPersistRef.current.discountPct = v
+                      scheduleBirthdayPromoSaveDebounced()
+                    }}
                     disabled={pending || !settingsLoaded}
                   />
                 </div>
@@ -783,7 +890,12 @@ export function PartnerAiSettingsPanel({
                     max={120}
                     title="Số ngày trước sinh nhật — mốc xa (vd 14)"
                     value={bdayDaysMax}
-                    onChange={(e) => setBdayDaysMax(Math.max(1, Math.min(120, Math.floor(Number(e.target.value) || 14))))}
+                    onChange={(e) => {
+                      const v = Math.max(1, Math.min(120, Math.floor(Number(e.target.value) || 14)))
+                      setBdayDaysMax(v)
+                      bdayPersistRef.current.daysMax = v
+                      scheduleBirthdayPromoSaveDebounced()
+                    }}
                     disabled={pending || !settingsLoaded}
                   />
                 </div>
@@ -796,36 +908,19 @@ export function PartnerAiSettingsPanel({
                     max={120}
                     title="Số ngày trước sinh nhật — mốc gần (vd 1 = đến hôm trước sinh nhật)"
                     value={bdayDaysMin}
-                    onChange={(e) => setBdayDaysMin(Math.max(1, Math.min(120, Math.floor(Number(e.target.value) || 1))))}
+                    onChange={(e) => {
+                      const v = Math.max(1, Math.min(120, Math.floor(Number(e.target.value) || 1)))
+                      setBdayDaysMin(v)
+                      bdayPersistRef.current.daysMin = v
+                      scheduleBirthdayPromoSaveDebounced()
+                    }}
                     disabled={pending || !settingsLoaded}
                   />
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={pending || !settingsLoaded}
-                  onClick={() => {
-                    startTransition(async () => {
-                      const res = await savePartnerBirthdayPromoSettings(partnerId, {
-                        enabled: bdayEnabled,
-                        discountPercent: bdayDiscountPct,
-                        offerDaysBeforeMax: bdayDaysMax,
-                        offerDaysBeforeMin: bdayDaysMin,
-                      })
-                      if ('error' in res && res.error) {
-                        toast({ title: res.error, variant: 'destructive' })
-                        return
-                      }
-                      toast({ title: saveOkMessage })
-                    })
-                  }}
-                >
-                  Lưu cài đặt sinh nhật
-                </Button>
-              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Công tắc và các số trên được lưu tự động (ô số lưu sau khi bạn ngừng gõ ~0,5 giây).
+              </p>
             </div>
 
             <div className="space-y-2">
