@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { ImagePreview } from '@/components/ui/image-preview'
-import { Disc3, Download, ListMusic, Loader2, Sparkles, X } from 'lucide-react'
+import { Download, ListMusic, Loader2, Sparkles, X } from 'lucide-react'
+import { TaoBaiHatLyria3Icon } from '@/components/icons/tao-bai-hat-lyria-3-icon'
 import { parseLyriaModelNotes } from '@/lib/music/lyria-model-notes'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -546,7 +547,7 @@ export default function TaoBaiHatLyria3ClientPage() {
         toast({
           title: tr('Đã tạo xong', 'Done', '完成', '完了', '완료'),
           description: tr(
-            'Đã lưu — phát lại và tải xuống ở danh sách «Bài nhạc Lyria 3 đã lưu» bên dưới.',
+            'Đã lưu — phát lại và tải xuống ở danh sách «Bài nhạc đã lưu» bên dưới.',
             'Saved — replay and download in the saved list below.',
             '已保存——在下方列表回放与下载。',
             '保存済み——下の一覧で再生・ダウンロード。',
@@ -572,8 +573,16 @@ export default function TaoBaiHatLyria3ClientPage() {
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
-            <Disc3 className="h-7 w-7 text-indigo-600" />
-            {tr('Tạo bài nhạc Lyria 3', 'Lyria 3 music', 'Lyria 3 乐曲', 'Lyria 3 楽曲', 'Lyria 3 음악')}
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center">
+              <TaoBaiHatLyria3Icon className="h-full w-full" />
+            </span>
+            {tr(
+              'Tạo bài nhạc (có lời / không lời)',
+              'Create music (vocal or instrumental)',
+              '制作乐曲（人声或纯音乐）',
+              '楽曲を作成（ボーカル／インスト）',
+              '음악 만들기 (보컬/인스트루멘탈)',
+            )}
             <span className="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
               {tr('Thử nghiệm', 'Beta', '测试版', 'ベータ', '베타')}
             </span>
@@ -589,7 +598,7 @@ export default function TaoBaiHatLyria3ClientPage() {
           </p>
           <p className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <Link href="#lyria3-saved-music" className="text-indigo-600 hover:underline">
-              {tr('Bài đã lưu (Lyria 3)', 'Saved Lyria 3 tracks', '已保存的 Lyria 3', '保存済み Lyria 3', '저장된 Lyria 3')}
+              {tr('Bài đã lưu', 'Saved tracks', '已保存', '保存済み', '저장된 곡')}
             </Link>
           </p>
         </div>
@@ -841,7 +850,13 @@ export default function TaoBaiHatLyria3ClientPage() {
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                {tr('JPEG/PNG/WebP/GIF, tối đa 8MB. Lyria 3 dùng ảnh để bám mood.', 'JPEG/PNG/WebP/GIF, max 8MB.', '最大 8MB。', '最大8MB。', '최대 8MB.')}
+                {tr(
+                  'JPEG/PNG/WebP/GIF, tối đa 8MB. Ảnh giúp AI bám mood.',
+                  'JPEG/PNG/WebP/GIF, max 8MB. Image guides mood.',
+                  '最大 8MB，可用图片引导情绪。',
+                  '最大8MB。画像で雰囲気を指定できます。',
+                  '최대 8MB. 이미지로 무드를 맞출 수 있습니다.',
+                )}
               </p>
             </div>
 
@@ -996,7 +1011,7 @@ export default function TaoBaiHatLyria3ClientPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <ListMusic className="h-5 w-5 text-indigo-600" />
-              {tr('Bài nhạc Lyria 3 đã lưu', 'Saved Lyria 3 tracks', '已保存的 Lyria 3 乐曲', '保存済み Lyria 3', '저장된 Lyria 3')}
+              {tr('Bài nhạc đã lưu', 'Saved tracks', '已保存的乐曲', '保存済みの楽曲', '저장된 음악')}
             </CardTitle>
             <CardDescription>
               {tr(
@@ -1032,8 +1047,8 @@ export default function TaoBaiHatLyria3ClientPage() {
             ) : savedTracks.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {tr(
-                  'Chưa có bản Lyria 3 nào. Đăng nhập và tạo nhạc — bản mới sẽ xuất hiện ở đây.',
-                  'No Lyria 3 tracks yet. Sign in and generate — new items appear here.',
+                  'Chưa có bản nhạc nào. Đăng nhập và tạo nhạc — bản mới sẽ xuất hiện ở đây.',
+                  'No tracks yet. Sign in and generate — new items appear here.',
                   '暂无记录。登录并生成后即可在此查看。',
                   'まだありません。ログインして生成してください。',
                   '기록 없음. 로그인 후 생성하면 여기에 표시됩니다.',
