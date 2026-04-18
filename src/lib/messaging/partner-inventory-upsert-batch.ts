@@ -153,6 +153,8 @@ function toInventoryRow(id: string, partnerId: string, base: InventoryUpsertBase
     vision_catalog_checksum: null,
     vision_catalog_synced_at: null,
     vision_catalog_excluded: false,
+    consult_link_opening_text: null,
+    consult_link_opening_input_fingerprint: null,
     created_at: createdAt,
     updated_at: base.updated_at,
   }

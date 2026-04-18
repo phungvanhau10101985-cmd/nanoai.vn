@@ -642,6 +642,8 @@ export interface Database {
           vision_catalog_checksum: string | null
           vision_catalog_synced_at: string | null
           vision_catalog_excluded: boolean
+          consult_link_opening_text: string | null
+          consult_link_opening_input_fingerprint: string | null
           created_at: string
           updated_at: string
         }
@@ -682,6 +684,8 @@ export interface Database {
           vision_catalog_checksum?: string | null
           vision_catalog_synced_at?: string | null
           vision_catalog_excluded?: boolean
+          consult_link_opening_text?: string | null
+          consult_link_opening_input_fingerprint?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -722,6 +726,8 @@ export interface Database {
           vision_catalog_checksum?: string | null
           vision_catalog_synced_at?: string | null
           vision_catalog_excluded?: boolean
+          consult_link_opening_text?: string | null
+          consult_link_opening_input_fingerprint?: string | null
           created_at?: string
           updated_at?: string
         }

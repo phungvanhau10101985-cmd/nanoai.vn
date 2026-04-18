@@ -57,6 +57,7 @@ import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { findPaletteColorByImageUrl } from '@/lib/messaging/palette-color-match'
 import { useToast } from '@/hooks/use-toast'
+import { useVisualViewportBottomInset } from '@/hooks/use-visual-viewport-bottom-inset'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   LOCALE_COOKIE_NAME,
@@ -968,6 +969,12 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
           onChange={(e) => setDraft(e.target.value)}
           onInput={autoResizeDraft}
           onPaste={onDraftPaste}
+          onFocus={(e) => {
+            const el = e.currentTarget
+            window.requestAnimationFrame(() => {
+              el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' })
+            })
+          }}
           placeholder={labels.placeholder}
           rows={1}
           className="resize-none border-0 bg-transparent px-0 pb-12 pt-1 pr-12 text-[17px] leading-snug shadow-none focus-visible:ring-0 sm:text-lg"
@@ -1079,6 +1086,7 @@ export function PartnerGuestChatClient({
   metaViewContent?: MetaViewContentClientPayload | null
 }) {
   const { toast } = useToast()
+  const guestChatKeyboardInset = useVisualViewportBottomInset()
   const [authReady, setAuthReady] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [messages, setMessages] = useState<GuestMsg[]>([])
@@ -4892,7 +4900,15 @@ export function PartnerGuestChatClient({
           ) : null}
           </div>
 
-            <div className="shrink-0 space-y-2 border-t border-border bg-background p-2">
+            <div
+              className="shrink-0 space-y-2 border-t border-border bg-background px-2 pt-2"
+              style={{
+                paddingBottom:
+                  guestChatKeyboardInset > 0
+                    ? `calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + ${guestChatKeyboardInset}px)`
+                    : 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
+              }}
+            >
             {birthdayPromoDiscountPct != null && birthdayPromoDiscountPct > 0 ? (
               <div
                 role="status"

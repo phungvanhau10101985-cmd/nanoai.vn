@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
-import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  computeConsultLinkOpeningInputFingerprint,
+  fetchPartnerInventoryRowByIdForPartnerFromPg,
+  savePartnerInventoryConsultLinkOpeningCacheFromPg,
+  type MessagingPartnerInventoryRow,
+} from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
@@ -84,10 +89,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
 
   let productName = ''
   let extraContext = ''
+  let inventoryRow: MessagingPartnerInventoryRow | null = null
 
   if (isPgConfigured() && inventoryId && UUID_RE.test(inventoryId)) {
     const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partner.id, inventoryId)
     if (row) {
+      inventoryRow = row
       productName = (row.name ?? '').trim()
       const d = (row.description ?? '').trim()
       const n = (row.consult_note ?? '').trim()
@@ -98,9 +105,23 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   if (!productName && sku) productName = sku
   if (!productName) productName = 'sản phẩm'
 
+  const inputFingerprint = computeConsultLinkOpeningInputFingerprint(productName, extraContext, sku)
+  if (
+    inventoryRow &&
+    UUID_RE.test(inventoryId) &&
+    inventoryRow.consult_link_opening_text?.trim() &&
+    inventoryRow.consult_link_opening_input_fingerprint === inputFingerprint
+  ) {
+    return NextResponse.json({ text: inventoryRow.consult_link_opening_text.trim() })
+  }
+
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) {
-    return NextResponse.json({ text: fallbackOpeningMessage(productName, extraContext) })
+    const text = fallbackOpeningMessage(productName, extraContext)
+    if (inventoryRow && UUID_RE.test(inventoryId)) {
+      await savePartnerInventoryConsultLinkOpeningCacheFromPg(partner.id, inventoryId, text, inputFingerprint)
+    }
+    return NextResponse.json({ text })
   }
 
   const prompt = `Viết MỘT tin nhắn tiếng Việt (đúng 3 câu hoặc 3 ý ngăn bằng dấu cách, tối đa 420 ký tự), không markdown, không bọc ngoặc kép toàn bộ.
@@ -125,6 +146,14 @@ ${extraContext ? `Mô tả / ghi chú:\n${extraContext}` : 'Không có mô tả 
       const text = result.response.text()?.trim() ?? ''
       const cleaned = text.replace(/^["']|["']$/g, '').trim()
       if (cleaned.length >= 40 && cleaned.length <= 520) {
+        if (inventoryRow && UUID_RE.test(inventoryId)) {
+          await savePartnerInventoryConsultLinkOpeningCacheFromPg(
+            partner.id,
+            inventoryId,
+            cleaned,
+            inputFingerprint
+          )
+        }
         return NextResponse.json({ text: cleaned })
       }
     } catch {
@@ -132,5 +161,9 @@ ${extraContext ? `Mô tả / ghi chú:\n${extraContext}` : 'Không có mô tả 
     }
   }
 
-  return NextResponse.json({ text: fallbackOpeningMessage(productName, extraContext) })
+  const text = fallbackOpeningMessage(productName, extraContext)
+  if (inventoryRow && UUID_RE.test(inventoryId)) {
+    await savePartnerInventoryConsultLinkOpeningCacheFromPg(partner.id, inventoryId, text, inputFingerprint)
+  }
+  return NextResponse.json({ text })
 }

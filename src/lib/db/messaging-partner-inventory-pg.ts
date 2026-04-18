@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { Database } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
@@ -105,6 +106,8 @@ type PgInventoryRaw = {
   vision_catalog_checksum: string | null
   vision_catalog_synced_at: unknown
   vision_catalog_excluded: boolean | null
+  consult_link_opening_text: string | null
+  consult_link_opening_input_fingerprint: string | null
   created_at: unknown
   updated_at: unknown
 }
@@ -147,6 +150,8 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
     vision_catalog_checksum: r.vision_catalog_checksum ?? null,
     vision_catalog_synced_at: tsIso(r.vision_catalog_synced_at),
     vision_catalog_excluded: r.vision_catalog_excluded !== false,
+    consult_link_opening_text: r.consult_link_opening_text != null ? String(r.consult_link_opening_text) : null,
+    consult_link_opening_input_fingerprint: r.consult_link_opening_input_fingerprint ?? null,
     created_at: tsIsoReq(r.created_at),
     updated_at: tsIsoReq(r.updated_at),
   }
@@ -189,6 +194,8 @@ const INVENTORY_PAGE_SELECT = `select
   mpi.vision_catalog_checksum,
   mpi.vision_catalog_synced_at,
   coalesce(mpi.vision_catalog_excluded, false) as vision_catalog_excluded,
+  mpi.consult_link_opening_text,
+  mpi.consult_link_opening_input_fingerprint,
   mpi.created_at,
   mpi.updated_at
 from public.messaging_partner_inventory mpi`
@@ -231,6 +238,8 @@ const INVENTORY_PAGE_SELECT_PRE_REMARKETING = `select
   mpi.vision_catalog_checksum,
   mpi.vision_catalog_synced_at,
   coalesce(mpi.vision_catalog_excluded, false) as vision_catalog_excluded,
+  mpi.consult_link_opening_text,
+  mpi.consult_link_opening_input_fingerprint,
   mpi.created_at,
   mpi.updated_at
 from public.messaging_partner_inventory mpi`
@@ -272,6 +281,8 @@ const INVENTORY_PAGE_SELECT_LEGACY = `select
   mpi.vision_catalog_checksum,
   mpi.vision_catalog_synced_at,
   coalesce(mpi.vision_catalog_excluded, false) as vision_catalog_excluded,
+  mpi.consult_link_opening_text,
+  mpi.consult_link_opening_input_fingerprint,
   mpi.created_at,
   mpi.updated_at
 from public.messaging_partner_inventory mpi`
@@ -592,6 +603,43 @@ export async function fetchPartnerInventoryRowByIdForPartnerFromPg(
   } catch (e) {
     console.warn('[fetchPartnerInventoryRowByIdForPartnerFromPg]', e)
     return null
+  }
+}
+
+/** Fingerprint đầu vào tin mở đầu link tư vấn — khớp với `productName` + `extraContext` + SKU dùng trong prompt. */
+export function computeConsultLinkOpeningInputFingerprint(
+  productName: string,
+  extraContext: string,
+  skuLine: string
+): string {
+  const p = `${String(productName)}\x1e${String(extraContext)}\x1e${String(skuLine)}`
+  return createHash('sha256').update(p, 'utf8').digest('hex')
+}
+
+/** Lưu cache tin mở đầu (sau khi AI hoặc fallback tạo xong). */
+export async function savePartnerInventoryConsultLinkOpeningCacheFromPg(
+  partnerId: string,
+  inventoryId: string,
+  messageText: string,
+  inputFingerprint: string
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const text = messageText.trim()
+  if (!text || text.length < 12) return false
+  if (!inputFingerprint.trim()) return false
+  try {
+    const r = await getPgPool().query(
+      `update public.messaging_partner_inventory
+       set consult_link_opening_text = $3,
+           consult_link_opening_input_fingerprint = $4,
+           updated_at = now()
+       where partner_id = $1::uuid and id = $2::uuid`,
+      [partnerId, inventoryId, text, inputFingerprint]
+    )
+    return (r.rowCount ?? 0) > 0
+  } catch (e) {
+    console.warn('[savePartnerInventoryConsultLinkOpeningCacheFromPg]', e)
+    return false
   }
 }
 
