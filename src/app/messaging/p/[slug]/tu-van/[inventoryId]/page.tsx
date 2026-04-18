@@ -6,6 +6,7 @@ import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { buildMetadata } from '@/lib/seo'
+import { defaultPublicOrigin } from '@/lib/public-app-origin'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchGuestWidgetUiLocaleForPartnerFromPg } from '@/lib/db/customer-care-pg'
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
@@ -36,6 +37,28 @@ function firstSearchParam(
   const v = sp[key]
   if (Array.isArray(v)) return String(v[0] ?? '').trim()
   return String(v ?? '').trim()
+}
+
+/** Mô tả meta ~150–160 ký tự: tên SP + đoạn mô tả kho (ưu tiên mô tả, ghi chú tư vấn). */
+function buildConsultProductMetaDescription(input: {
+  productName: string
+  shopName: string
+  description: string
+  consultNote: string
+  fallbackFromDictionary: string
+}): string {
+  const name = input.productName.trim() || 'Sản phẩm'
+  const raw = [input.description, input.consultNote]
+    .map((s) => String(s ?? '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join(' — ')
+  const snippet =
+    raw.length > 155 ? `${raw.slice(0, 152).trim()}…` : raw
+  if (snippet.length >= 24) {
+    const out = `${name}. ${snippet} — ${input.shopName} · NanoAI`
+    return out.length > 165 ? `${out.slice(0, 162)}…` : out
+  }
+  return input.fallbackFromDictionary.replace('{shop}', input.shopName)
 }
 
 export async function generateMetadata(props: {
@@ -80,7 +103,20 @@ export async function generateMetadata(props: {
 
   const productName = (row.name ?? '').trim() || inventoryId.slice(0, 8)
   const title = `${productName} — ${partner.display_name}`
-  const description = g.metaDescription.replace('{shop}', partner.display_name)
+  const description = buildConsultProductMetaDescription({
+    productName,
+    shopName: partner.display_name,
+    description: row.description ?? '',
+    consultNote: row.consult_note ?? '',
+    fallbackFromDictionary: g.metaDescription,
+  })
+
+  const rawImg = (row.image_url ?? '').trim()
+  let ogImage: string | undefined
+  if (rawImg && !/\s/.test(rawImg)) {
+    if (/^https?:\/\//i.test(rawImg)) ogImage = rawImg
+    else if (rawImg.startsWith('/')) ogImage = `${defaultPublicOrigin()}${rawImg}`
+  }
 
   return buildMetadata({
     title,
@@ -89,6 +125,7 @@ export async function generateMetadata(props: {
     keywords: ['NanoAI', 'chat', 'tư vấn', productName, partner.display_name],
     locale: OG_LOCALE[locale] ?? 'vi_VN',
     noIndex: true,
+    ...(ogImage ? { ogImage } : {}),
   })
 }
 
