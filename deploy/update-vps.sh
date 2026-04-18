@@ -11,6 +11,7 @@ set -euo pipefail
 #   DEPLOY_HEALTHCHECK_RETRIES=15  Số lần thử (mỗi lần cách 2s) chờ app lên
 #   DEPLOY_PM2_LOG_LINES=100  Số dòng log PM2 ghi ra file + màn hình (mặc định 100)
 #   DEPLOY_REBOOT_VPS=1  Sau khi deploy OK: reboot cả VPS (SSH sẽ ngắt; cần pm2 startup)
+#   DEPLOY_BUILD_VPS=1  Build kiểu «rất yếu»: npm run build:vps (bỏ cả kiểm tra TypeScript khi build — chỉ khi máy vẫn OOM; nên chạy build:full trên máy khác/CI)
 #   DEPLOY_SKIP_MIGRATIONS=1  Bỏ qua bước chạy migration SQL mới
 #   DEPLOY_SETUP_CRONS=1  Tự đảm bảo cron AI/inventory/logo cleanup (mặc định bật)
 #
@@ -210,7 +211,13 @@ else
 fi
 
 echo "[6/11] Build app"
-NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}" npm run build
+# package.json: `npm run build` → scripts/build-lowmem.mjs (bỏ ESLint trong next build + heap lớn — nhẹ hơn cho VPS).
+if [[ "${DEPLOY_BUILD_VPS:-}" == "1" ]]; then
+  echo "  DEPLOY_BUILD_VPS=1 → npm run build:vps (bỏ kiểm tra TypeScript khi build)."
+  npm run build:vps
+else
+  npm run build
+fi
 
 echo "[7/11] Restart PM2 (--update-env: nạp lại biến môi trường)"
 if pm2 describe "${APP_NAME}" >/dev/null 2>&1; then

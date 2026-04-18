@@ -51,6 +51,8 @@ cd /var/www/Thu-do-online
 bash deploy/update-vps.sh main
 ```
 
+VPS RAM thấp mà build vẫn bị «Killed» ở bước TypeScript: chạy một lần với `DEPLOY_BUILD_VPS=1 bash deploy/update-vps.sh main` (xem comment đầu `deploy/update-vps.sh`). Nên có CI hoặc máy dev chạy `npm run build:full` trước khi merge.
+
 ## 4) PM2 check
 
 ```bash
