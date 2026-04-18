@@ -897,7 +897,8 @@ export type Dictionary = {
     guestAuthRateLimited: string
     /** Hiển thị khi shop/AI đang chuẩn bị trả lời sau tin của khách */
     shopTypingHint: string
-    visionMatchTitle: string
+    /** Khi mở link tư vấn — chờ gửi tin (vector + lời mở đầu) hiển thị */
+    consultLinkShopPreparingHint: string
     visionPickHint: string
     visionPickBusy: string
     visionPickError: string
@@ -2772,7 +2773,7 @@ const VI_DICTIONARY: Dictionary = {
     guestAuthOtpInvalid: 'Mã OTP không hợp lệ hoặc đã hết hạn.',
     guestAuthRateLimited: 'Bạn thao tác quá nhanh. Vui lòng thử lại sau {seconds} giây.',
     shopTypingHint: 'Cửa hàng đang soạn tin…',
-    visionMatchTitle: 'Anh/chị chọn sản phẩm ưng ý bên em tư vấn tiếp ạ.',
+    consultLinkShopPreparingHint: 'Cửa hàng đang gửi thông tin sản phẩm…',
     visionPickHint: '',
     visionPickBusy: 'Đang gửi…',
     visionPickError: 'Không gửi được lựa chọn. Thử lại.',
@@ -2802,11 +2803,11 @@ const VI_DICTIONARY: Dictionary = {
     productConsultProductRefFromSku: 'mã sản phẩm {sku}',
     productConsultProductRefFromName: 'mẫu {name}',
     productConsultAskShipping:
-      'Chào anh/chị! Em thấy anh/chị đang xem {productRef}. Anh/chị muốn em tư vấn size, màu, giá hay cách đặt ạ?',
+      'Em nhận tin về {productRef} — anh/chị muốn hỏi giao hàng hay chi tiết sản phẩm trước ạ?',
     productConsultAskDetail:
-      'Chào anh/chị! Em thấy anh/chị đang xem {productRef}. Anh/chị muốn em tư vấn size, màu, giá hay cách đặt ạ?',
+      'Em nhận tin tư vấn về {productRef} — anh/chị muốn hỏi thêm điểm nào ạ?',
     pageContextInboundConsultNoSku:
-      'Chào anh/chị! Em thấy anh/chị vừa mở chat từ trang sản phẩm. Anh/chị muốn em tư vấn size, màu, giá hay cách đặt ạ?',
+      'Chào anh/chị! Anh/chị vừa vào từ trang sản phẩm — nhắn em thêm để em hỗ trợ đúng ý nhé ạ.',
     pageContextInboundImageOnlyNote:
       'Khách mở link sản phẩm — ảnh đã gửi kèm tin để shop tư vấn (giống đính ảnh).',
     guestProfileDialogTitle: 'Giúp shop xưng hô đúng ý bạn',
@@ -4634,7 +4635,7 @@ const EN_DICTIONARY: Dictionary = {
     guestAuthOtpInvalid: 'OTP is invalid or expired.',
     guestAuthRateLimited: 'You are doing this too quickly. Please try again in {seconds} seconds.',
     shopTypingHint: 'The shop is typing…',
-    visionMatchTitle: 'This might be one of these items — pick one so the shop can advise:',
+    consultLinkShopPreparingHint: 'The shop is sending product details…',
     visionPickHint: 'Choose the right product (or wait for a manual reply).',
     visionPickBusy: 'Sending…',
     visionPickError: 'Could not send your choice. Try again.',
@@ -4663,11 +4664,11 @@ const EN_DICTIONARY: Dictionary = {
     productConsultProductRefFromSku: 'product code {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
-      "Hi! We see you're viewing {productRef}. Would you like help with size, color, price, or how to order?",
+      "We're following up on {productRef} — shipping first, or product details?",
     productConsultAskDetail:
-      "Hi! We see you're viewing {productRef}. Would you like help with size, color, price, or how to order?",
+      "We're following up on {productRef} — what would you like to ask?",
     pageContextInboundConsultNoSku:
-      'Hi! You opened chat from a product page. Would you like help with size, color, price, or how to order?',
+      'Hi! You opened chat from a product page — tell us what you need and we will help.',
     pageContextInboundImageOnlyNote:
       'Opened a product link — the image is attached so the shop can advise (same as sending a photo).',
     guestProfileDialogTitle: 'Help us address you correctly',
@@ -6475,7 +6476,7 @@ const ZH_DICTIONARY: Dictionary = {
     guestAuthOtpInvalid: 'OTP 无效或已过期。',
     guestAuthRateLimited: '操作过于频繁，请在 {seconds} 秒后重试。',
     shopTypingHint: '店铺正在输入…',
-    visionMatchTitle: '可能是以下商品之一 — 请选择以便店铺继续咨询：',
+    consultLinkShopPreparingHint: '店铺正在发送商品信息…',
     visionPickHint: '请选择正确商品（或等待人工回复）。',
     visionPickBusy: '发送中…',
     visionPickError: '无法提交选择，请重试。',
@@ -6503,11 +6504,11 @@ const ZH_DICTIONARY: Dictionary = {
     productConsultProductRefFromSku: '商品编号 {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
-      '您好！我们看到您正在查看{productRef}。需要为您介绍尺码、颜色、价格或下单方式吗？',
+      '关于{productRef} — 想先了解配送还是商品详情？',
     productConsultAskDetail:
-      '您好！我们看到您正在查看{productRef}。需要为您介绍尺码、颜色、价格或下单方式吗？',
+      '关于{productRef} — 您还想了解哪一点？',
     pageContextInboundConsultNoSku:
-      '您好！您刚从商品页打开咨询。需要为您介绍尺码、颜色、价格或下单方式吗？',
+      '您好！您从商品页进入 — 请留言说明需求，我们好协助您。',
     pageContextInboundImageOnlyNote:
       '客户通过商品链接进入 — 图片已随消息发送，便于店铺解答（与发送图片相同）。',
     guestProfileDialogTitle: '帮助我们正确称呼您',
@@ -8292,7 +8293,7 @@ const JA_DICTIONARY: Dictionary = {
     guestAuthOtpInvalid: 'OTPが無効か期限切れです。',
     guestAuthRateLimited: '操作が速すぎます。{seconds}秒後に再試行してください。',
     shopTypingHint: '店舗が入力中…',
-    visionMatchTitle: '次のいずれかの商品の可能性があります。選ぶと店舗が案内を続けます：',
+    consultLinkShopPreparingHint: '店舗が商品情報を送信中…',
     visionPickHint: '正しい商品を選ぶか、手動の返信をお待ちください。',
     visionPickBusy: '送信中…',
     visionPickError: '選択を送信できませんでした。もう一度お試しください。',
@@ -8321,11 +8322,11 @@ const JA_DICTIONARY: Dictionary = {
     productConsultProductRefFromSku: '商品コード {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
-      'こんにちは！{productRef}をご覧中ですね。サイズ・色・価格・ご注文方法についてご案内しましょうか？',
+      '{productRef}について — 配送と商品詳細、どちらからよろしいですか？',
     productConsultAskDetail:
-      'こんにちは！{productRef}をご覧中ですね。サイズ・色・価格・ご注文方法についてご案内しましょうか？',
+      '{productRef}について — 他に気になる点はありますか？',
     pageContextInboundConsultNoSku:
-      'こんにちは！商品ページからチャットを開かれましたね。サイズ・色・価格・ご注文方法についてご案内しましょうか？',
+      '商品ページからお越しですね。ご希望を一言メッセージでお知らせください。',
     pageContextInboundImageOnlyNote:
       '商品リンクからです。店舗が相談しやすいよう画像を付けて送信しています（写真送付と同様です）。',
     guestProfileDialogTitle: '適切な呼び方のために',
@@ -10131,7 +10132,7 @@ const KO_DICTIONARY: Dictionary = {
     guestAuthOtpInvalid: 'OTP가 유효하지 않거나 만료되었습니다.',
     guestAuthRateLimited: '요청이 너무 빠릅니다. {seconds}초 후 다시 시도해 주세요.',
     shopTypingHint: '매장이 입력 중…',
-    visionMatchTitle: '다음 중 하나일 수 있습니다. 선택하면 매장이 계속 안내합니다:',
+    consultLinkShopPreparingHint: '매장이 상품 정보를 보내는 중…',
     visionPickHint: '맞는 상품을 고르거나 직접 답장을 기다려 주세요.',
     visionPickBusy: '보내는 중…',
     visionPickError: '선택을 보낼 수 없습니다. 다시 시도해 주세요.',
@@ -10160,11 +10161,11 @@ const KO_DICTIONARY: Dictionary = {
     productConsultProductRefFromSku: '상품 코드 {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
-      '안녕하세요! {productRef}를 보고 계시는 것 같아요. 사이즈, 색상, 가격, 주문 방법 안내가 필요하신가요?',
+      '{productRef} — 배송이 먼저일까요, 상품 상세가 먼저일까요?',
     productConsultAskDetail:
-      '안녕하세요! {productRef}를 보고 계시는 것 같아요. 사이즈, 색상, 가격, 주문 방법 안내가 필요하신가요?',
+      '{productRef} — 더 궁금한 점이 있으신가요?',
     pageContextInboundConsultNoSku:
-      '안녕하세요! 상품 페이지에서 채팅을 열어 주셨어요. 사이즈, 색상, 가격, 주문 방법 안내가 필요하신가요?',
+      '상품 페이지에서 오셨어요. 필요하신 내용을 남겨 주시면 도와드릴게요.',
     pageContextInboundImageOnlyNote:
       '상품 링크로 연결되었습니다. 매장 상담을 위해 이미지가 함께 전송됩니다(사진 전송과 동일).',
     guestProfileDialogTitle: '호칭을 맞추기 위해',

@@ -23,6 +23,12 @@ function num(v: unknown, fallback: number): number {
   return fallback
 }
 
+/** Khớp constraint DB: `messaging_partner_ai_settings_reply_delay_seconds_check` (5–30). */
+function clampReplyDelaySecondsForDb(v: unknown): number {
+  const n = Math.floor(num(v, 20))
+  return Math.max(5, Math.min(30, n))
+}
+
 function mapPgRowToAiSettingsFull(row: {
   partner_id: string
   enabled: boolean | null
@@ -59,7 +65,7 @@ function mapPgRowToAiSettingsFull(row: {
   return {
     partner_id: row.partner_id,
     enabled: row.enabled !== false,
-    reply_delay_seconds: num(row.reply_delay_seconds, 0),
+    reply_delay_seconds: clampReplyDelaySecondsForDb(row.reply_delay_seconds),
     typing_pause_min_ms: num(row.typing_pause_min_ms, 650),
     typing_pause_max_ms: num(row.typing_pause_max_ms, 1150),
     shop_policy: String(row.shop_policy ?? ''),
@@ -298,6 +304,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
   row: PartnerAiSettingsDashboardUpsert
 ): Promise<boolean> {
   if (!isPgConfigured()) return false
+  const reply_delay_seconds = clampReplyDelaySecondsForDb(row.reply_delay_seconds)
   try {
     await getPgPool().query(
       `insert into public.messaging_partner_ai_settings (
@@ -347,7 +354,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
       [
         row.partner_id,
         row.enabled,
-        row.reply_delay_seconds,
+        reply_delay_seconds,
         row.typing_pause_min_ms,
         row.typing_pause_max_ms,
         row.shop_policy,

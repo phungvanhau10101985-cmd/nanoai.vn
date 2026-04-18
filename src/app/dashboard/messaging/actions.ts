@@ -1862,9 +1862,10 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
     return { error: 'DATABASE_URL is not set.' }
   }
   const rawDelay = Number(payload.reply_delay_seconds)
+  /** DB: `reply_delay_seconds` check 5..30 (xem migration messaging_ai_reply_delay_max_30). */
   const delay = Math.min(
     30,
-    Math.max(0, Number.isFinite(rawDelay) ? Math.floor(rawDelay) : 0)
+    Math.max(5, Number.isFinite(rawDelay) ? Math.floor(rawDelay) : 20)
   )
   const tminRaw = Number(payload.typing_pause_min_ms)
   const tmaxRaw = Number(payload.typing_pause_max_ms)

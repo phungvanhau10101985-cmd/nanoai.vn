@@ -418,6 +418,15 @@ function getVisionPickState(raw: Json | null | undefined): {
   return { required: o.vision_pick_required === true, candidates: out, selectedInventoryId }
 }
 
+/** Tin tự gửi từ link `/tu-van/{uuid}` / `?ctx_*` — `page_context.source` = `widget_page` (widget-guest-post). */
+function isWidgetPageConsultInbound(raw: Json | null | undefined): boolean {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null
+  if (!o) return false
+  const pc = o.page_context
+  if (!pc || typeof pc !== 'object') return false
+  return String((pc as Record<string, unknown>).source ?? '').trim() === 'widget_page'
+}
+
 /** Xóa query ngữ cảnh SP khỏi URL sau khi đã gửi (tránh lần sau vào lại tự gắn). */
 function stripWidgetPageContextParamsFromBrowserUrl() {
   if (typeof window === 'undefined') return
@@ -1094,6 +1103,8 @@ export function PartnerGuestChatClient({
   const guestMessagePostChainRef = useRef(Promise.resolve())
   /** Sau khi gửi tin: server báo AI/FAQ đang trả lời — poll nhanh và hiện “đang soạn tin”. */
   const [shopTyping, setShopTyping] = useState<{ deadline: number; baselineOutbound: number } | null>(null)
+  /** Mở link tư vấn — chờ fetch lời mở đầu + POST (vector) trước khi có bubble. */
+  const [consultLinkPreparing, setConsultLinkPreparing] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
   const [tryOnOpen, setTryOnOpen] = useState(false)
@@ -3397,30 +3408,56 @@ export function PartnerGuestChatClient({
     }
     let cancelled = false
     void (async () => {
-      attachUrlPageContextRef.current = true
-      const ok = await submitGuestMessage('')
-      if (cancelled) {
+      setConsultLinkPreparing(true)
+      try {
+        attachUrlPageContextRef.current = true
+        let openingText = ''
         try {
-          window.sessionStorage.removeItem(storageKey)
+          const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/consult-link-opening`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({
+              inventoryId: pc?.inventoryId,
+              sku: pc?.sku,
+              productUrl: pc?.productUrl,
+            }),
+          })
+          const data = (await res.json().catch(() => null)) as { text?: string } | null
+          if (res.ok && typeof data?.text === 'string') openingText = data.text.trim()
+        } catch {
+          /* dùng fallback dưới */
+        }
+      if (!openingText) {
+        openingText =
+          'Chào anh/chị! Shop sẵn sàng tư vấn về mẫu đang xem. Anh/chị nhắn em nếu cần hỏi size, màu hay đặt hàng nhé.'
+      }
+        const ok = await submitGuestMessage(openingText)
+        if (cancelled) {
+          try {
+            window.sessionStorage.removeItem(storageKey)
+          } catch {
+            /* ignore */
+          }
+          return
+        }
+        try {
+          if (ok) {
+            window.sessionStorage.setItem(storageKey, '1')
+          } else {
+            window.sessionStorage.removeItem(storageKey)
+          }
         } catch {
           /* ignore */
         }
-        return
-      }
-      try {
-        if (ok) {
-          window.sessionStorage.setItem(storageKey, '1')
-        } else {
-          window.sessionStorage.removeItem(storageKey)
-        }
-      } catch {
-        /* ignore */
+      } finally {
+        setConsultLinkPreparing(false)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [authReady, hasLoadedOnce, slug, submitGuestMessage])
+  }, [authReady, authHeaders, hasLoadedOnce, slug, submitGuestMessage])
 
   /** Email CMSN / link có ?interested_inv= & bday_discount= — mở kệ SP + banner ưu đãi. */
   useEffect(() => {
@@ -3984,6 +4021,11 @@ export function PartnerGuestChatClient({
             ) : (
               messages.map((m) => {
                 const isMe = m.direction === 'inbound'
+                const vs = getVisionPickState(m.raw_payload)
+                const consultLinkShopStyle =
+                  isMe &&
+                  vs.candidates.length > 0 &&
+                  isWidgetPageConsultInbound(m.raw_payload)
                 const isOrderTrackingBubble = !isMe && isSystemOrderMessage(m.raw_payload)
                 const shopStripe = !isMe && !isOrderTrackingBubble ? shopOutboundStripeById.get(m.id) ?? 0 : null
                 const shopBubbleClass =
@@ -3994,17 +4036,213 @@ export function PartnerGuestChatClient({
                   <div
                     key={m.id}
                     className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-[17px] leading-relaxed sm:text-lg ${
-                      isMe
-                        ? 'ml-auto rounded-br-md bg-gradient-to-br from-violet-600 to-violet-700 text-white shadow-sm'
-                        : isOrderTrackingBubble
-                          ? 'mr-auto rounded-bl-md border-2 border-amber-400/70 bg-gradient-to-br from-amber-50 via-orange-50/90 to-amber-100/40 text-foreground shadow-[0_2px_12px_rgba(217,119,6,0.12)] ring-1 ring-amber-300/40 dark:border-amber-500/45 dark:from-amber-950/70 dark:via-orange-950/50 dark:to-amber-950/30 dark:shadow-[0_2px_16px_rgba(0,0,0,0.35)] dark:ring-amber-700/35'
-                          : shopBubbleClass
+                      consultLinkShopStyle
+                        ? shopBubbleClass
+                        : isMe
+                          ? 'ml-auto rounded-br-md bg-gradient-to-br from-violet-600 to-violet-700 text-white shadow-sm'
+                          : isOrderTrackingBubble
+                            ? 'mr-auto rounded-bl-md border-2 border-amber-400/70 bg-gradient-to-br from-amber-50 via-orange-50/90 to-amber-100/40 text-foreground shadow-[0_2px_12px_rgba(217,119,6,0.12)] ring-1 ring-amber-300/40 dark:border-amber-500/45 dark:from-amber-950/70 dark:via-orange-950/50 dark:to-amber-950/30 dark:shadow-[0_2px_16px_rgba(0,0,0,0.35)] dark:ring-amber-700/35'
+                            : shopBubbleClass
                     }`}
                   >
-                    <div className={isMe ? '[&_a]:text-white/90 [&_img]:border-white/25' : ''}>
+                    {(() => {
+                      if (!consultLinkShopStyle || vs.candidates.length === 0) return null
+                      return (
+                        <div className="mb-2 space-y-2 border-b border-border/60 pb-2 isolate text-foreground [&_a]:!text-foreground">
+                          <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+                            {vs.candidates.map((c) => {
+                              const isSelected = vs.selectedInventoryId === c.inventoryId
+                              const isBusy = visionPickBusyId === m.id
+                              const puVision = (c.product_url || '').trim()
+                              const vk = `${m.id}\u001f${c.inventoryId}`
+                              const idVisDetail = `${vk}::detail`
+                              const idVisBuy = `${vk}::buy`
+                              const idVisConsult = `${vk}::consult`
+                              const visionTapped = (id: string) => visionButtonTappedKeys.has(id)
+                              const markVisionBtn = (id: string) => {
+                                setVisionButtonTappedKeys((prev) => new Set(prev).add(id))
+                              }
+                              return (
+                                <div
+                                  key={c.inventoryId}
+                                  role="button"
+                                  tabIndex={isBusy ? -1 : 0}
+                                  aria-disabled={isBusy}
+                                  className={`w-36 shrink-0 snap-start overflow-hidden rounded-lg border border-border/60 bg-card text-left text-xs text-foreground shadow-sm transition-all ${
+                                    isSelected
+                                      ? 'ring-2 ring-primary/30 ring-offset-0 border-primary/45'
+                                      : 'hover:border-primary/25'
+                                  } ${isBusy ? 'opacity-50' : 'cursor-pointer'}`}
+                                  onClick={() => {
+                                    if (isBusy) return
+                                    void submitVisionPick(m.id, c.inventoryId)
+                                  }}
+                                  onKeyDown={(ev) => {
+                                    if (isBusy) return
+                                    if (ev.key === 'Enter' || ev.key === ' ') {
+                                      ev.preventDefault()
+                                      void submitVisionPick(m.id, c.inventoryId)
+                                    }
+                                  }}
+                                  aria-label={c.name}
+                                  aria-pressed={isSelected}
+                                  title={c.name}
+                                >
+                                  {c.image_url ? (
+                                    puVision && /^https?:\/\//i.test(puVision.trim()) ? (
+                                      <a
+                                        href={puVision.trim()}
+                                        rel="noopener noreferrer"
+                                        className="block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                        onClick={(ev) => {
+                                          ev.preventDefault()
+                                          ev.stopPropagation()
+                                          openGuestProductDetailUrl(puVision.trim())
+                                        }}
+                                        aria-label={`${c.name}. ${t.visionProductViewDetails}`}
+                                      >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={c.image_url}
+                                          alt=""
+                                          className="h-28 w-full bg-muted/30 object-contain"
+                                        />
+                                      </a>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="block w-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                        onClick={(ev) => {
+                                          ev.stopPropagation()
+                                          setChatImageLightboxUrl(c.image_url)
+                                        }}
+                                        aria-label={`Xem ảnh lớn: ${c.name}`}
+                                      >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={c.image_url}
+                                          alt=""
+                                          className="h-28 w-full bg-muted/30 object-contain"
+                                        />
+                                      </button>
+                                    )
+                                  ) : (
+                                    <div className="h-28 w-full bg-muted/30" />
+                                  )}
+                                  <div className="flex flex-col gap-1 px-1.5 py-1.5 text-foreground">
+                                    <p
+                                      className="w-full min-w-0 truncate text-[11px] tabular-nums leading-none text-muted-foreground"
+                                      title={formatVndPriceWithBirthday(c.price_hint, birthdayPromoDiscountPct) ?? undefined}
+                                    >
+                                      {formatVndPriceWithBirthday(c.price_hint, birthdayPromoDiscountPct) ?? '\u00a0'}
+                                    </p>
+                                    {puVision && /^https?:\/\//i.test(puVision.trim()) ? (
+                                      <a
+                                        href={puVision.trim()}
+                                        rel="noopener noreferrer"
+                                        className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
+                                          visionTapped(idVisDetail)
+                                            ? 'border-emerald-600/45 bg-emerald-100 !text-emerald-950 ring-1 ring-emerald-500/40 dark:bg-emerald-950/50 dark:!text-emerald-50'
+                                            : 'border-border/80 bg-background !text-foreground hover:bg-muted/60 hover:!text-foreground'
+                                        }`}
+                                        onClick={(e) => {
+                                          e.preventDefault()
+                                          e.stopPropagation()
+                                          markVisionBtn(idVisDetail)
+                                          openGuestProductDetailUrl(puVision.trim())
+                                        }}
+                                        aria-label={`${c.name}. ${t.visionProductViewDetails}`}
+                                        lang="vi"
+                                      >
+                                        <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
+                                          {t.visionProductViewDetails}
+                                        </span>
+                                      </a>
+                                    ) : null}
+                                    {puVision && /^https?:\/\//i.test(puVision.trim()) ? (
+                                      <div className="grid grid-cols-2 gap-1">
+                                        <button
+                                          type="button"
+                                          disabled={isBusy}
+                                          className={`flex h-8 min-w-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 sm:text-[10px] ${
+                                            visionTapped(idVisBuy)
+                                              ? 'bg-emerald-600 !text-white ring-1 ring-emerald-500/60'
+                                              : 'bg-primary !text-primary-foreground hover:bg-primary/90'
+                                          }`}
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            markVisionBtn(idVisBuy)
+                                            void openGuestProductOrderFormFromCard({
+                                              name: c.name,
+                                              image_url: c.image_url,
+                                              product_url: puVision.trim(),
+                                              inventory_id: c.inventoryId,
+                                              ...(c.price_hint && String(c.price_hint).trim()
+                                                ? { price_hint: String(c.price_hint).trim() }
+                                                : {}),
+                                            })
+                                          }}
+                                          aria-label={`${c.name}. ${t.visionProductBuy}`}
+                                          aria-pressed={visionTapped(idVisBuy)}
+                                          lang="vi"
+                                        >
+                                          <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
+                                            {t.visionProductBuy}
+                                          </span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={isBusy}
+                                          className={`flex h-8 min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] disabled:pointer-events-none disabled:opacity-50 ${
+                                            visionTapped(idVisConsult)
+                                              ? 'border-emerald-600/45 bg-emerald-100 !text-emerald-950 ring-1 ring-emerald-500/40 dark:bg-emerald-950/50 dark:!text-emerald-50'
+                                              : 'border-border/80 bg-background !text-foreground hover:bg-muted/60 hover:!text-foreground'
+                                          }`}
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            markVisionBtn(idVisConsult)
+                                            void submitProductCardPick(
+                                              {
+                                                name: c.name,
+                                                image_url: c.image_url,
+                                                product_url: puVision.trim(),
+                                                inventory_id: c.inventoryId,
+                                                ...(c.price_hint && String(c.price_hint).trim()
+                                                  ? { price_hint: String(c.price_hint).trim() }
+                                                  : {}),
+                                              },
+                                              m.id
+                                            )
+                                          }}
+                                          aria-label={`${c.name}. ${t.visionProductLink}`}
+                                          aria-pressed={visionTapped(idVisConsult)}
+                                          lang="vi"
+                                        >
+                                          <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
+                                            {t.visionProductLink}
+                                          </span>
+                                        </button>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {visionPickBusyId === m.id ? (
+                            <p className="text-[10px] text-muted-foreground">{t.visionPickBusy}</p>
+                          ) : null}
+                        </div>
+                      )
+                    })()}
+                    <div
+                      className={
+                        consultLinkShopStyle ? '' : isMe ? '[&_a]:text-white/90 [&_img]:border-white/25' : ''
+                      }
+                    >
                       <CustomerCareMessageBody
                         row={{ id: m.id, body: m.body, raw_payload: m.raw_payload ?? null }}
-                        tone={isMe ? 'onViolet' : 'default'}
+                        tone={isMe && !consultLinkShopStyle ? 'onViolet' : 'default'}
                         openMessageLinksInSameTab
                         labels={{
                           productCardOpenProduct: t.visionProductLink,
@@ -4013,17 +4251,16 @@ export function PartnerGuestChatClient({
                           productCardCloseVideo: t.visionVideoCloseAria,
                           productCardBuyProduct: t.visionProductBuy,
                         }}
-                        onProductCardBuy={isMe ? undefined : (card) => void openGuestProductOrderFormFromCard(card)}
+                        onProductCardBuy={isMe && !consultLinkShopStyle ? undefined : (card) => void openGuestProductOrderFormFromCard(card)}
                         onProductCardPick={
-                          isMe ? undefined : (card) => void submitProductCardPick(card, m.id)
+                          isMe && !consultLinkShopStyle ? undefined : (card) => void submitProductCardPick(card, m.id)
                         }
                         orderPaymentProof={!isMe ? orderPaymentProofSlot : undefined}
                         shopDisplayName={shopDisplayName}
                       />
                     </div>
                     {(() => {
-                      const vs = getVisionPickState(m.raw_payload)
-                      if (!isMe || vs.candidates.length === 0) return null
+                      if (!isMe || vs.candidates.length === 0 || consultLinkShopStyle) return null
                       return (
                         <div className="mt-2 space-y-2 border-t border-white/20 pt-2 isolate text-foreground [&_a]:!text-foreground">
                           <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
@@ -4212,13 +4449,18 @@ export function PartnerGuestChatClient({
                         </div>
                       )
                     })()}
-                    <div className={`mt-1.5 text-xs ${isMe ? 'text-white/75' : 'text-muted-foreground'}`}>
+                    <div
+                      className={`mt-1.5 text-xs ${isMe && !consultLinkShopStyle ? 'text-white/75' : 'text-muted-foreground'}`}
+                    >
                       {new Date(m.created_at).toLocaleString()}
                     </div>
                   </div>
                 )
               })
             )}
+            {consultLinkPreparing ? (
+              <GuestShopTypingPill label={t.consultLinkShopPreparingHint} />
+            ) : null}
             {shopTyping ? <GuestShopTypingPill label={t.shopTypingHint} /> : null}
             <div ref={scrollAnchorRef} className="h-px w-full shrink-0" aria-hidden />
           </div>

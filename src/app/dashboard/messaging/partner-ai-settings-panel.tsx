@@ -141,7 +141,10 @@ function tokenUsageKindStatLabel(kind: string | null, t: AiT): string {
 function defaultsFromSettings(s: SettingsRow | null) {
   return {
     enabled: s?.enabled ?? false,
-    reply_delay_seconds: s?.reply_delay_seconds ?? 0,
+    reply_delay_seconds: (() => {
+      const rd = Number(s?.reply_delay_seconds)
+      return Number.isFinite(rd) ? Math.max(5, Math.min(30, Math.floor(rd))) : 20
+    })(),
     /** Chỉ áp cho tin FAQ khớp kho (gần tức thì); tin do model sinh không dùng. */
     typing_pause_min_ms: s?.typing_pause_min_ms ?? 650,
     typing_pause_max_ms: s?.typing_pause_max_ms ?? 1150,
@@ -229,8 +232,10 @@ export function PartnerAiSettingsPanel({
   const [imageGenRows, setImageGenRows] = useState<PartnerAiImageGenUsageStatRow[]>([])
   const [usageRangeMode, setUsageRangeMode] = useState<'rolling' | 'calendar'>('rolling')
   const [usagePeriod, setUsagePeriod] = useState<PartnerAiUsagePeriod>('month')
-  const [usageCalendarFrom, setUsageCalendarFrom] = useState(utcYmdToday)
-  const [usageCalendarTo, setUsageCalendarTo] = useState(utcYmdToday)
+  /** Empty until client mount so SSR and first client paint match (avoids UTC-day hydration mismatch). */
+  const [usageCalendarFrom, setUsageCalendarFrom] = useState('')
+  const [usageCalendarTo, setUsageCalendarTo] = useState('')
+  const [usageTodayUtc, setUsageTodayUtc] = useState('')
   const [tokenDetailRows, setTokenDetailRows] = useState<PartnerAiTokenUsageDetailRowWithCostEstimate[]>([])
   const [tokenUsageEstimatedCostVndTotal, setTokenUsageEstimatedCostVndTotal] = useState(0)
   const [tokenUsageCostBreakdown, setTokenUsageCostBreakdown] = useState<PartnerAiUsageCostBreakdown | null>(
@@ -267,6 +272,12 @@ export function PartnerAiSettingsPanel({
     lastRunAt: 0,
     partnerId: null,
   })
+  useEffect(() => {
+    const d = utcYmdToday()
+    setUsageCalendarFrom(d)
+    setUsageCalendarTo(d)
+    setUsageTodayUtc(d)
+  }, [])
   /** Tránh chạy song song với nút «Đồng bộ ngay». */
   const manualEmbedLockRef = useRef(false)
   /** Đồng bộ ref mỗi render — không đưa vào deps của useEffect auto-sync (tránh cắt chuỗi lô khi pending đổi). */
@@ -329,6 +340,16 @@ export function PartnerAiSettingsPanel({
     [partnerId, t.loadError, toast]
   )
 
+  /** Refs so `load` does not depend on usage-tab filters — avoids extra full reload on mount + race where usage await skipped applying bundle inventory. */
+  const usageRangeModeRef = useRef(usageRangeMode)
+  const usagePeriodRef = useRef(usagePeriod)
+  const usageCalendarFromRef = useRef(usageCalendarFrom)
+  const usageCalendarToRef = useRef(usageCalendarTo)
+  usageRangeModeRef.current = usageRangeMode
+  usagePeriodRef.current = usagePeriod
+  usageCalendarFromRef.current = usageCalendarFrom
+  usageCalendarToRef.current = usageCalendarTo
+
   const load = useCallback((): Promise<void> => {
     const seq = ++loadSeqRef.current
     setLoadErr(null)
@@ -347,12 +368,7 @@ export function PartnerAiSettingsPanel({
         getPartnerBirthdayPromoSettings(partnerId),
       ])
       if (seq !== loadSeqRef.current) return
-      const usageQuery: PartnerAiUsageQuery =
-        usageRangeMode === 'rolling'
-          ? { type: 'rolling', period: usagePeriod }
-          : { type: 'calendar', fromDayUtc: usageCalendarFrom, toDayUtc: usageCalendarTo }
-      await loadUsageAnalyticsWithSeq(seq, usageQuery)
-      if (seq !== loadSeqRef.current) return
+
       if ('error' in embeddingRes) {
         setEmbeddingStats(null)
       } else {
@@ -363,6 +379,7 @@ export function PartnerAiSettingsPanel({
       } else {
         setTextEmbeddingStats(textEmbeddingRes.stats)
       }
+
       if ('error' in bundleRes && bundleRes.error) {
         setLoadErr(bundleRes.error)
         toast({ title: t.loadError, description: bundleRes.error, variant: 'destructive' })
@@ -391,17 +408,19 @@ export function PartnerAiSettingsPanel({
       } else {
         setSettingsLoaded(true)
       }
+
+      const mode = usageRangeModeRef.current
+      const usageQuery: PartnerAiUsageQuery =
+        mode === 'rolling'
+          ? { type: 'rolling', period: usagePeriodRef.current }
+          : {
+              type: 'calendar',
+              fromDayUtc: usageCalendarFromRef.current || utcYmdToday(),
+              toDayUtc: usageCalendarToRef.current || utcYmdToday(),
+            }
+      await loadUsageAnalyticsWithSeq(seq, usageQuery)
     })()
-  }, [
-    partnerId,
-    t.loadError,
-    toast,
-    loadUsageAnalyticsWithSeq,
-    usageRangeMode,
-    usagePeriod,
-    usageCalendarFrom,
-    usageCalendarTo,
-  ])
+  }, [partnerId, t.loadError, toast, loadUsageAnalyticsWithSeq])
 
   useEffect(() => {
     load()
@@ -748,14 +767,14 @@ export function PartnerAiSettingsPanel({
                 <Input
                   id="ai-delay"
                   type="number"
-                  min={0}
+                  min={5}
                   max={30}
                   value={form.reply_delay_seconds}
                   onChange={(e) => {
                     const v = Math.floor(Number(e.target.value))
                     setForm((f) => ({
                       ...f,
-                      reply_delay_seconds: Number.isFinite(v) ? Math.min(30, Math.max(0, v)) : f.reply_delay_seconds,
+                      reply_delay_seconds: Number.isFinite(v) ? Math.min(30, Math.max(5, v)) : f.reply_delay_seconds,
                     }))
                   }}
                 />
@@ -1070,10 +1089,14 @@ export function PartnerAiSettingsPanel({
                       if (mode === 'rolling') {
                         void loadUsageAnalyticsWithSeq(seq, { type: 'rolling', period: usagePeriod })
                       } else {
+                        const from = usageCalendarFrom || utcYmdToday()
+                        const to = usageCalendarTo || utcYmdToday()
+                        if (!usageCalendarFrom) setUsageCalendarFrom(from)
+                        if (!usageCalendarTo) setUsageCalendarTo(to)
                         void loadUsageAnalyticsWithSeq(seq, {
                           type: 'calendar',
-                          fromDayUtc: usageCalendarFrom,
-                          toDayUtc: usageCalendarTo,
+                          fromDayUtc: from,
+                          toDayUtc: to,
                         })
                       }
                     }}
@@ -1119,7 +1142,7 @@ export function PartnerAiSettingsPanel({
                         type="date"
                         className="h-8 w-[142px] text-xs"
                         value={usageCalendarFrom}
-                        max={usageCalendarTo}
+                        max={usageCalendarTo || undefined}
                         onChange={(e) => {
                           const v = e.target.value
                           if (!v) return
@@ -1142,8 +1165,8 @@ export function PartnerAiSettingsPanel({
                         type="date"
                         className="h-8 w-[142px] text-xs"
                         value={usageCalendarTo}
-                        min={usageCalendarFrom}
-                        max={utcYmdToday()}
+                        min={usageCalendarFrom || undefined}
+                        max={usageTodayUtc || undefined}
                         onChange={(e) => {
                           const v = e.target.value
                           if (!v) return

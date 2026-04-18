@@ -136,12 +136,15 @@ export function PartnerMessagingSettingsClient({
   t,
   tAi,
   partnerAiLlmModel,
+  appOrigin,
 }: {
   initialPartners: PartnerRow[]
   locale: WebLocale
   t: T
   tAi: TAi
   partnerAiLlmModel: string
+  /** Request origin from the server page — used for absolute URLs so SSR matches hydration. */
+  appOrigin: string
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -210,11 +213,10 @@ export function PartnerMessagingSettingsClient({
   const facebookCatalogFeedUrl = useMemo(() => {
     const s = selectedPartner?.slug?.trim()
     const k = selectedPartner?.embed_key?.trim()
-    if (!s || !k) return ''
-    if (typeof window === 'undefined') return ''
-    const origin = window.location.origin
+    if (!s || !k || !appOrigin.trim()) return ''
+    const origin = appOrigin.replace(/\/$/, '')
     return `${origin}/api/messaging/catalog/${encodeURIComponent(s)}/facebook-feed?key=${encodeURIComponent(k)}`
-  }, [selectedPartner?.slug, selectedPartner?.embed_key])
+  }, [appOrigin, selectedPartner?.slug, selectedPartner?.embed_key])
 
   const setSelectedPartnerAndPersist = useCallback(
     (partnerId: string | null) => {

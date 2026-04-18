@@ -245,7 +245,7 @@ export async function handlePartnerInboundForAi(input: {
     const configuredDelay =
       input.channel === 'widget'
         ? 0
-        : Math.max(0, Math.min(30, settings.reply_delay_seconds ?? 0))
+        : Math.max(5, Math.min(30, settings.reply_delay_seconds ?? 20))
     const exactSchedule =
       input.scheduleAiAfterSeconds != null && Number.isFinite(input.scheduleAiAfterSeconds)
     let delaySec: number

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { fetchMessagingPartnersByOwnerFromPg } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
@@ -10,6 +11,7 @@ import { getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import type { Metadata } from 'next'
 import { PartnerMessagingSettingsClient } from '../partner-messaging-settings-client'
+import { getPublicOriginFromAppRouterHeaders } from '@/lib/auth/public-app-url'
 
 export function generateMetadata(): Metadata {
   const { t } = getServerDictionary()
@@ -37,6 +39,7 @@ export default async function DashboardMessagingSettingsPage() {
   }
 
   const partnerAiLlmModel = 'deepseek-chat'
+  const appOrigin = getPublicOriginFromAppRouterHeaders(headers())
 
   return (
     <div className="app-shell flex min-h-[calc(100dvh-5rem)] flex-col space-y-6 md:space-y-8">
@@ -65,6 +68,7 @@ export default async function DashboardMessagingSettingsPage() {
         t={pm}
         tAi={pmAi}
         partnerAiLlmModel={partnerAiLlmModel}
+        appOrigin={appOrigin}
       />
     </div>
   )

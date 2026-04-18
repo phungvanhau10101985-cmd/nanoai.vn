@@ -61,3 +61,14 @@ export function getPublicAppUrlForServer(req?: Request): string {
 
   return 'http://localhost:3000'
 }
+
+/**
+ * Public origin in App Router RSC / route handlers from `headers()` (`next/headers`).
+ * Keeps server HTML aligned with the client for absolute URLs built during SSR.
+ */
+export function getPublicOriginFromAppRouterHeaders(h: Headers): string {
+  const synthetic = new Request('https://placeholder.invalid', { headers: h })
+  const fromReq = getOriginFromRequest(synthetic)
+  if (fromReq) return fromReq
+  return getPublicAppUrlForServer()
+}
