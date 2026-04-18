@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev",
-    "build": "next build",
+    "build": "node scripts/build-lowmem.mjs",
+    "build:full": "next build",
+    "build:vps": "node scripts/build-lowmem.mjs --skip-typescript",
     "build:lowmem": "node scripts/build-lowmem.mjs",
     "start": "next start",
     "lint": "next lint",

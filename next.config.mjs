@@ -45,12 +45,13 @@ const bunnyImagePatterns = bunnyPullZoneHost
       ]
     : [];
 
-/** VPS RAM thấp: đặt SKIP_ESLINT_ON_BUILD=1 (hoặc npm run build:lowmem) để tránh OOM ở bước lint trong `next build`. */
+/** VPS RAM thấp: SKIP_ESLINT_ON_BUILD=1 (mặc định qua `npm run build` → scripts/build-lowmem.mjs). */
 const skipEslintOnBuild = process.env.SKIP_ESLINT_ON_BUILD === '1'
+/** Chỉ bật trên VPS khi vẫn OOM ở bước TypeScript — ưu tiên thêm swap; CI nên dùng `npm run build:full`. */
+const skipTypescriptOnBuild = process.env.NEXT_BUILD_SKIP_TYPECHECK === '1'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Mặc định bật ESLint khi build; có thể tắt tạm trên máy nhỏ — vẫn chạy kiểm tra TypeScript.
     eslint: { ignoreDuringBuilds: skipEslintOnBuild },
     allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok.io'],
     experimental: {
@@ -59,7 +60,7 @@ const nextConfig = {
             bodySizeLimit: '10mb',
         },
     },
-    typescript: { ignoreBuildErrors: false },
+    typescript: { ignoreBuildErrors: skipTypescriptOnBuild },
     images: {
         remotePatterns: [
             ...legacyStorageImagePatterns,
