@@ -941,6 +941,10 @@ export type Dictionary = {
     productConsultAskShipping: string
     /** Khách bấm Tư vấn (chung) — `{productRef}`. */
     productConsultAskDetail: string
+    /** Mở chat từ link có ctx_inventory nhưng không có ctx_sku — không hiển thị UUID trong bubble (shop vẫn nhận trong pageContext). */
+    pageContextInboundConsultNoSku: string
+    /** Chỉ gửi ảnh ngữ cảnh, không có mã SP. */
+    pageContextInboundImageOnlyNote: string
     guestProfileDialogTitle: string
     guestProfileDialogDescription: string
     guestProfileBirthLabel: string
@@ -2801,6 +2805,10 @@ const VI_DICTIONARY: Dictionary = {
       'Chào anh/chị! Em thấy anh/chị đang xem {productRef}. Anh/chị muốn em tư vấn size, màu, giá hay cách đặt ạ?',
     productConsultAskDetail:
       'Chào anh/chị! Em thấy anh/chị đang xem {productRef}. Anh/chị muốn em tư vấn size, màu, giá hay cách đặt ạ?',
+    pageContextInboundConsultNoSku:
+      'Chào anh/chị! Em thấy anh/chị vừa mở chat từ trang sản phẩm. Anh/chị muốn em tư vấn size, màu, giá hay cách đặt ạ?',
+    pageContextInboundImageOnlyNote:
+      'Khách mở link sản phẩm — ảnh đã gửi kèm tin để shop tư vấn (giống đính ảnh).',
     guestProfileDialogTitle: 'Giúp shop xưng hô đúng ý bạn',
     guestProfileDialogDescription:
       'Thông tin lưu một lần trên tài khoản NanoAI (dùng cho mọi shop): ngày sinh và giới tính (nam hoặc nữ) để xưng hô anh/chị và gợi ý tư vấn phù hợp. Bạn có thể bỏ qua và nhập sau.',
@@ -4658,6 +4666,10 @@ const EN_DICTIONARY: Dictionary = {
       "Hi! We see you're viewing {productRef}. Would you like help with size, color, price, or how to order?",
     productConsultAskDetail:
       "Hi! We see you're viewing {productRef}. Would you like help with size, color, price, or how to order?",
+    pageContextInboundConsultNoSku:
+      'Hi! You opened chat from a product page. Would you like help with size, color, price, or how to order?',
+    pageContextInboundImageOnlyNote:
+      'Opened a product link — the image is attached so the shop can advise (same as sending a photo).',
     guestProfileDialogTitle: 'Help us address you correctly',
     guestProfileDialogDescription:
       'Saved once on your NanoAI account (all shops): date of birth and gender (male or female) for natural honorifics and age-appropriate suggestions. You can skip and fill this in later.',
@@ -6494,6 +6506,10 @@ const ZH_DICTIONARY: Dictionary = {
       '您好！我们看到您正在查看{productRef}。需要为您介绍尺码、颜色、价格或下单方式吗？',
     productConsultAskDetail:
       '您好！我们看到您正在查看{productRef}。需要为您介绍尺码、颜色、价格或下单方式吗？',
+    pageContextInboundConsultNoSku:
+      '您好！您刚从商品页打开咨询。需要为您介绍尺码、颜色、价格或下单方式吗？',
+    pageContextInboundImageOnlyNote:
+      '客户通过商品链接进入 — 图片已随消息发送，便于店铺解答（与发送图片相同）。',
     guestProfileDialogTitle: '帮助我们正确称呼您',
     guestProfileDialogDescription:
       '信息仅保存在您的 NanoAI 账户一次（适用于所有店铺）：出生日期和性别（男或女），用于自然称呼与适龄建议。您也可以稍后再填。',
@@ -8308,6 +8324,10 @@ const JA_DICTIONARY: Dictionary = {
       'こんにちは！{productRef}をご覧中ですね。サイズ・色・価格・ご注文方法についてご案内しましょうか？',
     productConsultAskDetail:
       'こんにちは！{productRef}をご覧中ですね。サイズ・色・価格・ご注文方法についてご案内しましょうか？',
+    pageContextInboundConsultNoSku:
+      'こんにちは！商品ページからチャットを開かれましたね。サイズ・色・価格・ご注文方法についてご案内しましょうか？',
+    pageContextInboundImageOnlyNote:
+      '商品リンクからです。店舗が相談しやすいよう画像を付けて送信しています（写真送付と同様です）。',
     guestProfileDialogTitle: '適切な呼び方のために',
     guestProfileDialogDescription:
       'NanoAIアカウントに一度だけ保存されます（全店舗共通）：生年月日と性別（男性または女性）で自然な敬称と年齢に合った提案に使います。後からでも入力できます。',
@@ -10143,6 +10163,10 @@ const KO_DICTIONARY: Dictionary = {
       '안녕하세요! {productRef}를 보고 계시는 것 같아요. 사이즈, 색상, 가격, 주문 방법 안내가 필요하신가요?',
     productConsultAskDetail:
       '안녕하세요! {productRef}를 보고 계시는 것 같아요. 사이즈, 색상, 가격, 주문 방법 안내가 필요하신가요?',
+    pageContextInboundConsultNoSku:
+      '안녕하세요! 상품 페이지에서 채팅을 열어 주셨어요. 사이즈, 색상, 가격, 주문 방법 안내가 필요하신가요?',
+    pageContextInboundImageOnlyNote:
+      '상품 링크로 연결되었습니다. 매장 상담을 위해 이미지가 함께 전송됩니다(사진 전송과 동일).',
     guestProfileDialogTitle: '호칭을 맞추기 위해',
     guestProfileDialogDescription:
       'NanoAI 계정에 한 번만 저장됩니다(모든 매장 공통): 생년월일과 성별(남성 또는 여성)로 자연스러운 호칭과 나이에 맞는 추천에 씁니다. 나중에 입력해도 됩니다.',

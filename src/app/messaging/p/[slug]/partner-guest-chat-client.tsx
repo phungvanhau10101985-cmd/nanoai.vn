@@ -365,14 +365,21 @@ function sanitizeWidgetPageContextSeed(raw: WidgetPageContextSeed): WidgetPageCo
   return out
 }
 
-function buildWidgetPageContextInboundText(pc: WidgetPageContextSeed): string {
-  const lines: string[] = []
-  if (pc.sku?.trim()) lines.push(`Khách đang xem mã sản phẩm: ${pc.sku.trim()}`)
-  if (pc.inventoryId?.trim()) lines.push(`Mã kho (inventory): ${pc.inventoryId.trim()}`)
-  const joined = lines.join('\n')
-  if (joined) return joined
+/** Tin chữ kèm ngữ cảnh SP từ link `?ctx_*=` / tu-van — cùng giọng với «Tư vấn» trên thẻ; không lộ UUID kho trong bubble. */
+function buildWidgetPageContextInboundText(
+  pc: WidgetPageContextSeed,
+  t: Dictionary['partnerGuestChat']
+): string {
+  const sku = pc.sku?.trim()
+  if (sku) {
+    const productRef = t.productConsultProductRefFromSku.replace('{sku}', sku)
+    return t.productConsultAskDetail.replace('{productRef}', productRef)
+  }
+  if (pc.inventoryId?.trim()) {
+    return t.pageContextInboundConsultNoSku
+  }
   if (pc.imageUrl?.trim()) {
-    return 'Khách mở link sản phẩm — ảnh đã gửi kèm tin để shop tư vấn (giống đính ảnh).'
+    return t.pageContextInboundImageOnlyNote
   }
   return ''
 }
@@ -3212,7 +3219,7 @@ export function PartnerGuestChatClient({
       setSending(true)
       try {
         const seedText =
-          shouldAttachPageContext && pcSeed ? buildWidgetPageContextInboundText(pcSeed) : ''
+          shouldAttachPageContext && pcSeed ? buildWidgetPageContextInboundText(pcSeed, t) : ''
         const textOut = trimmed || seedText || undefined
         const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
           method: 'POST',
@@ -3339,6 +3346,10 @@ export function PartnerGuestChatClient({
       t.guestAuthRequiredAfterLimit,
       t.guestImageInvalidType,
       t.guestImageTooLarge,
+      t.productConsultProductRefFromSku,
+      t.productConsultAskDetail,
+      t.pageContextInboundConsultNoSku,
+      t.pageContextInboundImageOnlyNote,
       t.sendError,
       toast,
       uiLocale,
