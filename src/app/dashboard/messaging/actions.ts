@@ -159,6 +159,16 @@ import {
   emailCustomerOrderPaymentStatusChanged,
   emailCustomerShippingStatusChanged,
 } from '@/lib/messaging/partner-order-customer-email'
+import {
+  parseSpreadsheetId,
+  queuePartnerOrderGoogleSheetsSync,
+} from '@/lib/messaging/partner-order-google-sheets-sync'
+import { assertValidGoogleServiceAccountJson } from '@/lib/messaging/google-service-account-json'
+import {
+  fetchPartnerGoogleSheetsServiceAccountJsonFromPg,
+  fetchPartnerGoogleSheetsSettingsFromPg,
+  upsertPartnerGoogleSheetsSettingsFromPg,
+} from '@/lib/db/messaging-partner-google-sheets-pg'
 import { buildPartnerOrdersXlsxBuffer } from '@/lib/messaging/partner-orders-excel-export'
 import {
   buildPartnerAiUsageCostBreakdown,
@@ -500,6 +510,82 @@ export async function getMessagingWorkspacePaymentSettings(partnerId: string) {
   }
 }
 
+export async function getMessagingWorkspaceGoogleSheetsSettings(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const row = await fetchPartnerGoogleSheetsSettingsFromPg(partnerId)
+  const serverFallbackAvailable = Boolean(process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON?.trim())
+  const hasServiceAccount = row?.has_service_account === true
+  return {
+    settings: {
+      enabled: row?.enabled === true,
+      spreadsheetId: row?.spreadsheet_id ?? '',
+      sheetName: (row?.sheet_name ?? '').trim() || 'Don hang',
+    },
+    hasServiceAccount,
+    /** Host có thể cấu hình thêm một key dùng chung (tùy chọn). */
+    serverFallbackAvailable,
+    /** Đủ điều kiện gọi API Sheets: JSON shop hoặc fallback host. */
+    syncCredentialsReady: hasServiceAccount || serverFallbackAvailable,
+  }
+}
+
+export async function saveMessagingWorkspaceGoogleSheetsSettings(input: {
+  partnerId: string
+  enabled: boolean
+  spreadsheetIdOrUrl: string
+  sheetName: string
+  /** Dán file JSON key mới; không gửi field này để giữ key đã lưu. */
+  serviceAccountJson?: string
+  /** true = xóa JSON đã lưu cho shop (chỉ còn fallback host nếu có). */
+  clearServiceAccountJson?: boolean
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, input.partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const sid = parseSpreadsheetId(input.spreadsheetIdOrUrl ?? '')
+  if (input.enabled && !sid) {
+    return { error: 'Can nhap link hoac ID Google Sheet khi bat dong bo.' }
+  }
+  const sheetName = String(input.sheetName ?? '').trim().slice(0, 80) || 'Don hang'
+
+  const existingJson = await fetchPartnerGoogleSheetsServiceAccountJsonFromPg(input.partnerId)
+  let nextServiceAccountJson: string | null = existingJson
+  if (input.clearServiceAccountJson === true) {
+    nextServiceAccountJson = null
+  } else if (input.serviceAccountJson != null && String(input.serviceAccountJson).trim() !== '') {
+    const v = assertValidGoogleServiceAccountJson(input.serviceAccountJson)
+    if (!v.ok) return { error: v.error }
+    nextServiceAccountJson = String(input.serviceAccountJson).trim()
+  }
+
+  const envFallback = Boolean(process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON?.trim())
+  if (input.enabled && !nextServiceAccountJson && !envFallback) {
+    return {
+      error:
+        'Cần dán file JSON service account (Google Cloud → IAM) vào ô bên dưới, hoặc nhờ quản trị host bật fallback.',
+    }
+  }
+
+  const ok = await upsertPartnerGoogleSheetsSettingsFromPg({
+    partnerId: input.partnerId,
+    enabled: input.enabled === true && Boolean(sid),
+    spreadsheetId: sid,
+    sheetName,
+    serviceAccountJson: nextServiceAccountJson,
+  })
+  if (!ok) return { error: 'Khong luu duoc cai dat Google Sheet.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
 export async function saveMessagingWorkspacePaymentSettings(input: {
   partnerId: string
   bankName: string
@@ -661,6 +747,7 @@ export async function updateMyMessagingOrderStatus(input: {
   if (!ok) return { error: 'Khong cap nhat duoc trang thai don.' }
   const row = await fetchPartnerOrderForOwnerFromPg(user.id, input.orderId)
   if (row) {
+    queuePartnerOrderGoogleSheetsSync(row.partner_id, row.id)
     try {
       await emailCustomerOrderPaymentStatusChanged({ order: row })
     } catch (e) {
@@ -707,6 +794,7 @@ export async function updateMyMessagingOrderShipping(input: {
     note,
   })
   if (!updated) return { error: 'Khong cap nhat duoc trang thai giao hang.' }
+  queuePartnerOrderGoogleSheetsSync(updated.partner_id, updated.id)
   await insertPartnerOrderEventFromPg({
     orderId: updated.id,
     eventType: 'shipping_status',

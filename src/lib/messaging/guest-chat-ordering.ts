@@ -40,6 +40,7 @@ import {
   upsertPartnerCustomerProfileByEmailFromPg,
 } from '@/lib/db/messaging-partner-customer-profiles-pg'
 import { guestAccountEmailMatchesAuthUserFromPg } from '@/lib/db/messaging-guest-pg'
+import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
 
 const ORDER_THREAD_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -553,8 +554,8 @@ export async function completeOrderCheckout(input: {
     customerEmail: trim(input.form.customerEmail, 180),
     customerPhone: trim(input.form.customerPhone, 40),
     shippingAddress: trim(input.form.shippingAddress, 280),
-    variantColor: trim(input.form.color, 80),
-    variantSize: trim(input.form.size, 80),
+    variantColor: trim(input.form.color, 2000),
+    variantSize: trim(input.form.size, 2000),
     quantity: qty,
     note: trim(input.form.note, 800),
     depositPercent: calc.appliedPercent,
@@ -613,6 +614,7 @@ export async function completeOrderCheckout(input: {
   } catch (e) {
     console.warn('[completeOrderCheckout] email', e)
   }
+  queuePartnerOrderGoogleSheetsSync(input.partnerId, updated.id)
   return { ok: true, order: updated }
 }
 
@@ -944,5 +946,6 @@ export async function verifyOrderPaymentProof(input: {
       console.warn('[verifyOrderPaymentProof] email manual_review', e)
     }
   }
+  queuePartnerOrderGoogleSheetsSync(input.partnerId, refreshed.id)
   return { ok: true, order: refreshed, verification }
 }

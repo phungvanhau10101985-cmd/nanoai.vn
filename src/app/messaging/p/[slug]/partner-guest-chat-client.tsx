@@ -55,6 +55,7 @@ import { isOpenMyOrdersMessage } from '@/lib/messaging/widget-parent-bridge'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order-sepay-message-helpers'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
+import { findPaletteColorByImageUrl } from '@/lib/messaging/palette-color-match'
 import { useToast } from '@/hooks/use-toast'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
@@ -2501,7 +2502,7 @@ export function PartnerGuestChatClient({
     const productHasShopSizes = shopSizes.length > 0
 
     const variantLabel = (imgUrl: string) => {
-      const c = paletteColors?.find((x) => x.img === imgUrl)
+      const c = findPaletteColorByImageUrl(paletteColors ?? null, imgUrl)
       return (c?.name || '').trim() || 'mẫu đã chọn'
     }
 
@@ -2548,12 +2549,12 @@ export function PartnerGuestChatClient({
     if (hasPalette && activePurchaseOptions?.colors) {
       const parts: string[] = []
       for (const img of orderSelectedColorImgs) {
-        const c = activePurchaseOptions.colors.find((x) => x.img === img)
+        const c = findPaletteColorByImageUrl(activePurchaseOptions.colors, img)
         const n = c?.name?.trim() || 'Mẫu'
         const q = Math.max(1, Math.min(99, parseInt(orderQtyByColorImg[img] || '1', 10) || 1))
         parts.push(`${n}×${q}`)
       }
-      colorPayload = parts.join(', ').slice(0, 80)
+      colorPayload = parts.join(', ').slice(0, 2000)
     }
     if (!colorPayload.trim()) colorPayload = '-'
     /** Ký tự ASCII — API/DB tránh lỗi với dấu gạch Unicode. */
@@ -2562,14 +2563,14 @@ export function PartnerGuestChatClient({
     if (hasPalette && activePurchaseOptions?.colors) {
       const szParts: string[] = []
       for (const img of orderSelectedColorImgs) {
-        const c = activePurchaseOptions.colors.find((x) => x.img === img)
+        const c = findPaletteColorByImageUrl(activePurchaseOptions.colors, img)
         const n = c?.name?.trim() || 'Mẫu'
         const sz = productHasShopSizes
           ? (orderSizeByColorImg[img] ?? '').trim()
           : noSizePlaceholder
         szParts.push(`${n}:${sz}`)
       }
-      sizePayload = szParts.join(', ').slice(0, 80)
+      sizePayload = szParts.join(', ').slice(0, 2000)
     }
     setOrderFormBusy(true)
     try {
@@ -3678,7 +3679,7 @@ export function PartnerGuestChatClient({
       hasPalette && orderSelectedColorImgs.length > 0 && palette
         ? orderSelectedColorImgs
             .map((img) => {
-              const c = palette.find((x) => x.img === img)
+              const c = findPaletteColorByImageUrl(palette, img)
               const n = c?.name?.trim() || 'Mẫu'
               const q = Math.max(0, Math.min(99, Math.floor(Number(orderQtyByColorImg[img]) || 0)))
               return `${n}×${q}`

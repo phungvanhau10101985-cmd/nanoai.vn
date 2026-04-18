@@ -22,6 +22,7 @@ import {
 import { insertMessagePg } from '@/lib/db/customer-care-pg'
 import { insertPartnerOrderEventFromPg } from '@/lib/db/messaging-partner-orders-pg'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
+import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
 
 type SePayBody = Record<string, string | number | boolean | null | undefined>
 
@@ -287,6 +288,7 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         console.warn('[sepay-webhook partner order] email', e)
       }
+      queuePartnerOrderGoogleSheetsSync(partnerId, order.id)
       return NextResponse.json({
         success: true,
         message: 'Partner order webhook processed',

@@ -53,6 +53,8 @@ export type PartnerOrderRow = {
   updated_at: string
   verified_at: string | null
   locked_at: string | null
+  /** Dòng trong Google Sheet (tab shop) khi đã đồng bộ; null nếu chưa ghi. */
+  google_sheet_row: number | null
 }
 
 function num(v: unknown, fallback = 0): number {
@@ -117,6 +119,10 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
     updated_at: String(r.updated_at ?? ''),
     verified_at: r.verified_at ? String(r.verified_at) : null,
     locked_at: r.locked_at ? String(r.locked_at) : null,
+    google_sheet_row: (() => {
+      const n = Math.floor(num(r.google_sheet_row, 0))
+      return n > 0 ? n : null
+    })(),
   }
 }
 
@@ -296,7 +302,7 @@ export async function insertPartnerOrderDraftFromPg(input: {
                  product_inventory_id::text, product_name, product_image_url, product_url,
                  unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
                  currency, payment_reference, payment_qr_url, verified_note, shipping_status,
-                 created_at, updated_at, verified_at, locked_at`,
+                 created_at, updated_at, verified_at, locked_at, google_sheet_row`,
       [
         input.partnerId,
         input.conversationId,
@@ -380,7 +386,7 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
                  product_inventory_id::text, product_name, product_image_url, product_url,
                  unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
                  currency, payment_reference, payment_qr_url, verified_note, shipping_status,
-                 created_at, updated_at, verified_at, locked_at`,
+                 created_at, updated_at, verified_at, locked_at, google_sheet_row`,
       [
         input.orderId,
         input.partnerId,
@@ -425,7 +431,7 @@ const ORDER_ROW_SELECT = `select id::text, partner_id::text, conversation_id::te
               product_inventory_id::text, product_name, product_image_url, product_url,
               unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
               currency, payment_reference, payment_qr_url, verified_note, shipping_status,
-              created_at, updated_at, verified_at, locked_at
+              created_at, updated_at, verified_at, locked_at, google_sheet_row
        from public.messaging_partner_orders`
 
 /** Đọc đơn theo id + shop — dùng khi khách đổi phiên (guest ↔ đăng nhập) vẫn phải khớp đơn nháp. */
@@ -468,7 +474,7 @@ export async function fetchPartnerOrderForOwnerFromPg(
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
               o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-              o.created_at, o.updated_at, o.verified_at, o.locked_at
+              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row
        from public.messaging_partner_orders o
        inner join public.messaging_partners mp on mp.id = o.partner_id
        where o.id = $1::uuid and mp.owner_user_id = $2::uuid
@@ -563,7 +569,7 @@ export async function fetchWidgetOrdersForLinkedUserFromPg(
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
               o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-              o.created_at, o.updated_at, o.verified_at, o.locked_at,
+              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row,
               coalesce(mp.display_name, '') as partner_display_name,
               coalesce(mp.slug, '') as partner_slug
        from public.messaging_partner_orders o
@@ -855,7 +861,7 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
               o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-              o.created_at, o.updated_at, o.verified_at, o.locked_at,
+              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row,
               coalesce(mp.display_name, '') as partner_display_name,
               lp.image_url as latest_proof_image_url,
               lp.verification_status as latest_proof_status,
@@ -911,7 +917,7 @@ export async function fetchPartnerOrdersForOwnerExportFromPg(input: {
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
               o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-              o.created_at, o.updated_at, o.verified_at, o.locked_at,
+              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row,
               coalesce(mp.display_name, '') as partner_display_name,
               lp.image_url as latest_proof_image_url,
               lp.verification_status as latest_proof_status,
@@ -991,7 +997,7 @@ export async function updatePartnerOrderShippingStatusForOwnerFromPg(input: {
                  o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
                  o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
                  o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-                 o.created_at, o.updated_at, o.verified_at, o.locked_at`,
+                 o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row`,
       [input.orderId, input.ownerUserId, input.shippingStatus, input.note]
     )
     if (!row) return null

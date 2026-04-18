@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
@@ -16,12 +17,14 @@ import {
   cancelMessagingWorkspaceDeletionSchedule,
   confirmMessagingWorkspaceDeletionWithOtp,
   createMessagingWorkspaceProfile,
+  getMessagingWorkspaceGoogleSheetsSettings,
   getMessagingWorkspacePaymentSettings,
   getPartnerChannelStatus,
   listMessagingWorkspaceLogoVersions,
   listMyMessagingPartners,
   normalizeMessagingWorkspaceLogo,
   requestMessagingWorkspaceDeletionOtp,
+  saveMessagingWorkspaceGoogleSheetsSettings,
   saveMessagingWorkspacePaymentSettings,
   savePartnerFacebookChannel,
   savePartnerZaloChannel,
@@ -48,6 +51,7 @@ import {
   Plug,
   RefreshCw,
   Share2,
+  Table,
   LineChart,
   Trash2,
   Upload,
@@ -183,6 +187,13 @@ export function PartnerMessagingSettingsClient({
   const [metaCapiToken, setMetaCapiToken] = useState('')
   const [metaCapiConfigured, setMetaCapiConfigured] = useState(false)
   const [shopGa4MeasurementId, setShopGa4MeasurementId] = useState('')
+  const [gsEnabled, setGsEnabled] = useState(false)
+  const [gsSpreadsheetId, setGsSpreadsheetId] = useState('')
+  const [gsSheetName, setGsSheetName] = useState('Don hang')
+  const [gsHasServiceAccount, setGsHasServiceAccount] = useState(false)
+  const [gsServerFallback, setGsServerFallback] = useState(false)
+  const [gsSyncCredentialsReady, setGsSyncCredentialsReady] = useState(false)
+  const [gsServiceAccountJsonDraft, setGsServiceAccountJsonDraft] = useState('')
   const [paymentAutoSaveStatus, setPaymentAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const paymentHydratingRef = useRef(false)
   const paymentLastSavedSnapshotRef = useRef('')
@@ -358,6 +369,28 @@ export function PartnerMessagingSettingsClient({
   useEffect(() => {
     loadPaymentSettings()
   }, [loadPaymentSettings])
+
+  useEffect(() => {
+    if (!selectedPartnerId) {
+      setGsHasServiceAccount(false)
+      setGsServerFallback(false)
+      setGsSyncCredentialsReady(false)
+      return
+    }
+    void (async () => {
+      const res = await getMessagingWorkspaceGoogleSheetsSettings(selectedPartnerId)
+      if ('error' in res && res.error) return
+      if ('settings' in res && res.settings) {
+        setGsEnabled(Boolean(res.settings.enabled))
+        setGsSpreadsheetId(res.settings.spreadsheetId ?? '')
+        setGsSheetName((res.settings.sheetName ?? '').trim() || 'Don hang')
+        setGsHasServiceAccount(Boolean(res.hasServiceAccount))
+        setGsServerFallback(Boolean(res.serverFallbackAvailable))
+        setGsSyncCredentialsReady(Boolean(res.syncCredentialsReady))
+        setGsServiceAccountJsonDraft('')
+      }
+    })()
+  }, [selectedPartnerId])
 
   useEffect(() => {
     if (!selectedPartnerId) {
@@ -792,6 +825,60 @@ export function PartnerMessagingSettingsClient({
     if (!selectedPartnerId) return
     startTransition(async () => {
       await persistPaymentSettings()
+    })
+  }
+
+  const saveGoogleSheetsSettings = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await saveMessagingWorkspaceGoogleSheetsSettings({
+        partnerId: selectedPartnerId,
+        enabled: gsEnabled,
+        spreadsheetIdOrUrl: gsSpreadsheetId,
+        sheetName: gsSheetName,
+        ...(gsServiceAccountJsonDraft.trim()
+          ? { serviceAccountJson: gsServiceAccountJsonDraft }
+          : {}),
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      setGsServiceAccountJsonDraft('')
+      toast({ title: t.saveOk })
+      router.refresh()
+      const snap = await getMessagingWorkspaceGoogleSheetsSettings(selectedPartnerId)
+      if ('settings' in snap && snap.settings) {
+        setGsHasServiceAccount(Boolean(snap.hasServiceAccount))
+        setGsServerFallback(Boolean(snap.serverFallbackAvailable))
+        setGsSyncCredentialsReady(Boolean(snap.syncCredentialsReady))
+      }
+    })
+  }
+
+  const clearGoogleSheetsServiceAccount = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await saveMessagingWorkspaceGoogleSheetsSettings({
+        partnerId: selectedPartnerId,
+        enabled: gsEnabled,
+        spreadsheetIdOrUrl: gsSpreadsheetId,
+        sheetName: gsSheetName,
+        clearServiceAccountJson: true,
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      setGsServiceAccountJsonDraft('')
+      toast({ title: t.saveOk })
+      router.refresh()
+      const snap = await getMessagingWorkspaceGoogleSheetsSettings(selectedPartnerId)
+      if ('settings' in snap && snap.settings) {
+        setGsHasServiceAccount(Boolean(snap.hasServiceAccount))
+        setGsServerFallback(Boolean(snap.serverFallbackAvailable))
+        setGsSyncCredentialsReady(Boolean(snap.syncCredentialsReady))
+      }
     })
   }
 
@@ -1583,6 +1670,102 @@ export function PartnerMessagingSettingsClient({
                 </p>
               </div>
               </div>
+              <Card className="border-border/70 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Table className="h-4 w-4 shrink-0" aria-hidden />
+                    Google Sheet — đồng bộ đơn hàng
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 pt-0">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Mỗi khi đơn được tạo/cập nhật (checkout, thanh toán, giao hàng), hệ thống ghi hoặc cập nhật một dòng trên
+                    Google Sheet của shop. Tạo <strong>service account</strong> trên Google Cloud, bật <strong>Google Sheets API</strong>, tải file
+                    JSON key — <strong>dán nguyên nội dung vào ô bên dưới</strong> (lưu theo từng workspace). Trong Google Sheet, bấm Share và thêm
+                    email <em>client_email</em> trong JSON với quyền <strong>Editor</strong>. Không cần sửa mã nguồn ứng dụng.
+                  </p>
+                  {gsServerFallback ? (
+                    <p className="text-[11px] text-muted-foreground rounded-md border border-border/70 bg-muted/30 px-2 py-1.5">
+                      Host có thể cấu thêm fallback chung (tùy chọn); shop vẫn ưu tiên JSON đã dán ở đây.
+                    </p>
+                  ) : null}
+                  {gsEnabled && !gsSyncCredentialsReady && !gsServiceAccountJsonDraft.trim() ? (
+                    <p className="rounded-md border border-amber-300/80 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+                      Chưa có JSON service account cho shop này — đồng bộ sẽ không chạy. Dán file JSON vào ô «Service account
+                      JSON» rồi lưu (hoặc nhờ quản trị host bật fallback).
+                    </p>
+                  ) : null}
+                  <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={gsEnabled}
+                      onChange={(e) => setGsEnabled(e.target.checked)}
+                      disabled={!selectedPartnerId}
+                    />
+                    Bật ghi đơn lên Google Sheet cho workspace này
+                  </label>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label className="text-xs font-medium">Link hoặc ID Google Sheet</Label>
+                      <Input
+                        className="h-9 text-sm font-mono"
+                        value={gsSpreadsheetId}
+                        onChange={(e) => setGsSpreadsheetId(e.target.value)}
+                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Tên tab (sheet)</Label>
+                      <Input
+                        className="h-9 text-sm"
+                        value={gsSheetName}
+                        onChange={(e) => setGsSheetName(e.target.value)}
+                        placeholder="Don hang"
+                        autoComplete="off"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <Label className="text-xs font-medium">Service account JSON (Google Cloud)</Label>
+                      {gsHasServiceAccount ? (
+                        <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">Đã lưu key</span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">Chưa lưu</span>
+                      )}
+                    </div>
+                    <Textarea
+                      className="min-h-[120px] font-mono text-[11px] leading-snug"
+                      value={gsServiceAccountJsonDraft}
+                      onChange={(e) => setGsServiceAccountJsonDraft(e.target.value)}
+                      placeholder='Dán toàn bộ nội dung file .json (có "client_email", "private_key"). Để trống khi lưu = giữ key cũ.'
+                      spellCheck={false}
+                      autoComplete="off"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={clearGoogleSheetsServiceAccount}
+                        disabled={pending || !selectedPartnerId || !gsHasServiceAccount}
+                      >
+                        Gỡ JSON đã lưu
+                      </Button>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={saveGoogleSheetsSettings}
+                    disabled={pending || !selectedPartnerId}
+                  >
+                    Lưu cài đặt Google Sheet
+                  </Button>
+                </CardContent>
+              </Card>
               <Button type="button" size="sm" onClick={savePaymentSettings} disabled={pending || !selectedPartnerId}>
                 Luu cai dat thanh toan
               </Button>
