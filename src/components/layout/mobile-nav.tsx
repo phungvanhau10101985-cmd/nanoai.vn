@@ -28,6 +28,12 @@ export function MobileNav({ isAdmin, t }: MobileNavProps) {
       <SheetContent
         side="left"
         className="flex flex-col w-[min(340px,90vw)] max-w-[340px] p-0 gap-0 overflow-hidden border-r-0 rounded-r-2xl"
+        onInteractOutside={(e) => {
+          const t = e.target
+          if (t instanceof Element && t.closest('[data-nanoai-widget-root]')) {
+            e.preventDefault()
+          }
+        }}
       >
         <div className="flex items-center justify-between px-5 pt-14 pb-4 border-b shrink-0 safe-area-pt">
           <SheetClose asChild>

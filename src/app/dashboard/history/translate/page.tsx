@@ -172,9 +172,23 @@ export default async function TranslateHistoryPage() {
         <div className="section-surface text-center py-12 border-2 border-dashed rounded-lg">
           <h3 className="text-lg font-medium">{tr('Chưa có lịch sử dịch ảnh', 'No translation history yet', '暂无翻译记录', '翻訳履歴はまだありません', '번역 기록이 없습니다')}</h3>
           <p className="text-muted-foreground mt-1">{tr('Dịch ảnh tài liệu (1 ảnh, thư mục hoặc file Excel) để xem lịch sử tại đây.', 'Translate document images (single image, folder, or Excel file) to see history here.', '翻译文档图片（单图、文件夹或 Excel）后可在此查看历史。', '文書画像（単画像・フォルダ・Excel）を翻訳すると、ここに履歴が表示されます。', '문서 이미지(단일, 폴더, Excel)를 번역하면 이곳에서 기록을 볼 수 있습니다.')}</p>
-          <Button className="mt-4" asChild>
-            <Link href="/dich-anh-tai-lieu">{tr('Dịch ảnh ngay', 'Translate now', '立即翻译', '今すぐ翻訳', '지금 번역')}</Link>
-          </Button>
+          <p className="text-muted-foreground mt-2 text-sm">
+            {tr(
+              'Thử đồ, phục dựng, làm nét, ghép ảnh… nằm ở trang Ảnh đã xử lý — không hiển thị ở đây.',
+              'Try-on, restoration, sharpen, merge, etc. are listed under Processed images — not here.',
+              '试衣、修复、清晰化、拼图等请见「已处理图片」— 不在此页。',
+              '試着・復元・高画質化・合成などは「処理済み画像」に表示されます（ここではありません）。',
+              '피팅, 복원, 선명화, 합성 등은「처리된 이미지」에 표시됩니다 — 이 페이지가 아닙니다.'
+            )}
+          </p>
+          <div className="flex flex-wrap justify-center gap-3 mt-4">
+            <Button asChild>
+              <Link href="/dich-anh-tai-lieu">{tr('Dịch ảnh ngay', 'Translate now', '立即翻译', '今すぐ翻訳', '지금 번역')}</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/history">{tr('Ảnh đã xử lý', 'Processed images', '已处理图片', '処理済み画像', '처리된 이미지')}</Link>
+            </Button>
+          </div>
         </div>
       )}
     </div>

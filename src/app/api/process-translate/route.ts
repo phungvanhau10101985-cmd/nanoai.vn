@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
 import { applyPostCheckOcr } from '@/lib/translate-post-check'
@@ -241,6 +242,9 @@ async function handleProcessTranslate(request: NextRequest) {
   }
   await updateTryOnHistoryResultCompletedPg(historyId, resultPublicUrl)
   await markTranslateJobCompletedPg(resolvedJobId)
+
+  revalidatePath('/dashboard/history/translate')
+  revalidatePath('/dich-anh-tai-lieu')
 
   await notifyTranslateImageSuccessSmart({
     userId,

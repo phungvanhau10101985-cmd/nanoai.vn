@@ -156,7 +156,15 @@ export default async function HistoryPage() {
       ) : (
         <div className="section-surface text-center py-12 border-2 border-dashed rounded-lg">
           <h3 className="text-lg font-medium">{tr('Chưa có lịch sử', 'No history yet', '暂无历史记录', '履歴はまだありません', '기록이 없습니다')}</h3>
-          <p className="text-muted-foreground mt-1">{tr('Hãy thử các tính năng thử đồ, phục dựng ảnh, làm nét, ghép ảnh ngay bây giờ!', 'Try virtual try-on, restoration, sharpen, and merge features now!', '快去试试试衣、修复、清晰化和拼图功能吧！', '試着・復元・高画質化・合成機能を今すぐ試してみましょう！', '가상 피팅, 복원, 선명화, 합성 기능을 지금 사용해 보세요!')}</p>
+          <p className="text-muted-foreground mt-1">
+            {tr(
+              'Ảnh dịch tài liệu không hiển thị ở đây — mở Lịch sử dịch ảnh. Các tính năng khác: thử đồ, phục dựng, làm nét, ghép ảnh…',
+              'Document translation results are not listed here — open Translation history. Other tools: try-on, restoration, sharpen, merge…',
+              '文档翻译结果不显示在此页 — 请打开翻译记录。其他功能：试衣、修复、清晰化、拼图等',
+              '文書翻訳の結果はここには表示されません —「翻訳履歴」を開いてください。その他：試着・復元・高画質化・合成など',
+              '문서 번역 결과는 이 목록에 없습니다 — 번역 기록 페이지를 여세요. 기타: 피팅, 복원, 선명화, 합성 등'
+            )}
+          </p>
           <div className="flex flex-wrap justify-center gap-3 mt-4">
             <Button asChild>
               <a href="/thu-do-online">{tr('Thử đồ ngay', 'Try on now', '立即试衣', '今すぐ試着', '지금 피팅하기')}</a>

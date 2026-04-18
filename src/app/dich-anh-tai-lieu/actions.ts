@@ -227,6 +227,7 @@ export async function translateDocumentImage(formData: FormData) {
 
     revalidatePath('/dich-anh-tai-lieu')
     revalidatePath('/dashboard/history')
+    revalidatePath('/dashboard/history/translate')
     return { success: true, resultUrl: resultPublicUrl }
   } catch (e) {
     await deleteTryOnHistoryRowAndStorage(historyItem.id)
@@ -1007,6 +1008,7 @@ export async function cancelBatchTranslate(
   if (completed.length === 0) {
     revalidatePath('/dich-anh-tai-lieu')
     revalidatePath(`/dich-anh-tai-lieu/tien-trinh/${batchId}`)
+    revalidatePath('/dashboard/history/translate')
     return { cancelled: true, error: 'Chưa có ảnh nào xử lý xong để tải xuống.' }
   }
 
@@ -1015,6 +1017,7 @@ export async function cancelBatchTranslate(
 
   revalidatePath('/dich-anh-tai-lieu')
   revalidatePath(`/dich-anh-tai-lieu/tien-trinh/${batchId}`)
+  revalidatePath('/dashboard/history/translate')
   return { ...result, cancelled: true }
 }
 
@@ -1240,6 +1243,7 @@ export async function translateFromExcel(
 
   revalidatePath('/dich-anh-tai-lieu')
   revalidatePath('/dashboard/history')
+  revalidatePath('/dashboard/history/translate')
   return { success: true, results, zipUrl, estimatedCost }
 }
 

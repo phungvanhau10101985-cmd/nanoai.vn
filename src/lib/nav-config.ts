@@ -3,20 +3,9 @@
  */
 import type { ComponentType } from 'react'
 import {
-  Disc3,
-  Languages,
-  Box,
-  Shield,
-  Stamp,
-  BookOpen,
-  Wand2,
-  BarChart3,
-  Sparkles,
   Monitor,
   NotebookPen,
   Users,
-  PencilLine,
-  Mic,
 } from 'lucide-react'
 import { TryOnIcon } from '@/components/icons/try-on-icon'
 import { ImageRestorationIcon } from '@/components/icons/image-restoration-icon'
@@ -40,7 +29,17 @@ import { TaoMoHinh3DTuAnhIcon } from '@/components/icons/tao-mo-hinh-3d-tu-anh-i
 import { ThietKeNoiNgoaiThatIcon } from '@/components/icons/thiet-ke-noi-ngoai-that-icon'
 import { XayNhaTuDatNenIcon } from '@/components/icons/xay-nha-tu-dat-nen-icon'
 import { TaoAnhChanDungIcon } from '@/components/icons/tao-anh-chain-dung-icon'
+import { MyCurriculaIcon } from '@/components/icons/my-curricula-icon'
+import { AiLanguageLearningIcon } from '@/components/icons/ai-language-learning-icon'
+import { MeetingRecorderReportIcon } from '@/components/icons/meeting-recorder-report-icon'
 import { DichAnhTaiLieuIcon } from '@/components/icons/dich-anh-tai-lieu-icon'
+import { InfographicFromBookIcon } from '@/components/icons/infographic-from-book-icon'
+import { TaoAnhTuChuIcon } from '@/components/icons/tao-anh-tu-chu-icon'
+import { DuAnhTuPhacThaoIcon } from '@/components/icons/du-anh-tu-phac-thao-icon'
+import { TaoTemNiemPhongBaoHanhIcon } from '@/components/icons/tao-tem-niem-phong-bao-hanh-icon'
+import { ThietKeConDauIcon } from '@/components/icons/thiet-ke-con-dau-icon'
+import { ThietKeBaoBiIcon } from '@/components/icons/thiet-ke-bao-bi-icon'
+import { TaoBaiHatLyria3Icon } from '@/components/icons/tao-bai-hat-lyria-3-icon'
 import { XoaNenPngIcon } from '@/components/icons/xoa-nen-png-icon'
 import type { NavGroupKey, ToolKey } from '@/lib/i18n/dictionaries'
 
@@ -69,14 +68,14 @@ export type NavGroupConfig = {
 
 export const AI_TOOLS = [
   { href: '/thu-do-online', labelKey: 'try_on' as ToolKey, icon: TryOnIcon },
-  { href: '/tao-giao-trinh', labelKey: 'create_curriculum' as ToolKey, icon: Sparkles },
-  { href: '/giao-trinh', labelKey: 'my_curricula' as ToolKey, icon: BookOpen },
+  { href: '/tao-giao-trinh', labelKey: 'create_curriculum' as ToolKey, icon: MyCurriculaIcon },
+  { href: '/giao-trinh', labelKey: 'my_curricula' as ToolKey, icon: MyCurriculaIcon },
   { href: '/tao-bai-thi', labelKey: 'online_exam' as ToolKey, icon: Monitor },
   { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' as ToolKey, icon: NotebookPen },
   { href: '/lop', labelKey: 'classes' as ToolKey, icon: Users },
-  { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: Languages },
-  { href: '/ghi-am-bao-cao-cuoc-hop', labelKey: 'meeting_recorder_report' as ToolKey, icon: Mic },
-  { href: '/tao-infographic-tu-sach', labelKey: 'infographic_from_book' as ToolKey, icon: BarChart3 },
+  { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: AiLanguageLearningIcon },
+  { href: '/ghi-am-bao-cao-cuoc-hop', labelKey: 'meeting_recorder_report' as ToolKey, icon: MeetingRecorderReportIcon },
+  { href: '/tao-infographic-tu-sach', labelKey: 'infographic_from_book' as ToolKey, icon: InfographicFromBookIcon },
   { href: '/ke-chuyen-bang-hinh-anh', labelKey: 'story_with_images' as ToolKey, icon: KeChuyenBangHinhAnhIcon },
   { href: '/dich-anh-tai-lieu', labelKey: 'translate_document_image' as ToolKey, icon: DichAnhTaiLieuIcon },
   { href: '/phuc-dung-anh', labelKey: 'restore_image' as ToolKey, icon: ImageRestorationIcon },
@@ -84,14 +83,15 @@ export const AI_TOOLS = [
   { href: '/lam-dep-anh', labelKey: 'beautify_image' as ToolKey, icon: LamDepAnhIcon },
   { href: '/ghep-anh', labelKey: 'merge_image' as ToolKey, icon: GhepAnhIcon },
   { href: '/tao-banner', labelKey: 'create_banner' as ToolKey, icon: TaoBannerIcon },
-  { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' as ToolKey, icon: Wand2 },
-  { href: '/du-anh-tu-phac-thao', labelKey: 'sketch_to_image' as ToolKey, icon: PencilLine },
+  { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' as ToolKey, icon: TaoAnhTuChuIcon },
+  { href: '/du-anh-tu-phac-thao', labelKey: 'sketch_to_image' as ToolKey, icon: DuAnhTuPhacThaoIcon },
   { href: '/tao-anh-the', labelKey: 'create_id_photo' as ToolKey, icon: TaoAnhTheIcon },
   { href: '/thiet-ke-logo', labelKey: 'design_logo' as ToolKey, icon: ThietKeLogoIcon },
   { href: '/tao-nhan-gian', labelKey: 'create_sticker' as ToolKey, icon: TaoNhanGianIcon },
   { href: '/tao-nhan-gioi-thieu-san-pham', labelKey: 'create_product_label' as ToolKey, icon: TaoNhanGioiThieuSanPhamIcon },
-  { href: '/tao-tem-niem-phong-bao-hanh', labelKey: 'create_seal_warranty_label' as ToolKey, icon: Shield },
-  { href: '/thiet-ke-bao-bi', labelKey: 'design_package' as ToolKey, icon: Box },
+  { href: '/tao-tem-niem-phong-bao-hanh', labelKey: 'create_seal_warranty_label' as ToolKey, icon: TaoTemNiemPhongBaoHanhIcon },
+  { href: '/thiet-ke-con-dau', labelKey: 'design_stamp' as ToolKey, icon: ThietKeConDauIcon },
+  { href: '/thiet-ke-bao-bi', labelKey: 'design_package' as ToolKey, icon: ThietKeBaoBiIcon },
   { href: '/tao-ma-vach', labelKey: 'create_barcode' as ToolKey, icon: TaoMaVachIcon },
   { href: '/che-anh', labelKey: 'meme_maker' as ToolKey, icon: CheAnhIcon },
   { href: '/xoa-vat-the', labelKey: 'remove_object' as ToolKey, icon: XoaVatTheIcon },
@@ -104,7 +104,7 @@ export const AI_TOOLS = [
   { href: '/tao-anh-chain-dung', labelKey: 'portrait_photo' as ToolKey, icon: TaoAnhChanDungIcon },
   { href: '/mo-rong-khung-hinh', labelKey: 'expand_frame' as ToolKey, icon: MoRongKhungHinhIcon },
   { href: '/hoan-doi-khuon-mat', labelKey: 'face_swap' as ToolKey, icon: HoanDoiKhuonMatIcon },
-  { href: '/tao-bai-hat-lyria-3', labelKey: 'lyria3_instrumental_song' as ToolKey, icon: Disc3 },
+  { href: '/tao-bai-hat-lyria-3', labelKey: 'lyria3_instrumental_song' as ToolKey, icon: TaoBaiHatLyria3Icon },
 ] as const
 
 export const NAV_GROUPS: readonly NavGroupConfig[] = [
@@ -121,11 +121,11 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
   {
     titleKey: 'education' as NavGroupKey,
     links: [
-      { href: '/tao-giao-trinh', labelKey: 'create_curriculum' as ToolKey, icon: Sparkles },
+      { href: '/tao-giao-trinh', labelKey: 'create_curriculum' as ToolKey, icon: MyCurriculaIcon },
       {
         href: '/giao-trinh',
         labelKey: 'my_curricula' as ToolKey,
-        icon: BookOpen,
+        icon: MyCurriculaIcon,
         showOnHomepage: false,
       },
       {
@@ -146,9 +146,9 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
         icon: Users,
         showOnHomepage: false,
       },
-      { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: Languages },
-      { href: '/ghi-am-bao-cao-cuoc-hop', labelKey: 'meeting_recorder_report' as ToolKey, icon: Mic },
-      { href: '/tao-infographic-tu-sach', labelKey: 'infographic_from_book' as ToolKey, icon: BarChart3 },
+      { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: AiLanguageLearningIcon },
+      { href: '/ghi-am-bao-cao-cuoc-hop', labelKey: 'meeting_recorder_report' as ToolKey, icon: MeetingRecorderReportIcon },
+      { href: '/tao-infographic-tu-sach', labelKey: 'infographic_from_book' as ToolKey, icon: InfographicFromBookIcon },
       { href: '/ke-chuyen-bang-hinh-anh', labelKey: 'story_with_images' as ToolKey, icon: KeChuyenBangHinhAnhIcon },
       { href: '/dich-anh-tai-lieu', labelKey: 'translate_document_image' as ToolKey, icon: DichAnhTaiLieuIcon },
     ],
@@ -171,15 +171,15 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
     titleKey: 'design_creative' as NavGroupKey,
     links: [
       { href: '/tao-banner', labelKey: 'create_banner' as ToolKey, icon: TaoBannerIcon },
-      { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' as ToolKey, icon: Wand2 },
-      { href: '/du-anh-tu-phac-thao', labelKey: 'sketch_to_image' as ToolKey, icon: PencilLine },
+      { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' as ToolKey, icon: TaoAnhTuChuIcon },
+      { href: '/du-anh-tu-phac-thao', labelKey: 'sketch_to_image' as ToolKey, icon: DuAnhTuPhacThaoIcon },
       { href: '/tao-anh-the', labelKey: 'create_id_photo' as ToolKey, icon: TaoAnhTheIcon },
       { href: '/thiet-ke-logo', labelKey: 'design_logo' as ToolKey, icon: ThietKeLogoIcon },
       { href: '/tao-nhan-gian', labelKey: 'create_sticker' as ToolKey, icon: TaoNhanGianIcon },
       { href: '/tao-nhan-gioi-thieu-san-pham', labelKey: 'create_product_label' as ToolKey, icon: TaoNhanGioiThieuSanPhamIcon },
-      { href: '/tao-tem-niem-phong-bao-hanh', labelKey: 'create_seal_warranty_label' as ToolKey, icon: Shield },
-      { href: '/thiet-ke-con-dau', labelKey: 'design_stamp' as ToolKey, icon: Stamp },
-      { href: '/thiet-ke-bao-bi', labelKey: 'design_package' as ToolKey, icon: Box },
+      { href: '/tao-tem-niem-phong-bao-hanh', labelKey: 'create_seal_warranty_label' as ToolKey, icon: TaoTemNiemPhongBaoHanhIcon },
+      { href: '/thiet-ke-con-dau', labelKey: 'design_stamp' as ToolKey, icon: ThietKeConDauIcon },
+      { href: '/thiet-ke-bao-bi', labelKey: 'design_package' as ToolKey, icon: ThietKeBaoBiIcon },
       { href: '/tao-ma-vach', labelKey: 'create_barcode' as ToolKey, icon: TaoMaVachIcon },
       { href: '/che-anh', labelKey: 'meme_maker' as ToolKey, icon: CheAnhIcon },
     ],
@@ -196,6 +196,6 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
   },
   {
     titleKey: 'music_ai' as NavGroupKey,
-    links: [{ href: '/tao-bai-hat-lyria-3', labelKey: 'lyria3_instrumental_song' as ToolKey, icon: Disc3 }],
+    links: [{ href: '/tao-bai-hat-lyria-3', labelKey: 'lyria3_instrumental_song' as ToolKey, icon: TaoBaiHatLyria3Icon }],
   },
 ]

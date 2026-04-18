@@ -87,7 +87,17 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56 z-[1000]" align="end" sideOffset={8}>
+        <DropdownMenuContent
+          className="w-56 z-[1000]"
+          align="end"
+          sideOffset={8}
+          onInteractOutside={(e) => {
+            const t = e.target
+            if (t instanceof Element && t.closest('[data-nanoai-widget-root]')) {
+              e.preventDefault()
+            }
+          }}
+        >
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">

@@ -788,16 +788,16 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
   },
   'tao-bai-hat-lyria-3': {
     key: 'tao-bai-hat-lyria-3',
-    pageTitle: 'Tạo bài nhạc Lyria 3 (có lời / không lời) — Gemini API',
+    pageTitle: 'Tạo bài nhạc (có lời / không lời) — Gemini API',
     pageDescription:
-      'Tạo file nhạc MP3/WAV với Lyria 3: chọn thể loại (pop, rap, nhạc trẻ…), upload ảnh để bám mood, dán lời/nội dung; có hoặc không lời.',
+      'Tạo file nhạc MP3/WAV: chọn thể loại (pop, rap, nhạc trẻ…), upload ảnh để bám mood, dán lời/nội dung; có hoặc không lời.',
     path: '/tao-bai-hat-lyria-3',
     keywords: ['lyria 3', 'tạo nhạc ai', 'nhạc tâm trạng ai', 'nhạc remix ai', 'trap pop rap', 'gemini music'],
-    serviceName: 'Tạo nhạc Lyria 3',
+    serviceName: 'Tạo bài nhạc AI',
     serviceDescription: 'Sinh nhạc từ prompt: instrumental hoặc có vocal, xuất file âm thanh.',
-    h2: 'Tạo file nhạc từ mô tả — Lyria 3',
+    h2: 'Tạo file nhạc từ mô tả',
     overview:
-      'Lyria 3 tạo một đoạn hoặc bài nhạc hoàn chỉnh dưới dạng file. Bạn chọn chế độ không lời (nhạc nền) hoặc có lời; ngôn ngữ lời thường bám theo ngôn ngữ bạn viết trong mô tả.',
+      'Bạn có thể tạo một đoạn hoặc bài nhạc hoàn chỉnh dưới dạng file. Chọn chế độ không lời (nhạc nền) hoặc có lời; ngôn ngữ lời thường bám theo ngôn ngữ bạn viết trong mô tả.',
     benefits: ['Có file tải về (MP3/WAV)', 'Thể loại có sẵn + ảnh tham chiếu', 'Ô lời/nội dung cho AI phối nhạc', 'Instrumental hoặc có vocal'],
     useCases: ['Nhạc nền không lời', 'Bài hát demo có lời', 'Ambient podcast (instrumental)'],
     tips: ['Không lời: nêu rõ thể loại và nhạc cụ', 'Có lời: viết mô tả bằng ngôn ngữ muốn có lời', 'Clip ~30s; Pro: gợi ý độ dài trong prompt'],
@@ -805,7 +805,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       { question: 'Có tạo được nhạc có lời không?', answer: 'Có. Chọn «Có lời» trên giao diện; mô tả càng rõ chủ đề và ngôn ngữ lời càng tốt.' },
       { question: 'Mỗi lần tạo ra gì?', answer: 'Một file âm thanh (MP3/WAV) tải về hoặc phát trong trang; mỗi lần bấm tạo là một bản mới.' },
       { question: 'Cần bao nhiêu credits?', answer: 'Clip và Pro có mức trừ khác nhau; xem trên giao diện trước khi tạo.' },
-      { question: 'Có chỉnh sửa lại bản đã tạo không?', answer: 'Lyria 3 là một lượt; hãy tạo lại với mô tả mới nếu cần.' },
+      { question: 'Có chỉnh sửa lại bản đã tạo không?', answer: 'Mỗi lần tạo là một bản mới; hãy tạo lại với mô tả khác nếu cần.' },
     ],
   },
   'thu-do-online-1-nguoi': {

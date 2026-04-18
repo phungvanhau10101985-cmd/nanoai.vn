@@ -199,7 +199,10 @@ export function FloatingChatWidget({
       data-nanoai-widget-root
       className={`fixed ${anchorClass} ${topLayerClass} flex h-[min(70vh,560px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border border-border/60 bg-background/95 shadow-2xl backdrop-blur-sm`}
     >
-      <div className="flex shrink-0 items-center gap-1 border-b border-border/60 bg-muted/40 px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2">
+      <div
+        className="flex shrink-0 items-center gap-1 border-b border-border/60 bg-muted/40 px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <div className="min-w-0 max-w-[32%] shrink truncate text-sm font-semibold sm:text-base">{shopName}</div>
         <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
           <select
@@ -245,7 +248,10 @@ export function FloatingChatWidget({
             variant="ghost"
             size="icon"
             className="h-8 w-8 rounded-full"
-            onClick={() => setClosed(true)}
+            onClick={(e) => {
+              e.stopPropagation()
+              setClosed(true)
+            }}
             title={closeLabel}
             aria-label={closeLabel}
           >
