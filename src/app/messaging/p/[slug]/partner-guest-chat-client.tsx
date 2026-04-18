@@ -2375,11 +2375,13 @@ export function PartnerGuestChatClient({
     if (intent !== 'purchase') {
       setBuyOptionsOpen(false)
       const sku = (card.sku ?? '').trim().slice(0, 128)
-      const skuPart = sku ? t.productConsultSkuPart.replace('{sku}', sku) : ''
+      const productRef = sku
+        ? t.productConsultProductRefFromSku.replace('{sku}', sku)
+        : t.productConsultProductRefFromName.replace('{name}', label)
       const ask =
         intent === 'shipping_policy'
-          ? t.productConsultAskShipping.replace('{name}', label).replace('{skuPart}', skuPart)
-          : t.productConsultAskDetail.replace('{name}', label).replace('{skuPart}', skuPart)
+          ? t.productConsultAskShipping.replace('{productRef}', productRef)
+          : t.productConsultAskDetail.replace('{productRef}', productRef)
       const imageUrl = (card.image_url ?? '').trim()
       const pageContext: {
         sku?: string

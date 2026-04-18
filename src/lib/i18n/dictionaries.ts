@@ -933,11 +933,13 @@ export type Dictionary = {
     purchaseOpenSiteToast: string
     /** Chế độ web nhưng thiếu URL sản phẩm */
     purchaseMissingProductUrlToast: string
-    /** Chèn sau tên SP khi có mã — có khoảng trắng đầu; `{sku}` = mã */
-    productConsultSkuPart: string
-    /** Khách bấm Tư vấn — hỏi vận chuyển; `{name}` tên SP, `{skuPart}` rỗng hoặc từ productConsultSkuPart */
+    /** Ghép «mã sản phẩm …» khi có SKU — thay `{sku}`. */
+    productConsultProductRefFromSku: string
+    /** Khi không có SKU — thay `{name}` (tên mẫu). */
+    productConsultProductRefFromName: string
+    /** Khách bấm Tư vấn (ưu tiên hỏi ship) — `{productRef}` từ hai chuỗi trên. */
     productConsultAskShipping: string
-    /** Khách bấm Tư vấn — hỏi chi tiết SP */
+    /** Khách bấm Tư vấn (chung) — `{productRef}`. */
     productConsultAskDetail: string
     guestProfileDialogTitle: string
     guestProfileDialogDescription: string
@@ -2793,10 +2795,12 @@ const VI_DICTIONARY: Dictionary = {
     productShelfBuy: 'Mua',
     purchaseOpenSiteToast: 'Đã mở trang đặt hàng trên website shop trong tab mới.',
     purchaseMissingProductUrlToast: 'Mẫu này chưa có link trang sản phẩm — shop vui lòng thêm URL trong kho.',
-    productConsultSkuPart: ' Mã/SKU: {sku}.',
+    productConsultProductRefFromSku: 'mã sản phẩm {sku}',
+    productConsultProductRefFromName: 'mẫu {name}',
     productConsultAskShipping:
-      'Mình quan tâm mẫu này: {name}.{skuPart} Shop tư vấn giúp mình chính sách vận chuyển, phí ship và thời gian giao nhé.',
-    productConsultAskDetail: 'Mình quan tâm mẫu này: {name}.{skuPart} Shop tư vấn chi tiết giúp mình nhé.',
+      'Chào anh/chị! Em thấy anh/chị đang xem {productRef}. Anh/chị muốn em tư vấn size, màu, giá hay cách đặt ạ?',
+    productConsultAskDetail:
+      'Chào anh/chị! Em thấy anh/chị đang xem {productRef}. Anh/chị muốn em tư vấn size, màu, giá hay cách đặt ạ?',
     guestProfileDialogTitle: 'Giúp shop xưng hô đúng ý bạn',
     guestProfileDialogDescription:
       'Thông tin lưu một lần trên tài khoản NanoAI (dùng cho mọi shop): ngày sinh và giới tính (nam hoặc nữ) để xưng hô anh/chị và gợi ý tư vấn phù hợp. Bạn có thể bỏ qua và nhập sau.',
@@ -4648,10 +4652,12 @@ const EN_DICTIONARY: Dictionary = {
     productShelfBuy: 'Buy',
     purchaseOpenSiteToast: 'Opened the shop product page in a new tab.',
     purchaseMissingProductUrlToast: 'This item has no product URL — add it in inventory.',
-    productConsultSkuPart: ' SKU: {sku}.',
+    productConsultProductRefFromSku: 'product code {sku}',
+    productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
-      "I'm interested in this item: {name}.{skuPart} Please advise on shipping policy, fees, and delivery time.",
-    productConsultAskDetail: "I'm interested in this item: {name}.{skuPart} Please share more details.",
+      "Hi! We see you're viewing {productRef}. Would you like help with size, color, price, or how to order?",
+    productConsultAskDetail:
+      "Hi! We see you're viewing {productRef}. Would you like help with size, color, price, or how to order?",
     guestProfileDialogTitle: 'Help us address you correctly',
     guestProfileDialogDescription:
       'Saved once on your NanoAI account (all shops): date of birth and gender (male or female) for natural honorifics and age-appropriate suggestions. You can skip and fill this in later.',
@@ -6482,10 +6488,12 @@ const ZH_DICTIONARY: Dictionary = {
     productShelfBuy: '购买',
     purchaseOpenSiteToast: '已在新标签页打开店铺商品页。',
     purchaseMissingProductUrlToast: '该商品缺少商品链接 — 请在库存中填写 URL。',
-    productConsultSkuPart: ' SKU：{sku}。',
+    productConsultProductRefFromSku: '商品编号 {sku}',
+    productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
-      '我想了解这款商品：{name}。{skuPart} 请说明运费政策、费用和预计送达时间。',
-    productConsultAskDetail: '我想了解这款商品：{name}。{skuPart} 请详细介绍。',
+      '您好！我们看到您正在查看{productRef}。需要为您介绍尺码、颜色、价格或下单方式吗？',
+    productConsultAskDetail:
+      '您好！我们看到您正在查看{productRef}。需要为您介绍尺码、颜色、价格或下单方式吗？',
     guestProfileDialogTitle: '帮助我们正确称呼您',
     guestProfileDialogDescription:
       '信息仅保存在您的 NanoAI 账户一次（适用于所有店铺）：出生日期和性别（男或女），用于自然称呼与适龄建议。您也可以稍后再填。',
@@ -8294,10 +8302,12 @@ const JA_DICTIONARY: Dictionary = {
     productShelfBuy: '購入',
     purchaseOpenSiteToast: 'ショップの商品ページを新しいタブで開きました。',
     purchaseMissingProductUrlToast: '商品URLがありません。在庫にURLを追加してください。',
-    productConsultSkuPart: ' SKU：{sku}',
+    productConsultProductRefFromSku: '商品コード {sku}',
+    productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
-      'この商品に興味があります：{name}。{skuPart} 送料ポリシー、送料、お届け目安を教えてください。',
-    productConsultAskDetail: 'この商品に興味があります：{name}。{skuPart} 詳しく教えてください。',
+      'こんにちは！{productRef}をご覧中ですね。サイズ・色・価格・ご注文方法についてご案内しましょうか？',
+    productConsultAskDetail:
+      'こんにちは！{productRef}をご覧中ですね。サイズ・色・価格・ご注文方法についてご案内しましょうか？',
     guestProfileDialogTitle: '適切な呼び方のために',
     guestProfileDialogDescription:
       'NanoAIアカウントに一度だけ保存されます（全店舗共通）：生年月日と性別（男性または女性）で自然な敬称と年齢に合った提案に使います。後からでも入力できます。',
@@ -10127,10 +10137,12 @@ const KO_DICTIONARY: Dictionary = {
     productShelfBuy: '구매',
     purchaseOpenSiteToast: '쇼핑몰 상품 페이지를 새 탭에서 열었습니다.',
     purchaseMissingProductUrlToast: '상품 URL이 없습니다. 재고에 URL을 추가하세요.',
-    productConsultSkuPart: ' SKU: {sku}.',
+    productConsultProductRefFromSku: '상품 코드 {sku}',
+    productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
-      '이 상품이 궁금합니다: {name}.{skuPart} 배송 정책, 배송비, 예상 배송 기간을 알려 주세요.',
-    productConsultAskDetail: '이 상품이 궁금합니다: {name}.{skuPart} 자세히 알려 주세요.',
+      '안녕하세요! {productRef}를 보고 계시는 것 같아요. 사이즈, 색상, 가격, 주문 방법 안내가 필요하신가요?',
+    productConsultAskDetail:
+      '안녕하세요! {productRef}를 보고 계시는 것 같아요. 사이즈, 색상, 가격, 주문 방법 안내가 필요하신가요?',
     guestProfileDialogTitle: '호칭을 맞추기 위해',
     guestProfileDialogDescription:
       'NanoAI 계정에 한 번만 저장됩니다(모든 매장 공통): 생년월일과 성별(남성 또는 여성)로 자연스러운 호칭과 나이에 맞는 추천에 씁니다. 나중에 입력해도 됩니다.',
