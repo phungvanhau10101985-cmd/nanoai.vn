@@ -240,27 +240,51 @@ async function resolvePartnerAiLocaleOpts(
   return localeOpts
 }
 
-function formatPartnerAiTranscriptLines(
-  chronological: {
-    direction: string
-    body: string
-    created_at: string
-    raw_payload: Json | null
-  }[]
-): string {
-  return chronological
-    .map((m) => {
-      const label = m.direction === 'inbound' ? 'Khách' : 'Shop'
-      const pl = m.raw_payload as { guest_media?: { kind?: string; url?: string } } | null
-      const img = pl?.guest_media?.kind === 'image' && pl.guest_media.url ? pl.guest_media.url : null
-      const cap = m.body.replace(/^📷\s*/u, '').trim()
-      if (img) {
-        const line = [cap || '(ảnh)', img].filter(Boolean).join(' — ')
-        return `${label}: ${line}`
-      }
-      return `${label}: ${m.body}`
-    })
-    .join('\n')
+type PartnerAiTranscriptMsg = {
+  direction: string
+  body: string
+  created_at: string
+  raw_payload: Json | null
+}
+
+function formatPartnerAiOneTranscriptLine(m: PartnerAiTranscriptMsg): string {
+  const label = m.direction === 'inbound' ? 'Khách' : 'Shop'
+  const pl = m.raw_payload as { guest_media?: { kind?: string; url?: string } } | null
+  const img = pl?.guest_media?.kind === 'image' && pl.guest_media.url ? pl.guest_media.url : null
+  const cap = m.body.replace(/^📷\s*/u, '').trim()
+  if (img) {
+    const line = [cap || '(ảnh)', img].filter(Boolean).join(' — ')
+    return `${label}: ${line}`
+  }
+  return `${label}: ${m.body}`
+}
+
+function formatPartnerAiTranscriptLines(chronological: PartnerAiTranscriptMsg[]): string {
+  return chronological.map((m) => formatPartnerAiOneTranscriptLine(m)).join('\n')
+}
+
+/**
+ * Chỉ dùng khi **hỏi tiếp theo ngữ cảnh SP vừa tư vấn** (`followUpSingleProductNoVector`):
+ * một tin shop gần nhất (trước tin khách hiện tại). Câu khách gửi riêng ở «Tin nhắn mới nhất của khách».
+ */
+function formatPartnerAiMinimalTranscriptForFollowUpContext(chronological: PartnerAiTranscriptMsg[]): string {
+  if (!chronological.length) {
+    return '(Chưa có tin nhắn trước đó.)'
+  }
+  const last = chronological[chronological.length - 1]
+  let scanEnd = chronological.length - 1
+  if (last.direction === 'inbound') scanEnd = chronological.length - 2
+  let shopLine: string | null = null
+  for (let i = scanEnd; i >= 0; i--) {
+    if (chronological[i].direction === 'outbound') {
+      shopLine = formatPartnerAiOneTranscriptLine(chronological[i])
+      break
+    }
+  }
+  if (!shopLine) {
+    return '(Chưa có tin trả lời của shop trước câu hỏi hiện tại — có thể là tin đầu thread.)'
+  }
+  return `Câu trả lời gần nhất của shop (trước tin khách hiện tại):\n${shopLine}\n\n(Câu hỏi / tin hiện tại của khách nằm ở mục «Tin nhắn mới nhất của khách» bên dưới — không lặp lại trong khối này.)`
 }
 
 function buildPartnerAiClarifyShoppingIntentSystem(
@@ -585,7 +609,9 @@ export async function buildPartnerAiContext(
 Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng cách **nêu ưu điểm / giá trị cho khách** — tự tin hơn, chỉn chu, tôn dáng, gọn gàng, phù hợp dịp mặc, dễ phối đồ… — diễn giải từ đúng các trường trong dòng kho (tên, mô tả, ghi chú tư vấn, chất liệu/kiểu nếu có); không chỉ đọc máy mã/giá. Không bịa công dụng y tế hay hứa hiệu quả tuyệt đối.`
   }
 
-  const transcript = formatPartnerAiTranscriptLines(chronological)
+  const transcript = followUpSingleProductNoVector
+    ? formatPartnerAiMinimalTranscriptForFollowUpContext(chronological)
+    : formatPartnerAiTranscriptLines(chronological)
 
   const policy = settings.shop_policy?.trim() || '(Shop chưa nhập chính sách.)'
   const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
@@ -687,7 +713,7 @@ Dưới đây là **toàn bộ dữ liệu kho** của **một** sản phẩm �
 ${explicitSkuBlock}
 ${selectedRowBlock}
 
-Lịch sử hội thoại gần đây:
+${followUpSingleProductNoVector ? 'Ngữ cảnh hội thoại (tối giản — chỉ một tin shop gần nhất trước câu khách; câu khách ở mục sau)' : 'Lịch sử hội thoại gần đây'}:
 ${transcript}
 ${conversationFocusBlock}${followUpSnapshotBlock}
 
