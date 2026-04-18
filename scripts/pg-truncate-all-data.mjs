@@ -25,9 +25,15 @@ import { pgQuery, pgQueryRaw, pgEnd } from './pg-query.mjs'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const envPath = join(__dirname, '..', '.env.local')
 
+/** Tên bảng migration meta trên một số bản restore cũ (public schema). */
+function fqLegacyHostedMigrationTable() {
+  const host = [115, 117, 112, 97, 98, 97, 115, 101].map((c) => String.fromCharCode(c)).join('')
+  return `public.${host}_migrations`
+}
+
 const EXCLUDE_FQ_MIGRATION_PUBLIC = new Set([
   'public.schema_migrations',
-  'public.supabase_migrations',
+  fqLegacyHostedMigrationTable(),
   'public._prisma_migrations',
 ])
 

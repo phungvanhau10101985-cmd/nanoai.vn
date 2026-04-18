@@ -6,11 +6,18 @@ import {
 } from '@/lib/db/messaging-partner-google-sheets-pg'
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchPartnerOrderByIdForPartnerFromPg, type PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
+import {
+  type ParsedVariantLine,
+  parsePartnerOrderVariantLines,
+} from '@/lib/messaging/partner-order-variant-lines'
 
 const SHEETS_SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 /** 30 cột A → AD — đủ thông tin đơn + SP + cọc + link. */
 const SHEET_COL_LAST = 'AD'
+const SHEET_COL_COUNT = 30
+/** Cột ghi chú — nếu đã có nội dung khi cập nhật thì giữ (shop sửa tay). 0-based. */
+const SHEET_MERGE_PRESERVE_COLS = new Set([24, 26])
 
 const HEADER: string[] = [
   'Ma don (UUID)',
@@ -81,7 +88,145 @@ function depositStatusLine(o: PartnerOrderRow, req: number, paid: number): strin
   return 'Chua coc'
 }
 
-async function orderToSheetValues(partnerId: string, o: PartnerOrderRow): Promise<string[]> {
+/** Không có JSON ảnh — một hàng với chuỗi màu/size như DB. */
+function sheetVariantColumnsLegacy(o: PartnerOrderRow): { mau: string; size: string; sl: string; linkAnh: string } {
+  return {
+    mau: o.variant_color,
+    size: o.variant_size,
+    sl: String(o.quantity),
+    linkAnh: o.product_image_url,
+  }
+}
+
+function padSheetRow(cells: string[] | undefined, w: number): string[] {
+  const a = [...(cells ?? [])]
+  while (a.length < w) a.push('')
+  return a.slice(0, w)
+}
+
+function padRowsToSpan(rows: string[][], span: number, w: number): string[][] {
+  const out = rows.map((r) => padSheetRow(r, w))
+  while (out.length < span) {
+    out.push(Array(w).fill(''))
+  }
+  return out.slice(0, span)
+}
+
+/**
+ * Gộp dữ liệu mới với Sheet hiện có: hàng đã có dữ liệu mà không phải đơn này (cột A ≠ UUID) → giữ nguyên.
+ * Cột ghi chú 24/26: nếu đã có chữ → giữ (không ghi đè).
+ */
+function mergeOrderSheetBlock(
+  incoming: string[][],
+  existing: string[][] | undefined,
+  orderId: string
+): string[][] {
+  const W = SHEET_COL_COUNT
+  const R = Math.max(incoming.length, existing?.length ?? 0)
+  const out: string[][] = []
+  for (let r = 0; r < R; r++) {
+    const inc = padSheetRow(incoming[r], W)
+    const ex = existing?.[r] ?? []
+    const aEx = String(ex[0] ?? '').trim()
+    const rowHas = ex.some((c) => String(c ?? '').trim() !== '')
+    if (rowHas && aEx !== orderId) {
+      out.push(padSheetRow(ex, W))
+      continue
+    }
+    const row: string[] = []
+    for (let c = 0; c < W; c++) {
+      const e = String(ex[c] ?? '')
+      const i = String(inc[c] ?? '')
+      if (SHEET_MERGE_PRESERVE_COLS.has(c) && e.trim() !== '') {
+        row.push(e)
+      } else {
+        row.push(i)
+      }
+    }
+    out.push(row)
+  }
+  return out
+}
+
+function buildSheetRow(
+  o: PartnerOrderRow,
+  sku: string,
+  spec:
+    | { kind: 'legacy'; v: ReturnType<typeof sheetVariantColumnsLegacy> }
+    | { kind: 'line'; line: ParsedVariantLine; lineIndex: number; totalLines: number }
+): string[] {
+  const sub = Math.round(o.subtotal_amount)
+  const paid = Math.round(o.paid_amount)
+  const req = Math.round(o.required_amount)
+  const conLaiGiaoHang = Math.max(0, sub - paid)
+  const unit = Math.round(o.unit_price)
+  const canCoc = req > 0 ? 'Co' : 'Khong'
+
+  let mau: string
+  let size: string
+  let sl: string
+  let linkAnh: string
+  let tongCell: number
+  let showDepositBlock: boolean
+  let noteCell: string
+
+  if (spec.kind === 'legacy') {
+    const v = spec.v
+    mau = v.mau
+    size = v.size
+    sl = v.sl
+    linkAnh = v.linkAnh
+    tongCell = sub
+    showDepositBlock = true
+    noteCell = o.note
+  } else {
+    const { line, lineIndex, totalLines } = spec
+    mau = line.variantName
+    size = line.size
+    sl = String(line.qty)
+    linkAnh = line.imageUrl
+    tongCell = Math.max(0, Math.round(unit * line.qty))
+    showDepositBlock = lineIndex === 0
+    noteCell = totalLines > 1 && lineIndex > 0 ? '' : o.note
+  }
+
+  const dep = (s: string) => (showDepositBlock ? s : '')
+
+  return [
+    o.id,
+    o.payment_reference,
+    o.status,
+    o.shipping_status,
+    dep(String(o.deposit_percent)),
+    dep(String(req)),
+    dep(String(paid)),
+    dep(String(conLaiGiaoHang)),
+    dep(canCoc),
+    dep(depositStatusLine(o, req, paid)),
+    o.product_name,
+    sku,
+    mau,
+    size,
+    sl,
+    String(unit),
+    String(tongCell),
+    linkAnh,
+    o.product_url,
+    o.product_inventory_id ?? '',
+    o.customer_name,
+    o.customer_phone,
+    o.customer_email,
+    o.shipping_address,
+    noteCell,
+    o.currency,
+    o.verified_note,
+    formatVnTime(o.created_at),
+    formatVnTime(o.updated_at),
+    formatVnTime(o.verified_at),
+  ]
+}
+
+async function orderToSheetRows(partnerId: string, o: PartnerOrderRow): Promise<string[][]> {
   let sku = ''
   if (o.product_inventory_id) {
     try {
@@ -92,44 +237,28 @@ async function orderToSheetValues(partnerId: string, o: PartnerOrderRow): Promis
     }
   }
 
-  const sub = Math.round(o.subtotal_amount)
-  const paid = Math.round(o.paid_amount)
-  const req = Math.round(o.required_amount)
-  const conLaiGiaoHang = Math.max(0, sub - paid)
-  const canCoc = req > 0 ? 'Co' : 'Khong'
-
-  return [
-    o.id,
-    o.payment_reference,
-    o.status,
-    o.shipping_status,
-    String(o.deposit_percent),
-    String(req),
-    String(paid),
-    String(conLaiGiaoHang),
-    canCoc,
-    depositStatusLine(o, req, paid),
-    o.product_name,
-    sku,
-    o.variant_color,
-    o.variant_size,
-    String(o.quantity),
-    String(Math.round(o.unit_price)),
-    String(sub),
-    o.product_image_url,
-    o.product_url,
-    o.product_inventory_id ?? '',
-    o.customer_name,
-    o.customer_phone,
-    o.customer_email,
-    o.shipping_address,
-    o.note,
-    o.currency,
-    o.verified_note,
-    formatVnTime(o.created_at),
-    formatVnTime(o.updated_at),
-    formatVnTime(o.verified_at),
-  ]
+  const lines = parsePartnerOrderVariantLines(o)
+  if (lines && lines.length > 1) {
+    return lines.map((line, lineIndex) =>
+      buildSheetRow(o, sku, {
+        kind: 'line',
+        line,
+        lineIndex,
+        totalLines: lines.length,
+      })
+    )
+  }
+  if (lines && lines.length === 1) {
+    return [
+      buildSheetRow(o, sku, {
+        kind: 'line',
+        line: lines[0]!,
+        lineIndex: 0,
+        totalLines: 1,
+      }),
+    ]
+  }
+  return [buildSheetRow(o, sku, { kind: 'legacy', v: sheetVariantColumnsLegacy(o) })]
 }
 
 function loadSheetsClientFromCredentialsJson(raw: string) {
@@ -195,19 +324,41 @@ export async function syncPartnerOrderToGoogleSheets(partnerId: string, orderId:
 
   const sheetTitle = settings.sheet_name.trim() || 'Don hang'
   const esc = escapeSheetNameForRange(sheetTitle)
-  const rowVals = await orderToSheetValues(partnerId, order)
-  const values = [rowVals]
+  const rows = await orderToSheetRows(partnerId, order)
+  const n = Math.max(1, rows.length)
 
   try {
     await ensureHeaderRow(sheets, spreadsheetId, sheetTitle)
 
     const existingRow = order.google_sheet_row
+    const oldCount = order.google_sheet_row_count ?? 1
+
     if (existingRow != null && existingRow > 0) {
+      const span = Math.max(n, oldCount)
+      const range = `${esc}!A${existingRow}:${SHEET_COL_LAST}${existingRow + span - 1}`
+      const incomingPadded = padRowsToSpan(rows, span, SHEET_COL_COUNT)
+      let existingMatrix: string[][] | undefined
+      try {
+        const got = await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range,
+        })
+        existingMatrix = got.data.values as string[][] | undefined
+      } catch {
+        existingMatrix = undefined
+      }
+      const merged = mergeOrderSheetBlock(incomingPadded, existingMatrix, order.id)
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: `${esc}!A${existingRow}:${SHEET_COL_LAST}${existingRow}`,
+        range,
         valueInputOption: 'USER_ENTERED',
-        requestBody: { values },
+        requestBody: { values: merged },
+      })
+      await updatePartnerOrderGoogleSheetRowFromPg({
+        partnerId,
+        orderId,
+        sheetRow: existingRow,
+        sheetRowCount: n,
       })
       return
     }
@@ -217,7 +368,7 @@ export async function syncPartnerOrderToGoogleSheets(partnerId: string, orderId:
       range: `${esc}!A:${SHEET_COL_LAST}`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: { values },
+      requestBody: { values: rows },
     })
     const updatedRange = appended.data.updates?.updatedRange ?? appended.data.tableRange
     const newRow = parseRowFromUpdatedRange(updatedRange ?? null)
@@ -226,6 +377,7 @@ export async function syncPartnerOrderToGoogleSheets(partnerId: string, orderId:
         partnerId,
         orderId,
         sheetRow: newRow,
+        sheetRowCount: n,
       })
     }
   } catch (e) {

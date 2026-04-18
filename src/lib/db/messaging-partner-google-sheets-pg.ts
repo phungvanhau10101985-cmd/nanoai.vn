@@ -150,6 +150,8 @@ export async function updatePartnerOrderGoogleSheetRowFromPg(input: {
   partnerId: string
   orderId: string
   sheetRow: number | null
+  /** Số hàng trên Sheet (≥1); null = không đổi / legacy. */
+  sheetRowCount?: number | null
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
   const oid = String(input.orderId ?? '').trim()
@@ -159,13 +161,17 @@ export async function updatePartnerOrderGoogleSheetRowFromPg(input: {
     input.sheetRow != null && Number.isFinite(input.sheetRow) && input.sheetRow > 0
       ? Math.floor(input.sheetRow)
       : null
+  const cntRaw = input.sheetRowCount
+  const cnt =
+    cntRaw != null && Number.isFinite(cntRaw) && Math.floor(cntRaw) > 0 ? Math.floor(cntRaw) : null
   try {
     const res = await pgQueryOne<{ ok: string }>(
       `update public.messaging_partner_orders
-       set google_sheet_row = $3
+       set google_sheet_row = $3,
+           google_sheet_row_count = coalesce($4::integer, google_sheet_row_count)
        where id = $1::uuid and partner_id = $2::uuid
        returning id::text as ok`,
-      [oid, pid, row]
+      [oid, pid, row, cnt]
     )
     return Boolean(res?.ok)
   } catch (e) {

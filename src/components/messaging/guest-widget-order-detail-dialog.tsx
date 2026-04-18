@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
-  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,7 +12,10 @@ import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import { guestFacingOrderRef } from '@/lib/messaging/widget-order-ref-display'
 import { GuestWidgetOrderDepositPanel, guestOrderNeedsDepositUi } from '@/components/messaging/guest-widget-order-deposit-panel'
-import { Loader2 } from 'lucide-react'
+import { OrderVariantImagesRow } from '@/components/messaging/order-variant-images-row'
+import { OrderVariantLinesDetail } from '@/components/messaging/order-variant-lines-detail'
+import { parsePartnerOrderVariantLines } from '@/lib/messaging/partner-order-variant-lines'
+import { Loader2, X } from 'lucide-react'
 
 type T = Dictionary['messagingMyOrders']
 
@@ -173,10 +176,23 @@ export function GuestWidgetOrderDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(90vh,720px)] max-w-lg overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{t.pageTitle}</DialogTitle>
-        </DialogHeader>
+      <DialogContent
+        showCloseButton={false}
+        className="flex max-h-[min(90vh,720px)] max-w-lg flex-col gap-0 overflow-hidden p-0"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-6 py-4">
+          <DialogTitle className="text-left text-lg font-semibold leading-none tracking-tight">
+            {t.pageTitle}
+          </DialogTitle>
+          <DialogClose
+            type="button"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            aria-label="Đóng"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </DialogClose>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-4">
         {loading ? (
           <div
             className="flex items-center justify-center py-12 text-muted-foreground"
@@ -255,24 +271,46 @@ export function GuestWidgetOrderDetailDialog({
                     </dd>
                   </div>
                 ) : null}
-                <div className="grid gap-2 border-t border-border/40 pt-2 sm:grid-cols-2">
-                  <div>
-                    <span className="text-muted-foreground">{t.qtyLabel}: </span>
-                    <span className="font-medium tabular-nums">{qty}</span>
-                  </div>
-                  {meaningfulText(row.variant_color) ? (
-                    <div>
-                      <span className="text-muted-foreground">{t.colorLabel}: </span>
-                      <span className="font-medium">{row.variant_color.trim()}</span>
+                {parsePartnerOrderVariantLines(row)?.length ? (
+                  <OrderVariantLinesDetail
+                    order={row}
+                    labels={{
+                      sectionLabel: t.variantImagesSectionLabel,
+                      imageAltPrefix: t.productPhotoAlt,
+                      sizeLabel: t.sizeLabel,
+                      qtyLabel: t.qtyLabel,
+                      totalQtySummaryLabel: t.totalQtySummaryLabel,
+                    }}
+                  />
+                ) : (
+                  <>
+                    <div className="grid gap-2 border-t border-border/40 pt-2 sm:grid-cols-2">
+                      <div>
+                        <span className="text-muted-foreground">{t.qtyLabel}: </span>
+                        <span className="font-medium tabular-nums">{qty}</span>
+                      </div>
+                      {meaningfulText(row.variant_color) ? (
+                        <div>
+                          <span className="text-muted-foreground">{t.colorLabel}: </span>
+                          <span className="font-medium">{row.variant_color.trim()}</span>
+                        </div>
+                      ) : null}
+                      {meaningfulText(row.variant_size) ? (
+                        <div>
+                          <span className="text-muted-foreground">{t.sizeLabel}: </span>
+                          <span className="font-medium">{row.variant_size.trim()}</span>
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                  {meaningfulText(row.variant_size) ? (
-                    <div>
-                      <span className="text-muted-foreground">{t.sizeLabel}: </span>
-                      <span className="font-medium">{row.variant_size.trim()}</span>
-                    </div>
-                  ) : null}
-                </div>
+                    <OrderVariantImagesRow
+                      order={row}
+                      labels={{
+                        sectionLabel: t.variantImagesSectionLabel,
+                        imageAltPrefix: t.productPhotoAlt,
+                      }}
+                    />
+                  </>
+                )}
                 <div className="space-y-1 border-t border-border/40 pt-2">
                   <p>
                     <span className="text-muted-foreground">{t.unitPriceLabel}: </span>
@@ -314,6 +352,7 @@ export function GuestWidgetOrderDetailDialog({
             </CardContent>
           </Card>
         ) : null}
+        </div>
       </DialogContent>
     </Dialog>
   )

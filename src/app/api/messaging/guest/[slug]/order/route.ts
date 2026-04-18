@@ -144,6 +144,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       size?: string
       quantity?: number
       note?: string
+      variantLineImages?: unknown
     }
   } | null
   const orderId = String(body?.orderId ?? '').trim()
@@ -183,6 +184,10 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     )
   }
   const quantity = Math.max(1, Math.min(99, quantityRaw))
+  const rawVariantImgs = f.variantLineImages
+  const variantLineImages = Array.isArray(rawVariantImgs)
+    ? rawVariantImgs.filter((x): x is string => typeof x === 'string').slice(0, 24)
+    : undefined
   const done = await completeOrderCheckout({
     partnerId: partner.partnerId,
     externalThreadId: thread.externalThreadId,
@@ -199,6 +204,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       size,
       quantity,
       note: String(f.note ?? '').trim(),
+      ...(variantLineImages && variantLineImages.length > 0 ? { variantLineImages } : {}),
     },
   })
   if ('error' in done) {

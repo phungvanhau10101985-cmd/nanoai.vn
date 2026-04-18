@@ -7,8 +7,6 @@
 
   Ví dụ:
     $env:PG_DUMP_SOURCE_URL = "postgresql://USER:PASS@HOST:5432/postgres"
-  Hoặc alias cũ: $env:SUPABASE_DB_URL = "..."
-
   Chạy từ thư mục gốc repo:
     .\scripts\pg-backup-source.ps1
   Hoặc chỉ định thư mục chứa pg_dump:
@@ -26,9 +24,9 @@ if (-not (Test-Path $backupDir)) {
 }
 
 $uri = $env:PG_DUMP_SOURCE_URL
-if (-not $uri) { $uri = $env:SUPABASE_DB_URL }
+if (-not $uri) { $uri = $env:DATABASE_BACKUP_SOURCE_URL }
 if (-not $uri) {
-  Write-Error "Thiếu PG_DUMP_SOURCE_URL hoặc SUPABASE_DB_URL (connection string Postgres cho pg_dump)."
+  Write-Error "Thiếu PG_DUMP_SOURCE_URL hoặc DATABASE_BACKUP_SOURCE_URL (connection string Postgres cho pg_dump)."
 }
 
 $pgDump = "pg_dump"

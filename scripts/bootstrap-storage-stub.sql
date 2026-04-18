@@ -1,4 +1,4 @@
--- Tối thiểu cho migration insert storage.buckets / policy trên storage.objects (Postgres tự host, không có Supabase Storage API).
+-- Tối thiểu cho migration insert storage.buckets / policy trên storage.objects (Postgres tự host + HTTP storage riêng).
 create schema if not exists storage;
 
 create table if not exists storage.buckets (

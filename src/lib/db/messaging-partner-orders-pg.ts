@@ -33,6 +33,8 @@ export type PartnerOrderRow = {
   shipping_address: string
   variant_color: string
   variant_size: string
+  /** JSON string `string[]` — URL ảnh màu/mẫu (palette) khách đã chọn; rỗng nếu không có. */
+  variant_image_urls: string
   quantity: number
   note: string
   product_inventory_id: string | null
@@ -55,6 +57,8 @@ export type PartnerOrderRow = {
   locked_at: string | null
   /** Dòng trong Google Sheet (tab shop) khi đã đồng bộ; null nếu chưa ghi. */
   google_sheet_row: number | null
+  /** Số hàng liên tiếp trên Sheet (mỗi mẫu một hàng); null = legacy (1 hàng). */
+  google_sheet_row_count: number | null
 }
 
 function num(v: unknown, fallback = 0): number {
@@ -99,6 +103,7 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
     shipping_address: String(r.shipping_address ?? ''),
     variant_color: String(r.variant_color ?? ''),
     variant_size: String(r.variant_size ?? ''),
+    variant_image_urls: String(r.variant_image_urls ?? ''),
     quantity: Math.max(1, Math.floor(num(r.quantity, 1))),
     note: String(r.note ?? ''),
     product_inventory_id: r.product_inventory_id ? String(r.product_inventory_id) : null,
@@ -121,6 +126,12 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
     locked_at: r.locked_at ? String(r.locked_at) : null,
     google_sheet_row: (() => {
       const n = Math.floor(num(r.google_sheet_row, 0))
+      return n > 0 ? n : null
+    })(),
+    google_sheet_row_count: (() => {
+      const raw = r.google_sheet_row_count
+      if (raw == null) return null
+      const n = Math.floor(num(raw, 0))
       return n > 0 ? n : null
     })(),
   }
@@ -298,11 +309,11 @@ export async function insertPartnerOrderDraftFromPg(input: {
        )
        returning id::text, partner_id::text, conversation_id::text, external_thread_id, status,
                  customer_name, customer_email, customer_phone, shipping_address,
-                 variant_color, variant_size, quantity, note,
+                 variant_color, variant_size, variant_image_urls, quantity, note,
                  product_inventory_id::text, product_name, product_image_url, product_url,
                  unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
                  currency, payment_reference, payment_qr_url, verified_note, shipping_status,
-                 created_at, updated_at, verified_at, locked_at, google_sheet_row`,
+                 created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count`,
       [
         input.partnerId,
         input.conversationId,
@@ -348,6 +359,8 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
   shippingAddress: string
   variantColor: string
   variantSize: string
+  /** JSON `string[]` — URL ảnh màu/mẫu đã chọn (tối đa ~8k ký tự). */
+  variantImageUrlsJson: string
   quantity: number
   note: string
   depositPercent: number
@@ -368,11 +381,12 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
            variant_size = $10,
            quantity = $11::integer,
            note = $12,
-           deposit_percent = $13,
-           subtotal_amount = coalesce(unit_price, 0::numeric) * $14::numeric,
-           required_amount = $15::numeric,
-           payment_reference = $16,
-           payment_qr_url = $17,
+           variant_image_urls = $13,
+           deposit_percent = $14,
+           subtotal_amount = coalesce(unit_price, 0::numeric) * $15::numeric,
+           required_amount = $16::numeric,
+           payment_reference = $17,
+           payment_qr_url = $18,
            status = 'awaiting_payment',
            updated_at = now()
        where id = $1::uuid
@@ -382,11 +396,11 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
          and locked_at is null
        returning id::text, partner_id::text, conversation_id::text, external_thread_id, status,
                  customer_name, customer_email, customer_phone, shipping_address,
-                 variant_color, variant_size, quantity, note,
+                 variant_color, variant_size, variant_image_urls, quantity, note,
                  product_inventory_id::text, product_name, product_image_url, product_url,
                  unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
                  currency, payment_reference, payment_qr_url, verified_note, shipping_status,
-                 created_at, updated_at, verified_at, locked_at, google_sheet_row`,
+                 created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count`,
       [
         input.orderId,
         input.partnerId,
@@ -400,6 +414,7 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
         input.variantSize,
         qty,
         input.note,
+        input.variantImageUrlsJson.trim().slice(0, 8000),
         Math.max(0, Math.min(100, Math.round(num(depositPercentValue, 0)))),
         qty,
         Math.max(0, Math.round(num(input.requiredAmount, 0))),
@@ -427,11 +442,11 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
 
 const ORDER_ROW_SELECT = `select id::text, partner_id::text, conversation_id::text, external_thread_id, status,
               customer_name, customer_email, customer_phone, shipping_address,
-              variant_color, variant_size, quantity, note,
+              variant_color, variant_size, variant_image_urls, quantity, note,
               product_inventory_id::text, product_name, product_image_url, product_url,
               unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
               currency, payment_reference, payment_qr_url, verified_note, shipping_status,
-              created_at, updated_at, verified_at, locked_at, google_sheet_row
+              created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count
        from public.messaging_partner_orders`
 
 /** Đọc đơn theo id + shop — dùng khi khách đổi phiên (guest ↔ đăng nhập) vẫn phải khớp đơn nháp. */
@@ -470,11 +485,11 @@ export async function fetchPartnerOrderForOwnerFromPg(
     const row = await pgQueryOne<Record<string, unknown>>(
       `select o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
               o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
-              o.variant_color, o.variant_size, o.quantity, o.note,
+              o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
               o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row
+              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count
        from public.messaging_partner_orders o
        inner join public.messaging_partners mp on mp.id = o.partner_id
        where o.id = $1::uuid and mp.owner_user_id = $2::uuid
@@ -565,11 +580,11 @@ export async function fetchWidgetOrdersForLinkedUserFromPg(
     const rows = await pgQuery<Record<string, unknown>>(
       `select o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
               o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
-              o.variant_color, o.variant_size, o.quantity, o.note,
+              o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
               o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row,
+              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
               coalesce(mp.display_name, '') as partner_display_name,
               coalesce(mp.slug, '') as partner_slug
        from public.messaging_partner_orders o
@@ -857,11 +872,11 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
     const rows = await pgQuery<Record<string, unknown>>(
       `select o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
               o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
-              o.variant_color, o.variant_size, o.quantity, o.note,
+              o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
               o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row,
+              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
               coalesce(mp.display_name, '') as partner_display_name,
               lp.image_url as latest_proof_image_url,
               lp.verification_status as latest_proof_status,
@@ -913,11 +928,11 @@ export async function fetchPartnerOrdersForOwnerExportFromPg(input: {
     const rows = await pgQuery<Record<string, unknown>>(
       `select o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
               o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
-              o.variant_color, o.variant_size, o.quantity, o.note,
+              o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
               o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row,
+              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
               coalesce(mp.display_name, '') as partner_display_name,
               lp.image_url as latest_proof_image_url,
               lp.verification_status as latest_proof_status,
@@ -993,11 +1008,11 @@ export async function updatePartnerOrderShippingStatusForOwnerFromPg(input: {
          and mp.owner_user_id = $2::uuid
        returning o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
                  o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
-                 o.variant_color, o.variant_size, o.quantity, o.note,
+                 o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
                  o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
                  o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
                  o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-                 o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row`,
+                 o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count`,
       [input.orderId, input.ownerUserId, input.shippingStatus, input.note]
     )
     if (!row) return null

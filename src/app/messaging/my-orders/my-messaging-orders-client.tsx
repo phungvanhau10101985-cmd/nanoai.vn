@@ -13,6 +13,9 @@ import {
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { WidgetOrderListRow } from '@/lib/db/messaging-partner-orders-pg'
 import { guestFacingOrderRef } from '@/lib/messaging/widget-order-ref-display'
+import { OrderVariantImagesRow } from '@/components/messaging/order-variant-images-row'
+import { OrderVariantLinesDetail } from '@/components/messaging/order-variant-lines-detail'
+import { parsePartnerOrderVariantLines } from '@/lib/messaging/partner-order-variant-lines'
 import { ArrowLeft, History, Package } from 'lucide-react'
 
 type T = Dictionary['messagingMyOrders']
@@ -266,24 +269,46 @@ function OrderRow({
                 </dd>
               </div>
             ) : null}
-            <div className="grid gap-2 border-t border-border/40 pt-2 sm:grid-cols-2">
-              <div>
-                <span className="text-muted-foreground">{t.qtyLabel}: </span>
-                <span className="font-medium tabular-nums">{qty}</span>
-              </div>
-              {meaningfulText(row.variant_color) ? (
-                <div>
-                  <span className="text-muted-foreground">{t.colorLabel}: </span>
-                  <span className="font-medium">{row.variant_color.trim()}</span>
+            {parsePartnerOrderVariantLines(row)?.length ? (
+              <OrderVariantLinesDetail
+                order={row}
+                labels={{
+                  sectionLabel: t.variantImagesSectionLabel,
+                  imageAltPrefix: t.productPhotoAlt,
+                  sizeLabel: t.sizeLabel,
+                  qtyLabel: t.qtyLabel,
+                  totalQtySummaryLabel: t.totalQtySummaryLabel,
+                }}
+              />
+            ) : (
+              <>
+                <div className="grid gap-2 border-t border-border/40 pt-2 sm:grid-cols-2">
+                  <div>
+                    <span className="text-muted-foreground">{t.qtyLabel}: </span>
+                    <span className="font-medium tabular-nums">{qty}</span>
+                  </div>
+                  {meaningfulText(row.variant_color) ? (
+                    <div>
+                      <span className="text-muted-foreground">{t.colorLabel}: </span>
+                      <span className="font-medium">{row.variant_color.trim()}</span>
+                    </div>
+                  ) : null}
+                  {meaningfulText(row.variant_size) ? (
+                    <div>
+                      <span className="text-muted-foreground">{t.sizeLabel}: </span>
+                      <span className="font-medium">{row.variant_size.trim()}</span>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-              {meaningfulText(row.variant_size) ? (
-                <div>
-                  <span className="text-muted-foreground">{t.sizeLabel}: </span>
-                  <span className="font-medium">{row.variant_size.trim()}</span>
-                </div>
-              ) : null}
-            </div>
+                <OrderVariantImagesRow
+                  order={row}
+                  labels={{
+                    sectionLabel: t.variantImagesSectionLabel,
+                    imageAltPrefix: t.productPhotoAlt,
+                  }}
+                />
+              </>
+            )}
             <div className="space-y-1 border-t border-border/40 pt-2">
               <p>
                 <span className="text-muted-foreground">{t.unitPriceLabel}: </span>

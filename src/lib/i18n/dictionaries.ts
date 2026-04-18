@@ -1000,6 +1000,10 @@ export type Dictionary = {
     balanceOnDeliveryLabel: string
     shipToLabel: string
     productPhotoAlt: string
+    /** Ảnh thumbnail màu/mẫu (palette) khách đã chọn — phần tiêu đề nhỏ phía trên lưới ảnh. */
+    variantImagesSectionLabel: string
+    /** Dòng tóm tắt khi có ≥2 mẫu: «Tổng số lượng: N». */
+    totalQtySummaryLabel: string
     viewTimelineButton: string
     timelineTitle: string
     timelineLoadFailed: string
@@ -2852,6 +2856,8 @@ const VI_DICTIONARY: Dictionary = {
     balanceOnDeliveryLabel: 'Cần thanh toán khi nhận hàng (còn lại)',
     shipToLabel: 'Giao đến',
     productPhotoAlt: 'Ảnh sản phẩm đã đặt',
+    variantImagesSectionLabel: 'Ảnh màu / mẫu đã chọn',
+    totalQtySummaryLabel: 'Tổng số lượng',
     viewTimelineButton: 'Xem timeline đơn hàng',
     timelineTitle: 'Timeline đơn hàng',
     timelineLoadFailed: 'Không tải được lịch sử đơn.',
@@ -4705,6 +4711,8 @@ const EN_DICTIONARY: Dictionary = {
     balanceOnDeliveryLabel: 'Due on delivery (remaining)',
     shipToLabel: 'Ship to',
     productPhotoAlt: 'Ordered product',
+    variantImagesSectionLabel: 'Selected color / variant images',
+    totalQtySummaryLabel: 'Total quantity',
     viewTimelineButton: 'Order timeline',
     timelineTitle: 'Order timeline',
     timelineLoadFailed: 'Could not load order history.',
@@ -6537,6 +6545,8 @@ const ZH_DICTIONARY: Dictionary = {
     balanceOnDeliveryLabel: '收货时需付（尾款）',
     shipToLabel: '收货地址',
     productPhotoAlt: '所购商品图',
+    variantImagesSectionLabel: '所选颜色/款式图',
+    totalQtySummaryLabel: '总数量',
     viewTimelineButton: '订单时间线',
     timelineTitle: '订单时间线',
     timelineLoadFailed: '无法加载订单记录。',
@@ -8347,6 +8357,8 @@ const JA_DICTIONARY: Dictionary = {
     balanceOnDeliveryLabel: '受取時のお支払い（残額）',
     shipToLabel: 'お届け先',
     productPhotoAlt: '注文商品画像',
+    variantImagesSectionLabel: '選択した色・バリエーション画像',
+    totalQtySummaryLabel: '合計数量',
     viewTimelineButton: '注文タイムライン',
     timelineTitle: '注文タイムライン',
     timelineLoadFailed: '履歴を読み込めませんでした。',
@@ -10178,6 +10190,8 @@ const KO_DICTIONARY: Dictionary = {
     balanceOnDeliveryLabel: '수령 시 추가 결제(잔액)',
     shipToLabel: '배송지',
     productPhotoAlt: '주문 상품 이미지',
+    variantImagesSectionLabel: '선택한 색상/스타일 이미지',
+    totalQtySummaryLabel: '총 수량',
     viewTimelineButton: '주문 타임라인',
     timelineTitle: '주문 타임라인',
     timelineLoadFailed: '주문 기록을 불러오지 못했습니다.',

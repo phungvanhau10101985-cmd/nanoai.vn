@@ -2588,6 +2588,9 @@ export function PartnerGuestChatClient({
             size: sizePayload.trim() || noSizePlaceholder,
             quantity: totalQty,
             note: orderNote,
+            ...(hasPalette && orderSelectedColorImgs.length > 0
+              ? { variantLineImages: orderSelectedColorImgs.slice(0, 24) }
+              : {}),
           },
         }),
       })
@@ -3707,6 +3710,7 @@ export function PartnerGuestChatClient({
         cod: subtotal,
         text: 'Không đặt cọc trước (thanh toán khi nhận hàng)',
         canCompute: subtotal > 0,
+        depositUi: { kind: 'none' as const },
       }
     }
     if (policyMode === 'fixed_amount') {
@@ -3723,6 +3727,9 @@ export function PartnerGuestChatClient({
           ? 'Tiền cọc vượt tổng đơn, hệ thống áp dụng 20% giá trị đơn'
           : `Đặt cọc cố định ${new Intl.NumberFormat('vi-VN').format(policyFixed)}đ`,
         canCompute: subtotal > 0,
+        depositUi: fallback20
+          ? ({ kind: 'fixed_fallback20' as const, policyFixed })
+          : ({ kind: 'fixed' as const, policyFixed }),
       }
     }
     const required = Math.ceil((subtotal * policyPercent) / 100)
@@ -3735,6 +3742,7 @@ export function PartnerGuestChatClient({
       cod: Math.max(0, subtotal - required),
       text: `Đặt cọc theo cài đặt shop: ${policyPercent}%`,
       canCompute: subtotal > 0,
+      depositUi: { kind: 'percent' as const, policyPercent },
     }
   }, [
     activeOrderCard?.price_hint,
@@ -4400,22 +4408,6 @@ export function PartnerGuestChatClient({
                       </>
                     ) : null}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Tiền đặt cọc được tính tự động theo cài đặt của shop.
-                  </p>
-                  <div className="rounded-md border border-violet-200 bg-violet-50/70 px-2 py-1.5 text-[11px] text-violet-900">
-                    <p>
-                      Tạm tính ({orderPreview.qty} sản phẩm
-                      {orderPreview.paletteDetail ? `: ${orderPreview.paletteDetail}` : ''}):
-                      {' '}Tổng đơn {new Intl.NumberFormat('vi-VN').format(orderPreview.subtotal)}đ
-                      {' '}| Thanh toán trước {new Intl.NumberFormat('vi-VN').format(orderPreview.prepay)}đ
-                      {' '}| Khi nhận hàng {new Intl.NumberFormat('vi-VN').format(orderPreview.cod)}đ
-                    </p>
-                    <p className="text-[10px] text-violet-800">
-                      Chế độ: {orderPreview.text}
-                      {!orderPreview.canCompute ? ' (chưa xác định được giá sản phẩm để tạm tính).' : ''}
-                    </p>
-                  </div>
                   {activePurchaseOptions?.colors && activePurchaseOptions.colors.length > 0 ? (
                     <div className="space-y-1.5">
                       <div>
@@ -4565,6 +4557,54 @@ export function PartnerGuestChatClient({
                     value={orderNote}
                     onChange={(e) => setOrderNote(e.target.value)}
                   />
+                  <p className="text-[10px] text-muted-foreground">
+                    Tiền đặt cọc được tính tự động theo cài đặt của shop.
+                    {orderPreview.paletteDetail || orderPreview.qty !== 1 ? (
+                      <>
+                        {' '}
+                        Tạm tính ({orderPreview.qty} sản phẩm
+                        {orderPreview.paletteDetail ? `: ${orderPreview.paletteDetail}` : ''}).
+                      </>
+                    ) : null}
+                  </p>
+                  <div className="space-y-0.5 rounded-md border border-violet-200 bg-violet-50/70 px-2 py-1.5 text-[11px] leading-snug text-violet-900">
+                    <p className="tabular-nums">
+                      Tổng đơn: {new Intl.NumberFormat('vi-VN').format(orderPreview.subtotal)}đ
+                      {!orderPreview.canCompute ? (
+                        <span className="text-[10px] font-normal text-violet-800">
+                          {' '}
+                          (chưa xác định được giá sản phẩm để tạm tính)
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="tabular-nums">
+                      {orderPreview.depositUi.kind === 'none' ? (
+                        <>Không thanh toán trước — đặt cọc 0đ</>
+                      ) : orderPreview.depositUi.kind === 'percent' ? (
+                        <>
+                          Đặt cọc {orderPreview.depositUi.policyPercent}%:{' '}
+                          {new Intl.NumberFormat('vi-VN').format(orderPreview.prepay)}đ
+                        </>
+                      ) : orderPreview.depositUi.kind === 'fixed' ? (
+                        <>
+                          Đặt cọc (cố định{' '}
+                          {new Intl.NumberFormat('vi-VN').format(orderPreview.depositUi.policyFixed)}đ):{' '}
+                          {new Intl.NumberFormat('vi-VN').format(orderPreview.prepay)}đ
+                        </>
+                      ) : (
+                        <>
+                          Đặt cọc 20%: {new Intl.NumberFormat('vi-VN').format(orderPreview.prepay)}đ
+                          <span className="text-[10px] font-normal text-violet-800">
+                            {' '}
+                            (mức cố định vượt tổng đơn)
+                          </span>
+                        </>
+                      )}
+                    </p>
+                    <p className="tabular-nums">
+                      Thanh toán khi nhận hàng: {new Intl.NumberFormat('vi-VN').format(orderPreview.cod)}đ
+                    </p>
+                  </div>
                   <div className="flex gap-1.5">
                     <Button
                       type="button"

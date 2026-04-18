@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 Import Viet-Doc-VQA-flash2 từ Hugging Face vào worksheet_official_questions.
-Chỉ dùng requests + pyarrow + client REST (package pip `supabase`; PostgREST).
+Dùng Postgres trực tiếp qua DATABASE_URL (thư viện psycopg2).
 
-Cài đặt: pip install requests pyarrow supabase
+Cài đặt: pip install -r scripts/requirements-import-viet-doc-vqa.txt
 Chạy: python scripts/import-viet-doc-vqa.py
 
-Yêu cầu: .env.local có HUGGINGFACE_TOKEN và URL/key REST (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)
+Yêu cầu: .env.local có HUGGINGFACE_TOKEN và DATABASE_URL (cùng chuỗi kết nối như app Next).
 Bước 1: Chấp nhận điều khoản tại https://huggingface.co/datasets/5CD-AI/Viet-Doc-VQA-flash2
 """
 
@@ -34,21 +34,47 @@ with open(env_path, encoding="utf-8") as f:
             env[k.strip()] = v
 
 hf_token = env.get("HUGGINGFACE_TOKEN", "").strip()
-supabase_url = env.get("NEXT_PUBLIC_SUPABASE_URL", "").strip()
-supabase_key = env.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+database_url = env.get("DATABASE_URL", "").strip()
 
 if not hf_token:
     print("Thiếu HUGGINGFACE_TOKEN trong .env.local")
     exit(1)
-if not supabase_url or not supabase_key:
-    print("Thiếu NEXT_PUBLIC_SUPABASE_URL hoặc SUPABASE_SERVICE_ROLE_KEY")
+if not database_url:
+    print("Thiếu DATABASE_URL trong .env.local (Postgres trực tiếp, giống app).")
     exit(1)
 
 import requests
 import pyarrow.parquet as pq
-from supabase import create_client
+import psycopg2
+from psycopg2.extras import Json
 
-supabase = create_client(supabase_url, supabase_key)
+INSERT_SQL = """
+INSERT INTO public.worksheet_official_questions (
+  subject_id, grade_level_id, textbook_set_id, lesson_order,
+  question_text, options, correct_index, explanation, source, external_id
+) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+ON CONFLICT (source, external_id) DO NOTHING
+"""
+
+
+def insert_official_question(cur, rec: dict) -> bool:
+    """Trả True nếu insert được 1 dòng mới."""
+    cur.execute(
+        INSERT_SQL,
+        (
+            rec["subject_id"],
+            rec["grade_level_id"],
+            rec["textbook_set_id"],
+            rec["lesson_order"],
+            rec["question_text"],
+            Json(rec["options"]),
+            rec["correct_index"],
+            rec["explanation"],
+            rec["source"],
+            rec["external_id"],
+        ),
+    )
+    return cur.rowcount > 0
 
 REPO = "5CD-AI/Viet-Doc-VQA-flash2"
 HF_API = "https://huggingface.co/api"
@@ -153,6 +179,16 @@ def main():
     skipped = 0
     row_count = 0
 
+    conn = None
+    cur = None
+    if not DRY_RUN:
+        conn = psycopg2.connect(database_url)
+        cur = conn.cursor()
+        try:
+            cur.execute("SET LOCAL row_security = off")
+        except Exception:
+            pass
+
     for pf in parquet_files:
         if row_count >= MAX_ROWS:
             break
@@ -224,20 +260,27 @@ def main():
                 if DRY_RUN and imported == 0:
                     print("Mẫu record:", json.dumps(rec, ensure_ascii=False, indent=2))
 
-                if not DRY_RUN:
+                if not DRY_RUN and cur is not None:
                     try:
-                        supabase.table("worksheet_official_questions").insert(rec).execute()
-                        imported += 1
+                        if insert_official_question(cur, rec):
+                            imported += 1
+                        else:
+                            skipped += 1
                     except Exception as ex:
                         if "23505" not in str(ex):
                             print(f"  Lỗi: {ex}")
                         skipped += 1
-                else:
+                elif DRY_RUN:
                     imported += 1
 
             row_count += 1
             if row_count % 500 == 0:
                 print(f"  Đã xử lý {row_count} dòng, import {imported}, bỏ qua {skipped}")
+
+    if conn is not None:
+        conn.commit()
+        cur.close()
+        conn.close()
 
     print(f"\nHoàn thành. Tổng import: {imported}, bỏ qua: {skipped}")
     if DRY_RUN:

@@ -14,7 +14,7 @@ export function isPgConfigured(): boolean {
  * Pool Postgres dùng cho server (API routes, Server Actions, workers).
  * Chỉ gọi sau khi đã migrate DB và set `DATABASE_URL` trỏ tới instance mới.
  *
- * - `PG_POOL_MAX`: mặc định 10, tối đa 30. Với DB nhỏ / Supabase free, có thể đặt 3–5.
+ * - `PG_POOL_MAX`: mặc định 10, tối đa 30. Với DB nhỏ / tier giới hạn kết nối, có thể đặt 3–5.
  * - Nên dùng connection pooler (PgBouncer, port «pooler» trên host cloud) nếu deploy serverless nhiều instance.
  */
 export function getPgPool(): Pool {

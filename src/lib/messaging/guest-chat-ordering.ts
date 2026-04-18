@@ -115,6 +115,18 @@ export type CheckoutFormInput = {
   size: string
   quantity: number
   note: string
+  /** URL ảnh màu/mẫu (palette) khách đã chọn — lưu JSON vào DB khi checkout. */
+  variantLineImages?: string[]
+}
+
+function variantLineImagesToStoredJson(urls: string[] | undefined): string {
+  if (!urls?.length) return ''
+  const cleaned = urls
+    .map((u) => String(u ?? '').trim())
+    .filter((u) => /^https?:\/\//i.test(u))
+    .slice(0, 24)
+  if (!cleaned.length) return ''
+  return JSON.stringify(cleaned).slice(0, 8000)
 }
 
 export type RelatedBuyProduct = {
@@ -556,6 +568,7 @@ export async function completeOrderCheckout(input: {
     shippingAddress: trim(input.form.shippingAddress, 280),
     variantColor: trim(input.form.color, 2000),
     variantSize: trim(input.form.size, 2000),
+    variantImageUrlsJson: variantLineImagesToStoredJson(input.form.variantLineImages),
     quantity: qty,
     note: trim(input.form.note, 800),
     depositPercent: calc.appliedPercent,
