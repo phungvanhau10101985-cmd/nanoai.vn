@@ -45,10 +45,13 @@ const bunnyImagePatterns = bunnyPullZoneHost
       ]
     : [];
 
+/** VPS RAM thấp: đặt SKIP_ESLINT_ON_BUILD=1 (hoặc npm run build:lowmem) để tránh OOM ở bước lint trong `next build`. */
+const skipEslintOnBuild = process.env.SKIP_ESLINT_ON_BUILD === '1'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Bật lint/typecheck khi build — `tsc` và `next lint` đã xanh; bắt lỗi sớm trên CI.
-    eslint: { ignoreDuringBuilds: false },
+    // Mặc định bật ESLint khi build; có thể tắt tạm trên máy nhỏ — vẫn chạy kiểm tra TypeScript.
+    eslint: { ignoreDuringBuilds: skipEslintOnBuild },
     allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok.io'],
     experimental: {
         serverComponentsExternalPackages: ['xlsx', 'pdf-to-img', 'pdfjs-dist', 'node-poppler', 'web-push'],

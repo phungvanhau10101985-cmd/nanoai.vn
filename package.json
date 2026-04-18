@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev",
     "build": "next build",
+    "build:lowmem": "node scripts/build-lowmem.mjs",
     "start": "next start",
     "lint": "next lint",
     "generate-pwa-icons": "node scripts/generate-pwa-icons.js",
