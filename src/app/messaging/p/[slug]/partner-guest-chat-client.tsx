@@ -57,7 +57,10 @@ import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { findPaletteColorByImageUrl } from '@/lib/messaging/palette-color-match'
 import { useToast } from '@/hooks/use-toast'
-import { useVisualViewportBottomInset } from '@/hooks/use-visual-viewport-bottom-inset'
+import {
+  useVisualViewportBottomInset,
+  useVisualViewportClientHeight,
+} from '@/hooks/use-visual-viewport-bottom-inset'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   LOCALE_COOKIE_NAME,
@@ -972,7 +975,7 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
           onFocus={(e) => {
             const el = e.currentTarget
             window.requestAnimationFrame(() => {
-              el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' })
+              el.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' })
             })
           }}
           placeholder={labels.placeholder}
@@ -1087,6 +1090,8 @@ export function PartnerGuestChatClient({
 }) {
   const { toast } = useToast()
   const guestChatKeyboardInset = useVisualViewportBottomInset()
+  /** Ép chiều cao full màn = visual viewport (tránh bàn phím che ô nhập trên FB/WebView). */
+  const guestChatVisualViewportHeightPx = useVisualViewportClientHeight()
   const [authReady, setAuthReady] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [messages, setMessages] = useState<GuestMsg[]>([])
@@ -4904,9 +4909,11 @@ export function PartnerGuestChatClient({
               className="shrink-0 space-y-2 border-t border-border bg-background px-2 pt-2"
               style={{
                 paddingBottom:
-                  guestChatKeyboardInset > 0
-                    ? `calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + ${guestChatKeyboardInset}px)`
-                    : 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
+                  guestChatVisualViewportHeightPx != null
+                    ? 'max(0.5rem, env(safe-area-inset-bottom, 0px))'
+                    : guestChatKeyboardInset > 0
+                      ? `calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + ${guestChatKeyboardInset}px)`
+                      : 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
               }}
             >
             {birthdayPromoDiscountPct != null && birthdayPromoDiscountPct > 0 ? (
@@ -5349,7 +5356,14 @@ export function PartnerGuestChatClient({
   return (
     <>
       {metaViewContent ? <MetaPixelViewContentTracker payload={metaViewContent} /> : null}
-      <div className="h-[100dvh] w-full overflow-hidden bg-background sm:bg-muted/20">
+      <div
+        className="h-[100dvh] w-full min-h-0 overflow-hidden bg-background sm:bg-muted/20"
+        style={
+          guestChatVisualViewportHeightPx != null
+            ? { height: guestChatVisualViewportHeightPx, minHeight: 0 }
+            : undefined
+        }
+      >
       <div className="mx-auto grid h-full w-full max-w-[1800px] grid-cols-1 gap-3 px-2 py-2 sm:px-3 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
         <aside className="hidden min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm lg:flex">
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3 [scrollbar-width:thin]">
