@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
 
 declare global {
   interface Window {
@@ -17,6 +18,7 @@ export function PartnerGuestGa4Config({ measurementId }: { measurementId: string
   useEffect(() => {
     const id = typeof measurementId === 'string' ? measurementId.trim() : ''
     if (!id || !/^G-[A-Z0-9]+$/i.test(id)) return
+    if (isLikelyBotTraffic()) return
 
     const run = () => {
       if (typeof window.gtag !== 'function') return false

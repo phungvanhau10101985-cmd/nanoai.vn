@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
+import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
 
 declare global {
   interface Window {
@@ -45,6 +46,7 @@ const FEATURE_ROUTES = [
 
 function track(eventName: string, params: Record<string, unknown> = {}) {
   if (typeof window === 'undefined' || typeof window.gtag !== 'function') return
+  if (isLikelyBotTraffic()) return
   window.gtag('event', eventName, params)
 }
 

@@ -382,8 +382,12 @@ export default async function RootLayout({
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
+                var __gaUa = (navigator.userAgent || '').trim();
+                var __gaIsLikelyBot = /bot|crawler|spider|facebookexternalhit|facebot|meta-externalagent|meta-externalfetcher|slackbot|whatsapp|telegrambot|twitterbot|linkedinbot|bingbot|googlebot|yandex|duckduckbot|embedly|quora link preview|pinterest|discordbot|applebot/i.test(__gaUa);
                 gtag('js', new Date());
-                gtag('config', '${gaMeasurementId}');
+                if (!__gaIsLikelyBot) {
+                  gtag('config', '${gaMeasurementId}');
+                }
               `}
             </Script>
           </>

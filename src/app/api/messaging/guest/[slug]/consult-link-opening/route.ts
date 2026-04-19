@@ -70,6 +70,40 @@ function fallbackOpeningMessage(productName: string, extraContext: string): stri
   return `${greet} ${mid} ${tail}`
 }
 
+async function generateOpeningWithDeepseek(prompt: string): Promise<string | null> {
+  const key = process.env.DEEPSEEK_API_KEY?.trim()
+  if (!key) return null
+  try {
+    const res = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 420,
+        temperature: 0.35,
+      }),
+    })
+    const json = (await res.json().catch(() => null)) as
+      | {
+          choices?: Array<{ message?: { content?: string } }>
+          error?: { message?: string }
+        }
+      | null
+    if (!res.ok) return null
+    const text = json?.choices?.[0]?.message?.content?.trim() ?? ''
+    if (!text) return null
+    const cleaned = text.replace(/^["']|["']$/g, '').trim()
+    if (cleaned.length < 40 || cleaned.length > 520) return null
+    return cleaned
+  } catch {
+    return null
+  }
+}
+
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
   const partner = await resolveActiveMessagingPartnerBySlug(slug)
@@ -115,15 +149,6 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ text: inventoryRow.consult_link_opening_text.trim() })
   }
 
-  const apiKey = process.env.GOOGLE_API_KEY?.trim()
-  if (!apiKey) {
-    const text = fallbackOpeningMessage(productName, extraContext)
-    if (inventoryRow && UUID_RE.test(inventoryId)) {
-      await savePartnerInventoryConsultLinkOpeningCacheFromPg(partner.id, inventoryId, text, inputFingerprint)
-    }
-    return NextResponse.json({ text })
-  }
-
   const prompt = `Viết MỘT tin nhắn tiếng Việt (đúng 3 câu hoặc 3 ý ngăn bằng dấu cách, tối đa 420 ký tự), không markdown, không bọc ngoặc kép toàn bộ.
 
 Cấu trúc bắt buộc theo thứ tự:
@@ -136,29 +161,40 @@ Tên sản phẩm: ${productName}
 ${sku ? `SKU: ${sku}` : ''}
 ${extraContext ? `Mô tả / ghi chú:\n${extraContext}` : 'Không có mô tả — câu 2 chỉ nói gọn theo loại từ tên (vd váy đầm, áo khoác), không bịa chi tiết.'}`
 
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const models = ['gemini-2.0-flash', 'gemini-2.5-flash'] as const
-  for (const modelName of models) {
-    try {
-      const model = genAI.getGenerativeModel({ model: modelName })
-      const result = await model.generateContent(prompt)
-      void trackFromUsageMetadata(result.response.usageMetadata, modelName, 'messaging-consult-link-opening', null, null)
-      const text = result.response.text()?.trim() ?? ''
-      const cleaned = text.replace(/^["']|["']$/g, '').trim()
-      if (cleaned.length >= 40 && cleaned.length <= 520) {
-        if (inventoryRow && UUID_RE.test(inventoryId)) {
-          await savePartnerInventoryConsultLinkOpeningCacheFromPg(
-            partner.id,
-            inventoryId,
-            cleaned,
-            inputFingerprint
-          )
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  if (apiKey) {
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const models = ['gemini-2.0-flash', 'gemini-2.5-flash'] as const
+    for (const modelName of models) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName })
+        const result = await model.generateContent(prompt)
+        void trackFromUsageMetadata(result.response.usageMetadata, modelName, 'messaging-consult-link-opening', null, null)
+        const text = result.response.text()?.trim() ?? ''
+        const cleaned = text.replace(/^["']|["']$/g, '').trim()
+        if (cleaned.length >= 40 && cleaned.length <= 520) {
+          if (inventoryRow && UUID_RE.test(inventoryId)) {
+            await savePartnerInventoryConsultLinkOpeningCacheFromPg(
+              partner.id,
+              inventoryId,
+              cleaned,
+              inputFingerprint
+            )
+          }
+          return NextResponse.json({ text: cleaned })
         }
-        return NextResponse.json({ text: cleaned })
+      } catch {
+        continue
       }
-    } catch {
-      continue
     }
+  }
+
+  const deepseekOpening = await generateOpeningWithDeepseek(prompt)
+  if (deepseekOpening) {
+    if (inventoryRow && UUID_RE.test(inventoryId)) {
+      await savePartnerInventoryConsultLinkOpeningCacheFromPg(partner.id, inventoryId, deepseekOpening, inputFingerprint)
+    }
+    return NextResponse.json({ text: deepseekOpening })
   }
 
   const text = fallbackOpeningMessage(productName, extraContext)
