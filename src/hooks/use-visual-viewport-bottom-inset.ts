@@ -1,14 +1,28 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+
+function computeBottomOverlapPx(vv: VisualViewport): number {
+  const visualBottom = vv.offsetTop + vv.height
+  const ih = window.innerHeight
+  const doc = document.documentElement
+  const clientH = typeof doc?.clientHeight === 'number' && doc.clientHeight > 0 ? doc.clientHeight : ih
+
+  /** Khoảng từ đáy layout viewport tới đáy visual viewport (bàn phím / thanh hệ thống). */
+  const fromInner = Math.max(0, ih - visualBottom)
+  /** Fallback khi `innerHeight` lệch so với `clientHeight` (một số WebView / Facebook in-app). */
+  const fromClient = Math.max(0, clientH - visualBottom)
+
+  return Math.round(Math.max(fromInner, fromClient))
+}
 
 /**
  * Khoảng bị che giữa đáy layout viewport và đáy visual viewport (thường do bàn phím ảo).
- * Dùng tăng padding-bottom cho khung nhập chat trên mobile / Facebook in-app browser
- * **khi không** ép chiều cao shell theo `useVisualViewportClientHeight` (tránh cộng dồn).
+ * Dùng cho `position: fixed; bottom: N` hoặc `translateY(-N)` để đẩy thanh nhập lên trên bàn phím.
  */
 export function useVisualViewportBottomInset(): number {
   const [inset, setInset] = useState(0)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     const vv = window.visualViewport
@@ -18,23 +32,58 @@ export function useVisualViewportBottomInset(): number {
     const update = () => {
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
-        const layoutH = window.innerHeight
-        const visualBottom = vv.offsetTop + vv.height
-        const next = Math.max(0, Math.round(layoutH - visualBottom))
+        const next = computeBottomOverlapPx(vv)
         setInset((prev) => (prev === next ? prev : next))
       })
+    }
+
+    const stopPoll = () => {
+      if (pollRef.current != null) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+      }
+    }
+
+    const startPoll = () => {
+      stopPoll()
+      let ticks = 0
+      pollRef.current = setInterval(() => {
+        update()
+        ticks += 1
+        if (ticks >= 45) stopPoll()
+      }, 120)
+    }
+
+    const onFocusIn = (ev: Event) => {
+      const t = ev.target
+      if (
+        t instanceof HTMLInputElement ||
+        t instanceof HTMLTextAreaElement ||
+        (t instanceof HTMLElement && t.isContentEditable)
+      ) {
+        update()
+        startPoll()
+      }
     }
 
     update()
     vv.addEventListener('resize', update)
     vv.addEventListener('scroll', update)
     window.addEventListener('resize', update)
+    window.addEventListener('orientationchange', update)
+    window.addEventListener('focusin', onFocusIn)
+    /** Một số WebView chỉ cập nhật visualViewport sau cảm ứng / focus. */
+    window.addEventListener('touchstart', update, { passive: true, capture: true })
 
     return () => {
+      stopPoll()
       cancelAnimationFrame(raf)
       vv.removeEventListener('resize', update)
       vv.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', update)
+      window.removeEventListener('focusin', onFocusIn)
+      window.removeEventListener('touchstart', update, { capture: true })
     }
   }, [])
 
@@ -42,13 +91,12 @@ export function useVisualViewportBottomInset(): number {
 }
 
 /**
- * Chiều cao visual viewport (vùng còn nhìn thấy khi bàn phím mở).
- * Một số WebView / Facebook in-app không co `100dvh`/`innerHeight` đúng — ép khung chat
- * bằng giá trị này để ô nhập không nằm dưới bàn phím.
- * `null` đến khi mount (tránh lệch hydration với SSR).
+ * Chiều cao visual viewport — ép khung chat (layout hẹp) khớp vùng còn nhìn thấy khi bàn phím mở.
+ * Kết hợp thanh nhập **trong luồng flex** (không `fixed`) để ô nhập luôn nằm trên bàn phím, không phụ thuộc `bottom: N` (WebView hay sai).
  */
-export function useVisualViewportClientHeight(): number | null {
+export function useVisualViewportShellHeightPx(): number | null {
   const [h, setH] = useState<number | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useLayoutEffect(() => {
     const vv = window.visualViewport
@@ -58,7 +106,7 @@ export function useVisualViewportClientHeight(): number | null {
     }
 
     let raf = 0
-    const update = () => {
+    const sync = () => {
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
         const next = Math.round(vv.height)
@@ -66,16 +114,52 @@ export function useVisualViewportClientHeight(): number | null {
       })
     }
 
-    update()
-    vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update)
-    window.addEventListener('resize', update)
+    const stopPoll = () => {
+      if (pollRef.current != null) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+      }
+    }
+
+    const startPoll = () => {
+      stopPoll()
+      let ticks = 0
+      pollRef.current = setInterval(() => {
+        sync()
+        ticks += 1
+        if (ticks >= 50) stopPoll()
+      }, 100)
+    }
+
+    const onFocusIn = (ev: Event) => {
+      const t = ev.target
+      if (
+        t instanceof HTMLInputElement ||
+        t instanceof HTMLTextAreaElement ||
+        (t instanceof HTMLElement && t.isContentEditable)
+      ) {
+        sync()
+        startPoll()
+      }
+    }
+
+    sync()
+    vv.addEventListener('resize', sync)
+    vv.addEventListener('scroll', sync)
+    window.addEventListener('resize', sync)
+    window.addEventListener('orientationchange', sync)
+    window.addEventListener('focusin', onFocusIn)
+    window.addEventListener('touchstart', sync, { passive: true, capture: true })
 
     return () => {
+      stopPoll()
       cancelAnimationFrame(raf)
-      vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
-      window.removeEventListener('resize', update)
+      vv.removeEventListener('resize', sync)
+      vv.removeEventListener('scroll', sync)
+      window.removeEventListener('resize', sync)
+      window.removeEventListener('orientationchange', sync)
+      window.removeEventListener('focusin', onFocusIn)
+      window.removeEventListener('touchstart', sync, { capture: true })
     }
   }, [])
 

@@ -59,7 +59,7 @@ import { findPaletteColorByImageUrl } from '@/lib/messaging/palette-color-match'
 import { useToast } from '@/hooks/use-toast'
 import {
   useVisualViewportBottomInset,
-  useVisualViewportClientHeight,
+  useVisualViewportShellHeightPx,
 } from '@/hooks/use-visual-viewport-bottom-inset'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
@@ -138,6 +138,81 @@ function readDocumentCookie(name: string): string | null {
   const end = prefixed.indexOf(';', start)
   const raw = (end === -1 ? prefixed.slice(start) : prefixed.slice(start, end)).trim()
   return raw ? decodeURIComponent(raw) : null
+}
+
+type GuestChatKeyboardUaProfile = {
+  minFocusLiftPx: number
+  maxFocusLiftPx: number
+  focusLiftRatio: number
+  screenOverlapWeight: number
+}
+
+/** Nhận diện UA để tinh chỉnh mức đẩy composer trên mobile/in-app WebView. */
+function detectGuestChatKeyboardUaProfile(): GuestChatKeyboardUaProfile {
+  if (typeof navigator === 'undefined') {
+    return {
+      minFocusLiftPx: 320,
+      maxFocusLiftPx: 560,
+      focusLiftRatio: 0.58,
+      screenOverlapWeight: 1,
+    }
+  }
+  const ua = (navigator.userAgent || '').toLowerCase()
+  const platform = (navigator.platform || '').toLowerCase()
+  const hasTouch = (navigator.maxTouchPoints ?? 0) > 1
+  const isAndroid = /android/.test(ua)
+  const isIos = /iphone|ipad|ipod/.test(ua) || (platform === 'macintel' && hasTouch)
+  const isFacebookInApp = /fban|fbav|fb_iab|fb4a|fbios|messenger/.test(ua)
+  const isZaloInApp = /\bzalo\b/.test(ua)
+  const isAndroidWebView = isAndroid && (/; wv\)/.test(ua) || /version\/\d+\.\d+/.test(ua))
+  const isIosWebView = isIos && !/safari/.test(ua)
+
+  if (isFacebookInApp || isZaloInApp) {
+    return {
+      minFocusLiftPx: 340,
+      maxFocusLiftPx: 640,
+      focusLiftRatio: isIos ? 0.64 : 0.62,
+      screenOverlapWeight: 1.2,
+    }
+  }
+  if (isAndroidWebView) {
+    return {
+      minFocusLiftPx: 330,
+      maxFocusLiftPx: 620,
+      focusLiftRatio: 0.6,
+      screenOverlapWeight: 1.15,
+    }
+  }
+  if (isIosWebView) {
+    return {
+      minFocusLiftPx: 330,
+      maxFocusLiftPx: 620,
+      focusLiftRatio: 0.62,
+      screenOverlapWeight: 1.1,
+    }
+  }
+  if (isIos) {
+    return {
+      minFocusLiftPx: 320,
+      maxFocusLiftPx: 600,
+      focusLiftRatio: 0.6,
+      screenOverlapWeight: 1.05,
+    }
+  }
+  if (isAndroid) {
+    return {
+      minFocusLiftPx: 300,
+      maxFocusLiftPx: 560,
+      focusLiftRatio: 0.55,
+      screenOverlapWeight: 1,
+    }
+  }
+  return {
+    minFocusLiftPx: 300,
+    maxFocusLiftPx: 520,
+    focusLiftRatio: 0.52,
+    screenOverlapWeight: 1,
+  }
 }
 
 type GuestMsg = {
@@ -974,9 +1049,16 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
           onPaste={onDraftPaste}
           onFocus={(e) => {
             const el = e.currentTarget
-            window.requestAnimationFrame(() => {
+            const scroll = () =>
               el.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' })
+            scroll()
+            window.requestAnimationFrame(() => {
+              scroll()
+              window.requestAnimationFrame(scroll)
             })
+            /** Bàn phím ảo mở chậm (iOS / Facebook in-app) — kéo lại sau khi viewport đổi. */
+            window.setTimeout(scroll, 80)
+            window.setTimeout(scroll, 280)
           }}
           placeholder={labels.placeholder}
           rows={1}
@@ -1056,6 +1138,23 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   )
 })
 
+/**
+ * Layout một cột (không sidebar) — neo thanh nhập fixed + đo chiều cao cho padding vùng tin.
+ * Mặc định `true` (mobile-first): tránh một lần render đầu `false` khiến ô nhập không neo và bị bàn phím che
+ * (useEffect chạy sau paint). Desktop chỉnh về `false` trong useLayoutEffect trước khi vẽ.
+ */
+function useGuestChatNarrowLayout(): boolean {
+  const [narrow, setNarrow] = useState(true)
+  useLayoutEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const apply = () => setNarrow(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+  return narrow
+}
+
 export function PartnerGuestChatClient({
   slug,
   shopDisplayName,
@@ -1090,9 +1189,94 @@ export function PartnerGuestChatClient({
 }) {
   const { toast } = useToast()
   const guestChatKeyboardInset = useVisualViewportBottomInset()
-  /** Ép chiều cao full màn = visual viewport (tránh bàn phím che ô nhập trên FB/WebView). */
-  const guestChatVisualViewportHeightPx = useVisualViewportClientHeight()
+  const guestChatShellHeightPx = useVisualViewportShellHeightPx()
+  const guestChatNarrowLayout = useGuestChatNarrowLayout()
+  const guestChatFocusRootRef = useRef<HTMLDivElement>(null)
+  const [guestChatFormFieldFocused, setGuestChatFormFieldFocused] = useState(false)
+
+  const syncGuestChatFormFieldFocus = useCallback(() => {
+    requestAnimationFrame(() => {
+      const root = guestChatFocusRootRef.current
+      const ae = document.activeElement
+      const isField =
+        ae instanceof HTMLInputElement ||
+        ae instanceof HTMLTextAreaElement ||
+        ae instanceof HTMLSelectElement
+      setGuestChatFormFieldFocused(Boolean(root && ae && isField && root.contains(ae)))
+    })
+  }, [])
+
+  useEffect(() => {
+    const root = guestChatFocusRootRef.current
+    if (!root) return
+    const onFocusIn = (ev: FocusEvent) => {
+      const t = ev.target
+      if (
+        !(
+          t instanceof HTMLInputElement ||
+          t instanceof HTMLTextAreaElement ||
+          t instanceof HTMLSelectElement ||
+          (t instanceof HTMLElement && t.isContentEditable)
+        )
+      ) {
+        return
+      }
+      requestAnimationFrame(() => {
+        t.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' })
+      })
+    }
+    root.addEventListener('focusin', onFocusIn)
+    return () => root.removeEventListener('focusin', onFocusIn)
+  }, [])
+
+  const guestChatKeyboardUaProfile = useMemo(() => detectGuestChatKeyboardUaProfile(), [])
+
+  /**
+   * Khoảng cần đẩy thanh nhập lên khỏi bàn phím (px).
+   * Ưu tiên số đo từ hook + visualViewport. Với WebView báo sai `innerHeight`,
+   * fallback thêm theo `screen.height` để vẫn nhấc composer lên khi bàn phím mở.
+   */
+  const guestChatKeyboardLiftPx = useMemo(() => {
+    if (typeof window === 'undefined') return guestChatKeyboardInset
+    let n = guestChatKeyboardInset
+    const vv = window.visualViewport
+    if (vv) {
+      const visualBottom = vv.offsetTop + vv.height
+      const ih = Math.max(window.innerHeight, document.documentElement?.clientHeight ?? 0)
+      const screenH = Math.max(0, window.screen?.height ?? 0)
+      const overlap = Math.max(0, Math.round(ih - visualBottom))
+      const overlapFromScreen =
+        screenH > 0
+          ? Math.max(
+              0,
+              Math.round((screenH - visualBottom) * guestChatKeyboardUaProfile.screenOverlapWeight)
+            )
+          : 0
+      n = Math.max(n, overlap)
+      n = Math.max(n, overlapFromScreen)
+    }
+    if (guestChatNarrowLayout && guestChatFormFieldFocused && n < guestChatKeyboardUaProfile.minFocusLiftPx) {
+      const ih = Math.max(window.innerHeight, document.documentElement?.clientHeight ?? 0)
+      const screenH = Math.max(0, window.screen?.height ?? 0)
+      const baseH = Math.max(ih, screenH)
+      const hardFloor = Math.round(baseH * guestChatKeyboardUaProfile.focusLiftRatio)
+      n = Math.max(
+        n,
+        Math.min(
+          guestChatKeyboardUaProfile.maxFocusLiftPx,
+          Math.max(guestChatKeyboardUaProfile.minFocusLiftPx, hardFloor)
+        )
+      )
+    }
+    return n
+  }, [
+    guestChatKeyboardInset,
+    guestChatFormFieldFocused,
+    guestChatKeyboardUaProfile,
+    guestChatNarrowLayout,
+  ])
   const [authReady, setAuthReady] = useState(false)
+
   const [userId, setUserId] = useState<string | null>(null)
   const [messages, setMessages] = useState<GuestMsg[]>([])
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
@@ -4017,13 +4201,26 @@ export function PartnerGuestChatClient({
             <GuestChatLocaleSwitches currentLocale={uiLocale} slug={slug} />
           </div>
         ) : null}
-        <CardContent className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+        <CardContent
+          ref={guestChatFocusRootRef}
+          className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+          onFocusCapture={syncGuestChatFormFieldFocus}
+          onBlurCapture={syncGuestChatFormFieldFocus}
+        >
           <div className="relative flex min-h-0 flex-1 flex-col">
           <div
             className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden overscroll-contain break-words bg-muted/20 px-3 py-2 [word-break:break-word]"
             role="log"
             aria-live="polite"
             aria-relevant="additions"
+            style={
+              guestChatNarrowLayout
+                ? {
+                    /** Thanh nhập nằm trong flex (không `fixed`) — chỉ chừa đáy nhẹ cho bubble cuối. */
+                    paddingBottom: '0.75rem',
+                  }
+                : undefined
+            }
           >
             {loading && !hasLoadedOnce ? (
               <div className="flex flex-1 items-center justify-center gap-2 text-base text-muted-foreground">
@@ -4485,7 +4682,16 @@ export function PartnerGuestChatClient({
               aria-modal="true"
               aria-label={orderFormOpen ? 'Thông tin nhận hàng' : 'Chọn sản phẩm'}
             >
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2 [scrollbar-width:thin]">
+              <div
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2 [scrollbar-width:thin]"
+                style={
+                  guestChatNarrowLayout
+                    ? {
+                        paddingBottom: `calc(0.75rem + max(env(keyboard-inset-height, 0px), min(${guestChatKeyboardLiftPx}px, 55vh)))`,
+                      }
+                    : undefined
+                }
+              >
               {buyOptionsOpen && buyOptions.length > 0 && !orderFormOpen ? (
                 <div className="space-y-1.5 rounded-lg border border-border/70 bg-muted/20 p-2">
                   <div className="flex items-center justify-between gap-2">
@@ -4906,14 +5112,27 @@ export function PartnerGuestChatClient({
           </div>
 
             <div
-              className="shrink-0 space-y-2 border-t border-border bg-background px-2 pt-2"
+              className={`space-y-2 border-t border-border bg-background px-2 pt-2 sm:px-3 ${
+                guestChatNarrowLayout
+                  ? 'relative z-40 w-full shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.12)] backdrop-blur-sm supports-[backdrop-filter]:bg-background/95 dark:shadow-[0_-8px_32px_rgba(0,0,0,0.45)]'
+                  : 'shrink-0 shadow-[0_-6px_28px_rgba(0,0,0,0.1)] dark:shadow-[0_-6px_28px_rgba(0,0,0,0.45)]'
+              }`}
               style={{
+                /**
+                 * WebView/Facebook in-app có máy không co layout khi bàn phím mở:
+                 * dịch toàn bộ composer lên trên bàn phím để ô nhập không bị che.
+                 */
+                transform:
+                  guestChatNarrowLayout && guestChatKeyboardLiftPx > 0
+                    ? `translateY(calc(-1 * max(env(keyboard-inset-height, 0px), ${guestChatKeyboardLiftPx}px)))`
+                    : undefined,
+                willChange: guestChatNarrowLayout && guestChatKeyboardLiftPx > 0 ? 'transform' : undefined,
                 paddingBottom:
-                  guestChatVisualViewportHeightPx != null
+                  guestChatNarrowLayout && guestChatKeyboardLiftPx > 0
                     ? 'max(0.5rem, env(safe-area-inset-bottom, 0px))'
-                    : guestChatKeyboardInset > 0
-                      ? `calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + ${guestChatKeyboardInset}px)`
-                      : 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
+                    : guestChatKeyboardLiftPx > 0
+                      ? `calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + max(env(keyboard-inset-height, 0px), ${guestChatKeyboardLiftPx}px))`
+                      : 'calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + env(keyboard-inset-height, 0px))',
               }}
             >
             {birthdayPromoDiscountPct != null && birthdayPromoDiscountPct > 0 ? (
@@ -5359,8 +5578,8 @@ export function PartnerGuestChatClient({
       <div
         className="h-[100dvh] w-full min-h-0 overflow-hidden bg-background sm:bg-muted/20"
         style={
-          guestChatVisualViewportHeightPx != null
-            ? { height: guestChatVisualViewportHeightPx, minHeight: 0 }
+          guestChatShellHeightPx != null
+            ? { height: guestChatShellHeightPx, minHeight: 0 }
             : undefined
         }
       >
@@ -5448,7 +5667,7 @@ export function PartnerGuestChatClient({
           </div>
         </aside>
 
-        <div className="min-h-0 min-w-0 overflow-hidden">{chatPane}</div>
+        <div className="min-h-0 min-w-0 h-full overflow-hidden">{chatPane}</div>
       </div>
       <Dialog
         open={guestProfileOpen}
