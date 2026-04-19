@@ -11,7 +11,10 @@ import {
   buildPartnerAiWarehouseVndPricingNote,
   shouldMarkInventoryPricesAsVndForAi,
 } from '@/lib/messaging/partner-ai-currency-context'
-import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  fetchPartnerInventoryRowByComparableSkuFromPg,
+  fetchPartnerInventoryRowByIdForPartnerFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   buildInventorySearchQueryWithLastConsulted,
@@ -142,6 +145,22 @@ function visionCatalogNoHitsFromTrigger(raw: Json | null | undefined): boolean {
 function selectedInventoryIdFromTrigger(raw: Json | null | undefined): string | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const v = (raw as { vision_selected_inventory_id?: unknown }).vision_selected_inventory_id
+  return typeof v === 'string' && v.trim() ? v.trim() : null
+}
+
+function pageContextInventoryIdFromRaw(raw: Json | null | undefined): string | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const pc = (raw as { page_context?: unknown }).page_context
+  if (!pc || typeof pc !== 'object' || Array.isArray(pc)) return null
+  const v = (pc as { inventory_id?: unknown }).inventory_id
+  return typeof v === 'string' && v.trim() ? v.trim() : null
+}
+
+function pageContextSkuFromRaw(raw: Json | null | undefined): string | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const pc = (raw as { page_context?: unknown }).page_context
+  if (!pc || typeof pc !== 'object' || Array.isArray(pc)) return null
+  const v = (pc as { sku?: unknown }).sku
   return typeof v === 'string' && v.trim() ? v.trim() : null
 }
 
@@ -458,10 +477,37 @@ export async function buildPartnerAiContext(
   /** «Mẫu khác / tương tự / gần giống» — lấy kho bằng embedding ảnh SP neo so với toàn kho, không khóa một dòng kho. */
   const similarCatalogVersusLastConsulted = customerMessageWantsSimilarCatalogVersusLastConsulted(latestCustomerMessage)
   const widgetIntent = parsePartnerAiWidgetIntentFromPayload(triggerRawPayload)
+  let contextReplyAnchorRow: Database['public']['Tables']['messaging_partner_inventory']['Row'] | null = null
+  if (effectiveLocaleOpts?.channel === 'widget' && widgetIntent === 'context_reply' && isPgConfigured()) {
+    for (let i = chronological.length - 1; i >= 0; i--) {
+      const raw = chronological[i]?.raw_payload ?? null
+      const invId = pageContextInventoryIdFromRaw(raw)
+      if (invId) {
+        const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, invId)
+        if (row) {
+          contextReplyAnchorRow = row
+          break
+        }
+      }
+      const sku = pageContextSkuFromRaw(raw)
+      if (sku) {
+        const row = await fetchPartnerInventoryRowByComparableSkuFromPg(partnerId, sku)
+        if (row) {
+          contextReplyAnchorRow = row
+          break
+        }
+      }
+    }
+  }
+  const contextReplySingleRow = contextReplyAnchorRow ?? lastConsultedRow
   const forceSingleRowContextFromWidgetIntent =
     effectiveLocaleOpts?.channel === 'widget' &&
     widgetIntent === 'context_reply' &&
+    Boolean(contextReplySingleRow) &&
     !similarCatalogVersusLastConsulted
+  if (forceSingleRowContextFromWidgetIntent && contextReplySingleRow) {
+    lastConsultedRow = contextReplySingleRow
+  }
 
   const useLastConsultedContext =
     Boolean(lastConsultedRow) &&
@@ -476,7 +522,7 @@ export async function buildPartnerAiContext(
   /** Một dòng kho + không vector: trừ khi khách đang chọn SP từ ảnh (vision) trong **tin này** và không phải hỏi tiếp; trừ khi hỏi **mẫu tương tự** (cần vector ảnh + cả kho). */
   const followUpSingleProductNoVector =
     explicitSkuRows.length === 0 &&
-    (useLastConsultedContext || forceSingleRowContextFromWidgetIntent) &&
+    (useLastConsultedContext || (forceSingleRowContextFromWidgetIntent && Boolean(contextReplySingleRow))) &&
     (!selectedInventoryId || followUpStyleMessage) &&
     !similarCatalogVersusLastConsulted
 
@@ -575,7 +621,7 @@ export async function buildPartnerAiContext(
   }
 
   if (forceSingleRowContextFromWidgetIntent && invForContext.length > 1) {
-    const forcedRow = lastConsultedRow ?? invForContext[0] ?? null
+    const forcedRow = contextReplySingleRow ?? invForContext[0] ?? null
     if (forcedRow) {
       invForContext = [forcedRow]
       selectedRowForEnrich = forcedRow
@@ -593,7 +639,7 @@ export async function buildPartnerAiContext(
   selectedRowForEnrich = materialEnriched.selectedRow
 
   if (forceSingleRowContextFromWidgetIntent && invForContext.length > 1) {
-    const forcedRow = lastConsultedRow ?? selectedRowForEnrich ?? invForContext[0] ?? null
+    const forcedRow = contextReplySingleRow ?? selectedRowForEnrich ?? invForContext[0] ?? null
     if (forcedRow) {
       invForContext = [forcedRow]
       selectedRowForEnrich = forcedRow
@@ -789,7 +835,7 @@ Chỉ để products = [] khi thực sự không tìm được mặt hàng phù 
     materialDetailFollowup,
     realUseFollowup,
     useLastConsultedContext,
-    lastConsultedRow,
+    lastConsultedRow: forceSingleRowContextFromWidgetIntent ? contextReplySingleRow : lastConsultedRow,
     similarCatalogVersusLastConsulted,
     clarifyShoppingIntent: false,
     forceSingleRowContextReply: forceSingleRowContextFromWidgetIntent,
