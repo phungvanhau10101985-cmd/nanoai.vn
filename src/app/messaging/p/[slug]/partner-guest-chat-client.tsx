@@ -141,77 +141,72 @@ function readDocumentCookie(name: string): string | null {
 }
 
 type GuestChatKeyboardUaProfile = {
+  isFacebookInApp: boolean
+  isZaloInApp: boolean
+  isLikelyProblematicInApp: boolean
   minFocusLiftPx: number
   maxFocusLiftPx: number
   focusLiftRatio: number
   screenOverlapWeight: number
+  fallbackTriggerPx: number
+  transformCapVh: number
+}
+
+function isFacebookInAppRuntime(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = (navigator.userAgent || '').toLowerCase()
+  if (/fban|fbav|fb_iab|fb4a|fbios|messenger/.test(ua)) return true
+  if (typeof document !== 'undefined') {
+    const ref = (document.referrer || '').toLowerCase()
+    if (/(^|:\/\/|\.)(facebook|messenger)\.com/.test(ref)) return true
+    if (/lm\.facebook\.com|l\.facebook\.com/.test(ref)) return true
+  }
+  return false
 }
 
 /** Nhận diện UA để tinh chỉnh mức đẩy composer trên mobile/in-app WebView. */
 function detectGuestChatKeyboardUaProfile(): GuestChatKeyboardUaProfile {
   if (typeof navigator === 'undefined') {
     return {
-      minFocusLiftPx: 320,
-      maxFocusLiftPx: 560,
-      focusLiftRatio: 0.58,
+      isFacebookInApp: false,
+      isZaloInApp: false,
+      isLikelyProblematicInApp: false,
+      minFocusLiftPx: 0,
+      maxFocusLiftPx: 0,
+      focusLiftRatio: 0,
       screenOverlapWeight: 1,
+      fallbackTriggerPx: 0,
+      transformCapVh: 55,
     }
   }
   const ua = (navigator.userAgent || '').toLowerCase()
-  const platform = (navigator.platform || '').toLowerCase()
-  const hasTouch = (navigator.maxTouchPoints ?? 0) > 1
-  const isAndroid = /android/.test(ua)
-  const isIos = /iphone|ipad|ipod/.test(ua) || (platform === 'macintel' && hasTouch)
-  const isFacebookInApp = /fban|fbav|fb_iab|fb4a|fbios|messenger/.test(ua)
+  const isFacebookInApp = isFacebookInAppRuntime()
   const isZaloInApp = /\bzalo\b/.test(ua)
-  const isAndroidWebView = isAndroid && (/; wv\)/.test(ua) || /version\/\d+\.\d+/.test(ua))
-  const isIosWebView = isIos && !/safari/.test(ua)
-
-  if (isFacebookInApp || isZaloInApp) {
+  const isLikelyProblematicInApp =
+    isFacebookInApp || (!isZaloInApp && (/; wv\)/.test(ua) || /\bversion\/\d+\.\d+/.test(ua)))
+  if (isFacebookInApp) {
     return {
-      minFocusLiftPx: 340,
-      maxFocusLiftPx: 640,
-      focusLiftRatio: isIos ? 0.64 : 0.62,
-      screenOverlapWeight: 1.2,
-    }
-  }
-  if (isAndroidWebView) {
-    return {
-      minFocusLiftPx: 330,
-      maxFocusLiftPx: 620,
-      focusLiftRatio: 0.6,
-      screenOverlapWeight: 1.15,
-    }
-  }
-  if (isIosWebView) {
-    return {
-      minFocusLiftPx: 330,
-      maxFocusLiftPx: 620,
+      isFacebookInApp: true,
+      isZaloInApp,
+      isLikelyProblematicInApp,
+      minFocusLiftPx: 360,
+      maxFocusLiftPx: 700,
       focusLiftRatio: 0.62,
-      screenOverlapWeight: 1.1,
-    }
-  }
-  if (isIos) {
-    return {
-      minFocusLiftPx: 320,
-      maxFocusLiftPx: 600,
-      focusLiftRatio: 0.6,
-      screenOverlapWeight: 1.05,
-    }
-  }
-  if (isAndroid) {
-    return {
-      minFocusLiftPx: 300,
-      maxFocusLiftPx: 560,
-      focusLiftRatio: 0.55,
-      screenOverlapWeight: 1,
+      screenOverlapWeight: 1.28,
+      fallbackTriggerPx: 72,
+      transformCapVh: 72,
     }
   }
   return {
-    minFocusLiftPx: 300,
-    maxFocusLiftPx: 520,
-    focusLiftRatio: 0.52,
+    isFacebookInApp: false,
+    isZaloInApp,
+    isLikelyProblematicInApp,
+    minFocusLiftPx: 0,
+    maxFocusLiftPx: 0,
+    focusLiftRatio: 0,
     screenOverlapWeight: 1,
+    fallbackTriggerPx: 0,
+    transformCapVh: 56,
   }
 }
 
@@ -976,6 +971,7 @@ type GuestChatDraftComposerProps = {
   showCameraButton: boolean
   onOpenProductShelf?: () => void
   productShelfButtonLabel?: string
+  onComposerFocusChange?: (focused: boolean) => void
   labels: {
     placeholder: string
     sendKeyboardHint: string
@@ -1004,6 +1000,7 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   showCameraButton,
   onOpenProductShelf,
   productShelfButtonLabel,
+  onComposerFocusChange,
   labels,
 }: GuestChatDraftComposerProps) {
   const [draft, setDraft] = useState('')
@@ -1043,11 +1040,13 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
       <div className="relative">
         <Textarea
           ref={draftTextareaRef}
+          data-guest-composer-input="1"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onInput={autoResizeDraft}
           onPaste={onDraftPaste}
           onFocus={(e) => {
+            onComposerFocusChange?.(true)
             const el = e.currentTarget
             const scroll = () =>
               el.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' })
@@ -1060,6 +1059,7 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
             window.setTimeout(scroll, 80)
             window.setTimeout(scroll, 280)
           }}
+          onBlur={() => onComposerFocusChange?.(false)}
           placeholder={labels.placeholder}
           rows={1}
           className="resize-none border-0 bg-transparent px-0 pb-12 pt-1 pr-12 text-[17px] leading-snug shadow-none focus-visible:ring-0 sm:text-lg"
@@ -1221,8 +1221,9 @@ export function PartnerGuestChatClient({
       ) {
         return
       }
+      if (t instanceof HTMLElement && t.dataset.guestComposerInput === '1') return
       requestAnimationFrame(() => {
-        t.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' })
+        t.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' })
       })
     }
     root.addEventListener('focusin', onFocusIn)
@@ -1238,35 +1239,34 @@ export function PartnerGuestChatClient({
    */
   const guestChatKeyboardLiftPx = useMemo(() => {
     if (typeof window === 'undefined') return guestChatKeyboardInset
+    if (guestChatKeyboardUaProfile.isZaloInApp) return 0
+    if (!guestChatKeyboardUaProfile.isFacebookInApp) return 0
     let n = guestChatKeyboardInset
     const vv = window.visualViewport
     if (vv) {
       const visualBottom = vv.offsetTop + vv.height
       const ih = Math.max(window.innerHeight, document.documentElement?.clientHeight ?? 0)
-      const screenH = Math.max(0, window.screen?.height ?? 0)
       const overlap = Math.max(0, Math.round(ih - visualBottom))
-      const overlapFromScreen =
-        screenH > 0
-          ? Math.max(
-              0,
-              Math.round((screenH - visualBottom) * guestChatKeyboardUaProfile.screenOverlapWeight)
-            )
-          : 0
       n = Math.max(n, overlap)
-      n = Math.max(n, overlapFromScreen)
     }
-    if (guestChatNarrowLayout && guestChatFormFieldFocused && n < guestChatKeyboardUaProfile.minFocusLiftPx) {
+    /**
+     * WebView in-app lỗi (đặc biệt Facebook) có máy không đổi viewport dù bàn phím đã mở.
+     * Khi đang focus mà số đo vẫn quá nhỏ, ép nâng tối thiểu để ô gõ không bị che.
+     */
+    if (
+      guestChatKeyboardUaProfile.isLikelyProblematicInApp &&
+      !guestChatKeyboardUaProfile.isZaloInApp &&
+      guestChatNarrowLayout &&
+      guestChatFormFieldFocused &&
+      n < 140
+    ) {
       const ih = Math.max(window.innerHeight, document.documentElement?.clientHeight ?? 0)
       const screenH = Math.max(0, window.screen?.height ?? 0)
       const baseH = Math.max(ih, screenH)
-      const hardFloor = Math.round(baseH * guestChatKeyboardUaProfile.focusLiftRatio)
-      n = Math.max(
-        n,
-        Math.min(
-          guestChatKeyboardUaProfile.maxFocusLiftPx,
-          Math.max(guestChatKeyboardUaProfile.minFocusLiftPx, hardFloor)
-        )
-      )
+      const rawFromVisual = vv ? Math.max(0, Math.round(baseH - (vv.offsetTop + vv.height))) : 0
+      const fallbackFloor = Math.round(baseH * 0.34)
+      const forced = Math.min(520, Math.max(220, Math.max(rawFromVisual, fallbackFloor)))
+      n = Math.max(n, forced)
     }
     return n
   }, [
@@ -1275,6 +1275,11 @@ export function PartnerGuestChatClient({
     guestChatKeyboardUaProfile,
     guestChatNarrowLayout,
   ])
+  const guestChatShouldTranslateComposer =
+    guestChatNarrowLayout &&
+    guestChatFormFieldFocused &&
+    !guestChatKeyboardUaProfile.isZaloInApp &&
+    guestChatKeyboardLiftPx > 0
   const [authReady, setAuthReady] = useState(false)
 
   const [userId, setUserId] = useState<string | null>(null)
@@ -4685,7 +4690,7 @@ export function PartnerGuestChatClient({
               <div
                 className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2 [scrollbar-width:thin]"
                 style={
-                  guestChatNarrowLayout
+                  guestChatNarrowLayout && guestChatKeyboardLiftPx > 0
                     ? {
                         paddingBottom: `calc(0.75rem + max(env(keyboard-inset-height, 0px), min(${guestChatKeyboardLiftPx}px, 55vh)))`,
                       }
@@ -5123,16 +5128,14 @@ export function PartnerGuestChatClient({
                  * dịch toàn bộ composer lên trên bàn phím để ô nhập không bị che.
                  */
                 transform:
-                  guestChatNarrowLayout && guestChatKeyboardLiftPx > 0
-                    ? `translateY(calc(-1 * max(env(keyboard-inset-height, 0px), ${guestChatKeyboardLiftPx}px)))`
+                  guestChatShouldTranslateComposer
+                    ? `translateY(calc(-1 * (min(${guestChatKeyboardLiftPx}px, ${guestChatKeyboardUaProfile.transformCapVh}vh) + 3mm)))`
                     : undefined,
-                willChange: guestChatNarrowLayout && guestChatKeyboardLiftPx > 0 ? 'transform' : undefined,
+                willChange: guestChatShouldTranslateComposer ? 'transform' : undefined,
                 paddingBottom:
-                  guestChatNarrowLayout && guestChatKeyboardLiftPx > 0
-                    ? 'max(0.5rem, env(safe-area-inset-bottom, 0px))'
-                    : guestChatKeyboardLiftPx > 0
-                      ? `calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + max(env(keyboard-inset-height, 0px), ${guestChatKeyboardLiftPx}px))`
-                      : 'calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + env(keyboard-inset-height, 0px))',
+                  guestChatShouldTranslateComposer
+                    ? '0px'
+                    : 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
               }}
             >
             {birthdayPromoDiscountPct != null && birthdayPromoDiscountPct > 0 ? (
@@ -5562,6 +5565,7 @@ export function PartnerGuestChatClient({
                   setRecentProductsOpen(true)
                 }}
                 productShelfButtonLabel={t.productShelfButton}
+                onComposerFocusChange={setGuestChatFormFieldFocused}
                 labels={draftComposerLabels}
               />
             </div>
