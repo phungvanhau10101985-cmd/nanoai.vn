@@ -40,6 +40,7 @@ import {
 import { PARTNER_AI_PRODUCT_CARDS_MAX } from '@/lib/messaging/partner-ai-product-cards'
 import {
   partnerAiInboundNeedsShoppingIntentClarify,
+  parsePartnerAiWidgetIntentFromPayload,
   partnerAiShouldUseClarifyBranchFromWidgetPayload,
 } from '@/lib/messaging/partner-ai-unclear-intent'
 
@@ -384,6 +385,8 @@ export async function buildPartnerAiContext(
   similarCatalogVersusLastConsulted: boolean
   /** Không gọi tìm kho; chỉ hỏi khách làm rõ nhu cầu — `products` luôn []. */
   clarifyShoppingIntent: boolean
+  /** Widget `context_reply`: khóa cứng ngữ cảnh theo 1 dòng kho vừa tư vấn gần nhất. */
+  forceSingleRowContextReply: boolean
 }> {
   const effectiveLocaleOpts = await resolvePartnerAiLocaleOpts(conversationId, localeOpts)
   const invFmtOpts = { markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts) }
@@ -454,6 +457,11 @@ export async function buildPartnerAiContext(
 
   /** «Mẫu khác / tương tự / gần giống» — lấy kho bằng embedding ảnh SP neo so với toàn kho, không khóa một dòng kho. */
   const similarCatalogVersusLastConsulted = customerMessageWantsSimilarCatalogVersusLastConsulted(latestCustomerMessage)
+  const widgetIntent = parsePartnerAiWidgetIntentFromPayload(triggerRawPayload)
+  const forceSingleRowContextFromWidgetIntent =
+    effectiveLocaleOpts?.channel === 'widget' &&
+    widgetIntent === 'context_reply' &&
+    !similarCatalogVersusLastConsulted
 
   const useLastConsultedContext =
     Boolean(lastConsultedRow) &&
@@ -468,7 +476,7 @@ export async function buildPartnerAiContext(
   /** Một dòng kho + không vector: trừ khi khách đang chọn SP từ ảnh (vision) trong **tin này** và không phải hỏi tiếp; trừ khi hỏi **mẫu tương tự** (cần vector ảnh + cả kho). */
   const followUpSingleProductNoVector =
     explicitSkuRows.length === 0 &&
-    useLastConsultedContext &&
+    (useLastConsultedContext || forceSingleRowContextFromWidgetIntent) &&
     (!selectedInventoryId || followUpStyleMessage) &&
     !similarCatalogVersusLastConsulted
 
@@ -501,6 +509,7 @@ export async function buildPartnerAiContext(
       lastConsultedRow: null,
       similarCatalogVersusLastConsulted: false,
       clarifyShoppingIntent: true,
+      forceSingleRowContextReply: false,
     }
   }
 
@@ -565,6 +574,15 @@ export async function buildPartnerAiContext(
     }
   }
 
+  if (forceSingleRowContextFromWidgetIntent && invForContext.length > 1) {
+    const forcedRow = lastConsultedRow ?? invForContext[0] ?? null
+    if (forcedRow) {
+      invForContext = [forcedRow]
+      selectedRowForEnrich = forcedRow
+      if (explicitSkuRows.length > 0) explicitSkuRows = [forcedRow]
+    }
+  }
+
   const materialEnriched = await enrichInventoryRowsWithMaterialIfNeeded(partnerId, latestCustomerMessage, {
     explicitSkuRows,
     invForContext,
@@ -573,6 +591,15 @@ export async function buildPartnerAiContext(
   explicitSkuRows = materialEnriched.explicitSkuRows
   invForContext = materialEnriched.invForContext
   selectedRowForEnrich = materialEnriched.selectedRow
+
+  if (forceSingleRowContextFromWidgetIntent && invForContext.length > 1) {
+    const forcedRow = lastConsultedRow ?? selectedRowForEnrich ?? invForContext[0] ?? null
+    if (forcedRow) {
+      invForContext = [forcedRow]
+      selectedRowForEnrich = forcedRow
+      if (explicitSkuRows.length > 0) explicitSkuRows = [forcedRow]
+    }
+  }
 
   let materialDetailFollowup: PartnerMaterialDetailFollowup | null = null
   let realUseFollowup: PartnerRealUseImageFollowup | null = null
@@ -765,6 +792,7 @@ Chỉ để products = [] khi thực sự không tìm được mặt hàng phù 
     lastConsultedRow,
     similarCatalogVersusLastConsulted,
     clarifyShoppingIntent: false,
+    forceSingleRowContextReply: forceSingleRowContextFromWidgetIntent,
   }
 }
 

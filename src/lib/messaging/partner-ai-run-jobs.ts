@@ -215,6 +215,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         lastConsultedRow,
         similarCatalogVersusLastConsulted,
         clarifyShoppingIntent,
+        forceSingleRowContextReply,
       } = await buildPartnerAiContext(
         job.partner_id,
         job.conversation_id,
@@ -323,6 +324,18 @@ async function runMessagingPartnerAiJobBatchUsingPg(
           const fb = partnerAiProductCardFromInventoryRow(lastConsultedRow)
           if (fb) nextProducts = [fb]
         }
+        parsed = { ...parsed, products: nextProducts }
+      }
+      if (forceSingleRowContextReply) {
+        let nextProducts = parsed.products
+        if (lastConsultedRow) {
+          nextProducts = clampProductCardsToLastConsultedRow(nextProducts, lastConsultedRow)
+          if (nextProducts.length === 0) {
+            const fb = partnerAiProductCardFromInventoryRow(lastConsultedRow)
+            if (fb) nextProducts = [fb]
+          }
+        }
+        if (nextProducts.length > 1) nextProducts = nextProducts.slice(0, 1)
         parsed = { ...parsed, products: nextProducts }
       }
       const productsWithVideo = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
