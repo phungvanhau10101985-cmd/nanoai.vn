@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isPgConfigured } from '@/lib/db/pool'
+import { purgeStaleWidgetAutoOpeningConversationsPg } from '@/lib/db/customer-care-pg'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
 
 /**
@@ -26,7 +27,8 @@ async function handleCron(req: NextRequest) {
 
   try {
     const stats = await runMessagingPartnerAiJobBatch(15)
-    return NextResponse.json({ ok: true, ...stats })
+    const prunedAutoOpeningConversations = await purgeStaleWidgetAutoOpeningConversationsPg(30, 500)
+    return NextResponse.json({ ok: true, ...stats, prunedAutoOpeningConversations })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'error'
     console.error('[cron/messaging-partner-ai]', msg)

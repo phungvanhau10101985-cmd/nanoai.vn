@@ -168,6 +168,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       inventoryId?: string
       source?: string
     }
+    clientHints?: {
+      autoOpening?: boolean
+    }
   } | null
 
   const r = await resolvePartner(slug)
@@ -215,6 +218,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     },
     text: body?.text,
     imageStoragePath: body?.imageStoragePath,
+    autoOpening: body?.clientHints?.autoOpening === true,
     landingSourceUrl: typeof body?.landingSourceUrl === 'string' ? body.landingSourceUrl : undefined,
     pageContext: body?.pageContext,
   })

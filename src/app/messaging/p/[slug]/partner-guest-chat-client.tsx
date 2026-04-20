@@ -3407,7 +3407,7 @@ export function PartnerGuestChatClient({
   }, [])
 
   const submitGuestMessage = useCallback(
-    async (text: string): Promise<boolean> => {
+    async (text: string, options?: { autoOpening?: boolean }): Promise<boolean> => {
       const trimmed = text.trim()
       if (authGateRequired && authMode !== 'account') {
         toast({
@@ -3442,6 +3442,7 @@ export function PartnerGuestChatClient({
             text: textOut,
             imageStoragePath: imageStoragePath || undefined,
             uiLocale,
+            clientHints: options?.autoOpening ? { autoOpening: true } : undefined,
             landingSourceUrl:
               typeof window !== 'undefined' ? window.location.href.slice(0, 4000) : undefined,
             pageContext:
@@ -3634,7 +3635,7 @@ export function PartnerGuestChatClient({
         openingText =
           'Chào anh/chị! Shop sẵn sàng tư vấn về mẫu đang xem. Anh/chị nhắn em nếu cần hỏi size, màu hay đặt hàng nhé.'
       }
-        const ok = await submitGuestMessage(openingText)
+        const ok = await submitGuestMessage(openingText, { autoOpening: true })
         if (cancelled) {
           try {
             window.sessionStorage.removeItem(storageKey)

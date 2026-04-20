@@ -298,12 +298,28 @@ export async function fetchPartnerConversationsFromPg(
   if (!isPgConfigured()) return null
   try {
     const rows = await pgQuery<Record<string, unknown>>(
-      `select id::text, partner_id::text, channel, external_thread_id, channel_external_ref,
+      `select c.id::text, c.partner_id::text, c.channel, c.external_thread_id, c.channel_external_ref,
               linked_user_id::text, guest_account_id::text, customer_name, customer_avatar_url,
               metadata, status, last_message_at, last_message_preview, created_at, updated_at
-       from public.customer_care_conversations
-       where partner_id = $1::uuid
-       order by last_message_at desc nulls last
+       from public.customer_care_conversations c
+       where c.partner_id = $1::uuid
+         and not exists (
+           select 1
+           from (
+             select
+               count(*) as total_count,
+               count(*) filter (where m.direction = 'inbound') as inbound_count,
+               count(*) filter (where m.direction = 'outbound') as outbound_count,
+               bool_or(coalesce(m.raw_payload ->> 'widget_auto_opening', 'false') = 'true') as has_auto_opening
+             from public.customer_care_messages m
+             where m.conversation_id = c.id
+           ) s
+           where s.total_count = 1
+             and s.inbound_count = 1
+             and s.outbound_count = 0
+             and s.has_auto_opening
+         )
+       order by c.last_message_at desc nulls last
        limit $2`,
       [partnerId, limit]
     )
@@ -710,6 +726,55 @@ export async function countInboundMessagesForConversationPg(conversationId: stri
   } catch (e) {
     console.error('[customer-care-pg] countInboundMessagesForConversationPg', e)
     return null
+  }
+}
+
+/**
+ * Xóa hội thoại widget rác chỉ có 1 tin inbound auto-opening (không có trao đổi thật).
+ * Dùng cho cron dọn inbox: ẩn rác sale + giảm phình DB.
+ */
+export async function purgeStaleWidgetAutoOpeningConversationsPg(
+  olderThanMinutes = 30,
+  limit = 300
+): Promise<number> {
+  if (!isPgConfigured()) return 0
+  const minutes = Math.max(1, Math.min(60 * 24 * 14, Math.floor(olderThanMinutes)))
+  const maxRows = Math.max(1, Math.min(5000, Math.floor(limit)))
+  try {
+    const res = await getPgPool().query<{ id: string }>(
+      `with candidates as (
+         select c.id
+         from public.customer_care_conversations c
+         join (
+           select
+             m.conversation_id,
+             count(*) as total_count,
+             count(*) filter (where m.direction = 'inbound') as inbound_count,
+             count(*) filter (where m.direction = 'outbound') as outbound_count,
+             max(m.created_at) as last_message_at,
+             bool_or(coalesce(m.raw_payload ->> 'widget_auto_opening', 'false') = 'true') as has_auto_opening
+           from public.customer_care_messages m
+           group by m.conversation_id
+         ) s on s.conversation_id = c.id
+         where c.channel = 'widget'
+           and s.total_count = 1
+           and s.inbound_count = 1
+           and s.outbound_count = 0
+           and s.has_auto_opening
+           and s.last_message_at <= now() - ($1::int * interval '1 minute')
+         order by s.last_message_at asc
+         limit $2
+       )
+       delete from public.customer_care_conversations c
+       using candidates x
+       where c.id = x.id
+       returning c.id::text as id`,
+      [minutes, maxRows]
+    )
+    return res.rowCount ?? 0
+  } catch (e) {
+    console.error('[customer-care-pg] purgeStaleWidgetAutoOpeningConversationsPg', e)
+    return 0
   }
 }
 

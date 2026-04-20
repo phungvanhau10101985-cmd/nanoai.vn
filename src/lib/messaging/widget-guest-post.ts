@@ -69,6 +69,8 @@ export async function postWidgetGuestMessage(params: {
   uiLocale?: string | null
   text?: string
   imageStoragePath?: string
+  /** Tin mở đầu tự động từ link tư vấn (chưa có tương tác nhắn lại). */
+  autoOpening?: boolean
   /** URL trang lúc gửi (vd. `window.location.href`) — cột `landing_source_url` cho nguồn traffic / feed Google Facebook. */
   landingSourceUrl?: string | null
   pageContext?: {
@@ -412,6 +414,13 @@ export async function postWidgetGuestMessage(params: {
         partner_ai_widget_intent: partnerAiWidgetIntentForPayload,
       } as Json
     }
+  }
+
+  if (params.autoOpening) {
+    rawPayload = {
+      ...(rawPayload && typeof rawPayload === 'object' ? (rawPayload as Record<string, unknown>) : {}),
+      widget_auto_opening: true,
+    } as Json
   }
 
   const conv = await ensureConversation({
