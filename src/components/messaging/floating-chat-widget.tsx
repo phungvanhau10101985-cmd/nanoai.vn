@@ -60,7 +60,8 @@ export function FloatingChatWidget({
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [duplicateMount, setDuplicateMount] = useState(false)
-  const [closed, setClosed] = useState(false)
+  // Mặc định đóng; chỉ mở khi người dùng chủ động bấm nút chat.
+  const [closed, setClosed] = useState(true)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [uiLocale, setUiLocale] = useState<WebLocale>(() => parseUiLocaleFromChatUrl(chatUrl))
   const [iframeSrc, setIframeSrc] = useState(() => readReturnChatIframeHref() ?? chatUrl)
