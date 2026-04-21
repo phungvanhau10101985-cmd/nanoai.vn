@@ -24,6 +24,24 @@ function mirrorLocaleCookies(response: NextResponse, locale: string) {
 
 const FORCE_REAL_LOGIN_COOKIE = 'force_real_login'
 
+function applyCommonResponseHeaders(response: NextResponse, request: NextRequest) {
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
+  const existingVary = response.headers.get('Vary') || ''
+  const varyTokens = new Set(
+    existingVary
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
+  )
+  ;['RSC', 'Next-Router-State-Tree', 'Next-Router-Prefetch', 'Accept-Encoding'].forEach((token) => varyTokens.add(token))
+  response.headers.set('Vary', Array.from(varyTokens).join(', '))
+
+  // Shop consultation surfaces are operational chat UIs, not public SEO pages.
+  if (request.nextUrl.pathname.startsWith('/messaging/p/')) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const pathForLogin = request.nextUrl.pathname + (request.nextUrl.search || '')
   const forwarded = new Headers(request.headers)
@@ -40,16 +58,7 @@ export async function middleware(request: NextRequest) {
     const locale = cookieLocale || DEFAULT_WEB_LOCALE
     mirrorLocaleCookies(response, locale)
     response.cookies.set(FORCE_REAL_LOGIN_COOKIE, '', { path: '/', maxAge: 0 })
-    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
-    const existingVary = response.headers.get('Vary') || ''
-    const varyTokens = new Set(
-      existingVary
-        .split(',')
-        .map((x) => x.trim())
-        .filter(Boolean)
-    )
-    ;['RSC', 'Next-Router-State-Tree', 'Next-Router-Prefetch', 'Accept-Encoding'].forEach((token) => varyTokens.add(token))
-    response.headers.set('Vary', Array.from(varyTokens).join(', '))
+    applyCommonResponseHeaders(response, request)
     return response
   }
 
@@ -59,16 +68,7 @@ export async function middleware(request: NextRequest) {
   const cookieLocale = localeFromRequestCookies(request)
   const locale = cookieLocale || DEFAULT_WEB_LOCALE
   mirrorLocaleCookies(response, locale)
-  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
-  const existingVary = response.headers.get('Vary') || ''
-  const varyTokens = new Set(
-    existingVary
-      .split(',')
-      .map((x) => x.trim())
-      .filter(Boolean)
-  )
-  ;['RSC', 'Next-Router-State-Tree', 'Next-Router-Prefetch', 'Accept-Encoding'].forEach((token) => varyTokens.add(token))
-  response.headers.set('Vary', Array.from(varyTokens).join(', '))
+  applyCommonResponseHeaders(response, request)
 
   return response
 }

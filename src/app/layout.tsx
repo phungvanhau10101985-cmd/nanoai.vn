@@ -57,6 +57,7 @@ type AdminIntegrationsSettings = {
   googleTagId?: string;
   googleAnalyticsId?: string;
   googleTagManagerId?: string;
+  facebookPixelId?: string;
   webConsoleVerificationTag?: string;
   domainVerificationTags?: DomainVerificationTag[];
   /** Mã nhúng chat (tên mới). */
@@ -255,6 +256,7 @@ export default async function RootLayout({
     || GA_MEASUREMENT_ID;
   const gtmContainerId = String(settings.googleTagManagerId || "").trim()
     || (legacyGoogleTag.startsWith("GTM-") ? legacyGoogleTag : "");
+  const facebookPixelId = String(settings.facebookPixelId || '').trim()
   const metaTagCandidates = [
     String(settings.webConsoleVerificationTag || ""),
     ...((Array.isArray(settings.domainVerificationTags) ? settings.domainVerificationTags : [])
@@ -344,6 +346,9 @@ export default async function RootLayout({
     !currentPathname.startsWith("/support-chat") &&
     !currentPathname.startsWith("/hospitality/") &&
     !currentPathname.startsWith("/dashboard/hospitality");
+  const shouldRenderGlobalMetaPixel =
+    Boolean(facebookPixelId) &&
+    !currentPathname.startsWith('/messaging/p/')
 
   return (
     <html lang={locale} suppressHydrationWarning>
@@ -399,6 +404,36 @@ export default async function RootLayout({
                 }
               `}
             </Script>
+          </>
+        ) : null}
+        {shouldRenderGlobalMetaPixel ? (
+          <>
+            <Script id="meta-pixel-base" strategy="afterInteractive">
+              {`
+                !function(f,b,e,v,n,t,s)
+                {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                n.queue=[];t=b.createElement(e);t.async=!0;
+                t.src=v;s=b.getElementsByTagName(e)[0];
+                s.parentNode.insertBefore(t,s)}(window, document,'script',
+                'https://connect.facebook.net/en_US/fbevents.js');
+                fbq('init', '${facebookPixelId}');
+                fbq('track', 'PageView');
+              `}
+            </Script>
+            <noscript>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                height="1"
+                width="1"
+                style={{ display: 'none' }}
+                alt=""
+                src={`https://www.facebook.com/tr?id=${encodeURIComponent(
+                  facebookPixelId
+                )}&ev=PageView&noscript=1`}
+              />
+            </noscript>
           </>
         ) : null}
         <AnalyticsTracker />
