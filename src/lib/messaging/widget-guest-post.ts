@@ -60,7 +60,12 @@ type GuestVisionCandidatePayload = {
 type ImageProductSignal = {
   productCode: string
   gender: GuestProfileGender | null
+  productType: string | null
 }
+
+const IMAGE_AUTO_PICK_TOP1_MIN_SCORE = 0.86
+const IMAGE_AUTO_PICK_TOP1_MIN_GAP = 0.06
+const IMAGE_AUTO_PICK_SINGLE_MIN_SCORE = 0.9
 
 function normalizeDetectedGender(raw: string): GuestProfileGender | null {
   const v = raw.trim().toLowerCase()
@@ -68,6 +73,63 @@ function normalizeDetectedGender(raw: string): GuestProfileGender | null {
   if (v === 'male' || v === 'man' || v === 'men' || v === 'boy' || v === 'nam') return 'male'
   if (v === 'female' || v === 'woman' || v === 'women' || v === 'girl' || v === 'nu' || v === 'nữ')
     return 'female'
+  return null
+}
+
+function inferGenderFromText(text: string): GuestProfileGender | null {
+  const t = text.trim().toLowerCase()
+  if (!t || /\bunisex\b/i.test(t)) return null
+  const hasMale = /\bnam\b|nam\s*giới|đàn\s*ông|\bmen'?s?\b/i.test(t)
+  const hasFemale = /\bnữ\b|phụ\s*nữ|nữ\s*giới|\bwomen'?s?\b|\bladies\b/i.test(t)
+  if (hasMale && !hasFemale) return 'male'
+  if (hasFemale && !hasMale) return 'female'
+  return null
+}
+
+function normalizeDetectedProductType(raw: string): string | null {
+  const t = raw.trim().toLowerCase()
+  if (!t) return null
+  if (/(tui|túi|bag|handbag|tote|crossbody|satchel|clutch)/i.test(t)) return 'túi'
+  if (/(dam|đầm|dress|gown)/i.test(t)) return 'đầm'
+  if (/(vay|váy|skirt)/i.test(t)) return 'váy'
+  if (/(ao|áo|shirt|blouse|top|hoodie|jacket|coat|blazer|sweater|cardigan)/i.test(t)) return 'áo'
+  if (/(quan|quần|pants|trousers|jeans|shorts|legging)/i.test(t)) return 'quần'
+  if (/(giay|giày|shoe|sneaker|loafer|boot|heels?)/i.test(t)) return 'giày'
+  if (/(dep|dép|sandal|slipper|flip[- ]?flop)/i.test(t)) return 'dép'
+  if (/(balo|ba lô|backpack)/i.test(t)) return 'ba lô'
+  if (/(vi|ví|wallet)/i.test(t)) return 'ví'
+  return null
+}
+
+function inferProductTypeFromText(text: string): string | null {
+  return normalizeDetectedProductType(text)
+}
+
+function shouldAutoPickTopImageCandidate(
+  candidates: GuestVisionCandidatePayload[],
+  detectedProductType: string | null
+): GuestVisionCandidatePayload | null {
+  if (!candidates.length) return null
+  const top = candidates[0]
+  const topScore = typeof top.score === 'number' && Number.isFinite(top.score) ? top.score : null
+  if (topScore === null) return null
+
+  const topType = inferProductTypeFromText(top.name)
+  if (detectedProductType && topType && detectedProductType !== topType) return null
+
+  if (candidates.length === 1) {
+    return topScore >= IMAGE_AUTO_PICK_SINGLE_MIN_SCORE ? top : null
+  }
+
+  const second = candidates[1]
+  const secondScore = typeof second?.score === 'number' && Number.isFinite(second.score) ? second.score : null
+  if (secondScore === null) {
+    return topScore >= IMAGE_AUTO_PICK_SINGLE_MIN_SCORE ? top : null
+  }
+  const gap = topScore - secondScore
+  if (topScore >= IMAGE_AUTO_PICK_TOP1_MIN_SCORE && gap >= IMAGE_AUTO_PICK_TOP1_MIN_GAP) {
+    return top
+  }
   return null
 }
 
@@ -83,6 +145,24 @@ function inferInventoryRowGender(row: {
   if (hasMale && !hasFemale) return 'male'
   if (hasFemale && !hasMale) return 'female'
   return null
+}
+
+function buildAddressingHintByProductGender(gender: GuestProfileGender | null): string {
+  if (gender === 'female') {
+    return '[Addressing rule: Product is female-oriented. In message to customer, use "chị" (or "em/chị"), do NOT call customer "anh".]'
+  }
+  if (gender === 'male') {
+    return '[Addressing rule: Product is male-oriented. In message to customer, use "anh" (or "em/anh"), avoid calling customer "chị".]'
+  }
+  return ''
+}
+
+function inferInventoryRowProductType(row: {
+  name?: string | null
+  description?: string | null
+  consult_note?: string | null
+}): string | null {
+  return inferProductTypeFromText(`${row.name ?? ''} ${row.description ?? ''} ${row.consult_note ?? ''}`)
 }
 
 function genderAffinityScore(
@@ -105,42 +185,56 @@ async function analyzeProductSignalFromImage(
     const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
     const prompt =
-      'Read this product image. Extract visible product code/SKU and product gender target.' +
-      ' Return strict JSON only: {"productCode":"", "gender":"male|female|unknown"}.' +
+      'Read this fashion product image. Extract visible product code/SKU, product gender target, and product type/category.' +
+      ' Return strict JSON only: {"productCode":"", "gender":"male|female|unknown", "productType":""}.' +
       ' If no reliable code, productCode must be empty string.'
     const res = await model.generateContent([
       prompt,
       { inlineData: { data: imageBuffer.toString('base64'), mimeType: mime } },
     ] as never)
     const raw = res.response.text().trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim()
-    const parsed = JSON.parse(raw) as { productCode?: unknown; gender?: unknown }
+    const parsed = JSON.parse(raw) as { productCode?: unknown; gender?: unknown; productType?: unknown }
     const rawCode = typeof parsed.productCode === 'string' ? parsed.productCode.trim() : ''
     const codeMatch = rawCode.match(/[A-Za-z0-9][A-Za-z0-9._-]{1,63}/)
     const productCode = codeMatch ? codeMatch[0] : ''
     const gender = typeof parsed.gender === 'string' ? normalizeDetectedGender(parsed.gender) : null
-    if (!productCode && !gender) return null
-    return { productCode, gender }
+    const productType =
+      typeof parsed.productType === 'string' ? normalizeDetectedProductType(parsed.productType) : null
+    if (!productCode && !gender && !productType) return null
+    return { productCode, gender, productType }
   } catch {
     return null
   }
 }
 
-function buildVisionPickReminder(uiLocale?: string | null, gender?: GuestProfileGender | null): string {
+function productTypeLabelForLocale(locale: string, productType?: string | null): string {
+  const t = productType?.trim() || ''
+  if (!t) return locale === 'vi' ? 'sản phẩm' : 'product'
+  if (locale === 'vi') return t
+  return 'product'
+}
+
+function buildVisionPickReminder(
+  uiLocale?: string | null,
+  gender?: GuestProfileGender | null,
+  productType?: string | null
+): string {
   const locale = normalizeWebLocale(String(uiLocale ?? '').trim()) ?? 'vi'
+  const typeLabel = productTypeLabelForLocale(locale, productType)
   const viAddress = gender === 'male' ? 'anh' : gender === 'female' ? 'chị' : 'bạn'
   if (locale === 'en') {
-    return 'I found a few bag samples similar to your image. Please tap the bag sample you want advice on.'
+    return `I found a few ${typeLabel} samples similar to your image. Please tap the one you want advice on.`
   }
   if (locale === 'zh') {
-    return '我找到了几款与您图片相似的包包。请先选择您想咨询的包款。'
+    return '我找到了几款与您图片相似的商品。请先选择您想咨询的款式。'
   }
   if (locale === 'ja') {
-    return '画像に近いバッグをいくつか見つけました。相談したいバッグを選んでください。'
+    return '画像に近い商品をいくつか見つけました。相談したい商品を選んでください。'
   }
   if (locale === 'ko') {
-    return '보내주신 이미지와 비슷한 가방 샘플을 찾았어요. 상담받고 싶은 가방을 먼저 선택해 주세요.'
+    return '보내주신 이미지와 비슷한 상품 샘플을 찾았어요. 상담받고 싶은 상품을 먼저 선택해 주세요.'
   }
-  return `Em đã tìm thấy vài mẫu túi giống ảnh ${viAddress} gửi. ${
+  return `Em đã tìm thấy vài mẫu ${typeLabel} giống ảnh ${viAddress} gửi. ${
     viAddress.charAt(0).toUpperCase() + viAddress.slice(1)
   } chọn mẫu muốn xác nhận để bên em tư vấn chi tiết nhé.`
 }
@@ -274,7 +368,9 @@ export async function postWidgetGuestMessage(params: {
   /** Gợi ý theo vector (ảnh hoặc chữ) — giống nhau; không lên lịch LLM cho đến khi khách chọn SP. */
   let productPickCandidates: GuestVisionCandidatePayload[] = []
   let detectedProductGender: GuestProfileGender | null = null
+  let detectedProductType: string | null = null
   let imageMatchedInventoryContext: { inventoryId: string; sku: string } | null = null
+  let autoSelectedTopCandidate: GuestVisionCandidatePayload | null = null
   let imageSkuMatchDirectConsult = false
   /** Ảnh biên lai CK — đối chiếu sau khi lưu tin inbound (tránh LLM gợi ý SP). */
   let deferredPaymentVerify: { orderId: string; ocr: TransferReceiptOcrResult } | null = null
@@ -320,6 +416,9 @@ export async function postWidgetGuestMessage(params: {
           if (imageSignal?.gender) {
             detectedProductGender = imageSignal.gender
           }
+          if (imageSignal?.productType) {
+            detectedProductType = imageSignal.productType
+          }
           if (imageSignal?.productCode) {
             const matchedBySku = await fetchPartnerInventoryRowByComparableSkuFromPg(
               params.partnerId,
@@ -337,6 +436,12 @@ export async function postWidgetGuestMessage(params: {
                   description: matchedBySku.description,
                   consult_note: matchedBySku.consult_note,
                 }) ?? detectedProductGender
+              detectedProductType =
+                inferInventoryRowProductType({
+                  name: matchedBySku.name,
+                  description: matchedBySku.description,
+                  consult_note: matchedBySku.consult_note,
+                }) ?? detectedProductType
             }
           }
 
@@ -373,6 +478,13 @@ export async function postWidgetGuestMessage(params: {
               ...(typeof c.score === 'number' ? { score: c.score } : {}),
             }))
 
+            if (!detectedProductType && productPickCandidates.length > 0) {
+              detectedProductType = inferProductTypeFromText(productPickCandidates[0].name)
+            }
+            if (!detectedProductGender && productPickCandidates.length > 0) {
+              detectedProductGender = inferGenderFromText(productPickCandidates[0].name)
+            }
+
             if (detectedProductGender && productPickCandidates.length > 1 && isPgConfigured()) {
               const rows = await fetchPartnerInventoryRowsByIdsInOrderFromPg(params.partnerId, candidateIds)
               const scoreById = new Map<string, number>()
@@ -392,6 +504,16 @@ export async function postWidgetGuestMessage(params: {
                 return (b.score ?? 0) - (a.score ?? 0)
               })
             }
+
+            const topCandidate = shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType)
+            if (topCandidate) {
+              autoSelectedTopCandidate = topCandidate
+              imageMatchedInventoryContext = {
+                inventoryId: topCandidate.inventoryId,
+                sku: (topCandidate.sku ?? '').trim().slice(0, 128),
+              }
+              detectedProductType = detectedProductType ?? inferProductTypeFromText(topCandidate.name)
+            }
           }
         }
       }
@@ -400,7 +522,7 @@ export async function postWidgetGuestMessage(params: {
     }
 
     rawPayload =
-      productPickCandidates.length > 0
+      productPickCandidates.length > 0 && !autoSelectedTopCandidate
         ? ({
             ...(basePayload && typeof basePayload === 'object' ? (basePayload as Record<string, unknown>) : {}),
             vision_pick_required: true,
@@ -409,6 +531,16 @@ export async function postWidgetGuestMessage(params: {
           } as Json)
         : ({
             ...(basePayload && typeof basePayload === 'object' ? (basePayload as Record<string, unknown>) : {}),
+            ...(autoSelectedTopCandidate
+              ? {
+                  vision_auto_selected: true,
+                  vision_selected_inventory_id: autoSelectedTopCandidate.inventoryId,
+                  vision_selected_product_label: `${autoSelectedTopCandidate.name}${
+                    autoSelectedTopCandidate.sku ? ` (SKU ${autoSelectedTopCandidate.sku})` : ''
+                  }`,
+                  vision_selected_at: new Date().toISOString(),
+                }
+              : {}),
             ...(imageCaption ? { image_caption: imageCaption } : {}),
           } as Json)
     if ((pageContextHasAny || imageMatchedInventoryContext) && rawPayload && typeof rawPayload === 'object') {
@@ -429,6 +561,7 @@ export async function postWidgetGuestMessage(params: {
           ...(src ? { source: src } : {}),
         },
         ...(detectedProductGender ? { product_gender_intent: detectedProductGender } : {}),
+        ...(detectedProductType ? { product_type_intent: detectedProductType } : {}),
       } as Json
     }
     body = text ? `📷 ${text}` : '📷'
@@ -616,7 +749,7 @@ export async function postWidgetGuestMessage(params: {
   /** Không ghi «đã tư vấn» ở đây — chỉ khi khách bấm «Tư vấn» (`POST …/consult-product`). Tin mở link kèm ảnh/URL chỉ là ngữ cảnh, chưa coi là đã chọn tư vấn. */
 
   let shopTyping: { maxWaitMs: number } | undefined
-  const visionPickRequired = productPickCandidates.length > 0
+  const visionPickRequired = productPickCandidates.length > 0 && !autoSelectedTopCandidate
   const shouldSendVisionPickReminder = Boolean(imagePath) && visionPickRequired && !imageSkuMatchDirectConsult
   let paymentVerificationHandled = false
 
@@ -643,7 +776,7 @@ export async function postWidgetGuestMessage(params: {
       await insertMessage({
         conversationId,
         direction: 'outbound',
-        body: buildVisionPickReminder(params.uiLocale, detectedProductGender),
+        body: buildVisionPickReminder(params.uiLocale, detectedProductGender, detectedProductType),
         rawPayload: {
           source: 'guest_vision_pick_reminder',
           trigger_message_id: newMessageId,
@@ -657,6 +790,8 @@ export async function postWidgetGuestMessage(params: {
       aiContextSku ? `[Customer product SKU: ${aiContextSku}]` : '',
       aiContextInventoryId ? `[Customer product inventory id: ${aiContextInventoryId}]` : '',
       detectedProductGender ? `[Customer product gender intent: ${detectedProductGender}]` : '',
+      detectedProductType ? `[Customer product type intent: ${detectedProductType}]` : '',
+      buildAddressingHintByProductGender(detectedProductGender),
     ]
       .filter(Boolean)
       .join('\n')

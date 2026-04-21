@@ -431,13 +431,30 @@ export async function buildPartnerAiContext(
    */
   const isConsultCardPick = rawPayloadIsProductCardConsult(triggerRawPayload)
   let explicitSkuRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] = []
+  const triggerPageContextInventoryId = pageContextInventoryIdFromRaw(triggerRawPayload)
+
+  if (triggerPageContextInventoryId && isPgConfigured()) {
+    try {
+      const rowById = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, triggerPageContextInventoryId)
+      if (rowById) {
+        explicitSkuRows = [rowById]
+      }
+    } catch (e) {
+      console.warn('[partner-ai-llm] page_context inventory_id lookup failed', e)
+    }
+  }
+
   if (isConsultCardPick) {
-    explicitSkuRows = await fetchInventoryRowsFromPageContextSku(partnerId, triggerRawPayload)
+    if (explicitSkuRows.length === 0) {
+      explicitSkuRows = await fetchInventoryRowsFromPageContextSku(partnerId, triggerRawPayload)
+    }
     if (explicitSkuRows.length === 0) {
       explicitSkuRows = await fetchInventoryRowsFromProductCardConsultPageContext(partnerId, triggerRawPayload)
     }
   } else {
-    explicitSkuRows = await fetchInventoryRowsByExplicitSku(partnerId, latestCustomerMessage)
+    if (explicitSkuRows.length === 0) {
+      explicitSkuRows = await fetchInventoryRowsByExplicitSku(partnerId, latestCustomerMessage)
+    }
     if (explicitSkuRows.length === 0) {
       explicitSkuRows = await fetchInventoryRowsFromPageContextSku(partnerId, triggerRawPayload)
     }
