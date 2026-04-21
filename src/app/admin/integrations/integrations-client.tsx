@@ -27,6 +27,12 @@ type Props = {
   googleTagManagerPlaceholder: string
   facebookPixelLabel: string
   facebookPixelPlaceholder: string
+  facebookCapiTokenLabel: string
+  facebookCapiTokenPlaceholder: string
+  facebookDatasetIdLabel: string
+  facebookDatasetIdPlaceholder: string
+  facebookTestEventCodeLabel: string
+  facebookTestEventCodePlaceholder: string
   webConsoleVerificationLabel: string
   webConsoleVerificationPlaceholder: string
   domainVerificationTitle: string
@@ -56,6 +62,9 @@ export function AdminIntegrationsClient(props: Props) {
   const [googleAnalyticsId, setGoogleAnalyticsId] = useState('')
   const [googleTagManagerId, setGoogleTagManagerId] = useState('')
   const [facebookPixelId, setFacebookPixelId] = useState('')
+  const [facebookCapiAccessToken, setFacebookCapiAccessToken] = useState('')
+  const [facebookDatasetId, setFacebookDatasetId] = useState('')
+  const [facebookTestEventCode, setFacebookTestEventCode] = useState('')
   const [webConsoleVerificationTag, setWebConsoleVerificationTag] = useState('')
   const [domainVerificationTags, setDomainVerificationTags] = useState<DomainVerificationInput[]>([])
   const [nanoaiEmbedCode, setNanoaiEmbedCode] = useState(props.nanoaiEmbedCodeDefault)
@@ -74,6 +83,9 @@ export function AdminIntegrationsClient(props: Props) {
       setGoogleAnalyticsId(res.data.googleAnalyticsId)
       setGoogleTagManagerId(res.data.googleTagManagerId)
       setFacebookPixelId(res.data.facebookPixelId)
+      setFacebookCapiAccessToken(res.data.facebookCapiAccessToken || '')
+      setFacebookDatasetId(res.data.facebookDatasetId || '')
+      setFacebookTestEventCode(res.data.facebookTestEventCode || '')
       setWebConsoleVerificationTag(res.data.webConsoleVerificationTag)
       setDomainVerificationTags(res.data.domainVerificationTags || [])
       setNanoaiEmbedCode(res.data.chatEmbedCode)
@@ -107,6 +119,9 @@ export function AdminIntegrationsClient(props: Props) {
           googleAnalyticsId,
           googleTagManagerId,
           facebookPixelId,
+          facebookCapiAccessToken,
+          facebookDatasetId,
+          facebookTestEventCode,
           webConsoleVerificationTag,
           domainVerificationTags,
           chatEmbedCode: nanoaiEmbedCode,
@@ -185,6 +200,38 @@ export function AdminIntegrationsClient(props: Props) {
               value={facebookPixelId}
               onChange={(e) => setFacebookPixelId(e.target.value)}
               placeholder={props.facebookPixelPlaceholder}
+            />
+          </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <Label className="text-xs font-medium">{props.facebookCapiTokenLabel}</Label>
+            <Input
+              className="h-9 text-sm"
+              type="password"
+              value={facebookCapiAccessToken}
+              onChange={(e) => setFacebookCapiAccessToken(e.target.value)}
+              placeholder={props.facebookCapiTokenPlaceholder}
+              autoComplete="off"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Dùng cho API Chuyển đổi máy chủ (CAPI). Có thể kết hợp Dataset ID và Test Event Code để kiểm tra quality.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">{props.facebookDatasetIdLabel}</Label>
+            <Input
+              className="h-9 text-sm"
+              value={facebookDatasetId}
+              onChange={(e) => setFacebookDatasetId(e.target.value)}
+              placeholder={props.facebookDatasetIdPlaceholder}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">{props.facebookTestEventCodeLabel}</Label>
+            <Input
+              className="h-9 text-sm"
+              value={facebookTestEventCode}
+              onChange={(e) => setFacebookTestEventCode(e.target.value)}
+              placeholder={props.facebookTestEventCodePlaceholder}
             />
           </div>
         </div>

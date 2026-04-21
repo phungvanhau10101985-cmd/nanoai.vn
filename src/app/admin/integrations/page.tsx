@@ -74,6 +74,48 @@ export default function AdminIntegrationsPage() {
           '例: 123456789012345',
           '예: 123456789012345'
         )}
+        facebookCapiTokenLabel={tr(
+          'Facebook Conversions API Access Token',
+          'Facebook Conversions API Access Token',
+          'Facebook Conversions API Access Token',
+          'Facebook Conversions API Access Token',
+          'Facebook Conversions API Access Token'
+        )}
+        facebookCapiTokenPlaceholder={tr(
+          'Dán Access Token (CAPI) từ Meta Events Manager',
+          'Paste Access Token (CAPI) from Meta Events Manager',
+          '粘贴来自 Meta Events Manager 的 Access Token（CAPI）',
+          'Meta Events Manager の Access Token（CAPI）を貼り付け',
+          'Meta Events Manager에서 Access Token(CAPI) 붙여넣기'
+        )}
+        facebookDatasetIdLabel={tr(
+          'Facebook Dataset ID',
+          'Facebook Dataset ID',
+          'Facebook Dataset ID',
+          'Facebook Dataset ID',
+          'Facebook Dataset ID'
+        )}
+        facebookDatasetIdPlaceholder={tr(
+          'Ví dụ: 123456789012345',
+          'Example: 123456789012345',
+          '例如：123456789012345',
+          '例: 123456789012345',
+          '예: 123456789012345'
+        )}
+        facebookTestEventCodeLabel={tr(
+          'Facebook Test Event Code',
+          'Facebook Test Event Code',
+          'Facebook Test Event Code',
+          'Facebook Test Event Code',
+          'Facebook Test Event Code'
+        )}
+        facebookTestEventCodePlaceholder={tr(
+          'Ví dụ: TEST12345',
+          'Example: TEST12345',
+          '例如：TEST12345',
+          '例: TEST12345',
+          '예: TEST12345'
+        )}
         webConsoleVerificationLabel={tr(
           'Thẻ xác minh Google Search Console',
           'Google Search Console verification tag',

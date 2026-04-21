@@ -20,6 +20,9 @@ type IntegrationSettings = {
   googleAnalyticsId: string
   googleTagManagerId: string
   facebookPixelId: string
+  facebookCapiAccessToken: string
+  facebookDatasetId: string
+  facebookTestEventCode: string
   webConsoleVerificationTag: string
   domainVerificationTags: DomainVerificationTag[]
   chatEmbedCode: string
@@ -64,6 +67,9 @@ function sanitizeSettings(input: Partial<IntegrationSettings>, fallbackEmbedCode
     googleAnalyticsId,
     googleTagManagerId,
     facebookPixelId: String(input.facebookPixelId || '').trim(),
+    facebookCapiAccessToken: String(input.facebookCapiAccessToken || '').trim(),
+    facebookDatasetId: String(input.facebookDatasetId || '').trim(),
+    facebookTestEventCode: String(input.facebookTestEventCode || '').trim(),
     webConsoleVerificationTag: String(input.webConsoleVerificationTag || '').trim(),
     domainVerificationTags,
     chatEmbedCode: embed,
