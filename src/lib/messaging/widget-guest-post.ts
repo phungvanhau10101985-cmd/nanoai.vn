@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { Json } from '@/types/database.types'
 import { ensureConversation, insertMessage } from '@/lib/customer-care/conversation-service'
 import { handlePartnerInboundForAi } from '@/lib/messaging/partner-ai-inbound'
@@ -32,6 +33,7 @@ import {
   fetchPartnerInventoryPriceHintsByIdsFromPg,
   fetchPartnerInventoryRowByComparableSkuFromPg,
   fetchPartnerInventoryRowByIdForPartnerFromPg,
+  fetchPartnerInventoryRowsByIdsInOrderFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchMessagingPartnerByIdFromPg, isMessagingPartnerInboundOpen } from '@/lib/db/messaging-partners-pg'
@@ -44,6 +46,7 @@ import type { PartnerAiWidgetIntent } from '@/lib/messaging/partner-ai-unclear-i
 import { partnerAiMessageAloneSuggestsClarifyIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
 import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
+import type { GuestProfileGender } from '@/lib/db/messaging-guest-pg'
 const ANONYMOUS_INBOUND_AUTH_THRESHOLD = 5
 type GuestVisionCandidatePayload = {
   inventoryId: string
@@ -52,6 +55,94 @@ type GuestVisionCandidatePayload = {
   image_url: string
   product_url?: string
   score?: number
+}
+
+type ImageProductSignal = {
+  productCode: string
+  gender: GuestProfileGender | null
+}
+
+function normalizeDetectedGender(raw: string): GuestProfileGender | null {
+  const v = raw.trim().toLowerCase()
+  if (!v) return null
+  if (v === 'male' || v === 'man' || v === 'men' || v === 'boy' || v === 'nam') return 'male'
+  if (v === 'female' || v === 'woman' || v === 'women' || v === 'girl' || v === 'nu' || v === 'nữ')
+    return 'female'
+  return null
+}
+
+function inferInventoryRowGender(row: {
+  name?: string | null
+  description?: string | null
+  consult_note?: string | null
+}): GuestProfileGender | null {
+  const blob = `${row.name ?? ''} ${row.description ?? ''} ${row.consult_note ?? ''}`.toLowerCase()
+  if (!blob.trim() || /\bunisex\b/i.test(blob)) return null
+  const hasMale = /\bnam\b|nam\s*giới|đàn\s*ông|\bmen'?s?\b/i.test(blob)
+  const hasFemale = /\bnữ\b|phụ\s*nữ|nữ\s*giới|\bwomen'?s?\b|\bladies\b/i.test(blob)
+  if (hasMale && !hasFemale) return 'male'
+  if (hasFemale && !hasMale) return 'female'
+  return null
+}
+
+function genderAffinityScore(
+  row: { name?: string | null; description?: string | null; consult_note?: string | null },
+  gender: GuestProfileGender
+): number {
+  const inferred = inferInventoryRowGender(row)
+  if (inferred === gender) return 2
+  if (inferred === null) return 1
+  return -2
+}
+
+async function analyzeProductSignalFromImage(
+  imageBuffer: Buffer,
+  mime: string
+): Promise<ImageProductSignal | null> {
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  if (!apiKey) return null
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const prompt =
+      'Read this product image. Extract visible product code/SKU and product gender target.' +
+      ' Return strict JSON only: {"productCode":"", "gender":"male|female|unknown"}.' +
+      ' If no reliable code, productCode must be empty string.'
+    const res = await model.generateContent([
+      prompt,
+      { inlineData: { data: imageBuffer.toString('base64'), mimeType: mime } },
+    ] as never)
+    const raw = res.response.text().trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim()
+    const parsed = JSON.parse(raw) as { productCode?: unknown; gender?: unknown }
+    const rawCode = typeof parsed.productCode === 'string' ? parsed.productCode.trim() : ''
+    const codeMatch = rawCode.match(/[A-Za-z0-9][A-Za-z0-9._-]{1,63}/)
+    const productCode = codeMatch ? codeMatch[0] : ''
+    const gender = typeof parsed.gender === 'string' ? normalizeDetectedGender(parsed.gender) : null
+    if (!productCode && !gender) return null
+    return { productCode, gender }
+  } catch {
+    return null
+  }
+}
+
+function buildVisionPickReminder(uiLocale?: string | null, gender?: GuestProfileGender | null): string {
+  const locale = normalizeWebLocale(String(uiLocale ?? '').trim()) ?? 'vi'
+  const viAddress = gender === 'male' ? 'anh' : gender === 'female' ? 'chị' : 'bạn'
+  if (locale === 'en') {
+    return 'I found a few bag samples similar to your image. Please tap the bag sample you want advice on.'
+  }
+  if (locale === 'zh') {
+    return '我找到了几款与您图片相似的包包。请先选择您想咨询的包款。'
+  }
+  if (locale === 'ja') {
+    return '画像に近いバッグをいくつか見つけました。相談したいバッグを選んでください。'
+  }
+  if (locale === 'ko') {
+    return '보내주신 이미지와 비슷한 가방 샘플을 찾았어요. 상담받고 싶은 가방을 먼저 선택해 주세요.'
+  }
+  return `Em đã tìm thấy vài mẫu túi giống ảnh ${viAddress} gửi. ${
+    viAddress.charAt(0).toUpperCase() + viAddress.slice(1)
+  } chọn mẫu muốn xác nhận để bên em tư vấn chi tiết nhé.`
 }
 
 /**
@@ -182,6 +273,9 @@ export async function postWidgetGuestMessage(params: {
   let imagePublicUrl: string | null = null
   /** Gợi ý theo vector (ảnh hoặc chữ) — giống nhau; không lên lịch LLM cho đến khi khách chọn SP. */
   let productPickCandidates: GuestVisionCandidatePayload[] = []
+  let detectedProductGender: GuestProfileGender | null = null
+  let imageMatchedInventoryContext: { inventoryId: string; sku: string } | null = null
+  let imageSkuMatchDirectConsult = false
   /** Ảnh biên lai CK — đối chiếu sau khi lưu tin inbound (tránh LLM gợi ý SP). */
   let deferredPaymentVerify: { orderId: string; ocr: TransferReceiptOcrResult } | null = null
 
@@ -222,37 +316,83 @@ export async function postWidgetGuestMessage(params: {
       if (aiEnabled && !deferredPaymentVerify && !isProductCardConsult) {
         const buf = await downloadTryOnObject(imagePath)
         if (buf) {
-          const search = await geminiProductSearchFromImageBufferViaVectorDb(buf, params.partnerId, {
-            maxResults: WIDGET_PRODUCT_VECTOR_PICK_MAX,
-            userId: linkedUserId,
-          })
-          if (search.error) {
-            console.error('[widget-guest-post] image candidate search error', {
-              partnerId: params.partnerId,
-              error: search.error,
-            })
+          const imageSignal = await analyzeProductSignalFromImage(buf, mime)
+          if (imageSignal?.gender) {
+            detectedProductGender = imageSignal.gender
           }
-          const candidateIds = search.candidates.map((c) => c.inventoryId)
-          const priceById = new Map<string, string>()
-          if (candidateIds.length > 0 && isPgConfigured()) {
-            const priceFromPg = await fetchPartnerInventoryPriceHintsByIdsFromPg(params.partnerId, candidateIds)
-            if (priceFromPg !== null) {
-              for (const [id, hint] of priceFromPg) priceById.set(id, hint)
+          if (imageSignal?.productCode) {
+            const matchedBySku = await fetchPartnerInventoryRowByComparableSkuFromPg(
+              params.partnerId,
+              imageSignal.productCode
+            )
+            if (matchedBySku) {
+              imageSkuMatchDirectConsult = true
+              imageMatchedInventoryContext = {
+                inventoryId: matchedBySku.id,
+                sku: (matchedBySku.sku ?? imageSignal.productCode).trim().slice(0, 128),
+              }
+              detectedProductGender =
+                inferInventoryRowGender({
+                  name: matchedBySku.name,
+                  description: matchedBySku.description,
+                  consult_note: matchedBySku.consult_note,
+                }) ?? detectedProductGender
             }
           }
-          productPickCandidates = search.candidates.map((c) => ({
-            inventoryId: c.inventoryId,
-            name: c.name,
-            sku: c.sku,
-            image_url: c.image_url,
-            ...(c.product_url ? { product_url: c.product_url } : {}),
-            ...(c.price_hint?.trim()
-              ? { price_hint: c.price_hint.trim() }
-              : priceById.get(c.inventoryId)?.trim()
-                ? { price_hint: priceById.get(c.inventoryId) }
-                : {}),
-            ...(typeof c.score === 'number' ? { score: c.score } : {}),
-          }))
+
+          if (!imageSkuMatchDirectConsult) {
+            const search = await geminiProductSearchFromImageBufferViaVectorDb(buf, params.partnerId, {
+              maxResults: WIDGET_PRODUCT_VECTOR_PICK_MAX,
+              userId: linkedUserId,
+            })
+            if (search.error) {
+              console.error('[widget-guest-post] image candidate search error', {
+                partnerId: params.partnerId,
+                error: search.error,
+              })
+            }
+            const candidateIds = search.candidates.map((c) => c.inventoryId)
+            const priceById = new Map<string, string>()
+            if (candidateIds.length > 0 && isPgConfigured()) {
+              const priceFromPg = await fetchPartnerInventoryPriceHintsByIdsFromPg(params.partnerId, candidateIds)
+              if (priceFromPg !== null) {
+                for (const [id, hint] of priceFromPg) priceById.set(id, hint)
+              }
+            }
+            productPickCandidates = search.candidates.map((c) => ({
+              inventoryId: c.inventoryId,
+              name: c.name,
+              sku: c.sku,
+              image_url: c.image_url,
+              ...(c.product_url ? { product_url: c.product_url } : {}),
+              ...(c.price_hint?.trim()
+                ? { price_hint: c.price_hint.trim() }
+                : priceById.get(c.inventoryId)?.trim()
+                  ? { price_hint: priceById.get(c.inventoryId) }
+                  : {}),
+              ...(typeof c.score === 'number' ? { score: c.score } : {}),
+            }))
+
+            if (detectedProductGender && productPickCandidates.length > 1 && isPgConfigured()) {
+              const rows = await fetchPartnerInventoryRowsByIdsInOrderFromPg(params.partnerId, candidateIds)
+              const scoreById = new Map<string, number>()
+              for (const row of rows ?? []) {
+                scoreById.set(
+                  row.id,
+                  genderAffinityScore(
+                    { name: row.name, description: row.description, consult_note: row.consult_note },
+                    detectedProductGender
+                  )
+                )
+              }
+              productPickCandidates = [...productPickCandidates].sort((a, b) => {
+                const sa = scoreById.get(a.inventoryId) ?? 0
+                const sb = scoreById.get(b.inventoryId) ?? 0
+                if (sb !== sa) return sb - sa
+                return (b.score ?? 0) - (a.score ?? 0)
+              })
+            }
+          }
         }
       }
     } catch (e) {
@@ -271,18 +411,24 @@ export async function postWidgetGuestMessage(params: {
             ...(basePayload && typeof basePayload === 'object' ? (basePayload as Record<string, unknown>) : {}),
             ...(imageCaption ? { image_caption: imageCaption } : {}),
           } as Json)
-    if (pageContextHasAny && rawPayload && typeof rawPayload === 'object') {
-      const src = typeof params.pageContext?.source === 'string' ? params.pageContext.source : ''
+    if ((pageContextHasAny || imageMatchedInventoryContext) && rawPayload && typeof rawPayload === 'object') {
+      const srcRaw = typeof params.pageContext?.source === 'string' ? params.pageContext.source : ''
+      const src = srcRaw || (imageMatchedInventoryContext ? 'image_sku_match' : '')
       rawPayload = {
         ...(rawPayload as Record<string, unknown>),
         page_context: {
-          ...(pageContextSku ? { sku: pageContextSku } : {}),
+          ...((pageContextSku || imageMatchedInventoryContext?.sku)
+            ? { sku: pageContextSku || imageMatchedInventoryContext?.sku }
+            : {}),
           ...(pageContextImageForPayload ? { image_url: pageContextImageForPayload } : {}),
           ...(pageContextImageUrl2 ? { image_url_2: pageContextImageUrl2 } : {}),
           ...(src === 'product_card_consult' && pageContextProductUrl ? { product_url: pageContextProductUrl } : {}),
-          ...(pageContextInventoryId ? { inventory_id: pageContextInventoryId } : {}),
+          ...(pageContextInventoryId || imageMatchedInventoryContext?.inventoryId
+            ? { inventory_id: pageContextInventoryId || imageMatchedInventoryContext?.inventoryId }
+            : {}),
           ...(src ? { source: src } : {}),
         },
+        ...(detectedProductGender ? { product_gender_intent: detectedProductGender } : {}),
       } as Json
     }
     body = text ? `📷 ${text}` : '📷'
@@ -471,6 +617,7 @@ export async function postWidgetGuestMessage(params: {
 
   let shopTyping: { maxWaitMs: number } | undefined
   const visionPickRequired = productPickCandidates.length > 0
+  const shouldSendVisionPickReminder = Boolean(imagePath) && visionPickRequired && !imageSkuMatchDirectConsult
   let paymentVerificationHandled = false
 
   if (newMessageId && imagePath && deferredPaymentVerify) {
@@ -492,9 +639,24 @@ export async function postWidgetGuestMessage(params: {
   }
 
   if (newMessageId) {
+    if (shouldSendVisionPickReminder) {
+      await insertMessage({
+        conversationId,
+        direction: 'outbound',
+        body: buildVisionPickReminder(params.uiLocale, detectedProductGender),
+        rawPayload: {
+          source: 'guest_vision_pick_reminder',
+          trigger_message_id: newMessageId,
+        },
+      })
+    }
+
+    const aiContextSku = pageContextSku || imageMatchedInventoryContext?.sku || ''
+    const aiContextInventoryId = pageContextInventoryId || imageMatchedInventoryContext?.inventoryId || ''
     const aiContextHints = [
-      pageContextSku ? `[Customer product SKU: ${pageContextSku}]` : '',
-      pageContextInventoryId ? `[Customer product inventory id: ${pageContextInventoryId}]` : '',
+      aiContextSku ? `[Customer product SKU: ${aiContextSku}]` : '',
+      aiContextInventoryId ? `[Customer product inventory id: ${aiContextInventoryId}]` : '',
+      detectedProductGender ? `[Customer product gender intent: ${detectedProductGender}]` : '',
     ]
       .filter(Boolean)
       .join('\n')
