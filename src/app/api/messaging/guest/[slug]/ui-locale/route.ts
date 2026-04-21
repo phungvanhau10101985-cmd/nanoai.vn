@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { resolveGuestIdentity, upsertGuestAccountForGoogleIdentity } from '@/lib/messaging/guest-widget-identity'
 import { fetchGuestWidgetConversationIdFromPg, mergeConversationUiLocaleFromPg } from '@/lib/db/customer-care-pg'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ error: 'Invalid uiLocale.' }, { status: 400 })
   }
 
-  const active = await resolveActiveMessagingPartnerBySlug(slug)
+  const active = await resolveFashionMessagingPartnerBySlug(slug)
   if (!active) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }

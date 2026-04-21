@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
 import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
@@ -37,7 +37,7 @@ function sha256(v: string) {
 }
 
 async function resolvePartner(slug: string) {
-  const active = await resolveActiveMessagingPartnerBySlug(slug)
+  const active = await resolveFashionMessagingPartnerBySlug(slug)
   if (!active) return { error: 'not_found' as const }
   return { partnerId: active.id }
 }

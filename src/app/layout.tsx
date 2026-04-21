@@ -279,6 +279,11 @@ export default async function RootLayout({
   /** Logo tròn trên nút nổi «Mở chat» (khi đóng); header khi mở: ưu tiên tên shop từ DB, không dùng «NanoAI» mặc định từ title iframe. */
   let widgetLauncherLogoUrl: string | null = null;
   let widgetShopName = normalizeShopName(hostedChatIframe?.title || "");
+  // Widget toàn cục (FloatingChatWidget) là UI thời trang (có "Đơn hàng của tôi", "Thử đồ"...).
+  // Nếu admin lỡ cấu hình `chatEmbedCode` trỏ tới một hotel partner thì KHÔNG render widget
+  // trên site chính của NanoAI — workspace khách sạn có trải nghiệm/nhúng riêng, và site chính
+  // không phải là website của khách chủ khách sạn.
+  let globalEmbedIsHotelPartner = false;
   if (hostedChatUrl && isPgConfigured()) {
     const slug = extractMessagingPartnerSlugFromChatUrl(hostedChatUrl);
     if (slug && !isReservedMessagingGuestSlug(slug)) {
@@ -286,6 +291,7 @@ export default async function RootLayout({
       widgetLauncherLogoUrl = row?.logo_url?.trim() || null;
       const dn = row?.display_name?.trim();
       if (dn) widgetShopName = dn;
+      if (row?.industry_key === 'hotel') globalEmbedIsHotelPartner = true;
     }
   }
 
@@ -333,8 +339,11 @@ export default async function RootLayout({
   }
   const shouldRenderGlobalChatWidget =
     Boolean(hostedChatIframe && hostedChatUrl) &&
+    !globalEmbedIsHotelPartner &&
     !currentPathname.startsWith("/messaging/p/") &&
-    !currentPathname.startsWith("/support-chat");
+    !currentPathname.startsWith("/support-chat") &&
+    !currentPathname.startsWith("/hospitality/") &&
+    !currentPathname.startsWith("/dashboard/hospitality");
 
   return (
     <html lang={locale} suppressHydrationWarning>

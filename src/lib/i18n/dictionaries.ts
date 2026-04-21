@@ -94,7 +94,7 @@ export type Dictionary = {
     tasksHub: string
     /** Menu → /support-chat */
     supportChat: string
-    /** Menu → /dashboard/messaging (inbox khách — chủ shop) */
+    /** Menu → /dashboard/messaging (kênh kinh doanh của đối tác) */
     partnerInbox: string
     /** Menu → /dashboard/api-integration (chủ shop: API, nhúng chat) */
     partnerApiIntegration: string
@@ -1974,7 +1974,7 @@ const VI_DICTIONARY: Dictionary = {
     topUpCredits: 'Nạp credit',
     tasksHub: 'Tác vụ & hàng đợi',
     supportChat: 'Chat hỗ trợ',
-    partnerInbox: 'Inbox khách (chủ shop)',
+    partnerInbox: 'Kênh kinh doanh',
     partnerApiIntegration: 'Tích hợp API (chủ shop)',
     myChats: 'Tin của tôi',
     myOrders: 'Đơn hàng của tôi',
@@ -3839,7 +3839,7 @@ const EN_DICTIONARY: Dictionary = {
     topUpCredits: 'Top up credits',
     tasksHub: 'Tasks & queue',
     supportChat: 'Support chat',
-    partnerInbox: 'Customer inbox (shop owner)',
+    partnerInbox: 'Business channels',
     partnerApiIntegration: 'API integration (shop owner)',
     myChats: 'Messages with shops',
     myOrders: 'My orders',
@@ -5710,7 +5710,7 @@ const ZH_DICTIONARY: Dictionary = {
     topUpCredits: '充值积分',
     tasksHub: '任务与队列',
     supportChat: '在线客服',
-    partnerInbox: '客户收件箱（店主）',
+    partnerInbox: '业务渠道',
     partnerApiIntegration: 'API 集成（店主）',
     myChats: '与店铺消息',
     myOrders: '我的订单',
@@ -7500,7 +7500,7 @@ const JA_DICTIONARY: Dictionary = {
     topUpCredits: 'クレジットをチャージ',
     tasksHub: 'タスクとキュー',
     supportChat: 'サポートチャット',
-    partnerInbox: 'お客様受信箱（店主）',
+    partnerInbox: 'ビジネスチャネル',
     partnerApiIntegration: 'API 連携（店主）',
     myChats: '店舗とのメッセージ',
     myOrders: '自分の注文',
@@ -9344,7 +9344,7 @@ const KO_DICTIONARY: Dictionary = {
     topUpCredits: '크레딧 충전',
     tasksHub: '작업 및 대기열',
     supportChat: '고객 채팅',
-    partnerInbox: '고객 수신함(점주)',
+    partnerInbox: '비즈니스 채널',
     partnerApiIntegration: 'API 연동(점주)',
     myChats: '매장과 메시지',
     myOrders: '내 주문',

@@ -34,7 +34,7 @@ export default async function DashboardMessagingOrdersPage() {
   let rows: NonNullable<Awaited<ReturnType<typeof fetchMessagingPartnersByOwnerFromPg>>> = []
   if (isPgConfigured()) {
     const fromPg = await fetchMessagingPartnersByOwnerFromPg(user.id)
-    if (fromPg !== null) rows = fromPg
+    if (fromPg !== null) rows = fromPg.filter((p) => p.industry_key !== 'hotel')
   }
 
   return (

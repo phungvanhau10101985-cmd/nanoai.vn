@@ -7,6 +7,7 @@ import {
   mergeCustomerCareMessageRawPayloadPatchPg,
 } from '@/lib/db/customer-care-pg'
 import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
+import { fetchMessagingPartnerByIdFromPg } from '@/lib/db/messaging-partners-pg'
 import {
   cancelPendingAiJobsForConversationPg,
   insertPartnerAiJobPg,
@@ -175,6 +176,10 @@ export async function handlePartnerInboundForAi(input: {
   if (input.channel === 'internal') return { show: false }
 
   try {
+    const partnerGate = await fetchMessagingPartnerByIdFromPg(input.partnerId)
+    if (partnerGate?.industry_key === 'hotel') {
+      return { show: false }
+    }
     const settings = await fetchMessagingPartnerAiSettingsFullFromPg(input.partnerId)
 
     if (!settings?.enabled) return { show: false }

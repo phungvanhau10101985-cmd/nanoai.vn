@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 
 /** Tên hiển thị shop cho widget nhúng (script trên domain khác cần CORS). */
 export const dynamic = 'force-dynamic'
@@ -16,7 +16,7 @@ export async function OPTIONS() {
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
-  const partner = await resolveActiveMessagingPartnerBySlug(decodeURIComponent(slug))
+  const partner = await resolveFashionMessagingPartnerBySlug(decodeURIComponent(slug))
   if (!partner) {
     return NextResponse.json({ error: 'not_found' }, { status: 404, headers: CORS })
   }

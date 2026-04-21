@@ -4,7 +4,7 @@ import {
   fetchPartnerInventoryRowByProductUrlNormKeyFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { runMetaViewContentForConsultInventoryPage } from '@/lib/tracking/meta-view-content-consult-server'
 
 const UUID_RE =
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   }
   if (!eventSourcePath) eventSourcePath = '/'
 
-  const partner = await resolveActiveMessagingPartnerBySlug(slug)
+  const partner = await resolveFashionMessagingPartnerBySlug(slug)
   if (!partner) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
   }

@@ -8,7 +8,7 @@ import {
   createEmailSessionTokenString,
   getEmailSessionCookieOptions,
 } from '@/lib/auth/email-session-token'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { resolveGuestIdentity } from '@/lib/messaging/guest-widget-identity'
 import type { GuestProfileGender } from '@/lib/db/messaging-guest-pg'
 import { updateNanoaiChatProfilePg } from '@/lib/db/profiles-repo'
@@ -24,7 +24,7 @@ function parseGender(v: unknown): GuestProfileGender | null {
 
 export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
-  const r = await resolveActiveMessagingPartnerBySlug(slug)
+  const r = await resolveFashionMessagingPartnerBySlug(slug)
   if (!r) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }

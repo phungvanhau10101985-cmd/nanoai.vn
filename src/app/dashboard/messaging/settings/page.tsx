@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { headers } from 'next/headers'
-import { fetchMessagingPartnersByOwnerFromPg } from '@/lib/db/messaging-partners-pg'
+import { redirect } from 'next/navigation'
+import { fetchMessagingPartnerByIdFromPg, fetchMessagingPartnersByOwnerFromPg } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
@@ -24,7 +25,11 @@ export function generateMetadata(): Metadata {
   })
 }
 
-export default async function DashboardMessagingSettingsPage() {
+export default async function DashboardMessagingSettingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { locale, t } = getServerDictionary()
   const pm = t.partnerMessaging
   const pmAi = t.partnerMessagingAi
@@ -32,10 +37,22 @@ export default async function DashboardMessagingSettingsPage() {
   if (!user) redirectToLogin()
   if (!isValidUuidString(user.id)) redirectToLogin()
 
+  const sp = searchParams ? await searchParams : {}
+  const partnerParamRaw = sp?.partner
+  const partnerParam = Array.isArray(partnerParamRaw) ? partnerParamRaw[0] : partnerParamRaw
+  if (partnerParam && isValidUuidString(String(partnerParam).trim()) && isPgConfigured()) {
+    const info = await fetchMessagingPartnerByIdFromPg(String(partnerParam).trim())
+    // Hotel partners have their own hospitality settings (rooms, AI concierge,
+    // reports) — we never render fashion inventory/FAQ on them.
+    if (info?.industry_key === 'hotel') {
+      redirect(`/dashboard/hospitality/settings?partner=${encodeURIComponent(String(partnerParam).trim())}`)
+    }
+  }
+
   let rows: NonNullable<Awaited<ReturnType<typeof fetchMessagingPartnersByOwnerFromPg>>> = []
   if (isPgConfigured()) {
     const fromPg = await fetchMessagingPartnersByOwnerFromPg(user.id)
-    if (fromPg !== null) rows = fromPg
+    if (fromPg !== null) rows = fromPg.filter((p) => p.industry_key !== 'hotel')
   }
 
   const partnerAiLlmModel = 'deepseek-chat'

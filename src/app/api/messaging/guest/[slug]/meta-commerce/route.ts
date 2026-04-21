@@ -6,7 +6,7 @@ import {
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import {
   buildMetaCommerceCustomDataFromInventoryRow,
   sendMetaConversionsApiBatch,
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
 
   const eventSourceUrl = String(body.eventSourceUrl ?? '').trim().slice(0, 2000) || ''
 
-  const partner = await resolveActiveMessagingPartnerBySlug(slug)
+  const partner = await resolveFashionMessagingPartnerBySlug(slug)
   if (!partner) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
   }

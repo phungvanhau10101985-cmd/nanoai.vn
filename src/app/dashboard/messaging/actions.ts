@@ -983,7 +983,7 @@ export async function listMyMessagingPartners() {
   if (fromPg === null) {
     return { error: 'Failed to load messaging workspaces.' }
   }
-  return { rows: fromPg }
+  return { rows: fromPg.filter((p) => p.industry_key !== 'hotel') }
 }
 
 function formatVnScheduleDate(iso: string): string {

@@ -20,6 +20,7 @@ export const maxDuration = 60
 async function resolvePartner(slug: string) {
   const active = await resolveActiveMessagingPartnerBySlug(slug)
   if (!active) return { error: 'not_found' as const }
+  if (active.industry_key === 'hotel') return { error: 'hospitality_uses_hospitality_api' as const }
   return { partnerId: active.id, displayName: active.display_name }
 }
 
@@ -44,7 +45,14 @@ function asCard(x: unknown): PartnerAiProductCard | null {
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
   const partner = await resolvePartner(slug)
-  if ('error' in partner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if ('error' in partner) {
+    const status = partner.error === 'hospitality_uses_hospitality_api' ? 409 : 404
+    const error =
+      partner.error === 'hospitality_uses_hospitality_api'
+        ? 'Hospitality uses dedicated booking APIs.'
+        : 'Not found'
+    return NextResponse.json({ error }, { status })
+  }
   const thread = await resolveWidgetOrderThreadFromRequest(request, partner.partnerId)
   if (!thread) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = (await request.json().catch(() => null)) as
@@ -119,7 +127,14 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
 export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
   const partner = await resolvePartner(slug)
-  if ('error' in partner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if ('error' in partner) {
+    const status = partner.error === 'hospitality_uses_hospitality_api' ? 409 : 404
+    const error =
+      partner.error === 'hospitality_uses_hospitality_api'
+        ? 'Hospitality uses dedicated booking APIs.'
+        : 'Not found'
+    return NextResponse.json({ error }, { status })
+  }
   const loginUser = await getEmailSessionUser()
   const thread = await resolveWidgetOrderThreadFromRequest(request, partner.partnerId)
   if (!thread) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

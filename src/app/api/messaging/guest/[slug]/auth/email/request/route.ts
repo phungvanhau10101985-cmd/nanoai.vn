@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import {
   createGuestSessionId,
   readGuestSessionIdFromRequest,
@@ -33,7 +33,7 @@ function normalizeEmail(v: string): string {
 }
 
 async function resolvePartner(slug: string) {
-  const active = await resolveActiveMessagingPartnerBySlug(slug)
+  const active = await resolveFashionMessagingPartnerBySlug(slug)
   if (!active) return { error: 'not_found' as const }
   return { partnerId: active.id, displayName: active.display_name, slug }
 }

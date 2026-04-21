@@ -353,6 +353,30 @@ export async function fetchConversationFullForPartnerFromPg(
   }
 }
 
+export async function listPartnerConversationsFromPg(
+  partnerId: string,
+  limit = 50
+): Promise<CustomerCareConversationRow[] | null> {
+  if (!isPgConfigured()) return null
+  const lim = Math.max(1, Math.min(200, Number(limit || 50)))
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `select id::text, partner_id::text, channel, external_thread_id, channel_external_ref,
+              linked_user_id::text, guest_account_id::text, customer_name, customer_avatar_url,
+              metadata, status, last_message_at, last_message_preview, created_at, updated_at
+       from public.customer_care_conversations
+       where partner_id = $1::uuid
+       order by coalesce(last_message_at, updated_at) desc, updated_at desc
+       limit $2`,
+      [partnerId, lim]
+    )
+    return rows.map(mapConversationRow)
+  } catch (e) {
+    console.error('[customer-care-pg] listPartnerConversationsFromPg', e)
+    return null
+  }
+}
+
 export async function fetchPartnerMessagesFromPg(
   conversationId: string
 ): Promise<CustomerCareMessageRow[] | null> {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 
 const UUID_RE =
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!isPgConfigured()) {
     return NextResponse.json({ ok: false, error: 'database_unavailable' }, { status: 503 })
   }
-  const partner = await resolveActiveMessagingPartnerBySlug(slug)
+  const partner = await resolveFashionMessagingPartnerBySlug(slug)
   if (!partner) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
   }

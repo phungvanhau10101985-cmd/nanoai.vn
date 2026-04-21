@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { applyGuestIdentityToResponse } from '@/lib/messaging/guest-auth-session'
 import {
   resolveGuestIdentity,
@@ -14,7 +14,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 export const dynamic = 'force-dynamic'
 
 async function resolvePartner(slug: string) {
-  const active = await resolveActiveMessagingPartnerBySlug(slug)
+  const active = await resolveFashionMessagingPartnerBySlug(slug)
   if (!active) return { error: 'not_found' as const }
   return { partnerId: active.id }
 }

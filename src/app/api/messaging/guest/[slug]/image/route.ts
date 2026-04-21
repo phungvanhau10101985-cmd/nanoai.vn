@@ -9,13 +9,13 @@ import {
   mirrorGuestSessionToClient,
   readGuestSessionIdFromRequest,
 } from '@/lib/messaging/guest-auth-session'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 async function resolvePartner(slug: string) {
-  const active = await resolveActiveMessagingPartnerBySlug(slug)
+  const active = await resolveFashionMessagingPartnerBySlug(slug)
   if (!active) {
     return { error: 'not_found' as const }
   }

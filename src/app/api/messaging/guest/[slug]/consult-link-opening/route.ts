@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import {
   computeConsultLinkOpeningInputFingerprint,
   fetchPartnerInventoryRowByIdForPartnerFromPg,
@@ -106,7 +106,7 @@ async function generateOpeningWithDeepseek(prompt: string): Promise<string | nul
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
-  const partner = await resolveActiveMessagingPartnerBySlug(slug)
+  const partner = await resolveFashionMessagingPartnerBySlug(slug)
   if (!partner) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 })
   }

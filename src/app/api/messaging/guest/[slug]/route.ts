@@ -13,6 +13,10 @@ import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-act
 import { postWidgetGuestMessage } from '@/lib/messaging/widget-guest-post'
 import { applyGuestIdentityToResponse, mirrorGuestSessionToClient } from '@/lib/messaging/guest-auth-session'
 import {
+  getHospitalityGuestThread,
+  postHospitalityGuestThread,
+} from '@/features/hospitality/guest-chat/hospitality-guest-thread'
+import {
   resolveGuestIdentity,
   upsertGuestAccountForGoogleIdentity,
 } from '@/lib/messaging/guest-widget-identity'
@@ -31,7 +35,7 @@ export const maxDuration = 120
 async function resolvePartner(slug: string) {
   const active = await resolveActiveMessagingPartnerBySlug(slug)
   if (!active) return { error: 'not_found' as const }
-  return { partnerId: active.id, displayName: active.display_name }
+  return { partnerId: active.id, displayName: active.display_name, industryKey: active.industry_key }
 }
 
 function guestCustomerName(displayName: string, user: AppUser | null) {
@@ -46,12 +50,15 @@ function guestCustomerName(displayName: string, user: AppUser | null) {
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
-  const identity = await resolveGuestIdentity(request)
-
   const r = await resolvePartner(slug)
   if ('error' in r) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
+  if (r.industryKey === 'hotel') {
+    return getHospitalityGuestThread(request, slug)
+  }
+
+  const identity = await resolveGuestIdentity(request)
   const { partnerId } = r
   let effectiveExternalThreadId = identity.externalThreadId
   let effectiveGuestAccountId = identity.guestAccountId
@@ -150,8 +157,16 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
-  const identity = await resolveGuestIdentity(request)
 
+  const r = await resolvePartner(slug)
+  if ('error' in r) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  if (r.industryKey === 'hotel') {
+    return postHospitalityGuestThread(request, slug)
+  }
+
+  const identity = await resolveGuestIdentity(request)
   const body = (await request.json().catch(() => null)) as {
     text?: string
     imageStoragePath?: string
@@ -172,11 +187,6 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       autoOpening?: boolean
     }
   } | null
-
-  const r = await resolvePartner(slug)
-  if ('error' in r) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
   const { partnerId, displayName } = r
 
   if (!isPgConfigured()) {
@@ -193,11 +203,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     }
   }
 
-  const posted = await postWidgetGuestMessage({
+  const sharedPayload = {
     partnerId,
     externalThreadId: effectiveExternalThreadId,
     linkedUserId: identity.linkedUserId,
-    guestAccountId: effectiveGuestAccountId,
     customerName: guestCustomerName(displayName, identity.user),
     uiLocale: typeof body?.uiLocale === 'string' ? body.uiLocale : undefined,
     metadata: {
@@ -221,6 +230,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     autoOpening: body?.clientHints?.autoOpening === true,
     landingSourceUrl: typeof body?.landingSourceUrl === 'string' ? body.landingSourceUrl : undefined,
     pageContext: body?.pageContext,
+  } as const
+
+  const posted = await postWidgetGuestMessage({
+    ...sharedPayload,
+    guestAccountId: effectiveGuestAccountId,
   })
   if ('error' in posted) {
     const status = posted.requireAuth ? 403 : posted.error === 'Invalid message.' ? 400 : 500

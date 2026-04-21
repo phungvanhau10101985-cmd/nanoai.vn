@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev",
+    "dev:clean": "node -e \"require('node:fs').rmSync('.next',{recursive:true,force:true})\" && npm run dev",
     "build": "node scripts/build-lowmem.mjs",
     "build:full": "next build",
     "build:vps": "node scripts/build-lowmem.mjs --skip-typescript",
@@ -14,6 +15,7 @@
     "verify:pwa": "node scripts/verify-pwa.mjs",
     "generate-icons": "node scripts/generate-icons-from-logo.js",
     "fix-word-examples": "node scripts/fix-example-targettext-format.mjs",
+    "smoke:vertical-boundary": "node scripts/vertical-boundary-smoke.mjs",
     "reset-db:language-coach": "node scripts/reset-language-coach-db.mjs",
     "import:official-questions": "node scripts/import-vnhsge-official-questions.mjs",
     "import:viet-doc-vqa": "node scripts/import-viet-doc-vqa.mjs",

@@ -53,6 +53,7 @@ export async function listWidgetChatsForLinkedUser(
   for (const c of convs) {
     const p = partnerMap.get(c.partner_id)
     if (!p?.slug || p.is_active === false) continue
+    if (p.industry_key === 'hotel') continue
     items.push({
       conversationId: c.id,
       shopName: p.display_name,

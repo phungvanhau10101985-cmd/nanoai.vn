@@ -59,6 +59,7 @@ export function isMessagingPartnerInboundOpen(row: { is_active: boolean; purge_a
 export type MessagingPartnerBySlugRow = {
   id: string
   display_name: string
+  industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
   is_active: boolean
   purge_at: string | null
   /** Dùng cho embed widget; có thể rỗng. */
@@ -82,6 +83,7 @@ export async function fetchMessagingPartnerBySlugFromPg(slug: string): Promise<M
     const row = await pgQueryOne<{
       id: string
       display_name: string | null
+      industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
       is_active: boolean | null
       purge_at: string | null
       embed_key: string | null
@@ -90,7 +92,7 @@ export async function fetchMessagingPartnerBySlugFromPg(slug: string): Promise<M
       facebook_capi_access_token: string | null
       ga4_measurement_id: string | null
     }>(
-      `select id::text, display_name, is_active, purge_at, coalesce(embed_key::text, '') as embed_key,
+      `select id::text, display_name, industry_key, is_active, purge_at, coalesce(embed_key::text, '') as embed_key,
               logo_url,
               nullif(trim(coalesce(facebook_pixel_id, '')), '') as facebook_pixel_id,
               nullif(trim(coalesce(facebook_capi_access_token, '')), '') as facebook_capi_access_token,
@@ -103,6 +105,7 @@ export async function fetchMessagingPartnerBySlugFromPg(slug: string): Promise<M
     return {
       id: row.id,
       display_name: String(row.display_name ?? ''),
+      industry_key: row.industry_key ?? null,
       is_active: row.is_active !== false,
       purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
       embed_key: String(row.embed_key ?? ''),
@@ -222,6 +225,7 @@ export async function updateMessagingPartnerGa4ForOwnerFromPg(params: {
 
 export type MessagingPartnerByIdRow = {
   id: string
+  industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
   is_active: boolean
   purge_at: string | null
 }
@@ -239,15 +243,20 @@ export async function fetchMessagingPartnerByIdFromPg(partnerId: string): Promis
   try {
     const row = await pgQueryOne<{
       id: string
+      industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
       is_active: boolean | null
       purge_at: string | null
     }>(
-      `select id::text, is_active, purge_at from public.messaging_partners where id = $1::uuid limit 1`,
+      `select id::text, industry_key, is_active, purge_at
+       from public.messaging_partners
+       where id = $1::uuid
+       limit 1`,
       [pid]
     )
     if (!row) return null
     return {
       id: row.id,
+      industry_key: row.industry_key ?? null,
       is_active: row.is_active !== false,
       purge_at: row.purge_at ? mapTimestamptz(row.purge_at) : null,
     }
@@ -262,6 +271,7 @@ export type MessagingPartnerByIdsRow = {
   display_name: string
   slug: string
   is_active: boolean
+  industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
 }
 
 /**
@@ -292,6 +302,7 @@ export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): P
       display_name: String(r.display_name ?? ''),
       slug: String(r.slug ?? ''),
       is_active: r.is_active !== false,
+      industry_key: r.industry_key ?? null,
     }))
   } catch (e) {
     if (isMissingPartnerProfileColumnError(e)) {
@@ -312,6 +323,7 @@ export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): P
           display_name: String(r.display_name ?? ''),
           slug: String(r.slug ?? ''),
           is_active: r.is_active !== false,
+          industry_key: null,
         }))
       } catch (legacyErr) {
         console.warn('[fetchMessagingPartnersByIdsFromPg:legacy]', legacyErr)

@@ -14,6 +14,7 @@ import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   cancelMessagingWorkspaceDeletionSchedule,
   confirmMessagingWorkspaceDeletionWithOtp,
+  createMessagingWorkspaceProfile,
   getPartnerAiComposingForConversation,
   listPartnerConversations,
   listPartnerMessages,
@@ -37,10 +38,11 @@ import {
   ClipboardList,
   Headphones,
   ImagePlus,
+  Building2,
   Loader2,
   MessageSquare,
   Phone,
-  RefreshCw,
+  Plus,
   Search,
   Send,
   Settings,
@@ -92,7 +94,15 @@ function shortThreadDate(iso: string | null) {
   return `${dd}.${mm}`
 }
 
-export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPartners: PartnerRow[]; t: T }) {
+export function PartnerMessagingInboxClient({
+  initialPartners,
+  hotelCount = 0,
+  t,
+}: {
+  initialPartners: PartnerRow[]
+  hotelCount?: number
+  t: T
+}) {
   const router = useRouter()
   const { toast } = useToast()
   const [partners, setPartners] = useState<PartnerRow[]>(initialPartners)
@@ -112,6 +122,12 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteOtpStep, setDeleteOtpStep] = useState<'send' | 'confirm'>('send')
   const [deleteOtpInput, setDeleteOtpInput] = useState('')
+  const [createChannelOpen, setCreateChannelOpen] = useState(false)
+  const [channelKind, setChannelKind] = useState<'fashion' | 'hotel' | 'food' | 'other'>('fashion')
+  const [channelDisplayName, setChannelDisplayName] = useState('')
+  const [channelBrandName, setChannelBrandName] = useState('')
+  const [channelLogoUrl, setChannelLogoUrl] = useState('')
+  const [creatingChannel, setCreatingChannel] = useState(false)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
@@ -145,6 +161,51 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
       if ('rows' in res) setConversations(res.rows ?? [])
     })
   }, [selectedPartnerId, toast])
+
+  const resetCreateChannelForm = useCallback(() => {
+    setChannelKind('fashion')
+    setChannelDisplayName('')
+    setChannelBrandName('')
+    setChannelLogoUrl('')
+  }, [])
+
+  const submitCreateChannel = useCallback(async () => {
+    const name = channelDisplayName.trim()
+    const brand = channelBrandName.trim() || name
+    if (!name) {
+      toast({ title: 'Vui lòng nhập tên kênh kinh doanh.', variant: 'destructive' })
+      return
+    }
+    setCreatingChannel(true)
+    try {
+      const res = await createMessagingWorkspaceProfile({
+        displayName: name,
+        brandName: brand,
+        industryKey: channelKind,
+        logoUrl: channelLogoUrl.trim(),
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      if (!('partner' in res) || !res.partner) return
+      const created = res.partner as PartnerRow
+      if (channelKind === 'hotel') {
+        toast({ title: `Đã tạo khách sạn «${created.display_name}». Đang mở dashboard khách sạn...` })
+        setCreateChannelOpen(false)
+        resetCreateChannelForm()
+        router.push('/dashboard/hospitality')
+        return
+      }
+      setPartners((prev) => [created, ...prev])
+      setSelectedPartnerId(created.id)
+      toast({ title: `Đã tạo kênh «${created.display_name}».` })
+      setCreateChannelOpen(false)
+      resetCreateChannelForm()
+    } finally {
+      setCreatingChannel(false)
+    }
+  }, [channelBrandName, channelDisplayName, channelKind, channelLogoUrl, resetCreateChannelForm, router, toast])
 
   useEffect(() => {
     refreshConversations()
@@ -464,6 +525,130 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={createChannelOpen}
+        onOpenChange={(next) => {
+          setCreateChannelOpen(next)
+          if (!next) resetCreateChannelForm()
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Tạo kênh kinh doanh mới</DialogTitle>
+            <DialogDescription className="text-left">
+              Mỗi kênh là một workspace độc lập: shop thời trang, nhà nghỉ/khách sạn, nhà hàng... mỗi loại có luồng tư vấn và quản lý riêng.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Loại kênh</label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {(
+                  [
+                    { value: 'fashion', label: 'Shop thời trang', hint: 'Bán lẻ · tư vấn size/màu' },
+                    { value: 'hotel', label: 'Nhà nghỉ / khách sạn', hint: 'Đặt phòng · quản lý booking' },
+                    { value: 'food', label: 'Nhà hàng / ăn uống', hint: 'Menu · đặt bàn' },
+                    { value: 'other', label: 'Khác', hint: 'Tư vấn chung' },
+                  ] as const
+                ).map((opt) => {
+                  const active = channelKind === opt.value
+                  return (
+                    <button
+                      type="button"
+                      key={opt.value}
+                      onClick={() => setChannelKind(opt.value)}
+                      className={cn(
+                        'rounded-md border px-3 py-2 text-left text-xs transition',
+                        active
+                          ? 'border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-950/40 dark:text-violet-100'
+                          : 'hover:bg-muted'
+                      )}
+                    >
+                      <p className="text-sm font-medium">{opt.label}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">{opt.hint}</p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="create-channel-name">
+                {channelKind === 'hotel'
+                  ? 'Tên khách sạn / nhà nghỉ'
+                  : channelKind === 'food'
+                  ? 'Tên nhà hàng'
+                  : 'Tên shop / kênh hiển thị'}
+              </label>
+              <Input
+                id="create-channel-name"
+                value={channelDisplayName}
+                onChange={(e) => setChannelDisplayName(e.target.value)}
+                placeholder={
+                  channelKind === 'hotel'
+                    ? 'VD: Khách sạn Bình Minh'
+                    : channelKind === 'food'
+                    ? 'VD: Nhà hàng Hương Việt'
+                    : 'VD: Shop 188.com.vn'
+                }
+                maxLength={120}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="create-channel-brand">
+                Tên thương hiệu <span className="text-muted-foreground">(không bắt buộc)</span>
+              </label>
+              <Input
+                id="create-channel-brand"
+                value={channelBrandName}
+                onChange={(e) => setChannelBrandName(e.target.value)}
+                placeholder="Để trống sẽ dùng tên phía trên"
+                maxLength={120}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="create-channel-logo">
+                Logo URL <span className="text-muted-foreground">(không bắt buộc)</span>
+              </label>
+              <Input
+                id="create-channel-logo"
+                value={channelLogoUrl}
+                onChange={(e) => setChannelLogoUrl(e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setCreateChannelOpen(false)} disabled={creatingChannel}>
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void submitCreateChannel()}
+              disabled={creatingChannel || !channelDisplayName.trim()}
+            >
+              {creatingChannel ? 'Đang tạo...' : 'Tạo kênh'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {hotelCount > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-300/60 bg-violet-50/60 px-3 py-2 text-xs text-violet-950 dark:border-violet-800/50 dark:bg-violet-950/20 dark:text-violet-100">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 shrink-0" aria-hidden />
+            <span>
+              Bạn có <strong>{hotelCount}</strong> workspace khách sạn. Quản lý phòng và booking ở dashboard riêng.
+            </span>
+          </div>
+          <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 border-violet-600/40 px-2 text-[11px]" asChild>
+            <Link href="/dashboard/hospitality">Mở dashboard khách sạn</Link>
+          </Button>
+        </div>
+      ) : null}
+
       {selectedPartner?.purge_at ? (
         <div className="rounded-lg border border-amber-500/50 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -508,11 +693,10 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
             variant="outline"
             size="sm"
             className="h-9 min-w-0 flex-1 px-2 text-xs"
-            onClick={refreshConversations}
-            disabled={pending || !selectedPartnerId}
+            onClick={() => setCreateChannelOpen(true)}
           >
-            <RefreshCw className="mr-1 h-3.5 w-3.5 shrink-0" aria-hidden />
-            {t.refresh}
+            <Plus className="mr-1 h-3.5 w-3.5 shrink-0" aria-hidden />
+            Tạo kênh
           </Button>
           <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title={t.messagingSettingsLink}>
             <Link href="/dashboard/messaging/settings" aria-label={t.messagingSettingsLink}>
@@ -543,11 +727,10 @@ export function PartnerMessagingInboxClient({ initialPartners, t }: { initialPar
             variant="outline"
             size="sm"
             className="h-7 px-2 text-[11px]"
-            onClick={refreshConversations}
-            disabled={pending || !selectedPartnerId}
+            onClick={() => setCreateChannelOpen(true)}
           >
-            <RefreshCw className="mr-1 h-3 w-3" aria-hidden />
-            {t.refresh}
+            <Plus className="mr-1 h-3 w-3" aria-hidden />
+            Tạo kênh
           </Button>
           <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
             <Link href="/dashboard/messaging/settings">

@@ -1,3 +1,69 @@
 {
-  "extends": ["next/core-web-vitals", "next/typescript"]
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "overrides": [
+    {
+      "files": [
+        "src/lib/hospitality/**/*.{ts,tsx}",
+        "src/features/hospitality/**/*.{ts,tsx}",
+        "src/app/api/hospitality/**/*.{ts,tsx}",
+        "src/app/hospitality/**/*.{ts,tsx}",
+        "src/app/dashboard/hospitality/**/*.{ts,tsx}"
+      ],
+      "excludedFiles": [
+        "src/lib/hospitality/hospitality-partner-resolver.ts",
+        "src/lib/hospitality/hospitality-partner-auth.ts",
+        "src/lib/hospitality/hospitality-guest-identity.ts",
+        "src/lib/hospitality/hospitality-conversation-service.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@/lib/messaging/widget-guest-post",
+                  "@/lib/messaging/partner-ai-*",
+                  "@/lib/messaging/guest-chat-ordering",
+                  "@/lib/messaging/partner-inventory-ai-search",
+                  "@/lib/messaging/partner-inventory-text-embedding",
+                  "@/lib/messaging/partner-gemini-image-search",
+                  "@/lib/messaging/resolve-widget-order-thread",
+                  "@/lib/messaging/resolve-active-messaging-partner",
+                  "@/lib/messaging/partner-inventory-route-auth",
+                  "@/lib/messaging/guest-auth-session",
+                  "@/lib/messaging/guest-widget-identity",
+                  "@/lib/customer-care/conversation-service",
+                  "@/lib/db/customer-care-pg"
+                ],
+                "message": "Hospitality vertical must route messaging/customer-care plumbing through @/lib/hospitality/* wrappers, not import shared modules directly."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/lib/messaging/**/*.{ts,tsx}",
+        "src/app/messaging/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@/lib/hospitality/*",
+                  "@/features/hospitality/*"
+                ],
+                "message": "Fashion messaging domain must not depend on hospitality domain."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

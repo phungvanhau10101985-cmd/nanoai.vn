@@ -7,7 +7,7 @@ import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-sessio
 import { geminiProductSearchFromImageBufferViaVectorDb } from '@/lib/messaging/partner-gemini-image-search'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { fetchInventoryRowsBySemanticTextForPartnerAi } from '@/lib/messaging/partner-inventory-text-embedding'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 
 export const dynamic = 'force-dynamic'
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     const res = NextResponse.json({ error: 'database_unavailable' }, { status: 503 })
     return request.headers.get('x-embed-key') ? cors(res) : res
   }
-  const partner = await resolveActiveMessagingPartnerBySlug(slug)
+  const partner = await resolveFashionMessagingPartnerBySlug(slug)
   if (!partner) {
     const res = NextResponse.json({ error: 'Not found' }, { status: 404 })
     return request.headers.get('x-embed-key') ? cors(res) : res

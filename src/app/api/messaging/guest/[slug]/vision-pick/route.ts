@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import { executeGuestVisionPick } from '@/lib/messaging/guest-vision-pick'
 import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
@@ -21,7 +21,7 @@ export async function OPTIONS() {
 }
 
 async function resolvePartner(slug: string) {
-  const active = await resolveActiveMessagingPartnerBySlug(slug)
+  const active = await resolveFashionMessagingPartnerBySlug(slug)
   if (!active) return { error: 'not_found' as const }
   return { partnerId: active.id, embedKey: active.embed_key }
 }

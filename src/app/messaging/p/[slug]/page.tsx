@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getUserOrBypass } from '@/lib/auth'
 import { listWidgetChatsForLinkedUser } from '@/lib/messaging/list-widget-chats-for-linked-user'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
@@ -101,6 +101,19 @@ export default async function PartnerGuestChatPage(props: {
   const partner = await resolveActiveMessagingPartnerBySlug(slug)
   if (!partner) notFound()
 
+  const rawSpForRedirect = props.searchParams
+  const spEarly = rawSpForRedirect
+    ? await (rawSpForRedirect instanceof Promise ? rawSpForRedirect : Promise.resolve(rawSpForRedirect))
+    : {}
+
+  // Hotel partners ALWAYS render on the dedicated hospitality page — the
+  // fashion messaging UI (try-on, product consult, orders) is irrelevant and
+  // must never leak onto a hotel workspace.
+  if (partner.industry_key === 'hotel') {
+    const qs = searchParamsToQueryString(spEarly)
+    redirect(`/hospitality/p/${slug}${qs}`)
+  }
+
   const user = await getUserOrBypass()
   const chatList =
     user?.id
@@ -111,10 +124,7 @@ export default async function PartnerGuestChatPage(props: {
         ).items
       : []
 
-  const rawSp = props.searchParams
-  const sp = rawSp
-    ? await (rawSp instanceof Promise ? rawSp : Promise.resolve(rawSp))
-    : {}
+  const sp = spEarly
   const urlNorm = normalizeWebLocale(firstSearchParam(sp, 'ui_locale'))
 
   const cookieLocale = getCurrentWebLocale()

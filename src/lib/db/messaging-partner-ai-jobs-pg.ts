@@ -65,9 +65,18 @@ export async function countActivePartnerAiJobsForConversationFromPg(
     const row = await pgQueryOne<{ c: number }>(
       `select count(*)::int as c
        from public.messaging_partner_ai_jobs
-       where partner_id = $1::uuid
-         and conversation_id = $2::uuid
-         and status in ('pending', 'processing')`,
+       join public.customer_care_messages trigger_msg
+         on trigger_msg.id = messaging_partner_ai_jobs.trigger_message_id
+       where messaging_partner_ai_jobs.partner_id = $1::uuid
+         and messaging_partner_ai_jobs.conversation_id = $2::uuid
+         and messaging_partner_ai_jobs.status in ('pending', 'processing')
+         and not exists (
+           select 1
+           from public.customer_care_messages out_msg
+           where out_msg.conversation_id = messaging_partner_ai_jobs.conversation_id
+             and out_msg.direction = 'outbound'
+             and out_msg.created_at > trigger_msg.created_at
+         )`,
       [partnerId, conversationId]
     )
     return typeof row?.c === 'number' && Number.isFinite(row.c) ? Math.max(0, row.c) : 0
@@ -85,6 +94,12 @@ export async function fetchPendingJobsDueFromPg(nowIso: string, limit: number): 
               run_at, status, error, created_at
        from public.messaging_partner_ai_jobs
        where status = 'pending' and run_at <= $1::timestamptz
+         and exists (
+           select 1
+           from public.messaging_partners p
+           where p.id = messaging_partner_ai_jobs.partner_id
+             and coalesce(p.industry_key, 'fashion') <> 'hotel'
+         )
        order by run_at asc
        limit $2`,
       [nowIso, limit]
