@@ -232,5 +232,30 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
     }
   }, [shareCode, locale, presentationBroadcastSyncId])
 
+  useEffect(() => {
+    if (shareCode) return
+    if (!presentationBroadcastSyncId) return
+    if (data) return
+    if (shareError) return
+    if (typeof window === 'undefined') return
+    // `?sync=` is for same-browser teacher/student bridge; cross-device QR should use `?share=...`.
+    const t = window.setTimeout(() => {
+      const hasOpener = Boolean(window.opener)
+      if (!hasOpener) {
+        setShareError(
+          tr(
+            locale,
+            'Link đồng bộ (?sync=...) chỉ dùng khi mở từ giao diện giáo viên cùng trình duyệt. Nếu quét QR trên điện thoại, hãy dùng link chia sẻ (?share=...).',
+            'Sync link (?sync=...) only works from the teacher view in the same browser. For phone QR access, use share link (?share=...).',
+            '同步链接（?sync=...）仅适用于同一浏览器内由教师界面打开。手机扫码请使用分享链接（?share=...）。',
+            '同期リンク（?sync=...）は同一ブラウザ内で教師画面から開く用途です。スマホQRでは共有リンク（?share=...）を使ってください。',
+            '동기화 링크(?sync=...)는 같은 브라우저의 교사 화면에서 열 때만 동작합니다. 휴대폰 QR은 공유 링크(?share=...)를 사용하세요.'
+          )
+        )
+      }
+    }, 8000)
+    return () => window.clearTimeout(t)
+  }, [shareCode, presentationBroadcastSyncId, data, shareError, locale])
+
   return { data, shareError, shareLoading, presentationBroadcastSyncId }
 }

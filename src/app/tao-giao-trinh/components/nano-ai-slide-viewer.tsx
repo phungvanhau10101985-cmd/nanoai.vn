@@ -84,10 +84,14 @@ function getVisibleImageBounds(img: HTMLImageElement): { left: number; top: numb
 
 function LazyHeavyMount({
   children,
+  render,
   minHeight = 140,
+  rootMargin = '220px 0px',
 }: {
-  children: ReactNode
+  children?: ReactNode
+  render?: () => ReactNode
   minHeight?: number
+  rootMargin?: string
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const [isVisible, setIsVisible] = useState(false)
@@ -105,7 +109,7 @@ function LazyHeavyMount({
         if (cancelled) return
         setIsVisible(entries.some((entry) => entry.isIntersecting))
       },
-      { root: null, rootMargin: '220px 0px', threshold: 0.01 }
+      { root: null, rootMargin, threshold: 0.01 }
     )
     observer.observe(node)
     return () => {
@@ -117,7 +121,7 @@ function LazyHeavyMount({
   return (
     <div ref={hostRef} className="w-full h-full">
       {isVisible ? (
-        children
+        render ? render() : children
       ) : (
         <div
           className="h-full w-full rounded-md border border-white/10 bg-slate-800/25"
@@ -4709,6 +4713,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 /** Slide hiện tại: chỉ khi còn gõ segment đáp án (đồng bộ GV). */
                 const mdChainLiveTyping =
                   mdAllStudentCurriculum && isCurrent && hasSegmentTypingWork && !segmentTypingCompleted
+                const estimatedSlideBodyMinHeight = Math.min(1400, Math.max(220, blksForSlide.length * 170))
+                const shouldLazyMountMarkdownBody = mdAllStudentCurriculum && !isCurrent && !mdChainLiveTyping
 
                 const renderFullSlideBody = () =>
                   blksForSlide.length > 0 ? (
@@ -4716,30 +4722,60 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       {blksForSlide.map((b, bi) => {
                         const bExt = b as { studentAnswerHidden?: boolean }
                         if (!isTeacherView && bExt.studentAnswerHidden) return null
+                        const blockContentNode = (
+                          <CurriculumBlockContentWithEmbeds
+                            content={b.content ?? ''}
+                            liveQuizContext={curriculumId ? { curriculumId, slideIndex: si, blockIndex: bi } : undefined}
+                            tr={tr}
+                            hideQuiz
+                          />
+                        )
+                        const approximateBlockMinHeight = Math.min(
+                          520,
+                          Math.max(140, Math.ceil((b.content ?? '').trim().length / 5))
+                        )
                         return (
                           <div key={bi} className="border-t border-slate-200 pt-4 first:border-t-0 first:pt-0">
                             {b.header ? (
                               <div className="mb-2 text-xs font-bold text-violet-800">{b.header}</div>
                             ) : null}
                             <div className="text-slate-800">
-                              <CurriculumBlockContentWithEmbeds
-                                content={b.content ?? ''}
-                                liveQuizContext={curriculumId ? { curriculumId, slideIndex: si, blockIndex: bi } : undefined}
-                                tr={tr}
-                                hideQuiz
-                              />
+                              {shouldLazyMountMarkdownBody ? (
+                                <LazyHeavyMount
+                                  minHeight={approximateBlockMinHeight}
+                                  rootMargin="80px 0px"
+                                  render={() => blockContentNode}
+                                />
+                              ) : (
+                                blockContentNode
+                              )}
                             </div>
                           </div>
                         )
                       })}
                     </div>
                   ) : (s.content ?? '').trim() ? (
-                    <CurriculumBlockContentWithEmbeds
-                      content={s.content ?? ''}
-                      liveQuizContext={curriculumId ? { curriculumId, slideIndex: si, blockIndex: 0 } : undefined}
-                      tr={tr}
-                      hideQuiz
-                    />
+                    shouldLazyMountMarkdownBody ? (
+                      <LazyHeavyMount
+                        minHeight={Math.min(780, Math.max(180, Math.ceil((s.content ?? '').trim().length / 5)))}
+                        rootMargin="80px 0px"
+                        render={() => (
+                          <CurriculumBlockContentWithEmbeds
+                            content={s.content ?? ''}
+                            liveQuizContext={curriculumId ? { curriculumId, slideIndex: si, blockIndex: 0 } : undefined}
+                            tr={tr}
+                            hideQuiz
+                          />
+                        )}
+                      />
+                    ) : (
+                      <CurriculumBlockContentWithEmbeds
+                        content={s.content ?? ''}
+                        liveQuizContext={curriculumId ? { curriculumId, slideIndex: si, blockIndex: 0 } : undefined}
+                        tr={tr}
+                        hideQuiz
+                      />
+                    )
                   ) : null
 
                 const renderCurrentSlideTypingBody = () => {
@@ -4837,7 +4873,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         s.title
                       )}
                     </h3>
-                    {mdChainLiveTyping && isCurrent ? renderCurrentSlideTypingBody() : renderFullSlideBody()}
+                    {mdChainLiveTyping && isCurrent ? (
+                      renderCurrentSlideTypingBody()
+                    ) : shouldLazyMountMarkdownBody ? (
+                      <LazyHeavyMount
+                        minHeight={estimatedSlideBodyMinHeight}
+                        rootMargin="120px 0px"
+                        render={() => renderFullSlideBody()}
+                      />
+                    ) : (
+                      renderFullSlideBody()
+                    )}
                   </section>
                 )
               })

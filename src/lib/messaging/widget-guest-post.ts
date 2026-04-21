@@ -234,9 +234,9 @@ function buildVisionPickReminder(
   if (locale === 'ko') {
     return '보내주신 이미지와 비슷한 상품 샘플을 찾았어요. 상담받고 싶은 상품을 먼저 선택해 주세요.'
   }
-  return `Em đã tìm thấy vài mẫu ${typeLabel} giống ảnh ${viAddress} gửi. ${
+  return `Em tìm thêm vài mẫu ${typeLabel} để ${viAddress} tham khảo. ${
     viAddress.charAt(0).toUpperCase() + viAddress.slice(1)
-  } chọn mẫu muốn xác nhận để bên em tư vấn chi tiết nhé.`
+  } xem và chọn mẫu muốn xác nhận để bên em tư vấn chi tiết nhé.`
 }
 
 /**

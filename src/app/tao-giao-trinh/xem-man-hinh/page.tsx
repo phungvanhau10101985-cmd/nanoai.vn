@@ -34,6 +34,7 @@ function XemManHinhInner() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const channelRef = useRef<ScreenLiveChannel | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
+  const connectedRef = useRef(false)
 
   useEffect(() => {
     setLocale(getWebLocale())
@@ -74,6 +75,7 @@ function XemManHinhInner() {
 
     setStatus('connecting')
     setErrorMsg(null)
+    connectedRef.current = false
 
     const viewerId = crypto.randomUUID()
     const channel = new ScreenLiveChannel(shareCode.trim())
@@ -86,6 +88,7 @@ function XemManHinhInner() {
 
     pc.ontrack = (e) => {
       if (e.streams[0]) {
+        connectedRef.current = true
         setStream(e.streams[0])
         setStatus('connected')
       }
@@ -98,6 +101,14 @@ function XemManHinhInner() {
           event: 'ice',
           payload: { from: 'viewer', viewerId, candidate: e.candidate.toJSON() },
         })
+      }
+    }
+
+    const requestOffer = async () => {
+      try {
+        await channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer', viewerId } })
+      } catch {
+        // keep retrying while still connecting
       }
     }
 
@@ -132,14 +143,37 @@ function XemManHinhInner() {
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer', viewerId } })
+          void requestOffer()
         } else if (status === 'CHANNEL_ERROR') {
           setStatus('error')
           setErrorMsg(tr(locale, 'Không kết nối được. Kiểm tra mã chia sẻ.', 'Connection failed. Check share code.', '连接失败。请检查分享码。', '接続できません。共有コードを確認。', '연결 실패. 공유 코드 확인.'))
         }
       })
 
+    // Mobile networks can drop first signaling message; retry until stream arrives.
+    const retryTimer = window.setInterval(() => {
+      if (connectedRef.current) return
+      void requestOffer()
+    }, 1500)
+    const timeoutTimer = window.setTimeout(() => {
+      if (connectedRef.current) return
+      setStatus('error')
+      setErrorMsg(
+        tr(
+          locale,
+          'Không nhận được tín hiệu chia sẻ. Kiểm tra bên chia sẻ còn đang bật và mở lại link QR.',
+          'No sharing signal received. Ensure the sharer is still active and reopen the QR link.',
+          '未收到共享信号。请确认分享端仍在共享并重新打开二维码链接。',
+          '共有シグナルを受信できません。共有側が継続中か確認し、QRリンクを再度開いてください。',
+          '공유 신호를 받지 못했습니다. 공유 중인지 확인 후 QR 링크를 다시 열어 주세요.'
+        )
+      )
+    }, 25000)
+
     return () => {
+      window.clearInterval(retryTimer)
+      window.clearTimeout(timeoutTimer)
+      connectedRef.current = false
       channel.unsubscribe()
       channelRef.current = null
       pc.close()
