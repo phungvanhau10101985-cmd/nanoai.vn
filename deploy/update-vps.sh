@@ -14,7 +14,7 @@ set -euo pipefail
 #   DEPLOY_BUILD_VPS=1  Build kiểu «rất yếu»: npm run build:vps (bỏ cả kiểm tra TypeScript khi build — chỉ khi máy vẫn OOM; nên chạy build:full trên máy khác/CI)
 #   DEPLOY_SKIP_LINT=1  Bỏ qua npm run lint (không khuyến nghị cho production)
 #   DEPLOY_SKIP_TYPECHECK=1  Bỏ qua npx tsc --noEmit (không khuyến nghị cho production)
-#   DEPLOY_STOP_PM2_BEFORE_BUILD=1  Dừng app PM2 trước khi lint/typecheck/build để giải phóng RAM (mặc định bật)
+#   DEPLOY_STOP_PM2_BEFORE_BUILD=1  Dừng toàn bộ process PM2 trước khi lint/typecheck/build để giải phóng RAM (mặc định bật)
 #   DEPLOY_SKIP_MIGRATIONS=1  Bỏ qua bước chạy migration SQL mới
 #   DEPLOY_SETUP_CRONS=1  Tự đảm bảo cron AI/inventory/logo cleanup (mặc định bật)
 #
@@ -223,17 +223,12 @@ else
 fi
 echo "  DONE [5/14]"
 
-echo "[6/14] Free RAM before build (stop PM2 apps)"
+echo "[6/14] Free RAM before build (stop all PM2 processes)"
 if [[ "${DEPLOY_STOP_PM2_BEFORE_BUILD}" == "1" ]]; then
-  if pm2 describe "${APP_NAME}" >/dev/null 2>&1; then
-    pm2 stop "${APP_NAME}" || true
-  fi
-  if pm2 describe "worksheet-worker" >/dev/null 2>&1; then
-    pm2 stop "worksheet-worker" || true
-  fi
-  # Nhả thêm bộ nhớ RSS cũ của PM2 process list nếu có.
+  # Lưu process list hiện tại để có thể resurrect sau build.
   pm2 save || true
-  echo "  Đã dừng PM2 app/worker trước build."
+  pm2 stop all || true
+  echo "  Đã dừng toàn bộ PM2 processes trước build."
 else
   echo "  Bỏ qua dừng PM2 trước build (DEPLOY_STOP_PM2_BEFORE_BUILD=${DEPLOY_STOP_PM2_BEFORE_BUILD})."
 fi
@@ -271,6 +266,8 @@ fi
 echo "  DONE [9/14]"
 
 echo "[10/14] Restart PM2 (--update-env: nạp lại biến môi trường)"
+# Khôi phục các process đã lưu trước đó (nếu có), sau đó đảm bảo app chính + worker luôn chạy.
+pm2 resurrect || true
 if pm2 describe "${APP_NAME}" >/dev/null 2>&1; then
   pm2 restart "${APP_NAME}" --update-env
 else

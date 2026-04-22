@@ -298,7 +298,6 @@ export default function TaoGiaoTrinhClientPage({
   const [lessonImageUrlLoading, setLessonImageUrlLoading] = useState(false)
   const lessonImageInputRef = useRef<HTMLInputElement>(null)
   const lessonCameraInputRef = useRef<HTMLInputElement>(null)
-  const lessonPasteZoneRef = useRef<HTMLDivElement>(null)
   const isbnImageInputRef = useRef<HTMLInputElement>(null)
   const isbnCameraInputRef = useRef<HTMLInputElement>(null)
   const [isbnScanLoading, setIsbnScanLoading] = useState(false)
@@ -1297,7 +1296,7 @@ export default function TaoGiaoTrinhClientPage({
     }
   }
 
-  const handlePasteLessonImages = (e: React.ClipboardEvent<HTMLDivElement>) => {
+  const handlePasteLessonSmartInput = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const items = Array.from(e.clipboardData?.items ?? [])
     const imageFiles = items
       .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
@@ -1305,6 +1304,7 @@ export default function TaoGiaoTrinhClientPage({
       .filter((f): f is File => Boolean(f))
     if (imageFiles.length > 0) {
       e.preventDefault()
+      setLessonImageUrl('')
       addLessonImages(imageFiles)
       toast({
         title: tr('Đã dán ảnh', 'Image pasted', '已粘贴图片', '画像を貼り付けました', '이미지 붙여넣기 완료'),
@@ -1324,6 +1324,15 @@ export default function TaoGiaoTrinhClientPage({
       setLessonImageUrl(pastedText)
       void appendLessonImageFromUrl(pastedText)
     }
+  }
+
+  const handleSubmitLessonImageUrl = (opts?: { silentIfNotUrl?: boolean }) => {
+    const urlText = lessonImageUrl.trim()
+    if (!urlText || lessonImageUrlLoading) return
+    if (!/^https?:\/\//i.test(urlText)) {
+      if (opts?.silentIfNotUrl) return
+    }
+    void appendLessonImageFromUrl(urlText)
   }
 
   const scanIsbnFromImageFile = async (file: File | null | undefined) => {
@@ -3877,47 +3886,32 @@ export default function TaoGiaoTrinhClientPage({
                     if (lessonCameraInputRef.current) lessonCameraInputRef.current.value = ''
                   }}
                 />
-                <div
-                  ref={lessonPasteZoneRef}
-                  tabIndex={0}
-                  onPaste={handlePasteLessonImages}
-                  className="rounded-md border border-dashed border-violet-300/80 bg-white/70 px-3 py-2 text-xs text-muted-foreground focus:outline-none focus:ring-2 focus:ring-violet-400/60"
-                >
-                  {tr(
-                    'Bấm vào đây rồi nhấn Ctrl+V để dán ảnh (hoặc dán trực tiếp link ảnh).',
-                    'Click here then press Ctrl+V to paste image (or paste an image URL).',
-                    '点击这里后按 Ctrl+V 粘贴图片（或直接粘贴图片链接）。',
-                    'ここをクリックして Ctrl+V で画像貼り付け（画像URLの貼り付けも可）。',
-                    '여기를 클릭한 뒤 Ctrl+V로 이미지 붙여넣기(이미지 URL 붙여넣기도 가능).'
+                <Input
+                  value={lessonImageUrl}
+                  onChange={(e) => setLessonImageUrl(e.target.value)}
+                  onPaste={handlePasteLessonSmartInput}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleSubmitLessonImageUrl()
+                    }
+                  }}
+                  onBlur={() => handleSubmitLessonImageUrl({ silentIfNotUrl: true })}
+                  placeholder={tr(
+                    'Bấm vào ô này rồi Ctrl+V ảnh, hoặc dán link ảnh trực tiếp (https://...)',
+                    'Click this field then Ctrl+V image, or paste direct image URL (https://...)',
+                    '点击此输入框后 Ctrl+V 图片，或粘贴图片直链（https://...）',
+                    'この欄をクリックして Ctrl+V で画像貼り付け、または画像直リンク（https://...）を貼り付け',
+                    '이 칸을 클릭 후 Ctrl+V 이미지 붙여넣기, 또는 직접 이미지 URL(https://...) 붙여넣기'
                   )}
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Input
-                    value={lessonImageUrl}
-                    onChange={(e) => setLessonImageUrl(e.target.value)}
-                    placeholder={tr(
-                      'Dán link ảnh trực tiếp (https://...)',
-                      'Paste direct image URL (https://...)',
-                      '粘贴图片直链（https://...）',
-                      '画像の直リンクを貼り付け（https://...）',
-                      '직접 이미지 URL 붙여넣기 (https://...)'
-                    )}
-                    className="h-9 bg-white/80"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={lessonImageUrlLoading || !lessonImageUrl.trim()}
-                    onClick={() => void appendLessonImageFromUrl(lessonImageUrl)}
-                    className="border-sky-400 text-sky-700 hover:bg-sky-100 dark:border-sky-600 dark:text-sky-300"
-                  >
-                    <Link2 className="mr-2 h-4 w-4" />
-                    {lessonImageUrlLoading
-                      ? tr('Đang tải link...', 'Loading URL...', '加载链接中...', 'URL読み込み中...', 'URL 불러오는 중...')
-                      : tr('Thêm ảnh từ link', 'Add image from URL', '从链接添加图片', 'URLから画像追加', 'URL에서 이미지 추가')}
-                  </Button>
-                </div>
+                  className="h-9 bg-white/80"
+                  disabled={lessonImageUrlLoading}
+                />
+                {lessonImageUrlLoading ? (
+                  <p className="text-xs text-sky-700 dark:text-sky-300">
+                    {tr('Đang tải ảnh từ link...', 'Loading image from URL...', '正在从链接加载图片...', 'URLから画像を読み込み中...', 'URL에서 이미지를 불러오는 중...')}
+                  </p>
+                ) : null}
                 <Button
                   type="button"
                   variant="outline"
