@@ -116,7 +116,7 @@ function LazyHeavyMount({
       cancelled = true
       observer.disconnect()
     }
-  }, [])
+  }, [rootMargin])
 
   return (
     <div ref={hostRef} className="w-full h-full">

@@ -12,6 +12,9 @@ set -euo pipefail
 #   DEPLOY_PM2_LOG_LINES=100  Số dòng log PM2 ghi ra file + màn hình (mặc định 100)
 #   DEPLOY_REBOOT_VPS=1  Sau khi deploy OK: reboot cả VPS (SSH sẽ ngắt; cần pm2 startup)
 #   DEPLOY_BUILD_VPS=1  Build kiểu «rất yếu»: npm run build:vps (bỏ cả kiểm tra TypeScript khi build — chỉ khi máy vẫn OOM; nên chạy build:full trên máy khác/CI)
+#   DEPLOY_SKIP_LINT=1  Bỏ qua npm run lint (không khuyến nghị cho production)
+#   DEPLOY_SKIP_TYPECHECK=1  Bỏ qua npx tsc --noEmit (không khuyến nghị cho production)
+#   DEPLOY_STOP_PM2_BEFORE_BUILD=1  Dừng app PM2 trước khi lint/typecheck/build để giải phóng RAM (mặc định bật)
 #   DEPLOY_SKIP_MIGRATIONS=1  Bỏ qua bước chạy migration SQL mới
 #   DEPLOY_SETUP_CRONS=1  Tự đảm bảo cron AI/inventory/logo cleanup (mặc định bật)
 #
@@ -29,6 +32,7 @@ BRANCH="${1:-main}"
 DEPLOY_HEALTHCHECK_URL="${DEPLOY_HEALTHCHECK_URL:-http://127.0.0.1:3000/}"
 DEPLOY_HEALTHCHECK_RETRIES="${DEPLOY_HEALTHCHECK_RETRIES:-15}"
 DEPLOY_PM2_LOG_LINES="${DEPLOY_PM2_LOG_LINES:-100}"
+DEPLOY_STOP_PM2_BEFORE_BUILD="${DEPLOY_STOP_PM2_BEFORE_BUILD:-1}"
 LOG_DIR="${APP_DIR}/deploy/logs"
 DEPLOY_SETUP_CRONS="${DEPLOY_SETUP_CRONS:-1}"
 MIGRATION_STATE_FILE="${APP_DIR}/deploy/applied-migrations.sha256"
@@ -72,15 +76,17 @@ migration_hash() {
   exit 1
 }
 
-echo "[1/11] Go to app directory: ${APP_DIR}"
+echo "[1/14] Go to app directory: ${APP_DIR}"
 cd "${APP_DIR}"
+echo "  DONE [1/14]"
 
 OLD_COMMIT=$(git rev-parse HEAD 2>/dev/null || true)
 
-echo "[2/11] Fetch latest code from origin"
-git fetch origin "${BRANCH}"
+echo "[2/14] Fetch latest code from origin"
+git fetch --prune origin "${BRANCH}"
+echo "  DONE [2/14]"
 
-echo "[3/11] Checkout ${BRANCH} and reset to origin (bản mới nhất trên remote)"
+echo "[3/14] Checkout ${BRANCH} and reset to origin (bản mới nhất trên remote)"
 git checkout "${BRANCH}"
 git reset --hard "origin/${BRANCH}"
 
@@ -98,6 +104,7 @@ echo "  Commit: ${NEW_HEAD}"
 git log -1 --format='  %h %s (%ci)'
 echo "----------------------------------------------------------------"
 echo ""
+echo "  DONE [3/14]"
 
 if [[ -n "${OLD_COMMIT}" ]] && [[ "${OLD_COMMIT}" != "${NEW_HEAD}" ]]; then
   echo "--- Thay đổi code (so với trước khi deploy) ---"
@@ -106,10 +113,15 @@ if [[ -n "${OLD_COMMIT}" ]] && [[ "${OLD_COMMIT}" != "${NEW_HEAD}" ]]; then
   echo ""
 fi
 
-echo "[4/11] Install dependencies"
-npm install
+echo "[4/14] Install dependencies (lockfile-first)"
+if [[ -f "package-lock.json" ]]; then
+  npm ci
+else
+  npm install
+fi
+echo "  DONE [4/14]"
 
-echo "[5/11] Apply SQL migrations (new + modified)"
+echo "[5/14] Apply SQL migrations (new + modified)"
 if [[ "${DEPLOY_SKIP_MIGRATIONS:-}" == "1" ]]; then
   echo "  Bỏ qua (DEPLOY_SKIP_MIGRATIONS=1)."
 else
@@ -209,17 +221,56 @@ else
     fi
   fi
 fi
+echo "  DONE [5/14]"
 
-echo "[6/11] Build app"
-# package.json: `npm run build` → scripts/build-lowmem.mjs (bỏ ESLint trong next build + heap lớn — nhẹ hơn cho VPS).
+echo "[6/14] Free RAM before build (stop PM2 apps)"
+if [[ "${DEPLOY_STOP_PM2_BEFORE_BUILD}" == "1" ]]; then
+  if pm2 describe "${APP_NAME}" >/dev/null 2>&1; then
+    pm2 stop "${APP_NAME}" || true
+  fi
+  if pm2 describe "worksheet-worker" >/dev/null 2>&1; then
+    pm2 stop "worksheet-worker" || true
+  fi
+  # Nhả thêm bộ nhớ RSS cũ của PM2 process list nếu có.
+  pm2 save || true
+  echo "  Đã dừng PM2 app/worker trước build."
+else
+  echo "  Bỏ qua dừng PM2 trước build (DEPLOY_STOP_PM2_BEFORE_BUILD=${DEPLOY_STOP_PM2_BEFORE_BUILD})."
+fi
+echo "  DONE [6/14]"
+
+echo "[7/14] Pre-build validation (lint + typecheck)"
+if [[ "${DEPLOY_SKIP_LINT:-}" == "1" ]]; then
+  echo "  Bỏ qua lint (DEPLOY_SKIP_LINT=1)."
+else
+  unset SKIP_ESLINT_ON_BUILD || true
+  npm run lint
+fi
+if [[ "${DEPLOY_SKIP_TYPECHECK:-}" == "1" ]]; then
+  echo "  Bỏ qua typecheck (DEPLOY_SKIP_TYPECHECK=1)."
+else
+  unset NEXT_BUILD_SKIP_TYPECHECK || true
+  npx tsc --noEmit --pretty false
+fi
+echo "  DONE [7/14]"
+
+echo "[8/14] Clean previous build artifacts"
+rm -rf .next
+echo "  DONE [8/14]"
+
+echo "[9/14] Build app"
+# Mặc định build đầy đủ để đảm bảo không bỏ qua lint/typecheck trong next build.
+# Chỉ bật DEPLOY_BUILD_VPS=1 khi VPS quá yếu và đã xác nhận quality ở CI/máy khác.
 if [[ "${DEPLOY_BUILD_VPS:-}" == "1" ]]; then
-  echo "  DEPLOY_BUILD_VPS=1 → npm run build:vps (bỏ kiểm tra TypeScript khi build)."
+  echo "  DEPLOY_BUILD_VPS=1 → npm run build:vps (skip TypeScript trong bước build)."
   npm run build:vps
 else
-  npm run build
+  # Ép bật lại full checks, tránh bị dính env cũ của shell (SKIP_ESLINT_ON_BUILD=1).
+  SKIP_ESLINT_ON_BUILD=0 NEXT_BUILD_SKIP_TYPECHECK=0 npm run build:full
 fi
+echo "  DONE [9/14]"
 
-echo "[7/11] Restart PM2 (--update-env: nạp lại biến môi trường)"
+echo "[10/14] Restart PM2 (--update-env: nạp lại biến môi trường)"
 if pm2 describe "${APP_NAME}" >/dev/null 2>&1; then
   pm2 restart "${APP_NAME}" --update-env
 else
@@ -231,8 +282,9 @@ else
   pm2 start "npm run worker" --name worksheet-worker
 fi
 pm2 save
+echo "  DONE [10/14]"
 
-echo "[8/11] Ensure messaging cron jobs"
+echo "[11/14] Ensure messaging cron jobs"
 if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   mkdir -p /root/logs
   AI_SECRET="$(env_read MESSAGING_PARTNER_AI_CRON_SECRET)"
@@ -267,8 +319,9 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
 else
   echo "  Bỏ qua (DEPLOY_SETUP_CRONS=${DEPLOY_SETUP_CRONS})."
 fi
+echo "  DONE [11/14]"
 
-echo "[9/11] ${DEPLOY_PM2_LOG_LINES} dòng log PM2 cuối → file + màn hình"
+echo "[12/14] ${DEPLOY_PM2_LOG_LINES} dòng log PM2 cuối → file + màn hình"
 mkdir -p "${LOG_DIR}"
 PM2_LOG_SNAPSHOT="${LOG_DIR}/pm2-snapshot-${APP_NAME}-$(date +%Y%m%d-%H%M%S).log"
 {
@@ -280,11 +333,13 @@ PM2_LOG_SNAPSHOT="${LOG_DIR}/pm2-snapshot-${APP_NAME}-$(date +%Y%m%d-%H%M%S).log
 } | tee "${PM2_LOG_SNAPSHOT}"
 echo ""
 echo "  Đã lưu: ${PM2_LOG_SNAPSHOT}"
+echo "  DONE [12/14]"
 
-echo "[10/11] PM2 status"
+echo "[13/14] PM2 status"
 pm2 status
+echo "  DONE [13/14]"
 
-echo "[11/11] Health check (HTTP)"
+echo "[14/14] Health check (HTTP)"
 if [[ "${DEPLOY_SKIP_HEALTHCHECK:-}" == "1" ]]; then
   echo "  Bỏ qua (DEPLOY_SKIP_HEALTHCHECK=1)."
 else
@@ -304,6 +359,7 @@ else
     exit 1
   fi
 fi
+echo "  DONE [14/14]"
 
 echo ""
 echo "Hoàn tất. PM2 đang chạy bản build từ commit ${NEW_HEAD} (trùng origin/${BRANCH})."

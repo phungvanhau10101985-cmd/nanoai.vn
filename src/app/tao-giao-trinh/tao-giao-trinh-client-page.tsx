@@ -294,8 +294,11 @@ export default function TaoGiaoTrinhClientPage({
   const [overwriteFromExistingLoading, setOverwriteFromExistingLoading] = useState(false)
   const [lastOverwriteAt, setLastOverwriteAt] = useState<string | null>(null)
   const [lessonImages, setLessonImages] = useState<File[]>([])
+  const [lessonImageUrl, setLessonImageUrl] = useState('')
+  const [lessonImageUrlLoading, setLessonImageUrlLoading] = useState(false)
   const lessonImageInputRef = useRef<HTMLInputElement>(null)
   const lessonCameraInputRef = useRef<HTMLInputElement>(null)
+  const lessonPasteZoneRef = useRef<HTMLDivElement>(null)
   const isbnImageInputRef = useRef<HTMLInputElement>(null)
   const isbnCameraInputRef = useRef<HTMLInputElement>(null)
   const [isbnScanLoading, setIsbnScanLoading] = useState(false)
@@ -1177,8 +1180,150 @@ export default function TaoGiaoTrinhClientPage({
 
   const handleClearLessonImages = () => {
     setLessonImages([])
+    setLessonImageUrl('')
     if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
     if (lessonCameraInputRef.current) lessonCameraInputRef.current.value = ''
+  }
+
+  const addLessonImages = (incoming: File[]) => {
+    const validIncoming = incoming.filter((f) => f && f.size > 0)
+    if (validIncoming.length <= 0) return
+    const existingKeys = new Set(lessonImages.map((f) => `${f.name}_${f.size}_${f.lastModified}`))
+    const dedupIncoming: File[] = []
+    for (const file of validIncoming) {
+      const key = `${file.name}_${file.size}_${file.lastModified}`
+      if (existingKeys.has(key)) continue
+      existingKeys.add(key)
+      dedupIncoming.push(file)
+    }
+    if (dedupIncoming.length <= 0) return
+    const merged = [...lessonImages, ...dedupIncoming]
+    const capped = merged.slice(0, MAX_CURRICULUM_LESSON_IMAGES)
+    setLessonImages(capped)
+    if (merged.length > capped.length) {
+      toast({
+        title: tr('Đã đạt giới hạn ảnh', 'Image limit reached', '已达到图片上限', '画像上限に達しました', '이미지 한도 도달'),
+        description: tr(
+          `Tối đa ${MAX_CURRICULUM_LESSON_IMAGES} ảnh cho mỗi lần tạo giáo trình.`,
+          `Maximum ${MAX_CURRICULUM_LESSON_IMAGES} images per curriculum generation.`,
+          `每次创建课程最多 ${MAX_CURRICULUM_LESSON_IMAGES} 张图片。`,
+          `1回のカリキュラム作成で最大 ${MAX_CURRICULUM_LESSON_IMAGES} 枚です。`,
+          `한 번의 생성에서 최대 ${MAX_CURRICULUM_LESSON_IMAGES}장까지 가능합니다.`
+        ),
+      })
+    }
+  }
+
+  const appendLessonImageFromUrl = async (rawUrl: string) => {
+    const urlText = rawUrl.trim()
+    if (!urlText) return
+    let parsed: URL
+    try {
+      parsed = new URL(urlText)
+    } catch {
+      toast({
+        title: tr('Link ảnh chưa hợp lệ', 'Invalid image link', '图片链接无效', '画像リンクが無効です', '이미지 링크가 유효하지 않습니다'),
+        description: tr(
+          'Vui lòng nhập link bắt đầu bằng http:// hoặc https://',
+          'Please provide a link starting with http:// or https://',
+          '请输入以 http:// 或 https:// 开头的链接',
+          'http:// または https:// で始まるリンクを入力してください',
+          'http:// 또는 https:// 로 시작하는 링크를 입력해 주세요'
+        ),
+        variant: 'destructive',
+      })
+      return
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      toast({
+        title: tr('Link ảnh chưa hợp lệ', 'Invalid image link', '图片链接无效', '画像リンクが無効です', '이미지 링크가 유효하지 않습니다'),
+        description: tr(
+          'Chỉ hỗ trợ link http/https.',
+          'Only http/https links are supported.',
+          '仅支持 http/https 链接。',
+          'http/https リンクのみ対応しています。',
+          'http/https 링크만 지원합니다.'
+        ),
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setLessonImageUrlLoading(true)
+    try {
+      const res = await fetch(parsed.toString())
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      if (!blob.type || !blob.type.startsWith('image/')) {
+        toast({
+          title: tr('Link không phải ảnh', 'Link is not an image', '链接不是图片', 'リンクは画像ではありません', '링크가 이미지가 아닙니다'),
+          description: tr(
+            'Vui lòng dán link ảnh trực tiếp (.png, .jpg, .webp...).',
+            'Please use a direct image URL (.png, .jpg, .webp...).',
+            '请使用直接图片链接（.png、.jpg、.webp...）。',
+            '直接画像URL（.png、.jpg、.webp...）を使用してください。',
+            '직접 이미지 URL(.png, .jpg, .webp...)을 사용해 주세요.'
+          ),
+          variant: 'destructive',
+        })
+        return
+      }
+      const pathName = parsed.pathname.split('/').filter(Boolean).pop() || ''
+      const fallbackExt = blob.type.split('/')[1]?.split(';')[0] || 'png'
+      const fileName = pathName || `lesson-image-${Date.now()}.${fallbackExt}`
+      const file = new File([blob], fileName, { type: blob.type, lastModified: Date.now() })
+      addLessonImages([file])
+      setLessonImageUrl('')
+      toast({
+        title: tr('Đã thêm ảnh từ link', 'Image added from link', '已从链接添加图片', 'リンク画像を追加しました', '링크 이미지 추가 완료'),
+      })
+    } catch (e) {
+      toast({
+        title: tr('Không tải được ảnh từ link', 'Could not load image from URL', '无法从链接加载图片', 'リンク画像を読み込めません', '링크에서 이미지를 불러오지 못했습니다'),
+        description: tr(
+          'Link có thể chặn CORS hoặc không cho truy cập trực tiếp. Hãy thử link ảnh trực tiếp khác hoặc dùng nút chọn ảnh.',
+          'The URL may block CORS or direct access. Try another direct image URL or upload from device.',
+          '该链接可能阻止跨域或直链访问。请尝试其他直链图片，或改用本地上传。',
+          'URLがCORSまたは直アクセスを制限している可能性があります。別の直リンク画像か、端末アップロードをお試しください。',
+          'URL이 CORS/직접 접근을 막고 있을 수 있습니다. 다른 직접 이미지 링크를 사용하거나 기기 업로드를 이용해 주세요.'
+        ),
+        variant: 'destructive',
+      })
+      console.warn('[tao-giao-trinh] append image from url failed', e)
+    } finally {
+      setLessonImageUrlLoading(false)
+    }
+  }
+
+  const handlePasteLessonImages = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = Array.from(e.clipboardData?.items ?? [])
+    const imageFiles = items
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => Boolean(f))
+    if (imageFiles.length > 0) {
+      e.preventDefault()
+      addLessonImages(imageFiles)
+      toast({
+        title: tr('Đã dán ảnh', 'Image pasted', '已粘贴图片', '画像を貼り付けました', '이미지 붙여넣기 완료'),
+        description: tr(
+          `Đã thêm ${imageFiles.length} ảnh từ clipboard.`,
+          `Added ${imageFiles.length} image(s) from clipboard.`,
+          `已从剪贴板添加 ${imageFiles.length} 张图片。`,
+          `クリップボードから ${imageFiles.length} 枚の画像を追加しました。`,
+          `클립보드에서 이미지 ${imageFiles.length}장을 추가했습니다.`
+        ),
+      })
+      return
+    }
+    const pastedText = e.clipboardData?.getData('text')?.trim() ?? ''
+    if (/^https?:\/\//i.test(pastedText)) {
+      e.preventDefault()
+      setLessonImageUrl(pastedText)
+      void appendLessonImageFromUrl(pastedText)
+    }
   }
 
   const scanIsbnFromImageFile = async (file: File | null | undefined) => {
@@ -3715,7 +3860,8 @@ export default function TaoGiaoTrinhClientPage({
                   className="hidden"
                   onChange={(e) => {
                     const list = Array.from(e.target.files ?? [])
-                    setLessonImages(list.slice(0, MAX_CURRICULUM_LESSON_IMAGES))
+                    addLessonImages(list)
+                    if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
                   }}
                 />
                 <input
@@ -3727,10 +3873,51 @@ export default function TaoGiaoTrinhClientPage({
                   onChange={(e) => {
                     const list = Array.from(e.target.files ?? [])
                     if (list.length <= 0) return
-                    setLessonImages((prev) => [...prev, ...list].slice(0, MAX_CURRICULUM_LESSON_IMAGES))
+                    addLessonImages(list)
                     if (lessonCameraInputRef.current) lessonCameraInputRef.current.value = ''
                   }}
                 />
+                <div
+                  ref={lessonPasteZoneRef}
+                  tabIndex={0}
+                  onPaste={handlePasteLessonImages}
+                  className="rounded-md border border-dashed border-violet-300/80 bg-white/70 px-3 py-2 text-xs text-muted-foreground focus:outline-none focus:ring-2 focus:ring-violet-400/60"
+                >
+                  {tr(
+                    'Bấm vào đây rồi nhấn Ctrl+V để dán ảnh (hoặc dán trực tiếp link ảnh).',
+                    'Click here then press Ctrl+V to paste image (or paste an image URL).',
+                    '点击这里后按 Ctrl+V 粘贴图片（或直接粘贴图片链接）。',
+                    'ここをクリックして Ctrl+V で画像貼り付け（画像URLの貼り付けも可）。',
+                    '여기를 클릭한 뒤 Ctrl+V로 이미지 붙여넣기(이미지 URL 붙여넣기도 가능).'
+                  )}
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    value={lessonImageUrl}
+                    onChange={(e) => setLessonImageUrl(e.target.value)}
+                    placeholder={tr(
+                      'Dán link ảnh trực tiếp (https://...)',
+                      'Paste direct image URL (https://...)',
+                      '粘贴图片直链（https://...）',
+                      '画像の直リンクを貼り付け（https://...）',
+                      '직접 이미지 URL 붙여넣기 (https://...)'
+                    )}
+                    className="h-9 bg-white/80"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={lessonImageUrlLoading || !lessonImageUrl.trim()}
+                    onClick={() => void appendLessonImageFromUrl(lessonImageUrl)}
+                    className="border-sky-400 text-sky-700 hover:bg-sky-100 dark:border-sky-600 dark:text-sky-300"
+                  >
+                    <Link2 className="mr-2 h-4 w-4" />
+                    {lessonImageUrlLoading
+                      ? tr('Đang tải link...', 'Loading URL...', '加载链接中...', 'URL読み込み中...', 'URL 불러오는 중...')
+                      : tr('Thêm ảnh từ link', 'Add image from URL', '从链接添加图片', 'URLから画像追加', 'URL에서 이미지 추가')}
+                  </Button>
+                </div>
                 <Button
                   type="button"
                   variant="outline"
