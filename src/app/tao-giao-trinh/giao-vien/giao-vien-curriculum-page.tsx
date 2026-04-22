@@ -1146,6 +1146,7 @@ export default function CurriculumViewPage() {
   const visualManualEditedRef = useRef<Record<number, boolean>>({})
   const visualInputPersistTimeoutRef = useRef<number | null>(null)
   const lastStudentWirePayloadRef = useRef<string>('')
+  const lastIncomingCurriculumPayloadRef = useRef<string>('')
   const quizPopupScrollApplyingRef = useRef(false)
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
   const firstMatchRef = useRef<HTMLElement | null>(null)
@@ -4466,6 +4467,36 @@ export default function CurriculumViewPage() {
         }
       }
       if (e.data?.type === 'curriculum-data') {
+        const fromKnownWindow =
+          e.source === window.opener || (studentViewWindowRef.current != null && e.source === studentViewWindowRef.current)
+        if (!fromKnownWindow) return
+        let incomingKey = ''
+        try {
+          incomingKey = JSON.stringify({
+            type: 'curriculum-data',
+            content: e.data.content ?? '',
+            topic: e.data.topic ?? '',
+            currentIndex: e.data.currentIndex ?? 0,
+            curriculumId: e.data.curriculumId ?? null,
+            lessonNo: e.data.lessonNo ?? null,
+            slideMode: e.data.slideMode ?? null,
+            personalViewSubMode: e.data.personalViewSubMode ?? null,
+            hasOriginalSlides: Boolean(e.data.hasOriginalSlides),
+            worksheetId: Boolean(e.data.worksheetId),
+            studentCurriculumRightMode: e.data.studentCurriculumRightMode ?? null,
+            teacherSlideLeftPane: e.data.teacherSlideLeftPane ?? null,
+            slides: Array.isArray(e.data.slides) ? e.data.slides : [],
+            curriculumInfographicUrl:
+              typeof e.data.curriculumInfographic?.imageUrl === 'string' ? e.data.curriculumInfographic.imageUrl : '',
+            lessonInfographicUrl:
+              typeof e.data.lessonInfographic?.imageUrl === 'string' ? e.data.lessonInfographic.imageUrl : '',
+          })
+        } catch {
+          incomingKey = ''
+        }
+        if (incomingKey && incomingKey === lastIncomingCurriculumPayloadRef.current) return
+        if (incomingKey) lastIncomingCurriculumPayloadRef.current = incomingKey
+
         const incomingCurriculumId = typeof e.data.curriculumId === 'string' ? e.data.curriculumId : null
         const incomingLessonNo = Number.isFinite(Number(e.data.lessonNo))
           ? Math.max(1, Math.floor(Number(e.data.lessonNo)))
