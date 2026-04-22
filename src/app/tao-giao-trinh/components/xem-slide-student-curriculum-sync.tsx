@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { getPresentationBroadcastChannelName, PRESENTATION_SYNC_QUERY_KEY } from '../lib/presentation-broadcast'
 import type { SlideInfographic } from '../lib/slide-infographic'
@@ -41,6 +41,7 @@ export type CurriculumStudentViewData = {
 }
 
 type WirePayload = {
+  __syncSeq?: number
   type?: string
   slides?: unknown
   content?: string
@@ -103,6 +104,7 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
   const [data, setData] = useState<CurriculumStudentViewData | null>(null)
   const [shareError, setShareError] = useState<string | null>(null)
   const [shareLoading, setShareLoading] = useState(() => !!searchParams.get('share'))
+  const processedSyncSeqRef = useRef<Set<number>>(new Set())
 
   useEffect(() => {
     if (shareCode) {
@@ -143,6 +145,15 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
     const applyCurriculumPayload = (raw: { data?: WirePayload }) => {
       const e = raw.data
       if (e?.type !== 'curriculum-data') return
+      const seq = e.__syncSeq
+      if (typeof seq === 'number' && Number.isFinite(seq)) {
+        if (processedSyncSeqRef.current.has(seq)) return
+        processedSyncSeqRef.current.add(seq)
+        if (processedSyncSeqRef.current.size > 120) {
+          const arr = Array.from(processedSyncSeqRef.current).sort((a, b) => a - b)
+          processedSyncSeqRef.current = new Set(arr.slice(-60))
+        }
+      }
       const sl = Array.isArray(e.slides) ? e.slides : []
       const scmRaw = e.studentCurriculumRightMode
       const studentCurriculumRightMode =

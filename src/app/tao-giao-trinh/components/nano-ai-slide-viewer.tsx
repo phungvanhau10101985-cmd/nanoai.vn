@@ -849,6 +849,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const studentMarkdownAllScrollRef = useRef<HTMLDivElement | null>(null)
   /** Cột phải HS: khung thật sự có overflow-y-auto (cha của danh sách chuỗi slide). */
   const studentMdRightColumnScrollRef = useRef<HTMLDivElement | null>(null)
+  const lastMdAutoScrollIndexRef = useRef<number | null>(null)
+  const lastMdAutoScrollAtRef = useRef(0)
   /** Con của scroll: cùng chiều rộng nội dung với GV → xuống dòng khớp; map chuột theo toàn khối nội dung. */
   const studentSlideContentLayoutRef = useRef<HTMLDivElement | null>(null)
   /** Phần thân slide sau tiêu đề — map chuột ảo theo `slidePointerBody` từ GV. */
@@ -3313,6 +3315,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     if (slides.length === 0) return
     const id = `nano-student-md-slide-${currentIndex}`
     const t = window.setTimeout(() => {
+      const now = Date.now()
+      const sameSlideRepeat =
+        lastMdAutoScrollIndexRef.current === currentIndex && now - lastMdAutoScrollAtRef.current < 500
+      if (sameSlideRepeat) return
       const el = document.getElementById(id) as HTMLElement | null
       const container = studentMdRightColumnScrollRef.current
       if (el && container) {
@@ -3328,10 +3334,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           maxScroll,
           Math.max(0, elTopInContent - bias + extraScrollUpPx),
         )
-        container.scrollTo({ top: nextTop, behavior: 'smooth' })
+        const behavior: ScrollBehavior = now - lastMdAutoScrollAtRef.current < 700 ? 'auto' : 'smooth'
+        container.scrollTo({ top: nextTop, behavior })
       } else {
-        el?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
+        const behavior: ScrollBehavior = now - lastMdAutoScrollAtRef.current < 700 ? 'auto' : 'smooth'
+        el?.scrollIntoView({ behavior, block: 'start', inline: 'nearest' })
       }
+      lastMdAutoScrollIndexRef.current = currentIndex
+      lastMdAutoScrollAtRef.current = now
     }, 100)
     return () => window.clearTimeout(t)
   }, [currentIndex, studentCurriculumRightMode, slides.length, isTeacherView, worksheetPresentation])
