@@ -87,14 +87,17 @@ function LazyHeavyMount({
   render,
   minHeight = 140,
   rootMargin = '220px 0px',
+  keepMountedOnceVisible = false,
 }: {
   children?: ReactNode
   render?: () => ReactNode
   minHeight?: number
   rootMargin?: string
+  keepMountedOnceVisible?: boolean
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const [isVisible, setIsVisible] = useState(false)
+  const [hasEverBeenVisible, setHasEverBeenVisible] = useState(false)
 
   useEffect(() => {
     const node = hostRef.current
@@ -107,7 +110,9 @@ function LazyHeavyMount({
     const observer = new IntersectionObserver(
       (entries) => {
         if (cancelled) return
-        setIsVisible(entries.some((entry) => entry.isIntersecting))
+        const nextVisible = entries.some((entry) => entry.isIntersecting)
+        setIsVisible(nextVisible)
+        if (nextVisible) setHasEverBeenVisible(true)
       },
       { root: null, rootMargin, threshold: 0.01 }
     )
@@ -120,7 +125,7 @@ function LazyHeavyMount({
 
   return (
     <div ref={hostRef} className="w-full h-full">
-      {isVisible ? (
+      {isVisible || (keepMountedOnceVisible && hasEverBeenVisible) ? (
         render ? render() : children
       ) : (
         <div
@@ -353,6 +358,7 @@ const INFOGRAPHIC_MAX_STROKES = 240
 const INFOGRAPHIC_MAX_POINTS_PER_STROKE = 2500
 const INFOGRAPHIC_MAX_TOTAL_POINTS = 90000
 const INFOGRAPHIC_MAX_CANVAS_PIXELS = 2_400_000
+const STUDENT_MD_CHAIN_AUTO_FOLLOW = true
 
 function dedupeInfographicStrokesById(strokes: InfographicDrawStroke[]): InfographicDrawStroke[] {
   const byId = new Map<string, InfographicDrawStroke>()
@@ -3312,6 +3318,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   useEffect(() => {
     if (isTeacherView || worksheetPresentation) return
     if (studentCurriculumRightMode !== 'markdown-all') return
+    if (!STUDENT_MD_CHAIN_AUTO_FOLLOW) return
     if (slides.length === 0) return
     const id = `nano-student-md-slide-${currentIndex}`
     const t = window.setTimeout(() => {
@@ -3327,12 +3334,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         const elTopInContent = eRect.top - cRect.top + container.scrollTop
         // Đặt mép trên thẻ slide ~18% chiều cao vùng cuộn dưới mép trên (cao hơn block:center)
         const bias = Math.max(56, Math.round(container.clientHeight * 0.18))
-        // Cuộn thêm để đưa slide lên ~100px (dễ nhìn từ xa)
-        const extraScrollUpPx = 100
+        // Cuộn dư theo chiều cao slide sắp mở (~10%): ví dụ cao 10 thì cuộn đến khoảng 11.
+        const extraFollowPx = Math.max(16, Math.min(180, Math.round(eRect.height * 0.1)))
         const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight)
         const nextTop = Math.min(
           maxScroll,
-          Math.max(0, elTopInContent - bias + extraScrollUpPx),
+          Math.max(0, elTopInContent - bias + extraFollowPx),
         )
         const behavior: ScrollBehavior = now - lastMdAutoScrollAtRef.current < 700 ? 'auto' : 'smooth'
         container.scrollTo({ top: nextTop, behavior })
@@ -4754,6 +4761,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                                 <LazyHeavyMount
                                   minHeight={approximateBlockMinHeight}
                                   rootMargin="80px 0px"
+                                  keepMountedOnceVisible
                                   render={() => blockContentNode}
                                 />
                               ) : (
@@ -4769,6 +4777,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       <LazyHeavyMount
                         minHeight={Math.min(780, Math.max(180, Math.ceil((s.content ?? '').trim().length / 5)))}
                         rootMargin="80px 0px"
+                        keepMountedOnceVisible
                         render={() => (
                           <CurriculumBlockContentWithEmbeds
                             content={s.content ?? ''}
@@ -4889,6 +4898,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       <LazyHeavyMount
                         minHeight={estimatedSlideBodyMinHeight}
                         rootMargin="120px 0px"
+                        keepMountedOnceVisible
                         render={() => renderFullSlideBody()}
                       />
                     ) : (

@@ -303,6 +303,14 @@ export async function fetchPartnerConversationsFromPg(
               metadata, status, last_message_at, last_message_preview, created_at, updated_at
        from public.customer_care_conversations c
        where c.partner_id = $1::uuid
+         and exists (
+           select 1
+           from public.customer_care_messages m_keep
+           where m_keep.conversation_id = c.id
+             and m_keep.direction = 'inbound'
+             and coalesce(m_keep.raw_payload ->> 'widget_auto_opening', 'false') <> 'true'
+             and nullif(trim(replace(replace(coalesce(m_keep.body, ''), '📷', ''), '📦', '')), '') is not null
+         )
          and not exists (
            select 1
            from (
@@ -366,6 +374,14 @@ export async function listPartnerConversationsFromPg(
               metadata, status, last_message_at, last_message_preview, created_at, updated_at
        from public.customer_care_conversations
        where partner_id = $1::uuid
+         and exists (
+           select 1
+           from public.customer_care_messages m_keep
+           where m_keep.conversation_id = customer_care_conversations.id
+             and m_keep.direction = 'inbound'
+             and coalesce(m_keep.raw_payload ->> 'widget_auto_opening', 'false') <> 'true'
+             and nullif(trim(replace(replace(coalesce(m_keep.body, ''), '📷', ''), '📦', '')), '') is not null
+         )
        order by coalesce(last_message_at, updated_at) desc, updated_at desc
        limit $2`,
       [partnerId, lim]
