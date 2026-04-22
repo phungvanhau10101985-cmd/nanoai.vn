@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element -- authoring workspace uses dynamic/blob preview images */
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 

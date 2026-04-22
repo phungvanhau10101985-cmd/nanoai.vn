@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
-import { getUserOrBypass } from '@/lib/auth'
+import { getUserForCreditAction, getUserOrBypass } from '@/lib/auth'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 import { trackApiUsage } from '@/lib/track-ai-usage'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -204,19 +204,26 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const visionUser = await getUserOrBypass()
-    const trackUserId = visionUser?.id ?? null
-    const billingUserId = visionUser?.id
-
     const chargeDisabled = isCurriculumAiCreditsDisabled()
     const fromImageCost = FROM_IMAGE_CREDIT_COST
-
-    if (!chargeDisabled && !billingUserId) {
-      return NextResponse.json(
-        { error: 'Vui lòng đăng nhập để tạo giáo trình từ ảnh.', code: 'UNAUTHORIZED' },
-        { status: 401 }
-      )
+    let trackUserId: string | null = null
+    let billingUserId: string | null = null
+    if (chargeDisabled) {
+      const visionUser = await getUserOrBypass()
+      trackUserId = visionUser?.id ?? null
+      billingUserId = visionUser?.id ?? null
+    } else {
+      const auth = await getUserForCreditAction('Vui lòng đăng nhập để tạo giáo trình từ ảnh.')
+      if ('error' in auth) {
+        return NextResponse.json(
+          { error: auth.error, code: 'UNAUTHORIZED' },
+          { status: 401 }
+        )
+      }
+      trackUserId = auth.user.id
+      billingUserId = auth.user.id
     }
+
     if (!chargeDisabled) {
       if (!isPgConfigured()) {
         return NextResponse.json(

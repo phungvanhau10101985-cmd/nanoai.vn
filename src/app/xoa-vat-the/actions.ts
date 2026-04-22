@@ -1,7 +1,7 @@
 'use server'
 import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
@@ -42,7 +42,7 @@ export async function eraseObjects(formData: FormData) {
   prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `ĐỐI TƯỢNG CẦN XÓA: "${noteEn}". Chỉ trả về ảnh kết quả, không chèn chữ.`)
 
   const COST = ERASER_COSTS[imageQuality]
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 

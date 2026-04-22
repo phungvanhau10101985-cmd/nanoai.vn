@@ -1,6 +1,6 @@
 'use server'
 
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import {
   insertTryOnHistoryCompletedDirectPg,
   insertTryOnHistoryProcessingPg,
@@ -92,7 +92,7 @@ export async function generateMusicVideoLyrics(formData: FormData) {
     return { error: 'Nhập gợi ý ít nhất 4 ký tự hoặc tải ảnh tham chiếu.' }
   }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -281,7 +281,7 @@ export async function generateMusicVideoLyricsNextSegment(formData: FormData) {
     return { error: 'Nhập gợi ý ít nhất 4 ký tự hoặc tải ảnh tham chiếu.' }
   }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -447,7 +447,7 @@ export async function createMusicVideoVeo8s(formData: FormData) {
       ? buildMusicVideoVeoStandaloneClipPrompt(openingLyrics, styleEn, visualExtra, segmentIndex, segmentTotal)
       : buildMusicVideoVeoUserPrompt(openingLyrics, styleEn, visualExtra)
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -621,7 +621,7 @@ export async function mergeFlowMusicVeoClips(formData: FormData) {
     return { error: 'Tối đa 20 clip mỗi lần ghép.' }
   }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 

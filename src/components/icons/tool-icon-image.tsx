@@ -13,6 +13,7 @@ export function ToolIconImage({ src, className, priority = false }: ToolIconImag
       className={`flex w-full aspect-square items-center justify-center rounded-none sm:rounded-lg overflow-hidden ${className ?? ''}`}
       aria-hidden="true"
     >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={fullFrameSrc}
         alt=""

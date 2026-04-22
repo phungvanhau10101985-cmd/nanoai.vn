@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element -- embeds/rendered content include dynamic and data URLs */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Timer } from 'lucide-react'

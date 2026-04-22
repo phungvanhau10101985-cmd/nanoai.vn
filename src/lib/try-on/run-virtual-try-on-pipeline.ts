@@ -185,23 +185,52 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
     )),
   ]
 
-  try {
-    const genResult = await model.generateContent([prompt, ...imageParts], { safetySettings })
-    const response = genResult.response
-    trackFromUsageMetadata(
-      response.usageMetadata,
-      modelName,
-      'thu-do-online',
-      billingUserId,
-      imageQuality === '4K' ? '4K' : '2K'
-    )
+  const extractImageBase64FromResponse = (response: unknown): string | null => {
+    const candidates = (response as { candidates?: Array<{ content?: { parts?: Array<unknown> } }> })?.candidates
+    if (!Array.isArray(candidates)) return null
+    for (const candidate of candidates) {
+      const parts = candidate?.content?.parts
+      if (!Array.isArray(parts)) continue
+      for (const part of parts) {
+        const inline = (part as { inlineData?: { data?: string } })?.inlineData
+        const data = inline?.data
+        if (typeof data === 'string' && data.length > 0) return data
+      }
+    }
+    return null
+  }
 
-    const imagePart = response.candidates?.[0]?.content?.parts?.find((part) => 'inlineData' in part)
-    if (!imagePart || !('inlineData' in imagePart)) {
-      throw new Error(`AI did not return a valid image.`)
+  try {
+    let resultImageBase64: string | null = null
+    let lastResponse: unknown = null
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const genResult = await model.generateContent([prompt, ...imageParts], { safetySettings })
+      const response = genResult.response
+      lastResponse = response
+      trackFromUsageMetadata(
+        response.usageMetadata,
+        modelName,
+        'thu-do-online',
+        billingUserId,
+        imageQuality === '4K' ? '4K' : '2K'
+      )
+      resultImageBase64 = extractImageBase64FromResponse(response)
+      if (resultImageBase64) break
+      if (attempt === 1) {
+        // Gemini thỉnh thoảng trả text-only candidate; retry nhanh 1 lần để giảm fail ngẫu nhiên.
+        continue
+      }
+    }
+    if (!resultImageBase64) {
+      const finishReasons = (
+        (lastResponse as { candidates?: Array<{ finishReason?: string }> })?.candidates ?? []
+      )
+        .map((c) => c?.finishReason)
+        .filter(Boolean)
+      const reason = finishReasons.length ? ` finishReason=${finishReasons.join(',')}` : ''
+      throw new Error(`AI did not return a valid image.${reason}`)
     }
 
-    const resultImageBase64 = (imagePart as { inlineData: { data: string } }).inlineData.data
     const resultImageBuffer = Buffer.from(resultImageBase64, 'base64')
     const resultImagePath = `results/${billingUserId}/try-on_${timestamp}.png`
 

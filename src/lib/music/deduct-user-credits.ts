@@ -1,4 +1,8 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
+import {
+  consumeGuestCreditTrialUse,
+  isGuestTrialUserId,
+} from '@/lib/guest-credit-trial'
 
 const toTenths = (value: number) => Math.round(value * 10)
 const fromTenths = (value: number) => value / 10
@@ -93,6 +97,14 @@ async function refundUserCreditsPg(userId: string, amount: number): Promise<void
 export async function deductUserCredits(userId: string, cost: number): Promise<DeductCreditsResult> {
   if (!Number.isFinite(cost) || cost <= 0) {
     return { ok: true, charged: 0, balance: 0 }
+  }
+
+  if (isGuestTrialUserId(userId)) {
+    const trial = await consumeGuestCreditTrialUse({ amount: cost })
+    if (!trial.ok) {
+      return { ok: false, error: 'Bạn đã dùng hết 3 credits dùng thử.', code: 'INSUFFICIENT_CREDITS' }
+    }
+    return { ok: true, charged: 0, balance: trial.remaining }
   }
 
   if (!isPgConfigured()) {

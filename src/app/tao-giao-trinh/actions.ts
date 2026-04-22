@@ -4,7 +4,7 @@
 import { normalizeTopicForSearch, topicsMatch } from './lib/topic-normalize'
 import { normalizeCurriculumInput, parseCurriculumLessonNumber } from './lib/curriculum-input-normalize'
 import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -794,7 +794,7 @@ export async function createCurriculum(formData: FormData) {
   const textbookName = TEXTBOOK_NAMES[textbookSetId] || TEXTBOOK_NAMES.khac
   const lessonTypeName = LESSON_TYPE_NAMES[lessonTypeId] || LESSON_TYPE_NAMES['hinh-thanh-kien-thuc']
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -996,7 +996,7 @@ export async function saveCurriculum(formData: FormData) {
     return { error: 'Thiếu bài số hoặc chủ đề.' }
   }
 
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   if (!isPgConfigured()) {
@@ -1112,7 +1112,7 @@ export async function saveTextbookLessonFromImage(opts: {
   lessonNumber: number
   lessonTitle: string
 }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể lưu mục lục SGK.' }
@@ -1151,7 +1151,7 @@ export async function checkCurriculumExists(opts: {
   createMode?: 'textbook' | 'topic'
   topic?: string
 }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
 
   const normalizedIsbn = normalizeBookIsbn(opts.bookIsbn)
@@ -1260,7 +1260,7 @@ export async function listTextbookLessons(opts: {
   textbookSetId: string
   textbookVolume?: string
 }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
 
   if (!isPgConfigured()) {
@@ -1298,7 +1298,7 @@ export async function fetchTextbookLessonsByAI(opts: {
 
 /** Danh sách giáo trình đã lưu – gồm: (1) giáo trình user tạo, (2) giáo trình user đã mở (kể cả của người khác). Loại trừ user đã ẩn. */
 export async function listCurricula(opts?: { subjectId?: string; gradeLevelId?: string; limit?: number }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
 
@@ -1403,7 +1403,7 @@ export async function listCurricula(opts?: { subjectId?: string; gradeLevelId?: 
 
 /** Ghi nhận giáo viên đã mở giáo trình – dùng khi load/xem giáo trình trong tao-giao-trinh */
 export async function recordCurriculumOpen(curriculumId: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   if (!user?.id) return { success: true }
@@ -1420,7 +1420,7 @@ export async function recordCurriculumOpen(curriculumId: string) {
 
 /** Danh sách giáo trình đã mở – hiển thị ở trên cùng khi chọn giáo trình cho bài thi */
 export async function listOpenedCurriculaForExam(opts?: { subjectId?: string; gradeLevelId?: string; limit?: number }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   if (!user?.id) return { success: true, items: [] }
@@ -1500,7 +1500,7 @@ export async function listOpenedCurriculaForExam(opts?: { subjectId?: string; gr
 
 /** Danh sách giáo trình cho Tạo bài thi – lấy chung từ mọi giáo viên (RLS cho phép xem tất cả). */
 export async function listCurriculaForExam(opts?: { subjectId?: string; gradeLevelId?: string; limit?: number }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
 
@@ -1571,7 +1571,7 @@ export async function listCurriculaForExam(opts?: { subjectId?: string; gradeLev
 
 /** Ẩn giáo trình khỏi danh sách của mình (soft delete) – dữ liệu vẫn lưu DB cho giáo viên khác */
 export async function deleteCurriculum(id: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
 
@@ -1585,7 +1585,7 @@ export async function deleteCurriculum(id: string) {
 
 /** Xóa dữ liệu phát sinh của giáo trình trước khi tạo lại (ghi đè): worksheet + slides + lịch sử chỉnh sửa. */
 export async function clearCurriculumDerivedData(curriculumId: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
 
   if (!isPgConfigured()) {
@@ -1598,7 +1598,7 @@ export async function clearCurriculumDerivedData(curriculumId: string) {
 
 /** Lấy chi tiết giáo trình theo id – cho phép load bất kỳ (kể cả khi match từ giáo viên khác) */
 export async function getCurriculumById(id: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
 
   if (!isPgConfigured()) {
@@ -1611,7 +1611,7 @@ export async function getCurriculumById(id: string) {
 
 /** Kiểm tra người dùng hiện tại có phải chủ sở hữu giáo trình không */
 export async function isCurriculumOwner(curriculumId: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { success: false, isOwner: false }
 
   if (!isPgConfigured()) {
@@ -1625,7 +1625,7 @@ export async function isCurriculumOwner(curriculumId: string) {
 
 /** Danh sách phiếu bài tập đã lưu */
 export async function listWorksheets(opts?: { subjectId?: string; gradeLevelId?: string; limit?: number }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
 
   if (!isPgConfigured()) {
@@ -1637,7 +1637,7 @@ export async function listWorksheets(opts?: { subjectId?: string; gradeLevelId?:
 
 /** Lấy chi tiết phiếu bài tập theo id */
 export async function getWorksheetById(id: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
 
   if (!isPgConfigured()) {
@@ -1667,7 +1667,7 @@ export async function saveWorksheetContent(formData: FormData) {
   if (!worksheetId) return { error: 'Thiếu worksheetId.' }
   if (!contentMarkdown) return { error: 'Nội dung phiếu bài tập không được để trống.' }
 
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const userId = authResult.user?.id ?? null
 
@@ -1740,7 +1740,7 @@ export async function createWorksheetFromQuestions(formData: FormData) {
 
   if (!newQuestionIds.length) return { error: 'Chưa có câu hỏi nào.' }
 
-  const auth = await getUserForAction()
+  const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
   const userId = auth.user?.id
 
@@ -1803,7 +1803,7 @@ export async function createWorksheetFromQuestions(formData: FormData) {
 
 /** Lấy danh sách phiếu bài tập thuộc một giáo trình (kể cả khi match từ giáo viên khác) */
 export async function getWorksheetsByCurriculumId(curriculumId: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
 
   if (!isPgConfigured()) {
@@ -2096,7 +2096,7 @@ export async function saveSlidesToCurriculum(opts: {
   curriculumInfographic?: SlideInfographic
   lessonNo?: number
 }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   if (!isPgConfigured()) {
@@ -2168,7 +2168,7 @@ export async function saveSlidesToCurriculum(opts: {
 
 /** Lấy bản gốc slide (AI tạo lần đầu, không bị ghi đè) */
 export async function getOriginalSlides(curriculumId: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể tải slide gốc.' }
@@ -2189,7 +2189,7 @@ const SHARED_HISTORY_DAYS = 7
 
 /** Lịch sử chỉnh sửa bản chung – chỉ lấy trong 7 ngày, xóa bản cũ hơn */
 export async function getSlideEditHistory(curriculumId: string, limit = 20) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể tải lịch sử chỉnh sửa slide.' }
@@ -2411,7 +2411,7 @@ async function rebuildLessonRowsForCurriculum(curriculumId: string, userId?: str
 
 /** Lấy danh sách tiết đã được chia sẵn trong DB (theo mode). */
 export async function getCurriculumLessonMeta(curriculumId: string, mode: CurriculumSlideModeForLesson) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể tải meta tiết.' }
@@ -2437,7 +2437,7 @@ export async function getCurriculumLessonMeta(curriculumId: string, mode: Curric
 
 /** Chỉ lấy slide của một tiết để mở nhẹ dữ liệu. */
 export async function getCurriculumSlidesByLesson(curriculumId: string, mode: CurriculumSlideModeForLesson, lessonNo: number) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể tải slide theo tiết.' }
@@ -2586,7 +2586,7 @@ async function loadLessonSlidesCacheByMode(
 }
 
 export async function ensureCurriculumLessonSlidesPrepared(curriculumId: string, lessonNo: number) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   const safeLessonNo = Math.max(1, Math.floor(Number(lessonNo) || 1))
@@ -2637,7 +2637,7 @@ export async function ensureCurriculumLessonSlidesPrepared(curriculumId: string,
 }
 
 export async function getCurriculumSlidesByLessonCached(curriculumId: string, mode: CurriculumSlideModeForLesson, lessonNo: number) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể tải slide theo tiết.' }
@@ -2673,7 +2673,7 @@ export async function saveCurriculumLessonInfographic(opts: {
   lessonNo: number
   infographic: SlideInfographic
 }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể lưu infographic theo tiết.' }
@@ -2705,7 +2705,7 @@ export async function saveUserCustomizedSlides(opts: {
   lessonNo?: number
   lessonMode?: 'personal' | 'original'
 }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   if (!isPgConfigured()) {
@@ -2771,7 +2771,7 @@ const PERSONAL_HISTORY_DAYS = 7
 
 /** Lấy lịch sử bản riêng – các bản đã lưu (trong 7 ngày, sau đó xóa) */
 export async function getPersonalSlidesHistory(curriculumId: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   if (!isPgConfigured()) {
@@ -2787,7 +2787,7 @@ export async function getPersonalSlidesHistory(curriculumId: string) {
 
 /** Reset bản riêng về bản gốc – lưu bản hiện tại vào lịch sử trước */
 export async function resetPersonalToOriginal(curriculumId: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   if (!isPgConfigured()) {
@@ -2822,7 +2822,7 @@ export async function resetPersonalToOriginal(curriculumId: string) {
 
 /** Khôi phục bản riêng từ lịch sử */
 export async function restorePersonalFromHistory(curriculumId: string, historyId: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   if (!isPgConfigured()) {
@@ -2852,7 +2852,7 @@ export async function createSlideEditProposal(opts: {
   proposedText: string
   proposedHeader?: string
 }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   if (!isPgConfigured()) {
@@ -2890,7 +2890,7 @@ export async function verifySlideEditProposalDraft(opts: {
   /** true: trừ credit cho lần kiểm tra AI (nút "Kiểm tra AI"). */
   chargeCredits?: boolean
 }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể kiểm tra đề xuất slide.' }
@@ -2990,7 +2990,7 @@ export async function applySlideEditDirect(opts: {
   proposedText: string
   proposedHeader?: string
 }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const userId = authResult.user?.id ?? null
 
@@ -3078,7 +3078,7 @@ export async function applySlideEditDirect(opts: {
 
 /** Xóa đề xuất – chỉ người tạo, khi chưa có ai bình chọn */
 export async function deleteSlideProposal(proposalId: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   if (!isPgConfigured()) {
@@ -3098,7 +3098,7 @@ export async function deleteSlideProposal(proposalId: string) {
 
 /** Bỏ phiếu đồng ý/không đồng ý cho đề xuất */
 export async function voteOnSlideProposal(proposalId: string, vote: 'agree' | 'disagree') {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
   if (!isPgConfigured()) {
@@ -3200,7 +3200,7 @@ async function applySlideProposalIfEligible(proposalId: string) {
 
 /** Lấy đề xuất sửa slide theo curriculum (để hiển thị trong viewer) */
 export async function getSlideProposalsForCurriculum(curriculumId: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể tải đề xuất sửa slide.' }
@@ -3222,7 +3222,7 @@ export async function getSlideProposalsForCurriculum(curriculumId: string) {
 
 /** Admin: danh sách tất cả đề xuất sửa slide */
 export async function listSlideProposalsForAdmin(opts?: { status?: string; limit?: number }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const user = authResult.user
   if (!user?.id) return { error: 'Vui lòng đăng nhập.' }
@@ -3247,7 +3247,7 @@ export async function listSlideProposalsForAdmin(opts?: { status?: string; limit
 
 /** Admin: duyệt hoặc từ chối đề xuất (admin có thể duyệt bất kể số phiếu) */
 export async function adminReviewSlideProposal(proposalId: string, action: 'approve' | 'reject') {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const user = authResult.user
   if (!user?.id) return { error: 'Vui lòng đăng nhập.' }
@@ -3352,7 +3352,7 @@ async function applySlideProposalForce(proposalId: string) {
 
 /** Admin: danh sách giáo trình giáo viên gửi khi 2 AI báo sai */
 export async function listCurriculumEditReviewsForAdmin(opts?: { status?: string; limit?: number }) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const user = authResult.user
   if (!user?.id) return { error: 'Vui lòng đăng nhập.' }
@@ -3376,7 +3376,7 @@ export async function listCurriculumEditReviewsForAdmin(opts?: { status?: string
 
 /** Admin: duyệt hoặc từ chối giáo trình gửi lên */
 export async function adminReviewCurriculumEdit(reviewId: string, action: 'approve' | 'reject', adminNote?: string) {
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const user = authResult.user
   if (!user?.id) return { error: 'Vui lòng đăng nhập.' }

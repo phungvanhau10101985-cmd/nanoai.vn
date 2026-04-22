@@ -40,6 +40,13 @@ interface HeaderUserMenuProps {
 export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProps) {
   const [open, setOpen] = useState(false)
   const [displayCredits, setDisplayCredits] = useState<number>(Number(credits || 0))
+  const [isGuestTrial, setIsGuestTrial] = useState<boolean>(String(user.email ?? '').includes('@guest.nanoai.local'))
+  const [guestTrialRemaining, setGuestTrialRemaining] = useState<number>(0)
+  const [guestTrialBudget, setGuestTrialBudget] = useState<number>(3)
+
+  const creditLabel = isGuestTrial
+    ? `Dùng thử ${guestTrialRemaining.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}/${guestTrialBudget.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} credits`
+    : `${displayCredits} ${t.menu.credits}`
 
   useEffect(() => {
     setDisplayCredits(Number(credits || 0))
@@ -50,8 +57,18 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
     const refreshCredits = async () => {
       const res = await fetch('/api/account/credits', { credentials: 'same-origin' })
       if (!res.ok) return
-      const j = (await res.json()) as { balance?: unknown }
+      const j = (await res.json()) as {
+        balance?: unknown
+        isGuestTrial?: unknown
+        guestTrialRemaining?: unknown
+        guestTrialBudget?: unknown
+      }
       if (!mounted) return
+      setIsGuestTrial(Boolean(j.isGuestTrial))
+      const nextTrialRemaining = Number(j.guestTrialRemaining)
+      if (Number.isFinite(nextTrialRemaining)) setGuestTrialRemaining(Math.max(0, nextTrialRemaining))
+      const nextTrialBudget = Number(j.guestTrialBudget)
+      if (Number.isFinite(nextTrialBudget) && nextTrialBudget > 0) setGuestTrialBudget(nextTrialBudget)
       const nextBalance = Number(j.balance)
       if (Number.isFinite(nextBalance)) setDisplayCredits(nextBalance)
     }
@@ -67,7 +84,7 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
     <div className="flex items-center gap-2 sm:gap-4">
       <div className="hidden sm:flex items-center gap-2 text-sm font-medium">
         <Wallet className="h-4 w-4" />
-        <span>{displayCredits} {t.menu.credits}</span>
+        <span>{creditLabel}</span>
       </div>
       <DepositCreditButton variant="outline" size="sm" className="hidden sm:flex" />
       <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -112,7 +129,7 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
           <DropdownMenuItem asChild className="sm:hidden cursor-default">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Wallet className="h-4 w-4" />
-              <span>{displayCredits} {t.menu.credits}</span>
+              <span>{creditLabel}</span>
             </div>
           </DropdownMenuItem>
           <DepositCreditMenuItem />

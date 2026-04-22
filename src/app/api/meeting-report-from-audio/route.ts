@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchMeetingRecordingForUserPg, updateMeetingRecordingTitlePg } from '@/lib/db/meeting-recordings-pg'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
   let userIdForRefund: string | null = null
 
   try {
-    const auth = await getUserForAction()
+    const auth = await getUserForCreditAction()
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
     }

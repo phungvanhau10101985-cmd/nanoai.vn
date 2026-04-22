@@ -230,6 +230,7 @@ export default function ThietKeConDauClientPage() {
             <Card className="border shadow-sm overflow-hidden">
               <CardContent className="p-4">
                 <div className="flex items-center justify-center bg-[repeating-conic-gradient(#e5e7eb_0%_25%,#f9fafb_0%_50%)] bg-[length:12px_12px] rounded-lg border p-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- generated result URL may be blob/data URL */}
                   <img src={resultUrl} alt={tr('Con dấu đã tạo', 'Created stamp', '已创建印章', '作成したスタンプ', '생성된 스탬프')} className="max-w-full max-h-[400px] object-contain rounded shadow" />
                 </div>
                 <div className="flex flex-wrap gap-2 mt-4">

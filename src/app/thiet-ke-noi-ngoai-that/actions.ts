@@ -1,7 +1,7 @@
 'use server'
 import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
@@ -256,7 +256,7 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
   const COST_PER_IMAGE = IMAGE_COSTS[imageQuality]
   const actualVariantCount = isRotationOnly || isExpandExteriorDown ? 1 : variantCount
   const COST = COST_PER_IMAGE * actualVariantCount
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -381,7 +381,7 @@ export async function analyzeInterior(formData: FormData) {
   const image = formData.get('image') as File
   if (!image || image.size === 0) return { error: 'Cần tải lên ảnh không gian cần thiết kế.' }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -451,7 +451,7 @@ export async function processInteriorImage(formData: FormData) {
   }
 
   const COST = IMAGE_COSTS[imageQuality]
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 

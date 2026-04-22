@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable @next/next/no-img-element -- payment QR image can be dynamic external URL */
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { useState, useEffect, useCallback, useRef } from 'react'

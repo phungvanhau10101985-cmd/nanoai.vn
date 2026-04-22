@@ -1,7 +1,7 @@
 'use server'
 import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import {
   getTryOnHistoryRowByIdPg,
   insertTryOnHistoryProcessingPg,
@@ -95,7 +95,7 @@ export async function createVeoVideo(formData: FormData) {
         ? prompt
         : DEFAULT_IMAGE_PROMPT
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -241,7 +241,7 @@ export async function extendVeoVideo(formData: FormData) {
     return { error: 'Thiếu mã phiên video gốc.' }
   }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 

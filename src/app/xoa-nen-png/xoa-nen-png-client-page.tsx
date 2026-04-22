@@ -224,7 +224,7 @@ export default function XoaNenPngClientPage() {
     }
     document.addEventListener('paste', fn)
     return () => document.removeEventListener('paste', fn)
-  }, [step, toast])
+  }, [step, t.pasted, t.pastedDesc, toast])
 
   const handleSubmit = async () => {
     if (!image.file) {

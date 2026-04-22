@@ -190,6 +190,7 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
             className={`relative cursor-pointer group block w-full h-full min-w-0 min-h-0 border-0 p-0 bg-transparent text-left overflow-hidden ${className}`}
             aria-label={tr('Xem ảnh phóng to', 'View enlarged image', '查看大图', '拡大画像を表示', '확대 이미지 보기')}
           >
+            {/* eslint-disable-next-line @next/next/no-img-element -- supports blob/data URL and cross-origin-safe preview */}
             <img src={src} alt={alt} className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
               <Maximize2 className="text-white w-6 h-6 drop-shadow-md" />
@@ -275,6 +276,7 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
             </Button>
           </div>
           {/* Dùng img thay vì Next/Image để đảm bảo ảnh hiển thị (tránh lỗi domain/CORS) */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- full-screen preview needs raw img with crossOrigin */}
           <img
             ref={imageRef}
             src={src}

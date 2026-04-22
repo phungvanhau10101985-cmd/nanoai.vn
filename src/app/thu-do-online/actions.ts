@@ -1,6 +1,6 @@
 'use server'
 
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import {
@@ -149,7 +149,7 @@ export async function generateAiImage(formData: FormData) {
       return { error: 'Cần có ảnh người dùng và ít nhất một ảnh sản phẩm cho một trong năm người.' }
   }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 

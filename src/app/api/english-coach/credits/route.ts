@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { spendCreditsIdempotent } from '@/lib/db/credits-balance'
 import {
   pgCountLanguageCoachCreditEvents,
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     if (!action) return NextResponse.json({ error: 'Thiếu action.' }, { status: 400 })
     if (!sessionId) return NextResponse.json({ error: 'Thiếu hoặc sai sessionId.' }, { status: 400 })
 
-    const auth = await getUserForAction()
+    const auth = await getUserForCreditAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
 

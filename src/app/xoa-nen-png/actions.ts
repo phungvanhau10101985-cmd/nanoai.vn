@@ -1,7 +1,7 @@
 'use server'
 import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
@@ -31,7 +31,7 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
   if (!image || image.size === 0) return { error: 'Cần tải lên ít nhất một ảnh.' }
 
   const COST = REMOVE_BG_COST
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet'
 import { Menu, ChevronRight, BarChart3 } from 'lucide-react'
@@ -41,7 +42,7 @@ export function MobileNav({ isAdmin, t }: MobileNavProps) {
               href="/"
               className="flex items-center gap-2 font-bold text-lg tracking-tight"
             >
-              <img src="/icons/icon-192x192.png" alt={t.app.siteName} width={40} height={40} className="rounded-lg" />
+              <Image src="/icons/icon-192x192.png" alt={t.app.siteName} width={40} height={40} className="rounded-lg" />
               {t.app.siteName}
             </Link>
           </SheetClose>

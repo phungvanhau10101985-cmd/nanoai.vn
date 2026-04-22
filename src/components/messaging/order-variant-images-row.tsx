@@ -21,7 +21,6 @@ export function OrderVariantImagesRow({
       <p className="text-[11px] font-medium text-muted-foreground">{labels.sectionLabel}</p>
       <div className="flex flex-wrap gap-2">
         {urls.map((src, i) => (
-          /* eslint-disable-next-line @next/next/no-img-element -- URL từ kho shop / CDN */
           <a
             key={`${i}-${src.slice(0, 64)}`}
             href={src}
@@ -30,6 +29,7 @@ export function OrderVariantImagesRow({
             className="block shrink-0 rounded-md border border-border/60 bg-muted/20 p-0.5 transition-opacity hover:opacity-90"
             title={labels.imageAltPrefix}
           >
+            {/* eslint-disable-next-line @next/next/no-img-element -- URL từ kho shop / CDN */}
             <img
               src={src}
               alt={`${labels.imageAltPrefix} ${i + 1}`}

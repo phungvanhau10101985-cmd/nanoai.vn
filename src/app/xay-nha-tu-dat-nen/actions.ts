@@ -1,6 +1,6 @@
 'use server'
 
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import {
   deleteHouseBuildProjectForUserPg,
   getHouseBuildProjectForUserPg,
@@ -90,7 +90,7 @@ function getSafetySettings() {
 
 /** Tạo dự án mới */
 export async function createHouseProject() {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -104,7 +104,7 @@ export async function createHouseProject() {
 
 /** Lấy danh sách dự án */
 export async function listHouseProjects() {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -114,7 +114,7 @@ export async function listHouseProjects() {
 
 /** Xóa kết quả chia phòng tầng N để chia lại */
 export async function clearFloorPlan(projectId: string, floorNum: number) {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -136,7 +136,7 @@ export async function clearFloorPlan(projectId: string, floorNum: number) {
 
 /** Xóa kết quả kết cấu tầng N để thiết kế lại */
 export async function clearStructural(projectId: string, floorNum: number) {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -157,7 +157,7 @@ export async function clearStructural(projectId: string, floorNum: number) {
 
 /** Xóa dự án */
 export async function deleteHouseProject(projectId: string) {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -169,7 +169,7 @@ export async function deleteHouseProject(projectId: string) {
 
 /** Quay lại form mặt tiền - xóa ảnh 3D, giữ nguyên house_info đã nhập */
 export async function clearFloor3D(projectId: string) {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -190,7 +190,7 @@ export async function clearFloor3D(projectId: string) {
 
 /** Cập nhật tên dự án */
 export async function updateProjectName(projectId: string, name: string) {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -202,7 +202,7 @@ export async function updateProjectName(projectId: string, name: string) {
 
 /** Bước 1: Dựng 3D nhà - mỗi lần tạo ảnh = tạo dự án mới */
 export async function step1Build3D(formData: FormData) {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -301,7 +301,7 @@ export async function step1Build3D(formData: FormData) {
 
 /** Duyệt ảnh 3D và chuyển sang chia phòng tầng 1 */
 export async function approveFloor3DAndContinue(projectId: string) {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -323,7 +323,7 @@ export async function approveFloor3DAndContinue(projectId: string) {
 
 /** Bước chia phòng tầng N - mỗi lần tạo ảnh = tạo dự án mới */
 export async function stepFloorPlan(sourceProjectId: string, floorNum: number, formData: FormData, referenceImageUrl: string) {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -427,7 +427,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
 
 /** Duyệt chia phòng tầng N và chuyển sang thiết kế kết cấu */
 export async function approveFloorPlanAndContinue(projectId: string, floorNum: number) {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -450,7 +450,7 @@ export async function approveFloorPlanAndContinue(projectId: string, floorNum: n
 
 /** Bước kết cấu tầng N - mỗi lần tạo ảnh = tạo dự án mới */
 export async function stepStructural(sourceProjectId: string, floorNum: number, floorPlanImageUrl: string) {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -514,7 +514,7 @@ export async function stepStructural(sourceProjectId: string, floorNum: number, 
 
 /** Duyệt kết cấu tầng N và chuyển sang bước tiếp theo */
 export async function approveStructuralAndContinue(projectId: string, floorNum: number) {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 

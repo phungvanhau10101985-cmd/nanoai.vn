@@ -1,7 +1,7 @@
 'use server'
 import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
@@ -54,7 +54,7 @@ export async function createStickerLabel(formData: FormData) {
 
   const COST = STICKER_COSTS[imageQuality]
 
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
 

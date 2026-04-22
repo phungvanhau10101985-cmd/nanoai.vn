@@ -88,6 +88,7 @@ export function WorksheetSharePanel({
       </div>
       <div className="flex items-center gap-4 rounded-lg border border-emerald-200/80 bg-white/70 p-3 dark:border-emerald-700/50 dark:bg-black/10">
         {qrDataUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element -- QR is generated data URL */
           <img src={qrDataUrl} alt="Worksheet QR" className="h-[96px] w-[96px] rounded border bg-white p-1" />
         ) : (
           <div className="flex h-[96px] w-[96px] items-center justify-center rounded border bg-white/80">

@@ -9,8 +9,85 @@ import {
 import { isValidUuidString } from '@/lib/validate-uuid'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
+import { readLoginNextFromHeaders } from '@/lib/auth/app-request-headers'
+import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
+import {
+  buildGuestTrialEmail,
+  canGuestUseCreditTrial,
+  getGuestTrialIdFromCookie,
+  getGuestTrialUserIdFromCookie,
+  getOrCreateGuestTrialId,
+  setGuestTrialUserIdCookie,
+} from '@/lib/guest-credit-trial'
 
 const FORCE_REAL_LOGIN_COOKIE = 'force_real_login'
+const CREDIT_TRIAL_ROUTE_PREFIXES = [
+  '/thu-do-online',
+  '/lam-net-anh',
+  '/xoa-nen-png',
+  '/xoa-vat-the',
+  '/lam-dep-anh',
+  '/mo-rong-khung-hinh',
+  '/phuc-dung-anh',
+  '/tao-anh-3d',
+  '/tao-anh-chain-dung',
+  '/tao-anh-the',
+  '/tao-anh-tu-chu',
+  '/tao-banner',
+  '/tao-giao-trinh',
+  '/tao-infographic-tu-sach',
+  '/tao-mo-hinh-3d-tu-anh',
+  '/tao-nhan-gian',
+  '/tao-nhan-gioi-thieu-san-pham',
+  '/tao-tem-niem-phong-bao-hanh',
+  '/tao-video-tu-anh',
+  '/thay-nen-san-pham',
+  '/thiet-ke-bao-bi',
+  '/thiet-ke-con-dau',
+  '/thiet-ke-logo',
+  '/thiet-ke-noi-ngoai-that',
+  '/che-anh',
+  '/dich-anh-tai-lieu',
+  '/du-anh-tu-phac-thao',
+  '/flow-nhac-video-veo',
+  '/ghep-anh',
+  '/hoan-doi-khuon-mat',
+  '/ke-chuyen-bang-hinh-anh',
+  '/xay-nha-tu-dat-nen',
+  '/ghi-am-bao-cao-cuoc-hop',
+] as const
+
+function getRequestPathForAuth(): string {
+  try {
+    const h = headers()
+    const fromHeader = readLoginNextFromHeaders((name) => h.get(name))
+    if (fromHeader) return sanitizeLoginNext(fromHeader)
+    const raw = h.get('next-url')?.trim() || h.get('x-pathname')?.trim() || '/'
+    return sanitizeLoginNext(raw)
+  } catch {
+    return '/'
+  }
+}
+
+function isCreditTrialRoute(pathname: string): boolean {
+  const p = sanitizeLoginNext(pathname || '/')
+  return CREDIT_TRIAL_ROUTE_PREFIXES.some((prefix) => p === prefix || p.startsWith(`${prefix}/`))
+}
+
+function resolveExistingGuestTrialUserFromCookies(): AppUser | null {
+  const userId = getGuestTrialUserIdFromCookie()
+  if (!userId || !isValidUuidString(userId)) return null
+  const trialId = getGuestTrialIdFromCookie()
+  const email = trialId ? buildGuestTrialEmail(trialId) : 'guest-trial@guest.nanoai.local'
+  return {
+    id: userId,
+    email,
+    aud: 'authenticated',
+    app_metadata: {},
+    user_metadata: { guest_trial: true },
+    created_at: new Date().toISOString(),
+  }
+}
 
 async function canonicalizeUserByEmail(user: AppUser): Promise<AppUser> {
   const email = String(user.email ?? '').trim().toLowerCase()
@@ -106,6 +183,17 @@ export async function getUserOrBypass(): Promise<AppUser | null> {
   }
   if (!isAuthRequired()) return getDevUser()
   if (isSearchEngineCrawler()) return getDevUser()
+  if (isCreditTrialRoute(getRequestPathForAuth())) {
+    if (await canGuestUseCreditTrial()) {
+      const guest = await resolveGuestTrialUser()
+      if (guest) return guest
+    } else {
+      // Keep existing guest session visible after consuming the last trial credits.
+      // Blocking generation is handled by getUserForCreditAction on the next request.
+      const existingGuest = resolveExistingGuestTrialUserFromCookies()
+      if (existingGuest) return existingGuest
+    }
+  }
   return null
 }
 
@@ -181,4 +269,47 @@ export async function getUserForAction(
   if (user) return { user }
   if (!isAuthRequired()) return { user: getDevUser() }
   return { error: errorMessage }
+}
+
+async function resolveGuestTrialUser(): Promise<AppUser | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const guestTrialId = getOrCreateGuestTrialId()
+    const email = buildGuestTrialEmail(guestTrialId)
+    const row = await pgQueryOne<{ id: string }>(
+      `select (public.nanoai_ensure_user_by_email($1::text))::text as id`,
+      [email]
+    )
+    const id = String(row?.id ?? '').trim()
+    if (!isValidUuidString(id)) return null
+    setGuestTrialUserIdCookie(id)
+    return {
+      id,
+      email,
+      aud: 'authenticated',
+      app_metadata: {},
+      user_metadata: { guest_trial: true },
+      created_at: new Date().toISOString(),
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Dành cho các tính năng tiêu tốn credit:
+ * - Đã đăng nhập: dùng user thật.
+ * - Chưa đăng nhập: cho dùng thử tối đa 3 credits theo trình duyệt.
+ * - Hết ngân sách trial: yêu cầu đăng nhập.
+ */
+export async function getUserForCreditAction(
+  errorMessage = 'Bạn đã dùng hết 3 credits dùng thử. Vui lòng đăng nhập để tiếp tục.'
+): Promise<{ user: AppUser } | { error: string }> {
+  const user = await getWalletSessionUser()
+  if (user) return { user }
+  if (!isAuthRequired()) return { user: getDevUser() }
+  if (!(await canGuestUseCreditTrial())) return { error: errorMessage }
+  const guestUser = await resolveGuestTrialUser()
+  if (!guestUser) return { error: 'Không thể khởi tạo tài khoản dùng thử. Vui lòng đăng nhập.' }
+  return { user: guestUser }
 }

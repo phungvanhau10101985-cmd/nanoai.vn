@@ -824,6 +824,7 @@ export function PartnerMessagingInboxClient({
                     }`}
                   >
                     {c.customer_avatar_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element -- avatar URL from partner/customer profile */
                       <img
                         src={c.customer_avatar_url}
                         alt=""
@@ -886,6 +887,7 @@ export function PartnerMessagingInboxClient({
                     <ChevronLeft className="h-5 w-5" aria-hidden />
                   </Button>
                   {selectedConv.customer_avatar_url ? (
+                    /* eslint-disable-next-line @next/next/no-img-element -- avatar URL from partner/customer profile */
                     <img
                       src={selectedConv.customer_avatar_url}
                       alt=""
@@ -1046,6 +1048,7 @@ export function PartnerMessagingInboxClient({
                 <div className="rounded-md border border-border/70 bg-muted/5 shadow-sm transition-[box-shadow] focus-within:border-violet-500/55 focus-within:ring-1 focus-within:ring-violet-500/20">
                   {imagePreviewUrl ? (
                     <div className="relative border-b border-border/50 bg-muted/30 p-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- local preview blob/object URL */}
                       <img src={imagePreviewUrl} alt="" className="mx-auto max-h-[4.5rem] rounded object-contain" />
                       <Button
                         type="button"

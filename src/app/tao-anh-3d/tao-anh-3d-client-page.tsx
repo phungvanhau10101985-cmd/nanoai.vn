@@ -58,6 +58,15 @@ export default function TaoAnh3DClientPage() {
     return vi
   }
 
+  const pastedTitle = tr('Đã dán ảnh', 'Image pasted', '已粘贴图片', '画像を貼り付けました', '이미지 붙여넣음')
+  const pastedDesc = tr(
+    'Ảnh 2 đã được thêm.',
+    'Image 2 has been added.',
+    '已添加图 2。',
+    '画像2を追加しました。',
+    '이미지 2가 추가되었습니다.'
+  )
+
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
     syncLocale()
@@ -127,7 +136,7 @@ export default function TaoAnh3DClientPage() {
           const file = item.getAsFile()
           if (file && setImageFromFile(file, (v) => setLogoImage({ file: v.file, preview: v.preview }))) {
             e.preventDefault()
-            toast({ title: tr('Đã dán ảnh', 'Image pasted', '已粘贴图片', '画像を貼り付けました', '이미지 붙여넣음'), description: tr('Ảnh 2 đã được thêm.', 'Image 2 has been added.', '已添加图 2。', '画像2を追加しました。', '이미지 2가 추가되었습니다.'), duration: 2000 })
+            toast({ title: pastedTitle, description: pastedDesc, duration: 2000 })
           }
           break
         }
@@ -135,7 +144,7 @@ export default function TaoAnh3DClientPage() {
     }
     document.addEventListener('paste', fn)
     return () => document.removeEventListener('paste', fn)
-  }, [step, toast])
+  }, [pastedDesc, pastedTitle, step, toast])
 
   const canSubmit = logoImage.file && !!productImage.file
 

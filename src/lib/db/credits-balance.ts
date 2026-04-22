@@ -4,6 +4,11 @@
  */
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
+import {
+  consumeGuestCreditTrialUse,
+  getGuestCreditTrialRemainingCount,
+  isGuestTrialUserId,
+} from '@/lib/guest-credit-trial'
 
 function requireCreditsPg(): void {
   if (!isPgConfigured()) {
@@ -15,6 +20,10 @@ function requireCreditsPg(): void {
 
 /** Số dư hiện tại (0 nếu không có dòng). */
 export async function getCreditBalanceByUserId(userId: string): Promise<number> {
+  if (isGuestTrialUserId(userId)) {
+    // Return actual remaining guest-trial credits so server prechecks can compare with required cost.
+    return await getGuestCreditTrialRemainingCount()
+  }
   requireCreditsPg()
   const row = await pgQueryOne<{ balance: unknown }>(
     'select balance from public.credits where user_id = $1::uuid limit 1',
@@ -45,6 +54,26 @@ export async function spendCreditsIdempotent(input: {
   sessionId?: string | null
   metadataJson?: string | null
 }): Promise<SpendCreditsIdempotentResult> {
+  if (isGuestTrialUserId(input.userId)) {
+    const trial = await consumeGuestCreditTrialUse({
+      amount: input.amount,
+      eventKey: input.eventKey || undefined,
+    })
+    if (!trial.ok) {
+      return {
+        ok: false,
+        alreadyApplied: trial.alreadyApplied,
+        newBalance: 0,
+        error: 'Bạn đã dùng hết 3 credits dùng thử. Vui lòng đăng nhập để tiếp tục.',
+      }
+    }
+    return {
+      ok: true,
+      alreadyApplied: trial.alreadyApplied,
+      newBalance: trial.remaining,
+      error: '',
+    }
+  }
   requireCreditsPg()
   const pMeta = input.metadataJson ?? null
   const pool = getPgPool()

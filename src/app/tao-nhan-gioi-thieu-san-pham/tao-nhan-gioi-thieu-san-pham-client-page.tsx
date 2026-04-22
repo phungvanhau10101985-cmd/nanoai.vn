@@ -764,8 +764,10 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                       >
                         <div className="shrink-0 w-12 h-12 rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
                           {p.mockupResultUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element -- saved project thumbnail URL */
                             <img src={p.mockupResultUrl} alt="" className="w-full h-full object-cover" />
                           ) : p.resultUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element -- saved project thumbnail URL */
                             <img src={p.resultUrl} alt="" className="w-full h-full object-cover" />
                           ) : (
                             <Box className="h-5 w-5 text-muted-foreground" />
@@ -1094,6 +1096,7 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                       </Button>
                       {referenceImage.preview && (
                         <div className="relative inline-block">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- reference image preview is local object URL */}
                           <img src={referenceImage.preview} alt="Reference" className="h-20 w-20 sm:h-24 sm:w-24 object-contain rounded-lg border-2 border-emerald-200 bg-white" />
                           <button
                             type="button"

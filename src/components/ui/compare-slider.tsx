@@ -2,7 +2,7 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { Maximize2, X } from 'lucide-react'
 
@@ -88,8 +88,10 @@ function SliderContent({
         setIsDragging(false)
       }}
     >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={after} alt={afterLabel} className="absolute inset-0 w-full h-full object-contain" />
       <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={before} alt={beforeLabel} className="absolute inset-0 w-full h-full object-contain" />
       </div>
       <div
@@ -143,13 +145,13 @@ export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLa
     }
   }, [])
 
-  const handleMove = (clientX: number) => {
+  const handleMove = useCallback((clientX: number) => {
     const ref = isFullscreen ? fullscreenRef : containerRef
     if (!ref.current) return
     const rect = ref.current.getBoundingClientRect()
     const x = ((clientX - rect.left) / rect.width) * 100
     setPosition(Math.min(100, Math.max(0, x)))
-  }
+  }, [isFullscreen])
 
   useEffect(() => {
     if (!isDragging) return
@@ -161,7 +163,7 @@ export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLa
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [isDragging, isFullscreen])
+  }, [handleMove, isDragging])
 
   useEffect(() => {
     if (!isFullscreen) return

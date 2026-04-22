@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element -- packaging previews use generated/data/blob image URLs */
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 

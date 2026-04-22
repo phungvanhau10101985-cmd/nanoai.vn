@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element -- slide/editor previews rely on dynamic/blob URLs */
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'

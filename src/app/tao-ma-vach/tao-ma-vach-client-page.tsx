@@ -436,6 +436,7 @@ export default function TaoMaVachClientPage() {
             <CardContent className="space-y-4">
               <div className="flex flex-col items-center gap-4 p-4 bg-gray-50 rounded-lg">
                 <div className="p-4 bg-white rounded-lg shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- barcode/QR output can be data URL or remote URL */}
                   <img
                     src={dataUrl || vietqrUrl || ''}
                     alt={tr('Mã vạch', 'Barcode', '条码', 'バーコード', '바코드')}

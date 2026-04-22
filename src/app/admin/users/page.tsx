@@ -9,12 +9,25 @@ import { pgListProfilesWithCreditBalance } from '@/lib/db/admin-users-pg'
 
 export default async function AdminUsersPage() {
   const uiLocale = getCurrentWebLocale()
+  const dateLocale = uiLocale === 'vi' ? 'vi-VN' : uiLocale === 'en' ? 'en-US' : uiLocale === 'zh' ? 'zh-CN' : uiLocale === 'ja' ? 'ja-JP' : 'ko-KR'
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
     if (uiLocale === 'ja') return ja
     if (uiLocale === 'ko') return ko
     return vi
+  }
+  const formatCreatedAt = (value?: string | null) => {
+    if (!value) return '—'
+    const d = new Date(value)
+    if (Number.isNaN(d.getTime())) return '—'
+    return new Intl.DateTimeFormat(dateLocale, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(d)
   }
   const { rows: usersRaw, error: usersError } = await pgListProfilesWithCreditBalance()
   if (usersError) {
@@ -46,12 +59,13 @@ export default async function AdminUsersPage() {
               <TableRow>
                 <TableHead>{tr('Thành viên', 'Member', '成员', 'メンバー', '회원')}</TableHead>
                 <TableHead>{tr('Vai trò', 'Role', '角色', '役割', '역할')}</TableHead>
+                <TableHead>{tr('Ngày tạo tài khoản', 'Created at', '创建时间', '作成日時', '생성일시')}</TableHead>
                 <TableHead className="text-right">{tr('Số dư tín dụng', 'Credit balance', '积分余额', 'クレジット残高', '크레딧 잔액')}</TableHead>
                 <TableHead className="text-right">{tr('Hành động', 'Action', '操作', '操作', '작업')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user: { id: string; full_name?: string | null; avatar_url?: string | null; role?: string | null; email?: string; balance?: number }) => (
+              {users.map((user: { id: string; full_name?: string | null; avatar_url?: string | null; role?: string | null; email?: string; balance?: number; created_at?: string | null }) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-4">
@@ -70,6 +84,7 @@ export default async function AdminUsersPage() {
                       {user.role}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{formatCreatedAt(user.created_at)}</TableCell>
                   <TableCell className="text-right font-medium">{user.balance}</TableCell>
                   <TableCell className="text-right">
                     <EditCreditDialog userId={user.id} currentBalance={user.balance ?? 0} />

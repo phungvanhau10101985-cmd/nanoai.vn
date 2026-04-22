@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { buildSinglePersonPrompt } from '@/lib/try-on/try-on-prompts'
 import { runVirtualTryOnPipeline } from '@/lib/try-on/run-virtual-try-on-pipeline'
@@ -21,7 +21,7 @@ async function resolvePartner(slug: string) {
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
-  const auth = await getUserForAction('Unauthorized')
+  const auth = await getUserForCreditAction('Unauthorized')
   if ('error' in auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

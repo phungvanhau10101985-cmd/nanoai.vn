@@ -59,6 +59,15 @@ export default function CheAnhClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const pastedTitle = tr('Đã dán ảnh', 'Image pasted', '已粘贴图片', '画像を貼り付けました', '이미지 붙여넣음')
+  const pastedDesc = tr(
+    'Ảnh từ clipboard đã được thêm.',
+    'Image from clipboard has been added.',
+    '已从剪贴板添加图片。',
+    'クリップボードから画像を追加しました。',
+    '클립보드에서 이미지가 추가되었습니다.'
+  )
+
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
     syncLocale()
@@ -166,7 +175,7 @@ export default function CheAnhClientPage() {
           const file = item.getAsFile()
           if (file && addImage(file)) {
             e.preventDefault()
-            toast({ title: tr('Đã dán ảnh', 'Image pasted', '已粘贴图片', '画像を貼り付けました', '이미지 붙여넣음'), description: tr('Ảnh từ clipboard đã được thêm.', 'Image from clipboard has been added.', '已从剪贴板添加图片。', 'クリップボードから画像を追加しました。', '클립보드에서 이미지가 추가되었습니다.'), duration: 2000 })
+            toast({ title: pastedTitle, description: pastedDesc, duration: 2000 })
           }
           break
         }
@@ -174,7 +183,7 @@ export default function CheAnhClientPage() {
     }
     document.addEventListener('paste', fn)
     return () => document.removeEventListener('paste', fn)
-  }, [step, toast, images.length])
+  }, [images.length, pastedDesc, pastedTitle, step, toast])
 
   const handleSubmit = async () => {
     if (images.length === 0) {

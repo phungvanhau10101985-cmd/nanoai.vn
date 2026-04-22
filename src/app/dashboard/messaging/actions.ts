@@ -2,7 +2,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { RESERVED_MESSAGING_GUEST_SLUGS } from '@/lib/messaging/reserved-guest-slugs'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
 import {
@@ -213,7 +213,7 @@ const PARTNER_INVENTORY_PAGE_SIZE = Math.max(
 const LOGO_NORMALIZE_COST = 1.5
 
 async function requireUser() {
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   return { user: result.user }
 }

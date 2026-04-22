@@ -201,6 +201,7 @@ export function DraggableLabelFrame({
           height: `${(heightMm / totalH) * 100}%`,
         }}
       >
+        {/* eslint-disable-next-line @next/next/no-img-element -- interactive drag frame requires direct img sizing/pan */}
         <img
           ref={imgRef}
           src={imageUrl}

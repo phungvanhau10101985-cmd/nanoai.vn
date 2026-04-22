@@ -5,8 +5,8 @@
  */
 export const SERVICE_FREE_TRIAL_DAYS = 7
 
-/** Credit chào mừng khi tạo tài khoản — khớp `public.handle_new_user()` (trigger trên DB). */
-export const SIGNUP_BONUS_CREDITS = 2
+/** Credit chào mừng khi tạo tài khoản — hiện đã tắt. */
+export const SIGNUP_BONUS_CREDITS = 0
 
 const MS_PER_DAY = 86400000
 

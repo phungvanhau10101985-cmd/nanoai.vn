@@ -7,6 +7,8 @@ import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 
 export function useCredits() {
   const [credits, setCredits] = useState<number>(0)
+  const [guestTrialRemaining, setGuestTrialRemaining] = useState<number>(0)
+  const [guestTrialBudget, setGuestTrialBudget] = useState<number>(0)
   const [pathname, setPathname] = useState('')
   const { toast } = useToast()
 
@@ -24,12 +26,17 @@ export function useCredits() {
       const res = await fetch('/api/account/credits', { credentials: 'same-origin' })
       if (!res.ok) {
         setCredits(0)
+        setGuestTrialRemaining(0)
         return
       }
-      const j = (await res.json()) as { balance?: number }
+      const j = (await res.json()) as { balance?: number; guestTrialRemaining?: number; guestTrialBudget?: number }
       setCredits(Number(j.balance ?? 0))
+      setGuestTrialRemaining(Math.max(0, Number(j.guestTrialRemaining ?? 0)))
+      setGuestTrialBudget(Math.max(0, Number(j.guestTrialBudget ?? 0)))
     } catch {
       setCredits(0)
+      setGuestTrialRemaining(0)
+      setGuestTrialBudget(0)
     }
   }, [])
 
@@ -46,6 +53,24 @@ export function useCredits() {
       pathname ||
       (typeof window !== 'undefined' ? window.location.pathname || '' : '')
     if (credits < requiredCost) {
+      if (guestTrialRemaining >= requiredCost) {
+        const feature = toFeatureFromRoute(route)
+        setPendingGeneration({
+          route,
+          feature,
+          requiredCost,
+          startedAt: Date.now(),
+        })
+        trackEvent('generate_start', {
+          route,
+          feature,
+          required_cost: requiredCost,
+          available_credits: credits,
+          guest_trial_remaining: guestTrialRemaining,
+        })
+        void onSuccess()
+        return true
+      }
       trackEvent('generate_failed', {
         route,
         feature: toFeatureFromRoute(route),
@@ -78,5 +103,5 @@ export function useCredits() {
     return true
   }
 
-  return { credits, fetchCredits, checkCreditsAndProceed }
+  return { credits, fetchCredits, checkCreditsAndProceed, guestTrialRemaining, guestTrialBudget }
 }

@@ -1,7 +1,7 @@
 'use server'
 import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
@@ -35,7 +35,7 @@ export async function sharpenImage(formData: FormData) {
 
   const COST = SHARPEN_COSTS[imageQuality]
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 

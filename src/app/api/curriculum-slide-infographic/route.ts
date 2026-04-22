@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import sharp from 'sharp'
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
       lessonText = lessonText.slice(0, MAX_SLIDE_TEXT)
     }
 
-    const auth = await getUserForAction('Vui lòng đăng nhập.')
+    const auth = await getUserForCreditAction('Vui lòng đăng nhập.')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
     }

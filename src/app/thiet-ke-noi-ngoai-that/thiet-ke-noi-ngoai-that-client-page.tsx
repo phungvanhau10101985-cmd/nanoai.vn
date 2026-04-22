@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element -- design canvas/previews use dynamic and blob image sources */
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 

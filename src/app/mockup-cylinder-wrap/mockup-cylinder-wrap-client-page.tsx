@@ -2,7 +2,7 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -74,15 +74,18 @@ export default function MockupCylinderWrapClientPage() {
     }
   }, [])
 
-  const dims: CylinderDimensions = {
-    diameterMm: Math.max(20, Math.min(200, diameterMm)),
-    heightMm: Math.max(20, Math.min(500, heightMm)),
-  }
-  const bounds = getLabelBounds(dims)
+  const dims: CylinderDimensions = useMemo(
+    () => ({
+      diameterMm: Math.max(20, Math.min(200, diameterMm)),
+      heightMm: Math.max(20, Math.min(500, heightMm)),
+    }),
+    [diameterMm, heightMm]
+  )
+  const bounds = useMemo(() => getLabelBounds(dims), [dims])
 
   useEffect(() => {
     if (!labelImageUrl) setSvgContent(generateLabelSvg(dims))
-  }, [dims.diameterMm, dims.heightMm, labelImageUrl])
+  }, [dims, labelImageUrl])
 
   // Vẽ 3D cylinder mockup
   useEffect(() => {

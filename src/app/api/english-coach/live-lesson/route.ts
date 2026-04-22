@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchVocabCacheRowByWordTargetPg } from '@/lib/db/language-coach-vocab-cache-pg'
 import {
@@ -673,7 +673,7 @@ function validateLessonForPublish(
 }
 
 async function getAuthedUser() {
-  return getUserForAction()
+  return getUserForCreditAction()
 }
 
 export async function GET(request: NextRequest) {

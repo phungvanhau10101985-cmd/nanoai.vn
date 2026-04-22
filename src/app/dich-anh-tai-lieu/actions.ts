@@ -10,7 +10,7 @@ import os from 'os'
 import path from 'path'
 import archiver from 'archiver'
 import * as XLSX from 'xlsx'
-import { getUserForAction, getUserOrBypass } from '@/lib/auth'
+import { getUserForCreditAction, getUserOrBypass } from '@/lib/auth'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import {
   cancelTranslateBatchPendingPg,
@@ -165,7 +165,7 @@ export async function translateDocumentImage(formData: FormData) {
   if (!image || image.size === 0) return { error: 'Cần tải lên ảnh tài liệu.' }
 
   const COST = TRANSLATE_COSTS[imageQuality]
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -313,7 +313,7 @@ export async function translatePdfDocument(
   if (!pdfFile || pdfFile.size === 0) return { error: 'Cần tải lên file PDF.' }
   if (pdfFile.type !== 'application/pdf') return { error: 'File phải là PDF.' }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -431,7 +431,7 @@ export async function startTranslatePdfBatch(formData: FormData): Promise<{ batc
   if (!pdfFile || pdfFile.size === 0) return { error: 'Cần tải lên file PDF.' }
   if (pdfFile.type !== 'application/pdf') return { error: 'File phải là PDF.' }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -548,7 +548,7 @@ export async function translateOneImageFromBatch(
   if (!image || image.size === 0) return { error: 'Cần ảnh.' }
 
   const COST = TRANSLATE_COSTS[imageQuality]
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -622,7 +622,7 @@ export async function translateOneImageFromUrl(
   if (!url || !/^https?:\/\//i.test(url)) return { error: 'Link ảnh không hợp lệ.' }
 
   const COST = TRANSLATE_COSTS[imageQuality]
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -700,7 +700,7 @@ export async function createZipFromResults(
 ): Promise<{ zipUrl: string } | { error: string }> {
   if (!entries.length) return { error: 'Không có ảnh để nén.' }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -758,7 +758,7 @@ export async function translateDocumentImageBatch(
   const COST_PER_IMAGE = TRANSLATE_COSTS[imageQuality]
   const TOTAL_COST = images.length * COST_PER_IMAGE
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -871,7 +871,7 @@ export async function startTranslateBatch(formData: FormData): Promise<{ batchId
   if (!sourceLang) return { error: 'Bắt buộc chọn Ngôn ngữ nguồn.' }
   if (!targetLang) return { error: 'Bắt buộc chọn Ngôn ngữ đích.' }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -990,7 +990,7 @@ export async function cancelBatchTranslate(
     return { error: `Gõ chính xác "${CANCEL_CONFIRM_TEXT}" (viết hoa) để xác nhận hủy.` }
   }
 
-  const authResult = await getUserForAction()
+  const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
 
@@ -1024,7 +1024,7 @@ export async function cancelBatchTranslate(
 /** Khởi động lại chuỗi xử lý batch (khi server restart, chuỗi bị đứt). Gọi khi user mở trang tiến trình. */
 export async function resumeBatchTranslate(batchId: string): Promise<void> {
   if (!batchId) return
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return
   const { user } = result
   const ids = await fetchTryOnHistoryIdsByBatchIdAndUserPg(batchId, user.id)
@@ -1039,7 +1039,7 @@ export async function resumeBatchTranslate(batchId: string): Promise<void> {
 /** Tạo zip ảnh kết quả và ảnh gốc từ batch đã dịch xong – dùng cho nút tải và khi hủy. */
 export async function getBatchZipUrl(batchId: string): Promise<{ zipUrl?: string; originalZipUrl?: string } | { error: string }> {
   if (!batchId) return { error: 'Thiếu batchId.' }
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -1079,7 +1079,7 @@ export async function getBatchProgress(batchId: string): Promise<
   { done: number; total: number; items: Array<{ id: string; status: string; original_image_url?: string; result_image_url?: string; error_message?: string | null }>; cancelled?: number; isCancelled?: boolean } | { error: string }
 > {
   if (!batchId) return { error: 'Thiếu batchId.' }
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -1134,7 +1134,7 @@ export async function translateFromExcel(
   const COST_PER_IMAGE = TRANSLATE_COSTS[imageQuality]
   const estimatedCost = urls.length * COST_PER_IMAGE
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 

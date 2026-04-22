@@ -1,7 +1,7 @@
 'use server'
 import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { createPrintReadyPdf } from '@/lib/print-ready-pdf'
 import { createBoxDielinePdf } from './lib/box-dieline-pdf'
@@ -54,7 +54,7 @@ export async function generateBoxDielinePdf(params: {
     return { error: 'Kích thước hộp phải từ 10–800 mm.' }
   }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -107,7 +107,7 @@ export async function generateBoxNetPdf(
     return { error: 'Kích thước phải từ 10–800 mm.' }
   }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -181,7 +181,7 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
     return { error: 'Tỷ lệ khung hình không hợp lệ.' }
   }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -428,7 +428,7 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
 
   const aspectRatio = getAspectRatioFromDimensions(surfaceLength, surfaceWidth, textOrientation)
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -749,7 +749,7 @@ export async function createBagSurfaceImageWithAI(formData: FormData): Promise<
 
   const aspectRatio = getAspectRatioFromDimensions(surfaceLength, surfaceWidth, textOrientation)
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -991,7 +991,7 @@ export async function createBoxMockupFrom3Faces(formData: FormData): Promise<
   if (!face1Url || !face2Url || !face3Url) return { error: 'Thiếu đủ 3 ảnh bề mặt.' }
   if (!isPackagingAspectRatio(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -1124,7 +1124,7 @@ export async function createBoxMockupFromFaces(params: {
   if (!faces?.length || faces.length > 6) return { error: 'Cần 1–6 ảnh bề mặt.' }
   if (!isPackagingAspectRatio(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
@@ -1265,7 +1265,7 @@ export async function createBagMockupFromFlat(params: {
   if (!flatImageUrl?.trim()) return { error: 'Thiếu ảnh phẳng túi.' }
   if (!isPackagingAspectRatio(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
 
-  const result = await getUserForAction()
+  const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 

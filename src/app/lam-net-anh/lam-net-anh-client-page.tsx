@@ -187,7 +187,7 @@ export default function LamNetAnhClientPage() {
     }
     document.addEventListener('paste', fn)
     return () => document.removeEventListener('paste', fn)
-  }, [step, toast])
+  }, [step, t.pasted, t.pastedDesc, toast])
 
   const handleSubmit = async () => {
     if (!image.file) {

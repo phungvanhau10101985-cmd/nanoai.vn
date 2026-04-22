@@ -189,6 +189,7 @@ export default function XayNhaTuDatNenClientPage() {
                   >
                     <div className="w-14 h-14 shrink-0 rounded-md border bg-slate-100 overflow-hidden">
                       {thumbUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element -- project thumbnail URL from saved result */
                         <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-muted-foreground">

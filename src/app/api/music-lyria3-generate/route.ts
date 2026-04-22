@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenAI, createUserContent } from '@google/genai'
-import { getUserForAction } from '@/lib/auth'
+import { getUserForCreditAction } from '@/lib/auth'
 import { insertMusicGenerationPg } from '@/lib/db/music-generations-pg'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
 import { trackApiUsage } from '@/lib/track-ai-usage'
@@ -406,7 +406,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Nội dung bài hát quá dài.' }, { status: 400 })
     }
 
-    const auth = await getUserForAction()
+    const auth = await getUserForCreditAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
     const { user } = auth
 

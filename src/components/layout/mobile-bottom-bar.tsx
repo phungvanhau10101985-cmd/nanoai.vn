@@ -1,11 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { LayoutDashboard, Sparkles, Wallet, Home } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 
 const MOBILE_BAR_ITEMS = [
   { href: '/', label: (tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string) => tr('Trang chủ', 'Home', '首页', 'ホーム', '홈'), icon: Home },
@@ -16,7 +16,7 @@ const MOBILE_BAR_ITEMS = [
 
 export function MobileBottomBar() {
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
-  const pathname = usePathname()
+  const [pathname, setPathname] = useState('/')
   const hideOnAuth = pathname.startsWith('/auth')
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -25,6 +25,12 @@ export function MobileBottomBar() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+
+  useEffect(() => {
+    const syncPath = () => setPathname(window.location.pathname || '/')
+    syncPath()
+    return subscribeToUrlChanges(syncPath)
+  }, [])
 
   useEffect(() => {
     const syncLocale = () => {

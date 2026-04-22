@@ -219,7 +219,7 @@ export default function LamDepAnhClientPage() {
       document.removeEventListener('visibilitychange', syncLocale)
       window.clearInterval(timer)
     }
-  }, [step, toast])
+  }, [step, toast, uiLocale])
 
   const handleSubmit = async () => {
     if (!image.file) {
