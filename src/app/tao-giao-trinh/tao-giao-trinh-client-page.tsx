@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, Camera, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users, NotebookPen, Link2 } from 'lucide-react'
+import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, Camera, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users, NotebookPen, Link2, CircleHelp } from 'lucide-react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import { latexToReadable } from './lib/latex-to-readable'
@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { CurriculumLessonChunk } from './lib/curriculum-slides-json'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -296,6 +297,8 @@ export default function TaoGiaoTrinhClientPage({
   const [lessonImages, setLessonImages] = useState<File[]>([])
   const [lessonImageUrl, setLessonImageUrl] = useState('')
   const [lessonImageUrlLoading, setLessonImageUrlLoading] = useState(false)
+  const [curriculumHelpTourOpen, setCurriculumHelpTourOpen] = useState(false)
+  const [curriculumHelpTourStep, setCurriculumHelpTourStep] = useState(0)
   const lessonImageInputRef = useRef<HTMLInputElement>(null)
   const lessonCameraInputRef = useRef<HTMLInputElement>(null)
   const isbnImageInputRef = useRef<HTMLInputElement>(null)
@@ -379,6 +382,10 @@ export default function TaoGiaoTrinhClientPage({
       .catch(() => {})
   }, [])
   const pageHeaderRef = useRef<HTMLDivElement>(null)
+  const curriculumInfoCardRef = useRef<HTMLDivElement>(null)
+  const curriculumCreateModeRef = useRef<HTMLDivElement>(null)
+  const curriculumLessonImageRef = useRef<HTMLDivElement>(null)
+  const curriculumActionButtonsRef = useRef<HTMLDivElement>(null)
   const curriculumResultRef = useRef<HTMLDivElement>(null)
   const worksheetSectionRef = useRef<HTMLDivElement>(null)
   const curriculumWorksheetsSectionRef = useRef<HTMLDivElement>(null)
@@ -413,6 +420,73 @@ export default function TaoGiaoTrinhClientPage({
 
   const creditsWord = tr('credits', 'credits', '积分', 'クレジット', '크레딧')
   const creditLabel = (n: number) => ` (${formatCurriculumCredits(n)} ${creditsWord})`
+  const curriculumTourSteps = [
+      {
+        key: 'info',
+        title: tr('Thông tin giáo trình', 'Curriculum info', '课程信息', 'カリキュラム情報', '교육과정 정보'),
+        description: tr(
+          'Đây là khu nhập thông tin chính để AI tạo giáo trình.',
+          'This is the main form area for AI curriculum generation.',
+          '这是 AI 创建课程的主信息区。',
+          'ここはAIカリキュラム作成の主要入力エリアです。',
+          'AI 교육과정 생성을 위한 메인 입력 영역입니다.'
+        ),
+        ref: curriculumInfoCardRef,
+      },
+      {
+        key: 'mode',
+        title: tr('Cách tạo', 'Create mode', '创建方式', '作成方法', '생성 방식'),
+        description: tr(
+          'Chọn theo SGK hoặc theo chủ đề. Với SGK, bạn cần gửi ảnh trang sách.',
+          'Choose textbook mode or topic mode. Textbook mode requires page images.',
+          '可选教材模式或主题模式。教材模式需上传书页图片。',
+          '教科書モード/主題モードを選択。教科書モードはページ画像が必要です。',
+          '교과서 모드 또는 주제 모드를 선택합니다. 교과서 모드는 페이지 이미지가 필요합니다.'
+        ),
+        ref: curriculumCreateModeRef,
+      },
+      {
+        key: 'upload',
+        title: tr('Gửi ảnh bài học', 'Upload lesson image', '上传课程图片', '授業画像アップロード', '수업 이미지 업로드'),
+        description: tr(
+          'Ô này nhận cả Ctrl+V ảnh và dán link ảnh trực tiếp. Có thể chọn nhiều ảnh hoặc chụp camera.',
+          'This field supports both Ctrl+V image and direct image URL paste. You can also choose multiple images or use camera.',
+          '此处支持 Ctrl+V 图片与直接粘贴图片链接，也可多选图片或使用相机。',
+          'この欄は Ctrl+V 画像貼り付けと画像URL貼り付けの両方に対応。複数選択やカメラ撮影も可能です。',
+          '이 영역은 Ctrl+V 이미지와 이미지 URL 붙여넣기를 모두 지원하며, 다중 선택/카메라도 가능합니다.'
+        ),
+        ref: curriculumLessonImageRef,
+      },
+      {
+        key: 'actions',
+        title: tr('Nút tạo/mở giáo trình', 'Create/Open actions', '创建/打开操作', '作成/開く操作', '생성/열기 동작'),
+        description: tr(
+          'Nếu bài đã có sẵn thì bấm mở. Nếu không khớp, gửi ảnh rồi bấm tạo lại (ghi đè) hoặc tạo mới.',
+          'Open existing if lesson matches. Otherwise upload images, then recreate (overwrite) or create new.',
+          '若课次匹配可直接打开；不匹配则上传图片后重建（覆盖）或新建。',
+          '一致する場合は既存を開き、不一致なら画像アップロード後に再作成（上書き）または新規作成。',
+          '일치하면 기존 열기, 불일치하면 이미지 업로드 후 다시 만들기(덮어쓰기) 또는 새로 만들기를 사용하세요.'
+        ),
+        ref: curriculumActionButtonsRef,
+      },
+    ]
+
+  const currentCurriculumTourStep = curriculumTourSteps[curriculumHelpTourStep] ?? null
+
+  const startCurriculumHelpTour = () => {
+    setFeatureSection('create')
+    setStep('INPUT')
+    setCreateMode('textbook')
+    setCurriculumHelpTourStep(0)
+    setCurriculumHelpTourOpen(true)
+  }
+
+  useEffect(() => {
+    if (!curriculumHelpTourOpen) return
+    const target = curriculumTourSteps[curriculumHelpTourStep]?.ref?.current
+    if (!target) return
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [curriculumHelpTourOpen, curriculumHelpTourStep])
 
   type CurriculumAnalyzeSlidesClientData = {
     slides?: unknown
@@ -1334,6 +1408,25 @@ export default function TaoGiaoTrinhClientPage({
     }
     void appendLessonImageFromUrl(urlText)
   }
+
+  const HelpHint = ({ title, description }: { title: string; description: string }) => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-violet-300 text-violet-700 hover:bg-violet-100"
+          aria-label={title}
+          title={title}
+        >
+          <CircleHelp className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="max-w-xs">
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        <p className="mt-1 text-xs leading-relaxed text-slate-700">{description}</p>
+      </PopoverContent>
+    </Popover>
+  )
 
   const scanIsbnFromImageFile = async (file: File | null | undefined) => {
     if (!file || file.size <= 0) return
@@ -3515,19 +3608,63 @@ export default function TaoGiaoTrinhClientPage({
         )}
 
         {featureSection === 'create' && step === 'INPUT' && (
-          <Card className="border shadow-sm bg-white/80 backdrop-blur border-violet-200/60">
+          <Card
+            ref={curriculumInfoCardRef}
+            className={cn(
+              'border shadow-sm bg-white/80 backdrop-blur border-violet-200/60',
+              curriculumHelpTourOpen && currentCurriculumTourStep?.key === 'info' && 'ring-2 ring-violet-400'
+            )}
+          >
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Sparkles className="h-4 w-4 text-violet-600" />
                 {tr('Thông tin giáo trình', 'Curriculum info', '课程信息', 'カリキュラム情報', '교육과정 정보')}
+                <HelpHint
+                  title={tr('Thông tin giáo trình', 'Curriculum info', '课程信息', 'カリキュラム情報', '교육과정 정보')}
+                  description={tr(
+                    'Nhập đủ thông tin, AI sẽ tạo giáo trình đúng môn/lớp theo chế độ bạn chọn.',
+                    'Fill in the required fields and AI will generate curriculum for selected subject/grade.',
+                    '填写必要信息后，AI 会按所选科目/年级生成课程。',
+                    '必要項目を入力すると、選択した科目/学年に合わせてAIが作成します。',
+                    '필수 정보를 입력하면 선택한 과목/학년에 맞춰 AI가 생성합니다.'
+                  )}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={startCurriculumHelpTour}
+                  className="ml-auto h-7 border-violet-300 text-violet-700 hover:bg-violet-100"
+                >
+                  <CircleHelp className="mr-1.5 h-3.5 w-3.5" />
+                  {tr('Tour', 'Tour', '引导', 'ツアー', '투어')}
+                </Button>
               </CardTitle>
               <CardDescription>
                 {tr('Chọn môn, lớp. Tạo theo SGK (gửi ảnh sách) hoặc theo chủ đề. AI tạo giáo trình Markdown.', 'Select subject, grade. Create by textbook (upload book images) or by topic. AI generates Markdown curriculum.', '选择科目、年级。按教材（上传教材图片）或主题创建。AI 生成 Markdown 课程。', '科目・学年を選択。教科書（画像アップロード）・主題で作成。AIがMarkdownカリキュラムを生成。', '과목·학년 선택. 교과서(이미지 업로드)·주제로 생성. AI가 Markdown 교육과정 생성.')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">{tr('Cách tạo', 'Create mode', '创建方式', '作成方法', '생성 방식')}</label>
+              <div
+                ref={curriculumCreateModeRef}
+                className={cn(
+                  'space-y-2 rounded-md',
+                  curriculumHelpTourOpen && currentCurriculumTourStep?.key === 'mode' && 'ring-2 ring-violet-300'
+                )}
+              >
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  {tr('Cách tạo', 'Create mode', '创建方式', '作成方法', '생성 방식')}
+                  <HelpHint
+                    title={tr('Cách tạo', 'Create mode', '创建方式', '作成方法', '생성 방식')}
+                    description={tr(
+                      'Theo SGK: bám theo bài số + ảnh sách. Theo chủ đề: tạo nhanh theo chủ đề tự do.',
+                      'Textbook mode uses lesson number + images. Topic mode is fast generation from a free topic.',
+                      '教材模式基于课号+书页图片；主题模式可按自由主题快速生成。',
+                      '教科書モードは課番号+画像、主題モードは自由テーマで高速生成です。',
+                      '교과서 모드는 차시+이미지, 주제 모드는 자유 주제로 빠르게 생성합니다.'
+                    )}
+                  />
+                </label>
                 <div className="flex flex-wrap gap-4">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -3852,11 +3989,27 @@ export default function TaoGiaoTrinhClientPage({
                 </div>
               )}
               {createMode === 'textbook' && (
-              <div className="space-y-2 rounded-lg border border-dashed border-violet-300 dark:border-violet-700 p-4 bg-violet-50/50 dark:bg-violet-950/20">
+              <div
+                ref={curriculumLessonImageRef}
+                className={cn(
+                  'space-y-2 rounded-lg border border-dashed border-violet-300 dark:border-violet-700 p-4 bg-violet-50/50 dark:bg-violet-950/20',
+                  curriculumHelpTourOpen && currentCurriculumTourStep?.key === 'upload' && 'ring-2 ring-violet-400'
+                )}
+              >
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <ImageIcon className="h-4 w-4" />
                   {tr('Gửi ảnh bài học', 'Upload lesson image', '上传课程图片', '授業画像をアップロード', '수업 이미지 업로드')}
                   <span className="text-red-500 font-medium">*</span>
+                  <HelpHint
+                    title={tr('Gửi ảnh bài học', 'Upload lesson image', '上传课程图片', '授業画像をアップロード', '수업 이미지 업로드')}
+                    description={tr(
+                      'Bạn có thể Ctrl+V ảnh, dán link ảnh, chọn nhiều ảnh hoặc chụp bằng camera.',
+                      'You can paste image with Ctrl+V, paste image URL, pick multiple images, or capture with camera.',
+                      '支持 Ctrl+V 图片、粘贴图片链接、多选图片和相机拍摄。',
+                      'Ctrl+V画像貼り付け、画像URL貼り付け、複数選択、カメラ撮影に対応。',
+                      'Ctrl+V 이미지, 이미지 URL, 다중 선택, 카메라 촬영을 지원합니다.'
+                    )}
+                  />
                 </label>
                 <p className="text-xs text-muted-foreground">
                   {tr('Chụp/gửi ảnh trang sách (tối đa 20 ảnh) – bắt buộc. AI lấy sơ đồ, hình minh họa từ ảnh.', 'Upload photo(s) of the textbook page(s) (max 20) – required. AI extracts diagrams, figures from images.', '上传教材页面照片（最多20张）– 必填。AI 从图片提取图表、示意图。', '教科書のページ写真をアップロード（最大20枚）– 必須。AIが画像から図表を抽出。', '교과서 페이지 사진 업로드 (최대 20개) – 필수. AI가 이미지에서 도표·그림 추출.')}
@@ -3969,7 +4122,13 @@ export default function TaoGiaoTrinhClientPage({
                 </p>
               )}
               {createMode === 'textbook' && curriculumExists === true ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                <div
+                  ref={curriculumActionButtonsRef}
+                  className={cn(
+                    'grid grid-cols-1 sm:grid-cols-2 gap-2 w-full',
+                    curriculumHelpTourOpen && currentCurriculumTourStep?.key === 'actions' && 'ring-2 ring-violet-400 rounded-md p-1'
+                  )}
+                >
                   <Button
                     type="button"
                     variant="outline"
@@ -4005,39 +4164,108 @@ export default function TaoGiaoTrinhClientPage({
                   </Button>
                 </div>
               ) : (
-                <Button
-                  onClick={() => void handleSubmit()}
-                  disabled={
-                    (step as Step) === 'GENERATING' ||
-                    overwriteFromExistingLoading ||
-                    (createMode === 'topic'
-                      ? !topic.trim() || topic.trim().length < 2
-                      : checkLoading ||
-                        lessonImages.length === 0 ||
-                        isbnScanLoading ||
-                        (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)))
-                  }
-                  className="w-full bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  {createMode === 'topic' ? (
-                    <>
-                      {tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
-                      {creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)}
-                    </>
-                  ) : checkLoading ? (
-                    tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...')
-                  ) : (
-                    <>
-                      {tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
-                      {creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)}
-                    </>
+                <div
+                  ref={curriculumActionButtonsRef}
+                  className={cn(
+                    'w-full',
+                    curriculumHelpTourOpen && currentCurriculumTourStep?.key === 'actions' && 'ring-2 ring-violet-400 rounded-md p-1'
                   )}
-                </Button>
+                >
+                  <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span>{tr('Nút thực thi', 'Action button', '执行按钮', '実行ボタン', '실행 버튼')}</span>
+                    <HelpHint
+                      title={tr('Nút tạo giáo trình', 'Create curriculum button', '创建课程按钮', 'カリキュラム作成ボタン', '교육과정 생성 버튼')}
+                      description={tr(
+                        'Khi đủ điều kiện (ảnh + thông tin), bấm nút này để AI tạo giáo trình.',
+                        'When requirements are met (images + info), click this button to generate curriculum.',
+                        '满足条件（图片+信息）后，点击此按钮生成课程。',
+                        '条件（画像+情報）を満たしたら、このボタンで作成します。',
+                        '조건(이미지+정보)이 충족되면 이 버튼으로 생성합니다.'
+                      )}
+                    />
+                  </div>
+                  <Button
+                    onClick={() => void handleSubmit()}
+                    disabled={
+                      (step as Step) === 'GENERATING' ||
+                      overwriteFromExistingLoading ||
+                      (createMode === 'topic'
+                        ? !topic.trim() || topic.trim().length < 2
+                        : checkLoading ||
+                          lessonImages.length === 0 ||
+                          isbnScanLoading ||
+                          (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)))
+                    }
+                    className="w-full bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    {createMode === 'topic' ? (
+                      <>
+                        {tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
+                        {creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)}
+                      </>
+                    ) : checkLoading ? (
+                      tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...')
+                    ) : (
+                      <>
+                        {tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
+                        {creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)}
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>
         )}
+
+        {curriculumHelpTourOpen && currentCurriculumTourStep ? (
+          <div className="fixed inset-0 z-[80] bg-black/30">
+            <div className="absolute inset-x-0 bottom-4 mx-auto w-[min(96vw,540px)] rounded-xl border border-violet-200 bg-white p-4 shadow-xl">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-semibold text-violet-800">
+                  {tr('Hướng dẫn tạo giáo trình', 'Curriculum guide', '课程创建引导', 'カリキュラムガイド', '교육과정 가이드')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setCurriculumHelpTourOpen(false)}
+                  className="text-xs text-slate-500 hover:text-slate-700"
+                >
+                  {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
+                </button>
+              </div>
+              <p className="text-sm font-semibold text-slate-900">{currentCurriculumTourStep.title}</p>
+              <p className="mt-1 text-sm text-slate-700">{currentCurriculumTourStep.description}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {tr('Bước', 'Step', '步骤', 'ステップ', '단계')} {curriculumHelpTourStep + 1}/{curriculumTourSteps.length}
+              </p>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={curriculumHelpTourStep <= 0}
+                  onClick={() => setCurriculumHelpTourStep((prev) => Math.max(0, prev - 1))}
+                >
+                  {tr('Lùi', 'Back', '上一步', '戻る', '이전')}
+                </Button>
+                {curriculumHelpTourStep >= curriculumTourSteps.length - 1 ? (
+                  <Button type="button" size="sm" onClick={() => setCurriculumHelpTourOpen(false)}>
+                    {tr('Hoàn tất', 'Done', '完成', '完了', '완료')}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setCurriculumHelpTourStep((prev) => Math.min(curriculumTourSteps.length - 1, prev + 1))}
+                  >
+                    {tr('Tiếp', 'Next', '下一步', '次へ', '다음')}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {featureSection === 'create' && (
         <div ref={curriculumResultRef}>
