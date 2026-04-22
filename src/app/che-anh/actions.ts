@@ -13,6 +13,7 @@ import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const CHE_ANH_COSTS = { '2K': 1.5, '4K': 3 } as const
+const VALID_ASPECT_RATIOS = ['1:1', '4:5', '3:4', '9:16', '16:9', '4:3'] as const
 const toTenths = (value: number) => Math.round(value * 10)
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
@@ -36,6 +37,10 @@ export async function cheAnh(formData: FormData) {
   }
   const memeStyle = (formData.get('memeStyle') as string)?.trim() || ''
   const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
+  const aspectRatioRaw = (formData.get('aspectRatio') as string)?.trim() || '1:1'
+  const aspectRatio = VALID_ASPECT_RATIOS.includes(aspectRatioRaw as (typeof VALID_ASPECT_RATIOS)[number])
+    ? aspectRatioRaw
+    : '1:1'
   const note = (formData.get('note') as string)?.trim() || ''
   const images: File[] = []
   const imageNotes: string[] = []
@@ -58,6 +63,7 @@ export async function cheAnh(formData: FormData) {
     promptExtras += `${MEME_STYLE_PROMPTS[memeStyle]} `
   }
   if (noteEn) promptExtras += `COMMON REQUEST FOR ALL IMAGES: "${noteEn}". `
+  promptExtras += `OUTPUT ASPECT RATIO: ${aspectRatio}. Keep final image strictly in this ratio. `
   const perImageParts = perImageNotesEn
     .map((n, idx) => (n ? `Image ${idx + 1}: ${n}` : null))
     .filter(Boolean)
@@ -98,7 +104,7 @@ export async function cheAnh(formData: FormData) {
     model: 'gemini-3-pro-image-preview',
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality },
+      imageConfig: { imageSize: imageQuality, aspectRatio },
     },
   } as Parameters<GoogleGenerativeAI['getGenerativeModel']>[0])
   const contentParts = await Promise.all([
@@ -140,7 +146,7 @@ export async function cheAnh(formData: FormData) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
     }
-    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl)
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl, { aspect_ratio: aspectRatio })
 
     revalidatePath('/che-anh')
     revalidatePath('/dashboard/history')

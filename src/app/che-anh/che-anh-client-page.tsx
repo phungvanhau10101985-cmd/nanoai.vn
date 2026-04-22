@@ -29,6 +29,14 @@ function getWebLocaleFromCookie(): UiLocale {
 }
 
 const MAX_IMAGES = 13
+const CHE_ANH_ASPECT_RATIOS = [
+  { value: '1:1', labels: ['1:1 Vuông', '1:1 Square', '1:1 方形', '1:1 正方形', '1:1 정사각형'] as const },
+  { value: '4:5', labels: ['4:5 Dọc', '4:5 Portrait', '4:5 竖版', '4:5 縦', '4:5 세로'] as const },
+  { value: '3:4', labels: ['3:4 Dọc', '3:4 Portrait', '3:4 竖版', '3:4 縦', '3:4 세로'] as const },
+  { value: '9:16', labels: ['9:16 Dọc rộng', '9:16 Tall', '9:16 竖屏', '9:16 縦長', '9:16 세로형'] as const },
+  { value: '16:9', labels: ['16:9 Ngang rộng', '16:9 Wide', '16:9 宽屏', '16:9 ワイド', '16:9 와이드'] as const },
+  { value: '4:3', labels: ['4:3 Ngang', '4:3 Landscape', '4:3 横版', '4:3 横', '4:3 가로'] as const },
+] as const
 
 const MEME_STYLES: { value: string; label: string }[] = [
   { value: '', label: 'Chọn phong cách meme...' },
@@ -67,6 +75,7 @@ export default function CheAnhClientPage() {
   const [images, setImages] = useState<{ file: File; preview: string; note: string }[]>([])
   const [memeStyle, setMemeStyle] = useState('')
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [aspectRatio, setAspectRatio] = useState<string>('1:1')
   const [note, setNote] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [urlLoading, setUrlLoading] = useState(false)
@@ -180,6 +189,7 @@ export default function CheAnhClientPage() {
     const formData = new FormData()
     formData.append('memeStyle', memeStyle)
     formData.append('imageQuality', imageQuality)
+    formData.append('aspectRatio', aspectRatio)
     formData.append('note', note)
     images.forEach((img, i) => {
       formData.append(`image_${i}`, img.file)
@@ -201,6 +211,7 @@ export default function CheAnhClientPage() {
     setStep('UPLOAD')
     setImages([])
     setMemeStyle('')
+    setAspectRatio('1:1')
     setNote('')
     setResultUrl(null)
   }
@@ -323,6 +334,23 @@ export default function CheAnhClientPage() {
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
                   <div className="space-y-2">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Tỷ lệ khung hình', 'Aspect ratio', '画面比例', 'アスペクト比', '화면 비율')}</h4>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {CHE_ANH_ASPECT_RATIOS.map((r) => (
+                        <button
+                          key={r.value}
+                          type="button"
+                          onClick={() => setAspectRatio(r.value)}
+                          className={`px-2 py-1.5 rounded-md border text-xs font-medium transition-colors ${
+                            aspectRatio === r.value ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                          }`}
+                        >
+                          {tr(r.labels[0], r.labels[1], r.labels[2], r.labels[3], r.labels[4])}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Chất lượng ảnh', 'Image quality', '图片质量', '画像品質', '이미지 품질')}</h4>
                     <div className="flex gap-2">
                       <button
@@ -407,12 +435,15 @@ export default function CheAnhClientPage() {
                     size="sm"
                     className="bg-amber-600 hover:bg-amber-700 text-white border-0"
                     printReady
-                    printReadyInferFromImage
+                    printReadyAspectRatio={aspectRatio}
                   />
                   </div>
                 </div>
-                <div className="aspect-square rounded-lg border overflow-hidden">
-                  <ImagePreview src={resultUrl} alt={tr('Sau', 'After', '之后', '後', '이후')} className="w-full h-full object-cover" />
+                <div
+                  className="rounded-lg border overflow-hidden bg-white"
+                  style={{ aspectRatio: aspectRatio.replace(':', '/') }}
+                >
+                  <ImagePreview src={resultUrl} alt={tr('Sau', 'After', '之后', '後', '이후')} className="w-full h-full object-cover" printReadyAspectRatio={aspectRatio} />
                 </div>
               </div>
             </CardContent>
