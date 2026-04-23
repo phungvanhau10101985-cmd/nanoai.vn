@@ -22,7 +22,11 @@ export async function GET(req: NextRequest, { params }: { params: { code: string
   const safeAfter = Number.isFinite(after) && after >= 0 ? Math.floor(after) : 0
   const signals = await fetchScreenLiveSignalsAfterPg(code, safeAfter)
   void pruneScreenLiveSignalsOlderThanPg(30).catch(() => {})
-  return NextResponse.json({ signals })
+  const res = NextResponse.json({ signals })
+  res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
+  res.headers.set('Pragma', 'no-cache')
+  res.headers.set('Expires', '0')
+  return res
 }
 
 export async function POST(req: NextRequest, { params }: { params: { code: string } }) {
@@ -45,5 +49,9 @@ export async function POST(req: NextRequest, { params }: { params: { code: strin
     return NextResponse.json({ error: ins.error }, { status: 400 })
   }
   void pruneScreenLiveSignalsOlderThanPg(30).catch(() => {})
-  return NextResponse.json({ ok: true })
+  const res = NextResponse.json({ ok: true })
+  res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
+  res.headers.set('Pragma', 'no-cache')
+  res.headers.set('Expires', '0')
+  return res
 }

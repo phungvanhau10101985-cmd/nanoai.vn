@@ -45,7 +45,8 @@ export class ScreenLiveChannel {
   async send(msg: { type: 'broadcast'; event: string; payload: unknown }): Promise<void> {
     const res = await fetch(this.apiUrl(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+      cache: 'no-store',
       body: JSON.stringify({ event: msg.event, payload: msg.payload }),
     })
     if (!res.ok) {
@@ -88,7 +89,10 @@ export class ScreenLiveChannel {
   private async tick(): Promise<void> {
     if (this.stopped) return
     try {
-      const res = await fetch(`${this.apiUrl()}?after=${this.lastId}`)
+      const res = await fetch(`${this.apiUrl()}?after=${this.lastId}&_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, max-age=0', Pragma: 'no-cache' },
+      })
       if (!res.ok) {
         this.failStreak++
         if (this.failStreak >= FAIL_UNTIL_CHANNEL_ERROR) {
