@@ -37,7 +37,7 @@ export default async function AdminUsersPage() {
   const users =
     usersRaw?.map((u) => ({
       ...u,
-      email: 'N/A' as const,
+      email: u.email?.trim() || 'N/A',
       balance: u.balance ?? 0,
     })) ?? []
 

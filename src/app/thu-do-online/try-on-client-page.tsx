@@ -246,6 +246,9 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
     } else if (result.success && result.resultUrl) {
       console.log('Generation successful:', result.resultUrl)
       await preloadImageUrl(result.resultUrl)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('credits-updated'))
+      }
       setResultUrl(result.resultUrl)
       setStep('RESULT')
       toast({ 

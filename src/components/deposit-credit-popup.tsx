@@ -22,6 +22,7 @@ import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
 import { isLocalhost, getDevUserId } from '@/lib/auth-client'
 import { trackEvent, toFeatureFromRoute } from '@/lib/analytics-track'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
+import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 
 type PaymentConfig = {
   id: string
@@ -98,7 +99,13 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
     let userId = await getClientUserId()
     if (!userId && isLocalhost()) userId = getDevUserId()
     if (!userId) {
-      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Vui lòng đăng nhập để nạp tiền.', 'Please sign in to top up.', '请登录后充值。', 'チャージするにはログインしてください。', '충전하려면 로그인해 주세요.'), variant: 'destructive' })
+      if (typeof window !== 'undefined') {
+        const raw = `${window.location.pathname || '/'}${window.location.search || ''}`
+        const loginHref = `/auth/login?next=${encodeURIComponent(sanitizeLoginNext(raw))}`
+        window.location.href = loginHref
+      } else {
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Vui lòng đăng nhập để nạp tiền.', 'Please sign in to top up.', '请登录后充值。', 'チャージするにはログインしてください。', '충전하려면 로그인해 주세요.'), variant: 'destructive' })
+      }
       return
     }
     const effectiveConfigId = selectedConfigId || configs[0]?.id || ''

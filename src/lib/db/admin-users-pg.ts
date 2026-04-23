@@ -6,6 +6,7 @@ export type AdminProfileWithBalanceRow = {
   full_name: string | null
   avatar_url: string | null
   role: string | null
+  email: string | null
   balance: number
   created_at: string | null
 }
@@ -26,6 +27,7 @@ export async function pgListProfilesWithCreditBalance(): Promise<{
               p.full_name,
               p.avatar_url,
               p.role,
+              nullif(au.email, '') as email,
               coalesce(nullif(to_jsonb(p)->>'created_at', ''), au.created_at::text) as created_at,
               coalesce(c.balance::float8, 0)::float8 as balance
        from public.profiles p
