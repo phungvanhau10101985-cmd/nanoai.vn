@@ -33,6 +33,21 @@ const PURCHASE_PICK_LIST_INTENT_RE = new RegExp(
  */
 const PHONE_CANDIDATE_RE = /(?:\+?\d[\d\s().-]{7,}\d)/g
 
+/**
+ * Cụm chốt nhanh thường gặp ở shop thời trang:
+ * - "lấy 2 cái size M"
+ * - "chốt 1 bộ"
+ * - "mình đặt mẫu này"
+ */
+const QUICK_FASHION_CHECKOUT_RE = new RegExp(
+  [
+    String.raw`\b(?:lấy|lay)\s*\d+\s*(?:cái|ao|mẫu|mau|bộ|bo|set|sp|sản\s*phẩm)\b`,
+    String.raw`\b(?:chốt|chot)\s*\d+\s*(?:cái|mẫu|mau|bộ|bo|set|đơn|don)\b`,
+    String.raw`\b(?:mình|minh|em|anh|chị|chi|tôi|toi)\s+(?:đặt|dat|mua|lấy|lay|chốt|chot)\s+(?:mẫu|mau|cái|bộ|bo|set|sp)\s*(?:này|nay|kia|đó|do)?\b`,
+  ].join('|'),
+  'i'
+)
+
 function looksLikeCheckoutPhoneSignal(message: string): boolean {
   const candidates = message.match(PHONE_CANDIDATE_RE) ?? []
   for (const candidate of candidates) {
@@ -47,8 +62,22 @@ function looksLikeCheckoutPhoneSignal(message: string): boolean {
   return false
 }
 
+function looksLikeFashionCheckoutPhrase(message: string): boolean {
+  if (!message) return false
+  if (QUICK_FASHION_CHECKOUT_RE.test(message)) return true
+  // Mẫu tự do: có động từ mua/chốt + đồng thời có số lượng hoặc size/mẫu cụ thể.
+  const hasCheckoutVerb = /\b(?:lấy|lay|đặt|dat|chốt|chot|mua)\b/i.test(message)
+  if (!hasCheckoutVerb) return false
+  const hasQuantity = /\b\d+\b/.test(message)
+  const hasVariantSignal = /\b(?:size|sz|mẫu|mau|cái|bộ|bo|set|sp|sản\s*phẩm)\b/i.test(message)
+  const hasDeixis = /\b(?:này|nay|kia|đó|do)\b/i.test(message)
+  return hasQuantity || hasVariantSignal || hasDeixis
+}
+
 export function inboundTextLooksLikePurchasePickListIntent(raw: string): boolean {
   const msg = normalizeCustomerMessageForInventorySearch(raw)
   if (!msg || msg.length > 2000) return false
-  return PURCHASE_PICK_LIST_INTENT_RE.test(msg) || looksLikeCheckoutPhoneSignal(msg)
+  return PURCHASE_PICK_LIST_INTENT_RE.test(msg)
+    || looksLikeCheckoutPhoneSignal(msg)
+    || looksLikeFashionCheckoutPhrase(msg)
 }
