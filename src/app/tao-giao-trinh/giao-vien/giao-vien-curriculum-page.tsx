@@ -529,11 +529,15 @@ function getVisualCellsForPresentation(
   }
   const raw = getVisualCells(slide)
   const infUrl = curriculumInfographic?.imageUrl
-  if (!infUrl?.trim()) return raw
-  if (preferInfographicImage) {
-    // When teacher explicitly chooses lesson/curriculum image, force rendering that infographic.
+  if (preferInfographicImage && infUrl?.trim()) {
     return { layout: 1, cells: [{ imageUrl: infUrl.trim() }] }
   }
+  const rawHasAnyVisual = raw.cells.some((c) => String(c.visualEmbed ?? '').trim() || String(c.imageUrl ?? '').trim())
+  if (rawHasAnyVisual) {
+    // Rule: slide has chart/visual -> always prefer its own visual content.
+    return raw
+  }
+  if (!infUrl?.trim()) return raw
   const known = Array.from(new Set((knownInfographicUrls ?? []).map((u) => String(u ?? '').trim()).filter(Boolean)))
   const skip = known.length > 0 ? false : skipInfographicDefaultSwapCurriculumPage(slide)
   const swapped = applyInfographicToDefaultVisualCells(raw, infUrl, skip) as { layout: 1 | 2 | 4; cells: VisualCell[] }
@@ -1180,11 +1184,15 @@ export default function CurriculumViewPage() {
   const [infographicSourceView, setInfographicSourceView] = useState<'visual' | 'lesson' | 'curriculum'>('lesson')
   const hasLessonInfographic = Boolean(String(lessonInfographic?.imageUrl ?? '').trim())
   const hasCurriculumInfographic = Boolean(String(curriculumInfographic?.imageUrl ?? '').trim())
+  const priorityVisualInfographic = useMemo(
+    () => (hasLessonInfographic ? lessonInfographic : hasCurriculumInfographic ? curriculumInfographic : undefined),
+    [hasLessonInfographic, lessonInfographic, hasCurriculumInfographic, curriculumInfographic]
+  )
   const activeVisualInfographic = useMemo(() => {
-    if (infographicSourceView === 'visual') return undefined
+    if (infographicSourceView === 'visual') return priorityVisualInfographic
     if (infographicSourceView === 'curriculum') return curriculumInfographic
     return lessonInfographic
-  }, [infographicSourceView, lessonInfographic, curriculumInfographic])
+  }, [infographicSourceView, priorityVisualInfographic, lessonInfographic, curriculumInfographic])
   const activeVisualInfographicRenderKey = useMemo(
     () => `${infographicSourceView}:${String(activeVisualInfographic?.imageUrl ?? '')}`,
     [infographicSourceView, activeVisualInfographic?.imageUrl]
@@ -1205,6 +1213,7 @@ export default function CurriculumViewPage() {
       return prev
     })
   }, [hasLessonInfographic, hasCurriculumInfographic])
+  const autoInfographicSourceSlideRef = useRef<number | null>(null)
   const infographicDrawingRef = useRef<{
     target: 'pane' | 'fullscreen'
     strokeId: string
@@ -1233,23 +1242,49 @@ export default function CurriculumViewPage() {
   /** Dưới 768px: hai cột xếp dọc full width; từ md: giữ layout neo phải + minWidth như cũ */
   const narrowTeacherLayout = viewportW < 768
   // Giao diện giáo viên neo về bên phải: khi thu nhỏ chỉ ẩn dần phần bên trái.
-  const currentVisualHasAny = useMemo(() => {
+  const currentVisualPresentation = useMemo(() => {
     const s = slides[currentIndex]
-    if (!s) return false
-    const { cells } = getVisualCellsForPresentation(
+    if (!s) return { layout: 1 as 1 | 2 | 4, cells: [] as VisualCell[] }
+    return getVisualCellsForPresentation(
       s,
       activeVisualInfographic,
       [lessonInfographic?.imageUrl, curriculumInfographic?.imageUrl],
       infographicSourceView !== 'visual'
     )
-    return cells.some((c) => c.visualEmbed || c.imageUrl)
   }, [
     slides,
     currentIndex,
     activeVisualInfographic,
+    infographicSourceView,
     lessonInfographic?.imageUrl,
     curriculumInfographic?.imageUrl,
   ])
+  const currentVisualHasAny = useMemo(
+    () => currentVisualPresentation.cells.some((c) => c.visualEmbed || c.imageUrl),
+    [currentVisualPresentation]
+  )
+  const currentVisualShowsInfographic = useMemo(() => {
+    if (!activeVisualInfographic?.imageUrl) return false
+    return currentVisualPresentation.cells.some(
+      (c) => c.imageUrl && visualImageIsCurriculumInfographic(c.imageUrl, activeVisualInfographic)
+    )
+  }, [currentVisualPresentation, activeVisualInfographic])
+
+  useEffect(() => {
+    if (autoInfographicSourceSlideRef.current === currentIndex) return
+    autoInfographicSourceSlideRef.current = currentIndex
+    const s = slides[currentIndex]
+    if (!s) {
+      setInfographicSourceView('visual')
+      return
+    }
+    const raw = getVisualCells(s)
+    const hasSlideVisual = raw.cells.some((c) => c.visualEmbed || c.imageUrl)
+    if (hasSlideVisual) setInfographicSourceView('visual')
+    else if (hasLessonInfographic) setInfographicSourceView('lesson')
+    else if (hasCurriculumInfographic) setInfographicSourceView('curriculum')
+    else setInfographicSourceView('visual')
+  }, [currentIndex, slides, hasLessonInfographic, hasCurriculumInfographic])
 
   const tr = useCallback((vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -1782,7 +1817,7 @@ export default function CurriculumViewPage() {
     return () => {
       if (raf) window.cancelAnimationFrame(raf)
     }
-  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, curriculumInfographic?.imageUrl])
+  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, infographicSourceView, activeVisualInfographic?.imageUrl])
 
   useEffect(() => {
     // Repaint nhẹ sau đổi slide/tab: đủ để bắt ảnh load chậm nhưng tránh tốn RAM/CPU.
@@ -1797,7 +1832,7 @@ export default function CurriculumViewPage() {
     return () => {
       for (const id of timers) clearTimeout(id)
     }
-  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, curriculumInfographic?.imageUrl, infographicDrawStrokesBySlide])
+  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, infographicSourceView, activeVisualInfographic?.imageUrl, infographicDrawStrokesBySlide])
 
   useEffect(() => {
     const binds: Array<() => void> = []
@@ -1813,7 +1848,11 @@ export default function CurriculumViewPage() {
       ro.observe(img)
       ros.push(ro)
     }
-    bind('pane', teacherEmbeddedInfographicStageRef.current, teacherEmbeddedInfographicImgRef.current)
+    const paneStages = Array.from(document.querySelectorAll('[data-teacher-infographic-draw-pane-stage]')) as HTMLDivElement[]
+    for (const stage of paneStages) {
+      const img = stage.querySelector('img') as HTMLImageElement | null
+      bind('pane', stage, img)
+    }
     bind('fullscreen', teacherInfographicOverlayStageRef.current, teacherInfographicOverlayImgRef.current)
     const onResize = () => {
       if (infographicFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
@@ -1828,7 +1867,7 @@ export default function CurriculumViewPage() {
       window.removeEventListener('resize', onResize)
       if (raf) window.cancelAnimationFrame(raf)
     }
-  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, curriculumInfographic?.imageUrl])
+  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, infographicSourceView, activeVisualInfographic?.imageUrl])
 
   useEffect(() => {
     if (!studentViewOpened) return
@@ -1930,7 +1969,7 @@ export default function CurriculumViewPage() {
         ? {
             studentCurriculumRightMode: studentCurriculumRemoteMode,
             teacherSlideLeftPane:
-              leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && infographicSourceView !== 'visual')
+              leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
                 ? ('infographic' as const)
                 : ('visual' as const),
             curriculumInfographic: wireInfographic ?? null,
@@ -1956,7 +1995,7 @@ export default function CurriculumViewPage() {
     } catch {
       /* ignore */
     }
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, compactSlidesForStudentWire])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, studentCurriculumRemoteMode, activeVisualInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire])
 
   useEffect(() => {
     if (!studentViewOpened || worksheetId) return
@@ -2506,6 +2545,12 @@ export default function CurriculumViewPage() {
   }, [hasCurriculumInfographic, confirmInfographicAction, generateCurriculumInfographic])
   const handleSwitchInfographicSource = useCallback((target: 'visual' | 'lesson' | 'curriculum') => {
     setInfographicSourceView(target)
+    const targetInfographic =
+      target === 'visual'
+        ? priorityVisualInfographic
+        : target === 'curriculum'
+          ? curriculumInfographic
+          : lessonInfographic
     if (studentViewOpened && !worksheetId) {
       sendToStudentView({
         type: 'student-curriculum-left-pane',
@@ -2514,9 +2559,7 @@ export default function CurriculumViewPage() {
       sendCurriculumDataToStudent(
         slides,
         currentIndex,
-        target === 'visual'
-          ? undefined
-          : (target === 'curriculum' ? curriculumInfographic : lessonInfographic)
+        targetInfographic
       )
     }
     if (target === 'visual') return
@@ -2547,6 +2590,7 @@ export default function CurriculumViewPage() {
     sendCurriculumDataToStudent,
     slides,
     currentIndex,
+    priorityVisualInfographic,
     curriculumInfographic,
     lessonInfographic,
     curriculumId,
@@ -2581,7 +2625,7 @@ export default function CurriculumViewPage() {
           ? {
               studentCurriculumRightMode: studentCurriculumRemoteMode,
               teacherSlideLeftPane:
-                leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && infographicSourceView !== 'visual')
+                leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
                   ? ('infographic' as const)
                   : ('visual' as const),
             }
@@ -2679,7 +2723,7 @@ export default function CurriculumViewPage() {
               ? {
                   studentCurriculumRightMode: studentCurriculumRemoteMode,
                   teacherSlideLeftPane:
-                    leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && infographicSourceView !== 'visual')
+                    leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
                       ? ('infographic' as const)
                       : ('visual' as const),
                 }
@@ -2773,7 +2817,7 @@ export default function CurriculumViewPage() {
             worksheetAnswerTypingEnabled: curriculumId ? answerTypingEnabled : undefined,
             studentCurriculumRightMode: studentCurriculumRemoteMode,
             teacherSlideLeftPane:
-              leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && infographicSourceView !== 'visual')
+              leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
                 ? ('infographic' as const)
                 : ('visual' as const),
             ...(activeVisualInfographic ? { curriculumInfographic: activeVisualInfographic } : {}),
@@ -2960,7 +3004,7 @@ export default function CurriculumViewPage() {
                 type: 'mouse-pos',
                 visualFrame: true,
                 imageCenter: true,
-                cellIndex: !worksheetId && infographicSourceView !== 'visual' ? -1 : i,
+                cellIndex: !worksheetId && currentVisualShowsInfographic ? -1 : i,
                 dxFromCenter: dx,
                 dyFromCenter: dy,
                 visW: vis.width,
@@ -2973,7 +3017,7 @@ export default function CurriculumViewPage() {
                 type: 'mouse-pos',
                 visualFrame: true,
                 imageCenter: true,
-                cellIndex: !worksheetId && infographicSourceView !== 'visual' ? -1 : i,
+                cellIndex: !worksheetId && currentVisualShowsInfographic ? -1 : i,
                 dxFromCenter: e.clientX - cx,
                 dyFromCenter: e.clientY - cy,
                 visW: rect.width,
@@ -3038,7 +3082,7 @@ export default function CurriculumViewPage() {
                   type: 'mouse-pos',
                   visualFrame: true,
                   imageCenter: true,
-                  cellIndex: !worksheetId && infographicSourceView !== 'visual' ? -1 : i,
+                  cellIndex: !worksheetId && currentVisualShowsInfographic ? -1 : i,
                   dxFromCenter: e.clientX - cx,
                   dyFromCenter: e.clientY - cy,
                   visW: vis.width,
@@ -3051,7 +3095,7 @@ export default function CurriculumViewPage() {
                   type: 'mouse-pos',
                   visualFrame: true,
                   imageCenter: true,
-                  cellIndex: !worksheetId && infographicSourceView !== 'visual' ? -1 : i,
+                  cellIndex: !worksheetId && currentVisualShowsInfographic ? -1 : i,
                   dxFromCenter: e.clientX - cx,
                   dyFromCenter: e.clientY - cy,
                   visW: rect.width,
@@ -3255,7 +3299,7 @@ export default function CurriculumViewPage() {
                 type: 'mouse-click',
                 visualFrame: true,
                 imageCenter: true,
-                cellIndex: !worksheetId && infographicSourceView !== 'visual' ? -1 : i,
+                cellIndex: !worksheetId && currentVisualShowsInfographic ? -1 : i,
                 dxFromCenter: e.clientX - cx,
                 dyFromCenter: e.clientY - cy,
                 visW: vis.width,
@@ -3268,7 +3312,7 @@ export default function CurriculumViewPage() {
                 type: 'mouse-click',
                 visualFrame: true,
                 imageCenter: true,
-                cellIndex: !worksheetId && infographicSourceView !== 'visual' ? -1 : i,
+                cellIndex: !worksheetId && currentVisualShowsInfographic ? -1 : i,
                 dxFromCenter: e.clientX - cx,
                 dyFromCenter: e.clientY - cy,
                 visW: rect.width,
@@ -3333,7 +3377,7 @@ export default function CurriculumViewPage() {
                   type: 'mouse-click',
                   visualFrame: true,
                   imageCenter: true,
-                  cellIndex: !worksheetId && infographicSourceView !== 'visual' ? -1 : i,
+                  cellIndex: !worksheetId && currentVisualShowsInfographic ? -1 : i,
                   dxFromCenter: e.clientX - cx,
                   dyFromCenter: e.clientY - cy,
                   visW: vis.width,
@@ -3346,7 +3390,7 @@ export default function CurriculumViewPage() {
                   type: 'mouse-click',
                   visualFrame: true,
                   imageCenter: true,
-                  cellIndex: !worksheetId && infographicSourceView !== 'visual' ? -1 : i,
+                  cellIndex: !worksheetId && currentVisualShowsInfographic ? -1 : i,
                   dxFromCenter: e.clientX - cx,
                   dyFromCenter: e.clientY - cy,
                   visW: rect.width,
@@ -3587,7 +3631,7 @@ export default function CurriculumViewPage() {
               ? {
                   studentCurriculumRightMode: studentCurriculumRemoteMode,
                   teacherSlideLeftPane:
-                    leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && infographicSourceView !== 'visual')
+                    leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
                       ? ('infographic' as const)
                       : ('visual' as const),
                 }
@@ -4378,7 +4422,7 @@ export default function CurriculumViewPage() {
                 ? {
                     studentCurriculumRightMode: studentCurriculumRemoteMode,
                     teacherSlideLeftPane:
-                      leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && infographicSourceView !== 'visual')
+                      leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
                         ? ('infographic' as const)
                         : ('visual' as const),
                   }
@@ -4660,9 +4704,9 @@ export default function CurriculumViewPage() {
     if (!studentViewOpened) return
     sendToStudentView({
       type: 'student-curriculum-left-pane',
-      pane: infographicSourceView === 'visual' ? 'visual' : 'infographic',
+      pane: currentVisualShowsInfographic ? 'infographic' : 'visual',
     })
-  }, [worksheetId, studentViewOpened, infographicSourceView, sendToStudentView])
+  }, [worksheetId, studentViewOpened, currentVisualShowsInfographic, sendToStudentView])
 
   useEffect(() => {
     slidesRef.current = slides
