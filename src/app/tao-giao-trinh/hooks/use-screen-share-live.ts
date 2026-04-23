@@ -2,18 +2,18 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { ScreenLiveChannel } from '../lib/screen-live-channel'
+import { getLiveIceConfig } from '../lib/webrtc-ice'
 
 function generateShareCode(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 8)
 }
 
 function createPeerConnection(
+  rtcConfig: RTCConfiguration,
   onTrack: (stream: MediaStream) => void,
   onIceCandidate: (candidate: RTCIceCandidate) => void
 ): RTCPeerConnection {
-  const pc = new RTCPeerConnection({
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-  })
+  const pc = new RTCPeerConnection(rtcConfig)
   pc.ontrack = (e) => {
     if (e.streams[0]) onTrack(e.streams[0])
   }
@@ -105,14 +105,32 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       const channel = new ScreenLiveChannel(code)
       channelRef.current = channel
       const pendingViewerIceByViewer = new Map<string, RTCIceCandidateInit[]>()
+      const viewerRelayPreferredRef = new Map<string, boolean>()
 
-      const sendOfferToViewer = async (viewerId: string, options?: { forceNew?: boolean }) => {
+      const sendOfferToViewer = async (
+        viewerId: string,
+        options?: { forceNew?: boolean; preferRelay?: boolean }
+      ) => {
         const key = String(viewerId || '').trim()
         if (!key) return
         if (offerInFlightRef.current.has(key)) return
         let pc = pcMapRef.current.get(key)
         const forceNew = options?.forceNew === true
+        const preferRelay = options?.preferRelay === true
+        if (preferRelay) viewerRelayPreferredRef.set(key, true)
+        const stablePreferRelay = viewerRelayPreferredRef.get(key) === true
         if (forceNew && pc) {
+          try {
+            pc.close()
+          } catch {
+            /* ignore */
+          }
+          pcMapRef.current.delete(key)
+          pendingViewerIceByViewer.delete(key)
+          pc = undefined
+        }
+        const currentRelayMode = pc?.getConfiguration().iceTransportPolicy === 'relay'
+        if (pc && stablePreferRelay && !currentRelayMode) {
           try {
             pc.close()
           } catch {
@@ -152,7 +170,9 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
         }
         offerInFlightRef.current.add(key)
         try {
+          const { rtcConfig } = getLiveIceConfig({ preferRelay: stablePreferRelay })
           const newPc = createPeerConnection(
+            rtcConfig,
             () => {},
             (candidate) => {
               channel.send({
@@ -169,6 +189,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
               pcMapRef.current.delete(key)
               pendingViewerIceByViewer.delete(key)
               offerInFlightRef.current.delete(key)
+              viewerRelayPreferredRef.set(key, true)
               try {
                 newPc.close()
               } catch {
@@ -239,7 +260,10 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
         })
         .on('broadcast', { event: 'request-offer' }, ({ payload }) => {
           const viewerId = payload?.viewerId ?? payload?.viewer_id ?? crypto.randomUUID()
-          void sendOfferToViewer(viewerId, { forceNew: payload?.forceNew === true })
+          void sendOfferToViewer(viewerId, {
+            forceNew: payload?.forceNew === true,
+            preferRelay: payload?.preferRelay === true,
+          })
         })
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {

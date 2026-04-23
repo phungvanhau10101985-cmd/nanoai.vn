@@ -5,6 +5,7 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ScreenLiveChannel } from '../lib/screen-live-channel'
+import { getLiveIceConfig } from '../lib/webrtc-ice'
 import { RotateCw } from 'lucide-react'
 
 function getWebLocale(): 'vi' | 'en' | 'zh' | 'ja' | 'ko' {
@@ -82,8 +83,9 @@ function XemManHinhInner() {
     const channel = new ScreenLiveChannel(shareCode.trim())
     channelRef.current = channel
     const pendingSharerIce: RTCIceCandidateInit[] = []
+    const relayModeRef = { current: false }
 
-    const createViewerPc = () => {
+    const createViewerPc = (preferRelay = false) => {
       const old = pcRef.current
       if (old) {
         try {
@@ -92,9 +94,9 @@ function XemManHinhInner() {
           /* ignore */
         }
       }
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-      })
+      const { rtcConfig, hasTurn } = getLiveIceConfig({ preferRelay })
+      relayModeRef.current = preferRelay && hasTurn
+      const pc = new RTCPeerConnection(rtcConfig)
       pcRef.current = pc
       pc.ontrack = (e) => {
         if (e.streams[0]) {
@@ -114,21 +116,30 @@ function XemManHinhInner() {
         const cs = pc.connectionState
         if (!connectedRef.current && (cs === 'failed' || cs === 'disconnected' || cs === 'closed')) {
           pendingSharerIce.length = 0
-          createViewerPc()
+          const nextPreferRelay = relayModeRef.current || reconnectAttempt >= 8
+          createViewerPc(nextPreferRelay)
           reconnectAttempt += 1
-          void requestOffer({ forceNew: reconnectAttempt % 2 === 0 })
+          void requestOffer({
+            forceNew: reconnectAttempt % 2 === 0,
+            preferRelay: nextPreferRelay,
+          })
         }
       }
       return pc
     }
     createViewerPc()
 
-    const requestOffer = async (opts?: { forceNew?: boolean }) => {
+    const requestOffer = async (opts?: { forceNew?: boolean; preferRelay?: boolean }) => {
       try {
         await channel.send({
           type: 'broadcast',
           event: 'request-offer',
-          payload: { from: 'viewer', viewerId, ...(opts?.forceNew ? { forceNew: true } : {}) },
+          payload: {
+            from: 'viewer',
+            viewerId,
+            ...(opts?.forceNew ? { forceNew: true } : {}),
+            ...(opts?.preferRelay ? { preferRelay: true } : {}),
+          },
         })
       } catch {
         // keep retrying while still connecting
@@ -142,7 +153,7 @@ function XemManHinhInner() {
           const pc = pcRef.current ?? createViewerPc()
           if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
             pendingSharerIce.length = 0
-            createViewerPc()
+            createViewerPc(relayModeRef.current || reconnectAttempt >= 8)
           }
           const activePc = pcRef.current ?? createViewerPc()
           await activePc.setRemoteDescription(new RTCSessionDescription(payload.sdp))
@@ -167,8 +178,12 @@ function XemManHinhInner() {
         } catch (err) {
           setErrorMsg(err instanceof Error ? err.message : String(err))
           reconnectAttempt += 1
-          createViewerPc()
-          void requestOffer({ forceNew: reconnectAttempt % 2 === 0 })
+          const nextPreferRelay = relayModeRef.current || reconnectAttempt >= 8
+          createViewerPc(nextPreferRelay)
+          void requestOffer({
+            forceNew: reconnectAttempt % 2 === 0,
+            preferRelay: nextPreferRelay,
+          })
         }
       })
       .on('broadcast', { event: 'ice' }, async ({ payload }) => {
@@ -197,8 +212,12 @@ function XemManHinhInner() {
     const retryTimer = window.setInterval(() => {
       if (connectedRef.current) return
       reconnectAttempt += 1
+      const preferRelay = relayModeRef.current || reconnectAttempt >= 8
       // Every few retries, force sharer to rebuild peer for this viewer (unsticks ICE states).
-      void requestOffer({ forceNew: reconnectAttempt % 6 === 0 })
+      void requestOffer({
+        forceNew: reconnectAttempt % 6 === 0,
+        preferRelay,
+      })
     }, 1500)
     const timeoutTimer = window.setTimeout(() => {
       if (connectedRef.current) return
