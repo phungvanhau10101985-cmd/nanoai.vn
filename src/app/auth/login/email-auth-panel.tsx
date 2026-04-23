@@ -16,8 +16,44 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
   const [step, setStep] = useState<'email' | 'otp'>('email')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
+  const [rememberDevice, setRememberDevice] = useState(true)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  function getStableBrowserId(): string {
+    if (typeof window === 'undefined') return ''
+    const key = 'app_email_trusted_browser_id'
+    const current = window.localStorage.getItem(key)?.trim() || ''
+    if (/^[a-z0-9_-]{16,128}$/i.test(current)) return current.toLowerCase()
+    const created = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 16)}`
+      .replace(/[^a-z0-9_-]/gi, '')
+      .toLowerCase()
+      .slice(0, 64)
+    window.localStorage.setItem(key, created)
+    return created
+  }
+
+  async function confirmSessionAndRedirect(): Promise<boolean> {
+    for (let i = 0; i < 3; i += 1) {
+      try {
+        const meRes = await fetch('/api/auth/me', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        })
+        if (meRes.ok) {
+          window.location.href = safeNext
+          return true
+        }
+      } catch {
+        // retry below
+      }
+      if (i < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 180))
+      }
+    }
+    return false
+  }
 
   async function sendOtp(e: React.FormEvent) {
     e.preventDefault()
@@ -27,9 +63,18 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
       const res = await fetch('/api/auth/email/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), next: safeNext }),
+        body: JSON.stringify({
+          email: email.trim(),
+          next: safeNext,
+          rememberDevice,
+          browserId: getStableBrowserId(),
+        }),
       })
-      const data = (await res.json().catch(() => ({}))) as { error?: string }
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        autoSignedIn?: boolean
+        debugOtp?: string
+      }
       if (!res.ok) {
         const code = typeof data.error === 'string' ? data.error : ''
         if (code === 'rate_limited') {
@@ -82,6 +127,18 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         setLoading(false)
         return
       }
+      if (data.autoSignedIn) {
+        window.location.href = safeNext
+        return
+      }
+      // Fallback: session cookie can be set slightly before client observes it.
+      if (await confirmSessionAndRedirect()) {
+        return
+      }
+      const otpFromDev = String(data.debugOtp || '').replace(/\D/g, '').slice(0, 6)
+      if (otpFromDev.length === 6) {
+        setOtp(otpFromDev)
+      }
       setStep('otp')
     } catch {
       setErr(tr('Lỗi mạng.', 'Network error.', '网络错误。', 'ネットワークエラー。', '네트워크 오류.'))
@@ -97,7 +154,12 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
       const res = await fetch('/api/auth/email/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), otp: otp.replace(/\D/g, '') }),
+        body: JSON.stringify({
+          email: email.trim(),
+          otp: otp.replace(/\D/g, ''),
+          rememberDevice,
+          browserId: getStableBrowserId(),
+        }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -139,6 +201,23 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
           required
           className="h-11"
         />
+        <label className="flex items-start gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4"
+            checked={rememberDevice}
+            onChange={(e) => setRememberDevice(e.target.checked)}
+          />
+          <span>
+            {tr(
+              'Tin cậy thiết bị này trong 30 ngày (không cần OTP khi đăng nhập lại trên cùng trình duyệt).',
+              'Trust this device for 30 days (skip OTP next time on this browser).',
+              '信任此设备 30 天（同一浏览器下次免 OTP）。',
+              'この端末を30日間信頼する（同じブラウザで次回OTP不要）。',
+              '이 기기를 30일 동안 신뢰(같은 브라우저에서 다음 로그인 시 OTP 생략).'
+            )}
+          </span>
+        </label>
         <Button type="submit" disabled={loading} className="w-full h-11">
           <Mail className="mr-2 h-4 w-4" />
           {loading
@@ -155,6 +234,15 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
       <p className="text-sm text-muted-foreground">
         {tr('Nhập mã 6 số trong email (hoặc bấm link trong email).', 'Enter the 6-digit code from your email.', '请输入邮件中的 6 位验证码。', 'メールの6桁コードを入力。', '이메일의 6자리 코드를 입력하세요.')}
       </p>
+      <p className="text-sm font-bold text-red-600">
+        {tr(
+          'Vui lòng kiểm tra mã OTP trong Hộp thư đến hoặc Thư rác (Spam).',
+          'Please check your OTP in Inbox or Spam/Junk folder.',
+          '请在收件箱或垃圾邮件中查看 OTP 验证码。',
+          '受信トレイまたは迷惑メールフォルダでOTPコードをご確認ください。',
+          '받은편지함 또는 스팸함에서 OTP 코드를 확인해 주세요.'
+        )}
+      </p>
       <Input
         type="text"
         inputMode="numeric"
@@ -166,6 +254,23 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         className="h-11 text-center text-lg tracking-widest"
         autoComplete="one-time-code"
       />
+      <label className="flex items-start gap-2 text-sm text-muted-foreground">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4"
+          checked={rememberDevice}
+          onChange={(e) => setRememberDevice(e.target.checked)}
+        />
+        <span>
+          {tr(
+            'Tin cậy thiết bị này trong 30 ngày (không cần OTP khi đăng nhập lại trên cùng trình duyệt).',
+            'Trust this device for 30 days (skip OTP next time on this browser).',
+            '信任此设备 30 天（同一浏览器下次免 OTP）。',
+            'この端末を30日間信頼する（同じブラウザで次回OTP不要）。',
+            '이 기기를 30일 동안 신뢰(같은 브라우저에서 다음 로그인 시 OTP 생략).'
+          )}
+        </span>
+      </label>
       <div className="flex gap-2">
         <Button type="button" variant="outline" className="flex-1" onClick={() => { setStep('email'); setOtp(''); setErr(null) }}>
           {tr('Quay lại', 'Back', '返回', '戻る', '뒤로')}

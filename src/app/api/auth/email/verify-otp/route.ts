@@ -1,7 +1,8 @@
 import { createHash, timingSafeEqual } from 'crypto'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY, isEmailAuthEnabled } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
+import { issueTrustedDeviceForUser, markTrustedEmailForBrowser } from '@/lib/auth/email-trusted-device'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
@@ -20,7 +21,7 @@ function safeEqStr(a: string, b: string) {
   return timingSafeEqual(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'))
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     if (!isEmailAuthEnabled()) {
       return NextResponse.json({ error: 'email_auth_disabled' }, { status: 503 })
@@ -29,9 +30,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'database_not_configured' }, { status: 503 })
     }
 
-    const body = (await req.json().catch(() => null)) as { email?: string; otp?: string } | null
+    const body = (await req.json().catch(() => null)) as {
+      email?: string
+      otp?: string
+      browserId?: string
+    } | null
     const email = normalizeEmail(String(body?.email || ''))
     const otp = String(body?.otp ?? '').replace(/\D/g, '').trim()
+    const browserId = String(body?.browserId || '').trim()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || otp.length !== 6) {
       return NextResponse.json({ error: 'invalid_payload' }, { status: 400 })
     }
@@ -70,6 +76,8 @@ export async function POST(req: Request) {
     const opts = getEmailSessionCookieOptions()
     res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
     res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
+    markTrustedEmailForBrowser(res, email)
+    await issueTrustedDeviceForUser(res, req, uidRow.id, email, browserId)
     return res
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

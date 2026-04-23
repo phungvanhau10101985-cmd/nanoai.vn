@@ -1298,6 +1298,7 @@ export function PartnerGuestChatClient({
   const [authGateRequired, setAuthGateRequired] = useState(false)
   const [guestAuthEmail, setGuestAuthEmail] = useState('')
   const [guestAuthOtp, setGuestAuthOtp] = useState('')
+  const [guestAuthRememberDevice, setGuestAuthRememberDevice] = useState(true)
   const [guestAuthSending, setGuestAuthSending] = useState(false)
   const [guestAuthVerifying, setGuestAuthVerifying] = useState(false)
   const otpLastAutoSubmittedRef = useRef<string>('')
@@ -3777,10 +3778,17 @@ export function PartnerGuestChatClient({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, rememberDevice: guestAuthRememberDevice }),
       })
       captureGuestSessionFromResponse(res)
-      const data = (await res.json()) as { ok?: boolean; error?: string; retry_after_sec?: number; accountId?: string }
+      captureGuestAccountFromResponse(res)
+      const data = (await res.json()) as {
+        ok?: boolean
+        error?: string
+        retry_after_sec?: number
+        accountId?: string
+        autoSignedIn?: boolean
+      }
       if (!res.ok) {
         if (data.error === 'Missing session') {
           toast({ title: t.sendError, variant: 'destructive' })
@@ -3796,6 +3804,24 @@ export function PartnerGuestChatClient({
           return
         }
         toast({ title: data.error || t.sendError, variant: 'destructive' })
+        return
+      }
+      if (data.autoSignedIn) {
+        setAuthMode('account')
+        setAuthGateRequired(false)
+        setGuestAuthOtp('')
+        otpLastAutoSubmittedRef.current = ''
+        const accountId = typeof data.accountId === 'string' ? data.accountId.trim() : ''
+        if (accountId) {
+          guestAccountIdRef.current = accountId
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY, accountId)
+            window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY, accountId)
+          }
+        }
+        toast({ title: 'Đăng nhập thành công.' })
+        await refreshAuthAndReload()
+        await load()
         return
       }
       toast({ title: t.guestAuthEmailSent })
@@ -3816,7 +3842,7 @@ export function PartnerGuestChatClient({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ email, otp }),
+        body: JSON.stringify({ email, otp, rememberDevice: guestAuthRememberDevice }),
       })
       captureGuestSessionFromResponse(res)
       captureGuestAccountFromResponse(res)
@@ -3870,6 +3896,7 @@ export function PartnerGuestChatClient({
     captureGuestAccountFromResponse,
     captureGuestSessionFromResponse,
     guestAuthEmail,
+    guestAuthRememberDevice,
     guestAuthOtp,
     load,
     refreshAuthAndReload,
@@ -5306,6 +5333,15 @@ export function PartnerGuestChatClient({
                         {t.guestAuthSendOtp}
                       </Button>
                     </div>
+                    <label className="flex items-start gap-2 text-[11px] text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-3.5 w-3.5"
+                        checked={guestAuthRememberDevice}
+                        onChange={(e) => setGuestAuthRememberDevice(e.target.checked)}
+                      />
+                      <span>Tin cậy thiết bị này 30 ngày (đăng nhập lại cùng email sẽ bỏ qua OTP).</span>
+                    </label>
                     <div className="flex flex-wrap gap-1.5">
                       <input
                         type="text"

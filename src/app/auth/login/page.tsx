@@ -1,7 +1,7 @@
 import LoginClient from './login-client'
 import { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
-import { getEmailSessionUser } from '@/lib/auth/email-session-user'
+import { getWalletSessionUser } from '@/lib/auth'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { redirect } from 'next/navigation'
 
@@ -13,12 +13,14 @@ export const metadata: Metadata = buildMetadata({
   noIndex: true,
 })
 
+export const dynamic = 'force-dynamic'
+
 export default async function LoginPage({
   searchParams,
 }: {
   searchParams: { message?: string; error?: string; notice?: string; next?: string }
 }) {
-  const sessionUser = await getEmailSessionUser()
+  const sessionUser = await getWalletSessionUser()
   if (sessionUser) {
     const safeNext = sanitizeLoginNext(searchParams?.next)
     redirect(safeNext)

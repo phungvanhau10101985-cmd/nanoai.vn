@@ -48,6 +48,7 @@ export default function LoginClient({
     }
   }, [])
 
+
   const errorDisplay = (() => {
     if (!error?.trim()) return null
     const code = error.trim()

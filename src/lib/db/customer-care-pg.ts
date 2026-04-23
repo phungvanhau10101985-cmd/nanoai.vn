@@ -303,13 +303,20 @@ export async function fetchPartnerConversationsFromPg(
               metadata, status, last_message_at, last_message_preview, created_at, updated_at
        from public.customer_care_conversations c
        where c.partner_id = $1::uuid
-         and exists (
-           select 1
-           from public.customer_care_messages m_keep
-           where m_keep.conversation_id = c.id
-             and m_keep.direction = 'inbound'
-             and coalesce(m_keep.raw_payload ->> 'widget_auto_opening', 'false') <> 'true'
-             and nullif(trim(replace(replace(coalesce(m_keep.body, ''), '📷', ''), '📦', '')), '') is not null
+         and (
+           exists (
+             select 1
+             from public.customer_care_messages m_keep
+             where m_keep.conversation_id = c.id
+               and m_keep.direction = 'inbound'
+               and coalesce(m_keep.raw_payload ->> 'widget_auto_opening', 'false') <> 'true'
+               and nullif(trim(replace(replace(coalesce(m_keep.body, ''), '📷', ''), '📦', '')), '') is not null
+           )
+           or exists (
+             select 1
+             from public.messaging_partner_orders o_keep
+             where o_keep.conversation_id = c.id
+           )
          )
          and not exists (
            select 1
@@ -326,6 +333,9 @@ export async function fetchPartnerConversationsFromPg(
              and s.inbound_count = 1
              and s.outbound_count = 0
              and s.has_auto_opening
+             and not exists (
+               select 1 from public.messaging_partner_orders o_keep where o_keep.conversation_id = c.id
+             )
          )
        order by c.last_message_at desc nulls last
        limit $2`,
@@ -374,13 +384,20 @@ export async function listPartnerConversationsFromPg(
               metadata, status, last_message_at, last_message_preview, created_at, updated_at
        from public.customer_care_conversations
        where partner_id = $1::uuid
-         and exists (
-           select 1
-           from public.customer_care_messages m_keep
-           where m_keep.conversation_id = customer_care_conversations.id
-             and m_keep.direction = 'inbound'
-             and coalesce(m_keep.raw_payload ->> 'widget_auto_opening', 'false') <> 'true'
-             and nullif(trim(replace(replace(coalesce(m_keep.body, ''), '📷', ''), '📦', '')), '') is not null
+         and (
+           exists (
+             select 1
+             from public.customer_care_messages m_keep
+             where m_keep.conversation_id = customer_care_conversations.id
+               and m_keep.direction = 'inbound'
+               and coalesce(m_keep.raw_payload ->> 'widget_auto_opening', 'false') <> 'true'
+               and nullif(trim(replace(replace(coalesce(m_keep.body, ''), '📷', ''), '📦', '')), '') is not null
+           )
+           or exists (
+             select 1
+             from public.messaging_partner_orders o_keep
+             where o_keep.conversation_id = customer_care_conversations.id
+           )
          )
        order by coalesce(last_message_at, updated_at) desc, updated_at desc
        limit $2`,

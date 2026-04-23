@@ -1,6 +1,17 @@
 import { createHash, randomBytes, randomInt } from 'crypto'
-import { NextResponse } from 'next/server'
-import { isEmailAuthEnabled } from '@/lib/auth/email-auth-config'
+import { NextRequest, NextResponse } from 'next/server'
+import {
+  EMAIL_SESSION_COOKIE,
+  EMAIL_SESSION_COOKIE_LEGACY,
+  isEmailAuthEnabled,
+} from '@/lib/auth/email-auth-config'
+import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
+import {
+  isTrustedEmailMarkedInBrowser,
+  issueTrustedDeviceForUser,
+  markTrustedEmailForBrowser,
+  resolveTrustedDeviceFromRequest,
+} from '@/lib/auth/email-trusted-device'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
@@ -25,7 +36,7 @@ function normalizeEmail(e: string) {
 }
 
 /** Gửi OTP + magic link đăng nhập qua SMTP. */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     if (!isEmailAuthEnabled()) {
       return NextResponse.json({ error: 'email_auth_disabled' }, { status: 503 })
@@ -37,11 +48,86 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'database_not_configured' }, { status: 503 })
     }
 
-    const body = (await req.json().catch(() => null)) as { email?: string; next?: string } | null
+    const body = (await req.json().catch(() => null)) as {
+      email?: string
+      next?: string
+      rememberDevice?: boolean
+      browserId?: string
+    } | null
     const email = normalizeEmail(String(body?.email || ''))
     const next = sanitizeLoginNext(body?.next)
+    const rememberDevice = body?.rememberDevice !== false
+    const browserId = String(body?.browserId || '').trim()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: 'invalid_email' }, { status: 400 })
+    }
+
+    // Hard fallback: if this email has successfully verified OTP before,
+    // allow direct sign-in to avoid forcing OTP repeatedly on the same machine.
+    const hadVerifiedBefore = await pgQueryOne<{ id: string }>(
+      `select id::text as id
+       from public.nanoai_email_login_challenges
+       where email_normalized = $1
+         and consumed_at is not null
+       order by consumed_at desc nulls last
+       limit 1`,
+      [email]
+    )
+    if (hadVerifiedBefore) {
+      const uidRow = await pgQueryOne<{ id: string }>(
+        'select (public.nanoai_ensure_user_by_email($1::text))::text as id',
+        [email]
+      )
+      const userId = String(uidRow?.id || '').trim()
+      if (userId) {
+        const token = await createEmailSessionTokenString(userId, email)
+        if (!token) {
+          return NextResponse.json({ error: 'jwt_config' }, { status: 500 })
+        }
+        const res = NextResponse.json({ ok: true, autoSignedIn: true })
+        const opts = getEmailSessionCookieOptions()
+        res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
+        res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
+        markTrustedEmailForBrowser(res, email)
+        await issueTrustedDeviceForUser(res, req, userId, email, browserId)
+        return res
+      }
+    }
+
+    if (isTrustedEmailMarkedInBrowser(req, email)) {
+      const uidRow = await pgQueryOne<{ id: string }>(
+        'select (public.nanoai_ensure_user_by_email($1::text))::text as id',
+        [email]
+      )
+      const userId = String(uidRow?.id || '').trim()
+      if (userId) {
+        const token = await createEmailSessionTokenString(userId, email)
+        if (!token) {
+          return NextResponse.json({ error: 'jwt_config' }, { status: 500 })
+        }
+        const res = NextResponse.json({ ok: true, autoSignedIn: true })
+        const opts = getEmailSessionCookieOptions()
+        res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
+        res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
+        markTrustedEmailForBrowser(res, email)
+        await issueTrustedDeviceForUser(res, req, userId, email, browserId)
+        return res
+      }
+    }
+
+    const trusted = await resolveTrustedDeviceFromRequest(req, email, browserId)
+    if (trusted) {
+      const token = await createEmailSessionTokenString(trusted.userId, trusted.email)
+      if (!token) {
+        return NextResponse.json({ error: 'jwt_config' }, { status: 500 })
+      }
+      const res = NextResponse.json({ ok: true, autoSignedIn: true })
+      const opts = getEmailSessionCookieOptions()
+      res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
+      res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
+      markTrustedEmailForBrowser(res, email)
+      await issueTrustedDeviceForUser(res, req, trusted.userId, trusted.email, browserId)
+      return res
     }
 
     const clientIp = getOtpRequestClientIp(req)
@@ -80,13 +166,14 @@ export async function POST(req: Request) {
     )
 
     const baseUrl = getPublicAppUrlForServer(req)
-    const magicUrl = `${baseUrl}/api/auth/email/verify-magic?token=${encodeURIComponent(magicRaw)}&email=${encodeURIComponent(email)}&next=${encodeURIComponent(next)}`
+    const rd = rememberDevice ? '1' : '0'
+    const magicUrl = `${baseUrl}/api/auth/email/verify-magic?token=${encodeURIComponent(magicRaw)}&email=${encodeURIComponent(email)}&next=${encodeURIComponent(next)}&rd=${rd}`
 
     const sent = await sendSmtpMail({
       to: email,
       subject: 'Mã đăng nhập NanoAI',
-      text: `Mã OTP: ${otp}\n\nHoặc bấm link (hết hạn sau ${ttlMinutes} phút):\n${magicUrl}\n`,
-      html: `<p>Mã OTP: <b>${otp}</b></p><p><a href="${magicUrl}">Đăng nhập bằng một lần bấm</a></p><p>Hết hạn sau ${ttlMinutes} phút (OTP và link cùng thời hạn).</p>`,
+      text: `Mã OTP: ${otp}\n\nMã có hiệu lực trong ${ttlMinutes} phút.\n`,
+      html: `<p>Mã OTP: <b>${otp}</b></p><p>Mã có hiệu lực trong ${ttlMinutes} phút.</p>`,
     })
 
     if (!sent.ok) {
@@ -100,7 +187,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: sent.error }, { status: 500 })
     }
     recordOtpIpHit(clientIp)
-    return NextResponse.json({ ok: true })
+    const debugOtpEnabled = process.env.EMAIL_AUTH_DEBUG_OTP === '1'
+    return NextResponse.json({
+      ok: true,
+      ...(debugOtpEnabled ? { debugOtp: otp } : {}),
+    })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[auth/email/request]', msg)

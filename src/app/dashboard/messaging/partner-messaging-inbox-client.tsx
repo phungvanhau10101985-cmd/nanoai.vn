@@ -98,15 +98,23 @@ export function PartnerMessagingInboxClient({
   initialPartners,
   hotelCount = 0,
   t,
+  initialPartnerId = null,
+  initialConversationId = null,
 }: {
   initialPartners: PartnerRow[]
   hotelCount?: number
   t: T
+  initialPartnerId?: string | null
+  initialConversationId?: string | null
 }) {
   const router = useRouter()
   const { toast } = useToast()
   const [partners, setPartners] = useState<PartnerRow[]>(initialPartners)
-  const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(initialPartners[0]?.id ?? null)
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(
+    initialPartnerId && initialPartners.some((p) => p.id === initialPartnerId)
+      ? initialPartnerId
+      : (initialPartners[0]?.id ?? null)
+  )
   const [conversations, setConversations] = useState<ConvRow[]>([])
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null)
   const [messages, setMessages] = useState<MsgRow[]>([])
@@ -128,6 +136,7 @@ export function PartnerMessagingInboxClient({
   const [channelBrandName, setChannelBrandName] = useState('')
   const [channelLogoUrl, setChannelLogoUrl] = useState('')
   const [creatingChannel, setCreatingChannel] = useState(false)
+  const initialConversationRef = useRef<string | null>(initialConversationId)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
@@ -158,7 +167,19 @@ export function PartnerMessagingInboxClient({
         toast({ title: res.error, variant: 'destructive' })
         return
       }
-      if ('rows' in res) setConversations(res.rows ?? [])
+      if ('rows' in res) {
+        const nextRows = res.rows ?? []
+        setConversations(nextRows)
+        setSelectedConvId((prev) => {
+          if (prev && nextRows.some((c) => c.id === prev)) return prev
+          const wanted = initialConversationRef.current
+          if (wanted && nextRows.some((c) => c.id === wanted)) {
+            initialConversationRef.current = null
+            return wanted
+          }
+          return nextRows[0]?.id ?? null
+        })
+      }
     })
   }, [selectedPartnerId, toast])
 

@@ -1,7 +1,8 @@
 import { createHash } from 'crypto'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY, isEmailAuthEnabled } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
+import { issueTrustedDeviceForUser, markTrustedEmailForBrowser } from '@/lib/auth/email-trusted-device'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -24,7 +25,7 @@ function absoluteRedirect(req: Request, pathAndQuery: string): NextResponse {
   return NextResponse.redirect(`${base}${p}`)
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     if (!isEmailAuthEnabled()) {
       return absoluteRedirect(req, '/auth/login?error=email_auth_disabled')
@@ -75,6 +76,8 @@ export async function GET(req: Request) {
     const opts = getEmailSessionCookieOptions()
     res.cookies.set(EMAIL_SESSION_COOKIE, jwt, opts)
     res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, jwt, opts)
+    markTrustedEmailForBrowser(res, email)
+    await issueTrustedDeviceForUser(res, req, uidRow.id, email)
     return res
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

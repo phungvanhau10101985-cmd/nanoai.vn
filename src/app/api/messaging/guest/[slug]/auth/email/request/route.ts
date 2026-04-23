@@ -7,6 +7,7 @@ import {
   writeGuestSessionCookie,
   writeGuestSessionHeader,
 } from '@/lib/messaging/guest-auth-session'
+import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import { isSmtpConfigured, sendSmtpMail } from '@/lib/email/smtp'
 import {
@@ -14,8 +15,18 @@ import {
   getRateLimitRetryAfterSec,
   isRateLimited,
 } from '@/lib/api/simple-ip-rate-limit'
-import { findLatestEmailChallengeInCooldownPg, insertGuestEmailChallengePg } from '@/lib/db/messaging-guest-pg'
+import {
+  findGuestAccountIdByEmailPg,
+  findLatestEmailChallengeInCooldownPg,
+  insertGuestAccountPg,
+  insertGuestEmailChallengePg,
+  updateGuestAccountLastLoginPg,
+  upsertGuestIdentityPg,
+} from '@/lib/db/messaging-guest-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
+import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
+import { issueTrustedDeviceForUser, resolveTrustedDeviceFromRequest } from '@/lib/auth/email-trusted-device'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -56,8 +67,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ error: 'Server database is not configured.' }, { status: 503 })
   }
 
-  const body = (await request.json().catch(() => null)) as { email?: string } | null
+  const body = (await request.json().catch(() => null)) as { email?: string; rememberDevice?: boolean } | null
   const email = normalizeEmail(body?.email ?? '')
+  const rememberDevice = body?.rememberDevice !== false
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
   }
@@ -67,6 +79,55 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     existingSessionId && isValidMessagingGuestSessionId(existingSessionId)
       ? existingSessionId
       : createGuestSessionId()
+
+  const trusted = await resolveTrustedDeviceFromRequest(request, email)
+  if (trusted) {
+    const nowIso = new Date().toISOString()
+    let accountId = await findGuestAccountIdByEmailPg(partnerId, email)
+    if (!accountId) {
+      accountId = await insertGuestAccountPg({
+        partnerId,
+        emailRaw: email,
+        emailNormalized: email,
+        firstVerifiedAt: nowIso,
+        lastLoginAt: nowIso,
+      })
+    } else {
+      await updateGuestAccountLastLoginPg(accountId, nowIso)
+    }
+    if (!accountId) {
+      return NextResponse.json({ error: 'Account failed' }, { status: 500 })
+    }
+    const identityOk = await upsertGuestIdentityPg({
+      partnerId,
+      guestAccountId: accountId,
+      provider: 'email_otp',
+      providerSubject: email,
+    })
+    if (!identityOk) {
+      return NextResponse.json({ error: 'Account failed' }, { status: 500 })
+    }
+    const token = await createEmailSessionTokenString(trusted.userId, trusted.email)
+    if (!token) {
+      return NextResponse.json({ error: 'jwt_config' }, { status: 500 })
+    }
+    const response = NextResponse.json({
+      ok: true,
+      autoSignedIn: true,
+      accountId,
+      emailSessionIssued: true,
+    })
+    writeGuestAccountCookie(response, request, accountId)
+    if (!existingSessionId) {
+      writeGuestSessionCookie(response, request, sessionId)
+      writeGuestSessionHeader(response, sessionId)
+    }
+    const opts = getEmailSessionCookieOptions()
+    response.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
+    response.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
+    await issueTrustedDeviceForUser(response, request, trusted.userId, trusted.email)
+    return response
+  }
 
   const ip = getClientIpFromRequest(request)
   const rlKey = `guest-auth-email-request:${partnerId}:${ip}:${email}`

@@ -23,6 +23,7 @@ import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
+import { issueTrustedDeviceForUser } from '@/lib/auth/email-trusted-device'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -58,7 +59,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const sessionId = readGuestSessionIdFromRequest(request)
   if (!sessionId) return NextResponse.json({ error: 'Missing session' }, { status: 400 })
 
-  const body = (await request.json().catch(() => null)) as { email?: string; otp?: string } | null
+  const body = (await request.json().catch(() => null)) as {
+    email?: string
+    otp?: string
+  } | null
   const email = normalizeEmail(body?.email ?? '')
   const otp = String(body?.otp ?? '').trim()
   if (!email || !otp) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
@@ -209,6 +213,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     const opts = getEmailSessionCookieOptions()
     res.cookies.set(EMAIL_SESSION_COOKIE, sessionToken, opts)
     res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, sessionToken, opts)
+    if (authUserIdForEmail) {
+      await issueTrustedDeviceForUser(res, request, authUserIdForEmail, email)
+    }
   }
   return res
 }

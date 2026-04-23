@@ -23,6 +23,7 @@ import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
+import { issueTrustedDeviceForUser } from '@/lib/auth/email-trusted-device'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -184,6 +185,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
         const opts = getEmailSessionCookieOptions()
         res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
         res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
+        await issueTrustedDeviceForUser(res, request, authUserIdForEmail, email)
       }
     }
   } catch (e) {

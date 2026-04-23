@@ -35,6 +35,7 @@ function messagingOrderShopTemplate(template: string, partnerDisplayName: string
 type OrderRow = {
   id: string
   partner_id: string
+  conversation_id: string
   partner_display_name: string
   status: OrderStatus
   customer_name: string
@@ -560,7 +561,11 @@ export function PartnerMessagingOrdersClient({
                   </Button>
                 ) : null}
                 <Button type="button" variant="outline" size="sm" asChild>
-                  <Link href="/dashboard/messaging">{t.openInbox}</Link>
+                  <Link
+                    href={`/dashboard/messaging/inbox?partner=${encodeURIComponent(r.partner_id)}&conversation=${encodeURIComponent(r.conversation_id)}`}
+                  >
+                    {t.openInbox}
+                  </Link>
                 </Button>
               </div>
               <div className="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
@@ -615,7 +620,11 @@ export function PartnerMessagingOrdersClient({
                   {t.btnViewTimeline}
                 </Button>
                 <Button type="button" size="sm" variant="outline" asChild>
-                  <Link href="/dashboard/messaging">{t.openChat}</Link>
+                  <Link
+                    href={`/dashboard/messaging/inbox?partner=${encodeURIComponent(r.partner_id)}&conversation=${encodeURIComponent(r.conversation_id)}`}
+                  >
+                    {t.openChat}
+                  </Link>
                 </Button>
               </div>
             </CardContent>

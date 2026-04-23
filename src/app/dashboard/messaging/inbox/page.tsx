@@ -24,6 +24,11 @@ export default async function DashboardMessagingInboxPage({
   const requestedPartnerId = isValidUuidString(String(requestedPartner ?? '').trim())
     ? String(requestedPartner).trim()
     : ''
+  const conversationRaw = sp?.conversation
+  const requestedConversation = Array.isArray(conversationRaw) ? conversationRaw[0] : conversationRaw
+  const requestedConversationId = isValidUuidString(String(requestedConversation ?? '').trim())
+    ? String(requestedConversation).trim()
+    : ''
 
   let rows: NonNullable<Awaited<ReturnType<typeof fetchMessagingPartnersByOwnerFromPg>>> = []
   let hotelCount = 0
@@ -49,7 +54,13 @@ export default async function DashboardMessagingInboxPage({
     <MessagingInboxScrollLock>
       <div className="mx-auto flex h-[calc(100dvh-4.25rem)] max-h-[100dvh] w-full max-w-7xl min-h-0 flex-col overflow-hidden px-2 pb-1 pt-2 sm:px-4 sm:pb-2 sm:pt-3 md:h-[calc(100dvh-4.75rem)] md:px-6 md:pb-3 md:pt-4 lg:px-8">
         <div className="flex min-h-0 flex-1 flex-col">
-          <PartnerMessagingInboxClient initialPartners={orderedRows ?? []} hotelCount={hotelCount} t={pm} />
+          <PartnerMessagingInboxClient
+            initialPartners={orderedRows ?? []}
+            hotelCount={hotelCount}
+            t={pm}
+            initialPartnerId={requestedPartnerId || null}
+            initialConversationId={requestedConversationId || null}
+          />
         </div>
       </div>
     </MessagingInboxScrollLock>
