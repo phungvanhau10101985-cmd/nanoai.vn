@@ -29,7 +29,7 @@ import {
   skipInfographicDefaultSwapNano,
   visualImageIsCurriculumInfographic,
 } from '../lib/default-visual-image'
-import { createPresentationSyncId, getPresentationBroadcastChannelName, LEGACY_PRESENTATION_BROADCAST_CHANNEL } from '../lib/presentation-broadcast'
+import { createPresentationSyncId, getOrCreatePresentationSyncId, getPresentationBroadcastChannelName, LEGACY_PRESENTATION_BROADCAST_CHANNEL } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync, STUDENT_WINDOW_NAME_CURRICULUM, STUDENT_WINDOW_NAME_WORKSHEET } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 
@@ -778,7 +778,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   /** Tab tạo phiếu bài tập: kênh đồng bộ HS tách biệt với tab GV khác. */
-  const [worksheetTabSyncId] = useState(() => createPresentationSyncId())
+  const [worksheetTabSyncId] = useState(() => getOrCreatePresentationSyncId('student-worksheet-tab'))
   const presentationBroadcastChannelName = useMemo(
     () => getPresentationBroadcastChannelName(!isTeacherView ? presentationBroadcastSyncId ?? undefined : undefined),
     [isTeacherView, presentationBroadcastSyncId]

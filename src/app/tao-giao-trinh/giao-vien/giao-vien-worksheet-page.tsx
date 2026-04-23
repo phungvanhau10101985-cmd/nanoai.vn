@@ -27,7 +27,7 @@ import {
   typableSolutionBlockIndices,
   worksheetAnswerSegmentCount,
 } from '@/app/tao-giao-trinh/lib/worksheet-answer-segments'
-import { createPresentationSyncId, getPresentationBroadcastChannelName } from '../lib/presentation-broadcast'
+import { getOrCreatePresentationSyncId, getPresentationBroadcastChannelName } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { QuizPopupDialog } from '../components/quiz-popup-dialog'
@@ -549,7 +549,7 @@ export default function GiaoVienWorksheetPage() {
   const isWorksheetSlideMode = Boolean(worksheetId?.trim()) || Boolean(examCode)
   const [examLoadError, setExamLoadError] = useState<string | null>(null)
   /** Một tab GV = một kênh BroadcastChannel riêng — tránh hai cửa sổ HS nhận lẫn dữ liệu. */
-  const [presentationSyncId] = useState(() => createPresentationSyncId())
+  const [presentationSyncId] = useState(() => getOrCreatePresentationSyncId('teacher-worksheet'))
   const [content, setContent] = useState('')
   const [topic, setTopic] = useState('')
   const [currentIndex, setCurrentIndex] = useState(0)

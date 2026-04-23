@@ -29,7 +29,7 @@ import {
   typableSolutionBlockIndices,
   worksheetAnswerSegmentCount,
 } from '@/app/tao-giao-trinh/lib/worksheet-answer-segments'
-import { createPresentationSyncId, getPresentationBroadcastChannelName } from '../lib/presentation-broadcast'
+import { getOrCreatePresentationSyncId, getPresentationBroadcastChannelName } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { QuizPopupDialog } from '../components/quiz-popup-dialog'
@@ -778,7 +778,7 @@ export default function CurriculumViewPage() {
   const searchParams = useSearchParams()
   const worksheetId = searchParams?.get('worksheetId')
   /** Một tab GV = một kênh BroadcastChannel riêng — tránh hai cửa sổ HS nhận lẫn dữ liệu. */
-  const [presentationSyncId] = useState(() => createPresentationSyncId())
+  const [presentationSyncId] = useState(() => getOrCreatePresentationSyncId('teacher-curriculum'))
   const [content, setContent] = useState('')
   const [fullCurriculumMarkdown, setFullCurriculumMarkdown] = useState('')
   const [topic, setTopic] = useState('')

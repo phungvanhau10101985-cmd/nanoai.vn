@@ -23,3 +23,23 @@ export function createPresentationSyncId(): string {
   }
   return `p${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
 }
+
+/**
+ * Ổn định `syncId` theo từng tab browser.
+ * - Cùng tab: reload/remount vẫn giữ nguyên id => cửa sổ HS không bị rớt kênh.
+ * - Khác tab: sessionStorage tách biệt => mỗi tab vẫn có id riêng.
+ */
+export function getOrCreatePresentationSyncId(scope = 'default'): string {
+  if (typeof window === 'undefined') return createPresentationSyncId()
+  const safeScope = String(scope || 'default').trim() || 'default'
+  const key = `tao-giao-trinh:sync-id:${safeScope}`
+  try {
+    const existing = window.sessionStorage.getItem(key)?.trim()
+    if (existing) return existing
+    const next = createPresentationSyncId()
+    window.sessionStorage.setItem(key, next)
+    return next
+  } catch {
+    return createPresentationSyncId()
+  }
+}
