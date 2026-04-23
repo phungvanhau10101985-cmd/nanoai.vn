@@ -13,13 +13,13 @@ const LYRIA3_MODELS = {
   pro: 'lyria-3-pro-preview',
 } as const
 
-const CHARGE_CLIP = 3
+const CHARGE_CLIP = 1
 
 /** Pro: mục tiêu độ dài (giây) — khớp công bố Lyria 3 Pro tối đa ~3 phút. */
 const CHARGE_PRO_BY_TARGET: Record<60 | 150 | 180, number> = {
-  60: 5,
-  150: 8,
-  180: 10,
+  60: 1.5,
+  150: 2,
+  180: 2.5,
 }
 
 function parseProTargetSeconds(raw: unknown): 60 | 150 | 180 {
