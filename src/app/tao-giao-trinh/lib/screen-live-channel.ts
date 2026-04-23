@@ -79,7 +79,9 @@ export class ScreenLiveChannel {
   }
 
   private apiUrl(): string {
-    return `/api/tao-giao-trinh/screen-live/${encodeURIComponent(this.roomCode)}`
+    // Public API path should use /api/giao-trinh to avoid redirect hop
+    // from legacy /api/tao-giao-trinh configured in next.config.
+    return `/api/giao-trinh/screen-live/${encodeURIComponent(this.roomCode)}`
   }
 
   private startPoll(): void {
