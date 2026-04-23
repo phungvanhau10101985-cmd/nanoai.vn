@@ -104,6 +104,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
 
       const channel = new ScreenLiveChannel(code)
       channelRef.current = channel
+      const pendingViewerIceByViewer = new Map<string, RTCIceCandidateInit[]>()
 
       const sendOfferToViewer = async (viewerId: string, options?: { forceNew?: boolean }) => {
         const key = String(viewerId || '').trim()
@@ -118,6 +119,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
             /* ignore */
           }
           pcMapRef.current.delete(key)
+          pendingViewerIceByViewer.delete(key)
           pc = undefined
         }
         const state = pc?.connectionState
@@ -146,6 +148,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
             /* ignore */
           }
           pcMapRef.current.delete(key)
+          pendingViewerIceByViewer.delete(key)
         }
         offerInFlightRef.current.add(key)
         try {
@@ -164,6 +167,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
             if (!cs) return
             if (cs === 'failed' || cs === 'closed' || cs === 'disconnected') {
               pcMapRef.current.delete(key)
+              pendingViewerIceByViewer.delete(key)
               offerInFlightRef.current.delete(key)
               try {
                 newPc.close()
@@ -199,16 +203,33 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
           if (pc) {
             try {
               await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp))
+              const queued = pendingViewerIceByViewer.get(viewerId) ?? []
+              for (const c of queued) {
+                try {
+                  await pc.addIceCandidate(new RTCIceCandidate(c))
+                } catch {
+                  /* ignore */
+                }
+              }
+              pendingViewerIceByViewer.delete(viewerId)
             } catch {
               pc.close()
               pcMapRef.current.delete(viewerId)
+              pendingViewerIceByViewer.delete(viewerId)
             }
           }
         })
         .on('broadcast', { event: 'ice' }, async ({ payload }) => {
           if (payload?.from !== 'viewer' || !payload?.candidate || !payload?.viewerId) return
-          const pc = pcMapRef.current.get(payload.viewerId)
+          const viewerId = String(payload.viewerId)
+          const pc = pcMapRef.current.get(viewerId)
           if (pc) {
+            if (!pc.remoteDescription) {
+              const queued = pendingViewerIceByViewer.get(viewerId) ?? []
+              queued.push(payload.candidate as RTCIceCandidateInit)
+              pendingViewerIceByViewer.set(viewerId, queued.slice(-64))
+              return
+            }
             try {
               await pc.addIceCandidate(new RTCIceCandidate(payload.candidate))
             } catch {

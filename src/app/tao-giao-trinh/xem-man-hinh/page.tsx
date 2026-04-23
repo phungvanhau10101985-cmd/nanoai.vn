@@ -81,27 +81,47 @@ function XemManHinhInner() {
     let reconnectAttempt = 0
     const channel = new ScreenLiveChannel(shareCode.trim())
     channelRef.current = channel
+    const pendingSharerIce: RTCIceCandidateInit[] = []
 
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    })
-    pcRef.current = pc
-
-    pc.ontrack = (e) => {
-      if (e.streams[0]) {
-        setStream(e.streams[0])
+    const createViewerPc = () => {
+      const old = pcRef.current
+      if (old) {
+        try {
+          old.close()
+        } catch {
+          /* ignore */
+        }
       }
-    }
-
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        channel.send({
-          type: 'broadcast',
-          event: 'ice',
-          payload: { from: 'viewer', viewerId, candidate: e.candidate.toJSON() },
-        })
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      })
+      pcRef.current = pc
+      pc.ontrack = (e) => {
+        if (e.streams[0]) {
+          setStream(e.streams[0])
+        }
       }
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          channel.send({
+            type: 'broadcast',
+            event: 'ice',
+            payload: { from: 'viewer', viewerId, candidate: e.candidate.toJSON() },
+          })
+        }
+      }
+      pc.onconnectionstatechange = () => {
+        const cs = pc.connectionState
+        if (!connectedRef.current && (cs === 'failed' || cs === 'disconnected' || cs === 'closed')) {
+          pendingSharerIce.length = 0
+          createViewerPc()
+          reconnectAttempt += 1
+          void requestOffer({ forceNew: reconnectAttempt % 2 === 0 })
+        }
+      }
+      return pc
     }
+    createViewerPc()
 
     const requestOffer = async (opts?: { forceNew?: boolean }) => {
       try {
@@ -119,25 +139,45 @@ function XemManHinhInner() {
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
         if (payload?.from !== 'sharer' || !payload?.sdp || payload?.viewerId !== viewerId) return
         try {
-          await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp))
-          const answer = await pc.createAnswer()
-          await pc.setLocalDescription(answer)
+          const pc = pcRef.current ?? createViewerPc()
+          if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            pendingSharerIce.length = 0
+            createViewerPc()
+          }
+          const activePc = pcRef.current ?? createViewerPc()
+          await activePc.setRemoteDescription(new RTCSessionDescription(payload.sdp))
+          for (const c of pendingSharerIce.splice(0)) {
+            try {
+              await activePc.addIceCandidate(new RTCIceCandidate(c))
+            } catch {
+              /* ignore */
+            }
+          }
+          const answer = await activePc.createAnswer()
+          await activePc.setLocalDescription(answer)
           channel.send({
             type: 'broadcast',
             event: 'answer',
             payload: {
               from: 'viewer',
               viewerId,
-              sdp: pc.localDescription?.toJSON(),
+              sdp: activePc.localDescription?.toJSON(),
             },
           })
         } catch (err) {
           setErrorMsg(err instanceof Error ? err.message : String(err))
-          setStatus('error')
+          reconnectAttempt += 1
+          createViewerPc()
+          void requestOffer({ forceNew: reconnectAttempt % 2 === 0 })
         }
       })
       .on('broadcast', { event: 'ice' }, async ({ payload }) => {
         if (payload?.from !== 'sharer' || !payload?.candidate || payload?.viewerId !== viewerId || !pcRef.current) return
+        if (!pcRef.current.remoteDescription) {
+          pendingSharerIce.push(payload.candidate as RTCIceCandidateInit)
+          if (pendingSharerIce.length > 64) pendingSharerIce.splice(0, pendingSharerIce.length - 64)
+          return
+        }
         try {
           await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate))
         } catch {
@@ -181,7 +221,7 @@ function XemManHinhInner() {
       connectedRef.current = false
       channel.unsubscribe()
       channelRef.current = null
-      pc.close()
+      pcRef.current?.close()
       pcRef.current = null
     }
   }, [shareCode, locale])
