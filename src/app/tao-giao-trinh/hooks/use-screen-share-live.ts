@@ -94,6 +94,18 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
           pc &&
           (state === 'connected' || state === 'connecting' || state === 'new')
         ) {
+          const local = pc.localDescription?.toJSON()
+          if (local) {
+            channel.send({
+              type: 'broadcast',
+              event: 'offer',
+              payload: {
+                from: 'sharer',
+                viewerId: key,
+                sdp: local,
+              },
+            })
+          }
           return
         }
         if (pc) {
