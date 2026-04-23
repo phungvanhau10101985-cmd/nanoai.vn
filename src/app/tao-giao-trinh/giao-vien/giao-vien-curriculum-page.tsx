@@ -52,6 +52,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { getCurriculumSlidesByLessonCachedAction, saveCurriculumLessonInfographicAction } from '../lesson-actions'
 
+const TEACHER_CURRICULUM_RUNTIME_CACHE_KEY = 'tao-giao-trinh:teacher-curriculum-runtime:v1'
+
 type VisualCell = { visualEmbed?: string; imageUrl?: string }
 type SlideItem = {
   title: string
@@ -839,6 +841,7 @@ export default function CurriculumViewPage() {
   const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual' | 'infographic'>('curriculum')
   const [infographicGenerating, setInfographicGenerating] = useState(false)
   const [lessonInfographicGenerating, setLessonInfographicGenerating] = useState(false)
+  const runtimeHydratedRef = useRef(false)
   useEffect(() => {
     if (leftPanelMode === 'slide') setLeftPanelMode('curriculum')
   }, [leftPanelMode])
@@ -1396,6 +1399,128 @@ export default function CurriculumViewPage() {
   const requestCurriculum = useCallback(() => {
     if (window.opener) window.opener.postMessage({ type: 'request-curriculum' }, window.location.origin)
   }, [])
+
+  useEffect(() => {
+    if (worksheetId) return
+    if (content.trim().length > 0 || slides.length > 0) return
+    if (typeof window === 'undefined') return
+    if (runtimeHydratedRef.current) return
+    runtimeHydratedRef.current = true
+    try {
+      const raw = window.sessionStorage.getItem(TEACHER_CURRICULUM_RUNTIME_CACHE_KEY)
+      if (!raw) return
+      const cached = JSON.parse(raw) as {
+        content?: string
+        fullCurriculumMarkdown?: string
+        topic?: string
+        currentIndex?: number
+        curriculumId?: string | null
+        slideMode?: 'original' | 'shared' | 'personal' | null
+        personalViewSubMode?: 'current' | 'original'
+        hasOriginalSlides?: boolean
+        slides?: SlideItem[]
+        teacherTimerSeconds?: number
+        teacherTimerRunning?: boolean
+        lessonNo?: number | null
+        curriculumInfographic?: SlideInfographic | null
+        lessonInfographic?: SlideInfographic | null
+      }
+      const cachedSlides = Array.isArray(cached?.slides) ? cached.slides.map((s) => normalizeSlideVisualInputs(s)) : []
+      const cachedContent = typeof cached?.content === 'string' ? cached.content : ''
+      if (cachedContent.trim().length <= 0 && cachedSlides.length <= 0) return
+      const safeIndexRaw = Number.isFinite(Number(cached?.currentIndex)) ? Number(cached.currentIndex) : 0
+      const safeIndex = Math.max(0, Math.min(safeIndexRaw, Math.max(0, cachedSlides.length - 1)))
+      setContent(cachedContent)
+      setFullCurriculumMarkdown(typeof cached?.fullCurriculumMarkdown === 'string' ? cached.fullCurriculumMarkdown : '')
+      setTopic(typeof cached?.topic === 'string' ? cached.topic : '')
+      setCurrentIndex(safeIndex)
+      setCurriculumId(typeof cached?.curriculumId === 'string' ? cached.curriculumId : null)
+      setSlideMode(
+        cached?.slideMode === 'original' || cached?.slideMode === 'shared' || cached?.slideMode === 'personal'
+          ? cached.slideMode
+          : null
+      )
+      setPersonalViewSubMode(cached?.personalViewSubMode === 'original' ? 'original' : 'current')
+      setHasOriginalSlides(Boolean(cached?.hasOriginalSlides))
+      setSlides(cachedSlides)
+      slidesRef.current = cachedSlides
+      setSlideTitles(cachedSlides.map((s) => s?.title ?? ''))
+      setTeacherTimerSeconds(typeof cached?.teacherTimerSeconds === 'number' ? cached.teacherTimerSeconds : 0)
+      setTeacherTimerRunning(Boolean(cached?.teacherTimerRunning))
+      setActiveLessonNo(Number.isFinite(Number(cached?.lessonNo)) ? Math.max(1, Math.floor(Number(cached?.lessonNo))) : null)
+      setCurriculumInfographic(
+        cached?.curriculumInfographic && typeof cached.curriculumInfographic.imageUrl === 'string'
+          ? cached.curriculumInfographic
+          : undefined
+      )
+      setLessonInfographic(
+        cached?.lessonInfographic && typeof cached.lessonInfographic.imageUrl === 'string'
+          ? cached.lessonInfographic
+          : undefined
+      )
+      hasHydratedFromCurriculumRef.current = true
+    } catch {
+      /* ignore */
+    }
+  }, [worksheetId, content, slides])
+
+  useEffect(() => {
+    if (worksheetId) return
+    if (typeof window === 'undefined') return
+    if (content.trim().length <= 0 && slides.length <= 0) return
+    const id = window.setTimeout(() => {
+      try {
+        window.sessionStorage.setItem(
+          TEACHER_CURRICULUM_RUNTIME_CACHE_KEY,
+          JSON.stringify({
+            content,
+            fullCurriculumMarkdown,
+            topic,
+            currentIndex,
+            curriculumId,
+            slideMode,
+            personalViewSubMode,
+            hasOriginalSlides,
+            slides,
+            teacherTimerSeconds,
+            teacherTimerRunning,
+            lessonNo: activeLessonNo,
+            curriculumInfographic: curriculumInfographic ?? null,
+            lessonInfographic: lessonInfographic ?? null,
+          })
+        )
+      } catch {
+        /* ignore */
+      }
+    }, 350)
+    return () => window.clearTimeout(id)
+  }, [
+    worksheetId,
+    content,
+    fullCurriculumMarkdown,
+    topic,
+    currentIndex,
+    curriculumId,
+    slideMode,
+    personalViewSubMode,
+    hasOriginalSlides,
+    slides,
+    teacherTimerSeconds,
+    teacherTimerRunning,
+    activeLessonNo,
+    curriculumInfographic,
+    lessonInfographic,
+  ])
+
+  useEffect(() => {
+    if (worksheetId) return
+    if (content.trim().length > 0 || slides.length > 0) return
+    if (typeof window === 'undefined') return
+    if (!window.opener) return
+    requestCurriculum()
+    const id = window.setInterval(() => requestCurriculum(), 2500)
+    return () => window.clearInterval(id)
+  }, [worksheetId, content, slides, requestCurriculum])
 
   const sendTeacherTimer = useCallback((action: 'teacher-timer-start' | 'teacher-timer-stop' | 'teacher-timer-reset') => {
     if (action === 'teacher-timer-start') setTeacherTimerRunning(true)
@@ -4628,8 +4753,13 @@ export default function CurriculumViewPage() {
           ? Math.max(1, Math.floor(Number(e.data.lessonNo)))
           : null
         const sl = Array.isArray(e.data.slides) ? e.data.slides : []
+        const incomingContent = typeof e.data.content === 'string' ? e.data.content : ''
+        const incomingHasMaterial = incomingContent.trim().length > 0 || sl.length > 0
+        const currentHasMaterial = content.trim().length > 0 || slidesRef.current.length > 0
+        // Tránh payload rỗng từ tab trung gian làm "rơi" trang GV về màn Tải giáo trình.
+        if (!incomingHasMaterial && currentHasMaterial) return
 
-        setContent(e.data.content ?? '')
+        setContent(incomingContent)
         setFullCurriculumMarkdown(
           typeof e.data.fullCurriculumMarkdown === 'string'
             ? e.data.fullCurriculumMarkdown
