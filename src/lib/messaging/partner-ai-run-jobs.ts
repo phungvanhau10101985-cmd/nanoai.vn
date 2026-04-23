@@ -286,7 +286,10 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         }
       }
 
-      const llm = await deepseekPartnerChat(system, user)
+      const llm = await deepseekPartnerChat(system, user, {
+        feature: 'messaging-partner-ai-job',
+        userId: conv.linked_user_id ?? null,
+      })
       if (llm.error || !llm.text) {
         await setPartnerAiJobStatus(job.id, { status: 'failed', error: llm.error || 'empty llm' })
         failed += 1

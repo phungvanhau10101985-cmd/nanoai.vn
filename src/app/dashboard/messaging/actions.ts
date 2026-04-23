@@ -78,6 +78,7 @@ import {
 import { sendSmtpMail, isSmtpConfigured } from '@/lib/email/smtp'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { isPgConfigured } from '@/lib/db/pool'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import {
   fetchMessagingPartnerAiImageGenStatsFromPg,
   fetchMessagingPartnerAiTokenDailyByModelFromPg,
@@ -914,6 +915,13 @@ export async function normalizeMessagingWorkspaceLogo(input: {
         },
       ] as never,
       { safetySettings } as never
+    )
+    void trackFromUsageMetadata(
+      result.response.usageMetadata,
+      'gemini-3-pro-image-preview',
+      'messaging-workspace-logo-normalize',
+      user.id,
+      '2K'
     )
     const part = result.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!part || !('inlineData' in part) || !part.inlineData?.data) {

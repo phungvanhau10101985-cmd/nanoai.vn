@@ -25,6 +25,7 @@ import {
   fetchPartnerInventoryDefaultForAiFromPg,
   fetchPartnerInventoryRowByProductUrlFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { resolveActiveBirthdayDiscountPercentForLinkedUser } from '@/lib/db/messaging-partner-birthday-promo-pg'
 import { guestImageObjectExists } from '@/lib/messaging/guest-chat-image'
 import { getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
@@ -767,6 +768,12 @@ async function runGeminiTransferOcr(imageUrl: string): Promise<TransferReceiptOc
       prompt,
       { inlineData: { data: buf.toString('base64'), mimeType: mime } },
     ] as never)
+    void trackFromUsageMetadata(
+      result.response.usageMetadata,
+      'gemini-2.5-flash',
+      'messaging-transfer-receipt-ocr',
+      null
+    )
     const raw = result.response.text().trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim()
     const parsed = JSON.parse(raw) as Record<string, unknown>
     return {

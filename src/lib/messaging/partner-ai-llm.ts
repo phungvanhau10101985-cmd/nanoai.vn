@@ -46,6 +46,7 @@ import {
   parsePartnerAiWidgetIntentFromPayload,
   partnerAiShouldUseClarifyBranchFromWidgetPayload,
 } from '@/lib/messaging/partner-ai-unclear-intent'
+import { trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
 
 export type { PartnerMaterialDetailFollowup, PartnerRealUseImageFollowup }
 
@@ -872,6 +873,11 @@ export type DeepseekPartnerChatResult = {
   usage?: DeepseekPartnerChatUsage
 }
 
+type DeepseekPartnerChatTelemetry = {
+  feature?: string
+  userId?: string | null
+}
+
 /** Đủ chỗ cho JSON nhiều thẻ SP (URL dài); 1100 cũ hay cắt giữa chừng → chỉ còn 3–5 mặt hàng. */
 function deepseekPartnerAiMaxTokens(): number {
   const raw = process.env.DEEPSEEK_PARTNER_AI_MAX_TOKENS?.trim()
@@ -880,7 +886,11 @@ function deepseekPartnerAiMaxTokens(): number {
   return Math.min(16384, Math.max(512, Math.floor(n)))
 }
 
-export async function deepseekPartnerChat(system: string, user: string): Promise<DeepseekPartnerChatResult> {
+export async function deepseekPartnerChat(
+  system: string,
+  user: string,
+  telemetry?: DeepseekPartnerChatTelemetry
+): Promise<DeepseekPartnerChatResult> {
   const key = process.env.DEEPSEEK_API_KEY?.trim()
   if (!key) return { error: 'DEEPSEEK_API_KEY not configured.' }
   const model = 'deepseek-chat'
@@ -911,6 +921,16 @@ export async function deepseekPartnerChat(system: string, user: string): Promise
     }
     const text = json.choices?.[0]?.message?.content?.trim()
     if (!text) return { error: 'Empty model output' }
+    if (telemetry?.feature) {
+      trackOpenAiStyleCompletionUsage({
+        userId: telemetry.userId ?? null,
+        model,
+        feature: telemetry.feature,
+        usage: json.usage,
+        fallbackPromptChars: system.length + user.length,
+        fallbackOutputChars: text.length,
+      })
+    }
     return { text, model, usage: json.usage }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'DeepSeek fetch failed' }

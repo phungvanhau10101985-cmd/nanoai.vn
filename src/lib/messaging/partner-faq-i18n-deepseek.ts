@@ -34,7 +34,10 @@ ${src}
 Return exactly:
 {"vi":"...","en":"...","zh":"...","ja":"...","ko":"..."}`
 
-  const r = await deepseekPartnerChat(system, user)
+  const r = await deepseekPartnerChat(system, user, {
+    feature: 'messaging-faq-i18n-deepseek',
+    userId: null,
+  })
   if (r.error || !r.text) {
     console.warn('[translateFaqAnswerToAllLocales]', r.error || 'empty')
     return {}

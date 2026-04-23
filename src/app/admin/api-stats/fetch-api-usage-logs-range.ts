@@ -5,6 +5,7 @@ const PAGE_SIZE = 5000
 
 export type ApiUsageLogRow = {
   id: string
+  user_id: string | null
   model: string
   feature: string
   prompt_token_count: number | null
@@ -50,6 +51,7 @@ export async function fetchAllApiUsageLogsInRange(
     for (;;) {
       const res = await pool.query<{
         id: string
+        user_id: string | null
         model: string
         feature: string
         prompt_token_count: number | null
@@ -58,7 +60,7 @@ export async function fetchAllApiUsageLogsInRange(
         image_size: string | null
         created_at: string
       }>(
-        `select id::text, model, feature,
+        `select id::text, user_id::text, model, feature,
                 prompt_token_count, candidates_token_count, total_token_count,
                 image_size, created_at::text
          from public.api_usage_log
@@ -70,6 +72,7 @@ export async function fetchAllApiUsageLogsInRange(
       )
       const batch = res.rows.map((r) => ({
         id: r.id,
+        user_id: r.user_id,
         model: r.model,
         feature: r.feature,
         prompt_token_count: r.prompt_token_count,

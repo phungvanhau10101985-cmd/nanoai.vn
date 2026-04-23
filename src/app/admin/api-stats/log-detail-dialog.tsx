@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react'
 
 export interface LogWithCost {
   id: string
+  user_id: string | null
   model: string
   feature: string
   prompt_token_count: number | null
@@ -84,6 +85,12 @@ export function LogDetailDialog({
             <Badge variant="outline" className="font-mono text-xs">
               {log.model}
             </Badge>
+          </div>
+          <div>
+            <p className="text-muted-foreground text-xs mb-1">{tr('User ID', 'User ID', '用户 ID', 'ユーザー ID', '사용자 ID')}</p>
+            <p className="font-mono text-xs break-all">
+              {log.user_id || tr('Ẩn danh / không xác định', 'Anonymous / unknown', '匿名 / 未知', '匿名 / 不明', '익명 / 알 수 없음')}
+            </p>
           </div>
           <div>
             <p className="text-muted-foreground text-xs mb-1">{tr('Chức năng (dùng để làm gì)', 'Feature (used for)', '功能（用途）', '機能（用途）', '기능(용도)')}</p>

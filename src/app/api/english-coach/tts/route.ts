@@ -9,6 +9,7 @@ import {
 } from '@/lib/db/language-coach-tts-pg'
 import { createHash } from 'crypto'
 import { trackApiUsage } from '@/lib/track-ai-usage'
+import { getUserOrBypass } from '@/lib/auth'
 
 type VoiceName =
   | 'Kore'
@@ -95,6 +96,7 @@ function logTtsCacheStats(requestId: string) {
 
 /** Ước lượng token tương đương cho TTS (không có usage từ API). */
 function trackTtsGenerationUsage(params: {
+  userId?: string | null
   model: string
   feature: 'english-coach-tts-openai' | 'english-coach-tts-gemini'
   instructionChars: number
@@ -105,7 +107,7 @@ function trackTtsGenerationUsage(params: {
   const audioBytes = Math.max(0, Math.floor((params.audioBase64.length * 3) / 4))
   const outTok = Math.max(1, Math.ceil(audioBytes / 32))
   void trackApiUsage({
-    userId: null,
+    userId: params.userId ?? null,
     model: params.model,
     feature: params.feature,
     promptTokenCount: promptTok,
@@ -225,6 +227,8 @@ export async function POST(request: NextRequest) {
     const googleApiKey = process.env.GOOGLE_API_KEY
     const openAiApiKey = process.env.OPENAI_API_KEY
     const payload = (await request.json()) as Payload
+    const user = await getUserOrBypass()
+    const userId = user?.id ?? null
     const rawText = String(payload.text || '').trim()
     const normalizedText = normalizeTextForTts(rawText)
     const text = normalizedText.slice(0, 4500)
@@ -329,6 +333,7 @@ ${speechInput.text}`
           extracted = openAiAudio
           if (openAiAudio) {
             trackTtsGenerationUsage({
+              userId,
               model: OPENAI_TTS_MODEL,
               feature: 'english-coach-tts-openai',
               instructionChars: strictReadPrompt.length,
@@ -379,6 +384,7 @@ ${speechInput.text}`
           extracted = extractAudioFromResponse(response)
           if (extracted) {
             trackTtsGenerationUsage({
+              userId,
               model: attempt.model,
               feature: 'english-coach-tts-gemini',
               instructionChars: attempt.contents.length,

@@ -19,6 +19,7 @@ import { buildApiUsageChartData } from './build-api-usage-chart-data'
 import { getApiUsageModelDisplayLabel } from './model-display-label'
 import {
   fetchLanguageCoachCreditEventsInRange,
+  fetchMessagingPartnerTokenUsageByShopModelInRange,
   fetchRevenueFromCompletedPaymentsInRange,
 } from '@/lib/db/admin-api-stats-pg'
 
@@ -53,10 +54,11 @@ export default async function AdminApiStatsPage({
   const fromIso = fromDate + 'T00:00:00'
   const toIso = toDate + 'T23:59:59.999'
 
-  const [logFetch, revenueInRange, languageCoachCreditEvents] = await Promise.all([
+  const [logFetch, revenueInRange, languageCoachCreditEvents, shopTokenRowsByModel] = await Promise.all([
     fetchAllApiUsageLogsInRange(fromIso, toIso),
     fetchRevenueFromCompletedPaymentsInRange(fromIso, toIso),
     fetchLanguageCoachCreditEventsInRange(fromIso, toIso),
+    fetchMessagingPartnerTokenUsageByShopModelInRange(fromIso, toIso),
   ])
 
   const { data: logsRaw, error } = logFetch
@@ -164,6 +166,55 @@ export default async function AdminApiStatsPage({
 
   const formatNum = (n: number) => n.toLocaleString('vi-VN')
   const formatVnd = (n: number) => `${n.toLocaleString('vi-VN')}₫`
+
+  const byShopTokenMap = shopTokenRowsByModel.reduce(
+    (acc, row) => {
+      const key = row.partner_id
+      if (!acc[key]) {
+        acc[key] = {
+          partnerId: row.partner_id,
+          partnerSlug: row.partner_slug,
+          partnerName: row.partner_display_name,
+          ownerEmail: row.owner_email,
+          calls: 0,
+          promptTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          costVnd: 0,
+          models: new Set<string>(),
+        }
+      }
+      const current = acc[key]
+      current.calls += row.call_count
+      current.promptTokens += row.sum_prompt_tokens
+      current.outputTokens += row.sum_completion_tokens
+      current.totalTokens += row.sum_total_tokens
+      current.models.add(row.model)
+      current.costVnd += calcCostVnd(row.sum_prompt_tokens, row.sum_completion_tokens, row.model, null, {
+        pricingMode: 'aggregate_short',
+      })
+      return acc
+    },
+    {} as Record<
+      string,
+      {
+        partnerId: string
+        partnerSlug: string
+        partnerName: string
+        ownerEmail: string | null
+        calls: number
+        promptTokens: number
+        outputTokens: number
+        totalTokens: number
+        costVnd: number
+        models: Set<string>
+      }
+    >
+  )
+
+  const byShopToken = Object.values(byShopTokenMap)
+    .map((x) => ({ ...x, modelCount: x.models.size }))
+    .sort((a, b) => b.totalTokens - a.totalTokens)
 
   const chartLocaleTag =
     uiLocale === 'en'
@@ -453,6 +504,71 @@ export default async function AdminApiStatsPage({
       </div>
 
       <ApiUsageCharts payload={chartPayload} modelLabels={modelLabels} copy={chartCopy} hasAnyLog={logsList.length > 0} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{tr('Token theo từng shop (Messaging)', 'Tokens by shop (Messaging)', '按店铺统计 Token（Messaging）', 'ショップ別トークン（Messaging）', '샵별 토큰 (Messaging)')}</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {tr(
+              'Nguồn: bảng messaging_partner_ai_token_usage, gom theo shop trong khoảng ngày đã chọn.',
+              'Source: messaging_partner_ai_token_usage, grouped by shop for the selected date range.',
+              '来源：messaging_partner_ai_token_usage，按所选日期范围聚合到店铺。',
+              'ソース: messaging_partner_ai_token_usage。選択期間でショップ集計。',
+              '소스: messaging_partner_ai_token_usage. 선택 기간 기준 샵별 집계.'
+            )}
+          </p>
+        </CardHeader>
+        <CardContent>
+          {byShopToken.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{tr('Shop', 'Shop', '店铺', 'ショップ', '샵')}</TableHead>
+                  <TableHead>{tr('Chủ shop', 'Owner', '店主', 'オーナー', '소유자')}</TableHead>
+                  <TableHead className="text-right">{tr('Lượt gọi', 'Calls', '调用次数', '呼び出し回数', '호출 수')}</TableHead>
+                  <TableHead className="text-right">{tr('Input', 'Input', '输入', '入力', '입력')}</TableHead>
+                  <TableHead className="text-right">{tr('Output', 'Output', '输出', '出力', '출력')}</TableHead>
+                  <TableHead className="text-right">{tr('Tổng token', 'Total tokens', '总 token', '合計トークン', '총 토큰')}</TableHead>
+                  <TableHead className="text-right">{tr('Số model', 'Models', '模型数', 'モデル数', '모델 수')}</TableHead>
+                  <TableHead className="text-right">{tr('Chi phí (₫)', 'Cost (₫)', '费用 (₫)', 'コスト (₫)', '비용 (₫)')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {byShopToken.map((shop) => (
+                  <TableRow key={shop.partnerId}>
+                    <TableCell>
+                      <span className="font-medium">{shop.partnerName || shop.partnerSlug || shop.partnerId}</span>
+                      <br />
+                      <span className="text-xs text-muted-foreground">{shop.partnerId}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm">{shop.ownerEmail || 'N/A'}</span>
+                    </TableCell>
+                    <TableCell className="text-right">{formatNum(shop.calls)}</TableCell>
+                    <TableCell className="text-right">{formatNum(shop.promptTokens)}</TableCell>
+                    <TableCell className="text-right">{formatNum(shop.outputTokens)}</TableCell>
+                    <TableCell className="text-right font-medium">{formatNum(shop.totalTokens)}</TableCell>
+                    <TableCell className="text-right">{formatNum(shop.modelCount)}</TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-medium text-amber-700">{formatVnd(shop.costVnd)}</span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="py-8 text-center text-muted-foreground">
+              {tr(
+                'Khoảng này chưa có token usage theo shop.',
+                'No shop token usage in this range.',
+                '此区间暂无店铺 token 使用记录。',
+                'この期間にショップのトークン利用はありません。',
+                '이 기간에는 샵 토큰 사용이 없습니다.'
+              )}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>

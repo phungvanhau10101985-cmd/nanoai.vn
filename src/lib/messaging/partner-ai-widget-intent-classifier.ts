@@ -86,7 +86,10 @@ Trả về JSON đúng schema.`
 
   let decision: PartnerAiWidgetIntent | null = null
   try {
-    const res = await deepseekPartnerChat(system, user)
+    const res = await deepseekPartnerChat(system, user, {
+      feature: 'messaging-widget-intent-classifier',
+      userId: null,
+    })
     if (res.error || !res.text) return null
     decision = parseWidgetIntentJson(res.text)
   } catch (e) {

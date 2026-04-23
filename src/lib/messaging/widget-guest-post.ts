@@ -47,6 +47,7 @@ import { partnerAiMessageAloneSuggestsClarifyIntent } from '@/lib/messaging/part
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
 import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
 import type { GuestProfileGender } from '@/lib/db/messaging-guest-pg'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 const ANONYMOUS_INBOUND_AUTH_THRESHOLD = 5
 type GuestVisionCandidatePayload = {
   inventoryId: string
@@ -192,6 +193,12 @@ async function analyzeProductSignalFromImage(
       prompt,
       { inlineData: { data: imageBuffer.toString('base64'), mimeType: mime } },
     ] as never)
+    void trackFromUsageMetadata(
+      res.response.usageMetadata,
+      'gemini-2.5-flash',
+      'messaging-widget-product-signal-vision',
+      null
+    )
     const raw = res.response.text().trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim()
     const parsed = JSON.parse(raw) as { productCode?: unknown; gender?: unknown; productType?: unknown }
     const rawCode = typeof parsed.productCode === 'string' ? parsed.productCode.trim() : ''

@@ -8,7 +8,7 @@ import {
   type MessagingPartnerInventoryRow,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 45
@@ -90,6 +90,11 @@ async function generateOpeningWithDeepseek(prompt: string): Promise<string | nul
     const json = (await res.json().catch(() => null)) as
       | {
           choices?: Array<{ message?: { content?: string } }>
+          usage?: {
+            prompt_tokens?: number
+            completion_tokens?: number
+            total_tokens?: number
+          }
           error?: { message?: string }
         }
       | null
@@ -98,6 +103,13 @@ async function generateOpeningWithDeepseek(prompt: string): Promise<string | nul
     if (!text) return null
     const cleaned = text.replace(/^["']|["']$/g, '').trim()
     if (cleaned.length < 40 || cleaned.length > 520) return null
+    trackOpenAiStyleCompletionUsage({
+      model: 'deepseek-chat',
+      feature: 'messaging-consult-link-opening-deepseek',
+      usage: json?.usage,
+      fallbackPromptChars: prompt.length,
+      fallbackOutputChars: cleaned.length,
+    })
     return cleaned
   } catch {
     return null
