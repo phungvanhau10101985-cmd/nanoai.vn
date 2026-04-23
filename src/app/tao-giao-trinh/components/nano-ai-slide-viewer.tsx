@@ -21,7 +21,6 @@ import { QuizPopupDialog, extractQuizFromSlide } from './quiz-popup-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
 import { useScreenShare } from '../hooks/use-screen-share'
-import { useScreenShareLive } from '../hooks/use-screen-share-live'
 import { curriculumSlideTitleRevealKey, findFirstSequentialSolutionBlockIndex, worksheetAnswerSegmentCount } from '../lib/worksheet-answer-segments'
 import { getInfographicStrokeBucketKey, type SlideInfographic } from '../lib/slide-infographic'
 import {
@@ -786,24 +785,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [shareQrDataUrl, setShareQrDataUrl] = useState<string | null>(null)
   const [shareLoading, setShareLoading] = useState(false)
   const [screenShareOverlayVisible, setScreenShareOverlayVisible] = useState(true)
-  const [screenShareLiveDialogOpen, setScreenShareLiveDialogOpen] = useState(false)
-  /** Chuột ảo không tạo user gesture — mở dialog để HS bấm thật một lần rồi mới gọi getDisplayMedia. */
-  const [screenShareLiveGestureGateOpen, setScreenShareLiveGestureGateOpen] = useState(false)
   const shareInProgressRef = useRef(false)
-  const screenShareLiveInProgressRef = useRef(false)
-
-  const {
-    isSharing: isScreenShareLiveActive,
-    shareUrl: screenShareLiveUrl,
-    shareCode: screenShareLiveCode,
-    error: screenShareLiveError,
-    startShare: startScreenShareLive,
-    stopShare: stopScreenShareLive,
-  } = useScreenShareLive()
-  const isScreenShareLiveActiveRef = useRef(isScreenShareLiveActive)
-  isScreenShareLiveActiveRef.current = isScreenShareLiveActive
-  const stopScreenShareLiveRef = useRef(stopScreenShareLive)
-  stopScreenShareLiveRef.current = stopScreenShareLive
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
   const [expandedCellIndex, setExpandedCellIndex] = useState<number | null>(null)
   const [curriculumInfographic, setCurriculumInfographic] = useState<SlideInfographic | undefined>(undefined)
@@ -940,32 +922,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   useEffect(() => {
     if (isScreenShareActive) setScreenShareOverlayVisible(true)
   }, [isScreenShareActive])
-
-  useEffect(() => {
-    if (screenShareLiveError) {
-      toast({ title: tr('Lỗi chia sẻ màn hình', 'Screen share error', '错误', 'エラー', '오류'), description: screenShareLiveError, variant: 'destructive' })
-      setScreenShareLiveDialogOpen(false)
-    }
-  }, [screenShareLiveError, toast, tr])
-
-  const handleScreenShareLiveClick = useCallback(async () => {
-    if (screenShareLiveInProgressRef.current || screenShareLiveDialogOpen) return
-    screenShareLiveInProgressRef.current = true
-    try {
-      await startScreenShareLive()
-    } finally {
-      screenShareLiveInProgressRef.current = false
-    }
-  }, [startScreenShareLive, screenShareLiveDialogOpen])
-
-  const confirmScreenShareLiveAfterGestureGate = useCallback(() => {
-    setScreenShareLiveGestureGateOpen(false)
-    void handleScreenShareLiveClick()
-  }, [handleScreenShareLiveClick])
-
-  useEffect(() => {
-    if (isScreenShareLiveActive && screenShareLiveUrl) setScreenShareLiveDialogOpen(true)
-  }, [isScreenShareLiveActive, screenShareLiveUrl])
 
   const openVisualFullscreen = useCallback((cellIndex?: number, fromMessage?: boolean) => {
     setInfographicFullscreenOpen(false)
@@ -1693,7 +1649,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     toast({ title: tr('Đã copy', 'Copied', '已复制', 'コピーしました', '복사됨'), description: tr('Link đã được sao chép.', 'Link copied.', '链接已复制。', 'リンクをコピーしました。', '링크가 복사되었습니다.'), duration: 2000 })
   }, [shareUrl, toast, tr])
 
-  const [screenShareLiveQrUrl, setScreenShareLiveQrUrl] = useState<string | null>(null)
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (!window.name) {
@@ -1701,22 +1656,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         !isTeacherView && worksheetPresentation ? STUDENT_WINDOW_NAME_WORKSHEET : STUDENT_WINDOW_NAME_CURRICULUM
     }
   }, [isTeacherView, worksheetPresentation])
-
-  useEffect(() => {
-    if (!screenShareLiveUrl) {
-      setScreenShareLiveQrUrl(null)
-      return
-    }
-    QRCode.toDataURL(screenShareLiveUrl, { width: 200, margin: 2 })
-      .then(setScreenShareLiveQrUrl)
-      .catch(() => setScreenShareLiveQrUrl(null))
-  }, [screenShareLiveUrl])
-
-  const copyScreenShareLiveLink = useCallback(() => {
-    if (!screenShareLiveUrl) return
-    navigator.clipboard.writeText(screenShareLiveUrl)
-    toast({ title: tr('Đã copy', 'Copied', '已复制', 'コピーしました', '복사됨'), description: tr('Link đã được sao chép.', 'Link copied.', '链接已复制。', 'リンクをコピーしました。', '링크가 복사되었습니다.'), duration: 2000 })
-  }, [screenShareLiveUrl, toast, tr])
 
   const openTeacherView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -2522,16 +2461,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           if (clickable && typeof (clickable as HTMLElement).click === 'function') {
             const ctrl = (clickable as HTMLElement).closest('[data-control]')?.getAttribute('data-control')
             if (ctrl === 'prev' || ctrl === 'next') return
-            // getDisplayMedia chỉ chạy sau thao tác người dùng thật — .click() tổng hợp không đủ.
-            if (ctrl === 'chia-sẻ-màn-hình-live') {
-              if (isScreenShareLiveActiveRef.current) {
-                stopScreenShareLiveRef.current()
-                setScreenShareLiveDialogOpen(false)
-              } else {
-                setScreenShareLiveGestureGateOpen(true)
-              }
-              return
-            }
             ;(clickable as HTMLElement).click()
           }
         })
@@ -3462,9 +3391,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             onShareClick={handleShareClick}
             onOpenTeacherView={openTeacherView}
             shareButtonClickableWhenParentDisabled={presentationMode === 'slide-interaction'}
-            onScreenShareLiveClick={handleScreenShareLiveClick}
-            onScreenShareLiveStop={() => { stopScreenShareLive(); setScreenShareLiveDialogOpen(false) }}
-            isScreenShareLiveActive={isScreenShareLiveActive}
             slideViewMode={undefined}
             onSlideViewModeChange={undefined}
             onOpenStudentView={effectiveOnOpenStudentView}
@@ -3593,82 +3519,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-      <Dialog open={screenShareLiveGestureGateOpen} onOpenChange={setScreenShareLiveGestureGateOpen}>
-        <DialogContent className="sm:max-w-md z-[210]">
-          <DialogHeader>
-            <DialogTitle>
-              {tr(
-                'Xác nhận chia sẻ màn hình',
-                'Confirm screen sharing',
-                '确认共享屏幕',
-                '画面共有の確認',
-                '화면 공유 확인'
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              {tr(
-                'Giáo viên điều khiển từ xa đã bấm «Chia sẻ màn hình». Trình duyệt bắt buộc bạn bấm xác nhận một lần trên máy này để chọn cửa sổ/tab chia sẻ.',
-                'Your teacher started screen share remotely. The browser requires you to confirm once on this device to pick what to share.',
-                '教师已远程触发“共享屏幕”。浏览器要求您在本机点击一次以选择要共享的窗口/标签页。',
-                '教師がリモートで画面共有を開始しました。ブラウザの仕様上、この端末で一度確認して共有する画面を選んでください。',
-                '교사가 원격으로 화면 공유를 시작했습니다. 브라우저 정책상 이 기기에서 한 번 확인을 눌러 공유할 화면을 선택해야 합니다.'
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setScreenShareLiveGestureGateOpen(false)}>
-              {tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}
-            </Button>
-            <Button type="button" data-control="chia-sẻ-màn-hình-live-confirm" onClick={confirmScreenShareLiveAfterGestureGate}>
-              {tr('Chọn màn hình và chia sẻ', 'Choose screen and share', '选择屏幕并共享', '画面を選んで共有', '화면 선택 후 공유')}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={screenShareLiveDialogOpen} onOpenChange={(open) => { setScreenShareLiveDialogOpen(open); if (!open) screenShareLiveInProgressRef.current = false }}>
-        <DialogContent className="sm:max-w-md z-[200]">
-          <DialogHeader>
-            <DialogTitle>{tr('Chia sẻ màn hình livestream', 'Share screen livestream', '共享屏幕直播', '画面共有ライブ', '화면 공유 라이브')}</DialogTitle>
-            <DialogDescription>
-              {isScreenShareLiveActive
-                ? tr('Chia sẻ link hoặc quét QR để người khác xem màn hình bạn trực tiếp.', 'Share link or scan QR for others to view your screen live.', '分享链接或扫码让他人实时观看您的屏幕。', 'リンク共有またはQRスキャンで他人があなたの画面をリアルタイム表示。', '링크 공유 또는 QR 스캔으로 다른 사람이 화면 실시간 보기.')
-                : tr('Đang bắt đầu... Chọn màn hình/tab để chia sẻ.', 'Starting... Select screen/tab to share.', '正在启动... 选择要共享的屏幕/标签页。', '開始中... 共有する画面/タブを選択。', '시작 중... 공유할 화면/탭 선택.')}
-            </DialogDescription>
-          </DialogHeader>
-          {!isScreenShareLiveActive && (
-            <div className="flex items-center justify-center py-8">
-              <div className="h-8 w-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-            </div>
-          )}
-          {isScreenShareLiveActive && screenShareLiveUrl && (
-            <div className="flex flex-col sm:flex-row gap-4 items-start">
-              {screenShareLiveQrUrl && (
-                <div className="flex-shrink-0 p-2 bg-white rounded-lg">
-                  <img src={screenShareLiveQrUrl} alt="QR" className="w-40 h-40" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{tr('Link xem màn hình trực tiếp', 'View screen live link', '实时观看屏幕链接', '画面ライブ表示リンク', '화면 실시간 보기 링크')}</span>
-                </div>
-                <div className="flex gap-2">
-                  <Input readOnly value={screenShareLiveUrl} className="text-sm font-mono" />
-                  <Button variant="outline" size="icon" onClick={copyScreenShareLiveLink} title={tr('Copy link', 'Copy link', '复制链接', 'リンクをコピー', '링크 복사')}>
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {tr('Mã', 'Code', '码', 'コード', '코드')}: <strong>{screenShareLiveCode}</strong>
-                </p>
-                <Button variant="destructive" size="sm" onClick={() => { stopScreenShareLive(); setScreenShareLiveDialogOpen(false) }} className="mt-2">
-                  {tr('Dừng chia sẻ', 'Stop sharing', '停止共享', '共有停止', '공유 중지')}
-                </Button>
               </div>
             </div>
           )}
