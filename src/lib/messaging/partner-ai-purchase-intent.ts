@@ -27,8 +27,28 @@ const PURCHASE_PICK_LIST_INTENT_RE = new RegExp(
   'i'
 )
 
+/**
+ * Khách gửi số điện thoại (đặc biệt tin chỉ có SĐT) thường là tín hiệu chốt đơn.
+ * Hỗ trợ định dạng phổ biến VN: 09xxxxxxxx, +84xxxxxxxxx, 84xxxxxxxxx, có thể có dấu cách/chấm/gạch.
+ */
+const PHONE_CANDIDATE_RE = /(?:\+?\d[\d\s().-]{7,}\d)/g
+
+function looksLikeCheckoutPhoneSignal(message: string): boolean {
+  const candidates = message.match(PHONE_CANDIDATE_RE) ?? []
+  for (const candidate of candidates) {
+    const digitsOnly = candidate.replace(/\D+/g, '')
+    // 84xxxxxxxxx -> đổi về 0xxxxxxxxx để chuẩn cùng định dạng nội địa.
+    const localDigits = digitsOnly.startsWith('84') && digitsOnly.length === 11
+      ? `0${digitsOnly.slice(2)}`
+      : digitsOnly
+    // Mobile VN hiện tại: 10 số, bắt đầu bằng 03/05/07/08/09.
+    if (/^0(?:3|5|7|8|9)\d{8}$/.test(localDigits)) return true
+  }
+  return false
+}
+
 export function inboundTextLooksLikePurchasePickListIntent(raw: string): boolean {
   const msg = normalizeCustomerMessageForInventorySearch(raw)
   if (!msg || msg.length > 2000) return false
-  return PURCHASE_PICK_LIST_INTENT_RE.test(msg)
+  return PURCHASE_PICK_LIST_INTENT_RE.test(msg) || looksLikeCheckoutPhoneSignal(msg)
 }
