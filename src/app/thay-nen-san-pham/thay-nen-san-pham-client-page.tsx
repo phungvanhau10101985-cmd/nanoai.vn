@@ -148,7 +148,7 @@ export default function ThayNenSanPhamClientPage() {
       await preloadImageUrl(result.resultUrl)
       setResultUrl(result.resultUrl)
       setStep('RESULT')
-      toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Đã thay nền sản phẩm.', 'Product background replaced.', '商品背景已替换。', '商品背景を差し替えました。', '상품 배경이 변경되었습니다.'), duration: 3000 })
+      toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Đã thay nền ảnh.', 'Product background replaced.', '商品背景已替换。', '商品背景を差し替えました。', '상품 배경이 변경되었습니다.'), duration: 3000 })
     }
   }
 
@@ -165,7 +165,7 @@ export default function ThayNenSanPhamClientPage() {
       <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
-            <Package className="h-8 w-8 text-amber-600" /> {tr('Thay nền sản phẩm', 'Replace Product Background', '商品换背景', '商品背景差し替え', '상품 배경 변경')}
+            <Package className="h-8 w-8 text-amber-600" /> {tr('Thay nền ảnh', 'Replace Product Background', '商品换背景', '商品背景差し替え', '상품 배경 변경')}
           </h1>
           <p className="text-muted-foreground mt-1">{tr('Tách sản phẩm, đặt vào bối cảnh studio, bãi biển... 1,5-3 credits/ảnh.', 'Cut product and place it into new scenes. 1.5-3 credits/image.', '抠出商品并替换新场景。1.5-3 credits/张。', '商品を切り抜いて新しい背景へ。1.5-3 credits/枚。', '상품을 분리해 새 배경에 배치합니다. 1.5-3 credits/장.')}</p>
         </div>
@@ -256,7 +256,7 @@ export default function ThayNenSanPhamClientPage() {
           <Card className="border shadow-sm bg-white/80 backdrop-blur">
             <CardHeader>
               <CardTitle>{tr('Kết quả', 'Result', '结果', '結果', '결과')}</CardTitle>
-              <CardDescription>{tr('Đã thay nền sản phẩm.', 'Product background replaced.', '商品背景已替换。', '商品背景を差し替えました。', '상품 배경이 변경되었습니다.')}</CardDescription>
+              <CardDescription>{tr('Đã thay nền ảnh.', 'Product background replaced.', '商品背景已替换。', '商品背景を差し替えました。', '상품 배경이 변경되었습니다.')}</CardDescription>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">

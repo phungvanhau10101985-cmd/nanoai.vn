@@ -2921,7 +2921,7 @@ const VI_DICTIONARY: Dictionary = {
     meme_maker: 'Chế ảnh',
     remove_object: 'Xóa vật thể',
     remove_bg_png: 'Xóa nền PNG',
-    replace_product_bg: 'Thay nền sản phẩm',
+    replace_product_bg: 'Thay nền ảnh',
     product_3d_sample: 'Ảnh sản phẩm mẫu 3D',
     model_3d_from_image: 'Mô hình 3D từ ảnh',
     create_video_from_image: 'Tạo video AI (Veo)',

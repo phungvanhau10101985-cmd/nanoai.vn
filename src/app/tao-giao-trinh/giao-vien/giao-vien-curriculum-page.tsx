@@ -606,6 +606,57 @@ function getQuizCount(blocks: SlideItem['blocks']): number {
   return (Array.isArray(blocks) ? blocks : []).reduce((acc, b) => acc + (b.content?.match(/\[quiz:/g)?.length ?? 0), 0)
 }
 
+function fastHashText(input: string): number {
+  let h = 2166136261
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
+function slideWireDigest(slide: SlideItem | undefined): number {
+  if (!slide) return 0
+  let h = 2166136261
+  const mix = (n: number) => {
+    h ^= (n >>> 0)
+    h = Math.imul(h, 16777619)
+  }
+  mix(fastHashText(String(slide.title ?? '')))
+  mix(fastHashText(String(slide.content ?? '')))
+  mix(fastHashText(String(slide.teacherNotes ?? '')))
+  mix(fastHashText(String(slide.imageUrl ?? '')))
+  mix(fastHashText(String(slide.visualEmbed ?? '')))
+  const cells = Array.isArray(slide.visualCells) ? slide.visualCells : []
+  mix(cells.length)
+  for (const c of cells) {
+    mix(fastHashText(String(c?.visualEmbed ?? '')))
+    mix(fastHashText(String(c?.imageUrl ?? '')))
+  }
+  const blocks = Array.isArray(slide.blocks) ? slide.blocks : []
+  mix(blocks.length)
+  for (const b of blocks) {
+    mix(fastHashText(String(b?.header ?? '')))
+    mix(fastHashText(String(b?.content ?? '')))
+  }
+  return h >>> 0
+}
+
+function recordDigest(rec: Record<string, number | boolean> | undefined): number {
+  if (!rec) return 0
+  let h = 2166136261
+  const keys = Object.keys(rec).sort()
+  for (const k of keys) {
+    h ^= fastHashText(k)
+    h = Math.imul(h, 16777619)
+    const raw = rec[k]
+    const v = typeof raw === 'boolean' ? (raw ? 1 : 0) : (Number(raw) || 0)
+    h ^= (v | 0)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
 function LazyHeavyMount({
   children,
   minHeight = 140,
@@ -1470,18 +1521,41 @@ export default function CurriculumViewPage() {
     if (content.trim().length <= 0 && slides.length <= 0) return
     const id = window.setTimeout(() => {
       try {
+        const chunkSize = STUDENT_WIRE_SLIDE_CHUNK_SIZE
+        const radius = STUDENT_WIRE_SLIDE_CHUNK_RADIUS
+        const currentChunk = Math.floor(Math.max(0, currentIndex) / chunkSize)
+        const keepStart = Math.max(0, (currentChunk - radius) * chunkSize)
+        const keepEnd = Math.min(slides.length - 1, ((currentChunk + radius + 1) * chunkSize) - 1)
+        const cacheSlides = slides.map((s, i) => {
+          if (i >= keepStart && i <= keepEnd) return s
+          return {
+            ...s,
+            imageUrl: undefined,
+            visualEmbed: undefined,
+            visualLayout: undefined,
+            visualCells: undefined,
+            visualInput1: undefined,
+            visualInput2: undefined,
+            visualInput3: undefined,
+            visualInput4: undefined,
+            blocks: undefined,
+            content: '',
+            teacherNotes: '',
+          }
+        })
         window.sessionStorage.setItem(
           TEACHER_CURRICULUM_RUNTIME_CACHE_KEY,
           JSON.stringify({
             content,
-            fullCurriculumMarkdown,
+            // full markdown is very heavy; keep runtime cache lean to avoid memory spikes.
+            fullCurriculumMarkdown: '',
             topic,
             currentIndex,
             curriculumId,
             slideMode,
             personalViewSubMode,
             hasOriginalSlides,
-            slides,
+            slides: cacheSlides,
             teacherTimerSeconds,
             teacherTimerRunning,
             lessonNo: activeLessonNo,
@@ -1497,7 +1571,6 @@ export default function CurriculumViewPage() {
   }, [
     worksheetId,
     content,
-    fullCurriculumMarkdown,
     topic,
     currentIndex,
     curriculumId,
@@ -2075,6 +2148,7 @@ export default function CurriculumViewPage() {
     const wireInfographic = curriculumInfographicWire ?? activeVisualInfographic
     const keepFullTextForAllSlides = studentCurriculumRemoteMode === 'markdown-all'
     const compactedSlides = compactSlidesForStudentWire(slidesToSend, idx)
+    const wireSlides = compactedSlides.map((s, i) => toStudentSlidePayload(s, i))
     const payload = {
       type: 'curriculum-data',
       content: keepFullTextForAllSlides ? content : '',
@@ -2084,7 +2158,7 @@ export default function CurriculumViewPage() {
       slideMode: slideMode ?? null,
       personalViewSubMode,
       hasOriginalSlides,
-      slides: compactedSlides.map((s, i) => toStudentSlidePayload(s, i)),
+      slides: wireSlides,
       teacherTimerSeconds,
       teacherTimerRunning,
       worksheetId: !!worksheetId,
@@ -2102,14 +2176,30 @@ export default function CurriculumViewPage() {
         : {}),
       ...(!worksheetId && lessonInfographic ? { lessonInfographic } : {}),
     }
-    let payloadKey = ''
-    try {
-      payloadKey = JSON.stringify(payload)
-    } catch {
-      payloadKey = ''
-    }
-    if (payloadKey && lastStudentWirePayloadRef.current === payloadKey) return
-    if (payloadKey) lastStudentWirePayloadRef.current = payloadKey
+    const slideDigestKey = wireSlides.map((s) => slideWireDigest(s)).join(',')
+    const payloadKey = [
+      idx,
+      keepFullTextForAllSlides ? 1 : 0,
+      fastHashText(content),
+      fastHashText(topic),
+      fastHashText(String(curriculumId ?? '')),
+      fastHashText(String(slideMode ?? '')),
+      fastHashText(personalViewSubMode),
+      hasOriginalSlides ? 1 : 0,
+      teacherTimerSeconds,
+      teacherTimerRunning ? 1 : 0,
+      worksheetId ? 1 : 0,
+      fastHashText(String(studentCurriculumRemoteMode)),
+      fastHashText(String(leftPanelMode)),
+      currentVisualShowsInfographic ? 1 : 0,
+      recordDigest(answerRevealProgress),
+      recordDigest(answerTypingEnabled),
+      fastHashText(String(wireInfographic?.imageUrl ?? '')),
+      fastHashText(String(lessonInfographic?.imageUrl ?? '')),
+      slideDigestKey,
+    ].join('|')
+    if (lastStudentWirePayloadRef.current === payloadKey) return
+    lastStudentWirePayloadRef.current = payloadKey
     try {
       const w = studentViewWindowRef.current
       if (w && !w.closed) {

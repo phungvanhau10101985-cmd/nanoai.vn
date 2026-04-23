@@ -14,7 +14,7 @@ export function FeatureSeoSection({ seo }: FeatureSeoSectionProps) {
     locale === 'en' ? en : locale === 'zh' ? zh : locale === 'ja' ? ja : locale === 'ko' ? ko : vi
   const relatedTools = [
     { href: '/xoa-nen-png', label: tr('Xóa nền PNG', 'Remove PNG background', '移除 PNG 背景', 'PNG背景削除', 'PNG 배경 제거') },
-    { href: '/thay-nen-san-pham', label: tr('Thay nền sản phẩm', 'Replace product background', '替换商品背景', '商品背景置換', '상품 배경 교체') },
+    { href: '/thay-nen-san-pham', label: tr('Thay nền ảnh', 'Replace product background', '替换商品背景', '商品背景置換', '상품 배경 교체') },
     { href: '/lam-dep-anh', label: tr('Làm đẹp ảnh', 'Beautify photo', '美化照片', '写真補正', '사진 보정') },
     { href: '/tao-anh-the', label: tr('Tạo ảnh thẻ', 'Create ID photo', '制作证件照', '証明写真作成', '증명사진 만들기') },
     { href: '/thu-do-online/1-nguoi', label: tr('Thử đồ 1 người', 'Try-on (1 person)', '单人试衣', '1人試着', '1인 가상피팅') },
