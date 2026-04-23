@@ -88,9 +88,7 @@ function XemManHinhInner() {
 
     pc.ontrack = (e) => {
       if (e.streams[0]) {
-        connectedRef.current = true
         setStream(e.streams[0])
-        setStatus('connected')
       }
     }
 
@@ -185,7 +183,29 @@ function XemManHinhInner() {
     const v = videoRef.current
     if (!v || !stream) return
     v.srcObject = stream
+    const markConnected = () => {
+      connectedRef.current = true
+      setStatus('connected')
+    }
+    const onLoaded = () => {
+      // First decoded frame means viewer is truly receiving media.
+      if ((v.videoWidth || 0) > 0 && (v.videoHeight || 0) > 0) {
+        markConnected()
+      }
+    }
+    const onPlaying = () => markConnected()
+    const onTimeUpdate = () => {
+      if ((v.currentTime || 0) > 0) markConnected()
+    }
+    v.addEventListener('loadeddata', onLoaded)
+    v.addEventListener('playing', onPlaying)
+    v.addEventListener('timeupdate', onTimeUpdate)
     v.play().catch(() => {})
+    return () => {
+      v.removeEventListener('loadeddata', onLoaded)
+      v.removeEventListener('playing', onPlaying)
+      v.removeEventListener('timeupdate', onTimeUpdate)
+    }
   }, [stream])
 
   if (!shareCode?.trim()) {
