@@ -48,6 +48,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
   const [error, setError] = useState<string | null>(null)
 
   const pcMapRef = useRef<Map<string, RTCPeerConnection>>(new Map())
+  const offerInFlightRef = useRef<Set<string>>(new Set())
   const streamRef = useRef<MediaStream | null>(null)
   const channelRef = useRef<ScreenLiveChannel | null>(null)
 
@@ -56,6 +57,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
     streamRef.current = null
     pcMapRef.current.forEach((pc) => pc.close())
     pcMapRef.current.clear()
+    offerInFlightRef.current.clear()
     channelRef.current?.unsubscribe()
     channelRef.current = null
     setShareCode(null)
@@ -83,29 +85,67 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       channelRef.current = channel
 
       const sendOfferToViewer = async (viewerId: string) => {
-        const pc = createPeerConnection(
-          () => {},
-          (candidate) => {
-            channel.send({
-              type: 'broadcast',
-              event: 'ice',
-              payload: { from: 'sharer', viewerId, candidate: candidate.toJSON() },
-            })
+        const key = String(viewerId || '').trim()
+        if (!key) return
+        if (offerInFlightRef.current.has(key)) return
+        let pc = pcMapRef.current.get(key)
+        const state = pc?.connectionState
+        if (
+          pc &&
+          (state === 'connected' || state === 'connecting' || state === 'new')
+        ) {
+          return
+        }
+        if (pc) {
+          try {
+            pc.close()
+          } catch {
+            /* ignore */
           }
-        )
-        pcMapRef.current.set(viewerId, pc)
-        stream.getTracks().forEach((t) => pc.addTrack(t, stream))
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        channel.send({
-          type: 'broadcast',
-          event: 'offer',
-          payload: {
-            from: 'sharer',
-            viewerId,
-            sdp: pc.localDescription?.toJSON(),
-          },
-        })
+          pcMapRef.current.delete(key)
+        }
+        offerInFlightRef.current.add(key)
+        try {
+          const newPc = createPeerConnection(
+            () => {},
+            (candidate) => {
+              channel.send({
+                type: 'broadcast',
+                event: 'ice',
+                payload: { from: 'sharer', viewerId: key, candidate: candidate.toJSON() },
+              })
+            }
+          )
+          newPc.onconnectionstatechange = () => {
+            const cs = newPc.connectionState
+            if (!cs) return
+            if (cs === 'failed' || cs === 'closed' || cs === 'disconnected') {
+              pcMapRef.current.delete(key)
+              offerInFlightRef.current.delete(key)
+              try {
+                newPc.close()
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+          pc = newPc
+          pcMapRef.current.set(key, newPc)
+          stream.getTracks().forEach((t) => newPc.addTrack(t, stream))
+          const offer = await newPc.createOffer()
+          await newPc.setLocalDescription(offer)
+          channel.send({
+            type: 'broadcast',
+            event: 'offer',
+            payload: {
+              from: 'sharer',
+              viewerId: key,
+              sdp: newPc.localDescription?.toJSON(),
+            },
+          })
+        } finally {
+          offerInFlightRef.current.delete(key)
+        }
       }
 
       channel
