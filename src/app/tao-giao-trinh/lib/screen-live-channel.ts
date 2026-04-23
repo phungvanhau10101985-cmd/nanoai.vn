@@ -10,6 +10,7 @@ export type ScreenLiveSignalPayload = {
   from?: string
   viewerId?: string
   viewer_id?: string
+  forceNew?: boolean
   sdp?: RTCSessionDescriptionInit
   candidate?: RTCIceCandidateInit
 }

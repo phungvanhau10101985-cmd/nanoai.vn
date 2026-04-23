@@ -31,6 +31,26 @@ function getShareBaseUrl(): string {
   return `${window.location.protocol}//${window.location.host}`
 }
 
+async function getDisplayMediaWithTimeout(timeoutMs = 15000): Promise<MediaStream> {
+  return (await Promise.race([
+    navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: false,
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              'Không mở được hộp chọn màn hình. Hãy bấm lại nút chia sẻ và chọn tab/cửa sổ cần chia sẻ.'
+            )
+          ),
+        timeoutMs
+      )
+    ),
+  ])) as MediaStream
+}
+
 export interface UseScreenShareLiveReturn {
   isSharing: boolean
   shareCode: string | null
@@ -68,10 +88,11 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
   const startShare = useCallback(async () => {
     setError(null)
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: false,
-      })
+      const stream = await getDisplayMediaWithTimeout(15000)
+      if (!stream || stream.getTracks().length === 0 || stream.getVideoTracks().length === 0) {
+        stream?.getTracks?.().forEach((t) => t.stop())
+        throw new Error('Không lấy được luồng video chia sẻ màn hình.')
+      }
       streamRef.current = stream
       stream.getVideoTracks()[0].onended = () => stopShare()
 
@@ -84,11 +105,21 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
       const channel = new ScreenLiveChannel(code)
       channelRef.current = channel
 
-      const sendOfferToViewer = async (viewerId: string) => {
+      const sendOfferToViewer = async (viewerId: string, options?: { forceNew?: boolean }) => {
         const key = String(viewerId || '').trim()
         if (!key) return
         if (offerInFlightRef.current.has(key)) return
         let pc = pcMapRef.current.get(key)
+        const forceNew = options?.forceNew === true
+        if (forceNew && pc) {
+          try {
+            pc.close()
+          } catch {
+            /* ignore */
+          }
+          pcMapRef.current.delete(key)
+          pc = undefined
+        }
         const state = pc?.connectionState
         if (
           pc &&
@@ -187,7 +218,7 @@ export function useScreenShareLive(): UseScreenShareLiveReturn {
         })
         .on('broadcast', { event: 'request-offer' }, ({ payload }) => {
           const viewerId = payload?.viewerId ?? payload?.viewer_id ?? crypto.randomUUID()
-          void sendOfferToViewer(viewerId)
+          void sendOfferToViewer(viewerId, { forceNew: payload?.forceNew === true })
         })
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {

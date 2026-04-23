@@ -78,6 +78,7 @@ function XemManHinhInner() {
     connectedRef.current = false
 
     const viewerId = crypto.randomUUID()
+    let reconnectAttempt = 0
     const channel = new ScreenLiveChannel(shareCode.trim())
     channelRef.current = channel
 
@@ -102,9 +103,13 @@ function XemManHinhInner() {
       }
     }
 
-    const requestOffer = async () => {
+    const requestOffer = async (opts?: { forceNew?: boolean }) => {
       try {
-        await channel.send({ type: 'broadcast', event: 'request-offer', payload: { from: 'viewer', viewerId } })
+        await channel.send({
+          type: 'broadcast',
+          event: 'request-offer',
+          payload: { from: 'viewer', viewerId, ...(opts?.forceNew ? { forceNew: true } : {}) },
+        })
       } catch {
         // keep retrying while still connecting
       }
@@ -151,7 +156,9 @@ function XemManHinhInner() {
     // Mobile networks can drop first signaling message; retry until stream arrives.
     const retryTimer = window.setInterval(() => {
       if (connectedRef.current) return
-      void requestOffer()
+      reconnectAttempt += 1
+      // Every few retries, force sharer to rebuild peer for this viewer (unsticks ICE states).
+      void requestOffer({ forceNew: reconnectAttempt % 6 === 0 })
     }, 1500)
     const timeoutTimer = window.setTimeout(() => {
       if (connectedRef.current) return
