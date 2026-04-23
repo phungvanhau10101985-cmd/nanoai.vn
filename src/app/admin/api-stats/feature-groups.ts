@@ -123,6 +123,7 @@ const PHOTO_STUDIO = new Set([
   'xoa-nen-png',
   'xoa-vat-the',
   'thay-nen-san-pham',
+  'sua-anh-theo-yeu-cau',
   'tao-video-tu-anh',
   'tao-video-veo-text',
   'tao-video-veo-image',

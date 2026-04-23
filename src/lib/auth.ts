@@ -29,6 +29,7 @@ const CREDIT_TRIAL_ROUTE_PREFIXES = [
   '/xoa-vat-the',
   '/lam-dep-anh',
   '/mo-rong-khung-hinh',
+  '/sua-anh-theo-yeu-cau',
   '/phuc-dung-anh',
   '/tao-anh-3d',
   '/tao-anh-chain-dung',

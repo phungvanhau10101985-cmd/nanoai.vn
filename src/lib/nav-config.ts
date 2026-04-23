@@ -41,6 +41,7 @@ import { ThietKeConDauIcon } from '@/components/icons/thiet-ke-con-dau-icon'
 import { ThietKeBaoBiIcon } from '@/components/icons/thiet-ke-bao-bi-icon'
 import { TaoBaiHatLyria3Icon } from '@/components/icons/tao-bai-hat-lyria-3-icon'
 import { XoaNenPngIcon } from '@/components/icons/xoa-nen-png-icon'
+import { SuaAnhTheoYeuCauIcon } from '@/components/icons/sua-anh-theo-yeu-cau-icon'
 import type { NavGroupKey, ToolKey } from '@/lib/i18n/dictionaries'
 
 export type NavIcon = ComponentType<{ className?: string }>
@@ -97,6 +98,7 @@ export const AI_TOOLS = [
   { href: '/xoa-vat-the', labelKey: 'remove_object' as ToolKey, icon: XoaVatTheIcon },
   { href: '/xoa-nen-png', labelKey: 'remove_bg_png' as ToolKey, icon: XoaNenPngIcon },
   { href: '/thay-nen-san-pham', labelKey: 'replace_product_bg' as ToolKey, icon: ThayNenSanPhamIcon },
+  { href: '/sua-anh-theo-yeu-cau', labelKey: 'edit_image_by_request' as ToolKey, icon: SuaAnhTheoYeuCauIcon },
   { href: '/tao-anh-3d', labelKey: 'product_3d_sample' as ToolKey, icon: TaoAnh3DIcon },
   { href: '/tao-mo-hinh-3d-tu-anh', labelKey: 'model_3d_from_image' as ToolKey, icon: TaoMoHinh3DTuAnhIcon },
   { href: '/thiet-ke-noi-ngoai-that', labelKey: 'interior_exterior' as ToolKey, icon: ThietKeNoiNgoaiThatIcon },
@@ -163,6 +165,7 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
       { href: '/xoa-vat-the', labelKey: 'remove_object' as ToolKey, icon: XoaVatTheIcon },
       { href: '/xoa-nen-png', labelKey: 'remove_bg_png' as ToolKey, icon: XoaNenPngIcon },
       { href: '/thay-nen-san-pham', labelKey: 'replace_product_bg' as ToolKey, icon: ThayNenSanPhamIcon },
+      { href: '/sua-anh-theo-yeu-cau', labelKey: 'edit_image_by_request' as ToolKey, icon: SuaAnhTheoYeuCauIcon },
       { href: '/mo-rong-khung-hinh', labelKey: 'expand_frame' as ToolKey, icon: MoRongKhungHinhIcon },
       { href: '/hoan-doi-khuon-mat', labelKey: 'face_swap' as ToolKey, icon: HoanDoiKhuonMatIcon },
     ],

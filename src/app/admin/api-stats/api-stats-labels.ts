@@ -22,6 +22,7 @@ export const STATIC_API_FEATURE_LABELS: Record<string, string> = {
   'che-anh': 'Chế ảnh',
   'xoa-vat-the': 'Xóa vật thể',
   'thay-nen-san-pham': 'Thay nền ảnh',
+  'sua-anh-theo-yeu-cau': 'Sửa ảnh theo yêu cầu',
   'tao-anh-chain-dung': 'Ảnh chân dung',
   'mo-rong-khung-hinh': 'Mở rộng khung hình',
   'hoan-doi-khuon-mat': 'Hoán đổi khuôn mặt',

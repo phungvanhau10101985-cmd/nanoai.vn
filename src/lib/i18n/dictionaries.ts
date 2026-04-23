@@ -34,6 +34,7 @@ export type ToolKey =
   | 'remove_object'
   | 'remove_bg_png'
   | 'replace_product_bg'
+  | 'edit_image_by_request'
   | 'product_3d_sample'
   | 'model_3d_from_image'
   | 'create_video_from_image'
@@ -2922,6 +2923,7 @@ const VI_DICTIONARY: Dictionary = {
     remove_object: 'Xóa vật thể',
     remove_bg_png: 'Xóa nền PNG',
     replace_product_bg: 'Thay nền ảnh',
+    edit_image_by_request: 'Sửa ảnh theo yêu cầu',
     product_3d_sample: 'Ảnh sản phẩm mẫu 3D',
     model_3d_from_image: 'Mô hình 3D từ ảnh',
     create_video_from_image: 'Tạo video AI (Veo)',
@@ -4784,6 +4786,7 @@ const EN_DICTIONARY: Dictionary = {
     remove_object: 'Remove Object',
     remove_bg_png: 'Remove PNG Background',
     replace_product_bg: 'Replace Product Background',
+    edit_image_by_request: 'Edit image by request',
     product_3d_sample: '3D Product Sample',
     model_3d_from_image: '3D Model from Image',
     create_video_from_image: 'AI video (Veo)',
@@ -6771,6 +6774,7 @@ const ZH_DICTIONARY: Dictionary = {
     remove_object: '移除物体',
     remove_bg_png: '去除 PNG 背景',
     replace_product_bg: '替换商品背景',
+    edit_image_by_request: '按要求编辑图片',
     product_3d_sample: '3D 商品样图',
     model_3d_from_image: '从图片生成 3D 模型',
     create_video_from_image: 'AI 视频（Veo）',
@@ -8430,6 +8434,7 @@ const JA_DICTIONARY: Dictionary = {
     remove_object: 'オブジェクト削除',
     remove_bg_png: 'PNG 背景削除',
     replace_product_bg: '商品背景置換',
+    edit_image_by_request: '要望に応じて画像編集',
     product_3d_sample: '3D 商品サンプル',
     model_3d_from_image: '画像から 3D モデル生成',
     create_video_from_image: 'AI動画（Veo）',
@@ -10269,6 +10274,7 @@ const KO_DICTIONARY: Dictionary = {
     remove_object: '객체 제거',
     remove_bg_png: 'PNG 배경 제거',
     replace_product_bg: '상품 배경 교체',
+    edit_image_by_request: '요청 기반 이미지 편집',
     product_3d_sample: '3D 상품 샘플',
     model_3d_from_image: '이미지로 3D 모델 생성',
     create_video_from_image: 'AI 비디오 (Veo)',
