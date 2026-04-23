@@ -33,6 +33,7 @@ export async function pgListProfilesWithCreditBalance(): Promise<{
        from public.profiles p
        left join auth.users au on au.id = p.id
        left join public.credits c on c.user_id = p.id
+       where lower(coalesce(au.email, '')) not like 'guest-trial-%@guest.nanoai.local'
        order by coalesce(p.full_name, '') asc, p.id::text asc`
     )
     return { rows, error: null }

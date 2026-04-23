@@ -817,7 +817,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     if (curriculumInfographicProp === undefined) return
     setCurriculumInfographic(curriculumInfographicProp ?? undefined)
   }, [curriculumInfographicProp])
-  /** Giáo trình (không phiếu): tab cột trái — Visual / Infographic trong khung (GV: presenterLeftTab; HS: studentCurriculumLeftPaneTab) */
+  /** Giáo trình (không phiếu): tab cột trái chỉ còn Visual. */
   const [presenterLeftTab, setPresenterLeftTab] = useState<'visual' | 'infographic'>('visual')
   const [studentCurriculumLeftPaneTab, setStudentCurriculumLeftPaneTab] = useState<'visual' | 'infographic'>('visual')
   const isStudentCurriculumSlide = !isTeacherView && !worksheetPresentation
@@ -4104,88 +4104,22 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             )}
             {!worksheetPresentation && (
               <div className="flex shrink-0 overflow-hidden rounded-md border border-white/25 bg-black/55 text-[10px] font-medium text-white shadow-md md:text-[11px]">
-                {isStudentCurriculumSlide ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!curriculumInfographic) {
-                          toast({
-                            title: tr(
-                              'Chưa có infographic',
-                              'No infographic yet',
-                              '尚无信息图',
-                              'インフォグラフィックがありません',
-                              '인포그래픽 없음'
-                            ),
-                            variant: 'destructive',
-                          })
-                          return
-                        }
-                        setStudentCurriculumLeftPaneTab('infographic')
-                        closeInfographicFullscreen()
-                        notifyTeacherStudentCurriculumLeftPane('infographic')
-                      }}
-                      className={cn(
-                        'flex shrink-0 items-center gap-0.5 px-2 py-1.5 transition-colors md:px-2.5',
-                        studentCurriculumLeftPaneTab === 'infographic'
-                          ? 'bg-white/25 text-white'
-                          : 'text-white/75 hover:bg-white/10'
-                      )}
-                      title={tr(
-                        'Ô Infographic trong khung (bấm mở rộng để toàn màn hình)',
-                        'Infographic in panel (use expand for fullscreen)',
-                        '框架内信息图（全屏请点展开）',
-                        '枠内インフォ（全画面は拡大ボタン）',
-                        '패널 내 인포(전체 화면은 확장)'
-                      )}
-                    >
-                      <BarChart3 className="h-3 w-3 shrink-0 opacity-90" aria-hidden />
-                      {tr('Infographic', 'Infographic', '信息图', 'インフォグラフィック', '인포그래픽')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStudentCurriculumLeftPaneTab('visual')
-                        closeInfographicFullscreen()
-                        notifyTeacherStudentCurriculumLeftPane('visual')
-                      }}
-                      className={cn(
-                        'shrink-0 border-l border-white/20 px-2 py-1.5 transition-colors md:px-2.5',
-                        studentCurriculumLeftPaneTab === 'visual'
-                          ? 'bg-white/25 text-white'
-                          : 'text-white/75 hover:bg-white/10'
-                      )}
-                      title={tr('Ô Visual (mặc định)', 'Visual panel (default)', '视觉区（默认）', 'ビジュアル領域（既定）', '비주얼 패널(기본)')}
-                    >
-                      {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setPresenterLeftTab('infographic')}
-                      className={cn(
-                        'flex shrink-0 items-center gap-0.5 px-2 py-1.5 transition-colors md:px-2.5',
-                        presenterLeftTab === 'infographic' ? 'bg-white/25 text-white' : 'text-white/75 hover:bg-white/10'
-                      )}
-                    >
-                      <BarChart3 className="h-3 w-3 shrink-0 opacity-90" aria-hidden />
-                      {tr('Infographic', 'Infographic', '信息图', 'インフォグラフィック', '인포그래픽')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPresenterLeftTab('visual')}
-                      className={cn(
-                        'shrink-0 border-l border-white/20 px-2 py-1.5 transition-colors md:px-2.5',
-                        presenterLeftTab === 'visual' ? 'bg-white/25 text-white' : 'text-white/75 hover:bg-white/10'
-                      )}
-                    >
-                      {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
-                    </button>
-                  </>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isStudentCurriculumSlide) {
+                      setStudentCurriculumLeftPaneTab('visual')
+                      closeInfographicFullscreen()
+                      notifyTeacherStudentCurriculumLeftPane('visual')
+                    } else {
+                      setPresenterLeftTab('visual')
+                    }
+                  }}
+                  className="bg-white/25 px-2 py-1.5 text-white md:px-2.5"
+                  title={tr('Ô Visual (mặc định)', 'Visual panel (default)', '视觉区（默认）', 'ビジュアル領域（既定）', '비주얼 패널(기본)')}
+                >
+                  {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
+                </button>
               </div>
             )}
             {isTeacherView && !worksheetPresentation && presenterLeftTab === 'infographic' && curriculumInfographic && (
