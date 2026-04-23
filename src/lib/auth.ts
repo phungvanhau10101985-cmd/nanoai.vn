@@ -16,6 +16,7 @@ import {
   canGuestUseCreditTrial,
   getGuestTrialIdFromCookie,
   getGuestTrialUserIdFromCookie,
+  isGuestTrialUser,
   getOrCreateGuestTrialId,
   setGuestTrialUserIdCookie,
 } from '@/lib/guest-credit-trial'
@@ -74,9 +75,10 @@ function isCreditTrialRoute(pathname: string): boolean {
   return CREDIT_TRIAL_ROUTE_PREFIXES.some((prefix) => p === prefix || p.startsWith(`${prefix}/`))
 }
 
-function resolveExistingGuestTrialUserFromCookies(): AppUser | null {
+async function resolveExistingGuestTrialUserFromCookies(): Promise<AppUser | null> {
   const userId = getGuestTrialUserIdFromCookie()
   if (!userId || !isValidUuidString(userId)) return null
+  if (!(await isGuestTrialUser(userId))) return null
   const trialId = getGuestTrialIdFromCookie()
   const email = trialId ? buildGuestTrialEmail(trialId) : 'guest-trial@guest.nanoai.local'
   return {
@@ -190,7 +192,7 @@ export async function getUserOrBypass(): Promise<AppUser | null> {
     } else {
       // Keep existing guest session visible after consuming the last trial credits.
       // Blocking generation is handled by getUserForCreditAction on the next request.
-      const existingGuest = resolveExistingGuestTrialUserFromCookies()
+      const existingGuest = await resolveExistingGuestTrialUserFromCookies()
       if (existingGuest) return existingGuest
     }
   }

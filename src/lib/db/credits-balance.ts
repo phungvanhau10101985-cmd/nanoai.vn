@@ -7,7 +7,7 @@ import { pgQueryOne } from '@/lib/db/pg-query'
 import {
   consumeGuestCreditTrialUse,
   getGuestCreditTrialRemainingCount,
-  isGuestTrialUserId,
+  isGuestTrialUser,
 } from '@/lib/guest-credit-trial'
 
 function requireCreditsPg(): void {
@@ -20,7 +20,7 @@ function requireCreditsPg(): void {
 
 /** Số dư hiện tại (0 nếu không có dòng). */
 export async function getCreditBalanceByUserId(userId: string): Promise<number> {
-  if (isGuestTrialUserId(userId)) {
+  if (await isGuestTrialUser(userId)) {
     // Return actual remaining guest-trial credits so server prechecks can compare with required cost.
     return await getGuestCreditTrialRemainingCount()
   }
@@ -54,7 +54,7 @@ export async function spendCreditsIdempotent(input: {
   sessionId?: string | null
   metadataJson?: string | null
 }): Promise<SpendCreditsIdempotentResult> {
-  if (isGuestTrialUserId(input.userId)) {
+  if (await isGuestTrialUser(input.userId)) {
     const trial = await consumeGuestCreditTrialUse({
       amount: input.amount,
       eventKey: input.eventKey || undefined,

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'crypto'
 import { cookies, headers } from 'next/headers'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
+import { pgQueryOne } from '@/lib/db/pg-query'
 
 export const GUEST_CREDIT_TRIAL_BUDGET_CREDITS = 3
 export const GUEST_CREDIT_TRIAL_FINGERPRINT_BUDGET_CREDITS = 3
@@ -326,6 +327,24 @@ export function isGuestTrialUserId(userId: string): boolean {
   if (!userId) return false
   const cookieUserId = getGuestTrialUserIdFromCookie()
   return cookieUserId === userId
+}
+
+export async function isGuestTrialUser(userId: string): Promise<boolean> {
+  if (!userId) return false
+  if (isGuestTrialUserId(userId)) return true
+  if (!isPgConfigured()) return false
+  try {
+    const row = await pgQueryOne<{ is_guest: boolean }>(
+      `select lower(coalesce(email, '')) like 'guest-trial-%@guest.nanoai.local' as is_guest
+       from auth.users
+       where id = $1::uuid
+       limit 1`,
+      [userId]
+    )
+    return Boolean(row?.is_guest)
+  } catch {
+    return false
+  }
 }
 
 export function buildGuestTrialEmail(guestTrialId: string): string {

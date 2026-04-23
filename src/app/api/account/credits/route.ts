@@ -4,7 +4,7 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import {
   GUEST_CREDIT_TRIAL_BUDGET_CREDITS,
   getGuestCreditTrialRemainingCount,
-  isGuestTrialUserId,
+  isGuestTrialUser,
 } from '@/lib/guest-credit-trial'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +14,7 @@ export async function GET() {
   try {
     const auth = await getUserForCreditAction()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
-    const isGuestTrial = isGuestTrialUserId(auth.user.id)
+    const isGuestTrial = await isGuestTrialUser(auth.user.id)
     const balance = await getCreditBalanceByUserId(auth.user.id)
     const guestTrialRemaining = isGuestTrial ? await getGuestCreditTrialRemainingCount() : 0
     const visibleBalance = isGuestTrial ? 0 : balance

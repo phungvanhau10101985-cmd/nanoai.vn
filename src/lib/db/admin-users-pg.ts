@@ -26,9 +26,10 @@ export async function pgListProfilesWithCreditBalance(): Promise<{
               p.full_name,
               p.avatar_url,
               p.role,
-              p.created_at::text as created_at,
+              coalesce(nullif(to_jsonb(p)->>'created_at', ''), au.created_at::text) as created_at,
               coalesce(c.balance::float8, 0)::float8 as balance
        from public.profiles p
+       left join auth.users au on au.id = p.id
        left join public.credits c on c.user_id = p.id
        order by coalesce(p.full_name, '') asc, p.id::text asc`
     )

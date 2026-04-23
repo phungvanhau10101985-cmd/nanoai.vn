@@ -47,6 +47,7 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
   const creditLabel = isGuestTrial
     ? `Dùng thử ${guestTrialRemaining.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}/${guestTrialBudget.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} credits`
     : `${displayCredits} ${t.menu.credits}`
+  const showFullAccountMenu = !isGuestTrial
 
   useEffect(() => {
     setDisplayCredits(Number(credits || 0))
@@ -86,7 +87,9 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
         <Wallet className="h-4 w-4" />
         <span>{creditLabel}</span>
       </div>
-      <DepositCreditButton variant="outline" size="sm" className="hidden sm:flex" />
+      {showFullAccountMenu && (
+        <DepositCreditButton variant="outline" size="sm" className="hidden sm:flex" />
+      )}
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <Button
@@ -132,70 +135,74 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
               <span>{creditLabel}</span>
             </div>
           </DropdownMenuItem>
-          <DepositCreditMenuItem />
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard">{t.menu.dashboard}</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard/tasks" className="flex items-center gap-2">
-              <ListTodo className="h-4 w-4" aria-hidden />
-              {t.menu.tasksHub}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/support-chat" className="flex items-center gap-2">
-              <MessageCircle className="h-4 w-4" aria-hidden />
-              {t.menu.supportChat}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/messaging/my-chats" className="flex items-center gap-2">
-              <MessagesSquare className="h-4 w-4" aria-hidden />
-              {t.menu.myChats}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/messaging/my-orders" className="flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4" aria-hidden />
-              {t.menu.myOrders}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard/messaging" className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" aria-hidden />
-              {t.menu.partnerInbox}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard/api-integration" className="flex items-center gap-2">
-              <KeyRound className="h-4 w-4" aria-hidden />
-              {t.menu.partnerApiIntegration}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard/history">{t.menu.processedImages}</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard/history/translate">{t.menu.translateHistory}</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/tao-bai-hat-lyria-3#lyria3-saved-music">{t.menu.musicHistory}</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/wallet">{t.menu.wallet}</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/account/plan" className="flex items-center gap-2">
-              <Package className="h-4 w-4" aria-hidden />
-              {t.menu.viewPlan}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/invite" className="flex items-center gap-2">
-              <Gift className="h-4 w-4" />
-              {t.menu.inviteFriends}
-            </Link>
-          </DropdownMenuItem>
+          {showFullAccountMenu && (
+            <>
+              <DepositCreditMenuItem />
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard">{t.menu.dashboard}</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/tasks" className="flex items-center gap-2">
+                  <ListTodo className="h-4 w-4" aria-hidden />
+                  {t.menu.tasksHub}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/support-chat" className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4" aria-hidden />
+                  {t.menu.supportChat}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/messaging/my-chats" className="flex items-center gap-2">
+                  <MessagesSquare className="h-4 w-4" aria-hidden />
+                  {t.menu.myChats}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/messaging/my-orders" className="flex items-center gap-2">
+                  <ShoppingBag className="h-4 w-4" aria-hidden />
+                  {t.menu.myOrders}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/messaging" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" aria-hidden />
+                  {t.menu.partnerInbox}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/api-integration" className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" aria-hidden />
+                  {t.menu.partnerApiIntegration}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/history">{t.menu.processedImages}</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/history/translate">{t.menu.translateHistory}</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/tao-bai-hat-lyria-3#lyria3-saved-music">{t.menu.musicHistory}</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/wallet">{t.menu.wallet}</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/account/plan" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" aria-hidden />
+                  {t.menu.viewPlan}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/invite" className="flex items-center gap-2">
+                  <Gift className="h-4 w-4" />
+                  {t.menu.inviteFriends}
+                </Link>
+              </DropdownMenuItem>
+            </>
+          )}
           {isAdmin && (
             <DropdownMenuItem asChild>
               <Link href="/admin" className="flex items-center gap-2 font-medium text-primary">

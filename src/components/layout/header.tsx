@@ -22,13 +22,14 @@ export async function Header() {
   let user: AppUser | null = null
   let credits = 0
   let isAdmin = false
+  let isGuestTrialUser = false
 
   try {
     user = await getUserOrBypass()
+    isGuestTrialUser = Boolean(user && String(user.email ?? '').includes('@guest.nanoai.local'))
 
     if (user) {
       const fromPg = await readUserDashboardFromPg(user.id)
-      const isGuestTrialUser = String(user.email ?? '').includes('@guest.nanoai.local')
       if (fromPg !== null) {
         credits = isGuestTrialUser ? 0 : fromPg.credits
         isAdmin = fromPg.isAdmin
@@ -78,7 +79,7 @@ export async function Header() {
             </div>
             {user ? (
               <>
-                <NotificationBell t={clientDictionary} locale={locale} />
+                {!isGuestTrialUser && <NotificationBell t={clientDictionary} locale={locale} />}
                 <HeaderUserMenu user={user} credits={credits} isAdmin={isAdmin} t={clientDictionary} />
               </>
             ) : (
