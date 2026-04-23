@@ -277,6 +277,7 @@ export async function postWidgetGuestMessage(params: {
     }
   | { error: string; requireAuth?: boolean }
 > {
+  const isAutoOpening = params.autoOpening === true
   const text = params.text?.trim() ?? ''
   const pageContextSku =
     typeof params.pageContext?.sku === 'string' ? params.pageContext.sku.trim().slice(0, 128) : ''
@@ -589,7 +590,7 @@ export async function postWidgetGuestMessage(params: {
     const trimmedText = text.trim()
     const minCharsForVectorPick = 3
     /** Khách đã bấm «Tư vấn» trên thẻ SP — không gắn lại thanh gợi ý vector (tránh lặp UI, vẫn gọi LLM với page_context). */
-    const skipTextVectorPick = isProductCardConsult
+    const skipTextVectorPick = isProductCardConsult || isAutoOpening
     /** Tin kiểu «có màu gì» — không chạy embedding/vector trên cả kho (tránh vision_pick + lệch luồng hỏi tiếp). Ngoại lệ: «mẫu khác / tương tự» vẫn gợi ý vector để widget có ứng viên. */
     const skipFollowUpStyleVectorPick =
       inboundTextLooksLikeFollowUpConsultHeuristic(trimmedText) &&
@@ -719,7 +720,7 @@ export async function postWidgetGuestMessage(params: {
     await mergeConversationUiLocaleFromPg(conversationId, locNorm)
   }
 
-  if (!linkedUserId && !params.guestAccountId) {
+  if (!isAutoOpening && !linkedUserId && !params.guestAccountId) {
     let inboundCount: number | null = null
     if (isPgConfigured()) {
       try {
@@ -738,7 +739,7 @@ export async function postWidgetGuestMessage(params: {
 
   const ins = await insertMessage({
     conversationId,
-    direction: 'inbound',
+    direction: isAutoOpening ? 'outbound' : 'inbound',
     body,
     rawPayload,
     landingSourceUrl: params.landingSourceUrl,
@@ -797,7 +798,7 @@ export async function postWidgetGuestMessage(params: {
       .join('\n')
     // Khi đã có gợi ý vector (ảnh hoặc chữ), chờ khách chọn SP — không gọi LLM tư vấn trước.
     // Ảnh biên lai CK: đã định tuyến đối chiếu thanh toán — không gọi LLM gợi ý SP.
-    if (!visionPickRequired && !deferredPaymentVerify) {
+    if (!isAutoOpening && !visionPickRequired && !deferredPaymentVerify) {
       const inboundForAi = [inboundTextForPartnerAi(body, imagePublicUrl), aiContextHints].filter(Boolean).join('\n')
       const hint = await handlePartnerInboundForAi({
         partnerId: params.partnerId,

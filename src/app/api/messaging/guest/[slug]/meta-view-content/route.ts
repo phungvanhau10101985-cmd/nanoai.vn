@@ -21,7 +21,13 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ ok: false, error: 'database_unavailable' }, { status: 503 })
   }
 
-  let body: { inventoryId?: string; productUrl?: string; eventSourcePath?: string }
+  let body: {
+    inventoryId?: string
+    productUrl?: string
+    eventSourcePath?: string
+    fbc?: string
+    fbp?: string
+  }
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -56,6 +62,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     partnerId: partner.id,
     inventoryRow: row,
     eventSourcePath,
+    fbc: String(body.fbc ?? '').trim() || null,
+    fbp: String(body.fbp ?? '').trim() || null,
   })
 
   if (!meta) {

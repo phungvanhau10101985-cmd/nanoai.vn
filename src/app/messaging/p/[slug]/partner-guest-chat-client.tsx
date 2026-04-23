@@ -2548,6 +2548,16 @@ export function PartnerGuestChatClient({
   const fireMetaViewContentOnConsultClick = useCallback(
     (card: PartnerAiProductCard) => {
       if (typeof window === 'undefined') return
+      const cookieValue = (name: string): string | null => {
+        if (typeof document === 'undefined') return null
+        const m = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]*)`))
+        if (!m?.[1]) return null
+        try {
+          return decodeURIComponent(m[1])
+        } catch {
+          return m[1]
+        }
+      }
       const inv = (card.inventory_id ?? '').trim()
       const productUrl = (card.product_url ?? '').trim()
       const uuidOk =
@@ -2556,11 +2566,21 @@ export function PartnerGuestChatClient({
 
       void (async () => {
         try {
-          const body: { eventSourcePath: string; inventoryId?: string; productUrl?: string } = {
+          const body: {
+            eventSourcePath: string
+            inventoryId?: string
+            productUrl?: string
+            fbc?: string
+            fbp?: string
+          } = {
             eventSourcePath: `${window.location.pathname}${window.location.search}`.slice(0, 2000),
           }
           if (uuidOk) body.inventoryId = inv
           else body.productUrl = productUrl
+          const fbc = cookieValue('_fbc')
+          const fbp = cookieValue('_fbp')
+          if (fbc) body.fbc = fbc
+          if (fbp) body.fbp = fbp
 
           const res = await fetch(
             `/api/messaging/guest/${encodeURIComponent(slug)}/meta-view-content`,

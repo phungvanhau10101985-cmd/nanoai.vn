@@ -97,6 +97,10 @@ export async function sendMetaConversionsApiBatch(params: {
   eventSourceUrl: string
   clientIp: string | null
   userAgent: string | null
+  /** Facebook click id cookie `_fbc` */
+  fbc?: string | null
+  /** Facebook browser id cookie `_fbp` */
+  fbp?: string | null
   events: Array<{
     event_name: 'ViewContent' | 'AddToCart'
     event_id: string
@@ -114,6 +118,14 @@ export async function sendMetaConversionsApiBatch(params: {
   }
   if (params.userAgent && params.userAgent.trim()) {
     user_data.client_user_agent = params.userAgent.trim().slice(0, 512)
+  }
+  const fbc = String(params.fbc ?? '').trim()
+  if (/^fb\.1\.\d+\.[A-Za-z0-9_-]+$/.test(fbc)) {
+    user_data.fbc = fbc
+  }
+  const fbp = String(params.fbp ?? '').trim()
+  if (/^fb\.1\.\d+\.\d+$/.test(fbp)) {
+    user_data.fbp = fbp
   }
   const body = {
     data: params.events.map((ev) => ({
@@ -152,6 +164,8 @@ export async function sendMetaViewContentConversionsApi(params: {
   eventSourceUrl: string
   clientIp: string | null
   userAgent: string | null
+  fbc?: string | null
+  fbp?: string | null
   customData: MetaCommerceCustomData
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   return sendMetaConversionsApiBatch({
@@ -160,6 +174,8 @@ export async function sendMetaViewContentConversionsApi(params: {
     eventSourceUrl: params.eventSourceUrl,
     clientIp: params.clientIp,
     userAgent: params.userAgent,
+    fbc: params.fbc,
+    fbp: params.fbp,
     events: [
       {
         event_name: 'ViewContent',
