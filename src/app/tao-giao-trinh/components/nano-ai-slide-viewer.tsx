@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, ClipboardList, Maximize2, Timer, Link2, Copy, ExternalLink, FileText, Square, BarChart3 } from 'lucide-react'
+import { X, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, ClipboardList, Maximize2, Timer, Link2, Copy, ExternalLink, FileText, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -28,7 +28,7 @@ import {
   skipInfographicDefaultSwapNano,
   visualImageIsCurriculumInfographic,
 } from '../lib/default-visual-image'
-import { createPresentationSyncId, getOrCreatePresentationSyncId, getPresentationBroadcastChannelName, LEGACY_PRESENTATION_BROADCAST_CHANNEL } from '../lib/presentation-broadcast'
+import { getOrCreatePresentationSyncId, getPresentationBroadcastChannelName, LEGACY_PRESENTATION_BROADCAST_CHANNEL } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync, STUDENT_WINDOW_NAME_CURRICULUM, STUDENT_WINDOW_NAME_WORKSHEET } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 
@@ -65,6 +65,120 @@ const DARK_GRADIENTS = [
   'linear-gradient(160deg, #1e3a5f 0%, #0f172a 50%)',
   'linear-gradient(160deg, #1e3a5f 0%, #0c4a6e 50%)',
 ]
+
+type MemoryProbeSnapshot = {
+  heapUsedMb: number | null
+  heapTotalMb: number | null
+  heapLimitMb: number | null
+  heapGrowthMbPerMin: number | null
+  domNodes: number
+  iframeCount: number
+  imageCount: number
+  canvasCount: number
+}
+
+const BYTES_PER_MB = 1024 * 1024
+
+function bytesToMb(value: number): number {
+  return Math.round((value / BYTES_PER_MB) * 10) / 10
+}
+
+function formatMb(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return 'n/a'
+  return `${value.toFixed(1)} MB`
+}
+
+function useMemoryProbe(enabled: boolean): MemoryProbeSnapshot | null {
+  const [snapshot, setSnapshot] = useState<MemoryProbeSnapshot | null>(null)
+  const historyRef = useRef<Array<{ at: number; usedBytes: number | null }>>([])
+
+  useEffect(() => {
+    if (!enabled) return
+    let cancelled = false
+
+    const collect = () => {
+      if (cancelled) return
+      const perfLike = performance as Performance & {
+        memory?: {
+          usedJSHeapSize?: number
+          totalJSHeapSize?: number
+          jsHeapSizeLimit?: number
+        }
+      }
+      const usedBytesRaw = Number(perfLike.memory?.usedJSHeapSize ?? NaN)
+      const totalBytesRaw = Number(perfLike.memory?.totalJSHeapSize ?? NaN)
+      const limitBytesRaw = Number(perfLike.memory?.jsHeapSizeLimit ?? NaN)
+      const usedBytes = Number.isFinite(usedBytesRaw) ? usedBytesRaw : null
+      const totalBytes = Number.isFinite(totalBytesRaw) ? totalBytesRaw : null
+      const limitBytes = Number.isFinite(limitBytesRaw) ? limitBytesRaw : null
+      const now = Date.now()
+
+      historyRef.current.push({ at: now, usedBytes })
+      // Keep ~2 minutes if polling every 2s.
+      if (historyRef.current.length > 60) {
+        historyRef.current = historyRef.current.slice(historyRef.current.length - 60)
+      }
+      const validHistory = historyRef.current.filter((x) => x.usedBytes != null) as Array<{
+        at: number
+        usedBytes: number
+      }>
+      let growthMbPerMin: number | null = null
+      if (validHistory.length >= 2) {
+        const first = validHistory[0]
+        const last = validHistory[validHistory.length - 1]
+        const dtMs = Math.max(1, last.at - first.at)
+        const dBytes = last.usedBytes - first.usedBytes
+        growthMbPerMin = bytesToMb((dBytes / dtMs) * 60000)
+      }
+
+      setSnapshot({
+        heapUsedMb: usedBytes == null ? null : bytesToMb(usedBytes),
+        heapTotalMb: totalBytes == null ? null : bytesToMb(totalBytes),
+        heapLimitMb: limitBytes == null ? null : bytesToMb(limitBytes),
+        heapGrowthMbPerMin: growthMbPerMin,
+        domNodes: document.getElementsByTagName('*').length,
+        iframeCount: document.getElementsByTagName('iframe').length,
+        imageCount: document.getElementsByTagName('img').length,
+        canvasCount: document.getElementsByTagName('canvas').length,
+      })
+    }
+
+    collect()
+    const id = window.setInterval(collect, 2000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+      historyRef.current = []
+    }
+  }, [enabled])
+
+  return snapshot
+}
+
+function MemoryDebugHud({
+  enabled,
+  snapshot,
+  slideCount,
+  currentIndex,
+}: {
+  enabled: boolean
+  snapshot: MemoryProbeSnapshot | null
+  slideCount: number
+  currentIndex: number
+}) {
+  if (!enabled || !snapshot) return null
+  const growth = snapshot.heapGrowthMbPerMin
+  const growthLabel = growth == null ? 'n/a' : `${growth >= 0 ? '+' : ''}${growth.toFixed(2)} MB/min`
+  return (
+    <div className="pointer-events-none fixed bottom-3 right-3 z-[80] rounded-md border border-white/20 bg-black/80 px-3 py-2 text-[11px] text-white shadow-xl print:hidden">
+      <div className="font-semibold">Memory Probe</div>
+      <div>Heap: {formatMb(snapshot.heapUsedMb)} / {formatMb(snapshot.heapTotalMb)} (limit {formatMb(snapshot.heapLimitMb)})</div>
+      <div>Heap growth: {growthLabel}</div>
+      <div>DOM: {snapshot.domNodes} | iframe: {snapshot.iframeCount} | img: {snapshot.imageCount} | canvas: {snapshot.canvasCount}</div>
+      <div>Slides: {slideCount} | index: {currentIndex + 1}</div>
+    </div>
+  )
+}
 
 /** Vùng ảnh thực sự hiển thị (object-contain) – dùng tâm ảnh + tỷ lệ để tính chuột ảo */
 function getVisibleImageBounds(img: HTMLImageElement): { left: number; top: number; width: number; height: number } {
@@ -762,6 +876,7 @@ function getBaseSlides(
 
 export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null, syncedStudentCurriculumLeftPane = null, curriculumInfographic: curriculumInfographicProp }: NanoAISlideViewerProps) {
   const { toast } = useToast()
+  const [memoryDebugEnabled, setMemoryDebugEnabled] = useState(false)
   const [slides, setSlides] = useState<SlideItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
@@ -855,9 +970,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [timerRunning, setTimerRunning] = useState(false)
   const [teacherTimerSeconds, setTeacherTimerSeconds] = useState(0)
   const [teacherTimerRunning, setTeacherTimerRunning] = useState(false)
+  const memoryProbe = useMemoryProbe(memoryDebugEnabled)
   const [presentationMode, setPresentationMode] = useState<'independent' | 'slide-interaction'>('independent')
   const [viewportW, setViewportW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search || '')
+    const byQuery = params.get('memdebug') === '1'
+    const byStorage = window.localStorage.getItem('nano_memdebug') === '1'
+    setMemoryDebugEnabled(byQuery || byStorage)
+  }, [])
   useEffect(() => {
     const onResize = () => setViewportW(typeof window !== 'undefined' ? window.innerWidth : 1280)
     onResize()
@@ -1488,10 +1612,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const sendCurriculumDataToStudent = useCallback((slidesToSend: SlideItem[], currentIndexOverride?: number) => {
     const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
     // Chỉ gửi payload nặng cho chunk đang dùng; slide xa gửi bản nhẹ để giảm RAM/copy-cost.
-    const lightweightSlides = pruneStudentSlidesByChunk(slidesToSend, idx, { keepFullTextForAllSlides: true })
+    const keepFullTextForAllSlides = !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
+    const lightweightSlides = pruneStudentSlidesByChunk(slidesToSend, idx, { keepFullTextForAllSlides })
+    const wireContent = lightweightSlides.length > 0 ? '' : curriculumMarkdown
     const payload = {
       type: 'curriculum-data',
-      content: curriculumMarkdown,
+      content: wireContent,
       topic,
       currentIndex: Math.max(0, Math.min(idx, lightweightSlides.length - 1)),
       curriculumId: null,
@@ -1511,7 +1637,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         syncChannelRef.current?.postMessage(payload)
       }
     } catch { /* ignore */ }
-  }, [curriculumMarkdown, topic, currentIndex, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, curriculumId, curriculumInfographic])
+  }, [
+    curriculumMarkdown,
+    topic,
+    currentIndex,
+    teacherTimerSeconds,
+    teacherTimerRunning,
+    toStudentSlidePayload,
+    curriculumId,
+    curriculumInfographic,
+    worksheetPresentation,
+    studentCurriculumRightMode,
+  ])
 
   const openStudentView = useCallback(() => {
     if (typeof window === 'undefined' || !isWorksheetTeacher || slides.length === 0) return
@@ -1554,10 +1691,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (e.data?.type === 'request-curriculum' && e.source && slides.length > 0) {
         try {
           const src = e.source as Window
-          const lightweightSlides = pruneStudentSlidesByChunk(slides, currentIndex, { keepFullTextForAllSlides: true })
+          const keepFullTextForAllSlides = !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
+          const lightweightSlides = pruneStudentSlidesByChunk(slides, currentIndex, { keepFullTextForAllSlides })
+          const wireContent = lightweightSlides.length > 0 ? '' : curriculumMarkdown
           src.postMessage({
             type: 'curriculum-data',
-            content: curriculumMarkdown,
+            content: wireContent,
             topic,
             currentIndex,
             curriculumId: null,
@@ -1574,7 +1713,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [isWorksheetTeacher, curriculumMarkdown, topic, currentIndex, slides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload])
+  }, [
+    isWorksheetTeacher,
+    curriculumMarkdown,
+    topic,
+    currentIndex,
+    slides,
+    teacherTimerSeconds,
+    teacherTimerRunning,
+    toStudentSlidePayload,
+    worksheetPresentation,
+    studentCurriculumRightMode,
+  ])
 
   useEffect(() => {
     if (!isWorksheetTeacher) return
@@ -4838,6 +4988,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         </div>
         </div>
       </div>
+
+      <MemoryDebugHud
+        enabled={memoryDebugEnabled}
+        snapshot={memoryProbe}
+        slideCount={slides.length}
+        currentIndex={currentIndex}
+      />
 
       {/* Print: tất cả slide - layout giống màn hình */}
       <div className="hidden print:block">

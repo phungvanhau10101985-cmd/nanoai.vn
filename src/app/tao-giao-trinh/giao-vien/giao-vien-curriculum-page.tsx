@@ -1,11 +1,11 @@
-'use client'
+﻿'use client'
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target, BarChart3 } from 'lucide-react'
+import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
@@ -642,21 +642,6 @@ function slideWireDigest(slide: SlideItem | undefined): number {
   return h >>> 0
 }
 
-function recordDigest(rec: Record<string, number | boolean> | undefined): number {
-  if (!rec) return 0
-  let h = 2166136261
-  const keys = Object.keys(rec).sort()
-  for (const k of keys) {
-    h ^= fastHashText(k)
-    h = Math.imul(h, 16777619)
-    const raw = rec[k]
-    const v = typeof raw === 'boolean' ? (raw ? 1 : 0) : (Number(raw) || 0)
-    h ^= (v | 0)
-    h = Math.imul(h, 16777619)
-  }
-  return h >>> 0
-}
-
 function LazyHeavyMount({
   children,
   minHeight = 140,
@@ -871,6 +856,7 @@ export default function CurriculumViewPage() {
   const [editingTitle, setEditingTitle] = useState<number | null>(null)
   const [editingTitleValue, setEditingTitleValue] = useState('')
   const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
+  const uiLocaleRef = useRef<UiLocale>('vi')
   const [resetLoading, setResetLoading] = useState(false)
   const [saveAsPersonalLoading, setSaveAsPersonalLoading] = useState(false)
   const [personalHistoryOpen, setPersonalHistoryOpen] = useState(false)
@@ -1346,6 +1332,10 @@ export default function CurriculumViewPage() {
     if (uiLocale === 'ja') return ja
     if (uiLocale === 'ko') return ko
     return vi
+  }, [uiLocale])
+
+  useEffect(() => {
+    uiLocaleRef.current = uiLocale
   }, [uiLocale])
 
   const worksheetEditCheckCreditSuffix = useMemo(
@@ -2151,6 +2141,7 @@ export default function CurriculumViewPage() {
 
   const compactSlidesForStudentWire = useCallback((slidesToSend: SlideItem[], currentIdx: number) => {
     const keepFullTextForAllSlides = studentCurriculumRemoteMode === 'markdown-all'
+    const keepFullTextThroughIndex = keepFullTextForAllSlides ? Math.max(0, currentIdx) : -1
     if (!Array.isArray(slidesToSend) || slidesToSend.length <= 0) return []
     const chunkSize = STUDENT_WIRE_SLIDE_CHUNK_SIZE
     const radius = STUDENT_WIRE_SLIDE_CHUNK_RADIUS
@@ -2159,10 +2150,11 @@ export default function CurriculumViewPage() {
     const keepEnd = Math.min(slidesToSend.length - 1, ((currentChunk + radius + 1) * chunkSize) - 1)
     return slidesToSend.map((s, i) => {
       if (i >= keepStart && i <= keepEnd) return s
+      const keepTextForSlide = keepFullTextForAllSlides && i <= keepFullTextThroughIndex
       return {
         ...s,
-        blocks: keepFullTextForAllSlides ? s.blocks : undefined,
-        content: keepFullTextForAllSlides ? s.content : '',
+        blocks: keepTextForSlide ? s.blocks : undefined,
+        content: keepTextForSlide ? s.content : '',
         imageUrl: undefined,
         visualEmbed: undefined,
         visualLayout: undefined,
@@ -2183,12 +2175,12 @@ export default function CurriculumViewPage() {
   ) => {
     const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
     const wireInfographic = curriculumInfographicWire ?? activeVisualInfographic
-    const keepFullTextForAllSlides = studentCurriculumRemoteMode === 'markdown-all'
     const compactedSlides = compactSlidesForStudentWire(slidesToSend, idx)
     const wireSlides = compactedSlides.map((s, i) => toStudentSlidePayload(s, i))
+    const wireContent = compactedSlides.length > 0 ? '' : content
     const payload = {
       type: 'curriculum-data',
-      content: keepFullTextForAllSlides ? content : '',
+      content: wireContent,
       topic,
       currentIndex: Math.max(0, Math.min(idx, compactedSlides.length - 1)),
       curriculumId: curriculumId ?? null,
@@ -2212,8 +2204,8 @@ export default function CurriculumViewPage() {
     const slideDigestKey = wireSlides.map((s) => slideWireDigest(s)).join(',')
     const payloadKey = [
       idx,
-      keepFullTextForAllSlides ? 1 : 0,
-      fastHashText(content),
+      studentCurriculumRemoteMode === 'markdown-all' ? 1 : 0,
+      fastHashText(wireContent),
       fastHashText(topic),
       fastHashText(String(curriculumId ?? '')),
       fastHashText(String(slideMode ?? '')),
@@ -2861,11 +2853,11 @@ export default function CurriculumViewPage() {
     syncChannelRef.current = channel
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type !== 'request-curriculum' || !content) return
-      const keepFullTextForAllSlides = studentCurriculumRemoteMode === 'markdown-all'
       const compactedSlides = compactSlidesForStudentWire(slides, currentIndex)
+      const wireContent = compactedSlides.length > 0 ? '' : content
       channel.postMessage({
         type: 'curriculum-data',
-        content: keepFullTextForAllSlides ? content : '',
+        content: wireContent,
         topic,
         currentIndex,
         curriculumId: curriculumId ?? null,
@@ -2961,12 +2953,12 @@ export default function CurriculumViewPage() {
     const pushVisualOpen = () => {
       if (!targetWin || targetWin.closed) return
       try {
-        const keepFullTextForAllSlides = studentCurriculumRemoteMode === 'markdown-all'
         const compactedSlides = compactSlidesForStudentWire(slides, currentIndex)
+        const wireContent = compactedSlides.length > 0 ? '' : content
         targetWin.postMessage(
           {
             type: 'curriculum-data',
-            content: keepFullTextForAllSlides ? content : '',
+            content: wireContent,
             topic,
             currentIndex,
             curriculumId: curriculumId ?? null,
@@ -3063,12 +3055,12 @@ export default function CurriculumViewPage() {
     const pushInfographicOpen = () => {
       if (!targetWin || targetWin.closed) return
       try {
-        const keepFullTextForAllSlides = studentCurriculumRemoteMode === 'markdown-all'
         const compactedSlides = compactSlidesForStudentWire(slides, currentIndex)
+        const wireContent = compactedSlides.length > 0 ? '' : content
         targetWin.postMessage(
           {
             type: 'curriculum-data',
-            content: keepFullTextForAllSlides ? content : '',
+            content: wireContent,
             topic,
             currentIndex,
             curriculumId: curriculumId ?? null,
@@ -3881,12 +3873,12 @@ export default function CurriculumViewPage() {
     const sendState = () => {
       try {
         if (targetWin.closed) return
-        const keepFullTextForAllSlides = studentCurriculumRemoteMode === 'markdown-all'
         const compactedSlides = compactSlidesForStudentWire(slides, currentIndex)
+        const wireContent = compactedSlides.length > 0 ? '' : content
         targetWin.postMessage(
           {
             type: 'curriculum-data',
-            content: keepFullTextForAllSlides ? content : '',
+            content: wireContent,
             topic,
             currentIndex,
             curriculumId: curriculumId ?? null,
@@ -4548,10 +4540,27 @@ export default function CurriculumViewPage() {
   }, [slides, toast, tr, updateSlideBlocksAndPersist])
 
   useEffect(() => {
-    const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
+    const syncLocale = () => {
+      const next = getWebLocaleFromCookie()
+      if (next !== uiLocaleRef.current) {
+        uiLocaleRef.current = next
+        setUiLocale(next)
+      }
+    }
     syncLocale()
-    const timer = window.setInterval(syncLocale, 1000)
-    return () => window.clearInterval(timer)
+    const onFocus = () => syncLocale()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') syncLocale()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    // Fallback poll kept sparse to avoid idle churn.
+    const timer = window.setInterval(syncLocale, 15000)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
 
   useEffect(() => {
@@ -4678,12 +4687,12 @@ export default function CurriculumViewPage() {
       if (e.data?.type === 'request-curriculum' && e.source && content) {
         try {
           const src = e.source as Window
-          const keepFullTextForAllSlides = studentCurriculumRemoteMode === 'markdown-all'
           const compactedSlides = compactSlidesForStudentWire(slides, currentIndex)
+          const wireContent = compactedSlides.length > 0 ? '' : content
           src.postMessage(
             {
               type: 'curriculum-data',
-              content: keepFullTextForAllSlides ? content : '',
+              content: wireContent,
               topic,
               currentIndex,
               curriculumId: curriculumId ?? null,
@@ -4882,25 +4891,39 @@ export default function CurriculumViewPage() {
         if (!fromKnownWindow) return
         let incomingKey = ''
         try {
-          incomingKey = JSON.stringify({
-            type: 'curriculum-data',
-            content: e.data.content ?? '',
-            topic: e.data.topic ?? '',
-            currentIndex: e.data.currentIndex ?? 0,
-            curriculumId: e.data.curriculumId ?? null,
-            lessonNo: e.data.lessonNo ?? null,
-            slideMode: e.data.slideMode ?? null,
-            personalViewSubMode: e.data.personalViewSubMode ?? null,
-            hasOriginalSlides: Boolean(e.data.hasOriginalSlides),
-            worksheetId: Boolean(e.data.worksheetId),
-            studentCurriculumRightMode: e.data.studentCurriculumRightMode ?? null,
-            teacherSlideLeftPane: e.data.teacherSlideLeftPane ?? null,
-            slides: Array.isArray(e.data.slides) ? e.data.slides : [],
-            curriculumInfographicUrl:
-              typeof e.data.curriculumInfographic?.imageUrl === 'string' ? e.data.curriculumInfographic.imageUrl : '',
-            lessonInfographicUrl:
-              typeof e.data.lessonInfographic?.imageUrl === 'string' ? e.data.lessonInfographic.imageUrl : '',
-          })
+          const incomingSlides = Array.isArray(e.data.slides)
+            ? (e.data.slides as Array<Record<string, unknown>>)
+            : []
+          const incomingSlideDigest = incomingSlides
+            .map((s) => {
+              const blocks = Array.isArray(s.blocks)
+                ? s.blocks.length
+                : 0
+              return [
+                fastHashText(String(s.title ?? '')),
+                blocks,
+                fastHashText(String(s.imageUrl ?? '')),
+                fastHashText(String(s.visualEmbed ?? '')),
+              ].join(':')
+            })
+            .join(',')
+          incomingKey = [
+            'curriculum-data',
+            fastHashText(String(e.data.content ?? '')),
+            fastHashText(String(e.data.topic ?? '')),
+            Number(e.data.currentIndex ?? 0),
+            String(e.data.curriculumId ?? ''),
+            String(e.data.lessonNo ?? ''),
+            String(e.data.slideMode ?? ''),
+            String(e.data.personalViewSubMode ?? ''),
+            e.data.hasOriginalSlides ? 1 : 0,
+            e.data.worksheetId ? 1 : 0,
+            String(e.data.studentCurriculumRightMode ?? ''),
+            String(e.data.teacherSlideLeftPane ?? ''),
+            fastHashText(String(e.data.curriculumInfographic?.imageUrl ?? '')),
+            fastHashText(String(e.data.lessonInfographic?.imageUrl ?? '')),
+            incomingSlideDigest,
+          ].join('|')
         } catch {
           incomingKey = ''
         }

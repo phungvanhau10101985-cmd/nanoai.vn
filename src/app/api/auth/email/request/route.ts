@@ -16,6 +16,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
+import { mergeGuestTrialUserDataAfterLogin } from '@/lib/auth/merge-guest-trial-user-data'
 import {
   countOtpSendsForEmailLastHour,
   getOtpRequestClientIp,
@@ -90,6 +91,11 @@ export async function POST(req: NextRequest) {
         res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
         markTrustedEmailForBrowser(res, email)
         await issueTrustedDeviceForUser(res, req, userId, email, browserId)
+        await mergeGuestTrialUserDataAfterLogin({
+          guestTrialUserId: req.cookies.get('nano_guest_trial_user_id')?.value ?? null,
+          realUserId: userId,
+          response: res,
+        })
         return res
       }
     }
@@ -111,6 +117,11 @@ export async function POST(req: NextRequest) {
         res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
         markTrustedEmailForBrowser(res, email)
         await issueTrustedDeviceForUser(res, req, userId, email, browserId)
+        await mergeGuestTrialUserDataAfterLogin({
+          guestTrialUserId: req.cookies.get('nano_guest_trial_user_id')?.value ?? null,
+          realUserId: userId,
+          response: res,
+        })
         return res
       }
     }
@@ -127,6 +138,11 @@ export async function POST(req: NextRequest) {
       res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
       markTrustedEmailForBrowser(res, email)
       await issueTrustedDeviceForUser(res, req, trusted.userId, trusted.email, browserId)
+      await mergeGuestTrialUserDataAfterLogin({
+        guestTrialUserId: req.cookies.get('nano_guest_trial_user_id')?.value ?? null,
+        realUserId: trusted.userId,
+        response: res,
+      })
       return res
     }
 

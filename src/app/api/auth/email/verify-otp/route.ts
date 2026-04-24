@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY, isEmailAuthEnabled } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 import { issueTrustedDeviceForUser, markTrustedEmailForBrowser } from '@/lib/auth/email-trusted-device'
+import { mergeGuestTrialUserDataAfterLogin } from '@/lib/auth/merge-guest-trial-user-data'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
@@ -78,6 +79,11 @@ export async function POST(req: NextRequest) {
     res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
     markTrustedEmailForBrowser(res, email)
     await issueTrustedDeviceForUser(res, req, uidRow.id, email, browserId)
+    await mergeGuestTrialUserDataAfterLogin({
+      guestTrialUserId: req.cookies.get('nano_guest_trial_user_id')?.value ?? null,
+      realUserId: uidRow.id,
+      response: res,
+    })
     return res
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
