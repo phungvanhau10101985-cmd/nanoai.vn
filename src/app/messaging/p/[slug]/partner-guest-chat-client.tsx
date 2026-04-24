@@ -5441,12 +5441,14 @@ export function PartnerGuestChatClient({
                       )
                     })}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    {imageStoragePaths.length}/4 ảnh đã đính kèm
-                  </p>
+                  {imageStoragePaths.length <= 1 ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      {imageStoragePaths.length}/4 ảnh đã đính kèm
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
-              {imageStoragePaths.length > 0 ? (
+              {imageStoragePaths.length === 1 ? (
                 <p className="text-xs text-muted-foreground sm:text-sm">{t.guestCaptionHint}</p>
               ) : null}
                   {proofOrderId && !paidDepositOrderIds.has(proofOrderId) ? (

@@ -35,6 +35,7 @@ import {
   fetchPartnerInventoryRowByIdForPartnerFromPg,
   fetchPartnerInventoryRowsByIdsInOrderFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchGuestGenderForPartnerConsultCachePg } from '@/lib/db/partner-product-consult-cache-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchMessagingPartnerByIdFromPg, isMessagingPartnerInboundOpen } from '@/lib/db/messaging-partners-pg'
 import {
@@ -330,34 +331,37 @@ function productTypeLabelForLocale(locale: string, productType?: string | null):
   return 'product'
 }
 
-function buildViReminderFollowUpFromCustomerText(text: string): string {
+function buildViReminderFollowUpFromCustomerText(text: string, address: 'anh' | 'chị' | 'bạn'): string {
+  const cap = address.charAt(0).toUpperCase() + address.slice(1)
   const t = text.trim().toLowerCase()
-  if (!t) return 'Chọn giúp em 1 mẫu trước, em tư vấn ngay theo đúng nhu cầu của chị.'
+  if (!t) return `${cap} chọn giúp em 1 mẫu trước, em tư vấn ngay theo đúng nhu cầu của ${address}.`
   if (/\bgia\b|giá|bao nhiêu|nhiêu tiền|price/i.test(t)) {
-    return 'Chị chọn giúp em 1 mẫu trước, em báo giá và tư vấn chi tiết ngay ạ.'
+    return `${cap} chọn giúp em 1 mẫu trước, em báo giá và tư vấn chi tiết ngay ạ.`
   }
   if (/bao giờ|khi nào|giao|ship|nhận hàng|giao nhanh|thời gian/i.test(t)) {
-    return 'Chị chọn giúp em 1 mẫu trước, em báo thời gian giao cụ thể cho mẫu đó ngay ạ.'
+    return `${cap} chọn giúp em 1 mẫu trước, em báo thời gian giao cụ thể cho mẫu đó ngay ạ.`
   }
   if (/size|số đo|chiều cao|cân nặng|vừa|form/i.test(t)) {
-    return 'Chị chọn giúp em 1 mẫu trước, em tư vấn size chuẩn theo mẫu đó ngay ạ.'
+    return `${cap} chọn giúp em 1 mẫu trước, em tư vấn size chuẩn theo mẫu đó ngay ạ.`
   }
   if (/màu|mau|color|đen|trắng|đỏ|hồng|xanh|nâu|kem|be/i.test(t)) {
-    return 'Chị chọn giúp em 1 mẫu trước, em kiểm tra màu và tư vấn mẫu phù hợp ngay ạ.'
+    return `${cap} chọn giúp em 1 mẫu trước, em kiểm tra màu và tư vấn mẫu phù hợp ngay ạ.`
   }
-  return 'Chọn giúp em 1 mẫu trước, em tư vấn chi tiết đúng ý chị ngay ạ.'
+  return `${cap} chọn giúp em 1 mẫu trước, em tư vấn chi tiết đúng ý ${address} ngay ạ.`
 }
 
 function buildVisionPickReminder(
   uiLocale?: string | null,
-  gender?: GuestProfileGender | null,
+  productGender?: GuestProfileGender | null,
   productType?: string | null,
-  customerText?: string | null
+  customerText?: string | null,
+  customerGender?: GuestProfileGender | null
 ): string {
   const locale = normalizeWebLocale(String(uiLocale ?? '').trim()) ?? 'vi'
   const typeLabel = productTypeLabelForLocale(locale, productType)
-  const viAddress = gender === 'male' ? 'anh' : gender === 'female' ? 'chị' : 'bạn'
-  const viFollow = buildViReminderFollowUpFromCustomerText(customerText ?? '')
+  const preferredGender = customerGender ?? productGender ?? null
+  const viAddress = preferredGender === 'male' ? 'anh' : preferredGender === 'female' ? 'chị' : 'bạn'
+  const viFollow = buildViReminderFollowUpFromCustomerText(customerText ?? '', viAddress)
   if (locale === 'en') {
     return `I found a few ${typeLabel} samples similar to your image. Please tap the one you want advice on.`
   }
@@ -370,9 +374,7 @@ function buildVisionPickReminder(
   if (locale === 'ko') {
     return '보내주신 이미지와 비슷한 상품 샘플을 찾았어요. 상담받고 싶은 상품을 먼저 선택해 주세요.'
   }
-  return `Em tìm thêm vài mẫu ${typeLabel} để ${viAddress} tham khảo. ${
-    viAddress.charAt(0).toUpperCase() + viAddress.slice(1)
-  } ${viFollow}`
+  return `Em tìm thêm vài mẫu ${typeLabel} để ${viAddress} tham khảo. ${viFollow}`
 }
 
 /**
@@ -498,6 +500,9 @@ export async function postWidgetGuestMessage(params: {
   }
 
   const linkedUserId = await resolveLinkedUserIdForCustomerCarePg(params.linkedUserId)
+  const configuredGuestGender = linkedUserId
+    ? await fetchGuestGenderForPartnerConsultCachePg(linkedUserId)
+    : null
 
   let body: string
   let rawPayload: Json | null = null
@@ -939,7 +944,13 @@ export async function postWidgetGuestMessage(params: {
       await insertMessage({
         conversationId,
         direction: 'outbound',
-        body: buildVisionPickReminder(params.uiLocale, detectedProductGender, detectedProductType, text.trim()),
+        body: buildVisionPickReminder(
+          params.uiLocale,
+          detectedProductGender,
+          detectedProductType,
+          text.trim(),
+          configuredGuestGender
+        ),
         rawPayload: {
           source: 'guest_vision_pick_reminder',
           trigger_message_id: newMessageId,
