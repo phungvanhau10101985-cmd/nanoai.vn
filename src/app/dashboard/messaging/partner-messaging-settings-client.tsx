@@ -165,6 +165,10 @@ export function PartnerMessagingSettingsClient({
   const [fbVerify, setFbVerify] = useState('')
   const [zaloSec, setZaloSec] = useState('')
   const [zaloTok, setZaloTok] = useState('')
+  const [fbPendingPages, setFbPendingPages] = useState<Array<{ id: string; name: string }>>([])
+  const [fbPendingSelectedPageId, setFbPendingSelectedPageId] = useState('')
+  const [fbPagePickerOpen, setFbPagePickerOpen] = useState(false)
+  const [fbPagePicking, setFbPagePicking] = useState(false)
   const [pending, startTransition] = useTransition()
   const [logoBusy, setLogoBusy] = useState(false)
   const [logoUploading, setLogoUploading] = useState(false)
@@ -209,6 +213,10 @@ export function PartnerMessagingSettingsClient({
     () => partners.find((p) => p.id === selectedPartnerId) ?? null,
     [partners, selectedPartnerId]
   )
+  const facebookConnectHref = useMemo(() => {
+    if (!selectedPartnerId) return '#'
+    return `/api/integrations/facebook/messenger/connect?partnerId=${encodeURIComponent(selectedPartnerId)}`
+  }, [selectedPartnerId])
 
   const facebookCatalogFeedUrl = useMemo(() => {
     const s = selectedPartner?.slug?.trim()
@@ -261,6 +269,52 @@ export function PartnerMessagingSettingsClient({
       }
     })()
   }, [selectedPartnerId])
+
+  const loadFacebookPendingPages = useCallback(async (partnerId: string) => {
+    const res = await fetch(
+      `/api/integrations/facebook/messenger/pending-pages?partnerId=${encodeURIComponent(partnerId)}`,
+      {
+        method: 'GET',
+        credentials: 'same-origin',
+      }
+    )
+    const data = (await res.json().catch(() => null)) as { pages?: Array<{ id: string; name: string }> } | null
+    const pages = Array.isArray(data?.pages) ? data.pages : []
+    setFbPendingPages(pages)
+    setFbPendingSelectedPageId(pages[0]?.id ?? '')
+    setFbPagePickerOpen(pages.length > 0)
+    return pages.length
+  }, [])
+
+  useEffect(() => {
+    const status = searchParams.get('fb_oauth')
+    if (!status) return
+    const statusText: Record<string, { title: string; destructive?: boolean }> = {
+      ok: { title: 'Da ket noi Facebook Page thanh cong.' },
+      'subscribed-warn': { title: 'Da luu Page token, nhung subscribe webhook chua thanh cong.' },
+      'missing-config': { title: 'Thieu cau hinh Facebook OAuth tren server.', destructive: true },
+      'missing-code': { title: 'Facebook khong tra ma uy quyen.', destructive: true },
+      'invalid-state': { title: 'Phien uy quyen het han hoac khong hop le.', destructive: true },
+      'invalid-partner': { title: 'Workspace khong hop le.', destructive: true },
+      unauthorized: { title: 'Vui long dang nhap lai.', destructive: true },
+      forbidden: { title: 'Ban khong co quyen ket noi workspace nay.', destructive: true },
+      'exchange-failed': { title: 'Khong doi duoc access token tu Facebook.', destructive: true },
+      'no-page-access': { title: 'Tai khoan nay chua co quyen tren Facebook Page nao.', destructive: true },
+      'save-failed': { title: 'Khong luu duoc kenh Facebook vao he thong.', destructive: true },
+      'pick-page': { title: 'Chon Facebook Page de hoan tat ket noi.' },
+    }
+    const mapped = statusText[status] || { title: 'Ket noi Facebook that bai.', destructive: true }
+    toast({ title: mapped.title, variant: mapped.destructive ? 'destructive' : undefined })
+    if (status === 'pick-page' && selectedPartnerId) {
+      void loadFacebookPendingPages(selectedPartnerId)
+    } else if (!mapped.destructive) {
+      loadChannelStatus()
+    }
+    const next = new URLSearchParams(searchParams.toString())
+    next.delete('fb_oauth')
+    const qs = next.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }, [loadChannelStatus, loadFacebookPendingPages, pathname, router, searchParams, selectedPartnerId, toast])
 
   const refreshPartners = useCallback(() => {
     startTransition(async () => {
@@ -675,6 +729,40 @@ export function PartnerMessagingSettingsClient({
     })
   }
 
+  const confirmFacebookPendingPage = () => {
+    if (!selectedPartnerId || !fbPendingSelectedPageId || fbPagePicking) return
+    setFbPagePicking(true)
+    void (async () => {
+      try {
+        const res = await fetch('/api/integrations/facebook/messenger/select-page', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            partnerId: selectedPartnerId,
+            pageId: fbPendingSelectedPageId,
+          }),
+        })
+        const data = (await res.json().catch(() => null)) as { status?: string; error?: string } | null
+        if (!res.ok) {
+          toast({ title: data?.error || 'Khong luu duoc Facebook Page da chon.', variant: 'destructive' })
+          return
+        }
+        if (data?.status === 'subscribed-warn') {
+          toast({ title: 'Da luu Page token, nhung subscribe webhook chua thanh cong.' })
+        } else {
+          toast({ title: 'Da ket noi Facebook Page thanh cong.' })
+        }
+        setFbPagePickerOpen(false)
+        setFbPendingPages([])
+        setFbPendingSelectedPageId('')
+        loadChannelStatus()
+      } finally {
+        setFbPagePicking(false)
+      }
+    })()
+  }
+
   const saveZl = () => {
     if (!selectedPartnerId) return
     startTransition(async () => {
@@ -916,6 +1004,46 @@ export function PartnerMessagingSettingsClient({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      <Dialog open={fbPagePickerOpen} onOpenChange={setFbPagePickerOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Chon Facebook Page</DialogTitle>
+            <DialogDescription>Chon Page ma shop muon nhan tin va dong bo webhook.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs font-medium">Danh sach Page</Label>
+            <Select value={fbPendingSelectedPageId || undefined} onValueChange={setFbPendingSelectedPageId}>
+              <SelectTrigger className="h-10 w-full bg-background">
+                <SelectValue placeholder="Chon Facebook Page" />
+              </SelectTrigger>
+              <SelectContent>
+                {fbPendingPages.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name || p.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setFbPagePickerOpen(false)
+                setFbPendingPages([])
+                setFbPendingSelectedPageId('')
+              }}
+              disabled={fbPagePicking}
+            >
+              De sau
+            </Button>
+            <Button type="button" onClick={confirmFacebookPendingPage} disabled={fbPagePicking || !fbPendingSelectedPageId}>
+              {fbPagePicking ? 'Dang luu...' : 'Xac nhan Page'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1365,6 +1493,14 @@ export function PartnerMessagingSettingsClient({
               {channelSnap?.zaloConfigured ? <p className="text-xs text-muted-foreground">{t.zaloLinkedLine}</p> : null}
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
+                  <div className="rounded-md border border-border/70 bg-muted/20 p-2.5 text-xs">
+                    <p className="mb-2 text-muted-foreground">
+                      Ket noi 1 lan de he thong tu luu Page ID + token. Khach chi can cap quyen tren Facebook.
+                    </p>
+                    <Button asChild type="button" size="sm" disabled={!selectedPartnerId || pending}>
+                      <a href={facebookConnectHref}>Ket noi Facebook (OAuth)</a>
+                    </Button>
+                  </div>
                   <Label className="text-xs font-medium">{t.fbPageId}</Label>
                   <Input
                     className="h-9 text-sm"
