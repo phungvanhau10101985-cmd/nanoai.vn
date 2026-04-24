@@ -515,6 +515,71 @@ export async function fetchGuestWidgetMessagesSubsetFromPg(
   }
 }
 
+export async function fetchGuestWidgetMessagesWindowFromPg(
+  conversationId: string,
+  opts?: { beforeMessageId?: string | null; limit?: number }
+): Promise<
+  | {
+      rows: Pick<
+        CustomerCareMessageRow,
+        'id' | 'direction' | 'body' | 'created_at' | 'raw_payload' | 'landing_source_url'
+      >[]
+      hasMoreOlder: boolean
+    }
+  | null
+> {
+  if (!isPgConfigured()) return null
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const lim = Math.max(20, Math.min(120, Math.floor(Number(opts?.limit ?? 80)) || 80))
+  const beforeIdRaw = typeof opts?.beforeMessageId === 'string' ? opts.beforeMessageId.trim() : ''
+  const beforeId = beforeIdRaw && UUID_RE.test(beforeIdRaw) ? beforeIdRaw : null
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `with anchor as (
+         select created_at as c_at, id as c_id
+         from public.customer_care_messages
+         where conversation_id = $1::uuid and id = $2::uuid
+         limit 1
+       ),
+       picked as (
+         select id::text as id, direction, body, created_at, raw_payload, landing_source_url
+         from public.customer_care_messages m
+         where m.conversation_id = $1::uuid
+           and (
+             $2::uuid is null
+             or exists (
+               select 1
+               from anchor a
+               where m.created_at < a.c_at or (m.created_at = a.c_at and m.id < a.c_id)
+             )
+           )
+         order by m.created_at desc, m.id desc
+         limit $3::int + 1
+       )
+       select id, direction, body, created_at, raw_payload, landing_source_url
+       from picked
+       order by created_at asc, id asc`,
+      [conversationId, beforeId, lim]
+    )
+    const hasMoreOlder = rows.length > lim
+    const windowRows = hasMoreOlder ? rows.slice(rows.length - lim) : rows
+    return {
+      rows: windowRows.map((r) => ({
+        id: String(r.id),
+        direction: String(r.direction) as CustomerCareMessageRow['direction'],
+        body: String(r.body ?? ''),
+        created_at: isoTimestampRequired(r.created_at),
+        raw_payload: (r.raw_payload ?? null) as Json | null,
+        landing_source_url: r.landing_source_url != null ? String(r.landing_source_url) : null,
+      })),
+      hasMoreOlder,
+    }
+  } catch (e) {
+    console.error('[customer-care-pg] fetchGuestWidgetMessagesWindowFromPg', e)
+    return null
+  }
+}
+
 const MAX_CONSULTED_PRODUCT_URL_KEY_LEN = 4096
 
 /** Chuỗi composite `messageId\\u001fproductUrlKey` cho client. `null` = lỗi PG. */

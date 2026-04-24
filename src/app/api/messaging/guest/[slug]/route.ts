@@ -23,7 +23,7 @@ import {
 import {
   fetchConsultedProductKeysForConversationFromPg,
   fetchGuestWidgetConversationIdFromPg,
-  fetchGuestWidgetMessagesSubsetFromPg,
+  fetchGuestWidgetMessagesWindowFromPg,
 } from '@/lib/db/customer-care-pg'
 import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -31,6 +31,12 @@ import { isPgConfigured } from '@/lib/db/pool'
 export const dynamic = 'force-dynamic'
 /** LLM + typing delay có thể kéo dài khi job AI chạy ngay sau POST (không chờ cron). */
 export const maxDuration = 120
+const BATCH_IMAGE_MAX = 4
+const BATCH_IMAGE_MESSAGE_GAP_MS = 500
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms))
+}
 
 async function resolvePartner(slug: string) {
   const active = await resolveActiveMessagingPartnerBySlug(slug)
@@ -110,6 +116,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   }
 
   try {
+    const { searchParams } = new URL(request.url)
+    const beforeId = (searchParams.get('before_id') || '').trim() || null
+    const limitRaw = Number.parseInt(searchParams.get('limit') || '', 10)
+    const limit = Number.isFinite(limitRaw) ? limitRaw : undefined
     const convIdPg = await fetchGuestWidgetConversationIdFromPg(partnerId, effectiveExternalThreadId)
     if (convIdPg === null) {
       const gp = await buildGuestProfilePayload()
@@ -128,13 +138,17 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       attachEmailSessionRemap(res)
       return res
     }
-    const messagesPg = await fetchGuestWidgetMessagesSubsetFromPg(convIdPg)
+    const messagesPg = await fetchGuestWidgetMessagesWindowFromPg(convIdPg, {
+      beforeMessageId: beforeId,
+      limit,
+    })
     if (messagesPg !== null) {
       const consultedProductKeys =
         (await fetchConsultedProductKeysForConversationFromPg(convIdPg)) ?? []
       const gp = await buildGuestProfilePayload()
       const res = NextResponse.json({
-        messages: messagesPg,
+        messages: messagesPg.rows,
+        hasMoreOlder: messagesPg.hasMoreOlder,
         consultedProductKeys,
         authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
         ...gp,
@@ -170,6 +184,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const body = (await request.json().catch(() => null)) as {
     text?: string
     imageStoragePath?: string
+    imageStoragePaths?: string[]
     /** URL trang lúc gửi — lưu `customer_care_messages.landing_source_url` (http/https). */
     landingSourceUrl?: string
     /** Ngôn ngữ UI khách (vi | en | zh | ja | ko) — đồng bộ tin hệ thống đơn hàng. */
@@ -203,6 +218,19 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     }
   }
 
+  const normalizedImagePaths = [
+    ...(Array.isArray(body?.imageStoragePaths)
+      ? body.imageStoragePaths
+          .map((v) => (typeof v === 'string' ? v.trim() : ''))
+          .filter((v) => v.length > 0)
+      : []),
+    ...(typeof body?.imageStoragePath === 'string' && body.imageStoragePath.trim()
+      ? [body.imageStoragePath.trim()]
+      : []),
+  ]
+  const imageStoragePaths = [...new Set(normalizedImagePaths)].slice(0, BATCH_IMAGE_MAX)
+  const hasUploadedImages = imageStoragePaths.length > 0
+
   const sharedPayload = {
     partnerId,
     externalThreadId: effectiveExternalThreadId,
@@ -226,22 +254,57 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
         : {}),
     },
     text: body?.text,
-    imageStoragePath: body?.imageStoragePath,
-    autoOpening: body?.clientHints?.autoOpening === true,
+    autoOpening: body?.clientHints?.autoOpening === true && !hasUploadedImages,
     landingSourceUrl: typeof body?.landingSourceUrl === 'string' ? body.landingSourceUrl : undefined,
     pageContext: body?.pageContext,
-  } as const
+  }
 
-  const posted = await postWidgetGuestMessage({
-    ...sharedPayload,
-    guestAccountId: effectiveGuestAccountId,
-  })
+  const postOne = async (imageStoragePath?: string, pageContextOverride?: typeof body.pageContext) =>
+    postWidgetGuestMessage({
+      ...sharedPayload,
+      guestAccountId: effectiveGuestAccountId,
+      imageStoragePath,
+      pageContext: pageContextOverride,
+    })
+
+  let posted:
+    | Awaited<ReturnType<typeof postWidgetGuestMessage>>
+    | { ok: true; shopTyping?: { maxWaitMs: number }; visionPickRequired?: boolean; paymentVerificationHandled?: boolean }
+
+  if (imageStoragePaths.length <= 1) {
+    posted = await postOne(imageStoragePaths[0], body?.pageContext)
+  } else {
+    let maxWaitMs = 0
+    let anyVisionPickRequired = false
+    let anyPaymentVerificationHandled = false
+    let batchError: Awaited<ReturnType<typeof postWidgetGuestMessage>> | null = null
+    for (let i = 0; i < imageStoragePaths.length; i += 1) {
+      const one = await postOne(imageStoragePaths[i], i === 0 ? body?.pageContext : undefined)
+      if ('error' in one) {
+        batchError = one
+        break
+      }
+      if (one.shopTyping?.maxWaitMs && one.shopTyping.maxWaitMs > maxWaitMs) {
+        maxWaitMs = one.shopTyping.maxWaitMs
+      }
+      anyVisionPickRequired = anyVisionPickRequired || one.visionPickRequired === true
+      anyPaymentVerificationHandled =
+        anyPaymentVerificationHandled || one.paymentVerificationHandled === true
+      if (i < imageStoragePaths.length - 1) {
+        await sleep(BATCH_IMAGE_MESSAGE_GAP_MS)
+      }
+    }
+    posted = batchError ?? {
+      ok: true,
+      ...(maxWaitMs > 0 ? { shopTyping: { maxWaitMs } } : {}),
+      visionPickRequired: anyVisionPickRequired || undefined,
+      paymentVerificationHandled: anyPaymentVerificationHandled || undefined,
+    }
+  }
+
   if ('error' in posted) {
     const status = posted.requireAuth ? 403 : posted.error === 'Invalid message.' ? 400 : 500
-    const res = NextResponse.json(
-      { error: posted.error, requireAuth: posted.requireAuth === true },
-      { status }
-    )
+    const res = NextResponse.json({ error: posted.error, requireAuth: posted.requireAuth === true }, { status })
     if (identity.newSessionId) {
       mirrorGuestSessionToClient(res, request, identity.newSessionId)
     }

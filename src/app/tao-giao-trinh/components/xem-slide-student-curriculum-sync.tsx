@@ -208,10 +208,19 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
       })
     }
 
-    const applyAnswerRevealOnly = (payload: { worksheetAnswerReveal?: unknown }) => {
+    const applyAnswerRevealOnly = (payload: { worksheetAnswerReveal?: unknown; worksheetAnswerTypingEnabled?: unknown }) => {
       const wr = payload.worksheetAnswerReveal
-      if (wr == null || typeof wr !== 'object') return
-      setData((d) => (d ? { ...d, answerRevealProgress: { ...(wr as Record<string, number>) } } : d))
+      const wte = payload.worksheetAnswerTypingEnabled
+      if ((wr == null || typeof wr !== 'object') && (wte == null || typeof wte !== 'object')) return
+      setData((d) =>
+        d
+          ? {
+              ...d,
+              answerRevealProgress: wr != null && typeof wr === 'object' ? { ...(wr as Record<string, number>) } : d.answerRevealProgress,
+              answerTypingEnabled: wte != null && typeof wte === 'object' ? { ...(wte as Record<string, boolean>) } : d.answerTypingEnabled,
+            }
+          : d
+      )
     }
 
     const handler = (ev: MessageEvent) => {

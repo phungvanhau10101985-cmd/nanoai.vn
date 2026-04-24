@@ -804,6 +804,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [studentCurriculumLeftPaneTab, setStudentCurriculumLeftPaneTab] = useState<'visual' | 'infographic'>('visual')
   const isStudentCurriculumSlide = !isTeacherView && !worksheetPresentation
   const [infographicFullscreenOpen, setInfographicFullscreenOpen] = useState(false)
+  const shouldRenderInlineInfographicCanvas = !visualFullscreenOpen && !infographicFullscreenOpen
   /** Học sinh + giáo trình (không phiếu): cột phải — một slide hoặc toàn bộ slide nối liền (markdown). */
   const [studentCurriculumRightMode, setStudentCurriculumRightMode] = useState<'single-slide' | 'markdown-all'>('single-slide')
   const notifyTeacherStudentCurriculumMode = useCallback((mode: 'single-slide' | 'markdown-all') => {
@@ -4132,12 +4133,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         className="max-h-full min-h-0 w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
                         referrerPolicy="no-referrer"
                       />
-                      <canvas
-                        ref={infographicPaneCanvasRef}
-                        data-infographic-draw-pane-canvas
-                        className="absolute pointer-events-none"
-                        aria-hidden
-                      />
+                      {shouldRenderInlineInfographicCanvas && (
+                        <canvas
+                          ref={infographicPaneCanvasRef}
+                          data-infographic-draw-pane-canvas
+                          className="absolute pointer-events-none"
+                          aria-hidden
+                        />
+                      )}
                     </div>
                     {((isTeacherView && presenterLeftTab === 'infographic') || (isStudentCurriculumSlide && studentCurriculumLeftPaneTab === 'infographic')) && (
                       <div
@@ -4269,7 +4272,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           className="max-h-full max-w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
                           referrerPolicy="no-referrer"
                         />
-                        <canvas data-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
+                        {shouldRenderInlineInfographicCanvas && (
+                          <canvas data-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
+                        )}
                         <div
                           data-infographic-toolbar="student-pane"
                           className="absolute bottom-2 left-1/2 z-20 flex w-[min(96%,680px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg backdrop-blur-sm"
@@ -4363,7 +4368,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                               className="max-h-full max-w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
                               referrerPolicy="no-referrer"
                             />
-                            <canvas data-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
+                            {shouldRenderInlineInfographicCanvas && (
+                              <canvas data-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
+                            )}
                             <div
                               data-infographic-toolbar="student-pane"
                               className="absolute bottom-2 left-1/2 z-20 flex w-[min(96%,680px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg backdrop-blur-sm"

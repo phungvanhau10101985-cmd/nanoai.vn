@@ -1,4 +1,5 @@
 import type { Database, Json } from '@/types/database.types'
+import type { GuestProfileGender } from '@/lib/db/messaging-guest-pg'
 import {
   fetchCustomerCareConversationByIdPg,
   fetchCustomerCareMessageByIdPg,
@@ -70,6 +71,28 @@ function typingDelayMs(settings: Database['public']['Tables']['messaging_partner
   const a = Math.min(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
   const b = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
   return a + Math.floor(Math.random() * Math.max(1, b - a + 1))
+}
+
+function replaceStandaloneWord(text: string, fromWord: string, toWord: string): string {
+  const re = new RegExp(`(^|[^\\p{L}])${fromWord}([^\\p{L}]|$)`, 'giu')
+  return text.replace(re, (_m, left: string, right: string) => `${left}${toWord}${right}`)
+}
+
+function enforceConfiguredGenderAddressing(message: string, gender: GuestProfileGender | null): string {
+  const body = message.trim()
+  if (!body) return message
+  if (gender !== 'male' && gender !== 'female') return message
+  let out = body
+  if (gender === 'male') {
+    out = out.replace(/anh\s*\/\s*chị|chị\s*\/\s*anh/giu, 'anh')
+    out = out.replace(/anh\s+chị|chị\s+anh/giu, 'anh')
+    out = replaceStandaloneWord(out, 'chị', 'anh')
+  } else {
+    out = out.replace(/anh\s*\/\s*chị|chị\s*\/\s*anh/giu, 'chị')
+    out = out.replace(/anh\s+chị|chị\s+anh/giu, 'chị')
+    out = replaceStandaloneWord(out, 'anh', 'chị')
+  }
+  return out
 }
 
 async function setPartnerAiJobStatus(
@@ -191,7 +214,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         const d1 = await deliverAutomatedPartnerMessage({
           conversation: conv,
           settings,
-          body: faq.answer,
+          body: enforceConfiguredGenderAddressing(faq.answer, configuredGender),
           rawPayload: rawFaq,
         })
         if (d1.error) {
@@ -205,6 +228,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       }
 
       const cacheUiLocale: WebLocale = convUiLoc ?? DEFAULT_WEB_LOCALE
+      const configuredGender = await fetchGuestGenderForPartnerConsultCachePg(conv.linked_user_id)
 
       const {
         system,
@@ -266,7 +290,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
               const dCache = await deliverAutomatedPartnerMessage({
                 conversation: conv,
                 settings,
-                body: cached.message_text,
+                body: enforceConfiguredGenderAddressing(cached.message_text, configuredGender),
                 rawPayload: rawLlmCached,
                 materialDetailFollowup: null,
                 realUseFollowup: null,
@@ -354,7 +378,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       const d2 = await deliverAutomatedPartnerMessage({
         conversation: conv,
         settings,
-        body: parsed.message,
+        body: enforceConfiguredGenderAddressing(parsed.message, configuredGender),
         rawPayload: rawLlm,
         materialDetailFollowup,
         realUseFollowup,

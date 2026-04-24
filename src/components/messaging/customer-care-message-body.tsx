@@ -21,6 +21,14 @@ function displayBankName(raw: string): string {
 }
 
 type Row = { id?: string; body: string; raw_payload: Json | null }
+type VisionCandidateCard = {
+  name: string
+  image_url: string
+  product_url?: string
+  price_hint?: string
+  sku?: string
+  inventory_id?: string
+}
 
 /** Thumbnail ô video: khung đầu từ file MP4/WebM (YouTube dùng ảnh ytimg riêng). */
 function DirectVideoStripThumbnail({
@@ -83,6 +91,33 @@ function imageUrlFromPayload(raw: Json | null): string | null {
   const m = gm as Record<string, unknown>
   if (m.kind !== 'image' || typeof m.url !== 'string') return null
   return m.url
+}
+
+function visionCandidateCardsFromPayload(raw: Json | null): VisionCandidateCard[] {
+  if (!raw || typeof raw !== 'object' || raw === null || Array.isArray(raw)) return []
+  const o = raw as Record<string, unknown>
+  if (!Array.isArray(o.vision_candidates)) return []
+  const out: VisionCandidateCard[] = []
+  for (const x of o.vision_candidates) {
+    if (!x || typeof x !== 'object' || Array.isArray(x)) continue
+    const c = x as Record<string, unknown>
+    const inventoryId = typeof c.inventoryId === 'string' ? c.inventoryId.trim() : ''
+    const name = typeof c.name === 'string' ? c.name.trim() : ''
+    const imageUrl = typeof c.image_url === 'string' ? c.image_url.trim() : ''
+    const productUrl = typeof c.product_url === 'string' ? c.product_url.trim() : ''
+    const priceHint = typeof c.price_hint === 'string' ? c.price_hint.trim() : ''
+    const sku = typeof c.sku === 'string' ? c.sku.trim() : ''
+    if (!name || !imageUrl) continue
+    out.push({
+      name,
+      image_url: imageUrl,
+      ...(productUrl && /^https?:\/\//i.test(productUrl) ? { product_url: productUrl } : {}),
+      ...(priceHint ? { price_hint: priceHint } : {}),
+      ...(sku ? { sku } : {}),
+      ...(inventoryId ? { inventory_id: inventoryId } : {}),
+    })
+  }
+  return out
 }
 
 export type OrderPaymentProofSlot = {
@@ -726,6 +761,7 @@ export function CustomerCareMessageBody({
   orderPaymentProof,
   shopDisplayName = '',
   openMessageLinksInSameTab = false,
+  showVisionCandidates = false,
 }: {
   row: Row
   tone?: CustomerCareMessageBodyTone
@@ -739,11 +775,15 @@ export function CustomerCareMessageBody({
   shopDisplayName?: string
   /** Trang `/messaging/p/...`: URL trong tin dùng policy guest (iOS luôn cùng tab; Android/desktop màn rộng tab mới). */
   openMessageLinksInSameTab?: boolean
+  /** Hiện thẻ gợi ý từ `vision_candidates` (để inbox shop mirror đúng phía khách). */
+  showVisionCandidates?: boolean
 }) {
   const url = imageUrlFromPayload(row.raw_payload)
   const caption = row.body.replace(/^📷\s*/u, '').trim()
   const onViolet = tone === 'onViolet'
   const productCards = aiProductCardsFromPayload(row.raw_payload)
+  const visionCards = showVisionCandidates ? visionCandidateCardsFromPayload(row.raw_payload) : []
+  const cardsToRender = productCards.length > 0 ? productCards : visionCards
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [videoLightboxSrc, setVideoLightboxSrc] = useState<string | null>(null)
 
@@ -788,7 +828,7 @@ export function CustomerCareMessageBody({
       {onViolet ? (
         <div className="isolate text-foreground [&_a]:!text-foreground">
           <AiProductCards
-            cards={productCards}
+            cards={cardsToRender}
             labels={labels}
             onProductCardPick={onProductCardPick}
             onProductCardBuy={onProductCardBuy}
@@ -798,7 +838,7 @@ export function CustomerCareMessageBody({
         </div>
       ) : (
         <AiProductCards
-          cards={productCards}
+          cards={cardsToRender}
           labels={labels}
           onProductCardPick={onProductCardPick}
           onProductCardBuy={onProductCardBuy}
@@ -806,7 +846,7 @@ export function CustomerCareMessageBody({
           onPreviewVideo={setVideoLightboxSrc}
         />
       )}
-      {!url && !caption && !productCards.length && row.body ? (
+      {!url && !caption && !cardsToRender.length && row.body ? (
         <MessageTextWithLinks
           text={row.body}
           sameTab={openMessageLinksInSameTab}

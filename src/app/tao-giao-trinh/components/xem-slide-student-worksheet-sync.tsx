@@ -84,10 +84,20 @@ export function useWorksheetStudentSlideSync(): {
       })
     }
 
-    const applyAnswerRevealOnly = (payload: { worksheetAnswerReveal?: unknown }) => {
+    const applyAnswerRevealOnly = (payload: { worksheetAnswerReveal?: unknown; worksheetAnswerTypingEnabled?: unknown }) => {
       const wr = payload.worksheetAnswerReveal
-      if (wr == null || typeof wr !== 'object') return
-      setData((d) => (d ? { ...d, worksheetAnswerReveal: { ...(wr as Record<string, number>) } } : d))
+      const wte = payload.worksheetAnswerTypingEnabled
+      if ((wr == null || typeof wr !== 'object') && (wte == null || typeof wte !== 'object')) return
+      setData((d) =>
+        d
+          ? {
+              ...d,
+              worksheetAnswerReveal: wr != null && typeof wr === 'object' ? { ...(wr as Record<string, number>) } : d.worksheetAnswerReveal,
+              worksheetAnswerTypingEnabled:
+                wte != null && typeof wte === 'object' ? { ...(wte as Record<string, boolean>) } : d.worksheetAnswerTypingEnabled,
+            }
+          : d
+      )
     }
 
     const handler = (ev: MessageEvent) => {

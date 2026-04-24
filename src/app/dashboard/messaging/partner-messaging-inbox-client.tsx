@@ -953,6 +953,7 @@ export function PartnerMessagingInboxClient({
                             <CustomerCareMessageBody
                               row={m}
                               tone="onViolet"
+                              showVisionCandidates
                               labels={{
                                 productCardOpenProduct: t.messageProductCardOpenProduct,
                                 productCardViewDetails: t.messageProductCardViewDetails,
@@ -968,6 +969,7 @@ export function PartnerMessagingInboxClient({
                         ) : (
                           <CustomerCareMessageBody
                             row={m}
+                            showVisionCandidates
                             labels={{
                               productCardOpenProduct: t.messageProductCardOpenProduct,
                               productCardViewDetails: t.messageProductCardViewDetails,

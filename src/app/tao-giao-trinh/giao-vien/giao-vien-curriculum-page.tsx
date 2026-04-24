@@ -1628,6 +1628,43 @@ export default function CurriculumViewPage() {
     }
   }, [])
 
+  const tickPendingByKeyRef = useRef<Record<string, Record<string, unknown> | null>>({})
+  const tickTimerByKeyRef = useRef<Record<string, number | null>>({})
+  const tickLastSentAtRef = useRef<Record<string, number>>({})
+  const sendTickToStudent = useCallback(
+    (key: string, msg: Record<string, unknown>, minIntervalMs: number) => {
+      const now = Date.now()
+      const lastAt = tickLastSentAtRef.current[key] ?? 0
+      const dueIn = Math.max(0, minIntervalMs - (now - lastAt))
+      const flush = () => {
+        tickTimerByKeyRef.current[key] = null
+        const pending = tickPendingByKeyRef.current[key]
+        if (!pending) return
+        tickPendingByKeyRef.current[key] = null
+        tickLastSentAtRef.current[key] = Date.now()
+        sendToStudentView(pending)
+      }
+      if (dueIn <= 0 && !tickTimerByKeyRef.current[key]) {
+        tickLastSentAtRef.current[key] = now
+        sendToStudentView(msg)
+        return
+      }
+      tickPendingByKeyRef.current[key] = msg
+      if (tickTimerByKeyRef.current[key]) return
+      tickTimerByKeyRef.current[key] = window.setTimeout(flush, Math.max(8, dueIn))
+    },
+    [sendToStudentView]
+  )
+  useEffect(() => {
+    return () => {
+      Object.values(tickTimerByKeyRef.current).forEach((id) => {
+        if (typeof id === 'number') window.clearTimeout(id)
+      })
+      tickTimerByKeyRef.current = {}
+      tickPendingByKeyRef.current = {}
+    }
+  }, [])
+
   const upsertInfographicStroke = useCallback((slideIndex: number, stroke: InfographicDrawStroke) => {
     setInfographicDrawStrokesBySlide((prev) => {
       const list = prev[slideIndex] ?? []
@@ -2159,11 +2196,7 @@ export default function CurriculumViewPage() {
       personalViewSubMode,
       hasOriginalSlides,
       slides: wireSlides,
-      teacherTimerSeconds,
-      teacherTimerRunning,
       worksheetId: !!worksheetId,
-      worksheetAnswerReveal: worksheetId || curriculumId ? answerRevealProgress : undefined,
-      worksheetAnswerTypingEnabled: worksheetId || curriculumId ? answerTypingEnabled : undefined,
       ...(!worksheetId
         ? {
             studentCurriculumRightMode: studentCurriculumRemoteMode,
@@ -2186,14 +2219,10 @@ export default function CurriculumViewPage() {
       fastHashText(String(slideMode ?? '')),
       fastHashText(personalViewSubMode),
       hasOriginalSlides ? 1 : 0,
-      teacherTimerSeconds,
-      teacherTimerRunning ? 1 : 0,
       worksheetId ? 1 : 0,
       fastHashText(String(studentCurriculumRemoteMode)),
       fastHashText(String(leftPanelMode)),
       currentVisualShowsInfographic ? 1 : 0,
-      recordDigest(answerRevealProgress),
-      recordDigest(answerTypingEnabled),
       fastHashText(String(wireInfographic?.imageUrl ?? '')),
       fastHashText(String(lessonInfographic?.imageUrl ?? '')),
       slideDigestKey,
@@ -2210,7 +2239,7 @@ export default function CurriculumViewPage() {
     } catch {
       /* ignore */
     }
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, studentCurriculumRemoteMode, activeVisualInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, toStudentSlidePayload, worksheetId, studentCurriculumRemoteMode, activeVisualInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire])
 
   useEffect(() => {
     if (!studentViewOpened || worksheetId) return
@@ -2345,11 +2374,24 @@ export default function CurriculumViewPage() {
     return () => window.clearInterval(id)
   }, [worksheetId, curriculumId, answerTypingSpeedMs, currentIndex, slides, answerVisibility, answerTypingEnabled, answerTypingPaused])
 
-  /** Đẩy tiến độ gõ segment sang cửa sổ học sinh */
+  /** Đẩy trạng thái gõ/hiện đáp án theo kênh nhẹ, tách khỏi payload slide lớn. */
   useEffect(() => {
     if (!(worksheetId || curriculumId) || !studentViewOpened) return
-    sendToStudentView({ type: 'worksheet-answer-reveal', worksheetAnswerReveal: answerRevealProgress })
-  }, [answerRevealProgress, worksheetId, curriculumId, studentViewOpened, sendToStudentView])
+    sendToStudentView({
+      type: 'worksheet-answer-reveal',
+      worksheetAnswerReveal: answerRevealProgress,
+      worksheetAnswerTypingEnabled: answerTypingEnabled,
+    })
+  }, [answerRevealProgress, answerTypingEnabled, worksheetId, curriculumId, studentViewOpened, sendToStudentView])
+
+  useEffect(() => {
+    if (!studentViewOpened) return
+    sendTickToStudent(
+      'teacher-timer-sync',
+      { type: 'teacher-timer-sync', seconds: teacherTimerSeconds, running: teacherTimerRunning },
+      220
+    )
+  }, [studentViewOpened, teacherTimerSeconds, teacherTimerRunning, sendTickToStudent])
 
   /** Đồng bộ theo thay đổi (debounce nhẹ), tránh interval full-payload gây tăng RAM/CPU. */
   useEffect(() => {
@@ -2831,11 +2873,7 @@ export default function CurriculumViewPage() {
         personalViewSubMode,
         hasOriginalSlides,
         slides: compactedSlides.map((s, i) => toStudentSlidePayload(s, i)),
-        teacherTimerSeconds,
-        teacherTimerRunning,
         worksheetId: !!worksheetId,
-        worksheetAnswerReveal: worksheetId || curriculumId ? answerRevealProgress : undefined,
-        worksheetAnswerTypingEnabled: worksheetId || curriculumId ? answerTypingEnabled : undefined,
         ...(!worksheetId
           ? {
               studentCurriculumRightMode: studentCurriculumRemoteMode,
@@ -2848,6 +2886,13 @@ export default function CurriculumViewPage() {
         ...(!worksheetId && activeVisualInfographic ? { curriculumInfographic: activeVisualInfographic } : {}),
         ...(!worksheetId && lessonInfographic ? { lessonInfographic } : {}),
       })
+      if (worksheetId || curriculumId) {
+        channel.postMessage({
+          type: 'worksheet-answer-reveal',
+          worksheetAnswerReveal: answerRevealProgress,
+          worksheetAnswerTypingEnabled: answerTypingEnabled,
+        })
+      }
       channel.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' })
       channel.postMessage({ type: 'set-auto-play', value: remoteAutoPlay })
       channel.postMessage({ type: 'set-auto-play-interval', ms: remoteAutoPlayIntervalMs })
@@ -2879,7 +2924,7 @@ export default function CurriculumViewPage() {
       channel.close()
       if (syncChannelRef.current === channel) syncChannelRef.current = null
     }
-  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire])
+  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire])
 
   const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
     setInfographicFullscreenOpen(false)
@@ -2929,11 +2974,7 @@ export default function CurriculumViewPage() {
             personalViewSubMode,
             hasOriginalSlides,
             slides: compactedSlides.map((s, i) => toStudentSlidePayload(s, i)),
-            teacherTimerSeconds,
-            teacherTimerRunning,
             worksheetId: !!worksheetId,
-            worksheetAnswerReveal: worksheetId || curriculumId ? answerRevealProgress : undefined,
-            worksheetAnswerTypingEnabled: worksheetId || curriculumId ? answerTypingEnabled : undefined,
             ...(!worksheetId
               ? {
                   studentCurriculumRightMode: studentCurriculumRemoteMode,
@@ -2948,6 +2989,16 @@ export default function CurriculumViewPage() {
           },
           window.location.origin
         )
+        if (worksheetId || curriculumId) {
+          targetWin.postMessage(
+            {
+              type: 'worksheet-answer-reveal',
+              worksheetAnswerReveal: answerRevealProgress,
+              worksheetAnswerTypingEnabled: answerTypingEnabled,
+            },
+            window.location.origin
+          )
+        }
         targetWin.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
         targetWin.postMessage({ type: 'visual-fullscreen-open', cellIndex: typeof cellIndex === 'number' ? cellIndex : undefined }, window.location.origin)
       } catch {
@@ -3025,11 +3076,7 @@ export default function CurriculumViewPage() {
             personalViewSubMode,
             hasOriginalSlides,
             slides: compactedSlides.map((s, i) => toStudentSlidePayload(s, i)),
-            teacherTimerSeconds,
-            teacherTimerRunning,
             worksheetId: false,
-            worksheetAnswerReveal: curriculumId ? answerRevealProgress : undefined,
-            worksheetAnswerTypingEnabled: curriculumId ? answerTypingEnabled : undefined,
             studentCurriculumRightMode: studentCurriculumRemoteMode,
             teacherSlideLeftPane:
               leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
@@ -3040,6 +3087,16 @@ export default function CurriculumViewPage() {
           },
           window.location.origin
         )
+        if (curriculumId) {
+          targetWin.postMessage(
+            {
+              type: 'worksheet-answer-reveal',
+              worksheetAnswerReveal: answerRevealProgress,
+              worksheetAnswerTypingEnabled: answerTypingEnabled,
+            },
+            window.location.origin
+          )
+        }
         targetWin.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
         targetWin.postMessage({ type: 'infographic-fullscreen-open' }, window.location.origin)
       } catch {
@@ -3120,13 +3177,13 @@ export default function CurriculumViewPage() {
             throttleId = null
             lastSent = Date.now()
             if (cancelled || !scrollEl || quizPopupScrollApplyingRef.current) return
-            sendToStudentView({ type: 'quiz-popup-scroll', scrollTop: scrollEl!.scrollTop })
+            sendTickToStudent('quiz-popup-scroll', { type: 'quiz-popup-scroll', scrollTop: scrollEl!.scrollTop }, 90)
           }, THROTTLE_MS - (now - lastSent))
         }
         return
       }
       lastSent = now
-      sendToStudentView({ type: 'quiz-popup-scroll', scrollTop: scrollEl!.scrollTop })
+      sendTickToStudent('quiz-popup-scroll', { type: 'quiz-popup-scroll', scrollTop: scrollEl!.scrollTop }, 90)
     }
     const attach = () => {
       if (cancelled || attached) return
@@ -3167,7 +3224,7 @@ export default function CurriculumViewPage() {
         if (rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
           const relX = rect.right - e.clientX
           const relY = e.clientY - rect.top
-          sendToStudentView({ type: 'mouse-pos', quizPopup: true, relX, relY })
+          sendToStudentView( { type: 'mouse-pos', quizPopup: true, relX, relY })
           return
         }
       }
@@ -3196,7 +3253,7 @@ export default function CurriculumViewPage() {
               return ar.top === br.top ? ar.left - br.left : ar.top - br.top
             })
           const toolbarIndex = Math.max(0, visibleToolbars.indexOf(toolbar))
-          sendToStudentView({ type: 'mouse-pos', infographicToolbar: true, relX, relY, toolbarIndex, toolbarButtonIndex })
+          sendToStudentView( { type: 'mouse-pos', infographicToolbar: true, relX, relY, toolbarIndex, toolbarButtonIndex })
           return
         }
       }
@@ -3215,7 +3272,7 @@ export default function CurriculumViewPage() {
               const cy = vis.top + vis.height / 2
               const dx = e.clientX - cx
               const dy = e.clientY - cy
-              sendToStudentView({
+              sendToStudentView( {
                 type: 'mouse-pos',
                 visualFrame: true,
                 imageCenter: true,
@@ -3228,7 +3285,7 @@ export default function CurriculumViewPage() {
             } else {
               const cx = rect.left + rect.width / 2
               const cy = rect.top + rect.height / 2
-              sendToStudentView({
+              sendToStudentView( {
                 type: 'mouse-pos',
                 visualFrame: true,
                 imageCenter: true,
@@ -3250,7 +3307,7 @@ export default function CurriculumViewPage() {
           const relYRaw = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
           const relX = Math.max(0, Math.min(1, relXRaw))
           const relY = Math.max(0, Math.min(1, relYRaw))
-          sendToStudentView({ type: 'mouse-pos', visualFrame: true, overlayRel: !!overlay, relX, relY })
+          sendToStudentView( { type: 'mouse-pos', visualFrame: true, overlayRel: !!overlay, relX, relY })
         }
         return
       }
@@ -3264,7 +3321,7 @@ export default function CurriculumViewPage() {
             const cy = vis.top + vis.height / 2
             const clampedX = Math.max(vis.left, Math.min(vis.left + vis.width, e.clientX))
             const clampedY = Math.max(vis.top, Math.min(vis.top + vis.height, e.clientY))
-            sendToStudentView({
+            sendToStudentView( {
               type: 'mouse-pos',
               visualFrame: true,
               imageCenter: true,
@@ -3293,7 +3350,7 @@ export default function CurriculumViewPage() {
                 const vis = getVisibleImageBounds(cellImg)
                 const cx = vis.left + vis.width / 2
                 const cy = vis.top + vis.height / 2
-                sendToStudentView({
+                sendToStudentView( {
                   type: 'mouse-pos',
                   visualFrame: true,
                   imageCenter: true,
@@ -3306,7 +3363,7 @@ export default function CurriculumViewPage() {
               } else {
                 const cx = rect.left + rect.width / 2
                 const cy = rect.top + rect.height / 2
-                sendToStudentView({
+                sendToStudentView( {
                   type: 'mouse-pos',
                   visualFrame: true,
                   imageCenter: true,
@@ -3327,7 +3384,7 @@ export default function CurriculumViewPage() {
             const relYRaw = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5
             const relX = Math.max(0, Math.min(1, relXRaw))
             const relY = Math.max(0, Math.min(1, relYRaw))
-            sendToStudentView({ type: 'mouse-pos', visualFrame: true, overlayRel: false, relX, relY })
+            sendToStudentView( { type: 'mouse-pos', visualFrame: true, overlayRel: false, relX, relY })
           }
           return
         }
@@ -3353,7 +3410,7 @@ export default function CurriculumViewPage() {
               return ar.top === br.top ? ar.left - br.left : ar.top - br.top
             })
           const toolbarIndex = Math.max(0, visibleToolbars.indexOf(toolbar))
-          sendToStudentView({ type: 'mouse-pos', infographicToolbar: true, relX, relY, toolbarIndex })
+          sendToStudentView( { type: 'mouse-pos', infographicToolbar: true, relX, relY, toolbarIndex })
           return
         }
       }
@@ -3367,7 +3424,7 @@ export default function CurriculumViewPage() {
             const cy = vis.top + vis.height / 2
             const clampedX = Math.max(vis.left, Math.min(vis.left + vis.width, e.clientX))
             const clampedY = Math.max(vis.top, Math.min(vis.top + vis.height, e.clientY))
-            sendToStudentView({
+            sendToStudentView( {
               type: 'mouse-pos',
               visualFrame: true,
               imageCenter: true,
@@ -3415,7 +3472,7 @@ export default function CurriculumViewPage() {
                 }
                 const relX = (e.clientX - targetRect.left) / targetRect.width
                 const relY = (e.clientY - targetRect.top) / targetRect.height
-                sendToStudentView({
+                sendToStudentView( {
                   type: 'mouse-pos',
                   slideContentPane: true,
                   slidePointerBody: true,
@@ -3435,7 +3492,7 @@ export default function CurriculumViewPage() {
             if (lr.width > 0 && lr.height > 0) {
               const relX = (e.clientX - lr.left) / lr.width
               const relY = (e.clientY - lr.top) / lr.height
-              sendToStudentView({
+              sendToStudentView( {
                 type: 'mouse-pos',
                 slideContentPane: true,
                 slidePointerBody: false,
@@ -3447,7 +3504,7 @@ export default function CurriculumViewPage() {
           }
         }
       }
-      sendToStudentView({
+      sendToStudentView( {
         type: 'mouse-pos',
         normX: Math.max(0, Math.min(1, e.clientX / w)),
         normY: Math.max(0, Math.min(1, e.clientY / h)),
@@ -3765,7 +3822,7 @@ export default function CurriculumViewPage() {
     if (!el) return
     const emit = () => {
       const w = Math.round(el.getBoundingClientRect().width)
-      if (w > 0) sendToStudentView({ type: 'slide-content-layout', layoutW: w })
+      if (w > 0) sendTickToStudent('slide-content-layout', { type: 'slide-content-layout', layoutW: w }, 120)
     }
     emit()
     const ro = new ResizeObserver(() => emit())
@@ -3837,11 +3894,7 @@ export default function CurriculumViewPage() {
             personalViewSubMode,
             hasOriginalSlides,
             slides: compactedSlides.map((s, i) => toStudentSlidePayload(s, i)),
-            teacherTimerSeconds,
-            teacherTimerRunning,
             worksheetId: !!worksheetId,
-            worksheetAnswerReveal: worksheetId || curriculumId ? answerRevealProgress : undefined,
-            worksheetAnswerTypingEnabled: worksheetId || curriculumId ? answerTypingEnabled : undefined,
             ...(!worksheetId
               ? {
                   studentCurriculumRightMode: studentCurriculumRemoteMode,
@@ -3856,6 +3909,16 @@ export default function CurriculumViewPage() {
           },
           window.location.origin
         )
+        if (worksheetId || curriculumId) {
+          targetWin.postMessage(
+            {
+              type: 'worksheet-answer-reveal',
+              worksheetAnswerReveal: answerRevealProgress,
+              worksheetAnswerTypingEnabled: answerTypingEnabled,
+            },
+            window.location.origin
+          )
+        }
         targetWin.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
         targetWin.postMessage({ type: 'slide-go', index: currentIndex }, window.location.origin)
         if (visualFullscreenOpen) {
@@ -4628,11 +4691,7 @@ export default function CurriculumViewPage() {
               personalViewSubMode,
               hasOriginalSlides,
               slides: compactedSlides.map((s, i) => toStudentSlidePayload(s, i)),
-              teacherTimerSeconds,
-              teacherTimerRunning,
               worksheetId: !!worksheetId,
-              worksheetAnswerReveal: worksheetId || curriculumId ? answerRevealProgress : undefined,
-              worksheetAnswerTypingEnabled: worksheetId || curriculumId ? answerTypingEnabled : undefined,
               ...(!worksheetId
                 ? {
                     studentCurriculumRightMode: studentCurriculumRemoteMode,
@@ -4647,6 +4706,16 @@ export default function CurriculumViewPage() {
             },
             window.location.origin
           )
+          if (worksheetId || curriculumId) {
+            src.postMessage(
+              {
+                type: 'worksheet-answer-reveal',
+                worksheetAnswerReveal: answerRevealProgress,
+                worksheetAnswerTypingEnabled: answerTypingEnabled,
+              },
+              window.location.origin
+            )
+          }
           src.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
         } catch {
           /* ignore */
@@ -6085,8 +6154,8 @@ export default function CurriculumViewPage() {
                               const blockProposals = proposals.filter((p) => p.slide_index === currentIndex && p.block_index === i)
                               const isEditing = editingBlock?.slideIndex === currentIndex && editingBlock?.blockIndex === i
                               const isEditingHeader = editingHeader?.slideIndex === currentIndex && editingHeader?.blockIndex === i
-                              const isBảnChung = slideMode === 'shared' || slideMode === 'original' || slideMode === null
-                              const showProposalUi = Boolean((curriculumId || worksheetId) && isBảnChung)
+                              const isBanChung = slideMode === 'shared' || slideMode === 'original' || slideMode === null
+                              const showProposalUi = Boolean((curriculumId || worksheetId) && isBanChung)
                               const showDirectEdit = Boolean(curriculumId && slideMode === 'personal' && personalViewSubMode === 'current')
                               const showSolutionTypingToolbar =
                                 (!!worksheetId && !!(b as { isAnswer?: boolean }).isAnswer) ||
@@ -6651,8 +6720,8 @@ export default function CurriculumViewPage() {
                           {blks.map((b, i) => {
                           const blockProposals = isCurrent && curriculumId ? proposals.filter((p) => p.slide_index === idx && p.block_index === i) : []
                           const isEditing = isCurrent && editingBlock?.slideIndex === idx && editingBlock?.blockIndex === i
-                        const isBảnChung = slideMode === 'shared' || slideMode === 'original' || slideMode === null
-                        const showProposalUi = Boolean(isCurrent && (curriculumId || worksheetId) && isBảnChung)
+                        const isBanChung = slideMode === 'shared' || slideMode === 'original' || slideMode === null
+                        const showProposalUi = Boolean(isCurrent && (curriculumId || worksheetId) && isBanChung)
                         const showDirectEdit = Boolean(isCurrent && curriculumId && slideMode === 'personal' && personalViewSubMode === 'current')
                         const showSolutionTypingToolbar =
                           (!!worksheetId && !!(b as { isAnswer?: boolean }).isAnswer) ||
@@ -7227,4 +7296,5 @@ export default function CurriculumViewPage() {
     </div>
   )
 }
+
 

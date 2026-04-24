@@ -6,7 +6,9 @@ import { pgQueryOne } from '@/lib/db/pg-query'
 export const GUEST_CREDIT_TRIAL_BUDGET_CREDITS = 3
 export const GUEST_CREDIT_TRIAL_FINGERPRINT_BUDGET_CREDITS = 3
 export const GUEST_CREDIT_TRIAL_IP_DAILY_BUDGET_CREDITS = 12
-export const GUEST_CREDIT_TRIAL_FINGERPRINT_WINDOW_DAYS = 7
+// Keep fingerprint lock effectively permanent so incognito/new browser
+// on the same machine cannot repeatedly reclaim trial credits.
+export const GUEST_CREDIT_TRIAL_FINGERPRINT_WINDOW_DAYS = 36500
 const GUEST_TRIAL_ID_COOKIE = 'nano_guest_trial_id'
 const GUEST_TRIAL_USER_ID_COOKIE = 'nano_guest_trial_user_id'
 const GUEST_TRIAL_USED_CREDITS_COOKIE = 'nano_guest_trial_used_credits'
@@ -79,9 +81,29 @@ function getFingerprintRaw(): string {
   const ua = readHeader('user-agent') || 'na'
   const lang = readHeader('accept-language') || 'na'
   const secChUa = readHeader('sec-ch-ua') || 'na'
+  const secChUaFullVersionList = readHeader('sec-ch-ua-full-version-list') || 'na'
+  const secChUaArch = readHeader('sec-ch-ua-arch') || 'na'
+  const secChUaBitness = readHeader('sec-ch-ua-bitness') || 'na'
+  const secChUaModel = readHeader('sec-ch-ua-model') || 'na'
   const secPlatform = readHeader('sec-ch-ua-platform') || 'na'
+  const secPlatformVersion = readHeader('sec-ch-ua-platform-version') || 'na'
   const secMobile = readHeader('sec-ch-ua-mobile') || 'na'
-  return `${ua}|${lang}|${secChUa}|${secPlatform}|${secMobile}`
+  const acceptEncoding = readHeader('accept-encoding') || 'na'
+  const accept = readHeader('accept') || 'na'
+  return [
+    `ua=${ua}`,
+    `lang=${lang}`,
+    `sec_ch_ua=${secChUa}`,
+    `sec_ch_ua_full_version_list=${secChUaFullVersionList}`,
+    `sec_ch_ua_arch=${secChUaArch}`,
+    `sec_ch_ua_bitness=${secChUaBitness}`,
+    `sec_ch_ua_model=${secChUaModel}`,
+    `sec_platform=${secPlatform}`,
+    `sec_platform_version=${secPlatformVersion}`,
+    `sec_mobile=${secMobile}`,
+    `accept_encoding=${acceptEncoding}`,
+    `accept=${accept}`,
+  ].join('|')
 }
 
 function getHashedClientSignals(): { fingerprintHash: string; ipHash: string } {

@@ -64,6 +64,13 @@ type ImageProductSignal = {
   productType: string | null
 }
 
+type CaptionCandidateScore = {
+  candidate: GuestVisionCandidatePayload
+  score: number
+  tokenHits: number
+  skuHit: boolean
+}
+
 const IMAGE_AUTO_PICK_TOP1_MIN_SCORE = 0.86
 const IMAGE_AUTO_PICK_TOP1_MIN_GAP = 0.06
 const IMAGE_AUTO_PICK_SINGLE_MIN_SCORE = 0.9
@@ -106,9 +113,111 @@ function inferProductTypeFromText(text: string): string | null {
   return normalizeDetectedProductType(text)
 }
 
+function normalizeIntentTextForMatch(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function tokenizeIntentText(text: string): string[] {
+  const stop = new Set([
+    'ban',
+    'shop',
+    'cho',
+    'minh',
+    'em',
+    'chi',
+    'anh',
+    'xin',
+    'link',
+    'sp',
+    'san',
+    'pham',
+    'voi',
+    'nhe',
+    'nha',
+    'a',
+    'ah',
+    'la',
+    'nay',
+    'do',
+    'giup',
+    'tu',
+    'van',
+  ])
+  return normalizeIntentTextForMatch(text)
+    .split(/\s+/)
+    .filter((w) => w.length >= 2 && !stop.has(w))
+}
+
+function rankVisionCandidatesByCaption(
+  candidates: GuestVisionCandidatePayload[],
+  caption: string
+): {
+  ranked: GuestVisionCandidatePayload[]
+  preferred: GuestVisionCandidatePayload | null
+} {
+  const capNorm = normalizeIntentTextForMatch(caption)
+  if (!capNorm || candidates.length < 1) return { ranked: candidates, preferred: null }
+
+  const capTokens = tokenizeIntentText(caption)
+  const requestedType = inferProductTypeFromText(caption)
+
+  const scored: CaptionCandidateScore[] = candidates.map((candidate) => {
+    const nameNorm = normalizeIntentTextForMatch(candidate.name)
+    const skuNorm = normalizeIntentTextForMatch(candidate.sku ?? '')
+    const candidateType = inferProductTypeFromText(candidate.name)
+    let score = (typeof candidate.score === 'number' ? candidate.score : 0) * 2
+    let tokenHits = 0
+    let skuHit = false
+
+    if (skuNorm && capNorm.includes(skuNorm)) {
+      score += 12
+      skuHit = true
+    }
+
+    for (const token of capTokens) {
+      if (nameNorm.includes(token)) {
+        score += 1.4
+        tokenHits += 1
+      }
+    }
+
+    if (tokenHits >= 2) score += 2
+    if (requestedType && candidateType) {
+      score += requestedType === candidateType ? 2 : -1
+    }
+    if (nameNorm && capNorm.includes(nameNorm)) {
+      score += 5
+      tokenHits += 2
+    }
+
+    return { candidate, score, tokenHits, skuHit }
+  })
+
+  scored.sort((a, b) => b.score - a.score)
+  const ranked = scored.map((x) => x.candidate)
+  const top = scored[0] ?? null
+  const second = scored[1] ?? null
+  if (!top) return { ranked, preferred: null }
+
+  const clearBySku = top.skuHit
+  const clearByText =
+    top.tokenHits >= 2 &&
+    top.score >= 4 &&
+    (!second || top.score - second.score >= 2)
+
+  return { ranked, preferred: clearBySku || clearByText ? top.candidate : null }
+}
+
 function shouldAutoPickTopImageCandidate(
   candidates: GuestVisionCandidatePayload[],
-  detectedProductType: string | null
+  detectedProductType: string | null,
+  options?: { ignoreTypeMismatch?: boolean }
 ): GuestVisionCandidatePayload | null {
   if (!candidates.length) return null
   const top = candidates[0]
@@ -116,7 +225,7 @@ function shouldAutoPickTopImageCandidate(
   if (topScore === null) return null
 
   const topType = inferProductTypeFromText(top.name)
-  if (detectedProductType && topType && detectedProductType !== topType) return null
+  if (!options?.ignoreTypeMismatch && detectedProductType && topType && detectedProductType !== topType) return null
 
   if (candidates.length === 1) {
     return topScore >= IMAGE_AUTO_PICK_SINGLE_MIN_SCORE ? top : null
@@ -221,14 +330,34 @@ function productTypeLabelForLocale(locale: string, productType?: string | null):
   return 'product'
 }
 
+function buildViReminderFollowUpFromCustomerText(text: string): string {
+  const t = text.trim().toLowerCase()
+  if (!t) return 'Chọn giúp em 1 mẫu trước, em tư vấn ngay theo đúng nhu cầu của chị.'
+  if (/\bgia\b|giá|bao nhiêu|nhiêu tiền|price/i.test(t)) {
+    return 'Chị chọn giúp em 1 mẫu trước, em báo giá và tư vấn chi tiết ngay ạ.'
+  }
+  if (/bao giờ|khi nào|giao|ship|nhận hàng|giao nhanh|thời gian/i.test(t)) {
+    return 'Chị chọn giúp em 1 mẫu trước, em báo thời gian giao cụ thể cho mẫu đó ngay ạ.'
+  }
+  if (/size|số đo|chiều cao|cân nặng|vừa|form/i.test(t)) {
+    return 'Chị chọn giúp em 1 mẫu trước, em tư vấn size chuẩn theo mẫu đó ngay ạ.'
+  }
+  if (/màu|mau|color|đen|trắng|đỏ|hồng|xanh|nâu|kem|be/i.test(t)) {
+    return 'Chị chọn giúp em 1 mẫu trước, em kiểm tra màu và tư vấn mẫu phù hợp ngay ạ.'
+  }
+  return 'Chọn giúp em 1 mẫu trước, em tư vấn chi tiết đúng ý chị ngay ạ.'
+}
+
 function buildVisionPickReminder(
   uiLocale?: string | null,
   gender?: GuestProfileGender | null,
-  productType?: string | null
+  productType?: string | null,
+  customerText?: string | null
 ): string {
   const locale = normalizeWebLocale(String(uiLocale ?? '').trim()) ?? 'vi'
   const typeLabel = productTypeLabelForLocale(locale, productType)
   const viAddress = gender === 'male' ? 'anh' : gender === 'female' ? 'chị' : 'bạn'
+  const viFollow = buildViReminderFollowUpFromCustomerText(customerText ?? '')
   if (locale === 'en') {
     return `I found a few ${typeLabel} samples similar to your image. Please tap the one you want advice on.`
   }
@@ -243,7 +372,7 @@ function buildVisionPickReminder(
   }
   return `Em tìm thêm vài mẫu ${typeLabel} để ${viAddress} tham khảo. ${
     viAddress.charAt(0).toUpperCase() + viAddress.slice(1)
-  } xem và chọn mẫu muốn xác nhận để bên em tư vấn chi tiết nhé.`
+  } ${viFollow}`
 }
 
 /**
@@ -513,8 +642,34 @@ export async function postWidgetGuestMessage(params: {
               })
             }
 
-            const topCandidate = shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType)
-            if (topCandidate) {
+            const caption = imageCaption.trim()
+            const vectorAutoByImage =
+              shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType) ??
+              (caption
+                ? shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType, {
+                    ignoreTypeMismatch: true,
+                  })
+                : null)
+            if (caption && productPickCandidates.length > 1) {
+              const rerank = rankVisionCandidatesByCaption(productPickCandidates, caption)
+              productPickCandidates = rerank.ranked
+              if (rerank.preferred) {
+                autoSelectedTopCandidate = rerank.preferred
+                imageMatchedInventoryContext = {
+                  inventoryId: rerank.preferred.inventoryId,
+                  sku: (rerank.preferred.sku ?? '').trim().slice(0, 128),
+                }
+                detectedProductType = detectedProductType ?? inferProductTypeFromText(rerank.preferred.name)
+              }
+            }
+
+            const topCandidate =
+              autoSelectedTopCandidate ??
+              vectorAutoByImage ??
+              shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType, {
+                ignoreTypeMismatch: caption.length > 0,
+              })
+            if (topCandidate && !autoSelectedTopCandidate) {
               autoSelectedTopCandidate = topCandidate
               imageMatchedInventoryContext = {
                 inventoryId: topCandidate.inventoryId,
@@ -784,10 +939,12 @@ export async function postWidgetGuestMessage(params: {
       await insertMessage({
         conversationId,
         direction: 'outbound',
-        body: buildVisionPickReminder(params.uiLocale, detectedProductGender, detectedProductType),
+        body: buildVisionPickReminder(params.uiLocale, detectedProductGender, detectedProductType, text.trim()),
         rawPayload: {
           source: 'guest_vision_pick_reminder',
           trigger_message_id: newMessageId,
+          vision_pick_required: true,
+          vision_candidates: productPickCandidates,
         },
       })
     }

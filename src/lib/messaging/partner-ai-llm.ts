@@ -221,6 +221,24 @@ Writing: like a teammate texting a customer — stay on their question; no scrip
   return lines[loc] ?? lines.vi
 }
 
+function partnerAiAddressingPriorityLine(opts?: { channel?: string | null; uiLocale?: string | null }): string {
+  const ch = String(opts?.channel || '').trim().toLowerCase()
+  const loc = ch === 'widget' ? normalizeWebLocale(opts?.uiLocale ?? null) ?? 'vi' : 'vi'
+  const lines: Record<WebLocale, string> = {
+    vi: `
+Quy tắc xưng hô (bắt buộc tuyệt đối): mọi tin nhắn gửi khách phải bám theo giới tính cài đặt trong khối [Thông tin khách đã lưu trên hệ thống]. Nam dùng "anh", nữ dùng "chị"; không dùng xưng hô ngược giới tính cài đặt. Lịch sử hội thoại gần nhất chỉ để tinh chỉnh sắc thái tự nhiên; nếu lịch sử mâu thuẫn thì vẫn bám giới tính cài đặt. Chỉ khi chưa có dữ liệu giới tính mới fallback theo lịch sử gần nhất; vẫn chưa rõ thì dùng cách gọi trung tính.`,
+    en: `
+Addressing rule (strict): prioritize the stored guest-profile block (configured account gender). Prefer male->"anh", female->"chị". Use recent conversation history only to fine-tune tone naturally; if history conflicts with configured gender, keep configured gender as primary. Only when gender is missing should you fall back to recent history; if still uncertain, use a neutral natural address.`,
+    zh: `
+称呼规则（强制）：优先使用“系统已保存的客户信息”中的账号性别设置。男性优先“anh”，女性优先“chị”。最近对话仅用于微调语气自然度；若历史称呼与性别设置冲突，仍以性别设置为主。仅当没有性别数据时再回退到最近历史；仍不确定则使用中性自然称呼。`,
+    ja: `
+呼称ルール（必須）：保存済みプロフィール（アカウントの性別設定）を最優先。男性は「anh」、女性は「chị」を優先。直近履歴は文体調整の補助のみとし、履歴が性別設定と矛盾しても性別設定を優先する。性別情報がない場合のみ履歴を参照し、それでも不確実なら中立的で自然な呼称にする。`,
+    ko: `
+호칭 규칙(필수): 저장된 고객 프로필(계정 설정 성별)을 최우선으로 사용합니다. 남성은 "anh", 여성은 "chị"를 우선합니다. 최근 대화 이력은 말투를 자연스럽게 다듬는 보조 근거로만 사용하며, 이력이 성별 설정과 충돌하면 성별 설정을 우선합니다. 성별 정보가 없을 때만 최근 이력을 참고하고, 그래도 불확실하면 중립적이고 자연스러운 호칭을 사용합니다.`,
+  }
+  return lines[loc] ?? lines.vi
+}
+
 /** Một dòng neo tiếng Anh — cùng công thức cho mọi locale đích (kể cả vi không dùng). */
 function partnerAiWidgetTargetRoutingLine(opts?: { channel?: string | null; uiLocale?: string | null }): string {
   if (String(opts?.channel || '').trim().toLowerCase() !== 'widget') return ''
@@ -314,7 +332,7 @@ function buildPartnerAiClarifyShoppingIntentSystem(
 ): string {
   const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
   return `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
-Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}
+Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 
 [Tình huống bắt buộc — làm rõ ý định khách / tư vấn mua hàng]
 Tin khách **chưa rõ** (kể cả than phiền kiểu «không vào được», «lỗi», «không mở được» — **đừng** coi đó là yêu cầu hỗ trợ kỹ thuật web/app hay hỏi lỗi cụ thể).
@@ -345,6 +363,64 @@ Trả lời BẮT BUỘC là một JSON hợp lệ duy nhất (không bọc mark
 {"message":"nội dung gửi khách (plain text)","products":[]}
 products **phải** là [] (rỗng). Không thêm trường khác.
 Trong \`message\`: **không** hỏi khắc phục lỗi truy cập web/app; hướng khách **nêu nhu cầu tư vấn sản phẩm** (ảnh hoặc tên loại). Nếu khách xưng **anh** → ví dụ chỉ **đồ nam**; nếu **chị/em** → ví dụ **đồ nữ**; không lẫn ví dụ nam/nữ sai xưng hô.`
+}
+
+const PAUSE_CONVERSATION_ACK_RE =
+  /^(?:ok(?:i|ie|ela)?|dạ|da|vâng|vang|ừ|ừm|uhm|ok nha|ok nhé|vậy nhé|thôi nhé|được(?:\s+rồi)?|cảm\s*ơn(?:\s+shop)?|thanks?|thank\s*you|tks|k|kk|mình\s+xem\s+thêm|để\s+mình\s+xem\s+thêm|để\s+chị\s+xem\s+thêm|để\s+em\s+xem\s+thêm)$/iu
+
+function normalizeMessageForPauseIntent(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?,;:()[\]{}'"`~@#$%^&*_+=\\|/<>-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function partnerAiInboundLooksLikePauseConversation(message: string): boolean {
+  const raw = message.trim()
+  if (!raw) return false
+  if (raw.length > 48) return false
+  if (/[?？]/u.test(raw)) return false
+  const normalized = normalizeMessageForPauseIntent(raw)
+  if (!normalized) return false
+  const words = normalized.split(/\s+/).filter(Boolean)
+  if (words.length > 7) return false
+  return PAUSE_CONVERSATION_ACK_RE.test(normalized)
+}
+
+function buildPartnerAiPauseConversationSystem(
+  settings: SettingsRow,
+  effectiveLocaleOpts: { channel?: string | null; uiLocale?: string | null } | undefined
+): string {
+  const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
+  return `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
+Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
+
+[Tình huống bắt buộc — khách muốn tạm dừng cuộc trò chuyện]
+Tin khách là phản hồi chốt nhẹ kiểu "ok/oki/cảm ơn/để xem thêm", thể hiện muốn dừng tạm thời.
+- Trả lời ngắn như người thật (1-2 câu), ấm và tự nhiên.
+- Bắt buộc có đủ 3 ý: (1) cảm ơn khách, (2) xác nhận tạm dừng tại đây, (3) nhắn shop luôn sẵn sàng hỗ trợ khi khách cần.
+- Không tư vấn thêm sản phẩm, không hỏi ngược nhiều câu, không thúc khách chốt đơn.
+- Không gắn thẻ sản phẩm; \`products\` bắt buộc là mảng rỗng \`[]\`.
+
+Định dạng đầu ra: JSON đúng schema ở cuối prompt user — trường \`products\` phải là \`[]\`.`
+}
+
+function buildPartnerAiPauseConversationUser(
+  effectiveLocaleOpts: { channel?: string | null; uiLocale?: string | null } | undefined,
+  transcript: string,
+  latestCustomerMessage: string
+): string {
+  return `${partnerAiUserPromptOutputLanguageBanner(effectiveLocaleOpts)}Lịch sử hội thoại gần đây:
+${transcript}
+
+Tin nhắn mới nhất của khách:
+${latestCustomerMessage}
+
+Trả lời BẮT BUỘC là một JSON hợp lệ duy nhất (không bọc markdown, không text ngoài JSON), đúng schema:
+{"message":"nội dung gửi khách (plain text)","products":[]}
+Trong \`message\`: viết thật ngắn, tự nhiên như nhân viên đang nhắn tay; cảm ơn + tạm dừng + luôn sẵn sàng hỗ trợ khi cần.`
 }
 
 function estimatedAgeFromBirthDateIso(iso: string): number | null {
@@ -577,6 +653,26 @@ export async function buildPartnerAiContext(
     }
   }
 
+  if (partnerAiInboundLooksLikePauseConversation(latestCustomerMessage)) {
+    const transcriptBlock = formatPartnerAiTranscriptLines(chronological)
+    const pauseUser = buildPartnerAiPauseConversationUser(
+      effectiveLocaleOpts,
+      transcriptBlock,
+      latestCustomerMessage
+    )
+    return {
+      system: buildPartnerAiPauseConversationSystem(settings, effectiveLocaleOpts),
+      user: guestProfileBlockForAi ? `${pauseUser}\n\n${guestProfileBlockForAi}\n` : pauseUser,
+      materialDetailFollowup: null,
+      realUseFollowup: null,
+      useLastConsultedContext: false,
+      lastConsultedRow: null,
+      similarCatalogVersusLastConsulted: false,
+      clarifyShoppingIntent: true,
+      forceSingleRowContextReply: false,
+    }
+  }
+
   let invForContext: Database['public']['Tables']['messaging_partner_inventory']['Row'][] = []
   let selectedRowBlock = ''
   let selectedRowForEnrich: Database['public']['Tables']['messaging_partner_inventory']['Row'] | null = null
@@ -735,7 +831,7 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 - Không hứa giảm giá hay khuyến mãi ngoài chính sách đã cho.${salesShopBlock}`
 
   const system = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
-Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}
+Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
 ${policy}
 ${salesDefaultBlock}

@@ -501,6 +501,21 @@ function isWidgetPageConsultInbound(raw: Json | null | undefined): boolean {
   return String((pc as Record<string, unknown>).source ?? '').trim() === 'widget_page'
 }
 
+/** Một số tin hệ thống do shop phát ra nhưng có thể đi qua luồng inbound: luôn render phía shop (trái). */
+function isForcedShopSideMessage(raw: Json | null | undefined): boolean {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
+  if (!o) return false
+  if (o.source === 'guest_vision_pick_reminder') return true
+  return o.widget_auto_opening === true
+}
+
+function visionReminderTriggerMessageId(raw: Json | null | undefined): string | null {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
+  if (!o || o.source !== 'guest_vision_pick_reminder') return null
+  const v = typeof o.trigger_message_id === 'string' ? o.trigger_message_id.trim() : ''
+  return v || null
+}
+
 /** Xóa query ngữ cảnh SP khỏi URL sau khi đã gửi (tránh lần sau vào lại tự gắn). */
 function stripWidgetPageContextParamsFromBrowserUrl() {
   if (typeof window === 'undefined') return
@@ -958,7 +973,7 @@ function GuestChatLocaleSwitches({
 type GuestChatDraftComposerProps = {
   submitGuestMessage: (text: string) => Promise<boolean>
   enqueueGuestSend: (run: () => Promise<void>) => void
-  imageStoragePath: string | null
+  attachmentCount: number
   uploading: boolean
   sending: boolean
   tryOnBusy: boolean
@@ -987,7 +1002,7 @@ type GuestChatDraftComposerProps = {
 const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   submitGuestMessage,
   enqueueGuestSend,
-  imageStoragePath,
+  attachmentCount,
   uploading,
   sending,
   tryOnBusy,
@@ -1024,7 +1039,7 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   }, [draft, autoResizeDraft])
 
   const canSend = Boolean(
-    (draft.trim() || imageStoragePath) && !uploading && !(authGateRequired && authMode !== 'account')
+    (draft.trim() || attachmentCount > 0) && !uploading && !(authGateRequired && authMode !== 'account')
   )
 
   const send = useCallback(() => {
@@ -1284,6 +1299,8 @@ export function PartnerGuestChatClient({
 
   const [userId, setUserId] = useState<string | null>(null)
   const [messages, setMessages] = useState<GuestMsg[]>([])
+  const [hasMoreOlderMessages, setHasMoreOlderMessages] = useState(false)
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
@@ -1381,8 +1398,8 @@ export function PartnerGuestChatClient({
   const [tryOnGarmentFiles, setTryOnGarmentFiles] = useState<SelectedImage[]>([])
   const [tryOnGarmentPickerOpen, setTryOnGarmentPickerOpen] = useState(false)
   const [tryOnUserPreviewUrl, setTryOnUserPreviewUrl] = useState<string | null>(null)
-  const [imageStoragePath, setImageStoragePath] = useState<string | null>(null)
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
+  const [imageStoragePaths, setImageStoragePaths] = useState<string[]>([])
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([])
   const [visionPickBusyId, setVisionPickBusyId] = useState<string | null>(null)
   /** Thẻ vision 3 nút: mỗi nút một khóa (`messageId\u001finventoryId::detail|buy|consult`). */
   const [visionButtonTappedKeys, setVisionButtonTappedKeys] = useState(() => new Set<string>())
@@ -1408,7 +1425,10 @@ export function PartnerGuestChatClient({
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const tryOnUserInputRef = useRef<HTMLInputElement>(null)
   const tryOnGarmentInputRef = useRef<HTMLInputElement>(null)
+  const chatScrollRef = useRef<HTMLDivElement>(null)
   const scrollAnchorRef = useRef<HTMLDivElement>(null)
+  const skipNextAutoScrollRef = useRef(false)
+  const loadingOlderRef = useRef(false)
   const didInitialAutoScrollRef = useRef(false)
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
@@ -1425,6 +1445,19 @@ export function PartnerGuestChatClient({
   const [productShelfSearchQuery, setProductShelfSearchQuery] = useState('')
   const [productShelfVectorRows, setProductShelfVectorRows] = useState<RecentProductWithSource[] | null>(null)
   const [productShelfSearchLoading, setProductShelfSearchLoading] = useState(false)
+
+  const mergeGuestMessages = useCallback((base: GuestMsg[], incoming: GuestMsg[]): GuestMsg[] => {
+    if (!incoming.length) return base
+    const byId = new Map<string, GuestMsg>()
+    for (const m of base) byId.set(m.id, m)
+    for (const m of incoming) byId.set(m.id, m)
+    return Array.from(byId.values()).sort((a, b) => {
+      const ta = Date.parse(a.created_at)
+      const tb = Date.parse(b.created_at)
+      if (ta !== tb) return ta - tb
+      return a.id.localeCompare(b.id)
+    })
+  }, [])
 
   const recentProductRows = useMemo(() => {
     void productShelfShuffleNonce
@@ -1835,10 +1868,22 @@ export function PartnerGuestChatClient({
     }
   }, [authHeaders])
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (options?: { beforeId?: string; appendOlder?: boolean }) => {
+    const appendOlder = options?.appendOlder === true
+    if (appendOlder) {
+      if (loadingOlderRef.current) return
+      loadingOlderRef.current = true
+      setLoadingOlderMessages(true)
+    } else {
+      setLoading(true)
+    }
     try {
-      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
+      const qs = new URLSearchParams()
+      if (options?.beforeId) qs.set('before_id', options.beforeId)
+      if (!options?.beforeId) qs.set('limit', '80')
+      const q = qs.toString()
+      const endpoint = `/api/messaging/guest/${encodeURIComponent(slug)}${q ? `?${q}` : ''}`
+      const res = await fetch(endpoint, {
         credentials: 'same-origin',
         headers: { ...authHeaders() },
       })
@@ -1846,6 +1891,7 @@ export function PartnerGuestChatClient({
       captureGuestAccountFromResponse(res)
       const data = (await res.json()) as {
         messages?: GuestMsg[]
+        hasMoreOlder?: boolean
         error?: string
         authMode?: 'anonymous' | 'account'
         needsProfile?: boolean
@@ -1889,7 +1935,9 @@ export function PartnerGuestChatClient({
         setAuthGateRequired(true)
         setAuthMode('anonymous')
       }
-      setMessages(normalizedMessages)
+      const hasMoreOlder = data.hasMoreOlder === true
+      setHasMoreOlderMessages(hasMoreOlder)
+      setMessages((prev) => (appendOlder ? mergeGuestMessages(prev, normalizedMessages) : mergeGuestMessages(prev, normalizedMessages)))
       const effectiveAuthMode = serverSaysAccount || hasGuestAccount ? 'account' : 'anonymous'
       setAuthMode(effectiveAuthMode)
       if (effectiveAuthMode === 'account') setAuthGateRequired(false)
@@ -1920,9 +1968,40 @@ export function PartnerGuestChatClient({
     } catch {
       toast({ title: t.loadError, variant: 'destructive' })
     } finally {
-      setLoading(false)
+      if (appendOlder) {
+        loadingOlderRef.current = false
+        setLoadingOlderMessages(false)
+      } else {
+        setLoading(false)
+      }
     }
-  }, [slug, toast, t.guestAuthRequiredAfterLimit, t.loadError, authHeaders, captureGuestSessionFromResponse, captureGuestAccountFromResponse])
+  }, [
+    slug,
+    toast,
+    t.guestAuthRequiredAfterLimit,
+    t.loadError,
+    authHeaders,
+    captureGuestSessionFromResponse,
+    captureGuestAccountFromResponse,
+    mergeGuestMessages,
+  ])
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!hasMoreOlderMessages || loadingOlderRef.current) return
+    const beforeId = messages[0]?.id
+    if (!beforeId) return
+    const scroller = chatScrollRef.current
+    const prevHeight = scroller?.scrollHeight ?? 0
+    const prevTop = scroller?.scrollTop ?? 0
+    skipNextAutoScrollRef.current = true
+    await load({ beforeId, appendOlder: true })
+    if (scroller) {
+      requestAnimationFrame(() => {
+        const nextHeight = scroller.scrollHeight
+        scroller.scrollTop = prevTop + Math.max(0, nextHeight - prevHeight)
+      })
+    }
+  }, [hasMoreOlderMessages, messages, load])
 
   const dismissGuestProfilePrompt = useCallback(() => {
     try {
@@ -2109,6 +2188,10 @@ export function PartnerGuestChatClient({
   }, [tryOnGarmentFiles])
 
   useEffect(() => {
+    if (skipNextAutoScrollRef.current) {
+      skipNextAutoScrollRef.current = false
+      return
+    }
     const anchor = scrollAnchorRef.current
     if (!anchor) return
     if (!messages.length && !shopTyping) return
@@ -2184,11 +2267,17 @@ export function PartnerGuestChatClient({
   }
 
   const clearAttachment = useCallback(() => {
-    setImageStoragePath(null)
-    setImagePreviewUrl(null)
+    setImageStoragePaths([])
+    setImagePreviewUrls([])
     setTryOnGarmentPickerOpen(false)
     if (galleryInputRef.current) galleryInputRef.current.value = ''
     if (cameraInputRef.current) cameraInputRef.current.value = ''
+  }, [])
+
+  const removeAttachmentAt = useCallback((index: number) => {
+    setImageStoragePaths((prev) => prev.filter((_, i) => i !== index))
+    setImagePreviewUrls((prev) => prev.filter((_, i) => i !== index))
+    setTryOnGarmentPickerOpen(false)
   }, [])
 
   const submitVisionPick = async (messageId: string, inventoryId: string) => {
@@ -3028,16 +3117,27 @@ export function PartnerGuestChatClient({
     sepayWebhookOrderIds,
   }
 
-  const uploadFile = async (file: File) => {
+  const uploadFiles = async (files: File[], options?: { replace?: boolean }) => {
+    const picked = files.filter(Boolean)
+    if (picked.length < 1) return
+    const maxImagesPerMessage = 4
     setUploading(true)
     try {
-      const data = await uploadGuestImageToStorage(file)
-      if (!data) {
+      const nextPaths = options?.replace ? [] : [...imageStoragePaths]
+      const nextPreviews = options?.replace ? [] : [...imagePreviewUrls]
+      for (const file of picked) {
+        if (nextPaths.length >= maxImagesPerMessage) break
+        const data = await uploadGuestImageToStorage(file)
+        if (!data) continue
+        nextPaths.push(data.path)
+        nextPreviews.push(data.publicUrl ?? '')
+      }
+      if (nextPaths.length < 1) {
         clearAttachment()
         return
       }
-      setImageStoragePath(data.path)
-      setImagePreviewUrl(data.publicUrl ?? null)
+      setImageStoragePaths(nextPaths)
+      setImagePreviewUrls(nextPreviews)
     } catch {
       toast({ title: t.sendError, variant: 'destructive' })
       clearAttachment()
@@ -3047,13 +3147,13 @@ export function PartnerGuestChatClient({
   }
 
   const onPickGallery = (e: ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]
-    if (f) void uploadFile(f)
+    const files = Array.from(e.target.files ?? []).slice(0, 4)
+    if (files.length > 0) void uploadFiles(files)
   }
 
   const onPickCamera = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
-    if (f) void uploadFile(f)
+    if (f) void uploadFiles([f])
   }
 
   const onDraftPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
@@ -3063,7 +3163,7 @@ export function PartnerGuestChatClient({
     const attachFirstImage = (f: File | null) => {
       if (!f?.type.startsWith('image/')) return false
       e.preventDefault()
-      void uploadFile(f)
+      void uploadFiles([f])
       return true
     }
     const { files, items } = cd
@@ -3131,12 +3231,12 @@ export function PartnerGuestChatClient({
       }
 
       // Show generated result immediately while uploading to chat storage.
-      setImagePreviewUrl(data.resultUrl)
+      setImagePreviewUrls([data.resultUrl])
 
       const imgRes = await fetch(data.resultUrl)
       const blob = await imgRes.blob()
       const file = new File([blob], `try-on-${Date.now()}.png`, { type: blob.type || 'image/png' })
-      await uploadFile(file)
+      await uploadFiles([file], { replace: true })
       // Keep panel visible, but clear source selections to avoid sending wrong images.
       setTryOnUserFile(null)
       setTryOnGarmentFiles((prev) => {
@@ -3441,7 +3541,7 @@ export function PartnerGuestChatClient({
       const hasSeed = hasWidgetPageContextSeed(pcSeed)
       const shouldAttachPageContext =
         !contextSeededRef.current && hasSeed && attachUrlPageContextRef.current
-      if (!trimmed && !imageStoragePath) {
+      if (!trimmed && imageStoragePaths.length < 1) {
         if (!hasSeed) return false
         if (!attachUrlPageContextRef.current) return false
       }
@@ -3461,7 +3561,11 @@ export function PartnerGuestChatClient({
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({
             text: textOut,
-            imageStoragePath: imageStoragePath || undefined,
+            ...(imageStoragePaths.length === 1
+              ? { imageStoragePath: imageStoragePaths[0] }
+              : imageStoragePaths.length > 1
+                ? { imageStoragePaths: imageStoragePaths.slice(0, 4) }
+                : {}),
             uiLocale,
             clientHints: options?.autoOpening ? { autoOpening: true } : undefined,
             landingSourceUrl:
@@ -3572,20 +3676,13 @@ export function PartnerGuestChatClient({
       authHeaders,
       captureGuestSessionFromResponse,
       clearAttachment,
-      imageStoragePath,
+      imageStoragePaths,
       load,
       messages,
       refreshAuthAndReload,
       setShopTyping,
       slug,
-      t.guestAuthRequiredAfterLimit,
-      t.guestImageInvalidType,
-      t.guestImageTooLarge,
-      t.productConsultProductRefFromSku,
-      t.productConsultAskDetail,
-      t.pageContextInboundConsultNoSku,
-      t.pageContextInboundImageOnlyNote,
-      t.sendError,
+      t,
       toast,
       uiLocale,
     ]
@@ -4070,6 +4167,15 @@ export function PartnerGuestChatClient({
     return map
   }, [messages])
 
+  const visionReminderTriggerIds = useMemo(() => {
+    const out = new Set<string>()
+    for (const m of messages) {
+      const triggerId = visionReminderTriggerMessageId(m.raw_payload)
+      if (triggerId) out.add(triggerId)
+    }
+    return out
+  }, [messages])
+
   if (!authReady) {
     return (
       <>
@@ -4262,10 +4368,18 @@ export function PartnerGuestChatClient({
         >
           <div className="relative flex min-h-0 flex-1 flex-col">
           <div
+            ref={chatScrollRef}
             className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden overscroll-contain break-words bg-muted/20 px-3 py-2 [word-break:break-word]"
             role="log"
             aria-live="polite"
             aria-relevant="additions"
+            onScroll={(e) => {
+              if (!hasLoadedOnce || loadingOlderMessages || !hasMoreOlderMessages) return
+              const el = e.currentTarget
+              if (el.scrollTop <= 120) {
+                void loadOlderMessages()
+              }
+            }}
             style={
               guestChatNarrowLayout
                 ? {
@@ -4283,8 +4397,11 @@ export function PartnerGuestChatClient({
               <p className="py-8 text-center text-base text-muted-foreground">{t.emptyThread}</p>
             ) : (
               messages.map((m) => {
-                const isMe = m.direction === 'inbound'
+                const isMe = m.direction === 'inbound' && !isForcedShopSideMessage(m.raw_payload)
                 const vs = getVisionPickState(m.raw_payload)
+                const reminderTriggerId = visionReminderTriggerMessageId(m.raw_payload)
+                const isShopVisionReminder = !isMe && Boolean(reminderTriggerId) && vs.candidates.length > 0
+                const hasShopReminderForThisInbound = isMe && visionReminderTriggerIds.has(m.id)
                 const consultLinkShopStyle =
                   isMe &&
                   vs.candidates.length > 0 &&
@@ -4523,15 +4640,22 @@ export function PartnerGuestChatClient({
                       />
                     </div>
                     {(() => {
-                      if (!isMe || vs.candidates.length === 0 || consultLinkShopStyle) return null
+                      if (vs.candidates.length === 0 || consultLinkShopStyle) return null
+                      if (isMe && hasShopReminderForThisInbound) return null
+                      if (!isMe && !isShopVisionReminder) return null
+                      const pickSourceMessageId = reminderTriggerId ?? m.id
                       return (
-                        <div className="mt-2 space-y-2 border-t border-white/20 pt-2 isolate text-foreground [&_a]:!text-foreground">
+                        <div
+                          className={`mt-2 space-y-2 border-t pt-2 isolate text-foreground [&_a]:!text-foreground ${
+                            isMe ? 'border-white/20' : 'border-border/60'
+                          }`}
+                        >
                           <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
                             {vs.candidates.map((c) => {
                               const isSelected = vs.selectedInventoryId === c.inventoryId
-                              const isBusy = visionPickBusyId === m.id
+                              const isBusy = visionPickBusyId === pickSourceMessageId
                               const puVision = (c.product_url || '').trim()
-                              const vk = `${m.id}\u001f${c.inventoryId}`
+                              const vk = `${pickSourceMessageId}\u001f${c.inventoryId}`
                               const idVisDetail = `${vk}::detail`
                               const idVisBuy = `${vk}::buy`
                               const idVisConsult = `${vk}::consult`
@@ -4552,13 +4676,13 @@ export function PartnerGuestChatClient({
                                   } ${isBusy ? 'opacity-50' : 'cursor-pointer'}`}
                                   onClick={() => {
                                     if (isBusy) return
-                                    void submitVisionPick(m.id, c.inventoryId)
+                                    void submitVisionPick(pickSourceMessageId, c.inventoryId)
                                   }}
                                   onKeyDown={(ev) => {
                                     if (isBusy) return
                                     if (ev.key === 'Enter' || ev.key === ' ') {
                                       ev.preventDefault()
-                                      void submitVisionPick(m.id, c.inventoryId)
+                                      void submitVisionPick(pickSourceMessageId, c.inventoryId)
                                     }
                                   }}
                                   aria-label={c.name}
@@ -4688,7 +4812,7 @@ export function PartnerGuestChatClient({
                                                   ? { price_hint: String(c.price_hint).trim() }
                                                   : {}),
                                               },
-                                              m.id
+                                              pickSourceMessageId
                                             )
                                           }}
                                           aria-label={`${c.name}. ${t.visionProductLink}`}
@@ -4706,8 +4830,10 @@ export function PartnerGuestChatClient({
                               )
                             })}
                           </div>
-                          {visionPickBusyId === m.id ? (
-                            <p className="text-[10px] text-white/80">{t.visionPickBusy}</p>
+                          {visionPickBusyId === pickSourceMessageId ? (
+                            <p className={`text-[10px] ${isMe ? 'text-white/80' : 'text-muted-foreground'}`}>
+                              {t.visionPickBusy}
+                            </p>
                           ) : null}
                         </div>
                       )
@@ -4721,6 +4847,12 @@ export function PartnerGuestChatClient({
                 )
               })
             )}
+            {loadingOlderMessages ? (
+              <div className="mr-auto flex items-center gap-2 rounded-2xl rounded-bl-md border border-border/60 bg-card px-3 py-1.5 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                Đang tải tin cũ...
+              </div>
+            ) : null}
             {consultLinkPreparing ? (
               <GuestShopTypingPill label={t.consultLinkShopPreparingHint} />
             ) : null}
@@ -5198,6 +5330,7 @@ export function PartnerGuestChatClient({
               ref={galleryInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
+              multiple
               className="hidden"
               onChange={onPickGallery}
             />
@@ -5280,28 +5413,40 @@ export function PartnerGuestChatClient({
             ) : null}
 
             <div className="space-y-1.5 rounded-xl border-2 border-border bg-background p-1.5">
-              {imagePreviewUrl ? (
-                <div className="flex items-center gap-2 overflow-hidden rounded-xl border bg-muted/30 p-1.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imagePreviewUrl}
-                    alt=""
-                    className="h-12 w-12 shrink-0 rounded-md object-cover"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="icon"
-                    className="ml-auto h-7 w-7 shrink-0 rounded-md"
-                    onClick={clearAttachment}
-                    disabled={sending || uploading}
-                    aria-label={t.guestRemoveAttachment}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+              {imagePreviewUrls.length > 0 ? (
+                <div className="space-y-1.5 overflow-hidden rounded-xl border bg-muted/30 p-1.5">
+                  <div className="flex flex-wrap gap-1">
+                    {imageStoragePaths.slice(0, 4).map((path, idx) => {
+                      const preview = imagePreviewUrls[idx] ?? ''
+                      return (
+                        <div key={`${path}-${idx}`} className="relative h-12 w-12">
+                          {preview ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={preview} alt="" className="h-12 w-12 rounded-md object-cover" />
+                          ) : (
+                            <div className="h-12 w-12 rounded-md bg-muted" />
+                          )}
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="icon"
+                            className="absolute -right-1 -top-1 z-10 h-5 w-5 rounded-full border border-border/70 bg-background/90 p-0 backdrop-blur"
+                            onClick={() => removeAttachmentAt(idx)}
+                            disabled={sending || uploading}
+                            aria-label={t.guestRemoveAttachment}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {imageStoragePaths.length}/4 ảnh đã đính kèm
+                  </p>
                 </div>
               ) : null}
-              {imageStoragePath ? (
+              {imageStoragePaths.length > 0 ? (
                 <p className="text-xs text-muted-foreground sm:text-sm">{t.guestCaptionHint}</p>
               ) : null}
                   {proofOrderId && !paidDepositOrderIds.has(proofOrderId) ? (
@@ -5606,7 +5751,7 @@ export function PartnerGuestChatClient({
               <GuestChatDraftComposer
                 submitGuestMessage={submitGuestMessage}
                 enqueueGuestSend={enqueueGuestSend}
-                imageStoragePath={imageStoragePath}
+                attachmentCount={imageStoragePaths.length}
                 uploading={uploading}
                 sending={sending}
                 tryOnBusy={tryOnBusy}
