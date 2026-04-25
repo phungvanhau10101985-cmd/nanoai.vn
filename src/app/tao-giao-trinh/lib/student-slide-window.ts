@@ -49,3 +49,54 @@ export function studentSlideUrlWithSync(pathWithOptionalQuery: string, syncId: s
   u.searchParams.set(PRESENTATION_SYNC_QUERY_KEY, id)
   return u.pathname + u.search
 }
+
+type ScreenDetailsScreen = {
+  availLeft: number
+  availTop: number
+  availWidth: number
+  availHeight: number
+  isPrimary?: boolean
+  label?: string
+}
+type ScreenDetailsLike = {
+  screens: ScreenDetailsScreen[]
+  currentScreen: ScreenDetailsScreen
+}
+type NavigatorWithScreenDetails = Navigator & {
+  getScreenDetails?: () => Promise<ScreenDetailsLike>
+}
+
+/**
+ * Tự đẩy một cửa sổ học sinh sang màn hình khác (máy chiếu/extend) nếu trình duyệt hỗ trợ Window Management API.
+ * Trả về `true` nếu đã di chuyển thành công, `false` nếu không hỗ trợ hoặc chỉ có 1 màn hình.
+ * - Cần trình duyệt có API `navigator.getScreenDetails()` (Chrome/Edge ≥100).
+ * - Lần đầu sẽ xin quyền "Xem thông tin màn hình" (chỉ 1 lần).
+ */
+export async function moveWindowToExternalScreen(target: Window | null): Promise<boolean> {
+  if (!target || target.closed || typeof navigator === 'undefined') return false
+  const nav = navigator as NavigatorWithScreenDetails
+  if (typeof nav.getScreenDetails !== 'function') return false
+  let details: ScreenDetailsLike | null = null
+  try {
+    details = await nav.getScreenDetails()
+  } catch {
+    return false
+  }
+  if (!details || !Array.isArray(details.screens) || details.screens.length < 2) return false
+  const current = details.currentScreen
+  const external = details.screens.find(
+    (s) =>
+      s.availLeft !== current.availLeft ||
+      s.availTop !== current.availTop ||
+      s.availWidth !== current.availWidth ||
+      s.availHeight !== current.availHeight
+  )
+  if (!external) return false
+  try {
+    target.moveTo(external.availLeft, external.availTop)
+    target.resizeTo(external.availWidth, external.availHeight)
+    return true
+  } catch {
+    return false
+  }
+}

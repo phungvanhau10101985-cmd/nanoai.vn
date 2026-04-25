@@ -152,6 +152,8 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
   const isIframeEmbed = type === 'geogebra' || type === 'desmos' || type === 'youtube' || type === 'phet' || type === 'maps' || type === 'code'
   const [iframeInViewport, setIframeInViewport] = useState(() => !isIframeEmbed)
   const [memoryPaused, setMemoryPaused] = useState(false)
+  const [idlePaused, setIdlePaused] = useState(false)
+  const lastActivityAtRef = useRef<number>(Date.now())
 
   useEffect(() => {
     if (!isIframeEmbed) return
@@ -175,22 +177,39 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
 
   useEffect(() => {
     if (!isIframeEmbed) return
-    const pause = () => setMemoryPaused(true)
-    const resume = () => setMemoryPaused(false)
-    window.addEventListener('nano-slide-memory-pressure', pause as EventListener)
+    const IDLE_PAUSE_MS = 90_000
+    const onPressure = () => setMemoryPaused(true)
+    const onActivity = () => {
+      lastActivityAtRef.current = Date.now()
+      setMemoryPaused(false)
+      setIdlePaused(false)
+    }
+    onActivity()
+    window.addEventListener('nano-slide-memory-pressure', onPressure as EventListener)
     const node = wrapperRef.current
-    node?.addEventListener('pointerenter', resume)
-    node?.addEventListener('focusin', resume)
+    node?.addEventListener('pointerenter', onActivity)
+    node?.addEventListener('pointermove', onActivity)
+    node?.addEventListener('focusin', onActivity)
+    node?.addEventListener('click', onActivity)
+    const idleId = window.setInterval(() => {
+      if (Date.now() - lastActivityAtRef.current > IDLE_PAUSE_MS) {
+        setIdlePaused(true)
+      }
+    }, 15_000)
     return () => {
-      window.removeEventListener('nano-slide-memory-pressure', pause as EventListener)
-      node?.removeEventListener('pointerenter', resume)
-      node?.removeEventListener('focusin', resume)
+      window.removeEventListener('nano-slide-memory-pressure', onPressure as EventListener)
+      node?.removeEventListener('pointerenter', onActivity)
+      node?.removeEventListener('pointermove', onActivity)
+      node?.removeEventListener('focusin', onActivity)
+      node?.removeEventListener('click', onActivity)
+      window.clearInterval(idleId)
     }
   }, [isIframeEmbed])
 
   if (isIframeEmbed) {
     if (!src) return null
-    const iframeActive = iframeInViewport && !memoryPaused
+    const isPaused = memoryPaused || idlePaused
+    const iframeActive = iframeInViewport && !isPaused
     return (
       <div ref={wrapperRef} className={wrapperClass} style={{ pointerEvents: 'auto' }}>
         {iframeActive ? (
@@ -208,17 +227,19 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
         ) : (
           <button
             type="button"
-            onClick={() => setMemoryPaused(false)}
+            onClick={() => {
+              lastActivityAtRef.current = Date.now()
+              setMemoryPaused(false)
+              setIdlePaused(false)
+            }}
             className={
               fill
-                ? 'min-h-0 w-full flex-1 bg-slate-100/60 p-3 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400'
-                : 'w-full bg-slate-100/60 p-3 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400'
+                ? 'min-h-0 w-full flex-1 bg-transparent p-0'
+                : 'w-full bg-transparent p-0'
             }
             style={fill ? undefined : { height }}
             aria-label="Resume embedded content"
-          >
-            {memoryPaused ? 'Nội dung nhúng tạm nghỉ để giảm RAM - bấm để mở lại' : ''}
-          </button>
+          />
         )}
       </div>
     )

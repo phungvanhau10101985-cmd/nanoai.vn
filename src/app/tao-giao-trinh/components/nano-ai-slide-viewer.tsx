@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, ClipboardList, Maximize2, Timer, Link2, Copy, ExternalLink, FileText, Square } from 'lucide-react'
+import { X, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, ClipboardList, Maximize2, MonitorPlay, Timer, Link2, Copy, ExternalLink, FileText, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -29,7 +29,7 @@ import {
   visualImageIsCurriculumInfographic,
 } from '../lib/default-visual-image'
 import { getOrCreatePresentationSyncId, getPresentationBroadcastChannelName, LEGACY_PRESENTATION_BROADCAST_CHANNEL } from '../lib/presentation-broadcast'
-import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync, STUDENT_WINDOW_NAME_CURRICULUM, STUDENT_WINDOW_NAME_WORKSHEET } from '../lib/student-slide-window'
+import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, moveWindowToExternalScreen, studentSlideUrlWithSync, STUDENT_WINDOW_NAME_CURRICULUM, STUDENT_WINDOW_NAME_WORKSHEET } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 
 /** Phát tiếng chuông khi hết giờ (đồng hồ cát học sinh) */
@@ -215,6 +215,60 @@ function MemoryDebugHud({
       <div>Peak: heap {formatMb(details.heapPeakMb)} | payload {formatMb(details.curriculumPayloadPeakMb)} {details.curriculumPayloadPeakType ? `(${details.curriculumPayloadPeakType})` : ''}</div>
       <div>Slides: {slideCount} | index: {currentIndex + 1}</div>
     </div>
+  )
+}
+
+/** Nút "Trình chiếu HS" trên cửa sổ GV: focus + gửi tín hiệu yêu cầu fullscreen sang cửa sổ HS. */
+function ProjectorRemoteButton({
+  getStudentWindow,
+  tr,
+}: {
+  getStudentWindow: () => Window | null
+  tr?: (vi: string, en: string, zh: string, ja: string, ko: string) => string
+}) {
+  const t = (vi: string, en: string, zh: string, ja: string, ko: string) =>
+    typeof tr === 'function' ? tr(vi, en, zh, ja, ko) : vi
+  const handleClick = useCallback(async () => {
+    if (typeof window === 'undefined') return
+    const w = getStudentWindow()
+    if (!w || w.closed) {
+      try {
+        // Eslint cho phép alert ở đây (UX fallback hiếm gặp).
+        // eslint-disable-next-line no-alert
+        window.alert(t(
+          'Hãy mở giao diện học sinh trước (nút "Mở giao diện học sinh").',
+          'Open the student window first ("Open student view" button).',
+          '请先打开学生界面（"打开学生界面"按钮）。',
+          '先に生徒画面を開いてください（「生徒画面を開く」ボタン）。',
+          '먼저 학생 화면을 여세요 ("학생 화면 열기" 버튼).'
+        ))
+      } catch {
+        /* ignore */
+      }
+      return
+    }
+    try { await moveWindowToExternalScreen(w) } catch { /* ignore */ }
+    try { w.focus() } catch { /* ignore */ }
+    try {
+      w.postMessage({ type: 'request-projector-mode' }, window.location.origin)
+    } catch { /* ignore */ }
+  }, [getStudentWindow, t])
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      title={t(
+        'Bật trình chiếu cho cửa sổ học sinh (toàn màn hình cho máy chiếu)',
+        'Enable projector mode on student window (fullscreen for projector)',
+        '在学生窗口开启投影（全屏适配投影仪）',
+        '生徒画面で投影モード（フルスクリーン）',
+        '학생 화면 투영 모드 (전체 화면)'
+      )}
+      className="fixed bottom-3 right-3 z-[120] inline-flex items-center gap-2 rounded-lg border border-white/20 bg-violet-700/90 px-3 py-2 text-xs font-semibold text-white shadow-xl hover:bg-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-300 print:hidden"
+    >
+      <MonitorPlay className="h-4 w-4" />
+      <span className="hidden sm:inline">{t('Trình chiếu HS', 'Project to student', '投影至学生', '生徒画面投影', '학생 화면 투영')}</span>
+    </button>
   )
 }
 
@@ -1089,6 +1143,20 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   })
   const lastCurriculumPayloadDigestRef = useRef<string>('')
   const lastCurriculumPayloadSentAtRef = useRef(0)
+  /** Hiện overlay xác nhận trên cửa sổ HS khi GV bấm "Trình chiếu HS" mà fullscreen API bị chặn vì thiếu user gesture. */
+  const [projectorPromptVisible, setProjectorPromptVisible] = useState(false)
+  /** Snapshot trạng thái HS để khôi phục đúng slide/mode/cột sau khi auto-reload do RAM. */
+  const memoryReloadStateRef = useRef<{
+    currentIndex: number
+    presentationMode: 'independent' | 'slide-interaction'
+    studentCurriculumRightMode: 'single-slide' | 'markdown-all'
+    studentCurriculumLeftPaneTab: 'visual' | 'infographic'
+  }>({
+    currentIndex: 0,
+    presentationMode: 'independent',
+    studentCurriculumRightMode: 'single-slide',
+    studentCurriculumLeftPaneTab: 'visual',
+  })
   const [slides, setSlides] = useState<SlideItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
@@ -1193,6 +1261,147 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const byStorage = window.localStorage.getItem('nano_memdebug') === '1'
     setMemoryDebugEnabled(byQuery || byStorage)
   }, [])
+
+  /**
+   * Memory rescue: khi heap lên cao sẽ dọn state nội bộ,
+   * còn nếu chạm ngưỡng nguy hiểm sẽ reload tab học sinh (tab GV thì chỉ cảnh báo).
+   * Mục tiêu: tránh crash tab khi chạy liên tục hàng giờ.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let cancelled = false
+    const perfLike = performance as Performance & {
+      memory?: {
+        usedJSHeapSize?: number
+        totalJSHeapSize?: number
+        jsHeapSizeLimit?: number
+      }
+    }
+    const reloadedKey = 'nano_slide_memory_reloaded_at'
+    const lastReloadRaw = Number(window.sessionStorage.getItem(reloadedKey) ?? '0')
+    const withinCooldown = Number.isFinite(lastReloadRaw) && Date.now() - lastReloadRaw < 60_000
+    let softCleanupAt = 0
+    const tick = () => {
+      if (cancelled) return
+      const used = Number(perfLike.memory?.usedJSHeapSize ?? NaN)
+      const limit = Number(perfLike.memory?.jsHeapSizeLimit ?? NaN)
+      if (!Number.isFinite(used) || !Number.isFinite(limit) || limit <= 0) return
+      const ratio = used / limit
+      const now = Date.now()
+
+      if (ratio > 0.6 && now - softCleanupAt > 20_000) {
+        softCleanupAt = now
+        try {
+          processedSyncSeqRef.current = new Set()
+          if (mouseTrail.length > 0) setMouseTrail([])
+          if (mouseClicks.length > 0) setMouseClicks([])
+          lastIncomingCurriculumPayloadRef.current = ''
+          curriculumPayloadStatsRef.current.events = []
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (ratio > 0.7) {
+        try {
+          window.dispatchEvent(
+            new CustomEvent('nano-slide-memory-pressure', { detail: { heapUsed: used, ratio } })
+          )
+        } catch {
+          /* ignore */
+        }
+      }
+
+      // Đang trình chiếu (F11 / fullscreen API / overlay slide) thì nâng ngưỡng để hạn chế reload giữa tiết.
+      let isActivePresentation = false
+      try {
+        if (typeof document !== 'undefined' && document.fullscreenElement) isActivePresentation = true
+        if (
+          !isActivePresentation &&
+          typeof window !== 'undefined' &&
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(display-mode: fullscreen)').matches
+        ) {
+          isActivePresentation = true
+        }
+      } catch {
+        /* ignore */
+      }
+      const reloadThreshold = isActivePresentation ? 0.92 : 0.85
+      const emergencyThreshold = 0.95
+      const shouldReload =
+        !isTeacherView && !withinCooldown && (ratio > emergencyThreshold || ratio > reloadThreshold)
+      if (shouldReload) {
+        cancelled = true
+        try {
+          window.sessionStorage.setItem(reloadedKey, String(now))
+          window.sessionStorage.setItem(
+            'nano_slide_pre_reload_state',
+            JSON.stringify({ at: now, ...memoryReloadStateRef.current })
+          )
+        } catch {
+          /* ignore */
+        }
+        try {
+          window.location.reload()
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    const id = window.setInterval(tick, 5000)
+    tick()
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+    // Dep rỗng: cleanup/reload theo trạng thái runtime, không phụ thuộc render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeacherView])
+
+  /** Cập nhật snapshot để rescue có dữ liệu mới nhất trước khi auto-reload. */
+  useEffect(() => {
+    memoryReloadStateRef.current = {
+      currentIndex,
+      presentationMode,
+      studentCurriculumRightMode,
+      studentCurriculumLeftPaneTab,
+    }
+  }, [currentIndex, presentationMode, studentCurriculumRightMode, studentCurriculumLeftPaneTab])
+
+  /** Khôi phục slide/mode đúng vị trí cũ sau khi auto-reload (chỉ áp cho HS). */
+  useEffect(() => {
+    if (typeof window === 'undefined' || isTeacherView) return
+    try {
+      const raw = window.sessionStorage.getItem('nano_slide_pre_reload_state')
+      if (!raw) return
+      window.sessionStorage.removeItem('nano_slide_pre_reload_state')
+      const data = JSON.parse(raw) as {
+        at?: number
+        currentIndex?: number
+        presentationMode?: 'independent' | 'slide-interaction'
+        studentCurriculumRightMode?: 'single-slide' | 'markdown-all'
+        studentCurriculumLeftPaneTab?: 'visual' | 'infographic'
+      } | null
+      if (!data || typeof data !== 'object') return
+      if (typeof data.at !== 'number' || Date.now() - data.at > 60_000) return
+      if (typeof data.currentIndex === 'number' && data.currentIndex >= 0) {
+        pendingSlideGoIndexRef.current = data.currentIndex
+      }
+      if (data.presentationMode === 'slide-interaction' || data.presentationMode === 'independent') {
+        setPresentationMode(data.presentationMode)
+      }
+      if (data.studentCurriculumRightMode === 'markdown-all' || data.studentCurriculumRightMode === 'single-slide') {
+        setStudentCurriculumRightMode(data.studentCurriculumRightMode)
+      }
+      if (data.studentCurriculumLeftPaneTab === 'visual' || data.studentCurriculumLeftPaneTab === 'infographic') {
+        setStudentCurriculumLeftPaneTab(data.studentCurriculumLeftPaneTab)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [isTeacherView])
+
   useEffect(() => {
     const onResize = () => setViewportW(typeof window !== 'undefined' ? window.innerWidth : 1280)
     onResize()
@@ -2261,6 +2470,39 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       }
       else if (t === 'refresh-personal-after-reset') {
         onSlidesSaved?.()
+      }
+      else if (t === 'request-projector-mode' && !isTeacherView) {
+        try {
+          const fsEl =
+            document.fullscreenElement ??
+            (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ??
+            null
+          if (fsEl) {
+            const exitFs = (document.exitFullscreen ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen)?.bind(document)
+            try { void exitFs?.()?.catch(() => {}) } catch { /* ignore */ }
+            setProjectorPromptVisible(false)
+          } else {
+            const root = document.documentElement
+            const reqFs =
+              root.requestFullscreen ??
+              (root as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen
+            try {
+              const p = reqFs?.call(root) as Promise<void> | undefined
+              if (p) {
+                p.then(() => setProjectorPromptVisible(false)).catch(() => setProjectorPromptVisible(true))
+              } else {
+                setProjectorPromptVisible(true)
+              }
+            } catch {
+              setProjectorPromptVisible(true)
+            }
+            window.setTimeout(() => {
+              const cur = document.fullscreenElement ??
+                (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement
+              if (!cur) setProjectorPromptVisible(true)
+            }, 250)
+          }
+        } catch { /* ignore */ }
       }
       else if (t === 'set-auto-play' && typeof e.data?.value === 'boolean') setAutoPlay(e.data.value)
       else if (t === 'set-auto-play-interval' && typeof e.data?.ms === 'number') setAutoPlayIntervalMs(e.data.ms)
@@ -5281,6 +5523,44 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         currentIndex={currentIndex}
         logPeaks={memoryDebugEnabled}
       />
+
+      {isTeacherView && (
+        <ProjectorRemoteButton
+          tr={tr}
+          getStudentWindow={() => studentViewWindowRef.current}
+        />
+      )}
+
+      {!isTeacherView && projectorPromptVisible && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black/85 backdrop-blur-sm print:hidden">
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                const root = document.documentElement
+                const reqFs =
+                  root.requestFullscreen ??
+                  (root as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen
+                const p = reqFs?.call(root) as Promise<void> | undefined
+                if (p) p.catch(() => {})
+              } catch {
+                /* ignore */
+              }
+              setProjectorPromptVisible(false)
+            }}
+            className="flex flex-col items-center gap-3 rounded-2xl border border-white/20 bg-violet-700/95 px-8 py-6 text-white shadow-2xl hover:bg-violet-600"
+          >
+            <MonitorPlay className="h-12 w-12" />
+            <span className="text-lg font-semibold">
+              {tr('Bấm để bắt đầu trình chiếu', 'Click to start projector mode', '点击开始投影', '投影モードを開始', '프레젠테이션 시작')}
+            </span>
+            <span className="text-xs opacity-80">
+              {tr('Trình duyệt yêu cầu xác nhận trước khi bật toàn màn hình', 'Browser requires confirmation before fullscreen', '浏览器需要确认后才能全屏', 'ブラウザはフルスクリーン前に確認が必要', '브라우저는 전체 화면 전 확인이 필요합니다')}
+            </span>
+          </button>
+        </div>,
+        document.body,
+      )}
 
       {/* Print: tất cả slide - layout giống màn hình */}
       <div className="hidden print:block">

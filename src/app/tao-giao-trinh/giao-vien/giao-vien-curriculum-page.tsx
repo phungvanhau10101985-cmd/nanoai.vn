@@ -5,7 +5,7 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
+import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, MonitorPlay, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
@@ -30,7 +30,7 @@ import {
   worksheetAnswerSegmentCount,
 } from '@/app/tao-giao-trinh/lib/worksheet-answer-segments'
 import { getOrCreatePresentationSyncId, getPresentationBroadcastChannelName } from '../lib/presentation-broadcast'
-import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync } from '../lib/student-slide-window'
+import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, moveWindowToExternalScreen, studentSlideUrlWithSync } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { QuizPopupDialog } from '../components/quiz-popup-dialog'
 import { getSlideProposalsForCurriculum, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides, saveWorksheetContent } from '../actions'
@@ -1196,6 +1196,65 @@ export default function CurriculumViewPage() {
   const visualInputPersistTimeoutRef = useRef<number | null>(null)
   const lastStudentWirePayloadRef = useRef<string>('')
   const lastIncomingCurriculumPayloadRef = useRef<string>('')
+
+  /**
+   * Memory rescue (giáo viên):
+   * - Mỗi 5s đo `performance.memory.usedJSHeapSize`.
+   * - >60%: dọn các Set/string ref ăn RAM nội bộ; phát `nano-slide-memory-pressure` để iframe nhúng tự nghỉ.
+   * - >85%: chỉ cảnh báo (không reload tab GV để tránh mất nội dung soạn).
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let cancelled = false
+    const perfLike = performance as Performance & {
+      memory?: { usedJSHeapSize?: number; jsHeapSizeLimit?: number }
+    }
+    let softCleanupAt = 0
+    let warnedAt = 0
+    const tick = () => {
+      if (cancelled) return
+      const used = Number(perfLike.memory?.usedJSHeapSize ?? NaN)
+      const limit = Number(perfLike.memory?.jsHeapSizeLimit ?? NaN)
+      if (!Number.isFinite(used) || !Number.isFinite(limit) || limit <= 0) return
+      const ratio = used / limit
+      const now = Date.now()
+      if (ratio > 0.6 && now - softCleanupAt > 20_000) {
+        softCleanupAt = now
+        try {
+          lastStudentWirePayloadRef.current = ''
+          lastIncomingCurriculumPayloadRef.current = ''
+        } catch {
+          /* ignore */
+        }
+      }
+      if (ratio > 0.7) {
+        try {
+          window.dispatchEvent(
+            new CustomEvent('nano-slide-memory-pressure', { detail: { heapUsed: used, ratio } })
+          )
+        } catch {
+          /* ignore */
+        }
+      }
+      if (ratio > 0.85 && now - warnedAt > 30_000) {
+        warnedAt = now
+        try {
+          console.warn('[MemoryProbe] teacher heap critical', {
+            usedMb: Math.round(used / (1024 * 1024)),
+            limitMb: Math.round(limit / (1024 * 1024)),
+          })
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    const id = window.setInterval(tick, 5000)
+    tick()
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [])
   const quizPopupScrollApplyingRef = useRef(false)
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
   const firstMatchRef = useRef<HTMLElement | null>(null)
@@ -7244,6 +7303,51 @@ export default function CurriculumViewPage() {
         tr={tr}
       />
       <Toaster />
+
+      <button
+        type="button"
+        onClick={async () => {
+          const w = studentViewWindowRef.current
+          if (!w || w.closed) {
+            toast({
+              title: tr(
+                'Chưa có giao diện học sinh đang mở',
+                'Student window is not open',
+                '学生界面尚未打开',
+                '生徒画面が開いていません',
+                '학생 화면이 열려 있지 않습니다'
+              ),
+              description: tr(
+                'Hãy bấm "Mở giao diện học sinh" trước khi bật trình chiếu.',
+                'Click "Open student view" before enabling projector mode.',
+                '请先点击"打开学生界面"再开启投影。',
+                '先に「生徒画面を開く」を押してから投影モードを有効化してください。',
+                '"학생 화면 열기"를 먼저 눌러주세요.'
+              ),
+            })
+            return
+          }
+          // Tự đẩy cửa sổ HS sang màn hình máy chiếu nếu trình duyệt hỗ trợ Window Management API.
+          try {
+            await moveWindowToExternalScreen(w)
+          } catch { /* ignore */ }
+          try { w.focus() } catch { /* ignore */ }
+          try {
+            w.postMessage({ type: 'request-projector-mode' }, window.location.origin)
+          } catch { /* ignore */ }
+        }}
+        title={tr(
+          'Bật trình chiếu cho cửa sổ học sinh (toàn màn hình cho máy chiếu)',
+          'Enable projector mode on student window (fullscreen for projector)',
+          '在学生窗口开启投影（全屏适配投影仪）',
+          '生徒画面で投影モード（フルスクリーン）',
+          '학생 화면 투영 모드 (전체 화면)'
+        )}
+        className="fixed bottom-3 right-3 z-[120] inline-flex items-center gap-2 rounded-lg border border-white/20 bg-violet-700/90 px-3 py-2 text-xs font-semibold text-white shadow-xl hover:bg-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-300 print:hidden"
+      >
+        <MonitorPlay className="h-4 w-4" />
+        <span className="hidden sm:inline">{tr('Trình chiếu HS', 'Project to student', '投影至学生', '生徒画面投影', '학생 화면 투영')}</span>
+      </button>
     </div>
   )
 }
