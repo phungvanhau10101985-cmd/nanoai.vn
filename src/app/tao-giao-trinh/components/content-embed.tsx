@@ -151,7 +151,6 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const isIframeEmbed = type === 'geogebra' || type === 'desmos' || type === 'youtube' || type === 'phet' || type === 'maps' || type === 'code'
   const [iframeInViewport, setIframeInViewport] = useState(() => !isIframeEmbed)
-  const [memoryPaused, setMemoryPaused] = useState(false)
 
   useEffect(() => {
     if (!isIframeEmbed) return
@@ -173,28 +172,13 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
     return () => observer.disconnect()
   }, [isIframeEmbed, src, fill])
 
-  // Iframe nhúng chỉ tạm nghỉ khi RAM thật sự cao (memory pressure event); KHÔNG tạm nghỉ vì idle để
-  // đảm bảo visual luôn hiển thị đầy đủ trên cửa sổ HS trong suốt buổi chiếu.
-  useEffect(() => {
-    if (!isIframeEmbed) return
-    const onPressure = () => setMemoryPaused(true)
-    const onActivity = () => setMemoryPaused(false)
-    window.addEventListener('nano-slide-memory-pressure', onPressure as EventListener)
-    const node = wrapperRef.current
-    node?.addEventListener('pointerenter', onActivity)
-    node?.addEventListener('focusin', onActivity)
-    node?.addEventListener('click', onActivity)
-    return () => {
-      window.removeEventListener('nano-slide-memory-pressure', onPressure as EventListener)
-      node?.removeEventListener('pointerenter', onActivity)
-      node?.removeEventListener('focusin', onActivity)
-      node?.removeEventListener('click', onActivity)
-    }
-  }, [isIframeEmbed])
+  // Iframe nhúng (GeoGebra/Desmos/YouTube/PhET/Maps/CodePen) luôn hiển thị khi nằm trong viewport — KHÔNG
+  // tạm nghỉ vì idle hay vì memory-pressure để đảm bảo GV/HS luôn xem được visual trong suốt buổi chiếu.
+  // Lazy unmount qua IntersectionObserver vẫn áp dụng (slide cuộn rất xa thì gỡ tạm để giảm RAM nhẹ).
 
   if (isIframeEmbed) {
     if (!src) return null
-    const iframeActive = iframeInViewport && !memoryPaused
+    const iframeActive = iframeInViewport
     return (
       <div ref={wrapperRef} className={wrapperClass} style={{ pointerEvents: 'auto' }}>
         {iframeActive ? (
@@ -210,16 +194,14 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
             title={type}
           />
         ) : (
-          <button
-            type="button"
-            onClick={() => setMemoryPaused(false)}
+          <div
+            aria-hidden
             className={
               fill
-                ? 'min-h-0 w-full flex-1 bg-transparent p-0'
-                : 'w-full bg-transparent p-0'
+                ? 'min-h-0 w-full flex-1 bg-transparent'
+                : 'w-full bg-transparent'
             }
             style={fill ? undefined : { height }}
-            aria-label="Resume embedded content"
           />
         )}
       </div>
