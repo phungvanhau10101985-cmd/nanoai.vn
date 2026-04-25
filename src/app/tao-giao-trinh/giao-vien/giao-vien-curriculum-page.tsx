@@ -3217,10 +3217,7 @@ export default function CurriculumViewPage() {
       const el = document.querySelector('[data-quiz-popup]')
       return el ? (el as HTMLElement).getBoundingClientRect() : null
     }
-    const sendPointerMove = (e: MouseEvent) => {
-      const now = Date.now()
-      if (now - pointerThrottleRef.current < 8) return
-      pointerThrottleRef.current = now
+    const sendPointerMove = (e: MouseEvent | PointerEvent) => {
       const w = window.innerWidth || 1
       const h = window.innerHeight || 1
       if (quizPopupOpen) {
@@ -3811,10 +3808,22 @@ export default function CurriculumViewPage() {
         yPx: Math.max(0, Math.min(h, e.clientY)),
       })
     }
-    window.addEventListener('mousemove', sendPointerMove)
+    // Dùng pointermove + getCoalescedEvents để khớp với luồng infographic — đường di chuột mượt hơn mousemove.
+    const handlePointerMove = (e: PointerEvent) => {
+      const now = Date.now()
+      if (now - pointerThrottleRef.current < 8) return
+      pointerThrottleRef.current = now
+      const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : null
+      if (coalesced && coalesced.length > 0) {
+        for (const ev of coalesced) sendPointerMove(ev)
+      } else {
+        sendPointerMove(e)
+      }
+    }
+    window.addEventListener('pointermove', handlePointerMove, { passive: true })
     window.addEventListener('mousedown', sendPointerClick)
     return () => {
-      window.removeEventListener('mousemove', sendPointerMove)
+      window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('mousedown', sendPointerClick)
     }
   }, [sendToStudentView, visualFullscreenOpen, infographicFullscreenOpen, quizPopupOpen, worksheetId, leftPanelMode, activeVisualInfographic, slideViewMode])

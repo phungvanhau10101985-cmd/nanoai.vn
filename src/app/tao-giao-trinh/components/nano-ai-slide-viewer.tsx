@@ -422,6 +422,27 @@ function LazyHeavyMount({
   )
 }
 
+/** Dựng SVG path mượt cho trail chuột ảo - quadraticCurveTo qua midpoint như luồng infographic. */
+function buildSmoothMouseTrailPath(points: Array<{ x: number; y: number }>): string {
+  if (!points || points.length < 2) return ''
+  if (points.length === 2) {
+    const [a, b] = points
+    return `M ${a.x} ${a.y} L ${b.x} ${b.y}`
+  }
+  let d = `M ${points[0].x} ${points[0].y}`
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const p = points[i]
+    const pn = points[i + 1]
+    const xc = (p.x + pn.x) / 2
+    const yc = (p.y + pn.y) / 2
+    d += ` Q ${p.x} ${p.y} ${xc} ${yc}`
+  }
+  const last = points[points.length - 1]
+  const prev = points[points.length - 2]
+  d += ` Q ${prev.x} ${prev.y} ${last.x} ${last.y}`
+  return d
+}
+
 function clamp01(n: number): number {
   if (n < 0) return 0
   if (n > 1) return 1
@@ -3183,14 +3204,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       const el = document.querySelector('[data-quiz-popup]')
       return el ? (el as HTMLElement).getBoundingClientRect() : null
     }
-    const onMove = (e: MouseEvent) => {
-      const now = Date.now()
-      if (now - mouseThrottleRef.current < 40) return
-      mouseThrottleRef.current = now
+    const postOne = (clientX: number, clientY: number) => {
       const rect = getQuizPopupRect()
-      if (rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
-        const relX = rect.right - e.clientX
-        const relY = e.clientY - rect.top
+      if (rect && clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+        const relX = rect.right - clientX
+        const relY = clientY - rect.top
         try {
           ;(target as Window).postMessage({ type: 'mouse-pos', quizPopup: true, relX, relY, fromStudent: true }, window.location.origin)
         } catch {
@@ -3198,12 +3216,24 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         }
         return
       }
-      const x = e.clientX / (window.innerWidth || 1)
-      const y = e.clientY / (window.innerHeight || 1)
+      const x = clientX / (window.innerWidth || 1)
+      const y = clientY / (window.innerHeight || 1)
       try {
         ;(target as Window).postMessage({ type: 'mouse-pos', x, y }, window.location.origin)
       } catch {
         /* ignore */
+      }
+    }
+    // Dùng pointermove + getCoalescedEvents (như luồng infographic) để truyền đầy đủ mẫu chuột thật.
+    const handleMove = (e: PointerEvent) => {
+      const now = Date.now()
+      if (now - mouseThrottleRef.current < 16) return
+      mouseThrottleRef.current = now
+      const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : null
+      if (coalesced && coalesced.length > 0) {
+        for (const ev of coalesced) postOne(ev.clientX, ev.clientY)
+      } else {
+        postOne(e.clientX, e.clientY)
       }
     }
     const onClick = (e: MouseEvent) => {
@@ -3218,10 +3248,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         }
       }
     }
-    window.addEventListener('mousemove', onMove)
+    window.addEventListener('pointermove', handleMove, { passive: true })
     window.addEventListener('mousedown', onClick)
     return () => {
-      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('pointermove', handleMove)
       window.removeEventListener('mousedown', onClick)
     }
   }, [presentationMode, target])
@@ -4116,10 +4146,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         <>
           {mouseTrail.length > 1 && (
             <svg className="fixed inset-0 z-[198] pointer-events-none" style={{ width: '100%', height: '100%' }}>
-              <polyline
-                points={mouseTrail.map((p) => `${p.x},${p.y}`).join(' ')}
+              <path
+                d={buildSmoothMouseTrailPath(mouseTrail)}
                 fill="none"
-                stroke="rgba(255,200,100,0.5)"
+                stroke="rgba(255,200,100,0.55)"
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
