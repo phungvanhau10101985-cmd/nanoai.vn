@@ -23,6 +23,7 @@ import { isLocalhost, getDevUserId } from '@/lib/auth-client'
 import { trackEvent, toFeatureFromRoute } from '@/lib/analytics-track'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
+import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
 
 type PaymentConfig = {
   id: string
@@ -227,6 +228,16 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
           feature: toFeatureFromRoute(route),
           amount: data.amount,
           credits_added: data.credits_added,
+        })
+        fireMetaStandardEvent('Subscribe', {
+          dedupeKey: `topup_subscribe_${payment.id}`,
+          customData: {
+            currency: 'VND',
+            value: Math.max(0, Math.round(Number(data.amount) || 0)),
+            credits_added: Math.max(0, Math.round(Number(data.credits_added) || 0)),
+            content_name: 'NanoAI credits top-up',
+            content_category: 'credits',
+          },
         })
         // Đóng QR, hiển thị thông báo thành công
         setPaymentSuccess({

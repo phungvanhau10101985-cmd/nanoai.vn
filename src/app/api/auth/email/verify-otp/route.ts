@@ -58,6 +58,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'wrong_otp' }, { status: 401 })
     }
 
+    const existingUser = await pgQueryOne<{ id: string }>(
+      `select u.id::text as id
+       from auth.users u
+       where lower(coalesce(u.email, '')) = $1
+       limit 1`,
+      [email]
+    )
+    const isNewUser = !existingUser?.id
+
     const uidRow = await pgQueryOne<{ id: string }>(
       'select (public.nanoai_ensure_user_by_email($1::text))::text as id',
       [email]
@@ -73,7 +82,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'jwt_config' }, { status: 500 })
     }
 
-    const res = NextResponse.json({ ok: true })
+    const res = NextResponse.json({ ok: true, isNewUser })
     const opts = getEmailSessionCookieOptions()
     res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
     res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)

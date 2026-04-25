@@ -14,9 +14,7 @@ import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import {
   buildGuestTrialEmail,
   canGuestUseCreditTrial,
-  getGuestTrialIdFromCookie,
-  getGuestTrialUserIdFromCookie,
-  isGuestTrialUser,
+  clearGuestTrialUserIdCookie,
   getOrCreateGuestTrialId,
   setGuestTrialUserIdCookie,
 } from '@/lib/guest-credit-trial'
@@ -74,22 +72,6 @@ function getRequestPathForAuth(): string {
 function isCreditTrialRoute(pathname: string): boolean {
   const p = sanitizeLoginNext(pathname || '/')
   return CREDIT_TRIAL_ROUTE_PREFIXES.some((prefix) => p === prefix || p.startsWith(`${prefix}/`))
-}
-
-async function resolveExistingGuestTrialUserFromCookies(): Promise<AppUser | null> {
-  const userId = getGuestTrialUserIdFromCookie()
-  if (!userId || !isValidUuidString(userId)) return null
-  if (!(await isGuestTrialUser(userId))) return null
-  const trialId = getGuestTrialIdFromCookie()
-  const email = trialId ? buildGuestTrialEmail(trialId) : 'guest-trial@guest.nanoai.local'
-  return {
-    id: userId,
-    email,
-    aud: 'authenticated',
-    app_metadata: {},
-    user_metadata: { guest_trial: true },
-    created_at: new Date().toISOString(),
-  }
 }
 
 async function canonicalizeUserByEmail(user: AppUser): Promise<AppUser> {
@@ -191,10 +173,8 @@ export async function getUserOrBypass(): Promise<AppUser | null> {
       const guest = await resolveGuestTrialUser()
       if (guest) return guest
     } else {
-      // Keep existing guest session visible after consuming the last trial credits.
-      // Blocking generation is handled by getUserForCreditAction on the next request.
-      const existingGuest = await resolveExistingGuestTrialUserFromCookies()
-      if (existingGuest) return existingGuest
+      // Trial exhausted: clear trial user session so UI falls back to Login.
+      clearGuestTrialUserIdCookie()
     }
   }
   return null
@@ -311,7 +291,10 @@ export async function getUserForCreditAction(
   const user = await getWalletSessionUser()
   if (user) return { user }
   if (!isAuthRequired()) return { user: getDevUser() }
-  if (!(await canGuestUseCreditTrial())) return { error: errorMessage }
+  if (!(await canGuestUseCreditTrial())) {
+    clearGuestTrialUserIdCookie()
+    return { error: errorMessage }
+  }
   const guestUser = await resolveGuestTrialUser()
   if (!guestUser) return { error: 'Không thể khởi tạo tài khoản dùng thử. Vui lòng đăng nhập.' }
   return { user: guestUser }

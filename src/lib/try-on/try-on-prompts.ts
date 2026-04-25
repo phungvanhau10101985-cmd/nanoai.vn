@@ -25,7 +25,12 @@ export function buildSinglePersonPrompt(genderLabel: string, customPrompt: strin
     1) Lấy TRANG PHỤC từ ảnh mẫu và mặc vào người trong Ảnh 1.
     2) Ảnh khách hàng: giữ nguyên gương mặt, cơ thể, tư thế, nền. Chỉ thay trang phục.
     3) Ảnh sản phẩm: bỏ qua người mẫu, chỉ dùng quần áo.
-    4) Trang phục phải tự nhiên, đúng form, giữ chi tiết sản phẩm.
+    4) BẮT BUỘC GIỮ NGUYÊN CHI TIẾT SẢN PHẨM từ ảnh mẫu:
+       - Không đổi chiều dài váy/quần/áo (váy ngắn phải giữ ngắn; cấm tự kéo thành váy dài).
+       - Không đổi độ dài tay áo, cổ áo, tà áo, form dáng, tỉ lệ ôm/rộng.
+       - Không đổi màu sắc, họa tiết, logo, chữ in, chất liệu, đường may, bèo/nơ/phụ kiện gắn liền.
+       - Không thêm lớp áo khoác/phụ kiện mới; không tự bớt chi tiết.
+    5) Trang phục mặc vào phải tự nhiên trên cơ thể nhưng vẫn giữ nguyên thiết kế gốc của sản phẩm.
 
     ${customPrompt ? `YÊU CẦU BỔ SUNG CỦA KHÁCH: "${customPrompt}"` : ''}
 
@@ -50,7 +55,12 @@ export function buildCouplePrompt(customPrompt: string, leftCount: number, right
     1) Áp đúng nhóm trang phục cho đúng người theo thứ tự trái -> phải.
     2) Giữ nguyên mặt, cơ thể, tư thế, vị trí và nền; chỉ thay trang phục.
     3) Bỏ qua người mẫu trong ảnh sản phẩm, chỉ lấy quần áo.
-    4) Trang phục mặc vào phải tự nhiên, đúng form, giữ chi tiết.
+    4) BẮT BUỘC GIỮ NGUYÊN CHI TIẾT SẢN PHẨM:
+       - Không đổi chiều dài váy/quần/áo (váy ngắn phải giữ ngắn).
+       - Không đổi độ dài tay áo, cổ áo, tà áo, form dáng.
+       - Không đổi màu sắc, họa tiết, logo, chất liệu, đường may, phụ kiện gắn liền.
+       - Không thêm hoặc bớt lớp trang phục.
+    5) Trang phục mặc vào phải tự nhiên nhưng không được làm sai thiết kế gốc.
 
     ${customPrompt ? `YÊU CẦU BỔ SUNG CỦA KHÁCH: "${customPrompt}"` : ''}
 
@@ -74,7 +84,12 @@ export function buildGroupPrompt(customPrompt: string, leftCount: number, middle
     1) Áp đúng nhóm trang phục cho đúng người theo thứ tự.
     2) Giữ nguyên khuôn mặt, cơ thể, tư thế, vị trí, nền; chỉ thay trang phục.
     3) Bỏ qua người mẫu trong ảnh sản phẩm, chỉ lấy quần áo.
-    4) Trang phục cần tự nhiên, đúng form, giữ chi tiết.
+    4) BẮT BUỘC GIỮ NGUYÊN CHI TIẾT SẢN PHẨM:
+       - Không đổi chiều dài váy/quần/áo (váy ngắn phải giữ ngắn).
+       - Không đổi độ dài tay áo, cổ áo, tà áo, form dáng.
+       - Không đổi màu sắc, họa tiết, logo, chất liệu, đường may, phụ kiện gắn liền.
+       - Không thêm hoặc bớt lớp trang phục.
+    5) Trang phục cần tự nhiên nhưng phải trung thành tuyệt đối với thiết kế gốc.
 
     ${customPrompt ? `YÊU CẦU BỔ SUNG CỦA KHÁCH: "${customPrompt}"` : ''}
 
@@ -105,7 +120,12 @@ export function buildFourPersonPrompt(
     1) Áp đúng nhóm trang phục cho đúng người theo thứ tự.
     2) Giữ nguyên mặt, cơ thể, tư thế, vị trí và nền; chỉ thay trang phục.
     3) Bỏ qua người mẫu trong ảnh sản phẩm, chỉ dùng quần áo.
-    4) Trang phục mặc vào phải tự nhiên, đúng form, rõ chi tiết.
+    4) BẮT BUỘC GIỮ NGUYÊN CHI TIẾT SẢN PHẨM:
+       - Không đổi chiều dài váy/quần/áo (váy ngắn phải giữ ngắn).
+       - Không đổi độ dài tay áo, cổ áo, tà áo, form dáng.
+       - Không đổi màu sắc, họa tiết, logo, chất liệu, đường may, phụ kiện gắn liền.
+       - Không thêm hoặc bớt lớp trang phục.
+    5) Trang phục mặc vào phải tự nhiên nhưng không làm sai thiết kế gốc.
 
     ${customPrompt ? `YÊU CẦU BỔ SUNG CỦA KHÁCH: "${customPrompt}"` : ''}
 
@@ -138,7 +158,12 @@ export function buildFivePersonPrompt(
     1) Áp đúng nhóm trang phục cho đúng người theo thứ tự.
     2) Giữ nguyên khuôn mặt, cơ thể, tư thế, vị trí, nền; chỉ thay trang phục.
     3) Bỏ qua người mẫu trong ảnh sản phẩm, chỉ lấy quần áo.
-    4) Trang phục phải tự nhiên, đúng form, giữ chi tiết.
+    4) BẮT BUỘC GIỮ NGUYÊN CHI TIẾT SẢN PHẨM:
+       - Không đổi chiều dài váy/quần/áo (váy ngắn phải giữ ngắn).
+       - Không đổi độ dài tay áo, cổ áo, tà áo, form dáng.
+       - Không đổi màu sắc, họa tiết, logo, chất liệu, đường may, phụ kiện gắn liền.
+       - Không thêm hoặc bớt lớp trang phục.
+    5) Trang phục phải tự nhiên nhưng phải giữ đúng thiết kế gốc của sản phẩm.
 
     ${customPrompt ? `YÊU CẦU BỔ SUNG CỦA KHÁCH: "${customPrompt}"` : ''}
 

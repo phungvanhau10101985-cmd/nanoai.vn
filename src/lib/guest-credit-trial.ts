@@ -48,6 +48,26 @@ function setCookie(name: string, value: string): void {
   }
 }
 
+function clearCookie(name: string): void {
+  const store = safeCookieStore()
+  if (!store) return
+  try {
+    const writable = store as unknown as {
+      set?: (name: string, value: string, options: Record<string, unknown>) => void
+    }
+    if (typeof writable.set !== 'function') return
+    writable.set(name, '', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 0,
+    })
+  } catch {
+    // Server Components may expose read-only cookies(). Skip write and keep flow non-blocking.
+  }
+}
+
 export function getGuestCreditTrialUsedCount(): number {
   const store = safeCookieStore()
   if (!store) return 0
@@ -343,6 +363,10 @@ export function getGuestTrialUserIdFromCookie(): string | null {
 export function setGuestTrialUserIdCookie(userId: string): void {
   if (!userId) return
   setCookie(GUEST_TRIAL_USER_ID_COOKIE, userId)
+}
+
+export function clearGuestTrialUserIdCookie(): void {
+  clearCookie(GUEST_TRIAL_USER_ID_COOKIE)
 }
 
 export function isGuestTrialUserId(userId: string): boolean {

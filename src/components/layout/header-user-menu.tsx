@@ -29,6 +29,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { AppUser } from '@/lib/auth/app-user'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
 
 interface HeaderUserMenuProps {
   user: AppUser
@@ -43,6 +44,7 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
   const [isGuestTrial, setIsGuestTrial] = useState<boolean>(String(user.email ?? '').includes('@guest.nanoai.local'))
   const [guestTrialRemaining, setGuestTrialRemaining] = useState<number>(0)
   const [guestTrialBudget, setGuestTrialBudget] = useState<number>(3)
+  const [trialForcedLogout, setTrialForcedLogout] = useState(false)
 
   const creditLabel = isGuestTrial
     ? `Dùng thử ${guestTrialRemaining.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}/${guestTrialBudget.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} credits`
@@ -57,7 +59,13 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
     let mounted = true
     const refreshCredits = async () => {
       const res = await fetch('/api/account/credits', { credentials: 'same-origin' })
-      if (!res.ok) return
+      if (!res.ok) {
+        if (isGuestTrial && !trialForcedLogout) {
+          setTrialForcedLogout(true)
+          window.location.reload()
+        }
+        return
+      }
       const j = (await res.json()) as {
         balance?: unknown
         isGuestTrial?: unknown
@@ -70,6 +78,15 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
       if (Number.isFinite(nextTrialRemaining)) setGuestTrialRemaining(Math.max(0, nextTrialRemaining))
       const nextTrialBudget = Number(j.guestTrialBudget)
       if (Number.isFinite(nextTrialBudget) && nextTrialBudget > 0) setGuestTrialBudget(nextTrialBudget)
+      if (
+        Boolean(j.isGuestTrial) &&
+        Number.isFinite(nextTrialRemaining) &&
+        Number.isFinite(nextTrialBudget) &&
+        nextTrialBudget > 0 &&
+        nextTrialRemaining < nextTrialBudget
+      ) {
+        fireMetaStandardEvent('StartTrial', { dedupeKey: 'guest_trial_first_use' })
+      }
       const nextBalance = Number(j.balance)
       if (Number.isFinite(nextBalance)) setDisplayCredits(nextBalance)
     }
@@ -79,7 +96,7 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
       mounted = false
       window.removeEventListener('credits-updated', refreshCredits)
     }
-  }, [user.id])
+  }, [user.id, isGuestTrial, trialForcedLogout])
 
   return (
     <div className="flex items-center gap-2 sm:gap-4">

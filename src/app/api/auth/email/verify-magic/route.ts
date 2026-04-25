@@ -19,6 +19,16 @@ function normalizeEmail(e: string) {
   return e.trim().toLowerCase()
 }
 
+function appendQueryFlag(pathAndQuery: string, key: string, value: string): string {
+  const raw = String(pathAndQuery || '/').trim() || '/'
+  const [pathPart, hashPart = ''] = raw.split('#', 2)
+  const [pathname = '/', query = ''] = pathPart.split('?', 2)
+  const search = new URLSearchParams(query)
+  search.set(key, value)
+  const nextPath = `${pathname || '/'}${search.toString() ? `?${search.toString()}` : ''}`
+  return hashPart ? `${nextPath}#${hashPart}` : nextPath
+}
+
 /** Tránh `new URL(path, req.url)` — sau reverse proxy `req.url` thường là 127.0.0.1 → redirect sai domain. */
 function absoluteRedirect(req: Request, pathAndQuery: string): NextResponse {
   const base = getPublicAppUrlForServer(req).replace(/\/$/, '')
@@ -58,6 +68,15 @@ export async function GET(req: NextRequest) {
       return absoluteRedirect(req, '/auth/login?error=expired_or_invalid_link')
     }
 
+    const existingUser = await pgQueryOne<{ id: string }>(
+      `select u.id::text as id
+       from auth.users u
+       where lower(coalesce(u.email, '')) = $1
+       limit 1`,
+      [email]
+    )
+    const isNewUser = !existingUser?.id
+
     const uidRow = await pgQueryOne<{ id: string }>(
       'select (public.nanoai_ensure_user_by_email($1::text))::text as id',
       [email]
@@ -73,7 +92,10 @@ export async function GET(req: NextRequest) {
       return absoluteRedirect(req, '/auth/login?error=jwt')
     }
 
-    const res = absoluteRedirect(req, next)
+    const redirectPath = isNewUser
+      ? appendQueryFlag(next, 'meta_complete_registration', '1')
+      : next
+    const res = absoluteRedirect(req, redirectPath)
     const opts = getEmailSessionCookieOptions()
     res.cookies.set(EMAIL_SESSION_COOKIE, jwt, opts)
     res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, jwt, opts)

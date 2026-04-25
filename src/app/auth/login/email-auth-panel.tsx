@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
+import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
 import { Mail } from 'lucide-react'
 
 type Props = {
@@ -73,6 +74,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
       const data = (await res.json().catch(() => ({}))) as {
         error?: string
         autoSignedIn?: boolean
+        isNewUser?: boolean
         debugOtp?: string
       }
       if (!res.ok) {
@@ -128,6 +130,9 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         return
       }
       if (data.autoSignedIn) {
+        if (data.isNewUser) {
+          fireMetaStandardEvent('CompleteRegistration', { dedupeKey: 'auth_new_user_complete_registration' })
+        }
         window.location.href = safeNext
         return
       }
@@ -170,6 +175,10 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         )
         setLoading(false)
         return
+      }
+      const okData = (await res.json().catch(() => ({}))) as { isNewUser?: boolean }
+      if (okData.isNewUser) {
+        fireMetaStandardEvent('CompleteRegistration', { dedupeKey: 'auth_new_user_complete_registration' })
       }
       window.location.href = safeNext
     } catch {

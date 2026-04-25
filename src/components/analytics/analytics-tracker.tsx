@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
+import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
 
 declare global {
   interface Window {
@@ -59,6 +60,19 @@ function firePageView() {
   })
 }
 
+function handleMetaSignupFlagsFromUrl() {
+  if (typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+  const hasCompleteRegistration = url.searchParams.get('meta_complete_registration') === '1'
+  if (!hasCompleteRegistration) return
+  if (hasCompleteRegistration) {
+    fireMetaStandardEvent('CompleteRegistration', { dedupeKey: 'auth_new_user_complete_registration' })
+    url.searchParams.delete('meta_complete_registration')
+  }
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`
+  window.history.replaceState({}, '', nextUrl)
+}
+
 /**
  * Không dùng `usePathname` / Suspense — Next có thể chèn `<input>` và gây lỗi hydrate.
  * Theo dõi đổi route qua popstate + hook history (App Router dùng pushState).
@@ -66,6 +80,7 @@ function firePageView() {
 export function AnalyticsTracker() {
   useEffect(() => {
     firePageView()
+    handleMetaSignupFlagsFromUrl()
     return subscribeToUrlChanges(firePageView)
   }, [])
 
