@@ -1300,8 +1300,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     const reloadedKey = 'nano_slide_memory_reloaded_at'
     const lastReloadRaw = Number(window.sessionStorage.getItem(reloadedKey) ?? '0')
-    const withinCooldown = Number.isFinite(lastReloadRaw) && Date.now() - lastReloadRaw < 60_000
+    const withinCooldown = Number.isFinite(lastReloadRaw) && Date.now() - lastReloadRaw < 30_000
     let softCleanupAt = 0
+    let lastSampledUsed: number | null = null
+    let lastSampledAt: number | null = null
     const tick = () => {
       if (cancelled) return
       const used = Number(perfLike.memory?.usedJSHeapSize ?? NaN)
@@ -1310,7 +1312,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       const ratio = used / limit
       const now = Date.now()
 
-      if (ratio > 0.6 && now - softCleanupAt > 20_000) {
+      // Panic detection: heap nhảy nhanh trong 1 nhịp.
+      let panicGrowth = false
+      if (lastSampledUsed != null && lastSampledAt != null) {
+        const dtMs = Math.max(1, now - lastSampledAt)
+        const deltaBytes = used - lastSampledUsed
+        const growthMbPerSec = (deltaBytes / dtMs) * 1000 / (1024 * 1024)
+        if (growthMbPerSec > 30) panicGrowth = true
+      }
+      lastSampledUsed = used
+      lastSampledAt = now
+
+      if (ratio > 0.5 && now - softCleanupAt > 15_000) {
         softCleanupAt = now
         try {
           processedSyncSeqRef.current = new Set()
@@ -1323,17 +1336,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         }
       }
 
-      if (ratio > 0.7) {
+      if (ratio > 0.65 || panicGrowth) {
         try {
           window.dispatchEvent(
-            new CustomEvent('nano-slide-memory-pressure', { detail: { heapUsed: used, ratio } })
+            new CustomEvent('nano-slide-memory-pressure', { detail: { heapUsed: used, ratio, panicGrowth } })
           )
         } catch {
           /* ignore */
         }
       }
 
-      // Đang trình chiếu (F11 / fullscreen API / overlay slide) thì nâng ngưỡng để hạn chế reload giữa tiết.
+      // Đang trình chiếu (F11 / fullscreen API / overlay slide) thì nâng ngưỡng nhẹ; nhưng panic vẫn reload.
       let isActivePresentation = false
       try {
         if (typeof document !== 'undefined' && document.fullscreenElement) isActivePresentation = true
@@ -1348,10 +1361,15 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       } catch {
         /* ignore */
       }
-      const reloadThreshold = isActivePresentation ? 0.92 : 0.85
-      const emergencyThreshold = 0.95
+      const reloadThreshold = isActivePresentation ? 0.85 : 0.78
+      const emergencyThreshold = 0.9
       const shouldReload =
-        !isTeacherView && !withinCooldown && (ratio > emergencyThreshold || ratio > reloadThreshold)
+        !isTeacherView &&
+        (
+          (panicGrowth && ratio > 0.7) ||
+          (ratio > emergencyThreshold) ||
+          (ratio > reloadThreshold && !withinCooldown)
+        )
       if (shouldReload) {
         cancelled = true
         try {
@@ -1370,7 +1388,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         }
       }
     }
-    const id = window.setInterval(tick, 5000)
+    const id = window.setInterval(tick, 2000)
     tick()
     return () => {
       cancelled = true
@@ -1448,6 +1466,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
 
   const [virtualMousePos, setVirtualMousePos] = useState<{ x: number; y: number } | null>(null)
   const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([])
+  /** Buffer batch các mẫu chuột ảo theo rAF để giảm áp lực state-update khi GV gửi cao tần. */
+  const pendingMouseSamplesRef = useRef<Array<{ x: number; y: number; snap: boolean }>>([])
+  const mousePosRafScheduledRef = useRef(false)
   const [mouseClicks, setMouseClicks] = useState<Array<{ id: number; x: number; y: number }>>([])
   /** Nét vẽ infographic theo phiên mở (không lưu DB), key theo slideIndex */
   const [infographicDrawStrokesBySlide, setInfographicDrawStrokesBySlide] = useState<Record<number, InfographicDrawStroke[]>>({})
@@ -2921,13 +2942,27 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         const shouldSnap = previousScope !== mouseScope || abruptJump || !rendered
         const nextPos = { x: clampedX, y: clampedY }
         lastRenderedVirtualMouseRef.current = nextPos
-        setVirtualMousePos(nextPos)
-        setMouseTrail((prev) => {
-          // Luôn hiển thị trail để theo dõi chuột ảo ở mọi vùng.
-          if (shouldSnap) return [nextPos]
-          const next = [...prev, nextPos]
-          return next.slice(-48)
-        })
+        // Batch các sample mouse-pos cao tần qua rAF: chỉ 1 setState mỗi frame ⇒ giảm RAM/CPU đáng kể.
+        pendingMouseSamplesRef.current.push({ x: clampedX, y: clampedY, snap: shouldSnap })
+        if (!mousePosRafScheduledRef.current && typeof window !== 'undefined') {
+          mousePosRafScheduledRef.current = true
+          window.requestAnimationFrame(() => {
+            mousePosRafScheduledRef.current = false
+            const samples = pendingMouseSamplesRef.current
+            pendingMouseSamplesRef.current = []
+            if (samples.length === 0) return
+            const last = samples[samples.length - 1]
+            setVirtualMousePos({ x: last.x, y: last.y })
+            setMouseTrail((prev) => {
+              let acc: Array<{ x: number; y: number }> = prev
+              for (const s of samples) {
+                if (s.snap) acc = [{ x: s.x, y: s.y }]
+                else acc = [...acc, { x: s.x, y: s.y }]
+              }
+              return acc.slice(-64)
+            })
+          })
+        }
       }
       else if (t === 'mouse-click' && presentationMode === 'slide-interaction') {
         let px: number
