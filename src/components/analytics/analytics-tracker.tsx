@@ -79,6 +79,7 @@ function firePageView() {
 function fireMetaFeatureViewContent() {
   if (typeof window === 'undefined') return
   if (isLikelyBotTraffic()) return
+  if (window.top !== window.self) return
   const matched = findMatchedFeatureRoute(window.location.pathname || '/')
   if (!matched) return
   const viewKey = `${matched}|${window.location.pathname || '/'}|${window.location.search || ''}`

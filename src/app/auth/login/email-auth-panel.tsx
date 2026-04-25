@@ -1,15 +1,38 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
 import { Mail } from 'lucide-react'
 
+const OTP_STEP_STORAGE_KEY = 'nanoai_login_otp_pending'
+const OTP_STEP_MAX_AGE_MS = 20 * 60 * 1000
+
+type OtpStepPersisted = { email: string; rememberDevice: boolean; sentAt: number }
+
 type Props = {
   nextPath: string
   tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string
+}
+
+function clearOtpStepStorage() {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.removeItem(OTP_STEP_STORAGE_KEY)
+  } catch {
+    // private mode / blocked
+  }
+}
+
+function writeOtpStepStorage(payload: OtpStepPersisted) {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(OTP_STEP_STORAGE_KEY, JSON.stringify(payload))
+  } catch {
+    // ignore
+  }
 }
 
 export function EmailAuthPanel({ nextPath, tr }: Props) {
@@ -20,6 +43,26 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
   const [rememberDevice, setRememberDevice] = useState(true)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.sessionStorage.getItem(OTP_STEP_STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as Partial<OtpStepPersisted>
+      const e = String(parsed.email || '').trim().toLowerCase()
+      const sentAt = Number(parsed.sentAt)
+      if (!e || !Number.isFinite(sentAt) || Date.now() - sentAt > OTP_STEP_MAX_AGE_MS) {
+        clearOtpStepStorage()
+        return
+      }
+      setEmail(e)
+      setRememberDevice(parsed.rememberDevice !== false)
+      setStep('otp')
+    } catch {
+      clearOtpStepStorage()
+    }
+  }, [])
 
   function getStableBrowserId(): string {
     if (typeof window === 'undefined') return ''
@@ -34,31 +77,10 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
     return created
   }
 
-  async function confirmSessionAndRedirect(): Promise<boolean> {
-    for (let i = 0; i < 3; i += 1) {
-      try {
-        const meRes = await fetch('/api/auth/me', {
-          credentials: 'same-origin',
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' },
-        })
-        if (meRes.ok) {
-          window.location.href = safeNext
-          return true
-        }
-      } catch {
-        // retry below
-      }
-      if (i < 2) {
-        await new Promise((resolve) => setTimeout(resolve, 180))
-      }
-    }
-    return false
-  }
-
   async function sendOtp(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
+    clearOtpStepStorage()
     setLoading(true)
     try {
       const res = await fetch('/api/auth/email/request', {
@@ -136,14 +158,12 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         window.location.href = safeNext
         return
       }
-      // Fallback: session cookie can be set slightly before client observes it.
-      if (await confirmSessionAndRedirect()) {
-        return
-      }
+      const emailNorm = email.trim().toLowerCase()
       const otpFromDev = String(data.debugOtp || '').replace(/\D/g, '').slice(0, 6)
       if (otpFromDev.length === 6) {
         setOtp(otpFromDev)
       }
+      writeOtpStepStorage({ email: emailNorm, rememberDevice, sentAt: Date.now() })
       setStep('otp')
     } catch {
       setErr(tr('Lỗi mạng.', 'Network error.', '网络错误。', 'ネットワークエラー。', '네트워크 오류.'))
@@ -180,6 +200,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
       if (okData.isNewUser) {
         fireMetaStandardEvent('CompleteRegistration', { dedupeKey: 'auth_new_user_complete_registration' })
       }
+      clearOtpStepStorage()
       window.location.href = safeNext
     } catch {
       setErr(tr('Lỗi mạng.', 'Network error.', '网络错误。', 'ネットワークエラー。', '네트워크 오류.'))
@@ -281,7 +302,17 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         </span>
       </label>
       <div className="flex gap-2">
-        <Button type="button" variant="outline" className="flex-1" onClick={() => { setStep('email'); setOtp(''); setErr(null) }}>
+        <Button
+          type="button"
+          variant="outline"
+          className="flex-1"
+          onClick={() => {
+            clearOtpStepStorage()
+            setStep('email')
+            setOtp('')
+            setErr(null)
+          }}
+        >
           {tr('Quay lại', 'Back', '返回', '戻る', '뒤로')}
         </Button>
         <Button type="submit" disabled={loading || otp.length !== 6} className="flex-1">
