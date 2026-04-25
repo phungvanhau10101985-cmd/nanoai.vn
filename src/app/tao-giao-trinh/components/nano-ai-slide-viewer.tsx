@@ -84,6 +84,9 @@ type MemoryProbeDetails = {
   curriculumPayloadLastMb: number | null
   curriculumPayloadAvgMb: number | null
   curriculumPayloadSendsPerMin: number
+  curriculumPayloadPeakMb: number | null
+  curriculumPayloadPeakType: string | null
+  heapPeakMb: number | null
 }
 
 const BYTES_PER_MB = 1024 * 1024
@@ -188,6 +191,7 @@ function MemoryDebugHud({
       <div>DOM: {snapshot.domNodes} | iframe: {snapshot.iframeCount} | img: {snapshot.imageCount} | canvas: {snapshot.canvasCount}</div>
       <div>Slides mem: {details.slidesApproxMb.toFixed(1)} MB | largest: {details.largestSlideMb.toFixed(1)} MB ({details.largestSlideIndex != null ? `#${details.largestSlideIndex + 1}` : 'n/a'})</div>
       <div>Payload: last {formatMb(details.curriculumPayloadLastMb)} | avg {formatMb(details.curriculumPayloadAvgMb)} | sends/min {details.curriculumPayloadSendsPerMin}</div>
+      <div>Peak: heap {formatMb(details.heapPeakMb)} | payload {formatMb(details.curriculumPayloadPeakMb)} {details.curriculumPayloadPeakType ? `(${details.curriculumPayloadPeakType})` : ''}</div>
       <div>Slides: {slideCount} | index: {currentIndex + 1}</div>
     </div>
   )
@@ -389,6 +393,24 @@ function estimateSlidesMemory(slides: SlideItem[]): {
   return { totalBytes, largestBytes, largestIndex }
 }
 
+function slideWireDigestKey(slide: {
+  title?: unknown
+  blocks?: Array<{ header?: unknown; content?: unknown }>
+  imageUrl?: unknown
+  visualEmbed?: unknown
+  visualCells?: Array<{ visualEmbed?: unknown; imageUrl?: unknown }>
+}): string {
+  const blocks = Array.isArray(slide.blocks) ? slide.blocks.length : 0
+  const cells = Array.isArray(slide.visualCells) ? slide.visualCells.length : 0
+  return [
+    String(slide.title ?? '').length,
+    blocks,
+    cells,
+    String(slide.imageUrl ?? '').length,
+    String(slide.visualEmbed ?? '').length,
+  ].join(':')
+}
+
 type InfographicDrawTool = 'pen' | 'eraser'
 type InfographicDrawPoint = { u: number; v: number }
 type InfographicDrawStroke = {
@@ -546,6 +568,7 @@ const INFOGRAPHIC_MAX_POINTS_PER_STROKE = 2500
 const INFOGRAPHIC_MAX_TOTAL_POINTS = 90000
 const INFOGRAPHIC_MAX_CANVAS_PIXELS = 2_400_000
 const STUDENT_MD_CHAIN_AUTO_FOLLOW = true
+const CURRICULUM_PAYLOAD_DEDUPE_WINDOW_MS = 1200
 
 function dedupeInfographicStrokesById(strokes: InfographicDrawStroke[]): InfographicDrawStroke[] {
   const byId = new Map<string, InfographicDrawStroke>()
@@ -950,10 +973,23 @@ function getBaseSlides(
 export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null, syncedStudentCurriculumLeftPane = null, curriculumInfographic: curriculumInfographicProp }: NanoAISlideViewerProps) {
   const { toast } = useToast()
   const [memoryDebugEnabled, setMemoryDebugEnabled] = useState(false)
-  const curriculumPayloadStatsRef = useRef<{ events: Array<{ at: number; bytes: number }>; lastBytes: number | null }>({
+  const curriculumPayloadStatsRef = useRef<{
+    events: Array<{ at: number; bytes: number; type: string }>
+    lastBytes: number | null
+    lastType: string | null
+    peakBytes: number | null
+    peakType: string | null
+    peakHeapMb: number | null
+  }>({
     events: [],
     lastBytes: null,
+    lastType: null,
+    peakBytes: null,
+    peakType: null,
+    peakHeapMb: null,
   })
+  const lastCurriculumPayloadDigestRef = useRef<string>('')
+  const lastCurriculumPayloadSentAtRef = useRef(0)
   const [slides, setSlides] = useState<SlideItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
@@ -1049,6 +1085,21 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [teacherTimerRunning, setTeacherTimerRunning] = useState(false)
   const memoryProbe = useMemoryProbe(memoryDebugEnabled)
   const slideMemoryStats = useMemo(() => estimateSlidesMemory(slides), [slides])
+  useEffect(() => {
+    const heapNow = memoryProbe?.heapUsedMb
+    if (heapNow == null || !Number.isFinite(heapNow)) return
+    const prevPeak = curriculumPayloadStatsRef.current.peakHeapMb
+    if (prevPeak == null || heapNow > prevPeak) {
+      curriculumPayloadStatsRef.current.peakHeapMb = heapNow
+      if (memoryDebugEnabled) {
+        try {
+          console.info('[MemoryProbe] heap peak', { heapMb: Number(heapNow.toFixed(1)) })
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }, [memoryProbe?.heapUsedMb, memoryDebugEnabled])
   const memoryProbeDetails = useMemo<MemoryProbeDetails>(() => {
     const now = Date.now()
     const freshEvents = curriculumPayloadStatsRef.current.events.filter((e) => now - e.at <= 60_000)
@@ -1066,8 +1117,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           : bytesToMb(curriculumPayloadStatsRef.current.lastBytes),
       curriculumPayloadAvgMb: avgBytes == null ? null : bytesToMb(avgBytes),
       curriculumPayloadSendsPerMin: freshEvents.length,
+      curriculumPayloadPeakMb:
+        curriculumPayloadStatsRef.current.peakBytes == null
+          ? null
+          : bytesToMb(curriculumPayloadStatsRef.current.peakBytes),
+      curriculumPayloadPeakType: curriculumPayloadStatsRef.current.peakType,
+      heapPeakMb: curriculumPayloadStatsRef.current.peakHeapMb,
     }
-  }, [slideMemoryStats, memoryProbe?.heapUsedMb])
+  }, [slideMemoryStats])
   const [presentationMode, setPresentationMode] = useState<'independent' | 'slide-interaction'>('independent')
   const [viewportW, setViewportW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
@@ -1719,7 +1776,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       visualInput2?: unknown
       visualInput3?: unknown
       visualInput4?: unknown
-    }>
+    }>,
+    messageType = 'curriculum-data'
   ) => {
     const contentBytes = estimateTextBytes(wireContent)
     let slidesBytes = 0
@@ -1728,18 +1786,54 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const now = Date.now()
     const nextEvents = [
       ...curriculumPayloadStatsRef.current.events.filter((e) => now - e.at <= 120_000),
-      { at: now, bytes: approxPayloadBytes },
+      { at: now, bytes: approxPayloadBytes, type: messageType },
     ]
     curriculumPayloadStatsRef.current.events = nextEvents
     curriculumPayloadStatsRef.current.lastBytes = approxPayloadBytes
-  }, [])
+    curriculumPayloadStatsRef.current.lastType = messageType
+    if (
+      curriculumPayloadStatsRef.current.peakBytes == null ||
+      approxPayloadBytes > curriculumPayloadStatsRef.current.peakBytes
+    ) {
+      curriculumPayloadStatsRef.current.peakBytes = approxPayloadBytes
+      curriculumPayloadStatsRef.current.peakType = messageType
+      if (memoryDebugEnabled) {
+        try {
+          console.info('[MemoryProbe] payload peak', {
+            type: messageType,
+            payloadMb: Number(bytesToMb(approxPayloadBytes).toFixed(1)),
+          })
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }, [memoryDebugEnabled])
 
   const sendCurriculumDataToStudent = useCallback((slidesToSend: SlideItem[], currentIndexOverride?: number) => {
     const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
     // Chỉ gửi payload nặng cho chunk đang dùng; slide xa gửi bản nhẹ để giảm RAM/copy-cost.
     const keepFullTextForAllSlides = !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
     const lightweightSlides = pruneStudentSlidesByChunk(slidesToSend, idx, { keepFullTextForAllSlides })
+    const wireSlides = lightweightSlides.map(toStudentSlidePayload)
     const wireContent = lightweightSlides.length > 0 ? '' : curriculumMarkdown
+    const payloadDigest = [
+      idx,
+      keepFullTextForAllSlides ? 1 : 0,
+      String(topic ?? '').length,
+      String(curriculumMarkdown ?? '').length,
+      String(curriculumInfographic?.imageUrl ?? '').length,
+      wireSlides.map((s) => slideWireDigestKey(s)).join(','),
+    ].join('|')
+    const now = Date.now()
+    if (
+      payloadDigest === lastCurriculumPayloadDigestRef.current &&
+      now - lastCurriculumPayloadSentAtRef.current < CURRICULUM_PAYLOAD_DEDUPE_WINDOW_MS
+    ) {
+      return
+    }
+    lastCurriculumPayloadDigestRef.current = payloadDigest
+    lastCurriculumPayloadSentAtRef.current = now
     const payload = {
       type: 'curriculum-data',
       content: wireContent,
@@ -1749,12 +1843,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       slideMode: null,
       personalViewSubMode: 'current',
       hasOriginalSlides: false,
-      slides: lightweightSlides.map(toStudentSlidePayload),
+      slides: wireSlides,
       teacherTimerSeconds,
       teacherTimerRunning,
       ...(curriculumId && curriculumInfographic ? { curriculumInfographic } : {}),
     }
-    recordCurriculumPayloadSample(wireContent, lightweightSlides)
+    recordCurriculumPayloadSample(wireContent, wireSlides, 'curriculum-data')
     try {
       const w = studentViewWindowRef.current
       if (w && !w.closed) {
@@ -1792,6 +1886,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       return
     }
     studentViewWindowRef.current = targetWin
+    // New/recovered student window should receive a fresh full payload immediately.
+    lastCurriculumPayloadDigestRef.current = ''
+    lastCurriculumPayloadSentAtRef.current = 0
     try {
       const path = targetWin.location?.pathname || ''
       const syncOk = new URLSearchParams(targetWin.location.search || '').get('sync') === worksheetTabSyncId
@@ -1820,8 +1917,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           const src = e.source as Window
           const keepFullTextForAllSlides = !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
           const lightweightSlides = pruneStudentSlidesByChunk(slides, currentIndex, { keepFullTextForAllSlides })
+          const wireSlides = lightweightSlides.map(toStudentSlidePayload)
           const wireContent = lightweightSlides.length > 0 ? '' : curriculumMarkdown
-          recordCurriculumPayloadSample(wireContent, lightweightSlides)
+          recordCurriculumPayloadSample(wireContent, wireSlides, 'curriculum-data:request')
           src.postMessage({
             type: 'curriculum-data',
             content: wireContent,
@@ -1831,7 +1929,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             slideMode: null,
             personalViewSubMode: 'current',
             hasOriginalSlides: false,
-            slides: lightweightSlides.map(toStudentSlidePayload),
+            slides: wireSlides,
             teacherTimerSeconds,
             teacherTimerRunning,
           }, window.location.origin)

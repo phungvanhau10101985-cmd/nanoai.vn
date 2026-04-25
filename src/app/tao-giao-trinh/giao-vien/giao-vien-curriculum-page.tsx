@@ -1592,7 +1592,11 @@ export default function CurriculumViewPage() {
     if (window.opener) window.opener.postMessage({ type: action }, window.location.origin)
     try {
       const w = studentViewWindowRef.current
-      if (w && !w.closed) w.postMessage({ type: action }, window.location.origin)
+      if (w && !w.closed) {
+        w.postMessage({ type: action }, window.location.origin)
+      } else {
+        syncChannelRef.current?.postMessage({ type: action })
+      }
     } catch {
       /* ignore */
     }
@@ -2504,13 +2508,8 @@ export default function CurriculumViewPage() {
       : Math.max(currentIndex - 1, 0)
     setCurrentIndex(nextIndex)
     if (window.opener) window.opener.postMessage({ type: action }, window.location.origin)
-    try {
-      const w = studentViewWindowRef.current
-      if (w && !w.closed) w.postMessage({ type: 'slide-go', index: nextIndex }, window.location.origin)
-    } catch {
-      /* ignore */
-    }
-  }, [commitCurrentSlideDraft, currentIndex, slides.length])
+    sendToStudentView({ type: 'slide-go', index: nextIndex })
+  }, [commitCurrentSlideDraft, currentIndex, slides.length, sendToStudentView])
 
   const persistSlidesRef = useRef<(s: SlideItem[], curriculumInfographicOverride?: SlideInfographic) => Promise<void>>(async () => {})
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
@@ -2852,7 +2851,11 @@ export default function CurriculumViewPage() {
     const channel = new BroadcastChannel(getPresentationBroadcastChannelName(presentationSyncId))
     syncChannelRef.current = channel
     const onMessage = (event: MessageEvent) => {
-      if (event.data?.type !== 'request-curriculum' || !content) return
+      if (event.data?.type !== 'request-curriculum') return
+      if (event.source && event.source !== window) {
+        studentViewWindowRef.current = event.source as Window
+        setStudentViewOpened(true)
+      }
       const compactedSlides = compactSlidesForStudentWire(slides, currentIndex)
       const wireContent = compactedSlides.length > 0 ? '' : content
       channel.postMessage({
@@ -2953,34 +2956,7 @@ export default function CurriculumViewPage() {
     const pushVisualOpen = () => {
       if (!targetWin || targetWin.closed) return
       try {
-        const compactedSlides = compactSlidesForStudentWire(slides, currentIndex)
-        const wireContent = compactedSlides.length > 0 ? '' : content
-        targetWin.postMessage(
-          {
-            type: 'curriculum-data',
-            content: wireContent,
-            topic,
-            currentIndex,
-            curriculumId: curriculumId ?? null,
-            slideMode: slideMode ?? null,
-            personalViewSubMode,
-            hasOriginalSlides,
-            slides: compactedSlides.map((s, i) => toStudentSlidePayload(s, i)),
-            worksheetId: !!worksheetId,
-            ...(!worksheetId
-              ? {
-                  studentCurriculumRightMode: studentCurriculumRemoteMode,
-                  teacherSlideLeftPane:
-                    leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
-                      ? ('infographic' as const)
-                      : ('visual' as const),
-                }
-              : {}),
-            ...(!worksheetId && activeVisualInfographic ? { curriculumInfographic: activeVisualInfographic } : {}),
-            ...(!worksheetId && lessonInfographic ? { lessonInfographic } : {}),
-          },
-          window.location.origin
-        )
+        sendCurriculumDataToStudent(slides, currentIndex)
         if (worksheetId || curriculumId) {
           targetWin.postMessage(
             {
@@ -3011,7 +2987,7 @@ export default function CurriculumViewPage() {
       sendToStudentView({ type: 'presentation-mode', mode: 'slide-interaction' })
       sendToStudentView(openMsg)
     }, 650)
-  }, [sendToStudentView, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire])
+  }, [sendToStudentView, sendCurriculumDataToStudent, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire])
 
   const closeTeacherVisualFullscreen = useCallback(() => {
     setVisualFullscreenOpen(false)
@@ -3055,30 +3031,7 @@ export default function CurriculumViewPage() {
     const pushInfographicOpen = () => {
       if (!targetWin || targetWin.closed) return
       try {
-        const compactedSlides = compactSlidesForStudentWire(slides, currentIndex)
-        const wireContent = compactedSlides.length > 0 ? '' : content
-        targetWin.postMessage(
-          {
-            type: 'curriculum-data',
-            content: wireContent,
-            topic,
-            currentIndex,
-            curriculumId: curriculumId ?? null,
-            slideMode: slideMode ?? null,
-            personalViewSubMode,
-            hasOriginalSlides,
-            slides: compactedSlides.map((s, i) => toStudentSlidePayload(s, i)),
-            worksheetId: false,
-            studentCurriculumRightMode: studentCurriculumRemoteMode,
-            teacherSlideLeftPane:
-              leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
-                ? ('infographic' as const)
-                : ('visual' as const),
-            ...(activeVisualInfographic ? { curriculumInfographic: activeVisualInfographic } : {}),
-            ...(lessonInfographic ? { lessonInfographic } : {}),
-          },
-          window.location.origin
-        )
+        sendCurriculumDataToStudent(slides, currentIndex)
         if (curriculumId) {
           targetWin.postMessage(
             {
@@ -3109,7 +3062,7 @@ export default function CurriculumViewPage() {
       sendToStudentView({ type: 'presentation-mode', mode: 'slide-interaction' })
       sendToStudentView(openMsg)
     }, 650)
-  }, [sendToStudentView, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, worksheetId, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire])
+  }, [sendToStudentView, sendCurriculumDataToStudent, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, worksheetId, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire])
 
   const closeTeacherInfographicFullscreen = useCallback(() => {
     setInfographicFullscreenOpen(false)
@@ -3873,34 +3826,7 @@ export default function CurriculumViewPage() {
     const sendState = () => {
       try {
         if (targetWin.closed) return
-        const compactedSlides = compactSlidesForStudentWire(slides, currentIndex)
-        const wireContent = compactedSlides.length > 0 ? '' : content
-        targetWin.postMessage(
-          {
-            type: 'curriculum-data',
-            content: wireContent,
-            topic,
-            currentIndex,
-            curriculumId: curriculumId ?? null,
-            slideMode: slideMode ?? null,
-            personalViewSubMode,
-            hasOriginalSlides,
-            slides: compactedSlides.map((s, i) => toStudentSlidePayload(s, i)),
-            worksheetId: !!worksheetId,
-            ...(!worksheetId
-              ? {
-                  studentCurriculumRightMode: studentCurriculumRemoteMode,
-                  teacherSlideLeftPane:
-                    leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
-                      ? ('infographic' as const)
-                      : ('visual' as const),
-                }
-              : {}),
-            ...(!worksheetId && activeVisualInfographic ? { curriculumInfographic: activeVisualInfographic } : {}),
-            ...(!worksheetId && lessonInfographic ? { lessonInfographic } : {}),
-          },
-          window.location.origin
-        )
+        sendCurriculumDataToStudent(slides, currentIndex)
         if (worksheetId || curriculumId) {
           targetWin.postMessage(
             {
@@ -3936,7 +3862,7 @@ export default function CurriculumViewPage() {
     }
     sendState()
     setTimeout(sendState, 300)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire])
+  }, [sendCurriculumDataToStudent, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire])
 
   const viewOpenedStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -4684,9 +4610,11 @@ export default function CurriculumViewPage() {
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return
-      if (e.data?.type === 'request-curriculum' && e.source && content) {
+      if (e.data?.type === 'request-curriculum' && e.source) {
         try {
           const src = e.source as Window
+          studentViewWindowRef.current = src
+          setStudentViewOpened(true)
           const compactedSlides = compactSlidesForStudentWire(slides, currentIndex)
           const wireContent = compactedSlides.length > 0 ? '' : content
           src.postMessage(
