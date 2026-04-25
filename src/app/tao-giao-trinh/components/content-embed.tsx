@@ -152,8 +152,6 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
   const isIframeEmbed = type === 'geogebra' || type === 'desmos' || type === 'youtube' || type === 'phet' || type === 'maps' || type === 'code'
   const [iframeInViewport, setIframeInViewport] = useState(() => !isIframeEmbed)
   const [memoryPaused, setMemoryPaused] = useState(false)
-  const [idlePaused, setIdlePaused] = useState(false)
-  const lastActivityAtRef = useRef<number>(Date.now())
 
   useEffect(() => {
     if (!isIframeEmbed) return
@@ -175,41 +173,28 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
     return () => observer.disconnect()
   }, [isIframeEmbed, src, fill])
 
+  // Iframe nhúng chỉ tạm nghỉ khi RAM thật sự cao (memory pressure event); KHÔNG tạm nghỉ vì idle để
+  // đảm bảo visual luôn hiển thị đầy đủ trên cửa sổ HS trong suốt buổi chiếu.
   useEffect(() => {
     if (!isIframeEmbed) return
-    const IDLE_PAUSE_MS = 90_000
     const onPressure = () => setMemoryPaused(true)
-    const onActivity = () => {
-      lastActivityAtRef.current = Date.now()
-      setMemoryPaused(false)
-      setIdlePaused(false)
-    }
-    onActivity()
+    const onActivity = () => setMemoryPaused(false)
     window.addEventListener('nano-slide-memory-pressure', onPressure as EventListener)
     const node = wrapperRef.current
     node?.addEventListener('pointerenter', onActivity)
-    node?.addEventListener('pointermove', onActivity)
     node?.addEventListener('focusin', onActivity)
     node?.addEventListener('click', onActivity)
-    const idleId = window.setInterval(() => {
-      if (Date.now() - lastActivityAtRef.current > IDLE_PAUSE_MS) {
-        setIdlePaused(true)
-      }
-    }, 15_000)
     return () => {
       window.removeEventListener('nano-slide-memory-pressure', onPressure as EventListener)
       node?.removeEventListener('pointerenter', onActivity)
-      node?.removeEventListener('pointermove', onActivity)
       node?.removeEventListener('focusin', onActivity)
       node?.removeEventListener('click', onActivity)
-      window.clearInterval(idleId)
     }
   }, [isIframeEmbed])
 
   if (isIframeEmbed) {
     if (!src) return null
-    const isPaused = memoryPaused || idlePaused
-    const iframeActive = iframeInViewport && !isPaused
+    const iframeActive = iframeInViewport && !memoryPaused
     return (
       <div ref={wrapperRef} className={wrapperClass} style={{ pointerEvents: 'auto' }}>
         {iframeActive ? (
@@ -227,11 +212,7 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
         ) : (
           <button
             type="button"
-            onClick={() => {
-              lastActivityAtRef.current = Date.now()
-              setMemoryPaused(false)
-              setIdlePaused(false)
-            }}
+            onClick={() => setMemoryPaused(false)}
             className={
               fill
                 ? 'min-h-0 w-full flex-1 bg-transparent p-0'
