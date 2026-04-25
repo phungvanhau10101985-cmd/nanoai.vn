@@ -2768,21 +2768,27 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             typeof e.data.pointerSlideIndex === 'number' &&
             typeof e.data.pointerBlockIndex === 'number'
           const preferBody = e.data.slidePointerBody === true
+          const inMarkdownAll = !isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
+          const slideIdxFromMsg = typeof e.data.pointerSlideIndex === 'number' ? Math.floor(e.data.pointerSlideIndex) : null
           let lr: DOMRect | undefined
           if (preferProseBlock) {
-            const layoutRoot = studentSlideContentLayoutRef.current
-            const proseEl = layoutRoot?.querySelector(
+            const proseEl = document.querySelector(
               `[data-pointer-prose-root][data-slide-index="${e.data.pointerSlideIndex}"][data-block-index="${e.data.pointerBlockIndex}"]`
             ) as HTMLElement | null
             const rr = proseEl?.getBoundingClientRect()
             if (rr && rr.width > 0 && rr.height > 0) lr = rr
           }
-          if (!lr && preferBody) {
+          if (!lr && inMarkdownAll && slideIdxFromMsg != null) {
+            const slideEl = document.getElementById(`nano-student-md-slide-${slideIdxFromMsg}`)
+            const rr = slideEl?.getBoundingClientRect()
+            if (rr && rr.width > 0 && rr.height > 0) lr = rr
+          }
+          if (!lr && !inMarkdownAll && preferBody) {
             const bodyEl = studentSlidePointerSyncRef.current
             const br = bodyEl?.getBoundingClientRect()
             if (br && br.width > 0 && br.height > 0) lr = br
           }
-          if (!lr) {
+          if (!lr && !inMarkdownAll) {
             const layoutEl = studentSlideContentLayoutRef.current
             const gr = layoutEl?.getBoundingClientRect()
             if (gr && gr.width > 0 && gr.height > 0) lr = gr
@@ -3031,21 +3037,27 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             typeof e.data.pointerSlideIndex === 'number' &&
             typeof e.data.pointerBlockIndex === 'number'
           const preferBody = e.data.slidePointerBody === true
+          const inMarkdownAll = !isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
+          const slideIdxFromMsg = typeof e.data.pointerSlideIndex === 'number' ? Math.floor(e.data.pointerSlideIndex) : null
           let lr: DOMRect | undefined
           if (preferProseBlock) {
-            const layoutRoot = studentSlideContentLayoutRef.current
-            const proseEl = layoutRoot?.querySelector(
+            const proseEl = document.querySelector(
               `[data-pointer-prose-root][data-slide-index="${e.data.pointerSlideIndex}"][data-block-index="${e.data.pointerBlockIndex}"]`
             ) as HTMLElement | null
             const rr = proseEl?.getBoundingClientRect()
             if (rr && rr.width > 0 && rr.height > 0) lr = rr
           }
-          if (!lr && preferBody) {
+          if (!lr && inMarkdownAll && slideIdxFromMsg != null) {
+            const slideEl = document.getElementById(`nano-student-md-slide-${slideIdxFromMsg}`)
+            const rr = slideEl?.getBoundingClientRect()
+            if (rr && rr.width > 0 && rr.height > 0) lr = rr
+          }
+          if (!lr && !inMarkdownAll && preferBody) {
             const bodyEl = studentSlidePointerSyncRef.current
             const br = bodyEl?.getBoundingClientRect()
             if (br && br.width > 0 && br.height > 0) lr = br
           }
-          if (!lr) {
+          if (!lr && !inMarkdownAll) {
             const layoutEl = studentSlideContentLayoutRef.current
             const gr = layoutEl?.getBoundingClientRect()
             if (gr && gr.width > 0 && gr.height > 0) lr = gr

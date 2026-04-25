@@ -3556,7 +3556,7 @@ export default function CurriculumViewPage() {
                   slideContentPane: true,
                   slidePointerBody: true,
                   pointerProseBlock: pointerSlideIndex != null && pointerBlockIndex != null,
-                  pointerSlideIndex,
+                  pointerSlideIndex: pointerSlideIndex != null ? pointerSlideIndex : currentIndex,
                   pointerBlockIndex,
                   relX: Math.max(0, Math.min(1, relX)),
                   relY: Math.max(0, Math.min(1, relY)),
@@ -3575,6 +3575,7 @@ export default function CurriculumViewPage() {
                 type: 'mouse-pos',
                 slideContentPane: true,
                 slidePointerBody: false,
+                pointerSlideIndex: currentIndex,
                 relX: Math.max(0, Math.min(1, relX)),
                 relY: Math.max(0, Math.min(1, relY)),
               })
