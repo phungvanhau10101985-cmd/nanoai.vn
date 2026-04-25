@@ -1,10 +1,14 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
+import { getPublicOriginFromAppRouterHeaders } from '@/lib/auth/public-app-url'
 import { AdminIntegrationsClient } from './integrations-client'
 
 export default function AdminIntegrationsPage() {
+  const headerStore = headers()
+  const publicOrigin = getPublicOriginFromAppRouterHeaders(headerStore)
   const uiLocale = getCurrentWebLocale()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -17,6 +21,7 @@ export default function AdminIntegrationsPage() {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   const defaultChatSlug = process.env.NEXT_PUBLIC_CHAT_WIDGET_SLUG || 'nanoai-ws-wdh5'
   const nanoaiEmbedCodeDefault = `<iframe src="${baseUrl.replace(/\/$/, '')}/messaging/p/${encodeURIComponent(defaultChatSlug)}?embed=1" title="Chat NanoAI" width="100%" height="560" style="border:0;border-radius:12px;max-width:100%" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`
+  const facebookCatalogFeedUrl = `${publicOrigin.replace(/\/$/, '')}/catalog/nanoai-facebook-feed.csv`
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4 py-2">
@@ -116,6 +121,28 @@ export default function AdminIntegrationsPage() {
           '例: TEST12345',
           '예: TEST12345'
         )}
+        facebookCatalogFeedLabel={tr(
+          'Facebook Catalog Feed URL (CSV)',
+          'Facebook Catalog Feed URL (CSV)',
+          'Facebook 商品目录 Feed URL（CSV）',
+          'Facebook カタログフィード URL（CSV）',
+          'Facebook 카탈로그 피드 URL(CSV)'
+        )}
+        facebookCatalogFeedHint={tr(
+          'Dán URL này vào Commerce Manager (Data sources) để chạy Dynamic Ads với các gói credit số.',
+          'Paste this URL into Commerce Manager (Data sources) to run Dynamic Ads for digital credit packs.',
+          '将此 URL 粘贴到 Commerce Manager（Data sources）以投放数字积分套餐的动态广告。',
+          'この URL を Commerce Manager（Data sources）に貼り付けると、デジタルクレジットパックの動的広告に利用できます。',
+          '이 URL을 Commerce Manager(Data sources)에 붙여 넣으면 디지털 크레딧 팩 동적 광고에 사용할 수 있습니다.'
+        )}
+        copyFacebookCatalogFeedButton={tr(
+          'Sao chép URL feed',
+          'Copy feed URL',
+          '复制 Feed URL',
+          'フィード URL をコピー',
+          '피드 URL 복사'
+        )}
+        facebookCatalogFeedUrl={facebookCatalogFeedUrl}
         webConsoleVerificationLabel={tr(
           'Thẻ xác minh Google Search Console',
           'Google Search Console verification tag',

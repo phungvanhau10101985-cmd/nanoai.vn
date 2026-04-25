@@ -91,6 +91,8 @@ import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
+import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
+import { buildNanoAiCreditMetaCustomData } from '@/lib/catalog/nanoai-facebook-catalog'
 import {
   MESSAGING_GUEST_SESSION_STORAGE_KEY,
   MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY,
@@ -3361,6 +3363,13 @@ export function PartnerGuestChatClient({
           return { ...prev, ...j.payment }
         })
         if (j.payment.status === 'completed') {
+          fireMetaStandardEvent('Subscribe', {
+            dedupeKey: `topup_subscribe_${id}`,
+            customData: buildNanoAiCreditMetaCustomData({
+              amountVnd: Math.max(0, Math.round(Number(j.payment.amount) || 0)),
+              creditsAdded: Math.max(0, Math.round(Number(j.payment.credits_added) || 0)),
+            }),
+          })
           void loadTryOnCreditsBalance()
         }
       } catch {

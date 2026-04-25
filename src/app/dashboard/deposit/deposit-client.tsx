@@ -15,6 +15,8 @@ import { formatNumber } from '@/lib/format'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
 import { isLocalhost, getDevUserId } from '@/lib/auth-client'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
+import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
+import { buildNanoAiCreditMetaCustomData } from '@/lib/catalog/nanoai-facebook-catalog'
 
 type PaymentConfig = {
   id: string
@@ -285,6 +287,13 @@ export default function DepositClient() {
 
       if (data.status === 'completed') {
         setActivePayment(data)
+        fireMetaStandardEvent('Subscribe', {
+          dedupeKey: `topup_subscribe_${paymentId}`,
+          customData: buildNanoAiCreditMetaCustomData({
+            amountVnd: data.amount,
+            creditsAdded: data.credits_added,
+          }),
+        })
         fetchUserCredits()
         toast({
           title: tr('Thành công', 'Success', '成功', '成功', '성공'),

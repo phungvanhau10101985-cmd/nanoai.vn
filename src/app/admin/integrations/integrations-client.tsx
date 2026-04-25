@@ -33,6 +33,10 @@ type Props = {
   facebookDatasetIdPlaceholder: string
   facebookTestEventCodeLabel: string
   facebookTestEventCodePlaceholder: string
+  facebookCatalogFeedLabel: string
+  facebookCatalogFeedHint: string
+  copyFacebookCatalogFeedButton: string
+  facebookCatalogFeedUrl: string
   webConsoleVerificationLabel: string
   webConsoleVerificationPlaceholder: string
   domainVerificationTitle: string
@@ -233,6 +237,29 @@ export function AdminIntegrationsClient(props: Props) {
               onChange={(e) => setFacebookTestEventCode(e.target.value)}
               placeholder={props.facebookTestEventCodePlaceholder}
             />
+          </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <Label className="text-xs font-medium">{props.facebookCatalogFeedLabel}</Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                className="h-9 text-xs font-mono"
+                value={props.facebookCatalogFeedUrl}
+                readOnly
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1.5 sm:h-9"
+                onClick={() => copyText(props.facebookCatalogFeedUrl)}
+              >
+                <Copy className="h-3.5 w-3.5" aria-hidden />
+                {props.copyFacebookCatalogFeedButton}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {props.facebookCatalogFeedHint}
+            </p>
           </div>
         </div>
 
