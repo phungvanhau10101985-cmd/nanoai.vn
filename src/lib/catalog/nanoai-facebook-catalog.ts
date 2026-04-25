@@ -1,4 +1,7 @@
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
+import { getDictionary, type NavGroupKey } from '@/lib/i18n/dictionaries'
+import { AI_TOOLS, NAV_GROUPS } from '@/lib/nav-config'
+import imageOverridesRaw from '@/lib/catalog/nanoai-catalog-feature-image-overrides.json'
 
 export type NanoAiFacebookCatalogItem = {
   id: string
@@ -12,30 +15,157 @@ export type NanoAiFacebookCatalogItem = {
   brand: string
 }
 
-const CREDIT_PACKS: Array<{ id: string; credits: number; priceVnd: number }> = [
-  { id: 'credit_pack_1', credits: 1, priceVnd: CREDIT_UNIT_PRICE_VND },
-  { id: 'credit_pack_2', credits: 2, priceVnd: CREDIT_UNIT_PRICE_VND * 2 },
-  { id: 'credit_pack_5', credits: 5, priceVnd: CREDIT_UNIT_PRICE_VND * 5 },
-  { id: 'credit_pack_10', credits: 10, priceVnd: CREDIT_UNIT_PRICE_VND * 10 },
-  { id: 'credit_pack_20', credits: 20, priceVnd: CREDIT_UNIT_PRICE_VND * 20 },
-  // Fallback generic item for custom top-up amounts outside predefined packs.
-  { id: 'credit_pack_custom', credits: 1, priceVnd: CREDIT_UNIT_PRICE_VND },
-]
+const DEFAULT_FEATURE_PRICE_VND = CREDIT_UNIT_PRICE_VND
+const WALLET_TOPUP_ITEM_ID = 'feature_wallet_topup'
+const TOOL_ICON_FALLBACK = '/tool-icons/meeting-recorder-report.png'
+const IMAGE_OVERRIDES: Record<string, string> =
+  imageOverridesRaw && typeof imageOverridesRaw === 'object'
+    ? (imageOverridesRaw as Record<string, string>)
+    : {}
+
+function stableHashToken(input: string): string {
+  let h = 2166136261 >>> 0
+  for (let i = 0; i < input.length; i += 1) {
+    h ^= input.charCodeAt(i)
+    h = Math.imul(h, 16777619) >>> 0
+  }
+  return h.toString(36)
+}
+
+const TOOL_IMAGE_BY_HREF: Record<string, string> = {
+  '/thu-do-online': '/tool-icons/try-on.webp',
+  '/tao-giao-trinh': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776510865296.png',
+  '/giao-trinh': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776510865296.png',
+  '/tao-bai-thi': TOOL_ICON_FALLBACK,
+  '/tao-bai-tap-ve-nha': TOOL_ICON_FALLBACK,
+  '/lop': TOOL_ICON_FALLBACK,
+  '/hoc-tieng-anh-ai': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776511328378.png',
+  '/ghi-am-bao-cao-cuoc-hop': '/tool-icons/meeting-recorder-report.png',
+  '/tao-infographic-tu-sach': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776512000095.png',
+  '/ke-chuyen-bang-hinh-anh': '/tool-icons/ke-chuyen-bang-hinh-anh.webp',
+  '/dich-anh-tai-lieu': '/tool-icons/dich-anh-tai-lieu.webp',
+  '/phuc-dung-anh': '/tool-icons/image-restoration.webp',
+  '/lam-net-anh': '/tool-icons/lam-net-anh.webp',
+  '/lam-dep-anh': '/tool-icons/lam-dep-anh.webp',
+  '/ghep-anh': '/tool-icons/ghep-anh.webp',
+  '/tao-banner': '/tool-icons/tao-banner.webp',
+  '/tao-anh-tu-chu': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776512163374.png',
+  '/du-anh-tu-phac-thao': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776512234653.png',
+  '/tao-anh-the': '/tool-icons/tao-anh-the.webp',
+  '/thiet-ke-logo': '/tool-icons/thiet-ke-logo.webp',
+  '/tao-nhan-gian': '/tool-icons/tao-nhan-gian.webp',
+  '/tao-nhan-gioi-thieu-san-pham': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776515779086.png',
+  '/tao-tem-niem-phong-bao-hanh': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776512734065.png',
+  '/thiet-ke-con-dau': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776512838425.png',
+  '/thiet-ke-bao-bi': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776514062010.png',
+  '/tao-ma-vach': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776514184037.png',
+  '/che-anh': '/tool-icons/che-anh.webp',
+  '/xoa-vat-the': '/tool-icons/xoa-vat-the.webp',
+  '/xoa-nen-png': '/tool-icons/xoa-nen-png.webp',
+  '/thay-nen-san-pham': '/tool-icons/thay-nen-san-pham.webp',
+  '/sua-anh-theo-yeu-cau': TOOL_ICON_FALLBACK,
+  '/tao-anh-3d': '/tool-icons/tao-anh-3d.webp',
+  '/tao-mo-hinh-3d-tu-anh': '/tool-icons/tao-mo-hinh-3d-tu-anh.webp',
+  '/thiet-ke-noi-ngoai-that': '/tool-icons/thiet-ke-noi-ngoai-that.webp',
+  '/xay-nha-tu-dat-nen': '/tool-icons/xay-nha-tu-dat-nen.webp',
+  '/tao-anh-chain-dung': '/tool-icons/tao-anh-chain-dung.webp',
+  '/mo-rong-khung-hinh': '/tool-icons/mo-rong-khung-hinh.webp',
+  '/hoan-doi-khuon-mat': '/tool-icons/hoan-doi-khuon-mat.webp',
+  '/tao-bai-hat-lyria-3': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776514289804.png',
+}
+
+const IMAGE_LINK_VERSION_TOKEN = stableHashToken(
+  [
+    ...Object.entries(IMAGE_OVERRIDES)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}:${v}`),
+    ...Object.entries(TOOL_IMAGE_BY_HREF)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}:${v}`),
+  ].join('|')
+)
+
+function toCatalogIdFromHref(href: string): string {
+  const normalized = href
+    .trim()
+    .replace(/^\/+/, '')
+    .replace(/\/+/g, '_')
+    .replace(/[^a-zA-Z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase()
+  return `feature_${normalized || 'home'}`
+}
+
+function normalizeToolImagePath(path: string): string {
+  const p = String(path || '').trim()
+  if (!p) return TOOL_ICON_FALLBACK
+  if (/^\/tool-icons\/.+\.webp$/i.test(p)) return p.replace(/\.webp$/i, '-full.webp')
+  return p
+}
+
+function pickImagePathForToolHref(href: string): string {
+  return normalizeToolImagePath(IMAGE_OVERRIDES[href] || TOOL_IMAGE_BY_HREF[href] || TOOL_ICON_FALLBACK)
+}
+
+function buildGroupByHrefMap(): Map<string, NavGroupKey> {
+  const out = new Map<string, NavGroupKey>()
+  for (const group of NAV_GROUPS) {
+    for (const link of group.links) {
+      if (!out.has(link.href)) out.set(link.href, group.titleKey)
+      if (link.subLinks) {
+        for (const sub of link.subLinks) {
+          if (!out.has(sub.href)) out.set(sub.href, group.titleKey)
+        }
+      }
+    }
+  }
+  return out
+}
 
 export function listNanoAiFacebookCatalogItems(): NanoAiFacebookCatalogItem[] {
-  return CREDIT_PACKS.map((pack) => ({
-    id: pack.id,
-    title: `NanoAI Credit Pack ${pack.credits}`,
-    description: pack.id === 'credit_pack_custom'
-      ? 'Flexible top-up package for NanoAI credits. Exact amount is determined at checkout.'
-      : `Top up ${pack.credits} NanoAI credits for AI tools and services.`,
+  const dict = getDictionary('vi')
+  const groupByHref = buildGroupByHrefMap()
+  const seen = new Set<string>()
+  const items: NanoAiFacebookCatalogItem[] = []
+
+  for (const tool of AI_TOOLS) {
+    const href = tool.href
+    if (!href || seen.has(href)) continue
+    seen.add(href)
+    const title = dict.tool[tool.labelKey] || tool.labelKey
+    const groupLabelKey = groupByHref.get(href)
+    const groupName = groupLabelKey ? (dict.navGroup[groupLabelKey] || '') : ''
+    const description = groupName
+      ? `${title} — tính năng AI của NanoAI (${groupName}).`
+      : `${title} — tính năng AI của NanoAI.`
+
+    items.push({
+      id: toCatalogIdFromHref(href),
+      title,
+      description,
+      availability: 'in stock',
+      condition: 'new',
+      priceVnd: DEFAULT_FEATURE_PRICE_VND,
+      linkPath: href,
+      imagePath: pickImagePathForToolHref(href),
+      brand: 'NanoAI',
+    })
+  }
+
+  items.push({
+    id: WALLET_TOPUP_ITEM_ID,
+    title: 'Nạp credit',
+    description: 'Nạp credit để sử dụng toàn bộ tính năng AI của NanoAI.',
     availability: 'in stock',
     condition: 'new',
-    priceVnd: pack.priceVnd,
+    priceVnd: DEFAULT_FEATURE_PRICE_VND,
     linkPath: '/wallet',
-    imagePath: '/tool-icons/meeting-recorder-report.png',
+    imagePath: TOOL_ICON_FALLBACK,
     brand: 'NanoAI',
-  }))
+  })
+
+  return items
 }
 
 function csvEscapeCell(value: string): string {
@@ -45,9 +175,23 @@ function csvEscapeCell(value: string): string {
 }
 
 function toAbsoluteUrl(origin: string, path: string): string {
+  const absolute = String(path || '').trim()
+  if (/^https?:\/\//i.test(absolute)) return absolute
   const base = origin.replace(/\/$/, '')
   const p = path.startsWith('/') ? path : `/${path}`
   return `${base}${p}`
+}
+
+function withVersionQuery(url: string, token: string): string {
+  const t = String(token || '').trim()
+  if (!t) return url
+  try {
+    const u = new URL(url)
+    u.searchParams.set('v', t)
+    return u.toString()
+  } catch {
+    return url
+  }
 }
 
 function formatPriceVnd(v: number): string {
@@ -74,7 +218,7 @@ export function buildNanoAiFacebookCatalogFeedCsv(origin: string): Buffer {
     item.condition,
     formatPriceVnd(item.priceVnd),
     toAbsoluteUrl(origin, item.linkPath),
-    toAbsoluteUrl(origin, item.imagePath),
+    withVersionQuery(toAbsoluteUrl(origin, item.imagePath), IMAGE_LINK_VERSION_TOKEN),
     item.brand,
   ])
   const csv = [headers, ...rows]
@@ -83,21 +227,17 @@ export function buildNanoAiFacebookCatalogFeedCsv(origin: string): Buffer {
   return Buffer.from(`\ufeff${csv}\r\n`, 'utf8')
 }
 
+export function getNanoAiCatalogVersionToken(): string {
+  return IMAGE_LINK_VERSION_TOKEN
+}
+
 export function resolveNanoAiCreditCatalogItem(input: {
   amountVnd: number
   creditsAdded: number
 }): NanoAiFacebookCatalogItem {
-  const amount = Math.max(0, Math.round(Number(input.amountVnd) || 0))
-  const credits = Math.max(0, Math.round(Number(input.creditsAdded) || 0))
+  void input
   const items = listNanoAiFacebookCatalogItems()
-
-  const exactPack = CREDIT_PACKS.find((pack) => pack.id !== 'credit_pack_custom' && pack.priceVnd === amount)
-    ?? CREDIT_PACKS.find((pack) => pack.id !== 'credit_pack_custom' && pack.credits === credits)
-  if (exactPack) {
-    const item = items.find((x) => x.id === exactPack.id)
-    if (item) return item
-  }
-  return items.find((x) => x.id === 'credit_pack_custom') ?? items[0]
+  return items.find((x) => x.id === WALLET_TOPUP_ITEM_ID) ?? items[0]
 }
 
 export function buildNanoAiCreditMetaCustomData(input: {

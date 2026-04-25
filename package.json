@@ -44,7 +44,8 @@
     "pg:smoke": "npx tsx scripts/pg-smoke-local.ts",
     "pg:check-credits": "npx tsx scripts/pg-check-credits.ts",
     "pg:truncate-all": "node scripts/pg-truncate-all-data.mjs",
-    "pg:set-admin": "node scripts/pg-set-admin.mjs"
+    "pg:set-admin": "node scripts/pg-set-admin.mjs",
+    "catalog:generate-images": "npx tsx scripts/generate-catalog-feature-images.ts"
   },
   "overrides": {
     "react": "^18.3.1",

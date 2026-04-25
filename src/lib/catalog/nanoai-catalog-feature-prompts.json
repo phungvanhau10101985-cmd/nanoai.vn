@@ -1,0 +1,275 @@
+[
+  {
+    "order": 1,
+    "linkPath": "/thu-do-online",
+    "title": "Thử đồ",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Thử đồ\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nBố cục 3 phần trực quan: (1) người mẫu gốc, (2) ảnh sản phẩm trang phục, (3) người mẫu sau thử đồ bằng NanoAI; giữ gương mặt và vóc dáng nhất quán.\nMô tả tính năng: Thử đồ — tính năng AI của NanoAI.\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/thu-do-online_1777113130406.png"
+  },
+  {
+    "order": 2,
+    "linkPath": "/tao-giao-trinh",
+    "title": "Tạo giáo trình",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Tạo giáo trình\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nDùng visual mô phỏng tình huống sử dụng thực tế trên màn hình laptop/điện thoại để người xem hiểu ngay tính năng.\nMô tả tính năng: Tạo giáo trình — tính năng AI của NanoAI (Giáo dục & Đào tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-giao-trinh_1777113160093.png"
+  },
+  {
+    "order": 3,
+    "linkPath": "/giao-trinh",
+    "title": "Giáo trình của tôi",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Giáo trình của tôi\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nDùng visual mô phỏng tình huống sử dụng thực tế trên màn hình laptop/điện thoại để người xem hiểu ngay tính năng.\nMô tả tính năng: Giáo trình của tôi — tính năng AI của NanoAI (Giáo dục & Đào tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/giao-trinh_1777113198261.png"
+  },
+  {
+    "order": 4,
+    "linkPath": "/tao-bai-thi",
+    "title": "Tạo bài thi trực tuyến",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Tạo bài thi trực tuyến\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nDùng visual mô phỏng tình huống sử dụng thực tế trên màn hình laptop/điện thoại để người xem hiểu ngay tính năng.\nMô tả tính năng: Tạo bài thi trực tuyến — tính năng AI của NanoAI (Giáo dục & Đào tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-bai-thi_1777113235304.png"
+  },
+  {
+    "order": 5,
+    "linkPath": "/tao-bai-tap-ve-nha",
+    "title": "Tạo bài tập về nhà",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Tạo bài tập về nhà\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nDùng visual mô phỏng tình huống sử dụng thực tế trên màn hình laptop/điện thoại để người xem hiểu ngay tính năng.\nMô tả tính năng: Tạo bài tập về nhà — tính năng AI của NanoAI (Giáo dục & Đào tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-bai-tap-ve-nha_1777113264001.png"
+  },
+  {
+    "order": 6,
+    "linkPath": "/lop",
+    "title": "Lớp học",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Lớp học\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nDùng visual mô phỏng tình huống sử dụng thực tế trên màn hình laptop/điện thoại để người xem hiểu ngay tính năng.\nMô tả tính năng: Lớp học — tính năng AI của NanoAI (Giáo dục & Đào tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/lop_1777113309494.png"
+  },
+  {
+    "order": 7,
+    "linkPath": "/hoc-tieng-anh-ai",
+    "title": "Học ngoại ngữ AI",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Học ngoại ngữ AI\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nDùng visual mô phỏng tình huống sử dụng thực tế trên màn hình laptop/điện thoại để người xem hiểu ngay tính năng.\nMô tả tính năng: Học ngoại ngữ AI — tính năng AI của NanoAI (Giáo dục & Đào tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/hoc-tieng-anh-ai_1777113341175.png"
+  },
+  {
+    "order": 8,
+    "linkPath": "/ghi-am-bao-cao-cuoc-hop",
+    "title": "Ghi âm & báo cáo cuộc họp",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Ghi âm & báo cáo cuộc họp\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nDùng visual mô phỏng tình huống sử dụng thực tế trên màn hình laptop/điện thoại để người xem hiểu ngay tính năng.\nMô tả tính năng: Ghi âm & báo cáo cuộc họp — tính năng AI của NanoAI (Giáo dục & Đào tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/ghi-am-bao-cao-cuoc-hop_1777113374663.png"
+  },
+  {
+    "order": 9,
+    "linkPath": "/tao-infographic-tu-sach",
+    "title": "Infographic từ sách",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Infographic từ sách\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nDùng visual mô phỏng tình huống sử dụng thực tế trên màn hình laptop/điện thoại để người xem hiểu ngay tính năng.\nMô tả tính năng: Infographic từ sách — tính năng AI của NanoAI (Giáo dục & Đào tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-infographic-tu-sach_1777113405396.png"
+  },
+  {
+    "order": 10,
+    "linkPath": "/ke-chuyen-bang-hinh-anh",
+    "title": "Kể chuyện bằng ảnh",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Kể chuyện bằng ảnh\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nDùng visual mô phỏng tình huống sử dụng thực tế trên màn hình laptop/điện thoại để người xem hiểu ngay tính năng.\nMô tả tính năng: Kể chuyện bằng ảnh — tính năng AI của NanoAI (Giáo dục & Đào tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/ke-chuyen-bang-hinh-anh_1777113443308.png"
+  },
+  {
+    "order": 11,
+    "linkPath": "/dich-anh-tai-lieu",
+    "title": "Dịch ảnh tài liệu",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Dịch ảnh tài liệu\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nDùng visual mô phỏng tình huống sử dụng thực tế trên màn hình laptop/điện thoại để người xem hiểu ngay tính năng.\nMô tả tính năng: Dịch ảnh tài liệu — tính năng AI của NanoAI (Giáo dục & Đào tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/dich-anh-tai-lieu_1777113475067.png"
+  },
+  {
+    "order": 12,
+    "linkPath": "/phuc-dung-anh",
+    "title": "Phục dựng ảnh",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Phục dựng ảnh\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nBố cục before/after phục dựng ảnh cũ: ảnh cũ xuống cấp ở một bên, ảnh đã phục dựng rõ nét tự nhiên ở bên còn lại.\nMô tả tính năng: Phục dựng ảnh — tính năng AI của NanoAI (Chỉnh sửa ảnh).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/phuc-dung-anh_1777113510609.png"
+  },
+  {
+    "order": 13,
+    "linkPath": "/lam-net-anh",
+    "title": "Làm nét ảnh",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Làm nét ảnh\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nBố cục before/after rõ ràng, nhấn mạnh đầu vào và kết quả sau xử lý AI, khác biệt trực quan nhưng vẫn tự nhiên.\nMô tả tính năng: Làm nét ảnh — tính năng AI của NanoAI (Chỉnh sửa ảnh).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/lam-net-anh_1777113542672.png"
+  },
+  {
+    "order": 14,
+    "linkPath": "/lam-dep-anh",
+    "title": "Làm đẹp ảnh",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Làm đẹp ảnh\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nBố cục before/after rõ ràng, nhấn mạnh đầu vào và kết quả sau xử lý AI, khác biệt trực quan nhưng vẫn tự nhiên.\nMô tả tính năng: Làm đẹp ảnh — tính năng AI của NanoAI (Chỉnh sửa ảnh).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/lam-dep-anh_1777113574186.png"
+  },
+  {
+    "order": 15,
+    "linkPath": "/ghep-anh",
+    "title": "Ghép ảnh",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Ghép ảnh\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nBố cục before/after rõ ràng, nhấn mạnh đầu vào và kết quả sau xử lý AI, khác biệt trực quan nhưng vẫn tự nhiên.\nMô tả tính năng: Ghép ảnh — tính năng AI của NanoAI (Chỉnh sửa ảnh).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/ghep-anh_1777113605659.png"
+  },
+  {
+    "order": 16,
+    "linkPath": "/tao-banner",
+    "title": "Tạo banner",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Tạo banner\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Tạo banner — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-banner_1777113637617.png"
+  },
+  {
+    "order": 17,
+    "linkPath": "/tao-anh-tu-chu",
+    "title": "Tạo ảnh bằng chữ",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Tạo ảnh bằng chữ\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Tạo ảnh bằng chữ — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-anh-tu-chu_1777113667250.png"
+  },
+  {
+    "order": 18,
+    "linkPath": "/du-anh-tu-phac-thao",
+    "title": "Dựng ảnh từ phác thảo",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Dựng ảnh từ phác thảo\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Dựng ảnh từ phác thảo — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/du-anh-tu-phac-thao_1777113693573.png"
+  },
+  {
+    "order": 19,
+    "linkPath": "/tao-anh-the",
+    "title": "Tạo ảnh thẻ",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Tạo ảnh thẻ\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Tạo ảnh thẻ — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-anh-the_1777113723882.png"
+  },
+  {
+    "order": 20,
+    "linkPath": "/thiet-ke-logo",
+    "title": "Thiết kế logo",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Thiết kế logo\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Thiết kế logo — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/thiet-ke-logo_1777113750547.png"
+  },
+  {
+    "order": 21,
+    "linkPath": "/tao-nhan-gian",
+    "title": "Tạo nhãn gián",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Tạo nhãn gián\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Tạo nhãn gián — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-nhan-gian_1777113785388.png"
+  },
+  {
+    "order": 22,
+    "linkPath": "/tao-nhan-gioi-thieu-san-pham",
+    "title": "Tạo nhãn giới thiệu sản phẩm",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Tạo nhãn giới thiệu sản phẩm\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Tạo nhãn giới thiệu sản phẩm — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-nhan-gioi-thieu-san-pham_1777113825233.png"
+  },
+  {
+    "order": 23,
+    "linkPath": "/tao-tem-niem-phong-bao-hanh",
+    "title": "Tạo tem niêm phong, bảo hành",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Tạo tem niêm phong, bảo hành\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Tạo tem niêm phong, bảo hành — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-tem-niem-phong-bao-hanh_1777113855293.png"
+  },
+  {
+    "order": 24,
+    "linkPath": "/thiet-ke-con-dau",
+    "title": "Thiết kế con dấu",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Thiết kế con dấu\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Thiết kế con dấu — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/thiet-ke-con-dau_1777113889535.png"
+  },
+  {
+    "order": 25,
+    "linkPath": "/thiet-ke-bao-bi",
+    "title": "Thiết kế bao bì (hộp, túi)",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Thiết kế bao bì (hộp, túi)\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Thiết kế bao bì (hộp, túi) — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/thiet-ke-bao-bi_1777113927151.png"
+  },
+  {
+    "order": 26,
+    "linkPath": "/tao-ma-vach",
+    "title": "Tạo mã vạch & QR Code",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Tạo mã vạch & QR Code\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Tạo mã vạch & QR Code — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-ma-vach_1777113957662.png"
+  },
+  {
+    "order": 27,
+    "linkPath": "/che-anh",
+    "title": "Chế ảnh",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Chế ảnh\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nThể hiện kết quả đầu ra sáng tạo của tính năng, bố cục như ảnh hero sản phẩm số, gọn và bắt mắt.\nMô tả tính năng: Chế ảnh — tính năng AI của NanoAI (Thiết kế & Sáng tạo).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/che-anh_1777113993042.png"
+  },
+  {
+    "order": 28,
+    "linkPath": "/xoa-vat-the",
+    "title": "Xóa vật thể",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Xóa vật thể\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nBố cục before/after rõ ràng, nhấn mạnh đầu vào và kết quả sau xử lý AI, khác biệt trực quan nhưng vẫn tự nhiên.\nMô tả tính năng: Xóa vật thể — tính năng AI của NanoAI (Chỉnh sửa ảnh).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/xoa-vat-the_1777114027462.png"
+  },
+  {
+    "order": 29,
+    "linkPath": "/xoa-nen-png",
+    "title": "Xóa nền PNG",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Xóa nền PNG\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nBố cục before/after rõ ràng, nhấn mạnh đầu vào và kết quả sau xử lý AI, khác biệt trực quan nhưng vẫn tự nhiên.\nMô tả tính năng: Xóa nền PNG — tính năng AI của NanoAI (Chỉnh sửa ảnh).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/xoa-nen-png_1777114056465.png"
+  },
+  {
+    "order": 30,
+    "linkPath": "/thay-nen-san-pham",
+    "title": "Thay nền ảnh",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Thay nền ảnh\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nBố cục before/after rõ ràng, nhấn mạnh đầu vào và kết quả sau xử lý AI, khác biệt trực quan nhưng vẫn tự nhiên.\nMô tả tính năng: Thay nền ảnh — tính năng AI của NanoAI (Chỉnh sửa ảnh).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/thay-nen-san-pham_1777114088737.png"
+  },
+  {
+    "order": 31,
+    "linkPath": "/sua-anh-theo-yeu-cau",
+    "title": "Sửa ảnh theo yêu cầu",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Sửa ảnh theo yêu cầu\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nBố cục before/after rõ ràng, nhấn mạnh đầu vào và kết quả sau xử lý AI, khác biệt trực quan nhưng vẫn tự nhiên.\nMô tả tính năng: Sửa ảnh theo yêu cầu — tính năng AI của NanoAI (Chỉnh sửa ảnh).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/sua-anh-theo-yeu-cau_1777114120114.png"
+  },
+  {
+    "order": 32,
+    "linkPath": "/tao-anh-3d",
+    "title": "Ảnh sản phẩm mẫu 3D",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Ảnh sản phẩm mẫu 3D\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nNhấn mạnh chiều sâu không gian và chi tiết vật liệu, cảm giác ảnh chụp thật chuyên nghiệp.\nMô tả tính năng: Ảnh sản phẩm mẫu 3D — tính năng AI của NanoAI (3D & Chuyên dụng).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-anh-3d_1777114149356.png"
+  },
+  {
+    "order": 33,
+    "linkPath": "/tao-mo-hinh-3d-tu-anh",
+    "title": "Mô hình 3D từ ảnh",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Mô hình 3D từ ảnh\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nNhấn mạnh chiều sâu không gian và chi tiết vật liệu, cảm giác ảnh chụp thật chuyên nghiệp.\nMô tả tính năng: Mô hình 3D từ ảnh — tính năng AI của NanoAI (3D & Chuyên dụng).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-mo-hinh-3d-tu-anh_1777114179986.png"
+  },
+  {
+    "order": 34,
+    "linkPath": "/thiet-ke-noi-ngoai-that",
+    "title": "Nội ngoại thất",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Nội ngoại thất\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nNhấn mạnh chiều sâu không gian và chi tiết vật liệu, cảm giác ảnh chụp thật chuyên nghiệp.\nMô tả tính năng: Nội ngoại thất — tính năng AI của NanoAI (3D & Chuyên dụng).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/thiet-ke-noi-ngoai-that_1777114438182.png"
+  },
+  {
+    "order": 35,
+    "linkPath": "/xay-nha-tu-dat-nen",
+    "title": "Nhà của bạn",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Nhà của bạn\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nNhấn mạnh chiều sâu không gian và chi tiết vật liệu, cảm giác ảnh chụp thật chuyên nghiệp.\nMô tả tính năng: Nhà của bạn — tính năng AI của NanoAI (3D & Chuyên dụng).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/xay-nha-tu-dat-nen_1777114547732.png"
+  },
+  {
+    "order": 36,
+    "linkPath": "/tao-anh-chain-dung",
+    "title": "Ảnh chân dung",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Ảnh chân dung\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nNhấn mạnh chiều sâu không gian và chi tiết vật liệu, cảm giác ảnh chụp thật chuyên nghiệp.\nMô tả tính năng: Ảnh chân dung — tính năng AI của NanoAI (3D & Chuyên dụng).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-anh-chain-dung_1777114627735.png"
+  },
+  {
+    "order": 37,
+    "linkPath": "/mo-rong-khung-hinh",
+    "title": "Mở rộng khung hình",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Mở rộng khung hình\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nBố cục before/after rõ ràng, nhấn mạnh đầu vào và kết quả sau xử lý AI, khác biệt trực quan nhưng vẫn tự nhiên.\nMô tả tính năng: Mở rộng khung hình — tính năng AI của NanoAI (Chỉnh sửa ảnh).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/mo-rong-khung-hinh_1777114695722.png"
+  },
+  {
+    "order": 38,
+    "linkPath": "/hoan-doi-khuon-mat",
+    "title": "Hoán đổi khuôn mặt",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Hoán đổi khuôn mặt\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nBố cục before/after rõ ràng, nhấn mạnh đầu vào và kết quả sau xử lý AI, khác biệt trực quan nhưng vẫn tự nhiên.\nMô tả tính năng: Hoán đổi khuôn mặt — tính năng AI của NanoAI (Chỉnh sửa ảnh).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/hoan-doi-khuon-mat_1777114800279.png"
+  },
+  {
+    "order": 39,
+    "linkPath": "/tao-bai-hat-lyria-3",
+    "title": "Tạo bài nhạc (có lời / không lời)",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Tạo bài nhạc (có lời / không lời)\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nDùng visual mô phỏng tình huống sử dụng thực tế trên màn hình laptop/điện thoại để người xem hiểu ngay tính năng.\nMô tả tính năng: Tạo bài nhạc (có lời / không lời) — tính năng AI của NanoAI (Âm nhạc AI).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/tao-bai-hat-lyria-3_1777114880859.png"
+  }
+]
