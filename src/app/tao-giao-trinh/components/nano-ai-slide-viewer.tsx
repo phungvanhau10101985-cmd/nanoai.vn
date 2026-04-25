@@ -197,6 +197,84 @@ function MemoryDebugHud({
   )
 }
 
+function MemoryDebugHudRuntime({
+  enabled,
+  slides,
+  payloadStatsRef,
+  slideCount,
+  currentIndex,
+  logPeaks,
+}: {
+  enabled: boolean
+  slides: SlideItem[]
+  payloadStatsRef: React.MutableRefObject<{
+    events: Array<{ at: number; bytes: number; type: string }>
+    lastBytes: number | null
+    lastType: string | null
+    peakBytes: number | null
+    peakType: string | null
+    peakHeapMb: number | null
+  }>
+  slideCount: number
+  currentIndex: number
+  logPeaks: boolean
+}) {
+  const snapshot = useMemoryProbe(enabled)
+  const slideMemoryStats = useMemo(() => estimateSlidesMemory(slides), [slides])
+
+  useEffect(() => {
+    const heapNow = snapshot?.heapUsedMb
+    if (heapNow == null || !Number.isFinite(heapNow)) return
+    const prevPeak = payloadStatsRef.current.peakHeapMb
+    if (prevPeak == null || heapNow > prevPeak) {
+      payloadStatsRef.current.peakHeapMb = heapNow
+      if (logPeaks) {
+        try {
+          console.info('[MemoryProbe] heap peak', { heapMb: Number(heapNow.toFixed(1)) })
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }, [snapshot?.heapUsedMb, payloadStatsRef, logPeaks])
+
+  const details = useMemo<MemoryProbeDetails>(() => {
+    const now = Date.now()
+    const freshEvents = payloadStatsRef.current.events.filter((e) => now - e.at <= 60_000)
+    payloadStatsRef.current.events = freshEvents
+    const avgBytes = freshEvents.length > 0
+      ? freshEvents.reduce((sum, e) => sum + e.bytes, 0) / freshEvents.length
+      : null
+    return {
+      slidesApproxMb: bytesToMb(slideMemoryStats.totalBytes),
+      largestSlideMb: bytesToMb(slideMemoryStats.largestBytes),
+      largestSlideIndex: slideMemoryStats.largestIndex,
+      curriculumPayloadLastMb:
+        payloadStatsRef.current.lastBytes == null
+          ? null
+          : bytesToMb(payloadStatsRef.current.lastBytes),
+      curriculumPayloadAvgMb: avgBytes == null ? null : bytesToMb(avgBytes),
+      curriculumPayloadSendsPerMin: freshEvents.length,
+      curriculumPayloadPeakMb:
+        payloadStatsRef.current.peakBytes == null
+          ? null
+          : bytesToMb(payloadStatsRef.current.peakBytes),
+      curriculumPayloadPeakType: payloadStatsRef.current.peakType,
+      heapPeakMb: payloadStatsRef.current.peakHeapMb,
+    }
+  }, [payloadStatsRef, slideMemoryStats])
+
+  return (
+    <MemoryDebugHud
+      enabled={enabled}
+      snapshot={snapshot}
+      details={details}
+      slideCount={slideCount}
+      currentIndex={currentIndex}
+    />
+  )
+}
+
 /** Vùng ảnh thực sự hiển thị (object-contain) – dùng tâm ảnh + tỷ lệ để tính chuột ảo */
 function getVisibleImageBounds(img: HTMLImageElement): { left: number; top: number; width: number; height: number } {
   const rect = img.getBoundingClientRect()
@@ -1083,48 +1161,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [timerRunning, setTimerRunning] = useState(false)
   const [teacherTimerSeconds, setTeacherTimerSeconds] = useState(0)
   const [teacherTimerRunning, setTeacherTimerRunning] = useState(false)
-  const memoryProbe = useMemoryProbe(memoryDebugEnabled)
-  const slideMemoryStats = useMemo(() => estimateSlidesMemory(slides), [slides])
-  useEffect(() => {
-    const heapNow = memoryProbe?.heapUsedMb
-    if (heapNow == null || !Number.isFinite(heapNow)) return
-    const prevPeak = curriculumPayloadStatsRef.current.peakHeapMb
-    if (prevPeak == null || heapNow > prevPeak) {
-      curriculumPayloadStatsRef.current.peakHeapMb = heapNow
-      if (memoryDebugEnabled) {
-        try {
-          console.info('[MemoryProbe] heap peak', { heapMb: Number(heapNow.toFixed(1)) })
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-  }, [memoryProbe?.heapUsedMb, memoryDebugEnabled])
-  const memoryProbeDetails = useMemo<MemoryProbeDetails>(() => {
-    const now = Date.now()
-    const freshEvents = curriculumPayloadStatsRef.current.events.filter((e) => now - e.at <= 60_000)
-    curriculumPayloadStatsRef.current.events = freshEvents
-    const avgBytes = freshEvents.length > 0
-      ? freshEvents.reduce((sum, e) => sum + e.bytes, 0) / freshEvents.length
-      : null
-    return {
-      slidesApproxMb: bytesToMb(slideMemoryStats.totalBytes),
-      largestSlideMb: bytesToMb(slideMemoryStats.largestBytes),
-      largestSlideIndex: slideMemoryStats.largestIndex,
-      curriculumPayloadLastMb:
-        curriculumPayloadStatsRef.current.lastBytes == null
-          ? null
-          : bytesToMb(curriculumPayloadStatsRef.current.lastBytes),
-      curriculumPayloadAvgMb: avgBytes == null ? null : bytesToMb(avgBytes),
-      curriculumPayloadSendsPerMin: freshEvents.length,
-      curriculumPayloadPeakMb:
-        curriculumPayloadStatsRef.current.peakBytes == null
-          ? null
-          : bytesToMb(curriculumPayloadStatsRef.current.peakBytes),
-      curriculumPayloadPeakType: curriculumPayloadStatsRef.current.peakType,
-      heapPeakMb: curriculumPayloadStatsRef.current.peakHeapMb,
-    }
-  }, [slideMemoryStats])
   const [presentationMode, setPresentationMode] = useState<'independent' | 'slide-interaction'>('independent')
   const [viewportW, setViewportW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
@@ -5216,12 +5252,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         </div>
       </div>
 
-      <MemoryDebugHud
+      <MemoryDebugHudRuntime
         enabled={memoryDebugEnabled}
-        snapshot={memoryProbe}
-        details={memoryProbeDetails}
+        slides={slides}
+        payloadStatsRef={curriculumPayloadStatsRef}
         slideCount={slides.length}
         currentIndex={currentIndex}
+        logPeaks={memoryDebugEnabled}
       />
 
       {/* Print: tất cả slide - layout giống màn hình */}
