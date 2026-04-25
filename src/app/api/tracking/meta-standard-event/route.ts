@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 const INTEGRATIONS_KEY = 'admin_integrations_config'
 const GRAPH_VERSION = 'v21.0'
 
-type MetaStandardEventName = 'CompleteRegistration' | 'StartTrial' | 'Subscribe'
+type MetaStandardEventName = 'CompleteRegistration' | 'StartTrial' | 'Subscribe' | 'ViewContent'
 
 type AdminIntegrationsSettings = {
   facebookPixelId?: string
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
   const eventSourceUrl = readString(body, 'eventSourceUrl').slice(0, 2000)
   const fbc = readString(body, 'fbc')
   const fbp = readString(body, 'fbp')
-  const allowedEvents: MetaStandardEventName[] = ['CompleteRegistration', 'StartTrial', 'Subscribe']
+  const allowedEvents: MetaStandardEventName[] = ['CompleteRegistration', 'StartTrial', 'Subscribe', 'ViewContent']
   if (!allowedEvents.includes(eventNameRaw as MetaStandardEventName)) {
     return NextResponse.json({ ok: false, error: 'invalid_event_name' }, { status: 400 })
   }

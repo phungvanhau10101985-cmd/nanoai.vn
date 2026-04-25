@@ -4,14 +4,24 @@ import { useEffect } from 'react'
 import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
+import { isPathMatchedByFeatureRoute, toNanoAiFeatureCatalogIdFromHref } from '@/lib/catalog/nanoai-feature-catalog-id'
 
 declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void
+    __nanoMetaLastViewContentKey?: string
+    __nanoMetaLastViewContentAt?: number
   }
 }
 
 const FEATURE_ROUTES = [
+  '/tao-giao-trinh',
+  '/giao-trinh',
+  '/tao-bai-thi',
+  '/tao-bai-tap-ve-nha',
+  '/lop',
+  '/hoc-tieng-anh-ai',
+  '/ghi-am-bao-cao-cuoc-hop',
   '/thu-do-online',
   '/phuc-dung-anh',
   '/lam-net-anh',
@@ -28,8 +38,6 @@ const FEATURE_ROUTES = [
   '/tao-nhan-gioi-thieu-san-pham',
   '/tao-tem-niem-phong-bao-hanh',
   '/thiet-ke-bao-bi',
-  '/thiet-ke-tui-dung',
-  '/mockup-cylinder-wrap',
   '/tao-ma-vach',
   '/che-anh',
   '/xoa-vat-the',
@@ -43,7 +51,15 @@ const FEATURE_ROUTES = [
   '/mo-rong-khung-hinh',
   '/hoan-doi-khuon-mat',
   '/dich-anh-tai-lieu',
+  '/tao-bai-hat-lyria-3',
 ]
+
+function findMatchedFeatureRoute(pathname: string): string | null {
+  for (const route of FEATURE_ROUTES) {
+    if (isPathMatchedByFeatureRoute(pathname, route)) return route
+  }
+  return null
+}
 
 function track(eventName: string, params: Record<string, unknown> = {}) {
   if (typeof window === 'undefined' || typeof window.gtag !== 'function') return
@@ -57,6 +73,32 @@ function firePageView() {
   track('page_view', {
     page_path: pagePath,
     page_title: document.title,
+  })
+}
+
+function fireMetaFeatureViewContent() {
+  if (typeof window === 'undefined') return
+  if (isLikelyBotTraffic()) return
+  const matched = findMatchedFeatureRoute(window.location.pathname || '/')
+  if (!matched) return
+  const viewKey = `${matched}|${window.location.pathname || '/'}|${window.location.search || ''}`
+  const now = Date.now()
+  const prevKey = window.__nanoMetaLastViewContentKey || ''
+  const prevAt = Number(window.__nanoMetaLastViewContentAt || 0)
+  if (prevKey === viewKey && now - prevAt < 5000) return
+  window.__nanoMetaLastViewContentKey = viewKey
+  window.__nanoMetaLastViewContentAt = now
+  const contentId = toNanoAiFeatureCatalogIdFromHref(matched)
+  const contentName = document.title?.trim().slice(0, 200) || matched
+  fireMetaStandardEvent('ViewContent', {
+    skipDedupe: true,
+    customData: {
+      content_type: 'product',
+      content_category: 'ai_feature',
+      content_ids: [contentId],
+      content_name: contentName,
+      feature_route: matched,
+    },
   })
 }
 
@@ -80,8 +122,12 @@ function handleMetaSignupFlagsFromUrl() {
 export function AnalyticsTracker() {
   useEffect(() => {
     firePageView()
+    fireMetaFeatureViewContent()
     handleMetaSignupFlagsFromUrl()
-    return subscribeToUrlChanges(firePageView)
+    return subscribeToUrlChanges(() => {
+      firePageView()
+      fireMetaFeatureViewContent()
+    })
   }, [])
 
   useEffect(() => {
@@ -109,7 +155,7 @@ export function AnalyticsTracker() {
         })
 
         if (isInternal) {
-          const matchedFeature = FEATURE_ROUTES.find((route) => url.pathname.startsWith(route))
+          const matchedFeature = findMatchedFeatureRoute(url.pathname)
           if (matchedFeature) {
             track('feature_open', { feature_route: matchedFeature, from_route: window.location.pathname })
           }

@@ -37,7 +37,7 @@ function readCookie(name: string): string {
 }
 
 function sendMetaStandardEventToServer(params: {
-  eventName: 'CompleteRegistration' | 'StartTrial' | 'Subscribe'
+  eventName: 'CompleteRegistration' | 'StartTrial' | 'Subscribe' | 'ViewContent'
   eventId: string
   customData?: Record<string, unknown>
 }): void {
@@ -94,16 +94,20 @@ function markSentEvent(dedupeKey: string): void {
  * Uses an explicit dedupe key so we can prevent repeated fires in one session.
  */
 export function fireMetaStandardEvent(
-  eventName: 'CompleteRegistration' | 'StartTrial' | 'Subscribe',
+  eventName: 'CompleteRegistration' | 'StartTrial' | 'Subscribe' | 'ViewContent',
   options?: {
     dedupeKey?: string
     customData?: Record<string, unknown>
+    skipDedupe?: boolean
   }
 ): boolean {
   if (!canUseDom()) return false
+  const skipDedupe = options?.skipDedupe === true
   const key = (options?.dedupeKey || eventName).trim()
-  if (!key) return false
-  if (hasSentEvent(key)) return false
+  if (!skipDedupe) {
+    if (!key) return false
+    if (hasSentEvent(key)) return false
+  }
   const customData = options?.customData && Object.keys(options.customData).length > 0
     ? options.customData
     : undefined
@@ -116,6 +120,8 @@ export function fireMetaStandardEvent(
     eventId,
     ...(customData ? { customData } : {}),
   })
-  markSentEvent(key)
+  if (!skipDedupe) {
+    markSentEvent(key)
+  }
   return true
 }

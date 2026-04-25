@@ -2,6 +2,7 @@ import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { getDictionary, type NavGroupKey } from '@/lib/i18n/dictionaries'
 import { AI_TOOLS, NAV_GROUPS } from '@/lib/nav-config'
 import imageOverridesRaw from '@/lib/catalog/nanoai-catalog-feature-image-overrides.json'
+import { toNanoAiFeatureCatalogIdFromHref } from '@/lib/catalog/nanoai-feature-catalog-id'
 
 export type NanoAiFacebookCatalogItem = {
   id: string
@@ -74,6 +75,48 @@ const TOOL_IMAGE_BY_HREF: Record<string, string> = {
   '/tao-bai-hat-lyria-3': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776514289804.png',
 }
 
+const FRIENDLY_FEATURE_TITLE_BY_HREF: Record<string, string> = {
+  '/thu-do-online': 'Thử đồ ảo AI',
+  '/tao-giao-trinh': 'Tạo giáo trình AI',
+  '/giao-trinh': 'Quản lý giáo trình',
+  '/tao-bai-thi': 'Tạo đề thi online',
+  '/tao-bai-tap-ve-nha': 'Tạo bài tập về nhà',
+  '/lop': 'Quản lý lớp học',
+  '/hoc-tieng-anh-ai': 'Học tiếng Anh với AI',
+  '/ghi-am-bao-cao-cuoc-hop': 'Ghi âm & tóm tắt cuộc họp',
+  '/tao-infographic-tu-sach': 'Tạo infographic từ tài liệu',
+  '/ke-chuyen-bang-hinh-anh': 'Kể chuyện bằng hình ảnh',
+  '/dich-anh-tai-lieu': 'Dịch ảnh tài liệu',
+  '/phuc-dung-anh': 'Phục dựng ảnh cũ',
+  '/lam-net-anh': 'Làm nét ảnh mờ',
+  '/lam-dep-anh': 'Làm đẹp ảnh chân dung',
+  '/ghep-anh': 'Ghép nhiều ảnh',
+  '/tao-banner': 'Thiết kế banner',
+  '/tao-anh-tu-chu': 'Tạo ảnh từ mô tả',
+  '/du-anh-tu-phac-thao': 'Dựng ảnh từ phác thảo',
+  '/tao-anh-the': 'Tạo ảnh thẻ chuẩn',
+  '/thiet-ke-logo': 'Thiết kế logo',
+  '/tao-nhan-gian': 'Tạo sticker nhãn dán',
+  '/tao-nhan-gioi-thieu-san-pham': 'Tạo nhãn giới thiệu sản phẩm',
+  '/tao-tem-niem-phong-bao-hanh': 'Tạo tem niêm phong & bảo hành',
+  '/thiet-ke-con-dau': 'Thiết kế con dấu',
+  '/thiet-ke-bao-bi': 'Thiết kế bao bì',
+  '/tao-ma-vach': 'Tạo mã vạch & QR',
+  '/che-anh': 'Tạo meme',
+  '/xoa-vat-the': 'Xóa vật thể khỏi ảnh',
+  '/xoa-nen-png': 'Xóa nền ảnh PNG',
+  '/thay-nen-san-pham': 'Thay nền sản phẩm',
+  '/sua-anh-theo-yeu-cau': 'Sửa ảnh theo yêu cầu',
+  '/tao-anh-3d': 'Tạo ảnh sản phẩm 3D',
+  '/tao-mo-hinh-3d-tu-anh': 'Tạo mô hình 3D từ ảnh',
+  '/thiet-ke-noi-ngoai-that': 'Thiết kế nội & ngoại thất',
+  '/xay-nha-tu-dat-nen': 'Lên ý tưởng xây nhà từ đất nền',
+  '/tao-anh-chain-dung': 'Tạo ảnh chân dung AI',
+  '/mo-rong-khung-hinh': 'Mở rộng khung hình',
+  '/hoan-doi-khuon-mat': 'Hoán đổi khuôn mặt',
+  '/tao-bai-hat-lyria-3': 'Tạo bài hát AI',
+}
+
 const IMAGE_LINK_VERSION_TOKEN = stableHashToken(
   [
     ...Object.entries(IMAGE_OVERRIDES)
@@ -84,18 +127,6 @@ const IMAGE_LINK_VERSION_TOKEN = stableHashToken(
       .map(([k, v]) => `${k}:${v}`),
   ].join('|')
 )
-
-function toCatalogIdFromHref(href: string): string {
-  const normalized = href
-    .trim()
-    .replace(/^\/+/, '')
-    .replace(/\/+/g, '_')
-    .replace(/[^a-zA-Z0-9_]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .toLowerCase()
-  return `feature_${normalized || 'home'}`
-}
 
 function normalizeToolImagePath(path: string): string {
   const p = String(path || '').trim()
@@ -133,15 +164,15 @@ export function listNanoAiFacebookCatalogItems(): NanoAiFacebookCatalogItem[] {
     const href = tool.href
     if (!href || seen.has(href)) continue
     seen.add(href)
-    const title = dict.tool[tool.labelKey] || tool.labelKey
+    const title = FRIENDLY_FEATURE_TITLE_BY_HREF[href] || dict.tool[tool.labelKey] || tool.labelKey
     const groupLabelKey = groupByHref.get(href)
     const groupName = groupLabelKey ? (dict.navGroup[groupLabelKey] || '') : ''
     const description = groupName
-      ? `${title} — tính năng AI của NanoAI (${groupName}).`
-      : `${title} — tính năng AI của NanoAI.`
+      ? `${title} — công cụ AI trên NanoAI, thuộc nhóm ${groupName}.`
+      : `${title} — công cụ AI trên NanoAI.`
 
     items.push({
-      id: toCatalogIdFromHref(href),
+      id: toNanoAiFeatureCatalogIdFromHref(href),
       title,
       description,
       availability: 'in stock',
