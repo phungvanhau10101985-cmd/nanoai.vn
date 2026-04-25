@@ -1199,9 +1199,9 @@ export default function CurriculumViewPage() {
 
   /**
    * Memory rescue (giáo viên):
-   * - Mỗi 5s đo `performance.memory.usedJSHeapSize`.
-   * - >60%: dọn các Set/string ref ăn RAM nội bộ; phát `nano-slide-memory-pressure` để iframe nhúng tự nghỉ.
-   * - >85%: chỉ cảnh báo (không reload tab GV để tránh mất nội dung soạn).
+   * - Tick mỗi 2s đo `performance.memory.usedJSHeapSize`.
+   * - Cleanup state nội bộ + phát `nano-slide-memory-pressure` để iframe nhúng tự nghỉ.
+   * - Sát ngưỡng nguy hiểm: tự reload tab GV (state đã được sessionStorage cache khôi phục lại đúng slide cũ).
    */
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1209,8 +1209,11 @@ export default function CurriculumViewPage() {
     const perfLike = performance as Performance & {
       memory?: { usedJSHeapSize?: number; jsHeapSizeLimit?: number }
     }
+    const reloadedKey = 'nano_teacher_memory_reloaded_at'
     let softCleanupAt = 0
     let warnedAt = 0
+    let lastSampledUsed: number | null = null
+    let lastSampledAt: number | null = null
     const tick = () => {
       if (cancelled) return
       const used = Number(perfLike.memory?.usedJSHeapSize ?? NaN)
@@ -1218,7 +1221,18 @@ export default function CurriculumViewPage() {
       if (!Number.isFinite(used) || !Number.isFinite(limit) || limit <= 0) return
       const ratio = used / limit
       const now = Date.now()
-      if (ratio > 0.6 && now - softCleanupAt > 20_000) {
+
+      // Panic detection: heap nhảy nhanh trong 1 nhịp.
+      let panicGrowth = false
+      if (lastSampledUsed != null && lastSampledAt != null) {
+        const dtMs = Math.max(1, now - lastSampledAt)
+        const growthMbPerSec = ((used - lastSampledUsed) / dtMs) * 1000 / (1024 * 1024)
+        if (growthMbPerSec > 30) panicGrowth = true
+      }
+      lastSampledUsed = used
+      lastSampledAt = now
+
+      if (ratio > 0.5 && now - softCleanupAt > 15_000) {
         softCleanupAt = now
         try {
           lastStudentWirePayloadRef.current = ''
@@ -1227,10 +1241,10 @@ export default function CurriculumViewPage() {
           /* ignore */
         }
       }
-      if (ratio > 0.7) {
+      if (ratio > 0.65 || panicGrowth) {
         try {
           window.dispatchEvent(
-            new CustomEvent('nano-slide-memory-pressure', { detail: { heapUsed: used, ratio } })
+            new CustomEvent('nano-slide-memory-pressure', { detail: { heapUsed: used, ratio, panicGrowth } })
           )
         } catch {
           /* ignore */
@@ -1247,8 +1261,26 @@ export default function CurriculumViewPage() {
           /* ignore */
         }
       }
+
+      // Tab GV chỉ reload ở ngưỡng RẤT cao hoặc panic + ratio > 88%; cooldown 60s sau lần reload.
+      const lastReloadRaw = Number(window.sessionStorage.getItem(reloadedKey) ?? '0')
+      const withinCooldown = Number.isFinite(lastReloadRaw) && now - lastReloadRaw < 60_000
+      const shouldReload = !withinCooldown && (ratio > 0.92 || (panicGrowth && ratio > 0.88))
+      if (shouldReload) {
+        cancelled = true
+        try {
+          window.sessionStorage.setItem(reloadedKey, String(now))
+        } catch {
+          /* ignore */
+        }
+        try {
+          window.location.reload()
+        } catch {
+          /* ignore */
+        }
+      }
     }
-    const id = window.setInterval(tick, 5000)
+    const id = window.setInterval(tick, 2000)
     tick()
     return () => {
       cancelled = true
