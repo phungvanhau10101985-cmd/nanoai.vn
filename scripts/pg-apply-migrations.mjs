@@ -3,14 +3,25 @@
  * Áp các file SQL trong db/migrations/ theo thứ tự tên (Postgres + `pg`).
  * Theo dõi bảng public.app_applied_sql_migrations (tự tạo nếu chưa có).
  *
- * Yêu cầu: DATABASE_URL trong .env.local hoặc môi trường.
+ * Yêu cầu: DATABASE_URL — biến môi trường, hoặc .env.local, hoặc .env (VPS thường dùng .env).
  *
- *   node scripts/pg-apply-migrations.mjs           # dry-run (liệt kê pending)
- *   node scripts/pg-apply-migrations.mjs --apply   # chạy thật
+ *   node scripts/pg-apply-migrations.mjs            # dry-run (liệt kê pending)
+ *   node scripts/pg-apply-migrations.mjs --apply  # chạy thật
  *
- * DB đã có schema sẵn (chưa có bảng tracking này): đánh dấu đã áp hết file
- * (không chạy lại SQL), sau đó chỉ dùng --apply cho migration mới:
- *   node scripts/pg-apply-migrations.mjs --mark-all-applied
+ * --- DB production đã từng tạo schema tay / restore, KHÔNG có lịch sử migration: ---
+ * Nếu chạy --apply từ đầu sẽ lỗi kiểu "relation already exists" ở init.
+ *
+ * 1) Sửa lệch schema còn thiếu (ví dụ cột: chạy file tương ứng bằng psql, file thường dùng IF NOT EXISTS):
+ *    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/20260408150000_profiles_english_coach_learner.sql
+ *
+ * 2) Ghi nhận toàn bộ file trong repo là đã áp (KHÔNG thực thi lại SQL):
+ *    node scripts/pg-apply-migrations.mjs --mark-all-applied
+ *
+ * 3) Kiểm tra: node scripts/pg-apply-migrations.mjs  →  Chờ: 0
+ * Từ đó về sau chỉ cần db:migrate:push khi pull thêm file migration mới.
+ *
+ * Chỉ dùng --mark-all-applied khi bạn chấp nhận rằng DB đã tương đương (hoặc đã sửa drift tay).
+ * Sai → các migration tương lai bỏ qua bước thật sự cần.
  */
 import { readdirSync, readFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
@@ -20,11 +31,11 @@ import { Pool } from 'pg'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 const migrationsDir = join(root, 'db', 'migrations')
-const envPath = join(root, '.env.local')
 
-function loadEnvLocal() {
-  if (!existsSync(envPath)) return
-  const lines = readFileSync(envPath, 'utf8').split('\n')
+function loadEnvFile(name) {
+  const p = join(root, name)
+  if (!existsSync(p)) return
+  const lines = readFileSync(p, 'utf8').split('\n')
   for (const line of lines) {
     const trimmed = line.trim()
     if (!trimmed || trimmed.startsWith('#')) continue
@@ -46,7 +57,8 @@ comment on table public.app_applied_sql_migrations is 'Theo dõi file đã chạ
 `
 
 async function main() {
-  loadEnvLocal()
+  loadEnvFile('.env.local')
+  loadEnvFile('.env')
   const dsn = process.env.DATABASE_URL?.trim()
   if (!dsn) {
     console.error('Thiếu DATABASE_URL')

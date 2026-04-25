@@ -21,6 +21,7 @@
     "import:viet-doc-vqa": "node scripts/import-viet-doc-vqa.mjs",
     "db:migrate:push": "node scripts/pg-apply-migrations.mjs --apply",
     "db:migrate:status": "node scripts/pg-apply-migrations.mjs",
+    "db:migrate:mark-all-applied": "node scripts/pg-apply-migrations.mjs --mark-all-applied",
     "db:sync": "npm run db:migrate:push",
     "db:recreate:local": "node scripts/pg-recreate-local-db-and-migrate.mjs --apply",
     "db:push": "node scripts/pg-apply-migrations.mjs --apply",

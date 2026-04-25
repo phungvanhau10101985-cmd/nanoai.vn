@@ -10,12 +10,11 @@ import { Pool } from 'pg'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
-const envPath = join(root, '.env.local')
 
-function loadEnvLocal() {
-  if (!existsSync(envPath)) return
-  const lines = readFileSync(envPath, 'utf8').split('\n')
-  for (const line of lines) {
+function loadEnvFile(name) {
+  const p = join(root, name)
+  if (!existsSync(p)) return
+  for (const line of readFileSync(p, 'utf8').split('\n')) {
     const trimmed = line.trim()
     if (!trimmed || trimmed.startsWith('#')) continue
     const eq = trimmed.indexOf('=')
@@ -27,7 +26,8 @@ function loadEnvLocal() {
   }
 }
 
-loadEnvLocal()
+loadEnvFile('.env.local')
+loadEnvFile('.env')
 const dsn = process.env.DATABASE_URL?.trim()
 if (!dsn) {
   console.error('Thiếu DATABASE_URL')

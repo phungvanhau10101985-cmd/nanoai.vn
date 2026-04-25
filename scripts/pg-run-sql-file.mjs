@@ -5,6 +5,8 @@
  *   node scripts/pg-run-sql-file.mjs scripts/delete-worksheet-exercises-for-recreate.sql
  *   node scripts/pg-run-sql-file.mjs scripts/delete-worksheet-exercises-for-recreate.sql --apply
  *
+ * DATABASE_URL: .env.local hoặc .env trong thư mục project (giống db:migrate:push).
+ *
  * Mặc định dry-run (in nội dung). --apply để thực thi.
  */
 import { readFileSync, existsSync } from 'fs'
@@ -12,12 +14,12 @@ import { dirname, join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { Pool } from 'pg'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const envPath = join(__dirname, '..', '.env.local')
+const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-function loadEnvLocal() {
-  if (!existsSync(envPath)) return
-  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+function loadEnvFile(name) {
+  const p = join(root, name)
+  if (!existsSync(p)) return
+  for (const line of readFileSync(p, 'utf8').split('\n')) {
     const trimmed = line.trim()
     if (!trimmed || trimmed.startsWith('#')) continue
     const eq = trimmed.indexOf('=')
@@ -30,7 +32,8 @@ function loadEnvLocal() {
 }
 
 async function main() {
-  loadEnvLocal()
+  loadEnvFile('.env.local')
+  loadEnvFile('.env')
   const dsn = process.env.DATABASE_URL?.trim()
   if (!dsn) {
     console.error('Thiếu DATABASE_URL')
