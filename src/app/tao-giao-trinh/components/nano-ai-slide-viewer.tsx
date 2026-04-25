@@ -153,6 +153,27 @@ function useMemoryProbe(enabled: boolean): MemoryProbeSnapshot | null {
         imageCount: document.getElementsByTagName('img').length,
         canvasCount: document.getElementsByTagName('canvas').length,
       })
+      const usedMb = usedBytes == null ? null : bytesToMb(usedBytes)
+      const pressureFromGrowth =
+        usedMb != null &&
+        growthMbPerMin != null &&
+        usedMb > 1200 &&
+        growthMbPerMin > 80
+      const pressureFromLimit =
+        usedMb != null &&
+        limitBytes != null &&
+        usedBytes != null &&
+        usedBytes / limitBytes > 0.7
+      if (pressureFromGrowth || pressureFromLimit) {
+        window.dispatchEvent(
+          new CustomEvent('nano-slide-memory-pressure', {
+            detail: {
+              heapUsedMb: usedMb,
+              heapGrowthMbPerMin: growthMbPerMin,
+            },
+          })
+        )
+      }
     }
 
     collect()

@@ -151,6 +151,7 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const isIframeEmbed = type === 'geogebra' || type === 'desmos' || type === 'youtube' || type === 'phet' || type === 'maps' || type === 'code'
   const [iframeInViewport, setIframeInViewport] = useState(() => !isIframeEmbed)
+  const [memoryPaused, setMemoryPaused] = useState(false)
 
   useEffect(() => {
     if (!isIframeEmbed) return
@@ -172,11 +173,27 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
     return () => observer.disconnect()
   }, [isIframeEmbed, src, fill])
 
+  useEffect(() => {
+    if (!isIframeEmbed) return
+    const pause = () => setMemoryPaused(true)
+    const resume = () => setMemoryPaused(false)
+    window.addEventListener('nano-slide-memory-pressure', pause as EventListener)
+    const node = wrapperRef.current
+    node?.addEventListener('pointerenter', resume)
+    node?.addEventListener('focusin', resume)
+    return () => {
+      window.removeEventListener('nano-slide-memory-pressure', pause as EventListener)
+      node?.removeEventListener('pointerenter', resume)
+      node?.removeEventListener('focusin', resume)
+    }
+  }, [isIframeEmbed])
+
   if (isIframeEmbed) {
     if (!src) return null
+    const iframeActive = iframeInViewport && !memoryPaused
     return (
       <div ref={wrapperRef} className={wrapperClass} style={{ pointerEvents: 'auto' }}>
-        {iframeInViewport ? (
+        {iframeActive ? (
           <iframe
             src={src}
             {...(fill
@@ -189,11 +206,19 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
             title={type}
           />
         ) : (
-          <div
-            aria-hidden
-            className={fill ? 'min-h-0 w-full flex-1 bg-slate-100/60 dark:bg-slate-800/60' : 'w-full bg-slate-100/60 dark:bg-slate-800/60'}
+          <button
+            type="button"
+            onClick={() => setMemoryPaused(false)}
+            className={
+              fill
+                ? 'min-h-0 w-full flex-1 bg-slate-100/60 p-3 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400'
+                : 'w-full bg-slate-100/60 p-3 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400'
+            }
             style={fill ? undefined : { height }}
-          />
+            aria-label="Resume embedded content"
+          >
+            {memoryPaused ? 'Nội dung nhúng tạm nghỉ để giảm RAM - bấm để mở lại' : ''}
+          </button>
         )}
       </div>
     )
