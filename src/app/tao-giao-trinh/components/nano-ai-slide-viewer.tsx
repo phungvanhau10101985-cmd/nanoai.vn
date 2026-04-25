@@ -2779,9 +2779,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             if (rr && rr.width > 0 && rr.height > 0) lr = rr
           }
           if (!lr && inMarkdownAll && slideIdxFromMsg != null) {
-            const slideEl = document.getElementById(`nano-student-md-slide-${slideIdxFromMsg}`)
-            const rr = slideEl?.getBoundingClientRect()
-            if (rr && rr.width > 0 && rr.height > 0) lr = rr
+            // Ưu tiên body của slide (loại trừ tiêu đề) → khớp đúng với teacherSlidePointerSyncRef bên GV.
+            const bodyEl = document.querySelector(
+              `[data-pointer-slide-body="${slideIdxFromMsg}"]`
+            ) as HTMLElement | null
+            const br = bodyEl?.getBoundingClientRect()
+            if (br && br.width > 0 && br.height > 0) lr = br
+            else {
+              const slideEl = document.getElementById(`nano-student-md-slide-${slideIdxFromMsg}`)
+              const rr = slideEl?.getBoundingClientRect()
+              if (rr && rr.width > 0 && rr.height > 0) lr = rr
+            }
           }
           if (!lr && !inMarkdownAll && preferBody) {
             const bodyEl = studentSlidePointerSyncRef.current
@@ -3048,9 +3056,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             if (rr && rr.width > 0 && rr.height > 0) lr = rr
           }
           if (!lr && inMarkdownAll && slideIdxFromMsg != null) {
-            const slideEl = document.getElementById(`nano-student-md-slide-${slideIdxFromMsg}`)
-            const rr = slideEl?.getBoundingClientRect()
-            if (rr && rr.width > 0 && rr.height > 0) lr = rr
+            // Ưu tiên body của slide (loại trừ tiêu đề) → khớp đúng với teacherSlidePointerSyncRef bên GV.
+            const bodyEl = document.querySelector(
+              `[data-pointer-slide-body="${slideIdxFromMsg}"]`
+            ) as HTMLElement | null
+            const br = bodyEl?.getBoundingClientRect()
+            if (br && br.width > 0 && br.height > 0) lr = br
+            else {
+              const slideEl = document.getElementById(`nano-student-md-slide-${slideIdxFromMsg}`)
+              const rr = slideEl?.getBoundingClientRect()
+              if (rr && rr.width > 0 && rr.height > 0) lr = rr
+            }
           }
           if (!lr && !inMarkdownAll && preferBody) {
             const bodyEl = studentSlidePointerSyncRef.current
@@ -5449,6 +5465,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         s.title
                       )}
                     </h3>
+                    <div data-pointer-slide-body={si} className="w-full min-w-0">
                     {mdChainLiveTyping && isCurrent ? (
                       renderCurrentSlideTypingBody()
                     ) : shouldLazyMountMarkdownBody ? (
@@ -5461,6 +5478,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     ) : (
                       renderFullSlideBody()
                     )}
+                    </div>
                   </section>
                 )
               })
