@@ -45,6 +45,10 @@ const ReferralClaimRunner = dynamic(
   () => import("@/components/referral/referral-claim-runner").then((m) => m.ReferralClaimRunner),
   { ssr: false }
 );
+const CreditFeatureAccessGuard = dynamic(
+  () => import("@/components/auth/credit-feature-access-guard").then((m) => m.CreditFeatureAccessGuard),
+  { ssr: false }
+);
 const GA_MEASUREMENT_ID = "G-1KZ2PKX887";
 const INTEGRATIONS_KEY = "admin_integrations_config";
 
@@ -443,6 +447,7 @@ export default async function RootLayout({
           </>
         ) : null}
         <AnalyticsTracker />
+        <CreditFeatureAccessGuard />
         <ReferralCapture />
         <ReferralClaimRunner />
         <JsonLd data={webAppLd} />
