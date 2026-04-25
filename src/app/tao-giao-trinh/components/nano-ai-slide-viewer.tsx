@@ -2959,7 +2959,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 if (s.snap) acc = [{ x: s.x, y: s.y }]
                 else acc = [...acc, { x: s.x, y: s.y }]
               }
-              return acc.slice(-64)
+              return acc.slice(-160)
             })
           })
         }
@@ -4203,7 +4203,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           )}
           {virtualMousePos && (
             <div
-              className="fixed z-[200] pointer-events-none transition-all duration-75"
+              className="fixed z-[200] pointer-events-none"
               style={{ left: virtualMousePos.x, top: virtualMousePos.y, transform: 'translate(-2px, -2px)' }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="drop-shadow-lg">

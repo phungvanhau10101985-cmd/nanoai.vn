@@ -1556,6 +1556,11 @@ export default function CurriculumViewPage() {
         lessonNo?: number | null
         curriculumInfographic?: SlideInfographic | null
         lessonInfographic?: SlideInfographic | null
+        leftPanelMode?: 'visual' | 'infographic'
+        slideViewMode?: 'single' | 'triple'
+        studentCurriculumRemoteMode?: 'single-slide' | 'markdown-all'
+        infographicSourceView?: 'visual' | 'lesson' | 'curriculum'
+        infographicDrawStrokesBySlide?: Record<string, InfographicDrawStroke[]>
       }
       const cachedSlides = Array.isArray(cached?.slides) ? cached.slides.map((s) => normalizeSlideVisualInputs(s)) : []
       const cachedContent = typeof cached?.content === 'string' ? cached.content : ''
@@ -1590,6 +1595,38 @@ export default function CurriculumViewPage() {
           ? cached.lessonInfographic
           : undefined
       )
+      // Khôi phục state UI cũ — không nhảy về tab/visual khác.
+      if (cached?.leftPanelMode === 'visual' || cached?.leftPanelMode === 'infographic') {
+        setLeftPanelMode(cached.leftPanelMode)
+      }
+      if (cached?.slideViewMode === 'single' || cached?.slideViewMode === 'triple') {
+        setSlideViewMode(cached.slideViewMode)
+      }
+      if (cached?.studentCurriculumRemoteMode === 'markdown-all' || cached?.studentCurriculumRemoteMode === 'single-slide') {
+        setStudentCurriculumRemoteMode(cached.studentCurriculumRemoteMode)
+      }
+      if (cached?.infographicSourceView === 'visual' || cached?.infographicSourceView === 'lesson' || cached?.infographicSourceView === 'curriculum') {
+        setInfographicSourceView(cached.infographicSourceView)
+      }
+      // Khôi phục nét vẽ infographic - không xóa sau reload.
+      if (cached?.infographicDrawStrokesBySlide && typeof cached.infographicDrawStrokesBySlide === 'object') {
+        const incoming = cached.infographicDrawStrokesBySlide
+        const normalized: Record<number, InfographicDrawStroke[]> = {}
+        for (const [k, list] of Object.entries(incoming)) {
+          const idx = Number(k)
+          if (!Number.isFinite(idx) || !Array.isArray(list)) continue
+          normalized[idx] = list
+            .filter((s) => s && typeof s.id === 'string' && Array.isArray(s.points))
+            .map((s) => ({
+              id: s.id,
+              tool: s.tool === 'eraser' ? 'eraser' : 'pen',
+              color: typeof s.color === 'string' ? s.color : '#ef4444',
+              sizeNorm: typeof s.sizeNorm === 'number' ? Math.max(0.001, s.sizeNorm) : 0.004,
+              points: s.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
+            }))
+        }
+        if (Object.keys(normalized).length > 0) setInfographicDrawStrokesBySlide(normalized)
+      }
       hasHydratedFromCurriculumRef.current = true
     } catch {
       /* ignore */
@@ -1602,28 +1639,9 @@ export default function CurriculumViewPage() {
     if (content.trim().length <= 0 && slides.length <= 0) return
     const id = window.setTimeout(() => {
       try {
-        const chunkSize = STUDENT_WIRE_SLIDE_CHUNK_SIZE
-        const radius = STUDENT_WIRE_SLIDE_CHUNK_RADIUS
-        const currentChunk = Math.floor(Math.max(0, currentIndex) / chunkSize)
-        const keepStart = Math.max(0, (currentChunk - radius) * chunkSize)
-        const keepEnd = Math.min(slides.length - 1, ((currentChunk + radius + 1) * chunkSize) - 1)
-        const cacheSlides = slides.map((s, i) => {
-          if (i >= keepStart && i <= keepEnd) return s
-          return {
-            ...s,
-            imageUrl: undefined,
-            visualEmbed: undefined,
-            visualLayout: undefined,
-            visualCells: undefined,
-            visualInput1: undefined,
-            visualInput2: undefined,
-            visualInput3: undefined,
-            visualInput4: undefined,
-            blocks: undefined,
-            content: '',
-            teacherNotes: '',
-          }
-        })
+        // Lưu đầy đủ tất cả slides để reload không mất dữ liệu (kể cả slide xa).
+        // Bỏ qua các trường không cần thiết để giữ kích thước cache hợp lý.
+        const cacheSlides = slides
         window.sessionStorage.setItem(
           TEACHER_CURRICULUM_RUNTIME_CACHE_KEY,
           JSON.stringify({
@@ -1642,6 +1660,13 @@ export default function CurriculumViewPage() {
             lessonNo: activeLessonNo,
             curriculumInfographic: curriculumInfographic ?? null,
             lessonInfographic: lessonInfographic ?? null,
+            // State UI để khôi phục sau reload do RAM.
+            leftPanelMode,
+            slideViewMode,
+            studentCurriculumRemoteMode,
+            infographicSourceView,
+            // Nét vẽ infographic theo slideKey - không mất sau reload.
+            infographicDrawStrokesBySlide,
           })
         )
       } catch {
@@ -1664,6 +1689,11 @@ export default function CurriculumViewPage() {
     activeLessonNo,
     curriculumInfographic,
     lessonInfographic,
+    leftPanelMode,
+    slideViewMode,
+    studentCurriculumRemoteMode,
+    infographicSourceView,
+    infographicDrawStrokesBySlide,
   ])
 
   useEffect(() => {
