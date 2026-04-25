@@ -2674,7 +2674,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         let px: number
         let py: number
         const isUsableRect = (r: DOMRect | null | undefined): r is DOMRect => !!r && r.width > 40 && r.height > 40
-        if (e.data?.quizPopup && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
+        if (typeof e.data?.syncAnchor === 'string' && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
+          const anchorId = String(e.data.syncAnchor)
+          const relX = Math.max(0, Math.min(1, Number(e.data.relX)))
+          const relY = Math.max(0, Math.min(1, Number(e.data.relY)))
+          const el = document.querySelector(`[data-pointer-sync-id="${CSS.escape(anchorId)}"]`) as HTMLElement | null
+          const r = el?.getBoundingClientRect()
+          if (r && r.width > 0 && r.height > 0) {
+            px = r.left + relX * r.width
+            py = r.top + relY * r.height
+          } else return
+        } else if (e.data?.quizPopup && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
           const el = document.querySelector('[data-quiz-popup]')
           const rect = el ? (el as HTMLElement).getBoundingClientRect() : null
           if (rect) {
@@ -5140,6 +5150,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               <button
                 type="button"
                 data-control="student-curriculum-all"
+                data-pointer-sync-id="student-mode-markdown-all"
                 onClick={() => {
                   setStudentCurriculumRightMode('markdown-all')
                   notifyTeacherStudentCurriculumMode('markdown-all')
@@ -5164,6 +5175,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               <button
                 type="button"
                 data-control="student-curriculum-single"
+                data-pointer-sync-id="student-mode-single-slide"
                 onClick={() => {
                   setStudentCurriculumRightMode('single-slide')
                   notifyTeacherStudentCurriculumMode('single-slide')

@@ -3220,6 +3220,22 @@ export default function CurriculumViewPage() {
     const sendPointerMove = (e: MouseEvent | PointerEvent) => {
       const w = window.innerWidth || 1
       const h = window.innerHeight || 1
+      // Ưu tiên anchor [data-pointer-sync-id]: khớp vị trí giữa 2 cửa sổ dù layout khác nhau (vd nút "Chuỗi slide / Slide đơn").
+      try {
+        const anchor = (document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[])
+          .map((el) => el.closest('[data-pointer-sync-id]') as HTMLElement | null)
+          .find((el): el is HTMLElement => !!el)
+        if (anchor) {
+          const rect = anchor.getBoundingClientRect()
+          const id = anchor.getAttribute('data-pointer-sync-id')
+          if (id && rect.width > 0 && rect.height > 0) {
+            const relX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+            const relY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
+            sendToStudentView({ type: 'mouse-pos', syncAnchor: id, relX, relY })
+            return
+          }
+        }
+      } catch { /* ignore */ }
       if (quizPopupOpen) {
         const rect = getQuizPopupRect()
         if (rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
@@ -5955,6 +5971,7 @@ export default function CurriculumViewPage() {
                   <div className="flex shrink-0 items-center gap-1 md:gap-1.5" data-control="gv-remote-student-curriculum-mode">
                     <button
                       type="button"
+                      data-pointer-sync-id="student-mode-markdown-all"
                       onClick={() => {
                         setStudentCurriculumRemoteMode('markdown-all')
                         sendToStudentView({ type: 'student-curriculum-right-mode', mode: 'markdown-all' })
@@ -5978,6 +5995,7 @@ export default function CurriculumViewPage() {
                     </button>
                     <button
                       type="button"
+                      data-pointer-sync-id="student-mode-single-slide"
                       onClick={() => {
                         setStudentCurriculumRemoteMode('single-slide')
                         sendToStudentView({ type: 'student-curriculum-right-mode', mode: 'single-slide' })
