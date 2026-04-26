@@ -47,6 +47,7 @@ import {
   partnerAiShouldUseClarifyBranchFromWidgetPayload,
 } from '@/lib/messaging/partner-ai-unclear-intent'
 import { trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
+import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
 
 export type { PartnerMaterialDetailFollowup, PartnerRealUseImageFollowup }
 
@@ -811,6 +812,12 @@ Chỉ dẫn bổ sung do shop tự nhập (ưu tiên phù hợp ngành hàng / �
 ${salesExtra}`
       : ''
 
+  const inChatBuyNowCtaBlock =
+    normalizeGuestPurchaseFlow(settings.guest_purchase_flow) === 'in_chat'
+      ? `
+- **Đặt hàng trên chat (thẻ SP có nút «Mua ngay»):** Khi đã nêu chính sách cọc / quy trình mua **và** JSON có **thẻ sản phẩm** (trường \`products\` không rỗng) — **không** kết tin bằng câu hỏi kiểu «muốn lấy màu nào và size nào để shop báo giá cọc cụ thể», «cho em biết màu size để báo cọc» — vì màu, size và số cọc được **chọn/ xem trong form** sau khi bấm Mua ngay. Hãy kết bằng **một câu ngắn, dễ hiểu**: khách **bấm «Mua ngay»** trên thẻ rồi **điền thông tin nhận hàng và hoàn tất đơn** (có thể diễn đạt gọn: «bấm Mua ngay và hoàn thành đơn hàng»). Chỉ hỏi màu/size trực tiếp trong **message** khi **không** gửi thẻ, hoặc khi khách hỏi tư vấn chưa định đặt.`
+      : ''
+
   /** Khối mặc định — luôn có; shop mở rộng qua `sales_coaching_instructions` + chính sách. */
   const khoContextInstructionForSystem = followUpSingleProductNoVector
     ? `Trong prompt user, phần «Danh sách kho» chỉ có **đúng một dòng** — sản phẩm shop/AI **vừa tư vấn**; **không** phải kết quả tìm (vector/embedding) trên toàn kho. Nhiệm vụ của bạn: **đọc câu hỏi khách** và trả lời bằng cách **phân tích trực tiếp** các trường trên dòng đó (tên, mô tả, giá, màu, tồn, ghi chú…). Không xử lý như khách đang lần đầu tìm hàng hay cần gợi ý nhiều mẫu.`
@@ -828,7 +835,7 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 - **Hủy đơn / hoàn cọc / trả tiền cọc:** Khi khách đòi hủy đơn hoặc hoàn cọc, **không** đồng ý ngay, **không** hứa «shop sẽ hủy và hoàn tiền» / «xử lý hoàn cọc» một cách dễ dãi trừ khi **chính sách shop ở trên** ghi rõ được phép và điều kiện. Ưu tiên **giữ đơn**; trả lời **khéo, ấm** — nêu **khó khăn / ràng buộc** theo đúng chính sách **chỉ khi đã có trong chính sách**, không bịa điều khoản; không cam kết số tiền / thời hạn hoàn cụ thể nếu không có trong dữ liệu đã cho. Có thể gợi phương án trong phạm vi shop cho phép (đổi size, đổi mẫu…) nếu chính sách có — **không** đề nghị «chuyển lên bộ phận quản lý», «chuyển lên chủ shop xem xét», «shop xem xét lại rồi báo» hay hỏi «chị có muốn shop làm vậy không» trừ khi **chính sách shop** tự ghi rõ quy trình escalate (hiếm); mặc định **không** mở lối thoát quản lý.
 - **Khách băn khoăn / lo lắng về đặt cọc (chưa đòi hủy rõ):** Thể hiện **đồng cảm** (hiểu chị có thể chưa thoải mái khi đặt cọc). Giải thích ngắn lý do cọc / thời gian hàng **theo chính sách & kho** đã có — **không** hứa nới lỏng hay thay đổi chính sách. Kết thúc nhẹ: chúc chị **sớm chọn được / mua được** món **ưng ý** (có thể là mẫu đang xem hoặc chung chung), **không** kèm câu hỏi kiểu «có muốn shop chuyển lên quản lý / xem xét không ạ».
 - Nhấn mạnh giá trị (phù hợp dáng, dịp mặc, chất liệu) thay vì ép mua; tránh nhiều câu hỏi trong một tin — tối đa một lời mở / gợi ý nhẹ, không xếp hàng nhiều câu hỏi.
-- Không hứa giảm giá hay khuyến mãi ngoài chính sách đã cho.${salesShopBlock}`
+- Không hứa giảm giá hay khuyến mãi ngoài chính sách đã cho.${inChatBuyNowCtaBlock}${salesShopBlock}`
 
   const system = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}

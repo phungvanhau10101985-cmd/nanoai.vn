@@ -1172,6 +1172,29 @@ function shouldRepairEnglishMainSentence(mainSentence: string, studentText: stri
   return false
 }
 
+function extractEnglishWordSwapHintFromCorrectionNote(correctionNote: string): { prefer: string; avoid: string } | null {
+  const text = String(correctionNote || '').trim()
+  if (!text) return null
+  const vnPattern = /dùng(?:\s+động\s+từ)?\s*["“'`]?([a-z]+)["”'`]?\s*.*?chứ\s+không\s+dùng\s*["“'`]?([a-z]+)["”'`]?/i
+  const enPattern = /use\s*["“'`]?([a-z]+)["”'`]?\s*.*?(?:instead\s+of|not)\s*["“'`]?([a-z]+)["”'`]?/i
+  const match = text.match(vnPattern) || text.match(enPattern)
+  if (!match) return null
+  const prefer = String(match[1] || '').trim().toLowerCase()
+  const avoid = String(match[2] || '').trim().toLowerCase()
+  if (!prefer || !avoid || prefer === avoid) return null
+  if (!/^[a-z]+$/.test(prefer) || !/^[a-z]+$/.test(avoid)) return null
+  return { prefer, avoid }
+}
+
+function applyEnglishWordSwapHint(sentence: string, hint: { prefer: string; avoid: string } | null): string {
+  const base = String(sentence || '').trim()
+  if (!base || !hint) return base
+  const avoidRe = new RegExp(`\\b${hint.avoid}\\b`, 'gi')
+  if (!avoidRe.test(base)) return base
+  avoidRe.lastIndex = 0
+  return base.replace(avoidRe, hint.prefer)
+}
+
 function ensureIntentAnswerTwoPart(
   intentAnswer: string,
   targetLanguageCode: string,
@@ -3399,6 +3422,8 @@ ${intentAnswer}`
     }
     if (targetLanguageCode === 'en') {
       mainSentenceFinal = enrichEnglishSongMainSentence(mainSentenceFinal, studentText)
+      const swapHint = extractEnglishWordSwapHintFromCorrectionNote(correctionNote)
+      mainSentenceFinal = applyEnglishWordSwapHint(mainSentenceFinal, swapHint)
     }
     try {
       const mainSentenceGatePrompt = `câu "${mainSentenceFinal}" có đủ ý với câu "${studentText}" không?

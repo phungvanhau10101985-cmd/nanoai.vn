@@ -105,6 +105,9 @@ import {
 } from '@/lib/messaging/guest-account-session'
 import type { GuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
 
+/** Khoảng cách tới đáy (px) để coi như user đang xem cuối thread — cho phép auto-scroll theo tin/typing mới. */
+const GUEST_CHAT_STICK_TO_BOTTOM_PX = 120
+
 /** Ghép ngày sinh từ ba dropdown — trả ISO `YYYY-MM-DD` hoặc null. */
 function buildIsoDateFromBirthParts(day: string, month: string, year: string): string | null {
   const d = Number.parseInt(day, 10)
@@ -1429,6 +1432,10 @@ export function PartnerGuestChatClient({
   const tryOnGarmentInputRef = useRef<HTMLInputElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const scrollAnchorRef = useRef<HTMLDivElement>(null)
+  /** Khoảng cách tới đáy ≤ ngưỡng này → coi như «đang xem cuối», cho phép tự cuộn theo tin/typing mới. */
+  const guestChatNearBottomRef = useRef(true)
+  /** Một số thao tác (gửi tin, chọn mẫu, đặt hàng) luôn cần kéo xuống dù trước đó user đang lướt lên. */
+  const forceGuestChatScrollToBottomRef = useRef(false)
   const skipNextAutoScrollRef = useRef(false)
   const loadingOlderRef = useRef(false)
   const didInitialAutoScrollRef = useRef(false)
@@ -2097,6 +2104,7 @@ export function PartnerGuestChatClient({
 
   useEffect(() => {
     didInitialAutoScrollRef.current = false
+    guestChatNearBottomRef.current = true
   }, [slug, userId])
 
   useEffect(() => {
@@ -2197,11 +2205,18 @@ export function PartnerGuestChatClient({
     const anchor = scrollAnchorRef.current
     if (!anchor) return
     if (!messages.length && !shopTyping) return
+    const shouldScrollToBottom =
+      forceGuestChatScrollToBottomRef.current ||
+      !didInitialAutoScrollRef.current ||
+      guestChatNearBottomRef.current
+    if (!shouldScrollToBottom) return
+    forceGuestChatScrollToBottomRef.current = false
     anchor.scrollIntoView({
       block: 'end',
       behavior: didInitialAutoScrollRef.current ? 'smooth' : 'auto',
     })
     didInitialAutoScrollRef.current = true
+    guestChatNearBottomRef.current = true
   }, [messages.length, shopTyping, shopTyping?.deadline])
 
   const setTryOnUserFromFile = async (file: File | null) => {
@@ -2349,6 +2364,7 @@ export function PartnerGuestChatClient({
         deadline: Date.now() + waitMs,
         baselineOutbound: outboundBaseline,
       })
+      forceGuestChatScrollToBottomRef.current = true
       await load()
     } catch {
       toast({ title: t.visionPickError, variant: 'destructive' })
@@ -2526,6 +2542,7 @@ export function PartnerGuestChatClient({
         setActiveOrderId(oid)
         setOrderFormOpen(true)
         setBuyOptionsOpen(false)
+        forceGuestChatScrollToBottomRef.current = true
         await load()
       } catch {
         toast({ title: 'Không tạo được đơn hàng.', variant: 'destructive' })
@@ -2796,6 +2813,7 @@ export function PartnerGuestChatClient({
             // vẫn cập nhật local + load(); có thể retry sau
           }
         }
+        forceGuestChatScrollToBottomRef.current = true
         await load()
       } catch {
         toast({ title: t.sendError, variant: 'destructive' })
@@ -3008,6 +3026,7 @@ export function PartnerGuestChatClient({
         setProofOrderId(null)
         setProofOrderIsSepay(false)
       }
+      forceGuestChatScrollToBottomRef.current = true
       await load()
       toast({
         title:
@@ -3096,6 +3115,7 @@ export function PartnerGuestChatClient({
             toast({ title: data?.error || 'Không đối chiếu được thanh toán.', variant: 'destructive' })
             return
           }
+          forceGuestChatScrollToBottomRef.current = true
           await load()
           setProofOrderId(null)
           setEmbedWidgetDataNonce((n) => n + 1)
@@ -3670,6 +3690,7 @@ export function PartnerGuestChatClient({
             baselineOutbound: outboundBaseline,
           })
         }
+        forceGuestChatScrollToBottomRef.current = true
         await load()
         return true
       } catch {
@@ -4383,8 +4404,10 @@ export function PartnerGuestChatClient({
             aria-live="polite"
             aria-relevant="additions"
             onScroll={(e) => {
-              if (!hasLoadedOnce || loadingOlderMessages || !hasMoreOlderMessages) return
               const el = e.currentTarget
+              const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+              guestChatNearBottomRef.current = fromBottom <= GUEST_CHAT_STICK_TO_BOTTOM_PX
+              if (!hasLoadedOnce || loadingOlderMessages || !hasMoreOlderMessages) return
               if (el.scrollTop <= 120) {
                 void loadOlderMessages()
               }
