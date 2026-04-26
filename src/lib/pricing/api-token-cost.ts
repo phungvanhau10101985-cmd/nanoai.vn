@@ -36,7 +36,13 @@ export const API_COST_PER_1M: Record<string, ModelUsdRates> = {
   'deepseek-chat': { input: 0.28, output: 0.42 },
   'gpt-5': { input: 2.5, output: 10 },
   'gpt-4o': { input: 2.5, output: 10 },
+  'gpt-4o-mini': { input: 0.15, output: 0.6 },
   'gpt-4-turbo': { input: 10, output: 30 },
+  /**
+   * GPT-4o-mini-tts (Audio API): input văn bản $0.60/1M, output (audio) $12/1M.
+   * Trong codebase dùng làm fallback khi Gemini 2.5 Flash TTS lỗi (đắt hơn ~17x output).
+   */
+  'gpt-4o-mini-tts': { input: 0.6, output: 12 },
 
   /** Gemini 3.1 Pro Preview — bậc theo prompt 200k token. */
   'gemini-3.1-pro-preview': { input: 2, output: 12, inputLong: 4, outputLong: 18 },

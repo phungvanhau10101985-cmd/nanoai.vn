@@ -39,6 +39,48 @@ type TtsExtracted = { audioBase64: string; mimeType: string } | null
 type AttemptLog = { model: string; voice: VoiceName; ok: boolean; reason?: string; statusCode?: number }
 const ttsCacheStats = { hit: 0, miss: 0 }
 const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts'
+
+/**
+ * Circuit breaker cho từng TTS model — tránh đợi 1-2s mỗi request khi Google TTS Preview đang lỗi.
+ * - Trong window 60s: nếu model fail ≥ `FAILURE_THRESHOLD` lần → mở circuit (skip model trong cooldown).
+ * - Sau cooldown: thử lại. Thành công → reset; thất bại → mở circuit lại.
+ *
+ * Threshold = 2: phản ứng nhanh khi Google flaky (cả 3.1 và 2.5 TTS Preview thỉnh thoảng trả 500 INTERNAL).
+ * Sau 2 lần fail liên tiếp trong 60s → bypass Gemini, đi thẳng OpenAI trong 5 phút tiếp theo.
+ *
+ * Lưu ý: Map ở module scope nên tồn tại trong toàn bộ vòng đời server process. Trên Vercel/serverless,
+ * mỗi instance giữ Map riêng — circuit breaker per-instance, không phân tán nhưng đủ giảm tải đáng kể.
+ */
+const TTS_CIRCUIT_FAILURE_THRESHOLD = 2
+const TTS_CIRCUIT_WINDOW_MS = 60_000
+const TTS_CIRCUIT_COOLDOWN_MS = 5 * 60_000
+type CircuitState = { failures: number[]; cooldownUntil: number }
+const ttsModelCircuitState = new Map<string, CircuitState>()
+
+function isTtsModelCircuitClosed(model: string): boolean {
+  const state = ttsModelCircuitState.get(model)
+  if (!state) return true
+  return Date.now() >= state.cooldownUntil
+}
+
+function recordTtsModelFailure(model: string): void {
+  const now = Date.now()
+  const state = ttsModelCircuitState.get(model) ?? { failures: [], cooldownUntil: 0 }
+  state.failures = state.failures.filter((t) => now - t < TTS_CIRCUIT_WINDOW_MS)
+  state.failures.push(now)
+  if (state.failures.length >= TTS_CIRCUIT_FAILURE_THRESHOLD) {
+    state.cooldownUntil = now + TTS_CIRCUIT_COOLDOWN_MS
+    state.failures = []
+    console.warn(
+      `[TTS] circuit-breaker OPEN for ${model} — skip ${TTS_CIRCUIT_COOLDOWN_MS / 1000}s sau khi fail liên tiếp ${TTS_CIRCUIT_FAILURE_THRESHOLD} lần`
+    )
+  }
+  ttsModelCircuitState.set(model, state)
+}
+
+function recordTtsModelSuccess(model: string): void {
+  ttsModelCircuitState.delete(model)
+}
 const OPENAI_VOICE_BY_GEMINI: Record<VoiceName, string> = {
   Kore: 'nova',
   Puck: 'alloy',
@@ -314,52 +356,89 @@ Reading rules (strict):
 
 Text:
 ${speechInput.text}`
+    /**
+     * Thứ tự fallback (2 cấp):
+     * 1) **OpenAI `gpt-4o-mini-tts`** — model chính (giọng tự nhiên hơn, ổn định cao). Giá $0.60 input / $12 output per 1M.
+     * 2) **`gemini-2.5-flash-preview-tts`** — fallback khi OpenAI lỗi/down. Rẻ hơn ~17% nên giảm chi phí khi OpenAI gặp sự cố.
+     *
+     * Lý do chọn OpenAI primary: chất lượng giọng nghe được, đặc biệt với cụm tiếng Anh dài.
+     * Gemini 2.5 vẫn là fallback tốt — circuit breaker tự động skip Gemini nếu nó cũng lỗi liên tục.
+     *
+     * Override khẩn cấp: đặt env `TTS_PRIMARY_ENGINE=gemini` trên server để swap về Gemini-first
+     * khi OpenAI down dài (ít gặp). Không cần deploy lại code.
+     */
     const attempts: Array<{ model: string; contents: string; voice: VoiceName }> = [
       { model: 'gemini-2.5-flash-preview-tts', contents: strictReadPrompt, voice: voiceName },
     ]
     const attemptLogs: AttemptLog[] = []
     let successMeta: { model: string; voice: VoiceName } | null = null
 
-    // Ưu tiên OpenAI TTS trước nếu có key và không bắt buộc dùng Gemini-only
-    if (requestedEngine !== 'gemini-only') {
-      if (openAiApiKey) {
-        try {
-          const openAiAudio = await generateOpenAiTts({
-            apiKey: openAiApiKey,
-            text: speechInput.text,
-            requestedVoice: voiceName,
-            instructions: strictReadPrompt,
+    const ttsPrimaryEngine = String(process.env.TTS_PRIMARY_ENGINE || '').trim().toLowerCase()
+    const forceGeminiFirst = ttsPrimaryEngine === 'gemini'
+
+    /**
+     * Step 1: thử OpenAI trước (trừ khi `forceEngine === 'gemini-only'` hoặc env muốn Gemini-first).
+     * Circuit breaker cũng áp cho OpenAI: nếu OpenAI fail liên tục → tự skip để không lãng phí.
+     */
+    if (
+      openAiApiKey &&
+      requestedEngine !== 'gemini-only' &&
+      !forceGeminiFirst &&
+      isTtsModelCircuitClosed(OPENAI_TTS_MODEL)
+    ) {
+      try {
+        const openAiAudio = await generateOpenAiTts({
+          apiKey: openAiApiKey,
+          text: speechInput.text,
+          requestedVoice: voiceName,
+          instructions: strictReadPrompt,
+        })
+        extracted = openAiAudio
+        if (openAiAudio) {
+          trackTtsGenerationUsage({
+            userId,
+            model: OPENAI_TTS_MODEL,
+            feature: 'english-coach-tts-openai',
+            instructionChars: strictReadPrompt.length,
+            spokenTextChars: speechInput.text.length,
+            audioBase64: openAiAudio.audioBase64,
           })
-          extracted = openAiAudio
-          if (openAiAudio) {
-            trackTtsGenerationUsage({
-              userId,
-              model: OPENAI_TTS_MODEL,
-              feature: 'english-coach-tts-openai',
-              instructionChars: strictReadPrompt.length,
-              spokenTextChars: speechInput.text.length,
-              audioBase64: openAiAudio.audioBase64,
-            })
-          }
+          recordTtsModelSuccess(OPENAI_TTS_MODEL)
           attemptLogs.push({ model: OPENAI_TTS_MODEL, voice: voiceName, ok: true })
           successMeta = { model: OPENAI_TTS_MODEL, voice: voiceName }
-        } catch (e) {
-          const statusCode = extractStatusCodeFromError(e) || undefined
-          const message = e instanceof Error ? e.message : 'request-error'
-          attemptLogs.push({
-            model: OPENAI_TTS_MODEL,
-            voice: voiceName,
-            ok: false,
-            statusCode,
-            reason: message.slice(0, 180),
-          })
+        } else {
+          recordTtsModelFailure(OPENAI_TTS_MODEL)
+          attemptLogs.push({ model: OPENAI_TTS_MODEL, voice: voiceName, ok: false, reason: 'no-audio-empty' })
         }
-      } else {
-        attemptLogs.push({ model: OPENAI_TTS_MODEL, voice: voiceName, ok: false, reason: 'missing-openai-api-key' })
+      } catch (e) {
+        recordTtsModelFailure(OPENAI_TTS_MODEL)
+        const statusCode = extractStatusCodeFromError(e) || undefined
+        const message = e instanceof Error ? e.message : 'request-error'
+        attemptLogs.push({
+          model: OPENAI_TTS_MODEL,
+          voice: voiceName,
+          ok: false,
+          statusCode,
+          reason: message.slice(0, 180),
+        })
       }
+    } else if (requestedEngine !== 'gemini-only' && !forceGeminiFirst) {
+      attemptLogs.push({
+        model: OPENAI_TTS_MODEL,
+        voice: voiceName,
+        ok: false,
+        reason: !openAiApiKey
+          ? 'missing-openai-api-key'
+          : !isTtsModelCircuitClosed(OPENAI_TTS_MODEL)
+            ? 'circuit-breaker-open'
+            : 'openai-attempt-skipped',
+      })
     }
 
-    // Nếu OpenAI không thành công (hoặc không có key) và có Google API key, thử Gemini
+    /**
+     * Step 2: fallback sang Gemini nếu OpenAI fail (hoặc khi `forceEngine === 'gemini-only'` /
+     * env `TTS_PRIMARY_ENGINE=gemini` muốn Gemini-first).
+     */
     if (!extracted && googleApiKey && requestedEngine !== 'openai-only') {
       const ai = new GoogleGenAI({ apiKey: googleApiKey })
       const makeRequest = async (model: string, contents: string, voice: VoiceName) =>
@@ -379,6 +458,15 @@ ${speechInput.text}`
         })
 
       for (const attempt of attempts) {
+        if (!isTtsModelCircuitClosed(attempt.model)) {
+          attemptLogs.push({
+            model: attempt.model,
+            voice: attempt.voice,
+            ok: false,
+            reason: 'circuit-breaker-open',
+          })
+          continue
+        }
         try {
           const response = await makeRequest(attempt.model, attempt.contents, attempt.voice)
           extracted = extractAudioFromResponse(response)
@@ -391,12 +479,15 @@ ${speechInput.text}`
               spokenTextChars: speechInput.text.length,
               audioBase64: extracted.audioBase64,
             })
+            recordTtsModelSuccess(attempt.model)
             attemptLogs.push({ model: attempt.model, voice: attempt.voice, ok: true })
             successMeta = { model: attempt.model, voice: attempt.voice }
             break
           }
+          recordTtsModelFailure(attempt.model)
           attemptLogs.push({ model: attempt.model, voice: attempt.voice, ok: false, reason: 'no-audio-inlineData' })
         } catch (e) {
+          recordTtsModelFailure(attempt.model)
           const statusCode = extractStatusCodeFromError(e) || undefined
           const message = e instanceof Error ? e.message : 'request-error'
           attemptLogs.push({
@@ -409,7 +500,12 @@ ${speechInput.text}`
         }
       }
     } else if (!extracted && requestedEngine !== 'openai-only') {
-      attemptLogs.push({ model: 'gemini-2.5-flash-preview-tts', voice: voiceName, ok: false, reason: 'missing-google-api-key' })
+      attemptLogs.push({
+        model: 'gemini-2.5-flash-preview-tts',
+        voice: voiceName,
+        ok: false,
+        reason: !googleApiKey ? 'missing-google-api-key' : 'gemini-attempt-skipped',
+      })
     }
 
     if (!extracted) {
@@ -428,14 +524,29 @@ ${speechInput.text}`
           { status: 502 }
         )
       }
+      if (requestedEngine === 'openai-only') {
+        console.error(`[TTS][${requestId}] openai-only-failed attempts=${compactAttempts(attemptLogs)}`)
+        logTtsCacheStats(requestId)
+        return NextResponse.json(
+          {
+            error: msg(
+              localeUi,
+              'OpenAI TTS không trả về audio hợp lệ.',
+              'OpenAI TTS did not return valid audio.'
+            ),
+            attempts: attemptLogs,
+          },
+          { status: 502 }
+        )
+      }
       console.error(`[TTS][${requestId}] all-engines-failed attempts=${compactAttempts(attemptLogs)}`)
       logTtsCacheStats(requestId)
       return NextResponse.json(
         {
           error: msg(
             localeUi,
-            'Không tạo được dữ liệu âm thanh từ OpenAI hoặc Gemini TTS.',
-            'Failed to generate audio from OpenAI or Gemini TTS.'
+            'Không tạo được dữ liệu âm thanh (cả OpenAI và Gemini TTS đều lỗi).',
+            'Failed to generate audio (both OpenAI and Gemini TTS failed).'
           ),
           attempts: attemptLogs,
         },
@@ -454,7 +565,7 @@ ${speechInput.text}`
         locale: normalizedLocale,
         mimeType: extracted.mimeType || 'audio/wav',
         audioBase64: extracted.audioBase64,
-        sourceModel: successMeta?.model || 'gemini-2.5-flash-preview-tts',
+        sourceModel: successMeta?.model || OPENAI_TTS_MODEL,
         nowIso,
       })
       if (!up.ok) {

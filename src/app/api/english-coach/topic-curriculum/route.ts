@@ -146,22 +146,30 @@ export async function POST(request: NextRequest) {
 Tạo giáo trình ngắn gọn, không nhàm chán cho:
 - Chủ đề: ${topicLabel} (${topicId})
 - Độ khó chủ đề: ${topicDifficulty}
-- Ngôn ngữ học: ${targetLanguage}
-- Ngôn ngữ mẹ đẻ: ${nativeLanguage}
+- Ngôn ngữ học (TARGET — học viên đang học): ${targetLanguage}
+- Ngôn ngữ mẹ đẻ (NATIVE — học viên đã biết): ${nativeLanguage}
 - Level: ${learnerLevel}
 
+⚠ KHÓA NGÔN NGỮ TUYỆT ĐỐI:
+- Mọi nội dung tiếng nước ngoài trong JSON PHẢI bằng ${targetLanguage}, KHÔNG bằng tiếng Anh trừ khi targetLanguage = "English".
+- Bản dịch (nếu có, để học viên hiểu) PHẢI bằng ${nativeLanguage}, KHÔNG bằng tiếng Anh trừ khi nativeLanguage = "English".
+- TUYỆT ĐỐI cấm chèn tiếng Anh, tiếng Trung, hay bất kỳ ngôn ngữ thứ ba nào nếu cặp này không có.
+- Ví dụ MINH HỌA cho cặp target=Vietnamese, native=Chinese:
+  • openingLine ĐÚNG: "Xin chào! Chào mừng quý khách đến khách sạn của chúng tôi. (你好！欢迎来到我们酒店。) Quý khách tên là gì? (您贵姓？)"
+  • openingLine SAI (KHÔNG ĐƯỢC): "Hello! Welcome to our hotel. (你好！...) What's your name?" — vì có tiếng Anh nhưng cặp đôi không có English.
+
 Yêu cầu:
-1) roleplayRole: vai trò AI trong tình huống (ví dụ: nhân viên cửa hàng, phỏng vấn viên, bạn đồng hành...).
-2) dailyQuest: 1 nhiệm vụ ngắn hấp dẫn.
-3) objective: mục tiêu rõ ràng của buổi học.
-4) keywords: 3-5 từ/cụm then chốt bằng ${targetLanguage}.
-5) starterSentences: 2-3 mẫu câu mở đầu bằng ${targetLanguage}.
-6) lessonSteps: 4-6 bước dẫn dắt buổi học theo kiểu facilitator.
-7) openingLine: 1 câu mở đầu bài học bằng ${targetLanguage}, đúng vai roleplayRole, tự nhiên, không lan man.
-8) openingQuestion: 1 câu hỏi mở đầu bám sát topicLabel để học sinh trả lời ngay (KHÔNG dùng câu chung chung như hobby nếu topic khác).
-9) Chỉ dùng đúng cặp ngôn ngữ ${targetLanguage} + ${nativeLanguage}, không chèn ngôn ngữ thứ ba.
-10) ${difficultyGuide}
-11) ${levelGuide}
+1) roleplayRole: vai trò AI trong tình huống (ví dụ: nhân viên cửa hàng, phỏng vấn viên, bạn đồng hành...). Dùng ${targetLanguage} hoặc ${nativeLanguage}, không tiếng Anh.
+2) dailyQuest: 1 nhiệm vụ ngắn hấp dẫn, dùng ${nativeLanguage} để học viên hiểu nhanh.
+3) objective: mục tiêu rõ ràng của buổi học, dùng ${nativeLanguage}.
+4) keywords: 3-5 từ/cụm then chốt — **CHỈ ${targetLanguage}** (không phiên dịch ở đây).
+5) starterSentences: 2-3 mẫu câu mở đầu — **CHỈ ${targetLanguage}** (không kèm dịch trong câu).
+6) lessonSteps: 4-6 bước dẫn dắt buổi học theo kiểu facilitator, dùng ${nativeLanguage}.
+7) openingLine: 1 câu mở đầu bài học **CHỦ YẾU bằng ${targetLanguage}**, đúng vai roleplayRole; có thể kèm bản dịch ${nativeLanguage} trong ngoặc đơn để học viên hiểu, nhưng phần chính là ${targetLanguage}. KHÔNG dùng tiếng Anh hay ngôn ngữ thứ ba.
+8) openingQuestion: 1 câu hỏi mở đầu bám sát topicLabel **bằng ${targetLanguage}** (có thể kèm dịch ${nativeLanguage} trong ngoặc) để học sinh trả lời ngay. KHÔNG dùng câu chung chung như hobby nếu topic khác.
+9) ${difficultyGuide}
+10) ${levelGuide}
+11) Tự kiểm tra trước khi xuất JSON: nếu thấy bất kỳ chữ tiếng Anh nào (ngoài cặp target/native), HÃY ĐỔI sang ${targetLanguage} hoặc ${nativeLanguage} tương ứng trước khi trả kết quả.
 
 Trả về JSON:
 {

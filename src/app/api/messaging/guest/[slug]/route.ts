@@ -259,7 +259,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     pageContext: body?.pageContext,
   }
 
-  const postOne = async (imageStoragePath?: string, pageContextOverride?: typeof body.pageContext) =>
+  const postOne = async (imageStoragePath?: string, pageContextOverride?: NonNullable<typeof body>['pageContext']) =>
     postWidgetGuestMessage({
       ...sharedPayload,
       guestAccountId: effectiveGuestAccountId,

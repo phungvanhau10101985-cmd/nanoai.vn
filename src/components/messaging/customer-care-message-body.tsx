@@ -783,7 +783,14 @@ export function CustomerCareMessageBody({
   const onViolet = tone === 'onViolet'
   const productCards = aiProductCardsFromPayload(row.raw_payload)
   const visionCards = showVisionCandidates ? visionCandidateCardsFromPayload(row.raw_payload) : []
-  const cardsToRender = productCards.length > 0 ? productCards : visionCards
+  /**
+   * `VisionCandidateCard.product_url` là optional, còn `PartnerAiProductCard.product_url` bắt buộc string.
+   * Khi vision không có `product_url` (chỉ có ảnh tham khảo), ta map về '' để fit type — UI thẻ vẫn ẩn link ngoài khi rỗng.
+   */
+  const cardsToRender: PartnerAiProductCard[] =
+    productCards.length > 0
+      ? productCards
+      : visionCards.map((c) => ({ ...c, product_url: c.product_url ?? '' }))
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [videoLightboxSrc, setVideoLightboxSrc] = useState<string | null>(null)
 

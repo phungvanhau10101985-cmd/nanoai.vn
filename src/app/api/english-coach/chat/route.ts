@@ -2772,7 +2772,35 @@ Yêu cầu triển khai theo chủ đề:
     let mixedAnalysisGuide = 'Không có phân tích tách ngôn ngữ độc lập.'
     let mixedNormalizedStudentText = studentText
     let mixedReconstructedTargetSentence = ''
-    if (speakingMode === 'mixed' || speakingMode === 'auto') {
+
+    /**
+     * Tối ưu tốc độ: nếu câu học viên thuần target language (không trộn native), bỏ qua
+     * `chat-mixed-analysis` — tiết kiệm 1 lượt Gemini (~3-5s). Áp dụng cho mọi cặp ngôn ngữ:
+     * dùng heuristic Unicode block để xác định ngôn ngữ chiếm ưu thế.
+     */
+    const studentLooksPureTarget = ((): boolean => {
+      const txt = String(studentText || '').trim()
+      if (txt.length < 4) return false // Câu quá ngắn — không bỏ qua, để analyser xác định ý
+      // Đếm tỷ lệ Unicode block của native language (Vietnamese / Chinese / Japanese / Korean / Thai / Hindi)
+      // vs target language. Nếu native chars < 5% → coi như thuần target.
+      const nativeRegexByCode: Record<string, RegExp> = {
+        vi: /[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ]/g,
+        zh: /[\u4e00-\u9fff]/g,
+        ja: /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff]/g,
+        ko: /[\uac00-\ud7af]/g,
+        th: /[\u0e00-\u0e7f]/g,
+        hi: /[\u0900-\u097f]/g,
+      }
+      const nativeCode = String(nativeLanguageCode || '').toLowerCase().trim()
+      const nativePattern = nativeRegexByCode[nativeCode]
+      if (!nativePattern) return false // Cặp ngôn ngữ chưa hỗ trợ heuristic → an toàn chạy analysis
+      const nativeMatches = txt.match(nativePattern)
+      const nativeCharCount = nativeMatches ? nativeMatches.length : 0
+      const ratio = nativeCharCount / txt.length
+      return ratio < 0.05 // <5% ký tự native → câu thuần target
+    })()
+
+    if ((speakingMode === 'mixed' || speakingMode === 'auto') && !studentLooksPureTarget) {
       const mixedAnalysisPrompt = `Phân tích câu học viên nói trộn 2 ngôn ngữ:
 - Ngôn ngữ đang học: ${targetLanguage}
 - Ngôn ngữ mẹ đẻ: ${nativeLanguage}

@@ -1329,7 +1329,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           processedSyncSeqRef.current = new Set()
           if (mouseTrail.length > 0) setMouseTrail([])
           if (mouseClicks.length > 0) setMouseClicks([])
-          lastIncomingCurriculumPayloadRef.current = ''
           curriculumPayloadStatsRef.current.events = []
         } catch {
           /* ignore */

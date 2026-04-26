@@ -58,15 +58,23 @@ export async function POST(request: NextRequest) {
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId)
 
+    /**
+     * Race condition phổ biến: frontend retry update-translation cho message vừa kết thúc / vừa cleanup.
+     * Trả 200 với `updated: false` thay vì 404 — không bẩn log, frontend đã `.catch(() => {})` ở mọi caller
+     * nên không cần signal lỗi rõ ràng. Chỉ log warn nội bộ để debug khi cần.
+     */
     if (isUuid) {
       const res = await updateLanguageCoachMessagePartialByIdPg(user.id, messageId, updates)
       if (res === null) {
         return NextResponse.json({ error: 'Không cập nhật được.' }, { status: 500 })
       }
       if (res.rowCount === 0) {
-        return NextResponse.json({ error: 'Không tìm thấy tin nhắn.' }, { status: 404 })
+        console.warn(
+          `[update-translation] message not found (race/cleanup) userId=${user.id} messageId=${messageId.slice(0, 8)}`
+        )
+        return NextResponse.json({ ok: true, updated: false, reason: 'not_found' })
       }
-      return NextResponse.json({ ok: true })
+      return NextResponse.json({ ok: true, updated: true })
     }
 
     if (sessionId && clientMessageId) {
@@ -80,9 +88,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Không cập nhật được.' }, { status: 500 })
       }
       if (res.rowCount === 0) {
-        return NextResponse.json({ error: 'Không tìm thấy tin nhắn.' }, { status: 404 })
+        console.warn(
+          `[update-translation] session+client not found (race/cleanup) userId=${user.id} sessionId=${sessionId.slice(0, 8)} clientMessageId=${clientMessageId.slice(0, 16)}`
+        )
+        return NextResponse.json({ ok: true, updated: false, reason: 'not_found' })
       }
-      return NextResponse.json({ ok: true })
+      return NextResponse.json({ ok: true, updated: true })
     }
 
     return NextResponse.json({ error: 'Cần messageId (uuid) hoặc sessionId + clientMessageId.' }, { status: 400 })

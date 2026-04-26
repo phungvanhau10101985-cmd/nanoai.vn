@@ -60,15 +60,39 @@ const skipEslintOnBuild = process.env.SKIP_ESLINT_ON_BUILD === '1'
 /** Chỉ bật trên VPS khi vẫn OOM ở bước TypeScript — ưu tiên thêm swap; CI nên dùng `npm run build:full`. */
 const skipTypescriptOnBuild = process.env.NEXT_BUILD_SKIP_TYPECHECK === '1'
 
+/** Bật sourcemap server trong production (giúp đọc stack trace) — không tăng bundle size client. */
+const enableServerSourceMaps = process.env.PROD_SERVER_SOURCE_MAPS === '1'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     eslint: { ignoreDuringBuilds: skipEslintOnBuild },
     allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok.io'],
+    /** Sourcemap không build cho client (giảm dung lượng tải); chỉ build server-side khi bật flag. */
+    productionBrowserSourceMaps: false,
     experimental: {
         serverComponentsExternalPackages: ['xlsx', 'pdf-to-img', 'pdfjs-dist', 'node-poppler', 'web-push'],
         serverActions: {
             bodySizeLimit: '10mb',
+            /**
+             * Encryption key cố định cho Server Action ID. Nếu không đặt, mỗi `npm run build`
+             * sẽ sinh ID ngẫu nhiên → browser cache JS cũ → lỗi:
+             *   "Failed to find Server Action 'x'. This request might be from an older or newer deployment."
+             *
+             * Cấu hình:
+             *   1) Sinh key 1 lần: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+             *   2) Đặt vào file `.env` server: `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<hex 64 ký tự>`
+             *   3) Build/deploy lại → Server Action ID giữ nguyên giữa các deploy.
+             *
+             * Lưu ý: KHÔNG hardcode key trong code (bảo mật). Dùng env var.
+             */
+            encryptionKey: process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY,
         },
+        /**
+         * Bật sourcemap cho server bundle (Node.js) khi đặt `PROD_SERVER_SOURCE_MAPS=1`.
+         * Giúp stack trace có tên function/file gốc thay vì tên minify (`r$`, `rT`...).
+         * Tốn ~10-20% dung lượng `.next/server` nhưng không ảnh hưởng client.
+         */
+        ...(enableServerSourceMaps ? { serverSourceMaps: true } : {}),
     },
     typescript: { ignoreBuildErrors: skipTypescriptOnBuild },
     images: {

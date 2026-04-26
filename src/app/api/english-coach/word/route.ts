@@ -360,8 +360,13 @@ export async function POST(request: NextRequest) {
 
     const prompt = `Bạn là giáo viên ngôn ngữ.
 Hãy giải thích từ "${word}" trong ngữ cảnh câu: "${contextSentence || '(không có ngữ cảnh)'}".
-Ngôn ngữ mục tiêu: ${targetLanguage}.
-Ngôn ngữ mẹ đẻ của học sinh: ${nativeLanguage}.
+Ngôn ngữ mục tiêu (TARGET): ${targetLanguage}.
+Ngôn ngữ mẹ đẻ của học sinh (NATIVE): ${nativeLanguage}.
+
+⚠ KHÓA NGÔN NGỮ TUYỆT ĐỐI:
+- Mọi nội dung dịch nghĩa / giải thích PHẢI bằng ${nativeLanguage}, KHÔNG bằng tiếng Anh trừ khi nativeLanguage = "English".
+- Mọi nội dung "exampleTarget" PHẢI bằng ${targetLanguage}, KHÔNG bằng tiếng Anh trừ khi targetLanguage = "English".
+- TUYỆT ĐỐI cấm chèn ngôn ngữ thứ ba ngoài cặp ${targetLanguage} + ${nativeLanguage}.
 
 Yêu cầu:
 1) meaning: viết bằng ${nativeLanguage}, kiểu từ điển ngắn gọn nhưng đủ ý để học.

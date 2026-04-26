@@ -78,9 +78,9 @@ const LESSON_SETUP_PREF_KEY = 'english-coach-lesson-setup'
 const LEARNER_PROFILE_PROMPT_DISMISSED_KEY = 'english-coach-learner-profile-prompt-dismissed-v1'
 const LIVE_SESSION_BASE_TURN_LIMIT = 10
 const LIVE_SESSION_EXTRA_TURN_STEP = 5
-const LIVE_SESSION_PRICE_CREDITS = 2.5
+const LIVE_SESSION_PRICE_CREDITS = 3.5
 const LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS = LIVE_SESSION_PRICE_CREDITS / 2
-const PRESET_SESSION_PRICE_CREDITS = 1
+const PRESET_SESSION_PRICE_CREDITS = 2
 const LESSON_TIMELINE_TARGET_TURNS = LIVE_SESSION_BASE_TURN_LIMIT
 const LISTENING_VISIBLE_OPTION_COUNT = 5
 const FIXED_TTS_VOICE_BY_GENDER: Record<Gender, VoiceName> = {
@@ -3855,22 +3855,17 @@ export default function HocBaiHocCoSanClientPage() {
     text: string,
     opts?: { locale?: string; languageLabel?: string; skipCache?: boolean }
   ) => {
-    try {
-      return await createTtsAudioData(text, {
-        locale: opts?.locale || activeTeacher.locale,
-        languageLabel: opts?.languageLabel || activeTeacher.languageLabel,
-        forceEngine: 'openai-only',
-        skipCache: opts?.skipCache,
-      })
-    } catch {
-      // Fallback engine keeps feature resilient when OpenAI-only is unavailable.
-      return await createTtsAudioData(text, {
-        locale: opts?.locale || activeTeacher.locale,
-        languageLabel: opts?.languageLabel || activeTeacher.languageLabel,
-        forceEngine: 'auto',
-        skipCache: opts?.skipCache,
-      })
-    }
+    /**
+     * Cả Gemini và OpenAI đều giữ giọng nhất quán theo `voiceName` đã chọn (pre-built voices).
+     * Dùng `auto` để theo flow mới: Gemini 3.1 Flash TTS trước → 2.5 Flash TTS → OpenAI gpt-4o-mini-tts cuối.
+     * Tiết kiệm ~17% chi phí output audio so với hardcode `openai-only`.
+     */
+    return await createTtsAudioData(text, {
+      locale: opts?.locale || activeTeacher.locale,
+      languageLabel: opts?.languageLabel || activeTeacher.languageLabel,
+      forceEngine: 'auto',
+      skipCache: opts?.skipCache,
+    })
   }
 
   const tryLoadCachedTtsAudio = async (text: string) => {
@@ -6443,6 +6438,7 @@ export default function HocBaiHocCoSanClientPage() {
       if (!raw) return
       const parsed = JSON.parse(raw) as {
         languageCode?: string
+        nativeLanguageCode?: string
         teacherId?: string
         learnerLevel?: number
         topicSourceMode?: string
@@ -6457,6 +6453,10 @@ export default function HocBaiHocCoSanClientPage() {
         } else if (teachers?.[0]) {
           setTeacherId(teachers[0].id)
         }
+      }
+      // Hợp nhất nativeLanguageCode vào cùng key để giữ nhất quán; ưu tiên giá trị trong unified key.
+      if (parsed.nativeLanguageCode && NATIVE_LANGUAGE_CODES.includes(parsed.nativeLanguageCode as NativeLanguageCode)) {
+        setNativeLanguageCode(parsed.nativeLanguageCode as NativeLanguageCode)
       }
       if (typeof parsed.learnerLevel === 'number' && parsed.learnerLevel >= 0 && parsed.learnerLevel <= 4) {
         setLearnerLevel(parsed.learnerLevel as LearnerLevel)
@@ -6487,8 +6487,10 @@ export default function HocBaiHocCoSanClientPage() {
 
   useEffect(() => {
     try {
+      // Lưu đồng thời cả nativeLanguageCode trong unified key — popup mở ra giữ TẤT CẢ 7 settings từ lần trước.
       localStorage.setItem(LESSON_SETUP_PREF_KEY, JSON.stringify({
         languageCode,
+        nativeLanguageCode,
         teacherId,
         learnerLevel,
         topicSourceMode,
@@ -6499,7 +6501,7 @@ export default function HocBaiHocCoSanClientPage() {
     } catch {
       // ignore storage issues
     }
-  }, [languageCode, teacherId, learnerLevel, topicSourceMode, pendingTopicId, topicId, learningMode])
+  }, [languageCode, nativeLanguageCode, teacherId, learnerLevel, topicSourceMode, pendingTopicId, topicId, learningMode])
 
   const handleSend = async (
     raw?: string,

@@ -207,6 +207,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       }
       const skipFaq = inboundTextHasVisionSelectionHint(inboundForAi)
       const convUiLoc = normalizeWebLocale(uiLocaleFromConversationMetadata(conv.metadata))
+      const configuredGender = await fetchGuestGenderForPartnerConsultCachePg(conv.linked_user_id)
       const faq = skipFaq ? null : await findMatchingFaq(job.partner_id, inboundForAi, { locale: convUiLoc })
       if (faq) {
         await sleep(typingDelayMs(settings))
@@ -228,7 +229,6 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       }
 
       const cacheUiLocale: WebLocale = convUiLoc ?? DEFAULT_WEB_LOCALE
-      const configuredGender = await fetchGuestGenderForPartnerConsultCachePg(conv.linked_user_id)
 
       const {
         system,
