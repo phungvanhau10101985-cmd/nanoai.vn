@@ -301,15 +301,42 @@ export async function POST(request: NextRequest) {
     if (cached) {
       const cachedExampleItems = sanitizeExampleItems(parseJsonListField(cached.example_items_json))
       const itemsToCheck = cachedExampleItems.length > 0 ? cachedExampleItems : [{ targetText: String(cached.example_target || '').trim() }]
+      const cachedSenseItemsRaw = sanitizeSenseItems(parseJsonListField(cached.meaning_items_json))
+      const normalizedCachedSensesPreview = normalizeSensesForDictionary(cachedSenseItemsRaw)
+
+      /**
+       * Cache cũ thiếu dữ liệu nâng cao (senses + gloss): xảy ra khi:
+       * 1) Cache row được tạo TRƯỚC migration `20260225101500_add_structured_word_fields.sql`
+       *    (cột `meaning_items_json` chưa tồn tại lúc INSERT → giờ là NULL).
+       * 2) AI ở lần save trước đó trả về senses không có `gloss` đầy đủ (prompt cũ).
+       *
+       * Cả 2 trường hợp đều khiến UI thiếu "Giải nghĩa" sau cache hit. Bypass cache → AI sinh
+       * lại đầy đủ → upsert DB row → mọi user sau lookup từ này đều có gloss.
+       *
+       * Cost: 1 user duy nhất tốn ~22₫ AI để "tự chữa" cache cho mọi user kế tiếp.
+       */
+      const cachedSensesEmpty = normalizedCachedSensesPreview.length === 0
+      const cachedSensesMissingGloss =
+        normalizedCachedSensesPreview.length > 0 &&
+        normalizedCachedSensesPreview.every((s) => !s.gloss || !s.gloss.trim())
+      const cachedNeedsBackfill = cachedSensesEmpty || cachedSensesMissingGloss
+
       if (exampleItemsTargetTextLooksWrong(itemsToCheck, targetLanguage)) {
         console.info(`[WORD] cache-bypass word="${word}" (targetText is pinyin, need original script)`)
+      } else if (cachedNeedsBackfill) {
+        console.info(
+          `[WORD] cache-bypass word="${word}" (${
+            cachedSensesEmpty
+              ? 'meaning_items_json empty (legacy row pre-migration)'
+              : 'senses missing gloss'
+          } — regenerating to backfill)`
+        )
       } else {
-        const cachedSenseItemsRaw = sanitizeSenseItems(parseJsonListField(cached.meaning_items_json))
         wordCacheStats.hit += 1
         void incrementWordCacheStatPg('word_hit')
         const nowTouch = new Date().toISOString()
         void touchVocabCacheUsagePg(cached.id, nowTouch)
-        const normalizedCachedSenses = normalizeSensesForDictionary(cachedSenseItemsRaw)
+        const normalizedCachedSenses = normalizedCachedSensesPreview
         const fallbackMeaning = formatMeaningWithWord(word, buildMeaningFromSenses(
           normalizedCachedSenses,
           String(cached.meaning || '').trim()
@@ -375,11 +402,11 @@ Yêu cầu:
    - Tuyệt đối KHÔNG nhắc, trích dẫn, hoặc suy diễn từ câu ngữ cảnh hiện tại "${contextSentence || '(không có ngữ cảnh)'}" trong meaning.
    - Không tạo bất kỳ mục nào dạng "Trong câu hiện tại..." hoặc "Trong câu này...".
    - Văn phong tự nhiên, không lan man; dài khoảng 1-2 câu ngắn.
-2) senses: mảng 3-5 mục, mỗi mục gồm:
-   - gloss: nghĩa ngắn gọn của mục đó (bằng ${nativeLanguage}).
-   - Ưu tiên senses[0] là nghĩa trực tiếp dễ hiểu nhất (ví dụ seafood -> hải sản).
-   - exampleTarget: ví dụ ngắn ở ngôn ngữ mục tiêu
-   - exampleNative: bản dịch ví dụ sang ${nativeLanguage}
+2) senses: mảng 3-5 mục, mỗi mục **BẮT BUỘC** đủ 3 trường:
+   - **gloss (BẮT BUỘC, KHÔNG được rỗng)**: 1 cụm 3-15 chữ ${nativeLanguage} mô tả nghĩa của mục đó (vd "Việc đặt trước chỗ hoặc dịch vụ", "Sự dè dặt, e ngại"). KHÔNG được để trống — nếu thiếu, cả mục bị bỏ.
+   - Ưu tiên senses[0] là nghĩa trực tiếp dễ hiểu nhất (ví dụ seafood → "hải sản, động vật biển").
+   - exampleTarget (BẮT BUỘC): ví dụ ngắn ở ngôn ngữ mục tiêu, độc lập với câu ngữ cảnh.
+   - exampleNative (BẮT BUỘC): bản dịch ví dụ sang ${nativeLanguage}.
 3) pronunciation: phiên âm dễ đọc. Nếu ngôn ngữ là tiếng Trung thì dùng pinyin có dấu; tiếng Nhật dùng romaji; tiếng Hàn dùng romanization; tiếng Thái dùng RTGS; tiếng Hindi dùng IAST.
 4) partOfSpeech: loại từ ngắn gọn (noun/verb/adj/adv/...).
 5) exampleItems: mảng 2-3 ví dụ. QUAN TRỌNG:
