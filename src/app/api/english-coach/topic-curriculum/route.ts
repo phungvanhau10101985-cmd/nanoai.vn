@@ -34,6 +34,61 @@ type Curriculum = {
   openingQuestion: string
 }
 
+function buildFallbackCurriculum(input: {
+  locale: 'vi' | 'en'
+  topicLabel: string
+  topicDifficulty: 'basic' | 'intermediate' | 'advanced'
+  learnerLevel: 0 | 1 | 2 | 3 | 4
+}): Curriculum {
+  const topic = String(input.topicLabel || '').trim() || (input.locale === 'vi' ? 'hội thoại hằng ngày' : 'daily conversation')
+  const stepHint =
+    input.topicDifficulty === 'advanced'
+      ? (input.locale === 'vi' ? 'nâng cao' : 'advanced')
+      : input.topicDifficulty === 'intermediate'
+        ? (input.locale === 'vi' ? 'trung cấp' : 'intermediate')
+        : (input.locale === 'vi' ? 'cơ bản' : 'basic')
+  const learnerHint =
+    input.locale === 'vi'
+      ? `Phù hợp level ${input.learnerLevel}, tăng dần độ khó theo phản hồi học viên.`
+      : `Fit learner level ${input.learnerLevel}, increase complexity gradually by learner response.`
+  return {
+    roleplayRole: input.locale === 'vi' ? 'Giáo viên đồng hành' : 'Guiding teacher',
+    dailyQuest: input.locale === 'vi'
+      ? `Hoàn thành 6 lượt hội thoại ngắn theo chủ đề "${topic}".`
+      : `Complete 6 short turns for topic "${topic}".`,
+    objective: input.locale === 'vi'
+      ? `Giúp học viên phản xạ tự nhiên theo chủ đề "${topic}" (${stepHint}). ${learnerHint}`
+      : `Help learner respond naturally on "${topic}" (${stepHint}). ${learnerHint}`,
+    keywords: [topic, input.locale === 'vi' ? 'mẫu câu' : 'patterns', input.locale === 'vi' ? 'phản xạ' : 'reaction'],
+    starterSentences: [
+      input.locale === 'vi'
+        ? `Mình muốn luyện nói về "${topic}".`
+        : `I want to practice speaking about "${topic}".`,
+      input.locale === 'vi'
+        ? `Bạn có thể bắt đầu bằng một câu đơn giản không?`
+        : `Could you start with one simple sentence?`,
+    ],
+    lessonSteps: input.locale === 'vi'
+      ? [
+          'Khởi động và nhắc mục tiêu buổi học.',
+          'Làm mẫu câu ngắn và yêu cầu học viên bắt chước.',
+          'Đặt câu hỏi mở rộng theo đúng chủ đề.',
+          'Sửa lỗi chính và cho câu thay thế tự nhiên.',
+          'Tổng kết 2-3 mẫu câu cần ghi nhớ.',
+        ]
+      : [
+          'Warm up and set lesson goal.',
+          'Model short sentences and ask learner to repeat.',
+          'Ask follow-up questions on topic.',
+          'Correct key mistakes and give natural alternatives.',
+          'Summarize 2-3 must-remember patterns.',
+        ],
+    // Keep empty so client can generate robust bilingual live opening fallback.
+    openingLine: '',
+    openingQuestion: '',
+  }
+}
+
 function tr(input: string): 'vi' | 'en' {
   const value = String(input || '').toLowerCase()
   return value.includes('vietnamese') ? 'vi' : 'en'
@@ -182,18 +237,27 @@ Trả về JSON:
   "openingLine":"...",
   "openingQuestion":"..."
 }`
-    const result = await model.generateContent(prompt)
-    trackEnglishCoachGeminiResult(
-      result,
-      GEMINI_25_FLASH_NO_THINKING.model,
-      EnglishCoachApiFeature.topicCurriculum,
-      null,
-      coachCtx
-    )
-    const parsed = safeParse(result.response.text()?.trim() || '')
-    if (!parsed) {
-      return NextResponse.json({ error: msg(locale, 'Không tạo được giáo trình chủ đề.', 'Failed to generate topic curriculum.') }, { status: 502 })
+    let resultText = ''
+    try {
+      const result = await model.generateContent(prompt)
+      trackEnglishCoachGeminiResult(
+        result,
+        GEMINI_25_FLASH_NO_THINKING.model,
+        EnglishCoachApiFeature.topicCurriculum,
+        null,
+        coachCtx
+      )
+      resultText = result.response.text()?.trim() || ''
+    } catch (e) {
+      console.warn('[topic-curriculum] AI generation failed, using fallback curriculum', e)
     }
+    const parsed = safeParse(resultText)
+    const curriculum = parsed || buildFallbackCurriculum({
+      locale,
+      topicLabel,
+      topicDifficulty,
+      learnerLevel,
+    })
 
     const nowIso = new Date().toISOString()
     const saved = await upsertTopicCurriculumPg({
@@ -205,15 +269,15 @@ Trả về JSON:
       nativeLanguage,
       normalizedNativeLanguage: normalizedNative,
       learnerLevel,
-      roleplayRole: parsed.roleplayRole,
-      dailyQuest: parsed.dailyQuest,
-      objective: parsed.objective,
-      keywordsJson: JSON.stringify(parsed.keywords),
-      starterSentencesJson: JSON.stringify(parsed.starterSentences),
-      lessonStepsJson: JSON.stringify(parsed.lessonSteps),
-      openingLine: parsed.openingLine || null,
-      openingQuestion: parsed.openingQuestion || null,
-      sourceModel: 'gemini-2.5-flash',
+      roleplayRole: curriculum.roleplayRole,
+      dailyQuest: curriculum.dailyQuest,
+      objective: curriculum.objective,
+      keywordsJson: JSON.stringify(curriculum.keywords),
+      starterSentencesJson: JSON.stringify(curriculum.starterSentences),
+      lessonStepsJson: JSON.stringify(curriculum.lessonSteps),
+      openingLine: curriculum.openingLine || null,
+      openingQuestion: curriculum.openingQuestion || null,
+      sourceModel: parsed ? 'gemini-2.5-flash' : 'fallback-local',
       nowIso,
     })
     if (!saved.ok) {
@@ -223,7 +287,7 @@ Trả về JSON:
       )
     }
 
-    return NextResponse.json({ ...parsed, cached: false })
+    return NextResponse.json({ ...curriculum, cached: false, fallback: !parsed })
   } catch (e) {
     const msgErr = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msgErr }, { status: 500 })

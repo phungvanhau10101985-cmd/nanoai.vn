@@ -2116,6 +2116,7 @@ export default function HocTiengAnhAiClientPage() {
   const [customTopicDraft, setCustomTopicDraft] = useState('')
   const [customTopics, setCustomTopics] = useState<CustomTopicItem[]>([])
   const [customTopicBusy, setCustomTopicBusy] = useState(false)
+  const [customTopicsLoaded, setCustomTopicsLoaded] = useState(false)
   const [learnerDisplayName, setLearnerDisplayName] = useState('')
   const [learnerProfilePromptOpen, setLearnerProfilePromptOpen] = useState(false)
   const [learnerProfileBusy, setLearnerProfileBusy] = useState(false)
@@ -3014,15 +3015,17 @@ export default function HocTiengAnhAiClientPage() {
   }, [topicId])
 
   useEffect(() => {
+    if (!customTopicsLoaded) return
     if (topicSourceMode === 'custom' && customTopicOptions.length === 0) {
       setTopicSourceMode('builtin')
     }
-  }, [topicSourceMode, customTopicOptions.length])
+  }, [topicSourceMode, customTopicOptions.length, customTopicsLoaded])
 
   useEffect(() => {
+    if (topicSourceMode === 'custom' && !customTopicsLoaded) return
     if (currentTopicOptions.some((x) => x.id === pendingTopicId)) return
     if (currentTopicOptions[0]) setPendingTopicId(currentTopicOptions[0].id)
-  }, [currentTopicOptions, pendingTopicId])
+  }, [currentTopicOptions, pendingTopicId, topicSourceMode, customTopicsLoaded])
 
   useEffect(() => {
     setTopicCurriculum(null)
@@ -3113,6 +3116,8 @@ export default function HocTiengAnhAiClientPage() {
       setCustomTopics(dedupById)
     } catch {
       // keep page usable if custom topic load fails
+    } finally {
+      setCustomTopicsLoaded(true)
     }
   }
 
@@ -6576,6 +6581,8 @@ export default function HocTiengAnhAiClientPage() {
     const el = chatScrollRef.current
     if (!el) return
     window.requestAnimationFrame(() => {
+      const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight)
+      if (distanceFromBottom > 160) return
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
     })
   }, [messages, tokensByMessageId])
@@ -6595,6 +6602,8 @@ export default function HocTiengAnhAiClientPage() {
     const el = chatScrollRef.current
     if (!el) return
     window.requestAnimationFrame(() => {
+      const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight)
+      if (distanceFromBottom > 160) return
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
     })
   }, [busy])
@@ -7582,18 +7591,65 @@ export default function HocTiengAnhAiClientPage() {
       vi: starterToUse || `Em hãy nói 1 câu về chủ đề hôm nay: "${topicToUse.label}".`,
     }
     const openingByLanguage: Record<LanguageCode, string> = {
-      en: `Hello ${learnerNameByLanguage.en}! Today we will learn topic: "${topicToUse.label}". I am your teacher and I will play role: ${roleToUse}. ${topicPromptByLanguage.en}`,
-      zh: `你好，${learnerNameByLanguage.zh}！今天我们学习主题：「${topicToUse.label}」。我是你的老师，今天会扮演角色：${roleToUse}。${topicPromptByLanguage.zh}`,
-      hi: `नमस्ते ${learnerNameByLanguage.hi}! आज हम इस विषय पर सीखेंगे: "${topicToUse.label}"। मैं आपका शिक्षक हूँ और आज भूमिका निभाऊँगा/निभाऊँगी: ${roleToUse}।${topicPromptByLanguage.hi}`,
-      th: `สวัสดี ${learnerNameByLanguage.th}! วันนี้เราจะเรียนหัวข้อ: "${topicToUse.label}" ฉันเป็นครูของคุณและจะรับบทเป็น: ${roleToUse} ${topicPromptByLanguage.th}`,
-      ja: `こんにちは、${learnerNameByLanguage.ja}。今日は「${topicToUse.label}」を学びます。私は先生として、今日の役は「${roleToUse}」です。${topicPromptByLanguage.ja}`,
-      ko: `안녕하세요, ${learnerNameByLanguage.ko}! 오늘은 "${topicToUse.label}" 주제를 배웁니다. 저는 선생님이며 오늘의 역할은 "${roleToUse}"입니다. ${topicPromptByLanguage.ko}`,
-      vi: `Xin chào ${learnerNameByLanguage.vi}! Hôm nay chúng ta học chủ đề: "${topicToUse.label}". Thầy/cô là giáo viên và hôm nay vào vai: ${roleToUse}. ${topicPromptByLanguage.vi}`,
+      en: `Hi ${learnerNameByLanguage.en}! Let's practice "${topicToUse.label}" together. ${topicPromptByLanguage.en}`,
+      zh: `你好，${learnerNameByLanguage.zh}！我们一起练习「${topicToUse.label}」。${topicPromptByLanguage.zh}`,
+      hi: `नमस्ते ${learnerNameByLanguage.hi}! हम साथ में "${topicToUse.label}" का अभ्यास करेंगे।${topicPromptByLanguage.hi}`,
+      th: `สวัสดี ${learnerNameByLanguage.th}! เรามาฝึก "${topicToUse.label}" ไปด้วยกันนะ ${topicPromptByLanguage.th}`,
+      ja: `こんにちは、${learnerNameByLanguage.ja}。一緒に「${topicToUse.label}」を練習しましょう。${topicPromptByLanguage.ja}`,
+      ko: `안녕하세요, ${learnerNameByLanguage.ko}! 함께 "${topicToUse.label}"를 연습해봐요. ${topicPromptByLanguage.ko}`,
+      vi: `Chào ${learnerNameByLanguage.vi}! Mình cùng luyện "${topicToUse.label}" nhé. ${topicPromptByLanguage.vi}`,
+    }
+    const nativeGuideByLanguage: Record<LanguageCode, string> = {
+      en: `Hi ${learnerNameByLanguage.en}! We'll practice "${topicToUse.label}" together. Just answer naturally in your own way.`,
+      zh: `你好，${learnerNameByLanguage.zh}！今天我们一起练习「${topicToUse.label}」，你自然回答就好。`,
+      hi: `नमस्ते ${learnerNameByLanguage.hi}! आज हम "${topicToUse.label}" साथ में अभ्यास करेंगे, आप स्वाभाविक तरीके से जवाब दीजिए।`,
+      th: `สวัสดี ${learnerNameByLanguage.th}! วันนี้เราจะฝึก "${topicToUse.label}" ไปด้วยกัน ตอบแบบธรรมชาติได้เลยนะ`,
+      ja: `こんにちは、${learnerNameByLanguage.ja}。今日は「${topicToUse.label}」を一緒に練習します。自然に答えてください。`,
+      ko: `안녕하세요, ${learnerNameByLanguage.ko}! 오늘은 "${topicToUse.label}"를 함께 연습해요. 편하게 자연스럽게 답해주면 돼요.`,
+      vi: `Chào ${learnerNameByLanguage.vi}! Hôm nay mình cùng luyện "${topicToUse.label}", em cứ trả lời tự nhiên là được.`,
+    }
+    const softenOpeningTone = (text: string) =>
+      String(text || '')
+        .replace(/\bfirst task\b\s*:?\s*/gi, "let's start gently: ")
+        .replace(/\bnhiệm vụ đầu tiên\b\s*:?\s*/giu, 'mình bắt đầu nhẹ nhàng nhé: ')
+        .replace(/\btask\b/gi, 'step')
+        .replace(/\bnhiệm vụ\b/giu, 'bước nhỏ')
+        .trim()
+    const compactOpeningText = (text: string, maxLen: number) => {
+      const normalized = String(text || '').replace(/\s+/g, ' ').trim()
+      if (!normalized) return ''
+      if (normalized.length <= maxLen) return normalized
+      const slices = normalized
+        .split(/(?<=[.!?。！？])\s+/)
+        .filter(Boolean)
+      const head = slices.slice(0, 2).join(' ').trim()
+      if (head && head.length <= maxLen) return head
+      return `${normalized.slice(0, Math.max(0, maxLen - 1)).trimEnd()}…`
     }
     const aiOpening = [curriculumOpeningLine, curriculumOpeningQuestion].filter(Boolean).join(' ')
-    const openingCore = aiOpening || openingByLanguage[languageCode]
+    const targetOpening = compactOpeningText(softenOpeningTone(aiOpening || openingByLanguage[languageCode]), 170)
+    const nativeOpening = compactOpeningText(
+      softenOpeningTone(nativeGuideByLanguage[nativeLanguageCode as LanguageCode] || nativeGuideByLanguage.vi),
+      140
+    )
+    const aiOpeningAlreadyBilingual = /\([^()]{8,}\)/.test(aiOpening)
+    const openingCore = aiOpeningAlreadyBilingual ? targetOpening : `${targetOpening} (${nativeOpening})`
     const opening = `${curriculumRole ? `[${curriculumRole}] ` : ''}${openingCore}`
     const teacherMessageId = appendMessage('teacher', opening)
+    if (!persistedMessageIdsRef.current[teacherMessageId]) {
+      persistedMessageIdsRef.current[teacherMessageId] = true
+      void saveHistoryMessage({
+        role: 'teacher',
+        text: opening,
+        clientMessageId: teacherMessageId,
+        topicId: topicToUse.id,
+        topicLabel: topicToUse.label,
+      }).then(() => {
+        persistedMessageIdsRef.current[teacherMessageId] = true
+      }).catch(() => {
+        delete persistedMessageIdsRef.current[teacherMessageId]
+      })
+    }
     try {
       await generateAndStoreTeacherAudio(teacherMessageId, extractTeacherSpeechText(opening))
     } catch {
@@ -7604,7 +7660,17 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const runQuickStartFlow = async () => {
-    if (quickStartBusy || topicBusy || startingLesson || busy) return
+    if (quickStartBusy) return
+    if (topicBusy || startingLesson || busy || historyBusy) {
+      toast({
+        title: localText('Đang xử lý buổi học trước', 'Still processing previous lesson'),
+        description: localText(
+          'Hệ thống vẫn đang cập nhật dữ liệu buổi học. Vui lòng đợi 1-2 giây rồi bấm "Tạo bài học" lại.',
+          'The app is still syncing lesson data. Please wait 1-2 seconds and click "Create lesson" again.'
+        ),
+      })
+      return
+    }
     const topicIdToUse = String(pendingTopicId || topicId || '').trim()
     if (!topicIdToUse) {
       toast({
@@ -7663,16 +7729,17 @@ export default function HocTiengAnhAiClientPage() {
 
       setQuickStartModalOpen(false)
       const plan = { curriculum, topic: topicToUse }
-      const hasPreset = await hasStrictPresetMatch(plan)
-      openLessonStartChoice(curriculum, topicToUse, { presetAvailable: hasPreset })
-      toast({
-        title: localText('Chọn hình thức học', 'Choose lesson type'),
-        description: hasPreset
-          ? (hadExistingLesson
-            ? localText('Đã sẵn sàng. Chọn học live hoặc học bài có sẵn để bắt đầu.', 'Ready. Choose live lesson or saved lesson to continue.')
-            : localText('Chọn học live hoặc học bài có sẵn để bắt đầu.', 'Choose live lesson or saved lesson to begin.'))
-          : localText('Chưa có bài có sẵn khớp. Bạn có thể học live với AI ngay.', 'No matching saved lesson. You can start a live AI lesson now.'),
-      })
+      const hasPreset = await hasStrictPresetMatch(plan).catch(() => false)
+      await startLiveLessonFromChoice(plan)
+      if (hasPreset) {
+        toast({
+          title: localText('Đã mở buổi live mới', 'New live lesson started'),
+          description: localText(
+            'Bạn vẫn có thể học bài có sẵn phù hợp từ danh sách lịch sử nếu muốn.',
+            'You can still pick a matching saved lesson from history anytime.'
+          ),
+        })
+      }
     } catch (e) {
       toast({
         title: localText('Bắt đầu nhanh chưa thành công', 'Quick start failed'),
