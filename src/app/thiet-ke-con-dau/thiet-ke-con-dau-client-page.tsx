@@ -19,6 +19,8 @@ import {
   COLOR_OPTIONS,
   SIZE_OPTIONS_MM,
   SHAPE_TO_ASPECT_RATIO,
+  closestAspectRatioFromMmSize,
+  nearestSizeMmOption,
 } from './lib/stamp-types'
 import { createStampWithAI } from './actions'
 import { useCredits } from '@/hooks/use-credits'
@@ -48,9 +50,12 @@ export default function ThietKeConDauClientPage() {
   const [shape, setShape] = useState('tron')
   const [color, setColor] = useState('do')
   const [sizeMm, setSizeMm] = useState(25)
+  const [rectWidthMm, setRectWidthMm] = useState(30)
+  const [rectHeightMm, setRectHeightMm] = useState(25)
   const [logo, setLogo] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
-  const aspectRatio = SHAPE_TO_ASPECT_RATIO[shape] || '1:1'
+  const aspectRatio =
+    shape === 'chu-nhat' ? closestAspectRatioFromMmSize(rectWidthMm, rectHeightMm) : SHAPE_TO_ASPECT_RATIO[shape] || '1:1'
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const cost = imageQuality === '2K' ? 1.5 : 3
 
@@ -102,7 +107,12 @@ export default function ThietKeConDauClientPage() {
     fd.append('stampType', stampType)
     fd.append('shape', shape)
     fd.append('color', color)
-    fd.append('sizeMm', String(sizeMm))
+    if (shape === 'chu-nhat') {
+      fd.append('sizeWidthMm', String(rectWidthMm))
+      fd.append('sizeHeightMm', String(rectHeightMm))
+    } else {
+      fd.append('sizeMm', String(sizeMm))
+    }
     fd.append('aspectRatio', aspectRatio)
     fd.append('imageQuality', imageQuality)
     Object.entries(formData).forEach(([k, v]) => v && fd.append(k, v.trim()))
@@ -134,6 +144,9 @@ export default function ThietKeConDauClientPage() {
     setFormData({})
     setLogo({ file: null, preview: null })
     setResultUrl(null)
+    setSizeMm(25)
+    setRectWidthMm(30)
+    setRectHeightMm(25)
   }
 
   const stampTypeLabels: Record<StampType, { vi: string; en: string; zh: string; ja: string; ko: string }> = {
@@ -150,6 +163,7 @@ export default function ThietKeConDauClientPage() {
     taxCode: { vi: 'Mã số thuế', en: 'Tax code', zh: '税号', ja: '税番号', ko: '사업자등록번호' },
     branchName: { vi: 'Tên chi nhánh', en: 'Branch name', zh: '分公司名称', ja: '支店名', ko: '지점명' },
     position: { vi: 'Chức danh', en: 'Position/Title', zh: '职务', ja: '役職', ko: '직함' },
+    holderName: { vi: 'Họ tên người giữ chức danh', en: 'Title holder name', zh: '职务持有人姓名', ja: '役職者氏名', ko: '직함 보유자 성명' },
     address: { vi: 'Địa chỉ', en: 'Address', zh: '地址', ja: '住所', ko: '주소' },
     mainText: { vi: 'Nội dung chính', en: 'Main content', zh: '主要内容', ja: 'メイン内容', ko: '메인 내용' },
     subText: { vi: 'Nội dung phụ', en: 'Sub content', zh: '次要内容', ja: 'サブ内容', ko: '부가 내용' },
@@ -184,6 +198,7 @@ export default function ThietKeConDauClientPage() {
       address: '123 Đường ABC, Quận 1, TP.HCM',
       branch: 'CHI NHÁNH TP.HCM',
       position: 'GIÁM ĐỐC',
+      holder_name: 'NGUYỄN VĂN A',
       main_content: 'Nội dung tùy ý',
       main_da_thu_tien: 'ĐÃ THU TIỀN',
       sub_content: 'Ngày, số tiền (tùy chọn)',
@@ -308,6 +323,8 @@ export default function ThietKeConDauClientPage() {
                                 ? getPlaceholder('branch')
                                 : f.key === 'position'
                                   ? getPlaceholder('position')
+                                  : f.key === 'holderName'
+                                    ? getPlaceholder('holder_name')
                                     : f.key === 'mainText'
                                     ? stampType === 'da-thu-tien'
                                       ? getPlaceholder('main_da_thu_tien')
@@ -327,7 +344,17 @@ export default function ThietKeConDauClientPage() {
                       <button
                         key={s.value}
                         type="button"
-                        onClick={() => setShape(s.value)}
+                        onClick={() => {
+                          if (s.value === 'chu-nhat' && shape !== 'chu-nhat') {
+                            const w = nearestSizeMmOption(sizeMm)
+                            const h = nearestSizeMmOption(Math.round((w * 3) / 4))
+                            setRectWidthMm(w)
+                            setRectHeightMm(h)
+                          } else if (s.value !== 'chu-nhat' && shape === 'chu-nhat') {
+                            setSizeMm(nearestSizeMmOption(Math.max(rectWidthMm, rectHeightMm)))
+                          }
+                          setShape(s.value)
+                        }}
                         className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${shape === s.value ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
                       >
                         {shapeLabels[s.value]}
@@ -354,21 +381,60 @@ export default function ThietKeConDauClientPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước (mm)', 'Size (mm)', '尺寸 (mm)', 'サイズ (mm)', '크기 (mm)')}</label>
-                  <div className="flex flex-wrap gap-2">
-                    {SIZE_OPTIONS_MM.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setSizeMm(s)}
-                        className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${sizeMm === s ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
-                      >
-                        {s} mm
-                      </button>
-                    ))}
+                {shape === 'chu-nhat' ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {tr('Chiều rộng (mm)', 'Width (mm)', '宽度 (mm)', '幅 (mm)', '가로 (mm)')}
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {SIZE_OPTIONS_MM.map((s) => (
+                          <button
+                            key={`w-${s}`}
+                            type="button"
+                            onClick={() => setRectWidthMm(s)}
+                            className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${rectWidthMm === s ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
+                          >
+                            {s} mm
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {tr('Chiều cao (mm)', 'Height (mm)', '高度 (mm)', '高さ (mm)', '세로 (mm)')}
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {SIZE_OPTIONS_MM.map((s) => (
+                          <button
+                            key={`h-${s}`}
+                            type="button"
+                            onClick={() => setRectHeightMm(s)}
+                            className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${rectHeightMm === s ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
+                          >
+                            {s} mm
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước (mm)', 'Size (mm)', '尺寸 (mm)', 'サイズ (mm)', '크기 (mm)')}</label>
+                    <div className="flex flex-wrap gap-2">
+                      {SIZE_OPTIONS_MM.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setSizeMm(s)}
+                          className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${sizeMm === s ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
+                        >
+                          {s} mm
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row gap-3">
                   <div className="space-y-1 shrink-0">

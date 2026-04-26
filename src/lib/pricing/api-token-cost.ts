@@ -14,7 +14,15 @@ export type ModelUsdRates = {
   outputLong?: number
 }
 
-/** Token đầu ra ảnh tương đương (Gemini 3 Pro Image — mỗi ảnh; tham khảo tài liệu Google). */
+/**
+ * Token đầu ra ảnh tương đương (mỗi ảnh; tham khảo tài liệu Google 2026-04).
+ *
+ * Số liệu này khớp với Gemini 3 Pro Image (1K-2K = 1120, 4K = 2000).
+ * Lưu ý: Gemini 3.1 Flash Image / 2.5 Flash Image dùng số token khác (ví dụ
+ * 3.1 Flash Image: 0.5K=747, 1K=1120, 2K=1680, 4K=2520) — nếu chuyển sang dùng
+ * các model đó cần thêm bảng riêng theo `model + size`. Hiện codebase chỉ dùng
+ * `gemini-3-pro-image-preview` nên giữ nguyên bảng này.
+ */
 export const IMAGE_TOKENS = { '1K': 1120, '2K': 1120, '4K': 2000 } as const
 
 /**
@@ -65,6 +73,45 @@ export const API_COST_PER_1M: Record<string, ModelUsdRates> = {
   'gemini-embedding-001': { input: 0.15, output: 0 },
   /** Gemini Embedding 2 Preview — giá nhập văn bản (bậc trả phí). */
   'gemini-embedding-2-preview': { input: 0.2, output: 0 },
+  /** Gemini Embedding 2 (stable) — đa phương thức, chỉ tính nhập văn bản ở đây. */
+  'gemini-embedding-2': { input: 0.2, output: 0 },
+
+  /** Gemini 2.5 Flash Preview TTS — input $0.5, output (audio) $10/1M token. */
+  'gemini-2.5-flash-preview-tts': { input: 0.5, output: 10 },
+  /** Gemini 2.5 Pro Preview TTS — input $1, output (audio) $20/1M token. */
+  'gemini-2.5-pro-preview-tts': { input: 1, output: 20 },
+  /** Gemini 3.1 Flash TTS Preview — input $1, output (audio) $10/1M token. */
+  'gemini-3.1-flash-tts-preview': { input: 1, output: 10 },
+
+  /** Gemini 2.5 Flash Native Audio Preview — input $0.5 text / $3 audio; output $2 text / $12 audio. */
+  'gemini-2.5-flash-native-audio-preview-12-2025': { input: 3, output: 12 },
+
+  /** Gemini 2.5 Computer Use Preview — tier 200k. */
+  'gemini-2.5-computer-use-preview-10-2025': { input: 1.25, output: 10, inputLong: 2.5, outputLong: 15 },
+
+  /** Gemini Robotics-ER 1.5 / 1.6 Preview — input/output ($0.30/$2.50 và $1/$5). */
+  'gemini-robotics-er-1.5-preview': { input: 0.3, output: 2.5 },
+  'gemini-robotics-er-1.6-preview': { input: 1, output: 5 },
+
+  /** Gemini 3.1 Flash-Live Preview — input $0.75 text / $3 audio / $1 video; output $4.5 text / $12 audio. */
+  'gemini-3.1-flash-live-preview': { input: 3, output: 12 },
+
+  /**
+   * Veo / Imagen / Lyria không dùng đơn vị token — log placeholder 1 token/lượt.
+   * Đặt `input: 0, output: 0` để chi phí không bị tính qua token; chi phí thực
+   * cần báo cáo riêng (per-second / per-image / per-song) nếu cần.
+   */
+  'veo-3.1-generate-preview': { input: 0, output: 0 },
+  'veo-3.1-fast-generate-preview': { input: 0, output: 0 },
+  'veo-3.1-lite-generate-preview': { input: 0, output: 0 },
+  'veo-3.0-generate-001': { input: 0, output: 0 },
+  'veo-3.0-fast-generate-001': { input: 0, output: 0 },
+  'veo-2.0-generate-001': { input: 0, output: 0 },
+  'imagen-4.0-generate-001': { input: 0, output: 0 },
+  'imagen-4.0-fast-generate-001': { input: 0, output: 0 },
+  'imagen-4.0-ultra-generate-001': { input: 0, output: 0 },
+  'lyria-3-clip-preview': { input: 0, output: 0 },
+  'lyria-3-pro-preview': { input: 0, output: 0 },
 }
 
 export const USD_TO_VND = 25_000
@@ -103,14 +150,28 @@ function resolveInputOutputRates(
   }
 }
 
-export function calcCostVnd(
+export type CalcCostVndSplit = {
+  /** ₫ phần input (prompt tokens × giá input). */
+  inputVnd: number
+  /** ₫ phần output (output tokens × giá output, có tính outputImage cho ảnh). */
+  outputVnd: number
+  /** ₫ tổng = inputVnd + outputVnd (đã làm tròn từ tổng USD, **không** cộng từ hai số đã làm tròn). */
+  totalVnd: number
+}
+
+/**
+ * Như `calcCostVnd`, nhưng trả thêm phần input/output tách rời (₫) — dùng cho thẻ tổng quan.
+ * `totalVnd` được làm tròn từ tổng USD (giống `calcCostVnd`); `inputVnd` và `outputVnd`
+ * cũng được làm tròn riêng nên có thể chênh `totalVnd` ±1₫ do làm tròn — không đáng kể.
+ */
+export function calcCostVndSplit(
   promptTokens: number,
   outputTokens: number,
   model: string,
   imageSize?: string | null,
   usdToVndOrFirstOpt?: number | CalcCostVndOptions,
   maybeOptions?: CalcCostVndOptions
-): number {
+): CalcCostVndSplit {
   let usdToVnd = USD_TO_VND
   let options: CalcCostVndOptions = {}
   if (typeof usdToVndOrFirstOpt === 'number' || usdToVndOrFirstOpt === undefined) {
@@ -128,11 +189,6 @@ export function calcCostVnd(
   const isImageSizeTier = imageSize === '1K' || imageSize === '2K' || imageSize === '4K'
   const imageUsdPerM = rates.outputImage
 
-  /**
-   * Đầu ra ảnh (Gemini): 120 USD/1M token ảnh; 1K–2K cố định 1120 token/ảnh, 4K là 2000 — khớp tài liệu Google.
-   * Khi không có imageSize trong DB: metadata completion vẫn là token đầu ra ảnh → phải nhân `imageUsdPerM`, không dùng giá output chữ (12 USD/1M).
-   * Khi có tier (per-call ước lượng): có thể gắn cố định 1120/2000 thay cho số API.
-   */
   let outRate: number
   let effectiveOutputTokens: number
   if (imageUsdPerM != null && isImageSizeTier && imageSize != null && imageSize in IMAGE_TOKENS) {
@@ -146,8 +202,31 @@ export function calcCostVnd(
     effectiveOutputTokens = outputTokens
   }
 
-  const usd = (promptTokens / 1_000_000) * inputRate + (effectiveOutputTokens / 1_000_000) * outRate
-  return Math.round(usd * usdToVnd)
+  const inputUsd = (promptTokens / 1_000_000) * inputRate
+  const outputUsd = (effectiveOutputTokens / 1_000_000) * outRate
+  return {
+    inputVnd: Math.round(inputUsd * usdToVnd),
+    outputVnd: Math.round(outputUsd * usdToVnd),
+    totalVnd: Math.round((inputUsd + outputUsd) * usdToVnd),
+  }
+}
+
+export function calcCostVnd(
+  promptTokens: number,
+  outputTokens: number,
+  model: string,
+  imageSize?: string | null,
+  usdToVndOrFirstOpt?: number | CalcCostVndOptions,
+  maybeOptions?: CalcCostVndOptions
+): number {
+  return calcCostVndSplit(
+    promptTokens,
+    outputTokens,
+    model,
+    imageSize,
+    usdToVndOrFirstOpt,
+    maybeOptions
+  ).totalVnd
 }
 
 export type PartnerAiTokenUsageStatRowForCost = {

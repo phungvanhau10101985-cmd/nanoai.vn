@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { useEffect, useState } from 'react'
+import { calcCostVndSplit } from './api-cost'
 
 export interface LogWithCost {
   id: string
@@ -68,6 +69,12 @@ export function LogDetailDialog({
 
   const imgSize = (log as { image_size?: string | null }).image_size
   const featureLabel = featureLabels[log.feature] || log.feature
+  const costSplit = calcCostVndSplit(
+    log.prompt_token_count || 0,
+    log.candidates_token_count || 0,
+    log.model,
+    imgSize
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -111,10 +118,12 @@ export function LogDetailDialog({
             <div>
               <p className="text-muted-foreground text-xs mb-1">Input tokens</p>
               <p className="font-mono font-medium">{formatNum(log.prompt_token_count || 0)}</p>
+              <p className="text-xs text-amber-700 font-medium">{formatVnd(costSplit.inputVnd)}</p>
             </div>
             <div>
               <p className="text-muted-foreground text-xs mb-1">Output tokens</p>
               <p className="font-mono font-medium">{formatNum(log.candidates_token_count || 0)}</p>
+              <p className="text-xs text-amber-700 font-medium">{formatVnd(costSplit.outputVnd)}</p>
             </div>
             <div>
               <p className="text-muted-foreground text-xs mb-1">{tr('Tổng tokens', 'Total tokens', '总 tokens', '合計 tokens', '총 tokens')}</p>
@@ -124,6 +133,9 @@ export function LogDetailDialog({
           <div className="pt-3 border-t">
             <p className="text-muted-foreground text-xs mb-1">{tr('Tổng chi phí lượt này', 'Total cost for this call', '本次调用总成本', 'この呼び出しの合計コスト', '이번 호출 총 비용')}</p>
             <p className="text-xl font-bold text-amber-700">{formatVnd(log.costVnd)}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              = {formatVnd(costSplit.inputVnd)} ({tr('input', 'input', '输入', '入力', '입력')}) + {formatVnd(costSplit.outputVnd)} ({tr('output', 'output', '输出', '出力', '출력')})
+            </p>
           </div>
         </div>
       </DialogContent>

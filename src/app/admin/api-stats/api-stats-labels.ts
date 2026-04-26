@@ -102,6 +102,12 @@ export const STATIC_API_FEATURE_LABELS: Record<string, string> = {
   'hoan-doi-khuon-mat-vision-face': 'Hoán đổi khuôn mặt — Cloud Vision (FACE_DETECTION)',
   'schools-search-canonicalize-gemini-flash': 'Tìm trường — chuẩn hóa tên bằng AI (Flash)',
   'thu-do-online-vision-remove-face-garment': 'Thử đồ ảo — Vision xóa mặt người mẫu (ảnh SP)',
+  'partner-inventory-material-detail-image': 'Messaging — sinh ảnh chi tiết chất liệu (Gemini)',
+  'partner-inventory-real-use-image': 'Messaging — sinh ảnh đời thường (Gemini)',
+  'partner-inventory-material-infer': 'Messaging — suy chất liệu từ ảnh SP (Gemini Vision)',
+  'image_similarity_search': 'Messaging — tìm ảnh tương tự (Gemini Embed)',
+  'messaging-workspace-logo-normalize': 'Messaging — chuẩn hoá logo workspace (Gemini)',
+  'messaging-consult-link-opening': 'Messaging — mở đầu khi khách bấm tư vấn (Gemini)',
   ...ENGLISH_COACH_API_STATS_FEATURE_LABELS,
   ...CURRICULUM_API_STATS_FEATURE_LABELS,
 }

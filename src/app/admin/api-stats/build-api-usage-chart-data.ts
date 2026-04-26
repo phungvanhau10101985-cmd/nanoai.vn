@@ -1,4 +1,5 @@
 import type { ApiUsageLogRow } from './fetch-api-usage-logs-range'
+import { calcCostVndSplit } from './api-cost'
 
 export const API_USAGE_CHART_OTHER_KEY = '__other__' as const
 
@@ -8,6 +9,12 @@ export type ApiUsageDailyChartRow = {
   requests: number
   inputTokens: number
   outputTokens: number
+  /** Chi phí ₫ trong ngày — phần input. */
+  inputCostVnd: number
+  /** Chi phí ₫ trong ngày — phần output. */
+  outputCostVnd: number
+  /** Chi phí ₫ trong ngày — tổng. */
+  totalCostVnd: number
 }
 
 export type ApiUsageModelSeriesRow = Record<string, string | number>
@@ -18,6 +25,8 @@ export type ApiUsageChartPayload = {
   modelKeys: string[]
   tokensByModelRows: ApiUsageModelSeriesRow[]
   requestsByModelRows: ApiUsageModelSeriesRow[]
+  /** Chi phí ₫ theo ngày, mỗi cột là 1 model (top + Khác). */
+  costByModelRows: ApiUsageModelSeriesRow[]
   showOtherSeries: boolean
 }
 
@@ -41,7 +50,7 @@ export function enumerateDaysInclusive(fromYmd: string, toYmd: string): string[]
   return out
 }
 
-type PerModelDayCell = { requests: number; inputTokens: number }
+type PerModelDayCell = { requests: number; inputTokens: number; costVnd: number }
 
 export function buildApiUsageChartData(
   logs: ApiUsageLogRow[],
@@ -51,9 +60,12 @@ export function buildApiUsageChartData(
   topModels = 8
 ): ApiUsageChartPayload {
   const days = enumerateDaysInclusive(fromYmd, toYmd)
-  const dailyAgg = new Map<string, { requests: number; inputTokens: number; outputTokens: number }>()
+  const dailyAgg = new Map<
+    string,
+    { requests: number; inputTokens: number; outputTokens: number; inputCostVnd: number; outputCostVnd: number; totalCostVnd: number }
+  >()
   for (const d of days) {
-    dailyAgg.set(d, { requests: 0, inputTokens: 0, outputTokens: 0 })
+    dailyAgg.set(d, { requests: 0, inputTokens: 0, outputTokens: 0, inputCostVnd: 0, outputCostVnd: 0, totalCostVnd: 0 })
   }
 
   const modelTotals = new Map<string, number>()
@@ -68,9 +80,9 @@ export function buildApiUsageChartData(
   for (const d of days) {
     const inner = new Map<string, PerModelDayCell>()
     for (const k of topKeys) {
-      inner.set(k, { requests: 0, inputTokens: 0 })
+      inner.set(k, { requests: 0, inputTokens: 0, costVnd: 0 })
     }
-    inner.set(API_USAGE_CHART_OTHER_KEY, { requests: 0, inputTokens: 0 })
+    inner.set(API_USAGE_CHART_OTHER_KEY, { requests: 0, inputTokens: 0, costVnd: 0 })
     perModelByDay.set(d, inner)
   }
 
@@ -79,9 +91,18 @@ export function buildApiUsageChartData(
     const day = String(log.created_at).slice(0, 10)
     const bucket = dailyAgg.get(day)
     if (!bucket) continue
+    const split = calcCostVndSplit(
+      log.prompt_token_count || 0,
+      log.candidates_token_count || 0,
+      log.model,
+      (log as { image_size?: string | null }).image_size
+    )
     bucket.requests += 1
     bucket.inputTokens += log.prompt_token_count || 0
     bucket.outputTokens += log.candidates_token_count || 0
+    bucket.inputCostVnd += split.inputVnd
+    bucket.outputCostVnd += split.outputVnd
+    bucket.totalCostVnd += split.totalVnd
 
     const mk = topSet.has(log.model) ? log.model : API_USAGE_CHART_OTHER_KEY
     if (mk === API_USAGE_CHART_OTHER_KEY) otherAny = true
@@ -89,17 +110,23 @@ export function buildApiUsageChartData(
     if (cell) {
       cell.requests += 1
       cell.inputTokens += log.prompt_token_count || 0
+      cell.costVnd += split.totalVnd
     }
   }
 
   const daily: ApiUsageDailyChartRow[] = days.map((dateKey) => {
-    const b = dailyAgg.get(dateKey) ?? { requests: 0, inputTokens: 0, outputTokens: 0 }
+    const b =
+      dailyAgg.get(dateKey) ??
+      { requests: 0, inputTokens: 0, outputTokens: 0, inputCostVnd: 0, outputCostVnd: 0, totalCostVnd: 0 }
     return {
       dateKey,
       dateLabel: formatChartDayLabel(dateKey, localeTag),
       requests: b.requests,
       inputTokens: b.inputTokens,
       outputTokens: b.outputTokens,
+      inputCostVnd: b.inputCostVnd,
+      outputCostVnd: b.outputCostVnd,
+      totalCostVnd: b.totalCostVnd,
     }
   })
 
@@ -119,6 +146,7 @@ export function buildApiUsageChartData(
 
   const tokensByModelRows = buildSeriesRows('inputTokens')
   const requestsByModelRows = buildSeriesRows('requests')
+  const costByModelRows = buildSeriesRows('costVnd')
 
   const showOtherSeries =
     otherAny && tokensByModelRows.some((r) => Number(r[API_USAGE_CHART_OTHER_KEY]) > 0)
@@ -128,6 +156,7 @@ export function buildApiUsageChartData(
     modelKeys: topKeys,
     tokensByModelRows,
     requestsByModelRows,
+    costByModelRows,
     showOtherSeries,
   }
 }

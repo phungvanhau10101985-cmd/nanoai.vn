@@ -22,7 +22,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const role = await getProfileRoleWithFallback(user.id)
   if (role !== 'admin') redirect('/')
   return (
-    <div className="container max-w-5xl py-6 space-y-6">
+    <div className="container max-w-screen-2xl py-6 space-y-6">
       <Toaster />
       <Link
         href="/admin"

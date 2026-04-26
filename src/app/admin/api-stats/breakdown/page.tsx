@@ -156,8 +156,16 @@ export default async function AdminApiStatsBreakdownPage({
               <TableCell className="text-right">{formatNum(st.calls)}</TableCell>
               <TableCell className="text-right text-sky-600">{formatNum(st.calls2K)}</TableCell>
               <TableCell className="text-right text-amber-600">{formatNum(st.calls4K)}</TableCell>
-              <TableCell className="text-right">{formatNum(st.promptTokens)}</TableCell>
-              <TableCell className="text-right">{formatNum(st.outputTokens)}</TableCell>
+              <TableCell className="text-right">
+                <span>{formatNum(st.promptTokens)}</span>
+                <br />
+                <span className="text-xs text-amber-700">{formatVnd(st.inputCostVnd)}</span>
+              </TableCell>
+              <TableCell className="text-right">
+                <span>{formatNum(st.outputTokens)}</span>
+                <br />
+                <span className="text-xs text-amber-700">{formatVnd(st.outputCostVnd)}</span>
+              </TableCell>
               <TableCell className="text-right font-medium text-amber-700">{formatVnd(st.costVnd)}</TableCell>
             </TableRow>
           ))}
@@ -509,8 +517,16 @@ export default async function AdminApiStatsBreakdownPage({
                             <TableCell className="text-right">{formatNum(row.calls)}</TableCell>
                             <TableCell className="text-right text-sky-600">{formatNum(row.calls2K)}</TableCell>
                             <TableCell className="text-right text-amber-600">{formatNum(row.calls4K)}</TableCell>
-                            <TableCell className="text-right">{formatNum(row.promptTokens)}</TableCell>
-                            <TableCell className="text-right">{formatNum(row.outputTokens)}</TableCell>
+                            <TableCell className="text-right">
+                              <span>{formatNum(row.promptTokens)}</span>
+                              <br />
+                              <span className="text-xs text-amber-700">{formatVnd(row.inputCostVnd)}</span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span>{formatNum(row.outputTokens)}</span>
+                              <br />
+                              <span className="text-xs text-amber-700">{formatVnd(row.outputCostVnd)}</span>
+                            </TableCell>
                             <TableCell className="text-right font-medium text-amber-700">{formatVnd(row.costVnd)}</TableCell>
                           </TableRow>
                         )

@@ -7,7 +7,7 @@ import { LogsTableWithDetail } from './logs-table-with-detail'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { isEnglishCoachApiUsageFeature } from '@/lib/english-coach-api-usage'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
-import { calcCostVnd, USD_TO_VND } from './api-cost'
+import { calcCostVnd, calcCostVndSplit, USD_TO_VND } from './api-cost'
 import { mergeApiFeatureLabelsForLogs } from './api-stats-labels'
 import {
   aggregateEnglishCoachApiCostByLessonKind,
@@ -82,44 +82,71 @@ export default async function AdminApiStatsPage({
   const coachApiByKind = aggregateEnglishCoachApiCostByLessonKind(coachLogsInRange)
   const featureLabelsMerged = mergeApiFeatureLabelsForLogs(logsList.map((l) => l.feature))
 
+  type AggBucket = {
+    calls: number
+    promptTokens: number
+    outputTokens: number
+    totalTokens: number
+    costVnd: number
+    inputCostVnd: number
+    outputCostVnd: number
+    calls2K: number
+    calls4K: number
+    callsNoImage: number
+  }
+  const newBucket = (): AggBucket => ({
+    calls: 0,
+    promptTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    costVnd: 0,
+    inputCostVnd: 0,
+    outputCostVnd: 0,
+    calls2K: 0,
+    calls4K: 0,
+    callsNoImage: 0,
+  })
+
   const byModel = logsList.reduce(
     (acc, log) => {
       const key = log.model
-      if (!acc[key]) {
-        acc[key] = { calls: 0, promptTokens: 0, outputTokens: 0, totalTokens: 0, costVnd: 0, calls2K: 0, calls4K: 0, callsNoImage: 0 }
-      }
+      if (!acc[key]) acc[key] = newBucket()
       acc[key].calls += 1
       acc[key].promptTokens += log.prompt_token_count || 0
       acc[key].outputTokens += log.candidates_token_count || 0
       acc[key].totalTokens += log.total_token_count || 0
       const imgSize = (log as { image_size?: string | null }).image_size
-      acc[key].costVnd += calcCostVnd(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize)
+      const split = calcCostVndSplit(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize)
+      acc[key].costVnd += split.totalVnd
+      acc[key].inputCostVnd += split.inputVnd
+      acc[key].outputCostVnd += split.outputVnd
       if (imgSize === '2K') acc[key].calls2K += 1
       else if (imgSize === '4K') acc[key].calls4K += 1
       else acc[key].callsNoImage += 1
       return acc
     },
-    {} as Record<string, { calls: number; promptTokens: number; outputTokens: number; totalTokens: number; costVnd: number; calls2K: number; calls4K: number; callsNoImage: number }>
+    {} as Record<string, AggBucket>
   )
 
   const byFeature = logsList.reduce(
     (acc, log) => {
       const key = log.feature
-      if (!acc[key]) {
-        acc[key] = { calls: 0, promptTokens: 0, outputTokens: 0, totalTokens: 0, costVnd: 0, calls2K: 0, calls4K: 0, callsNoImage: 0 }
-      }
+      if (!acc[key]) acc[key] = newBucket()
       acc[key].calls += 1
       acc[key].promptTokens += log.prompt_token_count || 0
       acc[key].outputTokens += log.candidates_token_count || 0
       acc[key].totalTokens += log.total_token_count || 0
       const imgSize = (log as { image_size?: string | null }).image_size
-      acc[key].costVnd += calcCostVnd(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize)
+      const split = calcCostVndSplit(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize)
+      acc[key].costVnd += split.totalVnd
+      acc[key].inputCostVnd += split.inputVnd
+      acc[key].outputCostVnd += split.outputVnd
       if (imgSize === '2K') acc[key].calls2K += 1
       else if (imgSize === '4K') acc[key].calls4K += 1
       else acc[key].callsNoImage += 1
       return acc
     },
-    {} as Record<string, { calls: number; promptTokens: number; outputTokens: number; totalTokens: number; costVnd: number; calls2K: number; calls4K: number; callsNoImage: number }>
+    {} as Record<string, AggBucket>
   )
 
   const byImageSize = logsList.reduce(
@@ -127,21 +154,24 @@ export default async function AdminApiStatsPage({
       const imgSize = (log as { image_size?: string | null }).image_size
       const key = imgSize === '2K' ? '2K' : imgSize === '4K' ? '4K' : 'no-image'
       if (!acc[key]) {
-        acc[key] = { calls: 0, promptTokens: 0, outputTokens: 0, totalTokens: 0, costVnd: 0 }
+        acc[key] = { calls: 0, promptTokens: 0, outputTokens: 0, totalTokens: 0, costVnd: 0, inputCostVnd: 0, outputCostVnd: 0 }
       }
       acc[key].calls += 1
       acc[key].promptTokens += log.prompt_token_count || 0
       acc[key].outputTokens += log.candidates_token_count || 0
       acc[key].totalTokens += log.total_token_count || 0
-      acc[key].costVnd += calcCostVnd(
+      const split = calcCostVndSplit(
         log.prompt_token_count || 0,
         log.candidates_token_count || 0,
         log.model,
         (log as { image_size?: string | null }).image_size
       )
+      acc[key].costVnd += split.totalVnd
+      acc[key].inputCostVnd += split.inputVnd
+      acc[key].outputCostVnd += split.outputVnd
       return acc
     },
-    {} as Record<string, { calls: number; promptTokens: number; outputTokens: number; totalTokens: number; costVnd: number }>
+    {} as Record<string, { calls: number; promptTokens: number; outputTokens: number; totalTokens: number; costVnd: number; inputCostVnd: number; outputCostVnd: number }>
   )
 
   const totals = {
@@ -149,19 +179,24 @@ export default async function AdminApiStatsPage({
     promptTokens: logsList.reduce((s, l) => s + (l.prompt_token_count || 0), 0),
     outputTokens: logsList.reduce((s, l) => s + (l.candidates_token_count || 0), 0),
     totalTokens: logsList.reduce((s, l) => s + (l.total_token_count || 0), 0),
+    inputCostVnd: 0,
+    outputCostVnd: 0,
+    totalCostVnd: 0,
   }
-
-  let apiCostUsdInRange = 0
   for (const log of logsList) {
-    const cost = calcCostVnd(
+    const split = calcCostVndSplit(
       log.prompt_token_count || 0,
       log.candidates_token_count || 0,
       log.model,
       (log as { image_size?: string | null }).image_size
     )
-    apiCostUsdInRange += cost / USD_TO_VND
+    totals.inputCostVnd += split.inputVnd
+    totals.outputCostVnd += split.outputVnd
+    totals.totalCostVnd += split.totalVnd
   }
-  const apiCostVndInRange = Math.round(apiCostUsdInRange * USD_TO_VND)
+
+  const apiCostVndInRange = totals.totalCostVnd
+  const apiCostUsdInRange = apiCostVndInRange / USD_TO_VND
   const profitInRange = revenueInRange - apiCostVndInRange
 
   const formatNum = (n: number) => n.toLocaleString('vi-VN')
@@ -181,6 +216,8 @@ export default async function AdminApiStatsPage({
           outputTokens: 0,
           totalTokens: 0,
           costVnd: 0,
+          inputCostVnd: 0,
+          outputCostVnd: 0,
           models: new Set<string>(),
         }
       }
@@ -190,9 +227,12 @@ export default async function AdminApiStatsPage({
       current.outputTokens += row.sum_completion_tokens
       current.totalTokens += row.sum_total_tokens
       current.models.add(row.model)
-      current.costVnd += calcCostVnd(row.sum_prompt_tokens, row.sum_completion_tokens, row.model, null, {
+      const split = calcCostVndSplit(row.sum_prompt_tokens, row.sum_completion_tokens, row.model, null, {
         pricingMode: 'aggregate_short',
       })
+      current.costVnd += split.totalVnd
+      current.inputCostVnd += split.inputVnd
+      current.outputCostVnd += split.outputVnd
       return acc
     },
     {} as Record<
@@ -207,6 +247,8 @@ export default async function AdminApiStatsPage({
         outputTokens: number
         totalTokens: number
         costVnd: number
+        inputCostVnd: number
+        outputCostVnd: number
         models: Set<string>
       }
     >
@@ -270,10 +312,26 @@ export default async function AdminApiStatsPage({
       'モデル別の呼び出し回数（日次）',
       '모델별 호출 수(일별)'
     ),
+    costStackTitle: tr(
+      'Chi phí ₫ input / output xếp chồng theo ngày',
+      'Stacked input / output cost (₫) per day',
+      '每日输入/输出费用（₫，堆叠）',
+      '日別の入出力コスト（₫、積み上げ）',
+      '일별 입·출력 비용(₫, 누적)'
+    ),
+    costByModelTitle: tr(
+      'Chi phí ₫ theo model (theo ngày)',
+      'Cost (₫) by model (daily)',
+      '按模型的每日费用 (₫)',
+      'モデル別のコスト（₫、日次）',
+      '모델별 비용(₫, 일별)'
+    ),
     legendRequests: tr('Lượt gọi', 'Calls', '调用次数', '呼び出し', '호출'),
     legendInputTokens: tr('Token input (ngày)', 'Input tokens (day)', '输入 token', '入力トークン', '입력 토큰'),
     legendInputStack: tr('Token input', 'Input tokens', '输入 token', '入力トークン', '입력 토큰'),
     legendOutputStack: tr('Token output', 'Output tokens', '输出 token', '出力トークン', '출력 토큰'),
+    legendInputCostStack: tr('Chi phí input (₫)', 'Input cost (₫)', '输入费用 (₫)', '入力コスト (₫)', '입력 비용(₫)'),
+    legendOutputCostStack: tr('Chi phí output (₫)', 'Output cost (₫)', '输出费用 (₫)', '出力コスト (₫)', '출력 비용(₫)'),
     legendOtherModels: tr('Khác (các model còn lại)', 'Other models', '其他模型', 'その他のモデル', '기타 모델'),
     noDataMessage: tr(
       'Chưa có bản ghi api_usage_log trong khoảng này — không vẽ biểu đồ.',
@@ -471,6 +529,9 @@ export default async function AdminApiStatsPage({
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.calls)}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              ~{formatVnd(totals.calls ? Math.round(totals.totalCostVnd / totals.calls) : 0)}/{tr('lượt', 'call', '次', '回', '회')}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -481,6 +542,7 @@ export default async function AdminApiStatsPage({
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.promptTokens)}</p>
+            <p className="text-xs text-amber-700 mt-1 font-medium">{formatVnd(totals.inputCostVnd)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -491,6 +553,7 @@ export default async function AdminApiStatsPage({
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.outputTokens)}</p>
+            <p className="text-xs text-amber-700 mt-1 font-medium">{formatVnd(totals.outputCostVnd)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -499,6 +562,7 @@ export default async function AdminApiStatsPage({
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.totalTokens)}</p>
+            <p className="text-xs text-amber-700 mt-1 font-medium">{formatVnd(totals.totalCostVnd)}</p>
           </CardContent>
         </Card>
       </div>
@@ -545,8 +609,16 @@ export default async function AdminApiStatsPage({
                       <span className="text-sm">{shop.ownerEmail || 'N/A'}</span>
                     </TableCell>
                     <TableCell className="text-right">{formatNum(shop.calls)}</TableCell>
-                    <TableCell className="text-right">{formatNum(shop.promptTokens)}</TableCell>
-                    <TableCell className="text-right">{formatNum(shop.outputTokens)}</TableCell>
+                    <TableCell className="text-right">
+                      <span>{formatNum(shop.promptTokens)}</span>
+                      <br />
+                      <span className="text-xs text-amber-700">{formatVnd(shop.inputCostVnd)}</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span>{formatNum(shop.outputTokens)}</span>
+                      <br />
+                      <span className="text-xs text-amber-700">{formatVnd(shop.outputCostVnd)}</span>
+                    </TableCell>
                     <TableCell className="text-right font-medium">{formatNum(shop.totalTokens)}</TableCell>
                     <TableCell className="text-right">{formatNum(shop.modelCount)}</TableCell>
                     <TableCell className="text-right">
@@ -570,7 +642,7 @@ export default async function AdminApiStatsPage({
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>{tr('Theo model', 'By model', '按模型', 'モデル別', '모델별')}</CardTitle>
@@ -603,8 +675,16 @@ export default async function AdminApiStatsPage({
                       <TableCell className="text-right">{formatNum(stats.calls)}</TableCell>
                       <TableCell className="text-right text-sky-600">{formatNum(stats.calls2K)}</TableCell>
                       <TableCell className="text-right text-amber-600">{formatNum(stats.calls4K)}</TableCell>
-                      <TableCell className="text-right">{formatNum(stats.promptTokens)}</TableCell>
-                      <TableCell className="text-right">{formatNum(stats.outputTokens)}</TableCell>
+                      <TableCell className="text-right">
+                        <span>{formatNum(stats.promptTokens)}</span>
+                        <br />
+                        <span className="text-xs text-amber-700">{formatVnd(stats.inputCostVnd)}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span>{formatNum(stats.outputTokens)}</span>
+                        <br />
+                        <span className="text-xs text-amber-700">{formatVnd(stats.outputCostVnd)}</span>
+                      </TableCell>
                       <TableCell className="text-right font-medium">{formatNum(stats.totalTokens)}</TableCell>
                       <TableCell className="text-right">
                         <span className="font-medium text-amber-700">{formatVnd(stats.costVnd)}</span>
@@ -650,8 +730,16 @@ export default async function AdminApiStatsPage({
                       <TableCell className="text-right">{formatNum(stats.calls)}</TableCell>
                       <TableCell className="text-right text-sky-600">{formatNum(stats.calls2K)}</TableCell>
                       <TableCell className="text-right text-amber-600">{formatNum(stats.calls4K)}</TableCell>
-                      <TableCell className="text-right">{formatNum(stats.promptTokens)}</TableCell>
-                      <TableCell className="text-right">{formatNum(stats.outputTokens)}</TableCell>
+                      <TableCell className="text-right">
+                        <span>{formatNum(stats.promptTokens)}</span>
+                        <br />
+                        <span className="text-xs text-amber-700">{formatVnd(stats.inputCostVnd)}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span>{formatNum(stats.outputTokens)}</span>
+                        <br />
+                        <span className="text-xs text-amber-700">{formatVnd(stats.outputCostVnd)}</span>
+                      </TableCell>
                       <TableCell className="text-right font-medium">{formatNum(stats.totalTokens)}</TableCell>
                       <TableCell className="text-right">
                         <span className="font-medium text-amber-700">{formatVnd(stats.costVnd)}</span>
@@ -696,8 +784,16 @@ export default async function AdminApiStatsPage({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">{formatNum(stats.calls)}</TableCell>
-                    <TableCell className="text-right">{formatNum(stats.promptTokens)}</TableCell>
-                    <TableCell className="text-right">{formatNum(stats.outputTokens)}</TableCell>
+                    <TableCell className="text-right">
+                      <span>{formatNum(stats.promptTokens)}</span>
+                      <br />
+                      <span className="text-xs text-amber-700">{formatVnd(stats.inputCostVnd)}</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span>{formatNum(stats.outputTokens)}</span>
+                      <br />
+                      <span className="text-xs text-amber-700">{formatVnd(stats.outputCostVnd)}</span>
+                    </TableCell>
                     <TableCell className="text-right font-medium">{formatNum(stats.totalTokens)}</TableCell>
                     <TableCell className="text-right">
                       <span className="font-medium text-amber-700">{formatVnd(stats.costVnd)}</span>

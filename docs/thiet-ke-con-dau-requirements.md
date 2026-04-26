@@ -12,7 +12,7 @@ Tính năng **Thiết kế con dấu** dùng AI tạo mẫu con dấu chuyên ng
 |------|-----|-------|-----------------|
 | **Con dấu doanh nghiệp** | `doanh-nghiep` | Dấu chính công ty | Tên DN, MST |
 | **Con dấu chi nhánh** | `chi-nhanh` | Dấu chi nhánh, VPĐD | Tên DN, MST, Tên chi nhánh |
-| **Con dấu chức danh** | `chuc-danh` | Giám đốc, Kế toán trưởng... | Tên DN, MST, Chức danh |
+| **Con dấu chức danh** | `chuc-danh` | Giám đốc, Kế toán trưởng... | Tên DN, MST, Chức danh, Họ tên người giữ chức danh |
 | **Con dấu địa chỉ** | `dia-chi` | Dấu địa chỉ | Địa chỉ |
 | **Dấu đã thu tiền** | `da-thu-tien` | Xác nhận đã thu tiền | Dòng chính (mặc định ĐÃ THU TIỀN) |
 | **Con dấu trang trí** | `trang-tri` | Dấu tùy chỉnh, craft | Nội dung tùy ý |
@@ -33,6 +33,7 @@ Tính năng **Thiết kế con dấu** dùng AI tạo mẫu con dấu chuyên ng
 | Mã số doanh nghiệp (MST) | ✓ | 0123456789 (10–13 số) |
 | Tên chi nhánh | (chi nhánh) | CHI NHÁNH TP.HCM |
 | Chức danh | (chức danh) | GIÁM ĐỐC, KẾ TOÁN TRƯỞNG |
+| Họ tên người giữ chức danh | (chức danh) | NGUYỄN VĂN A |
 | Địa chỉ / Tỉnh thành | | TP. Hồ Chí Minh |
 | Logo | | Upload ảnh |
 

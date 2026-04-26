@@ -4,4 +4,6 @@ export {
   API_COST_PER_1M,
   USD_TO_VND,
   calcCostVnd,
+  calcCostVndSplit,
+  type CalcCostVndSplit,
 } from '@/lib/pricing/api-token-cost'

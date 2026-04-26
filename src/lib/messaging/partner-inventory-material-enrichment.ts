@@ -8,6 +8,7 @@ import {
   scoreInventoryRowMatch,
 } from '@/lib/messaging/partner-inventory-ai-search'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
@@ -156,6 +157,13 @@ async function inferMaterialFromProductImageUrl(
       total_tokens,
       usage_kind: 'material_infer',
     })
+    void trackFromUsageMetadata(
+      response.usageMetadata,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      'partner-inventory-material-infer',
+      null,
+      null
+    )
     const raw = response
       .text()
       .trim()

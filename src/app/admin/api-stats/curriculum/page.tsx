@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { ApiStatsDateFilter } from '../api-stats-date-filter'
 import { LogsTableWithDetail } from '../logs-table-with-detail'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
-import { calcCostVnd, USD_TO_VND } from '../api-cost'
+import { calcCostVnd, calcCostVndSplit, USD_TO_VND } from '../api-cost'
 import { buildCurriculumFeatureLabelsForLogs } from '../curriculum-feature-labels'
 import { fetchAllApiUsageLogsInRange, sortApiUsageLogsNewestFirst } from '../fetch-api-usage-logs-range'
 
@@ -19,10 +19,24 @@ type Agg = {
   outputTokens: number
   totalTokens: number
   costVnd: number
+  inputCostVnd: number
+  outputCostVnd: number
   calls2K: number
   calls4K: number
   callsNoImage: number
 }
+const newAgg = (): Agg => ({
+  calls: 0,
+  promptTokens: 0,
+  outputTokens: 0,
+  totalTokens: 0,
+  costVnd: 0,
+  inputCostVnd: 0,
+  outputCostVnd: 0,
+  calls2K: 0,
+  calls4K: 0,
+  callsNoImage: 0,
+})
 
 export default async function AdminCurriculumApiStatsPage({
   searchParams = {},
@@ -74,15 +88,16 @@ export default async function AdminCurriculumApiStatsPage({
 
   const byModel = logsList.reduce((acc, log) => {
     const key = log.model
-    if (!acc[key]) {
-      acc[key] = { calls: 0, promptTokens: 0, outputTokens: 0, totalTokens: 0, costVnd: 0, calls2K: 0, calls4K: 0, callsNoImage: 0 }
-    }
+    if (!acc[key]) acc[key] = newAgg()
     acc[key].calls += 1
     acc[key].promptTokens += log.prompt_token_count || 0
     acc[key].outputTokens += log.candidates_token_count || 0
     acc[key].totalTokens += log.total_token_count || 0
     const imgSize = (log as { image_size?: string | null }).image_size
-    acc[key].costVnd += calcCostVnd(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize)
+    const split = calcCostVndSplit(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize)
+    acc[key].costVnd += split.totalVnd
+    acc[key].inputCostVnd += split.inputVnd
+    acc[key].outputCostVnd += split.outputVnd
     if (imgSize === '2K') acc[key].calls2K += 1
     else if (imgSize === '4K') acc[key].calls4K += 1
     else acc[key].callsNoImage += 1
@@ -91,15 +106,16 @@ export default async function AdminCurriculumApiStatsPage({
 
   const byFeature = logsList.reduce((acc, log) => {
     const key = log.feature
-    if (!acc[key]) {
-      acc[key] = { calls: 0, promptTokens: 0, outputTokens: 0, totalTokens: 0, costVnd: 0, calls2K: 0, calls4K: 0, callsNoImage: 0 }
-    }
+    if (!acc[key]) acc[key] = newAgg()
     acc[key].calls += 1
     acc[key].promptTokens += log.prompt_token_count || 0
     acc[key].outputTokens += log.candidates_token_count || 0
     acc[key].totalTokens += log.total_token_count || 0
     const imgSize = (log as { image_size?: string | null }).image_size
-    acc[key].costVnd += calcCostVnd(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize)
+    const split = calcCostVndSplit(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize)
+    acc[key].costVnd += split.totalVnd
+    acc[key].inputCostVnd += split.inputVnd
+    acc[key].outputCostVnd += split.outputVnd
     if (imgSize === '2K') acc[key].calls2K += 1
     else if (imgSize === '4K') acc[key].calls4K += 1
     else acc[key].callsNoImage += 1
@@ -111,21 +127,24 @@ export default async function AdminCurriculumApiStatsPage({
       const imgSize = (log as { image_size?: string | null }).image_size
       const key = imgSize === '2K' ? '2K' : imgSize === '4K' ? '4K' : 'no-image'
       if (!acc[key]) {
-        acc[key] = { calls: 0, promptTokens: 0, outputTokens: 0, totalTokens: 0, costVnd: 0 }
+        acc[key] = { calls: 0, promptTokens: 0, outputTokens: 0, totalTokens: 0, costVnd: 0, inputCostVnd: 0, outputCostVnd: 0 }
       }
       acc[key].calls += 1
       acc[key].promptTokens += log.prompt_token_count || 0
       acc[key].outputTokens += log.candidates_token_count || 0
       acc[key].totalTokens += log.total_token_count || 0
-      acc[key].costVnd += calcCostVnd(
+      const split = calcCostVndSplit(
         log.prompt_token_count || 0,
         log.candidates_token_count || 0,
         log.model,
         (log as { image_size?: string | null }).image_size
       )
+      acc[key].costVnd += split.totalVnd
+      acc[key].inputCostVnd += split.inputVnd
+      acc[key].outputCostVnd += split.outputVnd
       return acc
     },
-    {} as Record<string, { calls: number; promptTokens: number; outputTokens: number; totalTokens: number; costVnd: number }>
+    {} as Record<string, { calls: number; promptTokens: number; outputTokens: number; totalTokens: number; costVnd: number; inputCostVnd: number; outputCostVnd: number }>
   )
 
   const totals = {
@@ -133,19 +152,23 @@ export default async function AdminCurriculumApiStatsPage({
     promptTokens: logsList.reduce((s, l) => s + (l.prompt_token_count || 0), 0),
     outputTokens: logsList.reduce((s, l) => s + (l.candidates_token_count || 0), 0),
     totalTokens: logsList.reduce((s, l) => s + (l.total_token_count || 0), 0),
+    inputCostVnd: 0,
+    outputCostVnd: 0,
+    totalCostVnd: 0,
   }
-
-  let apiCostUsdInRange = 0
   for (const log of logsList) {
-    const cost = calcCostVnd(
+    const split = calcCostVndSplit(
       log.prompt_token_count || 0,
       log.candidates_token_count || 0,
       log.model,
       (log as { image_size?: string | null }).image_size
     )
-    apiCostUsdInRange += cost / USD_TO_VND
+    totals.inputCostVnd += split.inputVnd
+    totals.outputCostVnd += split.outputVnd
+    totals.totalCostVnd += split.totalVnd
   }
-  const apiCostVndInRange = Math.round(apiCostUsdInRange * USD_TO_VND)
+  const apiCostVndInRange = totals.totalCostVnd
+  const apiCostUsdInRange = apiCostVndInRange / USD_TO_VND
 
   const formatNum = (n: number) => n.toLocaleString('vi-VN')
   const formatVnd = (n: number) => `${n.toLocaleString('vi-VN')}₫`
@@ -222,6 +245,9 @@ export default async function AdminCurriculumApiStatsPage({
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.calls)}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              ~{formatVnd(totals.calls ? Math.round(totals.totalCostVnd / totals.calls) : 0)}/{tr('lượt', 'call', '次', '回', '회')}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -230,6 +256,7 @@ export default async function AdminCurriculumApiStatsPage({
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.promptTokens)}</p>
+            <p className="text-xs text-violet-800 mt-1 font-medium">{formatVnd(totals.inputCostVnd)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -238,6 +265,7 @@ export default async function AdminCurriculumApiStatsPage({
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.outputTokens)}</p>
+            <p className="text-xs text-violet-800 mt-1 font-medium">{formatVnd(totals.outputCostVnd)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -246,11 +274,12 @@ export default async function AdminCurriculumApiStatsPage({
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{formatNum(totals.totalTokens)}</p>
+            <p className="text-xs text-violet-800 mt-1 font-medium">{formatVnd(totals.totalCostVnd)}</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>{tr('Theo model', 'By model', '按模型', 'モデル別', '모델별')}</CardTitle>
@@ -277,8 +306,16 @@ export default async function AdminCurriculumApiStatsPage({
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">{formatNum(stats.calls)}</TableCell>
-                      <TableCell className="text-right">{formatNum(stats.promptTokens)}</TableCell>
-                      <TableCell className="text-right">{formatNum(stats.outputTokens)}</TableCell>
+                      <TableCell className="text-right">
+                        <span>{formatNum(stats.promptTokens)}</span>
+                        <br />
+                        <span className="text-xs text-violet-800">{formatVnd(stats.inputCostVnd)}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span>{formatNum(stats.outputTokens)}</span>
+                        <br />
+                        <span className="text-xs text-violet-800">{formatVnd(stats.outputCostVnd)}</span>
+                      </TableCell>
                       <TableCell className="text-right">
                         <span className="font-medium text-violet-800">{formatVnd(stats.costVnd)}</span>
                         <br />
@@ -320,8 +357,16 @@ export default async function AdminCurriculumApiStatsPage({
                         <span className="text-xs text-muted-foreground font-mono">{feature}</span>
                       </TableCell>
                       <TableCell className="text-right">{formatNum(stats.calls)}</TableCell>
-                      <TableCell className="text-right">{formatNum(stats.promptTokens)}</TableCell>
-                      <TableCell className="text-right">{formatNum(stats.outputTokens)}</TableCell>
+                      <TableCell className="text-right">
+                        <span>{formatNum(stats.promptTokens)}</span>
+                        <br />
+                        <span className="text-xs text-violet-800">{formatVnd(stats.inputCostVnd)}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span>{formatNum(stats.outputTokens)}</span>
+                        <br />
+                        <span className="text-xs text-violet-800">{formatVnd(stats.outputCostVnd)}</span>
+                      </TableCell>
                       <TableCell className="text-right">
                         <span className="font-medium text-violet-800">{formatVnd(stats.costVnd)}</span>
                         <br />

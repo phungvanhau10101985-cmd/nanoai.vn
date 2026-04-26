@@ -7,19 +7,17 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import type { StampType } from './lib/stamp-types'
+import { closestAspectRatioFromMmSize, type StampType, VALID_STAMP_ASPECT_RATIOS } from './lib/stamp-types'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
 
 const SEAL_COSTS = { '2K': 1.5, '4K': 3 } as const
-const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4'] as const
 const SHAPE_TO_ASPECT_RATIO: Record<string, string> = {
   tron: '1:1',
   vuong: '1:1',
   elip: '3:2',
-  'chu-nhat': '4:3',
 }
 const toTenths = (value: number) => Math.round(value * 10)
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
@@ -27,7 +25,7 @@ const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximum
 const TYPE_PROMPTS: Record<string, string> = {
   'doanh-nghiep': 'Con dấu doanh nghiệp (company stamp) – tên công ty, mã số thuế, hình tròn/vuông/elip/chữ nhật, chuyên nghiệp.',
   'chi-nhanh': 'Con dấu chi nhánh (branch stamp) – tên công ty, mã số thuế, tên chi nhánh, chuyên nghiệp.',
-  'chuc-danh': 'Con dấu chức danh (title stamp) – tên công ty, mã số thuế, chức danh (Giám đốc, Kế toán trưởng...), chuyên nghiệp.',
+  'chuc-danh': 'Con dấu chức danh (title stamp) – tên công ty, mã số thuế, chức danh (Giám đốc, Kế toán trưởng...) và họ tên người giữ chức danh, chuyên nghiệp.',
   'dia-chi': 'Con dấu địa chỉ (address stamp) – địa chỉ là nội dung chính, hình chữ nhật hoặc elip phù hợp, chuyên nghiệp.',
   'da-thu-tien': 'Dấu đã thu tiền (paid/received stamp) – ĐÃ THU TIỀN hoặc tương tự, xác nhận đã thu, chuyên nghiệp.',
   'trang-tri': 'Con dấu trang trí (decorative stamp) – nội dung tùy ý, phong cách craft, đẹp mắt.',
@@ -57,10 +55,19 @@ export async function createStampWithAI(formData: FormData) {
   const stampType = (formData.get('stampType') as StampType) || 'doanh-nghiep'
   const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
   const shape = (formData.get('shape') as string) || 'tron'
-  const aspectRatioRaw = SHAPE_TO_ASPECT_RATIO[shape] || '1:1'
-  const aspectRatio = VALID_ASPECT_RATIOS.includes(aspectRatioRaw as (typeof VALID_ASPECT_RATIOS)[number]) ? aspectRatioRaw : '1:1'
-  const color = (formData.get('color') as string) || 'do'
+  const sizeWidthRaw = Math.max(0, parseInt(String(formData.get('sizeWidthMm') || '0'), 10) || 0)
+  const sizeHeightRaw = Math.max(0, parseInt(String(formData.get('sizeHeightMm') || '0'), 10) || 0)
   const sizeMm = parseInt(String(formData.get('sizeMm') || '25'), 10) || 25
+  const rectW = sizeWidthRaw > 0 ? sizeWidthRaw : 30
+  const rectH = sizeHeightRaw > 0 ? sizeHeightRaw : 25
+  const aspectRatio =
+    shape === 'chu-nhat'
+      ? closestAspectRatioFromMmSize(rectW, rectH)
+      : (() => {
+          const r = SHAPE_TO_ASPECT_RATIO[shape] || '1:1'
+          return VALID_STAMP_ASPECT_RATIOS.includes(r as (typeof VALID_STAMP_ASPECT_RATIOS)[number]) ? r : '1:1'
+        })()
+  const color = (formData.get('color') as string) || 'do'
   const logo = formData.get('logo') as File | null
   const hasLogo = logo?.size && logo.size > 0
 
@@ -68,6 +75,7 @@ export async function createStampWithAI(formData: FormData) {
   const taxCode = (formData.get('taxCode') as string)?.trim() || ''
   const branchName = (formData.get('branchName') as string)?.trim() || ''
   const position = (formData.get('position') as string)?.trim() || ''
+  const holderName = (formData.get('holderName') as string)?.trim() || ''
   const address = (formData.get('address') as string)?.trim() || ''
   const mainText = (formData.get('mainText') as string)?.trim() || ''
   const subText = (formData.get('subText') as string)?.trim() || ''
@@ -76,9 +84,13 @@ export async function createStampWithAI(formData: FormData) {
   const shapeEn = SHAPE_MAP[shape] || 'circle'
   const colorEn = COLOR_MAP[color] || 'red'
 
+  const sizeLine =
+    shape === 'chu-nhat'
+      ? `HÌNH DẠNG: ${shapeEn}. Kích thước tham chiếu: ${rectW}mm (chiều rộng) × ${rectH}mm (chiều cao), hình chữ nhật.`
+      : `HÌNH DẠNG: ${shapeEn}. Kích thước tham chiếu: ${sizeMm}mm.`
   const parts: string[] = [
     `Tạo con dấu/tem chuyên nghiệp cho in ấn. Loại: ${typeDesc}`,
-    `HÌNH DẠNG: ${shapeEn}. Kích thước tham chiếu: ${sizeMm}mm.`,
+    sizeLine,
     `MÀU SẮC CHÍNH: ${colorEn}. Viền, nền hoặc accent chính dùng màu này.`,
     'Thiết kế phù hợp in trên cao su, nhựa (con dấu) hoặc giấy decal, giấy nhiệt (tem). Bố cục rõ ràng, typography đẹp.',
   ]
@@ -98,6 +110,10 @@ export async function createStampWithAI(formData: FormData) {
     if (position && stampType === 'chuc-danh') {
       const en = await normalizeToEnglish(position)
       parts.push(`CHỨC DANH: "${en}".`)
+    }
+    if (holderName && stampType === 'chuc-danh') {
+      const en = await normalizeToEnglish(holderName)
+      parts.push(`HỌ TÊN NGƯỜI GIỮ CHỨC DANH: "${en}". Hiển thị bên dưới chức danh, rõ ràng, nổi bật.`)
     }
     if (address) {
       const en = await normalizeToEnglish(address)

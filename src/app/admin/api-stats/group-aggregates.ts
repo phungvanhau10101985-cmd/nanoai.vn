@@ -1,5 +1,6 @@
 import type { ApiFeatureGroupId } from './feature-groups'
 import { resolveApiFeatureGroupId } from './feature-groups'
+import { calcCostVndSplit } from './api-cost'
 
 export type UsageAggRow = {
   calls: number
@@ -7,6 +8,8 @@ export type UsageAggRow = {
   outputTokens: number
   totalTokens: number
   costVnd: number
+  inputCostVnd: number
+  outputCostVnd: number
   calls2K: number
   calls4K: number
   callsNoImage: number
@@ -19,6 +22,8 @@ function emptyAgg(): UsageAggRow {
     outputTokens: 0,
     totalTokens: 0,
     costVnd: 0,
+    inputCostVnd: 0,
+    outputCostVnd: 0,
     calls2K: 0,
     calls4K: 0,
     callsNoImage: 0,
@@ -34,13 +39,15 @@ function addLog(
     model: string
     image_size?: string | null
   },
-  costVnd: number
+  costSplit: { inputVnd: number; outputVnd: number; totalVnd: number }
 ) {
   agg.calls += 1
   agg.promptTokens += log.prompt_token_count || 0
   agg.outputTokens += log.candidates_token_count || 0
   agg.totalTokens += log.total_token_count || 0
-  agg.costVnd += costVnd
+  agg.costVnd += costSplit.totalVnd
+  agg.inputCostVnd += costSplit.inputVnd
+  agg.outputCostVnd += costSplit.outputVnd
   const imgSize = log.image_size
   if (imgSize === '2K') agg.calls2K += 1
   else if (imgSize === '4K') agg.calls4K += 1
@@ -127,25 +134,39 @@ export function rollupApiUsageByFeatureGroup(
 
   for (const log of logs) {
     const imgSize = (log as { image_size?: string | null }).image_size
-    const costVnd = calcCostVnd(
+    const costSplit = calcCostVndSplit(
       log.prompt_token_count || 0,
       log.candidates_token_count || 0,
       log.model,
       imgSize
     )
-    addLog(siteTotals, { ...log, image_size: imgSize }, costVnd)
+    // Vẫn cho phép caller override `calcCostVnd` (chữ ký cũ) — nếu khác kết quả nội bộ thì dùng caller cho `totalVnd`.
+    const callerTotal = calcCostVnd(
+      log.prompt_token_count || 0,
+      log.candidates_token_count || 0,
+      log.model,
+      imgSize
+    )
+    if (callerTotal !== costSplit.totalVnd) {
+      // Tỷ lệ điều chỉnh để giữ tổng trùng với caller (rất hiếm khác).
+      const ratio = costSplit.totalVnd > 0 ? callerTotal / costSplit.totalVnd : 1
+      costSplit.inputVnd = Math.round(costSplit.inputVnd * ratio)
+      costSplit.outputVnd = callerTotal - costSplit.inputVnd
+      costSplit.totalVnd = callerTotal
+    }
+    addLog(siteTotals, { ...log, image_size: imgSize }, costSplit)
 
     const fk = log.feature
     const mk = log.model
 
     if (!siteByFeature[fk]) siteByFeature[fk] = emptyAgg()
-    addLog(siteByFeature[fk], { ...log, image_size: imgSize }, costVnd)
+    addLog(siteByFeature[fk], { ...log, image_size: imgSize }, costSplit)
 
     if (!siteByModel[mk]) siteByModel[mk] = emptyAgg()
-    addLog(siteByModel[mk], { ...log, image_size: imgSize }, costVnd)
+    addLog(siteByModel[mk], { ...log, image_size: imgSize }, costSplit)
 
-    addLog(ensureNestedModelAgg(siteByFeatureModels, fk, mk), { ...log, image_size: imgSize }, costVnd)
-    addLog(ensureModelFeatureAgg(siteByModelFeatures, mk, fk), { ...log, image_size: imgSize }, costVnd)
+    addLog(ensureNestedModelAgg(siteByFeatureModels, fk, mk), { ...log, image_size: imgSize }, costSplit)
+    addLog(ensureModelFeatureAgg(siteByModelFeatures, mk, fk), { ...log, image_size: imgSize }, costSplit)
 
     const gid = resolveApiFeatureGroupId(log.feature)
     let gset = siteModelGroupSets.get(mk)
@@ -155,15 +176,15 @@ export function rollupApiUsageByFeatureGroup(
     }
     gset.add(gid)
     const g = ensureGroup(gid)
-    addLog(g.totals, { ...log, image_size: imgSize }, costVnd)
+    addLog(g.totals, { ...log, image_size: imgSize }, costSplit)
 
     if (!g.byFeature[fk]) g.byFeature[fk] = emptyAgg()
-    addLog(g.byFeature[fk], { ...log, image_size: imgSize }, costVnd)
+    addLog(g.byFeature[fk], { ...log, image_size: imgSize }, costSplit)
 
     if (!g.byModel[mk]) g.byModel[mk] = emptyAgg()
-    addLog(g.byModel[mk], { ...log, image_size: imgSize }, costVnd)
+    addLog(g.byModel[mk], { ...log, image_size: imgSize }, costSplit)
 
-    addLog(ensureNestedModelAgg(g.byFeatureModels, fk, mk), { ...log, image_size: imgSize }, costVnd)
+    addLog(ensureNestedModelAgg(g.byFeatureModels, fk, mk), { ...log, image_size: imgSize }, costSplit)
   }
 
   const groups = Array.from(groupMap.values()).sort((a, b) => b.totals.costVnd - a.totals.costVnd)

@@ -35,10 +35,14 @@ export type ApiUsageChartsCopy = {
   tokenStackTitle: string
   inputTokensByModelTitle: string
   requestsByModelTitle: string
+  costStackTitle: string
+  costByModelTitle: string
   legendRequests: string
   legendInputTokens: string
   legendInputStack: string
   legendOutputStack: string
+  legendInputCostStack: string
+  legendOutputCostStack: string
   legendOtherModels: string
   noDataMessage: string
   noteDataScope: string
@@ -57,6 +61,12 @@ function formatTick(n: number): string {
   return String(n)
 }
 
+function formatVndTick(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}tr₫`
+  if (n >= 1000) return `${(n / 1000).toFixed(0)}k₫`
+  return `${n}₫`
+}
+
 function tooltipFormatPair(value: unknown, name: unknown): [string, string] {
   const raw = value
   const n = typeof raw === 'number' ? raw : Number(raw)
@@ -64,8 +74,15 @@ function tooltipFormatPair(value: unknown, name: unknown): [string, string] {
   return [formatted, String(name ?? '')]
 }
 
+function tooltipFormatVnd(value: unknown, name: unknown): [string, string] {
+  const raw = value
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  const formatted = Number.isFinite(n) ? `${n.toLocaleString('vi-VN')}₫` : String(raw ?? '')
+  return [formatted, String(name ?? '')]
+}
+
 export function ApiUsageCharts({ payload, modelLabels, copy, hasAnyLog }: Props) {
-  const { daily, modelKeys, tokensByModelRows, requestsByModelRows, showOtherSeries } = payload
+  const { daily, modelKeys, tokensByModelRows, requestsByModelRows, costByModelRows, showOtherSeries } = payload
   const seriesKeys = [...modelKeys, ...(showOtherSeries ? [API_USAGE_CHART_OTHER_KEY] : [])]
 
   const legendName = (key: string) =>
@@ -172,6 +189,55 @@ export function ApiUsageCharts({ payload, modelLabels, copy, hasAnyLog }: Props)
               <XAxis dataKey="dateLabel" tick={{ fontSize: 11 }} className="text-muted-foreground" />
               <YAxis tickFormatter={formatTick} tick={{ fontSize: 11 }} className="text-muted-foreground" />
               <Tooltip contentStyle={{ fontSize: 12 }} formatter={tooltipFormatPair} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              {seriesKeys.map((key, i) => (
+                <Line
+                  key={key}
+                  type="monotone"
+                  dataKey={key}
+                  name={legendName(key)}
+                  stroke={MODEL_LINE_COLORS[i % MODEL_LINE_COLORS.length]}
+                  strokeWidth={2}
+                  dot={false}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title={copy.costStackTitle}>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={daily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="dateLabel" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+              <YAxis tickFormatter={formatVndTick} tick={{ fontSize: 11 }} className="text-muted-foreground" />
+              <Tooltip contentStyle={{ fontSize: 12 }} formatter={tooltipFormatVnd} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar
+                dataKey="inputCostVnd"
+                stackId="cost"
+                name={copy.legendInputCostStack}
+                fill="#f59e0b"
+                radius={[0, 0, 0, 0]}
+              />
+              <Bar
+                dataKey="outputCostVnd"
+                stackId="cost"
+                name={copy.legendOutputCostStack}
+                fill="#dc2626"
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title={copy.costByModelTitle}>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={costByModelRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="dateLabel" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+              <YAxis tickFormatter={formatVndTick} tick={{ fontSize: 11 }} className="text-muted-foreground" />
+              <Tooltip contentStyle={{ fontSize: 12 }} formatter={tooltipFormatVnd} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               {seriesKeys.map((key, i) => (
                 <Line
