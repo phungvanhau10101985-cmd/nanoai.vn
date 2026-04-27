@@ -204,6 +204,12 @@ Cookie: <auth_session_cookie>
   -F "image=@/path/to/photo.jpg" \\
   -F "limit=8"`
 
+  const textSearchCurl = `curl -sS -X POST \\
+  "${baseUrl}/api/messaging/partners/${partnerId}/text-search" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"q":"black dress size M","limit":8}'`
+
   const imageSearchJson = `{
   "ok": true,
   "products": [
@@ -415,6 +421,11 @@ Cookie: <auth_session_cookie>
             <CodeBlock {...codeBlockCopyProps}>{`${baseUrl}/api/messaging/partners/${partnerId}/image-search`}</CodeBlock>
             <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
               {imageSearchCurl}
+            </CodeBlock>
+            <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-line">{t.textSearchVectorBody}</p>
+            <CodeBlock {...codeBlockCopyProps}>{`${baseUrl}/api/messaging/partners/${partnerId}/text-search`}</CodeBlock>
+            <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
+              {textSearchCurl}
             </CodeBlock>
             <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
               {imageSearchJson}

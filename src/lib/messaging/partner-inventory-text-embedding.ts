@@ -4,6 +4,7 @@ import {
   fetchPartnerInventorySliceByUpdatedAtAscFromPg,
   matchPartnerInventoryByTextEmbeddingFromPg,
   updatePartnerInventoryTextEmbeddingFieldsFromPg,
+  type MatchPartnerInventoryEmbeddingRow,
   type MessagingPartnerInventoryRow,
   type PartnerInventoryTextEmbeddingUpdatePatch,
 } from '@/lib/db/messaging-partner-inventory-pg'
@@ -454,4 +455,30 @@ export async function fetchInventoryRowsBySemanticTextForPartnerAi(
   const ids = matches.map((m) => m.inventory_id)
   const rows = await fetchPartnerInventoryRowsByIdsInOrderFromPg(partnerId, ids)
   return rows ?? []
+}
+
+export type PublicTextVectorSearchOutcome =
+  | { ok: true; matches: MatchPartnerInventoryEmbeddingRow[] }
+  | { ok: false; reason: 'query_short' | 'embed_unavailable' | 'db_error' }
+
+/**
+ * Embed câu khách → vector → ANN theo text embedding kho (cùng pipeline chat/AI).
+ * Dùng API Bearer công khai (text-search) cùng khóa với image-search.
+ */
+export async function matchInventoryForPublicTextSearchApi(
+  partnerId: string,
+  rawQuery: string,
+  limit: number
+): Promise<PublicTextVectorSearchOutcome> {
+  const t = normalizeCustomerMessageForInventorySearch(rawQuery)
+  if (!t || t.length < 2) return { ok: false, reason: 'query_short' }
+  const vec = await embedCustomerQueryTextForInventorySearch(t, { partnerId })
+  if (!vec || vec.length !== DB_VECTOR_DIMS) {
+    return { ok: false, reason: 'embed_unavailable' }
+  }
+  const literal = toPgVectorLiteral(vec)
+  const lim = Math.max(1, Math.min(50, Math.floor(limit)))
+  const matches = await matchPartnerInventoryByTextEmbeddingFromPg(partnerId, literal, lim, 0)
+  if (matches === null) return { ok: false, reason: 'db_error' }
+  return { ok: true, matches }
 }

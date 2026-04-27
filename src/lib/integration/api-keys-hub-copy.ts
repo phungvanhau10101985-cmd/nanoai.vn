@@ -59,15 +59,15 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       'Khóa Bearer cho shop/B2B chỉ nên dùng trên backend khách hàng — không nhúng vào JS trình duyệt. Biến .env cron/chỉ dành cho máy chủ vận hành NanoAI.',
     partnerRuleBody:
       'Khóa API (Bearer, X-Embed-Key) chỉ dùng trên server backend của shop hoặc tích hợp phía máy chủ — không đưa vào JavaScript chạy trên trình duyệt người mua hàng.',
-    s1Title: '1. Messaging — nhúng chat & tìm ảnh sản phẩm',
+    s1Title: '1. Messaging — nhúng chat & tìm sản phẩm (ảnh / chữ, vector)',
     s1Lead:
-      'Khóa X-Embed-Key và Bearer (tìm ảnh): Bảng điều khiển shop → Tích hợp API (/dashboard/api-integration). Bật gợi ý theo ảnh và đồng bộ catalog Vision: Messaging → Cài đặt → AI.',
+      'X-Embed-Key; Bearer tìm kho: `image-search` (multipart ảnh) và `text-search` (JSON câu tìm → vector). Bảng điều khiển → Tích hợp API. Đồng bộ kho & embedding: Messaging → Cài đặt → AI.',
     embedTitle: 'Khóa nhúng chat (X-Embed-Key)',
     embedBody:
       'Hiển thị tại Bảng điều khiển → Tích hợp API. Dùng cho /api/messaging/embed/{slug} (kèm X-Session-Id), upload ảnh embed. Trang hosted /messaging/p/{slug} không cần header này cho khách cuối.',
-    imageSearchTitle: 'API tìm sản phẩm bằng ảnh',
+    imageSearchTitle: 'API tìm sản phẩm (ảnh & câu tìm / vector)',
     imageSearchBody:
-      'Tạo khóa và bật API tại Bảng điều khiển → Tích hợp API. POST multipart tới /api/messaging/partners/{partnerId}/image-search, field image hoặc file, header Authorization: Bearer <khóa>. Nên gọi từ backend shop.',
+      'Cùng khóa. Ảnh: POST multipart /api/messaging/partners/{partnerId}/image-search. Chữ: POST application/json /api/messaging/partners/{partnerId}/text-search, body { "q": "…" }. Authorization: Bearer. Chỉ từ backend shop.',
     s2Title: '2. API thử đồ ảo B2B (Partner try-on)',
     s2Lead: 'Một khóa Bearer ánh xạ tới tài khoản tín credits qua bảng cơ sở dữ liệu.',
     tryOnBody:
@@ -112,15 +112,15 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       'Shop/B2B Bearer keys belong on the customer backend only — never in browser JS. Cron .env variables are for NanoAI infrastructure only.',
     partnerRuleBody:
       'API keys (Bearer, X-Embed-Key) must be used on your shop backend or server-side integration — never in client-side JavaScript exposed to shoppers.',
-    s1Title: '1. Messaging — embed chat & image search',
+    s1Title: '1. Messaging — embed chat & product search (image & text / vector)',
     s1Lead:
-      'X-Embed-Key and image-search Bearer: shop Dashboard → API integration (/dashboard/api-integration). Vision image suggestions and catalog sync: Messaging → Settings → AI.',
+      'X-Embed-Key; Bearer for image-search (multipart) and text-search (JSON query). Dashboard → API integration. Inventory & embeddings: Messaging → Settings → AI.',
     embedTitle: 'Chat embed key (X-Embed-Key)',
     embedBody:
       'Shown on Dashboard → API integration. Used for /api/messaging/embed/{slug} (with X-Session-Id) and embed image upload. Hosted /messaging/p/{slug} does not need this header for end users.',
-    imageSearchTitle: 'Image product search API',
+    imageSearchTitle: 'Product search API (image & text / vector)',
     imageSearchBody:
-      'Generate the key and enable the API on Dashboard → API integration. POST multipart to /api/messaging/partners/{partnerId}/image-search, field image or file, header Authorization: Bearer <key>. Call from your shop backend.',
+      'Same key. Image: POST multipart .../image-search. Text: POST JSON .../text-search with { "q": "…" }. Authorization: Bearer. Shop backend only.',
     s2Title: '2. B2B virtual try-on API',
     s2Lead: 'One Bearer secret maps to a billing user via a database row.',
     tryOnBody:
@@ -164,15 +164,15 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       '店铺/B2B Bearer 密钥仅用于客户后端——不要写入浏览器 JS。Cron 用 .env 仅属于 NanoAI 服务器运维。',
     partnerRuleBody:
       'API 密钥（Bearer、X-Embed-Key）仅用于店铺后端或服务端集成——不要写入面向买家的前端 JavaScript。',
-    s1Title: '1. Messaging — 嵌入聊天与以图搜商品',
+    s1Title: '1. Messaging — 嵌入聊天与商品搜索（图 / 文·向量）',
     s1Lead:
-      'X-Embed-Key 与以图搜 Bearer：店铺控制台 → API 集成说明（/dashboard/api-integration）。Vision 以图提示与目录同步：Messaging → 设置 → AI。',
+      'X-Embed-Key；Bearer 用于 `image-search` 与 `text-search`。控制台 → API 集成说明。库存与文本向量同步：Messaging → 设置 → AI。',
     embedTitle: '聊天嵌入密钥（X-Embed-Key）',
     embedBody:
       '在 控制台 → API 集成说明 显示。用于 /api/messaging/embed/{slug}（配合 X-Session-Id）及嵌入图片上传。托管页 /messaging/p/{slug} 对终端用户不需要此请求头。',
-    imageSearchTitle: '以图搜商品 API',
+    imageSearchTitle: '商品搜索 API（图 & 文 / 向量）',
     imageSearchBody:
-      '在 控制台 → API 集成说明 生成密钥并启用 API。multipart POST /api/messaging/partners/{partnerId}/image-search，字段 image 或 file，请求头 Authorization: Bearer <密钥>。建议从店铺后端调用。',
+      '同一密钥。图：multipart …/image-search。文：POST JSON …/text-search，body { "q": "…" }。Authorization: Bearer。仅从店铺后端调用。',
     s2Title: '2. B2B 虚拟试衣 API',
     s2Lead: '一个 Bearer 密钥通过数据库行映射到计费用户。',
     tryOnBody:
@@ -216,15 +216,15 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       '店舗/B2B Bearer キーは顧客バックエンドのみ。.env の cron 用変数は NanoAI インフラ専用。',
     partnerRuleBody:
       'API キー（Bearer、X-Embed-Key）は店舗のバックエンドまたはサーバー側連携でのみ使用し、購入者向けブラウザの JavaScript には含めないでください。',
-    s1Title: '1. Messaging — 埋め込みチャットと画像検索',
+    s1Title: '1. Messaging — 埋め込みチャットと商品検索（画像·テキスト/ベクター）',
     s1Lead:
-      'X-Embed-Key と画像検索用 Bearer：店舗ダッシュボード → API 連携ガイド（/dashboard/api-integration）。Vision の画像提案とカタログ同期：Messaging → 設定 → AI。',
+      'X-Embed-Key；image-search / text-search 用 Bearer。ダッシュボード → API 連携ガイド。在庫·テキスト埋め込み: Messaging → 設定 → AI。',
     embedTitle: 'チャット埋め込みキー（X-Embed-Key）',
     embedBody:
       'ダッシュボード → API 連携ガイドに表示。/api/messaging/embed/{slug}（X-Session-Id と併用）と埋め込み画像アップロードに使用。ホスト型 /messaging/p/{slug} はエンドユーザーに不要。',
-    imageSearchTitle: '画像で商品検索 API',
+    imageSearchTitle: '商品検索 API（画像·テキスト/ベクター）',
     imageSearchBody:
-      'ダッシュボード → API 連携ガイドでキー生成と API 有効化。multipart POST /api/messaging/partners/{partnerId}/image-search、フィールド image または file、Authorization: Bearer <キー>。店舗バックエンドから呼び出し推奨。',
+      '同一キー。画像: multipart …/image-search。テキスト: JSON …/text-search { "q" }。Authorization: Bearer。店舗バックエンドから。',
     s2Title: '2. B2B バーチャル試着 API',
     s2Lead: '1 つの Bearer 秘密が DB 行で課金ユーザーに紐づく。',
     tryOnBody:
@@ -268,15 +268,15 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       '매장/B2B Bearer 키는 고객 백엔드에서만 사용. cron용 .env 변수는 NanoAI 인프라 전용.',
     partnerRuleBody:
       'API 키(Bearer, X-Embed-Key)는 매장 백엔드 또는 서버 연동에서만 사용하고, 구매자 브라우저 JavaScript에는 넣지 마세요.',
-    s1Title: '1. Messaging — 임베드 채팅·이미지 검색',
+    s1Title: '1. Messaging — 임베드·상품검색(이미지·텍스트/벡터)',
     s1Lead:
-      'X-Embed-Key·이미지 검색 Bearer: 매장 대시보드 → API 연동 안내(/dashboard/api-integration). Vision 이미지 제안·카탈로그 동기화: Messaging → 설정 → AI.',
+      'X-Embed-Key; image-search / text-search Bearer. 대시보드 → API 연동. 재고·텍스트 임베딩: Messaging → 설정 → AI.',
     embedTitle: '채팅 임베드 키(X-Embed-Key)',
     embedBody:
       '대시보드 → API 연동 안내에 표시. /api/messaging/embed/{slug}(X-Session-Id) 및 임베드 이미지 업로드에 사용. 호스팅 /messaging/p/{slug}는 최종 사용자에게 불필요.',
-    imageSearchTitle: '이미지 상품 검색 API',
+    imageSearchTitle: '상품 검색 API(이미지·텍스트/벡터)',
     imageSearchBody:
-      '대시보드 → API 연동 안내에서 키 생성·API 활성화. multipart POST /api/messaging/partners/{partnerId}/image-search, 필드 image 또는 file, Authorization: Bearer <키>. 매장 백엔드에서 호출 권장.',
+      '동일 키. 이미지: multipart …/image-search. 텍스트: JSON …/text-search { "q" }. Authorization: Bearer. 매장 백엔드.',
     s2Title: '2. B2B 가상 피팅 API',
     s2Lead: 'Bearer 비밀이 DB 행을 통해 과금 사용자에 매핑됩니다.',
     tryOnBody:
