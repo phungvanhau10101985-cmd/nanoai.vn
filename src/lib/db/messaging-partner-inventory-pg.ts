@@ -3,6 +3,7 @@ import type { Database } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
+import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
 
 export type MessagingPartnerInventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 export type MessagingPartnerInventoryInsert = Database['public']['Tables']['messaging_partner_inventory']['Insert']
@@ -739,7 +740,7 @@ export async function matchPartnerInventoryByEmbeddingFromPg(
   minScore: number
 ): Promise<MatchPartnerInventoryEmbeddingRow[] | null> {
   if (!isPgConfigured()) return null
-  const lim = Math.max(1, Math.min(50, Math.floor(limit)))
+  const lim = Math.max(1, Math.min(PARTNER_PUBLIC_INVENTORY_SEARCH_MAX, Math.floor(limit)))
   try {
     const rows = await pgQuery<{
       inventory_id: string
@@ -779,7 +780,7 @@ export async function matchPartnerInventoryByTextEmbeddingFromPg(
   minScore: number
 ): Promise<MatchPartnerInventoryEmbeddingRow[] | null> {
   if (!isPgConfigured()) return null
-  const lim = Math.max(1, Math.min(50, Math.floor(limit)))
+  const lim = Math.max(1, Math.min(PARTNER_PUBLIC_INVENTORY_SEARCH_MAX, Math.floor(limit)))
   try {
     const rows = await pgQuery<{
       inventory_id: string

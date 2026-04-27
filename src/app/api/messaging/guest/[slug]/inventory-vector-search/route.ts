@@ -9,6 +9,7 @@ import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-ca
 import { fetchInventoryRowsBySemanticTextForPartnerAi } from '@/lib/messaging/partner-inventory-text-embedding'
 import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
+import { getPartnerPublicInventorySearchDefaultLimit } from '@/lib/messaging/partner-public-search-limits'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -113,7 +114,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     if (q.length < 2) {
       return json({ error: 'QUERY_SHORT' }, 400)
     }
-    const rows = await fetchInventoryRowsBySemanticTextForPartnerAi(partner.id, q, 48)
+    const rows = await fetchInventoryRowsBySemanticTextForPartnerAi(
+      partner.id,
+      q,
+      getPartnerPublicInventorySearchDefaultLimit()
+    )
     const cards: PartnerAiProductCard[] = []
     for (const row of rows) {
       const c = inventoryRowToProductCard(row)
@@ -132,7 +137,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     }
     const buf = Buffer.from(await file.arrayBuffer())
     const res = await geminiProductSearchFromImageBufferViaVectorDb(buf, partner.id, {
-      maxResults: 48,
+      maxResults: getPartnerPublicInventorySearchDefaultLimit(),
       userId: userIdForUsage,
     })
     if (res.error) {

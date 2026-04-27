@@ -4,6 +4,7 @@ import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-in
 import { geminiProductSearchFromImageBufferViaVectorDb } from '@/lib/messaging/partner-gemini-image-search'
 import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-route-auth'
 import { fetchInventoryRowsBySemanticTextForPartnerAi } from '@/lib/messaging/partner-inventory-text-embedding'
+import { getPartnerPublicInventorySearchDefaultLimit } from '@/lib/messaging/partner-public-search-limits'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -40,7 +41,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     if (q.length < 2) {
       return NextResponse.json({ error: 'QUERY_SHORT' }, { status: 400 })
     }
-    const rows = await fetchInventoryRowsBySemanticTextForPartnerAi(partnerId, q, 48)
+    const rows = await fetchInventoryRowsBySemanticTextForPartnerAi(
+      partnerId,
+      q,
+      getPartnerPublicInventorySearchDefaultLimit()
+    )
     return NextResponse.json({
       ok: true,
       mode: 'text' as const,
@@ -58,7 +63,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     }
     const buf = Buffer.from(await file.arrayBuffer())
     const res = await geminiProductSearchFromImageBufferViaVectorDb(buf, partnerId, {
-      maxResults: 48,
+      maxResults: getPartnerPublicInventorySearchDefaultLimit(),
       userId: gate.userId,
     })
     if (res.error) {

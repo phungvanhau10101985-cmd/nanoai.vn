@@ -176,7 +176,10 @@ export async function geminiProductSearchFromImageBuffer(
     await Promise.all(workers)
 
     scored.sort((a, b) => b.score - a.score || a.row.sort_order - b.row.sort_order)
-    const maxResults = Math.min(50, Math.max(1, Math.floor(options?.maxResults ?? 8)))
+    const maxResults = Math.min(
+      PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
+      Math.max(1, Math.floor(options?.maxResults ?? 8))
+    )
     const top = scored.slice(0, maxResults)
 
     void trackApiUsage({
@@ -387,7 +390,10 @@ export async function fetchInventoryRowsSimilarToAnchorProductImage(
   options?: { limit?: number }
 ): Promise<InvRow[]> {
   if (!isPgConfigured()) return []
-  const limit = Math.min(50, Math.max(1, Math.floor(options?.limit ?? 20)))
+  const limit = Math.min(
+    PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
+    Math.max(1, Math.floor(options?.limit ?? 20))
+  )
   const fetchLim = limit + 6
 
   let queryVec: number[] | null = null
