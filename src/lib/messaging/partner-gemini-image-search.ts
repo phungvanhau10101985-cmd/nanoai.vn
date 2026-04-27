@@ -2,8 +2,9 @@ import { fetchRemoteImageForCatalog, sniffImageContentType } from '@/lib/fetch-i
 import { trackApiUsage } from '@/lib/track-ai-usage'
 import type { Database } from '@/types/database.types'
 import {
+  colorImageUrlsForInventorySearch,
   fetchPartnerInventoryDefaultForAiFromPg,
-  fetchPartnerInventoryPriceHintsByIdsFromPg,
+  fetchPartnerInventorySearchEnrichmentByIdsFromPg,
   fetchPartnerInventoryRowsByIdsInOrderFromPg,
   matchPartnerInventoryByEmbeddingFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
@@ -27,6 +28,8 @@ export type GeminiImageSearchCandidate = {
   image_url: string
   product_url?: string
   price_hint?: string
+  /** Ảnh phụ từ kho (chi tiết / màu) — lọc từ material_detail + real_use slots. */
+  color_image_urls?: string[]
   score?: number
 }
 
@@ -185,13 +188,21 @@ export async function geminiProductSearchFromImageBuffer(
     return {
       candidates: top.map(({ row, score }) => {
         const purl = row.product_url?.trim() ?? ''
+        const mainImg = row.image_url ?? ''
+        const color_image_urls = colorImageUrlsForInventorySearch(
+          mainImg,
+          row.material_detail_image_url,
+          row.real_use_image_url,
+          row.real_use_image_url_2
+        )
         return {
           inventoryId: row.id,
           name: row.name,
           sku: row.sku,
-          image_url: row.image_url ?? '',
+          image_url: mainImg,
           ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
           ...(row.price_hint?.trim() ? { price_hint: row.price_hint.trim() } : {}),
+          ...(color_image_urls.length > 0 ? { color_image_urls } : {}),
           score,
         }
       }),
@@ -265,24 +276,32 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
 
       if (data !== null) {
         const ids = data.map((row) => row.inventory_id)
-        const priceById = new Map<string, string>()
-        if (ids.length > 0 && isPgConfigured()) {
-          const m = await fetchPartnerInventoryPriceHintsByIdsFromPg(partnerId, ids)
-          if (m !== null) {
-            for (const [id, hint] of m) priceById.set(id, hint)
-          }
-        }
+        const enrichById =
+          ids.length > 0 && isPgConfigured()
+            ? await fetchPartnerInventorySearchEnrichmentByIdsFromPg(partnerId, ids)
+            : null
 
         const candidates: GeminiImageSearchCandidate[] = data.map((row) => {
           const purl = row.product_url?.trim() ?? ''
-          const ph = priceById.get(row.inventory_id)?.trim() ?? ''
+          const mainImg = row.image_url ?? ''
+          const en = enrichById?.get(row.inventory_id)
+          const ph = en?.price_hint?.trim() ?? ''
+          const color_image_urls = en
+            ? colorImageUrlsForInventorySearch(
+                mainImg,
+                en.material_detail_image_url,
+                en.real_use_image_url,
+                en.real_use_image_url_2
+              )
+            : []
           return {
             inventoryId: row.inventory_id,
             name: row.name,
             sku: row.sku,
-            image_url: row.image_url ?? '',
+            image_url: mainImg,
             ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
             ...(ph ? { price_hint: ph } : {}),
+            ...(color_image_urls.length > 0 ? { color_image_urls } : {}),
             score: typeof row.score === 'number' ? row.score : undefined,
           }
         })

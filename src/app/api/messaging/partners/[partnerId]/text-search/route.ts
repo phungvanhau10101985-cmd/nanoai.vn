@@ -9,6 +9,11 @@ import {
   getPartnerPublicInventorySearchDefaultLimit,
   PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
 } from '@/lib/messaging/partner-public-search-limits'
+import {
+  colorImageUrlsForInventorySearch,
+  fetchPartnerInventorySearchEnrichmentByIdsFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
+import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -101,14 +106,33 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     )
   }
 
-  const products = out.matches.map((c) => ({
-    inventory_id: c.inventory_id,
-    name: c.name,
-    sku: c.sku,
-    image_url: c.image_url,
-    product_url: c.product_url ?? null,
-    score: c.score,
-  }))
+  const ids = out.matches.map((c) => c.inventory_id)
+  const enrichById =
+    ids.length > 0 && isPgConfigured()
+      ? await fetchPartnerInventorySearchEnrichmentByIdsFromPg(partnerId, ids)
+      : null
+  const products = out.matches.map((c) => {
+    const en = enrichById?.get(c.inventory_id)
+    const ph = en?.price_hint?.trim() ?? ''
+    const color_image_urls = en
+      ? colorImageUrlsForInventorySearch(
+          c.image_url,
+          en.material_detail_image_url,
+          en.real_use_image_url,
+          en.real_use_image_url_2
+        )
+      : []
+    return {
+      inventory_id: c.inventory_id,
+      name: c.name,
+      sku: c.sku,
+      image_url: c.image_url,
+      product_url: c.product_url ?? null,
+      score: c.score,
+      price_hint: ph ? ph : null,
+      color_image_urls,
+    }
+  })
 
   return jsonWithCors(
     req,

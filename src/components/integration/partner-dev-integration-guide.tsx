@@ -219,7 +219,12 @@ Cookie: <auth_session_cookie>
       "sku": "SKU-1",
       "image_url": "https://…",
       "product_url": "https://your-shop.example/p/…",
-      "score": 0.92
+      "score": 0.92,
+      "price_hint": "199000 VND",
+      "color_image_urls": [
+        "https://cdn…/detail-1.jpg",
+        "https://cdn…/color-red.jpg"
+      ]
     },
     {
       "inventory_id": "uuid-2",
@@ -227,7 +232,9 @@ Cookie: <auth_session_cookie>
       "sku": null,
       "image_url": "https://…",
       "product_url": null,
-      "score": null
+      "score": null,
+      "price_hint": null,
+      "color_image_urls": []
     }
   ],
   "error": null

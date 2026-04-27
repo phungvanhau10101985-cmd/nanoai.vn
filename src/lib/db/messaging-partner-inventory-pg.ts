@@ -376,6 +376,76 @@ export async function fetchPartnerInventoryPriceHintsByIdsFromPg(
   }
 }
 
+/** Dữ liệu giá + ảnh phụ (chi tiết / màu) cho API tìm kho; một query theo nhiều id. */
+export type PartnerInventorySearchEnrichment = {
+  price_hint: string
+  material_detail_image_url: string
+  real_use_image_url: string
+  real_use_image_url_2: string
+}
+
+/**
+ * Các URL ảnh phụ từ kho (trừ trùng ảnh chính) — dùng cho trường `color_image_urls` trong API tìm.
+ */
+export function colorImageUrlsForInventorySearch(
+  mainImageUrl: string,
+  materialDetail: string,
+  realUse1: string,
+  realUse2: string
+): string[] {
+  const main = (mainImageUrl ?? '').trim()
+  const extra = [materialDetail, realUse1, realUse2]
+    .map((u) => (u ?? '').trim())
+    .filter((u) => /^https?:\/\//i.test(u))
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const u of extra) {
+    if (seen.has(u)) continue
+    if (main && u === main) continue
+    seen.add(u)
+    out.push(u)
+  }
+  return out
+}
+
+export async function fetchPartnerInventorySearchEnrichmentByIdsFromPg(
+  partnerId: string,
+  inventoryIds: string[]
+): Promise<Map<string, PartnerInventorySearchEnrichment> | null> {
+  if (!isPgConfigured() || inventoryIds.length === 0) return null
+  try {
+    const rows = await pgQuery<{
+      id: string
+      price_hint: string | null
+      material_detail_image_url: string | null
+      real_use_image_url: string | null
+      real_use_image_url_2: string | null
+    }>(
+      `select id::text,
+              coalesce(price_hint, '') as price_hint,
+              coalesce(material_detail_image_url, '') as material_detail_image_url,
+              coalesce(real_use_image_url, '') as real_use_image_url,
+              coalesce(real_use_image_url_2, '') as real_use_image_url_2
+       from public.messaging_partner_inventory
+       where partner_id = $1::uuid and id = any($2::uuid[])`,
+      [partnerId, inventoryIds]
+    )
+    const m = new Map<string, PartnerInventorySearchEnrichment>()
+    for (const r of rows) {
+      m.set(r.id, {
+        price_hint: String(r.price_hint ?? ''),
+        material_detail_image_url: String(r.material_detail_image_url ?? ''),
+        real_use_image_url: String(r.real_use_image_url ?? ''),
+        real_use_image_url_2: String(r.real_use_image_url_2 ?? ''),
+      })
+    }
+    return m
+  } catch (e) {
+    console.warn('[fetchPartnerInventorySearchEnrichmentByIdsFromPg]', e)
+    return null
+  }
+}
+
 /** Giống `sanitizeInventorySearchToken` trong partner-inventory-ai-search (tránh import vòng). */
 function sanitizeTokenForInventoryLike(raw: string): string {
   return raw.replace(/[%_,().]/g, '').trim().slice(0, 64)

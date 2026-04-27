@@ -151,6 +151,13 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       }
       if (c.price_hint?.trim()) base.price_hint = c.price_hint.trim()
       if (c.sku?.trim()) base.sku = c.sku.trim().slice(0, 128)
+      const colors = c.color_image_urls
+      if (Array.isArray(colors) && colors.length > 0) {
+        const urls = colors
+          .map((u) => (typeof u === 'string' ? u.trim() : ''))
+          .filter((u) => u.length > 0 && /^https?:\/\//i.test(u))
+        if (urls.length > 0) base.color_image_urls = urls
+      }
       cards.push(base)
     }
     return json({ ok: true, mode: 'image', cards })

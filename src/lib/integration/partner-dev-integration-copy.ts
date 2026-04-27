@@ -108,7 +108,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     imageSearchPrereq:
       'Tiền điều kiện: kho sản phẩm (Open Catalog hoặc nhập kho) đã có bản ghi; pipeline đồng bộ/index theo cài đặt AI (nếu bật gợi ý theo vector). Trong URL, {partnerId} là UUID shop — tại Bảng điều khiển, chọn đúng shop: đoạn «URL mẫu» bên dưới tự điền theo shop đang chọn.',
     imageSearchResponseEdgeCases:
-      'Trong từng phần tử products: product_url, score và (đôi khi) sku có thể null tùy dữ liệu. Phản hồi HTTP 200 vẫn có thể có products rỗng; khi đó xem thêm trường error — tích hợp cần xử lý cả mảng rỗng, không giả định luôn có sản phẩm.',
+      'Trong từng phần tử products: product_url, score, price_hint và (đôi khi) sku có thể null; color_image_urls luôn là mảng (có thể rỗng) — lấy từ ảnh chi tiết / màu đã lưu trong kho. Phản hồi HTTP 200 vẫn có thể có products rỗng; khi đó xem thêm trường error — tích hợp cần xử lý cả mảng rỗng, không giả định luôn có sản phẩm.',
     imageSearchHttpErrors:
       'Lỗi (thường là { "error": "…" } — không cùng schema với thành công): 400 thiếu file / file không phải ảnh / vượt ~5 MB, hoặc (text) query quá ngắn. 401 thiếu hoặc sai Bearer. 403 shop tắt API tìm sản phẩm, hoặc shop không nhận traffic API. 404 shop không tồn tại, hoặc chưa có cài đặt AI. 415 (text) sai Content-Type. 429 vượt giới hạn tần suất (có Retry-After). 500 (text) lỗi tìm vector. 503 thiếu cấu hình DB, hoặc chưa tạo khóa API (thông điệp từ server).',
     imageSearchRateLimit:
@@ -187,7 +187,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     imageSearchPrereq:
       'Prerequisites: inventory (Open Catalog or import) is populated, and the AI index/sync path is complete when image-vector search is enabled. The {partnerId} segment in the URL is the shop UUID—pick the correct workspace above: the example URL is auto-filled for the selected shop.',
     imageSearchResponseEdgeCases:
-      'Each product may have product_url, score, and sometimes sku set to null depending on your catalog. HTTP 200 can return ok: true with an empty products array; check the error field—handle empty results in your UI.',
+      'Each product may have product_url, score, price_hint, and sometimes sku set to null depending on your catalog. color_image_urls is always an array (may be empty)—extra image URLs from catalog detail/color fields. HTTP 200 can return ok: true with an empty products array; check the error field—handle empty results in your UI.',
     imageSearchHttpErrors:
       'Errors are usually { "error": "…" } (not the same shape as success): 400 bad file/image/size, or (text) query too short. 401 missing/invalid Bearer. 403 public product search disabled, or shop not accepting API traffic. 404 shop or AI settings missing. 415 (text) wrong Content-Type. 429 rate limit (Retry-After). 500 (text) vector search failure. 503 database or API key not configured.',
     imageSearchRateLimit:
@@ -263,7 +263,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     imageSearchPrereq:
       '前提：已有库存数据（Open Catalog 或导入）；若启用向量化/索引，需完成 AI 侧同步。URL 中 {partnerId} 为店铺 UUID — 在上方选择店铺后，下方示例 URL 自动填入该店铺.',
     imageSearchResponseEdgeCases:
-      'products 各项中 product_url、score、sku 可能为 null。HTTP 200 仍可能出现 products: []，请同时查看 error 字段，前端需处理空结果。',
+      'products 各项中 product_url、score、price_hint、sku 可能为 null；color_image_urls 始终为数组（可为空），来自目录中已保存的细节/颜色图 URL。HTTP 200 仍可能出现 products: []，请同时查看 error 字段，前端需处理空结果。',
     imageSearchHttpErrors:
       '错误多为 { "error": "…" }：400 图/查询；401 Bearer；403/404；415 文搜 Content-Type；429；500 文搜向量；503 库/密钥。',
     imageSearchRateLimit: '按 IP + 店铺限频（HTTP 429，含 Retry-After）。勿在浏览器直连；可适当缓存。',
@@ -338,7 +338,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     imageSearchPrereq:
       '前提: 在庫データ（Open Catalog 等）と AI 側 index 同期。URL の {partnerId} は店舗の UUID。上で店舗を選ぶと下の URL 例に自動挿入されます。',
     imageSearchResponseEdgeCases:
-      '各 products の product_url / score / sku は null の場合あり。200 で products 空＋error 有り得る — 空配列を必ず扱うこと。',
+      '各 products の product_url / score / price_hint / sku は null の場合あり。color_image_urls は常に配列（空可）— 在庫の詳細・色用画像 URL。200 で products 空＋error 有り得る — 空配列を必ず扱うこと。',
     imageSearchHttpErrors:
       '多くは { "error" }: 400/401/403/404/415/429/500/503（画像·テキスト·Content-Type 等）。',
     imageSearchRateLimit: 'IP + 店舗ごとにレート制限（429, Retry-After）。ブラウザ直叩きは避け、キャッシュを検討。',
@@ -413,7 +413,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     imageSearchPrereq:
       '전제: 재고/카탤로그 데이터 및(필요 시) AI 인덱스 동기화. URL의 {partnerId}는 매장 UUID — 위에서 매장 선택 시 아래 예시 URL이 자동 반영.',
     imageSearchResponseEdgeCases:
-      'product_url, score, sku 는 null일 수 있음. 200 + 빈 products + error 가능 — 빈 배열 UI 처리.',
+      'product_url, score, price_hint, sku 는 null일 수 있음. color_image_urls 는 항상 배열(빈 배열 가능) — 카탤로그의 세부/색상 이미지 URL. 200 + 빈 products + error 가능 — 빈 배열 UI 처리.',
     imageSearchHttpErrors:
       '보통 { "error" }: 400/401/403/404/415/429/500/503 등.',
     imageSearchRateLimit: 'IP + 매장별 속도 제한(429, Retry-After). 브라우저 직접 호출 지양, 캐시 권장.',

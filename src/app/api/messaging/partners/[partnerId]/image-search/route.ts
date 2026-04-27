@@ -93,6 +93,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
         image_url: c.image_url,
         product_url: c.product_url ?? null,
         score: c.score ?? null,
+        price_hint: c.price_hint?.trim() ? c.price_hint.trim() : null,
+        color_image_urls: c.color_image_urls ?? [],
       })),
       error: publicError,
     },
