@@ -13,6 +13,10 @@ import {
   embedImageBufferWithGemini,
   type GeminiImageEmbedResult,
 } from '@/lib/messaging/partner-inventory-embedding'
+import {
+  getPartnerPublicInventorySearchDefaultLimit,
+  PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
+} from '@/lib/messaging/partner-public-search-limits'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
@@ -222,7 +226,10 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
       totalTokens: queryRes.totalTokens,
     })
     const queryVec = queryRes.values
-    const maxResults = Math.min(50, Math.max(1, Math.floor(options?.maxResults ?? 8)))
+    const maxResults = Math.min(
+      PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
+      Math.max(1, Math.floor(options?.maxResults ?? getPartnerPublicInventorySearchDefaultLimit()))
+    )
 
     if (queryVec.length === DB_VECTOR_DIMS) {
       const qLit = toPgVectorLiteral(queryVec)

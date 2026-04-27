@@ -202,13 +202,13 @@ Cookie: <auth_session_cookie>
   "${baseUrl}/api/messaging/partners/${partnerId}/image-search" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -F "image=@/path/to/photo.jpg" \\
-  -F "limit=8"`
+  -F "limit=24"`
 
   const textSearchCurl = `curl -sS -X POST \\
   "${baseUrl}/api/messaging/partners/${partnerId}/text-search" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"q":"black dress size M","limit":8}'`
+  -d '{"q":"black dress size M","limit":24}'`
 
   const imageSearchJson = `{
   "ok": true,

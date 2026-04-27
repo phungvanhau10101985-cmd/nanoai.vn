@@ -10,6 +10,7 @@ import {
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { insertMessagingPartnerTextEmbedUsageFromPg } from '@/lib/db/messaging-partner-text-embed-usage-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
 import type { Database } from '@/types/database.types'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
@@ -449,7 +450,7 @@ export async function fetchInventoryRowsBySemanticTextForPartnerAi(
   const vec = await embedCustomerQueryTextForInventorySearch(customerMessage, { partnerId })
   if (!vec || vec.length !== DB_VECTOR_DIMS) return []
   const literal = toPgVectorLiteral(vec)
-  const lim = Math.max(1, Math.min(50, Math.floor(limit)))
+  const lim = Math.max(1, Math.min(PARTNER_PUBLIC_INVENTORY_SEARCH_MAX, Math.floor(limit)))
   const matches = await matchPartnerInventoryByTextEmbeddingFromPg(partnerId, literal, lim, 0)
   if (!matches?.length) return []
   const ids = matches.map((m) => m.inventory_id)
@@ -477,7 +478,7 @@ export async function matchInventoryForPublicTextSearchApi(
     return { ok: false, reason: 'embed_unavailable' }
   }
   const literal = toPgVectorLiteral(vec)
-  const lim = Math.max(1, Math.min(50, Math.floor(limit)))
+  const lim = Math.max(1, Math.min(PARTNER_PUBLIC_INVENTORY_SEARCH_MAX, Math.floor(limit)))
   const matches = await matchPartnerInventoryByTextEmbeddingFromPg(partnerId, literal, lim, 0)
   if (matches === null) return { ok: false, reason: 'db_error' }
   return { ok: true, matches }

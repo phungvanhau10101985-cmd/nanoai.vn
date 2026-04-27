@@ -5,6 +5,10 @@ import {
   jsonWithCors,
 } from '@/lib/messaging/partner-inventory-search-api-guard'
 import { geminiProductSearchFromImageBufferViaVectorDb } from '@/lib/messaging/partner-gemini-image-search'
+import {
+  getPartnerPublicInventorySearchDefaultLimit,
+  PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
+} from '@/lib/messaging/partner-public-search-limits'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -63,10 +67,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
   }
 
   const limitRaw = form.get('limit')
-  let maxResults = 8
+  let maxResults = getPartnerPublicInventorySearchDefaultLimit()
   if (typeof limitRaw === 'string' && limitRaw.trim()) {
     const n = parseInt(limitRaw, 10)
-    if (Number.isFinite(n)) maxResults = n
+    if (Number.isFinite(n)) {
+      maxResults = Math.min(PARTNER_PUBLIC_INVENTORY_SEARCH_MAX, Math.max(1, n))
+    }
   }
 
   const geminiResult = await geminiProductSearchFromImageBufferViaVectorDb(buf, partnerId, {

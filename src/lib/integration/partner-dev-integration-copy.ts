@@ -104,7 +104,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Chọn sản phẩm Vision (khi POST tin trả visionPickRequired): POST …/vision-pick với cookie. Cùng route cũng chấp nhận X-Embed-Key + X-Session-Id cho tích hợp cross-origin nâng cao.',
     imageSearchTitle: 'D — API tìm sản phẩm công khai (ảnh & văn bản / vector)',
     imageSearchBody:
-      'Chỉ gọi từ backend shop (không lộ Bearer). Một khóa bật tại Bảng điều khiển → Tích hợp API. Đồng bộ kho và embedding: Messaging → Cài đặt → AI. Ảnh: POST multipart tới `…/image-search` (field `image` hoặc `file` ≤ ~5 MB, tùy chọn `limit`, mặc định gợi ý 8). Văn bản: POST JSON tới `…/text-search` — câu tìm được embed (Gemini) thành vector rồi ANN trên vector văn bản từng mặt hàng; xem đoạn dưới. Trả về: ok, products (cùng schema), error khi rỗng / lỗi mềm.',
+      'Chỉ gọi từ backend shop (không lộ Bearer). Một khóa bật tại Bảng điều khiển → Tích hợp API. Đồng bộ kho và embedding: Messaging → Cài đặt → AI. Ảnh: POST multipart tới `…/image-search` (field `image` hoặc `file` ≤ ~5 MB, tùy chọn `limit`, mặc định gợi ý 24 (cấu hình: PARTNER_PUBLIC_INVENTORY_SEARCH_DEFAULT_LIMIT)). Văn bản: POST JSON tới `…/text-search` — câu tìm được embed (Gemini) thành vector rồi ANN trên vector văn bản từng mặt hàng; xem đoạn dưới. Trả về: ok, products (cùng schema), error khi rỗng / lỗi mềm.',
     imageSearchPrereq:
       'Tiền điều kiện: kho sản phẩm (Open Catalog hoặc nhập kho) đã có bản ghi; pipeline đồng bộ/index theo cài đặt AI (nếu bật gợi ý theo vector). Trong URL, {partnerId} là UUID shop — tại Bảng điều khiển, chọn đúng shop: đoạn «URL mẫu» bên dưới tự điền theo shop đang chọn.',
     imageSearchResponseEdgeCases:
@@ -114,7 +114,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     imageSearchRateLimit:
       'Có giới hạn tần suất theo IP + shop (HTTP 429, có Retry-After). Nên cache và tránh gọi trực tiếp từ trình duyệt.',
     textSearchVectorBody:
-      'Tìm theo chữ (vector): `POST` `…/text-search` — `Content-Type: application/json` (hoặc `application/x-www-form-urlencoded` với `q=` & `limit=`). Body JSON: `{ "q": "…" }` hoặc `query`. Tối thiểu 2 ký tự. `limit` 1…50, mặc định 8. Cần `GOOGLE_API_KEY` trên server và kho đã sync text embedding (cùng pipeline AI).',
+      'Tìm theo chữ (vector): `POST` `…/text-search` — `Content-Type: application/json` (hoặc `application/x-www-form-urlencoded` với `q=` & `limit=`). Body JSON: `{ "q": "…" }` hoặc `query`. Tối thiểu 2 ký tự. `limit` 1…50, mặc định 24. Cần `GOOGLE_API_KEY` trên server và kho đã sync text embedding (cùng pipeline AI).',
     inventoryOpenTitle: 'F — Open Catalog: đồng bộ kho (JSON chuẩn marketplace / Shopee-like)',
     inventoryOpenBody:
       'Gọi từ **backend web shop** (không lộ Bearer). Dùng **cùng khóa** và bật API như mục D (`image_search_api_enabled`). **Không** cần Vision. `Content-Type: application/json`. Body: `items` (mảng lớn; giới hạn theo `PARTNER_INVENTORY_OPEN_SYNC_MAX_ITEMS` trên server). Mỗi phần tử nên có `item_sku` (hoặc `sku`), `item_name` (hoặc `name`); tuỳ chọn `description`, `stock_note`, `price` / `price_hint`, `image`: { `image_url_list`: [https…] } hoặc `image_url`, `item_url` / `product_url`, `consult_note`, `sort_order`, `item_status` (`NORMAL` = đang dùng, `UNLIST` / `DELETED` / `INACTIVE` = ẩn). Open Catalog chạy theo **full reconcile**: payload là nguồn sự thật, hàng còn trong NanoAI nhưng không còn trong payload sẽ bị xóa (và gỡ khỏi Vision ở lượt sync nền). Quy tắc khớp dòng giống nhập Excel: có SKU → cập nhật theo SKU; không SKU → theo tên.',
@@ -193,7 +193,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     imageSearchRateLimit:
       'Rate limited per IP + shop (HTTP 429 with Retry-After). Avoid calling from the browser; cache where possible.',
     textSearchVectorBody:
-      'Text (vector) search: `POST` `…/text-search` — `Content-Type: application/json` (or `application/x-www-form-urlencoded` with `q=` and optional `limit=`). JSON: `{ "q": "…" }` or `query`. Min 2 characters. `limit` 1…50, default 8. Requires `GOOGLE_API_KEY` and catalog text-embedding sync.',
+      'Text (vector) search: `POST` `…/text-search` — `Content-Type: application/json` (or `application/x-www-form-urlencoded` with `q=` and optional `limit=`). JSON: `{ "q": "…" }` or `query`. Min 2 characters. `limit` 1…50, default 24. Requires `GOOGLE_API_KEY` and catalog text-embedding sync.',
     inventoryOpenTitle: 'F — Open Catalog: inventory sync (marketplace-style / Shopee-like JSON)',
     inventoryOpenBody:
       'Call from your **shop backend** only (never expose the Bearer key). Uses the **same API key** as D (`image_search_api_enabled`). **Does not** require Vision. `Content-Type: application/json`. Body: large `items` array (server-limited by `PARTNER_INVENTORY_OPEN_SYNC_MAX_ITEMS`). Each item should include `item_sku` (or `sku`) and `item_name` (or `name`); optional `description`, `stock_note`, `price` / `price_hint`, `image`: { `image_url_list`: ["https://…"] } or `image_url`, `item_url` / `product_url`, `consult_note`, `sort_order`, `item_status` (`NORMAL` = active, `UNLIST` / `DELETED` / `INACTIVE` = hidden). Open Catalog runs in **full reconcile** mode: the payload is the source of truth; items still in NanoAI but missing from payload are deleted (and removed from Vision during background sync). Row matching follows Excel import rules: SKU first; without SKU, match by product name.',
@@ -268,7 +268,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       '错误多为 { "error": "…" }：400 图/查询；401 Bearer；403/404；415 文搜 Content-Type；429；500 文搜向量；503 库/密钥。',
     imageSearchRateLimit: '按 IP + 店铺限频（HTTP 429，含 Retry-After）。勿在浏览器直连；可适当缓存。',
     textSearchVectorBody:
-      '文搜（向量）：`POST` `…/text-search`，`Content-Type: application/json` 或 form 的 `q`、`limit`。JSON：`{ "q": "…" }`。至少 2 字。limit 1…50，默认 8。需 `GOOGLE_API_KEY` 与目录文本向量同步。',
+      '文搜（向量）：`POST` `…/text-search`，`Content-Type: application/json` 或 form 的 `q`、`limit`。JSON：`{ "q": "…" }`。至少 2 字。limit 1…50，默认 24。需 `GOOGLE_API_KEY` 与目录文本向量同步。',
     inventoryOpenTitle: 'F — Open Catalog：库存同步（类电商平台 / Shopee 风格 JSON）',
     inventoryOpenBody:
       '仅从**店铺后端**调用（勿暴露 Bearer）。与 D 使用**同一密钥**并启用公开 API（`image_search_api_enabled`）。**无需** Vision。`Content-Type: application/json`。Body：`items` 数组（每请求最多 500 条）。每条建议含 `item_sku`（或 `sku`）、`item_name`（或 `name`）；可选 `description`、`stock_note`、`price` / `price_hint`、`image`: { `image_url_list`: [https…] } 或 `image_url`、`item_url` / `product_url`、`consult_note`、`sort_order`、`item_status`（`NORMAL` 为在售，`UNLIST` / `DELETED` / `INACTIVE` 为隐藏）。行匹配规则与 Excel 导入一致：优先 SKU，无 SKU 按名称。',
@@ -418,7 +418,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       '보통 { "error" }: 400/401/403/404/415/429/500/503 등.',
     imageSearchRateLimit: 'IP + 매장별 속도 제한(429, Retry-After). 브라우저 직접 호출 지양, 캐시 권장.',
     textSearchVectorBody:
-      '텍스트(벡터): `POST` `…/text-search`, JSON `{ "q": "…" }` 또는 form. 최소 2자, limit 1~50, 기본 8. `GOOGLE_API_KEY` 및 텍스트 임베딩 동기화.',
+      '텍스트(벡터): `POST` `…/text-search`, JSON `{ "q": "…" }` 또는 form. 최소 2자, limit 1~50, 기본 24. `GOOGLE_API_KEY` 및 텍스트 임베딩 동기화.',
     inventoryOpenTitle: 'F — Open Catalog: 재고 동기화(마켓플레이스형 / Shopee 스타일 JSON)',
     inventoryOpenBody:
       '**매장 백엔드**에서만 호출(Bearer 노출 금지). D와 **동일 키** 및 `image_search_api_enabled`. Vision **불필요**. `Content-Type: application/json`. body: `items` 배열(요청당 최대 500). 항목마다 `item_sku`(또는 `sku`), `item_name`(또는 `name`); 선택 `description`, `stock_note`, `price` / `price_hint`, `image`: { `image_url_list` } 또는 `image_url`, `item_url` / `product_url`, `consult_note`, `sort_order`, `item_status`(`NORMAL` 표시, `UNLIST`/`DELETED`/`INACTIVE` 숨김). 행 매칭은 Excel 가져오기와 동일(SKU 우선, 없으면 이름).',

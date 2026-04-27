@@ -5,19 +5,22 @@ import {
   jsonWithCors,
 } from '@/lib/messaging/partner-inventory-search-api-guard'
 import { matchInventoryForPublicTextSearchApi } from '@/lib/messaging/partner-inventory-text-embedding'
+import {
+  getPartnerPublicInventorySearchDefaultLimit,
+  PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
+} from '@/lib/messaging/partner-public-search-limits'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-const DEFAULT_LIMIT = 8
-const MAX_LIMIT = 50
+const MAX_LIMIT = PARTNER_PUBLIC_INVENTORY_SEARCH_MAX
 
 function parseJsonBody(text: string): { q: string; limit: number } | null {
   try {
     const o = JSON.parse(text) as { q?: unknown; query?: unknown; limit?: unknown }
     const q = String(o.q ?? o.query ?? '').trim()
-    let limit = DEFAULT_LIMIT
+    let limit = getPartnerPublicInventorySearchDefaultLimit()
     if (o.limit != null) {
       const n = parseInt(String(o.limit), 10)
       if (Number.isFinite(n)) limit = n
@@ -36,7 +39,7 @@ export async function OPTIONS(req: Request) {
 
 /**
  * API công khai (Bearer): câu tìm → embed văn bản (Gemini) → ANN theo text_embedding vector trong kho.
- * Cùng khóa và bật API như image-search.
+ * Cùng khóa, mặc định / `limit` tối đa / biến môi trường `PARTNER_PUBLIC_INVENTORY_SEARCH_*` như `image-search`.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
@@ -46,7 +49,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
 
   const ct = (req.headers.get('content-type') || '').toLowerCase()
   let q = ''
-  let limit = DEFAULT_LIMIT
+  let limit = getPartnerPublicInventorySearchDefaultLimit()
 
   if (ct.includes('application/json')) {
     const raw = await req.text()
