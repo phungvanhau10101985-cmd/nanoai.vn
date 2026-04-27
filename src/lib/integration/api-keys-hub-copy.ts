@@ -38,6 +38,11 @@ export type ApiKeysHubStrings = {
   partnerExtendNote: string
   /** Hiện khi NEXT_PUBLIC_APP_URL / NEXT_PUBLIC_BASE_URL chưa cấu hình — URL ví dụ có thể sai */
   partnerBaseUrlFallbackWarning: string
+  /** Thẻ luôn hiện: endpoint tìm sản phẩm công khai (partnerId = UUID) */
+  partnerQuickEndpointsTitle: string
+  partnerQuickEndpointsHint: string
+  partnerQuickEndpointsImageLabel: string
+  partnerQuickEndpointsTextLabel: string
 }
 
 export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
@@ -49,7 +54,7 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
     pageLead:
       'Trang gom cho dev vận hành NanoAI: cron, webhook nền tảng, và tham chiếu cổng đối tác. Đối tác tích hợp web riêng dùng Bảng điều khiển → Hướng dẫn API.',
     partnerPageLead:
-      'Dành cho đội kỹ thuật shop: mã nhúng chat, API embed, tìm sản phẩm bằng ảnh, thử đồ B2B. Đăng nhập tài khoản NanoAI của cửa hàng. Phần «Hướng dẫn triển khai cho developer» bên dưới có endpoint, header, ví dụ curl/JSON.',
+      'Dành cho đội kỹ thuật shop: cần đăng nhập tài khoản có workspace Messaging. Có mã nhúng chat, API embed, tìm sản phẩm theo ảnh & theo văn bản (vector), thử đồ B2B. Thẻ «Endpoint tìm sản phẩm» ngay bên dưới; hướng dẫn curl/JSON đầy đủ ở mục «Hướng dẫn triển khai cho developer» (D).',
     openDashboard: 'Messaging (inbox)',
     openMessagingSettings: 'Cài đặt Messaging (kênh & AI)',
     openIntegrations: 'Thẻ & mã nhúng (admin)',
@@ -93,6 +98,11 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       'Khi NanoAI bổ sung API mới cho đối tác, nội dung trang này sẽ được cập nhật. Thắc mắc tích hợp vui lòng liên hệ hỗ trợ NanoAI.',
     partnerBaseUrlFallbackWarning:
       'Trên môi trường này chưa đặt NEXT_PUBLIC_APP_URL (hoặc NEXT_PUBLIC_BASE_URL): các URL ví dụ đang dùng placeholder. Trên production hãy cấu hình để hiển thị đúng domain NanoAI.',
+    partnerQuickEndpointsTitle: 'Endpoint tìm sản phẩm (cùng khóa Bearer trên Tích hợp API)',
+    partnerQuickEndpointsHint:
+      'Dưới đây là base URL. `{partnerId}` = UUID shop (Bảng điều khiển — chọn shop, hoặc từ URL `?partner=`). Hướng dẫn curl đầy đủ, header và ví dụ JSON nằm ở mục «Hướng dẫn triển khai cho developer» bên dưới cùng trang (mục D).',
+    partnerQuickEndpointsImageLabel: 'image-search — gửi ảnh (multipart)',
+    partnerQuickEndpointsTextLabel: 'text-search — câu tìm dạng JSON (embed → vector → ANN)',
   },
   en: {
     backAdmin: 'Back',
@@ -145,6 +155,11 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       'When NanoAI adds partner APIs, this page will be updated. Contact NanoAI support for integration help.',
     partnerBaseUrlFallbackWarning:
       'NEXT_PUBLIC_APP_URL (or NEXT_PUBLIC_BASE_URL) is not set in this environment: example URLs use a placeholder. Set it in production so snippets show your real NanoAI domain.',
+    partnerQuickEndpointsTitle: 'Product search endpoints (same Bearer key from API integration)',
+    partnerQuickEndpointsHint:
+      'Replace `{partnerId}` with your shop UUID (from the shop selector, or the `?partner=` query). Full curl/headers/JSON: section «Developer implementation guide» on this page (D).',
+    partnerQuickEndpointsImageLabel: 'image-search — photo upload (multipart)',
+    partnerQuickEndpointsTextLabel: 'text-search — JSON query (embed → vector ANN)',
   },
   zh: {
     backAdmin: '返回',
@@ -197,6 +212,11 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       'NanoAI 为合作方新增 API 时会更新本页。集成问题请联系 NanoAI 支持。',
     partnerBaseUrlFallbackWarning:
       '当前环境未设置 NEXT_PUBLIC_APP_URL（或 NEXT_PUBLIC_BASE_URL）：示例 URL 为占位符。请在生产环境配置以显示真实 NanoAI 域名。',
+    partnerQuickEndpointsTitle: '商品搜索接口（与集成页相同 Bearer 密钥）',
+    partnerQuickEndpointsHint:
+      '下为路径模板。`{partnerId}` 为店铺 UUID。完整 curl/JSON 见本页下方《开发者实施指南》D 节。',
+    partnerQuickEndpointsImageLabel: 'image-search — 多部分上传图片',
+    partnerQuickEndpointsTextLabel: 'text-search — JSON 查询（嵌入→向量检索）',
   },
   ja: {
     backAdmin: '戻る',
@@ -249,6 +269,11 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       'パートナー向け API が増えたら本ページを更新します。連携のご質問は NanoAI サポートへ。',
     partnerBaseUrlFallbackWarning:
       'この環境では NEXT_PUBLIC_APP_URL（または NEXT_PUBLIC_BASE_URL）が未設定のため、例の URL はプレースホルダーです。本番では設定して実際の NanoAI ドメインを表示してください。',
+    partnerQuickEndpointsTitle: '商品検索 API（API 連携の Bearer と同一）',
+    partnerQuickEndpointsHint:
+      'プレースホルダー `{partnerId}` は店舗 UUID。curl 全文は下の「開発者向け実装ガイド」D.',
+    partnerQuickEndpointsImageLabel: 'image-search — 画像 multipart',
+    partnerQuickEndpointsTextLabel: 'text-search — JSON クエリ（埋め込み→ベクター ANN）',
   },
   ko: {
     backAdmin: '뒤로',
@@ -301,6 +326,11 @@ export const API_KEYS_HUB_COPY: Record<ApiKeysHubLocale, ApiKeysHubStrings> = {
       '파트너용 API가 추가되면 이 페이지를 업데이트합니다. 연동 문의는 NanoAI 지원팀으로 연락하세요.',
     partnerBaseUrlFallbackWarning:
       '이 환경에 NEXT_PUBLIC_APP_URL(또는 NEXT_PUBLIC_BASE_URL)이 없어 예시 URL이 플레이스홀더입니다. 운영에서는 설정해 실제 NanoAI 도메인을 표시하세요.',
+    partnerQuickEndpointsTitle: '상품 검색 API(연동 페이지 Bearer 키와 동일)',
+    partnerQuickEndpointsHint:
+      '`{partnerId}`는 매장 UUID. 전체 curl/JSON은 아래 «개발자 구현 가이드» D.',
+    partnerQuickEndpointsImageLabel: 'image-search — 사진 multipart',
+    partnerQuickEndpointsTextLabel: 'text-search — JSON 질의(임베딩→벡터 ANN)',
   },
 }
 

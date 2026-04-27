@@ -85,6 +85,27 @@ export function ApiKeysHub({
       </div>
 
       {isPartner ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">{t.partnerQuickEndpointsTitle}</CardTitle>
+            <CardDescription className="whitespace-pre-line text-sm leading-relaxed">
+              {t.partnerQuickEndpointsHint}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-xs font-medium text-foreground">{t.partnerQuickEndpointsImageLabel}</p>
+            <pre className="overflow-x-auto rounded-md border bg-muted/50 p-3 text-[11px] leading-relaxed">
+              {`POST ${baseUrl}/api/messaging/partners/{partnerId}/image-search`}
+            </pre>
+            <p className="pt-1 text-xs font-medium text-foreground">{t.partnerQuickEndpointsTextLabel}</p>
+            <pre className="overflow-x-auto rounded-md border bg-muted/50 p-3 text-[11px] leading-relaxed">
+              {`POST ${baseUrl}/api/messaging/partners/{partnerId}/text-search`}
+            </pre>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isPartner ? (
         <Suspense
           fallback={<div className="h-40 animate-pulse rounded-xl border border-border/60 bg-muted/30" aria-hidden />}
         >
@@ -134,6 +155,9 @@ export function ApiKeysHub({
                 <p className="mt-1 text-muted-foreground">{t.imageSearchBody}</p>
                 <pre className="mt-2 overflow-x-auto rounded-md border bg-muted/50 p-3 text-[11px] leading-relaxed">
                   {`POST ${baseUrl}/api/messaging/partners/{partnerId}/image-search`}
+                </pre>
+                <pre className="mt-2 overflow-x-auto rounded-md border bg-muted/50 p-3 text-[11px] leading-relaxed">
+                  {`POST ${baseUrl}/api/messaging/partners/{partnerId}/text-search`}
                 </pre>
               </div>
             </CardContent>
