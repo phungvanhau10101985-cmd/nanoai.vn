@@ -28,6 +28,12 @@ export type PartnerDevIntegrationStrings = {
   guestVisionPickNote: string
   imageSearchTitle: string
   imageSearchBody: string
+  /** Tiền điều kiện kho + lấy partnerId; hiển thị dưới imageSearchBody */
+  imageSearchPrereq: string
+  /** Nullable fields + 200 với mảng rỗng */
+  imageSearchResponseEdgeCases: string
+  /** Bảng mã HTTP lỗi (body { error }) */
+  imageSearchHttpErrors: string
   imageSearchRateLimit: string
   /** Open Catalog — POST JSON kho kiểu marketplace (Shopee-like) → NanoAI */
   inventoryOpenTitle: string
@@ -38,6 +44,8 @@ export type PartnerDevIntegrationStrings = {
   snippetNote: string
   codeLabelExampleServer: string
   codeLabelResponseShape: string
+  /** Ví dụ phản hồi 200 với mảng rỗng (mục D) */
+  codeLabelResponseEmpty: string
   codeLabelExample: string
   /** Nút sao chép đoạn <script> nhúng widget chat */
   copyHostedScriptButton: string
@@ -94,7 +102,13 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Chọn sản phẩm Vision (khi POST tin trả visionPickRequired): POST …/vision-pick với cookie. Cùng route cũng chấp nhận X-Embed-Key + X-Session-Id cho tích hợp cross-origin nâng cao.',
     imageSearchTitle: 'D — API tìm sản phẩm bằng ảnh',
     imageSearchBody:
-      'Chỉ gọi từ backend shop (không lộ Bearer). Tạo và bật khóa tại Bảng điều khiển → Tích hợp API. Catalog Vision: bật gợi ý theo ảnh và đồng bộ tại Messaging → Cài đặt → AI. POST multipart/form-data: field image hoặc file (≤ ~5 MB), tùy chọn limit (số nguyên, số kết quả). Trả về JSON: ok, products (inventory_id, name, sku, image_url, product_url, score), error (lỗi Vision nếu có).',
+      'Chỉ gọi từ backend shop (không lộ Bearer). Tạo và bật khóa tại Bảng điều khiển → Tích hợp API. Catalog / gợi ý theo ảnh: bật và đồng bộ tại Messaging → Cài đặt → AI. POST multipart/form-data: field image hoặc file (≤ ~5 MB), tùy chọn limit (số nguyên, số kết quả; mặc định hợp lệ 8 nếu không gửi). Trả về JSON: ok, products (inventory_id, name, sku, image_url, product_url, score), error (thông tin khi không có kết quả hoặc lỗi tìm kiếm).',
+    imageSearchPrereq:
+      'Tiền điều kiện: kho sản phẩm (Open Catalog hoặc nhập kho) đã có bản ghi; pipeline đồng bộ/index theo cài đặt AI (nếu bật gợi ý theo vector). Trong URL, {partnerId} là UUID shop — tại Bảng điều khiển, chọn đúng shop: đoạn «URL mẫu» bên dưới tự điền theo shop đang chọn.',
+    imageSearchResponseEdgeCases:
+      'Trong từng phần tử products: product_url, score và (đôi khi) sku có thể null tùy dữ liệu. Phản hồi HTTP 200 vẫn có thể có products rỗng; khi đó xem thêm trường error — tích hợp cần xử lý cả mảng rỗng, không giả định luôn có sản phẩm.',
+    imageSearchHttpErrors:
+      'Lỗi (thường là { "error": "…" } — không cùng schema với thành công): 400 thiếu file / file không phải ảnh / vượt ~5 MB. 401 thiếu hoặc sai Bearer. 403 shop tắt image-search API, hoặc shop không nhận traffic API. 404 shop không tồn tại, hoặc chưa có cài đặt AI. 429 vượt giới hạn tần suất (có Retry-After). 503 thiếu cấu hình DB, hoặc chưa tạo khóa API (thông điệp từ server).',
     imageSearchRateLimit:
       'Có giới hạn tần suất theo IP + shop (HTTP 429, có Retry-After). Nên cache và tránh gọi trực tiếp từ trình duyệt.',
     inventoryOpenTitle: 'F — Open Catalog: đồng bộ kho (JSON chuẩn marketplace / Shopee-like)',
@@ -109,6 +123,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Các khối mã ví dụ (curl / JSON) dùng tiếng Anh để thống nhất giữa các đội ngũ.',
     codeLabelExampleServer: 'Ví dụ (backend shop)',
     codeLabelResponseShape: 'Cấu trúc phản hồi',
+    codeLabelResponseEmpty: 'Ví dụ: không khớp (vẫn HTTP 200)',
     codeLabelExample: 'Ví dụ',
     copyHostedScriptButton: 'Sao chép mã nhúng script',
     copyHostedScriptToast: 'Đã sao chép mã nhúng script.',
@@ -118,7 +133,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyCodeError: 'Không sao chép được. Hãy chọn và copy thủ công.',
     checklistTitle: 'Checklist trước khi production',
     checklistBody:
-      '• Không đặt X-Embed-Key hay Bearer trong bundle JS công khai.\n• Nếu dùng D: đã tạo/bật khóa Bearer tại Bảng điều khiển → Tích hợp API; đã bật gợi ý theo ảnh và đồng bộ catalog Vision tại Messaging → Cài đặt → AI.\n• Nếu dùng F: cùng khóa Bearer; gọi từ server shop; xử lý mã lỗi `code` trong JSON.\n• Đã test CORS từ domain thật của shop (nhánh B).\n• Xử lý 401 / 403 / 429 / 503 và thông báo cho người dùng.',
+      '• Không đặt X-Embed-Key hay Bearer trong bundle JS công khai.\n• Nếu dùng D: đã tạo/bật khóa Bearer tại Bảng điều khiển → Tích hợp API; đã bật đồng bộ/gợi ý theo ảnh tại Messaging → Cài đặt → AI; xử lý cả phản hồi 200 với `products` rỗng.\n• Nếu dùng F: cùng khóa Bearer; gọi từ server shop; xử lý mã lỗi `code` trong JSON.\n• Đã test CORS từ domain thật của shop (nhánh B).\n• Xử lý 400 / 401 / 403 / 404 / 429 / 503 (D: file/ảnh/kích thước; thiếu/khóa API; shop thiết lập) và thông báo cho người dùng.',
     shopIdentifierLabel: 'Mã định danh chat (slug)',
     hostedAutoFilledNote:
       'Chọn đúng shop ở danh sách phía trên: đường link công khai và toàn bộ mã nhúng bên dưới đã được điền sẵn cho shop đó — bạn chỉ cần «Sao chép mã nhúng script» và dán vào website; không phải thay {slug} hay sửa URL tay.',
@@ -164,7 +179,13 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Vision pick (when a POST returns visionPickRequired): POST …/vision-pick with the session cookie on the hosted page. The same route also accepts X-Embed-Key + X-Session-Id for advanced cross-origin flows.',
     imageSearchTitle: 'D — Image product search API',
     imageSearchBody:
-      'Call only from your shop backend (never expose the Bearer key). Create/enable the key under Dashboard → API integration. Vision catalog: turn on image suggestions and sync under Messaging → Settings → AI. POST multipart/form-data: field image or file (max ~5 MB), optional limit (integer, max hits). JSON response: ok, products (inventory_id, name, sku, image_url, product_url, score), error (Vision issues if any).',
+      'Call only from your shop backend (never expose the Bearer key). Create/enable the key under Dashboard → API integration. Image suggestions: enable and sync the catalog under Messaging → Settings → AI. POST multipart/form-data: field image or file (max ~5 MB), optional limit (integer; defaults sensibly, e.g. 8, if omitted). JSON: ok, products (inventory_id, name, sku, image_url, product_url, score), error (when the search has no result or a soft failure).',
+    imageSearchPrereq:
+      'Prerequisites: inventory (Open Catalog or import) is populated, and the AI index/sync path is complete when image-vector search is enabled. The {partnerId} segment in the URL is the shop UUID—pick the correct workspace above: the example URL is auto-filled for the selected shop.',
+    imageSearchResponseEdgeCases:
+      'Each product may have product_url, score, and sometimes sku set to null depending on your catalog. HTTP 200 can return ok: true with an empty products array; check the error field—handle empty results in your UI.',
+    imageSearchHttpErrors:
+      'Errors are usually { "error": "…" } (not the same shape as success): 400 missing/invalid file, not an image, or over ~5 MB. 401 missing/invalid Bearer. 403 image-search API disabled, or shop not accepting API traffic. 404 shop not found, or AI settings missing. 429 rate limit (Retry-After). 503 database not configured, or API key not generated (see error text).',
     imageSearchRateLimit:
       'Rate limited per IP + shop (HTTP 429 with Retry-After). Avoid calling from the browser; cache where possible.',
     inventoryOpenTitle: 'F — Open Catalog: inventory sync (marketplace-style / Shopee-like JSON)',
@@ -178,6 +199,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     snippetNote: 'Example blocks (curl / JSON) are in English for consistency across teams.',
     codeLabelExampleServer: 'Example (shop backend)',
     codeLabelResponseShape: 'Response shape',
+    codeLabelResponseEmpty: 'Example: no matches (HTTP 200)',
     codeLabelExample: 'Example',
     copyHostedScriptButton: 'Copy embed script',
     copyHostedScriptToast: 'Embed script copied.',
@@ -187,7 +209,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyCodeError: 'Could not copy. Select the code and copy manually.',
     checklistTitle: 'Pre-production checklist',
     checklistBody:
-      '• Do not ship X-Embed-Key or Bearer keys in public frontend bundles.\n• For D: create/enable the Bearer key on Dashboard → API integration; enable Vision image suggestions and sync the catalog under Messaging → Settings → AI.\n• For F: same Bearer key; call from the shop server; handle JSON `code` on errors.\n• Test CORS from your real shop domain (track B).\n• Handle 401 / 403 / 429 / 503 with clear user messaging.',
+      '• Do not ship X-Embed-Key or Bearer keys in public frontend bundles.\n• For D: create/enable the Bearer key on Dashboard → API integration; enable image/catalog sync under Messaging → Settings → AI; handle HTTP 200 with an empty `products` array.\n• For F: same Bearer key; call from the shop server; handle JSON `code` on errors.\n• Test CORS from your real shop domain (track B).\n• Handle 400 / 401 / 403 / 404 / 429 / 503 (D: file/image/size; API key; shop settings) with clear user messaging.',
     shopIdentifierLabel: 'Chat shop ID (slug)',
     hostedAutoFilledNote:
       'Pick your shop above: the public URL and embed script below are pre-filled for that workspace — use «Copy embed script» and paste on your site. No manual {slug} replacement.',
@@ -231,7 +253,13 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Vision 选品（发消息返回 visionPickRequired 时）：POST …/vision-pick，托管页用 cookie。同一路由在高级场景下也支持 X-Embed-Key + X-Session-Id。',
     imageSearchTitle: 'D — 以图搜商品 API',
     imageSearchBody:
-      '仅从店铺后端调用（勿暴露 Bearer）。在 控制台 → API 集成说明 创建并启用密钥。Vision 目录：在 Messaging → 设置 → AI 开启以图提示并同步。POST multipart/form-data：字段 image 或 file（≤ ~5 MB），可选 limit（整数）。JSON：ok、products（inventory_id、name、sku、image_url、product_url、score）、error。',
+      '仅从店铺后端调用（勿暴露 Bearer）。在 控制台 → API 集成说明 创建并启用密钥。在 Messaging → 设置 → AI 开启以图相关能力并同步目录。POST multipart：字段 image 或 file（≤ ~5 MB），可选 limit（整数，未设则默认约 8 条等）。JSON：ok、products、error（无结果或软失败时）',
+    imageSearchPrereq:
+      '前提：已有库存数据（Open Catalog 或导入）；若启用向量化/索引，需完成 AI 侧同步。URL 中 {partnerId} 为店铺 UUID — 在上方选择店铺后，下方示例 URL 自动填入该店铺.',
+    imageSearchResponseEdgeCases:
+      'products 各项中 product_url、score、sku 可能为 null。HTTP 200 仍可能出现 products: []，请同时查看 error 字段，前端需处理空结果。',
+    imageSearchHttpErrors:
+      '错误多为 { "error": "…" }：400 缺文件/非图片/超 ~5 MB；401 Bearer；403 未启用或店铺不许 API；404 无店铺/无 AI 设置；429 限流 (Retry-After)；503 未配库或密钥未建。',
     imageSearchRateLimit: '按 IP + 店铺限频（HTTP 429，含 Retry-After）。勿在浏览器直连；可适当缓存。',
     inventoryOpenTitle: 'F — Open Catalog：库存同步（类电商平台 / Shopee 风格 JSON）',
     inventoryOpenBody:
@@ -244,6 +272,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     snippetNote: '示例代码块（curl / JSON）使用英文以便各团队统一。',
     codeLabelExampleServer: '示例（店铺后端）',
     codeLabelResponseShape: '响应结构',
+    codeLabelResponseEmpty: '示例：无匹配（仍为 200）',
     codeLabelExample: '示例',
     copyHostedScriptButton: '复制嵌入脚本',
     copyHostedScriptToast: '已复制嵌入脚本。',
@@ -253,7 +282,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyCodeError: '无法复制，请手动选择代码复制。',
     checklistTitle: '上线前检查',
     checklistBody:
-      '• 勿将 X-Embed-Key 或 Bearer 打入公开前端包。\n• 使用 D 时：已在 API 集成说明页创建/启用 Bearer；已在 Messaging → 设置 → AI 开启 Vision 以图提示并同步目录。\n• 使用 F 时：同一 Bearer；从店铺服务端调用；处理 JSON 中的 `code`。\n• 在真实店铺域名下测试 CORS（路径 B）。\n• 处理 401 / 403 / 429 / 503 并向用户提示。',
+      '• 勿将 X-Embed-Key 或 Bearer 打入公开前端包。\n• 使用 D 时：已在 API 集成说明页创建/启用 Bearer；已在 Messaging → 设置 → AI 同步目录/以图能力；处理 200 且 products 为空。\n• 使用 F 时：同一 Bearer；从店铺服务端调用；处理 JSON 中的 `code`。\n• 在真实店铺域名下测试 CORS（路径 B）。\n• 处理 400 / 401 / 403 / 404 / 429 / 503（文件、密钥、店铺设置等）。',
     shopIdentifierLabel: '聊天店铺标识 (slug)',
     hostedAutoFilledNote:
       '在上方选择店铺后：下方公开链接与嵌入脚本已自动填入该店铺，直接「复制嵌入脚本」粘贴到网站即可，无需手动替换 slug。',
@@ -297,7 +326,13 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Vision 商品選択（POST が visionPickRequired を返したとき）: POST …/vision-pick、ホストページでは cookie。同一ルートは高度な連携向けに X-Embed-Key + X-Session-Id も受け付けます。',
     imageSearchTitle: 'D — 画像による商品検索 API',
     imageSearchBody:
-      '店舗バックエンドからのみ（Bearer を露出しない）。ダッシュボード → API 連携ガイドでキー作成・有効化。Vision カタログは Messaging → 設定 → AI で画像提案を有効化し同期。POST multipart: image または file（最大 ~5 MB）、任意 limit。JSON: ok, products, error。',
+      '店舗バックエンドからのみ（Bearer を露出しない）。ダッシュボード → API 連携ガイドでキー作成。Messaging → 設定 → AI で同期（画像系）。POST multipart: image または file（最大 ~5 MB）、任意 limit（未指定時は例: 8 件前後）。JSON: ok, products, error（0 件・ソフト失敗含む）。',
+    imageSearchPrereq:
+      '前提: 在庫データ（Open Catalog 等）と AI 側 index 同期。URL の {partnerId} は店舗の UUID。上で店舗を選ぶと下の URL 例に自動挿入されます。',
+    imageSearchResponseEdgeCases:
+      '各 products の product_url / score / sku は null の場合あり。200 で products 空＋error 有り得る — 空配列を必ず扱うこと。',
+    imageSearchHttpErrors:
+      '多くは { "error" }: 400 ファイル/サイズ/形式; 401 Bearer; 403 API 無効; 404 未設定/店舗なし; 429; 503 DB/キー未設定。',
     imageSearchRateLimit: 'IP + 店舗ごとにレート制限（429, Retry-After）。ブラウザ直叩きは避け、キャッシュを検討。',
     inventoryOpenTitle: 'F — Open Catalog: 在庫同期（マーケットプレイス風 / Shopee 風 JSON）',
     inventoryOpenBody:
@@ -310,6 +345,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     snippetNote: 'curl / JSON の例は英語表記で統一しています。',
     codeLabelExampleServer: '例（店舗バックエンド）',
     codeLabelResponseShape: 'レスポンスの形',
+    codeLabelResponseEmpty: '例: 0 件 (HTTP 200)',
     codeLabelExample: '例',
     copyHostedScriptButton: '埋め込みスクリプトをコピー',
     copyHostedScriptToast: 'スクリプトをコピーしました。',
@@ -319,7 +355,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyCodeError: 'コピーできませんでした。コードを選択して手動でコピーしてください。',
     checklistTitle: '本番前チェックリスト',
     checklistBody:
-      '• X-Embed-Key / Bearer を公開 JS に含めない。\n• D 利用時: API 連携ガイドで Bearer を作成・有効化し、Messaging → 設定 → AI で Vision 画像提案とカタログ同期を有効化。\n• F 利用時: 同じ Bearer、店舗サーバーから呼び出し、エラー時は JSON の `code` を処理。\n• 実ドメインで CORS をテスト（B）。\n• 401 / 403 / 429 / 503 をユーザー向けに処理。',
+      '• X-Embed-Key / Bearer を公開 JS に含めない。\n• D: API 連携で Bearer を作成・有効化し、Messaging → 設定 → AI で同期。200 で products が空のケースも処理。\n• F: 同じ Bearer、店舗サーバーから、エラーは JSON `code`。\n• 実ドメインで CORS（B）。\n• 400 / 401 / 403 / 404 / 429 / 503 をユーザー向けに。',
     shopIdentifierLabel: 'チャット店舗 ID（slug）',
     hostedAutoFilledNote:
       '上で店舗を選ぶと、下の公開 URL と埋め込みスクリプトがその店舗用に自動入力されます。「埋め込みスクリプトをコピー」してサイトに貼るだけで、slug の手入力は不要です。',
@@ -363,7 +399,13 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Vision 선택(POST가 visionPickRequired 반환 시): POST …/vision-pick, 호스팅 페이지는 쿠키. 동일 경로는 고급 교차 출처 흐름에서 X-Embed-Key + X-Session-Id도 허용합니다.',
     imageSearchTitle: 'D — 이미지 상품 검색 API',
     imageSearchBody:
-      '매장 백엔드에서만(Bearer 노출 금지). 대시보드 → API 연동 안내에서 키 생성·활성화. Vision 카탈로그는 Messaging → 설정 → AI에서 이미지 제안 켜고 동기화. POST multipart: image 또는 file(최대 ~5 MB), 선택 limit. JSON: ok, products, error.',
+      '매장 백엔드에서만(Bearer 노출 금지). 대시보드 → API 연동에서 키 생성·활성화. Messaging → 설정 → AI에서 이미지·카탈로그 동기화. POST multipart: image 또는 file(최대 ~5 MB), 선택 limit(미지정 시 기본 약 8). JSON: ok, products, error(검색 실패/무결과).',
+    imageSearchPrereq:
+      '전제: 재고/카탤로그 데이터 및(필요 시) AI 인덱스 동기화. URL의 {partnerId}는 매장 UUID — 위에서 매장 선택 시 아래 예시 URL이 자동 반영.',
+    imageSearchResponseEdgeCases:
+      'product_url, score, sku 는 null일 수 있음. 200 + 빈 products + error 가능 — 빈 배열 UI 처리.',
+    imageSearchHttpErrors:
+      '보통 { "error" }: 400/401/403/404/429/503 — 파일 형식·크기, 키, API 비활성, 매장/설정 없음, Rate limit, DB/미설정.',
     imageSearchRateLimit: 'IP + 매장별 속도 제한(429, Retry-After). 브라우저 직접 호출 지양, 캐시 권장.',
     inventoryOpenTitle: 'F — Open Catalog: 재고 동기화(마켓플레이스형 / Shopee 스타일 JSON)',
     inventoryOpenBody:
@@ -376,6 +418,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     snippetNote: 'curl / JSON 예시는 팀 간 통일을 위해 영어로 표기합니다.',
     codeLabelExampleServer: '예시(매장 백엔드)',
     codeLabelResponseShape: '응답 형태',
+    codeLabelResponseEmpty: '예: 0건 (HTTP 200)',
     codeLabelExample: '예시',
     copyHostedScriptButton: '임베드 스크립트 복사',
     copyHostedScriptToast: '임베드 스크립트를 복사했습니다.',
@@ -385,7 +428,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyCodeError: '복사에 실패했습니다. 코드를 직접 선택해 복사하세요.',
     checklistTitle: '프로덕션 체크리스트',
     checklistBody:
-      '• X-Embed-Key / Bearer를 공개 프론트 번들에 넣지 않기.\n• D 사용 시: API 연동 안내에서 Bearer 생성·활성화, Messaging → 설정 → AI에서 Vision 이미지 제안·카탈로그 동기화 활성화.\n• F 사용 시: 동일 Bearer, 매장 서버에서 호출, 오류 시 JSON `code` 처리.\n• 실제 매장 도메인에서 CORS 테스트(B).\n• 401 / 403 / 429 / 503 사용자 메시지 처리.',
+      '• X-Embed-Key / Bearer를 공개 프론트 번들에 넣지 않기.\n• D: Bearer 생성·활성화, Messaging → 설정 → AI 동기화, 200 + 빈 products 처리.\n• F: 동일 Bearer, 매장 서버, 오류 JSON `code`.\n• 실제 도메인 CORS(B).\n• 400 / 401 / 403 / 404 / 429 / 503 사용자 메시지.',
     shopIdentifierLabel: '채팅 매장 ID(slug)',
     hostedAutoFilledNote:
       '위에서 매장을 선택하면 아래 공개 URL과 임베드 스크립트가 해당 매장으로 채워집니다. «임베드 스크립트 복사» 후 사이트에 붙여 넣으면 되며 slug를 수동으로 바꿀 필요가 없습니다.',

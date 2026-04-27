@@ -214,9 +214,23 @@ Cookie: <auth_session_cookie>
       "image_url": "https://…",
       "product_url": "https://your-shop.example/p/…",
       "score": 0.92
+    },
+    {
+      "inventory_id": "uuid-2",
+      "name": "Item without link in catalog",
+      "sku": null,
+      "image_url": "https://…",
+      "product_url": null,
+      "score": null
     }
   ],
   "error": null
+}`
+
+  const imageSearchJsonEmpty = `{
+  "ok": true,
+  "products": [],
+  "error": "No matching products (example message)"
 }`
 
   const tryOnCurl = `curl -sS -X POST "${baseUrl}/api/v1/partner/try-on" \\
@@ -395,12 +409,18 @@ Cookie: <auth_session_cookie>
           t.imageSearchTitle,
           t.imageSearchBody,
           <>
+            <p className="text-xs leading-relaxed text-muted-foreground">{t.imageSearchPrereq}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">{t.imageSearchResponseEdgeCases}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">{t.imageSearchHttpErrors}</p>
             <CodeBlock {...codeBlockCopyProps}>{`${baseUrl}/api/messaging/partners/${partnerId}/image-search`}</CodeBlock>
             <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
               {imageSearchCurl}
             </CodeBlock>
             <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
               {imageSearchJson}
+            </CodeBlock>
+            <CodeBlock title={t.codeLabelResponseEmpty} {...codeBlockCopyProps}>
+              {imageSearchJsonEmpty}
             </CodeBlock>
             <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200/90">{t.imageSearchRateLimit}</p>
           </>

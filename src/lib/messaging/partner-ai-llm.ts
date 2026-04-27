@@ -48,6 +48,10 @@ import {
 } from '@/lib/messaging/partner-ai-unclear-intent'
 import { trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
+import {
+  fetchPartnerPaymentSettingsFromPg,
+  type PartnerPaymentSettingsRow,
+} from '@/lib/db/messaging-partner-orders-pg'
 
 export type { PartnerMaterialDetailFollowup, PartnerRealUseImageFollowup }
 
@@ -137,6 +141,30 @@ function formatInventoryLines(
       return `${i + 1}. ${r.name.trim()}${sku}${desc}${colors}${mat}${img}${matImg}${realUseImg}${stock}${price}${page}${video}${extra}`
     })
     .join('\n')
+}
+
+/**
+ * Neo cọc / thanh toán theo cài đặt hệ thống — hạn chế tư vấn «COD 100% / trả toàn bộ lúc nhận» khi shop mặc định cọc.
+ * Không bịa số tuyệt đối: giữ «khoảng / theo form».
+ */
+function buildPartnerPaymentPolicyBlockForPartnerAi(pay: PartnerPaymentSettingsRow): string {
+  if (pay.default_deposit_mode === 'fixed_amount' && pay.default_deposit_amount > 0) {
+    const a = new Intl.NumberFormat('vi-VN').format(pay.default_deposit_amount)
+    return `
+
+[Thanh toán (cài đặt hệ thống shop) — ưu tiên khi khách hỏi cọc / trả khi nhận / COD]
+Đơn mặc định: thường cần **cọc trước** (mức tham chiếu: khoảng **${a}₫**; số thực tế theo form/đơn). **Cấm** tư vấn sai: **không** khẳng định khách được **thanh toán toàn bộ khi nhận hàng** (COD 100% toàn giá) như quy tắc mặc định nếu điều đó **mâu thuẫn** với cọc. Phần còn lại (khi chính sách cho phép) thường lúc **giao hàng** sau cọc. Trả lời **bám sát mặt hàng** đang bàn (dòng kho + tin gần nhất), **không** tổng quát từ sản phẩm/shop khác.`
+  }
+  if (pay.default_deposit_mode === 'percent' && pay.default_deposit_percent > 0) {
+    return `
+
+[Thanh toán (cài đặt hệ thống shop) — ưu tiên khi khách hỏi cọc / trả khi nhận / COD]
+Đơn mặc định: thường cần **đặt cọc trước (khoảng ${pay.default_deposit_percent}%** giá trị đơn — tỷ lệ/cọc thực tế theo form/đơn). **Cấm** tư vấn sai: **không** nói «thanh toán toàn bộ khi nhận hàng» / «xem hàng rồi mới trả hết» như thể bước mặc định nếu mâu thuẫn; hãy nói: **cọc theo hướng dẫn (form)**, phần còn lại theo chính sách. Trả lời **thống nhất** với cách tư vấn **đúng mặt hàng** (kho + hội thoại), **không** lẫn quy tắc từ món khác.`
+  }
+  return `
+
+[Thanh toán (cài đặt hệ thống shop)]
+Cài đặt mặc định: **không bắt cọc** theo cấu hình. Nếu **chính sách shop** hoặc tin tư vấn gần đây đã nêu **cọc** cho mặt hàng này — ưu tiên **cọc**; **không** hứa trả 100% lúc nhận nếu mâu thuẫn với cách tư vấn đang thống nhất.`
 }
 
 function visionCatalogNoHitsFromTrigger(raw: Json | null | undefined): boolean {
@@ -801,6 +829,16 @@ Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng các
     ? formatPartnerAiMinimalTranscriptForFollowUpContext(chronological)
     : formatPartnerAiTranscriptLines(chronological)
 
+  let partnerPaymentPolicyBlock = ''
+  if (isPgConfigured()) {
+    try {
+      const paySet = await fetchPartnerPaymentSettingsFromPg(partnerId)
+      if (paySet) partnerPaymentPolicyBlock = buildPartnerPaymentPolicyBlockForPartnerAi(paySet)
+    } catch (e) {
+      console.warn('[partner-ai-llm] payment settings for system prompt', e)
+    }
+  }
+
   const policy = settings.shop_policy?.trim() || '(Shop chưa nhập chính sách.)'
   const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
   const salesExtra = settings.sales_coaching_instructions?.trim() ?? ''
@@ -831,6 +869,7 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 - Khi đã nêu đủ thông tin sản phẩm từ kho, có thể gợi ý nhẹ bước tiếp (size/màu, hoặc chiều cao–cân nặng nếu cần) — **không** ra lệnh, **không** hối chốt. Ưu tiên để khách **tự suy nghĩ**; mời thao tác trên giao diện (đặt hàng, xem thẻ) chỉ khi tự nhiên phù hợp ngữ cảnh.
 - **Không** lặp lại cùng kiểu câu hỏi chốt màu/size kiểu "chị chọn hồng hay đen ạ?", "đã chọn được màu chưa?" ở **nhiều tin liên tiếp** — dễ gây cảm giác ép mua. Nếu đã gợi ý một lần, các tin sau **tập trung trả lời đúng câu hỏi** của khách; chỉ nhắc màu/size khi khách hỏi hoặc khi thật cần để tư vấn tiếp.
 - Giảm do dự: có thể nhắc một dòng về đổi trả / giao hàng / thanh toán CHỈ khi đã có trong chính sách shop ở trên; không bịa thêm.
+- **Cọc vs thanh toán khi nhận (trả toàn bộ lúc nhận / COD 100%):** Mỗi câu trả lời phải **khớp** (1) chính sách shop, (2) khối **[Thanh toán (cài đặt hệ thống shop)]** nếu xuất hiện, (3) cách tư vấn **đã gửi gần đây** về **đúng mặt hàng** (dòng kho / thẻ / lịch sử cùng sản phẩm). Nếu mặt hàng/phiên tư vấn đang thống nhất **có cọc** mà khách hỏi trả toàn bộ lúc nhận — **không** hứa trả 100% khi giao; giải thích **cọc trước** và phần còn lại (nếu chính sách/shop quy định) theo **đúng sản phẩm** đang bàn, **không** hợp thức hóa từ món khác.
 - **Chính sách đổi size / đổi hàng (tiếng Việt — tránh nhầm từ):** Khi diễn đạt, phân biệt rõ: (1) **Không vừa size** = số đo/size không khớp (chật, rộng, sai size so với bảng size / thực tế mặc) — mới là căn cứ **đổi size** theo chính sách shop (nếu shop có ghi). (2) **Không vừa ý** = không thích màu, form, phối đồ, cảm nhận thẩm mỹ, «mặc không ưng» theo nghĩa rộng **nhưng vẫn đúng size** — **không** gọi là «chưa vừa size», **không** hứa đổi size cho trường hợp này trừ khi chính sách shop nêu rõ. Không dùng chung một cụm kiểu «mặc không vừa ý thì đổi size» để gộp cả hai ý.
 - **Hủy đơn / hoàn cọc / trả tiền cọc:** Khi khách đòi hủy đơn hoặc hoàn cọc, **không** đồng ý ngay, **không** hứa «shop sẽ hủy và hoàn tiền» / «xử lý hoàn cọc» một cách dễ dãi trừ khi **chính sách shop ở trên** ghi rõ được phép và điều kiện. Ưu tiên **giữ đơn**; trả lời **khéo, ấm** — nêu **khó khăn / ràng buộc** theo đúng chính sách **chỉ khi đã có trong chính sách**, không bịa điều khoản; không cam kết số tiền / thời hạn hoàn cụ thể nếu không có trong dữ liệu đã cho. Có thể gợi phương án trong phạm vi shop cho phép (đổi size, đổi mẫu…) nếu chính sách có — **không** đề nghị «chuyển lên bộ phận quản lý», «chuyển lên chủ shop xem xét», «shop xem xét lại rồi báo» hay hỏi «chị có muốn shop làm vậy không» trừ khi **chính sách shop** tự ghi rõ quy trình escalate (hiếm); mặc định **không** mở lối thoát quản lý.
 - **Khách băn khoăn / lo lắng về đặt cọc (chưa đòi hủy rõ):** Thể hiện **đồng cảm** (hiểu chị có thể chưa thoải mái khi đặt cọc). Giải thích ngắn lý do cọc / thời gian hàng **theo chính sách & kho** đã có — **không** hứa nới lỏng hay thay đổi chính sách. Kết thúc nhẹ: chúc chị **sớm chọn được / mua được** món **ưng ý** (có thể là mẫu đang xem hoặc chung chung), **không** kèm câu hỏi kiểu «có muốn shop chuyển lên quản lý / xem xét không ạ».
@@ -840,7 +879,7 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
   const system = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
-${policy}
+${policy}${partnerPaymentPolicyBlock}
 ${salesDefaultBlock}
 ${khoContextInstructionForSystem} Chỉ giới thiệu sản phẩm từ danh sách đó. Khi giới thiệu hoặc so sánh mặt hàng cụ thể, ưu tiên nói **lợi ích cho khách** (thẩm mỹ, độ phù hợp, sự thoải mái…) xuất phát từ thông tin trong kho, không chỉ đọc giá/mã. Nếu không có đúng sản phẩm trong danh sách, nói rõ chưa thấy thông tin khớp và chuyển hướng tư vấn: hỏi khách có muốn xem sản phẩm tương tự đang có trong kho không.
 Khi khách hỏi về chất liệu/vải/vật liệu: ưu tiên trả lời theo trường "Chất liệu (đã lưu/kho)" hoặc mô tả/ghi chú trong dòng kho nếu có; không bịa chất liệu ngoài dữ liệu đã cho.
