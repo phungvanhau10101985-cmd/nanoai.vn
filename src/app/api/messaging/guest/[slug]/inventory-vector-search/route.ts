@@ -151,6 +151,20 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       }
       if (c.price_hint?.trim()) base.price_hint = c.price_hint.trim()
       if (c.sku?.trim()) base.sku = c.sku.trim().slice(0, 128)
+      const v = c.color_variants
+      if (Array.isArray(v) && v.length > 0) {
+        const pairs: Array<{ name: string; img: string }> = []
+        for (const x of v) {
+          if (!x || typeof x !== 'object') continue
+          const o = x as { name?: unknown; img?: unknown }
+          const name = typeof o.name === 'string' ? o.name.trim() : ''
+          const img = typeof o.img === 'string' ? o.img.trim() : ''
+          if (!name || !/^https?:\/\//i.test(img)) continue
+          pairs.push({ name, img })
+          if (pairs.length >= 30) break
+        }
+        if (pairs.length > 0) base.color_variants = pairs
+      }
       const colors = c.color_image_urls
       if (Array.isArray(colors) && colors.length > 0) {
         const urls = colors

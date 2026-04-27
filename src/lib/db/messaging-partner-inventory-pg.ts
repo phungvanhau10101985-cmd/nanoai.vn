@@ -379,6 +379,8 @@ export async function fetchPartnerInventoryPriceHintsByIdsFromPg(
 /** Dữ liệu giá + ảnh phụ (chi tiết / màu) cho API tìm kho; một query theo nhiều id. */
 export type PartnerInventorySearchEnrichment = {
   price_hint: string
+  /** Có thể chứa JSON màu [{name,img}] (Excel «Màu sắc») hoặc ghi chú tồn dạng chữ (Open Catalog). */
+  stock_note: string
   material_detail_image_url: string
   real_use_image_url: string
   real_use_image_url_2: string
@@ -417,12 +419,14 @@ export async function fetchPartnerInventorySearchEnrichmentByIdsFromPg(
     const rows = await pgQuery<{
       id: string
       price_hint: string | null
+      stock_note: string | null
       material_detail_image_url: string | null
       real_use_image_url: string | null
       real_use_image_url_2: string | null
     }>(
       `select id::text,
               coalesce(price_hint, '') as price_hint,
+              coalesce(stock_note, '') as stock_note,
               coalesce(material_detail_image_url, '') as material_detail_image_url,
               coalesce(real_use_image_url, '') as real_use_image_url,
               coalesce(real_use_image_url_2, '') as real_use_image_url_2
@@ -434,6 +438,7 @@ export async function fetchPartnerInventorySearchEnrichmentByIdsFromPg(
     for (const r of rows) {
       m.set(r.id, {
         price_hint: String(r.price_hint ?? ''),
+        stock_note: String(r.stock_note ?? ''),
         material_detail_image_url: String(r.material_detail_image_url ?? ''),
         real_use_image_url: String(r.real_use_image_url ?? ''),
         real_use_image_url_2: String(r.real_use_image_url_2 ?? ''),

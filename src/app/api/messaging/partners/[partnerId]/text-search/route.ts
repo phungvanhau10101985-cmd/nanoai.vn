@@ -13,6 +13,7 @@ import {
   colorImageUrlsForInventorySearch,
   fetchPartnerInventorySearchEnrichmentByIdsFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { parseColorVariantsJson } from '@/lib/messaging/inventory-color-variants'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
@@ -122,6 +123,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
           en.real_use_image_url_2
         )
       : []
+    const color_variants = en ? parseColorVariantsJson(en.stock_note) : []
     return {
       inventory_id: c.inventory_id,
       name: c.name,
@@ -130,6 +132,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
       product_url: c.product_url ?? null,
       score: c.score,
       price_hint: ph ? ph : null,
+      color_variants,
       color_image_urls,
     }
   })

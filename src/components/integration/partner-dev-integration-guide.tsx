@@ -221,9 +221,13 @@ Cookie: <auth_session_cookie>
       "product_url": "https://your-shop.example/p/…",
       "score": 0.92,
       "price_hint": "199000 VND",
+      "color_variants": [
+        { "name": "Đen", "img": "https://cdn…/ao-thun-den.jpg" },
+        { "name": "Trắng", "img": "https://cdn…/ao-thun-trang.jpg" }
+      ],
       "color_image_urls": [
         "https://cdn…/detail-1.jpg",
-        "https://cdn…/color-red.jpg"
+        "https://cdn…/lifestyle-1.jpg"
       ]
     },
     {
@@ -234,6 +238,7 @@ Cookie: <auth_session_cookie>
       "product_url": null,
       "score": null,
       "price_hint": null,
+      "color_variants": [],
       "color_image_urls": []
     }
   ],

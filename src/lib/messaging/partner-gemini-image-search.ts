@@ -14,6 +14,7 @@ import {
   embedImageBufferWithGemini,
   type GeminiImageEmbedResult,
 } from '@/lib/messaging/partner-inventory-embedding'
+import { parseColorVariantsJson } from '@/lib/messaging/inventory-color-variants'
 import {
   getPartnerPublicInventorySearchDefaultLimit,
   PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
@@ -28,7 +29,9 @@ export type GeminiImageSearchCandidate = {
   image_url: string
   product_url?: string
   price_hint?: string
-  /** Ảnh phụ từ kho (chi tiết / màu) — lọc từ material_detail + real_use slots. */
+  /** JSON màu trong cột kho `stock_note` (Excel) — [{ name, img }]. */
+  color_variants?: Array<{ name: string; img: string }>
+  /** Ảnh phụ từ kho: material_detail + real_use (khác JSON màu ở stock_note). */
   color_image_urls?: string[]
   score?: number
 }
@@ -195,6 +198,7 @@ export async function geminiProductSearchFromImageBuffer(
           row.real_use_image_url,
           row.real_use_image_url_2
         )
+        const color_variants = parseColorVariantsJson(row.stock_note ?? '')
         return {
           inventoryId: row.id,
           name: row.name,
@@ -202,6 +206,7 @@ export async function geminiProductSearchFromImageBuffer(
           image_url: mainImg,
           ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
           ...(row.price_hint?.trim() ? { price_hint: row.price_hint.trim() } : {}),
+          ...(color_variants.length > 0 ? { color_variants } : {}),
           ...(color_image_urls.length > 0 ? { color_image_urls } : {}),
           score,
         }
@@ -294,6 +299,7 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
                 en.real_use_image_url_2
               )
             : []
+          const color_variants = en ? parseColorVariantsJson(en.stock_note) : []
           return {
             inventoryId: row.inventory_id,
             name: row.name,
@@ -301,6 +307,7 @@ export async function geminiProductSearchFromImageBufferViaVectorDb(
             image_url: mainImg,
             ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
             ...(ph ? { price_hint: ph } : {}),
+            ...(color_variants.length > 0 ? { color_variants } : {}),
             ...(color_image_urls.length > 0 ? { color_image_urls } : {}),
             score: typeof row.score === 'number' ? row.score : undefined,
           }

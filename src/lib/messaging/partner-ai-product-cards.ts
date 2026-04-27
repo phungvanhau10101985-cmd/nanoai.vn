@@ -11,7 +11,9 @@ export type PartnerAiProductCard = {
   image_url: string
   product_url: string
   price_hint?: string
-  /** Ảnh phụ (màu / mặc) từ kho — tìm theo vector ảnh ở guest chat. */
+  /** Màu + ảnh từ cột kho (JSON stock_note) — cùng schema form Mua ngay. */
+  color_variants?: Array<{ name: string; img: string }>
+  /** Ảnh phụ từ kho: material_detail + real_use. */
   color_image_urls?: string[]
   /** Mã kho — dùng khi khách bấm Tư vấn để gửi đúng ngữ cảnh cho AI. */
   sku?: string

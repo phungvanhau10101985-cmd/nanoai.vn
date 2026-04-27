@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
+import { parseColorVariantsJson } from '@/lib/messaging/inventory-color-variants'
 import type { Json } from '@/types/database.types'
 import {
   ensureConversationPg,
@@ -255,28 +256,6 @@ function parseSizeJson(raw: string): string[] {
       .map((x) => (typeof x === 'string' ? x.trim() : ''))
       .filter(Boolean)
       .slice(0, 50)
-  } catch {
-    return []
-  }
-}
-
-function parseColorVariantsJson(raw: string): Array<{ name: string; img: string }> {
-  const t = String(raw ?? '').trim()
-  if (!t) return []
-  try {
-    const arr = JSON.parse(t) as unknown
-    if (!Array.isArray(arr)) return []
-    const out: Array<{ name: string; img: string }> = []
-    for (const item of arr) {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) continue
-      const o = item as Record<string, unknown>
-      const name = typeof o.name === 'string' ? o.name.trim() : ''
-      const img = typeof o.img === 'string' ? o.img.trim() : ''
-      if (!name || !/^https?:\/\//i.test(img)) continue
-      out.push({ name, img })
-      if (out.length >= 30) break
-    }
-    return out
   } catch {
     return []
   }
