@@ -6,6 +6,9 @@ export const PARTNER_AI_PRODUCT_CARDS_MAX = 8
 /** Số thẻ tối đa đọc từ payload / nhánh chọn mua (có thể lớn hơn giới hạn LLM). */
 export const PARTNER_AI_PRODUCT_CARDS_DISPLAY_MAX = 10
 
+/** Tin `source: ai_purchase_pick_list` — gom SP đã hiện trong chat (có thể tới 30 thẻ). */
+export const PARTNER_AI_PURCHASE_PICK_LIST_CARD_CAP = 30
+
 export type PartnerAiProductCard = {
   name: string
   image_url: string
@@ -86,12 +89,17 @@ export function aiProductCardsFromPayload(raw: Json | null): PartnerAiProductCar
   const o = raw as Record<string, unknown>
   const arr = o.ai_product_cards
   if (!Array.isArray(arr) || arr.length === 0) return []
+  const source = typeof o.source === 'string' ? o.source.trim() : ''
+  const cap =
+    source === 'ai_purchase_pick_list' || source === 'ai_chat_order_guidance'
+      ? PARTNER_AI_PURCHASE_PICK_LIST_CARD_CAP
+      : PARTNER_AI_PRODUCT_CARDS_DISPLAY_MAX
   /** Có `ai_product_cards` là đủ — một số tin lưu thiếu `source: 'ai_llm'` khiến trước đây không đọc được thẻ. */
   const products: PartnerAiProductCard[] = []
   for (const item of arr) {
     const c = sanitizeProductCard(item)
     if (c) products.push(c)
-    if (products.length >= PARTNER_AI_PRODUCT_CARDS_DISPLAY_MAX) break
+    if (products.length >= cap) break
   }
   return products
 }

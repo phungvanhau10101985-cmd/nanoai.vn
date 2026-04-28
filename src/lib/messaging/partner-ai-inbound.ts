@@ -17,7 +17,10 @@ import {
 } from '@/lib/db/messaging-partner-ai-jobs-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import type { CustomerCareChannel } from '@/lib/customer-care/types'
-import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-image'
+import {
+  inboundBodyHasCustomerUploadedImage,
+  inboundTextHasVisionSelectionHint,
+} from '@/lib/messaging/guest-chat-image'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
 import { normalizeWebLocale } from '@/lib/i18n/config'
@@ -157,7 +160,7 @@ async function runInstantChatOrderFollowup(ctx: {
   const body = enforceConfiguredGenderAddressing(neutral, gender ?? null)
   const rawPayload = {
     source: 'ai_chat_order_guidance',
-    ai_product_cards: ctx.cards.slice(0, 1),
+    ai_product_cards: ctx.cards,
   } as unknown as Json
   const err = await deliverAutomatedPartnerMessage({
     conversation: conv,
@@ -268,7 +271,14 @@ export async function handlePartnerInboundForAi(input: {
         pickUiLocale = null
       }
     }
-    if (!skipPurchasePickBranch && inboundTextLooksLikePurchasePickListIntent(input.inboundBody)) {
+    /** Ảnh khách + ý mua: chỉ carousel vector theo ảnh (`widget-guest-post`), không gộp list «đã bấm Tư vấn». */
+    const skipPurchasePickForCustomerImage =
+      input.channel === 'widget' && inboundBodyHasCustomerUploadedImage(input.inboundBody)
+    if (
+      !skipPurchasePickBranch &&
+      !skipPurchasePickForCustomerImage &&
+      inboundTextLooksLikePurchasePickListIntent(input.inboundBody)
+    ) {
       const cards = await buildPurchasePickListCardsFromConversation(input.partnerId, input.conversationId)
       if (cards.length > 0) {
         await cancelPendingAiJobsForConversation(input.conversationId)

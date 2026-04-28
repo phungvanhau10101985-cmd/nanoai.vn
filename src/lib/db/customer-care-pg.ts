@@ -639,6 +639,31 @@ export async function fetchConsultedProductUrlKeysByRecencyFromPg(
   }
 }
 
+/**
+ * `raw_payload` các tin trong hội thoại, **mới nhất trước** — dùng gom SP đã hiện trên thẻ trong chat.
+ */
+export async function fetchCustomerCareMessagePayloadsDescFromPg(
+  conversationId: string,
+  maxMessages = 500
+): Promise<Array<{ raw_payload: Json | null }> | null> {
+  if (!isPgConfigured()) return null
+  const lim = Math.max(50, Math.min(2000, Math.floor(Number(maxMessages)) || 500))
+  try {
+    const rows = await pgQuery<{ raw_payload: Json | null }>(
+      `select raw_payload
+       from public.customer_care_messages
+       where conversation_id = $1::uuid
+       order by created_at desc
+       limit $2`,
+      [conversationId, lim]
+    )
+    return rows.map((r) => ({ raw_payload: (r.raw_payload ?? null) as Json | null }))
+  } catch (e) {
+    console.error('[customer-care-pg] fetchCustomerCareMessagePayloadsDescFromPg', e)
+    return null
+  }
+}
+
 export async function fetchConsultedProductKeysForConversationFromPg(
   conversationId: string
 ): Promise<string[] | null> {

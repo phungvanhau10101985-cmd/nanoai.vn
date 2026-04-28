@@ -256,6 +256,11 @@ export function partnerMediaPayloadToJson(p: PartnerMediaRawPayload): Json {
   return p as unknown as Json
 }
 
+/** Tin widget có ảnh khách upload — không dùng nhánh «SP đã tư vấn»; carousel phải là kết quả tìm theo ảnh. */
+export function inboundBodyHasCustomerUploadedImage(body: string): boolean {
+  return /\[Customer image:\s*https?:\/\//i.test(body)
+}
+
 /** Plain text cho FAQ / AI (kèm URL ảnh nếu có). */
 export function inboundTextForPartnerAi(textBody: string, imagePublicUrl?: string | null): string {
   const caption = textBody.replace(/^📷\s*/u, '').trim()

@@ -1,11 +1,8 @@
 import type { Json } from '@/types/database.types'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
-import { partnerAiProductCardFromInventoryRow } from '@/lib/messaging/partner-ai-followup-product-cards-clamp'
+import { buildPurchasePickListCardsFromConversation } from '@/lib/messaging/partner-ai-purchase-pick-list'
 import { normalizeCustomerMessageForInventorySearch } from '@/lib/messaging/partner-inventory-ai-search'
-import { fetchLatestConsultedProductUrlKeyForConversationFromPg } from '@/lib/db/customer-care-pg'
-import { fetchPartnerInventoryRowByProductUrlNormKeyFromPg } from '@/lib/db/messaging-partner-inventory-pg'
-import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
 import type { WebLocale } from '@/lib/i18n/config'
 
 /**
@@ -53,31 +50,13 @@ export function precedingPairHasFashionProductAdvice(
   return ms.some((m) => outboundFashionProductAdviceSignals(m.direction, m.raw_payload))
 }
 
+/** Cùng nguồn gom SP đã hiện trong chat (tối đa 30, mới → cũ) như nhánh «chọn Mua». */
 export async function resolveChatOrderFollowupCards(
   partnerId: string,
   conversationId: string,
-  pair: Array<{ direction: string; body: string; raw_payload: Json | null }>
+  _pair: Array<{ direction: string; body: string; raw_payload: Json | null }>
 ): Promise<PartnerAiProductCard[]> {
-  const newestFirst = [...pair].reverse()
-  const picked: PartnerAiProductCard[] = []
-  for (const m of newestFirst) {
-    if (m.direction !== 'outbound') continue
-    const fromPayload = aiProductCardsFromPayload(m.raw_payload)
-    if (fromPayload.length > 0) {
-      picked.push(fromPayload[0])
-      break
-    }
-  }
-  if (picked.length > 0) {
-    return enrichPartnerAiProductCardsWithInventoryVideoFromPg(partnerId, picked)
-  }
-  const fallbackKey = await fetchLatestConsultedProductUrlKeyForConversationFromPg(conversationId)
-  if (!fallbackKey?.trim()) return []
-  const row = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(partnerId, fallbackKey.trim())
-  const c = row ? partnerAiProductCardFromInventoryRow(row) : null
-  if (!c) return []
-  const enriched = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(partnerId, [c])
-  return enriched.length ? enriched : []
+  return buildPurchasePickListCardsFromConversation(partnerId, conversationId)
 }
 
 /** Hướng dẫn mua trong chat + thẻ — trung tính (anh/chị) trước khi chỉnh theo giới tính DB. */
@@ -90,13 +69,13 @@ export function chatOrderFollowupGuideMessageNeutral(uiLocale: WebLocale | null 
     return 'You can buy right here in this chat. Tap **Buy now** on the product card below and complete your order.'
   }
   if (loc.startsWith('zh') || loc === 'ch') {
-    return '您可以直接在本对话框内购买。**立即购买** 请点卡片上的按钮并完成下单即可。'
+    return '您可以直接在本对话框内购买。请在下方商品卡片上点**立即购买**并完成下单。'
   }
   if (loc.startsWith('ja')) {
-    return 'チャット画面のままでご購入いただけます。下の商品カードから**今すぐ購入**をタップしてご注文に進んでください。'
+    return 'チャット画面のままでご購入いただけます。下の商品カードの**今すぐ購入**をタップしてご注文に進んでください。'
   }
   if (loc.startsWith('ko')) {
     return '채팅에서 바로 구매할 수 있어요. 아래 상품 카드에서 **바로구매**를 누르고 주문을 완료해 주세요.'
   }
-  return 'Anh/chị có thể mua hàng ngay trong chat này ạ. Anh/chị bấm **Mua ngay** trên thẻ và lên đơn nhé.'
+  return 'Anh/chị có thể mua hàng ngay trong chat này ạ. Anh/chị bấm **Mua ngay** trên thẻ sản phẩm dưới đây và lên đơn nhé.'
 }

@@ -45,6 +45,7 @@ import {
 import type { PartnerAiWidgetIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { partnerAiMessageAloneSuggestsClarifyIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
+import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
 import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
 import type { GuestProfileGender } from '@/lib/db/messaging-guest-pg'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -376,6 +377,33 @@ function buildVisionPickReminder(
   return `Em tìm thêm vài mẫu ${typeLabel} để ${viAddress} tham khảo. ${viFollow}`
 }
 
+/** Khi ảnh + carousel: khách đã nêu ý mua — gợi ý theo ảnh + hướng dẫn Mua ngay / lên đơn. */
+function buildVisionPickPurchaseIntentReminder(
+  uiLocale?: string | null,
+  productGender?: GuestProfileGender | null,
+  customerGender?: GuestProfileGender | null,
+  productType?: string | null
+): string {
+  const locale = normalizeWebLocale(String(uiLocale ?? '').trim()) ?? 'vi'
+  const typeLabel = productTypeLabelForLocale(locale, productType)
+  const preferredGender = customerGender ?? productGender ?? null
+  const viAddress = preferredGender === 'male' ? 'anh' : preferredGender === 'female' ? 'chị' : 'bạn'
+  const cap = viAddress.charAt(0).toUpperCase() + viAddress.slice(1)
+  if (locale === 'en') {
+    return `Below are ${typeLabel} picks close to your photo. Tap **Buy now** to place an order, or **Consult** if you need more help.`
+  }
+  if (locale === 'zh') {
+    return `以下是与您照片相近的${typeLabel}款式。请点击**立即购买**下单，或点**咨询**获取更多帮助。`
+  }
+  if (locale === 'ja') {
+    return `お写真に近い${typeLabel}をいくつかご案内します。**今すぐ購入**で注文するか、**相談**で詳しく聞いてください。`
+  }
+  if (locale === 'ko') {
+    return `보내주신 사진과 비슷한 ${typeLabel}를 모았어요. **바로 구매**로 주문하시거나 **상담**을 눌러 도움을 받으세요.`
+  }
+  return `Dạ, em gửi ${viAddress} danh sách mẫu ${typeLabel} gần giống ảnh ${viAddress} gửi để tham khảo. ${cap} chọn mẫu ưng ý rồi bấm **Mua ngay** để lên đơn mua hàng, hoặc bấm **Tư vấn** để bên em hỗ trợ thêm ạ.`
+}
+
 /**
  * Tin inbound từ khách qua widget (trang hosted NanoAI — bắt buộc đăng nhập; hoặc embed API ẩn danh trên site shop).
  * Cho phép chỉ chữ, chỉ ảnh (đã upload), hoặc ảnh + chú thích. Chỉ Postgres cho đếm/AI settings/giá kho.
@@ -647,17 +675,14 @@ export async function postWidgetGuestMessage(params: {
             }
 
             const caption = imageCaption.trim()
-            const vectorAutoByImage =
-              shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType) ??
-              (caption
-                ? shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType, {
-                    ignoreTypeMismatch: true,
-                  })
-                : null)
+            /** Ý mua kèm ảnh: luôn hiện carousel kết quả tìm trong kho — không auto-chọn 1 mẫu (tránh gọi nhánh list «đã tư vấn»). */
+            const holdImageSearchCarouselForPurchaseIntent =
+              caption.length > 0 && inboundTextLooksLikePurchasePickListIntent(caption)
+
             if (caption && productPickCandidates.length > 1) {
               const rerank = rankVisionCandidatesByCaption(productPickCandidates, caption)
               productPickCandidates = rerank.ranked
-              if (rerank.preferred) {
+              if (rerank.preferred && !holdImageSearchCarouselForPurchaseIntent) {
                 autoSelectedTopCandidate = rerank.preferred
                 imageMatchedInventoryContext = {
                   inventoryId: rerank.preferred.inventoryId,
@@ -667,19 +692,28 @@ export async function postWidgetGuestMessage(params: {
               }
             }
 
-            const topCandidate =
-              autoSelectedTopCandidate ??
-              vectorAutoByImage ??
-              shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType, {
-                ignoreTypeMismatch: caption.length > 0,
-              })
-            if (topCandidate && !autoSelectedTopCandidate) {
-              autoSelectedTopCandidate = topCandidate
-              imageMatchedInventoryContext = {
-                inventoryId: topCandidate.inventoryId,
-                sku: (topCandidate.sku ?? '').trim().slice(0, 128),
+            if (!holdImageSearchCarouselForPurchaseIntent) {
+              const vectorAutoByImage =
+                shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType) ??
+                (caption
+                  ? shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType, {
+                      ignoreTypeMismatch: true,
+                    })
+                  : null)
+              const topCandidate =
+                autoSelectedTopCandidate ??
+                vectorAutoByImage ??
+                shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType, {
+                  ignoreTypeMismatch: caption.length > 0,
+                })
+              if (topCandidate && !autoSelectedTopCandidate) {
+                autoSelectedTopCandidate = topCandidate
+                imageMatchedInventoryContext = {
+                  inventoryId: topCandidate.inventoryId,
+                  sku: (topCandidate.sku ?? '').trim().slice(0, 128),
+                }
+                detectedProductType = detectedProductType ?? inferProductTypeFromText(topCandidate.name)
               }
-              detectedProductType = detectedProductType ?? inferProductTypeFromText(topCandidate.name)
             }
           }
         }
@@ -936,18 +970,30 @@ export async function postWidgetGuestMessage(params: {
 
   if (newMessageId) {
     if (shouldSendVisionPickReminder) {
+      const captionTrim = text.trim()
+      const purchaseIntentOnImage =
+        captionTrim.length > 0 && inboundTextLooksLikePurchasePickListIntent(captionTrim)
       await insertMessage({
         conversationId,
         direction: 'outbound',
-        body: buildVisionPickReminder(
-          params.uiLocale,
-          detectedProductGender,
-          detectedProductType,
-          text.trim(),
-          configuredGuestGender
-        ),
+        body: purchaseIntentOnImage
+          ? buildVisionPickPurchaseIntentReminder(
+              params.uiLocale,
+              detectedProductGender,
+              configuredGuestGender,
+              detectedProductType
+            )
+          : buildVisionPickReminder(
+              params.uiLocale,
+              detectedProductGender,
+              detectedProductType,
+              captionTrim,
+              configuredGuestGender
+            ),
         rawPayload: {
-          source: 'guest_vision_pick_reminder',
+          source: purchaseIntentOnImage
+            ? 'guest_vision_pick_purchase_intent_reminder'
+            : 'guest_vision_pick_reminder',
           trigger_message_id: newMessageId,
           vision_pick_required: true,
           vision_candidates: productPickCandidates,

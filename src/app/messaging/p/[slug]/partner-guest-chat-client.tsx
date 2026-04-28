@@ -506,17 +506,23 @@ function isWidgetPageConsultInbound(raw: Json | null | undefined): boolean {
   return String((pc as Record<string, unknown>).source ?? '').trim() === 'widget_page'
 }
 
+function isGuestVisionPickReminderPayload(raw: Json | null | undefined): boolean {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
+  const s = typeof o?.source === 'string' ? o.source.trim() : ''
+  return s === 'guest_vision_pick_reminder' || s === 'guest_vision_pick_purchase_intent_reminder'
+}
+
 /** Một số tin hệ thống do shop phát ra nhưng có thể đi qua luồng inbound: luôn render phía shop (trái). */
 function isForcedShopSideMessage(raw: Json | null | undefined): boolean {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
   if (!o) return false
-  if (o.source === 'guest_vision_pick_reminder') return true
+  if (isGuestVisionPickReminderPayload(raw)) return true
   return o.widget_auto_opening === true
 }
 
 function visionReminderTriggerMessageId(raw: Json | null | undefined): string | null {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
-  if (!o || o.source !== 'guest_vision_pick_reminder') return null
+  if (!o || !isGuestVisionPickReminderPayload(raw)) return null
   const v = typeof o.trigger_message_id === 'string' ? o.trigger_message_id.trim() : ''
   return v || null
 }

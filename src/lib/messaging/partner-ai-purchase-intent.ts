@@ -62,9 +62,20 @@ function looksLikeCheckoutPhoneSignal(message: string): boolean {
   return false
 }
 
+/** «Mua/lấy mẫu trong ảnh / hình này» — khách gửi ảnh kèm chú thích. */
+function looksLikeBuyingModelInPhotoPhrase(message: string): boolean {
+  if (!message) return false
+  const hasCheckoutVerb = /\b(?:lấy|lay|đặt|dat|chốt|chot|mua|muốn|order|buy)\b/i.test(message)
+  if (!hasCheckoutVerb) return false
+  return /\b(?:trong\s*(?:ảnh|hình)|ảnh\s*(?:này|gửi)|hình\s*(?:này|gửi)|theo\s*ảnh|như\s*ảnh)\b/i.test(
+    message
+  )
+}
+
 function looksLikeFashionCheckoutPhrase(message: string): boolean {
   if (!message) return false
   if (QUICK_FASHION_CHECKOUT_RE.test(message)) return true
+  if (looksLikeBuyingModelInPhotoPhrase(message)) return true
   // Mẫu tự do: có động từ mua/chốt + đồng thời có số lượng hoặc size/mẫu cụ thể.
   const hasCheckoutVerb = /\b(?:lấy|lay|đặt|dat|chốt|chot|mua)\b/i.test(message)
   if (!hasCheckoutVerb) return false
