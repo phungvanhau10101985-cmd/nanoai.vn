@@ -1076,6 +1076,42 @@ export async function fetchOutboundPayloadsAndBodiesNewestFirstPg(
   }
 }
 
+/**
+ * Hai tin nhắn ngay **trước** `$triggerMessageId` (đồng hồ, gần trigger trước).
+ * `order`: cũ trước → mới sau ( chronological ).
+ */
+export async function fetchTwoCareMessagesImmediatelyBeforePg(
+  conversationId: string,
+  triggerMessageId: string
+): Promise<Array<{ direction: string; body: string; raw_payload: Json | null }> | null> {
+  if (!isPgConfigured()) return null
+  const cid = conversationId.trim()
+  const tid = triggerMessageId.trim()
+  if (!cid || !tid) return null
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `select direction, body, raw_payload
+       from public.customer_care_messages m
+       where m.conversation_id = $1::uuid
+         and (m.created_at, m.id) <
+             (select i.created_at, i.id from public.customer_care_messages i where i.id = $2::uuid)
+       order by m.created_at desc, m.id desc
+       limit 2`,
+      [cid, tid]
+    )
+    return [...rows]
+      .reverse()
+      .map((r) => ({
+        direction: String(r.direction ?? ''),
+        body: String(r.body ?? ''),
+        raw_payload: (r.raw_payload ?? null) as Json | null,
+      }))
+  } catch (e) {
+    console.error('[customer-care-pg] fetchTwoCareMessagesImmediatelyBeforePg', e)
+    return null
+  }
+}
+
 /** Tin shop (outbound) mới nhất — dùng cho phân loại ý định widget (LLM). */
 export async function fetchLastOutboundCustomerCareMessageBodyPg(
   conversationId: string

@@ -1,11 +1,14 @@
 import type { Database, Json } from '@/types/database.types'
+import type { GuestProfileGender } from '@/lib/db/messaging-guest-pg'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import {
   fetchConversationUiLocaleFromPg,
   fetchCustomerCareConversationByIdPg,
   fetchLastOutboundCustomerCareMessageBodyPg,
+  fetchTwoCareMessagesImmediatelyBeforePg,
   mergeCustomerCareMessageRawPayloadPatchPg,
 } from '@/lib/db/customer-care-pg'
+import { fetchGuestGenderForPartnerConsultCachePg } from '@/lib/db/partner-product-consult-cache-pg'
 import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import { fetchMessagingPartnerByIdFromPg } from '@/lib/db/messaging-partners-pg'
 import {
@@ -14,7 +17,6 @@ import {
 } from '@/lib/db/messaging-partner-ai-jobs-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import type { CustomerCareChannel } from '@/lib/customer-care/types'
-import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
 import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-image'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
@@ -25,6 +27,13 @@ import {
   purchasePickListMessageBody,
 } from '@/lib/messaging/partner-ai-purchase-pick-list'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
+import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
+import {
+  chatOrderFollowupGuideMessageNeutral,
+  inboundTextLooksLikeCannotOrderOnWebIntent,
+  precedingPairHasFashionProductAdvice,
+  resolveChatOrderFollowupCards,
+} from '@/lib/messaging/partner-ai-chat-order-followup'
 
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 
@@ -95,34 +104,6 @@ export async function cancelPendingAiJobsForConversation(conversationId: string)
   }
 }
 
-async function runInstantFaq(ctx: {
-  partnerId: string
-  conversationId: string
-  settings: SettingsRow
-  answer: string
-  faqId: string
-  skipTypingDelay?: boolean
-}) {
-  let conv: Database['public']['Tables']['customer_care_conversations']['Row'] | null = null
-  try {
-    conv = await fetchCustomerCareConversationByIdPg(ctx.conversationId)
-  } catch (e) {
-    console.warn('[partner-ai] runInstantFaq PG conv failed', e)
-  }
-  if (!conv) return
-  if (!ctx.skipTypingDelay) {
-    await sleep(typingDelayMs(ctx.settings))
-  }
-  const rawPayload = { source: 'ai_faq', faq_id: ctx.faqId } as unknown as Json
-  const err = await deliverAutomatedPartnerMessage({
-    conversation: conv,
-    settings: ctx.settings,
-    body: ctx.answer,
-    rawPayload,
-  })
-  if (err.error) console.error('[partner-ai] instant FAQ deliver', err.error)
-}
-
 async function runInstantPurchasePickList(ctx: {
   partnerId: string
   conversationId: string
@@ -151,11 +132,47 @@ async function runInstantPurchasePickList(ctx: {
   if (err.error) console.error('[partner-ai] instant purchase pick list deliver', err.error)
 }
 
+async function runInstantChatOrderFollowup(ctx: {
+  partnerId: string
+  conversationId: string
+  settings: SettingsRow
+  cards: PartnerAiProductCard[]
+  uiLocale: string | null | undefined
+}) {
+  let conv: Database['public']['Tables']['customer_care_conversations']['Row'] | null = null
+  try {
+    conv = await fetchCustomerCareConversationByIdPg(ctx.conversationId)
+  } catch (e) {
+    console.warn('[partner-ai] runInstantChatOrderFollowup PG conv failed', e)
+  }
+  if (!conv) return
+  await sleep(typingDelayMs(ctx.settings))
+  const neutral = chatOrderFollowupGuideMessageNeutral(normalizeWebLocale(ctx.uiLocale ?? null))
+  let gender: GuestProfileGender | null = null
+  try {
+    gender = await fetchGuestGenderForPartnerConsultCachePg(conv.linked_user_id)
+  } catch (e) {
+    console.warn('[partner-ai] runInstantChatOrderFollowup gender', e)
+  }
+  const body = enforceConfiguredGenderAddressing(neutral, gender ?? null)
+  const rawPayload = {
+    source: 'ai_chat_order_guidance',
+    ai_product_cards: ctx.cards.slice(0, 1),
+  } as unknown as Json
+  const err = await deliverAutomatedPartnerMessage({
+    conversation: conv,
+    settings: ctx.settings,
+    body,
+    rawPayload,
+  })
+  if (err.error) console.error('[partner-ai] instant chat order follow-up deliver', err.error)
+}
+
 /** Gợi ý UI phía khách: hiện “đang trả lời” trong khoảng maxWaitMs (poll nhanh hơn). */
 export type PartnerInboundShopTypingHint = { show: false } | { show: true; maxWaitMs: number }
 
 /**
- * Sau mỗi tin inbound từ khách (FB/Zalo/widget/hosted): FAQ tức thì (nền) hoặc lên lịch job AI.
+ * Sau mỗi tin inbound từ khách (FB/Zalo/widget/hosted): nhánh tức thì (mua / hướng dẫn trong chat) hoặc lên lịch job AI.
  * Luôn await đến khi job đã insert (hoặc bỏ qua) để serverless không cắt giữa chừng.
  * Chỉ Postgres — cần `DATABASE_URL` để lên lịch job.
  */
@@ -168,7 +185,7 @@ export async function handlePartnerInboundForAi(input: {
   capReplyDelaySeconds?: number
   scheduleAiAfterSeconds?: number
   skipEagerBatchRun?: boolean
-  /** Widget: locale vừa merge (vi/en/…) — chọn bản FAQ trong `answer_i18n`. */
+  /** Widget: locale vừa merge (vi/en/…) — chọn văn bản nhánh tức thì (mua trong chat, v.v.). */
   widgetUiLocale?: string | null
   /** Tin thuần để phân loại ý định (khác `inboundBody` khi có dòng [Customer product …]). */
   intentClassifyText?: string | null
@@ -202,18 +219,43 @@ export async function handlePartnerInboundForAi(input: {
         faqLocale = null
       }
     }
-    const faq = skipFaq ? null : await findMatchingFaq(input.partnerId, input.inboundBody, { locale: faqLocale })
-    if (faq) {
-      /** Nền: sleep theo `typing_pause_*` rồi mới gửi — khách thấy «shop đang trả lời» trong lúc đó (maxWaitMs bên dưới). */
-      void runInstantFaq({
-        partnerId: input.partnerId,
-        conversationId: input.conversationId,
-        settings,
-        answer: faq.answer,
-        faqId: faq.id,
-      })
-      const typingHi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
-      return { show: true, maxWaitMs: typingHi + 10_000 }
+
+    /** Shop thời trang: «không đặt được trên web» ngay sau tư vấn SP — hướng dẫn Mua trong chat + thẻ (ưu tiên trước FAQ). */
+    if (
+      partnerGate?.industry_key === 'fashion' &&
+      !skipFaq &&
+      isPgConfigured()
+    ) {
+      const probeForCantOrder = stripInboundBodyForIntentClassify(
+        typeof input.intentClassifyText === 'string' && input.intentClassifyText.trim()
+          ? input.intentClassifyText
+          : input.inboundBody
+      )
+      if (probeForCantOrder.trim().length > 0 && inboundTextLooksLikeCannotOrderOnWebIntent(probeForCantOrder)) {
+        try {
+          const twoBefore = await fetchTwoCareMessagesImmediatelyBeforePg(
+            input.conversationId,
+            input.messageId
+          )
+          if (twoBefore && precedingPairHasFashionProductAdvice(twoBefore)) {
+            const cards = await resolveChatOrderFollowupCards(input.partnerId, input.conversationId, twoBefore)
+            if (cards.length > 0) {
+              await cancelPendingAiJobsForConversation(input.conversationId)
+              void runInstantChatOrderFollowup({
+                partnerId: input.partnerId,
+                conversationId: input.conversationId,
+                settings,
+                cards,
+                uiLocale: faqLocale ? String(faqLocale) : input.widgetUiLocale ?? null,
+              })
+              const typingHi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
+              return { show: true, maxWaitMs: typingHi + 10_000 }
+            }
+          }
+        } catch (e) {
+          console.warn('[partner-ai-inbound] fashion chat order follow-up', e)
+        }
+      }
     }
 
     const skipPurchasePickBranch = skipFaq

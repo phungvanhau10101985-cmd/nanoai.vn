@@ -14,9 +14,7 @@ import {
   updatePartnerAiJobStatusPg,
 } from '@/lib/db/messaging-partner-ai-jobs-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
-import { inboundTextHasVisionSelectionHint } from '@/lib/messaging/guest-chat-image'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import {
   buildPartnerAiContext,
@@ -29,6 +27,7 @@ import {
   fetchPartnerProductConsultCacheFromPg,
   upsertPartnerProductConsultCachePg,
 } from '@/lib/db/partner-product-consult-cache-pg'
+import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
 import {
@@ -71,28 +70,6 @@ function typingDelayMs(settings: Database['public']['Tables']['messaging_partner
   const a = Math.min(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
   const b = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
   return a + Math.floor(Math.random() * Math.max(1, b - a + 1))
-}
-
-function replaceStandaloneWord(text: string, fromWord: string, toWord: string): string {
-  const re = new RegExp(`(^|[^\\p{L}])${fromWord}([^\\p{L}]|$)`, 'giu')
-  return text.replace(re, (_m, left: string, right: string) => `${left}${toWord}${right}`)
-}
-
-function enforceConfiguredGenderAddressing(message: string, gender: GuestProfileGender | null): string {
-  const body = message.trim()
-  if (!body) return message
-  if (gender !== 'male' && gender !== 'female') return message
-  let out = body
-  if (gender === 'male') {
-    out = out.replace(/anh\s*\/\s*chị|chị\s*\/\s*anh/giu, 'anh')
-    out = out.replace(/anh\s+chị|chị\s+anh/giu, 'anh')
-    out = replaceStandaloneWord(out, 'chị', 'anh')
-  } else {
-    out = out.replace(/anh\s*\/\s*chị|chị\s*\/\s*anh/giu, 'chị')
-    out = out.replace(/anh\s+chị|chị\s+anh/giu, 'chị')
-    out = replaceStandaloneWord(out, 'anh', 'chị')
-  }
-  return out
 }
 
 async function setPartnerAiJobStatus(
@@ -205,28 +182,8 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         skipped += 1
         continue
       }
-      const skipFaq = inboundTextHasVisionSelectionHint(inboundForAi)
       const convUiLoc = normalizeWebLocale(uiLocaleFromConversationMetadata(conv.metadata))
       const configuredGender = await fetchGuestGenderForPartnerConsultCachePg(conv.linked_user_id)
-      const faq = skipFaq ? null : await findMatchingFaq(job.partner_id, inboundForAi, { locale: convUiLoc })
-      if (faq) {
-        await sleep(typingDelayMs(settings))
-        const rawFaq = { source: 'ai_faq', faq_id: faq.id } as unknown as Json
-        const d1 = await deliverAutomatedPartnerMessage({
-          conversation: conv,
-          settings,
-          body: enforceConfiguredGenderAddressing(faq.answer, configuredGender),
-          rawPayload: rawFaq,
-        })
-        if (d1.error) {
-          await setPartnerAiJobStatus(job.id, { status: 'failed', error: d1.error })
-          failed += 1
-        } else {
-          await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
-          completed += 1
-        }
-        continue
-      }
 
       const cacheUiLocale: WebLocale = convUiLoc ?? DEFAULT_WEB_LOCALE
 

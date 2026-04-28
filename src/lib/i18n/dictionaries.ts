@@ -447,12 +447,11 @@ export type Dictionary = {
     proofReceiptShortManual: string
     proofReceiptShortNone: string
   }
-  /** /dashboard/messaging — trợ lý AI tự động (FAQ + delay + DeepSeek) */
+  /** /dashboard/messaging — trợ lý AI (chờ nhân viên + LLM / kho) */
   partnerMessagingAi: {
     panelTitle: string
     panelSubtitle: string
     tabSettings: string
-    tabFaq: string
     tabInventory: string
     /** Tab thống kê token API LLM */
     tabUsage: string
@@ -2312,9 +2311,8 @@ const VI_DICTIONARY: Dictionary = {
   partnerMessagingAi: {
     panelTitle: 'Trợ lý AI tự động',
     panelSubtitle:
-      'Khớp FAQ (câu hỏi mẫu hoặc tuỳ chỉnh) thì trả lời nhanh (giả lập đang gõ). Không khớp: chờ bạn trả lời trong khoảng thời gian cấu hình; hết thời gian mà chưa trả lời thì AI dùng chính sách shop, giọng điệu và danh sách hàng có trong kho để tư vấn.',
+      'Sau tin khách hệ thống chờ bạn trong khoảng thời gian cấu hình; hết giờ mà chưa trả lời thì AI dùng chính sách shop, giọng điệu và danh mục hàng trong kho để tư vấn. Một số tin được xử lý không qua model (danh sách đặt mua, hướng dẫn mua trong chat…).',
     tabSettings: 'Cài đặt',
-    tabFaq: 'FAQ',
     tabInventory: 'Hàng trong kho',
     tabUsage: 'Token API',
     usagePeriodLabel: 'Khoảng',
@@ -2337,7 +2335,7 @@ const VI_DICTIONARY: Dictionary = {
     usageSectionApiIntro:
       'LLM inbox, tạo ảnh Nano Banana, embedding ảnh/văn bản, suy chất liệu từ ảnh sản phẩm… — thống kê theo usage đã ghi, không đi qua ví như phần trên.',
     tokenUsageIntro:
-      'Tổng hợp {scope}. Mỗi dòng là một model API đã gọi khi AI trả lời bằng LLM (sau thời gian chờ). Tin khớp FAQ không dùng LLM nên không có trong bảng này.',
+      'Tổng hợp {scope}. Mỗi dòng là một model API đã gọi khi AI trả lời bằng LLM (sau thời gian chờ).',
     tokenUsageEmpty: 'Chưa có lần gọi LLM nào trong khoảng thời gian này.',
     tokenUsageColProvider: 'Nhà cung cấp',
     tokenUsageColModel: 'Model',
@@ -2370,7 +2368,7 @@ const VI_DICTIONARY: Dictionary = {
       'Có thêm cột chi phí ước tính (₫) theo nhánh, ngày, tuần và tháng (UTC); cùng cách tính với tổng kỳ.',
     usageDetailApiTitle: 'Chi tiết từng lần gọi LLM (inbox)',
     usageDetailApiIntro:
-      'Mỗi dòng là một lần gọi API sau thời gian chờ — ghi nhận token thực tế. FAQ khớp sẵn không gọi LLM nên không có ở đây.',
+      'Mỗi dòng là một lần gọi API sau thời gian chờ — ghi nhận token thực tế.',
     usageDetailColTime: 'Thời điểm',
     usageDetailColUsageKind: 'Nhánh',
     usageTokenKindInbox: 'LLM hội thoại',
@@ -2430,7 +2428,7 @@ const VI_DICTIONARY: Dictionary = {
     typingMinLabel: 'Độ trễ gõ tối thiểu (ms)',
     typingMaxLabel: 'Độ trễ gõ tối đa (ms)',
     typingHint:
-      'Chỉ dùng khi gửi câu FAQ có sẵn (không qua model): chọn ngẫu nhiên trong khoảng trước khi gửi (0–30000) để không quá «máy móc». Tin do model AI sinh không thêm bước này. Đặt cả hai 0 để tắt.',
+      'Độ trễ ngẫu nhiên (ms) trước khi gửi tin điều phối tự động không đi qua model LLM (ví dụ gợi ý đặt mua, hướng dẫn mua trong chat). Tin DeepSeek không dùng bước này sau khi model đã trả kết quả. Đặt cả hai 0 để tắt.',
     shopPolicyLabel: 'Chính sách & quy định shop',
     shopPolicyPlaceholder:
       'Ví dụ: đặt cọc 30%, không đổi hàng, đổi trong 7 ngày nếu lỗi sản xuất, freeship nội thành…',
@@ -2539,7 +2537,7 @@ const VI_DICTIONARY: Dictionary = {
     toggleStatusOff: 'Đang tắt',
     aiEngineTitle: 'AI trả lời thông minh',
     aiEngineDescription:
-      'Câu khớp FAQ dùng câu trả lời bạn đã lưu. Các câu khác — sau thời gian chờ — gọi API DeepSeek (model {model}).',
+      'Sau thời gian chờ, tin cần tư vấn gọi API DeepSeek (model {model}) với kho và chính sách bạn cài.',
     disclosureSwitchOn: 'Có ghi chú cuối tin',
     disclosureSwitchOff: 'Không ghi chú',
     faqPresetsIntro:
@@ -4172,9 +4170,8 @@ const EN_DICTIONARY: Dictionary = {
   partnerMessagingAi: {
     panelTitle: 'AI auto-replies',
     panelSubtitle:
-      'If the message matches a saved FAQ (preset or custom), we reply quickly with a typing delay. Otherwise we wait for you for the configured time; if you do not reply, the AI answers using your shop policy, tone, and your in-stock item list.',
+      'After a customer message we wait for you for the configured time; if no reply yet, the AI answers using your shop policy, tone, and in-stock inventory. Some messages are routed without LLM (purchase list prompts, buy-in-chat hints, …).',
     tabSettings: 'Settings',
-    tabFaq: 'FAQ',
     tabInventory: 'In-stock items',
     tabUsage: 'API tokens',
     usagePeriodLabel: 'Range',
@@ -4197,7 +4194,7 @@ const EN_DICTIONARY: Dictionary = {
     usageSectionApiIntro:
       'Inbox LLM, Nano Banana renders, image/text embeddings, material inference from product photos — counted from usage logs, not routed like wallet credits above.',
     tokenUsageIntro:
-      'Aggregated {scope}. Each row is an API model used when the AI replies via LLM (after the wait time). FAQ matches do not call the LLM, so they are not listed here.',
+      'Aggregated {scope}. Each row is an API model used when the AI replies via LLM (after the wait time).',
     tokenUsageEmpty: 'No LLM calls in this period yet.',
     tokenUsageColProvider: 'Provider',
     tokenUsageColModel: 'Model',
@@ -4230,7 +4227,7 @@ const EN_DICTIONARY: Dictionary = {
       'Extra columns show estimated cost (₫) by branch, day, week, and month (UTC), using the same formula as the period total.',
     usageDetailApiTitle: 'Per-call LLM usage (inbox)',
     usageDetailApiIntro:
-      'Each row is one API call after the wait time — actual token counts. FAQ exact matches do not call the LLM, so they do not appear here.',
+      'Each row is one API call after the wait time — actual token counts.',
     usageDetailColTime: 'Time',
     usageDetailColUsageKind: 'Kind',
     usageTokenKindInbox: 'Inbox LLM',
@@ -4292,7 +4289,7 @@ const EN_DICTIONARY: Dictionary = {
     typingMinLabel: 'Typing delay min (ms)',
     typingMaxLabel: 'Typing delay max (ms)',
     typingHint:
-      'Only for preset FAQ replies (no LLM): random delay in this range before sending (0–30000) so replies do not feel instant-on. LLM-generated messages skip this. Set both to 0 to disable.',
+      'Random delay (ms) before sending automated messages that do not use the LLM (e.g. purchase list, buy-in-chat guidance). DeepSeek replies do not use this after the model returns. Set both to 0 to disable.',
     shopPolicyLabel: 'Shop policies & rules',
     shopPolicyPlaceholder:
       'e.g. 30% deposit, no exchanges, 7-day exchange for defects only, free city shipping…',
@@ -4401,7 +4398,7 @@ const EN_DICTIONARY: Dictionary = {
     toggleStatusOff: 'Off',
     aiEngineTitle: 'Smart reply AI',
     aiEngineDescription:
-      'FAQ matches use your saved answers. Other messages — after the wait — call the DeepSeek API (model {model}).',
+      'After the wait window, conversational replies call the DeepSeek API (model {model}) using your inventory and policies.',
     disclosureSwitchOn: 'Append note',
     disclosureSwitchOff: 'No note',
     faqPresetsIntro:
@@ -6032,9 +6029,8 @@ const ZH_DICTIONARY: Dictionary = {
   partnerMessagingAi: {
     panelTitle: 'AI 自动回复',
     panelSubtitle:
-      '若消息匹配已保存的 FAQ（模板或自定义），将较快回复并模拟输入延迟；否则在您设定的时间内等待人工回复，超时后由 AI 结合店铺政策、语气与库存商品列表作答。',
+      '顾客发消息后，系统先在您设定的时间内等待人工回复；超时未回复则由 AI 结合店铺政策、语气与库存商品列表作答。少数消息不经大模型（下单提示、聊天内购买引导等）。',
     tabSettings: '设置',
-    tabFaq: '常见问题',
     tabInventory: '库存商品',
     tabUsage: 'API 用量',
     usagePeriodLabel: '范围',
@@ -6057,7 +6053,7 @@ const ZH_DICTIONARY: Dictionary = {
     usageSectionApiIntro:
       '收件箱 LLM、Nano Banana 出图、图片/文本向量、从商品图推断面料等 — 按 usage 记录统计，不经上方钱包扣费路径。',
     tokenUsageIntro:
-      '{scope}的汇总。每一行表示在等待时间后通过 LLM 回复时使用的 API 模型。匹配 FAQ 不会调用 LLM，因此不会出现在此表中。',
+      '{scope}的汇总。每一行表示在等待时间后通过 LLM 回复时使用的 API 模型。',
     tokenUsageEmpty: '此期间尚无 LLM 调用记录。',
     tokenUsageColProvider: '提供商',
     tokenUsageColModel: '模型',
@@ -6087,7 +6083,7 @@ const ZH_DICTIONARY: Dictionary = {
       '以下表格含按分支、日、周、月（UTC）估算的费用 (₫)，与期间总计算法一致。',
     usageDetailApiTitle: '每次 LLM 调用明细（收件箱）',
     usageDetailApiIntro:
-      '每一行表示等待时间后的一次 API 调用及实际 token。匹配 FAQ 不会调用 LLM，因此不会出现在此表中。',
+      '每一行表示等待时间后的一次 API 调用及实际 token。',
     usageDetailColTime: '时间',
     usageDetailColUsageKind: '类型',
     usageTokenKindInbox: '会话 LLM',
@@ -6147,7 +6143,7 @@ const ZH_DICTIONARY: Dictionary = {
     typingMinLabel: '输入延迟下限（毫秒）',
     typingMaxLabel: '输入延迟上限（毫秒）',
     typingHint:
-      '仅用于预设 FAQ 直发（不经模型）：发送前在此范围随机延迟（0–30000），避免过于生硬。模型生成的回复不加此延迟。两项均 0 则关闭。',
+      '不经大模型而自动发送的消息（如下单提示、聊天内购买引导）在发送前于该范围随机延迟（0–30000）。DeepSeek 正文不重复此步骤。两项均 0 则关闭。',
     shopPolicyLabel: '店铺政策与规则',
     shopPolicyPlaceholder: '例如：定金 30%、不换货、质量问题 7 天内可换、同城包邮等。',
     toneLabel: '语气 / 回复指引',
@@ -6250,7 +6246,7 @@ const ZH_DICTIONARY: Dictionary = {
     toggleStatusOff: '已关闭',
     aiEngineTitle: '智能回复 AI',
     aiEngineDescription:
-      '匹配 FAQ 时使用您保存的回答；其他消息在等待结束后调用 DeepSeek API（模型 {model}）。',
+      '等待结束后，会话类消息调用 DeepSeek API（模型 {model}），并结合您配置的库存与政策。',
     disclosureSwitchOn: '附加文末说明',
     disclosureSwitchOff: '不附加',
     faqPresetsIntro:
@@ -7833,9 +7829,8 @@ const JA_DICTIONARY: Dictionary = {
   partnerMessagingAi: {
     panelTitle: 'AI 自動返信',
     panelSubtitle:
-      '保存した FAQ（テンプレートまたはカスタム）に一致すれば入力遅延付きで素早く返信します。一致しない場合は設定時間だけ人間の返信を待ち、間に合わなければ店舗ポリシー・トーン・在庫商品リストを踏まえて AI が回答します。',
+      'お客様の発言のあと、設定した時間だけ手動返信を待ちます；時間切れでも未返信なら、店舗ポリシー・トーン・在庫リストに基づき AI が返答します（一部メッセージは LLM 以外の処理）。',
     tabSettings: '設定',
-    tabFaq: 'FAQ',
     tabInventory: '在庫商品',
     tabUsage: 'API トークン',
     usagePeriodLabel: '期間',
@@ -7858,7 +7853,7 @@ const JA_DICTIONARY: Dictionary = {
     usageSectionApiIntro:
       '受信トレイ LLM、Nano Banana 画像、画像/テキスト埋め込み、商品画像からの素材推定など — usage ログに基づき、上のウォレット経路とは別に集計します。',
     tokenUsageIntro:
-      '{scope}の集計です。各行は待機時間後に LLM で返信したときの API モデルです。FAQ に一致した場合は LLM を呼ばないためここに含まれません。',
+      '{scope}の集計です。各行は待機時間後に LLM で返信したときの API モデルです。',
     tokenUsageEmpty: 'この期間に LLM 呼び出しはまだありません。',
     tokenUsageColProvider: 'プロバイダー',
     tokenUsageColModel: 'モデル',
@@ -7891,7 +7886,7 @@ const JA_DICTIONARY: Dictionary = {
       '分岐・日・週・月（UTC）ごとの見積費用 (₫) 列を表示します。期間合計と同じ計算式です。',
     usageDetailApiTitle: 'LLM 呼び出しごとの詳細（受信トレイ）',
     usageDetailApiIntro:
-      '各行は待機時間後の 1 回の API 呼び出しと実トークンです。FAQ に一致した場合は LLM を呼ばないためここに含まれません。',
+      '各行は待機時間後の 1 回の API 呼び出しと実トークンです。',
     usageDetailColTime: '日時',
     usageDetailColUsageKind: '種別',
     usageTokenKindInbox: '受信トレイ LLM',
@@ -7953,7 +7948,7 @@ const JA_DICTIONARY: Dictionary = {
     typingMinLabel: '入力遅延 最小（ms）',
     typingMaxLabel: '入力遅延 最大（ms）',
     typingHint:
-      'プリセット FAQ の即時送信のみ（LLM なし）：送信前にこの範囲でランダム遅延（0〜30000）。LLM 生成メッセージには適用しません。両方 0 でオフ。',
+      'LLM を使わず送る自動メッセージ（購入一覧の案内、チャット内購入手順など）の送信前ランダム遅延（0〜30000）。DeepSeek の本文には適用しません。両方 0 でオフ。',
     shopPolicyLabel: '店舗ポリシー・ルール',
     shopPolicyPlaceholder:
       '例：手付け 30%、交換不可、不良品は 7 日以内交換、市内送料無料 など。',
@@ -8062,7 +8057,7 @@ const JA_DICTIONARY: Dictionary = {
     toggleStatusOff: 'オフ',
     aiEngineTitle: 'スマート返信 AI',
     aiEngineDescription:
-      'FAQ に一致する場合は保存済みの回答を使用。それ以外は待機後に DeepSeek API（モデル {model}）を呼び出します。',
+      '待機後、対話には DeepSeek API（モデル {model}）を呼び、在庫とポリシーを反映します。',
     disclosureSwitchOn: '文末に注記',
     disclosureSwitchOff: '注記なし',
     faqPresetsIntro:
@@ -9676,9 +9671,8 @@ const KO_DICTIONARY: Dictionary = {
   partnerMessagingAi: {
     panelTitle: 'AI 자동 답장',
     panelSubtitle:
-      '저장된 FAQ(템플릿 또는 사용자 정의)와 일치하면 입력 지연을 두고 빠르게 답합니다. 일치하지 않으면 설정한 시간 동안 직접 답장을 기다린 뒤, 시간이 지나면 매장 정책·톤·재고 상품 목록을 바탕으로 AI가 답합니다.',
+      '고객 메시지 후 설정한 시간 동안 직접 회신을 기다립니다. 시간 내에 회신이 없으면 매장 정책·톤·재고 목록을 바탕으로 AI가 답합니다(일부 메시지는 LLM 외 처리).',
     tabSettings: '설정',
-    tabFaq: 'FAQ',
     tabInventory: '재고 상품',
     tabUsage: 'API 토큰',
     usagePeriodLabel: '범위',
@@ -9701,7 +9695,7 @@ const KO_DICTIONARY: Dictionary = {
     usageSectionApiIntro:
       '받은편지함 LLM, Nano Banana 이미지, 이미지/텍스트 임베딩, 상품 사진에서 소재 추론 등 — usage 로그 기준이며 위 지갑 차감과는 다릅니다.',
     tokenUsageIntro:
-      '{scope} 요약입니다. 각 행은 대기 시간 후 LLM으로 답할 때 사용한 API 모델입니다. FAQ 일치 시에는 LLM을 호출하지 않아 여기에 표시되지 않습니다.',
+      '{scope} 요약입니다. 각 행은 대기 시간 후 LLM으로 답할 때 사용한 API 모델입니다.',
     tokenUsageEmpty: '이 기간에 LLM 호출이 없습니다.',
     tokenUsageColProvider: '제공자',
     tokenUsageColModel: '모델',
@@ -9732,7 +9726,7 @@ const KO_DICTIONARY: Dictionary = {
       '분기·일·주·월(UTC)별 추정 비용(₫) 열이 표시되며, 기간 합계와 동일한 방식으로 계산합니다.',
     usageDetailApiTitle: 'LLM 호출별 상세(받은편지함)',
     usageDetailApiIntro:
-      '각 행은 대기 시간 후 한 번의 API 호출과 실제 토큰입니다. FAQ 일치 시 LLM을 호출하지 않아 여기에 없습니다.',
+      '각 행은 대기 시간 후 한 번의 API 호출과 실제 토큰입니다.',
     usageDetailColTime: '시각',
     usageDetailColUsageKind: '구분',
     usageTokenKindInbox: '받은편지함 LLM',
@@ -9793,7 +9787,7 @@ const KO_DICTIONARY: Dictionary = {
     typingMinLabel: '입력 지연 최소(ms)',
     typingMaxLabel: '입력 지연 최대(ms)',
     typingHint:
-      '저장된 FAQ 즉시 발송에만 사용(LLM 없음): 전송 전 이 범위에서 무작위 지연(0–30000). LLM 생성 메시지에는 적용하지 않음. 둘 다 0이면 끔.',
+      'LLM 없이 자동 발송되는 메시지(주문 목록 안내·채팅 내 구매 안내 등)만 전송 전 이 범위에서 무작위 지연(0–30000). DeepSeek 본문에는 적용하지 않음. 둘 다 0이면 끔.',
     shopPolicyLabel: '매장 정책·규정',
     shopPolicyPlaceholder:
       '예: 계약금 30%, 교환 불가, 불량 시 7일 이내 교환, 시내 무료배송 등.',
@@ -9902,7 +9896,7 @@ const KO_DICTIONARY: Dictionary = {
     toggleStatusOff: '꺼짐',
     aiEngineTitle: '스마트 답장 AI',
     aiEngineDescription:
-      'FAQ와 일치하면 저장된 답변을 사용하고, 그 외는 대기 후 DeepSeek API(모델 {model})를 호출합니다.',
+      '대기 후 대화형 답장은 DeepSeek API(모델 {model})를 호출하며 재고·정책을 반영합니다.',
     disclosureSwitchOn: '맺음말 추가',
     disclosureSwitchOff: '맺음말 없음',
     faqPresetsIntro:

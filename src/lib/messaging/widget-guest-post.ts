@@ -13,7 +13,6 @@ import {
 } from '@/lib/messaging/guest-chat-image'
 import { downloadTryOnObject, getTryOnPublicUrlFromPath, tryOnObjectExistsByPath } from '@/lib/storage/try-on-public-upload'
 import { WIDGET_PRODUCT_VECTOR_PICK_MAX } from '@/lib/messaging/partner-vision-constants'
-import { findMatchingFaq } from '@/lib/messaging/partner-ai-faq'
 import { fetchInventoryRowsBySemanticTextForPartnerAi } from '@/lib/messaging/partner-inventory-text-embedding'
 import {
   buildInventoryEmbeddingQueryWithGenderHint,
@@ -772,74 +771,70 @@ export async function postWidgetGuestMessage(params: {
           if (fromPg !== null) aiEnabled = fromPg.enabled
         }
         if (aiEnabled) {
-          const faqUiLoc = normalizeWebLocale(String(params.uiLocale ?? '').trim())
-          const faq = await findMatchingFaq(params.partnerId, trimmedText, { locale: faqUiLoc })
-          if (!faq) {
-            let allowTextVectorSearch = true
-            const convEarly = await ensureConversation({
+          let allowTextVectorSearch = true
+          const convEarly = await ensureConversation({
+            partnerId: params.partnerId,
+            channel: 'widget',
+            externalThreadId: params.externalThreadId,
+            customerName: params.customerName,
+            linkedUserId,
+            metadata: params.metadata,
+          })
+          if ('conversationId' in convEarly) {
+            const lastShop = await fetchLastOutboundCustomerCareMessageBodyPg(convEarly.conversationId)
+            const classified = await classifyWidgetInboundIntent({
               partnerId: params.partnerId,
-              channel: 'widget',
-              externalThreadId: params.externalThreadId,
-              customerName: params.customerName,
-              linkedUserId,
-              metadata: params.metadata,
+              customerText: trimmedText,
+              lastShopMessage: lastShop,
             })
-            if ('conversationId' in convEarly) {
-              const lastShop = await fetchLastOutboundCustomerCareMessageBodyPg(convEarly.conversationId)
-              const classified = await classifyWidgetInboundIntent({
-                partnerId: params.partnerId,
-                customerText: trimmedText,
-                lastShopMessage: lastShop,
-              })
-              if (classified) {
-                partnerAiWidgetIntentForPayload = classified
-                if (classified === 'clarify' || classified === 'context_reply') allowTextVectorSearch = false
-                if (classified === 'product_search') allowTextVectorSearch = true
-              } else {
-                allowTextVectorSearch = !skipClarifyIntentVectorHeuristic
-              }
+            if (classified) {
+              partnerAiWidgetIntentForPayload = classified
+              if (classified === 'clarify' || classified === 'context_reply') allowTextVectorSearch = false
+              if (classified === 'product_search') allowTextVectorSearch = true
             } else {
               allowTextVectorSearch = !skipClarifyIntentVectorHeuristic
             }
+          } else {
+            allowTextVectorSearch = !skipClarifyIntentVectorHeuristic
+          }
 
-            if (allowTextVectorSearch) {
-              const embedQuery = buildInventoryEmbeddingQueryWithGenderHint(trimmedText)
-              const rowsRaw = await fetchInventoryRowsBySemanticTextForPartnerAi(
-                params.partnerId,
-                embedQuery,
-                WIDGET_PRODUCT_VECTOR_PICK_MAX
-              )
-              const rows = await enrichSemanticInventoryRowsForWidget(
-                params.partnerId,
-                trimmedText,
-                rowsRaw,
-                WIDGET_PRODUCT_VECTOR_PICK_MAX
-              )
-              if (rows.length > 0) {
-                const candidateIds = rows.map((r) => r.id)
-                const priceById = new Map<string, string>()
-                if (isPgConfigured()) {
-                  const priceFromPg = await fetchPartnerInventoryPriceHintsByIdsFromPg(params.partnerId, candidateIds)
-                  if (priceFromPg !== null) {
-                    for (const [id, hint] of priceFromPg) priceById.set(id, hint)
-                  }
+          if (allowTextVectorSearch) {
+            const embedQuery = buildInventoryEmbeddingQueryWithGenderHint(trimmedText)
+            const rowsRaw = await fetchInventoryRowsBySemanticTextForPartnerAi(
+              params.partnerId,
+              embedQuery,
+              WIDGET_PRODUCT_VECTOR_PICK_MAX
+            )
+            const rows = await enrichSemanticInventoryRowsForWidget(
+              params.partnerId,
+              trimmedText,
+              rowsRaw,
+              WIDGET_PRODUCT_VECTOR_PICK_MAX
+            )
+            if (rows.length > 0) {
+              const candidateIds = rows.map((r) => r.id)
+              const priceById = new Map<string, string>()
+              if (isPgConfigured()) {
+                const priceFromPg = await fetchPartnerInventoryPriceHintsByIdsFromPg(params.partnerId, candidateIds)
+                if (priceFromPg !== null) {
+                  for (const [id, hint] of priceFromPg) priceById.set(id, hint)
                 }
-                productPickCandidates = rows.map((row) => {
-                  const purl = row.product_url?.trim() ?? ''
-                  const ph =
-                    row.price_hint?.trim() ||
-                    priceById.get(row.id)?.trim() ||
-                    ''
-                  return {
-                    inventoryId: row.id,
-                    name: row.name ?? '',
-                    sku: row.sku ?? null,
-                    image_url: row.image_url ?? '',
-                    ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
-                    ...(ph ? { price_hint: ph } : {}),
-                  }
-                })
               }
+              productPickCandidates = rows.map((row) => {
+                const purl = row.product_url?.trim() ?? ''
+                const ph =
+                  row.price_hint?.trim() ||
+                  priceById.get(row.id)?.trim() ||
+                  ''
+                return {
+                  inventoryId: row.id,
+                  name: row.name ?? '',
+                  sku: row.sku ?? null,
+                  image_url: row.image_url ?? '',
+                  ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
+                  ...(ph ? { price_hint: ph } : {}),
+                }
+              })
             }
           }
         }

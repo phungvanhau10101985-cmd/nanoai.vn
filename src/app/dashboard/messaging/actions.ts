@@ -20,14 +20,6 @@ import {
   type PartnerAiSettingsDashboardUpsert,
 } from '@/lib/db/messaging-partner-ai-settings-pg'
 import {
-  deleteMessagingPartnerFaqByIdFromPg,
-  fetchMessagingPartnerFaqsAllFromPg,
-  fetchMessagingPartnerFaqIdByPresetFromPg,
-  insertMessagingPartnerFaqFromPg,
-  updateMessagingPartnerFaqByIdFromPg,
-  updateMessagingPartnerFaqPresetRowFromPg,
-} from '@/lib/db/messaging-partner-faq-pg'
-import {
   deletePartnerInventoryItemForPartnerFromPg,
   fetchPartnerInventoryActivePageWithCountFromPg,
   fetchPartnerInventoryEmbeddingStatsFromPg,
@@ -120,14 +112,6 @@ import {
 } from '@/lib/messaging/guest-chat-image'
 import { getTryOnPublicUrlFromPath, tryOnObjectExistsByPath } from '@/lib/storage/try-on-public-upload'
 import { validateInventoryImageUrl } from '@/lib/messaging/partner-inventory-excel'
-import { parseTriggerKeywords } from '@/lib/messaging/partner-ai-faq'
-import { translateFaqAnswerToAllLocales } from '@/lib/messaging/partner-faq-i18n-deepseek'
-import {
-  isPartnerFaqPresetKey,
-  PARTNER_FAQ_CUSTOM_KEYWORDS_REQUIRED,
-  PARTNER_FAQ_PRESET_ANSWER_REQUIRED,
-  presetSortOrder,
-} from '@/lib/messaging/partner-faq-presets'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
 import { isValidUuidString } from '@/lib/validate-uuid'
@@ -1743,8 +1727,6 @@ export async function getPartnerAiBundle(partnerId: string) {
     return { error: 'DATABASE_URL is not set.' }
   }
   const settings = await fetchMessagingPartnerAiSettingsFullFromPg(partnerId)
-  const faqsRaw = await fetchMessagingPartnerFaqsAllFromPg(partnerId)
-  if (faqsRaw === null) return { error: 'Failed to load FAQs.' }
   const invPg = await fetchPartnerInventoryActivePageWithCountFromPg(
     partnerId,
     0,
@@ -1756,7 +1738,6 @@ export async function getPartnerAiBundle(partnerId: string) {
   const total = Math.max(inv.length, invPg.count)
   return {
     settings: toPartnerAiSettingsClient(settings ?? null),
-    faqs: faqsRaw,
     inventory: inv,
     inventoryTotalCount: total,
     inventoryPageSize: PARTNER_INVENTORY_PAGE_SIZE,
@@ -2043,143 +2024,6 @@ export async function setPartnerImageSearchApiEnabled(partnerId: string, enabled
   }
   const ok = await updateMessagingPartnerAiImageSearchEnabledFromPg(partnerId, enabled, now)
   if (!ok) return { error: 'Failed to update image search API.' }
-  revalidateMessagingDashboard()
-  return { ok: true as const }
-}
-
-export async function upsertPartnerFaq(
-  partnerId: string,
-  faqId: string | null,
-  fields: {
-    custom_title: string
-    trigger_keywords: string
-    answer: string
-    sort_order: number
-    is_active: boolean
-  }
-) {
-  const auth = await requireUser()
-  if ('error' in auth) return { error: auth.error }
-  const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
-  if ('error' in gate) return { error: gate.error }
-  if (!isPgConfigured()) {
-    return { error: 'DATABASE_URL is not set.' }
-  }
-  if (fields.is_active && parseTriggerKeywords(fields.trigger_keywords).length === 0) {
-    return { error: PARTNER_FAQ_CUSTOM_KEYWORDS_REQUIRED }
-  }
-  const now = new Date().toISOString()
-  const title = fields.custom_title.trim()
-  const answerI18n: Json = fields.answer.trim() ? await translateFaqAnswerToAllLocales(fields.answer) : {}
-  if (faqId) {
-    const ok = await updateMessagingPartnerFaqByIdFromPg(partnerId, faqId, {
-      custom_title: title,
-      trigger_keywords: fields.trigger_keywords,
-      answer: fields.answer,
-      answer_i18n: answerI18n,
-      sort_order: fields.sort_order,
-      is_active: fields.is_active,
-      updated_at: now,
-    })
-    if (!ok) return { error: 'Failed to update FAQ.' }
-  } else {
-    const ok = await insertMessagingPartnerFaqFromPg({
-      partner_id: partnerId,
-      preset_key: null,
-      custom_title: title,
-      trigger_keywords: fields.trigger_keywords,
-      answer: fields.answer,
-      answer_i18n: answerI18n,
-      sort_order: fields.sort_order,
-      is_active: fields.is_active,
-      created_at: now,
-      updated_at: now,
-    })
-    if (!ok) return { error: 'Failed to insert FAQ.' }
-  }
-  revalidateMessagingDashboard()
-  return { ok: true as const }
-}
-
-export async function savePartnerFaqPreset(
-  partnerId: string,
-  presetKey: string,
-  fields: { custom_title: string; answer: string; is_active: boolean }
-) {
-  if (!isPartnerFaqPresetKey(presetKey)) return { error: 'Invalid FAQ preset.' }
-  const auth = await requireUser()
-  if ('error' in auth) return { error: auth.error }
-  const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
-  if ('error' in gate) return { error: gate.error }
-  if (!isPgConfigured()) {
-    return { error: 'DATABASE_URL is not set.' }
-  }
-
-  const customTitle = fields.custom_title.trim()
-  const answer = fields.answer.trim()
-  if (fields.is_active && !answer) {
-    return { error: PARTNER_FAQ_PRESET_ANSWER_REQUIRED }
-  }
-
-  const now = new Date().toISOString()
-  const sortOrder = presetSortOrder(presetKey)
-
-  const existingId: string | null = await fetchMessagingPartnerFaqIdByPresetFromPg(partnerId, presetKey)
-
-  if (!fields.is_active && !answer) {
-    if (existingId) {
-      const ok = await deleteMessagingPartnerFaqByIdFromPg(partnerId, existingId)
-      if (!ok) return { error: 'Failed to delete FAQ preset.' }
-    }
-    revalidateMessagingDashboard()
-    return { ok: true as const }
-  }
-
-  const answerI18n: Json = answer ? await translateFaqAnswerToAllLocales(answer) : {}
-
-  if (existingId) {
-    const ok = await updateMessagingPartnerFaqPresetRowFromPg(partnerId, existingId, {
-      custom_title: customTitle,
-      answer,
-      answer_i18n: answerI18n,
-      is_active: fields.is_active,
-      sort_order: sortOrder,
-      preset_key: presetKey,
-      updated_at: now,
-    })
-    if (!ok) return { error: 'Failed to update FAQ preset.' }
-  } else {
-    const ok = await insertMessagingPartnerFaqFromPg({
-      partner_id: partnerId,
-      preset_key: presetKey,
-      custom_title: customTitle,
-      trigger_keywords: '',
-      answer,
-      answer_i18n: answerI18n,
-      sort_order: sortOrder,
-      is_active: fields.is_active,
-      created_at: now,
-      updated_at: now,
-    })
-    if (!ok) return { error: 'Failed to insert FAQ preset.' }
-  }
-  revalidateMessagingDashboard()
-  return { ok: true as const }
-}
-
-export async function deletePartnerFaq(partnerId: string, faqId: string) {
-  const auth = await requireUser()
-  if ('error' in auth) return { error: auth.error }
-  const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
-  if ('error' in gate) return { error: gate.error }
-  if (!isPgConfigured()) {
-    return { error: 'DATABASE_URL is not set.' }
-  }
-  const ok = await deleteMessagingPartnerFaqByIdFromPg(partnerId, faqId)
-  if (!ok) return { error: 'Failed to delete FAQ.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }

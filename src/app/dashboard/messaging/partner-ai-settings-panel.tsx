@@ -21,7 +21,6 @@ import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
-  deletePartnerFaq,
   deletePartnerInventoryItem,
   getPartnerAiBundle,
   getPartnerBirthdayPromoSettings,
@@ -33,7 +32,6 @@ import {
   getPartnerAiTokenUsageStats,
   getPartnerAiUsageAnalytics,
   savePartnerAiSettings,
-  upsertPartnerFaq,
   upsertPartnerInventoryItem,
   type PartnerInventoryEmbeddingStats,
   type PartnerAiSettingsClientRow,
@@ -54,9 +52,6 @@ import {
   type PartnerAiUsagePeriod,
   type PartnerAiUsageQuery,
 } from '@/app/dashboard/messaging/actions'
-import {
-  PARTNER_FAQ_CUSTOM_KEYWORDS_REQUIRED,
-} from '@/lib/messaging/partner-faq-presets'
 import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/lib/messaging/build-guest-consult-chat-link'
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
@@ -66,7 +61,6 @@ import type { WebLocale } from '@/lib/i18n/config'
 type AiT = Dictionary['partnerMessagingAi']
 type SettingsRow = PartnerAiSettingsClientRow
 
-type FaqRow = Database['public']['Tables']['messaging_partner_faq']['Row']
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 function parseStockQtyInput(raw: string): string {
   const n = Math.max(0, Math.floor(Number(raw || '0') || 0))
@@ -145,7 +139,7 @@ function defaultsFromSettings(s: SettingsRow | null) {
       const rd = Number(s?.reply_delay_seconds)
       return Number.isFinite(rd) ? Math.max(5, Math.min(30, Math.floor(rd))) : 20
     })(),
-    /** Chỉ áp cho tin FAQ khớp kho (gần tức thì); tin do model sinh không dùng. */
+    /** Độ trễ trước khi gửi tin tự động không qua model (mua trong chat, danh sách đặt…). */
     typing_pause_min_ms: s?.typing_pause_min_ms ?? 650,
     typing_pause_max_ms: s?.typing_pause_max_ms ?? 1150,
     shop_policy: s?.shop_policy ?? '',
@@ -220,7 +214,6 @@ export function PartnerAiSettingsPanel({
   const [pending, startTransition] = useTransition()
   const [loadErr, setLoadErr] = useState<string | null>(null)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
-  const [faqs, setFaqs] = useState<FaqRow[]>([])
   const [inventory, setInventory] = useState<InvRow[]>([])
   const [inventoryTotalCount, setInventoryTotalCount] = useState(0)
   const [inventoryPageSize, setInventoryPageSize] = useState(120)
@@ -354,7 +347,6 @@ export function PartnerAiSettingsPanel({
     const seq = ++loadSeqRef.current
     setLoadErr(null)
     setSettingsLoaded(false)
-    setFaqs([])
     setInventory([])
     setInventoryTotalCount(0)
     setInventoryPage(0)
@@ -396,7 +388,6 @@ export function PartnerAiSettingsPanel({
         const next = defaultsFromSettings(bundleRes.settings ?? null)
         formRef.current = next
         setForm(next)
-        setFaqs(bundleRes.faqs ?? [])
         const inv = bundleRes.inventory ?? []
         setInventory(inv)
         setInventoryTotalCount(
@@ -742,12 +733,9 @@ export function PartnerAiSettingsPanel({
       </CardHeader>
       <CardContent className="pt-4">
         <Tabs defaultValue="settings" className="w-full">
-          <TabsList className="mb-4 grid w-full max-w-3xl grid-cols-2 sm:grid-cols-4 h-auto min-h-10 gap-1 p-1">
+          <TabsList className="mb-4 grid w-full max-w-3xl grid-cols-2 sm:grid-cols-3 h-auto min-h-10 gap-1 p-1">
             <TabsTrigger value="settings" className="text-xs sm:text-sm">
               {t.tabSettings}
-            </TabsTrigger>
-            <TabsTrigger value="faq" className="text-xs sm:text-sm">
-              {t.tabFaq}
             </TabsTrigger>
             <TabsTrigger value="inv" className="text-xs sm:text-sm gap-1.5">
               {t.tabInventory}
@@ -995,17 +983,6 @@ export function PartnerAiSettingsPanel({
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed border-t pt-3">{t.cronSetupHint}</p>
-          </TabsContent>
-
-          <TabsContent value="faq" className="mt-0 space-y-4">
-            <FaqEditor
-              partnerId={partnerId}
-              t={t}
-              faqs={faqs}
-              onChanged={load}
-              saveOkMessage={saveOkMessage}
-              toast={toast}
-            />
           </TabsContent>
 
           <TabsContent value="inv" className="mt-0 space-y-4">
@@ -1922,224 +1899,6 @@ export function PartnerAiSettingsPanel({
         </Tabs>
       </CardContent>
     </Card>
-  )
-}
-
-function FaqEditor({
-  partnerId,
-  t,
-  faqs,
-  onChanged,
-  saveOkMessage,
-  toast,
-}: {
-  partnerId: string
-  t: AiT
-  faqs: FaqRow[]
-  onChanged: () => void | Promise<void>
-  saveOkMessage: string
-  toast: ReturnType<typeof useToast>['toast']
-}) {
-  const customFaqs = faqs.filter((r) => !r.preset_key)
-  const [faqBusy, setFaqBusy] = useState(false)
-  const [draft, setDraft] = useState({
-    id: null as string | null,
-    custom_title: '',
-    trigger_keywords: '',
-    answer: '',
-    sort_order: 100,
-    is_active: true,
-  })
-
-  const nextCustomSortOrder = useCallback(
-    () =>
-      customFaqs.length === 0 ? 100 : Math.max(100, ...customFaqs.map((r) => r.sort_order)) + 1,
-    [customFaqs]
-  )
-
-  const resetDraft = () =>
-    setDraft({
-      id: null,
-      custom_title: '',
-      trigger_keywords: '',
-      answer: '',
-      sort_order: nextCustomSortOrder(),
-      is_active: true,
-    })
-
-  useEffect(() => {
-    if (!draft.id) setDraft((d) => ({ ...d, sort_order: nextCustomSortOrder() }))
-  }, [draft.id, nextCustomSortOrder])
-
-  const editCustomRow = (r: FaqRow) => {
-    setDraft({
-      id: r.id,
-      custom_title: r.custom_title ?? '',
-      trigger_keywords: r.trigger_keywords,
-      answer: r.answer,
-      sort_order: r.sort_order,
-      is_active: r.is_active,
-    })
-  }
-
-  const saveCustom = () => {
-    if (faqBusy || !draft.answer.trim()) return
-    setFaqBusy(true)
-    ;(async () => {
-      const res = await upsertPartnerFaq(partnerId, draft.id, {
-        custom_title: draft.custom_title,
-        trigger_keywords: draft.trigger_keywords,
-        answer: draft.answer.trim(),
-        sort_order: draft.sort_order,
-        is_active: draft.is_active,
-      })
-      if ('error' in res && res.error) {
-        toast({
-          title:
-            res.error === PARTNER_FAQ_CUSTOM_KEYWORDS_REQUIRED
-              ? t.faqCustomKeywordsRequired
-              : res.error,
-          variant: 'destructive',
-        })
-        return
-      }
-      toast({ title: saveOkMessage })
-      resetDraft()
-      await Promise.resolve(onChanged())
-    })()
-      .catch(() => {
-        toast({ title: t.loadError, variant: 'destructive' })
-      })
-      .finally(() => setFaqBusy(false))
-  }
-
-  const delCustom = (id: string) => {
-    if (faqBusy) return
-    setFaqBusy(true)
-    ;(async () => {
-      const res = await deletePartnerFaq(partnerId, id)
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
-      }
-      toast({ title: saveOkMessage })
-      if (draft.id === id) resetDraft()
-      await Promise.resolve(onChanged())
-    })()
-      .catch(() => {
-        toast({ title: t.loadError, variant: 'destructive' })
-      })
-      .finally(() => setFaqBusy(false))
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-3">
-        <h4 className="text-sm font-semibold">{t.faqCustomSectionTitle}</h4>
-        <p className="text-[11px] leading-relaxed text-muted-foreground">{t.faqCustomSectionIntro}</p>
-
-        {customFaqs.length > 0 ? (
-          <ul className="max-h-[28vh] space-y-2 overflow-y-auto pr-1">
-            {customFaqs.map((r) => (
-              <li
-                key={r.id}
-                className="rounded-lg border bg-muted/20 p-3 text-sm shadow-sm transition-colors hover:border-violet-200/80 dark:hover:border-violet-800/80"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="text-[10px] font-normal">
-                        #{r.sort_order}
-                      </Badge>
-                      {!r.is_active ? (
-                        <Badge variant="secondary" className="text-[10px]">
-                          {t.inactiveBadge}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    {r.custom_title?.trim() ? (
-                      <p className="line-clamp-2 text-sm font-medium text-foreground">{r.custom_title.trim()}</p>
-                    ) : null}
-                    <p className="line-clamp-2 text-xs text-muted-foreground">
-                      {t.faqKeywordsLabel}: {r.trigger_keywords || '—'}
-                    </p>
-                    <p className="line-clamp-3 whitespace-pre-wrap">{r.answer}</p>
-                  </div>
-                  <div className="flex shrink-0 gap-1">
-                    <Button type="button" variant="outline" size="sm" onClick={() => editCustomRow(r)} disabled={faqBusy}>
-                      {t.edit}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => delCustom(r.id)}
-                      disabled={faqBusy}
-                    >
-                      {t.deleteRow}
-                    </Button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        <div className="rounded-xl border border-dashed border-violet-300/60 bg-violet-50/30 p-4 space-y-3 dark:border-violet-800/50 dark:bg-violet-950/20">
-          <h4 className="text-sm font-semibold">{draft.id ? t.edit : t.faqCustomAddTitle}</h4>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label>{t.faqCustomQuestionLabel}</Label>
-              <Input
-                value={draft.custom_title}
-                onChange={(e) => setDraft((d) => ({ ...d, custom_title: e.target.value }))}
-              />
-              <p className="text-[11px] text-muted-foreground">{t.faqCustomQuestionHint}</p>
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label>{t.faqKeywordsLabel}</Label>
-              <Textarea
-                rows={2}
-                value={draft.trigger_keywords}
-                onChange={(e) => setDraft((d) => ({ ...d, trigger_keywords: e.target.value }))}
-                placeholder={t.faqKeywordsHint}
-              />
-              <p className="text-[11px] text-muted-foreground">{t.faqKeywordsHint}</p>
-            </div>
-            <div className="flex items-end gap-2 pb-2">
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-input"
-                  checked={draft.is_active}
-                  onChange={(e) => setDraft((d) => ({ ...d, is_active: e.target.checked }))}
-                />
-                {t.faqActiveLabel}
-              </label>
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label>{t.faqAnswerLabel}</Label>
-              <Textarea
-                rows={4}
-                value={draft.answer}
-                onChange={(e) => setDraft((d) => ({ ...d, answer: e.target.value }))}
-              />
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={saveCustom} disabled={faqBusy || !draft.answer.trim()}>
-              {t.saveRow}
-            </Button>
-            {draft.id ? (
-              <Button type="button" variant="ghost" size="sm" onClick={resetDraft} disabled={faqBusy}>
-                {t.cancelEdit}
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </div>
   )
 }
 
