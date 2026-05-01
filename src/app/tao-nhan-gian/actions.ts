@@ -3,6 +3,7 @@ import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cl
 
 import { getUserForCreditAction } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import sharp from 'sharp'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -15,6 +16,87 @@ import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
 const STICKER_COSTS = { '2K': 2, '4K': 4 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '4:3', '3:4', '16:9', '9:16'] as const
+export const STICKER_PHOTO_EXPRESSION_IDS = [
+  'happy',
+  'love',
+  'cool',
+  'lol',
+  'sad',
+  'angry',
+  'surprised',
+  'sleepy',
+  'wink',
+  'thumbs',
+  'custom',
+] as const
+export type StickerPhotoExpressionId = (typeof STICKER_PHOTO_EXPRESSION_IDS)[number]
+
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024
+const ALLOWED_PHOTO_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+const MAX_STICKER_CAPTION_LEN = 120
+
+/** Hướng dẫn biểu cảm (tiếng Anh) — gửi model ảnh. */
+const PHOTO_EXPRESSION_DIRECTIVES: Record<StickerPhotoExpressionId, string> = {
+  happy: 'Warm joyful smile, bright awake eyes.',
+  love: 'Affectionate lovestruck look: sparkly eyes / soft blush.',
+  cool: 'Relaxed confident half-smirk, subtle cool attitude.',
+  lol: 'Big laugh: eyes squinting, wide open happy mouth.',
+  sad: 'Cute exaggerated sad eyes; single tear drop comic style (non-graphic).',
+  angry: 'Playful comic anger: puff cheeks, furrowed brows.',
+  surprised: 'Comic shock: rounded eyes and open mouth.',
+  sleepy: 'Drowsy half-lids, tiny yawn, cozy mood.',
+  wink: 'One-eye wink with friendly grin.',
+  thumbs: 'Upbeat grin; thumbs-up gesture if hands show naturally.',
+  custom: 'Interpret mood from caption text alone; neutral-friendly face if unclear.',
+}
+
+const PHOTO_STICKER_PROMPT = `TASK: Transform the PERSON in the REFERENCE PHOTO into ONE sticker-style portrait illustration.
+
+RULES — Identity & likeness:
+- The output must depict the SAME person as in the reference photo (preserve recognizable facial identity; do not substitute a random fictional character).
+
+RULES — Art style:
+- Sticker/portrait vibe: readable bold outlines, cel-shading, bright harmonious colors, glossy cute finish (still clearly based on the real face proportions).
+- Full-bleed design: artwork should reach or hug the edges; avoid large empty margins.
+- Background must be SOLID PURE WHITE #FFFFFF ONLY (opaque; not transparency yet).
+
+Expression layer (combine with likeness):
+- Apply this facial/emotion directive: <<<EXPRESSION_LAYER>>>
+
+Typography (mandatory):
+- Render a concise speech bubble, ribbon banner, or rounded sticker label that displays EXACTLY this caption text, character-for-character (same language/script as provided):
+<<<CAPTION>>>
+Use high-contrast text; keep it legible; no typo substitution.
+
+Do not include watermarks, QR codes, or UI overlays. Output a single raster image only.`
+
+async function shrinkPhotoForStickerModel(input: Buffer, mimeHint: string): Promise<{ mimeType: string; data: string }> {
+  const MAX_EDGE = 1536
+  try {
+    let pipeline = sharp(input).rotate()
+    const meta = await pipeline.metadata()
+    const w = meta.width ?? 0
+    const h = meta.height ?? 0
+    if (w > MAX_EDGE || h > MAX_EDGE) {
+      pipeline = pipeline.resize({
+        width: w >= h ? MAX_EDGE : undefined,
+        height: h > w ? MAX_EDGE : undefined,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+    }
+    const buf = await pipeline.jpeg({ quality: 85, mozjpeg: true }).toBuffer()
+    return { mimeType: 'image/jpeg', data: buf.toString('base64') }
+  } catch {
+    const mt = ALLOWED_PHOTO_MIME.has(mimeHint) ? mimeHint : 'image/jpeg'
+    return { mimeType: mt, data: input.toString('base64') }
+  }
+}
+
+function sanitizeStickerCaption(raw: string): string {
+  const s = raw.replace(/\r|\n/g, ' ').replace(/[<>]/g, '').trim().slice(0, MAX_STICKER_CAPTION_LEN)
+  return s
+}
 const toTenths = (value: number) => Math.round(value * 10)
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
@@ -148,5 +230,192 @@ export async function createStickerLabel(formData: FormData) {
     await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     return { error: msg }
+  }
+}
+
+const photoStickerSafetySettings = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+] as const
+
+/** Sticker từ ảnh chân dung + biểu cảm + chữ bubble. Cùng mức credit và pipeline tách nền như createStickerLabel. */
+export async function createStickerFromPhoto(formData: FormData) {
+  if (!formData || typeof formData.get !== 'function') {
+    return { error: 'Dữ liệu không hợp lệ. Vui lòng thử lại.' }
+  }
+
+  const photo = formData.get('portraitImage') as File | null
+  if (!photo || !(photo instanceof File) || photo.size < 1) {
+    return { error: 'Vui lòng tải lên một ảnh chân dung rõ khuôn mặt.' }
+  }
+  if (!photo.type.startsWith('image/') || !ALLOWED_PHOTO_MIME.has(photo.type)) {
+    return { error: 'Ảnh phải là JPEG, PNG, WebP hoặc GIF.' }
+  }
+  if (photo.size > MAX_PHOTO_BYTES) {
+    return { error: `Ảnh quá lớn (tối đa ${Math.round(MAX_PHOTO_BYTES / (1024 * 1024))}MB).` }
+  }
+
+  const expressionRaw = ((formData.get('expressionId') as string) || '').trim().toLowerCase()
+  const expressionId = (STICKER_PHOTO_EXPRESSION_IDS as readonly string[]).includes(expressionRaw)
+    ? (expressionRaw as StickerPhotoExpressionId)
+    : ('happy' as StickerPhotoExpressionId)
+
+  const caption = sanitizeStickerCaption((formData.get('stickerCaption') as string) || '')
+  if (!caption.length) {
+    return { error: 'Vui lòng nhập chữ hiển thị trên sticker (hoặc chọn biểu cảm có sẵn chữ mẫu).' }
+  }
+
+  const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
+  const aspectRatioRaw = (formData.get('aspectRatio') as string)?.trim() || '1:1'
+  const aspectRatio = VALID_ASPECT_RATIOS.includes(aspectRatioRaw as (typeof VALID_ASPECT_RATIOS)[number])
+    ? aspectRatioRaw
+    : '1:1'
+
+  const COST = STICKER_COSTS[imageQuality]
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  if (!apiKey) {
+    return { error: 'Thiếu cấu hình GOOGLE_API_KEY.' }
+  }
+
+  const authResult = await getUserForCreditAction()
+  if ('error' in authResult) return { error: authResult.error }
+  const { user } = authResult
+
+  let openBalance = 0
+  try {
+    openBalance = await getCreditBalanceByUserId(user.id)
+  } catch {
+    return { error: 'Không đọc được số dư credits.' }
+  }
+  if (toTenths(openBalance) < toTenths(COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
+  }
+
+  let photoBuffer: Buffer
+  try {
+    photoBuffer = Buffer.from(await photo.arrayBuffer())
+  } catch {
+    return { error: 'Không đọc được file ảnh.' }
+  }
+
+  const timestamp = Date.now()
+  const uploadPath = `uploads/${user.id}/sticker_portrait_${timestamp}.jpg`
+  let originalPublicUrl: string
+  try {
+    const jpegBuf = await sharp(photoBuffer).rotate().jpeg({ quality: 88, mozjpeg: true }).toBuffer()
+    ;({ publicUrl: originalPublicUrl } = await uploadTryOnImagePublic(uploadPath, jpegBuf, {
+      contentType: 'image/jpeg',
+      upsert: true,
+    }))
+  } catch {
+    try {
+      ;({ publicUrl: originalPublicUrl } = await uploadTryOnImagePublic(uploadPath, photoBuffer, {
+        contentType: photo.type || 'image/jpeg',
+        upsert: true,
+      }))
+    } catch {
+      return { error: 'Không tải được ảnh lên máy chủ.' }
+    }
+  }
+
+  const historyItem = await insertTryOnHistoryProcessingPg({
+    userId: user.id,
+    originalImageUrl: originalPublicUrl,
+    garmentImageUrl: originalPublicUrl,
+    feature: 'sticker',
+  })
+  if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
+
+  let inline: { mimeType: string; data: string }
+  try {
+    inline = await shrinkPhotoForStickerModel(photoBuffer, photo.type || 'image/jpeg')
+  } catch {
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
+    return { error: 'Không xử lý được ảnh đầu vào.' }
+  }
+
+  const expressionLayer = PHOTO_EXPRESSION_DIRECTIVES[expressionId]
+  const fullPrompt = PHOTO_STICKER_PROMPT.replace('<<<EXPRESSION_LAYER>>>', expressionLayer).replace(
+    '<<<CAPTION>>>',
+    caption.replace(/<<<|>>>/g, '')
+  )
+
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-3-pro-image-preview',
+    generationConfig: {
+      responseModalities: ['TEXT', 'IMAGE'],
+      imageConfig: { imageSize: imageQuality, aspectRatio },
+    },
+  })
+
+  try {
+    const genResult = await model.generateContent(
+      [{ text: fullPrompt }, { inlineData: { mimeType: inline.mimeType, data: inline.data } }] as never,
+      { safetySettings: [...photoStickerSafetySettings] } as never
+    )
+    const response = genResult.response
+    trackFromUsageMetadata(
+      response.usageMetadata,
+      'gemini-3-pro-image-preview',
+      'tao-nhan-gian-photo',
+      user.id,
+      imageQuality
+    )
+
+    const cand = response.candidates?.[0]
+    if (!cand) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: 'AI không trả về kết quả. Thử lại sau.' }
+    }
+    if (cand.finishReason === 'SAFETY') {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: 'Phản hồi bị chặn bộ lọc an toàn. Thử ảnh hoặc chữ khác.' }
+    }
+
+    const imagePartRes = cand.content?.parts?.find((p) => 'inlineData' in p)
+    if (!imagePartRes || !('inlineData' in imagePartRes)) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: 'AI không trả về ảnh hợp lệ. Vui lòng thử lại.' }
+    }
+
+    let resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
+
+    const stripBg = process.env.STICKER_STRIP_BACKGROUND !== 'false'
+    if (stripBg) {
+      resultBuffer = Buffer.from(await stripBackground(resultBuffer))
+    }
+
+    const resultPath = `results/${user.id}/sticker_photo_${Date.now()}.png`
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
+
+    const d = await deductUserCredits(user.id, COST)
+    if (!d.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
+    }
+    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl, {
+      feature: 'tao-nhan-gian',
+      aspect_ratio: aspectRatio,
+    })
+
+    revalidatePath('/tao-nhan-gian')
+    revalidatePath('/dashboard/history')
+    return { success: true, resultUrl: resultPublicUrl }
+  } catch (e) {
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/500|Internal Server Error|Internal error/i.test(msg)) {
+      return { error: 'Hệ thống quá tải. Bạn có thể thử lại sau ít phút.' }
+    }
+    if (/429|resource_exhausted|quota/i.test(msg)) {
+      return { error: 'API tạm quá tải hoặc hết hạn mức. Thử lại sau vài phút.' }
+    }
+    return { error: `Tạo sticker thất bại: ${msg}` }
   }
 }

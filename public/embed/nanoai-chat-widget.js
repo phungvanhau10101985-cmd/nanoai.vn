@@ -297,15 +297,41 @@
       return cands.length ? cands[0].trim() : ''
     }
 
-    function extractPageContext() {
+    /**
+     * Tuỳ chỉnh từ trang shop — gắn lên thẻ script đang chạy NanoAI (ưu tiên cao hơn quét DOM):
+     * data-ctx-sku, data-ctx-image, data-ctx-image-2, data-ctx-product-url, data-ctx-inventory (UUID kho NanoAI)
+     * Ví dụ Next.js: đặt các data-* = {product.sku} khi render layout sản phẩm.
+     */
+    function extractScriptTagContext() {
       var out = {}
+      try {
+        var skuRaw = getAttr('data-ctx-sku', '')
+        var skuEl = document.getElementById('nanoai-ctx-sku')
+        var skuFromHidden = skuEl ? String(skuEl.textContent || '').trim() : ''
+        var sku = pickSkuFromText(skuRaw || skuFromHidden)
+        if (!sku && skuRaw) sku = String(skuRaw).replace(/\s+/g, ' ').trim().slice(0, 128)
+        if (sku) out.sku = sku
+        var img1 = toHttpUrl(getAttr('data-ctx-image', ''))
+        var img2 = toHttpUrl(getAttr('data-ctx-image-2', ''))
+        if (img1 && !isLikelyVideoUrl(img1)) out.imageUrl = img1
+        if (img2 && !isLikelyVideoUrl(img2)) out.imageUrl2 = img2
+        var pu = toHttpUrl(getAttr('data-ctx-product-url', ''))
+        if (pu) out.productUrl = pu
+        var inv = String(getAttr('data-ctx-inventory', '')).trim()
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv)) out.inventoryId = inv
+      } catch (_) {}
+      return out
+    }
+
+    function extractPageContext() {
+      var out = extractScriptTagContext()
       try {
         var codeEl =
           document.getElementById('copy-code-product') ||
           document.querySelector('#copy-code-product,[id*="copy-code-product"],.copy-code-product')
         var codeText = codeEl ? String(codeEl.textContent || '').trim() : ''
         var sku = pickSkuFromText(codeText)
-        if (sku) out.sku = sku
+        if (sku && !out.sku) out.sku = sku
       } catch (_) {}
 
       try {
@@ -317,16 +343,16 @@
           var imgUrl = pickGalleryImgUrl(imgs[i])
           if (imgUrl && urls.indexOf(imgUrl) === -1) urls.push(imgUrl)
         }
-        if (urls[0]) out.imageUrl = urls[0]
-        if (urls[1]) out.imageUrl2 = urls[1]
+        if (urls[0] && !out.imageUrl) out.imageUrl = urls[0]
+        if (urls[1] && !out.imageUrl2) out.imageUrl2 = urls[1]
       } catch (_) {}
 
       try {
         var canonical = document.querySelector('link[rel="canonical"]')
         var canonicalUrl = canonical ? toHttpUrl(canonical.getAttribute('href')) : ''
         var pageUrl = toHttpUrl(window.location.href)
-        if (canonicalUrl) out.productUrl = canonicalUrl
-        else if (pageUrl) out.productUrl = pageUrl
+        if (canonicalUrl && !out.productUrl) out.productUrl = canonicalUrl
+        else if (pageUrl && !out.productUrl) out.productUrl = pageUrl
       } catch (_) {}
 
       return out
@@ -339,7 +365,11 @@
         if (ctx && ctx.imageUrl) u.searchParams.set('ctx_image', ctx.imageUrl)
         if (ctx && ctx.imageUrl2) u.searchParams.set('ctx_image_2', ctx.imageUrl2)
         if (ctx && ctx.productUrl) u.searchParams.set('ctx_product_url', ctx.productUrl)
-        if (ctx && (ctx.sku || ctx.imageUrl || ctx.imageUrl2 || ctx.productUrl)) {
+        if (ctx && ctx.inventoryId) u.searchParams.set('ctx_inventory', ctx.inventoryId)
+        if (
+          ctx &&
+          (ctx.sku || ctx.imageUrl || ctx.imageUrl2 || ctx.productUrl || ctx.inventoryId)
+        ) {
           u.searchParams.set('ctx_source', 'widget_page')
         }
         return u.toString()

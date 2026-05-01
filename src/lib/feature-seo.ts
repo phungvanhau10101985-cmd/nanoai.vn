@@ -262,7 +262,8 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
   'tao-nhan-gian': {
     key: 'tao-nhan-gian',
     pageTitle: 'Tạo nhãn dán sticker bằng AI',
-    pageDescription: 'Tạo nhãn dán sticker bằng AI nhanh, phù hợp bán hàng, in ấn và social. Dễ tạo mẫu nhãn dán theo phong cách thương hiệu.',
+    pageDescription:
+      'Tạo nhãn dán sticker bằng AI nhanh, phù hợp bán hàng, in ấn và social. Từ ý tưởng chữ hoặc từ ảnh chụp — chọn biểu cảm sticker và chữ hiển thị.',
     path: '/tao-nhan-gian',
     keywords: ['tạo sticker ai', 'tạo nhãn dán', 'sticker online', 'nhãn dán nền trong suốt'],
     serviceName: 'Tạo nhãn dán AI',
