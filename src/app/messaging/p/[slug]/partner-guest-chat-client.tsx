@@ -1345,6 +1345,8 @@ export function PartnerGuestChatClient({
   const [uploading, setUploading] = useState(false)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
   const [tryOnOpen, setTryOnOpen] = useState(false)
+  /** `open_try_on=1` từ widget — hiển thị gợi ý ảnh người / credits trong iframe. */
+  const [tryOnOpenedViaEmbedQuery, setTryOnOpenedViaEmbedQuery] = useState(false)
   const [tryOnBusy, setTryOnBusy] = useState(false)
   const [tryOnCreditsBalance, setTryOnCreditsBalance] = useState<number | null>(null)
   const [tryOnCreditsLoading, setTryOnCreditsLoading] = useState(false)
@@ -1723,6 +1725,7 @@ export function PartnerGuestChatClient({
     const tryOnOpenFlag = (q.get('open_try_on') || '').trim().toLowerCase()
     if (tryOnOpenFlag === '1' || tryOnOpenFlag === 'true' || tryOnOpenFlag === 'yes') {
       setTryOnOpen(true)
+      setTryOnOpenedViaEmbedQuery(true)
       try {
         const u = new URL(window.location.href)
         if (u.searchParams.has('open_try_on')) {
@@ -2231,6 +2234,7 @@ export function PartnerGuestChatClient({
   useEffect(() => {
     if (!tryOnOpen) {
       tryOnPageContextGarmentSeededRef.current = false
+      setTryOnOpenedViaEmbedQuery(false)
     }
   }, [tryOnOpen])
 
@@ -5728,6 +5732,9 @@ export function PartnerGuestChatClient({
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
+                  {tryOnOpenedViaEmbedQuery && !tryOnUserFile ? (
+                    <p className="text-[11px] leading-snug text-muted-foreground">{t.tryOnEmbedOnlyFlowHint}</p>
+                  ) : null}
                   <input
                     ref={tryOnUserInputRef}
                     type="file"

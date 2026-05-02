@@ -892,6 +892,8 @@ export type Dictionary = {
     tryOnEmbedGarmentFromPage: string
     /** Nhãn khi có SKU — placeholder {sku}. */
     tryOnEmbedGarmentFromPageWithSku: string
+    /** Mở từ widget data-primary=try_on: nhắc ảnh người / SP / credits trong iframe. */
+    tryOnEmbedOnlyFlowHint: string
     guestAuthPromptTitle: string
     guestAuthPromptBody: string
     guestAuthEmailPlaceholder: string
@@ -2772,6 +2774,8 @@ const VI_DICTIONARY: Dictionary = {
     tryOnResultDownload: 'Tải xuống',
     tryOnEmbedGarmentFromPage: 'Ảnh sản phẩm đang xem',
     tryOnEmbedGarmentFromPageWithSku: 'Sản phẩm đang xem (SKU: {sku})',
+    tryOnEmbedOnlyFlowHint:
+      'Chọn ảnh người của bạn (lần sau trình duyệt này nhớ trong khung chat). Ảnh trang phục đã lấy từ sản phẩm đang xem. Thử đồ tốn credits — nạp bằng nút trong cùng khung chat (cùng tab shop, không cần mở tab NanoAI riêng).',
     guestAuthPromptTitle: 'Đăng nhập để lưu lịch sử lâu dài',
     guestAuthPromptBody: 'Bạn vẫn có thể chat ngay. Đăng nhập giúp đồng bộ hội thoại khi đổi máy/trình duyệt.',
     guestAuthEmailPlaceholder: 'Nhập email của bạn',
@@ -4638,6 +4642,8 @@ const EN_DICTIONARY: Dictionary = {
     tryOnResultDownload: 'Download',
     tryOnEmbedGarmentFromPage: 'Product image from this page',
     tryOnEmbedGarmentFromPageWithSku: 'Product on this page (SKU: {sku})',
+    tryOnEmbedOnlyFlowHint:
+      'Choose your photo once; this browser remembers it in this chat frame next time. The garment image comes from the product on this page. Try-on uses credits — top up using the buttons inside this same chat frame (same tab as your shop; no separate NanoAI tab needed).',
     guestAuthPromptTitle: 'Sign in to keep chat history longer',
     guestAuthPromptBody: 'You can still chat now. Signing in lets you keep history across devices/browsers.',
     guestAuthEmailPlaceholder: 'Enter your email',
@@ -6483,6 +6489,8 @@ const ZH_DICTIONARY: Dictionary = {
     tryOnResultDownload: '下载',
     tryOnEmbedGarmentFromPage: '当前页面的商品图',
     tryOnEmbedGarmentFromPageWithSku: '当前页面商品（SKU: {sku}）',
+    tryOnEmbedOnlyFlowHint:
+      '请上传本人照片（下次在同一浏览器、此聊天框架内会记住）。服装图来自当前页面商品。试穿消耗 credits — 在同一聊天框架内充值即可（与店铺同标签页，无需另开 NanoAI 标签页）。',
     guestAuthPromptTitle: '登录以长期保存聊天记录',
     guestAuthPromptBody: '您仍可立即聊天。登录后可在更换设备/浏览器时同步历史。',
     guestAuthEmailPlaceholder: '请输入您的邮箱',
@@ -8304,6 +8312,8 @@ const JA_DICTIONARY: Dictionary = {
     tryOnResultDownload: 'ダウンロード',
     tryOnEmbedGarmentFromPage: 'このページの商品画像',
     tryOnEmbedGarmentFromPageWithSku: '閲覧中の商品（SKU: {sku}）',
+    tryOnEmbedOnlyFlowHint:
+      'ご本人の写真を選んでください（次回もこのブラウザ・このチャット枠内で記憶します）。衣類画像は閲覧中の商品から取り込み済みです。試着は credits を消費します。チャージはこのチャット枠内のボタンから（ショップと同じタブ。別タブで NanoAI を開く必要はありません）。',
     guestAuthPromptTitle: 'ログインして履歴を長期保存',
     guestAuthPromptBody: '今すぐチャットは可能です。ログインすると端末/ブラウザを変えても履歴を引き継げます。',
     guestAuthEmailPlaceholder: 'メールアドレスを入力',
@@ -10147,6 +10157,8 @@ const KO_DICTIONARY: Dictionary = {
     tryOnResultDownload: '다운로드',
     tryOnEmbedGarmentFromPage: '현재 페이지 상품 이미지',
     tryOnEmbedGarmentFromPageWithSku: '보고 있는 상품 (SKU: {sku})',
+    tryOnEmbedOnlyFlowHint:
+      '본인 사진을 선택하세요(다음에도 이 브라우저·이 채팅 창에서 기억합니다). 의류 이미지는 보고 있는 상품에서 가져옵니다. 피팅은 credits가 필요합니다. 같은 채팅 창 안에서 충전하세요(샵과 같은 탭, 별도 NanoAI 탭 불필요).',
     guestAuthPromptTitle: '로그인하고 채팅 기록 오래 보관',
     guestAuthPromptBody: '지금도 채팅할 수 있습니다. 로그인하면 기기/브라우저를 바꿔도 기록이 동기화됩니다.',
     guestAuthEmailPlaceholder: '이메일을 입력하세요',

@@ -77,6 +77,12 @@ Có thể dùng kết hợp với `data-ctx-image`, v.v.
 
 Sau khi bấm mở chat, URL iframe (Network → document của iframe) nên chứa `ctx_sku` / `ctx_image` / … nếu context đã bắt được.
 
+## 6. Chỉ mã nhúng (không API) — credits & «không rời shop»
+
+- **Không bắt buộc** mở tab website NanoAI riêng: khung chat là **iframe cùng tab** trang shop; nút **nạp credit** (nếu bật) nằm **trong iframe** đó.
+- Thử đồ có phí vẫn **trừ credits ví NanoAI** của phiên khách — chỉ là UI nạp **không cần** chuyển sang tab `nanoai.vn` nếu shop không chặn UI đó trong embed.
+- Nếu yêu cầu **tuyệt đối** không có luồng ví NanoAI (kể cả trong iframe), cần hướng riêng: gói trial, shop trả hộ, hoặc tích hợp B2B — xem tài liệu credits ở cuối trang.
+
 ---
 
 Tệp widget: `public/embed/nanoai-chat-widget.js`  
