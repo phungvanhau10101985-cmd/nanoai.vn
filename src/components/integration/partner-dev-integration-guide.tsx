@@ -131,6 +131,7 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   const [embedRadiusPxInput, setEmbedRadiusPxInput] = useState('12')
   const [tryOnEmbedMode, setTryOnEmbedMode] = useState<'floating' | 'inline'>('floating')
   const [tryOnEmbedLabelInput, setTryOnEmbedLabelInput] = useState('')
+  const [tryOnEmbedMountSelectorInput, setTryOnEmbedMountSelectorInput] = useState('')
   const selectedPartner = useMemo(
     () => partners.find((p) => p.id === effectivePid) ?? partners[0] ?? null,
     [partners, effectivePid]
@@ -187,13 +188,16 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
     (tryOnEmbedLabelInput.trim() || t.tryOnEmbedDefaultButtonLabel).slice(0, 120)
   )
   const tryOnUiLocale = embedUiLocale ?? 'vi'
+  const tryOnMountSel = tryOnEmbedMountSelectorInput.trim().slice(0, 512)
+  const tryOnMountSelectorLine =
+    tryOnMountSel.length > 0 ? `  data-mount-selector="${escapeHtmlAttr(tryOnMountSel)}"\n` : ''
   const tryOnScript = `<script
   src="${baseUrl}/embed/nanoai-try-on-widget.js"
   data-try-on-url="${hostedPageUrl}"
   data-shop-name="${shopNameAttr}"
   data-label="${tryOnLabelAttr}"
   data-mode="${tryOnEmbedMode}"
-  data-logo-url="${logoUrl}"
+${tryOnMountSelectorLine}  data-logo-url="${logoUrl}"
   data-side="${embedSide}"
   data-bottom="${safeBottomPx}"
   data-offset-x="${safeHorizontalPx}"
@@ -477,6 +481,20 @@ Cookie: <auth_session_cookie>
                   autoComplete="off"
                 />
               </label>
+              <label className="space-y-1 text-[11px] text-muted-foreground sm:col-span-2">
+                <span>{t.tryOnEmbedMountSelectorLabel}</span>
+                <input
+                  type="text"
+                  className="h-8 w-full rounded-md border border-border bg-background px-2 font-mono text-xs text-foreground"
+                  value={tryOnEmbedMountSelectorInput}
+                  onChange={(e) => setTryOnEmbedMountSelectorInput(e.target.value)}
+                  placeholder={t.tryOnEmbedMountSelectorPlaceholder}
+                  maxLength={512}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </label>
+              <p className="text-xs leading-relaxed text-muted-foreground sm:col-span-2">{t.tryOnEmbedMountSelectorHint}</p>
             </div>
             <CodeBlock
               title={t.codeLabelExample}

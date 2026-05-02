@@ -52,6 +52,10 @@ export type PartnerDevIntegrationStrings = {
   tryOnEmbedModeInline: string
   tryOnEmbedButtonLabel: string
   tryOnEmbedButtonPlaceholder: string
+  /** Ô data-mount-selector — gắn nút vào phần tử bất kỳ */
+  tryOnEmbedMountSelectorLabel: string
+  tryOnEmbedMountSelectorPlaceholder: string
+  tryOnEmbedMountSelectorHint: string
   /** Chữ nút mặc định trong mã khi ô trống */
   tryOnEmbedDefaultButtonLabel: string
   copyTryOnEmbedScriptButton: string
@@ -147,6 +151,10 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     tryOnEmbedModeInline: 'Inline (ngay sau thẻ script)',
     tryOnEmbedButtonLabel: 'Chữ hiển thị trên nút',
     tryOnEmbedButtonPlaceholder: 'Để trống = mặc định theo bản dịch',
+    tryOnEmbedMountSelectorLabel: 'Gắn nút vào phần tử (CSS selector, tùy chọn)',
+    tryOnEmbedMountSelectorPlaceholder: 'Ví dụ: #nanoai-try-on-slot hoặc .pdp-try-on',
+    tryOnEmbedMountSelectorHint:
+      'Thêm thẻ chứa (ví dụ <div id="nanoai-try-on-slot"></div>) đúng chỗ hiển thị; script có thể đặt cuối trang. Để trống: nổi = góc màn hình, inline = ngay sau script. Selector chưa có khi tải trang: widget tự thử gắn lại trong vài giây.',
     tryOnEmbedDefaultButtonLabel: 'Thử đồ',
     copyTryOnEmbedScriptButton: 'Sao chép mã nhúng nút thử đồ',
     copyTryOnEmbedScriptToast: 'Đã sao chép mã nhúng nút thử đồ.',
@@ -240,6 +248,10 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     tryOnEmbedModeInline: 'Inline (after script tag)',
     tryOnEmbedButtonLabel: 'Button label',
     tryOnEmbedButtonPlaceholder: 'Empty = default for this language',
+    tryOnEmbedMountSelectorLabel: 'Mount button inside element (CSS selector, optional)',
+    tryOnEmbedMountSelectorPlaceholder: 'e.g. #nanoai-try-on-slot or .pdp-try-on',
+    tryOnEmbedMountSelectorHint:
+      'Add a container where the button should appear; the script can live elsewhere (e.g. footer). If empty: floating = screen corner; inline = right after the script. If the element is not ready at load, the widget retries for a few seconds.',
     tryOnEmbedDefaultButtonLabel: 'Try on',
     copyTryOnEmbedScriptButton: 'Copy try-on embed script',
     copyTryOnEmbedScriptToast: 'Try-on embed script copied.',
@@ -329,6 +341,10 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     tryOnEmbedModeInline: '内联（紧跟 script）',
     tryOnEmbedButtonLabel: '按钮文字',
     tryOnEmbedButtonPlaceholder: '留空 = 此语言默认文案',
+    tryOnEmbedMountSelectorLabel: '将按钮挂到元素内（CSS 选择器，可选）',
+    tryOnEmbedMountSelectorPlaceholder: '例：#nanoai-try-on-slot 或 .pdp-try-on',
+    tryOnEmbedMountSelectorHint:
+      '在页面中放置容器元素；脚本可放在页脚等处。留空：悬浮=屏幕角；内联=紧接脚本后。若加载时尚无该元素，组件会在数秒内重试挂载。',
     tryOnEmbedDefaultButtonLabel: '试穿',
     copyTryOnEmbedScriptButton: '复制试穿嵌入脚本',
     copyTryOnEmbedScriptToast: '已复制试穿嵌入脚本。',
@@ -418,6 +434,10 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     tryOnEmbedModeInline: 'インライン（script の直後）',
     tryOnEmbedButtonLabel: 'ボタン表記',
     tryOnEmbedButtonPlaceholder: '空欄＝この言語の既定',
+    tryOnEmbedMountSelectorLabel: 'ボタンを要素内に配置（CSS セレクタ、任意）',
+    tryOnEmbedMountSelectorPlaceholder: '例: #nanoai-try-on-slot または .pdp-try-on',
+    tryOnEmbedMountSelectorHint:
+      '表示したい位置にコンテナ要素を置き、スクリプトは別の場所（フッター等）に置けます。空欄: フローティング＝画面隅、インライン＝すぐ後ろのスクリプトの直後。読み込み時に無い場合は数秒リトライします。',
     tryOnEmbedDefaultButtonLabel: '試着',
     copyTryOnEmbedScriptButton: '試着埋め込みスクリプトをコピー',
     copyTryOnEmbedScriptToast: '試着用スクリプトをコピーしました。',
@@ -507,6 +527,10 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     tryOnEmbedModeInline: '인라인(script 바로 다음)',
     tryOnEmbedButtonLabel: '버튼 문구',
     tryOnEmbedButtonPlaceholder: '비워 두면 이 언어 기본값',
+    tryOnEmbedMountSelectorLabel: '버튼을 넣을 요소(CSS 선택자, 선택)',
+    tryOnEmbedMountSelectorPlaceholder: '예: #nanoai-try-on-slot 또는 .pdp-try-on',
+    tryOnEmbedMountSelectorHint:
+      '원하는 위치에 컨테이너를 두고 스크립트는 다른 곳(푸터 등)에 둘 수 있습니다. 비움: 플로팅=화면 모서리, 인라인=스크립트 바로 뒤. 로드 시 요소가 없으면 몇 초간 재시도합니다.',
     tryOnEmbedDefaultButtonLabel: '피팅',
     copyTryOnEmbedScriptButton: '피팅 임베드 스크립트 복사',
     copyTryOnEmbedScriptToast: '피팅 임베드 스크립트를 복사했습니다.',

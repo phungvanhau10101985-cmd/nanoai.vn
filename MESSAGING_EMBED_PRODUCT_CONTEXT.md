@@ -69,12 +69,29 @@ Có thể dùng kết hợp với `data-ctx-image`, v.v.
 
 **Lấy mã có sẵn (đã điền slug shop):** Bảng điều khiển → **Hướng dẫn API** (`/dashboard/api-integration`) — mục **«A2 — Nút thử đồ nhúng»**: chọn shop, chỉnh nút / chữ hiển thị, bấm **Sao chép mã nhúng nút thử đồ**.
 
-Tệp: `public/embed/nanoai-try-on-widget.js`. Cơ chế giống widget chat: có thể **nổi góc màn hình** hoặc **inline** ngay chỗ đặt `<script>`.
+Tệp: `public/embed/nanoai-try-on-widget.js`. Cơ chế giống widget chat: **nổi góc màn hình** chỉ khi `data-mode="floating"` và **không** có `data-mount-selector`. Muốn nút ở bất kỳ chỗ nào trên trang: thêm `data-mount-selector="#id"` / `.class` trỏ tới phần tử chứa; script có thể đặt cuối `<body>`. Nếu phần tử chưa có lúc load (SPA), widget **thử gắn lại** trong vài giây; nếu vẫn không có, nút tạm hiện **ngay sau** thẻ `<script>` (không dùng góc màn hình). Có thể kết hợp `data-mode="inline"` hoặc `floating` với mount selector — nút luôn nằm trong host inline, panel iframe vẫn fixed như cũ.
 
 - URL iframe luôn gồm `embed=1` và **`open_try_on=1`** → trong chat hosted, panel **Thử đồ** mở sẵn (cùng luồng đăng nhập / credits / ảnh trang phục như trong chat).
 - Ngữ cảnh SP: **cùng** các `data-ctx-*` và quét DOM như mục 2–3 (`#nanoai-ctx-sku`, `.image_list` …).
 
-**Ví dụ — nút nổi (mặc định):**
+**Ví dụ — nút trong vùng PDP tùy ý (script ở cuối trang):**
+
+```html
+<div id="nanoai-try-on-slot"></div>
+<!-- … nội dung trang … -->
+<script
+  src="https://YOUR-NANOAI-HOST/embed/nanoai-try-on-widget.js"
+  data-try-on-url="https://YOUR-NANOAI-HOST/messaging/p/ten-shop"
+  data-shop-name="Tên shop"
+  data-mode="inline"
+  data-mount-selector="#nanoai-try-on-slot"
+  data-ctx-sku="SKU-188-001"
+  data-ctx-image="https://cdn…/thumb.jpg"
+  defer
+></script>
+```
+
+**Ví dụ — nút nổi (mặc định, góc màn hình):**
 
 ```html
 <script
@@ -91,16 +108,17 @@ Tệp: `public/embed/nanoai-try-on-widget.js`. Cơ chế giống widget chat: c�
 ></script>
 ```
 
-**Ví dụ — nút inline (trong luồng nội dung trang SP):** thêm `data-mode="inline"`. Nút hiện **ngay sau** thẻ script; bấm mở khung iframe như widget nổi.
+**Ví dụ — nút inline (trong luồng nội dung trang SP):** thêm `data-mode="inline"`. Nút hiện **ngay sau** thẻ script (hoặc trong phần tử `data-mount-selector` nếu có). Bấm mở khung iframe như widget nổi.
 
 | Thuộc tính | Bắt buộc | Ghi chú |
 |------------|----------|---------|
 | `data-try-on-url` | Có | Base URL trang chat shop, ví dụ `https://HOST/messaging/p/slug` (không cần tự thêm `embed`/`open_try_on`). |
-| `data-mode` | Không | `floating` (mặc định) hoặc `inline`. |
+| `data-mount-selector` | Không | CSS selector (`#id`, `.class`, …) của phần tử chứa nút; script có thể đặt xa vị trí hiển thị. |
+| `data-mode` | Không | `floating` (mặc định) = góc màn hình **khi không** dùng `data-mount-selector`. `inline` = nút trong layout (sau script hoặc trong phần tử chọn). |
 | `data-label` | Không | Chữ trên nút (mặc định «Thử đồ»). |
 | `data-ui-locale` | Không | `vi` \| `en` \| `zh` \| `ja` \| `ko`. |
 | `data-widget-id` | Không | Mặc định `nanoai-try-on-widget-v1` — đổi nếu nhúng **nhiều** widget / nhiều script. |
-| `data-side`, `data-bottom`, `data-width`, `data-height`, … | Không | Tương tự widget chat (chỉ mode floating). |
+| `data-side`, `data-bottom`, `data-width`, `data-height`, … | Không | Tương tự widget chat; áp dụng khi **nút nổi góc** (`floating` không kèm mount selector). |
 
 Có thể **dùng song song** script chat và script thử đồ trên cùng trang (đặt `data-widget-id` khác nhau nếu cần). `postMessage` `NAVIGATE_TOP` từ iframe (mở SP trên tab shop) hoạt động giống widget chat.
 

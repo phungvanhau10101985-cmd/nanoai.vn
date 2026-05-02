@@ -57,6 +57,18 @@
     var uiLocaleRaw = getAttr('data-ui-locale', '').trim().toLowerCase()
     var uiLocale = ['vi', 'en', 'zh', 'ja', 'ko'].indexOf(uiLocaleRaw) >= 0 ? uiLocaleRaw : ''
 
+    var mountSel = getAttr('data-mount-selector', '').trim().slice(0, 512)
+    var mountTarget = null
+    if (mountSel) {
+      try {
+        mountTarget = document.querySelector(mountSel)
+      } catch (_) {
+        mountTarget = null
+      }
+    }
+    /** Nút góc màn hình — chỉ floating và không dùng data-mount-selector. Có selector: gắn vào phần tử hoặc fallback sau script. */
+    var useCornerBubble = mode === 'floating' && !mountSel
+
     var inlineHost = null
 
     var existingRoot = document.getElementById(widgetId)
@@ -239,7 +251,7 @@
     var root = document.createElement('div')
     root.id = widgetId
     root.setAttribute('data-nanoai-ready', '1')
-    if (mode === 'floating') {
+    if (useCornerBubble) {
       root.style.cssText =
         'position:fixed;z-index:2147483000;font-family:Arial,sans-serif;pointer-events:none;'
       document.body.appendChild(root)
@@ -247,7 +259,11 @@
       inlineHost = document.createElement('div')
       inlineHost.className = 'nanoai-try-on-inline-host'
       inlineHost.style.cssText = 'display:inline-block;max-width:100%;vertical-align:middle;'
-      script.parentNode && script.parentNode.insertBefore(inlineHost, script.nextSibling)
+      if (mountTarget) {
+        mountTarget.appendChild(inlineHost)
+      } else {
+        script.parentNode && script.parentNode.insertBefore(inlineHost, script.nextSibling)
+      }
       root.style.cssText =
         'position:fixed;z-index:2147483000;font-family:Arial,sans-serif;pointer-events:none;left:0;top:0;right:0;bottom:0;'
       document.body.appendChild(root)
@@ -264,7 +280,7 @@
       'background:linear-gradient(135deg,#7c3aed,#6366f1);color:#fff;box-shadow:0 10px 24px rgba(0,0,0,.25);' +
       'display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:normal;text-align:center;max-width:100%;'
 
-    if (logoUrl && mode === 'floating') {
+    if (logoUrl && useCornerBubble) {
       var logo = document.createElement('img')
       logo.src = logoUrl
       logo.alt = ''
@@ -278,7 +294,7 @@
     lbl.textContent = buttonLabel
     bubble.appendChild(lbl)
 
-    if (mode === 'floating') {
+    if (useCornerBubble) {
       root.appendChild(bubble)
     } else if (inlineHost) {
       inlineHost.appendChild(bubble)
@@ -421,14 +437,14 @@
       ensureIframe(extractPageContext())
       panel.style.display = 'block'
       panel.style.pointerEvents = 'auto'
-      if (mode === 'floating') bubble.style.display = 'none'
+      if (useCornerBubble) bubble.style.display = 'none'
       applyLayout()
     }
 
     function closeTryOn() {
       panel.style.display = 'none'
       panel.style.pointerEvents = 'none'
-      if (mode === 'floating') bubble.style.display = 'inline-flex'
+      if (useCornerBubble) bubble.style.display = 'inline-flex'
     }
 
     bubble.addEventListener('click', openTryOn)
@@ -441,7 +457,7 @@
     })
 
     function placeDesktop() {
-      var safeBottom = clampBottomOffset(mode === 'floating' ? bubbleSize : 24)
+      var safeBottom = clampBottomOffset(useCornerBubble ? bubbleSize : 24)
       var availableHeight = Math.max(220, viewportHeight() - panelBottom - 12)
       var finalHeight = Math.min(desktopHeight, availableHeight)
 
@@ -450,7 +466,7 @@
       root.style.right = '0'
       root.style.bottom = '0'
 
-      if (mode === 'floating') {
+      if (useCornerBubble) {
         bubble.style.position = 'absolute'
         bubble.style.bottom = safeBottom + 'px'
         if (side === 'left') {
@@ -486,7 +502,7 @@
         panel.style.height = finalHeight + 'px'
       }
       panel.style.borderRadius = radius + 'px'
-      if (mode === 'floating') {
+      if (useCornerBubble) {
         bubble.style.width = 'auto'
         bubble.style.minHeight = bubbleSize + 'px'
       }
@@ -494,13 +510,13 @@
     }
 
     function placeMobile() {
-      var safeBottom = clampBottomOffset(mode === 'floating' ? mobileBubbleSize : 24)
+      var safeBottom = clampBottomOffset(useCornerBubble ? mobileBubbleSize : 24)
       root.style.top = '0'
       root.style.left = '0'
       root.style.right = '0'
       root.style.bottom = '0'
 
-      if (mode === 'floating') {
+      if (useCornerBubble) {
         bubble.style.position = 'absolute'
         bubble.style.bottom = safeBottom + 'px'
         bubble.style.minHeight = mobileBubbleSize + 'px'
@@ -537,6 +553,28 @@
     }
     applyLayout()
     window.addEventListener('resize', onResize, { passive: true })
+
+    if (mountSel && !mountTarget && inlineHost) {
+      var relocateAttempts = 0
+      function tryRelocateMount() {
+        relocateAttempts += 1
+        var el = null
+        try {
+          el = document.querySelector(mountSel)
+        } catch (_) {
+          el = null
+        }
+        if (el && inlineHost.parentNode !== el) {
+          el.appendChild(inlineHost)
+          applyLayout()
+          return
+        }
+        if (relocateAttempts < 25) {
+          window.setTimeout(tryRelocateMount, 200)
+        }
+      }
+      window.setTimeout(tryRelocateMount, 0)
+    }
   }
 
   if (document.readyState === 'loading') {
