@@ -43,24 +43,8 @@ export type PartnerDevIntegrationStrings = {
   inventoryOpenRateLimit: string
   tryOnTitle: string
   tryOnBody: string
-  /** Mục nhúng nút thử đồ (website shop) */
-  tryOnEmbedTitle: string
-  tryOnEmbedBody: string
-  tryOnEmbedUsesChatLayoutNote: string
-  tryOnEmbedModeLabel: string
-  tryOnEmbedModeFloating: string
-  tryOnEmbedModeInline: string
-  tryOnEmbedButtonLabel: string
-  tryOnEmbedButtonPlaceholder: string
-  /** Ô data-mount-selector — gắn nút vào phần tử bất kỳ */
-  tryOnEmbedMountSelectorLabel: string
-  tryOnEmbedMountSelectorPlaceholder: string
-  tryOnEmbedMountSelectorHint: string
-  /** Chữ nút mặc định trong mã khi ô trống */
-  tryOnEmbedDefaultButtonLabel: string
-  copyTryOnEmbedScriptButton: string
-  copyTryOnEmbedScriptToast: string
-  copyTryOnEmbedScriptError: string
+  /** Chi tiết API thử đồ B2B — trỏ tài liệu repo */
+  tryOnDocDetailNote: string
   snippetNote: string
   codeLabelExampleServer: string
   codeLabelResponseShape: string
@@ -140,25 +124,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Giới hạn theo IP + shop (429). Tuỳ chọn: PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_MAX và PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_WINDOW_MS; nếu không set thì dùng chung biến IMAGE_SEARCH_RATE_LIMIT_*.',
     tryOnTitle: 'E — API thử đồ ảo B2B',
     tryOnBody:
-      'POST multipart: bắt buộc userImage; ít nhất một ảnh trang phục (garmentImage0 … hoặc garmentCount + garmentImage{i}). Tùy chọn: imageQuality 2K|4K, gender male|female, customPrompt. Authorization: Bearer <bí mật thô> do NanoAI cấp. Credits trừ theo tài khoản billing đã gắn trong hợp đồng.',
-    tryOnEmbedTitle: 'A2 — Nút thử đồ nhúng trên website shop',
-    tryOnEmbedBody:
-      'Mở sẵn panel thử đồ trong chat hosted (cùng đăng nhập / credits như trong chat). Có thể đặt nút nổi góc màn hình hoặc chèn inline trong HTML trang chi tiết sản phẩm. Trên PDP, thêm các thuộc tính data-ctx-sku, data-ctx-image, data-ctx-inventory, … vào thẻ script (cùng quy tắc chip ngữ cảnh như nhúng chat).',
-    tryOnEmbedUsesChatLayoutNote:
-      'Khung iframe thử đồ dùng chung góc, khoảng cách và kích thước desktop với mục «Cài đặt mã nhúng nổi» ở **mục A** phía trên — chỉnh một lần áp dụng cho cả chat và thử đồ.',
-    tryOnEmbedModeLabel: 'Kiểu nút',
-    tryOnEmbedModeFloating: 'Nổi (góc màn hình)',
-    tryOnEmbedModeInline: 'Inline (ngay sau thẻ script)',
-    tryOnEmbedButtonLabel: 'Chữ hiển thị trên nút',
-    tryOnEmbedButtonPlaceholder: 'Để trống = mặc định theo bản dịch',
-    tryOnEmbedMountSelectorLabel: 'Gắn nút vào phần tử (CSS selector, tùy chọn)',
-    tryOnEmbedMountSelectorPlaceholder: 'Ví dụ: #nanoai-try-on-slot hoặc .pdp-try-on',
-    tryOnEmbedMountSelectorHint:
-      'Thêm thẻ chứa (ví dụ <div id="nanoai-try-on-slot"></div>) đúng chỗ hiển thị; script có thể đặt cuối trang. Để trống: nổi = góc màn hình, inline = ngay sau script. Selector chưa có khi tải trang: widget tự thử gắn lại trong vài giây.',
-    tryOnEmbedDefaultButtonLabel: 'Thử đồ',
-    copyTryOnEmbedScriptButton: 'Sao chép mã nhúng nút thử đồ',
-    copyTryOnEmbedScriptToast: 'Đã sao chép mã nhúng nút thử đồ.',
-    copyTryOnEmbedScriptError: 'Không sao chép được. Hãy chọn và copy thủ công.',
+      'POST multipart từ **backend shop**: `userImage` + ít nhất một `garmentImage*`. Bearer do NanoAI cấp; credits trừ vào ví billing gắn khóa. Phản hồi 200 trả `result_url` (ảnh kết quả), `history_id`, `credits_remaining`.',
+    tryOnDocDetailNote:
+      'Bảng tham số đầy đủ, ví dụ Node.js/Python, mã HTTP, timeout ~120s, khác API try-on trong chat: `docs/PARTNER_TRY_ON_CREDITS_INTEGRATION.md` (mục «Tích hợp API thử đồ», anchor `#partner-try-on-web`).',
     snippetNote:
       'Các khối mã ví dụ (curl / JSON) dùng tiếng Anh để thống nhất giữa các đội ngũ.',
     codeLabelExampleServer: 'Ví dụ (backend shop)',
@@ -237,25 +205,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Rate limited per IP + shop (429). Optional env: PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_MAX and PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_WINDOW_MS; falls back to IMAGE_SEARCH_RATE_LIMIT_* when unset.',
     tryOnTitle: 'E — B2B virtual try-on API',
     tryOnBody:
-      'POST multipart: userImage required; at least one garment (garmentImage0 … or garmentCount + garmentImage{i}). Optional: imageQuality 2K|4K, gender male|female, customPrompt. Authorization: Bearer <raw secret> issued by NanoAI. Credits bill the linked billing account per contract.',
-    tryOnEmbedTitle: 'A2 — Try-on button embed (your shop site)',
-    tryOnEmbedBody:
-      'Opens the hosted try-on panel inside NanoAI chat (same login / credits as chat). Use a floating corner button or inline placement on product pages. On PDPs, add data-ctx-sku, data-ctx-image, data-ctx-inventory, … on the script tag (same product-context rules as the chat embed).',
-    tryOnEmbedUsesChatLayoutNote:
-      'The try-on iframe uses the same corner, offsets, and desktop size as **section A** «Floating embed settings» above—adjust once for both chat and try-on.',
-    tryOnEmbedModeLabel: 'Button mode',
-    tryOnEmbedModeFloating: 'Floating (corner)',
-    tryOnEmbedModeInline: 'Inline (after script tag)',
-    tryOnEmbedButtonLabel: 'Button label',
-    tryOnEmbedButtonPlaceholder: 'Empty = default for this language',
-    tryOnEmbedMountSelectorLabel: 'Mount button inside element (CSS selector, optional)',
-    tryOnEmbedMountSelectorPlaceholder: 'e.g. #nanoai-try-on-slot or .pdp-try-on',
-    tryOnEmbedMountSelectorHint:
-      'Add a container where the button should appear; the script can live elsewhere (e.g. footer). If empty: floating = screen corner; inline = right after the script. If the element is not ready at load, the widget retries for a few seconds.',
-    tryOnEmbedDefaultButtonLabel: 'Try on',
-    copyTryOnEmbedScriptButton: 'Copy try-on embed script',
-    copyTryOnEmbedScriptToast: 'Try-on embed script copied.',
-    copyTryOnEmbedScriptError: 'Could not copy. Select the code and copy manually.',
+      'POST `multipart/form-data` from your **shop backend**: `userImage` plus at least one `garmentImage*`. Partner Bearer (NanoAI-issued); credits debit the linked billing wallet. HTTP 200 returns `result_url` (image), `history_id`, `credits_remaining` (snake_case).',
+    tryOnDocDetailNote:
+      'Full field reference, Node.js/Python samples, status codes, ~120s timeout, differences vs chat try-on: `docs/PARTNER_TRY_ON_CREDITS_INTEGRATION.md` (section «Tích hợp API thử đồ», anchor `#partner-try-on-web`).',
     snippetNote: 'Example blocks (curl / JSON) are in English for consistency across teams.',
     codeLabelExampleServer: 'Example (shop backend)',
     codeLabelResponseShape: 'Response shape',
@@ -330,25 +282,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       '按 IP + 店铺限流（429）。可选环境变量 PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_MAX 与 WINDOW_MS；未设置时回退到 IMAGE_SEARCH_RATE_LIMIT_*。',
     tryOnTitle: 'E — B2B 虚拟试衣 API',
     tryOnBody:
-      'POST multipart：必填 userImage；至少一件服装图 garmentImage0… 或 garmentCount + garmentImage{i}。可选 imageQuality 2K|4K、gender male|female、customPrompt。Authorization: Bearer <明文密钥> 由 NanoAI 提供。按合同从绑定计费账户扣 credits。',
-    tryOnEmbedTitle: 'A2 — 试穿按钮嵌入（店铺网站）',
-    tryOnEmbedBody:
-      '在托管聊天中直接打开试穿面板（登录与 credits 与聊天相同）。可使用浮动角按钮或商品详情页内联脚本。PDP 请在 script 标签上添加 data-ctx-sku、data-ctx-image、data-ctx-inventory 等（规则与聊天嵌入一致）。',
-    tryOnEmbedUsesChatLayoutNote:
-      '试穿 iframe 与上方 **A** «浮动嵌入设置» 的角落、间距、桌面宽高一致——调整一次同时适用于聊天与试穿。',
-    tryOnEmbedModeLabel: '按钮样式',
-    tryOnEmbedModeFloating: '浮动（角落）',
-    tryOnEmbedModeInline: '内联（紧跟 script）',
-    tryOnEmbedButtonLabel: '按钮文字',
-    tryOnEmbedButtonPlaceholder: '留空 = 此语言默认文案',
-    tryOnEmbedMountSelectorLabel: '将按钮挂到元素内（CSS 选择器，可选）',
-    tryOnEmbedMountSelectorPlaceholder: '例：#nanoai-try-on-slot 或 .pdp-try-on',
-    tryOnEmbedMountSelectorHint:
-      '在页面中放置容器元素；脚本可放在页脚等处。留空：悬浮=屏幕角；内联=紧接脚本后。若加载时尚无该元素，组件会在数秒内重试挂载。',
-    tryOnEmbedDefaultButtonLabel: '试穿',
-    copyTryOnEmbedScriptButton: '复制试穿嵌入脚本',
-    copyTryOnEmbedScriptToast: '已复制试穿嵌入脚本。',
-    copyTryOnEmbedScriptError: '无法复制，请手动选择代码复制。',
+      '由**店铺后端** POST `multipart`：`userImage` + 至少一件 `garmentImage*`。NanoAI 签发的 Bearer；credits 从绑定的 billing 钱包扣减。200 返回 `result_url`（结果图）、`history_id`、`credits_remaining`。',
+    tryOnDocDetailNote:
+      '完整字段说明、Node.js/Python 示例、HTTP 状态、约 120s 超时、与聊天内试衣 API 的差异：仓库内 `docs/PARTNER_TRY_ON_CREDITS_INTEGRATION.md`（章节开头，锚点 `#partner-try-on-web`）。',
     snippetNote: '示例代码块（curl / JSON）使用英文以便各团队统一。',
     codeLabelExampleServer: '示例（店铺后端）',
     codeLabelResponseShape: '响应结构',
@@ -423,25 +359,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'IP + 店舗ごとに制限（429）。任意: PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_*、未設定時は IMAGE_SEARCH_RATE_LIMIT_* を使用。',
     tryOnTitle: 'E — B2B バーチャル試着 API',
     tryOnBody:
-      'POST multipart: userImage 必須。衣装画像は garmentImage0… または garmentCount + garmentImage{i}。任意: imageQuality, gender, customPrompt。Authorization: Bearer <生秘密>。クレジットは契約に沿って課金ユーザーへ。',
-    tryOnEmbedTitle: 'A2 — 試着ボタン埋め込み（店舗サイト）',
-    tryOnEmbedBody:
-      'ホスト型チャット内で試着パネルを直接開きます（ログイン・クレジットはチャットと同じ）。角のフローティングボタンか、PDP に inline で配置。script タグに data-ctx-sku / data-ctx-image / data-ctx-inventory などを付与（チャット埋め込みと同じルール）。',
-    tryOnEmbedUsesChatLayoutNote:
-      '試着用 iframe は上の **A** «フローティング埋め込み設定」と同じ位置・余白・デスクトップサイズを使います。一度調整すればチャットと試着の両方に反映されます。',
-    tryOnEmbedModeLabel: 'ボタン形式',
-    tryOnEmbedModeFloating: 'フローティング（角）',
-    tryOnEmbedModeInline: 'インライン（script の直後）',
-    tryOnEmbedButtonLabel: 'ボタン表記',
-    tryOnEmbedButtonPlaceholder: '空欄＝この言語の既定',
-    tryOnEmbedMountSelectorLabel: 'ボタンを要素内に配置（CSS セレクタ、任意）',
-    tryOnEmbedMountSelectorPlaceholder: '例: #nanoai-try-on-slot または .pdp-try-on',
-    tryOnEmbedMountSelectorHint:
-      '表示したい位置にコンテナ要素を置き、スクリプトは別の場所（フッター等）に置けます。空欄: フローティング＝画面隅、インライン＝すぐ後ろのスクリプトの直後。読み込み時に無い場合は数秒リトライします。',
-    tryOnEmbedDefaultButtonLabel: '試着',
-    copyTryOnEmbedScriptButton: '試着埋め込みスクリプトをコピー',
-    copyTryOnEmbedScriptToast: '試着用スクリプトをコピーしました。',
-    copyTryOnEmbedScriptError: 'コピーできませんでした。コードを選択して手動でコピーしてください。',
+      '**店舗バックエンド**から POST multipart：`userImage` + 少なくとも 1 枚の `garmentImage*`。NanoAI 発行の Bearer；credits はリンク済み billing ウォレットから減算。200 で `result_url`（結果画像）、`history_id`、`credits_remaining` を返します。',
+    tryOnDocDetailNote:
+      '全フィールド、Node.js/Python サンプル、HTTP ステータス、約 120s タイムアウト、チャット内試着 API との違い：`docs/PARTNER_TRY_ON_CREDITS_INTEGRATION.md`（冒頭セクション、`#partner-try-on-web`）。',
     snippetNote: 'curl / JSON の例は英語表記で統一しています。',
     codeLabelExampleServer: '例（店舗バックエンド）',
     codeLabelResponseShape: 'レスポンスの形',
@@ -516,25 +436,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'IP + 매장별 제한(429). 선택 환경변수 PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_*; 미설정 시 IMAGE_SEARCH_RATE_LIMIT_* 사용.',
     tryOnTitle: 'E — B2B 가상 피팅 API',
     tryOnBody:
-      'POST multipart: userImage 필수. 의류 garmentImage0… 또는 garmentCount + garmentImage{i}. 선택: imageQuality, gender, customPrompt. Authorization: Bearer <평문 비밀>. 크레딧은 계약된 결제 계정에서 차감.',
-    tryOnEmbedTitle: 'A2 — 피팅 버튼 임베드(매장 사이트)',
-    tryOnEmbedBody:
-      '호스팅 채팅에서 피팅 패널을 바로 엽니다(로그인·크레딧은 채팅과 동일). 모서리 플로팅 버튼 또는 상품 상세 인라인. script 태그에 data-ctx-sku, data-ctx-image, data-ctx-inventory 등 추가(채팅 임베드와 동일 규칙).',
-    tryOnEmbedUsesChatLayoutNote:
-      '피팅 iframe은 위 **A** «플로팅 임베드 설정»과 동일한 모서리·여백·데스크톱 크기를 사용합니다. 한 번만 조정하면 채팅과 피팅 모두에 적용됩니다.',
-    tryOnEmbedModeLabel: '버튼 유형',
-    tryOnEmbedModeFloating: '플로팅(모서리)',
-    tryOnEmbedModeInline: '인라인(script 바로 다음)',
-    tryOnEmbedButtonLabel: '버튼 문구',
-    tryOnEmbedButtonPlaceholder: '비워 두면 이 언어 기본값',
-    tryOnEmbedMountSelectorLabel: '버튼을 넣을 요소(CSS 선택자, 선택)',
-    tryOnEmbedMountSelectorPlaceholder: '예: #nanoai-try-on-slot 또는 .pdp-try-on',
-    tryOnEmbedMountSelectorHint:
-      '원하는 위치에 컨테이너를 두고 스크립트는 다른 곳(푸터 등)에 둘 수 있습니다. 비움: 플로팅=화면 모서리, 인라인=스크립트 바로 뒤. 로드 시 요소가 없으면 몇 초간 재시도합니다.',
-    tryOnEmbedDefaultButtonLabel: '피팅',
-    copyTryOnEmbedScriptButton: '피팅 임베드 스크립트 복사',
-    copyTryOnEmbedScriptToast: '피팅 임베드 스크립트를 복사했습니다.',
-    copyTryOnEmbedScriptError: '복사에 실패했습니다. 코드를 직접 선택해 복사하세요.',
+      '**매장 백엔드**에서 POST multipart: `userImage` + `garmentImage*` 최소 1개. NanoAI가 발급한 Bearer; credits는 연결된 billing 지갑에서 차감. 200 응답에 `result_url`(결과 이미지), `history_id`, `credits_remaining`.',
+    tryOnDocDetailNote:
+      '전체 필드, Node.js/Python 예시, HTTP 코드, 약 120s 타임아웃, 채팅 내 피팅 API와 차이: 저장소의 `docs/PARTNER_TRY_ON_CREDITS_INTEGRATION.md`(맨 앞 섹션, 앵커 `#partner-try-on-web`).',
     snippetNote: 'curl / JSON 예시는 팀 간 통일을 위해 영어로 표기합니다.',
     codeLabelExampleServer: '예시(매장 백엔드)',
     codeLabelResponseShape: '응답 형태',

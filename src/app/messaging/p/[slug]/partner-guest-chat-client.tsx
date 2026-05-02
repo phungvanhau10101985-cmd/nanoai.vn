@@ -1450,8 +1450,6 @@ export function PartnerGuestChatClient({
   const didInitialAutoScrollRef = useRef(false)
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
-  /** `?open_try_on=1` — mở panel thử đồ một lần (widget nhúng nút thử đồ). */
-  const openedTryOnFromQueryRef = useRef(false)
   const [recentProductsOpen, setRecentProductsOpen] = useState(false)
   /** SP từ email CMSN / deep link ?interested_inv= */
   const [birthdayPromoExtraRows, setBirthdayPromoExtraRows] = useState<RecentProductWithSource[]>([])
@@ -1644,27 +1642,6 @@ export function PartnerGuestChatClient({
       }
     }
     if (account) guestAccountIdRef.current = account
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (openedTryOnFromQueryRef.current) return
-    const q = new URLSearchParams(window.location.search)
-    const tryOnFlag = (q.get('open_try_on') || '').trim().toLowerCase()
-    if (tryOnFlag === '1' || tryOnFlag === 'true' || tryOnFlag === 'yes') {
-      openedTryOnFromQueryRef.current = true
-      setTryOnOpen(true)
-      forceGuestChatScrollToBottomRef.current = true
-      try {
-        const u = new URL(window.location.href)
-        if (u.searchParams.has('open_try_on')) {
-          u.searchParams.delete('open_try_on')
-          window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`)
-        }
-      } catch {
-        /* ignore */
-      }
-    }
   }, [])
 
   useEffect(() => {

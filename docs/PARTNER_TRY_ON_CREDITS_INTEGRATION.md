@@ -1,7 +1,141 @@
 # Thử đồ & credits — tích hợp website đối tác
 
-Tài liệu này bổ sung hướng dẫn cho đội kỹ thuật shop: **hai mô hình tính phí**, **API trả số dư**, **nạp credit**, và **đồng bộ tài khoản theo email**.  
-Tham chiếu thêm: [MESSAGING_EMBED_PRODUCT_CONTEXT.md](../MESSAGING_EMBED_PRODUCT_CONTEXT.md) (chip ngữ cảnh sản phẩm), trang Bảng điều khiển → **Hướng dẫn API** (`/dashboard/api-integration`).
+Tài liệu này dành cho đội kỹ thuật shop: **tích hợp API thử đồ B2B lên backend web**, **hai mô hình tính phí**, **credits**, **nạp tiền**, và **đồng bộ tài khoản theo email**.  
+Tham chiếu thêm: [MESSAGING_EMBED_PRODUCT_CONTEXT.md](../MESSAGING_EMBED_PRODUCT_CONTEXT.md) (nhúng chat + `data-ctx-*` sản phẩm), trang Bảng điều khiển → **Hướng dẫn API** (`/dashboard/api-integration`, mục E).
+
+---
+
+## Tích hợp API thử đồ lên website shop (`POST /api/v1/partner/try-on`) {#partner-try-on-web}
+
+API **đủ thông tin** để tạo **một ảnh thử đồ** (ảnh người + một hoặc nhiều ảnh trang phục mẫu). Luồng chuẩn: **trình duyệt khách** → **backend cửa hàng** (PHP/Node/Python/…) → **NanoAI** — **không** gọi trực tiếp từ JS trình duyệt vì cần `Bearer` bí mật.
+
+### Endpoint
+
+- **URL:** `https://<HOST-NANOAI>/api/v1/partner/try-on`
+- **Phương thức:** `POST`
+- **Headers:**
+  - `Authorization: Bearer <PARTNER_SECRET>` (bí mật do NanoAI cấp, gắn ví `billing_user_id`)
+- **Body:** `multipart/form-data` (chỉ nhận **file**, không hỗ trợ `garmentUrl*` như API chat)
+- **Thời gian xử lý:** có thể tới **~120 giây** — HTTP client nên đặt timeout **≥ 130s** (hoặc tách job bất đồng bộ ở phía shop nếu cần).
+
+### Tham số form
+
+| Trường | Bắt buộc | Mô tả |
+|--------|----------|--------|
+| `userImage` | **Có** | File ảnh: **một người** trong khung, làm mẫu để giữ mặt/tư thế/nền. Nên JPEG/PNG/WebP; kích thước hợp lý (vài MB). |
+| `garmentImage0`, `garmentImage1`, … | Một trong hai cách | Ít nhất **một** ảnh trang phục (mẫu mặc sản phẩm). Thứ tự: `0` là chiếc đầu tiên. Tối đa **12** ảnh. |
+| `garmentCount` | Không | Nếu set (số nguyên dương): chỉ đọc `garmentImage0` … `garmentImage{count-1}` trong phạm vi min(count, 12). Nếu **không** set: quét `garmentImage0` … `garmentImage11`, lấy các file không rỗng theo thứ tự. |
+| `imageQuality` | Không | `2K` (mặc định) hoặc `4K`. **4K** tốn **~2,2×** credits so với 2K (xem dưới). |
+| `gender` | Không | `male` (mặc định) hoặc `female` — gợi ý model về giới tính người trong ảnh. |
+| `customPrompt` | Không | Ghi chú thêm (tiếng Việt hoặc khác); server **chuẩn hóa sang tiếng Anh** trước khi đưa vào prompt. Giữ ngắn, tránh PII nhạy cảm. |
+
+**Lưu ý thứ tự:** Nhiều ảnh trang phục được hiểu là **nhiều lớp / nhiều mảnh** theo thứ tự gửi; thường shop chỉ cần **một** `garmentImage0` là ảnh sản phẩm trên PDP.
+
+### Credits mỗi lần gọi (mô hình B2B)
+
+- Giá cơ sở một lượt **một người** (`2K`): **1** credit (hằng số `tryOnCostMap.single` trong code).
+- `4K`: **1 × 2,2 = 2,2** credits (làm tròn hiển thị theo hệ thống ví).
+- Trừ vào **user billing** đã gắn với khóa partner (không phải ví từng khách cuối).
+
+### Response thành công (`200`, JSON)
+
+```json
+{
+  "ok": true,
+  "result_url": "https://…",
+  "history_id": "uuid",
+  "credits_remaining": 123.5
+}
+```
+
+| Trường | Ý nghĩa |
+|--------|---------|
+| `result_url` | URL **HTTPS** ảnh kết quả; có thể hiển thị cho khách hoặc tải về qua backend shop (tránh lộ `Bearer`). |
+| `history_id` | ID bản ghi lịch sử phía NanoAI — hữu ích khi tra soát / hỗ trợ. |
+| `credits_remaining` | Số dư credits **sau khi trừ** lượt này; có thể cache trên server shop để hiển thị quota nội bộ. |
+
+### Lỗi (JSON thường có `ok: false` và `error`)
+
+| HTTP | Tình huống |
+|------|------------|
+| `400` | Thiếu / sai `multipart` (thiếu `userImage`, không có garment, body không phải form). |
+| `401` | Thiếu `Bearer`, sai secret, hoặc khóa không hoạt động. |
+| `402` | **Hết credits** (thông báo thường chứa «Không đủ credits»). |
+| `422` | Pipeline / ảnh không hợp lệ / lỗi Vision-Gemini (không chỉ hết tiền). |
+| `500` | Lỗi máy chủ. |
+| `503` | DB chưa cấu hình hoặc không tra cứu được khóa. |
+
+### Ví dụ gọi API
+
+**curl**
+
+```bash
+curl -sS -X POST "https://HOST/api/v1/partner/try-on" \
+  -H "Authorization: Bearer YOUR_PARTNER_SECRET" \
+  -F "userImage=@./customer.jpg" \
+  -F "garmentImage0=@./product-front.jpg" \
+  -F "garmentImage1=@./product-back.jpg" \
+  -F "imageQuality=2K" \
+  -F "gender=female" \
+  -F "customPrompt=Giữ dáng áo sát người, không đổi độ dài váy"
+```
+
+**Node.js (undici `fetch` + `FormData`)**
+
+```javascript
+import { readFile } from 'node:fs/promises'
+
+const host = 'https://HOST'
+const secret = process.env.NANOAI_TRY_ON_SECRET
+
+const fd = new FormData()
+fd.append('userImage', new Blob([await readFile('customer.jpg')]), 'customer.jpg')
+fd.append('garmentImage0', new Blob([await readFile('product.jpg')]), 'product.jpg')
+fd.append('imageQuality', '2K')
+fd.append('gender', 'female')
+
+const res = await fetch(`${host}/api/v1/partner/try-on`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${secret}` },
+  body: fd,
+  signal: AbortSignal.timeout(130_000),
+})
+const json = await res.json()
+if (!res.ok) throw new Error(json.error || res.statusText)
+// json.result_url → trả về cho frontend hoặc proxy tải ảnh
+```
+
+**Python (`requests`)**
+
+```python
+import os, requests
+r = requests.post(
+    "https://HOST/api/v1/partner/try-on",
+    headers={"Authorization": f"Bearer {os.environ['NANOAI_TRY_ON_SECRET']}"},
+    files={
+        "userImage": open("customer.jpg", "rb"),
+        "garmentImage0": open("product.jpg", "rb"),
+    },
+    data={"imageQuality": "2K", "gender": "female"},
+    timeout=130,
+)
+r.raise_for_status()
+data = r.json()
+assert data["ok"]
+print(data["result_url"], data["credits_remaining"])
+```
+
+### Gợi ý tích hợp sản phẩm
+
+1. **Ảnh người (`userImage`):** upload từ form; nhắc khách **một người**, mặt/nửa người rõ, ánh sáng tốt.
+2. **Ảnh sản phẩm (`garmentImage*`):** lấy từ CDN/ảnh PDP (server shop tải file rồi forward dưới dạng part — API B2B **không** nhận URL trực tiếp).
+3. **Bảo mật:** route shop chỉ nhận session khách; route đó mới gọi NanoAI bằng secret.
+4. **Idempotency:** mỗi `POST` là **một** lượt tạo ảnh + **trừ credits**; lỗi mạng có thể cần kiểm tra `history_id` / log phía NanoAI trước khi gọi lại.
+
+### Khác với thử đồ trong chat
+
+- Chat: `POST /api/messaging/guest/{slug}/try-on` — cookie/phiên khách, có thêm `garmentUrl0`… (URL ảnh), tối đa **4** garment, không dùng `gender`/`customPrompt` như B2B.
+- B2B: chỉ **file**, tới **12** garment, có `gender` + `customPrompt`.
 
 ---
 
@@ -23,32 +157,7 @@ Tham chiếu thêm: [MESSAGING_EMBED_PRODUCT_CONTEXT.md](../MESSAGING_EMBED_PROD
 
 ## 1. Mô hình A — API B2B (`/api/v1/partner/try-on`)
 
-**Ai trả tiền:** Tài khoản NanoAI **`billing_user_id`** được gắn khi NanoAI tạo bản ghi khóa (hash `SHA-256(UTF-8)` của bí mật). **Không** gắn ví từng khách cuối trên website shop.
-
-**Request (rút gọn):** `multipart/form-data`
-
-- `userImage` (bắt buộc)
-- `garmentImage0`, `garmentImage1`, … hoặc `garmentCount` + `garmentImage{i}`
-- Tuỳ chọn: `imageQuality` (`2K` \| `4K`), `gender` (`male` \| `female`), `customPrompt`
-
-**Response thành công (JSON):**
-
-```json
-{
-  "ok": true,
-  "result_url": "https://…",
-  "history_id": "uuid",
-  "credits_remaining": 123.5
-}
-```
-
-- **`credits_remaining`**: số dư credits **của billing user** sau lần trừ này — có thể dùng để **hiển thị tổng quota shop** trên backend nội bộ của đối tác nếu bạn cache/sync sau mỗi lần gọi.
-
-**Lỗi thường gặp:**
-
-- `401`: Bearer thiếu / sai / khóa không hoạt động.
-- `402`: Message lỗi kiểu hết credits (nội dung có thể chứa “Không đủ credits”).
-- `422`: Lỗi pipeline / ảnh không hợp lệ (không nhất thiết là hết credits).
+**Tóm tắt:** Trừ credits vào **`billing_user_id`** gắn với khóa (hash SHA-256 của secret). **Chi tiết đầy đủ** (bảng tham số, ví dụ Node/Python, mã lỗi, kiến trúc, khác chat): xem mục **[Tích hợp API thử đồ lên website shop](#partner-try-on-web)** đầu tài liệu.
 
 **Bảo mật:** Chỉ gọi từ **backend shop**, không nhúng bí mật vào JS trình duyệt.
 
@@ -144,8 +253,10 @@ Tham số `next` được sanitize server-side (`sanitizeLoginNext`) — chỉ d
 
 ## 6. Checklist cho đối tác
 
+- [ ] Đã đọc mục **[Tích hợp API thử đồ lên website shop](#partner-try-on-web)** (tham số, timeout, ví dụ backend).
 - [ ] Đã phân biệt rõ: **B2B try-on** (trừ ví shop) vs **try-on trong chat** (trừ ví khách).
 - [ ] Không lộ **Partner Bearer** ra frontend.
+- [ ] HTTP client backend đặt **timeout ≥ 130s** (hoặc job bất đồng bộ) cho `POST /api/v1/partner/try-on`.
 - [ ] Nếu cần **số dư shop** realtime mà không gọi try-on: thống nhất với NanoAI (dashboard / hỗ trợ / endpoint tương lai).
 - [ ] Nếu cần **số dư khách trên site shop**: ưu tiên **iframe chat** hoặc **deep link** đến NanoAI như mục 5.
 
