@@ -83,6 +83,7 @@ Sau khi bấm mở chat, URL iframe (Network → document của iframe) nên ch�
 - **Không bắt buộc** mở tab website NanoAI riêng: khung chat là **iframe cùng tab** trang shop; nút **nạp credit** (nếu bật) nằm **trong iframe** đó.
 - Thử đồ có phí vẫn **trừ credits ví NanoAI** của phiên khách — chỉ là UI nạp **không cần** chuyển sang tab `nanoai.vn` nếu shop không chặn UI đó trong embed.
 - Nếu yêu cầu **tuyệt đối** không có luồng ví NanoAI (kể cả trong iframe), cần hướng riêng: gói trial, shop trả hộ, hoặc tích hợp B2B — xem tài liệu credits ở cuối trang.
+- **Popup trên site shop** chỉ có khi trang **shop** nhúng `nanoai-chat-widget.js` / iframe: chat chạy **trong iframe**, thanh địa chỉ vẫn là domain shop. Mở trực tiếp `https://…/messaging/p/…?embed=1` trên tab NanoAI thì luôn là **cả tab** NanoAI. Với tải top-level và `?embed=1`, app bo khung giống cửa sổ nổi (không thay cho iframe trên shop).
 
 ---
 

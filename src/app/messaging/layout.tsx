@@ -15,7 +15,8 @@ export default async function MessagingLayout({ children }: { children: ReactNod
   const isEmbeddedGuestChat = pathname.startsWith('/messaging/p/')
 
   if (isEmbeddedGuestChat) {
-    return <div className="h-[100dvh] overflow-hidden bg-background">{children}</div>
+    /** Chiều cao / nền popup do `EmbedGuestChatViewport` trên từng trang con (`?embed=1` + top-level). */
+    return <>{children}</>
   }
   const { t } = getServerDictionary()
   const currentSlug = pathname.startsWith('/messaging/p/') ? decodeURIComponent(pathname.replace('/messaging/p/', '')) : ''
