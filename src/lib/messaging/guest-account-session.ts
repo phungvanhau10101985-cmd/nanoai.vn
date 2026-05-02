@@ -1,5 +1,5 @@
 import type { NextRequest, NextResponse } from 'next/server'
-import { EMAIL_SESSION_MAX_AGE_SEC } from '@/lib/auth/email-session-token'
+import { EMAIL_SESSION_MAX_AGE_SEC } from '@/lib/auth/email-session-max-age'
 
 export const MESSAGING_GUEST_ACCOUNT_COOKIE = 'app_guest_account_id'
 export const MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY = 'nanoai_guest_account_id'
