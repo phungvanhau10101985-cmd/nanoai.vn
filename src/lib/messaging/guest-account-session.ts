@@ -1,4 +1,5 @@
 import type { NextRequest, NextResponse } from 'next/server'
+import { EMAIL_SESSION_MAX_AGE_SEC } from '@/lib/auth/email-session-token'
 
 export const MESSAGING_GUEST_ACCOUNT_COOKIE = 'app_guest_account_id'
 export const MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY = 'nanoai_guest_account_id'
@@ -26,14 +27,15 @@ export function writeGuestAccountCookie(response: NextResponse, request: NextReq
     sameSite: 'lax' as const,
     secure: request.nextUrl.protocol === 'https:',
     path: '/',
-    maxAge: 60 * 60 * 24 * 365,
+    /** Cùng thời hạn cookie phiên email (`EMAIL_SESSION_MAX_AGE_DAYS`, mặc định ~10 năm). */
+    maxAge: EMAIL_SESSION_MAX_AGE_SEC,
   }
   const syncOpts = {
     httpOnly: false,
     sameSite: 'lax' as const,
     secure: request.nextUrl.protocol === 'https:',
     path: '/',
-    maxAge: 60 * 60 * 24 * 365,
+    maxAge: EMAIL_SESSION_MAX_AGE_SEC,
   }
   response.cookies.set(MESSAGING_GUEST_ACCOUNT_COOKIE, accountId, opts)
   response.cookies.set(MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY, accountId, opts)

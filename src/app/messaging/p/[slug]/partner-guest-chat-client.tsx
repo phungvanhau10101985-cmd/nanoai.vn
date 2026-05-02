@@ -3658,12 +3658,6 @@ export function PartnerGuestChatClient({
   }, [authMode, beginTopUpModalFlow, toast, t.toastGuestTopUpLoginRequired])
 
   useEffect(() => {
-    if (!tryOnOpen) return
-    if (authMode === 'account') return
-    setGuestCreditAuthDialogOpen(true)
-  }, [tryOnOpen, authMode])
-
-  useEffect(() => {
     if (authMode !== 'account' || !pendingTopUpAfterAuth) return
     setPendingTopUpAfterAuth(false)
     setGuestCreditAuthDialogOpen(false)

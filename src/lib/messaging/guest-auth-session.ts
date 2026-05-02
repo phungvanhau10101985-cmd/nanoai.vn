@@ -1,4 +1,5 @@
 import type { NextRequest, NextResponse } from 'next/server'
+import { EMAIL_SESSION_MAX_AGE_SEC } from '@/lib/auth/email-session-token'
 import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import {
   isValidMessagingGuestSessionId,
@@ -61,14 +62,15 @@ export function writeGuestSessionCookie(response: NextResponse, request: NextReq
     sameSite: 'lax' as const,
     secure: request.nextUrl.protocol === 'https:',
     path: '/',
-    maxAge: 60 * 60 * 24 * 365,
+    /** Đồng bộ với phiên email + guest account (`EMAIL_SESSION_MAX_AGE_DAYS`). */
+    maxAge: EMAIL_SESSION_MAX_AGE_SEC,
   }
   const syncOpts = {
     httpOnly: false,
     sameSite: 'lax' as const,
     secure: request.nextUrl.protocol === 'https:',
     path: '/',
-    maxAge: 60 * 60 * 24 * 365,
+    maxAge: EMAIL_SESSION_MAX_AGE_SEC,
   }
   response.cookies.set(MESSAGING_GUEST_SESSION_COOKIE, sessionId, opts)
   response.cookies.set(MESSAGING_GUEST_SESSION_COOKIE_LEGACY, sessionId, opts)
