@@ -41,6 +41,7 @@ Server-render các thuộc tính động trên **cùng** thẻ script load widge
 | Thuộc tính | Bắt buộc | Ghi chú |
 |------------|----------|---------|
 | `data-ctx-sku` | Không | SKU / mã SP hiển thị cho khách. |
+| `data-chat-url` | **Có** | **Bắt buộc đặt đúng** URL trang chat hosted (`…/messaging/p/{slug}?embed=1`). Có thể dùng URL tuyệt đối (`https://your-nanoai-host/...`) **hoặc** path (`/messaging/p/...`) — widget neo path theo **host của file** `nanoai-chat-widget.js`, không theo domain trang shop. |
 | `data-ctx-image` | Không | URL ảnh đại diện (HTTPS). Tránh URL file video (.mp4 …). |
 | `data-ctx-image-2` | Không | Ảnh phụ. |
 | `data-ctx-product-url` | Không | Nếu không set, widget fallback `link[rel=canonical]` hoặc URL hiện tại. |

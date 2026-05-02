@@ -108,6 +108,24 @@ import type { GuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
 /** Khoảng cách tới đáy (px) để coi như user đang xem cuối thread — cho phép auto-scroll theo tin/typing mới. */
 const GUEST_CHAT_STICK_TO_BOTTOM_PX = 120
 
+/**
+ * `open_try_on` chỉ có trên URL lần đầu; effect strip query → React Strict Mode (dev) remount
+ * mất param. Cache theo `slug` để lần khởi tạo state sau vẫn mở panel thử đồ.
+ */
+let guestChatTryOnUrlFlagCache: { slug: string; value: boolean } | null = null
+
+function initialTryOnOpenFromGuestUrl(slug: string): boolean {
+  if (typeof window === 'undefined') return false
+  if (guestChatTryOnUrlFlagCache && guestChatTryOnUrlFlagCache.slug === slug) {
+    return guestChatTryOnUrlFlagCache.value
+  }
+  const q = new URLSearchParams(window.location.search)
+  const f = (q.get('open_try_on') || '').trim().toLowerCase()
+  const v = f === '1' || f === 'true' || f === 'yes'
+  guestChatTryOnUrlFlagCache = { slug, value: v }
+  return v
+}
+
 /** Ghép ngày sinh từ ba dropdown — trả ISO `YYYY-MM-DD` hoặc null. */
 function buildIsoDateFromBirthParts(day: string, month: string, year: string): string | null {
   const d = Number.parseInt(day, 10)
@@ -1344,9 +1362,9 @@ export function PartnerGuestChatClient({
   const [consultLinkPreparing, setConsultLinkPreparing] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
-  const [tryOnOpen, setTryOnOpen] = useState(false)
+  const [tryOnOpen, setTryOnOpen] = useState(() => initialTryOnOpenFromGuestUrl(slug))
   /** `open_try_on=1` từ widget — hiển thị gợi ý ảnh người / credits trong iframe. */
-  const [tryOnOpenedViaEmbedQuery, setTryOnOpenedViaEmbedQuery] = useState(false)
+  const [tryOnOpenedViaEmbedQuery, setTryOnOpenedViaEmbedQuery] = useState(() => initialTryOnOpenFromGuestUrl(slug))
   const [tryOnBusy, setTryOnBusy] = useState(false)
   const [tryOnCreditsBalance, setTryOnCreditsBalance] = useState<number | null>(null)
   const [tryOnCreditsLoading, setTryOnCreditsLoading] = useState(false)

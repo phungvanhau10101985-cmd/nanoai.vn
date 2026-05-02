@@ -30,7 +30,27 @@
   }
 
   function mount() {
-    var chatUrl = getAttr('data-chat-url', '')
+    var widgetScriptOrigin = ''
+    try {
+      var _scriptSrc = String(script.getAttribute('src') || '').trim()
+      if (_scriptSrc) widgetScriptOrigin = new URL(_scriptSrc, window.location.href).origin
+    } catch (_) {}
+
+    /** `data-chat-url` chỉ có path → neo vào **host script NanoAI**, không neo vào host trang shop. */
+    function absoluteChatUrl(raw) {
+      var t = String(raw || '').trim()
+      if (!t) return ''
+      try {
+        if (/^https?:\/\//i.test(t)) return new URL(t).href
+        if (t.indexOf('//') === 0) return new URL(window.location.protocol + t).href
+        if (widgetScriptOrigin) return new URL(t, widgetScriptOrigin + '/').href
+        return new URL(t, window.location.href).href
+      } catch (_) {
+        return t
+      }
+    }
+
+    var chatUrl = absoluteChatUrl(getAttr('data-chat-url', ''))
     if (!chatUrl) return
 
     /** Tên thương hiệu / shop hiển thị trên thanh widget (thay «NanoAI»). */
