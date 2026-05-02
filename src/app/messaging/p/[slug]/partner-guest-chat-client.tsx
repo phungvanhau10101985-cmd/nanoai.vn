@@ -1369,6 +1369,10 @@ export function PartnerGuestChatClient({
   const [tryOnCreditsBalance, setTryOnCreditsBalance] = useState<number | null>(null)
   const [tryOnCreditsLoading, setTryOnCreditsLoading] = useState(false)
   const [topUpOpen, setTopUpOpen] = useState(false)
+  /** Đăng nhập OTP để mở ví credit (thử đồ / nạp) — Dialog thay vì bảng nạp khi chưa account. */
+  const [guestCreditAuthDialogOpen, setGuestCreditAuthDialogOpen] = useState(false)
+  const [pendingTopUpAfterAuth, setPendingTopUpAfterAuth] = useState(false)
+  const tryOnZeroCreditAutoTopUpRef = useRef(false)
   const [topUpLoading, setTopUpLoading] = useState(false)
   const [topUpAmount, setTopUpAmount] = useState(String(CREDIT_UNIT_PRICE_VND))
   const [topUpConfigs, setTopUpConfigs] = useState<TopUpPaymentConfig[]>([])
@@ -3357,12 +3361,22 @@ export function PartnerGuestChatClient({
   }
 
   const runTryOn = async () => {
+    if (authMode !== 'account') {
+      setGuestCreditAuthDialogOpen(true)
+      toast({ title: t.guestCreditWalletLoginTitle, description: t.guestCreditWalletLoginDescription })
+      return
+    }
     if (!userId) {
       toast({ title: t.loginPromptTitle, description: t.loginPromptDescription })
       return
     }
     if (!tryOnUserFile || tryOnGarmentFiles.length === 0) {
       toast({ title: t.tryOnNeedBoth, variant: 'destructive' })
+      return
+    }
+    if (typeof tryOnCreditsBalance === 'number' && tryOnCreditsBalance < TRY_ON_COST_2K) {
+      toast({ title: t.toastTryOnInsufficientCredits, variant: 'destructive' })
+      void openTopUpPopup()
       return
     }
     setTryOnBusy(true)
@@ -3587,7 +3601,7 @@ export function PartnerGuestChatClient({
     return `SEVQR DH${suffix}`
   }, [])
 
-  const openTopUpPopup = useCallback(async () => {
+  const beginTopUpModalFlow = useCallback(async () => {
     setTopUpOpen(true)
     setTopUpPayment(null)
     try {
@@ -3605,10 +3619,9 @@ export function PartnerGuestChatClient({
             variant: 'destructive',
           })
         } else {
-          setAuthGateRequired(true)
-          setAuthMode('anonymous')
+          setGuestCreditAuthDialogOpen(true)
           toast({
-            title: 'Vui lòng đăng nhập (email/Google) để nạp credit.',
+            title: t.toastGuestTopUpLoginRequired,
             variant: 'destructive',
           })
         }
@@ -3632,7 +3645,42 @@ export function PartnerGuestChatClient({
     } catch {
       toast({ title: 'Không tải được cấu hình nạp tiền.', variant: 'destructive' })
     }
-  }, [authHeaders, hasVerifiedGuestAccount, loadTryOnCreditsBalance, toast])
+  }, [authHeaders, hasVerifiedGuestAccount, loadTryOnCreditsBalance, toast, t.toastGuestTopUpLoginRequired])
+
+  const openTopUpPopup = useCallback(async () => {
+    if (authMode !== 'account') {
+      setPendingTopUpAfterAuth(true)
+      setGuestCreditAuthDialogOpen(true)
+      toast({ title: t.toastGuestTopUpLoginRequired })
+      return
+    }
+    await beginTopUpModalFlow()
+  }, [authMode, beginTopUpModalFlow, toast, t.toastGuestTopUpLoginRequired])
+
+  useEffect(() => {
+    if (!tryOnOpen) return
+    if (authMode === 'account') return
+    setGuestCreditAuthDialogOpen(true)
+  }, [tryOnOpen, authMode])
+
+  useEffect(() => {
+    if (authMode !== 'account' || !pendingTopUpAfterAuth) return
+    setPendingTopUpAfterAuth(false)
+    setGuestCreditAuthDialogOpen(false)
+    void beginTopUpModalFlow()
+  }, [authMode, pendingTopUpAfterAuth, beginTopUpModalFlow])
+
+  useEffect(() => {
+    if (!tryOnOpen) {
+      tryOnZeroCreditAutoTopUpRef.current = false
+      return
+    }
+    if (authMode !== 'account' || tryOnCreditsLoading) return
+    if (typeof tryOnCreditsBalance !== 'number' || tryOnCreditsBalance >= TRY_ON_COST_2K) return
+    if (tryOnZeroCreditAutoTopUpRef.current) return
+    tryOnZeroCreditAutoTopUpRef.current = true
+    void beginTopUpModalFlow()
+  }, [tryOnOpen, authMode, tryOnCreditsBalance, tryOnCreditsLoading, beginTopUpModalFlow])
 
   const createTopUpPayment = useCallback(async () => {
     const amount = Math.max(1000, Math.round(Number(topUpAmount) || 0))
@@ -3676,9 +3724,9 @@ export function PartnerGuestChatClient({
             variant: 'destructive',
           })
         } else {
-          setAuthGateRequired(true)
-          setAuthMode('anonymous')
-          toast({ title: 'Vui lòng đăng nhập (email/Google) để nạp credit.', variant: 'destructive' })
+          setTopUpOpen(false)
+          setGuestCreditAuthDialogOpen(true)
+          toast({ title: t.toastGuestTopUpLoginRequired, variant: 'destructive' })
         }
         return
       }
@@ -3703,6 +3751,7 @@ export function PartnerGuestChatClient({
     topUpAmount,
     topUpConfigs,
     topUpSelectedBank,
+    t.toastGuestTopUpLoginRequired,
   ])
 
   const enqueueGuestSend = useCallback((run: () => Promise<void>) => {
@@ -4122,6 +4171,7 @@ export function PartnerGuestChatClient({
           }
         }
         toast({ title: 'Đăng nhập thành công.' })
+        setGuestCreditAuthDialogOpen(false)
         await refreshAuthAndReload()
         await load()
         return
@@ -4169,6 +4219,7 @@ export function PartnerGuestChatClient({
       }
       setAuthMode('account')
       setAuthGateRequired(false)
+      setGuestCreditAuthDialogOpen(false)
       setGuestAuthOtp('')
       otpLastAutoSubmittedRef.current = ''
       const accountId = typeof data.accountId === 'string' ? data.accountId.trim() : ''
@@ -5705,7 +5756,7 @@ export function PartnerGuestChatClient({
                         checked={guestAuthRememberDevice}
                         onChange={(e) => setGuestAuthRememberDevice(e.target.checked)}
                       />
-                      <span>Tin cậy thiết bị này 30 ngày (đăng nhập lại cùng email sẽ bỏ qua OTP).</span>
+                      <span>{t.guestAuthRememberDeviceHint}</span>
                     </label>
                     <div className="flex flex-wrap gap-1.5">
                       <input
@@ -5729,7 +5780,7 @@ export function PartnerGuestChatClient({
                       </Button>
                     </div>
                     {guestAuthVerifying ? (
-                      <p className="text-[11px] text-muted-foreground">Đang đăng nhập, vui lòng chờ...</p>
+                      <p className="text-[11px] text-muted-foreground">{t.guestAuthVerifyingProgress}</p>
                     ) : null}
                   </div>
                 </div>
@@ -5978,6 +6029,78 @@ export function PartnerGuestChatClient({
         </CardContent>
       </Card>
       {topUpModal}
+      <Dialog
+        open={guestCreditAuthDialogOpen}
+        onOpenChange={(open) => {
+          setGuestCreditAuthDialogOpen(open)
+          if (!open) setPendingTopUpAfterAuth(false)
+        }}
+      >
+        <DialogContent
+          className="z-[230] max-h-[min(90dvh,560px)] overflow-y-auto sm:max-w-md"
+          overlayClassName="z-[220] bg-black/70"
+        >
+          <DialogHeader>
+            <DialogTitle>{t.guestCreditWalletLoginTitle}</DialogTitle>
+            <DialogDescription>{t.guestCreditWalletLoginDescription}</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-2">
+            <input
+              type="email"
+              value={guestAuthEmail}
+              onChange={(e) => setGuestAuthEmail(e.target.value)}
+              placeholder={t.guestAuthEmailPlaceholder}
+              className="h-9 rounded-md border border-border bg-background px-2 text-[13px]"
+              autoComplete="email"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="text-xs"
+                disabled={guestAuthSending || !guestAuthEmail.trim()}
+                onClick={() => void requestGuestAuthEmail()}
+              >
+                {t.guestAuthSendOtp}
+              </Button>
+            </div>
+            <label className="flex items-start gap-2 text-[11px] text-muted-foreground">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-3.5 w-3.5"
+                checked={guestAuthRememberDevice}
+                onChange={(e) => setGuestAuthRememberDevice(e.target.checked)}
+              />
+              <span>{t.guestAuthRememberDeviceHint}</span>
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={guestAuthOtp}
+                onChange={(e) => setGuestAuthOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder={t.guestAuthOtpPlaceholder}
+                inputMode="numeric"
+                maxLength={6}
+                className="h-9 min-w-[140px] flex-1 rounded-md border border-border bg-background px-2 text-[13px]"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-9 text-xs"
+                disabled={guestAuthVerifying || !guestAuthEmail.trim() || guestAuthOtp.trim().length !== 6}
+                onClick={() => void verifyGuestOtp()}
+              >
+                {t.guestAuthVerifyOtp}
+              </Button>
+            </div>
+            {guestAuthVerifying ? (
+              <p className="text-[11px] text-muted-foreground">{t.guestAuthVerifyingProgress}</p>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 

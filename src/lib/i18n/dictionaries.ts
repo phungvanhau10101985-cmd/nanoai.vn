@@ -894,6 +894,11 @@ export type Dictionary = {
     tryOnEmbedGarmentFromPageWithSku: string
     /** Mở từ widget data-primary=try_on: nhắc ảnh người / SP / credits trong iframe. */
     tryOnEmbedOnlyFlowHint: string
+    /** Dialog đăng nhập OTP khi cần ví credit (thử đồ / nạp). */
+    guestCreditWalletLoginTitle: string
+    guestCreditWalletLoginDescription: string
+    toastGuestTopUpLoginRequired: string
+    toastTryOnInsufficientCredits: string
     guestAuthPromptTitle: string
     guestAuthPromptBody: string
     guestAuthEmailPlaceholder: string
@@ -905,6 +910,10 @@ export type Dictionary = {
     guestAuthEmailSent: string
     guestAuthOtpInvalid: string
     guestAuthRateLimited: string
+    /** Checkbox «tin cậy thiết bị» (OTP guest). */
+    guestAuthRememberDeviceHint: string
+    /** Đang chờ verify OTP (dialog / inline). */
+    guestAuthVerifyingProgress: string
     /** Hiển thị khi shop/AI đang chuẩn bị trả lời sau tin của khách */
     shopTypingHint: string
     /** Khi mở link tư vấn — chờ gửi tin (vector + lời mở đầu) hiển thị */
@@ -2776,6 +2785,11 @@ const VI_DICTIONARY: Dictionary = {
     tryOnEmbedGarmentFromPageWithSku: 'Sản phẩm đang xem (SKU: {sku})',
     tryOnEmbedOnlyFlowHint:
       'Chọn ảnh người của bạn (lần sau trình duyệt này nhớ trong khung chat). Ảnh trang phục đã lấy từ sản phẩm đang xem. Thử đồ tốn credits — nạp bằng nút trong cùng khung chat (cùng tab shop, không cần mở tab NanoAI riêng).',
+    guestCreditWalletLoginTitle: 'Đăng nhập để dùng ví credit',
+    guestCreditWalletLoginDescription:
+      'Thử đồ và nạp credit cần xác thực email (mã OTP). Hoàn tất bên dưới để tiếp tục.',
+    toastGuestTopUpLoginRequired: 'Vui lòng đăng nhập bằng email (OTP) trước khi nạp credit.',
+    toastTryOnInsufficientCredits: 'Không đủ credit. Vui lòng nạp thêm rồi thử lại.',
     guestAuthPromptTitle: 'Đăng nhập để lưu lịch sử lâu dài',
     guestAuthPromptBody: 'Bạn vẫn có thể chat ngay. Đăng nhập giúp đồng bộ hội thoại khi đổi máy/trình duyệt.',
     guestAuthEmailPlaceholder: 'Nhập email của bạn',
@@ -2787,6 +2801,9 @@ const VI_DICTIONARY: Dictionary = {
     guestAuthEmailSent: 'Đã gửi email xác thực. Vui lòng kiểm tra hộp thư.',
     guestAuthOtpInvalid: 'Mã OTP không hợp lệ hoặc đã hết hạn.',
     guestAuthRateLimited: 'Bạn thao tác quá nhanh. Vui lòng thử lại sau {seconds} giây.',
+    guestAuthRememberDeviceHint:
+      'Tin cậy thiết bị này 30 ngày (đăng nhập lại cùng email sẽ bỏ qua OTP).',
+    guestAuthVerifyingProgress: 'Đang đăng nhập, vui lòng chờ...',
     shopTypingHint: 'Cửa hàng đang soạn tin…',
     consultLinkShopPreparingHint: 'Cửa hàng đang gửi thông tin sản phẩm…',
     visionPickHint: '',
@@ -4644,6 +4661,11 @@ const EN_DICTIONARY: Dictionary = {
     tryOnEmbedGarmentFromPageWithSku: 'Product on this page (SKU: {sku})',
     tryOnEmbedOnlyFlowHint:
       'Choose your photo once; this browser remembers it in this chat frame next time. The garment image comes from the product on this page. Try-on uses credits — top up using the buttons inside this same chat frame (same tab as your shop; no separate NanoAI tab needed).',
+    guestCreditWalletLoginTitle: 'Sign in to use your credit wallet',
+    guestCreditWalletLoginDescription:
+      'Try-on and top-ups require email verification (OTP code). Complete the steps below to continue.',
+    toastGuestTopUpLoginRequired: 'Please sign in with email (OTP) before topping up credits.',
+    toastTryOnInsufficientCredits: 'Not enough credits. Please top up and try again.',
     guestAuthPromptTitle: 'Sign in to keep chat history longer',
     guestAuthPromptBody: 'You can still chat now. Signing in lets you keep history across devices/browsers.',
     guestAuthEmailPlaceholder: 'Enter your email',
@@ -4655,6 +4677,9 @@ const EN_DICTIONARY: Dictionary = {
     guestAuthEmailSent: 'Verification email sent. Please check your inbox.',
     guestAuthOtpInvalid: 'OTP is invalid or expired.',
     guestAuthRateLimited: 'You are doing this too quickly. Please try again in {seconds} seconds.',
+    guestAuthRememberDeviceHint:
+      'Trust this device for 30 days (signing in again with the same email may skip OTP).',
+    guestAuthVerifyingProgress: 'Signing in, please wait...',
     shopTypingHint: 'The shop is typing…',
     consultLinkShopPreparingHint: 'The shop is sending product details…',
     visionPickHint: 'Choose the right product (or wait for a manual reply).',
@@ -6491,6 +6516,10 @@ const ZH_DICTIONARY: Dictionary = {
     tryOnEmbedGarmentFromPageWithSku: '当前页面商品（SKU: {sku}）',
     tryOnEmbedOnlyFlowHint:
       '请上传本人照片（下次在同一浏览器、此聊天框架内会记住）。服装图来自当前页面商品。试穿消耗 credits — 在同一聊天框架内充值即可（与店铺同标签页，无需另开 NanoAI 标签页）。',
+    guestCreditWalletLoginTitle: '登录以使用 credit 钱包',
+    guestCreditWalletLoginDescription: '试穿与充值需验证邮箱（OTP）。请在下方完成验证。',
+    toastGuestTopUpLoginRequired: '请先使用邮箱（OTP）登录，再充值 credit。',
+    toastTryOnInsufficientCredits: 'Credit 不足，请充值后再试。',
     guestAuthPromptTitle: '登录以长期保存聊天记录',
     guestAuthPromptBody: '您仍可立即聊天。登录后可在更换设备/浏览器时同步历史。',
     guestAuthEmailPlaceholder: '请输入您的邮箱',
@@ -6502,6 +6531,8 @@ const ZH_DICTIONARY: Dictionary = {
     guestAuthEmailSent: '验证邮件已发送，请检查收件箱。',
     guestAuthOtpInvalid: 'OTP 无效或已过期。',
     guestAuthRateLimited: '操作过于频繁，请在 {seconds} 秒后重试。',
+    guestAuthRememberDeviceHint: '信任此设备 30 天（同一邮箱再次登录可能免去 OTP）。',
+    guestAuthVerifyingProgress: '正在登录，请稍候...',
     shopTypingHint: '店铺正在输入…',
     consultLinkShopPreparingHint: '店铺正在发送商品信息…',
     visionPickHint: '请选择正确商品（或等待人工回复）。',
@@ -8314,6 +8345,11 @@ const JA_DICTIONARY: Dictionary = {
     tryOnEmbedGarmentFromPageWithSku: '閲覧中の商品（SKU: {sku}）',
     tryOnEmbedOnlyFlowHint:
       'ご本人の写真を選んでください（次回もこのブラウザ・このチャット枠内で記憶します）。衣類画像は閲覧中の商品から取り込み済みです。試着は credits を消費します。チャージはこのチャット枠内のボタンから（ショップと同じタブ。別タブで NanoAI を開く必要はありません）。',
+    guestCreditWalletLoginTitle: 'クレジットウォレット利用のためにログイン',
+    guestCreditWalletLoginDescription:
+      '試着とチャージにはメール認証（OTP）が必要です。下記で手続きしてください。',
+    toastGuestTopUpLoginRequired: 'チャージの前にメール（OTP）でログインしてください。',
+    toastTryOnInsufficientCredits: 'クレジットが不足しています。チャージしてから再度お試しください。',
     guestAuthPromptTitle: 'ログインして履歴を長期保存',
     guestAuthPromptBody: '今すぐチャットは可能です。ログインすると端末/ブラウザを変えても履歴を引き継げます。',
     guestAuthEmailPlaceholder: 'メールアドレスを入力',
@@ -8325,6 +8361,9 @@ const JA_DICTIONARY: Dictionary = {
     guestAuthEmailSent: '認証メールを送信しました。受信箱をご確認ください。',
     guestAuthOtpInvalid: 'OTPが無効か期限切れです。',
     guestAuthRateLimited: '操作が速すぎます。{seconds}秒後に再試行してください。',
+    guestAuthRememberDeviceHint:
+      'この端末を30日間信頼する（同じメールで再ログイン時にOTPを省略する場合があります）。',
+    guestAuthVerifyingProgress: 'ログイン処理中です。お待ちください…',
     shopTypingHint: '店舗が入力中…',
     consultLinkShopPreparingHint: '店舗が商品情報を送信中…',
     visionPickHint: '正しい商品を選ぶか、手動の返信をお待ちください。',
@@ -10159,6 +10198,11 @@ const KO_DICTIONARY: Dictionary = {
     tryOnEmbedGarmentFromPageWithSku: '보고 있는 상품 (SKU: {sku})',
     tryOnEmbedOnlyFlowHint:
       '본인 사진을 선택하세요(다음에도 이 브라우저·이 채팅 창에서 기억합니다). 의류 이미지는 보고 있는 상품에서 가져옵니다. 피팅은 credits가 필요합니다. 같은 채팅 창 안에서 충전하세요(샵과 같은 탭, 별도 NanoAI 탭 불필요).',
+    guestCreditWalletLoginTitle: '크레딧 지갑 사용을 위해 로그인',
+    guestCreditWalletLoginDescription:
+      '피팅과 충전에는 이메일 인증(OTP)이 필요합니다. 아래에서 진행해 주세요.',
+    toastGuestTopUpLoginRequired: '충전 전에 이메일(OTP)로 로그인해 주세요.',
+    toastTryOnInsufficientCredits: '크레딧이 부족합니다. 충전 후 다시 시도해 주세요.',
     guestAuthPromptTitle: '로그인하고 채팅 기록 오래 보관',
     guestAuthPromptBody: '지금도 채팅할 수 있습니다. 로그인하면 기기/브라우저를 바꿔도 기록이 동기화됩니다.',
     guestAuthEmailPlaceholder: '이메일을 입력하세요',
@@ -10170,6 +10214,9 @@ const KO_DICTIONARY: Dictionary = {
     guestAuthEmailSent: '인증 메일을 보냈습니다. 받은편지함을 확인하세요.',
     guestAuthOtpInvalid: 'OTP가 유효하지 않거나 만료되었습니다.',
     guestAuthRateLimited: '요청이 너무 빠릅니다. {seconds}초 후 다시 시도해 주세요.',
+    guestAuthRememberDeviceHint:
+      '이 기기를 30일간 신뢰(동일 이메일로 다시 로그인하면 OTP를 생략할 수 있음).',
+    guestAuthVerifyingProgress: '로그인 중입니다. 잠시만 기다려 주세요...',
     shopTypingHint: '매장이 입력 중…',
     consultLinkShopPreparingHint: '매장이 상품 정보를 보내는 중…',
     visionPickHint: '맞는 상품을 고르거나 직접 답장을 기다려 주세요.',
