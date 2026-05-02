@@ -53,12 +53,29 @@
     var mobileBubbleSize = num(getAttr('data-mobile-bubble-size', '52'), 52, 40, 100)
     var panelBottom = num(getAttr('data-panel-bottom', '12'), 12, 0, 120)
     var widgetId = getAttr('data-widget-id', 'nanoai-chat-widget-v1')
+    var mode = getAttr('data-mode', 'floating').trim().toLowerCase() === 'inline' ? 'inline' : 'floating'
+    var mountSel = getAttr('data-mount-selector', '').trim().slice(0, 512)
+    var mountTarget = null
+    if (mountSel) {
+      try {
+        mountTarget = document.querySelector(mountSel)
+      } catch (_) {
+        mountTarget = null
+      }
+    }
+    /** Góc màn hình — floating và không có data-mount-selector. */
+    var useCornerBubble = mode === 'floating' && !mountSel
+    var primaryRaw = getAttr('data-primary', 'chat').trim().toLowerCase().replace(/-/g, '_')
+    var primaryTryOn = primaryRaw === 'try_on'
+    var tryOnBubbleLabel = String(getAttr('data-try-on-label', '').trim() || '')
+    var inlineHost = null
 
     var existingRoot = document.getElementById(widgetId)
     if (existingRoot) {
       var hasMountedUi =
-        !!existingRoot.querySelector('button[aria-label="Open NanoAI chat"]') ||
-        !!existingRoot.querySelector('iframe')
+        !!existingRoot.querySelector('[data-nanoai-chat-bubble="1"]') ||
+        !!existingRoot.querySelector('iframe') ||
+        !!existingRoot.querySelector('button[aria-label="Open NanoAI chat"]')
       if (hasMountedUi) return
       if (existingRoot.parentNode) existingRoot.parentNode.removeChild(existingRoot)
     }
@@ -66,13 +83,31 @@
 
     var root = document.createElement('div')
     root.id = widgetId
-    root.style.cssText =
-      'position:fixed;z-index:2147483000;font-family:Arial,sans-serif;pointer-events:none;'
-    document.body.appendChild(root)
+    root.setAttribute('data-nanoai-ready', '1')
+    if (useCornerBubble) {
+      root.style.cssText =
+        'position:fixed;z-index:2147483000;font-family:Arial,sans-serif;pointer-events:none;'
+      document.body.appendChild(root)
+    } else {
+      inlineHost = document.createElement('div')
+      inlineHost.className = 'nanoai-chat-inline-host'
+      inlineHost.style.cssText = 'display:inline-block;max-width:100%;vertical-align:middle;'
+      if (mountTarget) {
+        mountTarget.appendChild(inlineHost)
+      } else {
+        script.parentNode && script.parentNode.insertBefore(inlineHost, script.nextSibling)
+      }
+      root.style.cssText =
+        'position:fixed;z-index:2147483000;font-family:Arial,sans-serif;pointer-events:none;left:0;top:0;right:0;bottom:0;'
+      document.body.appendChild(root)
+    }
 
     var bubble = document.createElement('button')
     bubble.type = 'button'
-    bubble.setAttribute('aria-label', 'Open NanoAI chat')
+    bubble.setAttribute('data-nanoai-chat-bubble', '1')
+    var bubbleAriaDefault = 'Open NanoAI chat'
+    var bubbleAria = primaryTryOn && tryOnBubbleLabel ? tryOnBubbleLabel : bubbleAriaDefault
+    bubble.setAttribute('aria-label', bubbleAria)
     bubble.style.cssText =
       'pointer-events:auto;width:' +
       bubbleSize +
@@ -92,25 +127,30 @@
       logo.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;border-radius:9999px;'
       logo.onerror = function () {
         logoMask.style.display = 'none'
-        bubble.textContent = 'AI'
+        bubble.textContent = primaryTryOn && tryOnBubbleLabel ? tryOnBubbleLabel.slice(0, 12) : 'AI'
         bubble.style.color = '#fff'
         bubble.style.fontWeight = '700'
+        if (primaryTryOn && tryOnBubbleLabel) bubble.style.fontSize = '11px'
       }
       logoMask.appendChild(logo)
       bubble.appendChild(logoMask)
     } else {
-      bubble.textContent = 'AI'
+      bubble.textContent = primaryTryOn && tryOnBubbleLabel ? tryOnBubbleLabel.slice(0, 12) : 'AI'
       bubble.style.color = '#fff'
       bubble.style.fontWeight = '700'
+      if (primaryTryOn && tryOnBubbleLabel) bubble.style.fontSize = '11px'
     }
-    root.appendChild(bubble)
+    if (useCornerBubble) {
+      root.appendChild(bubble)
+    } else if (inlineHost) {
+      inlineHost.appendChild(bubble)
+    }
 
     var panel = document.createElement('div')
     panel.style.cssText =
       'pointer-events:auto;display:none;position:absolute;background:#fff;overflow:hidden;' +
       'box-shadow:0 16px 40px rgba(0,0,0,.28);border:1px solid #e5e7eb;touch-action:auto;-webkit-tap-highlight-color:transparent;'
     root.appendChild(panel)
-    root.setAttribute('data-nanoai-ready', '1')
 
     var header = document.createElement('div')
     header.style.cssText =
@@ -358,7 +398,7 @@
       return out
     }
 
-    function buildChatUrlWithContext(baseUrl, ctx) {
+    function buildChatUrlWithContext(baseUrl, ctx, addOpenTryOn) {
       try {
         var u = new URL(baseUrl, window.location.href)
         if (ctx && ctx.sku) u.searchParams.set('ctx_sku', ctx.sku)
@@ -372,13 +412,15 @@
         ) {
           u.searchParams.set('ctx_source', 'widget_page')
         }
+        if (addOpenTryOn) u.searchParams.set('open_try_on', '1')
         return u.toString()
       } catch (_) {
         return baseUrl
       }
     }
 
-    function ensureIframe(ctx) {
+    function ensureIframe(ctx, opts) {
+      opts = opts || {}
       var nextCtx = ctx || extractPageContext()
       pageContext = nextCtx
       // Giữ `ui_locale` (và query khác) sau khi khách đổi ngôn ngữ trong iframe — không ghi đè bằng data-chat-url gốc.
@@ -387,12 +429,14 @@
         var resumeForOpen = readReturnChatHref()
         if (resumeForOpen) baseForBuild = resumeForOpen
       }
+      var injectTryOn = !iframe && Boolean(opts.openTryOn)
       try {
         var uLoc = new URL(baseForBuild, window.location.href)
+        if (iframe) uLoc.searchParams.delete('open_try_on')
         uLoc.searchParams.set('ui_locale', pendingUiLocale)
         baseForBuild = uLoc.toString()
       } catch (_) {}
-      var nextSrc = buildChatUrlWithContext(baseForBuild, nextCtx)
+      var nextSrc = buildChatUrlWithContext(baseForBuild, nextCtx, injectTryOn)
       if (!iframe) {
         iframe = document.createElement('iframe')
         iframe.src = nextSrc
@@ -409,7 +453,7 @@
 
     localeSelect.addEventListener('change', function () {
       pendingUiLocale = localeSelect.value
-      if (iframe) ensureIframe(pageContext)
+      if (iframe) ensureIframe(pageContext, {})
     })
     ordersBtn.addEventListener('click', function () {
       try {
@@ -472,7 +516,8 @@
     }
 
     function openChat() {
-      ensureIframe(extractPageContext())
+      var firstOpen = !iframe
+      ensureIframe(extractPageContext(), { openTryOn: firstOpen && primaryTryOn })
       panel.style.display = 'block'
       bubble.style.display = 'none'
       applyLayout()
@@ -499,16 +544,18 @@
       root.style.left = '0'
       root.style.right = '0'
       root.style.bottom = '0'
-      bubble.style.position = 'absolute'
-      bubble.style.bottom = safeBottom + 'px'
-      panel.style.position = 'fixed'
-      if (side === 'left') {
-        bubble.style.left = offsetX + 'px'
-        bubble.style.right = 'auto'
-      } else {
-        bubble.style.right = offsetX + 'px'
-        bubble.style.left = 'auto'
+      if (useCornerBubble) {
+        bubble.style.position = 'absolute'
+        bubble.style.bottom = safeBottom + 'px'
+        if (side === 'left') {
+          bubble.style.left = offsetX + 'px'
+          bubble.style.right = 'auto'
+        } else {
+          bubble.style.right = offsetX + 'px'
+          bubble.style.left = 'auto'
+        }
       }
+      panel.style.position = 'fixed'
       if (isExpanded) {
         panel.style.left = '8px'
         panel.style.right = '8px'
@@ -542,17 +589,19 @@
       root.style.left = '0'
       root.style.right = '0'
       root.style.bottom = '0'
-      bubble.style.position = 'absolute'
-      bubble.style.bottom = safeBottom + 'px'
-      bubble.style.width = mobileBubbleSize + 'px'
-      bubble.style.height = mobileBubbleSize + 'px'
-      bubble.style.margin = '0'
-      if (side === 'left') {
-        bubble.style.left = offsetX + 'px'
-        bubble.style.right = 'auto'
-      } else {
-        bubble.style.right = offsetX + 'px'
-        bubble.style.left = 'auto'
+      if (useCornerBubble) {
+        bubble.style.position = 'absolute'
+        bubble.style.bottom = safeBottom + 'px'
+        bubble.style.width = mobileBubbleSize + 'px'
+        bubble.style.height = mobileBubbleSize + 'px'
+        bubble.style.margin = '0'
+        if (side === 'left') {
+          bubble.style.left = offsetX + 'px'
+          bubble.style.right = 'auto'
+        } else {
+          bubble.style.right = offsetX + 'px'
+          bubble.style.left = 'auto'
+        }
       }
       panel.style.position = 'fixed'
       panel.style.left = '0'
@@ -580,6 +629,28 @@
     }
     applyLayout()
     window.addEventListener('resize', onResize, { passive: true })
+
+    if (mountSel && !mountTarget && inlineHost) {
+      var relocateAttempts = 0
+      function tryRelocateChatMount() {
+        relocateAttempts += 1
+        var el = null
+        try {
+          el = document.querySelector(mountSel)
+        } catch (_) {
+          el = null
+        }
+        if (el && inlineHost.parentNode !== el) {
+          el.appendChild(inlineHost)
+          applyLayout()
+          return
+        }
+        if (relocateAttempts < 25) {
+          window.setTimeout(tryRelocateChatMount, 200)
+        }
+      }
+      window.setTimeout(tryRelocateChatMount, 0)
+    }
   }
 
   if (document.readyState === 'loading') {

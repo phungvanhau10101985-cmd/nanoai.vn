@@ -538,6 +538,7 @@ function stripWidgetPageContextParamsFromBrowserUrl() {
       'ctx_image_2',
       'ctx_product_url',
       'ctx_inventory',
+      'open_try_on',
       'auto_consult',
       'interested_inv',
       'bday_discount',
@@ -674,6 +675,11 @@ function classifyOrderIntent(raw: string): 'purchase' | 'shipping_policy' | 'con
 type T = Dictionary['partnerGuestChat']
 const TRY_ON_COST_2K = 1
 const MAX_TRY_ON_GARMENTS = 4
+/** Lưu ảnh người thử đồ trên domain NanoAI (iframe) — widget mở `open_try_on=1` sẽ khôi phục. */
+const TRY_ON_USER_PORTRAIT_STORAGE_MAX_BYTES = 900 * 1024
+function tryOnUserPortraitStorageKey(partnerSlug: string): string {
+  return `nanoai_try_on_user_portrait_v1:${encodeURIComponent(partnerSlug)}`
+}
 const MESSAGING_AUTH_SYNC_EVENT_KEY = 'nanoai_messaging_auth_sync'
 const FALLBACK_SHOP_TYPING_WAIT_MS = 75_000
 const ORDER_PROFILE_STORAGE_PREFIX = 'nanoai_order_profile_v1'
@@ -1439,6 +1445,8 @@ export function PartnerGuestChatClient({
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const tryOnUserInputRef = useRef<HTMLInputElement>(null)
   const tryOnGarmentInputRef = useRef<HTMLInputElement>(null)
+  /** Một lần mở panel: tự thêm ảnh SP từ ctx_image (widget thử đồ ưu tiên). */
+  const tryOnPageContextGarmentSeededRef = useRef(false)
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const scrollAnchorRef = useRef<HTMLDivElement>(null)
   /** Khoảng cách tới đáy ≤ ngưỡng này → coi như «đang xem cuối», cho phép tự cuộn theo tin/typing mới. */
@@ -1711,7 +1719,21 @@ export function PartnerGuestChatClient({
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(orderParam)) {
       setEmbedOrderDetailId(orderParam)
     }
-  }, [consultFromInventory])
+
+    const tryOnOpenFlag = (q.get('open_try_on') || '').trim().toLowerCase()
+    if (tryOnOpenFlag === '1' || tryOnOpenFlag === 'true' || tryOnOpenFlag === 'yes') {
+      setTryOnOpen(true)
+      try {
+        const u = new URL(window.location.href)
+        if (u.searchParams.has('open_try_on')) {
+          u.searchParams.delete('open_try_on')
+          window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [consultFromInventory, slug])
 
   const authHeaders = useCallback((): Record<string, string> => {
     const h: Record<string, string> = {}
@@ -2205,6 +2227,98 @@ export function PartnerGuestChatClient({
       }
     }
   }, [tryOnGarmentFiles])
+
+  useEffect(() => {
+    if (!tryOnOpen) {
+      tryOnPageContextGarmentSeededRef.current = false
+    }
+  }, [tryOnOpen])
+
+  useEffect(() => {
+    if (!tryOnUserFile) return
+    if (tryOnUserFile.size > TRY_ON_USER_PORTRAIT_STORAGE_MAX_BYTES) return
+    const key = tryOnUserPortraitStorageKey(slug)
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const dataUrl = String(reader.result || '')
+        if (dataUrl.startsWith('data:image/') && dataUrl.length <= 2_500_000) {
+          localStorage.setItem(key, dataUrl)
+        }
+      } catch {
+        /* ignore quota / private mode */
+      }
+    }
+    reader.readAsDataURL(tryOnUserFile)
+  }, [tryOnUserFile, slug])
+
+  useEffect(() => {
+    if (!tryOnOpen) return
+    if (tryOnUserFile) return
+    const key = tryOnUserPortraitStorageKey(slug)
+    let raw = ''
+    try {
+      raw = localStorage.getItem(key) ?? ''
+    } catch {
+      return
+    }
+    if (!raw.startsWith('data:image/')) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(raw)
+        const blob = await res.blob()
+        if (!blob.type.startsWith('image/')) return
+        if (blob.size > GUEST_IMAGE_MAX_BYTES) return
+        if (cancelled) return
+        const ext = blob.type.includes('png') ? 'png' : 'jpg'
+        const file = new File([blob], `try-on-saved-portrait.${ext}`, { type: blob.type || 'image/jpeg' })
+        if (cancelled) return
+        setTryOnUserFile(file)
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tryOnOpen, tryOnUserFile, slug])
+
+  useEffect(() => {
+    if (!tryOnOpen) return
+    if (tryOnPageContextGarmentSeededRef.current) return
+    const pc = pageContextRef.current
+    const imageUrl = pc?.imageUrl?.trim() ?? ''
+    if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
+      tryOnPageContextGarmentSeededRef.current = true
+      return
+    }
+    const sku = pc?.sku?.trim() ?? ''
+    const label = sku
+      ? t.tryOnEmbedGarmentFromPageWithSku.replace(/\{sku\}/g, sku.slice(0, 128))
+      : t.tryOnEmbedGarmentFromPage
+    setTryOnGarmentFiles((prev) => {
+      if (prev.length >= MAX_TRY_ON_GARMENTS) {
+        tryOnPageContextGarmentSeededRef.current = true
+        return prev
+      }
+      if (prev.some((item) => item.sourceUrl === imageUrl)) {
+        tryOnPageContextGarmentSeededRef.current = true
+        return prev
+      }
+      tryOnPageContextGarmentSeededRef.current = true
+      return [
+        ...prev,
+        {
+          file: null,
+          previewUrl: imageUrl,
+          sourceUrl: imageUrl,
+          sourceLabel: label,
+          revokeObjectUrl: false,
+        },
+      ]
+    })
+  }, [tryOnOpen, t.tryOnEmbedGarmentFromPage, t.tryOnEmbedGarmentFromPageWithSku])
 
   useEffect(() => {
     if (skipNextAutoScrollRef.current) {

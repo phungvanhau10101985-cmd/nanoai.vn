@@ -888,6 +888,10 @@ export type Dictionary = {
     tryOnResultViewLarge: string
     /** Tải ảnh kết quả thử đồ trong dialog xem lớn. */
     tryOnResultDownload: string
+    /** Nhãn ảnh trang phục khi widget tự điền từ ctx_image (không có SKU). */
+    tryOnEmbedGarmentFromPage: string
+    /** Nhãn khi có SKU — placeholder {sku}. */
+    tryOnEmbedGarmentFromPageWithSku: string
     guestAuthPromptTitle: string
     guestAuthPromptBody: string
     guestAuthEmailPlaceholder: string
@@ -2766,6 +2770,8 @@ const VI_DICTIONARY: Dictionary = {
     tryOnTopUpCredits: 'Nạp credit',
     tryOnResultViewLarge: 'Xem ảnh thử đồ lớn',
     tryOnResultDownload: 'Tải xuống',
+    tryOnEmbedGarmentFromPage: 'Ảnh sản phẩm đang xem',
+    tryOnEmbedGarmentFromPageWithSku: 'Sản phẩm đang xem (SKU: {sku})',
     guestAuthPromptTitle: 'Đăng nhập để lưu lịch sử lâu dài',
     guestAuthPromptBody: 'Bạn vẫn có thể chat ngay. Đăng nhập giúp đồng bộ hội thoại khi đổi máy/trình duyệt.',
     guestAuthEmailPlaceholder: 'Nhập email của bạn',
@@ -4630,6 +4636,8 @@ const EN_DICTIONARY: Dictionary = {
     tryOnTopUpCredits: 'Top up',
     tryOnResultViewLarge: 'View large try-on image',
     tryOnResultDownload: 'Download',
+    tryOnEmbedGarmentFromPage: 'Product image from this page',
+    tryOnEmbedGarmentFromPageWithSku: 'Product on this page (SKU: {sku})',
     guestAuthPromptTitle: 'Sign in to keep chat history longer',
     guestAuthPromptBody: 'You can still chat now. Signing in lets you keep history across devices/browsers.',
     guestAuthEmailPlaceholder: 'Enter your email',
@@ -6473,6 +6481,8 @@ const ZH_DICTIONARY: Dictionary = {
     tryOnTopUpCredits: '充值',
     tryOnResultViewLarge: '大图查看试穿效果',
     tryOnResultDownload: '下载',
+    tryOnEmbedGarmentFromPage: '当前页面的商品图',
+    tryOnEmbedGarmentFromPageWithSku: '当前页面商品（SKU: {sku}）',
     guestAuthPromptTitle: '登录以长期保存聊天记录',
     guestAuthPromptBody: '您仍可立即聊天。登录后可在更换设备/浏览器时同步历史。',
     guestAuthEmailPlaceholder: '请输入您的邮箱',
@@ -8292,6 +8302,8 @@ const JA_DICTIONARY: Dictionary = {
     tryOnTopUpCredits: 'チャージ',
     tryOnResultViewLarge: '試着画像を大きく表示',
     tryOnResultDownload: 'ダウンロード',
+    tryOnEmbedGarmentFromPage: 'このページの商品画像',
+    tryOnEmbedGarmentFromPageWithSku: '閲覧中の商品（SKU: {sku}）',
     guestAuthPromptTitle: 'ログインして履歴を長期保存',
     guestAuthPromptBody: '今すぐチャットは可能です。ログインすると端末/ブラウザを変えても履歴を引き継げます。',
     guestAuthEmailPlaceholder: 'メールアドレスを入力',
@@ -10133,6 +10145,8 @@ const KO_DICTIONARY: Dictionary = {
     tryOnTopUpCredits: '충전',
     tryOnResultViewLarge: '피팅 이미지 크게 보기',
     tryOnResultDownload: '다운로드',
+    tryOnEmbedGarmentFromPage: '현재 페이지 상품 이미지',
+    tryOnEmbedGarmentFromPageWithSku: '보고 있는 상품 (SKU: {sku})',
     guestAuthPromptTitle: '로그인하고 채팅 기록 오래 보관',
     guestAuthPromptBody: '지금도 채팅할 수 있습니다. 로그인하면 기기/브라우저를 바꿔도 기록이 동기화됩니다.',
     guestAuthEmailPlaceholder: '이메일을 입력하세요',

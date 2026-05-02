@@ -17,6 +17,8 @@ Script nổi: `public/embed/nanoai-chat-widget.js` — khi khách mở khung cha
 
 4. Client chat (`partner-guest-chat-client.tsx`) đọc `URLSearchParams`, chuẩn hóa → chip gửi SP đang xem.
 
+5. **Thử đồ ưu tiên (`data-primary="try_on"`):** lần đầu mở khung, URL iframe có thêm `open_try_on=1` (xoá ngay sau load trong iframe). Panel thử đồ mở; ảnh người **khôi phục** từ bộ nhớ trình duyệt trên **origin NanoAI** (lần trước khách đã chọn ảnh người); ảnh trang phục **tự thêm** từ `ctx_image` / quét gallery trang (cùng luồng `data-ctx-*`).
+
 ## 2. Cách A — Đặt `data-ctx-*` trên thẻ `<script>` NanoAI (khuyên dùng)
 
 Server-render các thuộc tính động trên **cùng** thẻ script load widget (trang chi tiết SP):
@@ -43,6 +45,12 @@ Server-render các thuộc tính động trên **cùng** thẻ script load widge
 | `data-ctx-image-2` | Không | Ảnh phụ. |
 | `data-ctx-product-url` | Không | Nếu không set, widget fallback `link[rel=canonical]` hoặc URL hiện tại. |
 | `data-ctx-inventory` | Không | UUID đúng một dòng trong kho partner (đã sync Open Catalog / import). |
+| `data-primary` | Không | `chat` (mặc định) — **ưu tiên chat AI** (trang chủ / hỗ trợ chung). `try_on` — **ưu tiên thử đồ**; lần đầu mở iframe kèm `open_try_on=1`. |
+| `data-mode` | Không | `floating` (mặc định, góc màn hình) hoặc `inline` (nút trong luồng layout). |
+| `data-mount-selector` | Không | CSS selector (`#id`, `.class`) — gắn nút vào phần tử; script có thể đặt xa trên trang. Không khớp ngay: widget thử gắn lại trong vài giây; fallback ngay sau `<script>`. |
+| `data-try-on-label` | Không | Nhãn nút / `aria-label` khi `data-primary="try_on"` (ví dụ «Thử đồ»). |
+
+**Gợi ý:** Hai lần nhúng với `data-widget-id` khác nhau — một instance `data-primary="chat"` trên **trang chủ**, một `data-primary="try_on"` trên **layout trang SP** (kèm `data-ctx-image`, …).
 
 **Next.js / React:** render script trong layout trang SP, truyền `product.sku`, `product.images[0]` từ props.
 
