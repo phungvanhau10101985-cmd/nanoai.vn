@@ -65,11 +65,53 @@ Theme không khớp → thêm `id`/`class` tương ứng trên HTML sản phẩm
 
 Có thể dùng kết hợp với `data-ctx-image`, v.v.
 
-## 5. Kiểm tra
+## 5. Nút thử đồ nhúng (đặt mọi vị trí — PDP, block HTML, v.v.)
+
+Tệp: `public/embed/nanoai-try-on-widget.js`. Cơ chế giống widget chat: có thể **nổi góc màn hình** hoặc **inline** ngay chỗ đặt `<script>`.
+
+- URL iframe luôn gồm `embed=1` và **`open_try_on=1`** → trong chat hosted, panel **Thử đồ** mở sẵn (cùng luồng đăng nhập / credits / ảnh trang phục như trong chat).
+- Ngữ cảnh SP: **cùng** các `data-ctx-*` và quét DOM như mục 2–3 (`#nanoai-ctx-sku`, `.image_list` …).
+
+**Ví dụ — nút nổi (mặc định):**
+
+```html
+<script
+  src="https://YOUR-NANOAI-HOST/embed/nanoai-try-on-widget.js"
+  data-try-on-url="https://YOUR-NANOAI-HOST/messaging/p/ten-shop"
+  data-shop-name="Tên shop"
+  data-label="Thử đồ ngay"
+  data-ctx-sku="SKU-188-001"
+  data-ctx-image="https://cdn…/thumb.jpg"
+  data-ctx-product-url="https://shop.example/p/abc"
+  data-ctx-inventory="550e8400-e29b-41d4-a716-446655440000"
+  data-ui-locale="vi"
+  defer
+></script>
+```
+
+**Ví dụ — nút inline (trong luồng nội dung trang SP):** thêm `data-mode="inline"`. Nút hiện **ngay sau** thẻ script; bấm mở khung iframe như widget nổi.
+
+| Thuộc tính | Bắt buộc | Ghi chú |
+|------------|----------|---------|
+| `data-try-on-url` | Có | Base URL trang chat shop, ví dụ `https://HOST/messaging/p/slug` (không cần tự thêm `embed`/`open_try_on`). |
+| `data-mode` | Không | `floating` (mặc định) hoặc `inline`. |
+| `data-label` | Không | Chữ trên nút (mặc định «Thử đồ»). |
+| `data-ui-locale` | Không | `vi` \| `en` \| `zh` \| `ja` \| `ko`. |
+| `data-widget-id` | Không | Mặc định `nanoai-try-on-widget-v1` — đổi nếu nhúng **nhiều** widget / nhiều script. |
+| `data-side`, `data-bottom`, `data-width`, `data-height`, … | Không | Tương tự widget chat (chỉ mode floating). |
+
+Có thể **dùng song song** script chat và script thử đồ trên cùng trang (đặt `data-widget-id` khác nhau nếu cần). `postMessage` `NAVIGATE_TOP` từ iframe (mở SP trên tab shop) hoạt động giống widget chat.
+
+## 6. Kiểm tra
 
 Sau khi bấm mở chat, URL iframe (Network → document của iframe) nên chứa `ctx_sku` / `ctx_image` / … nếu context đã bắt được.
+
+**Thử đồ:** bấm nút thử đồ → iframe request có `open_try_on=1` (tham số có thể bị xóa khỏi thanh địa chỉ ngay sau khi load để tránh mở lại khi refresh trong iframe).
 
 ---
 
 Tệp widget: `public/embed/nanoai-chat-widget.js`  
+Widget thử đồ: `public/embed/nanoai-try-on-widget.js`  
 Đọc query phía chat: `src/app/messaging/p/[slug]/partner-guest-chat-client.tsx`
+
+**Thử đồ, credits, nạp tiền & đồng bộ email (tích hợp web shop):** xem [docs/PARTNER_TRY_ON_CREDITS_INTEGRATION.md](docs/PARTNER_TRY_ON_CREDITS_INTEGRATION.md).

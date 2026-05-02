@@ -1416,6 +1416,9 @@ export function PartnerGuestChatClient({
   const [visionButtonTappedKeys, setVisionButtonTappedKeys] = useState(() => new Set<string>())
   /** Xem ảnh gợi ý / thẻ — overlay cùng trang (không mở tab). */
   const [chatImageLightboxUrl, setChatImageLightboxUrl] = useState<string | null>(null)
+  /** Kết quả thử đồ còn trong ô soạn: cho phép mở lại dialog ảnh lớn sau khi đóng. */
+  const [tryOnResultInComposer, setTryOnResultInComposer] = useState(false)
+  const [tryOnComposerLargeOpen, setTryOnComposerLargeOpen] = useState(false)
   const pageContextRef = useRef<WidgetPageContextSeed | null>(null)
   const contextSeededRef = useRef(false)
   /**
@@ -1447,6 +1450,8 @@ export function PartnerGuestChatClient({
   const didInitialAutoScrollRef = useRef(false)
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
+  /** `?open_try_on=1` — mở panel thử đồ một lần (widget nhúng nút thử đồ). */
+  const openedTryOnFromQueryRef = useRef(false)
   const [recentProductsOpen, setRecentProductsOpen] = useState(false)
   /** SP từ email CMSN / deep link ?interested_inv= */
   const [birthdayPromoExtraRows, setBirthdayPromoExtraRows] = useState<RecentProductWithSource[]>([])
@@ -1639,6 +1644,27 @@ export function PartnerGuestChatClient({
       }
     }
     if (account) guestAccountIdRef.current = account
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (openedTryOnFromQueryRef.current) return
+    const q = new URLSearchParams(window.location.search)
+    const tryOnFlag = (q.get('open_try_on') || '').trim().toLowerCase()
+    if (tryOnFlag === '1' || tryOnFlag === 'true' || tryOnFlag === 'yes') {
+      openedTryOnFromQueryRef.current = true
+      setTryOnOpen(true)
+      forceGuestChatScrollToBottomRef.current = true
+      try {
+        const u = new URL(window.location.href)
+        if (u.searchParams.has('open_try_on')) {
+          u.searchParams.delete('open_try_on')
+          window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -2292,6 +2318,8 @@ export function PartnerGuestChatClient({
   const clearAttachment = useCallback(() => {
     setImageStoragePaths([])
     setImagePreviewUrls([])
+    setTryOnResultInComposer(false)
+    setTryOnComposerLargeOpen(false)
     setTryOnGarmentPickerOpen(false)
     if (galleryInputRef.current) galleryInputRef.current.value = ''
     if (cameraInputRef.current) cameraInputRef.current.value = ''
@@ -2300,6 +2328,10 @@ export function PartnerGuestChatClient({
   const removeAttachmentAt = useCallback((index: number) => {
     setImageStoragePaths((prev) => prev.filter((_, i) => i !== index))
     setImagePreviewUrls((prev) => prev.filter((_, i) => i !== index))
+    if (index === 0) {
+      setTryOnResultInComposer(false)
+      setTryOnComposerLargeOpen(false)
+    }
     setTryOnGarmentPickerOpen(false)
   }, [])
 
@@ -3145,9 +3177,9 @@ export function PartnerGuestChatClient({
     sepayWebhookOrderIds,
   }
 
-  const uploadFiles = async (files: File[], options?: { replace?: boolean }) => {
+  const uploadFiles = async (files: File[], options?: { replace?: boolean }): Promise<string[] | null> => {
     const picked = files.filter(Boolean)
-    if (picked.length < 1) return
+    if (picked.length < 1) return null
     const maxImagesPerMessage = 4
     setUploading(true)
     try {
@@ -3162,13 +3194,15 @@ export function PartnerGuestChatClient({
       }
       if (nextPaths.length < 1) {
         clearAttachment()
-        return
+        return null
       }
       setImageStoragePaths(nextPaths)
       setImagePreviewUrls(nextPreviews)
+      return nextPreviews
     } catch {
       toast({ title: t.sendError, variant: 'destructive' })
       clearAttachment()
+      return null
     } finally {
       setUploading(false)
     }
@@ -3260,6 +3294,8 @@ export function PartnerGuestChatClient({
 
       // Show generated result immediately while uploading to chat storage.
       setImagePreviewUrls([data.resultUrl])
+      setTryOnResultInComposer(true)
+      setTryOnComposerLargeOpen(true)
 
       const imgRes = await fetch(data.resultUrl)
       const blob = await imgRes.blob()
@@ -5484,6 +5520,17 @@ export function PartnerGuestChatClient({
                       {imageStoragePaths.length}/4 ảnh đã đính kèm
                     </p>
                   ) : null}
+                  {tryOnResultInComposer && imagePreviewUrls[0] && !tryOnComposerLargeOpen ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-full text-[11px] font-medium sm:h-9 sm:text-xs"
+                      onClick={() => setTryOnComposerLargeOpen(true)}
+                    >
+                      {t.tryOnResultViewLarge}
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
               {imageStoragePaths.length === 1 ? (
@@ -6045,6 +6092,20 @@ export function PartnerGuestChatClient({
         src={chatImageLightboxUrl}
         onOpenChange={(open) => {
           if (!open) setChatImageLightboxUrl(null)
+        }}
+      />
+      <MessageImagePreviewDialog
+        src={
+          tryOnComposerLargeOpen && tryOnResultInComposer && imagePreviewUrls[0]
+            ? imagePreviewUrls[0]
+            : null
+        }
+        onOpenChange={(open) => {
+          if (!open) setTryOnComposerLargeOpen(false)
+        }}
+        download={{
+          label: t.tryOnResultDownload,
+          filename: 'try-on-result.png',
         }}
       />
       <Sheet open={recentProductsOpen} onOpenChange={setRecentProductsOpen}>

@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Download, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 
 function touchDistance(a: { clientX: number; clientY: number }, b: { clientX: number; clientY: number }) {
@@ -148,10 +150,41 @@ function PinchZoomImage({ src, className }: { src: string; className?: string })
 export function MessageImagePreviewDialog({
   src,
   onOpenChange,
+  download,
 }: {
   src: string | null
   onOpenChange: (open: boolean) => void
+  /** Khi có: hiện nút tải ảnh (fetch blob để tránh CORS chặn thuộc tính `download` trên URL ngoài). */
+  download?: { label: string; filename: string } | null
 }) {
+  const [downloadBusy, setDownloadBusy] = useState(false)
+
+  useEffect(() => {
+    setDownloadBusy(false)
+  }, [src])
+
+  const handleDownload = useCallback(async () => {
+    if (!src || !download) return
+    setDownloadBusy(true)
+    try {
+      const res = await fetch(src)
+      const blob = await res.blob()
+      const obj = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = obj
+      a.download = download.filename
+      a.rel = 'noopener'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(obj)
+    } catch {
+      window.open(src, '_blank', 'noopener,noreferrer')
+    } finally {
+      setDownloadBusy(false)
+    }
+  }, [src, download])
+
   return (
     <Dialog open={Boolean(src)} onOpenChange={onOpenChange}>
       <DialogContent
@@ -160,7 +193,28 @@ export function MessageImagePreviewDialog({
         className="max-h-[96vh] max-w-[min(100vw,1280px)] gap-0 border-0 bg-transparent p-3 shadow-none sm:max-w-[min(100vw,1280px)] [&>button]:right-3 [&>button]:top-3 [&>button]:h-10 [&>button]:w-10 [&>button]:rounded-full [&>button]:border-0 [&>button]:bg-black/55 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-black/75 [&>button]:focus:ring-white/40"
       >
         {src ? (
-          <PinchZoomImage src={src} className="mx-auto max-h-[min(88vh,920px)] w-auto max-w-full object-contain" />
+          <div className="flex w-full flex-col gap-3">
+            <PinchZoomImage src={src} className="mx-auto max-h-[min(88vh,920px)] w-auto max-w-full object-contain" />
+            {download ? (
+              <div className="flex justify-center px-1">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="gap-2 bg-white/90 text-foreground hover:bg-white dark:bg-white/15 dark:text-white dark:hover:bg-white/25"
+                  disabled={downloadBusy}
+                  onClick={() => void handleDownload()}
+                >
+                  {downloadBusy ? (
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                  ) : (
+                    <Download className="h-4 w-4 shrink-0" aria-hidden />
+                  )}
+                  {download.label}
+                </Button>
+              </div>
+            ) : null}
+          </div>
         ) : null}
       </DialogContent>
     </Dialog>
