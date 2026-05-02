@@ -67,6 +67,8 @@ Có thể dùng kết hợp với `data-ctx-image`, v.v.
 
 ## 5. Nút thử đồ nhúng (đặt mọi vị trí — PDP, block HTML, v.v.)
 
+**Lấy mã có sẵn (đã điền slug shop):** Bảng điều khiển → **Hướng dẫn API** (`/dashboard/api-integration`) — mục **«A2 — Nút thử đồ nhúng»**: chọn shop, chỉnh nút / chữ hiển thị, bấm **Sao chép mã nhúng nút thử đồ**.
+
 Tệp: `public/embed/nanoai-try-on-widget.js`. Cơ chế giống widget chat: có thể **nổi góc màn hình** hoặc **inline** ngay chỗ đặt `<script>`.
 
 - URL iframe luôn gồm `embed=1` và **`open_try_on=1`** → trong chat hosted, panel **Thử đồ** mở sẵn (cùng luồng đăng nhập / credits / ảnh trang phục như trong chat).

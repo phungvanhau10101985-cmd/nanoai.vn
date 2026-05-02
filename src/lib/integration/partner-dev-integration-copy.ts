@@ -43,6 +43,20 @@ export type PartnerDevIntegrationStrings = {
   inventoryOpenRateLimit: string
   tryOnTitle: string
   tryOnBody: string
+  /** Mục nhúng nút thử đồ (website shop) */
+  tryOnEmbedTitle: string
+  tryOnEmbedBody: string
+  tryOnEmbedUsesChatLayoutNote: string
+  tryOnEmbedModeLabel: string
+  tryOnEmbedModeFloating: string
+  tryOnEmbedModeInline: string
+  tryOnEmbedButtonLabel: string
+  tryOnEmbedButtonPlaceholder: string
+  /** Chữ nút mặc định trong mã khi ô trống */
+  tryOnEmbedDefaultButtonLabel: string
+  copyTryOnEmbedScriptButton: string
+  copyTryOnEmbedScriptToast: string
+  copyTryOnEmbedScriptError: string
   snippetNote: string
   codeLabelExampleServer: string
   codeLabelResponseShape: string
@@ -123,6 +137,20 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     tryOnTitle: 'E — API thử đồ ảo B2B',
     tryOnBody:
       'POST multipart: bắt buộc userImage; ít nhất một ảnh trang phục (garmentImage0 … hoặc garmentCount + garmentImage{i}). Tùy chọn: imageQuality 2K|4K, gender male|female, customPrompt. Authorization: Bearer <bí mật thô> do NanoAI cấp. Credits trừ theo tài khoản billing đã gắn trong hợp đồng.',
+    tryOnEmbedTitle: 'A2 — Nút thử đồ nhúng trên website shop',
+    tryOnEmbedBody:
+      'Mở sẵn panel thử đồ trong chat hosted (cùng đăng nhập / credits như trong chat). Có thể đặt nút nổi góc màn hình hoặc chèn inline trong HTML trang chi tiết sản phẩm. Trên PDP, thêm các thuộc tính data-ctx-sku, data-ctx-image, data-ctx-inventory, … vào thẻ script (cùng quy tắc chip ngữ cảnh như nhúng chat).',
+    tryOnEmbedUsesChatLayoutNote:
+      'Khung iframe thử đồ dùng chung góc, khoảng cách và kích thước desktop với mục «Cài đặt mã nhúng nổi» ở **mục A** phía trên — chỉnh một lần áp dụng cho cả chat và thử đồ.',
+    tryOnEmbedModeLabel: 'Kiểu nút',
+    tryOnEmbedModeFloating: 'Nổi (góc màn hình)',
+    tryOnEmbedModeInline: 'Inline (ngay sau thẻ script)',
+    tryOnEmbedButtonLabel: 'Chữ hiển thị trên nút',
+    tryOnEmbedButtonPlaceholder: 'Để trống = mặc định theo bản dịch',
+    tryOnEmbedDefaultButtonLabel: 'Thử đồ',
+    copyTryOnEmbedScriptButton: 'Sao chép mã nhúng nút thử đồ',
+    copyTryOnEmbedScriptToast: 'Đã sao chép mã nhúng nút thử đồ.',
+    copyTryOnEmbedScriptError: 'Không sao chép được. Hãy chọn và copy thủ công.',
     snippetNote:
       'Các khối mã ví dụ (curl / JSON) dùng tiếng Anh để thống nhất giữa các đội ngũ.',
     codeLabelExampleServer: 'Ví dụ (backend shop)',
@@ -202,6 +230,20 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     tryOnTitle: 'E — B2B virtual try-on API',
     tryOnBody:
       'POST multipart: userImage required; at least one garment (garmentImage0 … or garmentCount + garmentImage{i}). Optional: imageQuality 2K|4K, gender male|female, customPrompt. Authorization: Bearer <raw secret> issued by NanoAI. Credits bill the linked billing account per contract.',
+    tryOnEmbedTitle: 'A2 — Try-on button embed (your shop site)',
+    tryOnEmbedBody:
+      'Opens the hosted try-on panel inside NanoAI chat (same login / credits as chat). Use a floating corner button or inline placement on product pages. On PDPs, add data-ctx-sku, data-ctx-image, data-ctx-inventory, … on the script tag (same product-context rules as the chat embed).',
+    tryOnEmbedUsesChatLayoutNote:
+      'The try-on iframe uses the same corner, offsets, and desktop size as **section A** «Floating embed settings» above—adjust once for both chat and try-on.',
+    tryOnEmbedModeLabel: 'Button mode',
+    tryOnEmbedModeFloating: 'Floating (corner)',
+    tryOnEmbedModeInline: 'Inline (after script tag)',
+    tryOnEmbedButtonLabel: 'Button label',
+    tryOnEmbedButtonPlaceholder: 'Empty = default for this language',
+    tryOnEmbedDefaultButtonLabel: 'Try on',
+    copyTryOnEmbedScriptButton: 'Copy try-on embed script',
+    copyTryOnEmbedScriptToast: 'Try-on embed script copied.',
+    copyTryOnEmbedScriptError: 'Could not copy. Select the code and copy manually.',
     snippetNote: 'Example blocks (curl / JSON) are in English for consistency across teams.',
     codeLabelExampleServer: 'Example (shop backend)',
     codeLabelResponseShape: 'Response shape',
@@ -277,6 +319,20 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     tryOnTitle: 'E — B2B 虚拟试衣 API',
     tryOnBody:
       'POST multipart：必填 userImage；至少一件服装图 garmentImage0… 或 garmentCount + garmentImage{i}。可选 imageQuality 2K|4K、gender male|female、customPrompt。Authorization: Bearer <明文密钥> 由 NanoAI 提供。按合同从绑定计费账户扣 credits。',
+    tryOnEmbedTitle: 'A2 — 试穿按钮嵌入（店铺网站）',
+    tryOnEmbedBody:
+      '在托管聊天中直接打开试穿面板（登录与 credits 与聊天相同）。可使用浮动角按钮或商品详情页内联脚本。PDP 请在 script 标签上添加 data-ctx-sku、data-ctx-image、data-ctx-inventory 等（规则与聊天嵌入一致）。',
+    tryOnEmbedUsesChatLayoutNote:
+      '试穿 iframe 与上方 **A** «浮动嵌入设置» 的角落、间距、桌面宽高一致——调整一次同时适用于聊天与试穿。',
+    tryOnEmbedModeLabel: '按钮样式',
+    tryOnEmbedModeFloating: '浮动（角落）',
+    tryOnEmbedModeInline: '内联（紧跟 script）',
+    tryOnEmbedButtonLabel: '按钮文字',
+    tryOnEmbedButtonPlaceholder: '留空 = 此语言默认文案',
+    tryOnEmbedDefaultButtonLabel: '试穿',
+    copyTryOnEmbedScriptButton: '复制试穿嵌入脚本',
+    copyTryOnEmbedScriptToast: '已复制试穿嵌入脚本。',
+    copyTryOnEmbedScriptError: '无法复制，请手动选择代码复制。',
     snippetNote: '示例代码块（curl / JSON）使用英文以便各团队统一。',
     codeLabelExampleServer: '示例（店铺后端）',
     codeLabelResponseShape: '响应结构',
@@ -352,6 +408,20 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     tryOnTitle: 'E — B2B バーチャル試着 API',
     tryOnBody:
       'POST multipart: userImage 必須。衣装画像は garmentImage0… または garmentCount + garmentImage{i}。任意: imageQuality, gender, customPrompt。Authorization: Bearer <生秘密>。クレジットは契約に沿って課金ユーザーへ。',
+    tryOnEmbedTitle: 'A2 — 試着ボタン埋め込み（店舗サイト）',
+    tryOnEmbedBody:
+      'ホスト型チャット内で試着パネルを直接開きます（ログイン・クレジットはチャットと同じ）。角のフローティングボタンか、PDP に inline で配置。script タグに data-ctx-sku / data-ctx-image / data-ctx-inventory などを付与（チャット埋め込みと同じルール）。',
+    tryOnEmbedUsesChatLayoutNote:
+      '試着用 iframe は上の **A** «フローティング埋め込み設定」と同じ位置・余白・デスクトップサイズを使います。一度調整すればチャットと試着の両方に反映されます。',
+    tryOnEmbedModeLabel: 'ボタン形式',
+    tryOnEmbedModeFloating: 'フローティング（角）',
+    tryOnEmbedModeInline: 'インライン（script の直後）',
+    tryOnEmbedButtonLabel: 'ボタン表記',
+    tryOnEmbedButtonPlaceholder: '空欄＝この言語の既定',
+    tryOnEmbedDefaultButtonLabel: '試着',
+    copyTryOnEmbedScriptButton: '試着埋め込みスクリプトをコピー',
+    copyTryOnEmbedScriptToast: '試着用スクリプトをコピーしました。',
+    copyTryOnEmbedScriptError: 'コピーできませんでした。コードを選択して手動でコピーしてください。',
     snippetNote: 'curl / JSON の例は英語表記で統一しています。',
     codeLabelExampleServer: '例（店舗バックエンド）',
     codeLabelResponseShape: 'レスポンスの形',
@@ -427,6 +497,20 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     tryOnTitle: 'E — B2B 가상 피팅 API',
     tryOnBody:
       'POST multipart: userImage 필수. 의류 garmentImage0… 또는 garmentCount + garmentImage{i}. 선택: imageQuality, gender, customPrompt. Authorization: Bearer <평문 비밀>. 크레딧은 계약된 결제 계정에서 차감.',
+    tryOnEmbedTitle: 'A2 — 피팅 버튼 임베드(매장 사이트)',
+    tryOnEmbedBody:
+      '호스팅 채팅에서 피팅 패널을 바로 엽니다(로그인·크레딧은 채팅과 동일). 모서리 플로팅 버튼 또는 상품 상세 인라인. script 태그에 data-ctx-sku, data-ctx-image, data-ctx-inventory 등 추가(채팅 임베드와 동일 규칙).',
+    tryOnEmbedUsesChatLayoutNote:
+      '피팅 iframe은 위 **A** «플로팅 임베드 설정»과 동일한 모서리·여백·데스크톱 크기를 사용합니다. 한 번만 조정하면 채팅과 피팅 모두에 적용됩니다.',
+    tryOnEmbedModeLabel: '버튼 유형',
+    tryOnEmbedModeFloating: '플로팅(모서리)',
+    tryOnEmbedModeInline: '인라인(script 바로 다음)',
+    tryOnEmbedButtonLabel: '버튼 문구',
+    tryOnEmbedButtonPlaceholder: '비워 두면 이 언어 기본값',
+    tryOnEmbedDefaultButtonLabel: '피팅',
+    copyTryOnEmbedScriptButton: '피팅 임베드 스크립트 복사',
+    copyTryOnEmbedScriptToast: '피팅 임베드 스크립트를 복사했습니다.',
+    copyTryOnEmbedScriptError: '복사에 실패했습니다. 코드를 직접 선택해 복사하세요.',
     snippetNote: 'curl / JSON 예시는 팀 간 통일을 위해 영어로 표기합니다.',
     codeLabelExampleServer: '예시(매장 백엔드)',
     codeLabelResponseShape: '응답 형태',

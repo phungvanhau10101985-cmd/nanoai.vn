@@ -164,6 +164,15 @@ const nextConfig = {
                     { key: 'Expires', value: '0' },
                 ],
             },
+            {
+                source: '/embed/nanoai-try-on-widget.js',
+                headers: [
+                    { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
+                    { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+                    { key: 'Pragma', value: 'no-cache' },
+                    { key: 'Expires', value: '0' },
+                ],
+            },
         ];
 
         // In dev, disable static asset caching to avoid stale client chunks/hot-update mismatch.

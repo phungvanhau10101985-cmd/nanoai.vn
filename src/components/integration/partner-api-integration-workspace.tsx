@@ -76,7 +76,7 @@ export function PartnerApiIntegrationWorkspace({
       <>
         <PartnerApiKeysManager partners={[]} t={tKeys} />
         {betweenKeysAndGuide}
-        <PartnerDevIntegrationGuide baseUrl={baseUrl} t={tGuide} partners={[]} />
+        <PartnerDevIntegrationGuide baseUrl={baseUrl} t={tGuide} partners={[]} embedUiLocale={locale} />
       </>
     )
   }
@@ -90,7 +90,13 @@ export function PartnerApiIntegrationWorkspace({
         onPartnerIdChange={setPartnerId}
       />
       {betweenKeysAndGuide}
-      <PartnerDevIntegrationGuide baseUrl={baseUrl} t={tGuide} partners={partners} selectedPartnerId={partnerId} />
+      <PartnerDevIntegrationGuide
+        baseUrl={baseUrl}
+        t={tGuide}
+        partners={partners}
+        selectedPartnerId={partnerId}
+        embedUiLocale={locale}
+      />
     </>
   )
 }

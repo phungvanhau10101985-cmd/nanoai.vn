@@ -6,9 +6,17 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { PartnerDevIntegrationStrings } from '@/lib/integration/partner-dev-integration-copy'
+import type { ApiKeysHubLocale } from '@/lib/integration/api-keys-hub-copy'
 
 /** Giới hạn tối đa «Cách đáy» (px) trong form — script vẫn clamp cùng giá trị. */
 const EMBED_BOTTOM_OFFSET_MAX_PX = 800
+
+function escapeHtmlAttr(raw: string): string {
+  return String(raw ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+}
 
 function parsePxInput(raw: string, fallback: number, min: number, max: number): number {
   const text = String(raw ?? '').trim()
@@ -23,6 +31,8 @@ type Props = {
   partners: Array<{ id: string; display_name: string | null; slug: string; logo_url: string | null }>
   /** Đồng bộ với ô chọn shop ở mục khóa API phía trên */
   selectedPartnerId?: string
+  /** `data-ui-locale` trong mã nhúng (theo ngôn ngữ trang hướng dẫn) */
+  embedUiLocale?: ApiKeysHubLocale
 }
 
 function CodeBlock({
@@ -106,7 +116,7 @@ function CodeBlock({
   )
 }
 
-export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartnerId }: Props) {
+export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartnerId, embedUiLocale }: Props) {
   const effectivePid = useMemo(() => {
     if (!partners.length) return ''
     if (selectedPartnerId && partners.some((p) => p.id === selectedPartnerId)) return selectedPartnerId
@@ -119,6 +129,8 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   const [embedDesktopWidthPxInput, setEmbedDesktopWidthPxInput] = useState('340')
   const [embedDesktopHeightPxInput, setEmbedDesktopHeightPxInput] = useState('560')
   const [embedRadiusPxInput, setEmbedRadiusPxInput] = useState('12')
+  const [tryOnEmbedMode, setTryOnEmbedMode] = useState<'floating' | 'inline'>('floating')
+  const [tryOnEmbedLabelInput, setTryOnEmbedLabelInput] = useState('')
   const selectedPartner = useMemo(
     () => partners.find((p) => p.id === effectivePid) ?? partners[0] ?? null,
     [partners, effectivePid]
@@ -171,6 +183,31 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   rel="noopener noreferrer"
   style="display:inline-block;padding:10px 16px;border-radius:9999px;background:#7c3aed;color:#fff;text-decoration:none;font:600 14px/1 Arial,sans-serif;"
 >Mở chat NanoAI</a>`
+  const tryOnLabelAttr = escapeHtmlAttr(
+    (tryOnEmbedLabelInput.trim() || t.tryOnEmbedDefaultButtonLabel).slice(0, 120)
+  )
+  const tryOnUiLocale = embedUiLocale ?? 'vi'
+  const tryOnScript = `<script
+  src="${baseUrl}/embed/nanoai-try-on-widget.js"
+  data-try-on-url="${hostedPageUrl}"
+  data-shop-name="${shopNameAttr}"
+  data-label="${tryOnLabelAttr}"
+  data-mode="${tryOnEmbedMode}"
+  data-logo-url="${logoUrl}"
+  data-side="${embedSide}"
+  data-bottom="${safeBottomPx}"
+  data-offset-x="${safeHorizontalPx}"
+  data-width="${safeDesktopWidthPx}"
+  data-height="${safeDesktopHeightPx}"
+  data-radius="${safeRadiusPx}"
+  data-mobile-breakpoint="768"
+  data-bubble-size="56"
+  data-mobile-bubble-size="52"
+  data-panel-bottom="12"
+  data-ui-locale="${tryOnUiLocale}"
+  data-widget-id="nanoai-try-on-widget-v1"
+  defer
+></script>`
   const hostedCompatNote =
     'Nếu web/CMS chặn <script> (hoặc chỉ cho dán URL/iframe), dùng mã iframe hoặc nút link bên dưới.'
 
@@ -407,6 +444,47 @@ Cookie: <auth_session_cookie>
             </CodeBlock>
             <CodeBlock title="Fallback #2 — nút mở chat tab mới" {...codeBlockCopyProps}>
               {hostedLinkButton}
+            </CodeBlock>
+          </>
+        )}
+
+        {section(
+          t.tryOnEmbedTitle,
+          t.tryOnEmbedBody,
+          <>
+            <p className="text-xs leading-relaxed text-muted-foreground">{t.tryOnEmbedUsesChatLayoutNote}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="space-y-1 text-[11px] text-muted-foreground">
+                <span>{t.tryOnEmbedModeLabel}</span>
+                <select
+                  className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                  value={tryOnEmbedMode}
+                  onChange={(e) => setTryOnEmbedMode(e.target.value === 'inline' ? 'inline' : 'floating')}
+                >
+                  <option value="floating">{t.tryOnEmbedModeFloating}</option>
+                  <option value="inline">{t.tryOnEmbedModeInline}</option>
+                </select>
+              </label>
+              <label className="space-y-1 text-[11px] text-muted-foreground">
+                <span>{t.tryOnEmbedButtonLabel}</span>
+                <input
+                  type="text"
+                  className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                  value={tryOnEmbedLabelInput}
+                  onChange={(e) => setTryOnEmbedLabelInput(e.target.value)}
+                  placeholder={t.tryOnEmbedButtonPlaceholder}
+                  maxLength={120}
+                  autoComplete="off"
+                />
+              </label>
+            </div>
+            <CodeBlock
+              title={t.codeLabelExample}
+              copyButtonLabel={t.copyTryOnEmbedScriptButton}
+              copySuccessMessage={t.copyTryOnEmbedScriptToast}
+              copyErrorMessage={t.copyTryOnEmbedScriptError}
+            >
+              {tryOnScript}
             </CodeBlock>
           </>
         )}
