@@ -52,12 +52,26 @@ import {
 } from '@/lib/db/messaging-partner-birthday-promo-pg'
 import {
   fetchMessagingPartnerEmbedKeyForOwnerFromPg,
-  fetchMessagingPartnersByOwnerFromPg,
+  fetchMessagingPartnersForDashboardFromPg,
   insertMessagingPartnerForOwnerFromPg,
   updateMessagingPartnerFacebookMetaForOwnerFromPg,
   updateMessagingPartnerGa4ForOwnerFromPg,
   updateMessagingPartnerProfileForOwnerFromPg,
 } from '@/lib/db/messaging-partners-pg'
+import {
+  deleteMessagingPartnerMemberForOwnerFromPg,
+  listMessagingPartnerMembersForOwnerFromPg,
+  lookupAuthUserIdByEmailExcludeOwnerFromPg,
+  upsertMessagingPartnerMemberForOwnerFromPg,
+} from '@/lib/db/messaging-partner-members-pg'
+import { assertPartnerStaffGate, resolvePartnerDashboardAccessFromPg } from '@/lib/messaging/partner-dashboard-access'
+import type { PartnerStaffPermKey } from '@/lib/messaging/partner-staff-permissions'
+import {
+  defaultInviteStaffPermissions,
+  partnerStaffHasPerm,
+  type PartnerStaffPermissionMap,
+} from '@/lib/messaging/partner-staff-permissions'
+import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
 import {
   cancelScheduledPartnerPurgeFromPg,
   generateWorkspaceDeletionOtp6,
@@ -218,6 +232,18 @@ async function assertPartnerOwner(userId: string, partnerId: string) {
   } catch (e) {
     console.warn('[assertPartnerOwner] PG check failed', e)
   }
+  return { error: 'Forbidden.' }
+}
+
+async function assertPartnerAnyStaffCapability(
+  userId: string,
+  partnerId: string,
+  caps: PartnerStaffPermKey[]
+): Promise<{ ok: true } | { error: string }> {
+  const access = await resolvePartnerDashboardAccessFromPg(userId, partnerId)
+  if (access === null) return { error: 'Forbidden.' }
+  if (access === 'owner') return { ok: true }
+  if (caps.some((c) => partnerStaffHasPerm(access, c))) return { ok: true }
   return { error: 'Forbidden.' }
 }
 
@@ -384,6 +410,9 @@ export async function updateMessagingWorkspaceProfile(input: {
   if (!brand || brand.length > 120) return { error: 'Invalid brand.' }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
 
+  const gateBrand = await assertPartnerStaffGate(user.id, input.partnerId, 'workspace_branding')
+  if ('error' in gateBrand) return { error: gateBrand.error }
+
   const updated = await updateMessagingPartnerProfileForOwnerFromPg({
     partner_id: input.partnerId,
     owner_user_id: user.id,
@@ -401,14 +430,17 @@ export async function getPartnerMessagingFacebookMeta(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'integrations_analytics')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   try {
     const row = await pgQueryOne<{ pixel: string | null; capi_set: boolean }>(
-      `select nullif(trim(coalesce(facebook_pixel_id, '')), '') as pixel,
-              (facebook_capi_access_token is not null and length(trim(coalesce(facebook_capi_access_token, ''))) > 0) as capi_set
-       from public.messaging_partners where id = $1::uuid and owner_user_id = $2::uuid limit 1`,
+      `select nullif(trim(coalesce(mp.facebook_pixel_id, '')), '') as pixel,
+              (mp.facebook_capi_access_token is not null and length(trim(coalesce(mp.facebook_capi_access_token, ''))) > 0) as capi_set
+       from public.messaging_partners mp
+       where mp.id = $1::uuid
+         and ${sqlPartnerMpActorHasPerm(2, 'integrations_analytics')}
+       limit 1`,
       [partnerId, user.id]
     )
     return {
@@ -822,7 +854,7 @@ export async function listMessagingWorkspaceLogoVersions(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'workspace_branding')
   if ('error' in gate) return { error: gate.error }
   const rows = await listPartnerLogoVersionsFromPg(partnerId)
   if (rows === null) return { error: 'Failed to load logo versions.' }
@@ -833,7 +865,7 @@ export async function setMessagingWorkspaceActiveLogo(partnerId: string, version
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'workspace_branding')
   if ('error' in gate) return { error: gate.error }
   const ok = await activatePartnerLogoVersionFromPg({ partnerId, versionId, ownerUserId: user.id })
   if (!ok) return { error: 'Không thể đổi logo đang dùng.' }
@@ -850,7 +882,7 @@ export async function normalizeMessagingWorkspaceLogo(input: {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, input.partnerId)
+  const gate = await assertPartnerStaffGate(user.id, input.partnerId, 'workspace_branding')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const sourceUrl = normalizeLogoUrl(input.sourceLogoUrl)
@@ -940,7 +972,7 @@ export async function getPartnerChannelStatus(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'integrations_channels')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -971,7 +1003,7 @@ export async function listMyMessagingPartners() {
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
-  const fromPg = await fetchMessagingPartnersByOwnerFromPg(user.id)
+  const fromPg = await fetchMessagingPartnersForDashboardFromPg(user.id)
   if (fromPg === null) {
     return { error: 'Failed to load messaging workspaces.' }
   }
@@ -1120,7 +1152,7 @@ export async function listPartnerConversations(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inbox')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -1139,7 +1171,7 @@ export async function listPartnerMessages(partnerId: string, conversationId: str
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inbox')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -1160,7 +1192,7 @@ export async function getPartnerAiComposingForConversation(partnerId: string, co
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inbox')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -1184,7 +1216,7 @@ export async function sendPartnerReply(
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inbox')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -1464,7 +1496,7 @@ export async function getPartnerAiTokenUsageStats(
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'usage_reports')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -1514,7 +1546,7 @@ export async function getPartnerAiUsageAnalytics(
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'usage_reports')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -1721,7 +1753,7 @@ export async function getPartnerAiBundle(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerAnyStaffCapability(user.id, partnerId, ['ai_settings', 'inventory'])
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -1750,7 +1782,7 @@ export async function getPartnerInventoryPage(partnerId: string, page: number, p
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -1777,7 +1809,7 @@ export async function getPartnerInventoryEmbeddingStats(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
   if ('error' in gate) return { error: gate.error }
 
   if (!isPgConfigured()) {
@@ -1799,7 +1831,7 @@ export async function getPartnerInventoryTextEmbeddingStats(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
   if ('error' in gate) return { error: gate.error }
 
   if (!isPgConfigured()) {
@@ -1821,7 +1853,7 @@ export async function triggerPartnerInventoryEmbeddingSync(partnerId: string, li
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -1845,7 +1877,7 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'ai_settings')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -2048,7 +2080,7 @@ export async function upsertPartnerInventoryItem(
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -2104,7 +2136,7 @@ export async function deletePartnerInventoryItem(partnerId: string, itemId: stri
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerOwner(user.id, partnerId)
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -2201,7 +2233,7 @@ export async function emergencyDisableVisionForPartner(partnerId: string) {
 export async function getPartnerBirthdayPromoSettings(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
-  const gate = await assertPartnerOwner(auth.user.id, partnerId)
+  const gate = await assertPartnerStaffGate(auth.user.id, partnerId, 'ai_settings')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const row = await fetchBirthdayPromoForPartnerFromPg(partnerId)
@@ -2228,7 +2260,7 @@ export async function savePartnerBirthdayPromoSettings(
 ) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
-  const gate = await assertPartnerOwner(auth.user.id, partnerId)
+  const gate = await assertPartnerStaffGate(auth.user.id, partnerId, 'ai_settings')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const ok = await upsertBirthdayPromoForPartnerFromPg({
@@ -2239,6 +2271,86 @@ export async function savePartnerBirthdayPromoSettings(
     offerDaysBeforeMin: input.offerDaysBeforeMin,
   })
   if (!ok) return { error: 'Failed to save birthday promo settings.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+/** Chỉ chủ workspace: danh sách nhân viên và email (auth.users). */
+export async function listMessagingPartnerStaffForOwner(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const rows = await listMessagingPartnerMembersForOwnerFromPg(partnerId, auth.user.id)
+  return { rows }
+}
+
+/** Mời nhân viên bằng email đăng ký NanoAI (`auth.users`). Mặc định quyền inbox + đơn; chỉnh sau trong Cài đặt. */
+export async function inviteMessagingPartnerStaffByEmail(partnerId: string, emailRaw: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const found = await lookupAuthUserIdByEmailExcludeOwnerFromPg({
+    email: emailRaw,
+    ownerUserId: auth.user.id,
+    partnerId,
+  })
+  if (!found.ok) {
+    if (found.reason === 'invalid_email') return { error: 'INVALID_EMAIL' as const }
+    if (found.reason === 'is_owner') return { error: 'INVITE_OWNER' as const }
+    if (found.reason === 'duplicate_owner') return { error: 'INVITE_OWNER_ACCOUNT' as const }
+    return { error: 'USER_NOT_FOUND' as const }
+  }
+  const invite = await upsertMessagingPartnerMemberForOwnerFromPg({
+    partnerId,
+    ownerUserId: auth.user.id,
+    memberUserId: found.userId,
+    permissions: defaultInviteStaffPermissions(),
+  })
+  if (!invite.ok) {
+    if (invite.error === 'is_owner') return { error: 'INVITE_OWNER' as const }
+    return { error: 'INVITE_FAILED' as const }
+  }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function updateMessagingPartnerStaffMemberPermissions(input: {
+  partnerId: string
+  memberUserId: string
+  permissions: PartnerStaffPermissionMap
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, input.partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const ok = await upsertMessagingPartnerMemberForOwnerFromPg({
+    partnerId: input.partnerId,
+    ownerUserId: auth.user.id,
+    memberUserId: input.memberUserId.trim(),
+    permissions: input.permissions,
+  })
+  if (!ok.ok) return { error: ok.error === 'is_owner' ? 'INVITE_OWNER' : 'UPDATE_FAILED' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function removeMessagingPartnerStaffMember(partnerId: string, memberUserId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const rm = await deleteMessagingPartnerMemberForOwnerFromPg({
+    partnerId,
+    ownerUserId: auth.user.id,
+    memberUserId: memberUserId.trim(),
+  })
+  if (!rm) return { error: 'REMOVE_FAILED' as const }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }

@@ -244,6 +244,36 @@ export interface Database {
         }
         Relationships: []
       }
+      messaging_partner_members: {
+        Row: {
+          id: string
+          partner_id: string
+          member_user_id: string
+          invited_by: string | null
+          permissions: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          member_user_id: string
+          invited_by?: string | null
+          permissions?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          member_user_id?: string
+          invited_by?: string | null
+          permissions?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messaging_guest_accounts: {
         Row: {
           id: string

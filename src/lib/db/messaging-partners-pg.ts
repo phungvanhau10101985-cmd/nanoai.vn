@@ -1,7 +1,17 @@
 import type { Database } from '@/types/database.types'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import type { PartnerStaffPermissionMap } from '@/lib/messaging/partner-staff-permissions'
+import { normalizeStaffPermissionsFromJson } from '@/lib/messaging/partner-staff-permissions'
+
 export type MessagingPartnerRow = Database['public']['Tables']['messaging_partners']['Row']
+
+/** Workspace + vai trò trên dashboard (chủ / nhân viên). */
+export type MessagingPartnerDashboardRow = MessagingPartnerRow & {
+  dashboard_access: 'owner' | 'staff'
+  /** Khi là nhân viên: quyền đã normalize. Chủ shop: luôn null. */
+  staff_permissions: PartnerStaffPermissionMap | null
+}
 
 /** Tránh đưa "" vào Postgres `::uuid` / `uuid[]` (lỗi 22P02). */
 const UUID_SQL =
@@ -470,6 +480,99 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
 }
 
 /**
+ * Workspace chủ có + workspace làm nhân viên (staff). Dedup id; chủ ghi đè vai trò staff (nếu trùng).
+ */
+export async function fetchMessagingPartnersForDashboardFromPg(
+  actorUserId: string
+): Promise<MessagingPartnerDashboardRow[] | null> {
+  const base = await fetchMessagingPartnersByOwnerFromPg(actorUserId)
+  if (base === null) return null
+  const uid = typeof actorUserId === 'string' ? actorUserId.trim() : String(actorUserId ?? '').trim()
+
+  const asOwnerRows: MessagingPartnerDashboardRow[] = base.map((r) => ({
+    ...r,
+    dashboard_access: 'owner',
+    staff_permissions: null,
+  }))
+  const byId = new Map<string, MessagingPartnerDashboardRow>()
+  for (const r of asOwnerRows) byId.set(r.id, r)
+
+  if (!uid || !UUID_SQL.test(uid)) {
+    return [...byId.values()]
+  }
+
+  try {
+    const staffRows = await pgQuery<{
+      id: string
+      slug: string
+      display_name: string | null
+      industry_key: MessagingPartnerRow['industry_key'] | null
+      brand_name: string | null
+      logo_url: string | null
+      owner_user_id: string | null
+      embed_key: string | null
+      is_active: boolean | null
+      purge_at: string | null
+      deletion_requested_at: string | null
+      facebook_pixel_id: string | null
+      ga4_measurement_id: string | null
+      created_at: unknown
+      updated_at: unknown
+      permissions: unknown
+    }>(
+      `select p.id::text, p.slug, p.display_name, p.owner_user_id::text,
+              p.industry_key, p.brand_name, p.logo_url,
+              coalesce(p.embed_key::text, '') as embed_key,
+              coalesce(p.is_active, true) as is_active,
+              p.purge_at, p.deletion_requested_at,
+              nullif(trim(coalesce(p.facebook_pixel_id, '')), '') as facebook_pixel_id,
+              nullif(trim(coalesce(p.ga4_measurement_id, '')), '') as ga4_measurement_id,
+              p.created_at, p.updated_at,
+              coalesce(mm.permissions, '{}'::jsonb) as permissions
+       from public.messaging_partners p
+       inner join public.messaging_partner_members mm
+         on mm.partner_id = p.id and mm.member_user_id = $1::uuid
+       where coalesce(p.is_active, true) = true
+       order by p.created_at desc`,
+      [uid]
+    )
+
+    for (const r of staffRows) {
+      if (byId.has(r.id)) continue
+      byId.set(r.id, {
+        id: r.id,
+        slug: r.slug,
+        display_name: String(r.display_name ?? ''),
+        industry_key: r.industry_key ?? null,
+        brand_name: r.brand_name ?? null,
+        logo_url: r.logo_url ?? null,
+        owner_user_id: r.owner_user_id,
+        embed_key: String(r.embed_key ?? ''),
+        is_active: r.is_active !== false,
+        purge_at: r.purge_at ? mapTimestamptz(r.purge_at) : null,
+        deletion_requested_at: r.deletion_requested_at ? mapTimestamptz(r.deletion_requested_at) : null,
+        facebook_pixel_id: r.facebook_pixel_id ? String(r.facebook_pixel_id).trim() : null,
+        facebook_capi_access_token: null,
+        ga4_measurement_id: r.ga4_measurement_id ? String(r.ga4_measurement_id).trim() : null,
+        created_at: mapTimestamptz(r.created_at),
+        updated_at: mapTimestamptz(r.updated_at),
+        dashboard_access: 'staff',
+        staff_permissions: normalizeStaffPermissionsFromJson(r.permissions),
+      })
+    }
+  } catch (e) {
+    const code = typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code || '') : ''
+    if (code === '42P01') {
+      console.warn('[fetchMessagingPartnersForDashboardFromPg] messaging_partner_members missing — chạy migration.')
+    } else {
+      console.warn('[fetchMessagingPartnersForDashboardFromPg] staff workspaces', e)
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))
+}
+
+/**
  * `embed_key` khi đúng owner (Postgres). `null` = không dùng được PG hoặc không có bản ghi — caller caller xử lý khi không có PG.
  */
 export async function fetchMessagingPartnerEmbedKeyForOwnerFromPg(
@@ -650,7 +753,18 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
            brand_name = $5,
            logo_url = $6,
            updated_at = now()
-       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       where id = $1::uuid
+         and (
+           owner_user_id = $2::uuid
+           or exists (
+             select 1
+             from public.messaging_partner_members m
+             where m.partner_id = messaging_partners.id
+               and m.member_user_id = $2::uuid
+               and coalesce((m.permissions->>'workspace_branding')::boolean, false)
+           )
+         )
+         and coalesce(is_active, true) = true
        returning id::text, slug, display_name, industry_key, brand_name, logo_url,
                  owner_user_id::text, coalesce(embed_key::text, '') as embed_key,
                  coalesce(is_active, true) as is_active,
@@ -693,7 +807,18 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
         }>(
           `update public.messaging_partners
            set display_name = $3, updated_at = now()
-           where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+           where id = $1::uuid
+             and (
+               owner_user_id = $2::uuid
+               or exists (
+                 select 1
+                 from public.messaging_partner_members m
+                 where m.partner_id = messaging_partners.id
+                   and m.member_user_id = $2::uuid
+                   and coalesce((m.permissions->>'workspace_branding')::boolean, false)
+               )
+             )
+             and coalesce(is_active, true) = true
            returning id::text, slug, display_name, owner_user_id::text, coalesce(embed_key::text, '') as embed_key,
                      coalesce(is_active, true) as is_active,
                      purge_at, deletion_requested_at, created_at, updated_at`,

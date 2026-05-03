@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
-import { pgQueryOne } from '@/lib/db/pg-query'
+import { resolvePartnerDashboardAccessFromPg } from '@/lib/messaging/partner-dashboard-access'
+import { partnerStaffHasPerm } from '@/lib/messaging/partner-staff-permissions'
 import { isAllowedGuestImageMime, uploadPartnerChatImageBuffer } from '@/lib/messaging/guest-chat-image'
 
 export const dynamic = 'force-dynamic'
@@ -31,20 +32,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing partnerId.' }, { status: 400 })
   }
 
-  let ownerVerified = false
+  let canSend = false
   try {
-    const row = await pgQueryOne<{ id: string }>(
-      `select id::text from public.messaging_partners
-       where id = $1::uuid and owner_user_id = $2::uuid limit 1`,
-      [partnerId, user.id]
-    )
-    ownerVerified = Boolean(row)
+    const access = await resolvePartnerDashboardAccessFromPg(user.id, partnerId)
+    canSend = access !== null && (access === 'owner' || partnerStaffHasPerm(access, 'inbox'))
   } catch (e) {
-    console.warn('[partner/image] PG ownership check failed', e)
+    console.warn('[partner/image] PG access check failed', e)
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
   }
 
-  if (!ownerVerified) {
+  if (!canSend) {
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
   }
 

@@ -1,4 +1,5 @@
 import { isPgConfigured } from '@/lib/db/pool'
+import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
 export type PartnerPaymentSettingsRow = {
@@ -492,7 +493,7 @@ export async function fetchPartnerOrderForOwnerFromPg(
               o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count
        from public.messaging_partner_orders o
        inner join public.messaging_partners mp on mp.id = o.partner_id
-       where o.id = $1::uuid and mp.owner_user_id = $2::uuid
+       where o.id = $1::uuid and ${sqlPartnerMpActorHasPerm(2, 'orders')}
        limit 1`,
       [oid, uid]
     )
@@ -796,7 +797,7 @@ export async function fetchPartnerOrderStatsForOwnerFromPg(input: {
                 end
               ), 0)::double precision as sum_outstanding
        from public.messaging_partner_orders o
-       join public.messaging_partners mp on mp.id = o.partner_id and mp.owner_user_id = $1::uuid
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
        where ($2::uuid is null or o.partner_id = $2::uuid)
          and ($3 = '' or o.status = $3)
          and ($4::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $4::date)
@@ -882,7 +883,7 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
               lp.verification_status as latest_proof_status,
               lp.verification_reason as latest_proof_reason
        from public.messaging_partner_orders o
-       join public.messaging_partners mp on mp.id = o.partner_id and mp.owner_user_id = $1::uuid
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
        left join lateral (
          select image_url, verification_status, verification_reason
          from public.messaging_partner_payment_proofs p
@@ -938,7 +939,7 @@ export async function fetchPartnerOrdersForOwnerExportFromPg(input: {
               lp.verification_status as latest_proof_status,
               lp.verification_reason as latest_proof_reason
        from public.messaging_partner_orders o
-       join public.messaging_partners mp on mp.id = o.partner_id and mp.owner_user_id = $1::uuid
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
        left join lateral (
          select image_url, verification_status, verification_reason
          from public.messaging_partner_payment_proofs p
@@ -979,7 +980,7 @@ export async function updatePartnerOrderStatusForOwnerFromPg(input: {
        from public.messaging_partners mp
        where o.id = $1::uuid
          and mp.id = o.partner_id
-         and mp.owner_user_id = $2::uuid`,
+         and ${sqlPartnerMpActorHasPerm(2, 'orders')}`,
       [input.orderId, input.ownerUserId, input.status, input.verifiedNote]
     )
     return true
@@ -1005,7 +1006,7 @@ export async function updatePartnerOrderShippingStatusForOwnerFromPg(input: {
        from public.messaging_partners mp
        where o.id = $1::uuid
          and mp.id = o.partner_id
-         and mp.owner_user_id = $2::uuid
+         and ${sqlPartnerMpActorHasPerm(2, 'orders')}
        returning o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
                  o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
                  o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
@@ -1080,7 +1081,7 @@ export async function fetchPartnerOrderEventsForOwnerFromPg(input: {
       `select e.id::text, e.order_id::text, e.event_type, e.title, e.detail, e.source, e.created_by, e.created_at
        from public.messaging_partner_order_events e
        join public.messaging_partner_orders o on o.id = e.order_id
-       join public.messaging_partners mp on mp.id = o.partner_id and mp.owner_user_id = $1::uuid
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
        where e.order_id = $2::uuid
        order by e.created_at desc
        limit $3`,

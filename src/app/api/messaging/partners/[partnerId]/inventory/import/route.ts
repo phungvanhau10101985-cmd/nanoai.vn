@@ -4,7 +4,7 @@ import { parseInventoryWorkbook } from '@/lib/messaging/partner-inventory-excel'
 import { upsertPartnerInventoryBatch } from '@/lib/messaging/partner-inventory-upsert-batch'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
-import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-route-auth'
+import { requireMessagingPartnerInventoryAccess } from '@/lib/messaging/partner-inventory-route-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -14,7 +14,7 @@ const MAX_BYTES = 20 * 1024 * 1024
 
 export async function POST(req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
-  const gate = await requireMessagingPartnerOwner(partnerId)
+  const gate = await requireMessagingPartnerInventoryAccess(partnerId)
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   let form: FormData

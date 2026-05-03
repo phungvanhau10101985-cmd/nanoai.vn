@@ -339,6 +339,32 @@ export type Dictionary = {
     deleteWorkspaceCancelSchedule: string
     deleteWorkspaceOtpSentToast: string
     deleteWorkspaceScheduleCancelled: string
+    teamStaffSectionTitle: string
+    teamStaffSectionHint: string
+    badgeStaffWorkspace: string
+    teamInviteEmailLabel: string
+    teamInviteEmailPlaceholder: string
+    teamInviteButton: string
+    teamStaffListTitle: string
+    teamRemoveMember: string
+    teamSavePermissions: string
+    teamInviteErrorNotFound: string
+    teamInviteErrorBadEmail: string
+    teamInviteErrorOwner: string
+    teamInviteOk: string
+    teamStaffRestrictedNote: string
+    teamPermInbox: string
+    teamPermOrders: string
+    teamPermInventory: string
+    teamPermAiSettings: string
+    teamPermWorkspaceBranding: string
+    teamPermWorkspacePayment: string
+    teamPermIntegrationsChannels: string
+    teamPermIntegrationsAnalytics: string
+    teamPermUsageReports: string
+    /** Staff có quyền analytics chỉ xem Pixel/GA4; chỉ chủ được lưu. */
+    integrationsAnalyticsOwnerOnly: string
+    teamRemoveMemberConfirm: string
     fbLinkedLine: string
     zaloLinkedLine: string
     credentialsKeepHint: string
@@ -2226,6 +2252,34 @@ const VI_DICTIONARY: Dictionary = {
     deleteWorkspaceCancelSchedule: 'Hủy lịch xóa',
     deleteWorkspaceOtpSentToast: 'Đã gửi mã OTP tới email của bạn.',
     deleteWorkspaceScheduleCancelled: 'Đã hủy lịch xóa workspace.',
+    teamStaffSectionTitle: 'Nhân viên workspace',
+    teamStaffSectionHint:
+      'Mời bằng email đăng nhập của tài khoản NanoAI. Chọn quyền từng người; chỉ nên cho quyền nhạy cảm khi tin tưởng hoàn toàn.',
+    badgeStaffWorkspace: 'được mời',
+    teamInviteEmailLabel: 'Email đăng nhập',
+    teamInviteEmailPlaceholder: 'email@vidu.com',
+    teamInviteButton: 'Mời',
+    teamStaffListTitle: 'Danh sách nhân viên',
+    teamRemoveMember: 'Gỡ',
+    teamSavePermissions: 'Lưu quyền',
+    teamInviteErrorNotFound:
+      'Không tìm thấy tài khoản với email này — người được mời cần đăng ký NanoAI và xác nhận email.',
+    teamInviteErrorBadEmail: 'Email không hợp lệ.',
+    teamInviteErrorOwner: 'Không thể mời chủ workspace hoặc chủ của shop này.',
+    teamInviteOk: 'Đã mời nhân viên.',
+    teamStaffRestrictedNote:
+      'Đang vào vai trò nhân viên: chỉ chủ workspace mới xem/sửa thanh toán, API nhúng, xóa workspace và các mục nhạy cảm khác.',
+    teamPermInbox: 'Hộp thư khách',
+    teamPermOrders: 'Đơn hàng',
+    teamPermInventory: 'Kho sản phẩm',
+    teamPermAiSettings: 'Cài đặt AI',
+    teamPermWorkspaceBranding: 'Thương hiệu & logo',
+    teamPermWorkspacePayment: 'Thanh toán trong chat',
+    teamPermIntegrationsChannels: 'Kênh Facebook / Zalo',
+    teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / Catalog',
+    teamPermUsageReports: 'Báo cáo sử dụng',
+    integrationsAnalyticsOwnerOnly: 'Chỉ chủ workspace mới có thể lưu Pixel, CAPI và GA4.',
+    teamRemoveMemberConfirm: 'Gỡ nhân viên này khỏi workspace?',
     fbLinkedLine: 'Facebook Page đã liên kết: {pageId}',
     zaloLinkedLine: 'Zalo OA đã cấu hình webhook & token.',
     credentialsKeepHint:
@@ -4101,6 +4155,35 @@ const EN_DICTIONARY: Dictionary = {
     deleteWorkspaceCancelSchedule: 'Cancel deletion schedule',
     deleteWorkspaceOtpSentToast: 'OTP sent to your email.',
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
+    teamStaffSectionTitle: 'Workspace team',
+    teamStaffSectionHint:
+      'Invite people by their NanoAI login email. Choose permissions carefully; sensitive areas should only go to trusted users.',
+    badgeStaffWorkspace: 'invited',
+    teamInviteEmailLabel: 'Login email',
+    teamInviteEmailPlaceholder: 'user@example.com',
+    teamInviteButton: 'Invite',
+    teamStaffListTitle: 'Team members',
+    teamRemoveMember: 'Remove',
+    teamSavePermissions: 'Save permissions',
+    teamInviteErrorNotFound:
+      'No account found for this email — the person needs a NanoAI account with a verified login email.',
+    teamInviteErrorBadEmail: 'Invalid email.',
+    teamInviteErrorOwner: 'Cannot invite the workspace owner for this shop.',
+    teamInviteOk: 'Invite sent.',
+    teamStaffRestrictedNote:
+      'You are accessing this workspace as staff. Only the workspace owner can change payments, embedded API secrets, deletion, and some other sensitive sections.',
+    teamPermInbox: 'Customer inbox',
+    teamPermOrders: 'Orders',
+    teamPermInventory: 'Inventory',
+    teamPermAiSettings: 'AI settings',
+    teamPermWorkspaceBranding: 'Branding & logo',
+    teamPermWorkspacePayment: 'In-chat payments',
+    teamPermIntegrationsChannels: 'Facebook / Zalo channels',
+    teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / Catalog',
+    teamPermUsageReports: 'Usage reports',
+    integrationsAnalyticsOwnerOnly:
+      'Only the workspace owner can save Pixel / Conversions API and Google Analytics.',
+    teamRemoveMemberConfirm: 'Remove this person from this workspace?',
     fbLinkedLine: 'Facebook Page linked: {pageId}',
     zaloLinkedLine: 'Zalo OA webhook & token are saved.',
     credentialsKeepHint: 'Leave token or secret blank to keep the saved values.',
@@ -5976,6 +6059,33 @@ const ZH_DICTIONARY: Dictionary = {
     deleteWorkspaceCancelSchedule: 'Cancel deletion schedule',
     deleteWorkspaceOtpSentToast: 'OTP sent to your email.',
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
+    teamStaffSectionTitle: '团队成员',
+    teamStaffSectionHint: '按 NanoAI 登录邮箱邀请。按需勾选权限；敏感权限仅授予可信人员。',
+    badgeStaffWorkspace: '受邀成员',
+    teamInviteEmailLabel: '登录邮箱',
+    teamInviteEmailPlaceholder: 'user@example.com',
+    teamInviteButton: '邀请',
+    teamStaffListTitle: '成员列表',
+    teamRemoveMember: '移除',
+    teamSavePermissions: '保存权限',
+    teamInviteErrorNotFound:
+      '未找到使用该邮箱的账户 — 被邀请者需先有 NanoAI 账号并完成邮箱验证。',
+    teamInviteErrorBadEmail: '邮箱格式无效。',
+    teamInviteErrorOwner: '不可邀请店主或店主账号。',
+    teamInviteOk: '已邀请。',
+    teamStaffRestrictedNote:
+      '您以团队成员身份访问。仅店主可更改付款、嵌入式 API、删除店铺等敏感项。',
+    teamPermInbox: '客户收件箱',
+    teamPermOrders: '订单',
+    teamPermInventory: '商品库存',
+    teamPermAiSettings: 'AI 设置',
+    teamPermWorkspaceBranding: '品牌与 logo',
+    teamPermWorkspacePayment: '聊天内付款',
+    teamPermIntegrationsChannels: 'Facebook / Zalo 渠道',
+    teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / 目录',
+    teamPermUsageReports: '用量报表',
+    integrationsAnalyticsOwnerOnly: '只有店主可保存 Pixel、CAPI 与 GA4。',
+    teamRemoveMemberConfirm: '从本工作区移除此成员？',
     fbLinkedLine: '已关联 Facebook Page：{pageId}',
     zaloLinkedLine: '已保存 Zalo OA webhook 与 token。',
     credentialsKeepHint: '不修改时请留空 token 或 secret — 将保留已保存的值。',
@@ -7786,6 +7896,35 @@ const JA_DICTIONARY: Dictionary = {
     deleteWorkspaceCancelSchedule: 'Cancel deletion schedule',
     deleteWorkspaceOtpSentToast: 'OTP sent to your email.',
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
+    teamStaffSectionTitle: 'ワークスペースのメンバー',
+    teamStaffSectionHint:
+      'NanoAI のログインメールで招待してください。権限は最小限にし、決済情報など機密機能は十分信頼できる人のみに許可しましょう。',
+    badgeStaffWorkspace: '招待済み',
+    teamInviteEmailLabel: 'ログインメール',
+    teamInviteEmailPlaceholder: 'user@example.com',
+    teamInviteButton: '招待',
+    teamStaffListTitle: 'メンバー一覧',
+    teamRemoveMember: '削除',
+    teamSavePermissions: '権限を保存',
+    teamInviteErrorNotFound:
+      'このメールのユーザーが見つかりません。招待先には NanoAI のアカウントと確認済みメールが必要です。',
+    teamInviteErrorBadEmail: 'メールの形式が正しくありません。',
+    teamInviteErrorOwner: 'このワークスペースのオーナーは招待できません。',
+    teamInviteOk: '招待しました。',
+    teamStaffRestrictedNote:
+      'スタッフ権限です。決済や埋め込み API・ワークスペース削除などの重要設定は店主のみ変更できます。',
+    teamPermInbox: '受信箱',
+    teamPermOrders: '注文',
+    teamPermInventory: '在庫',
+    teamPermAiSettings: 'AI 設定',
+    teamPermWorkspaceBranding: 'ブランド／ロゴ',
+    teamPermWorkspacePayment: 'チャット内決済',
+    teamPermIntegrationsChannels: 'Facebook / Zalo チャネル',
+    teamPermIntegrationsAnalytics: 'Meta Pixel／GA4／カタログ',
+    teamPermUsageReports: '利用レポート',
+    integrationsAnalyticsOwnerOnly:
+      'Pixel、Conversions API、GA4 の保存はワークスペースの店主のみできます。',
+    teamRemoveMemberConfirm: 'このメンバーをワークスペースから外しますか？',
     fbLinkedLine: 'Facebook Page を連携済み: {pageId}',
     zaloLinkedLine: 'Zalo OA の webhook とトークンを保存済みです。',
     credentialsKeepHint:
@@ -9644,6 +9783,35 @@ const KO_DICTIONARY: Dictionary = {
     deleteWorkspaceCancelSchedule: 'Cancel deletion schedule',
     deleteWorkspaceOtpSentToast: 'OTP sent to your email.',
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
+    teamStaffSectionTitle: '워크스페이스 팀원',
+    teamStaffSectionHint:
+      'NanoAI 로그인 이메일로 초대합니다. 권한은 최소만 부여하고, 민감 항목은 신뢰하는 사람에게만 허용하세요.',
+    badgeStaffWorkspace: '초대됨',
+    teamInviteEmailLabel: '로그인 이메일',
+    teamInviteEmailPlaceholder: 'user@example.com',
+    teamInviteButton: '초대',
+    teamStaffListTitle: '팀원 목록',
+    teamRemoveMember: '제거',
+    teamSavePermissions: '권한 저장',
+    teamInviteErrorNotFound:
+      '해당 이메일 계정을 찾을 수 없습니다. 초대대상은 NanoAI 계정과 확인된 로그인 이메일이 필요합니다.',
+    teamInviteErrorBadEmail: '이메일 형식이 올바르지 않습니다.',
+    teamInviteErrorOwner: '워크스페이스 또는 샵 소유자 계정은 초대할 수 없습니다.',
+    teamInviteOk: '초대되었습니다.',
+    teamStaffRestrictedNote:
+      '직원 역할입니다. 결제·임베드 API·워크스페이스 삭제 등 민감 설정은 소유자만 변경할 수 있습니다.',
+    teamPermInbox: '고객 수신함',
+    teamPermOrders: '주문',
+    teamPermInventory: '재고',
+    teamPermAiSettings: 'AI 설정',
+    teamPermWorkspaceBranding: '브랜드·로고',
+    teamPermWorkspacePayment: '채팅 결제',
+    teamPermIntegrationsChannels: 'Facebook / Zalo 채널',
+    teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / 카탈로그',
+    teamPermUsageReports: '사용 리포트',
+    integrationsAnalyticsOwnerOnly:
+      'Pixel·Conversions API·GA4 저장은 워크스페이스 소유자만 할 수 있습니다.',
+    teamRemoveMemberConfirm: '이 구성원을 워크스페이스에서 제거할까요?',
     fbLinkedLine: 'Facebook Page 연결됨: {pageId}',
     zaloLinkedLine: 'Zalo OA webhook 및 토큰이 저장되었습니다.',
     credentialsKeepHint: '바꾸지 않을 토큰이나 시크릿은 비워 두면 저장된 값이 유지됩니다.',

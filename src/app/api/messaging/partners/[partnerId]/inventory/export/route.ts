@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { buildInventoryExportBuffer } from '@/lib/messaging/partner-inventory-excel'
 import { listPartnerInventoryRows } from '@/lib/messaging/partner-inventory-upsert-batch'
-import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-route-auth'
+import { requireMessagingPartnerInventoryAccess } from '@/lib/messaging/partner-inventory-route-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function GET(_req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
-  const gate = await requireMessagingPartnerOwner(partnerId)
+  const gate = await requireMessagingPartnerInventoryAccess(partnerId)
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const listed = await listPartnerInventoryRows(partnerId)

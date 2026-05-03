@@ -158,7 +158,18 @@ export async function activatePartnerLogoVersionFromPg(input: {
     const mp = await pgQueryOne<{ id: string }>(
       `update public.messaging_partners
        set logo_url = $3, updated_at = now()
-       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       where id = $1::uuid
+         and (
+           owner_user_id = $2::uuid
+           or exists (
+             select 1
+             from public.messaging_partner_members m
+             where m.partner_id = messaging_partners.id
+               and m.member_user_id = $2::uuid
+               and coalesce((m.permissions->>'workspace_branding')::boolean, false)
+           )
+         )
+         and coalesce(is_active, true) = true
        returning id::text as id`,
       [input.partnerId, input.ownerUserId, v.normalized_logo_url]
     )

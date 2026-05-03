@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { fetchPartnerInventoryRowsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-inventory-pg'
 import { geminiProductSearchFromImageBufferViaVectorDb } from '@/lib/messaging/partner-gemini-image-search'
-import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-route-auth'
+import { requireMessagingPartnerInventoryAccess } from '@/lib/messaging/partner-inventory-route-auth'
 import { fetchInventoryRowsBySemanticTextForPartnerAi } from '@/lib/messaging/partner-inventory-text-embedding'
 import { getPartnerPublicInventorySearchDefaultLimit } from '@/lib/messaging/partner-public-search-limits'
 
@@ -24,7 +24,7 @@ function stripEmbeddingsForClient(r: MessagingPartnerInventoryRow): MessagingPar
 
 export async function POST(req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
-  const gate = await requireMessagingPartnerOwner(partnerId)
+  const gate = await requireMessagingPartnerInventoryAccess(partnerId)
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   let form: FormData

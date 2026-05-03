@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getUserOrBypass } from '@/lib/auth'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
-import { fetchMessagingPartnersByOwnerFromPg } from '@/lib/db/messaging-partners-pg'
+import { fetchMessagingPartnersForDashboardFromPg } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
@@ -31,9 +31,9 @@ export default async function DashboardMessagingOrdersPage() {
   if (!user) redirectToLogin()
   if (!isValidUuidString(user.id)) redirectToLogin()
 
-  let rows: NonNullable<Awaited<ReturnType<typeof fetchMessagingPartnersByOwnerFromPg>>> = []
+  let rows: NonNullable<Awaited<ReturnType<typeof fetchMessagingPartnersForDashboardFromPg>>> = []
   if (isPgConfigured()) {
-    const fromPg = await fetchMessagingPartnersByOwnerFromPg(user.id)
+    const fromPg = await fetchMessagingPartnersForDashboardFromPg(user.id)
     if (fromPg !== null) rows = fromPg.filter((p) => p.industry_key !== 'hotel')
   }
 

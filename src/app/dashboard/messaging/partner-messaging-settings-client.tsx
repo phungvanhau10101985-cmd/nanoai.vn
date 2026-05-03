@@ -11,8 +11,12 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import type { Database } from '@/types/database.types'
+import type { MessagingPartnerDashboardRow } from '@/lib/db/messaging-partners-pg'
+import type { PartnerMemberRow } from '@/lib/db/messaging-partner-members-pg'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import type { PartnerStaffPermKey, PartnerStaffPermissionMap } from '@/lib/messaging/partner-staff-permissions'
+import { PARTNER_STAFF_PERM_KEYS } from '@/lib/messaging/partner-staff-permissions'
+import type { Database } from '@/types/database.types'
 import {
   cancelMessagingWorkspaceDeletionSchedule,
   confirmMessagingWorkspaceDeletionWithOtp,
@@ -22,13 +26,17 @@ import {
   getPartnerChannelStatus,
   listMessagingWorkspaceLogoVersions,
   listMyMessagingPartners,
+  inviteMessagingPartnerStaffByEmail,
+  listMessagingPartnerStaffForOwner,
   normalizeMessagingWorkspaceLogo,
+  removeMessagingPartnerStaffMember,
   requestMessagingWorkspaceDeletionOtp,
   saveMessagingWorkspaceGoogleSheetsSettings,
   saveMessagingWorkspacePaymentSettings,
   savePartnerFacebookChannel,
   savePartnerZaloChannel,
   setMessagingWorkspaceActiveLogo,
+  updateMessagingPartnerStaffMemberPermissions,
   updateMessagingWorkspaceProfile,
   getPartnerMessagingFacebookMeta,
   savePartnerMessagingFacebookMeta,
@@ -73,7 +81,23 @@ type ChannelSnap = {
   zaloConfigured: boolean
 }
 
-type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
+type MessagingPartnerDbRow = Database['public']['Tables']['messaging_partners']['Row']
+
+function withOwnerDashboardAccess(row: MessagingPartnerDbRow): MessagingPartnerDashboardRow {
+  return { ...row, dashboard_access: 'owner', staff_permissions: null }
+}
+
+function partnerAllowsPerm(p: MessagingPartnerDashboardRow | null | undefined, k: PartnerStaffPermKey): boolean {
+  if (!p) return false
+  if (p.dashboard_access === 'owner') return true
+  return Boolean(p.staff_permissions?.[k])
+}
+
+function partnerCanAiPanel(p: MessagingPartnerDashboardRow | null | undefined): boolean {
+  if (!p) return false
+  if (p.dashboard_access === 'owner') return true
+  return Boolean(p.staff_permissions?.ai_settings || p.staff_permissions?.inventory)
+}
 type LogoVersionRow = {
   id: string
   partner_id: string
@@ -138,7 +162,7 @@ export function PartnerMessagingSettingsClient({
   partnerAiLlmModel,
   appOrigin,
 }: {
-  initialPartners: PartnerRow[]
+  initialPartners: MessagingPartnerDashboardRow[]
   locale: WebLocale
   t: T
   tAi: TAi
@@ -151,7 +175,7 @@ export function PartnerMessagingSettingsClient({
   const searchParams = useSearchParams()
   const queryPartnerId = searchParams.get('partner')
   const { toast } = useToast()
-  const [partners, setPartners] = useState<PartnerRow[]>(initialPartners)
+  const [partners, setPartners] = useState<MessagingPartnerDashboardRow[]>(initialPartners)
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(() => {
     if (queryPartnerId && initialPartners.some((p) => p.id === queryPartnerId)) return queryPartnerId
     return initialPartners[0]?.id ?? null
@@ -208,11 +232,15 @@ export function PartnerMessagingSettingsClient({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteOtpStep, setDeleteOtpStep] = useState<'send' | 'confirm'>('send')
   const [deleteOtpInput, setDeleteOtpInput] = useState('')
+  const [staffInviteEmail, setStaffInviteEmail] = useState('')
+  const [staffRows, setStaffRows] = useState<PartnerMemberRow[]>([])
+  const [staffDraftPerm, setStaffDraftPerm] = useState<Record<string, PartnerStaffPermissionMap>>({})
 
   const selectedPartner = useMemo(
     () => partners.find((p) => p.id === selectedPartnerId) ?? null,
     [partners, selectedPartnerId]
   )
+  const isOwnerSelected = selectedPartner?.dashboard_access === 'owner'
   const facebookConnectHref = useMemo(() => {
     if (!selectedPartnerId) return '#'
     return `/api/integrations/facebook/messenger/connect?partnerId=${encodeURIComponent(selectedPartnerId)}`
@@ -289,6 +317,14 @@ export function PartnerMessagingSettingsClient({
   useEffect(() => {
     const status = searchParams.get('fb_oauth')
     if (!status) return
+    const cur = partners.find((p) => p.id === selectedPartnerId) ?? null
+    if (!partnerAllowsPerm(cur, 'integrations_channels')) {
+      const next = new URLSearchParams(searchParams.toString())
+      next.delete('fb_oauth')
+      const qs = next.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+      return
+    }
     const statusText: Record<string, { title: string; destructive?: boolean }> = {
       ok: { title: 'Da ket noi Facebook Page thanh cong.' },
       'subscribed-warn': { title: 'Da luu Page token, nhung subscribe webhook chua thanh cong.' },
@@ -314,7 +350,7 @@ export function PartnerMessagingSettingsClient({
     next.delete('fb_oauth')
     const qs = next.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [loadChannelStatus, loadFacebookPendingPages, pathname, router, searchParams, selectedPartnerId, toast])
+  }, [loadChannelStatus, loadFacebookPendingPages, partners, pathname, router, searchParams, selectedPartnerId, toast])
 
   const refreshPartners = useCallback(() => {
     startTransition(async () => {
@@ -331,13 +367,44 @@ export function PartnerMessagingSettingsClient({
     })
   }, [selectedPartnerId, setSelectedPartnerAndPersist, toast])
 
+  const loadStaffRowsForOwner = useCallback(async (partnerId: string) => {
+    const res = await listMessagingPartnerStaffForOwner(partnerId)
+    if ('error' in res && res.error) return
+    const rows = 'rows' in res ? (res.rows ?? []) : []
+    setStaffRows(rows)
+    const d: Record<string, PartnerStaffPermissionMap> = {}
+    for (const r of rows) d[r.member_user_id] = { ...r.permissions }
+    setStaffDraftPerm(d)
+  }, [])
+
+  useEffect(() => {
+    if (!selectedPartnerId) {
+      setStaffRows([])
+      setStaffDraftPerm({})
+      setStaffInviteEmail('')
+      return
+    }
+    const p = partners.find((x) => x.id === selectedPartnerId)
+    if (!p || p.dashboard_access !== 'owner') {
+      setStaffRows([])
+      setStaffDraftPerm({})
+      return
+    }
+    void loadStaffRowsForOwner(selectedPartnerId)
+  }, [selectedPartnerId, partners, loadStaffRowsForOwner])
+
   useEffect(() => {
     setFbToken('')
     setFbVerify('')
     setZaloSec('')
     setZaloTok('')
+    const cur = partners.find((p) => p.id === selectedPartnerId) ?? null
+    if (!partnerAllowsPerm(cur, 'integrations_channels')) {
+      setChannelSnap(null)
+      return
+    }
     loadChannelStatus()
-  }, [selectedPartnerId, loadChannelStatus])
+  }, [selectedPartnerId, loadChannelStatus, partners])
 
   useEffect(() => {
     const cur = partners.find((p) => p.id === selectedPartnerId) ?? null
@@ -356,13 +423,18 @@ export function PartnerMessagingSettingsClient({
       setMetaCapiConfigured(false)
       return
     }
+    const cur = partners.find((p) => p.id === selectedPartnerId) ?? null
+    if (!partnerAllowsPerm(cur, 'integrations_analytics')) {
+      setMetaCapiConfigured(false)
+      return
+    }
     void (async () => {
       const res = await getPartnerMessagingFacebookMeta(selectedPartnerId)
       if ('error' in res && res.error) return
       if ('capiConfigured' in res) setMetaCapiConfigured(Boolean(res.capiConfigured))
       if ('pixelId' in res) setMetaPixelId((res.pixelId ?? '').trim())
     })()
-  }, [selectedPartnerId])
+  }, [selectedPartnerId, partners])
 
   const loadPaymentSettings = useCallback(() => {
     if (!selectedPartnerId) return
@@ -423,11 +495,21 @@ export function PartnerMessagingSettingsClient({
   }, [selectedPartnerId])
 
   useEffect(() => {
+    if (!selectedPartnerId) return
+    const p = partners.find((x) => x.id === selectedPartnerId)
+    if (!p || p.dashboard_access !== 'owner') return
     loadPaymentSettings()
-  }, [loadPaymentSettings])
+  }, [loadPaymentSettings, partners, selectedPartnerId])
 
   useEffect(() => {
     if (!selectedPartnerId) {
+      setGsHasServiceAccount(false)
+      setGsServerFallback(false)
+      setGsSyncCredentialsReady(false)
+      return
+    }
+    const p = partners.find((x) => x.id === selectedPartnerId)
+    if (!p || p.dashboard_access !== 'owner') {
       setGsHasServiceAccount(false)
       setGsServerFallback(false)
       setGsSyncCredentialsReady(false)
@@ -446,10 +528,15 @@ export function PartnerMessagingSettingsClient({
         setGsServiceAccountJsonDraft('')
       }
     })()
-  }, [selectedPartnerId])
+  }, [selectedPartnerId, partners])
 
   useEffect(() => {
     if (!selectedPartnerId) {
+      setPaymentSePayWebhookUrl('')
+      return
+    }
+    const po = partners.find((x) => x.id === selectedPartnerId)
+    if (!po || po.dashboard_access !== 'owner') {
       setPaymentSePayWebhookUrl('')
       return
     }
@@ -457,7 +544,7 @@ export function PartnerMessagingSettingsClient({
     setPaymentSePayWebhookUrl(
       `${origin}/api/sepay-webhook?partner=${selectedPartnerId}&token=${paymentSePayWebhookToken || '<token>'}`
     )
-  }, [paymentSePayWebhookToken, selectedPartnerId])
+  }, [paymentSePayWebhookToken, partners, selectedPartnerId])
 
   const loadLogoVersions = useCallback(() => {
     if (!selectedPartnerId) {
@@ -472,8 +559,17 @@ export function PartnerMessagingSettingsClient({
   }, [selectedPartnerId])
 
   useEffect(() => {
+    if (!selectedPartnerId) {
+      setLogoVersions([])
+      return
+    }
+    const p = partners.find((x) => x.id === selectedPartnerId)
+    if (!partnerAllowsPerm(p ?? null, 'workspace_branding')) {
+      setLogoVersions([])
+      return
+    }
     loadLogoVersions()
-  }, [loadLogoVersions])
+  }, [loadLogoVersions, partners, selectedPartnerId])
 
   const createWs = () => {
     if (!workspaceName.trim() || !workspaceBrandName.trim()) return
@@ -493,7 +589,7 @@ export function PartnerMessagingSettingsClient({
         setWorkspaceBrandName('')
         setWorkspaceIndustry('fashion')
         setWorkspaceLogoUrl('')
-        setPartners((p) => [res.partner as PartnerRow, ...p])
+        setPartners((p) => [withOwnerDashboardAccess(res.partner as MessagingPartnerDbRow), ...p])
         setSelectedPartnerAndPersist(res.partner.id)
         setShowAddWorkspace(false)
         toast({ title: t.saveOk })
@@ -523,12 +619,103 @@ export function PartnerMessagingSettingsClient({
       return false
     }
     if ('partner' in res && res.partner) {
-      setPartners((prev) => prev.map((x) => (x.id === res.partner.id ? (res.partner as PartnerRow) : x)))
-      setWorkspaceLogoUrl((res.partner as PartnerRow).logo_url ?? '')
+      const base = res.partner as MessagingPartnerDbRow
+      setPartners((prev) =>
+        prev.map((x) =>
+          x.id === base.id ? { ...base, dashboard_access: x.dashboard_access, staff_permissions: x.staff_permissions } : x
+        )
+      )
+      setWorkspaceLogoUrl(base.logo_url ?? '')
       if (!opts?.silent) toast({ title: t.saveOk })
       return true
     }
     return false
+  }
+
+  const staffPermCheckboxLabel = (k: PartnerStaffPermKey): string => {
+    switch (k) {
+      case 'inbox':
+        return t.teamPermInbox
+      case 'orders':
+        return t.teamPermOrders
+      case 'inventory':
+        return t.teamPermInventory
+      case 'ai_settings':
+        return t.teamPermAiSettings
+      case 'workspace_branding':
+        return t.teamPermWorkspaceBranding
+      case 'workspace_payment':
+        return t.teamPermWorkspacePayment
+      case 'integrations_channels':
+        return t.teamPermIntegrationsChannels
+      case 'integrations_analytics':
+        return t.teamPermIntegrationsAnalytics
+      case 'usage_reports':
+        return t.teamPermUsageReports
+      default:
+        return k
+    }
+  }
+
+  const inviteStaffByEmailAction = () => {
+    if (!selectedPartnerId || !isOwnerSelected || !staffInviteEmail.trim()) return
+    startTransition(async () => {
+      const res = await inviteMessagingPartnerStaffByEmail(selectedPartnerId, staffInviteEmail.trim())
+      if ('error' in res && res.error) {
+        const e = res.error
+        if (e === 'INVALID_EMAIL') toast({ title: t.teamInviteErrorBadEmail, variant: 'destructive' })
+        else if (e === 'USER_NOT_FOUND') toast({ title: t.teamInviteErrorNotFound, variant: 'destructive' })
+        else if (e === 'INVITE_OWNER' || e === 'INVITE_OWNER_ACCOUNT')
+          toast({ title: t.teamInviteErrorOwner, variant: 'destructive' })
+        else toast({ title: String(e), variant: 'destructive' })
+        return
+      }
+      toast({ title: t.teamInviteOk })
+      setStaffInviteEmail('')
+      await loadStaffRowsForOwner(selectedPartnerId)
+    })
+  }
+
+  const saveStaffPermissionsForMember = (memberUserId: string) => {
+    if (!selectedPartnerId || !isOwnerSelected) return
+    const draft = staffDraftPerm[memberUserId]
+    if (!draft) return
+    startTransition(async () => {
+      const res = await updateMessagingPartnerStaffMemberPermissions({
+        partnerId: selectedPartnerId,
+        memberUserId,
+        permissions: draft,
+      })
+      if ('error' in res && res.error) {
+        toast({ title: String(res.error), variant: 'destructive' })
+        return
+      }
+      toast({ title: t.saveOk })
+      await loadStaffRowsForOwner(selectedPartnerId)
+    })
+  }
+
+  const removeStaffMember = (memberUserId: string) => {
+    if (!selectedPartnerId || !isOwnerSelected) return
+    if (typeof window !== 'undefined' && !window.confirm(t.teamRemoveMemberConfirm)) return
+    startTransition(async () => {
+      const res = await removeMessagingPartnerStaffMember(selectedPartnerId, memberUserId)
+      if ('error' in res && res.error) {
+        toast({ title: String(res.error), variant: 'destructive' })
+        return
+      }
+      toast({ title: t.saveOk })
+      await loadStaffRowsForOwner(selectedPartnerId)
+    })
+  }
+
+  const toggleStaffDraftPerm = (memberUserId: string, key: PartnerStaffPermKey, value: boolean) => {
+    setStaffDraftPerm((prev) => {
+      const cur =
+        prev[memberUserId] ?? staffRows.find((r) => r.member_user_id === memberUserId)?.permissions ?? null
+      if (!cur) return prev
+      return { ...prev, [memberUserId]: { ...cur, [key]: value } }
+    })
   }
 
   const uploadLogoFile = async (file: File) => {
@@ -973,7 +1160,7 @@ export function PartnerMessagingSettingsClient({
   }
 
   useEffect(() => {
-    if (!selectedPartnerId || paymentHydratingRef.current) return
+    if (!selectedPartnerId || !isOwnerSelected || paymentHydratingRef.current) return
     const nextSnapshot = paymentSnapshot(selectedPartnerId)
     if (nextSnapshot === paymentLastSavedSnapshotRef.current) return
     if (paymentAutoSaveTimerRef.current) clearTimeout(paymentAutoSaveTimerRef.current)
@@ -984,7 +1171,7 @@ export function PartnerMessagingSettingsClient({
     return () => {
       if (paymentAutoSaveTimerRef.current) clearTimeout(paymentAutoSaveTimerRef.current)
     }
-  }, [paymentSnapshot, persistPaymentSettings, selectedPartnerId])
+  }, [isOwnerSelected, paymentSnapshot, persistPaymentSettings, selectedPartnerId])
 
   useEffect(() => {
     return () => {
@@ -1205,16 +1392,20 @@ export function PartnerMessagingSettingsClient({
               <div className="rounded-lg border border-amber-500/50 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="flex-1">{t.deleteWorkspaceScheduledBanner}</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 border-amber-700/40"
-                    onClick={cancelScheduledDeletion}
-                    disabled={pending}
-                  >
-                    {t.deleteWorkspaceCancelSchedule}
-                  </Button>
+                  {isOwnerSelected ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 border-amber-700/40"
+                      onClick={cancelScheduledDeletion}
+                      disabled={pending}
+                    >
+                      {t.deleteWorkspaceCancelSchedule}
+                    </Button>
+                  ) : (
+                    <p className="max-w-[16rem] text-[11px] text-muted-foreground sm:text-xs">{t.teamStaffRestrictedNote}</p>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -1235,31 +1426,113 @@ export function PartnerMessagingSettingsClient({
                     {partners.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.display_name} ({p.industry_key || 'fashion'})
+                        {p.dashboard_access === 'staff' ? ` — ${t.badgeStaffWorkspace}` : ''}
                         {p.purge_at ? ' — chờ xóa' : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="secondary" size="sm" onClick={() => setShowAddWorkspace((v) => !v)}>
-                    {t.addAnotherWorkspace}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={openDeleteWorkspaceDialog}
-                    disabled={pending || !selectedPartnerId || Boolean(selectedPartner?.purge_at)}
-                    className="gap-1.5"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                    {t.deleteWorkspaceButton}
-                  </Button>
-                </div>
+                {selectedPartner?.dashboard_access === 'staff' ? (
+                  <p className="text-xs text-muted-foreground">{t.teamStaffRestrictedNote}</p>
+                ) : null}
+                {isOwnerSelected ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setShowAddWorkspace((v) => !v)}>
+                      {t.addAnotherWorkspace}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={openDeleteWorkspaceDialog}
+                      disabled={pending || !selectedPartnerId || Boolean(selectedPartner?.purge_at)}
+                      className="gap-1.5"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                      {t.deleteWorkspaceButton}
+                    </Button>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 
-          {showAddWorkspace ? (
+            {isOwnerSelected && selectedPartnerId ? (
+              <Card className="border-border/70 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">{t.teamStaffSectionTitle}</CardTitle>
+                  <CardDescription className="text-xs">{t.teamStaffSectionHint}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4 pt-0">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="min-w-[12rem] flex-1 space-y-1.5">
+                      <Label htmlFor="staff-invite-email">{t.teamInviteEmailLabel}</Label>
+                      <Input
+                        id="staff-invite-email"
+                        type="email"
+                        autoComplete="email"
+                        value={staffInviteEmail}
+                        onChange={(e) => setStaffInviteEmail(e.target.value)}
+                        placeholder={t.teamInviteEmailPlaceholder}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={inviteStaffByEmailAction}
+                      disabled={pending || !staffInviteEmail.trim()}
+                      className="shrink-0"
+                    >
+                      {t.teamInviteButton}
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">{t.teamStaffListTitle}</p>
+                    {staffRows.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground">—</p>
+                    ) : (
+                      staffRows.map((sm) => (
+                        <div key={sm.id} className="rounded-md border border-border/70 p-3">
+                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <p className="break-all font-mono text-xs">{sm.member_email ?? sm.member_user_id}</p>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => removeStaffMember(sm.member_user_id)}
+                            >
+                              {t.teamRemoveMember}
+                            </Button>
+                          </div>
+                          <div className="grid gap-1.5 sm:grid-cols-2">
+                            {PARTNER_STAFF_PERM_KEYS.map((key) => (
+                              <label key={key} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(staffDraftPerm[sm.member_user_id]?.[key] ?? sm.permissions[key])}
+                                  onChange={(e) => toggleStaffDraftPerm(sm.member_user_id, key, e.target.checked)}
+                                />
+                                <span>{staffPermCheckboxLabel(key)}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="mt-2"
+                            onClick={() => saveStaffPermissionsForMember(sm.member_user_id)}
+                            disabled={pending}
+                          >
+                            {t.teamSavePermissions}
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
+
+          {isOwnerSelected && showAddWorkspace ? (
             <Card className="border-dashed border-violet-300/60 bg-violet-50/20 dark:border-violet-800/50 dark:bg-violet-950/10">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">{t.addAnotherWorkspace}</CardTitle>
@@ -1339,7 +1612,7 @@ export function PartnerMessagingSettingsClient({
           ) : null}
           </SettingsBlock>
 
-          {selectedPartnerId ? (
+          {selectedPartnerId && partnerAllowsPerm(selectedPartner, 'workspace_branding') ? (
             <SettingsBlock
               id="messaging-brand"
               icon={Palette}
@@ -1474,6 +1747,7 @@ export function PartnerMessagingSettingsClient({
             </SettingsBlock>
           ) : null}
 
+          {partnerAllowsPerm(selectedPartner, 'integrations_channels') ? (
           <SettingsBlock
             id="messaging-channels"
             icon={Share2}
@@ -1552,7 +1826,9 @@ export function PartnerMessagingSettingsClient({
             </CardContent>
           </Card>
           </SettingsBlock>
+          ) : null}
 
+          {partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
           <SettingsBlock
             id="messaging-meta-consult"
             icon={LineChart}
@@ -1596,7 +1872,10 @@ export function PartnerMessagingSettingsClient({
                     {metaCapiConfigured ? t.metaConsultCapiSavedHint : t.credentialsKeepHint}
                   </p>
                 </div>
-                <Button type="button" size="sm" onClick={saveMetaConsult} disabled={pending || !selectedPartnerId}>
+                {!isOwnerSelected ? (
+                  <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
+                ) : null}
+                <Button type="button" size="sm" onClick={saveMetaConsult} disabled={pending || !selectedPartnerId || !isOwnerSelected}>
                   {t.metaConsultSaveButton}
                 </Button>
               </CardContent>
@@ -1617,7 +1896,10 @@ export function PartnerMessagingSettingsClient({
                   />
                   <p className="text-[11px] text-muted-foreground">{t.shopGa4MeasurementHint}</p>
                 </div>
-                <Button type="button" size="sm" onClick={saveShopGa4} disabled={pending || !selectedPartnerId}>
+                {!isOwnerSelected ? (
+                  <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
+                ) : null}
+                <Button type="button" size="sm" onClick={saveShopGa4} disabled={pending || !selectedPartnerId || !isOwnerSelected}>
                   {t.shopGa4SaveButton}
                 </Button>
               </CardContent>
@@ -1641,7 +1923,9 @@ export function PartnerMessagingSettingsClient({
               </CardContent>
             </Card>
           </SettingsBlock>
+          ) : null}
 
+          {isOwnerSelected ? (
           <SettingsBlock
             id="messaging-payment"
             icon={CreditCard}
@@ -1919,7 +2203,9 @@ export function PartnerMessagingSettingsClient({
             </CardContent>
           </Card>
           </SettingsBlock>
+          ) : null}
 
+          {isOwnerSelected ? (
           <SettingsBlock
             id="messaging-api"
             icon={Plug}
@@ -1946,8 +2232,9 @@ export function PartnerMessagingSettingsClient({
             </CardContent>
           </Card>
           </SettingsBlock>
+          ) : null}
 
-          {selectedPartnerId ? (
+          {selectedPartnerId && partnerCanAiPanel(selectedPartner) ? (
             <div id="messaging-ai" className="scroll-mt-6">
               <PartnerAiSettingsPanel
                 key={selectedPartnerId}

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { fetchMessagingPartnerByIdFromPg, fetchMessagingPartnersByOwnerFromPg } from '@/lib/db/messaging-partners-pg'
+import { fetchMessagingPartnerByIdFromPg, fetchMessagingPartnersForDashboardFromPg } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
@@ -49,9 +49,9 @@ export default async function DashboardMessagingSettingsPage({
     }
   }
 
-  let rows: NonNullable<Awaited<ReturnType<typeof fetchMessagingPartnersByOwnerFromPg>>> = []
+  let rows: NonNullable<Awaited<ReturnType<typeof fetchMessagingPartnersForDashboardFromPg>>> = []
   if (isPgConfigured()) {
-    const fromPg = await fetchMessagingPartnersByOwnerFromPg(user.id)
+    const fromPg = await fetchMessagingPartnersForDashboardFromPg(user.id)
     if (fromPg !== null) rows = fromPg.filter((p) => p.industry_key !== 'hotel')
   }
 

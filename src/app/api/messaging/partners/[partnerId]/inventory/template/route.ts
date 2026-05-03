@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { buildInventoryTemplateBuffer } from '@/lib/messaging/partner-inventory-excel'
-import { requireMessagingPartnerOwner } from '@/lib/messaging/partner-inventory-route-auth'
+import { requireMessagingPartnerInventoryAccess } from '@/lib/messaging/partner-inventory-route-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function GET(_req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
-  const gate = await requireMessagingPartnerOwner(partnerId)
+  const gate = await requireMessagingPartnerInventoryAccess(partnerId)
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const buf = buildInventoryTemplateBuffer()
