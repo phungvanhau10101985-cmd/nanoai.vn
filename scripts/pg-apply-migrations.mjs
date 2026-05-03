@@ -24,6 +24,9 @@
  * chưa từng chạy stack messaging → sẽ lỗi thiếu public.messaging_partners. Luôn áp các file pending
  * theo đúng thứ tự tên (*.sql đã sort), hoặc dùng npm run db:migrate:push trước khi deploy chỉ một file.
  *
+ * Postgres thuần (Docker) không có schema auth của Supabase: file 20231201000000_self_hosted_postgres_auth_compat.sql
+ * chạy trước init.sql để có auth.users stub + auth.uid(); DB Supabase cloud đã có auth.users và auth.uid thì không ghi đè.
+ *
  * Chỉ dùng --mark-all-applied khi bạn chấp nhận rằng DB đã tương đương (hoặc đã sửa drift tay).
  * Sai → các migration tương lai bỏ qua bước thật sự cần.
  */
