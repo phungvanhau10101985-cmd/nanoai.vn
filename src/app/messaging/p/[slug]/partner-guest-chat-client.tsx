@@ -1009,6 +1009,8 @@ type GuestChatDraftComposerProps = {
   submitGuestMessage: (text: string) => Promise<boolean>
   enqueueGuestSend: (run: () => Promise<void>) => void
   attachmentCount: number
+  /** Chip «Gửi mã SP đang xem» đang hiện → cho gửi dù ô trống. */
+  urlProductChipPending?: boolean
   uploading: boolean
   sending: boolean
   tryOnBusy: boolean
@@ -1038,6 +1040,7 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   submitGuestMessage,
   enqueueGuestSend,
   attachmentCount,
+  urlProductChipPending,
   uploading,
   sending,
   tryOnBusy,
@@ -1074,7 +1077,9 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   }, [draft, autoResizeDraft])
 
   const canSend = Boolean(
-    (draft.trim() || attachmentCount > 0) && !uploading && !(authGateRequired && authMode !== 'account')
+    (draft.trim() || attachmentCount > 0 || urlProductChipPending) &&
+      !uploading &&
+      !(authGateRequired && authMode !== 'account')
   )
 
   const send = useCallback(() => {
@@ -3766,11 +3771,15 @@ export function PartnerGuestChatClient({
       }
       const pcSeed = pageContextRef.current
       const hasSeed = hasWidgetPageContextSeed(pcSeed)
+      /** Chip đang hiện = khách có SP từ URL; gửi (kể cả có gõ thêm) phải kèm pageContext như khi bấm chip. */
+      const chipActsAsAttachIntent =
+        pendingUrlPageContextChip != null && hasWidgetPageContextSeed(pendingUrlPageContextChip)
       const shouldAttachPageContext =
-        !contextSeededRef.current && hasSeed && attachUrlPageContextRef.current
+        !contextSeededRef.current && hasSeed && (attachUrlPageContextRef.current || chipActsAsAttachIntent)
       if (!trimmed && imageStoragePaths.length < 1) {
         if (!hasSeed) return false
-        if (!attachUrlPageContextRef.current) return false
+        /** Chỉ gửi tin rỗng + ngữ cảnh SP khi đã chủ định (bấm chip / ô trống + chip đang hiện + bấm gửi). */
+        if (!attachUrlPageContextRef.current && !chipActsAsAttachIntent) return false
       }
       if (trimmed) {
         // Customer continues with normal consultation instead of choosing from buy rail.
@@ -3913,6 +3922,7 @@ export function PartnerGuestChatClient({
       t,
       toast,
       uiLocale,
+      pendingUrlPageContextChip,
     ]
   )
 
@@ -6000,6 +6010,9 @@ export function PartnerGuestChatClient({
                 submitGuestMessage={submitGuestMessage}
                 enqueueGuestSend={enqueueGuestSend}
                 attachmentCount={imageStoragePaths.length}
+                urlProductChipPending={Boolean(
+                  pendingUrlPageContextChip && hasWidgetPageContextSeed(pendingUrlPageContextChip)
+                )}
                 uploading={uploading}
                 sending={sending}
                 tryOnBusy={tryOnBusy}
