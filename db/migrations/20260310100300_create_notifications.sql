@@ -23,12 +23,12 @@ alter table public.notifications enable row level security;
 drop policy if exists "Users can view own notifications" on public.notifications;
 create policy "Users can view own notifications"
   on public.notifications for select
-  using (auth.uid() = user_id);
+  using ((auth.uid())::text = (user_id)::text);
 
 drop policy if exists "Users can update own notifications" on public.notifications;
 create policy "Users can update own notifications"
   on public.notifications for update
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using ((auth.uid())::text = (user_id)::text)
+  with check ((auth.uid())::text = (user_id)::text);
 
 comment on table public.notifications is 'Thông báo cho user – admin xử lý báo cáo, v.v.';
