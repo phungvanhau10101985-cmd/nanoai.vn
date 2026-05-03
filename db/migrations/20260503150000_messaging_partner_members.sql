@@ -1,5 +1,28 @@
 -- Thành viên workspace nhắn tin: chủ shop mời theo email, phân quyền granular (JSONB).
 -- Kiểm tra quyền thực hiện ở tầng ứng dụng (server actions / API routes).
+--
+-- Phụ thuộc bắt buộc: bảng public.messaging_partners (tạo trong
+-- db/migrations/20260403140000_messaging_partners_multitenant.sql và các migration messaging trước đó).
+-- Nếu chỉ áp riêng file này lên DB trống hoặc ledger đã --mark-all-applied sai → sẽ lỗi thiếu bảng.
+-- Trên VPS: chạy toàn bộ pending theo thứ tự tên, ví dụ: npm run db:migrate:push
+
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'messaging_partners'
+  ) then
+    raise exception using
+      message =
+        '[messaging_partner_members] prerequisite missing: public.messaging_partners does not exist. '
+        || 'Apply earlier migrations first in filename order (e.g. npm run db:migrate:push from repo root). '
+        || 'If you used --mark-all-applied wrongly, repair public.app_applied_sql_migrations and re-run pending. '
+        || 'Minimal manual: apply db/migrations/20260403140000_messaging_partners_multitenant.sql only on a compatible DB schema.',
+      errcode = '42P01';
+  end if;
+end $$;
 
 create table if not exists public.messaging_partner_members (
   id uuid primary key default gen_random_uuid(),

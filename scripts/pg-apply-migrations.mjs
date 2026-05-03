@@ -20,6 +20,10 @@
  * 3) Kiểm tra: node scripts/pg-apply-migrations.mjs  →  Chờ: 0
  * Từ đó về sau chỉ cần db:migrate:push khi pull thêm file migration mới.
  *
+ * Lưu ý VPS / CI: chỉ chạy "file migration mới" lẻ một file (checksum) trong khi DATABASE_URL là DB
+ * chưa từng chạy stack messaging → sẽ lỗi thiếu public.messaging_partners. Luôn áp các file pending
+ * theo đúng thứ tự tên (*.sql đã sort), hoặc dùng npm run db:migrate:push trước khi deploy chỉ một file.
+ *
  * Chỉ dùng --mark-all-applied khi bạn chấp nhận rằng DB đã tương đương (hoặc đã sửa drift tay).
  * Sai → các migration tương lai bỏ qua bước thật sự cần.
  */
