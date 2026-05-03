@@ -79,6 +79,28 @@ function rateLimitConfig(): { max: number; windowMs: number } {
   return { max, windowMs }
 }
 
+const DEFER_EMBED_TRUE = new Set(['1', 'true', 'yes', 'on'])
+
+/**
+ * Tích hợp bulk (~hàng ngàn SKU): chỉ upsert Postgres; embedding ảnh/chữ để cron
+ * `/api/cron/messaging-inventory-embed-backfill` hoặc Dashboard «Đồng bộ ngay».
+ *
+ * Header: `X-Defer-Inventory-Embeddings: true` | `1`
+ * Hoặc query: `?defer_embeddings=1` (dự phòng khi proxy không chuyển header tùy chỉnh).
+ */
+function wantsDeferInventoryEmbeddings(req: Request): boolean {
+  const raw = req.headers.get('x-defer-inventory-embeddings')?.trim().toLowerCase()
+  if (raw && DEFER_EMBED_TRUE.has(raw)) return true
+  try {
+    const url = new URL(req.url)
+    const q = url.searchParams.get('defer_embeddings')?.trim().toLowerCase() ?? ''
+    if (DEFER_EMBED_TRUE.has(q)) return true
+  } catch {
+    /* ignore */
+  }
+  return false
+}
+
 export async function OPTIONS(req: Request) {
   const h = new Headers(baseCorsHeaders(req))
   h.set('Access-Control-Max-Age', '86400')
@@ -91,6 +113,9 @@ export async function OPTIONS(req: Request) {
  *
  * Auth: cùng khóa Bearer với «API tìm sản phẩm bằng ảnh» (Messaging → AI → bật API công khai).
  * Chỉ cần `image_search_api_enabled` + secret; **không** yêu cầu Vision.
+ *
+ * Bulk: gửi `X-Defer-Inventory-Embeddings: true` (hoặc `?defer_embeddings=1`) để request chỉ ghi DB;
+ * đồng bộ vector chạy nền (cron / Dashboard).
  */
 export async function POST(req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
@@ -195,8 +220,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
   const listed = await listPartnerInventoryRows(partnerId)
   if (!listed.ok) return jsonWithCors(req, { error: listed.error, code: 'DB_ERROR' }, 500)
   const reconcileRows = buildOpenCatalogReconcileRows(parsed.rows, listed.rows)
+  const deferEmbeddings = wantsDeferInventoryEmbeddings(req)
   const batch = await upsertPartnerInventoryBatch(partnerId, reconcileRows, {
     existingRows: listed.rows,
+    deferEmbeddings,
   })
   if (!batch.ok) {
     return jsonWithCors(req, { error: batch.error, code: 'UPSERT_FAILED' }, 500)
@@ -216,6 +243,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     inserted: batch.inserted,
     updated: batch.updated,
     deleted: batch.deleted,
+    embeddings_deferred: batch.embeddingsDeferred,
     vision_bg_sync_queued: visionBgSyncQueued,
   }, 200)
 }

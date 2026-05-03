@@ -180,9 +180,10 @@ export async function listPartnerInventoryRows(
 export async function upsertPartnerInventoryBatch(
   partnerId: string,
   rows: InventoryExcelInsert[],
-  options?: { existingRows?: InventoryRow[] }
+  options?: { existingRows?: InventoryRow[]; deferEmbeddings?: boolean }
 ): Promise<
-  { ok: true; inserted: number; updated: number; deleted: number } | { ok: false; error: string }
+  | { ok: true; inserted: number; updated: number; deleted: number; embeddingsDeferred: boolean }
+  | { ok: false; error: string }
 > {
   if (!isPgConfigured()) {
     return { ok: false, error: 'Postgres (DATABASE_URL) is not configured.' }
@@ -366,7 +367,8 @@ export async function upsertPartnerInventoryBatch(
     }
   }
 
-  if (changedIds.size > 0) {
+  const deferEmbeddings = Boolean(options?.deferEmbeddings)
+  if (changedIds.size > 0 && !deferEmbeddings) {
     const ids = Array.from(changedIds)
     await syncPartnerInventoryEmbeddings(partnerId, {
       inventoryIds: ids,
@@ -378,5 +380,5 @@ export async function upsertPartnerInventoryBatch(
     })
   }
 
-  return { ok: true, inserted, updated, deleted }
+  return { ok: true, inserted, updated, deleted, embeddingsDeferred: deferEmbeddings }
 }
