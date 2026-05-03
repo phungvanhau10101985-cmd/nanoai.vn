@@ -2,7 +2,7 @@
 -- Chuỗi migration repo xây kiểu Supabase (profiles → auth.users, RLS auth.uid(), trigger trên auth.users).
 -- Migration này idempotent:
 -- - Nếu auth.users đã tồn tại (Supabase cloud / đã bootstrap tay) → không tạo bảng, không đè auth.uid().
--- - Nếu thiếu → tạo schema auth, bảng users tối thiểu + auth.uid() đọc GUC JWT hoặc app.current_user_id.
+-- - Nếu thiếu → tạo schema auth, bảng users tối thiểu + auth.uid() / auth.role() đọc GUC JWT hoặc app.*.
 
 create schema if not exists auth;
 
@@ -47,5 +47,34 @@ begin
     $fn$;
     comment on function auth.uid () is
       'Self-hosted: JWT sub (khớp kiểu Supabase) hoặc app.current_user_id; không ghi đè nếu auth.uid đã có sẵn.';
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_catalog.pg_proc p
+    join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'auth'
+      and p.proname = 'role'
+      and p.pronargs = 0
+  ) then
+    create function auth.role()
+      returns text
+      language sql
+      stable
+    as $fn$
+      select coalesce(
+        nullif(trim(both from current_setting('request.jwt.claim.role', true)), ''),
+        nullif(trim(both from current_setting('app.current_role', true)), ''),
+        case
+          when auth.uid() is not null then 'authenticated'
+          else 'anon'
+        end
+      );
+    $fn$;
+    comment on function auth.role () is
+      'Self-hosted: JWT role (authenticated/anon/service_role) hoặc app.current_role; fallback theo auth.uid().';
   end if;
 end $$;
