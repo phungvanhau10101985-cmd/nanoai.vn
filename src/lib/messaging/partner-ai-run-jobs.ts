@@ -215,6 +215,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         inboundAnchoredConsultRow,
         inboundPageSkuMissImageSimilarFallback,
         similarAlternativesTemplateInventoryRows,
+        newProductSearchTemplateInventoryRows,
         partnerAiRouteIntent,
         partnerAiSalesStage,
         partnerAiCtaStrategy,
@@ -269,6 +270,54 @@ async function runMessagingPartnerAiJobBatchUsingPg(
             configuredGender
           ),
           rawPayload: rawSimilarTemplate,
+          materialDetailFollowup: null,
+          realUseFollowup: null,
+        })
+        if (dTpl.error) {
+          await setPartnerAiJobStatus(job.id, { status: 'failed', error: dTpl.error })
+          failed += 1
+        } else {
+          await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
+          completed += 1
+        }
+        continue
+      }
+
+      if (
+        !clarifyShoppingIntent &&
+        partnerAiRouteIntent === 'new_product_search' &&
+        newProductSearchTemplateInventoryRows &&
+        newProductSearchTemplateInventoryRows.length > 0 &&
+        !materialDetailFollowup &&
+        !realUseFollowup
+      ) {
+        if ((await partnerAiJobIsStillProcessingPg(job.id)) === false) {
+          skipped += 1
+          continue
+        }
+        const dict = getDictionary(cacheUiLocale)
+        const cards = newProductSearchTemplateInventoryRows
+          .map((row) => partnerAiProductCardFromInventoryRow(row))
+          .filter((c): c is PartnerAiProductCard => Boolean(c))
+        const productsTemplate = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(job.partner_id, cards)
+        const rawProductSearchTemplate = {
+          source: 'product_search_template',
+          model: null,
+          usage: null,
+          ai_product_cards: productsTemplate,
+          ...(partnerAiRouteIntent ? { partner_ai_route_intent: partnerAiRouteIntent } : {}),
+          ...(partnerAiSalesStage ? { partner_ai_sales_stage: partnerAiSalesStage } : {}),
+          ...(partnerAiCtaStrategy ? { partner_ai_cta_strategy: partnerAiCtaStrategy } : {}),
+          partner_ai_pipeline_branch: 'new_product_search_template' as const,
+        } as unknown as Json
+        const dTpl = await deliverAutomatedPartnerMessage({
+          conversation: conv,
+          settings,
+          body: enforceConfiguredGenderAddressing(
+            dict.partnerGuestChat.productSearchTemplateMessage,
+            configuredGender
+          ),
+          rawPayload: rawProductSearchTemplate,
           materialDetailFollowup: null,
           realUseFollowup: null,
         })

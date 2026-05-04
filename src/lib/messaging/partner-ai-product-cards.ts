@@ -1,10 +1,10 @@
 import type { Json } from '@/types/database.types'
 
 /** Số thẻ sản phẩm tối đa trong một tin AI (JSON `products` + carousel từ LLM). */
-export const PARTNER_AI_PRODUCT_CARDS_MAX = 8
+export const PARTNER_AI_PRODUCT_CARDS_MAX = 20
 
 /** Số thẻ tối đa đọc từ payload / nhánh chọn mua (có thể lớn hơn giới hạn LLM). */
-export const PARTNER_AI_PRODUCT_CARDS_DISPLAY_MAX = 10
+export const PARTNER_AI_PRODUCT_CARDS_DISPLAY_MAX = 20
 
 /** Tin `source: ai_purchase_pick_list` — gom SP đã hiện trong chat (có thể tới 30 thẻ). */
 export const PARTNER_AI_PURCHASE_PICK_LIST_CARD_CAP = 30

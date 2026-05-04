@@ -674,6 +674,8 @@ export async function buildPartnerAiContext(
    * Nhánh «mẫu khác» neo theo SKU đã tư vấn — đủ thẻ thay thể từ vector: job gửi **tin mẫu** + carousel, **không** gọi LLM.
    */
   similarAlternativesTemplateInventoryRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] | null
+  /** Nhánh tìm loại hàng mới: đủ thẻ trực tiếp từ kho/vector, runner gửi template + carousel và bỏ qua LLM tư vấn. */
+  newProductSearchTemplateInventoryRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] | null
   /** Route intent đã chốt (hard-rule/classifier/fallback) để worker log/debug nhánh pipeline. */
   partnerAiRouteIntent: PartnerAiRouteIntent | null
   partnerAiSalesStage: PartnerAiSalesStage | null
@@ -922,6 +924,7 @@ export async function buildPartnerAiContext(
       inboundAnchoredConsultRow: null,
       inboundPageSkuMissImageSimilarFallback: false,
       similarAlternativesTemplateInventoryRows: null,
+      newProductSearchTemplateInventoryRows: null,
       partnerAiRouteIntent,
       partnerAiSalesStage: payloadRouteDecision?.salesStage ?? null,
       partnerAiCtaStrategy: payloadRouteDecision?.ctaStrategy ?? null,
@@ -949,6 +952,7 @@ export async function buildPartnerAiContext(
       inboundAnchoredConsultRow: null,
       inboundPageSkuMissImageSimilarFallback: false,
       similarAlternativesTemplateInventoryRows: null,
+      newProductSearchTemplateInventoryRows: null,
       partnerAiRouteIntent: partnerAiRouteIntent ?? 'pause_or_close',
       partnerAiSalesStage: payloadRouteDecision?.salesStage ?? 'browsing',
       partnerAiCtaStrategy: payloadRouteDecision?.ctaStrategy ?? 'no_cta',
@@ -1200,6 +1204,7 @@ export async function buildPartnerAiContext(
 
   /** Gợi ý mẫu khác theo vector kho (không gọi LLM) — bỏ dòng neo, chỉ dòng build được thẻ. */
   let similarAlternativesTemplateInventoryRows: InvRow[] | null = null
+  let newProductSearchTemplateInventoryRows: InvRow[] | null = null
   /** Neo mẫu gốc: vector ảnh (ưu tiên) hoặc SP khách chọn / vừa tư vấn khi vector không gán id. */
   const anchorIdForSimilarTemplate =
     similarCatalogAnchorRowId ??
@@ -1223,6 +1228,25 @@ export async function buildPartnerAiContext(
       }
     }
     similarAlternativesTemplateInventoryRows = altRows.length > 0 ? altRows : null
+  }
+
+  if (
+    partnerAiRouteIntent === 'new_product_search' &&
+    !inboundAnchoredProductConsultBranch &&
+    !inboundPageSkuMissImageSimilarFallback &&
+    !materialDetailFollowup &&
+    !realUseFollowup &&
+    !similarCatalogVersusLastConsulted &&
+    invForContext.length > 0
+  ) {
+    const rows: InvRow[] = []
+    for (const row of invForContext) {
+      if (partnerAiProductCardFromInventoryRow(row)) {
+        rows.push(row)
+        if (rows.length >= PARTNER_AI_PRODUCT_CARDS_MAX) break
+      }
+    }
+    newProductSearchTemplateInventoryRows = rows.length > 0 ? rows : null
   }
 
   if (selectedRowForEnrich) {
@@ -1302,7 +1326,7 @@ Phần «Danh sách kho» trong prompt user là **đúng một dòng** — **ch�
     : inboundPageSkuMissImageSimilarFallback
       ? `[Trang / mã khách đang xem **không** có dòng tương ứng trong kho. Phần «Danh sách kho» là **ứng viên gần giống theo ảnh** (vector trên kho — đã lọc thô cùng nhóm khi có). Nói thật với khách: chưa có đúng mã đó trong dữ liệu shop; đây là **mẫu tương tự để tham khảo**. Trong JSON: \`products\` có thể **nhiều** thẻ hợp lý từ danh sách — **không** khẳng định có đúng mã/link trên trang nếu không nằm trong dòng kho.`
     : similarCatalogVersusLastConsulted
-      ? `[Nhánh A — Gợi ý **mẫu / loại / kiểu khác** hoặc **tương tự / gần giống** (cùng nhóm ý: «có mẫu khác không», «còn loại khác không», «xem thêm mẫu», «na ná», «design khác»…). **Nhánh riêng** — không áp quy tắc khóa **một dòng kho** của Nhánh B; không xử như chỉ hỏi thuộc tính một SP. Danh sách kho trong user prompt là ứng viên **cùng nhóm** với mẫu neo (vector ảnh + lọc thô); trong JSON \`products\` có thể **nhiều** thẻ (thường 4–8 khi kho có), **không** carousel lệch ngành.`
+      ? `[Nhánh A — Gợi ý **mẫu / loại / kiểu khác** hoặc **tương tự / gần giống** (cùng nhóm ý: «có mẫu khác không», «còn loại khác không», «xem thêm mẫu», «na ná», «design khác»…). **Nhánh riêng** — không áp quy tắc khóa **một dòng kho** của Nhánh B; không xử như chỉ hỏi thuộc tính một SP. Danh sách kho trong user prompt là ứng viên **cùng nhóm** với mẫu neo (vector ảnh + lọc thô); trong JSON \`products\` có thể **nhiều** thẻ — có bao nhiêu mẫu phù hợp thì đưa bấy nhiêu, tối đa **${PARTNER_AI_PRODUCT_CARDS_MAX}** thẻ — **không** carousel lệch ngành.`
     : effectiveFollowUpSingleProductNoVector
     ? `Trong prompt user, phần «Danh sách kho» chỉ có **đúng một dòng** — sản phẩm shop/AI **vừa tư vấn**; **không** phải kết quả tìm (vector/embedding) trên toàn kho. Nhiệm vụ của bạn: **đọc câu hỏi khách** và trả lời bằng cách **phân tích trực tiếp** các trường trên dòng đó (tên, mô tả, giá, màu, tồn, ghi chú…). Không xử lý như khách đang lần đầu tìm hàng hay cần gợi ý nhiều mẫu.`
       : explicitSkuRows.length > 0
@@ -1345,7 +1369,7 @@ Khi tin khách **ngắn** và chỉ hỏi thuộc tính (màu, size, tồn, giá
 Khi khách **đổi chủ đề / loại hàng** (vd. vừa xem váy lại hỏi giày, dép, túi…): ưu tiên **đúng ngành đang hỏi trong tin hiện tại** và danh sách kho phù hợp tin đó — không kéo carousel mẫu cũ hay câu «chọn sản phẩm» như thể chưa đổi ý.
 Khi khách hỏi một loại hàng mới (vd. «shop có túi xách không») mà **Danh sách kho không có dòng cùng loại đó**: chỉ nói theo dữ liệu hiện tại kiểu **«em chưa thấy túi xách trong kho/dữ liệu hiện tại»**. **Cấm** tự kết luận «shop chuyên về váy/đầm/áo/thời trang» hoặc liệt kê ngành hàng shop đang chuyên nếu chính sách/shop không ghi rõ. Chỉ gợi ý loại khác khi khách hỏi mở hoặc khi thật tự nhiên, và không gửi thẻ khác ngành.
 Khi khách nêu **nam** hoặc **nữ** (đồ nam / đồ nữ): chỉ gợi ý mặt hàng **cùng đối tượng** trong **products** — không đưa váy/đầm nữ khi khách hỏi đồ nam và ngược lại trừ khi mặt hàng ghi **unisex** rõ trong kho.
-Khi khách hỏi tìm hàng theo thuộc tính (ví dụ: loại hàng, màu, kiểu dáng, chất liệu, chiều cao gót, khoảng giá), hãy chủ động đề xuất mặt hàng phù hợp từ danh sách kho (nếu có) trong mảng products — thường **4–8** mẫu khi kho có đủ, tối đa **${PARTNER_AI_PRODUCT_CARDS_MAX}** mẫu trong một tin; tránh chỉ trả lời chung chung khi trong kho vẫn có lựa chọn liên quan.
+Khi khách hỏi tìm hàng theo thuộc tính (ví dụ: loại hàng, màu, kiểu dáng, chất liệu, chiều cao gót, khoảng giá), hãy chủ động đề xuất mặt hàng phù hợp từ danh sách kho (nếu có) trong mảng products — có bao nhiêu mẫu phù hợp thì đưa bấy nhiêu, tối đa **${PARTNER_AI_PRODUCT_CARDS_MAX}** mẫu trong một tin; tránh chỉ trả lời chung chung khi trong kho vẫn có lựa chọn liên quan.
 Nếu không có "khớp tuyệt đối", vẫn ưu tiên đưa các mẫu "khớp gần" đang có trong kho vào products để khách chọn tiếp — **nhưng "khớp gần" phải cùng nhóm/nhu cầu với điều khách đang hỏi** (cùng loại sản phẩm hoặc dùng thay thế hợp lý: ví dụ khách hỏi dép lê/giày dép mà kho không có đúng mẫu → chỉ gợi ý các mẫu giày/dép/sandal/dép nam nữ khác trong kho; **không** đưa ba lô, túi xách, ví, phụ kiện không liên quan chỉ vì tên có từ khóa trùng hoặc vì nằm đầu danh sách kho). Chỉ gợi ý ngành hàng khác khi khách **chủ động** hỏi rộng (ví dụ "shop còn gì hot") hoặc đã chuyển sang nhu cầu khác.
 Khi đã có products khác rỗng, message phải thật ngắn (1-2 câu), không liệt kê chi tiết từng mẫu, không bullet dài; có thể mở nhẹ (khách xem thẻ/ảnh khi muốn), **không** ép chọn mẫu hay chốt màu ngay.
 Khi giới thiệu mặt hàng có "Ảnh (URL)" và/hoặc "Trang sản phẩm (URL)" trong kho, đưa ảnh và link trang vào mảng products trong JSON đầu ra (khách sẽ thấy thẻ sản phẩm có ảnh và giá). Không dán URL ảnh hay URL trang sản phẩm dạng chữ trong trường message nếu đã khai báo đủ trong products.
@@ -1367,7 +1391,7 @@ ${formatInventoryLines(explicitSkuRows, invFmtOpts)}`
       : inboundPageSkuMissImageSimilarFallback
         ? `\n\n[Bắt buộc — mã/link trên trang không có trong kho; danh sách kho là **gợi ý theo ảnh**. Message: nói rõ đang giới thiệu mẫu **tương tự / gần giống** trong kho (không bảo chắc là đúng mã trang). JSON **products**: nhiều thẻ hợp lệ từ danh sách — chỉ mặt hàng **cùng nhóm**; **cấm** lệch ngành.]`
       : similarCatalogVersusLastConsulted && similarIntentHasUsableThreadAnchor
-        ? `\n\n[Nhánh A — bắt buộc — ý khách là **mẫu / loại / kiểu khác** hoặc **tương tự / gần giống** (nhánh riêng; **không** gộp với Nhánh B). Danh sách kho trong prompt là ứng viên **cùng nhóm** với mẫu neo (vector + lọc). Trong JSON: điền **nhiều** \`products\` hợp lý (4–8 khi kho có), **cấm** lệch ngành.`
+        ? `\n\n[Nhánh A — bắt buộc — ý khách là **mẫu / loại / kiểu khác** hoặc **tương tự / gần giống** (nhánh riêng; **không** gộp với Nhánh B). Danh sách kho trong prompt là ứng viên **cùng nhóm** với mẫu neo (vector + lọc). Trong JSON: điền **nhiều** \`products\` hợp lý — có bao nhiêu mẫu phù hợp thì đưa bấy nhiêu, tối đa **${PARTNER_AI_PRODUCT_CARDS_MAX}** — **cấm** lệch ngành.`
       : explicitSkuRows.length > 0 && !similarCatalogVersusLastConsulted
       ? `\n\n[Ngữ cảnh bắt buộc — neo mã/SKU khách đã chọn (tin nhắn hoặc trang đang xem), không phải tìm rộng trên cả kho]
 ${formatInventoryLines(explicitSkuRows, invFmtOpts)}
@@ -1401,7 +1425,7 @@ Dưới đây là **toàn bộ dữ liệu kho** của **một** sản phẩm �
 
 `
     : similarCatalogVersusLastConsulted && similarIntentHasUsableThreadAnchor
-      ? `[Nhánh A — gợi ý **mẫu / loại khác** (nhánh riêng, **không** gộp với Nhánh B). Quy về một ý: thay thế hợp lý cho **mẫu đang neo** (tin Shop vừa gửi thẻ/mã, hoặc SP kèm tin khách / page_context). Danh sách kho bên dười do hệ thống lấy (thường có vector ảnh + lọc cùng nhóm). Trả lời ngắn rồi đưa **nhiều thẻ** (4–8 nếu kho có) trong JSON **products** — **cùng nhóm** với mẫu neo; không lệch ngành.
+      ? `[Nhánh A — gợi ý **mẫu / loại khác** (nhánh riêng, **không** gộp với Nhánh B). Quy về một ý: thay thế hợp lý cho **mẫu đang neo** (tin Shop vừa gửi thẻ/mã, hoặc SP kèm tin khách / page_context). Danh sách kho bên dười do hệ thống lấy (thường có vector ảnh + lọc cùng nhóm). Trả lời ngắn rồi đưa **nhiều thẻ** trong JSON **products** — có bao nhiêu mẫu phù hợp thì đưa bấy nhiêu, tối đa **${PARTNER_AI_PRODUCT_CARDS_MAX}**, **cùng nhóm** với mẫu neo; không lệch ngành.
 
 `
     : inboundAnchoredProductConsultBranch
@@ -1486,6 +1510,7 @@ Chỉ để products = [] khi thực sự không tìm được mặt hàng phù 
     inboundAnchoredConsultRow,
     inboundPageSkuMissImageSimilarFallback,
     similarAlternativesTemplateInventoryRows,
+    newProductSearchTemplateInventoryRows,
     partnerAiRouteIntent,
     partnerAiSalesStage,
     partnerAiCtaStrategy,
