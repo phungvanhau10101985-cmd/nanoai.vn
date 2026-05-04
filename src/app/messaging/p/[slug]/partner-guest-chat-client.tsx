@@ -1529,6 +1529,8 @@ export function PartnerGuestChatClient({
   const forceGuestChatScrollToBottomRef = useRef(false)
   const skipNextAutoScrollRef = useRef(false)
   const loadingOlderRef = useRef(false)
+  const loadingCurrentRef = useRef(false)
+  const lastAuthRefreshAtRef = useRef(0)
   const didInitialAutoScrollRef = useRef(false)
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
@@ -1559,7 +1561,32 @@ export function PartnerGuestChatClient({
     })
   }, [])
 
+  const guestMessagesEquivalent = useCallback((a: GuestMsg[], b: GuestMsg[]) => {
+    const payloadEqual = (x: GuestMsg['raw_payload'], y: GuestMsg['raw_payload']) => {
+      if (x === y) return true
+      if (x == null || y == null) return x == null && y == null
+      try {
+        return JSON.stringify(x) === JSON.stringify(y)
+      } catch {
+        return false
+      }
+    }
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      const x = a[i]
+      const y = b[i]
+      if (!x || !y) return false
+      if (x.id !== y.id) return false
+      if (x.body !== y.body) return false
+      if (x.direction !== y.direction) return false
+      if (x.created_at !== y.created_at) return false
+      if (!payloadEqual(x.raw_payload, y.raw_payload)) return false
+    }
+    return true
+  }, [])
+
   const recentProductRows = useMemo(() => {
+    if (!recentProductsOpen && birthdayPromoExtraRows.length === 0) return []
     void productShelfShuffleNonce
     const base = collectAllSuggestedProductsWithSource(messages)
     shuffleInPlace(base)
@@ -1567,7 +1594,7 @@ export function PartnerGuestChatClient({
     const seen = new Set(base.map((r) => r.card.product_url.trim().toLowerCase()))
     const extra = birthdayPromoExtraRows.filter((r) => !seen.has(r.card.product_url.trim().toLowerCase()))
     return [...extra, ...base]
-  }, [messages, productShelfShuffleNonce, birthdayPromoExtraRows])
+  }, [messages, productShelfShuffleNonce, birthdayPromoExtraRows, recentProductsOpen])
 
   const productShelfDisplayRows = useMemo(() => {
     if (productShelfVectorRows !== null) return productShelfVectorRows
@@ -1670,6 +1697,7 @@ export function PartnerGuestChatClient({
   }, [proofOrderId])
 
   const recentSuggestedGarmentImages = useMemo(() => {
+    if (!tryOnOpen || !tryOnGarmentPickerOpen) return []
     const out: Array<{ name: string; imageUrl: string }> = []
     const seen = new Set<string>()
     for (let idx = messages.length - 1; idx >= 0; idx--) {
@@ -1685,7 +1713,7 @@ export function PartnerGuestChatClient({
       }
     }
     return out
-  }, [messages])
+  }, [messages, tryOnOpen, tryOnGarmentPickerOpen])
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return
@@ -1983,19 +2011,22 @@ export function PartnerGuestChatClient({
     }
   }, [authHeaders])
 
-  const load = useCallback(async (options?: { beforeId?: string; appendOlder?: boolean }) => {
+  const load = useCallback(async (options?: { beforeId?: string; appendOlder?: boolean; silent?: boolean }) => {
     const appendOlder = options?.appendOlder === true
+    const silent = options?.silent === true
     if (appendOlder) {
       if (loadingOlderRef.current) return
       loadingOlderRef.current = true
       setLoadingOlderMessages(true)
     } else {
-      setLoading(true)
+      if (loadingCurrentRef.current) return
+      loadingCurrentRef.current = true
+      if (!silent) setLoading(true)
     }
     try {
       const qs = new URLSearchParams()
       if (options?.beforeId) qs.set('before_id', options.beforeId)
-      if (!options?.beforeId) qs.set('limit', '80')
+      if (!options?.beforeId) qs.set('limit', '50')
       const q = qs.toString()
       const endpoint = `/api/messaging/guest/${encodeURIComponent(slug)}${q ? `?${q}` : ''}`
       const res = await fetch(endpoint, {
@@ -2063,7 +2094,7 @@ export function PartnerGuestChatClient({
           if (hasNewOutboundSinceTypingBaseline(latest, typingPrev.baselineLatestOutbound)) return null
           return typingPrev
         })
-        return merged
+        return guestMessagesEquivalent(prev, merged) ? prev : merged
       })
       const effectiveAuthMode = serverSaysAccount || hasGuestAccount ? 'account' : 'anonymous'
       setAuthMode(effectiveAuthMode)
@@ -2092,7 +2123,8 @@ export function PartnerGuestChatClient({
         loadingOlderRef.current = false
         setLoadingOlderMessages(false)
       } else {
-        setLoading(false)
+        loadingCurrentRef.current = false
+        if (!silent) setLoading(false)
       }
     }
   }, [
@@ -2103,6 +2135,7 @@ export function PartnerGuestChatClient({
     authHeaders,
     captureGuestSessionFromResponse,
     captureGuestAccountFromResponse,
+    guestMessagesEquivalent,
     mergeGuestMessages,
   ])
 
@@ -2219,13 +2252,19 @@ export function PartnerGuestChatClient({
   }, [slug, userId])
 
   useEffect(() => {
-    const id = window.setInterval(() => void load(), 18000)
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
+      void load({ silent: true })
+    }, 18000)
     return () => window.clearInterval(id)
   }, [load])
 
   useEffect(() => {
     if (!shopTyping) return
-    const id = window.setInterval(() => void load(), 2500)
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
+      void load({ silent: true })
+    }, 2500)
     return () => window.clearInterval(id)
   }, [shopTyping, load])
 
@@ -2278,6 +2317,9 @@ export function PartnerGuestChatClient({
     }
     const onFocus = () => {
       if (document.visibilityState === 'hidden') return
+      const now = Date.now()
+      if (now - lastAuthRefreshAtRef.current < 15_000) return
+      lastAuthRefreshAtRef.current = now
       void refreshAuthAndReload()
     }
     window.addEventListener('storage', onStorage)
