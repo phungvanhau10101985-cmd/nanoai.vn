@@ -774,7 +774,7 @@ function normalizeTextForFollowUpHeuristic(raw: string): string {
  */
 const SIMILAR_CATALOG_INTENT_RE = new RegExp(
   [
-    'mẫu\\s+khác|kiểu\\s+khác|loại\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
+    'mẫu(?:\\s+nào)?\\s+khác|kiểu(?:\\s+nào)?\\s+khác|loại(?:\\s+nào)?\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
     'gần\\s+giống|giống\\s+nhau|na\\s+ná|tương\\s+tự|hàng\\s+tương\\s+tự|cùng\\s+kiểu|cùng\\s+loại',
     'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|thay\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|option\\s+khác',
   ].join('|'),
@@ -797,12 +797,12 @@ export function customerMessageWantsSimilarCatalogVersusLastConsulted(message: s
  * - Màu / size / giá / tồn / ship / chất / form / ảnh / sale / đổi trả / chi tiết (cổ tay ống…)
  * - Viết tắt: «có j», «sz M», «ko», «còn ko», «ship bnhieu»
  * - Chỉ thị: «cái này», «mẫu đó», «trong ảnh», «tin vừa», «sp shop rep»
- * - Mẫu khác / gần giống / tương tự (so với SP vừa bàn): «có mẫu khác gần giống không», «sp tương tự», «na ná»
+ * - Mẫu khác / gần giống / tương tự (so với SP vừa bàn): «có mẫu khác gần giống không», «có mẫu nào khác không», «sp tương tự», «na ná»
  */
 const FOLLOWUP_ATTR_HINT_RE = new RegExp(
   [
-    // mẫu khác / tương tự / so sánh (neo last consulted)
-    'mẫu\\s+khác|kiểu\\s+khác|loại\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
+    // mẫu khác / tương tự / so sánh (neo last consulted); kèm «mẫu nào khác»
+    'mẫu(?:\\s+nào)?\\s+khác|kiểu(?:\\s+nào)?\\s+khác|loại(?:\\s+nào)?\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
     'gần\\s+giống|giống\\s+nhau|na\\s+ná|tương\\s+tự|hàng\\s+tương\\s+tự|cùng\\s+kiểu|cùng\\s+loại',
     'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|thay\\s+mẫu|option\\s+khác',
     // màu / ngoại hình
@@ -836,7 +836,7 @@ const FOLLOWUP_ATTR_HINT_RE = new RegExp(
  */
 const FOLLOWUP_ATTR_STRONG_RE = new RegExp(
   [
-    'mẫu\\s+khác|kiểu\\s+khác|loại\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
+    'mẫu(?:\\s+nào)?\\s+khác|kiểu(?:\\s+nào)?\\s+khác|loại(?:\\s+nào)?\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
     'gần\\s+giống|giống\\s+nhau|na\\s+ná|tương\\s+tự|hàng\\s+tương\\s+tự|cùng\\s+kiểu|cùng\\s+loại',
     'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|thay\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|option\\s+khác',
     'chất\\s*liệu|vải|màu|mầu|tồn|còn\\s*hàng|ship|giao\\s*hàng|đế|gót|bảo\\s*hành|đổi\\s*trả',
