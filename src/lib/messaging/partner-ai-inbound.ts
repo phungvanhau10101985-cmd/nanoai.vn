@@ -30,6 +30,7 @@ import {
   purchasePickListMessageBody,
 } from '@/lib/messaging/partner-ai-purchase-pick-list'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
+import { partnerAiRouteDecisionToPayload } from '@/lib/messaging/partner-ai-intent-router'
 import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
 import {
   chatOrderFollowupGuideMessageNeutral,
@@ -65,15 +66,13 @@ async function mergePartnerAiWidgetIntentFromClassifier(input: {
   if (raw.length < 1) return
   try {
     const lastShop = await fetchLastOutboundCustomerCareMessageBodyPg(input.conversationId)
-    const intent = await classifyWidgetInboundIntent({
+    const decision = await classifyWidgetInboundIntent({
       partnerId: input.partnerId,
       customerText: raw,
       lastShopMessage: lastShop,
     })
-    if (!intent) return
-    await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, {
-      partner_ai_widget_intent: intent,
-    })
+    if (!decision) return
+    await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, partnerAiRouteDecisionToPayload(decision))
   } catch (e) {
     console.warn('[partner-ai-inbound] mergePartnerAiWidgetIntentFromClassifier', e)
   }
@@ -97,7 +96,7 @@ function burstMergeDelaySec(channel: CustomerCareChannel): number {
   return Math.max(0, Math.min(10, n))
 }
 
-/** Hủy job AI pending — chỉ Postgres. */
+/** Hủy job AI đang chờ hoặc đang xử lý (tránh tin cũ «ăn» job mới). */
 export async function cancelPendingAiJobsForConversation(conversationId: string) {
   try {
     if (!isPgConfigured()) return

@@ -762,6 +762,8 @@ export function CustomerCareMessageBody({
   shopDisplayName = '',
   openMessageLinksInSameTab = false,
   showVisionCandidates = false,
+  /** Guest chat: tin **khách** chỉ chữ bên phải — carousel `ai_product_cards` / vision map chỉ hiện ở tin **shop** (trái). */
+  renderAiProductCarousel = true,
 }: {
   row: Row
   tone?: CustomerCareMessageBodyTone
@@ -777,6 +779,7 @@ export function CustomerCareMessageBody({
   openMessageLinksInSameTab?: boolean
   /** Hiện thẻ gợi ý từ `vision_candidates` (để inbox shop mirror đúng phía khách). */
   showVisionCandidates?: boolean
+  renderAiProductCarousel?: boolean
 }) {
   const url = imageUrlFromPayload(row.raw_payload)
   const caption = row.body.replace(/^📷\s*/u, '').trim()
@@ -832,8 +835,19 @@ export function CustomerCareMessageBody({
         orderPaymentProof={orderPaymentProof}
         shopDisplayName={shopDisplayName}
       />
-      {onViolet ? (
-        <div className="isolate text-foreground [&_a]:!text-foreground">
+      {renderAiProductCarousel ? (
+        onViolet ? (
+          <div className="isolate text-foreground [&_a]:!text-foreground">
+            <AiProductCards
+              cards={cardsToRender}
+              labels={labels}
+              onProductCardPick={onProductCardPick}
+              onProductCardBuy={onProductCardBuy}
+              onPreviewImage={setLightboxSrc}
+              onPreviewVideo={setVideoLightboxSrc}
+            />
+          </div>
+        ) : (
           <AiProductCards
             cards={cardsToRender}
             labels={labels}
@@ -842,18 +856,9 @@ export function CustomerCareMessageBody({
             onPreviewImage={setLightboxSrc}
             onPreviewVideo={setVideoLightboxSrc}
           />
-        </div>
-      ) : (
-        <AiProductCards
-          cards={cardsToRender}
-          labels={labels}
-          onProductCardPick={onProductCardPick}
-          onProductCardBuy={onProductCardBuy}
-          onPreviewImage={setLightboxSrc}
-          onPreviewVideo={setVideoLightboxSrc}
-        />
-      )}
-      {!url && !caption && !cardsToRender.length && row.body ? (
+        )
+      ) : null}
+      {!url && !caption && !(renderAiProductCarousel && cardsToRender.length) && row.body ? (
         <MessageTextWithLinks
           text={row.body}
           sameTab={openMessageLinksInSameTab}

@@ -1,14 +1,20 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
-import type { PartnerAiWidgetIntent } from '@/lib/messaging/partner-ai-unclear-intent'
+import {
+  legacyWidgetIntentToRouteIntent,
+  parsePartnerAiRouteIntent,
+  parsePartnerAiWidgetIntent,
+  type PartnerAiRouteIntent,
+} from '@/lib/messaging/partner-ai-intent-router'
 
-function mapDecision(raw: string): PartnerAiWidgetIntent | null {
-  const d = raw.trim()
-  if (d === 'context_reply' || d === 'clarify' || d === 'product_search') return d
-  return null
+function mapDecision(raw: string): PartnerAiRouteIntent | null {
+  const route = parsePartnerAiRouteIntent(raw)
+  if (route) return route
+  const legacy = parsePartnerAiWidgetIntent(raw)
+  return legacy ? legacyWidgetIntentToRouteIntent(legacy) : null
 }
 
-export async function fetchWidgetIntentCachePg(lookupHash: string): Promise<PartnerAiWidgetIntent | null> {
+export async function fetchWidgetIntentCachePg(lookupHash: string): Promise<PartnerAiRouteIntent | null> {
   if (!isPgConfigured()) return null
   const row = await pgQueryOne<{ decision: string }>(
     `select decision
@@ -23,7 +29,7 @@ export async function fetchWidgetIntentCachePg(lookupHash: string): Promise<Part
 export async function upsertWidgetIntentCachePg(input: {
   lookupHash: string
   partnerId: string
-  decision: PartnerAiWidgetIntent
+  decision: PartnerAiRouteIntent
   classifierVersion: string
   customerTextNorm: string
   shopContextNorm: string

@@ -13,11 +13,8 @@ import {
 } from '@/lib/messaging/guest-chat-image'
 import { downloadTryOnObject, getTryOnPublicUrlFromPath, tryOnObjectExistsByPath } from '@/lib/storage/try-on-public-upload'
 import { WIDGET_PRODUCT_VECTOR_PICK_MAX } from '@/lib/messaging/partner-vision-constants'
-import { fetchInventoryRowsBySemanticTextForPartnerAi } from '@/lib/messaging/partner-inventory-text-embedding'
 import {
-  buildInventoryEmbeddingQueryWithGenderHint,
   customerMessageWantsSimilarCatalogVersusLastConsulted,
-  enrichSemanticInventoryRowsForWidget,
   inboundTextLooksLikeFollowUpConsultHeuristic,
 } from '@/lib/messaging/partner-inventory-ai-search'
 import {
@@ -42,7 +39,11 @@ import {
   verifyOrderPaymentProof,
   type TransferReceiptOcrResult,
 } from '@/lib/messaging/guest-chat-ordering'
-import type { PartnerAiWidgetIntent } from '@/lib/messaging/partner-ai-unclear-intent'
+import {
+  partnerAiRouteDecisionToPayload,
+  routeIntentToLegacyWidgetIntent,
+  type PartnerAiRouteDecision,
+} from '@/lib/messaging/partner-ai-intent-router'
 import { partnerAiMessageAloneSuggestsClarifyIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
 import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
@@ -788,7 +789,7 @@ export async function postWidgetGuestMessage(params: {
         : null
     body = text || '📦'
 
-    let partnerAiWidgetIntentForPayload: PartnerAiWidgetIntent | null = null
+    let partnerAiRouteDecisionForPayload: PartnerAiRouteDecision | null = null
     const trimmedText = text.trim()
     const minCharsForVectorPick = 3
     /** Khách đã bấm «Tư vấn» trên thẻ SP — không gắn lại thanh gợi ý vector (tránh lặp UI, vẫn gọi LLM với page_context). */
@@ -824,9 +825,10 @@ export async function postWidgetGuestMessage(params: {
               lastShopMessage: lastShop,
             })
             if (classified) {
-              partnerAiWidgetIntentForPayload = classified
-              if (classified === 'clarify' || classified === 'context_reply') allowTextVectorSearch = false
-              if (classified === 'product_search') allowTextVectorSearch = true
+              partnerAiRouteDecisionForPayload = classified
+              const legacy = routeIntentToLegacyWidgetIntent(classified.intent)
+              if (legacy === 'clarify' || legacy === 'context_reply') allowTextVectorSearch = false
+              if (legacy === 'product_search') allowTextVectorSearch = true
             } else {
               allowTextVectorSearch = !skipClarifyIntentVectorHeuristic
             }
@@ -834,45 +836,12 @@ export async function postWidgetGuestMessage(params: {
             allowTextVectorSearch = !skipClarifyIntentVectorHeuristic
           }
 
-          if (allowTextVectorSearch) {
-            const embedQuery = buildInventoryEmbeddingQueryWithGenderHint(trimmedText)
-            const rowsRaw = await fetchInventoryRowsBySemanticTextForPartnerAi(
-              params.partnerId,
-              embedQuery,
-              WIDGET_PRODUCT_VECTOR_PICK_MAX
-            )
-            const rows = await enrichSemanticInventoryRowsForWidget(
-              params.partnerId,
-              trimmedText,
-              rowsRaw,
-              WIDGET_PRODUCT_VECTOR_PICK_MAX
-            )
-            if (rows.length > 0) {
-              const candidateIds = rows.map((r) => r.id)
-              const priceById = new Map<string, string>()
-              if (isPgConfigured()) {
-                const priceFromPg = await fetchPartnerInventoryPriceHintsByIdsFromPg(params.partnerId, candidateIds)
-                if (priceFromPg !== null) {
-                  for (const [id, hint] of priceFromPg) priceById.set(id, hint)
-                }
-              }
-              productPickCandidates = rows.map((row) => {
-                const purl = row.product_url?.trim() ?? ''
-                const ph =
-                  row.price_hint?.trim() ||
-                  priceById.get(row.id)?.trim() ||
-                  ''
-                return {
-                  inventoryId: row.id,
-                  name: row.name ?? '',
-                  sku: row.sku ?? null,
-                  image_url: row.image_url ?? '',
-                  ...(purl && /^https?:\/\//i.test(purl) ? { product_url: purl } : {}),
-                  ...(ph ? { price_hint: ph } : {}),
-                }
-              })
-            }
-          }
+          /**
+           * Text thường kiểu «shop có túi xách không» phải đi qua AI trả lời ngay.
+           * Không biến kết quả semantic text thành `vision_pick_required`, vì như vậy widget sẽ chờ khách chọn
+           * một thẻ và **không xếp job AI**. LLM phía sau đã tự search kho và gửi message/products phù hợp.
+           */
+          void allowTextVectorSearch
         }
       } catch (e) {
         console.error('[widget-guest-post] text vector candidate search', e)
@@ -886,10 +855,10 @@ export async function postWidgetGuestMessage(params: {
         vision_candidates: productPickCandidates,
       } as Json
     }
-    if (partnerAiWidgetIntentForPayload) {
+    if (partnerAiRouteDecisionForPayload) {
       rawPayload = {
         ...(rawPayload && typeof rawPayload === 'object' ? (rawPayload as Record<string, unknown>) : {}),
-        partner_ai_widget_intent: partnerAiWidgetIntentForPayload,
+        ...partnerAiRouteDecisionToPayload(partnerAiRouteDecisionForPayload),
       } as Json
     }
   }

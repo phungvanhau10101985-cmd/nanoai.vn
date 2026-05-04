@@ -6,6 +6,14 @@ import {
   looksLikeStandaloneProductQuestion,
   normalizeCustomerMessageForInventorySearch,
 } from '@/lib/messaging/partner-inventory-ai-search'
+import {
+  legacyWidgetIntentToRouteIntent,
+  parsePartnerAiRouteDecision,
+  parsePartnerAiWidgetIntent,
+  routeIntentToLegacyWidgetIntent,
+  type PartnerAiRouteIntent,
+  type PartnerAiWidgetIntent,
+} from '@/lib/messaging/partner-ai-intent-router'
 
 /**
  * Trợ lý mua hàng / tìm SP rõ — không cần hỏi lại ý định.
@@ -69,14 +77,17 @@ export type PartnerAiUnclearIntentInput = {
   followUpSingleProductNoVector: boolean
 }
 
-/** Gắn trên raw_payload tin inbound widget — từ LLM phân loại (partner-ai-widget-intent-classifier). */
-export type PartnerAiWidgetIntent = 'context_reply' | 'clarify' | 'product_search'
+export type { PartnerAiRouteIntent, PartnerAiWidgetIntent }
 
 export function parsePartnerAiWidgetIntentFromPayload(raw: unknown): PartnerAiWidgetIntent | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
-  const v = (raw as Record<string, unknown>).partner_ai_widget_intent
-  if (v === 'context_reply' || v === 'clarify' || v === 'product_search') return v
-  return null
+  const route = parsePartnerAiRouteDecision(raw)?.intent
+  if (route) return routeIntentToLegacyWidgetIntent(route)
+  return parsePartnerAiWidgetIntent((raw as Record<string, unknown>).partner_ai_widget_intent)
+}
+
+export function parsePartnerAiRouteIntentFromPayload(raw: unknown): PartnerAiRouteIntent | null {
+  return parsePartnerAiRouteDecision(raw)?.intent ?? null
 }
 
 /** Quyết định nhánh prompt «làm rõ ý định» — ưu tiên payload widget khi có. */
@@ -87,9 +98,13 @@ export function partnerAiShouldUseClarifyBranchFromWidgetPayload(
 ): boolean {
   const ch = String(channel ?? '').trim().toLowerCase()
   if (ch !== 'widget') return heuristicClarify
-  const wi = parsePartnerAiWidgetIntentFromPayload(inboundRawPayload)
+  const route = parsePartnerAiRouteIntentFromPayload(inboundRawPayload)
+  if (route === 'clarify') return true
+  if (route) return false
+  const legacy = parsePartnerAiWidgetIntentFromPayload(inboundRawPayload)
+  const wi = legacy ? legacyWidgetIntentToRouteIntent(legacy) : null
   if (wi === 'clarify') return true
-  if (wi === 'context_reply' || wi === 'product_search') return false
+  if (wi) return false
   return heuristicClarify
 }
 

@@ -243,6 +243,44 @@ type GuestMsg = {
   landing_source_url?: string | null
 }
 
+/** Baseline để tắt «shop đang soạn tin»: so `(created_at, id)` — tránh kẹt khi cửa sổ fetch trượt mà đếm outbound trong batch không đổi. */
+type GuestShopOutboundCursor = { at: number; id: string }
+
+function latestOutboundCursor(msgs: GuestMsg[]): GuestShopOutboundCursor | null {
+  let best: GuestMsg | null = null
+  for (const m of msgs) {
+    if (m.direction !== 'outbound') continue
+    if (!best) {
+      best = m
+      continue
+    }
+    const ta = Date.parse(m.created_at)
+    const tb = Date.parse(best.created_at)
+    if (!Number.isFinite(ta)) continue
+    if (!Number.isFinite(tb)) {
+      best = m
+      continue
+    }
+    if (ta > tb || (ta === tb && m.id > best.id)) best = m
+  }
+  if (!best) return null
+  const at = Date.parse(best.created_at)
+  if (!Number.isFinite(at)) return null
+  return { at, id: best.id }
+}
+
+/** Có tin outbound **mới hơn** baseline (lúc bật chờ shop trả lời). */
+function hasNewOutboundSinceTypingBaseline(
+  latest: GuestShopOutboundCursor | null,
+  baseline: GuestShopOutboundCursor | null
+): boolean {
+  if (!latest) return false
+  if (!baseline) return true
+  if (latest.at > baseline.at) return true
+  if (latest.at < baseline.at) return false
+  return latest.id > baseline.id
+}
+
 type GuestVisionCandidate = {
   inventoryId: string
   name: string
@@ -515,13 +553,17 @@ function getVisionPickState(raw: Json | null | undefined): {
   return { required: o.vision_pick_required === true, candidates: out, selectedInventoryId }
 }
 
-/** Tin tự gửi từ link `/tu-van/{uuid}` / `?ctx_*` — `page_context.source` = `widget_page` (widget-guest-post). */
-function isWidgetPageConsultInbound(raw: Json | null | undefined): boolean {
+/**
+ * Tin khách kèm ngữ cảnh trang/thẻ tư vấn — carousel `vision_candidates` nằm cùng bubble kiểu shop (trái), không dùng bubble tím kèm thẻ.
+ * `widget_page`: `/tu-van`, `?ctx_*`; `product_card_consult`: bấm «Tư vấn» trên thẻ SP.
+ */
+function isConsultPageContextInbound(raw: Json | null | undefined): boolean {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null
   if (!o) return false
   const pc = o.page_context
   if (!pc || typeof pc !== 'object') return false
-  return String((pc as Record<string, unknown>).source ?? '').trim() === 'widget_page'
+  const src = String((pc as Record<string, unknown>).source ?? '').trim()
+  return src === 'widget_page' || src === 'product_card_consult'
 }
 
 function isGuestVisionPickReminderPayload(raw: Json | null | undefined): boolean {
@@ -1362,7 +1404,10 @@ export function PartnerGuestChatClient({
   /** Chuỗi hóa POST `/api/messaging/guest` — tránh race khi khách gửi nhiều tin nhanh (job AI + thứ tự DB). */
   const guestMessagePostChainRef = useRef(Promise.resolve())
   /** Sau khi gửi tin: server báo AI/FAQ đang trả lời — poll nhanh và hiện “đang soạn tin”. */
-  const [shopTyping, setShopTyping] = useState<{ deadline: number; baselineOutbound: number } | null>(null)
+  const [shopTyping, setShopTyping] = useState<{
+    deadline: number
+    baselineLatestOutbound: GuestShopOutboundCursor | null
+  } | null>(null)
   /** Mở link tư vấn — chờ fetch lời mở đầu + POST (vector) trước khi có bubble. */
   const [consultLinkPreparing, setConsultLinkPreparing] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -2007,7 +2052,19 @@ export function PartnerGuestChatClient({
       }
       const hasMoreOlder = data.hasMoreOlder === true
       setHasMoreOlderMessages(hasMoreOlder)
-      setMessages((prev) => (appendOlder ? mergeGuestMessages(prev, normalizedMessages) : mergeGuestMessages(prev, normalizedMessages)))
+      setMessages((prev) => {
+        const merged = mergeGuestMessages(prev, normalizedMessages)
+        setShopTyping((typingPrev) => {
+          if (!typingPrev) return null
+          if (Date.now() > typingPrev.deadline) return null
+          /** Tải tin cũ: không so baseline — tránh tắt nhầm khi thêm outbound lịch sử phía trên. */
+          if (appendOlder) return typingPrev
+          const latest = latestOutboundCursor(merged)
+          if (hasNewOutboundSinceTypingBaseline(latest, typingPrev.baselineLatestOutbound)) return null
+          return typingPrev
+        })
+        return merged
+      })
       const effectiveAuthMode = serverSaysAccount || hasGuestAccount ? 'account' : 'anonymous'
       setAuthMode(effectiveAuthMode)
       if (effectiveAuthMode === 'account') setAuthGateRequired(false)
@@ -2028,13 +2085,6 @@ export function PartnerGuestChatClient({
         setGuestProfileGender((prev) => prev || g)
       }
       setHasLoadedOnce(true)
-      setShopTyping((prev) => {
-        if (!prev) return null
-        const out = next.filter((m) => m.direction === 'outbound').length
-        if (out > prev.baselineOutbound) return null
-        if (Date.now() > prev.deadline) return null
-        return prev
-      })
     } catch {
       toast({ title: t.loadError, variant: 'destructive' })
     } finally {
@@ -2459,10 +2509,10 @@ export function PartnerGuestChatClient({
 
   const submitVisionPick = async (messageId: string, inventoryId: string) => {
     setVisionPickBusyId(messageId)
-    const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
+    const baselineLatestOutbound = latestOutboundCursor(messages)
     setShopTyping({
       deadline: Date.now() + FALLBACK_SHOP_TYPING_WAIT_MS,
-      baselineOutbound: outboundBaseline,
+      baselineLatestOutbound,
     })
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/vision-pick`, {
@@ -2522,7 +2572,7 @@ export function PartnerGuestChatClient({
           : FALLBACK_SHOP_TYPING_WAIT_MS
       setShopTyping({
         deadline: Date.now() + waitMs,
-        baselineOutbound: outboundBaseline,
+        baselineLatestOutbound,
       })
       forceGuestChatScrollToBottomRef.current = true
       await load()
@@ -2905,7 +2955,7 @@ export function PartnerGuestChatClient({
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invId)) {
         pageContext.inventoryId = invId
       }
-      const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
+      const baselineLatestOutbound = latestOutboundCursor(messages)
       setSending(true)
       try {
         const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
@@ -2950,7 +3000,7 @@ export function PartnerGuestChatClient({
               : FALLBACK_SHOP_TYPING_WAIT_MS
           setShopTyping({
             deadline: Date.now() + waitMs,
-            baselineOutbound: outboundBaseline,
+            baselineLatestOutbound,
           })
         }
         if (productUrl && productKey) {
@@ -3785,7 +3835,7 @@ export function PartnerGuestChatClient({
         // Customer continues with normal consultation instead of choosing from buy rail.
         setBuyOptionsOpen(false)
       }
-      const outboundBaseline = messages.filter((m) => m.direction === 'outbound').length
+      const baselineLatestOutbound = latestOutboundCursor(messages)
       setSending(true)
       try {
         const seedText =
@@ -3894,7 +3944,7 @@ export function PartnerGuestChatClient({
               : FALLBACK_SHOP_TYPING_WAIT_MS
           setShopTyping({
             deadline: Date.now() + waitMs,
-            baselineOutbound: outboundBaseline,
+            baselineLatestOutbound,
           })
         }
         forceGuestChatScrollToBottomRef.current = true
@@ -4645,9 +4695,7 @@ export function PartnerGuestChatClient({
                 const isShopVisionReminder = !isMe && Boolean(reminderTriggerId) && vs.candidates.length > 0
                 const hasShopReminderForThisInbound = isMe && visionReminderTriggerIds.has(m.id)
                 const consultLinkShopStyle =
-                  isMe &&
-                  vs.candidates.length > 0 &&
-                  isWidgetPageConsultInbound(m.raw_payload)
+                  isMe && vs.candidates.length > 0 && isConsultPageContextInbound(m.raw_payload)
                 const isOrderTrackingBubble = !isMe && isSystemOrderMessage(m.raw_payload)
                 const shopStripe = !isMe && !isOrderTrackingBubble ? shopOutboundStripeById.get(m.id) ?? 0 : null
                 const shopBubbleClass =
@@ -4866,6 +4914,7 @@ export function PartnerGuestChatClient({
                         row={{ id: m.id, body: m.body, raw_payload: m.raw_payload ?? null }}
                         tone={isMe && !consultLinkShopStyle ? 'onViolet' : 'default'}
                         openMessageLinksInSameTab
+                        renderAiProductCarousel={!isMe}
                         labels={{
                           productCardOpenProduct: t.visionProductLink,
                           productCardViewDetails: t.visionProductViewDetails,
@@ -4882,9 +4931,11 @@ export function PartnerGuestChatClient({
                       />
                     </div>
                     {(() => {
+                      /** Chỉ tin shop (nhắc chọn ảnh…); không carousel vision trên bubble khách — «mẫu khác» chờ tin outbound AI. */
+                      if (isMe) return null
                       if (vs.candidates.length === 0 || consultLinkShopStyle) return null
-                      if (isMe && hasShopReminderForThisInbound) return null
-                      if (!isMe && !isShopVisionReminder) return null
+                      if (hasShopReminderForThisInbound) return null
+                      if (!isShopVisionReminder) return null
                       const pickSourceMessageId = reminderTriggerId ?? m.id
                       return (
                         <div

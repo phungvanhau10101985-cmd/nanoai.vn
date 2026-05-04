@@ -374,6 +374,50 @@ export async function fetchTopInventoryRowByConsultCardImageVectorAnn(
   }
 }
 
+/**
+ * SKU / trang SP không có trong kho: embed **ảnh trang** (hoặc ảnh khách gửi) → ANN pgvector, trả về nhiều dòng tương tự.
+ * Không có `anchorRow` trong DB — khác `fetchInventoryRowsSimilarToAnchorProductImage`.
+ */
+export async function fetchInventoryRowsSimilarToExternalImageUrl(
+  partnerId: string,
+  imageUrl: string,
+  options?: { limit?: number }
+): Promise<InvRow[]> {
+  if (!isPgConfigured()) return []
+  const u = imageUrl.trim()
+  if (!/^https?:\/\//i.test(u)) return []
+  const limit = Math.min(
+    PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
+    Math.max(1, Math.floor(options?.limit ?? 12))
+  )
+  const fetchLim = Math.min(PARTNER_PUBLIC_INVENTORY_SEARCH_MAX, limit + 6)
+  try {
+    const img = await fetchRemoteImageForCatalog(u, { timeoutMs: 12_000 })
+    if (!img) return []
+    const res = await geminiProductSearchFromImageBufferViaVectorDb(img.buf, partnerId, {
+      maxResults: fetchLim,
+    })
+    if (res.error || !res.candidates?.length) return []
+    const ids = res.candidates.map((c) => c.inventoryId).filter(Boolean).slice(0, fetchLim) as string[]
+    if (!ids.length) return []
+    const rows = await fetchPartnerInventoryRowsByIdsInOrderFromPg(partnerId, ids)
+    if (!rows?.length) return []
+    const seen = new Set<string>()
+    const dedup: InvRow[] = []
+    for (const r of rows) {
+      if (!seen.has(r.id)) {
+        seen.add(r.id)
+        dedup.push(r)
+      }
+      if (dedup.length >= limit) break
+    }
+    return dedup
+  } catch (e) {
+    console.warn('[fetchInventoryRowsSimilarToExternalImageUrl]', e)
+    return []
+  }
+}
+
 export function clearGeminiImageEmbeddingCache() {
   imageEmbedCache.clear()
   inflightImageEmbed.clear()

@@ -23,13 +23,28 @@ export async function cancelPendingAiJobsForConversationPg(conversationId: strin
     await pgQuery(
       `update public.messaging_partner_ai_jobs
        set status = 'cancelled'
-       where conversation_id = $1::uuid and status = 'pending'`,
+       where conversation_id = $1::uuid and status in ('pending', 'processing')`,
       [conversationId]
     )
     return true
   } catch (e) {
     console.error('[messaging-partner-ai-jobs-pg] cancelPendingAiJobsForConversationPg', e)
     return false
+  }
+}
+
+/** Worker gọi trước khi gửi tin — false nếu job đã bị hủy (tin khách mới / shop can thiệp). */
+export async function partnerAiJobIsStillProcessingPg(jobId: string): Promise<boolean | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ status: string }>(
+      `select status::text as status from public.messaging_partner_ai_jobs where id = $1::uuid`,
+      [jobId]
+    )
+    return row?.status === 'processing'
+  } catch (e) {
+    console.error('[messaging-partner-ai-jobs-pg] partnerAiJobIsStillProcessingPg', e)
+    return null
   }
 }
 

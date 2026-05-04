@@ -14,7 +14,7 @@ type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
 /** Không dùng `ren` đơn lẻ — tránh nhầm «Phối Ren» trong tên mẫu với hỏi chất ren. */
 const ASKS_MATERIAL_RE =
-  /(chất\s*liệu|vật\s*liệu|chất\s*liệu\s+gì|vải\s+gì|loại\s+vải|fabric|material|vải\s+thun|vải\s+len|kiểu\s+vải|gồm\s+vải|thành\s+phần|polyester|cotton|lụa|denim|jean|da\s+pu|vải\s+ren|chất\s+ren|có\s+ren|ren\s+gì|ren\s+không|viền\s+ren|đồ\s+ren|váy\s+ren|áo\s+ren)/i
+  /(chất\s*liệu|vật\s*liệu|chất\s*liệu\s+gì|vải\s+gì|loại\s+vải|fabric|material|vải\s+thun|vải\s+len|kiểu\s+vải|gồm\s+vải|thành\s+phần|polyester|cotton|lụa|denim|jean|da\s+pu|vải\s+ren|chất\s+ren|có\s+ren|ren\s+gì|ren\s+không|viền\s+ren|đồ\s+ren|váy\s+ren|áo\s+ren|\bda\s+gì\b|\bda\s+này\b|\bloại\s+da\b|\bda\s+thật\b|\bda\s+bò\b)/i
 
 /** Khách đang hỏi về chất liệu / vải. */
 export function customerMessageAsksAboutMaterial(body: string): boolean {

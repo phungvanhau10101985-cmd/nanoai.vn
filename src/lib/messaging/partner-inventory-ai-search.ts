@@ -764,6 +764,9 @@ function normalizeTextForFollowUpHeuristic(raw: string): string {
   s = s.replace(/\b(rep|reply)\b/g, 'trả lời')
   s = s.replace(/(có|còn|size|cỡ|màu|mầu|loại|hàng|sp)\s+j\b/g, '$1 gì')
   s = s.replace(/\bj\b(?=\s*\?)/g, 'gì')
+  /** Lỗi gõ: «mẫu khach / mẫu khách» → «mẫu khác» (không đụng «khách hàng»). JS `\b` không khớp ranh giới Unicode → không dùng `\b`. */
+  s = s.replace(/(mẫu|kiểu|loại)\s+khách(?!\s*hàng)/gi, '$1 khác')
+  s = s.replace(/(mẫu|kiểu|loại)\s+khach(?!\s*hàng)/gi, '$1 khác')
   s = s.replace(/\s+/g, ' ').trim()
   return s
 }
@@ -772,11 +775,15 @@ function normalizeTextForFollowUpHeuristic(raw: string): string {
  * Khách muốn **xem thêm mẫu / SP tương tự** so với mẫu đang bàn (không phải chỉ hỏi thuộc tính một mẫu).
  * Dùng để: lấy ANN **embedding ảnh** của SP neo + so khắp cả kho; không khóa chế độ «một dòng kho».
  */
+/** Cùng nhóm ý: «có mẫu/loại khác không», «tương tự», «gần giống»… — nhánh A (carousel + vector), tách nhánh B. */
 const SIMILAR_CATALOG_INTENT_RE = new RegExp(
   [
+    'có\\s+(?:được\\s+)?(?:còn\\s+)?(?:mẫu|kiểu|loại|sp|hàng|sản\\s*phẩm)\\s+khác|còn\\s+(?:mẫu|kiểu|loại|sp|hàng)\\s+khác',
+    '(?:cho\\s+)?(?:em\\s+)?(?:xem\\s+)?thêm\\s+(?:mẫu|kiểu|loại|sp|hàng|sản\\s*phẩm)(?:\\s+nào)?',
+    'kiểu\\s+dáng\\s+khác|dáng\\s+khác|form\\s+khác|design\\s+khác',
     'mẫu(?:\\s+nào)?\\s+khác|kiểu(?:\\s+nào)?\\s+khác|loại(?:\\s+nào)?\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
     'gần\\s+giống|giống\\s+nhau|na\\s+ná|tương\\s+tự|hàng\\s+tương\\s+tự|cùng\\s+kiểu|cùng\\s+loại',
-    'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|thay\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|option\\s+khác',
+    'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|thay\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|gợi\\s+ý\\s+thêm|option\\s+khác',
   ].join('|'),
   'i'
 )
@@ -802,9 +809,12 @@ export function customerMessageWantsSimilarCatalogVersusLastConsulted(message: s
 const FOLLOWUP_ATTR_HINT_RE = new RegExp(
   [
     // mẫu khác / tương tự / so sánh (neo last consulted); kèm «mẫu nào khác»
+    'có\\s+(?:được\\s+)?(?:còn\\s+)?(?:mẫu|kiểu|loại|sp|hàng|sản\\s*phẩm)\\s+khác|còn\\s+(?:mẫu|kiểu|loại|sp|hàng)\\s+khác',
+    '(?:cho\\s+)?(?:em\\s+)?(?:xem\\s+)?thêm\\s+(?:mẫu|kiểu|loại|sp|hàng|sản\\s*phẩm)(?:\\s+nào)?',
+    'kiểu\\s+dáng\\s+khác|dáng\\s+khác|form\\s+khác|design\\s+khác',
     'mẫu(?:\\s+nào)?\\s+khác|kiểu(?:\\s+nào)?\\s+khác|loại(?:\\s+nào)?\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
     'gần\\s+giống|giống\\s+nhau|na\\s+ná|tương\\s+tự|hàng\\s+tương\\s+tự|cùng\\s+kiểu|cùng\\s+loại',
-    'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|thay\\s+mẫu|option\\s+khác',
+    'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|gợi\\s+ý\\s+thêm|thay\\s+mẫu|option\\s+khác',
     // màu / ngoại hình
     'màu|mầu|tone|đậm|nhạt|be\\s*ige|kem|nude|pastel|neon',
     // size / form
@@ -836,9 +846,12 @@ const FOLLOWUP_ATTR_HINT_RE = new RegExp(
  */
 const FOLLOWUP_ATTR_STRONG_RE = new RegExp(
   [
+    'có\\s+(?:được\\s+)?(?:còn\\s+)?(?:mẫu|kiểu|loại|sp|hàng|sản\\s*phẩm)\\s+khác|còn\\s+(?:mẫu|kiểu|loại|sp|hàng)\\s+khác',
+    '(?:cho\\s+)?(?:em\\s+)?(?:xem\\s+)?thêm\\s+(?:mẫu|kiểu|loại|sp|hàng|sản\\s*phẩm)(?:\\s+nào)?',
+    'kiểu\\s+dáng\\s+khác|dáng\\s+khác|form\\s+khác|design\\s+khác',
     'mẫu(?:\\s+nào)?\\s+khác|kiểu(?:\\s+nào)?\\s+khác|loại(?:\\s+nào)?\\s+khác|mẫu\\s+tương\\s+tự|sp\\s+khác|hàng\\s+khác|sản\\s*phẩm\\s+khác|sản\\s*phẩm\\s+tương\\s+tự',
     'gần\\s+giống|giống\\s+nhau|na\\s+ná|tương\\s+tự|hàng\\s+tương\\s+tự|cùng\\s+kiểu|cùng\\s+loại',
-    'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|thay\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|option\\s+khác',
+    'so\\s+sánh|khác\\s+nhau|khác\\s+gì|đổi\\s+mẫu|thay\\s+mẫu|lựa\\s+khác|gợi\\s+ý\\s+khác|gợi\\s+ý\\s+thêm|option\\s+khác',
     'chất\\s*liệu|vải|màu|mầu|tồn|còn\\s*hàng|ship|giao\\s*hàng|đế|gót|bảo\\s*hành|đổi\\s*trả',
     'những\\s+gì|có\\s+gì|mấy\\s+loại|mấy\\s+màu|kiểu\\s+nào|giống\\s+vậy|như\\s+vậy|nữa\\s+không|còn\\s+không',
     'số\\s*(?:giày|chân)|bao\\s+nhiêu|form|dáng|ôm|rộng',
@@ -883,15 +896,28 @@ const CONTEXT_REFERENCE_DEICTIC_RE = new RegExp(
 const FOLLOWUP_DEICTIC_RE = CONTEXT_REFERENCE_DEICTIC_RE
 
 /** Danh từ loại hàng phổ biến — có trong câu thường là chủ đề tìm/mô tả mới (câu độc lập). */
-const PRODUCT_CATEGORY_TOKEN_RE =
-  /giày|dép|sandal|boot|loafer|sneaker|váy|đầm|áo|quần|blazer|vest|khoác|cardigan|sơ\s*mi|som|quần\s*tây|jumpsuit|bodysuit|chân\s*váy|shorts?|legging|bộ\s+đồ|túi|ví|balo|mũ|nón|đồng\s*hồ|kính|thắt\s*lưng|dây\s*nịch|vòng\s*tay|dây\s*chuyền/i
+const PRODUCT_CATEGORY_WORD_SOURCE = [
+  'giày|giay|dép|dep|sandal|boots?|guốc|guoc|loafer|sneaker',
+  'váy|vay|đầm|dam|áo|ao|quần|quan|blazer|vest|khoác|khoac|cardigan|sơ\\s*mi|so\\s*mi|som|quần\\s*tây|quan\\s*tay',
+  'jumpsuit|bodysuit|chân\\s*váy|chan\\s*vay|shorts?|legging|bộ\\s+đồ|bo\\s+do|set\\s*(?:bộ|bo)?',
+  'túi(?:\\s*xách)?|tui(?:\\s*xach)?|xách|xach|ví|vi|balo|ba\\s*lô|backpack|bags?|handbags?|tote|clutch|crossbody|purse|wallet',
+  'phụ\\s*kiện|phu\\s*kien|accessor(?:y|ies)|mũ|mu|nón|non|khăn|khan',
+  'đồng\\s*hồ|dong\\s*ho|watch|kính|kinh|glasses|sunglasses',
+  'thắt\\s*lưng|that\\s*lung|dây\\s*nịt|day\\s*nit|dây\\s*nịch|day\\s*nich|belt',
+  'vòng\\s*tay|vong\\s*tay|dây\\s*chuyền|day\\s*chuyen',
+].join('|')
+const PRODUCT_CATEGORY_CJK_SOURCE = '包包?|手提包|钱包|バッグ|鞄|가방|핸드백|지갑'
+const PRODUCT_CATEGORY_TOKEN_RE = new RegExp(
+  `(?:^|[\\s,.;!?])(?:${PRODUCT_CATEGORY_WORD_SOURCE})(?=$|[\\s,.;!?])|(?:${PRODUCT_CATEGORY_CJK_SOURCE})`,
+  'i'
+)
 
 /**
  * «có / còn + loại hàng» (vd. «có váy ngắn không», «còn giày nam không») — tìm trong kho / embed vector,
  * không phải hỏi thuộc tính neo SP cũ. Khác «có màu gì» (không mở bằng loại hàng ngay sau có/còn).
  */
 const STANDALONE_CO_CON_PLUS_CATEGORY_RE = new RegExp(
-  `\\b(?:có|còn)\\s+(?:một\\s+)?(?:${PRODUCT_CATEGORY_TOKEN_RE.source})\\b`,
+  `\\b(?:có|co|còn|con|bán|ban)\\s+(?:một\\s+|mot\\s+|mấy\\s+|may\\s+|vài\\s+|vai\\s+|các\\s+|cac\\s+)?(?:${PRODUCT_CATEGORY_TOKEN_RE.source})\\b`,
   'i'
 )
 
@@ -911,6 +937,85 @@ const STANDALONE_CONTEXT_RE =
 
 const STANDALONE_MIN_LEN_WITH_CATEGORY = 30
 
+const PRODUCT_CATEGORY_SOURCE = `(?:(?:${PRODUCT_CATEGORY_WORD_SOURCE})(?=$|[\\s,.;!?])|(?:${PRODUCT_CATEGORY_CJK_SOURCE}))`
+
+/**
+ * Khách mở **nhu cầu / loại hàng mới** thay vì hỏi tiếp SP vừa tư vấn.
+ * Bao phủ các cách nói tự nhiên: không cần prefix shop, không dấu, viết tắt k/ko,
+ * "cho xem…", "túi xách thì sao", "giá túi khoảng bao nhiêu", "không lấy váy nữa, có túi không",
+ * và một số category tiếng Anh / CJK thường gặp.
+ */
+export function customerMessageOpensNewProductSearch(customerMessage: string): boolean {
+  const text = normalizeTextForFollowUpHeuristic(customerMessage)
+  if (!text) return false
+
+  const hasCategory = PRODUCT_CATEGORY_TOKEN_RE.test(text)
+  const availability = '(?:có|co|còn|con|bán|ban|have|has|available)'
+  const negOrQuestion = '(?:không|khong|ko|k|kh|nhỉ|nhi|ạ|a|\\?)'
+
+  /** Đổi ý rõ, dù trong câu có đại từ "mẫu này/cái này". */
+  const switchToNewCategoryRe = new RegExp(
+    [
+      `(?:không|khong)\\s+(?:lấy|lay|xem|ưng|ung|thích|thich)\\s+[^.!?]{0,50}\\b(?:nữa|nua)\\b[^.!?]{0,80}(?:${PRODUCT_CATEGORY_SOURCE})`,
+      `(?:mẫu|mau|cái|sp|sản\\s*phẩm|san\\s*pham)\\s+(?:này|nay|đó|do)\\s+(?:không|khong)\\s+(?:hợp|hop|ưng|ung|thích|thich)[^.!?]{0,80}(?:${PRODUCT_CATEGORY_SOURCE})`,
+      `(?:đổi|doi|chuyển|chuyen|qua|sang)\\s+(?:xem\\s+)?(?:${PRODUCT_CATEGORY_SOURCE})`,
+      `(?:thay|đổi|doi)\\s+(?:mẫu|mau|loại|loai|hàng|hang)\\s+(?:${PRODUCT_CATEGORY_SOURCE})`,
+    ].join('|'),
+    'i'
+  )
+  if (switchToNewCategoryRe.test(text)) return true
+
+  /** Chỉ thị rõ tới SP đang bàn thì không mở search mới, trừ các mẫu đổi ý ở trên. */
+  if (CONTEXT_REFERENCE_DEICTIC_RE.test(text)) return false
+  if (CATEGORY_WITH_DEICTIC_RE.test(text)) return false
+  if (!hasCategory) {
+    if (
+      /\b(?:có|co|còn|con|cho\s+xem|xem|tìm|tim)\s+(?:cái|cai|mẫu|mau|loại|loai|món|mon)?\s*(?:nào|nao)?\s*(?:đựng|dung|để\s+đựng|de\s+dung|đeo|deo|mang|chứa|chua)\s+(?:laptop|máy\s*tính|may\s*tinh|ipad|điện\s*thoại|dien\s*thoai|đồ|do)\b/i.test(
+        text
+      )
+    ) {
+      return true
+    }
+    return /(?:do\s+you\s+have|does\s+(?:the\s+)?shop\s+have)\s+(?:bags?|handbags?|wallet|purse|shoes?|dress(?:es)?|shirt|pants?)/i.test(
+      text
+    )
+  }
+
+  if (STANDALONE_CO_CON_PLUS_CATEGORY_RE.test(text)) return true
+
+  const shopPrefixRe = new RegExp(
+    `(?:^|[\\s,.;!?])(?:shop|shoppe|bên\\s+(?:em|mình|minh|shop)|ben\\s+(?:em|minh|shop)|cửa\\s*hàng|cua\\s*hang)\\s+${availability}\\s+[^.!?]{0,80}(?:${PRODUCT_CATEGORY_SOURCE})`,
+    'i'
+  )
+  if (shopPrefixRe.test(text)) return true
+
+  const categoryAvailabilityRe = new RegExp(
+    [
+      `(?:^|[\\s,.;!?])${availability}\\s+[^.!?]{0,50}(?:${PRODUCT_CATEGORY_SOURCE})(?:\\b|[\\s,.;!?])[^.!?]{0,60}${negOrQuestion}`,
+      `(?:${PRODUCT_CATEGORY_SOURCE})(?:\\b|[\\s,.;!?])[^.!?]{0,70}\\b(?:${availability}|${negOrQuestion})\\b`,
+    ].join('|'),
+    'i'
+  )
+  if (categoryAvailabilityRe.test(text)) return true
+
+  const showCategoryRe = new RegExp(
+    `(?:cho\\s+(?:em|anh|chị|chi|mình|minh|tôi|toi)\\s+)?(?:xem|coi|show|gửi|gui|tham\\s*khảo|tham\\s*khao|tư\\s*vấn|tu\\s*van)\\s+(?:(?:mấy|may|vài|vai|các|cac)\\s+)?(?:(?:mẫu|mau|loại|loai|hàng|hang|sp|sản\\s*phẩm|san\\s*pham)\\s+)?(?:${PRODUCT_CATEGORY_SOURCE})`,
+    'i'
+  )
+  if (showCategoryRe.test(text)) return true
+
+  const categoryTopicRe = new RegExp(
+    `(?:${PRODUCT_CATEGORY_SOURCE})(?:\\b|[\\s,.;!?])[^.!?]{0,60}(?:thì\\s+sao|thi\\s+sao|mẫu\\s+nào|mau\\s+nao|loại\\s+nào|loai\\s+nao|giá|gia|khoảng\\s+bao\\s+nhiêu|khoang\\s+bao\\s+nhieu|bao\\s+nhiêu|bao\\s+nhieu|màu|mau|size|cỡ|co)`,
+    'i'
+  )
+  if (categoryTopicRe.test(text)) return true
+
+  if (/\b(?:do\s+you\s+have|does\s+(?:the\s+)?shop\s+have|show\s+me|any)\b/i.test(text)) return true
+  if (/[包バッグ鞄가방지갑].*(?:吗|嗎|か|요|\?)/i.test(text)) return true
+
+  return false
+}
+
 /**
  * Câu có **loại sản phẩm** + dấu hiệu câu độc lập (chủ/vị đủ) → tìm kho theo đúng ý khách, không neo SP cũ.
  * Gồm cả «có/còn + loại hàng» (vd. có váy ngắn không) → embed/vector kho, không xếp nhầm vào hỏi tiếp vì từ ngắn/dài.
@@ -919,6 +1024,7 @@ const STANDALONE_MIN_LEN_WITH_CATEGORY = 30
 export function looksLikeStandaloneProductQuestion(customerMessage: string): boolean {
   const text = normalizeTextForFollowUpHeuristic(customerMessage)
   if (!text) return false
+  if (customerMessageOpensNewProductSearch(customerMessage)) return true
   /** Câu chỉ trỏ «cái này / hàng này / cái cũ…» — không bao giờ là tìm kiếm độc lập. */
   if (CONTEXT_REFERENCE_DEICTIC_RE.test(text)) return false
   if (CATEGORY_WITH_DEICTIC_RE.test(text)) return false
@@ -949,6 +1055,7 @@ export function shouldAugmentInventorySearchWithLastConsulted(
   if (!text) return false
   if (extractExplicitSkuCandidates(customerMessage).length > 0) return false
   if (messageQueriesHighHeelFootwearCategory(text)) return false
+  if (customerMessageOpensNewProductSearch(customerMessage)) return false
 
   if (FOLLOWUP_DEICTIC_RE.test(text)) return true
   if (CATEGORY_WITH_DEICTIC_RE.test(text)) return true
@@ -990,4 +1097,37 @@ export function buildInventorySearchQueryWithLastConsulted(
   const sku = row.sku?.trim() ?? ''
   const tail = normalizeCustomerMessageForInventorySearch(customerMessage)
   return [name, sku, tail].filter(Boolean).join(' ').trim()
+}
+
+/**
+ * Token loại hàng thô từ tên/mô tả/ghi chú (cùng tập pattern với tìm kiếm «câu độc lập»).
+ * Dùng để lọc kết quả «mẫu tương tự» — tránh carousel lệch ngành (vd. giày → thắt lưng).
+ */
+export function extractCoarseCategoryTokensFromInventoryBlob(blob: string): string[] {
+  const s = blob.trim()
+  if (!s) return []
+  const seen = new Set<string>()
+  const re = new RegExp(PRODUCT_CATEGORY_TOKEN_RE.source, PRODUCT_CATEGORY_TOKEN_RE.flags)
+  for (const m of s.matchAll(re)) {
+    const t = m[0].trim().replace(/\s+/g, ' ').toLowerCase()
+    if (t) seen.add(t)
+  }
+  return [...seen]
+}
+
+/** Giữ mặt hàng có **ít nhất một** nhóm loại trùng với anchor (áo/váy/giày/túi…). */
+export function filterInventoryRowsBySharedCoarseCategory(
+  anchor: PartnerInventoryRow,
+  rows: PartnerInventoryRow[]
+): PartnerInventoryRow[] {
+  const anchorBlob = [anchor.name, anchor.description, anchor.consult_note].filter(Boolean).join('\n')
+  const anchorTok = extractCoarseCategoryTokensFromInventoryBlob(anchorBlob)
+  if (!anchorTok.length || !rows.length) return rows
+  const anchorSet = new Set(anchorTok)
+  return rows.filter((r) => {
+    const b = [r.name, r.description, r.consult_note].filter(Boolean).join('\n')
+    const rowTok = extractCoarseCategoryTokensFromInventoryBlob(b)
+    if (!rowTok.length) return false
+    return rowTok.some((t) => anchorSet.has(t))
+  })
 }
