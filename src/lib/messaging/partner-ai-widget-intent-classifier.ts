@@ -7,7 +7,9 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
 import {
   createPartnerAiRouteDecision,
+  parsePartnerAiCtaStrategy,
   parsePartnerAiRouteIntent,
+  parsePartnerAiSalesStage,
   type PartnerAiRouteDecision,
 } from '@/lib/messaging/partner-ai-intent-router'
 
@@ -64,13 +66,7 @@ export async function classifyWidgetInboundIntent(input: {
 
   if (useCache) {
     const cached = await fetchWidgetIntentCachePg(lookupHash)
-    if (cached) {
-      return createPartnerAiRouteDecision(cached, {
-        confidence: 0.9,
-        source: 'ai_classifier',
-        reason: 'cache',
-      })
-    }
+    if (cached) return cached
   }
 
   const customerTextNorm = normalizeIntentCustomerText(input.customerText)
@@ -78,8 +74,8 @@ export async function classifyWidgetInboundIntent(input: {
   const last = (input.lastShopMessage ?? '').trim().slice(0, INTENT_TEXT_MAX)
   const cur = input.customerText.trim().slice(0, INTENT_TEXT_MAX)
 
-  const system = `Bạn là bộ phân loại ý định cho chat bán hàng. Chỉ trả về **một** JSON hợp lệ, không markdown, không giải thích.
-Schema bắt buộc: {"decision":"follow_up_current_product"|"new_product_search"|"similar_alternatives"|"purchase_or_order"|"policy_or_order_support"|"clarify"|"pause_or_close","confidence":0.0-1.0,"category":string|null,"reason":string}
+  const system = `Bạn là bộ phân loại ý định + mức độ mua hàng cho chat bán hàng. Chỉ trả về **một** JSON hợp lệ, không markdown, không giải thích.
+Schema bắt buộc: {"decision":"follow_up_current_product"|"new_product_search"|"similar_alternatives"|"purchase_or_order"|"policy_or_order_support"|"clarify"|"pause_or_close","sales_stage":"browsing"|"considering"|"objection"|"purchase_ready"|"post_purchase_support","cta_strategy":"soft_explore"|"fit_question"|"reassure_then_cta"|"buy_now"|"no_cta","confidence":0.0-1.0,"category":string|null,"reason":string}
 
 Nghĩa:
 - follow_up_current_product: Khách hỏi tiếp sản phẩm/mẫu shop vừa gửi: giá, màu, size, tồn, chất liệu, ảnh thật, ship cho mẫu đó; hoặc phản ứng ngắn về mẫu đang bàn.
@@ -90,6 +86,21 @@ Nghĩa:
 - clarify: Chưa rõ cần tư vấn gì: chào chung, lỗi/truy cập/không thấy sản phẩm, cảm xúc/khiếu nại chưa nêu loại hàng; hoặc "xem thêm đi" nhưng không có mẫu neo rõ.
 - pause_or_close: Ok/cảm ơn/để xem thêm/thôi nhé/kết thúc, không cần tư vấn thêm.
 
+sales_stage:
+- browsing: mới xem/tìm sản phẩm, chưa có dấu hiệu mua mạnh.
+- considering: đang cân nhắc sản phẩm cụ thể, hỏi giá/size/màu/chất liệu/ảnh thật.
+- objection: lăn tăn/chê đắt/sợ không vừa/sợ cọc/không ưng.
+- purchase_ready: muốn mua/chốt/lấy/đặt hàng/gửi thông tin.
+- post_purchase_support: sau mua hoặc hỗ trợ đơn/chính sách/hủy/đổi/trả.
+
+cta_strategy:
+- soft_explore: trả lời + mời xem thẻ sản phẩm.
+- fit_question: trả lời + hỏi tối đa 1 câu để tư vấn size/dáng/nhu cầu.
+- reassure_then_cta: trấn an phản đối rồi mời thao tác nhẹ, không ép.
+- buy_now: hướng khách bấm Mua ngay trên thẻ và hoàn tất đơn trong chat.
+- no_cta: chỉ trả lời/hỏi rõ, không kêu gọi mua.
+
+Mục tiêu chuyển đổi: nếu khách đã sẵn sàng mua, chọn sales_stage=purchase_ready và cta_strategy=buy_now.
 Không có nhãn card_consult_isolated hoặc explicit_sku_consult ở đây: các nhánh đó do rule cứng bên ngoài xử lý.`
 
   const user = `Tin shop gần nhất (có thể rỗng nếu hội thoại mới):
@@ -121,6 +132,10 @@ Trả về JSON đúng schema.`
       classifierVersion: WIDGET_INTENT_CLASSIFIER_VERSION,
       customerTextNorm,
       shopContextNorm,
+      salesStage: decision.salesStage,
+      ctaStrategy: decision.ctaStrategy,
+      category: decision.category ?? null,
+      reason: decision.reason ?? null,
     })
   }
 
@@ -137,6 +152,8 @@ function parseWidgetIntentJson(text: string): PartnerAiRouteDecision | null {
       confidence?: unknown
       category?: unknown
       reason?: unknown
+      sales_stage?: unknown
+      cta_strategy?: unknown
     }
     const intent = parsePartnerAiRouteIntent(o.decision)
     if (!intent) return null
@@ -145,6 +162,8 @@ function parseWidgetIntentJson(text: string): PartnerAiRouteDecision | null {
       category: typeof o.category === 'string' && o.category.trim() ? o.category.trim().slice(0, 80) : null,
       reason: typeof o.reason === 'string' ? o.reason.trim().slice(0, 200) : null,
       source: 'ai_classifier',
+      salesStage: parsePartnerAiSalesStage(o.sales_stage),
+      ctaStrategy: parsePartnerAiCtaStrategy(o.cta_strategy),
     })
   } catch {
     return null

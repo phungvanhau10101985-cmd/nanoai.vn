@@ -54,8 +54,11 @@ import {
   partnerAiShouldUseClarifyBranchFromWidgetPayload,
 } from '@/lib/messaging/partner-ai-unclear-intent'
 import {
+  defaultSalesConversionForIntent,
   parsePartnerAiRouteDecision,
+  type PartnerAiCtaStrategy,
   type PartnerAiRouteIntent,
+  type PartnerAiSalesStage,
 } from '@/lib/messaging/partner-ai-intent-router'
 import { trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
@@ -673,6 +676,8 @@ export async function buildPartnerAiContext(
   similarAlternativesTemplateInventoryRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] | null
   /** Route intent đã chốt (hard-rule/classifier/fallback) để worker log/debug nhánh pipeline. */
   partnerAiRouteIntent: PartnerAiRouteIntent | null
+  partnerAiSalesStage: PartnerAiSalesStage | null
+  partnerAiCtaStrategy: PartnerAiCtaStrategy | null
 }> {
   const effectiveLocaleOpts = await resolvePartnerAiLocaleOpts(conversationId, localeOpts)
   const invFmtOpts = { markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts) }
@@ -697,7 +702,8 @@ export async function buildPartnerAiContext(
    * từ cả đoạn tin dài (dễ khớp nhầm token trong câu mẫu).
    */
   const isConsultCardPick = rawPayloadIsProductCardConsult(triggerRawPayload)
-  const payloadRouteIntent = parsePartnerAiRouteDecision(triggerRawPayload)?.intent ?? null
+  const payloadRouteDecision = parsePartnerAiRouteDecision(triggerRawPayload)
+  const payloadRouteIntent = payloadRouteDecision?.intent ?? null
   let partnerAiRouteIntent: PartnerAiRouteIntent | null = isConsultCardPick
     ? 'card_consult_isolated'
     : payloadRouteIntent
@@ -917,6 +923,8 @@ export async function buildPartnerAiContext(
       inboundPageSkuMissImageSimilarFallback: false,
       similarAlternativesTemplateInventoryRows: null,
       partnerAiRouteIntent,
+      partnerAiSalesStage: payloadRouteDecision?.salesStage ?? null,
+      partnerAiCtaStrategy: payloadRouteDecision?.ctaStrategy ?? null,
     }
   }
 
@@ -942,6 +950,8 @@ export async function buildPartnerAiContext(
       inboundPageSkuMissImageSimilarFallback: false,
       similarAlternativesTemplateInventoryRows: null,
       partnerAiRouteIntent: partnerAiRouteIntent ?? 'pause_or_close',
+      partnerAiSalesStage: payloadRouteDecision?.salesStage ?? 'browsing',
+      partnerAiCtaStrategy: payloadRouteDecision?.ctaStrategy ?? 'no_cta',
     }
   }
 
@@ -1244,6 +1254,17 @@ Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng các
 
   const policy = settings.shop_policy?.trim() || '(Shop chưa nhập chính sách.)'
   const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
+  const defaultSalesConversion = partnerAiRouteIntent
+    ? defaultSalesConversionForIntent(partnerAiRouteIntent)
+    : { salesStage: 'browsing' as const, ctaStrategy: 'soft_explore' as const }
+  const partnerAiSalesStage: PartnerAiSalesStage =
+    payloadRouteDecision?.intent === partnerAiRouteIntent
+      ? payloadRouteDecision.salesStage
+      : defaultSalesConversion.salesStage
+  const partnerAiCtaStrategy: PartnerAiCtaStrategy =
+    payloadRouteDecision?.intent === partnerAiRouteIntent
+      ? payloadRouteDecision.ctaStrategy
+      : defaultSalesConversion.ctaStrategy
   const salesExtra = settings.sales_coaching_instructions?.trim() ?? ''
   const salesShopBlock =
     salesExtra.length > 0
@@ -1258,6 +1279,17 @@ ${salesExtra}`
       ? `
 - **Đặt hàng trên chat (thẻ SP có nút «Mua ngay»):** Khi đã nêu chính sách cọc / quy trình mua **và** JSON có **thẻ sản phẩm** (trường \`products\` không rỗng) — **không** kết tin bằng câu hỏi kiểu «muốn lấy màu nào và size nào để shop báo giá cọc cụ thể», «cho em biết màu size để báo cọc» — vì màu, size và số cọc được **chọn/ xem trong form** sau khi bấm Mua ngay. Hãy kết bằng **một câu ngắn, dễ hiểu**: khách **bấm «Mua ngay»** trên thẻ rồi **điền thông tin nhận hàng và hoàn tất đơn** (có thể diễn đạt gọn: «bấm Mua ngay và hoàn thành đơn hàng»). Chỉ hỏi màu/size trực tiếp trong **message** khi **không** gửi thẻ, hoặc khi khách hỏi tư vấn chưa định đặt.`
       : ''
+  const salesConversionRouterBlock = `
+[Sales conversion router — bắt buộc áp dụng]
+- sales_stage: \`${partnerAiSalesStage}\`
+- cta_strategy: \`${partnerAiCtaStrategy}\`
+- Mục tiêu là giúp khách đi tới bước **bấm Mua ngay trên thẻ để tạo đơn ngay trong chat** khi phù hợp, nhưng vẫn trả lời đúng câu hỏi trước.
+- \`soft_explore\`: trả lời ngắn + mời khách xem thẻ sản phẩm; không ép chốt.
+- \`fit_question\`: trả lời lợi ích + hỏi tối đa **1 câu** để chốt size/dáng/nhu cầu; nếu đã có thẻ và thông tin đủ, có thể nhắc nhẹ bấm Mua ngay.
+- \`reassure_then_cta\`: xử lý lăn tăn (giá/size/cọc/không vừa) bằng dữ liệu thật/chính sách rồi mời thao tác nhẹ; không hứa ngoài chính sách.
+- \`buy_now\`: nếu JSON có \`products\` khác rỗng và shop đang dùng mua trong chat, kết tin phải có CTA rõ: **bấm “Mua ngay” trên thẻ để lên đơn/hoàn tất đơn trong chat**. Không thay CTA này bằng hỏi màu/size nếu form Mua ngay đã cho chọn.
+- \`no_cta\`: chỉ trả lời/hỏi rõ/chính sách, không thúc mua.
+`
 
   /** Khối mặc định — luôn có; shop mở rộng qua `sales_coaching_instructions` + chính sách. */
   const khoContextInstructionForSystem = cardConsultIsolatedThread
@@ -1303,7 +1335,7 @@ ${PARTNER_AI_TRANSCRIPT_READING_CONVENTION}
 ${PARTNER_AI_ALTERNATIVE_MODEL_QUERY_DOCTRINE}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
 ${policy}${partnerPaymentPolicyBlock}
-${salesDefaultBlock}
+${salesDefaultBlock}${salesConversionRouterBlock}
 ${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum} Chỉ giới thiệu sản phẩm từ danh sách đó. Khi giới thiệu hoặc so sánh mặt hàng cụ thể, ưu tiên nói **lợi ích cho khách** (thẩm mỹ, độ phù hợp, sự thoải mái…) xuất phát từ thông tin trong kho, không chỉ đọc giá/mã. Nếu không có đúng sản phẩm trong danh sách, nói rõ chưa thấy thông tin khớp và chuyển hướng tư vấn: hỏi khách có muốn xem sản phẩm tương tự đang có trong kho không.
 Khi khách hỏi về chất liệu/vải/vật liệu: ưu tiên trả lời theo trường "Chất liệu (đã lưu/kho)" hoặc mô tả/ghi chú trong dòng kho nếu có; không bịa chất liệu ngoài dữ liệu đã cho.
 Trong mỗi dòng kho, **ảnh chính sản phẩm (URL)** là ảnh gốc shop khai báo; hệ thống dùng đúng ảnh đó làm nguồn để tạo (1) ảnh chi tiết chất liệu/màu và (2) ảnh **đời thường / góc tự nhiên** (nhìn sản phẩm chân thực) — không dùng ảnh khác làm nguồn, và **không** gọi các ảnh sinh ra là "ảnh tham khảo" khi nói với khách.
@@ -1455,6 +1487,8 @@ Chỉ để products = [] khi thực sự không tìm được mặt hàng phù 
     inboundPageSkuMissImageSimilarFallback,
     similarAlternativesTemplateInventoryRows,
     partnerAiRouteIntent,
+    partnerAiSalesStage,
+    partnerAiCtaStrategy,
   }
 }
 

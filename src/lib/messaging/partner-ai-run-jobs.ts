@@ -212,6 +212,8 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         inboundPageSkuMissImageSimilarFallback,
         similarAlternativesTemplateInventoryRows,
         partnerAiRouteIntent,
+        partnerAiSalesStage,
+        partnerAiCtaStrategy,
       } = await buildPartnerAiContext(
         job.partner_id,
         job.conversation_id,
@@ -251,6 +253,8 @@ async function runMessagingPartnerAiJobBatchUsingPg(
           usage: null,
           ai_product_cards: productsTemplate,
           ...(partnerAiRouteIntent ? { partner_ai_route_intent: partnerAiRouteIntent } : {}),
+          ...(partnerAiSalesStage ? { partner_ai_sales_stage: partnerAiSalesStage } : {}),
+          ...(partnerAiCtaStrategy ? { partner_ai_cta_strategy: partnerAiCtaStrategy } : {}),
           partner_ai_pipeline_branch: 'similar_alternatives_catalog' as const,
         } as unknown as Json
         const dTpl = await deliverAutomatedPartnerMessage({
@@ -361,6 +365,8 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         usage: llm.usage ?? null,
         ai_product_cards: productsWithVideo,
         ...(partnerAiRouteIntent ? { partner_ai_route_intent: partnerAiRouteIntent } : {}),
+        ...(partnerAiSalesStage ? { partner_ai_sales_stage: partnerAiSalesStage } : {}),
+        ...(partnerAiCtaStrategy ? { partner_ai_cta_strategy: partnerAiCtaStrategy } : {}),
         ...(partnerAiRouteIntent
           ? { partner_ai_pipeline_branch: partnerAiRouteIntent }
           : inboundAnchoredProductConsultBranch
