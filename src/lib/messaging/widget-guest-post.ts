@@ -515,6 +515,8 @@ export async function postWidgetGuestMessage(params: {
   /** Bấm «Tư vấn» trên thẻ SP — ảnh chỉ là ngữ cảnh cho LLM; không chạy vision_pick (tránh chỉ hiển thị carousel, không tư vấn). */
   const isProductCardConsult =
     typeof params.pageContext?.source === 'string' && params.pageContext.source.trim() === 'product_card_consult'
+  /** Neo SP từ trang/embed (SKU hoặc UUID kho) — không cho vector/OCR ảnh ghi đè (tránh nhầm mẫu tương tự trong kho). */
+  const trustedEmbedProductAnchor = Boolean(pageContextSku) || Boolean(pageContextInventoryId)
   if ((!text && !imagePath && !pageContextHasAny) || text.length > 8000) {
     return { error: 'Invalid message.' }
   }
@@ -578,7 +580,7 @@ export async function postWidgetGuestMessage(params: {
           aiEnabled = fromPg.enabled
         }
       }
-      if (aiEnabled && !deferredPaymentVerify && !isProductCardConsult) {
+      if (aiEnabled && !deferredPaymentVerify && !isProductCardConsult && !trustedEmbedProductAnchor) {
         const buf = await downloadTryOnObject(imagePath)
         if (buf) {
           const imageSignal = await analyzeProductSignalFromImage(buf, mime)

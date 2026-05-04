@@ -278,6 +278,7 @@ type VisionPickRaw = {
   vision_selected_product_label?: string
   page_context?: {
     sku?: string
+    inventory_id?: string
     image_url?: string
     product_url?: string
     source?: string
@@ -300,12 +301,24 @@ export function latestInboundTextForPartnerAi(textBody: string, rawPayload: Json
       ? `📷 ${payloadCaption}`
       : textBody
   let t = inboundTextForPartnerAi(normalizedTextBody, url ?? null)
+  const pc = pl?.page_context
+  const pageAnchorSku =
+    pc && typeof pc === 'object' && !Array.isArray(pc) && typeof pc.sku === 'string'
+      ? pc.sku.trim().slice(0, 128)
+      : ''
+  const pageAnchorInvRaw =
+    pc && typeof pc === 'object' && !Array.isArray(pc) && typeof pc.inventory_id === 'string'
+      ? pc.inventory_id.trim()
+      : ''
+  const pageAnchorInventoryId =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageAnchorInvRaw) ? pageAnchorInvRaw : ''
+  const suppressVisionMatchBecausePageAnchored =
+    Boolean(pageAnchorSku.length >= 2) || Boolean(pageAnchorInventoryId)
   const sid = pl?.vision_selected_inventory_id?.trim()
   const label = pl?.vision_selected_product_label?.trim()
-  if (sid && label) {
+  if (sid && label && !suppressVisionMatchBecausePageAnchored) {
     t += `\n[Customer confirmed product from image match: ${label} (inventory id: ${sid})]`
   }
-  const pc = pl?.page_context
   if (pc && typeof pc === 'object' && !Array.isArray(pc)) {
     const hintLines: string[] = []
     const sku = typeof pc.sku === 'string' ? pc.sku.trim().slice(0, 128) : ''
