@@ -22,7 +22,11 @@ import {
   deepseekPartnerChat,
   rawPayloadIsProductCardConsult,
 } from '@/lib/messaging/partner-ai-llm'
-import { fetchGuestGenderForPartnerConsultCachePg } from '@/lib/db/partner-product-consult-cache-pg'
+import {
+  fetchGuestGenderForPartnerConsultCachePg,
+  fetchSafeSkuIsolatedProductConsultCacheFromPg,
+  upsertSafeSkuIsolatedProductConsultCachePg,
+} from '@/lib/db/partner-product-consult-cache-pg'
 import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
@@ -278,6 +282,69 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         continue
       }
 
+      if (
+        partnerAiRouteIntent === 'card_consult_isolated' &&
+        inboundAnchoredConsultRow &&
+        configuredGender &&
+        !materialDetailFollowup &&
+        !realUseFollowup
+      ) {
+        try {
+          const cached = await fetchSafeSkuIsolatedProductConsultCacheFromPg(
+            job.partner_id,
+            inboundAnchoredConsultRow.id,
+            configuredGender,
+            cacheUiLocale
+          )
+          if (cached?.message_text) {
+            if ((await partnerAiJobIsStillProcessingPg(job.id)) === false) {
+              skipped += 1
+              continue
+            }
+            const cachedCards = Array.isArray(cached.ai_product_cards)
+              ? (cached.ai_product_cards as PartnerAiProductCard[])
+              : []
+            const productsWithVideoCached = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
+              job.partner_id,
+              cachedCards
+            )
+            const rawCached = {
+              source: 'ai_llm',
+              model: 'safe_sku_isolated_product_consult_cache',
+              usage: null,
+              ai_product_cards: productsWithVideoCached,
+              partner_ai_cache: {
+                kind: 'sku_isolated_product_consult',
+                hit: true,
+                version: 'v2',
+              },
+              ...(partnerAiRouteIntent ? { partner_ai_route_intent: partnerAiRouteIntent } : {}),
+              ...(partnerAiSalesStage ? { partner_ai_sales_stage: partnerAiSalesStage } : {}),
+              ...(partnerAiCtaStrategy ? { partner_ai_cta_strategy: partnerAiCtaStrategy } : {}),
+              partner_ai_pipeline_branch: partnerAiRouteIntent,
+            } as unknown as Json
+            const dCache = await deliverAutomatedPartnerMessage({
+              conversation: conv,
+              settings,
+              body: enforceConfiguredGenderAddressing(cached.message_text, configuredGender),
+              rawPayload: rawCached,
+              materialDetailFollowup: null,
+              realUseFollowup: null,
+            })
+            if (dCache.error) {
+              await setPartnerAiJobStatus(job.id, { status: 'failed', error: dCache.error })
+              failed += 1
+            } else {
+              await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
+              completed += 1
+            }
+            continue
+          }
+        } catch (e) {
+          console.warn('[partner-ai-run-jobs] safe sku isolated cache read', e)
+        }
+      }
+
       if ((await partnerAiJobIsStillProcessingPg(job.id)) === false) {
         skipped += 1
         continue
@@ -395,9 +462,23 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       } else {
         await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
         completed += 1
-        /** Nút «Tư vấn» trên thẻ là nhánh độc lập theo đúng một dòng kho.
-         * Không đọc/ghi cache câu tư vấn theo sản phẩm vì cache cũ có thể đã nhiễm ngữ cảnh thread trước đó.
-         */
+        if (
+          partnerAiRouteIntent === 'card_consult_isolated' &&
+          inboundAnchoredConsultRow &&
+          configuredGender &&
+          !materialDetailFollowup &&
+          !realUseFollowup &&
+          productsWithVideo.length > 0
+        ) {
+          void upsertSafeSkuIsolatedProductConsultCachePg({
+            partnerId: job.partner_id,
+            inventoryId: inboundAnchoredConsultRow.id,
+            gender: configuredGender,
+            uiLocale: cacheUiLocale,
+            messageText: parsed.message,
+            aiProductCards: productsWithVideo as unknown as Json,
+          })
+        }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'unknown'

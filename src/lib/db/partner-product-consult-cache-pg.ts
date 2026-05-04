@@ -8,6 +8,8 @@ import type { WebLocale } from '@/lib/i18n/config'
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+export const SAFE_SKU_ISOLATED_PRODUCT_CONSULT_CACHE_VERSION = 'v2'
+
 /** Giới tính từ `profiles` (tài khoản NanoAI) — dùng khóa cache tư vấn SP. */
 export async function fetchGuestGenderForPartnerConsultCachePg(
   linkedUserId: string | null | undefined
@@ -48,6 +50,44 @@ export async function fetchPartnerProductConsultCacheFromPg(
   }
 }
 
+export async function fetchSafeSkuIsolatedProductConsultCacheFromPg(
+  partnerId: string,
+  inventoryId: string,
+  gender: GuestProfileGender,
+  uiLocale: WebLocale
+): Promise<{ message_text: string; ai_product_cards: Json } | null> {
+  if (!isPgConfigured()) return null
+  const pid = partnerId.trim()
+  const iid = inventoryId.trim()
+  if (!pid || !iid || !UUID_RE.test(iid)) return null
+  try {
+    const row = await pgQueryOne<{ message_text: string; ai_product_cards: Json }>(
+      `select c.message_text, c.ai_product_cards
+       from public.messaging_partner_product_consult_cache c
+       join public.messaging_partner_inventory i
+         on i.id = c.inventory_id
+        and i.partner_id = c.partner_id
+       where c.partner_id = $1::uuid
+         and c.inventory_id = $2::uuid
+         and c.gender = $3
+         and c.ui_locale = $4
+         and c.cache_scope = 'sku_isolated'
+         and c.cache_version = $5
+         and c.updated_at >= i.updated_at
+       limit 1`,
+      [pid, iid, gender, uiLocale, SAFE_SKU_ISOLATED_PRODUCT_CONSULT_CACHE_VERSION]
+    )
+    if (!row?.message_text?.trim()) return null
+    return {
+      message_text: row.message_text.trim(),
+      ai_product_cards: Array.isArray(row.ai_product_cards) ? row.ai_product_cards : [],
+    }
+  } catch (e) {
+    console.warn('[partner-product-consult-cache-pg] fetch safe sku isolated', e)
+    return null
+  }
+}
+
 export async function upsertPartnerProductConsultCachePg(input: {
   partnerId: string
   inventoryId: string
@@ -76,6 +116,48 @@ export async function upsertPartnerProductConsultCachePg(input: {
     return true
   } catch (e) {
     console.warn('[partner-product-consult-cache-pg] upsert', e)
+    return false
+  }
+}
+
+export async function upsertSafeSkuIsolatedProductConsultCachePg(input: {
+  partnerId: string
+  inventoryId: string
+  gender: GuestProfileGender
+  uiLocale: WebLocale
+  messageText: string
+  aiProductCards: Json
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = input.partnerId.trim()
+  const iid = input.inventoryId.trim()
+  const msg = input.messageText.trim()
+  if (!pid || !iid || !UUID_RE.test(iid) || !msg) return false
+  try {
+    await pgQuery(
+      `insert into public.messaging_partner_product_consult_cache
+         (partner_id, inventory_id, gender, ui_locale, message_text, ai_product_cards,
+          cache_scope, cache_version, updated_at)
+       values ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb,
+          'sku_isolated', $7, now())
+       on conflict (partner_id, inventory_id, gender, ui_locale, cache_scope, cache_version)
+       do update set
+         message_text = excluded.message_text,
+         ai_product_cards = excluded.ai_product_cards,
+         updated_at = now()`,
+      [
+        pid,
+        iid,
+        input.gender,
+        input.uiLocale,
+        msg,
+        input.aiProductCards ?? [],
+        SAFE_SKU_ISOLATED_PRODUCT_CONSULT_CACHE_VERSION,
+      ]
+    )
+    return true
+  } catch (e) {
+    console.warn('[partner-product-consult-cache-pg] upsert safe sku isolated', e)
     return false
   }
 }
