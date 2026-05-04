@@ -50,7 +50,7 @@ export default function HoanDoiKhuonMatClientPage() {
   const faceInputRef = useRef<HTMLInputElement>(null)
   const faceLeftInputRef = useRef<HTMLInputElement>(null)
   const faceRightInputRef = useRef<HTMLInputElement>(null)
-  const cost = imageQuality === '2K' ? 2 : 4
+  const cost = imageQuality === '2K' ? 1 : 2
   const targetInputRef = useRef<HTMLInputElement>(null)
   const isSubmittingRef = useRef(false)
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
@@ -63,7 +63,7 @@ export default function HoanDoiKhuonMatClientPage() {
   const t = useMemo(() => ({
     err: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
     title: tr('Hoán đổi khuôn mặt (Face Swap)', 'Face Swap', '换脸 (Face Swap)', '顔入れ替え (Face Swap)', '얼굴 교체 (Face Swap)'),
-    subtitle: tr('Ghép mặt bạn vào nhân vật phim ảnh, siêu anh hùng. 2-4 credits/ảnh.', 'Swap your face into movie characters and heroes. 2-4 credits/image.', '把你的脸替换到电影角色中。2-4 credits/张。', '映画キャラに顔を入れ替え。2-4 credits/枚。', '영화 캐릭터에 얼굴 교체. 2-4 credits/장.'),
+    subtitle: tr('Ghép mặt bạn vào nhân vật phim ảnh, siêu anh hùng. 1–2 credits/ảnh.', 'Swap your face into movie characters and heroes. 1–2 credits/image.', '把你的脸替换到电影角色中。1–2 credits/张。', '映画キャラに顔を入れ替え。1–2 credits/枚。', '영화 캐릭터에 얼굴 교체. 1–2 credits/장.'),
     uploadCard: tr('Ảnh cần ghép', 'Images to swap', '待合成图片', '合成する画像', '합성할 이미지'),
     uploadDesc: tr('Ảnh 1: khuôn mặt bạn. Ảnh 2: nhân vật muốn ghép mặt vào.', 'Image 1: your face. Image 2: character to swap face into.', '图1：你的脸。图2：要换脸的角色。', '画像1：あなたの顔。画像2：顔を入れ替えるキャラ。', '이미지 1: 내 얼굴. 이미지 2: 얼굴을 합성할 캐릭터.'),
     swap1: tr('Hoán đổi 1 người', 'Swap 1 person', '单人换脸', '1人入れ替え', '1명 교체'),
@@ -310,17 +310,17 @@ export default function HoanDoiKhuonMatClientPage() {
                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t.quality}</h4>
                     <div className="flex gap-2">
                       <button type="button" onClick={() => setImageQuality('2K')} className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${imageQuality === '2K' ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>
-                        2K (2)
+                        2K (1)
                       </button>
                       <button type="button" onClick={() => setImageQuality('4K')} className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${imageQuality === '4K' ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>
-                        4K (4)
+                        4K (2)
                       </button>
                     </div>
                   </div>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-fuchsia-200 text-fuchsia-700 hover:bg-fuchsia-50" />
                     <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!hasRequiredFaces || !targetImage.file} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-fuchsia-600 hover:bg-fuchsia-700 text-white">
-                      <Sparkles className="mr-2 h-4 w-4" /> {t.swapBtn} ({imageQuality === '2K' ? '2' : '4'} credit)
+                      <Sparkles className="mr-2 h-4 w-4" /> {t.swapBtn} ({imageQuality === '2K' ? '1' : '2'} credit)
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {t.time}</p>
                   </div>

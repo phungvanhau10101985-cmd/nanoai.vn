@@ -14,7 +14,7 @@ import sharp from 'sharp'
 import { detectFaceInTargetImage, detectFacesInTargetImage, extractFaceFromSourceImage, type FaceBbox } from '@/lib/face-swap-vision'
 import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 
-const FACESWAP_COSTS = { '2K': 2, '4K': 4 } as const
+const FACESWAP_COSTS = { '2K': 1, '4K': 2 } as const
 const toTenths = (value: number) => Math.round(value * 10)
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
@@ -108,7 +108,7 @@ async function resizeSourceFaceToTargetSize(sourceFaceBuffer: Buffer, targetFace
     .toBuffer()
 }
 
-/** Hoán đổi khuôn mặt. 2K: 2 credit, 4K: 4 credit. Cần 2 ảnh: ảnh khuôn mặt nguồn + ảnh đích. */
+/** Hoán đổi khuôn mặt. 2K: 1 credit, 4K: 2 credit. Cần 2 ảnh: ảnh khuôn mặt nguồn + ảnh đích. */
 export async function faceSwap(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     return { error: 'Dữ liệu không hợp lệ. Vui lòng thử lại.' }

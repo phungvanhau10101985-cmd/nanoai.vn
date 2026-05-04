@@ -151,6 +151,7 @@ import {
   type PartnerOrderEventRow,
   upsertPartnerPaymentSettingsFromPg,
   fetchPartnerOrderForOwnerFromPg,
+  confirmPartnerOrderDepositForOwnerFromPg,
   updatePartnerOrderStatusForOwnerFromPg,
   updatePartnerOrderShippingStatusForOwnerFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
@@ -769,6 +770,42 @@ export async function updateMyMessagingOrderStatus(input: {
       await emailCustomerOrderPaymentStatusChanged({ order: row })
     } catch (e) {
       console.warn('[updateMyMessagingOrderStatus] customer email', e)
+    }
+  }
+  revalidateMessagingDashboard()
+  return { ok: true }
+}
+
+export async function confirmMyMessagingOrderDeposit(input: {
+  orderId: string
+  verifiedNote?: string
+}): Promise<{ ok: true } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
+  const ok = await confirmPartnerOrderDepositForOwnerFromPg({
+    ownerUserId: user.id,
+    orderId: input.orderId,
+    verifiedNote: (input.verifiedNote ?? '').trim().slice(0, 1000),
+  })
+  if (!ok) return { error: 'Khong xac nhan duoc coc.' }
+  const row = await fetchPartnerOrderForOwnerFromPg(user.id, input.orderId)
+  if (row) {
+    await insertPartnerOrderEventFromPg({
+      orderId: row.id,
+      eventType: 'deposit_manual',
+      title: 'Chu shop xac nhan da coc',
+      detail: `Ghi nhan thanh toan: ${Math.round(Number(row.paid_amount) || 0)} VND.`,
+      source: 'shop',
+      createdBy: user.id,
+    })
+    queuePartnerOrderGoogleSheetsSync(row.partner_id, row.id)
+    try {
+      await emailCustomerOrderPaymentStatusChanged({ order: row })
+    } catch (e) {
+      console.warn('[confirmMyMessagingOrderDeposit] customer email', e)
     }
   }
   revalidateMessagingDashboard()

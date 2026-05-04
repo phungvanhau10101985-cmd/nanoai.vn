@@ -833,7 +833,7 @@ export async function fetchPartnerOrderStatsForOwnerFromPg(input: {
       sumOutstandingVnd: rnd('sum_outstanding'),
     }
   } catch (e) {
-    console.warn('[fetchPartnerOrderStatsForOwnerFromPg]', e)
+    console.error('[fetchPartnerOrderStatsForOwnerFromPg]', e)
     return null
   }
 }
@@ -901,7 +901,7 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
     )
     return rows.map(mapOrderAdminRow)
   } catch (e) {
-    console.warn('[fetchPartnerOrdersForOwnerFromPg]', e)
+    console.error('[fetchPartnerOrdersForOwnerFromPg]', e)
     return null
   }
 }
@@ -986,6 +986,40 @@ export async function updatePartnerOrderStatusForOwnerFromPg(input: {
     return true
   } catch (e) {
     console.warn('[updatePartnerOrderStatusForOwnerFromPg]', e)
+    return false
+  }
+}
+
+/** Chủ shop xác nhận cọc thủ công: ghi nhận paid ≥ required (không vượt subtotal), đặt paid_verified. */
+export async function confirmPartnerOrderDepositForOwnerFromPg(input: {
+  ownerUserId: string
+  orderId: string
+  verifiedNote: string
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const note = input.verifiedNote.trim().slice(0, 1000)
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partner_orders o
+       set status = 'paid_verified',
+           paid_amount = least(
+             coalesce(o.subtotal_amount, 0::numeric),
+             greatest(coalesce(o.paid_amount, 0::numeric), coalesce(o.required_amount, 0::numeric))
+           ),
+           verified_note = $3,
+           verified_at = now(),
+           locked_at = coalesce(o.locked_at, now()),
+           updated_at = now()
+       from public.messaging_partners mp
+       where o.id = $1::uuid
+         and mp.id = o.partner_id
+         and ${sqlPartnerMpActorHasPerm(2, 'orders')}
+       returning o.id::text as id`,
+      [input.orderId, input.ownerUserId, note]
+    )
+    return row !== null
+  } catch (e) {
+    console.warn('[confirmPartnerOrderDepositForOwnerFromPg]', e)
     return false
   }
 }

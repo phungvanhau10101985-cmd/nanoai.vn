@@ -38,24 +38,21 @@ export default async function DashboardMessagingOrdersPage() {
   }
 
   return (
-    <div className="app-shell flex min-h-[calc(100dvh-5rem)] flex-col space-y-6 md:space-y-8">
-      <div className="section-surface space-y-2">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-3xl">
-              <ClipboardList className="h-7 w-7 shrink-0 text-violet-600" aria-hidden />
-              {o.pageTitle}
-            </h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">{o.introLine}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/messaging">{pm.goToInbox}</Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/messaging/settings">{pm.messagingSettingsLink}</Link>
-            </Button>
-          </div>
+    <div className="app-shell flex min-h-[calc(100dvh-5rem)] flex-col space-y-3 md:space-y-4">
+      <div className="section-surface flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3 md:pb-4">
+        <h1 className="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-tight sm:text-xl">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400">
+            <ClipboardList className="h-4 w-4" aria-hidden />
+          </span>
+          <span className="leading-snug">{o.pageTitle}</span>
+        </h1>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button variant="outline" size="sm" className="h-8 text-xs" asChild>
+            <Link href="/dashboard/messaging">{pm.goToInbox}</Link>
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" asChild>
+            <Link href="/dashboard/messaging/settings">{pm.messagingSettingsLink}</Link>
+          </Button>
         </div>
       </div>
       <PartnerMessagingOrdersClient initialPartners={rows ?? []} ordersT={o} locale={locale} />

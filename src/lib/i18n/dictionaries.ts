@@ -420,6 +420,7 @@ export type Dictionary = {
     statusPendingManualReview: string
     statusCancelled: string
     emptyList: string
+    emptyFiltered: string
     shippingPending: string
     shippingConfirmed: string
     shippingPacking: string
@@ -453,6 +454,7 @@ export type Dictionary = {
     timelineTitle: string
     timelinePickOrder: string
     timelineNoEvents: string
+    timelineLoading: string
     toastStatusUpdated: string
     toastShippingUpdated: string
     /** {count} {filename} */
@@ -472,6 +474,64 @@ export type Dictionary = {
     proofReceiptShortFailed: string
     proofReceiptShortManual: string
     proofReceiptShortNone: string
+    /** Tab tóm tắt theo giai đoạn xử lý đơn (bảng shop) */
+    tabAll: string
+    tabAwaitDeposit: string
+    tabAwaitShip: string
+    tabAwaitReceive: string
+    tabReceived: string
+    tabReviewed: string
+    tabCancelled: string
+    tableColOrderCode: string
+    tableColConsulted: string
+    tableColCustomer: string
+    tableColSubtotal: string
+    /** Theo cấu hình đơn (khoản cọc / thanh toán ngay) */
+    tableColDepositRequired: string
+    /** Đã ghi nhận thanh toán */
+    tableColPaidAmount: string
+    /** max(0, tổng tiền hàng − đã thanh toán) */
+    tableColDueOnDelivery: string
+    tableColStatus: string
+    tableColOrderDate: string
+    tableColActions: string
+    filterShippingLabel: string
+    filterPaymentShort: string
+    clearTableFilters: string
+    consultedAria: string
+    reviewedAria: string
+    expandRow: string
+    collapseRow: string
+    listCapNote: string
+    consultLocalHint: string
+    badgePayAwaiting: string
+    badgePayPartial: string
+    badgePayDone: string
+    btnConfirmDeposit: string
+    tableDetails: string
+    /** Modal chi tiết đơn — `{id}` = UUID đơn */
+    modalTitle: string
+    modalInternalIdLine: string
+    modalConsultedCustomer: string
+    modalPaymentHeading: string
+    modalOrderTotal: string
+    modalDepositNeed: string
+    modalDepositDeposited: string
+    modalCodAfterDeposit: string
+    modalProductsHeading: string
+    modalColImage: string
+    modalColProduct: string
+    modalCopyAddress: string
+    toastAddressCopied: string
+    toastAddressCopyFailed: string
+    modalSkuPrefix: string
+    modalColor: string
+    modalSize: string
+    modalQty: string
+    modalOrderUnavailable: string
+    modalOrderNoteLabel: string
+    modalShippingAddressHeading: string
+    modalContactSectionTitle: string
   }
   /** /dashboard/messaging — trợ lý AI (chờ nhân viên + LLM / kho) */
   partnerMessagingAi: {
@@ -2334,6 +2394,7 @@ const VI_DICTIONARY: Dictionary = {
     statusPendingManualReview: 'Cần duyệt tay',
     statusCancelled: 'Đã hủy',
     emptyList: 'Chưa có đơn hàng nào.',
+    emptyFiltered: 'Không có đơn nào khớp bộ lọc.',
     shippingPending: 'Chờ xác nhận',
     shippingConfirmed: 'Đã xác nhận đơn',
     shippingPacking: 'Đang đóng gói',
@@ -2366,6 +2427,7 @@ const VI_DICTIONARY: Dictionary = {
     timelineTitle: 'Lịch sử đơn hàng',
     timelinePickOrder: 'Chọn một đơn bên trái để xem lịch sử sự kiện.',
     timelineNoEvents: 'Chưa có sự kiện.',
+    timelineLoading: 'Đang tải lịch sử…',
     toastStatusUpdated: 'Đã cập nhật trạng thái đơn.',
     toastShippingUpdated: 'Đã cập nhật giao hàng và thông báo về chat.',
     toastExportDone: 'Đã tải {count} đơn ({filename}).',
@@ -2380,6 +2442,59 @@ const VI_DICTIONARY: Dictionary = {
     proofReceiptShortFailed: 'Biên lai: không khớp',
     proofReceiptShortManual: 'Biên lai: cần duyệt tay',
     proofReceiptShortNone: 'Biên lai: chưa có',
+    tabAll: 'Tất cả',
+    tabAwaitDeposit: 'Chờ đặt cọc',
+    tabAwaitShip: 'Chờ gửi hàng',
+    tabAwaitReceive: 'Chờ nhận hàng',
+    tabReceived: 'Đã nhận hàng',
+    tabReviewed: 'Đã đánh giá',
+    tabCancelled: 'Đã hủy',
+    tableColOrderCode: 'Mã đơn',
+    tableColConsulted: 'Đã liên hệ tư vấn',
+    tableColCustomer: 'Khách hàng',
+    tableColSubtotal: 'Tổng tiền hàng',
+    tableColDepositRequired: 'Tiền cọc cần thu',
+    tableColPaidAmount: 'Đã thanh toán',
+    tableColDueOnDelivery: 'Còn lại khi nhận hàng',
+    tableColStatus: 'Trạng thái',
+    tableColOrderDate: 'Ngày đặt',
+    tableColActions: 'Thao tác',
+    filterShippingLabel: 'Tất cả trạng thái',
+    filterPaymentShort: 'TT thanh toán',
+    clearTableFilters: 'Xóa bộ lọc',
+    consultedAria: 'Đã liên hệ tư vấn (lưu trên trình duyệt này)',
+    reviewedAria: 'Khách đã đánh giá (lưu trên trình duyệt này)',
+    expandRow: 'Mở rộng',
+    collapseRow: 'Thu gọn',
+    listCapNote: 'Danh sách tối đa 200 đơn mới nhất theo bộ lọc ngày / workspace.',
+    consultLocalHint: 'Ghi nhớ trên trình duyệt này; không đồng bộ giữa máy.',
+    badgePayAwaiting: 'Chờ thanh toán',
+    badgePayPartial: 'Đã đặt cọc',
+    badgePayDone: 'Đã thanh toán đủ',
+    btnConfirmDeposit: 'Xác nhận cọc',
+    tableDetails: 'Chi tiết',
+    modalTitle: 'Chi tiết đơn hàng',
+    modalInternalIdLine: 'ID đơn nội bộ: {id}',
+    modalConsultedCustomer: 'Đã liên hệ tư vấn khách',
+    modalPaymentHeading: 'Thanh toán',
+    modalOrderTotal: 'Tổng đơn',
+    modalDepositNeed: 'Cần',
+    modalDepositDeposited: 'Đã cọc',
+    modalCodAfterDeposit: 'Số tiền thanh toán khi nhận hàng (sau cọc)',
+    modalProductsHeading: 'Sản phẩm',
+    modalColImage: 'Ảnh',
+    modalColProduct: 'Sản phẩm',
+    modalCopyAddress: 'Sao chép',
+    toastAddressCopied: 'Đã sao chép địa chỉ',
+    toastAddressCopyFailed: 'Không sao chép được địa chỉ',
+    modalSkuPrefix: 'Mã SP (ID):',
+    modalColor: 'Màu',
+    modalSize: 'Size',
+    modalQty: 'Số lượng',
+    modalOrderUnavailable: 'Không thấy đơn trong danh sách hiện tại. Thử Tải lại hoặc đóng.',
+    modalOrderNoteLabel: 'Ghi chú đơn',
+    modalShippingAddressHeading: 'Địa chỉ nhận hàng',
+    modalContactSectionTitle: 'Khách hàng & xử lý đơn',
   },
   partnerMessagingAi: {
     panelTitle: 'Trợ lý AI tự động',
@@ -4236,6 +4351,7 @@ const EN_DICTIONARY: Dictionary = {
     statusPendingManualReview: 'Needs manual review',
     statusCancelled: 'Cancelled',
     emptyList: 'No orders yet.',
+    emptyFiltered: 'No orders match your filters.',
     shippingPending: 'Pending confirmation',
     shippingConfirmed: 'Order confirmed',
     shippingPacking: 'Packing',
@@ -4268,6 +4384,7 @@ const EN_DICTIONARY: Dictionary = {
     timelineTitle: 'Order timeline',
     timelinePickOrder: 'Select an order on the left to see events.',
     timelineNoEvents: 'No events yet.',
+    timelineLoading: 'Loading timeline…',
     toastStatusUpdated: 'Order status updated.',
     toastShippingUpdated: 'Shipping updated and chat notified.',
     toastExportDone: 'Downloaded {count} orders ({filename}).',
@@ -4282,6 +4399,59 @@ const EN_DICTIONARY: Dictionary = {
     proofReceiptShortFailed: 'Receipt: mismatch',
     proofReceiptShortManual: 'Receipt: manual review',
     proofReceiptShortNone: 'Receipt: none',
+    tabAll: 'All',
+    tabAwaitDeposit: 'Awaiting deposit',
+    tabAwaitShip: 'Ready to ship',
+    tabAwaitReceive: 'Out for delivery',
+    tabReceived: 'Received',
+    tabReviewed: 'Reviewed',
+    tabCancelled: 'Cancelled',
+    tableColOrderCode: 'Order #',
+    tableColConsulted: 'Consult done',
+    tableColCustomer: 'Customer',
+    tableColSubtotal: 'Order total',
+    tableColDepositRequired: 'Deposit due',
+    tableColPaidAmount: 'Paid',
+    tableColDueOnDelivery: 'Balance on delivery',
+    tableColStatus: 'Status',
+    tableColOrderDate: 'Placed',
+    tableColActions: 'Actions',
+    filterShippingLabel: 'Shipping status',
+    filterPaymentShort: 'Payment status',
+    clearTableFilters: 'Clear filters',
+    consultedAria: 'Consulted (stored in this browser)',
+    reviewedAria: 'Customer reviewed (stored in this browser)',
+    expandRow: 'Expand',
+    collapseRow: 'Collapse',
+    listCapNote: 'Showing up to 200 latest orders for the current workspace + date filters.',
+    consultLocalHint: 'Saved in this browser only; not synced across devices.',
+    badgePayAwaiting: 'Awaiting payment',
+    badgePayPartial: 'Deposit placed',
+    badgePayDone: 'Fully paid',
+    btnConfirmDeposit: 'Confirm deposit',
+    tableDetails: 'Details',
+    modalTitle: 'Order details',
+    modalInternalIdLine: 'Internal order ID: {id}',
+    modalConsultedCustomer: 'Contacted customer for consultation',
+    modalPaymentHeading: 'Payment',
+    modalOrderTotal: 'Order total',
+    modalDepositNeed: 'Required',
+    modalDepositDeposited: 'Deposited',
+    modalCodAfterDeposit: 'Amount due on delivery (after deposit)',
+    modalProductsHeading: 'Products',
+    modalColImage: 'Image',
+    modalColProduct: 'Product',
+    modalCopyAddress: 'Copy',
+    toastAddressCopied: 'Address copied',
+    toastAddressCopyFailed: 'Could not copy address',
+    modalSkuPrefix: 'SKU (ID):',
+    modalColor: 'Color',
+    modalSize: 'Size',
+    modalQty: 'Qty',
+    modalOrderUnavailable: 'This order is not in the current list. Try reloading or close.',
+    modalOrderNoteLabel: 'Order note',
+    modalShippingAddressHeading: 'Shipping address',
+    modalContactSectionTitle: 'Customer & order handling',
   },
   partnerMessagingAi: {
     panelTitle: 'AI auto-replies',
@@ -6136,6 +6306,7 @@ const ZH_DICTIONARY: Dictionary = {
     statusPendingManualReview: '需人工审核',
     statusCancelled: '已取消',
     emptyList: '暂无订单。',
+    emptyFiltered: '没有符合筛选条件的订单。',
     shippingPending: '待确认',
     shippingConfirmed: '已确认订单',
     shippingPacking: '打包中',
@@ -6168,6 +6339,7 @@ const ZH_DICTIONARY: Dictionary = {
     timelineTitle: '订单时间线',
     timelinePickOrder: '在左侧选择一个订单查看事件记录。',
     timelineNoEvents: '暂无事件。',
+    timelineLoading: '正在加载记录…',
     toastStatusUpdated: '订单状态已更新。',
     toastShippingUpdated: '物流已更新并已通知聊天。',
     toastExportDone: '已下载 {count} 条订单（{filename}）。',
@@ -6182,6 +6354,59 @@ const ZH_DICTIONARY: Dictionary = {
     proofReceiptShortFailed: '回单：不匹配',
     proofReceiptShortManual: '回单：需人工',
     proofReceiptShortNone: '回单：无',
+    tabAll: '全部',
+    tabAwaitDeposit: '待付定金',
+    tabAwaitShip: '待发货',
+    tabAwaitReceive: '待收货',
+    tabReceived: '已收货',
+    tabReviewed: '已评价',
+    tabCancelled: '已取消',
+    tableColOrderCode: '订单号',
+    tableColConsulted: '已咨询',
+    tableColCustomer: '客户',
+    tableColSubtotal: '货款合计',
+    tableColDepositRequired: '应付定金',
+    tableColPaidAmount: '已付金额',
+    tableColDueOnDelivery: '收货时剩余',
+    tableColStatus: '状态',
+    tableColOrderDate: '下单时间',
+    tableColActions: '操作',
+    filterShippingLabel: '物流状态',
+    filterPaymentShort: '支付状态',
+    clearTableFilters: '清除筛选',
+    consultedAria: '已咨询（仅本浏览器）',
+    reviewedAria: '客户已评价（仅本浏览器）',
+    expandRow: '展开',
+    collapseRow: '收起',
+    listCapNote: '在当前工作区与日期筛选下，列表最多显示 200 条最新订单。',
+    consultLocalHint: '仅保存在本浏览器，不会在设备间同步。',
+    badgePayAwaiting: '待付款',
+    badgePayPartial: '已付定金',
+    badgePayDone: '已付清',
+    btnConfirmDeposit: '确认定金',
+    tableDetails: '详情',
+    modalTitle: '订单详情',
+    modalInternalIdLine: '内部订单 ID：{id}',
+    modalConsultedCustomer: '已联系客户咨询',
+    modalPaymentHeading: '支付',
+    modalOrderTotal: '订单总额',
+    modalDepositNeed: '应付',
+    modalDepositDeposited: '已付定金',
+    modalCodAfterDeposit: '收货时需付余额（扣除定金后）',
+    modalProductsHeading: '商品',
+    modalColImage: '图片',
+    modalColProduct: '商品',
+    modalCopyAddress: '复制',
+    toastAddressCopied: '已复制地址',
+    toastAddressCopyFailed: '无法复制地址',
+    modalSkuPrefix: '商品码（ID）：',
+    modalColor: '颜色',
+    modalSize: '尺码',
+    modalQty: '数量',
+    modalOrderUnavailable: '当前列表中找不到此订单。请刷新或关闭。',
+    modalOrderNoteLabel: '订单备注',
+    modalShippingAddressHeading: '收货地址',
+    modalContactSectionTitle: '客户与订单处理',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自动回复',
@@ -7977,6 +8202,7 @@ const JA_DICTIONARY: Dictionary = {
     statusPendingManualReview: '手動確認要',
     statusCancelled: 'キャンセル',
     emptyList: '注文はまだありません。',
+    emptyFiltered: '条件に一致する注文がありません。',
     shippingPending: '未確認',
     shippingConfirmed: '注文確認済',
     shippingPacking: '梱包中',
@@ -8009,6 +8235,7 @@ const JA_DICTIONARY: Dictionary = {
     timelineTitle: '注文タイムライン',
     timelinePickOrder: '左の一覧で注文を選ぶとイベント履歴が表示されます。',
     timelineNoEvents: 'イベントはまだありません。',
+    timelineLoading: '履歴を読み込み中…',
     toastStatusUpdated: '注文ステータスを更新しました。',
     toastShippingUpdated: '配送を更新しチャットに通知しました。',
     toastExportDone: '{count} 件をダウンロードしました（{filename}）。',
@@ -8023,6 +8250,59 @@ const JA_DICTIONARY: Dictionary = {
     proofReceiptShortFailed: '領収：不一致',
     proofReceiptShortManual: '領収：要確認',
     proofReceiptShortNone: '領収：なし',
+    tabAll: 'すべて',
+    tabAwaitDeposit: '入金待ち（手付）',
+    tabAwaitShip: '発送待ち',
+    tabAwaitReceive: '受取待ち',
+    tabReceived: '受取済み',
+    tabReviewed: 'レビュー済み',
+    tabCancelled: 'キャンセル',
+    tableColOrderCode: '注文番号',
+    tableColConsulted: '相談済',
+    tableColCustomer: 'お客様',
+    tableColSubtotal: '商品合計',
+    tableColDepositRequired: '手付金（請求）',
+    tableColPaidAmount: '入金済',
+    tableColDueOnDelivery: '着払い残高',
+    tableColStatus: 'ステータス',
+    tableColOrderDate: '注文日時',
+    tableColActions: '操作',
+    filterShippingLabel: '配送ステータス',
+    filterPaymentShort: '支払い状態',
+    clearTableFilters: 'フィルターをクリア',
+    consultedAria: '相談済（このブラウザのみ保存）',
+    reviewedAria: 'レビュー済（このブラウザのみ保存）',
+    expandRow: '展開',
+    collapseRow: '折りたたむ',
+    listCapNote: 'ワークスペースと日付の条件で、最新 200 件まで表示します。',
+    consultLocalHint: 'このブラウザにのみ保存。端末間では同期されません。',
+    badgePayAwaiting: '支払い待ち',
+    badgePayPartial: '手付済',
+    badgePayDone: '支払い完了',
+    btnConfirmDeposit: '手付を確認',
+    tableDetails: '詳細',
+    modalTitle: '注文の詳細',
+    modalInternalIdLine: '内部注文 ID: {id}',
+    modalConsultedCustomer: '顧客へ相談連絡済み',
+    modalPaymentHeading: 'お支払い',
+    modalOrderTotal: '注文合計',
+    modalDepositNeed: '必要額',
+    modalDepositDeposited: '入金済（手付）',
+    modalCodAfterDeposit: '受取時のお支払い額（手付控除後）',
+    modalProductsHeading: '商品',
+    modalColImage: '画像',
+    modalColProduct: '商品',
+    modalCopyAddress: 'コピー',
+    toastAddressCopied: '住所をコピーしました',
+    toastAddressCopyFailed: '住所をコピーできませんでした',
+    modalSkuPrefix: 'SKU（ID）:',
+    modalColor: '色',
+    modalSize: 'サイズ',
+    modalQty: '数量',
+    modalOrderUnavailable: '現在の一覧に注文がありません。再読み込みするか閉じてください。',
+    modalOrderNoteLabel: '注文メモ',
+    modalShippingAddressHeading: 'お届け先住所',
+    modalContactSectionTitle: 'お客様・注文の対応',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自動返信',
@@ -9862,6 +10142,7 @@ const KO_DICTIONARY: Dictionary = {
     statusPendingManualReview: '수동 검토 필요',
     statusCancelled: '취소됨',
     emptyList: '주문이 없습니다.',
+    emptyFiltered: '필터와 일치하는 주문이 없습니다.',
     shippingPending: '확인 대기',
     shippingConfirmed: '주문 확인됨',
     shippingPacking: '포장 중',
@@ -9894,6 +10175,7 @@ const KO_DICTIONARY: Dictionary = {
     timelineTitle: '주문 타임라인',
     timelinePickOrder: '왼쪽에서 주문을 선택하면 이벤트 기록을 볼 수 있습니다.',
     timelineNoEvents: '이벤트가 없습니다.',
+    timelineLoading: '기록을 불러오는 중…',
     toastStatusUpdated: '주문 상태를 업데이트했습니다.',
     toastShippingUpdated: '배송을 업데이트하고 채팅에 알렸습니다.',
     toastExportDone: '{count}건을 다운로드했습니다({filename}).',
@@ -9908,6 +10190,59 @@ const KO_DICTIONARY: Dictionary = {
     proofReceiptShortFailed: '영수증: 불일치',
     proofReceiptShortManual: '영수증: 수동 검토',
     proofReceiptShortNone: '영수증: 없음',
+    tabAll: '전체',
+    tabAwaitDeposit: '예치금 대기',
+    tabAwaitShip: '발송 대기',
+    tabAwaitReceive: '수령 대기',
+    tabReceived: '수령 완료',
+    tabReviewed: '리뷰 작성',
+    tabCancelled: '취소됨',
+    tableColOrderCode: '주문번호',
+    tableColConsulted: '상담 완료',
+    tableColCustomer: '고객',
+    tableColSubtotal: '상품 합계',
+    tableColDepositRequired: '예치금(청구)',
+    tableColPaidAmount: '결제 완료액',
+    tableColDueOnDelivery: '수령 시 잔액',
+    tableColStatus: '상태',
+    tableColOrderDate: '주문일시',
+    tableColActions: '작업',
+    filterShippingLabel: '배송 상태',
+    filterPaymentShort: '결제 상태',
+    clearTableFilters: '필터 지우기',
+    consultedAria: '상담 완료(이 브라우저에만 저장)',
+    reviewedAria: '리뷰 작성됨(이 브라우저에만 저장)',
+    expandRow: '펼치기',
+    collapseRow: '접기',
+    listCapNote: '워크스페이스·날짜 필터 기준 최신 200건까지 표시합니다.',
+    consultLocalHint: '이 브라우저에만 저장되며 기기 간 동기화되지 않습니다.',
+    badgePayAwaiting: '결제 대기',
+    badgePayPartial: '예치 완료',
+    badgePayDone: '결제 완료',
+    btnConfirmDeposit: '예치 확인',
+    tableDetails: '자세히',
+    modalTitle: '주문 상세',
+    modalInternalIdLine: '내부 주문 ID: {id}',
+    modalConsultedCustomer: '고객 상담 연락 완료',
+    modalPaymentHeading: '결제',
+    modalOrderTotal: '주문 합계',
+    modalDepositNeed: '필요 금액',
+    modalDepositDeposited: '예치 완료',
+    modalCodAfterDeposit: '수령 시 결제 금액(예치 차감 후)',
+    modalProductsHeading: '상품',
+    modalColImage: '이미지',
+    modalColProduct: '상품',
+    modalCopyAddress: '복사',
+    toastAddressCopied: '주소를 복사했습니다',
+    toastAddressCopyFailed: '주소를 복사하지 못했습니다',
+    modalSkuPrefix: 'SKU(ID):',
+    modalColor: '색상',
+    modalSize: '사이즈',
+    modalQty: '수량',
+    modalOrderUnavailable: '현재 목록에 주문이 없습니다. 새로고침하거나 닫으세요.',
+    modalOrderNoteLabel: '주문 메모',
+    modalShippingAddressHeading: '배송지 주소',
+    modalContactSectionTitle: '고객·주문 처리',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 자동 답장',
