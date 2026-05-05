@@ -143,6 +143,7 @@ function defaultsFromSettings(s: SettingsRow | null) {
     typing_pause_min_ms: s?.typing_pause_min_ms ?? 650,
     typing_pause_max_ms: s?.typing_pause_max_ms ?? 1150,
     shop_policy: s?.shop_policy ?? '',
+    product_consultation_context: s?.product_consultation_context ?? '',
     tone_instructions: s?.tone_instructions ?? '',
     sales_coaching_instructions: s?.sales_coaching_instructions ?? '',
     append_ai_disclosure: s?.append_ai_disclosure ?? true,
@@ -179,6 +180,7 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
     typing_pause_min_ms: f.typing_pause_min_ms,
     typing_pause_max_ms: f.typing_pause_max_ms,
     shop_policy: f.shop_policy,
+    product_consultation_context: f.product_consultation_context,
     tone_instructions: f.tone_instructions,
     sales_coaching_instructions: f.sales_coaching_instructions,
     append_ai_disclosure: f.append_ai_disclosure,
@@ -807,6 +809,20 @@ export function PartnerAiSettingsPanel({
                 placeholder={t.shopPolicyPlaceholder}
                 value={form.shop_policy}
                 onChange={(e) => setForm((f) => ({ ...f, shop_policy: e.target.value }))}
+                className="resize-y min-h-[100px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ai-product-consult-context">{t.productConsultationContextLabel}</Label>
+              <p className="text-xs text-muted-foreground">{t.productConsultationContextHint}</p>
+              <Textarea
+                id="ai-product-consult-context"
+                rows={4}
+                placeholder={t.productConsultationContextPlaceholder}
+                value={form.product_consultation_context}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, product_consultation_context: e.target.value }))
+                }
                 className="resize-y min-h-[100px]"
               />
             </div>

@@ -492,15 +492,26 @@ function formatPartnerAiCardConsultIsolatedTranscript(): string {
 Khách vừa bấm **Tư vấn** trên một thẻ trong chat (hoặc đang hỏi tiếp **đúng** mã/inventory đó). **Cấm** tham chiếu chủ đề hay đoạn chat cũ (vd. đã hỏi loại hàng khác — túi/váy/giày…) — **chỉ** tư vấn theo **danh sách kho** trong prompt và **«Tin nhắn mới nhất của khách»** bên dưới.`
 }
 
+function buildProductConsultationContextBlock(settings: SettingsRow): string {
+  const context = settings.product_consultation_context?.trim()
+  if (!context) return ''
+  return `
+
+[Thông tin shop luôn phải tôn trọng khi tư vấn sản phẩm]
+${context}`
+}
+
 function buildPartnerAiClarifyShoppingIntentSystem(
   settings: SettingsRow,
   effectiveLocaleOpts: { channel?: string | null; uiLocale?: string | null } | undefined
 ): string {
   const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
+  const productConsultationContextBlock = buildProductConsultationContextBlock(settings)
   return `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 ${PARTNER_AI_TRANSCRIPT_READING_CONVENTION}
 ${PARTNER_AI_ALTERNATIVE_MODEL_QUERY_DOCTRINE}
+${productConsultationContextBlock}
 
 [Tình huống bắt buộc — làm rõ ý định khách / tư vấn mua hàng]
 Tin khách **chưa rõ** (kể cả than phiền kiểu «không vào được», «lỗi», «không mở được» — **đừng** coi đó là yêu cầu hỗ trợ kỹ thuật web/app hay hỏi lỗi cụ thể).
@@ -571,9 +582,11 @@ function buildPartnerAiPauseConversationSystem(
   effectiveLocaleOpts: { channel?: string | null; uiLocale?: string | null } | undefined
 ): string {
   const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
+  const productConsultationContextBlock = buildProductConsultationContextBlock(settings)
   return `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 ${PARTNER_AI_TRANSCRIPT_READING_CONVENTION}
+${productConsultationContextBlock}
 
 [Tình huống bắt buộc — khách muốn tạm dừng cuộc trò chuyện]
 Tin khách là phản hồi chốt nhẹ kiểu "ok/oki/cảm ơn/để xem thêm", thể hiện muốn dừng tạm thời.
@@ -1277,6 +1290,7 @@ Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng các
   }
 
   const policy = settings.shop_policy?.trim() || '(Shop chưa nhập chính sách.)'
+  const productConsultationContextBlock = buildProductConsultationContextBlock(settings)
   const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
   const defaultSalesConversion = partnerAiRouteIntent
     ? defaultSalesConversionForIntent(partnerAiRouteIntent)
@@ -1359,6 +1373,7 @@ ${PARTNER_AI_TRANSCRIPT_READING_CONVENTION}
 ${PARTNER_AI_ALTERNATIVE_MODEL_QUERY_DOCTRINE}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
 ${policy}${partnerPaymentPolicyBlock}
+${productConsultationContextBlock}
 ${salesDefaultBlock}${salesConversionRouterBlock}
 ${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum} Chỉ giới thiệu sản phẩm từ danh sách đó. Khi giới thiệu hoặc so sánh mặt hàng cụ thể, ưu tiên nói **lợi ích cho khách** (thẩm mỹ, độ phù hợp, sự thoải mái…) xuất phát từ thông tin trong kho, không chỉ đọc giá/mã. Nếu không có đúng sản phẩm trong danh sách, nói rõ chưa thấy thông tin khớp và chuyển hướng tư vấn: hỏi khách có muốn xem sản phẩm tương tự đang có trong kho không.
 Khi khách hỏi về chất liệu/vải/vật liệu: ưu tiên trả lời theo trường "Chất liệu (đã lưu/kho)" hoặc mô tả/ghi chú trong dòng kho nếu có; không bịa chất liệu ngoài dữ liệu đã cho.

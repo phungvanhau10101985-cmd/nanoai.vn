@@ -57,7 +57,17 @@ type GuestVisionCandidatePayload = {
   sku: string | null
   image_url: string
   product_url?: string
+  price_hint?: string
   score?: number
+}
+
+export type WidgetGuestImageBatchItemResult = {
+  imageStoragePath: string
+  imagePublicUrl: string | null
+  messageId: string | null
+  productPickCandidates: GuestVisionCandidatePayload[]
+  autoSelectedTopCandidate: GuestVisionCandidatePayload | null
+  paymentVerificationHandled: boolean
 }
 
 type ImageProductSignal = {
@@ -420,6 +430,8 @@ export async function postWidgetGuestMessage(params: {
   uiLocale?: string | null
   text?: string
   imageStoragePath?: string
+  /** Batch nhiều ảnh: vẫn lưu/tìm từng ảnh, nhưng route sẽ tự chèn một phản hồi tổng hợp. */
+  deferImageBatchReply?: boolean
   /** Tin mở đầu tự động từ link tư vấn (chưa có tương tác nhắn lại). */
   autoOpening?: boolean
   /** URL trang lúc gửi (vd. `window.location.href`) — cột `landing_source_url` cho nguồn traffic / feed Google Facebook. */
@@ -440,6 +452,9 @@ export async function postWidgetGuestMessage(params: {
       shopTyping?: { maxWaitMs: number }
       visionPickRequired?: boolean
       paymentVerificationHandled?: boolean
+      conversationId?: string
+      messageId?: string | null
+      imageBatchItem?: WidgetGuestImageBatchItemResult
     }
   | { error: string; requireAuth?: boolean }
 > {
@@ -918,7 +933,8 @@ export async function postWidgetGuestMessage(params: {
 
   let shopTyping: { maxWaitMs: number } | undefined
   const visionPickRequired = productPickCandidates.length > 0 && !autoSelectedTopCandidate
-  const shouldSendVisionPickReminder = Boolean(imagePath) && visionPickRequired && !imageSkuMatchDirectConsult
+  const shouldSendVisionPickReminder =
+    !params.deferImageBatchReply && Boolean(imagePath) && visionPickRequired && !imageSkuMatchDirectConsult
   let paymentVerificationHandled = false
 
   if (newMessageId && imagePath && deferredPaymentVerify) {
@@ -985,7 +1001,7 @@ export async function postWidgetGuestMessage(params: {
       .join('\n')
     // Khi đã có gợi ý vector (ảnh hoặc chữ), chờ khách chọn SP — không gọi LLM tư vấn trước.
     // Ảnh biên lai CK: đã định tuyến đối chiếu thanh toán — không gọi LLM gợi ý SP.
-    if (!isAutoOpening && !visionPickRequired && !deferredPaymentVerify) {
+    if (!params.deferImageBatchReply && !isAutoOpening && !visionPickRequired && !deferredPaymentVerify) {
       const inboundForAi = [inboundTextForPartnerAi(body, imagePublicUrl), aiContextHints].filter(Boolean).join('\n')
       const hint = await handlePartnerInboundForAi({
         partnerId: params.partnerId,
@@ -1004,8 +1020,21 @@ export async function postWidgetGuestMessage(params: {
 
   return {
     ok: true,
+    conversationId,
+    messageId: newMessageId,
     shopTyping,
     visionPickRequired: visionPickRequired || undefined,
     paymentVerificationHandled: paymentVerificationHandled || undefined,
+    imageBatchItem:
+      params.deferImageBatchReply && imagePath
+        ? {
+            imageStoragePath: imagePath,
+            imagePublicUrl,
+            messageId: newMessageId,
+            productPickCandidates,
+            autoSelectedTopCandidate,
+            paymentVerificationHandled,
+          }
+        : undefined,
   }
 }

@@ -9,14 +9,20 @@ import {
 } from '@/lib/db/customer-care-pg'
 import {
   fetchLatestAwaitingPaymentOrderForPartnerThreadFromPg,
+  fetchPartnerOrderLinesFromPg,
   fetchPartnerOrderByIdForPartnerFromPg,
   fetchPartnerPaymentSettingsFromPg,
   insertPartnerOrderDraftFromPg,
   insertPartnerOrderEventFromPg,
   insertPartnerPaymentProofFromPg,
   parseVndAmountFromText,
+  replacePartnerOrderLinesFromPg,
+  syncPrimaryPartnerOrderLineFromOrderFromPg,
   type PartnerOrderRow,
+  type PartnerOrderLineRow,
+  type PartnerOrderLineUpsertInput,
   type PartnerPaymentSettingsRow,
+  updatePartnerOrderCartCheckoutFromPg,
   updatePartnerOrderCheckoutFromPg,
   updatePartnerOrderPaymentVerificationFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
@@ -119,6 +125,19 @@ export type CheckoutFormInput = {
   note: string
   /** URL ảnh màu/mẫu (palette) khách đã chọn — lưu JSON vào DB khi checkout. */
   variantLineImages?: string[]
+}
+
+export type CartCheckoutLineInput = {
+  card: PartnerAiProductCard
+  color?: string
+  size?: string
+  quantity?: number
+  note?: string
+  variantLineImages?: string[]
+}
+
+export type CartCheckoutFormInput = Omit<CheckoutFormInput, 'color' | 'size' | 'quantity' | 'variantLineImages'> & {
+  lines: CartCheckoutLineInput[]
 }
 
 function variantLineImagesToStoredJson(urls: string[] | undefined): string {
@@ -349,7 +368,8 @@ function partnerPaymentDisplayFromSettings(settings: PartnerPaymentSettingsRow):
 
 function orderCardPayload(
   order: PartnerOrderRow,
-  paymentDisplay: { bank_name: string; account_number: string; account_holder: string } | null
+  paymentDisplay: { bank_name: string; account_number: string; account_holder: string } | null,
+  lines?: PartnerOrderLineRow[]
 ): Record<string, unknown> {
   const remaining = Math.max(0, Math.round(order.subtotal_amount - order.required_amount))
   const base: Record<string, unknown> = {
@@ -369,6 +389,22 @@ function orderCardPayload(
       product_url: order.product_url,
       price_hint: String(Math.max(0, Math.round(order.unit_price))),
     },
+  }
+  const orderLines = (lines ?? []).map((line) => ({
+    id: line.id,
+    product_inventory_id: line.product_inventory_id,
+    product_name: line.product_name,
+    product_image_url: line.product_image_url,
+    product_url: line.product_url,
+    unit_price: line.unit_price,
+    quantity: line.quantity,
+    line_subtotal: line.line_subtotal,
+    variant_color: line.variant_color,
+    variant_size: line.variant_size,
+  }))
+  if (orderLines.length > 0) {
+    base.order_items = orderLines
+    base.order_item_count = orderLines.length
   }
   if (paymentDisplay && order.required_amount > 0) {
     base.order_bank_name = paymentDisplay.bank_name
@@ -557,6 +593,8 @@ export async function completeOrderCheckout(input: {
     paymentQrUrl: qrUrl,
   })
   if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
+  await syncPrimaryPartnerOrderLineFromOrderFromPg(updated)
+  const updatedLines = await fetchPartnerOrderLinesFromPg(updated.id)
   const em = trim(input.form.customerEmail, 180).toLowerCase()
   if (em) {
     await upsertPartnerCustomerProfileByEmailFromPg({
@@ -590,7 +628,7 @@ export async function completeOrderCheckout(input: {
           `Tổng tiền: ${toVnd(updated.subtotal_amount)} | Thanh toán trước: 0đ.\n` +
           `Thanh toán khi nhận hàng: ${toVnd(updated.subtotal_amount)}.\n` +
           `Đơn này không yêu cầu đặt cọc trước. Shop sẽ liên hệ xác nhận đơn và giao hàng.`,
-    rawPayload: toJson(orderCardPayload(updated, paymentDisplay)),
+    rawPayload: toJson(orderCardPayload(updated, paymentDisplay, updatedLines)),
   })
   await insertPartnerOrderEventFromPg({
     orderId: updated.id,
@@ -606,6 +644,208 @@ export async function completeOrderCheckout(input: {
     })
   } catch (e) {
     console.warn('[completeOrderCheckout] email', e)
+  }
+  queuePartnerOrderGoogleSheetsSync(input.partnerId, updated.id)
+  return { ok: true, order: updated }
+}
+
+async function cartInputLineToOrderLine(input: {
+  partnerId: string
+  linkedUserId?: string | null
+  line: CartCheckoutLineInput
+  sortOrder: number
+}): Promise<PartnerOrderLineUpsertInput | null> {
+  const productUrl = trim(input.line.card.product_url, 600)
+  if (!/^https?:\/\//i.test(productUrl)) return null
+  const inv = await fetchPartnerInventoryRowByProductUrlFromPg(input.partnerId, productUrl)
+  let baseUnit = deriveUnitPriceFromCard(input.line.card)
+  const invHint = inv?.price_hint?.trim()
+  if (invHint) {
+    const fromInv = parseVndAmountFromText(invHint)
+    if (fromInv > 0) baseUnit = fromInv
+  }
+  const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
+    input.partnerId,
+    input.linkedUserId ?? null
+  )
+  const unitPrice =
+    bdayPct != null && bdayPct > 0
+      ? Math.max(0, Math.round((baseUnit * (100 - bdayPct)) / 100))
+      : Math.max(0, Math.round(baseUnit))
+  return {
+    productInventoryId: inv?.id ?? input.line.card.inventory_id ?? null,
+    productName: trim(inv?.name || input.line.card.name, 180),
+    productImageUrl: trim(inv?.image_url || input.line.card.image_url, 600),
+    productUrl: trim(inv?.product_url || productUrl, 600),
+    unitPrice,
+    quantity: Math.max(1, Math.min(99, Math.floor(Number(input.line.quantity) || 1))),
+    variantColor: trim(input.line.color ?? '', 2000),
+    variantSize: trim(input.line.size ?? '', 2000),
+    variantImageUrlsJson: variantLineImagesToStoredJson(input.line.variantLineImages),
+    note: trim(input.line.note ?? '', 800),
+    sortOrder: input.sortOrder,
+  }
+}
+
+export async function completeCartCheckout(input: {
+  partnerId: string
+  externalThreadId: string
+  customerName: string
+  form: CartCheckoutFormInput
+  linkedUserId?: string | null
+  guestAccountId?: string | null
+}): Promise<{ ok: true; order: PartnerOrderRow } | { error: string }> {
+  const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
+  if (!settings) return { error: 'Shop chưa cài đặt thanh toán.' }
+
+  const conv = await ensureConversationPg({
+    partnerId: input.partnerId,
+    channel: 'widget',
+    externalThreadId: input.externalThreadId,
+    customerName: firstLine(input.customerName || input.form.customerEmail || 'Guest'),
+    linkedUserId: input.linkedUserId ?? null,
+    metadata: { source: 'hosted_chat_page', auth_mode: input.guestAccountId ? 'account' : 'anonymous' },
+  })
+  if (!conv?.conversationId) return { error: 'Không tạo được hội thoại.' }
+
+  const lines: PartnerOrderLineUpsertInput[] = []
+  for (const line of input.form.lines.slice(0, 20)) {
+    const mapped = await cartInputLineToOrderLine({
+      partnerId: input.partnerId,
+      linkedUserId: input.linkedUserId ?? null,
+      line,
+      sortOrder: lines.length,
+    })
+    if (mapped) lines.push(mapped)
+  }
+  if (lines.length === 0) return { error: 'Giỏ hàng chưa có sản phẩm hợp lệ.' }
+
+  const subtotal = lines.reduce((sum, line) => {
+    const qty = Math.max(1, Math.min(99, Math.floor(Number(line.quantity) || 1)))
+    const unit = Math.max(0, Math.round(Number(line.unitPrice) || 0))
+    return sum + unit * qty
+  }, 0)
+  const mode = settings.default_deposit_mode ?? 'percent'
+  const percent = clampPercent(settings.default_deposit_percent ?? 30, 30)
+  const fixedAmount = normalizeMoney(settings.default_deposit_amount ?? 0)
+  const calc = resolveRequiredAmountByDepositRule({ subtotal, mode, percent, fixedAmount })
+
+  const first = lines[0]
+  const draft = await insertPartnerOrderDraftFromPg({
+    partnerId: input.partnerId,
+    conversationId: conv.conversationId,
+    externalThreadId: input.externalThreadId,
+    productInventoryId: first.productInventoryId,
+    productName: first.productName,
+    productImageUrl: first.productImageUrl,
+    productUrl: first.productUrl,
+    unitPrice: first.unitPrice,
+    depositPercent: calc.appliedPercent,
+    requiredAmount: calc.requiredAmount,
+    customerEmail: trim(input.form.customerEmail, 180).toLowerCase(),
+  })
+  if (!draft) return { error: 'Không tạo được đơn hàng.' }
+  const linesOk = await replacePartnerOrderLinesFromPg(draft.id, lines)
+  if (!linesOk) return { error: 'Không lưu được sản phẩm trong giỏ hàng.' }
+
+  const partnerRow = await fetchMessagingPartnersByIdsFromPg([input.partnerId])
+  const shopDisplayName = String(partnerRow?.[0]?.display_name ?? '').trim()
+  const useSepayQr =
+    settings.sepay_enabled === true &&
+    Boolean(String(settings.sepay_bank_code ?? '').trim()) &&
+    Boolean(String(settings.sepay_account_number ?? '').trim())
+  const paymentReference = useSepayQr
+    ? buildSepayOrderPaymentReference(draft.id, shopDisplayName)
+    : buildStablePaymentReference(draft.id, shopDisplayName)
+  let qrUrl = ''
+  if (calc.requiredAmount > 0) {
+    if (!useSepayQr) {
+      const effectiveBankBin =
+        String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
+      if (!String(settings.account_number ?? '').trim() || !effectiveBankBin) {
+        return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
+      }
+    }
+    qrUrl = buildOrderPaymentQrBySettings({
+      amount: calc.requiredAmount,
+      paymentReference,
+      accountHolder: settings.account_holder,
+      settings: {
+        sepay_enabled: settings.sepay_enabled,
+        sepay_bank_code: settings.sepay_bank_code,
+        sepay_account_number: settings.sepay_account_number,
+        sepay_qr_template: settings.sepay_qr_template,
+        bank_name: settings.bank_name,
+        bank_bin: settings.bank_bin,
+        account_number: settings.account_number,
+      },
+    })
+    if (!qrUrl) return { error: 'Chưa xác định được mã ngân hàng để tạo QR. Vui lòng kiểm tra tên ngân hàng.' }
+  }
+
+  const updated = await updatePartnerOrderCartCheckoutFromPg({
+    orderId: draft.id,
+    partnerId: input.partnerId,
+    conversationId: conv.conversationId,
+    externalThreadId: input.externalThreadId,
+    customerName: trim(input.form.customerName, 120),
+    customerEmail: trim(input.form.customerEmail, 180).toLowerCase(),
+    customerPhone: trim(input.form.customerPhone, 40),
+    shippingAddress: trim(input.form.shippingAddress, 280),
+    note: trim(input.form.note, 800),
+    subtotalAmount: subtotal,
+    depositPercent: calc.appliedPercent,
+    requiredAmount: calc.requiredAmount,
+    paymentReference,
+    paymentQrUrl: qrUrl,
+    primaryLine: first,
+  })
+  if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
+  const savedLines = await fetchPartnerOrderLinesFromPg(updated.id)
+  const em = trim(input.form.customerEmail, 180).toLowerCase()
+  if (em) {
+    await upsertPartnerCustomerProfileByEmailFromPg({
+      partnerId: input.partnerId,
+      emailNormalized: em,
+      emailRaw: input.form.customerEmail,
+      customerName: trim(input.form.customerName, 120),
+      customerPhone: trim(input.form.customerPhone, 40),
+      shippingAddress: trim(input.form.shippingAddress, 280),
+    })
+  }
+
+  const paymentDisplayRaw = updated.required_amount > 0 ? partnerPaymentDisplayFromSettings(settings) : null
+  const paymentDisplay =
+    paymentDisplayRaw && updated.required_amount > 0 && String(updated.payment_qr_url ?? '').trim()
+      ? enrichPaymentDisplayFromQrUrl(String(updated.payment_qr_url).trim(), paymentDisplayRaw)
+      : paymentDisplayRaw
+  await insertMessagePg({
+    conversationId: conv.conversationId,
+    direction: 'outbound',
+    body:
+      updated.required_amount > 0
+        ? `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
+          `Tổng ${toVnd(updated.subtotal_amount)} — cần đặt cọc trước ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
+          `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới.`
+        : `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
+          `Tổng tiền: ${toVnd(updated.subtotal_amount)} | Thanh toán trước: 0đ.\n` +
+          `Thanh toán khi nhận hàng: ${toVnd(updated.subtotal_amount)}.`,
+    rawPayload: toJson(orderCardPayload(updated, paymentDisplay, savedLines)),
+  })
+  await insertPartnerOrderEventFromPg({
+    orderId: updated.id,
+    eventType: 'checkout_submitted',
+    title: 'Khách gửi thông tin nhận hàng',
+    detail: `${savedLines.length} sản phẩm, cần đặt cọc trước ${toVnd(updated.required_amount)}.`,
+    source: 'customer',
+  })
+  try {
+    await emailCustomerOrderCheckoutSubmitted({
+      order: updated,
+      shopNotifyEmail: settings.notify_email || '',
+    })
+  } catch (e) {
+    console.warn('[completeCartCheckout] email', e)
   }
   queuePartnerOrderGoogleSheetsSync(input.partnerId, updated.id)
   return { ok: true, order: updated }

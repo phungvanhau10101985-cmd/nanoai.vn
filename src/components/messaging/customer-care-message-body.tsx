@@ -526,6 +526,8 @@ export type CustomerCareMessageBodyLabels = {
   productCardCloseVideo?: string
   /** Nút mua (cạnh «Tư vấn» trên thẻ SP). */
   productCardBuyProduct?: string
+  /** Nút thêm sản phẩm vào giỏ hàng. */
+  productCardAddToCart?: string
 }
 
 function AiProductCards({
@@ -533,6 +535,7 @@ function AiProductCards({
   labels,
   onProductCardPick,
   onProductCardBuy,
+  onProductCardAddToCart,
   onPreviewImage,
   onPreviewVideo,
 }: {
@@ -541,6 +544,8 @@ function AiProductCards({
   onProductCardPick?: (card: PartnerAiProductCard) => void
   /** Widget khách: mua ngay (trái) — mở form đặt, không gửi tin tư vấn. */
   onProductCardBuy?: (card: PartnerAiProductCard) => void
+  /** Widget khách: thêm sản phẩm vào giỏ hàng. */
+  onProductCardAddToCart?: (card: PartnerAiProductCard) => void
   onPreviewImage: (imageUrl: string) => void
   onPreviewVideo: (videoUrl: string) => void
 }) {
@@ -555,6 +560,7 @@ function AiProductCards({
 
   const consultLabel = labels?.productCardOpenProduct?.trim()
   const buyLabel = labels?.productCardBuyProduct?.trim()
+  const addToCartLabel = labels?.productCardAddToCart?.trim()
   const viewDetailsLabel = labels?.productCardViewDetails?.trim() || 'Xem chi tiết'
   const viewVideoLabel = labels?.productCardViewVideo?.trim() || 'Xem video'
   return (
@@ -580,6 +586,7 @@ function AiProductCards({
         const cardBtnBase = `${idx}::${p.product_url ?? p.name ?? ''}`
         const idDetail = `${cardBtnBase}::detail`
         const idBuy = `${cardBtnBase}::buy`
+        const idCart = `${cardBtnBase}::cart`
         const idConsult = `${cardBtnBase}::consult`
         const idCtaOnly = `${cardBtnBase}::cta`
         return (
@@ -685,7 +692,7 @@ function AiProductCards({
                 </a>
               ) : null}
               {showDualBuyConsult ? (
-                <div className="grid grid-cols-2 gap-1">
+                <div className={`grid gap-1 ${addToCartLabel && onProductCardAddToCart ? 'grid-cols-1' : 'grid-cols-2'}`}>
                   <button
                     type="button"
                     className={`flex h-8 min-w-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
@@ -704,6 +711,26 @@ function AiProductCards({
                   >
                     <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">{buyLabel}</span>
                   </button>
+                  {addToCartLabel && onProductCardAddToCart ? (
+                    <button
+                      type="button"
+                      className={`flex h-8 min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
+                        isTapped(idCart)
+                          ? 'border-emerald-600/45 bg-emerald-100 !text-emerald-950 ring-1 ring-emerald-500/40 dark:bg-emerald-950/50 dark:!text-emerald-50'
+                          : 'border-border/80 bg-background !text-foreground hover:bg-muted/60 hover:!text-foreground'
+                      }`}
+                      onClick={(ev) => {
+                        ev.stopPropagation()
+                        onProductCardAddToCart?.(p)
+                        markTapped(idCart)
+                      }}
+                      aria-label={`${p.name}. ${addToCartLabel}`}
+                      aria-pressed={isTapped(idCart)}
+                      lang="vi"
+                    >
+                      <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">{addToCartLabel}</span>
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className={`flex h-8 min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
@@ -758,6 +785,7 @@ export function CustomerCareMessageBody({
   labels,
   onProductCardPick,
   onProductCardBuy,
+  onProductCardAddToCart,
   orderPaymentProof,
   shopDisplayName = '',
   openMessageLinksInSameTab = false,
@@ -771,6 +799,8 @@ export function CustomerCareMessageBody({
   onProductCardPick?: (card: PartnerAiProductCard) => void
   /** Trang guest: «Mua ngay» (cột trái khi có cặp Mua | Tư vấn). */
   onProductCardBuy?: (card: PartnerAiProductCard) => void
+  /** Trang guest: thêm sản phẩm vào giỏ hàng. */
+  onProductCardAddToCart?: (card: PartnerAiProductCard) => void
   /** Trang guest: nút gửi biên lai gắn với đơn trong khối QR. */
   orderPaymentProof?: OrderPaymentProofSlot | null
   /** Tên hiển thị của shop (widget khách). */
@@ -843,6 +873,7 @@ export function CustomerCareMessageBody({
               labels={labels}
               onProductCardPick={onProductCardPick}
               onProductCardBuy={onProductCardBuy}
+              onProductCardAddToCart={onProductCardAddToCart}
               onPreviewImage={setLightboxSrc}
               onPreviewVideo={setVideoLightboxSrc}
             />
@@ -853,6 +884,7 @@ export function CustomerCareMessageBody({
             labels={labels}
             onProductCardPick={onProductCardPick}
             onProductCardBuy={onProductCardBuy}
+            onProductCardAddToCart={onProductCardAddToCart}
             onPreviewImage={setLightboxSrc}
             onPreviewVideo={setVideoLightboxSrc}
           />

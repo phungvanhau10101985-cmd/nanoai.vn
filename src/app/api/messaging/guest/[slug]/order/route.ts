@@ -6,6 +6,7 @@ import { resolveWidgetOrderThreadFromRequest } from '@/lib/messaging/resolve-wid
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import {
   completeOrderCheckout,
+  completeCartCheckout,
   createOrderDraftFromProductPick,
   getCustomerDeliveryProfile,
   getProductPurchaseOptions,
@@ -37,9 +38,13 @@ function asCard(x: unknown): PartnerAiProductCard | null {
   const product_url = typeof o.product_url === 'string' ? o.product_url.trim() : ''
   const price_hint = typeof o.price_hint === 'string' ? o.price_hint.trim() : ''
   const sku = typeof o.sku === 'string' ? o.sku.trim().slice(0, 128) : ''
+  const inventoryId = typeof o.inventory_id === 'string' ? o.inventory_id.trim() : ''
   if (!name || !/^https?:\/\//i.test(image_url) || !/^https?:\/\//i.test(product_url)) return null
   const base = price_hint ? { name, image_url, product_url, price_hint } : { name, image_url, product_url }
-  return sku ? { ...base, sku } : base
+  const withSku = sku ? { ...base, sku } : base
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inventoryId)
+    ? { ...withSku, inventory_id: inventoryId }
+    : withSku
 }
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
@@ -150,11 +155,14 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   }
 
   const body = (await request.json().catch(() => null)) as {
+    action?: 'cart_checkout'
     orderId?: string
+    items?: unknown[]
     form?: {
       customerName?: string
       customerPhone?: string
       shippingAddress?: string
+      customerEmail?: string
       color?: string
       size?: string
       quantity?: number
@@ -162,12 +170,12 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       variantLineImages?: unknown
     }
   } | null
-  const orderId = String(body?.orderId ?? '').trim()
-  if (!orderId) return NextResponse.json({ error: 'Missing orderId.' }, { status: 400 })
+  const action = body?.action
   const f = body?.form ?? {}
   const customerName = String(f.customerName ?? '').trim()
   const customerPhone = String(f.customerPhone ?? '').trim()
   const shippingAddress = String(f.shippingAddress ?? '').trim()
+  const formEmail = String(f.customerEmail ?? '').trim().toLowerCase()
   const color = String(f.color ?? '').trim()
   const size = String(f.size ?? '').trim()
   /** Tránh Number(null)=0 làm nhầm với thiếu field; JSON có thể gửi null nếu client lỗi NaN. */
@@ -180,9 +188,11 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   if (!customerName) missing.push('customerName')
   if (!customerPhone) missing.push('customerPhone')
   if (!shippingAddress) missing.push('shippingAddress')
-  if (!color) missing.push('color')
-  if (!size) missing.push('size')
-  if (quantityRaw < 1) missing.push('quantity')
+  if (action !== 'cart_checkout') {
+    if (!color) missing.push('color')
+    if (!size) missing.push('size')
+    if (quantityRaw < 1) missing.push('quantity')
+  }
   if (missing.length > 0) {
     const labelMap: Record<string, string> = {
       customerName: 'Họ tên',
@@ -203,6 +213,60 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   const variantLineImages = Array.isArray(rawVariantImgs)
     ? rawVariantImgs.filter((x): x is string => typeof x === 'string').slice(0, 24)
     : undefined
+  if (action === 'cart_checkout') {
+    const rawItems = Array.isArray(body?.items) ? body.items : []
+    const lines = rawItems
+      .map((x) => {
+        if (!x || typeof x !== 'object' || Array.isArray(x)) return null
+        const o = x as Record<string, unknown>
+        const card = asCard(o.card)
+        if (!card) return null
+        return {
+          card,
+          color: String(o.color ?? '').trim(),
+          size: String(o.size ?? '').trim(),
+          quantity: Math.max(1, Math.min(99, Math.floor(Number(o.quantity) || 1))),
+          note: String(o.note ?? '').trim(),
+          variantLineImages: Array.isArray(o.variantLineImages)
+            ? o.variantLineImages.filter((v): v is string => typeof v === 'string').slice(0, 24)
+            : undefined,
+        }
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x))
+      .slice(0, 20)
+    if (lines.length === 0) return NextResponse.json({ error: 'Giỏ hàng chưa có sản phẩm.' }, { status: 400 })
+    const done = await completeCartCheckout({
+      partnerId: partner.partnerId,
+      externalThreadId: thread.externalThreadId,
+      customerName: guestName(sessionEmail || formEmail || null),
+      linkedUserId: thread.linkedUserId,
+      guestAccountId: thread.guestAccountId,
+      form: {
+        customerName,
+        customerEmail: sessionEmail || formEmail,
+        customerPhone,
+        shippingAddress,
+        note: String(f.note ?? '').trim(),
+        lines,
+      },
+    })
+    if ('error' in done) return NextResponse.json({ error: done.error }, { status: 400 })
+    let metaPurchase = null as Awaited<ReturnType<typeof runMetaPurchaseAfterOrderComplete>>
+    if (isPgConfigured()) {
+      try {
+        metaPurchase = await runMetaPurchaseAfterOrderComplete({
+          partnerId: partner.partnerId,
+          order: done.order,
+          request,
+        })
+      } catch (e) {
+        console.warn('[order PATCH cart] meta purchase', e)
+      }
+    }
+    return NextResponse.json({ ok: true, order: done.order, ...(metaPurchase ? { metaPurchase } : {}) })
+  }
+  const orderId = String(body?.orderId ?? '').trim()
+  if (!orderId) return NextResponse.json({ error: 'Missing orderId.' }, { status: 400 })
   const done = await completeOrderCheckout({
     partnerId: partner.partnerId,
     externalThreadId: thread.externalThreadId,

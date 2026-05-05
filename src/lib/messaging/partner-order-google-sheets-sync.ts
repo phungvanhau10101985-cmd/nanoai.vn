@@ -5,7 +5,12 @@ import {
   updatePartnerOrderGoogleSheetRowFromPg,
 } from '@/lib/db/messaging-partner-google-sheets-pg'
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
-import { fetchPartnerOrderByIdForPartnerFromPg, type PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
+import {
+  fetchPartnerOrderByIdForPartnerFromPg,
+  fetchPartnerOrderLinesFromPg,
+  type PartnerOrderLineRow,
+  type PartnerOrderRow,
+} from '@/lib/db/messaging-partner-orders-pg'
 import {
   type ParsedVariantLine,
   parsePartnerOrderVariantLines,
@@ -226,7 +231,61 @@ function buildSheetRow(
   ]
 }
 
+function buildSheetRowFromOrderLine(
+  o: PartnerOrderRow,
+  line: PartnerOrderLineRow,
+  lineIndex: number,
+  totalLines: number
+): string[] {
+  const sub = Math.round(o.subtotal_amount)
+  const paid = Math.round(o.paid_amount)
+  const req = Math.round(o.required_amount)
+  const conLaiGiaoHang = Math.max(0, sub - paid)
+  const unit = Math.round(line.unit_price)
+  const canCoc = req > 0 ? 'Co' : 'Khong'
+  const dep = (s: string) => (lineIndex === 0 ? s : '')
+  return [
+    o.id,
+    o.payment_reference,
+    o.status,
+    o.shipping_status,
+    dep(String(o.deposit_percent)),
+    dep(String(req)),
+    dep(String(paid)),
+    dep(String(conLaiGiaoHang)),
+    dep(canCoc),
+    dep(depositStatusLine(o, req, paid)),
+    line.product_name,
+    '',
+    line.variant_color,
+    line.variant_size,
+    String(line.quantity),
+    String(unit),
+    String(Math.max(0, Math.round(line.line_subtotal))),
+    line.product_image_url,
+    line.product_url,
+    line.product_inventory_id ?? '',
+    o.customer_name,
+    o.customer_phone,
+    o.customer_email,
+    o.shipping_address,
+    totalLines > 1 && lineIndex > 0 ? '' : (line.note || o.note),
+    o.currency,
+    lineIndex === 0 ? o.verified_note : '',
+    formatVnTime(o.created_at),
+    formatVnTime(o.updated_at),
+    formatVnTime(o.verified_at),
+  ]
+}
+
 async function orderToSheetRows(partnerId: string, o: PartnerOrderRow): Promise<string[][]> {
+  const orderLines = await fetchPartnerOrderLinesFromPg(o.id)
+  if (orderLines.length > 1) {
+    return orderLines.map((line, lineIndex) =>
+      buildSheetRowFromOrderLine(o, line, lineIndex, orderLines.length)
+    )
+  }
+
   let sku = ''
   if (o.product_inventory_id) {
     try {

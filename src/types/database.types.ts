@@ -498,6 +498,7 @@ export interface Database {
           typing_pause_min_ms: number
           typing_pause_max_ms: number
           shop_policy: string
+          product_consultation_context: string
           tone_instructions: string
           sales_coaching_instructions: string
           append_ai_disclosure: boolean
@@ -531,6 +532,7 @@ export interface Database {
           typing_pause_min_ms?: number
           typing_pause_max_ms?: number
           shop_policy?: string
+          product_consultation_context?: string
           tone_instructions?: string
           sales_coaching_instructions?: string
           append_ai_disclosure?: boolean
@@ -564,6 +566,7 @@ export interface Database {
           typing_pause_min_ms?: number
           typing_pause_max_ms?: number
           shop_policy?: string
+          product_consultation_context?: string
           tone_instructions?: string
           sales_coaching_instructions?: string
           append_ai_disclosure?: boolean
@@ -588,6 +591,63 @@ export interface Database {
           vision_bg_sync_error?: string
           vision_bg_sync_report?: string
           guest_purchase_flow?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messaging_partner_order_lines: {
+        Row: {
+          id: string
+          order_id: string
+          product_inventory_id: string | null
+          product_name: string
+          product_image_url: string
+          product_url: string
+          unit_price: number
+          quantity: number
+          line_subtotal: number
+          variant_color: string
+          variant_size: string
+          variant_image_urls: string
+          note: string
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          product_inventory_id?: string | null
+          product_name?: string
+          product_image_url?: string
+          product_url?: string
+          unit_price?: number
+          quantity?: number
+          line_subtotal?: number
+          variant_color?: string
+          variant_size?: string
+          variant_image_urls?: string
+          note?: string
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          product_inventory_id?: string | null
+          product_name?: string
+          product_image_url?: string
+          product_url?: string
+          unit_price?: number
+          quantity?: number
+          line_subtotal?: number
+          variant_color?: string
+          variant_size?: string
+          variant_image_urls?: string
+          note?: string
+          sort_order?: number
+          created_at?: string
           updated_at?: string
         }
         Relationships: []

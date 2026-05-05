@@ -49,6 +49,8 @@ type OrderRow = {
   customer_phone: string
   shipping_address: string
   product_name: string
+  order_item_count?: number
+  order_items_summary?: string
   product_image_url: string
   product_url: string
   quantity: number
@@ -377,6 +379,7 @@ export function PartnerMessagingOrdersClient({
       return (
         (r.payment_reference || '').toLowerCase().includes(q) ||
         r.product_name.toLowerCase().includes(q) ||
+        (r.order_items_summary || '').toLowerCase().includes(q) ||
         (r.customer_name || '').toLowerCase().includes(q) ||
         (r.customer_phone || '').toLowerCase().includes(q) ||
         r.id.toLowerCase().includes(q)
@@ -946,8 +949,15 @@ export function PartnerMessagingOrdersClient({
                               </div>
                               <div className="min-w-0 flex-1 space-y-0.5">
                                 <p className="text-sm font-semibold leading-snug text-orange-800 dark:text-orange-200 [overflow-wrap:anywhere]">
-                                  {d.product_name}
+                                  {(d.order_item_count ?? 1) > 1
+                                    ? `${d.order_item_count} sản phẩm`
+                                    : d.product_name}
                                 </p>
+                                {(d.order_item_count ?? 1) > 1 && d.order_items_summary ? (
+                                  <p className="whitespace-pre-wrap text-[11px] leading-snug text-muted-foreground">
+                                    {d.order_items_summary}
+                                  </p>
+                                ) : null}
                                 {d.product_inventory_id ? (
                                   <p className="text-[11px] text-muted-foreground">
                                     {t.modalSkuPrefix} {d.product_inventory_id}

@@ -10,7 +10,11 @@ import {
 } from '@/lib/auth/email-session-token'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
-import { postWidgetGuestMessage } from '@/lib/messaging/widget-guest-post'
+import {
+  postWidgetGuestMessage,
+  type WidgetGuestImageBatchItemResult,
+} from '@/lib/messaging/widget-guest-post'
+import { insertMessage } from '@/lib/customer-care/conversation-service'
 import { applyGuestIdentityToResponse, mirrorGuestSessionToClient } from '@/lib/messaging/guest-auth-session'
 import {
   getHospitalityGuestThread,
@@ -27,6 +31,8 @@ import {
 } from '@/lib/db/customer-care-pg'
 import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import { isPgConfigured } from '@/lib/db/pool'
+import { normalizeWebLocale } from '@/lib/i18n/config'
+import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 
 export const dynamic = 'force-dynamic'
 /** LLM + typing delay có thể kéo dài khi job AI chạy ngay sau POST (không chờ cron). */
@@ -36,6 +42,105 @@ const BATCH_IMAGE_MESSAGE_GAP_MS = 500
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
+}
+
+function batchCandidateToCard(
+  c: WidgetGuestImageBatchItemResult['productPickCandidates'][number]
+): PartnerAiProductCard | null {
+  const name = c.name.trim()
+  const image_url = c.image_url.trim()
+  const product_url = c.product_url?.trim() ?? ''
+  if (!name || !/^https?:\/\//i.test(image_url) || !/^https?:\/\//i.test(product_url)) return null
+  return {
+    name,
+    image_url,
+    product_url,
+    ...(c.price_hint?.trim() ? { price_hint: c.price_hint.trim() } : {}),
+    ...(c.sku?.trim() ? { sku: c.sku.trim().slice(0, 128) } : {}),
+    inventory_id: c.inventoryId,
+  }
+}
+
+function dedupeBatchCards(candidates: WidgetGuestImageBatchItemResult['productPickCandidates']): PartnerAiProductCard[] {
+  const seen = new Set<string>()
+  const cards: PartnerAiProductCard[] = []
+  for (const c of candidates) {
+    const key = c.inventoryId || c.sku || `${c.name}|${c.image_url}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const card = batchCandidateToCard(c)
+    if (card) cards.push(card)
+    if (cards.length >= 12) break
+  }
+  return cards
+}
+
+function productLineForBatchCard(card: PartnerAiProductCard, index: number): string {
+  const sku = card.sku ? ` - ${card.sku}` : ''
+  const price = card.price_hint ? ` - ${card.price_hint}` : ''
+  return `${index + 1}. ${card.name}${sku}${price}`
+}
+
+function buildImageBatchReplyBody(input: {
+  uiLocale?: string | null
+  totalImages: number
+  matchedImageCount: number
+  cards: PartnerAiProductCard[]
+  usingNearMatches: boolean
+}): string {
+  const locale = normalizeWebLocale(input.uiLocale ?? null) ?? 'vi'
+  const unmatched = Math.max(0, input.totalImages - input.matchedImageCount)
+  const productLines = input.cards.slice(0, 4).map(productLineForBatchCard).join('\n')
+
+  if (locale === 'en') {
+    const intro = input.usingNearMatches
+      ? `I received ${input.totalImages} images but could not confirm exact matches, so I’m sending the closest items I found.`
+      : unmatched > 0
+        ? `I received ${input.totalImages} images: ${input.matchedImageCount} matched items in the shop, while ${unmatched} did not have a clear match yet.`
+        : `I received ${input.totalImages} images and matched ${input.cards.length} item(s) in the shop.`
+    return [intro, productLines, 'Please tell me which items you want to compare or need size/color advice for.']
+      .filter(Boolean)
+      .join('\n\n')
+  }
+  if (locale === 'zh') {
+    const intro = input.usingNearMatches
+      ? `我收到了 ${input.totalImages} 张图片，但还不能确认完全匹配的商品，先发送最接近的款式供您参考。`
+      : unmatched > 0
+        ? `我收到了 ${input.totalImages} 张图片：其中 ${input.matchedImageCount} 张匹配到店内商品，另外 ${unmatched} 张暂未找到明确匹配。`
+        : `我收到了 ${input.totalImages} 张图片，并匹配到店内 ${input.cards.length} 个商品。`
+    return [intro, productLines, '您想比较哪些款式，或需要尺码/颜色建议，可以直接告诉我。'].filter(Boolean).join('\n\n')
+  }
+  if (locale === 'ja') {
+    const intro = input.usingNearMatches
+      ? `${input.totalImages} 枚の画像を受け取りましたが、完全一致は確認できないため、近い商品をお送りします。`
+      : unmatched > 0
+        ? `${input.totalImages} 枚の画像を受け取りました。${input.matchedImageCount} 枚は店舗の商品に一致し、${unmatched} 枚は明確な一致がまだありません。`
+        : `${input.totalImages} 枚の画像から、店舗内の ${input.cards.length} 商品に一致しました。`
+    return [intro, productLines, '比較したい商品や、サイズ・色の相談があればそのまま送ってください。'].filter(Boolean).join('\n\n')
+  }
+  if (locale === 'ko') {
+    const intro = input.usingNearMatches
+      ? `이미지 ${input.totalImages}장을 받았지만 정확한 일치는 확인되지 않아 가장 가까운 상품을 보내드려요.`
+      : unmatched > 0
+        ? `이미지 ${input.totalImages}장 중 ${input.matchedImageCount}장은 매장 상품과 매칭됐고, ${unmatched}장은 아직 뚜렷한 매칭이 없어요.`
+        : `이미지 ${input.totalImages}장에서 매장 상품 ${input.cards.length}개를 찾았어요.`
+    return [intro, productLines, '비교하고 싶은 상품이나 사이즈/색상 상담이 필요하면 바로 말씀해 주세요.'].filter(Boolean).join('\n\n')
+  }
+
+  const intro = input.usingNearMatches
+    ? `Em đã nhận ${input.totalImages} ảnh, nhưng chưa thấy mẫu khớp chắc trong kho. Em gửi các mẫu gần giống nhất để anh/chị tham khảo ạ.`
+    : unmatched > 0
+      ? `Em đã nhận ${input.totalImages} ảnh: ${input.matchedImageCount} ảnh khớp được mẫu trong kho, ${unmatched} ảnh còn lại chưa thấy mẫu khớp rõ.`
+      : input.cards.length === 1
+        ? `Em đã nhận ${input.totalImages} ảnh và các ảnh đang khớp cùng một mẫu trong kho.`
+        : `Em đã nhận ${input.totalImages} ảnh và khớp được ${input.cards.length} mẫu trong kho.`
+  return [
+    intro,
+    productLines,
+    'Anh/chị muốn em so sánh mẫu nào hoặc tư vấn size/màu cho mẫu nào thì nhắn em ngay ạ.',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
 }
 
 async function resolvePartner(slug: string) {
@@ -259,12 +364,17 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     pageContext: body?.pageContext,
   }
 
-  const postOne = async (imageStoragePath?: string, pageContextOverride?: NonNullable<typeof body>['pageContext']) =>
+  const postOne = async (
+    imageStoragePath?: string,
+    pageContextOverride?: NonNullable<typeof body>['pageContext'],
+    deferImageBatchReply = false
+  ) =>
     postWidgetGuestMessage({
       ...sharedPayload,
       guestAccountId: effectiveGuestAccountId,
       imageStoragePath,
       pageContext: pageContextOverride,
+      deferImageBatchReply,
     })
 
   let posted:
@@ -274,30 +384,62 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   if (imageStoragePaths.length <= 1) {
     posted = await postOne(imageStoragePaths[0], body?.pageContext)
   } else {
-    let maxWaitMs = 0
-    let anyVisionPickRequired = false
+    let conversationId: string | null = null
+    const batchItems: WidgetGuestImageBatchItemResult[] = []
     let anyPaymentVerificationHandled = false
     let batchError: Awaited<ReturnType<typeof postWidgetGuestMessage>> | null = null
     for (let i = 0; i < imageStoragePaths.length; i += 1) {
-      const one = await postOne(imageStoragePaths[i], i === 0 ? body?.pageContext : undefined)
+      const one = await postOne(imageStoragePaths[i], i === 0 ? body?.pageContext : undefined, true)
       if ('error' in one) {
         batchError = one
         break
       }
-      if (one.shopTyping?.maxWaitMs && one.shopTyping.maxWaitMs > maxWaitMs) {
-        maxWaitMs = one.shopTyping.maxWaitMs
-      }
-      anyVisionPickRequired = anyVisionPickRequired || one.visionPickRequired === true
+      if (one.conversationId) conversationId = one.conversationId
+      if (one.imageBatchItem) batchItems.push(one.imageBatchItem)
       anyPaymentVerificationHandled =
         anyPaymentVerificationHandled || one.paymentVerificationHandled === true
       if (i < imageStoragePaths.length - 1) {
         await sleep(BATCH_IMAGE_MESSAGE_GAP_MS)
       }
     }
+    if (!batchError && conversationId && batchItems.length > 0) {
+      const productBatchItems = batchItems.filter((item) => !item.paymentVerificationHandled)
+      const matchedCandidates = productBatchItems
+        .map((item) => item.autoSelectedTopCandidate)
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      const usingNearMatches = matchedCandidates.length === 0
+      const candidatesForCards = usingNearMatches
+        ? productBatchItems.flatMap((item) => item.productPickCandidates.slice(0, 3))
+        : matchedCandidates
+      const cards = dedupeBatchCards(candidatesForCards)
+      const hasProductSearchResult = cards.length > 0
+      if (productBatchItems.length > 0 && (hasProductSearchResult || matchedCandidates.length < productBatchItems.length)) {
+        const replyBody = buildImageBatchReplyBody({
+          uiLocale: typeof body?.uiLocale === 'string' ? body.uiLocale : undefined,
+          totalImages: productBatchItems.length,
+          matchedImageCount: matchedCandidates.length,
+          cards,
+          usingNearMatches,
+        })
+        await insertMessage({
+          conversationId,
+          direction: 'outbound',
+          body: replyBody,
+          rawPayload: {
+            source: 'guest_image_batch_summary',
+            ai_product_cards: cards,
+            image_batch: {
+              total_images: productBatchItems.length,
+              matched_image_count: matchedCandidates.length,
+              unmatched_image_count: Math.max(0, productBatchItems.length - matchedCandidates.length),
+              mode: usingNearMatches ? 'near_matches' : 'matched_products',
+            },
+          },
+        })
+      }
+    }
     posted = batchError ?? {
       ok: true,
-      ...(maxWaitMs > 0 ? { shopTyping: { maxWaitMs } } : {}),
-      visionPickRequired: anyVisionPickRequired || undefined,
       paymentVerificationHandled: anyPaymentVerificationHandled || undefined,
     }
   }

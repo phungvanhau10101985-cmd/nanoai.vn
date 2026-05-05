@@ -71,6 +71,7 @@ import {
 import type { Json } from '@/types/database.types'
 import {
   Camera,
+  ShoppingCart,
   CheckCircle,
   ChevronDown,
   ImagePlus,
@@ -339,6 +340,15 @@ type PurchaseOptionsPayload = {
     percent?: number
     fixed_amount?: number
   }
+}
+
+type GuestCartItem = {
+  id: string
+  card: PartnerAiProductCard
+  quantity: number
+  color: string
+  size: string
+  note: string
 }
 
 function collectRecentSuggestedCardsFromMessages(
@@ -1462,6 +1472,9 @@ export function PartnerGuestChatClient({
   const [buyOptionsBusy, setBuyOptionsBusy] = useState(false)
   const [buyOptions, setBuyOptions] = useState<BuyProductOption[]>([])
   const [buyPromptMessageId, setBuyPromptMessageId] = useState<string | null>(null)
+  const [cartOpen, setCartOpen] = useState(false)
+  const [cartItems, setCartItems] = useState<GuestCartItem[]>([])
+  const [cartCheckoutBusy, setCartCheckoutBusy] = useState(false)
   const [activeOrderCard, setActiveOrderCard] = useState<PartnerAiProductCard | null>(null)
   const [activePurchaseOptions, setActivePurchaseOptions] = useState<PurchaseOptionsPayload | null>(null)
   const [orderName, setOrderName] = useState('')
@@ -2966,6 +2979,113 @@ export function PartnerGuestChatClient({
     },
     [openOrderFormByOption]
   )
+
+  const addProductCardToCart = useCallback(
+    (card: PartnerAiProductCard) => {
+      const productUrl = (card.product_url ?? '').trim()
+      const imageUrl = (card.image_url ?? '').trim()
+      if (!/^https?:\/\//i.test(productUrl) || !/^https?:\/\//i.test(imageUrl)) return
+      setCartItems((prev) => {
+        const key = productUrl.toLowerCase()
+        const exists = prev.find((item) => item.card.product_url.trim().toLowerCase() === key)
+        if (exists) {
+          return prev.map((item) =>
+            item.id === exists.id ? { ...item, quantity: Math.min(99, item.quantity + 1) } : item
+          )
+        }
+        return [
+          ...prev,
+          {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            card,
+            quantity: 1,
+            color: '',
+            size: '',
+            note: '',
+          },
+        ]
+      })
+      toast({ title: 'Đã thêm vào giỏ hàng.' })
+    },
+    [toast]
+  )
+
+  const addBuyOptionToCart = useCallback(
+    (item: BuyProductOption) => addProductCardToCart(toCardFromBuyOption(item)),
+    [addProductCardToCart, toCardFromBuyOption]
+  )
+
+  const cartSubtotal = useMemo(
+    () =>
+      cartItems.reduce((sum, item) => {
+        const price = parseVndFromHint(item.card.price_hint ?? '')
+        return sum + Math.max(0, price) * Math.max(1, Math.floor(item.quantity || 1))
+      }, 0),
+    [cartItems]
+  )
+
+  const submitCartCheckout = useCallback(async () => {
+    if (cartItems.length === 0) return
+    const missing: string[] = []
+    if (!orderName.trim()) missing.push('Họ tên')
+    if (!orderPhone.trim()) missing.push('Số điện thoại')
+    if (!orderAddress.trim()) missing.push('Địa chỉ')
+    if (missing.length > 0) {
+      toast({ title: `Vui lòng điền: ${missing.join(', ')}`, variant: 'destructive' })
+      return
+    }
+    setCartCheckoutBusy(true)
+    try {
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          action: 'cart_checkout',
+          form: {
+            customerName: orderName,
+            customerPhone: orderPhone,
+            shippingAddress: orderAddress,
+            note: orderNote,
+          },
+          items: cartItems.map((item) => ({
+            card: item.card,
+            color: item.color,
+            size: item.size,
+            quantity: item.quantity,
+            note: item.note,
+          })),
+        }),
+      })
+      captureGuestSessionFromResponse(res)
+      captureGuestAccountFromResponse(res)
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null
+      if (!res.ok || !data?.ok) {
+        toast({ title: data?.error || 'Không tạo được đơn hàng.', variant: 'destructive' })
+        return
+      }
+      setCartItems([])
+      setCartOpen(false)
+      toast({ title: 'Đã tạo đơn hàng từ giỏ.' })
+      await load()
+    } catch {
+      toast({ title: 'Không tạo được đơn hàng.', variant: 'destructive' })
+    } finally {
+      setCartCheckoutBusy(false)
+    }
+  }, [
+    authHeaders,
+    captureGuestAccountFromResponse,
+    captureGuestSessionFromResponse,
+    cartItems,
+    load,
+    orderAddress,
+    orderName,
+    orderNote,
+    orderPhone,
+    slug,
+    toast,
+  ])
 
   const fireMetaViewContentOnConsultClick = useCallback(
     (card: PartnerAiProductCard) => {
@@ -4936,7 +5056,7 @@ export function PartnerGuestChatClient({
                                       </a>
                                     ) : null}
                                     {puVision && /^https?:\/\//i.test(puVision.trim()) ? (
-                                      <div className="grid grid-cols-2 gap-1">
+                                      <div className="grid grid-cols-1 gap-1">
                                         <button
                                           type="button"
                                           disabled={isBusy}
@@ -4964,6 +5084,29 @@ export function PartnerGuestChatClient({
                                         >
                                           <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
                                             {t.visionProductBuy}
+                                          </span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={isBusy}
+                                          className="flex h-8 min-w-0 items-center justify-center rounded-md border border-border/80 bg-background px-1 text-[10px] font-semibold leading-snug !text-foreground transition-colors duration-150 hover:bg-muted/60 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            addProductCardToCart({
+                                              name: c.name,
+                                              image_url: c.image_url,
+                                              product_url: puVision.trim(),
+                                              inventory_id: c.inventoryId,
+                                              ...(c.price_hint && String(c.price_hint).trim()
+                                                ? { price_hint: String(c.price_hint).trim() }
+                                                : {}),
+                                            })
+                                          }}
+                                          aria-label={`${c.name}. Thêm giỏ`}
+                                          lang="vi"
+                                        >
+                                          <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
+                                            Thêm giỏ
                                           </span>
                                         </button>
                                         <button
@@ -5027,8 +5170,10 @@ export function PartnerGuestChatClient({
                           productCardViewVideo: t.visionProductVideo,
                           productCardCloseVideo: t.visionVideoCloseAria,
                           productCardBuyProduct: t.visionProductBuy,
+                          productCardAddToCart: 'Thêm giỏ',
                         }}
                         onProductCardBuy={isMe && !consultLinkShopStyle ? undefined : (card) => void openGuestProductOrderFormFromCard(card)}
+                        onProductCardAddToCart={isMe && !consultLinkShopStyle ? undefined : addProductCardToCart}
                         onProductCardPick={
                           isMe && !consultLinkShopStyle ? undefined : (card) => void submitProductCardPick(card, m.id)
                         }
@@ -5342,6 +5487,16 @@ export function PartnerGuestChatClient({
                             onClick={() => void openOrderFormByOption(item)}
                           >
                             Đặt hàng
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="mt-1 h-7 w-full px-1 text-[10px]"
+                            disabled={orderFormBusy}
+                            onClick={() => addBuyOptionToCart(item)}
+                          >
+                            Thêm giỏ
                           </Button>
                         </div>
                       )
@@ -5723,6 +5878,20 @@ export function PartnerGuestChatClient({
                 className="rounded-lg border border-violet-200/90 bg-violet-50/95 px-3 py-2 text-center text-[13px] font-medium text-violet-950 dark:border-violet-800/60 dark:bg-violet-950/50 dark:text-violet-100"
               >
                 Ưu đãi sinh nhật: giảm {birthdayPromoDiscountPct}% — áp dụng tự động cho giá các sản phẩm trong kho (theo cài đặt số ngày trước sinh nhật) khi đặt qua chat, không cần mã giảm giá.
+              </div>
+            ) : null}
+            {cartItems.length > 0 ? (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-[12px] text-emerald-950">
+                <div className="flex min-w-0 items-center gap-2">
+                  <ShoppingCart className="h-4 w-4 shrink-0" />
+                  <span className="truncate">
+                    Giỏ hàng: {cartItems.length} sản phẩm
+                    {cartSubtotal > 0 ? ` · ${new Intl.NumberFormat('vi-VN').format(cartSubtotal)}đ` : ''}
+                  </span>
+                </div>
+                <Button type="button" size="sm" className="h-7 text-[11px]" onClick={() => setCartOpen(true)}>
+                  Xem giỏ
+                </Button>
               </div>
             ) : null}
             <input
@@ -6491,6 +6660,95 @@ export function PartnerGuestChatClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Sheet open={cartOpen} onOpenChange={setCartOpen}>
+        <SheetContent side="bottom" className="z-[260] max-h-[85vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Giỏ hàng</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-3">
+            {cartItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Giỏ hàng chưa có sản phẩm.</p>
+            ) : (
+              cartItems.map((item) => (
+                <div key={item.id} className="rounded-lg border border-border p-2">
+                  <div className="flex gap-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.card.image_url} alt="" className="h-14 w-14 rounded object-cover" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{item.card.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.card.price_hint ?? ''}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => setCartItems((prev) => prev.filter((x) => x.id !== item.id))}
+                    >
+                      Xóa
+                    </Button>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Màu"
+                      value={item.color}
+                      onChange={(e) =>
+                        setCartItems((prev) =>
+                          prev.map((x) => (x.id === item.id ? { ...x, color: e.target.value } : x))
+                        )
+                      }
+                    />
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Size"
+                      value={item.size}
+                      onChange={(e) =>
+                        setCartItems((prev) =>
+                          prev.map((x) => (x.id === item.id ? { ...x, size: e.target.value } : x))
+                        )
+                      }
+                    />
+                    <Input
+                      className="h-8 text-xs"
+                      type="number"
+                      min={1}
+                      max={99}
+                      placeholder="SL"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        setCartItems((prev) =>
+                          prev.map((x) =>
+                            x.id === item.id
+                              ? { ...x, quantity: Math.max(1, Math.min(99, Math.floor(Number(e.target.value) || 1))) }
+                              : x
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+            {cartItems.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <Input className="h-9 text-sm" placeholder="Họ tên" value={orderName} onChange={(e) => setOrderName(e.target.value)} />
+                  <Input className="h-9 text-sm" placeholder="Số điện thoại" value={orderPhone} onChange={(e) => setOrderPhone(e.target.value)} />
+                  <Input className="h-9 text-sm" placeholder="Địa chỉ" value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} />
+                </div>
+                <Textarea className="min-h-[64px] text-sm" placeholder="Ghi chú đơn hàng" value={orderNote} onChange={(e) => setOrderNote(e.target.value)} />
+                <div className="rounded-lg border border-violet-200 bg-violet-50/70 p-2 text-sm text-violet-950">
+                  Tạm tính: {new Intl.NumberFormat('vi-VN').format(cartSubtotal)}đ. Tiền cọc sẽ tính theo cài đặt shop khi tạo đơn.
+                </div>
+                <Button className="w-full" disabled={cartCheckoutBusy} onClick={() => void submitCartCheckout()}>
+                  {cartCheckoutBusy ? 'Đang tạo đơn...' : 'Thanh toán giỏ hàng'}
+                </Button>
+              </>
+            ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
       <MessageImagePreviewDialog
         src={chatImageLightboxUrl}
         onOpenChange={(open) => {

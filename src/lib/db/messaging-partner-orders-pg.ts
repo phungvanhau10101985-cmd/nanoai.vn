@@ -1,4 +1,4 @@
-import { isPgConfigured } from '@/lib/db/pool'
+import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
@@ -60,6 +60,25 @@ export type PartnerOrderRow = {
   google_sheet_row: number | null
   /** Số hàng liên tiếp trên Sheet (mỗi mẫu một hàng); null = legacy (1 hàng). */
   google_sheet_row_count: number | null
+}
+
+export type PartnerOrderLineRow = {
+  id: string
+  order_id: string
+  product_inventory_id: string | null
+  product_name: string
+  product_image_url: string
+  product_url: string
+  unit_price: number
+  quantity: number
+  line_subtotal: number
+  variant_color: string
+  variant_size: string
+  variant_image_urls: string
+  note: string
+  sort_order: number
+  created_at: string
+  updated_at: string
 }
 
 function num(v: unknown, fallback = 0): number {
@@ -136,6 +155,41 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
       return n > 0 ? n : null
     })(),
   }
+}
+
+function mapOrderLineRow(r: Record<string, unknown>): PartnerOrderLineRow {
+  return {
+    id: String(r.id),
+    order_id: String(r.order_id),
+    product_inventory_id: r.product_inventory_id ? String(r.product_inventory_id) : null,
+    product_name: String(r.product_name ?? ''),
+    product_image_url: String(r.product_image_url ?? ''),
+    product_url: String(r.product_url ?? ''),
+    unit_price: num(r.unit_price, 0),
+    quantity: Math.max(1, Math.min(99, Math.floor(num(r.quantity, 1)))),
+    line_subtotal: num(r.line_subtotal, 0),
+    variant_color: String(r.variant_color ?? ''),
+    variant_size: String(r.variant_size ?? ''),
+    variant_image_urls: String(r.variant_image_urls ?? ''),
+    note: String(r.note ?? ''),
+    sort_order: Math.max(0, Math.floor(num(r.sort_order, 0))),
+    created_at: String(r.created_at ?? ''),
+    updated_at: String(r.updated_at ?? ''),
+  }
+}
+
+export type PartnerOrderLineUpsertInput = {
+  productInventoryId: string | null
+  productName: string
+  productImageUrl: string
+  productUrl: string
+  unitPrice: number
+  quantity: number
+  variantColor: string
+  variantSize: string
+  variantImageUrlsJson: string
+  note: string
+  sortOrder: number
 }
 
 export function parseVndAmountFromText(raw: string): number {
@@ -278,6 +332,107 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
   }
 }
 
+const ORDER_LINE_RETURNING = `id::text, order_id::text, product_inventory_id::text, product_name, product_image_url,
+       product_url, unit_price, quantity, line_subtotal, variant_color, variant_size, variant_image_urls,
+       note, sort_order, created_at, updated_at`
+
+export async function fetchPartnerOrderLinesFromPg(orderId: string): Promise<PartnerOrderLineRow[]> {
+  if (!isPgConfigured()) return []
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `select ${ORDER_LINE_RETURNING}
+       from public.messaging_partner_order_lines
+       where order_id = $1::uuid
+       order by sort_order asc, created_at asc, id asc`,
+      [orderId]
+    )
+    return rows.map(mapOrderLineRow)
+  } catch (e) {
+    console.warn('[fetchPartnerOrderLinesFromPg]', e)
+    return []
+  }
+}
+
+export async function replacePartnerOrderLinesFromPg(
+  orderId: string,
+  lines: PartnerOrderLineUpsertInput[]
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const cleaned = lines
+    .map((line, idx) => {
+      const qty = Math.max(1, Math.min(99, Math.floor(num(line.quantity, 1))))
+      const unit = Math.max(0, Math.round(num(line.unitPrice, 0)))
+      return {
+        ...line,
+        quantity: qty,
+        unitPrice: unit,
+        sortOrder: Math.max(0, Math.floor(num(line.sortOrder, idx))),
+        lineSubtotal: unit * qty,
+      }
+    })
+    .filter((line) => line.productName.trim() && line.productImageUrl.trim() && line.productUrl.trim())
+  if (cleaned.length === 0) return false
+  const client = await getPgPool().connect()
+  try {
+    await client.query('begin')
+    await client.query('delete from public.messaging_partner_order_lines where order_id = $1::uuid', [orderId])
+    for (const line of cleaned) {
+      await client.query(
+        `insert into public.messaging_partner_order_lines (
+           order_id, product_inventory_id, product_name, product_image_url, product_url,
+           unit_price, quantity, line_subtotal, variant_color, variant_size, variant_image_urls,
+           note, sort_order, created_at, updated_at
+         ) values (
+           $1::uuid, $2::uuid, $3, $4, $5,
+           $6::numeric, $7::integer, $8::numeric, $9, $10, $11,
+           $12, $13::integer, now(), now()
+         )`,
+        [
+          orderId,
+          line.productInventoryId,
+          line.productName,
+          line.productImageUrl,
+          line.productUrl,
+          line.unitPrice,
+          line.quantity,
+          line.lineSubtotal,
+          line.variantColor,
+          line.variantSize,
+          line.variantImageUrlsJson.trim().slice(0, 8000),
+          line.note,
+          line.sortOrder,
+        ]
+      )
+    }
+    await client.query('commit')
+    return true
+  } catch (e) {
+    await client.query('rollback').catch(() => undefined)
+    console.warn('[replacePartnerOrderLinesFromPg]', e)
+    return false
+  } finally {
+    client.release()
+  }
+}
+
+export async function syncPrimaryPartnerOrderLineFromOrderFromPg(order: PartnerOrderRow): Promise<boolean> {
+  return replacePartnerOrderLinesFromPg(order.id, [
+    {
+      productInventoryId: order.product_inventory_id,
+      productName: order.product_name,
+      productImageUrl: order.product_image_url,
+      productUrl: order.product_url,
+      unitPrice: order.unit_price,
+      quantity: order.quantity,
+      variantColor: order.variant_color,
+      variantSize: order.variant_size,
+      variantImageUrlsJson: order.variant_image_urls,
+      note: order.note,
+      sortOrder: 0,
+    },
+  ])
+}
+
 export async function insertPartnerOrderDraftFromPg(input: {
   partnerId: string
   conversationId: string
@@ -331,7 +486,11 @@ export async function insertPartnerOrderDraftFromPg(input: {
         String(input.customerEmail ?? '').trim(),
       ]
     )
-    return row ? mapOrderRow(row) : null
+    const mapped = row ? mapOrderRow(row) : null
+    if (mapped) {
+      await syncPrimaryPartnerOrderLineFromOrderFromPg(mapped)
+    }
+    return mapped
   }
   try {
     return await runInsert(input.depositPercent)
@@ -437,6 +596,102 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
       }
     }
     console.warn('[updatePartnerOrderCheckoutFromPg]', e)
+    return null
+  }
+}
+
+export async function updatePartnerOrderCartCheckoutFromPg(input: {
+  orderId: string
+  partnerId: string
+  conversationId: string
+  externalThreadId: string
+  customerName: string
+  customerEmail: string
+  customerPhone: string
+  shippingAddress: string
+  note: string
+  subtotalAmount: number
+  depositPercent: number
+  requiredAmount: number
+  paymentReference: string
+  paymentQrUrl: string
+  primaryLine: PartnerOrderLineUpsertInput
+}): Promise<PartnerOrderRow | null> {
+  if (!isPgConfigured()) return null
+  const subtotal = Math.max(0, Math.round(num(input.subtotalAmount, 0)))
+  const runUpdate = async (depositPercentValue: number): Promise<PartnerOrderRow | null> => {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `update public.messaging_partner_orders
+       set customer_name = $5,
+           customer_email = $6,
+           customer_phone = $7,
+           shipping_address = $8,
+           variant_color = '',
+           variant_size = '',
+           quantity = $9::integer,
+           note = $10,
+           variant_image_urls = '',
+           product_inventory_id = $11::uuid,
+           product_name = $12,
+           product_image_url = $13,
+           product_url = $14,
+           unit_price = $15::numeric,
+           deposit_percent = $16,
+           subtotal_amount = $17::numeric,
+           required_amount = $18::numeric,
+           payment_reference = $19,
+           payment_qr_url = $20,
+           status = 'awaiting_payment',
+           updated_at = now()
+       where id = $1::uuid
+         and partner_id = $2::uuid
+         and conversation_id = $3::uuid
+         and external_thread_id = $4
+         and locked_at is null
+       returning id::text, partner_id::text, conversation_id::text, external_thread_id, status,
+                 customer_name, customer_email, customer_phone, shipping_address,
+                 variant_color, variant_size, variant_image_urls, quantity, note,
+                 product_inventory_id::text, product_name, product_image_url, product_url,
+                 unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
+                 currency, payment_reference, payment_qr_url, verified_note, shipping_status,
+                 created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count`,
+      [
+        input.orderId,
+        input.partnerId,
+        input.conversationId,
+        input.externalThreadId,
+        input.customerName,
+        input.customerEmail,
+        input.customerPhone,
+        input.shippingAddress,
+        Math.max(1, Math.min(99, Math.floor(num(input.primaryLine.quantity, 1)))),
+        input.note,
+        input.primaryLine.productInventoryId,
+        input.primaryLine.productName,
+        input.primaryLine.productImageUrl,
+        input.primaryLine.productUrl,
+        Math.max(0, Math.round(num(input.primaryLine.unitPrice, 0))),
+        Math.max(0, Math.min(100, Math.round(num(depositPercentValue, 0)))),
+        subtotal,
+        Math.max(0, Math.round(num(input.requiredAmount, 0))),
+        input.paymentReference,
+        input.paymentQrUrl,
+      ]
+    )
+    return row ? mapOrderRow(row) : null
+  }
+  try {
+    return await runUpdate(input.depositPercent)
+  } catch (e) {
+    if (isLegacyDepositPercentConstraintError(e)) {
+      try {
+        const fallbackPercent = Math.round(num(input.depositPercent, 30)) === 100 ? 100 : 30
+        return await runUpdate(fallbackPercent)
+      } catch (e2) {
+        console.warn('[updatePartnerOrderCartCheckoutFromPg:legacy-retry]', e2)
+      }
+    }
+    console.warn('[updatePartnerOrderCartCheckoutFromPg]', e)
     return null
   }
 }
@@ -746,6 +1001,8 @@ export async function updatePartnerOrderPaymentVerificationFromPg(input: {
 
 export type PartnerOrderAdminRow = PartnerOrderRow & {
   partner_display_name: string
+  order_item_count: number
+  order_items_summary: string
   latest_proof_image_url: string | null
   latest_proof_status: 'pending' | 'verified' | 'failed' | 'manual_review' | null
   latest_proof_reason: string | null
@@ -849,6 +1106,8 @@ function mapOrderAdminRow(r: Record<string, unknown>): PartnerOrderAdminRow {
   return {
     ...mapOrderRow(r),
     partner_display_name: String(r.partner_display_name ?? ''),
+    order_item_count: Math.max(1, Math.floor(num(r.order_item_count, 1))),
+    order_items_summary: String(r.order_items_summary ?? ''),
     latest_proof_image_url: r.latest_proof_image_url ? String(r.latest_proof_image_url) : null,
     latest_proof_status: r.latest_proof_status ? (String(r.latest_proof_status) as PartnerOrderAdminRow['latest_proof_status']) : null,
     latest_proof_reason: r.latest_proof_reason ? String(r.latest_proof_reason) : null,
@@ -879,11 +1138,24 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
               o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
               coalesce(mp.display_name, '') as partner_display_name,
+              coalesce(ls.order_item_count, 1) as order_item_count,
+              coalesce(ls.order_items_summary, '') as order_items_summary,
               lp.image_url as latest_proof_image_url,
               lp.verification_status as latest_proof_status,
               lp.verification_reason as latest_proof_reason
        from public.messaging_partner_orders o
        join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
+       left join lateral (
+         select count(*)::int as order_item_count,
+                string_agg(
+                  concat(l.product_name, ' x', l.quantity,
+                         case when nullif(trim(l.variant_color), '') is not null then concat(' - ', l.variant_color) else '' end,
+                         case when nullif(trim(l.variant_size), '') is not null then concat(' - size ', l.variant_size) else '' end),
+                  E'\n' order by l.sort_order asc, l.created_at asc, l.id asc
+                ) as order_items_summary
+         from public.messaging_partner_order_lines l
+         where l.order_id = o.id
+       ) ls on true
        left join lateral (
          select image_url, verification_status, verification_reason
          from public.messaging_partner_payment_proofs p
@@ -935,11 +1207,24 @@ export async function fetchPartnerOrdersForOwnerExportFromPg(input: {
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
               o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
               coalesce(mp.display_name, '') as partner_display_name,
+              coalesce(ls.order_item_count, 1) as order_item_count,
+              coalesce(ls.order_items_summary, '') as order_items_summary,
               lp.image_url as latest_proof_image_url,
               lp.verification_status as latest_proof_status,
               lp.verification_reason as latest_proof_reason
        from public.messaging_partner_orders o
        join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
+       left join lateral (
+         select count(*)::int as order_item_count,
+                string_agg(
+                  concat(l.product_name, ' x', l.quantity,
+                         case when nullif(trim(l.variant_color), '') is not null then concat(' - ', l.variant_color) else '' end,
+                         case when nullif(trim(l.variant_size), '') is not null then concat(' - size ', l.variant_size) else '' end),
+                  E'\n' order by l.sort_order asc, l.created_at asc, l.id asc
+                ) as order_items_summary
+         from public.messaging_partner_order_lines l
+         where l.order_id = o.id
+       ) ls on true
        left join lateral (
          select image_url, verification_status, verification_reason
          from public.messaging_partner_payment_proofs p
@@ -1051,7 +1336,15 @@ export async function updatePartnerOrderShippingStatusForOwnerFromPg(input: {
       [input.orderId, input.ownerUserId, input.shippingStatus, input.note]
     )
     if (!row) return null
-    return { ...mapOrderRow(row), partner_display_name: '', latest_proof_image_url: null, latest_proof_status: null, latest_proof_reason: null }
+    return {
+      ...mapOrderRow(row),
+      partner_display_name: '',
+      order_item_count: 1,
+      order_items_summary: '',
+      latest_proof_image_url: null,
+      latest_proof_status: null,
+      latest_proof_reason: null,
+    }
   } catch (e) {
     console.warn('[updatePartnerOrderShippingStatusForOwnerFromPg]', e)
     return null
