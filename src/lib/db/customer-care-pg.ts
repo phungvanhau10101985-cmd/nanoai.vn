@@ -291,6 +291,26 @@ export async function fetchWidgetConversationsForLinkedUserFromPg(
   }
 }
 
+export async function fetchWidgetConversationPartnerIdsByExternalThreadIdFromPg(
+  externalThreadId: string
+): Promise<string[] | null> {
+  if (!isPgConfigured()) return null
+  const tid = externalThreadId.trim()
+  if (!tid) return []
+  try {
+    const rows = await pgQuery<{ partner_id: string }>(
+      `select distinct partner_id::text as partner_id
+       from public.customer_care_conversations
+       where channel = 'widget' and external_thread_id = $1`,
+      [tid]
+    )
+    return rows.map((r) => String(r.partner_id ?? '').trim()).filter(Boolean)
+  } catch (e) {
+    console.error('[customer-care-pg] fetchWidgetConversationPartnerIdsByExternalThreadIdFromPg', e)
+    return null
+  }
+}
+
 export async function fetchPartnerConversationsFromPg(
   partnerId: string,
   limit = 100

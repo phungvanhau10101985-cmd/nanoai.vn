@@ -51,6 +51,15 @@ const config: Config = {
   				'5': 'hsl(var(--chart-5))'
   			}
   		},
+  		keyframes: {
+  			weddingMusicFabBar: {
+  				'0%, 100%': { transform: 'scaleY(0.35)' },
+  				'50%': { transform: 'scaleY(1)' },
+  			},
+  		},
+  		animation: {
+  			'wedding-music-fab-bar': 'weddingMusicFabBar 0.5s ease-in-out infinite',
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',

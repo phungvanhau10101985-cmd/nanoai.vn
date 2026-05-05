@@ -6,6 +6,8 @@ import { issueTrustedDeviceForUser, markTrustedEmailForBrowser } from '@/lib/aut
 import { mergeGuestTrialUserDataAfterLogin } from '@/lib/auth/merge-guest-trial-user-data'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { readGuestSessionIdFromRequestStrictOrLoose } from '@/lib/messaging/guest-auth-session'
+import { syncBrowserGuestSessionToUser } from '@/lib/messaging/sync-browser-guest-session-to-user'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,6 +94,11 @@ export async function POST(req: NextRequest) {
       guestTrialUserId: req.cookies.get('nano_guest_trial_user_id')?.value ?? null,
       realUserId: uidRow.id,
       response: res,
+    })
+    await syncBrowserGuestSessionToUser({
+      guestSessionId: readGuestSessionIdFromRequestStrictOrLoose(req),
+      userId: uidRow.id,
+      email,
     })
     return res
   } catch (e) {

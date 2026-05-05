@@ -16,6 +16,7 @@ export type ToolKey =
   | 'beautify_image'
   | 'merge_image'
   | 'create_banner'
+  | 'wedding_invitation_ai'
   | 'text_to_image'
   | 'infographic_from_book'
   | 'sketch_to_image'
@@ -1777,6 +1778,60 @@ export type Dictionary = {
     /** Nhãn nhỏ cạnh số thứ tự trong khối câu hỏi (WorksheetView) */
     questionBadge: string
   }
+  /** /tao-thiep-moi-cuoi-ai — khoảng phát nhạc nền (file upload) */
+  weddingCardAiMusic: {
+    playStartLabel: string
+    playEndLabel: string
+    playStartPlaceholder: string
+    playEndPlaceholder: string
+    segmentHint: string
+    /** Nút: ghi vị trí playhead vào ô «bắt đầu phát» */
+    useCurrentPlaybackAsStart: string
+    /** Khách xem thiệp: file nhạc không tải được (404 / mất file). */
+    playbackLoadFailed: string
+    /** FAB góc màn — trợ năng nhạc đang phát */
+    publicFabPauseAria: string
+    /** FAB góc màn — trợ năng nhạc đang tắt */
+    publicFabPlayAria: string
+    /** Thiệp công khai: tiêu đề iframe bản đồ (trợ năng) */
+    publicMapEmbedTitle: string
+  }
+  /** Thiệp công khai / preview: khối lịch & giờ tiệc (save-the-date) */
+  weddingCardCalendar: {
+    sectionTitle: string
+    introLine: string
+    receptionLabel: string
+    partyLabel: string
+    /** Ô chờ khi chỉ có một mốc giờ được trích ra */
+    timePlaceholderDash: string
+  }
+  /** Hộp mừng cưới + VietQR */
+  weddingGiftBox: {
+    boxTitle: string
+    tapToOpen: string
+    dialogTitle: string
+    brideSection: string
+    groomSection: string
+    accountHolder: string
+    accountNumber: string
+    bankSelectPlaceholder: string
+    vietqrFooterNote: string
+    closeButton: string
+    envelopeButtonAria: string
+    editorHint: string
+    legacyImageLabel: string
+    legacyImageDesc: string
+    saveNeedConfig: string
+    qrAltBride: string
+    qrAltGroom: string
+    qrAltLegacy: string
+  }
+  /** /tao-thiep-moi-cuoi-ai — mô tả nội dung brief & auto-save */
+  weddingCardAiBrief: {
+    step2Description: string
+    autoSavedLabel: string
+    autoSaveFailedLabel: string
+  }
   /** Trang /tao-bai-thi — tạo phiên thi trực tuyến (GV) */
   createExamPage: {
     error: string
@@ -3112,6 +3167,7 @@ const VI_DICTIONARY: Dictionary = {
     beautify_image: 'Làm đẹp ảnh',
     merge_image: 'Ghép ảnh',
     create_banner: 'Tạo banner',
+    wedding_invitation_ai: 'Tạo thiệp cưới AI',
     text_to_image: 'Tạo ảnh bằng chữ',
     infographic_from_book: 'Infographic từ sách',
     sketch_to_image: 'Dựng ảnh từ phác thảo',
@@ -3742,6 +3798,55 @@ const VI_DICTIONARY: Dictionary = {
     backHome: 'Về trang chủ',
     updatedLabel: 'Cập nhật',
     questionBadge: 'Câu hỏi',
+  },
+  weddingCardAiMusic: {
+    playStartLabel: 'Bắt đầu phát',
+    playEndLabel: 'Kết thúc / lặp lại tại',
+    playStartPlaceholder: 'Để trống hoặc 0 · 30 · 1:30 (trống = cả bài từ đầu)',
+    playEndPlaceholder: 'Để trống = không cắt, phát đến hết bài',
+    segmentHint:
+      'Không nhập ô nào = phát nguyên bản cả nhạc từ đầu đến hết. Có ô mới vào chi tiết: giây (30) hoặc phút:giây (1:30). Nếu có mốc kết thúc, nhạc lặp trong đoạn đó. Nhấn «Lưu» để áp dụng trên thiệp.',
+    useCurrentPlaybackAsStart: 'Dùng vị trí đang phát làm điểm bắt đầu',
+    playbackLoadFailed:
+      'Không tải được file nhạc (có thể đã xóa trên máy chủ). Chủ thiệp vui lòng vào trang chỉnh sửa và tải lại nhạc nền.',
+    publicFabPauseAria: 'Tắt nhạc nền thiệp',
+    publicFabPlayAria: 'Bật nhạc nền thiệp',
+    publicMapEmbedTitle: 'Bản đồ địa điểm tiệc cưới',
+  },
+  weddingCardCalendar: {
+    sectionTitle: 'THÔNG TIN TIỆC CƯỚI',
+    introLine: 'TIỆC CƯỚI SẼ DIỄN RA VÀO LÚC:',
+    receptionLabel: 'ĐÓN KHÁCH',
+    partyLabel: 'KHAI TIỆC',
+    timePlaceholderDash: '—',
+  },
+  weddingGiftBox: {
+    boxTitle: 'Hộp Mừng Cưới',
+    tapToOpen: 'Nhấn để mở',
+    dialogTitle: 'Mừng cưới — quét VietQR',
+    brideSection: 'Cô dâu',
+    groomSection: 'Chú rể',
+    accountHolder: 'Tên chủ tài khoản',
+    accountNumber: 'Số tài khoản',
+    bankSelectPlaceholder: 'Chọn ngân hàng',
+    vietqrFooterNote: 'Quét bằng app ngân hàng (VietQR).',
+    closeButton: 'Đóng',
+    envelopeButtonAria: 'Mở hộp mừng cưới, xem mã quét',
+    editorHint:
+      'Bật hộp mừng cưới: điền đủ ngân hàng, số TK và tên chủ TK cho cả cô dâu và chú rể để tạo hai mã VietQR. Hoặc dán một URL ảnh QR dưới đây (cách cũ).',
+    legacyImageLabel: 'URL ảnh QR một mã (tùy chọn)',
+    legacyImageDesc: 'Chỉ dùng khi không dùng hai VietQR ở trên; thiệp sẽ hiển thị một QR duy nhất.',
+    saveNeedConfig:
+      'Đã bật QR mừng cưới: nhập đủ thông tin hai tài khoản (cô dâu + chú rể), hoặc điền URL ảnh QR.',
+    qrAltBride: 'VietQR chuyển khoản — cô dâu',
+    qrAltGroom: 'VietQR chuyển khoản — chú rể',
+    qrAltLegacy: 'Mã QR mừng cưới',
+  },
+  weddingCardAiBrief: {
+    step2Description:
+      'Sửa nội dung và xem preview đều miễn phí. Thay đổi tự động lưu sau khoảng 1 giây; có thể vẫn nhấn «Lưu nội dung thiệp» để lưu ngay.',
+    autoSavedLabel: 'Đã lưu tự động',
+    autoSaveFailedLabel: 'Chưa lưu được. Kiểm tra mạng hoặc nhấn «Lưu nội dung thiệp».',
   },
   createExamPage: {
     error: 'Lỗi',
@@ -5075,6 +5180,7 @@ const EN_DICTIONARY: Dictionary = {
     beautify_image: 'Beautify Image',
     merge_image: 'Merge Images',
     create_banner: 'Create Banner',
+    wedding_invitation_ai: 'AI Wedding Invitation',
     text_to_image: 'Text-to-image',
     infographic_from_book: 'Infographic from book',
     sketch_to_image: 'Sketch to image',
@@ -5703,6 +5809,54 @@ const EN_DICTIONARY: Dictionary = {
     backHome: 'Back to home',
     updatedLabel: 'Updated',
     questionBadge: 'Question',
+  },
+  weddingCardAiMusic: {
+    playStartLabel: 'Start playback at',
+    playEndLabel: 'End / loop at',
+    playStartPlaceholder: 'Empty or 0 · 30 · 1:30 (empty = full track)',
+    playEndPlaceholder: 'Empty = play to end (no crop)',
+    segmentHint:
+      'Leave both empty to play the full track unchanged from start to finish. Values set the segment (seconds like 30, or mm:ss like 1:30). With an end time set, audio loops inside that range. Press Save to apply.',
+    useCurrentPlaybackAsStart: 'Use current playback position as start',
+    playbackLoadFailed:
+      'Could not load music (file missing or unreachable). Ask the invitation host to re-upload audio in the editor.',
+    publicFabPauseAria: 'Turn off invitation background music',
+    publicFabPlayAria: 'Turn on invitation background music',
+    publicMapEmbedTitle: 'Wedding venue map',
+  },
+  weddingCardCalendar: {
+    sectionTitle: 'WEDDING DETAILS',
+    introLine: 'THE RECEPTION WILL BE HELD AT:',
+    receptionLabel: 'GUEST ARRIVAL',
+    partyLabel: 'RECEPTION BEGINS',
+    timePlaceholderDash: '—',
+  },
+  weddingGiftBox: {
+    boxTitle: 'Wedding Gift Box',
+    tapToOpen: 'Tap to open',
+    dialogTitle: 'Gift money — VietQR scan',
+    brideSection: 'Bride',
+    groomSection: 'Groom',
+    accountHolder: 'Account holder',
+    accountNumber: 'Account number',
+    bankSelectPlaceholder: 'Choose bank',
+    vietqrFooterNote: 'Scan with your banking app (VietQR).',
+    closeButton: 'Close',
+    envelopeButtonAria: 'Open wedding gift box to view QR codes',
+    editorHint:
+      'When enabled: enter bank, account number, and holder name for both bride and groom to generate two VietQR codes. Alternatively paste one QR image URL below (legacy).',
+    legacyImageLabel: 'Single QR image URL (optional)',
+    legacyImageDesc: 'Only if you are not using the two VietQR profiles above.',
+    saveNeedConfig: 'Gift QR is on: fill both VietQR profiles (bride + groom), or enter a QR image URL.',
+    qrAltBride: 'Bank transfer QR — bride',
+    qrAltGroom: 'Bank transfer QR — groom',
+    qrAltLegacy: 'Wedding gift QR',
+  },
+  weddingCardAiBrief: {
+    step2Description:
+      'Editing content and preview is free. Changes auto-save after about a second; you can still press Save to persist immediately.',
+    autoSavedLabel: 'Auto-saved',
+    autoSaveFailedLabel: 'Could not auto-save. Check your connection or press Save.',
   },
   createExamPage: {
     error: 'Error',
@@ -7159,6 +7313,7 @@ const ZH_DICTIONARY: Dictionary = {
     beautify_image: '图片美化',
     merge_image: '图片合成',
     create_banner: '生成横幅',
+    wedding_invitation_ai: 'AI 婚礼请柬',
     text_to_image: '文生图',
     infographic_from_book: '书籍信息图',
     sketch_to_image: '草图生成图像',
@@ -7595,6 +7750,53 @@ const ZH_DICTIONARY: Dictionary = {
     backHome: '返回首页',
     updatedLabel: '更新于',
     questionBadge: '题目',
+  },
+  weddingCardAiMusic: {
+    playStartLabel: '从此处开始播放',
+    playEndLabel: '结束 / 循环点',
+    playStartPlaceholder: '留空或 0 · 30 · 1:30（留空 = 整首从头播）',
+    playEndPlaceholder: '留空 = 播到结尾，不裁剪',
+    segmentHint:
+      '两个都不填则按原曲从头播到尾。填写后表示区段：秒（30）或 分:秒（1:30）。若填写结束时间，则在该片段内循环。保存后生效。',
+    useCurrentPlaybackAsStart: '将当前播放位置设为开始点',
+    playbackLoadFailed: '音乐无法加载（文件可能不存在）。请柬主人请在编辑页重新上传背景音乐。',
+    publicFabPauseAria: '关闭请柬背景音乐',
+    publicFabPlayAria: '播放请柬背景音乐',
+    publicMapEmbedTitle: '婚礼场地地图',
+  },
+  weddingCardCalendar: {
+    sectionTitle: '婚礼信息',
+    introLine: '婚礼将于以下时间举行：',
+    receptionLabel: '迎宾',
+    partyLabel: '开席',
+    timePlaceholderDash: '—',
+  },
+  weddingGiftBox: {
+    boxTitle: '礼金盒',
+    tapToOpen: '点击打开',
+    dialogTitle: '贺礼 — 扫描 VietQR',
+    brideSection: '新娘',
+    groomSection: '新郎',
+    accountHolder: '开户姓名',
+    accountNumber: '账号',
+    bankSelectPlaceholder: '选择银行',
+    vietqrFooterNote: '请使用手机银行 App 扫描（VietQR）。',
+    closeButton: '关闭',
+    envelopeButtonAria: '打开礼金盒查看二维码',
+    editorHint:
+      '开启后：分别为新娘与新郎填写银行、账号与户名，用于生成两个 VietQR。或在下方填写一张二维码图片链接（旧方式）。',
+    legacyImageLabel: '单张二维码图片 URL（可选）',
+    legacyImageDesc: '不使用上方双 VietQR 时可用；页面只显示一张码。',
+    saveNeedConfig: '已启用礼金 QR：请填完两组 VietQR（新娘+新郎），或填写二维码图片 URL。',
+    qrAltBride: '转账 QR — 新娘',
+    qrAltGroom: '转账 QR — 新郎',
+    qrAltLegacy: '贺礼 QR',
+  },
+  weddingCardAiBrief: {
+    step2Description:
+      '编辑内容与预览均为免费。约 1 秒后自动保存；您仍可手动按「保存」立即保存。',
+    autoSavedLabel: '已自动保存',
+    autoSaveFailedLabel: '未能自动保存。请检查网络或按下「保存」。',
   },
   createExamPage: {
     error: '错误',
@@ -8919,6 +9121,7 @@ const JA_DICTIONARY: Dictionary = {
     beautify_image: '画像補正',
     merge_image: '画像合成',
     create_banner: 'バナー作成',
+    wedding_invitation_ai: 'AI 結婚式招待状',
     text_to_image: 'テキストから画像',
     infographic_from_book: '教科書インフォグラフィック',
     sketch_to_image: 'スケッチから画像',
@@ -9535,6 +9738,55 @@ const JA_DICTIONARY: Dictionary = {
     backHome: 'ホームへ',
     updatedLabel: '更新',
     questionBadge: '設問',
+  },
+  weddingCardAiMusic: {
+    playStartLabel: '再生開始位置',
+    playEndLabel: '終了 / ループ位置',
+    playStartPlaceholder: '空欄か 0 · 30 · 1:30（空欄 = 曲の最初から最後まで）',
+    playEndPlaceholder: '空欄 = 曲の終わりまで（トリムなし）',
+    segmentHint:
+      'どちらも未入力なら曲全体を最初から最後までそのまま再生します。入力すると区間指定：秒（30）または 分:秒（1:30）。終了を入れるとその範囲でループします。「保存」で反映します。',
+    useCurrentPlaybackAsStart: '今の再生位置を開始に設定',
+    playbackLoadFailed:
+      '音楽を読み込めませんでした（ファイルがない可能性）。招待状の作成者は編集画面からBGMを再アップロードしてください。',
+    publicFabPauseAria: 'BGMを停止',
+    publicFabPlayAria: 'BGMを再生',
+    publicMapEmbedTitle: '披露宴会場の地図',
+  },
+  weddingCardCalendar: {
+    sectionTitle: '披露宴のご案内',
+    introLine: 'パーティーのお時間:',
+    receptionLabel: '受付・ご入場',
+    partyLabel: '披露宴開始',
+    timePlaceholderDash: '—',
+  },
+  weddingGiftBox: {
+    boxTitle: 'ご祝儀ボックス',
+    tapToOpen: 'タップして開く',
+    dialogTitle: 'ご祝儀のお振込 — VietQR',
+    brideSection: '新婦',
+    groomSection: '新郎',
+    accountHolder: '口座名義',
+    accountNumber: '口座番号',
+    bankSelectPlaceholder: '銀行を選択',
+    vietqrFooterNote: '銀行アプリでスキャン（VietQR）してください。',
+    closeButton: '閉じる',
+    envelopeButtonAria: 'ご祝儀ボックスを開いてQRコードを表示',
+    editorHint:
+      'オンにしたら、新郎・新婦それぞれの銀行・口座番号・名義を入力すると2枚の VietQR が生成されます。または下にQR画像URL（従来方式）でも可。',
+    legacyImageLabel: 'QR画像URL（オプション・1枚のみ）',
+    legacyImageDesc: '上記の二つの VietQR を使わないとき用です。',
+    saveNeedConfig:
+      'ご祝儀QRオン：新郎・新婦の情報を両方入れるか、QR画像URLを入力してください。',
+    qrAltBride: '振込用QR — 新婦',
+    qrAltGroom: '振込用QR — 新郎',
+    qrAltLegacy: 'ご祝儀QR',
+  },
+  weddingCardAiBrief: {
+    step2Description:
+      '内容の編集とプレビューは無料です。変更は約1秒後に自動保存されます。「保存」を押してすぐ保存することもできます。',
+    autoSavedLabel: '自動保存しました',
+    autoSaveFailedLabel: '自動保存できませんでした。接続を確認するか「保存」を押してください。',
   },
   createExamPage: {
     error: 'エラー',
@@ -10859,6 +11111,7 @@ const KO_DICTIONARY: Dictionary = {
     beautify_image: '이미지 보정',
     merge_image: '이미지 합성',
     create_banner: '배너 생성',
+    wedding_invitation_ai: 'AI 청첩장',
     text_to_image: '텍스트로 이미지',
     infographic_from_book: '교과서 인포그래픽',
     sketch_to_image: '스케치로 이미지',
@@ -11471,6 +11724,54 @@ const KO_DICTIONARY: Dictionary = {
     backHome: '홈으로',
     updatedLabel: '업데이트',
     questionBadge: '문항',
+  },
+  weddingCardAiMusic: {
+    playStartLabel: '재생 시작',
+    playEndLabel: '종료 / 반복 지점',
+    playStartPlaceholder: '비움 또는 0 · 30 · 1:30 (비움 = 처음부터 전곡 재생)',
+    playEndPlaceholder: '비움 = 끝까지 재생(자르기 없음)',
+    segmentHint:
+      '두 칸 모두 비우면 원본 그대로 처음부터 끝까지 재생합니다. 입력 시 구간 지정: 초(30) 또는 분:초(1:30). 종료 시각을 넣으면 해당 구간에서 반복합니다. 저장 시 청첩장에 적용됩니다.',
+    useCurrentPlaybackAsStart: '현재 재생 위치를 시작으로 사용',
+    playbackLoadFailed:
+      '음악을 불러오지 못했습니다(파일이 없을 수 있습니다). 청첩장 주인이 편집 화면에서 배경음을 다시 올려 주세요.',
+    publicFabPauseAria: '배경음 끄기',
+    publicFabPlayAria: '배경음 켜기',
+    publicMapEmbedTitle: '예식 장소 지도',
+  },
+  weddingCardCalendar: {
+    sectionTitle: '예식 정보',
+    introLine: '피로연이 다음 시간에 진행됩니다:',
+    receptionLabel: '하객 맞이',
+    partyLabel: '피로연 시작',
+    timePlaceholderDash: '—',
+  },
+  weddingGiftBox: {
+    boxTitle: '축의금 박스',
+    tapToOpen: '눌러서 열기',
+    dialogTitle: '축의금 — VietQR 스캔',
+    brideSection: '신부',
+    groomSection: '신랑',
+    accountHolder: '예금주',
+    accountNumber: '계좌번호',
+    bankSelectPlaceholder: '은행 선택',
+    vietqrFooterNote: '뱅킹 앱으로 스캔하세요 (VietQR).',
+    closeButton: '닫기',
+    envelopeButtonAria: '축의금 박스를 열어 QR 코드 보기',
+    editorHint:
+      '켜면 신부·신랑 각각 은행, 계좌번호, 예금주를 입력해 VietQR 두 개를 만듭니다. 또는 아래에 QR 이미지 URL(구 방식)을 넣을 수 있습니다.',
+    legacyImageLabel: 'QR 이미지 URL(선택, 한 장)',
+    legacyImageDesc: '위의 이중 VietQR을 쓰지 않을 때만 사용합니다.',
+    saveNeedConfig: '축의 QR 켜짐: 신부+신랑 정보를 모두 입력하거나 QR 이미지 URL을 넣으세요.',
+    qrAltBride: '이체 QR — 신부',
+    qrAltGroom: '이체 QR — 신랑',
+    qrAltLegacy: '축의 QR',
+  },
+  weddingCardAiBrief: {
+    step2Description:
+      '내용 수정과 미리보기는 무료입니다. 약 1초 후 자동 저장되며, «저장»을 눌러 바로 저장할 수 있습니다.',
+    autoSavedLabel: '자동 저장됨',
+    autoSaveFailedLabel: '자동 저장에 실패했습니다. 네트워크를 확인하거나 «저장»을 누르세요.',
   },
   createExamPage: {
     error: '오류',
