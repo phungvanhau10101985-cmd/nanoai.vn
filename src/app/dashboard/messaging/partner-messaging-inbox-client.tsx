@@ -144,6 +144,9 @@ export function PartnerMessagingInboxClient({
   const isMobileLayout = useMatchMediaMaxMd()
 
   const selectedConv = selectedConvId ? conversations.find((c) => c.id === selectedConvId) : undefined
+  const messagesBottomInsetPx = selectedConvId
+    ? Math.max((composerHeight > 0 ? composerHeight : 120) + 28, 96)
+    : undefined
   const selectedPartner = useMemo(
     () => partners.find((p) => p.id === selectedPartnerId) ?? null,
     [partners, selectedPartnerId]
@@ -312,7 +315,7 @@ export function PartnerMessagingInboxClient({
     }
     const el = composerRef.current
     if (!el) return
-    const measure = () => setComposerHeight(el.offsetHeight)
+    const measure = () => setComposerHeight(el.getBoundingClientRect().height)
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
@@ -322,7 +325,7 @@ export function PartnerMessagingInboxClient({
   useEffect(() => {
     if (!selectedConvId || loadingMsgs) return
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages, selectedConvId, loadingMsgs, shopAiComposing])
+  }, [messages, selectedConvId, loadingMsgs, shopAiComposing, composerHeight])
 
   const uploadPartnerImage = async (file: File) => {
     if (!selectedPartnerId) return
@@ -931,7 +934,10 @@ export function PartnerMessagingInboxClient({
               ) : null}
               <div
                 className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-2 py-1.5 touch-pan-y sm:px-2.5"
-                style={{ paddingBottom: composerHeight > 0 ? composerHeight + 6 : undefined }}
+                style={{
+                  paddingBottom: messagesBottomInsetPx,
+                  scrollPaddingBottom: messagesBottomInsetPx,
+                }}
               >
                 {loadingMsgs ? (
                   <div className="text-[13px] text-muted-foreground">…</div>
@@ -1044,7 +1050,7 @@ export function PartnerMessagingInboxClient({
       {selectedConvId ? (
         <div
           ref={composerRef}
-          className="fixed bottom-[5.5rem] left-0 right-0 z-[45] border-t border-border/70 bg-background/97 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgba(0,0,0,0.08)] backdrop-blur-md md:bottom-0"
+          className="fixed bottom-[5.5rem] left-0 right-0 z-[45] border-t border-border bg-background pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_24px_rgba(0,0,0,0.1)] md:bottom-0"
         >
           <div className="mx-auto w-full max-w-7xl px-2 py-1.5 sm:px-3 lg:px-5 xl:px-6">
             <input
@@ -1068,7 +1074,7 @@ export function PartnerMessagingInboxClient({
               <div className="hidden md:block" />
               <div className="min-w-0">
                 {/* Khung soạn tin chỉ nằm trong cột giữa */}
-                <div className="rounded-md border border-border/70 bg-muted/5 shadow-sm transition-[box-shadow] focus-within:border-violet-500/55 focus-within:ring-1 focus-within:ring-violet-500/20">
+                <div className="rounded-md border border-border bg-card shadow-sm transition-[box-shadow] focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/15">
                   {imagePreviewUrl ? (
                     <div className="relative border-b border-border/50 bg-muted/30 p-1">
                       {/* eslint-disable-next-line @next/next/no-img-element -- local preview blob/object URL */}
@@ -1098,7 +1104,7 @@ export function PartnerMessagingInboxClient({
                       onPaste={onReplyPaste}
                       placeholder={t.replyPlaceholder}
                       rows={2}
-                      className="min-h-[2.625rem] resize-none rounded-none border-0 bg-transparent py-1.5 pl-2 pr-[5.75rem] pb-8 text-xs leading-snug text-foreground shadow-none placeholder:text-muted-foreground/80 focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[2.875rem] sm:text-[13px]"
+                      className="min-h-[2.625rem] resize-none rounded-none border-0 bg-card py-1.5 pl-2 pr-[5.75rem] pb-8 text-xs leading-snug text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[2.875rem] sm:text-[13px]"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault()
