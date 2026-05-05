@@ -352,6 +352,13 @@ type GuestCartItem = {
   variantLineImages?: string[]
 }
 
+type CurrentOrderPickedLine = {
+  color: string
+  size: string
+  quantity: number
+  variantLineImages?: string[]
+}
+
 function collectRecentSuggestedCardsFromMessages(
   messages: GuestMsg[],
   limit = 60,
@@ -3268,6 +3275,7 @@ export function PartnerGuestChatClient({
         sizePayload: string
         totalQty: number
         variantLineImages?: string[]
+        cartLines: CurrentOrderPickedLine[]
       }
     | null => {
     const missing: string[] = []
@@ -3325,6 +3333,7 @@ export function PartnerGuestChatClient({
     /** Luôn là số nguyên 1–99 — tránh JSON.stringify(NaN)→null khiến API coi thiếu SL. */
     const totalQty = Math.max(1, Math.min(99, Math.floor(Number(totalQtyRaw)) || 1))
     let colorPayload = orderColor.trim()
+    const cartLines: CurrentOrderPickedLine[] = []
     if (hasPalette && activePurchaseOptions?.colors) {
       const parts: string[] = []
       for (const img of orderSelectedColorImgs) {
@@ -3344,12 +3353,25 @@ export function PartnerGuestChatClient({
       for (const img of orderSelectedColorImgs) {
         const c = findPaletteColorByImageUrl(activePurchaseOptions.colors, img)
         const n = c?.name?.trim() || 'Mẫu'
+        const q = Math.max(1, Math.min(99, parseInt(orderQtyByColorImg[img] || '1', 10) || 1))
         const sz = productHasShopSizes
           ? (orderSizeByColorImg[img] ?? '').trim()
           : noSizePlaceholder
         szParts.push(`${n}:${sz}`)
+        cartLines.push({
+          color: n,
+          size: sz || noSizePlaceholder,
+          quantity: q,
+          variantLineImages: [img],
+        })
       }
       sizePayload = szParts.join(', ').slice(0, 2000)
+    } else {
+      cartLines.push({
+        color: colorPayload,
+        size: sizePayload.trim() || noSizePlaceholder,
+        quantity: totalQty,
+      })
     }
     return {
       colorPayload,
@@ -3358,6 +3380,7 @@ export function PartnerGuestChatClient({
       ...(hasPalette && orderSelectedColorImgs.length > 0
         ? { variantLineImages: orderSelectedColorImgs.slice(0, 24) }
         : {}),
+      cartLines,
     }
   }
 
@@ -3366,29 +3389,31 @@ export function PartnerGuestChatClient({
     const picked = buildCurrentOrderSelection()
     if (!picked) return
     setCartItems((prev) => {
-      const key = `${activeOrderCard.product_url.trim().toLowerCase()}|${picked.colorPayload}|${picked.sizePayload}`
-      const exists = prev.find(
-        (item) => `${item.card.product_url.trim().toLowerCase()}|${item.color}|${item.size}` === key
-      )
-      if (exists) {
-        return prev.map((item) =>
-          item.id === exists.id
-            ? { ...item, quantity: Math.min(99, item.quantity + picked.totalQty) }
-            : item
+      let next = [...prev]
+      for (const line of picked.cartLines) {
+        const key = `${activeOrderCard.product_url.trim().toLowerCase()}|${line.color}|${line.size}`
+        const exists = next.find(
+          (item) => `${item.card.product_url.trim().toLowerCase()}|${item.color}|${item.size}` === key
         )
+        if (exists) {
+          next = next.map((item) =>
+            item.id === exists.id
+              ? { ...item, quantity: Math.min(99, item.quantity + line.quantity) }
+              : item
+          )
+        } else {
+          next.push({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            card: activeOrderCard,
+            quantity: line.quantity,
+            color: line.color,
+            size: line.size,
+            note: orderNote,
+            variantLineImages: line.variantLineImages,
+          })
+        }
       }
-      return [
-        ...prev,
-        {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          card: activeOrderCard,
-          quantity: picked.totalQty,
-          color: picked.colorPayload,
-          size: picked.sizePayload,
-          note: orderNote,
-          variantLineImages: picked.variantLineImages,
-        },
-      ]
+      return next
     })
     setOrderFormOpen(false)
     setCartOpen(true)
