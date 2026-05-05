@@ -618,15 +618,18 @@ export async function completeOrderCheckout(input: {
     body:
       updated.required_amount > 0
         ? `Đơn hàng đã được tạo thành công.\n` +
-          `Tổng ${toVnd(updated.subtotal_amount)} — cần đặt cọc trước ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
+          `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
+          `Cần đặt cọc trước: **${toVnd(updated.required_amount)}** (${updated.deposit_percent}%).\n` +
+          `Còn thanh toán khi nhận hàng: **${toVnd(Math.max(0, updated.subtotal_amount - updated.required_amount))}**.\n` +
           `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới (có nút sao chép từng mục).\n` +
           `${calc.fallbackApplied ? 'Lưu ý: Số tiền đặt cọc vượt giá trị đơn, hệ thống đã fallback về 20% giá trị đơn.\n' : ''}` +
           (useSepayQr
             ? `Sau khi chuyển khoản đúng số tiền và nội dung CK: hệ thống của ${shopDisplayName || 'shop'} xác nhận tự động — không cần gửi ảnh biên lai.`
             : `Sau khi chuyển khoản: bấm nút gửi ảnh biên lai ngay dưới mã QR.`)
         : `Đơn hàng đã được tạo thành công.\n` +
-          `Tổng tiền: ${toVnd(updated.subtotal_amount)} | Thanh toán trước: 0đ.\n` +
-          `Thanh toán khi nhận hàng: ${toVnd(updated.subtotal_amount)}.\n` +
+          `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
+          `Thanh toán trước: **0đ**.\n` +
+          `Thanh toán khi nhận hàng: **${toVnd(updated.subtotal_amount)}**.\n` +
           `Đơn này không yêu cầu đặt cọc trước. Shop sẽ liên hệ xác nhận đơn và giao hàng.`,
     rawPayload: toJson(orderCardPayload(updated, paymentDisplay, updatedLines)),
   })
@@ -672,16 +675,18 @@ async function cartInputLineToOrderLine(input: {
     bdayPct != null && bdayPct > 0
       ? Math.max(0, Math.round((baseUnit * (100 - bdayPct)) / 100))
       : Math.max(0, Math.round(baseUnit))
+  const variantImageUrlsJson = variantLineImagesToStoredJson(input.line.variantLineImages)
+  const firstVariantImage = input.line.variantLineImages?.find((u) => /^https?:\/\//i.test(String(u ?? '').trim()))
   return {
     productInventoryId: inv?.id ?? input.line.card.inventory_id ?? null,
     productName: trim(inv?.name || input.line.card.name, 180),
-    productImageUrl: trim(inv?.image_url || input.line.card.image_url, 600),
+    productImageUrl: trim(firstVariantImage || inv?.image_url || input.line.card.image_url, 600),
     productUrl: trim(inv?.product_url || productUrl, 600),
     unitPrice,
     quantity: Math.max(1, Math.min(99, Math.floor(Number(input.line.quantity) || 1))),
     variantColor: trim(input.line.color ?? '', 2000),
     variantSize: trim(input.line.size ?? '', 2000),
-    variantImageUrlsJson: variantLineImagesToStoredJson(input.line.variantLineImages),
+    variantImageUrlsJson,
     note: trim(input.line.note ?? '', 800),
     sortOrder: input.sortOrder,
   }
@@ -825,11 +830,14 @@ export async function completeCartCheckout(input: {
     body:
       updated.required_amount > 0
         ? `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
-          `Tổng ${toVnd(updated.subtotal_amount)} — cần đặt cọc trước ${toVnd(updated.required_amount)} (${updated.deposit_percent}%).\n` +
+          `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
+          `Cần đặt cọc trước: **${toVnd(updated.required_amount)}** (${updated.deposit_percent}%).\n` +
+          `Còn thanh toán khi nhận hàng: **${toVnd(Math.max(0, updated.subtotal_amount - updated.required_amount))}**.\n` +
           `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới.`
         : `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
-          `Tổng tiền: ${toVnd(updated.subtotal_amount)} | Thanh toán trước: 0đ.\n` +
-          `Thanh toán khi nhận hàng: ${toVnd(updated.subtotal_amount)}.`,
+          `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
+          `Thanh toán trước: **0đ**.\n` +
+          `Thanh toán khi nhận hàng: **${toVnd(updated.subtotal_amount)}**.`,
     rawPayload: toJson(orderCardPayload(updated, paymentDisplay, savedLines)),
   })
   await insertPartnerOrderEventFromPg({

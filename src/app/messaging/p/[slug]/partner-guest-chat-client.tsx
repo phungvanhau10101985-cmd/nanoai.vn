@@ -1482,6 +1482,7 @@ export function PartnerGuestChatClient({
   const [buyPromptMessageId, setBuyPromptMessageId] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [cartItems, setCartItems] = useState<GuestCartItem[]>([])
+  const [cartSyncReady, setCartSyncReady] = useState(false)
   const [cartCheckoutBusy, setCartCheckoutBusy] = useState(false)
   const [activeOrderCard, setActiveOrderCard] = useState<PartnerAiProductCard | null>(null)
   const [activePurchaseOptions, setActivePurchaseOptions] = useState<PurchaseOptionsPayload | null>(null)
@@ -1580,6 +1581,7 @@ export function PartnerGuestChatClient({
   const didInitialAutoScrollRef = useRef(false)
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
+  const cartSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [recentProductsOpen, setRecentProductsOpen] = useState(false)
   /** SP từ email CMSN / deep link ?interested_inv= */
   const [birthdayPromoExtraRows, setBirthdayPromoExtraRows] = useState<RecentProductWithSource[]>([])
@@ -3022,6 +3024,111 @@ export function PartnerGuestChatClient({
       }, 0),
     [cartItems]
   )
+
+  const sanitizeCartItemsFromServer = useCallback((raw: unknown): GuestCartItem[] => {
+    if (!Array.isArray(raw)) return []
+    const out: GuestCartItem[] = []
+    for (const item of raw) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+      const o = item as Record<string, unknown>
+      const card = o.card
+      if (!card || typeof card !== 'object' || Array.isArray(card)) continue
+      const c = card as Record<string, unknown>
+      const name = typeof c.name === 'string' ? c.name.trim() : ''
+      const image_url = typeof c.image_url === 'string' ? c.image_url.trim() : ''
+      const product_url = typeof c.product_url === 'string' ? c.product_url.trim() : ''
+      if (!name || !/^https?:\/\//i.test(image_url) || !/^https?:\/\//i.test(product_url)) continue
+      out.push({
+        id: typeof o.id === 'string' && o.id.trim() ? o.id.trim() : `${Date.now()}-${out.length}`,
+        card: {
+          name,
+          image_url,
+          product_url,
+          ...(typeof c.price_hint === 'string' && c.price_hint.trim() ? { price_hint: c.price_hint.trim() } : {}),
+          ...(typeof c.sku === 'string' && c.sku.trim() ? { sku: c.sku.trim() } : {}),
+          ...(typeof c.inventory_id === 'string' && c.inventory_id.trim() ? { inventory_id: c.inventory_id.trim() } : {}),
+        },
+        quantity: Math.max(1, Math.min(99, Math.floor(Number(o.quantity) || 1))),
+        color: typeof o.color === 'string' ? o.color : '',
+        size: typeof o.size === 'string' ? o.size : '',
+        note: typeof o.note === 'string' ? o.note : '',
+        variantLineImages: Array.isArray(o.variantLineImages)
+          ? o.variantLineImages.filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u.trim()))
+          : undefined,
+      })
+      if (out.length >= 50) break
+    }
+    return out
+  }, [])
+
+  useEffect(() => {
+    if (!hasLoadedOnce || authMode !== 'account') {
+      if (authMode !== 'account') setCartSyncReady(false)
+      return
+    }
+    let cancelled = false
+    setCartSyncReady(false)
+    void (async () => {
+      try {
+        const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/cart`, {
+          method: 'GET',
+          credentials: 'same-origin',
+          headers: { ...authHeaders() },
+        })
+        captureGuestSessionFromResponse(res)
+        captureGuestAccountFromResponse(res)
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; items?: unknown } | null
+        if (!cancelled && res.ok && data?.ok) {
+          setCartItems(sanitizeCartItemsFromServer(data.items))
+        }
+      } finally {
+        if (!cancelled) setCartSyncReady(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    authHeaders,
+    authMode,
+    captureGuestAccountFromResponse,
+    captureGuestSessionFromResponse,
+    hasLoadedOnce,
+    sanitizeCartItemsFromServer,
+    slug,
+  ])
+
+  useEffect(() => {
+    if (authMode !== 'account' || !cartSyncReady) return
+    if (cartSaveTimerRef.current) clearTimeout(cartSaveTimerRef.current)
+    cartSaveTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/cart`, {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ items: cartItems }),
+          })
+          captureGuestSessionFromResponse(res)
+          captureGuestAccountFromResponse(res)
+        } catch {
+          // Cart sync is best-effort; local state remains usable.
+        }
+      })()
+    }, 450)
+    return () => {
+      if (cartSaveTimerRef.current) clearTimeout(cartSaveTimerRef.current)
+    }
+  }, [
+    authHeaders,
+    authMode,
+    captureGuestAccountFromResponse,
+    captureGuestSessionFromResponse,
+    cartItems,
+    cartSyncReady,
+    slug,
+  ])
 
   const submitCartCheckout = useCallback(async () => {
     if (cartItems.length === 0) return
@@ -4927,9 +5034,9 @@ export function PartnerGuestChatClient({
       <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-background rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md">
         <h1 className="sr-only">{shopDisplayName}</h1>
         {isEmbedUi && !guestInIframe ? (
-          <div className="relative z-[100] grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-border/60 bg-muted/35 px-3 py-2 pointer-events-auto touch-manipulation">
-            <p className="min-w-0 justify-self-start truncate text-base font-semibold tracking-tight sm:text-[17px]">{shopDisplayName}</p>
-            <div className="flex shrink-0 items-center justify-center gap-2 justify-self-center">
+          <div className="relative z-[100] flex shrink-0 items-center gap-1.5 border-b border-border/60 bg-muted/35 px-2 py-1.5 pointer-events-auto touch-manipulation">
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight sm:text-[16px]">{shopDisplayName}</p>
+            <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5">
               <GuestChatLocaleSwitches
                 currentLocale={uiLocale}
                 slug={slug}
@@ -4940,15 +5047,30 @@ export function PartnerGuestChatClient({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 shrink-0 gap-1 border-violet-300/80 bg-violet-50/90 px-2.5 text-xs font-medium text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55"
+                className="h-8 shrink-0 gap-1 border-violet-300/80 bg-violet-50/90 px-2 text-[11px] font-medium text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55"
                 onClick={() => setEmbedMyOrdersOpen(true)}
                 title={orderDetailT.pageTitle}
               >
                 <Package className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span className="max-w-[9.5rem] truncate sm:max-w-none">{orderDetailT.pageTitle}</span>
+                <span className="hidden max-w-[7rem] truncate min-[360px]:inline">{orderDetailT.pageTitle}</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="relative h-8 shrink-0 px-2"
+                onClick={() => setCartOpen(true)}
+                title="Giỏ hàng"
+                aria-label={`Giỏ hàng: ${cartItems.length} sản phẩm`}
+              >
+                <ShoppingCart className="h-4 w-4" aria-hidden />
+                {cartItems.length > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold leading-none text-white">
+                    {cartItems.length > 99 ? '99+' : cartItems.length}
+                  </span>
+                ) : null}
               </Button>
             </div>
-            <span className="min-w-0 justify-self-end" aria-hidden />
           </div>
         ) : !isEmbedUi ? (
           <div className="flex shrink-0 justify-end border-b border-border/60 bg-muted/25 px-3 py-1.5">
@@ -5958,20 +6080,6 @@ export function PartnerGuestChatClient({
                 Ưu đãi sinh nhật: giảm {birthdayPromoDiscountPct}% — áp dụng tự động cho giá các sản phẩm trong kho (theo cài đặt số ngày trước sinh nhật) khi đặt qua chat, không cần mã giảm giá.
               </div>
             ) : null}
-            {cartItems.length > 0 ? (
-              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-[12px] text-emerald-950">
-                <div className="flex min-w-0 items-center gap-2">
-                  <ShoppingCart className="h-4 w-4 shrink-0" />
-                  <span className="truncate">
-                    Giỏ hàng: {cartItems.length} sản phẩm
-                    {cartSubtotal > 0 ? ` · ${new Intl.NumberFormat('vi-VN').format(cartSubtotal)}đ` : ''}
-                  </span>
-                </div>
-                <Button type="button" size="sm" className="h-7 text-[11px]" onClick={() => setCartOpen(true)}>
-                  Xem giỏ
-                </Button>
-              </div>
-            ) : null}
             <input
               ref={galleryInputRef}
               type="file"
@@ -6751,7 +6859,11 @@ export function PartnerGuestChatClient({
                 <div key={item.id} className="rounded-lg border border-border p-2">
                   <div className="flex gap-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.card.image_url} alt="" className="h-14 w-14 rounded object-cover" />
+                    <img
+                      src={item.variantLineImages?.[0] || item.card.image_url}
+                      alt=""
+                      className="h-14 w-14 rounded object-cover"
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{item.card.name}</p>
                       <p className="text-xs text-muted-foreground">{item.card.price_hint ?? ''}</p>
