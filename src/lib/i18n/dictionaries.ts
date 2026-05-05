@@ -2681,11 +2681,11 @@ const VI_DICTIONARY: Dictionary = {
     shopPolicyLabel: 'Chính sách & quy định shop',
     shopPolicyPlaceholder:
       'Ví dụ: đặt cọc 30%, không đổi hàng, đổi trong 7 ngày nếu lỗi sản xuất, freeship nội thành…',
-    productConsultationContextLabel: 'Thông tin luôn đưa vào tư vấn sản phẩm',
+    productConsultationContextLabel: 'Ngữ cảnh & hướng dẫn AI của shop',
     productConsultationContextHint:
-      'Nhập các chính sách/ghi chú shop muốn AI luôn nhớ khi tư vấn sản phẩm: đổi size, cọc, giao hàng, bảo hành, cách xử lý khi khách lăn tăn…',
+      'Một ô duy nhất cho toàn bộ thông tin AI luôn phải dùng: chính sách shop, giọng điệu trả lời, cách tư vấn, cách chốt đơn, đổi trả, cọc, giao hàng…',
     productConsultationContextPlaceholder:
-      'Ví dụ: luôn nhắc khách kiểm tra bảng size trước khi chốt; hàng sale không đổi trả; đơn may theo số đo cần cọc 50%…',
+      'Ví dụ: giọng lịch sự, xưng em — anh/chị. Luôn nhắc khách kiểm tra bảng size trước khi chốt. Hàng sale không đổi trả. Đơn may theo số đo cần cọc 50%. Khi khách lăn tăn, giải thích chính sách nhẹ nhàng, không ép mua…',
     toneLabel: 'Giọng điệu / hướng dẫn trả lời',
     tonePlaceholder: 'Ví dụ: lịch sự, ngắn gọn, xưng em — anh/chị; không hứa chắc chắn nếu chưa rõ tồn kho.',
     salesCoachingLabel: 'Gợi ý tư vấn & chốt đơn (tùy chọn)',
@@ -4699,11 +4699,11 @@ const EN_DICTIONARY: Dictionary = {
     shopPolicyLabel: 'Shop policies & rules',
     shopPolicyPlaceholder:
       'e.g. 30% deposit, no exchanges, 7-day exchange for defects only, free city shipping…',
-    productConsultationContextLabel: 'Always include in product consultation',
+    productConsultationContextLabel: 'Shop AI context & instructions',
     productConsultationContextHint:
-      'Enter policies/notes the AI should always keep in mind when advising on products: size exchanges, deposits, shipping, warranty, how to handle hesitation…',
+      'One field for everything the AI must always use: shop policies, reply tone, consultation style, closing guidance, exchanges, deposits, shipping…',
     productConsultationContextPlaceholder:
-      'e.g. always ask customers to check the size chart before ordering; sale items are final; made-to-measure orders require a 50% deposit…',
+      'e.g. use a polite and concise tone. Always ask customers to check the size chart before ordering. Sale items are final. Made-to-measure orders require a 50% deposit. Handle hesitation gently without pressuring customers…',
     toneLabel: 'Tone / reply instructions',
     tonePlaceholder: 'e.g. polite, concise; avoid promising stock you are unsure about.',
     salesCoachingLabel: 'Soft-sell & closing hints (optional)',
@@ -6705,11 +6705,11 @@ const ZH_DICTIONARY: Dictionary = {
       '不经大模型而自动发送的消息（如下单提示、聊天内购买引导）在发送前于该范围随机延迟（0–30000）。DeepSeek 正文不重复此步骤。两项均 0 则关闭。',
     shopPolicyLabel: '店铺政策与规则',
     shopPolicyPlaceholder: '例如：定金 30%、不换货、质量问题 7 天内可换、同城包邮等。',
-    productConsultationContextLabel: '始终加入商品咨询的内容',
+    productConsultationContextLabel: '店铺 AI 上下文与指引',
     productConsultationContextHint:
-      '填写 AI 在商品咨询中必须始终参考的政策/备注：尺码更换、定金、配送、保修、客户犹豫时的处理方式等。',
+      '一个输入框填写 AI 必须始终参考的全部内容：店铺政策、回复语气、导购方式、促单方式、退换、定金、配送等。',
     productConsultationContextPlaceholder:
-      '例如：下单前请顾客查看尺码表；特价商品不退换；按尺寸定制需支付 50% 定金等。',
+      '例如：语气礼貌简短；下单前提醒顾客查看尺码表；特价商品不退换；按尺寸定制需支付 50% 定金；顾客犹豫时温和说明政策，不强迫购买等。',
     toneLabel: '语气 / 回复指引',
     tonePlaceholder: '例如：礼貌、简短；不确定库存时不要绝对承诺。',
     salesCoachingLabel: '软推销与促单提示（可选）',
@@ -8663,11 +8663,11 @@ const JA_DICTIONARY: Dictionary = {
     shopPolicyLabel: '店舗ポリシー・ルール',
     shopPolicyPlaceholder:
       '例：手付け 30%、交換不可、不良品は 7 日以内交換、市内送料無料 など。',
-    productConsultationContextLabel: '商品相談で常に含める情報',
+    productConsultationContextLabel: '店舗 AI の文脈・指示',
     productConsultationContextHint:
-      '商品相談時に AI が常に参照するポリシー/メモを入力します（サイズ交換、手付け、配送、保証、迷っているお客様への対応など）。',
+      'AI が常に参照する内容を1つの欄に入力します。店舗ポリシー、返信トーン、接客方針、購入案内、交換、手付け、配送など。',
     productConsultationContextPlaceholder:
-      '例：注文前にサイズ表の確認を促す、セール品は返品交換不可、採寸オーダーは 50% の手付けが必要 など。',
+      '例：丁寧で簡潔なトーン。注文前にサイズ表の確認を促す。セール品は返品交換不可。採寸オーダーは50%の手付けが必要。迷っているお客様には押し売りせず、やさしく説明する。',
     toneLabel: 'トーン・返信の指示',
     tonePlaceholder: '例：丁寧で簡潔に。在庫が不明なときは断定しない。',
     salesCoachingLabel: 'ソフトセール・クロージングの補足（任意）',
@@ -10658,11 +10658,11 @@ const KO_DICTIONARY: Dictionary = {
     shopPolicyLabel: '매장 정책·규정',
     shopPolicyPlaceholder:
       '예: 계약금 30%, 교환 불가, 불량 시 7일 이내 교환, 시내 무료배송 등.',
-    productConsultationContextLabel: '상품 상담에 항상 포함할 정보',
+    productConsultationContextLabel: '매장 AI 컨텍스트 및 지침',
     productConsultationContextHint:
-      'AI가 상품 상담 때 항상 참고해야 하는 정책/메모를 입력하세요: 사이즈 교환, 계약금, 배송, 보증, 망설이는 고객 응대 방식 등.',
+      'AI가 항상 참고해야 할 내용을 한 곳에 입력하세요: 매장 정책, 답변 톤, 상담 방식, 구매 유도 방식, 교환, 계약금, 배송 등.',
     productConsultationContextPlaceholder:
-      '예: 주문 전 사이즈표 확인을 안내, 세일 상품은 교환/환불 불가, 맞춤 제작 주문은 50% 계약금 필요 등.',
+      '예: 정중하고 간결한 톤. 주문 전 사이즈표 확인 안내. 세일 상품은 교환/환불 불가. 맞춤 제작 주문은 50% 계약금 필요. 망설이는 고객에게는 부담을 주지 않고 부드럽게 설명.',
     toneLabel: '말투·답장 지침',
     tonePlaceholder: '예: 정중하고 간결하게. 재고가 불확실하면 단정 짓지 않기.',
     salesCoachingLabel: '부드러운 상담·마무리 힌트(선택)',

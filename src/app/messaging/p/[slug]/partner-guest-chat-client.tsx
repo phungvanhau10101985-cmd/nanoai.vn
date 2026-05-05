@@ -349,6 +349,7 @@ type GuestCartItem = {
   color: string
   size: string
   note: string
+  variantLineImages?: string[]
 }
 
 function collectRecentSuggestedCardsFromMessages(
@@ -2981,38 +2982,29 @@ export function PartnerGuestChatClient({
   )
 
   const addProductCardToCart = useCallback(
-    (card: PartnerAiProductCard) => {
+    async (card: PartnerAiProductCard) => {
       const productUrl = (card.product_url ?? '').trim()
-      const imageUrl = (card.image_url ?? '').trim()
-      if (!/^https?:\/\//i.test(productUrl) || !/^https?:\/\//i.test(imageUrl)) return
-      setCartItems((prev) => {
-        const key = productUrl.toLowerCase()
-        const exists = prev.find((item) => item.card.product_url.trim().toLowerCase() === key)
-        if (exists) {
-          return prev.map((item) =>
-            item.id === exists.id ? { ...item, quantity: Math.min(99, item.quantity + 1) } : item
-          )
-        }
-        return [
-          ...prev,
-          {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            card,
-            quantity: 1,
-            color: '',
-            size: '',
-            note: '',
-          },
-        ]
+      if (!/^https?:\/\//i.test(productUrl)) return
+      setBuyOptionsOpen(false)
+      await openOrderFormByOption({
+        name: card.name,
+        image_url: card.image_url,
+        product_url: productUrl,
+        price_hint: card.price_hint,
+        sku: (card.sku ?? '').trim() || null,
+        ...((card.inventory_id ?? '').trim()
+          ? { inventory_id: (card.inventory_id ?? '').trim() }
+          : {}),
       })
-      toast({ title: 'Đã thêm vào giỏ hàng.' })
     },
-    [toast]
+    [openOrderFormByOption]
   )
 
   const addBuyOptionToCart = useCallback(
-    (item: BuyProductOption) => addProductCardToCart(toCardFromBuyOption(item)),
-    [addProductCardToCart, toCardFromBuyOption]
+    async (item: BuyProductOption) => {
+      await openOrderFormByOption(item)
+    },
+    [openOrderFormByOption]
   )
 
   const cartSubtotal = useMemo(
@@ -3054,6 +3046,7 @@ export function PartnerGuestChatClient({
             size: item.size,
             quantity: item.quantity,
             note: item.note,
+            ...(item.variantLineImages ? { variantLineImages: item.variantLineImages } : {}),
           })),
         }),
       })
@@ -3269,18 +3262,18 @@ export function PartnerGuestChatClient({
     })
   }
 
-  const submitOrderCheckout = async () => {
-    const oid = activeOrderId
-    if (!oid) return
-
+  const buildCurrentOrderSelection = ():
+    | {
+        colorPayload: string
+        sizePayload: string
+        totalQty: number
+        variantLineImages?: string[]
+      }
+    | null => {
     const missing: string[] = []
     const pushMissing = (msg: string) => {
       if (!missing.includes(msg)) missing.push(msg)
     }
-
-    if (!orderName.trim()) pushMissing('họ tên')
-    if (!orderPhone.trim()) pushMissing('số điện thoại')
-    if (!orderAddress.trim()) pushMissing('địa chỉ')
 
     const paletteColors = activePurchaseOptions?.colors
     const hasPalette = Boolean(paletteColors && paletteColors.length > 0)
@@ -3324,7 +3317,7 @@ export function PartnerGuestChatClient({
             : `Thiếu các mục sau: ${missing.join('; ')}.`,
         variant: 'destructive',
       })
-      return
+      return null
     }
     const totalQtyRaw = hasPalette
       ? sumPaletteLineUnits(orderSelectedColorImgs, orderQtyByColorImg)
@@ -3358,6 +3351,69 @@ export function PartnerGuestChatClient({
       }
       sizePayload = szParts.join(', ').slice(0, 2000)
     }
+    return {
+      colorPayload,
+      sizePayload: sizePayload.trim() || noSizePlaceholder,
+      totalQty,
+      ...(hasPalette && orderSelectedColorImgs.length > 0
+        ? { variantLineImages: orderSelectedColorImgs.slice(0, 24) }
+        : {}),
+    }
+  }
+
+  const addActiveOrderSelectionToCart = () => {
+    if (!activeOrderCard) return
+    const picked = buildCurrentOrderSelection()
+    if (!picked) return
+    setCartItems((prev) => {
+      const key = `${activeOrderCard.product_url.trim().toLowerCase()}|${picked.colorPayload}|${picked.sizePayload}`
+      const exists = prev.find(
+        (item) => `${item.card.product_url.trim().toLowerCase()}|${item.color}|${item.size}` === key
+      )
+      if (exists) {
+        return prev.map((item) =>
+          item.id === exists.id
+            ? { ...item, quantity: Math.min(99, item.quantity + picked.totalQty) }
+            : item
+        )
+      }
+      return [
+        ...prev,
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          card: activeOrderCard,
+          quantity: picked.totalQty,
+          color: picked.colorPayload,
+          size: picked.sizePayload,
+          note: orderNote,
+          variantLineImages: picked.variantLineImages,
+        },
+      ]
+    })
+    setOrderFormOpen(false)
+    setCartOpen(true)
+    toast({ title: 'Đã thêm vào giỏ hàng.' })
+  }
+
+  const submitOrderCheckout = async () => {
+    const oid = activeOrderId
+    if (!oid) return
+    const missing: string[] = []
+    if (!orderName.trim()) missing.push('họ tên')
+    if (!orderPhone.trim()) missing.push('số điện thoại')
+    if (!orderAddress.trim()) missing.push('địa chỉ')
+    if (missing.length > 0) {
+      toast({
+        title:
+          missing.length === 1
+            ? `Thiếu: ${missing[0]}.`
+            : `Thiếu các mục sau: ${missing.join('; ')}.`,
+        variant: 'destructive',
+      })
+      return
+    }
+    const picked = buildCurrentOrderSelection()
+    if (!picked) return
     setOrderFormBusy(true)
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
@@ -3370,13 +3426,11 @@ export function PartnerGuestChatClient({
             customerName: orderName,
             customerPhone: orderPhone,
             shippingAddress: orderAddress,
-            color: colorPayload,
-            size: sizePayload.trim() || noSizePlaceholder,
-            quantity: totalQty,
+            color: picked.colorPayload,
+            size: picked.sizePayload,
+            quantity: picked.totalQty,
             note: orderNote,
-            ...(hasPalette && orderSelectedColorImgs.length > 0
-              ? { variantLineImages: orderSelectedColorImgs.slice(0, 24) }
-              : {}),
+            ...(picked.variantLineImages ? { variantLineImages: picked.variantLineImages } : {}),
           },
         }),
       })
@@ -5834,13 +5888,12 @@ export function PartnerGuestChatClient({
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-8 w-8 p-0"
+                      className="h-8 text-[11px]"
                       disabled={orderFormBusy}
-                      onClick={() => setOrderFormOpen(false)}
-                      aria-label="Đóng"
-                      title="Đóng"
+                      onClick={addActiveOrderSelectionToCart}
                     >
-                      <X className="h-4 w-4" />
+                      <ShoppingCart className="mr-1.5 h-3.5 w-3.5" />
+                      Thêm vào giỏ
                     </Button>
                   </div>
                 </div>

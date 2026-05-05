@@ -132,6 +132,18 @@ function tokenUsageKindStatLabel(kind: string | null, t: AiT): string {
   return kind
 }
 
+function combinedShopAiContextFromSettings(s: SettingsRow | null): string {
+  const existingCombined = s?.product_consultation_context?.trim() ?? ''
+  const legacyBlocks = [
+    s?.shop_policy?.trim() ? `Chính sách & quy định shop:\n${s.shop_policy.trim()}` : '',
+    s?.tone_instructions?.trim() ? `Giọng điệu / hướng dẫn trả lời:\n${s.tone_instructions.trim()}` : '',
+    s?.sales_coaching_instructions?.trim()
+      ? `Gợi ý tư vấn & chốt đơn:\n${s.sales_coaching_instructions.trim()}`
+      : '',
+  ].filter(Boolean)
+  return [existingCombined, ...legacyBlocks].filter(Boolean).join('\n\n')
+}
+
 function defaultsFromSettings(s: SettingsRow | null) {
   return {
     enabled: s?.enabled ?? false,
@@ -142,10 +154,10 @@ function defaultsFromSettings(s: SettingsRow | null) {
     /** Độ trễ trước khi gửi tin tự động không qua model (mua trong chat, danh sách đặt…). */
     typing_pause_min_ms: s?.typing_pause_min_ms ?? 650,
     typing_pause_max_ms: s?.typing_pause_max_ms ?? 1150,
-    shop_policy: s?.shop_policy ?? '',
-    product_consultation_context: s?.product_consultation_context ?? '',
-    tone_instructions: s?.tone_instructions ?? '',
-    sales_coaching_instructions: s?.sales_coaching_instructions ?? '',
+    shop_policy: '',
+    product_consultation_context: combinedShopAiContextFromSettings(s),
+    tone_instructions: '',
+    sales_coaching_instructions: '',
     append_ai_disclosure: s?.append_ai_disclosure ?? true,
     disclosure_suffix: s?.disclosure_suffix ?? '',
     vision_product_search_enabled: false,
@@ -179,10 +191,10 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
     reply_delay_seconds: f.reply_delay_seconds,
     typing_pause_min_ms: f.typing_pause_min_ms,
     typing_pause_max_ms: f.typing_pause_max_ms,
-    shop_policy: f.shop_policy,
+    shop_policy: '',
     product_consultation_context: f.product_consultation_context,
-    tone_instructions: f.tone_instructions,
-    sales_coaching_instructions: f.sales_coaching_instructions,
+    tone_instructions: '',
+    sales_coaching_instructions: '',
     append_ai_disclosure: f.append_ai_disclosure,
     disclosure_suffix: f.disclosure_suffix,
     vision_product_search_enabled: f.vision_product_search_enabled,
@@ -802,53 +814,17 @@ export function PartnerAiSettingsPanel({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ai-policy">{t.shopPolicyLabel}</Label>
-              <Textarea
-                id="ai-policy"
-                rows={4}
-                placeholder={t.shopPolicyPlaceholder}
-                value={form.shop_policy}
-                onChange={(e) => setForm((f) => ({ ...f, shop_policy: e.target.value }))}
-                className="resize-y min-h-[100px]"
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="ai-product-consult-context">{t.productConsultationContextLabel}</Label>
               <p className="text-xs text-muted-foreground">{t.productConsultationContextHint}</p>
               <Textarea
                 id="ai-product-consult-context"
-                rows={4}
+                rows={7}
                 placeholder={t.productConsultationContextPlaceholder}
                 value={form.product_consultation_context}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, product_consultation_context: e.target.value }))
                 }
-                className="resize-y min-h-[100px]"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ai-tone">{t.toneLabel}</Label>
-              <Textarea
-                id="ai-tone"
-                rows={3}
-                placeholder={t.tonePlaceholder}
-                value={form.tone_instructions}
-                onChange={(e) => setForm((f) => ({ ...f, tone_instructions: e.target.value }))}
-                className="resize-y"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ai-sales-coaching">{t.salesCoachingLabel}</Label>
-              <p className="text-xs text-muted-foreground">{t.salesCoachingHint}</p>
-              <Textarea
-                id="ai-sales-coaching"
-                rows={4}
-                placeholder={t.salesCoachingPlaceholder}
-                value={form.sales_coaching_instructions}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, sales_coaching_instructions: e.target.value }))
-                }
-                className="resize-y min-h-[96px]"
+                className="resize-y min-h-[160px]"
               />
             </div>
 
