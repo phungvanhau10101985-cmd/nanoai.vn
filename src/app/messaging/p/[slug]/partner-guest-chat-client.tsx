@@ -107,6 +107,10 @@ import type { GuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
 
 /** Khoảng cách tới đáy (px) để coi như user đang xem cuối thread — cho phép auto-scroll theo tin/typing mới. */
 const GUEST_CHAT_STICK_TO_BOTTOM_PX = 120
+const EMAIL_TRUSTED_BROWSER_STORAGE_KEY = 'app_email_trusted_browser_id'
+const EMBED_GUEST_SESSION_QUERY_KEY = 'guest_session_id'
+const EMBED_GUEST_ACCOUNT_QUERY_KEY = 'guest_account_id'
+const UUID_STRING_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * `open_try_on` chỉ có trên URL lần đầu; effect strip query → React Strict Mode (dev) remount
@@ -267,6 +271,27 @@ function latestOutboundCursor(msgs: GuestMsg[]): GuestShopOutboundCursor | null 
   const at = Date.parse(best.created_at)
   if (!Number.isFinite(at)) return null
   return { at, id: best.id }
+}
+
+function getStableEmailTrustedBrowserId(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    const current = window.localStorage.getItem(EMAIL_TRUSTED_BROWSER_STORAGE_KEY)?.trim() || ''
+    if (/^[a-z0-9_-]{16,128}$/i.test(current)) return current.toLowerCase()
+    const created = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 16)}`
+      .replace(/[^a-z0-9_-]/gi, '')
+      .toLowerCase()
+      .slice(0, 64)
+    window.localStorage.setItem(EMAIL_TRUSTED_BROWSER_STORAGE_KEY, created)
+    return created
+  } catch {
+    return ''
+  }
+}
+
+function readUuidQueryParam(params: URLSearchParams, key: string): string {
+  const value = (params.get(key) || '').trim()
+  return UUID_STRING_RE.test(value) ? value : ''
 }
 
 /** Có tin outbound **mới hơn** baseline (lúc bật chờ shop trả lời). */
@@ -1717,10 +1742,20 @@ export function PartnerGuestChatClient({
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return
+    let querySession = ''
+    let queryAccount = ''
+    try {
+      const params = new URLSearchParams(window.location.search)
+      querySession = readUuidQueryParam(params, EMBED_GUEST_SESSION_QUERY_KEY)
+      queryAccount = readUuidQueryParam(params, EMBED_GUEST_ACCOUNT_QUERY_KEY)
+    } catch {
+      // ignore malformed URL/search in embedded browsers
+    }
     let session =
-      window.localStorage.getItem(MESSAGING_GUEST_SESSION_STORAGE_KEY)?.trim()
-      ?? window.localStorage.getItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY)?.trim()
-      ?? ''
+      querySession
+      || window.localStorage.getItem(MESSAGING_GUEST_SESSION_STORAGE_KEY)?.trim()
+      || window.localStorage.getItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY)?.trim()
+      || ''
     if (!session) {
       const fromCookie = readDocumentCookie(MESSAGING_GUEST_SESSION_SYNC_COOKIE)?.trim() ?? ''
       if (fromCookie) {
@@ -1736,9 +1771,10 @@ export function PartnerGuestChatClient({
     if (session) guestSessionIdRef.current = session
 
     let account =
-      window.localStorage.getItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY)?.trim()
-      ?? window.localStorage.getItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY)?.trim()
-      ?? ''
+      queryAccount
+      || window.localStorage.getItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY)?.trim()
+      || window.localStorage.getItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY)?.trim()
+      || ''
     if (!account) {
       const fromCookie = readDocumentCookie(MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE)?.trim() ?? ''
       if (fromCookie) {
@@ -1926,6 +1962,7 @@ export function PartnerGuestChatClient({
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(MESSAGING_GUEST_SESSION_STORAGE_KEY, sid)
       window.localStorage.setItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY, sid)
+      window.parent?.postMessage({ source: 'nanoai-widget', type: 'GUEST_IDENTITY', guestSessionId: sid }, '*')
     }
   }, [])
 
@@ -1936,6 +1973,7 @@ export function PartnerGuestChatClient({
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY, aid)
       window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY, aid)
+      window.parent?.postMessage({ source: 'nanoai-widget', type: 'GUEST_IDENTITY', guestAccountId: aid }, '*')
     }
   }, [])
 
@@ -2014,6 +2052,18 @@ export function PartnerGuestChatClient({
   const load = useCallback(async (options?: { beforeId?: string; appendOlder?: boolean; silent?: boolean }) => {
     const appendOlder = options?.appendOlder === true
     const silent = options?.silent === true
+    const scrollerBeforeSilentRefresh = !appendOlder && silent ? chatScrollRef.current : null
+    const shouldPreserveSilentScroll =
+      Boolean(scrollerBeforeSilentRefresh) && !guestChatNearBottomRef.current
+    const silentScrollSnapshot = shouldPreserveSilentScroll && scrollerBeforeSilentRefresh
+      ? {
+          top: scrollerBeforeSilentRefresh.scrollTop,
+          height: scrollerBeforeSilentRefresh.scrollHeight,
+        }
+      : null
+    if (silentScrollSnapshot) {
+      skipNextAutoScrollRef.current = true
+    }
     if (appendOlder) {
       if (loadingOlderRef.current) return
       loadingOlderRef.current = true
@@ -2096,6 +2146,18 @@ export function PartnerGuestChatClient({
         })
         return guestMessagesEquivalent(prev, merged) ? prev : merged
       })
+      if (silentScrollSnapshot && scrollerBeforeSilentRefresh) {
+        requestAnimationFrame(() => {
+          const nextHeight = scrollerBeforeSilentRefresh.scrollHeight
+          scrollerBeforeSilentRefresh.scrollTop =
+            silentScrollSnapshot.top + Math.max(0, nextHeight - silentScrollSnapshot.height)
+          const fromBottom =
+            scrollerBeforeSilentRefresh.scrollHeight -
+            scrollerBeforeSilentRefresh.scrollTop -
+            scrollerBeforeSilentRefresh.clientHeight
+          guestChatNearBottomRef.current = fromBottom <= GUEST_CHAT_STICK_TO_BOTTOM_PX
+        })
+      }
       const effectiveAuthMode = serverSaysAccount || hasGuestAccount ? 'account' : 'anonymous'
       setAuthMode(effectiveAuthMode)
       if (effectiveAuthMode === 'account') setAuthGateRequired(false)
@@ -4219,13 +4281,14 @@ export function PartnerGuestChatClient({
   const requestGuestAuthEmail = async () => {
     const email = guestAuthEmail.trim().toLowerCase()
     if (!email) return
+    const browserId = getStableEmailTrustedBrowserId()
     setGuestAuthSending(true)
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/auth/email/request`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ email, rememberDevice: guestAuthRememberDevice }),
+        body: JSON.stringify({ email, rememberDevice: guestAuthRememberDevice, browserId }),
       })
       captureGuestSessionFromResponse(res)
       captureGuestAccountFromResponse(res)
@@ -4284,13 +4347,14 @@ export function PartnerGuestChatClient({
     const email = guestAuthEmail.trim().toLowerCase()
     const otp = guestAuthOtp.trim()
     if (!email || otp.length !== 6) return
+    const browserId = getStableEmailTrustedBrowserId()
     setGuestAuthVerifying(true)
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/auth/email/verify-otp`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ email, otp, rememberDevice: guestAuthRememberDevice }),
+        body: JSON.stringify({ email, otp, rememberDevice: guestAuthRememberDevice, browserId }),
       })
       captureGuestSessionFromResponse(res)
       captureGuestAccountFromResponse(res)

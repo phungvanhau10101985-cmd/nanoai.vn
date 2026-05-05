@@ -2974,7 +2974,7 @@ const VI_DICTIONARY: Dictionary = {
     guestAuthOtpInvalid: 'Mã OTP không hợp lệ hoặc đã hết hạn.',
     guestAuthRateLimited: 'Bạn thao tác quá nhanh. Vui lòng thử lại sau {seconds} giây.',
     guestAuthRememberDeviceHint:
-      'Tin cậy thiết bị này 30 ngày (đăng nhập lại cùng email sẽ bỏ qua OTP).',
+      'Tin cậy thiết bị/trình duyệt này lâu dài (đăng nhập lại cùng email sẽ bỏ qua OTP).',
     guestAuthVerifyingProgress: 'Đang đăng nhập, vui lòng chờ...',
     shopTypingHint: 'Cửa hàng đang soạn tin…',
     consultLinkShopPreparingHint: 'Cửa hàng đang gửi thông tin sản phẩm…',
@@ -4938,7 +4938,7 @@ const EN_DICTIONARY: Dictionary = {
     guestAuthOtpInvalid: 'OTP is invalid or expired.',
     guestAuthRateLimited: 'You are doing this too quickly. Please try again in {seconds} seconds.',
     guestAuthRememberDeviceHint:
-      'Trust this device for 30 days (signing in again with the same email may skip OTP).',
+      'Trust this device/browser long term (signing in again with the same email may skip OTP).',
     guestAuthVerifyingProgress: 'Signing in, please wait...',
     shopTypingHint: 'The shop is typing…',
     consultLinkShopPreparingHint: 'The shop is sending product details…',
@@ -6876,7 +6876,7 @@ const ZH_DICTIONARY: Dictionary = {
     guestAuthEmailSent: '验证邮件已发送，请检查收件箱。',
     guestAuthOtpInvalid: 'OTP 无效或已过期。',
     guestAuthRateLimited: '操作过于频繁，请在 {seconds} 秒后重试。',
-    guestAuthRememberDeviceHint: '信任此设备 30 天（同一邮箱再次登录可能免去 OTP）。',
+    guestAuthRememberDeviceHint: '长期信任此设备/浏览器（同一邮箱再次登录可能免去 OTP）。',
     guestAuthVerifyingProgress: '正在登录，请稍候...',
     shopTypingHint: '店铺正在输入…',
     consultLinkShopPreparingHint: '店铺正在发送商品信息…',
@@ -8794,7 +8794,7 @@ const JA_DICTIONARY: Dictionary = {
     guestAuthOtpInvalid: 'OTPが無効か期限切れです。',
     guestAuthRateLimited: '操作が速すぎます。{seconds}秒後に再試行してください。',
     guestAuthRememberDeviceHint:
-      'この端末を30日間信頼する（同じメールで再ログイン時にOTPを省略する場合があります）。',
+      'この端末/ブラウザを長期間信頼する（同じメールで再ログイン時にOTPを省略する場合があります）。',
     guestAuthVerifyingProgress: 'ログイン処理中です。お待ちください…',
     shopTypingHint: '店舗が入力中…',
     consultLinkShopPreparingHint: '店舗が商品情報を送信中…',
@@ -10734,7 +10734,7 @@ const KO_DICTIONARY: Dictionary = {
     guestAuthOtpInvalid: 'OTP가 유효하지 않거나 만료되었습니다.',
     guestAuthRateLimited: '요청이 너무 빠릅니다. {seconds}초 후 다시 시도해 주세요.',
     guestAuthRememberDeviceHint:
-      '이 기기를 30일간 신뢰(동일 이메일로 다시 로그인하면 OTP를 생략할 수 있음).',
+      '이 기기/브라우저를 장기간 신뢰(동일 이메일로 다시 로그인하면 OTP를 생략할 수 있음).',
     guestAuthVerifyingProgress: '로그인 중입니다. 잠시만 기다려 주세요...',
     shopTypingHint: '매장이 입력 중…',
     consultLinkShopPreparingHint: '매장이 상품 정보를 보내는 중…',

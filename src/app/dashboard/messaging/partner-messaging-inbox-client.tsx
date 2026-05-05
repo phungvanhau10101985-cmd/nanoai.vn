@@ -70,6 +70,8 @@ type MsgRow = Database['public']['Tables']['customer_care_messages']['Row']
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
 type T = Dictionary['partnerMessaging']
 
+const INBOX_STICK_TO_BOTTOM_PX = 120
+
 function channelLabel(ch: string, t: T) {
   if (ch === 'facebook') return t.channelFacebook
   if (ch === 'zalo') return t.channelZalo
@@ -140,7 +142,12 @@ export function PartnerMessagingInboxClient({
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
+  const messagesScrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inboxNearBottomRef = useRef(true)
+  const forceInboxScrollToBottomRef = useRef(false)
+  const skipNextInboxAutoScrollRef = useRef(false)
+  const didInitialInboxAutoScrollRef = useRef(false)
   const isMobileLayout = useMatchMediaMaxMd()
 
   const selectedConv = selectedConvId ? conversations.find((c) => c.id === selectedConvId) : undefined
@@ -261,8 +268,22 @@ export function PartnerMessagingInboxClient({
   useEffect(() => {
     if (!selectedPartnerId || !selectedConvId) return
     const id = window.setInterval(() => {
+      const scroller = messagesScrollRef.current
+      const preserveScroll = Boolean(scroller) && !inboxNearBottomRef.current
+      const snapshot = preserveScroll && scroller
+        ? { top: scroller.scrollTop, height: scroller.scrollHeight }
+        : null
+      if (snapshot) skipNextInboxAutoScrollRef.current = true
       listPartnerMessages(selectedPartnerId, selectedConvId).then((res) => {
         if ('rows' in res) setMessages(res.rows ?? [])
+        if (snapshot && scroller) {
+          requestAnimationFrame(() => {
+            const nextHeight = scroller.scrollHeight
+            scroller.scrollTop = snapshot.top + Math.max(0, nextHeight - snapshot.height)
+            const fromBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+            inboxNearBottomRef.current = fromBottom <= INBOX_STICK_TO_BOTTOM_PX
+          })
+        }
         refreshAiComposing()
       })
     }, 14000)
@@ -287,6 +308,10 @@ export function PartnerMessagingInboxClient({
 
   useEffect(() => {
     clearAttachment()
+    didInitialInboxAutoScrollRef.current = false
+    inboxNearBottomRef.current = true
+    forceInboxScrollToBottomRef.current = false
+    skipNextInboxAutoScrollRef.current = false
   }, [selectedConvId, clearAttachment])
 
   useEffect(() => {
@@ -324,7 +349,19 @@ export function PartnerMessagingInboxClient({
 
   useEffect(() => {
     if (!selectedConvId || loadingMsgs) return
+    if (skipNextInboxAutoScrollRef.current) {
+      skipNextInboxAutoScrollRef.current = false
+      return
+    }
+    const shouldScrollToBottom =
+      forceInboxScrollToBottomRef.current ||
+      !didInitialInboxAutoScrollRef.current ||
+      inboxNearBottomRef.current
+    if (!shouldScrollToBottom) return
+    forceInboxScrollToBottomRef.current = false
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    didInitialInboxAutoScrollRef.current = true
+    inboxNearBottomRef.current = true
   }, [messages, selectedConvId, loadingMsgs, shopAiComposing, composerHeight])
 
   const uploadPartnerImage = async (file: File) => {
@@ -398,6 +435,7 @@ export function PartnerMessagingInboxClient({
 
   const send = () => {
     if (!selectedPartnerId || !selectedConvId || (!draft.trim() && !imageStoragePath)) return
+    forceInboxScrollToBottomRef.current = true
     startTransition(async () => {
       const res = await sendPartnerReply(
         selectedPartnerId,
@@ -933,10 +971,16 @@ export function PartnerMessagingInboxClient({
                 </div>
               ) : null}
               <div
+                ref={messagesScrollRef}
                 className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-2 py-1.5 touch-pan-y sm:px-2.5"
                 style={{
                   paddingBottom: messagesBottomInsetPx,
                   scrollPaddingBottom: messagesBottomInsetPx,
+                }}
+                onScroll={(e) => {
+                  const el = e.currentTarget
+                  const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+                  inboxNearBottomRef.current = fromBottom <= INBOX_STICK_TO_BOTTOM_PX
                 }}
               >
                 {loadingMsgs ? (

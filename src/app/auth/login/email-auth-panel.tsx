@@ -240,11 +240,11 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
           />
           <span>
             {tr(
-              'Tin cậy thiết bị này trong 30 ngày (không cần OTP khi đăng nhập lại trên cùng trình duyệt).',
-              'Trust this device for 30 days (skip OTP next time on this browser).',
-              '信任此设备 30 天（同一浏览器下次免 OTP）。',
-              'この端末を30日間信頼する（同じブラウザで次回OTP不要）。',
-              '이 기기를 30일 동안 신뢰(같은 브라우저에서 다음 로그인 시 OTP 생략).'
+              'Tin cậy thiết bị/trình duyệt này lâu dài (không cần OTP khi đăng nhập lại).',
+              'Trust this device/browser long term (skip OTP when signing in again).',
+              '长期信任此设备/浏览器（再次登录时可免 OTP）。',
+              'この端末/ブラウザを長期間信頼する（再ログイン時にOTP不要）。',
+              '이 기기/브라우저를 장기간 신뢰(다시 로그인할 때 OTP 생략).'
             )}
           </span>
         </label>
@@ -293,11 +293,11 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         />
         <span>
           {tr(
-            'Tin cậy thiết bị này trong 30 ngày (không cần OTP khi đăng nhập lại trên cùng trình duyệt).',
-            'Trust this device for 30 days (skip OTP next time on this browser).',
-            '信任此设备 30 天（同一浏览器下次免 OTP）。',
-            'この端末を30日間信頼する（同じブラウザで次回OTP不要）。',
-            '이 기기를 30일 동안 신뢰(같은 브라우저에서 다음 로그인 시 OTP 생략).'
+            'Tin cậy thiết bị/trình duyệt này lâu dài (không cần OTP khi đăng nhập lại).',
+            'Trust this device/browser long term (skip OTP when signing in again).',
+            '长期信任此设备/浏览器（再次登录时可免 OTP）。',
+            'この端末/ブラウザを長期間信頼する（再ログイン時にOTP不要）。',
+            '이 기기/브라우저를 장기간 신뢰(다시 로그인할 때 OTP 생략).'
           )}
         </span>
       </label>

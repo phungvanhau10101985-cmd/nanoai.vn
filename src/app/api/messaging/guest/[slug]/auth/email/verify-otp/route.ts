@@ -62,9 +62,13 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const body = (await request.json().catch(() => null)) as {
     email?: string
     otp?: string
+    rememberDevice?: boolean
+    browserId?: string
   } | null
   const email = normalizeEmail(body?.email ?? '')
   const otp = String(body?.otp ?? '').trim()
+  const rememberDevice = body?.rememberDevice !== false
+  const browserId = String(body?.browserId || '').trim()
   if (!email || !otp) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
 
   const ip = getClientIpFromRequest(request)
@@ -213,8 +217,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     const opts = getEmailSessionCookieOptions()
     res.cookies.set(EMAIL_SESSION_COOKIE, sessionToken, opts)
     res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, sessionToken, opts)
-    if (authUserIdForEmail) {
-      await issueTrustedDeviceForUser(res, request, authUserIdForEmail, email)
+    if (authUserIdForEmail && rememberDevice) {
+      await issueTrustedDeviceForUser(res, request, authUserIdForEmail, email, browserId)
     }
   }
   return res

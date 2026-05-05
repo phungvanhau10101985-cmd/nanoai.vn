@@ -67,9 +67,14 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ error: 'Server database is not configured.' }, { status: 503 })
   }
 
-  const body = (await request.json().catch(() => null)) as { email?: string; rememberDevice?: boolean } | null
+  const body = (await request.json().catch(() => null)) as {
+    email?: string
+    rememberDevice?: boolean
+    browserId?: string
+  } | null
   const email = normalizeEmail(body?.email ?? '')
   const rememberDevice = body?.rememberDevice !== false
+  const browserId = String(body?.browserId || '').trim()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
   }
@@ -80,7 +85,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       ? existingSessionId
       : createGuestSessionId()
 
-  const trusted = await resolveTrustedDeviceFromRequest(request, email)
+  const trusted = await resolveTrustedDeviceFromRequest(request, email, browserId)
   if (trusted) {
     const nowIso = new Date().toISOString()
     let accountId = await findGuestAccountIdByEmailPg(partnerId, email)
@@ -125,7 +130,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     const opts = getEmailSessionCookieOptions()
     response.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
     response.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
-    await issueTrustedDeviceForUser(response, request, trusted.userId, trusted.email)
+    if (rememberDevice) {
+      await issueTrustedDeviceForUser(response, request, trusted.userId, trusted.email, browserId)
+    }
     return response
   }
 

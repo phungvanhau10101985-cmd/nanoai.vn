@@ -258,7 +258,11 @@
 
     /** Đồng bộ với `widget-embed-session.ts` / FloatingChatWidget — lưu URL iframe chat trên domain shop. */
     var RETURN_CHAT_SESSION_KEY = 'nanoai_return_chat_iframe_href_v1'
+    var PERSIST_CHAT_SESSION_KEY = 'nanoai_persist_chat_iframe_href_v1'
+    var GUEST_SESSION_KEY = 'nanoai_guest_session_id_v1'
+    var GUEST_ACCOUNT_KEY = 'nanoai_guest_account_id_v1'
     var MSG_SOURCE = 'nanoai-widget'
+    var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
     function isAllowedHttpUrl(u) {
       try {
@@ -271,7 +275,7 @@
 
     function readReturnChatHref() {
       try {
-        var s = sessionStorage.getItem(RETURN_CHAT_SESSION_KEY)
+        var s = localStorage.getItem(PERSIST_CHAT_SESSION_KEY) || sessionStorage.getItem(RETURN_CHAT_SESSION_KEY)
         s = s ? String(s).trim() : ''
         return s && isAllowedHttpUrl(s) ? s : ''
       } catch (_) {
@@ -281,7 +285,35 @@
 
     function writeReturnChatHref(href) {
       try {
-        if (href && isAllowedHttpUrl(href)) sessionStorage.setItem(RETURN_CHAT_SESSION_KEY, String(href).trim())
+        if (href && isAllowedHttpUrl(href)) {
+          var next = String(href).trim()
+          sessionStorage.setItem(RETURN_CHAT_SESSION_KEY, next)
+          localStorage.setItem(PERSIST_CHAT_SESSION_KEY, next)
+        }
+      } catch (_) {}
+    }
+
+    function readStoredGuestIdentity() {
+      try {
+        var sid = String(localStorage.getItem(GUEST_SESSION_KEY) || '').trim()
+        var aid = String(localStorage.getItem(GUEST_ACCOUNT_KEY) || '').trim()
+        return {
+          guestSessionId: UUID_RE.test(sid) ? sid : '',
+          guestAccountId: UUID_RE.test(aid) ? aid : '',
+        }
+      } catch (_) {
+        return { guestSessionId: '', guestAccountId: '' }
+      }
+    }
+
+    function writeStoredGuestIdentity(payload) {
+      try {
+        if (payload && UUID_RE.test(String(payload.guestSessionId || '').trim())) {
+          localStorage.setItem(GUEST_SESSION_KEY, String(payload.guestSessionId).trim())
+        }
+        if (payload && UUID_RE.test(String(payload.guestAccountId || '').trim())) {
+          localStorage.setItem(GUEST_ACCOUNT_KEY, String(payload.guestAccountId).trim())
+        }
       } catch (_) {}
     }
 
@@ -298,6 +330,20 @@
           var ret = typeof d.returnChatUrl === 'string' ? d.returnChatUrl.trim() : ''
           if (ret && isAllowedHttpUrl(ret)) writeReturnChatHref(ret)
           window.location.assign(nextUrl)
+        } catch (_) {}
+      },
+      false
+    )
+
+    window.addEventListener(
+      'message',
+      function (e) {
+        try {
+          var d = e.data
+          if (!d || d.source !== MSG_SOURCE || d.type !== 'GUEST_IDENTITY') return
+          if (!iframe || !iframe.contentWindow || e.source !== iframe.contentWindow) return
+          writeStoredGuestIdentity(d)
+          if (iframe && iframe.src) writeReturnChatHref(iframe.src)
         } catch (_) {}
       },
       false
@@ -421,6 +467,9 @@
     function buildChatUrlWithContext(baseUrl, ctx, addOpenTryOn) {
       try {
         var u = new URL(baseUrl, window.location.href)
+        var identity = readStoredGuestIdentity()
+        if (identity.guestSessionId) u.searchParams.set('guest_session_id', identity.guestSessionId)
+        if (identity.guestAccountId) u.searchParams.set('guest_account_id', identity.guestAccountId)
         if (ctx && ctx.sku) u.searchParams.set('ctx_sku', ctx.sku)
         if (ctx && ctx.imageUrl) u.searchParams.set('ctx_image', ctx.imageUrl)
         if (ctx && ctx.imageUrl2) u.searchParams.set('ctx_image_2', ctx.imageUrl2)

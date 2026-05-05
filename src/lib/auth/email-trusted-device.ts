@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'crypto'
 import type { NextRequest, NextResponse } from 'next/server'
 import { pgQueryOne } from '@/lib/db/pg-query'
+import { EMAIL_SESSION_MAX_AGE_SEC } from '@/lib/auth/email-session-max-age'
 
 export const EMAIL_TRUSTED_DEVICE_COOKIE = 'app_email_trusted_device'
 export const EMAIL_TRUSTED_DEVICE_COOKIE_LEGACY = 'nanoai_email_trusted_device'
@@ -22,8 +23,9 @@ function normalizeBrowserId(raw: string | null | undefined): string | null {
 
 function resolveTrustedDeviceMaxAgeSec(): number {
   const raw = process.env.EMAIL_TRUSTED_DEVICE_MAX_AGE_DAYS?.trim()
-  const days = raw ? parseInt(raw, 10) : 30
-  const clamped = Number.isFinite(days) ? Math.min(365, Math.max(1, days)) : 30
+  if (!raw) return EMAIL_SESSION_MAX_AGE_SEC
+  const days = parseInt(raw, 10)
+  const clamped = Number.isFinite(days) ? Math.min(3650, Math.max(1, days)) : EMAIL_SESSION_MAX_AGE_SEC / 86400
   return clamped * 24 * 60 * 60
 }
 

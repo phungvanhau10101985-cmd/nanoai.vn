@@ -19,6 +19,36 @@ const LOCALE_SHORT: Record<WebLocale, string> = {
   ja: 'JA',
   ko: 'KO',
 }
+const GUEST_SESSION_STORAGE_KEY = 'nanoai_guest_session_id_v1'
+const GUEST_ACCOUNT_STORAGE_KEY = 'nanoai_guest_account_id_v1'
+const UUID_STRING_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function appendStoredGuestIdentity(urlStr: string): string {
+  if (typeof window === 'undefined') return urlStr
+  try {
+    const u = new URL(urlStr, window.location.href)
+    const sid = window.localStorage.getItem(GUEST_SESSION_STORAGE_KEY)?.trim() || ''
+    const aid = window.localStorage.getItem(GUEST_ACCOUNT_STORAGE_KEY)?.trim() || ''
+    if (UUID_STRING_RE.test(sid)) u.searchParams.set('guest_session_id', sid)
+    if (UUID_STRING_RE.test(aid)) u.searchParams.set('guest_account_id', aid)
+    return u.toString()
+  } catch {
+    return urlStr
+  }
+}
+
+function storeGuestIdentity(payload: unknown): void {
+  if (typeof window === 'undefined' || !payload || typeof payload !== 'object') return
+  const data = payload as { guestSessionId?: unknown; guestAccountId?: unknown }
+  try {
+    const sid = String(data.guestSessionId || '').trim()
+    const aid = String(data.guestAccountId || '').trim()
+    if (UUID_STRING_RE.test(sid)) window.localStorage.setItem(GUEST_SESSION_STORAGE_KEY, sid)
+    if (UUID_STRING_RE.test(aid)) window.localStorage.setItem(GUEST_ACCOUNT_STORAGE_KEY, aid)
+  } catch {
+    /* quota / private mode */
+  }
+}
 
 function parseUiLocaleFromChatUrl(urlStr: string): WebLocale {
   try {
@@ -64,7 +94,7 @@ export function FloatingChatWidget({
   const [closed, setClosed] = useState(true)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [uiLocale, setUiLocale] = useState<WebLocale>(() => parseUiLocaleFromChatUrl(chatUrl))
-  const [iframeSrc, setIframeSrc] = useState(() => readReturnChatIframeHref() ?? chatUrl)
+  const [iframeSrc, setIframeSrc] = useState(() => appendStoredGuestIdentity(readReturnChatIframeHref() ?? chatUrl))
   // Keep NanoAI widget above common social/contact bubbles (e.g. Zalo).
   const anchorClass = 'bottom-[10.5rem] right-3 md:bottom-6 md:right-4'
   const topLayerClass = 'z-[2147483000]'
@@ -85,8 +115,8 @@ export function FloatingChatWidget({
 
   useEffect(() => {
     const stored = readReturnChatIframeHref()
-    if (stored) setIframeSrc(stored)
-    else setIframeSrc(chatUrl)
+    if (stored) setIframeSrc(appendStoredGuestIdentity(stored))
+    else setIframeSrc(appendStoredGuestIdentity(chatUrl))
   }, [chatUrl])
 
   useLayoutEffect(() => {
@@ -145,8 +175,22 @@ export function FloatingChatWidget({
     return () => window.removeEventListener('message', onMsg)
   }, [])
 
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      const data = e.data
+      if (!data || typeof data !== 'object') return
+      if ((data as { source?: unknown }).source !== NANOAI_WIDGET_MSG_SOURCE) return
+      if ((data as { type?: unknown }).type !== 'GUEST_IDENTITY') return
+      if (e.source !== iframeRef.current?.contentWindow) return
+      storeGuestIdentity(data)
+      if (iframeRef.current?.src) writeReturnChatIframeHref(iframeRef.current.src)
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+  }, [])
+
   const openPanelWithSavedChat = useCallback(() => {
-    const next = readReturnChatIframeHref() ?? chatUrl
+    const next = appendStoredGuestIdentity(readReturnChatIframeHref() ?? chatUrl)
     setIframeSrc(next)
     setClosed(false)
   }, [chatUrl])
