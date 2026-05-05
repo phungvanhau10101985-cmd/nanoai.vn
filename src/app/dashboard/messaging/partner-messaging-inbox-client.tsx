@@ -152,7 +152,10 @@ export function PartnerMessagingInboxClient({
 
   const selectedConv = selectedConvId ? conversations.find((c) => c.id === selectedConvId) : undefined
   const messagesBottomInsetPx = selectedConvId
-    ? Math.max((composerHeight > 0 ? composerHeight : 120) + 28, 96)
+    ? Math.max(
+        (composerHeight > 0 ? composerHeight : 120) + (isMobileLayout ? 116 : 28),
+        isMobileLayout ? 196 : 96
+      )
     : undefined
   const selectedPartner = useMemo(
     () => partners.find((p) => p.id === selectedPartnerId) ?? null,
