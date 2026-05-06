@@ -947,6 +947,10 @@ export type Dictionary = {
     linkMyShops: string
     /** Nút mở dialog đơn widget (cùng `messagingMyOrders`). */
     linkMyOrders: string
+    /** Thanh công cụ widget nhúng / sheet giỏ — ngắn gọn. */
+    widgetShoppingCart: string
+    /** `aria-label` cho ô chọn ngôn ngữ (select) trên thanh widget. */
+    widgetLanguageSelectAria: string
     sendKeyboardHint: string
     tryOnOpen: string
     tryOnTitle: string
@@ -2977,6 +2981,8 @@ const VI_DICTIONARY: Dictionary = {
     signInWithGoogle: 'Đăng nhập',
     linkMyShops: 'Tin nhắn của tôi',
     linkMyOrders: 'Đơn hàng của tôi',
+    widgetShoppingCart: 'Giỏ hàng',
+    widgetLanguageSelectAria: 'Ngôn ngữ',
     sendKeyboardHint: 'Enter gửi · Shift+Enter xuống dòng · Ctrl+V dán ảnh',
     tryOnOpen: 'Thử đồ',
     tryOnTitle: 'Thử đồ ngay trong chat',
@@ -4986,6 +4992,8 @@ const EN_DICTIONARY: Dictionary = {
     signInWithGoogle: 'Sign in',
     linkMyShops: 'My messages',
     linkMyOrders: 'My orders',
+    widgetShoppingCart: 'Cart',
+    widgetLanguageSelectAria: 'Language',
     sendKeyboardHint: 'Enter to send · Shift+Enter for a new line · Ctrl+V / Cmd+V to paste an image',
     tryOnOpen: 'AI try-on',
     tryOnTitle: 'Try on directly in chat',
@@ -6971,6 +6979,8 @@ const ZH_DICTIONARY: Dictionary = {
     signInWithGoogle: '登录',
     linkMyShops: '我的消息',
     linkMyOrders: '我的订单',
+    widgetShoppingCart: '购物车',
+    widgetLanguageSelectAria: '语言',
     sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片',
     tryOnOpen: 'AI 试穿',
     tryOnTitle: '在聊天中直接试穿',
@@ -8930,6 +8940,8 @@ const JA_DICTIONARY: Dictionary = {
     signInWithGoogle: 'ログイン',
     linkMyShops: '自分のメッセージ',
     linkMyOrders: '自分の注文',
+    widgetShoppingCart: 'カート',
+    widgetLanguageSelectAria: '言語',
     sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行 · Ctrl+V / Cmd+V で画像を貼り付け',
     tryOnOpen: 'AI 試着',
     tryOnTitle: 'チャット内で試着',
@@ -10915,6 +10927,8 @@ const KO_DICTIONARY: Dictionary = {
     signInWithGoogle: '로그인',
     linkMyShops: '내 메시지',
     linkMyOrders: '내 주문',
+    widgetShoppingCart: '장바구니',
+    widgetLanguageSelectAria: '언어',
     sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈 · Ctrl+V / Cmd+V로 이미지 붙여넣기',
     tryOnOpen: 'AI 피팅',
     tryOnTitle: '채팅에서 바로 가상 피팅',

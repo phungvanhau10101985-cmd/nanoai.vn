@@ -143,6 +143,7 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   data-chat-url="${hostedUrl}"
   data-shop-name="${shopNameAttr}"
   data-orders-label="Đơn hàng của tôi"
+  data-cart-label="Giỏ hàng"
   data-logo-url="${logoUrl}"
   data-side="${embedSide}"
   data-bottom="${safeBottomPx}"

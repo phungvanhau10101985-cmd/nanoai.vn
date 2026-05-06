@@ -868,6 +868,7 @@ function GuestChatLocaleSwitches({
   slug,
   variant = 'buttons',
   embedTouchSheet = false,
+  languageSelectAriaLabel,
 }: {
   currentLocale: WebLocale
   slug: string
@@ -878,6 +879,8 @@ function GuestChatLocaleSwitches({
    * Khi bật: dùng nút + bottom sheet thay cho native select.
    */
   embedTouchSheet?: boolean
+  /** Nhãn a11y chọn ngôn ngữ (theo locale trang). */
+  languageSelectAriaLabel: string
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -978,12 +981,12 @@ function GuestChatLocaleSwitches({
             <div
               role="dialog"
               aria-modal="true"
-              aria-label="Language"
+              aria-label={languageSelectAriaLabel}
               className="fixed inset-x-0 bottom-0 z-[550] max-h-[min(78dvh,480px)] overflow-y-auto overscroll-contain rounded-t-2xl border border-border/80 bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_32px_rgba(0,0,0,0.2)]"
               style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
               onPointerDown={(e) => e.stopPropagation()}
             >
-              <p className="mb-3 text-center text-sm font-semibold text-foreground">Language</p>
+              <p className="mb-3 text-center text-sm font-semibold text-foreground">{languageSelectAriaLabel}</p>
               <div className="grid gap-2 pb-2">
                 {WEB_LOCALES.map((locale) => (
                   <button
@@ -1018,7 +1021,7 @@ function GuestChatLocaleSwitches({
           disabled={pending}
           className="relative z-[100] inline-flex h-10 min-h-[44px] min-w-[44px] shrink-0 items-center gap-1 rounded-md border border-input bg-background px-2.5 font-sans text-xs font-semibold text-foreground shadow-sm outline-none ring-offset-background hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
           style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-          aria-label="Language"
+          aria-label={languageSelectAriaLabel}
           aria-haspopup="dialog"
           aria-expanded={embedLocaleSheetOpen}
           onClick={() => setEmbedLocaleSheetOpen(true)}
@@ -1051,7 +1054,7 @@ function GuestChatLocaleSwitches({
           value={currentLocale}
           disabled={pending}
           onChange={(e) => setLocale(e.target.value as WebLocale)}
-          aria-label="Language"
+          aria-label={languageSelectAriaLabel}
         >
           {WEB_LOCALES.map((locale) => (
             <option key={locale} value={locale}>
@@ -1071,7 +1074,7 @@ function GuestChatLocaleSwitches({
     <div
       className="relative z-[1] flex flex-wrap items-center justify-end gap-0.5 rounded-md border border-border/50 bg-background/80 p-0.5 pointer-events-auto"
       role="group"
-      aria-label="Language"
+      aria-label={languageSelectAriaLabel}
     >
       {WEB_LOCALES.map((locale) => (
         <Button
@@ -5084,38 +5087,39 @@ export function PartnerGuestChatClient({
       <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-background rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md">
         <h1 className="sr-only">{shopDisplayName}</h1>
         {isEmbedUi && !guestInIframe ? (
-          <div className="relative z-[100] flex shrink-0 items-center gap-1.5 border-b border-border/60 bg-muted/35 px-2 py-1.5 pointer-events-auto touch-manipulation">
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight sm:text-[16px]">{shopDisplayName}</p>
-            <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5">
+          <div className="relative z-[100] flex shrink-0 items-center gap-1 overflow-hidden border-b border-border/60 bg-muted/35 px-2 py-1 pointer-events-auto touch-manipulation">
+            <p className="min-w-0 flex-1 truncate text-xs font-semibold tracking-tight sm:text-sm">{shopDisplayName}</p>
+            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
               <GuestChatLocaleSwitches
                 currentLocale={uiLocale}
                 slug={slug}
                 variant="select"
                 embedTouchSheet={isEmbedUi}
+                languageSelectAriaLabel={t.widgetLanguageSelectAria}
               />
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="h-8 shrink-0 gap-1 border-violet-300/80 bg-violet-50/90 px-2 text-[11px] font-medium text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55"
+                size="icon"
+                className="h-8 w-8 shrink-0 border-violet-300/80 bg-violet-50/90 text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55"
                 onClick={() => setEmbedMyOrdersOpen(true)}
                 title={orderDetailT.pageTitle}
+                aria-label={orderDetailT.pageTitle}
               >
-                <Package className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span className="hidden max-w-[7rem] truncate min-[360px]:inline">{orderDetailT.pageTitle}</span>
+                <Package className="h-3.5 w-3.5" aria-hidden />
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="relative h-8 shrink-0 px-2"
+                size="icon"
+                className="relative h-8 w-8 shrink-0"
                 onClick={() => setCartOpen(true)}
-                title="Giỏ hàng"
-                aria-label={`Giỏ hàng: ${cartItems.length} sản phẩm`}
+                title={t.widgetShoppingCart}
+                aria-label={`${t.widgetShoppingCart} (${cartItems.length})`}
               >
-                <ShoppingCart className="h-4 w-4" aria-hidden />
+                <ShoppingCart className="h-3.5 w-3.5" aria-hidden />
                 {cartItems.length > 0 ? (
-                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold leading-none text-white">
+                  <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[9px] font-bold leading-none text-white">
                     {cartItems.length > 99 ? '99+' : cartItems.length}
                   </span>
                 ) : null}
@@ -5124,7 +5128,11 @@ export function PartnerGuestChatClient({
           </div>
         ) : !isEmbedUi ? (
           <div className="flex shrink-0 justify-end border-b border-border/60 bg-muted/25 px-3 py-1.5">
-            <GuestChatLocaleSwitches currentLocale={uiLocale} slug={slug} />
+            <GuestChatLocaleSwitches
+              currentLocale={uiLocale}
+              slug={slug}
+              languageSelectAriaLabel={t.widgetLanguageSelectAria}
+            />
           </div>
         ) : null}
         <CardContent
@@ -6899,7 +6907,7 @@ export function PartnerGuestChatClient({
       <Sheet open={cartOpen} onOpenChange={setCartOpen}>
         <SheetContent side="bottom" className="z-[260] max-h-[85vh] overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>Giỏ hàng</SheetTitle>
+            <SheetTitle>{t.widgetShoppingCart}</SheetTitle>
           </SheetHeader>
           <div className="mt-4 space-y-3">
             {cartItems.length === 0 ? (

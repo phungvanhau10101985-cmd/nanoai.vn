@@ -74,6 +74,10 @@ type Props = {
   openFullPageLabel: string
   /** Nút «Đơn hàng» trên thanh widget (cùng hàng với chọn ngôn ngữ). */
   ordersButtonLabel: string
+  /** Nút giỏ hàng — nhãn ngắn + `aria-label`. */
+  cartButtonLabel: string
+  /** `aria-label` cho ô chọn ngôn ngữ. */
+  languageSelectAriaLabel: string
 }
 
 export function FloatingChatWidget({
@@ -87,6 +91,8 @@ export function FloatingChatWidget({
   closeLabel,
   openFullPageLabel,
   ordersButtonLabel,
+  cartButtonLabel,
+  languageSelectAriaLabel,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [duplicateMount, setDuplicateMount] = useState(false)
@@ -266,48 +272,46 @@ export function FloatingChatWidget({
       className={`fixed ${anchorClass} ${topLayerClass} flex h-[min(70vh,560px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border border-border/60 bg-background/95 shadow-2xl backdrop-blur-sm`}
     >
       <div
-        className="flex shrink-0 items-center gap-1 border-b border-border/60 bg-muted/40 px-2 py-1.5 sm:gap-1.5 sm:px-3 sm:py-2"
+        className="flex shrink-0 items-center gap-1 overflow-hidden border-b border-border/60 bg-muted/40 px-2 py-1 touch-manipulation"
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="min-w-0 max-w-[32%] shrink truncate text-sm font-semibold sm:text-base">{shopName}</div>
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
-          <select
-            value={uiLocale}
-            onChange={(e) => applyLocaleToIframe(e.target.value as WebLocale)}
-            aria-label="Language"
-            className="h-7 max-w-[4.75rem] shrink-0 rounded-md border border-border bg-background px-1.5 text-xs font-medium text-foreground"
-          >
-            {WEB_LOCALES.map((loc) => (
-              <option key={loc} value={loc}>
-                {LOCALE_SHORT[loc]}
-              </option>
-            ))}
-          </select>
+        <div className="min-w-0 flex-1 truncate text-xs font-semibold leading-tight sm:text-sm">{shopName}</div>
+        <select
+          value={uiLocale}
+          onChange={(e) => applyLocaleToIframe(e.target.value as WebLocale)}
+          aria-label={languageSelectAriaLabel}
+          className="h-8 w-auto max-w-[4.75rem] shrink-0 rounded-md border border-border bg-background px-1.5 text-xs font-semibold text-foreground"
+        >
+          {WEB_LOCALES.map((loc) => (
+            <option key={loc} value={loc}>
+              {LOCALE_SHORT[loc]}
+            </option>
+          ))}
+        </select>
+        <div className="flex shrink-0 items-center gap-0.5">
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            className="h-7 max-w-[min(140px,42vw)] shrink gap-1 border-violet-300/80 bg-violet-50/90 px-1.5 text-[11px] font-medium text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55"
+            size="icon"
+            className="h-8 w-8 shrink-0 border-violet-300/80 bg-violet-50/90 text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55"
             onClick={openMyOrdersInIframe}
             title={ordersButtonLabel}
+            aria-label={ordersButtonLabel}
           >
-            <Package className="h-3 w-3 shrink-0" aria-hidden />
-            <span className="min-w-0 truncate">Đơn hàng</span>
+            <Package className="h-3.5 w-3.5" aria-hidden />
           </Button>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="relative h-8 w-8 rounded-full"
+            className="relative h-8 w-8 shrink-0"
             onClick={() => postToIframe('OPEN_CART')}
-            title="Giỏ hàng"
-            aria-label={`Giỏ hàng: ${cartCount} sản phẩm`}
+            title={cartButtonLabel}
+            aria-label={`${cartButtonLabel} (${cartCount})`}
           >
-            <ShoppingCart className="h-4 w-4" aria-hidden />
+            <ShoppingCart className="h-3.5 w-3.5" aria-hidden />
             {cartCount > 0 ? (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold leading-none text-white">
+              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[9px] font-bold leading-none text-white">
                 {cartCount > 99 ? '99+' : cartCount}
               </span>
             ) : null}
@@ -316,20 +320,20 @@ export function FloatingChatWidget({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-full"
+            className="h-8 w-8 shrink-0 rounded-full"
             onClick={() => {
               openGuestProductDetailUrl(fullPageUrl)
             }}
             title={openFullPageLabel}
             aria-label={openFullPageLabel}
           >
-            <Maximize2 className="h-4 w-4" aria-hidden />
+            <Maximize2 className="h-3.5 w-3.5" aria-hidden />
           </Button>
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-full"
+            className="h-8 w-8 shrink-0 rounded-full"
             onClick={(e) => {
               e.stopPropagation()
               setClosed(true)
@@ -337,7 +341,7 @@ export function FloatingChatWidget({
             title={closeLabel}
             aria-label={closeLabel}
           >
-            <X className="h-4 w-4" aria-hidden />
+            <X className="h-3.5 w-3.5" aria-hidden />
           </Button>
         </div>
       </div>

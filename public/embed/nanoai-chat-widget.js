@@ -60,7 +60,9 @@
 
     var ordersLabelRaw = getAttr('data-orders-label', '')
     var ordersLabel = String(ordersLabelRaw || '').trim() || 'Đơn hàng'
-    var ordersShortLabel = 'Đơn hàng'
+    var cartLabelRaw = getAttr('data-cart-label', '')
+    var cartLabel = String(cartLabelRaw || '').trim() || 'Giỏ hàng'
+
     var cartCount = 0
 
     var logoUrl = getAttr('data-logo-url', '')
@@ -170,59 +172,24 @@
 
     var panel = document.createElement('div')
     panel.style.cssText =
-      'pointer-events:auto;display:none;position:absolute;background:#fff;overflow:hidden;' +
+      'pointer-events:auto;display:none;flex-direction:column;position:absolute;background:#fff;overflow:hidden;' +
       'box-shadow:0 16px 40px rgba(0,0,0,.28);border:1px solid #e5e7eb;touch-action:auto;-webkit-tap-highlight-color:transparent;'
     root.appendChild(panel)
 
     var header = document.createElement('div')
     header.style.cssText =
-      'height:44px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 8px 0 10px;pointer-events:auto;'
+      'flex-shrink:0;background:#fff;border-bottom:1px solid #eee;display:flex;flex-direction:row;align-items:center;gap:5px;padding:5px 8px;pointer-events:auto;min-width:0;overflow:hidden;'
+
     var brandEl = document.createElement('div')
     brandEl.style.cssText =
-      'font-weight:700;font-size:15px;color:#111;min-width:0;flex:0 1 auto;max-width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
+      'font-weight:700;font-size:13px;line-height:1.2;color:#111;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
     brandEl.textContent = shopName
-    header.appendChild(brandEl)
-
-    var toolbar = document.createElement('div')
-    toolbar.style.cssText =
-      'flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:nowrap;'
-    var localeSelect = document.createElement('select')
-    localeSelect.setAttribute('aria-label', 'Language')
-    localeSelect.style.cssText =
-      'max-width:80px;flex-shrink:0;font-size:12px;padding:2px 6px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;color:#111;cursor:pointer;'
-    var LOCALE_CHOICES = [
-      ['vi', 'VI'],
-      ['en', 'EN'],
-      ['zh', 'ZH'],
-      ['ja', 'JA'],
-      ['ko', 'KO'],
-    ]
-    for (var li = 0; li < LOCALE_CHOICES.length; li += 1) {
-      var opt = document.createElement('option')
-      opt.value = LOCALE_CHOICES[li][0]
-      opt.textContent = LOCALE_CHOICES[li][1]
-      localeSelect.appendChild(opt)
-    }
-    toolbar.appendChild(localeSelect)
-
-    var ordersBtn = document.createElement('button')
-    ordersBtn.type = 'button'
-    ordersBtn.setAttribute('aria-label', ordersLabel)
-    ordersBtn.style.cssText =
-      'flex:0 1 auto;min-width:48px;max-width:64px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;height:34px;padding:2px 5px;font-size:10px;font-weight:600;line-height:1;border-radius:8px;border:1px solid #c4b5fd;background:#f5f3ff;color:#1e1b4b;cursor:pointer;'
-    ordersBtn.innerHTML =
-      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="nanoai-orders-lbl" style="display:block;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>'
-    var ordersLbl = ordersBtn.querySelector('.nanoai-orders-lbl')
-    if (ordersLbl) ordersLbl.textContent = ordersShortLabel
-    toolbar.appendChild(ordersBtn)
-    header.appendChild(toolbar)
-    panel.appendChild(header)
 
     var closeBtn = document.createElement('button')
     closeBtn.type = 'button'
     closeBtn.setAttribute('aria-label', 'Close chat')
     var iconBtnBase =
-      'width:30px;height:30px;border:none;border-radius:9999px;cursor:pointer;background:#f3f4f6;color:#111;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;'
+      'width:32px;height:32px;border:none;border-radius:9999px;cursor:pointer;background:#f3f4f6;color:#111;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;'
     closeBtn.style.cssText = iconBtnBase + 'font-size:17px;padding:0;'
     closeBtn.textContent = '×'
     var expandBtn = document.createElement('button')
@@ -242,13 +209,42 @@
           '<path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/></g></svg>'
     }
     setExpandButtonIcon(false)
+
+    var localeSelect = document.createElement('select')
+    localeSelect.setAttribute('aria-label', 'Language')
+    localeSelect.style.cssText =
+      'max-width:72px;height:32px;flex-shrink:0;font-size:11px;padding:2px 6px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;color:#111;cursor:pointer;touch-action:manipulation;'
+    var LOCALE_CHOICES = [
+      ['vi', 'VI'],
+      ['en', 'EN'],
+      ['zh', 'ZH'],
+      ['ja', 'JA'],
+      ['ko', 'KO'],
+    ]
+    for (var li = 0; li < LOCALE_CHOICES.length; li += 1) {
+      var opt = document.createElement('option')
+      opt.value = LOCALE_CHOICES[li][0]
+      opt.textContent = LOCALE_CHOICES[li][1]
+      localeSelect.appendChild(opt)
+    }
+
+    var ordersBtn = document.createElement('button')
+    ordersBtn.type = 'button'
+    ordersBtn.setAttribute('aria-label', ordersLabel)
+    ordersBtn.setAttribute('title', ordersLabel)
+    ordersBtn.style.cssText =
+      'width:36px;height:36px;min-width:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid #c4b5fd;background:#f5f3ff;color:#1e1b4b;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;flex-shrink:0;'
+    ordersBtn.innerHTML =
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>'
+
     var cartBtn = document.createElement('button')
     cartBtn.type = 'button'
-    cartBtn.setAttribute('aria-label', 'Giỏ hàng')
+    cartBtn.setAttribute('aria-label', cartLabel)
+    cartBtn.setAttribute('title', cartLabel)
     cartBtn.style.cssText =
-      'width:48px;height:34px;border:none;border-radius:8px;cursor:pointer;background:#f3f4f6;color:#111;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;flex-shrink:0;padding:2px 5px;position:relative;font-size:10px;font-weight:600;line-height:1;'
+      'position:relative;width:36px;height:36px;min-width:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid #e5e7eb;background:#f9fafb;color:#111;cursor:pointer;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;'
     cartBtn.innerHTML =
-      '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h8.96a2 2 0 0 0 1.95-1.57L21 8H5.12"/></svg><span style="display:block;max-width:44px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Giỏ hàng</span><span class="nanoai-cart-count" style="display:none;position:absolute;right:-2px;top:-2px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:#059669;color:#fff;font-size:10px;font-weight:700;line-height:15px;text-align:center;"></span>'
+      '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h8.96a2 2 0 0 0 1.95-1.57L21 8H5.12"/></svg><span class="nanoai-cart-count" style="display:none;position:absolute;right:-2px;top:-2px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#059669;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;"></span>'
     var cartBadge = cartBtn.querySelector('.nanoai-cart-count')
     function setCartCount(n) {
       cartCount = Math.max(0, parseInt(n, 10) || 0)
@@ -260,19 +256,21 @@
         cartBadge.style.display = 'none'
         cartBadge.textContent = ''
       }
-      cartBtn.setAttribute('aria-label', 'Giỏ hàng: ' + cartCount + ' sản phẩm')
+      cartBtn.setAttribute('aria-label', cartLabel + ' (' + cartCount + ')')
     }
-    var headerActions = document.createElement('div')
-    headerActions.style.cssText = 'display:flex;align-items:center;gap:4px;flex-shrink:0;'
-    headerActions.appendChild(cartBtn)
-    headerActions.appendChild(expandBtn)
-    headerActions.appendChild(closeBtn)
-    header.appendChild(headerActions)
-    // Một hàng: [tên shop][ngôn ngữ + đơn hàng][mở rộng|đóng]
+
+    header.appendChild(brandEl)
+    header.appendChild(localeSelect)
+    header.appendChild(ordersBtn)
+    header.appendChild(cartBtn)
+    header.appendChild(expandBtn)
+    header.appendChild(closeBtn)
+
+    panel.appendChild(header)
 
     var body = document.createElement('div')
     body.style.cssText =
-      'width:100%;height:calc(100% - 44px);pointer-events:auto;touch-action:auto;-webkit-overflow-scrolling:touch;'
+      'flex:1;min-height:0;width:100%;pointer-events:auto;touch-action:auto;-webkit-overflow-scrolling:touch;'
     panel.appendChild(body)
 
     var iframe = null
@@ -621,7 +619,7 @@
     function openChat() {
       var firstOpen = !iframe
       ensureIframe(extractPageContext(), { openTryOn: firstOpen && primaryTryOn })
-      panel.style.display = 'block'
+      panel.style.display = 'flex'
       bubble.style.display = 'none'
       applyLayout()
     }

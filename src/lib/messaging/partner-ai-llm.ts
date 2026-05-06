@@ -14,6 +14,7 @@ import {
 import {
   fetchPartnerInventoryRowByComparableSkuFromPg,
   fetchPartnerInventoryRowByIdForPartnerFromPg,
+  fetchPartnerInventoryRowByProductUrlNormKeyFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -433,6 +434,58 @@ function outboundMessageSuggestsProductAdvice(m: PartnerAiTranscriptMsg | null):
   return extractExplicitSkuCandidates(m.body).length > 0
 }
 
+async function resolveInventoryRowFromRecentShopProductAdvice(
+  partnerId: string,
+  m: PartnerAiTranscriptMsg | null
+): Promise<InvRow | null> {
+  if (!m || m.direction !== 'outbound' || !isPgConfigured()) return null
+
+  const cards = m.raw_payload ? aiProductCardsFromPayload(m.raw_payload) : []
+  const bodySkuTokens = extractExplicitSkuCandidates(m.body)
+  for (const tok of bodySkuTokens) {
+    const row = await fetchPartnerInventoryRowByComparableSkuFromPg(partnerId, tok)
+    if (row) return row
+  }
+
+  if (cards.length === 1) {
+    const card = cards[0]
+    const invId = card.inventory_id?.trim()
+    if (invId && PAGE_CONTEXT_INV_ID_RE.test(invId)) {
+      const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, invId)
+      if (row) return row
+    }
+    const sku = card.sku?.trim()
+    if (sku) {
+      const row = await fetchPartnerInventoryRowByComparableSkuFromPg(partnerId, sku)
+      if (row) return row
+    }
+    const productUrl = card.product_url?.trim()
+    if (productUrl && /^https?:\/\//i.test(productUrl)) {
+      const row = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(partnerId, productUrl)
+      if (row) return row
+    }
+  }
+
+  if (cards.length > 1 && bodySkuTokens.length > 0) {
+    const normalizedTokens = new Set(
+      bodySkuTokens.map((s) => s.trim().toLowerCase().replace(/[\s._-]+/g, '')).filter(Boolean)
+    )
+    for (const card of cards) {
+      const sku = card.sku?.trim().toLowerCase().replace(/[\s._-]+/g, '') ?? ''
+      if (!sku || !normalizedTokens.has(sku)) continue
+      const invId = card.inventory_id?.trim()
+      if (invId && PAGE_CONTEXT_INV_ID_RE.test(invId)) {
+        const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, invId)
+        if (row) return row
+      }
+      const row = await fetchPartnerInventoryRowByComparableSkuFromPg(partnerId, sku)
+      if (row) return row
+    }
+  }
+
+  return null
+}
+
 /**
  * Chỉ dùng khi **hỏi tiếp theo ngữ cảnh SP vừa tư vấn** (`followUpSingleProductNoVector`) hoặc **Nhánh B** (neo mã/link — tránh cả transcript dài lẫn SP khác):
  * một tin shop gần nhất (trước tin khách hiện tại). Câu khách gửi riêng ở «Tin nhắn mới nhất của khách».
@@ -804,6 +857,10 @@ export async function buildPartnerAiContext(
     chronological as PartnerAiTranscriptMsg[]
   )
   const shopLastSentProductAdvice = outboundMessageSuggestsProductAdvice(lastShopTurnForSimilar)
+  const recentShopAdviceAnchorRow =
+    similarCatalogVersusLastConsulted && shopLastSentProductAdvice
+      ? await resolveInventoryRowFromRecentShopProductAdvice(partnerId, lastShopTurnForSimilar)
+      : null
   /** [Nhánh B] Tin kèm page_context (link/embed/thẻ) + đã resolve được dòng kho — khóa tư vấn một SP, không lẫn nhánh tìm rộng. */
   let inboundAnchoredProductConsultBranch =
     !similarCatalogVersusLastConsulted &&
@@ -872,7 +929,7 @@ export async function buildPartnerAiContext(
    * Tránh clarify khi vừa tư vấn đúng SKU chỉ vì heuristic không bắt được thẻ trên tin cuối.
    */
   const similarIntentHasUsableThreadAnchor =
-    explicitSkuRows.length > 0 || shopLastSentProductAdvice || Boolean(lastConsultedRow)
+    explicitSkuRows.length > 0 || Boolean(recentShopAdviceAnchorRow) || Boolean(lastConsultedRow)
 
   const useLastConsultedContext =
     !opensGeneralShopCatalog &&
@@ -1007,7 +1064,7 @@ export async function buildPartnerAiContext(
      */
     if (similarCatalogVersusLastConsulted && !selectedInventoryId) {
       /** SP neo: `page_context` / thẻ tin này → không thì **vector ảnh của dòng kho vừa tư vấn** (`lastConsultedRow`). */
-      const anchorForSimilar = explicitSkuRows[0] ?? lastConsultedRow ?? null
+      const anchorForSimilar = explicitSkuRows[0] ?? recentShopAdviceAnchorRow ?? lastConsultedRow ?? null
       if (anchorForSimilar) {
         try {
           let anchorFresh = anchorForSimilar
