@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Maximize2, MessageCircle, Package, ShoppingCart, X } from 'lucide-react'
+import { Maximize2, MessageCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
@@ -72,10 +72,6 @@ type Props = {
   openLabel: string
   closeLabel: string
   openFullPageLabel: string
-  /** Nút «Đơn hàng» trên thanh widget (cùng hàng với chọn ngôn ngữ). */
-  ordersButtonLabel: string
-  /** Nút giỏ hàng — nhãn ngắn + `aria-label`. */
-  cartButtonLabel: string
   /** `aria-label` cho ô chọn ngôn ngữ. */
   languageSelectAriaLabel: string
 }
@@ -90,8 +86,6 @@ export function FloatingChatWidget({
   openLabel,
   closeLabel,
   openFullPageLabel,
-  ordersButtonLabel,
-  cartButtonLabel,
   languageSelectAriaLabel,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -101,7 +95,6 @@ export function FloatingChatWidget({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [uiLocale, setUiLocale] = useState<WebLocale>(() => parseUiLocaleFromChatUrl(chatUrl))
   const [iframeSrc, setIframeSrc] = useState(() => appendStoredGuestIdentity(readReturnChatIframeHref() ?? chatUrl))
-  const [cartCount, setCartCount] = useState(0)
   // Keep NanoAI widget above common social/contact bubbles (e.g. Zalo).
   const anchorClass = 'bottom-[10.5rem] right-3 md:bottom-6 md:right-4'
   const topLayerClass = 'z-[2147483000]'
@@ -151,34 +144,6 @@ export function FloatingChatWidget({
     [chatUrl, iframeSrc]
   )
 
-  const openMyOrdersInIframe = useCallback(() => {
-    const el = iframeRef.current
-    if (!el?.contentWindow) return
-    try {
-      const targetOrigin = new URL(el.src || iframeSrc || chatUrl, window.location.href).origin
-      el.contentWindow.postMessage(
-        { source: NANOAI_WIDGET_MSG_SOURCE, type: 'OPEN_MY_ORDERS' },
-        targetOrigin
-      )
-    } catch {
-      /* ignore */
-    }
-  }, [chatUrl, iframeSrc])
-
-  const postToIframe = useCallback(
-    (type: string) => {
-      const el = iframeRef.current
-      if (!el?.contentWindow) return
-      try {
-        const targetOrigin = new URL(el.src || iframeSrc || chatUrl, window.location.href).origin
-        el.contentWindow.postMessage({ source: NANOAI_WIDGET_MSG_SOURCE, type }, targetOrigin)
-      } catch {
-        /* ignore */
-      }
-    },
-    [chatUrl, iframeSrc]
-  )
-
   /** iframe chat → thay cả tab trang shop bằng URL SP (đồng bộ với `openGuestProductDetailUrl` khi cross-origin). */
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -206,10 +171,6 @@ export function FloatingChatWidget({
       if (type === 'GUEST_IDENTITY') {
         storeGuestIdentity(data)
         if (iframeRef.current?.src) writeReturnChatIframeHref(iframeRef.current.src)
-      }
-      if (type === 'CART_COUNT') {
-        const n = Math.max(0, Math.floor(Number((data as { count?: unknown }).count) || 0))
-        setCartCount(n)
       }
     }
     window.addEventListener('message', onMsg)
@@ -289,33 +250,6 @@ export function FloatingChatWidget({
           ))}
         </select>
         <div className="flex shrink-0 items-center gap-0.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8 shrink-0 border-violet-300/80 bg-violet-50/90 text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55"
-            onClick={openMyOrdersInIframe}
-            title={ordersButtonLabel}
-            aria-label={ordersButtonLabel}
-          >
-            <Package className="h-3.5 w-3.5" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="relative h-8 w-8 shrink-0"
-            onClick={() => postToIframe('OPEN_CART')}
-            title={cartButtonLabel}
-            aria-label={`${cartButtonLabel} (${cartCount})`}
-          >
-            <ShoppingCart className="h-3.5 w-3.5" aria-hidden />
-            {cartCount > 0 ? (
-              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[9px] font-bold leading-none text-white">
-                {cartCount > 99 ? '99+' : cartCount}
-              </span>
-            ) : null}
-          </Button>
           <Button
             type="button"
             variant="ghost"

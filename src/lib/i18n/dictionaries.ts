@@ -1081,6 +1081,8 @@ export type Dictionary = {
   /** /messaging/my-orders — đơn widget khi user đã liên kết tài khoản */
   messagingMyOrders: {
     pageTitle: string
+    /** Nút «Đơn hàng» ngắn trên thanh nhập chat nhúng (khác `pageTitle` modal). */
+    composerOrdersLabel: string
     pageDescription: string
     emptyList: string
     loadFailed: string
@@ -3095,6 +3097,7 @@ const VI_DICTIONARY: Dictionary = {
   },
   messagingMyOrders: {
     pageTitle: 'Đơn hàng của tôi',
+    composerOrdersLabel: 'Đơn hàng',
     pageDescription: 'Đơn đặt qua chat NanoAI — trạng thái thanh toán và giao hàng theo từng đơn.',
     emptyList: 'Chưa có đơn hàng. Đặt trong chat với shop để thấy đơn tại đây.',
     loadFailed: 'Không tải được danh sách.',
@@ -5104,6 +5107,7 @@ const EN_DICTIONARY: Dictionary = {
   },
   messagingMyOrders: {
     pageTitle: 'My orders',
+    composerOrdersLabel: 'Orders',
     pageDescription: 'Orders placed via NanoAI chat — payment and shipping status per order.',
     emptyList: 'No orders yet. Place an order in a shop chat to see it here.',
     loadFailed: 'Could not load the list.',
@@ -7088,6 +7092,7 @@ const ZH_DICTIONARY: Dictionary = {
   },
   messagingMyOrders: {
     pageTitle: '我的订单',
+    composerOrdersLabel: '订单',
     pageDescription: '通过 NanoAI 聊天下单的订单 — 每笔订单的付款与发货状态。',
     emptyList: '暂无订单。在店铺聊天中下单后即可在此查看。',
     loadFailed: '无法加载列表。',
@@ -9052,6 +9057,7 @@ const JA_DICTIONARY: Dictionary = {
   },
   messagingMyOrders: {
     pageTitle: '自分の注文',
+    composerOrdersLabel: '注文',
     pageDescription: 'NanoAI チャット経由の注文 — 支払いと発送の状況。',
     emptyList: '注文はまだありません。店舗チャットで注文するとここに表示されます。',
     loadFailed: '一覧を読み込めませんでした。',
@@ -11039,6 +11045,7 @@ const KO_DICTIONARY: Dictionary = {
   },
   messagingMyOrders: {
     pageTitle: '내 주문',
+    composerOrdersLabel: '주문',
     pageDescription: 'NanoAI 채팅으로 주문한 내역 — 결제 및 배송 상태.',
     emptyList: '주문이 없습니다. 매장 채팅에서 주문하면 여기에 표시됩니다.',
     loadFailed: '목록을 불러오지 못했습니다.',

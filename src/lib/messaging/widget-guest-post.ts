@@ -1009,6 +1009,8 @@ export async function postWidgetGuestMessage(params: {
         messageId: newMessageId,
         inboundBody: inboundForAi,
         channel: 'widget',
+        // Button-based consults should reply quickly, but the POST must return so the widget stops spinning.
+        scheduleAiAfterSeconds: isProductCardConsult ? 0 : undefined,
         skipEagerBatchRun: true,
         /** Đã merge vào DB — dùng để bỏ FAQ tiếng Việt khi khách chọn UI khác `vi`. */
         widgetUiLocale: locNorm ?? null,

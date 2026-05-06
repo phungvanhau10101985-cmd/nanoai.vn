@@ -729,12 +729,12 @@ function reorderInventoryRowsByBudgetBand(
 export async function fetchInventoryRowsForPartnerAi(
   partnerId: string,
   customerMessage: string,
-  opts?: { budgetSourceMessage?: string }
+  opts?: { budgetSourceMessage?: string; preferredGender?: CustomerGenderSearchIntent }
 ): Promise<PartnerInventoryRow[]> {
   const lim = PARTNER_AI_INVENTORY_CONTEXT_LIMIT
   const hintSource = opts?.budgetSourceMessage ?? customerMessage
   const budget = extractCustomerBudgetTargetVnd(hintSource)
-  const genderIntent = extractCustomerGenderSearchIntent(hintSource)
+  const genderIntent = extractCustomerGenderSearchIntent(hintSource) ?? opts?.preferredGender ?? null
   const queryForEmbedding = expandInventoryEmbeddingQueryWithGender(customerMessage, genderIntent)
   const fetchLim = budget !== null ? Math.min(50, lim * 3) : lim
   let rows = await fetchInventoryRowsBySemanticTextForPartnerAi(partnerId, queryForEmbedding, fetchLim)

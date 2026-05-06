@@ -751,11 +751,13 @@ export async function buildPartnerAiContext(
   const invFmtOpts = { markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts) }
 
   let guestProfileBlockForAi = ''
+  let guestProfileGenderForInventorySearch: GuestProfileGender | null = null
   if (isPgConfigured()) {
     try {
       const conv = await fetchCustomerCareConversationByIdPg(conversationId)
       if (conv?.linked_user_id && conv.partner_id === partnerId) {
         const prof = await fetchNanoaiChatProfileFromPg(conv.linked_user_id)
+        guestProfileGenderForInventorySearch = prof?.gender ?? null
         if (prof && (prof.birthDate || prof.gender)) {
           guestProfileBlockForAi = formatGuestProfileContextBlockForPartnerAi(prof)
         }
@@ -1132,6 +1134,7 @@ export async function buildPartnerAiContext(
             : latestCustomerMessage
         inv = await fetchInventoryRowsForPartnerAi(partnerId, inventorySearchMessage, {
           budgetSourceMessage: latestCustomerMessage,
+          preferredGender: guestProfileGenderForInventorySearch,
         })
       }
     }

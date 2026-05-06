@@ -58,13 +58,6 @@
     var shopName = String(shopNameRaw || '').trim()
     if (!shopName) shopName = 'Chat'
 
-    var ordersLabelRaw = getAttr('data-orders-label', '')
-    var ordersLabel = String(ordersLabelRaw || '').trim() || 'Đơn hàng'
-    var cartLabelRaw = getAttr('data-cart-label', '')
-    var cartLabel = String(cartLabelRaw || '').trim() || 'Giỏ hàng'
-
-    var cartCount = 0
-
     var logoUrl = getAttr('data-logo-url', '')
     var side = getAttr('data-side', 'right') === 'left' ? 'left' : 'right'
     var bottom = num(getAttr('data-bottom', '24'), 24, 0, 800)
@@ -221,6 +214,12 @@
       ['ja', 'JA'],
       ['ko', 'KO'],
     ]
+    var ordersLabelRaw = getAttr('data-orders-label', '')
+    var ordersLabel = String(ordersLabelRaw || '').trim() || 'Đơn hàng'
+    var cartLabelRaw = getAttr('data-cart-label', '')
+    var cartLabel = String(cartLabelRaw || '').trim() || 'Giỏ hàng'
+    var cartCount = 0
+
     for (var li = 0; li < LOCALE_CHOICES.length; li += 1) {
       var opt = document.createElement('option')
       opt.value = LOCALE_CHOICES[li][0]
@@ -257,6 +256,12 @@
         cartBadge.textContent = ''
       }
       cartBtn.setAttribute('aria-label', cartLabel + ' (' + cartCount + ')')
+    }
+
+    /** Đơn hàng + giỏ — luôn trên header widget (mobile & desktop). */
+    function syncCommerceHeaderButtons() {
+      ordersBtn.style.display = 'inline-flex'
+      cartBtn.style.display = 'inline-flex'
     }
 
     header.appendChild(brandEl)
@@ -563,7 +568,6 @@
         iframe.contentWindow.postMessage({ source: 'nanoai-widget', type: 'OPEN_CART' }, targetOrigin)
       } catch (_) {}
     })
-
     function extractGuestSlugFromChatUrl(urlStr) {
       try {
         var u = new URL(urlStr, window.location.href)
@@ -723,6 +727,7 @@
       panel.style.pointerEvents = 'auto'
       body.style.pointerEvents = 'auto'
       if (iframe) iframe.style.pointerEvents = 'auto'
+      syncCommerceHeaderButtons()
     }
     function onResize() {
       if (resizeTimer) window.clearTimeout(resizeTimer)

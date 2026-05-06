@@ -285,7 +285,7 @@ export default async function RootLayout({
   /** Logo tròn trên nút nổi «Mở chat» (khi đóng); header khi mở: ưu tiên tên shop từ DB, không dùng «NanoAI» mặc định từ title iframe. */
   let widgetLauncherLogoUrl: string | null = null;
   let widgetShopName = normalizeShopName(hostedChatIframe?.title || "");
-  // Widget toàn cục (FloatingChatWidget) là UI thời trang (có "Đơn hàng của tôi", "Thử đồ"...).
+  // Widget toàn cục (FloatingChatWidget): iframe chat; đơn/giỏ/thử đồ nằm trong khung chat.
   // Nếu admin lỡ cấu hình `chatEmbedCode` trỏ tới một hotel partner thì KHÔNG render widget
   // trên site chính của NanoAI — workspace khách sạn có trải nghiệm/nhúng riêng, và site chính
   // không phải là website của khách chủ khách sạn.
@@ -332,26 +332,6 @@ export default async function RootLayout({
             : locale === 'ko'
               ? '전체 페이지 열기'
               : 'Mở toàn trang',
-    ordersButtonLabel:
-      locale === 'en'
-        ? 'My orders'
-        : locale === 'zh'
-          ? '我的订单'
-          : locale === 'ja'
-            ? '注文一覧'
-            : locale === 'ko'
-              ? '내 주문'
-              : 'Đơn hàng của tôi',
-    cartButtonLabel:
-      locale === 'en'
-        ? 'Cart'
-        : locale === 'zh'
-          ? '购物车'
-          : locale === 'ja'
-            ? 'カート'
-            : locale === 'ko'
-              ? '장바구니'
-              : 'Giỏ hàng',
     languageSelectAriaLabel:
       locale === 'en'
         ? 'Language'
@@ -500,8 +480,6 @@ export default async function RootLayout({
                   openLabel={widgetText.openLabel}
                   closeLabel={widgetText.closeLabel}
                   openFullPageLabel={widgetText.openFullPageLabel}
-                  ordersButtonLabel={widgetText.ordersButtonLabel}
-                  cartButtonLabel={widgetText.cartButtonLabel}
                   languageSelectAriaLabel={widgetText.languageSelectAriaLabel}
                 />
               ) : null}

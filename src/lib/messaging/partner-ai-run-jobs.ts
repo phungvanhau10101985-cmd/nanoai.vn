@@ -350,9 +350,14 @@ async function runMessagingPartnerAiJobBatchUsingPg(
               skipped += 1
               continue
             }
-            const cachedCards = Array.isArray(cached.ai_product_cards)
+            let cachedCards = Array.isArray(cached.ai_product_cards)
               ? (cached.ai_product_cards as PartnerAiProductCard[])
               : []
+            cachedCards = clampProductCardsToLastConsultedRow(cachedCards, inboundAnchoredConsultRow)
+            if (cachedCards.length === 0) {
+              const fb = partnerAiProductCardFromInventoryRow(inboundAnchoredConsultRow)
+              if (fb) cachedCards = [fb]
+            }
             const productsWithVideoCached = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
               job.partner_id,
               cachedCards

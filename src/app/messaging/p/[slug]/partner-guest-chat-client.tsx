@@ -51,7 +51,7 @@ import { fireMetaPurchasePixelEvents } from './meta-purchase-pixel-fire'
 import { MetaPixelViewContentTracker } from './meta-pixel-view-content-tracker'
 import { GuestWidgetOrderDetailDialog } from '@/components/messaging/guest-widget-order-detail-dialog'
 import { GuestWidgetMyOrdersDialog } from '@/components/messaging/guest-widget-my-orders-dialog'
-import { NANOAI_WIDGET_MSG_SOURCE, isOpenMyOrdersMessage } from '@/lib/messaging/widget-parent-bridge'
+import { isOpenMyOrdersMessage, NANOAI_WIDGET_MSG_SOURCE } from '@/lib/messaging/widget-parent-bridge'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order-sepay-message-helpers'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
@@ -1111,6 +1111,13 @@ type GuestChatDraftComposerProps = {
   showCameraButton: boolean
   onOpenProductShelf?: () => void
   productShelfButtonLabel?: string
+  /** Đơn hàng / giỏ — cùng hàng với «Sản phẩm» (embed & widget iframe). */
+  showCommerceShortcuts?: boolean
+  onOpenMyOrders?: () => void
+  onOpenCart?: () => void
+  cartItemCount?: number
+  ordersShortcutLabel?: string
+  cartShortcutLabel?: string
   onComposerFocusChange?: (focused: boolean) => void
   labels: {
     placeholder: string
@@ -1141,6 +1148,12 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   showCameraButton,
   onOpenProductShelf,
   productShelfButtonLabel,
+  showCommerceShortcuts,
+  onOpenMyOrders,
+  onOpenCart,
+  cartItemCount = 0,
+  ordersShortcutLabel,
+  cartShortcutLabel,
   onComposerFocusChange,
   labels,
 }: GuestChatDraftComposerProps) {
@@ -1205,7 +1218,7 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
           onBlur={() => onComposerFocusChange?.(false)}
           placeholder={labels.placeholder}
           rows={1}
-          className="resize-none border-0 bg-transparent px-0 pb-12 pt-1 pr-12 text-[17px] leading-snug shadow-none focus-visible:ring-0 sm:text-lg"
+          className="resize-none border-0 bg-transparent px-0 pb-[4.25rem] pt-1 pr-12 text-[17px] leading-snug shadow-none focus-visible:ring-0 sm:pb-[4.5rem] sm:text-lg"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
@@ -1222,17 +1235,23 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
         >
           {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
         </Button>
-        <div className="absolute bottom-0 left-0 z-10 flex max-w-[calc(100%-3rem)] items-center gap-1.5 overflow-x-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="absolute bottom-0 left-0 z-10 flex max-w-[calc(100%-3rem)] items-end gap-1.5 overflow-x-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            className="h-9 shrink-0 gap-1.5 px-3 text-sm font-medium sm:h-10 sm:px-3.5 sm:text-[15px]"
+            className="flex h-auto min-h-[2.75rem] shrink-0 flex-col items-center justify-center gap-0.5 px-2 py-1.5 sm:min-h-[3rem]"
             disabled={uploading || sending || tryOnBusy}
             onClick={onToggleTryOn}
           >
-            {tryOnBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-            {labels.tryOnOpen}
+            {tryOnBusy ? (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
+            )}
+            <span className="max-w-[4.25rem] text-center text-[10px] font-medium leading-tight sm:max-w-[5rem] sm:text-[11px]">
+              {labels.tryOnOpen}
+            </span>
           </Button>
           <Button
             type="button"
@@ -1265,12 +1284,53 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
               type="button"
               variant="outline"
               size="sm"
-              className="h-9 shrink-0 gap-1.5 px-3 text-sm font-medium sm:h-10 sm:px-3.5 sm:text-[15px]"
+              className="flex h-auto min-h-[2.75rem] shrink-0 flex-col items-center justify-center gap-0.5 px-2 py-1.5 sm:min-h-[3rem]"
               disabled={uploading || sending}
               onClick={() => onOpenProductShelf()}
             >
-              <Package className="h-5 w-5" />
-              {productShelfButtonLabel}
+              <Package className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="max-w-[4.25rem] text-center text-[10px] font-medium leading-tight sm:max-w-[5rem] sm:text-[11px]">
+                {productShelfButtonLabel}
+              </span>
+            </Button>
+          ) : null}
+          {showCommerceShortcuts && onOpenMyOrders && ordersShortcutLabel ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex h-auto min-h-[2.75rem] shrink-0 flex-col items-center justify-center gap-0.5 border-violet-300/80 bg-violet-50/90 px-2 py-1.5 text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55 sm:min-h-[3rem]"
+              disabled={uploading || sending}
+              onClick={() => onOpenMyOrders()}
+              title={ordersShortcutLabel}
+              aria-label={ordersShortcutLabel}
+            >
+              <Package className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="max-w-[4.25rem] text-center text-[10px] font-medium leading-tight sm:max-w-[5rem] sm:text-[11px]">
+                {ordersShortcutLabel}
+              </span>
+            </Button>
+          ) : null}
+          {showCommerceShortcuts && onOpenCart && cartShortcutLabel ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="relative flex h-auto min-h-[2.75rem] shrink-0 flex-col items-center justify-center gap-0.5 px-2 py-1.5 sm:min-h-[3rem]"
+              disabled={uploading || sending}
+              onClick={() => onOpenCart()}
+              title={cartShortcutLabel}
+              aria-label={`${cartShortcutLabel} (${cartItemCount})`}
+            >
+              <ShoppingCart className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="max-w-[4.25rem] text-center text-[10px] font-medium leading-tight sm:max-w-[5rem] sm:text-[11px]">
+                {cartShortcutLabel}
+              </span>
+              {cartItemCount > 0 ? (
+                <span className="absolute right-0 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[9px] font-bold leading-none text-white">
+                  {cartItemCount > 99 ? '99+' : cartItemCount}
+                </span>
+              ) : null}
             </Button>
           ) : null}
         </div>
@@ -1512,7 +1572,7 @@ export function PartnerGuestChatClient({
   const [embedWidgetDataNonce, setEmbedWidgetDataNonce] = useState(0)
   /** Chat nhúng iframe trên site shop (`?embed=1`) — không có header FloatingChatWidget của nanoai.vn. */
   const [isEmbedUi, setIsEmbedUi] = useState(false)
-  /** `true` khi trang chat chạy trong iframe (FloatingChatWidget / script nhúng); toolbar locale/đơn ở frame cha — ẩn hàng trùng trong iframe. */
+  /** `true` khi trang chat chạy trong iframe (FloatingChatWidget / script nhúng); locale/mở rộng ở frame cha. */
   const [guestInIframe, setGuestInIframe] = useState(false)
 
   const guestBirthMaxDay = useMemo(() => {
@@ -2553,6 +2613,16 @@ export function PartnerGuestChatClient({
     guestChatNearBottomRef.current = true
   }, [messages.length, shopTyping, shopTyping?.deadline])
 
+  const forceScrollGuestChatToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    forceGuestChatScrollToBottomRef.current = true
+    guestChatNearBottomRef.current = true
+    const scroll = () => {
+      scrollAnchorRef.current?.scrollIntoView({ block: 'end', behavior })
+    }
+    scroll()
+    window.requestAnimationFrame(scroll)
+  }, [])
+
   const setTryOnUserFromFile = async (file: File | null) => {
     if (!file) {
       setTryOnUserFile(null)
@@ -3341,6 +3411,7 @@ export function PartnerGuestChatClient({
       }
       const baselineLatestOutbound = latestOutboundCursor(messages)
       setSending(true)
+      forceScrollGuestChatToBottom('smooth')
       try {
         const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
           method: 'POST',
@@ -3387,28 +3458,36 @@ export function PartnerGuestChatClient({
             baselineLatestOutbound,
           })
         }
-        if (productUrl && productKey) {
-          try {
-            const rec = await fetch(
-              `/api/messaging/guest/${encodeURIComponent(slug)}/consult-product`,
-              {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                body: JSON.stringify({
-                  productUrlKey: productKey,
-                  sourceMessageId: sourceMessageId.trim(),
-                }),
-              }
-            )
-            captureGuestSessionFromResponse(rec)
-            captureGuestAccountFromResponse(rec)
-          } catch {
-            // vẫn cập nhật local + load(); có thể retry sau
-          }
-        }
         forceGuestChatScrollToBottomRef.current = true
-        await load()
+        forceScrollGuestChatToBottom('smooth')
+        setSending(false)
+        void (async () => {
+          if (productUrl && productKey) {
+            try {
+              const rec = await fetch(
+                `/api/messaging/guest/${encodeURIComponent(slug)}/consult-product`,
+                {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                  body: JSON.stringify({
+                    productUrlKey: productKey,
+                    sourceMessageId: sourceMessageId.trim(),
+                  }),
+                }
+              )
+              captureGuestSessionFromResponse(rec)
+              captureGuestAccountFromResponse(rec)
+            } catch {
+              // vẫn cập nhật local + load(); có thể retry sau
+            }
+          }
+          try {
+            await load()
+          } catch {
+            // Polling sẽ thử lại; không để tác vụ phụ giữ trạng thái gửi.
+          }
+        })()
       } catch {
         toast({ title: t.sendError, variant: 'destructive' })
       } finally {
@@ -5090,13 +5169,6 @@ export function PartnerGuestChatClient({
           <div className="relative z-[100] flex shrink-0 items-center gap-1 overflow-hidden border-b border-border/60 bg-muted/35 px-2 py-1 pointer-events-auto touch-manipulation">
             <p className="min-w-0 flex-1 truncate text-xs font-semibold tracking-tight sm:text-sm">{shopDisplayName}</p>
             <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-              <GuestChatLocaleSwitches
-                currentLocale={uiLocale}
-                slug={slug}
-                variant="select"
-                embedTouchSheet={isEmbedUi}
-                languageSelectAriaLabel={t.widgetLanguageSelectAria}
-              />
               <Button
                 type="button"
                 variant="outline"
@@ -5124,6 +5196,13 @@ export function PartnerGuestChatClient({
                   </span>
                 ) : null}
               </Button>
+              <GuestChatLocaleSwitches
+                currentLocale={uiLocale}
+                slug={slug}
+                variant="select"
+                embedTouchSheet={isEmbedUi}
+                languageSelectAriaLabel={t.widgetLanguageSelectAria}
+              />
             </div>
           </div>
         ) : !isEmbedUi ? (
@@ -6598,6 +6677,12 @@ export function PartnerGuestChatClient({
                   setRecentProductsOpen(true)
                 }}
                 productShelfButtonLabel={t.productShelfButton}
+                showCommerceShortcuts={false}
+                onOpenMyOrders={() => setEmbedMyOrdersOpen(true)}
+                onOpenCart={() => setCartOpen(true)}
+                cartItemCount={cartItems.length}
+                ordersShortcutLabel={orderDetailT.composerOrdersLabel}
+                cartShortcutLabel={t.widgetShoppingCart}
                 onComposerFocusChange={setGuestChatFormFieldFocused}
                 labels={draftComposerLabels}
               />
