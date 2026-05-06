@@ -1437,12 +1437,8 @@ export type PartnerAiSettingsPayload = {
   reply_delay_seconds: number
   typing_pause_min_ms: number
   typing_pause_max_ms: number
-  shop_policy: string
   /** Thông tin/chính sách luôn đưa vào ngữ cảnh tư vấn sản phẩm. */
   product_consultation_context: string
-  tone_instructions: string
-  /** Gợi ý tư vấn mềm / chốt đơn — bổ sung trên khối mặc định trong LLM. */
-  sales_coaching_instructions: string
   append_ai_disclosure: boolean
   disclosure_suffix: string
   vision_product_search_enabled: boolean
@@ -1965,10 +1961,7 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
     reply_delay_seconds: delay,
     typing_pause_min_ms: Math.min(tmin, tmax),
     typing_pause_max_ms: Math.max(tmin, tmax),
-    shop_policy: '',
     product_consultation_context: (payload.product_consultation_context ?? '').slice(0, 16000),
-    tone_instructions: '',
-    sales_coaching_instructions: '',
     append_ai_disclosure: Boolean(payload.append_ai_disclosure),
     disclosure_suffix: payload.disclosure_suffix?.trim() || '',
     vision_product_search_enabled: false,

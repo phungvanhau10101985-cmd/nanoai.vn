@@ -493,31 +493,19 @@ Khách vừa bấm **Tư vấn** trên một thẻ trong chat (hoặc đang hỏ
 }
 
 function buildAlwaysIncludedShopAiContextBlock(settings: SettingsRow): string {
-  const policy = settings.shop_policy?.trim()
   const productConsultationContext = settings.product_consultation_context?.trim()
-  const salesCoaching = settings.sales_coaching_instructions?.trim()
-  const parts: string[] = []
-  if (policy) {
-    parts.push(`[Chính sách & quy định shop]\n${policy}`)
-  }
-  if (productConsultationContext) {
-    parts.push(`[Thông tin shop luôn phải tôn trọng khi tư vấn sản phẩm]\n${productConsultationContext}`)
-  }
-  if (salesCoaching) {
-    parts.push(`[Gợi ý tư vấn & chốt đơn do shop tự nhập]\n${salesCoaching}`)
-  }
-  if (parts.length === 0) return ''
+  if (!productConsultationContext) return ''
   return `
 
 [Ngữ cảnh shop bắt buộc áp dụng trong mọi lượt AI]
-${parts.join('\n\n')}`
+${productConsultationContext}`
 }
 
 function buildPartnerAiClarifyShoppingIntentSystem(
   settings: SettingsRow,
   effectiveLocaleOpts: { channel?: string | null; uiLocale?: string | null } | undefined
 ): string {
-  const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
+  const tone = 'Lịch sự, ngắn gọn, rõ ràng.'
   const alwaysIncludedShopAiContextBlock = buildAlwaysIncludedShopAiContextBlock(settings)
   return `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
@@ -593,7 +581,7 @@ function buildPartnerAiPauseConversationSystem(
   settings: SettingsRow,
   effectiveLocaleOpts: { channel?: string | null; uiLocale?: string | null } | undefined
 ): string {
-  const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
+  const tone = 'Lịch sự, ngắn gọn, rõ ràng.'
   const alwaysIncludedShopAiContextBlock = buildAlwaysIncludedShopAiContextBlock(settings)
   return `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
@@ -1032,12 +1020,11 @@ export async function buildPartnerAiContext(
             }
           }
           const rawSimilar = await fetchInventoryRowsSimilarToAnchorProductImage(partnerId, anchorFresh, {
-            limit: PARTNER_AI_INVENTORY_CONTEXT_LIMIT,
+            limit: PARTNER_AI_PRODUCT_CARDS_MAX,
           })
-          const filtered = filterInventoryRowsBySharedCoarseCategory(anchorFresh, rawSimilar)
           const aid = anchorFresh.id
           similarCatalogAnchorRowId = aid
-          inv = [anchorFresh, ...filtered.filter((r) => r.id !== aid)].slice(0, PARTNER_AI_INVENTORY_CONTEXT_LIMIT)
+          inv = [anchorFresh, ...rawSimilar.filter((r) => r.id !== aid)].slice(0, PARTNER_AI_PRODUCT_CARDS_MAX + 1)
         } catch (e) {
           console.warn('[partner-ai-llm] similar catalog by anchor image', e)
         }
@@ -1302,7 +1289,7 @@ Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng các
   }
 
   const alwaysIncludedShopAiContextBlock = buildAlwaysIncludedShopAiContextBlock(settings)
-  const tone = settings.tone_instructions?.trim() || 'Lịch sự, ngắn gọn, rõ ràng.'
+  const tone = 'Lịch sự, ngắn gọn, rõ ràng.'
   const defaultSalesConversion = partnerAiRouteIntent
     ? defaultSalesConversionForIntent(partnerAiRouteIntent)
     : { salesStage: 'browsing' as const, ctaStrategy: 'soft_explore' as const }
@@ -1333,7 +1320,7 @@ Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng các
 - \`no_cta\`: chỉ trả lời/hỏi rõ/chính sách, không thúc mua.
 `
 
-  /** Khối mặc định — luôn có; shop mở rộng qua `sales_coaching_instructions` + chính sách. */
+  /** Khối mặc định — luôn có; shop mở rộng qua `product_consultation_context`. */
   const khoContextInstructionForSystem = cardConsultIsolatedThread
     ? `[Tư vấn từ thẻ — **cô lập** khỏi lịch sử thread]
 Phần user prompt **không** chứa lịch sử chat thật — chỉ hướng dẫn + **một dòng kho** + **tin mới nhất của khách**. **Cấm** bám chủ đề/đoạn chat cũ (vd. đã hỏi túi rồi váy…) dù khách lỡ nhắn nhảy sang loại hàng khác: **chỉ** tư vấn theo **đúng dòng kho** (đúng mã/SP từ thẻ). Nếu khách hỏi hàng **khác ngành / khác mã**, trả lời ngắn: đang hỗ trợ **đúng mẫu trong kho**; mời hỏi tiếp về **mẫu đó** hoặc **bấm Tư vấn** trên thẻ sản phẩm khác. Trong JSON: \`products\` tối đa **một** thẻ — đúng dòng kho, hoặc \`[]\` nếu chỉ trả lời chữ.`

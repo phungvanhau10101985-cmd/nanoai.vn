@@ -132,18 +132,6 @@ function tokenUsageKindStatLabel(kind: string | null, t: AiT): string {
   return kind
 }
 
-function combinedShopAiContextFromSettings(s: SettingsRow | null): string {
-  const existingCombined = s?.product_consultation_context?.trim() ?? ''
-  const legacyBlocks = [
-    s?.shop_policy?.trim() ? `Chính sách & quy định shop:\n${s.shop_policy.trim()}` : '',
-    s?.tone_instructions?.trim() ? `Giọng điệu / hướng dẫn trả lời:\n${s.tone_instructions.trim()}` : '',
-    s?.sales_coaching_instructions?.trim()
-      ? `Gợi ý tư vấn & chốt đơn:\n${s.sales_coaching_instructions.trim()}`
-      : '',
-  ].filter(Boolean)
-  return [existingCombined, ...legacyBlocks].filter(Boolean).join('\n\n')
-}
-
 function defaultsFromSettings(s: SettingsRow | null) {
   return {
     enabled: s?.enabled ?? false,
@@ -154,10 +142,7 @@ function defaultsFromSettings(s: SettingsRow | null) {
     /** Độ trễ trước khi gửi tin tự động không qua model (mua trong chat, danh sách đặt…). */
     typing_pause_min_ms: s?.typing_pause_min_ms ?? 650,
     typing_pause_max_ms: s?.typing_pause_max_ms ?? 1150,
-    shop_policy: '',
-    product_consultation_context: combinedShopAiContextFromSettings(s),
-    tone_instructions: '',
-    sales_coaching_instructions: '',
+    product_consultation_context: s?.product_consultation_context ?? '',
     append_ai_disclosure: s?.append_ai_disclosure ?? true,
     disclosure_suffix: s?.disclosure_suffix ?? '',
     vision_product_search_enabled: false,
@@ -191,10 +176,7 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
     reply_delay_seconds: f.reply_delay_seconds,
     typing_pause_min_ms: f.typing_pause_min_ms,
     typing_pause_max_ms: f.typing_pause_max_ms,
-    shop_policy: '',
     product_consultation_context: f.product_consultation_context,
-    tone_instructions: '',
-    sales_coaching_instructions: '',
     append_ai_disclosure: f.append_ai_disclosure,
     disclosure_suffix: f.disclosure_suffix,
     vision_product_search_enabled: f.vision_product_search_enabled,

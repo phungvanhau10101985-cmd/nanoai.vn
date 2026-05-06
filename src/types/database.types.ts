@@ -497,10 +497,7 @@ export interface Database {
           reply_delay_seconds: number
           typing_pause_min_ms: number
           typing_pause_max_ms: number
-          shop_policy: string
           product_consultation_context: string
-          tone_instructions: string
-          sales_coaching_instructions: string
           append_ai_disclosure: boolean
           disclosure_suffix: string
           vision_product_search_enabled: boolean
@@ -531,10 +528,7 @@ export interface Database {
           reply_delay_seconds?: number
           typing_pause_min_ms?: number
           typing_pause_max_ms?: number
-          shop_policy?: string
           product_consultation_context?: string
-          tone_instructions?: string
-          sales_coaching_instructions?: string
           append_ai_disclosure?: boolean
           disclosure_suffix?: string
           vision_product_search_enabled?: boolean
@@ -565,10 +559,7 @@ export interface Database {
           reply_delay_seconds?: number
           typing_pause_min_ms?: number
           typing_pause_max_ms?: number
-          shop_policy?: string
           product_consultation_context?: string
-          tone_instructions?: string
-          sales_coaching_instructions?: string
           append_ai_disclosure?: boolean
           disclosure_suffix?: string
           vision_product_search_enabled?: boolean

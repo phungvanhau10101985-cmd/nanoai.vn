@@ -51,7 +51,7 @@ import { fireMetaPurchasePixelEvents } from './meta-purchase-pixel-fire'
 import { MetaPixelViewContentTracker } from './meta-pixel-view-content-tracker'
 import { GuestWidgetOrderDetailDialog } from '@/components/messaging/guest-widget-order-detail-dialog'
 import { GuestWidgetMyOrdersDialog } from '@/components/messaging/guest-widget-my-orders-dialog'
-import { isOpenMyOrdersMessage } from '@/lib/messaging/widget-parent-bridge'
+import { NANOAI_WIDGET_MSG_SOURCE, isOpenMyOrdersMessage } from '@/lib/messaging/widget-parent-bridge'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order-sepay-message-helpers'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
@@ -3079,7 +3079,33 @@ export function PartnerGuestChatClient({
         captureGuestAccountFromResponse(res)
         const data = (await res.json().catch(() => null)) as { ok?: boolean; items?: unknown } | null
         if (!cancelled && res.ok && data?.ok) {
-          setCartItems(sanitizeCartItemsFromServer(data.items))
+          const serverItems = sanitizeCartItemsFromServer(data.items)
+          setCartItems((localItems) => {
+            if (localItems.length === 0) return serverItems
+            const merged = [...serverItems]
+            const keyOf = (item: GuestCartItem) =>
+              `${item.card.product_url.trim().toLowerCase()}|${item.color.trim()}|${item.size.trim()}`
+            const idxByKey = new Map(merged.map((item, idx) => [keyOf(item), idx] as const))
+            for (const local of localItems) {
+              const key = keyOf(local)
+              const idx = idxByKey.get(key)
+              if (idx == null) {
+                idxByKey.set(key, merged.length)
+                merged.push(local)
+              } else {
+                const current = merged[idx]
+                merged[idx] = {
+                  ...current,
+                  quantity: Math.max(current.quantity, local.quantity),
+                  note: current.note || local.note,
+                  variantLineImages: current.variantLineImages?.length
+                    ? current.variantLineImages
+                    : local.variantLineImages,
+                }
+              }
+            }
+            return merged
+          })
         }
       } finally {
         if (!cancelled) setCartSyncReady(true)
@@ -3129,6 +3155,30 @@ export function PartnerGuestChatClient({
     cartSyncReady,
     slug,
   ])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.parent === window) return
+    try {
+      window.parent.postMessage(
+        { source: NANOAI_WIDGET_MSG_SOURCE, type: 'CART_COUNT', count: cartItems.length },
+        '*'
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [cartItems.length])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data
+      if (!data || typeof data !== 'object') return
+      if ((data as { source?: unknown }).source !== NANOAI_WIDGET_MSG_SOURCE) return
+      if ((data as { type?: unknown }).type === 'OPEN_CART') setCartOpen(true)
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [])
 
   const submitCartCheckout = useCallback(async () => {
     if (cartItems.length === 0) return

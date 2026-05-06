@@ -659,16 +659,9 @@ export type Dictionary = {
     typingMinLabel: string
     typingMaxLabel: string
     typingHint: string
-    shopPolicyLabel: string
-    shopPolicyPlaceholder: string
     productConsultationContextLabel: string
     productConsultationContextHint: string
     productConsultationContextPlaceholder: string
-    toneLabel: string
-    tonePlaceholder: string
-    salesCoachingLabel: string
-    salesCoachingHint: string
-    salesCoachingPlaceholder: string
     disclosureToggle: string
     disclosureSuffixLabel: string
     disclosureSuffixHint: string
@@ -2678,21 +2671,11 @@ const VI_DICTIONARY: Dictionary = {
     typingMaxLabel: 'Độ trễ gõ tối đa (ms)',
     typingHint:
       'Độ trễ ngẫu nhiên (ms) trước khi gửi tin điều phối tự động không đi qua model LLM (ví dụ gợi ý đặt mua, hướng dẫn mua trong chat). Tin DeepSeek không dùng bước này sau khi model đã trả kết quả. Đặt cả hai 0 để tắt.',
-    shopPolicyLabel: 'Chính sách & quy định shop',
-    shopPolicyPlaceholder:
-      'Ví dụ: đặt cọc 30%, không đổi hàng, đổi trong 7 ngày nếu lỗi sản xuất, freeship nội thành…',
     productConsultationContextLabel: 'Ngữ cảnh & hướng dẫn AI của shop',
     productConsultationContextHint:
       'Một ô duy nhất cho toàn bộ thông tin AI luôn phải dùng: chính sách shop, giọng điệu trả lời, cách tư vấn, cách chốt đơn, đổi trả, cọc, giao hàng…',
     productConsultationContextPlaceholder:
       'Ví dụ: giọng lịch sự, xưng em — anh/chị. Luôn nhắc khách kiểm tra bảng size trước khi chốt. Hàng sale không đổi trả. Đơn may theo số đo cần cọc 50%. Khi khách lăn tăn, giải thích chính sách nhẹ nhàng, không ép mua…',
-    toneLabel: 'Giọng điệu / hướng dẫn trả lời',
-    tonePlaceholder: 'Ví dụ: lịch sự, ngắn gọn, xưng em — anh/chị; không hứa chắc chắn nếu chưa rõ tồn kho.',
-    salesCoachingLabel: 'Gợi ý tư vấn & chốt đơn (tùy chọn)',
-    salesCoachingHint:
-      'Hệ thống đã có sẵn hướng dẫn tư vấn mềm. Ô này để shop bổ sung: đối tượng khách, cách hỏi size, ưu tiên ship/COD, nhãn hiệu — không thay thế chính sách ở trên.',
-    salesCoachingPlaceholder:
-      'Ví dụ: với váy — sau khi báo giá luôn hỏi size hoặc chiều cao/cân; gợi ý mặc dự tiệc/công sở; chỉ nhắc đổi size trong 24h nếu đã ghi trong chính sách.',
     disclosureToggle: 'Thêm dòng công bố tin nhắn từ AI',
     disclosureSuffixLabel: 'Nội dung công bố (cuối tin)',
     disclosureSuffixHint: 'Hiển thị ở cuối mỗi tin AI gửi để khách biết đây là trợ lý tự động.',
@@ -4696,21 +4679,11 @@ const EN_DICTIONARY: Dictionary = {
     typingMaxLabel: 'Typing delay max (ms)',
     typingHint:
       'Random delay (ms) before sending automated messages that do not use the LLM (e.g. purchase list, buy-in-chat guidance). DeepSeek replies do not use this after the model returns. Set both to 0 to disable.',
-    shopPolicyLabel: 'Shop policies & rules',
-    shopPolicyPlaceholder:
-      'e.g. 30% deposit, no exchanges, 7-day exchange for defects only, free city shipping…',
     productConsultationContextLabel: 'Shop AI context & instructions',
     productConsultationContextHint:
       'One field for everything the AI must always use: shop policies, reply tone, consultation style, closing guidance, exchanges, deposits, shipping…',
     productConsultationContextPlaceholder:
       'e.g. use a polite and concise tone. Always ask customers to check the size chart before ordering. Sale items are final. Made-to-measure orders require a 50% deposit. Handle hesitation gently without pressuring customers…',
-    toneLabel: 'Tone / reply instructions',
-    tonePlaceholder: 'e.g. polite, concise; avoid promising stock you are unsure about.',
-    salesCoachingLabel: 'Soft-sell & closing hints (optional)',
-    salesCoachingHint:
-      'A default “gentle conversion” block is always applied. Use this field to add shop-specific cues: audience, how to ask sizing, shipping/COD preference — it does not replace policies above.',
-    salesCoachingPlaceholder:
-      'e.g. for dresses — after price, ask size or height/weight; suggest occasion styling; mention exchange window only if it is in your policy text.',
     disclosureToggle: 'Append an AI disclosure line',
     disclosureSuffixLabel: 'Disclosure text (end of message)',
     disclosureSuffixHint: 'Shown at the end of each AI message so customers know it is automated.',
@@ -6703,20 +6676,11 @@ const ZH_DICTIONARY: Dictionary = {
     typingMaxLabel: '输入延迟上限（毫秒）',
     typingHint:
       '不经大模型而自动发送的消息（如下单提示、聊天内购买引导）在发送前于该范围随机延迟（0–30000）。DeepSeek 正文不重复此步骤。两项均 0 则关闭。',
-    shopPolicyLabel: '店铺政策与规则',
-    shopPolicyPlaceholder: '例如：定金 30%、不换货、质量问题 7 天内可换、同城包邮等。',
     productConsultationContextLabel: '店铺 AI 上下文与指引',
     productConsultationContextHint:
       '一个输入框填写 AI 必须始终参考的全部内容：店铺政策、回复语气、导购方式、促单方式、退换、定金、配送等。',
     productConsultationContextPlaceholder:
       '例如：语气礼貌简短；下单前提醒顾客查看尺码表；特价商品不退换；按尺寸定制需支付 50% 定金；顾客犹豫时温和说明政策，不强迫购买等。',
-    toneLabel: '语气 / 回复指引',
-    tonePlaceholder: '例如：礼貌、简短；不确定库存时不要绝对承诺。',
-    salesCoachingLabel: '软推销与促单提示（可选）',
-    salesCoachingHint:
-      '系统已内置温和的导购引导。此处补充店铺专属：客群、尺码询问方式、物流/货到付款偏好等——不替代上方政策。',
-    salesCoachingPlaceholder:
-      '例如：裙装——报价后询问尺码或身高体重；提示场合适配；仅在政策中已写时提及退换时限。',
     disclosureToggle: '在末尾附加 AI 说明',
     disclosureSuffixLabel: '说明文字（消息末尾）',
     disclosureSuffixHint: '每条 AI 消息末尾显示，提示为自动回复。',
@@ -8660,21 +8624,11 @@ const JA_DICTIONARY: Dictionary = {
     typingMaxLabel: '入力遅延 最大（ms）',
     typingHint:
       'LLM を使わず送る自動メッセージ（購入一覧の案内、チャット内購入手順など）の送信前ランダム遅延（0〜30000）。DeepSeek の本文には適用しません。両方 0 でオフ。',
-    shopPolicyLabel: '店舗ポリシー・ルール',
-    shopPolicyPlaceholder:
-      '例：手付け 30%、交換不可、不良品は 7 日以内交換、市内送料無料 など。',
     productConsultationContextLabel: '店舗 AI の文脈・指示',
     productConsultationContextHint:
       'AI が常に参照する内容を1つの欄に入力します。店舗ポリシー、返信トーン、接客方針、購入案内、交換、手付け、配送など。',
     productConsultationContextPlaceholder:
       '例：丁寧で簡潔なトーン。注文前にサイズ表の確認を促す。セール品は返品交換不可。採寸オーダーは50%の手付けが必要。迷っているお客様には押し売りせず、やさしく説明する。',
-    toneLabel: 'トーン・返信の指示',
-    tonePlaceholder: '例：丁寧で簡潔に。在庫が不明なときは断定しない。',
-    salesCoachingLabel: 'ソフトセール・クロージングの補足（任意）',
-    salesCoachingHint:
-      '既定の「やわらかい購入導線」に加え、店舗固有の指示を追記できます（客層・サイズの聞き方・配送の好みなど）。上のポリシーは置き換えません。',
-    salesCoachingPlaceholder:
-      '例：ワンピースは価格後にサイズや身長・体重を確認；シーン提案；返品条件はポリシーに書いてある場合のみ。',
     disclosureToggle: 'AI である旨を文末に付ける',
     disclosureSuffixLabel: '表示文（メッセージ末尾）',
     disclosureSuffixHint: '各 AI メッセージの末尾に表示し、自動返信であることを示します。',
@@ -10655,21 +10609,11 @@ const KO_DICTIONARY: Dictionary = {
     typingMaxLabel: '입력 지연 최대(ms)',
     typingHint:
       'LLM 없이 자동 발송되는 메시지(주문 목록 안내·채팅 내 구매 안내 등)만 전송 전 이 범위에서 무작위 지연(0–30000). DeepSeek 본문에는 적용하지 않음. 둘 다 0이면 끔.',
-    shopPolicyLabel: '매장 정책·규정',
-    shopPolicyPlaceholder:
-      '예: 계약금 30%, 교환 불가, 불량 시 7일 이내 교환, 시내 무료배송 등.',
     productConsultationContextLabel: '매장 AI 컨텍스트 및 지침',
     productConsultationContextHint:
       'AI가 항상 참고해야 할 내용을 한 곳에 입력하세요: 매장 정책, 답변 톤, 상담 방식, 구매 유도 방식, 교환, 계약금, 배송 등.',
     productConsultationContextPlaceholder:
       '예: 정중하고 간결한 톤. 주문 전 사이즈표 확인 안내. 세일 상품은 교환/환불 불가. 맞춤 제작 주문은 50% 계약금 필요. 망설이는 고객에게는 부담을 주지 않고 부드럽게 설명.',
-    toneLabel: '말투·답장 지침',
-    tonePlaceholder: '예: 정중하고 간결하게. 재고가 불확실하면 단정 짓지 않기.',
-    salesCoachingLabel: '부드러운 상담·마무리 힌트(선택)',
-    salesCoachingHint:
-      '기본 «부드러운 구매 유도» 블록은 항상 적용됩니다. 여기에는 매장별 보완(고객층, 사이즈 질문 방식, 배송/COD 선호 등)을 적습니다. 위 정책을 대체하지 않습니다.',
-    salesCoachingPlaceholder:
-      '예: 원피스는 가격 안내 후 사이즈 또는 키·몸무게 확인; 착용 상황 제안; 교환은 정책에 적힌 경우만 언급.',
     disclosureToggle: '메시지 끝에 AI 안내 문구 추가',
     disclosureSuffixLabel: '안내 문구(메시지 끝)',
     disclosureSuffixHint: '각 AI 메시지 끝에 표시되어 자동 답장임을 알립니다.',

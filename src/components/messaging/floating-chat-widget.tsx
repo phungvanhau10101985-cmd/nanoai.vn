@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Maximize2, MessageCircle, Package, X } from 'lucide-react'
+import { Maximize2, MessageCircle, Package, ShoppingCart, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
@@ -95,6 +95,7 @@ export function FloatingChatWidget({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [uiLocale, setUiLocale] = useState<WebLocale>(() => parseUiLocaleFromChatUrl(chatUrl))
   const [iframeSrc, setIframeSrc] = useState(() => appendStoredGuestIdentity(readReturnChatIframeHref() ?? chatUrl))
+  const [cartCount, setCartCount] = useState(0)
   // Keep NanoAI widget above common social/contact bubbles (e.g. Zalo).
   const anchorClass = 'bottom-[10.5rem] right-3 md:bottom-6 md:right-4'
   const topLayerClass = 'z-[2147483000]'
@@ -158,6 +159,20 @@ export function FloatingChatWidget({
     }
   }, [chatUrl, iframeSrc])
 
+  const postToIframe = useCallback(
+    (type: string) => {
+      const el = iframeRef.current
+      if (!el?.contentWindow) return
+      try {
+        const targetOrigin = new URL(el.src || iframeSrc || chatUrl, window.location.href).origin
+        el.contentWindow.postMessage({ source: NANOAI_WIDGET_MSG_SOURCE, type }, targetOrigin)
+      } catch {
+        /* ignore */
+      }
+    },
+    [chatUrl, iframeSrc]
+  )
+
   /** iframe chat → thay cả tab trang shop bằng URL SP (đồng bộ với `openGuestProductDetailUrl` khi cross-origin). */
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -180,10 +195,16 @@ export function FloatingChatWidget({
       const data = e.data
       if (!data || typeof data !== 'object') return
       if ((data as { source?: unknown }).source !== NANOAI_WIDGET_MSG_SOURCE) return
-      if ((data as { type?: unknown }).type !== 'GUEST_IDENTITY') return
       if (e.source !== iframeRef.current?.contentWindow) return
-      storeGuestIdentity(data)
-      if (iframeRef.current?.src) writeReturnChatIframeHref(iframeRef.current.src)
+      const type = (data as { type?: unknown }).type
+      if (type === 'GUEST_IDENTITY') {
+        storeGuestIdentity(data)
+        if (iframeRef.current?.src) writeReturnChatIframeHref(iframeRef.current.src)
+      }
+      if (type === 'CART_COUNT') {
+        const n = Math.max(0, Math.floor(Number((data as { count?: unknown }).count) || 0))
+        setCartCount(n)
+      }
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
@@ -271,10 +292,26 @@ export function FloatingChatWidget({
             title={ordersButtonLabel}
           >
             <Package className="h-3 w-3 shrink-0" aria-hidden />
-            <span className="min-w-0 truncate">{ordersButtonLabel}</span>
+            <span className="min-w-0 truncate">Đơn hàng</span>
           </Button>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="relative h-8 w-8 rounded-full"
+            onClick={() => postToIframe('OPEN_CART')}
+            title="Giỏ hàng"
+            aria-label={`Giỏ hàng: ${cartCount} sản phẩm`}
+          >
+            <ShoppingCart className="h-4 w-4" aria-hidden />
+            {cartCount > 0 ? (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold leading-none text-white">
+                {cartCount > 99 ? '99+' : cartCount}
+              </span>
+            ) : null}
+          </Button>
           <Button
             type="button"
             variant="ghost"

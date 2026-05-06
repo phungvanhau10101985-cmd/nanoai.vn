@@ -59,7 +59,9 @@
     if (!shopName) shopName = 'Chat'
 
     var ordersLabelRaw = getAttr('data-orders-label', '')
-    var ordersLabel = String(ordersLabelRaw || '').trim() || 'Đơn hàng của tôi'
+    var ordersLabel = String(ordersLabelRaw || '').trim() || 'Đơn hàng'
+    var ordersShortLabel = 'Đơn hàng'
+    var cartCount = 0
 
     var logoUrl = getAttr('data-logo-url', '')
     var side = getAttr('data-side', 'right') === 'left' ? 'left' : 'right'
@@ -207,11 +209,11 @@
     ordersBtn.type = 'button'
     ordersBtn.setAttribute('aria-label', ordersLabel)
     ordersBtn.style.cssText =
-      'flex:0 1 auto;min-width:0;max-width:min(140px,42vw);display:inline-flex;align-items:center;justify-content:center;gap:4px;height:28px;padding:0 8px;font-size:11px;font-weight:600;border-radius:8px;border:1px solid #c4b5fd;background:#f5f3ff;color:#1e1b4b;cursor:pointer;'
+      'flex:0 1 auto;min-width:48px;max-width:64px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;height:34px;padding:2px 5px;font-size:10px;font-weight:600;line-height:1;border-radius:8px;border:1px solid #c4b5fd;background:#f5f3ff;color:#1e1b4b;cursor:pointer;'
     ordersBtn.innerHTML =
-      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="nanoai-orders-lbl" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>'
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="nanoai-orders-lbl" style="display:block;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>'
     var ordersLbl = ordersBtn.querySelector('.nanoai-orders-lbl')
-    if (ordersLbl) ordersLbl.textContent = ordersLabel
+    if (ordersLbl) ordersLbl.textContent = ordersShortLabel
     toolbar.appendChild(ordersBtn)
     header.appendChild(toolbar)
     panel.appendChild(header)
@@ -240,8 +242,29 @@
           '<path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/></g></svg>'
     }
     setExpandButtonIcon(false)
+    var cartBtn = document.createElement('button')
+    cartBtn.type = 'button'
+    cartBtn.setAttribute('aria-label', 'Giỏ hàng')
+    cartBtn.style.cssText =
+      'width:48px;height:34px;border:none;border-radius:8px;cursor:pointer;background:#f3f4f6;color:#111;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;flex-shrink:0;padding:2px 5px;position:relative;font-size:10px;font-weight:600;line-height:1;'
+    cartBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h8.96a2 2 0 0 0 1.95-1.57L21 8H5.12"/></svg><span style="display:block;max-width:44px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Giỏ hàng</span><span class="nanoai-cart-count" style="display:none;position:absolute;right:-2px;top:-2px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:#059669;color:#fff;font-size:10px;font-weight:700;line-height:15px;text-align:center;"></span>'
+    var cartBadge = cartBtn.querySelector('.nanoai-cart-count')
+    function setCartCount(n) {
+      cartCount = Math.max(0, parseInt(n, 10) || 0)
+      if (!cartBadge) return
+      if (cartCount > 0) {
+        cartBadge.style.display = 'inline-block'
+        cartBadge.textContent = cartCount > 99 ? '99+' : String(cartCount)
+      } else {
+        cartBadge.style.display = 'none'
+        cartBadge.textContent = ''
+      }
+      cartBtn.setAttribute('aria-label', 'Giỏ hàng: ' + cartCount + ' sản phẩm')
+    }
     var headerActions = document.createElement('div')
     headerActions.style.cssText = 'display:flex;align-items:center;gap:4px;flex-shrink:0;'
+    headerActions.appendChild(cartBtn)
     headerActions.appendChild(expandBtn)
     headerActions.appendChild(closeBtn)
     header.appendChild(headerActions)
@@ -340,10 +363,13 @@
       function (e) {
         try {
           var d = e.data
-          if (!d || d.source !== MSG_SOURCE || d.type !== 'GUEST_IDENTITY') return
+          if (!d || d.source !== MSG_SOURCE) return
           if (!iframe || !iframe.contentWindow || e.source !== iframe.contentWindow) return
-          writeStoredGuestIdentity(d)
-          if (iframe && iframe.src) writeReturnChatHref(iframe.src)
+          if (d.type === 'GUEST_IDENTITY') {
+            writeStoredGuestIdentity(d)
+            if (iframe && iframe.src) writeReturnChatHref(iframe.src)
+          }
+          if (d.type === 'CART_COUNT') setCartCount(d.count)
         } catch (_) {}
       },
       false
@@ -529,6 +555,14 @@
         if (!iframe || !iframe.contentWindow) return
         var targetOrigin = new URL(iframe.src || chatUrl, window.location.href).origin
         iframe.contentWindow.postMessage({ source: 'nanoai-widget', type: 'OPEN_MY_ORDERS' }, targetOrigin)
+      } catch (_) {}
+    })
+    cartBtn.addEventListener('click', function () {
+      try {
+        if (!iframe) ensureIframe(pageContext, {})
+        if (!iframe || !iframe.contentWindow) return
+        var targetOrigin = new URL(iframe.src || chatUrl, window.location.href).origin
+        iframe.contentWindow.postMessage({ source: 'nanoai-widget', type: 'OPEN_CART' }, targetOrigin)
       } catch (_) {}
     })
 

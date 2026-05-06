@@ -35,10 +35,7 @@ function mapPgRowToAiSettingsFull(row: {
   reply_delay_seconds: number | null
   typing_pause_min_ms: number | null
   typing_pause_max_ms: number | null
-  shop_policy: string | null
   product_consultation_context: string | null
-  tone_instructions: string | null
-  sales_coaching_instructions: string | null
   append_ai_disclosure: boolean | null
   disclosure_suffix: string | null
   vision_product_search_enabled: boolean | null
@@ -69,10 +66,7 @@ function mapPgRowToAiSettingsFull(row: {
     reply_delay_seconds: clampReplyDelaySecondsForDb(row.reply_delay_seconds),
     typing_pause_min_ms: num(row.typing_pause_min_ms, 650),
     typing_pause_max_ms: num(row.typing_pause_max_ms, 1150),
-    shop_policy: String(row.shop_policy ?? ''),
     product_consultation_context: String(row.product_consultation_context ?? ''),
-    tone_instructions: String(row.tone_instructions ?? ''),
-    sales_coaching_instructions: String(row.sales_coaching_instructions ?? ''),
     append_ai_disclosure: row.append_ai_disclosure !== false,
     disclosure_suffix: String(row.disclosure_suffix ?? ''),
     vision_product_search_enabled: row.vision_product_search_enabled !== false,
@@ -114,10 +108,7 @@ export async function fetchMessagingPartnerAiSettingsFullFromPg(
         reply_delay_seconds,
         typing_pause_min_ms,
         typing_pause_max_ms,
-        coalesce(shop_policy, '') as shop_policy,
         coalesce(product_consultation_context, '') as product_consultation_context,
-        coalesce(tone_instructions, '') as tone_instructions,
-        coalesce(sales_coaching_instructions, '') as sales_coaching_instructions,
         coalesce(append_ai_disclosure, true) as append_ai_disclosure,
         coalesce(disclosure_suffix, '') as disclosure_suffix,
         coalesce(vision_product_search_enabled, false) as vision_product_search_enabled,
@@ -274,10 +265,7 @@ export type PartnerAiSettingsDashboardUpsert = {
   reply_delay_seconds: number
   typing_pause_min_ms: number
   typing_pause_max_ms: number
-  shop_policy: string
   product_consultation_context: string
-  tone_instructions: string
-  sales_coaching_instructions: string
   append_ai_disclosure: boolean
   disclosure_suffix: string
   vision_product_search_enabled: boolean
@@ -313,7 +301,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
     await getPgPool().query(
       `insert into public.messaging_partner_ai_settings (
         partner_id, enabled, reply_delay_seconds, typing_pause_min_ms, typing_pause_max_ms,
-        shop_policy, product_consultation_context, tone_instructions, sales_coaching_instructions, append_ai_disclosure, disclosure_suffix,
+        product_consultation_context, append_ai_disclosure, disclosure_suffix,
         vision_product_search_enabled, vision_location, vision_shop_country, vision_product_category, vision_gcs_bucket,
         vision_index_ready, vision_index_synced_at, vision_index_error,
         image_search_api_enabled, image_search_api_secret,
@@ -322,17 +310,14 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         vision_bg_sync_error, vision_bg_sync_report, guest_purchase_flow, updated_at
       ) values (
         $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32::timestamptz
+        $21, $22, $23, $24, $25, $26, $27, $28, $29::timestamptz
       )
       on conflict (partner_id) do update set
         enabled = excluded.enabled,
         reply_delay_seconds = excluded.reply_delay_seconds,
         typing_pause_min_ms = excluded.typing_pause_min_ms,
         typing_pause_max_ms = excluded.typing_pause_max_ms,
-        shop_policy = excluded.shop_policy,
         product_consultation_context = excluded.product_consultation_context,
-        tone_instructions = excluded.tone_instructions,
-        sales_coaching_instructions = excluded.sales_coaching_instructions,
         append_ai_disclosure = excluded.append_ai_disclosure,
         disclosure_suffix = excluded.disclosure_suffix,
         vision_product_search_enabled = excluded.vision_product_search_enabled,
@@ -362,10 +347,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         reply_delay_seconds,
         row.typing_pause_min_ms,
         row.typing_pause_max_ms,
-        row.shop_policy,
         row.product_consultation_context,
-        row.tone_instructions,
-        row.sales_coaching_instructions,
         row.append_ai_disclosure,
         row.disclosure_suffix,
         row.vision_product_search_enabled,

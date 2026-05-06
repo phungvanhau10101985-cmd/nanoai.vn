@@ -1107,12 +1107,41 @@ export function extractCoarseCategoryTokensFromInventoryBlob(blob: string): stri
   const s = blob.trim()
   if (!s) return []
   const seen = new Set<string>()
-  const re = new RegExp(PRODUCT_CATEGORY_TOKEN_RE.source, PRODUCT_CATEGORY_TOKEN_RE.flags)
+  const flags = PRODUCT_CATEGORY_TOKEN_RE.flags.includes('g')
+    ? PRODUCT_CATEGORY_TOKEN_RE.flags
+    : `${PRODUCT_CATEGORY_TOKEN_RE.flags}g`
+  const re = new RegExp(PRODUCT_CATEGORY_TOKEN_RE.source, flags)
   for (const m of s.matchAll(re)) {
-    const t = m[0].trim().replace(/\s+/g, ' ').toLowerCase()
+    const raw = m[0].trim().replace(/\s+/g, ' ').toLowerCase()
+    const t = normalizeCoarseCategoryToken(raw)
     if (t) seen.add(t)
   }
   return [...seen]
+}
+
+function normalizeCoarseCategoryToken(raw: string): string {
+  const t = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!t) return ''
+  if (/(vay|dam|dress|gown|chan vay|skirt)/i.test(t)) return 'dress_skirt'
+  if (/(ao|shirt|blouse|top|hoodie|jacket|coat|blazer|vest|khoac|cardigan|so mi|som)/i.test(t)) return 'top_outerwear'
+  if (/(quan|pants|trousers|jeans|shorts|legging)/i.test(t)) return 'pants_bottom'
+  if (/(set|bo do|jumpsuit|bodysuit|combo)/i.test(t)) return 'set_outfit'
+  if (/(giay|dep|sandal|boot|guoc|loafer|sneaker|shoe)/i.test(t)) return 'footwear'
+  if (/(tui|xach|vi|balo|backpack|bag|handbag|tote|clutch|crossbody|purse|wallet|包|手提包|钱包|バッグ|鞄|가방|핸드백|지갑)/i.test(t)) {
+    return 'bag_wallet'
+  }
+  if (/(that lung|day nit|day nich|belt)/i.test(t)) return 'belt'
+  if (/(dong ho|watch)/i.test(t)) return 'watch'
+  if (/(kinh|glasses|sunglasses)/i.test(t)) return 'glasses'
+  if (/(vong tay|day chuyen)/i.test(t)) return 'jewelry'
+  if (/(phu kien|accessory|accessories|mu|non|khan)/i.test(t)) return 'accessory'
+  return t
 }
 
 /** Giữ mặt hàng có **ít nhất một** nhóm loại trùng với anchor (áo/váy/giày/túi…). */
