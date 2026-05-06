@@ -1,6 +1,7 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import type { PartnerStackedDiscountSnapshot } from '@/lib/db/messaging-partner-loyalty-pg'
 
 export type PartnerPaymentSettingsRow = {
   partner_id: string
@@ -44,6 +45,15 @@ export type PartnerOrderRow = {
   product_url: string
   unit_price: number
   subtotal_amount: number
+  loyalty_tier_code: string
+  loyalty_tier_name: string
+  loyalty_discount_percent: number
+  loyalty_discount_amount: number
+  birthday_discount_percent: number
+  birthday_discount_amount: number
+  total_discount_percent: number
+  total_discount_amount: number
+  amount_after_discount: number
   deposit_percent: number
   required_amount: number
   paid_amount: number
@@ -132,6 +142,20 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
     product_url: String(r.product_url ?? ''),
     unit_price: num(r.unit_price, 0),
     subtotal_amount: num(r.subtotal_amount, 0),
+    loyalty_tier_code: String(r.loyalty_tier_code ?? ''),
+    loyalty_tier_name: String(r.loyalty_tier_name ?? ''),
+    loyalty_discount_percent: num(r.loyalty_discount_percent, 0),
+    loyalty_discount_amount: num(r.loyalty_discount_amount, 0),
+    birthday_discount_percent: num(r.birthday_discount_percent, 0),
+    birthday_discount_amount: num(r.birthday_discount_amount, 0),
+    total_discount_percent: num(r.total_discount_percent, 0),
+    total_discount_amount: num(r.total_discount_amount, 0),
+    amount_after_discount: (() => {
+      const raw = num(r.amount_after_discount, 0)
+      const subtotal = num(r.subtotal_amount, 0)
+      const discount = num(r.total_discount_amount, 0)
+      return raw > 0 || subtotal <= 0 ? raw : Math.max(0, subtotal - discount)
+    })(),
     deposit_percent: clampPercent(r.deposit_percent, 30),
     required_amount: num(r.required_amount, 0),
     paid_amount: num(r.paid_amount, 0),
@@ -527,6 +551,7 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
   requiredAmount: number
   paymentReference: string
   paymentQrUrl: string
+  discountSnapshot?: PartnerStackedDiscountSnapshot
 }): Promise<PartnerOrderRow | null> {
   if (!isPgConfigured()) return null
   const qty = Math.max(1, Math.min(99, Math.floor(input.quantity || 1)))
@@ -547,6 +572,15 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
            required_amount = $16::numeric,
            payment_reference = $17,
            payment_qr_url = $18,
+           loyalty_tier_code = $19,
+           loyalty_tier_name = $20,
+           loyalty_discount_percent = $21::numeric,
+           loyalty_discount_amount = $22::numeric,
+           birthday_discount_percent = $23::numeric,
+           birthday_discount_amount = $24::numeric,
+           total_discount_percent = $25::numeric,
+           total_discount_amount = $26::numeric,
+           amount_after_discount = $27::numeric,
            status = 'awaiting_payment',
            updated_at = now()
        where id = $1::uuid
@@ -558,7 +592,10 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
                  customer_name, customer_email, customer_phone, shipping_address,
                  variant_color, variant_size, variant_image_urls, quantity, note,
                  product_inventory_id::text, product_name, product_image_url, product_url,
-                 unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
+                 unit_price, subtotal_amount,
+                 loyalty_tier_code, loyalty_tier_name, loyalty_discount_percent, loyalty_discount_amount,
+                 birthday_discount_percent, birthday_discount_amount, total_discount_percent, total_discount_amount,
+                 amount_after_discount, deposit_percent, required_amount, paid_amount,
                  currency, payment_reference, payment_qr_url, verified_note, shipping_status,
                  created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count`,
       [
@@ -580,6 +617,15 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
         Math.max(0, Math.round(num(input.requiredAmount, 0))),
         input.paymentReference,
         input.paymentQrUrl,
+        input.discountSnapshot?.loyaltyTierCode ?? '',
+        input.discountSnapshot?.loyaltyTierName ?? '',
+        num(input.discountSnapshot?.loyaltyDiscountPercent, 0),
+        Math.max(0, Math.round(num(input.discountSnapshot?.loyaltyDiscountAmount, 0))),
+        num(input.discountSnapshot?.birthdayDiscountPercent, 0),
+        Math.max(0, Math.round(num(input.discountSnapshot?.birthdayDiscountAmount, 0))),
+        num(input.discountSnapshot?.totalDiscountPercent, 0),
+        Math.max(0, Math.round(num(input.discountSnapshot?.totalDiscountAmount, 0))),
+        Math.max(0, Math.round(num(input.discountSnapshot?.amountAfterDiscount, 0))),
       ]
     )
     return row ? mapOrderRow(row) : null
@@ -616,6 +662,7 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
   paymentReference: string
   paymentQrUrl: string
   primaryLine: PartnerOrderLineUpsertInput
+  discountSnapshot?: PartnerStackedDiscountSnapshot
 }): Promise<PartnerOrderRow | null> {
   if (!isPgConfigured()) return null
   const subtotal = Math.max(0, Math.round(num(input.subtotalAmount, 0)))
@@ -641,6 +688,15 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
            required_amount = $18::numeric,
            payment_reference = $19,
            payment_qr_url = $20,
+           loyalty_tier_code = $21,
+           loyalty_tier_name = $22,
+           loyalty_discount_percent = $23::numeric,
+           loyalty_discount_amount = $24::numeric,
+           birthday_discount_percent = $25::numeric,
+           birthday_discount_amount = $26::numeric,
+           total_discount_percent = $27::numeric,
+           total_discount_amount = $28::numeric,
+           amount_after_discount = $29::numeric,
            status = 'awaiting_payment',
            updated_at = now()
        where id = $1::uuid
@@ -652,7 +708,10 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
                  customer_name, customer_email, customer_phone, shipping_address,
                  variant_color, variant_size, variant_image_urls, quantity, note,
                  product_inventory_id::text, product_name, product_image_url, product_url,
-                 unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
+                 unit_price, subtotal_amount,
+                 loyalty_tier_code, loyalty_tier_name, loyalty_discount_percent, loyalty_discount_amount,
+                 birthday_discount_percent, birthday_discount_amount, total_discount_percent, total_discount_amount,
+                 amount_after_discount, deposit_percent, required_amount, paid_amount,
                  currency, payment_reference, payment_qr_url, verified_note, shipping_status,
                  created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count`,
       [
@@ -676,6 +735,15 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
         Math.max(0, Math.round(num(input.requiredAmount, 0))),
         input.paymentReference,
         input.paymentQrUrl,
+        input.discountSnapshot?.loyaltyTierCode ?? '',
+        input.discountSnapshot?.loyaltyTierName ?? '',
+        num(input.discountSnapshot?.loyaltyDiscountPercent, 0),
+        Math.max(0, Math.round(num(input.discountSnapshot?.loyaltyDiscountAmount, 0))),
+        num(input.discountSnapshot?.birthdayDiscountPercent, 0),
+        Math.max(0, Math.round(num(input.discountSnapshot?.birthdayDiscountAmount, 0))),
+        num(input.discountSnapshot?.totalDiscountPercent, 0),
+        Math.max(0, Math.round(num(input.discountSnapshot?.totalDiscountAmount, 0))),
+        Math.max(0, Math.round(num(input.discountSnapshot?.amountAfterDiscount, 0))),
       ]
     )
     return row ? mapOrderRow(row) : null
@@ -700,7 +768,10 @@ const ORDER_ROW_SELECT = `select id::text, partner_id::text, conversation_id::te
               customer_name, customer_email, customer_phone, shipping_address,
               variant_color, variant_size, variant_image_urls, quantity, note,
               product_inventory_id::text, product_name, product_image_url, product_url,
-              unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
+              unit_price, subtotal_amount,
+              loyalty_tier_code, loyalty_tier_name, loyalty_discount_percent, loyalty_discount_amount,
+              birthday_discount_percent, birthday_discount_amount, total_discount_percent, total_discount_amount,
+              amount_after_discount, deposit_percent, required_amount, paid_amount,
               currency, payment_reference, payment_qr_url, verified_note, shipping_status,
               created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count
        from public.messaging_partner_orders`
@@ -743,7 +814,10 @@ export async function fetchPartnerOrderForOwnerFromPg(
               o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
               o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
-              o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
+              o.unit_price, o.subtotal_amount,
+              o.loyalty_tier_code, o.loyalty_tier_name, o.loyalty_discount_percent, o.loyalty_discount_amount,
+              o.birthday_discount_percent, o.birthday_discount_amount, o.total_discount_percent, o.total_discount_amount,
+              o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
               o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count
        from public.messaging_partner_orders o
@@ -838,7 +912,10 @@ export async function fetchWidgetOrdersForLinkedUserFromPg(
               o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
               o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
-              o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
+              o.unit_price, o.subtotal_amount,
+              o.loyalty_tier_code, o.loyalty_tier_name, o.loyalty_discount_percent, o.loyalty_discount_amount,
+              o.birthday_discount_percent, o.birthday_discount_amount, o.total_discount_percent, o.total_discount_amount,
+              o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
               o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
               coalesce(mp.display_name, '') as partner_display_name,
@@ -1050,7 +1127,10 @@ export async function fetchPartnerOrderStatsForOwnerFromPg(input: {
               coalesce(sum(
                 case
                   when o.status = 'cancelled' then 0::numeric
-                  else greatest(0::numeric, coalesce(o.subtotal_amount, 0) - coalesce(o.paid_amount, 0))
+                  else greatest(
+                    0::numeric,
+                    coalesce(nullif(o.amount_after_discount, 0), o.subtotal_amount, 0) - coalesce(o.paid_amount, 0)
+                  )
                 end
               ), 0)::double precision as sum_outstanding
        from public.messaging_partner_orders o
@@ -1134,7 +1214,10 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
               o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
               o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
-              o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
+              o.unit_price, o.subtotal_amount,
+              o.loyalty_tier_code, o.loyalty_tier_name, o.loyalty_discount_percent, o.loyalty_discount_amount,
+              o.birthday_discount_percent, o.birthday_discount_amount, o.total_discount_percent, o.total_discount_amount,
+              o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
               o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
               coalesce(mp.display_name, '') as partner_display_name,
@@ -1203,7 +1286,10 @@ export async function fetchPartnerOrdersForOwnerExportFromPg(input: {
               o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
               o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
               o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
-              o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
+              o.unit_price, o.subtotal_amount,
+              o.loyalty_tier_code, o.loyalty_tier_name, o.loyalty_discount_percent, o.loyalty_discount_amount,
+              o.birthday_discount_percent, o.birthday_discount_amount, o.total_discount_percent, o.total_discount_amount,
+              o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
               o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
               coalesce(mp.display_name, '') as partner_display_name,
@@ -1288,7 +1374,7 @@ export async function confirmPartnerOrderDepositForOwnerFromPg(input: {
       `update public.messaging_partner_orders o
        set status = 'paid_verified',
            paid_amount = least(
-             coalesce(o.subtotal_amount, 0::numeric),
+             coalesce(nullif(o.amount_after_discount, 0), o.subtotal_amount, 0::numeric),
              greatest(coalesce(o.paid_amount, 0::numeric), coalesce(o.required_amount, 0::numeric))
            ),
            verified_note = $3,
@@ -1330,7 +1416,10 @@ export async function updatePartnerOrderShippingStatusForOwnerFromPg(input: {
                  o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
                  o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
                  o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
-                 o.unit_price, o.subtotal_amount, o.deposit_percent, o.required_amount, o.paid_amount,
+                 o.unit_price, o.subtotal_amount,
+                 o.loyalty_tier_code, o.loyalty_tier_name, o.loyalty_discount_percent, o.loyalty_discount_amount,
+                 o.birthday_discount_percent, o.birthday_discount_amount, o.total_discount_percent, o.total_discount_amount,
+                 o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
                  o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
                  o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count`,
       [input.orderId, input.ownerUserId, input.shippingStatus, input.note]

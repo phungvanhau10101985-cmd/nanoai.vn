@@ -55,6 +55,15 @@ type OrderRow = {
   product_url: string
   quantity: number
   subtotal_amount: number
+  loyalty_tier_code?: string
+  loyalty_tier_name?: string
+  loyalty_discount_percent?: number
+  loyalty_discount_amount?: number
+  birthday_discount_percent?: number
+  birthday_discount_amount?: number
+  total_discount_percent?: number
+  total_discount_amount?: number
+  amount_after_discount?: number
   required_amount: number
   paid_amount: number
   variant_color: string
@@ -225,7 +234,7 @@ function orderCodeDisplay(r: OrderRow): string {
 }
 
 function codRemainder(r: OrderRow): number {
-  const sub = Math.max(0, Math.round(r.subtotal_amount || 0))
+  const sub = Math.max(0, Math.round(r.amount_after_discount || r.subtotal_amount || 0))
   const paid = Math.max(0, Math.round(r.paid_amount || 0))
   return Math.max(0, sub - paid)
 }
@@ -1039,6 +1048,27 @@ export function PartnerMessagingOrdersClient({
                                 <span className="text-muted-foreground">{t.modalOrderTotal}</span>
                                 <span className="font-semibold tabular-nums text-foreground">{money(d.subtotal_amount, locale)}</span>
                               </div>
+                              {Number(d.total_discount_amount || 0) > 0 ? (
+                                <>
+                                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                                    <span className="text-muted-foreground">
+                                      Giảm giá
+                                      {d.loyalty_tier_name || d.loyalty_tier_code
+                                        ? ` (${d.loyalty_tier_name || d.loyalty_tier_code})`
+                                        : ''}
+                                    </span>
+                                    <span className="font-medium tabular-nums text-emerald-700 dark:text-emerald-300">
+                                      -{money(Number(d.total_discount_amount || 0), locale)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                                    <span className="text-muted-foreground">Tổng sau giảm</span>
+                                    <span className="font-semibold tabular-nums text-foreground">
+                                      {money(Number(d.amount_after_discount || 0), locale)}
+                                    </span>
+                                  </div>
+                                </>
+                              ) : null}
                               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0 text-sm">
                                 <span>
                                   <span className="text-muted-foreground">{t.modalDepositNeed}:</span>{' '}

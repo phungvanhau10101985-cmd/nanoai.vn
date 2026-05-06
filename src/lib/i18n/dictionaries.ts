@@ -1051,6 +1051,8 @@ export type Dictionary = {
     productConsultAskShipping: string
     /** Khách bấm Tư vấn (chung) — `{productRef}`. */
     productConsultAskDetail: string
+    /** Khách bấm Tư vấn khi có SKU — thay `{sku}`. */
+    productConsultAskDetailFromSku: string
     /** Mở chat từ link có ctx_inventory nhưng không có ctx_sku — không hiển thị UUID trong bubble (shop vẫn nhận trong pageContext). */
     pageContextInboundConsultNoSku: string
     /** Chỉ gửi ảnh ngữ cảnh, không có mã SP. */
@@ -3068,6 +3070,8 @@ const VI_DICTIONARY: Dictionary = {
       'Em nhận tin về {productRef} — anh/chị muốn hỏi giao hàng hay chi tiết sản phẩm trước ạ?',
     productConsultAskDetail:
       'Em nhận tin tư vấn về {productRef} — anh/chị muốn hỏi thêm điểm nào ạ?',
+    productConsultAskDetailFromSku:
+      'Mình quan tâm mẫu này "{sku}", shop tư vấn cho mình nhé.',
     pageContextInboundConsultNoSku:
       'Chào anh/chị! Anh/chị vừa vào từ trang sản phẩm — nhắn em thêm để em hỗ trợ đúng ý nhé ạ.',
     pageContextInboundImageOnlyNote:
@@ -5078,6 +5082,8 @@ const EN_DICTIONARY: Dictionary = {
       "We're following up on {productRef} — shipping first, or product details?",
     productConsultAskDetail:
       "We're following up on {productRef} — what would you like to ask?",
+    productConsultAskDetailFromSku:
+      'I am interested in this item "{sku}". Please advise me.',
     pageContextInboundConsultNoSku:
       'Hi! You opened chat from a product page — tell us what you need and we will help.',
     pageContextInboundImageOnlyNote:
@@ -7063,6 +7069,8 @@ const ZH_DICTIONARY: Dictionary = {
       '关于{productRef} — 想先了解配送还是商品详情？',
     productConsultAskDetail:
       '关于{productRef} — 您还想了解哪一点？',
+    productConsultAskDetailFromSku:
+      '我对这款商品“{sku}”感兴趣，请店铺帮我咨询一下。',
     pageContextInboundConsultNoSku:
       '您好！您从商品页进入 — 请留言说明需求，我们好协助您。',
     pageContextInboundImageOnlyNote:
@@ -9028,6 +9036,8 @@ const JA_DICTIONARY: Dictionary = {
       '{productRef}について — 配送と商品詳細、どちらからよろしいですか？',
     productConsultAskDetail:
       '{productRef}について — 他に気になる点はありますか？',
+    productConsultAskDetailFromSku:
+      'この商品「{sku}」に興味があります。ショップに相談したいです。',
     pageContextInboundConsultNoSku:
       '商品ページからお越しですね。ご希望を一言メッセージでお知らせください。',
     pageContextInboundImageOnlyNote:
@@ -11016,6 +11026,8 @@ const KO_DICTIONARY: Dictionary = {
       '{productRef} — 배송이 먼저일까요, 상품 상세가 먼저일까요?',
     productConsultAskDetail:
       '{productRef} — 더 궁금한 점이 있으신가요?',
+    productConsultAskDetailFromSku:
+      '이 상품 "{sku}"에 관심이 있어요. 상담 부탁드려요.',
     pageContextInboundConsultNoSku:
       '상품 페이지에서 오셨어요. 필요하신 내용을 남겨 주시면 도와드릴게요.',
     pageContextInboundImageOnlyNote:

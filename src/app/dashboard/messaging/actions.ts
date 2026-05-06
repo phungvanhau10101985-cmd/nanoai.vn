@@ -156,6 +156,10 @@ import {
   updatePartnerOrderShippingStatusForOwnerFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
 import {
+  fetchPartnerLoyaltyDashboardForActorFromPg,
+  updatePartnerLoyaltyDashboardForActorFromPg,
+} from '@/lib/db/messaging-partner-loyalty-pg'
+import {
   emailCustomerOrderPaymentStatusChanged,
   emailCustomerShippingStatusChanged,
 } from '@/lib/messaging/partner-order-customer-email'
@@ -655,6 +659,55 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
     sepaySecretKey: (input.sepaySecretKey ?? '').trim().slice(0, 180),
   })
   if (!ok) return { error: 'Khong luu duoc cai dat thanh toan.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function getMessagingWorkspaceLoyaltySettings(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'orders')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const row = await fetchPartnerLoyaltyDashboardForActorFromPg({
+    actorUserId: user.id,
+    partnerId,
+  })
+  if (!row) return { error: 'Không đọc được cấu hình hạng thành viên.' }
+  return row
+}
+
+export async function saveMessagingWorkspaceLoyaltySettings(input: {
+  partnerId: string
+  enabled: boolean
+  spendWindowDays: number
+  maxTotalDiscountPercent: number
+  tiers: Array<{
+    id?: string | null
+    tierCode: string
+    tierName: string
+    minSpend6Months: number
+    discountPercent: number
+    sortOrder: number
+    isActive: boolean
+  }>
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, input.partnerId, 'orders')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const ok = await updatePartnerLoyaltyDashboardForActorFromPg({
+    actorUserId: user.id,
+    partnerId: input.partnerId,
+    enabled: input.enabled === true,
+    spendWindowDays: Math.max(30, Math.min(730, Math.floor(Number(input.spendWindowDays) || 180))),
+    maxTotalDiscountPercent: Math.max(0, Math.min(100, Number(input.maxTotalDiscountPercent) || 0)),
+    tiers: input.tiers,
+  })
+  if (!ok) return { error: 'Không lưu được cấu hình hạng thành viên.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }

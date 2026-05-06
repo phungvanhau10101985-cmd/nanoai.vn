@@ -22,6 +22,7 @@ import {
   confirmMessagingWorkspaceDeletionWithOtp,
   createMessagingWorkspaceProfile,
   getMessagingWorkspaceGoogleSheetsSettings,
+  getMessagingWorkspaceLoyaltySettings,
   getMessagingWorkspacePaymentSettings,
   getPartnerChannelStatus,
   listMessagingWorkspaceLogoVersions,
@@ -32,6 +33,7 @@ import {
   removeMessagingPartnerStaffMember,
   requestMessagingWorkspaceDeletionOtp,
   saveMessagingWorkspaceGoogleSheetsSettings,
+  saveMessagingWorkspaceLoyaltySettings,
   saveMessagingWorkspacePaymentSettings,
   savePartnerFacebookChannel,
   savePartnerZaloChannel,
@@ -61,6 +63,7 @@ import {
   Share2,
   Table,
   LineChart,
+  Trophy,
   Trash2,
   Upload,
 } from 'lucide-react'
@@ -79,6 +82,16 @@ type ChannelSnap = {
   facebookHasToken: boolean
   facebookHasVerify: boolean
   zaloConfigured: boolean
+}
+
+type LoyaltyTierDraft = {
+  id?: string | null
+  tierCode: string
+  tierName: string
+  minSpend6Months: string
+  discountPercent: string
+  sortOrder: number
+  isActive: boolean
 }
 
 type MessagingPartnerDbRow = Database['public']['Tables']['messaging_partners']['Row']
@@ -229,6 +242,11 @@ export function PartnerMessagingSettingsClient({
   const paymentHydratingRef = useRef(false)
   const paymentLastSavedSnapshotRef = useRef('')
   const paymentAutoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState(true)
+  const [loyaltySpendWindowDays, setLoyaltySpendWindowDays] = useState('180')
+  const [loyaltyMaxTotalDiscountPercent, setLoyaltyMaxTotalDiscountPercent] = useState('30')
+  const [loyaltyTiers, setLoyaltyTiers] = useState<LoyaltyTierDraft[]>([])
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteOtpStep, setDeleteOtpStep] = useState<'send' | 'confirm'>('send')
   const [deleteOtpInput, setDeleteOtpInput] = useState('')
@@ -500,6 +518,43 @@ export function PartnerMessagingSettingsClient({
     if (!p || p.dashboard_access !== 'owner') return
     loadPaymentSettings()
   }, [loadPaymentSettings, partners, selectedPartnerId])
+
+  useEffect(() => {
+    if (!selectedPartnerId) {
+      setLoyaltyTiers([])
+      return
+    }
+    const p = partners.find((x) => x.id === selectedPartnerId)
+    if (!p || p.dashboard_access !== 'owner') {
+      setLoyaltyTiers([])
+      return
+    }
+    setLoyaltyLoading(true)
+    void (async () => {
+      try {
+        const res = await getMessagingWorkspaceLoyaltySettings(selectedPartnerId)
+        if ('error' in res && res.error) return
+        if ('settings' in res && 'tiers' in res) {
+          setLoyaltyEnabled(res.settings.enabled !== false)
+          setLoyaltySpendWindowDays(String(res.settings.spend_window_days || 180))
+          setLoyaltyMaxTotalDiscountPercent(String(res.settings.max_total_discount_percent || 30))
+          setLoyaltyTiers(
+            res.tiers.map((tier) => ({
+              id: tier.id,
+              tierCode: tier.tier_code,
+              tierName: tier.tier_name,
+              minSpend6Months: String(Math.max(0, Math.round(Number(tier.min_spend_6_months) || 0))),
+              discountPercent: String(Math.max(0, Number(tier.discount_percent) || 0)),
+              sortOrder: Math.max(0, Math.floor(Number(tier.sort_order) || 0)),
+              isActive: tier.is_active !== false,
+            }))
+          )
+        }
+      } finally {
+        setLoyaltyLoading(false)
+      }
+    })()
+  }, [selectedPartnerId, partners])
 
   useEffect(() => {
     if (!selectedPartnerId) {
@@ -1102,6 +1157,51 @@ export function PartnerMessagingSettingsClient({
     if (!selectedPartnerId) return
     startTransition(async () => {
       await persistPaymentSettings()
+    })
+  }
+
+  const updateLoyaltyTier = (idx: number, patch: Partial<LoyaltyTierDraft>) => {
+    setLoyaltyTiers((rows) => rows.map((row, i) => (i === idx ? { ...row, ...patch } : row)))
+  }
+
+  const addLoyaltyTier = () => {
+    setLoyaltyTiers((rows) => [
+      ...rows,
+      {
+        tierCode: `L${rows.length + 1}`,
+        tierName: `L${rows.length + 1}`,
+        minSpend6Months: '0',
+        discountPercent: '0',
+        sortOrder: rows.length,
+        isActive: true,
+      },
+    ])
+  }
+
+  const saveLoyaltySettings = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await saveMessagingWorkspaceLoyaltySettings({
+        partnerId: selectedPartnerId,
+        enabled: loyaltyEnabled,
+        spendWindowDays: Math.max(30, Math.min(730, Math.floor(Number(loyaltySpendWindowDays) || 180))),
+        maxTotalDiscountPercent: Math.max(0, Math.min(100, Number(loyaltyMaxTotalDiscountPercent) || 0)),
+        tiers: loyaltyTiers.map((tier, idx) => ({
+          id: tier.id ?? null,
+          tierCode: tier.tierCode,
+          tierName: tier.tierName,
+          minSpend6Months: Math.max(0, Math.round(Number(tier.minSpend6Months) || 0)),
+          discountPercent: Math.max(0, Math.min(100, Number(tier.discountPercent) || 0)),
+          sortOrder: idx,
+          isActive: tier.isActive !== false,
+        })),
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: 'Đã lưu cấu hình hạng thành viên.' })
+      router.refresh()
     })
   }
 
@@ -2202,6 +2302,102 @@ export function PartnerMessagingSettingsClient({
               </p>
             </CardContent>
           </Card>
+          </SettingsBlock>
+          ) : null}
+
+          {isOwnerSelected ? (
+          <SettingsBlock
+            id="messaging-loyalty"
+            icon={Trophy}
+            title="Hạng thành viên"
+            description="Tính hạng theo chi tiêu của khách trong cửa sổ thời gian và tự động giảm giá khi chốt đơn."
+          >
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Cấu hình loyalty theo shop</CardTitle>
+                <CardDescription className="text-xs">
+                  Mặc định L1-L5 theo chi tiêu 6 tháng. Giảm giá được lưu snapshot trên đơn hàng.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-0">
+                <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={loyaltyEnabled}
+                    onChange={(e) => setLoyaltyEnabled(e.target.checked)}
+                  />
+                  Bật hạng thành viên cho shop này
+                </label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Số ngày tính chi tiêu</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={loyaltySpendWindowDays}
+                      onChange={(e) => setLoyaltySpendWindowDays(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
+                      placeholder="180"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Trần tổng giảm giá (%)</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={loyaltyMaxTotalDiscountPercent}
+                      onChange={(e) => setLoyaltyMaxTotalDiscountPercent(e.target.value.replace(/[^\d.]/g, '').slice(0, 6))}
+                      placeholder="30"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[0.7fr_1fr_1.3fr_1fr_0.6fr] gap-2 text-[11px] font-medium text-muted-foreground">
+                    <span>Mã</span>
+                    <span>Tên</span>
+                    <span>Chi tiêu tối thiểu</span>
+                    <span>Giảm (%)</span>
+                    <span>Bật</span>
+                  </div>
+                  {loyaltyTiers.map((tier, idx) => (
+                    <div key={tier.id ?? idx} className="grid grid-cols-[0.7fr_1fr_1.3fr_1fr_0.6fr] gap-2">
+                      <Input
+                        className="h-9 text-sm"
+                        value={tier.tierCode}
+                        onChange={(e) => updateLoyaltyTier(idx, { tierCode: e.target.value.toUpperCase().slice(0, 24) })}
+                      />
+                      <Input
+                        className="h-9 text-sm"
+                        value={tier.tierName}
+                        onChange={(e) => updateLoyaltyTier(idx, { tierName: e.target.value.slice(0, 80) })}
+                      />
+                      <Input
+                        className="h-9 text-sm"
+                        value={tier.minSpend6Months}
+                        onChange={(e) => updateLoyaltyTier(idx, { minSpend6Months: e.target.value.replace(/[^\d]/g, '').slice(0, 14) })}
+                      />
+                      <Input
+                        className="h-9 text-sm"
+                        value={tier.discountPercent}
+                        onChange={(e) => updateLoyaltyTier(idx, { discountPercent: e.target.value.replace(/[^\d.]/g, '').slice(0, 6) })}
+                      />
+                      <label className="flex h-9 items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={tier.isActive}
+                          onChange={(e) => updateLoyaltyTier(idx, { isActive: e.target.checked })}
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={addLoyaltyTier} disabled={pending || loyaltyLoading}>
+                    Thêm hạng
+                  </Button>
+                  <Button type="button" size="sm" onClick={saveLoyaltySettings} disabled={pending || loyaltyLoading || !selectedPartnerId}>
+                    {loyaltyLoading ? 'Đang tải...' : 'Lưu hạng thành viên'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </SettingsBlock>
           ) : null}
 

@@ -33,6 +33,7 @@ import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import { isPgConfigured } from '@/lib/db/pool'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
+import { resolvePartnerCustomerLoyaltyStatusFromPg } from '@/lib/db/messaging-partner-loyalty-pg'
 
 export const dynamic = 'force-dynamic'
 /** LLM + typing delay có thể kéo dài khi job AI chạy ngay sau POST (không chờ cron). */
@@ -220,6 +221,28 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     }
   }
 
+  const buildLoyaltyPayload = async () => {
+    const status = await resolvePartnerCustomerLoyaltyStatusFromPg({
+      partnerId,
+      identity: {
+        emailNormalized: identity.user?.email ?? null,
+        linkedUserId: identity.linkedUserId ?? null,
+        guestAccountId: effectiveGuestAccountId ?? null,
+      },
+    })
+    return {
+      loyaltyStatus: {
+        enabled: status.enabled,
+        tierCode: status.tier?.tier_code ?? '',
+        tierName: status.tier?.tier_name ?? '',
+        discountPercent: status.tier?.discount_percent ?? 0,
+        totalSpent: status.totalSpent,
+        nextTierCode: status.nextTier?.tier_code ?? '',
+        amountToNextTier: status.amountToNextTier,
+      },
+    }
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const beforeId = (searchParams.get('before_id') || '').trim() || null
@@ -228,11 +251,13 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     const convIdPg = await fetchGuestWidgetConversationIdFromPg(partnerId, effectiveExternalThreadId)
     if (convIdPg === null) {
       const gp = await buildGuestProfilePayload()
+      const loyalty = await buildLoyaltyPayload()
       const res = NextResponse.json({
         messages: [],
         consultedProductKeys: [] as string[],
         authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
         ...gp,
+        ...loyalty,
       })
       applyGuestIdentityToResponse(res, request, {
         newSessionId: identity.newSessionId,
@@ -251,12 +276,14 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       const consultedProductKeys =
         (await fetchConsultedProductKeysForConversationFromPg(convIdPg)) ?? []
       const gp = await buildGuestProfilePayload()
+      const loyalty = await buildLoyaltyPayload()
       const res = NextResponse.json({
         messages: messagesPg.rows,
         hasMoreOlder: messagesPg.hasMoreOlder,
         consultedProductKeys,
         authMode: effectiveGuestAccountId || identity.linkedUserId ? 'account' : 'anonymous',
         ...gp,
+        ...loyalty,
       })
       applyGuestIdentityToResponse(res, request, {
         newSessionId: identity.newSessionId,

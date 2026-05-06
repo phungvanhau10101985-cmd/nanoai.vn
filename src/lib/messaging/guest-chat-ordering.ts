@@ -47,6 +47,7 @@ import {
   fetchPartnerCustomerProfileByEmailFromPg,
   upsertPartnerCustomerProfileByEmailFromPg,
 } from '@/lib/db/messaging-partner-customer-profiles-pg'
+import { resolveStackedMessagingDiscountFromPg } from '@/lib/db/messaging-partner-loyalty-pg'
 import { guestAccountEmailMatchesAuthUserFromPg } from '@/lib/db/messaging-guest-pg'
 import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
 
@@ -185,6 +186,21 @@ function firstLine(s: string): string {
 
 function toVnd(n: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(n || 0)))}đ`
+}
+
+function orderDiscountSummaryLine(order: PartnerOrderRow): string {
+  if (order.total_discount_amount <= 0) return ''
+  const parts: string[] = []
+  if (order.birthday_discount_amount > 0) {
+    parts.push(`sinh nhật ${order.birthday_discount_percent}%`)
+  }
+  if (order.loyalty_discount_amount > 0) {
+    const tier = order.loyalty_tier_name || order.loyalty_tier_code || 'thành viên'
+    parts.push(`${tier} ${order.loyalty_discount_percent}%`)
+  }
+  const reason = parts.length > 0 ? ` (${parts.join(' + ')})` : ''
+  return `Giảm giá${reason}: **-${toVnd(order.total_discount_amount)}**\n` +
+    `Tổng sau giảm: **${toVnd(order.amount_after_discount)}**\n`
 }
 
 function clampPercent(v: unknown, fallback = 0): number {
@@ -371,11 +387,18 @@ function orderCardPayload(
   paymentDisplay: { bank_name: string; account_number: string; account_holder: string } | null,
   lines?: PartnerOrderLineRow[]
 ): Record<string, unknown> {
-  const remaining = Math.max(0, Math.round(order.subtotal_amount - order.required_amount))
+  const payableAmount = order.amount_after_discount > 0 ? order.amount_after_discount : order.subtotal_amount
+  const remaining = Math.max(0, Math.round(payableAmount - order.required_amount))
   const base: Record<string, unknown> = {
     source: 'system_order',
     order_id: order.id,
     order_status: order.status,
+    order_subtotal_amount: order.subtotal_amount,
+    order_total_discount_amount: order.total_discount_amount,
+    order_amount_after_discount: payableAmount,
+    order_loyalty_tier_name: order.loyalty_tier_name,
+    order_loyalty_discount_percent: order.loyalty_discount_percent,
+    order_birthday_discount_percent: order.birthday_discount_percent,
     order_required_amount: order.required_amount,
     order_remaining_amount: remaining,
     order_payment_timing: order.required_amount <= 0 ? 'pay_on_delivery' : 'pay_now',
@@ -443,14 +466,7 @@ export async function createOrderDraftFromProductPick(input: {
     const fromInv = parseVndAmountFromText(invHint)
     if (fromInv > 0) baseUnit = fromInv
   }
-  const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
-    input.partnerId,
-    input.linkedUserId ?? null
-  )
-  const unitPrice =
-    bdayPct != null && bdayPct > 0
-      ? Math.max(0, Math.round((baseUnit * (100 - bdayPct)) / 100))
-      : Math.max(0, Math.round(baseUnit))
+  const unitPrice = Math.max(0, Math.round(baseUnit))
 
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   const settingsMode = settings?.default_deposit_mode ?? 'percent'
@@ -536,12 +552,27 @@ export async function completeOrderCheckout(input: {
     : buildStablePaymentReference(oldOrder.id, shopDisplayName)
   const qty = Math.max(1, Math.floor(input.form.quantity || 1))
   const subtotal = Math.max(0, oldOrder.unit_price) * qty
+  const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
+    input.partnerId,
+    input.linkedUserId ?? null
+  )
+  const { snapshot: discountSnapshot } = await resolveStackedMessagingDiscountFromPg({
+    partnerId: input.partnerId,
+    subtotal,
+    birthdayDiscountPercent: bdayPct ?? 0,
+    identity: {
+      emailNormalized: input.form.customerEmail,
+      linkedUserId: input.linkedUserId ?? null,
+      guestAccountId: input.guestAccountId ?? null,
+    },
+  })
+  const payableSubtotal = discountSnapshot.amountAfterDiscount
   // Deposit is controlled entirely by shop settings; customer cannot override.
   const mode = settings.default_deposit_mode ?? 'percent'
   const percent = clampPercent(settings.default_deposit_percent ?? 30, 30)
   const fixedAmount = normalizeMoney(settings.default_deposit_amount ?? 0)
   const calc = resolveRequiredAmountByDepositRule({
-    subtotal,
+    subtotal: payableSubtotal,
     mode,
     percent,
     fixedAmount,
@@ -591,6 +622,7 @@ export async function completeOrderCheckout(input: {
     requiredAmount: calc.requiredAmount,
     paymentReference,
     paymentQrUrl: qrUrl,
+    discountSnapshot,
   })
   if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
   await syncPrimaryPartnerOrderLineFromOrderFromPg(updated)
@@ -619,8 +651,9 @@ export async function completeOrderCheckout(input: {
       updated.required_amount > 0
         ? `Đơn hàng đã được tạo thành công.\n` +
           `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
+          orderDiscountSummaryLine(updated) +
           `Cần đặt cọc trước: **${toVnd(updated.required_amount)}** (${updated.deposit_percent}%).\n` +
-          `Còn thanh toán khi nhận hàng: **${toVnd(Math.max(0, updated.subtotal_amount - updated.required_amount))}**.\n` +
+          `Còn thanh toán khi nhận hàng: **${toVnd(Math.max(0, updated.amount_after_discount - updated.required_amount))}**.\n` +
           `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới (có nút sao chép từng mục).\n` +
           `${calc.fallbackApplied ? 'Lưu ý: Số tiền đặt cọc vượt giá trị đơn, hệ thống đã fallback về 20% giá trị đơn.\n' : ''}` +
           (useSepayQr
@@ -628,8 +661,9 @@ export async function completeOrderCheckout(input: {
             : `Sau khi chuyển khoản: bấm nút gửi ảnh biên lai ngay dưới mã QR.`)
         : `Đơn hàng đã được tạo thành công.\n` +
           `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
+          orderDiscountSummaryLine(updated) +
           `Thanh toán trước: **0đ**.\n` +
-          `Thanh toán khi nhận hàng: **${toVnd(updated.subtotal_amount)}**.\n` +
+          `Thanh toán khi nhận hàng: **${toVnd(updated.amount_after_discount)}**.\n` +
           `Đơn này không yêu cầu đặt cọc trước. Shop sẽ liên hệ xác nhận đơn và giao hàng.`,
     rawPayload: toJson(orderCardPayload(updated, paymentDisplay, updatedLines)),
   })
@@ -667,14 +701,7 @@ async function cartInputLineToOrderLine(input: {
     const fromInv = parseVndAmountFromText(invHint)
     if (fromInv > 0) baseUnit = fromInv
   }
-  const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
-    input.partnerId,
-    input.linkedUserId ?? null
-  )
-  const unitPrice =
-    bdayPct != null && bdayPct > 0
-      ? Math.max(0, Math.round((baseUnit * (100 - bdayPct)) / 100))
-      : Math.max(0, Math.round(baseUnit))
+  const unitPrice = Math.max(0, Math.round(baseUnit))
   const variantImageUrlsJson = variantLineImagesToStoredJson(input.line.variantLineImages)
   const firstVariantImage = input.line.variantLineImages?.find((u) => /^https?:\/\//i.test(String(u ?? '').trim()))
   return {
@@ -730,10 +757,25 @@ export async function completeCartCheckout(input: {
     const unit = Math.max(0, Math.round(Number(line.unitPrice) || 0))
     return sum + unit * qty
   }, 0)
+  const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
+    input.partnerId,
+    input.linkedUserId ?? null
+  )
+  const { snapshot: discountSnapshot } = await resolveStackedMessagingDiscountFromPg({
+    partnerId: input.partnerId,
+    subtotal,
+    birthdayDiscountPercent: bdayPct ?? 0,
+    identity: {
+      emailNormalized: input.form.customerEmail,
+      linkedUserId: input.linkedUserId ?? null,
+      guestAccountId: input.guestAccountId ?? null,
+    },
+  })
+  const payableSubtotal = discountSnapshot.amountAfterDiscount
   const mode = settings.default_deposit_mode ?? 'percent'
   const percent = clampPercent(settings.default_deposit_percent ?? 30, 30)
   const fixedAmount = normalizeMoney(settings.default_deposit_amount ?? 0)
-  const calc = resolveRequiredAmountByDepositRule({ subtotal, mode, percent, fixedAmount })
+  const calc = resolveRequiredAmountByDepositRule({ subtotal: payableSubtotal, mode, percent, fixedAmount })
 
   const first = lines[0]
   const draft = await insertPartnerOrderDraftFromPg({
@@ -804,6 +846,7 @@ export async function completeCartCheckout(input: {
     paymentReference,
     paymentQrUrl: qrUrl,
     primaryLine: first,
+    discountSnapshot,
   })
   if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
   const savedLines = await fetchPartnerOrderLinesFromPg(updated.id)
@@ -831,13 +874,15 @@ export async function completeCartCheckout(input: {
       updated.required_amount > 0
         ? `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
           `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
+          orderDiscountSummaryLine(updated) +
           `Cần đặt cọc trước: **${toVnd(updated.required_amount)}** (${updated.deposit_percent}%).\n` +
-          `Còn thanh toán khi nhận hàng: **${toVnd(Math.max(0, updated.subtotal_amount - updated.required_amount))}**.\n` +
+          `Còn thanh toán khi nhận hàng: **${toVnd(Math.max(0, updated.amount_after_discount - updated.required_amount))}**.\n` +
           `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới.`
         : `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
           `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
+          orderDiscountSummaryLine(updated) +
           `Thanh toán trước: **0đ**.\n` +
-          `Thanh toán khi nhận hàng: **${toVnd(updated.subtotal_amount)}**.`,
+          `Thanh toán khi nhận hàng: **${toVnd(updated.amount_after_discount)}**.`,
     rawPayload: toJson(orderCardPayload(updated, paymentDisplay, savedLines)),
   })
   await insertPartnerOrderEventFromPg({

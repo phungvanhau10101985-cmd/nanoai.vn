@@ -219,6 +219,22 @@
     var cartLabelRaw = getAttr('data-cart-label', '')
     var cartLabel = String(cartLabelRaw || '').trim() || 'Giỏ hàng'
     var cartCount = 0
+    var loyaltyBadge = document.createElement('span')
+    loyaltyBadge.style.cssText =
+      'display:none;flex-shrink:0;border:1px solid #fcd34d;background:#fffbeb;color:#78350f;border-radius:9999px;padding:3px 8px;font-size:10px;font-weight:700;line-height:1;box-shadow:0 1px 2px rgba(0,0,0,.08);white-space:nowrap;'
+
+    function setLoyaltyStatus(status) {
+      try {
+        if (!status || status.enabled === false) {
+          loyaltyBadge.style.display = 'none'
+          loyaltyBadge.textContent = ''
+          return
+        }
+        var label = String(status.tierName || status.tierCode || 'L1').trim() || 'L1'
+        loyaltyBadge.textContent = label
+        loyaltyBadge.style.display = 'inline-flex'
+      } catch (_) {}
+    }
 
     for (var li = 0; li < LOCALE_CHOICES.length; li += 1) {
       var opt = document.createElement('option')
@@ -265,6 +281,7 @@
     }
 
     header.appendChild(brandEl)
+    header.appendChild(loyaltyBadge)
     header.appendChild(localeSelect)
     header.appendChild(ordersBtn)
     header.appendChild(cartBtn)
@@ -372,6 +389,7 @@
             writeStoredGuestIdentity(d)
             if (iframe && iframe.src) writeReturnChatHref(iframe.src)
           }
+          if (d.type === 'LOYALTY_STATUS') setLoyaltyStatus(d.status)
           if (d.type === 'CART_COUNT') setCartCount(d.count)
         } catch (_) {}
       },

@@ -23,6 +23,12 @@ const GUEST_SESSION_STORAGE_KEY = 'nanoai_guest_session_id_v1'
 const GUEST_ACCOUNT_STORAGE_KEY = 'nanoai_guest_account_id_v1'
 const UUID_STRING_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+type WidgetLoyaltyStatus = {
+  enabled?: unknown
+  tierCode?: unknown
+  tierName?: unknown
+}
+
 function appendStoredGuestIdentity(urlStr: string): string {
   if (typeof window === 'undefined') return urlStr
   try {
@@ -95,6 +101,7 @@ export function FloatingChatWidget({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [uiLocale, setUiLocale] = useState<WebLocale>(() => parseUiLocaleFromChatUrl(chatUrl))
   const [iframeSrc, setIframeSrc] = useState(() => appendStoredGuestIdentity(readReturnChatIframeHref() ?? chatUrl))
+  const [loyaltyTierLabel, setLoyaltyTierLabel] = useState('')
   // Keep NanoAI widget above common social/contact bubbles (e.g. Zalo).
   const anchorClass = 'bottom-[10.5rem] right-3 md:bottom-6 md:right-4'
   const topLayerClass = 'z-[2147483000]'
@@ -171,6 +178,14 @@ export function FloatingChatWidget({
       if (type === 'GUEST_IDENTITY') {
         storeGuestIdentity(data)
         if (iframeRef.current?.src) writeReturnChatIframeHref(iframeRef.current.src)
+      } else if (type === 'LOYALTY_STATUS') {
+        const status = (data as { status?: WidgetLoyaltyStatus }).status
+        if (!status || status.enabled === false) {
+          setLoyaltyTierLabel('')
+          return
+        }
+        const label = String(status.tierName || status.tierCode || 'L1').trim()
+        setLoyaltyTierLabel(label || 'L1')
       }
     }
     window.addEventListener('message', onMsg)
@@ -237,6 +252,11 @@ export function FloatingChatWidget({
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="min-w-0 flex-1 truncate text-xs font-semibold leading-tight sm:text-sm">{shopName}</div>
+        {loyaltyTierLabel ? (
+          <span className="shrink-0 rounded-full border border-amber-300/80 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold leading-none text-amber-900 shadow-sm">
+            {loyaltyTierLabel}
+          </span>
+        ) : null}
         <select
           value={uiLocale}
           onChange={(e) => applyLocaleToIframe(e.target.value as WebLocale)}

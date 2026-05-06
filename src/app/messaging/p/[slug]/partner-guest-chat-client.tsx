@@ -550,8 +550,7 @@ function buildWidgetPageContextInboundText(
 ): string {
   const sku = pc.sku?.trim()
   if (sku) {
-    const productRef = t.productConsultProductRefFromSku.replace('{sku}', sku)
-    return t.productConsultAskDetail.replace('{productRef}', productRef)
+    return t.productConsultAskDetailFromSku.replace('{sku}', sku)
   }
   if (pc.inventoryId?.trim()) {
     return t.pageContextInboundConsultNoSku
@@ -836,6 +835,16 @@ type TopUpPayment = {
   bank_account?: string
   bank_name?: string
   status?: string
+}
+
+type GuestLoyaltyStatus = {
+  enabled: boolean
+  tierCode: string
+  tierName: string
+  discountPercent: number
+  totalSpent: number
+  nextTierCode: string
+  amountToNextTier: number
 }
 
 function formatCredits(value: number) {
@@ -1493,6 +1502,7 @@ export function PartnerGuestChatClient({
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [authMode, setAuthMode] = useState<'anonymous' | 'account'>('anonymous')
+  const [guestLoyaltyStatus, setGuestLoyaltyStatus] = useState<GuestLoyaltyStatus | null>(null)
   const [guestNeedsProfile, setGuestNeedsProfile] = useState(false)
   const [guestProfileOpen, setGuestProfileOpen] = useState(false)
   const [guestBirthDay, setGuestBirthDay] = useState('')
@@ -2178,6 +2188,7 @@ export function PartnerGuestChatClient({
         authMode?: 'anonymous' | 'account'
         needsProfile?: boolean
         guestProfile?: { birthDate?: string | null; gender?: string | null } | null
+        loyaltyStatus?: GuestLoyaltyStatus | null
       }
       if (res.status === 401) {
         setUserId(null)
@@ -2246,6 +2257,7 @@ export function PartnerGuestChatClient({
       }
       const effectiveAuthMode = serverSaysAccount || hasGuestAccount ? 'account' : 'anonymous'
       setAuthMode(effectiveAuthMode)
+      setGuestLoyaltyStatus(data.loyaltyStatus ?? null)
       if (effectiveAuthMode === 'account') setAuthGateRequired(false)
       setGuestNeedsProfile(Boolean(data.needsProfile))
       const gp = data.guestProfile
@@ -3242,6 +3254,28 @@ export function PartnerGuestChatClient({
   }, [cartItems.length])
 
   useEffect(() => {
+    if (typeof window === 'undefined' || window.parent === window) return
+    try {
+      window.parent.postMessage(
+        {
+          source: NANOAI_WIDGET_MSG_SOURCE,
+          type: 'LOYALTY_STATUS',
+          status: guestLoyaltyStatus?.enabled
+            ? {
+                enabled: true,
+                tierCode: guestLoyaltyStatus.tierCode || 'L1',
+                tierName: guestLoyaltyStatus.tierName || guestLoyaltyStatus.tierCode || 'L1',
+              }
+            : { enabled: false },
+        },
+        '*'
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [guestLoyaltyStatus])
+
+  useEffect(() => {
     if (typeof window === 'undefined') return
     const onMessage = (event: MessageEvent) => {
       const data = event.data
@@ -3394,7 +3428,9 @@ export function PartnerGuestChatClient({
       const ask =
         intent === 'shipping_policy'
           ? t.productConsultAskShipping.replace('{productRef}', productRef)
-          : t.productConsultAskDetail.replace('{productRef}', productRef)
+          : sku
+            ? t.productConsultAskDetailFromSku.replace('{sku}', sku)
+            : t.productConsultAskDetail.replace('{productRef}', productRef)
       const imageUrl = (card.image_url ?? '').trim()
       const pageContext: {
         sku?: string
@@ -5161,6 +5197,11 @@ export function PartnerGuestChatClient({
         )
       : null
 
+  const loyaltyTierBadgeText =
+    guestLoyaltyStatus?.enabled
+      ? (guestLoyaltyStatus.tierName || guestLoyaltyStatus.tierCode || 'L1').trim()
+      : ''
+
   const chatPane = (
     <>
       <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-background rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md">
@@ -5168,6 +5209,11 @@ export function PartnerGuestChatClient({
         {isEmbedUi && !guestInIframe ? (
           <div className="relative z-[100] flex shrink-0 items-center gap-1 overflow-hidden border-b border-border/60 bg-muted/35 px-2 py-1 pointer-events-auto touch-manipulation">
             <p className="min-w-0 flex-1 truncate text-xs font-semibold tracking-tight sm:text-sm">{shopDisplayName}</p>
+            {loyaltyTierBadgeText ? (
+              <span className="shrink-0 rounded-full border border-amber-300/80 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold leading-none text-amber-900 shadow-sm dark:border-amber-700/70 dark:bg-amber-950/45 dark:text-amber-100">
+                {loyaltyTierBadgeText}
+              </span>
+            ) : null}
             <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
               <Button
                 type="button"
