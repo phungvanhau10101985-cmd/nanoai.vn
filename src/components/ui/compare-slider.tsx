@@ -102,7 +102,7 @@ function SliderContent({
         alt={afterLabel}
         className={cn(
           'absolute inset-0 w-full h-full',
-          isFullscreen ? 'object-cover object-center' : 'object-contain'
+          isFullscreen ? 'object-contain object-center' : 'object-contain'
         )}
       />
       <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}>
@@ -112,7 +112,7 @@ function SliderContent({
           alt={beforeLabel}
           className={cn(
             'absolute inset-0 w-full h-full',
-            isFullscreen ? 'object-cover object-center' : 'object-contain'
+            isFullscreen ? 'object-contain object-center' : 'object-contain'
           )}
         />
       </div>

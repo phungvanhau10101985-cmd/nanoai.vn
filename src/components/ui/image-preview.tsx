@@ -197,18 +197,22 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
           </button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-[98vw] w-[98vw] min-h-[95vh] max-h-[95vh] p-0 bg-black/90 border-none shadow-lg flex items-center justify-center overflow-hidden">
-        <div className="relative w-full h-full flex items-center justify-center p-2 min-h-[90vh] overflow-hidden">
-          <div className="absolute top-2 right-2 z-50 flex gap-1.5">
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[9998] bg-black"
+        className="!fixed !inset-0 !left-0 !top-0 z-[9999] !h-[100dvh] !max-h-[100dvh] !min-h-[100dvh] !w-screen !max-w-none !translate-x-0 !translate-y-0 rounded-none border-0 bg-black p-0 shadow-none sm:rounded-none flex items-center justify-center overflow-hidden"
+      >
+        <div className="relative flex h-full min-h-0 w-full min-w-0 items-center justify-center overflow-hidden">
+          <div className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex gap-1.5">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-white hover:text-white bg-white/20 hover:bg-white/40 rounded-full border border-white/30 h-8 w-8 shrink-0"
+                  className="h-11 w-11 shrink-0 rounded-full border border-white/20 bg-white/20 text-white hover:bg-white/30 hover:text-white active:bg-white/40"
                   title={tr('Tải ảnh xuống', 'Download image', '下载图片', '画像をダウンロード', '이미지 다운로드')}
                 >
-                  <Download className="h-4 w-4" />
+                  <Download className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -251,11 +255,11 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
             <Button
               variant="ghost"
               size="icon"
-              className="text-white hover:text-white bg-white/20 hover:bg-white/40 rounded-full border border-white/30 h-8 w-8 shrink-0"
+              className="h-11 w-11 shrink-0 rounded-full border border-white/20 bg-white/20 text-white hover:bg-white/30 hover:text-white active:bg-white/40"
               onClick={() => handleOpenChange(false)}
               title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
             >
-              <X className="h-4 w-4" />
+              <X className="h-6 w-6" />
             </Button>
           </div>
           {/* Dùng img thay vì Next/Image để đảm bảo ảnh hiển thị (tránh lỗi domain/CORS) */}
@@ -264,7 +268,7 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
             ref={imageRef}
             src={src}
             alt={alt}
-            className="max-w-full max-h-[90vh] w-auto h-auto object-contain"
+            className="h-full max-h-full w-full max-w-full object-contain"
             crossOrigin="anonymous"
             onLoad={handleImageLoad}
           />
