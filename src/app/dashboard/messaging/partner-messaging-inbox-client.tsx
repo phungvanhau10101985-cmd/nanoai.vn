@@ -71,6 +71,8 @@ type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
 type T = Dictionary['partnerMessaging']
 
 const INBOX_STICK_TO_BOTTOM_PX = 120
+const SHOP_MESSAGE_LOAD_LIMIT = 80
+const SHOP_MESSAGE_POLL_LIMIT = 50
 
 function channelLabel(ch: string, t: T) {
   if (ch === 'facebook') return t.channelFacebook
@@ -94,6 +96,51 @@ function shortThreadDate(iso: string | null) {
   const dd = String(d.getDate()).padStart(2, '0')
   const mm = String(d.getMonth() + 1).padStart(2, '0')
   return `${dd}.${mm}`
+}
+
+function latestMessageCreatedAt(rows: MsgRow[]) {
+  let latest: string | null = null
+  let latestTs = Number.NEGATIVE_INFINITY
+  for (const row of rows) {
+    const ts = Date.parse(row.created_at)
+    if (!Number.isFinite(ts)) continue
+    if (ts > latestTs) {
+      latestTs = ts
+      latest = row.created_at
+    }
+  }
+  return latest
+}
+
+function sameMessageRow(a: MsgRow, b: MsgRow) {
+  return (
+    a.id === b.id &&
+    a.conversation_id === b.conversation_id &&
+    a.direction === b.direction &&
+    a.body === b.body &&
+    a.created_at === b.created_at &&
+    a.read_at === b.read_at &&
+    a.sender_admin_id === b.sender_admin_id &&
+    a.landing_source_url === b.landing_source_url
+  )
+}
+
+function mergeMessagesById(prev: MsgRow[], next: MsgRow[]) {
+  if (!next.length) return prev
+  const byId = new Map(prev.map((row) => [row.id, row]))
+  let changed = false
+  for (const row of next) {
+    const current = byId.get(row.id)
+    if (!current || !sameMessageRow(current, row)) {
+      byId.set(row.id, row)
+      changed = true
+    }
+  }
+  if (!changed) return prev
+  return Array.from(byId.values()).sort((a, b) => {
+    const delta = Date.parse(a.created_at) - Date.parse(b.created_at)
+    return delta || a.id.localeCompare(b.id)
+  })
 }
 
 export function PartnerMessagingInboxClient({
@@ -144,6 +191,7 @@ export function PartnerMessagingInboxClient({
   const composerRef = useRef<HTMLDivElement>(null)
   const messagesScrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const latestMessageCreatedAtRef = useRef<string | null>(null)
   const inboxNearBottomRef = useRef(true)
   const forceInboxScrollToBottomRef = useRef(false)
   const skipNextInboxAutoScrollRef = useRef(false)
@@ -277,8 +325,11 @@ export function PartnerMessagingInboxClient({
         ? { top: scroller.scrollTop, height: scroller.scrollHeight }
         : null
       if (snapshot) skipNextInboxAutoScrollRef.current = true
-      listPartnerMessages(selectedPartnerId, selectedConvId).then((res) => {
-        if ('rows' in res) setMessages(res.rows ?? [])
+      listPartnerMessages(selectedPartnerId, selectedConvId, {
+        limit: SHOP_MESSAGE_POLL_LIMIT,
+        sinceCreatedAt: latestMessageCreatedAtRef.current,
+      }).then((res) => {
+        if ('rows' in res) setMessages((prev) => mergeMessagesById(prev, res.rows ?? []))
         if (snapshot && scroller) {
           requestAnimationFrame(() => {
             const nextHeight = scroller.scrollHeight
@@ -311,6 +362,7 @@ export function PartnerMessagingInboxClient({
 
   useEffect(() => {
     clearAttachment()
+    latestMessageCreatedAtRef.current = null
     didInitialInboxAutoScrollRef.current = false
     inboxNearBottomRef.current = true
     forceInboxScrollToBottomRef.current = false
@@ -318,12 +370,16 @@ export function PartnerMessagingInboxClient({
   }, [selectedConvId, clearAttachment])
 
   useEffect(() => {
+    latestMessageCreatedAtRef.current = latestMessageCreatedAt(messages)
+  }, [messages])
+
+  useEffect(() => {
     if (!selectedPartnerId || !selectedConvId) {
       setMessages([])
       return
     }
     setLoadingMsgs(true)
-    listPartnerMessages(selectedPartnerId, selectedConvId)
+    listPartnerMessages(selectedPartnerId, selectedConvId, { limit: SHOP_MESSAGE_LOAD_LIMIT })
       .then((res) => {
         if ('error' in res && res.error) {
           toast({ title: res.error, variant: 'destructive' })
@@ -455,8 +511,11 @@ export function PartnerMessagingInboxClient({
       }
       setDraft('')
       clearAttachment()
-      const msgs = await listPartnerMessages(selectedPartnerId, selectedConvId)
-      if ('rows' in msgs) setMessages(msgs.rows ?? [])
+      const msgs = await listPartnerMessages(selectedPartnerId, selectedConvId, {
+        limit: SHOP_MESSAGE_POLL_LIMIT,
+        sinceCreatedAt: latestMessageCreatedAtRef.current,
+      })
+      if ('rows' in msgs) setMessages((prev) => mergeMessagesById(prev, msgs.rows ?? []))
       refreshConversations()
     })
   }

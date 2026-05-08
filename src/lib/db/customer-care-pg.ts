@@ -431,16 +431,50 @@ export async function listPartnerConversationsFromPg(
 }
 
 export async function fetchPartnerMessagesFromPg(
-  conversationId: string
+  conversationId: string,
+  options?: { limit?: number; sinceCreatedAt?: string | null }
 ): Promise<CustomerCareMessageRow[] | null> {
   if (!isPgConfigured()) return null
+  const rawLimit = Number(options?.limit ?? 0)
+  const limit = rawLimit > 0 ? Math.max(1, Math.min(500, rawLimit)) : 0
+  const sinceCreatedAt = options?.sinceCreatedAt?.trim()
   try {
+    if (sinceCreatedAt) {
+      const rows = await pgQuery<Record<string, unknown>>(
+        `select id::text, conversation_id::text, direction, body, raw_payload,
+                sender_admin_id::text, landing_source_url, read_at, created_at
+         from public.customer_care_messages
+         where conversation_id = $1::uuid
+           and created_at >= $2::timestamptz
+         order by created_at asc, id asc
+         limit $3`,
+        [conversationId, sinceCreatedAt, limit || 100]
+      )
+      return rows.map(mapMessageRow)
+    }
+
+    if (limit > 0) {
+      const rows = await pgQuery<Record<string, unknown>>(
+        `select * from (
+           select id::text, conversation_id::text, direction, body, raw_payload,
+                  sender_admin_id::text, landing_source_url, read_at, created_at
+           from public.customer_care_messages
+           where conversation_id = $1::uuid
+           order by created_at desc, id desc
+           limit $2
+         ) recent
+         order by created_at asc, id asc`,
+        [conversationId, limit]
+      )
+      return rows.map(mapMessageRow)
+    }
+
     const rows = await pgQuery<Record<string, unknown>>(
       `select id::text, conversation_id::text, direction, body, raw_payload,
               sender_admin_id::text, landing_source_url, read_at, created_at
        from public.customer_care_messages
        where conversation_id = $1::uuid
-       order by created_at asc`,
+       order by created_at asc, id asc`,
       [conversationId]
     )
     return rows.map(mapMessageRow)
@@ -453,7 +487,8 @@ export async function fetchPartnerMessagesFromPg(
 /** Tin nhắn inbox partner: kiểm tra conv thuộc partner + load messages. */
 export async function listPartnerMessagesBundleFromPg(
   partnerId: string,
-  conversationId: string
+  conversationId: string,
+  options?: { limit?: number; sinceCreatedAt?: string | null }
 ): Promise<{ rows: CustomerCareMessageRow[] } | 'not_found' | null> {
   if (!isPgConfigured()) return null
   try {
@@ -464,7 +499,7 @@ export async function listPartnerMessagesBundleFromPg(
       [conversationId, partnerId]
     )
     if (!gate) return 'not_found'
-    const rows = await fetchPartnerMessagesFromPg(conversationId)
+    const rows = await fetchPartnerMessagesFromPg(conversationId, options)
     if (rows === null) return null
     return { rows }
   } catch (e) {

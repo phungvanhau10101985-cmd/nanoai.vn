@@ -199,8 +199,8 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
       </DialogTrigger>
       <DialogContent
         showCloseButton={false}
-        overlayClassName="z-[9998] bg-black"
-        className="!fixed !inset-0 !left-0 !top-0 z-[9999] !h-[100dvh] !max-h-[100dvh] !min-h-[100dvh] !w-screen !max-w-none !translate-x-0 !translate-y-0 rounded-none border-0 bg-black p-0 shadow-none sm:rounded-none flex items-center justify-center overflow-hidden"
+        overlayClassName="z-[2147483646] bg-black"
+        className="!fixed !inset-0 !left-0 !top-0 z-[2147483647] !h-[100dvh] !max-h-[100dvh] !min-h-[100dvh] !w-screen !max-w-none !translate-x-0 !translate-y-0 rounded-none border-0 bg-black p-0 shadow-none sm:rounded-none flex items-center justify-center overflow-hidden"
       >
         <div className="relative flex h-full min-h-0 w-full min-w-0 items-center justify-center overflow-hidden">
           <div className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex gap-1.5">

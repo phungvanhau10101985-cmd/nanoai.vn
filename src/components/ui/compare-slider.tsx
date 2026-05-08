@@ -3,6 +3,7 @@
 import { useWebLocaleFromDocumentCookie } from '@/hooks/use-web-locale-from-cookie'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { Maximize2, X } from 'lucide-react'
 
@@ -165,6 +166,7 @@ export function CompareSlider({
   const fullscreenRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -182,6 +184,10 @@ export function CompareSlider({
     const x = ((clientX - rect.left) / rect.width) * 100
     setPosition(Math.min(100, Math.max(0, x)))
   }, [isFullscreen])
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!isDragging) return
@@ -214,6 +220,36 @@ export function CompareSlider({
     setIsFullscreen(true)
   }, [autoMobileFullscreen])
 
+  const fullscreenLayer = isFullscreen && mounted ? createPortal(
+    <div className="fixed inset-0 z-[2147483647] flex h-[100dvh] min-h-[100dvh] w-screen max-w-[100vw] flex-col overflow-hidden bg-black overscroll-none">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <SliderContent
+          before={before}
+          after={after}
+          beforeLabel={finalBeforeLabel}
+          afterLabel={finalAfterLabel}
+          position={position}
+          setPosition={setPosition}
+          containerRef={fullscreenRef}
+          setIsDragging={setIsDragging}
+          isFullscreen
+        />
+      </div>
+      <button
+        type="button"
+        onClick={() => setIsFullscreen(false)}
+        className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-white/20 p-2 text-white touch-manipulation transition-colors hover:bg-white/30 active:bg-white/40"
+        title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
+      >
+        <X className="h-6 w-6" />
+      </button>
+      <p className="pointer-events-none absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 hidden max-w-[90vw] -translate-x-1/2 text-center text-xs text-white/70 sm:block sm:text-sm">
+        {tr('Nhấn ESC để đóng', 'Press ESC to close', '按 ESC 关闭', 'ESCで閉じる', 'ESC를 눌러 닫기')}
+      </p>
+    </div>,
+    document.body
+  ) : null
+
   return (
     <>
       {!isFullscreen ? (
@@ -240,34 +276,7 @@ export function CompareSlider({
         </div>
       ) : null}
 
-      {isFullscreen && (
-        <div className="fixed inset-0 z-[9999] flex h-[100dvh] min-h-[100dvh] w-full max-w-[100vw] flex-col overflow-hidden bg-black overscroll-none">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <SliderContent
-              before={before}
-              after={after}
-              beforeLabel={finalBeforeLabel}
-              afterLabel={finalAfterLabel}
-              position={position}
-              setPosition={setPosition}
-              containerRef={fullscreenRef}
-              setIsDragging={setIsDragging}
-              isFullscreen
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsFullscreen(false)}
-            className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-white/20 p-2 text-white touch-manipulation transition-colors hover:bg-white/30 active:bg-white/40"
-            title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
-          >
-            <X className="h-6 w-6" />
-          </button>
-          <p className="pointer-events-none absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 hidden max-w-[90vw] -translate-x-1/2 text-center text-xs text-white/70 sm:block sm:text-sm">
-            {tr('Nhấn ESC để đóng', 'Press ESC to close', '按 ESC 关闭', 'ESCで閉じる', 'ESC를 눌러 닫기')}
-          </p>
-        </div>
-      )}
+      {fullscreenLayer}
     </>
   )
 }

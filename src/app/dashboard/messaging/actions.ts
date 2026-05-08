@@ -1257,7 +1257,11 @@ export async function listPartnerConversations(partnerId: string) {
   }
 }
 
-export async function listPartnerMessages(partnerId: string, conversationId: string) {
+export async function listPartnerMessages(
+  partnerId: string,
+  conversationId: string,
+  options?: { limit?: number; sinceCreatedAt?: string | null }
+) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
@@ -1267,7 +1271,12 @@ export async function listPartnerMessages(partnerId: string, conversationId: str
     return { error: 'DATABASE_URL is not set.' }
   }
   try {
-    const bundle = await listPartnerMessagesBundleFromPg(partnerId, conversationId)
+    const limit = Math.max(1, Math.min(500, Number(options?.limit || 250)))
+    const sinceCreatedAt = typeof options?.sinceCreatedAt === 'string' ? options.sinceCreatedAt.trim() : null
+    const bundle = await listPartnerMessagesBundleFromPg(partnerId, conversationId, {
+      limit,
+      sinceCreatedAt: sinceCreatedAt || null,
+    })
     if (bundle === 'not_found') return { error: 'Conversation not found.' }
     if (bundle === null) return { error: 'Failed to load messages.' }
     return { rows: bundle.rows }
