@@ -97,10 +97,24 @@ function SliderContent({
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={after} alt={afterLabel} className="absolute inset-0 w-full h-full object-contain" />
+      <img
+        src={after}
+        alt={afterLabel}
+        className={cn(
+          'absolute inset-0 w-full h-full',
+          isFullscreen ? 'object-cover object-center' : 'object-contain'
+        )}
+      />
       <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={before} alt={beforeLabel} className="absolute inset-0 w-full h-full object-contain" />
+        <img
+          src={before}
+          alt={beforeLabel}
+          className={cn(
+            'absolute inset-0 w-full h-full',
+            isFullscreen ? 'object-cover object-center' : 'object-contain'
+          )}
+        />
       </div>
       <div
         className="absolute top-0 bottom-0 w-1 bg-white shadow-lg cursor-ew-resize z-10"
@@ -115,16 +129,20 @@ function SliderContent({
       </div>
       <div
         className={cn(
-          'absolute left-2 z-10 rounded bg-black/60 px-2 py-1 text-xs text-white',
-          isFullscreen ? 'bottom-[max(0.5rem,env(safe-area-inset-bottom))]' : 'bottom-2'
+          'absolute z-10 rounded bg-black/60 px-2 py-1 text-xs text-white',
+          isFullscreen
+            ? 'left-[max(0.5rem,env(safe-area-inset-left))] bottom-[max(0.5rem,env(safe-area-inset-bottom))]'
+            : 'left-2 bottom-2'
         )}
       >
         {beforeLabel}
       </div>
       <div
         className={cn(
-          'absolute right-2 z-10 rounded bg-black/60 px-2 py-1 text-xs text-white',
-          isFullscreen ? 'bottom-[max(0.5rem,env(safe-area-inset-bottom))]' : 'bottom-2'
+          'absolute z-10 rounded bg-black/60 px-2 py-1 text-xs text-white',
+          isFullscreen
+            ? 'right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))]'
+            : 'right-2 bottom-2'
         )}
       >
         {afterLabel}
@@ -223,10 +241,7 @@ export function CompareSlider({
       ) : null}
 
       {isFullscreen && (
-        <div
-          className="fixed inset-0 z-[9999] flex min-h-[100dvh] flex-col bg-black overscroll-none"
-          style={{ height: '100dvh' }}
-        >
+        <div className="fixed inset-0 z-[9999] flex h-[100dvh] min-h-[100dvh] w-full max-w-[100vw] flex-col overflow-hidden bg-black overscroll-none">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <SliderContent
               before={before}

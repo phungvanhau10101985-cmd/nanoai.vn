@@ -2,7 +2,7 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Sparkles, ImageIcon, Focus, Layers, Layout, User, Palette, Smile, Eraser, Package, Briefcase, Expand, Repeat, Box, BoxSelect, Home, BookOpen, Tag } from 'lucide-react'
 import { ImagePreview } from '@/components/ui/image-preview'
 
@@ -154,6 +154,7 @@ export function ImageProcessingLoader({
   imagePreview,
   imagePreviews,
 }: ImageProcessingLoaderProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const config = modeConfig[mode]
   const Icon = config.icon
@@ -165,6 +166,15 @@ export function ImageProcessingLoader({
     if (uiLocale === 'ko') return ko
     return vi
   }
+
+  useLayoutEffect(() => {
+    const el = rootRef.current
+    if (!el || typeof window === 'undefined') return
+    const id = window.requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -208,7 +218,10 @@ export function ImageProcessingLoader({
   void customSteps
 
   return (
-    <div className="w-full max-w-lg mx-auto">
+    <div
+      ref={rootRef}
+      className="w-full max-w-lg mx-auto scroll-mt-[max(5rem,env(safe-area-inset-top,0px))]"
+    >
       <div className={`relative overflow-hidden rounded-xl border-2 border-white/80 shadow-lg bg-gradient-to-br ${config.gradient}`}>
         {/* Nền ảnh mờ (nếu có) */}
         {imagePreview && (
