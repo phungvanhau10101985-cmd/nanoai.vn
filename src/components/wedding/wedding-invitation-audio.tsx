@@ -9,7 +9,7 @@ function clampSegment(duration: number, startRaw: number | null, endRaw: number 
   if (!Number.isFinite(duration) || duration <= 0 || duration === Infinity) {
     return { start, end: null as number | null }
   }
-  let s = Math.min(start, Math.max(0, duration - 0.05))
+  const s = Math.min(start, Math.max(0, duration - 0.05))
   if (end != null) {
     end = Math.min(end, duration)
     if (end <= s + 0.08) end = null

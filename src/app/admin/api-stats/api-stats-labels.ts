@@ -5,7 +5,7 @@ import { CURRICULUM_API_STATS_FEATURE_LABELS } from './curriculum-feature-labels
 export const STATIC_API_FEATURE_LABELS: Record<string, string> = {
   'thu-do-online': 'Thử đồ ảo',
   'thiet-ke-noi-ngoai-that': 'Thiết kế nội/ngoại thất',
-  'xay-nha-tu-dat-nen': 'Nhà của bạn',
+  'xay-nha-tu-dat-nen': 'Kiểu nhà bạn muốn xây',
   'xay-nha-tu-dat-nen-synth': 'Xây nhà – tổng hợp prompt',
   'xay-nha-tu-dat-nen-structural': 'Xây nhà – bản vẽ kết cấu',
   'xay-nha-tu-dat-nen-floorplan': 'Xây nhà – bản vẽ chia phòng',

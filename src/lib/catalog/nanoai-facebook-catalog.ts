@@ -110,7 +110,7 @@ const FRIENDLY_FEATURE_TITLE_BY_HREF: Record<string, string> = {
   '/tao-anh-3d': 'Tạo ảnh sản phẩm 3D',
   '/tao-mo-hinh-3d-tu-anh': 'Tạo mô hình 3D từ ảnh',
   '/thiet-ke-noi-ngoai-that': 'Thiết kế nội & ngoại thất',
-  '/xay-nha-tu-dat-nen': 'Lên ý tưởng xây nhà từ đất nền',
+  '/xay-nha-tu-dat-nen': 'Kiểu nhà bạn muốn xây',
   '/tao-anh-chain-dung': 'Tạo ảnh chân dung AI',
   '/mo-rong-khung-hinh': 'Mở rộng khung hình',
   '/hoan-doi-khuon-mat': 'Hoán đổi khuôn mặt',

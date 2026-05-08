@@ -188,8 +188,8 @@ export async function POST(req: NextRequest) {
     const sent = await sendSmtpMail({
       to: email,
       subject: 'Mã đăng nhập NanoAI',
-      text: `Mã OTP: ${otp}\n\nMã có hiệu lực trong ${ttlMinutes} phút.\n`,
-      html: `<p>Mã OTP: <b>${otp}</b></p><p>Mã có hiệu lực trong ${ttlMinutes} phút.</p>`,
+      text: `Mã OTP: ${otp}\n\nMã có hiệu lực trong ${ttlMinutes} phút.\n\nHoặc đăng nhập một chạm: ${magicUrl}\n`,
+      html: `<p>Mã OTP: <b>${otp}</b></p><p>Mã có hiệu lực trong ${ttlMinutes} phút.</p><p>Hoặc <a href="${magicUrl}">đăng nhập một chạm</a>.</p>`,
     })
 
     if (!sent.ok) {

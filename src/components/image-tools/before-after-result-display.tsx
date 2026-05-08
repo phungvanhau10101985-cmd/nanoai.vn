@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import {
   BEFORE_AFTER_VIEW_EVENT,
@@ -13,7 +13,7 @@ import {
 import { cn } from '@/lib/utils'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { Button } from '@/components/ui/button'
-import { GripVertical } from 'lucide-react'
+import { CompareSlider } from '@/components/ui/compare-slider'
 
 type WebUiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -52,7 +52,7 @@ function useWebUiLocale(): WebUiLocale {
 }
 
 function useBeforeAfterViewModeState(): readonly [BeforeAfterViewMode, (m: BeforeAfterViewMode) => void] {
-  const [mode, setMode] = useState<BeforeAfterViewMode>('split')
+  const [mode, setMode] = useState<BeforeAfterViewMode>(() => readBeforeAfterViewMode())
   useEffect(() => {
     setMode(readBeforeAfterViewMode())
     const onEvt = (e: Event) => {
@@ -68,130 +68,6 @@ function useBeforeAfterViewModeState(): readonly [BeforeAfterViewMode, (m: Befor
     setMode(m)
   }, [])
   return [mode, persist] as const
-}
-
-function clamp(n: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, n))
-}
-
-type ImageCompareSliderProps = {
-  beforeSrc: string
-  afterSrc: string
-  beforeAlt: string
-  afterAlt: string
-  className?: string
-  /** Optional label row above slider */
-  labelRow?: React.ReactNode
-}
-
-function ImageCompareSlider({ beforeSrc, afterSrc, beforeAlt, afterAlt, className, labelRow }: ImageCompareSliderProps) {
-  /** Nền đầy khung: ảnh gốc (before). Kéo sang phải mở rộng lớp clipped: ảnh mới (after) từ mép trái. */
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const dragLayerRef = useRef<HTMLDivElement>(null)
-  const [pct, setPct] = useState(50)
-  const dragging = useRef(false)
-
-  const setFromClientX = useCallback((clientX: number) => {
-    const el = wrapRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    if (r.width <= 0) return
-    const next = clamp(((clientX - r.left) / r.width) * 100, 1, 99)
-    setPct(next)
-  }, [])
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    e.preventDefault()
-    dragging.current = true
-    dragLayerRef.current?.setPointerCapture(e.pointerId)
-    setFromClientX(e.clientX)
-  }
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging.current) return
-    setFromClientX(e.clientX)
-  }
-
-  const onPointerUp = (e: React.PointerEvent) => {
-    dragging.current = false
-    try {
-      dragLayerRef.current?.releasePointerCapture(e.pointerId)
-    } catch {
-      /* released */
-    }
-  }
-
-  const onKeyDownRange = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const step = e.shiftKey ? 10 : 5
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault()
-      setPct((p) => clamp(p - step, 1, 99))
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault()
-      setPct((p) => clamp(p + step, 1, 99))
-    }
-  }
-
-  return (
-    <div className={cn('space-y-2 w-full', className)}>
-      {labelRow}
-      <div ref={wrapRef} className="relative w-full max-w-2xl mx-auto aspect-square rounded-lg border overflow-hidden bg-muted/30 touch-none select-none">
-        {/* Nền: ảnh gốc */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={beforeSrc}
-          alt={beforeAlt}
-          className="absolute inset-0 w-full h-full object-contain pointer-events-none bg-white/40"
-        />
-        {/* Lớp phủ trái: ảnh mới (kéo để “mở” kết quả) */}
-        <div
-          className="absolute inset-y-0 left-0 overflow-hidden z-[1]"
-          style={{ width: `${pct}%` }}
-          aria-hidden={false}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={afterSrc}
-            alt={afterAlt}
-            className="absolute top-0 left-0 h-full w-full object-contain bg-white/40"
-          />
-        </div>
-        <div
-          className="absolute top-0 bottom-0 w-0.5 bg-white shadow-md z-[3] pointer-events-none"
-          style={{ left: `${pct}%`, transform: 'translateX(-50%)' }}
-        />
-        <div className="absolute top-1/2 z-[4] pointer-events-none" style={{ left: `${pct}%`, transform: 'translate(-50%, -50%)' }}>
-          <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-black/50 text-white shadow">
-            <GripVertical className="h-5 w-5" />
-          </span>
-        </div>
-        <div
-          ref={dragLayerRef}
-          className="absolute inset-0 z-[5] cursor-ew-resize"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          role="presentation"
-        />
-      </div>
-      <div className="max-w-2xl mx-auto px-1">
-        <label className="sr-only" htmlFor="before-after-compare-range">
-          Compare
-        </label>
-        <input
-          id="before-after-compare-range"
-          type="range"
-          min={1}
-          max={99}
-          value={Math.round(pct)}
-          onChange={(e) => setPct(clamp(Number(e.target.value), 1, 99))}
-          onKeyDown={onKeyDownRange}
-          className="w-full accent-primary h-2 cursor-ew-resize"
-        />
-      </div>
-    </div>
-  )
 }
 
 export type BeforeAfterResultDisplayProps = {
@@ -223,8 +99,8 @@ export type BeforeAfterResultDisplayProps = {
 }
 
 /**
- * Trước/Sau theo cấu hình toàn cục (localStorage) hoặc so sánh kéo.
- * Mặc định «Cạnh nhau»; chế độ «Kéo» lưu và dùng chung mọi công cụ ảnh.
+ * Trước/Sau: chế độ «Kéo so sánh» dùng cùng `CompareSlider` như Thiết kế nội ngoại thất; «Cạnh nhau» tùy chọn.
+ * Mặc định mở chế độ kéo (lưu trong localStorage; có thể đổi tại /cai-dat-hien-thi-ket-qua-anh).
  */
 export function BeforeAfterResultDisplay({
   beforeSrc,
@@ -262,11 +138,11 @@ export function BeforeAfterResultDisplay({
       prefs: uiTr(loc, 'Đặt làm mặc định', 'Default display', '默认显示设置', '既定の表示', '기본 표시 설정'),
       compareHelpShort: uiTr(
         loc,
-        'Trái: ảnh mới · Phải: ảnh gốc (kéo thanh để thay đổi)',
-        'Left: new · Right: original — drag to adjust',
-        '左：新图 · 右：原图 — 拖动调节',
-        '左：新しい画像 · 右：元 — ドラッグで調整',
-        '왼쪽: 새 이미지 · 오른쪽: 원본 — 드래그하여 조절'
+        'Trái: ảnh gốc · Phải: kết quả — kéo thanh giữa để so sánh (giống Thiết kế nội ngoại thất).',
+        'Left: original · Right: result — drag the handle to compare (same as interior/exterior design).',
+        '左：原图 · 右：结果 — 拖动中间滑块对比（与室内设计工具相同）。',
+        '左：元 · 右：結果 — 中央をドラッグして比較（内装ツールと同じ）。',
+        '왼쪽: 원본 · 오른쪽: 결과 — 손잡이를 드래그해 비교(인테리어 도구와 동일).'
       ),
     }),
     [loc]
@@ -312,16 +188,11 @@ export function BeforeAfterResultDisplay({
       <div className={cn('space-y-3', className)}>
         {modeToggle}
         <p className="text-xs text-muted-foreground">{labels.help}</p>
-        <ImageCompareSlider
-          beforeSrc={beforeSrc}
-          afterSrc={afterSrc}
-          beforeAlt={beforeAlt}
-          afterAlt={afterAlt}
-          labelRow={
-            <div className="flex max-w-2xl mx-auto justify-between text-[10px] text-muted-foreground uppercase tracking-wide px-1">
-              <span>{labels.compareHelpShort}</span>
-            </div>
-          }
+        <p className="text-[11px] text-muted-foreground max-w-3xl mx-auto px-1">{labels.compareHelpShort}</p>
+        <CompareSlider
+          before={beforeSrc}
+          after={afterSrc}
+          className="max-h-[min(70vh,520px)] w-full max-w-3xl mx-auto"
         />
         {(beforeHeader || afterHeader) && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/60">
@@ -345,7 +216,7 @@ export function BeforeAfterResultDisplay({
     afterPreviewWrapperClassName
   )
 
-  // Standard: trái = gốc, phải = kết quả; chế độ kéo: nền gốc, trái mở rộng = kết quả.
+  // Chế độ cạnh nhau: trái = ảnh gốc, phải = kết quả (chế độ kéo dùng `CompareSlider`).
   return (
     <div className={cn('space-y-3', className)}>
       {modeToggle}

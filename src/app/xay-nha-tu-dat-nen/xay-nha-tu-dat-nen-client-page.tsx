@@ -149,8 +149,8 @@ export default function XayNhaTuDatNenClientPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">{uiLocale === 'vi' ? 'Nhà của bạn' : uiLocale === 'en' ? 'Your House' : uiLocale === 'zh' ? '你的房屋' : uiLocale === 'ja' ? 'あなたの家' : '내 집'}</h1>
-            <p className="text-muted-foreground text-sm mt-1">{uiLocale === 'vi' ? 'Tạo mặt tiền nhà 3D. Mỗi lần tạo = dự án mới được lưu.' : uiLocale === 'en' ? 'Create 3D house facade. Each generation is saved as a new project.' : uiLocale === 'zh' ? '生成 3D 房屋立面。每次生成都会保存为新项目。' : uiLocale === 'ja' ? '3Dの外観を作成。生成ごとに新規プロジェクトとして保存されます。' : '3D 주택 외관 생성. 생성할 때마다 새 프로젝트로 저장됩니다.'}</p>
+            <h1 className="text-2xl font-bold">{uiLocale === 'vi' ? 'Kiểu nhà bạn muốn xây' : uiLocale === 'en' ? 'Home style preview' : uiLocale === 'zh' ? '想建的房型' : uiLocale === 'ja' ? '建てたい家のイメージ' : '짓고 싶은 집 스타일'}</h1>
+            <p className="text-muted-foreground text-sm mt-1">{uiLocale === 'vi' ? 'Xem phối cảnh, thử phong cách nhà trên đất nền. Mỗi lần tạo = dự án mới được lưu.' : uiLocale === 'en' ? 'Preview facades and try styles on your plot. Each run saves as a new project.' : uiLocale === 'zh' ? '在地块上预览立面、尝试风格。每次生成都会保存为新项目。' : uiLocale === 'ja' ? '敷地で外観をプレビューし、スタイルを試せます。生成ごとに新規プロジェクトとして保存されます。' : '대지에서 외관을 미리 보고 스타일을 시험합니다. 실행할 때마다 새 프로젝트로 저장됩니다.'}</p>
           </div>
           <div className="flex gap-2">
             <Button onClick={handleCreateProject} className="bg-sky-600 hover:bg-sky-700">

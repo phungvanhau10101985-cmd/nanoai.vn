@@ -1,5 +1,4 @@
 import type { Database, Json } from '@/types/database.types'
-import type { GuestProfileGender } from '@/lib/db/messaging-guest-pg'
 import {
   fetchCustomerCareConversationByIdPg,
   fetchCustomerCareMessageByIdPg,
@@ -61,16 +60,6 @@ function uiLocaleFromConversationMetadata(metadata: Json | null | undefined): st
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
   const v = (metadata as { ui_locale?: unknown }).ui_locale
   return typeof v === 'string' && v.trim() ? v.trim().slice(0, 24) : null
-}
-
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms))
-}
-
-function typingDelayMs(settings: Database['public']['Tables']['messaging_partner_ai_settings']['Row']) {
-  const a = Math.min(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
-  const b = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
-  return a + Math.floor(Math.random() * Math.max(1, b - a + 1))
 }
 
 async function setPartnerAiJobStatus(

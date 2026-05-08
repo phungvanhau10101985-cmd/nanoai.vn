@@ -2625,16 +2625,6 @@ export function PartnerGuestChatClient({
     guestChatNearBottomRef.current = true
   }, [messages.length, shopTyping, shopTyping?.deadline])
 
-  const forceScrollGuestChatToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    forceGuestChatScrollToBottomRef.current = true
-    guestChatNearBottomRef.current = true
-    const scroll = () => {
-      scrollAnchorRef.current?.scrollIntoView({ block: 'end', behavior })
-    }
-    scroll()
-    window.requestAnimationFrame(scroll)
-  }, [])
-
   const scrollGuestChatToBottomOnce = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const scroll = () => {
       scrollAnchorRef.current?.scrollIntoView({ block: 'end', behavior })

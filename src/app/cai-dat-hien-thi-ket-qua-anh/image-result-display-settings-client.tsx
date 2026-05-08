@@ -13,7 +13,7 @@ import {
 type Props = { copy: Dictionary['imageResultDisplay'] }
 
 export function ImageResultDisplaySettingsClient({ copy }: Props) {
-  const [mode, setModeState] = useState<BeforeAfterViewMode>('split')
+  const [mode, setModeState] = useState<BeforeAfterViewMode>(() => readBeforeAfterViewMode())
 
   useEffect(() => {
     setModeState(readBeforeAfterViewMode())

@@ -6,14 +6,14 @@ export type BeforeAfterViewMode = 'split' | 'compare'
 const VALID: BeforeAfterViewMode[] = ['split', 'compare']
 
 export function readBeforeAfterViewMode(): BeforeAfterViewMode {
-  if (typeof window === 'undefined') return 'split'
+  if (typeof window === 'undefined') return 'compare'
   try {
     const raw = window.localStorage.getItem(BEFORE_AFTER_VIEW_STORAGE_KEY)
     if (raw === 'compare' || raw === 'split') return raw
   } catch {
     /* ignore */
   }
-  return 'split'
+  return 'compare'
 }
 
 export function writeBeforeAfterViewMode(mode: BeforeAfterViewMode): void {

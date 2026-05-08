@@ -240,8 +240,8 @@
   {
     "order": 35,
     "linkPath": "/xay-nha-tu-dat-nen",
-    "title": "Nhà của bạn",
-    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Nhà của bạn\" của NanoAI.\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nNhấn mạnh chiều sâu không gian và chi tiết vật liệu, cảm giác ảnh chụp thật chuyên nghiệp.\nMô tả tính năng: Nhà của bạn — tính năng AI của NanoAI (3D & Chuyên dụng).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
+    "title": "Kiểu nhà bạn muốn xây",
+    "prompt": "Tạo ảnh quảng cáo catalog cho tính năng \"Kiểu nhà bạn muốn xây\" của NanoAI (xem phối cảnh, thử phong cách nhà trên đất nền).\nTỷ lệ ảnh bắt buộc 1:1 (chuẩn ảnh danh mục sản phẩm).\nPhong cách bắt buộc: Ảnh thật photorealistic, commercial ad quality, ánh sáng studio mềm, màu tự nhiên, bố cục sạch hiện đại.\nNhấn mạnh chiều sâu không gian và chi tiết vật liệu, cảm giác ảnh chụp thật chuyên nghiệp.\nMô tả tính năng: Kiểu nhà bạn muốn xây — tính năng AI của NanoAI (3D & Chuyên dụng).\nBổ sung khung thiết bị (điện thoại/laptop) tinh gọn để gợi ý tính năng AI web/app NanoAI.\nƯu tiên không chèn chữ overlay để tránh lỗi chữ khi hiển thị catalog.\nKhông watermark, không logo thương hiệu khác, không chữ rác, không CGI giả, không méo hình, không dị dạng cơ thể.\nẢnh phải trực quan đúng tính năng, tạo cảm giác tin cậy và dễ hiểu ngay khi nhìn thumbnail catalog.",
     "imageUrl": "https://nanoai.b-cdn.net/catalog/feature-ads/xay-nha-tu-dat-nen_1777114547732.png"
   },
   {

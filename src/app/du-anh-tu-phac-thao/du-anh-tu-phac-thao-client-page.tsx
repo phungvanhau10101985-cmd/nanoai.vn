@@ -13,6 +13,7 @@ import { Upload, Sparkles, RefreshCw, X, PencilLine } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
+import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { preloadImageUrl } from '@/lib/preload-image-url'
@@ -403,30 +404,62 @@ export default function DuAnhTuPhacThaoClientPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div
-                className="relative mx-auto w-full max-w-4xl overflow-hidden rounded-lg border bg-muted/30"
-                style={{ aspectRatio: resultAspectCss }}
-              >
-                <ImagePreview
-                  src={resultUrl}
-                  alt={tr('Ảnh đã dựng', 'Rebuilt image', '生成图', '生成画像', '완성 이미지')}
-                  asImg
-                  printReadyAspectRatio={aspectRatio}
-                  className="absolute inset-0 h-full w-full rounded-md"
+              {sketch.preview ? (
+                <BeforeAfterResultDisplay
+                  beforeSrc={sketch.preview}
+                  afterSrc={resultUrl}
+                  beforeAlt={tr('Phác thảo', 'Sketch', '草图', 'スケッチ', '스케치')}
+                  afterAlt={tr('Ảnh đã dựng', 'Rebuilt image', '生成图', '生成画像', '완성 이미지')}
+                  afterPrintReadyAspectRatio={aspectRatio}
+                  beforeHeader={<h3 className="text-sm font-medium text-muted-foreground">{tr('Phác thảo', 'Sketch', '草图', 'スケッチ', '스케치')}</h3>}
+                  afterHeader={
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">{tr('Ảnh đã dựng', 'Rebuilt image', '生成图', '生成画像', '완성 이미지')}</h3>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" className="gap-2" onClick={handleReset}>
+                          <RefreshCw className="h-4 w-4" />
+                          {tr('Tạo mới', 'Start over', '重新开始', '最初から', '다시 하기')}
+                        </Button>
+                        <DownloadImageButton
+                          imageUrl={resultUrl}
+                          filename="sketch-rebuild-result"
+                          size="sm"
+                          className="bg-violet-600 hover:bg-violet-700 text-white border-0"
+                          printReady
+                          printReadyAspectRatio={aspectRatio}
+                        />
+                      </div>
+                    </div>
+                  }
                 />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <DownloadImageButton
-                  imageUrl={resultUrl}
-                  filename="sketch-rebuild-result"
-                  size="sm"
-                  className="bg-violet-600 hover:bg-violet-700 text-white border-0"
-                />
-                <Button type="button" variant="outline" className="gap-2" onClick={handleReset}>
-                  <RefreshCw className="h-4 w-4" />
-                  {tr('Tạo mới', 'Start over', '重新开始', '最初から', '다시 하기')}
-                </Button>
-              </div>
+              ) : (
+                <>
+                  <div
+                    className="relative mx-auto w-full max-w-4xl overflow-hidden rounded-lg border bg-muted/30"
+                    style={{ aspectRatio: resultAspectCss }}
+                  >
+                    <ImagePreview
+                      src={resultUrl}
+                      alt={tr('Ảnh đã dựng', 'Rebuilt image', '生成图', '生成画像', '완성 이미지')}
+                      asImg
+                      printReadyAspectRatio={aspectRatio}
+                      className="absolute inset-0 h-full w-full rounded-md"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <DownloadImageButton
+                      imageUrl={resultUrl}
+                      filename="sketch-rebuild-result"
+                      size="sm"
+                      className="bg-violet-600 hover:bg-violet-700 text-white border-0"
+                    />
+                    <Button type="button" variant="outline" className="gap-2" onClick={handleReset}>
+                      <RefreshCw className="h-4 w-4" />
+                      {tr('Tạo mới', 'Start over', '重新开始', '最初から', '다시 하기')}
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )}

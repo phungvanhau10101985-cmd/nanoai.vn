@@ -3207,7 +3207,7 @@ const VI_DICTIONARY: Dictionary = {
     create_video_from_image: 'Tạo video AI (Veo)',
     flow_music_veo_video: 'Video âm nhạc AI (Flash + Veo)',
     interior_exterior: 'Nội ngoại thất',
-    my_house: 'Nhà của bạn',
+    my_house: 'Kiểu nhà bạn muốn xây',
     portrait_photo: 'Ảnh chân dung',
     expand_frame: 'Mở rộng khung hình',
     face_swap: 'Hoán đổi khuôn mặt',
@@ -3236,11 +3236,11 @@ const VI_DICTIONARY: Dictionary = {
   imageResultDisplay: {
     pageTitle: 'Cách xem ảnh trước & sau',
     pageIntro:
-      'Chọn kiểu hiển thị mặc định cho mọi công cụ chỉnh ảnh (thử đồ, phục dựng, làm nét…). Bạn vẫn có thể đổi nhanh ngay trên từng trang kết quả.',
-    modeSplitTitle: 'Hai ảnh cạnh nhau (mặc định quen thuộc)',
+      'Mặc định: kéo so sánh một khung (giống Thiết kế nội ngoại thất). Có thể chọn hai ảnh cạnh nhau. Thiết lập áp cho mọi công cụ chỉnh ảnh; có thể đổi tạm ngay trên từng trang kết quả.',
+    modeSplitTitle: 'Hai ảnh cạnh nhau',
     modeSplitDesc: 'Ảnh gốc và ảnh sau xử lý hiển thị riêng, bấm ảnh để xem phóng to như trước.',
-    modeCompareTitle: 'Kéo để so sánh',
-    modeCompareDesc: 'Một khung: kéo thanh hoặc vuốt để che dần ảnh gốc và xem ảnh mới.',
+    modeCompareTitle: 'Kéo so sánh (mặc định)',
+    modeCompareDesc: 'Một khung: kéo thanh giữa — trái ảnh gốc, phải kết quả; có fullscreen như các công cụ ảnh khác đồng bộ kiểu này.',
     persistNote: 'Lưu trong trình duyệt của bạn (thiết bị này).',
   },
   taskHub: {
@@ -5231,7 +5231,7 @@ const EN_DICTIONARY: Dictionary = {
     create_video_from_image: 'AI video (Veo)',
     flow_music_veo_video: 'AI music video (Flash + Veo)',
     interior_exterior: 'Interior & Exterior',
-    my_house: 'Your House',
+    my_house: 'Home style preview',
     portrait_photo: 'Portrait Photo',
     expand_frame: 'Expand Frame',
     face_swap: 'Face Swap',
@@ -5260,11 +5260,12 @@ const EN_DICTIONARY: Dictionary = {
   imageResultDisplay: {
     pageTitle: 'Before & after display',
     pageIntro:
-      'Choose the default layout for image tools (try-on, restoration, sharpen, and more). You can still switch per result on each page.',
-    modeSplitTitle: 'Side by side (classic)',
+      'Default: drag-to-compare in one frame (same interaction as interior/exterior design). Or choose side-by-side. Applies to all image tools; you can still switch per result page.',
+    modeSplitTitle: 'Side by side',
     modeSplitDesc: 'Original and output side by side — tap to enlarge, same as before.',
-    modeCompareTitle: 'Drag to compare',
-    modeCompareDesc: 'One frame: drag or swipe the divider to hide the original and reveal the new image.',
+    modeCompareTitle: 'Drag to compare (default)',
+    modeCompareDesc:
+      'One frame with a center handle — left: original, right: result; includes fullscreen like the aligned image tools.',
     persistNote: 'Saved in this browser on this device.',
   },
   taskHub: {
@@ -7376,7 +7377,7 @@ const ZH_DICTIONARY: Dictionary = {
     create_video_from_image: 'AI 视频（Veo）',
     flow_music_veo_video: 'AI 音乐视频（Flash+Veo）',
     interior_exterior: '室内与室外',
-    my_house: '我的房屋',
+    my_house: '想建的房型',
     portrait_photo: '人像照片',
     expand_frame: '扩展画幅',
     face_swap: '换脸',
@@ -7404,11 +7405,12 @@ const ZH_DICTIONARY: Dictionary = {
   },
   imageResultDisplay: {
     pageTitle: '前后对比显示方式',
-    pageIntro: '为各图片工具（试衣、修复、锐化等）选择默认布局。您仍可在每个结果页快速切换。',
-    modeSplitTitle: '并排（经典）',
+    pageIntro:
+      '默认：单框拖动对比（与室内设计工具相同的交互）。也可选择并排。适用于各图片工具；每个结果页仍可临时切换。',
+    modeSplitTitle: '并排',
     modeSplitDesc: '原图与处理后图片分列显示，点击图片可放大查看，与之前一致。',
-    modeCompareTitle: '拖动对比',
-    modeCompareDesc: '单框显示：拖动分界线逐步遮盖原图并显示新图。',
+    modeCompareTitle: '拖动对比（默认）',
+    modeCompareDesc: '单框中间拖移：左为原图、右为结果；支持全屏，与其他已对齐的工具一致。',
     persistNote: '保存在本机浏览器中。',
   },
   taskHub: {
@@ -9194,7 +9196,7 @@ const JA_DICTIONARY: Dictionary = {
     create_video_from_image: 'AI動画（Veo）',
     flow_music_veo_video: 'AIミュージックビデオ（Flash+Veo）',
     interior_exterior: '内装・外装',
-    my_house: 'あなたの家',
+    my_house: '建てたい家のイメージ',
     portrait_photo: 'ポートレート写真',
     expand_frame: 'フレーム拡張',
     face_swap: '顔交換',
@@ -9223,12 +9225,12 @@ const JA_DICTIONARY: Dictionary = {
   imageResultDisplay: {
     pageTitle: '前後の見え方',
     pageIntro:
-      '画像ツール（試着・復元・シャープなど）の既定レイアウトを選びます。各結果画面でも切り替え可能です。',
-    modeSplitTitle: '並べて表示（従来どおり）',
+      '既定は1つの枠でドラッグ比較（内装・外装デザインと同じ操作）。並べて表示も選べます。画像ツール全体に適用し、各結果画面でも切り替えできます。',
+    modeSplitTitle: '並べて表示',
     modeSplitDesc: '元画像と結果を左右に表示。タップで拡大も従来どおりです。',
-    modeCompareTitle: 'ドラッグで比較',
+    modeCompareTitle: 'ドラッグで比較（既定）',
     modeCompareDesc:
-      '1つの枠内で境界を動かし、元画像の上に処理後の画像を重ねて見え隠きします。',
+      '1つの枠で中央ハンドルを動かします。左が元画像、右が結果。フル画面表示にも対応（他ツールと同一の体感）。',
     persistNote: 'このブラウザ（端末）に保存されます。',
   },
   taskHub: {
@@ -11196,7 +11198,7 @@ const KO_DICTIONARY: Dictionary = {
     create_video_from_image: 'AI 비디오 (Veo)',
     flow_music_veo_video: 'AI 뮤직비디오 (Flash+Veo)',
     interior_exterior: '인테리어·익스테리어',
-    my_house: '내 집',
+    my_house: '짓고 싶은 집 스타일',
     portrait_photo: '인물 사진',
     expand_frame: '프레임 확장',
     face_swap: '얼굴 교체',
@@ -11225,11 +11227,11 @@ const KO_DICTIONARY: Dictionary = {
   imageResultDisplay: {
     pageTitle: '전·후 이미지 표시 방식',
     pageIntro:
-      '이미지 도구(피팅, 복원, 선명화 등)의 기본 레이아웃을 선택합니다. 각 결과 페이지에서도 바로 바꿀 수 있습니다.',
-    modeSplitTitle: '나란히 (기존 방식)',
+      '기본: 한 프레임에서 드래그 비교(인테리어·외관 디자인과 같은 방식). 나란히 보기도 선택할 수 있습니다. 이미지 도구 전체에 적용되며 결과 페이지에서도 바꿀 수 있습니다.',
+    modeSplitTitle: '나란히',
     modeSplitDesc: '원본과 결과를 나란히 표시 — 이미지를 눌러 확대하는 방식은 동일합니다.',
-    modeCompareTitle: '드래그로 비교',
-    modeCompareDesc: '한 프레임 안에서 구분선을 움직여 원본 위에 결과를 덮어 비교합니다.',
+    modeCompareTitle: '드래그로 비교 (기본)',
+    modeCompareDesc: '한 프레임 중앙 핸들: 왼쪽 원본 · 오른쪽 결과. 다른 정렬 도구처럼 전체 화면도 지원합니다.',
     persistNote: '이 브라우저(기기)에 저장됩니다.',
   },
   taskHub: {

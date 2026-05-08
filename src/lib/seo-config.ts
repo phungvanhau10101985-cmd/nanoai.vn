@@ -75,6 +75,12 @@ export const SEO_PAGES: Record<string, PageSEOConfig> = {
     path: '/admin/api-stats',
     noIndex: true,
   },
+  '/admin/credit-deposit-stats': {
+    title: 'Thống kê nạp credit',
+    description: 'Lịch sử và tổng hợp giao dịch nạp credit.',
+    path: '/admin/credit-deposit-stats',
+    noIndex: true,
+  },
   '/test': {
     title: 'Trang test',
     description: 'Trang kiểm thử.',

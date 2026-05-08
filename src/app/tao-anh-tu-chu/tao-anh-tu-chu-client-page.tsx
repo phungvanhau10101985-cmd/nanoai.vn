@@ -13,6 +13,7 @@ import { Upload, Sparkles, RefreshCw, X } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
+import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { preloadImageUrl } from '@/lib/preload-image-url'
@@ -431,27 +432,67 @@ export default function TaoAnhTuChuClientPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <h3 className="text-sm font-medium text-muted-foreground">{tr('Xem trước', 'Preview', '预览', 'プレビュー', '미리보기')}</h3>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={handleReset}>
-                    <RefreshCw className="mr-2 h-3 w-3" />
-                    {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
-                  </Button>
-                  <DownloadImageButton
-                    imageUrl={resultUrl}
-                    filename="text-to-image-result"
-                    size="sm"
-                    className="bg-violet-600 hover:bg-violet-700 text-white border-0"
-                  />
-                </div>
-              </div>
-              <div
-                className="max-w-2xl mx-auto rounded-lg border overflow-hidden bg-white p-4 sm:p-6"
-                style={{ aspectRatio: aspectRatio.replace(':', '/') }}
-              >
-                <ImagePreview src={resultUrl} alt="" className="w-full h-full object-contain" />
-              </div>
+              {reference.preview ? (
+                <BeforeAfterResultDisplay
+                  beforeSrc={reference.preview}
+                  afterSrc={resultUrl}
+                  beforeAlt={tr('Ảnh tham khảo', 'Reference image', '参考图', '参考画像', '참고 이미지')}
+                  afterAlt={tr('Ảnh đã tạo', 'Generated image', '生成图', '生成画像', '생성 이미지')}
+                  afterPrintReadyAspectRatio={aspectRatio}
+                  beforeHeader={
+                    <h3 className="text-sm font-medium text-muted-foreground">
+                      {tr('Ảnh tham khảo', 'Reference image', '参考图', '参考画像', '참고 이미지')}
+                    </h3>
+                  }
+                  afterHeader={
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">
+                        {tr('Ảnh đã tạo', 'Generated image', '生成图', '生成画像', '생성 이미지')}
+                      </h3>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={handleReset}>
+                          <RefreshCw className="mr-2 h-3 w-3" />
+                          {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
+                        </Button>
+                        <DownloadImageButton
+                          imageUrl={resultUrl}
+                          filename="text-to-image-result"
+                          size="sm"
+                          className="bg-violet-600 hover:bg-violet-700 text-white border-0"
+                          printReady
+                          printReadyAspectRatio={aspectRatio}
+                        />
+                      </div>
+                    </div>
+                  }
+                  splitAfterPaneStyle={{ aspectRatio: aspectRatio.replace(':', '/') }}
+                  splitImagePreviewClassName="w-full h-full object-contain"
+                />
+              ) : (
+                <>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h3 className="text-sm font-medium text-muted-foreground">{tr('Xem trước', 'Preview', '预览', 'プレビュー', '미리보기')}</h3>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={handleReset}>
+                        <RefreshCw className="mr-2 h-3 w-3" />
+                        {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
+                      </Button>
+                      <DownloadImageButton
+                        imageUrl={resultUrl}
+                        filename="text-to-image-result"
+                        size="sm"
+                        className="bg-violet-600 hover:bg-violet-700 text-white border-0"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    className="max-w-2xl mx-auto rounded-lg border overflow-hidden bg-white p-4 sm:p-6"
+                    style={{ aspectRatio: aspectRatio.replace(':', '/') }}
+                  >
+                    <ImagePreview src={resultUrl} alt="" className="w-full h-full object-contain" />
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )}

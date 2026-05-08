@@ -54,8 +54,9 @@ export function precedingPairHasFashionProductAdvice(
 export async function resolveChatOrderFollowupCards(
   partnerId: string,
   conversationId: string,
-  _pair: Array<{ direction: string; body: string; raw_payload: Json | null }>
+  pair: Array<{ direction: string; body: string; raw_payload: Json | null }>
 ): Promise<PartnerAiProductCard[]> {
+  void pair
   return buildPurchasePickListCardsFromConversation(partnerId, conversationId)
 }
 

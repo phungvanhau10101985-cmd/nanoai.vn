@@ -2,13 +2,18 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { LayoutDashboard, Sparkles, Wallet, Home } from 'lucide-react'
+import { LayoutDashboard, LayoutGrid, Sparkles, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 
 const MOBILE_BAR_ITEMS = [
-  { href: '/', label: (tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string) => tr('Trang chủ', 'Home', '首页', 'ホーム', '홈'), icon: Home },
+  {
+    href: '/',
+    label: (tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string) =>
+      tr('Danh mục tính năng', 'Features', '功能目录', '機能一覧', '기능 목록'),
+    icon: LayoutGrid,
+  },
   { href: '/dashboard', label: (tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string) => tr('Bảng điều khiển', 'Dashboard', '仪表盘', 'ダッシュボード', '대시보드'), icon: LayoutDashboard },
   { href: '/thu-do-online', label: (tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string) => tr('Thử đồ', 'Try-on', '试衣', '試着', '가상피팅'), icon: Sparkles },
   { href: '/wallet', label: (tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string) => tr('Ví', 'Wallet', '钱包', 'ウォレット', '지갑'), icon: Wallet },
@@ -64,6 +69,7 @@ export function MobileBottomBar() {
             <Link
               key={item.href}
               href={item.href}
+              title={item.href === '/' ? tr('Danh mục tính năng NanoAI', 'NanoAI feature catalog', 'NanoAI 功能目录', 'NanoAI 機能一覧', 'NanoAI 기능 목록') : undefined}
               className={cn(
                 'mx-1 flex min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors',
                 isActive

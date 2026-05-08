@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   ShieldCheck,
   Landmark,
+  Wallet,
   MessageCircle,
   Code2,
   KeyRound,
@@ -43,6 +44,24 @@ const ADMIN_LINKS: AdminLink[] = [
       ko: '은행 계좌, 은행 코드, SePay QR — 크레딧 충전 시 사용.',
     },
     icon: Landmark,
+  },
+  {
+    href: '/admin/credit-deposit-stats',
+    title: {
+      vi: 'Thống kê nạp credit',
+      en: 'Credit top-up statistics',
+      zh: '充值积分统计',
+      ja: 'クレジットチャージ統計',
+      ko: '크레딧 충전 통계',
+    },
+    description: {
+      vi: 'Lịch sử và tổng hợp khách nạp tiền — giao dịch đã hoàn thành (SePay / QR).',
+      en: 'History and aggregates for completed credit top-ups (SePay / QR).',
+      zh: '已完成充值的明细与汇总（SePay / 二维码）。',
+      ja: '完了済みチャージの履歴・集計（SePay / QR）。',
+      ko: '완료된 크레딧 충전 내역·집계(SePay / QR).',
+    },
+    icon: Wallet,
   },
   {
     href: '/admin/customer-care',
