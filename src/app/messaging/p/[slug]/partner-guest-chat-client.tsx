@@ -2635,6 +2635,15 @@ export function PartnerGuestChatClient({
     window.requestAnimationFrame(scroll)
   }, [])
 
+  const scrollGuestChatToBottomOnce = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const scroll = () => {
+      scrollAnchorRef.current?.scrollIntoView({ block: 'end', behavior })
+    }
+    scroll()
+    window.requestAnimationFrame(scroll)
+    window.setTimeout(scroll, 220)
+  }, [])
+
   const setTryOnUserFromFile = async (file: File | null) => {
     if (!file) {
       setTryOnUserFile(null)
@@ -3281,11 +3290,13 @@ export function PartnerGuestChatClient({
       const data = event.data
       if (!data || typeof data !== 'object') return
       if ((data as { source?: unknown }).source !== NANOAI_WIDGET_MSG_SOURCE) return
-      if ((data as { type?: unknown }).type === 'OPEN_CART') setCartOpen(true)
+      const type = (data as { type?: unknown }).type
+      if (type === 'OPEN_CART') setCartOpen(true)
+      if (type === 'SCROLL_CHAT_BOTTOM') scrollGuestChatToBottomOnce('smooth')
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [])
+  }, [scrollGuestChatToBottomOnce])
 
   const submitCartCheckout = useCallback(async () => {
     if (cartItems.length === 0) return
@@ -3446,8 +3457,8 @@ export function PartnerGuestChatClient({
         pageContext.inventoryId = invId
       }
       const baselineLatestOutbound = latestOutboundCursor(messages)
+      scrollGuestChatToBottomOnce('smooth')
       setSending(true)
-      forceScrollGuestChatToBottom('smooth')
       try {
         const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}`, {
           method: 'POST',
@@ -3494,8 +3505,7 @@ export function PartnerGuestChatClient({
             baselineLatestOutbound,
           })
         }
-        forceGuestChatScrollToBottomRef.current = true
-        forceScrollGuestChatToBottom('smooth')
+        scrollGuestChatToBottomOnce('smooth')
         setSending(false)
         void (async () => {
           if (productUrl && productKey) {
@@ -3520,6 +3530,7 @@ export function PartnerGuestChatClient({
           }
           try {
             await load()
+            scrollGuestChatToBottomOnce('smooth')
           } catch {
             // Polling sẽ thử lại; không để tác vụ phụ giữ trạng thái gửi.
           }
@@ -4525,8 +4536,8 @@ export function PartnerGuestChatClient({
             baselineLatestOutbound,
           })
         }
-        forceGuestChatScrollToBottomRef.current = true
         await load()
+        scrollGuestChatToBottomOnce('smooth')
         return true
       } catch {
         toast({ title: t.sendError, variant: 'destructive' })
@@ -4541,6 +4552,7 @@ export function PartnerGuestChatClient({
       authHeaders,
       captureGuestSessionFromResponse,
       clearAttachment,
+      scrollGuestChatToBottomOnce,
       imageStoragePaths,
       load,
       messages,
@@ -7313,11 +7325,11 @@ export function PartnerGuestChatClient({
                           variant="secondary"
                           className="h-8 w-full px-1 text-[11px]"
                           disabled={sending}
-                          onClick={() =>
-                            void submitProductCardPick(row.card, row.sourceMessageId).then(() =>
-                              setRecentProductsOpen(false)
-                            )
-                          }
+                          onClick={() => {
+                            setRecentProductsOpen(false)
+                            scrollGuestChatToBottomOnce('smooth')
+                            void submitProductCardPick(row.card, row.sourceMessageId)
+                          }}
                         >
                           {t.visionProductLink}
                         </Button>

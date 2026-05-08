@@ -59,6 +59,7 @@ export type ToolKey =
   | 'try_on_3'
   | 'try_on_4'
   | 'try_on_5'
+  | 'image_result_display'
   | 'admin'
 
 export type Dictionary = {
@@ -1147,6 +1148,16 @@ export type Dictionary = {
     back: string
     relatedTitle: string
     popularTitle: string
+  }
+  /** Trang /cai-dat-hien-thi-ket-qua-anh — cách hiển thị Trước/Sau */
+  imageResultDisplay: {
+    pageTitle: string
+    pageIntro: string
+    modeSplitTitle: string
+    modeSplitDesc: string
+    modeCompareTitle: string
+    modeCompareDesc: string
+    persistNote: string
   }
   /** Trang /dashboard/tasks — tác vụ & hàng đợi thống nhất */
   taskHub: {
@@ -3214,12 +3225,23 @@ const VI_DICTIONARY: Dictionary = {
     try_on_3: 'Thử đồ 3 người',
     try_on_4: 'Thử đồ 4 người',
     try_on_5: 'Thử đồ 5 người',
+    image_result_display: 'Hiển thị kết quả ảnh',
     admin: 'Quản trị',
   },
   creationSidebar: {
     back: 'Quay lại',
     relatedTitle: 'Liên quan',
     popularTitle: 'Nhiều người dùng',
+  },
+  imageResultDisplay: {
+    pageTitle: 'Cách xem ảnh trước & sau',
+    pageIntro:
+      'Chọn kiểu hiển thị mặc định cho mọi công cụ chỉnh ảnh (thử đồ, phục dựng, làm nét…). Bạn vẫn có thể đổi nhanh ngay trên từng trang kết quả.',
+    modeSplitTitle: 'Hai ảnh cạnh nhau (mặc định quen thuộc)',
+    modeSplitDesc: 'Ảnh gốc và ảnh sau xử lý hiển thị riêng, bấm ảnh để xem phóng to như trước.',
+    modeCompareTitle: 'Kéo để so sánh',
+    modeCompareDesc: 'Một khung: kéo thanh hoặc vuốt để che dần ảnh gốc và xem ảnh mới.',
+    persistNote: 'Lưu trong trình duyệt của bạn (thiết bị này).',
   },
   taskHub: {
     pageTitle: 'Tác vụ & hàng đợi',
@@ -5227,12 +5249,23 @@ const EN_DICTIONARY: Dictionary = {
     try_on_3: 'Try-on 3 People',
     try_on_4: 'Try-on 4 People',
     try_on_5: 'Try-on 5 People',
+    image_result_display: 'Image result display',
     admin: 'Admin',
   },
   creationSidebar: {
     back: 'Back',
     relatedTitle: 'Related',
     popularTitle: 'Popular tools',
+  },
+  imageResultDisplay: {
+    pageTitle: 'Before & after display',
+    pageIntro:
+      'Choose the default layout for image tools (try-on, restoration, sharpen, and more). You can still switch per result on each page.',
+    modeSplitTitle: 'Side by side (classic)',
+    modeSplitDesc: 'Original and output side by side — tap to enlarge, same as before.',
+    modeCompareTitle: 'Drag to compare',
+    modeCompareDesc: 'One frame: drag or swipe the divider to hide the original and reveal the new image.',
+    persistNote: 'Saved in this browser on this device.',
   },
   taskHub: {
     pageTitle: 'Tasks & queue',
@@ -7361,12 +7394,22 @@ const ZH_DICTIONARY: Dictionary = {
     try_on_3: '3 人试衣',
     try_on_4: '4 人试衣',
     try_on_5: '5 人试衣',
+    image_result_display: '图片结果显示方式',
     admin: '管理',
   },
   creationSidebar: {
     back: '返回',
     relatedTitle: '相关',
     popularTitle: '常用工具',
+  },
+  imageResultDisplay: {
+    pageTitle: '前后对比显示方式',
+    pageIntro: '为各图片工具（试衣、修复、锐化等）选择默认布局。您仍可在每个结果页快速切换。',
+    modeSplitTitle: '并排（经典）',
+    modeSplitDesc: '原图与处理后图片分列显示，点击图片可放大查看，与之前一致。',
+    modeCompareTitle: '拖动对比',
+    modeCompareDesc: '单框显示：拖动分界线逐步遮盖原图并显示新图。',
+    persistNote: '保存在本机浏览器中。',
   },
   taskHub: {
     pageTitle: '任务与队列',
@@ -9169,12 +9212,24 @@ const JA_DICTIONARY: Dictionary = {
     try_on_3: '3人試着',
     try_on_4: '4人試着',
     try_on_5: '5人試着',
+    image_result_display: '画像結果の表示',
     admin: '管理',
   },
   creationSidebar: {
     back: '戻る',
     relatedTitle: '関連',
     popularTitle: 'よく使うツール',
+  },
+  imageResultDisplay: {
+    pageTitle: '前後の見え方',
+    pageIntro:
+      '画像ツール（試着・復元・シャープなど）の既定レイアウトを選びます。各結果画面でも切り替え可能です。',
+    modeSplitTitle: '並べて表示（従来どおり）',
+    modeSplitDesc: '元画像と結果を左右に表示。タップで拡大も従来どおりです。',
+    modeCompareTitle: 'ドラッグで比較',
+    modeCompareDesc:
+      '1つの枠内で境界を動かし、元画像の上に処理後の画像を重ねて見え隠きします。',
+    persistNote: 'このブラウザ（端末）に保存されます。',
   },
   taskHub: {
     pageTitle: 'タスクとキュー',
@@ -11159,12 +11214,23 @@ const KO_DICTIONARY: Dictionary = {
     try_on_3: '3인 피팅',
     try_on_4: '4인 피팅',
     try_on_5: '5인 피팅',
+    image_result_display: '이미지 결과 표시',
     admin: '관리',
   },
   creationSidebar: {
     back: '돌아가기',
     relatedTitle: '관련',
     popularTitle: '자주 쓰는 도구',
+  },
+  imageResultDisplay: {
+    pageTitle: '전·후 이미지 표시 방식',
+    pageIntro:
+      '이미지 도구(피팅, 복원, 선명화 등)의 기본 레이아웃을 선택합니다. 각 결과 페이지에서도 바로 바꿀 수 있습니다.',
+    modeSplitTitle: '나란히 (기존 방식)',
+    modeSplitDesc: '원본과 결과를 나란히 표시 — 이미지를 눌러 확대하는 방식은 동일합니다.',
+    modeCompareTitle: '드래그로 비교',
+    modeCompareDesc: '한 프레임 안에서 구분선을 움직여 원본 위에 결과를 덮어 비교합니다.',
+    persistNote: '이 브라우저(기기)에 저장됩니다.',
   },
   taskHub: {
     pageTitle: '작업 및 대기열',

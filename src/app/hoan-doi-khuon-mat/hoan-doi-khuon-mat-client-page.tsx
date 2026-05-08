@@ -15,6 +15,7 @@ import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
+import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { preloadImageUrl } from '@/lib/preload-image-url'
 
@@ -344,34 +345,36 @@ export default function HoanDoiKhuonMatClientPage() {
               <CardTitle>{t.resultTitle}</CardTitle>
               <CardDescription>{t.resultDesc}</CardDescription>
             </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">{t.original}</h3>
-                {targetImage.preview && (
-                  <div className="aspect-square max-w-[400px] max-h-[400px] rounded-lg border overflow-hidden">
-                    <ImagePreview src={targetImage.preview} alt={t.original} className="w-full h-full object-cover" />
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-muted-foreground">{t.afterSwap}</h3>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={handleReset}><RefreshCw className="mr-2 h-3 w-3" /> {t.retry}</Button>
-                    <DownloadImageButton
-                    imageUrl={resultUrl}
-                    filename="faceswap-result"
-                    size="sm"
-                    className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white border-0"
-                    printReady
-                    printReadyInferFromImage
-                  />
-                  </div>
-                </div>
-                <div className="aspect-square max-w-[400px] max-h-[400px] rounded-lg border overflow-hidden">
-                  <ImagePreview src={resultUrl} alt={t.afterSwap} className="w-full h-full object-cover" />
-                </div>
-              </div>
+            <CardContent className="space-y-3">
+              {targetImage.preview ? (
+                <BeforeAfterResultDisplay
+                  beforeSrc={targetImage.preview}
+                  afterSrc={resultUrl}
+                  beforeAlt={t.original}
+                  afterAlt={t.afterSwap}
+                  splitBeforePaneClassName="aspect-square max-w-[400px] max-h-[400px] mx-auto"
+                  splitAfterPaneClassName="aspect-square max-w-[400px] max-h-[400px] mx-auto"
+                  beforeHeader={<h3 className="text-sm font-medium text-muted-foreground">{t.original}</h3>}
+                  afterHeader={
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">{t.afterSwap}</h3>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={handleReset}>
+                          <RefreshCw className="mr-2 h-3 w-3" /> {t.retry}
+                        </Button>
+                        <DownloadImageButton
+                          imageUrl={resultUrl}
+                          filename="faceswap-result"
+                          size="sm"
+                          className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white border-0"
+                          printReady
+                          printReadyInferFromImage
+                        />
+                      </div>
+                    </div>
+                  }
+                />
+              ) : null}
             </CardContent>
           </Card>
         )}

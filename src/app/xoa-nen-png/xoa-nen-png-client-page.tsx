@@ -14,6 +14,7 @@ import { Upload, Sparkles, RefreshCw, Link2 } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { ImagePreview } from '@/components/ui/image-preview'
+import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { DownloadImageButton } from '@/components/download-image-button'
 
@@ -441,36 +442,36 @@ export default function XoaNenPngClientPage() {
               <CardTitle>{t.resultTitle}</CardTitle>
               <CardDescription>{t.resultDesc}</CardDescription>
             </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">{t.before}</h3>
-                {image.preview && (
-                  <div className="aspect-square rounded-lg border overflow-hidden">
-                    <ImagePreview src={image.preview} alt={t.before} className="w-full h-full object-cover" />
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-muted-foreground">{t.after}</h3>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={handleReset}>
-                      <RefreshCw className="mr-2 h-3 w-3" /> {t.tryAgain}
-                    </Button>
-                    <DownloadImageButton
-                      imageUrl={resultUrl}
-                      filename="xoa-nen-png-result"
-                      size="sm"
-                      className="bg-teal-600 hover:bg-teal-700 text-white border-0"
-                      printReady
-                      printReadyInferFromImage
-                    />
-                  </div>
-                </div>
-                <div className="aspect-square rounded-lg border overflow-hidden bg-[linear-gradient(45deg,#eee_25%,transparent_25%,transparent_75%,#eee_75%,#eee),linear-gradient(45deg,#eee_25%,transparent_25%,transparent_75%,#eee_75%,#eee)] bg-[length:24px_24px] bg-[position:0_0,12px_12px]">
-                  <ImagePreview src={resultUrl} alt={t.after} className="w-full h-full object-contain" />
-                </div>
-              </div>
+            <CardContent className="space-y-3">
+              {image.preview ? (
+                <BeforeAfterResultDisplay
+                  beforeSrc={image.preview}
+                  afterSrc={resultUrl}
+                  beforeAlt={t.before}
+                  afterAlt={t.after}
+                  splitImagePreviewClassName="w-full h-full object-contain"
+                  afterPreviewWrapperClassName="bg-[linear-gradient(45deg,#eee_25%,transparent_25%,transparent_75%,#eee_75%,#eee),linear-gradient(45deg,#eee_25%,transparent_25%,transparent_75%,#eee_75%,#eee)] bg-[length:24px_24px] bg-[position:0_0,12px_12px]"
+                  beforeHeader={<h3 className="text-sm font-medium text-muted-foreground">{t.before}</h3>}
+                  afterHeader={
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">{t.after}</h3>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={handleReset}>
+                          <RefreshCw className="mr-2 h-3 w-3" /> {t.tryAgain}
+                        </Button>
+                        <DownloadImageButton
+                          imageUrl={resultUrl}
+                          filename="xoa-nen-png-result"
+                          size="sm"
+                          className="bg-teal-600 hover:bg-teal-700 text-white border-0"
+                          printReady
+                          printReadyInferFromImage
+                        />
+                      </div>
+                    </div>
+                  }
+                />
+              ) : null}
             </CardContent>
           </Card>
         )}

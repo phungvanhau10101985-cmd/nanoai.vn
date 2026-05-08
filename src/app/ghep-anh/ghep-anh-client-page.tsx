@@ -14,6 +14,7 @@ import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
+import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { preloadImageUrl } from '@/lib/preload-image-url'
 
@@ -244,40 +245,50 @@ export default function GhepAnhClientPage() {
               <CardTitle>{tr('Kết quả ghép ảnh', 'Merge result', '合成结果', '合成結果', '합성 결과')}</CardTitle>
               <CardDescription>{tr('Ảnh đã được ghép.', 'Images have been merged.', '图片已合成。', '画像を合成しました。', '이미지 합성이 완료되었습니다.')}</CardDescription>
             </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">{tr('Trước', 'Before', '之前', '前', '전')}</h3>
-                {images.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {images.map((img, i) => (
-                      <div key={i} className="aspect-square rounded-lg border overflow-hidden">
-                        <ImagePreview src={img.preview} alt={`${tr('Trước', 'Before', '之前', '前', '전')} ${i + 1}`} className="w-full h-full object-cover" />
+            <CardContent className="space-y-3">
+              {images[0]?.preview ? (
+                <BeforeAfterResultDisplay
+                  compareEnabled={images.length <= 1}
+                  beforeSrc={images[0].preview}
+                  afterSrc={resultUrl}
+                  beforeAlt={tr('Trước', 'Before', '之前', '前', '전')}
+                  afterAlt={tr('Sau', 'After', '之后', '後', '후')}
+                  customBeforeContent={
+                    <>
+                      <h3 className="text-sm font-medium text-muted-foreground">{tr('Trước', 'Before', '之前', '前', '전')}</h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {images.map((img, i) => (
+                          <div key={i} className="aspect-square rounded-lg border overflow-hidden">
+                            <ImagePreview
+                              src={img.preview}
+                              alt={`${tr('Trước', 'Before', '之前', '前', '전')} ${i + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-muted-foreground">{tr('Sau', 'After', '之后', '後', '후')}</h3>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={handleReset}>
-                      <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
-                    </Button>
-                    <DownloadImageButton
-                    imageUrl={resultUrl}
-                    filename="ghep-anh-result"
-                    size="sm"
-                    className="bg-amber-600 hover:bg-amber-700 text-white border-0"
-                    printReady
-                    printReadyInferFromImage
-                  />
-                  </div>
-                </div>
-                <div className="aspect-square rounded-lg border overflow-hidden">
-                  <ImagePreview src={resultUrl} alt={tr('Sau', 'After', '之后', '後', '후')} className="w-full h-full object-cover" />
-                </div>
-              </div>
+                    </>
+                  }
+                  afterHeader={
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">{tr('Sau', 'After', '之后', '後', '후')}</h3>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={handleReset}>
+                          <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
+                        </Button>
+                        <DownloadImageButton
+                          imageUrl={resultUrl}
+                          filename="ghep-anh-result"
+                          size="sm"
+                          className="bg-amber-600 hover:bg-amber-700 text-white border-0"
+                          printReady
+                          printReadyInferFromImage
+                        />
+                      </div>
+                    </div>
+                  }
+                />
+              ) : null}
             </CardContent>
           </Card>
         )}

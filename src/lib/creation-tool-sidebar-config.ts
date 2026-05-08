@@ -78,6 +78,14 @@ function siblingsFromNav(path: string): CreationRelatedItem[] {
 export function getCreationRelatedLinks(currentHref: string): CreationRelatedItem[] {
   const path = normalizePath(currentHref)
   if (CURRICULUM_RELATED[path]) return CURRICULUM_RELATED[path]
+  if (path === '/cai-dat-hien-thi-ket-qua-anh') {
+    return [
+      { href: '/thu-do-online', labelKey: 'try_on' },
+      { href: '/phuc-dung-anh', labelKey: 'restore_image' },
+      { href: '/lam-net-anh', labelKey: 'enhance_image' },
+      { href: '/lam-dep-anh', labelKey: 'beautify_image' },
+    ]
+  }
   /** HS làm bài thi online — menu liên quan (lớp, giáo trình). */
   if (path.startsWith('/lam-bai/')) {
     return [
@@ -117,6 +125,7 @@ export const CREATION_SIDEBAR_POPULAR_LINKS: CreationRelatedItem[] = [
   { href: '/xoa-nen-png', labelKey: 'remove_bg_png' },
   { href: '/phuc-dung-anh', labelKey: 'restore_image' },
   { href: '/dich-anh-tai-lieu', labelKey: 'translate_document_image' },
+  { href: '/cai-dat-hien-thi-ket-qua-anh', labelKey: 'image_result_display' },
   { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' },
   { href: '/ghi-am-bao-cao-cuoc-hop', labelKey: 'meeting_recorder_report' },
 ]

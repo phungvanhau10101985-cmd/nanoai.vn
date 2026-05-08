@@ -15,6 +15,7 @@ import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
+import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { preloadImageUrl } from '@/lib/preload-image-url'
 
@@ -418,43 +419,53 @@ export default function CheAnhClientPage() {
               <CardTitle>{tr('Kết quả chế ảnh', 'Meme edit result', '表情包编辑结果', 'ミーム編集結果', '밈 편집 결과')}</CardTitle>
               <CardDescription>{tr('Ảnh đã được chế.', 'Images have been edited.', '图片已编辑。', '画像を編集しました。', '이미지 편집이 완료되었습니다.')}</CardDescription>
             </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">{tr('Trước', 'Before', '之前', '前', '이전')}</h3>
-                {images.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {images.map((img, i) => (
-                      <div key={i} className="aspect-square rounded-lg border overflow-hidden">
-                        <ImagePreview src={img.preview} alt={`${tr('Trước', 'Before', '之前', '前', '이전')} ${i + 1}`} className="w-full h-full object-cover" />
+            <CardContent className="space-y-3">
+              {images[0]?.preview ? (
+                <BeforeAfterResultDisplay
+                  compareEnabled={images.length <= 1}
+                  beforeSrc={images[0].preview}
+                  afterSrc={resultUrl}
+                  beforeAlt={tr('Trước', 'Before', '之前', '前', '이전')}
+                  afterAlt={tr('Sau', 'After', '之后', '後', '이후')}
+                  afterPrintReadyAspectRatio={aspectRatio}
+                  splitAfterPaneClassName="w-full rounded-lg border overflow-hidden relative bg-white"
+                  splitAfterPaneStyle={{ aspectRatio: aspectRatio.replace(':', '/') }}
+                  customBeforeContent={
+                    <>
+                      <h3 className="text-sm font-medium text-muted-foreground">{tr('Trước', 'Before', '之前', '前', '이전')}</h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {images.map((img, i) => (
+                          <div key={i} className="aspect-square rounded-lg border overflow-hidden">
+                            <ImagePreview
+                              src={img.preview}
+                              alt={`${tr('Trước', 'Before', '之前', '前', '이전')} ${i + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-muted-foreground">{tr('Sau', 'After', '之后', '後', '이후')}</h3>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={handleReset}>
-                      <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', '再試行', '다시 시도')}
-                    </Button>
-                    <DownloadImageButton
-                    imageUrl={resultUrl}
-                    filename="che-anh-result"
-                    size="sm"
-                    className="bg-amber-600 hover:bg-amber-700 text-white border-0"
-                    printReady
-                    printReadyAspectRatio={aspectRatio}
-                  />
-                  </div>
-                </div>
-                <div
-                  className="rounded-lg border overflow-hidden bg-white"
-                  style={{ aspectRatio: aspectRatio.replace(':', '/') }}
-                >
-                  <ImagePreview src={resultUrl} alt={tr('Sau', 'After', '之后', '後', '이후')} className="w-full h-full object-cover" printReadyAspectRatio={aspectRatio} />
-                </div>
-              </div>
+                    </>
+                  }
+                  afterHeader={
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">{tr('Sau', 'After', '之后', '後', '이후')}</h3>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={handleReset}>
+                          <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', '再試行', '다시 시도')}
+                        </Button>
+                        <DownloadImageButton
+                          imageUrl={resultUrl}
+                          filename="che-anh-result"
+                          size="sm"
+                          className="bg-amber-600 hover:bg-amber-700 text-white border-0"
+                          printReady
+                          printReadyAspectRatio={aspectRatio}
+                        />
+                      </div>
+                    </div>
+                  }
+                />
+              ) : null}
             </CardContent>
           </Card>
         )}

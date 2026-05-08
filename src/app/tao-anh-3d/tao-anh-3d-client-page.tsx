@@ -16,6 +16,7 @@ import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
+import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
@@ -309,34 +310,36 @@ export default function TaoAnh3DClientPage() {
               <CardTitle>{tr('Kết quả', 'Result', '结果', '結果', '결과')}</CardTitle>
               <CardDescription>{tr('Đã tạo ảnh 3D mockup.', '3D mockup created.', '已创建 3D 模型图。', '3Dモックアップを作成しました。', '3D 목업이 생성되었습니다.')}</CardDescription>
             </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">{tr('Ảnh 2 gốc', 'Original image 2', '原始图 2', '元画像2', '원본 이미지 2')}</h3>
-                {logoImage.preview && (
-                  <div className="aspect-square rounded-lg border overflow-hidden">
-                    <ImagePreview src={logoImage.preview} alt={tr('Ảnh 2', 'Image 2', '图 2', '画像2', '이미지 2')} className="w-full h-full object-cover" />
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-muted-foreground">{tr('Mockup 3D', '3D mockup', '3D 模型图', '3Dモックアップ', '3D 목업')}</h3>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={handleReset}><RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', '再試行', '다시 시도')}</Button>
-                    <DownloadImageButton
-                    imageUrl={resultUrl}
-                    filename="mockup-3d-result"
-                    size="sm"
-                    className="bg-cyan-600 hover:bg-cyan-700 text-white border-0"
-                    printReady
-                    printReadyInferFromImage
-                  />
-                  </div>
-                </div>
-                <div className="aspect-square rounded-lg border overflow-hidden">
-                  <ImagePreview src={resultUrl} alt="Mockup 3D" className="w-full h-full object-cover" />
-                </div>
-              </div>
+            <CardContent className="space-y-3">
+              {logoImage.preview ? (
+                <BeforeAfterResultDisplay
+                  beforeSrc={logoImage.preview}
+                  afterSrc={resultUrl}
+                  beforeAlt={tr('Ảnh 2', 'Image 2', '图 2', '画像2', '이미지 2')}
+                  afterAlt="Mockup 3D"
+                  beforeHeader={
+                    <h3 className="text-sm font-medium text-muted-foreground">{tr('Ảnh 2 gốc', 'Original image 2', '原始图 2', '元画像2', '원본 이미지 2')}</h3>
+                  }
+                  afterHeader={
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">{tr('Mockup 3D', '3D mockup', '3D 模型图', '3Dモックアップ', '3D 목업')}</h3>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={handleReset}>
+                          <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', '再試行', '다시 시도')}
+                        </Button>
+                        <DownloadImageButton
+                          imageUrl={resultUrl}
+                          filename="mockup-3d-result"
+                          size="sm"
+                          className="bg-cyan-600 hover:bg-cyan-700 text-white border-0"
+                          printReady
+                          printReadyInferFromImage
+                        />
+                      </div>
+                    </div>
+                  }
+                />
+              ) : null}
             </CardContent>
           </Card>
         )}

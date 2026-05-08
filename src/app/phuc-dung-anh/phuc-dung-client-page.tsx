@@ -15,6 +15,7 @@ import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
+import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { preloadImageUrl } from '@/lib/preload-image-url'
 
@@ -505,36 +506,36 @@ export default function PhucDungClientPage() {
               <CardTitle>{tr('Kết quả phục dựng', 'Restoration result', '修复结果', '修復結果', '복원 결과')}</CardTitle>
               <CardDescription>{tr('Ảnh đã được xử lý.', 'Image has been processed.', '图片已处理完成。', '画像の処理が完了しました。', '이미지 처리가 완료되었습니다.')}</CardDescription>
             </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">{tr('Trước', 'Before', '之前', '前', '전')}</h3>
-                {image.preview && (
-                  <div className="aspect-square rounded-lg border overflow-hidden">
-                    <ImagePreview src={image.preview} alt={tr('Trước', 'Before', '之前', '前', '전')} className="w-full h-full object-cover" />
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-muted-foreground">{tr('Sau', 'After', '之后', '後', '후')}</h3>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={handleReset}>
-                      <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
-                    </Button>
-                    <DownloadImageButton
-                    imageUrl={resultUrl}
-                    filename="phuc-dung-result"
-                    size="sm"
-                    className="bg-amber-600 hover:bg-amber-700 text-white border-0"
-                    printReady
-                    printReadyInferFromImage
-                  />
-                  </div>
-                </div>
-                <div className="aspect-square rounded-lg border overflow-hidden">
-                  <ImagePreview src={resultUrl} alt={tr('Sau', 'After', '之后', '後', '후')} className="w-full h-full object-cover" />
-                </div>
-              </div>
+            <CardContent className="space-y-3">
+              {image.preview ? (
+                <BeforeAfterResultDisplay
+                  beforeSrc={image.preview}
+                  afterSrc={resultUrl}
+                  beforeAlt={tr('Trước', 'Before', '之前', '前', '전')}
+                  afterAlt={tr('Sau', 'After', '之后', '後', '후')}
+                  beforeHeader={
+                    <h3 className="text-sm font-medium text-muted-foreground">{tr('Trước', 'Before', '之前', '前', '전')}</h3>
+                  }
+                  afterHeader={
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">{tr('Sau', 'After', '之后', '後', '후')}</h3>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={handleReset}>
+                          <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
+                        </Button>
+                        <DownloadImageButton
+                          imageUrl={resultUrl}
+                          filename="phuc-dung-result"
+                          size="sm"
+                          className="bg-amber-600 hover:bg-amber-700 text-white border-0"
+                          printReady
+                          printReadyInferFromImage
+                        />
+                      </div>
+                    </div>
+                  }
+                />
+              ) : null}
             </CardContent>
           </Card>
         )}

@@ -999,6 +999,26 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       { question: 'Xem bài tập đã gắn lớp ở đâu?', answer: 'Trong trang lớp, mục «Bài tập về nhà» (đường dẫn /lop/[mã-lớp]/gan-phieu).' },
     ],
   },
+  'cai-dat-hien-thi-ket-qua-anh': {
+    key: 'cai-dat-hien-thi-ket-qua-anh',
+    pageTitle: 'Cài đặt hiển thị ảnh trước & sau',
+    pageDescription:
+      'Chọn xem kết quả chỉnh ảnh cạnh nhau hay kéo để so sánh. Áp dụng cho thử đồ, phục dựng, làm nét và các công cụ ảnh khác.',
+    path: '/cai-dat-hien-thi-ket-qua-anh',
+    keywords: ['ảnh trước sau', 'so sánh ảnh', 'before after', 'kéo so sánh ảnh'],
+    serviceName: 'Hiển thị kết quả ảnh',
+    serviceDescription: 'Tùy chọn giao diện trước/sau cho các công cụ xử lý ảnh.',
+    h2: 'Cách xem ảnh gốc và ảnh sau xử lý',
+    overview:
+      'Bạn có thể giữ hai ảnh cạnh nhau như trước, hoặc dùng một khung kéo để che dần ảnh cũ và xem ảnh mới. Cài đặt lưu trên trình duyệt.',
+    benefits: ['Đổi nhanh ngay trên từng trang kết quả', 'Một cài đặt dùng cho mọi công cụ có trước/sau', 'Vẫn bấm ảnh để xem phóng to ở chế độ cạnh nhau'],
+    useCases: ['So sánh sau thử đồ', 'Đối chiếu phục dựng ảnh cũ', 'Xem làm nét / xóa vật thể'],
+    tips: ['Nếu không quen kéo so sánh, hãy để chế độ cạnh nhau', 'Điện thoại: dùng thanh trượt dưới ảnh'],
+    faqs: [
+      { question: 'Có bắt buộc dùng kéo so sánh không?', answer: 'Không. Mặc định vẫn là hai ảnh cạnh nhau như cũ.' },
+      { question: 'Cài đặt có áp dụng mọi công cụ không?', answer: 'Có, với các trang có đủ ảnh gốc và ảnh kết quả. Một số công cụ nhiều ảnh gốc chỉ hỗ trợ xem cạnh nhau.' },
+    ],
+  },
 }
 
 export function getFeatureSeo(key: string): FeatureSeoData {

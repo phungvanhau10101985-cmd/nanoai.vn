@@ -16,6 +16,7 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { cn } from '@/lib/utils'
 import { ImagePreview } from '@/components/ui/image-preview'
+import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GarmentUploader } from './garment-uploader'
@@ -676,59 +677,67 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
         
         return (
           <Card className={cn('w-full max-w-4xl mx-auto border shadow-sm bg-white/80 backdrop-blur', theme.cardBorder)}>
-            <CardContent className="grid md:grid-cols-2 gap-4 p-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-center">{tr('Trước', 'Before', '之前', '前', '전')}</h3>
-                  <Button size="sm" variant="outline" className={cn('h-8 text-xs', theme.outlineButton)} onClick={handleReset}>
-                    <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
-                  </Button>
-                </div>
-                {userImage.preview && <div className="relative w-full aspect-square rounded-md border overflow-hidden"><ImagePreview src={userImage.preview} alt="Original user" className="w-full h-full" /></div>}
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-center">{tr('Sau', 'After', '之后', '後', '후')}</h3>
-                  <DownloadImageButton
-                  imageUrl={resultUrl!}
-                  filename="try-on-result"
-                  size="sm"
-                  className={cn('h-8 text-xs', theme.primaryButton, 'border-0')}
-                  printReady
-                  printReadyInferFromImage
-                />
-                </div>
-                {resultUrl && (
-                  <div className="relative w-full aspect-square rounded-md border shadow-sm overflow-hidden">
-                    <ImagePreview src={resultUrl} alt="Try-on result" className="w-full h-full" />
-                    
-                    {/* Quality and time info overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+            <CardContent className="space-y-3 p-4">
+              {userImage.preview && resultUrl ? (
+                <BeforeAfterResultDisplay
+                  beforeSrc={userImage.preview}
+                  afterSrc={resultUrl}
+                  beforeAlt={tr('Trước', 'Before', '之前', '前', '전')}
+                  afterAlt={tr('Sau', 'After', '之后', '後', '후')}
+                  splitImagePreviewClassName="w-full h-full object-cover"
+                  beforeHeader={
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <h3 className="font-semibold text-sm">{tr('Trước', 'Before', '之前', '前', '전')}</h3>
+                      <Button size="sm" variant="outline" className={cn('h-8 text-xs shrink-0', theme.outlineButton)} onClick={handleReset}>
+                        <RefreshCw className="mr-2 h-3 w-3" /> {tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도')}
+                      </Button>
+                    </div>
+                  }
+                  afterHeader={
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                      <h3 className="font-semibold text-sm">{tr('Sau', 'After', '之后', '後', '후')}</h3>
+                      <DownloadImageButton
+                        imageUrl={resultUrl}
+                        filename="try-on-result"
+                        size="sm"
+                        className={cn('h-8 text-xs shrink-0', theme.primaryButton, 'border-0')}
+                        printReady
+                        printReadyInferFromImage
+                      />
+                    </div>
+                  }
+                  afterPreviewOverlay={
+                    <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
                       <div className="flex flex-col space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/90 font-medium">{tr('Thời gian tạo:', 'Generated at:', '生成时间：', '生成時刻：', '생성 시각:')}</span>
-                          <span className="text-xs text-white font-semibold">{currentTime} - {currentDate}</span>
+                          <span className="text-xs font-medium text-white/90">{tr('Thời gian tạo:', 'Generated at:', '生成时间：', '生成時刻：', '생성 시각:')}</span>
+                          <span className="text-xs font-semibold text-white">{currentTime} - {currentDate}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/90 font-medium">{tr('Chất lượng:', 'Quality:', '质量：', '品質：', '품질:')}</span>
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full border bg-green-100 text-green-800 border-green-200">
+                          <span className="text-xs font-medium text-white/90">{tr('Chất lượng:', 'Quality:', '质量：', '品質：', '품질:')}</span>
+                          <span className="rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
                             {tr('Chất lượng Cao (Pro)', 'High Quality (Pro)', '高质量 (Pro)', '高品質 (Pro)', '고품질 (Pro)')}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/90 font-medium">{tr('Chế độ:', 'Mode:', '模式：', 'モード：', '모드:')}</span>
-                          <span className="text-xs text-white font-semibold">
-                            {tryOnMode === 'single' ? tr('1 người', '1 person', '1人', '1人', '1명') : 
-                             tryOnMode === 'couple' ? tr('2 người', '2 people', '2人', '2人', '2명') : 
-                             tryOnMode === 'group' ? tr('3 người', '3 people', '3人', '3人', '3명') : 
-                             tryOnMode === 'group4' ? tr('4 người', '4 people', '4人', '4人', '4명') : tr('5 người', '5 people', '5人', '5人', '5명')}
+                          <span className="text-xs font-medium text-white/90">{tr('Chế độ:', 'Mode:', '模式：', 'モード：', '모드:')}</span>
+                          <span className="text-xs font-semibold text-white">
+                            {tryOnMode === 'single'
+                              ? tr('1 người', '1 person', '1人', '1人', '1명')
+                              : tryOnMode === 'couple'
+                                ? tr('2 người', '2 people', '2人', '2人', '2명')
+                                : tryOnMode === 'group'
+                                  ? tr('3 người', '3 people', '3人', '3人', '3명')
+                                  : tryOnMode === 'group4'
+                                    ? tr('4 người', '4 people', '4人', '4人', '4명')
+                                    : tr('5 người', '5 people', '5人', '5人', '5명')}
                           </span>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  }
+                />
+              ) : null}
             </CardContent>
             <CardFooter className="flex flex-col items-center justify-center pb-6 pt-2 px-4">
               <CardTitle className="text-xl text-center">{tr('Đây là kết quả của bạn!', 'Here is your result!', '这是你的结果！', 'これがあなたの結果です！', '결과가 준비되었습니다!')}</CardTitle>

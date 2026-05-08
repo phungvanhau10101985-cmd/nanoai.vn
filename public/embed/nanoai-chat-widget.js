@@ -638,18 +638,62 @@
       return Math.min(bottom, maxBottom)
     }
 
+    function postScrollChatBottom(delayMs) {
+      try {
+        if (!iframe || !iframe.contentWindow) return
+        var targetOrigin = new URL(iframe.src || chatUrl, window.location.href).origin
+        setTimeout(function () {
+          try {
+            iframe.contentWindow.postMessage({ source: 'nanoai-widget', type: 'SCROLL_CHAT_BOTTOM' }, targetOrigin)
+          } catch (_) {}
+        }, Math.max(0, parseInt(delayMs, 10) || 0))
+      } catch (_) {}
+    }
+
     function openChat() {
       var firstOpen = !iframe
       ensureIframe(extractPageContext(), { openTryOn: firstOpen && primaryTryOn })
       panel.style.display = 'flex'
       bubble.style.display = 'none'
       applyLayout()
+      postScrollChatBottom(0)
+      postScrollChatBottom(firstOpen ? 700 : 120)
+      postScrollChatBottom(firstOpen ? 1400 : 360)
     }
     function closeChat() {
       panel.style.display = 'none'
       bubble.style.display = 'flex'
     }
     bubble.addEventListener('click', openChat)
+    document.addEventListener(
+      'click',
+      function (ev) {
+        try {
+          var target = ev.target
+          if (!target || !target.closest) return
+          var trigger = target.closest(
+            '[data-nanoai-open-chat],[data-nanoai-consult],[data-nanoai-chat-consult],a[href*="/messaging/p/"]'
+          )
+          if (!trigger) return
+          var href = trigger.getAttribute && String(trigger.getAttribute('href') || '').trim()
+          var isMessagingLink = href && href.indexOf('/messaging/p/') >= 0
+          var isExplicitTrigger =
+            trigger.hasAttribute('data-nanoai-open-chat') ||
+            trigger.hasAttribute('data-nanoai-consult') ||
+            trigger.hasAttribute('data-nanoai-chat-consult')
+          if (!isMessagingLink && !isExplicitTrigger) return
+          if (isMessagingLink || isExplicitTrigger) {
+            ev.preventDefault()
+            ev.stopPropagation()
+            openChat()
+            postScrollChatBottom(0)
+            postScrollChatBottom(700)
+            postScrollChatBottom(1400)
+          }
+        } catch (_) {}
+      },
+      true
+    )
     closeBtn.addEventListener('click', closeChat)
     expandBtn.addEventListener('click', function () {
       isExpanded = !isExpanded
