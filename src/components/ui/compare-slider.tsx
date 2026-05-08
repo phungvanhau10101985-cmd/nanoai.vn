@@ -1,6 +1,6 @@
 'use client'
 
-import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import { useWebLocaleFromDocumentCookie } from '@/hooks/use-web-locale-from-cookie'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,11 @@ interface CompareSliderProps {
   beforeLabel?: string
   afterLabel?: string
   className?: string
+  /**
+   * Trên viewport hẹp (≤767px), tự mở lớp fullscreen một lần khi mount — kéo so sánh có đủ chỗ;
+   * người dùng vẫn đóng bằng X/ESC và có thể bấm «Full màn» để mở lại.
+   */
+  autoMobileFullscreen?: boolean
 }
 
 function SliderContent({
@@ -48,8 +53,11 @@ function SliderContent({
   return (
     <div
       ref={containerRef as React.LegacyRef<HTMLDivElement>}
-      className={cn('relative overflow-hidden select-none bg-black', isFullscreen ? 'w-full h-full' : 'aspect-video')}
-      style={{ touchAction: 'pan-y' }}
+      className={cn(
+        'relative overflow-hidden select-none bg-black',
+        isFullscreen ? 'flex-1 min-h-0 h-full w-full' : 'aspect-video'
+      )}
+      style={{ touchAction: isFullscreen ? 'none' : 'pan-y' }}
       onMouseDown={(e) => {
         e.preventDefault()
         setIsDragging(true)
@@ -105,14 +113,35 @@ function SliderContent({
           </div>
         </div>
       </div>
-      <div className="absolute bottom-2 left-2 px-2 py-1 rounded bg-black/60 text-white text-xs z-10">{beforeLabel}</div>
-      <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/60 text-white text-xs z-10">{afterLabel}</div>
+      <div
+        className={cn(
+          'absolute left-2 z-10 rounded bg-black/60 px-2 py-1 text-xs text-white',
+          isFullscreen ? 'bottom-[max(0.5rem,env(safe-area-inset-bottom))]' : 'bottom-2'
+        )}
+      >
+        {beforeLabel}
+      </div>
+      <div
+        className={cn(
+          'absolute right-2 z-10 rounded bg-black/60 px-2 py-1 text-xs text-white',
+          isFullscreen ? 'bottom-[max(0.5rem,env(safe-area-inset-bottom))]' : 'bottom-2'
+        )}
+      >
+        {afterLabel}
+      </div>
     </div>
   )
 }
 
-export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLabel = 'Sau', className }: CompareSliderProps) {
-  const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
+export function CompareSlider({
+  before,
+  after,
+  beforeLabel = 'Trước',
+  afterLabel = 'Sau',
+  className,
+  autoMobileFullscreen = true,
+}: CompareSliderProps) {
+  const uiLocale = useWebLocaleFromDocumentCookie()
   const [position, setPosition] = useState(50)
   const containerRef = useRef<HTMLDivElement>(null)
   const fullscreenRef = useRef<HTMLDivElement>(null)
@@ -127,23 +156,6 @@ export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLa
   }
   const finalBeforeLabel = beforeLabel === 'Trước' ? tr('Trước', 'Before', '之前', '前', '이전') : beforeLabel
   const finalAfterLabel = afterLabel === 'Sau' ? tr('Sau', 'After', '之后', '後', '이후') : afterLabel
-
-  useEffect(() => {
-    const syncLocale = () => {
-      const cookieValue = readWebLocaleFromDocumentCookie()
-      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
-      else setUiLocale('vi')
-    }
-    syncLocale()
-    const timer = window.setInterval(syncLocale, 1000)
-    window.addEventListener('focus', syncLocale)
-    document.addEventListener('visibilitychange', syncLocale)
-    return () => {
-      window.removeEventListener('focus', syncLocale)
-      document.removeEventListener('visibilitychange', syncLocale)
-      window.clearInterval(timer)
-    }
-  }, [])
 
   const handleMove = useCallback((clientX: number) => {
     const ref = isFullscreen ? fullscreenRef : containerRef
@@ -178,32 +190,44 @@ export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLa
     }
   }, [isFullscreen])
 
+  useEffect(() => {
+    if (!autoMobileFullscreen || typeof window === 'undefined') return
+    if (!window.matchMedia('(max-width: 767px)').matches) return
+    setIsFullscreen(true)
+  }, [autoMobileFullscreen])
+
   return (
     <>
-      <div className={cn('relative aspect-video overflow-hidden rounded-lg border select-none', className)}>
-        <SliderContent
-          before={before}
-          after={after}
-          beforeLabel={finalBeforeLabel}
-          afterLabel={finalAfterLabel}
-          position={position}
-          setPosition={setPosition}
-          containerRef={containerRef}
-          setIsDragging={setIsDragging}
-        />
-        <button
-          type="button"
-          onClick={() => setIsFullscreen(true)}
-          className="absolute top-2 right-2 px-2 py-1.5 rounded bg-black/60 hover:bg-black/80 text-white text-xs flex items-center gap-1.5 z-20 transition-colors"
-          title={tr('Mở full màn hình', 'Open fullscreen', '全屏查看', '全画面表示', '전체 화면 열기')}
-        >
-          <Maximize2 className="h-4 w-4" /> {tr('Full màn', 'Fullscreen', '全屏', '全画面', '전체 화면')}
-        </button>
-      </div>
+      {!isFullscreen ? (
+        <div className={cn('relative aspect-video overflow-hidden rounded-lg border select-none', className)}>
+          <SliderContent
+            before={before}
+            after={after}
+            beforeLabel={finalBeforeLabel}
+            afterLabel={finalAfterLabel}
+            position={position}
+            setPosition={setPosition}
+            containerRef={containerRef}
+            setIsDragging={setIsDragging}
+          />
+          <button
+            type="button"
+            onClick={() => setIsFullscreen(true)}
+            className="absolute top-2 right-2 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 px-2 py-1.5 rounded bg-black/60 hover:bg-black/80 active:bg-black/90 text-white text-xs flex items-center justify-center gap-1.5 z-20 transition-colors touch-manipulation"
+            title={tr('Mở full màn hình', 'Open fullscreen', '全屏查看', '全画面表示', '전체 화면 열기')}
+          >
+            <Maximize2 className="h-4 w-4 shrink-0" />
+            <span>{tr('Full màn', 'Fullscreen', '全屏', '全画面', '전체 화면')}</span>
+          </button>
+        </div>
+      ) : null}
 
       {isFullscreen && (
-        <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
-          <div ref={fullscreenRef} className="w-full h-full flex items-center justify-center">
+        <div
+          className="fixed inset-0 z-[9999] flex min-h-[100dvh] flex-col bg-black overscroll-none"
+          style={{ height: '100dvh' }}
+        >
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <SliderContent
               before={before}
               after={after}
@@ -219,12 +243,14 @@ export function CompareSlider({ before, after, beforeLabel = 'Trước', afterLa
           <button
             type="button"
             onClick={() => setIsFullscreen(false)}
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/20 hover:bg-white/30 text-white z-50 transition-colors"
+            className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-white/20 p-2 text-white touch-manipulation transition-colors hover:bg-white/30 active:bg-white/40"
             title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
           >
             <X className="h-6 w-6" />
           </button>
-          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm">{tr('Nhấn ESC để đóng', 'Press ESC to close', '按 ESC 关闭', 'ESCで閉じる', 'ESC를 눌러 닫기')}</p>
+          <p className="pointer-events-none absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 hidden max-w-[90vw] -translate-x-1/2 text-center text-xs text-white/70 sm:block sm:text-sm">
+            {tr('Nhấn ESC để đóng', 'Press ESC to close', '按 ESC 关闭', 'ESCで閉じる', 'ESC를 눌러 닫기')}
+          </p>
         </div>
       )}
     </>

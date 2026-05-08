@@ -1,6 +1,6 @@
 'use client'
 
-import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import { useWebLocaleFromDocumentCookie } from '@/hooks/use-web-locale-from-cookie'
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
@@ -38,7 +38,7 @@ function isRestrictedInAppBrowser(): boolean {
 }
 
 export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg }: ImagePreviewProps) {
-  const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
+  const uiLocale = useWebLocaleFromDocumentCookie()
   const [isOpen, setIsOpen] = useState(false)
   const [inferredAspectRatio, setInferredAspectRatio] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
@@ -60,23 +60,6 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
   useEffect(() => {
     setInferredAspectRatio(null)
   }, [src])
-
-  useEffect(() => {
-    const syncLocale = () => {
-      const cookieValue = readWebLocaleFromDocumentCookie()
-      if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') setUiLocale(cookieValue)
-      else setUiLocale('vi')
-    }
-    syncLocale()
-    const timer = window.setInterval(syncLocale, 1000)
-    window.addEventListener('focus', syncLocale)
-    document.addEventListener('visibilitychange', syncLocale)
-    return () => {
-      window.removeEventListener('focus', syncLocale)
-      document.removeEventListener('visibilitychange', syncLocale)
-      window.clearInterval(timer)
-    }
-  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

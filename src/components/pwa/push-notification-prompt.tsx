@@ -1,11 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useWebLocaleFromDocumentCookie } from '@/hooks/use-web-locale-from-cookie'
 import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
 import { getDictionary } from '@/lib/i18n/dictionaries'
-import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import {
   getPushVapidPublicKey,
   requestPushPermissionAndSubscribe,
@@ -45,20 +45,8 @@ export function PushNotificationPrompt() {
   const [visible, setVisible] = useState(false)
   const [busy, setBusy] = useState(false)
   const [justEnabled, setJustEnabled] = useState(false)
-  const [pushT, setPushT] = useState(() => getDictionary(readWebLocaleFromDocumentCookie()).push)
-
-  useEffect(() => {
-    const sync = () => setPushT(getDictionary(readWebLocaleFromDocumentCookie()).push)
-    sync()
-    const t = window.setInterval(sync, 1500)
-    window.addEventListener('focus', sync)
-    document.addEventListener('visibilitychange', sync)
-    return () => {
-      window.clearInterval(t)
-      window.removeEventListener('focus', sync)
-      document.removeEventListener('visibilitychange', sync)
-    }
-  }, [])
+  const uiLocale = useWebLocaleFromDocumentCookie()
+  const pushT = useMemo(() => getDictionary(uiLocale).push, [uiLocale])
 
   const runOfferCheck = useCallback(async (): Promise<void> => {
     if (!mountedRef.current || !vapidPublic || typeof window === 'undefined') return

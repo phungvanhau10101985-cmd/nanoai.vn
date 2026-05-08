@@ -3,7 +3,8 @@
 import type React from 'react'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import type { WebLocale } from '@/lib/i18n/config'
+import { useWebLocaleFromDocumentCookie } from '@/hooks/use-web-locale-from-cookie'
 import {
   BEFORE_AFTER_VIEW_EVENT,
   type BeforeAfterViewMode,
@@ -15,10 +16,8 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { Button } from '@/components/ui/button'
 import { CompareSlider } from '@/components/ui/compare-slider'
 
-type WebUiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
-
 function uiTr(
-  locale: WebUiLocale,
+  locale: WebLocale,
   vi: string,
   en: string,
   zh: string,
@@ -30,25 +29,6 @@ function uiTr(
   if (locale === 'ja') return ja
   if (locale === 'ko') return ko
   return vi
-}
-
-function useWebUiLocale(): WebUiLocale {
-  const [locale, setLocale] = useState<WebUiLocale>('vi')
-  useEffect(() => {
-    const sync = () => {
-      const c = readWebLocaleFromDocumentCookie()
-      if (c === 'en' || c === 'zh' || c === 'ja' || c === 'ko') setLocale(c)
-      else setLocale('vi')
-    }
-    sync()
-    const t = window.setInterval(sync, 1000)
-    window.addEventListener('focus', sync)
-    return () => {
-      window.clearInterval(t)
-      window.removeEventListener('focus', sync)
-    }
-  }, [])
-  return locale
 }
 
 function useBeforeAfterViewModeState(): readonly [BeforeAfterViewMode, (m: BeforeAfterViewMode) => void] {
@@ -120,7 +100,7 @@ export function BeforeAfterResultDisplay({
   afterPreviewOverlay,
   customBeforeContent,
 }: BeforeAfterResultDisplayProps) {
-  const loc = useWebUiLocale()
+  const loc = useWebLocaleFromDocumentCookie()
   const [mode, setMode] = useBeforeAfterViewModeState()
 
   const labels = useMemo(

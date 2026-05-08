@@ -13,6 +13,8 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
+import { optimizeInteriorAiInputBuffer } from '@/lib/interior-ai-input-sharp'
+
 const IMAGE_COSTS = APPLY_COSTS
 const ANALYZE_COST = ANALYZE_CREDIT
 const INTERIOR_AI_TIMEOUT_MS = Number(process.env.INTERIOR_AI_TIMEOUT_MS || 300_000)
@@ -130,6 +132,10 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
     imageBuffer = Buffer.from(await imageInput.arrayBuffer())
     mimeType = imageInput.type
   }
+
+  const mainOpt = await optimizeInteriorAiInputBuffer(imageBuffer, mimeType)
+  imageBuffer = mainOpt.buffer
+  mimeType = mainOpt.mimeType
 
   const isRotationOnly = !!rotationDirection && ['left', 'right', 'up', 'down'].includes(rotationDirection)
   const hasRotationReference = !!(rotationReferenceImage && rotationReferenceImage.size > 0)
@@ -271,7 +277,8 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
   }
 
   const timestamp = Date.now()
-  const path = `uploads/${user.id}/interior_${timestamp}.png`
+  const uploadExt = mimeType.includes('png') ? 'png' : 'jpg'
+  const path = `uploads/${user.id}/interior_${timestamp}.${uploadExt}`
   const { publicUrl: interiorOriginalPublicUrl } = await uploadTryOnImagePublic(path, imageBuffer, {
     contentType: mimeType,
   })
@@ -294,14 +301,16 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
   const contentParts: Array<{ text?: string } | { inlineData: { data: string; mimeType: string } }> = [{ text: basePrompt }]
   if (isRotationOnly && hasRotationReference) {
     contentParts.push({ inlineData: { data: imageBuffer.toString('base64'), mimeType } })
-    const refBuffer = Buffer.from(await rotationReferenceImage.arrayBuffer())
-    contentParts.push({ inlineData: { data: refBuffer.toString('base64'), mimeType: rotationReferenceImage.type } })
+    const refRaw = Buffer.from(await rotationReferenceImage.arrayBuffer())
+    const refOpt = await optimizeInteriorAiInputBuffer(refRaw, rotationReferenceImage.type || 'image/jpeg')
+    contentParts.push({ inlineData: { data: refOpt.buffer.toString('base64'), mimeType: refOpt.mimeType } })
   } else {
     contentParts.push({ inlineData: { data: imageBuffer.toString('base64'), mimeType } })
   }
   if (!isRotationOnly && referenceImage && referenceImage.size > 0) {
-    const refBuffer = Buffer.from(await referenceImage.arrayBuffer())
-    contentParts.push({ inlineData: { data: refBuffer.toString('base64'), mimeType: referenceImage.type } })
+    const refRaw = Buffer.from(await referenceImage.arrayBuffer())
+    const refOpt = await optimizeInteriorAiInputBuffer(refRaw, referenceImage.type || 'image/jpeg')
+    contentParts.push({ inlineData: { data: refOpt.buffer.toString('base64'), mimeType: refOpt.mimeType } })
   }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -400,8 +409,9 @@ export async function analyzeInterior(formData: FormData) {
     model: 'gemini-3-flash-preview',
     generationConfig: { responseModalities: ['TEXT'] },
   })
-  const buffer = Buffer.from(await image.arrayBuffer())
-  const imagePart = { inlineData: { data: buffer.toString('base64'), mimeType: image.type } }
+  const rawAnalyze = Buffer.from(await image.arrayBuffer())
+  const anOpt = await optimizeInteriorAiInputBuffer(rawAnalyze, image.type || 'image/png')
+  const imagePart = { inlineData: { data: anOpt.buffer.toString('base64'), mimeType: anOpt.mimeType } }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -466,9 +476,14 @@ export async function processInteriorImage(formData: FormData) {
   }
 
   const timestamp = Date.now()
-  const path = `uploads/${user.id}/interior_${timestamp}.png`
-  const { publicUrl: processInteriorOriginalPublicUrl } = await uploadTryOnImagePublic(path, image, {
-    contentType: image.type || 'image/png',
+  const rawProc = Buffer.from(await image.arrayBuffer())
+  const procOpt = await optimizeInteriorAiInputBuffer(rawProc, image.type || 'image/png')
+  const procBody = procOpt.buffer
+  const procMime = procOpt.mimeType
+  const procExt = procMime.includes('png') ? 'png' : 'jpg'
+  const path = `uploads/${user.id}/interior_${timestamp}.${procExt}`
+  const { publicUrl: processInteriorOriginalPublicUrl } = await uploadTryOnImagePublic(path, procBody, {
+    contentType: procMime,
   })
   const historyItem = await insertTryOnHistoryProcessingPg({
     userId: user.id,
@@ -486,8 +501,7 @@ export async function processInteriorImage(formData: FormData) {
       imageConfig: { imageSize: imageQuality },
     },
   })
-  const buffer = Buffer.from(await image.arrayBuffer())
-  const imagePart = { inlineData: { data: buffer.toString('base64'), mimeType: image.type } }
+  const imagePart = { inlineData: { data: procBody.toString('base64'), mimeType: procMime } }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },

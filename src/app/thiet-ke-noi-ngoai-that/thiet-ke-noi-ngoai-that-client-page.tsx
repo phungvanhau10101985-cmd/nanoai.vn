@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable @next/next/no-img-element -- design canvas/previews use dynamic and blob image sources */
 
-import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import { useWebLocaleFromDocumentCookie } from '@/hooks/use-web-locale-from-cookie'
 
 import { useState, useRef, ChangeEvent, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { CompareSlider } from '@/components/ui/compare-slider'
 import { jsPDF } from 'jspdf'
 import { preloadImageUrl } from '@/lib/preload-image-url'
+import { compressInteriorImageForAi } from '@/lib/interior-design-client-image'
 
 const DRAFT_KEY = 'thiet-ke-noi-ngoai-that-draft'
 
@@ -97,17 +98,8 @@ const setImageFromFile = (file: File, setImage: (v: { file: File; preview: strin
   return true
 }
 
-type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
-
-function getWebLocaleFromCookie(): UiLocale {
-  if (typeof document === 'undefined') return 'vi'
-  const cookieValue = readWebLocaleFromDocumentCookie()
-  if (cookieValue === 'en' || cookieValue === 'zh' || cookieValue === 'ja' || cookieValue === 'ko') return cookieValue
-  return 'vi'
-}
-
 export default function ThietKeNoiNgoaiThatClientPage() {
-  const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
+  const uiLocale = useWebLocaleFromDocumentCookie()
   const [step, setStep] = useState<Step>('UPLOAD')
   const [image, setImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null)
@@ -159,6 +151,29 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     return vi
   }
 
+  const appendInteriorMainToFormData = useCallback(
+    async (formData: FormData, img: File | null, url: string | null) => {
+      if (url?.startsWith('blob:') && img) {
+        formData.append('image', await compressInteriorImageForAi(img, { imageQuality }))
+      } else if (url && !url.startsWith('blob:')) {
+        formData.append('image', url)
+      } else if (img) {
+        formData.append('image', await compressInteriorImageForAi(img, { imageQuality }))
+      } else if (url) {
+        formData.append('image', url)
+      }
+    },
+    [imageQuality]
+  )
+
+  const appendCompressedInteriorFile = useCallback(
+    async (formData: FormData, key: string, file: File | null | undefined) => {
+      if (!file) return
+      formData.append(key, await compressInteriorImageForAi(file, { imageQuality }))
+    },
+    [imageQuality]
+  )
+
   /** Gọi server action + timeout + bắt lỗi mạng (mobile hay reset kết nối giữa chừng). */
   const timedApplyInteriorChanges = async (formData: FormData): Promise<Awaited<ReturnType<typeof applyInteriorChanges>>> => {
     return (await Promise.race([
@@ -183,19 +198,6 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     value,
     label: getInteriorStyleLabel(value, uiLocale),
   }))
-
-  useEffect(() => {
-    const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
-    syncLocale()
-    const timer = window.setInterval(syncLocale, 1000)
-    window.addEventListener('focus', syncLocale)
-    document.addEventListener('visibilitychange', syncLocale)
-    return () => {
-      window.removeEventListener('focus', syncLocale)
-      document.removeEventListener('visibilitychange', syncLocale)
-      window.clearInterval(timer)
-    }
-  }, [])
 
   const refreshCredits = useCallback(async () => {
     try {
@@ -294,7 +296,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     setStep('ANALYZING')
     try {
       const formData = new FormData()
-      formData.append('image', img)
+      formData.append('image', await compressInteriorImageForAi(img, { imageQuality }))
       const result = (await Promise.race([
         analyzeInterior(formData),
         new Promise<{ error: string }>((resolve) => {
@@ -528,15 +530,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     }
     setStep('GENERATING')
     const formData = new FormData()
-    if (url?.startsWith('blob:') && img) {
-      formData.append('image', img)
-    } else if (url && !url.startsWith('blob:')) {
-      formData.append('image', url)
-    } else if (img) {
-      formData.append('image', img)
-    } else if (url) {
-      formData.append('image', url)
-    }
+    await appendInteriorMainToFormData(formData, img, url)
     formData.append('mode', 'full')
     formData.append('imageQuality', imageQuality)
     formData.append('itemsToDelete', '[]')
@@ -555,7 +549,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     formData.append('variantCount', String(variantCount))
     const effectiveLayout = getEffectiveLayoutGuidance()
     if (effectiveLayout) formData.append('layoutGuidance', effectiveLayout)
-    if (referenceImage?.file) formData.append('referenceImage', referenceImage.file)
+    await appendCompressedInteriorFile(formData, 'referenceImage', referenceImage?.file)
     try {
       const result = await timedApplyInteriorChanges(formData)
       if ('error' in result) {
@@ -624,15 +618,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     setUndoStack((prev) => [...prev.slice(-4), { displayImage: displayImage!, furnitureList: [...furnitureList], currentImageUrl }])
     setStep('GENERATING')
     const formData = new FormData()
-    if (url?.startsWith('blob:') && img) {
-      formData.append('image', img)
-    } else if (url && !url.startsWith('blob:')) {
-      formData.append('image', url)
-    } else if (img) {
-      formData.append('image', img)
-    } else if (url) {
-      formData.append('image', url)
-    }
+    await appendInteriorMainToFormData(formData, img, url)
     formData.append('imageQuality', imageQuality)
     formData.append('mode', 'edit')
     formData.append('itemsToDelete', JSON.stringify(toDelete))
@@ -650,7 +636,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     formData.append('variantCount', String(variantCount))
     const effectiveLayout = getEffectiveLayoutGuidance()
     if (effectiveLayout) formData.append('layoutGuidance', effectiveLayout)
-    if (referenceImage?.file) formData.append('referenceImage', referenceImage.file)
+    await appendCompressedInteriorFile(formData, 'referenceImage', referenceImage?.file)
     try {
       const result = await timedApplyInteriorChanges(formData)
       if ('error' in result) {
@@ -706,13 +692,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     setUndoStack((prev) => [...prev.slice(-4), { displayImage: displayImage || imageOverride!, furnitureList: [...furnitureList], currentImageUrl }])
     setStep('GENERATING')
     const formData = new FormData()
-    if (url?.startsWith('blob:') && img) {
-      formData.append('image', img)
-    } else if (url && !url.startsWith('blob:')) {
-      formData.append('image', url)
-    } else if (img) {
-      formData.append('image', img)
-    }
+    await appendInteriorMainToFormData(formData, img, url)
     formData.append('imageQuality', imageQuality)
     formData.append('itemsToDelete', '[]')
     formData.append('itemsToRedesign', '[]')
@@ -728,7 +708,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     formData.append('rotationDirection', direction)
     const effectiveLayout = getEffectiveLayoutGuidance()
     if (effectiveLayout) formData.append('layoutGuidance', effectiveLayout)
-    if (rotationReferenceImage?.file) formData.append('rotationReferenceImage', rotationReferenceImage.file)
+    await appendCompressedInteriorFile(formData, 'rotationReferenceImage', rotationReferenceImage?.file)
     try {
       const result = await timedApplyInteriorChanges(formData)
       if ('error' in result) {
@@ -785,18 +765,12 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     setUndoStack((prev) => [...prev.slice(-4), { displayImage: displayImage || imageOverride!, furnitureList: [...furnitureList], currentImageUrl }])
     setStep('GENERATING')
     const formData = new FormData()
-    if (url?.startsWith('blob:') && img) {
-      formData.append('image', img)
-    } else if (url && !url.startsWith('blob:')) {
-      formData.append('image', url)
-    } else if (img) {
-      formData.append('image', img)
-    }
+    await appendInteriorMainToFormData(formData, img, url)
     formData.append('imageQuality', imageQuality)
     formData.append('itemsToDelete', '[]')
     formData.append('itemsToRedesign', '[]')
     formData.append('style', selectedStyle)
-    formData.append('spaceType', 'exterior-landscape')
+    formData.append('spaceType', spaceType)
     formData.append('archTheme', selectedArchTheme)
     formData.append('mainColor', selectedMainColor)
     formData.append('secondaryColor', selectedSecondaryColor)
@@ -883,7 +857,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
       const blob = await res.blob()
       const file = new File([blob], 'image.png', { type: blob.type || 'image/png' })
       const formData = new FormData()
-      formData.append('image', file)
+      formData.append('image', await compressInteriorImageForAi(file, { imageQuality }))
       const result = (await Promise.race([
         analyzeInterior(formData),
         new Promise<{ error: string }>((resolve) => {
