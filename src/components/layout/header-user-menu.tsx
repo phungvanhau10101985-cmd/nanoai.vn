@@ -15,6 +15,7 @@ import {
   MessagesSquare,
   KeyRound,
   ShoppingBag,
+  Smartphone,
 } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { DepositCreditMenuItem } from '@/components/deposit-credit-menu-item'
@@ -27,6 +28,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { AppUser } from '@/lib/auth/app-user'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
@@ -40,6 +48,7 @@ interface HeaderUserMenuProps {
 
 export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProps) {
   const [open, setOpen] = useState(false)
+  const [downloadDialogOpen, setDownloadDialogOpen] = useState(false)
   const [displayCredits, setDisplayCredits] = useState<number>(Number(credits || 0))
   const [isGuestTrial, setIsGuestTrial] = useState<boolean>(String(user.email ?? '').includes('@guest.nanoai.local'))
   const [guestTrialRemaining, setGuestTrialRemaining] = useState<number>(0)
@@ -152,6 +161,15 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
               <span>{creditLabel}</span>
             </div>
           </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer"
+            onSelect={() => setDownloadDialogOpen(true)}
+          >
+            <span className="flex items-center gap-2">
+              <Smartphone className="h-4 w-4" aria-hidden />
+              {t.menu.downloadApp}
+            </span>
+          </DropdownMenuItem>
           {showFullAccountMenu && (
             <>
               <DepositCreditMenuItem />
@@ -256,6 +274,35 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={downloadDialogOpen} onOpenChange={setDownloadDialogOpen}>
+        <DialogContent className="z-[1100] max-w-md" overlayClassName="z-[1090]">
+          <DialogHeader>
+            <DialogTitle>{t.menu.downloadApp}</DialogTitle>
+            <DialogDescription>{t.menu.downloadAppSubtitle}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 text-sm">
+            <div className="rounded-xl border bg-muted/30 p-4 space-y-2">
+              <p className="font-medium text-foreground">{t.menu.downloadAndroidTitle}</p>
+              <p className="text-xs text-muted-foreground">{t.menu.downloadAndroidChromeHint}</p>
+              <ol className="list-decimal space-y-2 pl-5 text-muted-foreground leading-relaxed">
+                <li>{t.menu.downloadAndroidStep1}</li>
+                <li>{t.menu.downloadAndroidStep2}</li>
+                <li>{t.menu.downloadAndroidStep3}</li>
+              </ol>
+            </div>
+            <div className="rounded-xl border bg-muted/30 p-4 space-y-2">
+              <p className="font-medium text-foreground">{t.menu.downloadIosTitle}</p>
+              <p className="text-xs text-muted-foreground">{t.menu.downloadIosSafariHint}</p>
+              <ol className="list-decimal space-y-2 pl-5 text-muted-foreground leading-relaxed">
+                <li>{t.menu.downloadIosStep1}</li>
+                <li>{t.menu.downloadIosStep2}</li>
+                <li>{t.menu.downloadIosStep3}</li>
+              </ol>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

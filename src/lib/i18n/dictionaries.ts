@@ -107,6 +107,19 @@ export type Dictionary = {
     myChats: string
     /** Menu → /messaging/my-orders (đơn đặt qua chat widget) */
     myOrders: string
+    /** Menu tài khoản → hộp thoại cài web app (PWA): Chrome/Android + Safari/iOS */
+    downloadApp: string
+    downloadAppSubtitle: string
+    downloadAndroidTitle: string
+    downloadAndroidChromeHint: string
+    downloadAndroidStep1: string
+    downloadAndroidStep2: string
+    downloadAndroidStep3: string
+    downloadIosTitle: string
+    downloadIosSafariHint: string
+    downloadIosStep1: string
+    downloadIosStep2: string
+    downloadIosStep3: string
   }
   home: {
     title: string
@@ -2156,9 +2169,25 @@ const VI_DICTIONARY: Dictionary = {
     supportChat: 'Chat hỗ trợ',
     partnerInbox: 'Kênh kinh doanh',
     partnerApiIntegration: 'Tích hợp API (chủ shop)',
-    customerApiKeys: 'API key riêng',
+    customerApiKeys: 'Thuê nền tảng AI',
     myChats: 'Tin của tôi',
     myOrders: 'Đơn hàng của tôi',
+    downloadApp: 'Tải ứng dụng',
+    downloadAppSubtitle:
+      'Đây là bản web (PWA): cài lên màn hình chính giống app. Android dùng Chrome; iPhone/iPad dùng Safari.',
+    downloadAndroidTitle: 'Android (Chrome)',
+    downloadAndroidChromeHint:
+      'Chrome thường hiện "Cài đặt ứng dụng" hoặc mục Thêm vào Màn hình chính trong menu.',
+    downloadAndroidStep1: 'Mở trang NanoAI (nanoai.vn) trong Chrome.',
+    downloadAndroidStep2: 'Chạm nút menu ⋮ (ba chấm) ở góc trên bên phải.',
+    downloadAndroidStep3:
+      'Chọn "Cài đặt ứng dụng" hoặc "Thêm vào Màn hình chính", rồi xác nhận.',
+    downloadIosTitle: 'iPhone / iPad',
+    downloadIosSafariHint: 'Nên dùng Safari.',
+    downloadIosStep1: 'Mở trang NanoAI (nanoai.vn) trong Safari.',
+    downloadIosStep2: 'Chạm nút Chia sẻ (ô vuông có mũi tên hướng lên) ở thanh công cụ dưới cùng.',
+    downloadIosStep3:
+      'Trong trình đơn, chọn "Thêm vào Màn hình chính", rồi chạm Thêm.',
   },
   home: {
     title: 'NanoAI - Sáng tạo không giới hạn cùng AI',
@@ -4184,9 +4213,23 @@ const EN_DICTIONARY: Dictionary = {
     supportChat: 'Support chat',
     partnerInbox: 'Business channels',
     partnerApiIntegration: 'API integration (shop owner)',
-    customerApiKeys: 'Your API keys',
+    customerApiKeys: 'Rent AI platform',
     myChats: 'Messages with shops',
     myOrders: 'My orders',
+    downloadApp: 'Download app',
+    downloadAppSubtitle:
+      'This is the web app (PWA)—add it to your Home Screen like a native app. Use Chrome on Android; Safari on iPhone/iPad.',
+    downloadAndroidTitle: 'Android (Chrome)',
+    downloadAndroidChromeHint:
+      'Chrome usually offers Install app or Add to Home screen in the menu.',
+    downloadAndroidStep1: 'Open the NanoAI site (nanoai.vn) in Chrome.',
+    downloadAndroidStep2: 'Tap the menu (⋮, three dots) in the top-right corner.',
+    downloadAndroidStep3: 'Choose Install app or Add to Home screen, then confirm.',
+    downloadIosTitle: 'iPhone / iPad',
+    downloadIosSafariHint: 'Use Safari for best results.',
+    downloadIosStep1: 'Open the NanoAI site (nanoai.vn) in Safari.',
+    downloadIosStep2: 'Tap the Share button (square with an arrow pointing up) in the toolbar.',
+    downloadIosStep3: 'Choose “Add to Home Screen”, then tap Add.',
   },
   referral: {
     pageTitle: 'Invite friends – earn credits',
@@ -6218,9 +6261,22 @@ const ZH_DICTIONARY: Dictionary = {
     supportChat: '在线客服',
     partnerInbox: '业务渠道',
     partnerApiIntegration: 'API 集成（店主）',
-    customerApiKeys: '我的 API 密钥',
+    customerApiKeys: '租用 AI 平台',
     myChats: '与店铺消息',
     myOrders: '我的订单',
+    downloadApp: '下载应用',
+    downloadAppSubtitle:
+      '这是网页应用（PWA），可像原生应用一样添加到主屏幕。Android 请用 Chrome；iPhone/iPad 请用 Safari。',
+    downloadAndroidTitle: 'Android（Chrome）',
+    downloadAndroidChromeHint: 'Chrome 菜单中通常有“安装应用”或“添加到主屏幕”。',
+    downloadAndroidStep1: '在 Chrome 中打开 NanoAI 网站（nanoai.vn）。',
+    downloadAndroidStep2: '点右上角菜单 ⋮（三个点）。',
+    downloadAndroidStep3: '选择“安装应用”或“添加到主屏幕”，然后确认。',
+    downloadIosTitle: 'iPhone / iPad',
+    downloadIosSafariHint: '建议使用 Safari。',
+    downloadIosStep1: '在 Safari 中打开 NanoAI 网站（nanoai.vn）。',
+    downloadIosStep2: '轻点工具栏中的“分享”按钮（方框带向上箭头）。',
+    downloadIosStep3: '选择“添加到主屏幕”，然后轻点“添加”。',
   },
   referral: {
     pageTitle: '邀请好友 – 获得积分',
@@ -8166,9 +8222,23 @@ const JA_DICTIONARY: Dictionary = {
     supportChat: 'サポートチャット',
     partnerInbox: 'ビジネスチャネル',
     partnerApiIntegration: 'API 連携（店主）',
-    customerApiKeys: '自分の API キー',
+    customerApiKeys: 'AI プラットフォーム利用',
     myChats: '店舗とのメッセージ',
     myOrders: '自分の注文',
+    downloadApp: 'アプリを入手',
+    downloadAppSubtitle:
+      'Web アプリ（PWA）です。ホーム画面に追加してネイティブのように使えます。Android は Chrome、iPhone/iPad は Safari を使ってください。',
+    downloadAndroidTitle: 'Android（Chrome）',
+    downloadAndroidChromeHint:
+      'Chrome のメニューに「アプリをインストール」や「ホーム画面に追加」が表示されることがあります。',
+    downloadAndroidStep1: 'Chrome で NanoAI（nanoai.vn）を開きます。',
+    downloadAndroidStep2: '右上のメニュー ⋮（縦の 3 点）をタップします。',
+    downloadAndroidStep3: '「アプリをインストール」または「ホーム画面に追加」を選び、確認します。',
+    downloadIosTitle: 'iPhone / iPad',
+    downloadIosSafariHint: 'Safari の利用を推奨します。',
+    downloadIosStep1: 'Safari で NanoAI（nanoai.vn）を開きます。',
+    downloadIosStep2: '画面下のツールバーで「共有」（上向き矢印の四角）をタップします。',
+    downloadIosStep3: '「ホーム画面に追加」を選び、「追加」をタップします。',
   },
   referral: {
     pageTitle: '友達招待 – クレジット獲得',
@@ -10174,9 +10244,23 @@ const KO_DICTIONARY: Dictionary = {
     supportChat: '고객 채팅',
     partnerInbox: '비즈니스 채널',
     partnerApiIntegration: 'API 연동(점주)',
-    customerApiKeys: '내 API 키',
+    customerApiKeys: 'AI 플랫폼 임대',
     myChats: '매장과 메시지',
     myOrders: '내 주문',
+    downloadApp: '앱 받기',
+    downloadAppSubtitle:
+      '웹 앱(PWA)입니다. 홈 화면에 추가해 네이티브처럼 쓸 수 있습니다. Android는 Chrome, iPhone/iPad는 Safari를 쓰세요.',
+    downloadAndroidTitle: 'Android (Chrome)',
+    downloadAndroidChromeHint:
+      'Chrome 메뉴에 ‘앱 설치’ 또는 ‘홈 화면에 추가’가 나타나는 경우가 많습니다.',
+    downloadAndroidStep1: 'Chrome에서 NanoAI(nanoai.vn)를 엽니다.',
+    downloadAndroidStep2: '오른쪽 위 메뉴 ⋮(점 세 개)를 누릅니다.',
+    downloadAndroidStep3: '‘앱 설치’ 또는 ‘홈 화면에 추가’를 고르고 확인합니다.',
+    downloadIosTitle: 'iPhone / iPad',
+    downloadIosSafariHint: 'Safari 사용을 권장합니다.',
+    downloadIosStep1: 'Safari에서 NanoAI(nanoai.vn)를 엽니다.',
+    downloadIosStep2: '하단 도구 모음에서 공유(위쪽 화살표가 있는 사각형)를 누릅니다.',
+    downloadIosStep3: '「홈 화면에 추가」를 선택한 뒤 「추가」를 누릅니다.',
   },
   referral: {
     pageTitle: '친구 초대 – 크레딧 받기',

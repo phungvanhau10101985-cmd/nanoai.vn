@@ -20,8 +20,8 @@ export function generateMetadata(): Metadata {
 function copyForLocale(locale: string): CustomerApiKeysCopy {
   if (locale === 'en') {
     return {
-      title: 'Your API keys',
-      subtitle: 'Use your own Gemini key for AI tools while NanoAI provides the interface and workflows.',
+      title: 'Rent AI platform',
+      subtitle: 'Rent the NanoAI platform and use your own Gemini key for AI tools, workflows, and storage.',
       overviewTitle: 'How it works',
       overviewBody: 'When enabled, supported AI requests use your Gemini API key first. If no valid user key is available, the server key can still be used where the feature allows it.',
       geminiTitle: 'Gemini API key',
@@ -75,8 +75,8 @@ function copyForLocale(locale: string): CustomerApiKeysCopy {
   }
   if (locale === 'zh') {
     return {
-      title: '我的 API 密钥',
-      subtitle: '使用你自己的 Gemini 密钥运行 AI 工具，NanoAI 提供界面和工作流。',
+      title: '租用 AI 平台',
+      subtitle: '租用 NanoAI 平台，并使用你自己的 Gemini 密钥运行 AI 工具、工作流和存储。',
       overviewTitle: '工作方式',
       overviewBody: '启用后，支持的 AI 请求会优先使用你的 Gemini API 密钥。如果没有有效的用户密钥，允许的功能仍可回退到服务器密钥。',
       geminiTitle: 'Gemini API 密钥',
@@ -130,8 +130,8 @@ function copyForLocale(locale: string): CustomerApiKeysCopy {
   }
   if (locale === 'ja') {
     return {
-      title: '自分の API キー',
-      subtitle: '自分の Gemini キーで AI ツールを使い、NanoAI は画面とワークフローを提供します。',
+      title: 'AI プラットフォーム利用',
+      subtitle: 'NanoAI プラットフォームを利用し、自分の Gemini キーで AI ツール、ワークフロー、保存機能を使えます。',
       overviewTitle: '仕組み',
       overviewBody: '有効にすると、対応する AI リクエストはまずあなたの Gemini API キーを使います。有効なユーザーキーがない場合、許可された機能ではサーバーキーに戻ります。',
       geminiTitle: 'Gemini API キー',
@@ -185,8 +185,8 @@ function copyForLocale(locale: string): CustomerApiKeysCopy {
   }
   if (locale === 'ko') {
     return {
-      title: '내 API 키',
-      subtitle: '내 Gemini 키로 AI 도구를 사용하고 NanoAI는 화면과 워크플로를 제공합니다.',
+      title: 'AI 플랫폼 임대',
+      subtitle: 'NanoAI 플랫폼을 이용하고 내 Gemini 키로 AI 도구, 워크플로, 저장 기능을 사용합니다.',
       overviewTitle: '작동 방식',
       overviewBody: '활성화하면 지원되는 AI 요청은 먼저 사용자의 Gemini API 키를 사용합니다. 유효한 사용자 키가 없으면 허용된 기능에서 서버 키로 돌아갈 수 있습니다.',
       geminiTitle: 'Gemini API 키',
@@ -239,8 +239,8 @@ function copyForLocale(locale: string): CustomerApiKeysCopy {
     }
   }
   return {
-    title: 'API key riêng',
-    subtitle: 'Dùng Gemini API key của khách, còn NanoAI cung cấp giao diện, workflow và công cụ.',
+    title: 'Thuê nền tảng AI',
+    subtitle: 'Thuê nền tảng NanoAI để dùng công cụ, workflow và lưu trữ; khách dùng Gemini API key riêng của mình.',
     overviewTitle: 'Cách hoạt động',
     overviewBody: 'Khi bật, các yêu cầu AI được hỗ trợ sẽ ưu tiên dùng Gemini API key của bạn. Nếu chưa có key hợp lệ, hệ thống vẫn có thể dùng key server ở những tính năng cho phép fallback.',
     geminiTitle: 'Gemini API key',
