@@ -10,6 +10,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 
 const LABEL_COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -288,7 +289,7 @@ export async function createProductLabel(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {
@@ -417,7 +418,7 @@ export async function createLabelMockupOnProduct(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {

@@ -10,6 +10,11 @@ import {
   sepayMarkPaymentCompleted,
 } from '@/lib/db/payments-repo'
 import {
+  completeByokPlanPayment,
+  sepayFindByokPaymentByTransactionId,
+  sepayFindPendingByokPaymentMatch,
+} from '@/lib/db/user-ai-api-key-billing-pg'
+import {
   fetchPartnerOrderByIdForPartnerFromPg,
   fetchPartnerOrderByPaymentReferenceFromPg,
   fetchPartnerPaymentSettingsFromPg,
@@ -172,6 +177,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (transactionId) {
+      const existingByok = await sepayFindByokPaymentByTransactionId(transactionId)
+      if (existingByok?.status === 'completed') {
+        return NextResponse.json({
+          success: true,
+          message: 'BYOK payment already processed',
+          data: { paymentId: existingByok.id, paymentType: 'byok_plan' },
+        })
+      }
       const existing = await sepayFindPaymentByTransactionId(transactionId)
       if (existing?.status === 'completed') {
         return NextResponse.json({
@@ -180,6 +193,30 @@ export async function POST(request: NextRequest) {
           data: { paymentId: existing.id },
         })
       }
+    }
+
+    const pendingByok = await sepayFindPendingByokPaymentMatch(normalizedContent, amountIn)
+    if (pendingByok) {
+      const completed = await completeByokPlanPayment({
+        paymentId: pendingByok.id,
+        transactionId: transactionId || null,
+        normalizedContent,
+        sepayData: body as Record<string, unknown>,
+      })
+      if ('error' in completed) {
+        console.error('Failed to complete BYOK plan payment:', completed.error)
+        return NextResponse.json({ error: completed.error }, { status: 500 })
+      }
+      return NextResponse.json({
+        success: true,
+        message: 'BYOK plan payment processed successfully',
+        data: {
+          paymentId: pendingByok.id,
+          userId: pendingByok.user_id,
+          planId: pendingByok.plan_id,
+          paymentType: 'byok_plan',
+        },
+      })
     }
 
     const pending = await sepayFindPendingPaymentMatch(normalizedContent, amountIn)

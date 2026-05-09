@@ -12,6 +12,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 const ERASER_COSTS = { '2K': 1.5, '4K': 3 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -71,7 +72,8 @@ export async function eraseObjects(formData: FormData) {
   if (!inserted) return { error: 'Không thể khởi tạo phiên xử lý.' }
   const historyItem = { id: inserted.id }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const { apiKey } = await requireGoogleApiKeyForUser(user.id)
+  const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {

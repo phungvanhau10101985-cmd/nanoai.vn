@@ -10,6 +10,7 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { buildTransparentPngFromMask } from '@/lib/mask-to-transparent'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 const REMOVE_BG_COST = 1.5
 const toTenths = (value: number) => Math.round(value * 10)
@@ -58,7 +59,8 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const { apiKey } = await requireGoogleApiKeyForUser(user.id)
+  const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {

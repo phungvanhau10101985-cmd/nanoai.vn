@@ -9,6 +9,7 @@ import {
 } from '@/lib/english-coach-api-usage'
 import { trackOpenAiStyleCompletionUsage, type OpenAiStyleUsage } from '@/lib/track-ai-usage'
 import { getUserForAction } from '@/lib/auth'
+import { resolveGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { buildChatPrompts } from '@/app/hoc-tieng-anh-ai/prompt/prompt-builder'
 import { getPairPromptConfig, toLanguagePairKey } from '@/app/hoc-tieng-anh-ai/i18n/pairs'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -1490,11 +1491,6 @@ function toMixedAnalyzeResult(input: Record<string, unknown> | null): MixedAnaly
 
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = process.env.GOOGLE_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
-    }
-
     const payload = (await request.json()) as ChatPayload
     const sessionId = String(payload.sessionId || '').trim()
     const studentText = String(payload.studentText || '').trim()
@@ -1731,6 +1727,11 @@ export async function POST(request: NextRequest) {
         pinnedFacts: parsePinnedFacts(sessionPinnedFactsRaw),
       }
     }
+    const resolvedGoogleKey = await resolveGoogleApiKeyForUser(userId)
+    if (!resolvedGoogleKey) {
+      return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY hoặc Gemini API key riêng hợp lệ.' }, { status: 500 })
+    }
+    const apiKey = resolvedGoogleKey.apiKey
     const isPresetSession = Boolean(presetReplay && presetReplay.turns.length > 0)
     const coachUsageContext: EnglishCoachUsageContext =
       !sessionId ? 'unsessioned' : isPresetSession ? 'preset' : 'live'

@@ -10,6 +10,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 
 const STORY_COSTS = { '2K': 3, '4K': 6 } as const
@@ -79,7 +80,7 @@ export async function createStoryImage(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
 
   // Bước 1: Gemini Flash 2.5 mở rộng ý tưởng thành câu chuyện dẫn dắt (tiếng Việt)
   const flashModel = genAI.getGenerativeModel(GEMINI_25_FLASH_TEXT_NO_THINKING)

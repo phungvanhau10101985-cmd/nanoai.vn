@@ -10,6 +10,7 @@ import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 const SHARPEN_COSTS = { '2K': 1.5, '4K': 3 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -62,7 +63,8 @@ export async function sharpenImage(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const { apiKey } = await requireGoogleApiKeyForUser(user.id)
+  const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {

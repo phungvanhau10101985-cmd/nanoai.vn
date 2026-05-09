@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 const RESTORE_COSTS = { '2K': 4, '4K': 8 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -105,7 +106,7 @@ export async function restoreImage(formData: FormData) {
     )
   }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {

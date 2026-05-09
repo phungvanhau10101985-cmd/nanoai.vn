@@ -18,6 +18,7 @@ import {
   updateTryOnHistoryCompletedPg,
 } from '@/lib/db/try-on-history-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { resolveGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 const toTenths = (value: number) => Math.round(value * 10)
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
@@ -146,14 +147,14 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
 
   const aspectRatio = await getAspectRatioFromImage(userBuf)
 
-  const apiKey = process.env.GOOGLE_API_KEY
-  if (!apiKey) {
+  const resolvedGoogleKey = await resolveGoogleApiKeyForUser(billingUserId)
+  if (!resolvedGoogleKey) {
     await removeTryOnStorageObjects(stagedPaths)
     await deleteTryOnHistoryPg(historyItem.id)
-    return { error: 'Thiếu GOOGLE_API_KEY trên server.' }
+    return { error: 'Thiếu GOOGLE_API_KEY trên server hoặc Gemini API key riêng hợp lệ.' }
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey)
+  const genAI = new GoogleGenerativeAI(resolvedGoogleKey.apiKey)
   const modelName = 'gemini-3-pro-image-preview'
   const model = genAI.getGenerativeModel({
     model: modelName,

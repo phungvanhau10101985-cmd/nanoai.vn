@@ -15,6 +15,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 const COSTS = {
   floor_3d: 4,
@@ -239,7 +240,7 @@ export async function step1Build3D(formData: FormData) {
     houseInfo.hasReferenceImage && 'Có ảnh gợi ý đính kèm',
   ].filter(Boolean).join('. ')
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const flashModel = genAI.getGenerativeModel(GEMINI_25_FLASH_TEXT_NO_THINKING)
   const synthRes = await flashModel.generateContent(`${SYNTH_PROMPT}\n\nNội dung người dùng nhập:\n${userInput}`)
   trackFromUsageMetadata(synthRes.response.usageMetadata, 'gemini-2.5-flash', 'xay-nha-synth', user.id)
@@ -372,7 +373,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
     input.otherRooms && input.otherRooms,
   ].filter(Boolean).join('. ')
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const flashModel = genAI.getGenerativeModel(GEMINI_25_FLASH_TEXT_NO_THINKING)
   const synthRes = await flashModel.generateContent(`${FLOOR_PLAN_SYNTH}\n\nNội dung người dùng nhập:\n${userInput}`)
   trackFromUsageMetadata(synthRes.response.usageMetadata, 'gemini-2.5-flash', 'xay-nha-fp-synth', user.id)
@@ -470,7 +471,7 @@ export async function stepStructural(sourceProjectId: string, floorNum: number, 
   const imgBuf = Buffer.from(await imgRes.arrayBuffer())
   const base64 = imgBuf.toString('base64')
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const imageModel = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },

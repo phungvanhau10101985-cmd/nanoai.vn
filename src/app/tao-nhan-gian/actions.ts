@@ -12,6 +12,7 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 
 const STICKER_COSTS = { '2K': 2, '4K': 4 } as const
@@ -158,7 +159,7 @@ export async function createStickerLabel(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
 
   // Bước 1: Gemini Flash 2.5 mở rộng ý tưởng thành mô tả chi tiết
   const flashModel = genAI.getGenerativeModel(GEMINI_25_FLASH_TEXT_NO_THINKING)
@@ -274,10 +275,6 @@ export async function createStickerFromPhoto(formData: FormData) {
     : '1:1'
 
   const COST = STICKER_COSTS[imageQuality]
-  const apiKey = process.env.GOOGLE_API_KEY?.trim()
-  if (!apiKey) {
-    return { error: 'Thiếu cấu hình GOOGLE_API_KEY.' }
-  }
 
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
@@ -342,7 +339,7 @@ export async function createStickerFromPhoto(formData: FormData) {
     caption.replace(/<<<|>>>/g, '')
   )
 
-  const genAI = new GoogleGenerativeAI(apiKey)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {

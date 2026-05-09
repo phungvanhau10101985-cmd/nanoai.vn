@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 
 const COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -129,7 +130,7 @@ export async function createImageFromText(formData: FormData) {
   const instruction =
     PROMPT_TEXT_ONLY + (hasRef ? REFERENCE_HINT : '') + styleBlock + `\n\nUSER DESCRIPTION:\n${promptEn}`
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {

@@ -5,6 +5,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
+import { resolveGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 const QUIZ_SCHEMA = `{
   "quizzes": [
@@ -110,7 +111,7 @@ export async function verifyQuizWithAI(
   userId?: string | null
 ): Promise<{ verified: boolean; correctIndex?: number } | null> {
   const verifyPrompt = buildVerifyPrompt(fullContent, q)
-  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  const apiKey = (await resolveGoogleApiKeyForUser(userId))?.apiKey
   const deepSeekKey = process.env.DEEPSEEK_API_KEY?.trim()
   const DEEPSEEK_VERIFY_MODEL = process.env.DEEPSEEK_VERIFY_MODEL?.trim() || 'deepseek-reasoner'
   const systemLine = 'Trả về đúng JSON theo yêu cầu, không markdown.'
@@ -181,7 +182,7 @@ export async function createQuizWithGemini(
   fullContent: string,
   userId?: string | null
 ): Promise<{ quiz: QuizData; marker: string } | null> {
-  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  const apiKey = (await resolveGoogleApiKeyForUser(userId))?.apiKey
   if (!apiKey) return null
   const prompt = buildCreatePrompt(fullContent)
   const genAI = new GoogleGenerativeAI(apiKey)
@@ -328,7 +329,7 @@ export async function checkQuizWrongWithGemini(
   q: QuizData,
   userId?: string | null
 ): Promise<{ isWrong: boolean; reasoning: string } | null> {
-  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  const apiKey = (await resolveGoogleApiKeyForUser(userId))?.apiKey
   if (!apiKey) return null
   const opts = q.options ?? []
   const prompt = `Bạn là giáo viên kiểm tra chất lượng. Giáo viên báo câu hỏi trắc nghiệm này SAI. Đối chiếu với nội dung slide.

@@ -13,6 +13,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import sharp from 'sharp'
 import { detectFaceInTargetImage, detectFacesInTargetImage, extractFaceFromSourceImage, type FaceBbox } from '@/lib/face-swap-vision'
 import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 const FACESWAP_COSTS = { '2K': 1, '4K': 2 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -174,7 +175,8 @@ export async function faceSwap(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const { apiKey } = await requireGoogleApiKeyForUser(user.id)
+  const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {

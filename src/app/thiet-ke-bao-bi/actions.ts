@@ -14,6 +14,7 @@ import { BAG_TYPE_OPTIONS, type BagType } from './bag-types'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 
 const PACKAGING_COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -319,7 +320,7 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
     contentParts.push({ text: 'Integrate the provided logo naturally into the packaging design. Place it prominently and professionally.' })
   }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {
@@ -646,7 +647,7 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
     contentParts.push({ text: 'Integrate the logo into the design.' })
   }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {
@@ -916,7 +917,7 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
     contentParts.push({ text: 'Integrate the logo into the design.' })
   }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {
@@ -1055,7 +1056,7 @@ Result: a 3D box where top, front, and side all show the respective designs. Pro
     { inlineData: { data: face3Base64, mimeType: 'image/png' } },
   ]
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {
@@ -1200,7 +1201,7 @@ Result: a 3D box where the specified faces show the respective designs. Professi
 
   const contentParts: object[] = [{ text: prompt }, ...imagesBase64.map((d) => ({ inlineData: { data: d, mimeType: 'image/png' as const } }))]
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {
@@ -1312,7 +1313,7 @@ Result: a 3D bag/pouch mockup where the front face shows the provided design. Pr
 
   const contentParts: object[] = [{ text: prompt }, { inlineData: { data: flatBase64, mimeType: 'image/png' as const } }]
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {

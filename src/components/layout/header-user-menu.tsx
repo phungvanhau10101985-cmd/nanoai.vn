@@ -195,6 +195,12 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
+                <Link href="/dashboard/customer-api-keys" className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" aria-hidden />
+                  {t.menu.customerApiKeys}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <Link href="/dashboard/history">{t.menu.processedImages}</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>

@@ -136,6 +136,24 @@ const ADMIN_LINKS: AdminLink[] = [
     icon: Users,
   },
   {
+    href: '/admin/customer-api-keys',
+    title: {
+      vi: 'Thành viên dùng API key riêng',
+      en: 'BYOK API key members',
+      zh: '自带 API 密钥成员',
+      ja: 'BYOK API キー利用者',
+      ko: 'BYOK API 키 사용자',
+    },
+    description: {
+      vi: 'Theo dõi khách đã lưu Gemini API key riêng, trạng thái key và lỗi kiểm tra gần nhất.',
+      en: 'Track customers who saved Gemini API keys, key status, and latest validation errors.',
+      zh: '跟踪已保存 Gemini API 密钥的客户、密钥状态和最近验证错误。',
+      ja: 'Gemini API キーを保存した顧客、状態、直近の検証エラーを確認。',
+      ko: 'Gemini API 키를 저장한 고객, 키 상태, 최근 검증 오류를 확인.',
+    },
+    icon: KeyRound,
+  },
+  {
     href: '/admin/api-stats',
     title: {
       vi: 'Thống kê API',

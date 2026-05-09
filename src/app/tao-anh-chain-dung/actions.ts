@@ -11,6 +11,7 @@ import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@
 import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 const HEADSHOT_COSTS = { '2K': 2, '4K': 4 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -71,7 +72,8 @@ export async function createHeadshot(formData: FormData) {
   if (!inserted) return { error: 'Không thể khởi tạo phiên xử lý.' }
   const historyItem = { id: inserted.id }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const { apiKey } = await requireGoogleApiKeyForUser(user.id)
+  const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-pro-image-preview',
     generationConfig: {

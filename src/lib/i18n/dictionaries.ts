@@ -101,6 +101,8 @@ export type Dictionary = {
     partnerInbox: string
     /** Menu → /dashboard/api-integration (chủ shop: API, nhúng chat) */
     partnerApiIntegration: string
+    /** Menu → /dashboard/customer-api-keys (BYOK AI provider keys) */
+    customerApiKeys: string
     /** Menu → /messaging/my-chats (khách: tin với các shop khác, không phải inbox chủ shop) */
     myChats: string
     /** Menu → /messaging/my-orders (đơn đặt qua chat widget) */
@@ -2154,6 +2156,7 @@ const VI_DICTIONARY: Dictionary = {
     supportChat: 'Chat hỗ trợ',
     partnerInbox: 'Kênh kinh doanh',
     partnerApiIntegration: 'Tích hợp API (chủ shop)',
+    customerApiKeys: 'API key riêng',
     myChats: 'Tin của tôi',
     myOrders: 'Đơn hàng của tôi',
   },
@@ -4181,6 +4184,7 @@ const EN_DICTIONARY: Dictionary = {
     supportChat: 'Support chat',
     partnerInbox: 'Business channels',
     partnerApiIntegration: 'API integration (shop owner)',
+    customerApiKeys: 'Your API keys',
     myChats: 'Messages with shops',
     myOrders: 'My orders',
   },
@@ -6214,6 +6218,7 @@ const ZH_DICTIONARY: Dictionary = {
     supportChat: '在线客服',
     partnerInbox: '业务渠道',
     partnerApiIntegration: 'API 集成（店主）',
+    customerApiKeys: '我的 API 密钥',
     myChats: '与店铺消息',
     myOrders: '我的订单',
   },
@@ -8161,6 +8166,7 @@ const JA_DICTIONARY: Dictionary = {
     supportChat: 'サポートチャット',
     partnerInbox: 'ビジネスチャネル',
     partnerApiIntegration: 'API 連携（店主）',
+    customerApiKeys: '自分の API キー',
     myChats: '店舗とのメッセージ',
     myOrders: '自分の注文',
   },
@@ -10168,6 +10174,7 @@ const KO_DICTIONARY: Dictionary = {
     supportChat: '고객 채팅',
     partnerInbox: '비즈니스 채널',
     partnerApiIntegration: 'API 연동(점주)',
+    customerApiKeys: '내 API 키',
     myChats: '매장과 메시지',
     myOrders: '내 주문',
   },

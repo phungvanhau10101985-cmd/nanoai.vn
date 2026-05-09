@@ -26,6 +26,7 @@ import { buildWeddingPrompt } from '@/lib/wedding/build-wedding-image-prompt'
 import { parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
 import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
 import { isTwinVietGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 const COST = 1
 const MAX_TEXT = 2000
@@ -236,7 +237,7 @@ export async function generateWeddingCardImage(formData: FormData) {
 
   let charged = false
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+    const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(userId)).apiKey)
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-pro-image-preview',
       generationConfig: {

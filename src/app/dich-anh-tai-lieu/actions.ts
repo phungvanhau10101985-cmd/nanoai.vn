@@ -28,6 +28,7 @@ import { translateOneImage } from '@/lib/translate-document-image'
 import { applyPostCheckOcr } from '@/lib/translate-post-check'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { uploadTryOnImagePublic, downloadTryOnObject } from '@/lib/storage/try-on-public-upload'
+import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 const TRANSLATE_COSTS = { '2K': 3, '4K': 6 } as const
 const MAX_PDF_PAGES = 50
 const POPPLER_DPI = 300
@@ -193,7 +194,7 @@ export async function translateDocumentImage(formData: FormData) {
   if (!historyRow) return { error: 'Không thể khởi tạo phiên xử lý.' }
   const historyItem = { id: historyRow.id }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const buffer = Buffer.from(await image.arrayBuffer())
 
   try {
@@ -344,7 +345,7 @@ export async function translatePdfDocument(
   }
 
   const sharp = (await import('sharp')).default
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const translatedBuffers: Buffer[] = []
   const cacheKey = hashPdfBuffer(pdfBuffer)
   let pageBuffers = getCachedPdfExtract(cacheKey)
@@ -568,7 +569,7 @@ export async function translateOneImageFromBatch(
     contentType: image.type || 'image/png',
   })
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const buffer = Buffer.from(await image.arrayBuffer())
   const { buffer: resultBuffer, error: translateError } = await translateOneImage(
     genAI,
@@ -653,7 +654,7 @@ export async function translateOneImageFromUrl(
     contentType: 'image/png',
   })
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const { buffer: resultBuffer, error: translateError } = await translateOneImage(
     genAI,
     imageBuffer,
@@ -772,7 +773,7 @@ export async function translateDocumentImageBatch(
     return { error: `Không đủ credits. Cần ${formatCredits(TOTAL_COST)} credits (${images.length} × ${formatCredits(COST_PER_IMAGE)}).` }
   }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const results: Array<{ originalUrl: string; resultUrl: string }> = []
   const zipEntries: Array<{ name: string; buffer: Buffer }> = []
   const batchTimestamp = Date.now()
@@ -1148,7 +1149,7 @@ export async function translateFromExcel(
     return { error: `Không đủ credits. Cần ${formatCredits(estimatedCost)} credits (${urls.length} ảnh × ${formatCredits(COST_PER_IMAGE)}).` }
   }
 
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const results: Array<{ originalUrl: string; resultUrl: string }> = []
   const zipEntries: Array<{ name: string; buffer: Buffer }> = []
   const batchTimestamp = Date.now()
