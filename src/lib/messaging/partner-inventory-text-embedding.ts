@@ -151,19 +151,98 @@ function buildNormalizedPriceLines(priceHint: string): string[] {
   return lines
 }
 
+const MAX_CONSULT_JSON_LEAF_CHARS = 2400
+const MAX_CONSULT_JSON_LEAVES = 120
+
+function collectProductInfoLeafStrings(value: unknown, out: string[]): void {
+  if (value == null) return
+  if (typeof value === 'string') {
+    const t = value.trim()
+    if (!t) return
+    out.push(t.length > MAX_CONSULT_JSON_LEAF_CHARS ? t.slice(0, MAX_CONSULT_JSON_LEAF_CHARS) + '…' : t)
+    return
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    out.push(String(value))
+    return
+  }
+  if (typeof value === 'boolean') return
+  if (Array.isArray(value)) {
+    for (const x of value) collectProductInfoLeafStrings(x, out)
+    return
+  }
+  if (typeof value === 'object') {
+    for (const k of Object.keys(value as Record<string, unknown>)) {
+      collectProductInfoLeafStrings((value as Record<string, unknown>)[k], out)
+    }
+  }
+}
+
+function dedupeConsecutiveStrings(parts: string[]): string[] {
+  const out: string[] = []
+  let prev = ''
+  for (const p of parts) {
+    if (p === prev) continue
+    out.push(p)
+    prev = p
+  }
+  return out
+}
+
 /**
- * Chuỗi đưa vào Gemini embed: tên + giá (trong kho + chuẩn đồng + K/k/ngàn) + ghi chú tư vấn.
+ * `consult_note` thường chứa JSON product_info — chỉ lấy **giá trị lá** (không đưa tên key/đề mục)
+ * vào chuỗi embed để vector phản ánh thông tin SP, giảm nhiễu cấu trúc.
+ * Chuỗi không parse được JSON thì giữ nguyên (ghi chú tư vấn dạng text thường).
+ */
+export function flattenConsultNoteForEmbedding(raw: string): string {
+  const s = raw.trim()
+  if (!s) return ''
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(s)
+  } catch {
+    return s
+  }
+
+  if (typeof parsed === 'string') {
+    const inner = parsed.trim()
+    if (inner.startsWith('{') || inner.startsWith('[')) {
+      try {
+        parsed = JSON.parse(inner)
+      } catch {
+        return s
+      }
+    } else {
+      return inner || s
+    }
+  }
+
+  if (parsed !== null && (typeof parsed === 'object' || Array.isArray(parsed))) {
+    const leaves: string[] = []
+    collectProductInfoLeafStrings(parsed, leaves)
+    const trimmed = dedupeConsecutiveStrings(leaves).slice(0, MAX_CONSULT_JSON_LEAVES)
+    const joined = trimmed.join('\n').trim()
+    if (joined) return joined
+  }
+
+  return s
+}
+
+/**
+ * Chuỗi đưa vào Gemini embed: tên + giá (trong kho + chuẩn đồng + K/k/ngàn) + nội dung tư vấn (product_info → chỉ giá trị lá).
  */
 export function buildCatalogTextForEmbedding(
   row: Pick<InvRow, 'name' | 'price_hint' | 'consult_note'>
 ): string {
   const name = (row.name ?? '').trim()
   const priceHint = (row.price_hint ?? '').trim()
-  const consult = (row.consult_note ?? '').trim()
+  const consultRaw = (row.consult_note ?? '').trim()
+  const consultBody = consultRaw ? flattenConsultNoteForEmbedding(consultRaw) : ''
   const parts: string[] = []
   if (name) parts.push(`Tên sản phẩm: ${name}`)
   if (priceHint) parts.push(...buildNormalizedPriceLines(priceHint))
-  if (consult) parts.push(`Ghi chú tư vấn: ${consult}`)
+  if (consultBody) parts.push(consultBody)
   return parts.join('\n')
 }
 

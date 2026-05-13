@@ -70,6 +70,9 @@ export type CustomerApiKeysCopy = {
   transferContent: string
   paymentAmount: string
   scanQr: string
+  /** Sau khi SePay khớp giao dịch, gói tự kích hoạt — nút chỉ để làm mới UI nếu cần */
+  paymentAutoActivateHint: string
+  refreshPaymentStatus: string
   paymentCompleted: string
   plans: CustomerApiKeyPlanCopy[]
   successSaved: string
@@ -366,7 +369,10 @@ export function CustomerApiKeysClient({
         <Card className="tool-tile border-violet-200">
           <CardHeader>
             <CardTitle>{copy.pendingPaymentTitle}</CardTitle>
-            <CardDescription>{copy.scanQr}</CardDescription>
+            <CardDescription className="space-y-2">
+              <span className="block">{copy.scanQr}</span>
+              <span className="block text-muted-foreground">{copy.paymentAutoActivateHint}</span>
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-[220px_1fr]">
             <div className="rounded-lg border bg-white p-2">
@@ -376,8 +382,8 @@ export function CustomerApiKeysClient({
               <p><span className="font-medium">{copy.paymentAmount}:</span> {formatVnd(activePayment.amount)}</p>
               <p><span className="font-medium">{copy.transferContent}:</span> <span className="font-mono">{activePayment.transaction_content}</span></p>
               <p><span className="font-medium">Bank:</span> {activePayment.bank_name} - {activePayment.bank_account}</p>
-              <Button type="button" onClick={handleRefreshPayment} disabled={isPending}>
-                {copy.checkConnection}
+              <Button type="button" variant="outline" onClick={handleRefreshPayment} disabled={isPending}>
+                {copy.refreshPaymentStatus}
               </Button>
             </div>
           </CardContent>

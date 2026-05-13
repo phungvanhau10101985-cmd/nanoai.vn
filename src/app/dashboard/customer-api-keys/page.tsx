@@ -61,6 +61,9 @@ function copyForLocale(locale: string): CustomerApiKeysCopy {
       transferContent: 'Transfer content',
       paymentAmount: 'Amount',
       scanQr: 'Scan QR to pay',
+      paymentAutoActivateHint:
+        'When your transfer matches the amount and transfer content, SePay notifies us and your BYOK plan turns on automatically—usually within seconds or a few minutes. Use the button below only if this page has not updated yet.',
+      refreshPaymentStatus: 'Refresh payment status',
       paymentCompleted: 'Payment completed. Your BYOK plan is active.',
       plans: [
         { id: 'basic', name: 'BYOK Basic', audience: 'Individuals and light use', monthlyPriceVnd: 199000, features: ['Use your own Gemini key', 'Core AI tools', 'Encrypted key storage', 'Basic support'] },
@@ -116,6 +119,9 @@ function copyForLocale(locale: string): CustomerApiKeysCopy {
       transferContent: '转账备注',
       paymentAmount: '金额',
       scanQr: '扫码支付',
+      paymentAutoActivateHint:
+        '转账金额与备注完全一致后，SePay 会通知系统并自动开通 BYOK 套餐，通常在几秒到几分钟内。若页面未更新可点击下方按钮刷新。',
+      refreshPaymentStatus: '刷新支付状态',
       paymentCompleted: '支付已完成，BYOK 套餐已启用。',
       plans: [
         { id: 'basic', name: 'BYOK Basic', audience: '个人和轻度使用', monthlyPriceVnd: 199000, features: ['使用自己的 Gemini 密钥', '核心 AI 工具', '密钥加密保存', '基础支持'] },
@@ -171,6 +177,9 @@ function copyForLocale(locale: string): CustomerApiKeysCopy {
       transferContent: '振込内容',
       paymentAmount: '金額',
       scanQr: 'QR をスキャンして支払い',
+      paymentAutoActivateHint:
+        '金額と振込内容が一致すると、SePay から通知があり、BYOK プランは自動で有効になります（通常は数秒〜数分）。画面が更新されないときだけ下のボタンで状態を更新してください。',
+      refreshPaymentStatus: '支払い状態を更新',
       paymentCompleted: '支払いが完了しました。BYOK プランが有効です。',
       plans: [
         { id: 'basic', name: 'BYOK Basic', audience: '個人・ライト利用', monthlyPriceVnd: 199000, features: ['自分の Gemini キーを利用', '主要 AI ツール', 'キーの暗号化保存', '基本サポート'] },
@@ -226,6 +235,9 @@ function copyForLocale(locale: string): CustomerApiKeysCopy {
       transferContent: '입금 내용',
       paymentAmount: '금액',
       scanQr: 'QR 스캔 결제',
+      paymentAutoActivateHint:
+        '입금 금액과 내용이 일치하면 SePay 알림으로 BYOK 요금제가 자동 활성화됩니다(보통 수초~수분). 화면이 갱신되지 않을 때만 아래 버튼을 누르세요.',
+      refreshPaymentStatus: '결제 상태 새로고침',
       paymentCompleted: '결제가 완료되었습니다. BYOK 요금제가 활성화되었습니다.',
       plans: [
         { id: 'basic', name: 'BYOK Basic', audience: '개인 및 가벼운 사용', monthlyPriceVnd: 199000, features: ['내 Gemini 키 사용', '핵심 AI 도구', '키 암호화 저장', '기본 지원'] },
@@ -280,6 +292,9 @@ function copyForLocale(locale: string): CustomerApiKeysCopy {
     transferContent: 'Nội dung chuyển khoản',
     paymentAmount: 'Số tiền',
     scanQr: 'Quét QR để thanh toán',
+    paymentAutoActivateHint:
+      'Chuyển khoản đúng số tiền và đúng nội dung (SePay sẽ khớp), máy chủ nhận thông báo và tự kích hoạt gói BYOK — thường vài giây đến vài phút. Nút bên dưới chỉ để làm mới trang nếu chưa thấy cập nhật.',
+    refreshPaymentStatus: 'Làm mới trạng thái thanh toán',
     paymentCompleted: 'Thanh toán đã hoàn tất. Gói BYOK đã được kích hoạt.',
     plans: [
       { id: 'basic', name: 'BYOK Basic', audience: 'Cá nhân, dùng nhẹ', monthlyPriceVnd: 199000, features: ['Dùng Gemini API key riêng', 'Các công cụ AI cốt lõi', 'Key được mã hóa khi lưu', 'Hỗ trợ cơ bản'] },

@@ -10,6 +10,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import type { InventoryExcelInsert } from '@/lib/messaging/partner-inventory-excel'
 import {
   inventoryNameMatchKey,
+  inventoryRemarketingMatchKey,
   inventorySkuMatchKey,
 } from '@/lib/messaging/partner-inventory-excel'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
@@ -177,16 +178,143 @@ export async function listPartnerInventoryRows(
   return { ok: true, rows: fromPg as InventoryRow[] }
 }
 
+/**
+ * Snapshot chỉ theo remarketing_id: đã có mã → không đụng DB; mã mới → insert; mã có trong DB mà không còn trong payload → xóa mọi dòng có mã đó.
+ * Không khớp SKU/tên; dòng kho không có remarketing_id không tham gia reconcile này.
+ */
+async function upsertPartnerInventoryRemarketingSnapshotBatch(
+  partnerId: string,
+  rows: InventoryExcelInsert[],
+  options: { existingRows: InventoryRow[]; deferEmbeddings?: boolean }
+): Promise<
+  | { ok: true; inserted: number; updated: number; deleted: number; embeddingsDeferred: boolean }
+  | { ok: false; error: string }
+> {
+  const now = new Date().toISOString()
+  const resolvedExistingRows = options.existingRows
+  const existingById = new Map(resolvedExistingRows.map((r) => [r.id, r]))
+
+  const byRemarketing = new Map<string, InventoryRow[]>()
+  for (const row of resolvedExistingRows) {
+    const rk = inventoryRemarketingMatchKey(row.remarketing_id)
+    if (!rk) continue
+    const arr = byRemarketing.get(rk) ?? []
+    arr.push(row)
+    byRemarketing.set(rk, arr)
+  }
+
+  const plannedDeletes = new Set<string>()
+  const plannedInserts = new Map<string, InventoryInsert>()
+  const pendingNewRemarketingKeys = new Set<string>()
+  let inserted = 0
+  let deleted = 0
+  const changedIds = new Set<string>()
+
+  for (const r of rows) {
+    if (r.removeFromInventory) {
+      const rk = inventoryRemarketingMatchKey(r.remarketing_id)
+      if (!rk) continue
+      const targets = byRemarketing.get(rk) ?? []
+      for (const t of targets) {
+        if (existingById.has(t.id) && !plannedDeletes.has(t.id)) {
+          plannedDeletes.add(t.id)
+          deleted += 1
+          changedIds.add(t.id)
+          existingById.delete(t.id)
+        }
+      }
+      byRemarketing.delete(rk)
+      continue
+    }
+
+    const rk = inventoryRemarketingMatchKey(r.remarketing_id)
+    if (!rk) continue
+    if (byRemarketing.has(rk) || pendingNewRemarketingKeys.has(rk)) continue
+
+    const base: InventoryUpsertBase = {
+      name: r.name,
+      sku: r.sku,
+      description: r.description,
+      stock_note: r.stock_note,
+      stock_qty: r.stock_qty,
+      price_hint: r.price_hint,
+      image_url: r.image_url,
+      product_url: r.product_url,
+      product_video_url: r.product_video_url,
+      consult_note: r.consult_note,
+      remarketing_id: rk,
+      sort_order: r.sort_order,
+      is_active: r.is_active,
+      updated_at: now,
+    }
+
+    const newId = randomUUID()
+    pendingNewRemarketingKeys.add(rk)
+    plannedInserts.set(newId, {
+      id: newId,
+      partner_id: partnerId,
+      ...base,
+      created_at: now,
+    })
+    inserted += 1
+    changedIds.add(newId)
+  }
+
+  for (const ids of chunked(Array.from(plannedDeletes), WRITE_CHUNK_SIZE)) {
+    const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)
+    if (!ok) {
+      return { ok: false, error: 'Inventory delete failed (Postgres).' }
+    }
+  }
+
+  for (const rowsChunk of chunked(Array.from(plannedInserts.values()), WRITE_CHUNK_SIZE)) {
+    const ok = await insertPartnerInventoryChunkFromPg(rowsChunk)
+    if (!ok) {
+      return { ok: false, error: 'Inventory insert failed (Postgres).' }
+    }
+  }
+
+  const deferEmbeddings = Boolean(options.deferEmbeddings)
+  if (changedIds.size > 0 && !deferEmbeddings) {
+    const ids = Array.from(changedIds)
+    await syncPartnerInventoryEmbeddings(partnerId, {
+      inventoryIds: ids,
+      force: false,
+    })
+    await syncPartnerInventoryTextEmbeddings(partnerId, {
+      inventoryIds: ids,
+      force: false,
+    })
+  }
+
+  return { ok: true, inserted, updated: 0, deleted, embeddingsDeferred: deferEmbeddings }
+}
+
 export async function upsertPartnerInventoryBatch(
   partnerId: string,
   rows: InventoryExcelInsert[],
-  options?: { existingRows?: InventoryRow[]; deferEmbeddings?: boolean }
+  options?: { existingRows?: InventoryRow[]; deferEmbeddings?: boolean; remarketingIdSnapshot?: boolean }
 ): Promise<
   | { ok: true; inserted: number; updated: number; deleted: number; embeddingsDeferred: boolean }
   | { ok: false; error: string }
 > {
   if (!isPgConfigured()) {
     return { ok: false, error: 'Postgres (DATABASE_URL) is not configured.' }
+  }
+
+  if (options?.remarketingIdSnapshot) {
+    if (!options.existingRows) {
+      const listed = await listPartnerInventoryRows(partnerId)
+      if (!listed.ok) return { ok: false, error: listed.error }
+      return upsertPartnerInventoryRemarketingSnapshotBatch(partnerId, rows, {
+        existingRows: listed.rows,
+        deferEmbeddings: options.deferEmbeddings,
+      })
+    }
+    return upsertPartnerInventoryRemarketingSnapshotBatch(partnerId, rows, {
+      existingRows: options.existingRows,
+      deferEmbeddings: options.deferEmbeddings,
+    })
   }
 
   const now = new Date().toISOString()

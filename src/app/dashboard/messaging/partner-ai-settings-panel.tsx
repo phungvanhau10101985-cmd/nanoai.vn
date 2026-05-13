@@ -52,6 +52,7 @@ import {
   type PartnerAiUsagePeriod,
   type PartnerAiUsageQuery,
 } from '@/app/dashboard/messaging/actions'
+import { PartnerInventoryExternalSyncCard } from '@/app/dashboard/messaging/partner-inventory-external-sync-card'
 import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/lib/messaging/build-guest-consult-chat-link'
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
@@ -1005,6 +1006,7 @@ export function PartnerAiSettingsPanel({
                 </p>
               </div>
             ) : null}
+            <PartnerInventoryExternalSyncCard partnerId={partnerId} t={t} toast={toast} />
             <InventoryEditor
               partnerId={partnerId}
               partnerChatSlug={partnerChatSlug}

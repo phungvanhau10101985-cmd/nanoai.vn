@@ -6,6 +6,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/messaging-external-catalog-sync",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/messaging-logo-cleanup",
       "schedule": "30 3 * * *"
     },

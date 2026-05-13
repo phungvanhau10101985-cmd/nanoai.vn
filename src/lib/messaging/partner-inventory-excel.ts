@@ -602,6 +602,12 @@ export function inventorySkuMatchKey(sku: string | null | undefined): string | n
   return t ? t.toLowerCase() : null
 }
 
+/** Khớp đồng bộ GET kho khách theo Remarketing / content ID (trim, giữ phân biệt hoa thường). Rỗng → null. */
+export function inventoryRemarketingMatchKey(raw: string | null | undefined): string | null {
+  const t = String(raw ?? '').trim()
+  return t ? t : null
+}
+
 /** Khớp theo tên khi không có SKU (bỏ dấu, gom khoảng trắng). */
 export function inventoryNameMatchKey(name: string): string {
   return name

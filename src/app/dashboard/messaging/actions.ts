@@ -28,6 +28,17 @@ import {
   updatePartnerInventoryDashboardItemFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import {
+  clampCatalogAutoSyncIntervalMinutes,
+  defaultPartnerInventoryExternalSyncSettings,
+  fetchPartnerInventoryExternalSyncSettingsFromPg,
+  upsertPartnerInventoryExternalSyncSettingsFromPg,
+} from '@/lib/db/messaging-partner-inventory-external-sync-pg'
+import {
+  runPartnerExternalCatalogSyncJob,
+  type ExternalCatalogSyncOutcome,
+} from '@/lib/messaging/partner-inventory-external-catalog-sync'
+import { getCurrentWebLocale } from '@/lib/i18n/server'
+import {
   emergencyClearVisionWarehouseRunnerFromPg,
   fetchVisionWarehouseRunnerLockFieldsFromPg,
   unlockVisionWarehouseImportLockFromPg,
@@ -2225,6 +2236,107 @@ export async function upsertPartnerInventoryItem(
   }
   revalidateMessagingDashboard()
   return { ok: true as const }
+}
+
+export type PartnerInventoryExternalSyncClientSettings = {
+  partner_id: string
+  site_origin: string
+  product_path_template: string
+  products_list_url: string
+  field_mapping: Record<string, string>
+  updated_at: string
+  catalog_auto_sync_enabled: boolean
+  catalog_auto_sync_interval_minutes: number
+  catalog_last_sync_at: string | null
+  catalog_last_sync_error: string | null
+}
+
+export type { ExternalCatalogSyncOutcome }
+
+export async function getPartnerInventoryExternalSyncSettings(
+  partnerId: string
+): Promise<
+  { ok: true; settings: PartnerInventoryExternalSyncClientSettings } | { error: string }
+> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  if ('error' in gate) return { error: gate.error ?? 'Forbidden.' }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const row = await fetchPartnerInventoryExternalSyncSettingsFromPg(partnerId)
+  const base = defaultPartnerInventoryExternalSyncSettings(partnerId)
+  if (!row) return { ok: true, settings: base }
+  return {
+    ok: true,
+    settings: {
+      ...base,
+      site_origin: row.site_origin,
+      product_path_template: row.product_path_template,
+      products_list_url: row.products_list_url,
+      field_mapping: row.field_mapping,
+      updated_at: row.updated_at,
+      catalog_auto_sync_enabled: row.catalog_auto_sync_enabled,
+      catalog_auto_sync_interval_minutes: row.catalog_auto_sync_interval_minutes,
+      catalog_last_sync_at: row.catalog_last_sync_at,
+      catalog_last_sync_error: row.catalog_last_sync_error,
+    },
+  }
+}
+
+export async function savePartnerInventoryExternalSyncSettings(
+  partnerId: string,
+  payload: {
+    siteOrigin: string
+    productPathTemplate: string
+    productsListUrl: string
+    fieldMapping: Record<string, string>
+    catalogAutoSyncEnabled: boolean
+    catalogAutoSyncIntervalMinutes: number
+  }
+): Promise<{ ok: true } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  if ('error' in gate) return { error: gate.error ?? 'Forbidden.' }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const ok = await upsertPartnerInventoryExternalSyncSettingsFromPg({
+    partnerId,
+    siteOrigin: payload.siteOrigin,
+    productPathTemplate: payload.productPathTemplate,
+    productsListUrl: payload.productsListUrl,
+    fieldMapping: payload.fieldMapping,
+    catalogAutoSyncEnabled: payload.catalogAutoSyncEnabled,
+    catalogAutoSyncIntervalMinutes: clampCatalogAutoSyncIntervalMinutes(
+      payload.catalogAutoSyncIntervalMinutes
+    ),
+  })
+  if (!ok) return { error: 'Failed to save external inventory mapping.' }
+  revalidateMessagingDashboard()
+  return { ok: true }
+}
+
+export async function runPartnerExternalCatalogSyncNow(
+  partnerId: string
+): Promise<
+  | { ok: true; outcome: ExternalCatalogSyncOutcome }
+  | { error: string }
+> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  if ('error' in gate) return { error: gate.error ?? 'Forbidden.' }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const outcome = await runPartnerExternalCatalogSyncJob({
+    partnerId,
+    deferEmbeddings: true,
+    reportLocale: getCurrentWebLocale(),
+    reportSource: 'manual',
+  })
+  revalidateMessagingDashboard()
+  return { ok: true, outcome }
 }
 
 export async function deletePartnerInventoryItem(partnerId: string, itemId: string) {

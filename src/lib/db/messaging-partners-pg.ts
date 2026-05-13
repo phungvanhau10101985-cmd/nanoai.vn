@@ -276,6 +276,30 @@ export async function fetchMessagingPartnerByIdFromPg(partnerId: string): Promis
   }
 }
 
+/** `owner_user_id` của workspace (để gửi thông báo cho chủ shop). */
+export async function fetchMessagingPartnerOwnerUserIdFromPg(partnerId: string): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  const pid = safeUuid(partnerId)
+  if (!pid) {
+    console.warn('[fetchMessagingPartnerOwnerUserIdFromPg] skip: invalid partner_id')
+    return null
+  }
+  try {
+    const row = await pgQueryOne<{ owner_user_id: string | null }>(
+      `select owner_user_id::text as owner_user_id
+       from public.messaging_partners
+       where id = $1::uuid
+       limit 1`,
+      [pid]
+    )
+    const uid = row?.owner_user_id?.trim()
+    return uid || null
+  } catch (e) {
+    console.warn('[fetchMessagingPartnerOwnerUserIdFromPg]', e)
+    return null
+  }
+}
+
 export type MessagingPartnerByIdsRow = {
   id: string
   display_name: string

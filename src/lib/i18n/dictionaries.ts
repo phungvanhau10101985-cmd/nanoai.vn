@@ -720,6 +720,68 @@ export type Dictionary = {
     /** Nút/link tới /dashboard/api-integration — Open Catalog */
     inventoryOpenApiLink: string
     inventoryOpenApiHint: string
+    inventoryExternalSyncTitle: string
+    inventoryExternalSyncIntro: string
+    inventoryExternalSyncReconcileHint: string
+    inventoryExternalSyncListUrlLabel: string
+    inventoryExternalSyncListUrlHint: string
+    inventoryExternalSyncColNano: string
+    inventoryExternalSyncColCustomer: string
+    inventoryExternalSyncColSample: string
+    inventoryExternalSyncColCustomerHint: string
+    inventoryExternalSyncSampleHint: string
+    inventoryExternalSyncVectorCol: string
+    inventoryExternalSyncVectorImage: string
+    inventoryExternalSyncVectorText: string
+    inventoryExternalSyncVectorFootnote: string
+    inventoryExternalSyncSave: string
+    inventoryExternalSyncSaved: string
+    inventoryExternalSyncLoadError: string
+    inventoryExternalSyncPreset188: string
+    inventoryExternalSyncRowRemarketing: string
+    inventoryExternalSyncRowStockQty: string
+    inventoryExternalSyncRowSlug: string
+    inventoryExternalSyncRowIsActive: string
+    /** Màu sắc dạng JSON mảng — map tới trường API khách (vd colors) */
+    inventoryExternalSyncRowColorsJson: string
+    /** Đồng bộ GET từ kho khách — cron + nút tay */
+    inventoryExternalSyncAutoLabel: string
+    inventoryExternalSyncAutoHint: string
+    inventoryExternalSyncIntervalLabel: string
+    inventoryExternalSyncIntervalHint: string
+    inventoryExternalSyncRemarketingSnapshotHint: string
+    inventoryExternalSyncRunNow: string
+    inventoryExternalSyncRunPending: string
+    inventoryExternalSyncRunSuccess: string
+    inventoryExternalSyncLastSuccess: string
+    inventoryExternalSyncNeverSynced: string
+    inventoryExternalSyncLastErrorLabel: string
+    inventoryExternalSyncErrNoPartnerId: string
+    inventoryExternalSyncErrMissingListUrl: string
+    inventoryExternalSyncErrInvalidListUrl: string
+    inventoryExternalSyncErrNotJsonObject: string
+    inventoryExternalSyncErrNoProductsArray: string
+    inventoryExternalSyncErrFetchTimeout: string
+    inventoryExternalSyncErrFetchFailed: string
+    inventoryExternalSyncErrNoValidRows: string
+    inventoryExternalSyncErrListInventoryFailed: string
+    inventoryExternalSyncErrUpsertFailed: string
+    /** Báo cáo sau mỗi lần đồng bộ GET kho khách (thông báo + email + push) */
+    inventoryExternalCatalogSyncReportTitleOk: string
+    inventoryExternalCatalogSyncReportTitleFail: string
+    inventoryExternalCatalogSyncReportSourceManual: string
+    inventoryExternalCatalogSyncReportSourceCron: string
+    /**
+     * {time} ISO · {source} · {shop} · {fetched}{mapped}{remarketing}{inserted}{updated}{deleted}{embedNote}{extraNote}
+     */
+    inventoryExternalCatalogSyncReportBodyOk: string
+    /**
+     * {time} · {source} · {shop} · {code} · {detail}
+     */
+    inventoryExternalCatalogSyncReportBodyFail: string
+    inventoryExternalCatalogSyncReportEmbedDeferred: string
+    inventoryExternalCatalogSyncReportEmbedSync: string
+    inventoryExternalCatalogSyncReportExtraEmptyApi: string
     inventoryDownloadTemplate: string
     inventoryExportExcel: string
     inventoryImportExcel: string
@@ -2774,6 +2836,72 @@ const VI_DICTIONARY: Dictionary = {
     inventoryOpenApiLink: 'Hướng dẫn tích hợp API',
     inventoryOpenApiHint:
       'Backend website shop có thể đẩy kho vào NanoAI bằng JSON (chuẩn Open Catalog, tên trường gần Shopee). Cùng khóa Bearer với API tìm ảnh; không cần Vision.',
+    inventoryExternalSyncTitle: 'Tích hợp kho web khách → kho NanoAI',
+    inventoryExternalSyncIntro:
+      'So khớp từng trường kho trên NanoAI với tên trường JSON trên API kho khách (dùng dấu chấm cho object lồng, ví dụ product_info). Link trang sản phẩm lấy từ trường map tới slug — hỗ trợ URL đầy đủ. Lưu để backend/script đồng bộ Open Catalog dùng thống nhất.',
+    inventoryExternalSyncReconcileHint:
+      'Open Catalog: kho khách là nguồn chuẩn. Mỗi POST phải gửi snapshot «items» đầy đủ từ API khách; NanoAI thêm/cập nhật từng dòng và xóa khỏi kho những mặt hàng đã có nhưng không còn trong danh sách (ưu tiên khớp SKU; không SKU thì khớp tên). Không gửi từng đợt thiếu catalog — dễ xóa nhầm.',
+    inventoryExternalSyncListUrlLabel: 'URL danh sách sản phẩm (REST)',
+    inventoryExternalSyncListUrlHint:
+      'Gợi ý cho đội kỹ thuật/cron: endpoint GET phân trang, ví dụ https://shop.example/api/v1/products/',
+    inventoryExternalSyncColNano: 'Trường kho NanoAI',
+    inventoryExternalSyncColCustomer: 'Trường JSON kho khách',
+    inventoryExternalSyncColSample: 'Giá trị mẫu (hình dạng API khách)',
+    inventoryExternalSyncColCustomerHint: 'Tên trường hoặc path (dot). Để trống một dòng thì khi đồng bộ có thể bỏ qua trường đó (tuỳ script).',
+    inventoryExternalSyncSampleHint:
+      'Cột mẫu luôn hiển thị dữ liệu tham chiếu kiểu 188.com.vn; web khách phải trả đúng kiểu tại trường đã map (không cần trùng nguyên văn).',
+    inventoryExternalSyncVectorCol: 'Vector',
+    inventoryExternalSyncVectorImage: 'Ảnh',
+    inventoryExternalSyncVectorText: 'Văn bản',
+    inventoryExternalSyncVectorFootnote:
+      'Cột Vector: «Ảnh» = trường map tới ảnh (embed URL ảnh). «Văn bản» = tên + giá + ghi chú tư vấn trên kho được ghép rồi embed. Các dòng «—» không dùng làm nguồn vector.',
+    inventoryExternalSyncSave: 'Lưu bảng so khớp',
+    inventoryExternalSyncSaved: 'Đã lưu cấu hình so khớp kho khách.',
+    inventoryExternalSyncLoadError: 'Không tải được cấu hình so khớp.',
+    inventoryExternalSyncPreset188: 'Điền sẵn preset API kiểu 188',
+    inventoryExternalSyncRowRemarketing: 'Remarketing / content ID',
+    inventoryExternalSyncRowStockQty: 'Số lượng tồn (stock_qty)',
+    inventoryExternalSyncRowSlug: 'Slug (đoạn URL sản phẩm)',
+    inventoryExternalSyncRowIsActive: 'Đang bán (trạng thái)',
+    inventoryExternalSyncRowColorsJson:
+      'Màu sắc (JSON) — vd [{"name":"Đen","img":"https://..."}]',
+    inventoryExternalSyncAutoLabel: 'Tự động đồng bộ từ API kho khách',
+    inventoryExternalSyncAutoHint:
+      'Khi bật, máy chủ định kỳ gọi URL danh sách sản phẩm (cần cron VPS / Vercel trỏ tới endpoint). Bạn vẫn có thể bấm «Đồng bộ ngay».',
+    inventoryExternalSyncIntervalLabel: 'Khoảng cách (phút)',
+    inventoryExternalSyncIntervalHint: 'Từ 15 đến 1440 phút. Cron chỉ chạy khi đã tới hạn và có URL danh sách.',
+    inventoryExternalSyncRemarketingSnapshotHint:
+      'Đồng bộ GET: chỉ thêm/xóa theo Remarketing/content ID (sau trim). Mã đã có trong kho — giữ nguyên mọi trường; mã mới — thêm; mã không còn trong API — xóa hết dòng trùng mã. API trả 0 sản phẩm — giữ nguyên kho, không xóa. Hàng kho không có mã này không bị xóa; sản phẩm không map được mã thì bỏ qua trong snapshot.',
+    inventoryExternalSyncRunNow: 'Đồng bộ ngay',
+    inventoryExternalSyncRunPending: 'Đang đồng bộ…',
+    inventoryExternalSyncRunSuccess:
+      'Đã đồng bộ {fetched} sản phẩm từ kho khách: thêm {inserted}, cập nhật {updated}, xóa {deleted}.',
+    inventoryExternalSyncLastSuccess: 'Lần đồng bộ gần nhất: {time}',
+    inventoryExternalSyncNeverSynced: 'Chưa có lần đồng bộ hoàn tất.',
+    inventoryExternalSyncLastErrorLabel: 'Lỗi gần nhất',
+    inventoryExternalSyncErrNoPartnerId: 'Thiếu mã shop.',
+    inventoryExternalSyncErrMissingListUrl: 'Chưa có URL danh sách sản phẩm (REST).',
+    inventoryExternalSyncErrInvalidListUrl: 'URL danh sách không hợp lệ (chỉ https công khai).',
+    inventoryExternalSyncErrNotJsonObject: 'Phản hồi API không phải JSON object.',
+    inventoryExternalSyncErrNoProductsArray: 'JSON thiếu mảng products / items / data.',
+    inventoryExternalSyncErrFetchTimeout: 'Hết thời gian khi tải danh sách từ kho khách.',
+    inventoryExternalSyncErrFetchFailed: 'Không tải được danh sách: {detail}',
+    inventoryExternalSyncErrNoValidRows: 'Không map được dòng kho hợp lệ (ví dụ thiếu tên sản phẩm).',
+    inventoryExternalSyncErrListInventoryFailed: 'Không đọc được kho hiện tại: {detail}',
+    inventoryExternalSyncErrUpsertFailed: 'Không cập nhật được kho: {detail}',
+    inventoryExternalCatalogSyncReportTitleOk: 'Đồng bộ kho từ API khách — thành công',
+    inventoryExternalCatalogSyncReportTitleFail: 'Đồng bộ kho từ API khách — thất bại',
+    inventoryExternalCatalogSyncReportSourceManual: 'Nút «Đồng bộ ngay» trên Cài đặt',
+    inventoryExternalCatalogSyncReportSourceCron: 'Lịch tự động (cron)',
+    inventoryExternalCatalogSyncReportBodyOk:
+      'Thời gian: {time}\nNguồn: {source}\nCửa hàng: {shop}\n\nKết quả: Thành công\n• Sản phẩm API trả về: {fetched}\n• Dòng map được (có tên SP): {mapped}\n• Số mã Remarketing trong đợt: {remarketing}\n• Thêm / Cập nhật / Xóa: {inserted} / {updated} / {deleted}\n• Embedding (ảnh + văn bản): {embedNote}\n{extraNote}',
+    inventoryExternalCatalogSyncReportBodyFail:
+      'Thời gian: {time}\nNguồn: {source}\nCửa hàng: {shop}\n\nKết quả: Thất bại\n• Mã: {code}\n• Chi tiết: {detail}',
+    inventoryExternalCatalogSyncReportEmbedDeferred:
+      'Đang xếp hàng — cron/「Đồng bộ ngay» vector sẽ xử lý (deferEmbeddings).',
+    inventoryExternalCatalogSyncReportEmbedSync: 'Đã kích hoạt đồng bộ vector trong phiên này.',
+    inventoryExternalCatalogSyncReportExtraEmptyApi:
+      'Ghi chú: API trả 0 sản phẩm — kho không đổi (không xóa).\n',
     inventoryDownloadTemplate: 'Tải file Excel mẫu',
     inventoryExportExcel: 'Xuất Excel',
     inventoryImportExcel: 'Nhập Excel',
@@ -4813,6 +4941,72 @@ const EN_DICTIONARY: Dictionary = {
     inventoryOpenApiLink: 'API integration guide',
     inventoryOpenApiHint:
       'Your shop backend can push inventory to NanoAI with JSON (Open Catalog schema, Shopee-like field names). Same Bearer key as image search; Vision is not required.',
+    inventoryExternalSyncTitle: 'Integrate customer catalog → NanoAI inventory',
+    inventoryExternalSyncIntro:
+      'Map each NanoAI inventory field to a JSON field path on your shop catalog API (use dots for nested objects, e.g. product_info). The product page URL comes from the field mapped to slug — a full absolute URL is supported. Saved mapping is used consistently when syncing via Open Catalog.',
+    inventoryExternalSyncReconcileHint:
+      'Open Catalog: your shop catalog is the source of truth. Each POST must send a full `items` snapshot from your API; NanoAI upserts each line and deletes rows that exist in Nano inventory but are missing from the payload (match by SKU; if no SKU, match by name). Do not send partial catalog batches — you may delete items by mistake.',
+    inventoryExternalSyncListUrlLabel: 'Product list API URL (REST)',
+    inventoryExternalSyncListUrlHint:
+      'Hint for engineers/cron: paginated GET endpoint, e.g. https://shop.example/api/v1/products/',
+    inventoryExternalSyncColNano: 'NanoAI inventory field',
+    inventoryExternalSyncColCustomer: 'Customer JSON field',
+    inventoryExternalSyncColSample: 'Sample value (expected shape)',
+    inventoryExternalSyncColCustomerHint: 'Field name or dot path. Leaving a row empty may skip that field during sync (depends on your script).',
+    inventoryExternalSyncSampleHint:
+      'The sample column always shows a 188-style catalog reference; your API must return the same data types at the mapped paths (values need not match exactly).',
+    inventoryExternalSyncVectorCol: 'Vector',
+    inventoryExternalSyncVectorImage: 'Image',
+    inventoryExternalSyncVectorText: 'Text',
+    inventoryExternalSyncVectorFootnote:
+      'Vector column: Image = mapped product photo URL for image embedding. Text = name, price hint, and consult note on inventory are concatenated for text embedding. Rows with «—» are not used as vector sources.',
+    inventoryExternalSyncSave: 'Save field mapping',
+    inventoryExternalSyncSaved: 'External inventory mapping saved.',
+    inventoryExternalSyncLoadError: 'Could not load mapping settings.',
+    inventoryExternalSyncPreset188: 'Fill 188-style API preset',
+    inventoryExternalSyncRowRemarketing: 'Remarketing / content ID',
+    inventoryExternalSyncRowStockQty: 'Stock quantity (stock_qty)',
+    inventoryExternalSyncRowSlug: 'Slug (product URL segment)',
+    inventoryExternalSyncRowIsActive: 'Listed / active status',
+    inventoryExternalSyncRowColorsJson:
+      'Colors (JSON) — e.g. [{"name":"Black","img":"https://..."}]',
+    inventoryExternalSyncAutoLabel: 'Auto-sync from customer catalog API',
+    inventoryExternalSyncAutoHint:
+      'When enabled, the server periodically calls your product list URL (configure a VPS / Vercel cron hitting the endpoint). You can still press Sync now.',
+    inventoryExternalSyncIntervalLabel: 'Interval (minutes)',
+    inventoryExternalSyncIntervalHint: 'Between 15 and 1440 minutes. Cron only runs when due and a list URL is set.',
+    inventoryExternalSyncRemarketingSnapshotHint:
+      'GET sync only adds/removes by Remarketing/content ID (trimmed). Existing id — no field changes; new id — insert; id missing from the feed — delete all rows with that id. Zero products in the API response — leave inventory unchanged (no deletes). Inventory rows without this id are not removed; products without a mapped id are skipped.',
+    inventoryExternalSyncRunNow: 'Sync now',
+    inventoryExternalSyncRunPending: 'Syncing…',
+    inventoryExternalSyncRunSuccess:
+      'Synced {fetched} products from customer catalog: {inserted} added, {updated} updated, {deleted} removed.',
+    inventoryExternalSyncLastSuccess: 'Last successful sync: {time}',
+    inventoryExternalSyncNeverSynced: 'No completed sync yet.',
+    inventoryExternalSyncLastErrorLabel: 'Last error',
+    inventoryExternalSyncErrNoPartnerId: 'Missing shop id.',
+    inventoryExternalSyncErrMissingListUrl: 'Product list URL (REST) is not set.',
+    inventoryExternalSyncErrInvalidListUrl: 'Invalid list URL (public https only).',
+    inventoryExternalSyncErrNotJsonObject: 'API response is not a JSON object.',
+    inventoryExternalSyncErrNoProductsArray: 'JSON is missing a products / items / data array.',
+    inventoryExternalSyncErrFetchTimeout: 'Timed out while loading the customer catalog.',
+    inventoryExternalSyncErrFetchFailed: 'Could not load the list: {detail}',
+    inventoryExternalSyncErrNoValidRows: 'No valid inventory rows after mapping (e.g. missing product name).',
+    inventoryExternalSyncErrListInventoryFailed: 'Could not read current inventory: {detail}',
+    inventoryExternalSyncErrUpsertFailed: 'Could not update inventory: {detail}',
+    inventoryExternalCatalogSyncReportTitleOk: 'Customer catalog sync — succeeded',
+    inventoryExternalCatalogSyncReportTitleFail: 'Customer catalog sync — failed',
+    inventoryExternalCatalogSyncReportSourceManual: 'Manual «Sync now» on settings',
+    inventoryExternalCatalogSyncReportSourceCron: 'Scheduled job (cron)',
+    inventoryExternalCatalogSyncReportBodyOk:
+      'Time: {time}\nSource: {source}\nShop: {shop}\n\nResult: Success\n• API products fetched: {fetched}\n• Mapped rows (with product name): {mapped}\n• Remarketing IDs in this run: {remarketing}\n• Inserted / Updated / Deleted: {inserted} / {updated} / {deleted}\n• Image + text embeddings: {embedNote}\n{extraNote}',
+    inventoryExternalCatalogSyncReportBodyFail:
+      'Time: {time}\nSource: {source}\nShop: {shop}\n\nResult: Failed\n• Code: {code}\n• Detail: {detail}',
+    inventoryExternalCatalogSyncReportEmbedDeferred:
+      'Queued — cron or manual embedding sync will process (deferEmbeddings).',
+    inventoryExternalCatalogSyncReportEmbedSync: 'Embeddings were triggered in this run.',
+    inventoryExternalCatalogSyncReportExtraEmptyApi:
+      'Note: API returned 0 products — inventory was left unchanged (no deletes).\n',
     inventoryDownloadTemplate: 'Download sample Excel',
     inventoryExportExcel: 'Export Excel',
     inventoryImportExcel: 'Import Excel',
@@ -6839,6 +7033,69 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryOpenApiLink: 'API 集成说明',
     inventoryOpenApiHint:
       '店铺后端可用 JSON 将库存推送到 NanoAI（Open Catalog，字段命名接近 Shopee）。与以图搜商品共用 Bearer；无需 Vision。',
+    inventoryExternalSyncTitle: '对接顾客网站库存 → NanoAI 店铺库存',
+    inventoryExternalSyncIntro:
+      '将 NanoAI 库存各字段映射为顾客库存 API 的 JSON 字段路径（嵌套用点号，例如 product_info）。商品页链接来自映射到 slug 的字段，可为完整绝对 URL。保存后用于 Open Catalog 同步时保持一致。',
+    inventoryExternalSyncReconcileHint:
+      'Open Catalog：以顾客端库存为唯一真实源。每次 POST 须发送 API 返回的完整「items」快照；NanoAI 逐条新增/更新，并删除本地已有但不在列表中的商品（优先按 SKU；无 SKU 则按名称）。切勿分批发送不完整目录，否则可能误删。',
+    inventoryExternalSyncListUrlLabel: '商品列表 API（REST）',
+    inventoryExternalSyncListUrlHint: '供工程/cron 参考：分页 GET，例如 https://shop.example/api/v1/products/',
+    inventoryExternalSyncColNano: 'NanoAI 库存字段',
+    inventoryExternalSyncColCustomer: '顾客 JSON 字段',
+    inventoryExternalSyncColSample: '示例值（顾客 API 形态）',
+    inventoryExternalSyncColCustomerHint: '字段名或点路径。留空某行可能在同步时跳过（取决于脚本）。',
+    inventoryExternalSyncSampleHint:
+      '示例列固定展示 188 风格参考；顾客站点 API 在映射字段上必须返回相同数据类型（不必逐字相同）。',
+    inventoryExternalSyncVectorCol: '向量',
+    inventoryExternalSyncVectorImage: '图',
+    inventoryExternalSyncVectorText: '文',
+    inventoryExternalSyncVectorFootnote:
+      '向量列：「图」= 映射到商品图 URL 做图像向量。「文」= 库存里的名称、价格提示、咨询备注合并后做文本向量。「—」表示不参与向量。',
+    inventoryExternalSyncSave: '保存字段映射',
+    inventoryExternalSyncSaved: '已保存外部库存映射。',
+    inventoryExternalSyncLoadError: '无法加载映射配置。',
+    inventoryExternalSyncPreset188: '填入 188 风格 API 预设',
+    inventoryExternalSyncRowRemarketing: '再营销 / 内容 ID',
+    inventoryExternalSyncRowStockQty: '库存数量（stock_qty）',
+    inventoryExternalSyncRowSlug: 'Slug（URL 片段）',
+    inventoryExternalSyncRowIsActive: '上架 / 状态',
+    inventoryExternalSyncRowColorsJson:
+      '颜色（JSON）— 例 [{"name":"黑","img":"https://..."}]',
+    inventoryExternalSyncAutoLabel: '从顾客目录 API 自动同步',
+    inventoryExternalSyncAutoHint:
+      '开启后服务器按间隔请求商品列表 URL（需在 VPS / Vercel 配置 cron 访问同步接口）。仍可手动点击「立即同步」。',
+    inventoryExternalSyncIntervalLabel: '间隔（分钟）',
+    inventoryExternalSyncIntervalHint: '15–1440 分钟。仅当到期且已填写列表 URL 时 cron 才会执行。',
+    inventoryExternalSyncRemarketingSnapshotHint:
+      'GET 同步仅按 Remarketing/内容 ID（trim）做增删。已存在 ID — 不更新任何字段；新 ID — 新增；API 中不再出现的 ID — 删除该 ID 的所有行。API 返回 0 个商品 — 不修改库存、不删除。无此 ID 的库存行不会被删；未映射到 ID 的商品不参与快照。',
+    inventoryExternalSyncRunNow: '立即同步',
+    inventoryExternalSyncRunPending: '正在同步…',
+    inventoryExternalSyncRunSuccess:
+      '已从顾客目录同步 {fetched} 条：新增 {inserted}，更新 {updated}，删除 {deleted}。',
+    inventoryExternalSyncLastSuccess: '最近成功同步：{time}',
+    inventoryExternalSyncNeverSynced: '尚无完成的同步。',
+    inventoryExternalSyncLastErrorLabel: '最近错误',
+    inventoryExternalSyncErrNoPartnerId: '缺少店铺 ID。',
+    inventoryExternalSyncErrMissingListUrl: '未设置商品列表 URL（REST）。',
+    inventoryExternalSyncErrInvalidListUrl: '列表 URL 无效（仅公网 https）。',
+    inventoryExternalSyncErrNotJsonObject: '接口返回不是 JSON 对象。',
+    inventoryExternalSyncErrNoProductsArray: 'JSON 缺少 products / items / data 数组。',
+    inventoryExternalSyncErrFetchTimeout: '加载顾客目录超时。',
+    inventoryExternalSyncErrFetchFailed: '无法加载列表：{detail}',
+    inventoryExternalSyncErrNoValidRows: '映射后没有有效库存行（例如缺少商品名）。',
+    inventoryExternalSyncErrListInventoryFailed: '无法读取当前库存：{detail}',
+    inventoryExternalSyncErrUpsertFailed: '无法更新库存：{detail}',
+    inventoryExternalCatalogSyncReportTitleOk: '顾客目录同步 — 成功',
+    inventoryExternalCatalogSyncReportTitleFail: '顾客目录同步 — 失败',
+    inventoryExternalCatalogSyncReportSourceManual: '设置页的「立即同步」',
+    inventoryExternalCatalogSyncReportSourceCron: '定时任务（cron）',
+    inventoryExternalCatalogSyncReportBodyOk:
+      '时间：{time}\n来源：{source}\n店铺：{shop}\n\n结果：成功\n• API 返回商品数：{fetched}\n• 已映射行数（含商品名）：{mapped}\n• 本批次 Remarketing ID 数：{remarketing}\n• 新增 / 更新 / 删除：{inserted} / {updated} / {deleted}\n• 图片+文本向量：{embedNote}\n{extraNote}',
+    inventoryExternalCatalogSyncReportBodyFail:
+      '时间：{time}\n来源：{source}\n店铺：{shop}\n\n结果：失败\n• 代码：{code}\n• 详情：{detail}',
+    inventoryExternalCatalogSyncReportEmbedDeferred: '已排队 — 将由 cron 或手动向量同步处理（deferEmbeddings）。',
+    inventoryExternalCatalogSyncReportEmbedSync: '本次运行已触发向量同步。',
+    inventoryExternalCatalogSyncReportExtraEmptyApi: '说明：API 返回 0 个商品 — 库存未改动（未删除）。\n',
     inventoryDownloadTemplate: '下载 Excel 模板',
     inventoryExportExcel: '导出 Excel',
     inventoryImportExcel: '导入 Excel',
@@ -8820,6 +9077,72 @@ const JA_DICTIONARY: Dictionary = {
     inventoryOpenApiLink: 'API 連携ガイド',
     inventoryOpenApiHint:
       '店舗バックエンドから JSON で在庫を NanoAI に同期できます（Open Catalog、Shopee 風フィールド名）。画像検索と同じ Bearer。Vision は不要です。',
+    inventoryExternalSyncTitle: '顧客サイトのカタログを NanoAI 在庫へ連携',
+    inventoryExternalSyncIntro:
+      'NanoAI の各在庫フィールドを、顧客側カタログ API の JSON パスに対応させます（ネストはドット区切り、例 product_info）。商品ページの URL は slug に対応づけたフィールドから取得できます（完全な絶対 URL 可）。保存すると Open Catalog 同期で統一して利用できます。',
+    inventoryExternalSyncReconcileHint:
+      'Open Catalog：顧客側カタログが正とみなされます。各 POST では API の完全な「items」スナップショットを送ってください。NanoAI は行ごとに追加/更新し、ペイロードにない SKU（SKU なしなら名前）の行を在庫から削除します。カタログ全体なしの部分送信は誤削除の原因になります。',
+    inventoryExternalSyncListUrlLabel: '商品一覧 API（REST）',
+    inventoryExternalSyncListUrlHint:
+      '開発/cron 向けのヒント：ページ分割 GET のエンドポイント（例：https://shop.example/api/v1/products/）。',
+    inventoryExternalSyncColNano: 'NanoAI 在庫フィールド',
+    inventoryExternalSyncColCustomer: '顧客側 JSON フィールド',
+    inventoryExternalSyncColSample: 'サンプル値（API の型の目安）',
+    inventoryExternalSyncColCustomerHint: 'フィールド名またはドットパス。空欄は同期時に省略される場合があります（スクリプト依存）。',
+    inventoryExternalSyncSampleHint:
+      'サンプル列は常に 188 形式の参考です。マップ先の JSON は同じデータ型を返す必要があります（文字列の完全一致は不要）。',
+    inventoryExternalSyncVectorCol: 'ベクター',
+    inventoryExternalSyncVectorImage: '画像',
+    inventoryExternalSyncVectorText: 'テキスト',
+    inventoryExternalSyncVectorFootnote:
+      'ベクター列：「画像」＝マップ先の商品画像 URL を画像埋め込み。「テキスト」＝在庫の名前・価格メモ・相談メモを結合してテキスト埋め込み。「—」はベクター源ではありません。',
+    inventoryExternalSyncSave: 'マッピングを保存',
+    inventoryExternalSyncSaved: '外部在庫マッピングを保存しました。',
+    inventoryExternalSyncLoadError: 'マッピング設定を読み込めませんでした。',
+    inventoryExternalSyncPreset188: '188 形式 API のプリセットを入力',
+    inventoryExternalSyncRowRemarketing: 'リマーケティング / コンテンツ ID',
+    inventoryExternalSyncRowStockQty: '在庫数（stock_qty）',
+    inventoryExternalSyncRowSlug: 'スラッグ（URL セグメント）',
+    inventoryExternalSyncRowIsActive: '販売中 / 状態',
+    inventoryExternalSyncRowColorsJson:
+      '色（JSON）— 例 [{"name":"黒","img":"https://..."}]',
+    inventoryExternalSyncAutoLabel: '顧客カタログ API から自動同期',
+    inventoryExternalSyncAutoHint:
+      'オンにするとサーバーが一定間隔で商品一覧 URL を取得します（VPS / Vercel で cron を同期エンドポイントに向けてください）。「今すぐ同期」も利用できます。',
+    inventoryExternalSyncIntervalLabel: '間隔（分）',
+    inventoryExternalSyncIntervalHint: '15〜1440 分。期限が来て一覧 URL がある場合のみ cron が動きます。',
+    inventoryExternalSyncRemarketingSnapshotHint:
+      'GET 同期は Remarketing/コンテンツ ID（trim）の追加・削除のみ。既存 ID — フィールドは更新しません；新規 ID — 追加；フィードに無い ID — その ID の行をすべて削除。API が商品 0 件 — 在庫は変更しません（削除なし）。この ID がない在庫行は削除しません；ID にマップできない商品はスキップ。',
+    inventoryExternalSyncRunNow: '今すぐ同期',
+    inventoryExternalSyncRunPending: '同期中…',
+    inventoryExternalSyncRunSuccess:
+      '顧客カタログから {fetched} 件同期：新規 {inserted}、更新 {updated}、削除 {deleted}。',
+    inventoryExternalSyncLastSuccess: '直近の成功同期：{time}',
+    inventoryExternalSyncNeverSynced: '完了した同期はまだありません。',
+    inventoryExternalSyncLastErrorLabel: '直近のエラー',
+    inventoryExternalSyncErrNoPartnerId: 'ショップ ID がありません。',
+    inventoryExternalSyncErrMissingListUrl: '商品一覧 URL（REST）が未設定です。',
+    inventoryExternalSyncErrInvalidListUrl: '一覧 URL が無効です（公開 https のみ）。',
+    inventoryExternalSyncErrNotJsonObject: 'API の応答が JSON オブジェクトではありません。',
+    inventoryExternalSyncErrNoProductsArray: 'JSON に products / items / data 配列がありません。',
+    inventoryExternalSyncErrFetchTimeout: '顧客カタログの取得がタイムアウトしました。',
+    inventoryExternalSyncErrFetchFailed: '一覧を取得できません：{detail}',
+    inventoryExternalSyncErrNoValidRows: 'マッピング後に有効な在庫行がありません（例：商品名不足）。',
+    inventoryExternalSyncErrListInventoryFailed: '現在の在庫を読み取れません：{detail}',
+    inventoryExternalSyncErrUpsertFailed: '在庫を更新できません：{detail}',
+    inventoryExternalCatalogSyncReportTitleOk: '顧客カタログ同期 — 成功',
+    inventoryExternalCatalogSyncReportTitleFail: '顧客カタログ同期 — 失敗',
+    inventoryExternalCatalogSyncReportSourceManual: '設定の「今すぐ同期」',
+    inventoryExternalCatalogSyncReportSourceCron: '定期実行（cron）',
+    inventoryExternalCatalogSyncReportBodyOk:
+      '時刻: {time}\n元: {source}\nショップ: {shop}\n\n結果: 成功\n• API 商品件数: {fetched}\n• マップ済み行（商品名あり）: {mapped}\n• 今回の Remarketing ID 数: {remarketing}\n• 追加 / 更新 / 削除: {inserted} / {updated} / {deleted}\n• 画像+テキスト埋め込み: {embedNote}\n{extraNote}',
+    inventoryExternalCatalogSyncReportBodyFail:
+      '時刻: {time}\n元: {source}\nショップ: {shop}\n\n結果: 失敗\n• コード: {code}\n• 詳細: {detail}',
+    inventoryExternalCatalogSyncReportEmbedDeferred:
+      'キュー済み — cron または手動のベクトル同期で処理（deferEmbeddings）。',
+    inventoryExternalCatalogSyncReportEmbedSync: 'この実行でベクトル同期を起動しました。',
+    inventoryExternalCatalogSyncReportExtraEmptyApi:
+      '注: API が商品 0 件 — 在庫は変更なし（削除なし）。\n',
     inventoryDownloadTemplate: 'Excelテンプレをダウンロード',
     inventoryExportExcel: 'Excelに出力',
     inventoryImportExcel: 'Excelから取込',
@@ -10837,6 +11160,72 @@ const KO_DICTIONARY: Dictionary = {
     inventoryOpenApiLink: 'API 연동 안내',
     inventoryOpenApiHint:
       '매장 백엔드에서 JSON으로 재고를 NanoAI에 동기화할 수 있습니다(Open Catalog, Shopee 스타일 필드명). 이미지 검색과 동일 Bearer. Vision 불필요.',
+    inventoryExternalSyncTitle: '고객 카탈로그 → NanoAI 재고 연동',
+    inventoryExternalSyncIntro:
+      'NanoAI 재고 필드를 고객 카탈로그 API의 JSON 경로에 매핑합니다(중첩은 점으로, 예: product_info). 상품 페이지 링크는 slug에 매핑된 필드에서 가져오며 전체 절대 URL을 지원합니다. 저장하면 Open Catalog 동기화에서 동일하게 사용합니다.',
+    inventoryExternalSyncReconcileHint:
+      'Open Catalog: 고객 카탈로그가 기준입니다. 각 POST는 API의 전체 items 스냅샷을 보내야 합니다. NanoAI는 행마다 추가/갱신하고, 페이로드에 없는 SKU(SKU 없으면 이름) 행은 재고에서 삭제합니다. 전체 목록 없이 일부만 보내면 오삭제 위험이 있습니다.',
+    inventoryExternalSyncListUrlLabel: '상품 목록 API(REST)',
+    inventoryExternalSyncListUrlHint:
+      '개발/cron 참고: 페이지네이션 GET 엔드포인트(예: https://shop.example/api/v1/products/).',
+    inventoryExternalSyncColNano: 'NanoAI 재고 필드',
+    inventoryExternalSyncColCustomer: '고객 JSON 필드',
+    inventoryExternalSyncColSample: '샘플 값(API 형태)',
+    inventoryExternalSyncColCustomerHint: '필드 이름 또는 점 경로. 비워 두면 동기 시 생략될 수 있습니다(스크립트에 따름).',
+    inventoryExternalSyncSampleHint:
+      '샘플 열은 항상 188 스타일 참고용입니다. 매핑된 필드는 동일한 데이터 형식이어야 합니다(문자열을 그대로 맞출 필요는 없음).',
+    inventoryExternalSyncVectorCol: '벡터',
+    inventoryExternalSyncVectorImage: '이미지',
+    inventoryExternalSyncVectorText: '텍스트',
+    inventoryExternalSyncVectorFootnote:
+      '벡터 열: 「이미지」= 매핑된 상품 사진 URL로 이미지 임베딩. 「텍스트」= 재고의 이름·가격 힌트·상담 메모를 합해 텍스트 임베딩. 「—」는 벡터 소스가 아님.',
+    inventoryExternalSyncSave: '매핑 저장',
+    inventoryExternalSyncSaved: '외부 재고 매핑을 저장했습니다.',
+    inventoryExternalSyncLoadError: '매핑 설정을 불러오지 못했습니다.',
+    inventoryExternalSyncPreset188: '188 스타일 API 프리셋 채우기',
+    inventoryExternalSyncRowRemarketing: '리마케팅 / 콘텐츠 ID',
+    inventoryExternalSyncRowStockQty: '재고 수량(stock_qty)',
+    inventoryExternalSyncRowSlug: '슬러그(URL 조각)',
+    inventoryExternalSyncRowIsActive: '판매 중 / 상태',
+    inventoryExternalSyncRowColorsJson:
+      '색상(JSON) — 예 [{"name":"블랙","img":"https://..."}]',
+    inventoryExternalSyncAutoLabel: '고객 카탈로그 API 자동 동기화',
+    inventoryExternalSyncAutoHint:
+      '켜면 서버가 일정 간격으로 상품 목록 URL을 호출합니다(VPS/Vercel에서 cron을 동기화 엔드포인트로 설정). «지금 동기화»도 사용할 수 있습니다.',
+    inventoryExternalSyncIntervalLabel: '간격(분)',
+    inventoryExternalSyncIntervalHint: '15–1440분. 만료되고 목록 URL이 있을 때만 cron이 실행됩니다.',
+    inventoryExternalSyncRemarketingSnapshotHint:
+      'GET 동기화는 Remarketing/콘텐츠 ID(trim)로만 추가·삭제합니다. 기존 ID — 필드는 바꾸지 않음; 새 ID — 추가; 피드에 없는 ID — 해당 ID 행 전부 삭제. API가 상품 0개 — 재고는 그대로(삭제 없음). 이 ID가 없는 재고 행은 삭제하지 않음; ID에 매핑되지 않은 상품은 건너뜀.',
+    inventoryExternalSyncRunNow: '지금 동기화',
+    inventoryExternalSyncRunPending: '동기화 중…',
+    inventoryExternalSyncRunSuccess:
+      '고객 카탈로그에서 {fetched}건 동기화: 추가 {inserted}, 업데이트 {updated}, 삭제 {deleted}.',
+    inventoryExternalSyncLastSuccess: '마지막 성공 동기화: {time}',
+    inventoryExternalSyncNeverSynced: '완료된 동기화가 아직 없습니다.',
+    inventoryExternalSyncLastErrorLabel: '최근 오류',
+    inventoryExternalSyncErrNoPartnerId: '샵 ID가 없습니다.',
+    inventoryExternalSyncErrMissingListUrl: '상품 목록 URL(REST)이 설정되지 않았습니다.',
+    inventoryExternalSyncErrInvalidListUrl: '목록 URL이 올바르지 않습니다(공개 https만).',
+    inventoryExternalSyncErrNotJsonObject: 'API 응답이 JSON 객체가 아닙니다.',
+    inventoryExternalSyncErrNoProductsArray: 'JSON에 products / items / data 배열이 없습니다.',
+    inventoryExternalSyncErrFetchTimeout: '고객 카탈로그 로딩이 시간 초과되었습니다.',
+    inventoryExternalSyncErrFetchFailed: '목록을 불러올 수 없습니다: {detail}',
+    inventoryExternalSyncErrNoValidRows: '매핑 후 유효한 재고 행이 없습니다(예: 상품명 누락).',
+    inventoryExternalSyncErrListInventoryFailed: '현재 재고를 읽을 수 없습니다: {detail}',
+    inventoryExternalSyncErrUpsertFailed: '재고를 업데이트할 수 없습니다: {detail}',
+    inventoryExternalCatalogSyncReportTitleOk: '고객 카탈로그 동기화 — 성공',
+    inventoryExternalCatalogSyncReportTitleFail: '고객 카탈로그 동기화 — 실패',
+    inventoryExternalCatalogSyncReportSourceManual: '설정의 «지금 동기화»',
+    inventoryExternalCatalogSyncReportSourceCron: '예약 작업(cron)',
+    inventoryExternalCatalogSyncReportBodyOk:
+      '시간: {time}\n출처: {source}\n샵: {shop}\n\n결과: 성공\n• API 상품 수: {fetched}\n• 매핑된 행(상품명 있음): {mapped}\n• 이번 Remarketing ID 수: {remarketing}\n• 추가 / 업데이트 / 삭제: {inserted} / {updated} / {deleted}\n• 이미지+텍스트 임베딩: {embedNote}\n{extraNote}',
+    inventoryExternalCatalogSyncReportBodyFail:
+      '시간: {time}\n출처: {source}\n샵: {shop}\n\n결과: 실패\n• 코드: {code}\n• 상세: {detail}',
+    inventoryExternalCatalogSyncReportEmbedDeferred:
+      '대기열 — cron 또는 수동 벡터 동기화에서 처리(deferEmbeddings).',
+    inventoryExternalCatalogSyncReportEmbedSync: '이번 실행에서 벡터 동기화를 시작했습니다.',
+    inventoryExternalCatalogSyncReportExtraEmptyApi:
+      '참고: API가 상품 0개 — 재고 유지(삭제 없음).\n',
     inventoryDownloadTemplate: 'Excel 샘플 받기',
     inventoryExportExcel: 'Excel보내기',
     inventoryImportExcel: 'Excel 가져오기',
