@@ -5,6 +5,7 @@
  *   npx tsx scripts/backfill-partner-inventory-embeddings.ts
  *   npx tsx scripts/backfill-partner-inventory-embeddings.ts <partnerId>
  *   npx tsx scripts/backfill-partner-inventory-embeddings.ts <partnerId> --force
+ *   npx tsx scripts/backfill-partner-inventory-embeddings.ts <partnerId> <inventoryItemId> [--text-only|--image-only] --force
  */
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -20,8 +21,14 @@ const localPath = resolve(cwd, '.env.local')
 if (existsSync(envPath)) config({ path: envPath })
 if (existsSync(localPath)) config({ path: localPath, override: true })
 
-const partnerIdArg = process.argv[2]?.trim() || ''
-const force = process.argv.includes('--force')
+const argvFlags = new Set(process.argv.filter((a) => a.startsWith('--')))
+const posArgs = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+const partnerIdArg = posArgs[0]?.trim() || ''
+const inventoryIdArg = posArgs[1]?.trim() || ''
+const force = argvFlags.has('--force')
+const textOnly = argvFlags.has('--text-only')
+const imageOnly = argvFlags.has('--image-only')
+const itemIds = inventoryIdArg ? [inventoryIdArg] : undefined
 
 async function listPartnerIdsWithInventory(): Promise<string[]> {
   if (!isPgConfigured()) {
@@ -48,7 +55,13 @@ async function main() {
   }
 
   console.log(`Backfilling inventory embeddings for ${partnerIds.length} partner(s)...`)
-  console.log(`Mode: ${force ? 'force' : 'incremental'}`)
+  console.log(
+    `Mode: ${force ? 'force' : 'incremental'}${itemIds ? ` item=${itemIds[0]}` : ''}${textOnly ? ' (text only)' : ''}${imageOnly ? ' (image only)' : ''}`
+  )
+  if (textOnly && imageOnly) {
+    console.error('Use only one of --text-only or --image-only.')
+    process.exit(1)
+  }
 
   let totalSynced = 0
   let totalFailed = 0
@@ -57,8 +70,12 @@ async function main() {
 
   for (const partnerId of partnerIds) {
     const startedAt = Date.now()
-    const res = await syncPartnerInventoryEmbeddings(partnerId, { force })
-    const resText = await syncPartnerInventoryTextEmbeddings(partnerId, { force })
+    const res = textOnly
+      ? ({ ok: true as const, synced: 0, failed: 0, skipped: 0 })
+      : await syncPartnerInventoryEmbeddings(partnerId, { force, inventoryIds: itemIds })
+    const resText = imageOnly
+      ? ({ ok: true as const, synced: 0, failed: 0, skipped: 0 })
+      : await syncPartnerInventoryTextEmbeddings(partnerId, { force, inventoryIds: itemIds })
     const elapsedMs = Date.now() - startedAt
     if (!res.ok) {
       partnerErrors += 1
