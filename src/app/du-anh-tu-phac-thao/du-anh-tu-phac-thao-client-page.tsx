@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { createImageFromSketch } from './actions'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, X, PencilLine } from 'lucide-react'
@@ -16,21 +21,11 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 import { cn } from '@/lib/utils'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 type SketchModeId = '2d' | 'color' | '3d'
-
-function waitForNextPaint(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve()
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => resolve())
-    })
-  })
-}
 
 function getWebLocaleFromCookie(): UiLocale {
   if (typeof document === 'undefined') return 'vi'
@@ -110,6 +105,7 @@ export default function DuAnhTuPhacThaoClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   const labelIndex = uiLocale === 'en' ? 1 : uiLocale === 'zh' ? 2 : uiLocale === 'ja' ? 3 : uiLocale === 'ko' ? 4 : 0
 
@@ -175,7 +171,7 @@ export default function DuAnhTuPhacThaoClientPage() {
     }
 
     setStep('GENERATING')
-    await waitForNextPaint()
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('sketchImage', sketch.file)
     formData.append('sketchMode', sketchMode)
@@ -183,23 +179,44 @@ export default function DuAnhTuPhacThaoClientPage() {
     formData.append('imageQuality', imageQuality)
     formData.append('aspectRatio', aspectRatio)
 
-    const result = await createImageFromSketch(formData)
-    if (result.error) {
+    try {
+      const result = await createImageFromSketch(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Dựng ảnh thất bại', 'Rebuild failed', '生成失败', '作成に失敗', '생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Đã dựng ảnh từ phác thảo.', 'Image rebuilt from sketch.', '已从草图生成图像。', 'スケッチから画像を作成しました。', '스케치에서 이미지를 만들었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Dựng ảnh thất bại', 'Rebuild failed', '生成失败', '作成に失敗', '생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('UPLOAD')
       toast({
         title: tr('Dựng ảnh thất bại', 'Rebuild failed', '生成失败', '作成に失敗', '생성 실패'),
-        description: result.error,
+        description: e instanceof Error ? e.message : genClient.clientFault,
         variant: 'destructive',
         duration: 6000,
-      })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({
-        title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description: tr('Đã dựng ảnh từ phác thảo.', 'Image rebuilt from sketch.', '已从草图生成图像。', 'スケッチから画像を作成しました。', '스케치에서 이미지를 만들었습니다.'),
-        duration: 3000,
       })
     }
   }

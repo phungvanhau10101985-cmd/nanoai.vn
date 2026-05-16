@@ -24,7 +24,11 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -87,6 +91,7 @@ export default function TaoAnhTheClientPage() {
     if (uiLocale === 'ko') return { err: '오류', title: '증명사진 만들기', subtitle: '배경 제거 후 표준 증명사진 규격으로 생성합니다. 1.5-3 credits/장.', uploadCard: '인물 사진 업로드', uploadDesc: '이미지 선택, 붙여넣기(Ctrl+V), 링크 붙여넣기 지원.', chooseOrPaste: '이미지를 선택하거나 붙여넣기(Ctrl+V)', reselect: '다시 선택', urlPlaceholder: '이미지 링크를 붙여넣고 가져오기를 누르세요', loading: '불러오는 중...', fetch: '가져오기', options: '옵션', optionsDesc: '비율, 추가 요청, 화질 선택.', ratio: '증명사진 비율', bgColor: '배경색', shirtStyle: '의상 스타일', extra: '추가 요청', extraPlaceholder: '예: 흰 배경, 파란 배경, 3x4, 4x6...', quality: '이미지 품질', create: '증명사진 생성', time: '* 시간: 15-45초', generatingTitle: '증명사진 생성 중', generatingDesc: 'AI가 배경을 제거하고 증명사진 규격으로 보정 중입니다', resultTitle: '증명사진 결과', resultDesc: '증명사진 생성 완료.', before: '전', after: '후', retry: '다시 시도', download: '다운로드', footer: '원본이 선명할수록 결과가 정확합니다. AI 생성 결과에는 오차가 있을 수 있습니다.' }
     return { err: 'Lỗi', title: 'Tạo ảnh thẻ', subtitle: 'Tách nền, thay nền trắng/xanh. Chuẩn 3x4, 4x6. 1,5-3 credits/ảnh.', uploadCard: 'Tải ảnh cần tạo ảnh thẻ', uploadDesc: 'Chọn ảnh, dán ảnh (Ctrl+V) hoặc dán link ảnh.', chooseOrPaste: 'Chọn ảnh hoặc dán ảnh (Ctrl+V)', reselect: 'Chọn lại', urlPlaceholder: 'Dán link ảnh rồi bấm Lấy ảnh', loading: 'Đang tải...', fetch: 'Lấy ảnh', options: 'Tùy chọn', optionsDesc: 'Chọn tỷ lệ ảnh thẻ, yêu cầu thêm và chất lượng.', ratio: 'Tỷ lệ ảnh thẻ', bgColor: 'Màu nền', shirtStyle: 'Kiểu áo', extra: 'Yêu cầu thêm', extraPlaceholder: 'Ví dụ: nền trắng, nền xanh, size 3x4, 4x6...', quality: 'Chất lượng ảnh', create: 'Tạo ảnh thẻ', time: '* Thời gian: 15-45 giây', generatingTitle: 'Đang tạo ảnh thẻ', generatingDesc: 'AI đang tách nền và chuẩn hóa ảnh thẻ', resultTitle: 'Kết quả ảnh thẻ', resultDesc: 'Ảnh thẻ đã được tạo.', before: 'Trước', after: 'Sau', retry: 'Thử lại', download: 'Tải xuống', footer: 'Ảnh càng nét càng chính xác. Ảnh do AI tạo có thể có sai sót.' }
   }, [uiLocale])
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
   const getAspectLabel = (value: string, fallback: string) => {
     if (value === '3:4') return uiLocale === 'vi' ? '3:4 Chuẩn 3x4 (CMND/CCCD)' : uiLocale === 'en' ? '3:4 Standard 3x4 (ID card)' : uiLocale === 'zh' ? '3:4 标准 3x4（证件）' : uiLocale === 'ja' ? '3:4 標準 3x4（身分証）' : '3:4 표준 3x4 (신분증)'
     if (value === '2:3') return uiLocale === 'vi' ? '2:3 Ảnh 2x3 / 4x6 (Hộ chiếu)' : uiLocale === 'en' ? '2:3 2x3 / 4x6 (Passport)' : uiLocale === 'zh' ? '2:3 2x3 / 4x6（护照）' : uiLocale === 'ja' ? '2:3 2x3 / 4x6（パスポート）' : '2:3 2x3 / 4x6 (여권)'
@@ -168,6 +173,7 @@ export default function TaoAnhTheClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('image', image.file)
     formData.append('imageQuality', imageQuality)
@@ -175,15 +181,41 @@ export default function TaoAnhTheClientPage() {
     formData.append('backgroundColor', backgroundColor)
     formData.append('shirtStyle', shirtStyle)
     formData.append('note', note)
-    const result = await createIdCard(formData)
-    if (result.error) {
+    try {
+      const result = await createIdCard(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({
+            title: uiLocale === 'vi' ? 'Tạo ảnh thẻ thất bại' : uiLocale === 'en' ? 'ID photo generation failed' : uiLocale === 'zh' ? '证件照生成失败' : uiLocale === 'ja' ? '証明写真の生成に失敗しました' : '증명사진 생성 실패',
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({ title: uiLocale === 'vi' ? 'Thành công!' : uiLocale === 'en' ? 'Success!' : uiLocale === 'zh' ? '成功！' : uiLocale === 'ja' ? '成功' : '성공!', description: t.resultDesc, duration: 3000 })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({
+            title: uiLocale === 'vi' ? 'Tạo ảnh thẻ thất bại' : uiLocale === 'en' ? 'ID photo generation failed' : uiLocale === 'zh' ? '证件照生成失败' : uiLocale === 'ja' ? '証明写真の生成に失敗しました' : '증명사진 생성 실패',
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('UPLOAD')
-      toast({ title: uiLocale === 'vi' ? 'Tạo ảnh thẻ thất bại' : uiLocale === 'en' ? 'ID photo generation failed' : uiLocale === 'zh' ? '证件照生成失败' : uiLocale === 'ja' ? '証明写真の生成に失敗しました' : '증명사진 생성 실패', description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({ title: uiLocale === 'vi' ? 'Thành công!' : uiLocale === 'en' ? 'Success!' : uiLocale === 'zh' ? '成功！' : uiLocale === 'ja' ? '成功' : '성공!', description: t.resultDesc, duration: 3000 })
+      toast({
+        title: uiLocale === 'vi' ? 'Tạo ảnh thẻ thất bại' : uiLocale === 'en' ? 'ID photo generation failed' : uiLocale === 'zh' ? '证件照生成失败' : uiLocale === 'ja' ? '証明写真の生成に失敗しました' : '증명사진 생성 실패',
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 

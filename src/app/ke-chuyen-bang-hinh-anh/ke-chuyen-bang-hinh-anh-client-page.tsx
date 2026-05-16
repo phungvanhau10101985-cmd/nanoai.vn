@@ -2,11 +2,16 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { createStoryImage } from './actions'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { BookOpen, Sparkles, RefreshCw } from 'lucide-react'
@@ -15,7 +20,6 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 
 type Step = 'INPUT' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -53,6 +57,7 @@ export default function KeChuyenBangHinhAnhClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -73,19 +78,50 @@ export default function KeChuyenBangHinhAnhClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('prompt', prompt)
     formData.append('imageQuality', imageQuality)
     formData.append('aspectRatio', aspectRatio)
-    const result = await createStoryImage(formData)
-    if (result.error) {
+    try {
+      const result = await createStoryImage(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo ảnh thất bại', 'Image creation failed', '图片生成失败', '画像作成に失敗しました', '이미지 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功しました！', '성공!'),
+            description: tr('Ảnh minh họa đã được tạo.', 'Illustration image has been created.', '插图已生成。', 'イラスト画像が作成されました。', '일러스트 이미지가 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo ảnh thất bại', 'Image creation failed', '图片生成失败', '画像作成に失敗しました', '이미지 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('INPUT')
-      toast({ title: tr('Tạo ảnh thất bại', 'Image creation failed', '图片生成失败', '画像作成に失敗しました', '이미지 생성 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({ title: tr('Thành công!', 'Success!', '成功！', '成功しました！', '성공!'), description: tr('Ảnh minh họa đã được tạo.', 'Illustration image has been created.', '插图已生成。', 'イラスト画像が作成されました。', '일러스트 이미지가 생성되었습니다.'), duration: 3000 })
+      toast({
+        title: tr('Tạo ảnh thất bại', 'Image creation failed', '图片生成失败', '画像作成に失敗しました', '이미지 생성 실패'),
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 

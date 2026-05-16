@@ -2,14 +2,18 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useRef, ChangeEvent, useEffect } from 'react'
+import { useState, useRef, ChangeEvent, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { translateDocumentImage, startTranslateBatch, startTranslatePdfBatch, getPdfPageInfo } from './actions'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { preloadImageUrl } from '@/lib/preload-image-url'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 
 const LANG_VI = { vi: 'Tiếng Việt' }
 const LANG_OTHERS: Record<string, string> = {
@@ -117,6 +121,7 @@ export default function DichAnhTaiLieuClientPage() {
   const [userCredits, setUserCredits] = useState<number>(0)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   const fetchCredits = async () => {
     try {
@@ -459,20 +464,51 @@ export default function DichAnhTaiLieuClientPage() {
         return
       }
       setStep('GENERATING')
+      await waitForNextPaintClient()
       const formData = new FormData()
       formData.append('image', image.file)
       formData.append('sourceLang', sourceLang)
       formData.append('targetLang', targetLang)
       formData.append('imageQuality', imageQuality)
-      const result = await translateDocumentImage(formData)
-      if (result.error) {
+      try {
+        const result = await translateDocumentImage(formData)
+        await finalizeStandardImageGenerationResult(result, {
+          onServerErrorMessage: (message) => {
+            setStep('UPLOAD')
+            toast({
+              title: tr(uiLocale, 'Dịch thất bại', 'Translation failed', '翻译失败', '翻訳に失敗しました', '번역 실패'),
+              description: message,
+              variant: 'destructive',
+              duration: 5000,
+            })
+          },
+          onSuccessWithUrl: (url) => {
+            setResultUrl(url)
+            setStep('RESULT')
+            toast({
+              title: tr(uiLocale, 'Thành công!', 'Success!', '成功！', '成功', '성공!'),
+              description: tr(uiLocale, 'Đã dịch tài liệu thành ảnh.', 'Document translated to image.', '文档已翻译为图片。', '文書を画像に翻訳しました。', '문서가 이미지로 번역되었습니다.'),
+              duration: 3000,
+            })
+          },
+          onUnexpectedPayload: () => {
+            setStep('UPLOAD')
+            toast({
+              title: tr(uiLocale, 'Dịch thất bại', 'Translation failed', '翻译失败', '翻訳に失敗しました', '번역 실패'),
+              description: genClient.unexpectedNoUrl,
+              variant: 'destructive',
+              duration: 6000,
+            })
+          },
+        })
+      } catch (e) {
         setStep('UPLOAD')
-        toast({ title: tr(uiLocale, 'Dịch thất bại', 'Translation failed', '翻译失败', '翻訳に失敗しました', '번역 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-      } else if (result.success && result.resultUrl) {
-        await preloadImageUrl(result.resultUrl)
-        setResultUrl(result.resultUrl)
-        setStep('RESULT')
-        toast({ title: tr(uiLocale, 'Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr(uiLocale, 'Đã dịch tài liệu thành ảnh.', 'Document translated to image.', '文档已翻译为图片。', '文書を画像に翻訳しました。', '문서가 이미지로 번역되었습니다.'), duration: 3000 })
+        toast({
+          title: tr(uiLocale, 'Dịch thất bại', 'Translation failed', '翻译失败', '翻訳に失敗しました', '번역 실패'),
+          description: e instanceof Error ? e.message : genClient.clientFault,
+          variant: 'destructive',
+          duration: 6000,
+        })
       }
     }
   }

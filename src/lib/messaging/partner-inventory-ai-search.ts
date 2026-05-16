@@ -788,10 +788,20 @@ const SIMILAR_CATALOG_INTENT_RE = new RegExp(
   'i'
 )
 
+const COLOR_ALTERNATIVES_INTENT_RE =
+  /(?:màu|mầu|color|tone)\s+(?:khác|nào\s+khác|nữa|còn|có|gì)|(?:cho\s+)?(?:em\s+)?(?:xem|coi|show|gửi|gui)\s+(?:màu|mầu|color|tone)\s+(?:khác|nữa)/i
+
 export function customerMessageWantsSimilarCatalogVersusLastConsulted(message: string): boolean {
   const text = normalizeTextForFollowUpHeuristic(message)
   if (!text) return false
+  if (COLOR_ALTERNATIVES_INTENT_RE.test(text)) return false
   return SIMILAR_CATALOG_INTENT_RE.test(text)
+}
+
+export function customerMessageWantsColorAlternativesForLastConsulted(message: string): boolean {
+  const text = normalizeTextForFollowUpHeuristic(message)
+  if (!text) return false
+  return COLOR_ALTERNATIVES_INTENT_RE.test(text)
 }
 
 /**

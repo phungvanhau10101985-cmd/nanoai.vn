@@ -2,12 +2,17 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useRef, ChangeEvent, useEffect } from 'react'
+import { useState, useRef, ChangeEvent, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { createInfographicFromBook } from './actions'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, X, ImagePlus, Camera } from 'lucide-react'
@@ -16,7 +21,6 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 import { cn } from '@/lib/utils'
 import { MAX_BOOK_PAGE_IMAGES } from './infographic-limits'
 
@@ -26,15 +30,6 @@ type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 const MAX_BOOK_FILES = MAX_BOOK_PAGE_IMAGES
 const MAX_CONTENT_TEXT = 28000
 const MAX_EDGE_PX = 1400
-
-function waitForNextPaint(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve()
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => resolve())
-    })
-  })
-}
 
 function getWebLocaleFromCookie(): UiLocale {
   if (typeof document === 'undefined') return 'vi'
@@ -99,6 +94,7 @@ export default function TaoInfographicTuSachClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -181,7 +177,7 @@ export default function TaoInfographicTuSachClientPage() {
     }
 
     setStep('GENERATING')
-    await waitForNextPaint()
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('topic', topic.trim())
     formData.append('contentText', contentText.trim())
@@ -189,24 +185,45 @@ export default function TaoInfographicTuSachClientPage() {
     formData.append('outputLocale', getWebLocaleFromCookie())
     bookSlots.forEach((s) => formData.append('bookPage', s.file))
 
-    const result = await createInfographicFromBook(formData)
-    if (result.error) {
+    try {
+      const result = await createInfographicFromBook(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Tạo infographic thất bại', 'Infographic failed', '生成失败', '作成に失敗', '인포그래픽 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setResultSummary(result.summary ?? null)
+          setStep('RESULT')
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Đã tạo ảnh infographic.', 'Infographic image created.', '信息图已生成。', 'インフォグラフィックを作成しました。', '인포그래픽이 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Tạo infographic thất bại', 'Infographic failed', '生成失败', '作成に失敗', '인포그래픽 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('UPLOAD')
       toast({
         title: tr('Tạo infographic thất bại', 'Infographic failed', '生成失败', '作成に失敗', '인포그래픽 실패'),
-        description: result.error,
+        description: e instanceof Error ? e.message : genClient.clientFault,
         variant: 'destructive',
         duration: 6000,
-      })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setResultSummary(result.summary ?? null)
-      setStep('RESULT')
-      toast({
-        title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description: tr('Đã tạo ảnh infographic.', 'Infographic image created.', '信息图已生成。', 'インフォグラフィックを作成しました。', '인포그래픽이 생성되었습니다.'),
-        duration: 3000,
       })
     }
   }

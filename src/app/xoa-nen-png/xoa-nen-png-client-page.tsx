@@ -17,6 +17,11 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { DownloadImageButton } from '@/components/download-image-button'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 
 type Step = 'UPLOAD' | 'SOURCE_SELECT' | 'GENERATING' | 'RESULT'
 
@@ -140,6 +145,8 @@ export default function XoaNenPngClientPage() {
     }
   }, [uiLocale])
 
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
+
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
     syncLocale()
@@ -233,16 +240,34 @@ export default function XoaNenPngClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('image', image.file)
-    const result = await removeBackgroundToTransparentPng(formData)
-    if (result.error) {
+    try {
+      const result = await removeBackgroundToTransparentPng(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({ title: t.failed, description: message, variant: 'destructive', duration: 5000 })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({ title: t.success, description: t.successDesc, duration: 3000 })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({ title: t.failed, description: genClient.unexpectedNoUrl, variant: 'destructive', duration: 6000 })
+        },
+      })
+    } catch (e) {
       setStep('UPLOAD')
-      toast({ title: t.failed, description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({ title: t.success, description: t.successDesc, duration: 3000 })
+      toast({
+        title: t.failed,
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 
@@ -262,16 +287,34 @@ export default function XoaNenPngClientPage() {
       const file = new File([blob], `flat-${item.label.replace(/\s+/g, '-')}.png`, { type: blob.type || 'image/png' })
       setImage({ file, preview: item.url })
       setStep('GENERATING')
+      await waitForNextPaintClient()
       const formData = new FormData()
       formData.append('image', file)
-      const result = await removeBackgroundToTransparentPng(formData)
-      if (result.error) {
+      try {
+        const result = await removeBackgroundToTransparentPng(formData)
+        await finalizeStandardImageGenerationResult(result, {
+          onServerErrorMessage: (message) => {
+            setStep('SOURCE_SELECT')
+            toast({ title: t.failed, description: message, variant: 'destructive', duration: 5000 })
+          },
+          onSuccessWithUrl: (url) => {
+            setResultUrl(url)
+            setStep('RESULT')
+            toast({ title: t.success, description: t.successDesc, duration: 3000 })
+          },
+          onUnexpectedPayload: () => {
+            setStep('SOURCE_SELECT')
+            toast({ title: t.failed, description: genClient.unexpectedNoUrl, variant: 'destructive', duration: 6000 })
+          },
+        })
+      } catch (e) {
         setStep('SOURCE_SELECT')
-        toast({ title: t.failed, description: result.error, variant: 'destructive', duration: 5000 })
-      } else if (result.success && result.resultUrl) {
-        setResultUrl(result.resultUrl)
-        setStep('RESULT')
-        toast({ title: t.success, description: t.successDesc, duration: 3000 })
+        toast({
+          title: t.failed,
+          description: e instanceof Error ? e.message : genClient.clientFault,
+          variant: 'destructive',
+          duration: 6000,
+        })
       }
     } catch {
       toast({ title: t.cannotLoad, description: t.cannotLoadDesc, variant: 'destructive', duration: 5000 })

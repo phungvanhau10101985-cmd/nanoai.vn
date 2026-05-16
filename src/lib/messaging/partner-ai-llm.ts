@@ -19,6 +19,7 @@ import {
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   buildInventorySearchQueryWithLastConsulted,
+  customerMessageWantsColorAlternativesForLastConsulted,
   filterInventoryRowsBySharedCoarseCategory,
   customerMessageWantsSimilarCatalogVersusLastConsulted,
   fetchInventoryRowsByExplicitSku,
@@ -32,6 +33,7 @@ import {
   shouldAugmentInventorySearchWithLastConsulted,
   extractExplicitSkuCandidates,
 } from '@/lib/messaging/partner-inventory-ai-search'
+import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import {
   fetchInventoryRowsSimilarToAnchorProductImage,
   fetchInventoryRowsSimilarToExternalImageUrl,
@@ -93,6 +95,50 @@ function colorHintsFromInventoryRow(r: InvRow): string {
   const labels = colorLabelsFromInventoryRow(r)
   if (!labels) return ''
   return ` | Màu sắc (trích từ tên/mô tả/ghi chú kho — ưu tiên khi khách hỏi có màu gì): ${labels}`
+}
+
+function normalizeSkuForSimilarDedupe(raw: string | null | undefined): string {
+  return (raw ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s._-]+/g, '')
+}
+
+function normalizeImageUrlForSimilarDedupe(raw: string | null | undefined): string {
+  return (raw ?? '').trim().split('?')[0].toLowerCase()
+}
+
+function dedupeSimilarAlternativeRows(anchor: InvRow, rows: InvRow[], limit: number): InvRow[] {
+  const seen = new Set<string>()
+  const mark = (row: InvRow) => {
+    seen.add(`id:${row.id}`)
+    const productUrlKey = normalizeProductUrlKey(row.product_url?.trim() || '')
+    if (productUrlKey) seen.add(`url:${productUrlKey}`)
+    const skuKey = normalizeSkuForSimilarDedupe(row.sku)
+    if (skuKey) seen.add(`sku:${skuKey}`)
+    const imageKey = normalizeImageUrlForSimilarDedupe(row.image_url)
+    if (imageKey) seen.add(`img:${imageKey}`)
+  }
+  const hasSeen = (row: InvRow) => {
+    if (seen.has(`id:${row.id}`)) return true
+    const productUrlKey = normalizeProductUrlKey(row.product_url?.trim() || '')
+    if (productUrlKey && seen.has(`url:${productUrlKey}`)) return true
+    const skuKey = normalizeSkuForSimilarDedupe(row.sku)
+    if (skuKey && seen.has(`sku:${skuKey}`)) return true
+    const imageKey = normalizeImageUrlForSimilarDedupe(row.image_url)
+    if (imageKey && seen.has(`img:${imageKey}`)) return true
+    return false
+  }
+
+  mark(anchor)
+  const out: InvRow[] = []
+  for (const row of rows) {
+    if (hasSeen(row)) continue
+    mark(row)
+    out.push(row)
+    if (out.length >= limit) break
+  }
+  return out
 }
 
 /** Gói cho AI: câu hỏi khách + mã SKU, tên, giá, màu (từ kho — đúng SP AI/shop vừa tư vấn gần nhất). */
@@ -209,6 +255,14 @@ function pageContextSkuFromRaw(raw: Json | null | undefined): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null
 }
 
+function pageContextProductUrlFromRaw(raw: Json | null | undefined): string | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const pc = (raw as { page_context?: unknown }).page_context
+  if (!pc || typeof pc !== 'object' || Array.isArray(pc)) return null
+  const v = (pc as { product_url?: unknown }).product_url
+  return typeof v === 'string' && /^https?:\/\//i.test(v.trim()) ? v.trim() : null
+}
+
 /** Ảnh trang SP từ `page_context` — khi mã không có trong kho vẫn có thể tìm tương tự theo ảnh. */
 function pageContextPrimaryImageUrlFromRaw(raw: Json | null | undefined): string | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
@@ -242,7 +296,7 @@ const PAGE_CONTEXT_INV_ID_RE =
 /**
  * Tin khách kèm `page_context` neo SP từ link/embed/thẻ (**Nhánh B** — tư vấn đúng một dòng kho, không lẫn vector rộng).
  * Trường hợp điển hình: trang chi tiết SP có «Mã SP: A6009», widget gửi `page_context.sku` + khách kèm ảnh và hỏi «da gì» — phải đọc chất liệu từ **dòng kho đúng mã**.
- * Ảnh một mình không đủ: cần sku | inventory_id | product_card_consult+url.
+ * Ảnh một mình không đủ: cần sku | inventory_id | product_url.
  */
 export function rawPayloadHasInboundProductPageContext(raw: Json | null | undefined): boolean {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
@@ -254,10 +308,13 @@ export function rawPayloadHasInboundProductPageContext(raw: Json | null | undefi
   const pu = typeof pc.product_url === 'string' ? pc.product_url.trim() : ''
   if (sku.length >= 2) return true
   if (PAGE_CONTEXT_INV_ID_RE.test(inv)) return true
-  if (source === 'product_card_consult' && pu && /^https?:\/\//i.test(pu)) return true
-  if (source === 'product_card_consult' && PAGE_CONTEXT_INV_ID_RE.test(inv)) return true
-  if ((source === 'widget_page' || source === 'image_sku_match') && (sku.length >= 2 || PAGE_CONTEXT_INV_ID_RE.test(inv)))
+  if (
+    (source === 'product_card_consult' || source === 'widget_page' || source === 'image_sku_match') &&
+    pu &&
+    /^https?:\/\//i.test(pu)
+  ) {
     return true
+  }
   return false
 }
 
@@ -790,6 +847,22 @@ export async function buildPartnerAiContext(
       console.warn('[partner-ai-llm] page_context inventory_id lookup failed', e)
     }
   }
+  if (explicitSkuRows.length === 0) {
+    const triggerPageContextProductUrl = pageContextProductUrlFromRaw(triggerRawPayload)
+    if (triggerPageContextProductUrl && isPgConfigured()) {
+      try {
+        const rowByUrl = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(
+          partnerId,
+          triggerPageContextProductUrl
+        )
+        if (rowByUrl) {
+          explicitSkuRows = [rowByUrl]
+        }
+      } catch (e) {
+        console.warn('[partner-ai-llm] page_context product_url lookup failed', e)
+      }
+    }
+  }
 
   if (isConsultCardPick) {
     if (explicitSkuRows.length === 0) {
@@ -846,12 +919,18 @@ export async function buildPartnerAiContext(
 
   /** Tin hỏi tiếp («có màu gì») vẫn neo SP dù payload còn `vision_selected_inventory_id` từ lượt trước. */
   const followUpStyleMessage = inboundTextLooksLikeFollowUpConsultHeuristic(latestCustomerMessage)
+  const colorAlternativesVersusLastConsulted =
+    customerMessageWantsColorAlternativesForLastConsulted(latestCustomerMessage)
+  if (colorAlternativesVersusLastConsulted && partnerAiRouteIntent === 'similar_alternatives') {
+    partnerAiRouteIntent = 'follow_up_current_product'
+  }
 
   /** **Nhánh A** — «Mẫu khác / loại khác / tương tự / gần giống» — lấy kho bằng embedding ảnh SP neo so với toàn kho, không khóa một dòng kho (đối lập Nhánh B). */
   const similarCatalogVersusLastConsulted =
-    partnerAiRouteIntent === 'similar_alternatives' ||
-    (partnerAiRouteIntent !== 'new_product_search' &&
-      customerMessageWantsSimilarCatalogVersusLastConsulted(latestCustomerMessage))
+    !colorAlternativesVersusLastConsulted &&
+    (partnerAiRouteIntent === 'similar_alternatives' ||
+      (partnerAiRouteIntent !== 'new_product_search' &&
+        customerMessageWantsSimilarCatalogVersusLastConsulted(latestCustomerMessage)))
   if (!partnerAiRouteIntent && similarCatalogVersusLastConsulted) {
     partnerAiRouteIntent = 'similar_alternatives'
   }
@@ -1083,7 +1162,16 @@ export async function buildPartnerAiContext(
           })
           const aid = anchorFresh.id
           similarCatalogAnchorRowId = aid
-          inv = [anchorFresh, ...rawSimilar.filter((r) => r.id !== aid)].slice(0, PARTNER_AI_PRODUCT_CARDS_MAX + 1)
+          const sameCategorySimilar = filterInventoryRowsBySharedCoarseCategory(
+            anchorFresh,
+            rawSimilar.filter((r) => r.id !== aid)
+          )
+          const dedupedSimilar = dedupeSimilarAlternativeRows(
+            anchorFresh,
+            sameCategorySimilar,
+            PARTNER_AI_PRODUCT_CARDS_MAX
+          )
+          inv = [anchorFresh, ...dedupedSimilar].slice(0, PARTNER_AI_PRODUCT_CARDS_MAX + 1)
         } catch (e) {
           console.warn('[partner-ai-llm] similar catalog by anchor image', e)
         }

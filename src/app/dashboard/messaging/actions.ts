@@ -31,6 +31,7 @@ import {
   clampCatalogAutoSyncIntervalMinutes,
   defaultPartnerInventoryExternalSyncSettings,
   fetchPartnerInventoryExternalSyncSettingsFromPg,
+  normalizeCatalogAutoSyncTimeVn,
   upsertPartnerInventoryExternalSyncSettingsFromPg,
 } from '@/lib/db/messaging-partner-inventory-external-sync-pg'
 import {
@@ -2247,6 +2248,7 @@ export type PartnerInventoryExternalSyncClientSettings = {
   updated_at: string
   catalog_auto_sync_enabled: boolean
   catalog_auto_sync_interval_minutes: number
+  catalog_auto_sync_time_vn: string
   catalog_last_sync_at: string | null
   catalog_last_sync_error: string | null
 }
@@ -2278,6 +2280,7 @@ export async function getPartnerInventoryExternalSyncSettings(
       updated_at: row.updated_at,
       catalog_auto_sync_enabled: row.catalog_auto_sync_enabled,
       catalog_auto_sync_interval_minutes: row.catalog_auto_sync_interval_minutes,
+      catalog_auto_sync_time_vn: row.catalog_auto_sync_time_vn,
       catalog_last_sync_at: row.catalog_last_sync_at,
       catalog_last_sync_error: row.catalog_last_sync_error,
     },
@@ -2293,6 +2296,7 @@ export async function savePartnerInventoryExternalSyncSettings(
     fieldMapping: Record<string, string>
     catalogAutoSyncEnabled: boolean
     catalogAutoSyncIntervalMinutes: number
+    catalogAutoSyncTimeVn: string
   }
 ): Promise<{ ok: true } | { error: string }> {
   const auth = await requireUser()
@@ -2311,6 +2315,7 @@ export async function savePartnerInventoryExternalSyncSettings(
     catalogAutoSyncIntervalMinutes: clampCatalogAutoSyncIntervalMinutes(
       payload.catalogAutoSyncIntervalMinutes
     ),
+    catalogAutoSyncTimeVn: normalizeCatalogAutoSyncTimeVn(payload.catalogAutoSyncTimeVn),
   })
   if (!ok) return { error: 'Failed to save external inventory mapping.' }
   revalidateMessagingDashboard()

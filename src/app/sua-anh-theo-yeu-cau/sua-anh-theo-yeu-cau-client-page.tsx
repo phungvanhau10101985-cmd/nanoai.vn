@@ -2,11 +2,16 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useRef, ChangeEvent, useEffect } from 'react'
+import { useState, useRef, ChangeEvent, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { editImageByPrompt } from './actions'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, Link2, Wand2 } from 'lucide-react'
@@ -16,7 +21,6 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -55,6 +59,7 @@ export default function SuaAnhTheoYeuCauClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -142,19 +147,50 @@ export default function SuaAnhTheoYeuCauClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('image', image.file)
     formData.append('imageQuality', imageQuality)
     formData.append('requestText', requestText)
-    const result = await editImageByPrompt(formData)
-    if (result.error) {
+    try {
+      const result = await editImageByPrompt(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Sửa ảnh thất bại', 'Image edit failed', '图片编辑失败', '画像編集に失敗しました', '이미지 편집 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Ảnh đã được chỉnh theo yêu cầu.', 'Image edited as requested.', '图片已按要求编辑。', '要望どおりに画像を編集しました。', '요청대로 이미지가 편집되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Sửa ảnh thất bại', 'Image edit failed', '图片编辑失败', '画像編集に失敗しました', '이미지 편집 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('UPLOAD')
-      toast({ title: tr('Sửa ảnh thất bại', 'Image edit failed', '图片编辑失败', '画像編集に失敗しました', '이미지 편집 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Ảnh đã được chỉnh theo yêu cầu.', 'Image edited as requested.', '图片已按要求编辑。', '要望どおりに画像を編集しました。', '요청대로 이미지가 편집되었습니다.'), duration: 3000 })
+      toast({
+        title: tr('Sửa ảnh thất bại', 'Image edit failed', '图片编辑失败', '画像編集に失敗しました', '이미지 편집 실패'),
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 

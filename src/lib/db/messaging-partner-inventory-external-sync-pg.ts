@@ -14,6 +14,7 @@ export type PartnerInventoryExternalSyncSettingsRow = {
   updated_at: string
   catalog_auto_sync_enabled: boolean
   catalog_auto_sync_interval_minutes: number
+  catalog_auto_sync_time_vn: string
   catalog_last_sync_at: string | null
   catalog_last_sync_error: string | null
 }
@@ -24,6 +25,12 @@ const CATALOG_SYNC_INTERVAL_MAX = 1440
 export function clampCatalogAutoSyncIntervalMinutes(raw: number): number {
   const n = Math.floor(Number(raw) || 60)
   return Math.max(CATALOG_SYNC_INTERVAL_MIN, Math.min(CATALOG_SYNC_INTERVAL_MAX, n))
+}
+
+export function normalizeCatalogAutoSyncTimeVn(raw: string | null | undefined): string {
+  const value = String(raw ?? '').trim()
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value)
+  return match ? `${match[1]}:${match[2]}` : '03:00'
 }
 
 export async function fetchPartnerInventoryExternalSyncSettingsFromPg(
@@ -41,6 +48,7 @@ export async function fetchPartnerInventoryExternalSyncSettingsFromPg(
               coalesce(field_mapping, '{}'::jsonb) as field_mapping,
               coalesce(catalog_auto_sync_enabled, false) as catalog_auto_sync_enabled,
               coalesce(catalog_auto_sync_interval_minutes, 60) as catalog_auto_sync_interval_minutes,
+              coalesce(to_char(catalog_auto_sync_time_vn, 'HH24:MI'), '03:00') as catalog_auto_sync_time_vn,
               catalog_last_sync_at,
               catalog_last_sync_error,
               updated_at
@@ -62,6 +70,7 @@ export async function fetchPartnerInventoryExternalSyncSettingsFromPg(
       catalog_auto_sync_interval_minutes: clampCatalogAutoSyncIntervalMinutes(
         Number(row.catalog_auto_sync_interval_minutes)
       ),
+      catalog_auto_sync_time_vn: normalizeCatalogAutoSyncTimeVn(String(row.catalog_auto_sync_time_vn ?? '')),
       catalog_last_sync_at: row.catalog_last_sync_at != null ? String(row.catalog_last_sync_at) : null,
       catalog_last_sync_error:
         row.catalog_last_sync_error != null && String(row.catalog_last_sync_error).trim()
@@ -84,6 +93,7 @@ export async function upsertPartnerInventoryExternalSyncSettingsFromPg(input: {
   fieldMapping: Record<string, string>
   catalogAutoSyncEnabled: boolean
   catalogAutoSyncIntervalMinutes: number
+  catalogAutoSyncTimeVn: string
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
   const pid = String(input.partnerId ?? '').trim()
@@ -95,12 +105,13 @@ export async function upsertPartnerInventoryExternalSyncSettingsFromPg(input: {
   const fmJson = JSON.stringify(fm)
   const autoOn = Boolean(input.catalogAutoSyncEnabled)
   const intervalMin = clampCatalogAutoSyncIntervalMinutes(input.catalogAutoSyncIntervalMinutes)
+  const syncTimeVn = normalizeCatalogAutoSyncTimeVn(input.catalogAutoSyncTimeVn)
   try {
     await pgQuery(
       `insert into public.messaging_partner_inventory_external_sync_settings
         (partner_id, site_origin, product_path_template, products_list_url, field_mapping,
-         catalog_auto_sync_enabled, catalog_auto_sync_interval_minutes, updated_at)
-       values ($1::uuid, $2, $3, $4, $5::jsonb, $6, $7, now())
+         catalog_auto_sync_enabled, catalog_auto_sync_interval_minutes, catalog_auto_sync_time_vn, updated_at)
+       values ($1::uuid, $2, $3, $4, $5::jsonb, $6, $7, $8::time, now())
        on conflict (partner_id) do update set
          site_origin = excluded.site_origin,
          product_path_template = excluded.product_path_template,
@@ -108,8 +119,9 @@ export async function upsertPartnerInventoryExternalSyncSettingsFromPg(input: {
          field_mapping = excluded.field_mapping,
          catalog_auto_sync_enabled = excluded.catalog_auto_sync_enabled,
          catalog_auto_sync_interval_minutes = excluded.catalog_auto_sync_interval_minutes,
+         catalog_auto_sync_time_vn = excluded.catalog_auto_sync_time_vn,
          updated_at = now()`,
-      [pid, siteOrigin, productPathTemplate, productsListUrl, fmJson, autoOn, intervalMin]
+      [pid, siteOrigin, productPathTemplate, productsListUrl, fmJson, autoOn, intervalMin, syncTimeVn]
     )
     return true
   } catch (e) {
@@ -131,6 +143,7 @@ export function defaultPartnerInventoryExternalSyncSettings(partnerId: string): 
     updated_at: '',
     catalog_auto_sync_enabled: false,
     catalog_auto_sync_interval_minutes: 60,
+    catalog_auto_sync_time_vn: '03:00',
     catalog_last_sync_at: null,
     catalog_last_sync_error: null,
   }
@@ -181,7 +194,7 @@ export async function updatePartnerExternalCatalogSyncMetaFromPg(
   }
 }
 
-/** Shop cần chạy cron: bật auto-sync, có URL list, đã tới hạn theo interval. */
+/** Shop cần chạy cron: bật auto-sync, có URL list, đã tới giờ chạy theo ngày Việt Nam. */
 export async function fetchPartnerIdsDueForExternalCatalogSyncFromPg(
   limit: number
 ): Promise<string[]> {
@@ -193,16 +206,11 @@ export async function fetchPartnerIdsDueForExternalCatalogSyncFromPg(
        from public.messaging_partner_inventory_external_sync_settings
        where coalesce(catalog_auto_sync_enabled, false) = true
          and coalesce(trim(products_list_url), '') <> ''
+         and (now() at time zone 'Asia/Ho_Chi_Minh')::time >= coalesce(catalog_auto_sync_time_vn, '03:00'::time)
          and (
            catalog_last_sync_at is null
-           or catalog_last_sync_at <= now() - (
-             (
-               greatest(
-                 15,
-                 least(1440, coalesce(catalog_auto_sync_interval_minutes, 60))
-               )::text || ' minutes'
-             )::interval
-           )
+           or (catalog_last_sync_at at time zone 'Asia/Ho_Chi_Minh')::date
+              < (now() at time zone 'Asia/Ho_Chi_Minh')::date
          )
        order by catalog_last_sync_at nulls first
        limit $1`,

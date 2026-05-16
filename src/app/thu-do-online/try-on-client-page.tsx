@@ -2,12 +2,17 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useRef, useEffect, ChangeEvent } from 'react'
+import { useState, useRef, useEffect, ChangeEvent, useMemo } from 'react'
 import { useSearchParams, usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { generateAiImage } from './actions'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Upload, Shirt, Sparkles, RefreshCw, ChevronDown, User, Users } from 'lucide-react'
@@ -20,7 +25,6 @@ import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GarmentUploader } from './garment-uploader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -78,6 +82,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
   const subtitle = {
     single: tr('Thử đồ 1 người với AI', 'AI try-on for 1 person', 'AI 单人试衣', 'AI 1人試着', 'AI 1인 가상피팅'),
     couple: tr('Thử đồ 2 người với AI', 'AI try-on for 2 people', 'AI 双人试衣', 'AI 2人試着', 'AI 2인 가상피팅'),
@@ -189,6 +194,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
     }
 
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('userImage', userImage.file)
     formData.append('tryOnMode', tryOnMode)
@@ -232,40 +238,52 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
       formData.append('person5Count', person5Images.length.toString())
     }
 
-    const result = await generateAiImage(formData)
-    console.log('Generation result:', result)
-
-    if (result.error) {
-      console.error('Generation failed:', result.error)
-      toast({ 
-        title: tr('Tạo ảnh thất bại', 'Image generation failed', '生成失败', '生成に失敗しました', '생성 실패'), 
-        description: result.error || tr('Có lỗi xảy ra khi tạo ảnh. Vui lòng thử lại.', 'An error occurred while generating the image. Please try again.', '生成图片时发生错误，请重试。', '画像生成中にエラーが発生しました。再試行してください。', '이미지 생성 중 오류가 발생했습니다. 다시 시도해 주세요.'), 
-        variant: 'destructive',
-        duration: 5000
+    try {
+      const result = await generateAiImage(formData)
+      console.log('Generation result:', result)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          console.error('Generation failed:', message)
+          toast({
+            title: tr('Tạo ảnh thất bại', 'Image generation failed', '生成失败', '生成に失敗しました', '생성 실패'),
+            description: message || tr('Có lỗi xảy ra khi tạo ảnh. Vui lòng thử lại.', 'An error occurred while generating the image. Please try again.', '生成图片时发生错误，请重试。', '画像生成中にエラーが発生しました。再試行してください。', '이미지 생성 중 오류가 발생했습니다. 다시 시도해 주세요.'),
+            variant: 'destructive',
+            duration: 5000,
+          })
+          setStep('GARMENT_UPLOAD')
+        },
+        onSuccessWithUrl: (url) => {
+          console.log('Generation successful:', url)
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('credits-updated'))
+          }
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Ảnh thử đồ của bạn đã sẵn sàng.', 'Your try-on image is ready.', '试衣结果已准备好。', '試着画像の準備ができました。', '가상피팅 결과가 준비되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          console.error('Unexpected result format:', result)
+          toast({
+            title: tr('Lỗi không xác định', 'Unknown error', '未知错误', '不明なエラー', '알 수 없는 오류'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 5000,
+          })
+          setStep('GARMENT_UPLOAD')
+        },
       })
+    } catch (e) {
       setStep('GARMENT_UPLOAD')
-    } else if (result.success && result.resultUrl) {
-      console.log('Generation successful:', result.resultUrl)
-      await preloadImageUrl(result.resultUrl)
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('credits-updated'))
-      }
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({ 
-        title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), 
-        description: tr('Ảnh thử đồ của bạn đã sẵn sàng.', 'Your try-on image is ready.', '试衣结果已准备好。', '試着画像の準備ができました。', '가상피팅 결과가 준비되었습니다.'),
-        duration: 3000
-      })
-    } else {
-      console.error('Unexpected result format:', result)
-      toast({ 
-        title: tr('Lỗi không xác định', 'Unknown error', '未知错误', '不明なエラー', '알 수 없는 오류'), 
-        description: tr('Có lỗi xảy ra. Vui lòng thử lại.', 'Something went wrong. Please try again.', '发生错误，请重试。', 'エラーが発生しました。再試行してください。', '문제가 발생했습니다. 다시 시도해 주세요.'),
+      toast({
+        title: tr('Tạo ảnh thất bại', 'Image generation failed', '生成失败', '生成に失敗しました', '생성 실패'),
+        description: e instanceof Error ? e.message : genClient.clientFault,
         variant: 'destructive',
-        duration: 5000
+        duration: 6000,
       })
-      setStep('GARMENT_UPLOAD')
     }
   }
 

@@ -12,10 +12,15 @@ export const metadata: Metadata = buildMetadata({
   keywords: ['sơ đồ trang web', 'sitemap', 'NanoAI'],
 })
 
-const extraLinks = [
+const extraLinks = (t: {
+  footer: { privacyPolicyLink: string; termsOfServiceLink: string; dataDeletionLink: string }
+}) => [
   { href: '/', label: 'Home' },
   { href: '/sitemap.xml', label: 'Sitemap XML' },
   { href: '/robots.txt', label: 'Robots.txt' },
+  { href: '/privacy', label: t.footer.privacyPolicyLink },
+  { href: '/terms', label: t.footer.termsOfServiceLink },
+  { href: '/data-deletion', label: t.footer.dataDeletionLink },
 ]
 
 export default function SoDoTrangWebPage() {
@@ -32,7 +37,7 @@ export default function SoDoTrangWebPage() {
       <section>
         <h2 className="text-xl font-semibold mb-3">{t.menu.system}</h2>
         <ul className="grid sm:grid-cols-2 gap-2">
-          {extraLinks.map((item) => (
+          {extraLinks(t).map((item) => (
             <li key={item.href}>
               <Link className="text-blue-600 hover:underline" href={item.href}>
                 {item.label}

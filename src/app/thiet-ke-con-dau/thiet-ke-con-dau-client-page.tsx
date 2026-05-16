@@ -2,7 +2,7 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -24,7 +24,11 @@ import {
 } from './lib/stamp-types'
 import { createStampWithAI } from './actions'
 import { useCredits } from '@/hooks/use-credits'
-import { preloadImageUrl } from '@/lib/preload-image-url'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -66,6 +70,7 @@ export default function ThietKeConDauClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -103,6 +108,7 @@ export default function ThietKeConDauClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const fd = new FormData()
     fd.append('stampType', stampType)
     fd.append('shape', shape)
@@ -117,24 +123,45 @@ export default function ThietKeConDauClientPage() {
     fd.append('imageQuality', imageQuality)
     Object.entries(formData).forEach(([k, v]) => v && fd.append(k, v.trim()))
     if (logo.file) fd.append('logo', logo.file)
-    const result = await createStampWithAI(fd)
-    if (result.error) {
+    try {
+      const result = await createStampWithAI(fd)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo con dấu thất bại', 'Create stamp failed', '创建印章失败', 'スタンプ作成に失敗', '스탬프 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          window.dispatchEvent(new Event('credits-updated'))
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Con dấu đã được tạo.', 'Stamp has been created.', '印章已创建。', 'スタンプを作成しました。', '스탬프가 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo con dấu thất bại', 'Create stamp failed', '创建印章失败', 'スタンプ作成に失敗', '스탬프 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('INPUT')
       toast({
         title: tr('Tạo con dấu thất bại', 'Create stamp failed', '创建印章失败', 'スタンプ作成に失敗', '스탬프 생성 실패'),
-        description: result.error,
+        description: e instanceof Error ? e.message : genClient.clientFault,
         variant: 'destructive',
-        duration: 5000,
-      })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      window.dispatchEvent(new Event('credits-updated'))
-      toast({
-        title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description: tr('Con dấu đã được tạo.', 'Stamp has been created.', '印章已创建。', 'スタンプを作成しました。', '스탬프가 생성되었습니다.'),
-        duration: 3000,
+        duration: 6000,
       })
     }
   }

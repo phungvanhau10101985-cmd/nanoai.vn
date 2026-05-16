@@ -1,6 +1,8 @@
 import type { Database } from '@/types/database.types'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
+import { colorImageUrlsForInventorySearch } from '@/lib/db/messaging-partner-inventory-pg'
+import { parseColorVariantsJson } from '@/lib/messaging/inventory-color-variants'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
@@ -60,6 +62,15 @@ export function partnerAiProductCardFromInventoryRow(row: InvRow): PartnerAiProd
     : { name, image_url, product_url }
   if (sku) card = { ...card, sku }
   card = { ...card, inventory_id: row.id }
+  const colorVariants = parseColorVariantsJson(row.stock_note ?? '')
+  if (colorVariants.length > 0) card = { ...card, color_variants: colorVariants }
+  const colorImageUrls = colorImageUrlsForInventorySearch(
+    row.image_url,
+    row.material_detail_image_url,
+    row.real_use_image_url,
+    row.real_use_image_url_2
+  )
+  if (colorImageUrls.length > 0) card = { ...card, color_image_urls: colorImageUrls }
   const pv = (row.product_video_url ?? '').trim()
   if (pv && /^https?:\/\//i.test(pv) && pv.length <= 2048) {
     card = { ...card, product_video_url: pv }

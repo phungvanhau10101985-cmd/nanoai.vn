@@ -39,9 +39,20 @@ create table if not exists public.wedding_card_ai_images (
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
-alter table public.wedding_cards
-  add constraint wedding_cards_master_image_fk
-  foreign key (master_image_id) references public.wedding_card_ai_images(id) on delete set null;
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint c
+    join pg_namespace n on n.oid = c.connamespace
+    where n.nspname = 'public'
+      and c.conname = 'wedding_cards_master_image_fk'
+  ) then
+    alter table public.wedding_cards
+      add constraint wedding_cards_master_image_fk
+      foreign key (master_image_id) references public.wedding_card_ai_images(id) on delete set null;
+  end if;
+end $$;
 
 create table if not exists public.wedding_card_rsvps (
   id uuid default gen_random_uuid() primary key,
@@ -72,15 +83,19 @@ alter table public.wedding_card_ai_images enable row level security;
 alter table public.wedding_card_rsvps enable row level security;
 alter table public.wedding_card_wishes enable row level security;
 
+drop policy if exists "Users manage own wedding cards." on public.wedding_cards;
 create policy "Users manage own wedding cards." on public.wedding_cards
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "Published wedding cards are public." on public.wedding_cards;
 create policy "Published wedding cards are public." on public.wedding_cards
   for select using (is_published = true or auth.uid() = user_id);
 
+drop policy if exists "Users manage own wedding card images." on public.wedding_card_ai_images;
 create policy "Users manage own wedding card images." on public.wedding_card_ai_images
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "Published wedding card images are public." on public.wedding_card_ai_images;
 create policy "Published wedding card images are public." on public.wedding_card_ai_images
   for select using (
     exists (
@@ -90,16 +105,19 @@ create policy "Published wedding card images are public." on public.wedding_card
     )
   );
 
+drop policy if exists "Owners view wedding RSVPs." on public.wedding_card_rsvps;
 create policy "Owners view wedding RSVPs." on public.wedding_card_rsvps
   for select using (
     exists (select 1 from public.wedding_cards c where c.id = wedding_card_rsvps.wedding_card_id and c.user_id = auth.uid())
   );
 
+drop policy if exists "Guests create RSVP on published cards." on public.wedding_card_rsvps;
 create policy "Guests create RSVP on published cards." on public.wedding_card_rsvps
   for insert with check (
     exists (select 1 from public.wedding_cards c where c.id = wedding_card_rsvps.wedding_card_id and c.is_published = true)
   );
 
+drop policy if exists "Approved wishes visible on published cards." on public.wedding_card_wishes;
 create policy "Approved wishes visible on published cards." on public.wedding_card_wishes
   for select using (
     is_approved = true and exists (
@@ -107,11 +125,13 @@ create policy "Approved wishes visible on published cards." on public.wedding_ca
     )
   );
 
+drop policy if exists "Owners view all wedding wishes." on public.wedding_card_wishes;
 create policy "Owners view all wedding wishes." on public.wedding_card_wishes
   for select using (
     exists (select 1 from public.wedding_cards c where c.id = wedding_card_wishes.wedding_card_id and c.user_id = auth.uid())
   );
 
+drop policy if exists "Guests create wishes on published cards." on public.wedding_card_wishes;
 create policy "Guests create wishes on published cards." on public.wedding_card_wishes
   for insert with check (
     exists (select 1 from public.wedding_cards c where c.id = wedding_card_wishes.wedding_card_id and c.is_published = true)

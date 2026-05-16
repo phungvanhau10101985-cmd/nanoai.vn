@@ -1,4 +1,4 @@
-import type { Database } from '@/types/database.types'
+import type { Database, Json } from '@/types/database.types'
 import {
   fetchCustomerCareTranscriptLinesFromPg,
   fetchLatestConsultedProductUrlKeyForConversationFromPg,
@@ -6,6 +6,7 @@ import {
 } from '@/lib/db/customer-care-pg'
 import {
   fetchPartnerInventoryRowByComparableSkuFromPg,
+  fetchPartnerInventoryRowByIdForPartnerFromPg,
   fetchPartnerInventoryRowByImageUrlFromPg,
   fetchPartnerInventoryRowByProductUrlNormKeyFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
@@ -51,8 +52,81 @@ async function fetchInventoryRowFromAiProductCard(
   return null
 }
 
+async function fetchInventoryRowFromInboundPageContext(
+  partnerId: string,
+  rawPayload: unknown
+): Promise<InvRow | null> {
+  if (!rawPayload || typeof rawPayload !== 'object' || Array.isArray(rawPayload)) return null
+  const pc = (rawPayload as { page_context?: unknown }).page_context
+  if (!pc || typeof pc !== 'object' || Array.isArray(pc)) return null
+  const p = pc as Record<string, unknown>
+  const source = typeof p.source === 'string' ? p.source.trim() : ''
+  const trustedSource = source === 'widget_page' || source === 'product_card_consult' || source === 'image_sku_match'
+  if (!trustedSource) return null
+
+  const inv = typeof p.inventory_id === 'string' ? p.inventory_id.trim() : ''
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv)) {
+    const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, inv)
+    if (row) return row
+  }
+
+  const sku = typeof p.sku === 'string' ? p.sku.trim() : ''
+  if (sku.length >= 2) {
+    const row = await fetchPartnerInventoryRowByComparableSkuFromPg(partnerId, sku)
+    if (row) return row
+  }
+
+  const productUrl = typeof p.product_url === 'string' ? p.product_url.trim() : ''
+  if (productUrl && /^https?:\/\//i.test(productUrl)) {
+    const row = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(partnerId, productUrl)
+    if (row) return row
+  }
+
+  return null
+}
+
+async function fetchInventoryRowFromOutboundProductAdvice(
+  partnerId: string,
+  rawPayload: Json | null | undefined,
+  body: string
+): Promise<InvRow | null> {
+  const cards = rawPayload ? aiProductCardsFromPayload(rawPayload) : []
+  const bodySkuTokens = extractExplicitSkuCandidates(body)
+
+  if (cards.length > 1) {
+    if (bodySkuTokens.length) {
+      for (const tok of bodySkuTokens) {
+        const row = await fetchPartnerInventoryRowByComparableSkuFromPg(partnerId, tok)
+        if (row) return row
+      }
+      for (const tok of bodySkuTokens) {
+        const nt = normSkuComparable(tok)
+        const matched = cards.find((c) => normSkuComparable(c.sku) === nt && nt.length > 0)
+        if (matched) {
+          const row = await fetchInventoryRowFromAiProductCard(partnerId, matched)
+          if (row) return row
+        }
+      }
+    }
+    return null
+  }
+
+  if (cards.length === 1) {
+    const row = await fetchInventoryRowFromAiProductCard(partnerId, cards[0])
+    if (row) return row
+  }
+
+  for (const tok of bodySkuTokens) {
+    const row = await fetchPartnerInventoryRowByComparableSkuFromPg(partnerId, tok)
+    if (row) return row
+  }
+
+  return null
+}
+
 /**
  * Mặt hàng đang tư vấn: ưu tiên URL khách vừa bấm «Tư vấn» (bảng consulted_products),
+ * rồi inbound có `page_context` từ link/trang SP (`widget_page` / thẻ / ảnh khớp SKU),
  * sau đó tin Shop/AI gần nhất. **Carousel nhiều thẻ:** không lấy `cards[0]` — ưu tiên mã trong **body**
  * (vd. «mã B4669» là SP đang bàn; thẻ đầu carousel có thể là mẫu khác).
  */
@@ -66,6 +140,18 @@ export async function fetchLastConsultedInventoryRowFromConversationPg(
     if (consultedKey) {
       const fromPick = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(partnerId, consultedKey)
       if (fromPick) return fromPick
+    }
+
+    const tl = await fetchCustomerCareTranscriptLinesFromPg(conversationId, 60)
+    if (tl?.length) {
+      for (let i = tl.length - 1; i >= 0; i--) {
+        const m = tl[i]
+        const row =
+          m.direction === 'inbound'
+            ? await fetchInventoryRowFromInboundPageContext(partnerId, m.raw_payload)
+            : await fetchInventoryRowFromOutboundProductAdvice(partnerId, m.raw_payload, m.body)
+        if (row) return row
+      }
     }
 
     const rows = await fetchOutboundPayloadsAndBodiesNewestFirstPg(conversationId, 60)
@@ -103,7 +189,6 @@ export async function fetchLastConsultedInventoryRowFromConversationPg(
     }
 
     /** Fallback: đọc transcript (Shop mới nhất trước) — khi payload thẻ lỗi nhưng body vẫn có «mã B4669». */
-    const tl = await fetchCustomerCareTranscriptLinesFromPg(conversationId, 48)
     if (tl?.length) {
       for (let i = tl.length - 1; i >= 0; i--) {
         const m = tl[i]

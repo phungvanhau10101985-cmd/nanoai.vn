@@ -8,6 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { beautifyImage } from './actions'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, Link2 } from 'lucide-react'
@@ -17,7 +22,6 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -154,6 +158,7 @@ export default function LamDepAnhClientPage() {
       resultTitle: 'Kết quả làm đẹp', resultDesc: 'Ảnh đã được làm đẹp.', before: 'Trước', after: 'Sau', retry: 'Thử lại', footer: 'Ảnh do AI tạo có thể có sai sót.',
     }
   }, [uiLocale])
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -228,6 +233,7 @@ export default function LamDepAnhClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('image', image.file)
     formData.append('imageQuality', imageQuality)
@@ -239,15 +245,45 @@ export default function LamDepAnhClientPage() {
       formData.append(`person_${i}_gender`, personGenders[i] ?? 'female')
     }
     formData.append('note', note)
-    const result = await beautifyImage(formData)
-    if (result.error) {
+    try {
+      const result = await beautifyImage(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({
+            title: uiLocale === 'vi' ? 'Làm đẹp thất bại' : uiLocale === 'en' ? 'Beautify failed' : uiLocale === 'zh' ? '美化失败' : uiLocale === 'ja' ? '美化に失敗しました' : '보정 실패',
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({
+            title: uiLocale === 'vi' ? 'Thành công!' : uiLocale === 'en' ? 'Success!' : uiLocale === 'zh' ? '成功！' : uiLocale === 'ja' ? '成功' : '성공!',
+            description: t.resultDesc,
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({
+            title: uiLocale === 'vi' ? 'Làm đẹp thất bại' : uiLocale === 'en' ? 'Beautify failed' : uiLocale === 'zh' ? '美化失败' : uiLocale === 'ja' ? '美化に失敗しました' : '보정 실패',
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('UPLOAD')
-      toast({ title: uiLocale === 'vi' ? 'Làm đẹp thất bại' : uiLocale === 'en' ? 'Beautify failed' : uiLocale === 'zh' ? '美化失败' : uiLocale === 'ja' ? '美化に失敗しました' : '보정 실패', description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({ title: uiLocale === 'vi' ? 'Thành công!' : uiLocale === 'en' ? 'Success!' : uiLocale === 'zh' ? '成功！' : uiLocale === 'ja' ? '成功' : '성공!', description: t.resultDesc, duration: 3000 })
+      toast({
+        title: uiLocale === 'vi' ? 'Làm đẹp thất bại' : uiLocale === 'en' ? 'Beautify failed' : uiLocale === 'zh' ? '美化失败' : uiLocale === 'ja' ? '美化に失敗しました' : '보정 실패',
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 

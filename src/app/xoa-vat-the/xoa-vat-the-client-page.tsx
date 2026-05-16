@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { eraseObjects } from './actions'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, Link2, Eraser } from 'lucide-react'
@@ -16,7 +21,6 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -133,6 +137,8 @@ export default function XoaVatTheClientPage() {
     }
   }, [uiLocale])
 
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
+
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
     syncLocale()
@@ -213,19 +219,31 @@ export default function XoaVatTheClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('image', image.file)
     formData.append('imageQuality', imageQuality)
     formData.append('note', note)
-    const result = await eraseObjects(formData)
-    if (result.error) {
+    try {
+      const result = await eraseObjects(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({ title: t.failed, description: message, variant: 'destructive', duration: 5000 })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({ title: t.success, description: t.successDesc, duration: 3000 })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({ title: t.failed, description: genClient.unexpectedNoUrl, variant: 'destructive', duration: 6000 })
+        },
+      })
+    } catch (e) {
       setStep('UPLOAD')
-      toast({ title: t.failed, description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({ title: t.success, description: t.successDesc, duration: 3000 })
+      toast({ title: t.failed, description: e instanceof Error ? e.message : genClient.clientFault, variant: 'destructive', duration: 6000 })
     }
   }
 

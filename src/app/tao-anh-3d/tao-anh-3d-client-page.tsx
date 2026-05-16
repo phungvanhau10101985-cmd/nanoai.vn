@@ -2,12 +2,16 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useRef, ChangeEvent, useEffect } from 'react'
+import { useState, useRef, ChangeEvent, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { create3DMockup } from './actions'
-import { preloadImageUrl } from '@/lib/preload-image-url'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
@@ -58,6 +62,8 @@ export default function TaoAnh3DClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   const pastedTitle = tr('Đã dán ảnh', 'Image pasted', '已粘贴图片', '画像を貼り付けました', '이미지 붙여넣음')
   const pastedDesc = tr(
@@ -155,20 +161,51 @@ export default function TaoAnh3DClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('productImage', productImage.file!)
     formData.append('logoImage', logoImage.file!)
     formData.append('imageQuality', imageQuality)
     formData.append('note', note)
-    const result = await create3DMockup(formData)
-    if (result.error) {
+    try {
+      const result = await create3DMockup(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Tạo mockup thất bại', 'Create mockup failed', '创建模型失败', 'モックアップ作成に失敗しました', '목업 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Đã tạo ảnh 3D mockup.', '3D mockup created.', '已创建 3D 模型图。', '3Dモックアップを作成しました。', '3D 목업이 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Tạo mockup thất bại', 'Create mockup failed', '创建模型失败', 'モックアップ作成に失敗しました', '목업 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('UPLOAD')
-      toast({ title: tr('Tạo mockup thất bại', 'Create mockup failed', '创建模型失败', 'モックアップ作成に失敗しました', '목업 생성 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Đã tạo ảnh 3D mockup.', '3D mockup created.', '已创建 3D 模型图。', '3Dモックアップを作成しました。', '3D 목업이 생성되었습니다.'), duration: 3000 })
+      toast({
+        title: tr('Tạo mockup thất bại', 'Create mockup failed', '创建模型失败', 'モックアップ作成に失敗しました', '목업 생성 실패'),
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 

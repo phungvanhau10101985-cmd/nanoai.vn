@@ -109,6 +109,23 @@ function messageFromStoredCatalogSyncError(t: AiT, raw: string | null): string {
   }
 }
 
+function normalizeTimeInputValue(raw: string): string {
+  const value = raw.trim()
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value) ? value : '03:00'
+}
+
+function formatVietnamDateTime(raw: string): string {
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(raw))
+}
+
 export function PartnerInventoryExternalSyncCard({
   partnerId,
   t,
@@ -126,7 +143,7 @@ export function PartnerInventoryExternalSyncCard({
   }))
   const [updatedAt, setUpdatedAt] = useState('')
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false)
-  const [intervalMinutes, setIntervalMinutes] = useState(60)
+  const [syncTimeVn, setSyncTimeVn] = useState('03:00')
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
   const [lastSyncError, setLastSyncError] = useState<string | null>(null)
   const [syncRunning, setSyncRunning] = useState(false)
@@ -154,7 +171,7 @@ export function PartnerInventoryExternalSyncCard({
       setFields({ ...s.field_mapping })
       setUpdatedAt(s.updated_at)
       setAutoSyncEnabled(s.catalog_auto_sync_enabled)
-      setIntervalMinutes(s.catalog_auto_sync_interval_minutes)
+      setSyncTimeVn(normalizeTimeInputValue(s.catalog_auto_sync_time_vn))
       setLastSyncAt(s.catalog_last_sync_at)
       setLastSyncError(s.catalog_last_sync_error)
     } finally {
@@ -213,7 +230,8 @@ export function PartnerInventoryExternalSyncCard({
         productsListUrl: listUrl,
         fieldMapping: fields,
         catalogAutoSyncEnabled: autoSyncEnabled,
-        catalogAutoSyncIntervalMinutes: intervalMinutes,
+        catalogAutoSyncIntervalMinutes: 1440,
+        catalogAutoSyncTimeVn: syncTimeVn,
       })
       if ('error' in res) {
         toast({ title: res.error, variant: 'destructive' })
@@ -255,7 +273,7 @@ export function PartnerInventoryExternalSyncCard({
   const lastSuccessLabel =
     lastSyncAt && !Number.isNaN(Date.parse(lastSyncAt))
       ? fillInventoryPlaceholders(t.inventoryExternalSyncLastSuccess, {
-          time: new Date(lastSyncAt).toLocaleString(),
+          time: formatVietnamDateTime(lastSyncAt),
         })
       : t.inventoryExternalSyncNeverSynced
 
@@ -307,14 +325,9 @@ export function PartnerInventoryExternalSyncCard({
               {t.inventoryExternalSyncIntervalLabel}
             </Label>
             <Input
-              type="number"
-              min={15}
-              max={1440}
-              value={intervalMinutes}
-              onChange={(e) => {
-                const n = parseInt(e.target.value, 10)
-                setIntervalMinutes(Number.isFinite(n) ? n : 60)
-              }}
+              type="time"
+              value={syncTimeVn}
+              onChange={(e) => setSyncTimeVn(normalizeTimeInputValue(e.target.value))}
               disabled={disabled}
               className="h-8 w-20 text-xs tabular-nums"
               aria-label={t.inventoryExternalSyncIntervalLabel}

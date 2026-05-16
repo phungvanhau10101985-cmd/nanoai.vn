@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { faceSwap } from './actions'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, Repeat } from 'lucide-react'
@@ -16,7 +21,6 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -93,6 +97,7 @@ export default function HoanDoiKhuonMatClientPage() {
     afterSwap: tr('Sau khi ghép mặt', 'After swap', '换脸后', '入れ替え後', '교체 후'),
     retry: tr('Thử lại', 'Try again', '重试', 'やり直す', '다시 시도'),
   }), [uiLocale])
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -145,6 +150,7 @@ export default function HoanDoiKhuonMatClientPage() {
     isSubmittingRef.current = true
     setStep('GENERATING')
     try {
+      await waitForNextPaintClient()
       const formData = new FormData()
       formData.append('swapMode', swapMode)
       if (swapMode === 'single' && faceImage.file) {
@@ -157,15 +163,43 @@ export default function HoanDoiKhuonMatClientPage() {
       formData.append('imageQuality', imageQuality)
       formData.append('note', note)
       const result = await faceSwap(formData)
-      if (result.error) {
-        setStep('UPLOAD')
-        toast({ title: tr('Hoán đổi thất bại', 'Face swap failed', '换脸失败', '顔入れ替えに失敗しました', '얼굴 교체 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-      } else if (result.success && result.resultUrl) {
-        await preloadImageUrl(result.resultUrl)
-        setResultUrl(result.resultUrl)
-        setStep('RESULT')
-        toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Đã hoán đổi khuôn mặt.', 'Face swap completed.', '换脸已完成。', '顔入れ替えが完了しました。', '얼굴 교체가 완료되었습니다.'), duration: 3000 })
-      }
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Hoán đổi thất bại', 'Face swap failed', '换脸失败', '顔入れ替えに失敗しました', '얼굴 교체 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Đã hoán đổi khuôn mặt.', 'Face swap completed.', '换脸已完成。', '顔入れ替えが完了しました。', '얼굴 교체가 완료되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Hoán đổi thất bại', 'Face swap failed', '换脸失败', '顔入れ替えに失敗しました', '얼굴 교체 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
+      setStep('UPLOAD')
+      toast({
+        title: tr('Hoán đổi thất bại', 'Face swap failed', '换脸失败', '顔入れ替えに失敗しました', '얼굴 교체 실패'),
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     } finally {
       isSubmittingRef.current = false
     }

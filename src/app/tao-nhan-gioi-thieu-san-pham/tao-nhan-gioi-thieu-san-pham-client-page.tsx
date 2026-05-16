@@ -2,12 +2,17 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useRef, ChangeEvent, useEffect } from 'react'
+import { useState, useRef, ChangeEvent, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { createProductLabel, createLabelMockupOnProduct } from './actions'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, Plus, X, Check, Save, FolderOpen, Box, FileSpreadsheet, FileDown, Trash2, FileEdit } from 'lucide-react'
@@ -17,7 +22,6 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 import { getClosestGeminiAspectRatio } from '@/lib/label-size-presets'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT' | 'MOCKUP_UPLOAD' | 'MOCKUP_GENERATING' | 'MOCKUP_RESULT'
@@ -235,6 +239,7 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -283,6 +288,7 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
 
   const handleSubmit = async () => {
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('imageQuality', imageQuality)
     formData.append('aspectRatio', aspectRatio)
@@ -318,53 +324,83 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
       formData.append(`image_${i}`, img.file)
       formData.append(`image_${i}_removeBg`, String(img.removeBackground))
     })
-    const result = await createProductLabel(formData)
-    if (result.error) {
-      setStep('UPLOAD')
-      toast({ title: tr('Tạo nhãn thất bại', 'Create label failed', '创建标签失败', 'ラベル作成に失敗しました', '라벨 생성 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      const projId = saveProject({
-        step: 'RESULT',
-        labelName,
-        productName,
-        brandName,
-        resultUrl: result.resultUrl,
-        mockupResultUrl: null,
-        labelWidthMm,
-        labelHeightMm,
-        aspectRatio,
-        imageQuality,
-        labelText,
-        productDescription,
-        ingredients,
-        usageInstructions,
-        companyAddress,
-        website,
-        email,
-        hotline,
-        storageInstructions,
-        warningAllergy,
-        warningOther,
-        volume,
-        registrationCode,
-        countryOfOrigin,
-        packagingProdDate,
-        packagingExpiryDate,
-        hasBarcode,
-        hasQrCode,
-        selectedLabelIcons,
-        style,
-        backgroundType,
-        borderStyle,
-        hasBorder,
+    try {
+      const result = await createProductLabel(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Tạo nhãn thất bại', 'Create label failed', '创建标签失败', 'ラベル作成に失敗しました', '라벨 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          const projId = saveProject({
+            step: 'RESULT',
+            labelName,
+            productName,
+            brandName,
+            resultUrl: url,
+            mockupResultUrl: null,
+            labelWidthMm,
+            labelHeightMm,
+            aspectRatio,
+            imageQuality,
+            labelText,
+            productDescription,
+            ingredients,
+            usageInstructions,
+            companyAddress,
+            website,
+            email,
+            hotline,
+            storageInstructions,
+            warningAllergy,
+            warningOther,
+            volume,
+            registrationCode,
+            countryOfOrigin,
+            packagingProdDate,
+            packagingExpiryDate,
+            hasBarcode,
+            hasQrCode,
+            selectedLabelIcons,
+            style,
+            backgroundType,
+            borderStyle,
+            hasBorder,
+          })
+          currentProjectIdRef.current = projId
+          refreshProjects()
+          window.dispatchEvent(new Event('credits-updated'))
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Nhãn sản phẩm đã được tạo.', 'Product label has been created.', '产品标签已创建。', '商品ラベルを作成しました。', '제품 라벨이 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Tạo nhãn thất bại', 'Create label failed', '创建标签失败', 'ラベル作成に失敗しました', '라벨 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
       })
-      currentProjectIdRef.current = projId
-      refreshProjects()
-      window.dispatchEvent(new Event('credits-updated'))
-      toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Nhãn sản phẩm đã được tạo.', 'Product label has been created.', '产品标签已创建。', '商品ラベルを作成しました。', '제품 라벨이 생성되었습니다.'), duration: 3000 })
+    } catch (e) {
+      setStep('UPLOAD')
+      toast({
+        title: tr('Tạo nhãn thất bại', 'Create label failed', '创建标签失败', 'ラベル作成に失敗しました', '라벨 생성 실패'),
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 
@@ -462,60 +498,91 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
       return
     }
     setStep('MOCKUP_GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('labelImageUrl', resultUrl)
     formData.append('productImage', mockupProductImage.file)
     formData.append('imageQuality', imageQuality)
-    const result = await createLabelMockupOnProduct(formData)
-    if (result.error) {
+    try {
+      const result = await createLabelMockupOnProduct(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('MOCKUP_UPLOAD')
+          toast({
+            title: tr('Tạo mockup thất bại', 'Create mockup failed', '创建模型失败', 'モックアップ作成に失敗しました', '목업 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setMockupResultUrl(url)
+          setStep('MOCKUP_RESULT')
+          if (currentProjectIdRef.current) {
+            updateProject(currentProjectIdRef.current, { step: 'MOCKUP_RESULT', mockupResultUrl: url })
+          } else {
+            saveProject({
+              step: 'MOCKUP_RESULT',
+              labelName,
+              productName,
+              brandName,
+              resultUrl,
+              mockupResultUrl: url,
+              labelWidthMm,
+              labelHeightMm,
+              aspectRatio,
+              imageQuality,
+              labelText,
+              productDescription,
+              ingredients,
+              usageInstructions,
+              companyAddress,
+              website,
+              email,
+              hotline,
+              storageInstructions,
+              warningAllergy,
+              warningOther,
+              volume,
+              registrationCode,
+              countryOfOrigin,
+              packagingProdDate,
+              packagingExpiryDate,
+              hasBarcode,
+              hasQrCode,
+              selectedLabelIcons,
+              style,
+              backgroundType,
+              borderStyle,
+              hasBorder,
+            })
+          }
+          refreshProjects()
+          window.dispatchEvent(new Event('credits-updated'))
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Mockup nhãn trên sản phẩm đã được tạo.', 'Label mockup on product has been created.', '产品标签模型已创建。', '商品ラベルのモックアップを作成しました。', '제품 라벨 목업이 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('MOCKUP_UPLOAD')
+          toast({
+            title: tr('Tạo mockup thất bại', 'Create mockup failed', '创建模型失败', 'モックアップ作成に失敗しました', '목업 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('MOCKUP_UPLOAD')
-      toast({ title: tr('Tạo mockup thất bại', 'Create mockup failed', '创建模型失败', 'モックアップ作成に失敗しました', '목업 생성 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setMockupResultUrl(result.resultUrl)
-      setStep('MOCKUP_RESULT')
-      if (currentProjectIdRef.current) {
-        updateProject(currentProjectIdRef.current, { step: 'MOCKUP_RESULT', mockupResultUrl: result.resultUrl })
-      } else {
-        saveProject({
-          step: 'MOCKUP_RESULT',
-          labelName,
-          productName,
-          brandName,
-          resultUrl,
-          mockupResultUrl: result.resultUrl,
-          labelWidthMm,
-          labelHeightMm,
-          aspectRatio,
-          imageQuality,
-          labelText,
-          productDescription,
-          ingredients,
-          usageInstructions,
-          companyAddress,
-          website,
-          email,
-          hotline,
-          storageInstructions,
-          warningAllergy,
-          warningOther,
-          volume,
-          registrationCode,
-          countryOfOrigin,
-          packagingProdDate,
-          packagingExpiryDate,
-          hasBarcode,
-          hasQrCode,
-          selectedLabelIcons,
-          style,
-          backgroundType,
-          borderStyle,
-          hasBorder,
-        })
-      }
-      refreshProjects()
-      window.dispatchEvent(new Event('credits-updated'))
-      toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Mockup nhãn trên sản phẩm đã được tạo.', 'Label mockup on product has been created.', '产品标签模型已创建。', '商品ラベルのモックアップを作成しました。', '제품 라벨 목업이 생성되었습니다.'), duration: 3000 })
+      toast({
+        title: tr('Tạo mockup thất bại', 'Create mockup failed', '创建模型失败', 'モックアップ作成に失敗しました', '목업 생성 실패'),
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 

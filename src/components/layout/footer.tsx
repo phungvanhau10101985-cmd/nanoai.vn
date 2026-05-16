@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { getServerDictionary } from '@/lib/i18n/server'
 
 export function Footer() {
@@ -15,6 +16,26 @@ export function Footer() {
           <h2 className="text-sm font-semibold">{t.footer.policyTitle}</h2>
           <p className="mt-2 text-sm text-muted-foreground">{t.footer.policyNotice}</p>
           <p className="mt-2 text-xs text-muted-foreground">{t.footer.adDisclosure}</p>
+          <ul className="mt-3 flex flex-col gap-1.5 text-sm">
+            <li>
+              <Link className="text-blue-600 underline underline-offset-2 hover:text-foreground" href="/privacy">
+                {t.footer.privacyPolicyLink}
+              </Link>
+            </li>
+            <li>
+              <Link className="text-blue-600 underline underline-offset-2 hover:text-foreground" href="/terms">
+                {t.footer.termsOfServiceLink}
+              </Link>
+            </li>
+            <li>
+              <Link
+                className="text-blue-600 underline underline-offset-2 hover:text-foreground"
+                href="/data-deletion"
+              >
+                {t.footer.dataDeletionLink}
+              </Link>
+            </li>
+          </ul>
         </section>
 
         <section>

@@ -11,7 +11,11 @@ import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { Clapperboard, Loader2, Mic2, Sparkles, Upload } from 'lucide-react'
-import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import {
   createMusicVideoVeo8s,
   generateMusicVideoLyricsNextSegment,
@@ -28,7 +32,6 @@ import {
   MV_VOICE_TIMBRE,
   type MvUiLocale,
 } from '@/lib/music/music-video-flow-ui-constants'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { Label } from '@/components/ui/label'
@@ -199,6 +202,7 @@ export default function FlowNhacVideoVeoClientPage({ copy: t }: Props) {
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const [uiLocale, setUiLocale] = useState<MvUiLocale>('vi')
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   const [hint, setHint] = useState('')
   const [lyricsImage, setLyricsImage] = useState<File | null>(null)
@@ -386,6 +390,7 @@ export default function FlowNhacVideoVeoClientPage({ copy: t }: Props) {
       void (async () => {
         setCreatingSegmentIndex(1)
         try {
+          await waitForNextPaintClient()
           const fd = new FormData()
           fd.append('aspectRatio', progAspect)
           fd.append('fullLyrics', composedFull)
@@ -396,18 +401,32 @@ export default function FlowNhacVideoVeoClientPage({ copy: t }: Props) {
           appendStyleForm(fd)
           progFrameFiles.forEach((f) => fd.append('frames', f))
           const res = await createMusicVideoVeo8s(fd)
-          if (res.error) {
-            toast({ title: res.error, variant: 'destructive', duration: 8000 })
-            return
-          }
-          if (res.success && res.resultUrl) {
-            await preloadImageUrl(res.resultUrl)
-            setChainHistory([{ url: res.resultUrl }])
-            setMergedResultUrl(null)
-            setVideoWizardOpenThrough(1)
-            toast({ title: t.successClip })
-            if (typeof window !== 'undefined') window.dispatchEvent(new Event('credits-updated'))
-          }
+          await finalizeStandardImageGenerationResult(res, {
+            onServerErrorMessage: (message) => {
+              toast({ title: message, variant: 'destructive', duration: 8000 })
+            },
+            onSuccessWithUrl: (url) => {
+              setChainHistory([{ url }])
+              setMergedResultUrl(null)
+              setVideoWizardOpenThrough(1)
+              toast({ title: t.successClip })
+              if (typeof window !== 'undefined') window.dispatchEvent(new Event('credits-updated'))
+            },
+            onUnexpectedPayload: () => {
+              toast({
+                title: t.partialSegmentsFail.replace('{n}', '1'),
+                description: genClient.unexpectedNoUrl,
+                variant: 'destructive',
+                duration: 10000,
+              })
+            },
+          })
+        } catch (e) {
+          toast({
+            title: e instanceof Error ? e.message : genClient.clientFault,
+            variant: 'destructive',
+            duration: 10000,
+          })
         } finally {
           setCreatingSegmentIndex(null)
         }
@@ -453,6 +472,7 @@ export default function FlowNhacVideoVeoClientPage({ copy: t }: Props) {
       void (async () => {
         setCreatingSegmentIndex(segmentOneBased)
         try {
+          await waitForNextPaintClient()
           const fd = new FormData()
           fd.append('aspectRatio', progAspect)
           fd.append('fullLyrics', composedFull)
@@ -463,32 +483,40 @@ export default function FlowNhacVideoVeoClientPage({ copy: t }: Props) {
           appendStyleForm(fd)
           progFrameFiles.forEach((f) => fd.append('frames', f))
           const res = await createMusicVideoVeo8s(fd)
-          if (res.error) {
-            toast({
-              title: res.error,
-              variant: 'destructive',
-              duration: 10000,
-            })
-            return
-          }
-          if (!res.success || !res.resultUrl) {
-            toast({
-              title: t.partialSegmentsFail.replace('{n}', String(segmentOneBased)),
-              variant: 'destructive',
-              duration: 10000,
-            })
-            return
-          }
-          await preloadImageUrl(res.resultUrl)
-          setMergedResultUrl(null)
-          setChainHistory((prev) => {
-            const next = [...prev.slice(0, segmentOneBased - 1), { url: res.resultUrl }]
-            return next
+          await finalizeStandardImageGenerationResult(res, {
+            onServerErrorMessage: (message) => {
+              toast({
+                title: message,
+                variant: 'destructive',
+                duration: 10000,
+              })
+            },
+            onSuccessWithUrl: (url) => {
+              setMergedResultUrl(null)
+              setChainHistory((prev) => {
+                const next = [...prev.slice(0, segmentOneBased - 1), { url }]
+                return next
+              })
+              toast({
+                title: t.successExtendSegment.replace('{k}', String(segmentOneBased)),
+              })
+              if (typeof window !== 'undefined') window.dispatchEvent(new Event('credits-updated'))
+            },
+            onUnexpectedPayload: () => {
+              toast({
+                title: t.partialSegmentsFail.replace('{n}', String(segmentOneBased)),
+                description: genClient.unexpectedNoUrl,
+                variant: 'destructive',
+                duration: 10000,
+              })
+            },
           })
+        } catch (e) {
           toast({
-            title: t.successExtendSegment.replace('{k}', String(segmentOneBased)),
+            title: e instanceof Error ? e.message : genClient.clientFault,
+            variant: 'destructive',
+            duration: 10000,
           })
-          if (typeof window !== 'undefined') window.dispatchEvent(new Event('credits-updated'))
         } finally {
           setCreatingSegmentIndex(null)
         }
@@ -501,19 +529,33 @@ export default function FlowNhacVideoVeoClientPage({ copy: t }: Props) {
     if (chainHistory.length < 2) return
     setMergingClips(true)
     try {
+      await waitForNextPaintClient()
       const fd = new FormData()
       fd.append('clipUrlsJson', JSON.stringify(chainHistory.map((c) => c.url)))
       fd.append('aspectRatio', progAspect)
       const res = await mergeFlowMusicVeoClips(fd)
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive', duration: 10000 })
-        return
-      }
-      if ('success' in res && res.success && res.resultUrl) {
-        await preloadImageUrl(res.resultUrl)
-        setMergedResultUrl(res.resultUrl)
-        toast({ title: t.successMergedClip, duration: 6000 })
-      }
+      await finalizeStandardImageGenerationResult(res, {
+        onServerErrorMessage: (message) => {
+          toast({ title: message, variant: 'destructive', duration: 10000 })
+        },
+        onSuccessWithUrl: (url) => {
+          setMergedResultUrl(url)
+          toast({ title: t.successMergedClip, duration: 6000 })
+        },
+        onUnexpectedPayload: () => {
+          toast({
+            title: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 10000,
+          })
+        },
+      })
+    } catch (e) {
+      toast({
+        title: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 10000,
+      })
     } finally {
       setMergingClips(false)
     }

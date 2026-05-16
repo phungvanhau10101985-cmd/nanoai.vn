@@ -44,13 +44,39 @@ function sanitizeProductCard(x: unknown): PartnerAiProductCard | null {
   let product_video_url = typeof o.product_video_url === 'string' ? o.product_video_url.trim() : ''
   if (product_video_url && !URL_RE.test(product_video_url)) product_video_url = ''
   if (product_video_url.length > 2048) product_video_url = product_video_url.slice(0, 2048)
+  const colorVariants: Array<{ name: string; img: string }> = []
+  if (Array.isArray(o.color_variants)) {
+    for (const item of o.color_variants) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+      const v = item as Record<string, unknown>
+      const colorName = typeof v.name === 'string' ? v.name.trim() : ''
+      const colorImg = typeof v.img === 'string' ? v.img.trim() : ''
+      if (!colorName || !URL_RE.test(colorImg)) continue
+      colorVariants.push({ name: colorName.slice(0, 120), img: colorImg.slice(0, 2048) })
+      if (colorVariants.length >= 30) break
+    }
+  }
+  const colorImageUrls = Array.isArray(o.color_image_urls)
+    ? o.color_image_urls
+        .map((u) => (typeof u === 'string' ? u.trim().slice(0, 2048) : ''))
+        .filter((u) => URL_RE.test(u))
+        .slice(0, 12)
+    : []
 
   const base: PartnerAiProductCard = price_hint
     ? { name, image_url, product_url, price_hint }
     : { name, image_url, product_url }
   const withSku = sku ? { ...base, sku } : base
   const withInv = inventory_id ? { ...withSku, inventory_id } : withSku
-  return product_video_url ? { ...withInv, product_video_url } : withInv
+  const withColors =
+    colorVariants.length > 0 || colorImageUrls.length > 0
+      ? {
+          ...withInv,
+          ...(colorVariants.length > 0 ? { color_variants: colorVariants } : {}),
+          ...(colorImageUrls.length > 0 ? { color_image_urls: colorImageUrls } : {}),
+        }
+      : withInv
+  return product_video_url ? { ...withColors, product_video_url } : withColors
 }
 
 /** Parse DeepSeek output: JSON with message + products, or fall back to plain text. */

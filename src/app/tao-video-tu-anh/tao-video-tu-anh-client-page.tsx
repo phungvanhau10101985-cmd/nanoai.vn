@@ -2,12 +2,17 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useRef, ChangeEvent, useEffect } from 'react'
+import { useState, useRef, ChangeEvent, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createVeoVideo } from './actions'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, Video, FileText, ImageIcon } from 'lucide-react'
@@ -15,7 +20,6 @@ import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 import { cn } from '@/lib/utils'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
@@ -72,6 +76,7 @@ export default function TaoVideoTuAnhClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -114,6 +119,7 @@ export default function TaoVideoTuAnhClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('mode', mode)
     formData.append('aspectRatio', aspectRatio)
@@ -122,23 +128,44 @@ export default function TaoVideoTuAnhClientPage() {
     formData.append('prompt', mode === 'text' ? promptText : promptImage)
     if (mode === 'image' && image.file) formData.append('image', image.file)
 
-    const result = await createVeoVideo(formData)
-    if (result.error) {
+    try {
+      const result = await createVeoVideo(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Tạo video thất bại', 'Create video failed', '创建视频失败', '動画作成に失敗しました', '비디오 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Đã tạo video.', 'Video created.', '已创建视频。', '動画を作成しました。', '비디오가 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Tạo video thất bại', 'Create video failed', '创建视频失败', '動画作成に失敗しました', '비디오 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('UPLOAD')
       toast({
         title: tr('Tạo video thất bại', 'Create video failed', '创建视频失败', '動画作成に失敗しました', '비디오 생성 실패'),
-        description: result.error,
+        description: e instanceof Error ? e.message : genClient.clientFault,
         variant: 'destructive',
-        duration: 5000,
-      })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({
-        title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description: tr('Đã tạo video.', 'Video created.', '已创建视频。', '動画を作成しました。', '비디오가 생성되었습니다.'),
-        duration: 3000,
+        duration: 6000,
       })
     }
   }

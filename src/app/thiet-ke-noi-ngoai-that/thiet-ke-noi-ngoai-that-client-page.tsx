@@ -3,7 +3,7 @@
 
 import { useWebLocaleFromDocumentCookie } from '@/hooks/use-web-locale-from-cookie'
 
-import { useState, useRef, ChangeEvent, useEffect, useCallback } from 'react'
+import { useState, useRef, ChangeEvent, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -19,7 +19,11 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { CompareSlider } from '@/components/ui/compare-slider'
 import { jsPDF } from 'jspdf'
-import { preloadImageUrl } from '@/lib/preload-image-url'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { compressInteriorImageForAi } from '@/lib/interior-design-client-image'
 
 const DRAFT_KEY = 'thiet-ke-noi-ngoai-that-draft'
@@ -150,6 +154,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   const appendInteriorMainToFormData = useCallback(
     async (formData: FormData, img: File | null, url: string | null) => {
@@ -529,6 +534,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     await appendInteriorMainToFormData(formData, img, url)
     formData.append('mode', 'full')
@@ -552,31 +558,42 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     await appendCompressedInteriorFile(formData, 'referenceImage', referenceImage?.file)
     try {
       const result = await timedApplyInteriorChanges(formData)
-      if ('error' in result) {
-        setStep('FULL_REDESIGN')
-        toast({ title: tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理に失敗しました', '처리 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-      } else if (result.success && result.resultUrl) {
-        await preloadImageUrl(result.resultUrl)
-        setResultUrl(result.resultUrl)
-        setResultUrls(result.resultUrls || [result.resultUrl])
-        setStep('RESULT')
-        refreshCredits()
-        toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Đã làm mới không gian.', 'Space refreshed.', '空间已刷新。', '空間をリフレッシュしました。', '공간이 새로고침되었습니다.'), duration: 3000 })
-      }
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('FULL_REDESIGN')
+          toast({
+            title: tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理に失敗しました', '처리 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setResultUrls(result.resultUrls || [url])
+          setStep('RESULT')
+          refreshCredits()
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Đã làm mới không gian.', 'Space refreshed.', '空间已刷新。', '空間をリフレッシュしました。', '공간이 새로고침되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('FULL_REDESIGN')
+          toast({
+            title: tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理に失敗しました', '처리 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
     } catch (error) {
       setStep('FULL_REDESIGN')
-      const msg = error instanceof Error ? error.message : String(error)
       toast({
         title: tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理に失敗しました', '처리 실패'),
-        description:
-          msg ||
-          tr(
-            'Lỗi kết nối (thường gặp trên 4G/mạng yếu). Giữ tab mở và thử lại.',
-            'Connection error (common on cellular/weak networks). Keep this tab active and retry.',
-            '连接错误（在移动网络较弱时常见）。请保持页面在前台并重试。',
-            '接続エラー（電波環境が弱いと起きやすい）。このタブを前面にしたまま再試行してください。',
-            '연결 오류(이동통신·약한 회선에서 흔함). 이 탭을 켜 둔 채 다시 시도하세요.'
-          ),
+        description: error instanceof Error ? error.message : genClient.clientFault,
         variant: 'destructive',
         duration: 6000,
       })
@@ -617,6 +634,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     }
     setUndoStack((prev) => [...prev.slice(-4), { displayImage: displayImage!, furnitureList: [...furnitureList], currentImageUrl }])
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     await appendInteriorMainToFormData(formData, img, url)
     formData.append('imageQuality', imageQuality)
@@ -639,33 +657,45 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     await appendCompressedInteriorFile(formData, 'referenceImage', referenceImage?.file)
     try {
       const result = await timedApplyInteriorChanges(formData)
-      if ('error' in result) {
-        setStep('EDITING')
-        setUndoStack((prev) => prev.slice(0, -1))
-        toast({ title: tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理に失敗しました', '처리 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-      } else if (result.success && result.resultUrl) {
-        await preloadImageUrl(result.resultUrl)
-        setResultUrl(result.resultUrl)
-        setResultUrls(result.resultUrls || [result.resultUrl])
-        setStep('RESULT')
-        refreshCredits()
-        toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Đã áp dụng thay đổi.', 'Changes have been applied.', '更改已应用。', '変更を適用しました。', '변경이 적용되었습니다.'), duration: 3000 })
-      }
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('EDITING')
+          setUndoStack((prev) => prev.slice(0, -1))
+          toast({
+            title: tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理に失敗しました', '처리 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setResultUrls(result.resultUrls || [url])
+          setStep('RESULT')
+          refreshCredits()
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Đã áp dụng thay đổi.', 'Changes have been applied.', '更改已应用。', '変更を適用しました。', '변경이 적용되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('EDITING')
+          setUndoStack((prev) => prev.slice(0, -1))
+          toast({
+            title: tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理に失敗しました', '처리 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
     } catch (error) {
       setStep('EDITING')
       setUndoStack((prev) => prev.slice(0, -1))
-      const msg = error instanceof Error ? error.message : String(error)
       toast({
         title: tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理に失敗しました', '처리 실패'),
-        description:
-          msg ||
-          tr(
-            'Lỗi kết nối (thường gặp trên 4G/mạng yếu). Giữ tab mở và thử lại.',
-            'Connection error (common on cellular/weak networks). Keep this tab active and retry.',
-            '连接错误（在移动网络较弱时常见）。请保持页面在前台并重试。',
-            '接続エラー（電波環境が弱いと起きやすい）。このタブを前面にしたまま再試行してください。',
-            '연결 오류(이동통신·약한 회선에서 흔함). 이 탭을 켜 둔 채 다시 시도하세요.'
-          ),
+        description: error instanceof Error ? error.message : genClient.clientFault,
         variant: 'destructive',
         duration: 6000,
       })
@@ -691,6 +721,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     }
     setUndoStack((prev) => [...prev.slice(-4), { displayImage: displayImage || imageOverride!, furnitureList: [...furnitureList], currentImageUrl }])
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     await appendInteriorMainToFormData(formData, img, url)
     formData.append('imageQuality', imageQuality)
@@ -711,36 +742,44 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     await appendCompressedInteriorFile(formData, 'rotationReferenceImage', rotationReferenceImage?.file)
     try {
       const result = await timedApplyInteriorChanges(formData)
-      if ('error' in result) {
-        setStep('EDITING')
-        setUndoStack((prev) => prev.slice(0, -1))
-        toast({ title: tr('Quay thất bại', 'Rotation failed', '旋转失败', '回転に失敗しました', '회전 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-      } else if (result.success && result.resultUrl) {
-        await preloadImageUrl(result.resultUrl)
-        setResultUrl(result.resultUrl)
-        setResultUrls(result.resultUrls || [result.resultUrl])
-        setRotationHistory((prev) => (prev.length === 0 ? [displayImage || currentImageUrl || '', result.resultUrl!] : [...prev, result.resultUrl!]))
-        setRotationHistoryIndex((prev) => (prev === 0 ? 1 : prev + 1))
-        setStep('RESULT')
-        refreshCredits()
-        const dirLabel = { left: tr('trái', 'left', '左', '左', '왼쪽'), right: tr('phải', 'right', '右', '右', '오른쪽'), up: tr('lên', 'up', '上', '上', '위'), down: tr('xuống', 'down', '下', '下', '아래') }[direction]
-        toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Đã quay 30°', 'Rotated 30°', '已旋转30°', '30°回転しました', '30° 회전됨') + ` ${dirLabel}.`, duration: 3000 })
-      }
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('EDITING')
+          setUndoStack((prev) => prev.slice(0, -1))
+          toast({
+            title: tr('Quay thất bại', 'Rotation failed', '旋转失败', '回転に失敗しました', '회전 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setResultUrls(result.resultUrls || [url])
+          setRotationHistory((prev) => (prev.length === 0 ? [displayImage || currentImageUrl || '', url] : [...prev, url]))
+          setRotationHistoryIndex((prev) => (prev === 0 ? 1 : prev + 1))
+          setStep('RESULT')
+          refreshCredits()
+          const dirLabel = { left: tr('trái', 'left', '左', '左', '왼쪽'), right: tr('phải', 'right', '右', '右', '오른쪽'), up: tr('lên', 'up', '上', '上', '위'), down: tr('xuống', 'down', '下', '下', '아래') }[direction]
+          toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Đã quay 30°', 'Rotated 30°', '已旋转30°', '30°回転しました', '30° 회전됨') + ` ${dirLabel}.`, duration: 3000 })
+        },
+        onUnexpectedPayload: () => {
+          setStep('EDITING')
+          setUndoStack((prev) => prev.slice(0, -1))
+          toast({
+            title: tr('Quay thất bại', 'Rotation failed', '旋转失败', '回転に失敗しました', '회전 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
     } catch (error) {
       setStep('EDITING')
       setUndoStack((prev) => prev.slice(0, -1))
-      const msg = error instanceof Error ? error.message : String(error)
       toast({
         title: tr('Quay thất bại', 'Rotation failed', '旋转失败', '回転に失敗しました', '회전 실패'),
-        description:
-          msg ||
-          tr(
-            'Lỗi kết nối (thường gặp trên 4G/mạng yếu). Giữ tab mở và thử lại.',
-            'Connection error (common on cellular/weak networks). Keep this tab active and retry.',
-            '连接错误（在移动网络较弱时常见）。请保持页面在前台并重试。',
-            '接続エラー（電波環境が弱いと起きやすい）。このタブを前面にしたまま再試行してください。',
-            '연결 오류(이동통신·약한 회선에서 흔함). 이 탭을 켜 둔 채 다시 시도하세요.'
-          ),
+        description: error instanceof Error ? error.message : genClient.clientFault,
         variant: 'destructive',
         duration: 6000,
       })
@@ -764,6 +803,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     }
     setUndoStack((prev) => [...prev.slice(-4), { displayImage: displayImage || imageOverride!, furnitureList: [...furnitureList], currentImageUrl }])
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     await appendInteriorMainToFormData(formData, img, url)
     formData.append('imageQuality', imageQuality)
@@ -783,33 +823,45 @@ export default function ThietKeNoiNgoaiThatClientPage() {
     if (effectiveLayout) formData.append('layoutGuidance', effectiveLayout)
     try {
       const result = await timedApplyInteriorChanges(formData)
-      if ('error' in result) {
-        setStep('EDITING')
-        setUndoStack((prev) => prev.slice(0, -1))
-        toast({ title: tr('Mở rộng thất bại', 'Expand failed', '扩展失败', '拡張に失敗しました', '확장 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-      } else if (result.success && result.resultUrl) {
-        await preloadImageUrl(result.resultUrl)
-        setResultUrl(result.resultUrl)
-        setResultUrls(result.resultUrls || [result.resultUrl])
-        setStep('RESULT')
-        refreshCredits()
-        toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Đã mở rộng sân vườn.', 'Garden expanded.', '花园已扩展。', '庭園を拡張しました。', '정원이 확장되었습니다.'), duration: 3000 })
-      }
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('EDITING')
+          setUndoStack((prev) => prev.slice(0, -1))
+          toast({
+            title: tr('Mở rộng thất bại', 'Expand failed', '扩展失败', '拡張に失敗しました', '확장 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setResultUrls(result.resultUrls || [url])
+          setStep('RESULT')
+          refreshCredits()
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Đã mở rộng sân vườn.', 'Garden expanded.', '花园已扩展。', '庭園を拡張しました。', '정원이 확장되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('EDITING')
+          setUndoStack((prev) => prev.slice(0, -1))
+          toast({
+            title: tr('Mở rộng thất bại', 'Expand failed', '扩展失败', '拡張に失敗しました', '확장 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
     } catch (error) {
       setStep('EDITING')
       setUndoStack((prev) => prev.slice(0, -1))
-      const msg = error instanceof Error ? error.message : String(error)
       toast({
         title: tr('Mở rộng thất bại', 'Expand failed', '扩展失败', '拡張に失敗しました', '확장 실패'),
-        description:
-          msg ||
-          tr(
-            'Lỗi kết nối (thường gặp trên 4G/mạng yếu). Giữ tab mở và thử lại.',
-            'Connection error (common on cellular/weak networks). Keep this tab active and retry.',
-            '连接错误（在移动网络较弱时常见）。请保持页面在前台并重试。',
-            '接続エラー（電波環境が弱いと起きやすい）。このタブを前面にしたまま再試行してください。',
-            '연결 오류(이동통신·약한 회선에서 흔함). 이 탭을 켜 둔 채 다시 시도하세요.'
-          ),
+        description: error instanceof Error ? error.message : genClient.clientFault,
         variant: 'destructive',
         duration: 6000,
       })

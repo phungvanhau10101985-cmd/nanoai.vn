@@ -2,7 +2,7 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useRef, ChangeEvent, useEffect } from 'react'
+import { useState, useRef, ChangeEvent, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,21 +16,15 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import { cn } from '@/lib/utils'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
-
-/** Lets React paint `GENERATING` before the server action runs (see `.cursor/rules/tao-anh-tu-chu-generate-flow.mdc`). */
-function waitForNextPaint(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve()
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => resolve())
-    })
-  })
-}
 
 function getWebLocaleFromCookie(): UiLocale {
   if (typeof document === 'undefined') return 'vi'
@@ -85,6 +79,8 @@ export default function TaoAnhTuChuClientPage() {
     return vi
   }
 
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
+
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
     syncLocale()
@@ -116,30 +112,51 @@ export default function TaoAnhTuChuClientPage() {
       return
     }
     setStep('GENERATING')
-    await waitForNextPaint()
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('imageQuality', imageQuality)
     formData.append('aspectRatio', aspectRatio)
     formData.append('imageStyle', imageStyle)
     formData.append('prompt', prompt)
     if (reference.file) formData.append('referenceImage', reference.file)
-    const result = await createImageFromText(formData)
-    if (result.error) {
+    try {
+      const result = await createImageFromText(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Tạo ảnh thất bại', 'Image generation failed', '生成失败', '生成に失敗しました', '이미지 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Ảnh đã được tạo.', 'Image has been generated.', '图片已生成。', '画像を生成しました。', '이미지가 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('UPLOAD')
+          toast({
+            title: tr('Tạo ảnh thất bại', 'Image generation failed', '生成失败', '生成に失敗しました', '이미지 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('UPLOAD')
       toast({
         title: tr('Tạo ảnh thất bại', 'Image generation failed', '生成失败', '生成に失敗しました', '이미지 생성 실패'),
-        description: result.error,
+        description: e instanceof Error ? e.message : genClient.clientFault,
         variant: 'destructive',
-        duration: 5000,
-      })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({
-        title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description: tr('Ảnh đã được tạo.', 'Image has been generated.', '图片已生成。', '画像を生成しました。', '이미지가 생성되었습니다.'),
-        duration: 3000,
+        duration: 6000,
       })
     }
   }

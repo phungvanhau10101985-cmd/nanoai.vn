@@ -2,13 +2,18 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { ChangeEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createStickerLabel, createStickerFromPhoto } from './actions'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 import type { StickerPhotoExpressionId } from './actions'
 import {
   PHOTO_EXPRESSION_OPTIONS,
@@ -24,7 +29,6 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
-import { preloadImageUrl } from '@/lib/preload-image-url'
 
 type Step = 'INPUT' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -66,6 +70,7 @@ export default function TaoNhanGianClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -135,19 +140,50 @@ export default function TaoNhanGianClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('prompt', prompt)
     formData.append('imageQuality', imageQuality)
     formData.append('aspectRatio', aspectRatio)
-    const result = await createStickerLabel(formData)
-    if (result.error) {
+    try {
+      const result = await createStickerLabel(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo nhãn gián thất bại', 'Create sticker label failed', '创建贴纸标签失败', 'ステッカーラベル作成に失敗しました', '스티커 라벨 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Nhãn gián đã được tạo.', 'Sticker label has been created.', '贴纸标签已创建。', 'ステッカーラベルを作成しました。', '스티커 라벨이 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo nhãn gián thất bại', 'Create sticker label failed', '创建贴纸标签失败', 'ステッカーラベル作成に失敗しました', '스티커 라벨 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('INPUT')
-      toast({ title: tr('Tạo nhãn gián thất bại', 'Create sticker label failed', '创建贴纸标签失败', 'ステッカーラベル作成に失敗しました', '스티커 라벨 생성 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Nhãn gián đã được tạo.', 'Sticker label has been created.', '贴纸标签已创建。', 'ステッカーラベルを作成しました。', '스티커 라벨이 생성되었습니다.'), duration: 3000 })
+      toast({
+        title: tr('Tạo nhãn gián thất bại', 'Create sticker label failed', '创建贴纸标签失败', 'ステッカーラベル作成に失敗しました', '스티커 라벨 생성 실패'),
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 
@@ -181,21 +217,52 @@ export default function TaoNhanGianClientPage() {
       return
     }
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('portraitImage', photo.file)
     formData.append('expressionId', expressionId)
     formData.append('stickerCaption', photoCaption.trim())
     formData.append('imageQuality', imageQuality)
     formData.append('aspectRatio', aspectRatio)
-    const result = await createStickerFromPhoto(formData)
-    if (result.error) {
+    try {
+      const result = await createStickerFromPhoto(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo nhãn gián thất bại', 'Create sticker label failed', '创建贴纸标签失败', 'ステッカーラベル作成に失敗しました', '스티커 라벨 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Sticker từ ảnh đã được tạo.', 'Sticker from photo created.', '已从照片创建贴纸。', '写真からステッカーを作成しました。', '사진 스티커가 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo nhãn gián thất bại', 'Create sticker label failed', '创建贴纸标签失败', 'ステッカーラベル作成に失敗しました', '스티커 라벨 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('INPUT')
-      toast({ title: tr('Tạo nhãn gián thất bại', 'Create sticker label failed', '创建贴纸标签失败', 'ステッカーラベル作成に失敗しました', '스티커 라벨 생성 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Sticker từ ảnh đã được tạo.', 'Sticker from photo created.', '已从照片创建贴纸。', '写真からステッカーを作成しました。', '사진 스티커가 생성되었습니다.'), duration: 3000 })
+      toast({
+        title: tr('Tạo nhãn gián thất bại', 'Create sticker label failed', '创建贴纸标签失败', 'ステッカーラベル作成に失敗しました', '스티커 라벨 생성 실패'),
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 

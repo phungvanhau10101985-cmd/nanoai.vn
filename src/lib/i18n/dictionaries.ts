@@ -1,4 +1,6 @@
 import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
+import type { LegalPagesBundle } from '@/lib/i18n/dictionary-legal-pages'
+import { LEGAL_PAGES_BY_LOCALE } from '@/lib/i18n/dictionary-legal-pages'
 
 export type NavGroupKey =
   | 'try_on'
@@ -143,6 +145,8 @@ export type Dictionary = {
     inviteeNoReferralCredit: string
     errorGeneric: string
   }
+  /** /privacy, /terms, /data-deletion — URL công khai cho Meta Developer & minh bạch */
+  legal: LegalPagesBundle
   /** Trang /account/plan — dùng thử + phí tháng giáo trình; English AI trả theo bài */
   accountPlan: {
     pageTitle: string
@@ -1218,6 +1222,12 @@ export type Dictionary = {
     supportHours: string
     adDisclosure: string
     rights: string
+    /** Liên kết chân trang → /privacy */
+    privacyPolicyLink: string
+    /** Liên kết chân trang → /terms */
+    termsOfServiceLink: string
+    /** Liên kết chân trang → /data-deletion (Facebook: user data deletion URL) */
+    dataDeletionLink: string
   }
   navGroup: Record<NavGroupKey, string>
   tool: Record<ToolKey, string>
@@ -1235,6 +1245,11 @@ export type Dictionary = {
     modeCompareTitle: string
     modeCompareDesc: string
     persistNote: string
+  }
+  /** Toast khi server action hoàn tất nhưng client không nhận được URL hoặc lỗi mạng */
+  imageGenerationClient: {
+    unexpectedNoUrl: string
+    clientFault: string
   }
   /** Trang /dashboard/tasks — tác vụ & hàng đợi thống nhất */
   taskHub: {
@@ -2275,6 +2290,7 @@ const VI_DICTIONARY: Dictionary = {
     inviteeNoReferralCredit: 'Không có thưởng credit giới thiệu',
     errorGeneric: 'Không thể áp dụng giới thiệu lúc này. Thử lại sau nhé.',
   },
+  legal: LEGAL_PAGES_BY_LOCALE.vi,
   accountPlan: {
     pageTitle: 'Gói dịch vụ',
     metaDescription:
@@ -2867,9 +2883,10 @@ const VI_DICTIONARY: Dictionary = {
       'Màu sắc (JSON) — vd [{"name":"Đen","img":"https://..."}]',
     inventoryExternalSyncAutoLabel: 'Tự động đồng bộ từ API kho khách',
     inventoryExternalSyncAutoHint:
-      'Khi bật, máy chủ định kỳ gọi URL danh sách sản phẩm (cần cron VPS / Vercel trỏ tới endpoint). Bạn vẫn có thể bấm «Đồng bộ ngay».',
-    inventoryExternalSyncIntervalLabel: 'Khoảng cách (phút)',
-    inventoryExternalSyncIntervalHint: 'Từ 15 đến 1440 phút. Cron chỉ chạy khi đã tới hạn và có URL danh sách.',
+      'Khi bật, máy chủ gọi URL danh sách sản phẩm mỗi ngày theo giờ Việt Nam (cần cron VPS / Vercel trỏ tới endpoint). Bạn vẫn có thể bấm «Đồng bộ ngay».',
+    inventoryExternalSyncIntervalLabel: 'Giờ chạy (VN)',
+    inventoryExternalSyncIntervalHint:
+      'Chọn giờ Việt Nam (Asia/Ho_Chi_Minh). Cron chỉ chạy 1 lần/ngày khi đã tới giờ và có URL danh sách.',
     inventoryExternalSyncRemarketingSnapshotHint:
       'Đồng bộ GET: chỉ thêm/xóa theo Remarketing/content ID (sau trim). Mã đã có trong kho — giữ nguyên mọi trường; mã mới — thêm; mã không còn trong API — xóa hết dòng trùng mã. API trả 0 sản phẩm — giữ nguyên kho, không xóa. Hàng kho không có mã này không bị xóa; sản phẩm không map được mã thì bỏ qua trong snapshot.',
     inventoryExternalSyncRunNow: 'Đồng bộ ngay',
@@ -3325,6 +3342,9 @@ const VI_DICTIONARY: Dictionary = {
     supportHours: 'Giờ hỗ trợ: 08:30 - 17:30 (Thứ 2 - Thứ 7)',
     adDisclosure: 'NanoAI tuân thủ chính sách nội dung quảng cáo của Google, Meta và TikTok tại Việt Nam.',
     rights: '© NanoAI. All rights reserved.',
+    privacyPolicyLink: 'Chính sách quyền riêng tư',
+    termsOfServiceLink: 'Điều khoản dịch vụ',
+    dataDeletionLink: 'Xóa dữ liệu người dùng',
   },
   navGroup: {
     try_on: 'Thử đồ & Phối đồ',
@@ -3402,6 +3422,12 @@ const VI_DICTIONARY: Dictionary = {
     modeCompareTitle: 'Kéo so sánh (mặc định)',
     modeCompareDesc: 'Một khung: kéo thanh giữa — trái ảnh gốc, phải kết quả; có fullscreen như các công cụ ảnh khác đồng bộ kiểu này.',
     persistNote: 'Lưu trong trình duyệt của bạn (thiết bị này).',
+  },
+  imageGenerationClient: {
+    unexpectedNoUrl:
+      'Máy chủ có thể đã xử lý xong nhưng trình duyệt không nhận được link ảnh. Mở mục Ảnh đã xử lý trong Dashboard để xem kết quả hoặc thử lại.',
+    clientFault:
+      'Lỗi kết nối hoặc hết thời gian chờ. Ảnh có thể đã được lưu — kiểm tra Ảnh đã xử lý hoặc thử lại.',
   },
   taskHub: {
     pageTitle: 'Tác vụ & hàng đợi',
@@ -4379,6 +4405,7 @@ const EN_DICTIONARY: Dictionary = {
     inviteeNoReferralCredit: 'No referral credits',
     errorGeneric: 'We could not apply the invite bonus right now. Please try again later.',
   },
+  legal: LEGAL_PAGES_BY_LOCALE.en,
   accountPlan: {
     pageTitle: 'Your plan',
     metaDescription:
@@ -4972,9 +4999,10 @@ const EN_DICTIONARY: Dictionary = {
       'Colors (JSON) — e.g. [{"name":"Black","img":"https://..."}]',
     inventoryExternalSyncAutoLabel: 'Auto-sync from customer catalog API',
     inventoryExternalSyncAutoHint:
-      'When enabled, the server periodically calls your product list URL (configure a VPS / Vercel cron hitting the endpoint). You can still press Sync now.',
-    inventoryExternalSyncIntervalLabel: 'Interval (minutes)',
-    inventoryExternalSyncIntervalHint: 'Between 15 and 1440 minutes. Cron only runs when due and a list URL is set.',
+      'When enabled, the server calls your product list URL once a day on Vietnam time (configure a VPS / Vercel cron hitting the endpoint). You can still press Sync now.',
+    inventoryExternalSyncIntervalLabel: 'Run time (VN)',
+    inventoryExternalSyncIntervalHint:
+      'Choose Vietnam time (Asia/Ho_Chi_Minh). Cron runs once per day after this time when a list URL is set.',
     inventoryExternalSyncRemarketingSnapshotHint:
       'GET sync only adds/removes by Remarketing/content ID (trimmed). Existing id — no field changes; new id — insert; id missing from the feed — delete all rows with that id. Zero products in the API response — leave inventory unchanged (no deletes). Inventory rows without this id are not removed; products without a mapped id are skipped.',
     inventoryExternalSyncRunNow: 'Sync now',
@@ -5429,6 +5457,9 @@ const EN_DICTIONARY: Dictionary = {
     supportHours: 'Support hours: 08:30 - 17:30 (Mon - Sat)',
     adDisclosure: 'NanoAI aligns with Google, Meta, and TikTok ad content policies in Vietnam.',
     rights: '© NanoAI. All rights reserved.',
+    privacyPolicyLink: 'Privacy policy',
+    termsOfServiceLink: 'Terms of service',
+    dataDeletionLink: 'User data deletion',
   },
   navGroup: {
     try_on: 'Try-on & Styling',
@@ -5508,6 +5539,12 @@ const EN_DICTIONARY: Dictionary = {
     modeCompareDesc:
       'One frame with a center handle — left: original, right: result; includes fullscreen like the aligned image tools.',
     persistNote: 'Saved in this browser on this device.',
+  },
+  imageGenerationClient: {
+    unexpectedNoUrl:
+      'The server may have finished but the browser did not receive the image link. Open Processed images in Dashboard to view the result or try again.',
+    clientFault:
+      'Connection error or timeout. The image may already be saved — check Processed images or try again.',
   },
   taskHub: {
     pageTitle: 'Tasks & queue',
@@ -6428,6 +6465,9 @@ const ZH_DICTIONARY: Dictionary = {
     supportHours: '支持时间：08:30 - 17:30（周一至周六）',
     adDisclosure: 'NanoAI 在越南遵循 Google、Meta 与 TikTok 的广告内容政策。',
     rights: '© NanoAI. 保留所有权利。',
+    privacyPolicyLink: '隐私政策',
+    termsOfServiceLink: '服务条款',
+    dataDeletionLink: '用户数据删除说明',
   },
   menu: {
     ...EN_DICTIONARY.menu,
@@ -6491,6 +6531,7 @@ const ZH_DICTIONARY: Dictionary = {
     inviteeNoReferralCredit: '无推荐积分',
     errorGeneric: '暂时无法应用邀请奖励，请稍后再试。',
   },
+  legal: LEGAL_PAGES_BY_LOCALE.zh,
   accountPlan: {
     pageTitle: '服务套餐',
     metaDescription: '查看 7 天试用与课程按月访问。英语 AI 按次/按课扣积分；AI 积分另计。',
@@ -7063,9 +7104,10 @@ const ZH_DICTIONARY: Dictionary = {
       '颜色（JSON）— 例 [{"name":"黑","img":"https://..."}]',
     inventoryExternalSyncAutoLabel: '从顾客目录 API 自动同步',
     inventoryExternalSyncAutoHint:
-      '开启后服务器按间隔请求商品列表 URL（需在 VPS / Vercel 配置 cron 访问同步接口）。仍可手动点击「立即同步」。',
-    inventoryExternalSyncIntervalLabel: '间隔（分钟）',
-    inventoryExternalSyncIntervalHint: '15–1440 分钟。仅当到期且已填写列表 URL 时 cron 才会执行。',
+      '开启后服务器会按越南时间每天调用一次商品列表 URL（需在 VPS / Vercel 配置 cron 访问同步接口）。仍可手动点击「立即同步」。',
+    inventoryExternalSyncIntervalLabel: '运行时间（越南）',
+    inventoryExternalSyncIntervalHint:
+      '请选择越南时间（Asia/Ho_Chi_Minh）。已填写列表 URL 且到达该时间后，cron 每天只运行一次。',
     inventoryExternalSyncRemarketingSnapshotHint:
       'GET 同步仅按 Remarketing/内容 ID（trim）做增删。已存在 ID — 不更新任何字段；新 ID — 新增；API 中不再出现的 ID — 删除该 ID 的所有行。API 返回 0 个商品 — 不修改库存、不删除。无此 ID 的库存行不会被删；未映射到 ID 的商品不参与快照。',
     inventoryExternalSyncRunNow: '立即同步',
@@ -7730,6 +7772,12 @@ const ZH_DICTIONARY: Dictionary = {
     modeCompareTitle: '拖动对比（默认）',
     modeCompareDesc: '单框中间拖移：左为原图、右为结果；支持全屏，与其他已对齐的工具一致。',
     persistNote: '保存在本机浏览器中。',
+  },
+  imageGenerationClient: {
+    unexpectedNoUrl:
+      '服务器可能已完成处理，但浏览器未收到图片链接。请在控制台打开「已处理图片」查看结果或重试。',
+    clientFault:
+      '连接错误或超时。图片可能已保存 — 请查看已处理图片或重试。',
   },
   taskHub: {
     pageTitle: '任务与队列',
@@ -8452,6 +8500,9 @@ const JA_DICTIONARY: Dictionary = {
     supportHours: 'サポート時間: 08:30 - 17:30（月 - 土）',
     adDisclosure: 'NanoAI はベトナムにおける Google・Meta・TikTok の広告コンテンツ方針に準拠します。',
     rights: '© NanoAI. All rights reserved.',
+    privacyPolicyLink: 'プライバシーポリシー',
+    termsOfServiceLink: '利用規約',
+    dataDeletionLink: 'ユーザーデータの削除',
   },
   menu: {
     ...EN_DICTIONARY.menu,
@@ -8517,6 +8568,7 @@ const JA_DICTIONARY: Dictionary = {
     inviteeNoReferralCredit: '紹介クレジットなし',
     errorGeneric: 'いま紹介ボーナスを適用できません。しばらくしてからお試しください。',
   },
+  legal: LEGAL_PAGES_BY_LOCALE.ja,
   accountPlan: {
     pageTitle: 'ご利用プラン',
     metaDescription:
@@ -9108,9 +9160,10 @@ const JA_DICTIONARY: Dictionary = {
       '色（JSON）— 例 [{"name":"黒","img":"https://..."}]',
     inventoryExternalSyncAutoLabel: '顧客カタログ API から自動同期',
     inventoryExternalSyncAutoHint:
-      'オンにするとサーバーが一定間隔で商品一覧 URL を取得します（VPS / Vercel で cron を同期エンドポイントに向けてください）。「今すぐ同期」も利用できます。',
-    inventoryExternalSyncIntervalLabel: '間隔（分）',
-    inventoryExternalSyncIntervalHint: '15〜1440 分。期限が来て一覧 URL がある場合のみ cron が動きます。',
+      'オンにするとサーバーがベトナム時間で1日1回、商品一覧 URL を取得します（VPS / Vercel で cron を同期エンドポイントに向けてください）。「今すぐ同期」も利用できます。',
+    inventoryExternalSyncIntervalLabel: '実行時刻（VN）',
+    inventoryExternalSyncIntervalHint:
+      'ベトナム時間（Asia/Ho_Chi_Minh）で選択します。一覧 URL があり、この時刻を過ぎると cron は1日1回だけ実行されます。',
     inventoryExternalSyncRemarketingSnapshotHint:
       'GET 同期は Remarketing/コンテンツ ID（trim）の追加・削除のみ。既存 ID — フィールドは更新しません；新規 ID — 追加；フィードに無い ID — その ID の行をすべて削除。API が商品 0 件 — 在庫は変更しません（削除なし）。この ID がない在庫行は削除しません；ID にマップできない商品はスキップ。',
     inventoryExternalSyncRunNow: '今すぐ同期',
@@ -9631,6 +9684,12 @@ const JA_DICTIONARY: Dictionary = {
     modeCompareDesc:
       '1つの枠で中央ハンドルを動かします。左が元画像、右が結果。フル画面表示にも対応（他ツールと同一の体感）。',
     persistNote: 'このブラウザ（端末）に保存されます。',
+  },
+  imageGenerationClient: {
+    unexpectedNoUrl:
+      'サーバー側では完了している可能性がありますが、ブラウザが画像リンクを受け取れませんでした。ダッシュボードの「処理済み画像」で結果を確認するか、再度お試しください。',
+    clientFault:
+      '接続エラーまたはタイムアウトです。画像は保存済みの場合があります。「処理済み画像」を確認するか、再度お試しください。',
   },
   taskHub: {
     pageTitle: 'タスクとキュー',
@@ -10540,6 +10599,9 @@ const KO_DICTIONARY: Dictionary = {
     supportHours: '지원 시간: 08:30 - 17:30 (월 - 토)',
     adDisclosure: 'NanoAI는 베트남 내 Google, Meta, TikTok 광고 콘텐츠 정책을 준수합니다.',
     rights: '© NanoAI. All rights reserved.',
+    privacyPolicyLink: '개인정보 처리방침',
+    termsOfServiceLink: '서비스 이용약관',
+    dataDeletionLink: '사용자 데이터 삭제 안내',
   },
   menu: {
     ...EN_DICTIONARY.menu,
@@ -10605,6 +10667,7 @@ const KO_DICTIONARY: Dictionary = {
     inviteeNoReferralCredit: '추천 크레딧 없음',
     errorGeneric: '지금은 초대 보너스를 적용할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   },
+  legal: LEGAL_PAGES_BY_LOCALE.ko,
   accountPlan: {
     pageTitle: '이용 요금제',
     metaDescription:
@@ -11191,9 +11254,10 @@ const KO_DICTIONARY: Dictionary = {
       '색상(JSON) — 예 [{"name":"블랙","img":"https://..."}]',
     inventoryExternalSyncAutoLabel: '고객 카탈로그 API 자동 동기화',
     inventoryExternalSyncAutoHint:
-      '켜면 서버가 일정 간격으로 상품 목록 URL을 호출합니다(VPS/Vercel에서 cron을 동기화 엔드포인트로 설정). «지금 동기화»도 사용할 수 있습니다.',
-    inventoryExternalSyncIntervalLabel: '간격(분)',
-    inventoryExternalSyncIntervalHint: '15–1440분. 만료되고 목록 URL이 있을 때만 cron이 실행됩니다.',
+      '켜면 서버가 베트남 시간 기준으로 하루 한 번 상품 목록 URL을 호출합니다(VPS/Vercel에서 cron을 동기화 엔드포인트로 설정). «지금 동기화»도 사용할 수 있습니다.',
+    inventoryExternalSyncIntervalLabel: '실행 시간(VN)',
+    inventoryExternalSyncIntervalHint:
+      '베트남 시간(Asia/Ho_Chi_Minh)으로 선택합니다. 목록 URL이 있고 이 시간이 지난 뒤 cron은 하루 한 번만 실행됩니다.',
     inventoryExternalSyncRemarketingSnapshotHint:
       'GET 동기화는 Remarketing/콘텐츠 ID(trim)로만 추가·삭제합니다. 기존 ID — 필드는 바꾸지 않음; 새 ID — 추가; 피드에 없는 ID — 해당 ID 행 전부 삭제. API가 상품 0개 — 재고는 그대로(삭제 없음). 이 ID가 없는 재고 행은 삭제하지 않음; ID에 매핑되지 않은 상품은 건너뜀.',
     inventoryExternalSyncRunNow: '지금 동기화',
@@ -11713,6 +11777,12 @@ const KO_DICTIONARY: Dictionary = {
     modeCompareTitle: '드래그로 비교 (기본)',
     modeCompareDesc: '한 프레임 중앙 핸들: 왼쪽 원본 · 오른쪽 결과. 다른 정렬 도구처럼 전체 화면도 지원합니다.',
     persistNote: '이 브라우저(기기)에 저장됩니다.',
+  },
+  imageGenerationClient: {
+    unexpectedNoUrl:
+      '서버에서는 처리가 끝났을 수 있지만 브라우저가 이미지 링크를 받지 못했습니다. 대시보드의 처리된 이미지에서 결과를 확인하거나 다시 시도하세요.',
+    clientFault:
+      '연결 오류 또는 시간 초과입니다. 이미지가 이미 저장되었을 수 있습니다 — 처리된 이미지를 확인하거나 다시 시도하세요.',
   },
   taskHub: {
     pageTitle: '작업 및 대기열',

@@ -2,7 +2,7 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,11 @@ import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { type SealType } from './lib/seal-label-render'
 import { createSealLabelWithAI } from './actions'
 import { useCredits } from '@/hooks/use-credits'
-import { preloadImageUrl } from '@/lib/preload-image-url'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 
 const ASPECT_RATIOS = [
   { value: '1:1', label: '1:1' },
@@ -66,6 +70,7 @@ export default function TaoTemNiemPhongBaoHanhClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -83,6 +88,7 @@ export default function TaoTemNiemPhongBaoHanhClientPage() {
   const handleSubmit = async () => {
     const main = mainText.trim() || (sealType === 'chinh-hang' ? 'HÀNG CHÍNH HÃNG' : sealType === 'bao-hanh' ? 'BẢO HÀNH' : 'TEM LIÊM PHONG')
     setStep('GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('mainText', main)
     formData.append('brandName', brandName.trim())
@@ -93,16 +99,46 @@ export default function TaoTemNiemPhongBaoHanhClientPage() {
     formData.append('imageQuality', imageQuality)
     formData.append('aspectRatio', aspectRatio)
     if (logo.file) formData.append('logo', logo.file)
-    const result = await createSealLabelWithAI(formData)
-    if (result.error) {
+    try {
+      const result = await createSealLabelWithAI(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo tem thất bại', 'Create seal failed', '创建标签失败', 'シール作成に失敗', '씰 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setResultUrl(url)
+          setStep('RESULT')
+          window.dispatchEvent(new Event('credits-updated'))
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Tem đã được tạo.', 'Seal has been created.', '标签已创建。', 'シールを作成しました。', '씰이 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo tem thất bại', 'Create seal failed', '创建标签失败', 'シール作成に失敗', '씰 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('INPUT')
-      toast({ title: tr('Tạo tem thất bại', 'Create seal failed', '创建标签失败', 'シール作成に失敗', '씰 생성 실패'), description: result.error, variant: 'destructive', duration: 5000 })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setResultUrl(result.resultUrl)
-      setStep('RESULT')
-      window.dispatchEvent(new Event('credits-updated'))
-      toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Tem đã được tạo.', 'Seal has been created.', '标签已创建。', 'シールを作成しました。', '씰이 생성되었습니다.'), duration: 3000 })
+      toast({
+        title: tr('Tạo tem thất bại', 'Create seal failed', '创建标签失败', 'シール作成に失敗', '씰 생성 실패'),
+        description: e instanceof Error ? e.message : genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 

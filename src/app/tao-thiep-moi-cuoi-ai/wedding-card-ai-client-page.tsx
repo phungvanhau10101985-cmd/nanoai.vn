@@ -217,6 +217,7 @@ export default function WeddingCardAiClientPage() {
   const txCal = useMemo(() => getDictionary(uiLocale).weddingCardCalendar, [uiLocale])
   const txGift = useMemo(() => getDictionary(uiLocale).weddingGiftBox, [uiLocale])
   const tBrief = useMemo(() => getDictionary(uiLocale).weddingCardAiBrief, [uiLocale])
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   useEffect(() => {
     const fmt = (n: number | null) => (n != null && Number.isFinite(n) ? String(n) : '')
@@ -514,19 +515,29 @@ export default function WeddingCardAiClientPage() {
     formData.append('cardId', card.id)
     formData.append('type', type)
     formData.append('extraPrompt', extraPrompt)
-    const result = await generateWeddingCardImage(formData)
-    setGenerating(null)
-    if ('error' in result) {
-      toast({ title: 'Tạo ảnh thất bại', description: result.error, variant: 'destructive', duration: 6000 })
-      return
+    try {
+      const result = await generateWeddingCardImage(formData)
+      if ('error' in result) {
+        toast({ title: 'Tạo ảnh thất bại', description: result.error, variant: 'destructive', duration: 6000 })
+        return
+      }
+      const fresh = await getOrCreateWeddingCard()
+      if (!('error' in fresh)) {
+        setCard(fresh.card)
+        setImages(fresh.images)
+        setRsvps(fresh.rsvps)
+      }
+      toast({ title: type === 'master' ? 'Đã tạo ảnh chính' : 'Đã tạo nền riêng', description: 'Đã trừ 1 credit.' })
+    } catch {
+      toast({
+        title: 'Tạo ảnh thất bại',
+        description: genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
+    } finally {
+      setGenerating(null)
     }
-    const fresh = await getOrCreateWeddingCard()
-    if (!('error' in fresh)) {
-      setCard(fresh.card)
-      setImages(fresh.images)
-      setRsvps(fresh.rsvps)
-    }
-    toast({ title: type === 'master' ? 'Đã tạo ảnh chính' : 'Đã tạo nền riêng', description: 'Đã trừ 1 credit.' })
   }
 
   const publish = async () => {

@@ -3,7 +3,7 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useEffect, useRef, type ChangeEvent } from 'react'
+import { useState, useEffect, useRef, useMemo, type ChangeEvent } from 'react'
 import * as XLSX from 'xlsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -27,7 +27,11 @@ const FACE_ORDER: FaceSizeKey[] = ['LxW', 'LxH', 'WxH']
 const getFaceIndexFromSizeKey = (sizeKey: FaceSizeKey) => FACE_ORDER.indexOf(sizeKey) + 1
 import { getAspectRatioFromDimensions, GEMINI_ASPECT_RATIO_LIST } from '@/lib/aspect-ratio-from-dimensions'
 import { GEMINI_ASPECT_RATIO_OPTIONS } from '@/lib/label-size-presets'
-import { preloadImageUrl } from '@/lib/preload-image-url'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  finalizeStandardImageGenerationResult,
+  waitForNextPaintClient,
+} from '@/lib/client/finalize-standard-image-generation-result'
 
 const DESIGN_TABS: { value: PackagingDesignType; icon: typeof Box }[] = [
   { value: 'box', icon: Box },
@@ -365,6 +369,7 @@ export default function ThietKeBaoBiClientPage() {
     if (uiLocale === 'ko') return ko
     return vi
   }
+  const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
   const tabLabel = (type: PackagingDesignType) => {
     if (type === 'box') return tr('Hộp carton', 'Carton box', '纸箱', '段ボール箱', '골판지 상자')
@@ -693,6 +698,7 @@ export default function ThietKeBaoBiClientPage() {
 
   const handleBagFaceSubmit = async () => {
     setStep('FACE_GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('bagWidth', String(Math.max(20, Math.min(500, bagWidth))))
     formData.append('bagHeight', String(Math.max(20, Math.min(500, bagHeight))))
@@ -721,26 +727,47 @@ export default function ThietKeBaoBiClientPage() {
     if (logo.file) formData.append('logo', logo.file)
     if (referenceImage.file) formData.append('referenceImageFile', referenceImage.file)
     productImages.forEach((p) => formData.append('productImage', p.file))
-    const result = await createBagSurfaceImageWithAI(formData)
-    if ('error' in result) {
+    try {
+      const result = await createBagSurfaceImageWithAI(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo ảnh phẳng thất bại', 'Create flat design failed', '创建平面图失败', '平面デザイン作成に失敗', '평면 디자인 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          const newFace: CreatedFace = { id: `f-${Date.now()}`, sizeKey: 'WxH', url }
+          setFaces([newFace])
+          setLastCreatedFace(newFace)
+          setStep('FACE_RESULT')
+          window.dispatchEvent(new Event('credits-updated'))
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Ảnh phẳng túi đã được tạo.', 'Bag flat design has been created.', '袋子平面图已创建。', '袋の平面デザインを作成しました。', '가방 평면 디자인이 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('INPUT')
+          toast({
+            title: tr('Tạo ảnh phẳng thất bại', 'Create flat design failed', '创建平面图失败', '平面デザイン作成に失敗', '평면 디자인 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('INPUT')
       toast({
         title: tr('Tạo ảnh phẳng thất bại', 'Create flat design failed', '创建平面图失败', '平面デザイン作成に失敗', '평면 디자인 생성 실패'),
-        description: typeof result.error === 'string' ? result.error : String(result.error ?? ''),
+        description: e instanceof Error ? e.message : genClient.clientFault,
         variant: 'destructive',
-        duration: 5000,
-      })
-    } else if (result.success && result.resultUrl) {
-      const newFace: CreatedFace = { id: `f-${Date.now()}`, sizeKey: 'WxH', url: result.resultUrl }
-      await preloadImageUrl(result.resultUrl)
-      setFaces([newFace])
-      setLastCreatedFace(newFace)
-      setStep('FACE_RESULT')
-      window.dispatchEvent(new Event('credits-updated'))
-      toast({
-        title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description: tr('Ảnh phẳng túi đã được tạo.', 'Bag flat design has been created.', '袋子平面图已创建。', '袋の平面デザインを作成しました。', '가방 평면 디자인이 생성되었습니다.'),
-        duration: 3000,
+        duration: 6000,
       })
     }
   }
@@ -887,6 +914,7 @@ export default function ThietKeBaoBiClientPage() {
     if (!sizeKey) return
     if (faces.length >= 6 && !editingFaceSizeKey) return
     setStep('FACE_GENERATING')
+    await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('faceIndex', String(getFaceIndexFromSizeKey(sizeKey)))
     if (faces.length >= 1) formData.append('referenceImageUrl', faces[0].url)
@@ -928,40 +956,53 @@ export default function ThietKeBaoBiClientPage() {
     if (packagingProdDate.trim()) formData.append('packagingProdDate', packagingProdDate.trim())
     if (packagingExpiryDate.trim()) formData.append('packagingExpiryDate', packagingExpiryDate.trim())
     formData.append('includeBoxDims', includeBoxDims ? '1' : '0')
-    const result = await createBoxSurfaceImageWithAI(formData)
-    if ('error' in result) {
+    try {
+      const result = await createBoxSurfaceImageWithAI(formData)
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('FACE_INPUT')
+          toast({
+            title: tr('Tạo ảnh phẳng thất bại', 'Create flat design failed', '创建平面图失败', '平面デザイン作成に失敗', '평면 디자인 생성 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          const newFace: CreatedFace = { id: `f-${Date.now()}`, sizeKey: sizeKey!, url }
+          setFaces((prev) => {
+            const next = editingFaceSizeKey
+              ? prev.filter((f) => f.sizeKey !== editingFaceSizeKey).concat([newFace])
+              : [...prev, newFace]
+            return next.sort((a, b) => FACE_ORDER.indexOf(a.sizeKey) - FACE_ORDER.indexOf(b.sizeKey))
+          })
+          setEditingFaceSizeKey(null)
+          setLastCreatedFace(newFace)
+          setStep('FACE_RESULT')
+          window.dispatchEvent(new Event('credits-updated'))
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description: tr('Ảnh phẳng đã được tạo.', 'Flat design has been created.', '平面图已创建。', '平面デザインを作成しました。', '평면 디자인이 생성되었습니다.'),
+            duration: 3000,
+          })
+        },
+        onUnexpectedPayload: () => {
+          setStep('FACE_INPUT')
+          toast({
+            title: tr('Tạo ảnh phẳng thất bại', 'Create flat design failed', '创建平面图失败', '平面デザイン作成に失敗', '평면 디자인 생성 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('FACE_INPUT')
       toast({
         title: tr('Tạo ảnh phẳng thất bại', 'Create flat design failed', '创建平面图失败', '平面デザイン作成に失敗', '평면 디자인 생성 실패'),
-        description: typeof result.error === 'string' ? result.error : String(result.error ?? ''),
+        description: e instanceof Error ? e.message : genClient.clientFault,
         variant: 'destructive',
-        duration: 5000,
-      })
-    } else if (result.success && result.resultUrl) {
-      const newFace: CreatedFace = { id: `f-${Date.now()}`, sizeKey: sizeKey!, url: result.resultUrl }
-      await preloadImageUrl(result.resultUrl)
-      setFaces((prev) => {
-        const next = editingFaceSizeKey
-          ? prev.filter((f) => f.sizeKey !== editingFaceSizeKey).concat([newFace])
-          : [...prev, newFace]
-        return next.sort((a, b) => FACE_ORDER.indexOf(a.sizeKey) - FACE_ORDER.indexOf(b.sizeKey))
-      })
-      setEditingFaceSizeKey(null)
-      setLastCreatedFace(newFace)
-      setStep('FACE_RESULT')
-      window.dispatchEvent(new Event('credits-updated'))
-      toast({
-        title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description: tr('Ảnh phẳng đã được tạo.', 'Flat design has been created.', '平面图已创建。', '平面デザインを作成しました。', '평면 디자인이 생성되었습니다.'),
-        duration: 3000,
-      })
-    } else if (result.success && !result.resultUrl) {
-      setStep('FACE_INPUT')
-      toast({
-        title: tr('Lỗi không trả ảnh', 'Error: no image returned', '未返回图像', '画像が返されませんでした', '이미지 반환 오류'),
-        description: tr('AI không tạo được ảnh. Vui lòng thử lại.', 'AI could not generate image. Please try again.', 'AI 无法生成图像。请重试。', 'AIが画像を生成できませんでした。もう一度お試しください。', 'AI가 이미지를 생성하지 못했습니다. 다시 시도해 주세요.'),
-        variant: 'destructive',
-        duration: 5000,
+        duration: 6000,
       })
     }
   }
@@ -991,91 +1032,113 @@ export default function ThietKeBaoBiClientPage() {
   const handleMockupSubmit = async () => {
     if (faces.length < 1) return
     setStep('MOCKUP_GENERATING')
-    const result =
-      designType === 'bag'
-        ? await createBagMockupFromFlat({
-            flatImageUrl: faces[0].url,
+    await waitForNextPaintClient()
+    try {
+      const result =
+        designType === 'bag'
+          ? await createBagMockupFromFlat({
+              flatImageUrl: faces[0].url,
+              bagWidth,
+              bagHeight,
+              bagGusset,
+              bagType,
+              aspectRatio: getAspectRatioFromDimensions(bagWidth, bagHeight, textOrientation),
+              imageQuality,
+            })
+          : await createBoxMockupFromFaces({
+              faces: faces.map((f) => ({ url: f.url, sizeKey: f.sizeKey })),
+              boxLength,
+              boxWidth,
+              boxHeight,
+              aspectRatio,
+              imageQuality,
+            })
+      await finalizeStandardImageGenerationResult(result, {
+        onServerErrorMessage: (message) => {
+          setStep('MOCKUP_INPUT')
+          toast({
+            title: tr('In lên hộp 3D thất bại', 'Print onto 3D box failed', '印到3D盒子失败', '3D箱への印刷に失敗', '3D 상자 인쇄 실패'),
+            description: message,
+            variant: 'destructive',
+            duration: 5000,
+          })
+        },
+        onSuccessWithUrl: (url) => {
+          setMockupResultUrl(url)
+          setStep('MOCKUP_RESULT')
+          saveProject({
+            designType,
+            brandName,
+            productName,
+            companyAddress,
+            website,
+            email,
+            hotline,
+            countryOfOrigin,
+            storageInstructions,
+            warningAllergy,
+            volume,
+            registrationCode,
+            socialLinks,
+            faces,
+            mockupResultUrl: url,
+            resultUrl: null,
+            boxLength,
+            boxWidth,
+            boxHeight,
+            surfaceLength,
+            surfaceWidth,
+            textOrientation,
+            hasBorder,
+            borderStyle,
+            backgroundType,
+            patternStyle,
+            style,
+            imageQuality,
+            aspectRatio,
             bagWidth,
             bagHeight,
             bagGusset,
             bagType,
-            aspectRatio: getAspectRatioFromDimensions(bagWidth, bagHeight, textOrientation),
-            imageQuality,
+            contentBlocks,
+            packagingQuantity,
+            packagingWeight,
+            packagingShipping,
+            packagingOther,
+            manufacturerMessage,
+            packagingBatchLot,
+            packagingProdDate,
+            packagingExpiryDate,
+            includeBoxDims,
           })
-        : await createBoxMockupFromFaces({
-            faces: faces.map((f) => ({ url: f.url, sizeKey: f.sizeKey })),
-            boxLength,
-            boxWidth,
-            boxHeight,
-            aspectRatio,
-            imageQuality,
+          refreshProjects()
+          window.dispatchEvent(new Event('credits-updated'))
+          toast({
+            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
+            description:
+              designType === 'bag'
+                ? tr('Đã in ảnh phẳng lên túi 3D.', 'Flat design printed onto 3D bag.', '已将平面图印到3D袋子上。', '平面デザインを3D袋に印刷しました。', '평면 디자인을 3D 가방에 인쇄했습니다.')
+                : tr('Đã in 3 ảnh phẳng lên hộp 3D.', '3 flat designs printed onto 3D box.', '已将3张平面图印到3D盒子上。', '3枚の平面デザインを3D箱に印刷しました。', '3장 평면 디자인을 3D 상자에 인쇄했습니다.'),
+            duration: 3000,
           })
-    if ('error' in result) {
+        },
+        onUnexpectedPayload: () => {
+          setStep('MOCKUP_INPUT')
+          toast({
+            title: tr('In lên hộp 3D thất bại', 'Print onto 3D box failed', '印到3D盒子失败', '3D箱への印刷に失敗', '3D 상자 인쇄 실패'),
+            description: genClient.unexpectedNoUrl,
+            variant: 'destructive',
+            duration: 6000,
+          })
+        },
+      })
+    } catch (e) {
       setStep('MOCKUP_INPUT')
       toast({
         title: tr('In lên hộp 3D thất bại', 'Print onto 3D box failed', '印到3D盒子失败', '3D箱への印刷に失敗', '3D 상자 인쇄 실패'),
-        description: typeof result.error === 'string' ? result.error : String(result.error ?? ''),
+        description: e instanceof Error ? e.message : genClient.clientFault,
         variant: 'destructive',
-        duration: 5000,
-      })
-    } else if (result.success && result.resultUrl) {
-      await preloadImageUrl(result.resultUrl)
-      setMockupResultUrl(result.resultUrl)
-      setStep('MOCKUP_RESULT')
-      saveProject({
-        designType,
-        brandName,
-        productName,
-        companyAddress,
-        website,
-        email,
-        hotline,
-        countryOfOrigin,
-        storageInstructions,
-        warningAllergy,
-        volume,
-        registrationCode,
-        socialLinks,
-        faces,
-        mockupResultUrl: result.resultUrl,
-        resultUrl: null,
-        boxLength,
-        boxWidth,
-        boxHeight,
-        surfaceLength,
-        surfaceWidth,
-        textOrientation,
-        hasBorder,
-        borderStyle,
-        backgroundType,
-        patternStyle,
-        style,
-        imageQuality,
-        aspectRatio,
-        bagWidth,
-        bagHeight,
-        bagGusset,
-        bagType,
-        contentBlocks,
-        packagingQuantity,
-        packagingWeight,
-        packagingShipping,
-        packagingOther,
-        manufacturerMessage,
-        packagingBatchLot,
-        packagingProdDate,
-        packagingExpiryDate,
-        includeBoxDims,
-      })
-      refreshProjects()
-      window.dispatchEvent(new Event('credits-updated'))
-      toast({
-        title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-        description:
-          designType === 'bag'
-            ? tr('Đã in ảnh phẳng lên túi 3D.', 'Flat design printed onto 3D bag.', '已将平面图印到3D袋子上。', '平面デザインを3D袋に印刷しました。', '평면 디자인을 3D 가방에 인쇄했습니다.')
-            : tr('Đã in 3 ảnh phẳng lên hộp 3D.', '3 flat designs printed onto 3D box.', '已将3张平面图印到3D盒子上。', '3枚の平面デザインを3D箱に印刷しました。', '3장 평면 디자인을 3D 상자에 인쇄했습니다.'),
-        duration: 3000,
+        duration: 6000,
       })
     }
   }
