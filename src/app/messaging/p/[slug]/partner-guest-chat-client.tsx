@@ -49,6 +49,14 @@ import { fireMetaBuyNowPixelEvents } from './meta-buy-now-pixel-fire'
 import { fireMetaConsultViewContentPixelEvent } from './meta-view-content-consult-click-pixel-fire'
 import { fireMetaPurchasePixelEvents } from './meta-purchase-pixel-fire'
 import { MetaPixelViewContentTracker } from './meta-pixel-view-content-tracker'
+import {
+  trackShopGa4BeginCheckout,
+  trackShopGa4ProductEvent,
+  trackShopGa4Purchase,
+  trackShopGa4PurchaseEvent,
+  trackShopGa4ViewItem,
+  type ShopGa4ProductInput,
+} from './shop-ga4-ecommerce'
 import { GuestWidgetOrderDetailDialog } from '@/components/messaging/guest-widget-order-detail-dialog'
 import { GuestWidgetMyOrdersDialog } from '@/components/messaging/guest-widget-my-orders-dialog'
 import { isOpenMyOrdersMessage, NANOAI_WIDGET_MSG_SOURCE } from '@/lib/messaging/widget-parent-bridge'
@@ -350,6 +358,18 @@ type GuestCartItem = {
   size: string
   note: string
   variantLineImages?: string[]
+}
+
+type GuestOrderGa4Snapshot = {
+  id?: string
+  product_inventory_id?: string | null
+  product_name?: string | null
+  product_url?: string | null
+  unit_price?: number | null
+  quantity?: number | null
+  subtotal_amount?: number | null
+  amount_after_discount?: number | null
+  required_amount?: number | null
 }
 
 type CurrentOrderPickedLine = {
@@ -717,6 +737,48 @@ function parseVndFromHint(priceHint: string | undefined): number {
   if (!digits) return 0
   const n = Number.parseInt(digits, 10)
   return Number.isFinite(n) ? Math.max(0, n) : 0
+}
+
+function buildShopGa4ProductInputFromCard(
+  card: PartnerAiProductCard,
+  quantity = 1
+): ShopGa4ProductInput {
+  const sku = (card.sku ?? '').trim()
+  const inv = (card.inventory_id ?? '').trim()
+  const productUrl = (card.product_url ?? '').trim()
+  const name = (card.name ?? '').trim()
+  return {
+    itemId: sku || inv || productUrl,
+    itemName: name || sku || inv || productUrl,
+    value: parseVndFromHint(card.price_hint),
+    quantity,
+  }
+}
+
+function trackShopGa4PurchaseFromOrderSnapshot(
+  measurementId: string | null | undefined,
+  order: GuestOrderGa4Snapshot | null | undefined
+): void {
+  const orderId = String(order?.id ?? '').trim()
+  if (!orderId) return
+  const qty = Math.max(1, Math.floor(Number(order?.quantity) || 1))
+  const value = Math.max(
+    0,
+    Math.round(Number(order?.amount_after_discount ?? order?.subtotal_amount ?? order?.required_amount) || 0)
+  )
+  trackShopGa4PurchaseEvent({
+    measurementId,
+    transactionId: orderId,
+    value,
+    items: [
+      {
+        itemId: order?.product_inventory_id || order?.product_url || orderId,
+        itemName: order?.product_name || order?.product_inventory_id || orderId,
+        value: Math.max(0, Math.round(Number(order?.unit_price) || 0)),
+        quantity: qty,
+      },
+    ],
+  })
 }
 
 function discountVndNumberForBirthday(amount: number, pct: number | null): number {
@@ -1383,6 +1445,8 @@ export function PartnerGuestChatClient({
   guestPurchaseFlow = 'in_chat',
   consultFromInventory,
   metaViewContent,
+  ga4MeasurementId,
+  ga4InitialViewItem,
 }: {
   slug: string
   shopDisplayName: string
@@ -1404,6 +1468,10 @@ export function PartnerGuestChatClient({
   } | null
   /** Meta Pixel ViewContent — server đã gửi CAPI; client dedupe bằng `eventId`. */
   metaViewContent?: MetaViewContentClientPayload | null
+  /** GA4 Measurement ID riêng của shop — chỉ dùng cho trang khách hàng. */
+  ga4MeasurementId?: string | null
+  /** Dữ liệu view_item GA4 lấy trực tiếp từ kho, vẫn chạy khi shop không cấu hình Meta Pixel. */
+  ga4InitialViewItem?: ShopGa4ProductInput | null
 }) {
   const { toast } = useToast()
   const guestChatKeyboardInset = useVisualViewportBottomInset()
@@ -1660,6 +1728,7 @@ export function PartnerGuestChatClient({
   const didInitialAutoScrollRef = useRef(false)
   const guestSessionIdRef = useRef<string | null>(null)
   const guestAccountIdRef = useRef<string | null>(null)
+  const shopGa4InitialViewItemKeyRef = useRef<string | null>(null)
   const cartSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [recentProductsOpen, setRecentProductsOpen] = useState(false)
   /** SP từ email CMSN / deep link ?interested_inv= */
@@ -2839,6 +2908,9 @@ export function PartnerGuestChatClient({
       const uuidOk =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv)
       if (!uuidOk && !/^https?:\/\//i.test(pu)) return
+      const ga4Product = buildShopGa4ProductInputFromCard(card)
+      trackShopGa4ProductEvent('view_item', ga4MeasurementId, ga4Product)
+      trackShopGa4ProductEvent('add_to_cart', ga4MeasurementId, ga4Product)
 
       void (async () => {
         try {
@@ -2897,7 +2969,7 @@ export function PartnerGuestChatClient({
         }
       })()
     },
-    [slug]
+    [ga4MeasurementId, slug]
   )
 
   const openOrderFormByOption = useCallback(
@@ -3122,6 +3194,22 @@ export function PartnerGuestChatClient({
     [cartItems]
   )
 
+  useEffect(() => {
+    const key = metaViewContent
+      ? `meta|${metaViewContent.eventId}|${metaViewContent.content_ids.join(',')}`
+      : ga4InitialViewItem
+        ? `ga4|${ga4InitialViewItem.itemId ?? ''}|${ga4InitialViewItem.itemName ?? ''}`
+        : ''
+    if (!key) return
+    if (shopGa4InitialViewItemKeyRef.current === key) return
+    shopGa4InitialViewItemKeyRef.current = key
+    if (metaViewContent) {
+      trackShopGa4ViewItem(ga4MeasurementId, metaViewContent)
+    } else if (ga4InitialViewItem) {
+      trackShopGa4ProductEvent('view_item', ga4MeasurementId, ga4InitialViewItem)
+    }
+  }, [ga4InitialViewItem, ga4MeasurementId, metaViewContent])
+
   const sanitizeCartItemsFromServer = useCallback((raw: unknown): GuestCartItem[] => {
     if (!Array.isArray(raw)) return []
     const out: GuestCartItem[] = []
@@ -3311,6 +3399,11 @@ export function PartnerGuestChatClient({
       toast({ title: `Vui lòng điền: ${missing.join(', ')}`, variant: 'destructive' })
       return
     }
+    trackShopGa4BeginCheckout(
+      ga4MeasurementId,
+      cartSubtotal,
+      cartItems.map((item) => buildShopGa4ProductInputFromCard(item.card, item.quantity))
+    )
     setCartCheckoutBusy(true)
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
@@ -3337,10 +3430,59 @@ export function PartnerGuestChatClient({
       })
       captureGuestSessionFromResponse(res)
       captureGuestAccountFromResponse(res)
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean
+        error?: string
+        order?: GuestOrderGa4Snapshot
+        metaPurchase?: {
+          pixelId?: string
+          eventId?: string
+          value?: number
+          currency?: string
+          content_ids?: string[]
+          content_type?: string
+          num_items?: number
+          contents?: Array<{ id: string; quantity: number; item_price: number; title?: string }>
+          order_id?: string
+          remarketing_id?: string
+        }
+      } | null
       if (!res.ok || !data?.ok) {
         toast({ title: data?.error || 'Không tạo được đơn hàng.', variant: 'destructive' })
         return
+      }
+      const mp = data.metaPurchase
+      if (
+        mp?.pixelId &&
+        mp.eventId &&
+        typeof mp.value === 'number' &&
+        mp.currency === 'VND' &&
+        Array.isArray(mp.content_ids) &&
+        mp.content_type === 'product' &&
+        typeof mp.num_items === 'number' &&
+        Array.isArray(mp.contents) &&
+        mp.order_id
+      ) {
+        const purchasePayload = {
+          pixelId: mp.pixelId,
+          eventId: mp.eventId,
+          value: mp.value,
+          currency: 'VND' as const,
+          content_ids: mp.content_ids,
+          content_type: 'product' as const,
+          num_items: mp.num_items,
+          contents: mp.contents,
+          order_id: mp.order_id,
+          ...(mp.remarketing_id ? { remarketing_id: mp.remarketing_id } : {}),
+        }
+        try {
+          fireMetaPurchasePixelEvents(purchasePayload)
+        } catch {
+          // Meta tùy chọn
+        }
+        trackShopGa4Purchase(ga4MeasurementId, purchasePayload)
+      } else if (!mp) {
+        trackShopGa4PurchaseFromOrderSnapshot(ga4MeasurementId, data.order)
       }
       setCartItems([])
       setCartOpen(false)
@@ -3356,6 +3498,8 @@ export function PartnerGuestChatClient({
     captureGuestAccountFromResponse,
     captureGuestSessionFromResponse,
     cartItems,
+    cartSubtotal,
+    ga4MeasurementId,
     load,
     orderAddress,
     orderName,
@@ -3383,6 +3527,7 @@ export function PartnerGuestChatClient({
       const uuidOk =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv)
       if (!uuidOk && (!productUrl || !/^https?:\/\//i.test(productUrl))) return
+      trackShopGa4ProductEvent('view_item', ga4MeasurementId, buildShopGa4ProductInputFromCard(card))
 
       void (async () => {
         try {
@@ -3422,7 +3567,7 @@ export function PartnerGuestChatClient({
         }
       })()
     },
-    [slug]
+    [ga4MeasurementId, slug]
   )
 
   const submitProductCardPick = async (card: PartnerAiProductCard, sourceMessageId: string) => {
@@ -3728,6 +3873,14 @@ export function PartnerGuestChatClient({
     }
     const picked = buildCurrentOrderSelection()
     if (!picked) return
+    if (activeOrderCard) {
+      const unitValue = parseVndFromHint(activeOrderCard.price_hint)
+      trackShopGa4BeginCheckout(
+        ga4MeasurementId,
+        unitValue * Math.max(1, picked.totalQty),
+        [buildShopGa4ProductInputFromCard(activeOrderCard, picked.totalQty)]
+      )
+    }
     setOrderFormBusy(true)
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
@@ -3753,8 +3906,7 @@ export function PartnerGuestChatClient({
       const data = (await res.json()) as {
         ok?: boolean
         error?: string
-        order?: {
-          id?: string
+        order?: GuestOrderGa4Snapshot & {
           required_amount?: number
           payment_qr_url?: string | null
           payment_reference?: string | null
@@ -3793,22 +3945,26 @@ export function PartnerGuestChatClient({
         Array.isArray(mp.contents) &&
         mp.order_id
       ) {
+        const purchasePayload = {
+          pixelId: mp.pixelId,
+          eventId: mp.eventId,
+          value: mp.value,
+          currency: 'VND' as const,
+          content_ids: mp.content_ids,
+          content_type: 'product' as const,
+          num_items: mp.num_items,
+          contents: mp.contents,
+          order_id: mp.order_id,
+          ...(mp.remarketing_id ? { remarketing_id: mp.remarketing_id } : {}),
+        }
         try {
-          fireMetaPurchasePixelEvents({
-            pixelId: mp.pixelId,
-            eventId: mp.eventId,
-            value: mp.value,
-            currency: 'VND',
-            content_ids: mp.content_ids,
-            content_type: 'product',
-            num_items: mp.num_items,
-            contents: mp.contents,
-            order_id: mp.order_id,
-            ...(mp.remarketing_id ? { remarketing_id: mp.remarketing_id } : {}),
-          })
+          fireMetaPurchasePixelEvents(purchasePayload)
         } catch {
           // Meta tùy chọn
         }
+        trackShopGa4Purchase(ga4MeasurementId, purchasePayload)
+      } else if (!mp) {
+        trackShopGa4PurchaseFromOrderSnapshot(ga4MeasurementId, data.order)
       }
       saveLocalOrderProfile({
         customerName: orderName,

@@ -7,6 +7,7 @@ declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void
     dataLayer?: unknown[]
+    __nanoShopGa4MeasurementId?: string
   }
 }
 
@@ -37,6 +38,7 @@ export function PartnerGuestGa4Config({ measurementId }: { measurementId: string
     if (!id || !/^G-[A-Z0-9]+$/i.test(id)) return
     if (isLikelyBotTraffic()) return
 
+    window.__nanoShopGa4MeasurementId = id.toUpperCase()
     ensureShopGtagLoaded(id)
     window.gtag?.('config', id, { send_page_view: true })
   }, [measurementId])

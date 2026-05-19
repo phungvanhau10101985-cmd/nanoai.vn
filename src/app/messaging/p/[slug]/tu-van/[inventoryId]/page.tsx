@@ -19,6 +19,7 @@ import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slu
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { fetchGuestPurchaseFlowForPartnerFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import { runMetaViewContentForConsultInventoryPage } from '@/lib/tracking/meta-view-content-consult-server'
+import { parseVndAmountFromPriceHint } from '@/lib/tracking/parse-vnd-from-price-hint'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -188,6 +189,12 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
   const imageUrl = (row.image_url ?? '').trim()
   const productUrl = (row.product_url ?? '').trim()
   const sku = (row.sku ?? '').trim()
+  const remarketingId = (row.remarketing_id ?? '').trim()
+  const ga4InitialViewItem = {
+    itemId: sku || remarketingId || row.id,
+    itemName: (row.name ?? '').trim() || sku || row.id,
+    value: parseVndAmountFromPriceHint(row.price_hint),
+  }
 
   const popupChrome = guestChatEmbedPopupChrome(sp)
 
@@ -211,6 +218,8 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
             productUrl: productUrl || undefined,
           }}
           metaViewContent={metaViewContent}
+          ga4MeasurementId={partner.ga4_measurement_id}
+          ga4InitialViewItem={ga4InitialViewItem}
         />
       </EmbedGuestChatViewport>
     </>

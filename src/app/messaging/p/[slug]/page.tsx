@@ -18,6 +18,7 @@ import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-act
 import { fetchGuestPurchaseFlowForPartnerFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { runMetaViewContentForConsultInventoryPage } from '@/lib/tracking/meta-view-content-consult-server'
+import { parseVndAmountFromPriceHint } from '@/lib/tracking/parse-vnd-from-price-hint'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -146,9 +147,21 @@ export default async function PartnerGuestChatPage(props: {
 
   const ctxInventory = firstSearchParam(sp, 'ctx_inventory')
   let metaViewContent = null
+  let ga4InitialViewItem = null as {
+    itemId: string
+    itemName: string
+    value: number
+  } | null
   if (isPgConfigured() && UUID_RE.test(ctxInventory)) {
     const inv = await fetchPartnerInventoryRowByIdForPartnerFromPg(partner.id, ctxInventory)
     if (inv) {
+      const sku = (inv.sku ?? '').trim()
+      const remarketingId = (inv.remarketing_id ?? '').trim()
+      ga4InitialViewItem = {
+        itemId: sku || remarketingId || inv.id,
+        itemName: (inv.name ?? '').trim() || sku || inv.id,
+        value: parseVndAmountFromPriceHint(inv.price_hint),
+      }
       metaViewContent = await runMetaViewContentForConsultInventoryPage({
         partnerId: partner.id,
         inventoryRow: inv,
@@ -173,6 +186,8 @@ export default async function PartnerGuestChatPage(props: {
           initialChatList={chatList}
           guestPurchaseFlow={guestPurchaseFlow}
           metaViewContent={metaViewContent}
+          ga4MeasurementId={partner.ga4_measurement_id}
+          ga4InitialViewItem={ga4InitialViewItem}
         />
       </EmbedGuestChatViewport>
     </>
