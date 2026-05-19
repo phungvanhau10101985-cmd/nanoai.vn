@@ -6,7 +6,7 @@ create table if not exists public.messaging_partner_birthday_promo (
   discount_percent smallint not null default 10
     check (discount_percent >= 0 and discount_percent <= 100),
   /** Số ngày trước sinh nhật — biên xa (vd 14 = bắt đầu từ 14 ngày trước SN). */
-  offer_days_before_max smallint not null default 14
+  offer_days_before_max smallint not null default 7
     check (offer_days_before_max >= 1 and offer_days_before_max <= 120),
   /** Số ngày trước sinh nhật — biên gần (vd 1 = vẫn áp đến hôm trước SN). Phải <= offer_days_before_max. */
   offer_days_before_min smallint not null default 1

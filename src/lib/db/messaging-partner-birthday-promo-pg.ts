@@ -79,7 +79,7 @@ export async function upsertBirthdayPromoForPartnerFromPg(input: {
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
   const dp = Math.max(0, Math.min(100, Math.floor(Number(input.discountPercent) || 0)))
-  let dmax = Math.max(1, Math.min(120, Math.floor(Number(input.offerDaysBeforeMax) || 14)))
+  let dmax = Math.max(1, Math.min(120, Math.floor(Number(input.offerDaysBeforeMax) || 7)))
   let dmin = Math.max(1, Math.min(120, Math.floor(Number(input.offerDaysBeforeMin) || 1)))
   if (dmax < dmin) [dmin, dmax] = [dmax, dmin]
   try {

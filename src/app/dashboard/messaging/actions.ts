@@ -2454,7 +2454,7 @@ export async function getPartnerBirthdayPromoSettings(partnerId: string) {
       partner_id: partnerId,
       enabled: false,
       discount_percent: 10,
-      offer_days_before_max: 14,
+      offer_days_before_max: 7,
       offer_days_before_min: 1,
       updated_at: new Date().toISOString(),
     },

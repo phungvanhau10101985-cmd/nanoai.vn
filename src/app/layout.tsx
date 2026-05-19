@@ -242,6 +242,9 @@ export default async function RootLayout({
   const currentPathWithQuery = readLoginNextFromHeaders((name) => headerStore.get(name));
   const [currentPathname = ""] = currentPathWithQuery.split("?");
   const isMessagingGuestPage = currentPathname.startsWith("/messaging/p/");
+  const isCustomerOwnedSurface =
+    isMessagingGuestPage ||
+    currentPathname.startsWith("/hospitality/p/");
   /** Trang chat khách: luôn layout tối giản (giống nhúng iframe) — tránh Header/thanh dưới + cuộn kép trên server. */
   const useMinimalEmbedLayout = isMessagingGuestPage;
 
@@ -352,24 +355,28 @@ export default async function RootLayout({
     !currentPathname.startsWith("/dashboard/hospitality");
   const shouldRenderGlobalMetaPixel =
     Boolean(facebookPixelId) &&
-    !currentPathname.startsWith('/messaging/p/')
+    !isCustomerOwnedSurface
+  const shouldRenderGlobalGoogleTags = !isCustomerOwnedSurface
+  const shouldRenderNanoAiSiteTags = !isCustomerOwnedSurface
 
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
-        {metaTags.map((tag, index) =>
-          tag.name ? (
-            <meta key={`meta-name-${index}`} name={tag.name} content={tag.content} />
-          ) : (
-            <meta key={`meta-property-${index}`} property={tag.property} content={tag.content} />
-          )
-        )}
+        {shouldRenderNanoAiSiteTags
+          ? metaTags.map((tag, index) =>
+              tag.name ? (
+                <meta key={`meta-name-${index}`} name={tag.name} content={tag.content} />
+              ) : (
+                <meta key={`meta-property-${index}`} property={tag.property} content={tag.content} />
+              )
+            )
+          : null}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen safe-area-pb`}
         suppressHydrationWarning
       >
-        {gtmContainerId ? (
+        {shouldRenderGlobalGoogleTags && gtmContainerId ? (
           <>
             <Script id="google-tag-manager" strategy="afterInteractive">
               {`
@@ -390,7 +397,7 @@ export default async function RootLayout({
             </noscript>
           </>
         ) : null}
-        {gaMeasurementId ? (
+        {shouldRenderGlobalGoogleTags && gaMeasurementId ? (
           <>
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
@@ -446,12 +453,16 @@ export default async function RootLayout({
             </noscript>
           </>
         ) : null}
-        <AnalyticsTracker />
+        {shouldRenderNanoAiSiteTags ? <AnalyticsTracker /> : null}
         <CreditFeatureAccessGuard />
         <ReferralCapture />
         <ReferralClaimRunner />
-        <JsonLd data={webAppLd} />
-        <JsonLd data={orgLd} />
+        {shouldRenderNanoAiSiteTags ? (
+          <>
+            <JsonLd data={webAppLd} />
+            <JsonLd data={orgLd} />
+          </>
+        ) : null}
         {/*
           - Không bọc Header/main trong Suspense: Next 14.2 + Server Component dùng cookies() trong children
             gây "could not finish this Suspense boundary" trên trang chủ và nhiều route.

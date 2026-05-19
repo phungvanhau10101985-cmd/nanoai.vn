@@ -247,12 +247,12 @@ export function PartnerAiSettingsPanel({
   const formRef = useRef<FormState>(form)
   const [bdayEnabled, setBdayEnabled] = useState(false)
   const [bdayDiscountPct, setBdayDiscountPct] = useState(10)
-  const [bdayDaysMax, setBdayDaysMax] = useState(14)
+  const [bdayDaysMax, setBdayDaysMax] = useState(7)
   const [bdayDaysMin, setBdayDaysMin] = useState(1)
   const bdayPersistRef = useRef({
     enabled: false,
     discountPct: 10,
-    daysMax: 14,
+    daysMax: 7,
     daysMin: 1,
   })
   const bdayDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -378,7 +378,7 @@ export function PartnerAiSettingsPanel({
         const bs = bdayRes.settings
         setBdayEnabled(Boolean(bs.enabled))
         setBdayDiscountPct(Math.max(0, Math.min(100, Number(bs.discount_percent) || 10)))
-        setBdayDaysMax(Math.max(1, Math.min(120, Number(bs.offer_days_before_max) || 14)))
+        setBdayDaysMax(Math.max(1, Math.min(120, Number(bs.offer_days_before_max) || 7)))
         setBdayDaysMin(Math.max(1, Math.min(120, Number(bs.offer_days_before_min) || 1)))
       }
       if ('settings' in bundleRes) {
@@ -447,7 +447,7 @@ export function PartnerAiSettingsPanel({
       setBdayDiscountPct(Math.max(0, Math.min(100, Number(bs.discount_percent) || 10)))
     }
     if (bs.offer_days_before_max != null) {
-      setBdayDaysMax(Math.max(1, Math.min(120, Number(bs.offer_days_before_max) || 14)))
+      setBdayDaysMax(Math.max(1, Math.min(120, Number(bs.offer_days_before_max) || 7)))
     }
     if (bs.offer_days_before_min != null) {
       setBdayDaysMin(Math.max(1, Math.min(120, Number(bs.offer_days_before_min) || 1)))
@@ -820,8 +820,8 @@ export function PartnerAiSettingsPanel({
                   </div>
                   <p className="text-xs text-muted-foreground max-w-xl">
                     Gửi email cho khách đã chat, đã đăng nhập (email/Google) và có ngày sinh trên tài khoản, trong
-                    khoảng ngày trước sinh nhật bạn chọn. Trong thời gian đó, giá các sản phẩm trong kho trên chat được
-                    giảm theo % bạn cài — tự động khi đặt qua chat, không cần mã. Email kèm link mở chat và gợi ý sản phẩm
+                    khoảng ngày trước sinh nhật bạn chọn (mặc định 7 ngày = 1 tuần). Trong thời gian đó, giá các sản phẩm trong kho trên chat được
+                    giảm theo % bạn cài — tự động khi đặt qua chat, không cần mã; khách đăng nhập sẽ thấy tin chúc mừng trong chat. Email kèm link mở chat và gợi ý sản phẩm
                     khách đã quan tâm / đặt. Cron chạy hằng ngày (cần SMTP).
                   </p>
                 </div>
@@ -870,10 +870,10 @@ export function PartnerAiSettingsPanel({
                     type="number"
                     min={1}
                     max={120}
-                    title="Số ngày trước sinh nhật — mốc xa (vd 14)"
+                    title="Số ngày trước sinh nhật — mốc xa (vd 7 = một tuần)"
                     value={bdayDaysMax}
                     onChange={(e) => {
-                      const v = Math.max(1, Math.min(120, Math.floor(Number(e.target.value) || 14)))
+                      const v = Math.max(1, Math.min(120, Math.floor(Number(e.target.value) || 7)))
                       setBdayDaysMax(v)
                       bdayPersistRef.current.daysMax = v
                       scheduleBirthdayPromoSaveDebounced()

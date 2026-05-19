@@ -614,6 +614,12 @@ function isGuestVisionPickReminderPayload(raw: Json | null | undefined): boolean
   return s === 'guest_vision_pick_reminder' || s === 'guest_vision_pick_purchase_intent_reminder'
 }
 
+/** Tin tự động hiển thị trong chat khi khách đủ điều kiện ưu đãi sinh nhật (không lưu server). */
+function isBirthdayPromoGreetingPayload(raw: Json | null | undefined): boolean {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
+  return o?.source === 'birthday_promo_greeting'
+}
+
 /** Một số tin hệ thống do shop phát ra nhưng có thể đi qua luồng inbound: luôn render phía shop (trái). */
 function isForcedShopSideMessage(raw: Json | null | undefined): boolean {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
@@ -1659,6 +1665,8 @@ export function PartnerGuestChatClient({
   /** SP từ email CMSN / deep link ?interested_inv= */
   const [birthdayPromoExtraRows, setBirthdayPromoExtraRows] = useState<RecentProductWithSource[]>([])
   const [birthdayPromoDiscountPct, setBirthdayPromoDiscountPct] = useState<number | null>(null)
+  /** ISO time — neo bubble chúc SN (client-only), luôn xếp sau tin gần nhất. */
+  const [birthdayPromoGreetingAnchoredAt, setBirthdayPromoGreetingAnchoredAt] = useState<string | null>(null)
   const [productShelfShuffleNonce, setProductShelfShuffleNonce] = useState(0)
   const [productShelfVisibleCount, setProductShelfVisibleCount] = useState(PRODUCT_SHELF_LAZY_INITIAL)
   const productShelfScrollRef = useRef<HTMLDivElement>(null)
@@ -2610,7 +2618,12 @@ export function PartnerGuestChatClient({
     }
     const anchor = scrollAnchorRef.current
     if (!anchor) return
-    if (!messages.length && !shopTyping) return
+    const hasBirthdayOnlyGreeting =
+      authMode === 'account' &&
+      birthdayPromoDiscountPct != null &&
+      birthdayPromoDiscountPct > 0 &&
+      Boolean(birthdayPromoGreetingAnchoredAt)
+    if (!messages.length && !shopTyping && !hasBirthdayOnlyGreeting) return
     const shouldScrollToBottom =
       forceGuestChatScrollToBottomRef.current ||
       !didInitialAutoScrollRef.current ||
@@ -2623,7 +2636,7 @@ export function PartnerGuestChatClient({
     })
     didInitialAutoScrollRef.current = true
     guestChatNearBottomRef.current = true
-  }, [messages.length, shopTyping, shopTyping?.deadline])
+  }, [messages.length, shopTyping, shopTyping?.deadline, authMode, birthdayPromoDiscountPct, birthdayPromoGreetingAnchoredAt])
 
   const scrollGuestChatToBottomOnce = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const scroll = () => {
@@ -4724,9 +4737,27 @@ export function PartnerGuestChatClient({
         } | null
         if (cancelled || !data?.ok) return
         if (data.authenticated) {
-          setBirthdayPromoDiscountPct(
+          const pct =
             data.discountPercent != null && data.discountPercent > 0 ? data.discountPercent : null
-          )
+          setBirthdayPromoDiscountPct(pct)
+          if (pct == null) {
+            setBirthdayPromoGreetingAnchoredAt(null)
+            return
+          }
+          setBirthdayPromoGreetingAnchoredAt((prev) => prev ?? new Date().toISOString())
+          try {
+            const k = `nanoai_bday_enter_toast_${slug}_${pct}`
+            if (!sessionStorage.getItem(k)) {
+              sessionStorage.setItem(k, '1')
+              forceGuestChatScrollToBottomRef.current = true
+              toast({
+                title: t.birthdayPromoEnterToastTitle.replace('{percent}', String(pct)),
+                description: t.birthdayPromoEnterToastDescription,
+              })
+            }
+          } catch {
+            /* ignore */
+          }
         }
       } catch {
         /* ignore */
@@ -4735,7 +4766,29 @@ export function PartnerGuestChatClient({
     return () => {
       cancelled = true
     }
-  }, [authReady, hasLoadedOnce, slug, authMode])
+  }, [
+    authReady,
+    hasLoadedOnce,
+    slug,
+    authMode,
+    toast,
+    t.birthdayPromoEnterToastTitle,
+    t.birthdayPromoEnterToastDescription,
+  ])
+
+  useEffect(() => {
+    if (authMode === 'account') return
+    setBirthdayPromoGreetingAnchoredAt(null)
+    // Không xóa % từ ?bday_discount= (link email CMSN) khi khách chưa đăng nhập.
+    if (typeof window === 'undefined') {
+      setBirthdayPromoDiscountPct(null)
+      return
+    }
+    const discRaw = (new URLSearchParams(window.location.search).get('bday_discount') ?? '').trim()
+    const disc = parseInt(discRaw, 10)
+    if (Number.isFinite(disc) && disc > 0) return
+    setBirthdayPromoDiscountPct(null)
+  }, [authMode])
 
   const draftComposerLabels = useMemo(
     () => ({
@@ -5026,18 +5079,57 @@ export function PartnerGuestChatClient({
     orderSelectedColorImgs,
   ])
 
+  const guestMessagesForDisplay = useMemo(() => {
+    if (
+      authMode !== 'account' ||
+      birthdayPromoDiscountPct == null ||
+      birthdayPromoDiscountPct <= 0 ||
+      !birthdayPromoGreetingAnchoredAt
+    ) {
+      return messages
+    }
+    const pct = birthdayPromoDiscountPct
+    const shopName = shopDisplayName.trim() || 'Shop'
+    let anchorMs = Date.parse(birthdayPromoGreetingAnchoredAt)
+    if (!Number.isFinite(anchorMs)) anchorMs = Date.now()
+    for (const m of messages) {
+      const t0 = Date.parse(m.created_at)
+      if (Number.isFinite(t0) && t0 >= anchorMs) anchorMs = t0 + 1
+    }
+    const greetBody = t.birthdayPromoChatGreeting
+      .replaceAll('{shopName}', shopName)
+      .replaceAll('{percent}', String(pct))
+    const greet: GuestMsg = {
+      id: `__local_bday_greet_${slug}`,
+      direction: 'outbound',
+      body: greetBody,
+      created_at: new Date(anchorMs).toISOString(),
+      raw_payload: { source: 'birthday_promo_greeting' } as Json,
+    }
+    return mergeGuestMessages(messages, [greet])
+  }, [
+    messages,
+    authMode,
+    birthdayPromoDiscountPct,
+    birthdayPromoGreetingAnchoredAt,
+    slug,
+    shopDisplayName,
+    t.birthdayPromoChatGreeting,
+    mergeGuestMessages,
+  ])
+
   /** Xen kẽ nền tin shop — phải gọi trước mọi `return` có điều kiện (Rules of Hooks). */
   const shopOutboundStripeById = useMemo(() => {
     const map = new Map<string, 0 | 1>()
     let k = 0
-    for (const m of messages) {
+    for (const m of guestMessagesForDisplay) {
       if (m.direction === 'outbound' && !isSystemOrderMessage(m.raw_payload)) {
         map.set(m.id, (k % 2) as 0 | 1)
         k += 1
       }
     }
     return map
-  }, [messages])
+  }, [guestMessagesForDisplay])
 
   const visionReminderTriggerIds = useMemo(() => {
     const out = new Set<string>()
@@ -5297,10 +5389,10 @@ export function PartnerGuestChatClient({
               <div className="flex flex-1 items-center justify-center gap-2 text-base text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               </div>
-            ) : messages.length === 0 ? (
+            ) : guestMessagesForDisplay.length === 0 ? (
               <p className="py-8 text-center text-base text-muted-foreground">{t.emptyThread}</p>
             ) : (
-              messages.map((m) => {
+              guestMessagesForDisplay.map((m) => {
                 const isMe = m.direction === 'inbound' && !isForcedShopSideMessage(m.raw_payload)
                 const vs = getVisionPickState(m.raw_payload)
                 const reminderTriggerId = visionReminderTriggerMessageId(m.raw_payload)
@@ -5549,7 +5641,7 @@ export function PartnerGuestChatClient({
                         row={{ id: m.id, body: m.body, raw_payload: m.raw_payload ?? null }}
                         tone={isMe && !consultLinkShopStyle ? 'onViolet' : 'default'}
                         openMessageLinksInSameTab
-                        renderAiProductCarousel={!isMe}
+                        renderAiProductCarousel={!isMe && !isBirthdayPromoGreetingPayload(m.raw_payload)}
                         labels={{
                           productCardOpenProduct: t.visionProductLink,
                           productCardViewDetails: t.visionProductViewDetails,
@@ -5558,10 +5650,26 @@ export function PartnerGuestChatClient({
                           productCardBuyProduct: t.visionProductBuy,
                           productCardAddToCart: 'Thêm giỏ',
                         }}
-                        onProductCardBuy={isMe && !consultLinkShopStyle ? undefined : (card) => void openGuestProductOrderFormFromCard(card)}
-                        onProductCardAddToCart={isMe && !consultLinkShopStyle ? undefined : addProductCardToCart}
+                        onProductCardBuy={
+                          isMe && !consultLinkShopStyle
+                            ? undefined
+                            : isBirthdayPromoGreetingPayload(m.raw_payload)
+                              ? undefined
+                              : (card) => void openGuestProductOrderFormFromCard(card)
+                        }
+                        onProductCardAddToCart={
+                          isMe && !consultLinkShopStyle
+                            ? undefined
+                            : isBirthdayPromoGreetingPayload(m.raw_payload)
+                              ? undefined
+                              : addProductCardToCart
+                        }
                         onProductCardPick={
-                          isMe && !consultLinkShopStyle ? undefined : (card) => void submitProductCardPick(card, m.id)
+                          isMe && !consultLinkShopStyle
+                            ? undefined
+                            : isBirthdayPromoGreetingPayload(m.raw_payload)
+                              ? undefined
+                              : (card) => void submitProductCardPick(card, m.id)
                         }
                         orderPaymentProof={!isMe ? orderPaymentProofSlot : undefined}
                         shopDisplayName={shopDisplayName}
@@ -6262,7 +6370,7 @@ export function PartnerGuestChatClient({
                 role="status"
                 className="rounded-lg border border-violet-200/90 bg-violet-50/95 px-3 py-2 text-center text-[13px] font-medium text-violet-950 dark:border-violet-800/60 dark:bg-violet-950/50 dark:text-violet-100"
               >
-                Ưu đãi sinh nhật: giảm {birthdayPromoDiscountPct}% — áp dụng tự động cho giá các sản phẩm trong kho (theo cài đặt số ngày trước sinh nhật) khi đặt qua chat, không cần mã giảm giá.
+                {t.birthdayPromoComposerHint.replace('{percent}', String(birthdayPromoDiscountPct))}
               </div>
             ) : null}
             <input

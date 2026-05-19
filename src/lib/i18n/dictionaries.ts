@@ -1151,6 +1151,13 @@ export type Dictionary = {
     guestProfileSave: string
     guestProfileRemindLater: string
     guestProfileInvalid: string
+    /** Thanh nhập: gợi ý ưu đãi sinh nhật — `{percent}`. */
+    birthdayPromoComposerHint: string
+    /** Bubble shop (cục bộ): chúc SN — `{shopName}`, `{percent}`; dùng `\\n` xuống dòng. */
+    birthdayPromoChatGreeting: string
+    /** Toast khi vào chat có ưu đãi — `{percent}`. */
+    birthdayPromoEnterToastTitle: string
+    birthdayPromoEnterToastDescription: string
   }
   /** /messaging/my-chats — danh sách shop đã chat (tài khoản Google) */
   messagingMyChats: {
@@ -3277,6 +3284,12 @@ const VI_DICTIONARY: Dictionary = {
     guestProfileSave: 'Lưu',
     guestProfileRemindLater: 'Để sau',
     guestProfileInvalid: 'Vui lòng chọn đủ ngày sinh và giới tính.',
+    birthdayPromoComposerHint:
+      'Ưu đãi sinh nhật: giảm {percent}% — áp dụng tự động cho giá các sản phẩm trong kho trong tuần trước sinh nhật khi đặt qua chat, không cần mã giảm giá.',
+    birthdayPromoChatGreeting:
+      'Chúc mừng sinh nhật bạn!\n{shopName} gửi lời chúc và tặng bạn ưu đãi giảm {percent}% trên giá sản phẩm trong kho khi đặt qua chat — áp dụng tự động trong tuần trước sinh nhật, không cần mã giảm giá.',
+    birthdayPromoEnterToastTitle: 'Ưu đãi sinh nhật {percent}%',
+    birthdayPromoEnterToastDescription: 'Giá trên kệ đã giảm tự động. Chúc bạn mua sắm vui vẻ!',
   },
   messagingMyChats: {
     pageTitle: 'Tin nhắn của tôi',
@@ -5392,6 +5405,12 @@ const EN_DICTIONARY: Dictionary = {
     guestProfileSave: 'Save',
     guestProfileRemindLater: 'Later',
     guestProfileInvalid: 'Please enter your date of birth and choose a gender.',
+    birthdayPromoComposerHint:
+      'Birthday offer: {percent}% off — automatically applied to in-stock shelf prices during the week before your birthday when ordering via chat; no promo code needed.',
+    birthdayPromoChatGreeting:
+      'Happy birthday!\n{shopName} sends warm wishes and {percent}% off in-stock shelf prices when you order via chat — applied automatically during the week before your birthday; no promo code needed.',
+    birthdayPromoEnterToastTitle: 'Birthday offer: {percent}% off',
+    birthdayPromoEnterToastDescription: 'Shelf prices are discounted automatically. Enjoy your shopping!',
   },
   messagingMyChats: {
     pageTitle: 'My messages',
@@ -7482,6 +7501,12 @@ const ZH_DICTIONARY: Dictionary = {
     guestProfileSave: '保存',
     guestProfileRemindLater: '稍后',
     guestProfileInvalid: '请填写出生日期并选择性别。',
+    birthdayPromoComposerHint:
+      '生日优惠：减 {percent}% — 在生日前一周内通过聊天下单时，库存商品价格自动享受折扣，无需优惠码。',
+    birthdayPromoChatGreeting:
+      '祝你生日快乐！\n{shopName} 送上祝福，并在您于生日前一周内通过聊天下单时，对库存商品自动享受 {percent}% 折扣，无需优惠码。',
+    birthdayPromoEnterToastTitle: '生日优惠 {percent}%',
+    birthdayPromoEnterToastDescription: '货架价格已自动打折。祝您购物愉快！',
   },
   messagingMyChats: {
     pageTitle: '我的消息',
@@ -9552,6 +9577,12 @@ const JA_DICTIONARY: Dictionary = {
     guestProfileSave: '保存',
     guestProfileRemindLater: 'あとで',
     guestProfileInvalid: '生年月日と性別を入力してください。',
+    birthdayPromoComposerHint:
+      'お誕生日特典：{percent}%OFF — お誕生日の約1週間前からチャット経由のご注文で、在庫商品の表示価格に自動適用。コード不要です。',
+    birthdayPromoChatGreeting:
+      'お誕生日おめでとうございます！\n{shopName}よりお祝いの気持ちを込めて、お誕生日の約1週間前からチャット注文時に在庫商品が{percent}%OFF（自動適用・コード不要）となります。',
+    birthdayPromoEnterToastTitle: 'お誕生日特典 {percent}%OFF',
+    birthdayPromoEnterToastDescription: '棚価格に自動で割引が反映されます。お買い物をお楽しみください。',
   },
   messagingMyChats: {
     pageTitle: '自分のメッセージ',
@@ -11646,6 +11677,12 @@ const KO_DICTIONARY: Dictionary = {
     guestProfileSave: '저장',
     guestProfileRemindLater: '나중에',
     guestProfileInvalid: '생년월일과 성별을 선택해 주세요.',
+    birthdayPromoComposerHint:
+      '생일 할인: {percent}% — 생일 약 일주일 전부터 채팅으로 주문 시 재고 상품 가격에 자동 적용, 할인 코드 불필요.',
+    birthdayPromoChatGreeting:
+      '생일 축하해요!\n{shopName}에서 축하 인사와 함께 생일 약 일주일 전부터 채팅 주문 시 재고 상품 {percent}% 할인(자동 적용, 코드 불필요)을 드려요.',
+    birthdayPromoEnterToastTitle: '생일 할인 {percent}%',
+    birthdayPromoEnterToastDescription: '선반 가격에 자동으로 할인이 적용되었습니다. 즐거운 쇼핑 되세요!',
   },
   messagingMyChats: {
     pageTitle: '내 메시지',
