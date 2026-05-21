@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
+
+/** Layout dùng headers() + children dùng cookies() — bắt buộc dynamic để tránh lỗi Suspense boundary (Next 14.2). */
+export const dynamic = "force-dynamic";
 import Script from "next/script";
 import { loadAdminIntegrationsValueJsonByKey } from "@/lib/db/admin-integrations-settings-pg";
 import { fetchMessagingPartnerBySlugFromPg } from "@/lib/db/messaging-partners-pg";
@@ -17,35 +20,35 @@ import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { FloatingChatWidget } from '@/components/messaging/floating-chat-widget'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 
-const AnalyticsTracker = dynamic(
+const AnalyticsTracker = nextDynamic(
   () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
   { ssr: false }
 );
-const MobileBottomBar = dynamic(
+const MobileBottomBar = nextDynamic(
   () => import("@/components/layout/mobile-bottom-bar").then((m) => m.MobileBottomBar),
   { ssr: false }
 );
-const InstallPrompt = dynamic(
+const InstallPrompt = nextDynamic(
   () => import("@/components/pwa/install-prompt").then((m) => m.InstallPrompt),
   { ssr: false }
 );
-const PushNotificationPrompt = dynamic(
+const PushNotificationPrompt = nextDynamic(
   () => import("@/components/pwa/push-notification-prompt").then((m) => m.PushNotificationPrompt),
   { ssr: false }
 );
-const SwUpdateReload = dynamic(
+const SwUpdateReload = nextDynamic(
   () => import("@/components/pwa/sw-update-reload").then((m) => m.SwUpdateReload),
   { ssr: false }
 );
-const ReferralCapture = dynamic(
+const ReferralCapture = nextDynamic(
   () => import("@/components/referral/referral-capture").then((m) => m.ReferralCapture),
   { ssr: false }
 );
-const ReferralClaimRunner = dynamic(
+const ReferralClaimRunner = nextDynamic(
   () => import("@/components/referral/referral-claim-runner").then((m) => m.ReferralClaimRunner),
   { ssr: false }
 );
-const CreditFeatureAccessGuard = dynamic(
+const CreditFeatureAccessGuard = nextDynamic(
   () => import("@/components/auth/credit-feature-access-guard").then((m) => m.CreditFeatureAccessGuard),
   { ssr: false }
 );

@@ -65,6 +65,8 @@ const enableServerSourceMaps = process.env.PROD_SERVER_SOURCE_MAPS === '1'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    /** Dev: tách khỏi `.next` khi IDE/antivirus khóa thư mục build (EPERM rename trên Windows). */
+    distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
     eslint: { ignoreDuringBuilds: skipEslintOnBuild },
     allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok.io'],
     /** Sourcemap không build cho client (giảm dung lượng tải); chỉ build server-side khi bật flag. */

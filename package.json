@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev",
-    "dev:clean": "node -e \"require('node:fs').rmSync('.next',{recursive:true,force:true})\" && npm run dev",
+    "dev:clean": "node -e \"const fs=require('node:fs');for (const d of ['.next-dev','.next']) { try { fs.rmSync(d,{recursive:true,force:true}); } catch {} }\" && npm run dev",
     "build": "node scripts/build-lowmem.mjs",
     "build:full": "next build",
     "build:vps": "node scripts/build-lowmem.mjs --skip-typescript",
@@ -41,6 +41,7 @@
     "pg:ensure-pgvector": "node scripts/pg-ensure-pgvector.mjs",
     "pg:setup-pgvector-pg15": "node scripts/pg-setup-pgvector-pg15.mjs",
     "pg:setup-pgvector-pg17": "node scripts/pg-setup-pgvector-pg17.mjs",
+    "pg:setup-pgvector-pg18": "node scripts/pg-setup-pgvector-pg18.mjs",
     "pg:fresh-restore-public": "node scripts/pg-fresh-restore-public.mjs",
     "pg:smoke": "npx tsx scripts/pg-smoke-local.ts",
     "pg:check-credits": "npx tsx scripts/pg-check-credits.ts",
