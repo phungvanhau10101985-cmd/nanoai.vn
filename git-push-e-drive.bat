@@ -28,12 +28,34 @@ if errorlevel 1 (
 )
 
 echo [4/5] git commit...
-"%GIT%" commit -m "fix(local): dev server .next-dev, restart-server, pgvector pg18, layout dynamic"
+set "COMMIT_MSG=chore: update all current changes"
+"%GIT%" diff --cached --quiet
 if errorlevel 1 (
-    echo       Khong co thay doi moi hoac commit loi — xem git status.
-    "%GIT%" status -sb
-    pause
-    exit /b 1
+    "%GIT%" commit -m "%COMMIT_MSG%"
+    if errorlevel 1 (
+        echo [LOI] git commit that bai.
+        "%GIT%" status -sb
+        pause
+        exit /b 1
+    )
+) else (
+    "%GIT%" diff --quiet
+    if not errorlevel 1 (
+        echo       Khong co file thay doi — working tree clean.
+        "%GIT%" status -sb
+        echo.
+        echo Da dong bo voi origin/main truoc do. Khong can commit/push.
+        pause
+        exit /b 0
+    )
+    echo       Chua stage — thu add lai...
+    "%GIT%" add -A -- . ":(exclude)nul" ":(exclude)cd"
+    "%GIT%" commit -m "%COMMIT_MSG%"
+    if errorlevel 1 (
+        echo [LOI] git commit that bai.
+        pause
+        exit /b 1
+    )
 )
 
 echo [5/5] git push origin main...
@@ -45,5 +67,5 @@ if errorlevel 1 (
 )
 
 echo.
-echo Xong. Da push len origin main.
+echo Xong. main da dong bo voi origin/main.
 pause
