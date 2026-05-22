@@ -19,7 +19,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { getPresetsForAspectRatio, inferAspectRatioFromDimensions } from '@/lib/print-ready-presets'
 import { generatePrintReadyPdf } from '@/app/actions/print-ready'
+import { downloadImageFromUrl } from '@/lib/download-image-client'
 import { useToast } from '@/hooks/use-toast'
+
+const IMAGE_PREVIEW_MENU_Z = 'z-[2147483647]'
 
 interface ImagePreviewProps {
   src: string
@@ -31,17 +34,12 @@ interface ImagePreviewProps {
   asImg?: boolean
 }
 
-function isRestrictedInAppBrowser(): boolean {
-  if (typeof navigator === 'undefined') return false
-  const ua = navigator.userAgent || ''
-  return /(FBAN|FBAV|FB_IAB|Instagram|Line\/|Zalo|TikTok)/i.test(ua)
-}
-
 export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg }: ImagePreviewProps) {
   const uiLocale = useWebLocaleFromDocumentCookie()
   const [isOpen, setIsOpen] = useState(false)
   const [inferredAspectRatio, setInferredAspectRatio] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
+  const [downloadLoading, setDownloadLoading] = useState(false)
   const imageRef = useRef<HTMLImageElement>(null)
   const hasPushedHistoryRef = useRef(false)
   const closingFromPopStateRef = useRef(false)
@@ -102,35 +100,27 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
     }
   }
 
-  const handleDownload = (format: 'png' | 'jpeg') => {
-    if (isRestrictedInAppBrowser()) {
-      // In-app browsers thường chặn tải bằng download/data URL.
-      window.open(src, '_blank', 'noopener,noreferrer')
-      return
+  const handleDownload = async (format: 'png' | 'jpeg') => {
+    if (!src) return
+    setDownloadLoading(true)
+    try {
+      await downloadImageFromUrl(src, format, alt || 'image')
+    } catch {
+      toast({
+        title: tr('Không tải được ảnh', 'Could not download image', '无法下载图片', '画像をダウンロードできません', '이미지를 다운로드할 수 없습니다'),
+        description: tr(
+          'Đã mở ảnh trong tab mới — giữ ảnh để lưu.',
+          'Opened the image in a new tab — long-press to save.',
+          '已在新标签页打开图片，请长按保存。',
+          '新しいタブで開きました。長押しで保存してください。',
+          '새 탭에서 열었습니다. 길게 눌러 저장하세요.'
+        ),
+        variant: 'destructive',
+        duration: 5000,
+      })
+    } finally {
+      setDownloadLoading(false)
     }
-    if (!imageRef.current) return
-
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const img = imageRef.current
-    canvas.width = img.naturalWidth
-    canvas.height = img.naturalHeight
-    
-    // Fill background with white for JPG to avoid black background on transparent PNGs
-    if (format === 'jpeg') {
-      ctx.fillStyle = 'white'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-    }
-    
-    ctx.drawImage(img, 0, 0)
-
-    const link = document.createElement('a')
-    const fileExtension = format === 'jpeg' ? 'jpg' : 'png'
-    link.download = `${alt.replace(/\s+/g, '-') || 'image'}.${fileExtension}`
-    link.href = canvas.toDataURL(`image/${format}`, 1.0) // Quality 1.0 for max quality
-    link.click()
   }
 
   const handleImageLoad = () => {
@@ -215,16 +205,16 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
                   <Download className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className={IMAGE_PREVIEW_MENU_Z}>
                 <DropdownMenuItem onClick={() => window.open(src, '_blank', 'noopener,noreferrer')}>
                   <ExternalLink className="h-3 w-3 mr-2" />
                   {tr('Mở ảnh full size (tab mới)', 'Open full size (new tab)', '新标签页打开大图', '新タブで実寸表示', '새 탭에서 실제 크기')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleDownload('png')} disabled={pdfLoading}>
+                <DropdownMenuItem onClick={() => void handleDownload('png')} disabled={pdfLoading || downloadLoading}>
                   {tr('Lưu dưới dạng PNG (Chất lượng cao nhất)', 'Save as PNG (Highest quality)', '保存为 PNG（最高质量）', 'PNGで保存（最高画質）', 'PNG로 저장 (최고 품질)')}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleDownload('jpeg')} disabled={pdfLoading}>
+                <DropdownMenuItem onClick={() => void handleDownload('jpeg')} disabled={pdfLoading || downloadLoading}>
                   {tr('Lưu dưới dạng JPG (Chất lượng cao)', 'Save as JPG (High quality)', '保存为 JPG（高质量）', 'JPGで保存（高画質）', 'JPG로 저장 (고품질)')}
                 </DropdownMenuItem>
                 {printPresets.length > 0 && (
@@ -235,7 +225,7 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
                         <FileText className="h-3 w-3" />
                         {tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
                       </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
+                      <DropdownMenuSubContent className={IMAGE_PREVIEW_MENU_Z}>
                         {printPresets.map((p) => (
                           <DropdownMenuItem
                             key={p.value}
@@ -263,13 +253,12 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
             </Button>
           </div>
           {/* Dùng img thay vì Next/Image để đảm bảo ảnh hiển thị (tránh lỗi domain/CORS) */}
-          {/* eslint-disable-next-line @next/next/no-img-element -- full-screen preview needs raw img with crossOrigin */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- full-screen preview; download via /api/fetch-image proxy */}
           <img
             ref={imageRef}
             src={src}
             alt={alt}
             className="h-full max-h-full w-full max-w-full object-contain"
-            crossOrigin="anonymous"
             onLoad={handleImageLoad}
           />
         </div>

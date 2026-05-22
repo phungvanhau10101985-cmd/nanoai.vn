@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { trackEvent, setPendingGeneration, toFeatureFromRoute } from '@/lib/analytics-track'
 import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
+import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 
 export function useCredits() {
   const [credits, setCredits] = useState<number>(0)
@@ -47,6 +48,12 @@ export function useCredits() {
     return () => window.removeEventListener('credits-updated', onUpdated)
   }, [fetchCredits])
 
+  function redirectToLoginForTrialExhausted(route: string): void {
+    if (typeof window === 'undefined') return
+    const next = sanitizeLoginNext(`${route || window.location.pathname || '/'}${window.location.search || ''}`)
+    window.location.assign(`/auth/login?next=${encodeURIComponent(next)}`)
+  }
+
   /** Kiểm tra đủ credits trước khi thực hiện. Nếu thiếu thì toast và return false. */
   function checkCreditsAndProceed(requiredCost: number, onSuccess: () => void | Promise<void>): boolean {
     const route =
@@ -70,6 +77,17 @@ export function useCredits() {
         })
         void onSuccess()
         return true
+      }
+      if (guestTrialBudget > 0) {
+        trackEvent('generate_failed', {
+          route,
+          feature: toFeatureFromRoute(route),
+          reason: 'guest_trial_exhausted',
+          required_cost: requiredCost,
+          guest_trial_remaining: guestTrialRemaining,
+        })
+        redirectToLoginForTrialExhausted(route)
+        return false
       }
       trackEvent('generate_failed', {
         route,
