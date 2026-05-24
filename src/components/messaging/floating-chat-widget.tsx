@@ -248,28 +248,28 @@ export function FloatingChatWidget({
       className={`fixed ${anchorClass} ${topLayerClass} flex h-[min(70vh,560px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border border-border/60 bg-background/95 shadow-2xl backdrop-blur-sm`}
     >
       <div
-        className="flex shrink-0 items-center gap-1 overflow-hidden border-b border-border/60 bg-muted/40 px-2 py-1 touch-manipulation"
+        className="flex shrink-0 flex-nowrap items-center gap-1 overflow-hidden border-b border-border/60 bg-muted/40 px-2 py-1 touch-manipulation"
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="min-w-0 flex-1 truncate text-xs font-semibold leading-tight sm:text-sm">{shopName}</div>
+        <div className="min-w-0 max-w-[38%] flex-1 truncate text-xs font-semibold leading-tight sm:max-w-none sm:text-sm">{shopName}</div>
         {loyaltyTierLabel ? (
           <span className="shrink-0 rounded-full border border-amber-300/80 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold leading-none text-amber-900 shadow-sm">
             {loyaltyTierLabel}
           </span>
         ) : null}
-        <select
-          value={uiLocale}
-          onChange={(e) => applyLocaleToIframe(e.target.value as WebLocale)}
-          aria-label={languageSelectAriaLabel}
-          className="h-8 w-auto max-w-[4.75rem] shrink-0 rounded-md border border-border bg-background px-1.5 text-xs font-semibold text-foreground"
-        >
-          {WEB_LOCALES.map((loc) => (
-            <option key={loc} value={loc}>
-              {LOCALE_SHORT[loc]}
-            </option>
-          ))}
-        </select>
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-0.5">
+          <select
+            value={uiLocale}
+            onChange={(e) => applyLocaleToIframe(e.target.value as WebLocale)}
+            aria-label={languageSelectAriaLabel}
+            className="h-8 w-auto max-w-[3.75rem] shrink-0 rounded-md border border-border bg-background px-1.5 text-xs font-semibold text-foreground sm:max-w-[4.75rem]"
+          >
+            {WEB_LOCALES.map((loc) => (
+              <option key={loc} value={loc}>
+                {LOCALE_SHORT[loc]}
+              </option>
+            ))}
+          </select>
           <Button
             type="button"
             variant="ghost"

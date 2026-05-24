@@ -164,26 +164,61 @@
     }
 
     var panel = document.createElement('div')
+    panel.className = 'nanoai-chat-panel'
     panel.style.cssText =
       'pointer-events:auto;display:none;flex-direction:column;position:absolute;background:#fff;overflow:hidden;' +
-      'box-shadow:0 16px 40px rgba(0,0,0,.28);border:1px solid #e5e7eb;touch-action:auto;-webkit-tap-highlight-color:transparent;'
+      'box-shadow:0 16px 40px rgba(0,0,0,.28);border:1px solid #e5e7eb;touch-action:auto;-webkit-tap-highlight-color:transparent;box-sizing:border-box;'
     root.appendChild(panel)
 
+    /** CSS scoped — tránh CSS trang shop (flex-wrap, position…) làm nút giỏ/đóng nhảy khỏi header mobile. */
+    var scopedStyle = document.createElement('style')
+    scopedStyle.textContent =
+      '#' +
+      widgetId +
+      ' .nanoai-chat-panel{box-sizing:border-box;flex-direction:column;}' +
+      '#' +
+      widgetId +
+      ' .nanoai-chat-header{box-sizing:border-box;display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;position:relative!important;}' +
+      '#' +
+      widgetId +
+      ' .nanoai-chat-header-actions{box-sizing:border-box;display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;flex-shrink:0!important;margin-left:auto!important;position:relative!important;}' +
+      '#' +
+      widgetId +
+      ' .nanoai-chat-header button,' +
+      '#' +
+      widgetId +
+      ' .nanoai-chat-header select{box-sizing:border-box;margin:0!important;position:relative!important;float:none!important;vertical-align:middle;}'
+    root.appendChild(scopedStyle)
+
     var header = document.createElement('div')
+    header.className = 'nanoai-chat-header'
     header.style.cssText =
-      'flex-shrink:0;background:#fff;border-bottom:1px solid #eee;display:flex;flex-direction:row;align-items:center;gap:5px;padding:5px 8px;pointer-events:auto;min-width:0;overflow:hidden;'
+      'flex-shrink:0;background:#fff;border-bottom:1px solid #eee;display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:4px;padding:5px 8px;pointer-events:auto;min-width:0;overflow:hidden;box-sizing:border-box;position:relative;'
+
+    var headerMeta = document.createElement('div')
+    headerMeta.style.cssText =
+      'display:flex;flex:1 1 0;min-width:0;align-items:center;gap:4px;overflow:hidden;flex-wrap:nowrap;'
 
     var brandEl = document.createElement('div')
     brandEl.style.cssText =
-      'font-weight:700;font-size:13px;line-height:1.2;color:#111;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
+      'font-weight:700;font-size:13px;line-height:1.2;color:#111;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
     brandEl.textContent = shopName
+
+    var headerActions = document.createElement('div')
+    headerActions.className = 'nanoai-chat-header-actions'
+    headerActions.style.cssText =
+      'display:flex;flex-shrink:0;flex-wrap:nowrap;align-items:center;gap:4px;margin-left:auto;position:relative;'
+
+    var widgetBtnReset =
+      'box-sizing:border-box;margin:0;padding:0;font:inherit;line-height:1;appearance:none;-webkit-appearance:none;position:relative;float:none;vertical-align:middle;'
 
     var closeBtn = document.createElement('button')
     closeBtn.type = 'button'
     closeBtn.setAttribute('aria-label', 'Close chat')
     var iconBtnBase =
-      'width:32px;height:32px;border:none;border-radius:9999px;cursor:pointer;background:#f3f4f6;color:#111;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;'
-    closeBtn.style.cssText = iconBtnBase + 'font-size:17px;padding:0;'
+      widgetBtnReset +
+      'width:32px;height:32px;min-width:32px;border:none;border-radius:9999px;cursor:pointer;background:#f3f4f6;color:#111;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;'
+    closeBtn.style.cssText = iconBtnBase + 'font-size:17px;'
     closeBtn.textContent = '×'
     var expandBtn = document.createElement('button')
     expandBtn.type = 'button'
@@ -206,7 +241,8 @@
     var localeSelect = document.createElement('select')
     localeSelect.setAttribute('aria-label', 'Language')
     localeSelect.style.cssText =
-      'max-width:72px;height:32px;flex-shrink:0;font-size:11px;padding:2px 6px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;color:#111;cursor:pointer;touch-action:manipulation;'
+      widgetBtnReset +
+      'max-width:72px;width:auto;height:32px;flex-shrink:0;font-size:11px;padding:2px 6px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;color:#111;cursor:pointer;touch-action:manipulation;'
     var LOCALE_CHOICES = [
       ['vi', 'VI'],
       ['en', 'EN'],
@@ -248,7 +284,8 @@
     ordersBtn.setAttribute('aria-label', ordersLabel)
     ordersBtn.setAttribute('title', ordersLabel)
     ordersBtn.style.cssText =
-      'width:36px;height:36px;min-width:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid #c4b5fd;background:#f5f3ff;color:#1e1b4b;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;flex-shrink:0;'
+      widgetBtnReset +
+      'width:36px;height:36px;min-width:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid #c4b5fd;background:#f5f3ff;color:#1e1b4b;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;flex-shrink:0;'
     ordersBtn.innerHTML =
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>'
 
@@ -257,7 +294,8 @@
     cartBtn.setAttribute('aria-label', cartLabel)
     cartBtn.setAttribute('title', cartLabel)
     cartBtn.style.cssText =
-      'position:relative;width:36px;height:36px;min-width:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid #e5e7eb;background:#f9fafb;color:#111;cursor:pointer;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;'
+      widgetBtnReset +
+      'width:36px;height:36px;min-width:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid #e5e7eb;background:#f9fafb;color:#111;cursor:pointer;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;'
     cartBtn.innerHTML =
       '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h8.96a2 2 0 0 0 1.95-1.57L21 8H5.12"/></svg><span class="nanoai-cart-count" style="display:none;position:absolute;right:-2px;top:-2px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#059669;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;"></span>'
     var cartBadge = cartBtn.querySelector('.nanoai-cart-count')
@@ -280,13 +318,15 @@
       cartBtn.style.display = 'inline-flex'
     }
 
-    header.appendChild(brandEl)
-    header.appendChild(loyaltyBadge)
-    header.appendChild(localeSelect)
-    header.appendChild(ordersBtn)
-    header.appendChild(cartBtn)
-    header.appendChild(expandBtn)
-    header.appendChild(closeBtn)
+    headerMeta.appendChild(brandEl)
+    headerMeta.appendChild(loyaltyBadge)
+    headerActions.appendChild(localeSelect)
+    headerActions.appendChild(ordersBtn)
+    headerActions.appendChild(cartBtn)
+    headerActions.appendChild(expandBtn)
+    headerActions.appendChild(closeBtn)
+    header.appendChild(headerMeta)
+    header.appendChild(headerActions)
 
     panel.appendChild(header)
 
@@ -782,9 +822,32 @@
     }
 
     var resizeTimer = null
+    function applyHeaderDensity() {
+      var isMobile = window.innerWidth <= mobileBreakpoint
+      var compact = isMobile ? '30px' : '36px'
+      var iconCompact = isMobile ? '30px' : '32px'
+      ordersBtn.style.width = compact
+      ordersBtn.style.height = compact
+      ordersBtn.style.minWidth = compact
+      cartBtn.style.width = compact
+      cartBtn.style.height = compact
+      cartBtn.style.minWidth = compact
+      closeBtn.style.width = iconCompact
+      closeBtn.style.height = iconCompact
+      closeBtn.style.minWidth = iconCompact
+      expandBtn.style.width = iconCompact
+      expandBtn.style.height = iconCompact
+      expandBtn.style.minWidth = iconCompact
+      localeSelect.style.maxWidth = isMobile ? '58px' : '72px'
+      localeSelect.style.height = iconCompact
+      header.style.gap = isMobile ? '3px' : '4px'
+      headerActions.style.gap = isMobile ? '3px' : '4px'
+    }
+
     function applyLayout() {
       if (window.innerWidth <= mobileBreakpoint) placeMobile()
       else placeDesktop()
+      applyHeaderDensity()
       // Host root uses pointer-events:none so clicks pass through empty areas; panel/iframe must stay clickable (some browsers need this reinforced after layout).
       panel.style.pointerEvents = 'auto'
       body.style.pointerEvents = 'auto'

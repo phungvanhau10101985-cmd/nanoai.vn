@@ -5457,14 +5457,14 @@ export function PartnerGuestChatClient({
       <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-background rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md">
         <h1 className="sr-only">{shopDisplayName}</h1>
         {isEmbedUi && !guestInIframe ? (
-          <div className="relative z-[100] flex shrink-0 items-center gap-1 overflow-hidden border-b border-border/60 bg-muted/35 px-2 py-1 pointer-events-auto touch-manipulation">
-            <p className="min-w-0 flex-1 truncate text-xs font-semibold tracking-tight sm:text-sm">{shopDisplayName}</p>
+          <div className="relative z-[100] flex shrink-0 flex-nowrap items-center gap-1 overflow-hidden border-b border-border/60 bg-muted/35 px-2 py-1 pointer-events-auto touch-manipulation">
+            <p className="min-w-0 max-w-[38%] flex-1 truncate text-xs font-semibold tracking-tight sm:max-w-none sm:text-sm">{shopDisplayName}</p>
             {loyaltyTierBadgeText ? (
               <span className="shrink-0 rounded-full border border-amber-300/80 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold leading-none text-amber-900 shadow-sm dark:border-amber-700/70 dark:bg-amber-950/45 dark:text-amber-100">
                 {loyaltyTierBadgeText}
               </span>
             ) : null}
-            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+            <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-0.5 sm:gap-1">
               <Button
                 type="button"
                 variant="outline"
