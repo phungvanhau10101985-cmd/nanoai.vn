@@ -1005,6 +1005,7 @@ export type Dictionary = {
     guestExternalCartUrlTemplateLabel: string
     guestExternalCartUrlTemplateHint: string
     guestExternalCartUrlTemplatePlaceholder: string
+    guestExternalCartUrlTemplateSaveHint: string
   }
   /** /messaging/p/[slug] — khách chat với shop trên domain NanoAI */
   partnerGuestChat: {
@@ -3167,6 +3168,8 @@ const VI_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplateHint:
       'Bắt buộc có {sku}. Ví dụ: https://188.com.vn/cart/add/{sku}?from=nanoai — Mua và Thêm giỏ dùng cùng link; Tư vấn vẫn trong chat.',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.vn/cart/add/{sku}?from=nanoai',
+    guestExternalCartUrlTemplateSaveHint:
+      'Điền link thật của shop → click ra ngoài ô (hoặc bấm «Lưu cài đặt») để lưu chế độ 3.',
   },
   partnerGuestChat: {
     notFoundTitle: 'Không tìm thấy trang chat',
@@ -5299,6 +5302,8 @@ const EN_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplateHint:
       'Must include {sku}. Example: https://shop.com/cart/add/{sku}?from=nanoai — Buy and Add to cart use the same link; Consult stays in chat.',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
+    guestExternalCartUrlTemplateSaveHint:
+      'Enter your shop URL → click outside the field (or Save settings) to apply mode 3.',
   },
   partnerGuestChat: {
     notFoundTitle: 'Chat page not found',
@@ -7408,6 +7413,7 @@ const ZH_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplateHint:
       '须包含 {sku}。例：https://shop.com/cart/add/{sku}?from=nanoai — 购买与加购同链；咨询仍在聊天内。',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
+    guestExternalCartUrlTemplateSaveHint: '填写店铺链接 → 点击输入框外（或保存设置）以应用模式 3。',
   },
   partnerGuestChat: {
     notFoundTitle: '未找到聊天页面',
@@ -9488,6 +9494,8 @@ const JA_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplateHint:
       '{sku} 必須。例：https://shop.com/cart/add/{sku}?from=nanoai — 購入とカート追加は同じURL。相談はチャットのまま。',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
+    guestExternalCartUrlTemplateSaveHint:
+      'ショップのURLを入力 → 欄の外をクリック（または設定を保存）でモード3を保存。',
   },
   partnerGuestChat: {
     notFoundTitle: 'チャットページが見つかりません',
@@ -11596,6 +11604,8 @@ const KO_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplateHint:
       '{sku} 필수. 예: https://shop.com/cart/add/{sku}?from=nanoai — 구매·장바구니 동일 링크. 상담은 채팅 유지.',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
+    guestExternalCartUrlTemplateSaveHint:
+      '쇼핑몰 URL 입력 → 입력란 밖 클릭(또는 설정 저장)으로 모드 3 적용.',
   },
   partnerGuestChat: {
     notFoundTitle: '채팅 페이지를 찾을 수 없습니다',

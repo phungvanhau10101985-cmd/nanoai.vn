@@ -513,13 +513,12 @@ export function PartnerAiSettingsPanel({
         const res = await savePartnerAiSettings(partnerId, formToPayload(next))
         if ('error' in res && res.error) {
           toast({ title: res.error, variant: 'destructive' })
-          load()
           return
         }
         toast({ title: saveOkMessage })
       })
     },
-    [partnerId, saveOkMessage, toast, load]
+    [partnerId, saveOkMessage, toast]
   )
 
   const saveSettings = () => {
@@ -912,9 +911,16 @@ export function PartnerAiSettingsPanel({
               <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowHint}</p>
               <Select
                 value={form.guest_purchase_flow}
-                onValueChange={(v: string) =>
-                  persistPartial({ guest_purchase_flow: normalizeGuestPurchaseFlow(v) })
-                }
+                onValueChange={(v: string) => {
+                  const flow = normalizeGuestPurchaseFlow(v)
+                  const next = { ...formRef.current, guest_purchase_flow: flow }
+                  formRef.current = next
+                  setForm(next)
+                  /** Chế độ 3: chờ khách điền mẫu URL rồi blur ô — tránh lưu ngay khi chưa có {sku}. */
+                  if (flow !== 'external_cart_url') {
+                    persistPartial({ guest_purchase_flow: flow })
+                  }
+                }}
                 disabled={pending || !settingsLoaded}
               >
                 <SelectTrigger id="ai-guest-purchase-flow" className="max-w-md">
@@ -932,20 +938,31 @@ export function PartnerAiSettingsPanel({
                   <p className="text-xs text-muted-foreground">{t.guestExternalCartUrlTemplateHint}</p>
                   <Input
                     id="ai-guest-cart-url-template"
-                    type="url"
+                    type="text"
+                    inputMode="url"
+                    autoComplete="off"
+                    spellCheck={false}
                     className="max-w-xl font-mono text-xs"
                     placeholder={t.guestExternalCartUrlTemplatePlaceholder}
                     value={form.guest_external_cart_url_template}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, guest_external_cart_url_template: e.target.value }))
-                    }
-                    onBlur={() =>
-                      persistPartial({
-                        guest_external_cart_url_template: formRef.current.guest_external_cart_url_template,
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setForm((f) => {
+                        const next = { ...f, guest_external_cart_url_template: v }
+                        formRef.current = next
+                        return next
                       })
-                    }
-                    disabled={pending || !settingsLoaded}
+                    }}
+                    onBlur={(e) => {
+                      const tpl = e.target.value.trim()
+                      persistPartial({
+                        guest_purchase_flow: 'external_cart_url',
+                        guest_external_cart_url_template: tpl,
+                      })
+                    }}
+                    disabled={!settingsLoaded}
                   />
+                  <p className="text-[11px] text-muted-foreground">{t.guestExternalCartUrlTemplateSaveHint}</p>
                 </div>
               ) : null}
             </div>
