@@ -28,6 +28,131 @@ export type PartnerAiProductCard = {
 
 const URL_RE = /^https?:\/\//i
 
+function stripJsonCodeFence(raw: string): string {
+  return raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+}
+
+function extractBalancedJsonObjectCandidates(raw: string, cap = 8): string[] {
+  const out: string[] = []
+  const text = raw.trim()
+  if (!text.includes('{')) return out
+
+  for (let start = 0; start < text.length; start++) {
+    if (text[start] !== '{') continue
+    let depth = 0
+    let inString = false
+    let escaped = false
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i]
+      if (inString) {
+        if (escaped) {
+          escaped = false
+          continue
+        }
+        if (ch === '\\') {
+          escaped = true
+          continue
+        }
+        if (ch === '"') inString = false
+        continue
+      }
+      if (ch === '"') {
+        inString = true
+        continue
+      }
+      if (ch === '{') depth += 1
+      else if (ch === '}') {
+        depth -= 1
+        if (depth === 0) {
+          out.push(text.slice(start, i + 1).trim())
+          if (out.length >= cap) return out
+          break
+        }
+      }
+    }
+  }
+  return out
+}
+
+function parseStructuredPartnerAiPayload(raw: string): { message: string; products: PartnerAiProductCard[] } | null {
+  const candidates = new Set<string>()
+  const trimmed = raw.trim()
+  if (trimmed) candidates.add(trimmed)
+
+  const unfenced = stripJsonCodeFence(trimmed)
+  if (unfenced) candidates.add(unfenced)
+
+  for (const m of trimmed.matchAll(/```(?:json)?\s*([\s\S]*?)\s*```/gi)) {
+    const body = String(m[1] || '').trim()
+    if (body) candidates.add(body)
+  }
+
+  const firstBrace = trimmed.indexOf('{')
+  const lastBrace = trimmed.lastIndexOf('}')
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.add(trimmed.slice(firstBrace, lastBrace + 1).trim())
+  }
+
+  for (const candidate of extractBalancedJsonObjectCandidates(trimmed)) {
+    candidates.add(candidate)
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const j = JSON.parse(candidate) as unknown
+      if (!j || typeof j !== 'object' || Array.isArray(j)) continue
+      const o = j as Record<string, unknown>
+      const message = typeof o.message === 'string' ? o.message.trim() : ''
+      const arr = Array.isArray(o.products) ? o.products : []
+      const products: PartnerAiProductCard[] = []
+      for (const item of arr) {
+        const c = sanitizeProductCard(item)
+        if (c) products.push(c)
+        if (products.length >= PARTNER_AI_PRODUCT_CARDS_MAX) break
+      }
+      if (!message && products.length === 0) continue
+      return { message, products }
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+function decodeLooseJsonStringLiteral(raw: string): string {
+  try {
+    return JSON.parse(`"${raw}"`) as string
+  } catch {
+    return raw
+      .replace(/\\"/g, '"')
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\r')
+      .replace(/\\t/g, '\t')
+      .replace(/\\\\/g, '\\')
+      .trim()
+  }
+}
+
+function extractMessageFieldFallback(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const candidates = new Set<string>()
+  candidates.add(trimmed)
+  const unfenced = stripJsonCodeFence(trimmed)
+  if (unfenced) candidates.add(unfenced)
+  for (const candidate of extractBalancedJsonObjectCandidates(trimmed)) {
+    candidates.add(candidate)
+  }
+
+  for (const candidate of candidates) {
+    const m = /"message"\s*:\s*"((?:\\.|[^"\\])*)"/is.exec(candidate)
+    if (!m?.[1]) continue
+    const decoded = decodeLooseJsonStringLiteral(m[1]).trim()
+    if (decoded) return decoded
+  }
+  return null
+}
+
 function sanitizeProductCard(x: unknown): PartnerAiProductCard | null {
   if (!x || typeof x !== 'object' || Array.isArray(x)) return null
   const o = x as Record<string, unknown>
@@ -82,31 +207,12 @@ function sanitizeProductCard(x: unknown): PartnerAiProductCard | null {
 /** Parse DeepSeek output: JSON with message + products, or fall back to plain text. */
 export function parsePartnerAiLlmStructured(raw: string): { message: string; products: PartnerAiProductCard[] } {
   const fallbackMessage = raw.trim()
-  let s = fallbackMessage
-  if (s.startsWith('```')) {
-    s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+  const parsed = parseStructuredPartnerAiPayload(raw)
+  if (!parsed) {
+    const fallbackFromMessageField = extractMessageFieldFallback(raw)
+    return { message: fallbackFromMessageField || fallbackMessage, products: [] }
   }
-  try {
-    const j = JSON.parse(s) as unknown
-    if (!j || typeof j !== 'object' || Array.isArray(j)) {
-      return { message: fallbackMessage, products: [] }
-    }
-    const o = j as Record<string, unknown>
-    const message = typeof o.message === 'string' ? o.message.trim() : ''
-    const arr = Array.isArray(o.products) ? o.products : []
-    const products: PartnerAiProductCard[] = []
-    for (const item of arr) {
-      const c = sanitizeProductCard(item)
-      if (c) products.push(c)
-      if (products.length >= PARTNER_AI_PRODUCT_CARDS_MAX) break
-    }
-    if (!message && products.length === 0) {
-      return { message: fallbackMessage, products: [] }
-    }
-    return { message: message || fallbackMessage, products }
-  } catch {
-    return { message: fallbackMessage, products: [] }
-  }
+  return { message: parsed.message || fallbackMessage, products: parsed.products }
 }
 
 /** Cards stored on outbound AI messages (validated again for display). */
