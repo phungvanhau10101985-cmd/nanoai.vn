@@ -17,7 +17,7 @@ import { EmbedGuestChatViewport, guestChatEmbedPopupChrome } from '../../embed-g
 import { PartnerGuestChatClient } from '../../partner-guest-chat-client'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
-import { fetchGuestPurchaseFlowForPartnerFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
+import { fetchGuestPurchaseConfigForPartnerFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import { runMetaViewContentForConsultInventoryPage } from '@/lib/tracking/meta-view-content-consult-server'
 import { parseVndAmountFromPriceHint } from '@/lib/tracking/parse-vnd-from-price-hint'
 
@@ -176,7 +176,7 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
   if (urlNorm) uiLocale = urlNorm
   else if (dbNorm) uiLocale = dbNorm
   const dict = getDictionary(uiLocale)
-  const guestPurchaseFlow = await fetchGuestPurchaseFlowForPartnerFromPg(partner.id)
+  const guestPurchaseConfig = await fetchGuestPurchaseConfigForPartnerFromPg(partner.id)
 
   const metaViewContent = isPgConfigured()
     ? await runMetaViewContentForConsultInventoryPage({
@@ -210,7 +210,8 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
           t={dict.partnerGuestChat}
           orderDetailT={dict.messagingMyOrders}
           initialChatList={chatList}
-          guestPurchaseFlow={guestPurchaseFlow}
+          guestPurchaseFlow={guestPurchaseConfig.flow}
+          guestExternalCartUrlTemplate={guestPurchaseConfig.externalCartUrlTemplate}
           consultFromInventory={{
             inventoryId: row.id,
             sku: sku || undefined,

@@ -58,6 +58,7 @@ function mapPgRowToAiSettingsFull(row: {
   vision_bg_sync_error: string | null
   vision_bg_sync_report: string | null
   guest_purchase_flow: string | null
+  guest_external_cart_url_template: string | null
   updated_at: unknown
 }): MessagingPartnerAiSettingsRow {
   return {
@@ -89,6 +90,10 @@ function mapPgRowToAiSettingsFull(row: {
     vision_bg_sync_error: String(row.vision_bg_sync_error ?? ''),
     vision_bg_sync_report: String(row.vision_bg_sync_report ?? ''),
     guest_purchase_flow: normalizeGuestPurchaseFlow(row.guest_purchase_flow),
+    guest_external_cart_url_template:
+      row.guest_external_cart_url_template != null
+        ? String(row.guest_external_cart_url_template).trim().slice(0, 2048) || null
+        : null,
     updated_at: tsIsoReq(row.updated_at),
   }
 }
@@ -131,6 +136,7 @@ export async function fetchMessagingPartnerAiSettingsFullFromPg(
         coalesce(vision_bg_sync_error, '') as vision_bg_sync_error,
         coalesce(vision_bg_sync_report, '') as vision_bg_sync_report,
         coalesce(nullif(trim(guest_purchase_flow), ''), 'in_chat') as guest_purchase_flow,
+        guest_external_cart_url_template,
         updated_at
        from public.messaging_partner_ai_settings
        where partner_id = $1::uuid
@@ -288,6 +294,7 @@ export type PartnerAiSettingsDashboardUpsert = {
   vision_bg_sync_error: string
   vision_bg_sync_report: string
   guest_purchase_flow: string
+  guest_external_cart_url_template: string | null
   updated_at: string
 }
 
@@ -307,10 +314,10 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         image_search_api_enabled, image_search_api_secret,
         vision_bg_sync_status, vision_bg_sync_resume_after_id, vision_bg_sync_rounds,
         vision_bg_sync_imported, vision_bg_sync_removed, vision_bg_sync_started_at, vision_bg_sync_finished_at,
-        vision_bg_sync_error, vision_bg_sync_report, guest_purchase_flow, updated_at
+        vision_bg_sync_error, vision_bg_sync_report, guest_purchase_flow, guest_external_cart_url_template, updated_at
       ) values (
         $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23, $24, $25, $26, $27, $28, $29::timestamptz
+        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30::timestamptz
       )
       on conflict (partner_id) do update set
         enabled = excluded.enabled,
@@ -340,6 +347,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         vision_bg_sync_error = excluded.vision_bg_sync_error,
         vision_bg_sync_report = excluded.vision_bg_sync_report,
         guest_purchase_flow = excluded.guest_purchase_flow,
+        guest_external_cart_url_template = excluded.guest_external_cart_url_template,
         updated_at = excluded.updated_at`,
       [
         row.partner_id,
@@ -370,6 +378,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         row.vision_bg_sync_error,
         row.vision_bg_sync_report,
         row.guest_purchase_flow,
+        row.guest_external_cart_url_template,
         row.updated_at,
       ]
     )
@@ -519,21 +528,41 @@ export async function peekMessagingPartnerAiImageSearchSecretFromPg(
   }
 }
 
+export type GuestPurchaseConfig = {
+  flow: GuestPurchaseFlow
+  externalCartUrlTemplate: string | null
+}
+
 /** Chế độ mua trên trang guest `/messaging/p/{slug}`. Không có dòng settings → `in_chat`. */
-export async function fetchGuestPurchaseFlowForPartnerFromPg(partnerId: string): Promise<GuestPurchaseFlow> {
-  if (!isPgConfigured()) return 'in_chat'
+export async function fetchGuestPurchaseConfigForPartnerFromPg(
+  partnerId: string
+): Promise<GuestPurchaseConfig> {
+  if (!isPgConfigured()) return { flow: 'in_chat', externalCartUrlTemplate: null }
   try {
-    const row = await pgQueryOne<{ guest_purchase_flow: string | null }>(
-      `select guest_purchase_flow
+    const row = await pgQueryOne<{
+      guest_purchase_flow: string | null
+      guest_external_cart_url_template: string | null
+    }>(
+      `select guest_purchase_flow, guest_external_cart_url_template
        from public.messaging_partner_ai_settings
        where partner_id = $1::uuid
        limit 1`,
       [partnerId]
     )
-    if (!row) return 'in_chat'
-    return normalizeGuestPurchaseFlow(row.guest_purchase_flow)
+    if (!row) return { flow: 'in_chat', externalCartUrlTemplate: null }
+    const tpl = row.guest_external_cart_url_template?.trim().slice(0, 2048) || null
+    return {
+      flow: normalizeGuestPurchaseFlow(row.guest_purchase_flow),
+      externalCartUrlTemplate: tpl,
+    }
   } catch (e) {
-    console.warn('[fetchGuestPurchaseFlowForPartnerFromPg]', e)
-    return 'in_chat'
+    console.warn('[fetchGuestPurchaseConfigForPartnerFromPg]', e)
+    return { flow: 'in_chat', externalCartUrlTemplate: null }
   }
+}
+
+/** @deprecated Dùng `fetchGuestPurchaseConfigForPartnerFromPg`. */
+export async function fetchGuestPurchaseFlowForPartnerFromPg(partnerId: string): Promise<GuestPurchaseFlow> {
+  const cfg = await fetchGuestPurchaseConfigForPartnerFromPg(partnerId)
+  return cfg.flow
 }

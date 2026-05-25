@@ -112,7 +112,11 @@ import {
   MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY,
   MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE,
 } from '@/lib/messaging/guest-account-session'
-import type { GuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
+import {
+  guestPurchaseOpensExternalUrl,
+  resolveGuestPurchaseButtonUrl,
+  type GuestPurchaseFlow,
+} from '@/lib/messaging/guest-purchase-flow'
 
 /** Khoảng cách tới đáy (px) để coi như user đang xem cuối thread — cho phép auto-scroll theo tin/typing mới. */
 const GUEST_CHAT_STICK_TO_BOTTOM_PX = 120
@@ -1443,6 +1447,7 @@ export function PartnerGuestChatClient({
   orderDetailT,
   initialChatList = [],
   guestPurchaseFlow = 'in_chat',
+  guestExternalCartUrlTemplate = null,
   consultFromInventory,
   metaViewContent,
   ga4MeasurementId,
@@ -1457,6 +1462,8 @@ export function PartnerGuestChatClient({
   orderDetailT: Dictionary['messagingMyOrders']
   initialChatList?: ChatRailItem[]
   guestPurchaseFlow?: GuestPurchaseFlow
+  /** Mẫu URL giỏ web (`{sku}`) — chế độ `external_cart_url`. */
+  guestExternalCartUrlTemplate?: string | null
   /**
    * Trang `/messaging/p/{slug}/tu-van/{uuid}` — ngữ cảnh từ kho (URL gọn, không query `ctx_*` dài).
    */
@@ -2972,17 +2979,39 @@ export function PartnerGuestChatClient({
     [ga4MeasurementId, slug]
   )
 
+  const openGuestPurchaseExternalFromOption = useCallback(
+    (x: BuyProductOption): boolean => {
+      const nav = resolveGuestPurchaseButtonUrl(guestPurchaseFlow, guestExternalCartUrlTemplate, {
+        product_url: x.product_url ?? '',
+        sku: x.sku,
+      })
+      if (nav.ok) {
+        openGuestProductDetailUrl(nav.url)
+        toast({
+          title:
+            guestPurchaseFlow === 'external_cart_url'
+              ? t.purchaseOpenCartUrlToast
+              : t.purchaseOpenSiteToast,
+        })
+        setBuyOptionsOpen(false)
+        return true
+      }
+      if (nav.reason === 'missing_sku') {
+        toast({ title: t.purchaseMissingSkuToast, variant: 'destructive' })
+      } else if (nav.reason === 'missing_template' || nav.reason === 'invalid_template') {
+        toast({ title: t.purchaseMissingCartTemplateToast, variant: 'destructive' })
+      } else {
+        toast({ title: t.purchaseMissingProductUrlToast, variant: 'destructive' })
+      }
+      return false
+    },
+    [guestExternalCartUrlTemplate, guestPurchaseFlow, t]
+  )
+
   const openOrderFormByOption = useCallback(
     async (x: BuyProductOption) => {
-      if (guestPurchaseFlow === 'external_site') {
-        const u = (x.product_url ?? '').trim()
-        if (/^https?:\/\//i.test(u)) {
-          openGuestProductDetailUrl(u)
-          toast({ title: t.purchaseOpenSiteToast })
-          setBuyOptionsOpen(false)
-          return
-        }
-        toast({ title: t.purchaseMissingProductUrlToast, variant: 'destructive' })
+      if (guestPurchaseOpensExternalUrl(guestPurchaseFlow)) {
+        openGuestPurchaseExternalFromOption(x)
         return
       }
       const card = toCardFromBuyOption(x)
@@ -3068,6 +3097,8 @@ export function PartnerGuestChatClient({
       fireMetaBuyNowFromProductCard,
       toast,
       guestPurchaseFlow,
+      guestExternalCartUrlTemplate,
+      openGuestPurchaseExternalFromOption,
       t,
     ]
   )

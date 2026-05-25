@@ -520,6 +520,7 @@ export interface Database {
           vision_bg_sync_error: string
           vision_bg_sync_report: string
           guest_purchase_flow: string
+          guest_external_cart_url_template: string | null
           updated_at: string
         }
         Insert: {
@@ -551,6 +552,7 @@ export interface Database {
           vision_bg_sync_error?: string
           vision_bg_sync_report?: string
           guest_purchase_flow?: string
+          guest_external_cart_url_template?: string | null
           updated_at?: string
         }
         Update: {
@@ -582,6 +584,7 @@ export interface Database {
           vision_bg_sync_error?: string
           vision_bg_sync_report?: string
           guest_purchase_flow?: string
+          guest_external_cart_url_template?: string | null
           updated_at?: string
         }
         Relationships: []

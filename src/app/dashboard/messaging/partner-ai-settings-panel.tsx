@@ -166,6 +166,7 @@ function defaultsFromSettings(s: SettingsRow | null) {
     vision_bg_sync_error: '',
     vision_bg_sync_report: '',
     guest_purchase_flow: normalizeGuestPurchaseFlow(s?.guest_purchase_flow),
+    guest_external_cart_url_template: String(s?.guest_external_cart_url_template ?? '').trim(),
   }
 }
 
@@ -187,6 +188,7 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
     vision_gcs_bucket: f.vision_gcs_bucket,
     image_search_api_enabled: f.image_search_api_enabled,
     guest_purchase_flow: f.guest_purchase_flow,
+    guest_external_cart_url_template: f.guest_external_cart_url_template,
   }
 }
 
@@ -921,8 +923,31 @@ export function PartnerAiSettingsPanel({
                 <SelectContent>
                   <SelectItem value="in_chat">{t.guestPurchaseFlowInChat}</SelectItem>
                   <SelectItem value="external_site">{t.guestPurchaseFlowExternal}</SelectItem>
+                  <SelectItem value="external_cart_url">{t.guestPurchaseFlowExternalCart}</SelectItem>
                 </SelectContent>
               </Select>
+              {form.guest_purchase_flow === 'external_cart_url' ? (
+                <div className="space-y-1.5 pt-1">
+                  <Label htmlFor="ai-guest-cart-url-template">{t.guestExternalCartUrlTemplateLabel}</Label>
+                  <p className="text-xs text-muted-foreground">{t.guestExternalCartUrlTemplateHint}</p>
+                  <Input
+                    id="ai-guest-cart-url-template"
+                    type="url"
+                    className="max-w-xl font-mono text-xs"
+                    placeholder={t.guestExternalCartUrlTemplatePlaceholder}
+                    value={form.guest_external_cart_url_template}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, guest_external_cart_url_template: e.target.value }))
+                    }
+                    onBlur={() =>
+                      persistPartial({
+                        guest_external_cart_url_template: formRef.current.guest_external_cart_url_template,
+                      })
+                    }
+                    disabled={pending || !settingsLoaded}
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">

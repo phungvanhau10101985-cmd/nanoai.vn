@@ -1001,6 +1001,10 @@ export type Dictionary = {
     guestPurchaseFlowHint: string
     guestPurchaseFlowInChat: string
     guestPurchaseFlowExternal: string
+    guestPurchaseFlowExternalCart: string
+    guestExternalCartUrlTemplateLabel: string
+    guestExternalCartUrlTemplateHint: string
+    guestExternalCartUrlTemplatePlaceholder: string
   }
   /** /messaging/p/[slug] — khách chat với shop trên domain NanoAI */
   partnerGuestChat: {
@@ -1123,8 +1127,14 @@ export type Dictionary = {
     productShelfBuy: string
     /** Toast khi chế độ mua trên web — đã mở tab */
     purchaseOpenSiteToast: string
+    /** Chế độ link giỏ web — đã mở tab */
+    purchaseOpenCartUrlToast: string
     /** Chế độ web nhưng thiếu URL sản phẩm */
     purchaseMissingProductUrlToast: string
+    /** Chế độ link giỏ nhưng thiếu SKU trên thẻ */
+    purchaseMissingSkuToast: string
+    /** Chế độ link giỏ nhưng shop chưa cấu hình mẫu URL */
+    purchaseMissingCartTemplateToast: string
     /** Ghép «mã sản phẩm …» khi có SKU — thay `{sku}`. */
     productConsultProductRefFromSku: string
     /** Khi không có SKU — thay `{name}` (tên mẫu). */
@@ -3149,9 +3159,14 @@ const VI_DICTIONARY: Dictionary = {
     imageSearchApiManageKeysLink: 'Mở trang Tích hợp API — quản lý khóa',
     guestPurchaseFlowLabel: 'Cách khách mua hàng trên chat NanoAI',
     guestPurchaseFlowHint:
-      '«Trong chat»: khách bấm Mua hàng và đặt/QR như hiện tại. «Trên website shop»: bấm Mua hàng mở trang sản phẩm (URL trong kho) trên tab mới — phù hợp khi thanh toán và vận chuyển đã cấu hình trên web.',
-    guestPurchaseFlowInChat: 'Đặt trong chat (form + thanh toán NanoAI)',
-    guestPurchaseFlowExternal: 'Mở trang shop (website) khi bấm Mua hàng',
+      'Chế độ 1: đặt trong chat như hiện tại. Chế độ 2: Xem chi tiết / Mua / Thêm giỏ đều mở trang SP (URL kho). Chế độ 3: Mua và Thêm giỏ mở link giỏ web (mẫu có {sku}) — Tư vấn không đổi.',
+    guestPurchaseFlowInChat: '1 — Đặt trong chat (form + thanh toán NanoAI)',
+    guestPurchaseFlowExternal: '2 — Mở trang chi tiết SP (Xem chi tiết / Mua / Thêm giỏ)',
+    guestPurchaseFlowExternalCart: '3 — Mở link giỏ web shop ({sku})',
+    guestExternalCartUrlTemplateLabel: 'Mẫu URL thêm giỏ (web shop)',
+    guestExternalCartUrlTemplateHint:
+      'Bắt buộc có {sku}. Ví dụ: https://188.com.vn/cart/add/{sku}?from=nanoai — Mua và Thêm giỏ dùng cùng link; Tư vấn vẫn trong chat.',
+    guestExternalCartUrlTemplatePlaceholder: 'https://shop.vn/cart/add/{sku}?from=nanoai',
   },
   partnerGuestChat: {
     notFoundTitle: 'Không tìm thấy trang chat',
@@ -3257,8 +3272,12 @@ const VI_DICTIONARY: Dictionary = {
     productShelfSearchFailed: 'Không tìm được. Thử lại sau khi đồng bộ vector kho.',
     productShelfSearchNoResults: 'Không có sản phẩm khớp.',
     productShelfBuy: 'Mua',
-    purchaseOpenSiteToast: 'Đã mở trang đặt hàng trên website shop trong tab mới.',
+    purchaseOpenSiteToast: 'Đã mở trang sản phẩm trên website shop.',
+    purchaseOpenCartUrlToast: 'Đã mở trang thêm giỏ trên website shop.',
     purchaseMissingProductUrlToast: 'Mẫu này chưa có link trang sản phẩm — shop vui lòng thêm URL trong kho.',
+    purchaseMissingSkuToast: 'Mẫu này chưa có mã SKU — shop vui lòng thêm SKU trong kho.',
+    purchaseMissingCartTemplateToast:
+      'Shop chưa cấu hình mẫu link giỏ (Cài đặt AI → mẫu URL có {sku}).',
     productConsultProductRefFromSku: 'mã sản phẩm {sku}',
     productConsultProductRefFromName: 'mẫu {name}',
     productConsultAskShipping:
@@ -5272,9 +5291,14 @@ const EN_DICTIONARY: Dictionary = {
     imageSearchApiManageKeysLink: 'Open API integration — manage keys',
     guestPurchaseFlowLabel: 'How customers check out on NanoAI chat',
     guestPurchaseFlowHint:
-      'In chat: Buy opens the same order/QR flow as today. On shop website: Buy opens the product page (inventory URL) in a new tab — use when checkout and shipping live on your site.',
-    guestPurchaseFlowInChat: 'Checkout in chat (form + NanoAI payment)',
-    guestPurchaseFlowExternal: 'Open shop website when tapping Buy',
+      'Mode 1: checkout in chat (current). Mode 2: View details / Buy / Add to cart all open the product page (inventory URL). Mode 3: Buy and Add to cart open your cart URL template with {sku}; Consult unchanged.',
+    guestPurchaseFlowInChat: '1 — Checkout in chat (form + NanoAI payment)',
+    guestPurchaseFlowExternal: '2 — Open product page (view / buy / add to cart)',
+    guestPurchaseFlowExternalCart: '3 — Open shop cart URL ({sku})',
+    guestExternalCartUrlTemplateLabel: 'Cart add URL template (shop website)',
+    guestExternalCartUrlTemplateHint:
+      'Must include {sku}. Example: https://shop.com/cart/add/{sku}?from=nanoai — Buy and Add to cart use the same link; Consult stays in chat.',
+    guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
   },
   partnerGuestChat: {
     notFoundTitle: 'Chat page not found',
@@ -5378,8 +5402,12 @@ const EN_DICTIONARY: Dictionary = {
     productShelfSearchFailed: 'Search failed. Try again after inventory embeddings sync.',
     productShelfSearchNoResults: 'No matching products.',
     productShelfBuy: 'Buy',
-    purchaseOpenSiteToast: 'Opened the shop product page in a new tab.',
+    purchaseOpenSiteToast: 'Opened the shop product page.',
+    purchaseOpenCartUrlToast: 'Opened the shop cart page.',
     purchaseMissingProductUrlToast: 'This item has no product URL — add it in inventory.',
+    purchaseMissingSkuToast: 'This item has no SKU — add SKU in inventory.',
+    purchaseMissingCartTemplateToast:
+      'Cart URL template is not configured (AI settings → URL with {sku}).',
     productConsultProductRefFromSku: 'product code {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
@@ -7372,9 +7400,14 @@ const ZH_DICTIONARY: Dictionary = {
     imageSearchApiManageKeysLink: '打开 API 集成 — 管理密钥',
     guestPurchaseFlowLabel: '客户在 NanoAI 聊天中的购买方式',
     guestPurchaseFlowHint:
-      '「聊天内」：点购买后使用当前下单/扫码流程。「店铺网站」：点购买在新标签打开商品页（库存中的 URL）— 适合已在网站配置支付与物流的店铺。',
-    guestPurchaseFlowInChat: '在聊天内下单（表单 + NanoAI 支付）',
-    guestPurchaseFlowExternal: '点「购买」时打开店铺网站',
+      '模式1：聊天内下单（当前）。模式2：查看详情/购买/加入购物车均打开商品页（库存 URL）。模式3：购买与加入购物车打开购物车链接模板（含 {sku}）；咨询不变。',
+    guestPurchaseFlowInChat: '1 — 在聊天内下单（表单 + NanoAI 支付）',
+    guestPurchaseFlowExternal: '2 — 打开商品详情页（查看/购买/加购）',
+    guestPurchaseFlowExternalCart: '3 — 打开店铺购物车链接（{sku}）',
+    guestExternalCartUrlTemplateLabel: '加购链接模板（店铺网站）',
+    guestExternalCartUrlTemplateHint:
+      '须包含 {sku}。例：https://shop.com/cart/add/{sku}?from=nanoai — 购买与加购同链；咨询仍在聊天内。',
+    guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
   },
   partnerGuestChat: {
     notFoundTitle: '未找到聊天页面',
@@ -7474,8 +7507,11 @@ const ZH_DICTIONARY: Dictionary = {
     productShelfSearchFailed: '搜索失败。请同步库存向量后重试。',
     productShelfSearchNoResults: '没有匹配的商品。',
     productShelfBuy: '购买',
-    purchaseOpenSiteToast: '已在新标签页打开店铺商品页。',
+    purchaseOpenSiteToast: '已打开店铺商品页。',
+    purchaseOpenCartUrlToast: '已打开店铺加购页面。',
     purchaseMissingProductUrlToast: '该商品缺少商品链接 — 请在库存中填写 URL。',
+    purchaseMissingSkuToast: '该商品缺少 SKU — 请在库存中填写 SKU。',
+    purchaseMissingCartTemplateToast: '未配置加购链接模板（AI 设置 → 含 {sku} 的 URL）。',
     productConsultProductRefFromSku: '商品编号 {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
@@ -9444,9 +9480,14 @@ const JA_DICTIONARY: Dictionary = {
     imageSearchApiManageKeysLink: 'API 連携を開く — キー管理',
     guestPurchaseFlowLabel: 'NanoAIチャットでの購入方法',
     guestPurchaseFlowHint:
-      '「チャット内」：購入で従来どおり注文/QR。「ショップサイト」：購入で商品ページ（在庫のURL）を新しいタブで開く — 決済・配送をサイト側で運用する場合向け。',
-    guestPurchaseFlowInChat: 'チャット内で注文（フォーム＋NanoAI決済）',
-    guestPurchaseFlowExternal: '「購入」でショップサイトを開く',
+      'モード1：チャット内注文（現状）。モード2：詳細/購入/カート追加はすべて商品ページ（在庫URL）。モード3：購入・カート追加は {sku} 入りカートURL — 相談は変更なし。',
+    guestPurchaseFlowInChat: '1 — チャット内で注文（フォーム＋NanoAI決済）',
+    guestPurchaseFlowExternal: '2 — 商品詳細ページを開く（詳細/購入/カート）',
+    guestPurchaseFlowExternalCart: '3 — ショップのカートURL（{sku}）',
+    guestExternalCartUrlTemplateLabel: 'カート追加URLテンプレート',
+    guestExternalCartUrlTemplateHint:
+      '{sku} 必須。例：https://shop.com/cart/add/{sku}?from=nanoai — 購入とカート追加は同じURL。相談はチャットのまま。',
+    guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
   },
   partnerGuestChat: {
     notFoundTitle: 'チャットページが見つかりません',
@@ -9550,8 +9591,11 @@ const JA_DICTIONARY: Dictionary = {
     productShelfSearchFailed: '検索に失敗。ベクトル同期後に再試行。',
     productShelfSearchNoResults: '該当する商品がありません。',
     productShelfBuy: '購入',
-    purchaseOpenSiteToast: 'ショップの商品ページを新しいタブで開きました。',
+    purchaseOpenSiteToast: 'ショップの商品ページを開きました。',
+    purchaseOpenCartUrlToast: 'ショップのカートページを開きました。',
     purchaseMissingProductUrlToast: '商品URLがありません。在庫にURLを追加してください。',
+    purchaseMissingSkuToast: 'SKUがありません。在庫にSKUを追加してください。',
+    purchaseMissingCartTemplateToast: 'カートURLテンプレート未設定（AI設定 → {sku} を含むURL）。',
     productConsultProductRefFromSku: '商品コード {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
@@ -11544,9 +11588,14 @@ const KO_DICTIONARY: Dictionary = {
     imageSearchApiManageKeysLink: 'API 연동 열기 — 키 관리',
     guestPurchaseFlowLabel: 'NanoAI 채팅에서 구매 진행 방식',
     guestPurchaseFlowHint:
-      '「채팅 내»: 구매 버튼으로 기존 주문/QR 흐름. 「쇼핑몰 사이트»: 구매 시 상품 페이지(재고 URL)를 새 탭으로 — 결제/배송을 웹에서 처리할 때 적합.',
-    guestPurchaseFlowInChat: '채팅에서 주문 (양식 + NanoAI 결제)',
-    guestPurchaseFlowExternal: '구매 시 쇼핑몰 사이트 열기',
+      '모드1: 채팅 내 주문(현재). 모드2: 상세/구매/장바구니 모두 상품 페이지(재고 URL). 모드3: 구매·장바구니는 {sku} 카트 URL — 상담은 동일.',
+    guestPurchaseFlowInChat: '1 — 채팅에서 주문 (양식 + NanoAI 결제)',
+    guestPurchaseFlowExternal: '2 — 상품 상세 페이지 (보기/구매/장바구니)',
+    guestPurchaseFlowExternalCart: '3 — 쇼핑몰 장바구니 URL ({sku})',
+    guestExternalCartUrlTemplateLabel: '장바구니 추가 URL 템플릿',
+    guestExternalCartUrlTemplateHint:
+      '{sku} 필수. 예: https://shop.com/cart/add/{sku}?from=nanoai — 구매·장바구니 동일 링크. 상담은 채팅 유지.',
+    guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
   },
   partnerGuestChat: {
     notFoundTitle: '채팅 페이지를 찾을 수 없습니다',
@@ -11650,8 +11699,11 @@ const KO_DICTIONARY: Dictionary = {
     productShelfSearchFailed: '검색 실패. 벡터 동기화 후 다시 시도하세요.',
     productShelfSearchNoResults: '일치하는 상품이 없습니다.',
     productShelfBuy: '구매',
-    purchaseOpenSiteToast: '쇼핑몰 상품 페이지를 새 탭에서 열었습니다.',
+    purchaseOpenSiteToast: '쇼핑몰 상품 페이지를 열었습니다.',
+    purchaseOpenCartUrlToast: '쇼핑몰 장바구니 페이지를 열었습니다.',
     purchaseMissingProductUrlToast: '상품 URL이 없습니다. 재고에 URL을 추가하세요.',
+    purchaseMissingSkuToast: 'SKU가 없습니다. 재고에 SKU를 추가하세요.',
+    purchaseMissingCartTemplateToast: '장바구니 URL 템플릿이 없습니다(AI 설정 → {sku} 포함 URL).',
     productConsultProductRefFromSku: '상품 코드 {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:

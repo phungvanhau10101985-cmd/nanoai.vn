@@ -1522,8 +1522,10 @@ export type PartnerAiSettingsPayload = {
   vision_product_category: string
   vision_gcs_bucket: string
   image_search_api_enabled: boolean
-  /** Đặt hàng trong chat vs mở trang sản phẩm (web shop). */
-  guest_purchase_flow: 'in_chat' | 'external_site'
+  /** Đặt hàng trong chat vs mở trang SP / link giỏ web shop. */
+  guest_purchase_flow: 'in_chat' | 'external_site' | 'external_cart_url'
+  /** Mẫu URL giỏ web — bắt buộc khi `external_cart_url`, phải chứa `{sku}`. */
+  guest_external_cart_url_template: string
 }
 
 const PARTNER_AI_USAGE_DETAIL_ROW_LIMIT = 250
@@ -2011,6 +2013,16 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
   const vision_location = 'us-central1'
   const vision_product_category = 'general-v1'
   const vision_gcs_bucket = ''
+  const purchaseFlow = normalizeGuestPurchaseFlow(payload.guest_purchase_flow)
+  const cartTpl = (payload.guest_external_cart_url_template ?? '').trim()
+  if (purchaseFlow === 'external_cart_url') {
+    if (!cartTpl || !/\{sku\}/i.test(cartTpl) || !/^https?:\/\//i.test(cartTpl)) {
+      return {
+        error:
+          'Cart URL template is required for this mode: use https://… with {sku} (e.g. https://shop.vn/cart/add/{sku}?from=nanoai).',
+      }
+    }
+  }
   const now = new Date().toISOString()
   const existingAi = await fetchMessagingPartnerAiUpsertPrereqFromPg(partnerId)
 
@@ -2048,7 +2060,9 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
     vision_index_error: existingAi?.vision_index_error ?? '',
     image_search_api_enabled: Boolean(payload.image_search_api_enabled),
     image_search_api_secret: existingAi?.image_search_api_secret ?? null,
-    guest_purchase_flow: normalizeGuestPurchaseFlow(payload.guest_purchase_flow),
+    guest_purchase_flow: purchaseFlow,
+    guest_external_cart_url_template:
+      (payload.guest_external_cart_url_template ?? '').trim().slice(0, 2048) || null,
     ...(visionBgReset as Pick<
       PartnerAiSettingsDashboardUpsert,
       | 'vision_bg_sync_status'
