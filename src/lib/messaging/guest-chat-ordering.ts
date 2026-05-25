@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
+import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { parseColorVariantsJson } from '@/lib/messaging/inventory-color-variants'
 import type { Json } from '@/types/database.types'
 import {
@@ -935,15 +936,16 @@ export async function listRelatedBuyProducts(input: {
   for (const row of rows ?? []) {
     const u = String(row.product_url ?? '').trim()
     if (!u) continue
-    const key = u.toLowerCase()
+    const key = normalizeProductUrlKey(u)
+    if (!key) continue
     if (!byUrl.has(key)) byUrl.set(key, row)
   }
 
   if (recentDedup.length > 0) {
     const out: RelatedBuyProduct[] = []
     for (const c of recentDedup) {
-      const key = c.product_url.trim().toLowerCase()
-      const row = byUrl.get(key)
+      const key = normalizeProductUrlKey(c.product_url.trim())
+      const row = key ? byUrl.get(key) : undefined
       out.push({
         name: row?.name?.trim() ? row.name : c.name,
         image_url: row?.image_url?.trim() ? row.image_url : c.image_url,

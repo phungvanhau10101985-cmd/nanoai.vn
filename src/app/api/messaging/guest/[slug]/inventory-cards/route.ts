@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  fetchPartnerInventoryRowByIdForPartnerFromPg,
+  fetchPartnerInventoryRowByProductUrlNormKeyFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
@@ -39,6 +42,14 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!partner) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
   }
+  const productUrlRaw = request.nextUrl.searchParams.get('productUrl') ?? ''
+  const productUrl = productUrlRaw.trim()
+  if (productUrl && /^https?:\/\//i.test(productUrl)) {
+    const row = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(partner.id, productUrl)
+    const c = row ? rowToCard(row) : null
+    return NextResponse.json({ ok: true, cards: c ? [c] : [] })
+  }
+
   const raw = request.nextUrl.searchParams.get('ids') ?? ''
   const parts = raw
     .split(/[\s,]+/)

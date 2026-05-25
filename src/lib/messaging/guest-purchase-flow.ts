@@ -11,6 +11,33 @@ export type GuestPurchaseNavigateInput = {
   sku?: string | null
 }
 
+/** Chuyển thẻ SP → input mua (dùng chung mọi nút Đặt hàng / Thêm giỏ). */
+export function guestPurchaseInputFromProductCard(card: {
+  name: string
+  image_url: string
+  product_url: string
+  price_hint?: string
+  sku?: string
+  inventory_id?: string
+}): GuestPurchaseNavigateInput & {
+  name: string
+  image_url: string
+  price_hint?: string
+  inventory_id?: string
+} {
+  const product_url = (card.product_url ?? '').trim()
+  const sku = (card.sku ?? '').trim().slice(0, 128) || null
+  const invId = (card.inventory_id ?? '').trim()
+  return {
+    name: card.name,
+    image_url: card.image_url,
+    product_url,
+    price_hint: card.price_hint,
+    sku,
+    ...(invId ? { inventory_id: invId } : {}),
+  }
+}
+
 export type GuestPurchaseNavigateFailure =
   | 'missing_product_url'
   | 'missing_sku'

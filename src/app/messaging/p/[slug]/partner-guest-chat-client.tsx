@@ -113,10 +113,14 @@ import {
   MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE,
 } from '@/lib/messaging/guest-account-session'
 import {
+  guestPurchaseInputFromProductCard,
   guestPurchaseOpensExternalUrl,
   resolveGuestPurchaseButtonUrl,
   type GuestPurchaseFlow,
 } from '@/lib/messaging/guest-purchase-flow'
+
+const INVENTORY_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** Khoảng cách tới đáy (px) để coi như user đang xem cuối thread — cho phép auto-scroll theo tin/typing mới. */
 const GUEST_CHAT_STICK_TO_BOTTOM_PX = 120
@@ -2979,11 +2983,48 @@ export function PartnerGuestChatClient({
     [ga4MeasurementId, slug]
   )
 
+  /** Lấy SKU từ kho khi thẻ AI thiếu — chế độ 3 và Meta cần mã đúng. */
+  const resolveSkuForGuestPurchase = useCallback(
+    async (input: { sku?: string | null; inventory_id?: string; product_url?: string }): Promise<string> => {
+      const fromCard = (input.sku ?? '').trim().slice(0, 128)
+      if (fromCard) return fromCard
+      const invId = (input.inventory_id ?? '').trim()
+      const productUrl = (input.product_url ?? '').trim()
+      try {
+        const q = new URLSearchParams()
+        if (invId && INVENTORY_ID_RE.test(invId)) q.set('ids', invId)
+        else if (productUrl && /^https?:\/\//i.test(productUrl)) q.set('productUrl', productUrl)
+        else return ''
+        const res = await fetch(
+          `/api/messaging/guest/${encodeURIComponent(slug)}/inventory-cards?${q.toString()}`,
+          { credentials: 'same-origin' }
+        )
+        const data = (await res.json().catch(() => null)) as {
+          cards?: Array<{ sku?: string }>
+        } | null
+        const sku = data?.cards?.[0]?.sku?.trim().slice(0, 128) ?? ''
+        return sku
+      } catch {
+        return ''
+      }
+    },
+    [slug]
+  )
+
   const openGuestPurchaseExternalFromOption = useCallback(
-    (x: BuyProductOption): boolean => {
+    async (x: BuyProductOption): Promise<boolean> => {
+      let sku = (x.sku ?? '').trim().slice(0, 128) || null
+      if (guestPurchaseFlow === 'external_cart_url' && !sku) {
+        sku =
+          (await resolveSkuForGuestPurchase({
+            sku: x.sku,
+            inventory_id: x.inventory_id,
+            product_url: x.product_url,
+          })) || null
+      }
       const nav = resolveGuestPurchaseButtonUrl(guestPurchaseFlow, guestExternalCartUrlTemplate, {
         product_url: x.product_url ?? '',
-        sku: x.sku,
+        sku,
       })
       if (nav.ok) {
         openGuestProductDetailUrl(nav.url)
@@ -3005,13 +3046,13 @@ export function PartnerGuestChatClient({
       }
       return false
     },
-    [guestExternalCartUrlTemplate, guestPurchaseFlow, t]
+    [guestExternalCartUrlTemplate, guestPurchaseFlow, resolveSkuForGuestPurchase, t]
   )
 
   const openOrderFormByOption = useCallback(
     async (x: BuyProductOption) => {
       if (guestPurchaseOpensExternalUrl(guestPurchaseFlow)) {
-        openGuestPurchaseExternalFromOption(x)
+        await openGuestPurchaseExternalFromOption(x)
         return
       }
       const card = toCardFromBuyOption(x)
@@ -3171,50 +3212,32 @@ export function PartnerGuestChatClient({
     void maybeOpenBuyOptionsFromInbound()
   }, [maybeOpenBuyOptionsFromInbound])
 
-  const openGuestProductOrderFormFromCard = useCallback(
+  /** Mọi nút «Mua» / «Đặt hàng» / «Thêm giỏ» trên thẻ — cùng luồng theo `guestPurchaseFlow`. */
+  const triggerGuestProductPurchase = useCallback(
     async (card: PartnerAiProductCard) => {
       const productUrl = (card.product_url ?? '').trim()
       if (!/^https?:\/\//i.test(productUrl)) return
       setBuyOptionsOpen(false)
+      const base = guestPurchaseInputFromProductCard(card)
+      let sku = base.sku
+      if (guestPurchaseFlow === 'external_cart_url' && !sku) {
+        const resolved = await resolveSkuForGuestPurchase(base)
+        if (resolved) sku = resolved
+      }
       await openOrderFormByOption({
-        name: card.name,
-        image_url: card.image_url,
-        product_url: productUrl,
-        price_hint: card.price_hint,
-        sku: (card.sku ?? '').trim() || null,
-        ...((card.inventory_id ?? '').trim()
-          ? { inventory_id: (card.inventory_id ?? '').trim() }
-          : {}),
+        name: base.name,
+        image_url: base.image_url,
+        product_url: base.product_url,
+        price_hint: base.price_hint,
+        sku,
+        ...(base.inventory_id ? { inventory_id: base.inventory_id } : {}),
       })
     },
-    [openOrderFormByOption]
+    [guestPurchaseFlow, openOrderFormByOption, resolveSkuForGuestPurchase]
   )
 
-  const addProductCardToCart = useCallback(
-    async (card: PartnerAiProductCard) => {
-      const productUrl = (card.product_url ?? '').trim()
-      if (!/^https?:\/\//i.test(productUrl)) return
-      setBuyOptionsOpen(false)
-      await openOrderFormByOption({
-        name: card.name,
-        image_url: card.image_url,
-        product_url: productUrl,
-        price_hint: card.price_hint,
-        sku: (card.sku ?? '').trim() || null,
-        ...((card.inventory_id ?? '').trim()
-          ? { inventory_id: (card.inventory_id ?? '').trim() }
-          : {}),
-      })
-    },
-    [openOrderFormByOption]
-  )
-
-  const addBuyOptionToCart = useCallback(
-    async (item: BuyProductOption) => {
-      await openOrderFormByOption(item)
-    },
-    [openOrderFormByOption]
-  )
+  const openGuestProductOrderFormFromCard = triggerGuestProductPurchase
+  const addProductCardToCart = triggerGuestProductPurchase
 
   const cartSubtotal = useMemo(
     () =>
@@ -3722,16 +3745,7 @@ export function PartnerGuestChatClient({
       return
     }
 
-    await openOrderFormByOption({
-      name: card.name,
-      image_url: card.image_url,
-      product_url: card.product_url,
-      price_hint: card.price_hint,
-      sku: card.sku?.trim() || null,
-      ...((card.inventory_id ?? '').trim()
-        ? { inventory_id: (card.inventory_id ?? '').trim() }
-        : {}),
-    })
+    await triggerGuestProductPurchase(card)
   }
 
   const buildCurrentOrderSelection = ():
@@ -5733,11 +5747,14 @@ export function PartnerGuestChatClient({
                                           onClick={(e) => {
                                             e.stopPropagation()
                                             markVisionBtn(idVisBuy)
-                                            void openGuestProductOrderFormFromCard({
+                                            void triggerGuestProductPurchase({
                                               name: c.name,
                                               image_url: c.image_url,
                                               product_url: puVision.trim(),
                                               inventory_id: c.inventoryId,
+                                              ...(c.sku && String(c.sku).trim()
+                                                ? { sku: String(c.sku).trim().slice(0, 128) }
+                                                : {}),
                                               ...(c.price_hint && String(c.price_hint).trim()
                                                 ? { price_hint: String(c.price_hint).trim() }
                                                 : {}),
@@ -5757,21 +5774,24 @@ export function PartnerGuestChatClient({
                                           className="flex h-8 min-w-0 items-center justify-center rounded-md border border-border/80 bg-background px-1 text-[10px] font-semibold leading-snug !text-foreground transition-colors duration-150 hover:bg-muted/60 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
                                           onClick={(e) => {
                                             e.stopPropagation()
-                                            addProductCardToCart({
+                                            void triggerGuestProductPurchase({
                                               name: c.name,
                                               image_url: c.image_url,
                                               product_url: puVision.trim(),
                                               inventory_id: c.inventoryId,
+                                              ...(c.sku && String(c.sku).trim()
+                                                ? { sku: String(c.sku).trim().slice(0, 128) }
+                                                : {}),
                                               ...(c.price_hint && String(c.price_hint).trim()
                                                 ? { price_hint: String(c.price_hint).trim() }
                                                 : {}),
                                             })
                                           }}
-                                          aria-label={`${c.name}. Thêm giỏ`}
+                                          aria-label={`${c.name}. ${t.guestProductAddToCart}`}
                                           lang="vi"
                                         >
                                           <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
-                                            Thêm giỏ
+                                            {t.guestProductAddToCart}
                                           </span>
                                         </button>
                                         <button
@@ -5791,6 +5811,9 @@ export function PartnerGuestChatClient({
                                                 image_url: c.image_url,
                                                 product_url: puVision.trim(),
                                                 inventory_id: c.inventoryId,
+                                                ...(c.sku && String(c.sku).trim()
+                                                  ? { sku: String(c.sku).trim().slice(0, 128) }
+                                                  : {}),
                                                 ...(c.price_hint && String(c.price_hint).trim()
                                                   ? { price_hint: String(c.price_hint).trim() }
                                                   : {}),
@@ -5835,21 +5858,21 @@ export function PartnerGuestChatClient({
                           productCardViewVideo: t.visionProductVideo,
                           productCardCloseVideo: t.visionVideoCloseAria,
                           productCardBuyProduct: t.visionProductBuy,
-                          productCardAddToCart: 'Thêm giỏ',
+                          productCardAddToCart: t.guestProductAddToCart,
                         }}
                         onProductCardBuy={
                           isMe && !consultLinkShopStyle
                             ? undefined
                             : isBirthdayPromoGreetingPayload(m.raw_payload)
                               ? undefined
-                              : (card) => void openGuestProductOrderFormFromCard(card)
+                              : (card) => void triggerGuestProductPurchase(card)
                         }
                         onProductCardAddToCart={
                           isMe && !consultLinkShopStyle
                             ? undefined
                             : isBirthdayPromoGreetingPayload(m.raw_payload)
                               ? undefined
-                              : addProductCardToCart
+                              : (card) => void triggerGuestProductPurchase(card)
                         }
                         onProductCardPick={
                           isMe && !consultLinkShopStyle
@@ -5986,7 +6009,7 @@ export function PartnerGuestChatClient({
                                       </a>
                                     ) : null}
                                     {puVision && /^https?:\/\//i.test(puVision.trim()) ? (
-                                      <div className="grid grid-cols-2 gap-1">
+                                      <div className="grid grid-cols-1 gap-1">
                                         <button
                                           type="button"
                                           disabled={isBusy}
@@ -5998,11 +6021,14 @@ export function PartnerGuestChatClient({
                                           onClick={(e) => {
                                             e.stopPropagation()
                                             markVisionBtn(idVisBuy)
-                                            void openGuestProductOrderFormFromCard({
+                                            void triggerGuestProductPurchase({
                                               name: c.name,
                                               image_url: c.image_url,
                                               product_url: puVision.trim(),
                                               inventory_id: c.inventoryId,
+                                              ...(c.sku && String(c.sku).trim()
+                                                ? { sku: String(c.sku).trim().slice(0, 128) }
+                                                : {}),
                                               ...(c.price_hint && String(c.price_hint).trim()
                                                 ? { price_hint: String(c.price_hint).trim() }
                                                 : {}),
@@ -6014,6 +6040,32 @@ export function PartnerGuestChatClient({
                                         >
                                           <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
                                             {t.visionProductBuy}
+                                          </span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={isBusy}
+                                          className="flex h-8 min-w-0 items-center justify-center rounded-md border border-border/80 bg-background px-1 text-[10px] font-semibold leading-snug !text-foreground transition-colors duration-150 hover:bg-muted/60 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 sm:text-[10px]"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            void triggerGuestProductPurchase({
+                                              name: c.name,
+                                              image_url: c.image_url,
+                                              product_url: puVision.trim(),
+                                              inventory_id: c.inventoryId,
+                                              ...(c.sku && String(c.sku).trim()
+                                                ? { sku: String(c.sku).trim().slice(0, 128) }
+                                                : {}),
+                                              ...(c.price_hint && String(c.price_hint).trim()
+                                                ? { price_hint: String(c.price_hint).trim() }
+                                                : {}),
+                                            })
+                                          }}
+                                          aria-label={`${c.name}. ${t.guestProductAddToCart}`}
+                                          lang="vi"
+                                        >
+                                          <span className="block w-full text-center leading-snug [overflow-wrap:anywhere]">
+                                            {t.guestProductAddToCart}
                                           </span>
                                         </button>
                                         <button
@@ -6033,6 +6085,9 @@ export function PartnerGuestChatClient({
                                                 image_url: c.image_url,
                                                 product_url: puVision.trim(),
                                                 inventory_id: c.inventoryId,
+                                                ...(c.sku && String(c.sku).trim()
+                                                  ? { sku: String(c.sku).trim().slice(0, 128) }
+                                                  : {}),
                                                 ...(c.price_hint && String(c.price_hint).trim()
                                                   ? { price_hint: String(c.price_hint).trim() }
                                                   : {}),
@@ -6165,9 +6220,20 @@ export function PartnerGuestChatClient({
                             variant="secondary"
                             className="mt-1 h-7 w-full px-1 text-[10px]"
                             disabled={orderFormBusy}
-                            onClick={() => void openOrderFormByOption(item)}
+                            onClick={() =>
+                              void triggerGuestProductPurchase({
+                                name: item.name,
+                                image_url: item.image_url,
+                                product_url: item.product_url,
+                                ...(item.price_hint ? { price_hint: item.price_hint } : {}),
+                                ...(item.sku && String(item.sku).trim()
+                                  ? { sku: String(item.sku).trim().slice(0, 128) }
+                                  : {}),
+                                ...(item.inventory_id ? { inventory_id: item.inventory_id } : {}),
+                              })
+                            }
                           >
-                            Đặt hàng
+                            {t.guestProductPlaceOrder}
                           </Button>
                           <Button
                             type="button"
@@ -6175,9 +6241,20 @@ export function PartnerGuestChatClient({
                             variant="outline"
                             className="mt-1 h-7 w-full px-1 text-[10px]"
                             disabled={orderFormBusy}
-                            onClick={() => addBuyOptionToCart(item)}
+                            onClick={() =>
+                              void triggerGuestProductPurchase({
+                                name: item.name,
+                                image_url: item.image_url,
+                                product_url: item.product_url,
+                                ...(item.price_hint ? { price_hint: item.price_hint } : {}),
+                                ...(item.sku && String(item.sku).trim()
+                                  ? { sku: String(item.sku).trim().slice(0, 128) }
+                                  : {}),
+                                ...(item.inventory_id ? { inventory_id: item.inventory_id } : {}),
+                              })
+                            }
                           >
-                            Thêm giỏ
+                            {t.guestProductAddToCart}
                           </Button>
                         </div>
                       )

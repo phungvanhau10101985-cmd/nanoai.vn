@@ -1101,6 +1101,10 @@ export type Dictionary = {
     visionProductLink: string
     /** Thẻ SP sau khi đã bấm «tư vấn» — mở form đặt hàng */
     visionProductBuy: string
+    /** Nút thêm giỏ trên thẻ SP / carousel (theo chế độ mua khách). */
+    guestProductAddToCart: string
+    /** Nút đặt hàng trong modal «muốn mua sản phẩm nào». */
+    guestProductPlaceOrder: string
     /** Mở trang sản phẩm trên thẻ (phía trên Tư vấn / Mua hàng) */
     visionProductViewDetails: string
     /** Ô video cạnh ảnh trên thẻ (khi kho có video) */
@@ -3256,6 +3260,8 @@ const VI_DICTIONARY: Dictionary = {
     visionPickError: 'Không gửi được lựa chọn. Thử lại.',
     visionProductLink: 'Tư vấn',
     visionProductBuy: 'Mua ngay',
+    guestProductAddToCart: 'Thêm giỏ',
+    guestProductPlaceOrder: 'Đặt hàng',
     visionProductViewDetails: 'Xem chi tiết',
     visionProductVideo: 'Video',
     visionVideoCloseAria: 'Đóng video',
@@ -5389,6 +5395,8 @@ const EN_DICTIONARY: Dictionary = {
     visionPickError: 'Could not send your choice. Try again.',
     visionProductLink: 'Advice',
     visionProductBuy: 'Buy now',
+    guestProductAddToCart: 'Add to cart',
+    guestProductPlaceOrder: 'Place order',
     visionProductViewDetails: 'View details',
     visionProductVideo: 'Video',
     visionVideoCloseAria: 'Close video',
@@ -7496,6 +7504,8 @@ const ZH_DICTIONARY: Dictionary = {
     visionPickError: '无法提交选择，请重试。',
     visionProductLink: '咨询商品',
     visionProductBuy: '立即购买',
+    guestProductAddToCart: '加入购物车',
+    guestProductPlaceOrder: '下单',
     visionProductViewDetails: '查看详情',
     visionProductVideo: '视频',
     visionVideoCloseAria: '关闭视频',
@@ -9581,6 +9591,8 @@ const JA_DICTIONARY: Dictionary = {
     visionPickError: '選択を送信できませんでした。もう一度お試しください。',
     visionProductLink: '相談',
     visionProductBuy: '今すぐ購入',
+    guestProductAddToCart: 'カートに追加',
+    guestProductPlaceOrder: '注文する',
     visionProductViewDetails: '詳細を見る',
     visionProductVideo: '動画',
     visionVideoCloseAria: '動画を閉じる',
@@ -11691,6 +11703,8 @@ const KO_DICTIONARY: Dictionary = {
     visionPickError: '선택을 보낼 수 없습니다. 다시 시도해 주세요.',
     visionProductLink: '상담',
     visionProductBuy: '바로 구매',
+    guestProductAddToCart: '장바구니 담기',
+    guestProductPlaceOrder: '주문하기',
     visionProductViewDetails: '자세히 보기',
     visionProductVideo: '동영상',
     visionVideoCloseAria: '동영상 닫기',
