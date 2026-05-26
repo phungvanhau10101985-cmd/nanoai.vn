@@ -59,7 +59,11 @@ import {
 } from './shop-ga4-ecommerce'
 import { GuestWidgetOrderDetailDialog } from '@/components/messaging/guest-widget-order-detail-dialog'
 import { GuestWidgetMyOrdersDialog } from '@/components/messaging/guest-widget-my-orders-dialog'
-import { isOpenMyOrdersMessage, NANOAI_WIDGET_MSG_SOURCE } from '@/lib/messaging/widget-parent-bridge'
+import {
+  isOpenMyOrdersMessage,
+  isWidgetTryOnPanelMessage,
+  NANOAI_WIDGET_MSG_SOURCE,
+} from '@/lib/messaging/widget-parent-bridge'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order-sepay-message-helpers'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
@@ -132,20 +136,42 @@ const UUID_STRING_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 
 /**
  * `open_try_on` chỉ có trên URL lần đầu; effect strip query → React Strict Mode (dev) remount
- * mất param. Cache theo `slug` để lần khởi tạo state sau vẫn mở panel thử đồ.
+ * mất param. Cache theo `slug` chỉ cho phiên thử đồ — không áp dụng khi `ctx_gateway=consult`.
  */
 let guestChatTryOnUrlFlagCache: { slug: string; value: boolean } | null = null
 
+function readGuestEmbedGatewayFromUrl(): string {
+  if (typeof window === 'undefined') return ''
+  return (new URLSearchParams(window.location.search).get('ctx_gateway') || '').trim().toLowerCase()
+}
+
+function readOpenTryOnFlagFromUrl(): boolean {
+  if (typeof window === 'undefined') return false
+  const f = (new URLSearchParams(window.location.search).get('open_try_on') || '').trim().toLowerCase()
+  return f === '1' || f === 'true' || f === 'yes'
+}
+
+function setGuestTryOnUrlFlagCache(slug: string, value: boolean) {
+  guestChatTryOnUrlFlagCache = { slug, value }
+}
+
 function initialTryOnOpenFromGuestUrl(slug: string): boolean {
   if (typeof window === 'undefined') return false
-  if (guestChatTryOnUrlFlagCache && guestChatTryOnUrlFlagCache.slug === slug) {
-    return guestChatTryOnUrlFlagCache.value
+  const gateway = readGuestEmbedGatewayFromUrl()
+  if (gateway === 'consult') {
+    setGuestTryOnUrlFlagCache(slug, false)
+    return false
   }
-  const q = new URLSearchParams(window.location.search)
-  const f = (q.get('open_try_on') || '').trim().toLowerCase()
-  const v = f === '1' || f === 'true' || f === 'yes'
-  guestChatTryOnUrlFlagCache = { slug, value: v }
-  return v
+  const fromUrl = readOpenTryOnFlagFromUrl() || gateway === 'try_on'
+  if (fromUrl) {
+    setGuestTryOnUrlFlagCache(slug, true)
+    return true
+  }
+  if (guestChatTryOnUrlFlagCache?.slug === slug && guestChatTryOnUrlFlagCache.value) {
+    return true
+  }
+  setGuestTryOnUrlFlagCache(slug, false)
+  return false
 }
 
 /** Ghép ngày sinh từ ba dropdown — trả ISO `YYYY-MM-DD` hoặc null. */
@@ -2068,18 +2094,26 @@ export function PartnerGuestChatClient({
       setEmbedOrderDetailId(orderParam)
     }
 
-    const tryOnOpenFlag = (q.get('open_try_on') || '').trim().toLowerCase()
-    if (tryOnOpenFlag === '1' || tryOnOpenFlag === 'true' || tryOnOpenFlag === 'yes') {
-      setTryOnOpen(true)
-      setTryOnOpenedViaEmbedQuery(true)
-      try {
-        const u = new URL(window.location.href)
-        if (u.searchParams.has('open_try_on')) {
-          u.searchParams.delete('open_try_on')
-          window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`)
+    const embedGateway = (q.get('ctx_gateway') || '').trim().toLowerCase()
+    if (embedGateway === 'consult') {
+      setGuestTryOnUrlFlagCache(slug, false)
+      setTryOnOpen(false)
+      setTryOnOpenedViaEmbedQuery(false)
+    } else {
+      const tryOnOpenFlag = (q.get('open_try_on') || '').trim().toLowerCase()
+      if (tryOnOpenFlag === '1' || tryOnOpenFlag === 'true' || tryOnOpenFlag === 'yes') {
+        setGuestTryOnUrlFlagCache(slug, true)
+        setTryOnOpen(true)
+        setTryOnOpenedViaEmbedQuery(true)
+        try {
+          const u = new URL(window.location.href)
+          if (u.searchParams.has('open_try_on')) {
+            u.searchParams.delete('open_try_on')
+            window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`)
+          }
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
       }
     }
   }, [consultFromInventory, slug])
@@ -3468,10 +3502,21 @@ export function PartnerGuestChatClient({
       const type = (data as { type?: unknown }).type
       if (type === 'OPEN_CART') setCartOpen(true)
       if (type === 'SCROLL_CHAT_BOTTOM') scrollGuestChatToBottomOnce('smooth')
+      if (isWidgetTryOnPanelMessage(data)) {
+        if (data.type === 'CLOSE_TRY_ON_PANEL') {
+          setGuestTryOnUrlFlagCache(slug, false)
+          setTryOnOpen(false)
+          setTryOnOpenedViaEmbedQuery(false)
+        } else {
+          setGuestTryOnUrlFlagCache(slug, true)
+          setTryOnOpen(true)
+          setTryOnOpenedViaEmbedQuery(true)
+        }
+      }
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [scrollGuestChatToBottomOnce])
+  }, [scrollGuestChatToBottomOnce, slug])
 
   const submitCartCheckout = useCallback(async () => {
     if (cartItems.length === 0) return

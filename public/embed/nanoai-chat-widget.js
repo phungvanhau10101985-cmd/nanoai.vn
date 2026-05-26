@@ -684,7 +684,12 @@
       }
       try {
         var uLoc = new URL(baseForBuild, window.location.href)
-        if (iframe && !opts.openTryOn) uLoc.searchParams.delete('open_try_on')
+        if (iframe && !opts.openTryOn) {
+          uLoc.searchParams.delete('open_try_on')
+          if (String(opts.gateway || '').trim().toLowerCase() === 'consult') {
+            uLoc.searchParams.delete('ctx_gateway')
+          }
+        }
         uLoc.searchParams.set('ui_locale', pendingUiLocale)
         baseForBuild = uLoc.toString()
       } catch (_) {}
@@ -786,6 +791,26 @@
       } catch (_) {}
     }
 
+    /** Đóng/mở panel thử đồ trong iframe khi đổi cổng (tránh giữ state cũ nếu URL iframe không reload). */
+    function postTryOnPanelIntent(opts, delayMs) {
+      opts = opts || {}
+      var openTryOn = opts.openTryOn === true
+      var gateway = String(opts.gateway || '').trim().toLowerCase()
+      var isConsult = gateway === 'consult' || (opts.autoConsult === true && !openTryOn)
+      var isTryOn = openTryOn || gateway === 'try_on'
+      if (!isConsult && !isTryOn) return
+      var msgType = isTryOn ? 'OPEN_TRY_ON_PANEL' : 'CLOSE_TRY_ON_PANEL'
+      try {
+        if (!iframe || !iframe.contentWindow) return
+        var targetOrigin = new URL(iframe.src || chatUrl, window.location.href).origin
+        setTimeout(function () {
+          try {
+            iframe.contentWindow.postMessage({ source: 'nanoai-widget', type: msgType }, targetOrigin)
+          } catch (_) {}
+        }, Math.max(0, parseInt(delayMs, 10) || 0))
+      } catch (_) {}
+    }
+
     /** `openTryOn` / `autoConsult` / `context` — cổng consult vs try_on từ web shop. */
     function openChat(opts) {
       opts = opts || {}
@@ -800,6 +825,9 @@
       panel.style.display = 'flex'
       bubble.style.display = 'none'
       applyLayout()
+      postTryOnPanelIntent(opts, 0)
+      postTryOnPanelIntent(opts, firstOpen ? 400 : 120)
+      postTryOnPanelIntent(opts, firstOpen ? 900 : 320)
       postScrollChatBottom(0)
       postScrollChatBottom(firstOpen ? 700 : 120)
       postScrollChatBottom(firstOpen ? 1400 : 360)
@@ -880,7 +908,7 @@
             } else if (isConsultTrigger) {
               var consultCtx = fromBtn && fromBtn.sku && fromBtn.imageUrl ? fromBtn : normalizeGatewayPayload(extractPageContext())
               if (consultCtx && consultCtx.sku && consultCtx.imageUrl) openConsultGateway(consultCtx)
-              else openChat({ openTryOn: false, gateway: 'consult' })
+              else openChat({ openTryOn: false, autoConsult: true, gateway: 'consult' })
             } else {
               openChat({ openTryOn: false })
             }
