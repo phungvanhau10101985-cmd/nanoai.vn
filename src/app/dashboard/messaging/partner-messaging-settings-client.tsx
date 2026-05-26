@@ -209,6 +209,9 @@ export function PartnerMessagingSettingsClient({
   const [pending, startTransition] = useTransition()
   const [logoBusy, setLogoBusy] = useState(false)
   const [logoUploading, setLogoUploading] = useState(false)
+  const [messagingIconHint, setMessagingIconHint] = useState('')
+  const [messagingIconRefUrl, setMessagingIconRefUrl] = useState('')
+  const [messagingIconRefUploading, setMessagingIconRefUploading] = useState(false)
   const [channelSnap, setChannelSnap] = useState<ChannelSnap | null>(null)
   const [logoVersions, setLogoVersions] = useState<LogoVersionRow[]>([])
   const [showAddWorkspace, setShowAddWorkspace] = useState(false)
@@ -818,52 +821,62 @@ export function PartnerMessagingSettingsClient({
     })
   }
 
-  const normalizeLogo = () => {
+  const uploadIconRefFile = async (file: File) => {
     if (!selectedPartnerId) return
-    const source = workspaceLogoUrl.trim()
-    if (!source) {
-      toast({ title: 'Nhap logo URL truoc khi chuan hoa.', variant: 'destructive' })
+    if (!file || file.size <= 0) return
+    const isImage = /^image\//i.test(file.type || '')
+    if (!isImage) {
+      toast({ title: 'Chi chap nhan file anh.', variant: 'destructive' })
       return
     }
-    if (!window.confirm('Chuan hoa logo se tru 1.5 credits. Ban co dong y?')) return
-    setLogoBusy(true)
-    startTransition(async () => {
-      const res = await normalizeMessagingWorkspaceLogo({
-        partnerId: selectedPartnerId,
-        sourceLogoUrl: source,
-        brandName: workspaceBrandName.trim() || workspaceName.trim(),
-        mode: 'standard',
+    setMessagingIconRefUploading(true)
+    try {
+      const fd = new FormData()
+      fd.set('partnerId', selectedPartnerId)
+      fd.set('file', file)
+      const res = await fetch('/api/messaging/partner/image', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: fd,
       })
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        setLogoBusy(false)
+      const data = (await res.json().catch(() => null)) as { publicUrl?: string; error?: string } | null
+      if (!res.ok || !data?.publicUrl) {
+        toast({ title: data?.error || 'Upload anh tham chieu that bai.', variant: 'destructive' })
         return
       }
-      if ('ok' in res && res.ok) {
-        toast({
-          title: `Da chuan hoa logo (-${res.deductedCredits} credits). Con lai ${res.creditsRemaining}.`,
-        })
-        await loadLogoVersions()
-      }
-      setLogoBusy(false)
-    })
+      setMessagingIconRefUrl(data.publicUrl)
+      toast({ title: 'Da tai anh logo tham chieu.' })
+    } catch {
+      toast({ title: 'Upload anh tham chieu that bai.', variant: 'destructive' })
+    } finally {
+      setMessagingIconRefUploading(false)
+    }
   }
 
-  const normalizeLogoImpressive = () => {
+  const createMessagingIcon = () => {
     if (!selectedPartnerId) return
-    const source = workspaceLogoUrl.trim()
-    if (!source) {
-      toast({ title: 'Nhap logo URL truoc khi chuan hoa.', variant: 'destructive' })
+    const hint = messagingIconHint.trim()
+    const source = messagingIconRefUrl.trim()
+    if (!hint && !source) {
+      toast({
+        title: 'Can nhap goi y text hoac anh logo tham chieu — it nhat mot trong hai.',
+        variant: 'destructive',
+      })
       return
     }
-    if (!window.confirm('Chuan hoa logo an tuong se tru 1.5 credits. Ban co dong y?')) return
+    const confirmMsg =
+      hint && source
+        ? 'Tao icon tin nhan se tru 1.5 credits. Dung goi y text va anh logo lam tham chieu. Ban co dong y?'
+        : source
+          ? 'Tao icon tin nhan se tru 1.5 credits. Chi dung anh logo lam tham chieu. Ban co dong y?'
+          : 'Tao icon tin nhan se tru 1.5 credits. Chi dung goi y text. Ban co dong y?'
+    if (!window.confirm(confirmMsg)) return
     setLogoBusy(true)
     startTransition(async () => {
       const res = await normalizeMessagingWorkspaceLogo({
         partnerId: selectedPartnerId,
-        sourceLogoUrl: source,
-        brandName: workspaceBrandName.trim() || workspaceName.trim(),
-        mode: 'impressive',
+        sourceLogoUrl: source || undefined,
+        iconHint: hint || undefined,
       })
       if ('error' in res && res.error) {
         toast({ title: res.error, variant: 'destructive' })
@@ -872,7 +885,7 @@ export function PartnerMessagingSettingsClient({
       }
       if ('ok' in res && res.ok) {
         toast({
-          title: `Da chuan hoa logo (-${res.deductedCredits} credits). Con lai ${res.creditsRemaining}.`,
+          title: `Da tao icon tin nhan (-${res.deductedCredits} credits). Con lai ${res.creditsRemaining}.`,
         })
         await loadLogoVersions()
       }
@@ -1795,26 +1808,79 @@ export function PartnerMessagingSettingsClient({
                   >
                     Luu thong tin shop
                   </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={normalizeLogo}
-                    disabled={pending || logoBusy || !selectedPartnerId || !workspaceLogoUrl.trim()}
-                  >
-                    {logoBusy ? 'Dang chuan hoa logo...' : 'Chuan hoa logo (1.5 credits)'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={normalizeLogoImpressive}
-                    disabled={pending || logoBusy || !selectedPartnerId || !workspaceLogoUrl.trim()}
-                  >
-                    {logoBusy ? 'Dang chuan hoa logo...' : 'Chuan hoa logo an tuong (1.5 credits)'}
-                  </Button>
                 </div>
+              </CardContent>
+            </Card>
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Tao icon tin nhan</CardTitle>
+                <CardDescription className="text-xs">
+                  Can co it nhat mot trong hai: goi y text hoac anh logo tham chieu. Ca hai deu tuy chon — co mot la
+                  du.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <div className="space-y-2">
+                  <Label htmlFor="ws-icon-hint">Goi y tao icon (tuy chon)</Label>
+                  <Textarea
+                    id="ws-icon-hint"
+                    value={messagingIconHint}
+                    onChange={(e) => setMessagingIconHint(e.target.value)}
+                    placeholder="Vi du: icon mau cam, chu 188 noi bat, phong cach hien dai, de doc o kich thuoc nho..."
+                    rows={3}
+                    className="resize-y text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ws-icon-ref">Anh logo tham chieu (tuy chon)</Label>
+                  <Input
+                    id="ws-icon-ref"
+                    value={messagingIconRefUrl}
+                    onChange={(e) => setMessagingIconRefUrl(e.target.value)}
+                    placeholder="https://..."
+                  />
+                  <div className="flex items-center gap-2">
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-muted">
+                      <Upload className="h-3.5 w-3.5" aria-hidden />
+                      {messagingIconRefUploading ? 'Dang tai anh...' : 'Upload anh tham chieu'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={messagingIconRefUploading || !selectedPartnerId}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0]
+                          e.currentTarget.value = ''
+                          if (f) void uploadIconRefFile(f)
+                        }}
+                      />
+                    </label>
+                    {messagingIconRefUrl.trim() ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={messagingIconRefUrl.trim()}
+                        alt=""
+                        className="h-10 w-10 rounded border object-contain bg-white"
+                      />
+                    ) : null}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={createMessagingIcon}
+                  disabled={
+                    pending ||
+                    logoBusy ||
+                    !selectedPartnerId ||
+                    !(messagingIconHint.trim() || messagingIconRefUrl.trim())
+                  }
+                >
+                  {logoBusy ? 'Dang tao icon tin nhan...' : 'Tao icon tin nhan (1.5 credits)'}
+                </Button>
                 {logoVersions.length > 0 ? (
                   <div className="space-y-2 rounded-md border border-border/70 p-3">
-                    <p className="text-xs font-medium text-muted-foreground">Cac phien ban logo da tao</p>
+                    <p className="text-xs font-medium text-muted-foreground">Cac phien ban icon tin nhan da tao</p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {logoVersions.map((lv) => (
                         <div key={lv.id} className="rounded border p-2">

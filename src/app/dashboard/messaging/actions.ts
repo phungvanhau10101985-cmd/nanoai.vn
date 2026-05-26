@@ -344,32 +344,32 @@ function normalizeLogoUrl(raw: string): string | null {
   return t.slice(0, 600)
 }
 
-function logoNormalizePrompt(brandName: string): string {
+function logoMessagingIconPromptFromHint(hint: string): string {
   return [
-    'Create a compact circular logo icon from this customer logo reference.',
-    `Brand name to preserve exactly: "${brandName}".`,
-    'Goal: keep the same brand identity in a circular simplified icon for chat bubble usage.',
-    'CRITICAL — COLORS: Keep the exact brand colors from the reference image (same hues and saturation; same perceived palette). Do not recolor, shift hue, desaturate into gray, or apply a new color scheme. The mark must look like the same brand colors as the source.',
-    'Preserve key brand elements but remove tiny unreadable details.',
-    'CRITICAL: Inside the circle, include the Vietnamese words "nhắn tin" (meaning chat/contact) clearly readable — typically under or beside the main brand mark — so customers know this icon opens messaging. Use normal weight, high contrast; do not omit this label.',
-    'Requirements: aspect ratio 1:1, white background, true circular icon composition, centered, crisp edges.',
-    'Scale the main mark as large as possible (about 88-92% of circular safe area) without clipping.',
-    'Do not keep long small text like domain suffix if it hurts readability (the short label "nhắn tin" must stay).',
-    'No wasted top/bottom whitespace. No tiny logo inside a large empty circle.',
-    'Do NOT invent a new logo concept. Keep the original brand feel.',
-    'No watermark, no mockup, no extra objects, no decorative background.',
+    'Create an impressive bold circular messaging/chat icon based on this user design brief.',
+    `User brief: "${hint}".`,
+    'There is no logo reference image — follow the brief above as the primary creative direction.',
+    'CRITICAL: Inside the circle, include the Vietnamese words "nhắn tin" clearly and boldly — under or beside the main mark — so users recognize this as the chat/contact button. High contrast, readable at small sizes; do not omit.',
+    'Use a cohesive color palette that fits the brief (avoid generic gray). Prefer one strong accent color with high contrast on white.',
+    'Use circular composition only. Fill the circle with useful content and avoid wasted top/bottom space.',
+    'Use bold shapes, strong silhouette, high contrast, and clean geometry for 48-64px readability.',
+    'Aspect ratio 1:1, white background, centered composition with tight circular padding.',
+    'Do NOT add watermark, mockup, or extra decorative objects.',
   ].join(' ')
 }
 
-function logoNormalizePromptImpressive(brandName: string): string {
+function logoMessagingIconPromptWithReference(hint?: string): string {
+  const hintLine = hint?.trim()
+    ? `Additional user design brief (follow when compatible with the reference logo): "${hint.trim()}".`
+    : 'No text brief was provided — derive the icon purely from the reference logo image.'
   return [
-    'Create an impressive bold circular logo icon from this customer logo reference.',
-    `Brand name to preserve exactly when retained: "${brandName}".`,
-    'Goal: make an impressive, memorable circular icon while keeping original brand feel recognizable.',
+    'Create an impressive bold circular messaging/chat icon from this customer logo reference image.',
+    hintLine,
+    'Goal: make a memorable circular icon for chat bubble usage while keeping original brand feel recognizable.',
     'CRITICAL — COLORS: Preserve the source logo colors exactly (same brand hues and saturation; no recoloring, no new palette, no color grading that changes the brand look). Bolder shapes and lighting are OK only if colors stay true to the reference.',
     'CRITICAL: Inside the circle, include the Vietnamese words "nhắn tin" clearly and boldly — under or beside the main mark — so users recognize this as the chat/contact button. High contrast, readable at small sizes; do not omit.',
-    'Simplify more aggressively: remove tiny unreadable details and keep only strongest identity elements.',
-    'Prioritize the main mark/text (e.g. "188") and scale it as large as possible.',
+    'Simplify aggressively: remove tiny unreadable details and keep only strongest identity elements.',
+    'Prioritize the main mark/text and scale it as large as possible.',
     'Use circular composition only. Fill the circle with useful logo content and avoid wasted top/bottom space.',
     'Use bold shapes, strong silhouette, high contrast, and clean geometry for 48-64px readability.',
     'Aspect ratio 1:1, white background, centered composition with tight circular padding.',
@@ -977,9 +977,8 @@ export async function setMessagingWorkspaceActiveLogo(partnerId: string, version
 
 export async function normalizeMessagingWorkspaceLogo(input: {
   partnerId: string
-  sourceLogoUrl: string
-  brandName: string
-  mode?: 'standard' | 'impressive'
+  sourceLogoUrl?: string
+  iconHint?: string
 }) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -987,10 +986,11 @@ export async function normalizeMessagingWorkspaceLogo(input: {
   const gate = await assertPartnerStaffGate(user.id, input.partnerId, 'workspace_branding')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
-  const sourceUrl = normalizeLogoUrl(input.sourceLogoUrl)
-  if (!sourceUrl) return { error: 'Logo URL khong hop le.' }
-  const brand = input.brandName.trim()
-  if (!brand) return { error: 'Brand khong hop le.' }
+  const sourceUrl = normalizeLogoUrl(input.sourceLogoUrl ?? '')
+  const hint = input.iconHint?.trim() ?? ''
+  if (!sourceUrl && !hint) {
+    return { error: 'Can goi y text hoac anh logo tham chieu (it nhat mot trong hai) de tao icon.' }
+  }
   if (!process.env.GOOGLE_API_KEY?.trim()) return { error: 'Missing GOOGLE_API_KEY.' }
 
   const charged = await deductUserCredits(user.id, LOGO_NORMALIZE_COST)
@@ -999,14 +999,6 @@ export async function normalizeMessagingWorkspaceLogo(input: {
   }
 
   try {
-    const imgRes = await fetch(sourceUrl)
-    if (!imgRes.ok) {
-      await refundUserCredits(user.id, LOGO_NORMALIZE_COST)
-      return { error: 'Khong tai duoc logo goc.' }
-    }
-    const buf = Buffer.from(await imgRes.arrayBuffer())
-    const mime = imgRes.headers.get('content-type')?.trim() || 'image/png'
-
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-pro-image-preview',
@@ -1021,19 +1013,33 @@ export async function normalizeMessagingWorkspaceLogo(input: {
       { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
       { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     ]
-    const prompt = input.mode === 'impressive' ? logoNormalizePromptImpressive(brand) : logoNormalizePrompt(brand)
-    const result = await model.generateContent(
-      [
-        prompt,
-        {
-          inlineData: {
-            data: buf.toString('base64'),
-            mimeType: mime,
+    const prompt = sourceUrl
+      ? logoMessagingIconPromptWithReference(hint || undefined)
+      : logoMessagingIconPromptFromHint(hint)
+    let result
+    if (sourceUrl) {
+      const imgRes = await fetch(sourceUrl)
+      if (!imgRes.ok) {
+        await refundUserCredits(user.id, LOGO_NORMALIZE_COST)
+        return { error: 'Khong tai duoc logo tham chieu.' }
+      }
+      const buf = Buffer.from(await imgRes.arrayBuffer())
+      const mime = imgRes.headers.get('content-type')?.trim() || 'image/png'
+      result = await model.generateContent(
+        [
+          prompt,
+          {
+            inlineData: {
+              data: buf.toString('base64'),
+              mimeType: mime,
+            },
           },
-        },
-      ] as never,
-      { safetySettings } as never
-    )
+        ] as never,
+        { safetySettings } as never
+      )
+    } else {
+      result = await model.generateContent(prompt, { safetySettings } as never)
+    }
     void trackFromUsageMetadata(
       result.response.usageMetadata,
       'gemini-3-pro-image-preview',
@@ -1051,7 +1057,7 @@ export async function normalizeMessagingWorkspaceLogo(input: {
     const { publicUrl } = await uploadTryOnImagePublic(path, out, { contentType: 'image/png', upsert: true })
     const version = await insertPartnerLogoVersionFromPg({
       partnerId: input.partnerId,
-      sourceLogoUrl: sourceUrl,
+      sourceLogoUrl: sourceUrl ?? '',
       normalizedLogoUrl: publicUrl,
       model: 'gemini-3-pro-image-preview',
       prompt,
@@ -1066,7 +1072,7 @@ export async function normalizeMessagingWorkspaceLogo(input: {
     return { ok: true, version, deductedCredits: charged.charged, creditsRemaining: charged.balance }
   } catch (e) {
     await refundUserCredits(user.id, LOGO_NORMALIZE_COST)
-    return { error: e instanceof Error ? e.message : 'Chuan hoa logo that bai.' }
+    return { error: e instanceof Error ? e.message : 'Tao icon tin nhan that bai.' }
   }
 }
 

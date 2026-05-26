@@ -118,6 +118,7 @@ import {
   resolveGuestPurchaseButtonUrl,
   type GuestPurchaseFlow,
 } from '@/lib/messaging/guest-purchase-flow'
+import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
 
 const INVENTORY_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -648,12 +649,37 @@ function isBirthdayPromoGreetingPayload(raw: Json | null | undefined): boolean {
   return o?.source === 'birthday_promo_greeting'
 }
 
+function isGuestWidgetAutoOpeningMessage(raw: Json | null | undefined): boolean {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
+  return o?.widget_auto_opening === true
+}
+
 /** Một số tin hệ thống do shop phát ra nhưng có thể đi qua luồng inbound: luôn render phía shop (trái). */
 function isForcedShopSideMessage(raw: Json | null | undefined): boolean {
-  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
-  if (!o) return false
   if (isGuestVisionPickReminderPayload(raw)) return true
-  return o.widget_auto_opening === true
+  return isGuestWidgetAutoOpeningMessage(raw)
+}
+
+function buyPromptDismissStorageKey(slug: string, messageId: string): string {
+  return `nanoai_buy_prompt_dismiss_v1:${encodeURIComponent(slug)}:${messageId}`
+}
+
+function isBuyPromptDismissed(slug: string, messageId: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.sessionStorage.getItem(buyPromptDismissStorageKey(slug, messageId)) === '1'
+  } catch {
+    return false
+  }
+}
+
+function rememberBuyPromptHandled(slug: string, messageId: string) {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(buyPromptDismissStorageKey(slug, messageId), '1')
+  } catch {
+    /* ignore */
+  }
 }
 
 function visionReminderTriggerMessageId(raw: Json | null | undefined): string | null {
@@ -3147,16 +3173,19 @@ export function PartnerGuestChatClient({
   const maybeOpenBuyOptionsFromInbound = useCallback(async () => {
     if (buyOptionsBusy || orderFormOpen) return
     if (authGateRequired && authMode !== 'account') return
-    const inbound = [...messages].reverse().find((m) => m.direction === 'inbound')
+    /** Bỏ tin mở đầu tự động (thường có «đặt hàng») — không coi là khách chủ đích muốn mua. */
+    const inbound = [...messages]
+      .reverse()
+      .find((m) => m.direction === 'inbound' && !isGuestWidgetAutoOpeningMessage(m.raw_payload))
     if (!inbound) return
-    if (buyPromptMessageId === inbound.id) return
-    const intent = classifyOrderIntent(inbound.body ?? '')
-    if (intent !== 'purchase') return
+    if (buyPromptMessageId === inbound.id || isBuyPromptDismissed(slug, inbound.id)) return
+    if (!inboundTextLooksLikePurchasePickListIntent(inbound.body ?? '')) return
     const recent = collectRecentSuggestedCardsFromMessages(messages, 80, inbound.id)
     if (!recent.length) {
       setBuyOptions([])
       setBuyOptionsOpen(false)
       setBuyPromptMessageId(inbound.id)
+      rememberBuyPromptHandled(slug, inbound.id)
       toast({
         title:
           'Để tư vấn đúng mẫu bạn muốn mua, vui lòng gửi ảnh sản phẩm hoặc mã sản phẩm (SKU) và cho shop biết bạn muốn mua mẫu nào nhé.',
@@ -3185,6 +3214,7 @@ export function PartnerGuestChatClient({
       setBuyOptions(data.products.slice(0, 20))
       setBuyOptionsOpen(data.products.length > 0)
       setBuyPromptMessageId(inbound.id)
+      rememberBuyPromptHandled(slug, inbound.id)
       if (data.products.length === 0) {
         toast({ title: 'Mình chưa thấy sản phẩm phù hợp để lên đơn. Shop tư vấn thêm giúp bạn ngay nhé.' })
       }
@@ -6167,7 +6197,10 @@ export function PartnerGuestChatClient({
                       variant="outline"
                       className="h-6 w-6 p-0"
                       disabled={orderFormBusy}
-                      onClick={() => setBuyOptionsOpen(false)}
+                      onClick={() => {
+                        setBuyOptionsOpen(false)
+                        if (buyPromptMessageId) rememberBuyPromptHandled(slug, buyPromptMessageId)
+                      }}
                       aria-label="Đóng"
                       title="Đóng"
                     >
