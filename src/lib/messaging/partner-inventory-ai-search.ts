@@ -11,6 +11,7 @@ import {
   tryParseVndAmountForEmbedding,
 } from '@/lib/messaging/partner-inventory-text-embedding'
 import { fetchTopInventoryRowByConsultCardImageVectorAnn } from '@/lib/messaging/partner-gemini-image-search'
+import { normalizeCustomerMessageForInventorySearch } from '@/lib/messaging/partner-inventory-message-normalize'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export type PartnerInventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
@@ -213,10 +214,6 @@ function buildPriceUnitHintTokens(text: string): TokenCandidate[] {
 }
 
 /** Chuẩn hóa nhẹ: bỏ emoji 📷, gom khoảng trắng — không đổi nội dung tiếng Việt có dấu. */
-export function normalizeCustomerMessageForInventorySearch(raw: string): string {
-  return raw.replace(/^📷\s*/u, '').replace(/\s+/g, ' ').trim()
-}
-
 /** Từ dừng rất ngắn — chỉ lọc nhiễu tìm ILIKE, không “phân loại SP” bằng AI. */
 const VI_INVENTORY_STOP_WORDS = new Set([
   'ạ',

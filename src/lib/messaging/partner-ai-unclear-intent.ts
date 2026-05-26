@@ -4,8 +4,8 @@ import {
   extractExplicitSkuCandidates,
   inboundTextLooksLikeFollowUpConsultHeuristic,
   looksLikeStandaloneProductQuestion,
-  normalizeCustomerMessageForInventorySearch,
 } from '@/lib/messaging/partner-inventory-ai-search'
+import { normalizeCustomerMessageForInventorySearch } from '@/lib/messaging/partner-inventory-message-normalize'
 import {
   legacyWidgetIntentToRouteIntent,
   parsePartnerAiRouteDecision,

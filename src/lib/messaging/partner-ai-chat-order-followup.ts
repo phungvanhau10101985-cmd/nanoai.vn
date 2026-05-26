@@ -2,7 +2,7 @@ import type { Json } from '@/types/database.types'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
 import { buildPurchasePickListCardsFromConversation } from '@/lib/messaging/partner-ai-purchase-pick-list'
-import { normalizeCustomerMessageForInventorySearch } from '@/lib/messaging/partner-inventory-ai-search'
+import { normalizeCustomerMessageForInventorySearch } from '@/lib/messaging/partner-inventory-message-normalize'
 import type { WebLocale } from '@/lib/i18n/config'
 
 /**

@@ -1,4 +1,4 @@
-import { normalizeCustomerMessageForInventorySearch } from '@/lib/messaging/partner-inventory-ai-search'
+import { normalizeCustomerMessageForInventorySearch } from '@/lib/messaging/partner-inventory-message-normalize'
 
 /**
  * Khách muốn **mua / đặt / chốt đơn** — nhánh gửi danh sách SP đã tư vấn (không gồm «chỉ xem / báo giá / tư vấn chung»).
