@@ -690,9 +690,12 @@
       } catch (_) {}
     }
 
-    function openChat() {
+    /** `openTryOn`: chỉ bật panel thử đồ lần đầu tạo iframe — bubble try_on hoặc `data-nanoai-try-on`. Tư vấn nhắn tin không bật. */
+    function openChat(opts) {
+      opts = opts || {}
       var firstOpen = !iframe
-      ensureIframe(extractPageContext(), { openTryOn: firstOpen && primaryTryOn })
+      var wantTryOn = opts.openTryOn === true && firstOpen
+      ensureIframe(extractPageContext(), { openTryOn: wantTryOn })
       panel.style.display = 'flex'
       bubble.style.display = 'none'
       applyLayout()
@@ -704,7 +707,9 @@
       panel.style.display = 'none'
       bubble.style.display = 'flex'
     }
-    bubble.addEventListener('click', openChat)
+    bubble.addEventListener('click', function () {
+      openChat({ openTryOn: primaryTryOn })
+    })
     document.addEventListener(
       'click',
       function (ev) {
@@ -712,20 +717,22 @@
           var target = ev.target
           if (!target || !target.closest) return
           var trigger = target.closest(
-            '[data-nanoai-open-chat],[data-nanoai-consult],[data-nanoai-chat-consult],a[href*="/messaging/p/"]'
+            '[data-nanoai-open-chat],[data-nanoai-consult],[data-nanoai-chat-consult],[data-nanoai-try-on],a[href*="/messaging/p/"]'
           )
           if (!trigger) return
           var href = trigger.getAttribute && String(trigger.getAttribute('href') || '').trim()
           var isMessagingLink = href && href.indexOf('/messaging/p/') >= 0
+          var isTryOnTrigger = trigger.hasAttribute('data-nanoai-try-on')
           var isExplicitTrigger =
             trigger.hasAttribute('data-nanoai-open-chat') ||
             trigger.hasAttribute('data-nanoai-consult') ||
-            trigger.hasAttribute('data-nanoai-chat-consult')
+            trigger.hasAttribute('data-nanoai-chat-consult') ||
+            isTryOnTrigger
           if (!isMessagingLink && !isExplicitTrigger) return
           if (isMessagingLink || isExplicitTrigger) {
             ev.preventDefault()
             ev.stopPropagation()
-            openChat()
+            openChat({ openTryOn: isTryOnTrigger })
             postScrollChatBottom(0)
             postScrollChatBottom(700)
             postScrollChatBottom(1400)

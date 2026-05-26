@@ -157,6 +157,9 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   data-widget-id="nanoai-chat-widget-v1"
   defer
 ></script>`
+  const fashionProductPageButtons = `<!-- Trang chi tiết SP — shop thời trang / mua sắm (cùng widget script phía trên) -->
+<button type="button" data-nanoai-consult>Tư vấn nhắn tin</button>
+<button type="button" data-nanoai-try-on>Thử đồ</button>`
   const hostedIframe = `<iframe
   src="${hostedUrl}"
   title="${shopNameAttr} — Chat"
@@ -411,6 +414,13 @@ Cookie: <auth_session_cookie>
             >
               {hostedScript}
             </CodeBlock>
+            <div className="space-y-2 rounded-lg border border-violet-500/25 bg-violet-500/5 p-3">
+              <p className="text-xs font-medium text-foreground">{t.fashionEmbedConsultTryOnTitle}</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{t.fashionEmbedConsultTryOnBody}</p>
+              <CodeBlock title={t.codeLabelExample} {...codeBlockCopyProps}>
+                {fashionProductPageButtons}
+              </CodeBlock>
+            </div>
             <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200/90">{hostedCompatNote}</p>
             <CodeBlock title="Fallback #1 — iframe (không cần script)" {...codeBlockCopyProps}>
               {hostedIframe}

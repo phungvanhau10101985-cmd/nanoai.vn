@@ -64,6 +64,9 @@ export type PartnerDevIntegrationStrings = {
   shopIdentifierLabel: string
   /** Gợi ý: chọn shop → link & script đã điền sẵn */
   hostedAutoFilledNote: string
+  /** Shop thời trang / mua sắm — tách nút tư vấn nhắn tin vs thử đồ trên trang SP nhúng widget */
+  fashionEmbedConsultTryOnTitle: string
+  fashionEmbedConsultTryOnBody: string
   noWorkspaceTitle: string
   noWorkspaceBody: string
   noWorkspaceCta: string
@@ -145,6 +148,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     shopIdentifierLabel: 'Mã định danh chat (slug)',
     hostedAutoFilledNote:
       'Chọn đúng shop ở danh sách phía trên: đường link công khai và toàn bộ mã nhúng bên dưới đã được điền sẵn cho shop đó — bạn chỉ cần «Sao chép mã nhúng script» và dán vào website; không phải thay {slug} hay sửa URL tay.',
+    fashionEmbedConsultTryOnTitle: 'Shop thời trang / mua sắm — Tư vấn nhắn tin vs Thử đồ',
+    fashionEmbedConsultTryOnBody:
+      'Trên trang chi tiết SP, dùng **một** script widget (có thể `data-primary="try_on"` cho bubble góc màn hình). Hai nút trên layout shop tách hành vi: «Tư vấn nhắn tin» (`data-nanoai-consult`) chỉ gửi ảnh + mã SKU vào chat — **không** mở panel thử đồ. «Thử đồ» (`data-nanoai-try-on`) mới mở panel thử đồ trong iframe. Link tư vấn `/messaging/p/…/tu-van/…` cũng không kích hoạt thử đồ.',
     noWorkspaceTitle: 'Chưa có shop nhắn tin',
     noWorkspaceBody:
       'Bạn cần tạo ít nhất một workspace (cửa hàng) trong Messaging. Sau khi tạo xong, quay lại trang này: chọn shop trong danh sách và sao chép mã — hệ thống tự gắn đúng mã định danh, không cần chỉnh sửa.',
@@ -225,6 +231,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     shopIdentifierLabel: 'Chat shop ID (slug)',
     hostedAutoFilledNote:
       'Pick your shop above: the public URL and embed script below are pre-filled for that workspace — use «Copy embed script» and paste on your site. No manual {slug} replacement.',
+    fashionEmbedConsultTryOnTitle: 'Fashion / retail — Message consult vs try-on',
+    fashionEmbedConsultTryOnBody:
+      'On the product detail page, use **one** widget script (optionally `data-primary="try_on"` for the corner bubble). Split shop buttons: «Message consult» (`data-nanoai-consult`) sends product image + SKU into chat only — **does not** open the try-on panel. «Try on» (`data-nanoai-try-on`) opens try-on in the iframe. Per-product consult links `/messaging/p/…/tu-van/…` also skip try-on.',
     noWorkspaceTitle: 'No messaging workspace yet',
     noWorkspaceBody:
       'Create a workspace under Messaging settings first. Then return here, select your shop, and copy the ready-made embed code — the correct slug is filled in automatically.',
@@ -302,6 +311,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     shopIdentifierLabel: '聊天店铺标识 (slug)',
     hostedAutoFilledNote:
       '在上方选择店铺后：下方公开链接与嵌入脚本已自动填入该店铺，直接「复制嵌入脚本」粘贴到网站即可，无需手动替换 slug。',
+    fashionEmbedConsultTryOnTitle: '时尚 / 零售店 — 留言咨询 vs 试穿',
+    fashionEmbedConsultTryOnBody:
+      '商品详情页使用**一个** widget 脚本（角标可选 `data-primary="try_on"`）。店铺按钮分开：`data-nanoai-consult` 仅把商品图 + SKU 送入聊天，**不**打开试穿面板；`data-nanoai-try-on` 才打开试穿。咨询链接 `/messaging/p/…/tu-van/…` 也不会触发试穿。',
     noWorkspaceTitle: '还没有消息店铺',
     noWorkspaceBody:
       '请先在 Messaging 中创建工作区。完成后回到本页，在列表中选择店铺并复制代码 — 系统会自动填入正确的标识。',
@@ -379,6 +391,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     shopIdentifierLabel: 'チャット店舗 ID（slug）',
     hostedAutoFilledNote:
       '上で店舗を選ぶと、下の公開 URL と埋め込みスクリプトがその店舗用に自動入力されます。「埋め込みスクリプトをコピー」してサイトに貼るだけで、slug の手入力は不要です。',
+    fashionEmbedConsultTryOnTitle: 'ファッション / 小売 — メッセージ相談 vs バーチャル試着',
+    fashionEmbedConsultTryOnBody:
+      '商品詳細では**1 本**の widget スクリプト（角のバブルは `data-primary="try_on"` 可）。店舗ボタンを分ける：`data-nanoai-consult` は商品画像 + SKU のみチャット送信 — 試着パネルは**開かない**。`data-nanoai-try-on` のときだけ試着。相談リンク `/messaging/p/…/tu-van/…` も試着は起動しません。',
     noWorkspaceTitle: 'メッセージ店舗がまだありません',
     noWorkspaceBody:
       '先に Messaging でワークスペースを作成してください。作成後にこのページに戻り、リストから店舗を選んでコードをコピーします — 正しい slug が自動で入ります。',
@@ -456,6 +471,9 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     shopIdentifierLabel: '채팅 매장 ID(slug)',
     hostedAutoFilledNote:
       '위에서 매장을 선택하면 아래 공개 URL과 임베드 스크립트가 해당 매장으로 채워집니다. «임베드 스크립트 복사» 후 사이트에 붙여 넣으면 되며 slug를 수동으로 바꿀 필요가 없습니다.',
+    fashionEmbedConsultTryOnTitle: '패션 / 쇼핑몰 — 메시지 상담 vs 가상 피팅',
+    fashionEmbedConsultTryOnBody:
+      '상품 상세에는 **하나**의 widget 스크립트(모서리 버블은 `data-primary="try_on"` 가능). 매장 버튼 분리: `data-nanoai-consult`는 상품 이미지 + SKU만 채팅으로 — 피팅 패널 **미표시**. `data-nanoai-try-on`일 때만 피팅. 상담 링크 `/messaging/p/…/tu-van/…`도 피팅을 켜지 않습니다.',
     noWorkspaceTitle: '메시징 워크스페이스가 없습니다',
     noWorkspaceBody:
       '먼저 Messaging에서 워크스페이스를 만든 뒤 이 페이지로 돌아와 목록에서 매장을 선택하고 코드를 복사하세요 — 올바른 slug가 자동으로 들어갑니다.',
