@@ -4,8 +4,63 @@
  */
 
 /** URL ảnh thường chặn bot nếu thiếu User-Agent / Referer giống trình duyệt */
-const is1688Url = (url: string) =>
+export const is1688ImageUrl = (url: string) =>
   /1688\.com|alibaba\.com|alicdn\.com|taobao\.com|tmall\.com|aliexpress\.com|lazada\./i.test(url)
+
+const is1688Url = is1688ImageUrl
+
+/** Host phụ Alibaba CDN (cbu01, sc01, …) — thường chặn hotlink trình duyệt; img.alicdn.com thì OK. */
+export function isAlternativeAlicdnHost(hostname: string): boolean {
+  const h = hostname.toLowerCase()
+  return h.endsWith('.alicdn.com') && h !== 'img.alicdn.com' && h !== 'gw.alicdn.com'
+}
+
+/**
+ * Đổi cbu01/sc01… → img.alicdn.com (cùng path) — dùng trước khi tải server hoặc hiển thị.
+ */
+export function normalizeAlicdnImageUrl(url: string): string {
+  const trimmed = url.trim()
+  if (!trimmed) return trimmed
+  try {
+    const withProto = trimmed.startsWith('//') ? `https:${trimmed}` : trimmed
+    const u = new URL(withProto)
+    if (isAlternativeAlicdnHost(u.hostname)) {
+      u.hostname = 'img.alicdn.com'
+      return u.toString()
+    }
+    return trimmed.startsWith('//') ? u.toString() : trimmed
+  } catch {
+    return trimmed
+  }
+}
+
+/**
+ * URL hiển thị `<img>` trên client: proxy same-origin khi CDN Alibaba chặn hotlink (vd. cbu01.alicdn.com).
+ * `img.alicdn.com` vẫn tải trực tiếp (hotlink OK).
+ */
+export function resolveExternalImageDisplayUrl(imageUrl: string): string {
+  const trimmed = imageUrl.trim()
+  if (!trimmed || trimmed.startsWith('blob:') || trimmed.startsWith('data:') || trimmed.startsWith('/')) {
+    return trimmed
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const u = new URL(trimmed.startsWith('//') ? `https:${trimmed}` : trimmed, window.location.origin)
+      if (u.origin === window.location.origin) return trimmed
+    } catch {
+      /* ignore */
+    }
+  }
+  try {
+    const u = new URL(trimmed.startsWith('//') ? `https:${trimmed}` : trimmed)
+    if (isAlternativeAlicdnHost(u.hostname)) {
+      return `/api/fetch-image?url=${encodeURIComponent(trimmed)}`
+    }
+  } catch {
+    /* ignore */
+  }
+  return normalizeAlicdnImageUrl(trimmed)
+}
 
 const CHROME_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'

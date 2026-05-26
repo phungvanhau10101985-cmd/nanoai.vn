@@ -1,4 +1,5 @@
 import type { Json } from '@/types/database.types'
+import { fetchImageWith1688Bypass, is1688ImageUrl, normalizeAlicdnImageUrl } from '@/lib/fetch-image-1688'
 import { tryOnObjectExistsByPath, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 export const GUEST_CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024
@@ -131,43 +132,41 @@ export async function fetchRemoteProductImageIntoGuestStorage(
   partnerId: string,
   imageUrl: string
 ): Promise<{ path: string; publicUrl: string } | { error: string }> {
-  const trimmed = imageUrl.trim()
+  const trimmed = normalizeAlicdnImageUrl(imageUrl.trim())
   if (!/^https?:\/\//i.test(trimmed)) {
     return { error: 'Image URL must be http(s).' }
   }
   if (!isPublicHttpUrlSafeForServerFetch(trimmed)) {
     return { error: 'Invalid image URL.' }
   }
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 25_000)
   try {
-    const res = await fetch(trimmed, {
-      redirect: 'follow',
-      signal: ctrl.signal,
-      headers: { Accept: 'image/*', 'User-Agent': 'NanoAI-Widget/1.0' },
-    })
-    if (!res.ok) {
-      return { error: `Could not download image (${res.status}).` }
-    }
-    const cl = res.headers.get('content-length')
-    if (cl) {
-      const n = Number.parseInt(cl, 10)
-      if (Number.isFinite(n) && n > GUEST_CHAT_IMAGE_MAX_BYTES) {
-        return { error: 'Image too large.' }
+    let buf: Buffer
+    if (is1688ImageUrl(trimmed)) {
+      buf = await fetchImageWith1688Bypass(trimmed)
+    } else {
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 25_000)
+      try {
+        const res = await fetch(trimmed, {
+          redirect: 'follow',
+          signal: ctrl.signal,
+          headers: { Accept: 'image/*', 'User-Agent': 'NanoAI-Widget/1.0' },
+        })
+        if (!res.ok) {
+          return { error: `Could not download image (${res.status}).` }
+        }
+        buf = Buffer.from(await res.arrayBuffer())
+      } finally {
+        clearTimeout(timer)
       }
     }
-    const buf = Buffer.from(await res.arrayBuffer())
     if (buf.length > GUEST_CHAT_IMAGE_MAX_BYTES) {
       return { error: 'Image too large.' }
     }
     if (buf.length < 32) {
       return { error: 'Invalid image.' }
     }
-    const ctRaw = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
-    let mime = ctRaw && isAllowedGuestImageMime(ctRaw) ? ctRaw : ''
-    if (!mime) {
-      mime = sniffImageMimeFromMagic(buf) ?? ''
-    }
+    let mime = sniffImageMimeFromMagic(buf) ?? ''
     if (!mime || !isAllowedGuestImageMime(mime)) {
       return { error: 'Unsupported image type.' }
     }
@@ -175,8 +174,6 @@ export async function fetchRemoteProductImageIntoGuestStorage(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { error: msg || 'Download failed.' }
-  } finally {
-    clearTimeout(timer)
   }
 }
 

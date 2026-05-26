@@ -123,9 +123,14 @@ import {
   type GuestPurchaseFlow,
 } from '@/lib/messaging/guest-purchase-flow'
 import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
+import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 
 const INVENTORY_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function msgImgSrc(url: string): string {
+  return resolveExternalImageDisplayUrl(url)
+}
 
 /** Khoảng cách tới đáy (px) để coi như user đang xem cuối thread — cho phép auto-scroll theo tin/typing mới. */
 const GUEST_CHAT_STICK_TO_BOTTOM_PX = 120
@@ -5753,7 +5758,7 @@ export function PartnerGuestChatClient({
                                       >
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
-                                          src={c.image_url}
+                                          src={msgImgSrc(c.image_url)}
                                           alt=""
                                           className="h-28 w-full bg-muted/30 object-contain"
                                         />
@@ -5764,13 +5769,13 @@ export function PartnerGuestChatClient({
                                         className="block w-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                         onClick={(ev) => {
                                           ev.stopPropagation()
-                                          setChatImageLightboxUrl(c.image_url)
+                                          setChatImageLightboxUrl(msgImgSrc(c.image_url))
                                         }}
                                         aria-label={`Xem ảnh lớn: ${c.name}`}
                                       >
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
-                                          src={c.image_url}
+                                          src={msgImgSrc(c.image_url)}
                                           alt=""
                                           className="h-28 w-full bg-muted/30 object-contain"
                                         />
@@ -6027,7 +6032,7 @@ export function PartnerGuestChatClient({
                                       >
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
-                                          src={c.image_url}
+                                          src={msgImgSrc(c.image_url)}
                                           alt=""
                                           className="h-28 w-full bg-muted/30 object-contain"
                                         />
@@ -6038,13 +6043,13 @@ export function PartnerGuestChatClient({
                                         className="block w-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                         onClick={(ev) => {
                                           ev.stopPropagation()
-                                          setChatImageLightboxUrl(c.image_url)
+                                          setChatImageLightboxUrl(msgImgSrc(c.image_url))
                                         }}
                                         aria-label={`Xem ảnh lớn: ${c.name}`}
                                       >
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
-                                          src={c.image_url}
+                                          src={msgImgSrc(c.image_url)}
                                           alt=""
                                           className="h-28 w-full bg-muted/30 object-contain"
                                         />
@@ -6274,7 +6279,7 @@ export function PartnerGuestChatClient({
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
-                                src={item.image_url}
+                                src={msgImgSrc(item.image_url)}
                                 alt={item.name}
                                 className="h-16 w-full rounded object-cover"
                               />
@@ -6282,7 +6287,7 @@ export function PartnerGuestChatClient({
                           ) : (
                             /* eslint-disable-next-line @next/next/no-img-element */
                             <img
-                              src={item.image_url}
+                              src={msgImgSrc(item.image_url)}
                               alt={item.name}
                               className="h-16 w-full rounded object-cover"
                             />
@@ -6374,7 +6379,7 @@ export function PartnerGuestChatClient({
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={activeOrderCard.image_url}
+                              src={msgImgSrc(activeOrderCard.image_url)}
                               alt={activeOrderCard.name}
                               className="h-10 w-10 rounded object-cover"
                             />
@@ -6382,7 +6387,7 @@ export function PartnerGuestChatClient({
                         ) : (
                           /* eslint-disable-next-line @next/next/no-img-element */
                           <img
-                            src={activeOrderCard.image_url}
+                            src={msgImgSrc(activeOrderCard.image_url)}
                             alt={activeOrderCard.name}
                             className="h-10 w-10 rounded object-cover"
                           />
@@ -6780,7 +6785,7 @@ export function PartnerGuestChatClient({
                             : ''
                       return pick ? (
                         <Image
-                          src={pick}
+                          src={msgImgSrc(pick)}
                           alt=""
                           width={48}
                           height={48}
@@ -6811,7 +6816,7 @@ export function PartnerGuestChatClient({
                         <div key={`${path}-${idx}`} className="relative h-12 w-12">
                           {preview ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={preview} alt="" className="h-12 w-12 rounded-md object-cover" />
+                            <img src={msgImgSrc(preview)} alt="" className="h-12 w-12 rounded-md object-cover" />
                           ) : (
                             <div className="h-12 w-12 rounded-md bg-muted" />
                           )}
@@ -7028,7 +7033,7 @@ export function PartnerGuestChatClient({
                                 className="relative h-12 w-12 overflow-hidden rounded-md border bg-background/70"
                               >
                                 <Image
-                                  src={item.previewUrl}
+                                  src={msgImgSrc(item.previewUrl)}
                                   alt=""
                                   width={48}
                                   height={48}
@@ -7097,7 +7102,7 @@ export function PartnerGuestChatClient({
                                         aria-pressed={isPicked}
                                       >
                                         <Image
-                                          src={item.imageUrl}
+                                          src={msgImgSrc(item.imageUrl)}
                                           alt={item.name}
                                           width={48}
                                           height={48}
@@ -7501,7 +7506,7 @@ export function PartnerGuestChatClient({
                   <div className="flex gap-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={item.variantLineImages?.[0] || item.card.image_url}
+                      src={msgImgSrc(item.variantLineImages?.[0] || item.card.image_url)}
                       alt=""
                       className="h-14 w-14 rounded object-cover"
                     />
@@ -7708,7 +7713,7 @@ export function PartnerGuestChatClient({
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- URL ngoài từ shop */}
                         <img
-                          src={row.card.image_url.trim()}
+                          src={msgImgSrc(row.card.image_url.trim())}
                           alt=""
                           className="h-full w-full object-contain"
                           loading="lazy"
@@ -7722,14 +7727,14 @@ export function PartnerGuestChatClient({
                         className="relative block aspect-square w-full cursor-zoom-in overflow-hidden rounded-md border border-border/50 bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         onClick={(e) => {
                           e.stopPropagation()
-                          const src = row.card.image_url.trim()
+                          const src = msgImgSrc(row.card.image_url.trim())
                           if (src) setChatImageLightboxUrl(src)
                         }}
                         aria-label="Xem ảnh lớn"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- URL ngoài từ shop */}
                         <img
-                          src={row.card.image_url.trim()}
+                          src={msgImgSrc(row.card.image_url.trim())}
                           alt=""
                           className="h-full w-full object-contain"
                           loading="lazy"

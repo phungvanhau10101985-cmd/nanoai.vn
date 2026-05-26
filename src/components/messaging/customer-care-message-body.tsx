@@ -13,6 +13,7 @@ import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-displa
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { sepayQrUrlForDownload } from '@/lib/sepay-qr'
 import { MessageTextWithLinks } from '@/components/messaging/message-text-with-links'
+import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 
 /** Gỡ hậu tố «(BIN …)» còn sót từ bản cũ. */
@@ -589,6 +590,7 @@ function AiProductCards({
         const idCart = `${cardBtnBase}::cart`
         const idConsult = `${cardBtnBase}::consult`
         const idCtaOnly = `${cardBtnBase}::cta`
+        const displayImageUrl = p.image_url ? resolveExternalImageDisplayUrl(p.image_url) : ''
         return (
           <div
             key={`${idx}-${p.product_url}`}
@@ -597,7 +599,7 @@ function AiProductCards({
           >
             <div className="flex gap-1">
               <div className="min-w-0 flex-1">
-                {p.image_url ? (
+                {displayImageUrl ? (
                   productHref ? (
                     <a
                       href={productHref}
@@ -612,7 +614,7 @@ function AiProductCards({
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={p.image_url}
+                        src={displayImageUrl}
                         alt=""
                         className="h-28 w-full bg-muted/30 object-contain"
                         loading="lazy"
@@ -624,13 +626,13 @@ function AiProductCards({
                       className="block w-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       onClick={(ev) => {
                         ev.stopPropagation()
-                        onPreviewImage(p.image_url)
+                        onPreviewImage(displayImageUrl)
                       }}
                       aria-label={`Xem ảnh lớn: ${p.name}`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={p.image_url}
+                        src={displayImageUrl}
                         alt=""
                         className="h-28 w-full bg-muted/30 object-contain"
                         loading="lazy"
@@ -826,21 +828,22 @@ export function CustomerCareMessageBody({
       : visionCards.map((c) => ({ ...c, product_url: c.product_url ?? '' }))
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [videoLightboxSrc, setVideoLightboxSrc] = useState<string | null>(null)
+  const displayUrl = url ? resolveExternalImageDisplayUrl(url) : null
 
   return (
     <div
       className={`min-w-0 max-w-full space-y-2 break-words [overflow-wrap:anywhere] ${onViolet ? '[&_a]:text-white/90 [&_img]:border-white/25' : ''}`}
     >
-      {url ? (
+      {displayUrl ? (
         <button
           type="button"
           className="block max-w-sm cursor-zoom-in text-left"
-          onClick={() => setLightboxSrc(url)}
+          onClick={() => setLightboxSrc(displayUrl)}
           aria-label="Xem ảnh lớn"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={url}
+            src={displayUrl}
             alt=""
             className={`max-h-52 w-full rounded-lg border object-contain ${onViolet ? 'border-white/25 bg-white/10' : 'border-border/60 bg-muted/30'}`}
             loading="lazy"
