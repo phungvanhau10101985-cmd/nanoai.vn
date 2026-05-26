@@ -150,7 +150,7 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Chọn đúng shop ở danh sách phía trên: đường link công khai và toàn bộ mã nhúng bên dưới đã được điền sẵn cho shop đó — bạn chỉ cần «Sao chép mã nhúng script» và dán vào website; không phải thay {slug} hay sửa URL tay.',
     fashionEmbedConsultTryOnTitle: 'Shop thời trang / mua sắm — Tư vấn nhắn tin vs Thử đồ',
     fashionEmbedConsultTryOnBody:
-      'Trên trang chi tiết SP, dùng **một** script widget (có thể `data-primary="try_on"` cho bubble góc màn hình). Hai nút trên layout shop tách hành vi: «Tư vấn nhắn tin» (`data-nanoai-consult`) chỉ gửi ảnh + mã SKU vào chat — **không** mở panel thử đồ. «Thử đồ» (`data-nanoai-try-on`) mới mở panel thử đồ trong iframe. Link tư vấn `/messaging/p/…/tu-van/…` cũng không kích hoạt thử đồ.',
+      'Trên trang chi tiết SP, dùng **một** script widget. Hai cổng: `NanoAIMessagingGateway.openConsult({ sku, imageUrl })` (tư vấn — gửi mã + ảnh SP) và `NanoAIMessagingGateway.openTryOn({ imageUrl })` (thử đồ — ảnh đại diện SP). Hoặc nút HTML với `data-nanoai-consult` / `data-nanoai-try-on` kèm `data-nanoai-sku`, `data-nanoai-image`.',
     noWorkspaceTitle: 'Chưa có shop nhắn tin',
     noWorkspaceBody:
       'Bạn cần tạo ít nhất một workspace (cửa hàng) trong Messaging. Sau khi tạo xong, quay lại trang này: chọn shop trong danh sách và sao chép mã — hệ thống tự gắn đúng mã định danh, không cần chỉnh sửa.',

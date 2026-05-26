@@ -1,5 +1,35 @@
 /** NanoAI chat widget (nhúng site shop). NAVIGATE_TOP + session iframe — cache-bust: .../nanoai-chat-widget.js?v= */
 (function () {
+  /** Cổng JS — web shop gọi trước/sau khi widget mount (hàng đợi nếu chưa sẵn sàng). */
+  var gatewayImpl = {}
+  var gatewayPending = []
+  if (window.NanoAIMessagingGateway && Array.isArray(window.NanoAIMessagingGateway.__pending)) {
+    gatewayPending = window.NanoAIMessagingGateway.__pending
+  }
+  function flushGatewayPending() {
+    for (var qi = 0; qi < gatewayPending.length; qi += 1) {
+      var item = gatewayPending[qi]
+      if (!item || !item[0]) continue
+      if (item[0] === 'consult' && typeof gatewayImpl.openConsult === 'function') gatewayImpl.openConsult(item[1])
+      else if (item[0] === 'try_on' && typeof gatewayImpl.openTryOn === 'function') gatewayImpl.openTryOn(item[1])
+    }
+    gatewayPending.length = 0
+  }
+  window.NanoAIMessagingGateway = {
+    version: '1',
+    __pending: gatewayPending,
+    openConsult: function (payload) {
+      if (typeof gatewayImpl.openConsult === 'function') return gatewayImpl.openConsult(payload)
+      gatewayPending.push(['consult', payload])
+      return true
+    },
+    openTryOn: function (payload) {
+      if (typeof gatewayImpl.openTryOn === 'function') return gatewayImpl.openTryOn(payload)
+      gatewayPending.push(['try_on', payload])
+      return true
+    },
+  }
+
   var script = document.currentScript
   if (!script) {
     var allScripts = document.getElementsByTagName('script')
@@ -551,9 +581,28 @@
       return out
     }
 
-    function buildChatUrlWithContext(baseUrl, ctx, addOpenTryOn) {
+    function buildChatUrlWithContext(baseUrl, ctx, urlOpts) {
+      urlOpts = urlOpts || {}
+      var openTryOn = urlOpts.openTryOn === true
+      var autoConsult = urlOpts.autoConsult === true
+      var gateway = String(urlOpts.gateway || '').trim().slice(0, 32)
       try {
         var u = new URL(baseUrl, window.location.href)
+        if (urlOpts.replaceContext) {
+          ;[
+            'ctx_sku',
+            'ctx_image',
+            'ctx_image_2',
+            'ctx_product_url',
+            'ctx_inventory',
+            'ctx_source',
+            'ctx_gateway',
+            'open_try_on',
+            'auto_consult',
+          ].forEach(function (k) {
+            u.searchParams.delete(k)
+          })
+        }
         var identity = readStoredGuestIdentity()
         if (identity.guestSessionId) u.searchParams.set('guest_session_id', identity.guestSessionId)
         if (identity.guestAccountId) u.searchParams.set('guest_account_id', identity.guestAccountId)
@@ -566,33 +615,80 @@
           ctx &&
           (ctx.sku || ctx.imageUrl || ctx.imageUrl2 || ctx.productUrl || ctx.inventoryId)
         ) {
-          u.searchParams.set('ctx_source', 'widget_page')
+          u.searchParams.set('ctx_source', gateway === 'try_on' ? 'widget_try_on' : 'widget_page')
         }
-        if (addOpenTryOn) u.searchParams.set('open_try_on', '1')
+        if (gateway) u.searchParams.set('ctx_gateway', gateway)
+        if (autoConsult) u.searchParams.set('auto_consult', '1')
+        if (openTryOn) u.searchParams.set('open_try_on', '1')
         return u.toString()
       } catch (_) {
         return baseUrl
       }
     }
 
+    /** Payload cổng từ web shop — consult bắt buộc sku + imageUrl; try_on bắt buộc imageUrl (ảnh đại diện SP). */
+    function normalizeGatewayPayload(raw) {
+      if (!raw || typeof raw !== 'object') return null
+      var o = raw
+      var skuRaw = String(o.sku != null ? o.sku : o.productSku != null ? o.productSku : '').trim()
+      var sku = pickSkuFromText(skuRaw) || skuRaw.slice(0, 128)
+      var imageUrl = toHttpUrl(o.imageUrl != null ? o.imageUrl : o.image != null ? o.image : o.productImage != null ? o.productImage : '')
+      if (imageUrl && isLikelyVideoUrl(imageUrl)) imageUrl = ''
+      var imageUrl2 = toHttpUrl(o.imageUrl2 != null ? o.imageUrl2 : '')
+      if (imageUrl2 && isLikelyVideoUrl(imageUrl2)) imageUrl2 = ''
+      var productUrl = toHttpUrl(
+        o.productUrl != null ? o.productUrl : o.pageUrl != null ? o.pageUrl : o.product_url != null ? o.product_url : ''
+      )
+      var inv = String(
+        o.inventoryId != null ? o.inventoryId : o.inventory_id != null ? o.inventory_id : ''
+      ).trim()
+      var inventoryId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv)
+        ? inv
+        : ''
+      var out = {}
+      if (sku) out.sku = sku
+      if (imageUrl) out.imageUrl = imageUrl
+      if (imageUrl2) out.imageUrl2 = imageUrl2
+      if (productUrl) out.productUrl = productUrl
+      if (inventoryId) out.inventoryId = inventoryId
+      return out
+    }
+
+    function contextFromDomTrigger(el) {
+      if (!el || !el.getAttribute) return null
+      return normalizeGatewayPayload({
+        sku: el.getAttribute('data-nanoai-sku') || el.getAttribute('data-sku') || '',
+        imageUrl: el.getAttribute('data-nanoai-image') || el.getAttribute('data-nanoai-image-url') || el.getAttribute('data-image-url') || '',
+        imageUrl2: el.getAttribute('data-nanoai-image-2') || '',
+        productUrl: el.getAttribute('data-nanoai-product-url') || el.getAttribute('data-product-url') || '',
+        inventoryId: el.getAttribute('data-nanoai-inventory') || el.getAttribute('data-inventory-id') || '',
+      })
+    }
+
     function ensureIframe(ctx, opts) {
       opts = opts || {}
       var nextCtx = ctx || extractPageContext()
       pageContext = nextCtx
-      // Giữ `ui_locale` (và query khác) sau khi khách đổi ngôn ngữ trong iframe — không ghi đè bằng data-chat-url gốc.
-      var baseForBuild = iframe && iframe.src ? iframe.src : chatUrl
-      if (!iframe) {
+      var useFreshBase = Boolean(opts.replaceContext)
+      var baseForBuild = chatUrl
+      if (!useFreshBase && iframe && iframe.src) baseForBuild = iframe.src
+      else if (!iframe && !useFreshBase) {
         var resumeForOpen = readReturnChatHref()
         if (resumeForOpen) baseForBuild = resumeForOpen
       }
-      var injectTryOn = !iframe && Boolean(opts.openTryOn)
+      var urlOpts = {
+        openTryOn: Boolean(opts.openTryOn),
+        autoConsult: Boolean(opts.autoConsult),
+        gateway: opts.gateway || '',
+        replaceContext: useFreshBase || Boolean(opts.openTryOn) || Boolean(opts.autoConsult),
+      }
       try {
         var uLoc = new URL(baseForBuild, window.location.href)
-        if (iframe) uLoc.searchParams.delete('open_try_on')
+        if (iframe && !opts.openTryOn) uLoc.searchParams.delete('open_try_on')
         uLoc.searchParams.set('ui_locale', pendingUiLocale)
         baseForBuild = uLoc.toString()
       } catch (_) {}
-      var nextSrc = buildChatUrlWithContext(baseForBuild, nextCtx, injectTryOn)
+      var nextSrc = buildChatUrlWithContext(baseForBuild, nextCtx, urlOpts)
       if (!iframe) {
         iframe = document.createElement('iframe')
         iframe.src = nextSrc
@@ -690,12 +786,17 @@
       } catch (_) {}
     }
 
-    /** `openTryOn`: chỉ bật panel thử đồ lần đầu tạo iframe — bubble try_on hoặc `data-nanoai-try-on`. Tư vấn nhắn tin không bật. */
+    /** `openTryOn` / `autoConsult` / `context` — cổng consult vs try_on từ web shop. */
     function openChat(opts) {
       opts = opts || {}
       var firstOpen = !iframe
-      var wantTryOn = opts.openTryOn === true && firstOpen
-      ensureIframe(extractPageContext(), { openTryOn: wantTryOn })
+      var explicitCtx = opts.context && typeof opts.context === 'object' ? opts.context : null
+      ensureIframe(explicitCtx, {
+        openTryOn: opts.openTryOn === true,
+        autoConsult: opts.autoConsult === true,
+        gateway: opts.gateway || '',
+        replaceContext: Boolean(explicitCtx),
+      })
       panel.style.display = 'flex'
       bubble.style.display = 'none'
       applyLayout()
@@ -703,6 +804,42 @@
       postScrollChatBottom(firstOpen ? 700 : 120)
       postScrollChatBottom(firstOpen ? 1400 : 360)
     }
+
+    /** Cổng tư vấn nhắn tin — bắt buộc sku + imageUrl (ảnh SP đang xem). */
+    function openConsultGateway(payload) {
+      var ctx = normalizeGatewayPayload(payload)
+      if (!ctx || !ctx.sku || !ctx.imageUrl) {
+        console.warn('[NanoAI] NanoAIMessagingGateway.openConsult({ sku, imageUrl, … }) — thiếu sku hoặc imageUrl.')
+        return false
+      }
+      openChat({
+        openTryOn: false,
+        autoConsult: true,
+        gateway: 'consult',
+        context: ctx,
+      })
+      return true
+    }
+
+    /** Cổng thử đồ — bắt buộc imageUrl (ảnh đại diện SP gắn luồng thử đồ). */
+    function openTryOnGateway(payload) {
+      var ctx = normalizeGatewayPayload(payload)
+      if (!ctx || !ctx.imageUrl) {
+        console.warn('[NanoAI] NanoAIMessagingGateway.openTryOn({ imageUrl, … }) — thiếu imageUrl.')
+        return false
+      }
+      openChat({
+        openTryOn: true,
+        autoConsult: false,
+        gateway: 'try_on',
+        context: ctx,
+      })
+      return true
+    }
+
+    gatewayImpl.openConsult = openConsultGateway
+    gatewayImpl.openTryOn = openTryOnGateway
+    flushGatewayPending()
     function closeChat() {
       panel.style.display = 'none'
       bubble.style.display = 'flex'
@@ -723,16 +860,30 @@
           var href = trigger.getAttribute && String(trigger.getAttribute('href') || '').trim()
           var isMessagingLink = href && href.indexOf('/messaging/p/') >= 0
           var isTryOnTrigger = trigger.hasAttribute('data-nanoai-try-on')
-          var isExplicitTrigger =
-            trigger.hasAttribute('data-nanoai-open-chat') ||
+          var isConsultTrigger =
             trigger.hasAttribute('data-nanoai-consult') ||
             trigger.hasAttribute('data-nanoai-chat-consult') ||
+            (isMessagingLink && !isTryOnTrigger)
+          var isExplicitTrigger =
+            trigger.hasAttribute('data-nanoai-open-chat') ||
+            isConsultTrigger ||
             isTryOnTrigger
           if (!isMessagingLink && !isExplicitTrigger) return
           if (isMessagingLink || isExplicitTrigger) {
             ev.preventDefault()
             ev.stopPropagation()
-            openChat({ openTryOn: isTryOnTrigger })
+            var fromBtn = contextFromDomTrigger(trigger)
+            if (isTryOnTrigger) {
+              var tryCtx = fromBtn && fromBtn.imageUrl ? fromBtn : normalizeGatewayPayload(extractPageContext())
+              if (tryCtx && tryCtx.imageUrl) openTryOnGateway(tryCtx)
+              else openChat({ openTryOn: true, gateway: 'try_on' })
+            } else if (isConsultTrigger) {
+              var consultCtx = fromBtn && fromBtn.sku && fromBtn.imageUrl ? fromBtn : normalizeGatewayPayload(extractPageContext())
+              if (consultCtx && consultCtx.sku && consultCtx.imageUrl) openConsultGateway(consultCtx)
+              else openChat({ openTryOn: false, gateway: 'consult' })
+            } else {
+              openChat({ openTryOn: false })
+            }
             postScrollChatBottom(0)
             postScrollChatBottom(700)
             postScrollChatBottom(1400)

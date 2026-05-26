@@ -47,17 +47,41 @@ Server-render các thuộc tính động trên **cùng** thẻ script load widge
 | `data-ctx-product-url` | Không | Nếu không set, widget fallback `link[rel=canonical]` hoặc URL hiện tại. |
 | `data-ctx-inventory` | Không | UUID đúng một dòng trong kho partner (đã sync Open Catalog / import). |
 | `data-primary` | Không | `chat` (mặc định) — **ưu tiên chat AI**. `try_on` — bubble widget mở panel thử đồ (`open_try_on=1`); nút tư vấn trên trang **không** kế thừa hành vi này. |
-| `data-nanoai-try-on` | Không | Trên nút HTML shop: mở chat **kèm** panel thử đồ (tương đương bubble `try_on`). |
-| `data-nanoai-consult` / `data-nanoai-chat-consult` | Không | Mở chat tư vấn SP — **không** mở panel thử đồ. |
+| `data-nanoai-try-on` | Không | Mở chat **kèm** panel thử đồ. Có thể kèm `data-nanoai-image` (ảnh đại diện SP). |
+| `data-nanoai-consult` / `data-nanoai-chat-consult` | Không | Mở chat tư vấn SP — **không** mở panel thử đồ. Có thể kèm `data-nanoai-sku`, `data-nanoai-image` trên nút. |
 | `data-mode` | Không | `floating` (mặc định, góc màn hình) hoặc `inline` (nút trong luồng layout). |
-| `data-mount-selector` | Không | CSS selector (`#id`, `.class`) — gắn nút vào phần tử; script có thể đặt xa trên trang. Không khớp ngay: widget thử gắn lại trong vài giây; fallback ngay sau `<script>`. |
-| `data-try-on-label` | Không | Nhãn nút / `aria-label` khi `data-primary="try_on"` (ví dụ «Thử đồ»). |
+| `data-mount-selector` | Không | CSS selector — gắn nút bubble vào phần tử trên trang shop. |
+| `data-try-on-label` | Không | Nhãn bubble khi `data-primary="try_on"`. |
 
-**Gợi ý:** Hai lần nhúng với `data-widget-id` khác nhau — một instance `data-primary="chat"` trên **trang chủ**, một `data-primary="try_on"` trên **layout trang SP** (kèm `data-ctx-image`, …).
+**Next.js / React:** gọi `NanoAIMessagingGateway.openConsult` / `openTryOn` trong `onClick`, truyền `product.sku` và URL ảnh từ props.
 
-**Next.js / React:** render script trong layout trang SP, truyền `product.sku`, `product.images[0]` từ props.
+## 2b. Cổng JavaScript (`NanoAIMessagingGateway`)
 
-**SPA:** SSR cho `data-ctx-*` là đơn giản nhất. Nếu chỉ CSR, có thể remount widget khi `productId` đổi (xóa root `#nanoai-chat-widget-v1` và inject script mới).
+Sau khi load `nanoai-chat-widget.js`, web shop gọi **hai cổng** — cùng một khung chat nhúng, payload khác nhau:
+
+| Cổng | Hàm | Bắt buộc gửi | Hành vi |
+|------|-----|--------------|---------|
+| Tư vấn nhắn tin | `NanoAIMessagingGateway.openConsult(payload)` | `sku`, `imageUrl` | Mở chat, tự gửi ngữ cảnh SP (`auto_consult=1`), **không** bật thử đồ |
+| Thử đồ | `NanoAIMessagingGateway.openTryOn(payload)` | `imageUrl` | Mở chat + panel thử đồ; `imageUrl` gắn ảnh trang phục |
+
+Tuỳ chọn: `productUrl`, `inventoryId` (UUID kho), `imageUrl2`.
+
+```javascript
+// Tư vấn — sku + ảnh SP đang xem
+NanoAIMessagingGateway.openConsult({
+  sku: 'SKU-188-001',
+  imageUrl: 'https://cdn.shop.com/sp-dang-xem.jpg',
+  productUrl: 'https://shop.com/san-pham/abc',
+})
+
+// Thử đồ — ảnh đại diện SP (trang phục mẫu)
+NanoAIMessagingGateway.openTryOn({
+  imageUrl: 'https://cdn.shop.com/sp-anh-dai-dien.jpg',
+  sku: 'SKU-188-001', // tuỳ chọn, hiển thị nhãn
+})
+```
+
+Gọi trước khi widget mount xong vẫn được — hàng đợi nội bộ xử lý sau khi sẵn sàng.
 
 ## 3. Cách B — Khớp selector DOM mặc định của widget
 

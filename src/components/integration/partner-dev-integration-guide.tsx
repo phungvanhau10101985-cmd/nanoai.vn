@@ -157,9 +157,34 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   data-widget-id="nanoai-chat-widget-v1"
   defer
 ></script>`
-  const fashionProductPageButtons = `<!-- Trang chi tiết SP — shop thời trang / mua sắm (cùng widget script phía trên) -->
-<button type="button" data-nanoai-consult>Tư vấn nhắn tin</button>
-<button type="button" data-nanoai-try-on>Thử đồ</button>`
+  const fashionProductPageButtons = `<!-- Cách 1 — nút HTML (gắn sku + ảnh trên từng nút) -->
+<button type="button"
+  data-nanoai-consult
+  data-nanoai-sku="SKU-188-001"
+  data-nanoai-image="https://cdn.shop.com/sp-anh-chinh.jpg">
+  Tư vấn nhắn tin
+</button>
+<button type="button"
+  data-nanoai-try-on
+  data-nanoai-image="https://cdn.shop.com/sp-anh-chinh.jpg">
+  Thử đồ
+</button>
+
+<!-- Cách 2 — cổng JS (khuyên dùng SPA / đổi SP động) -->
+<script>
+  document.getElementById('btn-consult').onclick = function () {
+    NanoAIMessagingGateway.openConsult({
+      sku: 'SKU-188-001',
+      imageUrl: 'https://cdn.shop.com/sp-anh-chinh.jpg',
+      productUrl: window.location.href
+    })
+  }
+  document.getElementById('btn-tryon').onclick = function () {
+    NanoAIMessagingGateway.openTryOn({
+      imageUrl: 'https://cdn.shop.com/sp-anh-dai-dien.jpg'
+    })
+  }
+</script>`
   const hostedIframe = `<iframe
   src="${hostedUrl}"
   title="${shopNameAttr} — Chat"
