@@ -1824,6 +1824,8 @@ export function PartnerGuestChatClient({
   const [productShelfSearchQuery, setProductShelfSearchQuery] = useState('')
   const [productShelfVectorRows, setProductShelfVectorRows] = useState<RecentProductWithSource[] | null>(null)
   const [productShelfSearchLoading, setProductShelfSearchLoading] = useState(false)
+  const [productShelfSimilarRows, setProductShelfSimilarRows] = useState<RecentProductWithSource[] | null>(null)
+  const [productShelfSimilarLoading, setProductShelfSimilarLoading] = useState(false)
 
   const mergeGuestMessages = useCallback((base: GuestMsg[], incoming: GuestMsg[]): GuestMsg[] => {
     if (!incoming.length) return base
@@ -1875,8 +1877,11 @@ export function PartnerGuestChatClient({
 
   const productShelfDisplayRows = useMemo(() => {
     if (productShelfVectorRows !== null) return productShelfVectorRows
+    if (productShelfSimilarRows !== null && productShelfSimilarRows.length > 0) {
+      return productShelfSimilarRows
+    }
     return recentProductRows
-  }, [productShelfVectorRows, recentProductRows])
+  }, [productShelfVectorRows, productShelfSimilarRows, recentProductRows])
 
   const productShelfDisplayLenRef = useRef(0)
   productShelfDisplayLenRef.current = productShelfDisplayRows.length
@@ -1887,6 +1892,8 @@ export function PartnerGuestChatClient({
     if (!open && prev) {
       setProductShelfVisibleCount(PRODUCT_SHELF_LAZY_INITIAL)
       setProductShelfVectorRows(null)
+      setProductShelfSimilarRows(null)
+      setProductShelfSimilarLoading(false)
       setProductShelfSearchQuery('')
     }
     prevRecentProductsOpenRef.current = open
@@ -2238,6 +2245,44 @@ export function PartnerGuestChatClient({
       window.parent?.postMessage({ source: 'nanoai-widget', type: 'GUEST_IDENTITY', guestAccountId: aid }, '*')
     }
   }, [])
+
+  const loadProductShelfSimilarRows = useCallback(async () => {
+    setProductShelfSimilarLoading(true)
+    try {
+      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/product-shelf`, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { ...authHeaders() },
+      })
+      captureGuestSessionFromResponse(res)
+      captureGuestAccountFromResponse(res)
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean
+        cards?: PartnerAiProductCard[]
+      } | null
+      if (!res.ok || !data?.ok || !Array.isArray(data.cards)) {
+        setProductShelfSimilarRows([])
+        return
+      }
+      const mapped: RecentProductWithSource[] = data.cards.map((card) => ({
+        card,
+        sourceMessageId: 'chat-similar',
+      }))
+      setProductShelfSimilarRows(mapped)
+      if (mapped.length > 0) {
+        setProductShelfVisibleCount(Math.min(PRODUCT_SHELF_LAZY_INITIAL, mapped.length))
+      }
+    } catch {
+      setProductShelfSimilarRows([])
+    } finally {
+      setProductShelfSimilarLoading(false)
+    }
+  }, [slug, authHeaders, captureGuestAccountFromResponse, captureGuestSessionFromResponse])
+
+  useEffect(() => {
+    if (!recentProductsOpen) return
+    void loadProductShelfSimilarRows()
+  }, [recentProductsOpen, loadProductShelfSimilarRows, productShelfShuffleNonce])
 
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -7621,7 +7666,9 @@ export function PartnerGuestChatClient({
             ref={productShelfScrollRef}
             className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-3"
           >
-          {productShelfDisplayRows.length === 0 ? (
+          {productShelfSimilarLoading && productShelfVectorRows === null ? (
+            <p className="text-sm text-muted-foreground">{t.productShelfSearching}</p>
+          ) : productShelfDisplayRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {productShelfVectorRows !== null ? t.productShelfSearchNoResults : t.productShelfEmpty}
             </p>

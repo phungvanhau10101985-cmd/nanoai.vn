@@ -157,6 +157,76 @@ export async function buildPurchasePickListCardsFromConversation(
   return enrichPartnerAiProductCardsWithInventoryVideoFromPg(partnerId, cards)
 }
 
+/**
+ * Tối đa `limit` dòng kho neo — SP đã **nhắc trong chat** (thẻ AI, vision, page_context…),
+ * tin mới → cũ, mỗi inventory_id / URL một lần. Fallback «đã bấm Tư vấn» nếu payload trống.
+ */
+export async function fetchRecentChatMentionedInventoryAnchorRows(
+  partnerId: string,
+  conversationId: string,
+  limit = 5
+): Promise<InvRow[]> {
+  if (!isPgConfigured()) return []
+  const lim = Math.max(1, Math.min(20, Math.floor(Number(limit)) || 5))
+
+  const rows = await fetchCustomerCareMessagePayloadsDescFromPg(conversationId, 500)
+  const orderedRefs: ProductRef[] = []
+  const seenInv = new Set<string>()
+  const seenUrl = new Set<string>()
+
+  if (rows?.length) {
+    for (const row of rows) {
+      for (const ref of extractProductRefsFromPayload(row.raw_payload)) {
+        if (ref.inv) {
+          if (seenInv.has(ref.inv)) continue
+          seenInv.add(ref.inv)
+          orderedRefs.push(ref)
+        } else if (ref.urlKey) {
+          if (seenUrl.has(ref.urlKey)) continue
+          seenUrl.add(ref.urlKey)
+          orderedRefs.push(ref)
+        }
+        if (orderedRefs.length >= lim * 4) break
+      }
+      if (orderedRefs.length >= lim * 4) break
+    }
+  }
+
+  if (orderedRefs.length === 0) {
+    const keys = await fetchConsultedProductUrlKeysByRecencyFromPg(conversationId, lim)
+    if (keys?.length) {
+      for (const k of keys) {
+        const t = String(k ?? '').trim()
+        if (!t || seenUrl.has(t)) continue
+        seenUrl.add(t)
+        orderedRefs.push({ urlKey: t })
+      }
+    }
+  }
+
+  if (!orderedRefs.length) return []
+
+  const anchorRows: InvRow[] = []
+  const resolvedInv = new Set<string>()
+
+  for (const ref of orderedRefs) {
+    let invRow: InvRow | null = null
+    if (ref.inv) {
+      invRow = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, ref.inv)
+    } else if (ref.urlKey) {
+      invRow = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(partnerId, ref.urlKey)
+    }
+    if (!invRow) continue
+    const rid = invRow.id?.trim()
+    if (!rid || resolvedInv.has(rid)) continue
+    resolvedInv.add(rid)
+    anchorRows.push(invRow)
+    if (anchorRows.length >= lim) break
+  }
+
+  return anchorRows
+}
+
 export function purchasePickListMessageBody(uiLocale: string | null | undefined): string {
   const loc = String(uiLocale ?? '')
     .trim()

@@ -3270,9 +3270,9 @@ const VI_DICTIONARY: Dictionary = {
     urlProductContextChipAria:
       'Gửi shop ngữ cảnh sản phẩm trên trang này (mã, ảnh). Bỏ qua nếu bạn nhập tin nhắn khác trước.',
     urlProductContextChipDismissAria: 'Đóng — không gửi mã sản phẩm đang xem',
-    productShelfTitle: 'Sản phẩm bạn quan tâm gần đây',
+    productShelfTitle: 'Gợi ý tương tự cho bạn',
     productShelfEmpty:
-      'Chưa có sản phẩm gợi ý. Xem tin từ shop hoặc gửi ảnh để nhận gợi ý nhé.',
+      'Chưa có gợi ý tương tự. Chat với shop (hoặc gửi ảnh SP) để nhận gợi ý, hoặc tìm trong kho bên trên.',
     productShelfSearchPlaceholder: 'Tìm trong kho (mô tả, kiểu dáng…)',
     productShelfSearchButton: 'Tìm',
     productShelfSearchImage: 'Ảnh',
@@ -5405,8 +5405,9 @@ const EN_DICTIONARY: Dictionary = {
     urlProductContextChipAria:
       'Share which product you are viewing on this page with the shop. Skip by typing a message first.',
     urlProductContextChipDismissAria: 'Dismiss — do not send viewed product context',
-    productShelfTitle: 'Products you recently viewed',
-    productShelfEmpty: 'No suggested products yet. Read the shop messages or send a photo to get picks.',
+    productShelfTitle: 'Similar picks for you',
+    productShelfEmpty:
+      'No similar picks yet. Chat with the shop (or send a product photo) for suggestions, or search inventory above.',
     productShelfSearchPlaceholder: 'Search inventory (style, description…)',
     productShelfSearchButton: 'Search',
     productShelfSearchImage: 'Image',
@@ -7513,8 +7514,8 @@ const ZH_DICTIONARY: Dictionary = {
     urlProductContextChipLabel: '发送当前商品',
     urlProductContextChipAria: '将本页正在浏览的商品信息发送给店铺。先输入其他消息则不会附带。',
     urlProductContextChipDismissAria: '关闭 — 不发送正在浏览的商品',
-    productShelfTitle: '您最近关注的商品',
-    productShelfEmpty: '暂无推荐。请查看店铺消息或发送图片以获取推荐。',
+    productShelfTitle: '为您推荐的相似商品',
+    productShelfEmpty: '暂无相似推荐。与店铺聊天（或发送商品图片）获取推荐，或在上方搜索库存。',
     productShelfSearchPlaceholder: '搜索库存（款式、描述等）',
     productShelfSearchButton: '搜索',
     productShelfSearchImage: '图片',
@@ -9601,8 +9602,9 @@ const JA_DICTIONARY: Dictionary = {
     urlProductContextChipAria:
       'このページで見ている商品の文脈（コード・画像）を店舗に送ります。先に別のメッセージを送ると付きません。',
     urlProductContextChipDismissAria: '閉じる — 閲覧中商品の文脈を送らない',
-    productShelfTitle: '最近関心のある商品',
-    productShelfEmpty: 'まだおすすめがありません。店舗のメッセージを見るか、写真を送ってください。',
+    productShelfTitle: '似ているおすすめ商品',
+    productShelfEmpty:
+      'まだ似た商品の提案がありません。ショップとチャット（または商品写真を送る）か、上で在庫検索してください。',
     productShelfSearchPlaceholder: '在庫を検索（スタイル・説明）',
     productShelfSearchButton: '検索',
     productShelfSearchImage: '画像',
@@ -11713,8 +11715,9 @@ const KO_DICTIONARY: Dictionary = {
     urlProductContextChipAria:
       '이 페이지에서 보고 있는 상품 정보를 매장에 보냅니다. 먼저 다른 메시지를 보내면 포함되지 않습니다.',
     urlProductContextChipDismissAria: '닫기 — 보는 상품 정보 보내지 않음',
-    productShelfTitle: '최근 관심 상품',
-    productShelfEmpty: '아직 추천이 없습니다. 매장 메시지를 보거나 사진을 보내 주세요.',
+    productShelfTitle: '비슷한 추천 상품',
+    productShelfEmpty:
+      '아직 비슷한 추천이 없습니다. 매장과 채팅(또는 상품 사진 전송)하거나 위에서 재고를 검색해 보세요.',
     productShelfSearchPlaceholder: '재고 검색(스타일·설명)',
     productShelfSearchButton: '검색',
     productShelfSearchImage: '이미지',
