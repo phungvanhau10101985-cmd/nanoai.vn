@@ -176,7 +176,7 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
     NanoAIMessagingGateway.openConsult({
       sku: 'SKU-188-001',
       imageUrl: 'https://cdn.shop.com/sp-anh-chinh.jpg',
-      productUrl: window.location.href
+      productUrl: window.location.href,
     })
   }
   document.getElementById('btn-tryon').onclick = function () {

@@ -1667,7 +1667,6 @@ export function PartnerGuestChatClient({
     baselineLatestOutbound: GuestShopOutboundCursor | null
   } | null>(null)
   /** Mở link tư vấn — chờ fetch lời mở đầu + POST (vector) trước khi có bubble. */
-  const [consultLinkPreparing, setConsultLinkPreparing] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
   const [tryOnOpen, setTryOnOpen] = useState(() => initialTryOnOpenFromGuestUrl(slug))
@@ -1763,18 +1762,8 @@ export function PartnerGuestChatClient({
   const [tryOnComposerLargeOpen, setTryOnComposerLargeOpen] = useState(false)
   const pageContextRef = useRef<WidgetPageContextSeed | null>(null)
   const contextSeededRef = useRef(false)
-  /**
-   * Chỉ khi `true`: gửi `pageContext` (từ ?ctx_* / tu-vân) lên server.
-   * Bật khi khách bấm chip thumbnail, hoặc `auto_consult=1` (tự gửi như trước).
-   */
+  /** Chỉ khi `true`: gửi `pageContext` (từ ?ctx_* / tu-vân) lên server — khi khách bấm chip hoặc gửi tin. */
   const attachUrlPageContextRef = useRef(false)
-  /**
-   * Tự gửi tin ngữ cảnh SP (ảnh / mã kho trong payload) như bấm chip.
-   * - Trang `/tu-van/{uuid}` mở **trực tiếp** (không iframe, không `embed=1`): bật mặc định.
-   * - **Nhúng** (iframe hoặc `embed=1`): chỉ bật khi `auto_consult=1` (hành vi cũ).
-   * - `auto_consult=0|false|no`: tắt cả trên link trực tiếp.
-   */
-  const autoConsultFromUrlEnabledRef = useRef(false)
   /** Hiển thị chip thumbnail «gửi SP đang xem» — đồng bộ ref khi mount; ẩn sau gửi / bỏ qua / đã có trong thread. */
   const [pendingUrlPageContextChip, setPendingUrlPageContextChip] = useState<WidgetPageContextSeed | null>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
@@ -2044,17 +2033,10 @@ export function PartnerGuestChatClient({
     setGuestInIframe(inIframe)
     const embedLike = ev === '1' || ev === 'true' || ev === 'yes' || inIframe
     setIsEmbedUi(embedLike)
-    const autoOn = (q.get('auto_consult') || '').trim().toLowerCase()
-    const autoOff = autoOn === '0' || autoOn === 'false' || autoOn === 'no'
-    const autoOnExplicit = autoOn === '1' || autoOn === 'true' || autoOn === 'yes'
 
     const invBootstrap = (consultFromInventory?.inventoryId ?? '').trim()
     const uuidOk =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invBootstrap)
-
-    const isConsultInventoryRoute = Boolean(consultFromInventory) && uuidOk
-    autoConsultFromUrlEnabledRef.current =
-      !autoOff && (autoOnExplicit || (isConsultInventoryRoute && !embedLike))
 
     if (uuidOk && consultFromInventory) {
       const c = consultFromInventory
@@ -2070,8 +2052,7 @@ export function PartnerGuestChatClient({
       }
       const next = hasAny ? sanitizeWidgetPageContextSeed(rawSeed) : null
       pageContextRef.current = hasWidgetPageContextSeed(next) ? next : null
-      const consultWillAutoSend = !autoOff && (autoOnExplicit || !embedLike)
-      setPendingUrlPageContextChip(consultWillAutoSend ? null : pageContextRef.current)
+      setPendingUrlPageContextChip(pageContextRef.current)
     } else {
       const sku = (q.get('ctx_sku') || '').trim()
       const imageUrl = (q.get('ctx_image') || '').trim()
@@ -2792,9 +2773,19 @@ export function PartnerGuestChatClient({
     window.setTimeout(scroll, 220)
   }, [])
 
+  const removeTryOnUserPortrait = useCallback(() => {
+    setTryOnUserFile(null)
+    try {
+      localStorage.removeItem(tryOnUserPortraitStorageKey(slug))
+    } catch {
+      /* ignore private mode */
+    }
+    if (tryOnUserInputRef.current) tryOnUserInputRef.current.value = ''
+  }, [slug])
+
   const setTryOnUserFromFile = async (file: File | null) => {
     if (!file) {
-      setTryOnUserFile(null)
+      removeTryOnUserPortrait()
       return
     }
     if (!file.type.startsWith('image/')) {
@@ -4861,87 +4852,6 @@ export function PartnerGuestChatClient({
     contextSeededRef.current = true
   }, [hasLoadedOnce, messages, pendingUrlPageContextChip])
 
-  /**
-   * Ngữ cảnh SP: `/messaging/p/{slug}/tu-van/{uuid}` hoặc `?ctx_*=`.
-   * - `/tu-van/{uuid}` **full tab**: tự gửi một tin (ảnh + pageContext) trừ khi `auto_consult=0` hoặc đang nhúng.
-   * - **Nhúng** hoặc `?ctx_*=` trên `/messaging/p/{slug}`: chip + chỉ tự gửi khi `auto_consult=1`.
-   */
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (!hasLoadedOnce || !authReady) return
-    if (!autoConsultFromUrlEnabledRef.current) return
-    if (contextSeededRef.current) return
-    const pc = pageContextRef.current
-    if (!hasWidgetPageContextSeed(pc)) return
-    const sig = [
-      slug,
-      pc?.sku ?? '',
-      pc?.imageUrl ?? '',
-      pc?.imageUrl2 ?? '',
-      pc?.productUrl ?? '',
-      pc?.inventoryId ?? '',
-    ].join('\t')
-    const storageKey = `messaging_auto_ctx:${sig}`
-    try {
-      const st = window.sessionStorage.getItem(storageKey)
-      if (st === '1' || st === 'pending') return
-      window.sessionStorage.setItem(storageKey, 'pending')
-    } catch {
-      /* ignore */
-    }
-    let cancelled = false
-    void (async () => {
-      setConsultLinkPreparing(true)
-      try {
-        attachUrlPageContextRef.current = true
-        let openingText = ''
-        try {
-          const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/consult-link-opening`, {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({
-              inventoryId: pc?.inventoryId,
-              sku: pc?.sku,
-              productUrl: pc?.productUrl,
-            }),
-          })
-          const data = (await res.json().catch(() => null)) as { text?: string } | null
-          if (res.ok && typeof data?.text === 'string') openingText = data.text.trim()
-        } catch {
-          /* dùng fallback dưới */
-        }
-      if (!openingText) {
-        openingText =
-          'Chào anh/chị! Shop sẵn sàng tư vấn về mẫu đang xem. Anh/chị nhắn em nếu cần hỏi size, màu hay đặt hàng nhé.'
-      }
-        const ok = await submitGuestMessage(openingText, { autoOpening: true })
-        if (cancelled) {
-          try {
-            window.sessionStorage.removeItem(storageKey)
-          } catch {
-            /* ignore */
-          }
-          return
-        }
-        try {
-          if (ok) {
-            window.sessionStorage.setItem(storageKey, '1')
-          } else {
-            window.sessionStorage.removeItem(storageKey)
-          }
-        } catch {
-          /* ignore */
-        }
-      } finally {
-        setConsultLinkPreparing(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [authReady, authHeaders, hasLoadedOnce, slug, submitGuestMessage])
-
   /** Email CMSN / link có ?interested_inv= & bday_discount= — mở kệ SP + banner ưu đãi. */
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -6213,9 +6123,6 @@ export function PartnerGuestChatClient({
                 Đang tải tin cũ...
               </div>
             ) : null}
-            {consultLinkPreparing ? (
-              <GuestShopTypingPill label={t.consultLinkShopPreparingHint} />
-            ) : null}
             {shopTyping ? <GuestShopTypingPill label={t.shopTypingHint} /> : null}
             <div ref={scrollAnchorRef} className="h-px w-full shrink-0" aria-hidden />
           </div>
@@ -7003,17 +6910,17 @@ export function PartnerGuestChatClient({
                           </div>
                         )}
                         {tryOnUserPreviewUrl ? (
-                          <span
-                            role="button"
+                          <button
+                            type="button"
                             className="absolute right-0 top-0 rounded-bl bg-black/55 px-1 text-[10px] text-white"
                             onClick={(e) => {
                               e.stopPropagation()
-                              setTryOnUserFile(null)
-                              if (tryOnUserInputRef.current) tryOnUserInputRef.current.value = ''
+                              removeTryOnUserPortrait()
                             }}
+                            aria-label={t.guestRemoveAttachment}
                           >
                             ×
-                          </span>
+                          </button>
                         ) : null}
                       </button>
                       <p className="line-clamp-1 text-[11px] text-muted-foreground">{tryOnUserFile?.name ?? '—'}</p>

@@ -584,7 +584,6 @@
     function buildChatUrlWithContext(baseUrl, ctx, urlOpts) {
       urlOpts = urlOpts || {}
       var openTryOn = urlOpts.openTryOn === true
-      var autoConsult = urlOpts.autoConsult === true
       var gateway = String(urlOpts.gateway || '').trim().slice(0, 32)
       try {
         var u = new URL(baseUrl, window.location.href)
@@ -618,7 +617,6 @@
           u.searchParams.set('ctx_source', gateway === 'try_on' ? 'widget_try_on' : 'widget_page')
         }
         if (gateway) u.searchParams.set('ctx_gateway', gateway)
-        if (autoConsult) u.searchParams.set('auto_consult', '1')
         if (openTryOn) u.searchParams.set('open_try_on', '1')
         return u.toString()
       } catch (_) {
@@ -678,9 +676,8 @@
       }
       var urlOpts = {
         openTryOn: Boolean(opts.openTryOn),
-        autoConsult: Boolean(opts.autoConsult),
         gateway: opts.gateway || '',
-        replaceContext: useFreshBase || Boolean(opts.openTryOn) || Boolean(opts.autoConsult),
+        replaceContext: useFreshBase || Boolean(opts.openTryOn),
       }
       try {
         var uLoc = new URL(baseForBuild, window.location.href)
@@ -796,7 +793,7 @@
       opts = opts || {}
       var openTryOn = opts.openTryOn === true
       var gateway = String(opts.gateway || '').trim().toLowerCase()
-      var isConsult = gateway === 'consult' || (opts.autoConsult === true && !openTryOn)
+      var isConsult = gateway === 'consult' && !openTryOn
       var isTryOn = openTryOn || gateway === 'try_on'
       if (!isConsult && !isTryOn) return
       var msgType = isTryOn ? 'OPEN_TRY_ON_PANEL' : 'CLOSE_TRY_ON_PANEL'
@@ -811,14 +808,13 @@
       } catch (_) {}
     }
 
-    /** `openTryOn` / `autoConsult` / `context` — cổng consult vs try_on từ web shop. */
+    /** `openTryOn` / `context` / `gateway` — cổng consult vs try_on từ web shop. */
     function openChat(opts) {
       opts = opts || {}
       var firstOpen = !iframe
       var explicitCtx = opts.context && typeof opts.context === 'object' ? opts.context : null
       ensureIframe(explicitCtx, {
         openTryOn: opts.openTryOn === true,
-        autoConsult: opts.autoConsult === true,
         gateway: opts.gateway || '',
         replaceContext: Boolean(explicitCtx),
       })
@@ -833,7 +829,7 @@
       postScrollChatBottom(firstOpen ? 1400 : 360)
     }
 
-    /** Cổng tư vấn nhắn tin — bắt buộc sku + imageUrl (ảnh SP đang xem). */
+    /** Cổng tư vấn nhắn tin — bắt buộc sku + imageUrl; chỉ gắn ctx + chip (không tự gửi). */
     function openConsultGateway(payload) {
       var ctx = normalizeGatewayPayload(payload)
       if (!ctx || !ctx.sku || !ctx.imageUrl) {
@@ -842,7 +838,6 @@
       }
       openChat({
         openTryOn: false,
-        autoConsult: true,
         gateway: 'consult',
         context: ctx,
       })
@@ -858,7 +853,6 @@
       }
       openChat({
         openTryOn: true,
-        autoConsult: false,
         gateway: 'try_on',
         context: ctx,
       })
@@ -908,7 +902,7 @@
             } else if (isConsultTrigger) {
               var consultCtx = fromBtn && fromBtn.sku && fromBtn.imageUrl ? fromBtn : normalizeGatewayPayload(extractPageContext())
               if (consultCtx && consultCtx.sku && consultCtx.imageUrl) openConsultGateway(consultCtx)
-              else openChat({ openTryOn: false, autoConsult: true, gateway: 'consult' })
+              else openChat({ openTryOn: false, gateway: 'consult' })
             } else {
               openChat({ openTryOn: false })
             }

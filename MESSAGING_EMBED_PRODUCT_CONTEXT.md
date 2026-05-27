@@ -17,7 +17,7 @@ Script nổi: `public/embed/nanoai-chat-widget.js` — khi khách mở khung cha
 
 4. Client chat (`partner-guest-chat-client.tsx`) đọc `URLSearchParams`, chuẩn hóa → chip gửi SP đang xem.
 
-5. **Thử đồ (`data-primary="try_on"` hoặc `data-nanoai-try-on`):** chỉ khi khách bấm **bubble thử đồ** hoặc nút có `data-nanoai-try-on`, lần đầu mở khung URL iframe có thêm `open_try_on=1` (xoá ngay sau load). Panel thử đồ mở; ảnh người **khôi phục** từ bộ nhớ trình duyệt trên **origin NanoAI**; ảnh trang phục **tự thêm** từ `ctx_image` / quét gallery. **Bấm «Tư vấn nhắn tin»** (`data-nanoai-consult`, link `/messaging/p/…/tu-van/…`) **không** mở panel thử đồ — chỉ gửi ngữ cảnh SP (ảnh + SKU) như chat tư vấn.
+5. **Thử đồ (`data-primary="try_on"` hoặc `data-nanoai-try-on`):** chỉ khi khách bấm **bubble thử đồ** hoặc nút có `data-nanoai-try-on`, lần đầu mở khung URL iframe có thêm `open_try_on=1` (xoá ngay sau load). Panel thử đồ mở; ảnh người **khôi phục** từ bộ nhớ trình duyệt trên **origin NanoAI**; ảnh trang phục **tự thêm** từ `ctx_image` / quét gallery. **Bấm «Tư vấn nhắn tin»** (`data-nanoai-consult`, `openConsult`, link `/messaging/p/…/tu-van/…`) **không** mở panel thử đồ — chỉ gắn chip ngữ cảnh SP (ảnh + SKU); khách bấm chip mới gửi.
 
 ## 2. Cách A — Đặt `data-ctx-*` trên thẻ `<script>` NanoAI (khuyên dùng)
 
@@ -48,7 +48,7 @@ Server-render các thuộc tính động trên **cùng** thẻ script load widge
 | `data-ctx-inventory` | Không | UUID đúng một dòng trong kho partner (đã sync Open Catalog / import). |
 | `data-primary` | Không | `chat` (mặc định) — **ưu tiên chat AI**. `try_on` — bubble widget mở panel thử đồ (`open_try_on=1`); nút tư vấn trên trang **không** kế thừa hành vi này. |
 | `data-nanoai-try-on` | Không | Mở chat **kèm** panel thử đồ. Có thể kèm `data-nanoai-image` (ảnh đại diện SP). |
-| `data-nanoai-consult` / `data-nanoai-chat-consult` | Không | Mở chat tư vấn SP — **không** mở panel thử đồ. Có thể kèm `data-nanoai-sku`, `data-nanoai-image` trên nút. |
+| `data-nanoai-consult` / `data-nanoai-chat-consult` | Không | Mở chat tư vấn SP — **không** mở panel thử đồ, **không** tự gửi (chip như FAB). Có thể kèm `data-nanoai-sku`, `data-nanoai-image` trên nút. |
 | `data-mode` | Không | `floating` (mặc định, góc màn hình) hoặc `inline` (nút trong luồng layout). |
 | `data-mount-selector` | Không | CSS selector — gắn nút bubble vào phần tử trên trang shop. |
 | `data-try-on-label` | Không | Nhãn bubble khi `data-primary="try_on"`. |
@@ -61,13 +61,13 @@ Sau khi load `nanoai-chat-widget.js`, web shop gọi **hai cổng** — cùng m�
 
 | Cổng | Hàm | Bắt buộc gửi | Hành vi |
 |------|-----|--------------|---------|
-| Tư vấn nhắn tin | `NanoAIMessagingGateway.openConsult(payload)` | `sku`, `imageUrl` | Mở chat, tự gửi ngữ cảnh SP (`auto_consult=1`), **không** bật thử đồ |
+| Tư vấn nhắn tin | `NanoAIMessagingGateway.openConsult(payload)` | `sku`, `imageUrl` | Mở chat, gắn ngữ cảnh SP + chip «Gửi mã SP đang xem» (khách bấm chip mới gửi), **không** bật thử đồ |
 | Thử đồ | `NanoAIMessagingGateway.openTryOn(payload)` | `imageUrl` | Mở chat + panel thử đồ; `imageUrl` gắn ảnh trang phục |
 
 Tuỳ chọn: `productUrl`, `inventoryId` (UUID kho), `imageUrl2`.
 
 ```javascript
-// Tư vấn — sku + ảnh SP đang xem
+// Tư vấn — sku + ảnh SP đang xem (chip, không tự gửi — giống FAB)
 NanoAIMessagingGateway.openConsult({
   sku: 'SKU-188-001',
   imageUrl: 'https://cdn.shop.com/sp-dang-xem.jpg',
