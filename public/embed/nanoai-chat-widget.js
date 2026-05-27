@@ -574,8 +574,10 @@
         var canonical = document.querySelector('link[rel="canonical"]')
         var canonicalUrl = canonical ? toHttpUrl(canonical.getAttribute('href')) : ''
         var pageUrl = toHttpUrl(window.location.href)
-        if (canonicalUrl && !out.productUrl) out.productUrl = canonicalUrl
-        else if (pageUrl && !out.productUrl) out.productUrl = pageUrl
+        if (out.sku || out.imageUrl || out.imageUrl2 || out.inventoryId) {
+          if (canonicalUrl && !out.productUrl) out.productUrl = canonicalUrl
+          else if (pageUrl && !out.productUrl) out.productUrl = pageUrl
+        }
       } catch (_) {}
 
       return out
@@ -608,12 +610,11 @@
         if (ctx && ctx.sku) u.searchParams.set('ctx_sku', ctx.sku)
         if (ctx && ctx.imageUrl) u.searchParams.set('ctx_image', ctx.imageUrl)
         if (ctx && ctx.imageUrl2) u.searchParams.set('ctx_image_2', ctx.imageUrl2)
-        if (ctx && ctx.productUrl) u.searchParams.set('ctx_product_url', ctx.productUrl)
         if (ctx && ctx.inventoryId) u.searchParams.set('ctx_inventory', ctx.inventoryId)
-        if (
-          ctx &&
-          (ctx.sku || ctx.imageUrl || ctx.imageUrl2 || ctx.productUrl || ctx.inventoryId)
-        ) {
+        var hasProductCtx =
+          ctx && (ctx.sku || ctx.imageUrl || ctx.imageUrl2 || ctx.inventoryId)
+        if (hasProductCtx && ctx.productUrl) u.searchParams.set('ctx_product_url', ctx.productUrl)
+        if (hasProductCtx) {
           u.searchParams.set('ctx_source', gateway === 'try_on' ? 'widget_try_on' : 'widget_page')
         }
         if (gateway) u.searchParams.set('ctx_gateway', gateway)
@@ -677,7 +678,10 @@
       var urlOpts = {
         openTryOn: Boolean(opts.openTryOn),
         gateway: opts.gateway || '',
-        replaceContext: useFreshBase || Boolean(opts.openTryOn),
+        replaceContext:
+          useFreshBase ||
+          Boolean(opts.openTryOn) ||
+          String(opts.gateway || '').trim().toLowerCase() === 'consult',
       }
       try {
         var uLoc = new URL(baseForBuild, window.location.href)

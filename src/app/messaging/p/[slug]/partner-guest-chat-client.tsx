@@ -162,7 +162,8 @@ function setGuestTryOnUrlFlagCache(slug: string, value: boolean) {
 
 function initialTryOnOpenFromGuestUrl(slug: string): boolean {
   if (typeof window === 'undefined') return false
-  const gateway = readGuestEmbedGatewayFromUrl()
+  const q = new URLSearchParams(window.location.search)
+  const gateway = (q.get('ctx_gateway') || '').trim().toLowerCase()
   if (gateway === 'consult') {
     setGuestTryOnUrlFlagCache(slug, false)
     return false
@@ -171,6 +172,16 @@ function initialTryOnOpenFromGuestUrl(slug: string): boolean {
   if (fromUrl) {
     setGuestTryOnUrlFlagCache(slug, true)
     return true
+  }
+  /** Cổng tư vấn / FAB: có ctx SP nhưng không phải try_on — không khôi phục panel từ cache phiên trước. */
+  const hasWidgetCtx =
+    Boolean(q.get('ctx_sku')?.trim()) ||
+    Boolean(q.get('ctx_image')?.trim()) ||
+    Boolean(q.get('ctx_image_2')?.trim()) ||
+    Boolean(q.get('ctx_inventory')?.trim())
+  if (hasWidgetCtx && gateway !== 'try_on') {
+    setGuestTryOnUrlFlagCache(slug, false)
+    return false
   }
   if (guestChatTryOnUrlFlagCache?.slug === slug && guestChatTryOnUrlFlagCache.value) {
     return true
@@ -570,11 +581,11 @@ type WidgetPageContextSeed = {
 
 function hasWidgetPageContextSeed(pc: WidgetPageContextSeed | null | undefined): boolean {
   if (!pc) return false
+  /** Chip / ngữ cảnh SP: cần sku, ảnh hoặc UUID kho — không chỉ URL trang (trang không phải chi tiết SP). */
   return Boolean(
     (pc.sku && pc.sku.trim()) ||
       (pc.imageUrl && pc.imageUrl.trim()) ||
       (pc.imageUrl2 && pc.imageUrl2.trim()) ||
-      (pc.productUrl && pc.productUrl.trim()) ||
       (pc.inventoryId && pc.inventoryId.trim())
   )
 }
@@ -1239,8 +1250,6 @@ type GuestChatDraftComposerProps = {
   submitGuestMessage: (text: string) => Promise<boolean>
   enqueueGuestSend: (run: () => Promise<void>) => void
   attachmentCount: number
-  /** Chip «Gửi mã SP đang xem» đang hiện → cho gửi dù ô trống. */
-  urlProductChipPending?: boolean
   uploading: boolean
   sending: boolean
   tryOnBusy: boolean
@@ -1277,7 +1286,6 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   submitGuestMessage,
   enqueueGuestSend,
   attachmentCount,
-  urlProductChipPending,
   uploading,
   sending,
   tryOnBusy,
@@ -1320,7 +1328,7 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   }, [draft, autoResizeDraft])
 
   const canSend = Boolean(
-    (draft.trim() || attachmentCount > 0 || urlProductChipPending) &&
+    (draft.trim() || attachmentCount > 0) &&
       !uploading &&
       !(authGateRequired && authMode !== 'account')
   )
@@ -1770,8 +1778,22 @@ export function PartnerGuestChatClient({
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const tryOnUserInputRef = useRef<HTMLInputElement>(null)
   const tryOnGarmentInputRef = useRef<HTMLInputElement>(null)
-  /** Một lần mở panel: tự thêm ảnh SP từ ctx_image (widget thử đồ ưu tiên). */
+  /** Một lần mở panel thử đồ: tự thêm ảnh SP từ ctx_image (chỉ luồng try_on). */
   const tryOnPageContextGarmentSeededRef = useRef(false)
+
+  const closeEmbedTryOnPanel = useCallback(() => {
+    setGuestTryOnUrlFlagCache(slug, false)
+    setTryOnOpen(false)
+    setTryOnOpenedViaEmbedQuery(false)
+    setTryOnGarmentPickerOpen(false)
+    tryOnPageContextGarmentSeededRef.current = false
+    setTryOnGarmentFiles((prev) => {
+      for (const item of prev) {
+        if (item.revokeObjectUrl) URL.revokeObjectURL(item.previewUrl)
+      }
+      return []
+    })
+  }, [slug])
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const scrollAnchorRef = useRef<HTMLDivElement>(null)
   /** Khoảng cách tới đáy ≤ ngưỡng này → coi như «đang xem cuối», cho phép tự cuộn theo tin/typing mới. */
@@ -2052,7 +2074,6 @@ export function PartnerGuestChatClient({
       }
       const next = hasAny ? sanitizeWidgetPageContextSeed(rawSeed) : null
       pageContextRef.current = hasWidgetPageContextSeed(next) ? next : null
-      setPendingUrlPageContextChip(pageContextRef.current)
     } else {
       const sku = (q.get('ctx_sku') || '').trim()
       const imageUrl = (q.get('ctx_image') || '').trim()
@@ -2072,25 +2093,24 @@ export function PartnerGuestChatClient({
       }
       const next = hasAny ? sanitizeWidgetPageContextSeed(rawSeed) : null
       pageContextRef.current = hasWidgetPageContextSeed(next) ? next : null
-      setPendingUrlPageContextChip(pageContextRef.current)
-    }
-    /** Từ email / liên kết chia sẻ: `?order=<uuid>` mở chi tiết đơn trong widget. */
-    const orderParam = (q.get('order') || '').trim().toLowerCase()
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(orderParam)) {
-      setEmbedOrderDetailId(orderParam)
     }
 
     const embedGateway = (q.get('ctx_gateway') || '').trim().toLowerCase()
-    if (embedGateway === 'consult') {
-      setGuestTryOnUrlFlagCache(slug, false)
-      setTryOnOpen(false)
-      setTryOnOpenedViaEmbedQuery(false)
-    } else {
-      const tryOnOpenFlag = (q.get('open_try_on') || '').trim().toLowerCase()
+    const tryOnOpenFlag = (q.get('open_try_on') || '').trim().toLowerCase()
+    const isTryOnEmbed =
+      embedGateway === 'try_on' ||
+      tryOnOpenFlag === '1' ||
+      tryOnOpenFlag === 'true' ||
+      tryOnOpenFlag === 'yes'
+    const pageChip = hasWidgetPageContextSeed(pageContextRef.current) ? pageContextRef.current : null
+
+    /** ctx_image dùng chung — tách UI: tư vấn = chip, thử đồ = panel (không hiện cả hai). */
+    if (isTryOnEmbed) {
+      setPendingUrlPageContextChip(null)
+      setGuestTryOnUrlFlagCache(slug, true)
+      setTryOnOpen(true)
+      setTryOnOpenedViaEmbedQuery(true)
       if (tryOnOpenFlag === '1' || tryOnOpenFlag === 'true' || tryOnOpenFlag === 'yes') {
-        setGuestTryOnUrlFlagCache(slug, true)
-        setTryOnOpen(true)
-        setTryOnOpenedViaEmbedQuery(true)
         try {
           const u = new URL(window.location.href)
           if (u.searchParams.has('open_try_on')) {
@@ -2101,8 +2121,20 @@ export function PartnerGuestChatClient({
           /* ignore */
         }
       }
+    } else if (embedGateway === 'consult') {
+      closeEmbedTryOnPanel()
+      setPendingUrlPageContextChip(pageChip)
+    } else {
+      closeEmbedTryOnPanel()
+      setPendingUrlPageContextChip(pageChip)
     }
-  }, [consultFromInventory, slug])
+
+    /** Từ email / liên kết chia sẻ: `?order=<uuid>` mở chi tiết đơn trong widget. */
+    const orderParam = (q.get('order') || '').trim().toLowerCase()
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(orderParam)) {
+      setEmbedOrderDetailId(orderParam)
+    }
+  }, [consultFromInventory, slug, closeEmbedTryOnPanel])
 
   const authHeaders = useCallback((): Record<string, string> => {
     const h: Record<string, string> = {}
@@ -2703,6 +2735,10 @@ export function PartnerGuestChatClient({
 
   useEffect(() => {
     if (!tryOnOpen) return
+    if (readGuestEmbedGatewayFromUrl() === 'consult') {
+      closeEmbedTryOnPanel()
+      return
+    }
     if (tryOnPageContextGarmentSeededRef.current) return
     const pc = pageContextRef.current
     const imageUrl = pc?.imageUrl?.trim() ?? ''
@@ -2735,7 +2771,7 @@ export function PartnerGuestChatClient({
         },
       ]
     })
-  }, [tryOnOpen, t.tryOnEmbedGarmentFromPage, t.tryOnEmbedGarmentFromPageWithSku])
+  }, [tryOnOpen, closeEmbedTryOnPanel, t.tryOnEmbedGarmentFromPage, t.tryOnEmbedGarmentFromPageWithSku])
 
   useEffect(() => {
     if (skipNextAutoScrollRef.current) {
@@ -3500,19 +3536,20 @@ export function PartnerGuestChatClient({
       if (type === 'SCROLL_CHAT_BOTTOM') scrollGuestChatToBottomOnce('smooth')
       if (isWidgetTryOnPanelMessage(data)) {
         if (data.type === 'CLOSE_TRY_ON_PANEL') {
-          setGuestTryOnUrlFlagCache(slug, false)
-          setTryOnOpen(false)
-          setTryOnOpenedViaEmbedQuery(false)
+          closeEmbedTryOnPanel()
+          const pc = pageContextRef.current
+          setPendingUrlPageContextChip(hasWidgetPageContextSeed(pc) ? pc : null)
         } else {
           setGuestTryOnUrlFlagCache(slug, true)
           setTryOnOpen(true)
           setTryOnOpenedViaEmbedQuery(true)
+          setPendingUrlPageContextChip(null)
         }
       }
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [scrollGuestChatToBottomOnce, slug])
+  }, [closeEmbedTryOnPanel, scrollGuestChatToBottomOnce, slug])
 
   const submitCartCheckout = useCallback(async () => {
     if (cartItems.length === 0) return
@@ -4685,15 +4722,12 @@ export function PartnerGuestChatClient({
       }
       const pcSeed = pageContextRef.current
       const hasSeed = hasWidgetPageContextSeed(pcSeed)
-      /** Chip đang hiện = khách có SP từ URL; gửi (kể cả có gõ thêm) phải kèm pageContext như khi bấm chip. */
-      const chipActsAsAttachIntent =
-        pendingUrlPageContextChip != null && hasWidgetPageContextSeed(pendingUrlPageContextChip)
       const shouldAttachPageContext =
-        !contextSeededRef.current && hasSeed && (attachUrlPageContextRef.current || chipActsAsAttachIntent)
+        !contextSeededRef.current && hasSeed && attachUrlPageContextRef.current
       if (!trimmed && imageStoragePaths.length < 1) {
         if (!hasSeed) return false
-        /** Chỉ gửi tin rỗng + ngữ cảnh SP khi đã chủ định (bấm chip / ô trống + chip đang hiện + bấm gửi). */
-        if (!attachUrlPageContextRef.current && !chipActsAsAttachIntent) return false
+        /** Chỉ gửi tin rỗng + ngữ cảnh SP khi khách bấm chip «Gửi mã SP đang xem». */
+        if (!attachUrlPageContextRef.current) return false
       }
       if (trimmed) {
         // Customer continues with normal consultation instead of choosing from buy rail.
@@ -4837,7 +4871,6 @@ export function PartnerGuestChatClient({
       t,
       toast,
       uiLocale,
-      pendingUrlPageContextChip,
     ]
   )
 
@@ -7069,9 +7102,6 @@ export function PartnerGuestChatClient({
                 submitGuestMessage={submitGuestMessage}
                 enqueueGuestSend={enqueueGuestSend}
                 attachmentCount={imageStoragePaths.length}
-                urlProductChipPending={Boolean(
-                  pendingUrlPageContextChip && hasWidgetPageContextSeed(pendingUrlPageContextChip)
-                )}
                 uploading={uploading}
                 sending={sending}
                 tryOnBusy={tryOnBusy}
