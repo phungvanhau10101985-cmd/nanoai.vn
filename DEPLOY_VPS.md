@@ -358,6 +358,10 @@ pm2 save
 
 ---
 
+## Web bị sập sau deploy / reboot
+
+Xem **`docs/khoi-phuc-web-vps.md`** — khôi phục Nginx + PM2 (nhiều site trên cùng VPS), cron `verify-edge-stack.sh`.
+
 ## Kiểm tra VPS & xử lý "chạy mãi không xong"
 
 ### 1. Kiểm tra nhanh VPS có chạy không
