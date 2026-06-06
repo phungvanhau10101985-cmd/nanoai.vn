@@ -6,8 +6,14 @@ import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
-import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
-import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { randomUUID } from 'crypto'
+import { CURRICULUM_AI_CHARGE_TYPES } from '@/lib/curriculum-ai-credits'
+import {
+  applyCurriculumAiCharge,
+  buildInfographicArtifactKey,
+  estimateCurriculumAiPrecheckAmount,
+} from '@/lib/curriculum-ai-charge-policy'
+import { readUserCreditBalance } from '@/lib/curriculum-ai-credits'
 
 const COST_2K = 1.5
 const MAX_SLIDE_TEXT = 28000
@@ -93,6 +99,9 @@ export async function POST(req: NextRequest) {
       /** Toàn bộ nội dung giáo trình (mọi slide) — tạo một infographic cho cả bài */
       lessonText?: string
       outputLocale?: string
+      scope?: 'curriculum' | 'lesson'
+      lessonNo?: number
+      regenerate?: boolean
     }
     try {
       body = (await req.json()) as typeof body
@@ -122,20 +131,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
     }
     const user = auth.user
+    const scope = body.scope === 'lesson' ? 'lesson' : 'curriculum'
+    const lessonNo = scope === 'lesson' ? Math.max(1, Math.floor(Number(body.lessonNo) || 1)) : undefined
+    const isRegenerate = body.regenerate === true
+    const infographicArtifactKey = buildInfographicArtifactKey(curriculumId, scope, lessonNo)
+    const infographicKind = scope === 'lesson' ? 'infographic_lesson' : 'infographic_curriculum'
 
-    let openBal = 0
-    try {
-      openBal = await getCreditBalanceByUserId(user.id)
-    } catch {
-      return NextResponse.json({ error: 'Không đọc được số dư credits.' }, { status: 500 })
-    }
-    if (toTenths(openBal) < toTenths(COST_2K)) {
-      return NextResponse.json(
-        {
-          error: `Không đủ credits. Cần ${formatCredits(COST_2K)} credits, hiện có ${formatCredits(openBal)}.`,
-        },
-        { status: 402 }
-      )
+    const requiredPrecheck = await estimateCurriculumAiPrecheckAmount({
+      userId: user.id,
+      kind: infographicKind,
+      artifactKey: infographicArtifactKey,
+      listPrice: COST_2K,
+      isRegenerate,
+    })
+    if (requiredPrecheck > 0) {
+      let openBal = 0
+      try {
+        openBal = await readUserCreditBalance(user.id)
+      } catch {
+        return NextResponse.json({ error: 'Không đọc được số dư credits.' }, { status: 500 })
+      }
+      if (toTenths(openBal) < toTenths(requiredPrecheck)) {
+        return NextResponse.json(
+          {
+            error: `Không đủ credits. Cần ${formatCredits(requiredPrecheck)} credits, hiện có ${formatCredits(openBal)}.`,
+            code: 'INSUFFICIENT_CREDITS',
+            balance: openBal,
+            required: requiredPrecheck,
+          },
+          { status: 402 }
+        )
+      }
     }
 
     const genAI = new GoogleGenerativeAI(apiKey)
@@ -250,10 +276,32 @@ ${FLASH_INSTRUCTION}`
       return NextResponse.json({ error: 'Không upload được ảnh. Thử lại sau.' }, { status: 502 })
     }
 
-    const d = await deductUserCredits(user.id, COST_2K)
-    if (!d.ok) {
+    const charge = await applyCurriculumAiCharge({
+      userId: user.id,
+      kind: infographicKind,
+      artifactKey: infographicArtifactKey,
+      listPrice: COST_2K,
+      chargeType: CURRICULUM_AI_CHARGE_TYPES.slideInfographic,
+      isRegenerate,
+      eventKey: `curriculum_infographic:${user.id}:${randomUUID()}`,
+      metadata: {
+        curriculumId,
+        scope,
+        lessonNo: lessonNo ?? null,
+      },
+    })
+    if (!charge.ok) {
       return NextResponse.json(
-        { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error },
+        {
+          error:
+            charge.code === 'INSUFFICIENT_CREDITS'
+              ? 'Không đủ credits để hoàn tất.'
+              : charge.error,
+          code: charge.code,
+          balance: charge.balance,
+          required: charge.required,
+          dailyQuota: charge.dailyQuota,
+        },
         { status: 402 }
       )
     }
@@ -261,6 +309,9 @@ ${FLASH_INSTRUCTION}`
     const generatedAt = new Date().toISOString()
     return NextResponse.json({
       success: true,
+      creditsCharged: charge.creditsCharged,
+      chargeReason: charge.chargeReason,
+      dailyQuota: charge.dailyQuota,
       infographic: {
         summary,
         mermaid,

@@ -489,15 +489,42 @@ export default function TaoGiaoTrinhClientPage({
     target.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [curriculumHelpTourOpen, curriculumHelpTourStep])
 
+  type CurriculumDailyQuota = {
+    usedToday: number
+    limit: number
+    remaining: number
+    usageDate: string
+  }
+
   type CurriculumAnalyzeSlidesClientData = {
     slides?: unknown
     fromCache?: boolean
     creditsCharged?: boolean
+    chargeReason?: string
     chargeError?: string
+    dailyQuota?: CurriculumDailyQuota
     error?: string
     balance?: number
     required?: number
   }
+
+  const [dailyAiQuota, setDailyAiQuota] = useState<CurriculumDailyQuota | null>(null)
+
+  const refreshDailyAiQuota = useCallback(async () => {
+    try {
+      const res = await fetch('/api/account/curriculum-ai-quota', { cache: 'no-store', credentials: 'include' })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data?.dailyQuota) {
+        setDailyAiQuota(data.dailyQuota as CurriculumDailyQuota)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshDailyAiQuota()
+  }, [refreshDailyAiQuota])
 
   const toastFromImageInsufficientCredits = (data: CurriculumAnalyzeSlidesClientData) => {
     const bal = typeof data.balance === 'number' ? data.balance : null
@@ -525,6 +552,10 @@ export default function TaoGiaoTrinhClientPage({
   }
 
   const applyAnalyzeSlidesCreditSideEffects = (data: CurriculumAnalyzeSlidesClientData) => {
+    if (data.dailyQuota) setDailyAiQuota(data.dailyQuota)
+    if ((data.creditsCharged || data.dailyQuota) && typeof window !== 'undefined') {
+      void refreshDailyAiQuota()
+    }
     if (data.creditsCharged && typeof window !== 'undefined') {
       window.dispatchEvent(new Event('credits-updated'))
     }
@@ -924,6 +955,11 @@ export default function TaoGiaoTrinhClientPage({
       fd.append('lessonNumber', lessonNumber)
       fd.append('numLessons', String(numLessons))
       fd.append('lessonDurationMinutes', String(lessonDurationMinutes))
+      if (textbookVolume.trim()) fd.append('textbookVolume', textbookVolume.trim())
+      if (textbookSetId === 'khac' && bookIsbn.trim()) fd.append('bookIsbn', bookIsbn.trim())
+      if (forceOverwrite && existingCurriculumId) {
+        fd.append('overwriteCurriculumId', existingCurriculumId)
+      }
       const res = await fetch('/api/curriculum-from-image', { method: 'POST', body: fd })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -3646,6 +3682,17 @@ export default function TaoGiaoTrinhClientPage({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {dailyAiQuota ? (
+                <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                  {tr(
+                    `Hôm nay còn ${dailyAiQuota.remaining}/${dailyAiQuota.limit} bài mới miễn phí AI (lần đầu slide/infographic trong bài cũng miễn phí; tạo lại hoặc từ bài thứ 4 trừ credit).`,
+                    `Today: ${dailyAiQuota.remaining}/${dailyAiQuota.limit} free new-lesson AI slots left (first slides/infographic per lesson are free; regenerate or lesson #4+ uses credits).`,
+                    `今日剩余 ${dailyAiQuota.remaining}/${dailyAiQuota.limit} 个免费新课 AI 名额（课时内首次幻灯片/信息图免费；重新生成或第 4 课起扣积分）。`,
+                    `本日: 無料AI枠 残り${dailyAiQuota.remaining}/${dailyAiQuota.limit}（初回スライド/インフォグラフィック無料・再生成または4本目以降はクレジット）。`,
+                    `오늘 무료 AI 신규 ${dailyAiQuota.remaining}/${dailyAiQuota.limit}회 남음(차시별 첫 슬라이드/인포그래픽 무료, 재생성·4번째부터 크레딧).`
+                  )}
+                </p>
+              ) : null}
               <div
                 ref={curriculumCreateModeRef}
                 className={cn(

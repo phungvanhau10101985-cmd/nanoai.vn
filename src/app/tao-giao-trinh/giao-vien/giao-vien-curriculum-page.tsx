@@ -2712,9 +2712,16 @@ export default function CurriculumViewPage() {
           topic,
           lessonText,
           outputLocale: getWebLocaleFromCookie(),
+          scope: 'curriculum',
+          regenerate: Boolean(curriculumInfographic?.imageUrl),
         }),
       })
-      let data: { success?: boolean; infographic?: SlideInfographic; error?: string }
+      let data: {
+        success?: boolean
+        infographic?: SlideInfographic
+        error?: string
+        creditsCharged?: boolean
+      }
       try {
         data = (await res.json()) as typeof data
       } catch {
@@ -2736,8 +2743,26 @@ export default function CurriculumViewPage() {
         void persistSlidesRef.current(slidesRef.current, inf)
         sendCurriculumDataToStudent(slidesRef.current, currentIndex, inf)
       })
+      if (data.creditsCharged && typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('credits-updated'))
+      }
       toast({
         title: tr('Đã tạo infographic', 'Infographic created', '已创建信息图', 'インフォグラフィックを作成しました', '인포그래픽 생성됨'),
+        description: data.creditsCharged
+          ? tr(
+              `Đã trừ ${lessonInfographicCostLabel} credit.`,
+              `Charged ${lessonInfographicCostLabel} credits.`,
+              `已扣除 ${lessonInfographicCostLabel} 积分。`,
+              `${lessonInfographicCostLabel} クレジットを消費しました。`,
+              `${lessonInfographicCostLabel} 크레딧이 차감되었습니다.`
+            )
+          : tr(
+              'Lần đầu trong bài — không trừ credit.',
+              'First time for this lesson — no credits charged.',
+              '本课首次创建——不扣积分。',
+              'この授業の初回作成—クレジット消費なし。',
+              '이 차시 첫 생성—크레딧 미차감.'
+            ),
         duration: 2000,
       })
     } catch (e) {
@@ -2749,7 +2774,7 @@ export default function CurriculumViewPage() {
     } finally {
       setInfographicGenerating(false)
     }
-  }, [curriculumId, worksheetId, slides, fullCurriculumMarkdown, content, topic, currentIndex, toast, tr, sendCurriculumDataToStudent])
+  }, [curriculumId, worksheetId, slides, fullCurriculumMarkdown, content, topic, currentIndex, curriculumInfographic, lessonInfographicCostLabel, toast, tr, sendCurriculumDataToStudent])
 
   const generateLessonInfographic = useCallback(async () => {
     if (!curriculumId || worksheetId) return
@@ -2782,15 +2807,24 @@ export default function CurriculumViewPage() {
       })
       return
     }
+    const lessonInfographicExists = Boolean(lessonInfographic?.imageUrl)
     toast({
       title: tr('Chuẩn bị tạo infographic tiết', 'Preparing lesson infographic', '准备创建课时信息图', '授業インフォグラフィック作成準備', '차시 인포그래픽 생성 준비'),
-      description: tr(
-        `Thao tác này sẽ tốn ${lessonInfographicCostLabel} credit.`,
-        `This action will cost ${lessonInfographicCostLabel} credits.`,
-        `此操作将消耗 ${lessonInfographicCostLabel} 积分。`,
-        `この操作では ${lessonInfographicCostLabel} クレジットを消費します。`,
-        `이 작업은 ${lessonInfographicCostLabel} 크레딧이 필요합니다.`
-      ),
+      description: lessonInfographicExists
+        ? tr(
+            `Tạo lại sẽ tốn ${lessonInfographicCostLabel} credit.`,
+            `Regenerating will cost ${lessonInfographicCostLabel} credits.`,
+            `重新生成将消耗 ${lessonInfographicCostLabel} 积分。`,
+            `再生成では ${lessonInfographicCostLabel} クレジットを消費します。`,
+            `다시 만들기 시 ${lessonInfographicCostLabel} 크레딧이 필요합니다.`
+          )
+        : tr(
+            'Lần đầu trong tiết này — miễn phí credit.',
+            'First time for this lesson — no credit charge.',
+            '本课时首次创建——免积分。',
+            'この授業の初回—クレジット無料。',
+            '이 차시 첫 생성—크레딧 무료.'
+          ),
       duration: 1800,
     })
     setLessonInfographicGenerating(true)
@@ -2804,9 +2838,17 @@ export default function CurriculumViewPage() {
           topic: `${topic || tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '커리큘럼')} - ${tr('Tiết', 'Lesson', '课时', '授業', '차시')} ${activeLessonNo}`,
           lessonText,
           outputLocale: getWebLocaleFromCookie(),
+          scope: 'lesson',
+          lessonNo: activeLessonNo,
+          regenerate: lessonInfographicExists,
         }),
       })
-      let data: { success?: boolean; infographic?: SlideInfographic; error?: string }
+      let data: {
+        success?: boolean
+        infographic?: SlideInfographic
+        error?: string
+        creditsCharged?: boolean
+      }
       try {
         data = (await res.json()) as typeof data
       } catch {
@@ -2836,8 +2878,26 @@ export default function CurriculumViewPage() {
       }
       setLessonInfographic(inf)
       sendCurriculumDataToStudent(slidesRef.current, currentIndex, inf)
+      if (data.creditsCharged && typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('credits-updated'))
+      }
       toast({
         title: tr('Đã tạo infographic theo tiết', 'Lesson infographic created', '已创建课时信息图', '授業インフォグラフィックを作成しました', '차시 인포그래픽 생성됨'),
+        description: data.creditsCharged
+          ? tr(
+              `Đã trừ ${lessonInfographicCostLabel} credit.`,
+              `Charged ${lessonInfographicCostLabel} credits.`,
+              `已扣除 ${lessonInfographicCostLabel} 积分。`,
+              `${lessonInfographicCostLabel} クレジットを消費しました。`,
+              `${lessonInfographicCostLabel} 크레딧이 차감되었습니다.`
+            )
+          : tr(
+              'Lần đầu trong tiết này — không trừ credit.',
+              'First time for this lesson — no credits charged.',
+              '本课时首次创建——不扣积分。',
+              'この授業の初回—クレジット消費なし。',
+              '이 차시 첫 생성—크레딧 미차감.'
+            ),
         duration: 2000,
       })
     } catch (e) {

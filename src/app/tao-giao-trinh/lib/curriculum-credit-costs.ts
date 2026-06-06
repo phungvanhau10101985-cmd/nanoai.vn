@@ -6,8 +6,10 @@
  * - Có thể phục vụ từ DB / dữ liệu đã lưu → **không** gọi AI → **không** trừ credit.
  * - Phải gọi AI tạo mới → trừ credit theo mức dưới (server đã gắn spend: xem từng API).
  *
- * Đã gắn trừ server: `POST /api/curriculum-from-image` (1 credit / lần AI thành công),
- * tạo slide theo từng tiết (0.5 credit/tiết, chỉ khi chưa có cache).
+ * Đã gắn trừ server (có miễn phí lần đầu — xem `curriculum-ai-charge-policy`):
+ * - `POST /api/curriculum-from-image`: 1 credit khi ghi đè / vượt 3 bài mới/ngày
+ * - slide theo tiết: 0.5 credit khi tạo lại (lần đầu/tiết miễn phí)
+ * - infographic: 1.5 credit khi tạo lại (lần đầu miễn phí)
  * Chưa gắn spend: curriculum-from-paste, curriculum-edit-check, worksheet-edit-check,
  * worksheet-generate-*, worksheet jobs — v.v.
  */

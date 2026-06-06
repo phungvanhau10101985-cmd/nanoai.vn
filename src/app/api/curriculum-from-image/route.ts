@@ -12,8 +12,13 @@ import {
   FROM_IMAGE_CREDIT_COST,
   isCurriculumAiCreditsDisabled,
   readUserCreditBalance,
-  spendCurriculumAiCredits,
 } from '@/lib/curriculum-ai-credits'
+import {
+  applyCurriculumAiCharge,
+  buildCurriculumBodyArtifactKey,
+  buildCurriculumBodyFingerprintKey,
+  estimateCurriculumAiPrecheckAmount,
+} from '@/lib/curriculum-ai-charge-policy'
 import { formatCurriculumLessonNoDisplay, parseCurriculumLessonNumber } from '@/app/tao-giao-trinh/lib/curriculum-input-normalize'
 
 const SUBJECT_NAMES: Record<string, string> = {
@@ -190,6 +195,9 @@ export async function POST(req: NextRequest) {
       parseCurriculumLessonNumber(formLessonRaw != null ? String(formLessonRaw) : '') ?? 1
     const numLessons = Math.min(10, Math.max(1, parseInt(String(formData.get('numLessons') || '3'), 10)))
     const lessonDurationMinutes = Math.min(120, Math.max(15, parseInt(String(formData.get('lessonDurationMinutes') || '45'), 10)))
+    const overwriteCurriculumId = String(formData.get('overwriteCurriculumId') || '').trim()
+    const textbookVolume = String(formData.get('textbookVolume') || '').trim() || null
+    const bookIsbn = String(formData.get('bookIsbn') || '').trim().toLowerCase() || null
 
     if (files.length === 0) {
       return NextResponse.json({ error: 'Vui lòng gửi ảnh trang sách.' }, { status: 400 })
@@ -206,6 +214,17 @@ export async function POST(req: NextRequest) {
 
     const chargeDisabled = isCurriculumAiCreditsDisabled()
     const fromImageCost = FROM_IMAGE_CREDIT_COST
+    const bodyArtifactKey = overwriteCurriculumId
+      ? buildCurriculumBodyArtifactKey(overwriteCurriculumId)
+      : buildCurriculumBodyFingerprintKey({
+          subjectId,
+          gradeLevelId,
+          textbookSetId,
+          lessonNumber,
+          textbookVolume,
+          bookIsbn,
+        })
+    const isRegenerateBody = Boolean(overwriteCurriculumId)
     let trackUserId: string | null = null
     let billingUserId: string | null = null
     if (chargeDisabled) {
@@ -234,17 +253,26 @@ export async function POST(req: NextRequest) {
           { status: 503 }
         )
       }
-      const bal = await readUserCreditBalance(billingUserId!)
-      if (bal < fromImageCost) {
-        return NextResponse.json(
-          {
-            error: 'insufficient_credits',
-            code: 'INSUFFICIENT_CREDITS',
-            balance: bal,
-            required: fromImageCost,
-          },
-          { status: 402 }
-        )
+      const requiredPrecheck = await estimateCurriculumAiPrecheckAmount({
+        userId: billingUserId!,
+        kind: 'curriculum_body',
+        artifactKey: bodyArtifactKey,
+        listPrice: fromImageCost,
+        isRegenerate: isRegenerateBody,
+      })
+      if (requiredPrecheck > 0) {
+        const bal = await readUserCreditBalance(billingUserId!)
+        if (bal < requiredPrecheck) {
+          return NextResponse.json(
+            {
+              error: 'insufficient_credits',
+              code: 'INSUFFICIENT_CREDITS',
+              balance: bal,
+              required: requiredPrecheck,
+            },
+            { status: 402 }
+          )
+        }
       }
     }
 
@@ -380,12 +408,17 @@ Ràng buộc:
     let creditsCharged = false
     let newBalance: number | undefined
     let chargeError: string | undefined
+    let chargeReason: string | undefined
+    let dailyQuota: { usedToday: number; limit: number; remaining: number; usageDate: string } | undefined
     if (!chargeDisabled && isPgConfigured() && billingUserId) {
       try {
-        const spend = await spendCurriculumAiCredits({
+        const charge = await applyCurriculumAiCharge({
           userId: billingUserId,
-          amount: fromImageCost,
+          kind: 'curriculum_body',
+          artifactKey: bodyArtifactKey,
+          listPrice: fromImageCost,
           chargeType: CURRICULUM_AI_CHARGE_TYPES.fromImage,
+          isRegenerate: isRegenerateBody,
           eventKey: `curriculum_from_image:${billingUserId}:${randomUUID()}`,
           metadata: {
             contentHash,
@@ -393,14 +426,25 @@ Ràng buộc:
             gradeLevelId,
             textbookSetId,
             lessonNumber: extractedLessonNumber,
+            overwriteCurriculumId: overwriteCurriculumId || null,
           },
         })
-        if (spend.ok) {
-          creditsCharged = true
-          newBalance = spend.newBalance
+        dailyQuota = charge.dailyQuota
+        if (!charge.ok) {
+          if (charge.code === 'INSUFFICIENT_CREDITS') {
+            chargeError = 'insufficient_credits'
+            console.warn('[curriculum-from-image] Thiếu credit sau khi AI đã tạo nội dung', {
+              balance: charge.balance,
+              required: charge.required,
+            })
+          } else {
+            chargeError = charge.error || 'charge_failed'
+            console.error('[curriculum-from-image] Trừ credit thất bại (đã tạo nội dung):', chargeError)
+          }
         } else {
-          chargeError = spend.error || 'charge_failed'
-          console.error('[curriculum-from-image] Trừ credit thất bại (đã tạo nội dung):', chargeError)
+          creditsCharged = charge.creditsCharged
+          chargeReason = charge.chargeReason
+          if (typeof charge.newBalance === 'number') newBalance = charge.newBalance
         }
       } catch (chargeEx) {
         chargeError = chargeEx instanceof Error ? chargeEx.message : String(chargeEx)
@@ -415,6 +459,8 @@ Ràng buộc:
       lessonNumber: extractedLessonNumber,
       lessonTitle: extractedTitle,
       creditsCharged,
+      ...(chargeReason ? { chargeReason } : {}),
+      ...(dailyQuota ? { dailyQuota } : {}),
       ...(typeof newBalance === 'number' ? { newBalance } : {}),
       ...(chargeError ? { chargeError } : {}),
     })

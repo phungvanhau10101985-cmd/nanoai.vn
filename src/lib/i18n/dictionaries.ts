@@ -2316,7 +2316,7 @@ const VI_DICTIONARY: Dictionary = {
   accountPlan: {
     pageTitle: 'Gói dịch vụ',
     metaDescription:
-      'Xem dùng thử 7 ngày và phí tháng giáo trình. Học tiếng Anh AI trả theo từng buổi; credit AI tính riêng.',
+      'Xem dùng thử 18 ngày và phí tháng giáo trình. Học tiếng Anh AI trả theo từng buổi; credit AI tính riêng.',
     headline: 'Gói đang dùng',
     billingPeriod: 'Kỳ phí tháng (lịch Việt Nam): {period}',
     trialSectionTitle: 'Dùng thử miễn phí',
@@ -2326,7 +2326,7 @@ const VI_DICTIONARY: Dictionary = {
     trialDaysLeft: 'Còn lại khoảng {days} ngày.',
     trialEndsAtLine: 'Hết hạn dùng thử (dự kiến): {datetime}',
     trialNotActive:
-      'Bạn không còn trong 7 ngày dùng thử đầu tiên. Phí tháng giáo trình sẽ trừ bằng credit mỗi kỳ khi áp dụng.',
+      'Bạn không còn trong 18 ngày dùng thử đầu tiên. Phí tháng giáo trình sẽ trừ bằng credit mỗi kỳ khi áp dụng.',
     servicesSectionTitle: 'Giáo trình — phí tháng (credit)',
     productEnglishCoach: 'Học tiếng Anh AI',
     englishCoachPayPerLesson:
@@ -4450,7 +4450,7 @@ const EN_DICTIONARY: Dictionary = {
   accountPlan: {
     pageTitle: 'Your plan',
     metaDescription:
-      'See your 7-day trial and monthly curriculum access. English AI is pay-per session or lesson; AI credits are separate.',
+      'See your 18-day trial and monthly curriculum access. English AI is pay-per session or lesson; AI credits are separate.',
     headline: 'Current plan',
     billingPeriod: 'Monthly billing period (Vietnam calendar): {period}',
     trialSectionTitle: 'Free trial',
@@ -4460,7 +4460,7 @@ const EN_DICTIONARY: Dictionary = {
     trialDaysLeft: 'About {days} day(s) left.',
     trialEndsAtLine: 'Trial ends (estimated): {datetime}',
     trialNotActive:
-      'You are past the first 7-day trial. Monthly curriculum access is charged in credits each billing period when it applies.',
+      'You are past the first 18-day trial. Monthly curriculum access is charged in credits each billing period when it applies.',
     servicesSectionTitle: 'Curriculum — monthly (credits)',
     productEnglishCoach: 'English AI learning',
     englishCoachPayPerLesson:
@@ -6595,7 +6595,7 @@ const ZH_DICTIONARY: Dictionary = {
   legal: LEGAL_PAGES_BY_LOCALE.zh,
   accountPlan: {
     pageTitle: '服务套餐',
-    metaDescription: '查看 7 天试用与课程按月访问。英语 AI 按次/按课扣积分；AI 积分另计。',
+    metaDescription: '查看 18 天试用与课程按月访问。英语 AI 按次/按课扣积分；AI 积分另计。',
     headline: '当前套餐',
     billingPeriod: '按月计费周期（越南历）：{period}',
     trialSectionTitle: '免费试用',
@@ -6603,7 +6603,7 @@ const ZH_DICTIONARY: Dictionary = {
     trialTotalDaysNote: '试用时长：自注册起 {days} 天。',
     trialDaysLeft: '大约还剩 {days} 天。',
     trialEndsAtLine: '试用结束（预计）：{datetime}',
-    trialNotActive: '您已超过首 7 天试用。课程按月访问在适用时每个周期扣除相应积分。',
+    trialNotActive: '您已超过首 18 天试用。课程按月访问在适用时每个周期扣除相应积分。',
     servicesSectionTitle: '课程 — 按月（积分）',
     productEnglishCoach: '英语 AI 学习',
     englishCoachPayPerLesson:
@@ -8650,7 +8650,7 @@ const JA_DICTIONARY: Dictionary = {
   accountPlan: {
     pageTitle: 'ご利用プラン',
     metaDescription:
-      '7 日間の無料トライアルと教材の月額アクセスを確認。英語 AI は回・レッスンごとに課金。AI クレジットは別途。',
+      '18 日間の無料トライアルと教材の月額アクセスを確認。英語 AI は回・レッスンごとに課金。AI クレジットは別途。',
     headline: '現在のプラン',
     billingPeriod: '月額の対象期間（ベトナム暦）：{period}',
     trialSectionTitle: '無料トライアル',
@@ -8659,7 +8659,7 @@ const JA_DICTIONARY: Dictionary = {
     trialDaysLeft: '残り約 {days} 日。',
     trialEndsAtLine: 'トライアル終了（目安）：{datetime}',
     trialNotActive:
-      '初回 7 日のトライアルは終了しています。教材の月額は該当する期ごとにクレジットで支払われます。',
+      '初回 18 日のトライアルは終了しています。教材の月額は該当する期ごとにクレジットで支払われます。',
     servicesSectionTitle: '教材 — 月額（クレジット）',
     productEnglishCoach: '英語 AI 学習',
     englishCoachPayPerLesson:
@@ -10768,7 +10768,7 @@ const KO_DICTIONARY: Dictionary = {
   accountPlan: {
     pageTitle: '이용 요금제',
     metaDescription:
-      '7일 무료 체험과 교과·출제 월 이용료를 확인합니다. 영어 AI는 회·수업마다 별도 차감. AI 크레딧은 별도입니다.',
+      '18일 무료 체험과 교과·출제 월 이용료를 확인합니다. 영어 AI는 회·수업마다 별도 차감. AI 크레딧은 별도입니다.',
     headline: '현재 요금제',
     billingPeriod: '월 정산 기간(베트남 달력): {period}',
     trialSectionTitle: '무료 체험',
@@ -10777,7 +10777,7 @@ const KO_DICTIONARY: Dictionary = {
     trialDaysLeft: '약 {days}일 남음.',
     trialEndsAtLine: '체험 종료(예상): {datetime}',
     trialNotActive:
-      '첫 7일 체험이 끝났습니다. 교과·출제 월 이용료는 해당 기간마다 크레딧으로 차감됩니다.',
+      '첫 18일 체험이 끝났습니다. 교과·출제 월 이용료는 해당 기간마다 크레딧으로 차감됩니다.',
     servicesSectionTitle: '교과·출제 — 월(크레딧)',
     productEnglishCoach: '영어 AI 학습',
     englishCoachPayPerLesson:

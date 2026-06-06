@@ -15,6 +15,8 @@ export const CURRICULUM_AI_CHARGE_TYPES = {
   slideProposalVerify: 'curriculum_slide_proposal_verify',
   /** Server action tạo slide cho một tiết khi mở tiết. */
   lessonSlideGenerate: 'curriculum_lesson_slide_generate',
+  /** POST /api/curriculum-slide-infographic */
+  slideInfographic: 'curriculum_slide_infographic',
 } as const
 
 /** Tắt trừ credit (local / debug): CURRICULUM_AI_CREDITS_DISABLED=1 */

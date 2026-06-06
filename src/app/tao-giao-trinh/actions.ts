@@ -111,6 +111,12 @@ import {
   readUserCreditBalance,
   spendCurriculumAiCredits,
 } from '@/lib/curriculum-ai-credits'
+import {
+  applyCurriculumAiCharge,
+  buildLessonSlidesArtifactKey,
+  estimateCurriculumAiPrecheckAmount,
+  readCurriculumDailyBodyQuota,
+} from '@/lib/curriculum-ai-charge-policy'
 
 function normalizeLooseChar(ch: string): string {
   if (/\s/u.test(ch)) return ' '
@@ -2477,6 +2483,26 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
   }
 
   if (lesson.lesson_markdown) {
+    const slidesArtifactKey = buildLessonSlidesArtifactKey(curriculumId, mode, safeLessonNo)
+    const requiredPrecheck = await estimateCurriculumAiPrecheckAmount({
+      userId: user.id,
+      kind: 'lesson_slides',
+      artifactKey: slidesArtifactKey,
+      listPrice: LESSON_SLIDE_GENERATE_CREDIT_COST,
+      isRegenerate: false,
+    })
+    if (requiredPrecheck > 0) {
+      const balance = await readUserCreditBalance(user.id)
+      if (balance < requiredPrecheck) {
+        return {
+          error: 'insufficient_credits',
+          code: 'INSUFFICIENT_CREDITS',
+          balance,
+          required: requiredPrecheck,
+          dailyQuota: await readCurriculumDailyBodyQuota(user.id),
+        }
+      }
+    }
     console.log('[lesson-slides] generate-start', {
       curriculumId,
       mode,
@@ -2489,40 +2515,6 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
       userId: user.id,
     })
     if (generated.slides.length > 0) {
-      const balance = await readUserCreditBalance(user.id)
-      if (balance < LESSON_SLIDE_GENERATE_CREDIT_COST) {
-        return {
-          error: 'insufficient_credits',
-          code: 'INSUFFICIENT_CREDITS',
-          balance,
-          required: LESSON_SLIDE_GENERATE_CREDIT_COST,
-        }
-      }
-      const eventKey = [
-        'curriculum-lesson-slide-generate',
-        user.id,
-        curriculumId,
-        mode,
-        String(safeLessonNo),
-        Date.now().toString(36),
-        Math.random().toString(36).slice(2, 8),
-      ].join(':')
-      const spend = await spendCurriculumAiCredits({
-        userId: user.id,
-        amount: LESSON_SLIDE_GENERATE_CREDIT_COST,
-        chargeType: CURRICULUM_AI_CHARGE_TYPES.lessonSlideGenerate,
-        eventKey,
-        metadata: {
-          curriculumId,
-          mode,
-          lessonNo: safeLessonNo,
-          slideCount: generated.slides.length,
-          source: generated.source,
-        },
-      })
-      if (!spend.ok) {
-        return { error: spend.error || 'Không thể trừ credit để tạo slide cho tiết.' }
-      }
       const slidesJson = serializeStoredCurriculumSlidesJson(generated.slides)
       const cacheSave = await saveLessonSlidesCacheRow({
         curriculumId,
@@ -2532,6 +2524,43 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
         userId: user.id,
       })
       if (cacheSave.error) return { error: cacheSave.error }
+      const eventKey = [
+        'curriculum-lesson-slide-generate',
+        user.id,
+        curriculumId,
+        mode,
+        String(safeLessonNo),
+        Date.now().toString(36),
+        Math.random().toString(36).slice(2, 8),
+      ].join(':')
+      const charge = await applyCurriculumAiCharge({
+        userId: user.id,
+        kind: 'lesson_slides',
+        artifactKey: slidesArtifactKey,
+        listPrice: LESSON_SLIDE_GENERATE_CREDIT_COST,
+        chargeType: CURRICULUM_AI_CHARGE_TYPES.lessonSlideGenerate,
+        isRegenerate: false,
+        eventKey,
+        metadata: {
+          curriculumId,
+          mode,
+          lessonNo: safeLessonNo,
+          slideCount: generated.slides.length,
+          source: generated.source,
+        },
+      })
+      if (!charge.ok) {
+        if (charge.code === 'INSUFFICIENT_CREDITS') {
+          return {
+            error: 'insufficient_credits',
+            code: 'INSUFFICIENT_CREDITS',
+            balance: charge.balance,
+            required: charge.required,
+            dailyQuota: charge.dailyQuota,
+          }
+        }
+        return { error: charge.error || 'Không thể trừ credit để tạo slide cho tiết.' }
+      }
       console.log('[lesson-slides] generate-done', {
         curriculumId,
         mode,
@@ -2549,6 +2578,9 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
         curriculumInfographic: loaded.curriculumInfographic,
         generated: true,
         source: generated.source,
+        creditsCharged: charge.creditsCharged,
+        chargeReason: charge.chargeReason,
+        dailyQuota: charge.dailyQuota,
       }
     }
   }
