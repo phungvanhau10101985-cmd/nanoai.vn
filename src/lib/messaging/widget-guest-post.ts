@@ -18,7 +18,6 @@ import {
   inboundTextLooksLikeFollowUpConsultHeuristic,
 } from '@/lib/messaging/partner-inventory-ai-search'
 import {
-  countInboundMessagesForConversationPg,
   fetchLastOutboundCustomerCareMessageBodyPg,
   mergeConversationUiLocaleFromPg,
   resolveLinkedUserIdForCustomerCarePg,
@@ -50,7 +49,6 @@ import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/part
 import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
 import type { GuestProfileGender } from '@/lib/db/messaging-guest-pg'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-const ANONYMOUS_INBOUND_AUTH_THRESHOLD = 5
 type GuestVisionCandidatePayload = {
   inventoryId: string
   name: string
@@ -900,23 +898,6 @@ export async function postWidgetGuestMessage(params: {
   const locNorm = normalizeWebLocale(String(params.uiLocale ?? '').trim())
   if (locNorm) {
     await mergeConversationUiLocaleFromPg(conversationId, locNorm)
-  }
-
-  if (!isAutoOpening && !linkedUserId && !params.guestAccountId) {
-    let inboundCount: number | null = null
-    if (isPgConfigured()) {
-      try {
-        inboundCount = await countInboundMessagesForConversationPg(conversationId)
-      } catch {
-        inboundCount = null
-      }
-    }
-    if (inboundCount === null) {
-      return { error: 'Could not verify anonymous message limit.' }
-    }
-    if (inboundCount >= ANONYMOUS_INBOUND_AUTH_THRESHOLD) {
-      return { error: `AUTH_REQUIRED_${ANONYMOUS_INBOUND_AUTH_THRESHOLD}`, requireAuth: true }
-    }
   }
 
   const ins = await insertMessage({

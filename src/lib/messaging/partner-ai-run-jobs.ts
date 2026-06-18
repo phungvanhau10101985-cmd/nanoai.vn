@@ -38,8 +38,61 @@ import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usag
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 
+type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 type TriggerRawForVisionRepick = { vision_selected_inventory_id?: string }
 type TriggerRawWithVisionSelectedAt = { vision_selected_at?: string }
+
+const BAG_ACCESSORY_KEYWORDS = [
+  'tui',
+  'túi',
+  'ba lo',
+  'ba lô',
+  'balo',
+  'backpack',
+  'handbag',
+  'shoulder bag',
+  'crossbody',
+  'wallet',
+  'vi',
+  'ví',
+  'purse',
+  'clutch',
+  'tote',
+  'vali',
+]
+const SHOE_SIZE_ASK_RE =
+  /(size\s*gi[aà]y|th(?:u|ươ)ờng\s*đi\s*size|đi\s*size\s*bao\s*nhi[eê]u|c(?:ơ|ỡ)\s*gi[aà]y)/iu
+const SHOE_SIZE_SENTENCE_RE =
+  /(?:[.!?]\s*)?(?:anh|chị|ban|bạn|mình)?\s*(?:cho em hỏi\s*)?(?:th(?:u|ươ)ờng\s*đi\s*size(?:\s*gi[aà]y)?\s*bao\s*nhi[eê]u|size\s*gi[aà]y\s*bao\s*nhi[eê]u|c(?:ơ|ỡ)\s*gi[aà]y\s*bao\s*nhi[eê]u)\s*(?:để\s*em\s*tư\s*vấn\s*thêm)?\s*[.!?]?/giu
+const BAG_FIT_FALLBACK_QUESTION = 'Mình thường dùng mẫu này cho nhu cầu nào để em tư vấn kích thước phù hợp hơn ạ?'
+
+function stripVietnameseDiacritics(input: string): string {
+  return input.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+}
+
+function inventoryRowLooksLikeBagAccessory(row: InvRow | null | undefined): boolean {
+  if (!row) return false
+  const haystackRaw = [row.name, row.description, row.stock_note, row.consult_note, row.material_note]
+    .map((s) => (s ?? '').trim())
+    .join(' ')
+    .toLowerCase()
+  if (!haystackRaw) return false
+  const haystack = `${haystackRaw} ${stripVietnameseDiacritics(haystackRaw)}`
+  return BAG_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))
+}
+
+function sanitizeFashionFitQuestionForBag(message: string, row: InvRow | null | undefined): string {
+  const raw = message.trim()
+  if (!raw || !row) return message
+  if (!inventoryRowLooksLikeBagAccessory(row)) return message
+  if (!SHOE_SIZE_ASK_RE.test(raw)) return message
+
+  const replaced = raw.replace(SHOE_SIZE_SENTENCE_RE, ' ').replace(/\s+([,.;!?])/g, '$1').replace(/\s{2,}/g, ' ')
+  const normalized = replaced.trim().replace(/[,\s]+$/, '')
+  if (!normalized) return BAG_FIT_FALLBACK_QUESTION
+  if (/[.!?]$/.test(normalized)) return normalized
+  return `${normalized}. ${BAG_FIT_FALLBACK_QUESTION}`
+}
 
 function hasVisionRepickSelection(raw: Json | null | undefined): boolean {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
@@ -208,6 +261,8 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         partnerAiRouteIntent,
         partnerAiSalesStage,
         partnerAiCtaStrategy,
+        specificAnglePhotoRequest,
+        specificAnglePhotoTemplateInventoryRows,
       } = await buildPartnerAiContext(
         job.partner_id,
         job.conversation_id,
@@ -222,6 +277,54 @@ async function runMessagingPartnerAiJobBatchUsingPg(
 
       if ((await partnerAiJobIsStillProcessingPg(job.id)) === false) {
         skipped += 1
+        continue
+      }
+
+      if (
+        !clarifyShoppingIntent &&
+        specificAnglePhotoRequest &&
+        specificAnglePhotoTemplateInventoryRows &&
+        specificAnglePhotoTemplateInventoryRows.length > 0 &&
+        !materialDetailFollowup &&
+        !realUseFollowup
+      ) {
+        if ((await partnerAiJobIsStillProcessingPg(job.id)) === false) {
+          skipped += 1
+          continue
+        }
+        const dict = getDictionary(cacheUiLocale)
+        const cards = specificAnglePhotoTemplateInventoryRows
+          .map((row) => partnerAiProductCardFromInventoryRow(row))
+          .filter((c): c is PartnerAiProductCard => Boolean(c))
+        const productsTemplate = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(job.partner_id, cards)
+        const rawAnglePhotoTemplate = {
+          source: 'photo_angle_detail_template',
+          model: null,
+          usage: null,
+          ai_product_cards: productsTemplate,
+          ...(partnerAiRouteIntent ? { partner_ai_route_intent: partnerAiRouteIntent } : {}),
+          ...(partnerAiSalesStage ? { partner_ai_sales_stage: partnerAiSalesStage } : {}),
+          ...(partnerAiCtaStrategy ? { partner_ai_cta_strategy: partnerAiCtaStrategy } : {}),
+          partner_ai_pipeline_branch: 'photo_angle_detail_template' as const,
+        } as unknown as Json
+        const dTpl = await deliverAutomatedPartnerMessage({
+          conversation: conv,
+          settings,
+          body: enforceConfiguredGenderAddressing(
+            dict.partnerGuestChat.photoAngleDetailTemplateMessage,
+            configuredGender
+          ),
+          rawPayload: rawAnglePhotoTemplate,
+          materialDetailFollowup: null,
+          realUseFollowup: null,
+        })
+        if (dTpl.error) {
+          await setPartnerAiJobStatus(job.id, { status: 'failed', error: dTpl.error })
+          failed += 1
+        } else {
+          await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
+          completed += 1
+        }
         continue
       }
 
@@ -366,10 +469,14 @@ async function runMessagingPartnerAiJobBatchUsingPg(
               ...(partnerAiCtaStrategy ? { partner_ai_cta_strategy: partnerAiCtaStrategy } : {}),
               partner_ai_pipeline_branch: partnerAiRouteIntent,
             } as unknown as Json
+            const cachedMessage = sanitizeFashionFitQuestionForBag(
+              cached.message_text,
+              inboundAnchoredConsultRow
+            )
             const dCache = await deliverAutomatedPartnerMessage({
               conversation: conv,
               settings,
-              body: enforceConfiguredGenderAddressing(cached.message_text, configuredGender),
+              body: enforceConfiguredGenderAddressing(cachedMessage, configuredGender),
               rawPayload: rawCached,
               materialDetailFollowup: null,
               realUseFollowup: null,
@@ -465,6 +572,12 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         if (nextProducts.length > 1) nextProducts = nextProducts.slice(0, 1)
         parsed = { ...parsed, products: nextProducts }
       }
+      const fitQuestionGuardRow =
+        inboundAnchoredConsultRow ??
+        (useLastConsultedContext && lastConsultedRow && !similarCatalogVersusLastConsulted
+          ? lastConsultedRow
+          : null)
+      parsed = { ...parsed, message: sanitizeFashionFitQuestionForBag(parsed.message, fitQuestionGuardRow) }
       const productsWithVideo = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
         job.partner_id,
         parsed.products

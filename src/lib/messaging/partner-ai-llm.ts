@@ -46,6 +46,7 @@ import {
 import { fetchLastConsultedInventoryRowFromConversationPg } from '@/lib/messaging/partner-ai-last-consulted-inventory'
 import {
   customerMessageAsksAboutRealUsePhoto,
+  customerMessageAsksSpecificPhotoAngleDetail,
   enrichInventoryRealUseImageIfNeeded,
   type PartnerRealUseImageFollowup,
 } from '@/lib/messaging/partner-inventory-real-use-image'
@@ -803,6 +804,9 @@ export async function buildPartnerAiContext(
   partnerAiRouteIntent: PartnerAiRouteIntent | null
   partnerAiSalesStage: PartnerAiSalesStage | null
   partnerAiCtaStrategy: PartnerAiCtaStrategy | null
+  /** Khách hỏi góc ảnh rất cụ thể (inside/front/back...) — worker ưu tiên template thẻ + «Xem chi tiết», không sinh ảnh AI. */
+  specificAnglePhotoRequest: boolean
+  specificAnglePhotoTemplateInventoryRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] | null
 }> {
   const effectiveLocaleOpts = await resolvePartnerAiLocaleOpts(conversationId, localeOpts)
   const invFmtOpts = { markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts) }
@@ -1079,6 +1083,8 @@ export async function buildPartnerAiContext(
       partnerAiRouteIntent,
       partnerAiSalesStage: payloadRouteDecision?.salesStage ?? null,
       partnerAiCtaStrategy: payloadRouteDecision?.ctaStrategy ?? null,
+      specificAnglePhotoRequest: false,
+      specificAnglePhotoTemplateInventoryRows: null,
     }
   }
 
@@ -1107,6 +1113,8 @@ export async function buildPartnerAiContext(
       partnerAiRouteIntent: partnerAiRouteIntent ?? 'pause_or_close',
       partnerAiSalesStage: payloadRouteDecision?.salesStage ?? 'browsing',
       partnerAiCtaStrategy: payloadRouteDecision?.ctaStrategy ?? 'no_cta',
+      specificAnglePhotoRequest: false,
+      specificAnglePhotoTemplateInventoryRows: null,
     }
   }
 
@@ -1300,8 +1308,9 @@ export async function buildPartnerAiContext(
   let materialDetailFollowup: PartnerMaterialDetailFollowup | null = null
   let realUseFollowup: PartnerRealUseImageFollowup | null = null
   let realUsePhotoLimitExceeded = false
+  const specificAnglePhotoRequest = customerMessageAsksSpecificPhotoAngleDetail(latestCustomerMessage)
 
-  if (customerMessageAsksAboutRealUsePhoto(latestCustomerMessage)) {
+  if (!specificAnglePhotoRequest && customerMessageAsksAboutRealUsePhoto(latestCustomerMessage)) {
     const realEnriched = await enrichInventoryRealUseImageIfNeeded(partnerId, conversationId, latestCustomerMessage, {
       explicitSkuRows,
       invForContext,
@@ -1313,7 +1322,7 @@ export async function buildPartnerAiContext(
     selectedRowForEnrich = realEnriched.selectedRow
     realUseFollowup = realEnriched.realUseFollowup
     realUsePhotoLimitExceeded = realEnriched.realUsePhotoLimitExceeded
-  } else {
+  } else if (!specificAnglePhotoRequest) {
     const collageEnriched = await enrichInventoryMaterialDetailCollageIfNeeded(partnerId, latestCustomerMessage, {
       explicitSkuRows,
       invForContext,
@@ -1361,6 +1370,19 @@ export async function buildPartnerAiContext(
     inboundAnchoredConsultRow = row
     inboundAnchoredProductConsultBranch = true
   }
+
+  const specificAnglePhotoTemplateInventoryRows = specificAnglePhotoRequest
+    ? dedupeRowsById(
+        [
+          inboundAnchoredConsultRow,
+          selectedRowForEnrich,
+          useLastConsultedContext ? lastConsultedRow : null,
+          ...(explicitSkuRows.length > 0 ? explicitSkuRows : invForContext),
+        ].filter(
+          (r): r is Database['public']['Tables']['messaging_partner_inventory']['Row'] => Boolean(r)
+        )
+      ).slice(0, 1)
+    : []
 
   /** Gợi ý mẫu khác theo vector kho (không gọi LLM) — bỏ dòng neo, chỉ dòng build được thẻ. */
   let similarAlternativesTemplateInventoryRows: InvRow[] | null = null
@@ -1519,6 +1541,8 @@ Khi khách hỏi về chất liệu/vải/vật liệu: ưu tiên trả lời th
 Trong mỗi dòng kho, **ảnh chính sản phẩm (URL)** là ảnh gốc shop khai báo; hệ thống dùng đúng ảnh đó làm nguồn để tạo (1) ảnh chi tiết chất liệu/màu và (2) ảnh **đời thường / góc tự nhiên** (nhìn sản phẩm chân thực) — không dùng ảnh khác làm nguồn, và **không** gọi các ảnh sinh ra là "ảnh tham khảo" khi nói với khách.
 Nếu trong kho có "Ảnh chi tiết chất liệu/màu (đã lưu)" kèm URL, đó là ảnh phóng chi tiết chất liệu/màu **sinh từ ảnh chính** — nhắc khách xem ảnh đính kèm (không cần dán lại URL trong message).
 Khi khách hỏi ảnh chụp thực tế / mặc thật / dùng thật: nếu kho có mục **Ảnh đời thường — nhìn sản phẩm chân thực (đã lưu)** kèm URL — đó là ảnh được tạo từ **ảnh chính** theo phong cách **đời thường, góc tự nhiên** để khách **xem sản phẩm chân thực** (không phải ảnh studio); trong **tin gửi khách** giữ giọng thống nhất với chú thích hệ thống (ảnh đời thường / góc tự nhiên / nhìn sản phẩm chân thực), **không** gọi là "ảnh tham khảo", **không** tự nói "ảnh AI" hay "ảnh phần mềm tạo". Không khẳng định ảnh chụp tại showroom/shop trừ khi dữ liệu kho ghi rõ. Khi khách vừa xem thẻ sản phẩm và hỏi ảnh thực tế — mặc định hiểu đúng mẫu đó; không bảo "không có ảnh" nếu hệ thống đang hoặc sắp gửi kèm ảnh. Trong một cuộc chat, tối đa hai ảnh loại này cho cùng một mặt hàng; không hứa gửi thêm khi đã đủ.
+Khi khách hỏi **ảnh chi tiết đúng điểm cần xem** (ví dụ: «có ảnh bên trong túi không», «ảnh ngăn trong», «ảnh lót trong», «ảnh khóa/đường may cận cảnh»): bắt buộc trả lời **trúng mục tiêu câu hỏi ảnh** ngay trong 1 câu đầu (có/chưa có/sẽ gửi ảnh đính kèm nếu hệ thống đang kèm ảnh). Không chuyển sang hỏi fit (màu/size/nhu cầu dùng) trước khi trả lời câu hỏi ảnh mục tiêu.
+Với câu hỏi góc ảnh rất cụ thể (bên trong/trước/sau/đáy/ngăn…): nếu dữ liệu hiện tại không xác nhận đúng góc đó, **không** hứa gửi ảnh góc cụ thể và **không** tạo ảnh thay thế dễ lệch mục tiêu. Ưu tiên gửi thẻ đúng sản phẩm trong JSON \`products\` và nhắc khách bấm **«Xem chi tiết»** trên thẻ để xem thông tin/ảnh chi tiết trên web.
 Khi tin khách **ngắn** và chỉ hỏi thuộc tính (màu, size, tồn, giá, ship…) **mà không nêu tên/mã sản phẩm mới**: mặc định hiểu là đang hỏi về **mặt hàng shop vừa giới thiệu** trong lịch sử gần hoặc khối «mặt hàng đang thảo luận / đã chọn» nếu có — không trả lời như câu hỏi độc lập không có ngữ cảnh.
 Khi khách **đổi chủ đề / loại hàng** (vd. vừa xem váy lại hỏi giày, dép, túi…): ưu tiên **đúng ngành đang hỏi trong tin hiện tại** và danh sách kho phù hợp tin đó — không kéo carousel mẫu cũ hay câu «chọn sản phẩm» như thể chưa đổi ý.
 Khi khách hỏi một loại hàng mới (vd. «shop có túi xách không») mà **Danh sách kho không có dòng cùng loại đó**: chỉ nói theo dữ liệu hiện tại kiểu **«em chưa thấy túi xách trong kho/dữ liệu hiện tại»**. **Cấm** tự kết luận «shop chuyên về váy/đầm/áo/thời trang» hoặc liệt kê ngành hàng shop đang chuyên nếu chính sách/shop không ghi rõ. Chỉ gợi ý loại khác khi khách hỏi mở hoặc khi thật tự nhiên, và không gửi thẻ khác ngành.
@@ -1668,6 +1692,9 @@ Chỉ để products = [] khi thực sự không tìm được mặt hàng phù 
     partnerAiRouteIntent,
     partnerAiSalesStage,
     partnerAiCtaStrategy,
+    specificAnglePhotoRequest,
+    specificAnglePhotoTemplateInventoryRows:
+      specificAnglePhotoTemplateInventoryRows.length > 0 ? specificAnglePhotoTemplateInventoryRows : null,
   }
 }
 

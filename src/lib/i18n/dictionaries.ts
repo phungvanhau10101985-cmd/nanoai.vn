@@ -1095,6 +1095,7 @@ export type Dictionary = {
     /** Shop AI — tin cố định + carousel mẫu khác (vector kho). VI dùng anh/chị khi chưa có giới tính; có giới tính → `enforceConfiguredGenderAddressing`. */
     similarAlternativesTemplateMessage: string
     productSearchTemplateMessage: string
+    photoAngleDetailTemplateMessage: string
     visionPickHint: string
     visionPickBusy: string
     visionPickError: string
@@ -3255,6 +3256,8 @@ const VI_DICTIONARY: Dictionary = {
       'Bên em có thêm một số mẫu khác bên dưới, anh/chị tham khảo ạ.',
     productSearchTemplateMessage:
       'Dạ, em gửi anh/chị các mẫu phù hợp bên dưới ạ. Anh/chị xem thẻ, nếu ưng mẫu nào có thể bấm Mua ngay để lên đơn trong chat hoặc bấm Tư vấn để hỏi thêm nhé.',
+    photoAngleDetailTemplateMessage:
+      'Dạ với góc ảnh chi tiết như anh/chị đang hỏi, anh/chị bấm "Xem chi tiết" trên thẻ sản phẩm bên dưới giúp em để xem đầy đủ ảnh và thông tin trên web nhé.',
     visionPickHint: '',
     visionPickBusy: 'Đang gửi…',
     visionPickError: 'Không gửi được lựa chọn. Thử lại.',
@@ -5390,6 +5393,8 @@ const EN_DICTIONARY: Dictionary = {
     similarAlternativesTemplateMessage: 'Here are a few more styles for you below.',
     productSearchTemplateMessage:
       'Here are the matching products below. You can tap Buy now on any card to place an order in chat, or tap Consult to ask more.',
+    photoAngleDetailTemplateMessage:
+      'For the specific photo angle you asked about, please tap "View details" on the product card below to see full images and details on the web page.',
     visionPickHint: 'Choose the right product (or wait for a manual reply).',
     visionPickBusy: 'Sending…',
     visionPickError: 'Could not send your choice. Try again.',
@@ -7500,6 +7505,8 @@ const ZH_DICTIONARY: Dictionary = {
     similarAlternativesTemplateMessage: '下方还有更多款式供您参考。',
     productSearchTemplateMessage:
       '下面是符合需求的商品。您可以点商品卡片上的“立即购买”在聊天中下单，也可以点“咨询”继续询问。',
+    photoAngleDetailTemplateMessage:
+      '您询问的是特定角度图片，请点击下方商品卡片的“查看详情”，在网页里查看完整图片和商品细节。',
     visionPickHint: '请选择正确商品（或等待人工回复）。',
     visionPickBusy: '发送中…',
     visionPickError: '无法提交选择，请重试。',
@@ -9587,6 +9594,8 @@ const JA_DICTIONARY: Dictionary = {
     similarAlternativesTemplateMessage: '下にほかのデザインをいくつかご用意しました。',
     productSearchTemplateMessage:
       '条件に合う商品を下にお送りします。気に入った商品カードの「今すぐ購入」からチャット内で注文できます。追加で聞きたい場合は「相談」を押してください。',
+    photoAngleDetailTemplateMessage:
+      'ご希望の具体的な角度写真は、下の商品カードの「詳細を見る」を押して、Webページで画像と詳細をご確認ください。',
     visionPickHint: '正しい商品を選ぶか、手動の返信をお待ちください。',
     visionPickBusy: '送信中…',
     visionPickError: '選択を送信できませんでした。もう一度お試しください。',
@@ -11700,6 +11709,8 @@ const KO_DICTIONARY: Dictionary = {
     similarAlternativesTemplateMessage: '아래에 다른 스타일을 더 준비했습니다.',
     productSearchTemplateMessage:
       '아래에 조건에 맞는 상품을 보내드렸습니다. 마음에 드는 상품 카드에서 바로구매를 눌러 채팅에서 주문하거나, 상담을 눌러 더 문의하실 수 있어요.',
+    photoAngleDetailTemplateMessage:
+      '요청하신 특정 각도 사진은 아래 상품 카드의 "자세히 보기"를 눌러 웹 페이지에서 상세 이미지와 정보를 확인해 주세요.',
     visionPickHint: '맞는 상품을 고르거나 직접 답장을 기다려 주세요.',
     visionPickBusy: '보내는 중…',
     visionPickError: '선택을 보낼 수 없습니다. 다시 시도해 주세요.',

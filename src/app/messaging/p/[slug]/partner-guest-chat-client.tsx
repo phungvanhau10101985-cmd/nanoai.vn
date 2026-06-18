@@ -1253,8 +1253,6 @@ type GuestChatDraftComposerProps = {
   uploading: boolean
   sending: boolean
   tryOnBusy: boolean
-  authGateRequired: boolean
-  authMode: 'anonymous' | 'account'
   onDraftPaste: (e: ClipboardEvent<HTMLTextAreaElement>) => void
   onToggleTryOn: () => void
   galleryInputRef: RefObject<HTMLInputElement | null>
@@ -1289,8 +1287,6 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   uploading,
   sending,
   tryOnBusy,
-  authGateRequired,
-  authMode,
   onDraftPaste,
   onToggleTryOn,
   galleryInputRef,
@@ -1327,11 +1323,7 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
     autoResizeDraft()
   }, [draft, autoResizeDraft])
 
-  const canSend = Boolean(
-    (draft.trim() || attachmentCount > 0) &&
-      !uploading &&
-      !(authGateRequired && authMode !== 'account')
-  )
+  const canSend = Boolean((draft.trim() || attachmentCount > 0) && !uploading)
 
   const send = useCallback(() => {
     enqueueGuestSend(async () => {
@@ -2421,24 +2413,21 @@ export function PartnerGuestChatClient({
         return
       }
       const next = Array.isArray(data.messages) ? data.messages : []
-      const authRequiredFromMessages = next.some(
-        (m) => m.direction === 'outbound' && /^AUTH_REQUIRED_/i.test(String(m.body ?? '').trim())
-      )
-      const normalizedMessages = next.map((m) => {
-        if (m.direction !== 'outbound') return m
-        if (!/^AUTH_REQUIRED_/i.test(String(m.body ?? '').trim())) return m
-        return {
-          ...m,
-          body: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
-        }
-      })
+      const normalizedMessages = next
+        .filter((m) => {
+          if (m.direction !== 'outbound') return true
+          return !/^AUTH_REQUIRED_\d+$/i.test(String(m.body ?? '').trim())
+        })
+        .map((m) => {
+          if (m.direction !== 'outbound') return m
+          if (!/^AUTH_REQUIRED_/i.test(String(m.body ?? '').trim())) return m
+          return {
+            ...m,
+            body: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
+          }
+        })
       const serverSaysAccount = data.authMode === 'account'
       const hasGuestAccount = Boolean(guestAccountIdRef.current?.trim())
-      // Tin hệ thống cũ AUTH_REQUIRED_* không được ép logout sau khi đã xác thực (cookie/header account).
-      if (authRequiredFromMessages && !serverSaysAccount && !hasGuestAccount) {
-        setAuthGateRequired(true)
-        setAuthMode('anonymous')
-      }
       const hasMoreOlder = data.hasMoreOlder === true
       setHasMoreOlderMessages(hasMoreOlder)
       setMessages((prev) => {
@@ -4758,13 +4747,6 @@ export function PartnerGuestChatClient({
   const submitGuestMessage = useCallback(
     async (text: string, options?: { autoOpening?: boolean }): Promise<boolean> => {
       const trimmed = text.trim()
-      if (authGateRequired && authMode !== 'account') {
-        toast({
-          title: t.guestAuthRequiredAfterLimit.replace('{count}', '5'),
-          variant: 'destructive',
-        })
-        return false
-      }
       const pcSeed = pageContextRef.current
       const hasSeed = hasWidgetPageContextSeed(pcSeed)
       const shouldAttachPageContext =
@@ -4901,8 +4883,6 @@ export function PartnerGuestChatClient({
       }
     },
     [
-      authGateRequired,
-      authMode,
       authHeaders,
       captureGuestSessionFromResponse,
       clearAttachment,
@@ -6744,8 +6724,7 @@ export function PartnerGuestChatClient({
                   disabled={
                     sending ||
                     uploading ||
-                    tryOnBusy ||
-                    (authGateRequired && authMode !== 'account')
+                    tryOnBusy
                   }
                   className="flex w-full max-w-full items-center gap-3 px-3 py-2.5 pr-11 text-left transition-colors hover:bg-violet-100/90 disabled:pointer-events-none disabled:opacity-60 dark:hover:bg-violet-900/45"
                   aria-label={t.urlProductContextChipAria}
@@ -7150,8 +7129,6 @@ export function PartnerGuestChatClient({
                 uploading={uploading}
                 sending={sending}
                 tryOnBusy={tryOnBusy}
-                authGateRequired={authGateRequired}
-                authMode={authMode}
                 onDraftPaste={onDraftPaste}
                 onToggleTryOn={toggleTryOnPanel}
                 galleryInputRef={galleryInputRef}

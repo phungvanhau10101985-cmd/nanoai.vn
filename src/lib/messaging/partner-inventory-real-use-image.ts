@@ -13,13 +13,27 @@ type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 const IMAGE_MODEL = 'gemini-3-pro-image-preview' as const
 
 const ASKS_REAL_USE_RE =
-  /(ảnh\s+chụp\s+thực\s+tế|thực\s+tế\s+không|ảnh\s+thực\s+tế|có\s+ảnh\s+thật|ảnh\s+thật|ảnh\s+ngoài\s+đời|ảnh\s+mặc|ảnh\s+đeo|ảnh\s+mang|real\s*photo|actual\s*photo|on\s*body|worn|try[\s-]?on)/i
+  /(ảnh\s+chụp\s+thực\s+tế|thực\s+tế\s+không|ảnh\s+thực\s+tế|có\s+ảnh\s+thật|ảnh\s+thật|ảnh\s+ngoài\s+đời|ảnh\s+mặc|ảnh\s+đeo|ảnh\s+mang|ảnh\s+bên\s+trong|bên\s+trong\s+túi|ngăn\s+trong(\s+túi)?|lót\s+trong(\s+túi)?|real\s*photo|actual\s*photo|on\s*body|worn|try[\s-]?on|inside\s+(the\s+)?bag|interior\s+(shot|photo))/i
+
+const ASKS_SPECIFIC_ANGLE_RE =
+  /(bên\s+trong|ngăn\s+trong|lót\s+trong|mặt\s+trước|đằng\s+trước|mặt\s+sau|đằng\s+sau|mặt\s+hông|hai\s+bên|đáy\s+túi|góc\s+cạnh|chi\s+tiết\s+khóa|chi\s+tiết\s+đường\s+may|interior|inside|front\s*view|back\s*view|side\s*view|bottom\s*view|zipper\s*detail|stitch(?:ing)?\s*detail)/i
 
 /** Khách hỏi có ảnh thực tế / mặc thử / dùng thật không. */
 export function customerMessageAsksAboutRealUsePhoto(body: string): boolean {
   const t = body.replace(/^📷\s*/u, '').trim()
   if (t.length < 2) return false
   return ASKS_REAL_USE_RE.test(t)
+}
+
+/**
+ * Khách hỏi góc chụp rất cụ thể (bên trong/trước/sau/đáy/ngăn...).
+ * Trường hợp này cần ưu tiên thẻ sản phẩm + điều hướng bấm «Xem chi tiết» trên web,
+ * không tạo ảnh AI vì dễ lệch mục tiêu câu hỏi.
+ */
+export function customerMessageAsksSpecificPhotoAngleDetail(body: string): boolean {
+  const t = body.replace(/^📷\s*/u, '').trim()
+  if (t.length < 2) return false
+  return ASKS_SPECIFIC_ANGLE_RE.test(t)
 }
 
 const REAL_USE_PROMPT_SLOT1 = `You are an e-commerce creative assistant. The user attached EXACTLY ONE **primary product image** — the main listing photo of ONE real product (Image A). This is the shop’s canonical product shot used as the **sole source** to synthesize a believable “real customer” lifestyle photo, not a loose reference.

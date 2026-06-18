@@ -33,6 +33,7 @@ Luồng bắt đầu tại `buildPartnerAiContext` (`src/lib/messaging/partner-a
 | **Follow-up 1 SP (no vector)** | Hỏi tiếp thuộc tính SP vừa tư vấn, **một dòng kho**, không ANN cả kho | `followUpSingleProductNoVector` + có `lastConsultedRow` (hoặc widget neo) | `useLastConsultedContext`, `followUpSingleProductNoVector` | *(không set A/B; có clamp trong job)* |
 | **Widget `context_reply`** | Khóa 1 dòng theo intent widget | `forceSingleRowContextFromWidgetIntent` | `forceSingleRowContextReply` | *(ưu tiên clamp một dòng)* |
 | **Neo SKU / trang (không similar, không B)** | Khớp mã trong tin/trang, thường **≤1 thẻ** | `explicitSkuRows` + không bật A | `explicitSkuRows` | *(mặc định)* |
+| **Ảnh góc chi tiết (template)** | Khách hỏi góc rất cụ thể (bên trong/trước/sau/đáy/ngăn...) → **không tạo ảnh AI**; gửi thẻ và điều hướng bấm **Xem chi tiết** trên web | `customerMessageAsksSpecificPhotoAngleDetail` + có dòng kho neo | `specificAnglePhotoRequest`, `specificAnglePhotoTemplateInventoryRows` | `photo_angle_detail_template` |
 | **Page context — mã không có kho, gợi ý theo ảnh** | Trang/embed có `page_context` + ảnh nhưng **không** resolve được dòng kho → vector ảnh ngoài so với kho | `inboundPageSkuMissImageSimilarFallback` | `fetchInventoryRowsSimilarToExternalImageUrl` | `page_context_image_similar_fallback` |
 | **Tìm kho mặc định** | Keyword + vector theo tin | Không thuộc các nhánh trên | `invForContext` rộng | *(mặc định)* |
 
@@ -65,6 +66,7 @@ Nghĩa là: nếu khách vừa gửi **ngữ cảnh SP** vừa hỏi kiểu **«
   - `inbound_anchored_product_consult` — ưu tiên khi bật (Nhánh B).  
   - `page_context_image_similar_fallback` — mã/link trang không có trong kho; danh sách kho = gợi ý theo ảnh (vector).  
   - `similar_alternatives_catalog` — khi Nhánh A và chạy LLM đầy đủ (không clarify).  
+  - `photo_angle_detail_template` — khách hỏi góc ảnh cụ thể; runner gửi template + thẻ, không sinh ảnh AI.
 
 Dùng để debug và để sau này không đổi nghĩa key một cách âm thầm.
 
