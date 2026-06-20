@@ -19,11 +19,12 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
 import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { readGuestSessionIdFromRequestStrictOrLoose } from '@/lib/messaging/guest-auth-session'
+import { PARTNER_SITE_CUSTOMER_TOKEN_MAX_TTL_SEC } from '@/lib/messaging/partner-site-customer-auth-constants'
 
-export const PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY = 'pc_token'
-
-/** Thời hạn tối đa token (giây) — partner ký `exp` trong khoảng này. */
-export const PARTNER_SITE_CUSTOMER_TOKEN_MAX_TTL_SEC = 900
+export {
+  PARTNER_SITE_CUSTOMER_TOKEN_MAX_TTL_SEC,
+  PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY,
+} from '@/lib/messaging/partner-site-customer-auth-constants'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
