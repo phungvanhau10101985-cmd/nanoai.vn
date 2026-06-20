@@ -277,6 +277,29 @@ export function PartnerApiKeysManager({ partners, t, partnerId: partnerIdProp, o
             })()}
           </div>
 
+          <div className="space-y-3 rounded-lg border border-emerald-300/40 bg-emerald-50/15 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+            <div>
+              <p className="text-sm font-medium">{t.embedTitle}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{t.embedHint}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="min-w-0 flex-1 break-all rounded-md border bg-background px-2 py-1.5 text-[11px] font-mono">
+                {bundle?.embedKey?.trim() || t.noEmbedKey}
+              </code>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="shrink-0 gap-1"
+                onClick={() => void copyText(bundle?.embedKey?.trim() ?? '', t.copied)}
+                disabled={!bundle?.embedKey?.trim()}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                {t.copy}
+              </Button>
+            </div>
+          </div>
+
           <div className="space-y-3 rounded-lg border border-violet-300/40 bg-violet-50/15 p-3 dark:border-violet-900/40 dark:bg-violet-950/20">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>

@@ -21,6 +21,7 @@ import {
   fetchLastOutboundCustomerCareMessageBodyPg,
   mergeConversationUiLocaleFromPg,
   resolveLinkedUserIdForCustomerCarePg,
+  touchGuestViewerLastSeenFromPg,
 } from '@/lib/db/customer-care-pg'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { fetchMessagingPartnerAiEnabledFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
@@ -899,6 +900,8 @@ export async function postWidgetGuestMessage(params: {
   if (locNorm) {
     await mergeConversationUiLocaleFromPg(conversationId, locNorm)
   }
+
+  void touchGuestViewerLastSeenFromPg(conversationId)
 
   const ins = await insertMessage({
     conversationId,

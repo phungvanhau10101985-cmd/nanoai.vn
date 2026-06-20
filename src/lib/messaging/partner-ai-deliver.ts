@@ -7,6 +7,7 @@ import type { PartnerMaterialDetailFollowup } from '@/lib/messaging/partner-inve
 import type { PartnerRealUseImageFollowup } from '@/lib/messaging/partner-inventory-real-use-image'
 import { getFacebookSendToken, getZaloSendToken } from '@/lib/messaging/partner-channels-db'
 import { splitAutomatedReplyIntoChunks } from '@/lib/messaging/partner-ai-split-reply'
+import { maybeEmailCustomerOfflineShopReply } from '@/lib/messaging/partner-reply-offline-customer-email'
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -186,6 +187,13 @@ export async function deliverAutomatedPartnerMessage(params: {
       senderAdminId: null,
     })
     if ('error' in ins2) return { error: ins2.error }
+  }
+
+  if (conversation.channel === 'widget' && outboundTexts.length > 0) {
+    void maybeEmailCustomerOfflineShopReply({
+      conversation,
+      replyBody: outboundTexts[outboundTexts.length - 1] ?? base,
+    })
   }
 
   return {}

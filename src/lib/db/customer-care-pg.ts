@@ -223,6 +223,57 @@ export async function fetchConversationUiLocaleFromPg(conversationId: string): P
   }
 }
 
+/** Đọc ISO timestamp từ `metadata` hội thoại — trả về epoch ms hoặc null. */
+export function readIsoTimestampFromConversationMetadata(
+  metadata: Json | null | undefined,
+  key: string
+): number | null {
+  if (metadata == null || typeof metadata !== 'object' || Array.isArray(metadata)) return null
+  const raw = (metadata as Record<string, unknown>)[key]
+  if (typeof raw !== 'string') return null
+  const t = raw.trim()
+  if (!t) return null
+  const ms = Date.parse(t)
+  return Number.isFinite(ms) ? ms : null
+}
+
+/** Gộp patch string vào `metadata` hội thoại widget (presence, cooldown email, …). */
+export async function mergeConversationMetadataPatchFromPg(
+  conversationId: string,
+  patch: Record<string, string>
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const id = conversationId.trim()
+  if (!id || !patch || Object.keys(patch).length === 0) return false
+  try {
+    const res = await getPgPool().query(
+      `update public.customer_care_conversations
+       set metadata = coalesce(metadata, '{}'::jsonb) || $2::jsonb,
+           updated_at = now()
+       where id = $1::uuid`,
+      [id, JSON.stringify(patch)]
+    )
+    return (res.rowCount ?? 0) > 0
+  } catch (e) {
+    console.warn('[mergeConversationMetadataPatchFromPg]', e)
+    return false
+  }
+}
+
+/** Khách đang mở / poll chat widget — cập nhật heartbeat để shop biết còn live. */
+export async function touchGuestViewerLastSeenFromPg(conversationId: string): Promise<void> {
+  if (!isPgConfigured()) return
+  const id = conversationId.trim()
+  if (!id) return
+  try {
+    await mergeConversationMetadataPatchFromPg(id, {
+      guest_viewer_last_seen_at: new Date().toISOString(),
+    })
+  } catch (e) {
+    console.warn('[touchGuestViewerLastSeenFromPg]', e)
+  }
+}
+
 export type WidgetConvListPgRow = {
   id: string
   partner_id: string

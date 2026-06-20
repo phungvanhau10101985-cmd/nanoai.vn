@@ -28,6 +28,7 @@ import {
   fetchConsultedProductKeysForConversationFromPg,
   fetchGuestWidgetConversationIdFromPg,
   fetchGuestWidgetMessagesWindowFromPg,
+  touchGuestViewerLastSeenFromPg,
 } from '@/lib/db/customer-care-pg'
 import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -273,6 +274,9 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       limit,
     })
     if (messagesPg !== null) {
+      if (!beforeId) {
+        void touchGuestViewerLastSeenFromPg(convIdPg)
+      }
       const consultedProductKeys =
         (await fetchConsultedProductKeysForConversationFromPg(convIdPg)) ?? []
       const gp = await buildGuestProfilePayload()

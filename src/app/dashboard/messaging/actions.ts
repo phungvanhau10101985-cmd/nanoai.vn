@@ -175,6 +175,7 @@ import {
   emailCustomerOrderPaymentStatusChanged,
   emailCustomerShippingStatusChanged,
 } from '@/lib/messaging/partner-order-customer-email'
+import { maybeEmailCustomerOfflineShopReply } from '@/lib/messaging/partner-reply-offline-customer-email'
 import {
   parseSpreadsheetId,
   queuePartnerOrderGoogleSheetsSync,
@@ -1423,6 +1424,13 @@ export async function sendPartnerReply(
     senderAdminId: user.id,
   })
   if (!ins) return { error: 'Failed to save message.' }
+
+  if (conv.channel === 'widget') {
+    void maybeEmailCustomerOfflineShopReply({
+      conversation: conv,
+      replyBody: body,
+    })
+  }
 
   revalidateMessagingDashboard()
   return { ok: true as const }
