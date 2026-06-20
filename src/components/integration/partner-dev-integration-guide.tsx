@@ -20,7 +20,7 @@ function parsePxInput(raw: string, fallback: number, min: number, max: number): 
 type Props = {
   baseUrl: string
   t: PartnerDevIntegrationStrings
-  partners: Array<{ id: string; display_name: string | null; slug: string; logo_url: string | null }>
+  partners: Array<{ id: string; display_name: string | null; slug: string; logo_url: string | null; embed_key?: string }>
   /** Đồng bộ với ô chọn shop ở mục khóa API phía trên */
   selectedPartnerId?: string
 }
@@ -127,6 +127,7 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   const slug = selectedPartner?.slug ?? ''
   const logoUrl = selectedPartner?.logo_url?.trim() || `${baseUrl}/icons/icon-192x192.png`
   const partnerId = selectedPartner?.id ?? ''
+  const embedKeyForExamples = (selectedPartner?.embed_key ?? '').trim() || 'YOUR_EMBED_KEY'
   const guestBase = `${baseUrl}/api/messaging/guest/${slug}`
   const safeBottomPx = parsePxInput(embedBottomPxInput, 24, 0, EMBED_BOTTOM_OFFSET_MAX_PX)
   const safeHorizontalPx = parsePxInput(embedHorizontalPxInput, 16, 0, 300)
@@ -199,9 +200,72 @@ export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartn
   target="_blank"
   rel="noopener noreferrer"
   style="display:inline-block;padding:10px 16px;border-radius:9999px;background:#7c3aed;color:#fff;text-decoration:none;font:600 14px/1 Arial,sans-serif;"
->Mở chat NanoAI</a>`
+>  Mở chat NanoAI</a>`
   const hostedCompatNote =
     'Nếu web/CMS chặn <script> (hoặc chỉ cho dán URL/iframe), dùng mã iframe hoặc nút link bên dưới.'
+
+  const partnerSiteAuthNode = `const crypto = require('crypto')
+
+/** Call on your shop server when rendering a logged-in customer page. */
+function buildNanoAiPartnerCustomerToken(input) {
+  const email = String(input.email || '').trim().toLowerCase()
+  const embedKey = process.env.NANOAI_EMBED_KEY // ${embedKeyForExamples}
+  const exp = Math.floor(Date.now() / 1000) + 300
+  const sig = crypto.createHmac('sha256', embedKey).update(\`\${email}|\${exp}\`).digest('hex')
+  const payload = { email, exp, sig }
+  if (input.name) payload.name = String(input.name).slice(0, 180)
+  if (input.phone) payload.phone = String(input.phone).slice(0, 40)
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
+}
+
+// Example: const token = buildNanoAiPartnerCustomerToken({ email: user.email, name: user.name })`
+
+  const partnerSiteAuthPhp = `<?php
+/** Sign on shop server — never expose embed_key in public JS. */
+function nanoai_partner_customer_token(string $email, string $embedKey, ?string $name = null, ?string $phone = null): string {
+  $email = strtolower(trim($email));
+  $exp = time() + 300;
+  $sig = hash_hmac('sha256', $email . '|' . $exp, $embedKey);
+  $payload = ['email' => $email, 'exp' => $exp, 'sig' => $sig];
+  if ($name) $payload['name'] = mb_substr(trim($name), 0, 180);
+  if ($phone) $payload['phone'] = mb_substr(trim($phone), 0, 40);
+  return rtrim(strtr(base64_encode(json_encode($payload, JSON_UNESCAPED_UNICODE)), '+/', '-_'), '=');
+}
+// $token = nanoai_partner_customer_token($userEmail, getenv('NANOAI_EMBED_KEY'), $userName);`
+
+  const partnerSiteAuthPayload = `{
+  "email": "customer@example.com",
+  "name": "Optional — prefill order profile",
+  "phone": "Optional",
+  "exp": 1730000300,
+  "sig": "64-char hex HMAC-SHA256(embed_key, email|exp)"
+}`
+
+  const partnerSiteAuthWidget = `<!-- Logged in (SSR): token on widget script -->
+<script
+  src="${baseUrl}/embed/nanoai-chat-widget.js"
+  data-chat-url="${hostedUrl}"
+  data-partner-customer-token="<?= htmlspecialchars($customerToken) ?>"
+  defer
+></script>
+
+<!-- SPA: set before openConsult -->
+<script>
+  NanoAIMessagingGateway.setCustomer({ token: customerTokenFromYourApi })
+  NanoAIMessagingGateway.openConsult({
+    sku: 'SKU-188-001',
+    imageUrl: 'https://cdn.shop.com/product.jpg',
+    customerToken: customerTokenFromYourApi,
+  })
+  // On shop logout:
+  NanoAIMessagingGateway.clearCustomer()
+</script>`
+
+  const partnerSiteAuthApi = `POST ${guestBase}/auth/partner-site
+Content-Type: application/json
+
+{ "token": "<base64url payload from shop server>" }
+// Called automatically by the hosted chat iframe — manual call optional.`
 
   const guestGet = `GET ${guestBase}
 Cookie: <auth_session_cookie>`
@@ -444,6 +508,36 @@ Cookie: <auth_session_cookie>
               <p className="text-[11px] leading-relaxed text-muted-foreground">{t.fashionEmbedConsultTryOnBody}</p>
               <CodeBlock title={t.codeLabelExample} {...codeBlockCopyProps}>
                 {fashionProductPageButtons}
+              </CodeBlock>
+            </div>
+            <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+              <p className="text-xs font-medium text-foreground">{t.partnerSiteAuthTitle}</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{t.partnerSiteAuthBody}</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{t.partnerSiteAuthFlowNote}</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{t.partnerSiteAuthTokenNote}</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{t.partnerSiteAuthWidgetNote}</p>
+              {selectedPartner?.embed_key?.trim() ? (
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  {t.partnerSiteAuthEmbedKeyHint}{' '}
+                  <code className="break-all rounded bg-muted/80 px-1 py-0.5 font-mono text-[10px]">
+                    {selectedPartner.embed_key.trim()}
+                  </code>
+                </p>
+              ) : null}
+              <CodeBlock title={t.codeLabelTokenPayload} {...codeBlockCopyProps}>
+                {partnerSiteAuthPayload}
+              </CodeBlock>
+              <CodeBlock title={t.codeLabelSignTokenNode} {...codeBlockCopyProps}>
+                {partnerSiteAuthNode}
+              </CodeBlock>
+              <CodeBlock title={t.codeLabelSignTokenPhp} {...codeBlockCopyProps}>
+                {partnerSiteAuthPhp}
+              </CodeBlock>
+              <CodeBlock title={t.codeLabelWidgetPassToken} {...codeBlockCopyProps}>
+                {partnerSiteAuthWidget}
+              </CodeBlock>
+              <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
+                {partnerSiteAuthApi}
               </CodeBlock>
             </div>
             <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200/90">{hostedCompatNote}</p>

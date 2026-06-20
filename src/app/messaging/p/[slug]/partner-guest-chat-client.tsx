@@ -124,6 +124,7 @@ import {
 } from '@/lib/messaging/guest-purchase-flow'
 import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
+import { PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY } from '@/lib/messaging/partner-site-customer-auth'
 
 const INVENTORY_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -2331,6 +2332,30 @@ export function PartnerGuestChatClient({
     let cancelled = false
     void (async () => {
       try {
+        if (typeof window !== 'undefined') {
+          const sp = new URLSearchParams(window.location.search)
+          const pcToken = sp.get(PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY)?.trim() ?? ''
+          if (pcToken) {
+            const authRes = await fetch(
+              `/api/messaging/guest/${encodeURIComponent(slug)}/auth/partner-site`,
+              {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({ token: pcToken }),
+              }
+            )
+            captureGuestSessionFromResponse(authRes)
+            captureGuestAccountFromResponse(authRes)
+            if (authRes.ok) {
+              setAuthGateRequired(false)
+              setAuthMode('account')
+            }
+            sp.delete(PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY)
+            const nextPath = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`
+            window.history.replaceState(null, '', nextPath)
+          }
+        }
         const me = await fetch('/api/auth/me', {
           credentials: 'same-origin',
           headers: { ...authHeaders() },
@@ -2346,7 +2371,7 @@ export function PartnerGuestChatClient({
     return () => {
       cancelled = true
     }
-  }, [authHeaders])
+  }, [authHeaders, captureGuestAccountFromResponse, captureGuestSessionFromResponse, slug])
 
   const load = useCallback(async (options?: { beforeId?: string; appendOlder?: boolean; silent?: boolean }) => {
     const appendOlder = options?.appendOlder === true

@@ -95,7 +95,7 @@ export async function updateGuestAccountLastLoginPg(accountId: string, lastLogin
 export async function upsertGuestIdentityPg(params: {
   partnerId: string
   guestAccountId: string
-  provider: 'google' | 'email_otp'
+  provider: 'google' | 'email_otp' | 'partner_site'
   providerSubject: string
 }): Promise<boolean> {
   if (!isPgConfigured()) return false

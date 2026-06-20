@@ -16,7 +16,7 @@ function resolveInitialPartnerId(
   return partners[0]?.id ?? ''
 }
 
-type Partner = { id: string; display_name: string | null; slug: string; logo_url: string | null }
+type Partner = { id: string; display_name: string | null; slug: string; logo_url: string | null; embed_key?: string }
 
 type Props = {
   partners: Partner[]

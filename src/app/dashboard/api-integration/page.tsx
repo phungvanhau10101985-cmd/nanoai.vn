@@ -31,7 +31,7 @@ export default async function DashboardApiIntegrationPage({
   if (!user) redirectToLogin()
   if (!isValidUuidString(user.id)) redirectToLogin()
 
-  let partnerRows: { id: string; display_name: string; slug: string; logo_url: string | null }[] = []
+  let partnerRows: { id: string; display_name: string; slug: string; logo_url: string | null; embed_key: string }[] = []
   if (isPgConfigured()) {
     const fromPg = await fetchMessagingPartnersByOwnerFromPg(user.id)
     if (fromPg !== null) {
@@ -40,6 +40,7 @@ export default async function DashboardApiIntegrationPage({
         display_name: p.display_name,
         slug: p.slug,
         logo_url: p.logo_url ?? null,
+        embed_key: (p.embed_key ?? '').trim(),
       }))
     }
   }

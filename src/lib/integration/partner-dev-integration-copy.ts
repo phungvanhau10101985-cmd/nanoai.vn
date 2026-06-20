@@ -67,6 +67,17 @@ export type PartnerDevIntegrationStrings = {
   /** Shop thời trang / mua sắm — tách nút tư vấn nhắn tin vs thử đồ trên trang SP nhúng widget */
   fashionEmbedConsultTryOnTitle: string
   fashionEmbedConsultTryOnBody: string
+  /** Đăng nhập tự động khi khách đã login web shop — token HMAC embed_key */
+  partnerSiteAuthTitle: string
+  partnerSiteAuthBody: string
+  partnerSiteAuthFlowNote: string
+  partnerSiteAuthTokenNote: string
+  partnerSiteAuthWidgetNote: string
+  partnerSiteAuthEmbedKeyHint: string
+  codeLabelSignTokenNode: string
+  codeLabelSignTokenPhp: string
+  codeLabelWidgetPassToken: string
+  codeLabelTokenPayload: string
   noWorkspaceTitle: string
   noWorkspaceBody: string
   noWorkspaceCta: string
@@ -144,13 +155,28 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyCodeError: 'Không sao chép được. Hãy chọn và copy thủ công.',
     checklistTitle: 'Checklist trước khi production',
     checklistBody:
-      '• Không đặt X-Embed-Key hay Bearer trong bundle JS công khai.\n• Nếu dùng D: đã tạo/bật khóa Bearer tại Bảng điều khiển → Tích hợp API; đã bật đồng bộ/gợi ý theo ảnh tại Messaging → Cài đặt → AI; xử lý cả phản hồi 200 với `products` rỗng.\n• Nếu dùng F: cùng khóa Bearer; gọi từ server shop; xử lý mã lỗi `code` trong JSON.\n• Đã test CORS từ domain thật của shop (nhánh B).\n• Xử lý 400 / 401 / 403 / 404 / 429 / 503 (D: file/ảnh/kích thước; thiếu/khóa API; shop thiết lập) và thông báo cho người dùng.',
+      '• Không đặt X-Embed-Key hay Bearer trong bundle JS công khai.\n• Đăng nhập tự động: ký token trên **server** shop; logout shop gọi `clearCustomer()`; test cả khách đã login và chưa login trên PDP.\n• Nếu dùng D: đã tạo/bật khóa Bearer tại Bảng điều khiển → Tích hợp API; đã bật đồng bộ/gợi ý theo ảnh tại Messaging → Cài đặt → AI; xử lý cả phản hồi 200 với `products` rỗng.\n• Nếu dùng F: cùng khóa Bearer; gọi từ server shop; xử lý mã lỗi `code` trong JSON.\n• Đã test CORS từ domain thật của shop (nhánh B).\n• Xử lý 400 / 401 / 403 / 404 / 429 / 503 (D: file/ảnh/kích thước; thiếu/khóa API; shop thiết lập) và thông báo cho người dùng.',
     shopIdentifierLabel: 'Mã định danh chat (slug)',
     hostedAutoFilledNote:
       'Chọn đúng shop ở danh sách phía trên: đường link công khai và toàn bộ mã nhúng bên dưới đã được điền sẵn cho shop đó — bạn chỉ cần «Sao chép mã nhúng script» và dán vào website; không phải thay {slug} hay sửa URL tay.',
     fashionEmbedConsultTryOnTitle: 'Shop thời trang / mua sắm — Tư vấn nhắn tin vs Thử đồ',
     fashionEmbedConsultTryOnBody:
       'Trên trang chi tiết SP, dùng **một** script widget. Hai cổng: `NanoAIMessagingGateway.openConsult({ sku, imageUrl })` (tư vấn — gắn ngữ cảnh + chip, khách bấm mới gửi, giống FAB) và `NanoAIMessagingGateway.openTryOn({ imageUrl })` (thử đồ). Hoặc nút HTML với `data-nanoai-consult` / `data-nanoai-try-on` kèm `data-nanoai-sku`, `data-nanoai-image`.',
+    partnerSiteAuthTitle: 'Đăng nhập tự động — khách đã login web shop',
+    partnerSiteAuthBody:
+      'Khi khách **đã đăng nhập** trên website của bạn và bấm **Tư vấn nhắn tin**, NanoAI mở chat **đã đăng nhập theo email** (đồng bộ ví credits, đơn hàng). Khách **chưa đăng nhập** shop → không gửi token → chat **ẩn danh** như trước. Email là khóa: đã có trên NanoAI thì vào đúng tài khoản; chưa có thì **tạo mới**.',
+    partnerSiteAuthFlowNote:
+      'Luồng: (1) Server shop ký token ngắn hạn bằng **X-Embed-Key** (UUID workspace — xem khối khóa phía trên trang này hoặc Messaging → Cài đặt). (2) Trang shop truyền token vào widget (`data-partner-customer-token` hoặc `NanoAIMessagingGateway.setCustomer`). (3) Iframe chat gọi `POST /api/messaging/guest/{slug}/auth/partner-site` — bạn **không** cần gọi API này tay nếu dùng script nhúng chuẩn.',
+    partnerSiteAuthTokenNote:
+      'Token = base64url(JSON): `email` (bắt buộc, chữ thường), `exp` (Unix giây, tối đa ~15 phút), `sig` = HMAC-SHA256(embed_key, `email|exp`) hex 64 ký tự. Tuỳ chọn: `name`, `phone` (prefill hồ sơ đặt hàng). **Không** đặt embed_key trong bundle JS công khai — chỉ ký trên server shop.',
+    partnerSiteAuthWidgetNote:
+      'Cách truyền token: `data-partner-customer-token` trên thẻ `<script>` widget (SSR khi khách login); `NanoAIMessagingGateway.setCustomer({ token })` trước khi mở chat (SPA); hoặc `customerToken` trong `openConsult` / `openTryOn`. Khi khách **logout** shop: `NanoAIMessagingGateway.clearCustomer()`.',
+    partnerSiteAuthEmbedKeyHint:
+      'Embed key của shop đang chọn (dùng biến môi trường server — không commit vào git công khai):',
+    codeLabelSignTokenNode: 'Ký token — Node.js (server shop)',
+    codeLabelSignTokenPhp: 'Ký token — PHP (server shop)',
+    codeLabelWidgetPassToken: 'Truyền token vào widget',
+    codeLabelTokenPayload: 'Cấu trúc payload (trước base64url)',
     noWorkspaceTitle: 'Chưa có shop nhắn tin',
     noWorkspaceBody:
       'Bạn cần tạo ít nhất một workspace (cửa hàng) trong Messaging. Sau khi tạo xong, quay lại trang này: chọn shop trong danh sách và sao chép mã — hệ thống tự gắn đúng mã định danh, không cần chỉnh sửa.',
@@ -227,13 +253,28 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyCodeError: 'Could not copy. Select the code and copy manually.',
     checklistTitle: 'Pre-production checklist',
     checklistBody:
-      '• Do not ship X-Embed-Key or Bearer keys in public frontend bundles.\n• For D: create/enable the Bearer key on Dashboard → API integration; enable image/catalog sync under Messaging → Settings → AI; handle HTTP 200 with an empty `products` array.\n• For F: same Bearer key; call from the shop server; handle JSON `code` on errors.\n• Test CORS from your real shop domain (track B).\n• Handle 400 / 401 / 403 / 404 / 429 / 503 (D: file/image/size; API key; shop settings) with clear user messaging.',
+      '• Do not ship X-Embed-Key or Bearer keys in public frontend bundles.\n• Auto sign-in: sign tokens on your **server**; call `clearCustomer()` on shop logout; test logged-in and guest shoppers on the PDP.\n• For D: create/enable the Bearer key on Dashboard → API integration; enable image/catalog sync under Messaging → Settings → AI; handle HTTP 200 with an empty `products` array.\n• For F: same Bearer key; call from the shop server; handle JSON `code` on errors.\n• Test CORS from your real shop domain (track B).\n• Handle 400 / 401 / 403 / 404 / 429 / 503 (D: file/image/size; API key; shop settings) with clear user messaging.',
     shopIdentifierLabel: 'Chat shop ID (slug)',
     hostedAutoFilledNote:
       'Pick your shop above: the public URL and embed script below are pre-filled for that workspace — use «Copy embed script» and paste on your site. No manual {slug} replacement.',
     fashionEmbedConsultTryOnTitle: 'Fashion / retail — Message consult vs try-on',
     fashionEmbedConsultTryOnBody:
       'On the product detail page, use **one** widget script. Gateways: `openConsult({ sku, imageUrl })` (attach product context + chip — customer taps chip to send, same as FAB) and `openTryOn({ imageUrl })`. HTML: `data-nanoai-consult` / `data-nanoai-try-on` with `data-nanoai-sku`, `data-nanoai-image`.',
+    partnerSiteAuthTitle: 'Auto sign-in — shopper logged in on your shop',
+    partnerSiteAuthBody:
+      'When the customer is **logged in** on your storefront and taps **Message consult**, NanoAI opens chat **signed in by email** (credits wallet, order history sync). **Not logged in** on your shop → omit the token → **anonymous** chat as before. Email is the key: existing NanoAI account is reused; otherwise a **new account** is created.',
+    partnerSiteAuthFlowNote:
+      'Flow: (1) Your shop **server** signs a short-lived token with **X-Embed-Key** (workspace UUID — key block at the top of this page or Messaging → Settings). (2) Pass the token into the widget (`data-partner-customer-token` or `NanoAIMessagingGateway.setCustomer`). (3) The chat iframe calls `POST /api/messaging/guest/{slug}/auth/partner-site` — you do **not** need to call this yourself when using the standard embed script.',
+    partnerSiteAuthTokenNote:
+      'Token = base64url(JSON): required `email` (lowercase), `exp` (Unix seconds, max ~15 min), `sig` = HMAC-SHA256(embed_key, `email|exp`) as 64-char hex. Optional: `name`, `phone` (order profile prefill). **Never** put embed_key in public frontend bundles — sign only on the shop server.',
+    partnerSiteAuthWidgetNote:
+      'Pass the token via: `data-partner-customer-token` on the widget `<script>` tag (SSR when logged in); `NanoAIMessagingGateway.setCustomer({ token })` before opening chat (SPA); or `customerToken` in `openConsult` / `openTryOn`. On shop **logout**: `NanoAIMessagingGateway.clearCustomer()`.',
+    partnerSiteAuthEmbedKeyHint:
+      'Embed key for the selected shop (use a server env var — do not commit to public repos):',
+    codeLabelSignTokenNode: 'Sign token — Node.js (shop server)',
+    codeLabelSignTokenPhp: 'Sign token — PHP (shop server)',
+    codeLabelWidgetPassToken: 'Pass token to the widget',
+    codeLabelTokenPayload: 'Payload shape (before base64url)',
     noWorkspaceTitle: 'No messaging workspace yet',
     noWorkspaceBody:
       'Create a workspace under Messaging settings first. Then return here, select your shop, and copy the ready-made embed code — the correct slug is filled in automatically.',
@@ -307,13 +348,27 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyCodeError: '无法复制，请手动选择代码复制。',
     checklistTitle: '上线前检查',
     checklistBody:
-      '• 勿将 X-Embed-Key 或 Bearer 打入公开前端包。\n• 使用 D 时：已在 API 集成说明页创建/启用 Bearer；已在 Messaging → 设置 → AI 同步目录/以图能力；处理 200 且 products 为空。\n• 使用 F 时：同一 Bearer；从店铺服务端调用；处理 JSON 中的 `code`。\n• 在真实店铺域名下测试 CORS（路径 B）。\n• 处理 400 / 401 / 403 / 404 / 429 / 503（文件、密钥、店铺设置等）。',
+      '• 勿将 X-Embed-Key / Bearer 打入公开前端包。\n• 自动登录：在**服务端**签名；店铺登出调用 `clearCustomer()`；测试已登录与未登录顾客。\n• 使用 D：已在 API 集成说明页创建/启用 Bearer；已在 Messaging → 设置 → AI 同步目录/以图能力；处理 200 且 products 为空。\n• 使用 F：同一 Bearer；从店铺服务端调用；处理 JSON 中的 `code`。\n• 在真实店铺域名下测试 CORS（路径 B）。\n• 处理 400 / 401 / 403 / 404 / 429 / 503（文件、密钥、店铺设置等）。',
     shopIdentifierLabel: '聊天店铺标识 (slug)',
     hostedAutoFilledNote:
       '在上方选择店铺后：下方公开链接与嵌入脚本已自动填入该店铺，直接「复制嵌入脚本」粘贴到网站即可，无需手动替换 slug。',
     fashionEmbedConsultTryOnTitle: '时尚 / 零售店 — 留言咨询 vs 试穿',
     fashionEmbedConsultTryOnBody:
       '商品详情页使用**一个** widget 脚本。`openConsult({ sku, imageUrl })` 附加商品上下文 + 芯片（顾客点击才发送，同 FAB）。`openTryOn({ imageUrl })` 打开试穿。HTML：`data-nanoai-consult` / `data-nanoai-try-on`.',
+    partnerSiteAuthTitle: '自动登录 — 顾客已在店铺网站登录',
+    partnerSiteAuthBody:
+      '顾客在**您的网站已登录**并点击**留言咨询**时，NanoAI 按 **email 自动登录**（积分钱包、订单同步）。**未登录** → 不传 token → **匿名**聊天。以 email 为键：NanoAI 已有则进入原账号；否则**新建**。',
+    partnerSiteAuthFlowNote:
+      '流程：(1) 店铺**服务端**用 **X-Embed-Key**（本页上方密钥或 Messaging → 设置）签名短期 token。(2) 传入 widget（`data-partner-customer-token` 或 `setCustomer`）。(3) iframe 自动 `POST …/auth/partner-site` — 使用标准嵌入脚本时**无需**自行调用。',
+    partnerSiteAuthTokenNote:
+      'Token = base64url(JSON)：`email`（必填小写）、`exp`（Unix 秒，最长约 15 分钟）、`sig` = HMAC-SHA256(embed_key, `email|exp`) 64 位 hex。可选 `name`、`phone`。**勿**在前端公开 bundle 中放置 embed_key。',
+    partnerSiteAuthWidgetNote:
+      '传 token：`data-partner-customer-token`（SSR）；`NanoAIMessagingGateway.setCustomer({ token })`（SPA）；或在 `openConsult`/`openTryOn` 中带 `customerToken`。店铺**登出**：`clearCustomer()`。',
+    partnerSiteAuthEmbedKeyHint: '当前所选店铺的 embed key（请放在服务端环境变量，勿提交公开仓库）：',
+    codeLabelSignTokenNode: '签名 token — Node.js（店铺服务端）',
+    codeLabelSignTokenPhp: '签名 token — PHP（店铺服务端）',
+    codeLabelWidgetPassToken: '将 token 传给 widget',
+    codeLabelTokenPayload: 'Payload 结构（base64url 之前）',
     noWorkspaceTitle: '还没有消息店铺',
     noWorkspaceBody:
       '请先在 Messaging 中创建工作区。完成后回到本页，在列表中选择店铺并复制代码 — 系统会自动填入正确的标识。',
@@ -387,13 +442,27 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyCodeError: 'コピーできませんでした。コードを選択して手動でコピーしてください。',
     checklistTitle: '本番前チェックリスト',
     checklistBody:
-      '• X-Embed-Key / Bearer を公開 JS に含めない。\n• D: API 連携で Bearer を作成・有効化し、Messaging → 設定 → AI で同期。200 で products が空のケースも処理。\n• F: 同じ Bearer、店舗サーバーから、エラーは JSON `code`。\n• 実ドメインで CORS（B）。\n• 400 / 401 / 403 / 404 / 429 / 503 をユーザー向けに。',
+      '• X-Embed-Key / Bearer を公開 JS に含めない。\n• 自動ログイン: **サーバー**で署名; 店舗ログアウトで `clearCustomer()`; ログイン済み/未ログインを PDP でテスト。\n• D: API 連携で Bearer を作成・有効化し、Messaging → 設定 → AI で同期。200 で products が空のケースも処理。\n• F: 同じ Bearer、店舗サーバーから、エラーは JSON `code`。\n• 実ドメインで CORS（B）。\n• 400 / 401 / 403 / 404 / 429 / 503 をユーザー向けに。',
     shopIdentifierLabel: 'チャット店舗 ID（slug）',
     hostedAutoFilledNote:
       '上で店舗を選ぶと、下の公開 URL と埋め込みスクリプトがその店舗用に自動入力されます。「埋め込みスクリプトをコピー」してサイトに貼るだけで、slug の手入力は不要です。',
     fashionEmbedConsultTryOnTitle: 'ファッション / 小売 — メッセージ相談 vs バーチャル試着',
     fashionEmbedConsultTryOnBody:
       '商品詳細では**1 本**の widget スクリプト。`openConsult({ sku, imageUrl })` は商品コンテキスト + チップ（FAB 同様、タップで送信）。`openTryOn({ imageUrl })` で試着。HTML：`data-nanoai-consult` / `data-nanoai-try-on`.',
+    partnerSiteAuthTitle: '自動ログイン — 店舗サイトでログイン済みの購入者',
+    partnerSiteAuthBody:
+      '購入者が**店舗サイトにログイン済み**で**メッセージ相談**を押すと、NanoAI は **email で自動ログイン**（クレジットウォレット・注文同期）。**未ログイン** → token なし → **匿名**チャット。email をキーに既存アカウントへ、なければ**新規作成**。',
+    partnerSiteAuthFlowNote:
+      '流れ：(1) 店舗**サーバー**が **X-Embed-Key**（本ページ上部または Messaging → 設定）で短期 token に署名。(2) widget に渡す（`data-partner-customer-token` または `setCustomer`）。(3) iframe が `POST …/auth/partner-site` を自動実行 — 標準 embed なら**手動呼び出し不要**。',
+    partnerSiteAuthTokenNote:
+      'Token = base64url(JSON): 必須 `email`（小文字）、`exp`（Unix 秒・最大約15分）、`sig` = HMAC-SHA256(embed_key, `email|exp`) 64 hex。任意 `name`, `phone`。**embed_key を公開 JS に含めない** — 店舗サーバーでのみ署名。',
+    partnerSiteAuthWidgetNote:
+      'token の渡し方: `data-partner-customer-token`（SSR）、`NanoAIMessagingGateway.setCustomer({ token })`（SPA）、`openConsult`/`openTryOn` の `customerToken`。店舗**ログアウト**時: `clearCustomer()`。',
+    partnerSiteAuthEmbedKeyHint: '選択中店舗の embed key（サーバー環境変数に — 公開リポジトリにコミットしない）:',
+    codeLabelSignTokenNode: 'token 署名 — Node.js（店舗サーバー）',
+    codeLabelSignTokenPhp: 'token 署名 — PHP（店舗サーバー）',
+    codeLabelWidgetPassToken: 'widget へ token を渡す',
+    codeLabelTokenPayload: 'ペイロード構造（base64url 前）',
     noWorkspaceTitle: 'メッセージ店舗がまだありません',
     noWorkspaceBody:
       '先に Messaging でワークスペースを作成してください。作成後にこのページに戻り、リストから店舗を選んでコードをコピーします — 正しい slug が自動で入ります。',
@@ -467,13 +536,27 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     copyCodeError: '복사에 실패했습니다. 코드를 직접 선택해 복사하세요.',
     checklistTitle: '프로덕션 체크리스트',
     checklistBody:
-      '• X-Embed-Key / Bearer를 공개 프론트 번들에 넣지 않기.\n• D: Bearer 생성·활성화, Messaging → 설정 → AI 동기화, 200 + 빈 products 처리.\n• F: 동일 Bearer, 매장 서버, 오류 JSON `code`.\n• 실제 도메인 CORS(B).\n• 400 / 401 / 403 / 404 / 429 / 503 사용자 메시지.',
+      '• X-Embed-Key / Bearer를 공개 프론트 번들에 넣지 않기.\n• 자동 로그인: **서버**에서 token 서명; 매장 로그아웃 시 `clearCustomer()`; PDP에서 로그인/비로그인 모두 테스트.\n• D: Bearer 생성·활성화, Messaging → 설정 → AI 동기화, 200 + 빈 products 처리.\n• F: 동일 Bearer, 매장 서버, 오류 JSON `code`.\n• 실제 도메인 CORS(B).\n• 400 / 401 / 403 / 404 / 429 / 503 사용자 메시지.',
     shopIdentifierLabel: '채팅 매장 ID(slug)',
     hostedAutoFilledNote:
       '위에서 매장을 선택하면 아래 공개 URL과 임베드 스크립트가 해당 매장으로 채워집니다. «임베드 스크립트 복사» 후 사이트에 붙여 넣으면 되며 slug를 수동으로 바꿀 필요가 없습니다.',
     fashionEmbedConsultTryOnTitle: '패션 / 쇼핑몰 — 메시지 상담 vs 가상 피팅',
     fashionEmbedConsultTryOnBody:
       '상품 상세에는 **하나**의 widget 스크립트. `openConsult({ sku, imageUrl })` 는 상품 컨텍스트 + 칩(FAB 와 동일, 탭해야 전송). `openTryOn({ imageUrl })` 로 피팅. HTML: `data-nanoai-consult` / `data-nanoai-try-on`.',
+    partnerSiteAuthTitle: '자동 로그인 — 매장 사이트에 로그인한 고객',
+    partnerSiteAuthBody:
+      '고객이 **매장 사이트에 로그인**한 상태에서 **메시지 상담**을 누르면 NanoAI가 **email로 자동 로그인**(크레딧 지갑·주문 동기화). **미로그인** → token 없음 → **익명** 채팅. email 기준: NanoAI에 있으면 기존 계정, 없으면 **신규 생성**.',
+    partnerSiteAuthFlowNote:
+      '흐름: (1) 매장 **서버**가 **X-Embed-Key**(본 페이지 상단 또는 Messaging → 설정)로 단기 token 서명. (2) widget에 전달(`data-partner-customer-token` 또는 `setCustomer`). (3) iframe이 `POST …/auth/partner-site` 자동 호출 — 표준 embed 사용 시 **직접 호출 불필요**.',
+    partnerSiteAuthTokenNote:
+      'Token = base64url(JSON): 필수 `email`(소문자), `exp`(Unix 초, 최대 약 15분), `sig` = HMAC-SHA256(embed_key, `email|exp`) 64 hex. 선택 `name`, `phone`. **embed_key를 공개 JS 번들에 넣지 않음** — 매장 서버에서만 서명.',
+    partnerSiteAuthWidgetNote:
+      'token 전달: `data-partner-customer-token`(SSR), `NanoAIMessagingGateway.setCustomer({ token })`(SPA), `openConsult`/`openTryOn`의 `customerToken`. 매장 **로그아웃**: `clearCustomer()`.',
+    partnerSiteAuthEmbedKeyHint: '선택한 매장 embed key(서버 환경 변수 사용 — 공개 저장소에 커밋 금지):',
+    codeLabelSignTokenNode: 'token 서명 — Node.js(매장 서버)',
+    codeLabelSignTokenPhp: 'token 서명 — PHP(매장 서버)',
+    codeLabelWidgetPassToken: 'widget에 token 전달',
+    codeLabelTokenPayload: 'Payload 구조(base64url 이전)',
     noWorkspaceTitle: '메시징 워크스페이스가 없습니다',
     noWorkspaceBody:
       '먼저 Messaging에서 워크스페이스를 만든 뒤 이 페이지로 돌아와 목록에서 매장을 선택하고 코드를 복사하세요 — 올바른 slug가 자동으로 들어갑니다.',

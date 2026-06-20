@@ -12,6 +12,8 @@
       if (!item || !item[0]) continue
       if (item[0] === 'consult' && typeof gatewayImpl.openConsult === 'function') gatewayImpl.openConsult(item[1])
       else if (item[0] === 'try_on' && typeof gatewayImpl.openTryOn === 'function') gatewayImpl.openTryOn(item[1])
+      else if (item[0] === 'set_customer' && typeof gatewayImpl.setCustomer === 'function') gatewayImpl.setCustomer(item[1])
+      else if (item[0] === 'clear_customer' && typeof gatewayImpl.clearCustomer === 'function') gatewayImpl.clearCustomer()
     }
     gatewayPending.length = 0
   }
@@ -26,6 +28,17 @@
     openTryOn: function (payload) {
       if (typeof gatewayImpl.openTryOn === 'function') return gatewayImpl.openTryOn(payload)
       gatewayPending.push(['try_on', payload])
+      return true
+    },
+    /** Token SSO khách đã đăng nhập web shop — ký server-side bằng embed_key (xem tài liệu tích hợp). */
+    setCustomer: function (payload) {
+      if (typeof gatewayImpl.setCustomer === 'function') return gatewayImpl.setCustomer(payload)
+      gatewayPending.push(['set_customer', payload])
+      return true
+    },
+    clearCustomer: function () {
+      if (typeof gatewayImpl.clearCustomer === 'function') return gatewayImpl.clearCustomer()
+      gatewayPending.push(['clear_customer', null])
       return true
     },
   }
@@ -374,6 +387,8 @@
     var PERSIST_CHAT_SESSION_KEY = 'nanoai_persist_chat_iframe_href_v1'
     var GUEST_SESSION_KEY = 'nanoai_guest_session_id_v1'
     var GUEST_ACCOUNT_KEY = 'nanoai_guest_account_id_v1'
+    var PARTNER_CUSTOMER_TOKEN_KEY = 'pc_token'
+    var pendingPartnerCustomerToken = ''
     var MSG_SOURCE = 'nanoai-widget'
     var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -428,6 +443,45 @@
           localStorage.setItem(GUEST_ACCOUNT_KEY, String(payload.guestAccountId).trim())
         }
       } catch (_) {}
+    }
+
+    function readPartnerCustomerTokenFromPayload(raw) {
+      if (!raw || typeof raw !== 'object') return ''
+      var o = raw
+      var direct = String(o.customerToken != null ? o.customerToken : o.pc_token != null ? o.pc_token : '').trim()
+      if (direct) return direct
+      var nested = o.customer && typeof o.customer === 'object' ? o.customer : null
+      if (nested) {
+        var t = String(nested.token != null ? nested.token : nested.customerToken != null ? nested.customerToken : '').trim()
+        if (t) return t
+      }
+      return ''
+    }
+
+    /** Token SSO — ưu tiên pending (openConsult), rồi global/cookie script tag. Khách chưa đăng nhập shop → rỗng → chat ẩn danh. */
+    function readPartnerCustomerToken() {
+      var pending = String(pendingPartnerCustomerToken || '').trim()
+      if (pending) return pending
+      try {
+        var g = window.NanoAIPartnerCustomer
+        if (g && typeof g === 'object') {
+          var gt = String(g.token != null ? g.token : g.customerToken != null ? g.customerToken : '').trim()
+          if (gt) return gt
+        }
+      } catch (_) {}
+      try {
+        var fromAttr = getAttr('data-partner-customer-token', '')
+        if (fromAttr) return String(fromAttr).trim()
+      } catch (_) {}
+      return ''
+    }
+
+    function setPartnerCustomerToken(raw) {
+      pendingPartnerCustomerToken = String(raw || '').trim()
+    }
+
+    function clearPartnerCustomerToken() {
+      pendingPartnerCustomerToken = ''
     }
 
     /** iframe → cả tab shop: mở SP thay trang host (trước đây không có listener → chỉ iframe tự assign → lồng UI). */
@@ -619,6 +673,8 @@
         }
         if (gateway) u.searchParams.set('ctx_gateway', gateway)
         if (openTryOn) u.searchParams.set('open_try_on', '1')
+        var pcToken = readPartnerCustomerToken()
+        if (pcToken) u.searchParams.set(PARTNER_CUSTOMER_TOKEN_KEY, pcToken)
         return u.toString()
       } catch (_) {
         return baseUrl
@@ -644,6 +700,8 @@
       var inventoryId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv)
         ? inv
         : ''
+      var customerToken = readPartnerCustomerTokenFromPayload(o)
+      if (customerToken) setPartnerCustomerToken(customerToken)
       var out = {}
       if (sku) out.sku = sku
       if (imageUrl) out.imageUrl = imageUrl
@@ -865,6 +923,15 @@
 
     gatewayImpl.openConsult = openConsultGateway
     gatewayImpl.openTryOn = openTryOnGateway
+    gatewayImpl.setCustomer = function (payload) {
+      var t = readPartnerCustomerTokenFromPayload(payload)
+      if (t) setPartnerCustomerToken(t)
+      return true
+    }
+    gatewayImpl.clearCustomer = function () {
+      clearPartnerCustomerToken()
+      return true
+    }
     flushGatewayPending()
     function closeChat() {
       panel.style.display = 'none'
