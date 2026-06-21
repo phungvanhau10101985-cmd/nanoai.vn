@@ -18,7 +18,7 @@ export function WeddingMapEmbed({ mapUrl, title, className }: Props) {
     <div
       className={cn(
         'relative isolate w-full overflow-hidden rounded-2xl bg-muted ring-1 ring-black/10 dark:ring-white/10',
-        'aspect-video min-h-[200px]',
+        'aspect-video min-h-[180px] sm:min-h-[200px]',
         className,
       )}
     >

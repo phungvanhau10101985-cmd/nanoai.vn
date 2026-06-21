@@ -125,8 +125,8 @@ export async function getUserOrBypass(): Promise<AppUser | null> {
     if (!isValidUuidString(emailUser.id)) return null
     return canonicalizeUserByEmail(emailUser)
   }
-  if (!isAuthRequired()) return getDevUser()
-  if (isSearchEngineCrawler()) return getDevUser()
+  if (!isAuthRequired()) return canonicalizeUserByEmail(getDevUser())
+  if (isSearchEngineCrawler()) return canonicalizeUserByEmail(getDevUser())
   if (isCreditTrialRoute(getRequestPathForAuth())) {
     if (await canGuestUseCreditTrial()) {
       const guest = await resolveGuestTrialUser()
@@ -209,7 +209,7 @@ export async function getUserForAction(
 ): Promise<{ user: AppUser } | { error: string }> {
   const user = await getWalletSessionUser()
   if (user) return { user }
-  if (!isAuthRequired()) return { user: getDevUser() }
+  if (!isAuthRequired()) return { user: await canonicalizeUserByEmail(getDevUser()) }
   return { error: errorMessage }
 }
 
@@ -249,7 +249,7 @@ export async function getUserForCreditAction(
 ): Promise<{ user: AppUser } | { error: string }> {
   const user = await getWalletSessionUser()
   if (user) return { user }
-  if (!isAuthRequired()) return { user: getDevUser() }
+  if (!isAuthRequired()) return { user: await canonicalizeUserByEmail(getDevUser()) }
   if (!(await canGuestUseCreditTrial())) {
     clearGuestTrialUserIdCookie()
     return { error: errorMessage }

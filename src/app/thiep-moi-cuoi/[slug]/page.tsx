@@ -1,7 +1,11 @@
 import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
-import { getPublishedWeddingCardBySlug, listPublishedWeddingWishes } from '@/lib/db/wedding-cards-pg'
+import {
+  getPublishedWeddingCardBySlug,
+  listPublishedWeddingImages,
+  listPublishedWeddingWishes,
+} from '@/lib/db/wedding-cards-pg'
 import WeddingPublicClient from './wedding-public-client'
 
 type Props = { params: { slug: string } }
@@ -19,6 +23,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function WeddingPublicPage({ params }: Props) {
   const card = await getPublishedWeddingCardBySlug(params.slug).catch(() => null)
   if (!card) notFound()
-  const wishes = await listPublishedWeddingWishes(card.id)
-  return <WeddingPublicClient card={card} wishes={wishes} />
+  const [wishes, images] = await Promise.all([
+    listPublishedWeddingWishes(card.id),
+    listPublishedWeddingImages(card.id),
+  ])
+  return <WeddingPublicClient card={card} wishes={wishes} images={images} />
 }

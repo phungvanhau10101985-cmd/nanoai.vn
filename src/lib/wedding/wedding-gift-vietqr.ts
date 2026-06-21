@@ -30,7 +30,26 @@ export function isLegacySingleGiftImage(card: WeddingCard): boolean {
   return Boolean(card.giftQrImageUrl?.trim())
 }
 
+export function isGroomVietGiftReady(card: WeddingCard): boolean {
+  return isVietGiftSideComplete(card.groomGiftBankId, card.groomGiftAccountNo, card.groomGiftAccountName)
+}
+
+export function isBrideVietGiftReady(card: WeddingCard): boolean {
+  return isVietGiftSideComplete(card.brideGiftBankId, card.brideGiftAccountNo, card.brideGiftAccountName)
+}
+
 /** Hiển thị hộp mừng cưới khi bật và đã cấu hình VietQR đôi hoặc ảnh QR cũ. */
 export function shouldShowPublicGiftBox(card: WeddingCard): boolean {
   return card.giftQrEnabled && (isTwinVietGiftReady(card) || isLegacySingleGiftImage(card))
+}
+
+export function shouldShowPublicGiftBoxForSide(
+  card: WeddingCard,
+  side: 'groom' | 'bride' | null,
+): boolean {
+  if (!card.giftQrEnabled) return false
+  if (!side) return shouldShowPublicGiftBox(card)
+  if (isLegacySingleGiftImage(card)) return true
+  if (side === 'groom') return isGroomVietGiftReady(card)
+  return isBrideVietGiftReady(card)
 }

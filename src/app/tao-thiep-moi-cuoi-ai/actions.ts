@@ -7,6 +7,7 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import {
   completeWeddingAiImage,
   createWeddingCardDraft,
+  ensureWeddingCardOwnerProfile,
   failWeddingAiImage,
   getLatestWeddingCardForUser,
   getWeddingCardForUser,
@@ -25,8 +26,15 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { buildWeddingPrompt } from '@/lib/wedding/build-wedding-image-prompt'
 import { parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
 import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
+import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { isTwinVietGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
+import { mergeWeddingSectionConfig, parseWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
+import {
+  isWeddingPolishField,
+  polishWeddingTextWithDeepseek,
+  type WeddingPolishField,
+} from '@/lib/wedding/wedding-text-polish-deepseek'
 
 const COST = 1
 const MAX_TEXT = 2000
@@ -39,9 +47,17 @@ function boolValue(value: FormDataEntryValue | null): boolean {
   return value === 'true' || value === 'on' || value === '1'
 }
 
-async function uploadWeddingReferenceImage(userId: string, cardId: string, role: 'groom' | 'bride', file: FormDataEntryValue | null) {
+async function uploadWeddingReferenceImage(
+  userId: string,
+  cardId: string,
+  role: 'groom' | 'bride' | 'cover',
+  file: FormDataEntryValue | null,
+) {
   if (!(file instanceof File) || file.size <= 0) return null
-  if (!file.type.startsWith('image/')) throw new Error(`Ảnh ${role === 'groom' ? 'chú rể' : 'cô dâu'} phải là file ảnh hợp lệ.`)
+  if (!file.type.startsWith('image/')) {
+    const roleLabel = role === 'groom' ? 'chú rể' : role === 'bride' ? 'cô dâu' : 'vỏ thiệp'
+    throw new Error(`Ảnh ${roleLabel} phải là file ảnh hợp lệ.`)
+  }
   const ext = file.type.includes('jpeg') || file.type.includes('jpg') ? 'jpg' : 'png'
   const path = `uploads/${userId}/wedding_${cardId}_${role}_${Date.now()}.${ext}`
   const { publicUrl } = await uploadTryOnImagePublic(path, file, { contentType: file.type || 'image/png', upsert: true })
@@ -79,21 +95,32 @@ async function getReferenceImagePart(referenceUrl: string | null) {
   return { inlineData: { data: buffer.toString('base64'), mimeType: contentType } }
 }
 
+async function getReferenceImagePartFromFile(file: FormDataEntryValue | null) {
+  if (!(file instanceof File) || file.size <= 0) return null
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Ảnh tham khảo tùy chỉnh phải là file ảnh hợp lệ.')
+  }
+  const buffer = Buffer.from(await file.arrayBuffer())
+  return { inlineData: { data: buffer.toString('base64'), mimeType: file.type || 'image/png' } }
+}
+
 export async function getOrCreateWeddingCard() {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
-  const existing = await getLatestWeddingCardForUser(auth.user.id)
-  const card = existing ?? (await createWeddingCardDraft(auth.user.id))
+  const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const existing = await getLatestWeddingCardForUser(ownerUserId)
+  const card = existing ?? (await createWeddingCardDraft(ownerUserId))
   const images = await listWeddingImages(card.id)
-  const rsvps = await listWeddingRsvps(card.id, auth.user.id)
+  const rsvps = await listWeddingRsvps(card.id, ownerUserId)
   return { card, images, rsvps }
 }
 
 export async function saveWeddingCardBrief(formData: FormData) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
+  const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
   const cardId = clean(formData.get('cardId'), 80)
-  const existing = await getWeddingCardForUser(cardId, auth.user.id)
+  const existing = await getWeddingCardForUser(cardId, ownerUserId)
   if (!existing) return { error: 'Không tìm thấy thiệp.' }
   let groomImageUrl = clean(formData.get('groomImageUrl'), 1000) || existing.groomImageUrl
   let brideImageUrl = clean(formData.get('brideImageUrl'), 1000) || existing.brideImageUrl
@@ -103,16 +130,18 @@ export async function saveWeddingCardBrief(formData: FormData) {
     .map((url) => url.trim())
     .filter(Boolean)
   if (albumImageUrls.length === 0) albumImageUrls = existing.albumImageUrls
+  let uploadedCover: string | null = null
   try {
-    groomImageUrl = (await uploadWeddingReferenceImage(auth.user.id, cardId, 'groom', formData.get('groomImage'))) ?? groomImageUrl
-    brideImageUrl = (await uploadWeddingReferenceImage(auth.user.id, cardId, 'bride', formData.get('brideImage'))) ?? brideImageUrl
-    const uploadedMusic = await uploadWeddingMusic(auth.user.id, cardId, formData.get('musicFile'))
+    groomImageUrl = (await uploadWeddingReferenceImage(ownerUserId, cardId, 'groom', formData.get('groomImage'))) ?? groomImageUrl
+    brideImageUrl = (await uploadWeddingReferenceImage(ownerUserId, cardId, 'bride', formData.get('brideImage'))) ?? brideImageUrl
+    uploadedCover = await uploadWeddingReferenceImage(ownerUserId, cardId, 'cover', formData.get('coverImage'))
+    const uploadedMusic = await uploadWeddingMusic(ownerUserId, cardId, formData.get('musicFile'))
     if (uploadedMusic) {
       musicUrl = uploadedMusic
     } else if (boolValue(formData.get('musicClear'))) {
       musicUrl = ''
     }
-    const uploadedAlbum = await uploadWeddingAlbumImages(auth.user.id, cardId, formData.getAll('albumImages'))
+    const uploadedAlbum = await uploadWeddingAlbumImages(ownerUserId, cardId, formData.getAll('albumImages'))
     albumImageUrls = [...albumImageUrls, ...uploadedAlbum].slice(0, 30)
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) }
@@ -146,22 +175,42 @@ export async function saveWeddingCardBrief(formData: FormData) {
   const brideGiftAccountNo = clean(formData.get('brideGiftAccountNo'), 40)
   const brideGiftAccountName = clean(formData.get('brideGiftAccountName'), 120)
 
+  let sectionConfig = clean(formData.get('sectionConfig'), 3000) || '{}'
+  if (uploadedCover) {
+    sectionConfig = mergeWeddingSectionConfig(sectionConfig, { coverPhotoUrl: uploadedCover })
+  } else if (boolValue(formData.get('coverClear'))) {
+    sectionConfig = mergeWeddingSectionConfig(sectionConfig, { coverPhotoUrl: '' })
+  } else {
+    const parsedSection = parseWeddingSectionConfig(sectionConfig)
+    sectionConfig = mergeWeddingSectionConfig(existing.sectionConfig, parsedSection)
+  }
+
   const draftForGift: Parameters<typeof updateWeddingCardBrief>[0] = {
     cardId,
-    userId: auth.user.id,
+    userId: ownerUserId,
     groomName: clean(formData.get('groomName')),
     brideName: clean(formData.get('brideName')),
     weddingDate: normalizeWeddingDateToIso(clean(formData.get('weddingDate'), 120)),
     weddingTime: clean(formData.get('weddingTime'), 80),
+    partyStartTime: clean(formData.get('partyStartTime'), 80),
     venue: clean(formData.get('venue'), 500),
     mapUrl: clean(formData.get('mapUrl'), 1000),
     invitationText: clean(formData.get('invitationText'), MAX_TEXT),
     invitationTextEn: clean(formData.get('invitationTextEn'), MAX_TEXT),
     guestName: clean(formData.get('guestName'), 200),
+    guestInviteVenue: normalizeGuestInviteVenue(formData.get('guestInviteVenue')),
     storyText: clean(formData.get('storyText'), MAX_TEXT),
+    coupleIntro: clean(formData.get('coupleIntro'), MAX_TEXT),
+    loveQuote: clean(formData.get('loveQuote'), 600),
+    eventTimeline: clean(formData.get('eventTimeline'), MAX_TEXT),
+    dressCode: clean(formData.get('dressCode'), 600),
+    thankYouText: clean(formData.get('thankYouText'), MAX_TEXT),
+    sectionConfig,
     albumImageUrls,
     groomParents: clean(formData.get('groomParents'), 500),
     brideParents: clean(formData.get('brideParents'), 500),
+    groomHometown: clean(formData.get('groomHometown'), 500),
+    brideHometown: clean(formData.get('brideHometown'), 500),
     groomImageUrl,
     brideImageUrl,
     musicUrl,
@@ -178,6 +227,7 @@ export async function saveWeddingCardBrief(formData: FormData) {
     brideGiftBankId,
     brideGiftAccountNo,
     brideGiftAccountName,
+    effectsEnabled: formData.has('effectsEnabled') ? boolValue(formData.get('effectsEnabled')) : true,
   }
   const giftCheckCard: WeddingCard = {
     ...existing,
@@ -200,22 +250,29 @@ export async function saveWeddingCardBrief(formData: FormData) {
   const card = await updateWeddingCardBrief(draftForGift)
   if (!card) return { error: 'Không tìm thấy thiệp.' }
   revalidatePath('/tao-thiep-moi-cuoi-ai')
+  revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
   return { card }
 }
 
 export async function generateWeddingCardImage(formData: FormData) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
-  const userId = auth.user.id
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
   const cardId = clean(formData.get('cardId'), 80)
   const typeRaw = clean(formData.get('type'), 40) as WeddingImageType
   const type = WEDDING_IMAGE_TYPES.includes(typeRaw) ? typeRaw : 'master'
   const extraPrompt = clean(formData.get('extraPrompt'), 800)
+  const customReferenceImageUrl = clean(formData.get('customReferenceImageUrl'), 1000)
+  const customReferenceImageFile = formData.get('customReferenceImage')
   const card = await getWeddingCardForUser(cardId, userId)
   if (!card) return { error: 'Không tìm thấy thiệp.' }
 
   const balance = await getCreditBalanceByUserId(userId)
   if (balance < COST) return { error: `Không đủ credit. Cần ${COST} credit để tạo ảnh AI.` }
+
+  const hasCustomReference =
+    Boolean(customReferenceImageUrl) ||
+    (customReferenceImageFile instanceof File && customReferenceImageFile.size > 0)
 
   const prompt = buildWeddingPrompt({
     type,
@@ -225,7 +282,11 @@ export async function generateWeddingCardImage(formData: FormData) {
     brideName: card.brideName,
     venue: card.venue,
     extraPrompt,
-    hasReference: (type !== 'master' && Boolean(card.masterImageUrl)) || Boolean(card.groomImageUrl || card.brideImageUrl),
+    hasReference:
+      (type !== 'master' && Boolean(card.masterImageUrl)) ||
+      Boolean(card.groomImageUrl || card.brideImageUrl) ||
+      hasCustomReference,
+    hasCustomReference,
   })
   const imageId = await insertWeddingAiImageProcessing({
     userId,
@@ -256,6 +317,8 @@ export async function generateWeddingCardImage(formData: FormData) {
       type !== 'master' ? getReferenceImagePart(card.masterImageUrl) : null,
       getReferenceImagePart(card.groomImageUrl || null),
       getReferenceImagePart(card.brideImageUrl || null),
+      getReferenceImagePart(customReferenceImageUrl || null),
+      getReferenceImagePartFromFile(customReferenceImageFile),
     ])
     referenceParts.filter(Boolean).forEach((part) => parts.push(part as object))
     const genResult = await model.generateContent(parts as never, { safetySettings } as never)
@@ -292,9 +355,41 @@ export async function generateWeddingCardImage(formData: FormData) {
 export async function publishCurrentWeddingCard(cardId: string) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
-  const card = await publishWeddingCard(cardId, auth.user.id)
+  const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const card = await publishWeddingCard(cardId, ownerUserId)
   if (!card) return { error: 'Không tìm thấy thiệp.' }
   revalidatePath('/tao-thiep-moi-cuoi-ai')
   revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
   return { card }
+}
+
+export async function polishWeddingCardText(formData: FormData) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+
+  const fieldRaw = clean(formData.get('field'), 40)
+  if (!isWeddingPolishField(fieldRaw)) return { error: 'Loại nội dung không hợp lệ.' }
+
+  const draft = clean(formData.get('draft'), MAX_TEXT)
+  if (!draft) return { error: 'Nhập nội dung sơ bộ trước khi tối ưu bằng AI.' }
+
+  const field = fieldRaw as WeddingPolishField
+  const maxLen = field === 'loveQuote' || field === 'dressCode' ? 600 : MAX_TEXT
+  if (draft.length > maxLen) {
+    return { error: `Nội dung quá dài (tối đa ${maxLen} ký tự).` }
+  }
+
+  const result = await polishWeddingTextWithDeepseek({
+    field,
+    draft,
+    groomName: clean(formData.get('groomName'), 200),
+    brideName: clean(formData.get('brideName'), 200),
+    weddingDate: clean(formData.get('weddingDate'), 120),
+    venue: clean(formData.get('venue'), 500),
+    userId: auth.user.id,
+  })
+
+  if ('error' in result) return { error: result.error }
+  return { text: result.text.slice(0, maxLen) }
 }

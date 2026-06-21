@@ -1,4 +1,7 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
+import { weddingDateFromPg } from '@/lib/wedding/wedding-date-normalize'
+import { normalizeGuestInviteVenue, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
+import { normalizeGuestNameKey } from '@/lib/wedding/wedding-guest-invite-link'
 
 export type WeddingCard = {
   id: string
@@ -8,15 +11,51 @@ export type WeddingCard = {
   brideName: string
   weddingDate: string | null
   weddingTime: string
+  partyStartTime: string
   venue: string
   mapUrl: string
   invitationText: string
   invitationTextEn: string
   guestName: string
+  guestInviteVenue: WeddingGuestInviteVenue
   storyText: string
+  coupleIntro: string
+  loveQuote: string
+  eventTimeline: string
+  dressCode: string
+  thankYouText: string
+  sectionConfig: string
   albumImageUrls: string[]
   groomParents: string
   brideParents: string
+  groomHometown: string
+  brideHometown: string
+  groomInviteAddress: string
+  groomInviteMapUrl: string
+  groomInviteReceptionTime: string
+  groomInvitePartyStartTime: string
+  brideInviteAddress: string
+  brideInviteMapUrl: string
+  brideInviteReceptionTime: string
+  brideInvitePartyStartTime: string
+  groomInviteWeddingDate: string | null
+  groomInviteText: string
+  groomInviteTextEn: string
+  groomInviteEventTimeline: string
+  groomInviteDressCode: string
+  groomInviteContact: string
+  groomInviteCoverImageUrl: string
+  groomInviteDefaultPersonalMessage: string
+  groomInviteThankYouText: string
+  brideInviteWeddingDate: string | null
+  brideInviteText: string
+  brideInviteTextEn: string
+  brideInviteEventTimeline: string
+  brideInviteDressCode: string
+  brideInviteContact: string
+  brideInviteCoverImageUrl: string
+  brideInviteDefaultPersonalMessage: string
+  brideInviteThankYouText: string
   groomImageUrl: string
   brideImageUrl: string
   musicUrl: string
@@ -37,6 +76,7 @@ export type WeddingCard = {
   isPublished: boolean
   publishedAt: string | null
   masterImageUrl: string | null
+  effectsEnabled: boolean
 }
 
 export type WeddingAiImage = {
@@ -68,11 +108,71 @@ export type WeddingWish = {
   createdAt: string
 }
 
+export type WeddingInvitedGuestStatus = 'pending' | 'attending' | 'declined'
+
+export type WeddingInvitedGuest = {
+  id: string
+  guestName: string
+  inviteVenue: WeddingGuestInviteVenue
+  personalInvite: string
+  status: WeddingInvitedGuestStatus
+  guestCount: number
+  wishMessage: string
+  notes: string
+  createdAt: string
+  updatedAt: string
+}
+
 export const WEDDING_IMAGE_TYPES = ['master', 'cover', 'invitation', 'event', 'rsvp', 'album', 'gift_qr', 'thanks'] as const
 export type WeddingImageType = (typeof WEDDING_IMAGE_TYPES)[number]
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function normalizeGuestInviteVenueRow(raw: unknown): WeddingGuestInviteVenue {
+  return normalizeGuestInviteVenue(raw)
+}
+
 function requirePg() {
   if (!isPgConfigured()) throw new Error('DATABASE_URL is not set')
+}
+
+async function ensureProfileAndCredits(userId: string): Promise<boolean> {
+  if (!UUID_RE.test(userId)) return false
+  try {
+    await getPgPool().query(
+      `insert into public.profiles (id, updated_at)
+       values ($1::uuid, now())
+       on conflict (id) do nothing`,
+      [userId],
+    )
+    await getPgPool().query(
+      `insert into public.credits (user_id, balance)
+       values ($1::uuid, 0)
+       on conflict (user_id) do nothing`,
+      [userId],
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function ensureWeddingCardOwnerProfile(userId: string, email?: string | null): Promise<string> {
+  requirePg()
+  const cleanUserId = userId.trim()
+  if (await ensureProfileAndCredits(cleanUserId)) return cleanUserId
+
+  const cleanEmail = String(email ?? '').trim().toLowerCase()
+  if (cleanEmail) {
+    const res = await getPgPool().query<{ id: string }>(
+      `select (public.nanoai_ensure_user_by_email($1::text))::text as id`,
+      [cleanEmail],
+    )
+    const canonicalId = String(res.rows[0]?.id ?? '').trim()
+    if (await ensureProfileAndCredits(canonicalId)) return canonicalId
+  }
+
+  throw new Error('Không thể khởi tạo hồ sơ người dùng để tạo thiệp cưới.')
 }
 
 function mapCard(row: Record<string, unknown>): WeddingCard {
@@ -82,17 +182,56 @@ function mapCard(row: Record<string, unknown>): WeddingCard {
     slug: String(row.slug),
     groomName: String(row.groom_name ?? ''),
     brideName: String(row.bride_name ?? ''),
-    weddingDate: row.wedding_date ? String(row.wedding_date).slice(0, 10) : null,
+    weddingDate: weddingDateFromPg(row.wedding_date),
     weddingTime: String(row.wedding_time ?? ''),
+    partyStartTime: String(row.party_start_time ?? ''),
     venue: String(row.venue ?? ''),
     mapUrl: String(row.map_url ?? ''),
     invitationText: String(row.invitation_text ?? ''),
     invitationTextEn: String(row.invitation_text_en ?? ''),
     guestName: String(row.guest_name ?? ''),
+    guestInviteVenue: normalizeGuestInviteVenueRow(row.guest_invite_venue),
     storyText: String(row.story_text ?? ''),
+    coupleIntro: String(row.couple_intro ?? ''),
+    loveQuote: String(row.love_quote ?? ''),
+    eventTimeline: String(row.event_timeline ?? ''),
+    dressCode: String(row.dress_code ?? ''),
+    thankYouText: String(row.thank_you_text ?? ''),
+    sectionConfig:
+      typeof row.section_config === 'string'
+        ? String(row.section_config ?? '{}')
+        : JSON.stringify(row.section_config ?? {}),
     albumImageUrls: Array.isArray(row.album_image_urls) ? row.album_image_urls.map(String) : [],
     groomParents: String(row.groom_parents ?? ''),
     brideParents: String(row.bride_parents ?? ''),
+    groomHometown: String(row.groom_hometown ?? ''),
+    brideHometown: String(row.bride_hometown ?? ''),
+    groomInviteAddress: String(row.groom_invite_address ?? ''),
+    groomInviteMapUrl: String(row.groom_invite_map_url ?? ''),
+    groomInviteReceptionTime: String(row.groom_invite_reception_time ?? ''),
+    groomInvitePartyStartTime: String(row.groom_invite_party_start_time ?? ''),
+    brideInviteAddress: String(row.bride_invite_address ?? ''),
+    brideInviteMapUrl: String(row.bride_invite_map_url ?? ''),
+    brideInviteReceptionTime: String(row.bride_invite_reception_time ?? ''),
+    brideInvitePartyStartTime: String(row.bride_invite_party_start_time ?? ''),
+    groomInviteWeddingDate: weddingDateFromPg(row.groom_invite_wedding_date),
+    groomInviteText: String(row.groom_invite_text ?? ''),
+    groomInviteTextEn: String(row.groom_invite_text_en ?? ''),
+    groomInviteEventTimeline: String(row.groom_invite_event_timeline ?? ''),
+    groomInviteDressCode: String(row.groom_invite_dress_code ?? ''),
+    groomInviteContact: String(row.groom_invite_contact ?? ''),
+    groomInviteCoverImageUrl: String(row.groom_invite_cover_image_url ?? ''),
+    groomInviteDefaultPersonalMessage: String(row.groom_invite_default_personal_message ?? ''),
+    groomInviteThankYouText: String(row.groom_invite_thank_you_text ?? ''),
+    brideInviteWeddingDate: weddingDateFromPg(row.bride_invite_wedding_date),
+    brideInviteText: String(row.bride_invite_text ?? ''),
+    brideInviteTextEn: String(row.bride_invite_text_en ?? ''),
+    brideInviteEventTimeline: String(row.bride_invite_event_timeline ?? ''),
+    brideInviteDressCode: String(row.bride_invite_dress_code ?? ''),
+    brideInviteContact: String(row.bride_invite_contact ?? ''),
+    brideInviteCoverImageUrl: String(row.bride_invite_cover_image_url ?? ''),
+    brideInviteDefaultPersonalMessage: String(row.bride_invite_default_personal_message ?? ''),
+    brideInviteThankYouText: String(row.bride_invite_thank_you_text ?? ''),
     groomImageUrl: String(row.groom_image_url ?? ''),
     brideImageUrl: String(row.bride_image_url ?? ''),
     musicUrl: String(row.music_url ?? ''),
@@ -125,6 +264,7 @@ function mapCard(row: Record<string, unknown>): WeddingCard {
     isPublished: Boolean(row.is_published),
     publishedAt: row.published_at ? String(row.published_at) : null,
     masterImageUrl: row.master_image_url ? String(row.master_image_url) : null,
+    effectsEnabled: row.effects_enabled == null ? true : Boolean(row.effects_enabled),
   }
 }
 
@@ -201,15 +341,25 @@ export async function updateWeddingCardBrief(input: {
   brideName: string
   weddingDate: string
   weddingTime: string
+  partyStartTime: string
   venue: string
   mapUrl: string
   invitationText: string
   invitationTextEn: string
   guestName: string
+  guestInviteVenue: WeddingGuestInviteVenue
   storyText: string
+  coupleIntro: string
+  loveQuote: string
+  eventTimeline: string
+  dressCode: string
+  thankYouText: string
+  sectionConfig: string
   albumImageUrls: string[]
   groomParents: string
   brideParents: string
+  groomHometown: string
+  brideHometown: string
   groomImageUrl: string
   brideImageUrl: string
   musicUrl: string
@@ -226,6 +376,7 @@ export async function updateWeddingCardBrief(input: {
   brideGiftBankId: string
   brideGiftAccountNo: string
   brideGiftAccountName: string
+  effectsEnabled: boolean
 }): Promise<WeddingCard | null> {
   requirePg()
   const res = await getPgPool().query(
@@ -234,31 +385,42 @@ export async function updateWeddingCardBrief(input: {
          bride_name = $4,
          wedding_date = nullif($5, '')::date,
          wedding_time = $6,
-         venue = $7,
-         map_url = $8,
-         invitation_text = $9,
-         invitation_text_en = $10,
-         guest_name = $11,
-         story_text = $12,
-         album_image_urls = $13::text[],
-         groom_parents = $14,
-         bride_parents = $15,
-         groom_image_url = $16,
-         bride_image_url = $17,
-         music_url = $18,
-         music_play_start_sec = $19::double precision,
-         music_play_end_sec = $20::double precision,
-         selected_style_id = $21,
-         color_palette = $22,
-         rsvp_enabled = $23,
-         gift_qr_enabled = $24,
-         gift_qr_image_url = $25,
-         groom_gift_bank_id = $26,
-         groom_gift_account_no = $27,
-         groom_gift_account_name = $28,
-         bride_gift_bank_id = $29,
-         bride_gift_account_no = $30,
-         bride_gift_account_name = $31,
+         party_start_time = $7,
+         venue = $8,
+         map_url = $9,
+         invitation_text = $10,
+         invitation_text_en = $11,
+         guest_name = $12,
+         story_text = $13,
+         couple_intro = $14,
+         love_quote = $15,
+         event_timeline = $16,
+         dress_code = $17,
+         thank_you_text = $18,
+         section_config = coalesce(nullif($19, '')::jsonb, '{}'::jsonb),
+         album_image_urls = $20::text[],
+         groom_parents = $21,
+         bride_parents = $22,
+         groom_image_url = $23,
+         bride_image_url = $24,
+         music_url = $25,
+         music_play_start_sec = $26::double precision,
+         music_play_end_sec = $27::double precision,
+         selected_style_id = $28,
+         color_palette = $29,
+         rsvp_enabled = $30,
+         gift_qr_enabled = $31,
+         gift_qr_image_url = $32,
+         groom_gift_bank_id = $33,
+         groom_gift_account_no = $34,
+         groom_gift_account_name = $35,
+         bride_gift_bank_id = $36,
+         bride_gift_account_no = $37,
+         bride_gift_account_name = $38,
+         guest_invite_venue = $39,
+         effects_enabled = $40,
+         groom_hometown = $41,
+         bride_hometown = $42,
          updated_at = timezone('utc'::text, now())
      where id = $1::uuid and user_id = $2::uuid
      returning *, (select image_url from public.wedding_card_ai_images where id = wedding_cards.master_image_id) as master_image_url`,
@@ -269,12 +431,19 @@ export async function updateWeddingCardBrief(input: {
       input.brideName,
       input.weddingDate,
       input.weddingTime,
+      input.partyStartTime,
       input.venue,
       input.mapUrl,
       input.invitationText,
       input.invitationTextEn,
       input.guestName,
       input.storyText,
+      input.coupleIntro,
+      input.loveQuote,
+      input.eventTimeline,
+      input.dressCode,
+      input.thankYouText,
+      input.sectionConfig,
       input.albumImageUrls,
       input.groomParents,
       input.brideParents,
@@ -294,6 +463,106 @@ export async function updateWeddingCardBrief(input: {
       input.brideGiftBankId,
       input.brideGiftAccountNo,
       input.brideGiftAccountName,
+      normalizeGuestInviteVenue(input.guestInviteVenue),
+      input.effectsEnabled,
+      input.groomHometown,
+      input.brideHometown,
+    ]
+  )
+  return res.rows[0] ? mapCard(res.rows[0]) : null
+}
+
+export async function updateWeddingCardSideInviteSettings(input: {
+  cardId: string
+  userId: string
+  groomInviteAddress: string
+  groomInviteMapUrl: string
+  groomInviteReceptionTime: string
+  groomInvitePartyStartTime: string
+  groomInviteWeddingDate: string
+  groomInviteText: string
+  groomInviteTextEn: string
+  groomInviteEventTimeline: string
+  groomInviteDressCode: string
+  groomInviteContact: string
+  groomInviteCoverImageUrl: string
+  groomInviteDefaultPersonalMessage: string
+  groomInviteThankYouText: string
+  brideInviteAddress: string
+  brideInviteMapUrl: string
+  brideInviteReceptionTime: string
+  brideInvitePartyStartTime: string
+  brideInviteWeddingDate: string
+  brideInviteText: string
+  brideInviteTextEn: string
+  brideInviteEventTimeline: string
+  brideInviteDressCode: string
+  brideInviteContact: string
+  brideInviteCoverImageUrl: string
+  brideInviteDefaultPersonalMessage: string
+  brideInviteThankYouText: string
+}): Promise<WeddingCard | null> {
+  requirePg()
+  const res = await getPgPool().query(
+    `update public.wedding_cards
+     set groom_invite_address = $3,
+         groom_invite_map_url = $4,
+         groom_invite_reception_time = $5,
+         groom_invite_party_start_time = $6,
+         groom_invite_wedding_date = nullif($7, '')::date,
+         groom_invite_text = $8,
+         groom_invite_text_en = $9,
+         groom_invite_event_timeline = $10,
+         groom_invite_dress_code = $11,
+         groom_invite_contact = $12,
+         groom_invite_cover_image_url = $13,
+         groom_invite_default_personal_message = $14,
+         groom_invite_thank_you_text = $15,
+         bride_invite_address = $16,
+         bride_invite_map_url = $17,
+         bride_invite_reception_time = $18,
+         bride_invite_party_start_time = $19,
+         bride_invite_wedding_date = nullif($20, '')::date,
+         bride_invite_text = $21,
+         bride_invite_text_en = $22,
+         bride_invite_event_timeline = $23,
+         bride_invite_dress_code = $24,
+         bride_invite_contact = $25,
+         bride_invite_cover_image_url = $26,
+         bride_invite_default_personal_message = $27,
+         bride_invite_thank_you_text = $28,
+         updated_at = timezone('utc'::text, now())
+     where id = $1::uuid and user_id = $2::uuid
+     returning *, (select image_url from public.wedding_card_ai_images where id = wedding_cards.master_image_id) as master_image_url`,
+    [
+      input.cardId,
+      input.userId,
+      input.groomInviteAddress.slice(0, 500),
+      input.groomInviteMapUrl.slice(0, 500),
+      input.groomInviteReceptionTime.slice(0, 80),
+      input.groomInvitePartyStartTime.slice(0, 80),
+      input.groomInviteWeddingDate.slice(0, 20),
+      input.groomInviteText.slice(0, 4000),
+      input.groomInviteTextEn.slice(0, 4000),
+      input.groomInviteEventTimeline.slice(0, 4000),
+      input.groomInviteDressCode.slice(0, 600),
+      input.groomInviteContact.slice(0, 120),
+      input.groomInviteCoverImageUrl.slice(0, 1000),
+      input.groomInviteDefaultPersonalMessage.slice(0, 1000),
+      input.groomInviteThankYouText.slice(0, 2000),
+      input.brideInviteAddress.slice(0, 500),
+      input.brideInviteMapUrl.slice(0, 500),
+      input.brideInviteReceptionTime.slice(0, 80),
+      input.brideInvitePartyStartTime.slice(0, 80),
+      input.brideInviteWeddingDate.slice(0, 20),
+      input.brideInviteText.slice(0, 4000),
+      input.brideInviteTextEn.slice(0, 4000),
+      input.brideInviteEventTimeline.slice(0, 4000),
+      input.brideInviteDressCode.slice(0, 600),
+      input.brideInviteContact.slice(0, 120),
+      input.brideInviteCoverImageUrl.slice(0, 1000),
+      input.brideInviteDefaultPersonalMessage.slice(0, 1000),
+      input.brideInviteThankYouText.slice(0, 2000),
     ]
   )
   return res.rows[0] ? mapCard(res.rows[0]) : null
@@ -377,6 +646,21 @@ export async function listWeddingImages(cardId: string): Promise<WeddingAiImage[
   return res.rows.map(mapImage)
 }
 
+export async function listPublishedWeddingImages(cardId: string): Promise<WeddingAiImage[]> {
+  requirePg()
+  const res = await getPgPool().query(
+    `select i.*
+     from public.wedding_card_ai_images i
+     join public.wedding_cards c on c.id = i.wedding_card_id
+     where i.wedding_card_id = $1::uuid
+       and i.status = 'completed'
+       and c.is_published = true
+     order by i.created_at desc`,
+    [cardId]
+  )
+  return res.rows.map(mapImage)
+}
+
 export async function publishWeddingCard(cardId: string, userId: string): Promise<WeddingCard | null> {
   requirePg()
   const res = await getPgPool().query(
@@ -452,4 +736,162 @@ export async function listPublishedWeddingWishes(cardId: string): Promise<Weddin
     isApproved: Boolean(row.is_approved),
     createdAt: String(row.created_at),
   }))
+}
+
+function mapInvitedGuest(row: Record<string, unknown>): WeddingInvitedGuest {
+  const statusRaw = String(row.status ?? 'pending')
+  const status: WeddingInvitedGuestStatus =
+    statusRaw === 'attending' || statusRaw === 'declined' ? statusRaw : 'pending'
+  return {
+    id: String(row.id),
+    guestName: String(row.guest_name ?? ''),
+    inviteVenue: normalizeGuestInviteVenueRow(row.invite_venue),
+    personalInvite: String(row.personal_invite ?? ''),
+    status,
+    guestCount: Number(row.guest_count ?? 1),
+    wishMessage: String(row.wish_message ?? ''),
+    notes: String(row.notes ?? ''),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  }
+}
+
+export async function listWeddingInvitedGuests(cardId: string, userId: string): Promise<WeddingInvitedGuest[]> {
+  requirePg()
+  const res = await getPgPool().query(
+    `select g.*
+     from public.wedding_card_invited_guests g
+     join public.wedding_cards c on c.id = g.wedding_card_id
+     where g.wedding_card_id = $1::uuid and c.user_id = $2::uuid
+     order by g.created_at asc, g.guest_name asc`,
+    [cardId, userId],
+  )
+  return res.rows.map(mapInvitedGuest)
+}
+
+export async function createWeddingInvitedGuest(input: {
+  cardId: string
+  userId: string
+  guestName: string
+  inviteVenue: WeddingGuestInviteVenue
+  personalInvite: string
+  status: WeddingInvitedGuestStatus
+  guestCount: number
+  wishMessage: string
+  notes: string
+}): Promise<WeddingInvitedGuest | null> {
+  requirePg()
+  const name = input.guestName.trim()
+  if (!name) return null
+  const res = await getPgPool().query(
+    `insert into public.wedding_card_invited_guests (
+       wedding_card_id, guest_name, invite_venue, personal_invite, status, guest_count, wish_message, notes
+     )
+     select $1::uuid, $2, $3, $4, $5, $6, $7, $8
+     from public.wedding_cards c
+     where c.id = $1::uuid and c.user_id = $9::uuid
+     returning *`,
+    [
+      input.cardId,
+      name,
+      normalizeGuestInviteVenue(input.inviteVenue),
+      input.personalInvite,
+      input.status,
+      input.guestCount,
+      input.wishMessage,
+      input.notes,
+      input.userId,
+    ],
+  )
+  return res.rows[0] ? mapInvitedGuest(res.rows[0]) : null
+}
+
+export async function updateWeddingInvitedGuest(input: {
+  guestId: string
+  cardId: string
+  userId: string
+  guestName: string
+  inviteVenue: WeddingGuestInviteVenue
+  personalInvite: string
+  status: WeddingInvitedGuestStatus
+  guestCount: number
+  wishMessage: string
+  notes: string
+}): Promise<WeddingInvitedGuest | null> {
+  requirePg()
+  const name = input.guestName.trim()
+  if (!name) return null
+  const res = await getPgPool().query(
+    `update public.wedding_card_invited_guests g
+     set guest_name = $4,
+         invite_venue = $5,
+         personal_invite = $6,
+         status = $7,
+         guest_count = $8,
+         wish_message = $9,
+         notes = $10,
+         updated_at = timezone('utc'::text, now())
+     from public.wedding_cards c
+     where g.id = $1::uuid
+       and g.wedding_card_id = $2::uuid
+       and c.id = g.wedding_card_id
+       and c.user_id = $3::uuid
+     returning g.*`,
+    [
+      input.guestId,
+      input.cardId,
+      input.userId,
+      name,
+      normalizeGuestInviteVenue(input.inviteVenue),
+      input.personalInvite,
+      input.status,
+      input.guestCount,
+      input.wishMessage,
+      input.notes,
+    ],
+  )
+  return res.rows[0] ? mapInvitedGuest(res.rows[0]) : null
+}
+
+export async function deleteWeddingInvitedGuest(guestId: string, cardId: string, userId: string): Promise<boolean> {
+  requirePg()
+  const res = await getPgPool().query(
+    `delete from public.wedding_card_invited_guests g
+     using public.wedding_cards c
+     where g.id = $1::uuid
+       and g.wedding_card_id = $2::uuid
+       and c.id = g.wedding_card_id
+       and c.user_id = $3::uuid`,
+    [guestId, cardId, userId],
+  )
+  return (res.rowCount ?? 0) > 0
+}
+
+/** Cập nhật khách trong danh sách mời khi có RSVP trùng tên (nếu có). */
+export async function syncInvitedGuestFromRsvp(input: {
+  cardId: string
+  guestName: string
+  attending: boolean
+  guestCount: number
+  message: string
+}) {
+  requirePg()
+  const key = normalizeGuestNameKey(input.guestName)
+  if (!key) return
+  await getPgPool().query(
+    `update public.wedding_card_invited_guests g
+     set status = $3,
+         guest_count = $4,
+         wish_message = case when $5 <> '' then $5 else g.wish_message end,
+         updated_at = timezone('utc'::text, now())
+     where g.wedding_card_id = $1::uuid
+       and lower(trim(regexp_replace(g.guest_name, '\\s+', ' ', 'g'))) = $2`,
+    [
+      input.cardId,
+      key,
+      input.attending ? 'attending' : 'declined',
+      input.guestCount,
+      input.message,
+    ],
+  )
 }

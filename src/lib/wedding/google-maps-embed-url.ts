@@ -64,3 +64,28 @@ export function mapsUrlToIframeSrc(raw: string): string | null {
 
   return `https://www.google.com/maps?q=${encodeURIComponent(href)}&output=embed`
 }
+
+/** URL mở tab Google Maps (không embed). */
+export function resolveGoogleMapsOpenUrl(raw: string): string | null {
+  const input = raw.trim()
+  if (!input) return null
+  if (/^https?:\/\//i.test(input)) {
+    try {
+      return new URL(input).toString()
+    } catch {
+      return null
+    }
+  }
+  if (/^[\w.-]+\.[a-z]{2,}/i.test(input)) {
+    try {
+      return new URL(`https://${input}`).toString()
+    } catch {
+      return null
+    }
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(input)}`
+}
+
+export function resolveGuestInviteMapUrl(mapUrl: string, venueAddress: string): string | null {
+  return resolveGoogleMapsOpenUrl(mapUrl.trim()) ?? resolveGoogleMapsOpenUrl(venueAddress.trim())
+}

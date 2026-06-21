@@ -17,12 +17,15 @@ type Props = {
   currentHref: string
   /** Ghi đè menu liên quan (vd trang /lop/[id]/gan-phieu). */
   relatedLinks?: CreationRelatedItem[] | null
+  /** Bảng/dữ liệu rộng — bỏ giới hạn max-w-7xl mặc định. */
+  wide?: boolean
 }
 
 export function CreationToolPageShell({
   children,
   currentHref,
   relatedLinks: relatedOverride,
+  wide = false,
 }: Props) {
   const { t } = getServerDictionary()
   const path = currentHref.replace(/\/$/, '') || '/'
@@ -31,12 +34,19 @@ export function CreationToolPageShell({
 
   return (
     <CreationToolBackOverrideProvider>
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-3 sm:px-6 lg:flex-row lg:items-start lg:gap-8 lg:px-8 xl:gap-10">
+      <div
+        className={cn(
+          'mx-auto flex w-full flex-col gap-6 lg:flex-row lg:items-start lg:gap-6 xl:gap-8',
+          wide
+            ? 'max-w-[100rem] px-0 sm:px-1 lg:px-2'
+            : 'max-w-7xl px-3 sm:px-6 lg:gap-8 lg:px-8 xl:gap-10',
+        )}
+      >
         {/* DOM: nội dung trước — mobile hiển thị công cụ + nút quay lại trước menu; lg:order-2 để desktop vẫn sidebar trái */}
         <div className="min-w-0 flex-1 lg:order-2 lg:min-h-0 lg:pl-0.5 xl:pl-1">
           <div
             className={cn(
-              'sticky top-[4.5rem] z-[9] -mx-0.5 mb-5 border-b border-border/50 bg-background/90 px-0.5 pb-3 pt-0.5 backdrop-blur-sm'
+              'sticky top-[var(--site-header-height,3rem)] z-40 -mx-0.5 mb-5 border-b border-border/60 bg-background px-0.5 py-2 shadow-[0_1px_0_0_hsl(var(--background))]',
             )}
           >
             <CreationToolShellBackButton label={t.creationSidebar.back} />
@@ -49,7 +59,7 @@ export function CreationToolPageShell({
             /* Mobile: menu dưới nội dung; desktop: cột trái */
             'w-full shrink-0 space-y-6 border-t border-border/60 pt-6 pb-6 lg:order-1 lg:border-t-0 lg:pt-0 lg:pb-5',
             'lg:w-56 lg:space-y-5 lg:border lg:border-border/70 lg:rounded-xl lg:bg-card/80 lg:p-4 lg:shadow-sm lg:backdrop-blur-sm xl:rounded-2xl xl:p-5 xl:shadow-md',
-            'lg:sticky lg:top-[4.5rem] lg:z-10 lg:self-start lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain',
+            'lg:sticky lg:top-[var(--site-header-height,3rem)] lg:z-10 lg:self-start lg:max-h-[calc(100dvh-var(--site-header-height,3rem)-1rem)] lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain',
             'xl:w-60'
           )}
         >

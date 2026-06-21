@@ -1,9 +1,12 @@
-import { Pool } from 'pg'
+import { Pool, types } from 'pg'
 
 /** Tránh tạo nhiều Pool khi Next.js hot-reload (mỗi lần reload module = thêm tối đa PG_POOL_MAX kết nối → lỗi «too many clients»). */
 const globalForPool = globalThis as unknown as {
   __nanoaiPgPool?: Pool
 }
+
+/** Giữ cột Postgres `date` dạng YYYY-MM-DD — không parse thành JS Date (lệch ngày ở UTC+). */
+types.setTypeParser(1082, (value: string) => value)
 
 /** True khi đã set `DATABASE_URL` (Postgres trực tiếp, ví dụ VPS hoặc hosted DB). */
 export function isPgConfigured(): boolean {

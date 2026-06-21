@@ -48,7 +48,7 @@ export async function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/85 backdrop-blur-xl supports-[backdrop-filter]:bg-background/65">
+    <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background [--site-header-height:3rem] backdrop-blur-xl supports-[backdrop-filter]:bg-background/65 lg:[--site-header-height:3.5rem]">
       <div className="container mx-auto max-w-7xl px-3 py-2 sm:px-6 lg:px-8 lg:py-2.5 xl:px-10">
         <div className="flex items-center justify-between gap-2 sm:gap-3.5 lg:gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 md:max-w-none md:flex-none md:gap-3.5 lg:gap-4">

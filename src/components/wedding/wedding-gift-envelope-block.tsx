@@ -6,6 +6,8 @@ import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   buildVietQrCompactImageUrl,
+  isBrideVietGiftReady,
+  isGroomVietGiftReady,
   isLegacySingleGiftImage,
   isTwinVietGiftReady,
 } from '@/lib/wedding/wedding-gift-vietqr'
@@ -26,21 +28,26 @@ type Props = {
   card: WeddingCard
   tx: Tx
   className?: string
+  sideFilter?: 'groom' | 'bride' | null
 }
 
 /** Hộp lì xì rung nhẹ; mở dialog hiển thị VietQR cô dâu / chú rể (hoặc ảnh QR cũ). */
-export function WeddingGiftEnvelopeBlock({ card, tx, className }: Props) {
+export function WeddingGiftEnvelopeBlock({ card, tx, className, sideFilter = null }: Props) {
   const [open, setOpen] = useState(false)
   const twin = isTwinVietGiftReady(card)
   const legacyOnly = !twin && isLegacySingleGiftImage(card)
+  const showBride = !sideFilter || sideFilter === 'bride'
+  const showGroom = !sideFilter || sideFilter === 'groom'
+  const groomReady = isGroomVietGiftReady(card)
+  const brideReady = isBrideVietGiftReady(card)
   const brideSrc =
-    twin ?
+    brideReady ?
       buildVietQrCompactImageUrl(card.brideGiftBankId, card.brideGiftAccountNo, {
         accountName: card.brideGiftAccountName,
       })
     : null
   const groomSrc =
-    twin ?
+    groomReady ?
       buildVietQrCompactImageUrl(card.groomGiftBankId, card.groomGiftAccountNo, {
         accountName: card.groomGiftAccountName,
       })
@@ -50,7 +57,7 @@ export function WeddingGiftEnvelopeBlock({ card, tx, className }: Props) {
     <>
       <section
         className={cn(
-          'mx-auto flex max-w-lg flex-col items-center px-4 py-12 text-center',
+          'mx-auto flex max-w-lg flex-col items-center px-4 py-10 text-center sm:py-12',
           className,
         )}
       >
@@ -59,7 +66,7 @@ export function WeddingGiftEnvelopeBlock({ card, tx, className }: Props) {
           type="button"
           onClick={() => setOpen(true)}
           aria-label={tx.envelopeButtonAria}
-          className="group relative mt-6 outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 rounded-2xl"
+          className="group relative mt-5 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 sm:mt-6"
         >
           <span
             className="pointer-events-none absolute -inset-6 rounded-3xl opacity-80 blur-2xl transition group-hover:opacity-100"
@@ -75,7 +82,7 @@ export function WeddingGiftEnvelopeBlock({ card, tx, className }: Props) {
           <span className="pointer-events-none absolute left-2 -top-5 h-8 w-8 rounded-full border border-amber-700 bg-amber-400/90 opacity-90 [transform:rotate(8deg)]" aria-hidden />
 
           <span
-            className="relative flex h-52 w-40 flex-col items-center justify-center rounded-xl border-2 border-amber-500/90 bg-gradient-to-b from-red-700 via-red-800 to-red-950 shadow-2xl animate-wedding-gift-wobble md:h-60 md:w-48"
+            className="relative flex h-48 w-36 flex-col items-center justify-center rounded-xl border-2 border-amber-500/90 bg-gradient-to-b from-red-700 via-red-800 to-red-950 shadow-2xl animate-wedding-gift-wobble sm:h-52 sm:w-40 md:h-60 md:w-48"
             style={{ boxShadow: '0 12px 40px rgba(185, 28, 28, 0.35), inset 0 1px 0 rgba(254, 249, 231, 0.12)' }}
           >
             <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 border-l-2 border-t-2 border-amber-400/80" aria-hidden />
@@ -91,50 +98,54 @@ export function WeddingGiftEnvelopeBlock({ card, tx, className }: Props) {
       </section>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[92vh] max-w-xl overflow-y-auto sm:max-w-xl">
+        <DialogContent className="max-h-[92svh] max-w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl text-[#5c4033]">{tx.dialogTitle}</DialogTitle>
             <DialogDescription className="text-left">{tx.vietqrFooterNote}</DialogDescription>
           </DialogHeader>
 
-          {twin && brideSrc && groomSrc && (
-            <div className="grid gap-6 sm:grid-cols-2">
-              <div className="flex flex-col items-center rounded-2xl border border-rose-100 bg-rose-50/80 p-4">
-                <p className="mb-3 font-semibold text-rose-950">{tx.brideSection}</p>
-                <div className="relative h-52 w-full max-w-[13rem] overflow-hidden rounded-lg bg-white p-2 shadow-inner">
-                  <Image
-                    src={brideSrc}
-                    alt={tx.qrAltBride}
-                    width={208}
-                    height={208}
-                    className="h-full w-full object-contain"
-                    unoptimized
-                  />
+          {(showBride && brideSrc) || (showGroom && groomSrc) ? (
+            <div className={cn('grid gap-6', sideFilter || !(showBride && showGroom) ? 'grid-cols-1' : 'sm:grid-cols-2')}>
+              {showBride && brideSrc ? (
+                <div className="flex flex-col items-center rounded-2xl border border-rose-100 bg-rose-50/80 p-4">
+                  <p className="mb-3 font-semibold text-rose-950">{tx.brideSection}</p>
+                  <div className="relative h-52 w-full max-w-[13rem] overflow-hidden rounded-lg bg-white p-2 shadow-inner">
+                    <Image
+                      src={brideSrc}
+                      alt={tx.qrAltBride}
+                      width={208}
+                      height={208}
+                      className="h-full w-full object-contain"
+                      unoptimized
+                    />
+                  </div>
+                  <p className="mt-2 max-w-[13rem] text-center text-sm text-muted-foreground">
+                    {card.brideGiftAccountName}
+                    <span className="mt-1 block font-mono text-xs text-slate-600">{card.brideGiftAccountNo}</span>
+                  </p>
                 </div>
-                <p className="mt-2 max-w-[13rem] text-center text-sm text-muted-foreground">
-                  {card.brideGiftAccountName}
-                  <span className="mt-1 block font-mono text-xs text-slate-600">{card.brideGiftAccountNo}</span>
-                </p>
-              </div>
-              <div className="flex flex-col items-center rounded-2xl border border-rose-100 bg-rose-50/80 p-4">
-                <p className="mb-3 font-semibold text-rose-950">{tx.groomSection}</p>
-                <div className="relative h-52 w-full max-w-[13rem] overflow-hidden rounded-lg bg-white p-2 shadow-inner">
-                  <Image
-                    src={groomSrc}
-                    alt={tx.qrAltGroom}
-                    width={208}
-                    height={208}
-                    className="h-full w-full object-contain"
-                    unoptimized
-                  />
+              ) : null}
+              {showGroom && groomSrc ? (
+                <div className="flex flex-col items-center rounded-2xl border border-rose-100 bg-rose-50/80 p-4">
+                  <p className="mb-3 font-semibold text-rose-950">{tx.groomSection}</p>
+                  <div className="relative h-52 w-full max-w-[13rem] overflow-hidden rounded-lg bg-white p-2 shadow-inner">
+                    <Image
+                      src={groomSrc}
+                      alt={tx.qrAltGroom}
+                      width={208}
+                      height={208}
+                      className="h-full w-full object-contain"
+                      unoptimized
+                    />
+                  </div>
+                  <p className="mt-2 max-w-[13rem] text-center text-sm text-muted-foreground">
+                    {card.groomGiftAccountName}
+                    <span className="mt-1 block font-mono text-xs text-slate-600">{card.groomGiftAccountNo}</span>
+                  </p>
                 </div>
-                <p className="mt-2 max-w-[13rem] text-center text-sm text-muted-foreground">
-                  {card.groomGiftAccountName}
-                  <span className="mt-1 block font-mono text-xs text-slate-600">{card.groomGiftAccountNo}</span>
-                </p>
-              </div>
+              ) : null}
             </div>
-          )}
+          ) : null}
 
           {legacyOnly && card.giftQrImageUrl.trim() && (
             <div className="flex flex-col items-center">

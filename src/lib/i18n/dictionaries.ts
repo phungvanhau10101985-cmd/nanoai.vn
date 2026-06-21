@@ -1934,6 +1934,16 @@ export type Dictionary = {
     partyLabel: string
     /** Ô chờ khi chỉ có một mốc giờ được trích ra */
     timePlaceholderDash: string
+    countdownTitle: string
+    countdownDay: string
+    countdownDays: string
+    countdownHour: string
+    countdownHours: string
+    countdownMinute: string
+    countdownMinutes: string
+    countdownSecond: string
+    countdownSeconds: string
+    countdownPast: string
   }
   /** Hộp mừng cưới + VietQR */
   weddingGiftBox: {
@@ -1961,6 +1971,83 @@ export type Dictionary = {
     step2Description: string
     autoSavedLabel: string
     autoSaveFailedLabel: string
+    dateFormatHint: string
+    dateSelectedPrefix: string
+    guestInviteVenueLabel: string
+    guestInviteVenueHint: string
+    effectsToggleLabel: string
+    effectsToggleDesc: string
+  }
+  weddingCardAiImage: {
+    customReferenceLabel: string
+    customReferenceHint: string
+    customReferenceChoose: string
+    customReferenceRemove: string
+    customReferenceUrlPlaceholder: string
+    customReferenceEmpty: string
+  }
+  weddingCardAiCover: {
+    sectionTitle: string
+    sectionDescription: string
+    tagNew: string
+    tagHot: string
+    previewLabel: string
+    previewGuestPrefix: string
+    previewOpenButton: string
+    uploadLabel: string
+    uploadHint: string
+    removeCustomCover: string
+    aiCoverHint: string
+  }
+  weddingCardPublic: {
+    invitation: string
+    openInvitation: string
+    navInvitation: string
+    navEvent: string
+    navStory: string
+    navRsvp: string
+    cordiallyInvites: string
+    guestInviteVenueGroom: string
+    guestInviteVenueBride: string
+    guestInviteVenueNone: string
+    guestInviteViewMap: string
+    weddingInvitation: string
+    dateFallback: string
+    timeFallback: string
+    defaultInvitation: string
+    defaultCoupleIntro: string
+    familiesIntro: string
+    groomFamily: string
+    brideFamily: string
+    hometownLabel: string
+    coupleIntroTitle: string
+    timelineTitle: string
+    defaultTimeline: string
+    dressCodeTitle: string
+    musicTitle: string
+    openMaps: string
+    storyTitle: string
+    albumTitle: string
+    albumHint: string
+    albumAlt: string
+    rsvpTitle: string
+    guestNameLabel: string
+    guestNamePlaceholder: string
+    attendYes: string
+    attendNo: string
+    guestCountLabel: string
+    wishLabel: string
+    wishPlaceholder: string
+    submitResponse: string
+    submitErrorTitle: string
+    submitSuccessTitle: string
+    submitSuccessDesc: string
+    wishesTitle: string
+    noWishes: string
+    thankYouTitle: string
+    defaultThankYou: string
+    closeGallery: string
+    coverPhotoAlt: string
   }
   /** Trang /tao-bai-thi — tạo phiên thi trực tuyến (GV) */
   createExamPage: {
@@ -4075,6 +4162,16 @@ const VI_DICTIONARY: Dictionary = {
     receptionLabel: 'ĐÓN KHÁCH',
     partyLabel: 'KHAI TIỆC',
     timePlaceholderDash: '—',
+    countdownTitle: 'CÙNG ĐẾM NGƯỢC',
+    countdownDay: 'ngày',
+    countdownDays: 'ngày',
+    countdownHour: 'giờ',
+    countdownHours: 'giờ',
+    countdownMinute: 'phút',
+    countdownMinutes: 'phút',
+    countdownSecond: 'giây',
+    countdownSeconds: 'giây',
+    countdownPast: 'Ngày cưới đã đến — hẹn gặp bạn tại tiệc!',
   },
   weddingGiftBox: {
     boxTitle: 'Hộp Mừng Cưới',
@@ -4100,9 +4197,89 @@ const VI_DICTIONARY: Dictionary = {
   },
   weddingCardAiBrief: {
     step2Description:
-      'Sửa nội dung và xem preview đều miễn phí. Thay đổi tự động lưu sau khoảng 1 giây; có thể vẫn nhấn «Lưu nội dung thiệp» để lưu ngay.',
+      'Sửa nội dung và xem preview đều miễn phí. Thay đổi tự động lưu gần như ngay lập tức; có thể vẫn nhấn «Lưu nội dung thiệp» để lưu ngay.',
     autoSavedLabel: 'Đã lưu tự động',
     autoSaveFailedLabel: 'Chưa lưu được. Kiểm tra mạng hoặc nhấn «Lưu nội dung thiệp».',
+    dateFormatHint:
+      'Chọn ngày cưới trên lịch. «Giờ đón khách» và «Giờ khai tiệc» hiển thị trên khối thông tin tiệc.',
+    dateSelectedPrefix: 'Đã chọn:',
+    guestInviteVenueLabel: 'Mời đến tại',
+    guestInviteVenueHint: 'Hiển thị cùng tên khách trên thiệp (ví dụ: Đến tại nhà trai).',
+    effectsToggleLabel: 'Bật hiệu ứng thiệp',
+    effectsToggleDesc: 'Bao gồm: tự động cuộn sau khi mở thiệp, nút nhạc nổi và tự động phát nhạc. Tắt nếu muốn thiệp tĩnh hoàn toàn.',
+  },
+  weddingCardAiImage: {
+    customReferenceLabel: 'Ảnh tham khảo tùy chỉnh (tùy chọn)',
+    customReferenceHint:
+      'AI lấy tông màu, họa tiết và không khí từ ảnh này — không sao chép bố cục hay chữ. Dùng khi tạo ảnh chính và các nền riêng. Không tốn credit cho việc chọn ảnh.',
+    customReferenceChoose: 'Chọn ảnh tham khảo',
+    customReferenceRemove: 'Gỡ ảnh',
+    customReferenceUrlPlaceholder: 'Hoặc dán URL ảnh tham khảo (https://...)',
+    customReferenceEmpty: 'Chưa chọn ảnh tham khảo',
+  },
+  weddingCardAiCover: {
+    sectionTitle: '1b. Chọn vỏ thiệp',
+    sectionDescription:
+      'Chọn kiểu khung thiệp giữa màn «Mở thiệp» và thêm ảnh cặp đôi vào giữa — miễn phí, không tốn credit. Ảnh nền full màn vẫn dùng nền AI «Bìa chính».',
+    tagNew: 'Mới',
+    tagHot: 'Hot',
+    previewLabel: 'Thiệp mời',
+    previewGuestPrefix: 'Thân mời',
+    previewOpenButton: 'Mở thiệp',
+    uploadLabel: 'Ảnh cặp đôi trên vỏ thiệp',
+    uploadHint: 'Ảnh hiển thị trong khung giữa thiệp (không thay nền phía sau). Upload/lưu không tốn credit.',
+    removeCustomCover: 'Gỡ ảnh giữa thiệp',
+    aiCoverHint: 'Nền phía sau khung thiệp lấy từ ảnh AI «Bìa chính» (hoặc ảnh chính). Tạo nền ở bước «Tạo ảnh AI».',
+  },
+  weddingCardPublic: {
+    invitation: 'Thiệp mời / Invitation',
+    openInvitation: 'Mở thiệp',
+    navInvitation: 'Thiệp',
+    navEvent: 'Sự kiện',
+    navStory: 'Câu chuyện',
+    navRsvp: 'Khách mời',
+    cordiallyInvites: 'Thân mời',
+    guestInviteVenueGroom: 'Đến tại nhà trai',
+    guestInviteVenueBride: 'Đến tại nhà gái',
+    guestInviteVenueNone: '— Chưa chọn —',
+    guestInviteViewMap: 'Xem địa chỉ trên Google Maps',
+    weddingInvitation: 'Wedding Invitation',
+    dateFallback: 'Ngày cưới',
+    timeFallback: 'Giờ cưới',
+    defaultInvitation: 'Trân trọng kính mời quý khách đến dự lễ thành hôn của chúng tôi.',
+    defaultCoupleIntro: 'Cảm ơn bạn đã hiện diện trong ngày đặc biệt và cùng chúng tôi lưu giữ khoảnh khắc yêu thương này.',
+    familiesIntro: 'Gia đình hai bên',
+    groomFamily: 'Nhà trai',
+    brideFamily: 'Nhà gái',
+    hometownLabel: 'Quê quán',
+    coupleIntroTitle: 'Câu chuyện của chúng tôi',
+    timelineTitle: 'Lịch trình buổi tiệc',
+    defaultTimeline: 'Đón khách, chụp ảnh lưu niệm và cùng nâng ly chúc mừng trong không gian ấm áp của ngày cưới.',
+    dressCodeTitle: 'Dress code',
+    musicTitle: 'Nhạc nền thiệp',
+    openMaps: 'Mở Google Maps',
+    storyTitle: 'Album / Story',
+    albumTitle: 'Album ảnh cô dâu chú rể',
+    albumHint: 'Bấm vào ảnh để mở album và xem đầy đủ.',
+    albumAlt: 'Ảnh album cưới',
+    rsvpTitle: 'Xác nhận tham dự',
+    guestNameLabel: 'Họ tên',
+    guestNamePlaceholder: 'Tên của bạn',
+    attendYes: 'Sẽ tham dự',
+    attendNo: 'Không tham dự',
+    guestCountLabel: 'Số khách',
+    wishLabel: 'Lời chúc',
+    wishPlaceholder: 'Gửi lời chúc đến cô dâu chú rể...',
+    submitResponse: 'Gửi phản hồi',
+    submitErrorTitle: 'Chưa gửi được',
+    submitSuccessTitle: 'Cảm ơn bạn!',
+    submitSuccessDesc: 'Phản hồi đã được ghi nhận.',
+    wishesTitle: 'Lời chúc',
+    noWishes: 'Chưa có lời chúc nào.',
+    thankYouTitle: 'Trân trọng cảm ơn',
+    defaultThankYou: 'Sự hiện diện và lời chúc của bạn là món quà quý giá nhất dành cho chúng tôi.',
+    closeGallery: 'Đóng · về thiệp',
+    coverPhotoAlt: 'Ảnh cặp đôi trên vỏ thiệp',
   },
   createExamPage: {
     error: 'Lỗi',
@@ -6212,6 +6389,16 @@ const EN_DICTIONARY: Dictionary = {
     receptionLabel: 'GUEST ARRIVAL',
     partyLabel: 'RECEPTION BEGINS',
     timePlaceholderDash: '—',
+    countdownTitle: 'COUNTDOWN TOGETHER',
+    countdownDay: 'day',
+    countdownDays: 'days',
+    countdownHour: 'hour',
+    countdownHours: 'hours',
+    countdownMinute: 'minute',
+    countdownMinutes: 'minutes',
+    countdownSecond: 'second',
+    countdownSeconds: 'seconds',
+    countdownPast: 'The wedding day has arrived — see you at the celebration!',
   },
   weddingGiftBox: {
     boxTitle: 'Wedding Gift Box',
@@ -6236,9 +6423,89 @@ const EN_DICTIONARY: Dictionary = {
   },
   weddingCardAiBrief: {
     step2Description:
-      'Editing content and preview is free. Changes auto-save after about a second; you can still press Save to persist immediately.',
+      'Editing content and preview is free. Changes auto-save almost immediately; you can still press Save to persist immediately.',
     autoSavedLabel: 'Auto-saved',
     autoSaveFailedLabel: 'Could not auto-save. Check your connection or press Save.',
+    dateFormatHint:
+      'Pick the wedding date on the calendar. Set the event time in the Wedding time field next to it.',
+    dateSelectedPrefix: 'Selected:',
+    guestInviteVenueLabel: 'Invited to',
+    guestInviteVenueHint: 'Shown with the guest name on the card (e.g. At the groom’s family home).',
+    effectsToggleLabel: 'Enable invitation effects',
+    effectsToggleDesc: 'Includes: auto-scroll after opening, floating music button, and auto-play music. Turn off for a completely static invitation.',
+  },
+  weddingCardAiImage: {
+    customReferenceLabel: 'Custom reference image (optional)',
+    customReferenceHint:
+      'AI picks palette, motifs, and mood from this image — not the exact layout or text. Used for the main image and each section background. Choosing an image costs no credits.',
+    customReferenceChoose: 'Choose reference image',
+    customReferenceRemove: 'Remove image',
+    customReferenceUrlPlaceholder: 'Or paste a reference image URL (https://...)',
+    customReferenceEmpty: 'No reference image selected',
+  },
+  weddingCardAiCover: {
+    sectionTitle: '1b. Choose cover shell',
+    sectionDescription:
+      'Pick the inner card layout on the “Open invitation” screen and add a couple photo in the center — free, no credits. The full-screen background still uses AI “Main cover”.',
+    tagNew: 'New',
+    tagHot: 'Hot',
+    previewLabel: 'Invitation',
+    previewGuestPrefix: 'Cordially invites',
+    previewOpenButton: 'Open invitation',
+    uploadLabel: 'Couple photo on cover card',
+    uploadHint: 'Photo shown inside the center card frame (does not replace the background). Upload/save costs no credits.',
+    removeCustomCover: 'Remove center photo',
+    aiCoverHint: 'The background behind the card uses AI “Main cover” (or master image). Generate it in “Create AI images”.',
+  },
+  weddingCardPublic: {
+    invitation: 'Wedding Invitation',
+    openInvitation: 'Open invitation',
+    navInvitation: 'Invitation',
+    navEvent: 'Event',
+    navStory: 'Story',
+    navRsvp: 'Guests',
+    cordiallyInvites: 'Cordially invites',
+    guestInviteVenueGroom: 'At the groom’s family home',
+    guestInviteVenueBride: 'At the bride’s family home',
+    guestInviteVenueNone: '— Not set —',
+    guestInviteViewMap: 'View address on Google Maps',
+    weddingInvitation: 'Wedding Invitation',
+    dateFallback: 'Wedding date',
+    timeFallback: 'Wedding time',
+    defaultInvitation: 'We cordially invite you to celebrate our wedding with us.',
+    defaultCoupleIntro: 'Thank you for being part of this special day and sharing a memory of love with us.',
+    familiesIntro: 'Our families',
+    groomFamily: 'Groom family',
+    brideFamily: 'Bride family',
+    hometownLabel: 'Hometown',
+    coupleIntroTitle: 'Our story',
+    timelineTitle: 'Celebration timeline',
+    defaultTimeline: 'Guest arrival, keepsake photos, and a warm celebration with family and friends.',
+    dressCodeTitle: 'Dress code',
+    musicTitle: 'Invitation music',
+    openMaps: 'Open Google Maps',
+    storyTitle: 'Album / Story',
+    albumTitle: 'Wedding album',
+    albumHint: 'Tap a photo to open the full album.',
+    albumAlt: 'Wedding album photo',
+    rsvpTitle: 'RSVP',
+    guestNameLabel: 'Full name',
+    guestNamePlaceholder: 'Your name',
+    attendYes: 'Will attend',
+    attendNo: 'Cannot attend',
+    guestCountLabel: 'Guests',
+    wishLabel: 'Wish',
+    wishPlaceholder: 'Send a wish to the couple...',
+    submitResponse: 'Send response',
+    submitErrorTitle: 'Could not send',
+    submitSuccessTitle: 'Thank you!',
+    submitSuccessDesc: 'Your response has been recorded.',
+    wishesTitle: 'Wishes',
+    noWishes: 'No wishes yet.',
+    thankYouTitle: 'With gratitude',
+    defaultThankYou: 'Your presence and wishes are the most precious gift to us.',
+    closeGallery: 'Close · back to invitation',
+    coverPhotoAlt: 'Couple photo on invitation cover',
   },
   createExamPage: {
     error: 'Error',
@@ -8271,6 +8538,16 @@ const ZH_DICTIONARY: Dictionary = {
     receptionLabel: '迎宾',
     partyLabel: '开席',
     timePlaceholderDash: '—',
+    countdownTitle: '一起倒计时',
+    countdownDay: '天',
+    countdownDays: '天',
+    countdownHour: '小时',
+    countdownHours: '小时',
+    countdownMinute: '分钟',
+    countdownMinutes: '分钟',
+    countdownSecond: '秒',
+    countdownSeconds: '秒',
+    countdownPast: '婚礼日已到 — 现场见！',
   },
   weddingGiftBox: {
     boxTitle: '礼金盒',
@@ -8295,9 +8572,88 @@ const ZH_DICTIONARY: Dictionary = {
   },
   weddingCardAiBrief: {
     step2Description:
-      '编辑内容与预览均为免费。约 1 秒后自动保存；您仍可手动按「保存」立即保存。',
+      '编辑内容与预览均为免费。更改会几乎立即自动保存；您仍可手动按「保存」立即保存。',
     autoSavedLabel: '已自动保存',
     autoSaveFailedLabel: '未能自动保存。请检查网络或按下「保存」。',
+    dateFormatHint: '在日历中选择婚礼日期。活动时间请在旁边的“婚礼时间”字段中设置。',
+    dateSelectedPrefix: '已选择：',
+    guestInviteVenueLabel: '邀请至',
+    guestInviteVenueHint: '与宾客姓名一同显示在请柬上（如：于男方家）。',
+    effectsToggleLabel: '启用请柬特效',
+    effectsToggleDesc: '包括：打开后自动滚动、浮动音乐按钮和自动播放音乐。关闭以获得完全静态的请柬。',
+  },
+  weddingCardAiImage: {
+    customReferenceLabel: '自定义参考图（可选）',
+    customReferenceHint:
+      'AI 参考此图的色调、纹样与氛围——不复制版式或文字。用于主图与各分区背景。选择图片不消耗积分。',
+    customReferenceChoose: '选择参考图',
+    customReferenceRemove: '移除图片',
+    customReferenceUrlPlaceholder: '或粘贴参考图 URL（https://...）',
+    customReferenceEmpty: '尚未选择参考图',
+  },
+  weddingCardAiCover: {
+    sectionTitle: '1b. 选择请柬封面',
+    sectionDescription:
+      '选择「打开请柬」屏幕中间的卡片样式，并在中间添加情侣照片——免费、不消耗积分。全屏背景仍使用 AI「主封面」。',
+    tagNew: '新',
+    tagHot: '热',
+    previewLabel: '请柬',
+    previewGuestPrefix: '敬邀',
+    previewOpenButton: '打开请柬',
+    uploadLabel: '封面卡片情侣照',
+    uploadHint: '照片显示在中间卡片内（不替换后方背景）。上传/保存不消耗积分。',
+    removeCustomCover: '移除中间照片',
+    aiCoverHint: '卡片后方背景来自 AI「主封面」（或主图）。请在「创建 AI 图片」步骤生成。',
+  },
+  weddingCardPublic: {
+    invitation: '婚礼请柬',
+    openInvitation: '打开请柬',
+    navInvitation: '请柬',
+    navEvent: '婚礼信息',
+    navStory: '故事',
+    navRsvp: '宾客',
+    cordiallyInvites: '诚挚邀请',
+    guestInviteVenueGroom: '于男方家',
+    guestInviteVenueBride: '于女方家',
+    guestInviteVenueNone: '— 未选择 —',
+    guestInviteViewMap: '在 Google 地图查看地址',
+    weddingInvitation: 'Wedding Invitation',
+    dateFallback: '婚礼日期',
+    timeFallback: '婚礼时间',
+    defaultInvitation: '我们诚挚邀请您参加我们的婚礼庆典。',
+    defaultCoupleIntro: '感谢您见证这个特别的日子，与我们共同珍藏爱的回忆。',
+    familiesIntro: '双方家庭',
+    groomFamily: '新郎家庭',
+    brideFamily: '新娘家庭',
+    hometownLabel: '籍贯',
+    coupleIntroTitle: '我们的故事',
+    timelineTitle: '婚礼流程',
+    defaultTimeline: '迎宾、合影留念，并与亲友共同举杯庆祝。',
+    dressCodeTitle: '着装建议',
+    musicTitle: '请柬背景音乐',
+    openMaps: '打开 Google 地图',
+    storyTitle: '相册 / 故事',
+    albumTitle: '婚礼相册',
+    albumHint: '点击照片查看完整相册。',
+    albumAlt: '婚礼相册照片',
+    rsvpTitle: '确认出席',
+    guestNameLabel: '姓名',
+    guestNamePlaceholder: '您的姓名',
+    attendYes: '将出席',
+    attendNo: '无法出席',
+    guestCountLabel: '人数',
+    wishLabel: '祝福',
+    wishPlaceholder: '给新人送上祝福...',
+    submitResponse: '发送回复',
+    submitErrorTitle: '发送失败',
+    submitSuccessTitle: '谢谢您！',
+    submitSuccessDesc: '您的回复已记录。',
+    wishesTitle: '祝福',
+    noWishes: '暂无祝福。',
+    thankYouTitle: '衷心感谢',
+    defaultThankYou: '您的到来与祝福，是我们最珍贵的礼物。',
+    closeGallery: '关闭 · 返回请柬',
+    coverPhotoAlt: '请柬封面情侣照',
   },
   createExamPage: {
     error: '错误',
@@ -10385,6 +10741,16 @@ const JA_DICTIONARY: Dictionary = {
     receptionLabel: '受付・ご入場',
     partyLabel: '披露宴開始',
     timePlaceholderDash: '—',
+    countdownTitle: '一緒にカウントダウン',
+    countdownDay: '日',
+    countdownDays: '日',
+    countdownHour: '時間',
+    countdownHours: '時間',
+    countdownMinute: '分',
+    countdownMinutes: '分',
+    countdownSecond: '秒',
+    countdownSeconds: '秒',
+    countdownPast: '当日を迎えました — 会場でお会いしましょう！',
   },
   weddingGiftBox: {
     boxTitle: 'ご祝儀ボックス',
@@ -10410,9 +10776,89 @@ const JA_DICTIONARY: Dictionary = {
   },
   weddingCardAiBrief: {
     step2Description:
-      '内容の編集とプレビューは無料です。変更は約1秒後に自動保存されます。「保存」を押してすぐ保存することもできます。',
+      '内容の編集とプレビューは無料です。変更はほぼすぐに自動保存されます。「保存」を押してすぐ保存することもできます。',
     autoSavedLabel: '自動保存しました',
     autoSaveFailedLabel: '自動保存できませんでした。接続を確認するか「保存」を押してください。',
+    dateFormatHint:
+      'カレンダーで結婚日を選択します。時間は隣の「婚礼時間」欄で設定してください。',
+    dateSelectedPrefix: '選択:',
+    guestInviteVenueLabel: '招待先',
+    guestInviteVenueHint: 'ゲスト名と一緒に表示（例：新郎側ご自宅）。',
+    effectsToggleLabel: '招待状エフェクトを有効にする',
+    effectsToggleDesc: '自動スクロール、浮遊音楽ボタン、音楽の自動再生を含みます。完全に静的な招待状にする場合はオフにしてください。',
+  },
+  weddingCardAiImage: {
+    customReferenceLabel: 'カスタム参考画像（任意）',
+    customReferenceHint:
+      'AIはこの画像から色調・モチーフ・雰囲気を参考にします（レイアウトや文字はコピーしません）。メイン画像と各セクション背景に使用。画像選択にクレジットは不要です。',
+    customReferenceChoose: '参考画像を選択',
+    customReferenceRemove: '画像を削除',
+    customReferenceUrlPlaceholder: 'または参考画像の URL を貼り付け（https://...）',
+    customReferenceEmpty: '参考画像が未選択です',
+  },
+  weddingCardAiCover: {
+    sectionTitle: '1b. 表紙を選ぶ',
+    sectionDescription:
+      '「招待状を開く」画面の中央カードのレイアウトを選び、中央にカップル写真を追加（無料・クレジット不要）。全画面の背景は AI「メイン表紙」のままです。',
+    tagNew: '新着',
+    tagHot: '人気',
+    previewLabel: '招待状',
+    previewGuestPrefix: '謹んでご招待',
+    previewOpenButton: '招待状を開く',
+    uploadLabel: '表紙カードのカップル写真',
+    uploadHint: '中央カード内に表示（背景は置き換えません）。アップロード/保存は無料です。',
+    removeCustomCover: '中央写真を削除',
+    aiCoverHint: 'カード背後の背景は AI「メイン表紙」（またはメイン画像）です。「AI 画像作成」で生成してください。',
+  },
+  weddingCardPublic: {
+    invitation: '結婚式招待状',
+    openInvitation: '招待状を開く',
+    navInvitation: '招待状',
+    navEvent: '式の情報',
+    navStory: 'ストーリー',
+    navRsvp: 'ゲスト',
+    cordiallyInvites: 'ご招待',
+    guestInviteVenueGroom: '新郎側ご自宅へ',
+    guestInviteVenueBride: '新婦側ご自宅へ',
+    guestInviteVenueNone: '— 未選択 —',
+    guestInviteViewMap: 'Google マップで住所を見る',
+    weddingInvitation: 'Wedding Invitation',
+    dateFallback: '挙式日',
+    timeFallback: '開始時間',
+    defaultInvitation: '私たちの結婚式にご出席いただきたく、心よりご案内申し上げます。',
+    defaultCoupleIntro: '大切な一日を共に過ごし、愛の思い出を分かち合ってくださりありがとうございます。',
+    familiesIntro: '両家のご案内',
+    groomFamily: '新郎側',
+    brideFamily: '新婦側',
+    hometownLabel: '出身地',
+    coupleIntroTitle: 'ふたりのストーリー',
+    timelineTitle: '当日の流れ',
+    defaultTimeline: '受付、記念撮影、そしてご家族・ご友人との温かな祝宴へ。',
+    dressCodeTitle: 'ドレスコード',
+    musicTitle: '招待状BGM',
+    openMaps: 'Google マップを開く',
+    storyTitle: 'アルバム / ストーリー',
+    albumTitle: 'ウェディングアルバム',
+    albumHint: '写真をタップするとアルバム全体を表示できます。',
+    albumAlt: 'ウェディングアルバム写真',
+    rsvpTitle: '出欠のご回答',
+    guestNameLabel: 'お名前',
+    guestNamePlaceholder: 'お名前',
+    attendYes: '出席します',
+    attendNo: '欠席します',
+    guestCountLabel: '人数',
+    wishLabel: 'メッセージ',
+    wishPlaceholder: 'おふたりへのメッセージ...',
+    submitResponse: '回答を送信',
+    submitErrorTitle: '送信できませんでした',
+    submitSuccessTitle: 'ありがとうございます！',
+    submitSuccessDesc: 'ご回答を受け付けました。',
+    wishesTitle: 'メッセージ',
+    noWishes: 'まだメッセージはありません。',
+    thankYouTitle: '感謝を込めて',
+    defaultThankYou: 'ご出席と温かいお言葉が、私たちにとって何よりの贈り物です。',
+    closeGallery: '閉じる · 招待状へ',
+    coverPhotoAlt: '表紙カードのカップル写真',
   },
   createExamPage: {
     error: 'エラー',
@@ -12495,6 +12941,16 @@ const KO_DICTIONARY: Dictionary = {
     receptionLabel: '하객 맞이',
     partyLabel: '피로연 시작',
     timePlaceholderDash: '—',
+    countdownTitle: '함께 카운트다운',
+    countdownDay: '일',
+    countdownDays: '일',
+    countdownHour: '시간',
+    countdownHours: '시간',
+    countdownMinute: '분',
+    countdownMinutes: '분',
+    countdownSecond: '초',
+    countdownSeconds: '초',
+    countdownPast: '결혼식 날이 되었습니다 — 현장에서 뵙겠습니다!',
   },
   weddingGiftBox: {
     boxTitle: '축의금 박스',
@@ -12519,9 +12975,89 @@ const KO_DICTIONARY: Dictionary = {
   },
   weddingCardAiBrief: {
     step2Description:
-      '내용 수정과 미리보기는 무료입니다. 약 1초 후 자동 저장되며, «저장»을 눌러 바로 저장할 수 있습니다.',
+      '내용 수정과 미리보기는 무료입니다. 변경 사항은 거의 즉시 자동 저장되며, «저장»을 눌러 바로 저장할 수 있습니다.',
     autoSavedLabel: '자동 저장됨',
     autoSaveFailedLabel: '자동 저장에 실패했습니다. 네트워크를 확인하거나 «저장»을 누르세요.',
+    dateFormatHint:
+      '달력에서 예식일을 선택합니다. 시간은 옆의 결혼 시간 입력란에서 설정하세요.',
+    dateSelectedPrefix: '선택:',
+    guestInviteVenueLabel: '초대 장소',
+    guestInviteVenueHint: '하객 이름과 함께 청첩장에 표시됩니다 (예: 신랑 측 자택).',
+    effectsToggleLabel: '청첩장 효과 켜기',
+    effectsToggleDesc: '자동 스크롤, 플로팅 음악 버튼 및 음악 자동 재생이 포함됩니다. 완전히 정적인 청첩장을 원하시면 끄세요.',
+  },
+  weddingCardAiImage: {
+    customReferenceLabel: '맞춤 참조 이미지 (선택)',
+    customReferenceHint:
+      'AI가 이 이미지의 색감, 문양, 분위기를 참고합니다 — 레이아웃이나 글자는 복사하지 않습니다. 메인 이미지와 각 섹션 배경 생성에 사용됩니다. 이미지 선택은 크레딧을 사용하지 않습니다.',
+    customReferenceChoose: '참조 이미지 선택',
+    customReferenceRemove: '이미지 제거',
+    customReferenceUrlPlaceholder: '또는 참조 이미지 URL 붙여넣기 (https://...)',
+    customReferenceEmpty: '참조 이미지가 선택되지 않았습니다',
+  },
+  weddingCardAiCover: {
+    sectionTitle: '1b. 표지 선택',
+    sectionDescription:
+      '«청첩장 열기» 화면 가운데 카드 레이아웃을 고르고 중앙에 커플 사진을 추가합니다(무료·크레딧 없음). 전체 화면 배경은 AI «메인 표지»를 그대로 사용합니다.',
+    tagNew: '신규',
+    tagHot: '인기',
+    previewLabel: '청첩장',
+    previewGuestPrefix: '정중히 초대',
+    previewOpenButton: '청첩장 열기',
+    uploadLabel: '표지 카드 커플 사진',
+    uploadHint: '가운데 카드 안에 표시됩니다(뒤 배경은 바꾸지 않음). 업로드/저장은 크레딧이 들지 않습니다.',
+    removeCustomCover: '중앙 사진 제거',
+    aiCoverHint: '카드 뒤 배경은 AI «메인 표지»(또는 메인 이미지)입니다. «AI 이미지 생성» 단계에서 만드세요.',
+  },
+  weddingCardPublic: {
+    invitation: '청첩장',
+    openInvitation: '청첩장 열기',
+    navInvitation: '청첩장',
+    navEvent: '예식',
+    navStory: '스토리',
+    navRsvp: '하객',
+    cordiallyInvites: '정중히 초대합니다',
+    guestInviteVenueGroom: '신랑 측 자택으로',
+    guestInviteVenueBride: '신부 측 자택으로',
+    guestInviteVenueNone: '— 미선택 —',
+    guestInviteViewMap: 'Google 지도에서 주소 보기',
+    weddingInvitation: 'Wedding Invitation',
+    dateFallback: '예식 날짜',
+    timeFallback: '예식 시간',
+    defaultInvitation: '저희 결혼식에 소중한 걸음으로 함께해 주시길 정중히 초대합니다.',
+    defaultCoupleIntro: '특별한 날에 함께해 주시고 사랑의 순간을 나눠 주셔서 감사합니다.',
+    familiesIntro: '양가 가족',
+    groomFamily: '신랑 측',
+    brideFamily: '신부 측',
+    hometownLabel: '고향',
+    coupleIntroTitle: '우리의 이야기',
+    timelineTitle: '예식 일정',
+    defaultTimeline: '하객 맞이, 기념 촬영, 그리고 가족과 친구들과 함께하는 따뜻한 축하 시간.',
+    dressCodeTitle: '드레스 코드',
+    musicTitle: '청첩장 배경음악',
+    openMaps: 'Google 지도 열기',
+    storyTitle: '앨범 / 스토리',
+    albumTitle: '웨딩 앨범',
+    albumHint: '사진을 눌러 전체 앨범을 보세요.',
+    albumAlt: '웨딩 앨범 사진',
+    rsvpTitle: '참석 여부',
+    guestNameLabel: '성함',
+    guestNamePlaceholder: '성함',
+    attendYes: '참석합니다',
+    attendNo: '참석이 어렵습니다',
+    guestCountLabel: '인원',
+    wishLabel: '축하 메시지',
+    wishPlaceholder: '신랑 신부에게 축하 메시지를 남겨주세요...',
+    submitResponse: '응답 보내기',
+    submitErrorTitle: '보내지 못했습니다',
+    submitSuccessTitle: '감사합니다!',
+    submitSuccessDesc: '응답이 기록되었습니다.',
+    wishesTitle: '축하 메시지',
+    noWishes: '아직 메시지가 없습니다.',
+    thankYouTitle: '감사합니다',
+    defaultThankYou: '함께해 주시는 마음과 축하가 저희에게 가장 소중한 선물입니다.',
+    closeGallery: '닫기 · 청첩장으로',
+    coverPhotoAlt: '표지 카드 커플 사진',
   },
   createExamPage: {
     error: '오류',

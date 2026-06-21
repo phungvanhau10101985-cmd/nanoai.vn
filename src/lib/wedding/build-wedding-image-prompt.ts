@@ -3,13 +3,28 @@ import type { WeddingImageType } from '@/lib/db/wedding-cards-pg'
 /** Hướng nghệ thuật riêng từng mặt (tiếng Anh cho model ảnh). */
 const FACE_ART_DIRECTION: Record<WeddingImageType, string> = {
   master: `PRIMARY HERO MASTER visual for the invitation — the boldest, richest composition; strong focal romance; premium centerpiece energy. This is the anchor artwork every other face should feel related to, but not copy.`,
-  cover: `COVER face — ornate outer frame emphasis, dramatic corner flourishes or gate-fold feeling; vignette inward; leave generous central luminosity for names/title overlays. Composition and focal mass must DIFFER from the master hero.`,
-  invitation: `INVITATION TYPOGRAPHY face — calmer symmetrical balance, parchment or soft layered paper illusion; restrained ornament concentrating on top/bottom bands; widest clean negative space in the middle third for long invitation text.`,
-  event: `EVENT INFO face — airy, slightly architectural or timeline-friendly rhythm; directional softness toward lower-center where date/venue/maps sit; lighter ornament density than master; infographic-friendly negative space.`,
-  rsvp: `RSVP / RESPONSE face — orderly, calm stationery structure; faint column or card-panel suggestion (no grids with readable text); clear central soft zone for a form block; understated borders.`,
-  album: `ALBUM / STORY face — romantic narrative mood, soft vignette, photo-album cues (floating corners, floral trails, dreamy bokeh at edges); more horizontal resting areas for captions; dreamy not chaotic.`,
-  gift_qr: `GIFT QR face — restrained minimal center: preserve a visibly CALM unobstructed circular or rounded square halo (roughly 40–52% panel height) where a QR lives; ornament only toward corners/rims; NEVER busy texture in QR core.`,
-  thanks: `THANK YOU closing face — gentle asymmetric closing motif; laurel ribbon or simple botanical tail; uplifted airy light at top; lighter detail than master; intimate send-off emotion.`,
+  cover: `PUBLIC OPENING + HERO face — ceremonial first impression, luxury outer frame, dramatic gate-fold or luminous aisle feeling; leave a bright centered vertical safe zone for couple names, guest line and open button overlays.`,
+  invitation: `FAMILY + INVITATION face — refined stationery plate for parents, couple intro and long invitation copy; elegant negative space in the middle, ornament weighted to top/bottom edges, calm readable overlay areas.`,
+  event: `EVENT + TIMELINE face — airy architecture and timeline-friendly rhythm; clear zones for calendar, time blocks, venue, map, dress code and schedule cards; detail toward corners, not center.`,
+  rsvp: `RSVP + WISHES face — orderly premium guest-response section; subtle card panels, generous form-safe center, soft celebration accents; no dense texture behind input areas.`,
+  album: `ALBUM + STORY face — romantic editorial mood, photo-gallery cues, soft vignette, layered paper/photo-corner details and dreamy edge bokeh; leave horizontal resting zones for story and gallery overlays.`,
+  gift_qr: `GIFT QR face — restrained ceremonial gift section: preserve a visibly CALM unobstructed circular or rounded square halo (roughly 40–52% panel height) where a QR lives; ornament only toward corners/rims; NEVER busy texture in QR core.`,
+  thanks: `THANK YOU CLOSING face — elegant closing card with airy light, final blessing mood, delicate laurel/ribbon/botanical tail; refined and quieter than the hero but still premium.`,
+}
+
+const STYLE_ART_DIRECTION: Record<string, string> = {
+  luxury:
+    'High-end Vietnamese wedding stationery, ivory paper texture, champagne metallic foil, blush warmth, layered embossing, refined depth, premium hotel ballroom mood.',
+  minimal:
+    'Minimal editorial wedding design, warm white paper, sage hints, charcoal contrast, spacious composition, precise typography-safe geometry, understated luxury.',
+  traditional_vietnamese:
+    'Vietnamese traditional wedding elegance, red and gold harmony, lotus and silk-inspired ornament, subtle Đông Sơn / lacquer cues, ceremonial warmth, not cartoonish.',
+  floral:
+    'Romantic floral wedding design, rose and cream tones, eucalyptus greenery, delicate botanical trails, soft watercolor/paper texture, graceful feminine detail.',
+  vintage:
+    'Vintage heirloom invitation, sepia warmth, dusty rose, antique gold, old paper grain, engraved border feeling, nostalgic but polished.',
+  modern:
+    'Modern luxury wedding editorial, black/white contrast, metallic gold accents, clean geometry, spotlight gradients, gallery-like premium atmosphere.',
 }
 
 function sharedStyleConsistencyBlock(type: WeddingImageType): string[] {
@@ -32,14 +47,20 @@ export function buildWeddingPrompt(input: {
   brideName: string
   venue: string
   extraPrompt: string
-  /** true khi có master URL hoặc ảnh tham chiếu cặp đôi để căn chỉnh tông/khối ảnh */
+  /** true khi có master URL hoặc ảnh tham chiếu cặp đôi / ảnh tùy chỉnh để căn chỉnh tông/khối ảnh */
   hasReference: boolean
+  /** Ảnh tham khảo phong cách do người dùng chọn trong mục tạo ảnh nền */
+  hasCustomReference?: boolean
 }): string {
   const faceWord = input.type === 'master' ? 'PRIMARY master hero invitation visual' : `secondary "${input.type}" invitation face background`
   const ref = input.hasReference
     ? input.type === 'master'
-      ? 'Optional couple reference uploads (if supplied): color harmony likeness mood only — NEVER render readable glyphs from them.'
-      : 'REFERENCE (master/couple uploads when supplied): color harmony ornament lineage lighting mood ONLY — forbid copying composition from master.'
+      ? 'Optional couple/custom reference uploads (if supplied): color harmony ornament mood lighting only — NEVER render readable glyphs or copy exact layout from references.'
+      : 'REFERENCE (master/couple/custom uploads when supplied): color harmony ornament lineage lighting mood ONLY — forbid copying composition from references.'
+    : ''
+
+  const customRef = input.hasCustomReference
+    ? 'CUSTOM STYLE REFERENCE (last attached image when present): adopt palette family, ornament vocabulary, material texture, lighting warmth — invent a NEW composition; do NOT duplicate layout, focal crop, or readable text from that image.'
     : ''
 
   const parts = [
@@ -47,6 +68,7 @@ export function buildWeddingPrompt(input: {
     `Target plate: ${faceWord}.`,
     FACE_ART_DIRECTION[input.type],
     `Global style preset (keep consistent tone): ${input.style || 'luxury'}.`,
+    STYLE_ART_DIRECTION[input.style] ?? STYLE_ART_DIRECTION.luxury,
     `Color palette direction (harmonious family across all faces): ${input.palette || 'elegant warm cream, champagne gold, soft blush'}.`,
     `Couple story hint (ambient only, no spelled names rendered): ${input.groomName || 'groom'} & ${input.brideName || 'bride'}.`,
     input.venue ? `Venue mood ambience only: ${input.venue}.` : '',
@@ -56,6 +78,7 @@ export function buildWeddingPrompt(input: {
     sharedStyleConsistencyBlock(input.type).join('\n'),
     input.extraPrompt ? `\nAdditional user refinement: ${input.extraPrompt}` : '',
     ref,
+    customRef,
   ]
 
   return parts.filter(Boolean).join('\n').replace(/\n{3,}/g, '\n\n').trim()
