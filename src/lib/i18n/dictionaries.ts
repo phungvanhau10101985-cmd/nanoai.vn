@@ -2044,10 +2044,17 @@ export type Dictionary = {
     submitSuccessDesc: string
     wishesTitle: string
     noWishes: string
+    noWishesPersonal: string
     thankYouTitle: string
     defaultThankYou: string
     closeGallery: string
     coverPhotoAlt: string
+    contactLabel: string
+    addToGoogleCalendar: string
+    downloadCalendarFile: string
+    shareZalo: string
+    calendarEventTitle: string
+    calendarEventDescription: string
   }
   /** Trang /tao-bai-thi — tạo phiên thi trực tuyến (GV) */
   createExamPage: {
@@ -4246,8 +4253,8 @@ const VI_DICTIONARY: Dictionary = {
     weddingInvitation: 'Wedding Invitation',
     dateFallback: 'Ngày cưới',
     timeFallback: 'Giờ cưới',
-    defaultInvitation: 'Trân trọng kính mời quý khách đến dự lễ thành hôn của chúng tôi.',
-    defaultCoupleIntro: 'Cảm ơn bạn đã hiện diện trong ngày đặc biệt và cùng chúng tôi lưu giữ khoảnh khắc yêu thương này.',
+    defaultInvitation: 'Trân trọng kính mời quý khách đến dự lễ thành hôn của {couple}.',
+    defaultCoupleIntro: 'Cảm ơn bạn đã hiện diện trong ngày đặc biệt của {couple} và cùng chúng tôi lưu giữ khoảnh khắc yêu thương này.',
     familiesIntro: 'Gia đình hai bên',
     groomFamily: 'Nhà trai',
     brideFamily: 'Nhà gái',
@@ -4275,11 +4282,19 @@ const VI_DICTIONARY: Dictionary = {
     submitSuccessTitle: 'Cảm ơn bạn!',
     submitSuccessDesc: 'Phản hồi đã được ghi nhận.',
     wishesTitle: 'Lời chúc',
-    noWishes: 'Chưa có lời chúc nào.',
+    noWishes: 'Quý khách là niềm vinh hạnh của gia đình hai bên và ngày cưới {couple} — sự hiện diện của bạn là món quà quý giá nhất.',
+    noWishesPersonal: '{guest} là khách quý đối với gia đình hai bên và ngày cưới {couple} — sự có mặt của {guest} là niềm vinh hạnh lớn lao.',
     thankYouTitle: 'Trân trọng cảm ơn',
-    defaultThankYou: 'Sự hiện diện và lời chúc của bạn là món quà quý giá nhất dành cho chúng tôi.',
+    defaultThankYou:
+      '{couple} xin chân thành cảm ơn quý gia đình, người thân, bạn bè và toàn thể quý khách đã dành thời gian quý báu đến chung vui trong ngày trọng đại của chúng tôi.\n\nSự hiện diện, lời chúc phúc và tình cảm của mọi người là món quà vô cùng ý nghĩa, giúp ngày cưới của chúng tôi trở nên trọn vẹn và đáng nhớ hơn.\n\nKính chúc quý khách thật nhiều sức khỏe, bình an và hạnh phúc.',
     closeGallery: 'Đóng · về thiệp',
     coverPhotoAlt: 'Ảnh cặp đôi trên vỏ thiệp',
+    contactLabel: 'Liên hệ',
+    addToGoogleCalendar: 'Thêm vào Google Calendar',
+    downloadCalendarFile: 'Tải file lịch (.ics)',
+    shareZalo: 'Chia sẻ Zalo',
+    calendarEventTitle: 'Tiệc cưới {groom} & {bride}',
+    calendarEventDescription: 'Trân trọng kính mời bạn đến dự lễ thành hôn của {couple}.',
   },
   createExamPage: {
     error: 'Lỗi',
@@ -6472,8 +6487,8 @@ const EN_DICTIONARY: Dictionary = {
     weddingInvitation: 'Wedding Invitation',
     dateFallback: 'Wedding date',
     timeFallback: 'Wedding time',
-    defaultInvitation: 'We cordially invite you to celebrate our wedding with us.',
-    defaultCoupleIntro: 'Thank you for being part of this special day and sharing a memory of love with us.',
+    defaultInvitation: 'We cordially invite you to celebrate the wedding of {couple}.',
+    defaultCoupleIntro: 'Thank you for being part of this special day for {couple} and sharing a memory of love with us.',
     familiesIntro: 'Our families',
     groomFamily: 'Groom family',
     brideFamily: 'Bride family',
@@ -6501,11 +6516,19 @@ const EN_DICTIONARY: Dictionary = {
     submitSuccessTitle: 'Thank you!',
     submitSuccessDesc: 'Your response has been recorded.',
     wishesTitle: 'Wishes',
-    noWishes: 'No wishes yet.',
+    noWishes: 'Your presence is a great honor for both families and the wedding of {couple} — it means more than words can say.',
+    noWishesPersonal: '{guest}, you are a cherished guest to our families and the wedding of {couple} — having you with us is our greatest honor.',
     thankYouTitle: 'With gratitude',
-    defaultThankYou: 'Your presence and wishes are the most precious gift to us.',
+    defaultThankYou:
+      '{couple} sincerely thank our families, loved ones, friends, and every guest for sharing this milestone with us.\n\nYour presence, blessings, and warm wishes mean more than words can say and make our wedding day truly complete.\n\nWishing you health, peace, and happiness.',
     closeGallery: 'Close · back to invitation',
     coverPhotoAlt: 'Couple photo on invitation cover',
+    contactLabel: 'Contact',
+    addToGoogleCalendar: 'Add to Google Calendar',
+    downloadCalendarFile: 'Download calendar (.ics)',
+    shareZalo: 'Share on Zalo',
+    calendarEventTitle: 'Wedding of {groom} & {bride}',
+    calendarEventDescription: 'We cordially invite you to celebrate the wedding of {couple}.',
   },
   createExamPage: {
     error: 'Error',
@@ -8620,8 +8643,8 @@ const ZH_DICTIONARY: Dictionary = {
     weddingInvitation: 'Wedding Invitation',
     dateFallback: '婚礼日期',
     timeFallback: '婚礼时间',
-    defaultInvitation: '我们诚挚邀请您参加我们的婚礼庆典。',
-    defaultCoupleIntro: '感谢您见证这个特别的日子，与我们共同珍藏爱的回忆。',
+    defaultInvitation: '我们诚挚邀请您参加 {couple} 的婚礼庆典。',
+    defaultCoupleIntro: '感谢您见证 {couple} 这个特别的日子，与我们共同珍藏爱的回忆。',
     familiesIntro: '双方家庭',
     groomFamily: '新郎家庭',
     brideFamily: '新娘家庭',
@@ -8649,11 +8672,19 @@ const ZH_DICTIONARY: Dictionary = {
     submitSuccessTitle: '谢谢您！',
     submitSuccessDesc: '您的回复已记录。',
     wishesTitle: '祝福',
-    noWishes: '暂无祝福。',
+    noWishes: '您的出席对双方家庭与 {couple} 的婚礼至为珍贵，是我们莫大的荣幸。',
+    noWishesPersonal: '{guest} 是我们两家与 {couple} 婚礼日最尊贵的客人——能有 {guest} 同在，是我们最大的荣幸。',
     thankYouTitle: '衷心感谢',
-    defaultThankYou: '您的到来与祝福，是我们最珍贵的礼物。',
+    defaultThankYou:
+      '{couple} 衷心感谢各位亲友与来宾拨冗出席，与我们共度这一重要时刻。\n\n您的到来、祝福与关怀，是我们最珍贵的礼物。\n\n敬祝各位健康平安、幸福美满。',
     closeGallery: '关闭 · 返回请柬',
     coverPhotoAlt: '请柬封面情侣照',
+    contactLabel: '联系方式',
+    addToGoogleCalendar: '添加到 Google 日历',
+    downloadCalendarFile: '下载日历文件 (.ics)',
+    shareZalo: '分享到 Zalo',
+    calendarEventTitle: '{groom} & {bride} 婚礼',
+    calendarEventDescription: '诚挚邀请您参加 {couple} 的婚礼。',
   },
   createExamPage: {
     error: '错误',
@@ -10825,8 +10856,8 @@ const JA_DICTIONARY: Dictionary = {
     weddingInvitation: 'Wedding Invitation',
     dateFallback: '挙式日',
     timeFallback: '開始時間',
-    defaultInvitation: '私たちの結婚式にご出席いただきたく、心よりご案内申し上げます。',
-    defaultCoupleIntro: '大切な一日を共に過ごし、愛の思い出を分かち合ってくださりありがとうございます。',
+    defaultInvitation: '私たち {couple} の結婚式にご出席いただきたく、心よりご案内申し上げます。',
+    defaultCoupleIntro: '{couple} の大切な一日を共に過ごし、愛の思い出を分かち合ってくださりありがとうございます。',
     familiesIntro: '両家のご案内',
     groomFamily: '新郎側',
     brideFamily: '新婦側',
@@ -10854,11 +10885,19 @@ const JA_DICTIONARY: Dictionary = {
     submitSuccessTitle: 'ありがとうございます！',
     submitSuccessDesc: 'ご回答を受け付けました。',
     wishesTitle: 'メッセージ',
-    noWishes: 'まだメッセージはありません。',
+    noWishes: 'ご列席は両家と {couple} の結婚式にとって何よりの光栄です。',
+    noWishesPersonal: '{guest} 様は両家と {couple} の結婚式にとって大切なお客様です。{guest} 様にお越しいただけること自体が、何よりの喜びです。',
     thankYouTitle: '感謝を込めて',
-    defaultThankYou: 'ご出席と温かいお言葉が、私たちにとって何よりの贈り物です。',
+    defaultThankYou:
+      '{couple} は、この日にご出席くださったご家族・ご親族・ご友人の皆様に心より感謝申し上げます。\n\n温かいお言葉とご祝福が、私たちにとって何よりの贈り物です。\n\n皆様のご健康とご多幸をお祈り申し上げます。',
     closeGallery: '閉じる · 招待状へ',
     coverPhotoAlt: '表紙カードのカップル写真',
+    contactLabel: '連絡先',
+    addToGoogleCalendar: 'Google カレンダーに追加',
+    downloadCalendarFile: 'カレンダーファイル (.ics) をダウンロード',
+    shareZalo: 'Zalo で共有',
+    calendarEventTitle: '{groom} & {bride} の結婚披露宴',
+    calendarEventDescription: '{couple} の結婚式にご出席いただき、心よりお待ちしております。',
   },
   createExamPage: {
     error: 'エラー',
@@ -13024,8 +13063,8 @@ const KO_DICTIONARY: Dictionary = {
     weddingInvitation: 'Wedding Invitation',
     dateFallback: '예식 날짜',
     timeFallback: '예식 시간',
-    defaultInvitation: '저희 결혼식에 소중한 걸음으로 함께해 주시길 정중히 초대합니다.',
-    defaultCoupleIntro: '특별한 날에 함께해 주시고 사랑의 순간을 나눠 주셔서 감사합니다.',
+    defaultInvitation: '{couple}의 결혼식에 소중한 걸음으로 함께해 주시길 정중히 초대합니다.',
+    defaultCoupleIntro: '{couple}의 특별한 날에 함께해 주시고 사랑의 순간을 나눠 주셔서 감사합니다.',
     familiesIntro: '양가 가족',
     groomFamily: '신랑 측',
     brideFamily: '신부 측',
@@ -13053,11 +13092,19 @@ const KO_DICTIONARY: Dictionary = {
     submitSuccessTitle: '감사합니다!',
     submitSuccessDesc: '응답이 기록되었습니다.',
     wishesTitle: '축하 메시지',
-    noWishes: '아직 메시지가 없습니다.',
+    noWishes: '귀한 참석은 양가와 {couple}의 결혼식에 큰 영광입니다.',
+    noWishesPersonal: '{guest}님은 양가와 {couple}의 결혼식에 소중한 분입니다. {guest}님께서 함께해 주시는 것이 저희에게 가장 큰 영광입니다.',
     thankYouTitle: '감사합니다',
-    defaultThankYou: '함께해 주시는 마음과 축하가 저희에게 가장 소중한 선물입니다.',
+    defaultThankYou:
+      '{couple}는 이 뜻깊은 날 함께해 주신 가족, 지인, 하객 여러분께 진심으로 감사드립니다.\n\n여러분의 따뜻한 마음과 축복이 저희에게 가장 소중한 선물입니다.\n\n모두 건강과 행복을 기원합니다.',
     closeGallery: '닫기 · 청첩장으로',
     coverPhotoAlt: '표지 카드 커플 사진',
+    contactLabel: '연락처',
+    addToGoogleCalendar: 'Google 캘린더에 추가',
+    downloadCalendarFile: '캘린더 파일 (.ics) 다운로드',
+    shareZalo: 'Zalo로 공유',
+    calendarEventTitle: '{groom} & {bride} 결혼식',
+    calendarEventDescription: '{couple}의 결혼식에 초대합니다.',
   },
   createExamPage: {
     error: '오류',

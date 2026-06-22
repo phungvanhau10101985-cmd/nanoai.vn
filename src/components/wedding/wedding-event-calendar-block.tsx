@@ -31,6 +31,8 @@ type Props = {
   textGlow?: string
   /** Preview editor không cần nhảy từng giây; public mặc định vẫn realtime. */
   countdownLive?: boolean
+  /** Ẩn khối đếm ngược (dùng khi đã hiển thị ở phần bìa). */
+  showCountdown?: boolean
 }
 
 function HeartDayCell({ day, active }: { day: number; active: boolean }) {
@@ -95,6 +97,7 @@ export function WeddingEventCalendarBlock({
   className,
   textGlow,
   countdownLive = true,
+  showCountdown = true,
 }: Props) {
   const enTx = useMemo(() => (locale === 'vi' ? getDictionary('en').weddingCardCalendar : null), [locale])
   const dateIso = useMemo(() => resolveWeddingDateIso(weddingDateIso), [weddingDateIso])
@@ -215,16 +218,18 @@ export function WeddingEventCalendarBlock({
         <TimeColumn label={partyLabel} time={partyDisplay} compact={compact} />
       </div>
 
-      <WeddingCountdownBlock
-        weddingDateIso={dateIso}
-        weddingTimeText={weddingTimeText}
-        partyStartTime={partyStartTime}
-        locale={locale}
-        tx={tx}
-        compact={compact}
-        className={cn(compact ? 'mt-4' : 'mt-6')}
-        live={countdownLive}
-      />
+      {showCountdown ? (
+        <WeddingCountdownBlock
+          weddingDateIso={dateIso}
+          weddingTimeText={weddingTimeText}
+          partyStartTime={partyStartTime}
+          locale={locale}
+          tx={tx}
+          compact={compact}
+          className={cn(compact ? 'mt-4' : 'mt-6')}
+          live={countdownLive}
+        />
+      ) : null}
 
       {eventDate ? (
         <div className={cn('mt-4 px-0 pb-1 pt-1 sm:mt-5 sm:px-1', compact && 'mt-3')}>

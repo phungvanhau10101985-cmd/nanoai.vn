@@ -32,6 +32,9 @@ import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { formatWeddingMusicSecondsForInput, parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
 import { isLegacySingleGiftImage, isTwinVietGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
+import { WEDDING_CARD_TEXT_TOKEN_HINT } from '@/lib/wedding/wedding-card-text-interpolate'
+import { countWeddingEventTimelineItems } from '@/lib/wedding/wedding-event-timeline'
+import { WeddingTimelineEditor } from '@/components/wedding/wedding-timeline-editor'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
 import {
   buildMonthCells,
@@ -1205,16 +1208,12 @@ export default function WeddingCardAiClientPage() {
                   />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <WeddingAiPolishTextarea
+                  <WeddingTimelineEditor
                     label="Lịch trình chi tiết"
-                    field="eventTimeline"
                     value={card.eventTimeline}
                     onChange={(v) => update('eventTimeline', v)}
-                    card={card}
-                    weddingDateLabel={weddingDateDisplay}
-                    placeholder={'17:00 | Đón khách - Chụp ảnh lưu niệm\n18:00 | Làm lễ - Nghi thức gia tiên / sân khấu\n18:30 | Khai tiệc - Dùng tiệc và nâng ly'}
-                    className="min-h-32"
-                    hint="Mỗi dòng theo dạng: giờ | tiêu đề - ghi chú."
+                    className="sm:col-span-2"
+                    hint="Mỗi dòng một mốc: chọn giờ và nhập nội dung bên cạnh (có thể thêm ghi chú sau dấu « - »)."
                   />
                   <WeddingAiPolishTextarea
                     label="Dress code / lưu ý khách mời"
@@ -1244,7 +1243,8 @@ export default function WeddingCardAiClientPage() {
                   onChange={(v) => update('thankYouText', v)}
                   card={card}
                   weddingDateLabel={weddingDateDisplay}
-                  placeholder="Sự hiện diện và lời chúc của bạn là món quà quý giá nhất dành cho chúng tôi."
+                  placeholder="{couple} xin chân thành cảm ơn quý khách đã đến chung vui trong ngày trọng đại của chúng tôi."
+                  hint={WEDDING_CARD_TEXT_TOKEN_HINT}
                   className="min-h-24"
                 />
                 <div className="space-y-3 rounded-2xl border p-3">
@@ -1562,7 +1562,7 @@ export default function WeddingCardAiClientPage() {
                           ) : null}
                           {card.eventTimeline ? (
                             <p className={cn('mt-2 font-semibold', selectedTheme.accentText, selectedTheme.textGlow)}>
-                              Lịch trình: {card.eventTimeline.split('\n').filter(Boolean).length} mốc
+                              Lịch trình: {countWeddingEventTimelineItems(card.eventTimeline)} mốc
                             </p>
                           ) : null}
                           {card.dressCode ? (
@@ -1667,18 +1667,6 @@ export default function WeddingCardAiClientPage() {
                           <QrCode className="mr-2 h-4 w-4" />
                           QR link thiệp
                         </a>
-                      </Button>
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(card.id)}&side=groom`}>
-                          <Users className="mr-2 h-4 w-4" />
-                          Khách nhà trai
-                        </Link>
-                      </Button>
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(card.id)}&side=bride`}>
-                          <Users className="mr-2 h-4 w-4" />
-                          Khách nhà gái
-                        </Link>
                       </Button>
                     </div>
                   </div>

@@ -5,6 +5,7 @@ import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { WeddingTimelineEditor } from '@/components/wedding/wedding-timeline-editor'
 import { parseWeddingTimeClockAndWeekday } from '@/lib/wedding/wedding-calendar-utils'
 import type { WeddingSideInviteSettings } from '@/lib/wedding/wedding-side-invite-settings'
 
@@ -126,16 +127,13 @@ export function WeddingSideInviteSettingsPanel({ side, card, settings, saving, o
         />
       </div>
 
-      <div className="space-y-1.5 sm:col-span-2">
-        <Label className="text-sm">Lịch trình chi tiết {meta.sideLabel}</Label>
-        <Textarea
+      <div className="sm:col-span-2">
+        <WeddingTimelineEditor
+          label={`Lịch trình chi tiết ${meta.sideLabel}`}
           value={settings[fieldKey(p, 'EventTimeline')]}
-          onChange={(e) => patch(fieldKey(p, 'EventTimeline'), e.target.value)}
-          placeholder={card?.eventTimeline || '16:30 | Đón khách\n17:00 | Khai tiệc'}
-          rows={4}
-          className="resize-y font-mono text-xs sm:text-sm"
+          onChange={(v) => patch(fieldKey(p, 'EventTimeline'), v)}
+          hint="Mỗi dòng một mốc: chọn giờ và nhập nội dung bên cạnh (có thể thêm ghi chú sau dấu « - »)."
         />
-        <p className="text-xs text-muted-foreground">Mỗi dòng: «Giờ | Tiêu đề - Ghi chú»</p>
       </div>
 
       <div className="space-y-1.5 sm:col-span-2">

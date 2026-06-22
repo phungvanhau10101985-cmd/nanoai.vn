@@ -19,6 +19,7 @@ import { WeddingMapEmbed } from '@/components/wedding/wedding-map-embed'
 import { WeddingEventCalendarBlock } from '@/components/wedding/wedding-event-calendar-block'
 import { WeddingCountdownBlock } from '@/components/wedding/wedding-countdown-block'
 import { WeddingGiftEnvelopeBlock } from '@/components/wedding/wedding-gift-envelope-block'
+import { WeddingInvitationShareActions } from '@/components/wedding/wedding-invitation-share-actions'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { shouldShowPublicGiftBoxForSide } from '@/lib/wedding/wedding-gift-vietqr'
@@ -41,30 +42,11 @@ import {
   normalizeGuestInviteVenue,
   type WeddingGuestInviteVenue,
 } from '@/lib/wedding/wedding-guest-invite-venue'
-import { isSideSpecificGuestInvite, resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
+import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
+import { resolveWeddingCardDisplayText } from '@/lib/wedding/wedding-card-text-interpolate'
+import { renderWeddingHighlightedText } from '@/lib/wedding/wedding-card-text-highlight'
+import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
 import { startWeddingInvitationAutoScroll } from '@/hooks/use-wedding-invitation-auto-scroll'
-
-type TimelineItem = {
-  time: string
-  title: string
-  note: string
-}
-
-function parseTimeline(value: string): TimelineItem[] {
-  return value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [timePart, ...rest] = line.split('|').map((part) => part.trim())
-      const [titlePart, ...noteParts] = rest.join('|').split(' - ').map((part) => part.trim())
-      return {
-        time: rest.length > 0 ? timePart : '',
-        title: (rest.length > 0 ? titlePart : timePart) || line,
-        note: noteParts.join(' - '),
-      }
-    })
-}
 
 function firstImageByType(images: WeddingAiImage[], type: WeddingImageType, fallback?: string | null) {
   return images.find((image) => image.type === type && image.status === 'completed')?.imageUrl || fallback || ''
@@ -130,6 +112,7 @@ export default function WeddingPublicClient({
   const [contentVisible, setContentVisible] = useState(false)
   const [albumOpen, setAlbumOpen] = useState(false)
   const [activeAlbumIndex, setActiveAlbumIndex] = useState<number | null>(null)
+  const [sharePageUrl, setSharePageUrl] = useState('')
   const weddingMusicAudioRef = useRef<WeddingInvitationAudioHandle>(null)
   const reportMusicPlaying = useCallback((playing: boolean) => {
     setMusicFabPlaying(playing)
@@ -139,29 +122,67 @@ export default function WeddingPublicClient({
     setMusicFabPlaying(false)
   }, [card.musicUrl])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setSharePageUrl(window.location.href)
+  }, [])
+
   const guestDisplayName = useMemo(() => {
-    if (typeof window === 'undefined') return card.guestName
+    if (typeof window === 'undefined') return card.guestName.trim()
     const fromUrl = new URLSearchParams(window.location.search).get('guest')
-    return fromUrl?.trim() || card.guestName
+    return fromUrl?.trim() || card.guestName.trim()
   }, [card.guestName])
 
+  useEffect(() => {
+    if (!guestDisplayName) return
+    setGuestName((current) => current.trim() || guestDisplayName)
+  }, [guestDisplayName])
+
+  /** Chỉ từ URL — lọc nội dung tiệc theo bên (nhà trai/gái). */
   const guestDisplayVenue = useMemo((): WeddingGuestInviteVenue => {
+    if (typeof window === 'undefined') return ''
+    const fromUrl = new URLSearchParams(window.location.search).get('venue')
+    return fromUrl ? normalizeGuestInviteVenue(fromUrl) : ''
+  }, [])
+
+  /** Khối tên khách + địa chỉ trên bìa: URL venue hoặc cài đặt preview trong editor. */
+  const guestBlockVenue = useMemo((): WeddingGuestInviteVenue => {
     if (typeof window === 'undefined') return normalizeGuestInviteVenue(card.guestInviteVenue)
     const fromUrl = new URLSearchParams(window.location.search).get('venue')
     return fromUrl ? normalizeGuestInviteVenue(fromUrl) : normalizeGuestInviteVenue(card.guestInviteVenue)
   }, [card.guestInviteVenue])
 
-  const guestInviteVenueDisplay = useMemo(
-    () => guestInviteVenueLabel(guestDisplayVenue, tx),
-    [guestDisplayVenue, tx],
+  const guestBlockVenueDisplay = useMemo(
+    () => guestInviteVenueLabel(guestBlockVenue, tx),
+    [guestBlockVenue, tx],
   )
+
+  const guestBlockLocation = useMemo(
+    () => resolveGuestInviteLocation(card, guestBlockVenue),
+    [card, guestBlockVenue],
+  )
+
+  const textTokens = useMemo(
+    () => ({
+      groomName: card.groomName,
+      brideName: card.brideName,
+      guestName: guestDisplayName,
+    }),
+    [card.brideName, card.groomName, guestDisplayName],
+  )
+
+  const personalize = useCallback(
+    (text: string) => resolveWeddingCardDisplayText(text, textTokens, uiLocale),
+    [textTokens, uiLocale],
+  )
+
+  const nameHighlightClass = cn('font-semibold', theme.accentText, theme.textGlowHeading)
 
   const guestInviteLocation = useMemo(
     () => resolveGuestInviteLocation(card, guestDisplayVenue),
     [card, guestDisplayVenue],
   )
 
-  const isSideInvite = isSideSpecificGuestInvite(guestDisplayVenue)
   const displayWeddingDateIso = useMemo(
     () => resolveWeddingDateIso(guestInviteLocation.weddingDate),
     [guestInviteLocation.weddingDate],
@@ -178,27 +199,44 @@ export default function WeddingPublicClient({
   const displayInvitationText = guestInviteLocation.invitationText || card.invitationText
   const displayInvitationTextEn = guestInviteLocation.invitationTextEn || card.invitationTextEn
   const displayTimeline = useMemo(
-    () => parseTimeline(guestInviteLocation.eventTimeline || card.eventTimeline),
+    () => parseWeddingEventTimeline(guestInviteLocation.eventTimeline || card.eventTimeline),
     [card.eventTimeline, guestInviteLocation.eventTimeline],
   )
   const displayDressCode = guestInviteLocation.dressCode || card.dressCode
   const displayThankYou = guestInviteLocation.thankYouText || card.thankYouText
   const displayVenue = guestInviteLocation.address || card.venue
   const displayMapUrl = guestInviteLocation.mapUrl || card.mapUrl
-  const showGroomFamily = !isSideInvite || guestDisplayVenue === 'groom_home'
-  const showBrideFamily = !isSideInvite || guestDisplayVenue === 'bride_home'
-  const groomFamilyLine = isSideInvite && guestDisplayVenue === 'groom_home'
-    ? guestInviteLocation.parents
-    : card.groomParents || card.groomName
-  const brideFamilyLine = isSideInvite && guestDisplayVenue === 'bride_home'
-    ? guestInviteLocation.parents
-    : card.brideParents || card.brideName
-  const groomHometownLine = isSideInvite && guestDisplayVenue === 'groom_home'
-    ? guestInviteLocation.hometown
-    : card.groomHometown
-  const brideHometownLine = isSideInvite && guestDisplayVenue === 'bride_home'
-    ? guestInviteLocation.hometown
-    : card.brideHometown
+  const groomFamilyLine = card.groomParents || card.groomName
+  const brideFamilyLine = card.brideParents || card.brideName
+  const groomHometownLine = card.groomHometown
+  const brideHometownLine = card.brideHometown
+  const calendarExportInput = useMemo(
+    () => ({
+      title: personalize(tx.calendarEventTitle),
+      description: personalize(displayInvitationText || tx.calendarEventDescription),
+      location: displayVenue,
+      weddingDateIso: (displayWeddingDateIso ?? weddingDateIso) ?? '',
+      weddingTimeText: guestInviteLocation.receptionTime || card.weddingTime,
+      partyStartTime: guestInviteLocation.partyStartTime || card.partyStartTime,
+      url: sharePageUrl || undefined,
+    }),
+    [
+      card.brideName,
+      card.groomName,
+      card.partyStartTime,
+      card.weddingTime,
+      displayInvitationText,
+      displayVenue,
+      displayWeddingDateIso,
+      guestInviteLocation.partyStartTime,
+      guestInviteLocation.receptionTime,
+      sharePageUrl,
+      tx.calendarEventDescription,
+      tx.calendarEventTitle,
+      weddingDateIso,
+      personalize,
+    ],
+  )
 
   const submit = async () => {
     setSubmitting(true)
@@ -256,10 +294,10 @@ export default function WeddingPublicClient({
               weddingDate={displayWeddingDateLabel}
               weddingTimeText={guestInviteLocation.displayTime || weddingDisplayTime}
               guestName={guestDisplayName || undefined}
-              guestInviteVenue={guestDisplayVenue}
-              guestInviteVenueLabel={guestInviteVenueDisplay || undefined}
-              addressText={guestInviteLocation.address || undefined}
-              mapUrl={guestInviteLocation.mapUrl || undefined}
+              guestInviteVenue={guestBlockVenue}
+              guestInviteVenueLabel={guestBlockVenueDisplay || undefined}
+              addressText={guestBlockLocation.address || undefined}
+              mapUrl={guestBlockLocation.mapUrl || undefined}
               viewMapLabel={tx.guestInviteViewMap}
               theme={theme}
               invitationLabel={tx.invitation}
@@ -321,28 +359,28 @@ export default function WeddingPublicClient({
             </h1>
             {card.loveQuote && (
               <p className={cn('mx-auto mt-4 max-w-lg font-serif text-lg italic leading-7 sm:mt-5 sm:text-xl sm:leading-8', theme.accentText, theme.textGlow)}>
-                “{card.loveQuote}”
+                “{personalize(card.loveQuote)}”
               </p>
             )}
             <p className={cn('mx-auto mt-5 max-w-xl whitespace-pre-line text-sm leading-7 sm:mt-6 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}>
-              {displayInvitationText || tx.defaultInvitation}
+              {personalize(displayInvitationText || tx.defaultInvitation)}
             </p>
             {displayInvitationTextEn && (
               <p className={cn('mx-auto mt-3 max-w-xl whitespace-pre-line text-sm leading-7', theme.mutedText, theme.textGlow)}>
-                {displayInvitationTextEn}
+                {personalize(displayInvitationTextEn)}
               </p>
             )}
             {guestDisplayName && (
               <WeddingGuestInviteBlock
                 className="mx-auto mt-6 max-w-md"
                 guestName={guestDisplayName}
-                inviteVenue={guestDisplayVenue}
+                inviteVenue={guestBlockVenue}
                 cordiallyInvitesLabel={tx.cordiallyInvites}
-                venueLabel={guestInviteVenueDisplay}
+                venueLabel={guestBlockVenueDisplay}
                 weddingDateLabel={displayWeddingDateLabel || undefined}
-                weddingTimeText={guestInviteLocation.displayTime || weddingDisplayTime}
-                addressText={guestInviteLocation.address}
-                mapUrl={guestInviteLocation.mapUrl}
+                weddingTimeText={guestBlockLocation.displayTime || weddingDisplayTime}
+                addressText={guestBlockLocation.address}
+                mapUrl={guestBlockLocation.mapUrl}
                 viewMapLabel={tx.guestInviteViewMap}
                 panelClassName={theme.panelStrong}
                 cordiallyClassName={cn(theme.mutedText, theme.textGlow)}
@@ -409,7 +447,7 @@ export default function WeddingPublicClient({
             <WeddingReadableGlass theme={theme} strength="section" className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
               <p className={cn('text-[11px] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.32em]', theme.accentText, theme.textGlow)}>{tx.familiesIntro}</p>
               <div className="mt-6 flex flex-col gap-4">
-                {showGroomFamily && (groomFamilyLine || groomHometownLine.trim()) && (
+                {(groomFamilyLine.trim() || groomHometownLine.trim()) && (
                   <div className={cn('rounded-3xl p-4', theme.panelStrong)}>
                     <p className={cn('text-sm', theme.mutedText, theme.textGlow)}>{tx.groomFamily}</p>
                     <p className={cn('mt-1 whitespace-pre-line break-words font-serif text-lg sm:text-xl', theme.text, theme.textGlow)}>{groomFamilyLine}</p>
@@ -420,7 +458,7 @@ export default function WeddingPublicClient({
                     ) : null}
                   </div>
                 )}
-                {showBrideFamily && (brideFamilyLine || brideHometownLine.trim()) && (
+                {(brideFamilyLine.trim() || brideHometownLine.trim()) && (
                   <div className={cn('rounded-3xl p-4', theme.panelStrong)}>
                     <p className={cn('text-sm', theme.mutedText, theme.textGlow)}>{tx.brideFamily}</p>
                     <p className={cn('mt-1 whitespace-pre-line break-words font-serif text-lg sm:text-xl', theme.text, theme.textGlow)}>{brideFamilyLine}</p>
@@ -436,7 +474,12 @@ export default function WeddingPublicClient({
             <WeddingReadableGlass theme={theme} strength="section" className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
               <p className={cn('text-[11px] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.32em]', theme.accentText, theme.textGlow)}>{tx.coupleIntroTitle}</p>
               <p className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}>
-                {card.coupleIntro || card.storyText || tx.defaultCoupleIntro}
+                {renderWeddingHighlightedText(
+                  card.coupleIntro || card.storyText || tx.defaultCoupleIntro,
+                  textTokens,
+                  uiLocale,
+                  nameHighlightClass,
+                )}
               </p>
             </WeddingReadableGlass>
           </div>
@@ -458,6 +501,7 @@ export default function WeddingPublicClient({
                   tx={txCal}
                   textGlow={theme.textGlow}
                   className="mb-4"
+                  showCountdown={false}
                 />
               ) : displayWeddingDateLabel ? (
                 <p className="mb-4 text-lg font-semibold">
@@ -474,9 +518,20 @@ export default function WeddingPublicClient({
               </p>
               {guestInviteLocation.contact ? (
                 <p className={cn('mt-3 text-sm', theme.mutedText, theme.textGlow)}>
-                  Liên hệ: {guestInviteLocation.contact}
+                  {tx.contactLabel}: {guestInviteLocation.contact}
                 </p>
               ) : null}
+              <WeddingInvitationShareActions
+                className="mt-4"
+                calendar={calendarExportInput}
+                shareUrl={sharePageUrl}
+                tx={{
+                  addToGoogleCalendar: tx.addToGoogleCalendar,
+                  downloadCalendarFile: tx.downloadCalendarFile,
+                  shareZalo: tx.shareZalo,
+                }}
+                buttonClassName={theme.mapButton}
+              />
               {displayMapUrl && (
                 <>
                   <WeddingMapEmbed mapUrl={displayMapUrl} title={txMusic.publicMapEmbedTitle} className="mt-4" />
@@ -501,26 +556,38 @@ export default function WeddingPublicClient({
                 {tx.timelineTitle}
               </p>
               {displayTimeline.length > 0 ? (
-                <div className="mt-6 space-y-4">
-                  {displayTimeline.map((item, index) => (
-                    <div key={`${item.time}-${item.title}-${index}`} className="flex flex-col items-center gap-2 text-center sm:flex-row sm:items-start sm:text-left">
-                      <p className={cn('shrink-0 font-serif text-lg font-semibold tabular-nums', theme.accentText, theme.textGlow)}>
-                        {item.time || theme.ornament}
-                      </p>
-                      <div className={cn('w-full rounded-3xl p-4 sm:flex-1', theme.panelStrong)}>
-                        <p className={cn('font-semibold', theme.text, theme.textGlow)}>{item.title}</p>
-                        {item.note && <p className={cn('mt-1 text-sm', theme.mutedText, theme.textGlow)}>{item.note}</p>}
+                <div className="mt-6 space-y-3">
+                  {displayTimeline.map((item, index) => {
+                    const content = weddingTimelineItemContent(item)
+                    return (
+                      <div
+                        key={`${item.time}-${item.title}-${index}`}
+                        className={cn('rounded-3xl p-4 text-center sm:text-left', theme.panelStrong)}
+                      >
+                        <p className={cn('leading-relaxed', theme.text, theme.textGlow)}>
+                          {item.time ? (
+                            <span className={cn('font-serif font-semibold tabular-nums', theme.accentText, theme.textGlow)}>
+                              {item.time}
+                            </span>
+                          ) : null}
+                          {item.time && content ? (
+                            <span className={cn('mx-2 font-normal', theme.mutedText, theme.textGlow)}>·</span>
+                          ) : null}
+                          {content ? (
+                            <span className={cn(item.time ? 'font-medium' : 'font-semibold')}>{personalize(content)}</span>
+                          ) : null}
+                        </p>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
-                <p className={cn('mt-5 leading-8', theme.mutedText, theme.textGlow)}>{tx.defaultTimeline}</p>
+                <p className={cn('mt-5 leading-8', theme.mutedText, theme.textGlow)}>{personalize(tx.defaultTimeline)}</p>
               )}
               {displayDressCode && (
                 <div className={cn('mt-6 rounded-3xl p-4', theme.panelStrong)}>
                   <p className={cn('text-xs uppercase tracking-[0.24em]', theme.accentText, theme.textGlow)}>{tx.dressCodeTitle}</p>
-                  <p className={cn('mt-2 whitespace-pre-line', theme.text, theme.textGlow)}>{displayDressCode}</p>
+                  <p className={cn('mt-2 whitespace-pre-line', theme.text, theme.textGlow)}>{personalize(displayDressCode)}</p>
                 </div>
               )}
             </WeddingReadableGlass>
@@ -544,7 +611,9 @@ export default function WeddingPublicClient({
           <div className={PUBLIC_COLUMN}>
           {card.storyText && (
             <WeddingSectionCard theme={theme} title={tx.storyTitle}>
-              <p className={cn('whitespace-pre-line text-center leading-8', theme.mutedText, theme.textGlow)}>{card.storyText}</p>
+              <p className={cn('whitespace-pre-line text-center leading-8', theme.mutedText, theme.textGlow)}>
+                {renderWeddingHighlightedText(card.storyText, textTokens, uiLocale, nameHighlightClass)}
+              </p>
             </WeddingSectionCard>
           )}
           {card.albumImageUrls.length > 0 && (
@@ -584,7 +653,13 @@ export default function WeddingPublicClient({
                   <Label className={cn(theme.text, theme.textGlow)}>{tx.wishLabel}</Label>
                   <Textarea className="min-h-28" value={message} onChange={(e) => setMessage(e.target.value)} placeholder={tx.wishPlaceholder} />
                 </div>
-                <Button onClick={submit} disabled={submitting} className={cn('min-h-11 w-full rounded-full', theme.button)}>
+                <Button
+                  type="button"
+                  onClick={submit}
+                  disabled={submitting}
+                  variant="outline"
+                  className={cn('min-h-11 w-full rounded-full border-0 font-semibold', theme.button)}
+                >
                   {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                   {tx.submitResponse}
                 </Button>
@@ -592,9 +667,16 @@ export default function WeddingPublicClient({
             </WeddingSectionCard>
           )}
 
-          <WeddingSectionCard theme={theme} title={tx.wishesTitle}>
+          <WeddingSectionCard theme={theme} title={wishes.length === 0 ? undefined : tx.wishesTitle}>
             {wishes.length === 0 && (
-              <p className={cn('text-center text-sm', theme.mutedText, theme.textGlow)}>{tx.noWishes}</p>
+              <p className={cn('text-center text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}>
+                {renderWeddingHighlightedText(
+                  guestDisplayName ? tx.noWishesPersonal : tx.noWishes,
+                  textTokens,
+                  uiLocale,
+                  nameHighlightClass,
+                )}
+              </p>
             )}
             <div className="space-y-3">
               {wishes.map((wish) => (
@@ -615,7 +697,12 @@ export default function WeddingPublicClient({
             <Sparkles className={cn('mx-auto h-8 w-8', theme.accent, theme.textGlow)} />
             <h2 className={cn('mt-4 font-serif text-3xl font-semibold italic sm:text-4xl', theme.text, theme.textGlowHeading)}>{tx.thankYouTitle}</h2>
             <p className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}>
-              {displayThankYou || tx.defaultThankYou}
+              {renderWeddingHighlightedText(
+                displayThankYou || tx.defaultThankYou,
+                textTokens,
+                uiLocale,
+                nameHighlightClass,
+              )}
             </p>
             <p className={cn('mt-6 font-serif text-2xl sm:text-3xl', theme.accent, theme.textGlow)}>{theme.ornament}</p>
           </WeddingReadableGlass>

@@ -245,11 +245,13 @@ export default async function RootLayout({
   const currentPathWithQuery = readLoginNextFromHeaders((name) => headerStore.get(name));
   const [currentPathname = ""] = currentPathWithQuery.split("?");
   const isMessagingGuestPage = currentPathname.startsWith("/messaging/p/");
+  const isWeddingPublicPage = currentPathname.startsWith("/thiep-moi-cuoi/");
   const isCustomerOwnedSurface =
     isMessagingGuestPage ||
-    currentPathname.startsWith("/hospitality/p/");
-  /** Trang chat khách: luôn layout tối giản (giống nhúng iframe) — tránh Header/thanh dưới + cuộn kép trên server. */
-  const useMinimalEmbedLayout = isMessagingGuestPage;
+    currentPathname.startsWith("/hospitality/p/") ||
+    isWeddingPublicPage;
+  /** Trang chat khách / thiệp cưới công khai: layout tối giản — không Header, Footer, chat widget. */
+  const useMinimalEmbedLayout = isMessagingGuestPage || isWeddingPublicPage;
 
   const settings = await loadAdminIntegrationsSettings();
   const locale = getCurrentWebLocale()
@@ -355,7 +357,8 @@ export default async function RootLayout({
     !currentPathname.startsWith("/messaging/p/") &&
     !currentPathname.startsWith("/support-chat") &&
     !currentPathname.startsWith("/hospitality/") &&
-    !currentPathname.startsWith("/dashboard/hospitality");
+    !currentPathname.startsWith("/dashboard/hospitality") &&
+    !currentPathname.startsWith("/thiep-moi-cuoi/");
   const shouldRenderGlobalMetaPixel =
     Boolean(facebookPixelId) &&
     !isCustomerOwnedSurface

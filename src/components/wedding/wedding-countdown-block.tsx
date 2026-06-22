@@ -37,25 +37,26 @@ export function WeddingCountdownBlock({
     () => buildWeddingCountdownTarget(weddingDateIso, weddingTimeText, partyStartTime),
     [partyStartTime, weddingDateIso, weddingTimeText],
   )
-  const [now, setNow] = useState(() => new Date())
+  const [now, setNow] = useState<Date | null>(null)
 
   useEffect(() => {
+    setNow(new Date())
     if (!live) return
     const id = window.setInterval(() => setNow(new Date()), 1000)
     return () => window.clearInterval(id)
   }, [live])
 
   const label = useMemo(
-    () => formatCountdownRemaining(now, target, locale, tx),
+    () => (now ? formatCountdownRemaining(now, target, locale, tx) : ''),
     [locale, now, target, tx],
   )
 
   const past = useMemo(
-    () => (target ? diffCountdownParts(now, target).past : false),
+    () => (now && target ? diffCountdownParts(now, target).past : false),
     [now, target],
   )
 
-  if (!target || past) return null
+  if (!now || !target || past) return null
 
   const title = tx.countdownTitle ?? 'CÙNG ĐẾM NGƯỢC'
 
