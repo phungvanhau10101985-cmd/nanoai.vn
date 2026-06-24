@@ -56,6 +56,7 @@ import {
   resolveCoverPhotoUrl,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingCoverPresetPicker } from '@/components/wedding/wedding-cover-preset-picker'
+import { WeddingStylePresetPicker } from '@/components/wedding/wedding-style-preset-picker'
 import { WeddingCoverShellCard } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
@@ -65,51 +66,7 @@ import {
   normalizeGuestInviteVenue,
 } from '@/lib/wedding/wedding-guest-invite-venue'
 import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
-
-const STYLES = [
-  {
-    id: 'luxury',
-    label: 'Luxury / Sang trọng',
-    palette: 'champagne gold, ivory, blush pink',
-    preview: 'from-amber-100 via-white to-rose-100',
-    ornament: '✦',
-  },
-  {
-    id: 'minimal',
-    label: 'Minimal / Tối giản',
-    palette: 'warm white, sage, charcoal',
-    preview: 'from-stone-50 via-white to-emerald-100',
-    ornament: '—',
-  },
-  {
-    id: 'traditional_vietnamese',
-    label: 'Traditional Vietnamese / Truyền thống Việt Nam',
-    palette: 'red, gold, lotus pink',
-    preview: 'from-red-600 via-rose-500 to-amber-300',
-    ornament: '囍',
-  },
-  {
-    id: 'floral',
-    label: 'Floral / Hoa lá',
-    palette: 'rose, cream, eucalyptus green',
-    preview: 'from-pink-100 via-white to-emerald-100',
-    ornament: '❀',
-  },
-  {
-    id: 'vintage',
-    label: 'Vintage / Hoài cổ',
-    palette: 'sepia, dusty rose, antique gold',
-    preview: 'from-amber-200 via-orange-50 to-rose-200',
-    ornament: '❦',
-  },
-  {
-    id: 'modern',
-    label: 'Modern / Hiện đại',
-    palette: 'white, black, metallic gold',
-    preview: 'from-slate-950 via-slate-700 to-amber-300',
-    ornament: '◇',
-  },
-] as const
+import { getWeddingStylePreset, labelForWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
 
 /** Bản đồ từng preset vỏ thiệp → style AI + bảng màu, để chọn vỏ cũng đồng bộ phong cách sinh ảnh. */
 const COVER_PRESET_STYLE_MAP: Record<string, { styleId: string; palette: string }> = {
@@ -338,7 +295,7 @@ function emptyBrief(styleId = 'luxury'): WeddingCard {
     musicPlayStartSec: null,
     musicPlayEndSec: null,
     selectedStyleId: styleId,
-    colorPalette: STYLES.find((s) => s.id === styleId)?.palette ?? '',
+    colorPalette: getWeddingStylePreset(styleId).palette,
     masterImageId: null,
     rsvpEnabled: true,
     giftQrEnabled: false,
@@ -394,6 +351,7 @@ export default function WeddingCardAiClientPage() {
   const txGift = useMemo(() => getDictionary(uiLocale).weddingGiftBox, [uiLocale])
   const tBrief = useMemo(() => getDictionary(uiLocale).weddingCardAiBrief, [uiLocale])
   const tImage = useMemo(() => getDictionary(uiLocale).weddingCardAiImage, [uiLocale])
+  const txStyle = useMemo(() => getDictionary(uiLocale).weddingCardAiStyle, [uiLocale])
   const txCover = useMemo(() => getDictionary(uiLocale).weddingCardAiCover, [uiLocale])
   const txPublic = useMemo(() => getDictionary(uiLocale).weddingCardPublic, [uiLocale])
   const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
@@ -471,7 +429,7 @@ export default function WeddingCardAiClientPage() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- chỉ hydrate thiệp một lần khi mở trang
 
-  const selectedStyle = STYLES.find((style) => style.id === card.selectedStyleId) ?? STYLES[0]
+  const selectedStylePreset = useMemo(() => getWeddingStylePreset(card.selectedStyleId), [card.selectedStyleId])
   const selectedTheme = useMemo(() => getWeddingTheme(card.selectedStyleId), [card.selectedStyleId])
   const masterImage = images.find((image) => image.id === card.masterImageId) ?? images.find((image) => image.type === 'master')
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
@@ -954,36 +912,18 @@ export default function WeddingCardAiClientPage() {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>1. Chọn phong cách</CardTitle>
-                <CardDescription>Chỉ chọn preset/thumbnail có sẵn, không gọi API và không tốn credit.</CardDescription>
+                <CardTitle>{txStyle.sectionTitle}</CardTitle>
+                <CardDescription>{txStyle.sectionDescription}</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-2">
-                {STYLES.map((style) => (
-                  <button
-                    key={style.id}
-                    type="button"
-                    onClick={() => {
-                      update('selectedStyleId', style.id)
-                      update('colorPalette', style.palette)
-                    }}
-                    className={cn(
-                      'rounded-2xl border p-4 text-left transition hover:border-rose-300 hover:bg-rose-50',
-                      card.selectedStyleId === style.id && 'border-rose-500 bg-rose-50 ring-2 ring-rose-100'
-                    )}
-                  >
-                    <div className={cn('relative h-28 overflow-hidden rounded-xl bg-gradient-to-br shadow-inner', style.preview)}>
-                      <div className="absolute inset-3 rounded-xl border border-white/70" />
-                      <div className="absolute -left-8 -top-8 h-24 w-24 rounded-full bg-white/35 blur-xl" />
-                      <div className="absolute -bottom-10 -right-8 h-28 w-28 rounded-full bg-white/30 blur-xl" />
-                      <div className="absolute inset-x-0 top-1/2 text-center font-serif text-4xl text-white/90 drop-shadow">
-                        {style.ornament}
-                      </div>
-                      <div className="absolute bottom-3 left-3 right-3 h-8 rounded-full bg-white/35 backdrop-blur-sm" />
-                    </div>
-                    <p className="mt-3 font-semibold">{style.label}</p>
-                    <p className="text-xs text-muted-foreground">{style.palette}</p>
-                  </button>
-                ))}
+              <CardContent>
+                <WeddingStylePresetPicker
+                  locale={uiLocale}
+                  selectedId={card.selectedStyleId}
+                  onSelect={(styleId, palette) => {
+                    update('selectedStyleId', styleId)
+                    update('colorPalette', palette)
+                  }}
+                />
               </CardContent>
             </Card>
 
@@ -1619,7 +1559,9 @@ export default function WeddingCardAiClientPage() {
                         {(card.musicUrl || musicFile) && !musicClearOnSave ? (
                           <span className={cn('rounded-full px-3 py-1', selectedTheme.panelStrong)}>Có nhạc nền</span>
                         ) : null}
-                        <span className={cn('rounded-full px-3 py-1', selectedTheme.panelStrong)}>{selectedStyle.label}</span>
+                        <span className={cn('rounded-full px-3 py-1', selectedTheme.panelStrong)}>
+                          {labelForWeddingStylePreset(uiLocale, selectedStylePreset)}
+                        </span>
                       </div>
                     </WeddingReadableGlass>
                   </div>

@@ -1986,6 +1986,10 @@ export type Dictionary = {
     customReferenceUrlPlaceholder: string
     customReferenceEmpty: string
   }
+  weddingCardAiStyle: {
+    sectionTitle: string
+    sectionDescription: string
+  }
   weddingCardAiCover: {
     sectionTitle: string
     sectionDescription: string
@@ -4224,6 +4228,11 @@ const VI_DICTIONARY: Dictionary = {
     customReferenceUrlPlaceholder: 'Hoặc dán URL ảnh tham khảo (https://...)',
     customReferenceEmpty: 'Chưa chọn ảnh tham khảo',
   },
+  weddingCardAiStyle: {
+    sectionTitle: '1. Chọn phong cách',
+    sectionDescription:
+      'Chọn chủ đề màu và cảm giác cho nền AI — miễn phí, không tốn credit. Mỗi phong cách có thumbnail mô phỏng để dễ nhận biết.',
+  },
   weddingCardAiCover: {
     sectionTitle: '1b. Chọn vỏ thiệp',
     sectionDescription:
@@ -6458,6 +6467,11 @@ const EN_DICTIONARY: Dictionary = {
     customReferenceUrlPlaceholder: 'Or paste a reference image URL (https://...)',
     customReferenceEmpty: 'No reference image selected',
   },
+  weddingCardAiStyle: {
+    sectionTitle: '1. Choose style',
+    sectionDescription:
+      'Pick the color theme and mood for AI backgrounds — free, no credits. Each style has a mockup thumbnail so you can tell them apart.',
+  },
   weddingCardAiCover: {
     sectionTitle: '1b. Choose cover shell',
     sectionDescription:
@@ -8613,6 +8627,11 @@ const ZH_DICTIONARY: Dictionary = {
     customReferenceRemove: '移除图片',
     customReferenceUrlPlaceholder: '或粘贴参考图 URL（https://...）',
     customReferenceEmpty: '尚未选择参考图',
+  },
+  weddingCardAiStyle: {
+    sectionTitle: '1. 选择风格',
+    sectionDescription:
+      '选择 AI 背景的色彩主题与氛围——免费、不消耗积分。每种风格都有模拟缩略图，便于区分。',
   },
   weddingCardAiCover: {
     sectionTitle: '1b. 选择请柬封面',
@@ -10827,6 +10846,11 @@ const JA_DICTIONARY: Dictionary = {
     customReferenceUrlPlaceholder: 'または参考画像の URL を貼り付け（https://...）',
     customReferenceEmpty: '参考画像が未選択です',
   },
+  weddingCardAiStyle: {
+    sectionTitle: '1. スタイルを選ぶ',
+    sectionDescription:
+      'AI 背景の色テーマと雰囲気を選びます（無料・クレジット不要）。各スタイルに模擬サムネイルがあり、見分けやすくなっています。',
+  },
   weddingCardAiCover: {
     sectionTitle: '1b. 表紙を選ぶ',
     sectionDescription:
@@ -13033,6 +13057,11 @@ const KO_DICTIONARY: Dictionary = {
     customReferenceRemove: '이미지 제거',
     customReferenceUrlPlaceholder: '또는 참조 이미지 URL 붙여넣기 (https://...)',
     customReferenceEmpty: '참조 이미지가 선택되지 않았습니다',
+  },
+  weddingCardAiStyle: {
+    sectionTitle: '1. 스타일 선택',
+    sectionDescription:
+      'AI 배경의 색 테마와 분위기를 고릅니다(무료·크레딧 없음). 각 스타일마다 구분하기 쉬운 미리보기 썸네일이 있습니다.',
   },
   weddingCardAiCover: {
     sectionTitle: '1b. 표지 선택',
