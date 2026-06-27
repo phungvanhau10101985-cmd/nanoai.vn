@@ -5,6 +5,7 @@ import { useWebLocaleFromDocumentCookie } from '@/hooks/use-web-locale-from-cook
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
+import { rewriteLegacyBunnyCdnUrl } from '@/lib/bunny-cdn-url'
 import { Maximize2, X } from 'lucide-react'
 
 interface CompareSliderProps {
@@ -160,6 +161,8 @@ export function CompareSlider({
   className,
   autoMobileFullscreen = true,
 }: CompareSliderProps) {
+  const resolvedBefore = rewriteLegacyBunnyCdnUrl(before)
+  const resolvedAfter = rewriteLegacyBunnyCdnUrl(after)
   const uiLocale = useWebLocaleFromDocumentCookie()
   const [position, setPosition] = useState(50)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -224,8 +227,8 @@ export function CompareSlider({
     <div className="fixed inset-0 z-[2147483647] flex h-[100dvh] min-h-[100dvh] w-screen max-w-[100vw] flex-col overflow-hidden bg-black overscroll-none">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <SliderContent
-          before={before}
-          after={after}
+          before={resolvedBefore}
+          after={resolvedAfter}
           beforeLabel={finalBeforeLabel}
           afterLabel={finalAfterLabel}
           position={position}
