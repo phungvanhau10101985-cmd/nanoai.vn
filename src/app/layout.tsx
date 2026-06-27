@@ -14,6 +14,7 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { DepositCreditProvider } from "@/components/deposit-credit-context";
 import { buildMetadata, buildJsonLdWebApplication, buildJsonLdOrganization, SITE_URL, SITE_NAME } from "@/lib/seo";
+import { getBunnyPublicBase } from "@/lib/bunny-cdn-url";
 import { JsonLd } from "@/components/seo-json-ld";
 import { readLoginNextFromHeaders } from '@/lib/auth/app-request-headers'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
@@ -364,10 +365,12 @@ export default async function RootLayout({
     !isCustomerOwnedSurface
   const shouldRenderGlobalGoogleTags = !isCustomerOwnedSurface
   const shouldRenderNanoAiSiteTags = !isCustomerOwnedSurface
+  const bunnyCdnOrigin = getBunnyPublicBase()
 
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
+        {bunnyCdnOrigin ? <link rel="preconnect" href={bunnyCdnOrigin} crossOrigin="anonymous" /> : null}
         {shouldRenderNanoAiSiteTags
           ? metaTags.map((tag, index) =>
               tag.name ? (

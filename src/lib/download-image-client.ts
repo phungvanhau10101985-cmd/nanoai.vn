@@ -2,6 +2,8 @@
  * Tải ảnh từ URL trên client — dùng proxy same-origin cho CDN ngoài để tránh CORS.
  */
 
+import { rewriteLegacyBunnyCdnUrl } from '@/lib/bunny-cdn-url'
+
 export function isRestrictedInAppBrowser(): boolean {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''
@@ -29,8 +31,9 @@ function isSameOriginUrl(url: string): boolean {
 
 /** URL fetch same-origin (proxy server khi ảnh nằm trên CDN khác). */
 export function resolveImageDownloadFetchUrl(imageUrl: string): string {
-  if (!imageUrl || isBlobOrDataUrl(imageUrl) || isSameOriginUrl(imageUrl)) return imageUrl
-  return `/api/fetch-image?url=${encodeURIComponent(imageUrl)}`
+  const rewritten = rewriteLegacyBunnyCdnUrl(imageUrl)
+  if (!rewritten || isBlobOrDataUrl(rewritten) || isSameOriginUrl(rewritten)) return rewritten
+  return `/api/fetch-image?url=${encodeURIComponent(rewritten)}`
 }
 
 function triggerBlobDownload(blob: Blob, filename: string): void {

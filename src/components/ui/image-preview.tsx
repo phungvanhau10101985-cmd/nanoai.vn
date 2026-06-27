@@ -20,6 +20,7 @@ import {
 import { getPresetsForAspectRatio, inferAspectRatioFromDimensions } from '@/lib/print-ready-presets'
 import { generatePrintReadyPdf } from '@/app/actions/print-ready'
 import { downloadImageFromUrl } from '@/lib/download-image-client'
+import { rewriteLegacyBunnyCdnUrl } from '@/lib/bunny-cdn-url'
 import { useToast } from '@/hooks/use-toast'
 
 const IMAGE_PREVIEW_MENU_Z = 'z-[2147483647]'
@@ -36,6 +37,7 @@ interface ImagePreviewProps {
 
 export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg }: ImagePreviewProps) {
   const uiLocale = useWebLocaleFromDocumentCookie()
+  const resolvedSrc = rewriteLegacyBunnyCdnUrl(src)
   const [isOpen, setIsOpen] = useState(false)
   const [inferredAspectRatio, setInferredAspectRatio] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
@@ -57,7 +59,7 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
 
   useEffect(() => {
     setInferredAspectRatio(null)
-  }, [src])
+  }, [resolvedSrc])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -101,10 +103,10 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
   }
 
   const handleDownload = async (format: 'png' | 'jpeg') => {
-    if (!src) return
+    if (!resolvedSrc) return
     setDownloadLoading(true)
     try {
-      await downloadImageFromUrl(src, format, alt || 'image')
+      await downloadImageFromUrl(resolvedSrc, format, alt || 'image')
     } catch {
       toast({
         title: tr('Không tải được ảnh', 'Could not download image', '无法下载图片', '画像をダウンロードできません', '이미지를 다운로드할 수 없습니다'),
@@ -132,10 +134,10 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
   }
 
   const handlePrintReadyPdf = async (widthMm: number, heightMm: number) => {
-    if (!src) return
+    if (!resolvedSrc) return
     setPdfLoading(true)
     try {
-      const result = await generatePrintReadyPdf(src, widthMm, heightMm)
+      const result = await generatePrintReadyPdf(resolvedSrc, widthMm, heightMm)
       if ('error' in result) {
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
         return
@@ -164,7 +166,7 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
             aria-label={tr('Xem ảnh phóng to', 'View enlarged image', '查看大图', '拡大画像を表示', '확대 이미지 보기')}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- supports blob/data URL and cross-origin-safe preview */}
-            <img src={src} alt={alt} className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" />
+            <img src={resolvedSrc} alt={alt} className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
               <Maximize2 className="text-white w-6 h-6 drop-shadow-md" />
             </div>
@@ -176,7 +178,7 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
             aria-label={tr('Xem ảnh phóng to', 'View enlarged image', '查看大图', '拡大画像を表示', '확대 이미지 보기')}
           >
             <Image
-              src={src}
+              src={resolvedSrc}
               alt={alt}
               fill
               className="object-cover transition-transform duration-300 group-hover:scale-105"
@@ -206,7 +208,7 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className={IMAGE_PREVIEW_MENU_Z}>
-                <DropdownMenuItem onClick={() => window.open(src, '_blank', 'noopener,noreferrer')}>
+                <DropdownMenuItem onClick={() => window.open(resolvedSrc, '_blank', 'noopener,noreferrer')}>
                   <ExternalLink className="h-3 w-3 mr-2" />
                   {tr('Mở ảnh full size (tab mới)', 'Open full size (new tab)', '新标签页打开大图', '新タブで実寸表示', '새 탭에서 실제 크기')}
                 </DropdownMenuItem>
@@ -256,7 +258,7 @@ export function ImagePreview({ src, alt, className, printReadyAspectRatio, asImg
           {/* eslint-disable-next-line @next/next/no-img-element -- full-screen preview; download via /api/fetch-image proxy */}
           <img
             ref={imageRef}
-            src={src}
+            src={resolvedSrc}
             alt={alt}
             className="h-full max-h-full w-full max-w-full object-contain"
             onLoad={handleImageLoad}

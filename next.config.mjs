@@ -45,16 +45,6 @@ const bunnyImagePatterns = bunnyPullZoneHost
       ]
     : [];
 
-/** CDN công khai (ảnh kết quả / sticker) — dùng icon tính năng Giáo trình. */
-const nanoaiBcdnImagePatterns = [
-    {
-        protocol: 'https',
-        hostname: 'nanoai.b-cdn.net',
-        port: '',
-        pathname: '/**',
-    },
-];
-
 /** VPS RAM thấp: SKIP_ESLINT_ON_BUILD=1 (mặc định qua `npm run build` → scripts/build-lowmem.mjs). */
 const skipEslintOnBuild = process.env.SKIP_ESLINT_ON_BUILD === '1'
 /** Chỉ bật trên VPS khi vẫn OOM ở bước TypeScript — ưu tiên thêm swap; CI nên dùng `npm run build:full`. */
@@ -107,7 +97,6 @@ const nextConfig = {
                 pathname: '/image/**',
             },
             ...bunnyImagePatterns,
-            ...nanoaiBcdnImagePatterns,
         ],
     },
     // Tắt webpack cache có thể gây lỗi clientModules trên Windows

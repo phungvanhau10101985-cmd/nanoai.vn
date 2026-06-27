@@ -1,5 +1,7 @@
 'use client'
 
+import { rewriteLegacyBunnyCdnUrl } from '@/lib/bunny-cdn-url'
+
 interface ToolIconImageProps {
   src: string
   className?: string
@@ -7,7 +9,8 @@ interface ToolIconImageProps {
 }
 
 export function ToolIconImage({ src, className, priority = false }: ToolIconImageProps) {
-  const fullFrameSrc = src.endsWith('.webp') ? src.replace(/\.webp$/, '-full.webp') : src
+  const resolvedSrc = rewriteLegacyBunnyCdnUrl(src)
+  const fullFrameSrc = resolvedSrc.endsWith('.webp') ? resolvedSrc.replace(/\.webp$/, '-full.webp') : resolvedSrc
   return (
     <span
       className={`flex w-full aspect-square items-center justify-center rounded-none sm:rounded-lg overflow-hidden ${className ?? ''}`}

@@ -1,6 +1,7 @@
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { getDictionary, type NavGroupKey } from '@/lib/i18n/dictionaries'
 import { AI_TOOLS, NAV_GROUPS } from '@/lib/nav-config'
+import { rewriteLegacyBunnyCdnUrl } from '@/lib/bunny-cdn-url'
 import imageOverridesRaw from '@/lib/catalog/nanoai-catalog-feature-image-overrides.json'
 import { toNanoAiFeatureCatalogIdFromHref } from '@/lib/catalog/nanoai-feature-catalog-id'
 
@@ -136,7 +137,8 @@ function normalizeToolImagePath(path: string): string {
 }
 
 function pickImagePathForToolHref(href: string): string {
-  return normalizeToolImagePath(IMAGE_OVERRIDES[href] || TOOL_IMAGE_BY_HREF[href] || TOOL_ICON_FALLBACK)
+  const raw = normalizeToolImagePath(IMAGE_OVERRIDES[href] || TOOL_IMAGE_BY_HREF[href] || TOOL_ICON_FALLBACK)
+  return rewriteLegacyBunnyCdnUrl(raw)
 }
 
 function buildGroupByHrefMap(): Map<string, NavGroupKey> {
@@ -207,9 +209,10 @@ function csvEscapeCell(value: string): string {
 
 function toAbsoluteUrl(origin: string, path: string): string {
   const absolute = String(path || '').trim()
-  if (/^https?:\/\//i.test(absolute)) return absolute
+  const rewritten = rewriteLegacyBunnyCdnUrl(absolute)
+  if (/^https?:\/\//i.test(rewritten)) return rewritten
   const base = origin.replace(/\/$/, '')
-  const p = path.startsWith('/') ? path : `/${path}`
+  const p = rewritten.startsWith('/') ? rewritten : `/${rewritten}`
   return `${base}${p}`
 }
 
