@@ -48,6 +48,7 @@ import {
 import { useVietQrBanks } from '@/hooks/use-vietqr-banks'
 import { getWeddingTheme, weddingBackgroundStyle, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
+import { EMPTY_WEDDING_SIDE_INVITE_SETTINGS } from '@/lib/wedding/wedding-side-invite-settings'
 import {
   mergeWeddingSectionConfig,
   parseWeddingSectionConfig,
@@ -289,6 +290,9 @@ function emptyBrief(styleId = 'luxury'): WeddingCard {
     brideParents: '',
     groomHometown: '',
     brideHometown: '',
+    ...EMPTY_WEDDING_SIDE_INVITE_SETTINGS,
+    groomInviteWeddingDate: null,
+    brideInviteWeddingDate: null,
     groomImageUrl: '',
     brideImageUrl: '',
     musicUrl: '',
