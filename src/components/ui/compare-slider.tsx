@@ -258,8 +258,8 @@ export function CompareSlider({
       {!isFullscreen ? (
         <div className={cn('relative aspect-video overflow-hidden rounded-lg border select-none', className)}>
           <SliderContent
-            before={before}
-            after={after}
+            before={resolvedBefore}
+            after={resolvedAfter}
             beforeLabel={finalBeforeLabel}
             afterLabel={finalAfterLabel}
             position={position}
