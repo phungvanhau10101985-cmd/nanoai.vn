@@ -38,7 +38,7 @@ import {
   fetchInventoryRowsSimilarToAnchorProductImage,
   fetchInventoryRowsSimilarToExternalImageUrl,
 } from '@/lib/messaging/partner-gemini-image-search'
-import { enrichInventoryRowsWithMaterialIfNeeded } from '@/lib/messaging/partner-inventory-material-enrichment'
+import { dedupeRowsById, enrichInventoryRowsWithMaterialIfNeeded } from '@/lib/messaging/partner-inventory-material-enrichment'
 import {
   enrichInventoryMaterialDetailCollageIfNeeded,
   type PartnerMaterialDetailFollowup,

@@ -7,7 +7,7 @@ import { useState, useRef, ChangeEvent, useEffect, useCallback, useMemo } from '
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { analyzeInterior, applyInteriorChanges } from './actions'
+import { analyzeInterior, applyInteriorChanges, type ApplyInteriorChangesResult } from './actions'
 import { ARCH_THEMES, MAIN_COLORS, APPLY_COSTS, ANALYZE_CREDIT, ROOM_TYPES, INTERIOR_STYLES, DOOR_TYPE_OPTIONS, WINDOW_TYPE_OPTIONS, WALL_TYPE_OPTIONS, FURNITURE_STAGING_MODES, FURNITURE_ITEMS, EXTERIOR_FURNITURE_ITEMS, FURNITURE_MATERIALS, FURNITURE_COLORS, FURNITURE_STYLE_OPTIONS, EXTERIOR_POSITION_OPTIONS, POOL_SHAPE_OPTIONS, POOL_ORIENTATION_OPTIONS, getMainColorLabel, getArchThemeLabel, getRoomTypeLabel, getInteriorStyleLabel, getFurnitureCategoryLabel, getOptionLabel, getFurnitureItemLabel } from './constants'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
@@ -30,6 +30,11 @@ const DRAFT_KEY = 'thiet-ke-noi-ngoai-that-draft'
 
 /** Lớn hơn INTERIOR_AI_TIMEOUT_MS (300s mặc định server) để chừa phần tải FormData ảnh (điện thoại hay chật). */
 const CLIENT_APPLY_INTERIOR_TIMEOUT_MS = 420_000
+
+function interiorResultUrls(result: ApplyInteriorChangesResult, fallbackUrl: string): string[] {
+  if ('resultUrls' in result && result.resultUrls.length > 0) return result.resultUrls
+  return [fallbackUrl]
+}
 
 type Step = 'UPLOAD' | 'FULL_REDESIGN' | 'ANALYZING' | 'EDITING' | 'GENERATING' | 'RESULT'
 type ItemAction = 'keep' | 'redesign' | 'delete'
@@ -570,7 +575,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
         },
         onSuccessWithUrl: (url) => {
           setResultUrl(url)
-          setResultUrls(result.resultUrls || [url])
+          setResultUrls(interiorResultUrls(result, url))
           setStep('RESULT')
           refreshCredits()
           toast({
@@ -670,7 +675,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
         },
         onSuccessWithUrl: (url) => {
           setResultUrl(url)
-          setResultUrls(result.resultUrls || [url])
+          setResultUrls(interiorResultUrls(result, url))
           setStep('RESULT')
           refreshCredits()
           toast({
@@ -755,7 +760,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
         },
         onSuccessWithUrl: (url) => {
           setResultUrl(url)
-          setResultUrls(result.resultUrls || [url])
+          setResultUrls(interiorResultUrls(result, url))
           setRotationHistory((prev) => (prev.length === 0 ? [displayImage || currentImageUrl || '', url] : [...prev, url]))
           setRotationHistoryIndex((prev) => (prev === 0 ? 1 : prev + 1))
           setStep('RESULT')
@@ -836,7 +841,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
         },
         onSuccessWithUrl: (url) => {
           setResultUrl(url)
-          setResultUrls(result.resultUrls || [url])
+          setResultUrls(interiorResultUrls(result, url))
           setStep('RESULT')
           refreshCredits()
           toast({
