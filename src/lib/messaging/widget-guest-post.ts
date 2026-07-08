@@ -829,6 +829,7 @@ export async function postWidgetGuestMessage(params: {
             externalThreadId: params.externalThreadId,
             customerName: params.customerName,
             linkedUserId,
+            guestAccountId: params.guestAccountId ?? null,
             metadata: params.metadata,
           })
           if ('conversationId' in convEarly) {
@@ -890,6 +891,7 @@ export async function postWidgetGuestMessage(params: {
     externalThreadId: params.externalThreadId,
     customerName: params.customerName,
     linkedUserId,
+    guestAccountId: params.guestAccountId ?? null,
     metadata: params.metadata,
   })
   if ('error' in conv) return { error: conv.error ?? 'Conversation error.' }

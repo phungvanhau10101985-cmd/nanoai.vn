@@ -14,6 +14,7 @@ export async function ensureConversation(params: {
   customerName?: string | null
   customerAvatarUrl?: string | null
   linkedUserId?: string | null
+  guestAccountId?: string | null
   metadata?: Json
 }): Promise<{ conversationId: string } | { error: string }> {
   if (!isPgConfigured()) {

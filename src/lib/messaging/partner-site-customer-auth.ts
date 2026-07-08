@@ -19,6 +19,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
 import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { readGuestSessionIdFromRequestStrictOrLoose } from '@/lib/messaging/guest-auth-session'
+import { syncGuestConversationCustomerNamesForAccountPg } from '@/lib/db/customer-care-pg'
 import { PARTNER_SITE_CUSTOMER_TOKEN_MAX_TTL_SEC } from '@/lib/messaging/partner-site-customer-auth-constants'
 
 export {
@@ -205,6 +206,12 @@ export async function authenticatePartnerSiteCustomer(params: {
   if (authUserIdForEmail && authUserIdForEmail !== accountId) {
     await mergeGuestSessionConversationToAccount(partnerId, authUserIdForEmail, accountId)
   }
+
+  await syncGuestConversationCustomerNamesForAccountPg({
+    partnerId,
+    guestAccountId: accountId,
+    customerNameHint: name ?? null,
+  })
 
   let sessionToken: string | null = null
   let emailSessionIssued = false

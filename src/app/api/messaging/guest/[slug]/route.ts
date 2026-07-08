@@ -1,4 +1,3 @@
-import type { AppUser } from '@/lib/auth/app-user'
 import {
   EMAIL_SESSION_COOKIE,
   EMAIL_SESSION_COOKIE_LEGACY,
@@ -15,7 +14,8 @@ import {
   type WidgetGuestImageBatchItemResult,
 } from '@/lib/messaging/widget-guest-post'
 import { insertMessage } from '@/lib/customer-care/conversation-service'
-import { applyGuestIdentityToResponse, mirrorGuestSessionToClient } from '@/lib/messaging/guest-auth-session'
+import { resolveGuestCustomerDisplayName } from '@/lib/messaging/guest-customer-display-name'
+import { applyGuestIdentityToResponse } from '@/lib/messaging/guest-auth-session'
 import {
   getHospitalityGuestThread,
   postHospitalityGuestThread,
@@ -149,16 +149,6 @@ async function resolvePartner(slug: string) {
   const active = await resolveActiveMessagingPartnerBySlug(slug)
   if (!active) return { error: 'not_found' as const }
   return { partnerId: active.id, displayName: active.display_name, industryKey: active.industry_key }
-}
-
-function guestCustomerName(displayName: string, user: AppUser | null) {
-  const meta = (user?.user_metadata as Record<string, unknown> | undefined) ?? undefined
-  const fullName = typeof meta?.full_name === 'string' ? meta.full_name : typeof meta?.name === 'string' ? meta.name : ''
-  const email = user?.email?.trim() ?? ''
-  const sessionLabel = !user ? 'Guest' : ''
-  const label = (fullName || email || sessionLabel || 'Guest').trim().slice(0, 48)
-  const shopShort = displayName.trim().slice(0, 36) || 'Shop'
-  return `${label} · ${shopShort}`
 }
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
@@ -371,7 +361,14 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     partnerId,
     externalThreadId: effectiveExternalThreadId,
     linkedUserId: identity.linkedUserId,
-    customerName: guestCustomerName(displayName, identity.user),
+    customerName: await resolveGuestCustomerDisplayName({
+      partnerId,
+      shopDisplayName: displayName,
+      user: identity.user,
+      guestAccountId: effectiveGuestAccountId,
+      linkedUserId: identity.linkedUserId,
+      externalThreadId: effectiveExternalThreadId,
+    }),
     uiLocale: typeof body?.uiLocale === 'string' ? body.uiLocale : undefined,
     metadata: {
       source: 'hosted_chat_page',

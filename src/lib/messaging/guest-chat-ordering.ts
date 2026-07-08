@@ -456,6 +456,7 @@ export async function createOrderDraftFromProductPick(input: {
     externalThreadId: input.externalThreadId,
     customerName: firstLine(input.customerName),
     linkedUserId: input.linkedUserId ?? null,
+    guestAccountId: input.guestAccountId ?? null,
     metadata: { source: 'hosted_chat_page', auth_mode: input.guestAccountId ? 'account' : 'anonymous' },
   })
   if (!conv?.conversationId) return { error: 'Không tạo được hội thoại.' }
@@ -737,6 +738,7 @@ export async function completeCartCheckout(input: {
     externalThreadId: input.externalThreadId,
     customerName: firstLine(input.customerName || input.form.customerEmail || 'Guest'),
     linkedUserId: input.linkedUserId ?? null,
+    guestAccountId: input.guestAccountId ?? null,
     metadata: { source: 'hosted_chat_page', auth_mode: input.guestAccountId ? 'account' : 'anonymous' },
   })
   if (!conv?.conversationId) return { error: 'Không tạo được hội thoại.' }

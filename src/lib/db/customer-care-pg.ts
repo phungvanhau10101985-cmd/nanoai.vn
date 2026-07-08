@@ -5,6 +5,12 @@ import type { CustomerCareChannel } from '@/lib/customer-care/types'
 import { authUserIdExistsInPg } from '@/lib/db/auth-user-email-pg'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import {
+  buildGuestConversationCustomerName,
+  enrichStoredConversationCustomerName,
+  isGenericGuestAccountLabel,
+  resolveGuestAccountLabelFromPg,
+} from '@/lib/messaging/guest-customer-display-name'
 
 /** Chỉ trả về id khi có hàng trong `auth.users` — tránh FK 23503 (session/JWT lệch DB local). */
 export async function resolveLinkedUserIdForCustomerCarePg(
@@ -34,7 +40,7 @@ function isoTimestampRequired(v: unknown): string {
 function mapConversationRow(r: Record<string, unknown>): CustomerCareConversationRow {
   const ch = String(r.channel ?? '')
   const st = String(r.status ?? 'open')
-  return {
+  const base: CustomerCareConversationRow = {
     id: String(r.id),
     partner_id: String(r.partner_id),
     channel: ch as CustomerCareConversationRow['channel'],
@@ -51,7 +57,38 @@ function mapConversationRow(r: Record<string, unknown>): CustomerCareConversatio
     created_at: isoTimestampRequired(r.created_at),
     updated_at: isoTimestampRequired(r.updated_at),
   }
+  if ('resolved_account_label' in r || 'partner_display_name' in r) {
+    base.customer_name = enrichStoredConversationCustomerName({
+      storedName: base.customer_name,
+      resolvedAccountLabel:
+        r.resolved_account_label != null ? String(r.resolved_account_label) : null,
+      partnerDisplayName: r.partner_display_name != null ? String(r.partner_display_name) : null,
+    })
+  }
+  return base
 }
+
+const CONVERSATION_ACCOUNT_RESOLVE_JOINS = `
+  left join public.messaging_partners mp on mp.id = c.partner_id
+  left join public.messaging_guest_accounts ga on ga.partner_id = c.partner_id
+    and (
+      ga.id::text = c.external_thread_id
+      or (c.guest_account_id is not null and ga.id = c.guest_account_id)
+    )
+  left join public.messaging_partner_customer_profiles cp on cp.partner_id = c.partner_id
+    and cp.email_normalized = ga.email_normalized
+  left join public.profiles pr on pr.id = c.linked_user_id
+  left join auth.users au on au.id = c.linked_user_id
+`
+
+const RESOLVED_ACCOUNT_LABEL_SQL = `
+  coalesce(
+    nullif(trim(cp.customer_name), ''),
+    nullif(trim(pr.full_name), ''),
+    nullif(trim(split_part(coalesce(ga.email_raw, au.email, ''), '@', 1)), ''),
+    nullif(trim(coalesce(ga.email_raw, au.email)), '')
+  )
+`
 
 function mapMessageRow(r: Record<string, unknown>): CustomerCareMessageRow {
   const dir = String(r.direction ?? 'inbound')
@@ -76,6 +113,7 @@ export async function ensureConversationPg(params: {
   customerName?: string | null
   customerAvatarUrl?: string | null
   linkedUserId?: string | null
+  guestAccountId?: string | null
   metadata?: Json
 }): Promise<{ conversationId: string } | null> {
   if (!isPgConfigured()) return null
@@ -87,14 +125,22 @@ export async function ensureConversationPg(params: {
     customerName,
     customerAvatarUrl,
     linkedUserId,
+    guestAccountId,
     metadata,
   } = params
 
   /** Một lần SELECT auth.users — widget có thể đã resolve sớm cho AI/giới hạn ẩn danh (gọi lại an toàn). */
   const effectiveLinkedUserId = await resolveLinkedUserIdForCustomerCarePg(linkedUserId)
+  const effectiveGuestAccountId = guestAccountId?.trim() || null
 
-  const existing = await pgQueryOne<{ id: string; linked_user_id: string | null }>(
-    `select id::text as id, linked_user_id::text as linked_user_id
+  const existing = await pgQueryOne<{
+    id: string
+    linked_user_id: string | null
+    customer_name: string | null
+    guest_account_id: string | null
+  }>(
+    `select id::text as id, linked_user_id::text as linked_user_id,
+            customer_name, guest_account_id::text as guest_account_id
      from public.customer_care_conversations
      where partner_id = $1::uuid and channel = $2 and external_thread_id = $3
      limit 1`,
@@ -103,13 +149,27 @@ export async function ensureConversationPg(params: {
 
   if (existing?.id) {
     const patch: Record<string, unknown> = {}
-    if (customerName != null && customerName !== '') patch.customer_name = customerName
+    if (customerName != null && customerName !== '') {
+      const storedHead = String(existing.customer_name ?? '').split('·')[0]?.split('-')[0]
+      const incomingHead = customerName.split('·')[0]?.split('-')[0]
+      const shouldUpdateName =
+        !existing.customer_name?.trim() ||
+        isGenericGuestAccountLabel(storedHead) ||
+        (!isGenericGuestAccountLabel(incomingHead) && incomingHead.trim() !== storedHead.trim())
+      if (shouldUpdateName) patch.customer_name = customerName
+    }
     if (channelExternalRef != null && channelExternalRef !== '') patch.channel_external_ref = channelExternalRef
     if (
       effectiveLinkedUserId != null &&
       (existing.linked_user_id == null || existing.linked_user_id === '')
     ) {
       patch.linked_user_id = effectiveLinkedUserId
+    }
+    if (
+      effectiveGuestAccountId != null &&
+      (existing.guest_account_id == null || existing.guest_account_id === '')
+    ) {
+      patch.guest_account_id = effectiveGuestAccountId
     }
     const keys = Object.keys(patch)
     if (keys.length > 0) {
@@ -125,9 +185,9 @@ export async function ensureConversationPg(params: {
   const inserted = await pgQueryOne<{ id: string }>(
     `insert into public.customer_care_conversations (
        partner_id, channel, external_thread_id, channel_external_ref,
-       customer_name, customer_avatar_url, linked_user_id, metadata, status
+       customer_name, customer_avatar_url, linked_user_id, guest_account_id, metadata, status
      ) values (
-       $1::uuid, $2, $3, $4, $5, $6, $7::uuid, coalesce($8::jsonb, '{}'::jsonb), 'open'
+       $1::uuid, $2, $3, $4, $5, $6, $7::uuid, $8::uuid, coalesce($9::jsonb, '{}'::jsonb), 'open'
      )
      returning id::text as id`,
     [
@@ -138,11 +198,52 @@ export async function ensureConversationPg(params: {
       customerName ?? null,
       customerAvatarUrl ?? null,
       effectiveLinkedUserId,
+      effectiveGuestAccountId,
       metadata ?? {},
     ]
   )
   if (!inserted?.id) return null
   return { conversationId: inserted.id }
+}
+
+/** Cập nhật tên inbox sau khi khách đăng nhập web shop / OTP (merge phiên → tài khoản). */
+export async function syncGuestConversationCustomerNamesForAccountPg(input: {
+  partnerId: string
+  guestAccountId: string
+  customerNameHint?: string | null
+}): Promise<void> {
+  if (!isPgConfigured()) return
+  const guestAccountId = input.guestAccountId.trim()
+  if (!guestAccountId) return
+  try {
+    const partner = await pgQueryOne<{ display_name: string | null }>(
+      `select display_name from public.messaging_partners where id = $1::uuid limit 1`,
+      [input.partnerId]
+    )
+    const shopDisplayName = String(partner?.display_name ?? '').trim() || 'Shop'
+    const hint = String(input.customerNameHint ?? '').trim()
+    const label =
+      hint ||
+      (await resolveGuestAccountLabelFromPg({
+        partnerId: input.partnerId,
+        guestAccountId,
+        externalThreadId: guestAccountId,
+      }))
+    if (!label) return
+    const customerName = buildGuestConversationCustomerName(label, shopDisplayName)
+    await pgQuery(
+      `update public.customer_care_conversations
+       set customer_name = $4,
+           guest_account_id = coalesce(guest_account_id, $3::uuid),
+           updated_at = now()
+       where partner_id = $1::uuid
+         and channel = 'widget'
+         and external_thread_id = $2`,
+      [input.partnerId, guestAccountId, guestAccountId, customerName]
+    )
+  } catch (e) {
+    console.warn('[customer-care-pg] syncGuestConversationCustomerNamesForAccountPg', e)
+  }
 }
 
 export async function insertMessagePg(params: {
@@ -370,9 +471,12 @@ export async function fetchPartnerConversationsFromPg(
   try {
     const rows = await pgQuery<Record<string, unknown>>(
       `select c.id::text, c.partner_id::text, c.channel, c.external_thread_id, c.channel_external_ref,
-              linked_user_id::text, guest_account_id::text, customer_name, customer_avatar_url,
-              metadata, status, last_message_at, last_message_preview, created_at, updated_at
+              c.linked_user_id::text, c.guest_account_id::text, c.customer_name, c.customer_avatar_url,
+              c.metadata, c.status, c.last_message_at, c.last_message_preview, c.created_at, c.updated_at,
+              mp.display_name as partner_display_name,
+              ${RESOLVED_ACCOUNT_LABEL_SQL} as resolved_account_label
        from public.customer_care_conversations c
+       ${CONVERSATION_ACCOUNT_RESOLVE_JOINS}
        where c.partner_id = $1::uuid
          and (
            exists (
@@ -426,11 +530,14 @@ export async function fetchConversationFullForPartnerFromPg(
   if (!isPgConfigured()) return null
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
-      `select id::text, partner_id::text, channel, external_thread_id, channel_external_ref,
-              linked_user_id::text, guest_account_id::text, customer_name, customer_avatar_url,
-              metadata, status, last_message_at, last_message_preview, created_at, updated_at
-       from public.customer_care_conversations
-       where id = $1::uuid and partner_id = $2::uuid
+      `select c.id::text, c.partner_id::text, c.channel, c.external_thread_id, c.channel_external_ref,
+              c.linked_user_id::text, c.guest_account_id::text, c.customer_name, c.customer_avatar_url,
+              c.metadata, c.status, c.last_message_at, c.last_message_preview, c.created_at, c.updated_at,
+              mp.display_name as partner_display_name,
+              ${RESOLVED_ACCOUNT_LABEL_SQL} as resolved_account_label
+       from public.customer_care_conversations c
+       ${CONVERSATION_ACCOUNT_RESOLVE_JOINS}
+       where c.id = $1::uuid and c.partner_id = $2::uuid
        limit 1`,
       [conversationId, partnerId]
     )
@@ -879,9 +986,11 @@ export async function mergeGuestSessionConversationToAccountPg(
     if (!targetId) {
       const renamed = await client.query(
         `update public.customer_care_conversations
-         set external_thread_id = $1, updated_at = now()
-         where id = $2::uuid`,
-        [guestAccountId, oldId]
+         set external_thread_id = $1,
+             guest_account_id = $2::uuid,
+             updated_at = now()
+         where id = $3::uuid`,
+        [guestAccountId, guestAccountId, oldId]
       )
       if ((renamed.rowCount ?? 0) < 1) {
         await client.query('rollback')
@@ -948,6 +1057,12 @@ export async function mergeGuestSessionConversationToAccountPg(
        set conversation_id = $1::uuid
        where conversation_id = $2::uuid`,
       [targetId, oldId]
+    )
+    await client.query(
+      `update public.customer_care_conversations
+       set guest_account_id = $1::uuid, updated_at = now()
+       where id = $2::uuid and guest_account_id is null`,
+      [guestAccountId, targetId]
     )
     await client.query(`delete from public.customer_care_conversations where id = $1::uuid`, [oldId])
     await client.query('commit')
