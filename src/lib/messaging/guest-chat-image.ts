@@ -1,5 +1,6 @@
 import type { Json } from '@/types/database.types'
 import { fetchImageWith1688Bypass, is1688ImageUrl, normalizeAlicdnImageUrl } from '@/lib/fetch-image-1688'
+import { rewriteAllMessagingCdnUrls } from '@/lib/shop188-cdn-url'
 import { tryOnObjectExistsByPath, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 export const GUEST_CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024
@@ -132,7 +133,7 @@ export async function fetchRemoteProductImageIntoGuestStorage(
   partnerId: string,
   imageUrl: string
 ): Promise<{ path: string; publicUrl: string } | { error: string }> {
-  const trimmed = normalizeAlicdnImageUrl(imageUrl.trim())
+  const trimmed = rewriteAllMessagingCdnUrls(normalizeAlicdnImageUrl(imageUrl.trim()))
   if (!/^https?:\/\//i.test(trimmed)) {
     return { error: 'Image URL must be http(s).' }
   }

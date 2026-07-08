@@ -55,6 +55,7 @@ import {
 import { PartnerInventoryExternalSyncCard } from '@/app/dashboard/messaging/partner-inventory-external-sync-card'
 import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/lib/messaging/build-guest-consult-chat-link'
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
+import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
 import { Bot, Cake, Copy, Download, FileSpreadsheet, Image as ImageIcon, Search, Sparkles, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -2552,7 +2553,7 @@ function InventoryEditor({
                   const show =
                     iu &&
                     (/^https?:\/\//i.test(iu) || iu.startsWith('//'))
-                  const src = iu.startsWith('//') ? `https:${iu}` : iu
+                  const src = resolveExternalImageDisplayUrl(iu.startsWith('//') ? `https:${iu}` : iu)
                   return show ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img

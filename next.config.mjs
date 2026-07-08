@@ -32,6 +32,21 @@ const legacyStorageImagePatterns = legacyStorageRestHost
       ]
     : [];
 
+const shop188CdnHost =
+  hostnameFromEnvUrl('NEXT_PUBLIC_188_CDN_PUBLIC_BASE_URL') ||
+  hostnameFromEnvUrl('SHOP188_CDN_PUBLIC_BASE_URL') ||
+  'cdn.188.com.vn';
+const shop188ImagePatterns = shop188CdnHost
+    ? [
+          {
+              protocol: 'https',
+              hostname: shop188CdnHost,
+              port: '',
+              pathname: '/**',
+          },
+      ]
+    : [];
+
 /** Pull zone Bunny — hostname từ BUNNY_STORAGE_PUBLIC_BASE_URL (không hardcode CDN trong repo). */
 const bunnyPullZoneHost = hostnameFromEnvUrl('BUNNY_STORAGE_PUBLIC_BASE_URL');
 const bunnyImagePatterns = bunnyPullZoneHost
@@ -97,6 +112,7 @@ const nextConfig = {
                 pathname: '/image/**',
             },
             ...bunnyImagePatterns,
+            ...shop188ImagePatterns,
         ],
     },
     // Tắt webpack cache có thể gây lỗi clientModules trên Windows

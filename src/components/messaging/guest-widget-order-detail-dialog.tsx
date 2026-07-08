@@ -15,6 +15,7 @@ import { GuestWidgetOrderDepositPanel, guestOrderNeedsDepositUi } from '@/compon
 import { OrderVariantImagesRow } from '@/components/messaging/order-variant-images-row'
 import { OrderVariantLinesDetail } from '@/components/messaging/order-variant-lines-detail'
 import { parsePartnerOrderVariantLines } from '@/lib/messaging/partner-order-variant-lines'
+import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { Loader2, X } from 'lucide-react'
 
 type T = Dictionary['messagingMyOrders']
@@ -157,7 +158,7 @@ export function GuestWidgetOrderDetailDialog({
   const row = data?.order
   const shop = (data?.partner_display_name ?? '').trim() || '—'
 
-  const img = row?.product_image_url.trim() ?? ''
+  const img = row ? resolveExternalImageDisplayUrl(row.product_image_url.trim()) : ''
   const showImg = row && /^https?:\/\//i.test(img)
   const refMemo = row?.payment_reference.trim() ?? ''
   const displayOrderRef = row ? guestFacingOrderRef(row) : ''

@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
+import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { cn } from '@/lib/utils'
 import type { Database } from '@/types/database.types'
 import {
@@ -948,7 +949,7 @@ export function PartnerMessagingOrdersClient({
                                 {d.product_image_url ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
-                                    src={d.product_image_url}
+                                    src={resolveExternalImageDisplayUrl(d.product_image_url)}
                                     alt=""
                                     className="h-14 w-14 rounded-md border border-border/60 object-cover sm:h-16 sm:w-16"
                                   />

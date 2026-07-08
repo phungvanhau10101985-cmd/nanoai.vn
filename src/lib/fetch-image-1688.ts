@@ -1,3 +1,5 @@
+import { rewriteAllMessagingCdnUrls } from '@/lib/shop188-cdn-url'
+
 /**
  * Tải ảnh từ URL với cơ chế vượt chặn cho 1688, alibaba, alicdn, taobao, tmall…
  * Dùng cho cả server actions và API routes.
@@ -39,7 +41,7 @@ export function normalizeAlicdnImageUrl(url: string): string {
  * `img.alicdn.com` vẫn tải trực tiếp (hotlink OK).
  */
 export function resolveExternalImageDisplayUrl(imageUrl: string): string {
-  const trimmed = imageUrl.trim()
+  const trimmed = rewriteAllMessagingCdnUrls(imageUrl.trim())
   if (!trimmed || trimmed.startsWith('blob:') || trimmed.startsWith('data:') || trimmed.startsWith('/')) {
     return trimmed
   }
@@ -150,16 +152,18 @@ export async function fetchRemoteImageForCatalog(
   opts?: { timeoutMs?: number }
 ): Promise<{ buf: Buffer; contentType: string } | null> {
   const timeoutMs = opts?.timeoutMs ?? 25_000
+  const fetchUrl = rewriteAllMessagingCdnUrls(normalizeAlicdnImageUrl(url.trim()))
+  if (!fetchUrl || !/^https?:\/\//i.test(fetchUrl)) return null
   try {
-    if (is1688Url(url)) {
-      const buf = await fetchImageWith1688Bypass(url)
+    if (is1688Url(fetchUrl)) {
+      const buf = await fetchImageWith1688Bypass(fetchUrl)
       const contentType = sniffImageContentType(buf) || (isImageBuffer(buf) ? 'image/jpeg' : '')
       if (!contentType.startsWith('image/')) return null
       if (buf.length < CATALOG_MIN_BYTES || buf.length > CATALOG_MAX_BYTES) return null
       return { buf, contentType }
     }
 
-    const res = await fetch(url, {
+    const res = await fetch(fetchUrl, {
       redirect: 'follow',
       signal: AbortSignal.timeout(timeoutMs),
       headers: browserLikeImageFetchHeaders,

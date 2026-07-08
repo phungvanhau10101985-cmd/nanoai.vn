@@ -2,6 +2,7 @@
 
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import { parsePartnerOrderVariantImageUrls } from '@/lib/messaging/partner-order-variant-images'
+import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 
 type LabelProps = { sectionLabel: string; imageAltPrefix: string }
 
@@ -20,7 +21,9 @@ export function OrderVariantImagesRow({
     <div className={`space-y-1.5 border-t border-border/40 pt-2 ${className}`.trim()}>
       <p className="text-[11px] font-medium text-muted-foreground">{labels.sectionLabel}</p>
       <div className="flex flex-wrap gap-2">
-        {urls.map((src, i) => (
+        {urls.map((raw, i) => {
+          const src = resolveExternalImageDisplayUrl(raw)
+          return (
           <a
             key={`${i}-${src.slice(0, 64)}`}
             href={src}
@@ -37,7 +40,8 @@ export function OrderVariantImagesRow({
               loading="lazy"
             />
           </a>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
