@@ -2,7 +2,7 @@ import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { sendSmtpMail } from '@/lib/email/smtp'
-import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
 import { formatShippingStatusEmailContentForCustomer } from '@/lib/messaging/order-customer-notify-i18n'
 
@@ -64,7 +64,7 @@ export async function guestChatOrderDetailUrl(
 ): Promise<string | null> {
   const m = meta ?? (await fetchPartnerEmailMeta(order.partner_id))
   if (!m.slug) return null
-  const origin = defaultPublicOrigin()
+  const origin = getPublicAppUrlForServer().replace(/\/$/, '')
   return `${origin}/messaging/p/${encodeURIComponent(m.slug)}?order=${encodeURIComponent(order.id)}`
 }
 

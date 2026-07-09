@@ -7,7 +7,7 @@ import {
 import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { isSmtpConfigured, sendSmtpMail } from '@/lib/email/smtp'
-import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { formatOfflineShopReplyEmailContent } from '@/lib/messaging/partner-reply-offline-email-i18n'
 
 type ConvRow = Database['public']['Tables']['customer_care_conversations']['Row']
@@ -59,7 +59,7 @@ function offlineReplyEmailCooldownActive(metadata: Json | null | undefined, nowM
 }
 
 function buildGuestChatUrl(slug: string): string {
-  const origin = defaultPublicOrigin().replace(/\/$/, '')
+  const origin = getPublicAppUrlForServer().replace(/\/$/, '')
   return `${origin}/messaging/p/${encodeURIComponent(slug)}`
 }
 
