@@ -512,7 +512,20 @@ Cookie: <auth_session_cookie>
             </div>
             <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
               <p className="text-xs font-medium text-foreground">{t.partnerSiteAuthTitle}</p>
-              <p className="text-[11px] leading-relaxed text-muted-foreground">{t.partnerSiteAuthBody}</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <Link
+                  href={
+                    selectedPartner?.id
+                      ? `/dashboard/messaging/partner-site-login?partner=${encodeURIComponent(selectedPartner.id)}`
+                      : '/dashboard/messaging/partner-site-login'
+                  }
+                  className="font-medium text-primary underline-offset-2 hover:underline"
+                >
+                  → {t.partnerSiteAuthTitle}
+                </Link>
+                {' — '}
+                {t.partnerSiteAuthBody}
+              </p>
               <p className="text-[11px] leading-relaxed text-muted-foreground">{t.partnerSiteAuthFlowNote}</p>
               <p className="text-[11px] leading-relaxed text-muted-foreground">{t.partnerSiteAuthTokenNote}</p>
               <p className="text-[11px] leading-relaxed text-muted-foreground">{t.partnerSiteAuthWidgetNote}</p>

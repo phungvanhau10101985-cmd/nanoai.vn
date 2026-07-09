@@ -11,10 +11,17 @@ export type AdminProfileWithBalanceRow = {
   created_at: string | null
 }
 
+export type ListProfilesWithCreditBalanceOptions = {
+  /** Tìm theo email (khớp một phần, không phân biệt hoa thường). */
+  emailQuery?: string | null
+}
+
 /**
  * Danh sách profile + số dư credits (admin) — nested `credits(balance)` trước đây qua REST.
  */
-export async function pgListProfilesWithCreditBalance(): Promise<{
+export async function pgListProfilesWithCreditBalance(
+  options?: ListProfilesWithCreditBalanceOptions
+): Promise<{
   rows: AdminProfileWithBalanceRow[]
   error: string | null
 }> {
@@ -22,6 +29,14 @@ export async function pgListProfilesWithCreditBalance(): Promise<{
     return { rows: [], error: 'DATABASE_URL not set' }
   }
   try {
+    const emailQuery = options?.emailQuery?.trim() ?? ''
+    const params: unknown[] = []
+    let emailFilter = ''
+    if (emailQuery) {
+      params.push(`%${emailQuery.replace(/[%_\\]/g, '')}%`)
+      emailFilter = `and coalesce(au.email, '') ilike $${params.length}`
+    }
+
     const rows = await pgQuery<AdminProfileWithBalanceRow>(
       `select p.id::text,
               p.full_name,
@@ -34,7 +49,9 @@ export async function pgListProfilesWithCreditBalance(): Promise<{
        left join auth.users au on au.id = p.id
        left join public.credits c on c.user_id = p.id
        where lower(coalesce(au.email, '')) not like 'guest-trial-%@guest.nanoai.local'
-       order by coalesce(p.full_name, '') asc, p.id::text asc`
+       ${emailFilter}
+       order by coalesce(p.full_name, '') asc, p.id::text asc`,
+      params.length > 0 ? params : undefined
     )
     return { rows, error: null }
   } catch (e) {

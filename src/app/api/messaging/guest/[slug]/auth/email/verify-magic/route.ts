@@ -4,7 +4,7 @@ import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-ac
 import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
 import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
-import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
+import { isValidMessagingGuestSessionId, LOOSE_RFC4122_UUID_STRING_RE } from '@/lib/messaging/guest-session-id'
 import {
   getClientIpFromRequest,
   getRateLimitRetryAfterSec,
@@ -73,8 +73,11 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const token = String(request.nextUrl.searchParams.get('token') ?? '').trim()
   const sessionIdFromCookieOrHeader = readGuestSessionIdFromRequest(request)
   const sidQuery = String(request.nextUrl.searchParams.get('sid') ?? '').trim()
-  const sessionId =
-    sessionIdFromCookieOrHeader || (isValidMessagingGuestSessionId(sidQuery) ? sidQuery : null)
+  const sessionIdFromQuery =
+    sidQuery && (isValidMessagingGuestSessionId(sidQuery) || LOOSE_RFC4122_UUID_STRING_RE.test(sidQuery))
+      ? sidQuery
+      : null
+  const sessionId = sessionIdFromCookieOrHeader || sessionIdFromQuery
   if (!email || !token || !sessionId) {
     return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
   }

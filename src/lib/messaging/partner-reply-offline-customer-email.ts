@@ -7,8 +7,8 @@ import {
 import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { isSmtpConfigured, sendSmtpMail } from '@/lib/email/smtp'
-import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { formatOfflineShopReplyEmailContent } from '@/lib/messaging/partner-reply-offline-email-i18n'
+import { buildOfflineReplyAutoLoginChatUrl } from '@/lib/messaging/offline-reply-magic-chat-link'
 
 type ConvRow = Database['public']['Tables']['customer_care_conversations']['Row']
 
@@ -24,11 +24,6 @@ const METADATA_LAST_OFFLINE_REPLY_EMAIL = 'last_offline_reply_email_at'
 function isValidEmail(em: string): boolean {
   const t = em.trim().toLowerCase()
   return Boolean(t && /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(t))
-}
-
-function effectiveFashionIndustry(industryKey: string | null | undefined): boolean {
-  const k = String(industryKey || 'fashion').trim().toLowerCase()
-  return k === 'fashion'
 }
 
 async function resolveCustomerEmailForConversation(conv: ConvRow): Promise<string | null> {
@@ -58,20 +53,13 @@ function offlineReplyEmailCooldownActive(metadata: Json | null | undefined, nowM
   return nowMs - lastEmailMs < OFFLINE_REPLY_EMAIL_COOLDOWN_MS
 }
 
-function buildGuestChatUrl(slug: string): string {
-  const origin = getPublicAppUrlForServer().replace(/\/$/, '')
-  return `${origin}/messaging/p/${encodeURIComponent(slug)}`
-}
-
 /**
- * Shop (nhân viên hoặc AI) vừa gửi tin outbound trên widget thời trang —
+ * Shop (nhân viên hoặc AI) vừa gửi tin outbound trên widget —
  * nếu khách không còn mở chat và có email, gửi thông báo quay lại đọc hội thoại.
  */
 export async function maybeEmailCustomerOfflineShopReply(input: {
   conversation: ConvRow
   replyBody: string
-  /** Khi đã biết industry — tránh query thêm. */
-  industryKey?: string | null
   shopDisplayName?: string
   shopSlug?: string | null
 }): Promise<void> {
@@ -80,20 +68,17 @@ export async function maybeEmailCustomerOfflineShopReply(input: {
     if (conv.channel !== 'widget') return
     if (!isSmtpConfigured()) return
 
-    let industryKey = input.industryKey ?? null
     let shopDisplayName = input.shopDisplayName?.trim() || ''
     let shopSlug = input.shopSlug?.trim() || null
 
-    if (!industryKey || !shopDisplayName || !shopSlug) {
+    if (!shopDisplayName || !shopSlug) {
       const partners = await fetchMessagingPartnersByIdsFromPg([conv.partner_id])
       const p = partners?.[0]
       if (!p) return
-      industryKey = p.industry_key
       if (!shopDisplayName) shopDisplayName = String(p.display_name ?? '').trim()
       if (!shopSlug) shopSlug = String(p.slug ?? '').trim() || null
     }
 
-    if (!effectiveFashionIndustry(industryKey)) return
     if (!shopSlug) return
     if (guestViewerIsLive(conv.metadata)) return
     if (offlineReplyEmailCooldownActive(conv.metadata)) return
@@ -101,7 +86,12 @@ export async function maybeEmailCustomerOfflineShopReply(input: {
     const to = await resolveCustomerEmailForConversation(conv)
     if (!to) return
 
-    const chatUrl = buildGuestChatUrl(shopSlug)
+    const chatUrl = await buildOfflineReplyAutoLoginChatUrl({
+      partnerId: conv.partner_id,
+      slug: shopSlug,
+      email: to,
+      conversation: conv,
+    })
     const { subject, text, html } = formatOfflineShopReplyEmailContent({
       shopDisplayName: shopDisplayName || 'Shop',
       chatUrl,

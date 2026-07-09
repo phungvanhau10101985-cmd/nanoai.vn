@@ -6,8 +6,13 @@ import { EditCreditDialog } from './edit-credit-dialog'
 import { Toaster } from '@/components/ui/sonner'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { pgListProfilesWithCreditBalance } from '@/lib/db/admin-users-pg'
+import { AdminUsersEmailSearch } from './admin-users-email-search'
 
-export default async function AdminUsersPage() {
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams?: { email?: string }
+}) {
   const uiLocale = getCurrentWebLocale()
   const dateLocale = uiLocale === 'vi' ? 'vi-VN' : uiLocale === 'en' ? 'en-US' : uiLocale === 'zh' ? 'zh-CN' : uiLocale === 'ja' ? 'ja-JP' : 'ko-KR'
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
@@ -29,7 +34,10 @@ export default async function AdminUsersPage() {
       minute: '2-digit',
     }).format(d)
   }
-  const { rows: usersRaw, error: usersError } = await pgListProfilesWithCreditBalance()
+  const emailQuery = searchParams?.email?.trim() ?? ''
+  const { rows: usersRaw, error: usersError } = await pgListProfilesWithCreditBalance(
+    emailQuery ? { emailQuery } : undefined
+  )
   if (usersError) {
     console.error('Error fetching users:', usersError)
   }
@@ -48,10 +56,30 @@ export default async function AdminUsersPage() {
         <h2 className="text-3xl font-bold tracking-tight">{tr('Quản lý thành viên', 'User management', '用户管理', 'ユーザー管理', '사용자 관리')}</h2>
       </div>
       <Card>
-        <CardContent className="mt-6">
+        <CardContent className="mt-6 space-y-4">
+          <AdminUsersEmailSearch defaultEmail={emailQuery} />
           {usersError ? (
-            <p className="mb-4 text-sm text-destructive" role="alert">
+            <p className="text-sm text-destructive" role="alert">
               {usersError}
+            </p>
+          ) : null}
+          {emailQuery && !usersError ? (
+            <p className="text-sm text-muted-foreground">
+              {users.length > 0
+                ? tr(
+                    `Tìm thấy ${users.length} tài khoản khớp "${emailQuery}".`,
+                    `Found ${users.length} account(s) matching "${emailQuery}".`,
+                    `找到 ${users.length} 个匹配 "${emailQuery}" 的账户。`,
+                    `"${emailQuery}" に一致するアカウント ${users.length} 件。`,
+                    `"${emailQuery}"와(과) 일치하는 계정 ${users.length}개.`
+                  )
+                : tr(
+                    `Không tìm thấy tài khoản nào khớp "${emailQuery}".`,
+                    `No accounts found matching "${emailQuery}".`,
+                    `未找到匹配 "${emailQuery}" 的账户。`,
+                    `"${emailQuery}" に一致するアカウントは見つかりませんでした。`,
+                    `"${emailQuery}"와(과) 일치하는 계정이 없습니다.`
+                  )}
             </p>
           ) : null}
           <Table>

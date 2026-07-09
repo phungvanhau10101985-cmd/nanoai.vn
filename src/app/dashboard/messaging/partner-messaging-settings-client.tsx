@@ -2490,7 +2490,19 @@ export function PartnerMessagingSettingsClient({
                   {t.apiIntegrationGuideLink}
                 </Link>
               </Button>
+              <Button type="button" variant="outline" size="sm" asChild>
+                <Link
+                  href={
+                    selectedPartnerId
+                      ? `/dashboard/messaging/partner-site-login?partner=${selectedPartnerId}`
+                      : '/dashboard/messaging/partner-site-login'
+                  }
+                >
+                  {t.partnerSiteLoginGuideLink}
+                </Link>
+              </Button>
               <p className="w-full text-[11px] text-muted-foreground">{t.apiIntegrationGuideShort}</p>
+              <p className="w-full text-[11px] text-muted-foreground">{t.partnerSiteLoginGuideShort}</p>
             </CardContent>
           </Card>
           </SettingsBlock>

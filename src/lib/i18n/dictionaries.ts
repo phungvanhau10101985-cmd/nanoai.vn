@@ -404,6 +404,9 @@ export type Dictionary = {
     /** Link tới /dashboard/api-integration */
     apiIntegrationGuideLink: string
     apiIntegrationGuideShort: string
+    /** Link tới /dashboard/messaging/partner-site-login */
+    partnerSiteLoginGuideLink: string
+    partnerSiteLoginGuideShort: string
     /** /dashboard/messaging/settings — thẻ dẫn sang trang tích hợp API (nhúng/keys không còn trên trang này) */
     messagingSettingsApiHubCardTitle: string
     messagingSettingsApiHubCardBody: string
@@ -2659,6 +2662,9 @@ const VI_DICTIONARY: Dictionary = {
     inboxMobileBackAria: 'Danh sách hội thoại',
     apiIntegrationGuideLink: 'Hướng dẫn tích hợp API (khóa & endpoint)',
     apiIntegrationGuideShort: 'Dành cho dev tích hợp web shop: nhúng chat, tìm ảnh sản phẩm, API thử đồ B2B.',
+    partnerSiteLoginGuideLink: 'Đăng nhập tự động — khách đã login web shop',
+    partnerSiteLoginGuideShort:
+      'Ký token trên server shop, truyền vào widget — inbox hiển thị đúng tên khách (không còn Guest).',
     messagingSettingsApiHubCardTitle: 'Nhúng chat & API',
     messagingSettingsApiHubCardBody:
       'URL hosted, mã iframe, endpoint embed, khóa X-Embed-Key / Bearer và tài liệu cho developer đã chuyển sang trang «Tích hợp API» — không còn hiển thị trên trang cài đặt này.',
@@ -4898,6 +4904,9 @@ const EN_DICTIONARY: Dictionary = {
     inboxMobileBackAria: 'Back to conversations',
     apiIntegrationGuideLink: 'API integration guide (keys & endpoints)',
     apiIntegrationGuideShort: 'For developers integrating your shop site: embed chat, image product search, B2B try-on API.',
+    partnerSiteLoginGuideLink: 'Auto sign-in — shopper logged in on your shop',
+    partnerSiteLoginGuideShort:
+      'Sign a token on your shop server, pass to the widget — inbox shows the real customer name (not Guest).',
     messagingSettingsApiHubCardTitle: 'Embed chat & APIs',
     messagingSettingsApiHubCardBody:
       'Hosted URL, iframe snippet, embed endpoint, keys, and developer docs now live on the API integration page — they are no longer shown on this settings screen.',
@@ -7137,6 +7146,8 @@ const ZH_DICTIONARY: Dictionary = {
     inboxMobileBackAria: '返回会话列表',
     apiIntegrationGuideLink: 'API 集成说明（密钥与接口）',
     apiIntegrationGuideShort: '供开发将店铺网站接入：嵌入聊天、以图搜商品、B2B 试衣 API。',
+    partnerSiteLoginGuideLink: '自动登录 — 顾客已在店铺网站登录',
+    partnerSiteLoginGuideShort: '在店铺服务端签名 token 并传给 widget — 收件箱显示真实顾客名（非 Guest）。',
     messagingSettingsApiHubCardTitle: '嵌入聊天与 API',
     messagingSettingsApiHubCardBody:
       '托管链接、iframe 代码、嵌入接口、密钥与开发者文档已移至「API 集成」页面 — 本设置页不再展示。',
@@ -9305,6 +9316,9 @@ const JA_DICTIONARY: Dictionary = {
     inboxMobileBackAria: '会話一覧に戻る',
     apiIntegrationGuideLink: 'API 連携ガイド（キーとエンドポイント）',
     apiIntegrationGuideShort: '店舗サイト連携向け：埋め込みチャット、画像検索、B2B 試着 API。',
+    partnerSiteLoginGuideLink: '自動ログイン — 店舗サイトでログイン済みの購入者',
+    partnerSiteLoginGuideShort:
+      '店舗サーバーで token に署名し widget に渡す — 受信箱に実名表示（Guest ではない）。',
     messagingSettingsApiHubCardTitle: '埋め込みチャットと API',
     messagingSettingsApiHubCardBody:
       'ホスト URL、iframe スニペット、埋め込みエンドポイント、キー、開発者向けドキュメントは「API 連携」ページに移しました — 本設定画面には表示しません。',
@@ -11527,6 +11541,9 @@ const KO_DICTIONARY: Dictionary = {
     inboxMobileBackAria: '대화 목록으로',
     apiIntegrationGuideLink: 'API 연동 안내(키 및 엔드포인트)',
     apiIntegrationGuideShort: '매장 사이트 연동용: 임베드 채팅, 이미지 상품 검색, B2B 피팅 API.',
+    partnerSiteLoginGuideLink: '자동 로그인 — 매장 사이트에 로그인한 고객',
+    partnerSiteLoginGuideShort:
+      '매장 서버에서 token 서명 후 widget에 전달 — 받은편지함에 실명 표시(Guest 아님).',
     messagingSettingsApiHubCardTitle: '임베드 채팅 및 API',
     messagingSettingsApiHubCardBody:
       '호스팅 URL, iframe 스니펫, 임베드 엔드포인트, 키, 개발자 문서는 「API 연동」 페이지로 옮겼습니다 — 이 설정 화면에는 더 이상 표시하지 않습니다.',
