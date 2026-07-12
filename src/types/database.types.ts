@@ -274,6 +274,177 @@ export interface Database {
         }
         Relationships: []
       }
+      messaging_partner_marketing_campaigns: {
+        Row: {
+          id: string
+          partner_id: string
+          created_by_user_id: string
+          status: string
+          channel_chat: boolean
+          channel_email: boolean
+          segment_json: Json
+          template_subject: string | null
+          template_body_chat: string
+          template_body_email: string | null
+          offer_percent: number | null
+          scheduled_at: string | null
+          started_at: string | null
+          completed_at: string | null
+          total_queued: number
+          sent_chat: number
+          sent_email: number
+          skipped: number
+          failed: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          created_by_user_id: string
+          status?: string
+          channel_chat?: boolean
+          channel_email?: boolean
+          segment_json?: Json
+          template_subject?: string | null
+          template_body_chat?: string
+          template_body_email?: string | null
+          offer_percent?: number | null
+          scheduled_at?: string | null
+          started_at?: string | null
+          completed_at?: string | null
+          total_queued?: number
+          sent_chat?: number
+          sent_email?: number
+          skipped?: number
+          failed?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          created_by_user_id?: string
+          status?: string
+          channel_chat?: boolean
+          channel_email?: boolean
+          segment_json?: Json
+          template_subject?: string | null
+          template_body_chat?: string
+          template_body_email?: string | null
+          offer_percent?: number | null
+          scheduled_at?: string | null
+          started_at?: string | null
+          completed_at?: string | null
+          total_queued?: number
+          sent_chat?: number
+          sent_email?: number
+          skipped?: number
+          failed?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messaging_partner_marketing_deliveries: {
+        Row: {
+          id: string
+          campaign_id: string
+          partner_id: string
+          conversation_id: string | null
+          recipient_key: string
+          email: string | null
+          status: string
+          skip_reason: string | null
+          rendered_body_chat: string | null
+          rendered_body_email: string | null
+          sent_chat_at: string | null
+          sent_email_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          campaign_id: string
+          partner_id: string
+          conversation_id?: string | null
+          recipient_key: string
+          email?: string | null
+          status?: string
+          skip_reason?: string | null
+          rendered_body_chat?: string | null
+          rendered_body_email?: string | null
+          sent_chat_at?: string | null
+          sent_email_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          campaign_id?: string
+          partner_id?: string
+          conversation_id?: string | null
+          recipient_key?: string
+          email?: string | null
+          status?: string
+          skip_reason?: string | null
+          rendered_body_chat?: string | null
+          rendered_body_email?: string | null
+          sent_chat_at?: string | null
+          sent_email_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messaging_partner_marketing_sent_slots: {
+        Row: {
+          id: string
+          partner_id: string
+          recipient_key: string
+          campaign_key: string
+          sent_at: string
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          recipient_key: string
+          campaign_key: string
+          sent_at?: string
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          recipient_key?: string
+          campaign_key?: string
+          sent_at?: string
+        }
+        Relationships: []
+      }
+      messaging_partner_marketing_opt_out: {
+        Row: {
+          id: string
+          partner_id: string
+          recipient_key: string
+          email_normalized: string | null
+          opted_out_at: string
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          recipient_key: string
+          email_normalized?: string | null
+          opted_out_at?: string
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          recipient_key?: string
+          email_normalized?: string | null
+          opted_out_at?: string
+        }
+        Relationships: []
+      }
       messaging_guest_accounts: {
         Row: {
           id: string

@@ -710,6 +710,8 @@ export function PartnerMessagingSettingsClient({
         return t.teamPermIntegrationsAnalytics
       case 'usage_reports':
         return t.teamPermUsageReports
+      case 'marketing_campaigns':
+        return t.teamPermMarketingCampaigns
       default:
         return k
     }

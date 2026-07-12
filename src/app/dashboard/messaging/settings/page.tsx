@@ -73,9 +73,12 @@ export default async function DashboardMessagingSettingsPage({
             <Button variant="outline" size="sm" asChild>
               <Link href="/dashboard/messaging">{pm.goToInbox}</Link>
             </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard">{t.menu.dashboard}</Link>
-            </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/messaging/marketing">{pm.marketingCampaignsLink}</Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard">{t.menu.dashboard}</Link>
+          </Button>
           </div>
         </div>
       </div>

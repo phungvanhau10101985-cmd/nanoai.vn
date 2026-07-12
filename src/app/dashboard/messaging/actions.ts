@@ -269,6 +269,7 @@ function revalidateMessagingDashboard() {
   revalidatePath('/dashboard/messaging')
   revalidatePath('/dashboard/messaging/settings')
   revalidatePath('/dashboard/messaging/orders')
+  revalidatePath('/dashboard/messaging/marketing')
   revalidatePath('/dashboard/api-integration')
 }
 

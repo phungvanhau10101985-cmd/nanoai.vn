@@ -383,6 +383,7 @@ export type Dictionary = {
     teamPermIntegrationsChannels: string
     teamPermIntegrationsAnalytics: string
     teamPermUsageReports: string
+    teamPermMarketingCampaigns: string
     /** Staff có quyền analytics chỉ xem Pixel/GA4; chỉ chủ được lưu. */
     integrationsAnalyticsOwnerOnly: string
     teamRemoveMemberConfirm: string
@@ -395,6 +396,7 @@ export type Dictionary = {
     chatColumnTitle: string
     /** Nút/link tới /dashboard/messaging/settings */
     messagingSettingsLink: string
+    marketingCampaignsLink: string
     messagingSettingsPageTitle: string
     messagingInboxDescription: string
     noWorkspaceInboxCta: string
@@ -556,6 +558,60 @@ export type Dictionary = {
     modalOrderNoteLabel: string
     modalShippingAddressHeading: string
     modalContactSectionTitle: string
+  }
+  /** /dashboard/messaging/marketing — remarketing hàng loạt (widget chat) */
+  partnerMessagingMarketing: {
+    pageTitle: string
+    pageDescription: string
+    workspaceLabel: string
+    safeModeNote: string
+    stepAudience: string
+    audienceHint: string
+    segmentPresetLabel: string
+    segmentChat90d: string
+    recipientCount: string
+    loadingCount: string
+    refreshPreview: string
+    stepContent: string
+    contentHint: string
+    offerPercentLabel: string
+    templateLabel: string
+    mergeFieldsLabel: string
+    personalizationNote: string
+    channelEmailLabel: string
+    channelEmailHint: string
+    emailIntroLabel: string
+    emailIntroPlaceholder: string
+    emailStatsLabel: string
+    testOptOutTitle: string
+    optOutCountLabel: string
+    testEmailLabel: string
+    testEmailPlaceholder: string
+    sendTestButton: string
+    testEmailSent: string
+    testEmailInvalid: string
+    smtpNotConfigured: string
+    stepSend: string
+    sendHint: string
+    sendButton: string
+    saveDraft: string
+    queueSuccessTitle: string
+    queueSuccessDescription: string
+    noRecipients: string
+    draftSaved: string
+    cancelled: string
+    campaignHistory: string
+    campaignHistoryHint: string
+    reload: string
+    noCampaigns: string
+    statsLine: string
+    viewLog: string
+    cancelCampaign: string
+    deliveryLog: string
+    colRecipient: string
+    colStatus: string
+    colReason: string
+    noWorkspace: string
   }
   /** /dashboard/messaging — trợ lý AI (chờ nhân viên + LLM / kho) */
   partnerMessagingAi: {
@@ -2645,6 +2701,7 @@ const VI_DICTIONARY: Dictionary = {
     teamPermIntegrationsChannels: 'Kênh Facebook / Zalo',
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / Catalog',
     teamPermUsageReports: 'Báo cáo sử dụng',
+    teamPermMarketingCampaigns: 'Campaign marketing',
     integrationsAnalyticsOwnerOnly: 'Chỉ chủ workspace mới có thể lưu Pixel, CAPI và GA4.',
     teamRemoveMemberConfirm: 'Gỡ nhân viên này khỏi workspace?',
     fbLinkedLine: 'Facebook Page đã liên kết: {pageId}',
@@ -2654,6 +2711,7 @@ const VI_DICTIONARY: Dictionary = {
     setupColumnTitle: 'Kết nối & trợ lý AI',
     chatColumnTitle: 'Hội thoại khách',
     messagingSettingsLink: 'Cài đặt kênh & AI',
+    marketingCampaignsLink: 'Marketing',
     messagingSettingsPageTitle: 'Cài đặt nhắn tin (shop)',
     messagingInboxDescription:
       'Danh sách khách bên trái; khi mở một hội thoại, ô soạn tin cố định dưới cùng màn hình.',
@@ -2805,6 +2863,63 @@ const VI_DICTIONARY: Dictionary = {
     modalOrderNoteLabel: 'Ghi chú đơn',
     modalShippingAddressHeading: 'Địa chỉ nhận hàng',
     modalContactSectionTitle: 'Khách hàng & xử lý đơn',
+  },
+  partnerMessagingMarketing: {
+    pageTitle: 'Marketing remarketing',
+    pageDescription:
+      'Gửi tin ưu đãi trong hội thoại widget cho khách đã từng nhắn tin — an toàn, có giới hạn tần suất.',
+    workspaceLabel: 'Chọn workspace',
+    safeModeNote:
+      'Chỉ gửi trong chat widget tới khách đã tương tác (≤90 ngày hoặc có đơn). Tối đa 1 campaign / 14 ngày / khách. Không dùng AI viết lại toàn bộ nội dung.',
+    stepAudience: '1. Đối tượng',
+    audienceHint: 'Preset: khách đã chat widget trong 90 ngày gần nhất (hoặc có đơn hàng).',
+    segmentPresetLabel: 'Preset',
+    segmentChat90d: 'Đã chat 90 ngày',
+    recipientCount: '{count} khách đủ điều kiện',
+    loadingCount: 'Đang đếm…',
+    refreshPreview: 'Làm mới xem trước',
+    stepContent: '2. Nội dung',
+    contentHint: 'Template + biến cá nhân hóa (tên, SP quan tâm, ưu đãi). Mỗi khách nhận nội dung khác nhau nhờ merge field.',
+    offerPercentLabel: '% giảm (tùy chọn)',
+    templateLabel: 'Nội dung tin chat',
+    mergeFieldsLabel: 'Biến hỗ trợ',
+    personalizationNote:
+      'Không cần AI viết từng tin — hệ thống điền tên, sản phẩm đã xem và ưu đãi theo dữ liệu thật của từng khách.',
+    channelEmailLabel: 'Gửi kèm email nhắc (khi khách offline)',
+    channelEmailHint:
+      'Chỉ gửi email cho khách đang không mở chat, có email, chưa hủy nhận. Email kèm ảnh + link sản phẩm quan tâm, nút mở lại chat, và link hủy nhận. Tối đa 1 email / khách / 7 ngày.',
+    emailIntroLabel: 'Câu mở đầu email (tùy chọn)',
+    emailIntroPlaceholder: 'Ví dụ: Shop thấy bạn đang quan tâm vài mẫu, nhắn lại để được tư vấn nhé.',
+    emailStatsLabel: 'Đã gửi email: {sentEmail}',
+    testOptOutTitle: 'Kiểm tra & Hủy nhận',
+    optOutCountLabel: 'Khách đã hủy nhận email: {count}',
+    testEmailLabel: 'Gửi email thử tới',
+    testEmailPlaceholder: 'email@noi-bo.com',
+    sendTestButton: 'Gửi email thử',
+    testEmailSent: 'Đã gửi email thử tới {to}.',
+    testEmailInvalid: 'Email không hợp lệ.',
+    smtpNotConfigured: 'Chưa cấu hình SMTP trên máy chủ.',
+    stepSend: '3. Gửi',
+    sendHint: 'Tin được đưa vào hàng đợi; cron gửi ~1 khách / 2 giây. Chat là kênh chính, email chỉ là kênh phụ khi khách offline.',
+    sendButton: 'Gửi campaign',
+    saveDraft: 'Lưu nháp',
+    queueSuccessTitle: 'Đã xếp hàng gửi',
+    queueSuccessDescription: '{count} khách trong hàng đợi. Tiến trình cập nhật khi cron chạy.',
+    noRecipients: 'Không có khách đủ điều kiện trong segment.',
+    draftSaved: 'Đã lưu nháp.',
+    cancelled: 'Đã hủy campaign.',
+    campaignHistory: 'Lịch sử campaign',
+    campaignHistoryHint: 'Theo dõi trạng thái và log từng người nhận.',
+    reload: 'Tải lại',
+    noCampaigns: 'Chưa có campaign nào.',
+    statsLine: 'Hàng đợi: {queued} · Đã gửi chat: {sent} · Bỏ qua: {skipped} · Lỗi: {failed}',
+    viewLog: 'Xem log',
+    cancelCampaign: 'Hủy',
+    deliveryLog: 'Log gửi',
+    colRecipient: 'Người nhận',
+    colStatus: 'Trạng thái',
+    colReason: 'Lý do',
+    noWorkspace: 'Chưa có workspace. Tạo workspace trong Cài đặt nhắn tin.',
   },
   partnerMessagingAi: {
     panelTitle: 'Trợ lý AI tự động',
@@ -4887,6 +5002,7 @@ const EN_DICTIONARY: Dictionary = {
     teamPermIntegrationsChannels: 'Facebook / Zalo channels',
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / Catalog',
     teamPermUsageReports: 'Usage reports',
+    teamPermMarketingCampaigns: 'Marketing campaigns',
     integrationsAnalyticsOwnerOnly:
       'Only the workspace owner can save Pixel / Conversions API and Google Analytics.',
     teamRemoveMemberConfirm: 'Remove this person from this workspace?',
@@ -4896,6 +5012,7 @@ const EN_DICTIONARY: Dictionary = {
     setupColumnTitle: 'Channels & AI assistant',
     chatColumnTitle: 'Customer chat',
     messagingSettingsLink: 'Channel & AI settings',
+    marketingCampaignsLink: 'Marketing',
     messagingSettingsPageTitle: 'Messaging setup (shop)',
     messagingInboxDescription:
       'Customer list on the left; when a thread is open, the composer stays fixed at the bottom of the screen.',
@@ -5046,6 +5163,64 @@ const EN_DICTIONARY: Dictionary = {
     modalOrderNoteLabel: 'Order note',
     modalShippingAddressHeading: 'Shipping address',
     modalContactSectionTitle: 'Customer & order handling',
+  },
+  partnerMessagingMarketing: {
+    pageTitle: 'Remarketing campaigns',
+    pageDescription:
+      'Send offer messages in the widget chat to customers who have chatted before — rate-limited and chat-first.',
+    workspaceLabel: 'Select workspace',
+    safeModeNote:
+      'Widget chat only for customers who interacted (≤90 days or has order). Max 1 campaign per customer per 14 days. No full-body AI rewrite.',
+    stepAudience: '1. Audience',
+    audienceHint: 'Preset: widget chat within the last 90 days (or has an order).',
+    segmentPresetLabel: 'Preset',
+    segmentChat90d: 'Chatted within 90 days',
+    recipientCount: '{count} eligible customers',
+    loadingCount: 'Counting…',
+    refreshPreview: 'Refresh preview',
+    stepContent: '2. Content',
+    contentHint:
+      'Template + merge fields (name, interested products, offer). Each customer gets different text via merge fields.',
+    offerPercentLabel: 'Discount % (optional)',
+    templateLabel: 'Chat message body',
+    mergeFieldsLabel: 'Supported variables',
+    personalizationNote:
+      'No need for AI per message — the system fills name, viewed products, and offers from real customer data.',
+    channelEmailLabel: 'Also send a reminder email (when the customer is offline)',
+    channelEmailHint:
+      'Emails only go to customers who are not on chat, have an email, and have not unsubscribed. The email includes images + links of interested products, an “open chat” button, and an unsubscribe link. Max 1 email per customer per 7 days.',
+    emailIntroLabel: 'Email opening line (optional)',
+    emailIntroPlaceholder: 'e.g. We noticed a few items you liked — reply for advice or to hold your size.',
+    emailStatsLabel: 'Emails sent: {sentEmail}',
+    testOptOutTitle: 'Test & Unsubscribe',
+    optOutCountLabel: 'Customers unsubscribed: {count}',
+    testEmailLabel: 'Send a test email to',
+    testEmailPlaceholder: 'email@internal.com',
+    sendTestButton: 'Send test email',
+    testEmailSent: 'Test email sent to {to}.',
+    testEmailInvalid: 'Invalid email.',
+    smtpNotConfigured: 'SMTP is not configured on the server.',
+    stepSend: '3. Send',
+    sendHint: 'Messages are queued; cron sends ~1 customer every 2 seconds. Chat is the main channel; email is a secondary reminder when the customer is offline.',
+    sendButton: 'Send campaign',
+    saveDraft: 'Save draft',
+    queueSuccessTitle: 'Queued for sending',
+    queueSuccessDescription: '{count} recipients queued. Progress updates when cron runs.',
+    noRecipients: 'No eligible customers in this segment.',
+    draftSaved: 'Draft saved.',
+    cancelled: 'Campaign cancelled.',
+    campaignHistory: 'Campaign history',
+    campaignHistoryHint: 'Track status and per-recipient logs.',
+    reload: 'Reload',
+    noCampaigns: 'No campaigns yet.',
+    statsLine: 'Queued: {queued} · Chat sent: {sent} · Skipped: {skipped} · Failed: {failed}',
+    viewLog: 'View log',
+    cancelCampaign: 'Cancel',
+    deliveryLog: 'Delivery log',
+    colRecipient: 'Recipient',
+    colStatus: 'Status',
+    colReason: 'Reason',
+    noWorkspace: 'No workspace yet. Create one in Messaging settings.',
   },
   partnerMessagingAi: {
     panelTitle: 'AI auto-replies',
@@ -7131,6 +7306,7 @@ const ZH_DICTIONARY: Dictionary = {
     teamPermIntegrationsChannels: 'Facebook / Zalo 渠道',
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / 目录',
     teamPermUsageReports: '用量报表',
+    teamPermMarketingCampaigns: '营销活动',
     integrationsAnalyticsOwnerOnly: '只有店主可保存 Pixel、CAPI 与 GA4。',
     teamRemoveMemberConfirm: '从本工作区移除此成员？',
     fbLinkedLine: '已关联 Facebook Page：{pageId}',
@@ -7139,6 +7315,7 @@ const ZH_DICTIONARY: Dictionary = {
     setupColumnTitle: '渠道与 AI 助手',
     chatColumnTitle: '客户会话',
     messagingSettingsLink: '渠道与 AI 设置',
+    marketingCampaignsLink: '营销',
     messagingSettingsPageTitle: '消息设置（店铺）',
     messagingInboxDescription: '左侧为客户列表；打开会话后，输入框固定在屏幕底部。',
     noWorkspaceInboxCta: '您还没有消息工作区。前往设置创建店铺并连接 Facebook / Zalo / 聊天。',
@@ -7286,6 +7463,61 @@ const ZH_DICTIONARY: Dictionary = {
     modalOrderNoteLabel: '订单备注',
     modalShippingAddressHeading: '收货地址',
     modalContactSectionTitle: '客户与订单处理',
+  },
+  partnerMessagingMarketing: {
+    pageTitle: '再营销群发',
+    pageDescription: '向曾在小组件聊过天的客户发送优惠消息——限频、优先聊天渠道。',
+    workspaceLabel: '选择工作区',
+    safeModeNote:
+      '仅向已互动客户（90天内或有过订单）发送小组件聊天消息。每位客户每14天最多1次活动。不使用AI重写全文。',
+    stepAudience: '1. 受众',
+    audienceHint: '预设：最近90天内有小组件聊天记录（或有过订单）。',
+    segmentPresetLabel: '预设',
+    segmentChat90d: '90天内聊过',
+    recipientCount: '符合条件：{count} 人',
+    loadingCount: '统计中…',
+    refreshPreview: '刷新预览',
+    stepContent: '2. 内容',
+    contentHint: '模板 + 合并字段（姓名、感兴趣商品、优惠）。每位客户因合并字段而不同。',
+    offerPercentLabel: '折扣 %（可选）',
+    templateLabel: '聊天消息正文',
+    mergeFieldsLabel: '支持的变量',
+    personalizationNote: '无需AI逐条撰写——系统根据真实数据填充姓名、浏览商品和优惠。',
+    channelEmailLabel: '同时发送提醒邮件（当客户离线时）',
+    channelEmailHint:
+      '仅向未在聊天页、留有邮箱且未退订的客户发送邮件。邮件包含感兴趣商品的图片和链接、“打开对话”按钮以及退订链接。每位客户每7天最多1封。',
+    emailIntroLabel: '邮件开场白（可选）',
+    emailIntroPlaceholder: '例如：我们注意到您喜欢的几件商品，回复即可获得咨询或留货。',
+    emailStatsLabel: '已发邮件：{sentEmail}',
+    testOptOutTitle: '测试与退订',
+    optOutCountLabel: '已退订邮件的客户：{count}',
+    testEmailLabel: '发送测试邮件至',
+    testEmailPlaceholder: 'email@internal.com',
+    sendTestButton: '发送测试邮件',
+    testEmailSent: '测试邮件已发送至 {to}。',
+    testEmailInvalid: '邮箱无效。',
+    smtpNotConfigured: '服务器尚未配置 SMTP。',
+    stepSend: '3. 发送',
+    sendHint: '消息进入队列；定时任务约每2秒发送1人。聊天为主渠道，邮件仅在客户离线时作为辅助提醒。',
+    sendButton: '发送活动',
+    saveDraft: '保存草稿',
+    queueSuccessTitle: '已加入发送队列',
+    queueSuccessDescription: '已排队 {count} 人。定时任务运行后更新进度。',
+    noRecipients: '该受众中没有符合条件的客户。',
+    draftSaved: '草稿已保存。',
+    cancelled: '活动已取消。',
+    campaignHistory: '活动历史',
+    campaignHistoryHint: '查看状态及每位收件人的日志。',
+    reload: '刷新',
+    noCampaigns: '暂无活动。',
+    statsLine: '排队：{queued} · 已发聊天：{sent} · 跳过：{skipped} · 失败：{failed}',
+    viewLog: '查看日志',
+    cancelCampaign: '取消',
+    deliveryLog: '发送日志',
+    colRecipient: '收件人',
+    colStatus: '状态',
+    colReason: '原因',
+    noWorkspace: '尚无工作区。请在消息设置中创建。',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自动回复',
@@ -9299,6 +9531,7 @@ const JA_DICTIONARY: Dictionary = {
     teamPermIntegrationsChannels: 'Facebook / Zalo チャネル',
     teamPermIntegrationsAnalytics: 'Meta Pixel／GA4／カタログ',
     teamPermUsageReports: '利用レポート',
+    teamPermMarketingCampaigns: 'マーケティングキャンペーン',
     integrationsAnalyticsOwnerOnly:
       'Pixel、Conversions API、GA4 の保存はワークスペースの店主のみできます。',
     teamRemoveMemberConfirm: 'このメンバーをワークスペースから外しますか？',
@@ -9309,6 +9542,7 @@ const JA_DICTIONARY: Dictionary = {
     setupColumnTitle: 'チャネルと AI アシスタント',
     chatColumnTitle: 'お客様チャット',
     messagingSettingsLink: 'チャネル・AI 設定',
+    marketingCampaignsLink: 'マーケティング',
     messagingSettingsPageTitle: 'メッセージ設定（店舗）',
     messagingInboxDescription: '左に顧客一覧。会話を開くと、入力欄は画面下に固定されます。',
     noWorkspaceInboxCta: 'メッセージ用ワークスペースがありません。設定で店舗を作成し Facebook / Zalo / チャットを接続してください。',
@@ -9458,6 +9692,64 @@ const JA_DICTIONARY: Dictionary = {
     modalOrderNoteLabel: '注文メモ',
     modalShippingAddressHeading: 'お届け先住所',
     modalContactSectionTitle: 'お客様・注文の対応',
+  },
+  partnerMessagingMarketing: {
+    pageTitle: 'リマーケティング一斉送信',
+    pageDescription:
+      'ウィジェットチャットで過去に会話したお客様へオファーを送信 — 頻度制限・チャット優先。',
+    workspaceLabel: 'ワークスペースを選択',
+    safeModeNote:
+      'インタラクションのあるお客様（90日以内または注文あり）にウィジェットチャットのみ送信。お客様あたり14日に1回まで。全文AI書き換えなし。',
+    stepAudience: '1. 対象',
+    audienceHint: 'プリセット：過去90日以内にウィジェットでチャット（または注文あり）。',
+    segmentPresetLabel: 'プリセット',
+    segmentChat90d: '90日以内にチャット',
+    recipientCount: '対象 {count} 人',
+    loadingCount: '集計中…',
+    refreshPreview: 'プレビューを更新',
+    stepContent: '2. 内容',
+    contentHint:
+      'テンプレート + 差し込み変数（名前、関心商品、オファー）。差し込みによりお客様ごとに内容が異なります。',
+    offerPercentLabel: '割引 %（任意）',
+    templateLabel: 'チャット本文',
+    mergeFieldsLabel: '利用可能な変数',
+    personalizationNote:
+      'メッセージごとにAIは不要 — 実データから名前・閲覧商品・オファーを自動入力します。',
+    channelEmailLabel: 'リマインドメールも送る（お客様がオフラインの時）',
+    channelEmailHint:
+      'チャットを開いておらず、メールがあり、配信停止していないお客様にのみ送信します。メールには関心商品の画像とリンク、「会話を開く」ボタン、配信停止リンクを含みます。1人につき7日に最大1通。',
+    emailIntroLabel: 'メールの冒頭文（任意）',
+    emailIntroPlaceholder: '例：気になっていた商品がありましたので、ご相談やお取り置きはご返信ください。',
+    emailStatsLabel: '送信メール: {sentEmail}',
+    testOptOutTitle: 'テストと配信停止',
+    optOutCountLabel: '配信停止したお客様: {count}',
+    testEmailLabel: 'テストメールの送信先',
+    testEmailPlaceholder: 'email@internal.com',
+    sendTestButton: 'テストメールを送信',
+    testEmailSent: 'テストメールを {to} に送信しました。',
+    testEmailInvalid: 'メールアドレスが無効です。',
+    smtpNotConfigured: 'サーバーで SMTP が設定されていません。',
+    stepSend: '3. 送信',
+    sendHint: 'キューに入れ、cronが約2秒に1人送信。チャットが主要チャネル、メールはオフライン時の補助リマインドです。',
+    sendButton: 'キャンペーンを送信',
+    saveDraft: '下書き保存',
+    queueSuccessTitle: '送信キューに追加',
+    queueSuccessDescription: '{count} 人をキューに追加。cron実行後に進捗が更新されます。',
+    noRecipients: '対象に該当するお客様がいません。',
+    draftSaved: '下書きを保存しました。',
+    cancelled: 'キャンペーンをキャンセルしました。',
+    campaignHistory: 'キャンペーン履歴',
+    campaignHistoryHint: 'ステータスと受信者ごとのログを確認。',
+    reload: '再読み込み',
+    noCampaigns: 'キャンペーンはまだありません。',
+    statsLine: 'キュー: {queued} · チャット送信: {sent} · スキップ: {skipped} · 失敗: {failed}',
+    viewLog: 'ログを見る',
+    cancelCampaign: 'キャンセル',
+    deliveryLog: '送信ログ',
+    colRecipient: '受信者',
+    colStatus: '状態',
+    colReason: '理由',
+    noWorkspace: 'ワークスペースがありません。メッセージ設定で作成してください。',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自動返信',
@@ -11525,6 +11817,7 @@ const KO_DICTIONARY: Dictionary = {
     teamPermIntegrationsChannels: 'Facebook / Zalo 채널',
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / 카탈로그',
     teamPermUsageReports: '사용 리포트',
+    teamPermMarketingCampaigns: '마케팅 캠페인',
     integrationsAnalyticsOwnerOnly:
       'Pixel·Conversions API·GA4 저장은 워크스페이스 소유자만 할 수 있습니다.',
     teamRemoveMemberConfirm: '이 구성원을 워크스페이스에서 제거할까요?',
@@ -11534,6 +11827,7 @@ const KO_DICTIONARY: Dictionary = {
     setupColumnTitle: '채널 및 AI 어시스턴트',
     chatColumnTitle: '고객 채팅',
     messagingSettingsLink: '채널·AI 설정',
+    marketingCampaignsLink: '마케팅',
     messagingSettingsPageTitle: '메시지 설정(매장)',
     messagingInboxDescription: '왼쪽에 고객 목록. 대화를 열면 입력창이 화면 하단에 고정됩니다.',
     noWorkspaceInboxCta: '메시징 워크스페이스가 없습니다. 설정에서 매장을 만들고 Facebook / Zalo / 채팅을 연결하세요.',
@@ -11682,6 +11976,64 @@ const KO_DICTIONARY: Dictionary = {
     modalOrderNoteLabel: '주문 메모',
     modalShippingAddressHeading: '배송지 주소',
     modalContactSectionTitle: '고객·주문 처리',
+  },
+  partnerMessagingMarketing: {
+    pageTitle: '리마케팅 대량 발송',
+    pageDescription:
+      '위젯 채팅에서 대화한 고객에게 혜택 메시지 발송 — 빈도 제한, 채팅 우선.',
+    workspaceLabel: '워크스페이스 선택',
+    safeModeNote:
+      '상호작용한 고객(90일 이내 또는 주문 있음)에게만 위젯 채팅 발송. 고객당 14일에 최대 1회. 전체 본문 AI 재작성 없음.',
+    stepAudience: '1. 대상',
+    audienceHint: '프리셋: 최근 90일 내 위젯 채팅(또는 주문 있음).',
+    segmentPresetLabel: '프리셋',
+    segmentChat90d: '90일 내 채팅',
+    recipientCount: '대상 {count}명',
+    loadingCount: '집계 중…',
+    refreshPreview: '미리보기 새로고침',
+    stepContent: '2. 내용',
+    contentHint:
+      '템플릿 + 병합 필드(이름, 관심 상품, 혜택). 병합 필드로 고객마다 다른 내용.',
+    offerPercentLabel: '할인 % (선택)',
+    templateLabel: '채팅 메시지 본문',
+    mergeFieldsLabel: '지원 변수',
+    personalizationNote:
+      '메시지마다 AI 불필요 — 실제 데이터로 이름, 본 상품, 혜택을 채웁니다.',
+    channelEmailLabel: '리마인드 이메일도 발송 (고객이 오프라인일 때)',
+    channelEmailHint:
+      '채팅을 열지 않고, 이메일이 있으며, 수신 거부하지 않은 고객에게만 발송합니다. 이메일에는 관심 상품 이미지·링크, ‘대화 열기’ 버튼, 수신 거부 링크가 포함됩니다. 고객당 7일에 최대 1통.',
+    emailIntroLabel: '이메일 첫 문장 (선택)',
+    emailIntroPlaceholder: '예: 관심 있게 보신 상품이 있어요. 상담이나 예약은 답장해 주세요.',
+    emailStatsLabel: '발송 이메일: {sentEmail}',
+    testOptOutTitle: '테스트 및 수신 거부',
+    optOutCountLabel: '수신 거부한 고객: {count}',
+    testEmailLabel: '테스트 이메일 받는 곳',
+    testEmailPlaceholder: 'email@internal.com',
+    sendTestButton: '테스트 이메일 보내기',
+    testEmailSent: '{to}(으)로 테스트 이메일을 보냈습니다.',
+    testEmailInvalid: '유효하지 않은 이메일입니다.',
+    smtpNotConfigured: '서버에 SMTP가 설정되지 않았습니다.',
+    stepSend: '3. 발송',
+    sendHint: '메시지는 대기열에 들어가며 cron이 약 2초마다 1명 발송. 채팅이 주 채널이며 이메일은 오프라인 시 보조 리마인드입니다.',
+    sendButton: '캠페인 발송',
+    saveDraft: '초안 저장',
+    queueSuccessTitle: '발송 대기열에 추가됨',
+    queueSuccessDescription: '{count}명 대기열 추가. cron 실행 후 진행 상황 갱신.',
+    noRecipients: '세그먼트에 해당 고객이 없습니다.',
+    draftSaved: '초안이 저장되었습니다.',
+    cancelled: '캠페인이 취소되었습니다.',
+    campaignHistory: '캠페인 기록',
+    campaignHistoryHint: '상태 및 수신자별 로그 확인.',
+    reload: '새로고침',
+    noCampaigns: '캠페인이 없습니다.',
+    statsLine: '대기: {queued} · 채팅 발송: {sent} · 건너뜀: {skipped} · 실패: {failed}',
+    viewLog: '로그 보기',
+    cancelCampaign: '취소',
+    deliveryLog: '발송 로그',
+    colRecipient: '수신자',
+    colStatus: '상태',
+    colReason: '사유',
+    noWorkspace: '워크스페이스가 없습니다. 메시징 설정에서 생성하세요.',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 자동 답장',

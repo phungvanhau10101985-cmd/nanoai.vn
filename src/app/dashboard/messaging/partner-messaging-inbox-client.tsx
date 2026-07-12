@@ -40,6 +40,7 @@ import {
   ImagePlus,
   Building2,
   Loader2,
+  Megaphone,
   MessageSquare,
   Phone,
   Plus,
@@ -827,6 +828,11 @@ export function PartnerMessagingInboxClient({
               <Settings className="h-4 w-4" aria-hidden />
             </Link>
           </Button>
+          <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title={t.marketingCampaignsLink}>
+            <Link href="/dashboard/messaging/marketing" aria-label={t.marketingCampaignsLink}>
+              <Megaphone className="h-4 w-4" aria-hidden />
+            </Link>
+          </Button>
           <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title="Đơn hàng">
             <Link href="/dashboard/messaging/orders" aria-label="Đơn hàng">
               <ClipboardList className="h-4 w-4" aria-hidden />
@@ -860,6 +866,12 @@ export function PartnerMessagingInboxClient({
             <Link href="/dashboard/messaging/settings">
               <Settings className="h-3 w-3" aria-hidden />
               {t.messagingSettingsLink}
+            </Link>
+          </Button>
+          <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
+            <Link href="/dashboard/messaging/marketing">
+              <Megaphone className="h-3 w-3" aria-hidden />
+              {t.marketingCampaignsLink}
             </Link>
           </Button>
           <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">

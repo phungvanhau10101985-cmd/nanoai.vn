@@ -13,6 +13,7 @@ export const PARTNER_STAFF_PERM_KEYS = [
   'integrations_channels',
   'integrations_analytics',
   'usage_reports',
+  'marketing_campaigns',
 ] as const
 
 export type PartnerStaffPermKey = (typeof PARTNER_STAFF_PERM_KEYS)[number]

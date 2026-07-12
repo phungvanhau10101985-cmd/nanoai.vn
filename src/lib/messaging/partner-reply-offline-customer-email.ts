@@ -26,7 +26,7 @@ function isValidEmail(em: string): boolean {
   return Boolean(t && /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(t))
 }
 
-async function resolveCustomerEmailForConversation(conv: ConvRow): Promise<string | null> {
+export async function resolveCustomerEmailForConversation(conv: ConvRow): Promise<string | null> {
   const guestAccountId = conv.guest_account_id?.trim()
   if (guestAccountId) {
     const ga = await fetchGuestAccountEmailByIdPg(conv.partner_id, guestAccountId)
@@ -41,7 +41,7 @@ async function resolveCustomerEmailForConversation(conv: ConvRow): Promise<strin
   return null
 }
 
-function guestViewerIsLive(metadata: Json | null | undefined, nowMs = Date.now()): boolean {
+export function guestViewerIsLive(metadata: Json | null | undefined, nowMs = Date.now()): boolean {
   const lastSeenMs = readIsoTimestampFromConversationMetadata(metadata, METADATA_GUEST_VIEWER_LAST_SEEN)
   if (lastSeenMs == null) return false
   return nowMs - lastSeenMs <= GUEST_VIEWER_LIVE_THRESHOLD_MS
