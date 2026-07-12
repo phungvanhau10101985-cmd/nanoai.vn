@@ -74,6 +74,7 @@ export function PartnerMarketingCampaignsClient({
   const [emailIntro, setEmailIntro] = useState('')
   const [optOutCount, setOptOutCount] = useState<number | null>(null)
   const [testEmail, setTestEmail] = useState('')
+  const [sending, setSending] = useState(false)
   const [campaigns, setCampaigns] = useState<MarketingCampaignRow[]>([])
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null)
   const [deliveries, setDeliveries] = useState<
@@ -190,14 +191,15 @@ export function PartnerMarketingCampaignsClient({
     })
   }
 
-  const handleCreateAndQueue = () => {
-    if (!selectedPartnerId) return
+  const handleCreateAndQueue = async () => {
+    if (!selectedPartnerId || sending) return
     if (!segmentCount || segmentCount <= 0) {
       toast({ title: marketingT.noRecipients, variant: 'destructive' })
       return
     }
     const pct = offerPercent.trim() ? Number(offerPercent) : null
-    startTransition(async () => {
+    setSending(true)
+    try {
       const created = await createMarketingCampaignDraft({
         partnerId: selectedPartnerId,
         segmentJson,
@@ -227,7 +229,9 @@ export function PartnerMarketingCampaignsClient({
       })
       loadCampaigns()
       loadCampaignDetail(created.campaign.id)
-    })
+    } finally {
+      setSending(false)
+    }
   }
 
   const handleSaveDraft = () => {
@@ -392,12 +396,16 @@ export function PartnerMarketingCampaignsClient({
           <CardDescription>{marketingT.sendHint}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button type="button" onClick={handleCreateAndQueue} disabled={pending || !selectedPartner}>
+          <Button
+            type="button"
+            onClick={handleCreateAndQueue}
+            disabled={sending || !selectedPartner || !segmentCount || segmentCount <= 0}
+          >
             <Megaphone className="mr-1 h-4 w-4" />
             {marketingT.sendButton}
           </Button>
           {activeCampaignId && (
-            <Button type="button" variant="outline" onClick={handleSaveDraft} disabled={pending}>
+            <Button type="button" variant="outline" onClick={handleSaveDraft} disabled={sending}>
               {marketingT.saveDraft}
             </Button>
           )}
