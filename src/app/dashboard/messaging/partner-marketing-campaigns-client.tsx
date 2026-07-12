@@ -165,10 +165,12 @@ export function PartnerMarketingCampaignsClient({
 
   useEffect(() => {
     if (!selectedPartnerId) return
+    // Chỉ ghi URL khi param chưa khớp — tránh vòng lặp replace → searchParams đổi → effect chạy lại.
+    if (partnerFromUrl === selectedPartnerId) return
     const q = new URLSearchParams(searchParams.toString())
     q.set('partner', selectedPartnerId)
     router.replace(`/dashboard/messaging/marketing?${q.toString()}`, { scroll: false })
-  }, [selectedPartnerId, router, searchParams])
+  }, [selectedPartnerId, router, searchParams, partnerFromUrl])
 
   const loadCampaignDetail = (campaignId: string) => {
     if (!selectedPartnerId) return
