@@ -9,6 +9,7 @@ import { buildMetadata } from '@/lib/seo'
 import { isValidUuidString } from '@/lib/validate-uuid'
 import { Button } from '@/components/ui/button'
 import { Megaphone } from 'lucide-react'
+import { isMarketingEligibleIndustry } from '@/lib/messaging/partner-marketing-segment'
 import { PartnerMarketingCampaignsClient } from '../partner-marketing-campaigns-client'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -33,7 +34,7 @@ export default async function DashboardMessagingMarketingPage() {
   let rows: NonNullable<Awaited<ReturnType<typeof fetchMessagingPartnersForDashboardFromPg>>> = []
   if (isPgConfigured()) {
     const fromPg = await fetchMessagingPartnersForDashboardFromPg(user.id)
-    if (fromPg !== null) rows = fromPg.filter((p) => p.industry_key !== 'hotel')
+    if (fromPg !== null) rows = fromPg.filter((p) => isMarketingEligibleIndustry(p.industry_key))
   }
 
   return (

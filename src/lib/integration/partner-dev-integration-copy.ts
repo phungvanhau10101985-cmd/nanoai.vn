@@ -1,5 +1,7 @@
 import type { ApiKeysHubLocale } from '@/lib/integration/api-keys-hub-copy'
 
+export type { ApiKeysHubLocale } from '@/lib/integration/api-keys-hub-copy'
+
 /** Chuỗi giao diện — hướng dẫn tích hợp cho dev đối tác (/dashboard/api-integration). */
 export type PartnerDevIntegrationStrings = {
   title: string

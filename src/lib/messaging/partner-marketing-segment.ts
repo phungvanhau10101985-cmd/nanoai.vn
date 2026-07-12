@@ -23,6 +23,29 @@ Mở chat để xem giá và đặt hàng ngay trên hội thoại này.`
 
 export const MARKETING_CAMPAIGN_COOLDOWN_DAYS = 14
 
+/**
+ * Ngành KHÔNG dùng remarketing email (mô hình đặt lịch/lưu trú/dịch vụ — không có kho SP).
+ * Marketing email chỉ dành cho shop mua sắm (fashion, mỹ phẩm, F&B bán SP…).
+ */
+export const MARKETING_INELIGIBLE_INDUSTRY_KEYS = new Set<string>([
+  'hotel',
+  'homestay',
+  'resort',
+  'hospitality',
+  'spa',
+  'salon',
+  'clinic',
+  'booking',
+  'education',
+])
+
+/** Shop có được dùng Marketing email không (mặc định fashion/thiếu key = có). */
+export function isMarketingEligibleIndustry(industryKey: string | null | undefined): boolean {
+  const key = String(industryKey ?? '').trim().toLowerCase()
+  if (!key) return true
+  return !MARKETING_INELIGIBLE_INDUSTRY_KEYS.has(key)
+}
+
 export function normalizeMarketingSegmentJson(raw: unknown): MarketingSegmentJson {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ...DEFAULT_MARKETING_SEGMENT }

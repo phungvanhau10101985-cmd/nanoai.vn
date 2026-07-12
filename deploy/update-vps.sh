@@ -290,10 +290,12 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   CRON_SECRET_FALLBACK="$(env_read CRON_SECRET)"
   INV_SECRET="$(env_read MESSAGING_INVENTORY_EMBED_CRON_SECRET)"
   LOGO_SECRET="$(env_read MESSAGING_LOGO_CLEANUP_CRON_SECRET)"
+  MKT_SECRET="$(env_read MESSAGING_PARTNER_MARKETING_CRON_SECRET)"
 
   if [[ -z "${AI_SECRET}" ]]; then AI_SECRET="${CRON_SECRET_FALLBACK}"; fi
   if [[ -z "${INV_SECRET}" ]]; then INV_SECRET="${AI_SECRET}"; fi
   if [[ -z "${LOGO_SECRET}" ]]; then LOGO_SECRET="${AI_SECRET}"; fi
+  if [[ -z "${MKT_SECRET}" ]]; then MKT_SECRET="${AI_SECRET}"; fi
 
   if [[ -n "${AI_SECRET}" ]]; then
     ensure_cron "messaging-partner-ai" "* * * * * curl -fsS -m 90 -X POST http://127.0.0.1:3000/api/cron/messaging-partner-ai -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/messaging-partner-ai.log 2>&1"
@@ -313,8 +315,14 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
     echo "  Cảnh báo: thiếu secret logo cleanup cron, bỏ qua cron messaging-logo-cleanup."
   fi
 
+  if [[ -n "${MKT_SECRET}" ]]; then
+    ensure_cron "partner-marketing-campaign" "* * * * * curl -fsS -m 280 -X POST http://127.0.0.1:3000/api/cron/partner-marketing-campaign -H \"Authorization: Bearer ${MKT_SECRET}\" >> /root/logs/partner-marketing-campaign.log 2>&1"
+  else
+    echo "  Cảnh báo: thiếu secret marketing cron, bỏ qua cron partner-marketing-campaign."
+  fi
+
   echo "  Cron hiện tại:"
-  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-logo-cleanup" || true
+  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-logo-cleanup|partner-marketing-campaign" || true
 else
   echo "  Bỏ qua (DEPLOY_SETUP_CRONS=${DEPLOY_SETUP_CRONS})."
 fi

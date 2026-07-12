@@ -15,7 +15,7 @@ import {
 } from '@/lib/messaging/widget-guest-post'
 import { insertMessage } from '@/lib/customer-care/conversation-service'
 import { resolveGuestCustomerDisplayName } from '@/lib/messaging/guest-customer-display-name'
-import { applyGuestIdentityToResponse } from '@/lib/messaging/guest-auth-session'
+import { applyGuestIdentityToResponse, mirrorGuestSessionToClient } from '@/lib/messaging/guest-auth-session'
 import {
   getHospitalityGuestThread,
   postHospitalityGuestThread,
