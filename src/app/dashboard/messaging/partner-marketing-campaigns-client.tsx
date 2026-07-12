@@ -27,9 +27,9 @@ import type { MarketingCampaignRow } from '@/lib/db/messaging-partner-marketing-
 import {
   DEFAULT_MARKETING_SEGMENT,
   DEFAULT_MARKETING_TEMPLATE_CHAT,
+  MARKETING_MERGE_FIELD_HINTS,
   type MarketingSegmentJson,
 } from '@/lib/messaging/partner-marketing-segment'
-import { MARKETING_MERGE_FIELD_HINTS } from '@/lib/messaging/partner-marketing-render'
 import { Megaphone, RefreshCw } from 'lucide-react'
 
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']

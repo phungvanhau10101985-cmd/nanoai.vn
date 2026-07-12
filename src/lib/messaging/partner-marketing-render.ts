@@ -318,13 +318,3 @@ export function renderMarketingTemplate(template: string, ctx: MarketingRenderCo
 
   return out.slice(0, 8000)
 }
-
-export const MARKETING_MERGE_FIELD_HINTS = [
-  '{customer_name}',
-  '{shop_name}',
-  '{offer_line}',
-  '{offer_percent}',
-  '{interest_block}',
-  '{last_order_summary}',
-  '{chat_url}',
-] as const

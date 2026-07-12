@@ -23,6 +23,17 @@ Mở chat để xem giá và đặt hàng ngay trên hội thoại này.`
 
 export const MARKETING_CAMPAIGN_COOLDOWN_DAYS = 14
 
+/** Biến merge hỗ trợ trong template chat — hằng số client-safe (không kéo `pg`). */
+export const MARKETING_MERGE_FIELD_HINTS = [
+  '{customer_name}',
+  '{shop_name}',
+  '{offer_line}',
+  '{offer_percent}',
+  '{interest_block}',
+  '{last_order_summary}',
+  '{chat_url}',
+] as const
+
 /**
  * Ngành KHÔNG dùng remarketing email (mô hình đặt lịch/lưu trú/dịch vụ — không có kho SP).
  * Marketing email chỉ dành cho shop mua sắm (fashion, mỹ phẩm, F&B bán SP…).
