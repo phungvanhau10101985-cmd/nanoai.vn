@@ -813,6 +813,65 @@ export async function tryClaimMarketingEmailSlotFromPg(input: {
   }
 }
 
+/** Tìm hội thoại widget của partner theo email khách (guest account hoặc user liên kết). */
+export async function findMarketingRecipientByEmailForPartnerFromPg(
+  partnerId: string,
+  email: string
+): Promise<MarketingSegmentRecipientRow | null> {
+  if (!isPgConfigured()) return null
+  const normalized = email.trim().toLowerCase()
+  if (!normalized) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `select c.id::text as conversation_id,
+         case
+           when c.linked_user_id is not null then 'user:' || c.linked_user_id::text
+           when c.guest_account_id is not null then 'guest:' || c.guest_account_id::text
+           else 'thread:' || c.external_thread_id
+         end as recipient_key,
+         c.linked_user_id::text,
+         c.guest_account_id::text,
+         c.customer_name,
+         c.external_thread_id,
+         c.metadata,
+         c.last_message_at::text
+       from public.customer_care_conversations c
+       where c.partner_id = $1::uuid and c.channel = 'widget'
+         and (
+           exists (
+             select 1 from public.messaging_guest_accounts g
+             where g.id = c.guest_account_id and g.partner_id = c.partner_id
+               and g.email_normalized = $2
+           )
+           or exists (
+             select 1 from auth.users u
+             where u.id = c.linked_user_id and lower(trim(coalesce(u.email, ''))) = $2
+           )
+         )
+       order by c.last_message_at desc nulls last
+       limit 1`,
+      [partnerId, normalized]
+    )
+    if (!row) return null
+    return {
+      conversation_id: String(row.conversation_id),
+      recipient_key: String(row.recipient_key),
+      linked_user_id: row.linked_user_id != null ? String(row.linked_user_id) : null,
+      guest_account_id: row.guest_account_id != null ? String(row.guest_account_id) : null,
+      customer_name: row.customer_name != null ? String(row.customer_name) : null,
+      external_thread_id: String(row.external_thread_id),
+      metadata:
+        row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+          ? (row.metadata as Record<string, unknown>)
+          : null,
+      last_message_at: row.last_message_at != null ? String(row.last_message_at) : null,
+    }
+  } catch (e) {
+    console.warn('[findMarketingRecipientByEmailForPartnerFromPg]', e)
+    return null
+  }
+}
+
 export async function fetchConversationForMarketingDeliveryFromPg(
   partnerId: string,
   conversationId: string

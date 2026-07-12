@@ -75,6 +75,7 @@ export function PartnerMarketingCampaignsClient({
   const [optOutCount, setOptOutCount] = useState<number | null>(null)
   const [testEmail, setTestEmail] = useState('')
   const [sending, setSending] = useState(false)
+  const [testSending, setTestSending] = useState(false)
   const [campaigns, setCampaigns] = useState<MarketingCampaignRow[]>([])
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null)
   const [deliveries, setDeliveries] = useState<
@@ -127,15 +128,16 @@ export function PartnerMarketingCampaignsClient({
     })
   }, [selectedPartnerId])
 
-  const handleSendTest = () => {
-    if (!selectedPartnerId) return
+  const handleSendTest = async () => {
+    if (!selectedPartnerId || testSending) return
     const to = testEmail.trim()
     if (!to) {
       toast({ title: marketingT.testEmailInvalid, variant: 'destructive' })
       return
     }
     const pct = offerPercent.trim() ? Number(offerPercent) : null
-    startTransition(async () => {
+    setTestSending(true)
+    try {
       const res = await sendMarketingTestEmail({
         partnerId: selectedPartnerId,
         toEmail: to,
@@ -145,6 +147,7 @@ export function PartnerMarketingCampaignsClient({
       if ('error' in res && res.error) {
         const map: Record<string, string> = {
           INVALID_EMAIL: marketingT.testEmailInvalid,
+          EMAIL_NOT_CUSTOMER: marketingT.testEmailNotCustomer,
           SMTP_NOT_CONFIGURED: marketingT.smtpNotConfigured,
         }
         toast({ title: map[String(res.error)] ?? String(res.error), variant: 'destructive' })
@@ -153,7 +156,9 @@ export function PartnerMarketingCampaignsClient({
       if ('ok' in res && res.ok) {
         toast({ title: marketingT.testEmailSent.replace('{to}', res.to) })
       }
-    })
+    } finally {
+      setTestSending(false)
+    }
   }
 
   useEffect(() => {
@@ -433,7 +438,12 @@ export function PartnerMarketingCampaignsClient({
                 placeholder={marketingT.testEmailPlaceholder}
               />
             </div>
-            <Button type="button" variant="outline" onClick={handleSendTest} disabled={pending}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSendTest}
+              disabled={testSending || !selectedPartner || !testEmail.trim()}
+            >
               {marketingT.sendTestButton}
             </Button>
           </div>

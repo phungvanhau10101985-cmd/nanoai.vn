@@ -590,6 +590,7 @@ export type Dictionary = {
     sendTestButton: string
     testEmailSent: string
     testEmailInvalid: string
+    testEmailNotCustomer: string
     smtpNotConfigured: string
     stepSend: string
     sendHint: string
@@ -2898,6 +2899,7 @@ const VI_DICTIONARY: Dictionary = {
     sendTestButton: 'Gửi email thử',
     testEmailSent: 'Đã gửi email thử tới {to}.',
     testEmailInvalid: 'Email không hợp lệ.',
+    testEmailNotCustomer: 'Email này chưa từng nhắn tin với shop nên không gửi thử được. Hãy nhập email của một khách đã chat.',
     smtpNotConfigured: 'Chưa cấu hình SMTP trên máy chủ.',
     stepSend: '3. Gửi',
     sendHint: 'Tin được đưa vào hàng đợi; cron gửi ~1 khách / 2 giây. Chat là kênh chính, email chỉ là kênh phụ khi khách offline.',
@@ -5199,6 +5201,7 @@ const EN_DICTIONARY: Dictionary = {
     sendTestButton: 'Send test email',
     testEmailSent: 'Test email sent to {to}.',
     testEmailInvalid: 'Invalid email.',
+    testEmailNotCustomer: 'This email has never chatted with the shop, so a test cannot be sent. Enter the email of a customer who chatted.',
     smtpNotConfigured: 'SMTP is not configured on the server.',
     stepSend: '3. Send',
     sendHint: 'Messages are queued; cron sends ~1 customer every 2 seconds. Chat is the main channel; email is a secondary reminder when the customer is offline.',
@@ -7496,6 +7499,7 @@ const ZH_DICTIONARY: Dictionary = {
     sendTestButton: '发送测试邮件',
     testEmailSent: '测试邮件已发送至 {to}。',
     testEmailInvalid: '邮箱无效。',
+    testEmailNotCustomer: '该邮箱从未与店铺聊过天，无法发送测试。请输入曾聊过天的客户邮箱。',
     smtpNotConfigured: '服务器尚未配置 SMTP。',
     stepSend: '3. 发送',
     sendHint: '消息进入队列；定时任务约每2秒发送1人。聊天为主渠道，邮件仅在客户离线时作为辅助提醒。',
@@ -9728,6 +9732,7 @@ const JA_DICTIONARY: Dictionary = {
     sendTestButton: 'テストメールを送信',
     testEmailSent: 'テストメールを {to} に送信しました。',
     testEmailInvalid: 'メールアドレスが無効です。',
+    testEmailNotCustomer: 'このメールはショップとチャットしたことがないため、テスト送信できません。チャット済みの顧客のメールを入力してください。',
     smtpNotConfigured: 'サーバーで SMTP が設定されていません。',
     stepSend: '3. 送信',
     sendHint: 'キューに入れ、cronが約2秒に1人送信。チャットが主要チャネル、メールはオフライン時の補助リマインドです。',
@@ -12012,6 +12017,7 @@ const KO_DICTIONARY: Dictionary = {
     sendTestButton: '테스트 이메일 보내기',
     testEmailSent: '{to}(으)로 테스트 이메일을 보냈습니다.',
     testEmailInvalid: '유효하지 않은 이메일입니다.',
+    testEmailNotCustomer: '이 이메일은 상점과 채팅한 적이 없어 테스트를 보낼 수 없습니다. 채팅한 고객의 이메일을 입력하세요.',
     smtpNotConfigured: '서버에 SMTP가 설정되지 않았습니다.',
     stepSend: '3. 발송',
     sendHint: '메시지는 대기열에 들어가며 cron이 약 2초마다 1명 발송. 채팅이 주 채널이며 이메일은 오프라인 시 보조 리마인드입니다.',

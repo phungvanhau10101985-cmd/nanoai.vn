@@ -10,6 +10,7 @@ import {
   countMarketingOptOutForPartnerFromPg,
   countMarketingSegmentRecipientsFromPg,
   fetchMarketingCampaignForPartnerFromPg,
+  findMarketingRecipientByEmailForPartnerFromPg,
   insertMarketingCampaignFromPg,
   listMarketingCampaignsForPartnerFromPg,
   listMarketingDeliveriesForCampaignFromPg,
@@ -17,6 +18,8 @@ import {
   queueMarketingCampaignFromPg,
   updateMarketingCampaignTemplateFromPg,
 } from '@/lib/db/messaging-partner-marketing-campaigns-pg'
+import { fetchCustomerCareConversationByIdPg } from '@/lib/db/customer-care-pg'
+import { buildOfflineReplyAutoLoginChatUrl } from '@/lib/messaging/offline-reply-magic-chat-link'
 import {
   DEFAULT_MARKETING_TEMPLATE_CHAT,
   formatSegmentRecipientLabel,
@@ -27,7 +30,6 @@ import {
 import {
   buildMarketingRenderContext,
   fetchMarketingInterestProducts,
-  fetchSampleMarketingProducts,
   renderMarketingTemplate,
 } from '@/lib/messaging/partner-marketing-render'
 import { formatMarketingCampaignEmailContent } from '@/lib/messaging/partner-marketing-email-i18n'
@@ -279,44 +281,51 @@ export async function sendMarketingTestEmail(input: {
   const shopName = partner.display_name?.trim() || 'Shop'
   const origin = getPublicAppUrlForServer()
 
-  // Dùng SP quan tâm thật của 1 khách mẫu; nếu không có, lấy SP mẫu từ kho.
-  let products = [] as Awaited<ReturnType<typeof fetchSampleMarketingProducts>>
-  try {
-    const recipients = await listMarketingSegmentRecipientsFromPg({
-      partnerId: input.partnerId,
-      daysSinceChat: 365,
-      limit: 20,
-    })
-    for (const r of recipients) {
-      const p = await fetchMarketingInterestProducts({ partnerId: input.partnerId, recipient: r, maxProducts: 2 })
-      if (p.length) {
-        products = p
-        break
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  if (!products.length) {
-    products = await fetchSampleMarketingProducts({ partnerId: input.partnerId, maxProducts: 2 })
-  }
+  // Email test chỉ gửi tới khách đã từng nhắn tin với shop (để test đúng dữ liệu thật).
+  const recipient = await findMarketingRecipientByEmailForPartnerFromPg(input.partnerId, to)
+  if (!recipient) return { error: 'EMAIL_NOT_CUSTOMER' }
 
-  const chatUrl = `${origin.replace(/\/$/, '')}/messaging/p/${encodeURIComponent(partner.slug)}`
+  const conv = await fetchCustomerCareConversationByIdPg(recipient.conversation_id)
+
+  const ctx = await buildMarketingRenderContext({
+    partnerId: input.partnerId,
+    shopName,
+    shopSlug: partner.slug,
+    offerPercent: input.offerPercent ?? null,
+    recipient,
+    appOrigin: origin,
+  })
+
+  const products = await fetchMarketingInterestProducts({
+    partnerId: input.partnerId,
+    recipient,
+    maxProducts: 2,
+  })
+
+  const chatUrl = conv
+    ? await buildOfflineReplyAutoLoginChatUrl({
+        partnerId: input.partnerId,
+        slug: partner.slug,
+        email: to,
+        conversation: conv,
+      })
+    : `${origin.replace(/\/$/, '')}/messaging/p/${encodeURIComponent(partner.slug)}`
+
   const optOutUrl = buildMarketingOptOutUrl({
     appOrigin: origin,
     slug: partner.slug,
-    payload: { partnerId: input.partnerId, recipientKey: 'test:preview', email: to },
+    payload: { partnerId: input.partnerId, recipientKey: recipient.recipient_key, email: to },
   })
 
   const { subject, text, html, listUnsubscribe } = formatMarketingCampaignEmailContent({
     shopDisplayName: shopName,
-    customerName: to.split('@')[0] || 'bạn',
+    customerName: ctx.customerName,
     chatUrl,
     optOutUrl,
     products,
     offerPercent: input.offerPercent ?? null,
     emailIntro: input.emailIntro ?? null,
-    metadata: null,
+    metadata: conv?.metadata ?? null,
   })
 
   const sent = await sendSmtpMail({
