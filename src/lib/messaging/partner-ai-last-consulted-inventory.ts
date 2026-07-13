@@ -1,6 +1,8 @@
 import type { Database, Json } from '@/types/database.types'
+import { pgQuery } from '@/lib/db/pg-query'
 import {
   fetchCustomerCareTranscriptLinesFromPg,
+  fetchConsultedProductUrlKeysByRecencyFromPg,
   fetchLatestConsultedProductUrlKeyForConversationFromPg,
   fetchOutboundPayloadsAndBodiesNewestFirstPg,
 } from '@/lib/db/customer-care-pg'
@@ -15,6 +17,9 @@ import { aiProductCardsFromPayload, type PartnerAiProductCard } from '@/lib/mess
 import { extractExplicitSkuCandidates } from '@/lib/messaging/partner-inventory-ai-search'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function normSkuComparable(raw: string | null | undefined): string {
   return (raw ?? '')
@@ -122,6 +127,79 @@ async function fetchInventoryRowFromOutboundProductAdvice(
   }
 
   return null
+}
+
+/**
+ * Gom mã kho SP khách quan tâm trong **một hội thoại**, ưu tiên hành vi gần nhất:
+ * bấm «Tư vấn» → đơn trong phiên → tin chat (page_context / thẻ SP / SKU trong body).
+ * Dùng cho email marketing `{interest_block}`.
+ */
+export async function collectRecentInterestInventoryIdsFromConversationPg(
+  partnerId: string,
+  conversationId: string,
+  limit: number
+): Promise<string[]> {
+  const lim = Math.max(1, Math.min(6, Math.floor(limit) || 4))
+  if (!isPgConfigured()) return []
+  const ids: string[] = []
+  const seen = new Set<string>()
+  const pushId = (id: string | null | undefined) => {
+    const t = id?.trim()
+    if (!t || !UUID_RE.test(t) || seen.has(t)) return
+    seen.add(t)
+    ids.push(t)
+  }
+
+  const keys = await fetchConsultedProductUrlKeysByRecencyFromPg(conversationId, lim * 2)
+  for (const k of keys ?? []) {
+    const row = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(partnerId, k)
+    pushId(row?.id)
+    if (ids.length >= lim) return ids
+  }
+
+  try {
+    const orderRows = await pgQuery<{ iid: string | null }>(
+      `select o.product_inventory_id::text as iid
+       from public.messaging_partner_orders o
+       where o.partner_id = $1::uuid and o.conversation_id = $2::uuid
+         and o.product_inventory_id is not null
+       order by o.updated_at desc nulls last
+       limit 10`,
+      [partnerId, conversationId]
+    )
+    for (const r of orderRows) {
+      pushId(r.iid)
+      if (ids.length >= lim) return ids
+    }
+  } catch (e) {
+    console.warn('[collectRecentInterestInventoryIdsFromConversationPg] orders', e)
+  }
+
+  const tl = await fetchCustomerCareTranscriptLinesFromPg(conversationId, 80)
+  if (tl?.length) {
+    for (let i = tl.length - 1; i >= 0; i--) {
+      const m = tl[i]
+      if (m.direction === 'inbound') {
+        const row = await fetchInventoryRowFromInboundPageContext(partnerId, m.raw_payload)
+        pushId(row?.id)
+        if (ids.length >= lim) return ids
+        continue
+      }
+      const cards = m.raw_payload ? aiProductCardsFromPayload(m.raw_payload) : []
+      for (const card of cards) {
+        const row = await fetchInventoryRowFromAiProductCard(partnerId, card)
+        pushId(row?.id)
+        if (ids.length >= lim) return ids
+      }
+      for (const tok of extractExplicitSkuCandidates(m.body)) {
+        const row = await fetchPartnerInventoryRowByComparableSkuFromPg(partnerId, tok)
+        pushId(row?.id)
+        if (ids.length >= lim) return ids
+      }
+    }
+  }
+
+  return ids.slice(0, lim)
 }
 
 /**

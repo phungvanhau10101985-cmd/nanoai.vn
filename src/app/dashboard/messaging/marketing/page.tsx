@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getUserOrBypass } from '@/lib/auth'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
@@ -7,10 +6,10 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import { isValidUuidString } from '@/lib/validate-uuid'
-import { Button } from '@/components/ui/button'
 import { Megaphone } from 'lucide-react'
 import { isMarketingEligibleIndustry } from '@/lib/messaging/partner-marketing-segment'
 import { PartnerMarketingCampaignsClient } from '../partner-marketing-campaigns-client'
+import { MarketingPageNavButtons } from '../marketing-page-nav-buttons'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = getServerDictionary()
@@ -46,14 +45,7 @@ export default async function DashboardMessagingMarketingPage() {
           </span>
           <span className="leading-snug">{m.pageTitle}</span>
         </h1>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs" asChild>
-            <Link href="/dashboard/messaging">{pm.goToInbox}</Link>
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs" asChild>
-            <Link href="/dashboard/messaging/settings">{pm.messagingSettingsLink}</Link>
-          </Button>
-        </div>
+        <MarketingPageNavButtons goToInboxLabel={pm.goToInbox} settingsLabel={pm.messagingSettingsLink} />
       </div>
       <PartnerMarketingCampaignsClient
         initialPartners={rows ?? []}

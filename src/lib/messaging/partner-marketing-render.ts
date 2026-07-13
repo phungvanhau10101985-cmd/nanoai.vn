@@ -1,9 +1,8 @@
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
 import type { MarketingSegmentRecipientRow } from '@/lib/db/messaging-partner-marketing-campaigns-pg'
-import { fetchConsultedProductUrlKeysByRecencyFromPg } from '@/lib/db/customer-care-pg'
-import { fetchPartnerInventoryRowByProductUrlNormKeyFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { collectInterestInventoryIdsForPartnerUserFromPg } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
+import { collectRecentInterestInventoryIdsFromConversationPg } from '@/lib/messaging/partner-ai-last-consulted-inventory'
 
 export type MarketingRenderContext = {
   customerName: string
@@ -50,7 +49,7 @@ async function resolveCustomerDisplayName(recipient: MarketingSegmentRecipientRo
   return 'bạn'
 }
 
-/** Gom mã kho SP khách quan tâm gần nhất (đơn hàng + đã «Tư vấn») theo hội thoại/người dùng. */
+/** Gom mã kho SP khách quan tâm — ưu tiên hội thoại marketing hiện tại, rồi mới đơn/hội thoại cũ. */
 async function collectMarketingInterestInventoryIds(input: {
   partnerId: string
   recipient: MarketingSegmentRecipientRow
@@ -58,22 +57,28 @@ async function collectMarketingInterestInventoryIds(input: {
 }): Promise<string[]> {
   const max = Math.max(1, Math.min(6, Math.floor(input.max)))
   const ids: string[] = []
+  const seen = new Set<string>()
+  const push = (id: string) => {
+    if (!id || seen.has(id)) return
+    seen.add(id)
+    ids.push(id)
+  }
 
-  if (input.recipient.linked_user_id) {
+  const fromConversation = await collectRecentInterestInventoryIdsFromConversationPg(
+    input.partnerId,
+    input.recipient.conversation_id,
+    max
+  )
+  for (const id of fromConversation) push(id)
+
+  if (ids.length < max && input.recipient.linked_user_id) {
     const fromUser = await collectInterestInventoryIdsForPartnerUserFromPg({
       partnerId: input.partnerId,
       userId: input.recipient.linked_user_id,
       limit: max,
     })
-    ids.push(...fromUser)
-  }
-
-  if (ids.length < max) {
-    const keys = await fetchConsultedProductUrlKeysByRecencyFromPg(input.recipient.conversation_id, 8)
-    for (const k of keys ?? []) {
-      const row = await fetchPartnerInventoryRowByProductUrlNormKeyFromPg(input.partnerId, k)
-      const id = row?.id?.trim()
-      if (id && !ids.includes(id)) ids.push(id)
+    for (const id of fromUser) {
+      push(id)
       if (ids.length >= max) break
     }
   }
