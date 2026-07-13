@@ -335,6 +335,52 @@ export async function listMarketingSegmentRecipientsFromPg(input: {
   }
 }
 
+/** Tất cả khách widget đã nhắn tin và có email — không giới hạn số ngày. */
+export async function listAllShopCustomerEmailsFromPg(input: {
+  partnerId: string
+  limit?: number
+}): Promise<MarketingSegmentRecipientRow[]> {
+  if (!isPgConfigured()) return []
+  const lim = Math.max(1, Math.min(20000, Math.floor(input.limit ?? 20000)))
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `select distinct on (recipient_key)
+         c.id::text as conversation_id,
+         case
+           when c.linked_user_id is not null then 'user:' || c.linked_user_id::text
+           when c.guest_account_id is not null then 'guest:' || c.guest_account_id::text
+           else 'thread:' || c.external_thread_id
+         end as recipient_key,
+         c.linked_user_id::text,
+         c.guest_account_id::text,
+         c.customer_name,
+         (${SEGMENT_CUSTOMER_EMAIL_SQL}) as customer_email,
+         c.external_thread_id,
+         c.metadata,
+         c.last_message_at::text
+       from public.customer_care_conversations c
+       where c.partner_id = $1::uuid
+         and c.channel = 'widget'
+         and exists (
+           select 1
+           from public.customer_care_messages m
+           where m.conversation_id = c.id
+             and m.direction = 'inbound'
+             and coalesce(m.raw_payload ->> 'widget_auto_opening', 'false') <> 'true'
+             and nullif(trim(replace(replace(coalesce(m.body, ''), '📷', ''), '📦', '')), '') is not null
+         )
+         and (${SEGMENT_CUSTOMER_EMAIL_SQL}) is not null
+       order by recipient_key, c.last_message_at desc nulls last
+       limit $2`,
+      [input.partnerId, lim]
+    )
+    return rows.map(mapSegmentRecipientRow)
+  } catch (e) {
+    console.warn('[listAllShopCustomerEmailsFromPg]', e)
+    return []
+  }
+}
+
 export async function countMarketingSegmentRecipientsFromPg(input: {
   partnerId: string
   daysSinceChat: number

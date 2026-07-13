@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast'
 import {
   cancelMarketingCampaign,
   createMarketingCampaignDraft,
+  exportMarketingCustomerEmails,
   getMarketingCampaignDetail,
   getMarketingOptOutCount,
   listMarketingSegmentRecipientsFull,
@@ -37,7 +38,7 @@ import {
   MARKETING_MERGE_FIELD_HINTS,
   type MarketingSegmentJson,
 } from '@/lib/messaging/partner-marketing-segment'
-import { List, Megaphone, RefreshCw } from 'lucide-react'
+import { Download, List, Megaphone, RefreshCw } from 'lucide-react'
 
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
 
@@ -101,6 +102,7 @@ export function PartnerMarketingCampaignsClient({
   const [fullListOpen, setFullListOpen] = useState(false)
   const [fullList, setFullList] = useState<SegmentRecipientRow[]>([])
   const [fullListLoading, setFullListLoading] = useState(false)
+  const [exporting, setExporting] = useState<'xlsx' | 'csv' | null>(null)
   const [templateBody, setTemplateBody] = useState(DEFAULT_MARKETING_TEMPLATE_CHAT)
   const [offerPercent, setOfferPercent] = useState('')
   const [channelEmail, setChannelEmail] = useState(false)
@@ -162,6 +164,42 @@ export function PartnerMarketingCampaignsClient({
       }
     } finally {
       setFullListLoading(false)
+    }
+  }
+
+  const handleExportCustomers = async (format: 'xlsx' | 'csv') => {
+    if (!selectedPartnerId || exporting) return
+    setExporting(format)
+    try {
+      const res = await exportMarketingCustomerEmails({ partnerId: selectedPartnerId, format })
+      if ('error' in res && res.error) {
+        const msg =
+          res.error === 'NO_EXPORT_ROWS' ? marketingT.exportCustomerEmailsEmpty : String(res.error)
+        toast({ title: msg, variant: 'destructive' })
+        return
+      }
+      if (!('ok' in res) || !res.ok) return
+      const bin = atob(res.base64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i)
+      const mime =
+        res.format === 'csv'
+          ? 'text/csv;charset=utf-8'
+          : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      const blob = new Blob([bytes], { type: mime })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = res.filename
+      a.click()
+      URL.revokeObjectURL(url)
+      toast({
+        title: marketingT.exportCustomerEmailsDone
+          .replace('{count}', String(res.count))
+          .replace('{filename}', res.filename),
+      })
+    } finally {
+      setExporting(null)
     }
   }
 
@@ -418,7 +456,28 @@ export function PartnerMarketingCampaignsClient({
                   {marketingT.viewAllRecipients.replace('{count}', String(segmentCount))}
                 </Button>
               )}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => handleExportCustomers('xlsx')}
+                disabled={!selectedPartnerId || exporting !== null}
+              >
+                <Download className="mr-1 h-3.5 w-3.5" />
+                {exporting === 'xlsx' ? marketingT.exportCustomerEmailsLoading : marketingT.exportCustomerEmailsExcel}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => handleExportCustomers('csv')}
+                disabled={!selectedPartnerId || exporting !== null}
+              >
+                <Download className="mr-1 h-3.5 w-3.5" />
+                {exporting === 'csv' ? marketingT.exportCustomerEmailsLoading : marketingT.exportCustomerEmailsCsv}
+              </Button>
             </div>
+            <p className="text-xs text-muted-foreground">{marketingT.exportCustomerEmailsHint}</p>
           </CardContent>
         </Card>
 

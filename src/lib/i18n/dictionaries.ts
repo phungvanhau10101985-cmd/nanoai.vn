@@ -618,6 +618,12 @@ export type Dictionary = {
     colEmail: string
     colLastChat: string
     sendLimitsThisMonth: string
+    exportCustomerEmailsExcel: string
+    exportCustomerEmailsCsv: string
+    exportCustomerEmailsHint: string
+    exportCustomerEmailsEmpty: string
+    exportCustomerEmailsDone: string
+    exportCustomerEmailsLoading: string
     noWorkspace: string
   }
   /** /dashboard/messaging — trợ lý AI (chờ nhân viên + LLM / kho) */
@@ -2934,6 +2940,13 @@ const VI_DICTIONARY: Dictionary = {
     colLastChat: 'Chat gần nhất',
     sendLimitsThisMonth:
       'Tháng này: đã gửi {emailsSent} email, {chatSent} tin chat. Giới hạn mỗi khách: 1 email / {emailDays} ngày (~{emailPerMonth} email/tháng), 1 tin chat / {chatDays} ngày.',
+    exportCustomerEmailsExcel: 'Xuất Excel',
+    exportCustomerEmailsCsv: 'Xuất CSV',
+    exportCustomerEmailsHint:
+      'Xuất toàn bộ khách đã nhắn tin widget với shop và có email (không giới hạn 90 ngày).',
+    exportCustomerEmailsEmpty: 'Không có khách nào có email để xuất.',
+    exportCustomerEmailsDone: 'Đã xuất {count} khách → {filename}',
+    exportCustomerEmailsLoading: 'Đang xuất…',
     noWorkspace: 'Chưa có workspace. Tạo workspace trong Cài đặt nhắn tin.',
   },
   partnerMessagingAi: {
@@ -5243,6 +5256,13 @@ const EN_DICTIONARY: Dictionary = {
     colLastChat: 'Last chat',
     sendLimitsThisMonth:
       'This month: {emailsSent} emails and {chatSent} chat messages sent. Per customer: 1 email / {emailDays} days (~{emailPerMonth}/month), 1 chat / {chatDays} days.',
+    exportCustomerEmailsExcel: 'Export Excel',
+    exportCustomerEmailsCsv: 'Export CSV',
+    exportCustomerEmailsHint:
+      'Export all widget customers who chatted with the shop and have an email (not limited to 90 days).',
+    exportCustomerEmailsEmpty: 'No customers with email to export.',
+    exportCustomerEmailsDone: 'Exported {count} customers → {filename}',
+    exportCustomerEmailsLoading: 'Exporting…',
     noWorkspace: 'No workspace yet. Create one in Messaging settings.',
   },
   partnerMessagingAi: {
@@ -7548,6 +7568,12 @@ const ZH_DICTIONARY: Dictionary = {
     colLastChat: '最近聊天',
     sendLimitsThisMonth:
       '本月：已发 {emailsSent} 封邮件、{chatSent} 条聊天。每位客户：1 封邮件 / {emailDays} 天（约 {emailPerMonth} 封/月），1 条聊天 / {chatDays} 天。',
+    exportCustomerEmailsExcel: '导出 Excel',
+    exportCustomerEmailsCsv: '导出 CSV',
+    exportCustomerEmailsHint: '导出所有曾在小组件与店铺聊天且留有邮箱的客户（不限 90 天）。',
+    exportCustomerEmailsEmpty: '没有可导出的客户邮箱。',
+    exportCustomerEmailsDone: '已导出 {count} 位客户 → {filename}',
+    exportCustomerEmailsLoading: '导出中…',
     noWorkspace: '尚无工作区。请在消息设置中创建。',
   },
   partnerMessagingAi: {
@@ -9788,6 +9814,13 @@ const JA_DICTIONARY: Dictionary = {
     colLastChat: '最終チャット',
     sendLimitsThisMonth:
       '今月：メール {emailsSent} 通、チャット {chatSent} 通送信済み。お客様あたり：メール 1通 / {emailDays} 日（約 {emailPerMonth} 通/月）、チャット 1通 / {chatDays} 日。',
+    exportCustomerEmailsExcel: 'Excelを出力',
+    exportCustomerEmailsCsv: 'CSVを出力',
+    exportCustomerEmailsHint:
+      'ウィジェットでショップとチャットしメールがあるお客様をすべて出力（90日制限なし）。',
+    exportCustomerEmailsEmpty: '出力できるメールのあるお客様がいません。',
+    exportCustomerEmailsDone: '{count} 人を出力しました → {filename}',
+    exportCustomerEmailsLoading: '出力中…',
     noWorkspace: 'ワークスペースがありません。メッセージ設定で作成してください。',
   },
   partnerMessagingAi: {
@@ -12080,6 +12113,13 @@ const KO_DICTIONARY: Dictionary = {
     colLastChat: '최근 채팅',
     sendLimitsThisMonth:
       '이번 달: 이메일 {emailsSent}통, 채팅 {chatSent}통 발송. 고객당: 이메일 1통 / {emailDays}일(월 약 {emailPerMonth}통), 채팅 1통 / {chatDays}일.',
+    exportCustomerEmailsExcel: 'Excel 다운로드',
+    exportCustomerEmailsCsv: 'CSV 다운로드',
+    exportCustomerEmailsHint:
+      '위젯으로 상점과 채팅했고 이메일이 있는 모든 고객을보냅니다 (90일 제한 없음).',
+    exportCustomerEmailsEmpty: '보낼 이메일이 있는 고객이 없습니다.',
+    exportCustomerEmailsDone: '{count}명보냄 → {filename}',
+    exportCustomerEmailsLoading: '보내는 중…',
     noWorkspace: '워크스페이스가 없습니다. 메시징 설정에서 생성하세요.',
   },
   partnerMessagingAi: {

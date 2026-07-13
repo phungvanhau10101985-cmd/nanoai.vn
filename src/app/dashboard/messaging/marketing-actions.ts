@@ -16,6 +16,7 @@ import {
   insertMarketingCampaignFromPg,
   listMarketingCampaignsForPartnerFromPg,
   listMarketingDeliveriesForCampaignFromPg,
+  listAllShopCustomerEmailsFromPg,
   listMarketingSegmentRecipientsFromPg,
   queueMarketingCampaignFromPg,
   updateMarketingCampaignTemplateFromPg,
@@ -31,6 +32,11 @@ import {
   type MarketingSegmentJson,
 } from '@/lib/messaging/partner-marketing-segment'
 import { MARKETING_EMAIL_COOLDOWN_DAYS } from '@/lib/messaging/partner-marketing-email'
+import {
+  buildMarketingCustomerEmailsCsvString,
+  buildMarketingCustomerEmailsXlsxBuffer,
+  marketingSegmentRowsToExportRows,
+} from '@/lib/messaging/partner-marketing-customers-excel-export'
 import {
   buildMarketingRenderContext,
   fetchMarketingInterestProducts,
@@ -123,6 +129,44 @@ export async function listMarketingSegmentRecipientsFull(
       lastMessageAt: r.last_message_at,
     })),
     count: recipients.length,
+  }
+}
+
+export async function exportMarketingCustomerEmails(input: {
+  partnerId: string
+  format?: 'xlsx' | 'csv'
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerStaffGate(auth.user.id, input.partnerId, 'marketing_campaigns')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const recipients = await listAllShopCustomerEmailsFromPg({ partnerId: input.partnerId })
+  const exportRows = marketingSegmentRowsToExportRows(recipients)
+  if (!exportRows.length) return { error: 'NO_EXPORT_ROWS' }
+
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const format = input.format === 'csv' ? 'csv' : 'xlsx'
+
+  if (format === 'csv') {
+    const csv = buildMarketingCustomerEmailsCsvString(exportRows)
+    return {
+      ok: true as const,
+      format: 'csv' as const,
+      base64: Buffer.from(csv, 'utf8').toString('base64'),
+      filename: `khach_chat_email_${dateStr}.csv`,
+      count: exportRows.length,
+    }
+  }
+
+  const buf = buildMarketingCustomerEmailsXlsxBuffer(exportRows)
+  return {
+    ok: true as const,
+    format: 'xlsx' as const,
+    base64: buf.toString('base64'),
+    filename: `khach_chat_email_${dateStr}.xlsx`,
+    count: exportRows.length,
   }
 }
 
