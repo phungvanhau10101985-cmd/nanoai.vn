@@ -72,6 +72,7 @@ export async function previewMarketingSegment(partnerId: string, segmentJson: Ma
     conversationId: r.conversation_id,
     recipientKey: r.recipient_key,
     label: formatSegmentRecipientLabel(r),
+    email: r.customer_email,
     lastMessageAt: r.last_message_at,
   }))
   return {
@@ -164,6 +165,7 @@ export async function queueMarketingCampaign(partnerId: string, campaignId: stri
     recipients.map((r) => ({
       conversationId: r.conversation_id,
       recipientKey: r.recipient_key,
+      email: r.customer_email,
     }))
   )
   if (inserted === 0) return { error: 'Failed to queue deliveries.' }

@@ -38,6 +38,7 @@ type SegmentSample = {
   conversationId: string
   recipientKey: string
   label: string
+  email: string | null
   lastMessageAt: string | null
 }
 
@@ -82,6 +83,7 @@ export function PartnerMarketingCampaignsClient({
     Array<{
       id: string
       recipient_key: string
+      email: string | null
       status: string
       skip_reason: string | null
     }>
@@ -191,6 +193,7 @@ export function PartnerMarketingCampaignsClient({
         res.deliveries.map((d) => ({
           id: d.id,
           recipient_key: d.recipient_key,
+          email: d.email,
           status: d.status,
           skip_reason: d.skip_reason,
         }))
@@ -517,7 +520,7 @@ export function PartnerMarketingCampaignsClient({
                 <tbody>
                   {deliveries.map((d) => (
                     <tr key={d.id} className="border-b border-border/40">
-                      <td className="py-1 pr-2 font-mono text-xs">{d.recipient_key}</td>
+                      <td className="py-1 pr-2 text-xs">{d.email ?? d.recipient_key}</td>
                       <td className="py-1 pr-2">{d.status}</td>
                       <td className="py-1 text-muted-foreground">{d.skip_reason ?? '—'}</td>
                     </tr>

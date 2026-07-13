@@ -63,9 +63,44 @@ export type MarketingSegmentRecipientRow = {
   linked_user_id: string | null
   guest_account_id: string | null
   customer_name: string | null
+  customer_email: string | null
   external_thread_id: string
   metadata: Record<string, unknown> | null
   last_message_at: string | null
+}
+
+/** Email khách từ guest account hoặc user liên kết — khớp resolveCustomerEmailForConversation. */
+const SEGMENT_CUSTOMER_EMAIL_SQL = `
+  coalesce(
+    (select coalesce(
+       nullif(trim(g.email_normalized), ''),
+       nullif(trim(lower(g.email_raw)), '')
+     )
+     from public.messaging_guest_accounts g
+     where g.id = c.guest_account_id and g.partner_id = c.partner_id
+     limit 1),
+    (select nullif(trim(lower(u.email)), '')
+     from auth.users u
+     where u.id = c.linked_user_id
+     limit 1)
+  )
+`
+
+function mapSegmentRecipientRow(r: Record<string, unknown>): MarketingSegmentRecipientRow {
+  return {
+    conversation_id: String(r.conversation_id),
+    recipient_key: String(r.recipient_key),
+    linked_user_id: r.linked_user_id != null ? String(r.linked_user_id) : null,
+    guest_account_id: r.guest_account_id != null ? String(r.guest_account_id) : null,
+    customer_name: r.customer_name != null ? String(r.customer_name) : null,
+    customer_email: r.customer_email != null ? String(r.customer_email) : null,
+    external_thread_id: String(r.external_thread_id),
+    metadata:
+      r.metadata && typeof r.metadata === 'object' && !Array.isArray(r.metadata)
+        ? (r.metadata as Record<string, unknown>)
+        : null,
+    last_message_at: r.last_message_at != null ? String(r.last_message_at) : null,
+  }
 }
 
 const CAMPAIGN_SELECT = `
@@ -272,6 +307,7 @@ export async function listMarketingSegmentRecipientsFromPg(input: {
          c.linked_user_id::text,
          c.guest_account_id::text,
          c.customer_name,
+         (${SEGMENT_CUSTOMER_EMAIL_SQL}) as customer_email,
          c.external_thread_id,
          c.metadata,
          c.last_message_at::text
@@ -286,24 +322,13 @@ export async function listMarketingSegmentRecipientsFromPg(input: {
              and coalesce(m.raw_payload ->> 'widget_auto_opening', 'false') <> 'true'
              and nullif(trim(replace(replace(coalesce(m.body, ''), '📷', ''), '📦', '')), '') is not null
          )
+         and (${SEGMENT_CUSTOMER_EMAIL_SQL}) is not null
          ${orderClause}
        order by recipient_key, c.last_message_at desc nulls last
        limit $3`,
       [input.partnerId, days, lim]
     )
-    return rows.map((r) => ({
-      conversation_id: String(r.conversation_id),
-      recipient_key: String(r.recipient_key),
-      linked_user_id: r.linked_user_id != null ? String(r.linked_user_id) : null,
-      guest_account_id: r.guest_account_id != null ? String(r.guest_account_id) : null,
-      customer_name: r.customer_name != null ? String(r.customer_name) : null,
-      external_thread_id: String(r.external_thread_id),
-      metadata:
-        r.metadata && typeof r.metadata === 'object' && !Array.isArray(r.metadata)
-          ? (r.metadata as Record<string, unknown>)
-          : null,
-      last_message_at: r.last_message_at != null ? String(r.last_message_at) : null,
-    }))
+    return rows.map(mapSegmentRecipientRow)
   } catch (e) {
     console.warn('[listMarketingSegmentRecipientsFromPg]', e)
     return []
@@ -322,7 +347,7 @@ export async function countMarketingSegmentRecipientsFromPg(input: {
 export async function bulkInsertMarketingDeliveriesFromPg(
   campaignId: string,
   partnerId: string,
-  recipients: Array<{ conversationId: string; recipientKey: string }>
+  recipients: Array<{ conversationId: string; recipientKey: string; email?: string | null }>
 ): Promise<number> {
   if (!isPgConfigured() || recipients.length === 0) return 0
   try {
@@ -334,13 +359,13 @@ export async function bulkInsertMarketingDeliveriesFromPg(
       const values: string[] = []
       const params: unknown[] = [campaignId, partnerId]
       slice.forEach((r, idx) => {
-        const base = idx * 2 + 3
-        values.push(`($1::uuid, $2::uuid, $${base}::uuid, $${base + 1})`)
-        params.push(r.conversationId, r.recipientKey)
+        const base = idx * 3 + 3
+        values.push(`($1::uuid, $2::uuid, $${base}::uuid, $${base + 1}, $${base + 2})`)
+        params.push(r.conversationId, r.recipientKey, r.email?.trim().slice(0, 256) || null)
       })
       const res = await pool.query(
         `insert into public.messaging_partner_marketing_deliveries (
-           campaign_id, partner_id, conversation_id, recipient_key, status
+           campaign_id, partner_id, conversation_id, recipient_key, email, status
          ) values ${values.join(', ')}
          on conflict (campaign_id, recipient_key) do nothing`,
         params
@@ -832,6 +857,7 @@ export async function findMarketingRecipientByEmailForPartnerFromPg(
          c.linked_user_id::text,
          c.guest_account_id::text,
          c.customer_name,
+         (${SEGMENT_CUSTOMER_EMAIL_SQL}) as customer_email,
          c.external_thread_id,
          c.metadata,
          c.last_message_at::text
@@ -853,19 +879,7 @@ export async function findMarketingRecipientByEmailForPartnerFromPg(
       [partnerId, normalized]
     )
     if (!row) return null
-    return {
-      conversation_id: String(row.conversation_id),
-      recipient_key: String(row.recipient_key),
-      linked_user_id: row.linked_user_id != null ? String(row.linked_user_id) : null,
-      guest_account_id: row.guest_account_id != null ? String(row.guest_account_id) : null,
-      customer_name: row.customer_name != null ? String(row.customer_name) : null,
-      external_thread_id: String(row.external_thread_id),
-      metadata:
-        row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
-          ? (row.metadata as Record<string, unknown>)
-          : null,
-      last_message_at: row.last_message_at != null ? String(row.last_message_at) : null,
-    }
+    return mapSegmentRecipientRow(row)
   } catch (e) {
     console.warn('[findMarketingRecipientByEmailForPartnerFromPg]', e)
     return null
@@ -888,6 +902,7 @@ export async function fetchConversationForMarketingDeliveryFromPg(
          c.linked_user_id::text,
          c.guest_account_id::text,
          c.customer_name,
+         (${SEGMENT_CUSTOMER_EMAIL_SQL}) as customer_email,
          c.external_thread_id,
          c.metadata,
          c.last_message_at::text
@@ -897,19 +912,7 @@ export async function fetchConversationForMarketingDeliveryFromPg(
       [conversationId, partnerId]
     )
     if (!row) return null
-    return {
-      conversation_id: String(row.conversation_id),
-      recipient_key: String(row.recipient_key),
-      linked_user_id: row.linked_user_id != null ? String(row.linked_user_id) : null,
-      guest_account_id: row.guest_account_id != null ? String(row.guest_account_id) : null,
-      customer_name: row.customer_name != null ? String(row.customer_name) : null,
-      external_thread_id: String(row.external_thread_id),
-      metadata:
-        row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
-          ? (row.metadata as Record<string, unknown>)
-          : null,
-      last_message_at: row.last_message_at != null ? String(row.last_message_at) : null,
-    }
+    return mapSegmentRecipientRow(row)
   } catch (e) {
     console.warn('[fetchConversationForMarketingDeliveryFromPg]', e)
     return null

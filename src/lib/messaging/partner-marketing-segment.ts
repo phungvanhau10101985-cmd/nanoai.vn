@@ -86,6 +86,9 @@ export function segmentRulesFromJson(seg: MarketingSegmentJson): {
 
 export function formatSegmentRecipientLabel(r: MarketingSegmentRecipientRow): string {
   const name = r.customer_name?.trim()
+  const email = r.customer_email?.trim()
+  if (name && email) return `${name} — ${email}`
+  if (email) return email
   if (name) return name
   if (r.linked_user_id) return `User ${r.linked_user_id.slice(0, 8)}…`
   if (r.guest_account_id) return `Guest ${r.guest_account_id.slice(0, 8)}…`

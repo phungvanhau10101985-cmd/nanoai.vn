@@ -80,6 +80,11 @@ async function processDelivery(
     return 'skipped'
   }
 
+  if (!recipient.customer_email?.trim()) {
+    await markMarketingDeliverySkippedFromPg(deliveryId, 'no_email')
+    return 'skipped'
+  }
+
   const origin = getPublicAppUrlForServer()
   const ctx = await buildMarketingRenderContext({
     partnerId: campaign.partner_id,
