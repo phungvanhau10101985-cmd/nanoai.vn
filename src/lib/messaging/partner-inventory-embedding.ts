@@ -1,6 +1,6 @@
 import {
   fetchPartnerInventoryRowsByIdsForEmbeddingSyncFromPg,
-  fetchPartnerInventorySliceByUpdatedAtAscFromPg,
+  fetchPartnerInventorySliceForEmbeddingSyncFromPg,
   updatePartnerInventoryEmbeddingFieldsFromPg,
   type PartnerInventoryEmbeddingUpdatePatch,
 } from '@/lib/db/messaging-partner-inventory-pg'
@@ -265,7 +265,12 @@ export async function syncPartnerInventoryEmbeddings(
     let scanned = 0
     let from = 0
     while (scanned < SCAN_MAX_ROWS && rows.length < cap) {
-      const page = await fetchPartnerInventorySliceByUpdatedAtAscFromPg(partnerId, SCAN_PAGE_SIZE, from)
+      const page = await fetchPartnerInventorySliceForEmbeddingSyncFromPg(
+        partnerId,
+        SCAN_PAGE_SIZE,
+        from,
+        'image'
+      )
       if (page === null) {
         return { ok: false, error: 'Could not scan inventory for embedding sync.' }
       }

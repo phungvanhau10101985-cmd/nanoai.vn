@@ -859,6 +859,48 @@ export async function fetchPartnerInventorySliceByUpdatedAtAscFromPg(
   }
 }
 
+/**
+ * Trang ưu tiên mục chưa embed (`*_embedding_updated_at` null) trước — tránh bỏ sót
+ * khi kho > GEMINI_*_EMBED_SCAN_MAX_ROWS và các SP mới import có `updated_at` mới hơn.
+ */
+export async function fetchPartnerInventorySliceForEmbeddingSyncFromPg(
+  partnerId: string,
+  limit: number,
+  offset: number,
+  kind: 'image' | 'text'
+): Promise<MessagingPartnerInventoryRow[] | null> {
+  if (!isPgConfigured()) return null
+  const lim = Math.max(1, Math.floor(limit))
+  const off = Math.max(0, Math.floor(offset))
+  const updatedCol = kind === 'image' ? 'image_embedding_updated_at' : 'text_embedding_updated_at'
+  const eligibleFilter =
+    kind === 'image'
+      ? `and coalesce(mpi.is_active, true)
+         and (
+           trim(coalesce(mpi.image_url, '')) ~* '^https?://'
+           or trim(coalesce(mpi.image_url, '')) like '//%'
+         )`
+      : `and coalesce(mpi.is_active, true)
+         and (
+           trim(coalesce(mpi.name, '')) <> ''
+           or trim(coalesce(mpi.price_hint, '')) <> ''
+           or trim(coalesce(mpi.consult_note, '')) <> ''
+         )`
+  try {
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
+       ${eligibleFilter}
+       order by mpi.${updatedCol} asc nulls first, mpi.updated_at asc nulls last
+       limit $2 offset $3`,
+      [partnerId, lim, off]
+    )
+    return rows.map(mapPgInventoryRow)
+  } catch (e) {
+    console.warn('[fetchPartnerInventorySliceForEmbeddingSyncFromPg]', e)
+    return null
+  }
+}
+
 export type PartnerInventoryEmbeddingUpdatePatch = {
   image_embedding_json: number[] | null
   image_embedding_fingerprint: string
