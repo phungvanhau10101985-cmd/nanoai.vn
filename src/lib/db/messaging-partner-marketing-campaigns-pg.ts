@@ -344,6 +344,42 @@ export async function countMarketingSegmentRecipientsFromPg(input: {
   return rows.length
 }
 
+export async function countMarketingEmailsSentForPartnerThisMonthFromPg(partnerId: string): Promise<number> {
+  if (!isPgConfigured()) return 0
+  try {
+    const row = await pgQueryOne<{ count: number }>(
+      `select count(*)::int as count
+       from public.messaging_partner_marketing_deliveries
+       where partner_id = $1::uuid
+         and status = 'sent_chat_email'
+         and sent_email_at >= date_trunc('month', now())`,
+      [partnerId]
+    )
+    return Number(row?.count) || 0
+  } catch (e) {
+    console.warn('[countMarketingEmailsSentForPartnerThisMonthFromPg]', e)
+    return 0
+  }
+}
+
+export async function countMarketingChatSentForPartnerThisMonthFromPg(partnerId: string): Promise<number> {
+  if (!isPgConfigured()) return 0
+  try {
+    const row = await pgQueryOne<{ count: number }>(
+      `select count(*)::int as count
+       from public.messaging_partner_marketing_deliveries
+       where partner_id = $1::uuid
+         and status in ('sent_chat', 'sent_chat_email')
+         and sent_chat_at >= date_trunc('month', now())`,
+      [partnerId]
+    )
+    return Number(row?.count) || 0
+  } catch (e) {
+    console.warn('[countMarketingChatSentForPartnerThisMonthFromPg]', e)
+    return 0
+  }
+}
+
 export async function bulkInsertMarketingDeliveriesFromPg(
   campaignId: string,
   partnerId: string,

@@ -7,6 +7,8 @@ import { isPgConfigured } from '@/lib/db/pool'
 import {
   bulkInsertMarketingDeliveriesFromPg,
   cancelMarketingCampaignFromPg,
+  countMarketingChatSentForPartnerThisMonthFromPg,
+  countMarketingEmailsSentForPartnerThisMonthFromPg,
   countMarketingOptOutForPartnerFromPg,
   countMarketingSegmentRecipientsFromPg,
   fetchMarketingCampaignForPartnerFromPg,
@@ -23,10 +25,12 @@ import { buildOfflineReplyAutoLoginChatUrl } from '@/lib/messaging/offline-reply
 import {
   DEFAULT_MARKETING_TEMPLATE_CHAT,
   formatSegmentRecipientLabel,
+  MARKETING_CAMPAIGN_COOLDOWN_DAYS,
   normalizeMarketingSegmentJson,
   segmentRulesFromJson,
   type MarketingSegmentJson,
 } from '@/lib/messaging/partner-marketing-segment'
+import { MARKETING_EMAIL_COOLDOWN_DAYS } from '@/lib/messaging/partner-marketing-email'
 import {
   buildMarketingRenderContext,
   fetchMarketingInterestProducts,
@@ -71,15 +75,54 @@ export async function previewMarketingSegment(partnerId: string, segmentJson: Ma
   const samples = recipients.slice(0, 3).map((r) => ({
     conversationId: r.conversation_id,
     recipientKey: r.recipient_key,
-    label: formatSegmentRecipientLabel(r),
+    customerName: r.customer_name?.trim() || null,
     email: r.customer_email,
     lastMessageAt: r.last_message_at,
   }))
+  const [emailsSentThisMonth, chatSentThisMonth] = await Promise.all([
+    countMarketingEmailsSentForPartnerThisMonthFromPg(partnerId),
+    countMarketingChatSentForPartnerThisMonthFromPg(partnerId),
+  ])
   return {
     ok: true as const,
     count: recipients.length,
     samples,
     segment: seg,
+    emailsSentThisMonth,
+    chatSentThisMonth,
+    emailCooldownDays: MARKETING_EMAIL_COOLDOWN_DAYS,
+    chatCooldownDays: MARKETING_CAMPAIGN_COOLDOWN_DAYS,
+  }
+}
+
+export async function listMarketingSegmentRecipientsFull(
+  partnerId: string,
+  segmentJson: MarketingSegmentJson
+) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerStaffGate(auth.user.id, partnerId, 'marketing_campaigns')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const seg = normalizeMarketingSegmentJson(segmentJson)
+  const rules = segmentRulesFromJson(seg)
+  const recipients = await listMarketingSegmentRecipientsFromPg({
+    partnerId,
+    daysSinceChat: rules.daysSinceChat,
+    requireHasOrder: rules.requireHasOrder,
+    limit: 5000,
+  })
+  return {
+    ok: true as const,
+    recipients: recipients.map((r) => ({
+      conversationId: r.conversation_id,
+      recipientKey: r.recipient_key,
+      customerName: r.customer_name?.trim() || null,
+      email: r.customer_email?.trim() || null,
+      lastMessageAt: r.last_message_at,
+    })),
+    count: recipients.length,
   }
 }
 

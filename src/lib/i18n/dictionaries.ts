@@ -612,6 +612,12 @@ export type Dictionary = {
     colRecipient: string
     colStatus: string
     colReason: string
+    viewAllRecipients: string
+    recipientListTitle: string
+    colName: string
+    colEmail: string
+    colLastChat: string
+    sendLimitsThisMonth: string
     noWorkspace: string
   }
   /** /dashboard/messaging — trợ lý AI (chờ nhân viên + LLM / kho) */
@@ -2921,6 +2927,13 @@ const VI_DICTIONARY: Dictionary = {
     colRecipient: 'Người nhận',
     colStatus: 'Trạng thái',
     colReason: 'Lý do',
+    viewAllRecipients: 'Xem danh sách tất cả ({count})',
+    recipientListTitle: 'Danh sách khách đủ điều kiện',
+    colName: 'Tên',
+    colEmail: 'Email',
+    colLastChat: 'Chat gần nhất',
+    sendLimitsThisMonth:
+      'Tháng này: đã gửi {emailsSent} email, {chatSent} tin chat. Giới hạn mỗi khách: 1 email / {emailDays} ngày (~{emailPerMonth} email/tháng), 1 tin chat / {chatDays} ngày.',
     noWorkspace: 'Chưa có workspace. Tạo workspace trong Cài đặt nhắn tin.',
   },
   partnerMessagingAi: {
@@ -5223,6 +5236,13 @@ const EN_DICTIONARY: Dictionary = {
     colRecipient: 'Recipient',
     colStatus: 'Status',
     colReason: 'Reason',
+    viewAllRecipients: 'View full list ({count})',
+    recipientListTitle: 'Eligible customers',
+    colName: 'Name',
+    colEmail: 'Email',
+    colLastChat: 'Last chat',
+    sendLimitsThisMonth:
+      'This month: {emailsSent} emails and {chatSent} chat messages sent. Per customer: 1 email / {emailDays} days (~{emailPerMonth}/month), 1 chat / {chatDays} days.',
     noWorkspace: 'No workspace yet. Create one in Messaging settings.',
   },
   partnerMessagingAi: {
@@ -7521,6 +7541,13 @@ const ZH_DICTIONARY: Dictionary = {
     colRecipient: '收件人',
     colStatus: '状态',
     colReason: '原因',
+    viewAllRecipients: '查看全部列表 ({count})',
+    recipientListTitle: '符合条件的客户',
+    colName: '姓名',
+    colEmail: '邮箱',
+    colLastChat: '最近聊天',
+    sendLimitsThisMonth:
+      '本月：已发 {emailsSent} 封邮件、{chatSent} 条聊天。每位客户：1 封邮件 / {emailDays} 天（约 {emailPerMonth} 封/月），1 条聊天 / {chatDays} 天。',
     noWorkspace: '尚无工作区。请在消息设置中创建。',
   },
   partnerMessagingAi: {
@@ -9754,6 +9781,13 @@ const JA_DICTIONARY: Dictionary = {
     colRecipient: '受信者',
     colStatus: '状態',
     colReason: '理由',
+    viewAllRecipients: '全リストを見る ({count})',
+    recipientListTitle: '対象のお客様一覧',
+    colName: '名前',
+    colEmail: 'メール',
+    colLastChat: '最終チャット',
+    sendLimitsThisMonth:
+      '今月：メール {emailsSent} 通、チャット {chatSent} 通送信済み。お客様あたり：メール 1通 / {emailDays} 日（約 {emailPerMonth} 通/月）、チャット 1通 / {chatDays} 日。',
     noWorkspace: 'ワークスペースがありません。メッセージ設定で作成してください。',
   },
   partnerMessagingAi: {
@@ -12039,6 +12073,13 @@ const KO_DICTIONARY: Dictionary = {
     colRecipient: '수신자',
     colStatus: '상태',
     colReason: '사유',
+    viewAllRecipients: '전체 목록 보기 ({count})',
+    recipientListTitle: '대상 고객 목록',
+    colName: '이름',
+    colEmail: '이메일',
+    colLastChat: '최근 채팅',
+    sendLimitsThisMonth:
+      '이번 달: 이메일 {emailsSent}통, 채팅 {chatSent}통 발송. 고객당: 이메일 1통 / {emailDays}일(월 약 {emailPerMonth}통), 채팅 1통 / {chatDays}일.',
     noWorkspace: '워크스페이스가 없습니다. 메시징 설정에서 생성하세요.',
   },
   partnerMessagingAi: {

@@ -8,6 +8,12 @@ import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,6 +23,7 @@ import {
   createMarketingCampaignDraft,
   getMarketingCampaignDetail,
   getMarketingOptOutCount,
+  listMarketingSegmentRecipientsFull,
   listPartnerMarketingCampaigns,
   previewMarketingSegment,
   queueMarketingCampaign,
@@ -30,16 +37,34 @@ import {
   MARKETING_MERGE_FIELD_HINTS,
   type MarketingSegmentJson,
 } from '@/lib/messaging/partner-marketing-segment'
-import { Megaphone, RefreshCw } from 'lucide-react'
+import { List, Megaphone, RefreshCw } from 'lucide-react'
 
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
 
-type SegmentSample = {
+type SegmentRecipientRow = {
   conversationId: string
   recipientKey: string
-  label: string
+  customerName: string | null
   email: string | null
   lastMessageAt: string | null
+}
+
+function formatSendLimitsNote(
+  template: string,
+  input: {
+    emailsSent: number
+    chatSent: number
+    emailDays: number
+    chatDays: number
+  }
+): string {
+  const emailPerMonth = Math.max(1, Math.floor(30 / Math.max(1, input.emailDays)))
+  return template
+    .replace('{emailsSent}', String(input.emailsSent))
+    .replace('{chatSent}', String(input.chatSent))
+    .replace('{emailDays}', String(input.emailDays))
+    .replace('{chatDays}', String(input.chatDays))
+    .replace('{emailPerMonth}', String(emailPerMonth))
 }
 
 function statusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -68,7 +93,14 @@ export function PartnerMarketingCampaignsClient({
     initialPartners.some((p) => p.id === partnerFromUrl) ? partnerFromUrl : initialPartners[0]?.id ?? ''
   )
   const [segmentCount, setSegmentCount] = useState<number | null>(null)
-  const [samples, setSamples] = useState<SegmentSample[]>([])
+  const [samples, setSamples] = useState<SegmentRecipientRow[]>([])
+  const [emailsSentThisMonth, setEmailsSentThisMonth] = useState(0)
+  const [chatSentThisMonth, setChatSentThisMonth] = useState(0)
+  const [emailCooldownDays, setEmailCooldownDays] = useState(7)
+  const [chatCooldownDays, setChatCooldownDays] = useState(14)
+  const [fullListOpen, setFullListOpen] = useState(false)
+  const [fullList, setFullList] = useState<SegmentRecipientRow[]>([])
+  const [fullListLoading, setFullListLoading] = useState(false)
   const [templateBody, setTemplateBody] = useState(DEFAULT_MARKETING_TEMPLATE_CHAT)
   const [offerPercent, setOfferPercent] = useState('')
   const [channelEmail, setChannelEmail] = useState(false)
@@ -107,8 +139,31 @@ export function PartnerMarketingCampaignsClient({
       if (!('ok' in res) || !res.ok) return
       setSegmentCount(res.count)
       setSamples(res.samples)
+      setEmailsSentThisMonth(res.emailsSentThisMonth)
+      setChatSentThisMonth(res.chatSentThisMonth)
+      setEmailCooldownDays(res.emailCooldownDays)
+      setChatCooldownDays(res.chatCooldownDays)
     })
   }, [selectedPartnerId, segmentJson, toast])
+
+  const handleOpenFullList = async () => {
+    if (!selectedPartnerId || fullListLoading) return
+    setFullListOpen(true)
+    setFullListLoading(true)
+    try {
+      const res = await listMarketingSegmentRecipientsFull(selectedPartnerId, segmentJson)
+      if ('error' in res && res.error) {
+        toast({ title: String(res.error), variant: 'destructive' })
+        setFullListOpen(false)
+        return
+      }
+      if ('ok' in res && res.ok) {
+        setFullList(res.recipients)
+      }
+    } finally {
+      setFullListLoading(false)
+    }
+  }
 
   const loadCampaigns = useCallback(() => {
     if (!selectedPartnerId) return
@@ -325,20 +380,45 @@ export function PartnerMarketingCampaignsClient({
                 ? marketingT.recipientCount.replace('{count}', String(segmentCount))
                 : marketingT.loadingCount}
             </p>
+            {segmentCount != null && (
+              <p className="text-xs text-muted-foreground">
+                {formatSendLimitsNote(marketingT.sendLimitsThisMonth, {
+                  emailsSent: emailsSentThisMonth,
+                  chatSent: chatSentThisMonth,
+                  emailDays: emailCooldownDays,
+                  chatDays: chatCooldownDays,
+                })}
+              </p>
+            )}
             {samples.length > 0 && (
               <ul className="space-y-1 text-sm text-muted-foreground">
                 {samples.map((s) => (
                   <li key={s.recipientKey}>
-                    • {s.label}
+                    • {s.customerName ?? s.email ?? s.recipientKey}
+                    {s.email ? ` — ${s.email}` : ''}
                     {s.lastMessageAt ? ` — ${new Date(s.lastMessageAt).toLocaleDateString(locale)}` : ''}
                   </li>
                 ))}
               </ul>
             )}
-            <Button type="button" size="sm" variant="outline" onClick={loadPreview} disabled={pending}>
-              <RefreshCw className="mr-1 h-3.5 w-3.5" />
-              {marketingT.refreshPreview}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={loadPreview} disabled={pending}>
+                <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                {marketingT.refreshPreview}
+              </Button>
+              {segmentCount != null && segmentCount > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleOpenFullList}
+                  disabled={fullListLoading}
+                >
+                  <List className="mr-1 h-3.5 w-3.5" />
+                  {marketingT.viewAllRecipients.replace('{count}', String(segmentCount))}
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -531,6 +611,42 @@ export function PartnerMarketingCampaignsClient({
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={fullListOpen} onOpenChange={setFullListOpen}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{marketingT.recipientListTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto text-sm">
+            {fullListLoading ? (
+              <p className="text-muted-foreground">{marketingT.loadingCount}</p>
+            ) : fullList.length === 0 ? (
+              <p className="text-muted-foreground">{marketingT.noRecipients}</p>
+            ) : (
+              <table className="w-full text-left">
+                <thead className="sticky top-0 bg-background">
+                  <tr className="border-b text-muted-foreground">
+                    <th className="py-1 pr-2">{marketingT.colName}</th>
+                    <th className="py-1 pr-2">{marketingT.colEmail}</th>
+                    <th className="py-1">{marketingT.colLastChat}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fullList.map((r) => (
+                    <tr key={r.recipientKey} className="border-b border-border/40">
+                      <td className="py-1 pr-2">{r.customerName ?? '—'}</td>
+                      <td className="py-1 pr-2 text-xs">{r.email ?? '—'}</td>
+                      <td className="py-1 text-muted-foreground">
+                        {r.lastMessageAt ? new Date(r.lastMessageAt).toLocaleDateString(locale) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
