@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -12,20 +11,42 @@ export function MarketingPageNavButtons({
   goToInboxLabel: string
   settingsLabel: string
 }) {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const partner = searchParams.get('partner')?.trim() ?? ''
   const partnerQuery = partner ? `?partner=${encodeURIComponent(partner)}` : ''
 
-  const linkClass = cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'h-8 text-xs')
+  const buttonClass = cn(
+    buttonVariants({ variant: 'outline', size: 'sm' }),
+    'relative z-[60] h-8 text-xs pointer-events-auto'
+  )
+
+  const go = (href: string) => {
+    router.push(href)
+    // Fallback cho trường hợp router client chưa hydrate hoặc bị extension/lớp phủ chặn.
+    window.setTimeout(() => {
+      if (window.location.pathname + window.location.search !== href) {
+        window.location.href = href
+      }
+    }, 120)
+  }
 
   return (
-    <div className="relative z-10 flex shrink-0 flex-wrap gap-2">
-      <Link href={`/dashboard/messaging/inbox${partnerQuery}`} className={linkClass}>
+    <div className="relative z-[60] flex shrink-0 flex-wrap gap-2 pointer-events-auto">
+      <button
+        type="button"
+        className={buttonClass}
+        onClick={() => go(`/dashboard/messaging/inbox${partnerQuery}`)}
+      >
         {goToInboxLabel}
-      </Link>
-      <Link href={`/dashboard/messaging/settings${partnerQuery}`} className={linkClass}>
+      </button>
+      <button
+        type="button"
+        className={buttonClass}
+        onClick={() => go(`/dashboard/messaging/settings${partnerQuery}`)}
+      >
         {settingsLabel}
-      </Link>
+      </button>
     </div>
   )
 }
