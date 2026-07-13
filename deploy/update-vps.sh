@@ -45,7 +45,7 @@ env_read_from_file() {
   if [[ ! -f "${file}" ]]; then
     return 0
   fi
-  sed -n "s/^${key}=//p" "${file}" | head -n1
+  sed -n "s/^${key}=//p" "${file}" | head -n1 | tr -d '\r\n'
 }
 
 env_read() {
