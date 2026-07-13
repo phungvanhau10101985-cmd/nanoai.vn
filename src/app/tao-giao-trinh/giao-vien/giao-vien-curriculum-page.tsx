@@ -2702,6 +2702,26 @@ export default function CurriculumViewPage() {
       return
     }
     setInfographicGenerating(true)
+    const curriculumInfographicExists = Boolean(curriculumInfographic?.imageUrl)
+    toast({
+      title: tr('Chuẩn bị tạo infographic cả bài', 'Preparing curriculum infographic', '准备创建全课信息图', '全体インフォグラフィック作成準備', '전체 인포그래픽 생성 준비'),
+      description: curriculumInfographicExists
+        ? tr(
+            `Tạo lại sẽ tốn ${lessonInfographicCostLabel} credit.`,
+            `Regenerating will cost ${lessonInfographicCostLabel} credits.`,
+            `重新生成将消耗 ${lessonInfographicCostLabel} 积分。`,
+            `再生成では ${lessonInfographicCostLabel} クレジットを消費します。`,
+            `다시 만들기 시 ${lessonInfographicCostLabel} 크레딧이 필요합니다.`
+          )
+        : tr(
+            'Lần đầu cả bài — miễn phí credit.',
+            'First time for this curriculum — no credit charge.',
+            '全课首次创建——免积分。',
+            '全体の初回—クレジット無料。',
+            '전체 첫 생성—크레딧 무료.'
+          ),
+      duration: 1800,
+    })
     try {
       const res = await fetch('/api/curriculum-slide-infographic', {
         method: 'POST',
@@ -2757,11 +2777,11 @@ export default function CurriculumViewPage() {
               `${lessonInfographicCostLabel} 크레딧이 차감되었습니다.`
             )
           : tr(
-              'Lần đầu trong bài — không trừ credit.',
-              'First time for this lesson — no credits charged.',
-              '本课首次创建——不扣积分。',
-              'この授業の初回作成—クレジット消費なし。',
-              '이 차시 첫 생성—크레딧 미차감.'
+              'Lần đầu cả bài — không trừ credit.',
+              'First time for this curriculum — no credits charged.',
+              '全课首次创建——不扣积分。',
+              '全体の初回作成—クレジット消費なし。',
+              '전체 첫 생성—크레딧 미차감.'
             ),
         duration: 2000,
       })
@@ -2911,24 +2931,33 @@ export default function CurriculumViewPage() {
     }
   }, [curriculumId, worksheetId, activeLessonNo, content, slides, topic, tr, toast, lessonInfographicCostLabel, slideMode, personalViewSubMode, sendCurriculumDataToStudent, currentIndex])
 
+  const infographicCostSuffix = useCallback(
+    (hasExisting: boolean, costLabel: string) =>
+      hasExisting
+        ? `(${costLabel} ${tr('credit', 'credits', '积分', 'クレジット', '크레딧')})`
+        : tr('(lần đầu — miễn phí)', '(first time — free)', '(首次免费)', '(初回無料)', '(첫 생성 무료)'),
+    [tr]
+  )
+
   const infographicActionText = useCallback((kind: 'lesson' | 'curriculum', hasImage: boolean, cost: string) => {
+    const suffix = infographicCostSuffix(hasImage, cost)
     if (kind === 'lesson') {
       return tr(
-        `${hasImage ? 'Tạo lại' : 'Tạo'} infographic tiết này (${cost} credit)`,
-        `${hasImage ? 'Regenerate' : 'Create'} lesson infographic (${cost} credits)`,
-        `${hasImage ? '重新生成' : '创建'}本课时信息图（${cost} 积分）`,
-        `この授業の情報図を${hasImage ? '再生成' : '作成'}（${cost}クレジット）`,
-        `이 차시 인포그래픽 ${hasImage ? '다시 만들기' : '만들기'} (${cost} 크레딧)`
+        `${hasImage ? 'Tạo lại' : 'Tạo'} infographic tiết này ${suffix}`,
+        `${hasImage ? 'Regenerate' : 'Create'} lesson infographic ${suffix}`,
+        `${hasImage ? '重新生成' : '创建'}本课时信息图 ${suffix}`,
+        `この授業の情報図を${hasImage ? '再生成' : '作成'} ${suffix}`,
+        `이 차시 인포그래픽 ${hasImage ? '다시 만들기' : '만들기'} ${suffix}`
       )
     }
     return tr(
-      `${hasImage ? 'Tạo lại' : 'Tạo'} infographic cả bài (${cost} credit)`,
-      `${hasImage ? 'Regenerate' : 'Create'} curriculum infographic (${cost} credits)`,
-      `${hasImage ? '重新生成' : '创建'}全课信息图（${cost} 积分）`,
-      `全体情報図を${hasImage ? '再生成' : '作成'}（${cost}クレジット）`,
-      `전체 인포그래픽 ${hasImage ? '다시 만들기' : '만들기'} (${cost} 크레딧)`
+      `${hasImage ? 'Tạo lại' : 'Tạo'} infographic cả bài ${suffix}`,
+      `${hasImage ? 'Regenerate' : 'Create'} curriculum infographic ${suffix}`,
+      `${hasImage ? '重新生成' : '创建'}全课信息图 ${suffix}`,
+      `全体情報図を${hasImage ? '再生成' : '作成'} ${suffix}`,
+      `전체 인포그래픽 ${hasImage ? '다시 만들기' : '만들기'} ${suffix}`
     )
-  }, [tr])
+  }, [tr, infographicCostSuffix])
   const confirmInfographicAction = useCallback((kind: 'lesson' | 'curriculum', isRegenerate: boolean): boolean => {
     const msg = kind === 'lesson'
       ? isRegenerate
@@ -5728,13 +5757,7 @@ export default function CurriculumViewPage() {
                                     >
                                       {lessonInfographicGenerating
                                         ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
-                                        : tr(
-                                            `Tạo infographic tiết này (${visualInfographicCostLabel} credits)`,
-                                            `Create this lesson infographic (${visualInfographicCostLabel} credits)`,
-                                            `创建本课时信息图（${visualInfographicCostLabel} 积分）`,
-                                            `この授業のインフォグラフィック作成（${visualInfographicCostLabel}クレジット）`,
-                                            `이 차시 인포그래픽 만들기 (${visualInfographicCostLabel} 크레딧)`
-                                          )}
+                                        : infographicActionText('lesson', hasLessonInfographic, visualInfographicCostLabel)}
                                     </button>
                                     <button
                                       type="button"
@@ -5744,13 +5767,7 @@ export default function CurriculumViewPage() {
                                     >
                                       {infographicGenerating
                                         ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
-                                        : tr(
-                                            `Tạo ảnh visual dùng chung (${visualInfographicCostLabel} credits)`,
-                                            `Create shared visual image (${visualInfographicCostLabel} credits)`,
-                                            `创建全课共用可视化图片（${visualInfographicCostLabel} 积分）`,
-                                            `全体共通のビジュアル画像を作成（${visualInfographicCostLabel}クレジット）`,
-                                            `공용 비주얼 이미지 만들기 (${visualInfographicCostLabel} 크레딧)`
-                                          )}
+                                        : infographicActionText('curriculum', hasCurriculumInfographic, visualInfographicCostLabel)}
                                     </button>
                                   </div>
                                 ) : (
@@ -5900,6 +5917,15 @@ export default function CurriculumViewPage() {
                                 '인포그래픽이 아직 없습니다. 현재 차시용 또는 전체 공용 이미지를 만들 수 있습니다.'
                               )}
                             </p>
+                            <p className="text-xs text-slate-400">
+                              {tr(
+                                'Lần đầu tạo (theo tiết hoặc cả bài) miễn phí credit; chỉ tạo lại mới trừ credit.',
+                                'First creation (per lesson or whole curriculum) is free; only regenerating costs credits.',
+                                '首次创建（按课时或全课）免积分；仅重新生成扣积分。',
+                                '初回作成（授業単位・全体）は無料。再生成時のみクレジット消費。',
+                                '첫 생성(차시·전체)은 무료. 다시 만들 때만 크레딧 차감.'
+                              )}
+                            </p>
                             <div className="flex flex-wrap gap-2">
                               <button
                                 type="button"
@@ -5909,13 +5935,7 @@ export default function CurriculumViewPage() {
                               >
                                 {lessonInfographicGenerating
                                   ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
-                                  : tr(
-                                      `Tạo infographic tiết này (${costLabel} credits)`,
-                                      `Create lesson infographic (${costLabel} credits)`,
-                                      `创建本课时信息图（${costLabel} 积分）`,
-                                      `この授業のインフォグラフィック作成（${costLabel}クレジット）`,
-                                      `이 차시 인포그래픽 만들기 (${costLabel} 크레딧)`
-                                    )}
+                                  : infographicActionText('lesson', hasLessonInfographic, costLabel)}
                               </button>
                               <button
                                 type="button"
@@ -5925,13 +5945,7 @@ export default function CurriculumViewPage() {
                               >
                                 {infographicGenerating
                                   ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
-                                  : tr(
-                                      `Tạo infographic dùng chung (${costLabel} credits)`,
-                                      `Create shared infographic (${costLabel} credits)`,
-                                      `创建共用信息图（${costLabel} 积分）`,
-                                      `共通インフォグラフィック作成（${costLabel}クレジット）`,
-                                      `공용 인포그래픽 만들기 (${costLabel} 크레딧)`
-                                    )}
+                                  : infographicActionText('curriculum', hasCurriculumInfographic, costLabel)}
                               </button>
                             </div>
                             {!curriculumId && (

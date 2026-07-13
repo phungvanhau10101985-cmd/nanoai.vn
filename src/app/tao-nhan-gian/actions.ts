@@ -13,24 +13,13 @@ import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
-
+import {
+  STICKER_PHOTO_EXPRESSION_IDS,
+  type StickerPhotoExpressionId,
+} from './sticker-photo-presets'
 
 const STICKER_COSTS = { '2K': 2, '4K': 4 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '4:3', '3:4', '16:9', '9:16'] as const
-export const STICKER_PHOTO_EXPRESSION_IDS = [
-  'happy',
-  'love',
-  'cool',
-  'lol',
-  'sad',
-  'angry',
-  'surprised',
-  'sleepy',
-  'wink',
-  'thumbs',
-  'custom',
-] as const
-export type StickerPhotoExpressionId = (typeof STICKER_PHOTO_EXPRESSION_IDS)[number]
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024
 const ALLOWED_PHOTO_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])

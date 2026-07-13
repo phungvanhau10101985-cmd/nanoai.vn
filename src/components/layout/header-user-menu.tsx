@@ -10,12 +10,17 @@ import {
   Gift,
   Package,
   ListTodo,
-  MessageCircle,
+  Headphones,
   MessageSquare,
   MessagesSquare,
   KeyRound,
   ShoppingBag,
   Smartphone,
+  LayoutDashboard,
+  ImageIcon,
+  Languages,
+  Music2,
+  Sparkles,
 } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { DepositCreditMenuItem } from '@/components/deposit-credit-menu-item'
@@ -134,7 +139,7 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
-          className="w-56 z-[1000]"
+          className="z-[1000] max-h-[calc(100vh-5rem)] w-64 overflow-y-auto p-1.5"
           align="end"
           sideOffset={8}
           onInteractOutside={(e) => {
@@ -173,8 +178,15 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
           {showFullAccountMenu && (
             <>
               <DepositCreditMenuItem />
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t.menu.personalSection}
+              </DropdownMenuLabel>
               <DropdownMenuItem asChild>
-                <Link href="/dashboard">{t.menu.dashboard}</Link>
+                <Link href="/dashboard" className="flex items-center gap-2">
+                  <LayoutDashboard className="h-4 w-4" aria-hidden />
+                  {t.menu.dashboard}
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/dashboard/tasks" className="flex items-center gap-2">
@@ -183,14 +195,36 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
+                <Link href="/wallet" className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4" aria-hidden />
+                  {t.menu.wallet}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/account/plan" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" aria-hidden />
+                  {t.menu.viewPlan}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/invite" className="flex items-center gap-2">
+                  <Gift className="h-4 w-4" aria-hidden />
+                  {t.menu.inviteFriends}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t.menu.messagesSection}
+              </DropdownMenuLabel>
+              <DropdownMenuItem asChild>
                 <Link href="/support-chat" className="flex items-center gap-2">
-                  <MessageCircle className="h-4 w-4" aria-hidden />
+                  <Headphones className="h-4 w-4 text-sky-600" aria-hidden />
                   {t.menu.supportChat}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/messaging/my-chats" className="flex items-center gap-2">
-                  <MessagesSquare className="h-4 w-4" aria-hidden />
+                  <MessagesSquare className="h-4 w-4 text-violet-600" aria-hidden />
                   {t.menu.myChats}
                 </Link>
               </DropdownMenuItem>
@@ -200,6 +234,10 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
                   {t.menu.myOrders}
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t.menu.businessSection}
+              </DropdownMenuLabel>
               <DropdownMenuItem asChild>
                 <Link href="/dashboard/messaging" className="flex items-center gap-2">
                   <MessageSquare className="h-4 w-4" aria-hidden />
@@ -214,32 +252,30 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/dashboard/customer-api-keys" className="flex items-center gap-2">
-                  <KeyRound className="h-4 w-4" aria-hidden />
+                  <Sparkles className="h-4 w-4" aria-hidden />
                   {t.menu.customerApiKeys}
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t.menu.historySection}
+              </DropdownMenuLabel>
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/history">{t.menu.processedImages}</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/history/translate">{t.menu.translateHistory}</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/tao-bai-hat-lyria-3#lyria3-saved-music">{t.menu.musicHistory}</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/wallet">{t.menu.wallet}</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/account/plan" className="flex items-center gap-2">
-                  <Package className="h-4 w-4" aria-hidden />
-                  {t.menu.viewPlan}
+                <Link href="/dashboard/history" className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" aria-hidden />
+                  {t.menu.processedImages}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/invite" className="flex items-center gap-2">
-                  <Gift className="h-4 w-4" />
-                  {t.menu.inviteFriends}
+                <Link href="/dashboard/history/translate" className="flex items-center gap-2">
+                  <Languages className="h-4 w-4" aria-hidden />
+                  {t.menu.translateHistory}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/tao-bai-hat-lyria-3#lyria3-saved-music" className="flex items-center gap-2">
+                  <Music2 className="h-4 w-4" aria-hidden />
+                  {t.menu.musicHistory}
                 </Link>
               </DropdownMenuItem>
             </>

@@ -21,7 +21,7 @@ export async function generateMetadata() {
     title: t.accountPlan.pageTitle,
     description: t.accountPlan.metaDescription,
     path,
-    keywords: ['NanoAI', 'plan', 'trial', 'subscription', 'credits', 'gói dịch vụ'],
+    keywords: ['NanoAI', 'giáo trình', 'curriculum', 'trial', 'credits', 'gói giáo trình'],
     locale: OG_LOCALE[locale] ?? 'vi_VN',
     noIndex: true,
   })

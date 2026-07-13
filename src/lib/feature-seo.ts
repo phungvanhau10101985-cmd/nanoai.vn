@@ -127,11 +127,11 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
   },
   'tao-anh-tu-chu': {
     key: 'tao-anh-tu-chu',
-    pageTitle: 'Tạo ảnh bằng chữ (text-to-image) online',
+    pageTitle: 'Tạo ảnh bằng ý tưởng online',
     pageDescription:
       'Tạo ảnh từ mô tả chữ bằng AI. Tùy chọn ảnh tham khảo để gợi ý phong cách, màu sắc hoặc bố cục. Xuất 2K/4K, nhiều tỷ lệ khung.',
     path: '/tao-anh-tu-chu',
-    keywords: ['tạo ảnh bằng chữ', 'text to image', 'ai tạo ảnh', 'ảnh tham khảo', 'prompt ảnh'],
+    keywords: ['tạo ảnh bằng ý tưởng', 'text to image', 'ai tạo ảnh', 'ảnh tham khảo', 'prompt ảnh'],
     serviceName: 'Tạo ảnh từ mô tả chữ',
     serviceDescription: 'Mô tả bằng ngôn ngữ tự nhiên; có thể đính kèm một ảnh tham khảo để AI bám sát phong cách mong muốn.',
     h2: 'Tạo ảnh nhanh từ ý tưởng chữ và ảnh gợi ý',

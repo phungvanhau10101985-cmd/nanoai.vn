@@ -26,7 +26,7 @@ export function WeddingSectionCard({ theme, title, children, id, className, cont
       {title ? (
         <h2
           className={cn(
-            'text-center font-serif text-lg font-semibold tracking-[0.06em] sm:text-xl md:text-2xl',
+            'text-center text-lg font-semibold sm:text-xl md:text-2xl',
             theme.text,
             theme.textGlowHeading,
           )}

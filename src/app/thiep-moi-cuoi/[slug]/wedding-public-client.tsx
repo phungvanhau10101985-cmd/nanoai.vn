@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarDays, Heart, Loader2, MapPin, Music, Send, Sparkles } from 'lucide-react'
+import { CalendarDays, Heart, Loader2, MapPin, Music, Send, Sparkles, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,7 +10,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import type { WeddingAiImage, WeddingCard, WeddingImageType, WeddingWish } from '@/lib/db/wedding-cards-pg'
-import { submitWeddingGuestResponse } from './actions'
+import { submitWeddingGuestResponse, subscribeWeddingReminder } from './actions'
 import { WeddingAlbumLightbox } from './wedding-album-lightbox'
 import { WeddingAlbumGalleryGrid, WeddingAlbumPreviewGrid } from '@/components/wedding/wedding-album-grid'
 import { WeddingInvitationAudio, type WeddingInvitationAudioHandle } from '@/components/wedding/wedding-invitation-audio'
@@ -107,6 +107,9 @@ export default function WeddingPublicClient({
   const [guestCount, setGuestCount] = useState('1')
   const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [reminderEmail, setReminderEmail] = useState('')
+  const [reminderDaysBefore, setReminderDaysBefore] = useState('3')
+  const [reminderSubmitting, setReminderSubmitting] = useState(false)
   const [opened, setOpened] = useState(false)
   const [unfolding, setUnfolding] = useState(false)
   const [contentVisible, setContentVisible] = useState(false)
@@ -137,6 +140,12 @@ export default function WeddingPublicClient({
     if (!guestDisplayName) return
     setGuestName((current) => current.trim() || guestDisplayName)
   }, [guestDisplayName])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const fromUrl = new URLSearchParams(window.location.search).get('email')
+    if (fromUrl?.trim()) setReminderEmail(fromUrl.trim().toLowerCase())
+  }, [])
 
   /** Chỉ từ URL — lọc nội dung tiệc theo bên (nhà trai/gái). */
   const guestDisplayVenue = useMemo((): WeddingGuestInviteVenue => {
@@ -254,6 +263,38 @@ export default function WeddingPublicClient({
     toast({ title: tx.submitSuccessTitle, description: tx.submitSuccessDesc })
     setGuestName('')
     setMessage('')
+  }
+
+  const submitReminder = async () => {
+    setReminderSubmitting(true)
+    const formData = new FormData()
+    formData.append('guestEmail', reminderEmail)
+    formData.append('guestName', guestName)
+    formData.append('daysBefore', reminderDaysBefore)
+    formData.append('inviteVenue', guestDisplayVenue)
+    formData.append('locale', uiLocale)
+    const result = await subscribeWeddingReminder(card.slug, formData)
+    setReminderSubmitting(false)
+    if ('errorCode' in result && result.errorCode) {
+      const desc =
+        result.errorCode === 'INVALID_EMAIL'
+          ? tx.reminderErrorInvalidEmail
+          : result.errorCode === 'INVALID_DAYS'
+            ? tx.reminderErrorInvalidDays
+            : result.errorCode === 'NO_WEDDING_DATE'
+              ? tx.reminderErrorNoDate
+              : result.errorCode === 'WEDDING_PASSED'
+                ? tx.reminderErrorPassed
+                : result.errorCode === 'DAYS_TOO_LARGE'
+                  ? tx.reminderErrorDaysTooLarge
+                  : tx.reminderErrorGeneric
+      toast({ title: tx.reminderErrorTitle, description: desc, variant: 'destructive' })
+      return
+    }
+    toast({
+      title: tx.reminderSuccessTitle,
+      description: tx.reminderSuccessDesc.replace('{days}', String(result.daysBefore ?? reminderDaysBefore)),
+    })
   }
 
   return (
@@ -666,6 +707,48 @@ export default function WeddingPublicClient({
               </div>
             </WeddingSectionCard>
           )}
+          {displayWeddingDateIso && (
+            <WeddingSectionCard theme={theme} title={tx.reminderTitle}>
+              <div className={cn('space-y-4 rounded-2xl p-3 sm:p-4 md:p-5', theme.panelUi)}>
+                <p className={cn('text-sm leading-6', theme.mutedText, theme.textGlow)}>{tx.reminderHint}</p>
+                <div className="space-y-2">
+                  <Label className={cn(theme.text, theme.textGlow)}>{tx.reminderEmailLabel}</Label>
+                  <Input
+                    className="min-h-11"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={reminderEmail}
+                    onChange={(e) => setReminderEmail(e.target.value)}
+                    placeholder={tx.reminderEmailPlaceholder}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className={cn(theme.text, theme.textGlow)}>{tx.reminderDaysLabel}</Label>
+                  <Input
+                    className="min-h-11"
+                    type="number"
+                    min="1"
+                    max="90"
+                    value={reminderDaysBefore}
+                    onChange={(e) => setReminderDaysBefore(e.target.value)}
+                    placeholder={tx.reminderDaysPlaceholder}
+                  />
+                  <p className={cn('text-xs', theme.mutedText, theme.textGlow)}>{tx.reminderDaysHint}</p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={submitReminder}
+                  disabled={reminderSubmitting}
+                  variant="outline"
+                  className={cn('min-h-11 w-full rounded-full border-0 font-semibold', theme.button)}
+                >
+                  {reminderSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bell className="mr-2 h-4 w-4" />}
+                  {tx.reminderSubmit}
+                </Button>
+              </div>
+            </WeddingSectionCard>
+          )}
 
           <WeddingSectionCard theme={theme} title={wishes.length === 0 ? undefined : tx.wishesTitle}>
             {wishes.length === 0 && (
@@ -707,6 +790,7 @@ export default function WeddingPublicClient({
             <p className={cn('mt-6 font-serif text-2xl sm:text-3xl', theme.accent, theme.textGlow)}>{theme.ornament}</p>
           </WeddingReadableGlass>
         </section>
+        </div>
         {opened && card.effectsEnabled && card.musicUrl && !musicLoadFailed && (
           <button
             type="button"
@@ -723,7 +807,6 @@ export default function WeddingPublicClient({
             <WeddingMusicFabVisual playing={musicFabPlaying} className={musicFabPlaying ? undefined : 'text-rose-600'} />
           </button>
         )}
-        </div>
         {albumOpen && activeAlbumIndex === null && (
           <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/80 px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-4 sm:py-6">
             <div className="mx-auto max-w-5xl">

@@ -16,6 +16,41 @@ export function tryOnFeatureToToolKey(feature: string | null | undefined): ToolK
   switch (f) {
     case 'translate':
       return 'translate_document_image'
+    case 'phuc-dung-anh':
+      return 'restore_image'
+    case 'sharpen':
+      return 'enhance_image'
+    case 'lam-dep-anh':
+      return 'beautify_image'
+    case 'merge':
+      return 'merge_image'
+    case 'tao-banner':
+      return 'create_banner'
+    case 'tao-anh-the':
+      return 'create_id_photo'
+    case 'che-anh':
+      return 'meme_maker'
+    case 'eraser':
+      return 'remove_object'
+    case 'xoa-nen-png':
+      return 'remove_bg_png'
+    case 'product_background':
+      return 'replace_product_bg'
+    case 'sua-anh-theo-yeu-cau':
+      return 'edit_image_by_request'
+    case 'tao-anh-3d':
+      return 'product_3d_sample'
+    case 'tao-mo-hinh-3d-tu-anh':
+      return 'model_3d_from_image'
+    case 'thiet-ke-noi-ngoai-that':
+    case 'thiet-ke-noi-ngoai-that-process':
+      return 'interior_exterior'
+    case 'headshot':
+      return 'portrait_photo'
+    case 'outpaint':
+      return 'expand_frame'
+    case 'hoan-doi-khuon-mat':
+      return 'face_swap'
     case 'veo-music-video-8s':
     case 'tao-video-veo-music-8s':
     case 'veo-music-video-merged':

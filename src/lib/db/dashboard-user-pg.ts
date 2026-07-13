@@ -92,6 +92,25 @@ export async function pgListTryOnHistoryCompletedExcludeTranslate(userId: string
   }
 }
 
+/** Toàn bộ kết quả xử lý ảnh đã hoàn thành, không phân biệt công cụ. */
+export async function pgListAllImageHistoryCompleted(userId: string): Promise<Record<string, unknown>[]> {
+  if (!isPgConfigured()) return []
+  try {
+    return await pgQuery<Record<string, unknown>>(
+      `select *
+       from public.try_on_history
+       where user_id = $1::uuid
+         and status = 'completed'
+         and result_image_url is not null
+       order by created_at desc`,
+      [userId]
+    )
+  } catch (e) {
+    console.warn('[pgListAllImageHistoryCompleted]', e)
+    return []
+  }
+}
+
 /** Lịch sử dịch ảnh (dashboard/history/translate) — `feature = translate`, `status = completed`. */
 export async function pgListTryOnHistoryTranslateCompleted(userId: string): Promise<Record<string, unknown>[]> {
   if (!isPgConfigured()) return []

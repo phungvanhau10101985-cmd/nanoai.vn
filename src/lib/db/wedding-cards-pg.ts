@@ -110,6 +110,27 @@ export type WeddingWish = {
 
 export type WeddingInvitedGuestStatus = 'pending' | 'attending' | 'declined'
 
+export type WeddingReminder = {
+  id: string
+  cardId: string
+  guestEmail: string
+  guestName: string
+  inviteVenue: WeddingGuestInviteVenue
+  daysBefore: number
+  locale: string
+  sentAt: string | null
+  createdAt: string
+}
+
+export type WeddingReminderDueRow = WeddingReminder & {
+  slug: string
+  groomName: string
+  brideName: string
+  weddingDate: string | null
+  groomInviteWeddingDate: string | null
+  brideInviteWeddingDate: string | null
+}
+
 export type WeddingInvitedGuest = {
   id: string
   guestName: string
@@ -893,5 +914,102 @@ export async function syncInvitedGuestFromRsvp(input: {
       input.guestCount,
       input.message,
     ],
+  )
+}
+
+function mapReminder(row: Record<string, unknown>): WeddingReminder {
+  return {
+    id: String(row.id),
+    cardId: String(row.wedding_card_id),
+    guestEmail: String(row.guest_email ?? ''),
+    guestName: String(row.guest_name ?? ''),
+    inviteVenue: normalizeGuestInviteVenue(row.invite_venue),
+    daysBefore: Number(row.days_before ?? 1),
+    locale: String(row.locale ?? 'vi'),
+    sentAt: row.sent_at ? String(row.sent_at) : null,
+    createdAt: String(row.created_at),
+  }
+}
+
+export async function upsertWeddingReminder(input: {
+  cardId: string
+  guestEmail: string
+  guestName: string
+  inviteVenue: WeddingGuestInviteVenue
+  daysBefore: number
+  locale: string
+}): Promise<WeddingReminder> {
+  requirePg()
+  const res = await getPgPool().query(
+    `insert into public.wedding_card_reminders (
+       wedding_card_id, guest_email, guest_name, invite_venue, days_before, locale
+     )
+     values ($1::uuid, $2, $3, $4, $5, $6)
+     on conflict (wedding_card_id, guest_email, days_before)
+       where sent_at is null
+     do update set
+       guest_name = excluded.guest_name,
+       invite_venue = excluded.invite_venue,
+       locale = excluded.locale
+     returning *`,
+    [
+      input.cardId,
+      input.guestEmail,
+      input.guestName,
+      input.inviteVenue,
+      input.daysBefore,
+      input.locale,
+    ],
+  )
+  return mapReminder(res.rows[0])
+}
+
+export async function listWeddingRemindersDueToday(): Promise<WeddingReminderDueRow[]> {
+  requirePg()
+  const res = await getPgPool().query(
+    `select r.*,
+            c.slug,
+            c.groom_name,
+            c.bride_name,
+            c.wedding_date,
+            c.groom_invite_wedding_date,
+            c.bride_invite_wedding_date
+     from public.wedding_card_reminders r
+     join public.wedding_cards c on c.id = r.wedding_card_id
+     where r.sent_at is null
+       and c.is_published = true
+       and (
+         case
+           when r.invite_venue = 'groom_home' then coalesce(c.groom_invite_wedding_date, c.wedding_date)
+           when r.invite_venue = 'bride_home' then coalesce(c.bride_invite_wedding_date, c.wedding_date)
+           else c.wedding_date
+         end
+       ) is not null
+       and (
+         case
+           when r.invite_venue = 'groom_home' then coalesce(c.groom_invite_wedding_date, c.wedding_date)
+           when r.invite_venue = 'bride_home' then coalesce(c.bride_invite_wedding_date, c.wedding_date)
+           else c.wedding_date
+         end - r.days_before
+       ) = current_date`,
+  )
+  return res.rows.map((row) => ({
+    ...mapReminder(row),
+    slug: String(row.slug ?? ''),
+    groomName: String(row.groom_name ?? ''),
+    brideName: String(row.bride_name ?? ''),
+    weddingDate: weddingDateFromPg(row.wedding_date),
+    groomInviteWeddingDate: weddingDateFromPg(row.groom_invite_wedding_date),
+    brideInviteWeddingDate: weddingDateFromPg(row.bride_invite_wedding_date),
+  }))
+}
+
+export async function markWeddingReminderSent(reminderId: string): Promise<void> {
+  requirePg()
+  await getPgPool().query(
+    `update public.wedding_card_reminders
+     set sent_at = timezone('utc'::text, now())
+     where id = $1::uuid and sent_at is null`,
+    [reminderId],
   )
 }

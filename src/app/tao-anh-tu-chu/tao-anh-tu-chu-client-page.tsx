@@ -176,7 +176,7 @@ export default function TaoAnhTuChuClientPage() {
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">
-            {tr('Tạo ảnh bằng chữ', 'Text-to-image', '文生图', 'テキストから画像', '텍스트로 이미지 생성')}
+            {tr('Tạo ảnh bằng ý tưởng', 'Create image from ideas', '用创意生成图片', 'アイデアから画像作成', '아이디어로 이미지 생성')}
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
             {tr(

@@ -6,25 +6,31 @@ import { NAV_GROUPS } from '@/lib/nav-config'
 
 export type CreationRelatedItem = { href: string; labelKey: ToolKey }
 
+const CURRICULUM_PLAN_LINK: CreationRelatedItem = { href: '/account/plan', labelKey: 'curriculum_plan' }
+
 const CURRICULUM_RELATED: Record<string, CreationRelatedItem[]> = {
   '/tao-bai-thi': [
     { href: '/giao-trinh', labelKey: 'my_curricula' },
+    CURRICULUM_PLAN_LINK,
     { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
     { href: '/lop', labelKey: 'classes' },
   ],
   '/tao-bai-tap-ve-nha': [
     { href: '/giao-trinh', labelKey: 'my_curricula' },
+    CURRICULUM_PLAN_LINK,
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
     { href: '/lop', labelKey: 'classes' },
   ],
   '/tao-giao-trinh': [
     { href: '/giao-trinh', labelKey: 'my_curricula' },
+    CURRICULUM_PLAN_LINK,
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
     { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
     { href: '/lop', labelKey: 'classes' },
   ],
   '/giao-trinh': [
     { href: '/tao-giao-trinh', labelKey: 'create_curriculum' },
+    CURRICULUM_PLAN_LINK,
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
     { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
     { href: '/lop', labelKey: 'classes' },
@@ -32,11 +38,13 @@ const CURRICULUM_RELATED: Record<string, CreationRelatedItem[]> = {
   '/lop/tao': [
     { href: '/lop', labelKey: 'classes' },
     { href: '/giao-trinh', labelKey: 'my_curricula' },
+    CURRICULUM_PLAN_LINK,
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
     { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
   ],
   '/lop': [
     { href: '/giao-trinh', labelKey: 'my_curricula' },
+    CURRICULUM_PLAN_LINK,
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
     { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
   ],
@@ -45,6 +53,7 @@ const CURRICULUM_RELATED: Record<string, CreationRelatedItem[]> = {
 /** Menu liên quan cho trang bài tập về nhà theo lớp `/lop/[id]/gan-phieu`. */
 export const GAN_PHIEU_RELATED: CreationRelatedItem[] = [
   { href: '/giao-trinh', labelKey: 'my_curricula' },
+  CURRICULUM_PLAN_LINK,
   { href: '/tao-bai-thi', labelKey: 'online_exam' },
   { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
   { href: '/lop', labelKey: 'classes' },
@@ -91,6 +100,7 @@ export function getCreationRelatedLinks(currentHref: string): CreationRelatedIte
     return [
       { href: '/lop', labelKey: 'classes' },
       { href: '/giao-trinh', labelKey: 'my_curricula' },
+      CURRICULUM_PLAN_LINK,
       { href: '/tao-bai-thi', labelKey: 'online_exam' },
       { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
     ]
@@ -99,6 +109,7 @@ export function getCreationRelatedLinks(currentHref: string): CreationRelatedIte
   if (path.startsWith('/phieu-bai-tap/')) {
     return [
       { href: '/giao-trinh', labelKey: 'my_curricula' },
+      CURRICULUM_PLAN_LINK,
       { href: '/tao-bai-thi', labelKey: 'online_exam' },
       { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
       { href: '/lop', labelKey: 'classes' },

@@ -233,13 +233,6 @@ export function AccountPlanClientPage({
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">{t.productEnglishCoach}</CardTitle>
-              <CardDescription className="text-left">{t.englishCoachPayPerLesson}</CardDescription>
-            </CardHeader>
-          </Card>
-
-          <Card>
-            <CardHeader>
               <CardTitle className="text-lg">{t.servicesSectionTitle}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -256,7 +249,9 @@ export function AccountPlanClientPage({
 
           <Card className="border-dashed bg-muted/20">
             <CardContent className="pt-6 text-sm text-muted-foreground space-y-3">
-              <p>{fillI18nTemplate(t.noteSignupBonus, { credits: String(data.signupBonusCredits) })}</p>
+              {data.signupBonusCredits > 0 ? (
+                <p>{fillI18nTemplate(t.noteSignupBonus, { credits: String(data.signupBonusCredits) })}</p>
+              ) : null}
               <p>{t.noteAiCredits}</p>
               <p>
                 <Link href="/wallet" className="font-medium text-primary underline-offset-4 hover:underline">

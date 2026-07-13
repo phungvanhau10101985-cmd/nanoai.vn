@@ -9,6 +9,11 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import {
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react'
+import {
   checkCustomerGeminiApiKeyAction,
   createByokPlanPaymentAction,
   deleteCustomerGeminiApiKeyAction,
@@ -55,6 +60,13 @@ export type CustomerApiKeysCopy = {
   securityItems: string[]
   scopeTitle: string
   scopeBody: string
+  apiFeeTitle: string
+  apiFeeBody: string
+  includedFeaturesTitle: string
+  includedFeaturesSubtitle: string
+  includedFeatures: string[]
+  notIncludedTitle: string
+  notIncludedFeatures: string[]
   pricingTitle: string
   pricingSubtitle: string
   firstMonthSaleBadge: string
@@ -220,6 +232,14 @@ export function CustomerApiKeysClient({
         <p className="text-sm text-muted-foreground sm:text-base">{copy.subtitle}</p>
       </div>
 
+      <div className="flex gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+        <div className="space-y-1">
+          <h2 className="font-semibold">{copy.apiFeeTitle}</h2>
+          <p className="text-sm leading-relaxed">{copy.apiFeeBody}</p>
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <Card className="tool-tile">
           <CardHeader>
@@ -309,6 +329,36 @@ export function CustomerApiKeysClient({
 
       <Card className="tool-tile">
         <CardHeader>
+          <CardTitle>{copy.includedFeaturesTitle}</CardTitle>
+          <CardDescription>{copy.includedFeaturesSubtitle}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-6 md:grid-cols-2">
+          <div>
+            <ul className="space-y-3 text-sm">
+              {copy.includedFeatures.map((feature) => (
+                <li key={feature} className="flex items-start gap-2">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-4">
+            <h3 className="mb-3 font-semibold">{copy.notIncludedTitle}</h3>
+            <ul className="space-y-3 text-sm text-muted-foreground">
+              {copy.notIncludedFeatures.map((feature) => (
+                <li key={feature} className="flex items-start gap-2">
+                  <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="tool-tile">
+        <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle>{copy.pricingTitle}</CardTitle>
@@ -361,7 +411,9 @@ export function CustomerApiKeysClient({
               )
             })}
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">{copy.pricingNote}</p>
+          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+            {copy.pricingNote}
+          </div>
         </CardContent>
       </Card>
 

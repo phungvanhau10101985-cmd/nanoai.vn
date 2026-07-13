@@ -3,7 +3,6 @@
  */
 import type { ComponentType } from 'react'
 import {
-  Heart,
   Monitor,
   NotebookPen,
   Users,
@@ -43,6 +42,7 @@ import { ThietKeBaoBiIcon } from '@/components/icons/thiet-ke-bao-bi-icon'
 import { TaoBaiHatLyria3Icon } from '@/components/icons/tao-bai-hat-lyria-3-icon'
 import { XoaNenPngIcon } from '@/components/icons/xoa-nen-png-icon'
 import { SuaAnhTheoYeuCauIcon } from '@/components/icons/sua-anh-theo-yeu-cau-icon'
+import { TaoThiepMoiCuoiAiIcon } from '@/components/icons/tao-thiep-moi-cuoi-ai-icon'
 import type { NavGroupKey, ToolKey } from '@/lib/i18n/dictionaries'
 
 export type NavIcon = ComponentType<{ className?: string }>
@@ -85,7 +85,7 @@ export const AI_TOOLS = [
   { href: '/lam-dep-anh', labelKey: 'beautify_image' as ToolKey, icon: LamDepAnhIcon },
   { href: '/ghep-anh', labelKey: 'merge_image' as ToolKey, icon: GhepAnhIcon },
   { href: '/tao-banner', labelKey: 'create_banner' as ToolKey, icon: TaoBannerIcon },
-  { href: '/tao-thiep-moi-cuoi-ai', labelKey: 'wedding_invitation_ai' as ToolKey, icon: Heart },
+  { href: '/tao-thiep-moi-cuoi-ai', labelKey: 'wedding_invitation_ai' as ToolKey, icon: TaoThiepMoiCuoiAiIcon },
   { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' as ToolKey, icon: TaoAnhTuChuIcon },
   { href: '/du-anh-tu-phac-thao', labelKey: 'sketch_to_image' as ToolKey, icon: DuAnhTuPhacThaoIcon },
   { href: '/tao-anh-the', labelKey: 'create_id_photo' as ToolKey, icon: TaoAnhTheIcon },
@@ -176,7 +176,7 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
     titleKey: 'design_creative' as NavGroupKey,
     links: [
       { href: '/tao-banner', labelKey: 'create_banner' as ToolKey, icon: TaoBannerIcon },
-      { href: '/tao-thiep-moi-cuoi-ai', labelKey: 'wedding_invitation_ai' as ToolKey, icon: Heart },
+      { href: '/tao-thiep-moi-cuoi-ai', labelKey: 'wedding_invitation_ai' as ToolKey, icon: TaoThiepMoiCuoiAiIcon },
       { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' as ToolKey, icon: TaoAnhTuChuIcon },
       { href: '/du-anh-tu-phac-thao', labelKey: 'sketch_to_image' as ToolKey, icon: DuAnhTuPhacThaoIcon },
       { href: '/tao-anh-the', labelKey: 'create_id_photo' as ToolKey, icon: TaoAnhTheIcon },

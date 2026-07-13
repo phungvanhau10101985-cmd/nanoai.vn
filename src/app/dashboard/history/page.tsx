@@ -1,17 +1,17 @@
 import { redirectToLogin } from '@/lib/auth/login-redirect'
-import { pgListTryOnHistoryCompletedExcludeTranslate } from '@/lib/db/dashboard-user-pg'
+import { pgListAllImageHistoryCompleted } from '@/lib/db/dashboard-user-pg'
 import { getUserOrBypass } from '@/lib/auth'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Calendar, Maximize2 } from 'lucide-react'
-// Client component for image preview
+import { Calendar, ExternalLink, Images, Maximize2 } from 'lucide-react'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { DeleteHistoryButton } from './delete-button'
 import Link from 'next/link'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { normalizeTryOnHistoryInputImageUrl } from '@/lib/try-on-history-placeholder'
+import { toolKeyToHref, tryOnFeatureToToolKey } from '@/lib/dashboard/task-hub'
 
 export default async function HistoryPage() {
   const { t } = getServerDictionary()
@@ -21,7 +21,7 @@ export default async function HistoryPage() {
   const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
-  const history = await pgListTryOnHistoryCompletedExcludeTranslate(user.id)
+  const history = await pgListAllImageHistoryCompleted(user.id)
 
   type HistoryRow = {
     id: string
@@ -39,7 +39,7 @@ export default async function HistoryPage() {
     <div className="app-shell space-y-6 md:space-y-8 lg:space-y-8 xl:space-y-10">
       <div className="section-surface flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-3xl font-bold tracking-tight lg:text-[2rem] xl:text-4xl">
-          {tr('Ảnh đã xử lý', 'Processed images', '已处理图片', '処理済み画像', '처리된 이미지')}
+          {tr('Lịch sử xử lý ảnh', 'Image processing history', '图片处理记录', '画像処理履歴', '이미지 처리 기록')}
         </h1>
         <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <p className="text-muted-foreground">
@@ -49,31 +49,46 @@ export default async function HistoryPage() {
             <Link href="/dashboard/tasks">{t.menu.tasksHub}</Link>
           </Button>
           <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard/history/translate">{tr('Lịch sử dịch ảnh', 'Translation history', '翻译记录', '翻訳履歴', '번역 기록')}</Link>
+            <Link href="/dashboard/history/translate">{tr('Xem theo gói dịch', 'Translation batches', '翻译批次', '翻訳バッチ', '번역 묶음')}</Link>
           </Button>
         </div>
       </div>
 
       {historyRows.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {historyRows.map((item) => (
-            <Card key={item.id} className="tool-tile overflow-hidden flex flex-col">
-              <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Calendar className="mr-1 h-3 w-3" />
-                  {new Date(item.created_at).toLocaleDateString('vi-VN')}
-                </div>
-                <Badge variant={item.status === 'completed' ? 'default' : 'destructive'}>
-                  {item.status === 'completed' ? tr('Thành công', 'Success', '成功', '成功', '성공') : tr('Thất bại', 'Failed', '失败', '失敗', '실패')}
-                </Badge>
-              </CardHeader>
-              <CardContent className="p-4 flex-1 space-y-4">
-                {item.result_image_url && (
+          {historyRows.map((item) => {
+            const toolKey = tryOnFeatureToToolKey(item.feature)
+            const toolName = t.tool[toolKey]
+            const toolHref = item.feature === 'translate' ? '/dashboard/history/translate' : toolKeyToHref(toolKey)
+            const sourceImages = [
+              {
+                url: item.original_image_url,
+                label: tr('Ảnh gốc', 'Original image', '原图', '元画像', '원본 이미지'),
+              },
+              {
+                url: item.garment_image_url,
+                label: tr('Ảnh tham chiếu', 'Reference image', '参考图', '参照画像', '참조 이미지'),
+              },
+            ].filter((source) => Boolean(source.url))
+
+            return (
+              <Card key={item.id} className="tool-tile overflow-hidden flex flex-col">
+                <CardHeader className="p-4 pb-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <h2 className="font-semibold leading-tight">{toolName}</h2>
+                    <Badge variant="default">{tr('Hoàn thành', 'Completed', '已完成', '完了', '완료')}</Badge>
+                  </div>
+                  <div className="flex items-center text-xs text-muted-foreground">
+                    <Calendar className="mr-1 h-3 w-3" />
+                    {new Date(item.created_at).toLocaleString(locale)}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 pt-0 flex-1 space-y-4">
                   <div className="space-y-2">
-                    <div className="relative aspect-[3/4] rounded-md overflow-hidden border-2 border-primary shadow-sm group">
-<ImagePreview
-                        src={item.result_image_url}
-                        alt="Result"
+                    <div className="relative aspect-[4/3] rounded-md overflow-hidden border-2 border-primary bg-muted shadow-sm group">
+                      <ImagePreview
+                        src={item.result_image_url ?? ''}
+                        alt={`${tr('Kết quả', 'Result', '结果', '結果', '결과')} - ${toolName}`}
                         className="w-full h-full"
                         printReadyAspectRatio={item.aspect_ratio ?? undefined}
                       />
@@ -81,7 +96,7 @@ export default async function HistoryPage() {
                         <Badge className="bg-primary text-primary-foreground">{tr('Kết quả', 'Result', '结果', '結果', '결과')}</Badge>
                       </div>
                       <div className="absolute bottom-2 right-2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Badge variant="secondary" className="bg-black/50 text-white hover:bg-black/70">
+                        <Badge variant="secondary" className="bg-black/50 text-white">
                           <Maximize2 className="w-3 h-3 mr-1" /> {tr('Xem to', 'Zoom', '放大查看', '拡大表示', '확대 보기')}
                         </Badge>
                       </div>
@@ -89,8 +104,8 @@ export default async function HistoryPage() {
                     <div className="flex gap-2">
                       <div className="flex-1">
                         <DownloadImageButton
-                          imageUrl={item.result_image_url}
-                          filename={`try-on-${item.id}`}
+                          imageUrl={item.result_image_url ?? ''}
+                          filename={`processed-${item.id}`}
                           size="sm"
                           variant="default"
                           className="w-full"
@@ -106,71 +121,54 @@ export default async function HistoryPage() {
                       </div>
                     </div>
                   </div>
-                )}
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative aspect-[3/4] rounded-md overflow-hidden border bg-muted group">
-                    <ImagePreview
-                      src={normalizeTryOnHistoryInputImageUrl(item.original_image_url)}
-                      alt="Original"
-                      className="w-full h-full"
-                    />
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] p-1 text-center pointer-events-none">
-                      {tr('Ảnh gốc', 'Original image', '原图', '元画像', '원본 이미지')}
+                  {sourceImages.length > 0 ? (
+                    <div className={`grid gap-2 ${sourceImages.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                      {sourceImages.map((source) => (
+                        <div key={source.label} className="relative aspect-[4/3] rounded-md overflow-hidden border bg-muted group">
+                          <ImagePreview
+                            src={normalizeTryOnHistoryInputImageUrl(source.url)}
+                            alt={source.label}
+                            className="w-full h-full"
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/55 text-white text-[10px] p-1 text-center pointer-events-none">
+                            {source.label}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="absolute top-1 right-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="bg-black/50 text-white p-1 rounded-full">
-                        <Maximize2 className="w-3 h-3" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="relative aspect-[3/4] rounded-md overflow-hidden border bg-muted group">
-                    <ImagePreview
-                      src={normalizeTryOnHistoryInputImageUrl(item.garment_image_url)}
-                      alt="Garment"
-                      className="w-full h-full"
-                    />
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] p-1 text-center pointer-events-none">
-                      {tr('Sản phẩm', 'Garment', '服装', '衣装', '의류')}
-                    </div>
-                    <div className="absolute top-1 right-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="bg-black/50 text-white p-1 rounded-full">
-                        <Maximize2 className="w-3 h-3" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-              {/* <CardFooter className="p-4 pt-0">
-                {item.result_image_url && (
-                  <a href={item.result_image_url} download={`try-on-${item.id}.png`} className="w-full" target="_blank" rel="noopener noreferrer">
-                    <Button className="w-full" variant="outline">
-                      <Download className="mr-2 h-4 w-4" /> Tải ảnh về
-                    </Button>
-                  </a>
-                )}
-              </CardFooter> */}
-            </Card>
-          ))}
+                  ) : null}
+
+                  <Button variant="outline" size="sm" className="w-full" asChild>
+                    <Link href={toolHref}>
+                      {tr('Mở công cụ', 'Open tool', '打开工具', 'ツールを開く', '도구 열기')}
+                      <ExternalLink className="ml-2 h-3 w-3" />
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       ) : (
         <div className="section-surface text-center py-12 border-2 border-dashed rounded-lg">
+          <Images className="mx-auto mb-3 h-10 w-10 text-muted-foreground" aria-hidden />
           <h3 className="text-lg font-medium">{tr('Chưa có lịch sử', 'No history yet', '暂无历史记录', '履歴はまだありません', '기록이 없습니다')}</h3>
           <p className="text-muted-foreground mt-1">
             {tr(
-              'Ảnh dịch tài liệu không hiển thị ở đây — mở Lịch sử dịch ảnh. Các tính năng khác: thử đồ, phục dựng, làm nét, ghép ảnh…',
-              'Document translation results are not listed here — open Translation history. Other tools: try-on, restoration, sharpen, merge…',
-              '文档翻译结果不显示在此页 — 请打开翻译记录。其他功能：试衣、修复、清晰化、拼图等',
-              '文書翻訳の結果はここには表示されません —「翻訳履歴」を開いてください。その他：試着・復元・高画質化・合成など',
-              '문서 번역 결과는 이 목록에 없습니다 — 번역 기록 페이지를 여세요. 기타: 피팅, 복원, 선명화, 합성 등'
+              'Kết quả từ mọi công cụ xử lý ảnh sẽ được lưu và hiển thị tại đây.',
+              'Results from every image-processing tool will be saved and shown here.',
+              '所有图片处理工具的结果都会保存在此处显示。',
+              'すべての画像処理ツールの結果がここに保存・表示されます。',
+              '모든 이미지 처리 도구의 결과가 여기에 저장되고 표시됩니다.'
             )}
           </p>
           <div className="flex flex-wrap justify-center gap-3 mt-4">
             <Button asChild>
-              <a href="/thu-do-online">{tr('Thử đồ ngay', 'Try on now', '立即试衣', '今すぐ試着', '지금 피팅하기')}</a>
+              <Link href="/dashboard">{tr('Mở công cụ AI', 'Open AI tools', '打开 AI 工具', 'AIツールを開く', 'AI 도구 열기')}</Link>
             </Button>
             <Button variant="outline" asChild>
-              <a href="/dashboard/history/translate">{tr('Lịch sử dịch ảnh', 'Translation history', '翻译记录', '翻訳履歴', '번역 기록')}</a>
+              <Link href="/dashboard/history/translate">{tr('Xem theo gói dịch', 'Translation batches', '翻译批次', '翻訳バッチ', '번역 묶음')}</Link>
             </Button>
           </div>
         </div>

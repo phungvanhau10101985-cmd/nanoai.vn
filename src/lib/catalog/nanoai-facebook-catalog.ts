@@ -51,6 +51,8 @@ const TOOL_IMAGE_BY_HREF: Record<string, string> = {
   '/lam-dep-anh': '/tool-icons/lam-dep-anh.webp',
   '/ghep-anh': '/tool-icons/ghep-anh.webp',
   '/tao-banner': '/tool-icons/tao-banner.webp',
+  '/tao-thiep-moi-cuoi-ai':
+    'https://cdn.nanoai.vn/results/7e674071-e288-4c4c-ba3c-d7b39a2bcb17/sticker_1783938451941.png',
   '/tao-anh-tu-chu': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776512163374.png',
   '/du-anh-tu-phac-thao': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776512234653.png',
   '/tao-anh-the': '/tool-icons/tao-anh-the.webp',

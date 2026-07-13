@@ -19,7 +19,7 @@ export function FeatureSeoSection({ seo }: FeatureSeoSectionProps) {
     { href: '/tao-anh-the', label: tr('Tạo ảnh thẻ', 'Create ID photo', '制作证件照', '証明写真作成', '증명사진 만들기') },
     { href: '/thu-do-online/1-nguoi', label: tr('Thử đồ 1 người', 'Try-on (1 person)', '单人试衣', '1人試着', '1인 가상피팅') },
     { href: '/tao-banner', label: tr('Tạo banner', 'Create banner', '创建横幅', 'バナー作成', '배너 만들기') },
-    { href: '/tao-anh-tu-chu', label: tr('Tạo ảnh bằng chữ', 'Text-to-image', '文生图', 'テキストから画像', '텍스트로 이미지') },
+    { href: '/tao-anh-tu-chu', label: tr('Tạo ảnh bằng ý tưởng', 'Create image from ideas', '用创意生成图片', 'アイデアから画像作成', '아이디어로 이미지 생성') },
     { href: '/tao-infographic-tu-sach', label: tr('Infographic từ sách', 'Book infographic', '书籍信息图', '教科書インフォグラフィック', '교과서 인포그래픽') },
     { href: '/du-anh-tu-phac-thao', label: tr('Dựng ảnh từ phác thảo', 'Sketch to image', '草图生成图', 'スケッチから画像', '스케치로 이미지') },
     { href: '/phuc-dung-anh', label: tr('Phục dựng ảnh', 'Restore photo', '修复照片', '写真復元', '사진 복원') },

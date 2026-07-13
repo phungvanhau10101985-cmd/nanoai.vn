@@ -18,7 +18,7 @@ set -euo pipefail
 #   DEPLOY_SKIP_TYPECHECK=1  Bỏ qua npx tsc --noEmit (không khuyến nghị cho production)
 #   DEPLOY_STOP_PM2_BEFORE_BUILD=1  Dừng toàn bộ process PM2 trước khi lint/typecheck/build để giải phóng RAM (mặc định bật)
 #   DEPLOY_SKIP_MIGRATIONS=1  Bỏ qua bước chạy migration SQL mới
-#   DEPLOY_SETUP_CRONS=1  Tự đảm bảo cron AI/inventory/logo cleanup (mặc định bật)
+#   DEPLOY_SETUP_CRONS=1  Tự đảm bảo cron AI/inventory/logo cleanup + nhắc lịch đám cưới (mặc định bật)
 #
 # Script này sẽ:
 # - pull code mới nhất từ origin/<branch>
@@ -26,7 +26,7 @@ set -euo pipefail
 #   + file mới: tự chạy
 #   + file đã sửa nội dung: tự chạy lại
 # - build + restart PM2
-# - đảm bảo các cron chính cho messaging
+# - đảm bảo các cron chính (messaging + nhắc lịch đám cưới)
 
 APP_DIR="/var/www/Thu-do-online"
 APP_NAME="thu-do-online"
@@ -283,7 +283,7 @@ fi
 pm2 save
 echo "  DONE [10/15]"
 
-echo "[11/15] Ensure messaging cron jobs"
+echo "[11/15] Ensure cron jobs"
 if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   mkdir -p /root/logs
   AI_SECRET="$(env_read MESSAGING_PARTNER_AI_CRON_SECRET)"
@@ -291,6 +291,7 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   INV_SECRET="$(env_read MESSAGING_INVENTORY_EMBED_CRON_SECRET)"
   LOGO_SECRET="$(env_read MESSAGING_LOGO_CLEANUP_CRON_SECRET)"
   MKT_SECRET="$(env_read MESSAGING_PARTNER_MARKETING_CRON_SECRET)"
+  WEDDING_SECRET="$(env_read WEDDING_REMINDER_CRON_SECRET)"
 
   if [[ -z "${AI_SECRET}" ]]; then AI_SECRET="${CRON_SECRET_FALLBACK}"; fi
   if [[ -z "${INV_SECRET}" ]]; then INV_SECRET="${AI_SECRET}"; fi
@@ -321,8 +322,14 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
     echo "  Cảnh báo: thiếu secret marketing cron, bỏ qua cron partner-marketing-campaign."
   fi
 
+  if [[ -n "${WEDDING_SECRET}" ]]; then
+    ensure_cron "wedding-reminder" "0 8 * * * curl -fsS -m 120 -X GET http://127.0.0.1:3000/api/cron/wedding-reminder -H \"Authorization: Bearer ${WEDDING_SECRET}\" >> /root/logs/wedding-reminder.log 2>&1"
+  else
+    echo "  Cảnh báo: thiếu WEDDING_REMINDER_CRON_SECRET, bỏ qua cron wedding-reminder."
+  fi
+
   echo "  Cron hiện tại:"
-  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-logo-cleanup|partner-marketing-campaign" || true
+  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-logo-cleanup|partner-marketing-campaign|wedding-reminder" || true
 else
   echo "  Bỏ qua (DEPLOY_SETUP_CRONS=${DEPLOY_SETUP_CRONS})."
 fi

@@ -53,6 +53,7 @@ export type ToolKey =
   | 'ai_language_learning'
   | 'create_curriculum'
   | 'my_curricula'
+  | 'curriculum_plan'
   | 'online_exam'
   | 'homework_online'
   | 'classes'
@@ -76,6 +77,10 @@ export type Dictionary = {
     openMenu: string
     mainMenu: string
     accountMenu: string
+    personalSection: string
+    messagesSection: string
+    businessSection: string
+    historySection: string
     system: string
     admin: string
     dashboard: string
@@ -91,7 +96,7 @@ export type Dictionary = {
     notifications: string
     noNotifications: string
     inviteFriends: string
-    /** Menu tài khoản → trang gói dịch vụ */
+    /** Menu tài khoản → trang phí tháng giáo trình */
     viewPlan: string
     /** Nút / mục menu nạp thêm credit */
     topUpCredits: string
@@ -164,9 +169,6 @@ export type Dictionary = {
     trialEndsAtLine: string
     trialNotActive: string
     servicesSectionTitle: string
-    productEnglishCoach: string
-    /** Học tiếng Anh AI — không phí tháng, trừ credit theo buổi/bài */
-    englishCoachPayPerLesson: string
     productCurriculum: string
     statusViaTrial: string
     /** Hiếm: API đồng bộ — đã access nhưng không khớp trial/charge */
@@ -2131,6 +2133,23 @@ export type Dictionary = {
     shareZalo: string
     calendarEventTitle: string
     calendarEventDescription: string
+    reminderTitle: string
+    reminderHint: string
+    reminderEmailLabel: string
+    reminderEmailPlaceholder: string
+    reminderDaysLabel: string
+    reminderDaysPlaceholder: string
+    reminderDaysHint: string
+    reminderSubmit: string
+    reminderSuccessTitle: string
+    reminderSuccessDesc: string
+    reminderErrorTitle: string
+    reminderErrorInvalidEmail: string
+    reminderErrorInvalidDays: string
+    reminderErrorNoDate: string
+    reminderErrorPassed: string
+    reminderErrorDaysTooLarge: string
+    reminderErrorGeneric: string
   }
   /** Trang /tao-bai-thi — tạo phiên thi trực tuyến (GV) */
   createExamPage: {
@@ -2418,6 +2437,10 @@ const VI_DICTIONARY: Dictionary = {
     openMenu: 'Mở menu',
     mainMenu: 'Menu chính',
     accountMenu: 'Mở menu tài khoản',
+    personalSection: 'Cá nhân',
+    messagesSection: 'Tin nhắn & đơn hàng',
+    businessSection: 'Công cụ kinh doanh',
+    historySection: 'Lịch sử',
     system: 'Hệ thống',
     admin: 'Quản trị',
     dashboard: 'Bảng điều khiển',
@@ -2433,14 +2456,14 @@ const VI_DICTIONARY: Dictionary = {
     noNotifications: 'Chưa có thông báo',
     exitDevMode: 'Thoát chế độ dev',
     inviteFriends: 'Mời bạn bè',
-    viewPlan: 'Xem gói',
+    viewPlan: 'Gói giáo trình',
     topUpCredits: 'Nạp credit',
     tasksHub: 'Tác vụ & hàng đợi',
-    supportChat: 'Chat hỗ trợ',
+    supportChat: 'Hỗ trợ từ NanoAI',
     partnerInbox: 'Kênh kinh doanh',
     partnerApiIntegration: 'Tích hợp API (chủ shop)',
     customerApiKeys: 'Thuê nền tảng AI',
-    myChats: 'Tin của tôi',
+    myChats: 'Tin nhắn với cửa hàng',
     myOrders: 'Đơn hàng của tôi',
     downloadApp: 'Tải ứng dụng',
     downloadAppSubtitle:
@@ -2485,30 +2508,28 @@ const VI_DICTIONARY: Dictionary = {
   },
   legal: LEGAL_PAGES_BY_LOCALE.vi,
   accountPlan: {
-    pageTitle: 'Gói dịch vụ',
+    pageTitle: 'Gói giáo trình',
     metaDescription:
-      'Xem dùng thử 18 ngày và phí tháng giáo trình. Học tiếng Anh AI trả theo từng buổi; credit AI tính riêng.',
-    headline: 'Gói đang dùng',
+      'Xem dùng thử 18 ngày, phí tháng và credit AI trong tính năng giáo trình & tạo bài.',
+    headline: 'Gói giáo trình',
     billingPeriod: 'Kỳ phí tháng (lịch Việt Nam): {period}',
     trialSectionTitle: 'Dùng thử miễn phí',
     trialActiveLine:
-      'Bạn đang trong thời gian dùng thử — không trừ phí tháng giáo trình (mục bên dưới).',
+      'Bạn đang trong thời gian dùng thử — chưa trừ phí tháng giáo trình.',
     trialTotalDaysNote: 'Thời lượng dùng thử: {days} ngày kể từ khi tạo tài khoản.',
     trialDaysLeft: 'Còn lại khoảng {days} ngày.',
     trialEndsAtLine: 'Hết hạn dùng thử (dự kiến): {datetime}',
     trialNotActive:
       'Bạn không còn trong 18 ngày dùng thử đầu tiên. Phí tháng giáo trình sẽ trừ bằng credit mỗi kỳ khi áp dụng.',
-    servicesSectionTitle: 'Giáo trình — phí tháng (credit)',
-    productEnglishCoach: 'Học tiếng Anh AI',
-    englishCoachPayPerLesson:
-      'Không có phí tháng. Mỗi buổi hoặc bài học trừ credit riêng khi bạn bắt đầu (mức cụ thể hiển thị trong phần học).',
+    servicesSectionTitle: 'Phí tháng giáo trình (credit)',
     productCurriculum: 'Giáo trình & tạo bài',
     statusViaTrial: 'Đang dùng thử — chưa trừ phí tháng.',
-    statusAccessOn: 'Đang có quyền truy cập dịch vụ.',
+    statusAccessOn: 'Đang có quyền truy cập giáo trình.',
     statusPaidMonth: 'Đã trừ phí tháng cho kỳ {period}.',
     statusPendingPayment: 'Chưa trừ phí tháng — cần {credits} credit cho kỳ {period}.',
-    noteSignupBonus: 'Khi đăng ký, tài khoản được tặng {credits} credit (dùng cho AI; tách với phí tháng).',
-    noteAiCredits: 'Credit AI vẫn bị trừ riêng mỗi lần bạn dùng tính năng tạo nội dung / học có tốn model.',
+    noteSignupBonus: 'Khi đăng ký, tài khoản được tặng {credits} credit (dùng trong giáo trình).',
+    noteAiCredits:
+      'Phí tháng chỉ mở quyền dùng giáo trình. Tạo nội dung bằng AI (slide, infographic, tạo bài…) vẫn trừ credit riêng theo lượt — lần đầu infographic/slide trong bài miễn phí, tạo lại mới trừ credit.',
     refresh: 'Làm mới',
     loading: 'Đang tải…',
     errorLoad: 'Không tải được thông tin gói. Thử làm mới trang.',
@@ -3654,7 +3675,7 @@ const VI_DICTIONARY: Dictionary = {
     merge_image: 'Ghép ảnh',
     create_banner: 'Tạo banner',
     wedding_invitation_ai: 'Tạo thiệp cưới AI',
-    text_to_image: 'Tạo ảnh bằng chữ',
+    text_to_image: 'Tạo ảnh bằng ý tưởng',
     infographic_from_book: 'Infographic từ sách',
     sketch_to_image: 'Dựng ảnh từ phác thảo',
     create_id_photo: 'Tạo ảnh thẻ',
@@ -3688,6 +3709,7 @@ const VI_DICTIONARY: Dictionary = {
     ai_language_learning: 'Học ngoại ngữ AI',
     create_curriculum: 'Tạo giáo trình',
     my_curricula: 'Giáo trình của tôi',
+    curriculum_plan: 'Gói giáo trình',
     online_exam: 'Tạo bài thi trực tuyến',
     homework_online: 'Tạo bài tập về nhà',
     classes: 'Lớp học',
@@ -4453,6 +4475,23 @@ const VI_DICTIONARY: Dictionary = {
     shareZalo: 'Chia sẻ Zalo',
     calendarEventTitle: 'Tiệc cưới {groom} & {bride}',
     calendarEventDescription: 'Trân trọng kính mời bạn đến dự lễ thành hôn của {couple}.',
+    reminderTitle: 'Nhắc lịch đám cưới',
+    reminderHint: 'Nhập email và số ngày trước ngày cưới — hệ thống sẽ gửi mail nhắc kèm nút xem lại thiệp.',
+    reminderEmailLabel: 'Email nhận nhắc',
+    reminderEmailPlaceholder: 'email@example.com',
+    reminderDaysLabel: 'Nhắc trước bao nhiêu ngày?',
+    reminderDaysPlaceholder: 'Ví dụ: 3',
+    reminderDaysHint: 'Từ 1 đến 90 ngày trước ngày cưới.',
+    reminderSubmit: 'Đăng ký nhắc lịch',
+    reminderSuccessTitle: 'Đã đăng ký nhắc lịch',
+    reminderSuccessDesc: 'Chúng tôi sẽ gửi email nhắc trước {days} ngày kèm link mở thiệp cưới.',
+    reminderErrorTitle: 'Chưa đăng ký được',
+    reminderErrorInvalidEmail: 'Vui lòng nhập email hợp lệ.',
+    reminderErrorInvalidDays: 'Số ngày nhắc phải từ 1 đến 90.',
+    reminderErrorNoDate: 'Thiệp chưa có ngày cưới để đặt nhắc lịch.',
+    reminderErrorPassed: 'Ngày cưới đã qua, không thể đăng ký nhắc lịch.',
+    reminderErrorDaysTooLarge: 'Số ngày nhắc phải nhỏ hơn số ngày còn lại đến ngày cưới.',
+    reminderErrorGeneric: 'Không thể đăng ký nhắc lịch. Vui lòng thử lại.',
   },
   createExamPage: {
     error: 'Lỗi',
@@ -4740,6 +4779,10 @@ const EN_DICTIONARY: Dictionary = {
     openMenu: 'Open menu',
     mainMenu: 'Main menu',
     accountMenu: 'Open account menu',
+    personalSection: 'Personal',
+    messagesSection: 'Messages & orders',
+    businessSection: 'Business tools',
+    historySection: 'History',
     system: 'System',
     admin: 'Admin',
     dashboard: 'Dashboard',
@@ -4755,10 +4798,10 @@ const EN_DICTIONARY: Dictionary = {
     notifications: 'Notifications',
     noNotifications: 'No notifications yet',
     inviteFriends: 'Invite friends',
-    viewPlan: 'View plan',
+    viewPlan: 'Curriculum plan',
     topUpCredits: 'Top up credits',
     tasksHub: 'Tasks & queue',
-    supportChat: 'Support chat',
+    supportChat: 'NanoAI support',
     partnerInbox: 'Business channels',
     partnerApiIntegration: 'API integration (shop owner)',
     customerApiKeys: 'Rent AI platform',
@@ -4801,30 +4844,28 @@ const EN_DICTIONARY: Dictionary = {
   },
   legal: LEGAL_PAGES_BY_LOCALE.en,
   accountPlan: {
-    pageTitle: 'Your plan',
+    pageTitle: 'Curriculum plan',
     metaDescription:
-      'See your 18-day trial and monthly curriculum access. English AI is pay-per session or lesson; AI credits are separate.',
-    headline: 'Current plan',
+      'See your 18-day trial, monthly curriculum access fee, and per-use AI credits for curriculum tools.',
+    headline: 'Curriculum plan',
     billingPeriod: 'Monthly billing period (Vietnam calendar): {period}',
     trialSectionTitle: 'Free trial',
     trialActiveLine:
-      'You are in the free trial — no monthly curriculum fee is charged yet (see section below).',
+      'You are in the free trial — monthly curriculum fee has not been charged yet.',
     trialTotalDaysNote: 'Trial length: {days} days from account creation.',
     trialDaysLeft: 'About {days} day(s) left.',
     trialEndsAtLine: 'Trial ends (estimated): {datetime}',
     trialNotActive:
       'You are past the first 18-day trial. Monthly curriculum access is charged in credits each billing period when it applies.',
-    servicesSectionTitle: 'Curriculum — monthly (credits)',
-    productEnglishCoach: 'English AI learning',
-    englishCoachPayPerLesson:
-      'No monthly subscription. Each session or lesson deducts credits when you start (amounts are shown in the learning area).',
+    servicesSectionTitle: 'Monthly curriculum fee (credits)',
     productCurriculum: 'Curriculum & lesson tools',
     statusViaTrial: 'Free trial — monthly fee not charged yet.',
-    statusAccessOn: 'You currently have access to this service.',
+    statusAccessOn: 'You currently have curriculum access.',
     statusPaidMonth: 'Monthly fee charged for period {period}.',
     statusPendingPayment: 'Not charged yet — {credits} credits needed for period {period}.',
-    noteSignupBonus: 'New accounts receive {credits} welcome credits (for AI use; separate from monthly access).',
-    noteAiCredits: 'AI credits are still deducted per use when features call the AI.',
+    noteSignupBonus: 'New accounts receive {credits} welcome credits (for curriculum use).',
+    noteAiCredits:
+      'The monthly fee only unlocks curriculum access. AI generation (slides, infographics, lesson content…) still costs credits per use — first infographic/slide per lesson is free; regenerating costs credits.',
     refresh: 'Refresh',
     loading: 'Loading…',
     errorLoad: 'Could not load plan info. Try refreshing.',
@@ -5973,7 +6014,7 @@ const EN_DICTIONARY: Dictionary = {
     merge_image: 'Merge Images',
     create_banner: 'Create Banner',
     wedding_invitation_ai: 'AI Wedding Invitation',
-    text_to_image: 'Text-to-image',
+    text_to_image: 'Create image from ideas',
     infographic_from_book: 'Infographic from book',
     sketch_to_image: 'Sketch to image',
     create_id_photo: 'Create ID Photo',
@@ -6007,6 +6048,7 @@ const EN_DICTIONARY: Dictionary = {
     ai_language_learning: 'AI Language Learning',
     create_curriculum: 'Create curriculum',
     my_curricula: 'My curricula',
+    curriculum_plan: 'Curriculum plan',
     online_exam: 'Online exam (live session)',
     homework_online: 'Create homework',
     classes: 'Classes',
@@ -6770,6 +6812,23 @@ const EN_DICTIONARY: Dictionary = {
     shareZalo: 'Share on Zalo',
     calendarEventTitle: 'Wedding of {groom} & {bride}',
     calendarEventDescription: 'We cordially invite you to celebrate the wedding of {couple}.',
+    reminderTitle: 'Wedding reminder',
+    reminderHint: 'Enter your email and how many days before the wedding to receive a reminder with a link to view the invitation.',
+    reminderEmailLabel: 'Reminder email',
+    reminderEmailPlaceholder: 'email@example.com',
+    reminderDaysLabel: 'Remind me how many days before?',
+    reminderDaysPlaceholder: 'e.g. 3',
+    reminderDaysHint: 'Between 1 and 90 days before the wedding.',
+    reminderSubmit: 'Subscribe to reminder',
+    reminderSuccessTitle: 'Reminder subscribed',
+    reminderSuccessDesc: 'We will email you {days} day(s) before the wedding with a link to open the invitation.',
+    reminderErrorTitle: 'Could not subscribe',
+    reminderErrorInvalidEmail: 'Please enter a valid email address.',
+    reminderErrorInvalidDays: 'Reminder days must be between 1 and 90.',
+    reminderErrorNoDate: 'This invitation has no wedding date yet.',
+    reminderErrorPassed: 'The wedding date has passed; reminders are no longer available.',
+    reminderErrorDaysTooLarge: 'Reminder days must be fewer than the days remaining until the wedding.',
+    reminderErrorGeneric: 'Could not subscribe to reminder. Please try again.',
   },
   createExamPage: {
     error: 'Error',
@@ -7071,6 +7130,10 @@ const ZH_DICTIONARY: Dictionary = {
     openMenu: '打开菜单',
     mainMenu: '主菜单',
     accountMenu: '打开账户菜单',
+    personalSection: '个人',
+    messagesSection: '消息与订单',
+    businessSection: '业务工具',
+    historySection: '历史记录',
     system: '系统',
     admin: '管理',
     dashboard: '控制台',
@@ -7086,10 +7149,10 @@ const ZH_DICTIONARY: Dictionary = {
     notifications: '通知',
     noNotifications: '暂无通知',
     inviteFriends: '邀请好友',
-    viewPlan: '查看套餐',
+    viewPlan: '课程套餐',
     topUpCredits: '充值积分',
     tasksHub: '任务与队列',
-    supportChat: '在线客服',
+    supportChat: 'NanoAI 客服',
     partnerInbox: '业务渠道',
     partnerApiIntegration: 'API 集成（店主）',
     customerApiKeys: '租用 AI 平台',
@@ -7130,27 +7193,25 @@ const ZH_DICTIONARY: Dictionary = {
   },
   legal: LEGAL_PAGES_BY_LOCALE.zh,
   accountPlan: {
-    pageTitle: '服务套餐',
-    metaDescription: '查看 18 天试用与课程按月访问。英语 AI 按次/按课扣积分；AI 积分另计。',
-    headline: '当前套餐',
+    pageTitle: '课程套餐',
+    metaDescription: '查看 18 天试用、课程月费及课程内 AI 按次扣积分说明。',
+    headline: '课程套餐',
     billingPeriod: '按月计费周期（越南历）：{period}',
     trialSectionTitle: '免费试用',
-    trialActiveLine: '您正在免费试用期内——暂不收取下方课程的月度访问费。',
+    trialActiveLine: '您正在免费试用期内——尚未扣除课程月费。',
     trialTotalDaysNote: '试用时长：自注册起 {days} 天。',
     trialDaysLeft: '大约还剩 {days} 天。',
     trialEndsAtLine: '试用结束（预计）：{datetime}',
-    trialNotActive: '您已超过首 18 天试用。课程按月访问在适用时每个周期扣除相应积分。',
-    servicesSectionTitle: '课程 — 按月（积分）',
-    productEnglishCoach: '英语 AI 学习',
-    englishCoachPayPerLesson:
-      '无月费。每次学习或每节课在开始时会单独扣积分（具体金额在学习页面显示）。',
+    trialNotActive: '您已超过首 18 天试用。课程月费在适用时每个周期扣除相应积分。',
+    servicesSectionTitle: '课程月费（积分）',
     productCurriculum: '课程与出题工具',
     statusViaTrial: '试用中——尚未扣月费。',
-    statusAccessOn: '当前可使用该服务。',
+    statusAccessOn: '当前可使用课程功能。',
     statusPaidMonth: '已为周期 {period} 扣除月费。',
     statusPendingPayment: '尚未扣费——周期 {period} 需 {credits} 积分。',
-    noteSignupBonus: '注册赠送 {credits} 积分（用于 AI；与月费分开）。',
-    noteAiCredits: '使用会调用 AI 的功能时，仍会按次扣除 AI 积分。',
+    noteSignupBonus: '注册赠送 {credits} 积分（用于课程功能）。',
+    noteAiCredits:
+      '月费仅开通课程访问权。AI 生成（幻灯片、信息图、出题等）仍按次扣积分——每课首次信息图/幻灯片免费，重新生成才扣积分。',
     refresh: '刷新',
     loading: '加载中…',
     errorLoad: '无法加载套餐信息，请刷新重试。',
@@ -8402,7 +8463,7 @@ const ZH_DICTIONARY: Dictionary = {
     merge_image: '图片合成',
     create_banner: '生成横幅',
     wedding_invitation_ai: 'AI 婚礼请柬',
-    text_to_image: '文生图',
+    text_to_image: '用创意生成图片',
     infographic_from_book: '书籍信息图',
     sketch_to_image: '草图生成图像',
     create_id_photo: '制作证件照',
@@ -8436,6 +8497,7 @@ const ZH_DICTIONARY: Dictionary = {
     ai_language_learning: 'AI 语言学习',
     create_curriculum: '创建课程',
     my_curricula: '我的课程',
+    curriculum_plan: '课程套餐',
     online_exam: '在线考试（课堂）',
     homework_online: '创建家庭作业',
     classes: '班级',
@@ -9004,6 +9066,23 @@ const ZH_DICTIONARY: Dictionary = {
     shareZalo: '分享到 Zalo',
     calendarEventTitle: '{groom} & {bride} 婚礼',
     calendarEventDescription: '诚挚邀请您参加 {couple} 的婚礼。',
+    reminderTitle: '婚礼提醒',
+    reminderHint: '填写邮箱和提前天数，系统将在指定日期发送提醒邮件，内含查看请柬按钮。',
+    reminderEmailLabel: '接收提醒的邮箱',
+    reminderEmailPlaceholder: 'email@example.com',
+    reminderDaysLabel: '提前多少天提醒？',
+    reminderDaysPlaceholder: '例如：3',
+    reminderDaysHint: '婚礼前 1 至 90 天。',
+    reminderSubmit: '订阅提醒',
+    reminderSuccessTitle: '已订阅提醒',
+    reminderSuccessDesc: '我们将在婚礼前 {days} 天发送邮件，内含打开请柬的链接。',
+    reminderErrorTitle: '订阅失败',
+    reminderErrorInvalidEmail: '请输入有效的邮箱地址。',
+    reminderErrorInvalidDays: '提醒天数须在 1 至 90 之间。',
+    reminderErrorNoDate: '请柬尚未设置婚礼日期。',
+    reminderErrorPassed: '婚礼日期已过，无法订阅提醒。',
+    reminderErrorDaysTooLarge: '提醒天数须少于距离婚礼的剩余天数。',
+    reminderErrorGeneric: '无法订阅提醒，请稍后再试。',
   },
   createExamPage: {
     error: '错误',
@@ -9300,6 +9379,10 @@ const JA_DICTIONARY: Dictionary = {
     openMenu: 'メニューを開く',
     mainMenu: 'メインメニュー',
     accountMenu: 'アカウントメニューを開く',
+    personalSection: '個人',
+    messagesSection: 'メッセージと注文',
+    businessSection: 'ビジネスツール',
+    historySection: '履歴',
     system: 'システム',
     admin: '管理',
     dashboard: 'ダッシュボード',
@@ -9315,10 +9398,10 @@ const JA_DICTIONARY: Dictionary = {
     notifications: '通知',
     noNotifications: '通知はありません',
     inviteFriends: '友達を招待',
-    viewPlan: 'プランを見る',
+    viewPlan: '教材プラン',
     topUpCredits: 'クレジットをチャージ',
     tasksHub: 'タスクとキュー',
-    supportChat: 'サポートチャット',
+    supportChat: 'NanoAI サポート',
     partnerInbox: 'ビジネスチャネル',
     partnerApiIntegration: 'API 連携（店主）',
     customerApiKeys: 'AI プラットフォーム利用',
@@ -9361,29 +9444,27 @@ const JA_DICTIONARY: Dictionary = {
   },
   legal: LEGAL_PAGES_BY_LOCALE.ja,
   accountPlan: {
-    pageTitle: 'ご利用プラン',
+    pageTitle: '教材プラン',
     metaDescription:
-      '18 日間の無料トライアルと教材の月額アクセスを確認。英語 AI は回・レッスンごとに課金。AI クレジットは別途。',
-    headline: '現在のプラン',
+      '18 日間の無料トライアル、教材の月額料、教材内 AI の都度課金について確認できます。',
+    headline: '教材プラン',
     billingPeriod: '月額の対象期間（ベトナム暦）：{period}',
     trialSectionTitle: '無料トライアル',
-    trialActiveLine: 'トライアル中です。下記の教材の月額料はまだかかりません。',
+    trialActiveLine: 'トライアル中です。教材の月額料はまだ請求されていません。',
     trialTotalDaysNote: 'トライアル期間：登録から {days} 日間。',
     trialDaysLeft: '残り約 {days} 日。',
     trialEndsAtLine: 'トライアル終了（目安）：{datetime}',
     trialNotActive:
       '初回 18 日のトライアルは終了しています。教材の月額は該当する期ごとにクレジットで支払われます。',
-    servicesSectionTitle: '教材 — 月額（クレジット）',
-    productEnglishCoach: '英語 AI 学習',
-    englishCoachPayPerLesson:
-      '月額はありません。セッションやレッスン開始時に都度クレジットが減ります（金額は学習画面に表示）。',
+    servicesSectionTitle: '教材の月額料（クレジット）',
     productCurriculum: '教材・問題作成',
     statusViaTrial: 'トライアル中 — 月額は未請求。',
-    statusAccessOn: '現在このサービスにアクセスできます。',
+    statusAccessOn: '現在教材機能にアクセスできます。',
     statusPaidMonth: '期間 {period} の月額を差し引き済み。',
     statusPendingPayment: '未請求 — 期間 {period} に {credits} クレジットが必要です。',
-    noteSignupBonus: '登録時に {credits} クレジットを進呈（AI 用。月額とは別）。',
-    noteAiCredits: 'AI を使う機能では、都度 AI クレジットが減ります。',
+    noteSignupBonus: '登録時に {credits} クレジットを進呈（教材機能用）。',
+    noteAiCredits:
+      '月額は教材へのアクセス権のみです。AI 生成（スライド、インフォグラフィック、出題など）は都度クレジットが減ります。授業ごとの初回インフォグラフィック/スライドは無料、再生成時のみ課金されます。',
     refresh: '更新',
     loading: '読み込み中…',
     errorLoad: 'プラン情報を読み込めませんでした。更新してください。',
@@ -10514,7 +10595,7 @@ const JA_DICTIONARY: Dictionary = {
     merge_image: '画像合成',
     create_banner: 'バナー作成',
     wedding_invitation_ai: 'AI 結婚式招待状',
-    text_to_image: 'テキストから画像',
+    text_to_image: 'アイデアから画像作成',
     infographic_from_book: '教科書インフォグラフィック',
     sketch_to_image: 'スケッチから画像',
     create_id_photo: '証明写真作成',
@@ -10548,6 +10629,7 @@ const JA_DICTIONARY: Dictionary = {
     ai_language_learning: 'AI 語学学習',
     create_curriculum: 'カリキュラム作成',
     my_curricula: 'マイカリキュラム',
+    curriculum_plan: '教材プラン',
     online_exam: 'オンライン試験（授業）',
     homework_online: '宿題を作成',
     classes: 'クラス',
@@ -11300,6 +11382,23 @@ const JA_DICTIONARY: Dictionary = {
     shareZalo: 'Zalo で共有',
     calendarEventTitle: '{groom} & {bride} の結婚披露宴',
     calendarEventDescription: '{couple} の結婚式にご出席いただき、心よりお待ちしております。',
+    reminderTitle: '結婚式リマインダー',
+    reminderHint: 'メールアドレスと何日前に通知するかを入力すると、指定日に招待状リンク付きのリマインダーをお送りします。',
+    reminderEmailLabel: 'リマインダー受信メール',
+    reminderEmailPlaceholder: 'email@example.com',
+    reminderDaysLabel: '何日前に通知しますか？',
+    reminderDaysPlaceholder: '例：3',
+    reminderDaysHint: '挙式の 1〜90 日前。',
+    reminderSubmit: 'リマインダーを登録',
+    reminderSuccessTitle: 'リマインダーを登録しました',
+    reminderSuccessDesc: '挙式の {days} 日前に、招待状を開くリンク付きメールをお送りします。',
+    reminderErrorTitle: '登録できませんでした',
+    reminderErrorInvalidEmail: '有効なメールアドレスを入力してください。',
+    reminderErrorInvalidDays: '通知日数は 1〜90 の範囲で指定してください。',
+    reminderErrorNoDate: '招待状に挙式日が設定されていません。',
+    reminderErrorPassed: '挙式日を過ぎているため、リマインダーは登録できません。',
+    reminderErrorDaysTooLarge: '通知日数は挙式までの残り日数より少なくしてください。',
+    reminderErrorGeneric: 'リマインダーを登録できませんでした。もう一度お試しください。',
   },
   createExamPage: {
     error: 'エラー',
@@ -11601,6 +11700,10 @@ const KO_DICTIONARY: Dictionary = {
     openMenu: '메뉴 열기',
     mainMenu: '메인 메뉴',
     accountMenu: '계정 메뉴 열기',
+    personalSection: '개인',
+    messagesSection: '메시지 및 주문',
+    businessSection: '비즈니스 도구',
+    historySection: '기록',
     system: '시스템',
     admin: '관리',
     dashboard: '대시보드',
@@ -11616,10 +11719,10 @@ const KO_DICTIONARY: Dictionary = {
     notifications: '알림',
     noNotifications: '알림 없음',
     inviteFriends: '친구 초대',
-    viewPlan: '요금제 보기',
+    viewPlan: '교육과정 요금제',
     topUpCredits: '크레딧 충전',
     tasksHub: '작업 및 대기열',
-    supportChat: '고객 채팅',
+    supportChat: 'NanoAI 고객지원',
     partnerInbox: '비즈니스 채널',
     partnerApiIntegration: 'API 연동(점주)',
     customerApiKeys: 'AI 플랫폼 임대',
@@ -11662,29 +11765,27 @@ const KO_DICTIONARY: Dictionary = {
   },
   legal: LEGAL_PAGES_BY_LOCALE.ko,
   accountPlan: {
-    pageTitle: '이용 요금제',
+    pageTitle: '교육과정 요금제',
     metaDescription:
-      '18일 무료 체험과 교과·출제 월 이용료를 확인합니다. 영어 AI는 회·수업마다 별도 차감. AI 크레딧은 별도입니다.',
-    headline: '현재 요금제',
+      '18일 무료 체험, 교육과정 월 이용료, 교육과정 내 AI 회당 차감 안내를 확인합니다.',
+    headline: '교육과정 요금제',
     billingPeriod: '월 정산 기간(베트남 달력): {period}',
     trialSectionTitle: '무료 체험',
-    trialActiveLine: '체험 기간 중입니다. 아래 교과·출제의 월 이용료는 아직 차감되지 않습니다.',
+    trialActiveLine: '체험 기간 중입니다. 교육과정 월 이용료는 아직 차감되지 않았습니다.',
     trialTotalDaysNote: '체험 기간: 가입 시점부터 {days}일.',
     trialDaysLeft: '약 {days}일 남음.',
     trialEndsAtLine: '체험 종료(예상): {datetime}',
     trialNotActive:
-      '첫 18일 체험이 끝났습니다. 교과·출제 월 이용료는 해당 기간마다 크레딧으로 차감됩니다.',
-    servicesSectionTitle: '교과·출제 — 월(크레딧)',
-    productEnglishCoach: '영어 AI 학습',
-    englishCoachPayPerLesson:
-      '월 구독료는 없습니다. 세션이나 수업을 시작할 때마다 크레딧이 별도로 차감됩니다(금액은 학습 화면에 표시).',
+      '첫 18일 체험이 끝났습니다. 교육과정 월 이용료는 해당 기간마다 크레딧으로 차감됩니다.',
+    servicesSectionTitle: '교육과정 월 이용료(크레딧)',
     productCurriculum: '교과서·문제 만들기',
     statusViaTrial: '체험 중 — 월 이용료 미차감.',
-    statusAccessOn: '현재 이 서비스를 이용할 수 있습니다.',
+    statusAccessOn: '현재 교육과정 기능을 이용할 수 있습니다.',
     statusPaidMonth: '기간 {period} 월 이용료 차감 완료.',
     statusPendingPayment: '미차감 — 기간 {period}에 {credits} 크레딧 필요.',
-    noteSignupBonus: '가입 시 {credits} 크레딧 지급(AI용, 월 이용료와 별도).',
-    noteAiCredits: 'AI를 쓰는 기능은 사용할 때마다 AI 크레딧이 별도로 차감됩니다.',
+    noteSignupBonus: '가입 시 {credits} 크레딧 지급(교육과정용).',
+    noteAiCredits:
+      '월 이용료는 교육과정 접근 권한만 제공합니다. AI 생성(슬라이드, 인포그래픽, 출제 등)은 사용할 때마다 크레딧이 별도 차감됩니다. 차시별 첫 인포그래픽/슬라이드는 무료, 다시 만들 때만 차감됩니다.',
     refresh: '새로고침',
     loading: '불러오는 중…',
     errorLoad: '요금제 정보를 불러오지 못했습니다. 새로고침해 보세요.',
@@ -12810,7 +12911,7 @@ const KO_DICTIONARY: Dictionary = {
     merge_image: '이미지 합성',
     create_banner: '배너 생성',
     wedding_invitation_ai: 'AI 청첩장',
-    text_to_image: '텍스트로 이미지',
+    text_to_image: '아이디어로 이미지 생성',
     infographic_from_book: '교과서 인포그래픽',
     sketch_to_image: '스케치로 이미지',
     create_id_photo: '증명사진 생성',
@@ -12844,6 +12945,7 @@ const KO_DICTIONARY: Dictionary = {
     ai_language_learning: 'AI 외국어 학습',
     create_curriculum: '교육과정 생성',
     my_curricula: '내 교육과정',
+    curriculum_plan: '교육과정 요금제',
     online_exam: '온라인 시험(수업)',
     homework_online: '숙제 만들기',
     classes: '수업',
@@ -13590,6 +13692,23 @@ const KO_DICTIONARY: Dictionary = {
     shareZalo: 'Zalo로 공유',
     calendarEventTitle: '{groom} & {bride} 결혼식',
     calendarEventDescription: '{couple}의 결혼식에 초대합니다.',
+    reminderTitle: '결혼식 알림',
+    reminderHint: '이메일과 며칠 전에 알림을 받을지 입력하시면, 해당 날짜에 청첩장 링크가 포함된 알림 메일을 보내드립니다.',
+    reminderEmailLabel: '알림 받을 이메일',
+    reminderEmailPlaceholder: 'email@example.com',
+    reminderDaysLabel: '며칠 전에 알림을 받을까요?',
+    reminderDaysPlaceholder: '예: 3',
+    reminderDaysHint: '결혼식 1~90일 전.',
+    reminderSubmit: '알림 신청',
+    reminderSuccessTitle: '알림 신청 완료',
+    reminderSuccessDesc: '결혼식 {days}일 전에 청첩장 링크가 포함된 이메일을 보내드립니다.',
+    reminderErrorTitle: '신청하지 못했습니다',
+    reminderErrorInvalidEmail: '유효한 이메일 주소를 입력해 주세요.',
+    reminderErrorInvalidDays: '알림 일수는 1~90 사이여야 합니다.',
+    reminderErrorNoDate: '청첩장에 결혼식 날짜가 없습니다.',
+    reminderErrorPassed: '결혼식 날짜가 지나 알림을 신청할 수 없습니다.',
+    reminderErrorDaysTooLarge: '알림 일수는 결혼식까지 남은 일수보다 적어야 합니다.',
+    reminderErrorGeneric: '알림을 신청하지 못했습니다. 다시 시도해 주세요.',
   },
   createExamPage: {
     error: '오류',

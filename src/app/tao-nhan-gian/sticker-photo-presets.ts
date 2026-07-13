@@ -1,7 +1,20 @@
-import type { StickerPhotoExpressionId } from './actions'
-
 /** Nhãn UI + chữ mẫu sticker (đa ngôn ngữ khớp locale trang web). */
 export type StickerLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
+
+export const STICKER_PHOTO_EXPRESSION_IDS = [
+  'happy',
+  'love',
+  'cool',
+  'lol',
+  'sad',
+  'angry',
+  'surprised',
+  'sleepy',
+  'wink',
+  'thumbs',
+  'custom',
+] as const
+export type StickerPhotoExpressionId = (typeof STICKER_PHOTO_EXPRESSION_IDS)[number]
 
 export const PHOTO_EXPRESSION_OPTIONS: readonly {
   id: StickerPhotoExpressionId

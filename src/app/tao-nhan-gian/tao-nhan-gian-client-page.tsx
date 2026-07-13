@@ -14,12 +14,12 @@ import {
   finalizeStandardImageGenerationResult,
   waitForNextPaintClient,
 } from '@/lib/client/finalize-standard-image-generation-result'
-import type { StickerPhotoExpressionId } from './actions'
 import {
   PHOTO_EXPRESSION_OPTIONS,
   labelForExpression,
   defaultCaptionForExpression,
   type StickerLocale,
+  type StickerPhotoExpressionId,
 } from './sticker-photo-presets'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
