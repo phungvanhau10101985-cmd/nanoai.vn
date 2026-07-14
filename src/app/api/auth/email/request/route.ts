@@ -7,10 +7,8 @@ import {
 } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 import {
-  isTrustedEmailMarkedInBrowser,
-  issueTrustedDeviceForUser,
-  markTrustedEmailForBrowser,
   resolveTrustedDeviceFromRequest,
+  touchTrustedDeviceFromRequest,
 } from '@/lib/auth/email-trusted-device'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
@@ -53,80 +51,15 @@ export async function POST(req: NextRequest) {
       email?: string
       next?: string
       rememberDevice?: boolean
-      browserId?: string
     } | null
     const email = normalizeEmail(String(body?.email || ''))
     const next = sanitizeLoginNext(body?.next)
     const rememberDevice = body?.rememberDevice !== false
-    const browserId = String(body?.browserId || '').trim()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: 'invalid_email' }, { status: 400 })
     }
 
-    // Hard fallback: if this email has successfully verified OTP before,
-    // allow direct sign-in to avoid forcing OTP repeatedly on the same machine.
-    const hadVerifiedBefore = await pgQueryOne<{ id: string }>(
-      `select id::text as id
-       from public.nanoai_email_login_challenges
-       where email_normalized = $1
-         and consumed_at is not null
-       order by consumed_at desc nulls last
-       limit 1`,
-      [email]
-    )
-    if (hadVerifiedBefore) {
-      const uidRow = await pgQueryOne<{ id: string }>(
-        'select (public.nanoai_ensure_user_by_email($1::text))::text as id',
-        [email]
-      )
-      const userId = String(uidRow?.id || '').trim()
-      if (userId) {
-        const token = await createEmailSessionTokenString(userId, email)
-        if (!token) {
-          return NextResponse.json({ error: 'jwt_config' }, { status: 500 })
-        }
-        const res = NextResponse.json({ ok: true, autoSignedIn: true })
-        const opts = getEmailSessionCookieOptions()
-        res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
-        res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
-        markTrustedEmailForBrowser(res, email)
-        await issueTrustedDeviceForUser(res, req, userId, email, browserId)
-        await mergeGuestTrialUserDataAfterLogin({
-          guestTrialUserId: req.cookies.get('nano_guest_trial_user_id')?.value ?? null,
-          realUserId: userId,
-          response: res,
-        })
-        return res
-      }
-    }
-
-    if (isTrustedEmailMarkedInBrowser(req, email)) {
-      const uidRow = await pgQueryOne<{ id: string }>(
-        'select (public.nanoai_ensure_user_by_email($1::text))::text as id',
-        [email]
-      )
-      const userId = String(uidRow?.id || '').trim()
-      if (userId) {
-        const token = await createEmailSessionTokenString(userId, email)
-        if (!token) {
-          return NextResponse.json({ error: 'jwt_config' }, { status: 500 })
-        }
-        const res = NextResponse.json({ ok: true, autoSignedIn: true })
-        const opts = getEmailSessionCookieOptions()
-        res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
-        res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
-        markTrustedEmailForBrowser(res, email)
-        await issueTrustedDeviceForUser(res, req, userId, email, browserId)
-        await mergeGuestTrialUserDataAfterLogin({
-          guestTrialUserId: req.cookies.get('nano_guest_trial_user_id')?.value ?? null,
-          realUserId: userId,
-          response: res,
-        })
-        return res
-      }
-    }
-
-    const trusted = await resolveTrustedDeviceFromRequest(req, email, browserId)
+    const trusted = await resolveTrustedDeviceFromRequest(req, email)
     if (trusted) {
       const token = await createEmailSessionTokenString(trusted.userId, trusted.email)
       if (!token) {
@@ -136,8 +69,9 @@ export async function POST(req: NextRequest) {
       const opts = getEmailSessionCookieOptions()
       res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
       res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
-      markTrustedEmailForBrowser(res, email)
-      await issueTrustedDeviceForUser(res, req, trusted.userId, trusted.email, browserId)
+      if (rememberDevice) {
+        await touchTrustedDeviceFromRequest(res, req)
+      }
       await mergeGuestTrialUserDataAfterLogin({
         guestTrialUserId: req.cookies.get('nano_guest_trial_user_id')?.value ?? null,
         realUserId: trusted.userId,

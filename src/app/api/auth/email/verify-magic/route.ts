@@ -2,7 +2,7 @@ import { createHash } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY, isEmailAuthEnabled } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
-import { issueTrustedDeviceForUser, markTrustedEmailForBrowser } from '@/lib/auth/email-trusted-device'
+import { issueTrustedDeviceForUser } from '@/lib/auth/email-trusted-device'
 import { mergeGuestTrialUserDataAfterLogin } from '@/lib/auth/merge-guest-trial-user-data'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
     const email = normalizeEmail(String(url.searchParams.get('email') ?? ''))
     const nextRaw = url.searchParams.get('next') ?? ''
     const next = sanitizeLoginNext(nextRaw)
+    const rememberDevice = url.searchParams.get('rd') !== '0'
 
     if (!token || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return absoluteRedirect(req, '/auth/login?error=invalid_link')
@@ -101,8 +102,9 @@ export async function GET(req: NextRequest) {
     const opts = getEmailSessionCookieOptions()
     res.cookies.set(EMAIL_SESSION_COOKIE, jwt, opts)
     res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, jwt, opts)
-    markTrustedEmailForBrowser(res, email)
-    await issueTrustedDeviceForUser(res, req, uidRow.id, email)
+    if (rememberDevice) {
+      await issueTrustedDeviceForUser(res, req, uidRow.id, email)
+    }
     await mergeGuestTrialUserDataAfterLogin({
       guestTrialUserId: req.cookies.get('nano_guest_trial_user_id')?.value ?? null,
       realUserId: uidRow.id,

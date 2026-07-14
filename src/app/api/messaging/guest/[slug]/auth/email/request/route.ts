@@ -85,7 +85,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       ? existingSessionId
       : createGuestSessionId()
 
-  const trusted = await resolveTrustedDeviceFromRequest(request, email, browserId)
+  const trusted = await resolveTrustedDeviceFromRequest(request, email)
   if (trusted) {
     const nowIso = new Date().toISOString()
     let accountId = await findGuestAccountIdByEmailPg(partnerId, email)

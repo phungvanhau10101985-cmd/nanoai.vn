@@ -7,8 +7,6 @@ export const EMAIL_TRUSTED_DEVICE_COOKIE = 'app_email_trusted_device'
 export const EMAIL_TRUSTED_DEVICE_COOKIE_LEGACY = 'nanoai_email_trusted_device'
 export const EMAIL_TRUSTED_BROWSER_COOKIE = 'app_email_trusted_browser'
 export const EMAIL_TRUSTED_BROWSER_COOKIE_LEGACY = 'nanoai_email_trusted_browser'
-export const EMAIL_TRUSTED_EMAIL_COOKIE = 'app_email_trusted_email'
-export const EMAIL_TRUSTED_EMAIL_COOKIE_LEGACY = 'nanoai_email_trusted_email'
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
@@ -31,10 +29,6 @@ function resolveTrustedDeviceMaxAgeSec(): number {
 
 function sha256hex(value: string) {
   return createHash('sha256').update(value, 'utf8').digest('hex')
-}
-
-function trustedEmailHash(email: string) {
-  return sha256hex(`trusted-email:${normalizeEmail(email)}`)
 }
 
 function getIpHashFromRequest(req: NextRequest) {
@@ -125,23 +119,6 @@ export function clearTrustedDeviceCookies(response: NextResponse) {
   response.cookies.set(EMAIL_TRUSTED_DEVICE_COOKIE_LEGACY, '', clear)
 }
 
-export function markTrustedEmailForBrowser(response: NextResponse, email: string) {
-  const opts = getTrustedDeviceCookieOptions()
-  const value = trustedEmailHash(email)
-  response.cookies.set(EMAIL_TRUSTED_EMAIL_COOKIE, value, opts)
-  response.cookies.set(EMAIL_TRUSTED_EMAIL_COOKIE_LEGACY, value, opts)
-}
-
-export function isTrustedEmailMarkedInBrowser(req: NextRequest, email: string): boolean {
-  const stored =
-    req.cookies.get(EMAIL_TRUSTED_EMAIL_COOKIE)?.value ||
-    req.cookies.get(EMAIL_TRUSTED_EMAIL_COOKIE_LEGACY)?.value ||
-    ''
-  const s = String(stored).trim().toLowerCase()
-  if (!/^[0-9a-f]{64}$/.test(s)) return false
-  return safeEqHex(s, trustedEmailHash(email))
-}
-
 function setTrustedDeviceCookies(response: NextResponse, cookieValue: string) {
   const opts = getTrustedDeviceCookieOptions()
   response.cookies.set(EMAIL_TRUSTED_DEVICE_COOKIE, cookieValue, opts)
@@ -188,39 +165,14 @@ export async function issueTrustedDeviceForUser(
 type TrustedDeviceMatch = {
   userId: string
   email: string
-  source: 'cookie' | 'signals'
+  source: 'cookie'
 }
 
 export async function resolveTrustedDeviceFromRequest(
   req: NextRequest,
-  email: string,
-  browserIdHint?: string | null
+  email: string
 ): Promise<TrustedDeviceMatch | null> {
   const normalized = normalizeEmail(email)
-  const browserId = normalizeBrowserId(browserIdHint) || readTrustedBrowserId(req)
-  if (browserId) {
-    const browserRow = await pgQueryOne<{
-      user_id: string
-      email_normalized: string
-    }>(
-      `select user_id::text as user_id, email_normalized
-       from public.nanoai_email_trusted_devices
-       where email_normalized = $1
-         and browser_id_hash = $2
-         and revoked_at is null
-         and expires_at > now()
-       order by coalesce(last_used_at, created_at) desc
-       limit 1`,
-      [normalized, sha256hex(`browser:${browserId}`)]
-    )
-    if (browserRow) {
-      return {
-        userId: browserRow.user_id,
-        email: browserRow.email_normalized,
-        source: 'signals',
-      }
-    }
-  }
 
   const cookie = parseTrustedDeviceCookie(readTrustedCookie(req))
   if (cookie) {
@@ -251,54 +203,7 @@ export async function resolveTrustedDeviceFromRequest(
       }
     }
   }
-
-  const uaHash = getUserAgentHashFromRequest(req)
-  if (!uaHash) return null
-  const ipHash = getIpHashFromRequest(req)
-  const signalRow = await pgQueryOne<{
-    user_id: string
-    email_normalized: string
-  }>(
-    `select user_id::text as user_id, email_normalized
-     from public.nanoai_email_trusted_devices
-     where email_normalized = $1
-       and revoked_at is null
-       and expires_at > now()
-       and user_agent_hash = $2
-       and ($3::text is null or created_ip_hash is null or created_ip_hash = $3)
-     order by coalesce(last_used_at, created_at) desc
-     limit 1`,
-    [normalized, uaHash, ipHash]
-  )
-  if (signalRow) {
-    return {
-      userId: signalRow.user_id,
-      email: signalRow.email_normalized,
-      source: 'signals',
-    }
-  }
-
-  // Strong fallback for stale browser caches/chunks:
-  // if this email has any active trusted record, allow auto sign-in.
-  const byEmailOnly = await pgQueryOne<{
-    user_id: string
-    email_normalized: string
-  }>(
-    `select user_id::text as user_id, email_normalized
-     from public.nanoai_email_trusted_devices
-     where email_normalized = $1
-       and revoked_at is null
-       and expires_at > now()
-     order by coalesce(last_used_at, created_at) desc
-     limit 1`,
-    [normalized]
-  )
-  if (!byEmailOnly) return null
-  return {
-    userId: byEmailOnly.user_id,
-    email: byEmailOnly.email_normalized,
-    source: 'signals',
-  }
+  return null
 }
 
 export async function touchTrustedDeviceFromRequest(response: NextResponse, req: NextRequest) {
