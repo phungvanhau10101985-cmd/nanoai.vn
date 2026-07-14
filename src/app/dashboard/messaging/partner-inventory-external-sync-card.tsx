@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -135,8 +135,8 @@ export function PartnerInventoryExternalSyncCard({
   t: AiT
   toast: (opts: { title: string; description?: string; variant?: 'destructive' }) => void
 }) {
-  const [pending, startTransition] = useTransition()
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [listUrl, setListUrl] = useState('')
   const [fields, setFields] = useState<Record<string, string>>(() => ({
     ...DEFAULT_188_INVENTORY_FIELD_MAPPING,
@@ -222,28 +222,45 @@ export function PartnerInventoryExternalSyncCard({
     setFields({ ...DEFAULT_188_INVENTORY_FIELD_MAPPING })
   }
 
+  /** Không bọc save trong startTransition(async): React không theo dõi promise → nút «…» kẹt mãi. */
   const save = () => {
-    startTransition(async () => {
-      const res = await savePartnerInventoryExternalSyncSettings(partnerId, {
-        siteOrigin: '',
-        productPathTemplate: '',
-        productsListUrl: listUrl,
-        fieldMapping: fields,
-        catalogAutoSyncEnabled: autoSyncEnabled,
-        catalogAutoSyncIntervalMinutes: 1440,
-        catalogAutoSyncTimeVn: syncTimeVn,
-      })
-      if ('error' in res) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
+    if (saving || loading) return
+    void (async () => {
+      setSaving(true)
+      try {
+        const res = await savePartnerInventoryExternalSyncSettings(partnerId, {
+          siteOrigin: '',
+          productPathTemplate: '',
+          productsListUrl: listUrl,
+          fieldMapping: fields,
+          catalogAutoSyncEnabled: autoSyncEnabled,
+          catalogAutoSyncIntervalMinutes: 1440,
+          catalogAutoSyncTimeVn: syncTimeVn,
+        })
+        if ('error' in res) {
+          toastRef.current({ title: res.error, variant: 'destructive' })
+          return
+        }
+        const refreshed = await getPartnerInventoryExternalSyncSettings(partnerId)
+        if ('settings' in refreshed && refreshed.settings) {
+          setUpdatedAt(refreshed.settings.updated_at)
+        }
+        toastRef.current({ title: tRef.current.inventoryExternalSyncSaved })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        toastRef.current({
+          title: tRef.current.inventoryExternalSyncLoadError,
+          description: msg || undefined,
+          variant: 'destructive',
+        })
+      } finally {
+        setSaving(false)
       }
-      toast({ title: t.inventoryExternalSyncSaved })
-      await load()
-    })
+    })()
   }
 
   const runSyncNow = () => {
-    if (syncRunning || pending) return
+    if (syncRunning || saving || loading) return
     void (async () => {
       setSyncRunning(true)
       try {
@@ -267,7 +284,7 @@ export function PartnerInventoryExternalSyncCard({
     })()
   }
 
-  const disabled = loading || pending
+  const disabled = loading || saving
   const syncDisabled = disabled || syncRunning
 
   const lastSuccessLabel =
@@ -430,7 +447,7 @@ export function PartnerInventoryExternalSyncCard({
           {t.inventoryExternalSyncPreset188}
         </Button>
         <Button type="button" size="sm" onClick={save} disabled={disabled}>
-          {pending ? '…' : t.inventoryExternalSyncSave}
+          {saving ? t.inventoryExternalSyncSaveRunning : t.inventoryExternalSyncSave}
         </Button>
         {updatedAt ? (
           <span className="text-[10px] text-muted-foreground tabular-nums">{updatedAt}</span>

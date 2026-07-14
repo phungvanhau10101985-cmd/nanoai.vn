@@ -16,6 +16,7 @@ import {
   fetchPartnerInventoryRowByIdForPartnerFromPg,
   fetchPartnerInventoryRowByProductUrlNormKeyFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchMessagingPartnerByIdFromPg } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   buildInventorySearchQueryWithLastConsulted,
@@ -457,10 +458,16 @@ type PartnerAiTranscriptMsg = {
   body: string
   created_at: string
   raw_payload: Json | null
+  sender_admin_id: string | null
 }
 
 function formatPartnerAiOneTranscriptLine(m: PartnerAiTranscriptMsg): string {
-  const label = m.direction === 'inbound' ? 'Khách' : 'Shop'
+  const label =
+    m.direction === 'inbound'
+      ? 'Khách'
+      : m.sender_admin_id
+        ? 'Shop (người thật)'
+        : 'Shop (AI/hệ thống)'
   const pl = m.raw_payload as { guest_media?: { kind?: string; url?: string } } | null
   const img = pl?.guest_media?.kind === 'image' && pl.guest_media.url ? pl.guest_media.url : null
   const cap = m.body.replace(/^📷\s*/u, '').trim()
@@ -473,6 +480,33 @@ function formatPartnerAiOneTranscriptLine(m: PartnerAiTranscriptMsg): string {
 
 function formatPartnerAiTranscriptLines(chronological: PartnerAiTranscriptMsg[]): string {
   return chronological.map((m) => formatPartnerAiOneTranscriptLine(m)).join('\n')
+}
+
+function buildRecentHumanShopFactsBlock(
+  chronological: PartnerAiTranscriptMsg[],
+  isFashionPartner: boolean
+): string {
+  const recentHumanReplies = chronological
+    .filter((m) => m.direction === 'outbound' && Boolean(m.sender_admin_id) && m.body.trim())
+    .slice(-6)
+
+  const originConvention = isFashionPartner
+    ? `
+- Quy ước nguồn gốc của shop thời trang này: nếu chỉ ghi chung “xưởng trong nước”, “kho trong nước”, “hàng nội địa”, “xưởng” hoặc “kho” mà **không nêu tên quốc gia**, phải hiểu là **Trung Quốc / nội địa Trung Quốc**; tuyệt đối không tự suy thành Việt Nam chỉ vì cuộc chat dùng tiếng Việt.
+- Nếu nội dung ghi rõ quốc gia (ví dụ Việt Nam, Hàn Quốc, Nhật Bản...) thì giữ đúng quốc gia đã ghi.`
+    : ''
+
+  const humanFacts =
+    recentHumanReplies.length > 0
+      ? `
+Các tin người thật gần đây (mới nhất ở cuối; nếu chúng mâu thuẫn nhau thì tin mới hơn thắng):
+${recentHumanReplies.map((m) => `- ${m.body.trim()}`).join('\n')}`
+      : '\nHiện không có tin người thật gần đây trong phần lịch sử đã tải.'
+
+  return `[Thứ tự ưu tiên sự thật — bắt buộc]
+- Tin do **Shop (người thật)** trả lời là nguồn sự thật cao nhất. Khi tin người thật mâu thuẫn với dữ liệu kho, mô tả tự động hoặc tin AI cũ, phải trả lời theo tin người thật; không xin lỗi rồi quay lại khẳng định dữ liệu thấp ưu tiên.
+- Dữ liệu kho vẫn là nguồn chuẩn khi người thật chưa xác nhận khác. Không được coi tin **Shop (AI/hệ thống)** là lời xác nhận của người thật.${originConvention}
+${humanFacts}`
 }
 
 /** Tin shop **gần nhất** trước cụm tin khách liên tiếp ở cuối transcript («vừa tư vấn»). */
@@ -811,6 +845,16 @@ export async function buildPartnerAiContext(
   const effectiveLocaleOpts = await resolvePartnerAiLocaleOpts(conversationId, localeOpts)
   const invFmtOpts = { markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts) }
 
+  let isFashionPartner = false
+  if (isPgConfigured()) {
+    try {
+      const partner = await fetchMessagingPartnerByIdFromPg(partnerId)
+      isFashionPartner = (partner?.industry_key ?? 'fashion') === 'fashion'
+    } catch (e) {
+      console.warn('[partner-ai-llm] partner industry', e)
+    }
+  }
+
   let guestProfileBlockForAi = ''
   let guestProfileGenderForInventorySearch: GuestProfileGender | null = null
   if (isPgConfigured()) {
@@ -911,6 +955,7 @@ export async function buildPartnerAiContext(
     body: string
     created_at: string
     raw_payload: Json | null
+    sender_admin_id: string | null
   }[] = []
   if (isPgConfigured()) {
     try {
@@ -920,6 +965,7 @@ export async function buildPartnerAiContext(
       console.warn('[partner-ai-llm] transcript (early) PG failed', e)
     }
   }
+  const humanShopFactsBlock = buildRecentHumanShopFactsBlock(chronological, isFashionPartner)
 
   /** Tin hỏi tiếp («có màu gì») vẫn neo SP dù payload còn `vision_selected_inventory_id` từ lượt trước. */
   const followUpStyleMessage = inboundTextLooksLikeFollowUpConsultHeuristic(latestCustomerMessage)
@@ -1066,7 +1112,8 @@ export async function buildPartnerAiContext(
       }
     )
     return {
-      system: buildPartnerAiClarifyShoppingIntentSystem(settings, effectiveLocaleOpts),
+      system: `${buildPartnerAiClarifyShoppingIntentSystem(settings, effectiveLocaleOpts)}
+${humanShopFactsBlock}`,
       user: guestProfileBlockForAi ? `${clarifyUser}\n\n${guestProfileBlockForAi}\n` : clarifyUser,
       materialDetailFollowup: null,
       realUseFollowup: null,
@@ -1096,7 +1143,8 @@ export async function buildPartnerAiContext(
       latestCustomerMessage
     )
     return {
-      system: buildPartnerAiPauseConversationSystem(settings, effectiveLocaleOpts),
+      system: `${buildPartnerAiPauseConversationSystem(settings, effectiveLocaleOpts)}
+${humanShopFactsBlock}`,
       user: guestProfileBlockForAi ? `${pauseUser}\n\n${guestProfileBlockForAi}\n` : pauseUser,
       materialDetailFollowup: null,
       realUseFollowup: null,
@@ -1534,6 +1582,7 @@ Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${par
 ${PARTNER_AI_TRANSCRIPT_READING_CONVENTION}
 ${PARTNER_AI_ALTERNATIVE_MODEL_QUERY_DOCTRINE}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
+${humanShopFactsBlock}
 ${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}
 ${salesDefaultBlock}${salesConversionRouterBlock}
 ${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum} Chỉ giới thiệu sản phẩm từ danh sách đó. Khi giới thiệu hoặc so sánh mặt hàng cụ thể, ưu tiên nói **lợi ích cho khách** (thẩm mỹ, độ phù hợp, sự thoải mái…) xuất phát từ thông tin trong kho, không chỉ đọc giá/mã. Nếu không có đúng sản phẩm trong danh sách, nói rõ chưa thấy thông tin khớp và chuyển hướng tư vấn: hỏi khách có muốn xem sản phẩm tương tự đang có trong kho không.

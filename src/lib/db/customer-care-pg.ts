@@ -1383,11 +1383,19 @@ export async function fetchLastOutboundCustomerCareMessageBodyPg(
 export async function fetchCustomerCareTranscriptLinesFromPg(
   conversationId: string,
   limit: number
-): Promise<{ direction: string; body: string; created_at: string; raw_payload: Json | null }[] | null> {
+): Promise<
+  {
+    direction: string
+    body: string
+    created_at: string
+    raw_payload: Json | null
+    sender_admin_id: string | null
+  }[] | null
+> {
   if (!isPgConfigured()) return null
   try {
     const rows = await pgQuery<Record<string, unknown>>(
-      `select direction, body, created_at, raw_payload
+      `select direction, body, created_at, raw_payload, sender_admin_id
        from public.customer_care_messages
        where conversation_id = $1::uuid
        order by created_at desc
@@ -1400,6 +1408,7 @@ export async function fetchCustomerCareTranscriptLinesFromPg(
       body: String(r.body ?? ''),
       created_at: isoTimestampRequired(r.created_at),
       raw_payload: (r.raw_payload ?? null) as Json | null,
+      sender_admin_id: r.sender_admin_id == null ? null : String(r.sender_admin_id),
     }))
   } catch (e) {
     console.error('[customer-care-pg] fetchCustomerCareTranscriptLinesFromPg', e)

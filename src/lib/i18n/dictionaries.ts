@@ -813,6 +813,7 @@ export type Dictionary = {
     inventoryExternalSyncVectorText: string
     inventoryExternalSyncVectorFootnote: string
     inventoryExternalSyncSave: string
+    inventoryExternalSyncSaveRunning: string
     inventoryExternalSyncSaved: string
     inventoryExternalSyncLoadError: string
     inventoryExternalSyncPreset188: string
@@ -3163,6 +3164,7 @@ const VI_DICTIONARY: Dictionary = {
     inventoryExternalSyncVectorFootnote:
       'Cột Vector: «Ảnh» = trường map tới ảnh (embed URL ảnh). «Văn bản» = tên + giá + ghi chú tư vấn trên kho được ghép rồi embed. Các dòng «—» không dùng làm nguồn vector.',
     inventoryExternalSyncSave: 'Lưu bảng so khớp',
+    inventoryExternalSyncSaveRunning: 'Đang lưu…',
     inventoryExternalSyncSaved: 'Đã lưu cấu hình so khớp kho khách.',
     inventoryExternalSyncLoadError: 'Không tải được cấu hình so khớp.',
     inventoryExternalSyncPreset188: 'Điền sẵn preset API kiểu 188',
@@ -5501,6 +5503,7 @@ const EN_DICTIONARY: Dictionary = {
     inventoryExternalSyncVectorFootnote:
       'Vector column: Image = mapped product photo URL for image embedding. Text = name, price hint, and consult note on inventory are concatenated for text embedding. Rows with «—» are not used as vector sources.',
     inventoryExternalSyncSave: 'Save field mapping',
+    inventoryExternalSyncSaveRunning: 'Saving…',
     inventoryExternalSyncSaved: 'External inventory mapping saved.',
     inventoryExternalSyncLoadError: 'Could not load mapping settings.',
     inventoryExternalSyncPreset188: 'Fill 188-style API preset',
@@ -7824,6 +7827,7 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryExternalSyncVectorFootnote:
       '向量列：「图」= 映射到商品图 URL 做图像向量。「文」= 库存里的名称、价格提示、咨询备注合并后做文本向量。「—」表示不参与向量。',
     inventoryExternalSyncSave: '保存字段映射',
+    inventoryExternalSyncSaveRunning: '保存中…',
     inventoryExternalSyncSaved: '已保存外部库存映射。',
     inventoryExternalSyncLoadError: '无法加载映射配置。',
     inventoryExternalSyncPreset188: '填入 188 风格 API 预设',
@@ -10099,6 +10103,7 @@ const JA_DICTIONARY: Dictionary = {
     inventoryExternalSyncVectorFootnote:
       'ベクター列：「画像」＝マップ先の商品画像 URL を画像埋め込み。「テキスト」＝在庫の名前・価格メモ・相談メモを結合してテキスト埋め込み。「—」はベクター源ではありません。',
     inventoryExternalSyncSave: 'マッピングを保存',
+    inventoryExternalSyncSaveRunning: '保存中…',
     inventoryExternalSyncSaved: '外部在庫マッピングを保存しました。',
     inventoryExternalSyncLoadError: 'マッピング設定を読み込めませんでした。',
     inventoryExternalSyncPreset188: '188 形式 API のプリセットを入力',
@@ -12415,6 +12420,7 @@ const KO_DICTIONARY: Dictionary = {
     inventoryExternalSyncVectorFootnote:
       '벡터 열: 「이미지」= 매핑된 상품 사진 URL로 이미지 임베딩. 「텍스트」= 재고의 이름·가격 힌트·상담 메모를 합해 텍스트 임베딩. 「—」는 벡터 소스가 아님.',
     inventoryExternalSyncSave: '매핑 저장',
+    inventoryExternalSyncSaveRunning: '저장 중…',
     inventoryExternalSyncSaved: '외부 재고 매핑을 저장했습니다.',
     inventoryExternalSyncLoadError: '매핑 설정을 불러오지 못했습니다.',
     inventoryExternalSyncPreset188: '188 스타일 API 프리셋 채우기',
