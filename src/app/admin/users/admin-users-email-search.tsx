@@ -1,16 +1,22 @@
 'use client'
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Search, X } from 'lucide-react'
+import { buildAdminUsersHref, parseAdminUsersSort } from './admin-users-query'
 
 export function AdminUsersEmailSearch({ defaultEmail }: { defaultEmail: string }) {
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { sort, dir } = parseAdminUsersSort({
+    sort: searchParams.get('sort') ?? undefined,
+    dir: searchParams.get('dir') ?? undefined,
+  })
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -40,14 +46,17 @@ export function AdminUsersEmailSearch({ defaultEmail }: { defaultEmail: string }
     e.preventDefault()
     const form = e.currentTarget
     const email = (form.elements.namedItem('email') as HTMLInputElement)?.value.trim()
-    const params = new URLSearchParams()
-    if (email) params.set('email', email)
-    const qs = params.toString()
-    router.push(qs ? `/admin/users?${qs}` : '/admin/users')
+    router.push(
+      buildAdminUsersHref({
+        email,
+        sort,
+        dir,
+      })
+    )
   }
 
   const handleClear = () => {
-    router.push('/admin/users')
+    router.push(buildAdminUsersHref({ sort, dir }))
   }
 
   return (

@@ -11,9 +11,25 @@ export type AdminProfileWithBalanceRow = {
   created_at: string | null
 }
 
+export type AdminUsersSort = 'name' | 'created' | 'credits'
+export type AdminUsersSortDir = 'asc' | 'desc'
+
 export type ListProfilesWithCreditBalanceOptions = {
   /** Tìm theo email (khớp một phần, không phân biệt hoa thường). */
   emailQuery?: string | null
+  sort?: AdminUsersSort
+  sortDir?: AdminUsersSortDir
+}
+
+function buildAdminUsersOrderBy(sort: AdminUsersSort, sortDir: AdminUsersSortDir): string {
+  const dir = sortDir === 'asc' ? 'asc' : 'desc'
+  if (sort === 'created') {
+    return `order by au.created_at ${dir} nulls last, p.id::text asc`
+  }
+  if (sort === 'credits') {
+    return `order by coalesce(c.balance, 0) ${dir}, p.id::text asc`
+  }
+  return `order by coalesce(p.full_name, '') asc, p.id::text asc`
 }
 
 /**
@@ -30,6 +46,8 @@ export async function pgListProfilesWithCreditBalance(
   }
   try {
     const emailQuery = options?.emailQuery?.trim() ?? ''
+    const sort = options?.sort === 'created' || options?.sort === 'credits' ? options.sort : 'name'
+    const sortDir = options?.sortDir === 'asc' ? 'asc' : 'desc'
     const params: unknown[] = []
     let emailFilter = ''
     if (emailQuery) {
@@ -50,7 +68,7 @@ export async function pgListProfilesWithCreditBalance(
        left join public.credits c on c.user_id = p.id
        where lower(coalesce(au.email, '')) not like 'guest-trial-%@guest.nanoai.local'
        ${emailFilter}
-       order by coalesce(p.full_name, '') asc, p.id::text asc`,
+       ${buildAdminUsersOrderBy(sort, sortDir)}`,
       params.length > 0 ? params : undefined
     )
     return { rows, error: null }

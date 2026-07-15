@@ -7,11 +7,18 @@ import { Toaster } from '@/components/ui/sonner'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { pgListProfilesWithCreditBalance } from '@/lib/db/admin-users-pg'
 import { AdminUsersEmailSearch } from './admin-users-email-search'
+import Link from 'next/link'
+import { ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  buildAdminUsersHref,
+  parseAdminUsersSort,
+  toggleAdminUsersSort,
+} from './admin-users-query'
 
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams?: { email?: string }
+  searchParams?: { email?: string; sort?: string; dir?: string }
 }) {
   const uiLocale = getCurrentWebLocale()
   const dateLocale = uiLocale === 'vi' ? 'vi-VN' : uiLocale === 'en' ? 'en-US' : uiLocale === 'zh' ? 'zh-CN' : uiLocale === 'ja' ? 'ja-JP' : 'ko-KR'
@@ -35,9 +42,12 @@ export default async function AdminUsersPage({
     }).format(d)
   }
   const emailQuery = searchParams?.email?.trim() ?? ''
-  const { rows: usersRaw, error: usersError } = await pgListProfilesWithCreditBalance(
-    emailQuery ? { emailQuery } : undefined
-  )
+  const { sort, dir } = parseAdminUsersSort(searchParams)
+  const { rows: usersRaw, error: usersError } = await pgListProfilesWithCreditBalance({
+    emailQuery: emailQuery || undefined,
+    sort,
+    sortDir: dir,
+  })
   if (usersError) {
     console.error('Error fetching users:', usersError)
   }
@@ -48,6 +58,21 @@ export default async function AdminUsersPage({
       email: u.email?.trim() || 'N/A',
       balance: u.balance ?? 0,
     })) ?? []
+
+  const sortIcon = (column: 'created' | 'credits') => {
+    if (sort !== column) return null
+    return dir === 'asc' ? (
+      <ChevronUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+    ) : (
+      <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+    )
+  }
+
+  const sortLinkClass = (column: 'created' | 'credits') =>
+    [
+      'inline-flex items-center gap-1 hover:text-foreground transition-colors',
+      sort === column ? 'text-foreground font-medium' : 'text-muted-foreground',
+    ].join(' ')
 
   return (
     <div className="space-y-8">
@@ -87,8 +112,30 @@ export default async function AdminUsersPage({
               <TableRow>
                 <TableHead>{tr('Thành viên', 'Member', '成员', 'メンバー', '회원')}</TableHead>
                 <TableHead>{tr('Vai trò', 'Role', '角色', '役割', '역할')}</TableHead>
-                <TableHead>{tr('Ngày tạo tài khoản', 'Created at', '创建时间', '作成日時', '생성일시')}</TableHead>
-                <TableHead className="text-right">{tr('Số dư tín dụng', 'Credit balance', '积分余额', 'クレジット残高', '크레딧 잔액')}</TableHead>
+                <TableHead>
+                  <Link
+                    href={buildAdminUsersHref({
+                      email: emailQuery,
+                      ...toggleAdminUsersSort({ sort, dir }, 'created'),
+                    })}
+                    className={sortLinkClass('created')}
+                  >
+                    {tr('Ngày tạo tài khoản', 'Created at', '创建时间', '作成日時', '생성일시')}
+                    {sortIcon('created')}
+                  </Link>
+                </TableHead>
+                <TableHead className="text-right">
+                  <Link
+                    href={buildAdminUsersHref({
+                      email: emailQuery,
+                      ...toggleAdminUsersSort({ sort, dir }, 'credits'),
+                    })}
+                    className={`${sortLinkClass('credits')} ml-auto`}
+                  >
+                    {tr('Số dư tín dụng', 'Credit balance', '积分余额', 'クレジット残高', '크레딧 잔액')}
+                    {sortIcon('credits')}
+                  </Link>
+                </TableHead>
                 <TableHead className="text-right">{tr('Hành động', 'Action', '操作', '操作', '작업')}</TableHead>
               </TableRow>
             </TableHeader>
