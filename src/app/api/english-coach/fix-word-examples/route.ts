@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { EnglishCoachApiFeature, trackEnglishCoachGeminiResult } from '@/lib/english-coach-api-usage'
-import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
-import { getUserForAction } from '@/lib/auth'
+import { requireAdminWithStepUp } from '@/lib/auth/require-step-up'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   fetchDailyWordsWithExampleItemsPg,
@@ -101,15 +100,11 @@ export async function POST() {
     if (!isPgConfigured()) {
       return NextResponse.json({ error: 'Cơ sở dữ liệu chưa cấu hình.' }, { status: 503 })
     }
-    const auth = await getUserForAction()
-    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
-    const user = auth.user
-    const adminUserId = user.id
-
-    const role = await getProfileRoleWithFallback(user.id)
-    if (role !== 'admin') {
-      return NextResponse.json({ error: 'Chỉ quản trị viên mới được thực hiện thao tác này.' }, { status: 403 })
+    const auth = await requireAdminWithStepUp()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error, code: auth.code }, { status: auth.status })
     }
+    const adminUserId = auth.user.id
 
     const dailyRows = await fetchDailyWordsWithExampleItemsPg()
     const reviewRows = await fetchReviewQueueWithExampleItemsPg()

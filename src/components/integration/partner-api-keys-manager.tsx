@@ -23,6 +23,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
+import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
 import type { PartnerApiKeysManagerStrings } from '@/lib/integration/api-keys-hub-copy'
 import {
   clearPartnerImageSearchApiSecret,
@@ -58,6 +60,7 @@ type Props = {
 
 export function PartnerApiKeysManager({ partners, t, partnerId: partnerIdProp, onPartnerIdChange }: Props) {
   const { toast } = useToast()
+  const { runWithStepUp } = useStepUpOtp()
   const [internalPartnerId, setInternalPartnerId] = useState(partners[0]?.id ?? '')
   const isControlled = typeof onPartnerIdChange === 'function'
   const partnerId = isControlled ? (partnerIdProp ?? '') : internalPartnerId
@@ -174,9 +177,11 @@ export function PartnerApiKeysManager({ partners, t, partnerId: partnerIdProp, o
     if (!partnerId) return
     setGenerating(true)
     try {
-      const res = await generatePartnerImageSearchApiSecret(partnerId)
+      const res = await runWithStepUp(() => generatePartnerImageSearchApiSecret(partnerId))
       if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
+        if (!isStepUpRequiredError(res)) {
+          toast({ title: res.error, variant: 'destructive' })
+        }
         return
       }
       if ('ok' in res && res.secret) {
@@ -200,9 +205,11 @@ export function PartnerApiKeysManager({ partners, t, partnerId: partnerIdProp, o
     if (!partnerId) return
     setDeleting(true)
     try {
-      const res = await clearPartnerImageSearchApiSecret(partnerId)
+      const res = await runWithStepUp(() => clearPartnerImageSearchApiSecret(partnerId))
       if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
+        if (!isStepUpRequiredError(res)) {
+          toast({ title: res.error, variant: 'destructive' })
+        }
         return
       }
       setEphemeralSecret(null)

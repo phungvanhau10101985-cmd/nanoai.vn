@@ -8,6 +8,7 @@ import { getUserOrBypass } from '@/lib/auth'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import { buildMetadata } from '@/lib/seo'
 import { ChevronLeft } from 'lucide-react'
+import { StepUpOtpProvider, StepUpStatusBanner } from '@/components/auth/step-up-otp-provider'
 
 export const metadata: Metadata = buildMetadata({
   title: 'Quản trị',
@@ -22,16 +23,19 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const role = await getProfileRoleWithFallback(user.id)
   if (role !== 'admin') redirect('/')
   return (
-    <div className="container max-w-screen-2xl py-6 space-y-6">
-      <Toaster />
-      <Link
-        href="/admin"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Quản trị
-      </Link>
-      {children}
-    </div>
+    <StepUpOtpProvider scope="admin">
+      <div className="container max-w-screen-2xl py-6 space-y-6">
+        <Toaster />
+        <Link
+          href="/admin"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Quản trị
+        </Link>
+        <StepUpStatusBanner />
+        {children}
+      </div>
+    </StepUpOtpProvider>
   )
 }

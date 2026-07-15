@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
 import type { MessagingPartnerDashboardRow } from '@/lib/db/messaging-partners-pg'
 import type { PartnerMemberRow } from '@/lib/db/messaging-partner-members-pg'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
@@ -188,6 +190,7 @@ export function PartnerMessagingSettingsClient({
   const searchParams = useSearchParams()
   const queryPartnerId = searchParams.get('partner')
   const { toast } = useToast()
+  const { runWithStepUp } = useStepUpOtp()
   const [partners, setPartners] = useState<MessagingPartnerDashboardRow[]>(initialPartners)
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(() => {
     if (queryPartnerId && initialPartners.some((p) => p.id === queryPartnerId)) return queryPartnerId
@@ -720,8 +723,11 @@ export function PartnerMessagingSettingsClient({
   const inviteStaffByEmailAction = () => {
     if (!selectedPartnerId || !isOwnerSelected || !staffInviteEmail.trim()) return
     startTransition(async () => {
-      const res = await inviteMessagingPartnerStaffByEmail(selectedPartnerId, staffInviteEmail.trim())
+      const res = await runWithStepUp(() =>
+        inviteMessagingPartnerStaffByEmail(selectedPartnerId, staffInviteEmail.trim())
+      )
       if ('error' in res && res.error) {
+        if (isStepUpRequiredError(res)) return
         const e = res.error
         if (e === 'INVALID_EMAIL') toast({ title: t.teamInviteErrorBadEmail, variant: 'destructive' })
         else if (e === 'USER_NOT_FOUND') toast({ title: t.teamInviteErrorNotFound, variant: 'destructive' })
@@ -741,12 +747,15 @@ export function PartnerMessagingSettingsClient({
     const draft = staffDraftPerm[memberUserId]
     if (!draft) return
     startTransition(async () => {
-      const res = await updateMessagingPartnerStaffMemberPermissions({
-        partnerId: selectedPartnerId,
-        memberUserId,
-        permissions: draft,
-      })
+      const res = await runWithStepUp(() =>
+        updateMessagingPartnerStaffMemberPermissions({
+          partnerId: selectedPartnerId,
+          memberUserId,
+          permissions: draft,
+        })
+      )
       if ('error' in res && res.error) {
+        if (isStepUpRequiredError(res)) return
         toast({ title: String(res.error), variant: 'destructive' })
         return
       }
@@ -759,8 +768,11 @@ export function PartnerMessagingSettingsClient({
     if (!selectedPartnerId || !isOwnerSelected) return
     if (typeof window !== 'undefined' && !window.confirm(t.teamRemoveMemberConfirm)) return
     startTransition(async () => {
-      const res = await removeMessagingPartnerStaffMember(selectedPartnerId, memberUserId)
+      const res = await runWithStepUp(() =>
+        removeMessagingPartnerStaffMember(selectedPartnerId, memberUserId)
+      )
       if ('error' in res && res.error) {
+        if (isStepUpRequiredError(res)) return
         toast({ title: String(res.error), variant: 'destructive' })
         return
       }
@@ -976,8 +988,11 @@ export function PartnerMessagingSettingsClient({
   const saveFb = () => {
     if (!selectedPartnerId) return
     startTransition(async () => {
-      const res = await savePartnerFacebookChannel(selectedPartnerId, fbPageId, fbToken, fbVerify)
+      const res = await runWithStepUp(() =>
+        savePartnerFacebookChannel(selectedPartnerId, fbPageId, fbToken, fbVerify)
+      )
       if ('error' in res && res.error) {
+        if (isStepUpRequiredError(res)) return
         toast({ title: res.error, variant: 'destructive' })
         return
       }
@@ -1023,8 +1038,11 @@ export function PartnerMessagingSettingsClient({
   const saveZl = () => {
     if (!selectedPartnerId) return
     startTransition(async () => {
-      const res = await savePartnerZaloChannel(selectedPartnerId, zaloSec, zaloTok)
+      const res = await runWithStepUp(() =>
+        savePartnerZaloChannel(selectedPartnerId, zaloSec, zaloTok)
+      )
       if ('error' in res && res.error) {
+        if (isStepUpRequiredError(res)) return
         toast({ title: res.error, variant: 'destructive' })
         return
       }
@@ -1036,11 +1054,14 @@ export function PartnerMessagingSettingsClient({
   const saveMetaConsult = () => {
     if (!selectedPartnerId) return
     startTransition(async () => {
-      const res = await savePartnerMessagingFacebookMeta(selectedPartnerId, {
-        pixelId: metaPixelId,
-        capiToken: metaCapiToken,
-      })
+      const res = await runWithStepUp(() =>
+        savePartnerMessagingFacebookMeta(selectedPartnerId, {
+          pixelId: metaPixelId,
+          capiToken: metaCapiToken,
+        })
+      )
       if ('error' in res && res.error) {
+        if (isStepUpRequiredError(res)) return
         toast({ title: res.error, variant: 'destructive' })
         return
       }
@@ -1120,27 +1141,30 @@ export function PartnerMessagingSettingsClient({
   const persistPaymentSettings = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!selectedPartnerId) return
-      const res = await saveMessagingWorkspacePaymentSettings({
-        partnerId: selectedPartnerId,
-        bankName: paymentBankName,
-        bankBin: '',
-        accountNumber: paymentAccountNumber,
-        accountHolder: paymentAccountHolder,
-        defaultDepositPercent: Math.max(0, Math.min(100, Math.round(Number(paymentDepositPercent) || 0))),
-        defaultDepositMode: paymentDepositMode,
-        defaultDepositAmount: Math.max(0, Math.round(Number(paymentDepositAmount) || 0)),
-        notifyEmail: paymentNotifyEmail,
-        requirePaymentProof: paymentRequireProof,
-        sepayEnabled: paymentSePayEnabled,
-        sepayBankCode: paymentSePayBankCode,
-        sepayAccountNumber: paymentSePayAccountNumber,
-        sepayQrTemplate: paymentSePayQrTemplate,
-        sepayWebhookToken: paymentSePayWebhookToken,
-        sepaySecretKey: paymentSePaySecretKey,
-      })
+      const res = await runWithStepUp(() =>
+        saveMessagingWorkspacePaymentSettings({
+          partnerId: selectedPartnerId,
+          bankName: paymentBankName,
+          bankBin: '',
+          accountNumber: paymentAccountNumber,
+          accountHolder: paymentAccountHolder,
+          defaultDepositPercent: Math.max(0, Math.min(100, Math.round(Number(paymentDepositPercent) || 0))),
+          defaultDepositMode: paymentDepositMode,
+          defaultDepositAmount: Math.max(0, Math.round(Number(paymentDepositAmount) || 0)),
+          notifyEmail: paymentNotifyEmail,
+          requirePaymentProof: paymentRequireProof,
+          sepayEnabled: paymentSePayEnabled,
+          sepayBankCode: paymentSePayBankCode,
+          sepayAccountNumber: paymentSePayAccountNumber,
+          sepayQrTemplate: paymentSePayQrTemplate,
+          sepayWebhookToken: paymentSePayWebhookToken,
+          sepaySecretKey: paymentSePaySecretKey,
+        })
+      )
       if ('error' in res && res.error) {
         setPaymentAutoSaveStatus('error')
-        if (!opts?.silent) toast({ title: res.error, variant: 'destructive' })
+        if (!opts?.silent && !isStepUpRequiredError(res)) toast({ title: res.error, variant: 'destructive' })
+        if (isStepUpRequiredError(res) && !opts?.silent) setPaymentAutoSaveStatus('error')
         return
       }
       paymentLastSavedSnapshotRef.current = paymentSnapshot(selectedPartnerId)
@@ -1163,6 +1187,7 @@ export function PartnerMessagingSettingsClient({
       paymentSePaySecretKey,
       paymentSePayWebhookToken,
       paymentSnapshot,
+      runWithStepUp,
       selectedPartnerId,
       toast,
     ]
@@ -1223,17 +1248,19 @@ export function PartnerMessagingSettingsClient({
   const saveGoogleSheetsSettings = () => {
     if (!selectedPartnerId) return
     startTransition(async () => {
-      const res = await saveMessagingWorkspaceGoogleSheetsSettings({
-        partnerId: selectedPartnerId,
-        enabled: gsEnabled,
-        spreadsheetIdOrUrl: gsSpreadsheetId,
-        sheetName: gsSheetName,
-        ...(gsServiceAccountJsonDraft.trim()
-          ? { serviceAccountJson: gsServiceAccountJsonDraft }
-          : {}),
-      })
+      const res = await runWithStepUp(() =>
+        saveMessagingWorkspaceGoogleSheetsSettings({
+          partnerId: selectedPartnerId,
+          enabled: gsEnabled,
+          spreadsheetIdOrUrl: gsSpreadsheetId,
+          sheetName: gsSheetName,
+          ...(gsServiceAccountJsonDraft.trim()
+            ? { serviceAccountJson: gsServiceAccountJsonDraft }
+            : {}),
+        })
+      )
       if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
+        if (!isStepUpRequiredError(res)) toast({ title: res.error, variant: 'destructive' })
         return
       }
       setGsServiceAccountJsonDraft('')
@@ -1251,15 +1278,17 @@ export function PartnerMessagingSettingsClient({
   const clearGoogleSheetsServiceAccount = () => {
     if (!selectedPartnerId) return
     startTransition(async () => {
-      const res = await saveMessagingWorkspaceGoogleSheetsSettings({
-        partnerId: selectedPartnerId,
-        enabled: gsEnabled,
-        spreadsheetIdOrUrl: gsSpreadsheetId,
-        sheetName: gsSheetName,
-        clearServiceAccountJson: true,
-      })
+      const res = await runWithStepUp(() =>
+        saveMessagingWorkspaceGoogleSheetsSettings({
+          partnerId: selectedPartnerId,
+          enabled: gsEnabled,
+          spreadsheetIdOrUrl: gsSpreadsheetId,
+          sheetName: gsSheetName,
+          clearServiceAccountJson: true,
+        })
+      )
       if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
+        if (!isStepUpRequiredError(res)) toast({ title: res.error, variant: 'destructive' })
         return
       }
       setGsServiceAccountJsonDraft('')

@@ -12,6 +12,8 @@ import {
   loadAdminIntegrationsConfigAction,
   saveAdminIntegrationsConfigAction,
 } from './actions'
+import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
 
 type DomainVerificationInput = {
   name: string
@@ -63,6 +65,7 @@ type Props = {
 
 export function AdminIntegrationsClient(props: Props) {
   const { toast } = useToast()
+  const { runWithStepUp } = useStepUpOtp()
   const [googleAnalyticsId, setGoogleAnalyticsId] = useState('')
   const [googleTagManagerId, setGoogleTagManagerId] = useState('')
   const [facebookPixelId, setFacebookPixelId] = useState('')
@@ -118,25 +121,29 @@ export function AdminIntegrationsClient(props: Props) {
     }
 
     startSaving(async () => {
-      const res = await saveAdminIntegrationsConfigAction(
-        {
-          googleAnalyticsId,
-          googleTagManagerId,
-          facebookPixelId,
-          facebookCapiAccessToken,
-          facebookDatasetId,
-          facebookTestEventCode,
-          webConsoleVerificationTag,
-          domainVerificationTags,
-          chatEmbedCode: nanoaiEmbedCode,
-          nanoaiEmbedCode,
-          facebookChatEmbedCode,
-          zaloChatEmbedCode,
-        },
-        props.nanoaiEmbedCodeDefault
+      const res = await runWithStepUp(() =>
+        saveAdminIntegrationsConfigAction(
+          {
+            googleAnalyticsId,
+            googleTagManagerId,
+            facebookPixelId,
+            facebookCapiAccessToken,
+            facebookDatasetId,
+            facebookTestEventCode,
+            webConsoleVerificationTag,
+            domainVerificationTags,
+            chatEmbedCode: nanoaiEmbedCode,
+            nanoaiEmbedCode,
+            facebookChatEmbedCode,
+            zaloChatEmbedCode,
+          },
+          props.nanoaiEmbedCodeDefault
+        )
       )
       if ('error' in res) {
-        toast({ title: res.error, variant: 'destructive' })
+        if (!isStepUpRequiredError(res)) {
+          toast({ title: res.error, variant: 'destructive' })
+        }
         return
       }
       toast({ title: props.saveOkToast })

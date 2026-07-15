@@ -1,6 +1,5 @@
 import { revalidatePath } from 'next/cache'
 import {
-  pgAdminDeleteCompletedLesson,
   pgListRecentCompletedLessonsForAdmin,
   pgListSessionMemoriesPinnedBySessionIds,
 } from '@/lib/db/admin-english-coach-pg'
@@ -12,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { FixWordExamplesButton } from './fix-word-examples-button'
 import { FixWordMeaningButton } from './fix-word-meaning-button'
 import { AdminFilterPersist } from './admin-filter-persist'
+import { DeleteCompletedLessonButton } from './delete-lesson-button'
 
 type ReviewDrillStats = {
   speakingPass: number
@@ -71,17 +71,6 @@ function toLocaleTag(uiLocale: 'vi' | 'en' | 'zh' | 'ja' | 'ko'): string {
   if (uiLocale === 'ja') return 'ja-JP'
   if (uiLocale === 'ko') return 'ko-KR'
   return 'vi-VN'
-}
-
-async function deleteCompletedLessonAction(formData: FormData) {
-  'use server'
-  const lessonId = String(formData.get('lessonId') || '').trim()
-  if (!lessonId) return
-  const r = await pgAdminDeleteCompletedLesson(lessonId)
-  if ('error' in r) {
-    console.error('[deleteCompletedLesson]', r.error)
-  }
-  revalidatePath('/admin/english-coach')
 }
 
 export default async function AdminEnglishCoachPage({
@@ -409,12 +398,17 @@ export default async function AdminEnglishCoachPage({
                       </p>
                     </div>
                     <div className="mt-3">
-                      <form action={deleteCompletedLessonAction}>
-                        <input type="hidden" name="lessonId" value={item.id} />
-                        <Button type="submit" variant="outline" size="sm" className="min-h-[36px] text-red-600 hover:text-red-700">
-                          {tr('Xóa bài học', 'Delete lesson', '删除课程', 'レッスン削除', '레슨 삭제')}
-                        </Button>
-                      </form>
+                      <DeleteCompletedLessonButton
+                        lessonId={item.id}
+                        label={tr('Xóa bài học', 'Delete lesson', '删除课程', 'レッスン削除', '레슨 삭제')}
+                        confirmMessage={tr(
+                          'Xóa bài học này? Thao tác không hoàn tác.',
+                          'Delete this lesson? This cannot be undone.',
+                          '删除此课程？无法撤销。',
+                          'このレッスンを削除しますか？元に戻せません。',
+                          '이 레슨을 삭제할까요? 되돌릴 수 없습니다.'
+                        )}
+                      />
                     </div>
                   </div>
                 ))}
@@ -474,12 +468,17 @@ export default async function AdminEnglishCoachPage({
                                   ? tr('N/A Reflex', 'N/A Reflex', '不适用 Reflex', 'N/A Reflex', '해당 없음 Reflex')
                                   : ''}
                             </span>
-                          <form action={deleteCompletedLessonAction}>
-                            <input type="hidden" name="lessonId" value={item.id} />
-                            <Button type="submit" variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                              {tr('Xóa', 'Delete', '删除', '削除', '삭제')}
-                            </Button>
-                          </form>
+                          <DeleteCompletedLessonButton
+                            lessonId={item.id}
+                            label={tr('Xóa', 'Delete', '删除', '削除', '삭제')}
+                            confirmMessage={tr(
+                              'Xóa bài học này? Thao tác không hoàn tác.',
+                              'Delete this lesson? This cannot be undone.',
+                              '删除此课程？无法撤销。',
+                              'このレッスンを削除しますか？元に戻せません。',
+                              '이 레슨을 삭제할까요? 되돌릴 수 없습니다.'
+                            )}
+                          />
                           </div>
                         </TableCell>
                       </TableRow>

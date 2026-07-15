@@ -11,6 +11,8 @@ import {
   adminReviewCurriculumEdit,
 } from '@/app/tao-giao-trinh/actions'
 import { useToast } from '@/hooks/use-toast'
+import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
 import { Check, X, RefreshCw } from 'lucide-react'
 
 type Review = {
@@ -37,6 +39,7 @@ type Review = {
 export function CurriculumEditReviewsClient() {
   const router = useRouter()
   const { toast } = useToast()
+  const { runWithStepUp } = useStepUpOtp()
   const [items, setItems] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('')
@@ -65,10 +68,12 @@ export function CurriculumEditReviewsClient() {
   const handleReview = async (id: string, action: 'approve' | 'reject') => {
     setActioning(id)
     const note = action === 'reject' ? rejectNote[id] : undefined
-    const res = await adminReviewCurriculumEdit(id, action, note)
+    const res = await runWithStepUp(() => adminReviewCurriculumEdit(id, action, note))
     setActioning(null)
     if (res?.error) {
-      toast({ title: 'Lỗi', description: res.error, variant: 'destructive' })
+      if (!isStepUpRequiredError(res)) {
+        toast({ title: 'Lỗi', description: res.error, variant: 'destructive' })
+      }
     } else {
       setRejectNote((prev) => ({ ...prev, [id]: '' }))
       fetchData()

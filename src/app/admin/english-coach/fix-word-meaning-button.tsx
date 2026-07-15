@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
+import { useStepUpOtp, fetchWithStepUp } from '@/components/auth/step-up-otp-provider'
 
 type FailedItem = {
   id: string
@@ -16,6 +17,7 @@ type FailedItem = {
 }
 
 export function FixWordMeaningButton() {
+  const { ensureStepUp } = useStepUpOtp()
   const [loading, setLoading] = useState(false)
   const [failedItems, setFailedItems] = useState<FailedItem[]>([])
   const [result, setResult] = useState<{
@@ -46,7 +48,7 @@ export function FixWordMeaningButton() {
     setLoading(true)
     setResult(null)
     try {
-      const res = await fetch('/api/english-coach/fix-word-meaning', { method: 'POST' })
+      const res = await fetchWithStepUp('/api/english-coach/fix-word-meaning', { method: 'POST' }, ensureStepUp)
       const data = await res.json()
       if (!res.ok) {
         setResult({ ok: false, error: data.error || 'Lỗi không xác định.' })

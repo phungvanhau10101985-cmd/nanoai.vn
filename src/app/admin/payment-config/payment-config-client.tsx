@@ -29,6 +29,8 @@ import { useToast } from '@/hooks/use-toast'
 import type { WebLocale } from '@/lib/i18n/config'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
 import {
   deletePaymentConfigAction,
   listPaymentConfigsAction,
@@ -62,6 +64,7 @@ export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocal
   const [isActive, setIsActive] = useState(true)
 
   const { toast } = useToast()
+  const { runWithStepUp } = useStepUpOtp()
 
   const tr = useCallback((vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -127,17 +130,20 @@ export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocal
 
   const handleSave = async () => {
     setSaving(true)
-    const res = await savePaymentConfigAction({
-      id: editing?.id,
-      bank_account: bankAccount,
-      bank_id: bankId,
-      bank_name: bankName,
-      account_holder_name: accountHolder,
-      qr_template_url: qrTemplateUrl,
-      is_active: isActive,
-    })
+    const res = await runWithStepUp(() =>
+      savePaymentConfigAction({
+        id: editing?.id,
+        bank_account: bankAccount,
+        bank_id: bankId,
+        bank_name: bankName,
+        account_holder_name: accountHolder,
+        qr_template_url: qrTemplateUrl,
+        is_active: isActive,
+      })
+    )
     setSaving(false)
     if ('error' in res) {
+      if (isStepUpRequiredError(res)) return
       if (res.error === 'bank_required') {
         toast({
           title: tr('Thiếu thông tin', 'Missing fields', '信息不完整', '未入力の項目', '정보 부족'),
@@ -176,9 +182,10 @@ export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocal
   const handleDelete = async () => {
     if (!deleteTarget) return
     setDeleting(true)
-    const res = await deletePaymentConfigAction(deleteTarget.id)
+    const res = await runWithStepUp(() => deletePaymentConfigAction(deleteTarget.id))
     setDeleting(false)
     if ('error' in res) {
+      if (isStepUpRequiredError(res)) return
       toast({
         title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
         description: res.error,

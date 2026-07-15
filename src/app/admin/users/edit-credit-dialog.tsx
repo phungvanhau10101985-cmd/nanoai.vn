@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label'
 import { updateUserCredit } from './actions'
 import { useToast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
+import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
 
 export function EditCreditDialog({ userId, currentBalance }: { userId: string; currentBalance: number }) {
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
@@ -17,6 +19,7 @@ export function EditCreditDialog({ userId, currentBalance }: { userId: string; c
   const [newBalance, setNewBalance] = useState(currentBalance)
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+  const { runWithStepUp } = useStepUpOtp()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -44,11 +47,13 @@ export function EditCreditDialog({ userId, currentBalance }: { userId: string; c
 
   const handleSubmit = async () => {
     setIsLoading(true)
-    const result = await updateUserCredit(userId, newBalance)
+    const result = await runWithStepUp(() => updateUserCredit(userId, newBalance))
     setIsLoading(false)
 
     if (result.error) {
-      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
+      if (!isStepUpRequiredError(result)) {
+        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
+      }
     } else {
       toast({ title: tr('Thành công', 'Success', '成功', '成功', '성공'), description: tr('Đã cập nhật số dư tín dụng.', 'Credit balance updated.', '积分余额已更新。', 'クレジット残高を更新しました。', '크레딧 잔액을 업데이트했습니다.') })
       setOpen(false)

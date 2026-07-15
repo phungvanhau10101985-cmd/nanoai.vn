@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getInternalBaseUrl } from '@/lib/internal-url'
 import { getUserForAction } from '@/lib/auth'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import { requireAdminWithStepUp } from '@/lib/auth/require-step-up'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   fetchDailyWordsPendingMeaningFixPg,
@@ -103,11 +104,9 @@ export async function POST() {
     if (!isPgConfigured()) {
       return NextResponse.json({ error: 'Cơ sở dữ liệu chưa cấu hình.' }, { status: 503 })
     }
-    const auth = await getUserForAction()
-    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
-    const role = await getProfileRoleWithFallback(auth.user!.id)
-    if (role !== 'admin') {
-      return NextResponse.json({ error: 'Chỉ quản trị viên.' }, { status: 403 })
+    const auth = await requireAdminWithStepUp()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error, code: auth.code }, { status: auth.status })
     }
 
     const baseUrl = getInternalBaseUrl()

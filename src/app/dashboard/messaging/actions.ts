@@ -142,6 +142,7 @@ import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventor
 import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
 import { isValidUuidString } from '@/lib/validate-uuid'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
+import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
 import { formatShippingUpdateChatBodyForCustomer } from '@/lib/messaging/order-customer-notify-i18n'
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
@@ -233,6 +234,12 @@ async function requireUser() {
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   return { user: result.user }
+}
+
+async function requireAccountStepUp(userId: string): Promise<{ ok: true } | { error: string }> {
+  const step = await assertStepUp(userId, 'account')
+  if ('error' in step) return { error: STEP_UP_REQUIRED }
+  return { ok: true }
 }
 
 async function assertPartnerOwner(userId: string, partnerId: string) {
@@ -478,6 +485,8 @@ export async function savePartnerMessagingFacebookMeta(partnerId: string, input:
   const { user } = auth
   const gate = await assertPartnerOwner(user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(user.id)
+  if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const pixel = input.pixelId.trim()
   const capiTok = input.capiToken.trim()
@@ -585,6 +594,8 @@ export async function saveMessagingWorkspaceGoogleSheetsSettings(input: {
   const { user } = auth
   const gate = await assertPartnerOwner(user.id, input.partnerId)
   if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(user.id)
+  if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const sid = parseSpreadsheetId(input.spreadsheetIdOrUrl ?? '')
   if (input.enabled && !sid) {
@@ -645,6 +656,8 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
   const { user } = auth
   const gate = await assertPartnerOwner(user.id, input.partnerId)
   if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(user.id)
+  if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const existing = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   const stableWebhookToken =
@@ -1448,6 +1461,8 @@ export async function savePartnerFacebookChannel(
   const { user } = auth
   const gate = await assertPartnerOwner(user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(user.id)
+  if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
@@ -1484,6 +1499,8 @@ export async function savePartnerZaloChannel(partnerId: string, zaloWebhookSecre
   const { user } = auth
   const gate = await assertPartnerOwner(user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(user.id)
+  if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
@@ -2104,6 +2121,8 @@ export async function generatePartnerImageSearchApiSecret(partnerId: string) {
   const { user } = auth
   const gate = await assertPartnerOwner(user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(user.id)
+  if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
@@ -2163,6 +2182,8 @@ export async function clearPartnerImageSearchApiSecret(partnerId: string) {
   const { user } = auth
   const gate = await assertPartnerOwner(user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(user.id)
+  if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
@@ -2333,6 +2354,8 @@ export async function savePartnerInventoryExternalSyncSettings(
   const { user } = auth
   const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
   if ('error' in gate) return { error: gate.error ?? 'Forbidden.' }
+  const step = await requireAccountStepUp(user.id)
+  if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const ok = await upsertPartnerInventoryExternalSyncSettingsFromPg({
     partnerId,
@@ -2533,6 +2556,8 @@ export async function inviteMessagingPartnerStaffByEmail(partnerId: string, emai
   if ('error' in auth) return { error: auth.error }
   const gate = await assertPartnerOwner(auth.user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(auth.user.id)
+  if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const found = await lookupAuthUserIdByEmailExcludeOwnerFromPg({
     email: emailRaw,
@@ -2568,6 +2593,8 @@ export async function updateMessagingPartnerStaffMemberPermissions(input: {
   if ('error' in auth) return { error: auth.error }
   const gate = await assertPartnerOwner(auth.user.id, input.partnerId)
   if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(auth.user.id)
+  if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const ok = await upsertMessagingPartnerMemberForOwnerFromPg({
     partnerId: input.partnerId,
@@ -2585,6 +2612,8 @@ export async function removeMessagingPartnerStaffMember(partnerId: string, membe
   if ('error' in auth) return { error: auth.error }
   const gate = await assertPartnerOwner(auth.user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(auth.user.id)
+  if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const rm = await deleteMessagingPartnerMemberForOwnerFromPg({
     partnerId,

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
+import { useStepUpOtp, fetchWithStepUp } from '@/components/auth/step-up-otp-provider'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
 import { Toaster } from '@/components/ui/toaster'
 import { Check, X, RefreshCw, Flag } from 'lucide-react'
 import { parseQuizData } from '@/lib/parse-quiz-data'
@@ -29,6 +31,7 @@ type Report = {
 export function QuizReportsClient() {
   const router = useRouter()
   const { toast } = useToast()
+  const { ensureStepUp } = useStepUpOtp()
   const [items, setItems] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
   const [actioning, setActioning] = useState<string | null>(null)
@@ -58,11 +61,15 @@ export function QuizReportsClient() {
   const handleApprove = async (id: string, approved: boolean) => {
     setActioning(id)
     try {
-      const res = await fetch(`/api/admin/quiz-reports/${id}/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approved }),
-      })
+      const res = await fetchWithStepUp(
+        `/api/admin/quiz-reports/${id}/approve`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ approved }),
+        },
+        ensureStepUp
+      )
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         toast({ title: 'Lỗi', description: data?.error ?? String(res.status), variant: 'destructive' })

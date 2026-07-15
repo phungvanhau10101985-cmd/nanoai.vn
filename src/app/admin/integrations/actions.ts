@@ -8,6 +8,7 @@ import {
   upsertAdminIntegrationsValueJson,
 } from '@/lib/db/admin-integrations-settings-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
 
 const SETTINGS_KEY = 'admin_integrations_config'
 
@@ -104,6 +105,9 @@ export async function saveAdminIntegrationsConfigAction(
 ): Promise<{ ok: true } | { error: string }> {
   const gate = await requireAdmin()
   if ('error' in gate) return { error: gate.error }
+
+  const step = await assertStepUp(gate.user.id, 'admin')
+  if ('error' in step) return { error: STEP_UP_REQUIRED }
 
   const payload = sanitizeSettings(input, fallbackEmbedCode)
 

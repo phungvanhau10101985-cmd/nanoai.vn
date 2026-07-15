@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Download, FileJson, FileSpreadsheet, Search } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useStepUpOtp, fetchWithStepUp } from '@/components/auth/step-up-otp-provider'
 
 function tr(locale: string, vi: string, en: string, zh: string, ja: string, ko: string) {
   if (locale === 'en') return en
@@ -23,6 +24,7 @@ export function ExportDataClient({ locale = 'vi' }: { locale?: string }) {
   const [longCells, setLongCells] = useState<Array<{ table: string; id: string; column: string; length: number; preview: string }> | null>(null)
   const [checkingLong, setCheckingLong] = useState(false)
   const { toast } = useToast()
+  const { ensureStepUp } = useStepUpOtp()
 
   useEffect(() => {
     fetch('/api/admin/export-data')
@@ -78,12 +80,16 @@ export function ExportDataClient({ locale = 'vi' }: { locale?: string }) {
     try {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 120000)
-      const res = await fetch('/api/admin/export-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tables: [...selected], format }),
-        signal: controller.signal,
-      })
+      const res = await fetchWithStepUp(
+        '/api/admin/export-data',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tables: [...selected], format }),
+          signal: controller.signal,
+        },
+        ensureStepUp
+      )
       clearTimeout(timeout)
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))

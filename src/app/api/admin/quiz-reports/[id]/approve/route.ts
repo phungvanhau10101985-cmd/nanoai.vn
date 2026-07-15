@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserForAction } from '@/lib/auth'
-import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import { requireAdminWithStepUp } from '@/lib/auth/require-step-up'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   fetchQuizQuestionReportPendingByIdPg,
@@ -34,13 +33,11 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const authResult = await getUserForAction()
-    if ('error' in authResult) return NextResponse.json({ error: authResult.error }, { status: 401 })
-
-    const role = await getProfileRoleWithFallback(authResult.user!.id)
-    if (role !== 'admin') {
-      return NextResponse.json({ error: 'Chỉ quản trị viên mới được duyệt.' }, { status: 403 })
+    const auth = await requireAdminWithStepUp()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error, code: auth.code }, { status: auth.status })
     }
+    const adminUserId = auth.user.id
 
     if (!isPgConfigured()) {
       return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
@@ -55,7 +52,7 @@ export async function POST(
     }
 
     if (approved) {
-      const ok = await updateQuizQuestionReportApprovedPg(id, authResult.user!.id)
+      const ok = await updateQuizQuestionReportApprovedPg(id, adminUserId)
       if (ok !== true) {
         return NextResponse.json({ error: 'Không cập nhật được trạng thái báo cáo.' }, { status: 500 })
       }
@@ -146,7 +143,7 @@ export async function POST(
 
     const upReport = await updateQuizQuestionReportReplacedPg({
       reportId: id,
-      adminUserId: authResult.user!.id,
+      adminUserId: adminUserId,
       newQuizMarker: newMarker,
     })
     if (upReport !== true) {

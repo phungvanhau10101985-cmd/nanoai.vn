@@ -6,6 +6,7 @@ import { normalizeCurriculumInput, parseCurriculumLessonNumber } from './lib/cur
 import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
 import { getUserForCreditAction } from '@/lib/auth'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   deleteWorksheetCurriculumLessonSlidesByCurriculumIdPg,
@@ -3286,6 +3287,8 @@ export async function adminReviewSlideProposal(proposalId: string, action: 'appr
 
   const role = await getProfileRoleWithFallback(user.id)
   if (role !== 'admin') return { error: 'Bạn cần quyền admin.' }
+  const step = await assertStepUp(user.id, 'admin')
+  if ('error' in step) return { error: STEP_UP_REQUIRED }
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể duyệt đề xuất.' }
   }
@@ -3415,6 +3418,8 @@ export async function adminReviewCurriculumEdit(reviewId: string, action: 'appro
 
   const role = await getProfileRoleWithFallback(user.id)
   if (role !== 'admin') return { error: 'Bạn cần quyền admin.' }
+  const step = await assertStepUp(user.id, 'admin')
+  if ('error' in step) return { error: STEP_UP_REQUIRED }
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể duyệt gửi lên.' }
   }

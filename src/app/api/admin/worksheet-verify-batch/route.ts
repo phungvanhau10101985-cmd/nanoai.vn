@@ -8,6 +8,7 @@ import {
   listWorksheetVerifyBatchReportsPg,
 } from '@/lib/db/worksheet-verify-batch-pg'
 import { startNewBatchReport, runBatchVerifyStep } from '@/lib/worksheet-verify/admin-batch-verify'
+import { requireAdminWithStepUp } from '@/lib/auth/require-step-up'
 
 async function requireAdmin() {
   const auth = await getUserForAction()
@@ -55,8 +56,10 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const gate = await requireAdmin()
-    if ('error' in gate) return gate.error
+    const gate = await requireAdminWithStepUp()
+    if ('error' in gate) {
+      return NextResponse.json({ error: gate.error, code: gate.code }, { status: gate.status })
+    }
     const { user } = gate
 
     if (!isPgConfigured()) {

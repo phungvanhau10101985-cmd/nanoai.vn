@@ -6,6 +6,7 @@ import { fetchAllRowsFromPublicTablePaged } from '@/lib/db/admin-export-pg'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import * as XLSX from 'xlsx'
 import { PUBLIC_TABLES, type PublicTableName } from './public-tables'
+import { requireAdminWithStepUp } from '@/lib/auth/require-step-up'
 
 const EXCEL_MAX_CELL = 32767
 
@@ -60,8 +61,13 @@ export async function GET() {
 
 /** POST: Xuất dữ liệu theo bảng đã chọn, định dạng JSON hoặc Excel */
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin()
-  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const auth = await requireAdminWithStepUp()
+  if ('error' in auth) {
+    return NextResponse.json(
+      { error: auth.error, code: auth.code },
+      { status: auth.status }
+    )
+  }
 
   try {
     const body = await req.json().catch(() => ({}))

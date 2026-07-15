@@ -21,6 +21,8 @@ import {
   saveCustomerGeminiApiKeyAction,
   setCustomerGeminiApiKeyEnabledAction,
 } from './actions'
+import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
 import type { UserAiApiKeyPublicRow } from '@/lib/db/user-ai-api-keys-pg'
 import type { ByokPlanPaymentRow, ByokSubscriptionRow } from '@/lib/db/user-ai-api-key-billing-pg'
 
@@ -123,6 +125,7 @@ export function CustomerApiKeysClient({
   const [apiKey, setApiKey] = useState('')
   const [isPending, startTransition] = useTransition()
   const { toast } = useToast()
+  const { runWithStepUp } = useStepUpOtp()
 
   const refreshStatus = async () => {
     const res = await fetch('/api/account/customer-api-keys/gemini', { credentials: 'same-origin' })
@@ -139,7 +142,9 @@ export function CustomerApiKeysClient({
   const showResult = async (result: { ok: true } | { error: string }, success: string) => {
     await refreshStatus()
     if ('error' in result) {
-      toast({ title: copy.invalid, description: result.error, variant: 'destructive' })
+      if (!isStepUpRequiredError(result)) {
+        toast({ title: copy.invalid, description: result.error, variant: 'destructive' })
+      }
       return
     }
     toast({ title: success })
@@ -147,7 +152,7 @@ export function CustomerApiKeysClient({
 
   const handleSave = () => {
     startTransition(async () => {
-      const result = await saveCustomerGeminiApiKeyAction(apiKey)
+      const result = await runWithStepUp(() => saveCustomerGeminiApiKeyAction(apiKey))
       if ('ok' in result) setApiKey('')
       await showResult(result, copy.successSaved)
     })
@@ -161,7 +166,7 @@ export function CustomerApiKeysClient({
 
   const handleDelete = () => {
     startTransition(async () => {
-      const result = await deleteCustomerGeminiApiKeyAction()
+      const result = await runWithStepUp(() => deleteCustomerGeminiApiKeyAction())
       if ('ok' in result) setRow(null)
       await showResult(result, copy.successDeleted)
     })
@@ -170,13 +175,16 @@ export function CustomerApiKeysClient({
   const handleToggle = (enabled: boolean) => {
     setRow((cur) => (cur ? { ...cur, is_enabled: enabled } : cur))
     startTransition(async () => {
-      await showResult(await setCustomerGeminiApiKeyEnabledAction(enabled), copy.successUpdated)
+      await showResult(
+        await runWithStepUp(() => setCustomerGeminiApiKeyEnabledAction(enabled)),
+        copy.successUpdated
+      )
     })
   }
 
   const handleChoosePlan = (planId: CustomerApiKeyPlanCopy['id']) => {
     startTransition(async () => {
-      const result = await createByokPlanPaymentAction(planId)
+      const result = await runWithStepUp(() => createByokPlanPaymentAction(planId))
       if ('error' in result) {
         toast({ title: copy.invalid, description: result.error, variant: 'destructive' })
         return

@@ -10,6 +10,7 @@ import {
   type PaymentConfigAdminRow,
 } from '@/lib/db/payments-repo'
 import { isPgConfigured } from '@/lib/db/pool'
+import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
 
 const DEFAULT_QR_TEMPLATE_URL =
   'https://qr.sepay.vn/img?acc={bank_acc}&bank={bank_id}&amount={amount}&des={content}'
@@ -60,6 +61,9 @@ export async function savePaymentConfigAction(
   const gate = await requireAdmin()
   if ('error' in gate) return { error: gate.error }
 
+  const step = await assertStepUp(gate.user.id, 'admin')
+  if ('error' in step) return { error: STEP_UP_REQUIRED }
+
   const bank_account = String(input.bank_account || '').trim()
   const bank_id = String(input.bank_id || '').trim()
   const bank_name = String(input.bank_name || '').trim()
@@ -92,6 +96,9 @@ export async function savePaymentConfigAction(
 export async function deletePaymentConfigAction(id: string): Promise<{ ok: true } | { error: string }> {
   const gate = await requireAdmin()
   if ('error' in gate) return { error: gate.error }
+
+  const step = await assertStepUp(gate.user.id, 'admin')
+  if ('error' in step) return { error: STEP_UP_REQUIRED }
 
   if (!isPgConfigured()) {
     return { error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }

@@ -4,8 +4,10 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
+import { useStepUpOtp, fetchWithStepUp } from '@/components/auth/step-up-otp-provider'
 
 export function FixWordExamplesButton() {
+  const { ensureStepUp } = useStepUpOtp()
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{
     ok?: boolean
@@ -20,7 +22,7 @@ export function FixWordExamplesButton() {
     setLoading(true)
     setResult(null)
     try {
-      const res = await fetch('/api/english-coach/fix-word-examples', { method: 'POST' })
+      const res = await fetchWithStepUp('/api/english-coach/fix-word-examples', { method: 'POST' }, ensureStepUp)
       const data = await res.json()
       if (!res.ok) {
         setResult({ ok: false, error: data.error || 'Lỗi không xác định.' })

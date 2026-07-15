@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
+import { useStepUpOtp, fetchWithStepUp } from '@/components/auth/step-up-otp-provider'
 import { Toaster } from '@/components/ui/toaster'
 import { RefreshCw, ShieldCheck, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
 import {
@@ -46,6 +47,7 @@ type DetailRow = {
 
 export function WorksheetVerifyReportsClient({ labels: t }: { labels: Labels }) {
   const { toast } = useToast()
+  const { ensureStepUp } = useStepUpOtp()
   const [items, setItems] = useState<ReportRow[]>([])
   const [loading, setLoading] = useState(true)
   const [batchSize, setBatchSize] = useState(1)
@@ -101,11 +103,15 @@ export function WorksheetVerifyReportsClient({ labels: t }: { labels: Labels }) 
       try {
         // eslint-disable-next-line no-constant-condition
         while (!pollAbortRef.current) {
-          const res = await fetch('/api/admin/worksheet-verify-batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'step', reportId, batchSize }),
-          })
+          const res = await fetchWithStepUp(
+            '/api/admin/worksheet-verify-batch',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'step', reportId, batchSize }),
+            },
+            ensureStepUp
+          )
           const data = await res.json().catch(() => ({}))
           if (!res.ok) {
             toast({ title: t.toastErr, description: data.error ?? String(res.status), variant: 'destructive' })
@@ -125,16 +131,20 @@ export function WorksheetVerifyReportsClient({ labels: t }: { labels: Labels }) 
         fetchList()
       }
     },
-    [batchSize, fetchList, t.toastDone, t.toastErr, t.worksheetsProcessed, toast]
+    [batchSize, fetchList, t.toastDone, t.toastErr, t.worksheetsProcessed, toast, ensureStepUp]
   )
 
   const handleStart = async () => {
     try {
-      const res = await fetch('/api/admin/worksheet-verify-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start' }),
-      })
+      const res = await fetchWithStepUp(
+        '/api/admin/worksheet-verify-batch',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'start' }),
+        },
+        ensureStepUp
+      )
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         toast({ title: t.toastErr, description: data.error ?? String(res.status), variant: 'destructive' })

@@ -18,9 +18,16 @@ import {
   listByokPlanPaymentsForUser,
 } from '@/lib/db/user-ai-api-key-billing-pg'
 import { isByokPlanId, type ByokPlanId } from '@/lib/customer-api-keys/byok-plans'
+import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
 
 const PROVIDER = 'google_gemini' as const
 const PAGE_PATH = '/dashboard/customer-api-keys'
+
+async function requireAccountStepUp(userId: string): Promise<{ ok: true } | { error: string }> {
+  const step = await assertStepUp(userId, 'account')
+  if ('error' in step) return { error: STEP_UP_REQUIRED }
+  return { ok: true }
+}
 
 export async function getCustomerGeminiApiKeyStatusAction(): Promise<{
   row: UserAiApiKeyPublicRow | null
@@ -56,6 +63,8 @@ async function testGeminiApiKey(apiKey: string): Promise<{ ok: true } | { error:
 export async function saveCustomerGeminiApiKeyAction(apiKey: string): Promise<{ ok: true } | { error: string }> {
   const auth = await getUserForAction()
   if ('error' in auth) return { error: auth.error }
+  const step = await requireAccountStepUp(auth.user.id)
+  if ('error' in step) return { error: step.error }
   const trimmed = apiKey.trim()
   if (trimmed.length < 20) return { error: 'API key quá ngắn.' }
   const test = await testGeminiApiKey(trimmed)
@@ -100,6 +109,8 @@ export async function checkCustomerGeminiApiKeyAction(): Promise<{ ok: true } | 
 export async function setCustomerGeminiApiKeyEnabledAction(enabled: boolean): Promise<{ ok: true } | { error: string }> {
   const auth = await getUserForAction()
   if ('error' in auth) return { error: auth.error }
+  const step = await requireAccountStepUp(auth.user.id)
+  if ('error' in step) return { error: step.error }
   const result = await updateUserAiApiKeyEnabled({ userId: auth.user.id, provider: PROVIDER, enabled })
   revalidatePath(PAGE_PATH)
   return result
@@ -108,6 +119,8 @@ export async function setCustomerGeminiApiKeyEnabledAction(enabled: boolean): Pr
 export async function deleteCustomerGeminiApiKeyAction(): Promise<{ ok: true } | { error: string }> {
   const auth = await getUserForAction()
   if ('error' in auth) return { error: auth.error }
+  const step = await requireAccountStepUp(auth.user.id)
+  if ('error' in step) return { error: step.error }
   const result = await deleteUserAiApiKey({ userId: auth.user.id, provider: PROVIDER })
   revalidatePath(PAGE_PATH)
   return result
@@ -116,6 +129,8 @@ export async function deleteCustomerGeminiApiKeyAction(): Promise<{ ok: true } |
 export async function createByokPlanPaymentAction(planId: ByokPlanId) {
   const auth = await getUserForAction()
   if ('error' in auth) return { error: auth.error }
+  const step = await requireAccountStepUp(auth.user.id)
+  if ('error' in step) return { error: step.error }
   if (!isByokPlanId(planId)) return { error: 'Gói BYOK không hợp lệ.' }
   try {
     const payment = await createByokPlanPayment({ userId: auth.user.id, planId })

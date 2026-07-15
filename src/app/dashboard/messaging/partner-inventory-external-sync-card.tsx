@@ -12,6 +12,8 @@ import {
   runPartnerExternalCatalogSyncNow,
   savePartnerInventoryExternalSyncSettings,
 } from '@/app/dashboard/messaging/actions'
+import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   DEFAULT_188_INVENTORY_FIELD_MAPPING,
@@ -135,6 +137,7 @@ export function PartnerInventoryExternalSyncCard({
   t: AiT
   toast: (opts: { title: string; description?: string; variant?: 'destructive' }) => void
 }) {
+  const { runWithStepUp } = useStepUpOtp()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [listUrl, setListUrl] = useState('')
@@ -228,17 +231,21 @@ export function PartnerInventoryExternalSyncCard({
     void (async () => {
       setSaving(true)
       try {
-        const res = await savePartnerInventoryExternalSyncSettings(partnerId, {
-          siteOrigin: '',
-          productPathTemplate: '',
-          productsListUrl: listUrl,
-          fieldMapping: fields,
-          catalogAutoSyncEnabled: autoSyncEnabled,
-          catalogAutoSyncIntervalMinutes: 1440,
-          catalogAutoSyncTimeVn: syncTimeVn,
-        })
+        const res = await runWithStepUp(() =>
+          savePartnerInventoryExternalSyncSettings(partnerId, {
+            siteOrigin: '',
+            productPathTemplate: '',
+            productsListUrl: listUrl,
+            fieldMapping: fields,
+            catalogAutoSyncEnabled: autoSyncEnabled,
+            catalogAutoSyncIntervalMinutes: 1440,
+            catalogAutoSyncTimeVn: syncTimeVn,
+          })
+        )
         if ('error' in res) {
-          toastRef.current({ title: res.error, variant: 'destructive' })
+          if (!isStepUpRequiredError(res)) {
+            toastRef.current({ title: res.error, variant: 'destructive' })
+          }
           return
         }
         const refreshed = await getPartnerInventoryExternalSyncSettings(partnerId)
