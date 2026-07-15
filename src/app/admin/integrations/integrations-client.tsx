@@ -13,7 +13,7 @@ import {
   saveAdminIntegrationsConfigAction,
 } from './actions'
 import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
-import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 
 type DomainVerificationInput = {
   name: string

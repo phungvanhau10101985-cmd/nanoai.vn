@@ -11,7 +11,7 @@ import { updateUserCredit } from './actions'
 import { useToast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
 import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
-import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 
 export function EditCreditDialog({ userId, currentBalance }: { userId: string; currentBalance: number }) {
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')

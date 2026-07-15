@@ -30,7 +30,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
-import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import {
   deletePaymentConfigAction,
   listPaymentConfigsAction,

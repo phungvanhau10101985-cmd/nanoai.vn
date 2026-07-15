@@ -23,7 +23,7 @@ import { Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import type { WebLocale } from '@/lib/i18n/config'
-import { isStepUpRequiredError, type StepUpScope } from '@/lib/auth/step-up-otp'
+import { isStepUpRequiredError, type StepUpScope } from '@/lib/auth/step-up-otp-shared'
 import {
   checkStepUpSessionAction,
   requestStepUpOtpAction,

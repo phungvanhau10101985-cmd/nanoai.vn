@@ -22,7 +22,7 @@ import {
   setCustomerGeminiApiKeyEnabledAction,
 } from './actions'
 import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
-import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import type { UserAiApiKeyPublicRow } from '@/lib/db/user-ai-api-keys-pg'
 import type { ByokPlanPaymentRow, ByokSubscriptionRow } from '@/lib/db/user-ai-api-key-billing-pg'
 

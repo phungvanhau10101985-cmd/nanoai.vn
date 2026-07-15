@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
-import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import type { PartnerApiKeysManagerStrings } from '@/lib/integration/api-keys-hub-copy'
 import {
   clearPartnerImageSearchApiSecret,

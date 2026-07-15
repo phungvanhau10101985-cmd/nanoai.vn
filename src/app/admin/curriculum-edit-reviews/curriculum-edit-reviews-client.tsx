@@ -12,7 +12,7 @@ import {
 } from '@/app/tao-giao-trinh/actions'
 import { useToast } from '@/hooks/use-toast'
 import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
-import { isStepUpRequiredError } from '@/lib/auth/step-up-otp'
+import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import { Check, X, RefreshCw } from 'lucide-react'
 
 type Review = {
