@@ -3,8 +3,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { EditCreditDialog } from './edit-credit-dialog'
+import { DeleteUserDialog } from './delete-user-dialog'
 import { Toaster } from '@/components/ui/sonner'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
+import { getUserOrBypass } from '@/lib/auth'
 import { pgListProfilesWithCreditBalance } from '@/lib/db/admin-users-pg'
 import { AdminUsersEmailSearch } from './admin-users-email-search'
 import Link from 'next/link'
@@ -43,6 +45,8 @@ export default async function AdminUsersPage({
   }
   const emailQuery = searchParams?.email?.trim() ?? ''
   const { sort, dir } = parseAdminUsersSort(searchParams)
+  const currentUser = await getUserOrBypass()
+  const currentAdminId = currentUser?.id ?? null
   const { rows: usersRaw, error: usersError } = await pgListProfilesWithCreditBalance({
     emailQuery: emailQuery || undefined,
     sort,
@@ -163,6 +167,13 @@ export default async function AdminUsersPage({
                   <TableCell className="text-right font-medium">{user.balance}</TableCell>
                   <TableCell className="text-right">
                     <EditCreditDialog userId={user.id} currentBalance={user.balance ?? 0} />
+                    {user.role !== 'admin' && user.id !== currentAdminId ? (
+                      <DeleteUserDialog
+                        userId={user.id}
+                        userEmail={user.email ?? 'N/A'}
+                        userName={user.full_name}
+                      />
+                    ) : null}
                   </TableCell>
                 </TableRow>
               ))}
