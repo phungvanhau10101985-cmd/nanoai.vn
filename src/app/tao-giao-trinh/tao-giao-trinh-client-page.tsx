@@ -47,6 +47,8 @@ import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-loca
 import { fillI18nTemplate } from '@/lib/i18n/fill-template'
 import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
+import { useHubPrefill } from '@/lib/hub-chat/use-hub-prefill'
+import { HubPlanStepBanner } from '@/components/hub-chat/hub-plan-step-banner'
 import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from './lib/curriculum-credit-costs'
 import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
 import {
@@ -364,6 +366,7 @@ export default function TaoGiaoTrinhClientPage({
   const lessonTrimIdleRef = useRef<number | null>(null)
   const { toast } = useToast()
   const router = useRouter()
+  useHubPrefill('/tao-giao-trinh', setTopic)
   const handleCreationToolShellBack = useCallback(() => {
     if (featureSection !== 'create') {
       setFeatureSection('create')
@@ -3441,6 +3444,7 @@ export default function TaoGiaoTrinhClientPage({
         tr={tr}
       />
       <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-5 md:space-y-6">
+        <HubPlanStepBanner />
         <div ref={pageHeaderRef} className="text-center">
           <h1 className="text-xl font-bold text-foreground md:text-2xl">
             {tr('Tạo giáo trình bằng AI', 'AI Curriculum Creator', 'AI 课程创建', 'AI カリキュラム作成', 'AI 교육과정 생성')}

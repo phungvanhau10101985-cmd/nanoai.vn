@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, ListOrdered } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import {
@@ -14,6 +15,8 @@ import {
   tryOnFeatureToToolKey,
   worksheetTypeToTaskHubLabel,
 } from '@/lib/dashboard/task-hub'
+import { openHubPlanStep } from '@/lib/hub-chat/hub-chat-prefill'
+import type { HubMultiTaskPlanRow } from '@/lib/db/hub-chat-pg'
 import { refreshTaskHubSnapshot } from './actions'
 import type { TaskHubSnapshot } from './task-hub-snapshot'
 
@@ -30,14 +33,15 @@ function statusBadgeVariant(
 }
 
 export function TaskHubPoll({ locale, initial }: { locale: WebLocale; initial: TaskHubSnapshot }) {
+  const router = useRouter()
   const t = getDictionary(locale)
   const th = t.taskHub
   const [snap, setSnap] = useState<TaskHubSnapshot>(initial)
   const pullInFlight = useRef(false)
 
   const hasRunning = useMemo(
-    () => snap.runningTryOn.length > 0 || snap.runningWs.length > 0,
-    [snap.runningTryOn.length, snap.runningWs.length]
+    () => snap.runningTryOn.length > 0 || snap.runningWs.length > 0 || snap.hubPlans.length > 0,
+    [snap.runningTryOn.length, snap.runningWs.length, snap.hubPlans.length]
   )
 
   const pull = useCallback(async () => {
@@ -85,11 +89,91 @@ export function TaskHubPoll({ locale, initial }: { locale: WebLocale; initial: T
     return s
   }
 
-  const { runningTryOn, runningWs, recentTop } = snap
+  const hubPlanDoneCount = (plan: HubMultiTaskPlanRow) =>
+    plan.steps.filter((s) => s.status === 'done' || s.status === 'skipped').length
+
+  const hubPlanCurrentStep = (plan: HubMultiTaskPlanRow) =>
+    plan.steps.find((s) => s.status === 'in_progress') ?? plan.steps[plan.currentStepIndex]
+
+  const continueHubPlan = (plan: HubMultiTaskPlanRow) => {
+    const step = hubPlanCurrentStep(plan)
+    if (!step) return
+    openHubPlanStep(step.href, step.prefillPrompt, {
+      planId: plan.id,
+      stepIndex: step.stepIndex,
+      title: plan.title,
+      totalSteps: plan.steps.length,
+    })
+    router.push(step.href)
+  }
+
+  const cancelHubPlan = async (planId: string) => {
+    try {
+      await fetch(`/api/hub-chat/plans/${planId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ action: 'cancel' }),
+      })
+      void pull()
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const { runningTryOn, runningWs, hubPlans, recentTop } = snap
 
   return (
     <>
       <p className="text-xs text-muted-foreground -mt-2 mb-4">{th.autoRefreshNote}</p>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <ListOrdered className="h-5 w-5 text-violet-600" />
+          {th.sectionHubPlans}
+        </h2>
+        {hubPlans.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">{th.emptyHubPlans}</CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {hubPlans.map((plan) => {
+              const done = hubPlanDoneCount(plan)
+              const current = hubPlanCurrentStep(plan)
+              return (
+                <Card key={plan.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <CardTitle className="text-base line-clamp-2">{plan.title}</CardTitle>
+                      <Badge variant="secondary">
+                        {plan.autoRunStatus === 'running' || plan.autoRunStatus === 'queued'
+                          ? th.statusProcessing
+                          : th.hubPlanStatusActive}
+                      </Badge>
+                    </div>
+                    <CardDescription>
+                      {th.hubPlanSteps.replace('{done}', String(done)).replace('{total}', String(plan.steps.length))}
+                      {current ? ` · ${current.label}` : ''}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-wrap gap-2">
+                    {current ? (
+                      <Button size="sm" onClick={() => continueHubPlan(plan)}>
+                        {th.hubPlanContinue}
+                        <ExternalLink className="ml-1 h-3 w-3" />
+                      </Button>
+                    ) : null}
+                    <Button size="sm" variant="outline" onClick={() => void cancelHubPlan(plan.id)}>
+                      {th.hubPlanCancel}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">{th.sectionRunning}</h2>

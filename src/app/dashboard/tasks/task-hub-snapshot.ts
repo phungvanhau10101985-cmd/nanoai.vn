@@ -8,6 +8,7 @@ import {
   type WorksheetJobRow,
 } from '@/lib/dashboard/task-hub'
 import { pgFetchTaskHubRaw } from '@/lib/db/dashboard-user-pg'
+import { pgListHubMultiTaskPlans, type HubMultiTaskPlanRow } from '@/lib/db/hub-chat-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export type TaskHubRecentLine =
@@ -17,11 +18,12 @@ export type TaskHubRecentLine =
 export type TaskHubSnapshot = {
   runningTryOn: TryOnGroupAgg[]
   runningWs: WorksheetJobRow[]
+  hubPlans: HubMultiTaskPlanRow[]
   recentTop: TaskHubRecentLine[]
 }
 
 export async function buildTaskHubSnapshot(userId: string): Promise<TaskHubSnapshot> {
-  const empty: TaskHubSnapshot = { runningTryOn: [], runningWs: [], recentTop: [] }
+  const empty: TaskHubSnapshot = { runningTryOn: [], runningWs: [], hubPlans: [], recentTop: [] }
   if (!isPgConfigured()) return empty
 
   const raw = await pgFetchTaskHubRaw(userId)
@@ -60,5 +62,7 @@ export async function buildTaskHubSnapshot(userId: string): Promise<TaskHubSnaps
   recentLines.sort((a, b) => b.at.localeCompare(a.at))
   const recentTop = recentLines.slice(0, 40)
 
-  return { runningTryOn, runningWs, recentTop }
+  const hubPlans = await pgListHubMultiTaskPlans(userId, { status: 'active_only', limit: 20 })
+
+  return { runningTryOn, runningWs, hubPlans, recentTop }
 }

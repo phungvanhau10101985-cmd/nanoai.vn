@@ -8,44 +8,12 @@ import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/tr
 
 export const maxDuration = 300
 
-const LYRIA3_MODELS = {
-  clip: 'lyria-3-clip-preview',
-  pro: 'lyria-3-pro-preview',
-} as const
+const LYRIA3_MODEL = 'lyria-3-pro-preview' as const
+const LYRIA3_TARGET_SEC = 180 as const
+const LYRIA3_CHARGE = 3
 
-const CHARGE_CLIP = 1
-
-/** Pro: mục tiêu độ dài (giây) — khớp công bố Lyria 3 Pro tối đa ~3 phút. */
-const CHARGE_PRO_BY_TARGET: Record<60 | 150 | 180, number> = {
-  60: 1.5,
-  150: 2,
-  180: 2.5,
-}
-
-function parseProTargetSeconds(raw: unknown): 60 | 150 | 180 {
-  const n = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : NaN
-  if (n === 60 || n === 150 || n === 180) return n
-  return 150
-}
-
-function lyria3Charge(variant: 'clip' | 'pro', proTargetSec: 60 | 150 | 180): number {
-  if (variant === 'clip') return CHARGE_CLIP
-  return CHARGE_PRO_BY_TARGET[proTargetSec]
-}
-
-function storedDurationSeconds(variant: 'clip' | 'pro', proTargetSec: 60 | 150 | 180): number {
-  return variant === 'clip' ? 30 : proTargetSec
-}
-
-function proDurationPromptBlock(seconds: 60 | 150 | 180): string {
-  if (seconds === 60) {
-    return '\n\nTarget output length: approximately 60 seconds (one minute) of continuous music. Shape the piece (intro, body, ending) to fit naturally within about one minute.'
-  }
-  if (seconds === 150) {
-    return '\n\nTarget output length: approximately 150 seconds (two and a half minutes) of continuous music. Allow full song structure (verse, chorus, bridge as fits the genre) within about 2:30.'
-  }
-  return '\n\nTarget output length: up to approximately 180 seconds (three minutes) of continuous music — the maximum rich length for this model. Use the full duration where appropriate for a complete track with natural development and outro.'
-}
+const LYRIA3_DURATION_PROMPT =
+  '\n\nTarget output length: up to approximately 180 seconds (three minutes) of continuous music — the maximum rich length for this model. Use the full duration where appropriate for a complete track with natural development and outro.'
 
 const INSTRUMENTAL_SUFFIX =
   '\n\nImportant: Instrumental only, no vocals, no singing, no voice. Pure instrumental track.'
@@ -308,7 +276,6 @@ export async function POST(request: NextRequest) {
     const ct = request.headers.get('content-type') || ''
 
     let promptRaw = ''
-    let variant: 'clip' | 'pro' = 'clip'
     let vocalMode: 'instrumental' | 'vocal' = 'instrumental'
     let genre = 'custom'
     let songContent = ''
@@ -317,7 +284,6 @@ export async function POST(request: NextRequest) {
     let voiceGender = 'auto'
     let voiceTimbre = 'auto'
     let voiceLanguage = 'auto'
-    let proTargetSec: 60 | 150 | 180 = 150
     let bpmPreset = 'auto'
     let structurePreset = 'auto'
     let densityPreset = 'auto'
@@ -325,8 +291,6 @@ export async function POST(request: NextRequest) {
     if (ct.includes('multipart/form-data')) {
       const form = await request.formData()
       promptRaw = String(form.get('prompt') || '').trim()
-      variant = form.get('variant') === 'pro' ? 'pro' : 'clip'
-      proTargetSec = parseProTargetSeconds(form.get('targetDurationSec'))
       vocalMode = form.get('vocalMode') === 'vocal' ? 'vocal' : 'instrumental'
       const g = String(form.get('genre') || 'custom').toLowerCase()
       genre = VALID_GENRES.has(g) ? g : 'custom'
@@ -366,8 +330,6 @@ export async function POST(request: NextRequest) {
         imageMimeType?: string
       }
       promptRaw = String(body?.prompt || '').trim()
-      variant = body?.variant === 'pro' ? 'pro' : 'clip'
-      proTargetSec = parseProTargetSeconds(body?.targetDurationSec)
       vocalMode = body?.vocalMode === 'vocal' ? 'vocal' : 'instrumental'
       const g = String(body?.genre || 'custom').toLowerCase()
       genre = VALID_GENRES.has(g) ? g : 'custom'
@@ -417,7 +379,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const cost = lyria3Charge(variant, proTargetSec)
+    const cost = LYRIA3_CHARGE
     const charged = await deductUserCredits(user.id, cost)
     if (!charged.ok) {
       const status = charged.code === 'INSUFFICIENT_CREDITS' ? 402 : 500
@@ -438,14 +400,14 @@ export async function POST(request: NextRequest) {
 
     const voiceHintBlock = vocalMode === 'vocal' ? buildVocalDirectionBlock(voiceGender, voiceTimbre, voiceLanguage) : ''
 
-    const durationBlock = variant === 'pro' ? proDurationPromptBlock(proTargetSec) : ''
+    const durationBlock = LYRIA3_DURATION_PROMPT
 
     const fullPrompt =
       vocalMode === 'instrumental'
         ? `${corePrompt}${durationBlock}${INSTRUMENTAL_SUFFIX}`
         : `${corePrompt}${durationBlock}${voiceHintBlock}${VOCAL_HINT}`
 
-    const modelId = LYRIA3_MODELS[variant]
+    const modelId = LYRIA3_MODEL
 
     let audioBase64: string
     let mimeType: string
@@ -503,8 +465,8 @@ export async function POST(request: NextRequest) {
     const ext = mimeType.includes('wav') ? 'wav' : 'mp3'
     const timestamp = Date.now()
     const imgTag = hasImage ? 'img' : 'txt'
-    const durTag = variant === 'clip' ? '30' : String(proTargetSec)
-    const uploadPath = `music-history/${user.id}/lyria3_${variant}_${durTag}s_${vocalMode}_${imgTag}_${timestamp}.${ext}`
+    const durTag = String(LYRIA3_TARGET_SEC)
+    const uploadPath = `music-history/${user.id}/lyria3_pro_${durTag}s_${vocalMode}_${imgTag}_${timestamp}.${ext}`
 
     let audioUrl: string
     try {
@@ -519,14 +481,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg }, { status: 500 })
     }
 
-    const baseTitle =
-      variant === 'clip'
-        ? 'Lyria 3 — đoạn 30s'
-        : proTargetSec === 60
-          ? 'Lyria 3 — Pro ~1 phút'
-          : proTargetSec === 150
-            ? 'Lyria 3 — Pro ~2m30'
-            : 'Lyria 3 — Pro ~3 phút (tối đa)'
+    const baseTitle = 'Lyria 3 — Pro ~3 phút'
     let titleVi = vocalMode === 'vocal' ? `${baseTitle} (có lời)` : `${baseTitle} (không lời)`
     if (hasImage) titleVi += ' + ảnh'
     const styleSnippet = [genre, promptRaw.slice(0, 80)].filter(Boolean).join(' · ')
@@ -536,7 +491,7 @@ export async function POST(request: NextRequest) {
       mode: 'lyria3',
       title: titleVi,
       style: styleSnippet.slice(0, 120),
-      durationSeconds: storedDurationSeconds(variant, proTargetSec),
+      durationSeconds: LYRIA3_TARGET_SEC,
       chargedCredits: cost,
       audioUrl,
     })
@@ -550,8 +505,8 @@ export async function POST(request: NextRequest) {
       mimeType,
       lyricsOrNotes: textParts.length ? textParts.join('\n\n') : undefined,
       charged: cost,
-      variant,
-      targetDurationSec: variant === 'pro' ? proTargetSec : 30,
+      variant: 'pro',
+      targetDurationSec: LYRIA3_TARGET_SEC,
       vocalMode,
       historySaved,
       historyError: historySaved ? undefined : 'Không lưu được lịch sử (DATABASE_URL hoặc lỗi DB).',

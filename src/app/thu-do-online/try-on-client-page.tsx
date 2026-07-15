@@ -25,6 +25,8 @@ import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GarmentUploader } from './garment-uploader'
+import { useHubPrefill } from '@/lib/hub-chat/use-hub-prefill'
+import { HubPlanStepBanner } from '@/components/hub-chat/hub-plan-step-banner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -306,6 +308,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
+  useHubPrefill(pathname || '/thu-do-online/1-nguoi', setCustomPrompt)
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
     syncLocale()
@@ -772,6 +775,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
     <>
       <div className={cn('rounded-2xl border p-2 shadow-sm mt-0', theme.cardBorder, `bg-gradient-to-br ${theme.gradient}`)}>
         <Toaster />
+        <HubPlanStepBanner />
         {renderContent()}
         <p className="text-xs text-muted-foreground text-center mt-4 pb-2">
           {tr('Ảnh càng nét càng chính xác. Ảnh do AI tạo có thể có sai lầm.', 'Sharper input gives better output. AI-generated images may contain minor errors.', '输入越清晰，结果越准确。AI 生成结果可能存在误差。', '元画像が鮮明なほど精度が上がります。AI生成結果には誤差が含まれる場合があります。', '원본이 선명할수록 결과가 정확합니다. AI 생성 결과에는 오차가 있을 수 있습니다.')}

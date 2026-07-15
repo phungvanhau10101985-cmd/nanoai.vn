@@ -131,6 +131,101 @@ export type Dictionary = {
   home: {
     title: string
   }
+  hubChat: {
+    title: string
+    subtitle: string
+    placeholder: string
+    modeChat: string
+    modeWorkflow: string
+    workflowAll: string
+    modelLabel: string
+    send: string
+    thinking: string
+    openTool: string
+    suggested: string
+    loginRequired: string
+    errorGeneric: string
+    creditNote: string
+    fallbackReply: string
+    workflowPick: string
+    clearReply: string
+    modePipeline: string
+    modeStudio: string
+    studioSubtitle: string
+    studioPlaceholder: string
+    studioProcessTitle: string
+    studioRegenerate: string
+    studioUseReference: string
+    studioImageCredit: string
+    studioGenerating: string
+    studioSampleLabel: string
+    studioSamplePrompt: string
+    studioApprovedNext: string
+    studioApprovedGenerated: string
+    studioReferenceWillUse: string
+    studioReferenceTitle: string
+    studioReferenceLimit: string
+    studioReferenceRemoved: string
+    studioReferenceRemove: string
+    studioReferenceAttachHint: string
+    studioReferenceCount: string
+    studioLogoFirst: string
+    studioNeedLogoReference: string
+    studioLogoApprovedNext: string
+    studioStartWithLogo: string
+    studioGeneratedStep: string
+    studioLogoPendingApprove: string
+    studioStepPendingApprove: string
+    studioApproveBeforeNext: string
+    studioRegenerated: string
+    studioAllDone: string
+    planCreated: string
+    startStep: string
+    continueNextStep: string
+    planBannerTitle: string
+    planStepProgress: string
+    planCompleteStep: string
+    planSkipStep: string
+    planCancel: string
+    planOpenQueue: string
+    viewTaskQueue: string
+    newThread: string
+    autoRunTitle: string
+    autoRunEstimate: string
+    autoRunUpload: string
+    autoRunImagesSelected: string
+    autoRunStart: string
+    autoRunRunning: string
+    autoRunDone: string
+    autoRunNeedImage: string
+    studioNeedUpload: string
+    studioUploadBtn: string
+    studioImagesUploaded: string
+    studioMusicCredit: string
+    studioContinue: string
+    studioNoPreview: string
+    studioNoPrompt: string
+    studioMinChars: string
+    studioViewLarge: string
+    studioDiscoveryBlocked: string
+    studioPresets: {
+      mobile_shop: { title: string; sample: string; steps: Record<string, string> }
+      sale_banner: { title: string; sample: string; steps: Record<string, string> }
+      brand_kit: { title: string; sample: string; steps: Record<string, string> }
+      landing_page: { title: string; sample: string; steps: Record<string, string> }
+      product_listing: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
+      wedding_invite: { title: string; sample: string; steps: Record<string, string> }
+      ad_music: { title: string; sample: string; steps: Record<string, string> }
+      lookbook: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
+      packaging_kit: { title: string; sample: string; steps: Record<string, string> }
+      interior_design: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
+      social_media_kit: { title: string; sample: string; steps: Record<string, string> }
+      story_with_images: { title: string; sample: string; steps: Record<string, string> }
+      infographic_series: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
+      fashion_campaign: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
+      profile_photo_pack: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
+    }
+  }
   referral: {
     pageTitle: string
     metaDescription: string
@@ -1377,6 +1472,13 @@ export type Dictionary = {
     linkTranslateProgress: string
     /** Gợi ý dưới tiêu đề khi bật poll client */
     autoRefreshNote: string
+    sectionHubPlans: string
+    emptyHubPlans: string
+    hubPlanSteps: string
+    hubPlanContinue: string
+    hubPlanCancel: string
+    hubPlanStatusActive: string
+    hubPlanStatusCompleted: string
   }
   /** /ghi-am-bao-cao-cuoc-hop — ghi âm miễn phí, trừ credit khi tạo báo cáo AI */
   meetingRecorder: {
@@ -2485,6 +2587,174 @@ const VI_DICTIONARY: Dictionary = {
   },
   home: {
     title: 'NanoAI - Sáng tạo không giới hạn cùng AI',
+  },
+  hubChat: {
+    title: 'Trợ lý NanoAI',
+    subtitle: 'Mô tả việc cần làm — AI gợi ý công cụ phù hợp và điền sẵn prompt.',
+    placeholder: 'Ví dụ: làm banner sale áo thun, làm nét ảnh chân dung, tạo giáo trình Toán lớp 10…',
+    modeChat: 'Chat tư vấn',
+    modeWorkflow: 'Workflow',
+    workflowAll: 'Tất cả nhóm',
+    modelLabel: 'Model',
+    send: 'Gửi',
+    thinking: 'Đang suy nghĩ…',
+    openTool: 'Mở công cụ',
+    suggested: 'Gợi ý nhanh',
+    loginRequired: 'Đăng nhập để dùng trợ lý AI (0,1 credit/lượt).',
+    errorGeneric: 'Không gửi được. Thử lại sau.',
+    creditNote: '0,1 credit / lượt chat',
+    fallbackReply: 'Bạn có thể chọn một công cụ bên dưới hoặc mô tả rõ hơn nhu cầu.',
+    workflowPick: 'Nhóm workflow',
+    clearReply: 'Xóa',
+    modePipeline: 'Đa bước',
+    modeStudio: 'Thiết kế liền mạch',
+    studioSubtitle: 'Thiết kế ngay trong chat — app, banner, brand kit, ảnh SP, thiệp, nhạc quảng cáo. AI hỏi từng bước, bạn duyệt và tiếp tục.',
+    studioPlaceholder: 'VD: Tôi muốn thiết kế giao diện app mobile bán hàng thời trang…',
+    studioProcessTitle: 'Quy trình thiết kế',
+    studioRegenerate: 'Tạo lại',
+    studioUseReference: 'Chọn làm ảnh tham chiếu',
+    studioImageCredit: 'Tạo ảnh: {n} credits',
+    studioGenerating: 'AI đang xử lý…',
+    studioSampleLabel: 'App mobile bán hàng',
+    studioSamplePrompt: 'Tôi muốn thiết kế giao diện app mobile bán hàng thời trang, phong cách hiện đại',
+    studioApprovedNext: 'Đã lưu ảnh tham chiếu cho {screen}. Tiếp theo: {next} — bạn muốn màn hình này trông như thế nào?',
+    studioApprovedGenerated: 'Đã lưu tham chiếu {screen}. Đã tạo {next} — xem và duyệt tiếp nhé.',
+    studioReferenceWillUse: 'Khi tạo, AI sẽ dùng {n} ảnh tham chiếu đã duyệt bên dưới để giữ đồng bộ style.',
+    studioReferenceTitle: 'Ảnh tham chiếu đã duyệt',
+    studioReferenceLimit: 'Đã đủ {max} ảnh tham chiếu. Gỡ bớt một ảnh trước khi chọn thêm.',
+    studioReferenceRemoved: 'Đã gỡ ảnh tham chiếu: {screen}. Bạn có thể chọn lại ảnh cho bước này.',
+    studioReferenceRemove: 'Gỡ ảnh tham chiếu',
+    studioReferenceAttachHint: 'Mỗi lần tạo, AI chỉ gửi tối đa {n} ảnh (ưu tiên Logo + các bước gần nhất) để tránh loãng style.',
+    studioReferenceCount: '({count}/{max})',
+    studioLogoFirst: 'Cần tạo và chọn Logo làm tham chiếu trước khi tạo các trang giao diện.',
+    studioNeedLogoReference: 'Chưa có Logo tham chiếu — hãy tạo Logo và bấm «Chọn làm ảnh tham chiếu» trước.',
+    studioLogoApprovedNext: 'Đã lưu Logo làm tham chiếu. Tiếp theo: {next} — mô tả trang (Logo sẽ được đặt trên header).',
+    studioStartWithLogo: 'Brief đã đủ. Bước thiết kế đầu tiên: **tạo Logo** — sau khi duyệt Logo sẽ dùng làm tham chiếu cho mọi trang còn lại.',
+    studioGeneratedStep: 'Đã tạo {screen} theo mô tả của bạn. Xem bên dưới — ổn thì bấm «Chọn làm ảnh tham chiếu».',
+    studioLogoPendingApprove: 'Logo đã được tạo sẵn bên dưới — bấm «Chọn làm ảnh tham chiếu» nếu ổn, hoặc «Tạo lại» để thử phiên bản khác.',
+    studioStepPendingApprove: '{screen} đã được tạo sẵn bên dưới — bấm «Chọn làm ảnh tham chiếu» nếu ổn, hoặc «Tạo lại» để thử phiên bản khác.',
+    studioApproveBeforeNext: 'Bấm «Chọn làm ảnh tham chiếu» cho {screen} trước — sau đó hệ thống sẽ chuyển sang bước tiếp theo (dùng ảnh đã duyệt làm tham chiếu).',
+    studioRegenerated: 'Đã tạo lại giao diện {screen}. Bạn thấy ổn chưa?',
+    studioAllDone: 'Đã hoàn tất toàn bộ quy trình thiết kế. Bạn có thể yêu cầu chỉnh sửa thêm bất kỳ màn hình nào.',
+    planCreated: 'Đã tạo kế hoạch {n} bước',
+    startStep: 'Bắt đầu bước 1',
+    continueNextStep: 'Tiếp tục bước {n}',
+    planBannerTitle: 'Kế hoạch: {title}',
+    planStepProgress: 'Bước {current}/{total} · đã xong {done}',
+    planCompleteStep: 'Hoàn thành bước',
+    planSkipStep: 'Bỏ qua',
+    planCancel: 'Hủy kế hoạch',
+    planOpenQueue: 'Hàng đợi',
+    viewTaskQueue: 'Xem hàng đợi tác vụ',
+    newThread: 'Hội thoại mới',
+    autoRunTitle: 'Chạy tự động (NanoAI Agent)',
+    autoRunEstimate: 'Ước tính ~{n} credits cho toàn bộ kế hoạch',
+    autoRunUpload: 'Chọn ảnh sản phẩm',
+    autoRunImagesSelected: 'Đã chọn {n} ảnh',
+    autoRunStart: 'Chạy tự động',
+    autoRunRunning: 'Đang chạy tự động các bước…',
+    autoRunDone: 'Đã chạy xong kế hoạch tự động',
+    autoRunNeedImage: 'Cần chọn ít nhất 1 ảnh sản phẩm.',
+    studioNeedUpload: 'Vui lòng tải ảnh sản phẩm/mẫu lên trước khi tạo.',
+    studioUploadBtn: 'Tải ảnh lên',
+    studioImagesUploaded: 'Đã tải {n} ảnh. Mô tả yêu cầu cho bước tiếp theo.',
+    studioMusicCredit: 'Nhạc: {n} credits',
+    studioContinue: 'Tiếp tục',
+    studioNoPreview: 'Không có nội dung để duyệt.',
+    studioNoPrompt: 'Không có prompt để tạo lại.',
+    studioMinChars: 'Nhập ít nhất 2 ký tự.',
+    studioViewLarge: 'Xem to',
+    studioDiscoveryBlocked: 'Đang thu thập brief — chưa tạo ảnh ở bước này.',
+    studioPresets: {
+      mobile_shop: {
+        title: 'App bán hàng',
+        sample: 'Thiết kế app mobile bán thời trang nữ, tone pastel',
+        steps: {
+          home: 'Trang chủ',
+          product_list: 'Danh sách SP',
+          product_detail: 'Chi tiết SP',
+          cart: 'Giỏ hàng',
+          checkout: 'Thanh toán',
+          profile: 'Tài khoản',
+        },
+      },
+      sale_banner: {
+        title: 'Banner sale',
+        sample: 'Bộ banner khai trương shop thời trang, màu đỏ vàng',
+        steps: { banner_main: 'Banner chính', banner_square: 'Vuông 1:1', banner_story: 'Story 9:16' },
+      },
+      brand_kit: {
+        title: 'Bộ thương hiệu',
+        sample: 'Brand kit cafe artisan, tone nâu kem',
+        steps: { logo: 'Logo', banner: 'Banner', product_label: 'Nhãn SP', sticker: 'Sticker' },
+      },
+      landing_page: {
+        title: 'Landing page',
+        sample: 'Landing SaaS quản lý lớp học, tone xanh dương',
+        steps: { hero: 'Hero', features: 'Tính năng', pricing: 'Bảng giá', faq: 'FAQ', cta: 'CTA' },
+      },
+      product_listing: {
+        title: 'Ảnh sản phẩm',
+        sample: 'Ảnh sản phẩm túi xách đăng Shopee, nền trắng',
+        uploadHint: 'Tải ảnh sản phẩm gốc',
+        steps: { product_clean: 'Nền trắng', product_lifestyle: 'Lifestyle', promo_banner: 'Banner KM' },
+      },
+      wedding_invite: {
+        title: 'Thiệp mời',
+        sample: 'Thiệp cưới tone hồng pastel, phong cách tối giản',
+        steps: { cover: 'Mặt trước', inside: 'Mặt trong', story: 'Story' },
+      },
+      ad_music: {
+        title: 'Nhạc quảng cáo',
+        sample: 'Nhạc nền quảng cáo mỹ phẩm, vui tươi, 30–60 giây feel',
+        steps: { track_main: 'Bản chính', track_alt: 'Bản phụ' },
+      },
+      lookbook: {
+        title: 'Lookbook',
+        sample: 'Lookbook BST Thu Đông, tone be ấm',
+        uploadHint: 'Tải ảnh look/mẫu',
+        steps: { hero_look: 'Hero look', grid_look: 'Lưới look', detail_look: 'Chi tiết' },
+      },
+      packaging_kit: {
+        title: 'Bộ đóng gói',
+        sample: 'Bao bì mỹ phẩm organic, hộp vuông, tem niêm phong',
+        steps: { logo: 'Logo', box_flat: 'Hộp phẳng', box_3d: 'Mockup 3D', label: 'Nhãn', seal: 'Tem' },
+      },
+      interior_design: {
+        title: 'Nội thất',
+        sample: 'Căn hộ 80m² phong cách Japandi, phòng khách ấm',
+        uploadHint: 'Tải mặt bằng hoặc ảnh phòng',
+        steps: { living: 'Phòng khách', kitchen: 'Bếp', bedroom: 'Ngủ', facade: 'Mặt tiền' },
+      },
+      social_media_kit: {
+        title: 'Social media',
+        sample: 'Bộ feed shop mỹ phẩm, tone hồng pastel',
+        steps: { avatar: 'Avatar', post: 'Post', story: 'Story', cover: 'Cover FB' },
+      },
+      story_with_images: {
+        title: 'Kể chuyện bằng hình',
+        sample: 'Truyện tranh trẻ em về chú mèo dũng cảm, watercolor',
+        steps: { character: 'Nhân vật', page1: 'Trang 1', cover: 'Bìa' },
+      },
+      infographic_series: {
+        title: 'Infographic',
+        sample: 'Tóm tắt sách kinh doanh thành 5 slide infographic',
+        uploadHint: 'Tải ảnh sách/tài liệu',
+        steps: { hook: 'Hook', body: 'Nội dung', summary: 'Tổng kết' },
+      },
+      fashion_campaign: {
+        title: 'Campaign thời trang',
+        sample: 'Campaign BST hè, try-on 2 outfit + banner sale',
+        uploadHint: 'Tải ảnh mẫu/trang phục',
+        steps: { hero: 'Hero', try1: 'Try-on 1', banner: 'Banner sale' },
+      },
+      profile_photo_pack: {
+        title: 'Ảnh thẻ / profile',
+        sample: 'Bộ ảnh LinkedIn cho marketing, tone chuyên nghiệp',
+        uploadHint: 'Tải ảnh chân dung gốc',
+        steps: { id_white: 'Thẻ trắng', id_blue: 'Thẻ xanh', linkedin: 'LinkedIn', banner: 'Banner' },
+      },
+    },
   },
   referral: {
     pageTitle: 'Mời bạn bè – nhận thưởng credit',
@@ -3772,6 +4042,13 @@ const VI_DICTIONARY: Dictionary = {
     linkTranslateProgress: 'Tiến trình dịch ảnh',
     autoRefreshNote:
       'Có tác vụ đang chạy: tự làm mới khoảng 8 giây một lần (tab đang mở). Hết hàng đợi: chỉ cập nhật khi bạn chuyển lại tab này.',
+    sectionHubPlans: 'Kế hoạch đa bước (NanoAI Assistant)',
+    emptyHubPlans: 'Chưa có kế hoạch đa bước đang chạy.',
+    hubPlanSteps: '{done}/{total} bước',
+    hubPlanContinue: 'Tiếp tục',
+    hubPlanCancel: 'Hủy',
+    hubPlanStatusActive: 'Đang thực hiện',
+    hubPlanStatusCompleted: 'Hoàn tất',
   },
   meetingRecorder: {
     cardTitle: 'Ghi âm cuộc họp → báo cáo AI',
@@ -4775,6 +5052,174 @@ const EN_DICTIONARY: Dictionary = {
     defaultDescription: 'Experience AI virtual try-on. Try outfits for 1-5 people, restore photos, enhance images, and combine images quickly.',
     toolHub: 'AI Tools',
     login: 'Sign in',
+  },
+  hubChat: {
+    title: 'NanoAI Assistant',
+    subtitle: 'Describe your task — AI suggests the right tool and pre-fills a prompt.',
+    placeholder: 'e.g. summer sale banner, sharpen a portrait, grade 10 math curriculum…',
+    modeChat: 'Ask AI',
+    modeWorkflow: 'Workflow',
+    workflowAll: 'All groups',
+    modelLabel: 'Model',
+    send: 'Send',
+    thinking: 'Thinking…',
+    openTool: 'Open tool',
+    suggested: 'Quick picks',
+    loginRequired: 'Sign in to use the AI assistant (0.1 credit per message).',
+    errorGeneric: 'Could not send. Please try again.',
+    creditNote: '0.1 credit / chat message',
+    fallbackReply: 'Pick a tool below or describe your need in more detail.',
+    workflowPick: 'Workflow group',
+    clearReply: 'Clear',
+    modePipeline: 'Multi-step',
+    modeStudio: 'Inline design',
+    studioSubtitle: 'Design inside chat — apps, banners, brand kits, product photos, invites, ad music. AI guides each step; you approve and continue.',
+    studioPlaceholder: 'e.g. I want a mobile shopping app UI for fashion…',
+    studioProcessTitle: 'Design process',
+    studioRegenerate: 'Regenerate',
+    studioUseReference: 'Use as reference',
+    studioImageCredit: 'Image: {n} credits',
+    studioGenerating: 'AI is working…',
+    studioSampleLabel: 'Mobile shop app',
+    studioSamplePrompt: 'I want a modern mobile shopping app UI for a fashion store',
+    studioApprovedNext: 'Saved reference for {screen}. Next: {next} — how should this screen look?',
+    studioApprovedGenerated: 'Saved reference for {screen}. Generated {next} — review and continue.',
+    studioReferenceWillUse: 'When generating, AI will use {n} approved reference image(s) below for style consistency.',
+    studioReferenceTitle: 'Approved references',
+    studioReferenceLimit: 'You have reached the {max} reference image limit. Remove one before adding more.',
+    studioReferenceRemoved: 'Removed reference: {screen}. You can select a new image for this step.',
+    studioReferenceRemove: 'Remove reference',
+    studioReferenceAttachHint: 'Each generation sends at most {n} references (Logo first, then the most recent steps) to avoid diluted style.',
+    studioReferenceCount: '({count}/{max})',
+    studioLogoFirst: 'Create and approve the Logo as reference before designing UI screens.',
+    studioNeedLogoReference: 'No logo reference yet — create the Logo and tap «Use as reference» first.',
+    studioLogoApprovedNext: 'Logo saved as reference. Next: {next} — describe the screen (logo will appear in the header).',
+    studioStartWithLogo: 'Brief complete. First design step: **create the Logo** — once approved, it becomes the reference for all following screens.',
+    studioGeneratedStep: 'Created {screen} from your description. Review below — tap «Use as reference» if it looks good.',
+    studioLogoPendingApprove: 'Logo preview is below — tap «Use as reference» if it looks good, or «Regenerate» for another version.',
+    studioStepPendingApprove: '{screen} preview is below — tap «Use as reference» if it looks good, or «Regenerate» for another version.',
+    studioApproveBeforeNext: 'Tap «Use as reference» for {screen} first — then we move to the next step using approved images as references.',
+    studioRegenerated: 'Regenerated {screen}. Does this look good?',
+    studioAllDone: 'Design process complete. You can ask to refine any screen.',
+    planCreated: 'Created a {n}-step plan',
+    startStep: 'Start step 1',
+    continueNextStep: 'Continue step {n}',
+    planBannerTitle: 'Plan: {title}',
+    planStepProgress: 'Step {current}/{total} · {done} done',
+    planCompleteStep: 'Complete step',
+    planSkipStep: 'Skip',
+    planCancel: 'Cancel plan',
+    planOpenQueue: 'Task queue',
+    viewTaskQueue: 'View task queue',
+    newThread: 'New chat',
+    autoRunTitle: 'Run automatically (NanoAI Agent)',
+    autoRunEstimate: 'Estimated ~{n} credits for the full plan',
+    autoRunUpload: 'Choose product images',
+    autoRunImagesSelected: '{n} image(s) selected',
+    autoRunStart: 'Run automatically',
+    autoRunRunning: 'Running steps automatically…',
+    autoRunDone: 'Auto-run plan completed',
+    autoRunNeedImage: 'Select at least one product image.',
+    studioNeedUpload: 'Please upload product/model photos before generating.',
+    studioUploadBtn: 'Upload images',
+    studioImagesUploaded: 'Uploaded {n} image(s). Describe requirements for the next step.',
+    studioMusicCredit: 'Music: {n} credits',
+    studioContinue: 'Continue',
+    studioNoPreview: 'Nothing to approve.',
+    studioNoPrompt: 'No prompt to regenerate.',
+    studioMinChars: 'Enter at least 2 characters.',
+    studioViewLarge: 'View large',
+    studioDiscoveryBlocked: 'Collecting brief — no image generation on this step yet.',
+    studioPresets: {
+      mobile_shop: {
+        title: 'Mobile shop app',
+        sample: 'Design a pastel fashion shopping mobile app UI',
+        steps: {
+          home: 'Home',
+          product_list: 'Product list',
+          product_detail: 'Product detail',
+          cart: 'Cart',
+          checkout: 'Checkout',
+          profile: 'Profile',
+        },
+      },
+      sale_banner: {
+        title: 'Sale banners',
+        sample: 'Grand opening fashion shop banners, red and gold',
+        steps: { banner_main: 'Main banner', banner_square: 'Square 1:1', banner_story: 'Story 9:16' },
+      },
+      brand_kit: {
+        title: 'Brand kit',
+        sample: 'Artisan cafe brand kit, brown and cream',
+        steps: { logo: 'Logo', banner: 'Banner', product_label: 'Product label', sticker: 'Sticker' },
+      },
+      landing_page: {
+        title: 'Landing page',
+        sample: 'SaaS classroom management landing, blue tone',
+        steps: { hero: 'Hero', features: 'Features', pricing: 'Pricing', faq: 'FAQ', cta: 'CTA' },
+      },
+      product_listing: {
+        title: 'Product photos',
+        sample: 'Handbag product photos for marketplace, white background',
+        uploadHint: 'Upload original product photo',
+        steps: { product_clean: 'White bg', product_lifestyle: 'Lifestyle', promo_banner: 'Promo banner' },
+      },
+      wedding_invite: {
+        title: 'Invitation',
+        sample: 'Minimal pastel pink wedding invitation',
+        steps: { cover: 'Cover', inside: 'Inside', story: 'Story' },
+      },
+      ad_music: {
+        title: 'Ad music',
+        sample: 'Upbeat cosmetic ad background music, 30–60s feel',
+        steps: { track_main: 'Main track', track_alt: 'Alt track' },
+      },
+      lookbook: {
+        title: 'Lookbook',
+        sample: 'Autumn lookbook, warm beige tone',
+        uploadHint: 'Upload look/model photos',
+        steps: { hero_look: 'Hero look', grid_look: 'Grid look', detail_look: 'Detail' },
+      },
+      packaging_kit: {
+        title: 'Packaging kit',
+        sample: 'Organic cosmetics box, seal and barcode label',
+        steps: { logo: 'Logo', box_flat: 'Flat box', box_3d: '3D mockup', label: 'Label', seal: 'Seal' },
+      },
+      interior_design: {
+        title: 'Interior design',
+        sample: '80m² Japandi apartment, warm living room',
+        uploadHint: 'Upload floor plan or room photos',
+        steps: { living: 'Living room', kitchen: 'Kitchen', bedroom: 'Bedroom', facade: 'Facade' },
+      },
+      social_media_kit: {
+        title: 'Social media kit',
+        sample: 'Beauty shop feed kit, pastel pink tone',
+        steps: { avatar: 'Avatar', post: 'Post', story: 'Story', cover: 'FB cover' },
+      },
+      story_with_images: {
+        title: 'Story with images',
+        sample: 'Children picture book about a brave cat, watercolor',
+        steps: { character: 'Character', page1: 'Page 1', cover: 'Cover' },
+      },
+      infographic_series: {
+        title: 'Infographic series',
+        sample: 'Summarize a business book into 5 infographic slides',
+        uploadHint: 'Upload book/document pages',
+        steps: { hook: 'Hook', body: 'Content', summary: 'Summary' },
+      },
+      fashion_campaign: {
+        title: 'Fashion campaign',
+        sample: 'Summer collection campaign, 2 try-ons + sale banner',
+        uploadHint: 'Upload model/outfit photos',
+        steps: { hero: 'Hero', try1: 'Try-on 1', banner: 'Sale banner' },
+      },
+      profile_photo_pack: {
+        title: 'ID / profile pack',
+        sample: 'LinkedIn photo set for marketing pro, formal tone',
+        uploadHint: 'Upload source portrait',
+        steps: { id_white: 'White ID', id_blue: 'Blue ID', linkedin: 'LinkedIn', banner: 'Banner' },
+      },
+    },
   },
   menu: {
     ...VI_DICTIONARY.menu,
@@ -6112,6 +6557,13 @@ const EN_DICTIONARY: Dictionary = {
     linkTranslateHistory: 'Translation history',
     linkTranslateProgress: 'Translation queue',
     autoRefreshNote: 'This list refreshes about every 8 seconds while this tab is visible.',
+    sectionHubPlans: 'Multi-step plans (NanoAI Assistant)',
+    emptyHubPlans: 'No active multi-step plans.',
+    hubPlanSteps: '{done}/{total} steps',
+    hubPlanContinue: 'Continue',
+    hubPlanCancel: 'Cancel',
+    hubPlanStatusActive: 'In progress',
+    hubPlanStatusCompleted: 'Completed',
   },
   meetingRecorder: {
     cardTitle: 'Record a meeting → AI report',
@@ -7112,6 +7564,174 @@ const ZH_DICTIONARY: Dictionary = {
     defaultDescription: '体验 AI 虚拟试衣。支持 1-5 人试衣、修复照片、清晰化和合成图片。',
     toolHub: 'AI 工具',
     login: '登录',
+  },
+  hubChat: {
+    title: 'NanoAI 助手',
+    subtitle: '描述你的需求 — AI 推荐合适工具并预填提示词。',
+    placeholder: '例如：夏季促销横幅、人像锐化、高一数学教案…',
+    modeChat: '咨询',
+    modeWorkflow: '工作流',
+    workflowAll: '全部分组',
+    modelLabel: '模型',
+    send: '发送',
+    thinking: '思考中…',
+    openTool: '打开工具',
+    suggested: '快捷推荐',
+    loginRequired: '请登录后使用 AI 助手（每次 0.1 积分）。',
+    errorGeneric: '发送失败，请重试。',
+    creditNote: '0.1 积分 / 次对话',
+    fallbackReply: '可从下方选择工具，或更详细地描述需求。',
+    workflowPick: '工作流分组',
+    clearReply: '清除',
+    modePipeline: '多步骤',
+    modeStudio: '无缝设计',
+    studioSubtitle: '在聊天中设计 — 应用、横幅、品牌套件、产品图、邀请函、广告音乐。AI 逐步引导，您确认后继续。',
+    studioPlaceholder: '例如：我想设计一个时尚电商手机应用界面…',
+    studioProcessTitle: '设计流程',
+    studioRegenerate: '重新生成',
+    studioUseReference: '选为参考图',
+    studioImageCredit: '生成图片：{n} 积分',
+    studioGenerating: 'AI 处理中…',
+    studioSampleLabel: '手机商城应用',
+    studioSamplePrompt: '我想设计现代风格的时尚电商手机应用界面',
+    studioApprovedNext: '已保存 {screen} 参考图。下一步：{next} — 这个界面您想怎么做？',
+    studioApprovedGenerated: '已保存 {screen} 参考图。已生成 {next} — 请查看并继续。',
+    studioReferenceWillUse: '生成时将使用下方 {n} 张已批准的参考图以保持风格一致。',
+    studioReferenceTitle: '已批准的参考图',
+    studioReferenceLimit: '已达 {max} 张参考图上限。请先移除一张再添加。',
+    studioReferenceRemoved: '已移除参考图：{screen}。可重新为该步骤选择图片。',
+    studioReferenceRemove: '移除参考图',
+    studioReferenceAttachHint: '每次生成最多发送 {n} 张参考图（优先 Logo + 最近步骤），避免风格稀释。',
+    studioReferenceCount: '({count}/{max})',
+    studioLogoFirst: '请先创建并批准 Logo 作为参考，再设计界面页面。',
+    studioNeedLogoReference: '尚无 Logo 参考 — 请先创建 Logo 并点击「选为参考图」。',
+    studioLogoApprovedNext: 'Logo 已存为参考。下一步：{next} — 描述页面（Logo 将显示在页头）。',
+    studioStartWithLogo: 'Brief 已完成。第一步设计：**创建 Logo** — 批准后将作为后续所有页面的参考。',
+    studioGeneratedStep: '已根据您的描述生成 {screen}。请查看下方 — 满意请点击「选为参考图」。',
+    studioLogoPendingApprove: 'Logo 预览已在下方 — 满意请点击「选为参考图」，或点「重新生成」换一版。',
+    studioStepPendingApprove: '{screen} 预览已在下方 — 满意请点击「选为参考图」，或点「重新生成」换一版。',
+    studioApproveBeforeNext: '请先为 {screen} 点击「选为参考图」— 之后将使用已批准参考图进入下一步。',
+    studioRegenerated: '已重新生成 {screen}。满意吗？',
+    studioAllDone: '设计流程已完成。可继续要求调整任意界面。',
+    planCreated: '已创建 {n} 步计划',
+    startStep: '开始第 1 步',
+    continueNextStep: '继续第 {n} 步',
+    planBannerTitle: '计划：{title}',
+    planStepProgress: '第 {current}/{total} 步 · 已完成 {done}',
+    planCompleteStep: '完成此步',
+    planSkipStep: '跳过',
+    planCancel: '取消计划',
+    planOpenQueue: '任务队列',
+    viewTaskQueue: '查看任务队列',
+    newThread: '新对话',
+    autoRunTitle: '自动运行（NanoAI Agent）',
+    autoRunEstimate: '预计全程约 {n} 积分',
+    autoRunUpload: '选择产品图片',
+    autoRunImagesSelected: '已选 {n} 张',
+    autoRunStart: '自动运行',
+    autoRunRunning: '正在自动执行各步骤…',
+    autoRunDone: '自动计划已完成',
+    autoRunNeedImage: '请至少选择 1 张产品图片。',
+    studioNeedUpload: '生成前请先上传产品/模特图片。',
+    studioUploadBtn: '上传图片',
+    studioImagesUploaded: '已上传 {n} 张图片。请描述下一步需求。',
+    studioMusicCredit: '音乐：{n} 积分',
+    studioContinue: '继续',
+    studioNoPreview: '没有可审批的内容。',
+    studioNoPrompt: '没有可重新生成的提示词。',
+    studioMinChars: '至少输入 2 个字符。',
+    studioViewLarge: '查看大图',
+    studioDiscoveryBlocked: '正在收集需求 — 此步骤暂不生成图片。',
+    studioPresets: {
+      mobile_shop: {
+        title: '购物 App',
+        sample: '设计粉色系女装购物手机应用界面',
+        steps: {
+          home: '首页',
+          product_list: '商品列表',
+          product_detail: '商品详情',
+          cart: '购物车',
+          checkout: '结账',
+          profile: '账户',
+        },
+      },
+      sale_banner: {
+        title: '促销横幅',
+        sample: '服装店开业横幅，红金配色',
+        steps: { banner_main: '主横幅', banner_square: '方形 1:1', banner_story: '竖版 9:16' },
+      },
+      brand_kit: {
+        title: '品牌套件',
+        sample: '精品咖啡品牌套件，棕奶油色',
+        steps: { logo: '标志', banner: '横幅', product_label: '产品标签', sticker: '贴纸' },
+      },
+      landing_page: {
+        title: '落地页',
+        sample: '课堂管理 SaaS 落地页，蓝色调',
+        steps: { hero: '主视觉', features: '功能', pricing: '价格', faq: '常见问题', cta: '行动号召' },
+      },
+      product_listing: {
+        title: '产品图',
+        sample: '手提包电商白底产品图',
+        uploadHint: '上传原始产品图',
+        steps: { product_clean: '白底', product_lifestyle: '场景图', promo_banner: '促销横幅' },
+      },
+      wedding_invite: {
+        title: '邀请函',
+        sample: '简约粉色调婚礼请柬',
+        steps: { cover: '封面', inside: '内页', story: '竖版' },
+      },
+      ad_music: {
+        title: '广告音乐',
+        sample: '化妆品广告轻快背景音乐',
+        steps: { track_main: '主曲', track_alt: '备选曲' },
+      },
+      lookbook: {
+        title: 'Lookbook',
+        sample: '秋季 Lookbook，暖米色',
+        uploadHint: '上传造型/模特图',
+        steps: { hero_look: '主造型', grid_look: '网格', detail_look: '细节' },
+      },
+      packaging_kit: {
+        title: '包装套件',
+        sample: '有机化妆品包装盒、封条与条码',
+        steps: { logo: '标志', box_flat: '平面盒', box_3d: '3D mockup', label: '标签', seal: '封条' },
+      },
+      interior_design: {
+        title: '室内设计',
+        sample: '80㎡ Japandi 公寓，温馨客厅',
+        uploadHint: '上传平面图或房间照片',
+        steps: { living: '客厅', kitchen: '厨房', bedroom: '卧室', facade: '外立面' },
+      },
+      social_media_kit: {
+        title: '社交媒体套件',
+        sample: '美妆店 feed 套件，粉 pastel 色调',
+        steps: { avatar: '头像', post: '帖子', story: 'Story', cover: 'FB 封面' },
+      },
+      story_with_images: {
+        title: '图画故事',
+        sample: '儿童绘本：勇敢的小猫，水彩风',
+        steps: { character: '角色', page1: '第1页', cover: '封面' },
+      },
+      infographic_series: {
+        title: '信息图系列',
+        sample: '将商业书籍总结为5张信息图',
+        uploadHint: '上传书籍/文档页',
+        steps: { hook: 'Hook', body: '内容', summary: '总结' },
+      },
+      fashion_campaign: {
+        title: '时尚 campaign',
+        sample: '夏季系列 campaign，2套试穿+促销横幅',
+        uploadHint: '上传模特/服装照片',
+        steps: { hero: 'Hero', try1: '试穿1', banner: '促销横幅' },
+      },
+      profile_photo_pack: {
+        title: '证件照/头像套件',
+        sample: '营销从业者 LinkedIn 照片集，正式风格',
+        uploadHint: '上传原始肖像',
+        steps: { id_white: '白底', id_blue: '蓝底', linkedin: 'LinkedIn', banner: '横幅' },
+      },
+    },
   },
   footer: {
     platformTitle: 'NanoAI 平台',
@@ -8560,6 +9180,13 @@ const ZH_DICTIONARY: Dictionary = {
     linkTranslateProgress: '翻译进度',
     autoRefreshNote:
       '有任务进行中时：约每 8 秒自动刷新（标签页可见）。无进行中任务时：仅在您切回此标签页时更新。',
+    sectionHubPlans: '多步骤计划（NanoAI 助手）',
+    emptyHubPlans: '暂无进行中的多步骤计划。',
+    hubPlanSteps: '{done}/{total} 步',
+    hubPlanContinue: '继续',
+    hubPlanCancel: '取消',
+    hubPlanStatusActive: '进行中',
+    hubPlanStatusCompleted: '已完成',
   },
   classes: {
     title: '班级',
@@ -9362,6 +9989,174 @@ const JA_DICTIONARY: Dictionary = {
     defaultDescription: 'AI バーチャル試着を体験。1-5 人試着、写真修復、高画質化、画像合成に対応。',
     toolHub: 'AI ツール',
     login: 'ログイン',
+  },
+  hubChat: {
+    title: 'NanoAI アシスタント',
+    subtitle: 'やりたいことを入力 — 適切なツールとプロンプトを提案します。',
+    placeholder: '例：夏セールバナー、ポートレートのシャープ化、高校数学の教案…',
+    modeChat: '相談',
+    modeWorkflow: 'ワークフロー',
+    workflowAll: 'すべてのグループ',
+    modelLabel: 'モデル',
+    send: '送信',
+    thinking: '考え中…',
+    openTool: 'ツールを開く',
+    suggested: 'クイック候補',
+    loginRequired: 'AI アシスタントにはログインが必要です（1回 0.1 クレジット）。',
+    errorGeneric: '送信に失敗しました。もう一度お試しください。',
+    creditNote: '0.1 クレジット / 1 メッセージ',
+    fallbackReply: '下のツールを選ぶか、もう少し詳しく説明してください。',
+    workflowPick: 'ワークフローグループ',
+    clearReply: 'クリア',
+    modePipeline: 'マルチステップ',
+    modeStudio: 'シームレス設計',
+    studioSubtitle: 'チャット内で設計 — アプリ、バナー、ブランドキット、商品画像、招待状、広告音楽。AIが段階的に案内します。',
+    studioPlaceholder: '例：ファッション通販のモバイルアプリUIを設計したい…',
+    studioProcessTitle: '設計プロセス',
+    studioRegenerate: '再生成',
+    studioUseReference: '参考画像にする',
+    studioImageCredit: '画像生成：{n} クレジット',
+    studioGenerating: 'AI 処理中…',
+    studioSampleLabel: 'モバイルショップアプリ',
+    studioSamplePrompt: 'モダンなファッション通販モバイルアプリのUIを設計したい',
+    studioApprovedNext: '{screen} を参考に保存しました。次：{next} — この画面をどうしますか？',
+    studioApprovedGenerated: '{screen} を参考に保存しました。{next} を生成しました — 確認して続けてください。',
+    studioReferenceWillUse: '生成時、下の承認済み参考画像 {n} 枚でスタイルを統一します。',
+    studioReferenceTitle: '承認済み参考画像',
+    studioReferenceLimit: '参考画像は最大 {max} 枚です。追加する前に1枚削除してください。',
+    studioReferenceRemoved: '参考画像を削除しました：{screen}。このステップで再選択できます。',
+    studioReferenceRemove: '参考画像を削除',
+    studioReferenceAttachHint: '生成ごとに最大 {n} 枚（ロゴ優先＋直近のステップ）を送り、スタイルの希薄化を防ぎます。',
+    studioReferenceCount: '({count}/{max})',
+    studioLogoFirst: 'UI画面の前にロゴを作成し参考にしてください。',
+    studioNeedLogoReference: 'ロゴ参考がありません — ロゴを作成し「参考画像にする」を押してください。',
+    studioLogoApprovedNext: 'ロゴを参考に保存しました。次：{next} — 画面を説明（ロゴはヘッダーに配置）。',
+    studioStartWithLogo: 'ブリーフ完了。最初の設計：**ロゴ作成** — 承認後、以降の画面の参考になります。',
+    studioGeneratedStep: 'ご要望どおり {screen} を生成しました。下を確認し、問題なければ「参考画像にする」を押してください。',
+    studioLogoPendingApprove: 'ロゴのプレビューは下にあります — 問題なければ「参考画像にする」、別バージョンは「再生成」を押してください。',
+    studioStepPendingApprove: '{screen}のプレビューは下にあります — 問題なければ「参考画像にする」、別バージョンは「再生成」を押してください。',
+    studioApproveBeforeNext: '先に {screen} で「参考画像にする」を押してください — 承認後、参考画像を使って次のステップへ進みます。',
+    studioRegenerated: '{screen} を再生成しました。よろしいですか？',
+    studioAllDone: '設計プロセスが完了しました。任意の画面の調整を依頼できます。',
+    planCreated: '{n} ステップのプランを作成しました',
+    startStep: 'ステップ 1 を開始',
+    continueNextStep: 'ステップ {n} を続ける',
+    planBannerTitle: 'プラン：{title}',
+    planStepProgress: 'ステップ {current}/{total} · 完了 {done}',
+    planCompleteStep: 'ステップ完了',
+    planSkipStep: 'スキップ',
+    planCancel: 'プランをキャンセル',
+    planOpenQueue: 'タスクキュー',
+    viewTaskQueue: 'タスクキューを見る',
+    newThread: '新しいチャット',
+    autoRunTitle: '自動実行（NanoAI Agent）',
+    autoRunEstimate: 'プラン全体の目安 ~{n} クレジット',
+    autoRunUpload: '商品画像を選択',
+    autoRunImagesSelected: '{n} 枚選択済み',
+    autoRunStart: '自動実行',
+    autoRunRunning: 'ステップを自動実行中…',
+    autoRunDone: '自動プランが完了しました',
+    autoRunNeedImage: '商品画像を1枚以上選択してください。',
+    studioNeedUpload: '生成前に商品・モデル写真をアップロードしてください。',
+    studioUploadBtn: '画像をアップロード',
+    studioImagesUploaded: '{n} 枚アップロードしました。次のステップの要件を説明してください。',
+    studioMusicCredit: '音楽：{n} クレジット',
+    studioContinue: '続ける',
+    studioNoPreview: '承認するコンテンツがありません。',
+    studioNoPrompt: '再生成用のプロンプトがありません。',
+    studioMinChars: '2文字以上入力してください。',
+    studioViewLarge: '拡大表示',
+    studioDiscoveryBlocked: 'ブリーフ収集中 — このステップではまだ生成しません。',
+    studioPresets: {
+      mobile_shop: {
+        title: 'ショッピングアプリ',
+        sample: 'パステル調のファッション通販モバイルUI',
+        steps: {
+          home: 'ホーム',
+          product_list: '商品一覧',
+          product_detail: '商品詳細',
+          cart: 'カート',
+          checkout: '決済',
+          profile: 'アカウント',
+        },
+      },
+      sale_banner: {
+        title: 'セールバナー',
+        sample: 'アパレル店オープンバナー、赤と金',
+        steps: { banner_main: 'メインバナー', banner_square: '正方形 1:1', banner_story: 'ストーリー 9:16' },
+      },
+      brand_kit: {
+        title: 'ブランドキット',
+        sample: 'スペシャルティカフェのブランドキット',
+        steps: { logo: 'ロゴ', banner: 'バナー', product_label: '商品ラベル', sticker: 'ステッカー' },
+      },
+      landing_page: {
+        title: 'ランディング',
+        sample: '教室管理SaaSのランディング、ブルー調',
+        steps: { hero: 'ヒーロー', features: '機能', pricing: '料金', faq: 'FAQ', cta: 'CTA' },
+      },
+      product_listing: {
+        title: '商品画像',
+        sample: 'バッグの白背景商品画像',
+        uploadHint: '元の商品写真をアップロード',
+        steps: { product_clean: '白背景', product_lifestyle: 'ライフスタイル', promo_banner: 'プロモバナー' },
+      },
+      wedding_invite: {
+        title: '招待状',
+        sample: 'ミニマルなピンクの結婚式招待状',
+        steps: { cover: '表紙', inside: '内側', story: 'ストーリー' },
+      },
+      ad_music: {
+        title: '広告音楽',
+        sample: '化粧品CM向けの明るいBGM',
+        steps: { track_main: 'メイン曲', track_alt: '代替曲' },
+      },
+      lookbook: {
+        title: 'ルックブック',
+        sample: '秋のルックブック、ベージュ調',
+        uploadHint: 'ルック・モデル写真をアップロード',
+        steps: { hero_look: 'ヒーロールック', grid_look: 'グリッド', detail_look: 'ディテール' },
+      },
+      packaging_kit: {
+        title: 'パッケージキット',
+        sample: 'オーガニック化粧品の箱、シールとバーコード',
+        steps: { logo: 'ロゴ', box_flat: '展開図', box_3d: '3D mockup', label: 'ラベル', seal: 'シール' },
+      },
+      interior_design: {
+        title: 'インテリア',
+        sample: '80㎡ Japandi マンション、温かいリビング',
+        uploadHint: '間取り図または部屋写真をアップロード',
+        steps: { living: 'リビング', kitchen: 'キッチン', bedroom: '寝室', facade: '外観' },
+      },
+      social_media_kit: {
+        title: 'SNSキット',
+        sample: 'コスメショップの feed キット、パステルピンク',
+        steps: { avatar: 'アバター', post: '投稿', story: 'ストーリー', cover: 'FBカバー' },
+      },
+      story_with_images: {
+        title: '絵本ストーリー',
+        sample: '勇敢な猫の児童絵本、水彩風',
+        steps: { character: 'キャラ', page1: '1ページ目', cover: '表紙' },
+      },
+      infographic_series: {
+        title: 'インフォグラフィック',
+        sample: 'ビジネス書を5枚のインフォグラフィックに要約',
+        uploadHint: '書籍/資料ページをアップロード',
+        steps: { hook: 'Hook', body: '本文', summary: 'まとめ' },
+      },
+      fashion_campaign: {
+        title: 'ファッションキャンペーン',
+        sample: '夏コレ campaign、2着 try-on + セールバナー',
+        uploadHint: 'モデル/衣装写真をアップロード',
+        steps: { hero: 'Hero', try1: 'Try-on 1', banner: 'セールバナー' },
+      },
+      profile_photo_pack: {
+        title: '証明写真/プロフィール',
+        sample: 'マーケター向け LinkedIn 写真セット',
+        uploadHint: '元のポートレートをアップロード',
+        steps: { id_white: '白背景', id_blue: '青背景', linkedin: 'LinkedIn', banner: 'バナー' },
+      },
+    },
   },
   footer: {
     platformTitle: 'NanoAI プラットフォーム',
@@ -10696,6 +11491,13 @@ const JA_DICTIONARY: Dictionary = {
     linkTranslateProgress: '翻訳の進行状況',
     autoRefreshNote:
       '処理中のタスクがある間は約8秒ごとに自動更新（タブ表示中）。待ちなしのときは、このタブに戻ったときに更新されます。',
+    sectionHubPlans: 'マルチステッププラン（NanoAI アシスタント）',
+    emptyHubPlans: '進行中のマルチステッププランはありません。',
+    hubPlanSteps: '{done}/{total} ステップ',
+    hubPlanContinue: '続ける',
+    hubPlanCancel: 'キャンセル',
+    hubPlanStatusActive: '進行中',
+    hubPlanStatusCompleted: '完了',
   },
   meetingRecorder: {
     cardTitle: '会議を録音 → AI 議事録',
@@ -11684,6 +12486,174 @@ const KO_DICTIONARY: Dictionary = {
     defaultDescription: 'AI 가상 피팅을 경험하세요. 1-5인 피팅, 사진 복원, 선명화, 이미지 합성 지원.',
     toolHub: 'AI 도구',
     login: '로그인',
+  },
+  hubChat: {
+    title: 'NanoAI 어시스턴트',
+    subtitle: '하고 싶은 일을 설명하세요 — AI가 적합한 도구와 프롬프트를 제안합니다.',
+    placeholder: '예: 여름 세일 배너, 인물 사진 선명화, 고1 수학 교안…',
+    modeChat: '상담',
+    modeWorkflow: '워크플로',
+    workflowAll: '전체 그룹',
+    modelLabel: '모델',
+    send: '보내기',
+    thinking: '생각 중…',
+    openTool: '도구 열기',
+    suggested: '빠른 추천',
+    loginRequired: 'AI 어시스턴트는 로그인 후 이용 가능합니다(메시지당 0.1 크레딧).',
+    errorGeneric: '전송에 실패했습니다. 다시 시도해 주세요.',
+    creditNote: '0.1 크레딧 / 메시지',
+    fallbackReply: '아래 도구를 선택하거나 필요를 더 자세히 설명해 주세요.',
+    workflowPick: '워크플로 그룹',
+    clearReply: '지우기',
+    modePipeline: '다단계',
+    modeStudio: '연속 설계',
+    studioSubtitle: '채팅 안에서 설계 — 앱, 배너, 브랜드 키트, 상품 사진, 초대장, 광고 음악. AI가 단계별로 안내합니다.',
+    studioPlaceholder: '예: 패션 쇼핑 모바일 앱 UI를 설계하고 싶어요…',
+    studioProcessTitle: '설계 프로세스',
+    studioRegenerate: '다시 생성',
+    studioUseReference: '참조 이미지로 선택',
+    studioImageCredit: '이미지 생성: {n} 크레딧',
+    studioGenerating: 'AI 처리 중…',
+    studioSampleLabel: '모바일 쇼핑 앱',
+    studioSamplePrompt: '모던한 패션 쇼핑 모바일 앱 UI를 설계하고 싶습니다',
+    studioApprovedNext: '{screen} 참조 이미지 저장됨. 다음: {next} — 이 화면을 어떻게 할까요?',
+    studioApprovedGenerated: '{screen} 참조 저장됨. {next} 생성 완료 — 확인 후 계속하세요.',
+    studioReferenceWillUse: '생성 시 아래 승인된 참조 이미지 {n}장으로 스타일을 맞춥니다.',
+    studioReferenceTitle: '승인된 참조 이미지',
+    studioReferenceLimit: '참조 이미지는 최대 {max}장입니다. 추가 전에 하나를 제거하세요.',
+    studioReferenceRemoved: '참조 이미지 제거: {screen}. 이 단계에서 다시 선택할 수 있습니다.',
+    studioReferenceRemove: '참조 이미지 제거',
+    studioReferenceAttachHint: '생성마다 최대 {n}장(로고 우선 + 최근 단계)만 전송해 스타일 희석을 방지합니다.',
+    studioReferenceCount: '({count}/{max})',
+    studioLogoFirst: 'UI 화면 전에 로고를 만들고 참조로 승인하세요.',
+    studioNeedLogoReference: '로고 참조 없음 — 로고 생성 후 «참조 이미지로 선택»을 누르세요.',
+    studioLogoApprovedNext: '로고 참조 저장됨. 다음: {next} — 화면 설명 (로고는 헤더에 배치).',
+    studioStartWithLogo: '브리프 완료. 첫 설계 단계: **로고 생성** — 승인 후 모든 화면의 참조로 사용됩니다.',
+    studioGeneratedStep: '설명대로 {screen}을(를) 생성했습니다. 아래에서 확인 후 «참조 이미지로 선택»을 누르세요.',
+    studioLogoPendingApprove: '로고 미리보기가 아래에 있습니다 — 괜찮으면 «참조 이미지로 선택», 다른 버전은 «다시 생성»을 누르세요.',
+    studioStepPendingApprove: '{screen} 미리보기가 아래에 있습니다 — 괜찮으면 «참조 이미지로 선택», 다른 버전은 «다시 생성»을 누르세요.',
+    studioApproveBeforeNext: '먼저 {screen}에서 «참조 이미지로 선택»을 누르세요 — 승인 후 참조 이미지로 다음 단계로 진행합니다.',
+    studioRegenerated: '{screen} 다시 생성됨. 괜찮으신가요?',
+    studioAllDone: '설계 프로세스가 완료되었습니다. 원하는 화면을 더 조정할 수 있습니다.',
+    planCreated: '{n}단계 계획 생성됨',
+    startStep: '1단계 시작',
+    continueNextStep: '{n}단계 계속',
+    planBannerTitle: '계획: {title}',
+    planStepProgress: '{current}/{total}단계 · 완료 {done}',
+    planCompleteStep: '단계 완료',
+    planSkipStep: '건너뛰기',
+    planCancel: '계획 취소',
+    planOpenQueue: '작업 대기열',
+    viewTaskQueue: '작업 대기열 보기',
+    newThread: '새 대화',
+    autoRunTitle: '자동 실행 (NanoAI Agent)',
+    autoRunEstimate: '전체 계획 예상 ~{n} 크레딧',
+    autoRunUpload: '제품 이미지 선택',
+    autoRunImagesSelected: '{n}장 선택됨',
+    autoRunStart: '자동 실행',
+    autoRunRunning: '단계를 자동 실행 중…',
+    autoRunDone: '자동 계획 완료',
+    autoRunNeedImage: '제품 이미지를 1장 이상 선택하세요.',
+    studioNeedUpload: '생성 전에 제품/모델 사진을 업로드하세요.',
+    studioUploadBtn: '이미지 업로드',
+    studioImagesUploaded: '{n}장 업로드됨. 다음 단계 요구사항을 설명하세요.',
+    studioMusicCredit: '음악: {n} 크레딧',
+    studioContinue: '계속',
+    studioNoPreview: '승인할 콘텐츠가 없습니다.',
+    studioNoPrompt: '다시 생성할 프롬프트가 없습니다.',
+    studioMinChars: '최소 2자 이상 입력하세요.',
+    studioViewLarge: '크게 보기',
+    studioDiscoveryBlocked: '브리프 수집 중 — 이 단계에서는 아직 생성하지 않습니다.',
+    studioPresets: {
+      mobile_shop: {
+        title: '쇼핑 앱',
+        sample: '파스텔 톤 여성 패션 쇼핑 모바일 UI',
+        steps: {
+          home: '홈',
+          product_list: '상품 목록',
+          product_detail: '상품 상세',
+          cart: '장바구니',
+          checkout: '결제',
+          profile: '계정',
+        },
+      },
+      sale_banner: {
+        title: '세일 배너',
+        sample: '패션 매장 오픈 배너, 빨강·금색',
+        steps: { banner_main: '메인 배너', banner_square: '정사각 1:1', banner_story: '스토리 9:16' },
+      },
+      brand_kit: {
+        title: '브랜드 키트',
+        sample: '스페셜티 카페 브랜드 키트',
+        steps: { logo: '로고', banner: '배너', product_label: '상품 라벨', sticker: '스티커' },
+      },
+      landing_page: {
+        title: '랜딩 페이지',
+        sample: '교실 관리 SaaS 랜딩, 블루 톤',
+        steps: { hero: '히어로', features: '기능', pricing: '가격', faq: 'FAQ', cta: 'CTA' },
+      },
+      product_listing: {
+        title: '상품 사진',
+        sample: '핸드백 마켓플레이스용 흰 배경 상품 사진',
+        uploadHint: '원본 상품 사진 업로드',
+        steps: { product_clean: '흰 배경', product_lifestyle: '라이프스타일', promo_banner: '프로모 배너' },
+      },
+      wedding_invite: {
+        title: '초대장',
+        sample: '미니멀 핑크 톤 결혼 초대장',
+        steps: { cover: '표지', inside: '내부', story: '스토리' },
+      },
+      ad_music: {
+        title: '광고 음악',
+        sample: '화장품 광고용 경쾌한 BGM',
+        steps: { track_main: '메인 트랙', track_alt: '대체 트랙' },
+      },
+      lookbook: {
+        title: '룩북',
+        sample: '가을 룩북, 따뜻한 베이지 톤',
+        uploadHint: '룩/모델 사진 업로드',
+        steps: { hero_look: '히어로 룩', grid_look: '그리드', detail_look: '디테일' },
+      },
+      packaging_kit: {
+        title: '패키징 키트',
+        sample: '오가닉 화장품 박스, 봉인 스티커와 바코드',
+        steps: { logo: '로고', box_flat: '평면 박스', box_3d: '3D mockup', label: '라벨', seal: '봉인' },
+      },
+      interior_design: {
+        title: '인테리어',
+        sample: '80㎡ Japandi 아파트, 따뜻한 거실',
+        uploadHint: '평면도 또는 방 사진 업로드',
+        steps: { living: '거실', kitchen: '주방', bedroom: '침실', facade: '외관' },
+      },
+      social_media_kit: {
+        title: 'SNS 키트',
+        sample: '뷰티샵 feed 키트, 파스텔 핑크',
+        steps: { avatar: '아바타', post: '게시물', story: '스토리', cover: 'FB 커버' },
+      },
+      story_with_images: {
+        title: '그림책 스토리',
+        sample: '용감한 고양이 아동 그림책, 수채화',
+        steps: { character: '캐릭터', page1: '1페이지', cover: '표지' },
+      },
+      infographic_series: {
+        title: '인포그래픽 시리즈',
+        sample: '비즈니스 책을 5장 인포그래픽으로 요약',
+        uploadHint: '책/문서 페이지 업로드',
+        steps: { hook: 'Hook', body: '본문', summary: '요약' },
+      },
+      fashion_campaign: {
+        title: '패션 캠페인',
+        sample: '여름 컬렉션, 2회 try-on + 세일 배너',
+        uploadHint: '모델/의상 사진 업로드',
+        steps: { hero: 'Hero', try1: 'Try-on 1', banner: '세일 배너' },
+      },
+      profile_photo_pack: {
+        title: '증명사진/프로필',
+        sample: '마케터 LinkedIn 사진 세트, 포멀 톤',
+        uploadHint: '원본 초상 업로드',
+        steps: { id_white: '흰 배경', id_blue: '파란 배경', linkedin: 'LinkedIn', banner: '배너' },
+      },
+    },
   },
   footer: {
     platformTitle: 'NanoAI 플랫폼',
@@ -13012,6 +13982,13 @@ const KO_DICTIONARY: Dictionary = {
     linkTranslateProgress: '번역 진행 상황',
     autoRefreshNote:
       '진행 중 작업이 있을 때: 탭이 보이는 동안 약 8초마다 새로고침. 대기열이 비면 이 탭으로 돌아올 때만 갱신됩니다.',
+    sectionHubPlans: '다단계 계획 (NanoAI 어시스턴트)',
+    emptyHubPlans: '진행 중인 다단계 계획이 없습니다.',
+    hubPlanSteps: '{done}/{total}단계',
+    hubPlanContinue: '계속',
+    hubPlanCancel: '취소',
+    hubPlanStatusActive: '진행 중',
+    hubPlanStatusCompleted: '완료',
   },
   meetingRecorder: {
     cardTitle: '회의 녹음 → AI 회의록',

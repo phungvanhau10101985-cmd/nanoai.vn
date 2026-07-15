@@ -18,6 +18,102 @@ export interface NetBounds {
 
 const TOL = 0.05 // 0.05mm - tránh lỗi làm tròn khi so sánh cạnh chung
 
+type DimSide = 'top' | 'bottom' | 'left' | 'right'
+
+interface DimBuildResult {
+  lines: string[]
+  labels: string[]
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+/** Vẽ đường kích thước + nhãn bên ngoài từng ô (extension line + dimension line + text). */
+function buildPanelDimension(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  text: string,
+  side: DimSide,
+  gap: number,
+  tickLen: number,
+  fs: number,
+  stroke: number
+): DimBuildResult {
+  const dimStroke = stroke * 0.6
+  const line = (x1: number, y1: number, x2: number, y2: number) =>
+    `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#64748b" stroke-width="${dimStroke}"/>`
+
+  const lines: string[] = []
+  let tx = x + w / 2
+  let ty = y + h / 2
+  let anchor = 'middle'
+  let baseline = 'middle'
+  let minX = x
+  let minY = y
+  let maxX = x + w
+  let maxY = y + h
+
+  if (side === 'bottom') {
+    const dimY = y + h + gap
+    lines.push(line(x, y + h, x, dimY))
+    lines.push(line(x + w, y + h, x + w, dimY))
+    lines.push(line(x, dimY, x + w, dimY))
+    ty = dimY + fs * 0.35
+    baseline = 'hanging'
+    maxY = Math.max(maxY, ty + fs)
+  } else if (side === 'top') {
+    const dimY = y - gap
+    lines.push(line(x, y, x, dimY))
+    lines.push(line(x + w, y, x + w, dimY))
+    lines.push(line(x, dimY, x + w, dimY))
+    ty = dimY - fs * 0.15
+    baseline = 'auto'
+    minY = Math.min(minY, dimY - fs)
+  } else if (side === 'left') {
+    const dimX = x - gap
+    lines.push(line(x, y, dimX, y))
+    lines.push(line(x, y + h, dimX, y + h))
+    lines.push(line(dimX, y, dimX, y + h))
+    tx = dimX - fs * 0.25
+    ty = y + h / 2
+    anchor = 'end'
+    minX = Math.min(minX, tx - fs * text.length * 0.35)
+  } else {
+    const dimX = x + w + gap
+    lines.push(line(x + w, y, dimX, y))
+    lines.push(line(x + w, y + h, dimX, y + h))
+    lines.push(line(dimX, y, dimX, y + h))
+    tx = dimX + fs * 0.25
+    ty = y + h / 2
+    anchor = 'start'
+    maxX = Math.max(maxX, tx + fs * text.length * 0.35)
+  }
+
+  const labels = [
+    `<text x="${tx}" y="${ty}" text-anchor="${anchor}" dominant-baseline="${baseline}" font-size="${fs}" fill="#333" font-family="sans-serif">${text}</text>`,
+  ]
+
+  return { lines, labels, minX, minY, maxX, maxY }
+}
+
+function mergeDimBounds(acc: DimBuildResult, next: DimBuildResult): DimBuildResult {
+  return {
+    lines: [...acc.lines, ...next.lines],
+    labels: [...acc.labels, ...next.labels],
+    minX: Math.min(acc.minX, next.minX),
+    minY: Math.min(acc.minY, next.minY),
+    maxX: Math.max(acc.maxX, next.maxX),
+    maxY: Math.max(acc.maxY, next.maxY),
+  }
+}
+
+function formatDimMm(a: number, b: number): string {
+  return `${Math.round(a)}×${Math.round(b)} mm`
+}
+
 /**
  * Phân loại cạnh: cạnh chung (≥2 panel chồng lấp) = gấp, cạnh chu vi = cắt.
  * Xử lý cả cạnh chồng một phần (vd: Left W×H và Bottom L×W).
@@ -261,44 +357,6 @@ export function generateTuckTopNetSvgSimple(d: BoxDimensions): string {
   const foldStroke = 0.25
 
   const panels: { x: number; y: number; w: number; h: number; fold?: boolean }[] = []
-
-  // Layout từ trái sang phải, từ trên xuống:
-  // [Back LxH] [Left WxH][Bottom LxW][Right WxH] [Front LxH]
-  // [Top lid LxW] với 4 flaps
-
-  let cx = 0
-  let cy = 0
-
-  // Back
-  panels.push({ x: cx, y: cy, w: L, h: H })
-  cx += L
-
-  // Left, Bottom, Right (cùng hàng)
-  panels.push({ x: cx, y: cy, w: W, h: H })
-  cx += W
-  panels.push({ x: cx, y: cy, w: L, h: W })
-  cx += W
-  panels.push({ x: cx, y: cy, w: W, h: H })
-  cx += W
-
-  // Front (hàng 2, căn trái)
-  cx = 0
-  cy = H
-  panels.push({ x: cx, y: cy, w: L, h: H })
-  cx += L
-  // Khoảng trống W, rồi Bottom đã có
-  cx = L + W
-  panels.push({ x: cx, y: cy, w: L, h: W }) // Bottom thực ra đã vẽ ở hàng 1
-  // Sửa: Front nằm dưới Back
-  // Back ở (0,0), Front ở (0, H) - cùng cột
-  // Left, Bottom, Right ở giữa
-
-  // Đơn giản: layout 2 cột
-  // Cột 1: Back (0,0), Front (0,H)
-  // Cột 2: Left (L,0), Bottom (L,W), Right (L,W+H)
-  // Cột 3: Top lid (L+W, ?)
-
-  panels.length = 0
   const pad = 2
   const gap = 0 // Các ô phải sát nhau để cạnh chung = nét gấp (không cắt)
 
@@ -322,39 +380,93 @@ export function generateTuckTopNetSvgSimple(d: BoxDimensions): string {
   panels.push({ x: fl + L, y: ft - W, w: flap, h: W, fold: true })
   panels.push({ x: fl, y: ft - W - flap, w: L, h: flap, fold: true })
 
-  const dimOff = Math.max(2, Math.min(L, W, H) * 0.08) + 1
-  const maxX = Math.max(...panels.map((p) => p.x + p.w)) + pad
-  const maxY = Math.max(...panels.map((p) => p.y + p.h)) + pad + dimOff * 2
+  const fs = Math.max(2, Math.min(L, W, H) * 0.08)
+  const dimGap = fs + 1.5
+  const tickLen = 1.2
 
-  // Chỉ cắt chu vi ngoài (nét đen), gấp theo cạnh chung (nét đứt)
   const allPanels = panels.map(({ x, y, w, h }) => ({ x, y, w, h }))
   const { cutSegments, foldSegments } = classifyEdges(allPanels)
   const cutPaths = cutSegments.map(([x1, y1, x2, y2]) => `M ${x1} ${y1} L ${x2} ${y2}`)
   const foldPaths = foldSegments.map(([x1, y1, x2, y2]) => `M ${x1} ${y1} L ${x2} ${y2}`)
 
-  // Đường dóng (trong ô) + số kích thước (ngoài ô)
-  const fs = Math.max(2, Math.min(L, W, H) * 0.08)
-  const tickLen = 1.2
-  const dimLabels: string[] = []
-  const extLines: string[] = []
-  const addDim = (px: number, py: number, text: string, ext: [number, number, number, number][]) => {
-    ext.forEach(([x1, y1, x2, y2]) => extLines.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#64748b" stroke-width="${stroke * 0.6}"/>`))
-    dimLabels.push(`<text x="${px}" y="${py}" text-anchor="middle" dominant-baseline="hanging" font-size="${fs}" fill="#333" font-family="sans-serif">${text}</text>`)
-  }
-  addDim(pad + L / 2, pad + H + dimOff, `L ${L} × H ${H}`, [[pad, pad + H, pad, pad + H - tickLen], [pad + L, pad + H, pad + L, pad + H - tickLen]])
-  addDim(pad + L / 2, pad + H + gap + H + dimOff, `L ${L} × H ${H}`, [[pad, pad + H + gap + H, pad, pad + H + gap + H - tickLen], [pad + L, pad + H + gap + H, pad + L, pad + H + gap + H - tickLen]])
-  addDim(pad + L + gap + W / 2, pad + H + dimOff, `W ${W} × H ${H}`, [[pad + L + gap, pad + H, pad + L + gap, pad + H - tickLen], [pad + L + gap + W, pad + H, pad + L + gap + W, pad + H - tickLen]])
-  addDim(pad + L + gap + W + L / 2, pad + W + dimOff, `L ${L} × W ${W}`, [[pad + L + gap + W, pad + W, pad + L + gap + W, pad + W - tickLen], [pad + L + gap + W + L, pad + W, pad + L + gap + W + L, pad + W - tickLen]])
-  addDim(pad + L + gap + W + L + W / 2, pad + H + dimOff, `W ${W} × H ${H}`, [[pad + L + gap + W + L, pad + H, pad + L + gap + W + L, pad + H - tickLen], [pad + L + gap + W + L + W, pad + H, pad + L + gap + W + L + W, pad + H - tickLen]])
-  addDim(pad + L / 2, pad + H + gap + H + gap + W + dimOff, `L ${L} × W ${W}`, [[pad, pad + H + gap + H + gap + W, pad, pad + H + gap + H + gap + W - tickLen], [pad + L, pad + H + gap + H + gap + W, pad + L, pad + H + gap + H + gap + W - tickLen]])
+  const back = panels[0]!
+  const front = panels[1]!
+  const left = panels[2]!
+  const bottom = panels[3]!
+  const right = panels[4]!
+  const topLid = panels[5]!
+  const flapBottom = panels[6]!
+  const flapLeft = panels[7]!
+  const flapRight = panels[8]!
+  const flapTop = panels[9]!
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${maxX} ${maxY}" width="${maxX}" height="${maxY}" preserveAspectRatio="xMidYMid meet" style="max-width:100%;height:auto">
+  let dimResult: DimBuildResult = {
+    lines: [],
+    labels: [],
+    minX: Math.min(...panels.map((p) => p.x)),
+    minY: Math.min(...panels.map((p) => p.y)),
+    maxX: Math.max(...panels.map((p) => p.x + p.w)),
+    maxY: Math.max(...panels.map((p) => p.y + p.h)),
+  }
+
+  const addPanelDim = (p: { x: number; y: number; w: number; h: number }, text: string, side: DimSide) => {
+    dimResult = mergeDimBounds(dimResult, buildPanelDimension(p.x, p.y, p.w, p.h, text, side, dimGap, tickLen, fs, stroke))
+  }
+
+  addPanelDim(back, formatDimMm(L, H), 'bottom')
+  addPanelDim(front, formatDimMm(L, H), 'bottom')
+  addPanelDim(left, formatDimMm(W, H), 'left')
+  addPanelDim(bottom, formatDimMm(L, W), 'top')
+  addPanelDim(right, formatDimMm(W, H), 'right')
+  addPanelDim(topLid, formatDimMm(L, W), 'bottom')
+  addPanelDim(flapBottom, formatDimMm(L, flap), 'bottom')
+  addPanelDim(flapLeft, formatDimMm(flap, W), 'left')
+  addPanelDim(flapRight, formatDimMm(flap, W), 'right')
+  addPanelDim(flapTop, formatDimMm(L, flap), 'top')
+
+  const margin = pad
+  const vbMinX = dimResult.minX - margin
+  const vbMinY = dimResult.minY - margin
+  const vbW = dimResult.maxX - vbMinX + margin
+  const vbH = dimResult.maxY - vbMinY + margin
+  const offsetX = -vbMinX
+  const offsetY = -vbMinY
+
+  const shiftLineCoords = (s: string) => {
+    return s
+      .replace(/x1="([^"]+)"/, (_, v) => `x1="${Number(v) + offsetX}"`)
+      .replace(/y1="([^"]+)"/, (_, v) => `y1="${Number(v) + offsetY}"`)
+      .replace(/x2="([^"]+)"/, (_, v) => `x2="${Number(v) + offsetX}"`)
+      .replace(/y2="([^"]+)"/, (_, v) => `y2="${Number(v) + offsetY}"`)
+  }
+
+  const shiftTextCoords = (s: string) => {
+    return s
+      .replace(/x="([^"]+)"/, (_, v) => `x="${Number(v) + offsetX}"`)
+      .replace(/y="([^"]+)"/, (_, v) => `y="${Number(v) + offsetY}"`)
+  }
+
+  const shiftedCutPaths = cutPaths.map((p) => {
+    const nums = p.match(/-?\d+(\.\d+)?/g)?.map(Number) ?? []
+    if (nums.length < 4) return p
+    return `M ${nums[0]! + offsetX} ${nums[1]! + offsetY} L ${nums[2]! + offsetX} ${nums[3]! + offsetY}`
+  })
+  const shiftedFoldPaths = foldPaths.map((p) => {
+    const nums = p.match(/-?\d+(\.\d+)?/g)?.map(Number) ?? []
+    if (nums.length < 4) return p
+    return `M ${nums[0]! + offsetX} ${nums[1]! + offsetY} L ${nums[2]! + offsetX} ${nums[3]! + offsetY}`
+  })
+
+  const extLines = dimResult.lines.map(shiftLineCoords)
+  const dimLabels = dimResult.labels.map(shiftTextCoords)
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vbW} ${vbH}" width="${vbW}" height="${vbH}" preserveAspectRatio="xMidYMid meet" style="max-width:100%;height:auto">
   <rect width="100%" height="100%" fill="#fff"/>
   <g stroke="#dc2626" stroke-width="${stroke}" fill="none">
-    ${cutPaths.map((p) => `<path d="${p}"/>`).join('\n    ')}
+    ${shiftedCutPaths.map((p) => `<path d="${p}"/>`).join('\n    ')}
   </g>
   <g stroke="#16a34a" stroke-width="${Math.max(foldStroke, stroke)}" stroke-dasharray="4 2" fill="none">
-    ${foldPaths.map((p) => `<path d="${p}"/>`).join('\n    ')}
+    ${shiftedFoldPaths.map((p) => `<path d="${p}"/>`).join('\n    ')}
   </g>
   <g>${extLines.join('\n    ')}</g>
   <g>${dimLabels.join('\n    ')}</g>
@@ -384,35 +496,81 @@ function generateSleeveNetSvg(d: BoxDimensions): string {
   panels.push({ x: pad + L + gap + W + L + W, y: pad, w: L, h: H }) // Front
 
   const fs = Math.max(2, Math.min(L, W, H) * 0.08)
-  const dimOff = fs + 1
-  const maxX = Math.max(...panels.map((p) => p.x + p.w)) + pad
-  const maxY = Math.max(...panels.map((p) => p.y + p.h)) + pad + dimOff * 2
+  const dimGap = fs + 1.5
+  const tickLen = 1.2
 
-  // Chỉ cắt chu vi ngoài (nét đen), gấp theo cạnh chung (nét đứt)
   const { cutSegments, foldSegments } = classifyEdges(panels)
   const cutPaths = cutSegments.map(([x1, y1, x2, y2]) => `M ${x1} ${y1} L ${x2} ${y2}`)
   const foldPaths = foldSegments.map(([x1, y1, x2, y2]) => `M ${x1} ${y1} L ${x2} ${y2}`)
 
-  const tickLen = 1.2
-  const dimLabels: string[] = []
-  const extLines: string[] = []
-  const addDim = (px: number, py: number, text: string, ext: [number, number, number, number][]) => {
-    ext.forEach(([x1, y1, x2, y2]) => extLines.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#64748b" stroke-width="${stroke * 0.6}"/>`))
-    dimLabels.push(`<text x="${px}" y="${py}" text-anchor="middle" dominant-baseline="hanging" font-size="${fs}" fill="#333" font-family="sans-serif">${text}</text>`)
-  }
-  addDim(pad + L / 2, pad + H + dimOff, `L ${L} × H ${H}`, [[pad, pad + H, pad, pad + H - tickLen], [pad + L, pad + H, pad + L, pad + H - tickLen]])
-  addDim(pad + L + gap + W / 2, pad + H + dimOff, `W ${W} × H ${H}`, [[pad + L + gap, pad + H, pad + L + gap, pad + H - tickLen], [pad + L + gap + W, pad + H, pad + L + gap + W, pad + H - tickLen]])
-  addDim(pad + L + gap + W + L / 2, pad + H + dimOff, `L ${L} × H ${H}`, [[pad + L + gap + W, pad + H, pad + L + gap + W, pad + H - tickLen], [pad + L + gap + W + L, pad + H, pad + L + gap + W + L, pad + H - tickLen]])
-  addDim(pad + L + gap + W + L + W / 2, pad + H + dimOff, `W ${W} × H ${H}`, [[pad + L + gap + W + L, pad + H, pad + L + gap + W + L, pad + H - tickLen], [pad + L + gap + W + L + W, pad + H, pad + L + gap + W + L + W, pad + H - tickLen]])
-  addDim(pad + L + gap + W + L + W + L / 2, pad + H + dimOff, `L ${L} × H ${H}`, [[pad + L + gap + W + L + W, pad + H, pad + L + gap + W + L + W, pad + H - tickLen], [pad + L + gap + W + L + W + L, pad + H, pad + L + gap + W + L + W + L, pad + H - tickLen]])
+  const back = panels[0]!
+  const left = panels[1]!
+  const mid = panels[2]!
+  const right = panels[3]!
+  const front = panels[4]!
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${maxX} ${maxY}" width="${maxX}" height="${maxY}" preserveAspectRatio="xMidYMid meet" style="max-width:100%;height:auto">
+  let dimResult: DimBuildResult = {
+    lines: [],
+    labels: [],
+    minX: Math.min(...panels.map((p) => p.x)),
+    minY: Math.min(...panels.map((p) => p.y)),
+    maxX: Math.max(...panels.map((p) => p.x + p.w)),
+    maxY: Math.max(...panels.map((p) => p.y + p.h)),
+  }
+
+  const addPanelDim = (p: { x: number; y: number; w: number; h: number }, text: string, side: DimSide) => {
+    dimResult = mergeDimBounds(dimResult, buildPanelDimension(p.x, p.y, p.w, p.h, text, side, dimGap, tickLen, fs, stroke))
+  }
+
+  addPanelDim(back, formatDimMm(L, H), 'bottom')
+  addPanelDim(left, formatDimMm(W, H), 'bottom')
+  addPanelDim(mid, formatDimMm(L, H), 'bottom')
+  addPanelDim(right, formatDimMm(W, H), 'bottom')
+  addPanelDim(front, formatDimMm(L, H), 'bottom')
+
+  const margin = pad
+  const vbMinX = dimResult.minX - margin
+  const vbMinY = dimResult.minY - margin
+  const vbW = dimResult.maxX - vbMinX + margin
+  const vbH = dimResult.maxY - vbMinY + margin
+  const offsetX = -vbMinX
+  const offsetY = -vbMinY
+
+  const shiftLineCoords = (s: string) => {
+    return s
+      .replace(/x1="([^"]+)"/, (_, v) => `x1="${Number(v) + offsetX}"`)
+      .replace(/y1="([^"]+)"/, (_, v) => `y1="${Number(v) + offsetY}"`)
+      .replace(/x2="([^"]+)"/, (_, v) => `x2="${Number(v) + offsetX}"`)
+      .replace(/y2="([^"]+)"/, (_, v) => `y2="${Number(v) + offsetY}"`)
+  }
+
+  const shiftTextCoords = (s: string) => {
+    return s
+      .replace(/x="([^"]+)"/, (_, v) => `x="${Number(v) + offsetX}"`)
+      .replace(/y="([^"]+)"/, (_, v) => `y="${Number(v) + offsetY}"`)
+  }
+
+  const shiftedCutPaths = cutPaths.map((p) => {
+    const nums = p.match(/-?\d+(\.\d+)?/g)?.map(Number) ?? []
+    if (nums.length < 4) return p
+    return `M ${nums[0]! + offsetX} ${nums[1]! + offsetY} L ${nums[2]! + offsetX} ${nums[3]! + offsetY}`
+  })
+  const shiftedFoldPaths = foldPaths.map((p) => {
+    const nums = p.match(/-?\d+(\.\d+)?/g)?.map(Number) ?? []
+    if (nums.length < 4) return p
+    return `M ${nums[0]! + offsetX} ${nums[1]! + offsetY} L ${nums[2]! + offsetX} ${nums[3]! + offsetY}`
+  })
+
+  const extLines = dimResult.lines.map(shiftLineCoords)
+  const dimLabels = dimResult.labels.map(shiftTextCoords)
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vbW} ${vbH}" width="${vbW}" height="${vbH}" preserveAspectRatio="xMidYMid meet" style="max-width:100%;height:auto">
   <rect width="100%" height="100%" fill="#fff"/>
   <g stroke="#dc2626" stroke-width="${stroke}" fill="none">
-    ${cutPaths.map((p) => `<path d="${p}"/>`).join('\n    ')}
+    ${shiftedCutPaths.map((p) => `<path d="${p}"/>`).join('\n    ')}
   </g>
   <g stroke="#16a34a" stroke-width="${stroke * 0.6}" stroke-dasharray="3 2" fill="none">
-    ${foldPaths.map((p) => `<path d="${p}"/>`).join('\n    ')}
+    ${shiftedFoldPaths.map((p) => `<path d="${p}"/>`).join('\n    ')}
   </g>
   <g>${extLines.join('\n    ')}</g>
   <g>${dimLabels.join('\n    ')}</g>

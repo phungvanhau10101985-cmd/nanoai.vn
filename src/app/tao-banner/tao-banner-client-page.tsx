@@ -21,6 +21,9 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { useHubPrefill } from '@/lib/hub-chat/use-hub-prefill'
+import { tryAutoCompleteHubPlanStep } from '@/lib/hub-chat/hub-plan-auto-complete'
+import { HubPlanStepBanner } from '@/components/hub-chat/hub-plan-step-banner'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -67,6 +70,8 @@ export default function TaoBannerClientPage() {
     return vi
   }
   const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
+
+  useHubPrefill('/tao-banner', setNote)
 
   useEffect(() => {
     const syncLocale = () => setUiLocale(getWebLocaleFromCookie())
@@ -134,6 +139,7 @@ export default function TaoBannerClientPage() {
         onSuccessWithUrl: (url) => {
           setResultUrl(url)
           setStep('RESULT')
+          void tryAutoCompleteHubPlanStep('/tao-banner', url)
           toast({
             title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
             description: tr('Banner đã được tạo.', 'Banner has been created.', '横幅已创建。', 'バナーを作成しました。', '배너가 생성되었습니다.'),
@@ -174,6 +180,7 @@ export default function TaoBannerClientPage() {
     <>
       <Toaster />
       <div className="tool-page-container">
+        <HubPlanStepBanner />
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">{tr('Tạo banner quảng cáo', 'Create ad banner', '创建广告横幅', '広告バナーを作成', '광고 배너 만들기')}</h1>
           <p className="text-muted-foreground mt-1">{tr('Tải ảnh sản phẩm kinh doanh (tối đa 13 ảnh). AI tạo banner chuyên nghiệp. 1,5–3 credits/ảnh.', 'Upload product images (max 13). AI creates professional banners. 1.5–3 credits/image.', '上传产品图片（最多 13 张）。AI 创建专业横幅。 1.5–3 积分/张。', '商品画像をアップロード（最大13枚）。AIがプロのバナーを作成。1.5〜3クレジット/枚。', '제품 이미지 업로드 (최대 13장). AI가 전문 배너를 생성합니다. 1.5–3 크레딧/장.')}</p>

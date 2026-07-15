@@ -22,6 +22,9 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { useHubPrefill } from '@/lib/hub-chat/use-hub-prefill'
+import { tryAutoCompleteHubPlanStep } from '@/lib/hub-chat/hub-plan-auto-complete'
+import { HubPlanStepBanner } from '@/components/hub-chat/hub-plan-step-banner'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -134,6 +137,8 @@ export default function LamNetAnhClientPage() {
   }, [uiLocale])
   const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
+  useHubPrefill('/lam-net-anh', setNote)
+
   useEffect(() => {
     setUiLocale(getWebLocaleFromCookie())
   }, [])
@@ -216,6 +221,7 @@ export default function LamNetAnhClientPage() {
         onSuccessWithUrl: (url) => {
           setResultUrl(url)
           setStep('RESULT')
+          void tryAutoCompleteHubPlanStep('/lam-net-anh', url)
           toast({ title: t.success, description: t.successDesc, duration: 3000 })
         },
         onUnexpectedPayload: () => {
@@ -240,6 +246,7 @@ export default function LamNetAnhClientPage() {
     <>
       <Toaster />
       <div className="tool-page-container">
+        <HubPlanStepBanner />
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">{t.title}</h1>
           <p className="text-muted-foreground mt-1">{t.subtitle}</p>

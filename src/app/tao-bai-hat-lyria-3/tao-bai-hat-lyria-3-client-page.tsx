@@ -14,6 +14,9 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { Download, ListMusic, Loader2, Sparkles, X } from 'lucide-react'
 import { TaoBaiHatLyria3Icon } from '@/components/icons/tao-bai-hat-lyria-3-icon'
 import { parseLyriaModelNotes } from '@/lib/music/lyria-model-notes'
+import { useHubPrefill } from '@/lib/hub-chat/use-hub-prefill'
+import { tryAutoCompleteHubPlanStep } from '@/lib/hub-chat/hub-plan-auto-complete'
+import { HubPlanStepBanner } from '@/components/hub-chat/hub-plan-step-banner'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -195,68 +198,9 @@ function getWebLocaleFromCookie(): UiLocale {
   return 'vi'
 }
 
-const COST_CLIP = 3
-
-type LyriaProTargetSec = 60 | 150 | 180
-
-/** Một lựa chọn: map sang variant API + targetDurationSec (Pro). Đồng bộ với `music-lyria3-generate`. */
-type LyriaLengthId = 'clip' | LyriaProTargetSec
-
-const LENGTH_OPTIONS: {
-  id: LyriaLengthId
-  variant: 'clip' | 'pro'
-  /** Gửi kèm khi variant === pro; clip bỏ qua phía server */
-  proTargetSec: LyriaProTargetSec | null
-  credits: number
-  label: Record<UiLocale, string>
-}[] = [
-  {
-    id: 'clip',
-    variant: 'clip',
-    proTargetSec: null,
-    credits: COST_CLIP,
-    label: {
-      vi: 'Đoạn ngắn ~30 giây (file nhạc, không phải video)',
-      en: 'Short ~30 sec (audio file, not video)',
-      zh: '短音频约 30 秒（非视频）',
-      ja: '短い音楽 ~30秒（動画ではありません）',
-      ko: '짧은 음원 ~30초(영상 아님)',
-    },
-  },
-  {
-    id: 60,
-    variant: 'pro',
-    proTargetSec: 60,
-    credits: 5,
-    label: { vi: 'Khoảng 1 phút', en: '~1 minute', zh: '约 1 分钟', ja: '約1分', ko: '약 1분' },
-  },
-  {
-    id: 150,
-    variant: 'pro',
-    proTargetSec: 150,
-    credits: 8,
-    label: {
-      vi: 'Khoảng 2 phút 30 giây',
-      en: '~2 min 30 sec',
-      zh: '约 2 分 30 秒',
-      ja: '約2分30秒',
-      ko: '약 2분 30초',
-    },
-  },
-  {
-    id: 180,
-    variant: 'pro',
-    proTargetSec: 180,
-    credits: 10,
-    label: {
-      vi: 'Dài tối đa (~3 phút)',
-      en: 'Max length (~3 min)',
-      zh: '最长（约 3 分钟）',
-      ja: '最大（約3分）',
-      ko: '최대(약 3분)',
-    },
-  },
-]
+/** Đồng bộ với `music-lyria3-generate`: Lyria 3 Pro ~3 phút. */
+const LYRIA3_CREDITS = 3
+const LYRIA3_TARGET_SEC = 180
 
 type BpmPreset = 'auto' | 'slow' | 'medium' | 'fast'
 type StructurePreset = 'auto' | 'verse_chorus' | 'verse_chorus_bridge' | 'short_hook' | 'through'
@@ -390,7 +334,6 @@ export default function TaoBaiHatLyria3ClientPage() {
   const [genre, setGenre] = useState<LyriaGenre>('custom')
   const [prompt, setPrompt] = useState('')
   const [songContent, setSongContent] = useState('')
-  const [lengthId, setLengthId] = useState<LyriaLengthId>('clip')
   const [vocalMode, setVocalMode] = useState<'instrumental' | 'vocal'>('vocal')
   const [voiceGender, setVoiceGender] = useState<VoiceGenderId>('auto')
   const [voiceTimbre, setVoiceTimbre] = useState<VoiceTimbreId>('auto')
@@ -407,6 +350,8 @@ export default function TaoBaiHatLyria3ClientPage() {
   const [lastCharged, setLastCharged] = useState<number | null>(null)
   const [savedTracks, setSavedTracks] = useState<SavedLyriaTrack[]>([])
   const [savedLoading, setSavedLoading] = useState(false)
+
+  useHubPrefill('/tao-bai-hat-lyria-3', setPrompt)
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -491,11 +436,10 @@ export default function TaoBaiHatLyria3ClientPage() {
     setNotes(null)
     setNotesKind(null)
     try {
-      const len = LENGTH_OPTIONS.find((o) => o.id === lengthId) ?? LENGTH_OPTIONS[0]
       const form = new FormData()
       form.append('prompt', p)
-      form.append('variant', len.variant)
-      form.append('targetDurationSec', String(len.proTargetSec ?? 150))
+      form.append('variant', 'pro')
+      form.append('targetDurationSec', String(LYRIA3_TARGET_SEC))
       form.append('vocalMode', vocalMode)
       form.append('voiceGender', voiceGender)
       form.append('voiceTimbre', voiceTimbre)
@@ -521,7 +465,10 @@ export default function TaoBaiHatLyria3ClientPage() {
       if (!res.ok) {
         throw new Error(data.error || tr('Tạo nhạc thất bại', 'Generation failed', '生成失败', '生成に失敗', '생성 실패'))
       }
-      if (data.audioUrl) setAudioUrl(data.audioUrl)
+      if (data.audioUrl) {
+        setAudioUrl(data.audioUrl)
+        void tryAutoCompleteHubPlanStep('/tao-bai-hat-lyria-3', data.audioUrl)
+      }
       if (data.lyricsOrNotes) {
         setNotes(data.lyricsOrNotes)
         setNotesKind(vocalMode)
@@ -563,7 +510,7 @@ export default function TaoBaiHatLyria3ClientPage() {
     }
   }
 
-  const cost = useMemo(() => LENGTH_OPTIONS.find((o) => o.id === lengthId)?.credits ?? COST_CLIP, [lengthId])
+  const cost = LYRIA3_CREDITS
 
   const parsedNotes = useMemo(() => (notes ? parseLyriaModelNotes(notes) : null), [notes])
 
@@ -571,6 +518,7 @@ export default function TaoBaiHatLyria3ClientPage() {
     <>
       <Toaster />
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
+        <HubPlanStepBanner />
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center">
@@ -730,35 +678,14 @@ export default function TaoBaiHatLyria3ClientPage() {
               </div>
             )}
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                {tr('Độ dài file nhạc', 'Audio length', '音频时长', '音楽の長さ', '음원 길이')}
-              </label>
-              <select
-                value={lengthId === 'clip' ? 'clip' : String(lengthId)}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setLengthId(v === 'clip' ? 'clip' : (Number(v) as LyriaProTargetSec))
-                }}
-                disabled={busy}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                {LENGTH_OPTIONS.map((opt) => (
-                  <option key={opt.id === 'clip' ? 'clip' : opt.id} value={opt.id === 'clip' ? 'clip' : String(opt.id)}>
-                    {opt.label[uiLocale]} — {opt.credits}{' '}
-                    {tr('credit', 'cr', '积分', 'クレジット', '크레딧')}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground">
-                {tr(
-                  'Tất cả đều là file âm thanh (MP3/WAV). Mục đầu ~30s dùng model ngắn; các mục sau dùng model bài dài — độ dài là ước lượng.',
-                  'All outputs are audio files (MP3/WAV). The first option uses the short model; longer options use the full-track model — lengths are approximate.',
-                  '输出均为音频文件。首项为短模型；其余为长曲模型——时长为估算。',
-                  '出力はすべて音声。先頭は短尺モデル、以降は長尺モデル—長さは目安です。',
-                  '결과는 모두 오디오 파일입니다. 첫 항목은 짧은 모델, 나머지는 긴 곡 모델—길이는 추정치입니다.',
-                )}
-              </p>
+            <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-700">
+              {tr(
+                'Bài nhạc ~3 phút (file MP3/WAV) — 3 credit/lần tạo.',
+                '~3 minute audio track (MP3/WAV) — 3 credits per generation.',
+                '约 3 分钟音频（MP3/WAV）— 每次 3 积分。',
+                '約3分の音声（MP3/WAV）— 1回3クレジット。',
+                '약 3분 음원(MP3/WAV) — 1회 3크레딧.',
+              )}
             </div>
 
             <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
