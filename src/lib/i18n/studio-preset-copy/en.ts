@@ -31,7 +31,7 @@ export const STUDIO_PRESET_EN = {
       style_mood: '④ Desired style? (minimal / luxury / youthful / energetic…)',
       color_palette: '⑤ Primary colors? (e.g. pastel pink + white, or black & gold)',
       target_audience: '⑥ Target customers? (age, gender, interests)',
-      logo: 'Describe the logo: symbol, typography, feel (based on the brief collected).',
+      logo: 'Describe the logo to create: symbol, typography, feel (based on brief) — or tap **Upload logo** if you already have a file.',
       home_mobile: 'Mobile home: place approved Logo in header, banner layout, featured categories, CTA? (Logo sent as reference)',
       home_desktop: 'Desktop home: Logo in header, wide hero, menu, footer? (use Logo + approved mobile home as reference)',
       product_list_mobile: 'Mobile product list: how many columns, filters, sale badges?',

@@ -12,6 +12,7 @@ import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/tr
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 const HEADSHOT_COSTS = { '2K': 2, '4K': 4 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -75,7 +76,7 @@ export async function createHeadshot(formData: FormData) {
   const { apiKey } = await requireGoogleApiKeyForUser(user.id)
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality },
@@ -93,7 +94,7 @@ export async function createHeadshot(formData: FormData) {
   try {
     const result = await model.generateContent([prompt, imagePart], { safetySettings })
     const response = result.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'tao-anh-chain-dung', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-anh-chain-dung', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)

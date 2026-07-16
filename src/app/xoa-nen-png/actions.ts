@@ -11,6 +11,7 @@ import { buildTransparentPngFromMask } from '@/lib/mask-to-transparent'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 const REMOVE_BG_COST = 1.5
 const toTenths = (value: number) => Math.round(value * 10)
@@ -62,7 +63,7 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
   const { apiKey } = await requireGoogleApiKeyForUser(user.id)
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: '2K' },
@@ -81,7 +82,7 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
   try {
     const gemResult = await model.generateContent([MASK_PROMPT, imagePart], { safetySettings })
     const response = gemResult.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'xoa-nen-png', user.id, '2K')
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'xoa-nen-png', user.id, '2K')
 
     const maskPart = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!maskPart || !('inlineData' in maskPart)) {

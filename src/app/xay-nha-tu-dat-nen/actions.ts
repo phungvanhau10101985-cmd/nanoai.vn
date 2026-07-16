@@ -10,7 +10,7 @@ import {
 } from '@/lib/db/house-build-projects-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
-import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
+import { GEMINI_25_FLASH_TEXT_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
@@ -248,7 +248,7 @@ export async function step1Build3D(formData: FormData) {
   if (!promptEn) promptEn = userInput
 
   const imageModel = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
   })
   const fullPrompt = `${HOUSE_3D_PROMPT}\n\n${promptEn}\n\nChỉ trả về ảnh kết quả.`
@@ -266,7 +266,7 @@ export async function step1Build3D(formData: FormData) {
   } else {
     imgRes = await imageModel.generateContent(fullPrompt, { safetySettings: getSafetySettings() })
   }
-  trackFromUsageMetadata(imgRes.response.usageMetadata, 'gemini-3-pro-image-preview', 'xay-nha-3d', user.id, '2K')
+  trackFromUsageMetadata(imgRes.response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'xay-nha-3d', user.id, '2K')
 
   const imgPart = imgRes.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
   if (!imgPart || !('inlineData' in imgPart)) return { error: 'AI không tạo được ảnh.' }
@@ -385,7 +385,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
   const base64 = imgBuf.toString('base64')
 
   const imageModel = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
   })
   const fullPrompt = `${FLOOR_PLAN_IMAGE}\n\nYêu cầu: ${promptEn}\n\nChỉ trả về ảnh kết quả.`
@@ -393,7 +393,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
     fullPrompt,
     { inlineData: { data: base64, mimeType: 'image/png' } },
   ], { safetySettings: getSafetySettings() })
-  trackFromUsageMetadata(resultImg.response.usageMetadata, 'gemini-3-pro-image-preview', 'xay-nha-floorplan', user.id, '2K')
+  trackFromUsageMetadata(resultImg.response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'xay-nha-floorplan', user.id, '2K')
 
   const imgPart = resultImg.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
   if (!imgPart || !('inlineData' in imgPart)) return { error: 'AI không tạo được bản vẽ chia phòng.' }
@@ -473,14 +473,14 @@ export async function stepStructural(sourceProjectId: string, floorNum: number, 
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const imageModel = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
   })
   const resultImg = await imageModel.generateContent([
     `${STRUCTURAL_PROMPT} Floor ${floorNum}.`,
     { inlineData: { data: base64, mimeType: 'image/png' } },
   ], { safetySettings: getSafetySettings() })
-  trackFromUsageMetadata(resultImg.response.usageMetadata, 'gemini-3-pro-image-preview', 'xay-nha-structural', user.id, '2K')
+  trackFromUsageMetadata(resultImg.response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'xay-nha-structural', user.id, '2K')
 
   const imgPart = resultImg.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
   if (!imgPart || !('inlineData' in imgPart)) return { error: 'AI không tạo được bản vẽ kết cấu.' }

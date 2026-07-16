@@ -18,3 +18,8 @@ export const GEMINI_25_FLASH_TEXT_NO_THINKING = GEMINI_25_FLASH_NO_THINKING
 export const GEMINI_25_PRO = {
   model: 'gemini-2.5-pro' as const,
 }
+
+/** Nano Banana Pro — Gemini 3 Pro Image (tier cao nhất tạo/sửa ảnh). */
+export const GEMINI_3_PRO_IMAGE = {
+  model: 'gemini-3-pro-image' as const,
+}

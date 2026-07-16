@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getUserForCreditAction } from '@/lib/auth'
 import { RESERVED_MESSAGING_GUEST_SLUGS } from '@/lib/messaging/reserved-guest-slugs'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import {
   clearMessagingPartnerAiImageSearchSecretFromPg,
   emergencyDisablePartnerAiVisionFromPg,
@@ -1016,7 +1017,7 @@ export async function normalizeMessagingWorkspaceLogo(input: {
   try {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-pro-image-preview',
+      model: GEMINI_3_PRO_IMAGE.model,
       generationConfig: {
         responseModalities: ['TEXT', 'IMAGE'],
         imageConfig: { imageSize: '2K', aspectRatio: '1:1' },
@@ -1057,7 +1058,7 @@ export async function normalizeMessagingWorkspaceLogo(input: {
     }
     void trackFromUsageMetadata(
       result.response.usageMetadata,
-      'gemini-3-pro-image-preview',
+      GEMINI_3_PRO_IMAGE.model,
       'messaging-workspace-logo-normalize',
       user.id,
       '2K'
@@ -1074,7 +1075,7 @@ export async function normalizeMessagingWorkspaceLogo(input: {
       partnerId: input.partnerId,
       sourceLogoUrl: sourceUrl ?? '',
       normalizedLogoUrl: publicUrl,
-      model: 'gemini-3-pro-image-preview',
+      model: GEMINI_3_PRO_IMAGE.model,
       prompt,
       chargedCredits: LOGO_NORMALIZE_COST,
       createdBy: user.id,

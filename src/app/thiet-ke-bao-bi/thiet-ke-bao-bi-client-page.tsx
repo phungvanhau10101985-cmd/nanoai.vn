@@ -19,12 +19,27 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { createBoxSurfaceImageWithAI, createBoxMockupFromFaces, createBagSurfaceImageWithAI, createBagMockupFromFlat, generateBoxDielinePdf, type PackagingDesignType } from './actions'
 import { type BagType } from './bag-types'
-import { getDimensionsFromSizeKey, getSizeKeyLabel, FACE_SIZE_KEYS, type FaceSizeKey } from './lib/box-face-sizes'
+import { getDimensionsFromSizeKey, getSizeKeyLabel, FACE_SIZE_KEYS, type FaceSizeKey, cmToMm, clampBoxCm, clampBagCm, clampBagGussetCm, migrateStoredDim, DEFAULT_BOX_CM, DEFAULT_BAG_CM, BOX_DIM_MIN_CM, BOX_DIM_MAX_CM, BAG_DIM_MIN_CM, BAG_DIM_MAX_CM, BAG_GUSSET_MIN_CM, BAG_GUSSET_MAX_CM } from './lib/box-face-sizes'
+import {
+  type BoxFaceSlot,
+  type BoxCreatedFace,
+  type FaceSourceMode,
+  BOX_FACE_SLOT_ORDER,
+  BOX_FACE_COPY_SOURCE,
+  getSizeKeyForSlot,
+  getBoxFaceSlotLabel,
+  getStyleReferenceSlotForGenerate,
+  isSecondaryBoxFaceSlot,
+  migrateLegacyBoxFaces,
+  allBoxFaceSlotsFilled,
+  getNextBoxFaceSlot,
+  resolveBoxFaceUrl,
+  resolveDielineFaceUrls,
+} from './lib/box-face-slots'
 import { useRouter } from 'next/navigation'
 
-/** faceIndex 1–3 cho API: LxW=1, LxH=2, WxH=3 */
+/** faceIndex 1–3 cho API túi */
 const FACE_ORDER: FaceSizeKey[] = ['LxW', 'LxH', 'WxH']
-const getFaceIndexFromSizeKey = (sizeKey: FaceSizeKey) => FACE_ORDER.indexOf(sizeKey) + 1
 import { getAspectRatioFromDimensions, GEMINI_ASPECT_RATIO_LIST } from '@/lib/aspect-ratio-from-dimensions'
 import { GEMINI_ASPECT_RATIO_OPTIONS } from '@/lib/label-size-presets'
 import { getDictionary } from '@/lib/i18n/dictionaries'
@@ -137,7 +152,7 @@ const DRAFT_KEY = 'thiet-ke-bao-bi-draft'
 const PROJECTS_KEY = 'thiet-ke-bao-bi-projects'
 const PROJECTS_RETENTION_DAYS = 30
 
-type CreatedFace = { id: string; sizeKey: FaceSizeKey; url: string }
+type CreatedFace = BoxCreatedFace
 
 type ProjectItem = {
   id: string
@@ -178,6 +193,7 @@ type ProjectItem = {
   bagHeight: number
   bagGusset: number
   bagType?: BagType
+  dimensionsUnit?: 'cm'
   contentBlocks: { id: string; label: string; content: string }[]
   packagingQuantity: string
   packagingWeight: string
@@ -281,6 +297,7 @@ type DraftState = {
   bagHeight: number
   bagGusset: number
   bagType: BagType
+  dimensionsUnit?: 'cm'
   updatedAt: number
 }
 
@@ -310,25 +327,25 @@ export default function ThietKeBaoBiClientPage() {
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
   const [aspectRatio, setAspectRatio] = useState('1:1')
   const [resultUrl, setResultUrl] = useState<string | null>(null)
-  // Box: L×W×H mm – nhập tự do, không ràng buộc tỷ lệ
-  const [boxLength, setBoxLength] = useState(200)
-  const [boxWidth, setBoxWidth] = useState(150)
-  const [boxHeight, setBoxHeight] = useState(100)
-  const [boxWidthInput, setBoxWidthInput] = useState('150')
-  const [boxHeightInput, setBoxHeightInput] = useState('100')
+  // Box: L×W×H cm – nhập tự do, không ràng buộc tỷ lệ (API nội bộ dùng mm)
+  const [boxLength, setBoxLength] = useState(DEFAULT_BOX_CM.length)
+  const [boxWidth, setBoxWidth] = useState(DEFAULT_BOX_CM.width)
+  const [boxHeight, setBoxHeight] = useState(DEFAULT_BOX_CM.height)
+  const [boxWidthInput, setBoxWidthInput] = useState(String(DEFAULT_BOX_CM.width))
+  const [boxHeightInput, setBoxHeightInput] = useState(String(DEFAULT_BOX_CM.height))
   // Box flow: 1–6 faces + mockup
   const [faces, setFaces] = useState<CreatedFace[]>([])
-  const [selectedFaceSize, setSelectedFaceSize] = useState<FaceSizeKey | null>('LxW')
+  const [faceSourceMode, setFaceSourceMode] = useState<FaceSourceMode>('generate')
   const [lastCreatedFace, setLastCreatedFace] = useState<CreatedFace | null>(null)
   const [mockupResultUrl, setMockupResultUrl] = useState<string | null>(null)
   const router = useRouter()
   /** Khi sửa ảnh từ MOCKUP_INPUT/MOCKUP_RESULT, Back quay về đúng bước đó */
   const [returnToStep, setReturnToStep] = useState<'MOCKUP_INPUT' | 'MOCKUP_RESULT' | 'FACE_RESULT' | null>(null)
-  /** Khi sửa ảnh, lưu sizeKey cần thay thế – ảnh mới tạo ra sẽ thay đúng vị trí */
-  const [editingFaceSizeKey, setEditingFaceSizeKey] = useState<FaceSizeKey | null>(null)
-  // Surface: 2 dims (flat face) - derived from selectedFaceSize
-  const [surfaceLength, setSurfaceLength] = useState(200)
-  const [surfaceWidth, setSurfaceWidth] = useState(150)
+  /** Khi sửa ảnh, lưu slot cần thay thế */
+  const [editingFaceSlot, setEditingFaceSlot] = useState<BoxFaceSlot | null>(null)
+  // Surface: 2 dims (flat face) - derived from currentFaceSlot
+  const [surfaceLength, setSurfaceLength] = useState(DEFAULT_BOX_CM.length)
+  const [surfaceWidth, setSurfaceWidth] = useState(DEFAULT_BOX_CM.width)
   const [textOrientation, setTextOrientation] = useState<'horizontal' | 'vertical'>('horizontal')
   const [hasBorder, setHasBorder] = useState(false)
   const [borderStyle, setBorderStyle] = useState<string>('single')
@@ -344,10 +361,10 @@ export default function ThietKeBaoBiClientPage() {
   const [packagingProdDate, setPackagingProdDate] = useState('')
   const [packagingExpiryDate, setPackagingExpiryDate] = useState('')
   const [includeBoxDims, setIncludeBoxDims] = useState(false)
-  // Bag: W×H×G mm
-  const [bagWidth, setBagWidth] = useState(200)
-  const [bagHeight, setBagHeight] = useState(280)
-  const [bagGusset, setBagGusset] = useState(60)
+  // Bag: W×H×G cm
+  const [bagWidth, setBagWidth] = useState(DEFAULT_BAG_CM.width)
+  const [bagHeight, setBagHeight] = useState(DEFAULT_BAG_CM.height)
+  const [bagGusset, setBagGusset] = useState(DEFAULT_BAG_CM.gusset)
   const [bagType, setBagType] = useState<BagType>('stand-up-pouch')
   const [dielineLoading, setDielineLoading] = useState(false)
   const [quickViewFlatOpen, setQuickViewFlatOpen] = useState(false)
@@ -361,6 +378,19 @@ export default function ThietKeBaoBiClientPage() {
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const cost = imageQuality === '2K' ? 1.5 : 3
+
+  const currentFaceSlot = useMemo(
+    () => editingFaceSlot ?? getNextBoxFaceSlot(faces),
+    [editingFaceSlot, faces]
+  )
+  const currentFaceStepIndex = currentFaceSlot ? BOX_FACE_SLOT_ORDER.indexOf(currentFaceSlot) + 1 : 0
+  const boxReadyForMockup = allBoxFaceSlotsFilled(faces)
+  const faceSubmitCost = useMemo(() => {
+    if (!currentFaceSlot) return 0
+    if (isSecondaryBoxFaceSlot(currentFaceSlot) && faceSourceMode !== 'generate') return 0
+    return cost
+  }, [currentFaceSlot, faceSourceMode, cost])
+  const topStyleRefUrl = useMemo(() => resolveBoxFaceUrl('top', faces), [faces])
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -465,6 +495,7 @@ export default function ThietKeBaoBiClientPage() {
       bagHeight,
       bagGusset,
       bagType,
+      dimensionsUnit: 'cm',
       updatedAt: Date.now(),
     }
     try {
@@ -481,11 +512,16 @@ export default function ThietKeBaoBiClientPage() {
       const raw = localStorage.getItem(DRAFT_KEY)
       if (!raw) return
       const draft = JSON.parse(raw) as DraftState & { face1Url?: string; face2Url?: string; face3Url?: string }
-      const loadedFaces: CreatedFace[] = draft.faces?.length ? draft.faces : []
+      const storedInCm = draft.dimensionsUnit === 'cm'
+      const loadedFaces: CreatedFace[] = draft.faces?.length
+        ? migrateLegacyBoxFaces(draft.faces as CreatedFace[])
+        : []
       if (loadedFaces.length === 0 && (draft.face1Url || draft.face2Url || draft.face3Url)) {
-        if (draft.face1Url) loadedFaces.push({ id: `f-1`, sizeKey: 'LxW', url: draft.face1Url })
-        if (draft.face2Url) loadedFaces.push({ id: `f-2`, sizeKey: 'LxH', url: draft.face2Url })
-        if (draft.face3Url) loadedFaces.push({ id: `f-3`, sizeKey: 'WxH', url: draft.face3Url })
+        const legacy: CreatedFace[] = []
+        if (draft.face1Url) legacy.push({ id: `f-1`, slot: 'top', sizeKey: 'LxW', sourceMode: 'generate', url: draft.face1Url })
+        if (draft.face2Url) legacy.push({ id: `f-2`, slot: 'front', sizeKey: 'LxH', sourceMode: 'generate', url: draft.face2Url })
+        if (draft.face3Url) legacy.push({ id: `f-3`, slot: 'right', sizeKey: 'WxH', sourceMode: 'generate', url: draft.face3Url })
+        loadedFaces.push(...legacy)
       }
       let stepToLoad: Step = draft.step
       if (draft.resultUrl && draft.designType === 'bag') {
@@ -493,13 +529,13 @@ export default function ThietKeBaoBiClientPage() {
       } else if (draft.mockupResultUrl) {
         stepToLoad = 'MOCKUP_RESULT'
       } else if (loadedFaces.length >= 1) {
-        stepToLoad = loadedFaces.length >= 6 ? 'MOCKUP_INPUT' : 'FACE_INPUT'
+        stepToLoad = allBoxFaceSlotsFilled(loadedFaces) ? 'MOCKUP_INPUT' : 'FACE_INPUT'
       }
       setStep(stepToLoad)
       setFaces(loadedFaces)
-      setSelectedFaceSize('LxW')
       setLastCreatedFace(loadedFaces[loadedFaces.length - 1] ?? null)
-      setEditingFaceSizeKey(null)
+      setEditingFaceSlot(null)
+      setFaceSourceMode('generate')
       setDesignType(draft.designType)
       setBrandName(draft.brandName)
       setProductName(draft.productName)
@@ -516,14 +552,14 @@ export default function ThietKeBaoBiClientPage() {
       setContentBlocks(draft.contentBlocks?.length ? draft.contentBlocks : [{ id: `cb-${Date.now()}`, label: '', content: '' }])
       setMockupResultUrl(draft.mockupResultUrl)
       setResultUrl(draft.resultUrl)
-      setBoxLength(draft.boxLength ?? 200)
-      setBoxLengthInput(String(draft.boxLength ?? 200))
-      setBoxWidth(draft.boxWidth ?? 150)
-      setBoxHeight(draft.boxHeight ?? 100)
-      setBoxWidthInput(String(draft.boxWidth ?? 150))
-      setBoxHeightInput(String(draft.boxHeight ?? 100))
-      setSurfaceLength(draft.surfaceLength ?? 200)
-      setSurfaceWidth(draft.surfaceWidth ?? 150)
+      setBoxLength(clampBoxCm(migrateStoredDim(draft.boxLength, DEFAULT_BOX_CM.length, storedInCm)))
+      setBoxLengthInput(String(clampBoxCm(migrateStoredDim(draft.boxLength, DEFAULT_BOX_CM.length, storedInCm))))
+      setBoxWidth(clampBoxCm(migrateStoredDim(draft.boxWidth, DEFAULT_BOX_CM.width, storedInCm)))
+      setBoxHeight(clampBoxCm(migrateStoredDim(draft.boxHeight, DEFAULT_BOX_CM.height, storedInCm)))
+      setBoxWidthInput(String(clampBoxCm(migrateStoredDim(draft.boxWidth, DEFAULT_BOX_CM.width, storedInCm))))
+      setBoxHeightInput(String(clampBoxCm(migrateStoredDim(draft.boxHeight, DEFAULT_BOX_CM.height, storedInCm))))
+      setSurfaceLength(clampBoxCm(migrateStoredDim(draft.surfaceLength, DEFAULT_BOX_CM.length, storedInCm)))
+      setSurfaceWidth(clampBoxCm(migrateStoredDim(draft.surfaceWidth, DEFAULT_BOX_CM.width, storedInCm)))
       setTextOrientation(draft.textOrientation ?? 'horizontal')
       setHasBorder(draft.hasBorder ?? false)
       setBorderStyle(draft.borderStyle ?? 'single')
@@ -541,9 +577,9 @@ export default function ThietKeBaoBiClientPage() {
       setStyle(draft.style ?? 'modern')
       setImageQuality(draft.imageQuality ?? '2K')
       setAspectRatio(draft.aspectRatio ?? '1:1')
-      setBagWidth(draft.bagWidth ?? 200)
-      setBagHeight(draft.bagHeight ?? 280)
-      setBagGusset(draft.bagGusset ?? 60)
+      setBagWidth(clampBagCm(migrateStoredDim(draft.bagWidth, DEFAULT_BAG_CM.width, storedInCm)))
+      setBagHeight(clampBagCm(migrateStoredDim(draft.bagHeight, DEFAULT_BAG_CM.height, storedInCm)))
+      setBagGusset(clampBagGussetCm(migrateStoredDim(draft.bagGusset, DEFAULT_BAG_CM.gusset, storedInCm)))
       setBagType(draft.bagType ?? 'stand-up-pouch')
       setReturnToStep(null)
     } catch {
@@ -671,15 +707,22 @@ export default function ThietKeBaoBiClientPage() {
   ])
 
   /** Chuỗi nhập chiều dài – cập nhật khi blur để tránh nhảy số khi gõ. */
-  const [boxLengthInput, setBoxLengthInput] = useState('200')
+  const [boxLengthInput, setBoxLengthInput] = useState(String(DEFAULT_BOX_CM.length))
 
   useEffect(() => {
-    if (selectedFaceSize) {
-      const [len, wid] = getDimensionsFromSizeKey(selectedFaceSize, boxLength, boxWidth, boxHeight)
+    if (currentFaceSlot) {
+      const sizeKey = getSizeKeyForSlot(currentFaceSlot)
+      const [len, wid] = getDimensionsFromSizeKey(sizeKey, boxLength, boxWidth, boxHeight)
       setSurfaceLength(len)
       setSurfaceWidth(wid)
     }
-  }, [selectedFaceSize, boxLength, boxWidth, boxHeight])
+  }, [currentFaceSlot, boxLength, boxWidth, boxHeight])
+
+  const dielineMissingFaces = useMemo(() => {
+    const urls = resolveDielineFaceUrls(faces)
+    return FACE_SIZE_KEYS.filter((k) => !urls[k])
+  }, [faces])
+  const dielineReady = dielineMissingFaces.length === 0
 
   useEffect(() => {
     if (['FACE_GENERATING', 'FACE_RESULT', 'MOCKUP_INPUT', 'MOCKUP_GENERATING', 'MOCKUP_RESULT', 'GENERATING', 'RESULT'].includes(step)) {
@@ -689,8 +732,7 @@ export default function ThietKeBaoBiClientPage() {
 
   const handleSubmit = async () => {
     if (designType === 'box') {
-      setSelectedFaceSize(selectedFaceSize || 'LxW')
-      handleFaceSubmit(selectedFaceSize || 'LxW')
+      void handleFaceSubmit()
       return
     }
     handleBagFaceSubmit()
@@ -700,9 +742,9 @@ export default function ThietKeBaoBiClientPage() {
     setStep('FACE_GENERATING')
     await waitForNextPaintClient()
     const formData = new FormData()
-    formData.append('bagWidth', String(Math.max(20, Math.min(500, bagWidth))))
-    formData.append('bagHeight', String(Math.max(20, Math.min(500, bagHeight))))
-    formData.append('bagGusset', String(Math.max(10, Math.min(200, bagGusset))))
+    formData.append('bagWidth', String(cmToMm(clampBagCm(bagWidth))))
+    formData.append('bagHeight', String(cmToMm(clampBagCm(bagHeight))))
+    formData.append('bagGusset', String(cmToMm(clampBagGussetCm(bagGusset))))
     formData.append('textOrientation', textOrientation)
     formData.append('hasBorder', hasBorder ? '1' : '0')
     formData.append('borderStyle', borderStyle)
@@ -740,7 +782,13 @@ export default function ThietKeBaoBiClientPage() {
           })
         },
         onSuccessWithUrl: (url) => {
-          const newFace: CreatedFace = { id: `f-${Date.now()}`, sizeKey: 'WxH', url }
+          const newFace: CreatedFace = {
+            id: `f-${Date.now()}`,
+            slot: 'front',
+            sizeKey: 'WxH',
+            sourceMode: 'generate',
+            url,
+          }
           setFaces([newFace])
           setLastCreatedFace(newFace)
           setStep('FACE_RESULT')
@@ -773,10 +821,12 @@ export default function ThietKeBaoBiClientPage() {
   }
 
   const handleOpenRemoveBg = () => {
-    const items = faces.map((f) => ({
-      url: f.url,
-      label: designType === 'bag' ? `W×H (${bagWidth}×${bagHeight} mm)` : getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight),
-    }))
+    const items = faces
+      .filter((f) => f.url)
+      .map((f) => ({
+        url: f.url!,
+        label: designType === 'bag' ? `W×H (${bagWidth}×${bagHeight} cm)` : getBoxFaceSlotLabel(f.slot, uiLocale),
+      }))
     try {
       sessionStorage.setItem('xoa_nen_source_images', JSON.stringify(items))
       router.push('/xoa-nen-png?from=bao-bi')
@@ -788,7 +838,8 @@ export default function ThietKeBaoBiClientPage() {
   const handleReset = () => {
     setStep('INPUT')
     setReturnToStep(null)
-    setEditingFaceSizeKey(null)
+    setEditingFaceSlot(null)
+    setFaceSourceMode('generate')
     if (referenceImage.preview) URL.revokeObjectURL(referenceImage.preview)
     setReferenceImage({ file: null, preview: null })
     setResultUrl(null)
@@ -800,7 +851,7 @@ export default function ThietKeBaoBiClientPage() {
     }
     setFaces([])
     setLastCreatedFace(null)
-    setSelectedFaceSize('LxW')
+    setFaceSourceMode('generate')
     setMockupResultUrl(null)
     setDesignType('box')
     setBrandName('')
@@ -845,26 +896,28 @@ export default function ThietKeBaoBiClientPage() {
     setVolume(p.volume ?? '')
     setRegistrationCode(p.registrationCode ?? '')
     setSocialLinks(p.socialLinks ?? '')
-    let loadedFaces: CreatedFace[] = p.faces?.length ? [...p.faces] : []
+    let loadedFaces: CreatedFace[] = p.faces?.length ? migrateLegacyBoxFaces(p.faces as CreatedFace[]) : []
     if (loadedFaces.length === 0 && (p.face1Url || p.face2Url || p.face3Url)) {
       loadedFaces = []
-      if (p.face1Url) loadedFaces.push({ id: `f-1`, sizeKey: 'LxW', url: p.face1Url })
-      if (p.face2Url) loadedFaces.push({ id: `f-2`, sizeKey: 'LxH', url: p.face2Url })
-      if (p.face3Url) loadedFaces.push({ id: `f-3`, sizeKey: 'WxH', url: p.face3Url })
+      if (p.face1Url) loadedFaces.push({ id: `f-1`, slot: 'top', sizeKey: 'LxW', sourceMode: 'generate', url: p.face1Url })
+      if (p.face2Url) loadedFaces.push({ id: `f-2`, slot: 'front', sizeKey: 'LxH', sourceMode: 'generate', url: p.face2Url })
+      if (p.face3Url) loadedFaces.push({ id: `f-3`, slot: 'right', sizeKey: 'WxH', sourceMode: 'generate', url: p.face3Url })
     }
     setFaces(loadedFaces)
     setLastCreatedFace(loadedFaces[loadedFaces.length - 1] ?? null)
-    setSelectedFaceSize('LxW')
+    setEditingFaceSlot(null)
+    setFaceSourceMode('generate')
     setMockupResultUrl(p.mockupResultUrl)
     setResultUrl(p.resultUrl)
-    setBoxLength(p.boxLength ?? 200)
-    setBoxLengthInput(String(p.boxLength ?? 200))
-    setBoxWidth(p.boxWidth ?? 150)
-    setBoxHeight(p.boxHeight ?? 100)
-    setBoxWidthInput(String(p.boxWidth ?? 150))
-    setBoxHeightInput(String(p.boxHeight ?? 100))
-    setSurfaceLength(p.surfaceLength ?? 200)
-    setSurfaceWidth(p.surfaceWidth ?? 150)
+    const storedInCm = p.dimensionsUnit === 'cm'
+    setBoxLength(clampBoxCm(migrateStoredDim(p.boxLength, DEFAULT_BOX_CM.length, storedInCm)))
+    setBoxLengthInput(String(clampBoxCm(migrateStoredDim(p.boxLength, DEFAULT_BOX_CM.length, storedInCm))))
+    setBoxWidth(clampBoxCm(migrateStoredDim(p.boxWidth, DEFAULT_BOX_CM.width, storedInCm)))
+    setBoxHeight(clampBoxCm(migrateStoredDim(p.boxHeight, DEFAULT_BOX_CM.height, storedInCm)))
+    setBoxWidthInput(String(clampBoxCm(migrateStoredDim(p.boxWidth, DEFAULT_BOX_CM.width, storedInCm))))
+    setBoxHeightInput(String(clampBoxCm(migrateStoredDim(p.boxHeight, DEFAULT_BOX_CM.height, storedInCm))))
+    setSurfaceLength(clampBoxCm(migrateStoredDim(p.surfaceLength, DEFAULT_BOX_CM.length, storedInCm)))
+    setSurfaceWidth(clampBoxCm(migrateStoredDim(p.surfaceWidth, DEFAULT_BOX_CM.width, storedInCm)))
     setTextOrientation(p.textOrientation ?? 'horizontal')
     setHasBorder(p.hasBorder ?? false)
     setBorderStyle(p.borderStyle ?? 'single')
@@ -873,9 +926,9 @@ export default function ThietKeBaoBiClientPage() {
     setStyle(p.style ?? 'modern')
     setImageQuality(p.imageQuality ?? '2K')
     setAspectRatio(p.aspectRatio ?? '1:1')
-    setBagWidth(p.bagWidth ?? 200)
-    setBagHeight(p.bagHeight ?? 280)
-    setBagGusset(p.bagGusset ?? 60)
+    setBagWidth(clampBagCm(migrateStoredDim(p.bagWidth, DEFAULT_BAG_CM.width, storedInCm)))
+    setBagHeight(clampBagCm(migrateStoredDim(p.bagHeight, DEFAULT_BAG_CM.height, storedInCm)))
+    setBagGusset(clampBagGussetCm(migrateStoredDim(p.bagGusset, DEFAULT_BAG_CM.gusset, storedInCm)))
     setBagType(p.bagType ?? 'stand-up-pouch')
     setContentBlocks(p.contentBlocks?.length ? p.contentBlocks : [{ id: `cb-${Date.now()}`, label: '', content: '' }])
     setPackagingQuantity(p.packagingQuantity ?? '')
@@ -888,13 +941,14 @@ export default function ThietKeBaoBiClientPage() {
     setPackagingExpiryDate(p.packagingExpiryDate ?? '')
     setIncludeBoxDims(p.includeBoxDims ?? false)
     setReturnToStep(null)
-    setEditingFaceSizeKey(null)
+    setEditingFaceSlot(null)
+    setFaceSourceMode('generate')
     if (p.designType === 'bag' && p.resultUrl && !p.mockupResultUrl) {
       setMockupResultUrl(p.resultUrl)
       setStep('MOCKUP_RESULT')
     } else if (p.mockupResultUrl) {
       setStep('MOCKUP_RESULT')
-    } else if (loadedFaces.length >= 6) {
+    } else if (allBoxFaceSlotsFilled(loadedFaces)) {
       setStep('MOCKUP_INPUT')
     } else if (loadedFaces.length >= 1) {
       setStep('FACE_INPUT')
@@ -909,21 +963,73 @@ export default function ThietKeBaoBiClientPage() {
     refreshProjects()
   }
 
-  const handleFaceSubmit = async (overrideSize?: FaceSizeKey) => {
-    const sizeKey = (overrideSize ?? selectedFaceSize) as FaceSizeKey
-    if (!sizeKey) return
-    if (faces.length >= 6 && !editingFaceSizeKey) return
+  const commitBoxFace = (face: CreatedFace) => {
+    setFaces((prev) => {
+      const next = editingFaceSlot ? prev.filter((f) => f.slot !== editingFaceSlot).concat([face]) : [...prev, face]
+      return next.sort((a, b) => BOX_FACE_SLOT_ORDER.indexOf(a.slot) - BOX_FACE_SLOT_ORDER.indexOf(b.slot))
+    })
+    setEditingFaceSlot(null)
+    setLastCreatedFace(face)
+    setStep('FACE_RESULT')
+    if (allBoxFaceSlotsFilled(editingFaceSlot ? [...faces.filter((f) => f.slot !== editingFaceSlot), face] : [...faces, face])) {
+      // giữ FACE_RESULT để user xem; có thể chuyển mockup từ đây
+    }
+  }
+
+  const handleFaceSubmit = async () => {
+    const slot = editingFaceSlot ?? currentFaceSlot
+    if (!slot) return
+    if (allBoxFaceSlotsFilled(faces) && !editingFaceSlot) return
+
+    const sizeKey = getSizeKeyForSlot(slot)
+    const needsCredits = !isSecondaryBoxFaceSlot(slot) || faceSourceMode === 'generate'
+
+    if (isSecondaryBoxFaceSlot(slot) && faceSourceMode === 'empty') {
+      commitBoxFace({ id: `f-${Date.now()}`, slot, sizeKey, sourceMode: 'empty', url: null })
+      toast({
+        title: tr('Đã bỏ trống', 'Left blank', '已留空', '空白にしました', '비워 둠'),
+        description: getBoxFaceSlotLabel(slot, uiLocale),
+        duration: 2500,
+      })
+      return
+    }
+
+    if (isSecondaryBoxFaceSlot(slot) && faceSourceMode === 'copy') {
+      const copyFrom = BOX_FACE_COPY_SOURCE[slot]
+      const sourceUrl = copyFrom ? resolveBoxFaceUrl(copyFrom, faces) : null
+      if (!sourceUrl) {
+        toast({
+          title: tr('Chưa có ảnh để sao chép', 'Nothing to copy', '没有可复制的图', 'コピー元がありません', '복사할 이미지 없음'),
+          description: copyFrom ? getBoxFaceSlotLabel(copyFrom, uiLocale) : '',
+          variant: 'destructive',
+        })
+        return
+      }
+      commitBoxFace({ id: `f-${Date.now()}`, slot, sizeKey, sourceMode: 'copy', url: sourceUrl })
+      toast({
+        title: tr('Đã dùng giống mặt trên', 'Matched primary face', '已沿用主面', '主面と同じにしました', '주요 면과 동일'),
+        description: `${getBoxFaceSlotLabel(slot, uiLocale)} ← ${copyFrom ? getBoxFaceSlotLabel(copyFrom, uiLocale) : ''}`,
+        duration: 2500,
+      })
+      return
+    }
+
     setStep('FACE_GENERATING')
     await waitForNextPaintClient()
     const formData = new FormData()
-    formData.append('faceIndex', String(getFaceIndexFromSizeKey(sizeKey)))
-    if (faces.length >= 1) formData.append('referenceImageUrl', faces[0].url)
-    else if (referenceImage.file) formData.append('referenceImageFile', referenceImage.file)
-    formData.append('surfaceLength', String(Math.max(20, Math.min(800, surfaceLength))))
-    formData.append('surfaceWidth', String(Math.max(20, Math.min(800, surfaceWidth))))
-    formData.append('boxLength', String(boxLength))
-    formData.append('boxWidth', String(boxWidth))
-    formData.append('boxHeight', String(boxHeight))
+    formData.append('faceSlot', slot)
+    const refSlot = getStyleReferenceSlotForGenerate(slot)
+    if (refSlot) {
+      const refUrl = resolveBoxFaceUrl(refSlot, faces)
+      if (refUrl) formData.append('referenceImageUrl', refUrl)
+    } else if (referenceImage.file) {
+      formData.append('referenceImageFile', referenceImage.file)
+    }
+    formData.append('surfaceLength', String(cmToMm(clampBoxCm(surfaceLength))))
+    formData.append('surfaceWidth', String(cmToMm(clampBoxCm(surfaceWidth))))
+    formData.append('boxLength', String(cmToMm(clampBoxCm(boxLength))))
+    formData.append('boxWidth', String(cmToMm(clampBoxCm(boxWidth))))
+    formData.append('boxHeight', String(cmToMm(clampBoxCm(boxHeight))))
     formData.append('textOrientation', textOrientation)
     formData.append('hasBorder', hasBorder ? '1' : '0')
     formData.append('borderStyle', borderStyle)
@@ -969,16 +1075,8 @@ export default function ThietKeBaoBiClientPage() {
           })
         },
         onSuccessWithUrl: (url) => {
-          const newFace: CreatedFace = { id: `f-${Date.now()}`, sizeKey: sizeKey!, url }
-          setFaces((prev) => {
-            const next = editingFaceSizeKey
-              ? prev.filter((f) => f.sizeKey !== editingFaceSizeKey).concat([newFace])
-              : [...prev, newFace]
-            return next.sort((a, b) => FACE_ORDER.indexOf(a.sizeKey) - FACE_ORDER.indexOf(b.sizeKey))
-          })
-          setEditingFaceSizeKey(null)
-          setLastCreatedFace(newFace)
-          setStep('FACE_RESULT')
+          const newFace: CreatedFace = { id: `f-${Date.now()}`, slot, sizeKey, sourceMode: 'generate', url }
+          commitBoxFace(newFace)
           window.dispatchEvent(new Event('credits-updated'))
           toast({
             title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
@@ -1008,24 +1106,26 @@ export default function ThietKeBaoBiClientPage() {
   }
 
   const handleFaceApprove = () => {
-    setEditingFaceSizeKey(null)
+    setEditingFaceSlot(null)
+    setFaceSourceMode('generate')
     setStep('FACE_INPUT')
   }
 
   /** Quay lại form để tạo ảnh mới (không phải sửa) */
   const handleAddNewFace = () => {
-    setEditingFaceSizeKey(null)
+    setEditingFaceSlot(null)
+    setFaceSourceMode('generate')
     setStep('FACE_INPUT')
   }
 
-  /** Làm lại ảnh hiện tại – xóa ảnh vừa tạo, quay về form với cùng size. */
+  /** Làm lại ảnh hiện tại – xóa ảnh vừa tạo, quay về form với cùng slot. */
   const handleFaceRedo = () => {
     if (lastCreatedFace) {
       setFaces((prev) => prev.filter((f) => f.id !== lastCreatedFace!.id))
-      setSelectedFaceSize(lastCreatedFace.sizeKey)
+      setEditingFaceSlot(lastCreatedFace.slot)
+      setFaceSourceMode(lastCreatedFace.sourceMode)
       setLastCreatedFace(null)
     }
-    setEditingFaceSizeKey(null)
     setStep(designType === 'bag' ? 'INPUT' : 'FACE_INPUT')
   }
 
@@ -1037,19 +1137,19 @@ export default function ThietKeBaoBiClientPage() {
       const result =
         designType === 'bag'
           ? await createBagMockupFromFlat({
-              flatImageUrl: faces[0].url,
-              bagWidth,
-              bagHeight,
-              bagGusset,
+              flatImageUrl: faces[0].url!,
+              bagWidth: cmToMm(clampBagCm(bagWidth)),
+              bagHeight: cmToMm(clampBagCm(bagHeight)),
+              bagGusset: cmToMm(clampBagGussetCm(bagGusset)),
               bagType,
               aspectRatio: getAspectRatioFromDimensions(bagWidth, bagHeight, textOrientation),
               imageQuality,
             })
           : await createBoxMockupFromFaces({
-              faces: faces.map((f) => ({ url: f.url, sizeKey: f.sizeKey })),
-              boxLength,
-              boxWidth,
-              boxHeight,
+              faces: faces.map((f) => ({ slot: f.slot, url: f.url, sourceMode: f.sourceMode })),
+              boxLength: cmToMm(clampBoxCm(boxLength)),
+              boxWidth: cmToMm(clampBoxCm(boxWidth)),
+              boxHeight: cmToMm(clampBoxCm(boxHeight)),
               aspectRatio,
               imageQuality,
             })
@@ -1100,6 +1200,7 @@ export default function ThietKeBaoBiClientPage() {
             bagHeight,
             bagGusset,
             bagType,
+            dimensionsUnit: 'cm',
             contentBlocks,
             packagingQuantity,
             packagingWeight,
@@ -1145,8 +1246,8 @@ export default function ThietKeBaoBiClientPage() {
 
   /** Sửa ảnh: quay FACE_INPUT (hộp) hoặc INPUT (túi), giữ ảnh cũ. Khi tạo xong ảnh mới sẽ thay đúng vị trí. */
   const handleEditFace = (face: CreatedFace, fromStep?: 'MOCKUP_INPUT' | 'MOCKUP_RESULT') => {
-    setEditingFaceSizeKey(face.sizeKey)
-    setSelectedFaceSize(face.sizeKey)
+    setEditingFaceSlot(face.slot)
+    setFaceSourceMode(face.sourceMode)
     setReturnToStep(fromStep ?? null)
     if (designType === 'bag') {
       setStep('INPUT')
@@ -1156,10 +1257,8 @@ export default function ThietKeBaoBiClientPage() {
   }
 
   const handleDielineDownload = async () => {
-    const f1 = faces.find((f) => f.sizeKey === 'LxW')
-    const f2 = faces.find((f) => f.sizeKey === 'LxH')
-    const f3 = faces.find((f) => f.sizeKey === 'WxH')
-    if (!f1 || !f2 || !f3) {
+    const urls = resolveDielineFaceUrls(faces)
+    if (!urls.LxW || !urls.LxH || !urls.WxH) {
       toast({
         title: tr('Cần ít nhất 1 ảnh mỗi kích thước', 'Need at least 1 image per size', '每种尺寸至少需要1张', '各サイズ1枚以上必要', '각 크기당 최소 1장 필요'),
         description: tr('Dieline cần L×W, L×H, W×H. Tạo thêm ảnh nếu thiếu.', 'Dieline needs L×W, L×H, W×H. Create more if missing.', 'Dieline需要L×W、L×H、W×H。缺少请创建。', 'DielineにはL×W、L×H、W×Hが必要。', 'Dieline에 L×W, L×H, W×H 필요.'),
@@ -1170,19 +1269,19 @@ export default function ThietKeBaoBiClientPage() {
     setDielineLoading(true)
     try {
       const result = await generateBoxDielinePdf({
-        face1Url: f1.url,
-        face2Url: f2.url,
-        face3Url: f3.url,
-        boxLength,
-        boxWidth,
-        boxHeight,
+        face1Url: urls.LxW!,
+        face2Url: urls.LxH!,
+        face3Url: urls.WxH!,
+        boxLength: cmToMm(clampBoxCm(boxLength)),
+        boxWidth: cmToMm(clampBoxCm(boxWidth)),
+        boxHeight: cmToMm(clampBoxCm(boxHeight)),
       })
       if ('error' in result) {
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
       } else {
         const a = document.createElement('a')
         a.href = result.pdfUrl
-        a.download = `box-dieline-${boxLength}x${boxWidth}x${boxHeight}mm.pdf`
+        a.download = `box-dieline-${boxLength}x${boxWidth}x${boxHeight}cm.pdf`
         a.target = '_blank'
         a.click()
         toast({
@@ -1315,8 +1414,8 @@ export default function ThietKeBaoBiClientPage() {
                         <img src={p.mockupResultUrl} alt="" className="w-full h-full object-cover" />
                       ) : p.resultUrl ? (
                         <img src={p.resultUrl} alt="" className="w-full h-full object-cover" />
-                      ) : (p.faces?.length ? p.faces[0].url : p.face1Url) ? (
-                        <img src={p.faces?.length ? p.faces[0].url : p.face1Url!} alt="" className="w-full h-full object-cover" />
+                      ) : (p.faces?.length ? resolveBoxFaceUrl('top', migrateLegacyBoxFaces(p.faces as CreatedFace[])) ?? p.faces[0]?.url : p.face1Url) ? (
+                        <img src={(p.faces?.length ? resolveBoxFaceUrl('top', migrateLegacyBoxFaces(p.faces as CreatedFace[])) ?? p.faces[0]?.url : p.face1Url)!} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <Box className="h-5 w-5 text-muted-foreground" />
                       )}
@@ -1367,7 +1466,7 @@ export default function ThietKeBaoBiClientPage() {
                     {tr('Xem nhanh ảnh phẳng', 'Quick view flat designs', '快速查看平面图', '平面図を表示', '평면 디자인 보기')}
                   </Button>
                 )}
-                {faces.length >= 1 && step !== 'MOCKUP_INPUT' && (
+                {faces.length >= 1 && (designType === 'bag' || boxReadyForMockup) && step !== 'MOCKUP_INPUT' && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1425,32 +1524,43 @@ export default function ThietKeBaoBiClientPage() {
             </DialogHeader>
             {faces.length >= 1 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">
-                {faces.map((f, i) => {
+                {(designType === 'box' ? BOX_FACE_SLOT_ORDER.filter((slot) => faces.some((f) => f.slot === slot)) : faces.map((f) => f.slot)).map((slotOrFace, i) => {
+                  const f = designType === 'box' ? faces.find((face) => face.slot === slotOrFace)! : faces[i]
+                  const slot = designType === 'box' ? (slotOrFace as BoxFaceSlot) : f.slot
+                  const resolvedUrl = designType === 'box' ? resolveBoxFaceUrl(slot, faces) : f.url
                   const [len, wid] = designType === 'bag' ? getDimensionsFromSizeKey(f.sizeKey, 0, bagWidth, bagHeight) : getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
-                  const sizeLabel = designType === 'bag' ? `W×H (${bagWidth}×${bagHeight} mm)` : getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)
+                  const sizeLabel = designType === 'bag' ? `W×H (${bagWidth}×${bagHeight} cm)` : `${getBoxFaceSlotLabel(slot, uiLocale)} – ${getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)}`
                   return (
                     <div key={f.id} className="space-y-1">
                       <p className="text-xs font-medium text-muted-foreground">
-                        {tr('Ảnh', 'Image', '图', '画像', '이미지')} {i + 1} – {sizeLabel}
+                        {designType === 'box' ? getBoxFaceSlotLabel(slot, uiLocale) : `${tr('Ảnh', 'Image', '图', '画像', '이미지')} ${i + 1}`} – {sizeLabel.split(' – ').pop()}
+                        {f.sourceMode === 'empty' ? ` (${tr('trống', 'blank', '空', '空白', '비움')})` : ''}
+                        {f.sourceMode === 'copy' ? ` (${tr('giống', 'same', '同', '同じ', '동일')})` : ''}
                       </p>
-                      <div className="w-full aspect-square rounded border bg-muted/30 overflow-hidden">
-                        <ImagePreview src={f.url} alt="" className="w-full h-full" asImg />
+                      <div className="w-full aspect-square rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
+                        {resolvedUrl ? (
+                          <ImagePreview src={resolvedUrl} alt="" className="w-full h-full" asImg />
+                        ) : (
+                          <span className="text-xs text-muted-foreground px-2 text-center">{tr('Bỏ trống', 'Blank', '留空', '空白', '비움')}</span>
+                        )}
                       </div>
-                      <div className="flex gap-1 mt-1">
-                        <DownloadImageButton
-                          imageUrl={f.url}
-                          filename={`${designType}-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
-                          printReady
-                          printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
-                          printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
-                          size="sm"
-                          className="flex-1"
-                        />
-                        <Button variant="outline" size="sm" onClick={handleOpenRemoveBg} className="gap-1 shrink-0 border-teal-200 text-teal-700 hover:bg-teal-50">
-                          <Eraser className="h-3.5 w-3.5" />
-                          {tr('Tách nền', 'Remove BG', '抠图', '背景削除', '배경 제거')}
-                        </Button>
-                      </div>
+                      {resolvedUrl && (
+                        <div className="flex gap-1 mt-1">
+                          <DownloadImageButton
+                            imageUrl={resolvedUrl}
+                            filename={`${designType}-flat-${slot}-${i + 1}-${Date.now()}.png`}
+                            printReady
+                            printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
+                            printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                            size="sm"
+                            className="flex-1"
+                          />
+                          <Button variant="outline" size="sm" onClick={handleOpenRemoveBg} className="gap-1 shrink-0 border-teal-200 text-teal-700 hover:bg-teal-50">
+                            <Eraser className="h-3.5 w-3.5" />
+                            {tr('Tách nền', 'Remove BG', '抠图', '背景削除', '배경 제거')}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -1498,7 +1608,7 @@ export default function ThietKeBaoBiClientPage() {
             <ImageProcessingLoader
               mode="seal"
               title={String(tr('Đang tạo mockup', 'Creating mockup', '正在创建样机', 'モックアップ作成中', '목업 생성 중'))}
-              description={`${tr('AI đang thiết kế bao bì chuyên nghiệp', 'AI is designing professional packaging', 'AI 正在设计专业包装', 'AIがプロのパッケージをデザイン中', 'AI가 전문 패키징 디자인 중')}${designType === 'bag' ? ` – W×H (${bagWidth}×${bagHeight} mm)` : ''}`}
+              description={`${tr('AI đang thiết kế bao bì chuyên nghiệp', 'AI is designing professional packaging', 'AI 正在设计专业包装', 'AIがプロのパッケージをデザイン中', 'AI가 전문 패키징 디자인 중')}${designType === 'bag' ? ` – W×H (${bagWidth}×${bagHeight} cm)` : ''}`}
             />
           </div>
         )}
@@ -1508,7 +1618,7 @@ export default function ThietKeBaoBiClientPage() {
             <ImageProcessingLoader
               mode="seal"
               title={String(tr('Đang tạo ảnh phẳng', 'Creating flat design', '正在创建平面图', '平面デザイン作成中', '평면 디자인 생성 중'))}
-              description={`${tr('AI đang tạo ảnh thiết kế phẳng', 'AI is creating flat design', 'AI 正在创建平面设计', 'AIが平面デザインを作成中', 'AI가 평면 디자인 생성 중')}${designType === 'bag' ? ` – W×H (${bagWidth}×${bagHeight} mm)` : selectedFaceSize ? ` – ${getSizeKeyLabel(selectedFaceSize, boxLength, boxWidth, boxHeight)}` : ''}`}
+              description={`${tr('AI đang tạo ảnh thiết kế phẳng', 'AI is creating flat design', 'AI 正在创建平面设计', 'AIが平面デザインを作成中', 'AI가 평면 디자인 생성 중')}${designType === 'bag' ? ` – W×H (${bagWidth}×${bagHeight} cm)` : currentFaceSlot ? ` – ${getBoxFaceSlotLabel(currentFaceSlot, uiLocale)} (${getSizeKeyLabel(getSizeKeyForSlot(currentFaceSlot), boxLength, boxWidth, boxHeight)})` : ''}`}
             />
           </div>
         )}
@@ -1518,32 +1628,46 @@ export default function ThietKeBaoBiClientPage() {
             <Card className="border shadow-sm overflow-hidden">
               <CardContent className="p-4">
                 <p className="text-sm font-medium text-muted-foreground mb-2">
-                  {tr('Ảnh', 'Image', '图', '画像', '이미지')} {faces.length} – {designType === 'bag' ? `W×H (${bagWidth}×${bagHeight} mm)` : getSizeKeyLabel(lastCreatedFace.sizeKey, boxLength, boxWidth, boxHeight)}
+                  {tr('Bước', 'Step', '步骤', 'ステップ', '단계')} {BOX_FACE_SLOT_ORDER.indexOf(lastCreatedFace.slot) + 1}/6 –{' '}
+                  {designType === 'bag' ? `W×H (${bagWidth}×${bagHeight} cm)` : getBoxFaceSlotLabel(lastCreatedFace.slot, uiLocale)}
+                  {lastCreatedFace.sourceMode === 'empty' && ` (${tr('Bỏ trống', 'Blank', '留空', '空白', '비움')})`}
+                  {lastCreatedFace.sourceMode === 'copy' && ` (${tr('Giống', 'Same as', '同', '同じ', '동일')} ${BOX_FACE_COPY_SOURCE[lastCreatedFace.slot] ? getBoxFaceSlotLabel(BOX_FACE_COPY_SOURCE[lastCreatedFace.slot]!, uiLocale) : ''})`}
                 </p>
                 <div className="flex items-center justify-center bg-[repeating-conic-gradient(#e5e7eb_0%_25%,#f9fafb_0%_50%)] bg-[length:12px_12px] rounded-lg border p-4 min-h-[200px]">
-                  <FaceResultImage
-                    src={lastCreatedFace.url}
-                    alt={tr('Ảnh phẳng', 'Flat design', '平面图', '平面デザイン', '평면 디자인')}
-                    onErrorRetry={handleFaceRedo}
-                    tr={tr}
-                  />
+                  {lastCreatedFace.url ? (
+                    <FaceResultImage
+                      src={lastCreatedFace.url}
+                      alt={tr('Ảnh phẳng', 'Flat design', '平面图', '平面デザイン', '평면 디자인')}
+                      onErrorRetry={handleFaceRedo}
+                      tr={tr}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
+                      <ImageIcon className="h-12 w-12 opacity-50" />
+                      <p className="text-sm">{tr('Mặt này để trống – mockup sẽ dùng màu carton.', 'This face is blank – mockup will use carton color.', '此面留空 – 样机将使用纸板色。', 'この面は空白 – モックアップは段ボール色。', '이 면은 비움 – 목업에 골판지색 사용.')}</p>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2 mt-4">
-                  <DownloadImageButton
-                    imageUrl={lastCreatedFace.url}
-                    filename={`${designType}-flat-${lastCreatedFace.sizeKey}-${Date.now()}.png`}
-                    printReady
-                    printReadyAspectRatio={getAspectRatioFromDimensions(designType === 'bag' ? bagWidth : surfaceLength, designType === 'bag' ? bagHeight : surfaceWidth, textOrientation)}
-                    printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
-                  />
-                  {designType === 'box' && (
+                  {lastCreatedFace.url && (
+                    <DownloadImageButton
+                      imageUrl={lastCreatedFace.url}
+                      filename={`${designType}-flat-${lastCreatedFace.slot}-${Date.now()}.png`}
+                      printReady
+                      printReadyAspectRatio={getAspectRatioFromDimensions(designType === 'bag' ? bagWidth : surfaceLength, designType === 'bag' ? bagHeight : surfaceWidth, textOrientation)}
+                      printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                    />
+                  )}
+                  {designType === 'box' && !boxReadyForMockup && (
                     <Button variant="default" size="sm" onClick={handleFaceApprove} className="gap-2">
                       {tr('Tiếp tục tạo ảnh', 'Continue creating', '继续创建', '続けて作成', '계속 생성')}
                     </Button>
                   )}
-                  <Button variant="default" size="sm" onClick={() => setStep('MOCKUP_INPUT')} className="gap-2">
-                    {tr('Chuyển sang Mockup 3D', 'Go to 3D Mockup', '转到3D样机', '3Dモックアップへ', '3D 목업으로')}
-                  </Button>
+                  {(designType === 'bag' || boxReadyForMockup) && (
+                    <Button variant="default" size="sm" onClick={() => setStep('MOCKUP_INPUT')} className="gap-2">
+                      {tr('Chuyển sang Mockup 3D', 'Go to 3D Mockup', '转到3D样机', '3Dモックアップへ', '3D 목업으로')}
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" onClick={handleFaceRedo}>
                     {tr('Làm lại', 'Redo', '重做', 'やり直す', '다시 하기')}
                   </Button>
@@ -1556,7 +1680,7 @@ export default function ThietKeBaoBiClientPage() {
           </div>
         )}
 
-        {step === 'MOCKUP_INPUT' && faces.length >= 1 && (
+        {step === 'MOCKUP_INPUT' && (designType === 'bag' ? faces.length >= 1 : boxReadyForMockup) && (
           <Card className="border shadow-sm bg-white/80 backdrop-blur border-amber-200/60">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -1573,36 +1697,47 @@ export default function ThietKeBaoBiClientPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {faces.map((f, i) => {
+                {(designType === 'box' ? BOX_FACE_SLOT_ORDER.filter((slot) => faces.some((f) => f.slot === slot)) : faces.map((f) => f.slot)).map((slotOrFace, i) => {
+                  const f = designType === 'box' ? faces.find((face) => face.slot === slotOrFace)! : faces[i]
+                  const slot = designType === 'box' ? (slotOrFace as BoxFaceSlot) : f.slot
+                  const resolvedUrl = designType === 'box' ? resolveBoxFaceUrl(slot, faces) : f.url
                   const [len, wid] =
                     designType === 'bag'
                       ? getDimensionsFromSizeKey(f.sizeKey, 0, bagWidth, bagHeight)
                       : getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
                   const sizeLabel =
-                    designType === 'bag' ? `W×H (${bagWidth} x ${bagHeight} mm)` : getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)
+                    designType === 'bag' ? `W×H (${bagWidth} x ${bagHeight} cm)` : getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)
                   return (
                     <div key={f.id} className="space-y-1">
                       <p className="text-xs text-muted-foreground">
-                        {tr('Ảnh phẳng', 'Flat design', '平面图', '平面デザイン', '평면 디자인')} {i + 1} – {sizeLabel}
+                        {designType === 'box' ? getBoxFaceSlotLabel(slot, uiLocale) : `${tr('Ảnh phẳng', 'Flat design', '平面图', '平面デザイン', '평면 디자인')} ${i + 1}`} – {sizeLabel}
+                        {f.sourceMode === 'empty' ? ` (${tr('trống', 'blank', '空', '空白', '비움')})` : ''}
+                        {f.sourceMode === 'copy' ? ` (${tr('giống', 'same', '同', '同じ', '동일')})` : ''}
                       </p>
-                      <div className="w-full aspect-square rounded border overflow-hidden">
-                        <ImagePreview src={f.url} alt="" className="w-full h-full" asImg />
+                      <div className="w-full aspect-square rounded border overflow-hidden flex items-center justify-center bg-muted/20">
+                        {resolvedUrl ? (
+                          <ImagePreview src={resolvedUrl} alt="" className="w-full h-full" asImg />
+                        ) : (
+                          <span className="text-xs text-muted-foreground px-2 text-center">{tr('Bỏ trống', 'Blank', '留空', '空白', '비움')}</span>
+                        )}
                       </div>
-                      <div className="flex gap-1">
-                        <DownloadImageButton
-                          imageUrl={f.url}
-                          filename={`${designType}-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
-                          printReady
-                          printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
-                          printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
-                          size="sm"
-                          className="flex-1"
-                        />
-                        <Button variant="outline" size="sm" onClick={handleOpenRemoveBg} className="gap-1 shrink-0 border-teal-200 text-teal-700 hover:bg-teal-50">
-                          <Eraser className="h-3.5 w-3.5" />
-                          {tr('Tách nền', 'Remove BG', '抠图', '背景削除', '배경 제거')}
-                        </Button>
-                      </div>
+                      {resolvedUrl && (
+                        <div className="flex gap-1">
+                          <DownloadImageButton
+                            imageUrl={resolvedUrl}
+                            filename={`${designType}-flat-${slot}-${i + 1}-${Date.now()}.png`}
+                            printReady
+                            printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
+                            printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                            size="sm"
+                            className="flex-1"
+                          />
+                          <Button variant="outline" size="sm" onClick={handleOpenRemoveBg} className="gap-1 shrink-0 border-teal-200 text-teal-700 hover:bg-teal-50">
+                            <Eraser className="h-3.5 w-3.5" />
+                            {tr('Tách nền', 'Remove BG', '抠图', '背景削除', '배경 제거')}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -1660,15 +1795,15 @@ export default function ThietKeBaoBiClientPage() {
                     : tr('In lên hộp 3D', 'Print onto 3D box', '印到3D盒子上', '3D箱に印刷', '3D 상자에 인쇄')}{' '}
                   ({formatCredits(cost)} {tr('credits', 'credits', '积分', 'クレジット', '크레딧')})
                 </Button>
-                {designType === 'box' && faces.length < 6 && (
+                {designType === 'box' && !boxReadyForMockup && (
                   <Button variant="outline" size="lg" onClick={handleAddNewFace} className="gap-2">
                     <Plus className="h-4 w-4" />
                     {tr('Quay lại tạo ảnh phẳng tiếp theo', 'Back to create more flat designs', '返回创建更多平面图', '戻って平面デザインを追加', '돌아가서 평면 디자인 추가')}
                   </Button>
                 )}
-                {faces.map((f, i) => (
+                {(designType === 'box' ? BOX_FACE_SLOT_ORDER.filter((slot) => faces.some((f) => f.slot === slot)).map((slot) => faces.find((f) => f.slot === slot)!) : faces).map((f) => (
                   <Button key={f.id} variant="outline" size="lg" onClick={() => handleEditFace(f, 'MOCKUP_INPUT')}>
-                    {tr('Sửa ảnh', 'Edit image', '编辑图', '画像を編集', '이미지 편집')} {i + 1}
+                    {tr('Sửa', 'Edit', '编辑', '編集', '편집')} {designType === 'box' ? getBoxFaceSlotLabel(f.slot, uiLocale) : `${tr('ảnh', 'image', '图', '画像', '이미지')} ${BOX_FACE_SLOT_ORDER.indexOf(f.slot) + 1}`}
                   </Button>
                 ))}
                 <Button variant="outline" size="lg" onClick={handleReset}>
@@ -1720,13 +1855,14 @@ export default function ThietKeBaoBiClientPage() {
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">{tr('Tải ảnh phẳng', 'Download flat designs', '下载平面图', '平面デザインをダウンロード', '평면 디자인 다운로드')}</p>
                     <div className="flex flex-wrap gap-2 items-center">
-                      {faces.map((f, i) => {
+                      {faces.filter((f) => (designType === 'box' ? resolveBoxFaceUrl(f.slot, faces) : f.url)).map((f, i) => {
+                        const resolvedUrl = designType === 'box' ? resolveBoxFaceUrl(f.slot, faces)! : f.url!
                         const [len, wid] = designType === 'bag' ? getDimensionsFromSizeKey(f.sizeKey, 0, bagWidth, bagHeight) : getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
                         return (
                           <DownloadImageButton
                             key={f.id}
-                            imageUrl={f.url}
-                            filename={`${designType}-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
+                            imageUrl={resolvedUrl}
+                            filename={`${designType}-flat-${f.slot}-${i + 1}-${Date.now()}.png`}
                             printReady
                             printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
                             printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
@@ -1767,15 +1903,15 @@ export default function ThietKeBaoBiClientPage() {
                           {tr('Bản vẽ Dieline chuẩn in', 'Print-ready Dieline', '印刷用Dieline', '印刷用Dieline', '인쇄용 Dieline')}
                         </CardTitle>
                         <CardDescription className="text-xs">
-                          {tr('Layer đường cắt (Cut, đỏ) và đường cấn (Crease, xanh) tách biệt cho máy bế. Bleed 3mm. PDF chất lượng cao.', 'Cut (red) and Crease (green) layers separated for die-cutting. Bleed 3mm. High-quality PDF.', '裁切(红)与压痕(绿)分层，便于模切。出血3mm。高质量PDF。', 'カット(赤)と折り(緑)を分離。塗り足し3mm。高品質PDF。', '절단(빨강)과 접힘(초록) 레이어 분리. 블리드 3mm. 고품질 PDF.')}
+                          {tr('Net hộp nắp gài có tai dán, nắp trên/dưới và tai bụi. Đường đỏ liền để bế, đường xanh đứt để cấn. Artwork tràn lề 3mm.', 'Straight-tuck box net with glue tab, top/bottom closures and dust flaps. Red solid lines are cuts; green dashed lines are creases. Artwork has 3mm bleed.', '插舌盒展开图，含粘贴舌、上下盖和防尘翼。红色实线为切割线，绿色虚线为压痕线，图稿出血3毫米。', '糊しろ・上下の差し込み蓋・ダストフラップ付きの箱展開図。赤実線はカット、緑破線は折り線。塗り足し3mm。', '접착 탭, 상하 덮개, 먼지 날개가 있는 턱 엔드 박스 전개도입니다. 빨간 실선은 절단, 초록 점선은 접는 선이며 3mm 블리드가 적용됩니다.')}
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className="pt-0">
+                      <CardContent className="pt-0 space-y-2">
                         <Button
                           size="sm"
                           variant="default"
                           onClick={handleDielineDownload}
-                          disabled={dielineLoading || !faces.find((f) => f.sizeKey === 'LxW') || !faces.find((f) => f.sizeKey === 'LxH') || !faces.find((f) => f.sizeKey === 'WxH')}
+                          disabled={dielineLoading || !dielineReady}
                           className="gap-2 bg-emerald-600 hover:bg-emerald-700"
                         >
                           <FileText className="h-3 w-3" />
@@ -1783,6 +1919,27 @@ export default function ThietKeBaoBiClientPage() {
                             ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...')
                             : tr('Tải Bản vẽ Dieline chuẩn', 'Download Dieline PDF', '下载Dieline PDF', 'Dieline PDFをダウンロード', 'Dieline PDF 다운로드')}
                         </Button>
+                        {!dielineReady && !dielineLoading && (
+                          <p className="text-xs text-amber-800">
+                            {tr(
+                              'Cần ảnh phẳng cho cả 3 mặt hộp (L×W, L×H, W×H) mới tải được Dieline. Còn thiếu: ',
+                              'Flat images for all 3 box faces (L×W, L×H, W×H) are required before downloading Dieline. Missing: ',
+                              '下载 Dieline 前需 3 个平面面（L×W、L×H、W×H）。还缺：',
+                              'Dielineのダウンロードには3面（L×W、L×H、W×H）の平面画像が必要です。不足：',
+                              'Dieline 다운로드 전 3면(L×W, L×H, W×H) 평면 이미지가 필요합니다. 부족: '
+                            )}
+                            {dielineMissingFaces.map((k) => getSizeKeyLabel(k, boxLength, boxWidth, boxHeight)).join(', ')}
+                          </p>
+                        )}
+                        <p className="text-[11px] text-muted-foreground">
+                          {tr(
+                            'Trước khi sản xuất hàng loạt, hãy nhờ xưởng in kiểm tra và bù độ dày giấy, khe gài, hướng thớ giấy theo vật liệu thực tế.',
+                            'Before mass production, ask the printer to preflight and compensate for board thickness, tuck clearance and grain direction for the actual stock.',
+                            '批量生产前，请让印厂根据实际纸材检查并补偿纸厚、插舌间隙和纸纹方向。',
+                            '量産前に、実際の紙材に合わせて紙厚・差し込みクリアランス・紙目を印刷会社で確認、補正してください。',
+                            '대량 생산 전 실제 용지에 맞춰 종이 두께, 끼움 여유, 종이결 방향을 인쇄소에서 확인·보정하세요.'
+                          )}
+                        </p>
                       </CardContent>
                     </Card>
                   )}
@@ -1843,82 +2000,68 @@ export default function ThietKeBaoBiClientPage() {
               {designType === 'box' && (
                 <>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước hộp (mm)', 'Box dimensions (mm)', '盒子尺寸（毫米）', '箱のサイズ（mm）', '상자 크기 (mm)')} <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước hộp (cm)', 'Box dimensions (cm)', '盒子尺寸（厘米）', '箱のサイズ（cm）', '상자 크기 (cm)')} <span className="text-red-500">*</span></label>
                     <p className="text-xs text-muted-foreground">
                       {tr('Nhập tự do L×W×H. Không ràng buộc tỷ lệ.', 'Free input L×W×H. No ratio constraints.', '自由输入L×W×H。无比例限制。', 'L×W×Hを自由入力。比率制限なし。', 'L×W×H 자유 입력. 비율 제한 없음.')}
                     </p>
                     <div className="flex flex-wrap gap-4 items-end">
                       <div className="space-y-1 min-w-[100px]">
-                        <label className="text-xs text-muted-foreground">{tr('Chiều dài (L)', 'Length (L)', '长度（L）', '長さ（L）', '길이 (L)')} mm</label>
+                        <label className="text-xs text-muted-foreground">{tr('Chiều dài (L)', 'Length (L)', '长度（L）', '長さ（L）', '길이 (L)')} cm</label>
                         <Input
                           type="number"
-                          min={20}
-                          max={500}
+                          min={BOX_DIM_MIN_CM}
+                          max={BOX_DIM_MAX_CM}
                           value={boxLengthInput}
                           onChange={(e) => setBoxLengthInput(e.target.value)}
                           onBlur={() => {
-                            const n = Math.max(20, Math.min(500, parseInt(boxLengthInput, 10) || 20))
+                            const n = clampBoxCm(parseInt(boxLengthInput, 10) || BOX_DIM_MIN_CM)
                             setBoxLength(n)
                             setBoxLengthInput(String(n))
                           }}
-                          placeholder="200"
+                          placeholder={String(DEFAULT_BOX_CM.length)}
                         />
                       </div>
                       <div className="space-y-1 min-w-[100px]">
-                        <label className="text-xs text-muted-foreground">{tr('Chiều rộng (W)', 'Width (W)', '宽度（W）', '幅（W）', '너비 (W)')} mm</label>
+                        <label className="text-xs text-muted-foreground">{tr('Chiều rộng (W)', 'Width (W)', '宽度（W）', '幅（W）', '너비 (W)')} cm</label>
                         <Input
                           type="number"
-                          min={20}
-                          max={500}
+                          min={BOX_DIM_MIN_CM}
+                          max={BOX_DIM_MAX_CM}
                           value={boxWidthInput}
                           onChange={(e) => setBoxWidthInput(e.target.value)}
                           onBlur={() => {
-                            const n = Math.max(20, Math.min(500, parseInt(boxWidthInput, 10) || 20))
+                            const n = clampBoxCm(parseInt(boxWidthInput, 10) || BOX_DIM_MIN_CM)
                             setBoxWidth(n)
                             setBoxWidthInput(String(n))
                           }}
-                          placeholder="150"
+                          placeholder={String(DEFAULT_BOX_CM.width)}
                         />
                       </div>
                       <div className="space-y-1 min-w-[100px]">
-                        <label className="text-xs text-muted-foreground">{tr('Chiều cao (H)', 'Height (H)', '高度（H）', '高さ（H）', '높이 (H)')} mm</label>
+                        <label className="text-xs text-muted-foreground">{tr('Chiều cao (H)', 'Height (H)', '高度（H）', '高さ（H）', '높이 (H)')} cm</label>
                         <Input
                           type="number"
-                          min={20}
-                          max={500}
+                          min={BOX_DIM_MIN_CM}
+                          max={BOX_DIM_MAX_CM}
                           value={boxHeightInput}
                           onChange={(e) => setBoxHeightInput(e.target.value)}
                           onBlur={() => {
-                            const n = Math.max(20, Math.min(500, parseInt(boxHeightInput, 10) || 20))
+                            const n = clampBoxCm(parseInt(boxHeightInput, 10) || BOX_DIM_MIN_CM)
                             setBoxHeight(n)
                             setBoxHeightInput(String(n))
                           }}
-                          placeholder="100"
+                          placeholder={String(DEFAULT_BOX_CM.height)}
                         />
                       </div>
-                      <p className="text-xs text-muted-foreground pb-2">{boxLength}×{boxWidth}×{boxHeight} mm</p>
+                      <p className="text-xs text-muted-foreground pb-2">{boxLength}×{boxWidth}×{boxHeight} cm</p>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước ảnh đầu tiên', 'First image size', '首张图片尺寸', '1枚目の画像サイズ', '첫 이미지 크기')} <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Thứ tự tạo 6 mặt', '6-face creation order', '6面创建顺序', '6面の作成順', '6면 생성 순서')}</label>
                     <p className="text-xs text-muted-foreground">
-                      {tr('Chọn trước khi nhập thông tin khác. Ảnh 1 sẽ có kích thước:', 'Choose before entering other info. Image 1 will be:', '先选择再填其他信息。图1尺寸：', '他の情報入力前に選択。画像1のサイズ：', '다른 정보 입력 전 선택. 이미지 1 크기:')}
+                      {tr('Trên → Trước → Phải → Dưới → Sau → Trái. Bước 1 là mặt trên (L×W).', 'Top → Front → Right → Bottom → Back → Left. Step 1 is top (L×W).', '上→前→右→下→后→左。第1步为顶面(L×W)。', '上→前→右→下→後→左。ステップ1は上面(L×W)。', '위→앞→오른쪽→아래→뒤→왼쪽. 1단계는 윗면(L×W).')}
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                      {FACE_SIZE_KEYS.map((k) => (
-                        <button
-                          key={k}
-                          type="button"
-                          onClick={() => setSelectedFaceSize(k)}
-                          className={`px-3 py-2 rounded-md border text-sm font-medium transition-colors ${
-                            selectedFaceSize === k ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50'
-                          }`}
-                        >
-                          {getSizeKeyLabel(k, boxLength, boxWidth, boxHeight)}
-                        </button>
-                      ))}
-                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -2103,22 +2246,22 @@ export default function ThietKeBaoBiClientPage() {
                   )}
 
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước túi (mm)', 'Bag dimensions (mm)', '袋子尺寸（毫米）', '袋のサイズ（mm）', '가방 크기 (mm)')} <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước túi (cm)', 'Bag dimensions (cm)', '袋子尺寸（厘米）', '袋のサイズ（cm）', '가방 크기 (cm)')} <span className="text-red-500">*</span></label>
                     <div className="grid grid-cols-3 gap-2">
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">W</label>
-                        <Input type="number" min={20} max={500} value={bagWidth} onChange={(e) => setBagWidth(Number(e.target.value) || 20)} placeholder="200" />
+                        <label className="text-xs text-muted-foreground">W (cm)</label>
+                        <Input type="number" min={BAG_DIM_MIN_CM} max={BAG_DIM_MAX_CM} value={bagWidth} onChange={(e) => setBagWidth(clampBagCm(Number(e.target.value) || BAG_DIM_MIN_CM))} placeholder={String(DEFAULT_BAG_CM.width)} />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">H</label>
-                        <Input type="number" min={20} max={500} value={bagHeight} onChange={(e) => setBagHeight(Number(e.target.value) || 20)} placeholder="280" />
+                        <label className="text-xs text-muted-foreground">H (cm)</label>
+                        <Input type="number" min={BAG_DIM_MIN_CM} max={BAG_DIM_MAX_CM} value={bagHeight} onChange={(e) => setBagHeight(clampBagCm(Number(e.target.value) || BAG_DIM_MIN_CM))} placeholder={String(DEFAULT_BAG_CM.height)} />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">G</label>
-                        <Input type="number" min={10} max={200} value={bagGusset} onChange={(e) => setBagGusset(Number(e.target.value) || 10)} placeholder="60" />
+                        <label className="text-xs text-muted-foreground">G (cm)</label>
+                        <Input type="number" min={BAG_GUSSET_MIN_CM} max={BAG_GUSSET_MAX_CM} value={bagGusset} onChange={(e) => setBagGusset(clampBagGussetCm(Number(e.target.value) || BAG_GUSSET_MIN_CM))} placeholder={String(DEFAULT_BAG_CM.gusset)} />
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">{tr('Rộng × Cao × Hông (gusset) mm', 'Width × Height × Gusset (mm)', '宽×高×侧边（毫米）', '幅×高さ×ガセット（mm）', '너비×높이×가셋 (mm)')}</p>
+                    <p className="text-xs text-muted-foreground">{tr('Rộng × Cao × Hông (gusset) cm', 'Width × Height × Gusset (cm)', '宽×高×侧边（厘米）', '幅×高さ×ガセット（cm）', '너비×높이×가셋 (cm)')}</p>
                   </div>
 
                   <div className="space-y-2">
@@ -2127,7 +2270,7 @@ export default function ThietKeBaoBiClientPage() {
                       {tr('Mặt in chính túi (W×H):', 'Main print face (W×H):', '主印刷面（宽×高）：', '主印刷面（幅×高さ）：', '주 인쇄면 (W×H):')}
                     </p>
                     <p className="text-sm font-medium text-amber-800">
-                      W×H ({bagWidth}×{bagHeight} mm)
+                      W×H ({bagWidth}×{bagHeight} cm)
                     </p>
                   </div>
 
@@ -2465,7 +2608,7 @@ export default function ThietKeBaoBiClientPage() {
               <Button onClick={() => checkCreditsAndProceed(cost, () => void handleSubmit())} className="w-full min-h-[44px] touch-manipulation" size="lg">
                 <Sparkles className="h-4 w-4 mr-2" />
                 {designType === 'box'
-                  ? tr('Bắt đầu - Tạo ảnh phẳng 1', 'Start - Create flat design 1', '开始 - 创建平面图1', '開始 - 平面デザイン1を作成', '시작 - 평면 디자인 1 생성')
+                  ? tr('Bắt đầu - Mặt trên (1/6)', 'Start - Top face (1/6)', '开始 - 顶面(1/6)', '開始 - 上面(1/6)', '시작 - 윗면(1/6)')
                   : tr('Bắt đầu - Tạo ảnh phẳng túi', 'Start - Create bag flat design', '开始 - 创建袋子平面图', '開始 - 袋の平面デザインを作成', '시작 - 가방 평면 디자인 생성')}{' '}
                 ({formatCredits(cost)} {tr('credits', 'credits', '积分', 'クレジット', '크레딧')})
               </Button>
@@ -2478,64 +2621,126 @@ export default function ThietKeBaoBiClientPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <LayoutTemplate className="h-4 w-4 text-amber-600" />
-                {tr('Tạo ảnh phẳng', 'Create flat design', '创建平面图', '平面デザインを作成', '평면 디자인 생성')} (1–6)
+                {tr('Tạo ảnh phẳng', 'Create flat design', '创建平面图', '平面デザインを作成', '평면 디자인 생성')} ({currentFaceStepIndex}/6)
               </CardTitle>
               <CardDescription>
-                {tr('Chọn kích thước L×W, L×H hoặc W×H. Tối đa 6 ảnh. Có thể chuyển Mockup 3D bất kỳ lúc nào.', 'Choose size L×W, L×H or W×H. Max 6 images. Go to 3D Mockup anytime.', '选择尺寸L×W、L×H或W×H。最多6张。可随时转3D样机。', 'L×W、L×H、W×Hを選択。最大6枚。いつでも3Dモックアップへ。', 'L×W, L×H, W×H 선택. 최대 6장. 언제든 3D 목업으로.')}
+                {tr('Thứ tự: Trên → Trước → Phải → Dưới → Sau → Trái. Mặt dưới/sau/trái có thể bỏ trống, giống mặt chính, hoặc tạo mới.', 'Order: Top → Front → Right → Bottom → Back → Left. Bottom/back/left can be blank, match primary face, or generate new.', '顺序：上→前→右→下→后→左。下/后/左可留空、沿用主面或新建。', '順序：上→前→右→下→後→左。下・後・左は空白・主面と同じ・新規作成が可能。', '순서: 위→앞→오른쪽→아래→뒤→왼쪽. 아래/뒤/왼쪽은 비우기, 주요 면과 동일, 새로 생성 가능.')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">{tr('Kích thước ảnh sắp tạo', 'Size for next image', '下一张尺寸', '次の画像サイズ', '다음 이미지 크기')}{opt}</label>
-                <div className="flex flex-wrap gap-2">
-                  {FACE_SIZE_KEYS.map((k) => {
-                    const count = faces.filter((f) => f.sizeKey === k).length
-                    const disabled = faces.length >= 6
+                <label className="text-xs font-medium text-muted-foreground">{tr('Tiến độ 6 mặt', '6-face progress', '6面进度', '6面の進捗', '6면 진행')}</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {BOX_FACE_SLOT_ORDER.map((slot, idx) => {
+                    const face = faces.find((f) => f.slot === slot)
+                    const isCurrent = currentFaceSlot === slot
+                    const resolvedUrl = face ? resolveBoxFaceUrl(slot, faces) : null
                     return (
-                      <button
-                        key={k}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => setSelectedFaceSize(k)}
-                        className={`px-3 py-2 rounded-md border text-sm font-medium transition-colors ${
-                          selectedFaceSize === k ? 'border-amber-500 bg-amber-50 text-amber-800' : disabled ? 'border-gray-200 bg-gray-50 text-muted-foreground cursor-not-allowed' : 'border-gray-200 bg-white hover:bg-gray-50'
-                        }`}
+                      <div
+                        key={slot}
+                        className={`rounded-lg border p-2 text-xs ${isCurrent ? 'border-amber-500 bg-amber-50' : face ? 'border-green-300 bg-green-50/50' : 'border-gray-200 bg-white'}`}
                       >
-                        {getSizeKeyLabel(k, boxLength, boxWidth, boxHeight)} ({count})
-                      </button>
+                        <p className="font-medium">
+                          {idx + 1}. {getBoxFaceSlotLabel(slot, uiLocale)}
+                        </p>
+                        <p className="text-muted-foreground">{getSizeKeyLabel(getSizeKeyForSlot(slot), boxLength, boxWidth, boxHeight)}</p>
+                        {face ? (
+                          <p className="mt-1 text-amber-800">
+                            {face.sourceMode === 'empty'
+                              ? tr('Bỏ trống', 'Blank', '留空', '空白', '비움')
+                              : face.sourceMode === 'copy'
+                                ? `${tr('Giống', 'Same as', '同', '同じ', '동일')} ${BOX_FACE_COPY_SOURCE[slot] ? getBoxFaceSlotLabel(BOX_FACE_COPY_SOURCE[slot]!, uiLocale) : ''}`
+                                : tr('Đã tạo', 'Created', '已创建', '作成済', '생성됨')}
+                          </p>
+                        ) : isCurrent ? (
+                          <p className="mt-1 text-amber-700 font-medium">{tr('Đang tạo', 'Creating', '创建中', '作成中', '생성 중')}</p>
+                        ) : (
+                          <p className="mt-1 text-muted-foreground">{tr('Chưa tạo', 'Pending', '待创建', '未作成', '대기')}</p>
+                        )}
+                        {resolvedUrl && (
+                          <div className="mt-1 w-full aspect-video rounded border overflow-hidden bg-muted/30">
+                            <img src={resolvedUrl} alt="" className="w-full h-full object-contain" />
+                          </div>
+                        )}
+                      </div>
                     )
                   })}
                 </div>
-                {selectedFaceSize && (
-                  <p className="text-xs text-amber-700 font-medium">
-                    {tr('Ảnh số', 'Image', '图', '画像', '이미지')} {faces.length + 1} {tr('sẽ là', 'will be', '将是', 'は', '는')}: {getSizeKeyLabel(selectedFaceSize, boxLength, boxWidth, boxHeight)}
-                  </p>
-                )}
               </div>
+
+              {currentFaceSlot && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50/80 p-3 space-y-2">
+                  <p className="text-sm font-semibold text-amber-900">
+                    {tr('Bước', 'Step', '步骤', 'ステップ', '단계')} {currentFaceStepIndex}/6: {getBoxFaceSlotLabel(currentFaceSlot, uiLocale)}
+                  </p>
+                  <p className="text-xs text-amber-800">
+                    {getSizeKeyLabel(getSizeKeyForSlot(currentFaceSlot), boxLength, boxWidth, boxHeight)}
+                  </p>
+                  {isSecondaryBoxFaceSlot(currentFaceSlot) && (
+                    <div className="space-y-2 pt-1">
+                      <label className="text-xs font-medium text-muted-foreground">{tr('Cách xử lý mặt này', 'How to handle this face', '此面处理方式', 'この面の扱い', '이 면 처리')}</label>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFaceSourceMode('empty')}
+                          className={`px-3 py-2 rounded-md border text-sm font-medium ${faceSourceMode === 'empty' ? 'border-amber-500 bg-amber-100 text-amber-900' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                        >
+                          {tr('Bỏ trống', 'Leave blank', '留空', '空白', '비우기')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFaceSourceMode('copy')}
+                          className={`px-3 py-2 rounded-md border text-sm font-medium ${faceSourceMode === 'copy' ? 'border-amber-500 bg-amber-100 text-amber-900' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                        >
+                          {tr('Giống', 'Same as', '同', '同じ', '동일')}{' '}
+                          {BOX_FACE_COPY_SOURCE[currentFaceSlot] ? getBoxFaceSlotLabel(BOX_FACE_COPY_SOURCE[currentFaceSlot]!, uiLocale) : ''}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFaceSourceMode('generate')}
+                          className={`px-3 py-2 rounded-md border text-sm font-medium ${faceSourceMode === 'generate' ? 'border-amber-500 bg-amber-100 text-amber-900' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                        >
+                          {tr('Tạo mới', 'Generate new', '新建', '新規作成', '새로 생성')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {faces.length >= 1 && (
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh đã tạo', 'Created images', '已创建', '作成済み', '생성된 이미지')} ({faces.length}/6)</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh đã tạo', 'Created faces', '已创建', '作成済み', '생성된 면')} ({faces.length}/6)</label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {faces.map((f, i) => {
+                    {BOX_FACE_SLOT_ORDER.filter((slot) => faces.some((f) => f.slot === slot)).map((slot) => {
+                      const f = faces.find((face) => face.slot === slot)!
+                      const resolvedUrl = resolveBoxFaceUrl(slot, faces)
                       const [len, wid] = getDimensionsFromSizeKey(f.sizeKey, boxLength, boxWidth, boxHeight)
                       return (
                         <div key={f.id} className="relative group space-y-1">
                           <p className="text-xs font-medium text-muted-foreground mb-1">
-                            {tr('Ảnh', 'Image', '图', '画像', '이미지')} {i + 1} – {getSizeKeyLabel(f.sizeKey, boxLength, boxWidth, boxHeight)}
+                            {getBoxFaceSlotLabel(slot, uiLocale)}
+                            {f.sourceMode === 'empty' ? ` (${tr('trống', 'blank', '空', '空白', '비움')})` : ''}
+                            {f.sourceMode === 'copy' ? ` (${tr('giống', 'same', '同', '同じ', '동일')})` : ''}
                           </p>
-                          <div className="w-full aspect-square rounded border bg-muted/30 overflow-hidden">
-                            <ImagePreview src={f.url} alt="" className="w-full h-full" asImg />
+                          <div className="w-full aspect-square rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
+                            {resolvedUrl ? (
+                              <ImagePreview src={resolvedUrl} alt="" className="w-full h-full" asImg />
+                            ) : (
+                              <span className="text-xs text-muted-foreground px-2 text-center">{tr('Bỏ trống', 'Blank', '留空', '空白', '비움')}</span>
+                            )}
                           </div>
-                          <DownloadImageButton
-                            imageUrl={f.url}
-                            filename={`box-flat-${f.sizeKey}-${i + 1}-${Date.now()}.png`}
-                            printReady
-                            printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
-                            printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
-                            size="sm"
-                            className="w-full"
-                          />
+                          {resolvedUrl && (
+                            <DownloadImageButton
+                              imageUrl={resolvedUrl}
+                              filename={`box-flat-${slot}-${Date.now()}.png`}
+                              printReady
+                              printReadyAspectRatio={getAspectRatioFromDimensions(len, wid, textOrientation)}
+                              printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')}
+                              size="sm"
+                              className="w-full"
+                            />
+                          )}
                         </div>
                       )
                     })}
@@ -2543,11 +2748,11 @@ export default function ThietKeBaoBiClientPage() {
                 </div>
               )}
 
-              {faces.length >= 1 && (
+              {topStyleRefUrl && faceSourceMode === 'generate' && (
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">{tr('Ảnh tham khảo style', 'Style reference', '风格参考', 'スタイル参考', '스타일 참조')}</label>
                   <div className="flex justify-center">
-                    <img src={faces[0].url} alt="" className="max-h-24 object-contain rounded border" />
+                    <img src={topStyleRefUrl} alt="" className="max-h-24 object-contain rounded border" />
                   </div>
                   <p className="text-xs font-medium text-amber-700">
                     {tr('Vẫn chọn khung viền và màu nền bên dưới.', 'Still choose border and background below.', '仍可选择下方边框和背景。', '下で枠と背景を選択。', '아래에서 테두리와 배경 선택.')}
@@ -2584,6 +2789,16 @@ export default function ThietKeBaoBiClientPage() {
                 </div>
               )}
 
+              {currentFaceSlot && isSecondaryBoxFaceSlot(currentFaceSlot) && faceSourceMode !== 'generate' && (
+                <p className="text-sm text-amber-800 rounded-lg border border-amber-200 bg-amber-50/80 p-3">
+                  {faceSourceMode === 'empty'
+                    ? tr('Mặt này sẽ bỏ trống – không tốn credits.', 'This face will be blank – no credits used.', '此面留空 – 不消耗积分。', 'この面は空白 – クレジット不要。', '이 면은 비움 – 크레딧 없음.')
+                    : tr('Sẽ dùng ảnh giống mặt chính – không tốn credits.', 'Will reuse primary face image – no credits used.', '将沿用主面图片 – 不消耗积分。', '主面と同じ画像を使用 – クレジット不要。', '주요 면 이미지 재사용 – 크레딧 없음.')}
+                </p>
+              )}
+
+              {(!currentFaceSlot || !isSecondaryBoxFaceSlot(currentFaceSlot) || faceSourceMode === 'generate') && (
+              <>
               <div className="rounded-lg border border-amber-200/60 bg-amber-50/50 p-4 space-y-4">
                 <p className="text-xs font-medium text-amber-800">
                   {(faces.length >= 1 || referenceImage.preview) ? tr('Khung viền và màu nền (vẫn áp dụng khi có ảnh tham khảo)', 'Border and background (still apply with reference)', '边框和背景（有参考图时仍适用）', '枠と背景（参考ありでも適用）', '테두리·배경 (참조 시에도 적용)') : tr('Khung viền và màu nền', 'Border and background', '边框和背景', '枠と背景', '테두리와 배경')}
@@ -2903,18 +3118,25 @@ export default function ThietKeBaoBiClientPage() {
                   </button>
                 </div>
               </div>
+              </>
+              )}
 
               <div className="flex flex-wrap gap-2">
                 <Button
-                  onClick={() => checkCreditsAndProceed(cost, () => void handleFaceSubmit())}
+                  onClick={() => checkCreditsAndProceed(faceSubmitCost, () => void handleFaceSubmit())}
                   className="flex-1 min-h-[44px] touch-manipulation"
                   size="lg"
-                  disabled={!selectedFaceSize || faces.length >= 6}
+                  disabled={!currentFaceSlot || (boxReadyForMockup && !editingFaceSlot)}
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
-                  {tr('Tạo ảnh phẳng', 'Create flat design', '创建平面图', '平面デザイン作成', '평면 디자인 생성')} ({formatCredits(cost)} {tr('credits', 'credits', '积分', 'クレジット', '크레딧')})
+                  {currentFaceSlot && isSecondaryBoxFaceSlot(currentFaceSlot) && faceSourceMode === 'empty'
+                    ? tr('Xác nhận bỏ trống', 'Confirm blank', '确认留空', '空白を確定', '비우기 확인')
+                    : currentFaceSlot && isSecondaryBoxFaceSlot(currentFaceSlot) && faceSourceMode === 'copy'
+                      ? tr('Xác nhận dùng giống', 'Confirm reuse', '确认沿用', '同じを確定', '동일 사용 확인')
+                      : tr('Tạo ảnh phẳng', 'Create flat design', '创建平面图', '平面デザイン作成', '평면 디자인 생성')}
+                  {faceSubmitCost > 0 ? ` (${formatCredits(faceSubmitCost)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})` : ` (${tr('miễn phí', 'free', '免费', '無料', '무료')})`}
                 </Button>
-                {faces.length >= 1 && (
+                {boxReadyForMockup && (
                   <Button variant="default" size="lg" onClick={() => setStep('MOCKUP_INPUT')}>
                     {tr('Chuyển sang Mockup 3D', 'Go to 3D Mockup', '转到3D样机', '3Dモックアップへ', '3D 목업으로')}
                   </Button>

@@ -1,2 +1,60 @@
-/** Studio preset copy — 7 new flows (Japanese) — step labels localized; asks follow EN until full JA pass */
-export { NEW_PRESETS_EN as NEW_PRESETS_JA } from './new-presets-en'
+import { NEW_PRESETS_EN } from './new-presets-en'
+
+/** Studio preset copy — Japanese. */
+export const NEW_PRESETS_JA = {
+  ...NEW_PRESETS_EN,
+  packaging_kit: {
+    title: 'パッケージ一式',
+    kickoff:
+      '技術的な紙箱フロー：ロゴ → 正確な3種類の面 → Dieline PDF → 3Dモックアップ → ラベル → 封緘シール → 読み取り可能なバーコード。承認したロゴを後続工程の基準にします。',
+    steps: {
+      brand_name: 'ブリーフ：ブランド名',
+      product_type: 'ブリーフ：商品タイプ',
+      box_size: 'ブリーフ：箱サイズ',
+      box_face_confirm: 'ブリーフ：各面の確認',
+      style_mood: 'ブリーフ：スタイル',
+      color_palette: 'ブリーフ：カラー',
+      logo: 'ロゴ',
+      box_flat: '平面箱（旧Dieline）',
+      face_top: '天面 (L×W)',
+      face_front: '正面 (L×H)',
+      face_right: '右側面 (W×H)',
+      face_bottom: '底面 (L×W)',
+      face_back: '背面 (L×H)',
+      face_left: '左側面 (W×H)',
+      face_lxw: 'L×W面（天面/底面）',
+      face_lxh: 'L×H面（正面/背面）',
+      face_wxh: 'W×H面（側面）',
+      box_dieline_pdf: '技術Dieline PDF',
+      box_mockup_3d: '箱の3Dモックアップ',
+      product_label: '商品ラベル',
+      seal_sticker: '封緘シール',
+      barcode_label: 'バーコードラベル',
+    },
+    asks: {
+      brand_name: '① ブランド名 / 商品名は？',
+      product_type: '② 何を包装しますか？（化粧品、食品、ギフトなど）',
+      box_size: '③ 箱サイズは？長さ・幅は Gemini 比率（底/天面）、高さは自由入力 — 下のフォームまたはチャット。',
+      box_face_confirm:
+        '④ 上記の底面・正面/背面・側面のサイズを確認してください — 正しければ OK、寸法の対応が違う場合は再入力。',
+      style_mood: '⑤ スタイルは？（オーガニック / 高級 / ミニマル / ポップ）',
+      color_palette: '⑥ 印刷カラーパレットは？',
+      logo: '包装用ロゴを説明してください。既存ファイルがある場合は **ロゴをアップロード** を押してください。',
+      box_flat: '旧平面箱：正面/側面レイアウトとロゴ位置は？',
+      face_top: '⑦ 天面 L×W — 印刷内容を記述または**空白**。出力は**折り前の平面印刷データ**（3D箱・展開図ではない）。',
+      face_front: '⑧ 正面 L×H — 印刷内容または**空白**。出力は**平面印刷データ**。',
+      face_right: '⑨ 右側面 W×H — 印刷内容または**空白**。出力は**平面印刷データ**。',
+      face_bottom: '⑩ 底面 L×W — **空白**、**天面と同じ**、または別内容を記述。',
+      face_back: '⑪ 背面 L×H — **空白**、**正面と同じ**、または別内容を記述。',
+      face_left: '⑫ 左側面 W×H — **空白**、**右側面と同じ**、または別内容を記述。',
+      face_lxw: 'L×W 天面/底面 — **この面の印刷内容**を入力（ロゴ、品名、装飾…）。デザイン画像を生成します。',
+      face_lxh: 'L×H 正面/背面 — **この面の印刷内容**を入力（品名、届出番号、成分、効能…）。',
+      face_wxh: 'W×H 側面 — **この面の印刷内容**を入力（使用方法、警告、副成分…）。',
+      box_dieline_pdf: '承認済み3面から技術Dieline PDFを作成します。',
+      box_mockup_3d: '3Dモックアップ：撮影角度、箱素材（マット/光沢）は？',
+      product_label: '商品ラベル（白黒）：サイズ（例 50×80 mm）+ 内容（品名、成分、用法…）。ロゴのみ合成。',
+      seal_sticker: '封緘シール：サイズ（例 40×40 mm）、丸/角、スローガン。ロゴのみ — 箱面画像は使わない。',
+      barcode_label: '実バーコード：briefの品名を使用。商品コード（例 SKU: 188-SRM-001）。既定 Code128 — EAN-13/QR も可。',
+    },
+  },
+} as const

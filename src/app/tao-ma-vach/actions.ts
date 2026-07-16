@@ -1,9 +1,12 @@
 'use server'
 
-import QRCode from 'qrcode'
-import bwipjs from 'bwip-js/node'
+import {
+  generateBarcodeBuffer,
+  validateBarcodeContent,
+  type BarcodeType,
+} from '@/lib/barcode/generate-barcode'
 
-export type BarcodeType = 'qrcode' | 'ean13' | 'upca' | 'code128'
+export type { BarcodeType } from '@/lib/barcode/generate-barcode'
 
 /** Tạo mã vạch / QR code. Miễn phí, không dùng AI. */
 export async function generateBarcode(
@@ -12,36 +15,11 @@ export async function generateBarcode(
   size: number = 256
 ): Promise<{ error?: string; dataUrl?: string }> {
   const trimmed = (content || '').trim()
-  if (!trimmed) {
-    return { error: 'Vui lòng nhập nội dung cần mã hóa.' }
-  }
+  const validationError = validateBarcodeContent(type, trimmed)
+  if (validationError) return { error: validationError }
 
   try {
-    if (type === 'qrcode') {
-      const dataUrl = await QRCode.toDataURL(trimmed, {
-        width: Math.min(Math.max(size, 128), 1024),
-        margin: 2,
-        color: { dark: '#000000', light: '#ffffff' },
-      } as Parameters<typeof QRCode.toDataURL>[1])
-      return { dataUrl }
-    }
-
-    // 1D barcodes via bwip-js
-    const bcid = type === 'ean13' ? 'ean13' : type === 'upca' ? 'upca' : 'code128'
-    if (bcid === 'ean13' && !/^\d{13}$/.test(trimmed)) {
-      return { error: 'EAN-13 cần đúng 13 chữ số.' }
-    }
-    if (bcid === 'upca' && !/^\d{12}$/.test(trimmed)) {
-      return { error: 'UPC-A cần đúng 12 chữ số.' }
-    }
-
-    const png = await bwipjs.toBuffer({
-      bcid,
-      text: trimmed,
-      scale: Math.min(Math.max(Math.round(size / 128), 2), 8),
-      padding: 10,
-      includetext: true,
-    } as Parameters<typeof bwipjs.toBuffer>[0])
+    const png = await generateBarcodeBuffer(type, trimmed, size)
     const base64 = Buffer.from(png).toString('base64')
     return { dataUrl: `data:image/png;base64,${base64}` }
   } catch (e) {

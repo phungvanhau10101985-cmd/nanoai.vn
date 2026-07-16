@@ -2,6 +2,7 @@ import type { Database } from '@/types/database.types'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { isPgConfigured } from '@/lib/db/pool'
 import { updatePartnerInventoryMaterialDetailImageUrlFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import {
   customerMessageAsksAboutMaterial,
   pickInventoryRowForReferenceImage,
@@ -12,7 +13,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
-const IMAGE_MODEL = 'gemini-3-pro-image-preview' as const
+const IMAGE_MODEL = GEMINI_3_PRO_IMAGE.model
 
 const MATERIAL_COLLAGE_PROMPT = `You are an e-commerce creative assistant. The user attached EXACTLY ONE **primary product image** — the main listing photo of ONE real product (Image A — full product or packshot). This is the authoritative product photo, not an optional reference.
 

@@ -11,6 +11,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 const COSTS = { '2K': 1.5, '4K': 3 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -63,7 +64,7 @@ export async function editImageByPrompt(formData: FormData) {
   const { apiKey } = await requireGoogleApiKeyForUser(user.id)
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality },
@@ -81,7 +82,7 @@ export async function editImageByPrompt(formData: FormData) {
   try {
     const result = await model.generateContent([prompt, imagePart], { safetySettings })
     const response = result.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'sua-anh-theo-yeu-cau', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'sua-anh-theo-yeu-cau', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)

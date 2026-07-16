@@ -5,7 +5,7 @@ import { getUserForCreditAction } from '@/lib/auth'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
-import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
+import { GEMINI_25_FLASH_TEXT_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
@@ -96,7 +96,7 @@ export async function createStoryImage(formData: FormData) {
   const fullPrompt = `${PROMPT_BASE}\n\nCÂU CHUYỆN CẦN MINH HỌA:\n"${expandedStory}"`
 
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -112,7 +112,7 @@ export async function createStoryImage(formData: FormData) {
   try {
     const result = await model.generateContent(fullPrompt, { safetySettings })
     const response = result.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'ke-chuyen-bang-hinh-anh', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'ke-chuyen-bang-hinh-anh', user.id, imageQuality)
 
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {

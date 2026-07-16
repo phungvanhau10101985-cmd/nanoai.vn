@@ -21,6 +21,7 @@ import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
+import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import { handleHubStudio, type HubStudioAction } from '@/lib/hub-chat/hub-studio-handler'
 import { presetTitle } from '@/lib/hub-chat/hub-studio-presets'
 
@@ -166,6 +167,15 @@ export async function POST(request: NextRequest) {
       const action = (String(fd.get('action') ?? 'upload_images') as HubStudioAction) || 'upload_images'
       const threadIdBody = String(fd.get('threadId') ?? '').trim() || undefined
       const localeBody = String(fd.get('locale') ?? '').trim() || undefined
+      const cropWidthMm = Number(fd.get('cropWidthMm'))
+      const cropHeightMm = Number(fd.get('cropHeightMm'))
+      const cropSizeMm =
+        Number.isFinite(cropWidthMm) &&
+        Number.isFinite(cropHeightMm) &&
+        cropWidthMm > 0 &&
+        cropHeightMm > 0
+          ? { width: cropWidthMm, height: cropHeightMm }
+          : undefined
       const locale: WebLocale = normalizeWebLocale(localeBody) ?? 'vi'
       const files = fd.getAll('images').filter((f): f is File => f instanceof File && f.size > 0)
       const uploadFiles = files.length
@@ -188,6 +198,7 @@ export async function POST(request: NextRequest) {
         action,
         apiKey,
         uploadFiles,
+        cropSizeMm,
       })
       if (!result.ok) {
         return NextResponse.json({ error: result.error || 'Studio lỗi.' }, { status: result.error ? 422 : 500 })
@@ -216,6 +227,11 @@ export async function POST(request: NextRequest) {
       action?: string
       presetId?: string
       referenceScreenKey?: string
+      generationRefKeys?: string[]
+      productUrl?: string
+      editMessageId?: string
+      editStepKey?: string
+      navigateStepKey?: string
     }
 
     const mode: HubChatMode = VALID_MODES.has(body?.mode as HubChatMode) ? (body.mode as HubChatMode) : 'chat'
@@ -226,7 +242,17 @@ export async function POST(request: NextRequest) {
       const action = (body?.action as HubStudioAction) || 'message'
       const presetId = String(body?.presetId ?? '').trim() || undefined
       const referenceScreenKey = String(body?.referenceScreenKey ?? '').trim() || undefined
-      if (action === 'message' && message.length < 2) {
+      const generationRefKeys = Array.isArray(body?.generationRefKeys)
+        ? body.generationRefKeys.filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+        : undefined
+      const productUrl = String(body?.productUrl ?? '').trim() || undefined
+      const editMessageId = String(body?.editMessageId ?? '').trim() || undefined
+      const editStepKey = String(body?.editStepKey ?? '').trim() || undefined
+      const navigateStepKey = String(body?.navigateStepKey ?? '').trim() || undefined
+      if (action === 'message' && !isValidHubStudioMessage(message)) {
+        return NextResponse.json({ error: 'Nhập ít nhất 2 ký tự.' }, { status: 400 })
+      }
+      if (action === 'edit_step' && !isValidHubStudioMessage(message)) {
         return NextResponse.json({ error: 'Nhập ít nhất 2 ký tự.' }, { status: 400 })
       }
       const threadTitle =
@@ -244,6 +270,11 @@ export async function POST(request: NextRequest) {
         action,
         presetId,
         referenceScreenKey,
+        generationRefKeys,
+        productUrl,
+        editMessageId,
+        editStepKey,
+        navigateStepKey,
         apiKey,
       })
       if (!result.ok) {
@@ -261,6 +292,8 @@ export async function POST(request: NextRequest) {
         workflows: result.workflows,
         plan: result.plan ?? null,
         hubRoute: result.hubRoute,
+        threadMessages: result.threadMessages ?? null,
+        userMessageId: result.userMessageId ?? null,
       })
     }
 

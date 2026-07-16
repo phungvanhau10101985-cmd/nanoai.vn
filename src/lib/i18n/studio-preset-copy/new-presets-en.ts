@@ -3,15 +3,26 @@ export const NEW_PRESETS_EN = {
   packaging_kit: {
     title: 'Packaging kit',
     kickoff:
-      'Design a full packaging set: Logo → flat box → 3D mockup → label → seal → barcode. Approved Logo becomes the reference for every step after.',
+      'Design a technical carton workflow: Logo → 6 separate faces (top, front, right, bottom, back, left) → Dieline PDF → 3D mockup → label → seal → real barcode. The approved Logo anchors every later step.',
     steps: {
       brand_name: 'Brief: Brand name',
       product_type: 'Brief: Product type',
       box_size: 'Brief: Box size',
+      box_face_confirm: 'Brief: Confirm faces',
       style_mood: 'Brief: Style',
       color_palette: 'Brief: Colors',
       logo: 'Logo',
       box_flat: 'Flat box (dieline)',
+      face_top: 'Top face (L×W)',
+      face_front: 'Front face (L×H)',
+      face_right: 'Right side (W×H)',
+      face_bottom: 'Bottom face (L×W)',
+      face_back: 'Back face (L×H)',
+      face_left: 'Left side (W×H)',
+      face_lxw: 'L×W face (top/bottom)',
+      face_lxh: 'L×H face (front/back)',
+      face_wxh: 'W×H face (sides)',
+      box_dieline_pdf: 'Technical Dieline PDF',
       box_mockup_3d: '3D box mockup',
       product_label: 'Product label',
       seal_sticker: 'Seal sticker',
@@ -20,15 +31,36 @@ export const NEW_PRESETS_EN = {
     asks: {
       brand_name: '① Brand / product name?',
       product_type: '② What product is packaged? (cosmetics, food, gifts…)',
-      box_size: '③ Approximate box size? (S/M/L or cm)',
-      style_mood: '④ Style: organic / luxury / minimal / playful?',
-      color_palette: '⑤ Print color palette?',
-      logo: 'Describe the logo for packaging (based on brief).',
+      box_size: '③ Box dimensions? Length + width from Gemini ratios (top/bottom face), height free — form below or chat.',
+      box_face_confirm:
+        '④ Confirm the bottom, front/back and side face sizes above — reply OK or re-enter L×W×H if the dimension order differs.',
+      style_mood: '⑤ Style: organic / luxury / minimal / playful?',
+      color_palette: '⑥ Print color palette?',
+      logo: 'Describe the logo to create for packaging (based on brief) — or tap **Upload logo** if you already have a file.',
       box_flat: 'Flat box: front/side layout, logo placement?',
-      box_mockup_3d: '3D mockup: angle, box material (matte/gloss)?',
-      product_label: 'Product label: required info, fonts, icons?',
-      seal_sticker: 'Seal sticker: round/square, tagline?',
-      barcode_label: 'Barcode label: barcode position, SKU placeholder?',
+      face_top:
+        '⑦ Top L×W — describe print content or **leave blank**. **Full bleed** artwork — no mm dimension labels on the image.',
+      face_front:
+        '⑧ Front L×H — describe print content or **leave blank**. Output: **flat print file**, NOT a 3D box.',
+      face_right:
+        '⑨ Right W×H — describe print content or **leave blank**. Output: **flat print file**, NOT a 3D box.',
+      face_bottom:
+        '⑩ Bottom L×W — **leave blank**, **same as top**, or describe unique print content.',
+      face_back:
+        '⑪ Back L×H — **leave blank**, **same as front**, or describe unique print content.',
+      face_left:
+        '⑫ Left W×H — **leave blank**, **same as right**, or describe unique print content.',
+      face_lxw:
+        'L×W top/bottom face — enter **print content for this face only** (logo, product name, graphics…). An artwork image will be generated.',
+      face_lxh:
+        'L×H front/back face — enter **print content for this face** (product name, registration no., ingredients, claims…).',
+      face_wxh:
+        'W×H side faces — enter **print content for this face** (directions, warnings, secondary ingredients…).',
+      box_dieline_pdf: 'Build the technical Dieline PDF after all 6 faces are done.',
+      box_mockup_3d: '3D mockup: angle, box material (matte/gloss). Contrasting studio background — do not repeat box artwork on scene.',
+      product_label: 'Product label (B&W): label size (e.g. 50×80 mm) + content (name, ingredients, usage…). Logo only.',
+      seal_sticker: 'Seal sticker: size (e.g. 40×40 mm), round/square, tagline. Logo only — not box faces.',
+      barcode_label: 'Real barcode: uses product name from brief; product code (e.g. SKU: 188-SRM-001). Default Code128 — or EAN-13/QR if specified.',
     },
   },
   interior_design: {

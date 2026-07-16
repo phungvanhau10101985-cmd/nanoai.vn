@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 const TARGET_LANGUAGES: Record<string, string> = {
   vi: 'Vietnamese (Tiếng Việt)',
@@ -70,7 +71,7 @@ export async function translateOneImage(
   console.log(`${prefix} [Dịch ảnh] Bắt đầu | input: ${inputSizeKb}KB | ${sourceLang}${sourceLang2 ? '+' + sourceLang2 : ''}→${targetLang} | quality=${imageQuality} | lần=${retryRound}`)
 
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality },
@@ -104,7 +105,7 @@ export async function translateOneImage(
     console.log(`${prefix} [Dịch ảnh] Không có candidate`)
   }
 
-  trackFromUsageMetadata(usage, 'gemini-3-pro-image-preview', 'dich-anh-tai-lieu', userId, imageQuality)
+  trackFromUsageMetadata(usage, GEMINI_3_PRO_IMAGE.model, 'dich-anh-tai-lieu', userId, imageQuality)
 
   const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
   if (!imagePartRes || !('inlineData' in imagePartRes)) {

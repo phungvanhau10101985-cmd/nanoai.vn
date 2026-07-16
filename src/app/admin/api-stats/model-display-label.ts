@@ -9,7 +9,8 @@ export function getApiUsageModelDisplayLabel(model: string): string {
     'gemini-3.1-flash-tts-preview': 'Gemini 3.1 Flash TTS',
     'gemini-3.1-flash-live-preview': 'Gemini 3.1 Flash Live',
     // Gemini 3 (preview)
-    'gemini-3-pro-image-preview': 'Gemini 3 Pro Image',
+    'gemini-3-pro-image': 'Gemini 3 Pro Image (Nano Banana Pro)',
+    'gemini-3-pro-image-preview': 'Gemini 3 Pro Image (preview)',
     'gemini-3-flash-preview': 'Gemini 3 Flash',
     'gemini-3-pro-preview': 'Gemini 3 Pro',
     // Gemini 2.5

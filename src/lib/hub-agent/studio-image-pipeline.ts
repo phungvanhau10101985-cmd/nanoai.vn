@@ -8,6 +8,12 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { PACKAGING_FACE_FLAT_ARTWORK_RULES } from '@/lib/packaging/face-print-prompt'
+import {
+  PACKAGING_MOCKUP_FACE_RULES,
+  PACKAGING_MOCKUP_SCENE_RULES,
+} from '@/lib/packaging/packaging-mockup-prompt'
 
 const toTenths = (value: number) => Math.round(value * 10)
 
@@ -103,7 +109,20 @@ Realistic desktop web layout with header, content area, footer.`,
       return {
         aspectRatio: aspectRatioOverride || '1:1',
         imageSize: '2K',
-        prompt: isFlatBoxDieline
+        prompt: screenKey === 'product_label'
+          ? `Design ONE flat print-ready PRODUCT LABEL (peel-and-stick sticker) for: ${projectEn}.
+Brief: ${briefEn}
+${styleNote}
+CRITICAL: This is a product label on jar/bottle/tube — NOT a box dieline, NOT unfolded carton, NOT 3D box mockup.
+Black-and-white or minimal 2-color print layout unless user requests color.
+Composite ONLY the attached LOGO. Readable legal/product text per brief. Safe margins. One label artwork only.`
+          : screenKey === 'seal_sticker'
+            ? `Design ONE flat TAMPER-EVIDENT SEAL STICKER for: ${projectEn}.
+Brief: ${briefEn}
+${styleNote}
+CRITICAL: Round/square/oval seal sticker to seal packaging — NOT a box dieline, NOT unfolded carton, NOT 3D box.
+Composite ONLY the attached LOGO plus short slogan/text per brief. One seal artwork only, no mockup scene.`
+            : isFlatBoxDieline
           ? `Design a print-ready FLAT BOX DIELINE (unfolded carton net) for: ${projectEn}.
 Brief: ${briefEn}
 ${styleNote}
@@ -118,6 +137,53 @@ One finished flat dieline artwork only.`
 Brief: ${briefEn}
 ${styleNote}
 Include brand logo placement, dieline-friendly layout, print quality. One finished packaging design only.`,
+      }
+    case 'packaging_face': {
+      const faceRole =
+        screenKey === 'face_top' || screenKey === 'face_lxw'
+          ? 'L×W TOP print face'
+          : screenKey === 'face_bottom'
+            ? 'L×W BOTTOM print face'
+            : screenKey === 'face_front' || screenKey === 'face_lxh'
+              ? 'L×H FRONT print face'
+              : screenKey === 'face_back'
+                ? 'L×H BACK print face'
+                : screenKey === 'face_right' || screenKey === 'face_wxh'
+                  ? 'W×H RIGHT SIDE print face'
+                  : screenKey === 'face_left'
+                    ? 'W×H LEFT SIDE print face'
+                    : 'packaging print face'
+      const refNote = hasRefs
+        ? 'Composite attached reference image(s) onto this packaging face — place logo, brand marks and approved artwork from references directly on the print surface. '
+        : 'Professional packaging print quality. '
+      const productNote = hasProduct
+        ? 'Composite attached PRODUCT photo(s) onto this face — print/display the real product prominently on the packaging surface. '
+        : ''
+      return {
+        aspectRatio: aspectRatioOverride || '1:1',
+        imageSize: '2K',
+        prompt: `Design ONE flat, edge-to-edge packaging artwork for the ${faceRole} of: ${projectEn}.
+Brief: ${briefEn}
+${refNote}${productNote}${PACKAGING_FACE_FLAT_ARTWORK_RULES}
+- Preserve the exact face proportion stated in the brief.
+- Place the approved logo and composite selected reference visuals onto this face.
+- Keep required text inside a safe area while the background and decorative graphics extend to every edge (full bleed).
+- NEVER render dimension annotations, measurement arrows, or mm/cm numbers on the image.
+One finished flat full-bleed print face only.`,
+      }
+    }
+    case 'packaging_mockup':
+      return {
+        aspectRatio: aspectRatioOverride || '1:1',
+        imageSize: '2K',
+        prompt: `Create a photorealistic 3D carton box mockup for: ${projectEn}.
+Brief: ${briefEn}
+Apply the attached approved L×W, L×H and W×H face artworks on their matching box faces only.
+The box proportions must match Length:Width:Height from the brief exactly.
+Do not redesign, replace, mirror or distort the approved artwork.
+${PACKAGING_MOCKUP_SCENE_RULES}
+${PACKAGING_MOCKUP_FACE_RULES}
+One finished 3D product mockup only.`,
       }
     case 'interior':
       return {
@@ -206,7 +272,7 @@ export async function runStudioImagePipeline(input: {
   const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: spec.imageSize, aspectRatio: spec.aspectRatio },
@@ -234,7 +300,7 @@ export async function runStudioImagePipeline(input: {
     const result = await model.generateContent(parts as never, { safetySettings } as never)
     trackFromUsageMetadata(
       result.response.usageMetadata,
-      'gemini-3-pro-image-preview',
+      GEMINI_3_PRO_IMAGE.model,
       `hub-studio-${input.kind}`,
       input.userId,
       '2K'

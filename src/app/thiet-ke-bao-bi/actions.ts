@@ -4,7 +4,7 @@ import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cl
 import { getUserForCreditAction } from '@/lib/auth'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { createPrintReadyPdf } from '@/lib/print-ready-pdf'
-import { createBoxDielinePdf } from './lib/box-dieline-pdf'
+import { exportBoxDielineFromUrls } from '@/lib/packaging/export-dieline'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -15,6 +15,15 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import {
+  type BoxFaceSlot,
+  type BoxCreatedFace,
+  type FaceSourceMode,
+  BOX_FACE_SLOT_ORDER,
+  getFaceIndexFromSlot,
+  resolveBoxFaceUrl,
+} from './lib/box-face-slots'
 
 
 const PACKAGING_COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -39,7 +48,8 @@ const STYLE_PROMPTS: Record<string, string> = {
 }
 
 /**
- * Tạo PDF Dieline chuẩn in: Layer Cut (đỏ) và Crease (xanh) tách biệt, bleed 3mm, 3 ảnh mặt ghép vào net.
+ * Tạo PDF dieline hộp nắp gài: đường Cut/Crease dạng vector,
+ * artwork bleed 3mm và 3 ảnh mặt ghép vào net.
  */
 export async function generateBoxDielinePdf(params: {
   face1Url: string
@@ -59,36 +69,14 @@ export async function generateBoxDielinePdf(params: {
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const fetchBuffer = async (url: string): Promise<Buffer> => {
-    const res = await fetch(url)
-    if (!res.ok) throw new Error('Fetch failed')
-    const buf = await res.arrayBuffer()
-    return Buffer.from(buf)
-  }
-
   try {
-    const [face1Buffer, face2Buffer, face3Buffer] = await Promise.all([
-      fetchBuffer(face1Url),
-      fetchBuffer(face2Url),
-      fetchBuffer(face3Url),
-    ])
-
-    const pdfBuffer = await createBoxDielinePdf({
-      face1Buffer,
-      face2Buffer,
-      face3Buffer,
-      boxLength,
-      boxWidth,
-      boxHeight,
+    const exported = await exportBoxDielineFromUrls({
+      userId: user.id,
+      faces: { LxW: face1Url, LxH: face2Url, WxH: face3Url },
+      dimensionsMm: { length: boxLength, width: boxWidth, height: boxHeight },
     })
 
-    const pdfPath = `results/${user.id}/box_dieline_${Date.now()}.pdf`
-    const { publicUrl: pdfPublicUrl } = await uploadTryOnImagePublic(pdfPath, pdfBuffer, {
-      contentType: 'application/pdf',
-      upsert: true,
-    })
-
-    return { pdfUrl: pdfPublicUrl }
+    return { pdfUrl: exported.pdfUrl }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { error: `Xuất Dieline thất bại: ${msg}` }
@@ -322,7 +310,7 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -338,7 +326,7 @@ export async function createPackagingDesignWithAI(formData: FormData): Promise<
   try {
     const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-bao-bi', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
@@ -376,7 +364,11 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
   | { success: true; resultUrl: string }
   | { error: string }
 > {
-  const faceIndex = Math.max(1, Math.min(3, Number(formData.get('faceIndex')) || 1))
+  const faceSlotRaw = (formData.get('faceSlot') as string)?.trim() || ''
+  const faceSlot = BOX_FACE_SLOT_ORDER.includes(faceSlotRaw as BoxFaceSlot) ? (faceSlotRaw as BoxFaceSlot) : null
+  const faceIndex = faceSlot
+    ? getFaceIndexFromSlot(faceSlot)
+    : Math.max(1, Math.min(3, Number(formData.get('faceIndex')) || 1))
   const referenceImageUrl = (formData.get('referenceImageUrl') as string)?.trim() || ''
   const referenceImageFile = formData.get('referenceImageFile') as File | null
   const surfaceLength = Math.max(20, Math.min(800, Number(formData.get('surfaceLength')) || 200))
@@ -591,15 +583,16 @@ export async function createBoxSurfaceImageWithAI(formData: FormData): Promise<
   }
   const backgroundHint = BACKGROUND_HINTS[backgroundType] || BACKGROUND_HINTS.transparent
 
-  const isMainFace = faceIndex === 1
+  const isMainFace = faceSlot === 'top' || (!faceSlot && faceIndex === 1)
+  const faceName = faceSlot ? faceSlot.toUpperCase() : `FACE ${faceIndex}`
   const faceTypeHint = isMainFace
-    ? 'This is FACE 1 - the MAIN design panel, a reference/suggestion. All details must come from the user input (brand, product, content). Design it as the primary panel with the MOST DETAILS: prominent branding, rich visuals, product images, key information. Most elaborate and eye-catching.'
-    : `This is FACE ${faceIndex} - a secondary panel. Use the reference image (Face 1) as style reference only (colors, layout, aesthetic). Create a flat artwork for Face ${faceIndex} that matches this style. Simpler and complementary to the main face.`
+    ? `This is the ${faceName} face - the MAIN design panel. All details must come from the user input (brand, product, content). Design it as the primary panel with rich visuals and key information.`
+    : `This is the ${faceName} face - a secondary panel. Use the reference image as style reference only (colors, layout, aesthetic). Create a flat artwork for ${faceName} that matches this style. Simpler and complementary to the main face.`
 
   let prompt: string
   const contentParts: object[] = []
 
-  const dimensionRule = `Design dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. Output image MUST match this aspect ratio (full bleed, edge-to-edge design).`
+  const dimensionRule = `Design dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. Output image MUST match this aspect ratio (full bleed, edge-to-edge design). NEVER draw dimension lines, arrows, rulers, or mm/cm text on the artwork.`
   const backgroundRule = `CRITICAL - Màu nền (background): ${backgroundHint} User's background choice MUST be applied.`
   if (faceIndex === 1 && referenceBase64) {
     prompt = `Generate a single flat 2D design artwork for print.
@@ -649,7 +642,7 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -672,7 +665,7 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
       safetySettings,
     } as never)
     const response = genResult.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-surface', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-bao-bi-surface', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
@@ -865,7 +858,7 @@ export async function createBagSurfaceImageWithAI(formData: FormData): Promise<
   }
   const backgroundHint = BACKGROUND_HINTS[backgroundType] || BACKGROUND_HINTS.transparent
 
-  const dimensionRule = `Design dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. This is a FLAT BAG design – the main print face for a paper bag/pouch. Output image MUST match this aspect ratio (full bleed, edge-to-edge design).`
+  const dimensionRule = `Design dimensions: ${surfaceLength}mm × ${surfaceWidth}mm. This is a FLAT BAG design – the main print face for a paper bag/pouch. Output image MUST match this aspect ratio (full bleed, edge-to-edge design). NEVER draw dimension lines, arrows, rulers, or mm/cm text on the artwork.`
   const backgroundRule = `CRITICAL - Màu nền (background): ${backgroundHint} User's background choice MUST be applied.`
 
   let referenceBase64: string | null = null
@@ -919,7 +912,7 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -942,7 +935,7 @@ ${backgroundRule} ${borderHint} ${textOrientationHint} ${stylePrompt} ${textInst
       safetySettings,
     } as never)
     const response = genResult.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-bag-surface', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-bao-bi-bag-surface', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
@@ -1047,7 +1040,11 @@ Mapping (strict):
 - Second image provided → FRONT FACE (vertical face facing viewer). Print the full design on the front.
 - Third image provided → SIDE FACE (vertical left or right side). Print the full design on the side.
 
-Result: a 3D box where top, front, and side all show the respective designs. Professional lighting, shadows, perspective. Output only the image, no watermark.`
+Result: a 3D box where top, front, and side all show the respective designs. Professional lighting, shadows, perspective.
+
+CRITICAL - Scene background must CONTRAST with the box: use neutral gray/white studio backdrop or wood/marble surface. Do NOT extend box print texture, kraft paper grain, or floral pattern onto the background or floor — artwork only on box faces.
+
+Output only the image, no watermark.`
 
   const contentParts: object[] = [
     { text: prompt },
@@ -1058,7 +1055,7 @@ Result: a 3D box where top, front, and side all show the respective designs. Pro
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -1074,7 +1071,7 @@ Result: a 3D box where top, front, and side all show the respective designs. Pro
   try {
     const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-mockup', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-bao-bi-mockup', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
@@ -1112,9 +1109,9 @@ export type FaceSizeKey = 'LxW' | 'LxH' | 'WxH'
 const FACE_ORDER: FaceSizeKey[] = ['LxW', 'LxH', 'WxH']
 const FACE_LABELS: Record<FaceSizeKey, string> = { LxW: 'TOP/BOTTOM', LxH: 'FRONT/BACK', WxH: 'LEFT/RIGHT' }
 
-/** Tạo mockup 3D từ 1–6 ảnh, mỗi ảnh có sizeKey (LxW, LxH, WxH). */
+/** Tạo mockup 3D từ tối đa 6 mặt (top/front/right/bottom/back/left). */
 export async function createBoxMockupFromFaces(params: {
-  faces: { url: string; sizeKey: FaceSizeKey }[]
+  faces: Pick<BoxCreatedFace, 'slot' | 'url' | 'sourceMode'>[]
   boxLength: number
   boxWidth: number
   boxHeight: number
@@ -1122,8 +1119,15 @@ export async function createBoxMockupFromFaces(params: {
   imageQuality: '2K' | '4K'
 }): Promise<{ success: true; resultUrl: string } | { error: string }> {
   const { faces, boxLength, boxWidth, boxHeight, aspectRatio, imageQuality } = params
-  if (!faces?.length || faces.length > 6) return { error: 'Cần 1–6 ảnh bề mặt.' }
+  if (!faces?.length) return { error: 'Cần ít nhất một mặt hộp.' }
   if (!isPackagingAspectRatio(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
+
+  const resolvedFaces = BOX_FACE_SLOT_ORDER.map((slot) => ({
+    slot,
+    url: resolveBoxFaceUrl(slot, faces as BoxCreatedFace[]),
+  })).filter((f) => f.url)
+
+  if (!resolvedFaces.length) return { error: 'Cần ít nhất một mặt có ảnh in.' }
 
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
@@ -1143,7 +1147,7 @@ export async function createBoxMockupFromFaces(params: {
 
   const historyRow = await insertTryOnHistoryProcessingPg({
     userId: user.id,
-    originalImageUrl: faces[0]?.url || '',
+    originalImageUrl: resolvedFaces[0]?.url || faces.find((f) => f.url)?.url || '',
     garmentImageUrl: '',
     feature: 'thiet-ke-bao-bi',
   })
@@ -1157,29 +1161,28 @@ export async function createBoxMockupFromFaces(params: {
     return Buffer.from(buf).toString('base64')
   }
 
-  const orderedFaces = [...faces].sort((a, b) => FACE_ORDER.indexOf(a.sizeKey) - FACE_ORDER.indexOf(b.sizeKey))
-  const faceNames: Record<FaceSizeKey, string[]> = {
-    LxW: ['TOP', 'BOTTOM'],
-    LxH: ['FRONT', 'BACK'],
-    WxH: ['LEFT', 'RIGHT'],
+  const faceDims: Record<BoxFaceSlot, string> = {
+    top: `${boxLength}×${boxWidth}mm (L×W)`,
+    bottom: `${boxLength}×${boxWidth}mm (L×W)`,
+    front: `${boxLength}×${boxHeight}mm (L×H)`,
+    back: `${boxLength}×${boxHeight}mm (L×H)`,
+    right: `${boxWidth}×${boxHeight}mm (W×H)`,
+    left: `${boxWidth}×${boxHeight}mm (W×H)`,
   }
-  const faceDims: Record<FaceSizeKey, string> = {
-    LxW: `${boxLength}×${boxWidth}mm`,
-    LxH: `${boxLength}×${boxHeight}mm`,
-    WxH: `${boxWidth}×${boxHeight}mm`,
-  }
-  const mapping: string[] = []
-  const idxBySize: Record<FaceSizeKey, number> = { LxW: 0, LxH: 0, WxH: 0 }
-  for (let i = 0; i < orderedFaces.length; i++) {
-    const sk = orderedFaces[i].sizeKey
-    const faceName = faceNames[sk][idxBySize[sk]] || faceNames[sk][0]
-    idxBySize[sk]++
-    mapping.push(`- Image ${i + 1} → ${faceName} FACE (${FACE_LABELS[sk]}). Face size: ${faceDims[sk]}. This image was created for ${faceDims[sk]} – apply it to this face WITHOUT stretching or distorting. Preserve aspect ratio.`)
+  const emptySlots = BOX_FACE_SLOT_ORDER.filter((slot) => !resolveBoxFaceUrl(slot, faces as BoxCreatedFace[]))
+  const mapping: string[] = resolvedFaces.map(
+    (f, i) =>
+      `- Image ${i + 1} → ${f.slot.toUpperCase()} FACE. Face size: ${faceDims[f.slot]}. Apply without stretching.`,
+  )
+  if (emptySlots.length) {
+    mapping.push(
+      `- Plain unprinted kraft/cardboard (no design) on: ${emptySlots.map((s) => s.toUpperCase()).join(', ')}`,
+    )
   }
 
   let imagesBase64: string[]
   try {
-    imagesBase64 = await Promise.all(orderedFaces.map((f) => fetchBase64(f.url)))
+    imagesBase64 = await Promise.all(resolvedFaces.map((f) => fetchBase64(f.url!)))
   } catch {
     await deleteTryOnHistoryRowAndStorage(historyItem.id)
     return { error: 'Không thể tải ảnh bề mặt.' }
@@ -1192,18 +1195,22 @@ export async function createBoxMockupFromFaces(params: {
 
 CRITICAL - Box dimensions and proportions: ${boxLength}mm (L) × ${boxWidth}mm (W) × ${boxHeight}mm (H). The 3D box MUST have EXACT proportions: L:W:H = ${ratioL}:${ratioW}:${ratioH}. The visible faces must show correct aspect ratios: L×W face = ${boxLength}×${boxWidth}mm, L×H face = ${boxLength}×${boxHeight}mm, W×H face = ${boxWidth}×${boxHeight}mm. Do NOT render a cube or wrong proportions – the box shape must match these dimensions. Tỷ lệ hộp phải đúng kích thước.
 
-CRITICAL - You are given ${orderedFaces.length} flat print design(s). Apply EACH image directly to its specified face. Match each image to its face by dimensions – do NOT stretch, squash, or distort. Preserve aspect ratio. Ốp thẳng ảnh lên từng mặt, kích thước ảnh khớp kích thước mặt.
+CRITICAL - You are given ${resolvedFaces.length} flat print design(s). Apply EACH image directly to its specified face. Match each image to its face by dimensions – do NOT stretch, squash, or distort. Preserve aspect ratio. Ốp thẳng ảnh lên từng mặt, kích thước ảnh khớp kích thước mặt.
 
 Mapping (strict):
 ${mapping.join('\n')}
 
-Result: a 3D box where the specified faces show the respective designs. Professional lighting, shadows, perspective. Output only the image, no watermark.`
+Result: a 3D box where the specified faces show the respective designs. Professional lighting, shadows, perspective.
+
+CRITICAL - Scene background must CONTRAST with the box: use neutral gray/white studio backdrop or wood/marble surface. Do NOT extend box print texture, kraft paper grain, or floral pattern onto the background or floor — artwork only on box faces.
+
+Output only the image, no watermark.`
 
   const contentParts: object[] = [{ text: prompt }, ...imagesBase64.map((d) => ({ inlineData: { data: d, mimeType: 'image/png' as const } }))]
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -1219,7 +1226,7 @@ Result: a 3D box where the specified faces show the respective designs. Professi
   try {
     const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-mockup', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-bao-bi-mockup', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
@@ -1315,7 +1322,7 @@ Result: a 3D bag/pouch mockup where the front face shows the provided design. Pr
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -1331,7 +1338,7 @@ Result: a 3D bag/pouch mockup where the front face shows the provided design. Pr
   try {
     const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-bao-bi-bag-mockup', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-bao-bi-bag-mockup', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)

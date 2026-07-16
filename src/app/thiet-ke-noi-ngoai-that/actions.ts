@@ -15,6 +15,7 @@ import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 import { optimizeInteriorAiInputBuffer } from '@/lib/interior-ai-input-sharp'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 const IMAGE_COSTS = APPLY_COSTS
 const ANALYZE_COST = ANALYZE_CREDIT
@@ -293,7 +294,7 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality },
@@ -336,7 +337,7 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
         `AI apply timeout after ${Math.round(INTERIOR_AI_TIMEOUT_MS / 1000)}s`
       )
       const response = genResult.response
-      trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-noi-ngoai-that', user.id, imageQuality)
+      trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-noi-ngoai-that', user.id, imageQuality)
       const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
       if (!imagePartRes || !('inlineData' in imagePartRes)) {
         if (resultUrls.length === 0) {
@@ -496,7 +497,7 @@ export async function processInteriorImage(formData: FormData) {
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality },
@@ -513,7 +514,7 @@ export async function processInteriorImage(formData: FormData) {
   try {
     const result = await model.generateContent([prompt, imagePart] as never, { safetySettings } as never)
     const response = result.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'thiet-ke-noi-ngoai-that-process', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-noi-ngoai-that-process', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)

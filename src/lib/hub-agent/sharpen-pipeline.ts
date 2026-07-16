@@ -5,6 +5,7 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import {
   downloadTryOnObject,
   tryOnPublicUrlToStoragePath,
@@ -85,7 +86,7 @@ export async function runSharpenPipeline(input: RunSharpenPipelineInput): Promis
   const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality },
@@ -107,7 +108,7 @@ export async function runSharpenPipeline(input: RunSharpenPipelineInput): Promis
   try {
     const result = await model.generateContent([prompt, imagePart], { safetySettings })
     const response = result.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'lam-net-anh', input.userId, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'lam-net-anh', input.userId, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)

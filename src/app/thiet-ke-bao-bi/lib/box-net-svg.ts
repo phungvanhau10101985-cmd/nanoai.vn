@@ -598,6 +598,13 @@ export interface SleeveLayoutData {
   bounds: { widthMm: number; heightMm: number }
 }
 
+export interface TuckEndLayoutData extends SleeveLayoutData {
+  /** Kích thước tai dán cạnh thân hộp. */
+  glueTabMm: number
+  /** Chiều sâu phần lưỡi gài của nắp. */
+  tuckTabMm: number
+}
+
 export function getSleeveLayoutData(d: BoxDimensions): SleeveLayoutData {
   const { lengthMm: L, widthMm: W, heightMm: H } = d
   const pad = 2
@@ -618,4 +625,117 @@ export function getSleeveLayoutData(d: BoxDimensions): SleeveLayoutData {
   const bounds = { widthMm: netWidth, heightMm: netHeight }
 
   return { panels, cutSegments, foldSegments, bounds }
+}
+
+/**
+ * Net hộp giấy nắp gài thẳng (straight-tuck end).
+ *
+ * Thân hộp gồm 4 mặt L-H / W-H / L-H / W-H, có tai dán cạnh.
+ * Nắp L-W nguyên vẹn ở hai đầu, kèm lưỡi gài và tai bụi hai bên.
+ * Đây là cấu trúc có thể bế, cấn, dán và dựng thành hộp kín; khác với
+ * layout "sleeve" cũ chỉ là dải mặt in và không thể đóng thành hộp.
+ */
+export function getTuckEndLayoutData(d: BoxDimensions): TuckEndLayoutData {
+  const { lengthMm: L, widthMm: W, heightMm: H } = d
+  const pad = 2
+  const glueTabMm = Math.max(15, Math.min(25, H * 0.3))
+  const tuckTabMm = Math.max(10, Math.min(20, W * 0.3))
+  const dustDepth = Math.max(8, Math.min(W * 0.48, L * 0.45))
+
+  const x0 = pad
+  const x1 = x0 + L
+  const x2 = x1 + W
+  const x3 = x2 + L
+  const x4 = x3 + W
+  const bodyTop = pad + tuckTabMm + W
+  const bodyBottom = bodyTop + H
+  const bottomPanelBottom = bodyBottom + W
+  const netBottom = bottomPanelBottom + tuckTabMm
+
+  // Các vùng nhận artwork. Tai dán/tai bụi/lưỡi gài để nền tràn từ artwork.
+  const panels: SleevePanel[] = [
+    { x: x0, y: bodyTop, w: L, h: H, faceIndex: 2 }, // Front L×H
+    { x: x1, y: bodyTop, w: W, h: H, faceIndex: 3 }, // Side W×H
+    { x: x2, y: bodyTop, w: L, h: H, faceIndex: 2 }, // Back L×H
+    { x: x3, y: bodyTop, w: W, h: H, faceIndex: 3 }, // Side W×H
+    { x: x0, y: bodyTop - W, w: L, h: W, faceIndex: 1 }, // Top L×W
+    { x: x2, y: bodyBottom, w: L, h: W, faceIndex: 1 }, // Bottom L×W
+  ]
+
+  const cutSegments: [number, number, number, number][] = []
+  const foldSegments: [number, number, number, number][] = []
+  const cut = (xA: number, yA: number, xB: number, yB: number) =>
+    cutSegments.push([xA, yA, xB, yB])
+  const fold = (xA: number, yA: number, xB: number, yB: number) =>
+    foldSegments.push([xA, yA, xB, yB])
+
+  // Cấn dọc thân và tai dán.
+  fold(x1, bodyTop, x1, bodyBottom)
+  fold(x2, bodyTop, x2, bodyBottom)
+  fold(x3, bodyTop, x3, bodyBottom)
+  fold(x4, bodyTop, x4, bodyBottom)
+
+  // Cấn nắp trên, nắp dưới và hai lưỡi gài.
+  fold(x0, bodyTop, x1, bodyTop)
+  fold(x0, bodyTop - W, x1, bodyTop - W)
+  fold(x2, bodyBottom, x3, bodyBottom)
+  fold(x2, bottomPanelBottom, x3, bottomPanelBottom)
+
+  // Tai bụi trên/dưới gắn với hai mặt hông.
+  fold(x1, bodyTop, x2, bodyTop)
+  fold(x3, bodyTop, x4, bodyTop)
+  fold(x1, bodyBottom, x2, bodyBottom)
+  fold(x3, bodyBottom, x4, bodyBottom)
+
+  // Biên trái thân; các đoạn mép thân không gắn nắp là đường cắt.
+  cut(x0, bodyTop, x0, bodyBottom)
+  cut(x2, bodyTop, x3, bodyTop)
+  cut(x0, bodyBottom, x1, bodyBottom)
+
+  // Nắp trên + lưỡi gài, vát hai góc để dễ gài.
+  const topTuckY = bodyTop - W - tuckTabMm
+  const chamfer = Math.min(4, L * 0.08, tuckTabMm * 0.35)
+  cut(x0, bodyTop, x0, bodyTop - W)
+  cut(x1, bodyTop, x1, bodyTop - W)
+  cut(x0, bodyTop - W, x0 + chamfer, topTuckY)
+  cut(x0 + chamfer, topTuckY, x1 - chamfer, topTuckY)
+  cut(x1 - chamfer, topTuckY, x1, bodyTop - W)
+
+  // Nắp dưới + lưỡi gài.
+  cut(x2, bodyBottom, x2, bottomPanelBottom)
+  cut(x3, bodyBottom, x3, bottomPanelBottom)
+  cut(x2, bottomPanelBottom, x2 + chamfer, netBottom)
+  cut(x2 + chamfer, netBottom, x3 - chamfer, netBottom)
+  cut(x3 - chamfer, netBottom, x3, bottomPanelBottom)
+
+  // Tai bụi: thu nhỏ dần về phía ngoài để không cấn/chồng khi đóng.
+  const dustInset = Math.min(3, W * 0.08)
+  const topDustY = bodyTop - dustDepth
+  const bottomDustY = bodyBottom + dustDepth
+  for (const [left, right] of [[x1, x2], [x3, x4]] as const) {
+    cut(left, bodyTop, left + dustInset, topDustY)
+    cut(left + dustInset, topDustY, right - dustInset, topDustY)
+    cut(right - dustInset, topDustY, right, bodyTop)
+    cut(left, bodyBottom, left + dustInset, bottomDustY)
+    cut(left + dustInset, bottomDustY, right - dustInset, bottomDustY)
+    cut(right - dustInset, bottomDustY, right, bodyBottom)
+  }
+
+  // Tai dán cạnh thân, vát đầu để không cấn vào nắp.
+  const glueInset = Math.min(4, H * 0.08)
+  cut(x4, bodyTop, x4 + glueTabMm, bodyTop + glueInset)
+  cut(x4 + glueTabMm, bodyTop + glueInset, x4 + glueTabMm, bodyBottom - glueInset)
+  cut(x4 + glueTabMm, bodyBottom - glueInset, x4, bodyBottom)
+
+  return {
+    panels,
+    cutSegments,
+    foldSegments,
+    bounds: {
+      widthMm: x4 + glueTabMm + pad,
+      heightMm: netBottom + pad,
+    },
+    glueTabMm,
+    tuckTabMm,
+  }
 }

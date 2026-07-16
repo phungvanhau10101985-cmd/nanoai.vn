@@ -15,6 +15,12 @@ import {
   isStepAfterPrimaryLogo,
   presetStepLabel,
 } from '@/lib/hub-chat/hub-studio-presets'
+import {
+  getPackagingFaceSizeForStep,
+  isPackagingFaceStepCommitted,
+  isPackagingFaceStepKey,
+  resolvedPackagingFacesReady,
+} from '@/lib/packaging/hub-face-steps'
 
 const CREATE_VERBS =
   /tạo|tao|làm|lam|create|make|generate|design|thực hiện|thuc hien|vẽ|ve|draw|render|生成|作成|만들|创建|chưa thấy|chua thay|chưa có|chua co|lỗi|loi|sai|hỏng|hong|missing|where|đâu|dau/
@@ -71,6 +77,16 @@ const STEP_KEY_ALIASES: Record<string, string[]> = {
   look_detail_2: ['look 2', 'look detail 2'],
   catalog_cover: ['catalog cover', 'bia catalog', 'bìa catalog'],
   box_flat: ['hop phang', 'hộp phẳng', 'flat box', 'dieline'],
+  face_top: ['mat tren', 'mặt trên', 'top face', 'nap', 'nắp'],
+  face_front: ['mat truoc', 'mặt trước', 'front face'],
+  face_right: ['mat phai', 'mặt phải', 'right side', 'mat hong phai'],
+  face_bottom: ['mat duoi', 'mặt dưới', 'bottom face', 'day', 'đáy'],
+  face_back: ['mat sau', 'mặt sau', 'back face'],
+  face_left: ['mat trai', 'mặt trái', 'left side'],
+  face_lxw: ['mat lxw', 'mặt lxw', 'nap day', 'nắp đáy', 'top bottom face'],
+  face_lxh: ['mat lxh', 'mặt lxh', 'mat truoc sau', 'mặt trước sau', 'front back face'],
+  face_wxh: ['mat wxh', 'mặt wxh', 'mat hong', 'mặt hông', 'side face'],
+  box_dieline_pdf: ['dieline pdf', 'ban ve be', 'bản vẽ bế', 'pdf ky thuat', 'pdf kỹ thuật', 'file in', 'tao file in', 'tạo file in'],
   box_mockup_3d: ['mockup 3d', 'hop 3d', 'hộp 3d', '3d box'],
   seal_sticker: ['tem niem phong', 'tem niêm phong', 'seal sticker'],
   barcode_label: ['ma vach', 'mã vạch', 'barcode'],
@@ -154,6 +170,23 @@ export function wantsContinueNextStep(aiHint?: HubStudioAiRetryHint): boolean {
   return aiHint?.retryIntent === 'continue_next'
 }
 
+const AUTO_GENERATE_MIN_MESSAGE_LEN = 12
+
+const ACK_ONLY_MESSAGE =
+  /^(ok|oke|okay|yes|yep|được|duoc|duoc roi|tiếp|tiep|tiep theo|next|xong|done|ừ|uh|hmm|hm)\.?$/i
+
+function generatorsAutoGenerateOnInput(gen: ReturnType<typeof getStepGenerator>): boolean {
+  if (!gen) return false
+  return gen !== 'dieline_pdf'
+}
+
+function isSubstantiveDesignInput(message: string): boolean {
+  const trimmed = message.trim()
+  if (trimmed.length < AUTO_GENERATE_MIN_MESSAGE_LEN) return false
+  if (ACK_ONLY_MESSAGE.test(trimmed)) return false
+  return true
+}
+
 export function sanitizeAiRetryHint(
   session: HubStudioSession,
   aiHint: HubStudioAiRetryHint
@@ -191,7 +224,11 @@ export function isDesignStepApprovedComplete(
   const proc = session.processSteps.find((s) => s.key === stepKey)
   const gen = getStepGenerator(presetId, stepKey)
   if (gen === 'lyria_music') return proc?.status === 'done'
-  return proc?.status === 'done' && session.referenceImages.some((r) => r.screenKey === stepKey)
+  const hasRef = session.referenceImages.some((r) => r.screenKey === stepKey)
+  if (presetId === 'packaging_kit' && isPackagingFaceStepKey(stepKey)) {
+    return proc?.status === 'done' && (hasRef || isPackagingFaceStepCommitted(session.packaging, stepKey))
+  }
+  return proc?.status === 'done' && hasRef
 }
 
 function canRetryCompletedStep(
@@ -229,6 +266,14 @@ export function getDesignStepIncompleteReason(
 
   if (hasRef) return 'none'
   if (hasPending) return 'none'
+
+  if (
+    session.presetId === 'packaging_kit' &&
+    isPackagingFaceStepKey(stepKey) &&
+    isPackagingFaceStepCommitted(session.packaging, stepKey)
+  ) {
+    return 'none'
+  }
 
   if (gen === 'lyria_music') {
     return proc?.status === 'done' ? 'none' : 'missing_output'
@@ -333,6 +378,39 @@ function resolveAiRetryStepKey(
   return findBlockingIncompleteStep(session, presetId)
 }
 
+/** User asks to create a LATER design step — jump forward when all prior steps are complete. */
+export function resolveForwardDesignStepTarget(
+  session: HubStudioSession,
+  presetId: string,
+  locale: WebLocale,
+  message: string,
+  aiHint?: HubStudioAiRetryHint
+): string | null {
+  if (!wantsStepCreation(message)) return null
+
+  const matched = matchDesignStepRetryRequest(message, locale, presetId, session, aiHint)
+  if (!matched) return null
+
+  const flow = getFlowSteps(presetId)
+  const targetIdx = flow.findIndex((s) => s.key === matched)
+  const currentIdx = session.currentStepKey ? flow.findIndex((s) => s.key === session.currentStepKey) : -1
+  if (targetIdx < 0) return null
+  if (currentIdx >= 0 && targetIdx <= currentIdx) return null
+
+  for (const step of flow) {
+    const idx = flow.findIndex((s) => s.key === step.key)
+    if (idx >= targetIdx) break
+    if (step.phase !== 'design') continue
+    if (getDesignStepIncompleteReason(session, presetId, step.key) !== 'none') return null
+  }
+
+  if (matched === 'box_dieline_pdf' && !resolvedPackagingFacesReady(session.packaging)) {
+    return null
+  }
+
+  return matched
+}
+
 export function resolveRetryTargetStep(
   session: HubStudioSession,
   presetId: string,
@@ -349,7 +427,10 @@ export function resolveRetryTargetStep(
     return aiKey
   }
 
-  return findBlockingIncompleteStep(session, presetId)
+  const blocking = findBlockingIncompleteStep(session, presetId)
+  if (blocking) return blocking
+
+  return resolveForwardDesignStepTarget(session, presetId, locale, message, aiHint)
 }
 
 export function needsStepRetryRepair(
@@ -467,9 +548,11 @@ export function shouldForceGenerateForStep(
   _message: string,
   onDiscovery: boolean,
   explicitRetryStep: string | null,
-  aiHint?: HubStudioAiRetryHint
+  aiHint?: HubStudioAiRetryHint,
+  options?: { skipSameTurnDesignEntry?: boolean }
 ): boolean {
   if (onDiscovery || !session.discoveryComplete) return false
+  if (options?.skipSameTurnDesignEntry) return false
   const gen = getStepGenerator(presetId, stepKey)
   if (!gen) return false
 
@@ -505,6 +588,15 @@ export function shouldForceGenerateForStep(
     return true
   }
 
+  if (
+    session.currentStepKey === stepKey &&
+    generatorsAutoGenerateOnInput(gen) &&
+    isSubstantiveDesignInput(_message) &&
+    getDesignStepIncompleteReason(session, presetId, stepKey) === 'missing_output'
+  ) {
+    return true
+  }
+
   return false
 }
 
@@ -514,7 +606,7 @@ function previewKindFromGenerator(gen: ReturnType<typeof getStepGenerator>): Hub
   if (gen === 'logo') return 'logo'
   if (gen === 'product_photo') return 'product_photo'
   if (gen === 'invitation') return 'invitation'
-  if (gen === 'packaging' || gen === 'interior' || gen === 'story_panel' || gen === 'infographic' || gen === 'portrait') {
+  if (gen === 'packaging' || gen === 'packaging_face' || gen === 'packaging_mockup' || gen === 'interior' || gen === 'story_panel' || gen === 'infographic' || gen === 'portrait') {
     return 'banner'
   }
   if (gen === 'ui_desktop') return 'ui_mockup'
@@ -529,6 +621,8 @@ function generatorSupportsReference(gen: ReturnType<typeof getStepGenerator>): b
     gen === 'banner' ||
     gen === 'logo' ||
     gen === 'packaging' ||
+    gen === 'packaging_face' ||
+    gen === 'packaging_mockup' ||
     gen === 'interior' ||
     gen === 'story_panel' ||
     gen === 'infographic' ||
@@ -546,7 +640,7 @@ function aspectHintFromStep(presetId: string, stepKey: string): 'portrait' | 'sq
   if (gen === 'banner' || gen === 'ui_desktop' || gen === 'interior' || gen === 'infographic' || gen === 'story_panel') {
     return 'landscape'
   }
-  if (gen === 'packaging' || gen === 'portrait') return 'portrait'
+  if (gen === 'packaging' || gen === 'packaging_face' || gen === 'packaging_mockup' || gen === 'portrait') return 'portrait'
   return 'portrait'
 }
 
@@ -558,6 +652,11 @@ export function buildPendingStepStudio(
   const pending = session.pendingPreview!
   const gen = getStepGenerator(presetId, stepKey)
   const useReference = generatorSupportsReference(gen)
+  const faceTargetRaw = getPackagingFaceSizeForStep(session.packaging?.dimensionsMm, stepKey)
+  const faceTargetSizeMm =
+    faceTargetRaw != null
+      ? { width: faceTargetRaw.widthMm, height: faceTargetRaw.heightMm }
+      : undefined
 
   return {
     ...(gen === 'lyria_music' ? { audioUrl: pending.url } : { imageUrl: pending.url }),
@@ -568,5 +667,12 @@ export function buildPendingStepStudio(
     processSteps: session.processSteps,
     showRegenerate: true,
     showApproveReference: useReference,
+    showCropImage: gen === 'packaging_face' && Boolean(faceTargetSizeMm),
+    faceTargetSizeMm: faceTargetSizeMm ?? undefined,
+    faceEditedSizeMm: pending.editedSizeMm ?? undefined,
+    faceOriginalUrl: pending.originalUrl ?? undefined,
+    showRevertFaceEdit: Boolean(
+      pending.originalUrl && pending.originalUrl !== pending.url
+    ),
   }
 }

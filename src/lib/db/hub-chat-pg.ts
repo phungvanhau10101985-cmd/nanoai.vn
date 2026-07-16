@@ -60,6 +60,18 @@ export type HubChatThreadRow = {
   messages: HubChatMessageRow[]
 }
 
+export type HubChatThreadSummary = {
+  id: string
+  title: string
+  locale: string
+  createdAt: string
+  updatedAt: string
+  presetId: string | null
+  projectTitle: string | null
+  lastMessagePreview: string | null
+  messageCount: number
+}
+
 export type HubPlanStepInput = {
   href: string
   labelKey: string
@@ -153,12 +165,13 @@ export async function pgInsertHubChatMessage(params: {
   workflows?: HubChatWorkflowSuggestion[] | null
   planId?: string | null
   studio?: HubStudioMessagePayload | null
-}): Promise<void> {
-  if (!isPgConfigured()) return
+}): Promise<string | null> {
+  if (!isPgConfigured()) return null
   const pool = getPgPool()
-  await pool.query(
+  const r = await pool.query<{ id: string }>(
     `insert into public.hub_chat_messages (thread_id, role, content, workflows_json, plan_id, studio_json)
-     values ($1::uuid, $2, $3, $4::jsonb, $5::uuid, $6::jsonb)`,
+     values ($1::uuid, $2, $3, $4::jsonb, $5::uuid, $6::jsonb)
+     returning id::text`,
     [
       params.threadId,
       params.role,
@@ -169,6 +182,33 @@ export async function pgInsertHubChatMessage(params: {
     ]
   )
   await pool.query(`update public.hub_chat_threads set updated_at = now() where id = $1::uuid`, [params.threadId])
+  return r.rows[0]?.id ?? null
+}
+
+export async function pgUpdateHubChatMessageContent(
+  messageId: string,
+  content: string,
+  studio?: HubStudioMessagePayload | null
+): Promise<void> {
+  if (!isPgConfigured()) return
+  const pool = getPgPool()
+  await pool.query(
+    `update public.hub_chat_messages
+     set content = $2, studio_json = $3::jsonb
+     where id = $1::uuid`,
+    [messageId, content, studio ? JSON.stringify(studio) : null]
+  )
+}
+
+export async function pgDeleteHubMessagesAfter(threadId: string, afterCreatedAt: string): Promise<void> {
+  if (!isPgConfigured()) return
+  const pool = getPgPool()
+  await pool.query(
+    `delete from public.hub_chat_messages
+     where thread_id = $1::uuid and created_at > $2::timestamptz`,
+    [threadId, afterCreatedAt]
+  )
+  await pool.query(`update public.hub_chat_threads set updated_at = now() where id = $1::uuid`, [threadId])
 }
 
 export async function pgGetHubThreadSession(threadId: string): Promise<HubStudioSession | null> {
@@ -533,4 +573,70 @@ export async function pgGetHubChatThread(userId: string, threadId: string): Prom
     session: tr.session_json && typeof tr.session_json === 'object' ? (tr.session_json as HubStudioSession) : null,
     messages,
   }
+}
+
+function mapThreadSummaryRow(r: Record<string, unknown>): HubChatThreadSummary {
+  const lastRaw = r.last_message_preview
+  const lastMessagePreview =
+    typeof lastRaw === 'string' && lastRaw.trim()
+      ? lastRaw.trim().slice(0, 160)
+      : null
+  return {
+    id: String(r.id),
+    title: String(r.title ?? ''),
+    locale: String(r.locale ?? 'vi'),
+    createdAt: String(r.created_at),
+    updatedAt: String(r.updated_at),
+    presetId: r.preset_id ? String(r.preset_id) : null,
+    projectTitle: r.project_title ? String(r.project_title).trim().slice(0, 120) || null : null,
+    lastMessagePreview,
+    messageCount: Number(r.message_count ?? 0),
+  }
+}
+
+export async function pgListHubChatThreads(
+  userId: string,
+  opts?: { limit?: number }
+): Promise<HubChatThreadSummary[]> {
+  if (!isPgConfigured()) return []
+  const pool = getPgPool()
+  const limit = Math.min(50, Math.max(1, opts?.limit ?? 30))
+  const r = await pool.query<Record<string, unknown>>(
+    `select
+       t.id::text,
+       t.title,
+       t.locale,
+       t.created_at::text,
+       t.updated_at::text,
+       t.session_json->>'presetId' as preset_id,
+       t.session_json->>'projectTitle' as project_title,
+       (
+         select left(m.content, 160)
+         from public.hub_chat_messages m
+         where m.thread_id = t.id
+         order by m.created_at desc
+         limit 1
+       ) as last_message_preview,
+       (
+         select count(*)::int
+         from public.hub_chat_messages m
+         where m.thread_id = t.id
+       ) as message_count
+     from public.hub_chat_threads t
+     where t.user_id = $1::uuid
+     order by t.updated_at desc
+     limit ${limit}`,
+    [userId]
+  )
+  return r.rows.map(mapThreadSummaryRow)
+}
+
+export async function pgDeleteHubChatThread(userId: string, threadId: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pool = getPgPool()
+  const r = await pool.query(
+    `delete from public.hub_chat_threads where id = $1::uuid and user_id = $2::uuid`,
+    [threadId, userId]
+  )
+  return (r.rowCount ?? 0) > 0
 }

@@ -154,6 +154,10 @@ export type Dictionary = {
     studioSubtitle: string
     studioPlaceholder: string
     studioProcessTitle: string
+    studioNavigateStepHint: string
+    studioNavigatedToStep: string
+    studioStepSavedStay: string
+    studioNavigateStepBlocked: string
     studioRegenerate: string
     studioUseReference: string
     studioImageCredit: string
@@ -166,13 +170,30 @@ export type Dictionary = {
     studioReferenceTitle: string
     studioReferenceLimit: string
     studioReferenceRemoved: string
+    studioBriefUpdated: string
+    studioEditStep: string
+    studioEditSave: string
+    studioEditCancel: string
+    studioEditStepUnknown: string
+    studioEditCredit: string
     studioReferenceRemove: string
     studioReferenceAttachHint: string
     studioReferenceCount: string
+    studioGenRefPickerTitle: string
+    studioGenRefPickerHint: string
+    studioGenRefProductLabel: string
+    studioGenProductUploaded: string
+    studioGenRefAttachCount: string
     studioLogoFirst: string
     studioNeedLogoReference: string
     studioLogoApprovedNext: string
     studioStartWithLogo: string
+    studioLogoUploadHint: string
+    studioLogoUploadBtn: string
+    studioLogoUploadUserLabel: string
+    studioLogoUploadNeedFile: string
+    studioLogoUploadWrongStep: string
+    studioLogoUploadAlready: string
     studioGeneratedStep: string
     studioLogoPendingApprove: string
     studioStepPendingApprove: string
@@ -190,6 +211,12 @@ export type Dictionary = {
     planOpenQueue: string
     viewTaskQueue: string
     newThread: string
+    chatHistory: string
+    chatHistoryEmpty: string
+    chatHistoryLoadFailed: string
+    chatHistoryDelete: string
+    chatHistoryDeleted: string
+    chatHistoryDeleteFailed: string
     autoRunTitle: string
     autoRunEstimate: string
     autoRunUpload: string
@@ -207,6 +234,27 @@ export type Dictionary = {
     studioNoPrompt: string
     studioMinChars: string
     studioViewLarge: string
+    studioCropImage: string
+    studioCropSizeDisplay: string
+    studioCropTargetDisplay: string
+    studioCropTitle: string
+    studioCropSave: string
+    studioCropCancel: string
+    studioCropZoom: string
+    studioCropTargetSize: string
+    studioCropResultSize: string
+    studioCropDragHint: string
+    studioCropRatioLocked: string
+    studioEditAddText: string
+    studioEditAddImage: string
+    studioEditAddSticker: string
+    studioEditOverlayHint: string
+    studioEditTextPlaceholder: string
+    studioEditDeleteLayer: string
+    studioEditRevertOriginal: string
+    studioEditReverted: string
+    studioCropApplied: string
+    studioCropSizeLine: string
     studioDiscoveryBlocked: string
     studioPresets: {
       mobile_shop: { title: string; sample: string; steps: Record<string, string> }
@@ -2602,7 +2650,7 @@ const VI_DICTIONARY: Dictionary = {
     suggested: 'Gợi ý nhanh',
     loginRequired: 'Đăng nhập để dùng trợ lý AI (0,1 credit/lượt).',
     errorGeneric: 'Không gửi được. Thử lại sau.',
-    creditNote: '0,1 credit / lượt chat',
+    creditNote: '0,1 credit / lượt chat hoặc sửa bước',
     fallbackReply: 'Bạn có thể chọn một công cụ bên dưới hoặc mô tả rõ hơn nhu cầu.',
     workflowPick: 'Nhóm workflow',
     clearReply: 'Xóa',
@@ -2611,8 +2659,12 @@ const VI_DICTIONARY: Dictionary = {
     studioSubtitle: 'Thiết kế ngay trong chat — app, banner, brand kit, ảnh SP, thiệp, nhạc quảng cáo. AI hỏi từng bước, bạn duyệt và tiếp tục.',
     studioPlaceholder: 'VD: Tôi muốn thiết kế giao diện app mobile bán hàng thời trang…',
     studioProcessTitle: 'Quy trình thiết kế',
+    studioNavigateStepHint: 'Bấm bước đã xong để quay lại sửa — các bước sau vẫn giữ nguyên.',
+    studioNavigatedToStep: 'Đang xem/sửa **{screen}**. Mô tả thay đổi hoặc bấm bước khác trên quy trình để chuyển.',
+    studioStepSavedStay: 'Đã lưu **{screen}**. Bấm bước khác trên quy trình để tiếp tục.',
+    studioNavigateStepBlocked: 'Chưa thể chuyển tới bước này — chỉ các bước đã hoàn thành mới bấm được.',
     studioRegenerate: 'Tạo lại',
-    studioUseReference: 'Chọn làm ảnh tham chiếu',
+    studioUseReference: 'Chọn làm tham chiếu và tiếp',
     studioImageCredit: 'Tạo ảnh: {n} credits',
     studioGenerating: 'AI đang xử lý…',
     studioSampleLabel: 'App mobile bán hàng',
@@ -2623,17 +2675,35 @@ const VI_DICTIONARY: Dictionary = {
     studioReferenceTitle: 'Ảnh tham chiếu đã duyệt',
     studioReferenceLimit: 'Đã đủ {max} ảnh tham chiếu. Gỡ bớt một ảnh trước khi chọn thêm.',
     studioReferenceRemoved: 'Đã gỡ ảnh tham chiếu: {screen}. Bạn có thể chọn lại ảnh cho bước này.',
+    studioBriefUpdated: 'Đã cập nhật brief {screen}. Tiếp tục bước hiện tại bên dưới.',
+    studioEditStep: 'Sửa',
+    studioEditSave: 'Lưu',
+    studioEditCancel: 'Hủy',
+    studioEditStepUnknown: 'Không xác định được bước cần sửa.',
+    studioEditCredit: '0,1 credit / lượt sửa',
     studioReferenceRemove: 'Gỡ ảnh tham chiếu',
     studioReferenceAttachHint: 'Mỗi lần tạo, AI chỉ gửi tối đa {n} ảnh (ưu tiên Logo + các bước gần nhất) để tránh loãng style.',
     studioReferenceCount: '({count}/{max})',
+    studioGenRefPickerTitle: 'Ảnh ghép lên bao bì (lần tạo này)',
+    studioGenRefPickerHint: 'Chọn ảnh đã duyệt và tải ảnh sản phẩm — AI ghép trực tiếp lên mặt bao bì (tối đa {max} ảnh/lần).',
+    studioGenRefProductLabel: 'Ảnh sản phẩm (ghép lên bao bì)',
+    studioGenProductUploaded: 'Đã thêm {n} ảnh sản phẩm cho lần tạo.',
+    studioGenRefAttachCount: '{n}/{max} ảnh',
     studioLogoFirst: 'Cần tạo và chọn Logo làm tham chiếu trước khi tạo các trang giao diện.',
-    studioNeedLogoReference: 'Chưa có Logo tham chiếu — hãy tạo Logo và bấm «Chọn làm ảnh tham chiếu» trước.',
-    studioLogoApprovedNext: 'Đã lưu Logo làm tham chiếu. Tiếp theo: {next} — mô tả trang (Logo sẽ được đặt trên header).',
-    studioStartWithLogo: 'Brief đã đủ. Bước thiết kế đầu tiên: **tạo Logo** — sau khi duyệt Logo sẽ dùng làm tham chiếu cho mọi trang còn lại.',
-    studioGeneratedStep: 'Đã tạo {screen} theo mô tả của bạn. Xem bên dưới — ổn thì bấm «Chọn làm ảnh tham chiếu».',
-    studioLogoPendingApprove: 'Logo đã được tạo sẵn bên dưới — bấm «Chọn làm ảnh tham chiếu» nếu ổn, hoặc «Tạo lại» để thử phiên bản khác.',
-    studioStepPendingApprove: '{screen} đã được tạo sẵn bên dưới — bấm «Chọn làm ảnh tham chiếu» nếu ổn, hoặc «Tạo lại» để thử phiên bản khác.',
-    studioApproveBeforeNext: 'Bấm «Chọn làm ảnh tham chiếu» cho {screen} trước — sau đó hệ thống sẽ chuyển sang bước tiếp theo (dùng ảnh đã duyệt làm tham chiếu).',
+    studioNeedLogoReference: 'Chưa có Logo tham chiếu — tải logo lên hoặc mô tả để AI tạo, rồi bấm «Chọn làm tham chiếu và tiếp».',
+    studioLogoApprovedNext: 'Đã lưu Logo làm tham chiếu. Tiếp theo: {next} — mô tả yêu cầu (Logo đồng bộ trên các bước sau).',
+    studioStartWithLogo:
+      'Brief đã đủ. Bước Logo: **đã có logo** → bấm **Tải logo** làm tham chiếu; **chưa có** → mô tả bên dưới để AI tạo. Logo duyệt sẽ dùng cho mọi bước sau.',
+    studioLogoUploadHint: 'Đã có logo? Tải file ảnh lên — hoặc mô tả bên dưới để AI tạo logo mới.',
+    studioLogoUploadBtn: 'Tải logo',
+    studioLogoUploadUserLabel: '📎 Tải logo làm tham chiếu',
+    studioLogoUploadNeedFile: 'Vui lòng chọn file ảnh logo.',
+    studioLogoUploadWrongStep: 'Chỉ tải logo khi đang ở bước Logo.',
+    studioLogoUploadAlready: 'Logo tham chiếu đã được lưu.',
+    studioGeneratedStep: 'Đã tạo {screen} theo mô tả của bạn. Xem bên dưới — ổn thì bấm «Chọn làm tham chiếu và tiếp».',
+    studioLogoPendingApprove: 'Logo đã được tạo sẵn bên dưới — bấm «Chọn làm tham chiếu và tiếp» nếu ổn, hoặc «Tạo lại» để thử phiên bản khác.',
+    studioStepPendingApprove: '{screen} đã được tạo sẵn bên dưới — bấm «Chọn làm tham chiếu và tiếp» nếu ổn, hoặc «Tạo lại» để thử phiên bản khác.',
+    studioApproveBeforeNext: 'Bấm «Chọn làm tham chiếu và tiếp» cho {screen} trước — sau đó hệ thống sẽ chuyển sang bước tiếp theo.',
     studioRegenerated: 'Đã tạo lại giao diện {screen}. Bạn thấy ổn chưa?',
     studioAllDone: 'Đã hoàn tất toàn bộ quy trình thiết kế. Bạn có thể yêu cầu chỉnh sửa thêm bất kỳ màn hình nào.',
     planCreated: 'Đã tạo kế hoạch {n} bước',
@@ -2647,6 +2717,12 @@ const VI_DICTIONARY: Dictionary = {
     planOpenQueue: 'Hàng đợi',
     viewTaskQueue: 'Xem hàng đợi tác vụ',
     newThread: 'Hội thoại mới',
+    chatHistory: 'Danh sách đã chat',
+    chatHistoryEmpty: 'Chưa có hội thoại nào.',
+    chatHistoryLoadFailed: 'Không tải được danh sách hội thoại.',
+    chatHistoryDelete: 'Xóa hội thoại',
+    chatHistoryDeleted: 'Đã xóa hội thoại.',
+    chatHistoryDeleteFailed: 'Không xóa được hội thoại.',
     autoRunTitle: 'Chạy tự động (NanoAI Agent)',
     autoRunEstimate: 'Ước tính ~{n} credits cho toàn bộ kế hoạch',
     autoRunUpload: 'Chọn ảnh sản phẩm',
@@ -2664,6 +2740,27 @@ const VI_DICTIONARY: Dictionary = {
     studioNoPrompt: 'Không có prompt để tạo lại.',
     studioMinChars: 'Nhập ít nhất 2 ký tự.',
     studioViewLarge: 'Xem to',
+    studioCropImage: 'Cắt / sửa',
+    studioCropSizeDisplay: 'Ảnh đã sửa: {size}',
+    studioCropTargetDisplay: 'Kích thước mặt hộp: {size}',
+    studioCropTitle: 'Chỉnh sửa ảnh mặt in',
+    studioCropSave: 'Áp dụng',
+    studioCropCancel: 'Hủy',
+    studioCropZoom: 'Thu phóng',
+    studioCropTargetSize: 'Mặt hộp (mục tiêu): {size}',
+    studioCropResultSize: 'Vùng in sau cắt: {size}',
+    studioCropDragHint: 'Kéo khung đỏ để di chuyển — kéo góc để phóng to/thu nhỏ (tỷ lệ cố định theo mặt hộp).',
+    studioCropRatioLocked: 'Tỷ lệ khung cắt luôn khớp mặt in: {size}',
+    studioEditAddText: 'Thêm chữ',
+    studioEditAddImage: 'Chèn ảnh',
+    studioEditAddSticker: 'Chèn nhãn dán',
+    studioEditOverlayHint: 'Chạm/chọn lớp để kéo — kéo góc tím để phóng to/thu nhỏ nhãn dán hoặc ảnh chèn.',
+    studioEditTextPlaceholder: 'Nội dung chữ',
+    studioEditDeleteLayer: 'Xóa lớp',
+    studioEditRevertOriginal: 'Quay lại ảnh gốc',
+    studioEditReverted: 'Đã khôi phục ảnh gốc AI ({screen}).',
+    studioCropApplied: 'Đã cập nhật ảnh sau khi cắt ({screen}).',
+    studioCropSizeLine: 'Kích thước ảnh đã sửa: {size}',
     studioDiscoveryBlocked: 'Đang thu thập brief — chưa tạo ảnh ở bước này.',
     studioPresets: {
       mobile_shop: {
@@ -3341,7 +3438,7 @@ const VI_DICTIONARY: Dictionary = {
     usageEmbedColInventoryId: 'Mã dòng kho',
     usageImageGenTitle: 'Nano Banana — tạo ảnh (inbox khách)',
     usageImageGenIntro:
-      'Nano Banana là lối gọi nội bộ cho pipeline Gemini tạo ảnh (model gemini-3-pro-image-preview). Cả hai nhánh — ảnh chi tiết chất liệu/màu và ảnh thực tế / đời thường — đều lấy một ảnh sản phẩm trong kho làm đầu vào và model sinh một ảnh mới từ ảnh đó (không chỉ tái dùng file gốc). Mỗi lần gọi API sinh ảnh mới và lưu URL vào kho — cùng khoảng thời gian với bảng token LLM phía trên. Ảnh đã cache trong kho không tạo lại nên không tính thêm.',
+      'Nano Banana là lối gọi nội bộ cho pipeline Gemini tạo ảnh (model gemini-3-pro-image). Cả hai nhánh — ảnh chi tiết chất liệu/màu và ảnh thực tế / đời thường — đều lấy một ảnh sản phẩm trong kho làm đầu vào và model sinh một ảnh mới từ ảnh đó (không chỉ tái dùng file gốc). Mỗi lần gọi API sinh ảnh mới và lưu URL vào kho — cùng khoảng thời gian với bảng token LLM phía trên. Ảnh đã cache trong kho không tạo lại nên không tính thêm.',
     usageImageGenEmpty: 'Chưa có lượt tạo ảnh Nano Banana ghi nhận trong khoảng này.',
     usageImageGenColKind: 'Loại ảnh',
     usageImageGenKindMaterial: 'Chi tiết chất liệu / màu',
@@ -3350,7 +3447,7 @@ const VI_DICTIONARY: Dictionary = {
     usageImageGenColTotalTokens: 'Tổng token (ước lượng billable)',
     usageImageGenTotalCallsLabel: 'Tổng lượt tạo ảnh (Nano Banana)',
     usageNanoBananaBadge: 'Nano Banana',
-    usageNanoBananaModelHint: 'gemini-3-pro-image-preview · inbox',
+    usageNanoBananaModelHint: 'gemini-3-pro-image · inbox',
     usageNanoBananaStatCalls: 'Lượt gọi tạo ảnh: {calls}',
     usageNanoBananaStatTokens: 'Tổng token (billable ước lượng): {tokens}',
     enableLabel: 'Bật trả lời tự động',
@@ -5067,7 +5164,7 @@ const EN_DICTIONARY: Dictionary = {
     suggested: 'Quick picks',
     loginRequired: 'Sign in to use the AI assistant (0.1 credit per message).',
     errorGeneric: 'Could not send. Please try again.',
-    creditNote: '0.1 credit / chat message',
+    creditNote: '0.1 credit / chat or step edit',
     fallbackReply: 'Pick a tool below or describe your need in more detail.',
     workflowPick: 'Workflow group',
     clearReply: 'Clear',
@@ -5076,8 +5173,12 @@ const EN_DICTIONARY: Dictionary = {
     studioSubtitle: 'Design inside chat — apps, banners, brand kits, product photos, invites, ad music. AI guides each step; you approve and continue.',
     studioPlaceholder: 'e.g. I want a mobile shopping app UI for fashion…',
     studioProcessTitle: 'Design process',
+    studioNavigateStepHint: 'Click a completed step to go back and edit — later steps stay saved.',
+    studioNavigatedToStep: 'Viewing/editing **{screen}**. Describe changes or click another step in the rail.',
+    studioStepSavedStay: 'Saved **{screen}**. Click another step in the rail to continue.',
+    studioNavigateStepBlocked: 'Cannot jump to this step yet — only completed steps are clickable.',
     studioRegenerate: 'Regenerate',
-    studioUseReference: 'Use as reference',
+    studioUseReference: 'Use as reference & continue',
     studioImageCredit: 'Image: {n} credits',
     studioGenerating: 'AI is working…',
     studioSampleLabel: 'Mobile shop app',
@@ -5088,13 +5189,31 @@ const EN_DICTIONARY: Dictionary = {
     studioReferenceTitle: 'Approved references',
     studioReferenceLimit: 'You have reached the {max} reference image limit. Remove one before adding more.',
     studioReferenceRemoved: 'Removed reference: {screen}. You can select a new image for this step.',
+    studioBriefUpdated: 'Updated brief for {screen}. Continue with the current step below.',
+    studioEditStep: 'Edit',
+    studioEditSave: 'Save',
+    studioEditCancel: 'Cancel',
+    studioEditStepUnknown: 'Could not determine which step to edit.',
+    studioEditCredit: '0.1 credit / edit',
     studioReferenceRemove: 'Remove reference',
     studioReferenceAttachHint: 'Each generation sends at most {n} references (Logo first, then the most recent steps) to avoid diluted style.',
     studioReferenceCount: '({count}/{max})',
+    studioGenRefPickerTitle: 'Images to composite on packaging (this run)',
+    studioGenRefPickerHint: 'Pick approved refs and upload product photos — AI composites them onto the packaging face (max {max} images per run).',
+    studioGenRefProductLabel: 'Product photo (composite on box)',
+    studioGenProductUploaded: 'Added {n} product photo(s) for this generation.',
+    studioGenRefAttachCount: '{n}/{max} images',
     studioLogoFirst: 'Create and approve the Logo as reference before designing UI screens.',
-    studioNeedLogoReference: 'No logo reference yet — create the Logo and tap «Use as reference» first.',
-    studioLogoApprovedNext: 'Logo saved as reference. Next: {next} — describe the screen (logo will appear in the header).',
-    studioStartWithLogo: 'Brief complete. First design step: **create the Logo** — once approved, it becomes the reference for all following screens.',
+    studioNeedLogoReference: 'No logo reference yet — upload your logo or describe one for AI to create, then tap «Use as reference».',
+    studioLogoApprovedNext: 'Logo saved as reference. Next: {next} — describe requirements (logo stays consistent on later steps).',
+    studioStartWithLogo:
+      'Brief complete. Logo step: **already have a logo** → tap **Upload logo** as reference; **need one** → describe below for AI to create. Approved logo is used on all later steps.',
+    studioLogoUploadHint: 'Already have a logo? Upload the image — or describe below for AI to create a new one.',
+    studioLogoUploadBtn: 'Upload logo',
+    studioLogoUploadUserLabel: '📎 Upload logo as reference',
+    studioLogoUploadNeedFile: 'Please choose a logo image file.',
+    studioLogoUploadWrongStep: 'Logo upload is only available on the Logo step.',
+    studioLogoUploadAlready: 'Logo reference is already saved.',
     studioGeneratedStep: 'Created {screen} from your description. Review below — tap «Use as reference» if it looks good.',
     studioLogoPendingApprove: 'Logo preview is below — tap «Use as reference» if it looks good, or «Regenerate» for another version.',
     studioStepPendingApprove: '{screen} preview is below — tap «Use as reference» if it looks good, or «Regenerate» for another version.',
@@ -5112,6 +5231,12 @@ const EN_DICTIONARY: Dictionary = {
     planOpenQueue: 'Task queue',
     viewTaskQueue: 'View task queue',
     newThread: 'New chat',
+    chatHistory: 'Chat history',
+    chatHistoryEmpty: 'No conversations yet.',
+    chatHistoryLoadFailed: 'Could not load chat history.',
+    chatHistoryDelete: 'Delete conversation',
+    chatHistoryDeleted: 'Conversation deleted.',
+    chatHistoryDeleteFailed: 'Could not delete conversation.',
     autoRunTitle: 'Run automatically (NanoAI Agent)',
     autoRunEstimate: 'Estimated ~{n} credits for the full plan',
     autoRunUpload: 'Choose product images',
@@ -5129,6 +5254,27 @@ const EN_DICTIONARY: Dictionary = {
     studioNoPrompt: 'No prompt to regenerate.',
     studioMinChars: 'Enter at least 2 characters.',
     studioViewLarge: 'View large',
+    studioCropImage: 'Crop / edit',
+    studioCropSizeDisplay: 'Edited image: {size}',
+    studioCropTargetDisplay: 'Box face size: {size}',
+    studioCropTitle: 'Edit print face',
+    studioCropSave: 'Apply',
+    studioCropCancel: 'Cancel',
+    studioCropZoom: 'Zoom',
+    studioCropTargetSize: 'Box face (target): {size}',
+    studioCropResultSize: 'Print area after crop: {size}',
+    studioCropDragHint: 'Drag the red frame to move — drag corners to resize (fixed box-face ratio).',
+    studioCropRatioLocked: 'Crop ratio locked to print face: {size}',
+    studioEditAddText: 'Add text',
+    studioEditAddImage: 'Insert image',
+    studioEditAddSticker: 'Insert sticker',
+    studioEditOverlayHint: 'Tap a layer to move — drag purple corners to resize stickers or inserted images.',
+    studioEditTextPlaceholder: 'Text content',
+    studioEditDeleteLayer: 'Delete layer',
+    studioEditRevertOriginal: 'Revert to original',
+    studioEditReverted: 'Restored original AI image ({screen}).',
+    studioCropApplied: 'Updated image after crop ({screen}).',
+    studioCropSizeLine: 'Edited image size: {size}',
     studioDiscoveryBlocked: 'Collecting brief — no image generation on this step yet.',
     studioPresets: {
       mobile_shop: {
@@ -5855,7 +6001,7 @@ const EN_DICTIONARY: Dictionary = {
     usageEmbedColInventoryId: 'Inventory row',
     usageImageGenTitle: 'Nano Banana — inbox image generation',
     usageImageGenIntro:
-      'Nano Banana is our label for the Gemini image pipeline (model gemini-3-pro-image-preview). Both branches — material/color detail collages and real-use / lifestyle shots — take one on-file product photo as input and generate a new image from it (not a simple reuse of the original file). Each row counts a new API generation saved to inventory — same window as the LLM token table above. Cached rows are not regenerated.',
+      'Nano Banana is our label for the Gemini image pipeline (model gemini-3-pro-image). Both branches — material/color detail collages and real-use / lifestyle shots — take one on-file product photo as input and generate a new image from it (not a simple reuse of the original file). Each row counts a new API generation saved to inventory — same window as the LLM token table above. Cached rows are not regenerated.',
     usageImageGenEmpty: 'No Nano Banana image generations recorded in this period.',
     usageImageGenColKind: 'Image type',
     usageImageGenKindMaterial: 'Material / color detail',
@@ -5864,7 +6010,7 @@ const EN_DICTIONARY: Dictionary = {
     usageImageGenColTotalTokens: 'Total tokens (billable est.)',
     usageImageGenTotalCallsLabel: 'Total image calls (Nano Banana)',
     usageNanoBananaBadge: 'Nano Banana',
-    usageNanoBananaModelHint: 'gemini-3-pro-image-preview · inbox',
+    usageNanoBananaModelHint: 'gemini-3-pro-image · inbox',
     usageNanoBananaStatCalls: 'Image generation calls: {calls}',
     usageNanoBananaStatTokens: 'Total tokens (billable est.): {tokens}',
     enableLabel: 'Enable auto-replies',
@@ -7579,7 +7725,7 @@ const ZH_DICTIONARY: Dictionary = {
     suggested: '快捷推荐',
     loginRequired: '请登录后使用 AI 助手（每次 0.1 积分）。',
     errorGeneric: '发送失败，请重试。',
-    creditNote: '0.1 积分 / 次对话',
+    creditNote: '0.1 积分 / 次对话或编辑步骤',
     fallbackReply: '可从下方选择工具，或更详细地描述需求。',
     workflowPick: '工作流分组',
     clearReply: '清除',
@@ -7588,8 +7734,12 @@ const ZH_DICTIONARY: Dictionary = {
     studioSubtitle: '在聊天中设计 — 应用、横幅、品牌套件、产品图、邀请函、广告音乐。AI 逐步引导，您确认后继续。',
     studioPlaceholder: '例如：我想设计一个时尚电商手机应用界面…',
     studioProcessTitle: '设计流程',
+    studioNavigateStepHint: '点击已完成步骤返回修改 — 后续步骤数据保留。',
+    studioNavigatedToStep: '正在查看/编辑 **{screen}**。输入修改或点击流程条其他步骤切换。',
+    studioStepSavedStay: '已保存 **{screen}**。点击流程条其他步骤继续。',
+    studioNavigateStepBlocked: '无法跳到此步骤 — 仅已完成步骤可点击。',
     studioRegenerate: '重新生成',
-    studioUseReference: '选为参考图',
+    studioUseReference: '选为参考并继续',
     studioImageCredit: '生成图片：{n} 积分',
     studioGenerating: 'AI 处理中…',
     studioSampleLabel: '手机商城应用',
@@ -7600,13 +7750,31 @@ const ZH_DICTIONARY: Dictionary = {
     studioReferenceTitle: '已批准的参考图',
     studioReferenceLimit: '已达 {max} 张参考图上限。请先移除一张再添加。',
     studioReferenceRemoved: '已移除参考图：{screen}。可重新为该步骤选择图片。',
+    studioBriefUpdated: '已更新 {screen} 简报。请继续当前步骤。',
+    studioEditStep: '编辑',
+    studioEditSave: '保存',
+    studioEditCancel: '取消',
+    studioEditStepUnknown: '无法确定要编辑的步骤。',
+    studioEditCredit: '0.1 积分 / 次编辑',
     studioReferenceRemove: '移除参考图',
     studioReferenceAttachHint: '每次生成最多发送 {n} 张参考图（优先 Logo + 最近步骤），避免风格稀释。',
     studioReferenceCount: '({count}/{max})',
+    studioGenRefPickerTitle: '本次合成到包装上的图片',
+    studioGenRefPickerHint: '选择已批准参考图并上传产品照片 — AI 直接合成到包装面上（每次最多 {max} 张）。',
+    studioGenRefProductLabel: '产品照片（合成到包装）',
+    studioGenProductUploaded: '已为本次生成添加 {n} 张产品照片。',
+    studioGenRefAttachCount: '{n}/{max} 张',
     studioLogoFirst: '请先创建并批准 Logo 作为参考，再设计界面页面。',
-    studioNeedLogoReference: '尚无 Logo 参考 — 请先创建 Logo 并点击「选为参考图」。',
-    studioLogoApprovedNext: 'Logo 已存为参考。下一步：{next} — 描述页面（Logo 将显示在页头）。',
-    studioStartWithLogo: 'Brief 已完成。第一步设计：**创建 Logo** — 批准后将作为后续所有页面的参考。',
+    studioNeedLogoReference: '尚无 Logo 参考 — 请上传 logo 或描述让 AI 创建，然后点击「选为参考图」。',
+    studioLogoApprovedNext: 'Logo 已存为参考。下一步：{next} — 描述需求（后续步骤保持 Logo 一致）。',
+    studioStartWithLogo:
+      'Brief 已完成。Logo 步骤：**已有 logo** → 点击 **上传 logo** 作为参考；**还没有** → 在下方描述让 AI 创建。已批准的 logo 用于后续所有步骤。',
+    studioLogoUploadHint: '已有 logo？上传图片 — 或在下方描述让 AI 创建新 logo。',
+    studioLogoUploadBtn: '上传 logo',
+    studioLogoUploadUserLabel: '📎 上传 logo 作为参考',
+    studioLogoUploadNeedFile: '请选择 logo 图片文件。',
+    studioLogoUploadWrongStep: '仅可在 Logo 步骤上传 logo。',
+    studioLogoUploadAlready: 'Logo 参考已保存。',
     studioGeneratedStep: '已根据您的描述生成 {screen}。请查看下方 — 满意请点击「选为参考图」。',
     studioLogoPendingApprove: 'Logo 预览已在下方 — 满意请点击「选为参考图」，或点「重新生成」换一版。',
     studioStepPendingApprove: '{screen} 预览已在下方 — 满意请点击「选为参考图」，或点「重新生成」换一版。',
@@ -7624,6 +7792,12 @@ const ZH_DICTIONARY: Dictionary = {
     planOpenQueue: '任务队列',
     viewTaskQueue: '查看任务队列',
     newThread: '新对话',
+    chatHistory: '聊天记录',
+    chatHistoryEmpty: '暂无对话。',
+    chatHistoryLoadFailed: '无法加载聊天记录。',
+    chatHistoryDelete: '删除对话',
+    chatHistoryDeleted: '已删除对话。',
+    chatHistoryDeleteFailed: '无法删除对话。',
     autoRunTitle: '自动运行（NanoAI Agent）',
     autoRunEstimate: '预计全程约 {n} 积分',
     autoRunUpload: '选择产品图片',
@@ -7641,6 +7815,27 @@ const ZH_DICTIONARY: Dictionary = {
     studioNoPrompt: '没有可重新生成的提示词。',
     studioMinChars: '至少输入 2 个字符。',
     studioViewLarge: '查看大图',
+    studioCropImage: '裁剪 / 编辑',
+    studioCropSizeDisplay: '已编辑图像：{size}',
+    studioCropTargetDisplay: '盒面尺寸：{size}',
+    studioCropTitle: '编辑印刷面',
+    studioCropSave: '应用',
+    studioCropCancel: '取消',
+    studioCropZoom: '缩放',
+    studioCropTargetSize: '盒面（目标）：{size}',
+    studioCropResultSize: '裁剪后印刷区域：{size}',
+    studioCropDragHint: '拖动红框移动 — 拖角缩放（比例固定为盒面）。',
+    studioCropRatioLocked: '裁剪比例锁定为印刷面：{size}',
+    studioEditAddText: '添加文字',
+    studioEditAddImage: '插入图片',
+    studioEditAddSticker: '插入贴纸',
+    studioEditOverlayHint: '点选图层移动 — 拖紫色角缩放贴纸或插入图片。',
+    studioEditTextPlaceholder: '文字内容',
+    studioEditDeleteLayer: '删除图层',
+    studioEditRevertOriginal: '恢复原图',
+    studioEditReverted: '已恢复 AI 原图（{screen}）。',
+    studioCropApplied: '已更新裁剪后的图像（{screen}）。',
+    studioCropSizeLine: '已编辑图像尺寸：{size}',
     studioDiscoveryBlocked: '正在收集需求 — 此步骤暂不生成图片。',
     studioPresets: {
       mobile_shop: {
@@ -8357,7 +8552,7 @@ const ZH_DICTIONARY: Dictionary = {
     usageEmbedColInventoryId: '库存行 ID',
     usageImageGenTitle: 'Nano Banana — 收件箱生图',
     usageImageGenIntro:
-      'Nano Banana 为内部名称，指 Gemini 生图流程（模型 gemini-3-pro-image-preview）：材质/颜色细节图与上身/使用示意。每次新调用并写入库存才计入——时间范围与上方 LLM token 表一致。已缓存不会重复生成。',
+      'Nano Banana 为内部名称，指 Gemini 生图流程（模型 gemini-3-pro-image）：材质/颜色细节图与上身/使用示意。每次新调用并写入库存才计入——时间范围与上方 LLM token 表一致。已缓存不会重复生成。',
     usageImageGenEmpty: '此期间暂无 Nano Banana 生图记录。',
     usageImageGenColKind: '类型',
     usageImageGenKindMaterial: '材质 / 颜色细节',
@@ -8366,7 +8561,7 @@ const ZH_DICTIONARY: Dictionary = {
     usageImageGenColTotalTokens: '总 token（估算）',
     usageImageGenTotalCallsLabel: '生图总次数（Nano Banana）',
     usageNanoBananaBadge: 'Nano Banana',
-    usageNanoBananaModelHint: 'gemini-3-pro-image-preview · 收件箱',
+    usageNanoBananaModelHint: 'gemini-3-pro-image · 收件箱',
     usageNanoBananaStatCalls: '生图调用次数：{calls}',
     usageNanoBananaStatTokens: '总 token（估算计费）：{tokens}',
     enableLabel: '启用自动回复',
@@ -10004,7 +10199,7 @@ const JA_DICTIONARY: Dictionary = {
     suggested: 'クイック候補',
     loginRequired: 'AI アシスタントにはログインが必要です（1回 0.1 クレジット）。',
     errorGeneric: '送信に失敗しました。もう一度お試しください。',
-    creditNote: '0.1 クレジット / 1 メッセージ',
+    creditNote: '0.1 クレジット / 1 メッセージまたは編集',
     fallbackReply: '下のツールを選ぶか、もう少し詳しく説明してください。',
     workflowPick: 'ワークフローグループ',
     clearReply: 'クリア',
@@ -10013,8 +10208,12 @@ const JA_DICTIONARY: Dictionary = {
     studioSubtitle: 'チャット内で設計 — アプリ、バナー、ブランドキット、商品画像、招待状、広告音楽。AIが段階的に案内します。',
     studioPlaceholder: '例：ファッション通販のモバイルアプリUIを設計したい…',
     studioProcessTitle: '設計プロセス',
+    studioNavigateStepHint: '完了したステップをクリックして戻って編集 — 以降のステップは保持されます。',
+    studioNavigatedToStep: '**{screen}** を表示/編集中。変更を入力するか、レールの別ステップをクリック。',
+    studioStepSavedStay: '**{screen}** を保存しました。レールで別ステップをクリックして続行。',
+    studioNavigateStepBlocked: 'このステップにはまだ移動できません — 完了したステップのみクリック可能です。',
     studioRegenerate: '再生成',
-    studioUseReference: '参考画像にする',
+    studioUseReference: '参考にして次へ',
     studioImageCredit: '画像生成：{n} クレジット',
     studioGenerating: 'AI 処理中…',
     studioSampleLabel: 'モバイルショップアプリ',
@@ -10025,13 +10224,31 @@ const JA_DICTIONARY: Dictionary = {
     studioReferenceTitle: '承認済み参考画像',
     studioReferenceLimit: '参考画像は最大 {max} 枚です。追加する前に1枚削除してください。',
     studioReferenceRemoved: '参考画像を削除しました：{screen}。このステップで再選択できます。',
+    studioBriefUpdated: '{screen} のブリーフを更新しました。現在のステップを続けてください。',
+    studioEditStep: '編集',
+    studioEditSave: '保存',
+    studioEditCancel: 'キャンセル',
+    studioEditStepUnknown: '編集するステップを特定できません。',
+    studioEditCredit: '0.1 クレジット / 編集',
     studioReferenceRemove: '参考画像を削除',
     studioReferenceAttachHint: '生成ごとに最大 {n} 枚（ロゴ優先＋直近のステップ）を送り、スタイルの希薄化を防ぎます。',
     studioReferenceCount: '({count}/{max})',
+    studioGenRefPickerTitle: 'パッケージに合成する画像（今回）',
+    studioGenRefPickerHint: '承認済み参考と商品写真を選択 — AIがパッケージ面に直接合成（1回最大{max}枚）。',
+    studioGenRefProductLabel: '商品写真（箱に合成）',
+    studioGenProductUploaded: '今回の生成用に商品写真 {n} 枚を追加しました。',
+    studioGenRefAttachCount: '{n}/{max} 枚',
     studioLogoFirst: 'UI画面の前にロゴを作成し参考にしてください。',
-    studioNeedLogoReference: 'ロゴ参考がありません — ロゴを作成し「参考画像にする」を押してください。',
-    studioLogoApprovedNext: 'ロゴを参考に保存しました。次：{next} — 画面を説明（ロゴはヘッダーに配置）。',
-    studioStartWithLogo: 'ブリーフ完了。最初の設計：**ロゴ作成** — 承認後、以降の画面の参考になります。',
+    studioNeedLogoReference: 'ロゴ参考がありません — ロゴをアップロードするか、AIに作成させる説明を入力し、「参考画像にする」を押してください。',
+    studioLogoApprovedNext: 'ロゴを参考に保存しました。次：{next} — 要件を説明（以降のステップでロゴを統一）。',
+    studioStartWithLogo:
+      'ブリーフ完了。ロゴステップ：**既にロゴあり** → **ロゴをアップロード**で参考に；**まだない** → 下に説明してAIが作成。承認したロゴは以降すべてのステップで使用。',
+    studioLogoUploadHint: 'ロゴをお持ちですか？画像をアップロード — または下に説明してAIに新規作成。',
+    studioLogoUploadBtn: 'ロゴをアップロード',
+    studioLogoUploadUserLabel: '📎 ロゴを参考としてアップロード',
+    studioLogoUploadNeedFile: 'ロゴ画像ファイルを選択してください。',
+    studioLogoUploadWrongStep: 'ロゴのアップロードはロゴステップでのみ可能です。',
+    studioLogoUploadAlready: 'ロゴ参考は既に保存されています。',
     studioGeneratedStep: 'ご要望どおり {screen} を生成しました。下を確認し、問題なければ「参考画像にする」を押してください。',
     studioLogoPendingApprove: 'ロゴのプレビューは下にあります — 問題なければ「参考画像にする」、別バージョンは「再生成」を押してください。',
     studioStepPendingApprove: '{screen}のプレビューは下にあります — 問題なければ「参考画像にする」、別バージョンは「再生成」を押してください。',
@@ -10049,6 +10266,12 @@ const JA_DICTIONARY: Dictionary = {
     planOpenQueue: 'タスクキュー',
     viewTaskQueue: 'タスクキューを見る',
     newThread: '新しいチャット',
+    chatHistory: 'チャット履歴',
+    chatHistoryEmpty: 'まだ会話がありません。',
+    chatHistoryLoadFailed: 'チャット履歴を読み込めませんでした。',
+    chatHistoryDelete: '会話を削除',
+    chatHistoryDeleted: '会話を削除しました。',
+    chatHistoryDeleteFailed: '会話を削除できませんでした。',
     autoRunTitle: '自動実行（NanoAI Agent）',
     autoRunEstimate: 'プラン全体の目安 ~{n} クレジット',
     autoRunUpload: '商品画像を選択',
@@ -10066,6 +10289,27 @@ const JA_DICTIONARY: Dictionary = {
     studioNoPrompt: '再生成用のプロンプトがありません。',
     studioMinChars: '2文字以上入力してください。',
     studioViewLarge: '拡大表示',
+    studioCropImage: '切り抜き / 編集',
+    studioCropSizeDisplay: '編集後：{size}',
+    studioCropTargetDisplay: '箱面サイズ：{size}',
+    studioCropTitle: '印刷面を編集',
+    studioCropSave: '適用',
+    studioCropCancel: 'キャンセル',
+    studioCropZoom: 'ズーム',
+    studioCropTargetSize: '箱面（目標）：{size}',
+    studioCropResultSize: '切り抜き後の印刷領域：{size}',
+    studioCropDragHint: '赤枠をドラッグで移動 — 角で拡大縮小（箱面比率固定）。',
+    studioCropRatioLocked: '切り抜き比率は印刷面に固定：{size}',
+    studioEditAddText: '文字を追加',
+    studioEditAddImage: '画像を挿入',
+    studioEditAddSticker: 'ステッカーを挿入',
+    studioEditOverlayHint: 'レイヤーを選択して移動 — 紫の角でステッカー/挿入画像のサイズ変更。',
+    studioEditTextPlaceholder: 'テキスト',
+    studioEditDeleteLayer: 'レイヤー削除',
+    studioEditRevertOriginal: '原寸に戻す',
+    studioEditReverted: 'AI原寸画像に戻しました（{screen}）。',
+    studioCropApplied: '切り抜き後の画像を更新しました（{screen}）。',
+    studioCropSizeLine: '編集後サイズ：{size}',
     studioDiscoveryBlocked: 'ブリーフ収集中 — このステップではまだ生成しません。',
     studioPresets: {
       mobile_shop: {
@@ -10805,7 +11049,7 @@ const JA_DICTIONARY: Dictionary = {
     usageEmbedColInventoryId: '在庫行 ID',
     usageImageGenTitle: 'Nano Banana — インボックス画像生成',
     usageImageGenIntro:
-      'Nano Banana は内部名称です（モデル gemini-3-pro-image-preview）：素材・色の詳細画像と着用・使用イメージ。新規に生成して在庫に保存した API 呼び出しのみ——上の LLM トークン表と同じ期間。キャッシュ済みは再生成されません。',
+      'Nano Banana は内部名称です（モデル gemini-3-pro-image）：素材・色の詳細画像と着用・使用イメージ。新規に生成して在庫に保存した API 呼び出しのみ——上の LLM トークン表と同じ期間。キャッシュ済みは再生成されません。',
     usageImageGenEmpty: 'この期間に Nano Banana の記録はありません。',
     usageImageGenColKind: '種類',
     usageImageGenKindMaterial: '素材・色の詳細',
@@ -10814,7 +11058,7 @@ const JA_DICTIONARY: Dictionary = {
     usageImageGenColTotalTokens: '合計トークン（概算）',
     usageImageGenTotalCallsLabel: '画像生成の合計回数（Nano Banana）',
     usageNanoBananaBadge: 'Nano Banana',
-    usageNanoBananaModelHint: 'gemini-3-pro-image-preview · インボックス',
+    usageNanoBananaModelHint: 'gemini-3-pro-image · インボックス',
     usageNanoBananaStatCalls: '画像生成呼び出し: {calls}',
     usageNanoBananaStatTokens: '合計トークン（概算）: {tokens}',
     enableLabel: '自動返信を有効にする',
@@ -12501,7 +12745,7 @@ const KO_DICTIONARY: Dictionary = {
     suggested: '빠른 추천',
     loginRequired: 'AI 어시스턴트는 로그인 후 이용 가능합니다(메시지당 0.1 크레딧).',
     errorGeneric: '전송에 실패했습니다. 다시 시도해 주세요.',
-    creditNote: '0.1 크레딧 / 메시지',
+    creditNote: '0.1 크레딧 / 메시지 또는 단계 수정',
     fallbackReply: '아래 도구를 선택하거나 필요를 더 자세히 설명해 주세요.',
     workflowPick: '워크플로 그룹',
     clearReply: '지우기',
@@ -12510,8 +12754,12 @@ const KO_DICTIONARY: Dictionary = {
     studioSubtitle: '채팅 안에서 설계 — 앱, 배너, 브랜드 키트, 상품 사진, 초대장, 광고 음악. AI가 단계별로 안내합니다.',
     studioPlaceholder: '예: 패션 쇼핑 모바일 앱 UI를 설계하고 싶어요…',
     studioProcessTitle: '설계 프로세스',
+    studioNavigateStepHint: '완료된 단계를 클릭해 돌아가 수정 — 이후 단계 데이터는 유지됩니다.',
+    studioNavigatedToStep: '**{screen}** 보기/수정 중. 변경 내용을 입력하거나 레일의 다른 단계를 클릭하세요.',
+    studioStepSavedStay: '**{screen}** 저장됨. 레일에서 다른 단계를 클릭해 계속하세요.',
+    studioNavigateStepBlocked: '아직 이 단계로 이동할 수 없습니다 — 완료된 단계만 클릭 가능합니다.',
     studioRegenerate: '다시 생성',
-    studioUseReference: '참조 이미지로 선택',
+    studioUseReference: '참조로 선택하고 계속',
     studioImageCredit: '이미지 생성: {n} 크레딧',
     studioGenerating: 'AI 처리 중…',
     studioSampleLabel: '모바일 쇼핑 앱',
@@ -12522,13 +12770,31 @@ const KO_DICTIONARY: Dictionary = {
     studioReferenceTitle: '승인된 참조 이미지',
     studioReferenceLimit: '참조 이미지는 최대 {max}장입니다. 추가 전에 하나를 제거하세요.',
     studioReferenceRemoved: '참조 이미지 제거: {screen}. 이 단계에서 다시 선택할 수 있습니다.',
+    studioBriefUpdated: '{screen} 브리프를 업데이트했습니다. 아래 현재 단계를 계속하세요.',
+    studioEditStep: '수정',
+    studioEditSave: '저장',
+    studioEditCancel: '취소',
+    studioEditStepUnknown: '수정할 단계를 확인할 수 없습니다.',
+    studioEditCredit: '0.1 크레딧 / 수정',
     studioReferenceRemove: '참조 이미지 제거',
     studioReferenceAttachHint: '생성마다 최대 {n}장(로고 우선 + 최근 단계)만 전송해 스타일 희석을 방지합니다.',
     studioReferenceCount: '({count}/{max})',
+    studioGenRefPickerTitle: '포장에 합성할 이미지(이번 생성)',
+    studioGenRefPickerHint: '승인된 참조와 제품 사진 선택 — AI가 포장 면에 직접 합성(회당 최대 {max}장).',
+    studioGenRefProductLabel: '제품 사진(상자에 합성)',
+    studioGenProductUploaded: '이번 생성용 제품 사진 {n}장을 추가했습니다.',
+    studioGenRefAttachCount: '{n}/{max}장',
     studioLogoFirst: 'UI 화면 전에 로고를 만들고 참조로 승인하세요.',
-    studioNeedLogoReference: '로고 참조 없음 — 로고 생성 후 «참조 이미지로 선택»을 누르세요.',
-    studioLogoApprovedNext: '로고 참조 저장됨. 다음: {next} — 화면 설명 (로고는 헤더에 배치).',
-    studioStartWithLogo: '브리프 완료. 첫 설계 단계: **로고 생성** — 승인 후 모든 화면의 참조로 사용됩니다.',
+    studioNeedLogoReference: '로고 참조 없음 — 로고를 업로드하거나 AI 생성 설명을 입력한 뒤 «참조 이미지로 선택»을 누르세요.',
+    studioLogoApprovedNext: '로고 참조 저장됨. 다음: {next} — 요구사항 설명 (이후 단계에서 로고 일관 유지).',
+    studioStartWithLogo:
+      '브리프 완료. 로고 단계: **로고 있음** → **로고 업로드**로 참조 설정; **없음** → 아래에 설명해 AI가 생성. 승인된 로고는 이후 모든 단계에 사용.',
+    studioLogoUploadHint: '로고가 있나요? 이미지 업로드 — 또는 아래에 설명해 AI가 새 로고 생성.',
+    studioLogoUploadBtn: '로고 업로드',
+    studioLogoUploadUserLabel: '📎 로고를 참조로 업로드',
+    studioLogoUploadNeedFile: '로고 이미지 파일을 선택하세요.',
+    studioLogoUploadWrongStep: '로고 업로드는 로고 단계에서만 가능합니다.',
+    studioLogoUploadAlready: '로고 참조가 이미 저장되었습니다.',
     studioGeneratedStep: '설명대로 {screen}을(를) 생성했습니다. 아래에서 확인 후 «참조 이미지로 선택»을 누르세요.',
     studioLogoPendingApprove: '로고 미리보기가 아래에 있습니다 — 괜찮으면 «참조 이미지로 선택», 다른 버전은 «다시 생성»을 누르세요.',
     studioStepPendingApprove: '{screen} 미리보기가 아래에 있습니다 — 괜찮으면 «참조 이미지로 선택», 다른 버전은 «다시 생성»을 누르세요.',
@@ -12546,6 +12812,12 @@ const KO_DICTIONARY: Dictionary = {
     planOpenQueue: '작업 대기열',
     viewTaskQueue: '작업 대기열 보기',
     newThread: '새 대화',
+    chatHistory: '채팅 기록',
+    chatHistoryEmpty: '아직 대화가 없습니다.',
+    chatHistoryLoadFailed: '채팅 기록을 불러올 수 없습니다.',
+    chatHistoryDelete: '대화 삭제',
+    chatHistoryDeleted: '대화를 삭제했습니다.',
+    chatHistoryDeleteFailed: '대화를 삭제할 수 없습니다.',
     autoRunTitle: '자동 실행 (NanoAI Agent)',
     autoRunEstimate: '전체 계획 예상 ~{n} 크레딧',
     autoRunUpload: '제품 이미지 선택',
@@ -12563,6 +12835,27 @@ const KO_DICTIONARY: Dictionary = {
     studioNoPrompt: '다시 생성할 프롬프트가 없습니다.',
     studioMinChars: '최소 2자 이상 입력하세요.',
     studioViewLarge: '크게 보기',
+    studioCropImage: '자르기 / 편집',
+    studioCropSizeDisplay: '편집된 이미지: {size}',
+    studioCropTargetDisplay: '상자 면 크기: {size}',
+    studioCropTitle: '인쇄면 편집',
+    studioCropSave: '적용',
+    studioCropCancel: '취소',
+    studioCropZoom: '확대/축소',
+    studioCropTargetSize: '상자 면(목표): {size}',
+    studioCropResultSize: '자른 후 인쇄 영역: {size}',
+    studioCropDragHint: '빨간 테두리 이동 — 모서리로 크기 조절(상자 면 비율 고정).',
+    studioCropRatioLocked: '자르기 비율은 인쇄면에 고정: {size}',
+    studioEditAddText: '텍스트 추가',
+    studioEditAddImage: '이미지 삽입',
+    studioEditAddSticker: '스티커 삽입',
+    studioEditOverlayHint: '레이어 선택 후 이동 — 보라색 모서리로 스티커/삽입 이미지 크기 조절.',
+    studioEditTextPlaceholder: '텍스트 내용',
+    studioEditDeleteLayer: '레이어 삭제',
+    studioEditRevertOriginal: '원본으로 되돌리기',
+    studioEditReverted: 'AI 원본 이미지로 복원했습니다 ({screen}).',
+    studioCropApplied: '자른 이미지로 업데이트했습니다 ({screen}).',
+    studioCropSizeLine: '편집된 이미지 크기: {size}',
     studioDiscoveryBlocked: '브리프 수집 중 — 이 단계에서는 아직 생성하지 않습니다.',
     studioPresets: {
       mobile_shop: {
@@ -13297,7 +13590,7 @@ const KO_DICTIONARY: Dictionary = {
     usageEmbedColInventoryId: '재고 행 ID',
     usageImageGenTitle: 'Nano Banana — 수신함 이미지 생성',
     usageImageGenIntro:
-      'Nano Banana는 내부 이름입니다(모델 gemini-3-pro-image-preview): 소재·색 디테일과 착용·사용 예시 이미지. 새로 생성해 재고에 저장한 API만 집계——위 LLM 토큰 표와 동일 기간. 캐시된 항목은 재생성되지 않습니다.',
+      'Nano Banana는 내부 이름입니다(모델 gemini-3-pro-image): 소재·색 디테일과 착용·사용 예시 이미지. 새로 생성해 재고에 저장한 API만 집계——위 LLM 토큰 표와 동일 기간. 캐시된 항목은 재생성되지 않습니다.',
     usageImageGenEmpty: '이 기간에 Nano Banana 기록이 없습니다.',
     usageImageGenColKind: '유형',
     usageImageGenKindMaterial: '소재 / 색 디테일',
@@ -13306,7 +13599,7 @@ const KO_DICTIONARY: Dictionary = {
     usageImageGenColTotalTokens: '총 토큰(추정)',
     usageImageGenTotalCallsLabel: '이미지 생성 총 호출(Nano Banana)',
     usageNanoBananaBadge: 'Nano Banana',
-    usageNanoBananaModelHint: 'gemini-3-pro-image-preview · 수신함',
+    usageNanoBananaModelHint: 'gemini-3-pro-image · 수신함',
     usageNanoBananaStatCalls: '이미지 생성 호출: {calls}',
     usageNanoBananaStatTokens: '총 토큰(추정): {tokens}',
     enableLabel: '자동 답장 사용',

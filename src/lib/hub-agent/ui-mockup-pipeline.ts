@@ -7,6 +7,7 @@ import { loadImageBufferFromUrl } from '@/lib/hub-agent/sharpen-pipeline'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 const toTenths = (value: number) => Math.round(value * 10)
 
@@ -53,7 +54,7 @@ Flat UI design mockup only — return ONE image of the screen, no extra explanat
   const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: '2K', aspectRatio: '9:16' },
@@ -80,7 +81,7 @@ Flat UI design mockup only — return ONE image of the screen, no extra explanat
   try {
     const result = await model.generateContent(parts as never, { safetySettings } as never)
     const response = result.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'hub-studio-ui', input.userId, '2K')
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'hub-studio-ui', input.userId, '2K')
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       return { ok: false, error: 'AI không trả về ảnh giao diện.' }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import sharp from 'sharp'
 import { getUserForCreditAction } from '@/lib/auth'
-import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
@@ -219,7 +219,7 @@ ${FLASH_INSTRUCTION}`
       `${IMAGE_INSTRUCTION_PREFIX}\n\nLESSON CONTEXT:\n${summaryForImage}\n\nSTRUCTURE / RELATIONSHIPS (from diagram):\n${mermaidForImage}`
 
     const imageModel = genAI.getGenerativeModel({
-      model: 'gemini-3-pro-image-preview',
+      model: GEMINI_3_PRO_IMAGE.model,
       generationConfig: {
         responseModalities: ['TEXT', 'IMAGE'],
         imageConfig: { imageSize: '2K', aspectRatio: '16:9' },
@@ -241,7 +241,7 @@ ${FLASH_INSTRUCTION}`
     const imageResponse = imageResult.response
     void trackFromUsageMetadata(
       imageResponse.usageMetadata,
-      'gemini-3-pro-image-preview',
+      GEMINI_3_PRO_IMAGE.model,
       'curriculum-slide-infographic',
       user.id,
       '2K'

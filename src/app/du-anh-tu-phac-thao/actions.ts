@@ -11,6 +11,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 
 const COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -166,7 +167,7 @@ export async function createImageFromSketch(formData: FormData) {
 
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -179,7 +180,7 @@ export async function createImageFromSketch(formData: FormData) {
       { safetySettings: [...safetySettings] } as never
     )
     const response = genResult.response
-    void trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'du-anh-tu-phac-thao', user.id, imageQuality)
+    void trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'du-anh-tu-phac-thao', user.id, imageQuality)
 
     const cand = response.candidates?.[0]
     if (!cand) {

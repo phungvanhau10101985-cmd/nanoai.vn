@@ -174,14 +174,29 @@ export const PACKAGING_KIT_FLOW: StudioFlowStepDef[] = [
   { key: 'brand_name', labelKey: 'brand_name', phase: 'discovery' },
   { key: 'product_type', labelKey: 'product_type', phase: 'discovery' },
   { key: 'box_size', labelKey: 'box_size', phase: 'discovery' },
+  { key: 'box_face_confirm', labelKey: 'box_face_confirm', phase: 'discovery' },
   { key: 'style_mood', labelKey: 'style_mood', phase: 'discovery' },
   { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
   { key: 'logo', labelKey: 'logo', phase: 'design', generator: 'logo', formFactor: 'square' },
-  { key: 'box_flat', labelKey: 'box_flat', phase: 'design', generator: 'packaging', aspectRatio: '1:1', formFactor: 'square' },
-  { key: 'box_mockup_3d', labelKey: 'box_mockup_3d', phase: 'design', generator: 'packaging', aspectRatio: '1:1', formFactor: 'square' },
+  { key: 'face_top', labelKey: 'face_top', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
+  { key: 'face_front', labelKey: 'face_front', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
+  { key: 'face_right', labelKey: 'face_right', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
+  { key: 'face_bottom', labelKey: 'face_bottom', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
+  { key: 'face_back', labelKey: 'face_back', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
+  { key: 'face_left', labelKey: 'face_left', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
+  { key: 'box_dieline_pdf', labelKey: 'box_dieline_pdf', phase: 'design', generator: 'dieline_pdf', formFactor: 'desktop' },
+  { key: 'box_mockup_3d', labelKey: 'box_mockup_3d', phase: 'design', generator: 'packaging_mockup', aspectRatio: '1:1', formFactor: 'square' },
   { key: 'product_label', labelKey: 'product_label', phase: 'design', generator: 'packaging', aspectRatio: '1:1', formFactor: 'square' },
   { key: 'seal_sticker', labelKey: 'seal_sticker', phase: 'design', generator: 'packaging', aspectRatio: '1:1', formFactor: 'square' },
-  { key: 'barcode_label', labelKey: 'barcode_label', phase: 'design', generator: 'banner', aspectRatio: '1:1', formFactor: 'square' },
+  { key: 'barcode_label', labelKey: 'barcode_label', phase: 'design', generator: 'barcode', formFactor: 'square' },
+]
+
+/** Bước cũ chỉ dùng để tiếp tục các phiên packaging_kit đã lưu trước flow 6 mặt. */
+const LEGACY_PACKAGING_STEPS: StudioFlowStepDef[] = [
+  { key: 'box_flat', labelKey: 'box_flat', phase: 'design', generator: 'packaging', aspectRatio: '1:1', formFactor: 'square' },
+  { key: 'face_lxw', labelKey: 'face_lxw', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
+  { key: 'face_lxh', labelKey: 'face_lxh', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
+  { key: 'face_wxh', labelKey: 'face_wxh', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
 ]
 
 export const INTERIOR_DESIGN_FLOW: StudioFlowStepDef[] = [
@@ -293,7 +308,10 @@ export function isDiscoveryStep(presetId: string, stepKey: string): boolean {
 }
 
 export function getFlowStep(presetId: string, stepKey: string): StudioFlowStepDef | undefined {
-  return getFlowSteps(presetId).find((s) => s.key === stepKey)
+  return (
+    getFlowSteps(presetId).find((s) => s.key === stepKey) ??
+    (presetId === 'packaging_kit' ? LEGACY_PACKAGING_STEPS.find((s) => s.key === stepKey) : undefined)
+  )
 }
 
 export function allDiscoveryDone(presetId: string, steps: { key: string; status: string }[]): boolean {

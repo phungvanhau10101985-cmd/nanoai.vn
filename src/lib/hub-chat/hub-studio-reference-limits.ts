@@ -1,18 +1,25 @@
 import type { HubStudioReferenceImage, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { getPrimaryLogoStepKey, orderedReferenceUrls } from '@/lib/hub-chat/hub-studio-preset-flows'
+import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
+import { isLogoOnlyReferenceStepKey } from '@/lib/packaging/product-label-step'
 
-/** Max approved reference images stored in session. */
-export const STUDIO_MAX_REFERENCE_IMAGES = 6
+/** Max approved reference images stored in session (packaging needs logo + 3 faces + downstream assets). */
+export const STUDIO_MAX_REFERENCE_IMAGES = 8
 
 /** Max reference images attached to the model per generation (logo always kept first). */
 export const STUDIO_REFERENCE_ATTACH_LIMIT = 4
 
 export function pickReferencesForGeneration(
   referenceImages: HubStudioReferenceImage[],
-  presetId: string | null
+  presetId: string | null,
+  stepKey?: string | null
 ): HubStudioReferenceImage[] {
   if (!referenceImages.length) return []
   const logoKey = presetId ? getPrimaryLogoStepKey(presetId) : null
+  if (isLogoOnlyReferenceStepKey(stepKey)) {
+    const logo = logoKey ? referenceImages.find((r) => r.screenKey === logoKey) : null
+    return logo ? [logo] : []
+  }
   const logo = logoKey ? referenceImages.find((r) => r.screenKey === logoKey) : null
   const rest = referenceImages.filter((r) => r.screenKey !== logoKey)
   const slots = STUDIO_REFERENCE_ATTACH_LIMIT - (logo ? 1 : 0)
@@ -22,9 +29,10 @@ export function pickReferencesForGeneration(
 
 export function pickedReferenceUrls(
   referenceImages: HubStudioReferenceImage[],
-  presetId: string | null
+  presetId: string | null,
+  stepKey?: string | null
 ): string[] {
-  return pickReferencesForGeneration(referenceImages, presetId).map((r) => r.url)
+  return pickReferencesForGeneration(referenceImages, presetId, stepKey).map((r) => r.url)
 }
 
 export function canAddReferenceImage(session: HubStudioSession, screenKey: string): boolean {
@@ -50,11 +58,35 @@ export function buildReferencePreviewsPayload(session: HubStudioSession) {
 /** Ordered URLs for prompt context — same subset as model attachment. */
 export function orderedPickedReferenceUrls(
   referenceImages: HubStudioReferenceImage[],
-  presetId: string | null
+  presetId: string | null,
+  stepKey?: string | null
 ): string[] {
-  const picked = new Set(pickReferencesForGeneration(referenceImages, presetId).map((r) => r.screenKey))
+  const picked = new Set(
+    pickReferencesForGeneration(referenceImages, presetId, stepKey).map((r) => r.screenKey)
+  )
   return orderedReferenceUrls(referenceImages, presetId ?? '').filter((url) => {
     const ref = referenceImages.find((r) => r.url === url)
     return ref ? picked.has(ref.screenKey) : false
   })
+}
+
+export function generatorSupportsReference(gen: StudioGeneratorKind): boolean {
+  return (
+    gen === 'ui_mockup' ||
+    gen === 'ui_desktop' ||
+    gen === 'banner' ||
+    gen === 'logo' ||
+    gen === 'packaging' ||
+    gen === 'packaging_face' ||
+    gen === 'packaging_mockup' ||
+    gen === 'interior' ||
+    gen === 'story_panel' ||
+    gen === 'infographic' ||
+    gen === 'portrait' ||
+    gen === 'product_photo'
+  )
+}
+
+export function generatorSupportsReferenceForPicker(gen: StudioGeneratorKind): boolean {
+  return generatorSupportsReference(gen)
 }

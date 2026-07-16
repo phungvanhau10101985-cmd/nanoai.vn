@@ -6,7 +6,7 @@ import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import sharp from 'sharp'
-import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { MAX_BOOK_PAGE_IMAGES } from './infographic-limits'
@@ -328,7 +328,7 @@ ${flashInstruction}`
     `${IMAGE_INSTRUCTION_PREFIX}\n\nLESSON CONTEXT:\n${summaryForImage}\n\nSTRUCTURE / RELATIONSHIPS (from diagram):\n${mermaidForImage}`
 
   const imageModel = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: '2K', aspectRatio: '16:9' },
@@ -338,7 +338,7 @@ ${flashInstruction}`
   try {
     const imageResult = await imageModel.generateContent(imagePrompt, { safetySettings: [...safetySettings] } as never)
     const imageResponse = imageResult.response
-    void trackFromUsageMetadata(imageResponse.usageMetadata, 'gemini-3-pro-image-preview', 'tao-infographic-tu-sach', user.id, '2K')
+    void trackFromUsageMetadata(imageResponse.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-infographic-tu-sach', user.id, '2K')
     const imagePart = imageResponse.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePart || !('inlineData' in imagePart)) {
       await deleteTryOnHistoryRowAndStorage( historyItem.id)

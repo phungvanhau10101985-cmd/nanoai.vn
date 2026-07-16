@@ -3,15 +3,26 @@ export const NEW_PRESETS_VI = {
   packaging_kit: {
     title: 'Bộ đóng gói / bao bì',
     kickoff:
-      'Thiết kế bộ nhận diện đóng gói từ Logo → hộp phẳng → mockup 3D → nhãn → tem → mã vạch. Logo duyệt sẽ làm tham chiếu cho mọi bước sau.',
+      'Thiết kế hộp carton kỹ thuật từ Logo → 6 mặt riêng (trên, trước, phải, dưới, sau, trái) → Dieline PDF → mockup 3D → nhãn → tem → mã vạch thật. Logo duyệt sẽ làm tham chiếu cho mọi bước sau.',
     steps: {
       brand_name: 'Brief: Tên thương hiệu',
       product_type: 'Brief: Loại sản phẩm',
       box_size: 'Brief: Kích thước hộp',
+      box_face_confirm: 'Brief: Xác nhận mặt',
       style_mood: 'Brief: Phong cách',
       color_palette: 'Brief: Màu sắc',
       logo: 'Logo',
       box_flat: 'Hộp phẳng (dieline)',
+      face_top: 'Mặt trên (L×W)',
+      face_front: 'Mặt trước (L×H)',
+      face_right: 'Mặt bên phải (W×H)',
+      face_bottom: 'Mặt dưới (L×W)',
+      face_back: 'Mặt sau (L×H)',
+      face_left: 'Mặt bên trái (W×H)',
+      face_lxw: 'Mặt L×W (nắp/đáy)',
+      face_lxh: 'Mặt L×H (trước/sau)',
+      face_wxh: 'Mặt W×H (hai hông)',
+      box_dieline_pdf: 'Dieline PDF kỹ thuật',
       box_mockup_3d: 'Mockup 3D hộp',
       product_label: 'Nhãn sản phẩm',
       seal_sticker: 'Tem niêm phong',
@@ -20,15 +31,36 @@ export const NEW_PRESETS_VI = {
     asks: {
       brand_name: '① Tên thương hiệu / sản phẩm?',
       product_type: '② Sản phẩm đóng gói là gì? (mỹ phẩm, thực phẩm, quà tặng…)',
-      box_size: '③ Kích thước hộp ước lượng? (nhỏ/vừa/lớn hoặc cm)',
-      style_mood: '④ Phong cách: organic / luxury / minimal / playful?',
-      color_palette: '⑤ Bảng màu in ấn?',
-      logo: 'Mô tả logo in trên bao bì (dựa trên brief).',
+      box_size: '③ Kích thước hộp? Dài + rộng chọn theo tỷ lệ Gemini (mặt đáy/nắp), cao nhập tự do — form bên dưới hoặc chat.',
+      box_face_confirm:
+        '④ Xác nhận kích thước mặt đáy, mặt trước/sau và mặt bên ở trên — trả lời OK hoặc nhập lại Dài×Rộng×Cao nếu sai thứ tự.',
+      style_mood: '⑤ Phong cách: organic / luxury / minimal / playful?',
+      color_palette: '⑥ Bảng màu in ấn?',
+      logo: 'Mô tả logo cần tạo in trên bao bì (dựa trên brief) — hoặc bấm **Tải logo** nếu đã có file.',
       box_flat: 'Hộp phẳng: layout mặt trước/side, vị trí logo?',
-      box_mockup_3d: 'Mockup 3D: góc chụp, chất liệu hộp (matte/gloss)?',
-      product_label: 'Nhãn SP: thông tin bắt buộc, font, icon?',
-      seal_sticker: 'Tem niêm phong: hình tròn/vuông, slogan?',
-      barcode_label: 'Nhãn mã vạch: vị trí barcode, SKU placeholder?',
+      face_top:
+        '⑦ Mặt trên L×W — mô tả nội dung in hoặc **bỏ trống**. Ảnh **full viền** (tràn lề), không ghi kích thước mm trên ảnh.',
+      face_front:
+        '⑧ Mặt trước L×H — mô tả nội dung in hoặc **bỏ trống**. Ảnh đầu ra: **file in phẳng**, không hộp 3D.',
+      face_right:
+        '⑨ Mặt bên phải W×H — mô tả nội dung in hoặc **bỏ trống**. Ảnh đầu ra: **file in phẳng**, không hộp 3D.',
+      face_bottom:
+        '⑩ Mặt dưới L×W — **bỏ trống**, **giống mặt trên**, hoặc mô tả nội dung in riêng.',
+      face_back:
+        '⑪ Mặt sau L×H — **bỏ trống**, **giống mặt trước**, hoặc mô tả nội dung in riêng.',
+      face_left:
+        '⑫ Mặt bên trái W×H — **bỏ trống**, **giống mặt phải**, hoặc mô tả nội dung in riêng.',
+      face_lxw:
+        'Mặt nắp/đáy L×W — nhập **nội dung in trên mặt này** (logo, tên SP, họa tiết…). Hệ thống sẽ tạo ảnh thiết kế.',
+      face_lxh:
+        'Mặt trước/sau L×H — nhập **nội dung in trên mặt này** (tên SP, số công bố, thành phần, công dụng…).',
+      face_wxh:
+        'Mặt hông W×H — nhập **nội dung in trên mặt này** (HDSD, cảnh báo, thành phần phụ…).',
+      box_dieline_pdf: 'Tạo Dieline PDF kỹ thuật sau khi đủ 6 mặt.',
+      box_mockup_3d: 'Mockup 3D: góc chụp, chất liệu hộp (matte/gloss). Nền studio tương phản — không lặp họa tiết hộp.',
+      product_label: 'Nhãn dán SP (đen trắng): kích thước nhãn (vd. 50×80 mm) + nội dung (tên SP, thành phần, HDSD…). Chỉ ghép logo.',
+      seal_sticker: 'Tem niêm phong: kích thước (vd. 40×40 mm), tròn/vuông, slogan. Chỉ ghép logo — không dùng ảnh mặt hộp.',
+      barcode_label: 'Mã vạch thật: tự lấy tên SP từ brief; mã SP (vd. mã SP: 188-SRM-001). Mặc định Code128 — hoặc ghi EAN-13/QR nếu cần.',
     },
   },
   interior_design: {

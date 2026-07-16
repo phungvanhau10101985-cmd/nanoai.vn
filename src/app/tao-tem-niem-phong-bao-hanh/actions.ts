@@ -11,6 +11,7 @@ import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 
 const SEAL_COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -108,7 +109,7 @@ export async function createSealLabelWithAI(formData: FormData) {
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -131,7 +132,7 @@ export async function createSealLabelWithAI(formData: FormData) {
   try {
     const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'tao-tem-niem-phong-bao-hanh', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-tem-niem-phong-bao-hanh', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)

@@ -14,6 +14,7 @@ import sharp from 'sharp'
 import { detectFaceInTargetImage, detectFacesInTargetImage, extractFaceFromSourceImage, type FaceBbox } from '@/lib/face-swap-vision'
 import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 const FACESWAP_COSTS = { '2K': 1, '4K': 2 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -178,7 +179,7 @@ export async function faceSwap(formData: FormData) {
   const { apiKey } = await requireGoogleApiKeyForUser(user.id)
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -288,7 +289,7 @@ ${NO_TEXT}`
     const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
     logGeminiResponse('single_call_vision_local', genResult)
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'hoan-doi-khuon-mat', user.id, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'hoan-doi-khuon-mat', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       const reason = response.candidates?.[0]?.finishReason ?? response.promptFeedback?.blockReason ?? 'unknown'

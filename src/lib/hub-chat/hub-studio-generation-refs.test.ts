@@ -1,0 +1,89 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+
+import { emptyStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { sanitizeGenerationSelection } from '@/lib/hub-chat/hub-studio-generation-refs'
+
+test('sanitizeGenerationSelection drops stale reference keys after logo removal', () => {
+  const session = {
+    ...emptyStudioSession(),
+    presetId: 'packaging_kit',
+    referenceImages: [],
+    generationSelection: {
+      referenceScreenKeys: ['logo', 'face_top'],
+      productUrls: ['p1', 'p2', 'p3'],
+    },
+  }
+  const next = sanitizeGenerationSelection(session, 'packaging_kit')
+  assert.deepEqual(next.generationSelection?.referenceScreenKeys, [])
+  assert.equal(next.generationSelection?.productUrls.length, 3)
+})
+
+test('sanitizeGenerationSelection keeps valid reference keys', () => {
+  const session = {
+    ...emptyStudioSession(),
+    presetId: 'packaging_kit',
+    referenceImages: [{ screenKey: 'logo', screenLabel: 'Logo', url: 'logo', approvedAt: 1 }],
+    generationSelection: {
+      referenceScreenKeys: ['logo', 'face_top'],
+      productUrls: ['p1'],
+    },
+  }
+  const next = sanitizeGenerationSelection(session, 'packaging_kit')
+  assert.deepEqual(next.generationSelection?.referenceScreenKeys, ['logo'])
+})
+
+test('remove reference preserves current step and process progress', () => {
+  const session = {
+    ...emptyStudioSession(),
+    presetId: 'packaging_kit',
+    currentStepKey: 'face_bottom',
+    discoveryComplete: true,
+    processSteps: [
+      { key: 'logo', label: 'Logo', status: 'done' as const },
+      { key: 'face_top', label: 'Top', status: 'done' as const },
+      { key: 'face_front', label: 'Front', status: 'done' as const },
+      { key: 'face_right', label: 'Right', status: 'done' as const },
+      { key: 'face_bottom', label: 'Bottom', status: 'in_progress' as const },
+    ],
+    referenceImages: [
+      { screenKey: 'logo', screenLabel: 'Logo', url: 'logo-url', approvedAt: 1 },
+      { screenKey: 'face_top', screenLabel: 'Top', url: 'top-url', approvedAt: 2 },
+    ],
+    packaging: {
+      version: 2 as const,
+      dimensionsMm: { length: 200, width: 150, height: 100 },
+      faces: { LxW: 'top-url', LxH: 'front-url', WxH: 'right-url' },
+      faceSlots: {
+        top: { sourceMode: 'generate' as const, url: 'top-url' },
+        front: { sourceMode: 'generate' as const, url: 'front-url' },
+        right: { sourceMode: 'generate' as const, url: 'right-url' },
+      },
+    },
+  }
+
+  const removed = session.referenceImages.find((r) => r.screenKey === 'logo')!
+  const savedCurrentStepKey = session.currentStepKey
+  let next = {
+    ...session,
+    referenceImages: session.referenceImages.filter((r) => r.screenKey !== 'logo'),
+  }
+  next = sanitizeGenerationSelection(next, 'packaging_kit')
+  next = {
+    ...next,
+    currentStepKey: savedCurrentStepKey,
+    pendingPreview: {
+      screenKey: removed.screenKey,
+      screenLabel: removed.screenLabel,
+      url: removed.url,
+      generationPrompt: removed.screenLabel,
+    },
+  }
+
+  assert.equal(next.currentStepKey, 'face_bottom')
+  assert.equal(next.processSteps.find((s) => s.key === 'logo')?.status, 'done')
+  assert.equal(next.processSteps.find((s) => s.key === 'face_bottom')?.status, 'in_progress')
+  assert.equal(next.packaging?.faceSlots?.top?.url, 'top-url')
+  assert.equal(next.referenceImages.length, 1)
+  assert.equal(next.pendingPreview?.url, 'logo-url')
+})

@@ -8,6 +8,7 @@ import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cl
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import type { HubAutoRunImageQuality } from '@/lib/hub-agent/auto-run-support'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 const BANNER_COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'] as const
@@ -75,7 +76,7 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
   const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -96,7 +97,7 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
   try {
     const result = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = result.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'tao-banner', input.userId, imageQuality)
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-banner', input.userId, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)

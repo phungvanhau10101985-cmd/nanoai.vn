@@ -31,7 +31,7 @@ export const STUDIO_PRESET_VI = {
       style_mood: '④ Phong cách mong muốn? (tối giản / sang trọng / trẻ trung / năng động…)',
       color_palette: '⑤ Màu chủ đạo? (vd: hồng pastel + trắng, hoặc đen vàng)',
       target_audience: '⑥ Khách hàng mục tiêu? (độ tuổi, giới tính, sở thích)',
-      logo: 'Mô tả logo: biểu tượng, chữ, cảm giác (dựa trên brief đã thu thập).',
+      logo: 'Mô tả logo cần tạo: biểu tượng, chữ, cảm giác (dựa trên brief) — hoặc bấm **Tải logo** nếu đã có file.',
       home_mobile: 'Trang chủ mobile: đặt Logo đã duyệt trên header, layout banner, danh mục nổi bật, CTA? (Logo gửi kèm làm tham chiếu)',
       home_desktop: 'Trang chủ desktop: Logo trên header, hero rộng, menu, footer? (dùng Logo + trang mobile đã duyệt làm tham chiếu)',
       product_list_mobile: 'Danh sách SP mobile: lưới mấy cột, filter, badge sale?',

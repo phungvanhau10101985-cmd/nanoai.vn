@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { getUserForCreditAction } from '@/lib/auth'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import {
   completeWeddingAiImage,
   createWeddingCardDraft,
@@ -300,7 +301,7 @@ export async function generateWeddingCardImage(formData: FormData) {
   try {
     const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(userId)).apiKey)
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-pro-image-preview',
+      model: GEMINI_3_PRO_IMAGE.model,
       generationConfig: {
         responseModalities: ['TEXT', 'IMAGE'],
         imageConfig: { imageSize: '2K', aspectRatio: '3:4' },
@@ -323,7 +324,7 @@ export async function generateWeddingCardImage(formData: FormData) {
     referenceParts.filter(Boolean).forEach((part) => parts.push(part as object))
     const genResult = await model.generateContent(parts as never, { safetySettings } as never)
     const response = genResult.response
-    trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'tao-thiep-moi-cuoi-ai', userId, '2K')
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-thiep-moi-cuoi-ai', userId, '2K')
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       throw new Error('AI không trả về ảnh hợp lệ.')

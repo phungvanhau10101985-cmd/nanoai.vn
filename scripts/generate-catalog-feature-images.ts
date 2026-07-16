@@ -4,6 +4,7 @@ import path from 'node:path'
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { listNanoAiFacebookCatalogItems } from '../src/lib/catalog/nanoai-facebook-catalog'
 import { uploadTryOnImagePublic } from '../src/lib/storage/try-on-public-upload'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') })
 dotenv.config({ path: path.resolve(process.cwd(), '.env') })
@@ -269,7 +270,7 @@ async function main() {
   const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null
   const model = genAI
     ? genAI.getGenerativeModel({
-        model: 'gemini-3-pro-image-preview',
+        model: GEMINI_3_PRO_IMAGE.model,
         generationConfig: {
           responseModalities: ['TEXT', 'IMAGE'],
           imageConfig: { imageSize: opts.size, aspectRatio: opts.aspect },

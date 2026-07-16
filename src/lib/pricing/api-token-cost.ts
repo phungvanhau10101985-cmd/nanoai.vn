@@ -21,7 +21,7 @@ export type ModelUsdRates = {
  * Lưu ý: Gemini 3.1 Flash Image / 2.5 Flash Image dùng số token khác (ví dụ
  * 3.1 Flash Image: 0.5K=747, 1K=1120, 2K=1680, 4K=2520) — nếu chuyển sang dùng
  * các model đó cần thêm bảng riêng theo `model + size`. Hiện codebase chỉ dùng
- * `gemini-3-pro-image-preview` nên giữ nguyên bảng này.
+ * `gemini-3-pro-image` nên giữ nguyên bảng này.
  */
 export const IMAGE_TOKENS = { '1K': 1120, '2K': 1120, '4K': 2000 } as const
 
@@ -49,6 +49,8 @@ export const API_COST_PER_1M: Record<string, ModelUsdRates> = {
   'gemini-3.1-pro-preview-customtools': { input: 2, output: 12, inputLong: 4, outputLong: 18 },
 
   /** Gemini 3 Pro Image — Nano Banana / inbox ảnh; đầu ra ảnh: 120 USD / 1M token ảnh. */
+  'gemini-3-pro-image': { input: 2, output: 12, outputImage: 120, inputLong: 4, outputLong: 18 },
+  /** Alias log cũ (preview). */
   'gemini-3-pro-image-preview': { input: 2, output: 12, outputImage: 120, inputLong: 4, outputLong: 18 },
 
   /** Gemini 3 Flash Preview. */

@@ -5,7 +5,7 @@ import { getUserForCreditAction } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import sharp from 'sharp'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
-import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
+import { GEMINI_25_FLASH_TEXT_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { stripBackground } from '@/lib/remove-background'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
@@ -171,7 +171,7 @@ export async function createStickerLabel(formData: FormData) {
   ]
 
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -180,7 +180,7 @@ export async function createStickerLabel(formData: FormData) {
 
   const genResult = await model.generateContent(fullPrompt, { safetySettings })
   const response = genResult.response
-  trackFromUsageMetadata(response.usageMetadata, 'gemini-3-pro-image-preview', 'tao-nhan-gian', user.id, imageQuality)
+  trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-nhan-gian', user.id, imageQuality)
 
   const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
   if (!imagePartRes || !('inlineData' in imagePartRes)) {
@@ -330,7 +330,7 @@ export async function createStickerFromPhoto(formData: FormData) {
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-pro-image-preview',
+    model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: { imageSize: imageQuality, aspectRatio },
@@ -345,7 +345,7 @@ export async function createStickerFromPhoto(formData: FormData) {
     const response = genResult.response
     trackFromUsageMetadata(
       response.usageMetadata,
-      'gemini-3-pro-image-preview',
+      GEMINI_3_PRO_IMAGE.model,
       'tao-nhan-gian-photo',
       user.id,
       imageQuality

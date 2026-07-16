@@ -1,2 +1,60 @@
-/** Studio preset copy — 7 new flows (Korean) — step labels localized; asks follow EN until full KO pass */
-export { NEW_PRESETS_EN as NEW_PRESETS_KO } from './new-presets-en'
+import { NEW_PRESETS_EN } from './new-presets-en'
+
+/** Studio preset copy — Korean. */
+export const NEW_PRESETS_KO = {
+  ...NEW_PRESETS_EN,
+  packaging_kit: {
+    title: '패키징 세트',
+    kickoff:
+      '기술 종이상자 흐름: 로고 → 정확한 3개 면 그룹 → Dieline PDF → 3D 목업 → 라벨 → 봉인 스티커 → 스캔 가능한 바코드. 승인한 로고를 이후 모든 단계의 기준으로 사용합니다.',
+    steps: {
+      brand_name: '브리프: 브랜드명',
+      product_type: '브리프: 제품 유형',
+      box_size: '브리프: 상자 크기',
+      box_face_confirm: '브리프: 면 크기 확인',
+      style_mood: '브리프: 스타일',
+      color_palette: '브리프: 색상',
+      logo: '로고',
+      box_flat: '평면 상자(이전 Dieline)',
+      face_top: '윗면 (L×W)',
+      face_front: '앞면 (L×H)',
+      face_right: '오른쪽 면 (W×H)',
+      face_bottom: '아랫면 (L×W)',
+      face_back: '뒷면 (L×H)',
+      face_left: '왼쪽 면 (W×H)',
+      face_lxw: 'L×W 면(상단/하단)',
+      face_lxh: 'L×H 면(앞/뒤)',
+      face_wxh: 'W×H 면(측면)',
+      box_dieline_pdf: '기술 Dieline PDF',
+      box_mockup_3d: '3D 상자 목업',
+      product_label: '제품 라벨',
+      seal_sticker: '봉인 스티커',
+      barcode_label: '바코드 라벨',
+    },
+    asks: {
+      brand_name: '① 브랜드명 / 제품명은?',
+      product_type: '② 어떤 제품을 포장하나요? (화장품, 식품, 선물 등)',
+      box_size: '③ 상자 크기? 길이·너비는 Gemini 비율(바닥/뚜껑 면), 높이는 자유 입력 — 아래 양식 또는 채팅.',
+      box_face_confirm:
+        '④ 위의 바닥/앞·뒤/측면 크기를 확인하세요 — 맞으면 OK, 치수 순서가 다르면 다시 입력하세요.',
+      style_mood: '⑤ 스타일은? (오가닉 / 럭셔리 / 미니멀 / 경쾌함)',
+      color_palette: '⑥ 인쇄 색상 팔레트는?',
+      logo: '포장용 로고를 설명하세요. 기존 파일이 있으면 **로고 업로드**를 누르세요.',
+      box_flat: '이전 평면 상자: 앞/옆 레이아웃과 로고 위치는?',
+      face_top: '⑦ 윗면 L×W — 인쇄 내용 설명 또는 **비우기**. 출력: **접기 전 평면 인쇄 원고**(3D 상자·전개도 아님).',
+      face_front: '⑧ 앞면 L×H — 인쇄 내용 또는 **비우기**. 출력: **평면 인쇄 원고**.',
+      face_right: '⑨ 오른쪽 면 W×H — 인쇄 내용 또는 **비우기**. 출력: **평면 인쇄 원고**.',
+      face_bottom: '⑩ 아랫면 L×W — **비우기**, **윗면과 동일**, 또는 별도 내용 설명.',
+      face_back: '⑪ 뒷면 L×H — **비우기**, **앞면과 동일**, 또는 별도 내용 설명.',
+      face_left: '⑫ 왼쪽 면 W×H — **비우기**, **오른쪽 면과 동일**, 또는 별도 내용 설명.',
+      face_lxw: 'L×W 상단/하단 면 — **이 면에 인쇄할 내용**을 입력하세요(로고, 제품명, 그래픽…). 디자인 이미지를 생성합니다.',
+      face_lxh: 'L×H 앞/뒤 면 — **이 면에 인쇄할 내용**을 입력하세요(제품명, 신고번호, 성분, 효능…).',
+      face_wxh: 'W×H 측면 — **이 면에 인쇄할 내용**을 입력하세요(사용법, 경고, 보조 성분…).',
+      box_dieline_pdf: '승인된 3개 면으로 기술 Dieline PDF를 만듭니다.',
+      box_mockup_3d: '3D 목업: 촬영 각도와 상자 재질(무광/유광)은?',
+      product_label: '제품 라벨(흑백): 크기(예 50×80 mm) + 내용(품명, 성분, 사용법…). 로고만 합성.',
+      seal_sticker: '봉인 스티커: 크기(예 40×40 mm), 원/사각, 슬로건. 로고만 — 박스 면 이미지 제외.',
+      barcode_label: '실제 바코드: brief 제품명 사용. 제품코드(예 SKU: 188-SRM-001). 기본 Code128 — EAN-13/QR 가능.',
+    },
+  },
+} as const

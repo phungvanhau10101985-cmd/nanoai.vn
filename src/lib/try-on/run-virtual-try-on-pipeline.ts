@@ -5,6 +5,7 @@ import sharp from 'sharp'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { removeFaceFromGarmentImages } from '@/lib/remove-face-garment-server'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import {
   uploadTryOnImagePublic,
   getTryOnPublicUrlFromPath,
@@ -155,7 +156,7 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
   }
 
   const genAI = new GoogleGenerativeAI(resolvedGoogleKey.apiKey)
-  const modelName = 'gemini-3-pro-image-preview'
+  const modelName = GEMINI_3_PRO_IMAGE.model
   const model = genAI.getGenerativeModel({
     model: modelName,
     generationConfig: {

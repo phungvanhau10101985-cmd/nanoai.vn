@@ -7,10 +7,11 @@ import { pickInventoryRowForReferenceImage } from '@/lib/messaging/partner-inven
 import { uploadPartnerChatImageBuffer } from '@/lib/messaging/guest-chat-image'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
-const IMAGE_MODEL = 'gemini-3-pro-image-preview' as const
+const IMAGE_MODEL = GEMINI_3_PRO_IMAGE.model
 
 const ASKS_REAL_USE_RE =
   /(ảnh\s+chụp\s+thực\s+tế|thực\s+tế\s+không|ảnh\s+thực\s+tế|có\s+ảnh\s+thật|ảnh\s+thật|ảnh\s+ngoài\s+đời|ảnh\s+mặc|ảnh\s+đeo|ảnh\s+mang|ảnh\s+bên\s+trong|bên\s+trong\s+túi|ngăn\s+trong(\s+túi)?|lót\s+trong(\s+túi)?|real\s*photo|actual\s*photo|on\s*body|worn|try[\s-]?on|inside\s+(the\s+)?bag|interior\s+(shot|photo))/i

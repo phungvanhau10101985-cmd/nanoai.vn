@@ -1,18 +1,25 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
-import { Check, Circle, Loader2, Maximize2, RefreshCw, Sparkles, X } from 'lucide-react'
+import { Check, Circle, Crop, Download, FileText, Loader2, Maximize2, Pencil, RefreshCw, Sparkles, Undo2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { rewriteLegacyBunnyCdnUrl } from '@/lib/bunny-cdn-url'
 import type { HubStudioMessagePayload, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { HubStudioFaceCropDialog, type HubStudioFaceCropLabels } from '@/components/hub-chat/hub-studio-face-crop-dialog'
+import { formatMmSize, normalizeFaceSizeMm } from '@/lib/packaging/face-crop-size'
+import { getPackagingFaceSizeForStep } from '@/lib/packaging/hub-face-steps'
+import { resolvePackagingStepLabel } from '@/lib/packaging/packaging-face-labels'
+import type { WebLocale } from '@/lib/i18n/config'
 
 type StudioLine = {
   id: string
   role: 'user' | 'assistant'
   content: string
   studio?: HubStudioMessagePayload | null
+  stepKey?: string
 }
 
 function imageFrameClass(aspect?: HubStudioMessagePayload['aspectHint']): string {
@@ -98,21 +105,52 @@ function StudioImageLightbox({
 export function HubStudioProcessRail({
   steps,
   labels,
+  currentStepKey,
+  onNavigateStep,
 }: {
   steps: HubStudioSession['processSteps']
-  labels: { done: string; inProgress: string; pending: string }
+  labels: { done: string; inProgress: string; pending: string; navigateHint?: string }
+  currentStepKey?: string | null
+  onNavigateStep?: (stepKey: string) => void
 }) {
   if (!steps.length) return null
   return (
-    <ol className="flex flex-wrap gap-1.5">
-      {steps.map((s) => (
-        <li
+    <div className="space-y-1">
+      {labels.navigateHint ? (
+        <p className="text-[10px] text-muted-foreground">{labels.navigateHint}</p>
+      ) : null}
+      <ol className="flex flex-wrap gap-1.5">
+      {steps.map((s) => {
+        const isCurrent = currentStepKey === s.key
+        const navigable =
+          Boolean(onNavigateStep) && (s.status === 'done' || s.status === 'in_progress')
+        const Tag = navigable ? 'button' : 'li'
+        return (
+        <Tag
           key={s.key}
-          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
+          type={navigable ? 'button' : undefined}
+          disabled={navigable ? isCurrent || false : undefined}
+          onClick={navigable && !isCurrent ? () => onNavigateStep?.(s.key) : undefined}
+          title={
             s.status === 'done'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
+              ? labels.done
               : s.status === 'in_progress'
-                ? 'border-violet-300 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200'
+                ? labels.inProgress
+                : labels.pending
+          }
+          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
+            isCurrent
+              ? 'ring-2 ring-violet-400 ring-offset-1 dark:ring-violet-600'
+              : ''
+          } ${
+            s.status === 'done'
+              ? navigable
+                ? 'cursor-pointer border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/60'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
+              : s.status === 'in_progress'
+                ? navigable
+                  ? 'cursor-pointer border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200 dark:hover:bg-violet-950/60'
+                  : 'border-violet-300 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200'
                 : 'border-slate-200 bg-white text-muted-foreground dark:border-slate-700 dark:bg-slate-900'
           }`}
         >
@@ -124,9 +162,10 @@ export function HubStudioProcessRail({
             <Circle className="h-3 w-3" />
           )}
           {s.label}
-        </li>
-      ))}
-    </ol>
+        </Tag>
+      )})}
+      </ol>
+    </div>
   )
 }
 
@@ -137,6 +176,15 @@ export function HubStudioMessageBubble({
   onRegenerate,
   onApproveReference,
   onRemoveReference,
+  onEditStep,
+  editingLineId,
+  onSaveEdit,
+  onCancelEdit,
+  uiLocale = 'vi',
+  cropLabels,
+  onCropImage,
+  onRevertFaceEdit,
+  studioSession,
 }: {
   line: StudioLine
   hc: {
@@ -149,25 +197,170 @@ export function HubStudioMessageBubble({
     studioReferenceTitle: string
     studioReferenceCount: string
     studioReferenceRemove: string
+    studioEditStep: string
+    studioEditSave: string
+    studioEditCancel: string
+    studioEditCredit: string
+    studioCropImage: string
+    studioCropSizeDisplay: string
+    studioCropTargetDisplay: string
+    studioEditRevertOriginal: string
   }
+  uiLocale?: WebLocale
+  cropLabels?: HubStudioFaceCropLabels
   busy: boolean
   onRegenerate: () => void
   onApproveReference: () => void
+  onCropImage?: (blob: Blob, printSizeMm: { widthMm: number; heightMm: number }) => void | Promise<void>
+  onRevertFaceEdit?: () => void | Promise<void>
   onRemoveReference?: (screenKey: string) => void
+  onEditStep?: (line: StudioLine) => void
+  editingLineId?: string | null
+  onSaveEdit?: (lineId: string, content: string, stepKey?: string) => void
+  onCancelEdit?: () => void
+  /** Live session — used to resolve box face mm when stored studio payload is incomplete. */
+  studioSession?: HubStudioSession | null
 }) {
   const st = line.studio
   const isAudio = st?.previewKind === 'audio' || Boolean(st?.audioUrl)
+  const isEditing = editingLineId === line.id && line.role === 'user'
+  const [draft, setDraft] = useState(line.content)
+  const [cropOpen, setCropOpen] = useState(false)
+
+  const resolvedFaceTargetMm = useMemo(() => {
+    const fromPayload = normalizeFaceSizeMm(st?.faceTargetSizeMm)
+    if (fromPayload) return fromPayload
+    if (studioSession?.packaging?.dimensionsMm && st?.screenKey) {
+      return getPackagingFaceSizeForStep(studioSession.packaging.dimensionsMm, st.screenKey)
+    }
+    return null
+  }, [st?.faceTargetSizeMm, st?.screenKey, studioSession?.packaging?.dimensionsMm])
+
+  const resolvedFaceEditedMm = useMemo(
+    () => normalizeFaceSizeMm(st?.faceEditedSizeMm),
+    [st?.faceEditedSizeMm]
+  )
+
+  const displayScreenLabel = useMemo(() => {
+    if (!st?.screenKey) return st?.screenLabel ?? ''
+    if (studioSession?.packaging?.dimensionsMm) {
+      return resolvePackagingStepLabel(
+        studioSession.processSteps,
+        st.screenKey,
+        uiLocale,
+        studioSession.presetId,
+        studioSession.packaging.dimensionsMm
+      )
+    }
+    return st.screenLabel ?? ''
+  }, [
+    st?.screenKey,
+    st?.screenLabel,
+    studioSession?.packaging?.dimensionsMm,
+    studioSession?.presetId,
+    studioSession?.processSteps,
+    uiLocale,
+  ])
+
+  const editBaseImageUrl = useMemo(() => {
+    if (st?.faceOriginalUrl) return st.faceOriginalUrl
+    const pending = studioSession?.pendingPreview
+    if (pending?.screenKey === st?.screenKey && pending?.originalUrl) {
+      return pending.originalUrl
+    }
+    return st?.imageUrl ?? ''
+  }, [st?.faceOriginalUrl, st?.imageUrl, st?.screenKey, studioSession?.pendingPreview])
+
+  const showRevert =
+    Boolean(st?.showRevertFaceEdit) ||
+    Boolean(
+      (() => {
+        const pending = studioSession?.pendingPreview
+        return (
+          pending?.originalUrl &&
+          pending.url !== pending.originalUrl &&
+          pending.screenKey === st?.screenKey
+        )
+      })()
+    )
+
+  useEffect(() => {
+    if (isEditing) setDraft(line.content)
+  }, [isEditing, line.content])
+
+  if (line.role === 'user') {
+    return (
+      <div className="ml-6 max-w-full">
+        {isEditing ? (
+          <div className="rounded-md bg-white px-2.5 py-2 text-sm text-slate-800 shadow-sm dark:bg-slate-800 dark:text-slate-100">
+            <div className="space-y-2">
+              <Textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                rows={3}
+                disabled={busy}
+                className="min-h-[72px] text-sm"
+              />
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 bg-violet-600 text-xs hover:bg-violet-700"
+                  disabled={busy || draft.trim().length < 2}
+                  title={hc.studioEditCredit}
+                  onClick={() =>
+                    onSaveEdit?.(line.id, draft.trim(), line.stepKey ?? line.studio?.stepKey)
+                  }
+                >
+                  {hc.studioEditSave}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  disabled={busy}
+                  onClick={onCancelEdit}
+                >
+                  {hc.studioEditCancel}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-1 rounded-md bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm dark:bg-slate-800 dark:text-slate-100">
+            <span className="whitespace-pre-wrap break-words">{line.content}</span>
+            {onEditStep ? (
+              <button
+                type="button"
+                className="inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-xs font-medium text-violet-700 hover:bg-violet-50 disabled:opacity-50 dark:text-violet-300 dark:hover:bg-violet-950/50"
+                disabled={busy}
+                title={hc.studioEditCredit}
+                onClick={() => {
+                  setDraft(line.content)
+                  onEditStep(line)
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                {hc.studioEditStep}
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
-    <div
-      className={`rounded-md px-2.5 py-2 text-sm ${
-        line.role === 'user'
-          ? 'ml-6 bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100'
-          : 'mr-6 bg-violet-50/80 text-slate-800 dark:bg-violet-950/30 dark:text-slate-100'
-      }`}
-    >
+    <div className="mr-6 rounded-md bg-violet-50/80 px-2.5 py-2 text-sm text-slate-800 dark:bg-violet-950/30 dark:text-slate-100">
       <p className="whitespace-pre-wrap">{line.content}</p>
-      {line.role === 'assistant' && st?.referencePreviews && st.referencePreviews.length > 0 ? (
+      {st?.boxWireframeSvg ? (
+        <div
+          className="mt-2 flex w-full max-w-[400px] justify-center overflow-hidden rounded-lg border border-violet-200 bg-white py-1.5 dark:border-violet-800 dark:bg-slate-900 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:min-h-[180px]"
+          dangerouslySetInnerHTML={{ __html: st.boxWireframeSvg }}
+        />
+      ) : null}
+      {st?.referencePreviews && st.referencePreviews.length > 0 ? (
         <div className="mt-2 space-y-1.5">
           <p className="text-xs font-medium text-violet-800 dark:text-violet-200">
             {hc.studioReferenceTitle}
@@ -205,12 +398,34 @@ export function HubStudioMessageBubble({
           </div>
         </div>
       ) : null}
-      {line.role === 'assistant' && st?.audioUrl ? (
+      {st?.artifactUrl ? (
+        <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 dark:border-emerald-900 dark:bg-emerald-950/30">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-900 dark:text-emerald-100">
+            <FileText className="h-4 w-4" />
+            {st.artifactLabel || st.artifactFileName || 'File'}
+          </p>
+          {st.artifactNote ? (
+            <p className="mt-1 text-[11px] text-muted-foreground">{st.artifactNote}</p>
+          ) : null}
+          <Button asChild type="button" size="sm" variant="outline" className="mt-2 h-8 text-xs">
+            <a
+              href={st.artifactUrl}
+              download={st.artifactFileName || undefined}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Download className="mr-1 h-3.5 w-3.5" />
+              {st.artifactDownloadLabel || st.artifactFileName || 'Download'}
+            </a>
+          </Button>
+        </div>
+      ) : null}
+      {st?.audioUrl ? (
         <div className="mt-2 space-y-2">
-          {st.screenLabel ? (
+          {displayScreenLabel ? (
             <p className="text-xs font-medium text-violet-800 dark:text-violet-200">
               <Sparkles className="mr-1 inline h-3.5 w-3.5" />
-              {st.screenLabel}
+              {displayScreenLabel}
             </p>
           ) : null}
           <audio controls className="w-full max-w-sm" src={st.audioUrl} preload="metadata" />
@@ -237,17 +452,17 @@ export function HubStudioMessageBubble({
           ) : null}
         </div>
       ) : null}
-      {line.role === 'assistant' && st?.imageUrl ? (
+      {st?.imageUrl ? (
         <div className="mt-2 space-y-2">
-          {st.screenLabel ? (
+          {displayScreenLabel ? (
             <p className="text-xs font-medium text-violet-800 dark:text-violet-200">
               <Sparkles className="mr-1 inline h-3.5 w-3.5" />
-              {st.screenLabel}
+              {displayScreenLabel}
             </p>
           ) : null}
           <StudioImageLightbox
             src={st.imageUrl}
-            alt={st.screenLabel || 'Studio preview'}
+            alt={displayScreenLabel || 'Studio preview'}
             viewLargeLabel={hc.studioViewLarge}
             aspectHint={st.aspectHint}
           />
@@ -256,8 +471,54 @@ export function HubStudioMessageBubble({
               {hc.studioImageCredit.replace('{n}', String(st.imageCharged))}
             </p>
           ) : null}
-          {st.showRegenerate || st.showApproveReference ? (
+          {resolvedFaceTargetMm || resolvedFaceEditedMm ? (
+            <div className="rounded-md border border-slate-200 bg-white/80 px-2.5 py-1.5 text-[11px] dark:border-slate-700 dark:bg-slate-900/50">
+              {resolvedFaceTargetMm ? (
+                <p className="text-muted-foreground">
+                  {hc.studioCropTargetDisplay.replace(
+                    '{size}',
+                    formatMmSize(uiLocale, resolvedFaceTargetMm.widthMm, resolvedFaceTargetMm.heightMm)
+                  )}
+                </p>
+              ) : null}
+              {resolvedFaceEditedMm ? (
+                <p className="font-medium text-violet-900 dark:text-violet-100">
+                  {hc.studioCropSizeDisplay.replace(
+                    '{size}',
+                    formatMmSize(uiLocale, resolvedFaceEditedMm.widthMm, resolvedFaceEditedMm.heightMm)
+                  )}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {st.showRegenerate || st.showApproveReference || st.showCropImage ? (
             <div className="flex flex-wrap gap-1.5">
+              {st.showCropImage && st.imageUrl && resolvedFaceTargetMm && cropLabels && onCropImage ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  disabled={busy}
+                  onClick={() => setCropOpen(true)}
+                >
+                  <Crop className="mr-1 h-3.5 w-3.5" />
+                  {hc.studioCropImage}
+                </Button>
+              ) : null}
+              {showRevert && onRevertFaceEdit ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  disabled={busy}
+                  onClick={() => void onRevertFaceEdit()}
+                >
+                  <Undo2 className="mr-1 h-3.5 w-3.5" />
+                  {hc.studioEditRevertOriginal}
+                </Button>
+              ) : null}
               {st.showRegenerate ? (
                 <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={onRegenerate}>
                   <RefreshCw className="mr-1 h-3.5 w-3.5" />
@@ -271,6 +532,21 @@ export function HubStudioMessageBubble({
                 </Button>
               ) : null}
             </div>
+          ) : null}
+          {st.showCropImage && editBaseImageUrl && resolvedFaceTargetMm && cropLabels && onCropImage ? (
+            <HubStudioFaceCropDialog
+              open={cropOpen}
+              onOpenChange={setCropOpen}
+              imageUrl={editBaseImageUrl}
+              faceSizeMm={resolvedFaceTargetMm}
+              locale={uiLocale}
+              labels={cropLabels}
+              busy={busy}
+              onSave={async (blob, printSizeMm) => {
+                await onCropImage(blob, printSizeMm)
+                setCropOpen(false)
+              }}
+            />
           ) : null}
         </div>
       ) : null}

@@ -1,3 +1,4 @@
+import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 /**
  * Giá credits hiển thị trên UI luồng giáo trình / phiếu.
  * Khi bật trừ credit phía server, giữ khớp các giá trị này.
@@ -38,7 +39,7 @@ export const CURRICULUM_UI_CREDITS = {
   slideGenerateQuiz: 0.5,
   /** Tạo slide theo 1 tiết (chỉ khi tiết đó chưa có cache) */
   lessonSlideGenerate: 0.5,
-  /** Infographic slide (Flash + ảnh 2K gemini-3-pro-image-preview) — POST /api/curriculum-slide-infographic */
+  /** Infographic slide (Flash + ảnh 2K gemini-3-pro-image) — POST /api/curriculum-slide-infographic */
   slideInfographic2K: 1.5,
 } as const
 

@@ -4,7 +4,6 @@ import type { HubStudioProcessStep } from '@/lib/hub-chat/hub-studio-types'
 import {
   getFlowStep,
   getFlowSteps,
-  isDiscoveryStep,
   type StudioFlowStepDef,
 } from '@/lib/hub-chat/hub-studio-preset-flows'
 
@@ -17,6 +16,10 @@ export type StudioGeneratorKind =
   | 'invitation'
   | 'lyria_music'
   | 'packaging'
+  | 'packaging_face'
+  | 'packaging_mockup'
+  | 'dieline_pdf'
+  | 'barcode'
   | 'interior'
   | 'story_panel'
   | 'infographic'
@@ -346,6 +349,7 @@ export function estimatePresetCredits(presetId: string): { images: number; music
   for (const s of getFlowSteps(presetId)) {
     if (s.phase !== 'design') continue
     if (s.generator === 'lyria_music') music += 3
+    else if (s.generator === 'dieline_pdf' || s.generator === 'barcode') continue
     else if (s.generator) images += 1.5
   }
   return { images, music, total: images + music }

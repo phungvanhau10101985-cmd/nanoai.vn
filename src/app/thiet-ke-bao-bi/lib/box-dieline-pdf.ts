@@ -1,18 +1,17 @@
 /**
  * Tạo PDF Dieline chuẩn in cho hộp carton.
- * - Layer đường cắt (Cut) và đường cấn (Crease) tách biệt
- * - Bleed 3–5mm
- * - 3 ảnh mặt ghép vào layout net
+ * - Đường bế (Cut) và đường cấn (Crease) là vector, phân biệt bằng màu/nét
+ * - Artwork tràn 3mm ra ngoài mép bế
+ * - Net hộp nắp gài có tai dán, nắp trên/dưới và tai bụi
  */
 
 import { PDFDocument, rgb } from 'pdf-lib'
 import sharp from 'sharp'
-import { getSleeveLayoutData, type BoxDimensions } from './box-net-svg'
+import { getTuckEndLayoutData, type BoxDimensions } from './box-net-svg'
 
 const MM_TO_PT = 2.834645669
 const BLEED_MM = 3
-const CROP_MARK_LENGTH_MM = 5
-const CROP_MARK_THICKNESS = 0.25
+const PAGE_MARGIN_MM = 5
 const PRINT_DPI = 300
 const MM_TO_PX = (mm: number) => Math.round((mm * PRINT_DPI) / 25.4)
 
@@ -27,22 +26,23 @@ export interface BoxDielineInput {
 }
 
 /**
- * Tạo PDF Dieline: ghép 3 ảnh mặt vào net, vẽ Cut (đỏ) và Crease (xanh nét đứt), bleed, crop marks.
+ * Tạo PDF Dieline: ghép 3 ảnh mặt vào net nắp gài, vẽ Cut (đỏ)
+ * và Crease (xanh nét đứt), artwork có bleed thật.
  */
 export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffer> {
   const { face1Buffer, face2Buffer, face3Buffer, boxLength, boxWidth, boxHeight, bleedMm = BLEED_MM } = input
 
   const d: BoxDimensions = { lengthMm: boxLength, widthMm: boxWidth, heightMm: boxHeight }
-  const { panels, cutSegments, foldSegments, bounds } = getSleeveLayoutData(d)
+  const { panels, cutSegments, foldSegments, bounds } = getTuckEndLayoutData(d)
 
   const netWidthMm = bounds.widthMm
   const netHeightMm = bounds.heightMm
   const contentW = netWidthMm + 2 * bleedMm
   const contentH = netHeightMm + 2 * bleedMm
-  const pageW = contentW + 2 * CROP_MARK_LENGTH_MM
-  const pageH = contentH + 2 * CROP_MARK_LENGTH_MM
+  const pageW = contentW + 2 * PAGE_MARGIN_MM
+  const pageH = contentH + 2 * PAGE_MARGIN_MM
 
-  const offsetMm = CROP_MARK_LENGTH_MM
+  const offsetMm = PAGE_MARGIN_MM
   const offsetPt = offsetMm * MM_TO_PT
 
   const imgWpx = MM_TO_PX(contentW)
@@ -50,22 +50,37 @@ export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffe
 
   const faceBuffers = [face1Buffer, face2Buffer, face3Buffer] as const
 
-  const compositeOps: { input: Buffer; left: number; top: number }[] = []
+  const bleedOps: { input: Buffer; left: number; top: number }[] = []
+  const trimOps: { input: Buffer; left: number; top: number }[] = []
 
   for (const panel of panels) {
     const faceBuf = faceBuffers[panel.faceIndex - 1]
     const wPx = Math.max(1, MM_TO_PX(panel.w))
     const hPx = Math.max(1, MM_TO_PX(panel.h))
+    const bleedWPx = Math.max(1, MM_TO_PX(panel.w + 2 * bleedMm))
+    const bleedHPx = Math.max(1, MM_TO_PX(panel.h + 2 * bleedMm))
     const leftPx = MM_TO_PX(bleedMm + panel.x)
     const topPx = MM_TO_PX(bleedMm + panel.y)
 
-    const resized = await sharp(faceBuf)
+    const source = sharp(faceBuf)
+    const bleedImage = await source
+      .clone()
+      .resize(bleedWPx, bleedHPx, { fit: 'cover', position: 'center' })
+      .png()
+      .toBuffer()
+    const trimImage = await source
+      .clone()
       .resize(wPx, hPx, { fit: 'cover', position: 'center' })
       .png()
       .toBuffer()
 
-    compositeOps.push({
-      input: resized,
+    bleedOps.push({
+      input: bleedImage,
+      left: MM_TO_PX(panel.x),
+      top: MM_TO_PX(panel.y),
+    })
+    trimOps.push({
+      input: trimImage,
       left: leftPx,
       top: topPx,
     })
@@ -81,7 +96,9 @@ export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffe
   })
 
   const pngBuffer = await baseImage
-    .composite(compositeOps)
+    // Bleed đặt trước, artwork đúng khổ đặt sau để vùng trim không bị
+    // artwork của panel liền kề ghi đè.
+    .composite([...bleedOps, ...trimOps])
     .png({ compressionLevel: 4 })
     .toBuffer()
 
@@ -118,33 +135,12 @@ export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffe
       end: { x: toPageX(x2), y: toPageY(y2) },
       thickness: 0.3,
       color: creaseColor,
+      dashArray: [pt(3), pt(2)],
     })
   }
 
-  const black = rgb(0, 0, 0)
-  const trimLeft = offsetMm + bleedMm
-  const trimBottom = offsetMm + bleedMm
-  const trimRight = trimLeft + netWidthMm
-  const trimTop = trimBottom + netHeightMm
-
-  const drawCropLine = (x1: number, y1: number, x2: number, y2: number) => {
-    page.drawLine({
-      start: { x: pt(x1), y: pt(y1) },
-      end: { x: pt(x2), y: pt(y2) },
-      thickness: CROP_MARK_THICKNESS,
-      color: black,
-    })
-  }
-
-  drawCropLine(trimLeft - CROP_MARK_LENGTH_MM, trimBottom, trimLeft, trimBottom)
-  drawCropLine(trimLeft, trimBottom - CROP_MARK_LENGTH_MM, trimLeft, trimBottom)
-  drawCropLine(trimRight, trimBottom, trimRight + CROP_MARK_LENGTH_MM, trimBottom)
-  drawCropLine(trimRight, trimBottom - CROP_MARK_LENGTH_MM, trimRight, trimBottom)
-  drawCropLine(trimLeft - CROP_MARK_LENGTH_MM, trimTop, trimLeft, trimTop)
-  drawCropLine(trimLeft, trimTop, trimLeft, trimTop + CROP_MARK_LENGTH_MM)
-  drawCropLine(trimRight, trimTop, trimRight + CROP_MARK_LENGTH_MM, trimTop)
-  drawCropLine(trimRight, trimTop, trimRight, trimTop + CROP_MARK_LENGTH_MM)
-
+  pdfDoc.setTitle(`Box dieline ${boxLength}x${boxWidth}x${boxHeight} mm`)
+  pdfDoc.setSubject('Straight-tuck carton dieline: red solid = cut, green dashed = crease')
   const pdfBytes = await pdfDoc.save()
   return Buffer.from(pdfBytes)
 }
