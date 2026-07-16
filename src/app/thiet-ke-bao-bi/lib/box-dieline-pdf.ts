@@ -3,11 +3,13 @@
  * - Đường bế (Cut) và đường cấn (Crease) là vector, phân biệt bằng màu/nét
  * - Artwork tràn 3mm ra ngoài mép bế
  * - Net hộp nắp gài có tai dán, nắp trên/dưới và tai bụi
+ * - Mỗi mặt hộp (top/front/right/bottom/back/left) dùng ảnh riêng; mặt trống = nền trắng
  */
 
 import { PDFDocument, rgb } from 'pdf-lib'
 import sharp from 'sharp'
 import { getTuckEndLayoutData, type BoxDimensions } from './box-net-svg'
+import type { BoxFaceSlot } from '@/lib/packaging/box-face-slots'
 
 const MM_TO_PT = 2.834645669
 const BLEED_MM = 3
@@ -15,10 +17,21 @@ const PAGE_MARGIN_MM = 5
 const PRINT_DPI = 300
 const MM_TO_PX = (mm: number) => Math.round((mm * PRINT_DPI) / 25.4)
 
+async function whitePanelBuffer(widthPx: number, heightPx: number): Promise<Buffer> {
+  return sharp({
+    create: {
+      width: Math.max(1, widthPx),
+      height: Math.max(1, heightPx),
+      channels: 4,
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+    },
+  })
+    .png()
+    .toBuffer()
+}
+
 export interface BoxDielineInput {
-  face1Buffer: Buffer
-  face2Buffer: Buffer
-  face3Buffer: Buffer
+  slotBuffers: Partial<Record<BoxFaceSlot, Buffer>>
   boxLength: number
   boxWidth: number
   boxHeight: number
@@ -26,11 +39,11 @@ export interface BoxDielineInput {
 }
 
 /**
- * Tạo PDF Dieline: ghép 3 ảnh mặt vào net nắp gài, vẽ Cut (đỏ)
+ * Tạo PDF Dieline: ghép ảnh từng mặt vào net nắp gài, vẽ Cut (đỏ)
  * và Crease (xanh nét đứt), artwork có bleed thật.
  */
 export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffer> {
-  const { face1Buffer, face2Buffer, face3Buffer, boxLength, boxWidth, boxHeight, bleedMm = BLEED_MM } = input
+  const { slotBuffers, boxLength, boxWidth, boxHeight, bleedMm = BLEED_MM } = input
 
   const d: BoxDimensions = { lengthMm: boxLength, widthMm: boxWidth, heightMm: boxHeight }
   const { panels, cutSegments, foldSegments, bounds } = getTuckEndLayoutData(d)
@@ -48,13 +61,10 @@ export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffe
   const imgWpx = MM_TO_PX(contentW)
   const imgHpx = MM_TO_PX(contentH)
 
-  const faceBuffers = [face1Buffer, face2Buffer, face3Buffer] as const
-
   const bleedOps: { input: Buffer; left: number; top: number }[] = []
   const trimOps: { input: Buffer; left: number; top: number }[] = []
 
   for (const panel of panels) {
-    const faceBuf = faceBuffers[panel.faceIndex - 1]
     const wPx = Math.max(1, MM_TO_PX(panel.w))
     const hPx = Math.max(1, MM_TO_PX(panel.h))
     const bleedWPx = Math.max(1, MM_TO_PX(panel.w + 2 * bleedMm))
@@ -62,6 +72,8 @@ export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffe
     const leftPx = MM_TO_PX(bleedMm + panel.x)
     const topPx = MM_TO_PX(bleedMm + panel.y)
 
+    const rawBuf = slotBuffers[panel.slot]
+    const faceBuf = rawBuf ?? (await whitePanelBuffer(wPx, hPx))
     const source = sharp(faceBuf)
     const bleedImage = await source
       .clone()

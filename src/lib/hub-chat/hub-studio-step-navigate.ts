@@ -1,5 +1,30 @@
 import { getFlowSteps } from '@/lib/hub-chat/hub-studio-presets'
+import {
+  resolveStepPendingPreview,
+} from '@/lib/hub-chat/hub-studio-step-preview'
 import type { HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
+
+export function pendingPreviewFromApprovedReference(
+  session: HubStudioSession,
+  stepKey: string,
+  presetId?: string | null
+): HubStudioSession['pendingPreview'] {
+  if (session.pendingPreview?.screenKey === stepKey) return session.pendingPreview
+  if (!presetId) {
+    const ref = session.referenceImages.find((r) => r.screenKey === stepKey)
+    if (!ref?.url) return null
+    return {
+      screenKey: stepKey,
+      screenLabel: ref.screenLabel,
+      url: ref.url,
+      generationPrompt:
+        session.briefNotes[stepKey]?.trim() ||
+        session.lastGenerationPrompt?.trim() ||
+        ref.screenLabel,
+    }
+  }
+  return resolveStepPendingPreview(session, presetId, stepKey)
+}
 
 export function getFurthestReachedStepIndex(session: HubStudioSession, presetId: string): number {
   const flow = getFlowSteps(presetId)
@@ -43,13 +68,18 @@ export function navigateSessionToStep(
   const processSteps = session.processSteps.map((s) =>
     s.key === stepKey ? { ...s, status: 'in_progress' as const } : s
   )
+  const pendingPreview = pendingPreviewFromApprovedReference(
+    { ...session, processSteps, currentStepKey: stepKey },
+    stepKey,
+    presetId
+  )
   return {
     ...session,
     currentStepKey: stepKey,
     processSteps,
-    pendingPreview: session.pendingPreview?.screenKey === stepKey ? session.pendingPreview : null,
+    pendingPreview,
     lastGenerationPrompt:
-      session.pendingPreview?.screenKey === stepKey ? session.lastGenerationPrompt : null,
+      pendingPreview?.generationPrompt ?? session.lastGenerationPrompt,
   }
 }
 

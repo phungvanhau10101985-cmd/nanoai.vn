@@ -1,7 +1,10 @@
 import type { HubStudioReferenceImage, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { getPrimaryLogoStepKey, orderedReferenceUrls } from '@/lib/hub-chat/hub-studio-preset-flows'
+import { isLogoDesignStep } from '@/lib/hub-chat/hub-studio-presets'
+import { isStepAtOrBefore } from '@/lib/hub-chat/hub-studio-step-preview'
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
 import { isLogoOnlyReferenceStepKey } from '@/lib/packaging/product-label-step'
+import { isPackagingFaceStepKey } from '@/lib/packaging/hub-face-steps'
 
 /** Max approved reference images stored in session (packaging needs logo + 3 faces + downstream assets). */
 export const STUDIO_MAX_REFERENCE_IMAGES = 8
@@ -16,12 +19,22 @@ export function pickReferencesForGeneration(
 ): HubStudioReferenceImage[] {
   if (!referenceImages.length) return []
   const logoKey = presetId ? getPrimaryLogoStepKey(presetId) : null
+  if (presetId && stepKey && isLogoDesignStep(presetId, stepKey)) {
+    return []
+  }
   if (isLogoOnlyReferenceStepKey(stepKey)) {
     const logo = logoKey ? referenceImages.find((r) => r.screenKey === logoKey) : null
     return logo ? [logo] : []
   }
+  if (stepKey === 'box_mockup_3d' || stepKey === 'box_dieline_pdf') {
+    return referenceImages.filter((r) => isPackagingFaceStepKey(r.screenKey))
+  }
   const logo = logoKey ? referenceImages.find((r) => r.screenKey === logoKey) : null
-  const rest = referenceImages.filter((r) => r.screenKey !== logoKey)
+  const rest = referenceImages.filter((r) => {
+    if (r.screenKey === logoKey) return false
+    if (presetId && stepKey && !isStepAtOrBefore(presetId, r.screenKey, stepKey)) return false
+    return true
+  })
   const slots = STUDIO_REFERENCE_ATTACH_LIMIT - (logo ? 1 : 0)
   const recent = rest.slice(-Math.max(slots, 0))
   return [...(logo ? [logo] : []), ...recent]

@@ -5,6 +5,7 @@ import { getUserForCreditAction } from '@/lib/auth'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { createPrintReadyPdf } from '@/lib/print-ready-pdf'
 import { exportBoxDielineFromUrls } from '@/lib/packaging/export-dieline'
+import { exportBoxMockupFromFaces } from '@/lib/packaging/export-box-mockup'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -52,15 +53,18 @@ const STYLE_PROMPTS: Record<string, string> = {
  * artwork bleed 3mm và 3 ảnh mặt ghép vào net.
  */
 export async function generateBoxDielinePdf(params: {
-  face1Url: string
-  face2Url: string
-  face3Url: string
+  slotUrls: Partial<Record<BoxFaceSlot, string>>
   boxLength: number
   boxWidth: number
   boxHeight: number
 }): Promise<{ pdfUrl: string } | { error: string }> {
-  const { face1Url, face2Url, face3Url, boxLength, boxWidth, boxHeight } = params
-  if (!face1Url || !face2Url || !face3Url) return { error: 'Thiếu đủ 3 ảnh bề mặt.' }
+  const { slotUrls, boxLength, boxWidth, boxHeight } = params
+  const hasLxW = Boolean(slotUrls.top || slotUrls.bottom)
+  const hasLxH = Boolean(slotUrls.front || slotUrls.back)
+  const hasWxH = Boolean(slotUrls.right || slotUrls.left)
+  if (!hasLxW || !hasLxH || !hasWxH) {
+    return { error: 'Thiếu ít nhất một ảnh cho mỗi nhóm kích thước L×W, L×H, W×H.' }
+  }
   if (boxLength < 10 || boxLength > 800 || boxWidth < 10 || boxWidth > 800 || boxHeight < 10 || boxHeight > 800) {
     return { error: 'Kích thước hộp phải từ 10–800 mm.' }
   }
@@ -72,7 +76,7 @@ export async function generateBoxDielinePdf(params: {
   try {
     const exported = await exportBoxDielineFromUrls({
       userId: user.id,
-      faces: { LxW: face1Url, LxH: face2Url, WxH: face3Url },
+      slotUrls,
       dimensionsMm: { length: boxLength, width: boxWidth, height: boxHeight },
     })
 
@@ -1109,7 +1113,7 @@ export type FaceSizeKey = 'LxW' | 'LxH' | 'WxH'
 const FACE_ORDER: FaceSizeKey[] = ['LxW', 'LxH', 'WxH']
 const FACE_LABELS: Record<FaceSizeKey, string> = { LxW: 'TOP/BOTTOM', LxH: 'FRONT/BACK', WxH: 'LEFT/RIGHT' }
 
-/** Tạo mockup 3D từ tối đa 6 mặt (top/front/right/bottom/back/left). */
+/** Tạo mockup 3D từ tối đa 6 mặt (top/front/right/bottom/back/left) — ghép ảnh isometric, không dùng AI. */
 export async function createBoxMockupFromFaces(params: {
   faces: Pick<BoxCreatedFace, 'slot' | 'url' | 'sourceMode'>[]
   boxLength: number
@@ -1118,143 +1122,47 @@ export async function createBoxMockupFromFaces(params: {
   aspectRatio: string
   imageQuality: '2K' | '4K'
 }): Promise<{ success: true; resultUrl: string } | { error: string }> {
-  const { faces, boxLength, boxWidth, boxHeight, aspectRatio, imageQuality } = params
+  const { faces, boxLength, boxWidth, boxHeight } = params
   if (!faces?.length) return { error: 'Cần ít nhất một mặt hộp.' }
-  if (!isPackagingAspectRatio(aspectRatio)) return { error: 'Tỷ lệ khung hình không hợp lệ.' }
+  if (boxLength < 10 || boxLength > 800 || boxWidth < 10 || boxWidth > 800 || boxHeight < 10 || boxHeight > 800) {
+    return { error: 'Kích thước hộp phải từ 10–800 mm.' }
+  }
 
-  const resolvedFaces = BOX_FACE_SLOT_ORDER.map((slot) => ({
-    slot,
-    url: resolveBoxFaceUrl(slot, faces as BoxCreatedFace[]),
-  })).filter((f) => f.url)
-
-  if (!resolvedFaces.length) return { error: 'Cần ít nhất một mặt có ảnh in.' }
+  const hasArt = BOX_FACE_SLOT_ORDER.some((slot) => resolveBoxFaceUrl(slot, faces as BoxCreatedFace[]))
+  if (!hasArt) return { error: 'Cần ít nhất một mặt có ảnh in.' }
 
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const COST = PACKAGING_COSTS[imageQuality]
-
-  let openBalance = 0
-  try {
-    openBalance = await getCreditBalanceByUserId(user.id)
-  } catch {
-    return { error: 'Không đọc được số dư credits.' }
-  }
-  if (toTenths(openBalance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
-  }
+  const previewUrl =
+    resolveBoxFaceUrl('front', faces as BoxCreatedFace[]) ||
+    resolveBoxFaceUrl('top', faces as BoxCreatedFace[]) ||
+    faces.find((f) => f.url)?.url ||
+    ''
 
   const historyRow = await insertTryOnHistoryProcessingPg({
     userId: user.id,
-    originalImageUrl: resolvedFaces[0]?.url || faces.find((f) => f.url)?.url || '',
+    originalImageUrl: previewUrl,
     garmentImageUrl: '',
     feature: 'thiet-ke-bao-bi',
   })
   if (!historyRow) return { error: 'Không thể khởi tạo phiên xử lý.' }
   const historyItem = { id: historyRow.id }
 
-  const fetchBase64 = async (url: string): Promise<string> => {
-    const res = await fetch(url)
-    if (!res.ok) throw new Error('Fetch failed')
-    const buf = await res.arrayBuffer()
-    return Buffer.from(buf).toString('base64')
-  }
-
-  const faceDims: Record<BoxFaceSlot, string> = {
-    top: `${boxLength}×${boxWidth}mm (L×W)`,
-    bottom: `${boxLength}×${boxWidth}mm (L×W)`,
-    front: `${boxLength}×${boxHeight}mm (L×H)`,
-    back: `${boxLength}×${boxHeight}mm (L×H)`,
-    right: `${boxWidth}×${boxHeight}mm (W×H)`,
-    left: `${boxWidth}×${boxHeight}mm (W×H)`,
-  }
-  const emptySlots = BOX_FACE_SLOT_ORDER.filter((slot) => !resolveBoxFaceUrl(slot, faces as BoxCreatedFace[]))
-  const mapping: string[] = resolvedFaces.map(
-    (f, i) =>
-      `- Image ${i + 1} → ${f.slot.toUpperCase()} FACE. Face size: ${faceDims[f.slot]}. Apply without stretching.`,
-  )
-  if (emptySlots.length) {
-    mapping.push(
-      `- Plain unprinted kraft/cardboard (no design) on: ${emptySlots.map((s) => s.toUpperCase()).join(', ')}`,
-    )
-  }
-
-  let imagesBase64: string[]
   try {
-    imagesBase64 = await Promise.all(resolvedFaces.map((f) => fetchBase64(f.url!)))
-  } catch {
-    await deleteTryOnHistoryRowAndStorage(historyItem.id)
-    return { error: 'Không thể tải ảnh bề mặt.' }
-  }
-
-  const ratioL = (boxLength / Math.min(boxLength, boxWidth, boxHeight)).toFixed(1)
-  const ratioW = (boxWidth / Math.min(boxLength, boxWidth, boxHeight)).toFixed(1)
-  const ratioH = (boxHeight / Math.min(boxLength, boxWidth, boxHeight)).toFixed(1)
-  const prompt = `Create a photorealistic 3D cardboard box mockup.
-
-CRITICAL - Box dimensions and proportions: ${boxLength}mm (L) × ${boxWidth}mm (W) × ${boxHeight}mm (H). The 3D box MUST have EXACT proportions: L:W:H = ${ratioL}:${ratioW}:${ratioH}. The visible faces must show correct aspect ratios: L×W face = ${boxLength}×${boxWidth}mm, L×H face = ${boxLength}×${boxHeight}mm, W×H face = ${boxWidth}×${boxHeight}mm. Do NOT render a cube or wrong proportions – the box shape must match these dimensions. Tỷ lệ hộp phải đúng kích thước.
-
-CRITICAL - You are given ${resolvedFaces.length} flat print design(s). Apply EACH image directly to its specified face. Match each image to its face by dimensions – do NOT stretch, squash, or distort. Preserve aspect ratio. Ốp thẳng ảnh lên từng mặt, kích thước ảnh khớp kích thước mặt.
-
-Mapping (strict):
-${mapping.join('\n')}
-
-Result: a 3D box where the specified faces show the respective designs. Professional lighting, shadows, perspective.
-
-CRITICAL - Scene background must CONTRAST with the box: use neutral gray/white studio backdrop or wood/marble surface. Do NOT extend box print texture, kraft paper grain, or floral pattern onto the background or floor — artwork only on box faces.
-
-Output only the image, no watermark.`
-
-  const contentParts: object[] = [{ text: prompt }, ...imagesBase64.map((d) => ({ inlineData: { data: d, mimeType: 'image/png' as const } }))]
-
-  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality, aspectRatio },
-    },
-  })
-  const safetySettings = [
-    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-  ]
-
-  try {
-    const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
-    const response = genResult.response
-    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-bao-bi-mockup', user.id, imageQuality)
-    const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
-    if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      await deleteTryOnHistoryRowAndStorage(historyItem.id)
-      return { error: 'AI không trả về ảnh. Vui lòng thử lại (đôi khi AI tạm thời không tạo được ảnh).' }
-    }
-    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
-    const resultPath = `results/${user.id}/box_mockup_${Date.now()}.png`
-    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
-      contentType: 'image/png',
-      upsert: true,
+    const exported = await exportBoxMockupFromFaces({
+      userId: user.id,
+      faces,
+      dimensionsMm: { length: boxLength, width: boxWidth, height: boxHeight },
     })
-
-    const d = await deductUserCredits(user.id, COST)
-    if (!d.ok) {
-      await deleteTryOnHistoryRowAndStorage(historyItem.id)
-      return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
-    }
-    await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl, { aspect_ratio: aspectRatio })
-
+    await updateTryOnHistoryCompletedPg(historyItem.id, exported.pngUrl, { aspect_ratio: '1:1' })
     revalidatePath('/thiet-ke-bao-bi')
     revalidatePath('/dashboard/history')
-    return { success: true, resultUrl: resultPublicUrl }
+    return { success: true, resultUrl: exported.pngUrl }
   } catch (e) {
     await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
-    if (/500|Internal Server Error|Internal error/i.test(msg)) {
-      return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
-    }
     return { error: `Tạo mockup 3D thất bại: ${msg}` }
   }
 }

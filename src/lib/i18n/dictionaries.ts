@@ -159,6 +159,7 @@ export type Dictionary = {
     studioStepSavedStay: string
     studioNavigateStepBlocked: string
     studioRegenerate: string
+    studioExistingStepHint: string
     studioUseReference: string
     studioImageCredit: string
     studioGenerating: string
@@ -194,6 +195,11 @@ export type Dictionary = {
     studioLogoUploadNeedFile: string
     studioLogoUploadWrongStep: string
     studioLogoUploadAlready: string
+    studioFaceUploadNeedFile: string
+    studioFaceUploadWrongStep: string
+    studioFaceUploadSaved: string
+    studioFaceUploadUserLabel: string
+    studioFaceUploadReplaceBtn: string
     studioGeneratedStep: string
     studioLogoPendingApprove: string
     studioStepPendingApprove: string
@@ -234,6 +240,11 @@ export type Dictionary = {
     studioNoPrompt: string
     studioMinChars: string
     studioViewLarge: string
+    studioDownload: string
+    studioDownloadPng: string
+    studioDownloadJpeg: string
+    studioDownloadFailed: string
+    studioDownloadFailedHint: string
     studioCropImage: string
     studioCropSizeDisplay: string
     studioCropTargetDisplay: string
@@ -2664,6 +2675,7 @@ const VI_DICTIONARY: Dictionary = {
     studioStepSavedStay: 'Đã lưu **{screen}**. Bấm bước khác trên quy trình để tiếp tục.',
     studioNavigateStepBlocked: 'Chưa thể chuyển tới bước này — chỉ các bước đã hoàn thành mới bấm được.',
     studioRegenerate: 'Tạo lại',
+    studioExistingStepHint: 'Ảnh đã tạo — giữ nguyên hoặc bấm Tạo lại nếu muốn phiên bản khác.',
     studioUseReference: 'Chọn làm tham chiếu và tiếp',
     studioImageCredit: 'Tạo ảnh: {n} credits',
     studioGenerating: 'AI đang xử lý…',
@@ -2700,6 +2712,11 @@ const VI_DICTIONARY: Dictionary = {
     studioLogoUploadNeedFile: 'Vui lòng chọn file ảnh logo.',
     studioLogoUploadWrongStep: 'Chỉ tải logo khi đang ở bước Logo.',
     studioLogoUploadAlready: 'Logo tham chiếu đã được lưu.',
+    studioFaceUploadNeedFile: 'Vui lòng chọn file ảnh mặt hộp.',
+    studioFaceUploadWrongStep: 'Chỉ tải ảnh khi đang ở bước thiết kế một mặt hộp.',
+    studioFaceUploadSaved: 'Đã lưu ảnh mặt **{screen}** từ máy.',
+    studioFaceUploadUserLabel: '📎 Tải ảnh mặt {face}',
+    studioFaceUploadReplaceBtn: 'Tải ảnh khác',
     studioGeneratedStep: 'Đã tạo {screen} theo mô tả của bạn. Xem bên dưới — ổn thì bấm «Chọn làm tham chiếu và tiếp».',
     studioLogoPendingApprove: 'Logo đã được tạo sẵn bên dưới — bấm «Chọn làm tham chiếu và tiếp» nếu ổn, hoặc «Tạo lại» để thử phiên bản khác.',
     studioStepPendingApprove: '{screen} đã được tạo sẵn bên dưới — bấm «Chọn làm tham chiếu và tiếp» nếu ổn, hoặc «Tạo lại» để thử phiên bản khác.',
@@ -2740,6 +2757,11 @@ const VI_DICTIONARY: Dictionary = {
     studioNoPrompt: 'Không có prompt để tạo lại.',
     studioMinChars: 'Nhập ít nhất 2 ký tự.',
     studioViewLarge: 'Xem to',
+    studioDownload: 'Tải xuống',
+    studioDownloadPng: 'PNG (chất lượng cao)',
+    studioDownloadJpeg: 'JPG (chất lượng cao)',
+    studioDownloadFailed: 'Không tải được ảnh',
+    studioDownloadFailedHint: 'Đã mở ảnh trong tab mới — giữ ảnh để lưu.',
     studioCropImage: 'Cắt / sửa',
     studioCropSizeDisplay: 'Ảnh đã sửa: {size}',
     studioCropTargetDisplay: 'Kích thước mặt hộp: {size}',
@@ -5178,6 +5200,7 @@ const EN_DICTIONARY: Dictionary = {
     studioStepSavedStay: 'Saved **{screen}**. Click another step in the rail to continue.',
     studioNavigateStepBlocked: 'Cannot jump to this step yet — only completed steps are clickable.',
     studioRegenerate: 'Regenerate',
+    studioExistingStepHint: 'Existing output — keep it or tap Regenerate for a new version.',
     studioUseReference: 'Use as reference & continue',
     studioImageCredit: 'Image: {n} credits',
     studioGenerating: 'AI is working…',
@@ -5214,6 +5237,11 @@ const EN_DICTIONARY: Dictionary = {
     studioLogoUploadNeedFile: 'Please choose a logo image file.',
     studioLogoUploadWrongStep: 'Logo upload is only available on the Logo step.',
     studioLogoUploadAlready: 'Logo reference is already saved.',
+    studioFaceUploadNeedFile: 'Please choose a box face image file.',
+    studioFaceUploadWrongStep: 'Face upload is only available on a packaging face design step.',
+    studioFaceUploadSaved: 'Saved **{screen}** artwork from your device.',
+    studioFaceUploadUserLabel: '📎 Upload face image: {face}',
+    studioFaceUploadReplaceBtn: 'Upload different image',
     studioGeneratedStep: 'Created {screen} from your description. Review below — tap «Use as reference» if it looks good.',
     studioLogoPendingApprove: 'Logo preview is below — tap «Use as reference» if it looks good, or «Regenerate» for another version.',
     studioStepPendingApprove: '{screen} preview is below — tap «Use as reference» if it looks good, or «Regenerate» for another version.',
@@ -5254,6 +5282,11 @@ const EN_DICTIONARY: Dictionary = {
     studioNoPrompt: 'No prompt to regenerate.',
     studioMinChars: 'Enter at least 2 characters.',
     studioViewLarge: 'View large',
+    studioDownload: 'Download',
+    studioDownloadPng: 'PNG (high quality)',
+    studioDownloadJpeg: 'JPG (high quality)',
+    studioDownloadFailed: 'Could not download image',
+    studioDownloadFailedHint: 'Opened in a new tab — long-press the image to save.',
     studioCropImage: 'Crop / edit',
     studioCropSizeDisplay: 'Edited image: {size}',
     studioCropTargetDisplay: 'Box face size: {size}',
@@ -7739,6 +7772,7 @@ const ZH_DICTIONARY: Dictionary = {
     studioStepSavedStay: '已保存 **{screen}**。点击流程条其他步骤继续。',
     studioNavigateStepBlocked: '无法跳到此步骤 — 仅已完成步骤可点击。',
     studioRegenerate: '重新生成',
+    studioExistingStepHint: '已有输出 — 可保留或点重新生成。',
     studioUseReference: '选为参考并继续',
     studioImageCredit: '生成图片：{n} 积分',
     studioGenerating: 'AI 处理中…',
@@ -7775,6 +7809,11 @@ const ZH_DICTIONARY: Dictionary = {
     studioLogoUploadNeedFile: '请选择 logo 图片文件。',
     studioLogoUploadWrongStep: '仅可在 Logo 步骤上传 logo。',
     studioLogoUploadAlready: 'Logo 参考已保存。',
+    studioFaceUploadNeedFile: '请选择盒面图片文件。',
+    studioFaceUploadWrongStep: '仅可在包装盒面设计步骤上传图片。',
+    studioFaceUploadSaved: '已从本机保存 **{screen}** 图片。',
+    studioFaceUploadUserLabel: '📎 上传盒面图片：{face}',
+    studioFaceUploadReplaceBtn: '上传其他图片',
     studioGeneratedStep: '已根据您的描述生成 {screen}。请查看下方 — 满意请点击「选为参考图」。',
     studioLogoPendingApprove: 'Logo 预览已在下方 — 满意请点击「选为参考图」，或点「重新生成」换一版。',
     studioStepPendingApprove: '{screen} 预览已在下方 — 满意请点击「选为参考图」，或点「重新生成」换一版。',
@@ -7815,6 +7854,11 @@ const ZH_DICTIONARY: Dictionary = {
     studioNoPrompt: '没有可重新生成的提示词。',
     studioMinChars: '至少输入 2 个字符。',
     studioViewLarge: '查看大图',
+    studioDownload: '下载',
+    studioDownloadPng: 'PNG（高质量）',
+    studioDownloadJpeg: 'JPG（高质量）',
+    studioDownloadFailed: '无法下载图片',
+    studioDownloadFailedHint: '已在新标签页打开 — 长按图片保存。',
     studioCropImage: '裁剪 / 编辑',
     studioCropSizeDisplay: '已编辑图像：{size}',
     studioCropTargetDisplay: '盒面尺寸：{size}',
@@ -10213,6 +10257,7 @@ const JA_DICTIONARY: Dictionary = {
     studioStepSavedStay: '**{screen}** を保存しました。レールで別ステップをクリックして続行。',
     studioNavigateStepBlocked: 'このステップにはまだ移動できません — 完了したステップのみクリック可能です。',
     studioRegenerate: '再生成',
+    studioExistingStepHint: '出力済み — このまま使うか「再生成」を押してください。',
     studioUseReference: '参考にして次へ',
     studioImageCredit: '画像生成：{n} クレジット',
     studioGenerating: 'AI 処理中…',
@@ -10249,6 +10294,11 @@ const JA_DICTIONARY: Dictionary = {
     studioLogoUploadNeedFile: 'ロゴ画像ファイルを選択してください。',
     studioLogoUploadWrongStep: 'ロゴのアップロードはロゴステップでのみ可能です。',
     studioLogoUploadAlready: 'ロゴ参考は既に保存されています。',
+    studioFaceUploadNeedFile: '箱の面の画像ファイルを選択してください。',
+    studioFaceUploadWrongStep: '箱の面デザインステップでのみアップロードできます。',
+    studioFaceUploadSaved: '**{screen}** の画像を端末から保存しました。',
+    studioFaceUploadUserLabel: '📎 面画像をアップロード：{face}',
+    studioFaceUploadReplaceBtn: '別の画像をアップロード',
     studioGeneratedStep: 'ご要望どおり {screen} を生成しました。下を確認し、問題なければ「参考画像にする」を押してください。',
     studioLogoPendingApprove: 'ロゴのプレビューは下にあります — 問題なければ「参考画像にする」、別バージョンは「再生成」を押してください。',
     studioStepPendingApprove: '{screen}のプレビューは下にあります — 問題なければ「参考画像にする」、別バージョンは「再生成」を押してください。',
@@ -10289,6 +10339,11 @@ const JA_DICTIONARY: Dictionary = {
     studioNoPrompt: '再生成用のプロンプトがありません。',
     studioMinChars: '2文字以上入力してください。',
     studioViewLarge: '拡大表示',
+    studioDownload: 'ダウンロード',
+    studioDownloadPng: 'PNG（高画質）',
+    studioDownloadJpeg: 'JPG（高画質）',
+    studioDownloadFailed: '画像をダウンロードできません',
+    studioDownloadFailedHint: '新しいタブで開きました — 長押しで保存してください。',
     studioCropImage: '切り抜き / 編集',
     studioCropSizeDisplay: '編集後：{size}',
     studioCropTargetDisplay: '箱面サイズ：{size}',
@@ -12759,6 +12814,7 @@ const KO_DICTIONARY: Dictionary = {
     studioStepSavedStay: '**{screen}** 저장됨. 레일에서 다른 단계를 클릭해 계속하세요.',
     studioNavigateStepBlocked: '아직 이 단계로 이동할 수 없습니다 — 완료된 단계만 클릭 가능합니다.',
     studioRegenerate: '다시 생성',
+    studioExistingStepHint: '이미 생성됨 — 유지하거나 다시 생성을 누르세요.',
     studioUseReference: '참조로 선택하고 계속',
     studioImageCredit: '이미지 생성: {n} 크레딧',
     studioGenerating: 'AI 처리 중…',
@@ -12795,6 +12851,11 @@ const KO_DICTIONARY: Dictionary = {
     studioLogoUploadNeedFile: '로고 이미지 파일을 선택하세요.',
     studioLogoUploadWrongStep: '로고 업로드는 로고 단계에서만 가능합니다.',
     studioLogoUploadAlready: '로고 참조가 이미 저장되었습니다.',
+    studioFaceUploadNeedFile: '상자 면 이미지 파일을 선택하세요.',
+    studioFaceUploadWrongStep: '포장 면 디자인 단계에서만 업로드할 수 있습니다.',
+    studioFaceUploadSaved: '기기에서 **{screen}** 면 이미지를 저장했습니다.',
+    studioFaceUploadUserLabel: '📎 면 이미지 업로드: {face}',
+    studioFaceUploadReplaceBtn: '다른 이미지 업로드',
     studioGeneratedStep: '설명대로 {screen}을(를) 생성했습니다. 아래에서 확인 후 «참조 이미지로 선택»을 누르세요.',
     studioLogoPendingApprove: '로고 미리보기가 아래에 있습니다 — 괜찮으면 «참조 이미지로 선택», 다른 버전은 «다시 생성»을 누르세요.',
     studioStepPendingApprove: '{screen} 미리보기가 아래에 있습니다 — 괜찮으면 «참조 이미지로 선택», 다른 버전은 «다시 생성»을 누르세요.',
@@ -12835,6 +12896,11 @@ const KO_DICTIONARY: Dictionary = {
     studioNoPrompt: '다시 생성할 프롬프트가 없습니다.',
     studioMinChars: '최소 2자 이상 입력하세요.',
     studioViewLarge: '크게 보기',
+    studioDownload: '다운로드',
+    studioDownloadPng: 'PNG (고화질)',
+    studioDownloadJpeg: 'JPG (고화질)',
+    studioDownloadFailed: '이미지를 다운로드할 수 없습니다',
+    studioDownloadFailedHint: '새 탭에서 열었습니다 — 길게 눌러 저장하세요.',
     studioCropImage: '자르기 / 편집',
     studioCropSizeDisplay: '편집된 이미지: {size}',
     studioCropTargetDisplay: '상자 면 크기: {size}',

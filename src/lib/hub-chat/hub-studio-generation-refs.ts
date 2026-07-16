@@ -1,6 +1,7 @@
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
-import { getPrimaryLogoStepKey, getStepGenerator } from '@/lib/hub-chat/hub-studio-presets'
+import { getPrimaryLogoStepKey, getStepGenerator, isLogoDesignStep } from '@/lib/hub-chat/hub-studio-presets'
 import { isLogoOnlyReferenceStepKey } from '@/lib/packaging/product-label-step'
+import { HUB_PACKAGING_FACE_STEP_KEYS } from '@/lib/packaging/hub-face-steps'
 import {
   STUDIO_REFERENCE_ATTACH_LIMIT,
   generatorSupportsReferenceForPicker,
@@ -8,6 +9,7 @@ import {
 import type { HubStudioMessagePayload, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 
 export function stepSupportsGenerationRefPicker(presetId: string, stepKey: string): boolean {
+  if (isLogoDesignStep(presetId, stepKey)) return false
   const gen = getStepGenerator(presetId, stepKey)
   if (!gen) return false
   return generatorSupportsReferenceForPicker(gen)
@@ -22,6 +24,11 @@ export function defaultGenerationReferenceKeys(
   const activeKey = stepKey ?? session.currentStepKey
   if (isLogoOnlyReferenceStepKey(activeKey)) {
     return logoKey && session.referenceImages.some((r) => r.screenKey === logoKey) ? [logoKey] : []
+  }
+  if (activeKey === 'box_mockup_3d' || activeKey === 'box_dieline_pdf') {
+    return HUB_PACKAGING_FACE_STEP_KEYS.filter((k) =>
+      session.referenceImages.some((r) => r.screenKey === k)
+    )
   }
   const keys: string[] = []
   if (logoKey && session.referenceImages.some((r) => r.screenKey === logoKey)) {

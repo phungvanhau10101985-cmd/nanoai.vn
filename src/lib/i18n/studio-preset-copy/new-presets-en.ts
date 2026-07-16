@@ -39,17 +39,17 @@ export const NEW_PRESETS_EN = {
       logo: 'Describe the logo to create for packaging (based on brief) — or tap **Upload logo** if you already have a file.',
       box_flat: 'Flat box: front/side layout, logo placement?',
       face_top:
-        '⑦ Top L×W — describe print content or **leave blank**. **Full bleed** artwork — no mm dimension labels on the image.',
+        '⑦ Top L×W — **Upload face image** from device, describe print content, or **leave blank**. **Full bleed** artwork — no mm dimension labels on the image.',
       face_front:
-        '⑧ Front L×H — describe print content or **leave blank**. Output: **flat print file**, NOT a 3D box.',
+        '⑧ Front L×H — **Upload face image** or describe print content or **leave blank**. Output: **flat print file**, NOT a 3D box.',
       face_right:
-        '⑨ Right W×H — describe print content or **leave blank**. Output: **flat print file**, NOT a 3D box.',
+        '⑨ Right W×H — **Upload face image** or describe print content or **leave blank**. Output: **flat print file**, NOT a 3D box.',
       face_bottom:
-        '⑩ Bottom L×W — **leave blank**, **same as top**, or describe unique print content.',
+        '⑩ Bottom L×W — **Upload**, **leave blank**, **same as top**, or describe unique print content.',
       face_back:
-        '⑪ Back L×H — **leave blank**, **same as front**, or describe unique print content.',
+        '⑪ Back L×H — **Upload**, **leave blank**, **same as front**, or describe unique print content.',
       face_left:
-        '⑫ Left W×H — **leave blank**, **same as right**, or describe unique print content.',
+        '⑫ Left W×H — **Upload**, **leave blank**, **same as right**, or describe unique print content.',
       face_lxw:
         'L×W top/bottom face — enter **print content for this face only** (logo, product name, graphics…). An artwork image will be generated.',
       face_lxh:
@@ -57,7 +57,8 @@ export const NEW_PRESETS_EN = {
       face_wxh:
         'W×H side faces — enter **print content for this face** (directions, warnings, secondary ingredients…).',
       box_dieline_pdf: 'Build the technical Dieline PDF after all 6 faces are done.',
-      box_mockup_3d: '3D mockup: angle, box material (matte/gloss). Contrasting studio background — do not repeat box artwork on scene.',
+      box_mockup_3d:
+        'Type **create mockup 3d** — isometric composite from your 6 face images (no logo; each face keeps its slot; proportions match box size).',
       product_label: 'Product label (B&W): label size (e.g. 50×80 mm) + content (name, ingredients, usage…). Logo only.',
       seal_sticker: 'Seal sticker: size (e.g. 40×40 mm), round/square, tagline. Logo only — not box faces.',
       barcode_label: 'Real barcode: uses product name from brief; product code (e.g. SKU: 188-SRM-001). Default Code128 — or EAN-13/QR if specified.',

@@ -1,18 +1,20 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Image from 'next/image'
-import { Check, Circle, Crop, Download, FileText, Loader2, Maximize2, Pencil, RefreshCw, Sparkles, Undo2, X } from 'lucide-react'
+import { Check, Circle, Crop, Download, FileText, Loader2, Maximize2, Pencil, RefreshCw, Sparkles, Undo2, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { rewriteLegacyBunnyCdnUrl } from '@/lib/bunny-cdn-url'
 import type { HubStudioMessagePayload, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { HubStudioFaceCropDialog, type HubStudioFaceCropLabels } from '@/components/hub-chat/hub-studio-face-crop-dialog'
+import { DownloadImageButton } from '@/components/download-image-button'
 import { formatMmSize, normalizeFaceSizeMm } from '@/lib/packaging/face-crop-size'
 import { getPackagingFaceSizeForStep } from '@/lib/packaging/hub-face-steps'
 import { resolvePackagingStepLabel } from '@/lib/packaging/packaging-face-labels'
 import type { WebLocale } from '@/lib/i18n/config'
+import { PackagingBoxMockup3D } from '@/components/hub-chat/packaging-box-mockup-3d'
 
 type StudioLine = {
   id: string
@@ -32,6 +34,54 @@ function imageDimensions(aspect?: HubStudioMessagePayload['aspectHint']): { widt
   if (aspect === 'square') return { width: 200, height: 200 }
   if (aspect === 'landscape') return { width: 280, height: 158 }
   return { width: 220, height: 390 }
+}
+
+function studioDownloadFilename(screenKey?: string, label?: string): string {
+  const raw = (label || screenKey || 'studio-image').trim()
+  const slug = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w.-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+  return slug || 'studio-image'
+}
+
+type HubStudioDownloadLabels = {
+  studioDownload: string
+  studioDownloadPng: string
+  studioDownloadJpeg: string
+  studioDownloadFailed: string
+  studioDownloadFailedHint: string
+}
+
+function HubStudioImageDownloadButton({
+  imageUrl,
+  screenKey,
+  label,
+  hc,
+}: {
+  imageUrl: string
+  screenKey?: string
+  label?: string
+  hc: HubStudioDownloadLabels
+}) {
+  return (
+    <DownloadImageButton
+      imageUrl={imageUrl}
+      filename={studioDownloadFilename(screenKey, label)}
+      variant="outline"
+      size="sm"
+      className="h-8 text-xs"
+      labels={{
+        button: hc.studioDownload,
+        png: hc.studioDownloadPng,
+        jpeg: hc.studioDownloadJpeg,
+        failedTitle: hc.studioDownloadFailed,
+        failedDescription: hc.studioDownloadFailedHint,
+      }}
+    />
+  )
 }
 
 function StudioImageLightbox({
@@ -184,7 +234,10 @@ export function HubStudioMessageBubble({
   cropLabels,
   onCropImage,
   onRevertFaceEdit,
+  onUploadFace,
   studioSession,
+  compact = false,
+  suppressImagePreview = false,
 }: {
   line: StudioLine
   hc: {
@@ -194,6 +247,11 @@ export function HubStudioMessageBubble({
     studioImageCredit: string
     studioMusicCredit: string
     studioViewLarge: string
+    studioDownload: string
+    studioDownloadPng: string
+    studioDownloadJpeg: string
+    studioDownloadFailed: string
+    studioDownloadFailedHint: string
     studioReferenceTitle: string
     studioReferenceCount: string
     studioReferenceRemove: string
@@ -205,7 +263,13 @@ export function HubStudioMessageBubble({
     studioCropSizeDisplay: string
     studioCropTargetDisplay: string
     studioEditRevertOriginal: string
+    studioExistingStepHint?: string
+    studioFaceUploadReplaceBtn?: string
   }
+  /** Panel above input — no chat margins or assistant text wrapper. */
+  compact?: boolean
+  /** Hide image block when the fixed step panel already shows the same preview. */
+  suppressImagePreview?: boolean
   uiLocale?: WebLocale
   cropLabels?: HubStudioFaceCropLabels
   busy: boolean
@@ -213,6 +277,7 @@ export function HubStudioMessageBubble({
   onApproveReference: () => void
   onCropImage?: (blob: Blob, printSizeMm: { widthMm: number; heightMm: number }) => void | Promise<void>
   onRevertFaceEdit?: () => void | Promise<void>
+  onUploadFace?: (files: FileList | File[]) => void | Promise<void>
   onRemoveReference?: (screenKey: string) => void
   onEditStep?: (line: StudioLine) => void
   editingLineId?: string | null
@@ -223,9 +288,15 @@ export function HubStudioMessageBubble({
 }) {
   const st = line.studio
   const isAudio = st?.previewKind === 'audio' || Boolean(st?.audioUrl)
+  const interactivePackaging =
+    studioSession?.presetId === 'packaging_kit' &&
+    st?.screenKey === 'box_mockup_3d' &&
+    studioSession.packaging?.dimensionsMm &&
+    studioSession.packaging.faceSlots
   const isEditing = editingLineId === line.id && line.role === 'user'
   const [draft, setDraft] = useState(line.content)
   const [cropOpen, setCropOpen] = useState(false)
+  const faceUploadRef = useRef<HTMLInputElement>(null)
 
   const resolvedFaceTargetMm = useMemo(() => {
     const fromPayload = normalizeFaceSizeMm(st?.faceTargetSizeMm)
@@ -352,8 +423,14 @@ export function HubStudioMessageBubble({
   }
 
   return (
-    <div className="mr-6 rounded-md bg-violet-50/80 px-2.5 py-2 text-sm text-slate-800 dark:bg-violet-950/30 dark:text-slate-100">
-      <p className="whitespace-pre-wrap">{line.content}</p>
+    <div
+      className={
+        compact
+          ? 'text-sm text-slate-800 dark:text-slate-100'
+          : 'mr-6 rounded-md bg-violet-50/80 px-2.5 py-2 text-sm text-slate-800 dark:bg-violet-950/30 dark:text-slate-100'
+      }
+    >
+      {!compact ? <p className="whitespace-pre-wrap">{line.content}</p> : null}
       {st?.boxWireframeSvg ? (
         <div
           className="mt-2 flex w-full max-w-[400px] justify-center overflow-hidden rounded-lg border border-violet-200 bg-white py-1.5 dark:border-violet-800 dark:bg-slate-900 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:min-h-[180px]"
@@ -452,7 +529,7 @@ export function HubStudioMessageBubble({
           ) : null}
         </div>
       ) : null}
-      {st?.imageUrl ? (
+      {st?.imageUrl && !suppressImagePreview ? (
         <div className="mt-2 space-y-2">
           {displayScreenLabel ? (
             <p className="text-xs font-medium text-violet-800 dark:text-violet-200">
@@ -460,12 +537,20 @@ export function HubStudioMessageBubble({
               {displayScreenLabel}
             </p>
           ) : null}
-          <StudioImageLightbox
-            src={st.imageUrl}
-            alt={displayScreenLabel || 'Studio preview'}
-            viewLargeLabel={hc.studioViewLarge}
-            aspectHint={st.aspectHint}
-          />
+          {interactivePackaging ? (
+            <PackagingBoxMockup3D
+              dimensionsMm={studioSession.packaging!.dimensionsMm!}
+              faceSlots={studioSession.packaging!.faceSlots!}
+              locale={uiLocale}
+            />
+          ) : (
+            <StudioImageLightbox
+              src={st.imageUrl}
+              alt={displayScreenLabel || 'Studio preview'}
+              viewLargeLabel={hc.studioViewLarge}
+              aspectHint={st.aspectHint}
+            />
+          )}
           {st.imageCharged ? (
             <p className="text-[11px] text-muted-foreground">
               {hc.studioImageCredit.replace('{n}', String(st.imageCharged))}
@@ -491,48 +576,77 @@ export function HubStudioMessageBubble({
               ) : null}
             </div>
           ) : null}
-          {st.showRegenerate || st.showApproveReference || st.showCropImage ? (
-            <div className="flex flex-wrap gap-1.5">
-              {st.showCropImage && st.imageUrl && resolvedFaceTargetMm && cropLabels && onCropImage ? (
+          <div className="flex flex-wrap gap-1.5">
+            <HubStudioImageDownloadButton
+              imageUrl={st.imageUrl}
+              screenKey={st.screenKey}
+              label={displayScreenLabel}
+              hc={hc}
+            />
+            {st.showCropImage && st.imageUrl && resolvedFaceTargetMm && cropLabels && onCropImage ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                disabled={busy}
+                onClick={() => setCropOpen(true)}
+              >
+                <Crop className="mr-1 h-3.5 w-3.5" />
+                {hc.studioCropImage}
+              </Button>
+            ) : null}
+            {showRevert && onRevertFaceEdit ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                disabled={busy}
+                onClick={() => void onRevertFaceEdit()}
+              >
+                <Undo2 className="mr-1 h-3.5 w-3.5" />
+                {hc.studioEditRevertOriginal}
+              </Button>
+            ) : null}
+            {st.showRegenerate ? (
+              <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={onRegenerate}>
+                <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                {hc.studioRegenerate}
+              </Button>
+            ) : null}
+            {onUploadFace && hc.studioFaceUploadReplaceBtn ? (
+              <>
+                <input
+                  ref={faceUploadRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files?.length) void onUploadFace(e.target.files)
+                    if (faceUploadRef.current) faceUploadRef.current.value = ''
+                  }}
+                />
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
                   className="h-8 text-xs"
                   disabled={busy}
-                  onClick={() => setCropOpen(true)}
+                  onClick={() => faceUploadRef.current?.click()}
                 >
-                  <Crop className="mr-1 h-3.5 w-3.5" />
-                  {hc.studioCropImage}
+                  <Upload className="mr-1 h-3.5 w-3.5" />
+                  {hc.studioFaceUploadReplaceBtn}
                 </Button>
-              ) : null}
-              {showRevert && onRevertFaceEdit ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs"
-                  disabled={busy}
-                  onClick={() => void onRevertFaceEdit()}
-                >
-                  <Undo2 className="mr-1 h-3.5 w-3.5" />
-                  {hc.studioEditRevertOriginal}
-                </Button>
-              ) : null}
-              {st.showRegenerate ? (
-                <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={onRegenerate}>
-                  <RefreshCw className="mr-1 h-3.5 w-3.5" />
-                  {hc.studioRegenerate}
-                </Button>
-              ) : null}
-              {st.showApproveReference ? (
-                <Button type="button" size="sm" className="h-8 bg-violet-600 text-xs hover:bg-violet-700" disabled={busy} onClick={onApproveReference}>
-                  <Check className="mr-1 h-3.5 w-3.5" />
-                  {hc.studioUseReference}
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
+              </>
+            ) : null}
+            {st.showApproveReference ? (
+              <Button type="button" size="sm" className="h-8 bg-violet-600 text-xs hover:bg-violet-700" disabled={busy} onClick={onApproveReference}>
+                <Check className="mr-1 h-3.5 w-3.5" />
+                {hc.studioUseReference}
+              </Button>
+            ) : null}
+          </div>
           {st.showCropImage && editBaseImageUrl && resolvedFaceTargetMm && cropLabels && onCropImage ? (
             <HubStudioFaceCropDialog
               open={cropOpen}
@@ -550,6 +664,78 @@ export function HubStudioMessageBubble({
           ) : null}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+export function HubStudioActiveStepPreview({
+  st,
+  studioSession,
+  hc,
+  busy,
+  uiLocale = 'vi',
+  cropLabels,
+  onRegenerate,
+  onApproveReference,
+  onCropImage,
+  onRevertFaceEdit,
+  onUploadFace,
+}: {
+  st: HubStudioMessagePayload
+  studioSession: HubStudioSession
+  hc: {
+    studioRegenerate: string
+    studioUseReference: string
+    studioContinue: string
+    studioImageCredit: string
+    studioMusicCredit: string
+    studioViewLarge: string
+    studioDownload: string
+    studioDownloadPng: string
+    studioDownloadJpeg: string
+    studioDownloadFailed: string
+    studioDownloadFailedHint: string
+    studioReferenceTitle: string
+    studioReferenceCount: string
+    studioReferenceRemove: string
+    studioEditStep: string
+    studioEditSave: string
+    studioEditCancel: string
+    studioEditCredit: string
+    studioExistingStepHint: string
+    studioCropImage: string
+    studioCropSizeDisplay: string
+    studioCropTargetDisplay: string
+    studioEditRevertOriginal: string
+    studioFaceUploadReplaceBtn?: string
+  }
+  uiLocale?: WebLocale
+  cropLabels?: HubStudioFaceCropLabels
+  busy: boolean
+  onRegenerate: () => void
+  onApproveReference: () => void
+  onCropImage?: (blob: Blob, printSizeMm: { widthMm: number; heightMm: number }) => void | Promise<void>
+  onRevertFaceEdit?: () => void | Promise<void>
+  onUploadFace?: (files: FileList | File[]) => void | Promise<void>
+}) {
+  if (!st.imageUrl && !st.audioUrl) return null
+  return (
+    <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2.5 dark:border-violet-900 dark:bg-violet-950/25">
+      <p className="mb-2 text-xs text-violet-900 dark:text-violet-100">{hc.studioExistingStepHint}</p>
+      <HubStudioMessageBubble
+        line={{ id: 'active-step-preview', role: 'assistant', content: '', studio: st }}
+        hc={hc}
+        busy={busy}
+        compact
+        uiLocale={uiLocale}
+        cropLabels={cropLabels}
+        studioSession={studioSession}
+        onRegenerate={onRegenerate}
+        onApproveReference={onApproveReference}
+        onCropImage={onCropImage}
+        onRevertFaceEdit={onRevertFaceEdit}
+        onUploadFace={onUploadFace}
+      />
     </div>
   )
 }

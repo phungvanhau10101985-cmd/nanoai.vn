@@ -1,10 +1,9 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { GEMINI_ASPECT_RATIOS } from '@/lib/label-size-presets'
 import {
-  BOX_MAX_MM,
-  BOX_MIN_MM,
-  type BoxDimensionsMm,
   cmToMm,
+  isPositiveBoxDimensionMm,
+  type BoxDimensionsMm,
 } from '@/lib/packaging/dimensions'
 
 const RATIO_EPS = 0.002
@@ -61,7 +60,7 @@ export function getWidthOptionsForLengthLxwOnly(lengthMm: number): BoxWidthOptio
   for (const g of GEMINI_RATIO_VALUES) {
     for (const fixedIsLong of [true, false]) {
       const widthMm = dimensionSideFromRatio(lengthMm, g.value, fixedIsLong)
-      if (widthMm < BOX_MIN_MM || widthMm > BOX_MAX_MM) continue
+      if (!isPositiveBoxDimensionMm(widthMm)) continue
       if (exactGeminiFaceRatio(lengthMm, widthMm) !== g.str) continue
       if (seen.has(widthMm)) continue
       seen.add(widthMm)
@@ -91,7 +90,7 @@ export function getHeightOptionsForLengthWidth(lengthMm: number, widthMm: number
   for (const g of GEMINI_RATIO_VALUES) {
     for (const fixedIsLong of [true, false]) {
       const heightMm = dimensionSideFromRatio(lengthMm, g.value, fixedIsLong)
-      if (heightMm < BOX_MIN_MM || heightMm > BOX_MAX_MM) continue
+      if (!isPositiveBoxDimensionMm(heightMm)) continue
       const lxh = exactGeminiFaceRatio(lengthMm, heightMm)
       const wxh = exactGeminiFaceRatio(widthMm, heightMm)
       if (!lxh || !wxh) continue
@@ -115,7 +114,7 @@ export function parseSingleBoxDimension(input: string): ParseSingleDimensionResu
 
   const unit = (match[2] ?? 'cm').toLowerCase()
   const valueMm = unit === 'mm' ? roundMm(value) : cmToMm(value)
-  if (valueMm < BOX_MIN_MM || valueMm > BOX_MAX_MM) return { ok: false, error: 'range' }
+  if (!isPositiveBoxDimensionMm(valueMm)) return { ok: false, error: 'range' }
   return { ok: true, valueMm }
 }
 
@@ -207,11 +206,11 @@ export function buildWidthOptionsMessage(locale: WebLocale, lengthMm: number): s
   const options = getWidthOptionsForLength(lengthMm)
   if (!options.length) {
     const rows = {
-      vi: 'Không tìm được chiều rộng phù hợp tỷ lệ Gemini với chiều dài này. Hãy nhập lại chiều dài khác (2–50 cm).',
-      en: 'No Gemini-compatible width for this length. Enter a different length (2–50 cm).',
-      zh: '此长度下没有匹配的 Gemini 宽度。请重新输入长度（2–50 cm）。',
-      ja: 'この長さに合う Gemini 幅がありません。別の長さ（2–50 cm）を入力してください。',
-      ko: '이 길이에 맞는 Gemini 너비가 없습니다. 다른 길이(2–50 cm)를 입력하세요.',
+      vi: 'Không tìm được chiều rộng phù hợp tỷ lệ Gemini với chiều dài này. Hãy nhập lại chiều dài khác.',
+      en: 'No Gemini-compatible width for this length. Enter a different length.',
+      zh: '此长度下没有匹配的 Gemini 宽度。请重新输入长度。',
+      ja: 'この長さに合う Gemini 幅がありません。別の長さを入力してください。',
+      ko: '이 길이에 맞는 Gemini 너비가 없습니다. 다른 길이를 입력하세요.',
     } satisfies Record<WebLocale, string>
     return rows[locale]
   }
@@ -282,20 +281,20 @@ export function singleDimensionError(locale: WebLocale, kind: 'format' | 'range'
     vi:
       kind === 'format'
         ? 'Chưa đúng định dạng. Nhập một số cm, ví dụ: `50` hoặc `50 cm`.'
-        : 'Chiều phải từ 2 đến 50 cm.',
+        : 'Chiều phải lớn hơn 0.',
     en:
       kind === 'format'
         ? 'Invalid format. Enter one value in cm, e.g. `50` or `50 cm`.'
-        : 'Value must be between 2 and 50 cm.',
-    zh: kind === 'format' ? '格式不正确。请输入 cm，例如 `50` 或 `50 cm`。' : '尺寸须在 2–50 cm 之间。',
+        : 'Value must be greater than 0.',
+    zh: kind === 'format' ? '格式不正确。请输入 cm，例如 `50` 或 `50 cm`。' : '尺寸须大于 0。',
     ja:
       kind === 'format'
         ? '形式が正しくありません。cm で入力（例：`50` または `50 cm`）。'
-        : '2〜50 cm の範囲で入力してください。',
+        : '0 より大きい値を入力してください。',
     ko:
       kind === 'format'
         ? '형식이 올바르지 않습니다. cm 입력(예: `50` 또는 `50 cm`).'
-        : '2~50 cm 범위여야 합니다.',
+        : '0보다 커야 합니다.',
   } satisfies Record<WebLocale, string>
   return rows[locale]
 }

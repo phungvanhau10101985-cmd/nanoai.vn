@@ -30,6 +30,14 @@ function trackDownloadEvent(format: 'png' | 'jpeg', filename: string) {
   })
 }
 
+export interface DownloadImageButtonLabels {
+  button?: string
+  png?: string
+  jpeg?: string
+  failedTitle?: string
+  failedDescription?: string
+}
+
 export interface DownloadImageButtonProps {
   imageUrl: string
   filename?: string
@@ -38,6 +46,7 @@ export interface DownloadImageButtonProps {
   className?: string
   children?: React.ReactNode
   showLabel?: boolean
+  labels?: DownloadImageButtonLabels
   /** Bật xuất PDF chuẩn in (bleed, crop marks, kích thước mm) */
   printReady?: boolean
   /** Tỷ lệ ảnh đang chọn (vd: "1:1", "3:4") – chỉ hiện khổ in phù hợp */
@@ -63,7 +72,16 @@ export function DownloadImageButton({
   printReadyInferFromImage = false,
   printReadyLabel = 'Tải PDF chuẩn in',
   printReadySuccessToast = 'Đã tạo PDF chuẩn in. Bleed 3mm, crop marks. Gửi file cho xưởng in.',
+  labels,
 }: DownloadImageButtonProps) {
+  const downloadLabels = {
+    button: labels?.button ?? 'Tải về',
+    png: labels?.png ?? 'Tải PNG (chất lượng tốt nhất)',
+    jpeg: labels?.jpeg ?? 'Tải JPG (chất lượng tốt nhất)',
+    failedTitle: labels?.failedTitle ?? 'Không tải được ảnh',
+    failedDescription:
+      labels?.failedDescription ?? 'Đã mở ảnh trong tab mới — giữ ảnh để lưu.',
+  }
   const [inferredAspectRatio, setInferredAspectRatio] = useState<string | null>(null)
   const effectiveAspectRatio = printReadyAspectRatio ?? inferredAspectRatio ?? undefined
   const printPresets = effectiveAspectRatio
@@ -123,8 +141,8 @@ export function DownloadImageButton({
       await downloadImageFromUrl(imageUrl, format, filename)
     } catch {
       toast({
-        title: 'Không tải được ảnh',
-        description: 'Đã mở ảnh trong tab mới — giữ ảnh để lưu.',
+        title: downloadLabels.failedTitle,
+        description: downloadLabels.failedDescription,
         variant: 'destructive',
         duration: 5000,
       })
@@ -140,16 +158,16 @@ export function DownloadImageButton({
       <DropdownMenuTrigger asChild>
         <Button type="button" variant={variant} size={size} className={className} disabled={isBusy || !imageUrl}>
           <Download className="h-3 w-3" />
-          {hasLabel && <span className="ml-1.5">{children || 'Tải về'}</span>}
+          {hasLabel && <span className="ml-1.5">{children || downloadLabels.button}</span>}
           <ChevronDown className={`h-3 w-3 ${hasLabel ? 'ml-1' : 'ml-0.5'}`} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => handleDownload('png')} disabled={isBusy}>
-          Tải PNG (chất lượng tốt nhất)
+          {downloadLabels.png}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => handleDownload('jpeg')} disabled={isBusy}>
-          Tải JPG (chất lượng tốt nhất)
+          {downloadLabels.jpeg}
         </DropdownMenuItem>
         {printReady && (printPresets.length > 0 || printReadyInferFromImage) && (
           <>

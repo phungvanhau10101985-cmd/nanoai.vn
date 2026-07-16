@@ -7,7 +7,13 @@ import {
   getDesignStepIncompleteReason,
   isDesignStepApprovedComplete,
   resolveForwardDesignStepTarget,
+  resolvePackagingArtifactStepFromMessage,
+  shouldForceGenerateForStep,
+  shouldForceDeterministicStep,
+  shouldShowPendingRetry,
 } from '@/lib/hub-chat/hub-studio-step-retry'
+import { preparePackagingFaceSlotsForArtifact } from '@/lib/packaging/hub-face-steps'
+import { resolveMockupSlotUrl } from '@/lib/packaging/box-face-slots'
 
 function packagingSession(overrides: Partial<HubStudioSession> = {}): HubStudioSession {
   return {
@@ -29,6 +35,7 @@ function packagingSession(overrides: Partial<HubStudioSession> = {}): HubStudioS
       { screenKey: 'face_right', screenLabel: 'Right', url: 'https://example.com/right.png', approvedAt: 3 },
       { screenKey: 'face_back', screenLabel: 'Back', url: 'https://example.com/back.png', approvedAt: 4 },
       { screenKey: 'face_left', screenLabel: 'Left', url: 'https://example.com/left.png', approvedAt: 5 },
+      { screenKey: 'logo', screenLabel: 'Logo', url: 'https://example.com/logo.png', approvedAt: 6 },
     ],
     packaging: {
       version: 2,
@@ -101,4 +108,87 @@ test('forward jump to dieline when all face steps committed but current step rew
     resolveForwardDesignStepTarget(session, 'packaging_kit', 'vi', 'tạo Dieline PDF kỹ thuật'),
     'box_dieline_pdf'
   )
+})
+
+test('mockup recreate with pending preview skips approve gate and forces generate', () => {
+  const session = packagingSession({
+    currentStepKey: 'box_mockup_3d',
+    processSteps: [
+      { key: 'face_top', label: 'Top', status: 'done' },
+      { key: 'face_front', label: 'Front', status: 'done' },
+      { key: 'face_right', label: 'Right', status: 'done' },
+      { key: 'face_bottom', label: 'Bottom', status: 'done' },
+      { key: 'face_back', label: 'Back', status: 'done' },
+      { key: 'face_left', label: 'Left', status: 'done' },
+      { key: 'box_dieline_pdf', label: 'Dieline', status: 'done' },
+      { key: 'box_mockup_3d', label: 'Mockup', status: 'in_progress' },
+    ],
+    pendingPreview: {
+      screenKey: 'box_mockup_3d',
+      screenLabel: 'Mockup',
+      url: 'https://example.com/mockup-old.png',
+      generationPrompt: 'mockup',
+    },
+  })
+  const message = 'tạo mocup 3d'
+  const aiHint = { retryIntent: 'create' as const, retryStepKey: 'box_mockup_3d' }
+  assert.equal(shouldShowPendingRetry(session, 'box_mockup_3d', message, aiHint), false)
+  assert.equal(
+    shouldForceGenerateForStep(session, 'packaging_kit', 'box_mockup_3d', message, false, null, aiHint, {
+      locale: 'vi',
+    }),
+    true
+  )
+})
+
+test('mockup step forces generate without AI retry hint', () => {
+  const session = packagingSession({
+    currentStepKey: 'box_mockup_3d',
+    processSteps: [
+      { key: 'face_top', label: 'Top', status: 'done' },
+      { key: 'face_front', label: 'Front', status: 'done' },
+      { key: 'face_right', label: 'Right', status: 'done' },
+      { key: 'face_bottom', label: 'Bottom', status: 'done' },
+      { key: 'face_back', label: 'Back', status: 'done' },
+      { key: 'face_left', label: 'Left', status: 'done' },
+      { key: 'box_dieline_pdf', label: 'Dieline', status: 'done' },
+      { key: 'box_mockup_3d', label: 'Mockup', status: 'in_progress' },
+    ],
+  })
+  const message = 'tạo mockup 3d'
+  assert.equal(shouldForceDeterministicStep(session, 'packaging_kit', 'box_mockup_3d', message, 'vi'), true)
+  assert.equal(
+    shouldForceGenerateForStep(session, 'packaging_kit', 'box_mockup_3d', message, false, null, {
+      retryIntent: 'none',
+    }, { locale: 'vi' }),
+    true
+  )
+})
+
+test('resolve mockup artifact from typo message on any step', () => {
+  const session = packagingSession({ currentStepKey: 'box_dieline_pdf' })
+  assert.equal(
+    resolvePackagingArtifactStepFromMessage(session, 'vi', 'tạo mocup 3d'),
+    'box_mockup_3d'
+  )
+})
+
+test('hydrate face slots from reference images for compositor', () => {
+  const session = packagingSession({ currentStepKey: 'box_mockup_3d' })
+  const packaging = preparePackagingFaceSlotsForArtifact({
+    packaging: { version: 2, dimensionsMm: session.packaging!.dimensionsMm, faces: {} },
+    referenceImages: session.referenceImages,
+    processSteps: session.processSteps,
+  })
+  assert.equal(packaging.faceSlots?.top?.url, 'https://example.com/top.png')
+  assert.equal(packaging.faceSlots?.bottom?.sourceMode, 'empty')
+})
+
+test('mockup uses per-slot url without copy fallback', () => {
+  const faceSlots = {
+    top: { sourceMode: 'generate' as const, url: 'https://example.com/top.png' },
+    bottom: { sourceMode: 'copy' as const },
+  }
+  assert.equal(resolveMockupSlotUrl('top', faceSlots), 'https://example.com/top.png')
+  assert.equal(resolveMockupSlotUrl('bottom', faceSlots), null)
 })

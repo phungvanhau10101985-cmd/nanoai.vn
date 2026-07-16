@@ -177,12 +177,9 @@ One finished flat full-bleed print face only.`,
         aspectRatio: aspectRatioOverride || '1:1',
         imageSize: '2K',
         prompt: `Create a photorealistic 3D carton box mockup for: ${projectEn}.
-Brief: ${briefEn}
-Apply the attached approved L×W, L×H and W×H face artworks on their matching box faces only.
-The box proportions must match Length:Width:Height from the brief exactly.
-Do not redesign, replace, mirror or distort the approved artwork.
-${PACKAGING_MOCKUP_SCENE_RULES}
-${PACKAGING_MOCKUP_FACE_RULES}
+${briefEn}
+Apply each attached flat face artwork ONLY on its mapped box face (see mapping in brief). Never use a standalone logo attachment — logo is already inside face prints when needed.
+Do not redesign, replace, mirror or distort the approved face artwork.
 One finished 3D product mockup only.`,
       }
     case 'interior':

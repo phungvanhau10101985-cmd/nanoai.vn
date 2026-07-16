@@ -11,6 +11,7 @@ import {
   isSecondaryBoxFaceSlot,
   resolveBoxFaceUrl,
   resolveDielineFaceUrls,
+  resolveMockupSlotUrl,
 } from './box-face-slots'
 
 /** Hub studio step keys — thứ tự: trên → trước → phải → dưới → sau → trái */
@@ -104,6 +105,58 @@ export function isPackagingFaceStepCommitted(
   return packaging.faceSlots[slot] != null
 }
 
+/** Gom ảnh từng mặt hộp (không logo) — mỗi vị trí giữ đúng ảnh đã tạo. */
+export function preparePackagingFaceSlotsForArtifact(input: {
+  packaging: HubPackagingState | undefined
+  referenceImages: { screenKey: string; url: string }[]
+  processSteps: { key: string; status: string }[]
+}): HubPackagingState {
+  const packaging = input.packaging ?? { version: 2 as const, dimensionsMm: null, faces: {} }
+  const faceSlots: Partial<Record<BoxFaceSlot, HubPackagingFaceSlotEntry>> = {
+    ...(packaging.faceSlots ?? {}),
+  }
+
+  for (const stepKey of HUB_PACKAGING_FACE_STEP_KEYS) {
+    const slot = packagingStepKeyToSlot(stepKey)
+    if (!slot) continue
+    const ref = input.referenceImages.find((r) => r.screenKey === stepKey)
+    if (ref?.url) {
+      faceSlots[slot] = { sourceMode: 'generate', url: ref.url }
+    }
+  }
+
+  for (const stepKey of HUB_PACKAGING_FACE_STEP_KEYS) {
+    const slot = packagingStepKeyToSlot(stepKey)
+    if (!slot || faceSlots[slot]) continue
+    const proc = input.processSteps.find((s) => s.key === stepKey)
+    if (proc?.status === 'done' || proc?.status === 'skipped') {
+      faceSlots[slot] = { sourceMode: 'empty' }
+    }
+  }
+
+  return syncResolvedPackagingFaces({ ...packaging, faceSlots })
+}
+
+export function faceSlotsToMockupFaces(
+  faceSlots: Partial<Record<BoxFaceSlot, HubPackagingFaceSlotEntry>>
+): Pick<BoxCreatedFace, 'slot' | 'url' | 'sourceMode'>[] {
+  return BOX_FACE_SLOT_ORDER.map((slot) => {
+    const entry = faceSlots[slot]
+    const sourceMode = entry?.sourceMode ?? 'empty'
+    return {
+      slot,
+      sourceMode,
+      url: sourceMode === 'empty' ? null : (entry?.url ?? null),
+    }
+  })
+}
+
+/** All six face slots committed (generate, copy, or empty). */
+export function allPackagingFaceSlotsCommitted(packaging: HubPackagingState | undefined): boolean {
+  if (!packaging?.faceSlots) return false
+  return BOX_FACE_SLOT_ORDER.every((slot) => packaging.faceSlots![slot] != null)
+}
+
 export function resolvedPackagingFacesReady(packaging: HubPackagingState | undefined): boolean {
   if (!packaging) return false
   const created = faceSlotsToCreatedFaces(packaging.faceSlots ?? {})
@@ -111,12 +164,12 @@ export function resolvedPackagingFacesReady(packaging: HubPackagingState | undef
   return Boolean(resolved.LxW && resolved.LxH && resolved.WxH)
 }
 
-/** Mockup: URL theo từng slot (null nếu bỏ trống) */
+/** Mockup: URL theo từng slot — không copy chéo, không logo. */
 export function resolveMockupFaceUrls(packaging: HubPackagingState): Partial<Record<BoxFaceSlot, string>> {
-  const created = faceSlotsToCreatedFaces(packaging.faceSlots ?? {})
+  const faceSlots = packaging.faceSlots ?? {}
   const out: Partial<Record<BoxFaceSlot, string>> = {}
   for (const slot of BOX_FACE_SLOT_ORDER) {
-    const url = resolveBoxFaceUrl(slot, created)
+    const url = resolveMockupSlotUrl(slot, faceSlots)
     if (url) out[slot] = url
   }
   return out

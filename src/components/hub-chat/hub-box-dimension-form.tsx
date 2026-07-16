@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { WebLocale } from '@/lib/i18n/config'
-import { BOX_MIN_HEIGHT_MM, BOX_MIN_MM, BOX_MAX_MM, cmToMm } from '@/lib/packaging/dimensions'
+import { cmToMm, isPositiveBoxDimensionMm } from '@/lib/packaging/dimensions'
 import {
   formatMmAsCm,
   getWidthOptionsForLengthLxwOnly,
@@ -43,11 +43,11 @@ const COPY: Record<
     hint: 'Dài & rộng chọn theo tỷ lệ Gemini cho mặt đáy/nắp (L×W). Cao nhập tự do — hộp mỏng vẫn OK.',
     widthPlaceholder: 'Chọn rộng',
     heightPlaceholder: '3',
-    noWidthOptions: 'Không có rộng phù hợp — thử chiều dài khác (2–50 cm).',
+    noWidthOptions: 'Không có rộng phù hợp — thử chiều dài khác.',
     confirm: 'Xác nhận kích thước',
-    invalidLength: 'Dài: 2–50 cm.',
+    invalidLength: 'Nhập chiều dài (cm) lớn hơn 0.',
     invalidWidth: 'Chọn rộng trong danh sách.',
-    invalidHeight: 'Cao: 0,5–50 cm.',
+    invalidHeight: 'Nhập chiều cao (cm) lớn hơn 0.',
   },
   en: {
     title: 'Box size (L × W × H)',
@@ -57,11 +57,11 @@ const COPY: Record<
     hint: 'Length & width follow Gemini ratios for the top/bottom face (L×W). Height is free — thin boxes are OK.',
     widthPlaceholder: 'Select width',
     heightPlaceholder: '3',
-    noWidthOptions: 'No matching width — try a different length (2–50 cm).',
+    noWidthOptions: 'No matching width — try a different length.',
     confirm: 'Confirm dimensions',
-    invalidLength: 'Length: 2–50 cm.',
+    invalidLength: 'Enter length (cm) greater than 0.',
     invalidWidth: 'Pick a width from the list.',
-    invalidHeight: 'Height: 0.5–50 cm.',
+    invalidHeight: 'Enter height (cm) greater than 0.',
   },
   zh: {
     title: '盒子尺寸（长 × 宽 × 高）',
@@ -71,11 +71,11 @@ const COPY: Record<
     hint: '长宽按 Gemini 比例（底/顶面 L×W）。高度自由输入 — 薄盒也可以。',
     widthPlaceholder: '选择宽度',
     heightPlaceholder: '3',
-    noWidthOptions: '无匹配宽度 — 请尝试其他长度（2–50 cm）。',
+    noWidthOptions: '无匹配宽度 — 请尝试其他长度。',
     confirm: '确认尺寸',
-    invalidLength: '长：2–50 cm。',
+    invalidLength: '长度（cm）须大于 0。',
     invalidWidth: '请从列表选择宽度。',
-    invalidHeight: '高：0.5–50 cm。',
+    invalidHeight: '高度（cm）须大于 0。',
   },
   ja: {
     title: '箱サイズ（長さ × 幅 × 高さ）',
@@ -85,11 +85,11 @@ const COPY: Record<
     hint: '長さ・幅は底/天面 (L×W) の Gemini 比率から選択。高さは自由入力 — 薄い箱も可。',
     widthPlaceholder: '幅を選択',
     heightPlaceholder: '3',
-    noWidthOptions: '一致する幅がありません — 別の長さ（2–50 cm）を試してください。',
+    noWidthOptions: '一致する幅がありません — 別の長さを試してください。',
     confirm: 'サイズを確定',
-    invalidLength: '長さ：2–50 cm。',
+    invalidLength: '長さ（cm）は 0 より大きく入力してください。',
     invalidWidth: 'リストから幅を選択してください。',
-    invalidHeight: '高さ：0.5–50 cm。',
+    invalidHeight: '高さ（cm）は 0 より大きく入力してください。',
   },
   ko: {
     title: '상자 크기 (길이 × 너비 × 높이)',
@@ -99,11 +99,11 @@ const COPY: Record<
     hint: '길이·너비는 바닥/뚜껑 면(L×W) Gemini 비율에서 선택. 높이는 자유 입력 — 얇은 상자도 가능.',
     widthPlaceholder: '너비 선택',
     heightPlaceholder: '3',
-    noWidthOptions: '맞는 너비 없음 — 다른 길이(2–50 cm)를 시도하세요.',
+    noWidthOptions: '맞는 너비 없음 — 다른 길이를 시도하세요.',
     confirm: '크기 확인',
-    invalidLength: '길이: 2~50 cm.',
+    invalidLength: '길이(cm)는 0보다 커야 합니다.',
     invalidWidth: '목록에서 너비를 선택하세요.',
-    invalidHeight: '높이: 0.5~50 cm.',
+    invalidHeight: '높이(cm)는 0보다 커야 합니다.',
   },
 }
 
@@ -113,7 +113,7 @@ function parseLengthCm(raw: string): number | null {
   const cm = Number(normalized)
   if (!Number.isFinite(cm) || cm <= 0) return null
   const mm = cmToMm(cm)
-  if (mm < BOX_MIN_MM || mm > BOX_MAX_MM) return null
+  if (!isPositiveBoxDimensionMm(mm)) return null
   return mm
 }
 
@@ -123,7 +123,7 @@ function parseHeightCm(raw: string): number | null {
   const cm = Number(normalized)
   if (!Number.isFinite(cm) || cm <= 0) return null
   const mm = cmToMm(cm)
-  if (mm < BOX_MIN_HEIGHT_MM || mm > BOX_MAX_MM) return null
+  if (!isPositiveBoxDimensionMm(mm)) return null
   return mm
 }
 

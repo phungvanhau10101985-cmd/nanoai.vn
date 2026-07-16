@@ -18,7 +18,10 @@ test('parses decimal cm and explicit mm box sizes', () => {
     dimensionsMm: { length: 200, width: 150, height: 100 },
   })
   assert.deepEqual(parseBoxDimensions('20 x 15'), { ok: false, error: 'format' })
-  assert.deepEqual(parseBoxDimensions('100 x 10 x 10 cm'), { ok: false, error: 'range' })
+  assert.deepEqual(parseBoxDimensions('100 x 10 x 10 cm'), {
+    ok: true,
+    dimensionsMm: { length: 1000, width: 100, height: 100 },
+  })
   assert.deepEqual(parseBoxDimensions('50 x 30 x 0.5 cm'), {
     ok: true,
     dimensionsMm: { length: 500, width: 300, height: 5 },

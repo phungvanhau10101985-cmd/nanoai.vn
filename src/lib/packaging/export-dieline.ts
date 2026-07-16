@@ -1,12 +1,9 @@
 import { createBoxDielinePdf } from '@/app/thiet-ke-bao-bi/lib/box-dieline-pdf'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import type { BoxDimensionsMm } from '@/lib/packaging/dimensions'
+import { BOX_FACE_SLOT_ORDER, type BoxFaceSlot } from '@/lib/packaging/box-face-slots'
 
-export type DielineFaceUrls = {
-  LxW: string
-  LxH: string
-  WxH: string
-}
+export type DielineSlotUrls = Partial<Record<BoxFaceSlot, string>>
 
 async function fetchImageBuffer(url: string): Promise<Buffer> {
   const response = await fetch(url)
@@ -16,19 +13,20 @@ async function fetchImageBuffer(url: string): Promise<Buffer> {
 
 export async function exportBoxDielineFromUrls(input: {
   userId: string
-  faces: DielineFaceUrls
+  slotUrls: DielineSlotUrls
   dimensionsMm: BoxDimensionsMm
 }): Promise<{ pdfUrl: string; fileName: string }> {
-  const { userId, faces, dimensionsMm } = input
-  const [face1Buffer, face2Buffer, face3Buffer] = await Promise.all([
-    fetchImageBuffer(faces.LxW),
-    fetchImageBuffer(faces.LxH),
-    fetchImageBuffer(faces.WxH),
-  ])
+  const { userId, slotUrls, dimensionsMm } = input
+  const slotBuffers: Partial<Record<BoxFaceSlot, Buffer>> = {}
+  await Promise.all(
+    BOX_FACE_SLOT_ORDER.map(async (slot) => {
+      const url = slotUrls[slot]
+      if (!url) return
+      slotBuffers[slot] = await fetchImageBuffer(url)
+    })
+  )
   const pdfBuffer = await createBoxDielinePdf({
-    face1Buffer,
-    face2Buffer,
-    face3Buffer,
+    slotBuffers,
     boxLength: dimensionsMm.length,
     boxWidth: dimensionsMm.width,
     boxHeight: dimensionsMm.height,
@@ -42,4 +40,3 @@ export async function exportBoxDielineFromUrls(input: {
   })
   return { pdfUrl: publicUrl, fileName }
 }
-

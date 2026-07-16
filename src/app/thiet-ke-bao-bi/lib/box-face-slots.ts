@@ -15,4 +15,5 @@ export {
   allBoxFaceSlotsFilled,
   getNextBoxFaceSlot,
   resolveDielineFaceUrls,
+  resolveDielineSlotUrls,
 } from '@/lib/packaging/box-face-slots'

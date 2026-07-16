@@ -103,7 +103,17 @@ export function getBoxFaceSlotLabel(
   return SLOT_LABEL_VI[slot]
 }
 
-/** URL thực tế dùng cho mockup/dieline (resolve copy chain) */
+/** URL cho mockup — chỉ ảnh của đúng slot, không copy từ mặt khác, không logo. */
+export function resolveMockupSlotUrl(
+  slot: BoxFaceSlot,
+  faceSlots: Partial<Record<BoxFaceSlot, { sourceMode: FaceSourceMode; url?: string }>>
+): string | null {
+  const entry = faceSlots[slot]
+  if (!entry || entry.sourceMode === 'empty') return null
+  return entry.url ?? null
+}
+
+/** URL thực tế dùng cho dieline (resolve copy chain khi cần). */
 export function resolveBoxFaceUrl(slot: BoxFaceSlot, faces: BoxCreatedFace[]): string | null {
   const face = faces.find((f) => f.slot === slot)
   if (!face) return null
@@ -198,4 +208,14 @@ export function resolveDielineFaceUrls(faces: BoxCreatedFace[]): {
     LxH: front ?? back,
     WxH: right ?? left,
   }
+}
+
+/** Per-slot artwork for dieline PDF — empty/copy resolved per face, no cross-slot fallback. */
+export function resolveDielineSlotUrls(faces: BoxCreatedFace[]): Partial<Record<BoxFaceSlot, string>> {
+  const out: Partial<Record<BoxFaceSlot, string>> = {}
+  for (const slot of BOX_FACE_SLOT_ORDER) {
+    const url = resolveBoxFaceUrl(slot, faces)
+    if (url) out[slot] = url
+  }
+  return out
 }

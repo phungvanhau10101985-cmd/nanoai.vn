@@ -363,6 +363,7 @@ export {
   getPrimaryLogoStepKey,
   isLogoDesignStep,
   isStepAfterPrimaryLogo,
+  briefNotesForStepGeneration,
   primaryLogoApproved,
   hasPrimaryLogoReference,
   orderedReferenceUrls,

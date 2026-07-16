@@ -30,7 +30,7 @@ import {
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import type { HubChatPlanPayload, HubChatWorkflowSuggestion } from '@/app/api/hub-chat/route'
 import { HubPlanAutoRunPanel } from '@/components/hub-chat/hub-plan-auto-run-panel'
-import { HubStudioMessageBubble, HubStudioProcessRail, HubStudioThinking } from '@/components/hub-chat/hub-studio-inline'
+import { HubStudioActiveStepPreview, HubStudioMessageBubble, HubStudioProcessRail, HubStudioThinking } from '@/components/hub-chat/hub-studio-inline'
 import type { HubChatThreadSummary, HubMultiTaskPlanRow } from '@/lib/db/hub-chat-pg'
 import { normalizeStudioSession, type HubStudioMessagePayload, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { applyPackagingSessionLabels } from '@/lib/packaging/packaging-face-labels'
@@ -49,7 +49,10 @@ import { HubPackagingFaceActions } from '@/components/hub-chat/hub-packaging-fac
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import { STUDIO_PRESETS, getStepAskPrompt, getStudioPreset, presetTitle, getPrimaryLogoStepKey, hasPrimaryLogoReference } from '@/lib/hub-chat/hub-studio-presets'
 import { getActiveStepKey } from '@/lib/hub-chat/hub-studio-preset-intent'
+import { buildPendingStepStudio } from '@/lib/hub-chat/hub-studio-step-retry'
+import { isNavigatedBackEdit } from '@/lib/hub-chat/hub-studio-step-navigate'
 import { isPackagingFaceStepKey, packagingStepKeyToSlot } from '@/lib/packaging/hub-face-steps'
+import { getBoxFaceSlotLabel } from '@/lib/packaging/box-face-slots'
 import { getStudioPresetCopy } from '@/lib/i18n/studio-preset-copy'
 import { HubStudioGenerationRefPicker } from '@/components/hub-chat/hub-studio-generation-ref-picker'
 import {
@@ -120,6 +123,7 @@ export function HomeHubChatBar() {
   const studioFileRef = useRef<HTMLInputElement>(null)
   const studioLogoFileRef = useRef<HTMLInputElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
+  const postInFlightRef = useRef(false)
 
   const scrollChatToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const el = chatScrollRef.current
@@ -377,12 +381,13 @@ export function HomeHubChatBar() {
       editStepKey?: string
       navigateStepKey?: string
     }) => {
-      if (busy) return
+      if (busy || postInFlightRef.current) return
       const silent =
         payload.action === 'set_generation_refs' ||
         payload.action === 'remove_generation_product' ||
         payload.action === 'navigate_step'
       const stepKeyAtSend = getActiveStepKey(studioSession)
+      postInFlightRef.current = true
       setBusy(true)
       try {
         const res = await fetch('/api/hub-chat', {
@@ -525,6 +530,7 @@ export function HomeHubChatBar() {
           setEditingStepKey(null)
         }
       } finally {
+        postInFlightRef.current = false
         setBusy(false)
       }
     },
@@ -724,6 +730,65 @@ export function HomeHubChatBar() {
     [busy, hc, router, threadId, toast, uiLocale]
   )
 
+  const postStudioFaceUpload = useCallback(
+    async (files: FileList | File[], faceLabel?: string) => {
+      if (busy) return
+      const list = Array.from(files).filter((f) => f.size > 0)
+      if (!list.length) return
+      setBusy(true)
+      try {
+        const fd = new FormData()
+        fd.append('mode', 'studio')
+        fd.append('action', 'upload_packaging_face')
+        fd.append('locale', uiLocale)
+        if (threadId) fd.append('threadId', threadId)
+        for (const f of list.slice(0, 1)) fd.append('images', f)
+        const res = await fetch('/api/hub-chat', { method: 'POST', credentials: 'same-origin', body: fd })
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean
+          error?: string
+          reply?: string
+          studio?: HubStudioMessagePayload
+          session?: HubStudioSession
+          threadId?: string
+        }
+        if (res.status === 401) {
+          const next = sanitizeLoginNext(typeof window !== 'undefined' ? window.location.pathname : '/')
+          router.push(`/auth/login?next=${encodeURIComponent(next)}`)
+          toast({ title: hc.loginRequired, variant: 'destructive' })
+          return
+        }
+        if (!res.ok) throw new Error(data.error || hc.errorGeneric)
+        if (data.threadId) {
+          setThreadId(data.threadId)
+          saveHubThreadId(data.threadId)
+        }
+        const label = faceLabel ?? hc.studioFaceUploadUserLabel.replace('{face}', '')
+        setLines((prev) => [
+          ...prev,
+          { id: `u-${Date.now()}`, role: 'user', content: label },
+          {
+            id: `a-${Date.now()}`,
+            role: 'assistant',
+            content: data.reply ?? hc.fallbackReply,
+            studio: data.studio ?? null,
+          },
+        ])
+        if (data.session) {
+          const session = withClientStudioSession(data.session, uiLocale)
+          if (session) setStudioSession(session)
+        }
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('credits-updated'))
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : hc.errorGeneric
+        toast({ title: hc.errorGeneric, description: msg, variant: 'destructive' })
+      } finally {
+        setBusy(false)
+      }
+    },
+    [busy, hc, router, threadId, toast, uiLocale]
+  )
+
   const showGenRefPicker = useMemo(() => {
     if (!studioSession?.presetId || !studioSession.discoveryComplete || !studioSession.currentStepKey) {
       return false
@@ -752,12 +817,32 @@ export function HomeHubChatBar() {
     if (!studioSession?.presetId || !studioSession.discoveryComplete) return false
     const logoKey = getPrimaryLogoStepKey(studioSession.presetId)
     if (!logoKey) return false
-    if (hasPrimaryLogoReference(studioSession.referenceImages, studioSession.presetId)) return false
     const onLogoStep = studioSession.currentStepKey === logoKey
+    if (
+      onLogoStep &&
+      studioSession.presetId &&
+      isNavigatedBackEdit(studioSession, studioSession.presetId)
+    ) {
+      return true
+    }
+    if (hasPrimaryLogoReference(studioSession.referenceImages, studioSession.presetId)) return false
     const blockingLogo =
       findBlockingIncompleteStep(studioSession, studioSession.presetId) === logoKey
     return onLogoStep || blockingLogo
   }, [studioSession])
+
+  const activeStepPreview = useMemo(() => {
+    if (!studioSession?.presetId || !studioSession.pendingPreview?.url) return null
+    const activeKey = getActiveStepKey(studioSession)
+    if (!activeKey || studioSession.pendingPreview.screenKey !== activeKey) return null
+    if (!isNavigatedBackEdit(studioSession, studioSession.presetId)) return null
+    return buildPendingStepStudio(studioSession, activeKey, studioSession.presetId)
+  }, [studioSession])
+
+  const activePreviewFaceSlot = useMemo(() => {
+    if (!activeStepPreview?.screenKey || !isPackagingFaceStepKey(activeStepPreview.screenKey)) return null
+    return packagingStepKeyToSlot(activeStepPreview.screenKey)
+  }, [activeStepPreview])
 
   const showBoxDimensionForm = useMemo(() => {
     if (studioSession?.presetId !== 'packaging_kit') return false
@@ -768,9 +853,14 @@ export function HomeHubChatBar() {
 
   const packagingFaceSlot = useMemo(() => {
     if (studioSession?.presetId !== 'packaging_kit') return null
-    if (studioSession.pendingPreview?.screenKey) return null
     const step = getActiveStepKey(studioSession)
     if (!step || !isPackagingFaceStepKey(step)) return null
+    if (
+      studioSession.pendingPreview?.screenKey === step &&
+      studioSession.pendingPreview?.url
+    ) {
+      return null
+    }
     return packagingStepKeyToSlot(step)
   }, [studioSession])
 
@@ -903,7 +993,7 @@ export function HomeHubChatBar() {
   const sendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
-      if (trimmed.length < 1 || busy || !isValidHubStudioMessage(trimmed)) return
+      if (trimmed.length < 1 || busy || postInFlightRef.current || !isValidHubStudioMessage(trimmed)) return
       setMessage('')
       await postStudio({
         message: trimmed,
@@ -1159,6 +1249,12 @@ export function HomeHubChatBar() {
                     uiLocale={uiLocale}
                     cropLabels={cropLabels}
                     studioSession={studioSession}
+                    suppressImagePreview={Boolean(
+                      activeStepPreview &&
+                        line.role === 'assistant' &&
+                        line.studio?.screenKey === activeStepPreview.screenKey &&
+                        line.studio?.imageUrl === studioSession?.pendingPreview?.url
+                    )}
                     onRemoveReference={(screenKey) =>
                       void postStudio({ action: 'remove_reference', referenceScreenKey: screenKey })
                     }
@@ -1279,6 +1375,30 @@ export function HomeHubChatBar() {
           </div>
         ) : null}
 
+        {activeStepPreview && studioSession ? (
+          <HubStudioActiveStepPreview
+            st={activeStepPreview}
+            studioSession={studioSession}
+            hc={hc}
+            busy={busy}
+            uiLocale={uiLocale}
+            cropLabels={cropLabels}
+            onRegenerate={() => void postStudio({ action: 'regenerate' })}
+            onApproveReference={() => void postStudio({ action: 'approve_reference' })}
+            onCropImage={(blob, sizeMm) => postStudioCrop(blob, sizeMm)}
+            onRevertFaceEdit={() => postStudioRevert()}
+            onUploadFace={
+              activePreviewFaceSlot
+                ? (files) =>
+                    void postStudioFaceUpload(
+                      files,
+                      hc.studioFaceUploadUserLabel.replace('{face}', getBoxFaceSlotLabel(activePreviewFaceSlot, uiLocale))
+                    )
+                : undefined
+            }
+          />
+        ) : null}
+
         {showGenRefPicker && genRefPickerData?.showGenerationRefPicker ? (
           <HubStudioGenerationRefPicker
             options={genRefPickerData.generationRefOptions ?? []}
@@ -1306,6 +1426,9 @@ export function HomeHubChatBar() {
             slot={packagingFaceSlot}
             busy={busy}
             onSubmit={submitPackagingFaceAction}
+            onUpload={(files) =>
+              void postStudioFaceUpload(files, hc.studioFaceUploadUserLabel.replace('{face}', getBoxFaceSlotLabel(packagingFaceSlot, uiLocale)))
+            }
           />
         ) : null}
 

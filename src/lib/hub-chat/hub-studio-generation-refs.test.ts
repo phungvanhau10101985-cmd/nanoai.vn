@@ -2,7 +2,27 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { emptyStudioSession } from '@/lib/hub-chat/hub-studio-types'
-import { sanitizeGenerationSelection } from '@/lib/hub-chat/hub-studio-generation-refs'
+import {
+  buildGenerationRefPickerPayload,
+  sanitizeGenerationSelection,
+  stepSupportsGenerationRefPicker,
+} from '@/lib/hub-chat/hub-studio-generation-refs'
+
+test('logo design step does not show generation ref / product compositing picker', () => {
+  assert.equal(stepSupportsGenerationRefPicker('packaging_kit', 'logo'), false)
+  const session = {
+    ...emptyStudioSession(),
+    presetId: 'packaging_kit',
+    discoveryComplete: true,
+    currentStepKey: 'logo',
+    referenceImages: [],
+  }
+  assert.deepEqual(buildGenerationRefPickerPayload(session, 'packaging_kit', 'logo'), {})
+})
+
+test('packaging face step still supports generation ref picker', () => {
+  assert.equal(stepSupportsGenerationRefPicker('packaging_kit', 'face_front'), true)
+})
 
 test('sanitizeGenerationSelection drops stale reference keys after logo removal', () => {
   const session = {

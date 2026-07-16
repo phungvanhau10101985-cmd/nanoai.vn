@@ -3,6 +3,8 @@
  * Hỗ trợ: Tuck-top (hộp nắp gập), Sleeve (hộp ốp).
  */
 
+import type { BoxFaceSlot } from '@/lib/packaging/box-face-slots'
+
 export type BoxType = 'tuck-top' | 'sleeve'
 
 export interface BoxDimensions {
@@ -598,7 +600,19 @@ export interface SleeveLayoutData {
   bounds: { widthMm: number; heightMm: number }
 }
 
-export interface TuckEndLayoutData extends SleeveLayoutData {
+export interface TuckEndArtworkPanel {
+  x: number
+  y: number
+  w: number
+  h: number
+  slot: BoxFaceSlot
+}
+
+export interface TuckEndLayoutData {
+  panels: TuckEndArtworkPanel[]
+  cutSegments: [number, number, number, number][]
+  foldSegments: [number, number, number, number][]
+  bounds: { widthMm: number; heightMm: number }
   /** Kích thước tai dán cạnh thân hộp. */
   glueTabMm: number
   /** Chiều sâu phần lưỡi gài của nắp. */
@@ -652,14 +666,14 @@ export function getTuckEndLayoutData(d: BoxDimensions): TuckEndLayoutData {
   const bottomPanelBottom = bodyBottom + W
   const netBottom = bottomPanelBottom + tuckTabMm
 
-  // Các vùng nhận artwork. Tai dán/tai bụi/lưỡi gài để nền tràn từ artwork.
-  const panels: SleevePanel[] = [
-    { x: x0, y: bodyTop, w: L, h: H, faceIndex: 2 }, // Front L×H
-    { x: x1, y: bodyTop, w: W, h: H, faceIndex: 3 }, // Side W×H
-    { x: x2, y: bodyTop, w: L, h: H, faceIndex: 2 }, // Back L×H
-    { x: x3, y: bodyTop, w: W, h: H, faceIndex: 3 }, // Side W×H
-    { x: x0, y: bodyTop - W, w: L, h: W, faceIndex: 1 }, // Top L×W
-    { x: x2, y: bodyBottom, w: L, h: W, faceIndex: 1 }, // Bottom L×W
+  // Các vùng nhận artwork — mỗi mặt hộp dùng ảnh riêng (không đối xứng 3 ảnh).
+  const panels: TuckEndArtworkPanel[] = [
+    { x: x0, y: bodyTop, w: L, h: H, slot: 'front' },
+    { x: x1, y: bodyTop, w: W, h: H, slot: 'right' },
+    { x: x2, y: bodyTop, w: L, h: H, slot: 'back' },
+    { x: x3, y: bodyTop, w: W, h: H, slot: 'left' },
+    { x: x0, y: bodyTop - W, w: L, h: W, slot: 'top' },
+    { x: x2, y: bodyBottom, w: L, h: W, slot: 'bottom' },
   ]
 
   const cutSegments: [number, number, number, number][] = []

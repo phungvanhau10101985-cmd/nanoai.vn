@@ -35,6 +35,7 @@ import {
   getNextBoxFaceSlot,
   resolveBoxFaceUrl,
   resolveDielineFaceUrls,
+  resolveDielineSlotUrls,
 } from './lib/box-face-slots'
 import { useRouter } from 'next/navigation'
 
@@ -1268,10 +1269,9 @@ export default function ThietKeBaoBiClientPage() {
     }
     setDielineLoading(true)
     try {
+      const slotUrls = resolveDielineSlotUrls(faces)
       const result = await generateBoxDielinePdf({
-        face1Url: urls.LxW!,
-        face2Url: urls.LxH!,
-        face3Url: urls.WxH!,
+        slotUrls,
         boxLength: cmToMm(clampBoxCm(boxLength)),
         boxWidth: cmToMm(clampBoxCm(boxWidth)),
         boxHeight: cmToMm(clampBoxCm(boxHeight)),

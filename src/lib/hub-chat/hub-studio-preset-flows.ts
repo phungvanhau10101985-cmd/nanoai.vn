@@ -333,6 +333,33 @@ export function isLogoDesignStep(presetId: string, stepKey: string): boolean {
   return step?.phase === 'design' && step.generator === 'logo'
 }
 
+/** Brief context for generation — logo step uses discovery + logo only; other steps use flow up to target. */
+export function briefNotesForStepGeneration(
+  presetId: string,
+  stepKey: string,
+  briefNotes: Record<string, string>
+): Record<string, string> {
+  const flow = getFlowSteps(presetId)
+  const targetIdx = flow.findIndex((s) => s.key === stepKey)
+  if (targetIdx < 0) return {}
+
+  const logoKey = getPrimaryLogoStepKey(presetId)
+  const out: Record<string, string> = {}
+
+  for (const [key, value] of Object.entries(briefNotes)) {
+    const trimmed = value?.trim()
+    if (!trimmed) continue
+    const idx = flow.findIndex((s) => s.key === key)
+    if (idx < 0 || idx > targetIdx) continue
+    if (logoKey && stepKey === logoKey) {
+      const step = flow[idx]
+      if (step?.phase !== 'discovery' && key !== logoKey) continue
+    }
+    out[key] = trimmed
+  }
+  return out
+}
+
 export function isStepAfterPrimaryLogo(presetId: string, stepKey: string): boolean {
   const logoKey = getPrimaryLogoStepKey(presetId)
   if (!logoKey) return false

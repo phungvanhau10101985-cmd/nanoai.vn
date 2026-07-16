@@ -27,6 +27,12 @@ test('L×W-only width list is at least as large as strict 3-face list', () => {
   assert.ok(lxwOnly.length > 0)
 })
 
+test('large length yields width options beyond 50cm', () => {
+  const widths = getWidthOptionsForLengthLxwOnly(1000)
+  assert.ok(widths.some((o) => o.widthMm > 500))
+  assert.deepEqual(parseSingleBoxDimension('120'), { ok: true, valueMm: 1200 })
+})
+
 test('50cm length yields Gemini-exact width and height options', () => {
   const widths = getWidthOptionsForLength(500)
   assert.ok(widths.length > 0)

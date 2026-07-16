@@ -39,17 +39,17 @@ export const NEW_PRESETS_VI = {
       logo: 'Mô tả logo cần tạo in trên bao bì (dựa trên brief) — hoặc bấm **Tải logo** nếu đã có file.',
       box_flat: 'Hộp phẳng: layout mặt trước/side, vị trí logo?',
       face_top:
-        '⑦ Mặt trên L×W — mô tả nội dung in hoặc **bỏ trống**. Ảnh **full viền** (tràn lề), không ghi kích thước mm trên ảnh.',
+        '⑦ Mặt trên L×W — **Tải ảnh mặt** từ máy, mô tả nội dung in hoặc **bỏ trống**. Ảnh **full viền** (tràn lề), không ghi kích thước mm trên ảnh.',
       face_front:
-        '⑧ Mặt trước L×H — mô tả nội dung in hoặc **bỏ trống**. Ảnh đầu ra: **file in phẳng**, không hộp 3D.',
+        '⑧ Mặt trước L×H — **Tải ảnh mặt** hoặc mô tả nội dung in hoặc **bỏ trống**. Ảnh đầu ra: **file in phẳng**, không hộp 3D.',
       face_right:
-        '⑨ Mặt bên phải W×H — mô tả nội dung in hoặc **bỏ trống**. Ảnh đầu ra: **file in phẳng**, không hộp 3D.',
+        '⑨ Mặt bên phải W×H — **Tải ảnh mặt** hoặc mô tả nội dung in hoặc **bỏ trống**. Ảnh đầu ra: **file in phẳng**, không hộp 3D.',
       face_bottom:
-        '⑩ Mặt dưới L×W — **bỏ trống**, **giống mặt trên**, hoặc mô tả nội dung in riêng.',
+        '⑩ Mặt dưới L×W — **Tải ảnh**, **bỏ trống**, **giống mặt trên**, hoặc mô tả nội dung in riêng.',
       face_back:
-        '⑪ Mặt sau L×H — **bỏ trống**, **giống mặt trước**, hoặc mô tả nội dung in riêng.',
+        '⑪ Mặt sau L×H — **Tải ảnh**, **bỏ trống**, **giống mặt trước**, hoặc mô tả nội dung in riêng.',
       face_left:
-        '⑫ Mặt bên trái W×H — **bỏ trống**, **giống mặt phải**, hoặc mô tả nội dung in riêng.',
+        '⑫ Mặt bên trái W×H — **Tải ảnh**, **bỏ trống**, **giống mặt phải**, hoặc mô tả nội dung in riêng.',
       face_lxw:
         'Mặt nắp/đáy L×W — nhập **nội dung in trên mặt này** (logo, tên SP, họa tiết…). Hệ thống sẽ tạo ảnh thiết kế.',
       face_lxh:
@@ -57,7 +57,8 @@ export const NEW_PRESETS_VI = {
       face_wxh:
         'Mặt hông W×H — nhập **nội dung in trên mặt này** (HDSD, cảnh báo, thành phần phụ…).',
       box_dieline_pdf: 'Tạo Dieline PDF kỹ thuật sau khi đủ 6 mặt.',
-      box_mockup_3d: 'Mockup 3D: góc chụp, chất liệu hộp (matte/gloss). Nền studio tương phản — không lặp họa tiết hộp.',
+      box_mockup_3d:
+        'Gõ **tạo mockup 3d** — ghép isometric từ ảnh 6 mặt đã tạo (không logo, mỗi mặt đúng vị trí, tỉ lệ theo kích thước hộp).',
       product_label: 'Nhãn dán SP (đen trắng): kích thước nhãn (vd. 50×80 mm) + nội dung (tên SP, thành phần, HDSD…). Chỉ ghép logo.',
       seal_sticker: 'Tem niêm phong: kích thước (vd. 40×40 mm), tròn/vuông, slogan. Chỉ ghép logo — không dùng ảnh mặt hộp.',
       barcode_label: 'Mã vạch thật: tự lấy tên SP từ brief; mã SP (vd. mã SP: 188-SRM-001). Mặc định Code128 — hoặc ghi EAN-13/QR nếu cần.',

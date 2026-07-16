@@ -20,10 +20,9 @@ export function normalizeBoxDimensionsMm(raw: unknown): BoxDimensionsMm | null {
   return { length, width, height }
 }
 
-export const BOX_MIN_MM = 20
-/** Minimum height (0.5 cm) — flat/thin boxes often have a very small H. */
-export const BOX_MIN_HEIGHT_MM = 5
-export const BOX_MAX_MM = 500
+export function isPositiveBoxDimensionMm(mm: number): boolean {
+  return Number.isFinite(mm) && mm > 0
+}
 
 export function cmToMm(valueCm: number): number {
   return Math.round(valueCm * 10 * 100) / 100
@@ -60,12 +59,9 @@ export function parseBoxDimensions(input: string): ParseBoxDimensionsResult {
   const inMillimeters = /\bmm\b/i.test(normalized)
   const [length, width, height] = values.map((n) => (inMillimeters ? n : cmToMm(n)))
   if (
-    length < BOX_MIN_MM ||
-    length > BOX_MAX_MM ||
-    width < BOX_MIN_MM ||
-    width > BOX_MAX_MM ||
-    height < BOX_MIN_HEIGHT_MM ||
-    height > BOX_MAX_MM
+    !isPositiveBoxDimensionMm(length) ||
+    !isPositiveBoxDimensionMm(width) ||
+    !isPositiveBoxDimensionMm(height)
   ) {
     return { ok: false, error: 'range' }
   }

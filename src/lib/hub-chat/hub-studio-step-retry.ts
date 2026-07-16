@@ -87,7 +87,7 @@ const STEP_KEY_ALIASES: Record<string, string[]> = {
   face_lxh: ['mat lxh', 'mặt lxh', 'mat truoc sau', 'mặt trước sau', 'front back face'],
   face_wxh: ['mat wxh', 'mặt wxh', 'mat hong', 'mặt hông', 'side face'],
   box_dieline_pdf: ['dieline pdf', 'ban ve be', 'bản vẽ bế', 'pdf ky thuat', 'pdf kỹ thuật', 'file in', 'tao file in', 'tạo file in'],
-  box_mockup_3d: ['mockup 3d', 'hop 3d', 'hộp 3d', '3d box'],
+  box_mockup_3d: ['mockup 3d', 'mocup 3d', 'hop 3d', 'hộp 3d', '3d box'],
   seal_sticker: ['tem niem phong', 'tem niêm phong', 'seal sticker'],
   barcode_label: ['ma vach', 'mã vạch', 'barcode'],
   living_room: ['phong khach', 'phòng khách', 'living room'],
@@ -178,6 +178,67 @@ const ACK_ONLY_MESSAGE =
 function generatorsAutoGenerateOnInput(gen: ReturnType<typeof getStepGenerator>): boolean {
   if (!gen) return false
   return gen !== 'dieline_pdf'
+}
+
+export function isDeterministicPackagingGenerator(
+  gen: ReturnType<typeof getStepGenerator>
+): boolean {
+  return gen === 'packaging_mockup' || gen === 'dieline_pdf' || gen === 'barcode'
+}
+
+/** Mockup / dieline / barcode — run from user "tạo …" without waiting for AI shouldGenerate. */
+export function shouldForceDeterministicStep(
+  session: HubStudioSession,
+  presetId: string,
+  stepKey: string,
+  message: string,
+  locale: WebLocale,
+  aiHint?: HubStudioAiRetryHint
+): boolean {
+  const gen = getStepGenerator(presetId, stepKey)
+  if (!isDeterministicPackagingGenerator(gen)) return false
+  if (session.currentStepKey !== stepKey) return false
+  if (!wantsStepCreation(message) || wantsContinueNextStep(aiHint)) return false
+  const matched = matchDesignStepRetryRequest(message, locale, presetId, session, aiHint)
+  if (matched && matched !== stepKey) return false
+  return true
+}
+
+/** User asks to compose mockup PDF / dieline — keyword only, no AI. */
+export function resolvePackagingArtifactStepFromMessage(
+  session: HubStudioSession,
+  locale: WebLocale,
+  message: string
+): 'box_mockup_3d' | 'box_dieline_pdf' | null {
+  if (session.presetId !== 'packaging_kit' || !session.discoveryComplete) return null
+
+  const currentGen = session.currentStepKey
+    ? getStepGenerator(session.presetId, session.currentStepKey)
+    : null
+  const onMockupStep = session.currentStepKey === 'box_mockup_3d'
+  const onDielineStep = session.currentStepKey === 'box_dieline_pdf'
+
+  const n = normalize(message)
+  const mockupHint =
+    /mockup|mocup/.test(n) && (/3d|hop|hộp|box/.test(n) || onMockupStep)
+  const dielineHint = /dieline|file in|ban ve|bản vẽ|pdf ky thuat|pdf kỹ thuật/.test(n)
+
+  if (wantsStepCreation(message) || mockupHint || dielineHint) {
+    const matched = matchDesignStepRetryRequest(message, locale, session.presetId, session)
+    if (matched === 'box_mockup_3d' || matched === 'box_dieline_pdf') return matched
+    if (mockupHint || (onMockupStep && wantsStepCreation(message))) return 'box_mockup_3d'
+    if (dielineHint || (onDielineStep && wantsStepCreation(message))) return 'box_dieline_pdf'
+  }
+
+  if (
+    onMockupStep &&
+    currentGen === 'packaging_mockup' &&
+    (wantsStepCreation(message) || mockupHint || /^tạo|^tao|^ok|^làm|^lam/.test(n))
+  ) {
+    return 'box_mockup_3d'
+  }
+
+  return null
 }
 
 function isSubstantiveDesignInput(message: string): boolean {
@@ -526,13 +587,28 @@ export function applyStepRetryRepair(
   }
 }
 
-export function shouldShowPendingRetry(
+/** User wants a new output for the step that already has a pending preview (regenerate / recreate). */
+function wantsRecreateCurrentStepOutput(
   session: HubStudioSession,
   stepKey: string,
-  _message: string,
+  message: string,
   aiHint?: HubStudioAiRetryHint
 ): boolean {
   if (session.pendingPreview?.screenKey !== stepKey) return false
+  if (aiHint?.retryIntent === 'regenerate') return true
+  if (wantsStepRegenerate(message, aiHint)) return true
+  if (aiHint?.retryIntent === 'create' && wantsStepCreation(message)) return true
+  return false
+}
+
+export function shouldShowPendingRetry(
+  session: HubStudioSession,
+  stepKey: string,
+  message: string,
+  aiHint?: HubStudioAiRetryHint
+): boolean {
+  if (session.pendingPreview?.screenKey !== stepKey) return false
+  if (wantsRecreateCurrentStepOutput(session, stepKey, message, aiHint)) return false
   if (aiHint?.retryIntent === 'regenerate') return false
   return (
     aiHint?.retryIntent === 'create' ||
@@ -549,7 +625,7 @@ export function shouldForceGenerateForStep(
   onDiscovery: boolean,
   explicitRetryStep: string | null,
   aiHint?: HubStudioAiRetryHint,
-  options?: { skipSameTurnDesignEntry?: boolean }
+  options?: { skipSameTurnDesignEntry?: boolean; locale?: WebLocale }
 ): boolean {
   if (onDiscovery || !session.discoveryComplete) return false
   if (options?.skipSameTurnDesignEntry) return false
@@ -558,11 +634,20 @@ export function shouldForceGenerateForStep(
 
   if (wantsContinueNextStep(aiHint)) return false
 
-  if (session.pendingPreview?.screenKey === stepKey && aiHint?.retryIntent !== 'regenerate') {
+  const locale = options?.locale ?? 'vi'
+  if (shouldForceDeterministicStep(session, presetId, stepKey, _message, locale, aiHint)) {
+    return true
+  }
+
+  if (
+    session.pendingPreview?.screenKey === stepKey &&
+    aiHint?.retryIntent !== 'regenerate' &&
+    !wantsRecreateCurrentStepOutput(session, stepKey, _message, aiHint)
+  ) {
     return false
   }
 
-  if (shouldShowPendingRetry(session, stepKey, '', aiHint)) return false
+  if (shouldShowPendingRetry(session, stepKey, _message, aiHint)) return false
 
   if (
     isDesignStepApprovedComplete(session, presetId, stepKey) &&
