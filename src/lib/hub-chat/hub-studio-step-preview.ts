@@ -1,6 +1,7 @@
 import { getFlowSteps } from '@/lib/hub-chat/hub-studio-presets'
 import type { HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { packagingStepKeyToSlot } from '@/lib/packaging/hub-face-steps'
+import { resolveMockupSlotUrl } from '@/lib/packaging/box-face-slots'
 
 function stepLabelFromSession(session: HubStudioSession, stepKey: string): string {
   return session.processSteps.find((s) => s.key === stepKey)?.label ?? stepKey
@@ -37,11 +38,15 @@ export function resolveStepPendingPreview(
     label
 
   const slot = packagingStepKeyToSlot(stepKey)
-  if (slot && packaging?.faceSlots?.[slot]?.url) {
+  const faceUrl =
+    slot && packaging?.faceSlots
+      ? resolveMockupSlotUrl(slot, packaging.faceSlots)
+      : null
+  if (slot && faceUrl) {
     return {
       screenKey: stepKey,
       screenLabel: label,
-      url: packaging.faceSlots[slot]!.url!,
+      url: faceUrl,
       generationPrompt: prompt,
     }
   }

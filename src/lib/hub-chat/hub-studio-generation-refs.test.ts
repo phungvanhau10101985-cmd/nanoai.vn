@@ -24,6 +24,19 @@ test('packaging face step still supports generation ref picker', () => {
   assert.equal(stepSupportsGenerationRefPicker('packaging_kit', 'face_front'), true)
 })
 
+test('mockup 3d and dieline pdf do not show generation ref picker', () => {
+  assert.equal(stepSupportsGenerationRefPicker('packaging_kit', 'box_mockup_3d'), false)
+  assert.equal(stepSupportsGenerationRefPicker('packaging_kit', 'box_dieline_pdf'), false)
+  const session = {
+    ...emptyStudioSession(),
+    presetId: 'packaging_kit',
+    discoveryComplete: true,
+    currentStepKey: 'box_mockup_3d',
+    referenceImages: [{ screenKey: 'face_top', screenLabel: 'Top', url: 'top', approvedAt: 1 }],
+  }
+  assert.deepEqual(buildGenerationRefPickerPayload(session, 'packaging_kit', 'box_mockup_3d'), {})
+})
+
 test('sanitizeGenerationSelection drops stale reference keys after logo removal', () => {
   const session = {
     ...emptyStudioSession(),

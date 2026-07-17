@@ -14,6 +14,7 @@ import {
   pgEnsureHubChatThread,
   pgGetHubChatThread,
   pgInsertHubChatMessage,
+  pgSaveHubThreadSession,
   type HubPlanStepInput,
 } from '@/lib/db/hub-chat-pg'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
@@ -24,6 +25,8 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import { handleHubStudio, type HubStudioAction } from '@/lib/hub-chat/hub-studio-handler'
 import { presetTitle } from '@/lib/hub-chat/hub-studio-presets'
+import { reconcilePackagingProcessSteps } from '@/lib/packaging/face-print-style'
+import { applyPackagingSessionLabels } from '@/lib/packaging/packaging-face-labels'
 
 export const maxDuration = 300
 
@@ -140,6 +143,15 @@ export async function GET(request: NextRequest) {
 
   const thread = await pgGetHubChatThread(auth.user.id, threadId)
   if (!thread) return NextResponse.json({ error: 'Không tìm thấy hội thoại.' }, { status: 404 })
+  if (thread.session?.presetId === 'packaging_kit') {
+    const locale = normalizeWebLocale(thread.locale) ?? 'vi'
+    const migrated = applyPackagingSessionLabels(
+      reconcilePackagingProcessSteps(thread.session, locale),
+      locale
+    )
+    thread.session = migrated
+    await pgSaveHubThreadSession(thread.id, migrated)
+  }
 
   return NextResponse.json({ ok: true, thread })
 }
@@ -176,6 +188,7 @@ export async function POST(request: NextRequest) {
         cropHeightMm > 0
           ? { width: cropWidthMm, height: cropHeightMm }
           : undefined
+      const cropAspectRatio = String(fd.get('cropAspectRatio') ?? '').trim() || undefined
       const locale: WebLocale = normalizeWebLocale(localeBody) ?? 'vi'
       const files = fd.getAll('images').filter((f): f is File => f instanceof File && f.size > 0)
       const uploadFiles = files.length
@@ -199,6 +212,7 @@ export async function POST(request: NextRequest) {
         apiKey,
         uploadFiles,
         cropSizeMm,
+        cropAspectRatio,
       })
       if (!result.ok) {
         return NextResponse.json({ error: result.error || 'Studio lỗi.' }, { status: result.error ? 422 : 500 })
@@ -232,6 +246,16 @@ export async function POST(request: NextRequest) {
       editMessageId?: string
       editStepKey?: string
       navigateStepKey?: string
+      regenerateStepKey?: string
+      facePrintStyle?: string
+      boxDielineStructure?: string
+      boxDimensionsMm?: { length?: number; width?: number; height?: number }
+      boxProduction?: {
+        bleedMm?: number
+        glueTabMm?: number
+        paperThicknessMm?: number
+        compensationGapMm?: number
+      }
     }
 
     const mode: HubChatMode = VALID_MODES.has(body?.mode as HubChatMode) ? (body.mode as HubChatMode) : 'chat'
@@ -249,6 +273,9 @@ export async function POST(request: NextRequest) {
       const editMessageId = String(body?.editMessageId ?? '').trim() || undefined
       const editStepKey = String(body?.editStepKey ?? '').trim() || undefined
       const navigateStepKey = String(body?.navigateStepKey ?? '').trim() || undefined
+      const regenerateStepKey = String(body?.regenerateStepKey ?? '').trim() || undefined
+      const facePrintStyle = String(body?.facePrintStyle ?? '').trim() || undefined
+      const boxDielineStructure = String(body?.boxDielineStructure ?? '').trim() || undefined
       if (action === 'message' && !isValidHubStudioMessage(message)) {
         return NextResponse.json({ error: 'Nhập ít nhất 2 ký tự.' }, { status: 400 })
       }
@@ -275,6 +302,11 @@ export async function POST(request: NextRequest) {
         editMessageId,
         editStepKey,
         navigateStepKey,
+        regenerateStepKey,
+        facePrintStyle,
+        boxDielineStructure,
+        boxDimensionsMm: body?.boxDimensionsMm,
+        boxProduction: body?.boxProduction,
         apiKey,
       })
       if (!result.ok) {

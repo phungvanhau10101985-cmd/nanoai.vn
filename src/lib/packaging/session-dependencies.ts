@@ -9,12 +9,24 @@ import { BOX_FACE_SLOT_ORDER } from '@/lib/packaging/box-face-slots'
 
 export const PACKAGING_DEPENDENCY_ORDER = [
   'logo',
+  'face_top',
+  'body_strip',
+  'face_bottom',
+  'box_mockup_3d',
+  'box_dieline_pdf',
+  'product_label',
+  'seal_sticker',
+  'barcode_label',
+] as const
+
+const LEGACY_PACKAGING_DEPENDENCY_ORDER = [
+  'logo',
   ...HUB_PACKAGING_FACE_STEP_KEYS,
   'face_lxw',
   'face_lxh',
   'face_wxh',
-  'box_dieline_pdf',
   'box_mockup_3d',
+  'box_dieline_pdf',
   'product_label',
   'seal_sticker',
   'barcode_label',
@@ -25,13 +37,28 @@ export function invalidatePackagingFromStep(
   stepKey: string
 ): HubStudioSession {
   if (session.presetId !== 'packaging_kit') return session
-  const start = PACKAGING_DEPENDENCY_ORDER.indexOf(
-    stepKey as (typeof PACKAGING_DEPENDENCY_ORDER)[number]
-  )
+  const order: readonly string[] =
+    session.packaging?.layout === 'hybrid_strip'
+      ? PACKAGING_DEPENDENCY_ORDER
+      : LEGACY_PACKAGING_DEPENDENCY_ORDER
+  const start = order.indexOf(stepKey)
   if (start < 0) return session
-  const invalidKeys = new Set<string>(PACKAGING_DEPENDENCY_ORDER.slice(start))
+  const hybridArtworkSteps = new Set(['face_top', 'body_strip', 'face_bottom'])
+  const invalidKeys =
+    session.packaging?.layout === 'hybrid_strip' && hybridArtworkSteps.has(stepKey)
+      ? new Set<string>([
+          stepKey,
+          ...order.slice(order.indexOf('box_mockup_3d')),
+        ])
+      : new Set<string>(order.slice(start))
   const packaging = session.packaging
   const faceSlots = { ...(packaging?.faceSlots ?? {}) }
+  if (invalidKeys.has('body_strip')) {
+    delete faceSlots.front
+    delete faceSlots.right
+    delete faceSlots.back
+    delete faceSlots.left
+  }
   for (const slot of BOX_FACE_SLOT_ORDER) {
     if (invalidKeys.has(`face_${slot}`)) delete faceSlots[slot]
   }
@@ -49,14 +76,15 @@ export function invalidatePackagingFromStep(
     ? {
         ...packaging,
         faceSlots,
+        bodyStrip: invalidKeys.has('body_strip') ? undefined : packaging.bodyStrip,
         faces,
-        dielineUrl: start <= PACKAGING_DEPENDENCY_ORDER.indexOf('box_dieline_pdf')
+        dielineUrl: start <= order.indexOf('box_dieline_pdf')
           ? undefined
           : packaging.dielineUrl,
-        mockupUrl: start <= PACKAGING_DEPENDENCY_ORDER.indexOf('box_mockup_3d')
+        mockupUrl: start <= order.indexOf('box_mockup_3d')
           ? undefined
           : packaging.mockupUrl,
-        barcodeUrl: start <= PACKAGING_DEPENDENCY_ORDER.indexOf('barcode_label')
+        barcodeUrl: start <= order.indexOf('barcode_label')
           ? undefined
           : packaging.barcodeUrl,
       }

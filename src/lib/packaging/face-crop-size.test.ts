@@ -10,6 +10,13 @@ test('cropRegionToPrintSizeMm maps pixel crop to mm on face', () => {
   assert.equal(half.heightMm, 112.5)
 })
 
+test('cropRegionToPrintSizeMm maps contain crop to full face mm', () => {
+  const face = { widthMm: 400, heightMm: 100 }
+  const full = cropRegionToPrintSizeMm(face, 1000, 800, { x: -1100, y: 0, width: 3200, height: 800 })
+  assert.equal(full.widthMm, 400)
+  assert.equal(full.heightMm, 100)
+})
+
 test('formatMmSize vi uses mm and cm', () => {
   assert.match(formatMmSize('vi', 400, 225), /400.*225.*mm/)
 })

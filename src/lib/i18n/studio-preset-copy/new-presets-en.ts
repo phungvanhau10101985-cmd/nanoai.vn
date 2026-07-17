@@ -3,7 +3,7 @@ export const NEW_PRESETS_EN = {
   packaging_kit: {
     title: 'Packaging kit',
     kickoff:
-      'Design a technical carton workflow: Logo → 6 separate faces (top, front, right, bottom, back, left) → Dieline PDF → 3D mockup → label → seal → real barcode. The approved Logo anchors every later step.',
+      'Design a technical carton workflow: Logo → create all six faces one by one (top|front|right|bottom|back|left) → 3D mockup → Dieline PDF → label → seal → real barcode.',
     steps: {
       brand_name: 'Brief: Brand name',
       product_type: 'Brief: Product type',
@@ -11,9 +11,11 @@ export const NEW_PRESETS_EN = {
       box_face_confirm: 'Brief: Confirm faces',
       style_mood: 'Brief: Style',
       color_palette: 'Brief: Colors',
+      face_print_style: 'Brief: Visual art style',
       logo: 'Logo',
       box_flat: 'Flat box (dieline)',
       face_top: 'Top face (L×W)',
+      body_strip: 'Continuous body (front|right|back|left)',
       face_front: 'Front face (L×H)',
       face_right: 'Right side (W×H)',
       face_bottom: 'Bottom face (L×W)',
@@ -31,34 +33,38 @@ export const NEW_PRESETS_EN = {
     asks: {
       brand_name: '① Brand / product name?',
       product_type: '② What product is packaged? (cosmetics, food, gifts…)',
-      box_size: '③ Box dimensions? Length + width from Gemini ratios (top/bottom face), height free — form below or chat.',
+      box_size: '③ Box dimensions? Enter L × W × H (cm) freely — form below or chat. Each face image uses the closest ratio to real size.',
       box_face_confirm:
         '④ Confirm the bottom, front/back and side face sizes above — reply OK or re-enter L×W×H if the dimension order differs.',
       style_mood: '⑤ Style: organic / luxury / minimal / playful?',
       color_palette: '⑥ Print color palette?',
+      face_print_style:
+        '⑦ Choose one visual art style to apply consistently across all 6 box faces.',
       logo: 'Describe the logo to create for packaging (based on brief) — or tap **Upload logo** if you already have a file.',
       box_flat: 'Flat box: front/side layout, logo placement?',
       face_top:
-        '⑦ Top L×W — **Upload face image** from device, describe print content, or **leave blank**. **Full bleed** artwork — no mm dimension labels on the image.',
+        '⑧ Top L×W — **Upload face image** from device, describe print content, or **leave blank**. **Full bleed** artwork — no mm dimension labels on the image.',
+      body_strip:
+        '⑨ Create one continuous **front | right | back | left** body strip. Artwork must remain seamless across folds; do not draw cut/fold lines, tabs, or flaps.',
       face_front:
-        '⑧ Front L×H — **Upload face image** or describe print content or **leave blank**. Output: **flat print file**, NOT a 3D box.',
+        '⑨ Front L×H — **Upload face image** or describe print content or **leave blank**. Output: **flat print file**, NOT a 3D box.',
       face_right:
-        '⑨ Right W×H — **Upload face image** or describe print content or **leave blank**. Output: **flat print file**, NOT a 3D box.',
+        '⑩ Right W×H — **Upload face image** or describe print content or **leave blank**. Output: **flat print file**, NOT a 3D box.',
       face_bottom:
-        '⑩ Bottom L×W — **Upload**, **leave blank**, **same as top**, or describe unique print content.',
+        '⑪ Bottom L×W — **Upload**, **leave blank**, **same as top**, or describe unique print content.',
       face_back:
-        '⑪ Back L×H — **Upload**, **leave blank**, **same as front**, or describe unique print content.',
+        '⑫ Back L×H — **Upload**, **leave blank**, **same as front**, or describe unique print content.',
       face_left:
-        '⑫ Left W×H — **Upload**, **leave blank**, **same as right**, or describe unique print content.',
+        '⑬ Left W×H — **Upload face image** or describe print content or **leave blank**. Output: **flat print file** full bleed, **NOT a 3D box**, NOT a product standing on kraft paper.',
       face_lxw:
         'L×W top/bottom face — enter **print content for this face only** (logo, product name, graphics…). An artwork image will be generated.',
       face_lxh:
         'L×H front/back face — enter **print content for this face** (product name, registration no., ingredients, claims…).',
       face_wxh:
         'W×H side faces — enter **print content for this face** (directions, warnings, secondary ingredients…).',
-      box_dieline_pdf: 'Build the technical Dieline PDF after all 6 faces are done.',
+      box_dieline_pdf: 'Review production parameters, then export the 1:1 technical Dieline PDF.',
       box_mockup_3d:
-        'Type **create mockup 3d** — isometric composite from your 6 face images (no logo; each face keeps its slot; proportions match box size).',
+        'Type **create mockup 3d** to approve the box before exporting the Dieline PDF.',
       product_label: 'Product label (B&W): label size (e.g. 50×80 mm) + content (name, ingredients, usage…). Logo only.',
       seal_sticker: 'Seal sticker: size (e.g. 40×40 mm), round/square, tagline. Logo only — not box faces.',
       barcode_label: 'Real barcode: uses product name from brief; product code (e.g. SKU: 188-SRM-001). Default Code128 — or EAN-13/QR if specified.',

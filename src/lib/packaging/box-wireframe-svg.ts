@@ -192,7 +192,7 @@ export function buildBoxWireframeSvg(dimensionsMm: BoxDimensionsMm, locale: WebL
     dimHOffset.y
   )
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEW_W} ${VIEW_H}" role="img" aria-hidden="true">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEW_W} ${VIEW_H}" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-hidden="true" style="display:block;width:100%;height:auto;min-height:160px">
 ${side}
 ${top}
 ${front}

@@ -11,9 +11,13 @@ import type { HubStudioMessagePayload, HubStudioSession } from '@/lib/hub-chat/h
 import { HubStudioFaceCropDialog, type HubStudioFaceCropLabels } from '@/components/hub-chat/hub-studio-face-crop-dialog'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { formatMmSize, normalizeFaceSizeMm } from '@/lib/packaging/face-crop-size'
-import { getPackagingFaceSizeForStep } from '@/lib/packaging/hub-face-steps'
+import {
+  getPackagingFaceSizeForStep,
+  isPackagingFaceStepKey,
+} from '@/lib/packaging/hub-face-steps'
 import { resolvePackagingStepLabel } from '@/lib/packaging/packaging-face-labels'
 import type { WebLocale } from '@/lib/i18n/config'
+import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
 import { PackagingBoxMockup3D } from '@/components/hub-chat/packaging-box-mockup-3d'
 
 type StudioLine = {
@@ -22,12 +26,45 @@ type StudioLine = {
   content: string
   studio?: HubStudioMessagePayload | null
   stepKey?: string
+  createdAt?: string
+}
+
+export function HubStudioMessageTime({
+  createdAt,
+  locale,
+  align = 'left',
+}: {
+  createdAt?: string
+  locale: WebLocale
+  align?: 'left' | 'right'
+}) {
+  const label = formatSessionIsoDateTime(createdAt, locale)
+  if (!label) return null
+  return (
+    <p
+      className={`mt-0.5 text-[10px] tabular-nums text-muted-foreground ${
+        align === 'right' ? 'text-right' : 'text-left'
+      }`}
+    >
+      {label}
+    </p>
+  )
 }
 
 function imageFrameClass(aspect?: HubStudioMessagePayload['aspectHint']): string {
   if (aspect === 'square') return 'max-w-[200px]'
   if (aspect === 'landscape') return 'max-w-[280px]'
   return 'max-w-[220px]'
+}
+
+function productionSummaryCopy(locale: WebLocale) {
+  return {
+    vi: ['Kích thước tổng', 'Bleed', 'Tai dán', 'Khe bù', 'Độ dày giấy', 'Độ phân giải', 'Nhà in phải xác nhận độ dày giấy và hướng thớ.'],
+    en: ['Overall size', 'Bleed', 'Glue tab', 'Compensation gap', 'Paper thickness', 'Resolution', 'Printer must confirm paper thickness and grain direction.'],
+    zh: ['总尺寸', '出血', '粘口', '补偿间隙', '纸张厚度', '分辨率', '印厂须确认纸张厚度和纸纹方向。'],
+    ja: ['全体サイズ', '塗り足し', '糊しろ', '補正ギャップ', '紙厚', '解像度', '印刷会社で紙厚と紙目方向を確認してください。'],
+    ko: ['전체 크기', '블리드', '접착 탭', '보정 간격', '용지 두께', '해상도', '인쇄소에서 용지 두께와 결 방향을 확인해야 합니다.'],
+  }[locale]
 }
 
 function imageDimensions(aspect?: HubStudioMessagePayload['aspectHint']): { width: number; height: number } {
@@ -235,6 +272,7 @@ export function HubStudioMessageBubble({
   onCropImage,
   onRevertFaceEdit,
   onUploadFace,
+  onOutpaintGaps,
   studioSession,
   compact = false,
   suppressImagePreview = false,
@@ -273,11 +311,12 @@ export function HubStudioMessageBubble({
   uiLocale?: WebLocale
   cropLabels?: HubStudioFaceCropLabels
   busy: boolean
-  onRegenerate: () => void
+  onRegenerate: (stepKey?: string) => void
   onApproveReference: () => void
   onCropImage?: (blob: Blob, printSizeMm: { widthMm: number; heightMm: number }) => void | Promise<void>
   onRevertFaceEdit?: () => void | Promise<void>
   onUploadFace?: (files: FileList | File[]) => void | Promise<void>
+  onOutpaintGaps?: (blob: Blob, aspectRatio: string) => Promise<string | null>
   onRemoveReference?: (screenKey: string) => void
   onEditStep?: (line: StudioLine) => void
   editingLineId?: string | null
@@ -293,6 +332,9 @@ export function HubStudioMessageBubble({
     st?.screenKey === 'box_mockup_3d' &&
     studioSession.packaging?.dimensionsMm &&
     studioSession.packaging.faceSlots
+  const isPackagingFacePreview =
+    studioSession?.presetId === 'packaging_kit' &&
+    Boolean(st?.screenKey && isPackagingFaceStepKey(st.screenKey))
   const isEditing = editingLineId === line.id && line.role === 'user'
   const [draft, setDraft] = useState(line.content)
   const [cropOpen, setCropOpen] = useState(false)
@@ -334,13 +376,12 @@ export function HubStudioMessageBubble({
   ])
 
   const editBaseImageUrl = useMemo(() => {
-    if (st?.faceOriginalUrl) return st.faceOriginalUrl
     const pending = studioSession?.pendingPreview
-    if (pending?.screenKey === st?.screenKey && pending?.originalUrl) {
-      return pending.originalUrl
+    if (pending && st?.screenKey && pending.screenKey === st.screenKey && pending.url) {
+      return pending.url
     }
     return st?.imageUrl ?? ''
-  }, [st?.faceOriginalUrl, st?.imageUrl, st?.screenKey, studioSession?.pendingPreview])
+  }, [st?.imageUrl, st?.screenKey, studioSession?.pendingPreview])
 
   const showRevert =
     Boolean(st?.showRevertFaceEdit) ||
@@ -418,6 +459,7 @@ export function HubStudioMessageBubble({
             ) : null}
           </div>
         )}
+        {!compact ? <HubStudioMessageTime createdAt={line.createdAt} locale={uiLocale} align="left" /> : null}
       </div>
     )
   }
@@ -427,16 +469,41 @@ export function HubStudioMessageBubble({
       className={
         compact
           ? 'text-sm text-slate-800 dark:text-slate-100'
-          : 'mr-6 rounded-md bg-violet-50/80 px-2.5 py-2 text-sm text-slate-800 dark:bg-violet-950/30 dark:text-slate-100'
+          : 'mr-6 max-w-full'
       }
     >
+      <div
+        className={
+          compact
+            ? undefined
+            : 'rounded-md bg-violet-50/80 px-2.5 py-2 text-sm text-slate-800 dark:bg-violet-950/30 dark:text-slate-100'
+        }
+      >
       {!compact ? <p className="whitespace-pre-wrap">{line.content}</p> : null}
       {st?.boxWireframeSvg ? (
-        <div
-          className="mt-2 flex w-full max-w-[400px] justify-center overflow-hidden rounded-lg border border-violet-200 bg-white py-1.5 dark:border-violet-800 dark:bg-slate-900 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:min-h-[180px]"
-          dangerouslySetInnerHTML={{ __html: st.boxWireframeSvg }}
-        />
+        <div className="mt-2 flex w-full justify-center">
+          <div
+            className="w-full max-w-[720px] overflow-auto rounded-lg border border-violet-200 bg-white p-3 dark:border-violet-800 dark:bg-slate-900"
+          >
+            <div
+              className="min-h-[180px] w-full [&>svg]:block [&>svg]:h-auto [&>svg]:min-h-[160px] [&>svg]:w-full [&>svg]:max-w-full"
+              dangerouslySetInnerHTML={{ __html: st.boxWireframeSvg }}
+            />
+          </div>
+        </div>
       ) : null}
+      {st?.boxProductionSummary ? (() => {
+        const labels = productionSummaryCopy(uiLocale)
+        const summary = st.boxProductionSummary
+        return (
+          <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+            <p>{labels[0]}: {summary.netWidthMm.toFixed(1)} × {summary.netHeightMm.toFixed(1)} mm</p>
+            <p>{labels[1]}: {summary.bleedMm} mm · {labels[2]}: {summary.glueTabMm} mm · {labels[3]}: {summary.compensationGapMm} mm · {labels[4]}: {summary.paperThicknessMm} mm</p>
+            <p>{labels[5]}: {summary.resolutionDpi ? `${summary.resolutionDpi} dpi` : '—'}</p>
+            <p className="mt-1 font-medium">{labels[6]}</p>
+          </div>
+        )
+      })() : null}
       {st?.referencePreviews && st.referencePreviews.length > 0 ? (
         <div className="mt-2 space-y-1.5">
           <p className="text-xs font-medium text-violet-800 dark:text-violet-200">
@@ -514,7 +581,7 @@ export function HubStudioMessageBubble({
           {st.showRegenerate || st.showApproveReference ? (
             <div className="flex flex-wrap gap-1.5">
               {st.showRegenerate ? (
-                <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={onRegenerate}>
+                <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={() => onRegenerate(st?.screenKey)}>
                   <RefreshCw className="mr-1 h-3.5 w-3.5" />
                   {hc.studioRegenerate}
                 </Button>
@@ -542,6 +609,14 @@ export function HubStudioMessageBubble({
               dimensionsMm={studioSession.packaging!.dimensionsMm!}
               faceSlots={studioSession.packaging!.faceSlots!}
               locale={uiLocale}
+              downloadUrl={st.imageUrl ?? studioSession.packaging?.mockupUrl}
+              downloadLabels={{
+                button: hc.studioDownload,
+                png: hc.studioDownloadPng,
+                jpeg: hc.studioDownloadJpeg,
+                failedTitle: hc.studioDownloadFailed,
+                failedDescription: hc.studioDownloadFailedHint,
+              }}
             />
           ) : (
             <StudioImageLightbox
@@ -577,12 +652,14 @@ export function HubStudioMessageBubble({
             </div>
           ) : null}
           <div className="flex flex-wrap gap-1.5">
-            <HubStudioImageDownloadButton
-              imageUrl={st.imageUrl}
-              screenKey={st.screenKey}
-              label={displayScreenLabel}
-              hc={hc}
-            />
+            {!interactivePackaging ? (
+              <HubStudioImageDownloadButton
+                imageUrl={st.imageUrl}
+                screenKey={st.screenKey}
+                label={displayScreenLabel}
+                hc={hc}
+              />
+            ) : null}
             {st.showCropImage && st.imageUrl && resolvedFaceTargetMm && cropLabels && onCropImage ? (
               <Button
                 type="button"
@@ -610,7 +687,7 @@ export function HubStudioMessageBubble({
               </Button>
             ) : null}
             {st.showRegenerate ? (
-              <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={onRegenerate}>
+              <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={() => onRegenerate(st?.screenKey)}>
                 <RefreshCw className="mr-1 h-3.5 w-3.5" />
                 {hc.studioRegenerate}
               </Button>
@@ -643,7 +720,7 @@ export function HubStudioMessageBubble({
             {st.showApproveReference ? (
               <Button type="button" size="sm" className="h-8 bg-violet-600 text-xs hover:bg-violet-700" disabled={busy} onClick={onApproveReference}>
                 <Check className="mr-1 h-3.5 w-3.5" />
-                {hc.studioUseReference}
+                {isPackagingFacePreview ? hc.studioContinue : hc.studioUseReference}
               </Button>
             ) : null}
           </div>
@@ -658,12 +735,16 @@ export function HubStudioMessageBubble({
               busy={busy}
               onSave={async (blob, printSizeMm) => {
                 await onCropImage(blob, printSizeMm)
-                setCropOpen(false)
               }}
+              onDone={() => setCropOpen(false)}
+              onOutpaintGaps={onOutpaintGaps}
+              foldGuideRatios={st.faceFoldGuideRatios}
             />
           ) : null}
         </div>
       ) : null}
+      </div>
+      {!compact ? <HubStudioMessageTime createdAt={line.createdAt} locale={uiLocale} align="right" /> : null}
     </div>
   )
 }
@@ -680,6 +761,7 @@ export function HubStudioActiveStepPreview({
   onCropImage,
   onRevertFaceEdit,
   onUploadFace,
+  onOutpaintGaps,
 }: {
   st: HubStudioMessagePayload
   studioSession: HubStudioSession
@@ -712,11 +794,12 @@ export function HubStudioActiveStepPreview({
   uiLocale?: WebLocale
   cropLabels?: HubStudioFaceCropLabels
   busy: boolean
-  onRegenerate: () => void
+  onRegenerate: (stepKey?: string) => void
   onApproveReference: () => void
   onCropImage?: (blob: Blob, printSizeMm: { widthMm: number; heightMm: number }) => void | Promise<void>
   onRevertFaceEdit?: () => void | Promise<void>
   onUploadFace?: (files: FileList | File[]) => void | Promise<void>
+  onOutpaintGaps?: (blob: Blob, aspectRatio: string) => Promise<string | null>
 }) {
   if (!st.imageUrl && !st.audioUrl) return null
   return (
@@ -735,6 +818,7 @@ export function HubStudioActiveStepPreview({
         onCropImage={onCropImage}
         onRevertFaceEdit={onRevertFaceEdit}
         onUploadFace={onUploadFace}
+        onOutpaintGaps={onOutpaintGaps}
       />
     </div>
   )

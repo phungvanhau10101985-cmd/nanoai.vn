@@ -103,13 +103,17 @@ export function getBoxFaceSlotLabel(
   return SLOT_LABEL_VI[slot]
 }
 
-/** URL cho mockup — chỉ ảnh của đúng slot, không copy từ mặt khác, không logo. */
+/** URL cho mockup — dùng ảnh của slot hoặc ảnh nguồn khi slot được đánh dấu copy. */
 export function resolveMockupSlotUrl(
   slot: BoxFaceSlot,
   faceSlots: Partial<Record<BoxFaceSlot, { sourceMode: FaceSourceMode; url?: string }>>
 ): string | null {
   const entry = faceSlots[slot]
   if (!entry || entry.sourceMode === 'empty') return null
+  if (entry.sourceMode === 'copy' && !entry.url) {
+    const sourceSlot = BOX_FACE_COPY_SOURCE[slot]
+    return sourceSlot ? resolveMockupSlotUrl(sourceSlot, faceSlots) : null
+  }
   return entry.url ?? null
 }
 

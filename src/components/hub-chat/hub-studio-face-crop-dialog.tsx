@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Crop, ImagePlus, Loader2, Sticker, Trash2, Type } from 'lucide-react'
+import { Crop, Eraser, ImagePlus, Loader2, PaintBucket, Sparkles, Sticker, Trash2, Type, Blend, Undo2, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -15,14 +15,44 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { cropRegionToPrintSizeMm, formatMmSize, type FaceSizeMm } from '@/lib/packaging/face-crop-size'
 import {
   exportFaceEditBlob,
+  extractImageEdgeColors,
+  mergeOutpaintWithOriginalRegion,
+  type FaceEditCropRect,
   type FaceEditImageOverlay,
   type FaceEditOverlay,
   type FaceEditTextOverlay,
+  type ImageEdgeColors,
 } from '@/lib/packaging/face-edit-export'
+import {
+  cropHasGapExtensions,
+  faceSizeAspectRatioLabel,
+} from '@/lib/packaging/face-crop-gaps'
+import {
+  canvasToObjectUrl,
+  clearMaskCanvas,
+  cloneCanvas,
+  compositeMagicErasePreview,
+  createMaskCanvas,
+  eraseStrokeOnCanvas,
+  loadImageToCanvas,
+  maskHasContent,
+  paintCanvasToDisplay,
+  paintRectOnMask,
+  paintStrokeOnMask,
+  restoreCanvasPixels,
+  snapshotCanvasPixels,
+} from '@/lib/packaging/face-edit-eraser'
+import { magicInpaintCanvas, preloadMagicInpaintLibrary } from '@/lib/packaging/face-edit-magic-inpaint'
+import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
+
+type CropEditTool = 'crop' | 'eraser' | 'magic'
+type CropFrameMode = 'free' | 'print'
+type MagicEraserMode = 'brush' | 'box'
 
 export type HubStudioFaceCropLabels = {
   title: string
   save: string
+  done: string
   cancel: string
   targetSize: string
   cropSize: string
@@ -33,7 +63,31 @@ export type HubStudioFaceCropLabels = {
   addSticker: string
   overlayHint: string
   textPlaceholder: string
+  textColor: string
   deleteLayer: string
+  fillEdgeColor: string
+  fillEdgeColorOff: string
+  outpaintBackground: string
+  outpaintBusy: string
+  outpaintCredit: string
+  outpaintNeedGaps: string
+  blendSeams: string
+  blendSeamsBusy: string
+  eraser: string
+  adjustCropFrame: string
+  cropFrameModeFree: string
+  cropFrameModePrint: string
+  dragHintFree: string
+  ratioFree: string
+  eraserSize: string
+  eraserUndo: string
+  eraserUndoHint: string
+  magicEraser: string
+  magicEraserBusy: string
+  magicEraserHint: string
+  magicEraserModeBox: string
+  magicEraserModeBrush: string
+  magicEraserBoxHint: string
 }
 
 type CropRect = { x: number; y: number; width: number; height: number }
@@ -45,34 +99,145 @@ const MIN_OVERLAY_N = 0.04
 
 const MIN_CROP_PX = 24
 const HANDLE = 10
+const ERASER_UNDO_MAX = 20
+const MIN_MAGIC_BOX_PX = 4
+
+function toolClusterClass(active: boolean, tone: 'violet' | 'fuchsia'): string {
+  if (!active) return 'inline-flex flex-wrap items-center gap-1 rounded-lg border border-transparent px-0.5 py-0.5'
+  if (tone === 'fuchsia') {
+    return 'inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-fuchsia-300 bg-fuchsia-50/70 px-1.5 py-1 dark:border-fuchsia-800 dark:bg-fuchsia-950/35'
+  }
+  return 'inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-50/70 px-1.5 py-1 dark:border-violet-800 dark:bg-violet-950/35'
+}
+
+function subToolToggleClass(active: boolean, tone: 'violet' | 'fuchsia'): string {
+  const base = 'h-7 px-2.5 text-xs shadow-sm'
+  if (active) {
+    return tone === 'fuchsia'
+      ? `${base} border-fuchsia-600 bg-fuchsia-600 text-white hover:bg-fuchsia-700`
+      : `${base} border-violet-600 bg-violet-600 text-white hover:bg-violet-700`
+  }
+  return tone === 'fuchsia'
+    ? `${base} border-fuchsia-300 bg-background text-fuchsia-900 hover:bg-fuchsia-50 dark:border-fuchsia-700 dark:text-fuchsia-200 dark:hover:bg-fuchsia-950/40`
+    : `${base} border-violet-300 bg-background text-violet-900 hover:bg-violet-50 dark:border-violet-700 dark:text-violet-200 dark:hover:bg-violet-950/40`
+}
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
 }
 
-function fitImageSize(nw: number, nh: number, maxW: number, maxH: number) {
-  const scale = Math.min(maxW / nw, maxH / nh, 1)
-  const imgW = Math.round(nw * scale)
-  const imgH = Math.round(nh * scale)
-  const offsetX = Math.round((maxW - imgW) / 2)
-  const offsetY = Math.round((maxH - imgH) / 2)
-  return { w: maxW, h: maxH, scale, imgW, imgH, offsetX, offsetY }
-}
-
-function initDisplayCrop(
+function initDisplayCropContainingImage(
   imgX: number,
   imgY: number,
   imgW: number,
   imgH: number,
   aspect: number
 ): DisplayCrop {
-  let w = imgW * 0.92
+  let w = imgW
   let h = w / aspect
-  if (h > imgH * 0.92) {
-    h = imgH * 0.92
+  if (h < imgH) {
+    h = imgH
     w = h * aspect
   }
-  return { x: imgX + (imgW - w) / 2, y: imgY + (imgH - h) / 2, w, h }
+  const cx = imgX + imgW / 2
+  const cy = imgY + imgH / 2
+  return { x: cx - w / 2, y: cy - h / 2, w, h }
+}
+
+function layoutCropViewport(
+  naturalW: number,
+  naturalH: number,
+  maxW: number,
+  maxH: number,
+  aspect: number
+): {
+  w: number
+  h: number
+  scale: number
+  imgW: number
+  imgH: number
+  offsetX: number
+  offsetY: number
+  crop: DisplayCrop
+} {
+  const maxScale = Math.min(maxW / naturalW, maxH / naturalH, 1)
+  let lo = 0.05
+  let hi = maxScale
+  let best = tryLayoutCropScale(naturalW, naturalH, maxW, maxH, aspect, hi)
+
+  if (!best.fits) {
+    for (let i = 0; i < 48; i++) {
+      const mid = (lo + hi) / 2
+      const trial = tryLayoutCropScale(naturalW, naturalH, maxW, maxH, aspect, mid)
+      if (trial.fits) {
+        lo = mid
+        best = trial
+      } else {
+        hi = mid
+      }
+    }
+  }
+
+  return {
+    w: maxW,
+    h: maxH,
+    scale: best.s,
+    imgW: best.imgW,
+    imgH: best.imgH,
+    offsetX: best.offsetX,
+    offsetY: best.offsetY,
+    crop: best.crop,
+  }
+}
+
+function tryLayoutCropScale(
+  naturalW: number,
+  naturalH: number,
+  maxW: number,
+  maxH: number,
+  aspect: number,
+  s: number
+): {
+  fits: boolean
+  s: number
+  imgW: number
+  imgH: number
+  offsetX: number
+  offsetY: number
+  crop: DisplayCrop
+} {
+  const imgW = naturalW * s
+  const imgH = naturalH * s
+  const offsetX = (maxW - imgW) / 2
+  const offsetY = (maxH - imgH) / 2
+  const crop = initDisplayCropContainingImage(offsetX, offsetY, imgW, imgH, aspect)
+  const fits =
+    crop.x >= -0.5 &&
+    crop.y >= -0.5 &&
+    crop.x + crop.w <= maxW + 0.5 &&
+    crop.y + crop.h <= maxH + 0.5
+  return { fits, s, imgW, imgH, offsetX, offsetY, crop }
+}
+
+function measureCropEditorViewport(el: HTMLElement): { maxW: number; maxH: number } {
+  const viewportFloor =
+    typeof window !== 'undefined'
+      ? Math.min(620, Math.max(360, Math.floor(window.innerHeight * 0.5)))
+      : 420
+  return {
+    maxW: Math.max(280, el.clientWidth),
+    maxH: Math.max(viewportFloor, el.clientHeight),
+  }
+}
+
+function layoutCropInElement(
+  naturalW: number,
+  naturalH: number,
+  viewportEl: HTMLElement,
+  aspect: number
+): ReturnType<typeof layoutCropViewport> {
+  const { maxW, maxH } = measureCropEditorViewport(viewportEl)
+  return layoutCropViewport(naturalW, naturalH, maxW, maxH, aspect)
 }
 
 function displayCropToNatural(
@@ -87,6 +252,51 @@ function displayCropToNatural(
     width: crop.w / displayScale,
     height: crop.h / displayScale,
   }
+}
+
+function viewportToNaturalPoint(
+  px: number,
+  py: number,
+  displayScale: number,
+  imgOffsetX: number,
+  imgOffsetY: number,
+  naturalW: number,
+  naturalH: number
+): { x: number; y: number } | null {
+  const x = (px - imgOffsetX) / displayScale
+  const y = (py - imgOffsetY) / displayScale
+  if (x < 0 || y < 0 || x > naturalW || y > naturalH) return null
+  return { x, y }
+}
+
+function viewportToNaturalClamped(
+  px: number,
+  py: number,
+  displayScale: number,
+  imgOffsetX: number,
+  imgOffsetY: number,
+  naturalW: number,
+  naturalH: number
+): { x: number; y: number } {
+  const x = clamp((px - imgOffsetX) / displayScale, 0, naturalW)
+  const y = clamp((py - imgOffsetY) / displayScale, 0, naturalH)
+  return { x, y }
+}
+
+function naturalToViewportBox(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  displayScale: number,
+  imgOffsetX: number,
+  imgOffsetY: number
+): { x: number; y: number; w: number; h: number } {
+  const left = Math.min(x1, x2) * displayScale + imgOffsetX
+  const top = Math.min(y1, y2) * displayScale + imgOffsetY
+  const w = Math.abs(x2 - x1) * displayScale
+  const h = Math.abs(y2 - y1) * displayScale
+  return { x: left, y: top, w, h }
 }
 
 function hitHandle(crop: DisplayCrop, px: number, py: number): DragMode {
@@ -160,6 +370,104 @@ function applyResize(
   x = clamp(x, bounds.x, bounds.x + bounds.w - w)
   y = clamp(y, bounds.y, bounds.y + bounds.h - h)
 
+  return { x, y, w, h }
+}
+
+function applyResizeFree(
+  start: DisplayCrop,
+  mode: DragMode,
+  dx: number,
+  dy: number,
+  bounds: { x: number; y: number; w: number; h: number }
+): DisplayCrop {
+  if (mode === 'move') {
+    const x = clamp(start.x + dx, bounds.x, bounds.x + bounds.w - start.w)
+    const y = clamp(start.y + dy, bounds.y, bounds.y + bounds.h - start.h)
+    return { x, y, w: start.w, h: start.h }
+  }
+  if (!mode) return start
+
+  let { x, y, w, h } = start
+  if (mode === 'se') {
+    w = start.w + dx
+    h = start.h + dy
+  } else if (mode === 'ne') {
+    y = start.y + dy
+    w = start.w + dx
+    h = start.h - dy
+  } else if (mode === 'sw') {
+    x = start.x + dx
+    w = start.w - dx
+    h = start.h + dy
+  } else if (mode === 'nw') {
+    x = start.x + dx
+    y = start.y + dy
+    w = start.w - dx
+    h = start.h - dy
+  }
+
+  if (w < MIN_CROP_PX) {
+    if (mode === 'nw' || mode === 'sw') x += w - MIN_CROP_PX
+    w = MIN_CROP_PX
+  }
+  if (h < MIN_CROP_PX) {
+    if (mode === 'nw' || mode === 'ne') y += h - MIN_CROP_PX
+    h = MIN_CROP_PX
+  }
+
+  if (x < bounds.x) {
+    w -= bounds.x - x
+    x = bounds.x
+  }
+  if (y < bounds.y) {
+    h -= bounds.y - y
+    y = bounds.y
+  }
+  if (x + w > bounds.x + bounds.w) w = bounds.x + bounds.w - x
+  if (y + h > bounds.y + bounds.h) h = bounds.y + bounds.h - y
+
+  w = Math.max(MIN_CROP_PX, w)
+  h = Math.max(MIN_CROP_PX, h)
+  x = clamp(x, bounds.x, bounds.x + bounds.w - w)
+  y = clamp(y, bounds.y, bounds.y + bounds.h - h)
+
+  return { x, y, w, h }
+}
+
+function snapDisplayCropToAspect(
+  crop: DisplayCrop,
+  aspect: number,
+  bounds: { x: number; y: number; w: number; h: number }
+): DisplayCrop {
+  const cx = crop.x + crop.w / 2
+  const cy = crop.y + crop.h / 2
+  let w = crop.w
+  let h = crop.h
+  const current = w / h
+  if (current > aspect) w = h * aspect
+  else h = w / aspect
+
+  if (w > bounds.w) {
+    w = bounds.w
+    h = w / aspect
+  }
+  if (h > bounds.h) {
+    h = bounds.h
+    w = h * aspect
+  }
+  if (w < MIN_CROP_PX) {
+    w = MIN_CROP_PX
+    h = w / aspect
+  }
+  if (h < MIN_CROP_PX) {
+    h = MIN_CROP_PX
+    w = h * aspect
+  }
+
+  let x = cx - w / 2
+  let y = cy - h / 2
+  x = clamp(x, bounds.x, bounds.x + bounds.w - w)
+  y = clamp(y, bounds.y, bounds.y + bounds.h - h)
   return { x, y, w, h }
 }
 
@@ -272,6 +580,9 @@ export function HubStudioFaceCropDialog({
   labels,
   busy,
   onSave,
+  onDone,
+  onOutpaintGaps,
+  foldGuideRatios,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -281,10 +592,45 @@ export function HubStudioFaceCropDialog({
   labels: HubStudioFaceCropLabels
   busy: boolean
   onSave: (blob: Blob, printSizeMm: FaceSizeMm) => void | Promise<void>
+  onDone?: () => void
+  onOutpaintGaps?: (blob: Blob, aspectRatio: string) => Promise<string | null>
+  foldGuideRatios?: number[]
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const stickerInputRef = useRef<HTMLInputElement>(null)
+  const editCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const displayImageCanvasRef = useRef<HTMLCanvasElement>(null)
+  const magicMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const magicStrokeSourceRef = useRef<HTMLCanvasElement | null>(null)
+  const eraserDragRef = useRef<{
+    tool: 'eraser' | 'magic'
+    mode?: MagicEraserMode
+    last?: { x: number; y: number } | null
+    start?: { x: number; y: number }
+    dirty: boolean
+  } | null>(null)
+  const eraserUndoStackRef = useRef<ImageData[]>([])
+  const mergedBlobUrlRef = useRef<string | null>(null)
+  const outpaintMergeCacheRef = useRef<{
+    aiUrl: string
+    originalUrl: string
+    crop: FaceEditCropRect
+    featherPx: number
+  } | null>(null)
+  const [baseImageUrl, setBaseImageUrl] = useState(imageUrl)
+  const [outpaintMergeReady, setOutpaintMergeReady] = useState(false)
+  const [outpaintBusy, setOutpaintBusy] = useState(false)
+  const [blendBusy, setBlendBusy] = useState(false)
+  const [magicBusy, setMagicBusy] = useState(false)
+  const [magicEraserMode, setMagicEraserMode] = useState<MagicEraserMode>('box')
+  const [magicBoxPreview, setMagicBoxPreview] = useState<{ x: number; y: number; w: number; h: number } | null>(
+    null
+  )
+  const [editTool, setEditTool] = useState<CropEditTool>('crop')
+  const [cropFrameMode, setCropFrameMode] = useState<CropFrameMode>('print')
+  const [eraserSize, setEraserSize] = useState(8)
+  const [eraserUndoCount, setEraserUndoCount] = useState(0)
   const [natural, setNatural] = useState({ w: 0, h: 0 })
   const [display, setDisplay] = useState({
     w: 320,
@@ -297,6 +643,8 @@ export function HubStudioFaceCropDialog({
   })
   const [crop, setCrop] = useState<DisplayCrop>({ x: 0, y: 0, w: 100, h: 100 })
   const [overlays, setOverlays] = useState<FaceEditOverlay[]>([])
+  const [fillGapsWithEdgeColor, setFillGapsWithEdgeColor] = useState(true)
+  const [edgeColors, setEdgeColors] = useState<ImageEdgeColors | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const dragMode = useRef<DragMode>(null)
   const overlayDrag = useRef<{
@@ -319,27 +667,196 @@ export function HubStudioFaceCropDialog({
     setSelectedId(null)
   }, [])
 
+  const clearEraserUndoStack = useCallback(() => {
+    eraserUndoStackRef.current = []
+    setEraserUndoCount(0)
+  }, [])
+
   useEffect(() => {
-    if (!open) return
+    if (open) preloadMagicInpaintLibrary()
+  }, [open])
+
+  useEffect(() => {
+    if (!open) {
+      if (mergedBlobUrlRef.current) {
+        URL.revokeObjectURL(mergedBlobUrlRef.current)
+        mergedBlobUrlRef.current = null
+      }
+      return
+    }
     resetLayers()
+    setFillGapsWithEdgeColor(true)
+    setEdgeColors(null)
+    if (mergedBlobUrlRef.current) {
+      URL.revokeObjectURL(mergedBlobUrlRef.current)
+      mergedBlobUrlRef.current = null
+    }
+    outpaintMergeCacheRef.current = null
+    setOutpaintMergeReady(false)
+    setEditTool('crop')
+    setCropFrameMode('print')
+    setMagicEraserMode('box')
+    setMagicBoxPreview(null)
+    magicStrokeSourceRef.current = null
+    magicMaskCanvasRef.current = null
+    clearEraserUndoStack()
+    editCanvasRef.current = null
+    setBaseImageUrl(imageUrl)
+  }, [imageUrl, open, resetLayers, clearEraserUndoStack])
+
+  const repaintDisplayCanvas = useCallback(() => {
+    const source = editCanvasRef.current
+    const target = displayImageCanvasRef.current
+    if (!source || !target) return
+    if (
+      editTool === 'magic' &&
+      magicMaskCanvasRef.current &&
+      eraserDragRef.current?.tool === 'magic'
+    ) {
+      compositeMagicErasePreview(
+        source,
+        magicMaskCanvasRef.current,
+        target,
+        display.imgW,
+        display.imgH
+      )
+      return
+    }
+    paintCanvasToDisplay(source, target, display.imgW, display.imgH)
+  }, [display.imgH, display.imgW, editTool])
+
+  useEffect(() => {
+    if (!open || !baseImageUrl) return
+    let cancelled = false
+    void loadImageToCanvas(baseImageUrl)
+      .then((canvas) => {
+        if (cancelled) return
+        editCanvasRef.current = canvas
+        if (
+          !magicMaskCanvasRef.current ||
+          magicMaskCanvasRef.current.width !== canvas.width ||
+          magicMaskCanvasRef.current.height !== canvas.height
+        ) {
+          magicMaskCanvasRef.current = createMaskCanvas(canvas.width, canvas.height)
+        } else {
+          clearMaskCanvas(magicMaskCanvasRef.current)
+        }
+        repaintDisplayCanvas()
+      })
+      .catch(() => {
+        editCanvasRef.current = null
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [baseImageUrl, open, repaintDisplayCanvas])
+
+  useEffect(() => {
+    if (!open || !baseImageUrl) return
     const img = new window.Image()
     img.crossOrigin = 'anonymous'
-    img.onload = () => setNatural({ w: img.naturalWidth, h: img.naturalHeight })
-    img.src = imageUrl
-  }, [imageUrl, open, resetLayers])
+    img.onload = () => {
+      setNatural({ w: img.naturalWidth, h: img.naturalHeight })
+      setEdgeColors(extractImageEdgeColors(img))
+    }
+    img.src = baseImageUrl
+  }, [baseImageUrl, open])
+
+  const applyViewportLayout = useCallback(
+    (naturalW: number, naturalH: number) => {
+      if (!viewportRef.current || !aspectValid) return
+      const laid = layoutCropInElement(naturalW, naturalH, viewportRef.current, faceAspect)
+      setDisplay({
+        w: laid.w,
+        h: laid.h,
+        scale: laid.scale,
+        imgW: laid.imgW,
+        imgH: laid.imgH,
+        offsetX: laid.offsetX,
+        offsetY: laid.offsetY,
+      })
+      setCrop(laid.crop)
+    },
+    [aspectValid, faceAspect]
+  )
 
   useEffect(() => {
     if (!open || !natural.w || !viewportRef.current || !aspectValid) return
-    const maxW = Math.min(viewportRef.current.clientWidth || 420, 420)
-    const fitted = fitImageSize(natural.w, natural.h, maxW, 360)
-    setDisplay(fitted)
-    setCrop(initDisplayCrop(fitted.offsetX, fitted.offsetY, fitted.imgW, fitted.imgH, faceAspect))
-  }, [natural.w, natural.h, open, faceAspect, aspectValid])
+    applyViewportLayout(natural.w, natural.h)
+    const el = viewportRef.current
+    const ro = new ResizeObserver(() => {
+      applyViewportLayout(natural.w, natural.h)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [applyViewportLayout, aspectValid, natural.h, natural.w, open])
 
-  const imgBounds = useMemo(
-    () => ({ x: display.offsetX, y: display.offsetY, w: display.imgW, h: display.imgH }),
-    [display.imgH, display.imgW, display.offsetX, display.offsetY]
+  const viewportBounds = useMemo(() => ({ x: 0, y: 0, w: display.w, h: display.h }), [display.h, display.w])
+
+  const activeToolHint = useMemo(() => {
+    if (editTool === 'crop') {
+      if (cropFrameMode === 'free') return `${labels.dragHintFree} ${labels.ratioFree}`
+      return `${labels.dragHint} ${labels.ratioLocked.replace(
+        '{size}',
+        formatMmSize(locale, faceSizeMm.widthMm, faceSizeMm.heightMm)
+      )}`
+    }
+    if (editTool === 'eraser') return labels.eraserUndoHint
+    if (editTool === 'magic') {
+      return magicEraserMode === 'box' ? labels.magicEraserBoxHint : labels.magicEraserHint
+    }
+    return null
+  }, [
+    cropFrameMode,
+    editTool,
+    faceSizeMm.heightMm,
+    faceSizeMm.widthMm,
+    labels.dragHint,
+    labels.dragHintFree,
+    labels.eraserUndoHint,
+    labels.magicEraserBoxHint,
+    labels.magicEraserHint,
+    labels.ratioFree,
+    labels.ratioLocked,
+    locale,
+    magicEraserMode,
+  ])
+
+  const handleCropFrameModeChange = useCallback(
+    (mode: CropFrameMode) => {
+      if (mode === cropFrameMode) return
+      if (mode === 'print') {
+        setCrop((prev) => snapDisplayCropToAspect(prev, faceAspect, viewportBounds))
+      }
+      setCropFrameMode(mode)
+    },
+    [cropFrameMode, faceAspect, viewportBounds]
   )
+
+  const cropGapPreview = useMemo(() => {
+    if (!fillGapsWithEdgeColor || !edgeColors) return []
+    const imgL = display.offsetX
+    const imgT = display.offsetY
+    const imgR = imgL + display.imgW
+    const imgB = imgT + display.imgH
+    const gaps: { x: number; y: number; w: number; h: number; color: string }[] = []
+    if (crop.x < imgL - 0.5) {
+      gaps.push({ x: crop.x, y: crop.y, w: imgL - crop.x, h: crop.h, color: edgeColors.left })
+    }
+    if (crop.x + crop.w > imgR + 0.5) {
+      gaps.push({ x: imgR, y: crop.y, w: crop.x + crop.w - imgR, h: crop.h, color: edgeColors.right })
+    }
+    const midL = Math.max(crop.x, imgL)
+    const midR = Math.min(crop.x + crop.w, imgR)
+    const midW = Math.max(0, midR - midL)
+    if (midW > 0 && crop.y < imgT - 0.5) {
+      gaps.push({ x: midL, y: crop.y, w: midW, h: imgT - crop.y, color: edgeColors.top })
+    }
+    if (midW > 0 && crop.y + crop.h > imgB + 0.5) {
+      gaps.push({ x: midL, y: imgB, w: midW, h: crop.y + crop.h - imgB, color: edgeColors.bottom })
+    }
+    return gaps
+  }, [crop, display.imgH, display.imgW, display.offsetX, display.offsetY, edgeColors, fillGapsWithEdgeColor])
 
   const cropNatural = useMemo(
     () => displayCropToNatural(crop, display.scale, display.offsetX, display.offsetY),
@@ -351,8 +868,202 @@ export function HubStudioFaceCropDialog({
       natural.w > 0
         ? cropRegionToPrintSizeMm(faceSizeMm, natural.w, natural.h, cropNatural)
         : faceSizeMm,
-    [cropNatural, faceSizeMm, natural.w]
+    [cropNatural, faceSizeMm, natural.h, natural.w]
   )
+
+  const hasCropGaps = useMemo(
+    () => cropHasGapExtensions(cropNatural, natural.w, natural.h),
+    [cropNatural, natural.h, natural.w]
+  )
+
+  const applyMergedPreview = useCallback(
+    async (mergedUrl: string) => {
+      if (mergedBlobUrlRef.current) URL.revokeObjectURL(mergedBlobUrlRef.current)
+      mergedBlobUrlRef.current = mergedUrl
+      setBaseImageUrl(mergedUrl)
+
+      const mergedImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new window.Image()
+        img.crossOrigin = 'anonymous'
+        img.onload = () => resolve(img)
+        img.onerror = () => reject(new Error('load merged failed'))
+        img.src = mergedUrl
+      })
+      const nw = mergedImg.naturalWidth
+      const nh = mergedImg.naturalHeight
+      setNatural({ w: nw, h: nh })
+      setEdgeColors(extractImageEdgeColors(mergedImg))
+      applyViewportLayout(nw, nh)
+    },
+    [applyViewportLayout, aspectValid]
+  )
+
+  const handleOutpaint = useCallback(async () => {
+    if (!onOutpaintGaps || !hasCropGaps || outpaintBusy || busy) return
+    setOutpaintBusy(true)
+    const originalUrl = baseImageUrl
+    const cropSnapshot = cropNatural
+    const featherPx = 40
+    try {
+      const blob = await exportFaceEditBlob(originalUrl, cropSnapshot, [], {
+        fillGapsWithEdgeColor: true,
+      })
+      const aiUrl = await onOutpaintGaps(blob, faceSizeAspectRatioLabel(faceSizeMm))
+      if (!aiUrl) return
+      outpaintMergeCacheRef.current = { aiUrl, originalUrl, crop: cropSnapshot, featherPx }
+      const mergedUrl = await mergeOutpaintWithOriginalRegion(aiUrl, originalUrl, cropSnapshot, {
+        featherPx,
+        seamHealPx: 24,
+      })
+      await applyMergedPreview(mergedUrl)
+      setOutpaintMergeReady(true)
+      clearEraserUndoStack()
+    } finally {
+      setOutpaintBusy(false)
+    }
+  }, [
+    applyMergedPreview,
+    baseImageUrl,
+    busy,
+    cropNatural,
+    faceSizeMm,
+    hasCropGaps,
+    onOutpaintGaps,
+    outpaintBusy,
+    clearEraserUndoStack,
+  ])
+
+  const handleBlendSeams = useCallback(async () => {
+    const cache = outpaintMergeCacheRef.current
+    if (!cache || blendBusy || busy || outpaintBusy) return
+    setBlendBusy(true)
+    try {
+      cache.featherPx = Math.min(96, cache.featherPx + 16)
+      const seamHealPx = Math.min(56, 16 + cache.featherPx)
+      const mergedUrl = await mergeOutpaintWithOriginalRegion(
+        cache.aiUrl,
+        cache.originalUrl,
+        cache.crop,
+        { featherPx: cache.featherPx, seamHealPx }
+      )
+      await applyMergedPreview(mergedUrl)
+      clearEraserUndoStack()
+    } finally {
+      setBlendBusy(false)
+    }
+  }, [applyMergedPreview, blendBusy, busy, clearEraserUndoStack, outpaintBusy])
+
+  const commitEraserEdit = useCallback(async () => {
+    const canvas = editCanvasRef.current
+    if (!canvas) return
+    try {
+      const url = await canvasToObjectUrl(canvas)
+      if (mergedBlobUrlRef.current) URL.revokeObjectURL(mergedBlobUrlRef.current)
+      mergedBlobUrlRef.current = url
+      outpaintMergeCacheRef.current = null
+      setOutpaintMergeReady(false)
+      setBaseImageUrl(url)
+    } catch {
+      /* ignore export failure */
+    }
+  }, [])
+
+  const eraserRadiusNatural = useMemo(() => Math.max(2, eraserSize), [eraserSize])
+
+  const enterCropFrameMode = useCallback(() => {
+    if (eraserDragRef.current?.dirty && eraserDragRef.current.tool === 'eraser') void commitEraserEdit()
+    eraserDragRef.current = null
+    magicStrokeSourceRef.current = null
+    if (magicMaskCanvasRef.current) clearMaskCanvas(magicMaskCanvasRef.current)
+    setMagicBoxPreview(null)
+    setEditTool('crop')
+    repaintDisplayCanvas()
+  }, [commitEraserEdit, repaintDisplayCanvas])
+
+  const handleEraserUndo = useCallback(() => {
+    const canvas = editCanvasRef.current
+    const stack = eraserUndoStackRef.current
+    if (!canvas || stack.length === 0) return
+    eraserDragRef.current = null
+    magicStrokeSourceRef.current = null
+    if (magicMaskCanvasRef.current) clearMaskCanvas(magicMaskCanvasRef.current)
+    setMagicBoxPreview(null)
+    const snapshot = stack.pop()!
+    restoreCanvasPixels(canvas, snapshot)
+    repaintDisplayCanvas()
+    setEraserUndoCount(stack.length)
+    void commitEraserEdit()
+  }, [commitEraserEdit, repaintDisplayCanvas])
+
+  const ensureMagicMaskCanvas = useCallback((): HTMLCanvasElement | null => {
+    const edit = editCanvasRef.current
+    if (!edit) return null
+    if (
+      !magicMaskCanvasRef.current ||
+      magicMaskCanvasRef.current.width !== edit.width ||
+      magicMaskCanvasRef.current.height !== edit.height
+    ) {
+      magicMaskCanvasRef.current = createMaskCanvas(edit.width, edit.height)
+    }
+    return magicMaskCanvasRef.current
+  }, [])
+
+  const finishMagicStroke = useCallback(
+    (inpaintRadius = eraserRadiusNatural) => {
+      const mask = magicMaskCanvasRef.current
+      const source = magicStrokeSourceRef.current
+      if (!mask || !source || !maskHasContent(mask)) {
+        magicStrokeSourceRef.current = null
+        if (mask) clearMaskCanvas(mask)
+        setMagicBoxPreview(null)
+        repaintDisplayCanvas()
+        return
+      }
+      setMagicBusy(true)
+      requestAnimationFrame(() => {
+        try {
+          const resultCanvas = magicInpaintCanvas(source, mask, inpaintRadius)
+          const target = editCanvasRef.current
+          if (target) {
+            const ctx = target.getContext('2d')
+            if (ctx) {
+              ctx.clearRect(0, 0, target.width, target.height)
+              ctx.drawImage(resultCanvas, 0, 0)
+            }
+          } else {
+            editCanvasRef.current = resultCanvas
+          }
+          outpaintMergeCacheRef.current = null
+          setOutpaintMergeReady(false)
+          void commitEraserEdit()
+        } catch {
+          handleEraserUndo()
+        } finally {
+          magicStrokeSourceRef.current = null
+          clearMaskCanvas(mask)
+          setMagicBoxPreview(null)
+          setMagicBusy(false)
+          repaintDisplayCanvas()
+        }
+      })
+    },
+    [commitEraserEdit, eraserRadiusNatural, handleEraserUndo, repaintDisplayCanvas]
+  )
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        const tag = (e.target as HTMLElement)?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return
+        if (eraserUndoStackRef.current.length === 0) return
+        e.preventDefault()
+        handleEraserUndo()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [handleEraserUndo, open])
 
   const selectedText = overlays.find(
     (o): o is FaceEditTextOverlay => o.id === selectedId && o.kind === 'text'
@@ -414,10 +1125,77 @@ export function HubStudioFaceCropDialog({
     )
   }
 
+  const updateSelectedTextColor = (color: string) => {
+    if (!selectedId) return
+    setOverlays((prev) =>
+      prev.map((o) => (o.id === selectedId && o.kind === 'text' ? { ...o, color } : o))
+    )
+  }
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const px = e.clientX - rect.left
     const py = e.clientY - rect.top
+
+    if (
+      (editTool === 'eraser' || editTool === 'magic') &&
+      !magicBusy &&
+      !busy &&
+      editCanvasRef.current &&
+      natural.w > 0
+    ) {
+      const useBox = editTool === 'magic' && magicEraserMode === 'box'
+      const nat = useBox
+        ? viewportToNaturalClamped(
+            px,
+            py,
+            display.scale,
+            display.offsetX,
+            display.offsetY,
+            natural.w,
+            natural.h
+          )
+        : viewportToNaturalPoint(
+            px,
+            py,
+            display.scale,
+            display.offsetX,
+            display.offsetY,
+            natural.w,
+            natural.h
+          )
+      if (!nat) return
+      e.preventDefault()
+      const snapshot = snapshotCanvasPixels(editCanvasRef.current)
+      if (snapshot) {
+        eraserUndoStackRef.current.push(snapshot)
+        if (eraserUndoStackRef.current.length > ERASER_UNDO_MAX) {
+          eraserUndoStackRef.current.shift()
+        }
+        setEraserUndoCount(eraserUndoStackRef.current.length)
+      }
+      if (editTool === 'magic') {
+        magicStrokeSourceRef.current = cloneCanvas(editCanvasRef.current)
+        const maskCanvas = ensureMagicMaskCanvas()
+        if (maskCanvas) clearMaskCanvas(maskCanvas)
+        if (useBox) {
+          eraserDragRef.current = { tool: 'magic', mode: 'box', start: nat, dirty: false }
+          setMagicBoxPreview(
+            naturalToViewportBox(nat.x, nat.y, nat.x, nat.y, display.scale, display.offsetX, display.offsetY)
+          )
+        } else if (maskCanvas) {
+          paintStrokeOnMask(maskCanvas, null, nat, eraserRadiusNatural)
+          eraserDragRef.current = { tool: 'magic', mode: 'brush', last: nat, dirty: true }
+        }
+        repaintDisplayCanvas()
+      } else {
+        eraseStrokeOnCanvas(editCanvasRef.current, null, nat, eraserRadiusNatural)
+        eraserDragRef.current = { last: nat, dirty: true, tool: 'eraser' }
+        repaintDisplayCanvas()
+      }
+      e.currentTarget.setPointerCapture(e.pointerId)
+      return
+    }
 
     const selectedImage = overlays.find(
       (o): o is FaceEditImageOverlay =>
@@ -471,6 +1249,7 @@ export function HubStudioFaceCropDialog({
       return
     }
     setSelectedId(null)
+    if (editTool !== 'crop') return
     const mode = hitHandle(crop, px, py)
     if (!mode) return
     e.preventDefault()
@@ -483,6 +1262,62 @@ export function HubStudioFaceCropDialog({
     const rect = e.currentTarget.getBoundingClientRect()
     const px = e.clientX - rect.left
     const py = e.clientY - rect.top
+
+    if (eraserDragRef.current && editCanvasRef.current && natural.w > 0) {
+      const drag = eraserDragRef.current
+      const useBox = drag.tool === 'magic' && drag.mode === 'box'
+      const nat = useBox
+        ? viewportToNaturalClamped(
+            px,
+            py,
+            display.scale,
+            display.offsetX,
+            display.offsetY,
+            natural.w,
+            natural.h
+          )
+        : viewportToNaturalPoint(
+            px,
+            py,
+            display.scale,
+            display.offsetX,
+            display.offsetY,
+            natural.w,
+            natural.h
+          )
+      if (!nat) return
+      if (drag.tool === 'magic') {
+        const maskCanvas = ensureMagicMaskCanvas()
+        if (!maskCanvas) return
+        if (useBox && drag.start) {
+          clearMaskCanvas(maskCanvas)
+          paintRectOnMask(maskCanvas, drag.start.x, drag.start.y, nat.x, nat.y)
+          const boxW = Math.abs(nat.x - drag.start.x)
+          const boxH = Math.abs(nat.y - drag.start.y)
+          drag.dirty = boxW >= MIN_MAGIC_BOX_PX && boxH >= MIN_MAGIC_BOX_PX
+          setMagicBoxPreview(
+            naturalToViewportBox(
+              drag.start.x,
+              drag.start.y,
+              nat.x,
+              nat.y,
+              display.scale,
+              display.offsetX,
+              display.offsetY
+            )
+          )
+        } else if (drag.last) {
+          paintStrokeOnMask(maskCanvas, drag.last, nat, eraserRadiusNatural)
+          drag.dirty = true
+        }
+      } else if (drag.last) {
+        eraseStrokeOnCanvas(editCanvasRef.current, drag.last, nat, eraserRadiusNatural)
+        drag.dirty = true
+      }
+      if (!useBox) drag.last = nat
+      repaintDisplayCanvas()
+      return
+    }
 
     if (overlayDrag.current) {
       const d = overlayDrag.current
@@ -511,10 +1346,41 @@ export function HubStudioFaceCropDialog({
     if (!dragMode.current) return
     const dx = e.clientX - dragStart.current.x
     const dy = e.clientY - dragStart.current.y
-    setCrop(applyResize(dragStart.current.crop, dragMode.current, dx, dy, imgBounds, faceAspect))
+    setCrop(
+      cropFrameMode === 'print'
+        ? applyResize(dragStart.current.crop, dragMode.current, dx, dy, viewportBounds, faceAspect)
+        : applyResizeFree(dragStart.current.crop, dragMode.current, dx, dy, viewportBounds)
+    )
   }
 
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const eraserDrag = eraserDragRef.current
+    const eraserDirty = eraserDrag?.dirty
+    const eraserTool = eraserDrag?.tool
+    const eraserMagicMode = eraserDrag?.mode
+    eraserDragRef.current = null
+    if (eraserDirty && eraserTool === 'magic') {
+      const boxNaturalW = (magicBoxPreview?.w ?? 0) / display.scale
+      const boxNaturalH = (magicBoxPreview?.h ?? 0) / display.scale
+      const inpaintRadius =
+        eraserMagicMode === 'box'
+          ? Math.max(
+              eraserRadiusNatural,
+              Math.min(48, Math.round(Math.min(boxNaturalW, boxNaturalH) / 4))
+            )
+          : eraserRadiusNatural
+      finishMagicStroke(inpaintRadius)
+    } else if (eraserTool === 'magic' && eraserMagicMode === 'box') {
+      magicStrokeSourceRef.current = null
+      if (magicMaskCanvasRef.current) clearMaskCanvas(magicMaskCanvasRef.current)
+      setMagicBoxPreview(null)
+      if (eraserUndoStackRef.current.length > 0) {
+        eraserUndoStackRef.current.pop()
+        setEraserUndoCount(eraserUndoStackRef.current.length)
+      }
+      repaintDisplayCanvas()
+    } else if (eraserDirty && eraserTool === 'eraser') void commitEraserEdit()
+
     dragMode.current = null
     overlayDrag.current = null
     try {
@@ -524,61 +1390,281 @@ export function HubStudioFaceCropDialog({
     }
   }
 
-  const handleSave = useCallback(async () => {
-    const blob = await exportFaceEditBlob(imageUrl, cropNatural, overlays)
+  const applyFaceEdit = useCallback(async () => {
+    if (eraserDragRef.current?.dirty && eraserDragRef.current.tool === 'eraser') {
+      await commitEraserEdit()
+    }
+    eraserDragRef.current = null
+    const blob = await exportFaceEditBlob(baseImageUrl, cropNatural, overlays, {
+      fillGapsWithEdgeColor: fillGapsWithEdgeColor,
+    })
     await onSave(blob, printSizeMm)
-  }, [cropNatural, imageUrl, onSave, overlays, printSizeMm])
+  }, [baseImageUrl, commitEraserEdit, cropNatural, fillGapsWithEdgeColor, onSave, overlays, printSizeMm])
+
+  const handleApply = useCallback(async () => {
+    await applyFaceEdit()
+  }, [applyFaceEdit])
+
+  const handleDone = useCallback(async () => {
+    await applyFaceEdit()
+    if (onDone) onDone()
+    else onOpenChange(false)
+  }, [applyFaceEdit, onDone, onOpenChange])
 
   const handleClass =
     'absolute z-20 h-3 w-3 rounded-sm border-2 border-white bg-violet-600 shadow pointer-events-none'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Crop className="h-4 w-4" />
+      <DialogContent className="flex h-[min(96dvh,960px)] max-h-[96dvh] w-[min(98vw,1440px)] max-w-[98vw] flex-col gap-3 overflow-hidden p-3 sm:gap-4 sm:p-5">
+        <DialogHeader className="shrink-0 space-y-0">
+          <DialogTitle className="flex items-center gap-2 pr-8 text-base">
+            <Crop className="h-4 w-4 shrink-0" />
             {labels.title}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-wrap gap-1.5">
-          <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={addTextLayer}>
-            <Type className="mr-1 h-3.5 w-3.5" />
-            {labels.addText}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs"
-            onClick={() => imageInputRef.current?.click()}
-          >
-            <ImagePlus className="mr-1 h-3.5 w-3.5" />
-            {labels.addImage}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs"
-            onClick={() => stickerInputRef.current?.click()}
-          >
-            <Sticker className="mr-1 h-3.5 w-3.5" />
-            {labels.addSticker}
-          </Button>
-          {selectedId ? (
+        <div className="max-h-[34vh] shrink-0 space-y-2 overflow-y-auto overscroll-contain pr-0.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={addTextLayer}>
+              <Type className="mr-1 h-3.5 w-3.5" />
+              {labels.addText}
+            </Button>
             <Button
               type="button"
               size="sm"
               variant="outline"
-              className="h-8 text-xs text-red-700"
-              onClick={removeSelected}
+              className="h-8 text-xs"
+              onClick={() => imageInputRef.current?.click()}
             >
-              <Trash2 className="mr-1 h-3.5 w-3.5" />
-              {labels.deleteLayer}
+              <ImagePlus className="mr-1 h-3.5 w-3.5" />
+              {labels.addImage}
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              onClick={() => stickerInputRef.current?.click()}
+            >
+              <Sticker className="mr-1 h-3.5 w-3.5" />
+              {labels.addSticker}
+            </Button>
+            {selectedId ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs text-red-700"
+                onClick={removeSelected}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                {labels.deleteLayer}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant={fillGapsWithEdgeColor ? 'default' : 'outline'}
+              className={`h-8 text-xs ${fillGapsWithEdgeColor ? 'bg-violet-600 hover:bg-violet-700' : ''}`}
+              onClick={() => setFillGapsWithEdgeColor((v) => !v)}
+            >
+              <PaintBucket className="mr-1 h-3.5 w-3.5" />
+              {fillGapsWithEdgeColor ? labels.fillEdgeColor : labels.fillEdgeColorOff}
+            </Button>
+            {onOutpaintGaps ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 border-violet-300 text-xs text-violet-800 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-950/40"
+                disabled={busy || outpaintBusy || !hasCropGaps}
+                title={!hasCropGaps ? labels.outpaintNeedGaps : labels.outpaintCredit.replace('{n}', String(UI_MOCKUP_CREDIT))}
+                onClick={() => void handleOutpaint()}
+              >
+                {outpaintBusy ? (
+                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1 h-3.5 w-3.5" />
+                )}
+                {outpaintBusy ? labels.outpaintBusy : labels.outpaintBackground}
+              </Button>
+            ) : null}
+            {outpaintMergeReady ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 border-emerald-300 text-xs text-emerald-800 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-200 dark:hover:bg-emerald-950/40"
+                disabled={busy || outpaintBusy || blendBusy}
+                onClick={() => void handleBlendSeams()}
+              >
+                {blendBusy ? (
+                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Blend className="mr-1 h-3.5 w-3.5" />
+                )}
+                {blendBusy ? labels.blendSeamsBusy : labels.blendSeams}
+              </Button>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className={toolClusterClass(editTool === 'crop', 'violet')}>
+              <Button
+                type="button"
+                size="sm"
+                variant={editTool === 'crop' ? 'default' : 'outline'}
+                className={`h-8 text-xs ${editTool === 'crop' ? 'bg-violet-600 hover:bg-violet-700' : ''}`}
+                disabled={busy || outpaintBusy || blendBusy || magicBusy || !natural.w}
+                onClick={enterCropFrameMode}
+              >
+                <Crop className="mr-1 h-3.5 w-3.5" />
+                {labels.adjustCropFrame}
+              </Button>
+              {editTool === 'crop' ? (
+                <div className="inline-flex gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={subToolToggleClass(cropFrameMode === 'print', 'violet')}
+                    disabled={busy || outpaintBusy || blendBusy || magicBusy || !natural.w}
+                    onClick={() => handleCropFrameModeChange('print')}
+                  >
+                    {labels.cropFrameModePrint}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={subToolToggleClass(cropFrameMode === 'free', 'violet')}
+                    disabled={busy || outpaintBusy || blendBusy || magicBusy || !natural.w}
+                    onClick={() => handleCropFrameModeChange('free')}
+                  >
+                    {labels.cropFrameModeFree}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
+            <div className={toolClusterClass(editTool === 'eraser', 'violet')}>
+              <Button
+                type="button"
+                size="sm"
+                variant={editTool === 'eraser' ? 'default' : 'outline'}
+                className={`h-8 text-xs ${editTool === 'eraser' ? 'bg-violet-600 hover:bg-violet-700' : ''}`}
+                disabled={busy || outpaintBusy || blendBusy || magicBusy || !natural.w}
+                onClick={() => setEditTool('eraser')}
+              >
+                <Eraser className="mr-1 h-3.5 w-3.5" />
+                {labels.eraser}
+              </Button>
+              {editTool === 'eraser' ? (
+                <div className="flex min-w-[140px] items-center gap-1.5">
+                  <input
+                    type="range"
+                    min={2}
+                    max={36}
+                    step={1}
+                    value={eraserSize}
+                    onChange={(e) => setEraserSize(Number(e.target.value))}
+                    className="h-2 w-24 flex-1 accent-violet-600 sm:w-28"
+                    aria-label={labels.eraserSize}
+                    disabled={magicBusy}
+                  />
+                  <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
+                    {eraserSize}px
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            <div className={toolClusterClass(editTool === 'magic', 'fuchsia')}>
+              <Button
+                type="button"
+                size="sm"
+                variant={editTool === 'magic' ? 'default' : 'outline'}
+                className={`h-8 border-fuchsia-300 text-xs ${editTool === 'magic' ? 'bg-fuchsia-600 hover:bg-fuchsia-700' : 'text-fuchsia-800 hover:bg-fuchsia-50 dark:border-fuchsia-800 dark:text-fuchsia-200 dark:hover:bg-fuchsia-950/40'}`}
+                disabled={busy || outpaintBusy || blendBusy || magicBusy || !natural.w}
+                onClick={() => {
+                  preloadMagicInpaintLibrary()
+                  setEditTool('magic')
+                }}
+              >
+                {magicBusy ? (
+                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Wand2 className="mr-1 h-3.5 w-3.5" />
+                )}
+                {magicBusy ? labels.magicEraserBusy : labels.magicEraser}
+              </Button>
+              {editTool === 'magic' ? (
+                <>
+                  <div className="inline-flex gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className={subToolToggleClass(magicEraserMode === 'box', 'fuchsia')}
+                      disabled={magicBusy}
+                      onClick={() => setMagicEraserMode('box')}
+                    >
+                      {labels.magicEraserModeBox}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className={subToolToggleClass(magicEraserMode === 'brush', 'fuchsia')}
+                      disabled={magicBusy}
+                      onClick={() => setMagicEraserMode('brush')}
+                    >
+                      {labels.magicEraserModeBrush}
+                    </Button>
+                  </div>
+                  {magicEraserMode === 'brush' ? (
+                    <div className="flex min-w-[120px] items-center gap-1.5">
+                      <input
+                        type="range"
+                        min={2}
+                        max={36}
+                        step={1}
+                        value={eraserSize}
+                        onChange={(e) => setEraserSize(Number(e.target.value))}
+                        className="h-2 w-20 flex-1 accent-fuchsia-600 sm:w-24"
+                        aria-label={labels.eraserSize}
+                        disabled={magicBusy}
+                      />
+                      <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
+                        {eraserSize}px
+                      </span>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={busy || outpaintBusy || blendBusy || magicBusy || eraserUndoCount === 0}
+              title={labels.eraserUndoHint}
+              onClick={() => handleEraserUndo()}
+            >
+              <Undo2 className="mr-1 h-3.5 w-3.5" />
+              {labels.eraserUndo}
+            </Button>
+          </div>
+
+          {activeToolHint ? (
+            <p className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] leading-snug text-muted-foreground dark:border-slate-700 dark:bg-slate-900/50">
+              {activeToolHint}
+            </p>
           ) : null}
+
           <input
             ref={imageInputRef}
             type="file"
@@ -604,29 +1690,59 @@ export function HubStudioFaceCropDialog({
         </div>
 
         {selectedText ? (
-          <Input
-            value={selectedText.text}
-            onChange={(e) => updateSelectedText(e.target.value)}
-            className="h-9 text-sm"
-            placeholder={labels.textPlaceholder}
-          />
+          <div className="flex shrink-0 items-center gap-2">
+            <Input
+              value={selectedText.text}
+              onChange={(e) => updateSelectedText(e.target.value)}
+              className="h-9 text-sm"
+              placeholder={labels.textPlaceholder}
+            />
+            <Input
+              type="color"
+              value={selectedText.color}
+              onChange={(e) => updateSelectedTextColor(e.target.value)}
+              className="h-9 w-12 shrink-0 cursor-pointer p-1"
+              aria-label={labels.textColor}
+              title={labels.textColor}
+            />
+          </div>
         ) : null}
 
-        <div ref={viewportRef} className="w-full">
+        <div className="flex min-h-0 flex-[1.6] flex-col gap-2">
           <div
-            className="relative mx-auto touch-none select-none overflow-hidden rounded-lg border border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-900"
-            style={{ width: display.w, height: display.h, cursor: 'crosshair' }}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerLeave={onPointerUp}
+            ref={viewportRef}
+            className="flex min-h-[min(50vh,540px)] w-full flex-1 items-center justify-center"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imageUrl}
-              alt=""
-              draggable={false}
-              className="pointer-events-none block h-full w-full object-contain"
+            <div
+              className="relative touch-none select-none overflow-hidden rounded-lg border border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-900"
+              style={{
+                width: display.w,
+                height: display.h,
+                cursor: editTool === 'eraser' || editTool === 'magic' ? 'crosshair' : 'default',
+                pointerEvents: magicBusy ? 'none' : 'auto',
+                opacity: magicBusy ? 0.72 : 1,
+              }}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerLeave={onPointerUp}
+            >
+            {cropGapPreview.map((gap, i) => (
+              <div
+                key={`gap-${i}`}
+                className="pointer-events-none absolute z-[5]"
+                style={{ left: gap.x, top: gap.y, width: gap.w, height: gap.h, backgroundColor: gap.color }}
+              />
+            ))}
+            <canvas
+              ref={displayImageCanvasRef}
+              className="pointer-events-none absolute z-[6] block"
+              style={{
+                left: display.offsetX,
+                top: display.offsetY,
+                width: display.imgW,
+                height: display.imgH,
+              }}
             />
 
             {overlays.map((layer) => {
@@ -696,23 +1812,43 @@ export function HubStudioFaceCropDialog({
               className="pointer-events-none absolute z-10 box-border border-2 border-red-500 ring-1 ring-white/80"
               style={{ left: crop.x, top: crop.y, width: crop.w, height: crop.h }}
             >
+              {foldGuideRatios?.map((ratio) => (
+                <span
+                  key={ratio}
+                  className="absolute inset-y-0 border-l border-dashed border-cyan-300"
+                  style={{ left: `${ratio * 100}%` }}
+                />
+              ))}
               <div className={`${handleClass} -left-1.5 -top-1.5`} />
               <div className={`${handleClass} -right-1.5 -top-1.5`} />
               <div className={`${handleClass} -bottom-1.5 -left-1.5`} />
               <div className={`${handleClass} -bottom-1.5 -right-1.5`} />
             </div>
+            {magicBusy ? (
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-black/35 text-white">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p className="px-3 text-center text-xs font-medium">{labels.magicEraserBusy}</p>
+              </div>
+            ) : null}
+            {magicBoxPreview && magicBoxPreview.w > 0 && magicBoxPreview.h > 0 ? (
+              <div
+                className="pointer-events-none absolute z-[25] box-border border-2 border-dashed border-fuchsia-400 bg-fuchsia-400/10"
+                style={{
+                  left: magicBoxPreview.x,
+                  top: magicBoxPreview.y,
+                  width: magicBoxPreview.w,
+                  height: magicBoxPreview.h,
+                }}
+              />
+            ) : null}
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">{labels.dragHint}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{labels.overlayHint}</p>
-          <p className="mt-1 text-xs font-medium text-violet-800 dark:text-violet-200">
-            {labels.ratioLocked.replace(
-              '{size}',
-              formatMmSize(locale, faceSizeMm.widthMm, faceSizeMm.heightMm)
-            )}
-          </p>
+          </div>
+          <div className="shrink-0 space-y-0.5">
+            <p className="text-xs text-muted-foreground">{labels.overlayHint}</p>
+          </div>
         </div>
 
-        <div className="rounded-md border border-violet-200 bg-violet-50/60 px-3 py-2 text-sm dark:border-violet-800 dark:bg-violet-950/30">
+        <div className="shrink-0 rounded-md border border-violet-200 bg-violet-50/60 px-3 py-2 text-sm dark:border-violet-800 dark:bg-violet-950/30">
           <p className="text-xs text-muted-foreground">
             {labels.targetSize.replace(
               '{size}',
@@ -730,18 +1866,28 @@ export function HubStudioFaceCropDialog({
           </p>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="shrink-0 gap-2 sm:gap-0">
           <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
             {labels.cancel}
           </Button>
           <Button
             type="button"
-            className="bg-violet-600 hover:bg-violet-700"
+            variant="outline"
+            className="border-violet-300 text-violet-800 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-950/40"
             disabled={busy || !natural.w || !aspectValid}
-            onClick={() => void handleSave()}
+            onClick={() => void handleApply()}
           >
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {labels.save}
+          </Button>
+          <Button
+            type="button"
+            className="bg-violet-600 hover:bg-violet-700"
+            disabled={busy || !natural.w || !aspectValid}
+            onClick={() => void handleDone()}
+          >
+            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {labels.done}
           </Button>
         </DialogFooter>
       </DialogContent>

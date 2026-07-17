@@ -23,7 +23,7 @@ test('packagingBoxConfirmStudioExtras only on box_face_confirm with dimensions',
     processSteps: [],
     packaging: { dimensionsMm: dims, facesConfirmed: false },
   })
-  assert.ok(extras?.boxWireframeSvg?.includes('<svg'))
+  assert.deepEqual(extras, { processSteps: [] })
 
   const hidden = packagingBoxConfirmStudioExtras('en', {
     presetId: 'packaging_kit',

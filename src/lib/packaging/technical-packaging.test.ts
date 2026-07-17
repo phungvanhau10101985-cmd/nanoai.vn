@@ -30,9 +30,10 @@ test('parses decimal cm and explicit mm box sizes', () => {
 
 test('tuck-end layout has required artwork panels and no exact cut/crease overlap', () => {
   const layout = getTuckEndLayoutData({ lengthMm: 200, widthMm: 150, heightMm: 100 })
-  assert.equal(layout.panels.filter((p) => p.faceIndex === 1).length, 2)
-  assert.equal(layout.panels.filter((p) => p.faceIndex === 2).length, 2)
-  assert.equal(layout.panels.filter((p) => p.faceIndex === 3).length, 2)
+  assert.deepEqual(
+    layout.panels.map((panel) => panel.slot),
+    ['front', 'right', 'back', 'left', 'top', 'bottom']
+  )
   assert.ok(layout.glueTabMm >= 15)
   const key = (line: number[]) => line.map((n) => n.toFixed(3)).join(',')
   const cuts = new Set(layout.cutSegments.map(key))

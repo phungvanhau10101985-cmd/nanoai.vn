@@ -7,6 +7,7 @@ import type {
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   getFlowSteps,
+  getFlowStep,
   getPrimaryLogoStepKey,
   getStepFormFactor,
   getStepGenerator,
@@ -78,6 +79,7 @@ const STEP_KEY_ALIASES: Record<string, string[]> = {
   catalog_cover: ['catalog cover', 'bia catalog', 'bìa catalog'],
   box_flat: ['hop phang', 'hộp phẳng', 'flat box', 'dieline'],
   face_top: ['mat tren', 'mặt trên', 'top face', 'nap', 'nắp'],
+  body_strip: ['than hop lien', 'thân hộp liền', 'dai than', 'dải thân', 'body strip', 'continuous body'],
   face_front: ['mat truoc', 'mặt trước', 'front face'],
   face_right: ['mat phai', 'mặt phải', 'right side', 'mat hong phai'],
   face_bottom: ['mat duoi', 'mặt dưới', 'bottom face', 'day', 'đáy'],
@@ -128,7 +130,14 @@ export function normalizeRetryIntent(raw: unknown): HubStudioRetryIntent {
 
 export function isValidDesignStepKey(presetId: string, stepKey: string | null | undefined): boolean {
   if (!stepKey) return false
-  return getFlowSteps(presetId).some((s) => s.key === stepKey && s.phase === 'design')
+  return getFlowStep(presetId, stepKey)?.phase === 'design'
+}
+
+function getSessionFlow(session: HubStudioSession, presetId: string) {
+  const saved = session.processSteps
+    .map((step) => getFlowStep(presetId, step.key))
+    .filter((step): step is NonNullable<typeof step> => Boolean(step))
+  return saved.length ? saved : getFlowSteps(presetId)
 }
 
 export function buildDesignStepCatalog(
@@ -136,7 +145,7 @@ export function buildDesignStepCatalog(
   presetId: string,
   session: HubStudioSession
 ): { key: string; label: string; status: string }[] {
-  return getFlowSteps(presetId)
+  return getSessionFlow(session, presetId)
     .filter((s) => s.phase === 'design')
     .map((s) => ({
       key: s.key,
@@ -285,6 +294,15 @@ export function isDesignStepApprovedComplete(
   const proc = session.processSteps.find((s) => s.key === stepKey)
   const gen = getStepGenerator(presetId, stepKey)
   if (gen === 'lyria_music') return proc?.status === 'done'
+  if (presetId === 'packaging_kit' && stepKey === 'box_dieline_pdf') {
+    return proc?.status === 'done' && Boolean(session.packaging?.dielineUrl)
+  }
+  if (presetId === 'packaging_kit' && stepKey === 'box_mockup_3d') {
+    return proc?.status === 'done' && Boolean(session.packaging?.mockupUrl)
+  }
+  if (presetId === 'packaging_kit' && stepKey === 'barcode_label') {
+    return proc?.status === 'done' && Boolean(session.packaging?.barcodeUrl)
+  }
   const hasRef = session.referenceImages.some((r) => r.screenKey === stepKey)
   if (presetId === 'packaging_kit' && isPackagingFaceStepKey(stepKey)) {
     return proc?.status === 'done' && (hasRef || isPackagingFaceStepCommitted(session.packaging, stepKey))
@@ -316,7 +334,7 @@ export function getDesignStepIncompleteReason(
   presetId: string,
   stepKey: string
 ): DesignStepIncompleteReason {
-  const flow = getFlowSteps(presetId)
+  const flow = getSessionFlow(session, presetId)
   const stepDef = flow.find((s) => s.key === stepKey)
   if (!stepDef || stepDef.phase !== 'design') return 'none'
 
@@ -327,6 +345,14 @@ export function getDesignStepIncompleteReason(
 
   if (hasRef) return 'none'
   if (hasPending) return 'none'
+  if (
+    session.presetId === 'packaging_kit' &&
+    ((stepKey === 'box_dieline_pdf' && session.packaging?.dielineUrl) ||
+      (stepKey === 'box_mockup_3d' && session.packaging?.mockupUrl) ||
+      (stepKey === 'barcode_label' && session.packaging?.barcodeUrl))
+  ) {
+    return 'none'
+  }
 
   if (
     session.presetId === 'packaging_kit' &&
@@ -356,7 +382,9 @@ export function matchDesignStepRetryRequest(
   if (wantsContinueNextStep(aiHint) || !wantsStepCreation(message)) return null
 
   const m = normalize(message)
-  const designSteps = getFlowSteps(presetId).filter((s) => s.phase === 'design')
+  const designSteps = session
+    ? getSessionFlow(session, presetId).filter((s) => s.phase === 'design')
+    : getFlowSteps(presetId).filter((s) => s.phase === 'design')
 
   let best: { key: string; score: number } | null = null
 
@@ -392,7 +420,7 @@ export function findBlockingIncompleteStep(
   session: HubStudioSession,
   presetId: string
 ): string | null {
-  const flow = getFlowSteps(presetId)
+  const flow = getSessionFlow(session, presetId)
   const currentIdx = session.currentStepKey ? flow.findIndex((s) => s.key === session.currentStepKey) : -1
 
   for (const step of flow) {
@@ -452,7 +480,7 @@ export function resolveForwardDesignStepTarget(
   const matched = matchDesignStepRetryRequest(message, locale, presetId, session, aiHint)
   if (!matched) return null
 
-  const flow = getFlowSteps(presetId)
+  const flow = getSessionFlow(session, presetId)
   const targetIdx = flow.findIndex((s) => s.key === matched)
   const currentIdx = session.currentStepKey ? flow.findIndex((s) => s.key === session.currentStepKey) : -1
   if (targetIdx < 0) return null
@@ -516,7 +544,7 @@ export function needsStepRetryRepair(
     const reason = getDesignStepIncompleteReason(session, presetId, targetStepKey)
     return reason !== 'none'
   }
-  const flow = getFlowSteps(presetId)
+  const flow = getSessionFlow(session, presetId)
   const targetIdx = flow.findIndex((s) => s.key === targetStepKey)
   const currentIdx = session.currentStepKey ? flow.findIndex((s) => s.key === session.currentStepKey) : -1
   if (targetIdx >= 0 && currentIdx >= 0 && targetIdx !== currentIdx) {
@@ -540,7 +568,7 @@ export function applyStepRetryRepair(
   locale?: WebLocale,
   aiHint?: HubStudioAiRetryHint
 ): HubStudioSession {
-  const flow = getFlowSteps(presetId)
+  const flow = getSessionFlow(session, presetId)
   const targetIdx = flow.findIndex((s) => s.key === targetStepKey)
   if (targetIdx < 0) return session
 
@@ -742,6 +770,15 @@ export function buildPendingStepStudio(
     faceTargetRaw != null
       ? { width: faceTargetRaw.widthMm, height: faceTargetRaw.heightMm }
       : undefined
+  const box = session.packaging?.dimensionsMm
+  const faceFoldGuideRatios =
+    stepKey === 'body_strip' && box
+      ? [
+          box.length / (2 * (box.length + box.width)),
+          (box.length + box.width) / (2 * (box.length + box.width)),
+          (2 * box.length + box.width) / (2 * (box.length + box.width)),
+        ]
+      : undefined
 
   return {
     ...(gen === 'lyria_music' ? { audioUrl: pending.url } : { imageUrl: pending.url }),
@@ -756,6 +793,7 @@ export function buildPendingStepStudio(
     faceTargetSizeMm: faceTargetSizeMm ?? undefined,
     faceEditedSizeMm: pending.editedSizeMm ?? undefined,
     faceOriginalUrl: pending.originalUrl ?? undefined,
+    faceFoldGuideRatios,
     showRevertFaceEdit: Boolean(
       pending.originalUrl && pending.originalUrl !== pending.url
     ),

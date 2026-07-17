@@ -10,6 +10,7 @@ import type { HubStudioMessagePayload, HubStudioSession } from '@/lib/hub-chat/h
 
 export function stepSupportsGenerationRefPicker(presetId: string, stepKey: string): boolean {
   if (isLogoDesignStep(presetId, stepKey)) return false
+  if (stepKey === 'box_mockup_3d' || stepKey === 'box_dieline_pdf') return false
   const gen = getStepGenerator(presetId, stepKey)
   if (!gen) return false
   return generatorSupportsReferenceForPicker(gen)

@@ -184,11 +184,29 @@ test('hydrate face slots from reference images for compositor', () => {
   assert.equal(packaging.faceSlots?.bottom?.sourceMode, 'empty')
 })
 
-test('mockup uses per-slot url without copy fallback', () => {
+test('mockup resolves copied secondary face from its primary face', () => {
   const faceSlots = {
     top: { sourceMode: 'generate' as const, url: 'https://example.com/top.png' },
     bottom: { sourceMode: 'copy' as const },
   }
   assert.equal(resolveMockupSlotUrl('top', faceSlots), 'https://example.com/top.png')
-  assert.equal(resolveMockupSlotUrl('bottom', faceSlots), null)
+  assert.equal(resolveMockupSlotUrl('bottom', faceSlots), 'https://example.com/top.png')
+})
+
+test('completed deterministic packaging artifacts use saved output instead of reference images', () => {
+  const session = packagingSession({
+    processSteps: [
+      { key: 'box_mockup_3d', label: 'Mockup', status: 'done' },
+      { key: 'box_dieline_pdf', label: 'Dieline', status: 'done' },
+    ],
+    referenceImages: [],
+    packaging: {
+      ...packagingSession().packaging!,
+      mockupUrl: 'https://example.com/mockup.png',
+      dielineUrl: 'https://example.com/dieline.pdf',
+    },
+  })
+  assert.equal(isDesignStepApprovedComplete(session, 'packaging_kit', 'box_mockup_3d'), true)
+  assert.equal(isDesignStepApprovedComplete(session, 'packaging_kit', 'box_dieline_pdf'), true)
+  assert.equal(getDesignStepIncompleteReason(session, 'packaging_kit', 'box_dieline_pdf'), 'none')
 })

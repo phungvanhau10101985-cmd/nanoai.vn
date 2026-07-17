@@ -51,3 +51,23 @@ test('navigate forward to furthest clears navigated-back mode', () => {
   session = navigateSessionToStep(session, 'packaging_kit', 'face_left')
   assert.equal(isNavigatedBackEdit(session, 'packaging_kit'), false)
 })
+
+test('navigate to a copied face restores an editable preview from its source face', () => {
+  const session: HubStudioSession = {
+    ...sessionAtFaceLeft(),
+    packaging: {
+      version: 2,
+      dimensionsMm: { length: 200, width: 120, height: 80 },
+      faces: { LxW: 'https://example.com/top.png' },
+      faceSlots: {
+        top: { sourceMode: 'generate', url: 'https://example.com/top.png' },
+        bottom: { sourceMode: 'copy' },
+      },
+    },
+  }
+
+  const next = navigateSessionToStep(session, 'packaging_kit', 'face_bottom')
+
+  assert.equal(next.pendingPreview?.screenKey, 'face_bottom')
+  assert.equal(next.pendingPreview?.url, 'https://example.com/top.png')
+})

@@ -3,7 +3,20 @@
  * Hỗ trợ: Tuck-top (hộp nắp gập), Sleeve (hộp ốp).
  */
 
-import type { BoxFaceSlot } from '@/lib/packaging/box-face-slots'
+import {
+  getBoxFaceSlotLabel,
+  getSizeKeyForSlot,
+  type BoxFaceSlot,
+} from '@/lib/packaging/box-face-slots'
+import type { WebLocale } from '@/lib/i18n/config'
+import {
+  normalizeTuckBoxProductionParams,
+  type TuckBoxProductionParams,
+} from '@/lib/packaging/tuck-box-production'
+import {
+  DEFAULT_BOX_DIELINE_STRUCTURE,
+  type BoxDielineStructure,
+} from '@/lib/packaging/dieline-structure'
 
 export type BoxType = 'tuck-top' | 'sleeve'
 
@@ -82,7 +95,7 @@ function buildPanelDimension(
     tx = dimX - fs * 0.25
     ty = y + h / 2
     anchor = 'end'
-    minX = Math.min(minX, tx - fs * text.length * 0.35)
+    minX = Math.min(minX, tx - fs * text.length * 0.45)
   } else {
     const dimX = x + w + gap
     lines.push(line(x + w, y, dimX, y))
@@ -91,7 +104,7 @@ function buildPanelDimension(
     tx = dimX + fs * 0.25
     ty = y + h / 2
     anchor = 'start'
-    maxX = Math.max(maxX, tx + fs * text.length * 0.35)
+    maxX = Math.max(maxX, tx + fs * text.length * 0.45)
   }
 
   const labels = [
@@ -649,11 +662,18 @@ export function getSleeveLayoutData(d: BoxDimensions): SleeveLayoutData {
  * Đây là cấu trúc có thể bế, cấn, dán và dựng thành hộp kín; khác với
  * layout "sleeve" cũ chỉ là dải mặt in và không thể đóng thành hộp.
  */
-export function getTuckEndLayoutData(d: BoxDimensions): TuckEndLayoutData {
+export function getTuckEndLayoutData(
+  d: BoxDimensions,
+  production?: Partial<TuckBoxProductionParams>
+): TuckEndLayoutData {
   const { lengthMm: L, widthMm: W, heightMm: H } = d
+  const productionParams = production
+    ? normalizeTuckBoxProductionParams(production, H)
+    : { ...normalizeTuckBoxProductionParams(undefined, H), compensationGapMm: 0 }
   const pad = 2
-  const glueTabMm = Math.max(15, Math.min(25, H * 0.3))
+  const glueTabMm = productionParams.glueTabMm
   const tuckTabMm = Math.max(10, Math.min(20, W * 0.3))
+  const compensationGapMm = productionParams.compensationGapMm
   const dustDepth = Math.max(8, Math.min(W * 0.48, L * 0.45))
 
   const x0 = pad
@@ -709,21 +729,22 @@ export function getTuckEndLayoutData(d: BoxDimensions): TuckEndLayoutData {
   // Nắp trên + lưỡi gài, vát hai góc để dễ gài.
   const topTuckY = bodyTop - W - tuckTabMm
   const chamfer = Math.min(4, L * 0.08, tuckTabMm * 0.35)
+  const tuckInset = Math.min(L / 2 - 0.5, chamfer + compensationGapMm)
   cut(x0, bodyTop, x0, bodyTop - W)
   cut(x1, bodyTop, x1, bodyTop - W)
-  cut(x0, bodyTop - W, x0 + chamfer, topTuckY)
-  cut(x0 + chamfer, topTuckY, x1 - chamfer, topTuckY)
-  cut(x1 - chamfer, topTuckY, x1, bodyTop - W)
+  cut(x0, bodyTop - W, x0 + tuckInset, topTuckY)
+  cut(x0 + tuckInset, topTuckY, x1 - tuckInset, topTuckY)
+  cut(x1 - tuckInset, topTuckY, x1, bodyTop - W)
 
   // Nắp dưới + lưỡi gài.
   cut(x2, bodyBottom, x2, bottomPanelBottom)
   cut(x3, bodyBottom, x3, bottomPanelBottom)
-  cut(x2, bottomPanelBottom, x2 + chamfer, netBottom)
-  cut(x2 + chamfer, netBottom, x3 - chamfer, netBottom)
-  cut(x3 - chamfer, netBottom, x3, bottomPanelBottom)
+  cut(x2, bottomPanelBottom, x2 + tuckInset, netBottom)
+  cut(x2 + tuckInset, netBottom, x3 - tuckInset, netBottom)
+  cut(x3 - tuckInset, netBottom, x3, bottomPanelBottom)
 
   // Tai bụi: thu nhỏ dần về phía ngoài để không cấn/chồng khi đóng.
-  const dustInset = Math.min(3, W * 0.08)
+  const dustInset = Math.min(W / 2 - 0.5, Math.min(3, W * 0.08) + compensationGapMm)
   const topDustY = bodyTop - dustDepth
   const bottomDustY = bodyBottom + dustDepth
   for (const [left, right] of [[x1, x2], [x3, x4]] as const) {
@@ -752,4 +773,321 @@ export function getTuckEndLayoutData(d: BoxDimensions): TuckEndLayoutData {
     glueTabMm,
     tuckTabMm,
   }
+}
+
+/**
+ * Net chữ thập dành cho gấp/dán thủ công.
+ *
+ * Trục dọc: trên → trước → dưới → sau. Hai mặt hông gắn hai bên mặt trước.
+ * Các tai dán quanh nắp, đáy và mặt sau tạo đủ mép liên kết để dựng hộp kín.
+ */
+export function getCrossFoldLayoutData(
+  d: BoxDimensions,
+  production?: Partial<TuckBoxProductionParams>
+): TuckEndLayoutData {
+  const { lengthMm: L, widthMm: W, heightMm: H } = d
+  const productionParams = production
+    ? normalizeTuckBoxProductionParams(production, H)
+    : { ...normalizeTuckBoxProductionParams(undefined, H), compensationGapMm: 0 }
+  const pad = 2
+  const glueTabMm = Math.min(productionParams.glueTabMm, Math.max(8, Math.min(W, H) * 0.8))
+  const x = pad + glueTabMm + W
+  const topY = pad + glueTabMm
+  const frontY = topY + W
+  const bottomY = frontY + H
+  const backY = bottomY + W
+
+  const panels: TuckEndArtworkPanel[] = [
+    { x, y: topY, w: L, h: W, slot: 'top' },
+    { x, y: frontY, w: L, h: H, slot: 'front' },
+    { x: x + L, y: frontY, w: W, h: H, slot: 'right' },
+    { x, y: bottomY, w: L, h: W, slot: 'bottom' },
+    { x, y: backY, w: L, h: H, slot: 'back' },
+    { x: x - W, y: frontY, w: W, h: H, slot: 'left' },
+  ]
+
+  const cutSegments: [number, number, number, number][] = []
+  const foldSegments: [number, number, number, number][] = []
+  const cut = (x1: number, y1: number, x2: number, y2: number) =>
+    cutSegments.push([x1, y1, x2, y2])
+  const fold = (x1: number, y1: number, x2: number, y2: number) =>
+    foldSegments.push([x1, y1, x2, y2])
+
+  // Cấn giữa các mặt chính.
+  fold(x, frontY, x + L, frontY)
+  fold(x, bottomY, x + L, bottomY)
+  fold(x, backY, x + L, backY)
+  fold(x, frontY, x, frontY + H)
+  fold(x + L, frontY, x + L, frontY + H)
+
+  const addTab = (
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    outwardX: number,
+    outwardY: number
+  ) => {
+    const edgeLength = Math.hypot(x2 - x1, y2 - y1)
+    const tx = (x2 - x1) / edgeLength
+    const ty = (y2 - y1) / edgeLength
+    const inset = Math.min(4, edgeLength * 0.12, glueTabMm * 0.3)
+    const ax = x1 + tx * inset + outwardX * glueTabMm
+    const ay = y1 + ty * inset + outwardY * glueTabMm
+    const bx = x2 - tx * inset + outwardX * glueTabMm
+    const by = y2 - ty * inset + outwardY * glueTabMm
+    fold(x1, y1, x2, y2)
+    cut(x1, y1, ax, ay)
+    cut(ax, ay, bx, by)
+    cut(bx, by, x2, y2)
+  }
+
+  // Nắp trên dán vào ba cạnh còn lại.
+  addTab(x, topY, x + L, topY, 0, -1)
+  addTab(x, topY, x, frontY, -1, 0)
+  addTab(x + L, topY, x + L, frontY, 1, 0)
+  // Đáy đã nối trước/sau; hai tai bên dán vào mặt hông.
+  addTab(x, bottomY, x, backY, -1, 0)
+  addTab(x + L, bottomY, x + L, backY, 1, 0)
+  // Mặt sau dán với hai mặt hông.
+  addTab(x, backY, x, backY + H, -1, 0)
+  addTab(x + L, backY, x + L, backY + H, 1, 0)
+
+  // Các cạnh ngoài không có tai dán.
+  cut(x - W, frontY, x - W, frontY + H)
+  cut(x - W, frontY, x, frontY)
+  cut(x - W, frontY + H, x, frontY + H)
+  cut(x + L + W, frontY, x + L + W, frontY + H)
+  cut(x + L, frontY, x + L + W, frontY)
+  cut(x + L, frontY + H, x + L + W, frontY + H)
+  cut(x, backY + H, x + L, backY + H)
+
+  const maxX = Math.max(x + L + W, x + L + glueTabMm)
+  return {
+    panels,
+    cutSegments,
+    foldSegments,
+    bounds: {
+      widthMm: maxX + pad,
+      heightMm: backY + H + pad,
+    },
+    glueTabMm,
+    tuckTabMm: 0,
+  }
+}
+
+export function getBoxDielineLayoutData(
+  structure: BoxDielineStructure | undefined,
+  d: BoxDimensions,
+  production?: Partial<TuckBoxProductionParams>
+): TuckEndLayoutData {
+  return (structure ?? DEFAULT_BOX_DIELINE_STRUCTURE) === 'cross_fold'
+    ? getCrossFoldLayoutData(d, production)
+    : getTuckEndLayoutData(d, production)
+}
+
+function formatCmFromMm(mm: number, locale: WebLocale): string {
+  const cm = (mm / 10).toFixed(1)
+  return locale === 'vi' ? cm.replace('.', ',') : cm
+}
+
+function formatPanelDimLabel(mm: number, locale: WebLocale): string {
+  return `${formatCmFromMm(mm, locale)} cm`
+}
+
+const TUCK_END_PANEL_DIM_SIDES: Record<BoxFaceSlot, { width: DimSide; height: DimSide }> = {
+  front: { width: 'bottom', height: 'left' },
+  right: { width: 'bottom', height: 'left' },
+  back: { width: 'bottom', height: 'right' },
+  left: { width: 'bottom', height: 'right' },
+  top: { width: 'top', height: 'left' },
+  bottom: { width: 'bottom', height: 'right' },
+}
+
+function buildTuckEndPanelDimensions(
+  panel: TuckEndArtworkPanel,
+  locale: WebLocale
+): DimBuildResult {
+  const sides = TUCK_END_PANEL_DIM_SIDES[panel.slot]
+  const fs = Math.max(13, Math.min(18, Math.min(panel.w, panel.h) * 0.095))
+  const dimGap = fs * 0.82
+  const tickLen = 1.8
+  const stroke = 1.1
+  let result: DimBuildResult = {
+    lines: [],
+    labels: [],
+    minX: panel.x,
+    minY: panel.y,
+    maxX: panel.x + panel.w,
+    maxY: panel.y + panel.h,
+  }
+  result = mergeDimBounds(
+    result,
+    buildPanelDimension(
+      panel.x,
+      panel.y,
+      panel.w,
+      panel.h,
+      formatPanelDimLabel(panel.w, locale),
+      sides.width,
+      dimGap,
+      tickLen,
+      fs,
+      stroke
+    )
+  )
+  result = mergeDimBounds(
+    result,
+    buildPanelDimension(
+      panel.x,
+      panel.y,
+      panel.w,
+      panel.h,
+      formatPanelDimLabel(panel.h, locale),
+      sides.height,
+      dimGap,
+      tickLen,
+      fs,
+      stroke
+    )
+  )
+  return result
+}
+
+function shiftSvgLineMarkup(markup: string, offsetX: number, offsetY: number): string {
+  return markup
+    .replace(/x1="([^"]+)"/g, (_, v) => `x1="${(Number(v) + offsetX).toFixed(2)}"`)
+    .replace(/y1="([^"]+)"/g, (_, v) => `y1="${(Number(v) + offsetY).toFixed(2)}"`)
+    .replace(/x2="([^"]+)"/g, (_, v) => `x2="${(Number(v) + offsetX).toFixed(2)}"`)
+    .replace(/y2="([^"]+)"/g, (_, v) => `y2="${(Number(v) + offsetY).toFixed(2)}"`)
+}
+
+function shiftSvgTextMarkup(markup: string, offsetX: number, offsetY: number): string {
+  return markup
+    .replace(/\bx="([^"]+)"/g, (_, v) => `x="${(Number(v) + offsetX).toFixed(2)}"`)
+    .replace(/\by="([^"]+)"/g, (_, v) => `y="${(Number(v) + offsetY).toFixed(2)}"`)
+}
+
+function getTuckEndPanelLabelBounds(
+  panel: TuckEndArtworkPanel,
+  locale: WebLocale,
+  offsetX: number,
+  offsetY: number
+): { minX: number; minY: number; maxX: number; maxY: number } {
+  const cx = panel.x + panel.w / 2 + offsetX
+  const cy = panel.y + panel.h / 2 + offsetY
+  const name = getBoxFaceSlotLabel(panel.slot, locale)
+  const sizeKey = getSizeKeyForSlot(panel.slot).replace(/x/g, '×')
+  const fontSize = Math.max(16, Math.min(28, panel.w * 0.09, panel.h * 0.16))
+  const subSize = fontSize * 0.74
+  const lineGap = fontSize * 1
+  const padX = fontSize * 0.45
+  const padY = fontSize * 0.3
+  const boxW = Math.min(panel.w * 0.9, Math.max(name.length + sizeKey.length + 3, 8) * fontSize * 0.44 + padX * 2)
+  const boxH = fontSize + subSize + lineGap * 0.24 + padY * 2
+  return {
+    minX: cx - boxW / 2,
+    minY: cy - boxH / 2,
+    maxX: cx + boxW / 2,
+    maxY: cy + boxH / 2,
+  }
+}
+
+function buildTuckEndPanelLabelSvg(
+  panel: TuckEndArtworkPanel,
+  locale: WebLocale,
+  offsetX = 0,
+  offsetY = 0
+): string {
+  const cx = panel.x + panel.w / 2 + offsetX
+  const cy = panel.y + panel.h / 2 + offsetY
+  const name = getBoxFaceSlotLabel(panel.slot, locale)
+  const sizeKey = getSizeKeyForSlot(panel.slot).replace(/x/g, '×')
+  const fontSize = Math.max(16, Math.min(28, panel.w * 0.09, panel.h * 0.16))
+  const subSize = fontSize * 0.74
+  const lineGap = fontSize * 1
+  const padX = fontSize * 0.45
+  const padY = fontSize * 0.3
+  const boxW = Math.min(panel.w * 0.9, Math.max(name.length + sizeKey.length + 3, 8) * fontSize * 0.44 + padX * 2)
+  const boxH = fontSize + subSize + lineGap * 0.24 + padY * 2
+
+  return `<g>
+<rect x="${(cx - boxW / 2).toFixed(2)}" y="${(cy - boxH / 2).toFixed(2)}" width="${boxW.toFixed(2)}" height="${boxH.toFixed(2)}" rx="${(fontSize * 0.15).toFixed(2)}" fill="#ffffff" fill-opacity="0.92" stroke="#cbd5e1" stroke-width="0.4"/>
+<text x="${cx.toFixed(2)}" y="${(cy - lineGap * 0.16).toFixed(2)}" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize.toFixed(2)}" font-weight="700" font-family="system-ui,sans-serif" fill="#0f172a" stroke="#ffffff" stroke-width="${(fontSize * 0.13).toFixed(2)}" paint-order="stroke fill">${name}</text>
+<text x="${cx.toFixed(2)}" y="${(cy + lineGap * 0.48).toFixed(2)}" text-anchor="middle" dominant-baseline="middle" font-size="${subSize.toFixed(2)}" font-weight="600" font-family="system-ui,sans-serif" fill="#334155" stroke="#ffffff" stroke-width="${(subSize * 0.11).toFixed(2)}" paint-order="stroke fill">${sizeKey}</text>
+</g>`
+}
+
+/** Blank production preview built from the exact cut/fold geometry used by PDF export. */
+export function generateTuckEndBlankSvg(
+  d: BoxDimensions,
+  production?: Partial<TuckBoxProductionParams>,
+  locale: WebLocale = 'vi',
+  structure: BoxDielineStructure = DEFAULT_BOX_DIELINE_STRUCTURE
+): string {
+  const layout = getBoxDielineLayoutData(structure, d, production)
+
+  let bounds: DimBuildResult = {
+    lines: [],
+    labels: [],
+    minX: 0,
+    minY: 0,
+    maxX: layout.bounds.widthMm,
+    maxY: layout.bounds.heightMm,
+  }
+
+  const panelLabels: string[] = []
+  const dimLines: string[] = []
+  const dimLabels: string[] = []
+
+  for (const panel of layout.panels) {
+    const dims = buildTuckEndPanelDimensions(panel, locale)
+    dimLines.push(...dims.lines)
+    dimLabels.push(...dims.labels)
+    bounds = mergeDimBounds(bounds, dims)
+    bounds.minX = Math.min(bounds.minX, panel.x)
+    bounds.minY = Math.min(bounds.minY, panel.y)
+    bounds.maxX = Math.max(bounds.maxX, panel.x + panel.w)
+    bounds.maxY = Math.max(bounds.maxY, panel.y + panel.h)
+    const labelBounds = getTuckEndPanelLabelBounds(panel, locale, 0, 0)
+    bounds.minX = Math.min(bounds.minX, labelBounds.minX)
+    bounds.minY = Math.min(bounds.minY, labelBounds.minY)
+    bounds.maxX = Math.max(bounds.maxX, labelBounds.maxX)
+    bounds.maxY = Math.max(bounds.maxY, labelBounds.maxY)
+  }
+
+  const maxDimFont = layout.panels.reduce((max, panel) => {
+    const fs = Math.max(13, Math.min(18, Math.min(panel.w, panel.h) * 0.095))
+    return Math.max(max, fs)
+  }, 13)
+  const margin = Math.max(18, maxDimFont * 1.4)
+
+  const vbMinX = bounds.minX - margin
+  const vbMinY = bounds.minY - margin
+  const vbW = bounds.maxX - bounds.minX + margin * 2
+  const vbH = bounds.maxY - bounds.minY + margin * 2
+  const offsetX = -vbMinX
+  const offsetY = -vbMinY
+
+  for (const panel of layout.panels) {
+    panelLabels.push(buildTuckEndPanelLabelSvg(panel, locale, offsetX, offsetY))
+  }
+
+  const cut = layout.cutSegments
+    .map(
+      ([x1, y1, x2, y2]) =>
+        `<line x1="${(x1 + offsetX).toFixed(2)}" y1="${(y1 + offsetY).toFixed(2)}" x2="${(x2 + offsetX).toFixed(2)}" y2="${(y2 + offsetY).toFixed(2)}"/>`
+    )
+    .join('')
+  const fold = layout.foldSegments
+    .map(
+      ([x1, y1, x2, y2]) =>
+        `<line x1="${(x1 + offsetX).toFixed(2)}" y1="${(y1 + offsetY).toFixed(2)}" x2="${(x2 + offsetX).toFixed(2)}" y2="${(y2 + offsetY).toFixed(2)}"/>`
+    )
+    .join('')
+  const labels = panelLabels.join('')
+  const shiftedDimLines = dimLines.map((line) => shiftSvgLineMarkup(line, offsetX, offsetY)).join('')
+  const shiftedDimLabels = dimLabels.map((label) => shiftSvgTextMarkup(label, offsetX, offsetY)).join('')
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vbW.toFixed(2)} ${vbH.toFixed(2)}" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-hidden="true" style="display:block;width:100%;height:auto;min-height:160px"><rect width="100%" height="100%" fill="#fff"/><g stroke="#64748b" stroke-width="0.55" fill="none">${shiftedDimLines}</g><g font-family="system-ui,sans-serif" font-weight="600" fill="#1e293b">${shiftedDimLabels}</g><g stroke="#dc2626" stroke-width="0.65" fill="none">${cut}</g><g stroke="#16a34a" stroke-width="0.55" stroke-dasharray="3 2" fill="none">${fold}</g><g>${labels}</g></svg>`
 }

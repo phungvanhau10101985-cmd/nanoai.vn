@@ -6,6 +6,8 @@ import {
   getFaceDimensionsMm,
 } from '@/lib/packaging/dimensions'
 import { buildBoxWireframeSvg } from '@/lib/packaging/box-wireframe-svg'
+import type { TuckBoxProductionParams } from '@/lib/packaging/tuck-box-production'
+import type { BoxDielineStructure } from '@/lib/packaging/dieline-structure'
 import type { HubStudioMessagePayload, HubStudioProcessStep } from '@/lib/hub-chat/hub-studio-types'
 export type FaceLayoutOrientation = 'landscape' | 'portrait' | 'square'
 
@@ -176,7 +178,7 @@ export function buildBoxFaceConfirmStudioPayload(
 }
 
 export function packagingBoxConfirmStudioExtras(
-  locale: WebLocale,
+  _locale: WebLocale,
   session: {
     presetId?: string | null
     currentStepKey?: string | null
@@ -184,9 +186,12 @@ export function packagingBoxConfirmStudioExtras(
     packaging?: {
       dimensionsMm?: BoxDimensionsMm | null
       facesConfirmed?: boolean
+      layout?: 'six_faces' | 'hybrid_strip'
+      dielineStructure?: BoxDielineStructure
+      production?: TuckBoxProductionParams
     } | null
   }
-): Pick<HubStudioMessagePayload, 'processSteps' | 'boxWireframeSvg'> | null {
+): Pick<HubStudioMessagePayload, 'processSteps'> | null {
   if (
     session.presetId !== 'packaging_kit' ||
     session.currentStepKey !== 'box_face_confirm' ||
@@ -195,5 +200,7 @@ export function packagingBoxConfirmStudioExtras(
   ) {
     return null
   }
-  return buildBoxFaceConfirmStudioPayload(locale, session.packaging.dimensionsMm, session.processSteps)
+  return {
+    processSteps: session.processSteps,
+  }
 }

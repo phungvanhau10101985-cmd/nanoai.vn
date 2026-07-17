@@ -12,6 +12,11 @@ import {
 import { isNavigatedBackEdit } from '@/lib/hub-chat/hub-studio-step-navigate'
 import type { HubStudioProcessStep, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { parseBoxDimensions } from '@/lib/packaging/dimensions'
+import {
+  FACE_PRINT_STYLE_STEP_KEY,
+  isValidFacePrintStyleBrief,
+  reconcilePackagingProcessSteps,
+} from '@/lib/packaging/face-print-style'
 
 export function isValidStudioPresetId(presetId: string | null | undefined): boolean {
   const id = String(presetId ?? '').trim()
@@ -97,6 +102,9 @@ function shouldSkipDiscoveryBriefValue(
   value: string | undefined,
   locale?: WebLocale
 ): boolean {
+  if (stepKey === FACE_PRINT_STYLE_STEP_KEY) {
+    return !isValidFacePrintStyleBrief(value)
+  }
   if (!hasSubstantiveBriefValue(value)) return true
   if (stepKey === 'brand_name' && session.presetId && locale) {
     return isPresetTitleEcho(locale, session.presetId, value)
@@ -129,6 +137,7 @@ export function reconcileDiscoveryProgress(
   locale?: WebLocale
 ): HubStudioSession {
   session = stripObsoletePackagingSteps(session)
+  if (locale) session = reconcilePackagingProcessSteps(session, locale)
   if (!session.presetId || session.discoveryComplete || !session.processSteps.length) {
     return session
   }
@@ -209,8 +218,9 @@ export function reconcileDiscoveryProgress(
 }
 
 /** Keep discovery on the first unanswered brief step — AI must not skip ahead. */
-export function syncDiscoveryCurrentStep(session: HubStudioSession): HubStudioSession {
+export function syncDiscoveryCurrentStep(session: HubStudioSession, locale?: WebLocale): HubStudioSession {
   session = stripObsoletePackagingSteps(session)
+  if (locale) session = reconcilePackagingProcessSteps(session, locale)
   if (!session.presetId || session.discoveryComplete || !session.processSteps.length) return session
   if (isNavigatedBackEdit(session, session.presetId)) return session
   const firstPendingKey = firstIncompleteStepKey(session.processSteps)

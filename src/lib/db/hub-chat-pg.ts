@@ -200,6 +200,73 @@ export async function pgUpdateHubChatMessageContent(
   )
 }
 
+export async function pgReplaceLatestHubStudioImageMessage(params: {
+  threadId: string
+  screenKey: string
+  content: string
+  studio: HubStudioMessagePayload
+}): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  const pool = getPgPool()
+  const result = await pool.query<{ id: string }>(
+    `with target as (
+       select id
+       from public.hub_chat_messages
+       where thread_id = $1::uuid
+         and role = 'assistant'
+         and studio_json->>'screenKey' = $2
+         and nullif(studio_json->>'imageUrl', '') is not null
+       order by created_at desc
+       limit 1
+     )
+     update public.hub_chat_messages as message
+     set content = $3, studio_json = $4::jsonb
+     from target
+     where message.id = target.id
+     returning message.id::text`,
+    [params.threadId, params.screenKey, params.content, JSON.stringify(params.studio)]
+  )
+  if (result.rows[0]) {
+    await pool.query(`update public.hub_chat_threads set updated_at = now() where id = $1::uuid`, [
+      params.threadId,
+    ])
+  }
+  return result.rows[0]?.id ?? null
+}
+
+export async function pgUpdateLatestHubStudioImageUrl(params: {
+  threadId: string
+  screenKey: string
+  imageUrl: string
+}): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  const pool = getPgPool()
+  const result = await pool.query<{ id: string }>(
+    `with target as (
+       select id
+       from public.hub_chat_messages
+       where thread_id = $1::uuid
+         and role = 'assistant'
+         and studio_json->>'screenKey' = $2
+         and nullif(studio_json->>'imageUrl', '') is not null
+       order by created_at desc
+       limit 1
+     )
+     update public.hub_chat_messages as message
+     set studio_json = jsonb_set(message.studio_json, '{imageUrl}', to_jsonb($3::text), true)
+     from target
+     where message.id = target.id
+     returning message.id::text`,
+    [params.threadId, params.screenKey, params.imageUrl]
+  )
+  if (result.rows[0]) {
+    await pool.query(`update public.hub_chat_threads set updated_at = now() where id = $1::uuid`, [
+      params.threadId,
+    ])
+  }
+  return result.rows[0]?.id ?? null
+}
+
 export async function pgDeleteHubMessagesAfter(threadId: string, afterCreatedAt: string): Promise<void> {
   if (!isPgConfigured()) return
   const pool = getPgPool()

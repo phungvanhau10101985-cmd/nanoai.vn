@@ -8,8 +8,13 @@
 
 import { PDFDocument, rgb } from 'pdf-lib'
 import sharp from 'sharp'
-import { getTuckEndLayoutData, type BoxDimensions } from './box-net-svg'
+import { getBoxDielineLayoutData, type BoxDimensions } from './box-net-svg'
 import type { BoxFaceSlot } from '@/lib/packaging/box-face-slots'
+import type { TuckBoxProductionParams } from '@/lib/packaging/tuck-box-production'
+import {
+  DEFAULT_BOX_DIELINE_STRUCTURE,
+  type BoxDielineStructure,
+} from '@/lib/packaging/dieline-structure'
 
 const MM_TO_PT = 2.834645669
 const BLEED_MM = 3
@@ -32,10 +37,14 @@ async function whitePanelBuffer(widthPx: number, heightPx: number): Promise<Buff
 
 export interface BoxDielineInput {
   slotBuffers: Partial<Record<BoxFaceSlot, Buffer>>
+  /** Hybrid layout source; placed once across front|right|back|left. */
+  bodyStripBuffer?: Buffer
   boxLength: number
   boxWidth: number
   boxHeight: number
   bleedMm?: number
+  production?: Partial<TuckBoxProductionParams>
+  structure?: BoxDielineStructure
 }
 
 /**
@@ -43,10 +52,25 @@ export interface BoxDielineInput {
  * và Crease (xanh nét đứt), artwork có bleed thật.
  */
 export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffer> {
-  const { slotBuffers, boxLength, boxWidth, boxHeight, bleedMm = BLEED_MM } = input
+  const {
+    slotBuffers,
+    bodyStripBuffer,
+    boxLength,
+    boxWidth,
+    boxHeight,
+    production,
+    structure = DEFAULT_BOX_DIELINE_STRUCTURE,
+  } = input
+  const bleedMm = input.bleedMm ?? production?.bleedMm ?? BLEED_MM
+  const effectiveBodyStripBuffer =
+    structure === 'straight_tuck' ? bodyStripBuffer : undefined
 
   const d: BoxDimensions = { lengthMm: boxLength, widthMm: boxWidth, heightMm: boxHeight }
-  const { panels, cutSegments, foldSegments, bounds } = getTuckEndLayoutData(d)
+  const { panels, cutSegments, foldSegments, bounds } = getBoxDielineLayoutData(
+    structure,
+    d,
+    production
+  )
 
   const netWidthMm = bounds.widthMm
   const netHeightMm = bounds.heightMm
@@ -63,8 +87,37 @@ export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffe
 
   const bleedOps: { input: Buffer; left: number; top: number }[] = []
   const trimOps: { input: Buffer; left: number; top: number }[] = []
+  const sideSlots = new Set<BoxFaceSlot>(['front', 'right', 'back', 'left'])
+
+  if (effectiveBodyStripBuffer) {
+    const front = panels.find((panel) => panel.slot === 'front')!
+    const stripWidthMm = 2 * (boxLength + boxWidth)
+    const stripBleedImage = await sharp(effectiveBodyStripBuffer)
+      .resize(
+        MM_TO_PX(stripWidthMm + 2 * bleedMm),
+        MM_TO_PX(boxHeight + 2 * bleedMm),
+        { fit: 'cover', position: 'center' }
+      )
+      .png()
+      .toBuffer()
+    const stripImage = await sharp(effectiveBodyStripBuffer)
+      .resize(MM_TO_PX(stripWidthMm), MM_TO_PX(boxHeight), { fit: 'fill' })
+      .png()
+      .toBuffer()
+    bleedOps.push({
+      input: stripBleedImage,
+      left: MM_TO_PX(front.x),
+      top: MM_TO_PX(front.y),
+    })
+    trimOps.push({
+      input: stripImage,
+      left: MM_TO_PX(bleedMm + front.x),
+      top: MM_TO_PX(bleedMm + front.y),
+    })
+  }
 
   for (const panel of panels) {
+    if (effectiveBodyStripBuffer && sideSlots.has(panel.slot)) continue
     const wPx = Math.max(1, MM_TO_PX(panel.w))
     const hPx = Math.max(1, MM_TO_PX(panel.h))
     const bleedWPx = Math.max(1, MM_TO_PX(panel.w + 2 * bleedMm))
@@ -152,7 +205,11 @@ export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffe
   }
 
   pdfDoc.setTitle(`Box dieline ${boxLength}x${boxWidth}x${boxHeight} mm`)
-  pdfDoc.setSubject('Straight-tuck carton dieline: red solid = cut, green dashed = crease')
+  const productionSummary = production
+    ? `; bleed=${bleedMm}mm; glue-tab=${production.glueTabMm ?? 'auto'}mm; paper=${production.paperThicknessMm ?? 'unspecified'}mm; clearance=${production.compensationGapMm ?? 0}mm`
+    : `; bleed=${bleedMm}mm`
+  const structureLabel = structure === 'cross_fold' ? 'Cross-fold carton' : 'Straight-tuck carton'
+  pdfDoc.setSubject(`${structureLabel} dieline: red solid = cut, green dashed = crease${productionSummary}`)
   const pdfBytes = await pdfDoc.save()
   return Buffer.from(pdfBytes)
 }

@@ -27,7 +27,7 @@ export function pendingPreviewFromApprovedReference(
 }
 
 export function getFurthestReachedStepIndex(session: HubStudioSession, presetId: string): number {
-  const flow = getFlowSteps(presetId)
+  const flow = session.processSteps.length ? session.processSteps : getFlowSteps(presetId)
   let max = -1
   for (const step of session.processSteps) {
     if (step.status !== 'done' && step.status !== 'in_progress') continue
@@ -42,7 +42,7 @@ export function canNavigateToStep(
   presetId: string,
   stepKey: string
 ): boolean {
-  const flow = getFlowSteps(presetId)
+  const flow = session.processSteps.length ? session.processSteps : getFlowSteps(presetId)
   const targetIdx = flow.findIndex((s) => s.key === stepKey)
   if (targetIdx < 0) return false
   const proc = session.processSteps.find((s) => s.key === stepKey)
@@ -54,7 +54,7 @@ export function canNavigateToStep(
 /** User is viewing/editing an earlier step while later steps remain done. */
 export function isNavigatedBackEdit(session: HubStudioSession, presetId: string): boolean {
   if (!session.currentStepKey) return false
-  const flow = getFlowSteps(presetId)
+  const flow = session.processSteps.length ? session.processSteps : getFlowSteps(presetId)
   const currentIdx = flow.findIndex((s) => s.key === session.currentStepKey)
   const furthestIdx = getFurthestReachedStepIndex(session, presetId)
   return currentIdx >= 0 && furthestIdx >= 0 && currentIdx < furthestIdx

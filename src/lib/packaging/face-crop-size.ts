@@ -28,7 +28,7 @@ export function getFaceSizeMmForPackagingFaceKey(
   return { widthMm, heightMm }
 }
 
-/** Map crop region (image pixel fraction) to physical mm on the box face. */
+/** Map crop region (image pixels) to physical mm on the box face. */
 export function cropRegionToPrintSizeMm(
   faceSize: FaceSizeMm,
   imageNaturalWidth: number,
@@ -36,8 +36,11 @@ export function cropRegionToPrintSizeMm(
   crop: { x: number; y: number; width: number; height: number }
 ): FaceSizeMm {
   if (imageNaturalWidth <= 0 || imageNaturalHeight <= 0) return faceSize
-  const widthMm = (faceSize.widthMm * crop.width) / imageNaturalWidth
-  const heightMm = (faceSize.heightMm * crop.height) / imageNaturalHeight
+  const aspect = faceSize.widthMm / faceSize.heightMm
+  const containW = Math.max(imageNaturalWidth, imageNaturalHeight * aspect)
+  const containH = containW / aspect
+  const widthMm = (faceSize.widthMm * crop.width) / containW
+  const heightMm = (faceSize.heightMm * crop.height) / containH
   return {
     widthMm: Math.round(widthMm * 100) / 100,
     heightMm: Math.round(heightMm * 100) / 100,

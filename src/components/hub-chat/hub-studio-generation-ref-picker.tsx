@@ -30,6 +30,8 @@ export function HubStudioGenerationRefPicker({
   labels: {
     title: string
     hint: string
+    approvedSection: string
+    productSection: string
     productUpload: string
     attachCount: string
     removeProduct: string
@@ -54,7 +56,9 @@ export function HubStudioGenerationRefPicker({
       <p className="mt-0.5 text-[11px] text-muted-foreground">{labels.hint}</p>
 
       {options.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-2">
+        <>
+          <p className="mt-2 text-[11px] font-medium text-sky-800 dark:text-sky-200">{labels.approvedSection}</p>
+          <div className="mt-1 flex flex-wrap gap-2">
           {options.map((opt) => {
             const checked = selectedKeys.includes(opt.screenKey)
             const disabled = busy || (!checked && atLimit)
@@ -86,11 +90,16 @@ export function HubStudioGenerationRefPicker({
               </label>
             )
           })}
-        </div>
+          </div>
+        </>
+      ) : null}
+
+      {productPreviews.length > 0 || !atLimit ? (
+        <p className="mt-2 text-[11px] font-medium text-emerald-800 dark:text-emerald-200">{labels.productSection}</p>
       ) : null}
 
       {productPreviews.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-1 flex flex-wrap gap-2">
           {productPreviews.map((p) => (
             <div
               key={p.url}

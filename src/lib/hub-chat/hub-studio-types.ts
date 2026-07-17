@@ -1,4 +1,6 @@
 import { normalizeBoxDimensionsMm } from '@/lib/packaging/dimensions'
+import type { TuckBoxProductionParams } from '@/lib/packaging/tuck-box-production'
+import type { BoxDielineStructure } from '@/lib/packaging/dieline-structure'
 
 export type HubStudioStepStatus = 'pending' | 'in_progress' | 'done'
 
@@ -30,7 +32,12 @@ export type HubPackagingFaceKey = 'LxW' | 'LxH' | 'WxH'
 
 export type HubPackagingState = {
   version: 2
+  /** Missing on saved sessions means the legacy six-face workflow. */
+  layout?: 'six_faces' | 'hybrid_strip'
+  /** Physical net construction; missing on saved sessions defaults to straight tuck. */
+  dielineStructure?: BoxDielineStructure
   dimensionsMm: { length: number; width: number; height: number } | null
+  production?: TuckBoxProductionParams
   /** In-progress L → W → H wizard before dimensionsMm is set. */
   dimensionDraft?: {
     lengthMm?: number
@@ -44,6 +51,11 @@ export type HubPackagingState = {
       { sourceMode: 'generate' | 'copy' | 'empty'; url?: string }
     >
   >
+  /** Approved continuous source and derived side textures. */
+  bodyStrip?: {
+    originalUrl: string
+    foldOffsetsMm: [number, number, number]
+  }
   faceAspectRatios?: Partial<Record<HubPackagingFaceKey, string>>
   facesConfirmed?: boolean
   dielineUrl?: string
@@ -117,6 +129,18 @@ export type HubStudioMessagePayload = {
   stepKey?: string
   /** Inline SVG wireframe for packaging box face confirm (no AI). */
   boxWireframeSvg?: string
+  /** Production checks displayed with the blank dieline/PDF artifact. */
+  boxProductionSummary?: {
+    netWidthMm: number
+    netHeightMm: number
+    bleedMm: number
+    glueTabMm: number
+    compensationGapMm: number
+    paperThicknessMm: number
+    resolutionDpi?: number
+  }
+  /** Show face print style picker on packaging_kit discovery step. */
+  showFacePrintStylePicker?: boolean
   /** Show crop/edit for pending packaging face preview. */
   showCropImage?: boolean
   /** Target box face size (mm). */
@@ -125,6 +149,8 @@ export type HubStudioMessagePayload = {
   faceEditedSizeMm?: { width: number; height: number }
   /** Original AI image URL when pending was edited (for revert). */
   faceOriginalUrl?: string
+  /** Relative x positions for continuous body fold guides. */
+  faceFoldGuideRatios?: number[]
   /** True when edited url differs from original. */
   showRevertFaceEdit?: boolean
 }

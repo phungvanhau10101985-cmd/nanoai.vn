@@ -159,6 +159,10 @@ export type Dictionary = {
     studioStepSavedStay: string
     studioNavigateStepBlocked: string
     studioRegenerate: string
+    studioRegenerateDialogTitle: string
+    studioRegeneratePromptLabel: string
+    studioRegeneratePromptHint: string
+    studioRegenerateConfirm: string
     studioExistingStepHint: string
     studioUseReference: string
     studioImageCredit: string
@@ -172,6 +176,7 @@ export type Dictionary = {
     studioReferenceLimit: string
     studioReferenceRemoved: string
     studioBriefUpdated: string
+    studioFacePrintStyleConfirmed: string
     studioEditStep: string
     studioEditSave: string
     studioEditCancel: string
@@ -182,6 +187,8 @@ export type Dictionary = {
     studioReferenceCount: string
     studioGenRefPickerTitle: string
     studioGenRefPickerHint: string
+    studioGenRefApprovedSection: string
+    studioGenRefProductSection: string
     studioGenRefProductLabel: string
     studioGenProductUploaded: string
     studioGenRefAttachCount: string
@@ -250,17 +257,43 @@ export type Dictionary = {
     studioCropTargetDisplay: string
     studioCropTitle: string
     studioCropSave: string
+    studioCropDone: string
     studioCropCancel: string
     studioCropZoom: string
     studioCropTargetSize: string
     studioCropResultSize: string
     studioCropDragHint: string
     studioCropRatioLocked: string
+    studioCropFillEdgeColor: string
+    studioCropFillEdgeColorOff: string
+    studioCropOutpaintBackground: string
+    studioCropOutpaintBusy: string
+    studioCropOutpaintNeedGaps: string
+    studioCropOutpaintDone: string
+    studioCropOutpaintCredit: string
+    studioCropBlendSeams: string
+    studioCropBlendSeamsBusy: string
+    studioCropEraser: string
+    studioCropAdjustFrame: string
+    studioCropFrameModeFree: string
+    studioCropFrameModePrint: string
+    studioCropDragHintFree: string
+    studioCropRatioFree: string
+    studioCropEraserSize: string
+    studioCropEraserUndo: string
+    studioCropEraserUndoHint: string
+    studioCropMagicEraser: string
+    studioCropMagicEraserBusy: string
+    studioCropMagicEraserHint: string
+    studioCropMagicEraserModeBox: string
+    studioCropMagicEraserModeBrush: string
+    studioCropMagicEraserBoxHint: string
     studioEditAddText: string
     studioEditAddImage: string
     studioEditAddSticker: string
     studioEditOverlayHint: string
     studioEditTextPlaceholder: string
+    studioEditTextColor: string
     studioEditDeleteLayer: string
     studioEditRevertOriginal: string
     studioEditReverted: string
@@ -2675,6 +2708,10 @@ const VI_DICTIONARY: Dictionary = {
     studioStepSavedStay: 'Đã lưu **{screen}**. Bấm bước khác trên quy trình để tiếp tục.',
     studioNavigateStepBlocked: 'Chưa thể chuyển tới bước này — chỉ các bước đã hoàn thành mới bấm được.',
     studioRegenerate: 'Tạo lại',
+    studioRegenerateDialogTitle: 'Tạo lại — xem & chọn nội dung',
+    studioRegeneratePromptLabel: 'Mô tả / nội dung tạo ảnh',
+    studioRegeneratePromptHint: 'Chỉnh mô tả nếu cần — đây là nội dung AI sẽ dùng để tạo phiên bản mới.',
+    studioRegenerateConfirm: 'Tạo lại ngay',
     studioExistingStepHint: 'Ảnh đã tạo — giữ nguyên hoặc bấm Tạo lại nếu muốn phiên bản khác.',
     studioUseReference: 'Chọn làm tham chiếu và tiếp',
     studioImageCredit: 'Tạo ảnh: {n} credits',
@@ -2688,6 +2725,7 @@ const VI_DICTIONARY: Dictionary = {
     studioReferenceLimit: 'Đã đủ {max} ảnh tham chiếu. Gỡ bớt một ảnh trước khi chọn thêm.',
     studioReferenceRemoved: 'Đã gỡ ảnh tham chiếu: {screen}. Bạn có thể chọn lại ảnh cho bước này.',
     studioBriefUpdated: 'Đã cập nhật brief {screen}. Tiếp tục bước hiện tại bên dưới.',
+    studioFacePrintStyleConfirmed: 'Đã chọn phong cách hình ảnh: **{style}** — áp dụng đồng bộ cho cả 6 mặt hộp.',
     studioEditStep: 'Sửa',
     studioEditSave: 'Lưu',
     studioEditCancel: 'Hủy',
@@ -2697,8 +2735,11 @@ const VI_DICTIONARY: Dictionary = {
     studioReferenceAttachHint: 'Mỗi lần tạo, AI chỉ gửi tối đa {n} ảnh (ưu tiên Logo + các bước gần nhất) để tránh loãng style.',
     studioReferenceCount: '({count}/{max})',
     studioGenRefPickerTitle: 'Ảnh ghép lên bao bì (lần tạo này)',
-    studioGenRefPickerHint: 'Chọn ảnh đã duyệt và tải ảnh sản phẩm — AI ghép trực tiếp lên mặt bao bì (tối đa {max} ảnh/lần).',
-    studioGenRefProductLabel: 'Ảnh sản phẩm (ghép lên bao bì)',
+    studioGenRefPickerHint:
+      'Tối đa {max} ảnh/lần. Ô xám: mặt/logo đã duyệt — AI lấy style và đồ họa in. Ô xanh: ảnh sản phẩm — AI ghép phẳng lên mặt đang tạo (cần style «Ảnh sản phẩm ghép phẳng»). Mockup 3D không dùng ô này.',
+    studioGenRefApprovedSection: 'Ảnh tham khảo (mặt/logo đã duyệt)',
+    studioGenRefProductSection: 'Ảnh sản phẩm ghép phẳng',
+    studioGenRefProductLabel: 'Tải ảnh sản phẩm',
     studioGenProductUploaded: 'Đã thêm {n} ảnh sản phẩm cho lần tạo.',
     studioGenRefAttachCount: '{n}/{max} ảnh',
     studioLogoFirst: 'Cần tạo và chọn Logo làm tham chiếu trước khi tạo các trang giao diện.',
@@ -2767,17 +2808,43 @@ const VI_DICTIONARY: Dictionary = {
     studioCropTargetDisplay: 'Kích thước mặt hộp: {size}',
     studioCropTitle: 'Chỉnh sửa ảnh mặt in',
     studioCropSave: 'Áp dụng',
+    studioCropDone: 'Xong',
     studioCropCancel: 'Hủy',
     studioCropZoom: 'Thu phóng',
     studioCropTargetSize: 'Mặt hộp (mục tiêu): {size}',
     studioCropResultSize: 'Vùng in sau cắt: {size}',
-    studioCropDragHint: 'Kéo khung đỏ để di chuyển — kéo góc để phóng to/thu nhỏ (tỷ lệ cố định theo mặt hộp).',
+    studioCropDragHint: 'Kéo khung đỏ để di chuyển — kéo góc để phóng to/thu nhỏ. Vùng trống có thể lấp bằng màu viền ảnh (nút bên dưới).',
     studioCropRatioLocked: 'Tỷ lệ khung cắt luôn khớp mặt in: {size}',
+    studioCropFillEdgeColor: 'Lấp màu nền',
+    studioCropFillEdgeColorOff: 'Vùng trống trắng',
+    studioCropOutpaintBackground: 'Vẽ nền AI',
+    studioCropOutpaintBusy: 'Đang vẽ nền AI…',
+    studioCropOutpaintNeedGaps: 'Kéo khung ra ngoài ảnh để mở rộng trước.',
+    studioCropOutpaintDone: 'Đã vẽ nền AI cho vùng mở rộng — xem preview và bấm Lưu nếu ổn.',
+    studioCropOutpaintCredit: '{n} credits',
+    studioCropBlendSeams: 'Làm mượt vùng nối',
+    studioCropBlendSeamsBusy: 'Đang làm mượt vùng nối…',
+    studioCropEraser: 'Cục tẩy',
+    studioCropAdjustFrame: 'Chỉnh khung cắt',
+    studioCropFrameModeFree: 'Tùy ý',
+    studioCropFrameModePrint: 'Chuẩn in hộp',
+    studioCropDragHintFree: 'Kéo khung đỏ tùy ý — kéo góc để đổi rộng/cao độc lập, không khóa tỷ lệ.',
+    studioCropRatioFree: 'Khung tùy ý — có thể lệch tỷ lệ mặt in trên hộp.',
+    studioCropEraserSize: 'Cỡ tẩy',
+    studioCropEraserUndo: 'Quay lại',
+    studioCropEraserUndoHint: 'Ctrl+Z hoặc Quay lại để hoàn tác nét tẩy',
+    studioCropMagicEraser: 'Xóa magic',
+    studioCropMagicEraserBusy: 'Đang lấp vùng…',
+    studioCropMagicEraserHint: 'Tô vùng cần xóa — tự lấp bằng màu xung quanh (như Photoshop)',
+    studioCropMagicEraserModeBox: 'Chọn ô',
+    studioCropMagicEraserModeBrush: 'Tô vùng',
+    studioCropMagicEraserBoxHint: 'Kéo chuột vẽ khung chữ nhật — thả tay để xóa và lấp vùng trong khung.',
     studioEditAddText: 'Thêm chữ',
     studioEditAddImage: 'Chèn ảnh',
     studioEditAddSticker: 'Chèn nhãn dán',
     studioEditOverlayHint: 'Chạm/chọn lớp để kéo — kéo góc tím để phóng to/thu nhỏ nhãn dán hoặc ảnh chèn.',
     studioEditTextPlaceholder: 'Nội dung chữ',
+    studioEditTextColor: 'Màu chữ',
     studioEditDeleteLayer: 'Xóa lớp',
     studioEditRevertOriginal: 'Quay lại ảnh gốc',
     studioEditReverted: 'Đã khôi phục ảnh gốc AI ({screen}).',
@@ -2837,7 +2904,7 @@ const VI_DICTIONARY: Dictionary = {
       packaging_kit: {
         title: 'Bộ đóng gói',
         sample: 'Bao bì mỹ phẩm organic, hộp vuông, tem niêm phong',
-        steps: { logo: 'Logo', box_flat: 'Hộp phẳng', box_3d: 'Mockup 3D', label: 'Nhãn', seal: 'Tem' },
+        steps: { logo: 'Logo', body_strip: 'Đủ 6 mặt hộp', box_3d: 'Mockup 3D', dieline: 'Dieline PDF', label: 'Nhãn' },
       },
       interior_design: {
         title: 'Nội thất',
@@ -5200,6 +5267,10 @@ const EN_DICTIONARY: Dictionary = {
     studioStepSavedStay: 'Saved **{screen}**. Click another step in the rail to continue.',
     studioNavigateStepBlocked: 'Cannot jump to this step yet — only completed steps are clickable.',
     studioRegenerate: 'Regenerate',
+    studioRegenerateDialogTitle: 'Regenerate — review & pick inputs',
+    studioRegeneratePromptLabel: 'Description / generation prompt',
+    studioRegeneratePromptHint: 'Edit if needed — this is what AI uses for the new version.',
+    studioRegenerateConfirm: 'Regenerate now',
     studioExistingStepHint: 'Existing output — keep it or tap Regenerate for a new version.',
     studioUseReference: 'Use as reference & continue',
     studioImageCredit: 'Image: {n} credits',
@@ -5213,6 +5284,7 @@ const EN_DICTIONARY: Dictionary = {
     studioReferenceLimit: 'You have reached the {max} reference image limit. Remove one before adding more.',
     studioReferenceRemoved: 'Removed reference: {screen}. You can select a new image for this step.',
     studioBriefUpdated: 'Updated brief for {screen}. Continue with the current step below.',
+    studioFacePrintStyleConfirmed: 'Visual art style set: **{style}** — applied consistently to all 6 box faces.',
     studioEditStep: 'Edit',
     studioEditSave: 'Save',
     studioEditCancel: 'Cancel',
@@ -5222,8 +5294,11 @@ const EN_DICTIONARY: Dictionary = {
     studioReferenceAttachHint: 'Each generation sends at most {n} references (Logo first, then the most recent steps) to avoid diluted style.',
     studioReferenceCount: '({count}/{max})',
     studioGenRefPickerTitle: 'Images to composite on packaging (this run)',
-    studioGenRefPickerHint: 'Pick approved refs and upload product photos — AI composites them onto the packaging face (max {max} images per run).',
-    studioGenRefProductLabel: 'Product photo (composite on box)',
+    studioGenRefPickerHint:
+      'Max {max} images per run. Gray: approved face/logo refs — style and print graphics. Green: product photos — flatten onto the face being created (needs «Flat product photo» print style). 3D mockup does not use this picker.',
+    studioGenRefApprovedSection: 'Reference (approved face/logo)',
+    studioGenRefProductSection: 'Product photos to flatten',
+    studioGenRefProductLabel: 'Upload product photo',
     studioGenProductUploaded: 'Added {n} product photo(s) for this generation.',
     studioGenRefAttachCount: '{n}/{max} images',
     studioLogoFirst: 'Create and approve the Logo as reference before designing UI screens.',
@@ -5292,17 +5367,43 @@ const EN_DICTIONARY: Dictionary = {
     studioCropTargetDisplay: 'Box face size: {size}',
     studioCropTitle: 'Edit print face',
     studioCropSave: 'Apply',
+    studioCropDone: 'Done',
     studioCropCancel: 'Cancel',
     studioCropZoom: 'Zoom',
     studioCropTargetSize: 'Box face (target): {size}',
     studioCropResultSize: 'Print area after crop: {size}',
-    studioCropDragHint: 'Drag the red frame to move — drag corners to resize (fixed box-face ratio).',
+    studioCropDragHint: 'Drag the red frame to move — drag corners to resize. Empty areas can fill with edge colors from the image (toggle below).',
     studioCropRatioLocked: 'Crop ratio locked to print face: {size}',
+    studioCropFillEdgeColor: 'Fill base color',
+    studioCropFillEdgeColorOff: 'White gaps',
+    studioCropOutpaintBackground: 'AI fill background',
+    studioCropOutpaintBusy: 'AI painting background…',
+    studioCropOutpaintNeedGaps: 'Extend the crop frame beyond the image first.',
+    studioCropOutpaintDone: 'AI background applied to extended areas — preview and Save if it looks good.',
+    studioCropOutpaintCredit: '{n} credits',
+    studioCropBlendSeams: 'Smooth seams',
+    studioCropBlendSeamsBusy: 'Smoothing seams…',
+    studioCropEraser: 'Eraser',
+    studioCropAdjustFrame: 'Adjust crop frame',
+    studioCropFrameModeFree: 'Free',
+    studioCropFrameModePrint: 'Print ratio',
+    studioCropDragHintFree: 'Drag the red frame freely — corner handles resize width and height independently.',
+    studioCropRatioFree: 'Free frame — print area may differ from the box face ratio.',
+    studioCropEraserSize: 'Eraser size',
+    studioCropEraserUndo: 'Undo',
+    studioCropEraserUndoHint: 'Ctrl+Z or Undo to revert eraser stroke',
+    studioCropMagicEraser: 'Magic eraser',
+    studioCropMagicEraserBusy: 'Filling area…',
+    studioCropMagicEraserHint: 'Paint to remove — fills from surrounding pixels (like Photoshop)',
+    studioCropMagicEraserModeBox: 'Select box',
+    studioCropMagicEraserModeBrush: 'Paint',
+    studioCropMagicEraserBoxHint: 'Drag to draw a rectangle — release to erase and fill the selected area.',
     studioEditAddText: 'Add text',
     studioEditAddImage: 'Insert image',
     studioEditAddSticker: 'Insert sticker',
     studioEditOverlayHint: 'Tap a layer to move — drag purple corners to resize stickers or inserted images.',
     studioEditTextPlaceholder: 'Text content',
+    studioEditTextColor: 'Text color',
     studioEditDeleteLayer: 'Delete layer',
     studioEditRevertOriginal: 'Revert to original',
     studioEditReverted: 'Restored original AI image ({screen}).',
@@ -5362,7 +5463,7 @@ const EN_DICTIONARY: Dictionary = {
       packaging_kit: {
         title: 'Packaging kit',
         sample: 'Organic cosmetics box, seal and barcode label',
-        steps: { logo: 'Logo', box_flat: 'Flat box', box_3d: '3D mockup', label: 'Label', seal: 'Seal' },
+        steps: { logo: 'Logo', body_strip: 'All 6 box faces', box_3d: '3D mockup', dieline: 'Dieline PDF', label: 'Label' },
       },
       interior_design: {
         title: 'Interior design',
@@ -7772,6 +7873,10 @@ const ZH_DICTIONARY: Dictionary = {
     studioStepSavedStay: '已保存 **{screen}**。点击流程条其他步骤继续。',
     studioNavigateStepBlocked: '无法跳到此步骤 — 仅已完成步骤可点击。',
     studioRegenerate: '重新生成',
+    studioRegenerateDialogTitle: '重新生成 — 查看并选择内容',
+    studioRegeneratePromptLabel: '描述 / 生成提示',
+    studioRegeneratePromptHint: '可按需修改 — AI 将据此生成新版本。',
+    studioRegenerateConfirm: '立即重新生成',
     studioExistingStepHint: '已有输出 — 可保留或点重新生成。',
     studioUseReference: '选为参考并继续',
     studioImageCredit: '生成图片：{n} 积分',
@@ -7785,6 +7890,7 @@ const ZH_DICTIONARY: Dictionary = {
     studioReferenceLimit: '已达 {max} 张参考图上限。请先移除一张再添加。',
     studioReferenceRemoved: '已移除参考图：{screen}。可重新为该步骤选择图片。',
     studioBriefUpdated: '已更新 {screen} 简报。请继续当前步骤。',
+    studioFacePrintStyleConfirmed: '已选择图像风格：**{style}** — 六个盒面统一应用。',
     studioEditStep: '编辑',
     studioEditSave: '保存',
     studioEditCancel: '取消',
@@ -7794,8 +7900,11 @@ const ZH_DICTIONARY: Dictionary = {
     studioReferenceAttachHint: '每次生成最多发送 {n} 张参考图（优先 Logo + 最近步骤），避免风格稀释。',
     studioReferenceCount: '({count}/{max})',
     studioGenRefPickerTitle: '本次合成到包装上的图片',
-    studioGenRefPickerHint: '选择已批准参考图并上传产品照片 — AI 直接合成到包装面上（每次最多 {max} 张）。',
-    studioGenRefProductLabel: '产品照片（合成到包装）',
+    studioGenRefPickerHint:
+      '每次最多 {max} 张。灰色：已审面/标志参考。绿色：产品照片平铺到当前面（需选「产品平铺照片」风格）。3D mockup 不使用此区。',
+    studioGenRefApprovedSection: '参考图（已审面/标志）',
+    studioGenRefProductSection: '待平铺的产品照片',
+    studioGenRefProductLabel: '上传产品照片',
     studioGenProductUploaded: '已为本次生成添加 {n} 张产品照片。',
     studioGenRefAttachCount: '{n}/{max} 张',
     studioLogoFirst: '请先创建并批准 Logo 作为参考，再设计界面页面。',
@@ -7864,17 +7973,43 @@ const ZH_DICTIONARY: Dictionary = {
     studioCropTargetDisplay: '盒面尺寸：{size}',
     studioCropTitle: '编辑印刷面',
     studioCropSave: '应用',
+    studioCropDone: '完成',
     studioCropCancel: '取消',
     studioCropZoom: '缩放',
     studioCropTargetSize: '盒面（目标）：{size}',
     studioCropResultSize: '裁剪后印刷区域：{size}',
-    studioCropDragHint: '拖动红框移动 — 拖角缩放（比例固定为盒面）。',
+    studioCropDragHint: '拖动红框移动 — 拖角缩放。空白区域可用图像边缘色填充（下方按钮）。',
     studioCropRatioLocked: '裁剪比例锁定为印刷面：{size}',
+    studioCropFillEdgeColor: '填充底色',
+    studioCropFillEdgeColorOff: '空白填白',
+    studioCropOutpaintBackground: 'AI 绘制背景',
+    studioCropOutpaintBusy: 'AI 正在绘制背景…',
+    studioCropOutpaintNeedGaps: '请先将裁剪框扩展到图片外。',
+    studioCropOutpaintDone: '已为扩展区域绘制 AI 背景 — 预览满意后请保存。',
+    studioCropOutpaintCredit: '{n} credits',
+    studioCropBlendSeams: '平滑接缝',
+    studioCropBlendSeamsBusy: '正在平滑接缝…',
+    studioCropEraser: '橡皮擦',
+    studioCropAdjustFrame: '调整裁剪框',
+    studioCropFrameModeFree: '自由',
+    studioCropFrameModePrint: '印刷比例',
+    studioCropDragHintFree: '自由拖动红框 — 拖角可独立调整宽高，不锁定比例。',
+    studioCropRatioFree: '自由框 — 印刷区域可能与盒面比例不一致。',
+    studioCropEraserSize: '橡皮大小',
+    studioCropEraserUndo: '撤销',
+    studioCropEraserUndoHint: 'Ctrl+Z 或撤销擦除笔划',
+    studioCropMagicEraser: '魔法橡皮擦',
+    studioCropMagicEraserBusy: '正在填充…',
+    studioCropMagicEraserHint: '涂抹要删除的区域 — 用周围像素填充（类似 Photoshop）',
+    studioCropMagicEraserModeBox: '框选',
+    studioCropMagicEraserModeBrush: '涂抹',
+    studioCropMagicEraserBoxHint: '拖动鼠标绘制矩形框 — 松开后删除并填充框内区域。',
     studioEditAddText: '添加文字',
     studioEditAddImage: '插入图片',
     studioEditAddSticker: '插入贴纸',
     studioEditOverlayHint: '点选图层移动 — 拖紫色角缩放贴纸或插入图片。',
     studioEditTextPlaceholder: '文字内容',
+    studioEditTextColor: '文字颜色',
     studioEditDeleteLayer: '删除图层',
     studioEditRevertOriginal: '恢复原图',
     studioEditReverted: '已恢复 AI 原图（{screen}）。',
@@ -7934,7 +8069,7 @@ const ZH_DICTIONARY: Dictionary = {
       packaging_kit: {
         title: '包装套件',
         sample: '有机化妆品包装盒、封条与条码',
-        steps: { logo: '标志', box_flat: '平面盒', box_3d: '3D mockup', label: '标签', seal: '封条' },
+        steps: { logo: '标志', body_strip: '六个盒面', box_3d: '3D mockup', dieline: 'Dieline PDF', label: '标签' },
       },
       interior_design: {
         title: '室内设计',
@@ -10257,6 +10392,10 @@ const JA_DICTIONARY: Dictionary = {
     studioStepSavedStay: '**{screen}** を保存しました。レールで別ステップをクリックして続行。',
     studioNavigateStepBlocked: 'このステップにはまだ移動できません — 完了したステップのみクリック可能です。',
     studioRegenerate: '再生成',
+    studioRegenerateDialogTitle: '再生成 — 内容を確認・選択',
+    studioRegeneratePromptLabel: '説明 / 生成プロンプト',
+    studioRegeneratePromptHint: '必要なら編集 — AIが新バージョンに使う内容です。',
+    studioRegenerateConfirm: '再生成する',
     studioExistingStepHint: '出力済み — このまま使うか「再生成」を押してください。',
     studioUseReference: '参考にして次へ',
     studioImageCredit: '画像生成：{n} クレジット',
@@ -10270,6 +10409,7 @@ const JA_DICTIONARY: Dictionary = {
     studioReferenceLimit: '参考画像は最大 {max} 枚です。追加する前に1枚削除してください。',
     studioReferenceRemoved: '参考画像を削除しました：{screen}。このステップで再選択できます。',
     studioBriefUpdated: '{screen} のブリーフを更新しました。現在のステップを続けてください。',
+    studioFacePrintStyleConfirmed: 'ビジュアルスタイルを確定: **{style}** — 6面すべてに統一適用。',
     studioEditStep: '編集',
     studioEditSave: '保存',
     studioEditCancel: 'キャンセル',
@@ -10279,8 +10419,11 @@ const JA_DICTIONARY: Dictionary = {
     studioReferenceAttachHint: '生成ごとに最大 {n} 枚（ロゴ優先＋直近のステップ）を送り、スタイルの希薄化を防ぎます。',
     studioReferenceCount: '({count}/{max})',
     studioGenRefPickerTitle: 'パッケージに合成する画像（今回）',
-    studioGenRefPickerHint: '承認済み参考と商品写真を選択 — AIがパッケージ面に直接合成（1回最大{max}枚）。',
-    studioGenRefProductLabel: '商品写真（箱に合成）',
+    studioGenRefPickerHint:
+      '1回最大{max}枚。グレー：承認済み面/ロゴ参考。緑：商品写真を平面合成（「商品写真フラット」スタイル必要）。3D mockupでは使いません。',
+    studioGenRefApprovedSection: '参考（承認済み面/ロゴ）',
+    studioGenRefProductSection: '平置きする商品写真',
+    studioGenRefProductLabel: '商品写真をアップロード',
     studioGenProductUploaded: '今回の生成用に商品写真 {n} 枚を追加しました。',
     studioGenRefAttachCount: '{n}/{max} 枚',
     studioLogoFirst: 'UI画面の前にロゴを作成し参考にしてください。',
@@ -10349,17 +10492,43 @@ const JA_DICTIONARY: Dictionary = {
     studioCropTargetDisplay: '箱面サイズ：{size}',
     studioCropTitle: '印刷面を編集',
     studioCropSave: '適用',
+    studioCropDone: '完了',
     studioCropCancel: 'キャンセル',
     studioCropZoom: 'ズーム',
     studioCropTargetSize: '箱面（目標）：{size}',
     studioCropResultSize: '切り抜き後の印刷領域：{size}',
-    studioCropDragHint: '赤枠をドラッグで移動 — 角で拡大縮小（箱面比率固定）。',
+    studioCropDragHint: '赤枠をドラッグで移動 — 角で拡大縮小。余白は画像の縁色で塗りつぶせます（下のボタン）。',
     studioCropRatioLocked: '切り抜き比率は印刷面に固定：{size}',
+    studioCropFillEdgeColor: '背景色で塗る',
+    studioCropFillEdgeColorOff: '余白は白',
+    studioCropOutpaintBackground: 'AI背景描画',
+    studioCropOutpaintBusy: 'AIが背景を描画中…',
+    studioCropOutpaintNeedGaps: '先に枠を画像の外まで広げてください。',
+    studioCropOutpaintDone: '拡張部分にAI背景を適用しました — プレビューを確認して保存してください。',
+    studioCropOutpaintCredit: '{n} credits',
+    studioCropBlendSeams: '境界をなめらかに',
+    studioCropBlendSeamsBusy: '境界を処理中…',
+    studioCropEraser: '消しゴム',
+    studioCropAdjustFrame: '切り抜き枠を調整',
+    studioCropFrameModeFree: '自由',
+    studioCropFrameModePrint: '印刷比率',
+    studioCropDragHintFree: '赤枠を自由にドラッグ — 角で幅と高さを独立に変更（比率固定なし）。',
+    studioCropRatioFree: '自由枠 — 印刷領域が箱面比率と異なる場合があります。',
+    studioCropEraserSize: '消しゴムサイズ',
+    studioCropEraserUndo: '元に戻す',
+    studioCropEraserUndoHint: 'Ctrl+Z または元に戻すで消しゴムを取り消し',
+    studioCropMagicEraser: 'マジック消しゴム',
+    studioCropMagicEraserBusy: '塗りつぶし中…',
+    studioCropMagicEraserHint: '消したい部分を塗る — 周囲の色で自然に埋めます（Photoshop風）',
+    studioCropMagicEraserModeBox: '範囲選択',
+    studioCropMagicEraserModeBrush: '塗り',
+    studioCropMagicEraserBoxHint: 'ドラッグで矩形を描画 — 離すと枠内を消去して塗りつぶします。',
     studioEditAddText: '文字を追加',
     studioEditAddImage: '画像を挿入',
     studioEditAddSticker: 'ステッカーを挿入',
     studioEditOverlayHint: 'レイヤーを選択して移動 — 紫の角でステッカー/挿入画像のサイズ変更。',
     studioEditTextPlaceholder: 'テキスト',
+    studioEditTextColor: '文字色',
     studioEditDeleteLayer: 'レイヤー削除',
     studioEditRevertOriginal: '原寸に戻す',
     studioEditReverted: 'AI原寸画像に戻しました（{screen}）。',
@@ -10419,7 +10588,7 @@ const JA_DICTIONARY: Dictionary = {
       packaging_kit: {
         title: 'パッケージキット',
         sample: 'オーガニック化粧品の箱、シールとバーコード',
-        steps: { logo: 'ロゴ', box_flat: '展開図', box_3d: '3D mockup', label: 'ラベル', seal: 'シール' },
+        steps: { logo: 'ロゴ', body_strip: '箱の6面', box_3d: '3D mockup', dieline: 'Dieline PDF', label: 'ラベル' },
       },
       interior_design: {
         title: 'インテリア',
@@ -12814,6 +12983,10 @@ const KO_DICTIONARY: Dictionary = {
     studioStepSavedStay: '**{screen}** 저장됨. 레일에서 다른 단계를 클릭해 계속하세요.',
     studioNavigateStepBlocked: '아직 이 단계로 이동할 수 없습니다 — 완료된 단계만 클릭 가능합니다.',
     studioRegenerate: '다시 생성',
+    studioRegenerateDialogTitle: '다시 생성 — 내용 확인 및 선택',
+    studioRegeneratePromptLabel: '설명 / 생성 프롬프트',
+    studioRegeneratePromptHint: '필요하면 수정 — AI가 새 버전에 사용할 내용입니다.',
+    studioRegenerateConfirm: '지금 다시 생성',
     studioExistingStepHint: '이미 생성됨 — 유지하거나 다시 생성을 누르세요.',
     studioUseReference: '참조로 선택하고 계속',
     studioImageCredit: '이미지 생성: {n} 크레딧',
@@ -12827,6 +13000,7 @@ const KO_DICTIONARY: Dictionary = {
     studioReferenceLimit: '참조 이미지는 최대 {max}장입니다. 추가 전에 하나를 제거하세요.',
     studioReferenceRemoved: '참조 이미지 제거: {screen}. 이 단계에서 다시 선택할 수 있습니다.',
     studioBriefUpdated: '{screen} 브리프를 업데이트했습니다. 아래 현재 단계를 계속하세요.',
+    studioFacePrintStyleConfirmed: '이미지 스타일 확정: **{style}** — 6면 모두 동일하게 적용.',
     studioEditStep: '수정',
     studioEditSave: '저장',
     studioEditCancel: '취소',
@@ -12836,8 +13010,11 @@ const KO_DICTIONARY: Dictionary = {
     studioReferenceAttachHint: '생성마다 최대 {n}장(로고 우선 + 최근 단계)만 전송해 스타일 희석을 방지합니다.',
     studioReferenceCount: '({count}/{max})',
     studioGenRefPickerTitle: '포장에 합성할 이미지(이번 생성)',
-    studioGenRefPickerHint: '승인된 참조와 제품 사진 선택 — AI가 포장 면에 직접 합성(회당 최대 {max}장).',
-    studioGenRefProductLabel: '제품 사진(상자에 합성)',
+    studioGenRefPickerHint:
+      '회당 최대 {max}장. 회색: 승인된 면/로고 참조. 초록: 제품 사진 평면 합성(「제품 사진 플랫」 스타일 필요). 3D mockup에는 사용 안 함.',
+    studioGenRefApprovedSection: '참조(승인된 면/로고)',
+    studioGenRefProductSection: '평면 합성할 제품 사진',
+    studioGenRefProductLabel: '제품 사진 업로드',
     studioGenProductUploaded: '이번 생성용 제품 사진 {n}장을 추가했습니다.',
     studioGenRefAttachCount: '{n}/{max}장',
     studioLogoFirst: 'UI 화면 전에 로고를 만들고 참조로 승인하세요.',
@@ -12906,17 +13083,43 @@ const KO_DICTIONARY: Dictionary = {
     studioCropTargetDisplay: '상자 면 크기: {size}',
     studioCropTitle: '인쇄면 편집',
     studioCropSave: '적용',
+    studioCropDone: '완료',
     studioCropCancel: '취소',
     studioCropZoom: '확대/축소',
     studioCropTargetSize: '상자 면(목표): {size}',
     studioCropResultSize: '자른 후 인쇄 영역: {size}',
-    studioCropDragHint: '빨간 테두리 이동 — 모서리로 크기 조절(상자 면 비율 고정).',
+    studioCropDragHint: '빨간 테두리 이동 — 모서리로 크기 조절. 빈 영역은 이미지 가장자리 색으로 채울 수 있습니다(아래 버튼).',
     studioCropRatioLocked: '자르기 비율은 인쇄면에 고정: {size}',
+    studioCropFillEdgeColor: '배경색 채우기',
+    studioCropFillEdgeColorOff: '빈 영역 흰색',
+    studioCropOutpaintBackground: 'AI 배경 그리기',
+    studioCropOutpaintBusy: 'AI가 배경을 그리는 중…',
+    studioCropOutpaintNeedGaps: '먼저 자르기 프레임을 이미지 밖으로 확장하세요.',
+    studioCropOutpaintDone: '확장 영역에 AI 배경을 적용했습니다 — 미리보기 후 저장하세요.',
+    studioCropOutpaintCredit: '{n} credits',
+    studioCropBlendSeams: '이음매 부드럽게',
+    studioCropBlendSeamsBusy: '이음매 처리 중…',
+    studioCropEraser: '지우개',
+    studioCropAdjustFrame: '자르기 프레임 조정',
+    studioCropFrameModeFree: '자유',
+    studioCropFrameModePrint: '인쇄 비율',
+    studioCropDragHintFree: '빨간 프레임을 자유롭게 드래그 — 모서리로 가로·세로를 독립적으로 조절합니다.',
+    studioCropRatioFree: '자유 프레임 — 인쇄 영역이 상자 면 비율과 다를 수 있습니다.',
+    studioCropEraserSize: '지우개 크기',
+    studioCropEraserUndo: '되돌리기',
+    studioCropEraserUndoHint: 'Ctrl+Z 또는 되돌리기로 지우개 취소',
+    studioCropMagicEraser: '매직 지우개',
+    studioCropMagicEraserBusy: '영역 채우는 중…',
+    studioCropMagicEraserHint: '지울 영역을 칠하세요 — 주변 색으로 채웁니다(Photoshop 방식)',
+    studioCropMagicEraserModeBox: '영역 선택',
+    studioCropMagicEraserModeBrush: '칠하기',
+    studioCropMagicEraserBoxHint: '드래그로 사각형을 그린 뒤 놓으면 해당 영역을 지우고 채웁니다.',
     studioEditAddText: '텍스트 추가',
     studioEditAddImage: '이미지 삽입',
     studioEditAddSticker: '스티커 삽입',
     studioEditOverlayHint: '레이어 선택 후 이동 — 보라색 모서리로 스티커/삽입 이미지 크기 조절.',
     studioEditTextPlaceholder: '텍스트 내용',
+    studioEditTextColor: '글자 색상',
     studioEditDeleteLayer: '레이어 삭제',
     studioEditRevertOriginal: '원본으로 되돌리기',
     studioEditReverted: 'AI 원본 이미지로 복원했습니다 ({screen}).',
@@ -12976,7 +13179,7 @@ const KO_DICTIONARY: Dictionary = {
       packaging_kit: {
         title: '패키징 키트',
         sample: '오가닉 화장품 박스, 봉인 스티커와 바코드',
-        steps: { logo: '로고', box_flat: '평면 박스', box_3d: '3D mockup', label: '라벨', seal: '봉인' },
+        steps: { logo: '로고', body_strip: '상자 6개 면', box_3d: '3D mockup', dieline: 'Dieline PDF', label: '라벨' },
       },
       interior_design: {
         title: '인테리어',

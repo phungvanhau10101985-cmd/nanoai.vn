@@ -154,10 +154,10 @@ Include brand logo placement, dieline-friendly layout, print quality. One finish
                     ? 'W×H LEFT SIDE print face'
                     : 'packaging print face'
       const refNote = hasRefs
-        ? 'Composite attached reference image(s) onto this packaging face — place logo, brand marks and approved artwork from references directly on the print surface. '
+        ? 'Use attached reference image(s) as flat print elements — embed logo, brand marks and approved 2D artwork directly ON this single flat panel (not as a 3D object on a scene). '
         : 'Professional packaging print quality. '
       const productNote = hasProduct
-        ? 'Composite attached PRODUCT photo(s) onto this face — print/display the real product prominently on the packaging surface. '
+        ? 'Flatten attached PRODUCT photo(s) into 2D printed graphics on this panel per FACE PRINT STYLE in brief — NOT a separate 3D product render standing on cardboard. '
         : ''
       return {
         aspectRatio: aspectRatioOverride || '1:1',
@@ -243,14 +243,15 @@ export async function runStudioImagePipeline(input: {
   productImageUrls?: string[]
   aspectRatio?: string
 }): Promise<StudioImageResult> {
-  const refUrls = [...(input.referenceImageUrls ?? []), ...(input.productImageUrls ?? [])]
-  const hasProduct = (input.productImageUrls?.length ?? 0) > 0
+  const refUrls = input.referenceImageUrls ?? []
+  const productUrls = input.productImageUrls ?? []
+  const hasProduct = productUrls.length > 0
   const spec = await buildPromptSpec(
     input.kind,
     input.screenLabel,
     input.brief,
     input.projectTitle,
-    refUrls.length > 0,
+    refUrls.length > 0 || productUrls.length > 0,
     hasProduct,
     input.aspectRatio,
     input.screenKey
@@ -277,7 +278,23 @@ export async function runStudioImagePipeline(input: {
   })
 
   const parts: object[] = [{ text: spec.prompt }]
-  for (const url of refUrls) {
+  for (let i = 0; i < refUrls.length; i++) {
+    const url = refUrls[i]!
+    parts.push({
+      text: `Approved reference image ${i + 1} — composite logo/brand/approved face artwork onto the flat print panel:`,
+    })
+    const loaded = await loadImageBufferFromUrl(url)
+    if (loaded) {
+      parts.push({
+        inlineData: { data: loaded.buffer.toString('base64'), mimeType: loaded.mimeType || 'image/png' },
+      })
+    }
+  }
+  for (let i = 0; i < productUrls.length; i++) {
+    const url = productUrls[i]!
+    parts.push({
+      text: `Product photo ${i + 1} — flatten this product cutout onto the flat print panel (not a 3D scene):`,
+    })
     const loaded = await loadImageBufferFromUrl(url)
     if (loaded) {
       parts.push({

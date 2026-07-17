@@ -4,19 +4,13 @@ import { useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import type { WebLocale } from '@/lib/i18n/config'
 import { cmToMm, isPositiveBoxDimensionMm } from '@/lib/packaging/dimensions'
 import {
-  formatMmAsCm,
-  getWidthOptionsForLengthLxwOnly,
-} from '@/lib/packaging/gemini-dimension-wizard'
+  defaultTuckBoxProductionParams,
+  validateTuckBoxProductionParams,
+  type TuckBoxProductionParams,
+} from '@/lib/packaging/tuck-box-production'
 
 const COPY: Record<
   WebLocale,
@@ -26,13 +20,20 @@ const COPY: Record<
     width: string
     height: string
     hint: string
+    orientationHint: string
+    lengthPlaceholder: string
     widthPlaceholder: string
     heightPlaceholder: string
-    noWidthOptions: string
     confirm: string
     invalidLength: string
     invalidWidth: string
     invalidHeight: string
+    advanced: string
+    bleed: string
+    glueTab: string
+    paper: string
+    gap: string
+    invalidProduction: string
   }
 > = {
   vi: {
@@ -40,74 +41,113 @@ const COPY: Record<
     length: 'Dài (L)',
     width: 'Rộng (W)',
     height: 'Cao (H)',
-    hint: 'Dài & rộng chọn theo tỷ lệ Gemini cho mặt đáy/nắp (L×W). Cao nhập tự do — hộp mỏng vẫn OK.',
-    widthPlaceholder: 'Chọn rộng',
+    hint: 'Nhập dài × rộng × cao (cm) tự do — hộp mỏng vẫn OK.',
+    orientationHint:
+      'Dài × rộng × cao ảnh hưởng hướng chữ trên từng mặt. Mỗi mặt tạo ảnh với tỷ lệ gần kích thước thật nhất.',
+    lengthPlaceholder: '50',
+    widthPlaceholder: '30',
     heightPlaceholder: '3',
-    noWidthOptions: 'Không có rộng phù hợp — thử chiều dài khác.',
     confirm: 'Xác nhận kích thước',
     invalidLength: 'Nhập chiều dài (cm) lớn hơn 0.',
-    invalidWidth: 'Chọn rộng trong danh sách.',
+    invalidWidth: 'Nhập chiều rộng (cm) lớn hơn 0.',
     invalidHeight: 'Nhập chiều cao (cm) lớn hơn 0.',
+    advanced: 'Thông số sản xuất',
+    bleed: 'Bleed (mm)',
+    glueTab: 'Tai dán (mm)',
+    paper: 'Độ dày giấy (mm)',
+    gap: 'Khe bù (mm)',
+    invalidProduction: 'Thông số sản xuất nằm ngoài phạm vi an toàn.',
   },
   en: {
     title: 'Box size (L × W × H)',
     length: 'Length (L)',
     width: 'Width (W)',
     height: 'Height (H)',
-    hint: 'Length & width follow Gemini ratios for the top/bottom face (L×W). Height is free — thin boxes are OK.',
-    widthPlaceholder: 'Select width',
+    hint: 'Enter L × W × H (cm) freely — thin boxes are OK.',
+    orientationHint:
+      'L × W × H affects text orientation on each face. Each face image uses the closest ratio to your real size.',
+    lengthPlaceholder: '50',
+    widthPlaceholder: '30',
     heightPlaceholder: '3',
-    noWidthOptions: 'No matching width — try a different length.',
     confirm: 'Confirm dimensions',
     invalidLength: 'Enter length (cm) greater than 0.',
-    invalidWidth: 'Pick a width from the list.',
+    invalidWidth: 'Enter width (cm) greater than 0.',
     invalidHeight: 'Enter height (cm) greater than 0.',
+    advanced: 'Production parameters',
+    bleed: 'Bleed (mm)',
+    glueTab: 'Glue tab (mm)',
+    paper: 'Paper thickness (mm)',
+    gap: 'Compensation gap (mm)',
+    invalidProduction: 'A production parameter is outside the safe range.',
   },
   zh: {
     title: '盒子尺寸（长 × 宽 × 高）',
     length: '长 (L)',
     width: '宽 (W)',
     height: '高 (H)',
-    hint: '长宽按 Gemini 比例（底/顶面 L×W）。高度自由输入 — 薄盒也可以。',
-    widthPlaceholder: '选择宽度',
+    hint: '自由输入长×宽×高（cm）— 薄盒也可以。',
+    orientationHint: '长宽高影响各面文字方向。各面生成最接近实际尺寸比例的图像。',
+    lengthPlaceholder: '50',
+    widthPlaceholder: '30',
     heightPlaceholder: '3',
-    noWidthOptions: '无匹配宽度 — 请尝试其他长度。',
     confirm: '确认尺寸',
     invalidLength: '长度（cm）须大于 0。',
-    invalidWidth: '请从列表选择宽度。',
+    invalidWidth: '宽度（cm）须大于 0。',
     invalidHeight: '高度（cm）须大于 0。',
+    advanced: '生产参数',
+    bleed: '出血（mm）',
+    glueTab: '粘口（mm）',
+    paper: '纸张厚度（mm）',
+    gap: '补偿间隙（mm）',
+    invalidProduction: '生产参数超出安全范围。',
   },
   ja: {
     title: '箱サイズ（長さ × 幅 × 高さ）',
     length: '長さ (L)',
     width: '幅 (W)',
     height: '高さ (H)',
-    hint: '長さ・幅は底/天面 (L×W) の Gemini 比率から選択。高さは自由入力 — 薄い箱も可。',
-    widthPlaceholder: '幅を選択',
+    hint: '長さ×幅×高さ（cm）を自由入力 — 薄い箱も可。',
+    orientationHint:
+      '長さ×幅×高さは各面の文字の向きに影響します。各面は実寸に最も近い比率で画像を生成します。',
+    lengthPlaceholder: '50',
+    widthPlaceholder: '30',
     heightPlaceholder: '3',
-    noWidthOptions: '一致する幅がありません — 別の長さを試してください。',
     confirm: 'サイズを確定',
     invalidLength: '長さ（cm）は 0 より大きく入力してください。',
-    invalidWidth: 'リストから幅を選択してください。',
+    invalidWidth: '幅（cm）は 0 より大きく入力してください。',
     invalidHeight: '高さ（cm）は 0 より大きく入力してください。',
+    advanced: '製造パラメータ',
+    bleed: '塗り足し (mm)',
+    glueTab: '糊しろ (mm)',
+    paper: '紙厚 (mm)',
+    gap: '補正ギャップ (mm)',
+    invalidProduction: '製造パラメータが安全範囲外です。',
   },
   ko: {
     title: '상자 크기 (길이 × 너비 × 높이)',
     length: '길이 (L)',
     width: '너비 (W)',
     height: '높이 (H)',
-    hint: '길이·너비는 바닥/뚜껑 면(L×W) Gemini 비율에서 선택. 높이는 자유 입력 — 얇은 상자도 가능.',
-    widthPlaceholder: '너비 선택',
+    hint: '길이×너비×높이(cm) 자유 입력 — 얇은 상자도 가능.',
+    orientationHint:
+      '길이×너비×높이는 각 면의 글자 방향에 영향을 줍니다. 각 면은 실제 크기에 가장 가까운 비율로 이미지를 생성합니다.',
+    lengthPlaceholder: '50',
+    widthPlaceholder: '30',
     heightPlaceholder: '3',
-    noWidthOptions: '맞는 너비 없음 — 다른 길이를 시도하세요.',
     confirm: '크기 확인',
     invalidLength: '길이(cm)는 0보다 커야 합니다.',
-    invalidWidth: '목록에서 너비를 선택하세요.',
+    invalidWidth: '너비(cm)는 0보다 커야 합니다.',
     invalidHeight: '높이(cm)는 0보다 커야 합니다.',
+    advanced: '생산 사양',
+    bleed: '블리드 (mm)',
+    glueTab: '접착 탭 (mm)',
+    paper: '용지 두께 (mm)',
+    gap: '보정 간격 (mm)',
+    invalidProduction: '생산 사양이 안전 범위를 벗어났습니다.',
   },
 }
 
-function parseLengthCm(raw: string): number | null {
+function parseDimensionCm(raw: string): number | null {
   const normalized = raw.trim().replace(/,/g, '.')
   if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null
   const cm = Number(normalized)
@@ -117,75 +157,85 @@ function parseLengthCm(raw: string): number | null {
   return mm
 }
 
-function parseHeightCm(raw: string): number | null {
-  const normalized = raw.trim().replace(/,/g, '.')
-  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null
-  const cm = Number(normalized)
-  if (!Number.isFinite(cm) || cm <= 0) return null
-  const mm = cmToMm(cm)
-  if (!isPositiveBoxDimensionMm(mm)) return null
-  return mm
+function parseMm(raw: string): number {
+  return Number(raw.trim().replace(',', '.'))
 }
 
 export function HubBoxDimensionForm({
   locale,
   busy,
+  initialDimensionsMm,
+  initialProduction,
   onSubmit,
 }: {
   locale: WebLocale
   busy: boolean
-  onSubmit: (message: string) => void | Promise<void>
+  initialDimensionsMm?: { length: number; width: number; height: number } | null
+  initialProduction?: TuckBoxProductionParams
+  onSubmit: (value: {
+    dimensionsMm: { length: number; width: number; height: number }
+    production: TuckBoxProductionParams
+  }) => void | Promise<void>
 }) {
   const t = COPY[locale]
-  const [length, setLength] = useState('')
-  const [widthKey, setWidthKey] = useState('')
-  const [height, setHeight] = useState('')
+  const [length, setLength] = useState(
+    initialDimensionsMm ? String(initialDimensionsMm.length / 10) : ''
+  )
+  const [width, setWidth] = useState(
+    initialDimensionsMm ? String(initialDimensionsMm.width / 10) : ''
+  )
+  const [height, setHeight] = useState(
+    initialDimensionsMm ? String(initialDimensionsMm.height / 10) : ''
+  )
   const [error, setError] = useState<string | null>(null)
+  const [advanced, setAdvanced] = useState(Boolean(initialProduction))
+  const [bleed, setBleed] = useState(String(initialProduction?.bleedMm ?? 3))
+  const [glueTab, setGlueTab] = useState(String(initialProduction?.glueTabMm ?? 15))
+  const [paper, setPaper] = useState(String(initialProduction?.paperThicknessMm ?? 0.4))
+  const [gap, setGap] = useState(String(initialProduction?.compensationGapMm ?? 0.5))
 
-  const lengthMm = useMemo(() => parseLengthCm(length), [length])
-  const widthOptions = useMemo(
-    () => (lengthMm != null ? getWidthOptionsForLengthLxwOnly(lengthMm) : []),
-    [lengthMm]
-  )
-  const selectedWidth = useMemo(
-    () => widthOptions.find((o) => String(o.widthMm) === widthKey) ?? null,
-    [widthKey, widthOptions]
-  )
-
-  const handleLengthChange = (value: string) => {
-    setLength(value)
-    setWidthKey('')
-    setError(null)
-  }
+  const lengthMm = useMemo(() => parseDimensionCm(length), [length])
+  const widthMm = useMemo(() => parseDimensionCm(width), [width])
+  const heightMm = useMemo(() => parseDimensionCm(height), [height])
 
   const handleConfirm = () => {
     if (lengthMm == null) {
       setError(t.invalidLength)
       return
     }
-    if (!selectedWidth) {
+    if (widthMm == null) {
       setError(t.invalidWidth)
       return
     }
-    const heightMm = parseHeightCm(height)
     if (heightMm == null) {
       setError(t.invalidHeight)
       return
     }
+    const defaults = defaultTuckBoxProductionParams(heightMm)
+    const production = {
+      bleedMm: advanced ? parseMm(bleed) : defaults.bleedMm,
+      glueTabMm: advanced ? parseMm(glueTab) : defaults.glueTabMm,
+      paperThicknessMm: advanced ? parseMm(paper) : defaults.paperThicknessMm,
+      compensationGapMm: advanced ? parseMm(gap) : defaults.compensationGapMm,
+    }
+    if (Object.keys(validateTuckBoxProductionParams(production)).length) {
+      setError(t.invalidProduction)
+      return
+    }
     setError(null)
-    const l = formatMmAsCm(lengthMm, locale)
-    const w = formatMmAsCm(selectedWidth.widthMm, locale)
-    const h = formatMmAsCm(heightMm, locale)
-    void onSubmit(`${l}×${w}×${h} cm`)
+    void onSubmit({
+      dimensionsMm: { length: lengthMm, width: widthMm, height: heightMm },
+      production,
+    })
   }
 
-  const canConfirm =
-    lengthMm != null && selectedWidth != null && parseHeightCm(height) != null && !busy
+  const canConfirm = lengthMm != null && widthMm != null && heightMm != null && !busy
 
   return (
     <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3 dark:border-violet-800 dark:bg-violet-950/20">
       <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">{t.title}</p>
       <p className="mt-1 text-xs text-muted-foreground">{t.hint}</p>
+      <p className="mt-1 text-xs text-violet-800/90 dark:text-violet-200/90">{t.orientationHint}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <label className="block space-y-1.5">
           <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t.length}</span>
@@ -193,33 +243,29 @@ export function HubBoxDimensionForm({
             type="text"
             inputMode="decimal"
             value={length}
-            onChange={(e) => handleLengthChange(e.target.value)}
-            placeholder="50"
+            onChange={(e) => {
+              setLength(e.target.value)
+              setError(null)
+            }}
+            placeholder={t.lengthPlaceholder}
             disabled={busy}
             className="h-9 bg-white text-sm dark:bg-slate-900"
           />
         </label>
         <label className="block space-y-1.5">
           <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t.width}</span>
-          <Select
-            value={widthKey}
-            onValueChange={(v) => {
-              setWidthKey(v)
+          <Input
+            type="text"
+            inputMode="decimal"
+            value={width}
+            onChange={(e) => {
+              setWidth(e.target.value)
               setError(null)
             }}
-            disabled={busy || lengthMm == null || widthOptions.length === 0}
-          >
-            <SelectTrigger className="h-9 bg-white text-sm dark:bg-slate-900">
-              <SelectValue placeholder={t.widthPlaceholder} />
-            </SelectTrigger>
-            <SelectContent>
-              {widthOptions.map((o) => (
-                <SelectItem key={o.widthMm} value={String(o.widthMm)}>
-                  {formatMmAsCm(o.widthMm, locale)} cm — L×W {o.geminiLxw}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder={t.widthPlaceholder}
+            disabled={busy}
+            className="h-9 bg-white text-sm dark:bg-slate-900"
+          />
         </label>
         <label className="block space-y-1.5">
           <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t.height}</span>
@@ -237,8 +283,40 @@ export function HubBoxDimensionForm({
           />
         </label>
       </div>
-      {lengthMm != null && widthOptions.length === 0 ? (
-        <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{t.noWidthOptions}</p>
+      <button
+        type="button"
+        className="mt-3 text-xs font-medium text-violet-700 underline-offset-2 hover:underline dark:text-violet-300"
+        onClick={() => {
+          if (!advanced && heightMm) {
+            const defaults = defaultTuckBoxProductionParams(heightMm)
+            setGlueTab(String(defaults.glueTabMm))
+          }
+          setAdvanced((value) => !value)
+        }}
+      >
+        {t.advanced}
+      </button>
+      {advanced ? (
+        <div className="mt-2 grid gap-2 sm:grid-cols-4">
+          {[
+            [t.bleed, bleed, setBleed],
+            [t.glueTab, glueTab, setGlueTab],
+            [t.paper, paper, setPaper],
+            [t.gap, gap, setGap],
+          ].map(([label, value, setter]) => (
+            <label key={String(label)} className="space-y-1">
+              <span className="text-xs text-muted-foreground">{String(label)}</span>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={String(value)}
+                onChange={(event) => (setter as (value: string) => void)(event.target.value)}
+                disabled={busy}
+                className="h-8 bg-white text-sm dark:bg-slate-900"
+              />
+            </label>
+          ))}
+        </div>
       ) : null}
       {error ? <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p> : null}
       <Button

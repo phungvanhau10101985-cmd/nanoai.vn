@@ -25,6 +25,7 @@ import {
   getFaceIndexFromSlot,
   resolveBoxFaceUrl,
 } from './lib/box-face-slots'
+import type { BoxDielineStructure } from '@/lib/packaging/dieline-structure'
 
 
 const PACKAGING_COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -57,8 +58,9 @@ export async function generateBoxDielinePdf(params: {
   boxLength: number
   boxWidth: number
   boxHeight: number
+  structure?: BoxDielineStructure
 }): Promise<{ pdfUrl: string } | { error: string }> {
-  const { slotUrls, boxLength, boxWidth, boxHeight } = params
+  const { slotUrls, boxLength, boxWidth, boxHeight, structure } = params
   const hasLxW = Boolean(slotUrls.top || slotUrls.bottom)
   const hasLxH = Boolean(slotUrls.front || slotUrls.back)
   const hasWxH = Boolean(slotUrls.right || slotUrls.left)
@@ -78,6 +80,7 @@ export async function generateBoxDielinePdf(params: {
       userId: user.id,
       slotUrls,
       dimensionsMm: { length: boxLength, width: boxWidth, height: boxHeight },
+      structure,
     })
 
     return { pdfUrl: exported.pdfUrl }

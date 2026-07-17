@@ -13,6 +13,7 @@ import {
   resolveDielineFaceUrls,
   resolveMockupSlotUrl,
 } from './box-face-slots'
+import { getBodyStripSizeMm } from './body-strip'
 
 /** Hub studio step keys — thứ tự: trên → trước → phải → dưới → sau → trái */
 export const HUB_PACKAGING_FACE_STEP_KEYS = [
@@ -48,7 +49,7 @@ export type HubPackagingFaceSlotEntry = {
 }
 
 export function isPackagingFaceStepKey(stepKey: string): boolean {
-  return stepKey in STEP_TO_SLOT
+  return stepKey === 'body_strip' || stepKey in STEP_TO_SLOT
 }
 
 export function packagingStepKeyToSlot(stepKey: string): BoxFaceSlot | null {
@@ -100,6 +101,15 @@ export function isPackagingFaceStepCommitted(
   packaging: HubPackagingState | undefined,
   stepKey: string
 ): boolean {
+  if (stepKey === 'body_strip') {
+    return Boolean(
+      packaging?.bodyStrip?.originalUrl &&
+      packaging.faceSlots?.front &&
+      packaging.faceSlots?.right &&
+      packaging.faceSlots?.back &&
+      packaging.faceSlots?.left
+    )
+  }
   const slot = packagingStepKeyToSlot(stepKey)
   if (!slot || !packaging?.faceSlots) return false
   return packaging.faceSlots[slot] != null
@@ -164,7 +174,7 @@ export function resolvedPackagingFacesReady(packaging: HubPackagingState | undef
   return Boolean(resolved.LxW && resolved.LxH && resolved.WxH)
 }
 
-/** Mockup: URL theo từng slot — không copy chéo, không logo. */
+/** Mockup: URL theo từng slot; mặt copy dùng ảnh của mặt nguồn, không dùng logo. */
 export function resolveMockupFaceUrls(packaging: HubPackagingState): Partial<Record<BoxFaceSlot, string>> {
   const faceSlots = packaging.faceSlots ?? {}
   const out: Partial<Record<BoxFaceSlot, string>> = {}
@@ -194,6 +204,7 @@ export function getPackagingFaceSizeForStep(
 ): { widthMm: number; heightMm: number } | null {
   const box = normalizeBoxDimensionsMm(dimensionsMm)
   if (!box) return null
+  if (stepKey === 'body_strip') return getBodyStripSizeMm(box)
   const faceKey = packagingStepKeyToSizeKey(stepKey)
   if (!faceKey) return null
   const [widthMm, heightMm] = getFaceDimensionsMm(faceKey, box)
