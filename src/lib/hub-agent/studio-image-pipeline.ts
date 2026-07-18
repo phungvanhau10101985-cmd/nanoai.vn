@@ -11,10 +11,6 @@ import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { PACKAGING_FACE_FLAT_ARTWORK_RULES } from '@/lib/packaging/face-print-prompt'
 import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
-import {
-  PACKAGING_MOCKUP_FACE_RULES,
-  PACKAGING_MOCKUP_SCENE_RULES,
-} from '@/lib/packaging/packaging-mockup-prompt'
 
 const toTenths = (value: number) => Math.round(value * 10)
 
@@ -111,18 +107,22 @@ Realistic desktop web layout with header, content area, footer.`,
         aspectRatio: aspectRatioOverride || '1:1',
         imageSize: '2K',
         prompt: screenKey === 'product_label'
-          ? `Design ONE flat print-ready PRODUCT LABEL (peel-and-stick sticker) for: ${projectEn}.
+          ? `OUTPUT: ONE FLAT, PRINT-READY PRODUCT LABEL ARTBOARD ONLY — straight-on, edge-to-edge, with no surrounding scene.
+Design a peel-and-stick PRODUCT LABEL for: ${projectEn}.
 Brief: ${briefEn}
 ${styleNote}
 CRITICAL: This is a product label on jar/bottle/tube — NOT a box dieline, NOT unfolded carton, NOT 3D box mockup.
 Black-and-white or minimal 2-color print layout unless user requests color.
-Composite ONLY the attached LOGO. Readable legal/product text per brief. Safe margins. One label artwork only.`
+Composite ONLY the attached LOGO. Readable legal/product text per brief. Keep text safely inset while artwork reaches every edge.
+FORBIDDEN: physical product, grey studio background, frame, padding, drop shadow, dimensions, size numbers, mm/cm labels, rulers, measurement arrows, red boxes, cut/fold lines, crop marks, bleed guides, or safe-zone guides.`
           : screenKey === 'seal_sticker'
-            ? `Design ONE flat TAMPER-EVIDENT SEAL STICKER for: ${projectEn}.
+            ? `OUTPUT: ONE FLAT, PRINT-READY TAMPER-EVIDENT SEAL STICKER ARTBOARD ONLY — straight-on, with no surrounding scene.
+Design the seal sticker for: ${projectEn}.
 Brief: ${briefEn}
 ${styleNote}
 CRITICAL: Round/square/oval seal sticker to seal packaging — NOT a box dieline, NOT unfolded carton, NOT 3D box.
-Composite ONLY the attached LOGO plus short slogan/text per brief. One seal artwork only, no mockup scene.`
+Composite ONLY the attached LOGO plus short slogan/text per brief.
+FORBIDDEN: physical package, studio background, frame, padding, drop shadow, dimensions, size numbers, mm/cm labels, rulers, measurement arrows, red boxes, cut/fold lines, crop marks, bleed guides, or safe-zone guides.`
             : isFlatBoxDieline
           ? `Design a print-ready FLAT BOX DIELINE (unfolded carton net) for: ${projectEn}.
 Brief: ${briefEn}
@@ -332,8 +332,12 @@ export async function runStudioImagePipeline(input: {
       return { ok: false, error: 'AI không trả về ảnh.' }
     }
     const resultBufferRaw = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
+    const isFlatPrintArtwork =
+      input.kind === 'packaging_face' ||
+      (input.kind === 'packaging' &&
+        (input.screenKey === 'product_label' || input.screenKey === 'seal_sticker'))
     const resultBuffer =
-      input.printSizeMm && input.kind === 'packaging_face'
+      input.printSizeMm && isFlatPrintArtwork
         ? await normalizePanelArtworkToPrintSize(
             resultBufferRaw,
             input.printSizeMm.widthMm,

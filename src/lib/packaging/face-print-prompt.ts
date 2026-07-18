@@ -25,6 +25,7 @@ REQUIRED — flat print file before die-cutting:
 - ONE rectangular panel for this face only — straight-on orthographic view (like opening a flat PDF in Illustrator)
 - FULL BLEED (full viền): background, colour and artwork extend to all four edges with ZERO margin, frame, padding, or letterboxing
 - The entire image canvas is 100% filled with printable design — edge to edge, corner to corner
+- LANGUAGE LOCK: render every brand name, product name, slogan, ingredient, instruction, and other supplied print copy verbatim in its original language — never translate, transliterate, rewrite, spell-correct, or summarize it
 - NO dieline / net / unfolded template: no multiple connected panels, glue tabs, tuck flaps, or sheet layout
 - NO cut lines, fold/crease lines, registration marks, crop marks, or bleed guides drawn on the image
 - NEVER draw dimension lines, arrows, rulers, or size text (mm, cm, L×W labels) on the artwork
