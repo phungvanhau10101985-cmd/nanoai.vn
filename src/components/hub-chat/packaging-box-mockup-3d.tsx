@@ -90,6 +90,9 @@ const COPY: Record<
 
 export { mockupDownloadFilename } from '@/lib/packaging/mockup-share-utils'
 
+const FULLSCREEN_NESTED_OVERLAY_CLASS = 'z-[2147483648]'
+const FULLSCREEN_NESTED_CONTENT_CLASS = 'z-[2147483649]'
+
 const INITIAL_ROTATION = { x: -18, y: 28 }
 
 /** Approximate 2D bounds after CSS rotateX + rotateY (Y applied first). */
@@ -539,14 +542,9 @@ export function PackagingBoxMockup3D({
   const text = COPY[locale]
   const resolvedDownloadFilename = downloadFilename ?? mockupDownloadFilename(dimensionsMm)
 
-  const shareButton =
-    showShareMenu ? (
-      <PackagingMockupShareMenu
-        dimensionsMm={dimensionsMm}
-        faceSlots={faceSlots}
-        locale={locale}
-      />
-    ) : null
+  const shareButton = showShareMenu ? (
+    <PackagingMockupShareMenu dimensionsMm={dimensionsMm} faceSlots={faceSlots} locale={locale} />
+  ) : null
 
   const downloadButton =
     downloadUrl && downloadLabels ? (
@@ -557,6 +555,29 @@ export function PackagingBoxMockup3D({
         size="sm"
         className="h-7 text-xs"
         labels={downloadLabels}
+      />
+    ) : null
+
+  const fullscreenShareButton = showShareMenu ? (
+    <PackagingMockupShareMenu
+      dimensionsMm={dimensionsMm}
+      faceSlots={faceSlots}
+      locale={locale}
+      overlayClassName={FULLSCREEN_NESTED_OVERLAY_CLASS}
+      contentClassName={`${FULLSCREEN_NESTED_CONTENT_CLASS} max-w-md`}
+    />
+  ) : null
+
+  const fullscreenDownloadButton =
+    downloadUrl && downloadLabels ? (
+      <DownloadImageButton
+        imageUrl={downloadUrl}
+        filename={resolvedDownloadFilename}
+        variant="outline"
+        size="sm"
+        className="h-7 text-xs"
+        labels={downloadLabels}
+        dropdownContentClassName={FULLSCREEN_NESTED_CONTENT_CLASS}
       />
     ) : null
 
@@ -616,8 +637,8 @@ export function PackagingBoxMockup3D({
               sceneClassName="min-h-0 w-full flex-1"
               toolbarExtra={
                 <>
-                  {shareButton}
-                  {downloadButton}
+                  {fullscreenShareButton}
+                  {fullscreenDownloadButton}
                 </>
               }
               downloadHint={downloadUrl || showShareMenu ? text.downloadShareHint : null}

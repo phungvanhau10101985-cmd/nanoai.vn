@@ -81,6 +81,9 @@ export function invalidatePackagingFromStep(
         dielineUrl: start <= order.indexOf('box_dieline_pdf')
           ? undefined
           : packaging.dielineUrl,
+        dielineVariants: start <= order.indexOf('box_dieline_pdf')
+          ? undefined
+          : packaging.dielineVariants,
         mockupUrl: start <= order.indexOf('box_mockup_3d')
           ? undefined
           : packaging.mockupUrl,

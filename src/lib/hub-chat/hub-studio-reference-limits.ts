@@ -32,6 +32,7 @@ export function pickReferencesForGeneration(
   const logo = logoKey ? referenceImages.find((r) => r.screenKey === logoKey) : null
   const rest = referenceImages.filter((r) => {
     if (r.screenKey === logoKey) return false
+    if (r.screenKey === 'box_mockup_3d') return false
     if (presetId && stepKey && !isStepAtOrBefore(presetId, r.screenKey, stepKey)) return false
     return true
   })

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
+import { hubStudioLaunchHref } from '@/lib/hub-chat/hub-studio-launch'
 
-export default function ThietKeTuiDungPage() {
-  redirect('/thiet-ke-bao-bi')
+export default function LegacyBagPackagingRedirectPage() {
+  redirect(hubStudioLaunchHref('packaging_kit'))
 }

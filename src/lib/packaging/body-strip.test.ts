@@ -3,6 +3,7 @@ import test from 'node:test'
 import sharp from 'sharp'
 import { getBodyStripSegments, getBodyStripSizeMm } from './body-strip'
 import { splitBodyStripBuffer } from './body-strip-server'
+import { mmToPrintPx } from './panel-artwork-fit'
 
 const dimensions = { length: 120, width: 40, height: 60 }
 
@@ -23,21 +24,24 @@ test('non-square body strip follows front|right|back|left offsets', () => {
   )
 })
 
-test('split preserves exact pixel boundaries without gaps', async () => {
+test('split preserves exact pixel boundaries without gaps after print normalization', async () => {
   const source = await sharp({
     create: {
-      width: 320,
-      height: 60,
+      width: 640,
+      height: 120,
       channels: 3,
       background: { r: 10, g: 20, b: 30 },
     },
   }).png().toBuffer()
   const split = await splitBodyStripBuffer(source, dimensions)
+  const segments = getBodyStripSegments(dimensions)
+  const totalPx = mmToPrintPx(getBodyStripSizeMm(dimensions).widthMm)
   const widths = await Promise.all(
-    (['front', 'right', 'back', 'left'] as const).map(async (slot) =>
-      sharp(split[slot]!).metadata().then((metadata) => metadata.width)
-    )
+    segments.map(({ slot }) => sharp(split[slot]!).metadata().then((metadata) => metadata.width))
   )
-  assert.deepEqual(widths, [120, 40, 120, 40])
-  assert.equal(widths.reduce((sum, width) => sum + (width ?? 0), 0), 320)
+  assert.equal(widths.reduce((sum, width) => sum + (width ?? 0), 0), totalPx)
+  for (const [index, segment] of segments.entries()) {
+    const expected = Math.round((segment.widthMm / 320) * totalPx)
+    assert.ok(Math.abs((widths[index] ?? 0) - expected) <= 1, `slot ${segment.slot}`)
+  }
 })

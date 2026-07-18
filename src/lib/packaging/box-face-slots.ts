@@ -1,4 +1,5 @@
-import type { PackagingFaceKey } from './dimensions'
+import type { BoxDimensionsMm, PackagingFaceKey } from './dimensions'
+import { getFaceDimensionsMm } from './dimensions'
 
 /** 6 mặt hộp theo thứ tự wizard: trên → trước → phải → dưới → sau → trái */
 export type BoxFaceSlot = 'top' | 'front' | 'right' | 'bottom' | 'back' | 'left'
@@ -79,6 +80,13 @@ const SLOT_LABEL_KO: Record<BoxFaceSlot, string> = {
 
 export function getSizeKeyForSlot(slot: BoxFaceSlot): PackagingFaceKey {
   return SLOT_SIZE_KEY[slot]
+}
+
+export function getBoxFaceSlotDimensionsMm(
+  slot: BoxFaceSlot,
+  box: BoxDimensionsMm
+): [widthMm: number, heightMm: number] {
+  return getFaceDimensionsMm(SLOT_SIZE_KEY[slot], box)
 }
 
 export function getFaceIndexFromSlot(slot: BoxFaceSlot): number {

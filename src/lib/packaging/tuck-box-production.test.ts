@@ -5,7 +5,7 @@ import {
   normalizeTuckBoxProductionParams,
   validateTuckBoxProductionParams,
 } from './tuck-box-production'
-import { getTuckEndLayoutData } from '@/app/thiet-ke-bao-bi/lib/box-net-svg'
+import { getTuckEndLayoutData } from '@/lib/packaging/box-net-svg'
 
 test('production defaults use safe straight-tuck values', () => {
   assert.deepEqual(defaultTuckBoxProductionParams(50), {

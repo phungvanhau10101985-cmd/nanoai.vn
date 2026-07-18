@@ -4,7 +4,7 @@ import test from 'node:test'
 import {
   generateTuckEndBlankSvg,
   getCrossFoldLayoutData,
-} from '@/app/thiet-ke-bao-bi/lib/box-net-svg'
+} from '@/lib/packaging/box-net-svg'
 
 test('generateTuckEndBlankSvg renders readable face labels with dimensions', () => {
   const svg = generateTuckEndBlankSvg(

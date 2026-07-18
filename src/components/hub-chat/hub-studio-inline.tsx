@@ -16,6 +16,7 @@ import {
   isPackagingFaceStepKey,
 } from '@/lib/packaging/hub-face-steps'
 import { resolvePackagingStepLabel } from '@/lib/packaging/packaging-face-labels'
+import { isPackagingContinueOnlyApproveStep } from '@/lib/packaging/product-label-step'
 import type { WebLocale } from '@/lib/i18n/config'
 import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
 import { PackagingBoxMockup3D } from '@/components/hub-chat/packaging-box-mockup-3d'
@@ -335,6 +336,11 @@ export function HubStudioMessageBubble({
   const isPackagingFacePreview =
     studioSession?.presetId === 'packaging_kit' &&
     Boolean(st?.screenKey && isPackagingFaceStepKey(st.screenKey))
+  const continueOnlyApprove = isPackagingContinueOnlyApproveStep(st?.screenKey)
+  const approveButtonLabel =
+    isAudio || isPackagingFacePreview || continueOnlyApprove
+      ? hc.studioContinue
+      : hc.studioUseReference
   const isEditing = editingLineId === line.id && line.role === 'user'
   const [draft, setDraft] = useState(line.content)
   const [cropOpen, setCropOpen] = useState(false)
@@ -542,7 +548,35 @@ export function HubStudioMessageBubble({
           </div>
         </div>
       ) : null}
-      {st?.artifactUrl ? (
+      {st?.dielineArtifacts && st.dielineArtifacts.length > 0 ? (
+        <div className="mt-2 space-y-2">
+          {st.artifactNote ? (
+            <p className="text-[11px] text-muted-foreground">{st.artifactNote}</p>
+          ) : null}
+          {st.dielineArtifacts.map((artifact) => (
+            <div
+              key={artifact.structure}
+              className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 dark:border-emerald-900 dark:bg-emerald-950/30"
+            >
+              <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-900 dark:text-emerald-100">
+                <FileText className="h-4 w-4" />
+                {artifact.label}
+              </p>
+              <Button asChild type="button" size="sm" variant="outline" className="mt-2 h-8 text-xs">
+                <a
+                  href={artifact.url}
+                  download={artifact.fileName || undefined}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Download className="mr-1 h-3.5 w-3.5" />
+                  {artifact.downloadLabel}
+                </a>
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : st?.artifactUrl ? (
         <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 dark:border-emerald-900 dark:bg-emerald-950/30">
           <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-900 dark:text-emerald-100">
             <FileText className="h-4 w-4" />
@@ -589,7 +623,7 @@ export function HubStudioMessageBubble({
               {st.showApproveReference ? (
                 <Button type="button" size="sm" className="h-8 bg-violet-600 text-xs hover:bg-violet-700" disabled={busy} onClick={onApproveReference}>
                   <Check className="mr-1 h-3.5 w-3.5" />
-                  {isAudio ? hc.studioContinue : hc.studioUseReference}
+                  {approveButtonLabel}
                 </Button>
               ) : null}
             </div>
@@ -720,7 +754,7 @@ export function HubStudioMessageBubble({
             {st.showApproveReference ? (
               <Button type="button" size="sm" className="h-8 bg-violet-600 text-xs hover:bg-violet-700" disabled={busy} onClick={onApproveReference}>
                 <Check className="mr-1 h-3.5 w-3.5" />
-                {isPackagingFacePreview ? hc.studioContinue : hc.studioUseReference}
+                {approveButtonLabel}
               </Button>
             ) : null}
           </div>

@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import { Suspense } from 'react'
 import { buildMetadata } from '@/lib/seo'
 import { NAV_GROUPS } from '@/lib/nav-config'
 import { NavHubLinkTile } from '@/components/layout/nav-hub-link-tile'
@@ -19,7 +20,9 @@ export default function Home() {
       <section className="w-full pb-10 pt-5 md:pb-14 md:pt-8">
         <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
           <div className="space-y-6 md:space-y-8">
-            <HomeHubChatBar />
+            <Suspense fallback={null}>
+              <HomeHubChatBar />
+            </Suspense>
             {NAV_GROUPS.map((group) => {
               const homeLinks = group.links.filter((item) => item.showOnHomepage !== false)
               if (homeLinks.length === 0) return null

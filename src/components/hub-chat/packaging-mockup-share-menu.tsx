@@ -115,10 +115,15 @@ export function PackagingMockupShareMenu({
   dimensionsMm,
   faceSlots,
   locale,
+  overlayClassName,
+  contentClassName,
 }: {
   dimensionsMm: BoxDimensionsMm
   faceSlots: FaceSlots
   locale: WebLocale
+  /** Use inside a high z-index parent (e.g. fullscreen mockup dialog). */
+  overlayClassName?: string
+  contentClassName?: string
 }) {
   const text = COPY[locale]
   const { toast } = useToast()
@@ -191,7 +196,7 @@ export function PackagingMockupShareMenu({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className={contentClassName ?? 'max-w-md'} overlayClassName={overlayClassName}>
           <DialogHeader>
             <DialogTitle>{text.dialogTitle}</DialogTitle>
             <DialogDescription>{text.dialogDescription}</DialogDescription>

@@ -413,6 +413,18 @@ Khách đang hỏi **gợi ý thay thế** so với một mẫu đang làm neo t
 - **Không đủ ngữ cảnh** (hệ thống vào nhánh làm rõ — \`products\` bắt buộc \`[]\`): **không đoán**; hỏi lại khách **loại/mẫu cụ thể** muốn xem (mô tả, ảnh, mã). Ở **tin sau**, khi khách trả lời rõ ý định sản phẩm, mới tìm trong kho và điền \`products\`.
 `
 
+/**
+ * Chống bịa dịch vụ / cam kết ngoài dữ liệu shop — chỉ tư vấn từ nguồn được cung cấp.
+ */
+const PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE = `
+[Chỉ tư vấn từ dữ liệu shop cung cấp — **cấm bịa dịch vụ / cam kết ngoài nguồn**]
+Nguồn được phép: (1) **Ngữ cảnh shop bắt buộc** (product_consultation_context), (2) khối **[Thanh toán (cài đặt hệ thống shop)]**, (3) **danh sách kho**, (4) **FAQ/chính sách** shop đã lưu, (5) tin **Shop** do nhân viên gửi thật trong lịch sử, (6) hồ sơ khách **chỉ để xưng hô**.
+**Tuyệt đối không** tự thêm dịch vụ hay cam kết nếu **không có** trong các nguồn trên — ví dụ **cấm bịa**: gói quà / hộp quà / giấy gói / nơ / thiệp / ghi chú tay / giao hàng đặc biệt / free ship / tặng kèm / đổi size miễn phí / bảo hành mở rộng / may đo / khắc tên / làm theo yêu cầu… trừ khi **chính sách shop** hoặc tin **Shop** (nhân viên) đã ghi rõ shop có dịch vụ đó.
+Khi khách hỏi dịch vụ mà **không thấy** trong dữ liệu: trả lời **thật** — shop **chưa ghi / chưa cung cấp** dịch vụ đó; mặc định shop **chỉ bán sản phẩm và giao hàng như đơn thường** theo chính sách đã có. **Không** bịa «shop sẽ gói quà / ghi thiệp / có nơ giấy gói» để làm khách hài lòng.
+Nếu khách hỏi «xem mẫu hộp quà» / «gói quà» mà shop **không có** dịch vụ gói quà: có thể gửi **ảnh sản phẩm thật trong kho** (nếu liên quan) hoặc nói rõ shop **chỉ bán và ship như bình thường** — **không** giả vờ có quy trình / mẫu hộp quà riêng.
+Không suy đoán shop có thêm tiện ích chỉ vì ngành thời trang/quà tặng hay vì khách hỏi lịch sự.
+`
+
 /** Một dòng neo tiếng Anh — cùng công thức cho mọi locale đích (kể cả vi không dùng). */
 function partnerAiWidgetTargetRoutingLine(opts?: { channel?: string | null; uiLocale?: string | null }): string {
   if (String(opts?.channel || '').trim().toLowerCase() !== 'widget') return ''
@@ -639,7 +651,12 @@ Khách vừa bấm **Tư vấn** trên một thẻ trong chat (hoặc đang hỏ
 
 function buildAlwaysIncludedShopAiContextBlock(settings: SettingsRow): string {
   const productConsultationContext = settings.product_consultation_context?.trim()
-  if (!productConsultationContext) return ''
+  if (!productConsultationContext) {
+    return `
+
+[Ngữ cảnh shop mặc định — shop chưa ghi thêm hướng dẫn riêng]
+Mặc định shop **chỉ bán sản phẩm trong kho và giao hàng như đơn thường**. **Không** tự thêm dịch vụ kèm (gói quà, hộp quà, giấy gói, nơ, thiệp, ghi chú tay, giao đặc biệt…) trừ khi shop bổ sung ngữ cảnh riêng sau này.`
+  }
   return `
 
 [Ngữ cảnh shop bắt buộc áp dụng trong mọi lượt AI]
@@ -656,6 +673,7 @@ function buildPartnerAiClarifyShoppingIntentSystem(
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 ${PARTNER_AI_TRANSCRIPT_READING_CONVENTION}
 ${PARTNER_AI_ALTERNATIVE_MODEL_QUERY_DOCTRINE}
+${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}
 ${alwaysIncludedShopAiContextBlock}
 
 [Tình huống bắt buộc — làm rõ ý định khách / tư vấn mua hàng]
@@ -731,6 +749,7 @@ function buildPartnerAiPauseConversationSystem(
   return `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 ${PARTNER_AI_TRANSCRIPT_READING_CONVENTION}
+${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}
 ${alwaysIncludedShopAiContextBlock}
 
 [Tình huống bắt buộc — khách muốn tạm dừng cuộc trò chuyện]
@@ -1570,6 +1589,7 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 - Khi đã nêu đủ thông tin sản phẩm từ kho, có thể gợi ý nhẹ bước tiếp (size/màu, hoặc chiều cao–cân nặng nếu cần) — **không** ra lệnh, **không** hối chốt. Ưu tiên để khách **tự suy nghĩ**; mời thao tác trên giao diện (đặt hàng, xem thẻ) chỉ khi tự nhiên phù hợp ngữ cảnh.
 - **Không** lặp lại cùng kiểu câu hỏi chốt màu/size kiểu "chị chọn hồng hay đen ạ?", "đã chọn được màu chưa?" ở **nhiều tin liên tiếp** — dễ gây cảm giác ép mua. Nếu đã gợi ý một lần, các tin sau **tập trung trả lời đúng câu hỏi** của khách; chỉ nhắc màu/size khi khách hỏi hoặc khi thật cần để tư vấn tiếp.
 - Giảm do dự: có thể nhắc một dòng về đổi trả / giao hàng / thanh toán CHỈ khi đã có trong chính sách shop ở trên; không bịa thêm.
+- **Dịch vụ kèm theo (gói quà, thiệp, nơ, giấy gói, giao đặc biệt…):** CHỈ nhắc khi **chính sách shop** hoặc tin **Shop** (nhân viên) đã ghi rõ; nếu không có trong dữ liệu → nói thật shop **chưa có / chỉ bán và giao hàng như đơn thường** — **cấm** tự bịa để làm khách hài lòng.
 - **Cọc vs thanh toán khi nhận (trả toàn bộ lúc nhận / COD 100%):** Mỗi câu trả lời phải **khớp** (1) chính sách shop, (2) khối **[Thanh toán (cài đặt hệ thống shop)]** nếu xuất hiện, (3) cách tư vấn **đã gửi gần đây** về **đúng mặt hàng** (dòng kho / thẻ / lịch sử cùng sản phẩm). Nếu mặt hàng/phiên tư vấn đang thống nhất **có cọc** mà khách hỏi trả toàn bộ lúc nhận — **không** hứa trả 100% khi giao; giải thích **cọc trước** và phần còn lại (nếu chính sách/shop quy định) theo **đúng sản phẩm** đang bàn, **không** hợp thức hóa từ món khác.
 - **Chính sách đổi size / đổi hàng (tiếng Việt — tránh nhầm từ):** Khi diễn đạt, phân biệt rõ: (1) **Không vừa size** = số đo/size không khớp (chật, rộng, sai size so với bảng size / thực tế mặc) — mới là căn cứ **đổi size** theo chính sách shop (nếu shop có ghi). (2) **Không vừa ý** = không thích màu, form, phối đồ, cảm nhận thẩm mỹ, «mặc không ưng» theo nghĩa rộng **nhưng vẫn đúng size** — **không** gọi là «chưa vừa size», **không** hứa đổi size cho trường hợp này trừ khi chính sách shop nêu rõ. Không dùng chung một cụm kiểu «mặc không vừa ý thì đổi size» để gộp cả hai ý.
 - **Hủy đơn / hoàn cọc / trả tiền cọc:** Khi khách đòi hủy đơn hoặc hoàn cọc, **không** đồng ý ngay, **không** hứa «shop sẽ hủy và hoàn tiền» / «xử lý hoàn cọc» một cách dễ dãi trừ khi **chính sách shop ở trên** ghi rõ được phép và điều kiện. Ưu tiên **giữ đơn**; trả lời **khéo, ấm** — nêu **khó khăn / ràng buộc** theo đúng chính sách **chỉ khi đã có trong chính sách**, không bịa điều khoản; không cam kết số tiền / thời hạn hoàn cụ thể nếu không có trong dữ liệu đã cho. Có thể gợi phương án trong phạm vi shop cho phép (đổi size, đổi mẫu…) nếu chính sách có — **không** đề nghị «chuyển lên bộ phận quản lý», «chuyển lên chủ shop xem xét», «shop xem xét lại rồi báo» hay hỏi «chị có muốn shop làm vậy không» trừ khi **chính sách shop** tự ghi rõ quy trình escalate (hiếm); mặc định **không** mở lối thoát quản lý.
@@ -1581,6 +1601,7 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 ${PARTNER_AI_TRANSCRIPT_READING_CONVENTION}
 ${PARTNER_AI_ALTERNATIVE_MODEL_QUERY_DOCTRINE}
+${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
 ${humanShopFactsBlock}
 ${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}

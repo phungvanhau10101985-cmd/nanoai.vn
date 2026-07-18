@@ -59,6 +59,10 @@ export type HubPackagingState = {
   faceAspectRatios?: Partial<Record<HubPackagingFaceKey, string>>
   facesConfirmed?: boolean
   dielineUrl?: string
+  /** Both net layouts (straight tuck + cross fold) after dieline export. */
+  dielineVariants?: Partial<
+    Record<BoxDielineStructure, { url: string; fileName: string }>
+  >
   mockupUrl?: string
   barcodeUrl?: string
   /** Product label sticker size (mm) — set at product_label step. */
@@ -105,6 +109,13 @@ export type HubStudioMessagePayload = {
   artifactLabel?: string
   artifactNote?: string
   artifactDownloadLabel?: string
+  dielineArtifacts?: Array<{
+    structure: BoxDielineStructure
+    url: string
+    fileName: string
+    label: string
+    downloadLabel: string
+  }>
   screenKey?: string
   screenLabel?: string
   previewKind?: HubStudioPreviewKind

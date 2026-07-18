@@ -57,6 +57,8 @@ export interface DownloadImageButtonProps {
   printReadyLabel?: string
   /** Toast khi tạo PDF thành công (đa ngôn ngữ) */
   printReadySuccessToast?: string
+  /** Use inside a high z-index parent (e.g. fullscreen mockup dialog). */
+  dropdownContentClassName?: string
 }
 
 export function DownloadImageButton({
@@ -72,6 +74,7 @@ export function DownloadImageButton({
   printReadyInferFromImage = false,
   printReadyLabel = 'Tải PDF chuẩn in',
   printReadySuccessToast = 'Đã tạo PDF chuẩn in. Bleed 3mm, crop marks. Gửi file cho xưởng in.',
+  dropdownContentClassName,
   labels,
 }: DownloadImageButtonProps) {
   const downloadLabels = {
@@ -162,7 +165,7 @@ export function DownloadImageButton({
           <ChevronDown className={`h-3 w-3 ${hasLabel ? 'ml-1' : 'ml-0.5'}`} />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className={dropdownContentClassName}>
         <DropdownMenuItem onClick={() => handleDownload('png')} disabled={isBusy}>
           {downloadLabels.png}
         </DropdownMenuItem>

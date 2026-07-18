@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { getTuckEndLayoutData } from '@/app/thiet-ke-bao-bi/lib/box-net-svg'
+import { getTuckEndLayoutData } from '@/lib/packaging/box-net-svg'
 import { generateBarcodeBuffer, validateBarcodeContent } from '@/lib/barcode/generate-barcode'
 import { generateBarcodeLabelBuffer } from '@/lib/barcode/generate-barcode-label'
 import { emptyStudioSession } from '@/lib/hub-chat/hub-studio-types'

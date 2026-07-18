@@ -10,6 +10,7 @@ import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { PACKAGING_FACE_FLAT_ARTWORK_RULES } from '@/lib/packaging/face-print-prompt'
+import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
 import {
   PACKAGING_MOCKUP_FACE_RULES,
   PACKAGING_MOCKUP_SCENE_RULES,
@@ -162,14 +163,16 @@ Include brand logo placement, dieline-friendly layout, print quality. One finish
       return {
         aspectRatio: aspectRatioOverride || '1:1',
         imageSize: '2K',
-        prompt: `Design ONE flat, edge-to-edge packaging artwork for the ${faceRole} of: ${projectEn}.
+        prompt: `${PACKAGING_FACE_FLAT_ARTWORK_RULES}
+
+Design ONE flat, edge-to-edge packaging artwork for the ${faceRole} of: ${projectEn}.
 Brief: ${briefEn}
-${refNote}${productNote}${PACKAGING_FACE_FLAT_ARTWORK_RULES}
+${refNote}${productNote}
 - Preserve the exact face proportion stated in the brief.
 - Place the approved logo and composite selected reference visuals onto this face.
 - Keep required text inside a safe area while the background and decorative graphics extend to every edge (full bleed).
 - NEVER render dimension annotations, measurement arrows, or mm/cm numbers on the image.
-One finished flat full-bleed print face only.`,
+One finished flat full-bleed print face only — artwork fills 100% of the image canvas, no margins, no 3D box mockup.`,
       }
     }
     case 'packaging_mockup':
@@ -242,6 +245,8 @@ export async function runStudioImagePipeline(input: {
   referenceImageUrls?: string[]
   productImageUrls?: string[]
   aspectRatio?: string
+  /** Exact trim size — normalizes generated image to print pixels before upload. */
+  printSizeMm?: { widthMm: number; heightMm: number }
 }): Promise<StudioImageResult> {
   const refUrls = input.referenceImageUrls ?? []
   const productUrls = input.productImageUrls ?? []
@@ -281,7 +286,10 @@ export async function runStudioImagePipeline(input: {
   for (let i = 0; i < refUrls.length; i++) {
     const url = refUrls[i]!
     parts.push({
-      text: `Approved reference image ${i + 1} — composite logo/brand/approved face artwork onto the flat print panel:`,
+      text:
+        input.kind === 'packaging_face'
+          ? `Approved reference image ${i + 1} — embed as flat 2D print on the full-bleed panel edge-to-edge; NEVER as a 3D box on grey studio background:`
+          : `Approved reference image ${i + 1} — composite logo/brand/approved face artwork onto the flat print panel:`,
     })
     const loaded = await loadImageBufferFromUrl(url)
     if (loaded) {
@@ -323,7 +331,15 @@ export async function runStudioImagePipeline(input: {
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       return { ok: false, error: 'AI không trả về ảnh.' }
     }
-    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
+    const resultBufferRaw = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
+    const resultBuffer =
+      input.printSizeMm && input.kind === 'packaging_face'
+        ? await normalizePanelArtworkToPrintSize(
+            resultBufferRaw,
+            input.printSizeMm.widthMm,
+            input.printSizeMm.heightMm
+          )
+        : resultBufferRaw
     const resultPath = `results/${input.userId}/studio_${input.kind}_${Date.now()}.png`
     const { publicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',

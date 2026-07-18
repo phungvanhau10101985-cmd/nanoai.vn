@@ -22,7 +22,6 @@ export const CREDIT_TRIAL_ROUTE_PREFIXES = [
   '/tao-tem-niem-phong-bao-hanh',
   '/tao-video-tu-anh',
   '/thay-nen-san-pham',
-  '/thiet-ke-bao-bi',
   '/thiet-ke-con-dau',
   '/thiet-ke-logo',
   '/thiet-ke-noi-ngoai-that',

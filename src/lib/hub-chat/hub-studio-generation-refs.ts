@@ -1,6 +1,6 @@
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
 import { getPrimaryLogoStepKey, getStepGenerator, isLogoDesignStep } from '@/lib/hub-chat/hub-studio-presets'
-import { isLogoOnlyReferenceStepKey } from '@/lib/packaging/product-label-step'
+import { isLogoOnlyReferenceStepKey, isPackagingPostMockupStepKey } from '@/lib/packaging/product-label-step'
 import { HUB_PACKAGING_FACE_STEP_KEYS } from '@/lib/packaging/hub-face-steps'
 import {
   STUDIO_REFERENCE_ATTACH_LIMIT,
@@ -11,6 +11,7 @@ import type { HubStudioMessagePayload, HubStudioSession } from '@/lib/hub-chat/h
 export function stepSupportsGenerationRefPicker(presetId: string, stepKey: string): boolean {
   if (isLogoDesignStep(presetId, stepKey)) return false
   if (stepKey === 'box_mockup_3d' || stepKey === 'box_dieline_pdf') return false
+  if (isPackagingPostMockupStepKey(stepKey)) return false
   const gen = getStepGenerator(presetId, stepKey)
   if (!gen) return false
   return generatorSupportsReferenceForPicker(gen)
@@ -198,7 +199,7 @@ export function buildGenerationRefPickerPayload(
   const used = sel.referenceScreenKeys.length + sel.productUrls.length
   const refOptions = isLogoOnlyReferenceStepKey(stepKey)
     ? session.referenceImages.filter((r) => r.screenKey === getPrimaryLogoStepKey(presetId))
-    : session.referenceImages
+    : session.referenceImages.filter((r) => r.screenKey !== 'box_mockup_3d')
   return {
     showGenerationRefPicker: true,
     generationRefOptions: refOptions.map((r) => ({

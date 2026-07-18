@@ -11,7 +11,7 @@ import {
   boxDielineStructureCopy,
   type BoxDielineStructure,
 } from '@/lib/packaging/dieline-structure'
-import { generateTuckEndBlankSvg } from '@/app/thiet-ke-bao-bi/lib/box-net-svg'
+import { generateTuckEndBlankSvg } from '@/lib/packaging/box-net-svg'
 
 const COPY: Record<
   WebLocale,
@@ -19,6 +19,7 @@ const COPY: Record<
     confirmTitle: string
     generateTitle: string
     hint: string
+    generateHint: string
     selected: string
     confirmAction: string
     generateAction: string
@@ -26,43 +27,52 @@ const COPY: Record<
 > = {
   vi: {
     confirmTitle: 'Chọn kết cấu dieline để xác nhận',
-    generateTitle: 'Chọn cách bế để tạo dieline',
+    generateTitle: 'Tạo Dieline PDF (2 kiểu)',
     hint: 'Kích thước 6 mặt giữ nguyên; lựa chọn này quyết định cách nối mặt, đường cấn và tai dán.',
-    selected: 'Đang chọn',
+    generateHint:
+      'Hệ thống tạo sẵn cả Dải ngang và Chữ thập — xem trước từng kiểu rồi bấm tạo; sau đó tải file phù hợp với xưởng in.',
+    selected: 'Đang xem trước',
     confirmAction: 'Xác nhận kiểu này',
-    generateAction: 'Tạo dieline theo kiểu này',
+    generateAction: 'Tạo 2 file Dieline PDF',
   },
   en: {
     confirmTitle: 'Choose a dieline structure to confirm',
-    generateTitle: 'Choose a die-cut layout to generate',
+    generateTitle: 'Generate Dieline PDF (both layouts)',
     hint: 'All six face sizes stay unchanged; this controls panel connections, creases and glue tabs.',
-    selected: 'Selected',
+    generateHint:
+      'Both the horizontal strip and cross net are exported — preview each layout, then generate and download the file your printer needs.',
+    selected: 'Previewing',
     confirmAction: 'Confirm this structure',
-    generateAction: 'Generate this dieline',
+    generateAction: 'Generate both Dieline PDFs',
   },
   zh: {
     confirmTitle: '选择要确认的刀模结构',
-    generateTitle: '选择要生成的模切方式',
+    generateTitle: '生成 Dieline PDF（2 种排版）',
     hint: '六个面的尺寸保持不变；此选项决定面板连接、压痕线和粘口。',
-    selected: '当前选择',
+    generateHint: '系统将同时导出横向排版与十字排版 — 可先预览，再生成并下载适合印厂的文件。',
+    selected: '预览中',
     confirmAction: '确认此结构',
-    generateAction: '按此结构生成刀模',
+    generateAction: '生成 2 个 Dieline PDF',
   },
   ja: {
     confirmTitle: '確認する展開図の構造を選択',
-    generateTitle: '作成する型抜き方式を選択',
+    generateTitle: 'Dieline PDFを作成（2方式）',
     hint: '6面の寸法は変わりません。面の接続、折り線、糊しろの配置が変わります。',
-    selected: '選択中',
+    generateHint:
+      '横一列と十字型の両方を書き出します — プレビュー後に作成し、印刷会社向けのファイルをダウンロードしてください。',
+    selected: 'プレビュー中',
     confirmAction: 'この構造を確定',
-    generateAction: 'この構造で作成',
+    generateAction: '2種類のDieline PDFを作成',
   },
   ko: {
     confirmTitle: '확인할 도면 구조 선택',
-    generateTitle: '생성할 톰슨 방식 선택',
+    generateTitle: 'Dieline PDF 생성(2가지)',
     hint: '6개 면의 크기는 유지되며 면 연결, 접는 선, 접착 날개 배치가 달라집니다.',
-    selected: '선택됨',
+    generateHint:
+      '가로 스트립과 십자형을 모두 내보냅니다 — 미리본 뒤 생성하고 인쇄소에 맞는 파일을 다운로드하세요.',
+    selected: '미리보기',
     confirmAction: '이 구조 확인',
-    generateAction: '이 구조로 도면 생성',
+    generateAction: 'Dieline PDF 2종 생성',
   },
 }
 
@@ -108,7 +118,9 @@ export function HubBoxDielineStructurePicker({
       <p className="text-sm font-semibold text-emerald-950 dark:text-emerald-100">
         {purpose === 'generate' ? t.generateTitle : t.confirmTitle}
       </p>
-      <p className="mt-1 text-xs text-muted-foreground">{t.hint}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {purpose === 'generate' ? t.generateHint : t.hint}
+      </p>
       <div
         className="mt-3 flex h-[280px] w-full items-center justify-center overflow-hidden rounded-md border border-emerald-200 bg-white p-1 sm:h-[320px] [&>svg]:block [&>svg]:!h-full [&>svg]:!min-h-0 [&>svg]:w-full"
         dangerouslySetInnerHTML={{ __html: selectedSvg }}

@@ -116,7 +116,8 @@ import {
   isBoxFaceConfirmAck,
   packagingBoxConfirmStudioExtras,
 } from '@/lib/packaging/face-aspect'
-import { PACKAGING_FACE_FLAT_ARTWORK_RULES } from '@/lib/packaging/face-print-prompt'
+import { PACKAGING_FACE_FLAT_ARTWORK_LEAD, PACKAGING_FACE_FLAT_ARTWORK_RULES, PACKAGING_FACE_SAFE_ZONE_MM } from '@/lib/packaging/face-print-prompt'
+import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
 import { formatMmSize } from '@/lib/packaging/face-crop-size'
 import {
   applyPackagingSessionLabels,
@@ -125,11 +126,12 @@ import {
 import { generateBarcodeLabelBuffer } from '@/lib/barcode/generate-barcode-label'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { invalidatePackagingFromStep } from '@/lib/packaging/session-dependencies'
-import { exportBoxDielineFromUrls } from '@/lib/packaging/export-dieline'
+import { exportAllBoxDielineVariants } from '@/lib/packaging/export-dieline'
 import { exportBoxMockupFromFaces } from '@/lib/packaging/export-box-mockup'
 import {
   buildProductLabelPromptBlock,
   isLogoOnlyReferenceStepKey,
+  isPackagingContinueOnlyApproveStep,
   labelAspectRatioFromSize,
   parseLabelSizeMm,
 } from '@/lib/packaging/product-label-step'
@@ -194,10 +196,12 @@ import {
 import {
   generateTuckEndBlankSvg,
   getBoxDielineLayoutData,
-} from '@/app/thiet-ke-bao-bi/lib/box-net-svg'
+} from '@/lib/packaging/box-net-svg'
 import {
+  BOX_DIELINE_STRUCTURE_KEYS,
   DEFAULT_BOX_DIELINE_STRUCTURE,
   boxDielineStructureCopy,
+  packagingDielineIsReady,
   parseBoxDielineStructure,
   type BoxDielineStructure,
 } from '@/lib/packaging/dieline-structure'
@@ -340,6 +344,35 @@ function packagingBase(session: HubStudioSession): HubPackagingState {
   return session.packaging ?? { version: 2 as const, dimensionsMm: null, faces: {} }
 }
 
+/** Keep one assistant image bubble per studio screenKey — regenerate replaces instead of stacking. */
+async function upsertHubStudioImageMessage(params: {
+  threadId: string
+  content: string
+  studio?: HubStudioMessagePayload | null
+  workflows?: HubChatWorkflowSuggestion[] | null
+  planId?: string | null
+}): Promise<void> {
+  const screenKey = params.studio?.screenKey
+  const imageUrl = params.studio?.imageUrl
+  if (screenKey && imageUrl) {
+    const replacedMessageId = await pgReplaceLatestHubStudioImageMessage({
+      threadId: params.threadId,
+      screenKey,
+      content: params.content,
+      studio: params.studio!,
+    })
+    if (replacedMessageId) return
+  }
+  await pgInsertHubChatMessage({
+    threadId: params.threadId,
+    role: 'assistant',
+    content: params.content,
+    studio: params.studio,
+    workflows: params.workflows?.length ? params.workflows : null,
+    planId: params.planId ?? null,
+  })
+}
+
 function invalidatePackagingForDimensionChange(session: HubStudioSession): HubStudioSession {
   const currentStepKey = session.currentStepKey
   const invalidated = invalidatePackagingFromStep(session, 'face_top')
@@ -427,6 +460,135 @@ function artifactCopy(locale: WebLocale, kind: 'pdf' | 'barcode', bleedMm = 3) {
   return rows[locale]
 }
 
+type PackagingDielineVariantState = Partial<
+  Record<BoxDielineStructure, { url: string; fileName: string }>
+>
+
+function buildPackagingDielineVariantState(
+  exported: Partial<
+    Record<BoxDielineStructure, { pdfUrl: string; fileName: string; resolutionDpi?: number }>
+  >
+): PackagingDielineVariantState {
+  const variants: PackagingDielineVariantState = {}
+  for (const structure of BOX_DIELINE_STRUCTURE_KEYS) {
+    const item = exported[structure]
+    if (!item?.pdfUrl) continue
+    variants[structure] = { url: item.pdfUrl, fileName: item.fileName }
+  }
+  return variants
+}
+
+function buildDielineStudioArtifacts(
+  locale: WebLocale,
+  variants: PackagingDielineVariantState,
+  bleedMm: number
+): HubStudioMessagePayload['dielineArtifacts'] {
+  const copy = artifactCopy(locale, 'pdf', bleedMm)
+  return BOX_DIELINE_STRUCTURE_KEYS.flatMap((structure) => {
+    const variant = variants[structure]
+    if (!variant) return []
+    const structureCopy = boxDielineStructureCopy(structure, locale)
+    return [
+      {
+        structure,
+        url: variant.url,
+        fileName: variant.fileName,
+        label: structureCopy.label,
+        downloadLabel: copy.download,
+      },
+    ]
+  })
+}
+
+function primaryDielineVariant(
+  variants: PackagingDielineVariantState
+): { url: string; fileName: string } | undefined {
+  return (
+    variants[DEFAULT_BOX_DIELINE_STRUCTURE] ??
+    variants.cross_fold ??
+    Object.values(variants).find(Boolean)
+  )
+}
+
+async function exportPackagingDielineBundle(input: {
+  userId: string
+  packaging: HubPackagingState
+}): Promise<
+  | {
+      variants: PackagingDielineVariantState
+      resolutionDpi?: number
+    }
+  | { error: string }
+> {
+  const { userId, packaging } = input
+  const dimensionsMm = packaging.dimensionsMm
+  if (!dimensionsMm || !allPackagingFaceSlotsCommitted(packaging)) {
+    return { error: 'incomplete_faces' }
+  }
+  const created = faceSlotsToCreatedFaces(packaging.faceSlots ?? {})
+  const slotUrls = resolveDielineSlotUrls(created)
+  try {
+    const exported = await exportAllBoxDielineVariants({
+      userId,
+      slotUrls,
+      dimensionsMm,
+      bodyStripUrl:
+        packaging.layout === 'hybrid_strip' ? packaging.bodyStrip?.originalUrl : undefined,
+      production: packaging.production,
+    })
+    const variants = buildPackagingDielineVariantState(exported)
+    if (BOX_DIELINE_STRUCTURE_KEYS.some((structure) => !variants[structure]?.url)) {
+      return { error: 'export_failed' }
+    }
+    const resolutionDpi = exported[DEFAULT_BOX_DIELINE_STRUCTURE]?.resolutionDpi
+    return { variants, resolutionDpi }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+function buildDielineGenerationStudio(
+  locale: WebLocale,
+  screenLabel: string,
+  packaging: HubPackagingState,
+  variants: PackagingDielineVariantState,
+  processSteps: HubStudioProcessStep[],
+  resolutionDpi?: number
+): HubStudioMessagePayload {
+  const dimensionsMm = packaging.dimensionsMm!
+  const bleedMm = packaging.production?.bleedMm ?? 3
+  const copy = artifactCopy(locale, 'pdf', bleedMm)
+  const production = packaging.production
+    ? normalizeTuckBoxProductionParams(packaging.production, dimensionsMm.height)
+    : {
+        ...defaultTuckBoxProductionParams(dimensionsMm.height),
+        compensationGapMm: 0,
+      }
+  const net = getBoxDielineLayoutData(DEFAULT_BOX_DIELINE_STRUCTURE, {
+    lengthMm: dimensionsMm.length,
+    widthMm: dimensionsMm.width,
+    heightMm: dimensionsMm.height,
+  }, production)
+  const dielineArtifacts = buildDielineStudioArtifacts(locale, variants, bleedMm)
+  const primary = primaryDielineVariant(variants)
+  return {
+    processSteps,
+    artifactUrl: primary?.url,
+    artifactKind: 'pdf',
+    artifactFileName: primary?.fileName,
+    artifactLabel: screenLabel,
+    artifactNote: copy.note,
+    artifactDownloadLabel: copy.download,
+    dielineArtifacts,
+    boxProductionSummary: {
+      netWidthMm: net.bounds.widthMm,
+      netHeightMm: net.bounds.heightMm,
+      ...production,
+      resolutionDpi,
+    },
+  }
+}
+
 function previewKindFromGenerator(gen: StudioGeneratorKind): HubStudioPreviewKind {
   if (gen === 'lyria_music') return 'audio'
   if (gen === 'banner') return 'banner'
@@ -484,6 +646,7 @@ function applyPackagingFaceSlotToSession(
     ...base,
     faceSlots: { ...(base.faceSlots ?? {}), [slot]: entry },
     dielineUrl: undefined,
+    dielineVariants: undefined,
     mockupUrl: undefined,
   })
 }
@@ -842,7 +1005,7 @@ CRITICAL RULES:
 - When user says they want the NEXT step (continue_next): retryIntent "continue_next", retryStepKey empty — stay on currentStepKey and ask for that step OR shouldGenerate for currentStepKey only if they described it.
 - If pendingPreview exists for current step, user must approve it before moving on — do not shouldGenerate for the same step again (EXCEPT box_dieline_pdf / box_mockup_3d: user "tạo/tạo lại" → shouldGenerate true, retryIntent create/regenerate — server composites immediately).
 - When user describes any design step with clear requirements: shouldGenerate true, fill generationPrompt from user description.
-- PACKAGING FACE steps (face_top → … → face_left): generate ONE flat 2D print artwork per face — like a pre-press file before folding (NOT a 3D box, NOT dieline/net with fold lines). User text IS the design brief when they describe printable content — intent generate_ui, shouldGenerate true, generationPrompt in English. ANY face may be left blank (shouldGenerate false). Secondary faces may copy primary without generating. Dieline PDF and 3D mockup are LATER separate steps.
+- PACKAGING FACE steps (face_top → … → face_left): generate ONE flat 2D print artwork per face — full bleed edge-to-edge, artwork fills 100% of canvas, like a pre-press PNG before folding. FORBIDDEN: 3D box on grey studio background, margins around a small box, drop shadow, perspective mockup. User text IS the design brief when they describe printable content — intent generate_ui, shouldGenerate true, generationPrompt in English. ANY face may be left blank (shouldGenerate false). Secondary faces may copy primary without generating. Dieline PDF and 3D mockup are LATER separate steps.
 - product_label / seal_sticker: flat peel-and-stick LABEL or tamper seal artwork (NOT box dieline). User must give size (WxH mm) and text content. Reference attachment is LOGO ONLY — never box face images.
 - barcode_label: real scannable barcode (Code128 default) — encode product code/SKU; label header shows brand name + product name from brief. User may specify EAN-13/UPC/QR explicitly.
 - box_dieline_pdf: server builds technical PDF from committed 6 face slots — user "tạo dieline/pdf" → shouldGenerate true, retryIntent create, no confirmation question.
@@ -960,72 +1123,48 @@ async function generateAsset(
         ),
       }
     }
-    const created = faceSlotsToCreatedFaces(workSession.packaging!.faceSlots ?? {})
-    const slotUrls = resolveDielineSlotUrls(created)
     try {
-      const exported = await exportBoxDielineFromUrls({
+      const bundle = await exportPackagingDielineBundle({
         userId,
-        slotUrls,
-        dimensionsMm,
-        bodyStripUrl:
-          workSession.packaging?.layout === 'hybrid_strip'
-            ? workSession.packaging.bodyStrip?.originalUrl
-            : undefined,
-        production: workSession.packaging?.production,
-        structure:
-          workSession.packaging?.dielineStructure ?? DEFAULT_BOX_DIELINE_STRUCTURE,
+        packaging: workSession.packaging!,
       })
+      if ('error' in bundle) {
+        if (bundle.error === 'incomplete_faces') {
+          return {
+            session: workSession,
+            studio: { processSteps: workSession.processSteps },
+            chargedImage: 0,
+            error: incompletePackagingArtworkError(
+              locale,
+              workSession.packaging?.layout === 'hybrid_strip'
+            ),
+          }
+        }
+        throw new Error(bundle.error === 'export_failed' ? 'Dieline export failed' : bundle.error)
+      }
       const completedSteps = markStepDone(workSession.processSteps, screenKey)
       const next = nextPendingStep(completedSteps)
+      const primary = primaryDielineVariant(bundle.variants)
       const nextSession: HubStudioSession = {
         ...workSession,
         processSteps: setStepInProgress(completedSteps, next?.key ?? null),
         currentStepKey: next?.key ?? null,
         packaging: {
           ...workSession.packaging!,
-          dielineUrl: exported.pdfUrl,
+          dielineUrl: primary?.url,
+          dielineVariants: bundle.variants,
         },
       }
-      const copy = artifactCopy(
-        locale,
-        'pdf',
-        workSession.packaging?.production?.bleedMm ?? 3
-      )
-      const production = workSession.packaging?.production
-        ? normalizeTuckBoxProductionParams(
-            workSession.packaging.production,
-            dimensionsMm.height
-          )
-        : {
-            ...defaultTuckBoxProductionParams(dimensionsMm.height),
-            compensationGapMm: 0,
-          }
-      const net = getBoxDielineLayoutData(
-        workSession.packaging?.dielineStructure ?? DEFAULT_BOX_DIELINE_STRUCTURE,
-        {
-          lengthMm: dimensionsMm.length,
-          widthMm: dimensionsMm.width,
-          heightMm: dimensionsMm.height,
-        },
-        production
-      )
       return {
         session: nextSession,
-        studio: {
-          processSteps: nextSession.processSteps,
-          artifactUrl: exported.pdfUrl,
-          artifactKind: 'pdf',
-          artifactFileName: exported.fileName,
-          artifactLabel: screenLabel,
-          artifactNote: copy.note,
-          artifactDownloadLabel: copy.download,
-          boxProductionSummary: {
-            netWidthMm: net.bounds.widthMm,
-            netHeightMm: net.bounds.heightMm,
-            ...production,
-            resolutionDpi: exported.resolutionDpi,
-          },
-        },
+        studio: buildDielineGenerationStudio(
+          locale,
+          screenLabel,
+          workSession.packaging!,
+          bundle.variants,
+          nextSession.processSteps,
+          bundle.resolutionDpi
+        ),
         chargedImage: 0,
       }
     } catch (error) {
@@ -1179,6 +1318,7 @@ async function generateAsset(
     { generator, attachedRefUrls: refUrls }
   )
   let aspectRatio = session.presetId ? getStepAspectRatio(session.presetId, screenKey) : undefined
+  let printSizeMm: { widthMm: number; heightMm: number } | undefined
 
   if (generator === 'packaging_face') {
     const faceKey = packagingFaceKeyFromStep(screenKey)
@@ -1196,6 +1336,7 @@ async function generateAsset(
     const [faceWidth, faceHeight] = isBodyStrip
       ? [getBodyStripSizeMm(box).widthMm, getBodyStripSizeMm(box).heightMm]
       : getFaceDimensionsMm(faceKey!, box)
+    printSizeMm = { widthMm: faceWidth, heightMm: faceHeight }
     aspectRatio =
       (faceKey ? session.packaging?.faceAspectRatios?.[faceKey] : undefined) ??
       getFaceGeminiAspectRatio(faceWidth, faceHeight)
@@ -1204,8 +1345,9 @@ async function generateAsset(
         ? '\nOUTPUT SHAPE: square 1:1 panel — flat orthographic artwork filling the entire square canvas edge-to-edge.'
         : ''
     fullPrompt += isBodyStrip
-      ? `\n\nCONTINUOUS BODY STRIP: exact print size ${faceWidth} × ${faceHeight} mm, ordered FRONT | RIGHT | BACK | LEFT. Fold guides are at ${box.length}, ${box.length + box.width}, and ${2 * box.length + box.width} mm. Create one seamless edge-to-edge artwork across every fold. Do NOT draw dielines, fold marks, panel borders, glue tabs, or box flaps.\n${PACKAGING_FACE_FLAT_ARTWORK_RULES}`
-      : `\n\nTECHNICAL FACE: ${faceKey}${faceSlot ? ` (${faceSlot.toUpperCase()})` : ''}, exact print size ${faceWidth} × ${faceHeight} mm, Gemini aspect ${aspectRatio}.${squareNote}\n${PACKAGING_FACE_FLAT_ARTWORK_RULES}`
+      ? `\n\nCONTINUOUS BODY STRIP: exact print size ${faceWidth} × ${faceHeight} mm, ordered FRONT | RIGHT | BACK | LEFT. Fold guides are at ${box.length}, ${box.length + box.width}, and ${2 * box.length + box.width} mm. Keep text/logos ≥ ${PACKAGING_FACE_SAFE_ZONE_MM}mm from every strip edge and from each vertical fold line. Create one seamless edge-to-edge artwork across every fold. Do NOT draw dielines, fold marks, panel borders, glue tabs, or box flaps.\n${PACKAGING_FACE_FLAT_ARTWORK_RULES}`
+      : `\n\nTECHNICAL FACE: ${faceKey}${faceSlot ? ` (${faceSlot.toUpperCase()})` : ''}, exact print size ${faceWidth} × ${faceHeight} mm, Gemini aspect ${aspectRatio}. Keep text/logos ≥ ${PACKAGING_FACE_SAFE_ZONE_MM}mm from panel edges.${squareNote}\n${PACKAGING_FACE_FLAT_ARTWORK_RULES}`
+    fullPrompt = `${PACKAGING_FACE_FLAT_ARTWORK_LEAD}\n\n${fullPrompt}`
     if (productUrls.length) {
       fullPrompt +=
         '\nFlatten attached PRODUCT photo(s) into 2D printed graphics on this flat panel — NOT a 3D product bottle/box standing on kraft paper.'
@@ -1297,6 +1439,7 @@ async function generateAsset(
     referenceImageUrls: refUrls,
     productImageUrls: productUrls.length ? productUrls : undefined,
     aspectRatio,
+    printSizeMm,
   })
   if (!gen.ok) {
     return { session, studio: { processSteps: session.processSteps }, chargedImage: 0, error: gen.error }
@@ -1392,7 +1535,7 @@ function appendReferenceContext(
     }
     if (gen === 'packaging_face') {
       block +=
-        '\nIncorporate logos, product visuals and brand marks from attachments as flat 2D printed elements on this single panel — NOT as a 3D box photo or product-on-table scene.'
+        '\nIncorporate logos, product visuals and brand marks from attachments as flat 2D printed elements on this single panel — edge-to-edge full bleed, NOT as a 3D box photo, NOT on grey studio background with margins or drop shadow.'
     } else if (gen === 'packaging_mockup') {
       block += `\nWrap each attached face artwork onto the mapped 3D box face only — never use logo-only images.
 ${PACKAGING_MOCKUP_SCENE_RULES}`
@@ -1451,17 +1594,78 @@ function buildAskForNextStep(
   return { reply, studio }
 }
 
+function deterministicPackagingGeneratedReply(locale: WebLocale, screenLabel: string): string {
+  const rows = {
+    vi: `Đã tạo **${screenLabel}** từ dữ liệu hộp có sẵn. Xem bên dưới — ổn thì bấm «Tiếp».`,
+    en: `**${screenLabel}** is ready from your box data. Review below — tap «Continue» when it looks good.`,
+    zh: `已根据现有盒型数据生成 **${screenLabel}**。请查看下方 — 确认后点「继续」。`,
+    ja: `既存の箱データから **${screenLabel}** を作成しました。下を確認し、問題なければ「次へ」を押してください。`,
+    ko: `기존 상자 데이터로 **${screenLabel}**을(를) 만들었습니다. 아래에서 확인 후 «계속»을 누르세요.`,
+  } satisfies Record<WebLocale, string>
+  return rows[locale]
+}
+
+function shouldAutoGenerateDeterministicPackagingStep(
+  session: HubStudioSession,
+  stepKey: string
+): boolean {
+  if (session.presetId !== 'packaging_kit') return false
+  if (stepKey !== 'box_mockup_3d' && stepKey !== 'box_dieline_pdf') return false
+  if (!session.packaging?.dimensionsMm || !allPackagingFaceSlotsCommitted(session.packaging)) {
+    return false
+  }
+  if (stepKey === 'box_mockup_3d') {
+    if (session.pendingPreview?.screenKey === stepKey) return false
+    return !session.packaging.mockupUrl
+  }
+  return !packagingDielineIsReady(session.packaging)
+}
+
+async function maybeAutoGenerateDeterministicPackagingStep(
+  userId: string,
+  session: HubStudioSession,
+  locale: WebLocale,
+  threadId: string
+): Promise<{
+  session: HubStudioSession
+  reply: string
+  studio: HubStudioMessagePayload
+  chargedImage?: number
+} | null> {
+  const stepKey = session.currentStepKey
+  if (!stepKey || !shouldAutoGenerateDeterministicPackagingStep(session, stepKey)) {
+    return null
+  }
+  const label = stepLabel(session, stepKey, locale)
+  const generated = await generateAsset(userId, session, '', stepKey, label, locale)
+  if (generated.error) {
+    return {
+      session: generated.session,
+      reply: generated.error,
+      studio: generated.studio,
+    }
+  }
+  let nextSession = generated.session
+  let reply = deterministicPackagingGeneratedReply(locale, label)
+  if (stepKey === 'box_dieline_pdf' && nextSession.currentStepKey && nextSession.presetId) {
+    reply = appendStepAsk(reply, locale, nextSession.presetId, nextSession.currentStepKey)
+  }
+  await pgSaveHubThreadSession(threadId, nextSession)
+  return {
+    session: nextSession,
+    reply,
+    studio: generated.studio,
+    chargedImage: generated.chargedImage || undefined,
+  }
+}
+
 async function refreshPackagingArtifactsAfterFaceChange(
   session: HubStudioSession,
   previousSession: HubStudioSession,
   userId: string
 ): Promise<HubStudioSession> {
-  const previousMockupReference = previousSession.referenceImages.find(
-    (reference) => reference.screenKey === 'box_mockup_3d'
-  )
   const hadCompletedMockup = Boolean(
     previousSession.packaging?.mockupUrl ||
-      previousMockupReference?.url ||
       previousSession.processSteps.find((step) => step.key === 'box_mockup_3d')?.status === 'done'
   )
   const hadCompletedDieline = Boolean(
@@ -1486,15 +1690,14 @@ async function refreshPackagingArtifactsAfterFaceChange(
   const createdFaces = faceSlotsToCreatedFaces(faceSlots)
   const [dielineResult, mockupResult] = await Promise.allSettled([
     hadCompletedDieline
-      ? exportBoxDielineFromUrls({
+      ? exportAllBoxDielineVariants({
           userId,
           slotUrls: resolveDielineSlotUrls(createdFaces),
           dimensionsMm: packaging.dimensionsMm,
           bodyStripUrl:
             packaging.layout === 'hybrid_strip' ? packaging.bodyStrip?.originalUrl : undefined,
           production: packaging.production,
-          structure: packaging.dielineStructure ?? DEFAULT_BOX_DIELINE_STRUCTURE,
-        })
+        }).then((exported) => buildPackagingDielineVariantState(exported))
       : Promise.resolve(null),
     hadCompletedMockup
       ? exportBoxMockupFromFaces({
@@ -1511,10 +1714,11 @@ async function refreshPackagingArtifactsAfterFaceChange(
   if (mockupResult.status === 'rejected') {
     console.error('Failed to refresh packaging mockup after face edit', mockupResult.reason)
   }
-  const dielineUrl =
+  const dielineVariants =
     dielineResult.status === 'fulfilled' && dielineResult.value
-      ? dielineResult.value.pdfUrl
+      ? dielineResult.value
       : undefined
+  const dielineUrl = dielineVariants ? primaryDielineVariant(dielineVariants)?.url : undefined
   const mockupUrl =
     mockupResult.status === 'fulfilled' && mockupResult.value
       ? mockupResult.value.pngUrl
@@ -1524,19 +1728,9 @@ async function refreshPackagingArtifactsAfterFaceChange(
     packaging: {
       ...packaging,
       dielineUrl,
+      dielineVariants,
       mockupUrl,
     },
-    referenceImages:
-      previousMockupReference && mockupUrl
-        ? [
-            ...nextSession.referenceImages,
-            {
-              ...previousMockupReference,
-              url: mockupUrl,
-              approvedAt: Date.now(),
-            },
-          ]
-        : nextSession.referenceImages,
   }
 }
 
@@ -1567,6 +1761,7 @@ async function finishApprove(
   const keepAsReference =
     !isAudio &&
     generator !== 'barcode' &&
+    !isPackagingContinueOnlyApproveStep(pending.screenKey) &&
     (!isPackagingFace ||
       !existingPackagingFaceReference ||
       existingPackagingFaceReference.screenKey === pending.screenKey)
@@ -1594,6 +1789,15 @@ async function finishApprove(
           approvedAt: Date.now(),
         },
       ],
+    }
+  }
+
+  if (pending.screenKey === 'box_mockup_3d') {
+    nextSession = {
+      ...nextSession,
+      referenceImages: nextSession.referenceImages.filter(
+        (reference) => reference.screenKey !== 'box_mockup_3d'
+      ),
     }
   }
 
@@ -1641,6 +1845,7 @@ async function finishApprove(
           ],
         },
         dielineUrl: undefined,
+        dielineVariants: undefined,
         mockupUrl: undefined,
       })
       nextSession = await refreshPackagingArtifactsAfterFaceChange(nextSession, session, userId)
@@ -1670,6 +1875,7 @@ async function finishApprove(
           ...(faceKey === 'WxH' ? { right: { sourceMode: 'generate' as const, url: pending.url } } : {}),
         },
         dielineUrl: undefined,
+        dielineVariants: undefined,
         mockupUrl: undefined,
       })
     } else if (pending.screenKey === 'box_mockup_3d') {
@@ -1813,8 +2019,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         facesConfirmed: false,
         faceAspectRatios: undefined,
         ...(dimensionsChanged
-          ? { faces: {}, faceSlots: {}, bodyStrip: undefined, mockupUrl: undefined, dielineUrl: undefined }
-          : { dielineUrl: undefined }),
+          ? { faces: {}, faceSlots: {}, bodyStrip: undefined, mockupUrl: undefined, dielineUrl: undefined, dielineVariants: undefined }
+          : { dielineUrl: undefined, dielineVariants: undefined }),
       },
       briefNotes: { ...session.briefNotes, box_size: userValue },
     }
@@ -1869,19 +2075,27 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const structureLabel = boxDielineStructureCopy(structure, input.locale).label
 
     if (activeStep === 'box_dieline_pdf') {
+      const generateUserCopy: Record<WebLocale, string> = {
+        vi: 'Tạo 2 file Dieline PDF (Dải ngang + Chữ thập)',
+        en: 'Generate both Dieline PDFs (horizontal strip + cross net)',
+        zh: '生成 2 个 Dieline PDF（横向排版 + 十字排版）',
+        ja: '2種類のDieline PDFを作成（横一列 + 十字型）',
+        ko: 'Dieline PDF 2종 생성(가로 스트립 + 십자형)',
+      }
       session = {
         ...session,
         packaging: {
           ...session.packaging!,
           dielineStructure: structure,
           dielineUrl: undefined,
+          dielineVariants: undefined,
         },
       }
       const artifactLabel = stepLabel(session, 'box_dieline_pdf', input.locale)
       const generated = await generateAsset(
         input.userId,
         session,
-        structureLabel,
+        generateUserCopy[input.locale],
         'box_dieline_pdf',
         artifactLabel,
         input.locale
@@ -1890,12 +2104,15 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       studio = generated.studio
       reply = generated.error
         ? generated.error
-        : t.studioGeneratedStep.replace('{screen}', artifactLabel)
+        : deterministicPackagingGeneratedReply(input.locale, artifactLabel)
+      if (!generated.error && session.currentStepKey && session.presetId) {
+        reply = appendStepAsk(reply, input.locale, session.presetId, session.currentStepKey)
+      }
       await pgSaveHubThreadSession(input.threadId, session)
       const userMessageId = await pgInsertHubChatMessage({
         threadId: input.threadId,
         role: 'user',
-        content: structureLabel,
+        content: generateUserCopy[input.locale],
         studio: { stepKey: 'box_dieline_pdf' },
       })
       await pgInsertHubChatMessage({
@@ -1931,6 +2148,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         faceAspectRatios: faceAspectRatiosFromPlan(plan),
         facesConfirmed: true,
         dielineUrl: undefined,
+        dielineVariants: undefined,
       },
       processSteps: setStepInProgress(completedSteps, next?.key ?? null),
       currentStepKey: next?.key ?? null,
@@ -2217,7 +2435,12 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     if (!stepKey || !isPackagingFaceStepKey(stepKey)) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioFaceUploadWrongStep }
     }
-    const urls = await uploadStudioImages(input.userId, files.slice(0, 1))
+    const file = files[0]!
+    const faceSize = getPackagingFaceSizeForStep(session.packaging?.dimensionsMm, stepKey)
+    const uploadBuffer = faceSize
+      ? await normalizePanelArtworkToPrintSize(file.buffer, faceSize.widthMm, faceSize.heightMm)
+      : file.buffer
+    const urls = await uploadStudioImages(input.userId, [{ buffer: uploadBuffer, mimeType: file.mimeType }])
     const url = urls[0]
     if (!url) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioFaceUploadNeedFile }
@@ -2339,9 +2562,22 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const approvedKey = pending.screenKey
     const finished = await finishApprove(session, input.locale, input.threadId, input.userId)
     session = finished.session
-    const asked = buildAskForNextStep(session, input.locale, approvedLabel, approvedKey)
-    reply = asked.reply
-    studio = asked.studio
+    const auto = await maybeAutoGenerateDeterministicPackagingStep(
+      input.userId,
+      session,
+      input.locale,
+      input.threadId
+    )
+    if (auto) {
+      session = auto.session
+      reply = auto.reply
+      studio = auto.studio
+      chargedImage = auto.chargedImage ?? 0
+    } else {
+      const asked = buildAskForNextStep(session, input.locale, approvedLabel, approvedKey)
+      reply = asked.reply
+      studio = asked.studio
+    }
 
     await pgInsertHubChatMessage({
       threadId: input.threadId,
@@ -2356,6 +2592,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       session,
       threadId: input.threadId,
       chargedChat: 0,
+      chargedImage: chargedImage || undefined,
     }
   }
 
@@ -2491,6 +2728,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
             [editedSlot]: { sourceMode: 'generate', url: newUrl },
           },
           dielineUrl: undefined,
+          dielineVariants: undefined,
           mockupUrl: undefined,
         }),
         referenceImages: session.referenceImages.map((reference) =>
@@ -2573,6 +2811,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
             [editedSlot]: { sourceMode: 'generate', url: originalUrl },
           },
           dielineUrl: undefined,
+          dielineVariants: undefined,
           mockupUrl: undefined,
         }),
         referenceImages: session.referenceImages.map((reference) =>
@@ -2696,9 +2935,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     chargedImage = genResult.chargedImage
     await pgSaveHubThreadSession(input.threadId, session)
     reply = t.studioRegenerated.replace('{screen}', label)
-    await pgInsertHubChatMessage({
+    await upsertHubStudioImageMessage({
       threadId: input.threadId,
-      role: 'assistant',
       content: reply,
       studio,
     })
@@ -3026,9 +3264,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         ? genResult.error
         : t.studioGeneratedStep.replace('{screen}', artifactLabel)
       await pgSaveHubThreadSession(input.threadId, session)
-      await pgInsertHubChatMessage({
+      await upsertHubStudioImageMessage({
         threadId: input.threadId,
-        role: 'assistant',
         content: reply,
         studio,
       })
@@ -3524,7 +3761,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         studio = genResult.studio
         chargedImage = genResult.chargedImage
         if (generator === 'dieline_pdf') {
-          reply = t.studioGeneratedStep.replace('{screen}', label)
+          reply = deterministicPackagingGeneratedReply(input.locale, label)
           if (session.currentStepKey && session.presetId) {
             reply = appendStepAsk(reply, input.locale, session.presetId, session.currentStepKey)
           }
@@ -3533,7 +3770,10 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           forceGenerate ||
           (explicitRetryStep === session.currentStepKey && isExplicitRetryIntent(message, aiRetry))
         ) {
-          reply = t.studioGeneratedStep.replace('{screen}', label)
+          reply =
+            generator === 'packaging_mockup'
+              ? deterministicPackagingGeneratedReply(input.locale, label)
+              : t.studioGeneratedStep.replace('{screen}', label)
         }
       }
     } else if (
@@ -3603,9 +3843,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       advisoryPlan = advisory.plan
     }
 
-    await pgInsertHubChatMessage({
+    await upsertHubStudioImageMessage({
       threadId: input.threadId,
-      role: 'assistant',
       content: reply,
       studio,
       workflows: advisoryWorkflows.length ? advisoryWorkflows : null,

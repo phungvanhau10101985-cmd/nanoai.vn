@@ -12,6 +12,25 @@ export function isLogoOnlyReferenceStepKey(stepKey: string | null | undefined): 
   return isProductLabelStepKey(stepKey) || isSealStickerStepKey(stepKey)
 }
 
+/** Approve with "Continue" only — do not store output as a generation reference. */
+export function isPackagingContinueOnlyApproveStep(stepKey: string | null | undefined): boolean {
+  return (
+    stepKey === 'box_mockup_3d' ||
+    stepKey === 'box_dieline_pdf' ||
+    isLogoOnlyReferenceStepKey(stepKey) ||
+    stepKey === 'barcode_label'
+  )
+}
+
+/** After 3D mockup: no reference-image picker for new generations. */
+export function isPackagingPostMockupStepKey(stepKey: string | null | undefined): boolean {
+  return (
+    stepKey === 'box_dieline_pdf' ||
+    isLogoOnlyReferenceStepKey(stepKey) ||
+    stepKey === 'barcode_label'
+  )
+}
+
 /** Parse label size from user text, e.g. "50x80 mm", "50×80". */
 export function parseLabelSizeMm(message: string): { widthMm: number; heightMm: number } | null {
   const m = message.match(/(\d{2,4})\s*[x×X]\s*(\d{2,4})(?:\s*mm)?/i)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Check,
   Circle,
@@ -48,7 +48,6 @@ import type { FacePrintStyleKey } from '@/lib/packaging/face-print-style'
 import type { TuckBoxProductionParams } from '@/lib/packaging/tuck-box-production'
 import { HubBoxDimensionForm } from '@/components/hub-chat/hub-box-dimension-form'
 import { HubFacePrintStylePicker } from '@/components/hub-chat/hub-face-print-style-picker'
-import { HubBoxDielineStructurePicker } from '@/components/hub-chat/hub-box-dieline-structure-picker'
 import { HubPackagingFaceActions } from '@/components/hub-chat/hub-packaging-face-actions'
 import { HubPackagingBodyStripActions } from '@/components/hub-chat/hub-packaging-body-strip-actions'
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
@@ -69,8 +68,14 @@ import {
 } from '@/lib/hub-chat/hub-studio-generation-refs'
 import { findBlockingIncompleteStep } from '@/lib/hub-chat/hub-studio-step-retry'
 import { STUDIO_REFERENCE_ATTACH_LIMIT } from '@/lib/hub-chat/hub-studio-reference-limits'
-import type { BoxDielineStructure } from '@/lib/packaging/dieline-structure'
-
+import {
+  HUB_STUDIO_LAUNCH_QUERY,
+  consumeHubStudioLaunch,
+  hubStudioLaunchPrompt,
+  parseHubStudioLaunchId,
+  peekHubStudioLaunch,
+  saveHubStudioLaunch,
+} from '@/lib/hub-chat/hub-studio-launch'
 type ChatLine = {
   id: string
   role: 'user' | 'assistant'
@@ -133,8 +138,24 @@ function replaceLatestStudioImageLine(
     ]
   }
   return lines.map((line, lineIndex) =>
-    lineIndex === index ? { ...line, content, studio } : line
+    lineIndex === index ? { ...line, content, studio, createdAt: lineCreatedAt() } : line
   )
+}
+
+/** One image bubble per step — hide older regenerations when reloading thread history. */
+function collapseDuplicateStudioImageLines(lines: ChatLine[]): ChatLine[] {
+  const latestByScreen = new Map<string, number>()
+  lines.forEach((line, index) => {
+    const screenKey = line.studio?.screenKey
+    if (line.role !== 'assistant' || !screenKey || !line.studio?.imageUrl) return
+    latestByScreen.set(screenKey, index)
+  })
+  if (latestByScreen.size === 0) return lines
+  return lines.filter((line, index) => {
+    const screenKey = line.studio?.screenKey
+    if (line.role !== 'assistant' || !screenKey || !line.studio?.imageUrl) return true
+    return latestByScreen.get(screenKey) === index
+  })
 }
 
 function updateLatestStudioImageUrl(
@@ -214,6 +235,9 @@ export function HomeHubChatBar() {
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const studioTextareaRef = useRef<HTMLTextAreaElement>(null)
   const postInFlightRef = useRef(false)
+  const studioLaunchStartedRef = useRef(false)
+  const loadThreadEpochRef = useRef(0)
+  const searchParams = useSearchParams()
 
   const scrollChatToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const el = chatScrollRef.current
@@ -278,6 +302,7 @@ export function HomeHubChatBar() {
   }, [])
 
   const loadThread = useCallback(async (id: string) => {
+    const epoch = loadThreadEpochRef.current
     try {
       const res = await fetch(`/api/hub-chat?threadId=${encodeURIComponent(id)}`, { credentials: 'same-origin' })
       const data = (await res.json().catch(() => ({}))) as {
@@ -296,6 +321,7 @@ export function HomeHubChatBar() {
         }
       }
       if (!res.ok || !data.thread) return
+      if (epoch !== loadThreadEpochRef.current) return
 
       const planById = new Map<string, HubChatPlanPayload>()
       const planIds = [
@@ -327,6 +353,8 @@ export function HomeHubChatBar() {
         })
       )
 
+      if (epoch !== loadThreadEpochRef.current) return
+
       const restored: ChatLine[] = data.thread.messages.map((m) => ({
         id: m.id,
         role: m.role,
@@ -337,7 +365,7 @@ export function HomeHubChatBar() {
         stepKey: m.studio?.stepKey,
         createdAt: m.createdAt,
       }))
-      setLines(restored)
+      setLines(collapseDuplicateStudioImageLines(restored))
       if (data.thread.session) {
         const session = withClientStudioSession(data.thread.session, uiLocale)
         if (session) setStudioSession(session)
@@ -433,18 +461,20 @@ export function HomeHubChatBar() {
   )
 
   useEffect(() => {
+    const launchId = parseHubStudioLaunchId(searchParams.get(HUB_STUDIO_LAUNCH_QUERY))
+    if (launchId || peekHubStudioLaunch()) return
     const saved = readHubThreadId()
     if (!saved) return
     setThreadId(saved)
     void loadThread(saved)
-  }, [loadThread])
+  }, [loadThread, searchParams])
 
   useEffect(() => {
     void fetchThreadList()
   }, [fetchThreadList])
 
   useEffect(() => {
-    if (threadsLoaded && chatThreads.length > 0 && lines.length === 0 && !threadId) {
+    if (threadsLoaded && chatThreads.length > 0 && lines.length === 0 && !threadId && !studioLaunchStartedRef.current) {
       setShowThreadList(true)
     }
   }, [threadsLoaded, chatThreads.length, lines.length, threadId])
@@ -452,6 +482,7 @@ export function HomeHubChatBar() {
   const modelLabel = HUB_CHAT_MODELS[0]!.label[uiLocale]
 
   const startNewThread = () => {
+    loadThreadEpochRef.current += 1
     clearHubThreadId()
     setThreadId(null)
     setLines([])
@@ -459,6 +490,7 @@ export function HomeHubChatBar() {
     setActivePlanRow(null)
     setStudioSession(null)
     setMessage('')
+    studioLaunchStartedRef.current = false
   }
 
   const postStudio = useCallback(
@@ -474,7 +506,6 @@ export function HomeHubChatBar() {
       navigateStepKey?: string
       regenerateStepKey?: string
       facePrintStyle?: string
-      boxDielineStructure?: BoxDielineStructure
       boxDimensionsMm?: { length: number; width: number; height: number }
       boxProduction?: TuckBoxProductionParams
     }) => {
@@ -484,6 +515,37 @@ export function HomeHubChatBar() {
         payload.action === 'remove_generation_product' ||
         payload.action === 'navigate_step'
       const stepKeyAtSend = getActiveStepKey(studioSession)
+      let optimisticUserId: string | null = null
+      if (payload.action === 'start_preset' && payload.presetId && studioLaunchStartedRef.current) {
+        const launchId = parseHubStudioLaunchId(payload.presetId)
+        if (launchId) {
+          optimisticUserId = `u-pending-${Date.now()}`
+          setLines([
+            {
+              id: optimisticUserId,
+              role: 'user',
+              content: hubStudioLaunchPrompt(launchId, uiLocale),
+              createdAt: lineCreatedAt(),
+            },
+          ])
+        }
+      }
+      if (payload.action === 'message' && payload.message?.trim()) {
+        loadThreadEpochRef.current += 1
+        setShowThreadList(false)
+        optimisticUserId = `u-pending-${Date.now()}`
+        setLines((prev) => [
+          ...prev,
+          {
+            id: optimisticUserId!,
+            role: 'user',
+            content: payload.message!.trim(),
+            stepKey: stepKeyAtSend ?? undefined,
+            studio: stepKeyAtSend ? { stepKey: stepKeyAtSend } : undefined,
+            createdAt: lineCreatedAt(),
+          },
+        ])
+      }
       postInFlightRef.current = true
       setBusy(true)
       try {
@@ -614,33 +676,46 @@ export function HomeHubChatBar() {
           return
         }
         if (payload.action === 'start_preset' && payload.presetId) {
-          const title = presetTitle(uiLocale, payload.presetId)
+          const title =
+            studioLaunchStartedRef.current && parseHubStudioLaunchId(payload.presetId)
+              ? hubStudioLaunchPrompt(payload.presetId, uiLocale)
+              : presetTitle(uiLocale, payload.presetId)
           setLines([{ id: `u-${Date.now()}`, role: 'user', content: title, createdAt: lineCreatedAt() }])
-        } else if (payload.action === 'message' && payload.message?.trim()) {
+        } else if (payload.action === 'message' && payload.message?.trim() && optimisticUserId) {
+          setLines((prev) =>
+            prev.map((line) =>
+              line.id === optimisticUserId
+                ? {
+                    ...line,
+                    id: data.userMessageId ?? line.id,
+                    stepKey: stepKeyAtSend ?? line.stepKey,
+                    studio: stepKeyAtSend ? { stepKey: stepKeyAtSend } : line.studio,
+                  }
+                : line
+            )
+          )
+        }
+        const replyContent = data.reply ?? hc.fallbackReply
+        const studioImageKey = data.studio?.screenKey
+        const hasStudioImage = Boolean(studioImageKey && data.studio?.imageUrl)
+        if (hasStudioImage) {
+          setLines((prev) =>
+            replaceLatestStudioImageLine(prev, studioImageKey, replyContent, data.studio)
+          )
+        } else {
           setLines((prev) => [
             ...prev,
             {
-              id: data.userMessageId ?? `u-${Date.now()}`,
-              role: 'user',
-              content: payload.message!.trim(),
-              stepKey: stepKeyAtSend ?? undefined,
-              studio: stepKeyAtSend ? { stepKey: stepKeyAtSend } : undefined,
+              id: `a-${Date.now()}`,
+              role: 'assistant',
+              content: replyContent,
+              studio: data.studio ?? null,
+              workflows: Array.isArray(data.workflows) ? data.workflows : undefined,
+              plan: data.plan ?? undefined,
               createdAt: lineCreatedAt(),
             },
           ])
         }
-        setLines((prev) => [
-          ...prev,
-          {
-            id: `a-${Date.now()}`,
-            role: 'assistant',
-            content: data.reply ?? hc.fallbackReply,
-            studio: data.studio ?? null,
-            workflows: Array.isArray(data.workflows) ? data.workflows : undefined,
-            plan: data.plan ?? undefined,
-            createdAt: lineCreatedAt(),
-          },
-        ])
         if (data.session) {
           const session = withClientStudioSession(data.session, uiLocale)
           if (session) setStudioSession(session)
@@ -654,7 +729,6 @@ export function HomeHubChatBar() {
       } catch (e) {
         const msg = e instanceof Error ? e.message : hc.errorGeneric
         toast({ title: hc.errorGeneric, description: msg, variant: 'destructive' })
-        if (payload.action === 'message') setLines((prev) => prev.slice(0, -1))
         if (payload.action === 'edit_step') {
           setEditingLineId(null)
           setEditingStepKey(null)
@@ -1056,23 +1130,21 @@ export function HomeHubChatBar() {
     return getActiveStepKey(studioSession) === 'face_print_style'
   }, [studioSession])
 
-  const boxDielineStructurePickerPurpose = useMemo<'generate' | null>(() => {
-    if (studioSession?.presetId !== 'packaging_kit') return null
-    if (!studioSession.packaging?.dimensionsMm) return null
+  const hideInlineDielinePreview = getActiveStepKey(studioSession) === 'box_face_confirm'
+
+  const hideAutoPackagingArtifactStep = useMemo(() => {
+    if (studioSession?.presetId !== 'packaging_kit') return false
     const step = getActiveStepKey(studioSession)
-    if (step === 'box_dieline_pdf') return 'generate'
-    return null
+    return step === 'box_mockup_3d' || step === 'box_dieline_pdf'
   }, [studioSession])
-  const hideInlineDielinePreview =
-    boxDielineStructurePickerPurpose === 'generate' ||
-    getActiveStepKey(studioSession) === 'box_face_confirm'
 
   const showBoxDimensionForm = useMemo(() => {
     if (studioSession?.presetId !== 'packaging_kit') return false
     const step = getActiveStepKey(studioSession)
     return step === 'box_size' || step === 'box_size_length' || step === 'box_size_width' || step === 'box_size_height'
   }, [studioSession])
-  const showStudioTextarea = !showFacePrintStylePicker && !showBoxDimensionForm
+  const showStudioTextarea =
+    !showFacePrintStylePicker && !showBoxDimensionForm && !hideAutoPackagingArtifactStep
 
   useEffect(() => {
     if (
@@ -1287,13 +1359,6 @@ export function HomeHubChatBar() {
     [postStudio]
   )
 
-  const submitBoxDielineStructure = useCallback(
-    async (structure: BoxDielineStructure) => {
-      await postStudio({ action: 'set_box_dieline_structure', boxDielineStructure: structure })
-    },
-    [postStudio]
-  )
-
   const submitBoxDimensions = useCallback(
     async (value: {
       dimensionsMm: { length: number; width: number; height: number }
@@ -1355,6 +1420,37 @@ export function HomeHubChatBar() {
     [busy, postStudio, selectedGenRefKeys]
   )
 
+  useEffect(() => {
+    const fromQuery =
+      parseHubStudioLaunchId(searchParams.get(HUB_STUDIO_LAUNCH_QUERY)) ??
+      (typeof window !== 'undefined'
+        ? parseHubStudioLaunchId(new URLSearchParams(window.location.search).get(HUB_STUDIO_LAUNCH_QUERY))
+        : null)
+    if (fromQuery) {
+      studioLaunchStartedRef.current = false
+      saveHubStudioLaunch(fromQuery)
+      router.replace('/', { scroll: false })
+      return
+    }
+
+    const launchId = consumeHubStudioLaunch()
+    if (!launchId || studioLaunchStartedRef.current || busy || postInFlightRef.current) return
+
+    studioLaunchStartedRef.current = true
+    loadThreadEpochRef.current += 1
+    clearHubThreadId()
+    setThreadId(null)
+    setLines([])
+    setActivePlan(null)
+    setActivePlanRow(null)
+    setStudioSession(null)
+    setMessage('')
+    setShowThreadList(false)
+
+    void postStudio({ action: 'start_preset', presetId: launchId })
+    window.setTimeout(() => scrollChatToBottom('auto'), 120)
+  }, [busy, postStudio, router, scrollChatToBottom, searchParams, searchParams.toString(), uiLocale])
+
   const latestPlan = useMemo(() => {
     for (let i = lines.length - 1; i >= 0; i--) {
       const p = lines[i]?.plan
@@ -1362,6 +1458,8 @@ export function HomeHubChatBar() {
     }
     return activePlan
   }, [lines, activePlan])
+
+  const displayLines = useMemo(() => collapseDuplicateStudioImageLines(lines), [lines])
 
   const latestPlanRow = activePlanRow?.id === latestPlan?.id ? activePlanRow : null
   const planPanelSource = latestPlanRow ?? latestPlan
@@ -1565,7 +1663,7 @@ export function HomeHubChatBar() {
             ref={chatScrollRef}
             className="max-h-80 space-y-2 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2 dark:border-slate-800 dark:bg-slate-900/40"
           >
-            {lines.map((line) => {
+            {displayLines.map((line) => {
               const displayLine =
                 hideInlineDielinePreview && line.studio?.boxWireframeSvg
                   ? {
@@ -1858,18 +1956,6 @@ export function HomeHubChatBar() {
             onUpload={(files) =>
               void postStudioFaceUpload(files, hc.studioFaceUploadUserLabel.replace('{face}', getBoxFaceSlotLabel(packagingFaceSlot, uiLocale)))
             }
-          />
-        ) : null}
-
-        {boxDielineStructurePickerPurpose && studioSession?.packaging?.dimensionsMm ? (
-          <HubBoxDielineStructurePicker
-            locale={uiLocale}
-            busy={busy}
-            dimensionsMm={studioSession.packaging.dimensionsMm}
-            production={studioSession.packaging.production}
-            purpose={boxDielineStructurePickerPurpose}
-            selectedStructure={studioSession.packaging.dielineStructure}
-            onSelect={submitBoxDielineStructure}
           />
         ) : null}
 

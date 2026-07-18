@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import sharp from 'sharp'
-import { createBoxDielinePdf } from '@/app/thiet-ke-bao-bi/lib/box-dieline-pdf'
+import { createBoxDielinePdf } from '@/lib/packaging/box-dieline-pdf'
 
 async function solid(width: number, height: number, rgb: { r: number; g: number; b: number }) {
   return sharp({ create: { width, height, channels: 3, background: rgb } }).png().toBuffer()

@@ -1,3 +1,4 @@
+import { packagingDielineIsReady } from '@/lib/packaging/dieline-structure'
 import type {
   HubStudioAiRetryHint,
   HubStudioMessagePayload,
@@ -295,7 +296,7 @@ export function isDesignStepApprovedComplete(
   const gen = getStepGenerator(presetId, stepKey)
   if (gen === 'lyria_music') return proc?.status === 'done'
   if (presetId === 'packaging_kit' && stepKey === 'box_dieline_pdf') {
-    return proc?.status === 'done' && Boolean(session.packaging?.dielineUrl)
+    return proc?.status === 'done' && packagingDielineIsReady(session.packaging)
   }
   if (presetId === 'packaging_kit' && stepKey === 'box_mockup_3d') {
     return proc?.status === 'done' && Boolean(session.packaging?.mockupUrl)
@@ -347,7 +348,7 @@ export function getDesignStepIncompleteReason(
   if (hasPending) return 'none'
   if (
     session.presetId === 'packaging_kit' &&
-    ((stepKey === 'box_dieline_pdf' && session.packaging?.dielineUrl) ||
+    ((stepKey === 'box_dieline_pdf' && packagingDielineIsReady(session.packaging)) ||
       (stepKey === 'box_mockup_3d' && session.packaging?.mockupUrl) ||
       (stepKey === 'barcode_label' && session.packaging?.barcodeUrl))
   ) {

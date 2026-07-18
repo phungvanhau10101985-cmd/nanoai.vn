@@ -200,6 +200,10 @@ const nextConfig = {
             { source: '/tao-giao-trinh', destination: '/giao-trinh', permanent: true },
             { source: '/tao-giao-trinh/:path*', destination: '/giao-trinh/:path*', permanent: true },
             { source: '/api/tao-giao-trinh/:path*', destination: '/api/giao-trinh/:path*', permanent: true },
+            { source: '/thiet-ke-bao-bi', destination: '/?hubStudio=packaging_kit', permanent: true },
+            { source: '/thiet-ke-bao-bi/:path*', destination: '/?hubStudio=packaging_kit', permanent: true },
+            { source: '/thiet-ke-tui-dung', destination: '/?hubStudio=packaging_kit', permanent: true },
+            { source: '/thiet-ke-tui-dung/:path*', destination: '/?hubStudio=packaging_kit', permanent: true },
         ];
     },
     async rewrites() {

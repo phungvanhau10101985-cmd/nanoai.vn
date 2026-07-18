@@ -1,9 +1,15 @@
-import { createBoxDielinePdf } from '@/app/thiet-ke-bao-bi/lib/box-dieline-pdf'
+import { createBoxDielinePdf } from '@/lib/packaging/box-dieline-pdf'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import type { BoxDimensionsMm } from '@/lib/packaging/dimensions'
-import { BOX_FACE_SLOT_ORDER, type BoxFaceSlot } from '@/lib/packaging/box-face-slots'
+import { BOX_FACE_SLOT_ORDER, getBoxFaceSlotDimensionsMm, type BoxFaceSlot } from '@/lib/packaging/box-face-slots'
 import type { TuckBoxProductionParams } from './tuck-box-production'
-import type { BoxDielineStructure } from './dieline-structure'
+import {
+  BOX_DIELINE_STRUCTURE_KEYS,
+  boxDielineStructureSlug,
+  type BoxDielineStructure,
+} from './dieline-structure'
+import { getBodyStripSizeMm } from './body-strip'
+import { normalizePanelArtworkToPrintSize } from './panel-artwork-fit'
 import sharp from 'sharp'
 
 export type DielineSlotUrls = Partial<Record<BoxFaceSlot, string>>
@@ -28,11 +34,19 @@ export async function exportBoxDielineFromUrls(input: {
     BOX_FACE_SLOT_ORDER.map(async (slot) => {
       const url = slotUrls[slot]
       if (!url) return
-      slotBuffers[slot] = await fetchImageBuffer(url)
+      const raw = await fetchImageBuffer(url)
+      const [widthMm, heightMm] = getBoxFaceSlotDimensionsMm(slot, dimensionsMm)
+      slotBuffers[slot] = await normalizePanelArtworkToPrintSize(raw, widthMm, heightMm)
     })
   )
   const bodyStripBuffer =
-    bodyStripUrl && structure !== 'cross_fold' ? await fetchImageBuffer(bodyStripUrl) : undefined
+    bodyStripUrl && structure !== 'cross_fold'
+      ? await normalizePanelArtworkToPrintSize(
+          await fetchImageBuffer(bodyStripUrl),
+          getBodyStripSizeMm(dimensionsMm).widthMm,
+          getBodyStripSizeMm(dimensionsMm).heightMm
+        )
+      : undefined
   const resolutionInputs: { buffer: Buffer; widthMm: number; heightMm: number }[] = []
   if (bodyStripBuffer) {
     resolutionInputs.push({
@@ -45,8 +59,7 @@ export async function exportBoxDielineFromUrls(input: {
     if (bodyStripBuffer && ['front', 'right', 'back', 'left'].includes(slot)) continue
     const buffer = slotBuffers[slot]
     if (!buffer) continue
-    const widthMm = slot === 'right' || slot === 'left' ? dimensionsMm.width : dimensionsMm.length
-    const heightMm = slot === 'top' || slot === 'bottom' ? dimensionsMm.width : dimensionsMm.height
+    const [widthMm, heightMm] = getBoxFaceSlotDimensionsMm(slot, dimensionsMm)
     resolutionInputs.push({ buffer, widthMm, heightMm })
   }
   const dpis = await Promise.all(
@@ -71,11 +84,34 @@ export async function exportBoxDielineFromUrls(input: {
     structure,
   })
   const stamp = Date.now()
-  const fileName = `box-dieline-${dimensionsMm.length}x${dimensionsMm.width}x${dimensionsMm.height}mm.pdf`
-  const path = `results/${userId}/box_dieline_${stamp}.pdf`
+  const structureSlug = structure ? boxDielineStructureSlug(structure) : 'default'
+  const fileName = `box-dieline-${structureSlug}-${dimensionsMm.length}x${dimensionsMm.width}x${dimensionsMm.height}mm.pdf`
+  const path = `results/${userId}/box_dieline_${structureSlug}_${stamp}.pdf`
   const { publicUrl } = await uploadTryOnImagePublic(path, pdfBuffer, {
     contentType: 'application/pdf',
     upsert: true,
   })
   return { pdfUrl: publicUrl, fileName, resolutionDpi }
+}
+
+export type ExportedBoxDielineVariant = {
+  pdfUrl: string
+  fileName: string
+  resolutionDpi?: number
+}
+
+export async function exportAllBoxDielineVariants(input: {
+  userId: string
+  slotUrls: DielineSlotUrls
+  dimensionsMm: BoxDimensionsMm
+  bodyStripUrl?: string
+  production?: TuckBoxProductionParams
+}): Promise<Partial<Record<BoxDielineStructure, ExportedBoxDielineVariant>>> {
+  const entries = await Promise.all(
+    BOX_DIELINE_STRUCTURE_KEYS.map(async (structure) => {
+      const exported = await exportBoxDielineFromUrls({ ...input, structure })
+      return [structure, exported] as const
+    })
+  )
+  return Object.fromEntries(entries) as Partial<Record<BoxDielineStructure, ExportedBoxDielineVariant>>
 }

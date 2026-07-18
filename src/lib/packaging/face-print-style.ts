@@ -89,9 +89,10 @@ export function facePrintStyleLabel(key: FacePrintStyleKey, locale: WebLocale): 
 export function facePrintStylePromptBlock(key: FacePrintStyleKey): string {
   switch (key) {
     case 'realistic_photography':
-      return `VISUAL ART STYLE — realistic photography:
-- Use realistic photographic imagery with natural lighting, depth and believable shadows.
-- Keep the result as one flat orthographic print panel, never a photo of a 3D box.
+      return `VISUAL ART STYLE — realistic photography (flat print only):
+- Use realistic photographic textures, lighting and product cutouts as 2D printed graphics embedded ON this flat panel.
+- NEVER render a 3D box in a studio scene, grey backdrop, margins around a box, or drop shadows on a physical carton.
+- Keep the result as one flat orthographic print panel filling the entire canvas edge-to-edge, never a photo of a 3D box.
 - Apply the same photographic treatment consistently across all 6 faces.`
     case 'line_art':
       return `VISUAL ART STYLE — line art / sketch:
@@ -228,6 +229,7 @@ export function reconcilePackagingProcessSteps(
     bodyStrip: undefined,
     mockupUrl: hadBodyStrip ? undefined : session.packaging.mockupUrl,
     dielineUrl: hadBodyStrip ? undefined : session.packaging.dielineUrl,
+    dielineVariants: hadBodyStrip ? undefined : session.packaging.dielineVariants,
   })
   const shouldRestartSides =
     session.currentStepKey === 'body_strip' ||

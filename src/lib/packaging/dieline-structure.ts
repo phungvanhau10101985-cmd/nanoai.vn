@@ -72,6 +72,24 @@ export function boxDielineStructureCopy(
   return COPY[locale][structure]
 }
 
+export function boxDielineStructureSlug(structure: BoxDielineStructure): string {
+  return structure === 'cross_fold' ? 'cross-fold' : 'straight-tuck'
+}
+
+export function packagingDielineIsReady(
+  packaging?: {
+    dielineUrl?: string
+    dielineVariants?: Partial<Record<BoxDielineStructure, { url: string; fileName?: string }>>
+  } | null
+): boolean {
+  if (!packaging) return false
+  const variants = packaging.dielineVariants
+  if (variants && BOX_DIELINE_STRUCTURE_KEYS.every((key) => Boolean(variants[key]?.url))) {
+    return true
+  }
+  return Boolean(packaging.dielineUrl)
+}
+
 export function parseBoxDielineStructure(
   raw: string | null | undefined
 ): BoxDielineStructure | null {
