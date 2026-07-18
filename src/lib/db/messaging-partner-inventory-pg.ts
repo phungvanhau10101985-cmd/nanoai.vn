@@ -1249,6 +1249,161 @@ export async function fetchPartnerInventoryEmbeddingStatsFromPg(
   }
 }
 
+export type PartnerInventoryEmbeddingErrorRow = {
+  id: string
+  sku: string | null
+  name: string
+  image_url: string
+  image_embedding_error: string | null
+  image_embedding_updated_at: string | null
+  text_embedding_error: string | null
+  text_embedding_updated_at: string | null
+}
+
+const INVENTORY_EMBEDDING_ERROR_WHERE = `coalesce(mpi.is_active, true)
+  and (
+    trim(coalesce(mpi.image_embedding_error, '')) <> ''
+    or trim(coalesce(mpi.text_embedding_error, '')) <> ''
+  )`
+
+function mapPartnerInventoryEmbeddingErrorRow(r: {
+  id: string
+  sku: string | null
+  name: string
+  image_url: string
+  image_embedding_error: string | null
+  image_embedding_updated_at: string | null
+  text_embedding_error: string | null
+  text_embedding_updated_at: string | null
+}): PartnerInventoryEmbeddingErrorRow {
+  return {
+    id: r.id,
+    sku: r.sku,
+    name: r.name ?? '',
+    image_url: r.image_url ?? '',
+    image_embedding_error: r.image_embedding_error,
+    image_embedding_updated_at: r.image_embedding_updated_at,
+    text_embedding_error: r.text_embedding_error,
+    text_embedding_updated_at: r.text_embedding_updated_at,
+  }
+}
+
+/** Số sản phẩm active có ít nhất một lỗi vector ảnh hoặc văn bản. */
+export async function fetchPartnerInventoryEmbeddingErrorCountFromPg(
+  partnerId: string
+): Promise<number | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ count: string | number }>(
+      `select count(*)::bigint as count
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and ${INVENTORY_EMBEDDING_ERROR_WHERE}`,
+      [partnerId]
+    )
+    if (!row) return 0
+    return Math.max(0, Math.floor(Number(row.count)))
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return 0
+    console.warn('[fetchPartnerInventoryEmbeddingErrorCountFromPg]', e)
+    return null
+  }
+}
+
+/** Trang danh sách lỗi vector — mới nhất trước. */
+export async function fetchPartnerInventoryEmbeddingErrorsPageFromPg(
+  partnerId: string,
+  offset: number,
+  limit: number
+): Promise<PartnerInventoryEmbeddingErrorRow[] | null> {
+  if (!isPgConfigured()) return null
+  const lim = Math.max(1, Math.min(500, Math.floor(limit)))
+  const off = Math.max(0, Math.floor(offset))
+  try {
+    const rows = await pgQuery<{
+      id: string
+      sku: string | null
+      name: string
+      image_url: string
+      image_embedding_error: string | null
+      image_embedding_updated_at: string | null
+      text_embedding_error: string | null
+      text_embedding_updated_at: string | null
+    }>(
+      `select
+         mpi.id::text as id,
+         mpi.sku,
+         coalesce(mpi.name, '') as name,
+         coalesce(mpi.image_url, '') as image_url,
+         nullif(trim(coalesce(mpi.image_embedding_error, '')), '') as image_embedding_error,
+         mpi.image_embedding_updated_at::text as image_embedding_updated_at,
+         nullif(trim(coalesce(mpi.text_embedding_error, '')), '') as text_embedding_error,
+         mpi.text_embedding_updated_at::text as text_embedding_updated_at
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and ${INVENTORY_EMBEDDING_ERROR_WHERE}
+       order by greatest(
+         coalesce(mpi.image_embedding_updated_at, '1970-01-01'::timestamptz),
+         coalesce(mpi.text_embedding_updated_at, '1970-01-01'::timestamptz)
+       ) desc,
+       mpi.id asc
+       limit $2 offset $3`,
+      [partnerId, lim, off]
+    )
+    return rows.map(mapPartnerInventoryEmbeddingErrorRow)
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return []
+    console.warn('[fetchPartnerInventoryEmbeddingErrorsPageFromPg]', e)
+    return null
+  }
+}
+
+/** Toàn bộ lỗi vector để export CSV (giới hạn an toàn). */
+export async function fetchPartnerInventoryEmbeddingErrorsAllFromPg(
+  partnerId: string,
+  maxRows = 15000
+): Promise<PartnerInventoryEmbeddingErrorRow[] | null> {
+  if (!isPgConfigured()) return null
+  const cap = Math.max(1, Math.min(50000, Math.floor(maxRows)))
+  try {
+    const rows = await pgQuery<{
+      id: string
+      sku: string | null
+      name: string
+      image_url: string
+      image_embedding_error: string | null
+      image_embedding_updated_at: string | null
+      text_embedding_error: string | null
+      text_embedding_updated_at: string | null
+    }>(
+      `select
+         mpi.id::text as id,
+         mpi.sku,
+         coalesce(mpi.name, '') as name,
+         coalesce(mpi.image_url, '') as image_url,
+         nullif(trim(coalesce(mpi.image_embedding_error, '')), '') as image_embedding_error,
+         mpi.image_embedding_updated_at::text as image_embedding_updated_at,
+         nullif(trim(coalesce(mpi.text_embedding_error, '')), '') as text_embedding_error,
+         mpi.text_embedding_updated_at::text as text_embedding_updated_at
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and ${INVENTORY_EMBEDDING_ERROR_WHERE}
+       order by greatest(
+         coalesce(mpi.image_embedding_updated_at, '1970-01-01'::timestamptz),
+         coalesce(mpi.text_embedding_updated_at, '1970-01-01'::timestamptz)
+       ) desc,
+       mpi.id asc
+       limit $2`,
+      [partnerId, cap]
+    )
+    return rows.map(mapPartnerInventoryEmbeddingErrorRow)
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return []
+    console.warn('[fetchPartnerInventoryEmbeddingErrorsAllFromPg]', e)
+    return null
+  }
+}
+
 /**
  * Thống kê embedding văn bản (tên + giá + ghi chú tư vấn). `eligible` = dòng active có ít nhất một trường để embed.
  */

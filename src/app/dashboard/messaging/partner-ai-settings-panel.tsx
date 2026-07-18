@@ -53,6 +53,7 @@ import {
   type PartnerAiUsageQuery,
 } from '@/app/dashboard/messaging/actions'
 import { PartnerInventoryExternalSyncCard } from '@/app/dashboard/messaging/partner-inventory-external-sync-card'
+import { PartnerInventoryEmbeddingErrorsPanel } from '@/app/dashboard/messaging/partner-inventory-embedding-errors-panel'
 import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/lib/messaging/build-guest-consult-chat-link'
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
@@ -245,6 +246,7 @@ export function PartnerAiSettingsPanel({
   const [textEmbedDetailRows, setTextEmbedDetailRows] = useState<PartnerTextEmbedUsageDetailRow[]>([])
   const [embeddingStats, setEmbeddingStats] = useState<PartnerInventoryEmbeddingStats | null>(null)
   const [textEmbeddingStats, setTextEmbeddingStats] = useState<PartnerInventoryEmbeddingStats | null>(null)
+  const [embeddingErrorsRefreshKey, setEmbeddingErrorsRefreshKey] = useState(0)
   const [embeddingSyncing, setEmbeddingSyncing] = useState(false)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
@@ -371,6 +373,7 @@ export function PartnerAiSettingsPanel({
       } else {
         setTextEmbeddingStats(textEmbeddingRes.stats)
       }
+      setEmbeddingErrorsRefreshKey((k) => k + 1)
 
       if ('error' in bundleRes && bundleRes.error) {
         setLoadErr(bundleRes.error)
@@ -1049,6 +1052,12 @@ export function PartnerAiSettingsPanel({
                 </p>
               </div>
             ) : null}
+            <PartnerInventoryEmbeddingErrorsPanel
+              partnerId={partnerId}
+              t={t}
+              toast={toast}
+              refreshKey={embeddingErrorsRefreshKey}
+            />
             <PartnerInventoryExternalSyncCard partnerId={partnerId} t={t} toast={toast} />
             <InventoryEditor
               partnerId={partnerId}

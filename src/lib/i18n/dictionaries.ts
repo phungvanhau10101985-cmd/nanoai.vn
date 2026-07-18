@@ -1093,6 +1093,28 @@ export type Dictionary = {
     inventoryTextEmbeddingTitle: string
     inventoryTextEmbeddingSummary: string
     inventoryTextEmbeddingAutoHint: string
+    inventoryEmbeddingErrorsTitle: string
+    inventoryEmbeddingErrorsSummary: string
+    inventoryEmbeddingErrorsEmpty: string
+    inventoryEmbeddingErrorsColSku: string
+    inventoryEmbeddingErrorsColName: string
+    inventoryEmbeddingErrorsColImageError: string
+    inventoryEmbeddingErrorsColTextError: string
+    inventoryEmbeddingErrorsColUpdatedAt: string
+    inventoryEmbeddingErrorsLoadMore: string
+    inventoryEmbeddingErrorsExportCsv: string
+    inventoryEmbeddingErrorsExporting: string
+    inventoryEmbeddingErrorsExportDone: string
+    inventoryEmbeddingErrorsExportEmpty: string
+    inventoryEmbeddingErrorsLoadFailed: string
+    inventoryEmbeddingErrorsCsvHeaderSku: string
+    inventoryEmbeddingErrorsCsvHeaderName: string
+    inventoryEmbeddingErrorsCsvHeaderId: string
+    inventoryEmbeddingErrorsCsvHeaderImageUrl: string
+    inventoryEmbeddingErrorsCsvHeaderImageError: string
+    inventoryEmbeddingErrorsCsvHeaderImageErrorAt: string
+    inventoryEmbeddingErrorsCsvHeaderTextError: string
+    inventoryEmbeddingErrorsCsvHeaderTextErrorAt: string
     cronSetupHint: string
     /** Trạng thái nút gạt AI */
     toggleStatusOn: string
@@ -3713,6 +3735,28 @@ const VI_DICTIONARY: Dictionary = {
     inventoryTextEmbeddingSummary: 'Đã tạo {done}/{eligible}. Còn thiếu {pending}. Lỗi {failed}.',
     inventoryTextEmbeddingAutoHint:
       'Vector văn bản (tên + giá + ghi chú tư vấn) dùng cho tìm kiếm ngữ nghĩa trong chat. Cùng lệnh «Đồng bộ ngay» với vector ảnh; trang mở thì tự chạy nối lô khi còn thiếu ảnh hoặc văn bản; cron /api/cron/messaging-inventory-embed-backfill xử lý nền.',
+    inventoryEmbeddingErrorsTitle: 'Danh sách lỗi vector',
+    inventoryEmbeddingErrorsSummary: '{count} sản phẩm có lỗi tạo vector (ảnh hoặc văn bản).',
+    inventoryEmbeddingErrorsEmpty: 'Không có sản phẩm lỗi vector.',
+    inventoryEmbeddingErrorsColSku: 'SKU',
+    inventoryEmbeddingErrorsColName: 'Tên sản phẩm',
+    inventoryEmbeddingErrorsColImageError: 'Lỗi vector ảnh',
+    inventoryEmbeddingErrorsColTextError: 'Lỗi vector văn bản',
+    inventoryEmbeddingErrorsColUpdatedAt: 'Lần thử gần nhất',
+    inventoryEmbeddingErrorsLoadMore: 'Tải thêm',
+    inventoryEmbeddingErrorsExportCsv: 'Xuất CSV',
+    inventoryEmbeddingErrorsExporting: 'Đang xuất...',
+    inventoryEmbeddingErrorsExportDone: 'Đã xuất {count} dòng → {filename}',
+    inventoryEmbeddingErrorsExportEmpty: 'Không có dòng lỗi để xuất.',
+    inventoryEmbeddingErrorsLoadFailed: 'Không tải được danh sách lỗi vector.',
+    inventoryEmbeddingErrorsCsvHeaderSku: 'SKU',
+    inventoryEmbeddingErrorsCsvHeaderName: 'Ten san pham',
+    inventoryEmbeddingErrorsCsvHeaderId: 'ID',
+    inventoryEmbeddingErrorsCsvHeaderImageUrl: 'URL anh',
+    inventoryEmbeddingErrorsCsvHeaderImageError: 'Loi vector anh',
+    inventoryEmbeddingErrorsCsvHeaderImageErrorAt: 'Thoi diem loi anh',
+    inventoryEmbeddingErrorsCsvHeaderTextError: 'Loi vector van ban',
+    inventoryEmbeddingErrorsCsvHeaderTextErrorAt: 'Thoi diem loi van ban',
     cronSetupHint:
       'Production: cấu hình cron gọi GET hoặc POST /api/cron/messaging-partner-ai kèm Bearer MESSAGING_PARTNER_AI_CRON_SECRET (ví dụ mỗi phút) và DEEPSEEK_API_KEY. Không có cron thì job vẫn tạo nhưng AI không bao giờ gửi. Môi trường `next dev` tự chạy xử lý job sau thời gian chờ (không cần cron). Chạy `next start` local mà chưa có cron: thêm MESSAGING_PARTNER_AI_DEV_WAKE=1 vào .env.',
     toggleStatusOn: 'Đang bật',
@@ -6321,6 +6365,28 @@ const EN_DICTIONARY: Dictionary = {
     inventoryTextEmbeddingSummary: 'Embedded {done}/{eligible}. Pending {pending}. Errors {failed}.',
     inventoryTextEmbeddingAutoHint:
       'Text vectors (name + price + consult note) power semantic search in chat. Uses the same “Sync now” as image vectors; while this page is open, batches continue until image or text backlog clears; cron /api/cron/messaging-inventory-embed-backfill covers background.',
+    inventoryEmbeddingErrorsTitle: 'Vector error list',
+    inventoryEmbeddingErrorsSummary: '{count} product(s) with vector errors (image and/or text).',
+    inventoryEmbeddingErrorsEmpty: 'No vector errors.',
+    inventoryEmbeddingErrorsColSku: 'SKU',
+    inventoryEmbeddingErrorsColName: 'Product name',
+    inventoryEmbeddingErrorsColImageError: 'Image vector error',
+    inventoryEmbeddingErrorsColTextError: 'Text vector error',
+    inventoryEmbeddingErrorsColUpdatedAt: 'Last attempt',
+    inventoryEmbeddingErrorsLoadMore: 'Load more',
+    inventoryEmbeddingErrorsExportCsv: 'Export CSV',
+    inventoryEmbeddingErrorsExporting: 'Exporting...',
+    inventoryEmbeddingErrorsExportDone: 'Exported {count} row(s) → {filename}',
+    inventoryEmbeddingErrorsExportEmpty: 'No error rows to export.',
+    inventoryEmbeddingErrorsLoadFailed: 'Could not load vector error list.',
+    inventoryEmbeddingErrorsCsvHeaderSku: 'SKU',
+    inventoryEmbeddingErrorsCsvHeaderName: 'Product name',
+    inventoryEmbeddingErrorsCsvHeaderId: 'ID',
+    inventoryEmbeddingErrorsCsvHeaderImageUrl: 'Image URL',
+    inventoryEmbeddingErrorsCsvHeaderImageError: 'Image vector error',
+    inventoryEmbeddingErrorsCsvHeaderImageErrorAt: 'Image error time',
+    inventoryEmbeddingErrorsCsvHeaderTextError: 'Text vector error',
+    inventoryEmbeddingErrorsCsvHeaderTextErrorAt: 'Text error time',
     cronSetupHint:
       'Production: schedule GET or POST /api/cron/messaging-partner-ai with Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET (e.g. every minute) and set DEEPSEEK_API_KEY. Without cron, jobs stay pending and AI never sends. `next dev` auto-runs the processor after the delay (no cron). For `next start` locally without cron, set MESSAGING_PARTNER_AI_DEV_WAKE=1 in .env.',
     toggleStatusOn: 'On',
@@ -8909,6 +8975,28 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryTextEmbeddingSummary: '已完成 {done}/{eligible}。待处理 {pending}。错误 {failed}。',
     inventoryTextEmbeddingAutoHint:
       '文本向量（名称 + 价格 + 咨询备注）用于对话中的语义检索。与图片向量共用「立即同步」；页面打开时会自动连跑直至图片或文本待处理清零；cron /api/cron/messaging-inventory-embed-backfill 负责后台。',
+    inventoryEmbeddingErrorsTitle: '向量错误列表',
+    inventoryEmbeddingErrorsSummary: '{count} 个产品有向量错误（图片和/或文本）。',
+    inventoryEmbeddingErrorsEmpty: '没有向量错误。',
+    inventoryEmbeddingErrorsColSku: 'SKU',
+    inventoryEmbeddingErrorsColName: '产品名称',
+    inventoryEmbeddingErrorsColImageError: '图片向量错误',
+    inventoryEmbeddingErrorsColTextError: '文本向量错误',
+    inventoryEmbeddingErrorsColUpdatedAt: '最近尝试',
+    inventoryEmbeddingErrorsLoadMore: '加载更多',
+    inventoryEmbeddingErrorsExportCsv: '导出 CSV',
+    inventoryEmbeddingErrorsExporting: '正在导出...',
+    inventoryEmbeddingErrorsExportDone: '已导出 {count} 行 → {filename}',
+    inventoryEmbeddingErrorsExportEmpty: '没有可导出的错误行。',
+    inventoryEmbeddingErrorsLoadFailed: '无法加载向量错误列表。',
+    inventoryEmbeddingErrorsCsvHeaderSku: 'SKU',
+    inventoryEmbeddingErrorsCsvHeaderName: '产品名称',
+    inventoryEmbeddingErrorsCsvHeaderId: 'ID',
+    inventoryEmbeddingErrorsCsvHeaderImageUrl: '图片URL',
+    inventoryEmbeddingErrorsCsvHeaderImageError: '图片向量错误',
+    inventoryEmbeddingErrorsCsvHeaderImageErrorAt: '图片错误时间',
+    inventoryEmbeddingErrorsCsvHeaderTextError: '文本向量错误',
+    inventoryEmbeddingErrorsCsvHeaderTextErrorAt: '文本错误时间',
     cronSetupHint:
       '生产环境：配置定时任务 GET 或 POST /api/cron/messaging-partner-ai，请求头 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET（建议每分钟），并设置 DEEPSEEK_API_KEY。无 cron 时任务会一直排队、AI 不会发出。`next dev` 会在等待时间后自动处理（无需 cron）。本地 `next start` 且无 cron 时，可在 .env 设置 MESSAGING_PARTNER_AI_DEV_WAKE=1。',
     toggleStatusOn: '已开启',
@@ -11459,6 +11547,28 @@ const JA_DICTIONARY: Dictionary = {
     inventoryTextEmbeddingSummary: '完了 {done}/{eligible}。未処理 {pending}。エラー {failed}。',
     inventoryTextEmbeddingAutoHint:
       'テキストベクトル（商品名+価格+相談メモ）はチャットの意味検索用です。画像と同じ「今すぐ同期」；ページ表示中は画像またはテキストの未処理がなくなるまで連続実行；cron でバックグラウンド処理。',
+    inventoryEmbeddingErrorsTitle: 'ベクトルエラー一覧',
+    inventoryEmbeddingErrorsSummary: '{count} 件の商品にベクトルエラー（画像/テキスト）があります。',
+    inventoryEmbeddingErrorsEmpty: 'ベクトルエラーはありません。',
+    inventoryEmbeddingErrorsColSku: 'SKU',
+    inventoryEmbeddingErrorsColName: '商品名',
+    inventoryEmbeddingErrorsColImageError: '画像ベクトルエラー',
+    inventoryEmbeddingErrorsColTextError: 'テキストベクトルエラー',
+    inventoryEmbeddingErrorsColUpdatedAt: '最終試行',
+    inventoryEmbeddingErrorsLoadMore: 'さらに読み込む',
+    inventoryEmbeddingErrorsExportCsv: 'CSVエクスポート',
+    inventoryEmbeddingErrorsExporting: 'エクスポート中...',
+    inventoryEmbeddingErrorsExportDone: '{count} 行をエクスポート → {filename}',
+    inventoryEmbeddingErrorsExportEmpty: 'エクスポートするエラー行がありません。',
+    inventoryEmbeddingErrorsLoadFailed: 'ベクトルエラー一覧を読み込めませんでした。',
+    inventoryEmbeddingErrorsCsvHeaderSku: 'SKU',
+    inventoryEmbeddingErrorsCsvHeaderName: '商品名',
+    inventoryEmbeddingErrorsCsvHeaderId: 'ID',
+    inventoryEmbeddingErrorsCsvHeaderImageUrl: '画像URL',
+    inventoryEmbeddingErrorsCsvHeaderImageError: '画像ベクトルエラー',
+    inventoryEmbeddingErrorsCsvHeaderImageErrorAt: '画像エラー日時',
+    inventoryEmbeddingErrorsCsvHeaderTextError: 'テキストベクトルエラー',
+    inventoryEmbeddingErrorsCsvHeaderTextErrorAt: 'テキストエラー日時',
     cronSetupHint:
       '本番：GET または POST /api/cron/messaging-partner-ai を Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET で定期実行（例：毎分）し、DEEPSEEK_API_KEY を設定。cron がないとジョブは保留のまま AI は送りません。`next dev` は待機後に自動処理（cron 不要）。ローカルで `next start` かつ cron なしの場合は .env に MESSAGING_PARTNER_AI_DEV_WAKE=1。',
     toggleStatusOn: 'オン',
@@ -14045,6 +14155,28 @@ const KO_DICTIONARY: Dictionary = {
     inventoryTextEmbeddingSummary: '완료 {done}/{eligible}. 대기 {pending}. 오류 {failed}.',
     inventoryTextEmbeddingAutoHint:
       '텍스트 벡터(이름+가격+상담 메모)는 채팅 의미 검색에 사용됩니다. 이미지와 같은 «지금 동기화»; 페이지가 열린 동안 이미지 또는 텍스트 대기가 없어질 때까지 연속 실행; cron으로 백그라운드.',
+    inventoryEmbeddingErrorsTitle: '벡터 오류 목록',
+    inventoryEmbeddingErrorsSummary: '{count}개 상품에 벡터 오류(이미지/텍스트)가 있습니다.',
+    inventoryEmbeddingErrorsEmpty: '벡터 오류가 없습니다.',
+    inventoryEmbeddingErrorsColSku: 'SKU',
+    inventoryEmbeddingErrorsColName: '상품명',
+    inventoryEmbeddingErrorsColImageError: '이미지 벡터 오류',
+    inventoryEmbeddingErrorsColTextError: '텍스트 벡터 오류',
+    inventoryEmbeddingErrorsColUpdatedAt: '최근 시도',
+    inventoryEmbeddingErrorsLoadMore: '더 불러오기',
+    inventoryEmbeddingErrorsExportCsv: 'CSV 내보내기',
+    inventoryEmbeddingErrorsExporting: '내보내는 중...',
+    inventoryEmbeddingErrorsExportDone: '{count}행 내보냄 → {filename}',
+    inventoryEmbeddingErrorsExportEmpty: '내보낼 오류 행이 없습니다.',
+    inventoryEmbeddingErrorsLoadFailed: '벡터 오류 목록을 불러오지 못했습니다.',
+    inventoryEmbeddingErrorsCsvHeaderSku: 'SKU',
+    inventoryEmbeddingErrorsCsvHeaderName: '상품명',
+    inventoryEmbeddingErrorsCsvHeaderId: 'ID',
+    inventoryEmbeddingErrorsCsvHeaderImageUrl: '이미지 URL',
+    inventoryEmbeddingErrorsCsvHeaderImageError: '이미지 벡터 오류',
+    inventoryEmbeddingErrorsCsvHeaderImageErrorAt: '이미지 오류 시각',
+    inventoryEmbeddingErrorsCsvHeaderTextError: '텍스트 벡터 오류',
+    inventoryEmbeddingErrorsCsvHeaderTextErrorAt: '텍스트 오류 시각',
     cronSetupHint:
       '운영: GET 또는 POST /api/cron/messaging-partner-ai를 Authorization: Bearer MESSAGING_PARTNER_AI_CRON_SECRET으로 주기 호출(예: 매분)하고 DEEPSEEK_API_KEY를 설정하세요. cron이 없으면 작업이 대기만 하고 AI가 보내지 않습니다. `next dev`는 대기 시간 후 자동 처리(cron 불필요). 로컬 `next start`에 cron이 없으면 .env에 MESSAGING_PARTNER_AI_DEV_WAKE=1.',
     toggleStatusOn: '켜짐',

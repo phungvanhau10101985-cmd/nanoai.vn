@@ -24,7 +24,11 @@ import {
   deletePartnerInventoryItemForPartnerFromPg,
   fetchPartnerInventoryActivePageWithCountFromPg,
   fetchPartnerInventoryEmbeddingStatsFromPg,
+  fetchPartnerInventoryEmbeddingErrorCountFromPg,
+  fetchPartnerInventoryEmbeddingErrorsAllFromPg,
+  fetchPartnerInventoryEmbeddingErrorsPageFromPg,
   fetchPartnerInventoryTextEmbeddingStatsFromPg,
+  type PartnerInventoryEmbeddingErrorRow,
   insertPartnerInventoryDashboardItemFromPg,
   updatePartnerInventoryDashboardItemFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
@@ -140,6 +144,10 @@ import {
 import { getTryOnPublicUrlFromPath, tryOnObjectExistsByPath } from '@/lib/storage/try-on-public-upload'
 import { validateInventoryImageUrl } from '@/lib/messaging/partner-inventory-excel'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
+import {
+  buildPartnerInventoryEmbeddingErrorsCsvString,
+  type PartnerInventoryEmbeddingErrorExportRow,
+} from '@/lib/messaging/partner-inventory-embedding-errors-export'
 import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
 import { isValidUuidString } from '@/lib/validate-uuid'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
@@ -1808,6 +1816,47 @@ export type PartnerInventoryEmbeddingStats = {
   failed: number
 }
 
+export type PartnerInventoryEmbeddingErrorClientRow = {
+  id: string
+  sku: string | null
+  name: string
+  imageUrl: string
+  imageError: string | null
+  imageErrorAt: string | null
+  textError: string | null
+  textErrorAt: string | null
+}
+
+function mapPartnerInventoryEmbeddingErrorClientRow(
+  row: PartnerInventoryEmbeddingErrorRow
+): PartnerInventoryEmbeddingErrorClientRow {
+  return {
+    id: row.id,
+    sku: row.sku,
+    name: row.name,
+    imageUrl: row.image_url,
+    imageError: row.image_embedding_error,
+    imageErrorAt: row.image_embedding_updated_at,
+    textError: row.text_embedding_error,
+    textErrorAt: row.text_embedding_updated_at,
+  }
+}
+
+function mapPartnerInventoryEmbeddingErrorExportRow(
+  row: PartnerInventoryEmbeddingErrorRow
+): PartnerInventoryEmbeddingErrorExportRow {
+  return {
+    id: row.id,
+    sku: row.sku,
+    name: row.name,
+    imageUrl: row.image_url,
+    imageError: row.image_embedding_error,
+    imageErrorAt: row.image_embedding_updated_at,
+    textError: row.text_embedding_error,
+    textErrorAt: row.text_embedding_updated_at,
+  }
+}
+
 function buildPartnerVisionCatalogStats(
   rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][]
 ): PartnerVisionCatalogStats {
@@ -1969,6 +2018,79 @@ export async function getPartnerInventoryEmbeddingStats(partnerId: string) {
     failed: agg.failed,
   }
   return { stats }
+}
+
+export async function getPartnerInventoryEmbeddingErrors(
+  partnerId: string,
+  page = 0,
+  pageSize = 50
+) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  if ('error' in gate) return { error: gate.error }
+
+  if (!isPgConfigured()) {
+    return { error: 'DATABASE_URL is not set.' }
+  }
+
+  const size = Math.max(10, Math.min(200, Math.floor(Number(pageSize) || 50)))
+  const index = Math.max(0, Math.floor(Number(page) || 0))
+  const from = index * size
+
+  const [totalCount, pageRows] = await Promise.all([
+    fetchPartnerInventoryEmbeddingErrorCountFromPg(partnerId),
+    fetchPartnerInventoryEmbeddingErrorsPageFromPg(partnerId, from, size),
+  ])
+  if (totalCount === null || pageRows === null) {
+    return { error: 'Failed to load embedding error list.' }
+  }
+
+  return {
+    rows: pageRows.map(mapPartnerInventoryEmbeddingErrorClientRow),
+    page: index,
+    pageSize: size,
+    totalCount,
+    hasMore: from + pageRows.length < totalCount,
+  }
+}
+
+export async function exportPartnerInventoryEmbeddingErrorsCsv(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  if ('error' in gate) return { error: gate.error }
+
+  if (!isPgConfigured()) {
+    return { error: 'DATABASE_URL is not set.' }
+  }
+
+  const rows = await fetchPartnerInventoryEmbeddingErrorsAllFromPg(partnerId)
+  if (rows === null) return { error: 'Failed to load embedding errors for export.' }
+  if (rows.length === 0) return { error: 'NO_EXPORT_ROWS' }
+
+  const locale = await getCurrentWebLocale()
+  const t = (await import('@/lib/i18n/dictionaries')).getDictionary(locale).partnerMessagingAi
+  const exportRows = rows.map(mapPartnerInventoryEmbeddingErrorExportRow)
+  const csv = buildPartnerInventoryEmbeddingErrorsCsvString(exportRows, {
+    sku: t.inventoryEmbeddingErrorsCsvHeaderSku,
+    name: t.inventoryEmbeddingErrorsCsvHeaderName,
+    id: t.inventoryEmbeddingErrorsCsvHeaderId,
+    imageUrl: t.inventoryEmbeddingErrorsCsvHeaderImageUrl,
+    imageError: t.inventoryEmbeddingErrorsCsvHeaderImageError,
+    imageErrorAt: t.inventoryEmbeddingErrorsCsvHeaderImageErrorAt,
+    textError: t.inventoryEmbeddingErrorsCsvHeaderTextError,
+    textErrorAt: t.inventoryEmbeddingErrorsCsvHeaderTextErrorAt,
+  })
+  const dateStr = new Date().toISOString().slice(0, 10)
+  return {
+    ok: true as const,
+    base64: Buffer.from(csv, 'utf8').toString('base64'),
+    filename: `vector_loi_kho_${dateStr}.csv`,
+    count: exportRows.length,
+  }
 }
 
 export async function getPartnerInventoryTextEmbeddingStats(partnerId: string) {
