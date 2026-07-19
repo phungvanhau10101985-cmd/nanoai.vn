@@ -1,4 +1,5 @@
 import {
+  clearStalePartnerInventoryTextEmbeddingErrorsFromPg,
   fetchPartnerInventoryRowsByIdsForEmbeddingSyncFromPg,
   fetchPartnerInventoryRowsByIdsInOrderFromPg,
   fetchPartnerInventorySliceForEmbeddingSyncFromPg,
@@ -364,6 +365,7 @@ type TextEmbComparable = Pick<
   | 'text_embedding_model'
   | 'text_embedding_dims'
   | 'text_embedding_vec'
+  | 'text_embedding_error'
 >
 
 function needsTextEmbeddingSync(row: TextEmbComparable, force = false): boolean {
@@ -371,6 +373,7 @@ function needsTextEmbeddingSync(row: TextEmbComparable, force = false): boolean 
   const catalog = buildCatalogTextForEmbedding(row)
   if (!catalog.trim()) return false
   if (force) return true
+  if (String(row.text_embedding_error ?? '').trim()) return true
   const nextFp = textFingerprint(row)
   const hasEmbedding = Array.isArray(row.text_embedding_json)
   const hasVectorColumn = typeof row.text_embedding_vec === 'string' && row.text_embedding_vec.trim().length > 0
@@ -390,6 +393,8 @@ export async function syncPartnerInventoryTextEmbeddings(
   if (!process.env.GOOGLE_API_KEY?.trim()) {
     return { ok: false, error: 'Missing GOOGLE_API_KEY for Gemini text embeddings.' }
   }
+
+  await clearStalePartnerInventoryTextEmbeddingErrorsFromPg(partnerId)
 
   const cap = Math.max(1, Math.min(5000, options?.limit ?? SYNC_LIMIT))
   const idList = (options?.inventoryIds ?? []).map((x) => x.trim()).filter(Boolean)
@@ -478,6 +483,17 @@ export async function syncPartnerInventoryTextEmbeddings(
           typeof row.text_embedding_vec === 'string' &&
           row.text_embedding_vec.trim().length > 0
         ) {
+          if (String(row.text_embedding_error ?? '').trim()) {
+            await updatePartnerInventoryTextEmbeddingFieldsFromPg(partnerId, row.id, {
+              text_embedding_json: row.text_embedding_json as number[],
+              text_embedding_fingerprint: row.text_embedding_fingerprint ?? fp,
+              text_embedding_model: row.text_embedding_model ?? GEMINI_EMBED_MODEL,
+              text_embedding_dims: row.text_embedding_dims ?? vec.length,
+              text_embedding_vec: row.text_embedding_vec as string,
+              text_embedding_updated_at: nowIso,
+              text_embedding_error: '',
+            })
+          }
           synced += 1
           continue
         }

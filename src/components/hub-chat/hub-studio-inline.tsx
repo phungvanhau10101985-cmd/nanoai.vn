@@ -16,7 +16,9 @@ import {
   isPackagingFaceStepKey,
 } from '@/lib/packaging/hub-face-steps'
 import { resolvePackagingStepLabel } from '@/lib/packaging/packaging-face-labels'
+import { isMobileShopContinueOnlyApproveStep } from '@/lib/hub-chat/hub-mobile-shop-style-anchor'
 import { isPackagingContinueOnlyApproveStep } from '@/lib/packaging/product-label-step'
+import { shouldShowStudioReferencePreviews } from '@/lib/hub-chat/hub-studio-reference-limits'
 import type { WebLocale } from '@/lib/i18n/config'
 import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
 import { PackagingBoxMockup3D } from '@/components/hub-chat/packaging-box-mockup-3d'
@@ -314,7 +316,11 @@ export function HubStudioMessageBubble({
   busy: boolean
   onRegenerate: (stepKey?: string) => void
   onApproveReference: () => void
-  onCropImage?: (blob: Blob, printSizeMm: { widthMm: number; heightMm: number }) => void | Promise<void>
+  onCropImage?: (
+    blob: Blob,
+    printSizeMm: { widthMm: number; heightMm: number },
+    screenKey?: string
+  ) => void | Promise<void>
   onRevertFaceEdit?: () => void | Promise<void>
   onUploadFace?: (files: FileList | File[]) => void | Promise<void>
   onOutpaintGaps?: (blob: Blob, aspectRatio: string) => Promise<string | null>
@@ -336,7 +342,19 @@ export function HubStudioMessageBubble({
   const isPackagingFacePreview =
     studioSession?.presetId === 'packaging_kit' &&
     Boolean(st?.screenKey && isPackagingFaceStepKey(st.screenKey))
-  const continueOnlyApprove = isPackagingContinueOnlyApproveStep(st?.screenKey)
+  const continueOnlyApprove =
+    isPackagingContinueOnlyApproveStep(st?.screenKey) ||
+    isMobileShopContinueOnlyApproveStep(studioSession?.presetId, st?.screenKey)
+  const pendingMatchesStep = Boolean(
+    st?.screenKey &&
+      studioSession?.pendingPreview?.screenKey === st.screenKey &&
+      studioSession.pendingPreview.url
+  )
+  const showContinueButton = Boolean(st?.showApproveReference && pendingMatchesStep)
+  const showReferencePreviews = Boolean(
+    st?.referencePreviews?.length &&
+      (!studioSession || shouldShowStudioReferencePreviews(studioSession))
+  )
   const approveButtonLabel =
     isAudio || isPackagingFacePreview || continueOnlyApprove
       ? hc.studioContinue
@@ -510,7 +528,7 @@ export function HubStudioMessageBubble({
           </div>
         )
       })() : null}
-      {st?.referencePreviews && st.referencePreviews.length > 0 ? (
+      {showReferencePreviews ? (
         <div className="mt-2 space-y-1.5">
           <p className="text-xs font-medium text-violet-800 dark:text-violet-200">
             {hc.studioReferenceTitle}
@@ -523,7 +541,7 @@ export function HubStudioMessageBubble({
             ) : null}
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {st.referencePreviews.map((ref) => (
+            {st.referencePreviews!.map((ref) => (
               <div
                 key={ref.screenKey || ref.url}
                 className="relative w-[72px] overflow-hidden rounded-md border border-violet-200 bg-white dark:border-violet-800"
@@ -556,6 +574,34 @@ export function HubStudioMessageBubble({
           {st.dielineArtifacts.map((artifact) => (
             <div
               key={artifact.structure}
+              className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 dark:border-emerald-900 dark:bg-emerald-950/30"
+            >
+              <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-900 dark:text-emerald-100">
+                <FileText className="h-4 w-4" />
+                {artifact.label}
+              </p>
+              <Button asChild type="button" size="sm" variant="outline" className="mt-2 h-8 text-xs">
+                <a
+                  href={artifact.url}
+                  download={artifact.fileName || undefined}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Download className="mr-1 h-3.5 w-3.5" />
+                  {artifact.downloadLabel}
+                </a>
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : st?.barcodeArtifacts && st.barcodeArtifacts.length > 0 ? (
+        <div className="mt-2 space-y-2">
+          {st.artifactNote ? (
+            <p className="text-[11px] text-muted-foreground">{st.artifactNote}</p>
+          ) : null}
+          {st.barcodeArtifacts.map((artifact) => (
+            <div
+              key={artifact.id}
               className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 dark:border-emerald-900 dark:bg-emerald-950/30"
             >
               <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-900 dark:text-emerald-100">
@@ -620,7 +666,7 @@ export function HubStudioMessageBubble({
                   {hc.studioRegenerate}
                 </Button>
               ) : null}
-              {st.showApproveReference ? (
+              {showContinueButton ? (
                 <Button type="button" size="sm" className="h-8 bg-violet-600 text-xs hover:bg-violet-700" disabled={busy} onClick={onApproveReference}>
                   <Check className="mr-1 h-3.5 w-3.5" />
                   {approveButtonLabel}
@@ -751,7 +797,7 @@ export function HubStudioMessageBubble({
                 </Button>
               </>
             ) : null}
-            {st.showApproveReference ? (
+            {showContinueButton ? (
               <Button type="button" size="sm" className="h-8 bg-violet-600 text-xs hover:bg-violet-700" disabled={busy} onClick={onApproveReference}>
                 <Check className="mr-1 h-3.5 w-3.5" />
                 {approveButtonLabel}
@@ -768,7 +814,7 @@ export function HubStudioMessageBubble({
               labels={cropLabels}
               busy={busy}
               onSave={async (blob, printSizeMm) => {
-                await onCropImage(blob, printSizeMm)
+                await onCropImage(blob, printSizeMm, st?.screenKey ?? undefined)
               }}
               onDone={() => setCropOpen(false)}
               onOutpaintGaps={onOutpaintGaps}
@@ -830,7 +876,11 @@ export function HubStudioActiveStepPreview({
   busy: boolean
   onRegenerate: (stepKey?: string) => void
   onApproveReference: () => void
-  onCropImage?: (blob: Blob, printSizeMm: { widthMm: number; heightMm: number }) => void | Promise<void>
+  onCropImage?: (
+    blob: Blob,
+    printSizeMm: { widthMm: number; heightMm: number },
+    screenKey?: string
+  ) => void | Promise<void>
   onRevertFaceEdit?: () => void | Promise<void>
   onUploadFace?: (files: FileList | File[]) => void | Promise<void>
   onOutpaintGaps?: (blob: Blob, aspectRatio: string) => Promise<string | null>

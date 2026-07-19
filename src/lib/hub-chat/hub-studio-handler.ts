@@ -42,27 +42,60 @@ import {
   syncDiscoveryCurrentStep,
 } from '@/lib/hub-chat/hub-studio-preset-intent'
 import {
+  resolveCurrentStudioDesignStep,
+  saveCurrentStudioStepBrief,
+} from '@/lib/hub-chat/hub-studio-step-engine'
+import {
+  classifyStudioFlowSwitchWithAi,
+  isHighConfidenceFlowSwitch,
+} from '@/lib/hub-chat/hub-studio-flow-classifier'
+import { classifyFeatureIntentWithAi } from '@/lib/hub-chat/hub-feature-intent-classifier'
+import { matchFeatureFlowByMessage } from '@/lib/hub-chat/hub-feature-flow-registry'
+import {
+  buildFullFeatureCatalogForBrain,
+  getHubFeatureCatalogEntry,
+  resolveHubFeatureSelection,
+} from '@/lib/hub-chat/hub-feature-catalog'
+import {
+  blocksPresetStartOnThread,
+  detectStudioFlowSwitch,
+  FLOW_SWITCH_AI_MIN_CONFIDENCE,
+  isActiveStudioFlow,
+  shouldSkipFlowSwitchAiClassification,
+} from '@/lib/hub-chat/hub-studio-flow-guard'
+import {
   buildReferencePreviewsPayload,
   canAddReferenceImage,
   generatorSupportsReference,
+  isPackagingCompositeArtifactStepKey,
   pickedReferenceUrls,
   STUDIO_MAX_REFERENCE_IMAGES,
   STUDIO_REFERENCE_ATTACH_LIMIT,
 } from '@/lib/hub-chat/hub-studio-reference-limits'
 import {
+  clearStalePendingForArtifactGenerate,
+  mergeApprovedPackagingMockupIntoStudio,
+  pendingPreviewBlocksWorkflowInput,
+  resolveWorkflowPendingAfterApprovedFaceEdit,
+} from '@/lib/hub-chat/hub-studio-step-preview'
+import {
   appendGenerationProductUrls,
   applyGenerationRefKeys,
   buildGenerationRefPickerPayload,
+  pickedPackagingFaceReferenceUrls,
+  resolveReferenceEntriesForUrls,
   removeGenerationProductUrl,
   resetGenerationSelectionForStep,
   resolveGenerationAttachments,
   sanitizeGenerationSelection,
   stepSupportsGenerationRefPicker,
+  hasPrimaryFaceStyleReference,
 } from '@/lib/hub-chat/hub-studio-generation-refs'
 import { runStudioImagePipeline, uploadStudioImages } from '@/lib/hub-agent/studio-image-pipeline'
 import { runLyriaPipeline } from '@/lib/hub-agent/lyria-pipeline'
 import {
   buildAdvisoryPayload,
+  buildStandaloneFeatureAdvisoryReply,
   buildToolCatalogForBrain,
   normalizeHubRoute,
   type HubChatPlanPayload,
@@ -89,16 +122,19 @@ import {
   buildDesignStepCatalog,
   buildPendingStepStudio,
   findBlockingIncompleteStep,
+  inferAiRetryFromGenerationFlags,
+  isDeterministicPackagingGenerator,
   isExplicitRetryIntent,
   isValidDesignStepKey,
+  mergeKeywordRetryHint,
   needsStepRetryRepair,
   normalizeRetryIntent,
   resolveRetryTargetStep,
   sanitizeAiRetryHint,
-  resolvePackagingArtifactStepFromMessage,
+  shouldExecuteDeferredDesignAction,
+  shouldExecuteDesignGeneration,
   shouldForceGenerateForStep,
   shouldShowPendingRetry,
-  isDeterministicPackagingGenerator,
   wantsContinueNextStep,
 } from '@/lib/hub-chat/hub-studio-step-retry'
 import type { HubStudioAiRetryHint, HubStudioRetryIntent } from '@/lib/hub-chat/hub-studio-types'
@@ -116,7 +152,35 @@ import {
   isBoxFaceConfirmAck,
   packagingBoxConfirmStudioExtras,
 } from '@/lib/packaging/face-aspect'
-import { PACKAGING_FACE_FLAT_ARTWORK_LEAD, PACKAGING_FACE_FLAT_ARTWORK_RULES, PACKAGING_FACE_SAFE_ZONE_MM } from '@/lib/packaging/face-print-prompt'
+import {
+  appendStudioUiColorPaletteToPrompt,
+  formatStudioColorPaletteBriefFromSelections,
+  isStudioColorPalettePickerStep,
+  normalizeStudioColorSelections,
+  resolveStudioColorSelections,
+  studioColorPaletteUserLabel,
+  studioColorSelectionHasPrimary,
+  type StudioColorSelection,
+} from '@/lib/hub-chat/studio-color-palette'
+import {
+  applyMobileShopStyleAnchorReference,
+  isMobileShopContinueOnlyApproveStep,
+  isMobileShopUiStyleAnchorStep,
+  shouldKeepMobileShopReferenceOnApprove,
+} from '@/lib/hub-chat/hub-mobile-shop-style-anchor'
+import {
+  findPackagingColorPaletteChoice,
+  findPackagingStyleMoodChoice,
+  packagingDiscoveryChoiceBrief,
+  packagingDiscoveryChoiceLabel,
+} from '@/lib/packaging/packaging-discovery-choices'
+import {
+  buildPackagingFacePromptBlock,
+  collectPackagingBrandIdentifiers,
+  PACKAGING_FACE_APPROVED_LOGO_RULES,
+  stripBrandLogoFromPackagingFaceVisualPrompt,
+  stripPackagingFaceTechnicalMeasurementsFromVisualPrompt,
+} from '@/lib/packaging/face-print-prompt'
 import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
 import { formatMmSize } from '@/lib/packaging/face-crop-size'
 import {
@@ -132,11 +196,20 @@ import {
   buildProductLabelPromptBlock,
   isLogoOnlyReferenceStepKey,
   isPackagingContinueOnlyApproveStep,
-  labelAspectRatioFromSize,
-  parseLabelSizeMm,
+  isValidFlatStickerShape,
+  resolveLogoCompositeReferenceUrls,
+  resolveProductLabelAspectRatio,
+  resolveProductLabelShape,
+  resolveSealStickerAspectRatio,
+  resolveSealStickerShape,
   stripLabelTechnicalMeasurementsFromVisualPrompt,
 } from '@/lib/packaging/product-label-step'
+import { isValidGeminiAspectRatio } from '@/lib/label-size-presets'
 import { resolveBarcodeLabelInput } from '@/lib/packaging/barcode-label-step'
+import {
+  exportPackagingBarcodeBundle,
+  type PackagingBarcodeFormEntry,
+} from '@/lib/packaging/packaging-barcode-bundle'
 import {
   PACKAGING_MOCKUP_SCENE_RULES,
 } from '@/lib/packaging/packaging-mockup-prompt'
@@ -147,10 +220,13 @@ import {
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import {
   inferStepKeyForUserMessage,
+  isInPlacePackagingImageEdit,
   resolveEditUserMessage,
+  restoreTimelineAfterInPlaceImageEdit,
   rewindSessionForStepEdit,
 } from '@/lib/hub-chat/hub-studio-step-edit'
 import {
+  applyReferenceRemoval,
   canNavigateToStep,
   focusSessionOnDesignStep,
   isNavigatedBackEdit,
@@ -162,12 +238,16 @@ import {
   faceSlotsToCreatedFaces,
   faceSlotsToMockupFaces,
   getPackagingFaceSizeForStep,
+  getPrimaryPackagingStyleFaceStepKey,
+  isFirstPackagingFaceStep,
   isPackagingFaceStepKey,
+  isPackagingFaceReEdit,
   packagingStepKeyToSizeKey,
   packagingStepKeyToSlot,
   parseSecondaryFaceIntent,
   allPackagingFaceSlotsCommitted,
   preparePackagingFaceSlotsForArtifact,
+  resolvePackagingFaceReferenceUrl,
   syncResolvedPackagingFaces,
   type HubPackagingFaceSlotEntry,
 } from '@/lib/packaging/hub-face-steps'
@@ -183,6 +263,25 @@ import {
   reconcilePackagingProcessSteps,
   resolveFacePrintStyle,
 } from '@/lib/packaging/face-print-style'
+import {
+  ensurePackagingStyleBrief,
+  formatPackagingStyleBriefBlock,
+  formatPackagingColorPaletteBlock,
+  resolvePackagingColorPaletteBrief,
+  appendPackagingFaceOneStylePrompt,
+  appendPackagingPrintLanguagePrompt,
+  PACKAGING_STYLE_DISCOVERY_KEYS,
+  packagingStyleDiscoveryExcludeKeys,
+} from '@/lib/packaging/packaging-style-brief'
+import {
+  applyDefaultPrintLanguageToBriefNotes,
+  defaultPrintLanguageDetail,
+  defaultPrintLanguageFields,
+  findPackagingPrintLanguageChoice,
+  PRINT_LANGUAGE_DETAIL_STEP_KEY,
+  PRINT_LANGUAGE_STEP_KEY,
+  type PackagingPrintLanguageKey,
+} from '@/lib/packaging/packaging-print-language'
 import {
   getBodyStripSegments,
   getBodyStripSizeMm,
@@ -202,13 +301,14 @@ import {
   BOX_DIELINE_STRUCTURE_KEYS,
   DEFAULT_BOX_DIELINE_STRUCTURE,
   boxDielineStructureCopy,
-  packagingDielineIsReady,
   parseBoxDielineStructure,
   type BoxDielineStructure,
 } from '@/lib/packaging/dieline-structure'
 
 export type HubStudioAction =
   | 'message'
+  | 'generate_current_step'
+  | 'generate_packaging_barcodes'
   | 'approve_reference'
   | 'regenerate'
   | 'upload_images'
@@ -225,8 +325,19 @@ export type HubStudioAction =
   | 'outpaint_crop_gaps'
   | 'revert_pending_image'
   | 'set_face_print_style'
+  | 'set_print_language'
+  | 'set_label_aspect_ratio'
+  | 'set_label_shape'
+  | 'confirm_box_face'
+  | 'set_discovery_choice'
+  | 'set_color_palette'
   | 'set_box_production'
   | 'set_box_dieline_structure'
+  | 'skip_packaging_face'
+  | 'copy_packaging_face'
+  | 'classify_flow_switch'
+  | 'classify_feature_intent'
+  | 'select_feature'
 
 export type HubStudioHandlerInput = {
   userId: string
@@ -235,6 +346,7 @@ export type HubStudioHandlerInput = {
   message?: string
   action?: HubStudioAction
   presetId?: string
+  featureKey?: string
   referenceScreenKey?: string
   generationRefKeys?: string[]
   productUrl?: string
@@ -243,11 +355,21 @@ export type HubStudioHandlerInput = {
   navigateStepKey?: string
   regenerateStepKey?: string
   facePrintStyle?: string
+  printLanguage?: string
+  printLanguageDetail?: string
+  labelAspectRatio?: string
+  labelShape?: string
+  discoveryChoice?: string
+  discoveryChoiceStep?: string
+  colorPaletteKeys?: string[]
+  colorPaletteSelection?: StudioColorSelection[]
   boxDielineStructure?: string
   boxDimensionsMm?: Partial<BoxDimensionsMm>
   boxProduction?: Partial<TuckBoxProductionParams>
+  barcodeEntries?: PackagingBarcodeFormEntry[]
   cropSizeMm?: { width: number; height: number }
   cropAspectRatio?: string
+  cropScreenKey?: string
   skipUserInsert?: boolean
   apiKey: string
   uploadFiles?: { buffer: Buffer; mimeType: string }[]
@@ -273,6 +395,15 @@ export type HubStudioHandlerResult = {
     createdAt?: string
   }[]
   userMessageId?: string
+  flowSwitch?: {
+    switchPresetId: string | null
+    confidence: number
+  }
+  featureIntent?: {
+    featureKey: string | null
+    confidence: number
+  }
+  showFeaturePicker?: boolean
 }
 
 function langName(locale: WebLocale): string {
@@ -287,6 +418,74 @@ const BOX_SIZE_STEP_KEYS = ['box_size', 'box_size_length', 'box_size_width', 'bo
 
 function isBoxSizeStepKey(stepKey: string | null | undefined): boolean {
   return BOX_SIZE_STEP_KEYS.includes(stepKey as (typeof BOX_SIZE_STEP_KEYS)[number])
+}
+
+function completeBoxFaceConfirmSession(session: HubStudioSession, ackLabel: string): HubStudioSession {
+  const dimensionsMm = session.packaging?.dimensionsMm
+  if (!dimensionsMm) return session
+  const plan = buildPackagingFaceAspectPlan(dimensionsMm)
+  return {
+    ...session,
+    packaging: {
+      ...session.packaging!,
+      faceAspectRatios: faceAspectRatiosFromPlan(plan),
+      facesConfirmed: true,
+    },
+    briefNotes: {
+      ...session.briefNotes,
+      box_face_confirm: ackLabel,
+    },
+  }
+}
+
+function advanceDiscoveryAfterBriefAnswer(
+  session: HubStudioSession,
+  locale: WebLocale,
+  stepKey: string,
+  userLabel: string,
+  confirmedReply: string
+): { session: HubStudioSession; reply: string; studio: HubStudioMessagePayload } {
+  let nextSession = {
+    ...session,
+    briefNotes: {
+      ...session.briefNotes,
+      [stepKey]: userLabel,
+    },
+    processSteps: markStepDone(session.processSteps, stepKey),
+  }
+  const justFinishedDiscovery = allDiscoveryDone('packaging_kit', nextSession.processSteps)
+  if (justFinishedDiscovery) nextSession.discoveryComplete = true
+  const next = nextPendingStep(nextSession.processSteps)
+  nextSession.currentStepKey = next?.key ?? null
+  nextSession.processSteps = setStepInProgress(nextSession.processSteps, nextSession.currentStepKey)
+  let reply = confirmedReply
+  if (justFinishedDiscovery && nextSession.currentStepKey) {
+    const logoKey = getPrimaryLogoStepKey('packaging_kit')
+    if (logoKey && nextSession.currentStepKey === logoKey) {
+      reply = `${reply}\n\n${getDictionary(locale).hubChat.studioStartWithLogo}`
+    }
+    reply = appendStepAsk(reply, locale, 'packaging_kit', nextSession.currentStepKey)
+  } else if (
+    nextSession.presetId &&
+    nextSession.currentStepKey &&
+    isDiscoveryStep(nextSession.presetId, nextSession.currentStepKey)
+  ) {
+    reply = appendStepAsk(reply, locale, nextSession.presetId, nextSession.currentStepKey)
+  }
+  nextSession = reconcileDiscoveryProgress(nextSession, locale)
+  nextSession = syncDiscoveryCurrentStep(nextSession, locale)
+  if (nextSession.presetId === 'packaging_kit') {
+    nextSession = {
+      ...nextSession,
+      briefNotes: applyDefaultPrintLanguageToBriefNotes(nextSession.briefNotes, locale),
+    }
+  }
+  const studio: HubStudioMessagePayload = {
+    processSteps: nextSession.processSteps,
+    ...packagingBoxConfirmStudioExtras(locale, nextSession),
+    ...packagingFacePrintStyleStudioExtras(locale, nextSession),
+  }
+  return { session: nextSession, reply, studio }
 }
 
 function completeBoxSizeDiscovery(session: HubStudioSession): HubStudioSession {
@@ -354,7 +553,7 @@ async function upsertHubStudioImageMessage(params: {
   planId?: string | null
 }): Promise<void> {
   const screenKey = params.studio?.screenKey
-  const imageUrl = params.studio?.imageUrl
+  const imageUrl = params.studio?.imageUrl ?? params.studio?.artifactUrl
   if (screenKey && imageUrl) {
     const replacedMessageId = await pgReplaceLatestHubStudioImageMessage({
       threadId: params.threadId,
@@ -426,6 +625,34 @@ function incompletePackagingArtworkError(locale: WebLocale, hybrid: boolean): st
         ko: '파일을 만들기 전에 상자의 6개 면을 모두 완료하세요.',
       }
   return rows[locale]
+}
+
+function dielineExportFailedError(locale: WebLocale): string {
+  const rows: Record<WebLocale, string> = {
+    vi: 'Không xuất được Dieline PDF. Kiểm tra ảnh 6 mặt còn tải được, rồi bấm «Tạo đầu ra bước này» lại.',
+    en: 'Could not export the Dieline PDF. Make sure all six face images are still reachable, then tap «Generate output for this step» again.',
+    zh: '无法导出 Dieline PDF。请确认六个面的图片仍可访问，然后再次点击「生成本步骤输出」。',
+    ja: 'Dieline PDFを出力できませんでした。6面の画像が取得できるか確認し、「このステップの出力を作成」をもう一度押してください。',
+    ko: 'Dieline PDF를 내보낼 수 없습니다. 6면 이미지에 접근 가능한지 확인한 뒤 «이 단계 출력 생성»을 다시 누르세요.',
+  }
+  return rows[locale]
+}
+
+function formatDielineExportError(locale: WebLocale, raw: string): string {
+  if (/pixel limit/i.test(raw)) {
+    const rows: Record<WebLocale, string> = {
+      vi: 'Net Dieline quá lớn hoặc ảnh mặt quá nặng — hệ thống đã tự giảm độ phân giải nhưng vẫn chưa xuất được. Thử thu nhỏ kích thước hộp hoặc tạo lại ảnh mặt rồi thử lại.',
+      en: 'The dieline net or face artwork is too large — auto downscale still failed. Try a smaller box size or regenerate face images, then retry.',
+      zh: '刀模 net 或面图过大，自动降分辨率后仍无法导出。请缩小盒尺寸或重新生成面图后再试。',
+      ja: 'Dieline net または面画像が大きすぎます。自動解像度調整後も出力できませんでした。箱サイズを小さくするか、面画像を作り直して再試行してください。',
+      ko: 'Dieline net 또는 면 이미지가 너무 큽니다. 자동 해상도 조정 후에도 내보낼 수 없습니다. 상자 크기를 줄이거나 면 이미지를 다시 만든 뒤 재시도하세요.',
+    }
+    return rows[locale]
+  }
+  if (raw === 'export_failed' || raw.startsWith('export_failed')) {
+    return dielineExportFailedError(locale)
+  }
+  return raw
 }
 
 function artifactCopy(locale: WebLocale, kind: 'pdf' | 'barcode', bleedMm = 3) {
@@ -687,7 +914,7 @@ function advanceAfterPackagingFaceStep(
   if (options?.stayOnStep) {
     nextSession.currentStepKey = stepKey
     nextSession.processSteps = markStepDone(nextSession.processSteps, stepKey)
-    reply = t.studioNavigatedToStep.replace('{screen}', screenLabel)
+    reply = t.studioStepSavedStay.replace('{screen}', screenLabel)
   } else {
     const next = nextPendingStep(nextSession.processSteps)
     nextSession.currentStepKey = next?.key ?? null
@@ -837,13 +1064,20 @@ function presetCatalogForBrain(locale: WebLocale): string {
   return buildPresetCatalogForBrain(locale)
 }
 
-function appendBriefToPrompt(session: HubStudioSession, prompt: string, screenKey?: string | null): string {
+function appendBriefToPrompt(
+  session: HubStudioSession,
+  prompt: string,
+  screenKey?: string | null,
+  excludeKeys?: string[]
+): string {
+  const exclude = new Set(excludeKeys ?? [])
   const notes =
     screenKey && session.presetId
       ? Object.entries(briefNotesForStepGeneration(session.presetId, screenKey, session.briefNotes))
       : Object.entries(session.briefNotes)
-  if (!notes.length) return prompt
-  const block = notes.map(([k, v]) => `- ${k}: ${v}`).join('\n')
+  const filtered = notes.filter(([k]) => !exclude.has(k))
+  if (!filtered.length) return prompt
+  const block = filtered.map(([k, v]) => `- ${k}: ${v}`).join('\n')
   return `${prompt}\n\nCollected brand brief:\n${block}`
 }
 
@@ -927,15 +1161,19 @@ async function callStudioBrain(
   })
 
   const { catalogJson } = buildToolCatalogForBrain(locale)
+  const featureFlowCatalog = buildFullFeatureCatalogForBrain(locale)
 
-  const sys = `You are NanoAI Hub — one unified assistant. Classify EVERY user message with hubRoute, then respond appropriately. Server does NOT use keyword/regex routing — YOU decide.
+  const sys = `You are NanoAI Hub — one unified assistant. Classify EVERY user message with hubRoute, then respond appropriately. Server applies PROGRAMMATIC routing when user taps a featureKey chip — when intent is ambiguous YOU must NOT guess presetId or href.
 
 Reply in ${lang}.
 
-Inline design presets (hubRoute "design" — pick suggestedPresetId from ids):
+FULL FEATURE CATALOG (every featureKey is a chip in UI; user taps → server routes without AI):
+${featureFlowCatalog}
+
+Inline design presets summary (studio:* keys — flow=studio_complete):
 ${presetCatalogForBrain(locale)}
 
-Standalone platform tools (hubRoute "workflow" / "pipeline" / attach to "consultation"):
+Standalone tools summary (tool:* href keys — flow=standalone_open_tool):
 ${catalogJson}
 
 Current session:
@@ -967,12 +1205,16 @@ HUB ROUTE (classify first — mandatory):
 - When session presetId is set and user continues the inline project: hubRoute MUST stay "design" unless they explicitly ask only for tool advice (then consultation + keep reply short).
 - When session presetId is null and message fits inline preset: hubRoute "design" + suggestedPresetId.
 - Tư vấn / consultation is a valid intent — use hubRoute "consultation", not a separate UI mode.
+- FEATURE FLOW: If intent matches flow=studio_complete → hubRoute "design" + suggestedPresetId. If intent matches flow=standalone_open_tool only → hubRoute "workflow" (or "consultation" with workflows) and href from catalog; NEVER suggestedPresetId.
+- Standalone tools without a complete inline flow MUST appear in workflows so the user can confirm opening the tool page.
+- AMBIGUOUS INTENT: If you cannot pick exactly ONE featureKey with high confidence, set intent "clarify", hubRoute "consultation", suggestedPresetId empty, workflows empty. Reply briefly and tell the user to tap the matching feature chip below (list 3-6 closest labels from FULL FEATURE CATALOG). Server shows all feature chips — do NOT invent featureKey values.
+- When user message is only a feature name matching one catalog label exactly, you MAY set the matching suggestedPresetId or workflow href — but chip tap uses server programmatic routing without you.
 
 PRESET / PROJECT INTENT (hubRoute "design"):
 - When session presetId is null: infer what the user wants to create from ANY natural wording (all languages, typos, short replies).
 - Set suggestedPresetId to exactly one id from the preset library when intent is clear.
 - intent "plan_process" or "ask_requirements": user wants to start a multi-step inline design flow — set suggestedPresetId, explain briefly in reply, do NOT generate images yet.
-- intent "clarify": user wants design help but preset is ambiguous — suggestedPresetId empty, ask which type (offer 2–3 preset titles).
+- intent "clarify": user wants design help but preset is ambiguous — suggestedPresetId empty, workflows empty; ask user to pick a feature chip from FULL FEATURE CATALOG.
 - intent "chat": unrelated to starting a design flow — suggestedPresetId empty.
 - When presetId is already set: suggestedPresetId must be empty string (do not switch preset mid-flow unless user explicitly asks to change project type — then clarify first).
 - Examples: "thiết kế app bán quần áo" → mobile_shop; "làm bao bì mỹ phẩm" → packaging_kit; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; "ảnh thẻ linkedin" → profile_photo_pack.
@@ -997,18 +1239,19 @@ CRITICAL RULES:
 - On discovery steps ONLY: set completeCurrentStep true when user answered the CURRENT discovery step; NEVER set completeCurrentStep on design steps (logo, ui screens) — design steps advance only after user approves generated image.
 - When user wants to CORRECT a previous brief/discovery answer (e.g. "sửa lại màu", "đổi màu sắc", "change color", or sends a new color answer while on Logo step): set completeCurrentStep false, shouldGenerate false — server will update the earlier brief field and keep flow position.
 - When completeCurrentStep advances from the LAST discovery step to the FIRST design step (e.g. color_palette → logo): shouldGenerate MUST be false — the user's message was the brief answer, NOT logo/design requirements. Ask the design step question only; wait for the NEXT user message to generate.
-- DISCOVERY ORDER: follow processSteps strictly in order — never skip a brief step (e.g. packaging_kit: brand_name → product_type → box_size → box_face_confirm → style_mood → color_palette → face_print_style). Box dimensions: user enters length × width × height freely (thin boxes OK); each face image uses the closest Gemini aspect ratio to real mm size. Print content and product images are entered when creating each box face (face_top, face_front, face_right, face_bottom, face_back, face_left) in that exact order. The selected face_print_style is the visual art treatment (realistic photography / line art / flat illustration / watercolour abstract), not whether product images are included. Apply it consistently to all 6 faces together with approved references, style mood and color palette. Ask ONLY the current step question; use the exact ask text from the preset when possible.
+- DISCOVERY ORDER: follow processSteps strictly in order — never skip a brief step (e.g. packaging_kit: brand_name → product_type → box_size → box_face_confirm → style_mood → color_palette → face_print_style). On product_type, user also picks print_language (vi/en/bilingual/other) via UI chips — default from UI locale; stored in briefNotes.print_language. Box dimensions: user enters length × width × height freely (thin boxes OK); each face image uses the closest Gemini aspect ratio to real mm size. Print content and product images are entered when creating each box face (face_top, face_front, face_right, face_bottom, face_back, face_left) in that exact order. The selected face_print_style is the visual art treatment (realistic photography / line art / flat illustration / watercolour abstract), not whether product images are included. Apply it consistently to all 6 faces together with approved references, style mood and color palette. Ask ONLY the current step question; use the exact ask text from the preset when possible.
 - NEVER set currentStepKey to a later discovery step before all earlier discovery steps are done.
 - LOGO STEP — two paths: (A) User already has a logo file → they upload via UI; shouldGenerate false, do not generate. (B) User describes logo to create → intent generate_ui, shouldGenerate true IMMEDIATELY — do not ask "ready to see?" or wait for confirmation.
 - If user says they already have a logo / will upload / has logo file: shouldGenerate false; remind them to use the logo upload button in chat.
 - When user wants to create/regenerate ANY design step (any wording): set retryIntent + retryStepKey; shouldGenerate true if requirements are clear enough to generate.
+- ACTION EXECUTION (mandatory): If the user asks to create, generate, regenerate, remake, or run ANY design step, you MUST set shouldGenerate true AND retryIntent (create or regenerate) AND retryStepKey. The server executes immediately — NEVER reply with only "I will do it" / "understood" without shouldGenerate true. Text-only acknowledgments without execution flags are forbidden when the user requested an action.
 - NEVER set retryStepKey to a step that is already approved/done (status done + in referenceImages) unless retryIntent is "regenerate".
 - When user says they want the NEXT step (continue_next): retryIntent "continue_next", retryStepKey empty — stay on currentStepKey and ask for that step OR shouldGenerate for currentStepKey only if they described it.
 - If pendingPreview exists for current step, user must approve it before moving on — do not shouldGenerate for the same step again (EXCEPT box_dieline_pdf / box_mockup_3d: user "tạo/tạo lại" → shouldGenerate true, retryIntent create/regenerate — server composites immediately).
 - When user describes any design step with clear requirements: shouldGenerate true, fill generationPrompt from user description.
 - PACKAGING FACE steps (face_top → … → face_left): generate ONE flat 2D print artwork per face — full bleed edge-to-edge, artwork fills 100% of canvas, like a pre-press PNG before folding. FORBIDDEN: 3D box on grey studio background, margins around a small box, drop shadow, perspective mockup. User text IS the design brief when they describe printable content — intent generate_ui, shouldGenerate true, generationPrompt in English. ANY face may be left blank (shouldGenerate false). Secondary faces may copy primary without generating. Dieline PDF and 3D mockup are LATER separate steps.
-- PACKAGING TEXT LANGUAGE LOCK: translate only visual directions into English. Copy every brand name, product name, slogan, ingredient, instruction, warning, address, and other text the user wants printed EXACTLY from the user's message, keep its original language, and put it in quotation marks inside generationPrompt. NEVER translate, transliterate, rewrite, spell-correct, or summarize print copy.
-- product_label / seal_sticker: flat peel-and-stick LABEL or tamper seal artwork (NOT box dieline). User must give size (WxH mm) and text content. Reference attachment is LOGO ONLY — never box face images.
+- PACKAGING TEXT LANGUAGE LOCK: translate only visual directions into English. Copy every brand name, product name, slogan, ingredient, instruction, warning, address, and other text the user wants printed EXACTLY from the user's message, keep its original language, and put it in quotation marks inside generationPrompt. NEVER translate, transliterate, rewrite, spell-correct, or summarize print copy. For auto-generated packaging copy (when user did not supply exact wording), follow briefNotes.print_language (vi/en/bilingual/other).
+- product_label / seal_sticker: flat peel-and-stick LABEL or tamper seal artwork (NOT box dieline). Both steps: user picks Gemini aspect ratio + die-cut shape (round/square/rectangle/ellipse) + types copy. Reference attachment is LOGO ONLY — never box face images.
 - barcode_label: real scannable barcode (Code128 default) — encode product code/SKU; label header shows brand name + product name from brief. User may specify EAN-13/UPC/QR explicitly.
 - box_dieline_pdf: server builds technical PDF from committed 6 face slots — user "tạo dieline/pdf" → shouldGenerate true, retryIntent create, no confirmation question.
 - box_mockup_3d: server composites isometric mockup from 6 face images (no AI image gen). User "tạo mockup 3d" → shouldGenerate true, retryIntent create — do NOT ask "bạn muốn tạo ngay chứ?".
@@ -1142,31 +1385,50 @@ async function generateAsset(
             ),
           }
         }
-        throw new Error(bundle.error === 'export_failed' ? 'Dieline export failed' : bundle.error)
+        throw new Error(formatDielineExportError(locale, bundle.error === 'export_failed' ? 'export_failed' : bundle.error))
       }
-      const completedSteps = markStepDone(workSession.processSteps, screenKey)
-      const next = nextPendingStep(completedSteps)
       const primary = primaryDielineVariant(bundle.variants)
+      if (!primary?.url) {
+        return {
+          session: workSession,
+          studio: { processSteps: workSession.processSteps },
+          chargedImage: 0,
+          error: dielineExportFailedError(locale),
+        }
+      }
+      const dielinePackaging = {
+        ...workSession.packaging!,
+        dielineUrl: primary?.url,
+        dielineVariants: bundle.variants,
+      }
+      const pending: HubStudioSession['pendingPreview'] = {
+        screenKey,
+        screenLabel,
+        url: primary?.url ?? '',
+        generationPrompt,
+      }
       const nextSession: HubStudioSession = {
         ...workSession,
-        processSteps: setStepInProgress(completedSteps, next?.key ?? null),
-        currentStepKey: next?.key ?? null,
-        packaging: {
-          ...workSession.packaging!,
-          dielineUrl: primary?.url,
-          dielineVariants: bundle.variants,
-        },
+        pendingPreview: pending,
+        lastGenerationPrompt: generationPrompt,
+        packaging: dielinePackaging,
       }
       return {
         session: nextSession,
-        studio: buildDielineGenerationStudio(
-          locale,
+        studio: {
+          ...buildDielineGenerationStudio(
+            locale,
+            screenLabel,
+            dielinePackaging,
+            bundle.variants,
+            workSession.processSteps,
+            bundle.resolutionDpi
+          ),
+          screenKey,
           screenLabel,
-          workSession.packaging!,
-          bundle.variants,
-          nextSession.processSteps,
-          bundle.resolutionDpi
-        ),
+          showRegenerate: true,
+          showApproveReference: true,
+        },
         chargedImage: 0,
       }
     } catch (error) {
@@ -1174,7 +1436,7 @@ async function generateAsset(
         session: workSession,
         studio: { processSteps: workSession.processSteps },
         chargedImage: 0,
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? formatDielineExportError(locale, error.message) : String(error),
       }
     }
   }
@@ -1300,37 +1562,95 @@ async function generateAsset(
 
   const previewKind = previewKindFromGenerator(generator)
   const aspectHint = aspectHintFromGenerator(generator, session.presetId, screenKey)
+
+  if (generator === 'packaging_face' && workSession.presetId === 'packaging_kit') {
+    const ensured = await ensurePackagingStyleBrief(userId, workSession)
+    if (ensured.error) {
+      return {
+        session: workSession,
+        studio: { processSteps: workSession.processSteps },
+        chargedImage: 0,
+        error: ensured.error,
+      }
+    }
+    workSession = ensured.session
+  }
+
   const { referenceUrls: pickedRefs, productUrls: pickedProducts } = resolveGenerationAttachments(
-    session,
-    session.presetId,
+    workSession,
+    workSession.presetId,
     generator,
     screenKey
   )
-  let refUrls = pickedRefs.length
-    ? pickedRefs
-    : pickedReferenceUrls(session.referenceImages, session.presetId, screenKey)
+  let refUrls =
+    pickedRefs.length > 0
+      ? pickedRefs
+      : generator === 'packaging_face' && workSession.presetId
+        ? pickedPackagingFaceReferenceUrls(workSession, workSession.presetId, screenKey)
+        : pickedReferenceUrls(workSession.referenceImages, workSession.presetId, screenKey)
   let productUrls = [
     ...pickedProducts,
-    ...(generatorUsesUpload(generator) ? session.uploadImages : []),
+    ...(generatorUsesUpload(generator) ? workSession.uploadImages : []),
   ]
-  let fullPrompt = appendReferenceContext(
-    session,
-    appendBriefToPrompt(session, generationPrompt, screenKey),
-    session.presetId,
-    { generator, attachedRefUrls: refUrls }
+  const logoStepKey = workSession.presetId ? getPrimaryLogoStepKey(workSession.presetId) : null
+  const hasApprovedLogoRef = Boolean(
+    logoStepKey &&
+      refUrls.some((url) =>
+        workSession.referenceImages.some((r) => r.url === url && r.screenKey === logoStepKey)
+      )
   )
-  let aspectRatio = session.presetId ? getStepAspectRatio(session.presetId, screenKey) : undefined
+  let faceVisualPrompt = generationPrompt
+  let briefExcludeKeys: string[] | undefined
+  if (generator === 'packaging_face' && hasApprovedLogoRef) {
+    const brandNames = collectPackagingBrandIdentifiers(workSession.briefNotes, workSession.projectTitle)
+    faceVisualPrompt = stripBrandLogoFromPackagingFaceVisualPrompt(faceVisualPrompt, brandNames)
+    briefExcludeKeys = ['brand_name', ...(logoStepKey ? [logoStepKey] : [])]
+  }
+  if (generator === 'packaging_face') {
+    const isFirstFace = isFirstPackagingFaceStep(screenKey)
+    briefExcludeKeys = [
+      ...(briefExcludeKeys ?? []),
+      ...(isFirstFace
+        ? [...PACKAGING_STYLE_DISCOVERY_KEYS]
+        : packagingStyleDiscoveryExcludeKeys(workSession)),
+    ]
+  }
+
+  let labelHasLogoComposite = false
+  if (isLogoOnlyReferenceStepKey(screenKey)) {
+    refUrls = resolveLogoCompositeReferenceUrls(workSession, workSession.presetId)
+    productUrls = []
+    labelHasLogoComposite = refUrls.length > 0
+    if (labelHasLogoComposite) {
+      const brandNames = collectPackagingBrandIdentifiers(workSession.briefNotes, workSession.projectTitle)
+      faceVisualPrompt = stripBrandLogoFromPackagingFaceVisualPrompt(faceVisualPrompt, brandNames)
+      briefExcludeKeys = ['brand_name', ...(logoStepKey ? [logoStepKey] : [])]
+    }
+  }
+
+  let fullPrompt = appendReferenceContext(
+    workSession,
+    appendBriefToPrompt(workSession, faceVisualPrompt, screenKey, briefExcludeKeys),
+    workSession.presetId,
+    {
+      generator,
+      attachedRefUrls: refUrls,
+      targetStepKey: screenKey,
+      hasProductRefs: productUrls.length > 0,
+    }
+  )
+  let aspectRatio = workSession.presetId ? getStepAspectRatio(workSession.presetId, screenKey) : undefined
   let printSizeMm: { widthMm: number; heightMm: number } | undefined
 
   if (generator === 'packaging_face') {
     const faceKey = packagingFaceKeyFromStep(screenKey)
     const faceSlot = packagingStepKeyToSlot(screenKey)
-    const box = session.packaging?.dimensionsMm
-    const isBodyStrip = screenKey === 'body_strip' && session.packaging?.layout === 'hybrid_strip'
+    const box = workSession.packaging?.dimensionsMm
+    const isBodyStrip = screenKey === 'body_strip' && workSession.packaging?.layout === 'hybrid_strip'
     if ((!faceKey && !isBodyStrip) || !box) {
       return {
-        session,
-        studio: { processSteps: session.processSteps },
+        session: workSession,
+        studio: { processSteps: workSession.processSteps },
         chargedImage: 0,
         error: boxSizeError(locale, 'format'),
       }
@@ -1340,44 +1660,76 @@ async function generateAsset(
       : getFaceDimensionsMm(faceKey!, box)
     printSizeMm = { widthMm: faceWidth, heightMm: faceHeight }
     aspectRatio =
-      (faceKey ? session.packaging?.faceAspectRatios?.[faceKey] : undefined) ??
+      (faceKey ? workSession.packaging?.faceAspectRatios?.[faceKey] : undefined) ??
       getFaceGeminiAspectRatio(faceWidth, faceHeight)
-    const squareNote =
-      Math.abs(faceWidth - faceHeight) < 0.01
-        ? '\nOUTPUT SHAPE: square 1:1 panel — flat orthographic artwork filling the entire square canvas edge-to-edge.'
-        : ''
-    fullPrompt += isBodyStrip
-      ? `\n\nCONTINUOUS BODY STRIP: exact print size ${faceWidth} × ${faceHeight} mm, ordered FRONT | RIGHT | BACK | LEFT. Fold guides are at ${box.length}, ${box.length + box.width}, and ${2 * box.length + box.width} mm. Keep text/logos ≥ ${PACKAGING_FACE_SAFE_ZONE_MM}mm from every strip edge and from each vertical fold line. Create one seamless edge-to-edge artwork across every fold. Do NOT draw dielines, fold marks, panel borders, glue tabs, or box flaps.\n${PACKAGING_FACE_FLAT_ARTWORK_RULES}`
-      : `\n\nTECHNICAL FACE: ${faceKey}${faceSlot ? ` (${faceSlot.toUpperCase()})` : ''}, exact print size ${faceWidth} × ${faceHeight} mm, Gemini aspect ${aspectRatio}. Keep text/logos ≥ ${PACKAGING_FACE_SAFE_ZONE_MM}mm from panel edges.${squareNote}\n${PACKAGING_FACE_FLAT_ARTWORK_RULES}`
-    fullPrompt = `${PACKAGING_FACE_FLAT_ARTWORK_LEAD}\n\n${fullPrompt}`
+    fullPrompt += `\n\n${buildPackagingFacePromptBlock({
+      faceKey,
+      faceSlot,
+      isBodyStrip,
+      isSquare: Math.abs(faceWidth - faceHeight) < 0.01,
+    })}`
     if (productUrls.length) {
       fullPrompt +=
         '\nFlatten attached PRODUCT photo(s) into 2D printed graphics on this flat panel — NOT a 3D product bottle/box standing on kraft paper.'
     }
-    const printStyle = resolveFacePrintStyle(session.briefNotes)
-    fullPrompt += `\n\n${facePrintStylePromptBlock(printStyle)}`
+    const matchPrimaryFace = hasPrimaryFaceStyleReference(workSession, screenKey)
+    const paletteBrief = resolvePackagingColorPaletteBrief(workSession)
+    const isFirstFace = isFirstPackagingFaceStep(screenKey)
+    const styleBrief = workSession.packaging?.packagingStyleBrief?.trim()
+
+    if (isFirstFace) {
+      fullPrompt = appendPackagingFaceOneStylePrompt(fullPrompt, workSession)
+    } else if (matchPrimaryFace) {
+      if (paletteBrief) {
+        fullPrompt += `\n\n${formatPackagingColorPaletteBlock(paletteBrief, {
+          referenceImagePriority: 'primary_face',
+          matchPrimaryFaceArtwork: true,
+        })}`
+      }
+    } else if (styleBrief) {
+      fullPrompt += `\n\n${formatPackagingStyleBriefBlock(
+        styleBrief,
+        workSession.packaging?.packagingStyleBriefSource,
+        { matchPrimaryFaceArtwork: matchPrimaryFace }
+      )}`
+    } else {
+      const printStyle = resolveFacePrintStyle(workSession.briefNotes)
+      fullPrompt += `\n\n${facePrintStylePromptBlock(printStyle)}`
+    }
+    if (hasApprovedLogoRef) {
+      fullPrompt += `\n\n${PACKAGING_FACE_APPROVED_LOGO_RULES}`
+    }
+    fullPrompt = appendPackagingPrintLanguagePrompt(fullPrompt, workSession.briefNotes)
+    fullPrompt = stripPackagingFaceTechnicalMeasurementsFromVisualPrompt(fullPrompt)
   }
 
   if (isLogoOnlyReferenceStepKey(screenKey)) {
-    const logoKey = session.presetId ? getPrimaryLogoStepKey(session.presetId) : 'logo'
-    const logoUrl = session.referenceImages.find((r) => r.screenKey === logoKey)?.url
-    refUrls = logoUrl ? [logoUrl] : []
-    productUrls = []
-    const parsedSize =
-      parseLabelSizeMm(generationPrompt) ??
-      (screenKey === 'seal_sticker'
-        ? session.packaging?.sealStickerSizeMm
-        : session.packaging?.productLabelSizeMm) ??
-      null
-    if (parsedSize) {
-      aspectRatio = labelAspectRatioFromSize(parsedSize)
-      printSizeMm = parsedSize
-    } else if (screenKey === 'seal_sticker') {
-      aspectRatio = '1:1'
+    if (labelHasLogoComposite) {
+      fullPrompt += `\n\n${PACKAGING_FACE_APPROVED_LOGO_RULES}`
     }
-    fullPrompt = stripLabelTechnicalMeasurementsFromVisualPrompt(fullPrompt)
-    fullPrompt += `\n\n${buildProductLabelPromptBlock(parsedSize, screenKey)}`
+    if (screenKey === 'product_label') {
+      aspectRatio = resolveProductLabelAspectRatio(workSession.packaging, generationPrompt)
+      printSizeMm = undefined
+      fullPrompt = stripLabelTechnicalMeasurementsFromVisualPrompt(fullPrompt)
+      fullPrompt += `\n\n${buildProductLabelPromptBlock('product_label', {
+        aspectRatio,
+        shape: resolveProductLabelShape(workSession.packaging),
+      })}`
+    } else {
+      aspectRatio = resolveSealStickerAspectRatio(workSession.packaging, generationPrompt)
+      printSizeMm = undefined
+      fullPrompt = stripLabelTechnicalMeasurementsFromVisualPrompt(fullPrompt)
+      fullPrompt += `\n\n${buildProductLabelPromptBlock('seal_sticker', {
+        aspectRatio,
+        shape: resolveSealStickerShape(workSession.packaging),
+      })}`
+    }
+    if (workSession.presetId === 'packaging_kit') {
+      fullPrompt = appendPackagingPrintLanguagePrompt(fullPrompt, workSession.briefNotes)
+    }
   }
+
+  fullPrompt = appendStudioUiColorPaletteToPrompt(fullPrompt, workSession, generator)
 
   if (generator === 'product_photo' && !productUrls.length) {
     const t = getDictionary(locale).hubChat
@@ -1439,14 +1791,23 @@ async function generateAsset(
     screenLabel,
     screenKey,
     brief: fullPrompt,
-    projectTitle: session.projectTitle,
+    projectTitle: workSession.projectTitle,
     referenceImageUrls: refUrls,
+    referenceImageMeta: refUrls.map((url) => {
+      const ref = workSession.referenceImages.find((r) => r.url === url)
+      if (ref) return { screenKey: ref.screenKey, label: ref.screenLabel }
+      const primaryKey = getPrimaryPackagingStyleFaceStepKey()
+      if (resolvePackagingFaceReferenceUrl(workSession, primaryKey) === url) {
+        return { screenKey: primaryKey, label: 'Top' }
+      }
+      return { screenKey: '', label: '' }
+    }),
     productImageUrls: productUrls.length ? productUrls : undefined,
     aspectRatio,
     printSizeMm,
   })
   if (!gen.ok) {
-    return { session, studio: { processSteps: session.processSteps }, chargedImage: 0, error: gen.error }
+    return { session: workSession, studio: { processSteps: workSession.processSteps }, chargedImage: 0, error: gen.error }
   }
 
   const pending: HubStudioSession['pendingPreview'] = {
@@ -1456,14 +1817,14 @@ async function generateAsset(
     generationPrompt,
   }
   const nextSession: HubStudioSession = {
-    ...session,
+    ...workSession,
     pendingPreview: pending,
     lastGenerationPrompt: generationPrompt,
   }
   const useReference = generatorSupportsReference(generator)
   const pendingStudio =
-    session.presetId && generator === 'packaging_face'
-      ? buildPendingStepStudio(nextSession, screenKey, session.presetId)
+    workSession.presetId && generator === 'packaging_face'
+      ? buildPendingStepStudio(nextSession, screenKey, workSession.presetId)
       : null
   return {
     session: nextSession,
@@ -1513,33 +1874,72 @@ function appendReferenceContext(
   options?: {
     generator?: StudioGeneratorKind | null
     attachedRefUrls?: string[]
+    targetStepKey?: string | null
+    hasProductRefs?: boolean
   }
 ): string {
   const attachedUrls = options?.attachedRefUrls?.length
     ? options.attachedRefUrls
     : pickedReferenceUrls(session.referenceImages, presetId, session.currentStepKey)
-  const refs = session.referenceImages.filter((r) => attachedUrls.includes(r.url))
+  if (!attachedUrls.length) return prompt
+  const refs = resolveReferenceEntriesForUrls(session, attachedUrls)
   if (!refs.length) return prompt
 
   const logoKey = presetId ? getPrimaryLogoStepKey(presetId) : null
+  const primaryFaceKey = getPrimaryPackagingStyleFaceStepKey()
   const logoRef = logoKey ? refs.find((r) => r.screenKey === logoKey) : null
+  const primaryFaceRef = refs.find((r) => r.screenKey === primaryFaceKey) ?? null
   const refList = refs.map((r) => `- ${r.screenLabel} (${r.screenKey})`).join('\n')
   const gen = options?.generator
+  const activeStepKey = options?.targetStepKey ?? session.currentStepKey
 
   if (isPackagingCompositeGenerator(gen)) {
-    if (isLogoOnlyReferenceStepKey(session.currentStepKey)) {
+    if (isLogoOnlyReferenceStepKey(activeStepKey)) {
       const logoLine = logoRef
-        ? `Attach and composite ONLY the approved LOGO (${logoRef.screenLabel}) onto this label artwork.`
+        ? `Attach and composite ONLY the approved LOGO image (${logoRef.screenLabel}) onto this flat label artwork — embed the attached logo pixels; do NOT redraw, re-typeset, or recreate the brand mark.`
         : 'No logo attached — use typography only per user brief.'
       return `${prompt}\n\n${logoLine}\nDo NOT use box face artwork, dieline panels, or 3D box photos as reference.`
     }
+    if (gen === 'packaging_face' && activeStepKey && isFirstPackagingFaceStep(activeStepKey)) {
+      let block = `FACE #1 — flat print panel:
+- Visual style, colors, and print treatment come from PACKAGING STYLE DIRECTION in the prompt (brand discovery).`
+      if (logoRef) {
+        block += `\n- Composite ONLY the approved LOGO (${logoRef.screenLabel}) — do NOT redraw or re-typeset the logo.`
+      }
+      if (options?.hasProductRefs) {
+        block += '\n- Flatten attached product photo(s) as 2D printed elements on this panel.'
+      }
+      if (refs.length) {
+        block += `\n\nAttached references:\n${refList}`
+      }
+      return `${prompt}\n\n${block}`
+    }
+    if (gen === 'packaging_face' && logoRef && refs.length === 1 && !primaryFaceRef) {
+      return `${prompt}\n\nComposite ONLY the attached approved LOGO (${logoRef.screenLabel}) onto this flat print panel — do NOT redraw or re-typeset the logo or brand name as new typography.
+Visual style, colors, and illustration treatment come from PACKAGING STYLE DIRECTION in the brief.`
+    }
+    if (gen === 'packaging_face' && primaryFaceRef && activeStepKey && !isFirstPackagingFaceStep(activeStepKey)) {
+      let block = `PACKAGING VISUAL CONSISTENCY — faces 2–6 must match face #1 exactly in color and style:
+- Attached PRIMARY FACE #1 (${primaryFaceRef.screenLabel}) is the SOLE style authority — match its colors, illustration treatment, typography style, and material feel EXACTLY on this new panel.
+- IGNORE pre-selected print style, mood, or illustration type text — reference image + color palette only.
+- Generate NEW layout and NEW print copy for THIS face only — do NOT copy or paste the face #1 artwork, layout, or text onto this panel.
+- All 6 faces must look like one unified box design — never invent a new palette or art style per face.`
+      if (logoRef) {
+        block += `\n- Composite ONLY the attached approved LOGO (${logoRef.screenLabel}) — do NOT redraw or re-typeset the logo.`
+      }
+      block += `\n\nAttached references:\n${refList}`
+      return `${prompt}\n\n${block}`
+    }
     let block = `COMPOSITE onto this FLAT 2D print panel — embed these attached images as printed graphics (not style-only reference, NOT a 3D mockup scene):\n${refList}`
     if (logoRef) {
-      block += `\nPlace the approved LOGO (${logoRef.screenLabel}) prominently on this packaging surface.`
+      block +=
+        gen === 'packaging_face'
+          ? `\nComposite ONLY the attached approved LOGO (${logoRef.screenLabel}) for brand identity — do NOT redraw or re-typeset the logo or brand name as new typography.`
+          : `\nPlace the approved LOGO (${logoRef.screenLabel}) prominently on this packaging surface.`
     }
     if (gen === 'packaging_face') {
       block +=
-        '\nIncorporate logos, product visuals and brand marks from attachments as flat 2D printed elements on this single panel — edge-to-edge full bleed, NOT as a 3D box photo, NOT on grey studio background with margins or drop shadow.'
+        '\nIncorporate attached product visuals as flat 2D printed elements on this single panel — edge-to-edge full bleed, NOT as a 3D box photo, NOT on grey studio background with margins or drop shadow.'
     } else if (gen === 'packaging_mockup') {
       block += `\nWrap each attached face artwork onto the mapped 3D box face only — never use logo-only images.
 ${PACKAGING_MOCKUP_SCENE_RULES}`
@@ -1578,7 +1978,10 @@ function buildAskForNextStep(
     reply = t.studioApprovedNext.replace('{screen}', approvedScreenLabel).replace('{next}', nextLabel)
   }
 
-  if (session.referenceImages.length > 0) {
+  if (
+    session.referenceImages.length > 0 &&
+    !isPackagingCompositeArtifactStepKey(nextKey)
+  ) {
     reply += `\n\n${referenceUsageReply(locale, session.referenceImages.length, STUDIO_REFERENCE_ATTACH_LIMIT)}`
   }
 
@@ -1589,12 +1992,12 @@ function buildAskForNextStep(
     reply = appendStepAsk(reply, locale, session.presetId, nextKey)
   }
 
-  const studio: HubStudioMessagePayload = {
+  const studio = mergeApprovedPackagingMockupIntoStudio(session, {
     processSteps: session.processSteps,
     awaitingRequirements: true,
-    ...buildReferencePreviewsPayload(session),
+    ...buildReferencePreviewsPayload(session, nextKey),
     needsUpload: preset?.needsUpload && !session.uploadImages.length ? true : undefined,
-  }
+  })
   return { reply, studio }
 }
 
@@ -1609,57 +2012,44 @@ function deterministicPackagingGeneratedReply(locale: WebLocale, screenLabel: st
   return rows[locale]
 }
 
-function shouldAutoGenerateDeterministicPackagingStep(
-  session: HubStudioSession,
-  stepKey: string
-): boolean {
-  if (session.presetId !== 'packaging_kit') return false
-  if (stepKey !== 'box_mockup_3d' && stepKey !== 'box_dieline_pdf') return false
-  if (!session.packaging?.dimensionsMm || !allPackagingFaceSlotsCommitted(session.packaging)) {
-    return false
-  }
-  if (stepKey === 'box_mockup_3d') {
-    if (session.pendingPreview?.screenKey === stepKey) return false
-    return !session.packaging.mockupUrl
-  }
-  return !packagingDielineIsReady(session.packaging)
-}
-
-async function maybeAutoGenerateDeterministicPackagingStep(
+async function runPackagingArtifactStep(
   userId: string,
   session: HubStudioSession,
   locale: WebLocale,
-  threadId: string
+  message: string,
+  packagingArtifactStep: 'box_mockup_3d' | 'box_dieline_pdf'
 ): Promise<{
   session: HubStudioSession
-  reply: string
   studio: HubStudioMessagePayload
+  artifactLabel: string
   chargedImage?: number
-} | null> {
-  const stepKey = session.currentStepKey
-  if (!stepKey || !shouldAutoGenerateDeterministicPackagingStep(session, stepKey)) {
-    return null
+  error?: string
+}> {
+  const hydratedPackaging = preparePackagingFaceSlotsForArtifact({
+    packaging: session.packaging,
+    referenceImages: session.referenceImages,
+    processSteps: session.processSteps,
+  })
+  let workSession: HubStudioSession = { ...session, packaging: hydratedPackaging }
+  if (workSession.currentStepKey !== packagingArtifactStep) {
+    workSession = focusSessionOnDesignStep(workSession, 'packaging_kit', packagingArtifactStep, message)
   }
-  const label = stepLabel(session, stepKey, locale)
-  const generated = await generateAsset(userId, session, '', stepKey, label, locale)
-  if (generated.error) {
-    return {
-      session: generated.session,
-      reply: generated.error,
-      studio: generated.studio,
-    }
-  }
-  const nextSession = generated.session
-  let reply = deterministicPackagingGeneratedReply(locale, label)
-  if (stepKey === 'box_dieline_pdf' && nextSession.currentStepKey && nextSession.presetId) {
-    reply = appendStepAsk(reply, locale, nextSession.presetId, nextSession.currentStepKey)
-  }
-  await pgSaveHubThreadSession(threadId, nextSession)
+  workSession = clearStalePendingForArtifactGenerate(workSession, packagingArtifactStep)
+  const artifactLabel = stepLabel(workSession, packagingArtifactStep, locale)
+  const genResult = await generateAsset(
+    userId,
+    workSession,
+    message,
+    packagingArtifactStep,
+    artifactLabel,
+    locale
+  )
   return {
-    session: nextSession,
-    reply,
-    studio: generated.studio,
-    chargedImage: generated.chargedImage || undefined,
+    session: genResult.session,
+    studio: genResult.studio,
+    artifactLabel,
+    chargedImage: genResult.chargedImage || undefined,
+    error: genResult.error,
   }
 }
 
@@ -1753,22 +2143,20 @@ async function finishApprove(
       previousCurrentStepKey &&
       previousCurrentStepKey !== pending.screenKey
   )
+  const isInPlaceFaceReEdit =
+    session.presetId === 'packaging_kit' && isPackagingFaceReEdit(session, pending.screenKey)
   const generator = getStepGenerator(session.presetId, pending.screenKey)
   const isAudio = generator === 'lyria_music'
   const isPackagingFace =
     session.presetId === 'packaging_kit' &&
     generator === 'packaging_face' &&
     isPackagingFaceStepKey(pending.screenKey)
-  const existingPackagingFaceReference = isPackagingFace
-    ? session.referenceImages.find((reference) => isPackagingFaceStepKey(reference.screenKey))
-    : undefined
   const keepAsReference =
     !isAudio &&
     generator !== 'barcode' &&
     !isPackagingContinueOnlyApproveStep(pending.screenKey) &&
-    (!isPackagingFace ||
-      !existingPackagingFaceReference ||
-      existingPackagingFaceReference.screenKey === pending.screenKey)
+    !isPackagingFace &&
+    shouldKeepMobileShopReferenceOnApprove(session, pending.screenKey, generator)
 
   let nextSession: HubStudioSession = {
     ...session,
@@ -1781,10 +2169,8 @@ async function finishApprove(
     nextSession = {
       ...nextSession,
       referenceImages: [
-        ...nextSession.referenceImages.filter((reference) =>
-          isPackagingFace
-            ? !isPackagingFaceStepKey(reference.screenKey)
-            : reference.screenKey !== pending.screenKey
+        ...nextSession.referenceImages.filter(
+          (reference) => reference.screenKey !== pending.screenKey
         ),
         {
           screenKey: pending.screenKey,
@@ -1796,6 +2182,19 @@ async function finishApprove(
     }
   }
 
+  if (
+    session.presetId &&
+    isMobileShopUiStyleAnchorStep(pending.screenKey) &&
+    keepAsReference
+  ) {
+    nextSession = applyMobileShopStyleAnchorReference(
+      nextSession,
+      pending.screenKey,
+      pending.screenLabel,
+      pending.url
+    )
+  }
+
   if (pending.screenKey === 'box_mockup_3d') {
     nextSession = {
       ...nextSession,
@@ -1805,7 +2204,7 @@ async function finishApprove(
     }
   }
 
-  if (session.presetId === 'packaging_kit' && !isRestoringReference) {
+  if (session.presetId === 'packaging_kit' && (!isRestoringReference || isInPlaceFaceReEdit)) {
     const slot = packagingStepKeyToSlot(pending.screenKey)
     const faceKey = packagingFaceKeyFromStep(pending.screenKey)
     const packaging = nextSession.packaging ?? {
@@ -1870,6 +2269,13 @@ async function finishApprove(
         nextSession = await refreshPackagingArtifactsAfterFaceChange(nextSession, session, userId)
       }
     } else if (faceKey) {
+      const previousFace = faceKey === 'LxW'
+        ? packaging.faceSlots?.top
+        : faceKey === 'LxH'
+          ? packaging.faceSlots?.front
+          : packaging.faceSlots?.right
+      const faceArtworkChanged =
+        previousFace?.sourceMode !== 'generate' || previousFace?.url !== pending.url
       nextSession.packaging = syncResolvedPackagingFaces({
         ...packaging,
         faceSlots: {
@@ -1878,27 +2284,42 @@ async function finishApprove(
           ...(faceKey === 'LxH' ? { front: { sourceMode: 'generate' as const, url: pending.url } } : {}),
           ...(faceKey === 'WxH' ? { right: { sourceMode: 'generate' as const, url: pending.url } } : {}),
         },
-        dielineUrl: undefined,
-        dielineVariants: undefined,
-        mockupUrl: undefined,
+        dielineUrl: faceArtworkChanged ? undefined : packaging.dielineUrl,
+        dielineVariants: faceArtworkChanged ? undefined : packaging.dielineVariants,
+        mockupUrl: faceArtworkChanged ? undefined : packaging.mockupUrl,
       })
+      if (faceArtworkChanged) {
+        nextSession = await refreshPackagingArtifactsAfterFaceChange(nextSession, session, userId)
+      }
     } else if (pending.screenKey === 'box_mockup_3d') {
       nextSession.packaging = { ...packaging, mockupUrl: pending.url }
     } else if (pending.screenKey === 'barcode_label') {
-      nextSession.packaging = { ...packaging, barcodeUrl: pending.url }
+      nextSession.packaging = {
+        ...packaging,
+        barcodeUrl: pending.url,
+        barcodeArtifacts: packaging.barcodeArtifacts,
+        barcodeFormEntries: packaging.barcodeFormEntries,
+        barcodeQrPayload: packaging.barcodeQrPayload,
+      }
     }
   }
 
   let next: HubStudioProcessStep | null = null
+  const reEditStay = Boolean(
+    session.presetId === 'packaging_kit' &&
+      isPackagingFaceReEdit(session, pending.screenKey) &&
+      pending.screenKey === previousCurrentStepKey
+  )
   const navigatedBackStay =
     session.presetId &&
     isNavigatedBackEdit(session, session.presetId) &&
     pending.screenKey === previousCurrentStepKey
+  const stayOnApprovedStep = (navigatedBackStay || reEditStay) && !isRestoringReference
   if (isRestoringReference && previousCurrentStepKey) {
     nextSession.currentStepKey = previousCurrentStepKey
     nextSession.processSteps = setStepInProgress(nextSession.processSteps, previousCurrentStepKey)
     next = nextSession.processSteps.find((s) => s.key === previousCurrentStepKey) ?? null
-  } else if (navigatedBackStay) {
+  } else if (stayOnApprovedStep) {
     nextSession.processSteps = markStepDone(nextSession.processSteps, pending.screenKey)
     nextSession.currentStepKey = pending.screenKey
     next = nextSession.processSteps.find((s) => s.key === pending.screenKey) ?? null
@@ -1919,7 +2340,7 @@ async function finishApprove(
   const t = getDictionary(locale).hubChat
   const nextLabel = next?.label ?? ''
   const reply =
-    navigatedBackStay && !isRestoringReference
+    stayOnApprovedStep
       ? t.studioStepSavedStay.replace('{screen}', pending.screenLabel)
       : next
         ? t.studioApprovedNext.replace('{screen}', pending.screenLabel).replace('{next}', nextLabel)
@@ -1928,7 +2349,13 @@ async function finishApprove(
   const studio: HubStudioMessagePayload = {
     processSteps: nextSession.processSteps,
     screenLabel: pending.screenLabel,
+    screenKey: pending.screenKey,
     ...(isAudio ? { audioUrl: pending.url } : { imageUrl: pending.url }),
+    showApproveReference: false,
+    showRegenerate:
+      isPackagingContinueOnlyApproveStep(pending.screenKey) ||
+      isMobileShopContinueOnlyApproveStep(session.presetId, pending.screenKey, generator) ||
+      generatorSupportsReference(getStepGenerator(session.presetId, pending.screenKey) ?? 'ui_mockup'),
   }
   return { session: nextSession, reply, studio }
 }
@@ -1944,11 +2371,287 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
   let chargedImage = 0
   const t = getDictionary(input.locale).hubChat
 
+  if (action === 'classify_flow_switch') {
+    const message = String(input.message ?? '').trim()
+    const currentPresetId = session.presetId
+    if (!message || !isActiveStudioFlow(session) || !currentPresetId) {
+      return {
+        ok: true,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        flowSwitch: { switchPresetId: null, confidence: 0 },
+      }
+    }
+
+    const ruleMatch = detectStudioFlowSwitch(message, currentPresetId)
+    if (ruleMatch) {
+      return {
+        ok: true,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        flowSwitch: { switchPresetId: ruleMatch, confidence: 1 },
+      }
+    }
+
+    const classified = await classifyStudioFlowSwitchWithAi({
+      apiKey: input.apiKey,
+      userId: input.userId,
+      locale: input.locale,
+      message,
+      currentPresetId,
+    })
+    const flowSwitch = isHighConfidenceFlowSwitch(classified, currentPresetId)
+      ? classified
+      : { switchPresetId: null, confidence: classified.confidence }
+
+    return {
+      ok: true,
+      reply: '',
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      flowSwitch,
+    }
+  }
+
+  if (action === 'classify_feature_intent') {
+    const message = String(input.message ?? '').trim()
+    const emptyIntent = { featureKey: null as string | null, confidence: 0 }
+    if (!message) {
+      return {
+        ok: true,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        featureIntent: emptyIntent,
+      }
+    }
+
+    const currentPresetId = session.presetId ?? null
+
+    if (isActiveStudioFlow(session) && currentPresetId) {
+      const ruleSwitch = detectStudioFlowSwitch(message, currentPresetId)
+      if (ruleSwitch) {
+        return {
+          ok: true,
+          reply: '',
+          session,
+          threadId: input.threadId,
+          chargedChat: 0,
+          featureIntent: { featureKey: `studio:${ruleSwitch}`, confidence: 1 },
+        }
+      }
+    }
+
+    if (!shouldSkipFlowSwitchAiClassification(message, session)) {
+      const featureMatch = matchFeatureFlowByMessage(message, input.locale)
+      if (featureMatch?.kind === 'standalone' && featureMatch.score >= 8) {
+        return {
+          ok: true,
+          reply: '',
+          session,
+          threadId: input.threadId,
+          chargedChat: 0,
+          featureIntent: { featureKey: `tool:${featureMatch.href}`, confidence: 1 },
+        }
+      }
+      if (
+        featureMatch?.kind === 'studio' &&
+        featureMatch.score >= 10 &&
+        featureMatch.presetId !== currentPresetId
+      ) {
+        return {
+          ok: true,
+          reply: '',
+          session,
+          threadId: input.threadId,
+          chargedChat: 0,
+          featureIntent: { featureKey: `studio:${featureMatch.presetId}`, confidence: 1 },
+        }
+      }
+    }
+
+    if (shouldSkipFlowSwitchAiClassification(message, session)) {
+      return {
+        ok: true,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        featureIntent: emptyIntent,
+      }
+    }
+
+    const classified = await classifyFeatureIntentWithAi({
+      apiKey: input.apiKey,
+      userId: input.userId,
+      locale: input.locale,
+      message,
+      currentPresetId,
+    })
+    if (
+      !classified.featureKey ||
+      classified.confidence < FLOW_SWITCH_AI_MIN_CONFIDENCE ||
+      !getHubFeatureCatalogEntry(input.locale, classified.featureKey)
+    ) {
+      return {
+        ok: true,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        featureIntent: { featureKey: null, confidence: classified.confidence },
+      }
+    }
+
+    const selection = resolveHubFeatureSelection(classified.featureKey, input.locale)
+    if (selection?.kind === 'studio' && selection.presetId === currentPresetId) {
+      return {
+        ok: true,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        featureIntent: emptyIntent,
+      }
+    }
+
+    return {
+      ok: true,
+      reply: '',
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      featureIntent: classified,
+    }
+  }
+
+  if (action === 'select_feature') {
+    if (blocksPresetStartOnThread(session)) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioNewFlowThreadRequired,
+      }
+    }
+
+    const featureKey = String(input.featureKey ?? '').trim()
+    const catalogEntry = getHubFeatureCatalogEntry(input.locale, featureKey)
+    const selection = resolveHubFeatureSelection(featureKey, input.locale)
+    if (!catalogEntry || !selection) {
+      return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.errorGeneric }
+    }
+
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'user',
+      content: catalogEntry.label,
+    })
+
+    if (selection.kind === 'studio') {
+      const presetId = selection.presetId
+      const preset = getStudioPreset(presetId)
+      if (!preset) {
+        return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.errorGeneric }
+      }
+      if (blocksPresetStartOnThread(session)) {
+        return {
+          ok: false,
+          reply: '',
+          session,
+          threadId: input.threadId,
+          chargedChat: 0,
+          error: t.studioNewFlowThreadRequired,
+        }
+      }
+      const steps = buildStepsFromPreset(input.locale, presetId)
+      session = {
+        ...emptyStudioSession(),
+        presetId,
+        projectTitle: presetTitle(input.locale, presetId),
+        processSteps: steps,
+        currentStepKey: steps[0]?.key ?? null,
+        discoveryComplete: false,
+        briefNotes:
+          presetId === 'packaging_kit'
+            ? (() => {
+                const fields = defaultPrintLanguageFields(input.locale)
+                return {
+                  [PRINT_LANGUAGE_STEP_KEY]: fields.print_language,
+                  ...(fields.print_language_detail
+                    ? { [PRINT_LANGUAGE_DETAIL_STEP_KEY]: fields.print_language_detail }
+                    : {}),
+                }
+              })()
+            : {},
+        uploadImages: [],
+        packaging: presetId === 'packaging_kit'
+          ? { version: 2, layout: 'six_faces', dimensionsMm: null, faces: {} }
+          : undefined,
+      }
+      await pgSaveHubThreadSession(input.threadId, session)
+      const firstKey = steps[0]?.key ?? ''
+      reply = appendStepAsk(getPresetKickoff(input.locale, presetId), input.locale, presetId, firstKey)
+      studio = { processSteps: session.processSteps, needsUpload: preset.needsUpload || undefined }
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'assistant',
+        content: reply,
+        studio,
+      })
+      return { ok: true, reply, studio, session, threadId: input.threadId, chargedChat: 0 }
+    }
+
+    const advisory = await buildAdvisoryPayload({
+      locale: input.locale,
+      userId: input.userId,
+      threadId: input.threadId,
+      message: catalogEntry.label,
+      hubRoute: 'workflow',
+      workflowsRaw: [],
+      planRaw: null,
+    })
+    reply = buildStandaloneFeatureAdvisoryReply(input.locale, selection)
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'assistant',
+      content: reply,
+      workflows: advisory.workflows.length ? advisory.workflows : null,
+    })
+    return {
+      ok: true,
+      reply,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      workflows: advisory.workflows,
+      hubRoute: 'workflow',
+    }
+  }
+
   if (action === 'start_preset') {
     const presetId = String(input.presetId ?? '').trim()
     const preset = getStudioPreset(presetId)
     if (!preset) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.errorGeneric }
+    }
+    if (blocksPresetStartOnThread(session)) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioNewFlowThreadRequired,
+      }
     }
     const steps = buildStepsFromPreset(input.locale, presetId)
     session = {
@@ -1958,7 +2661,18 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       processSteps: steps,
       currentStepKey: steps[0]?.key ?? null,
       discoveryComplete: false,
-      briefNotes: {},
+      briefNotes:
+        presetId === 'packaging_kit'
+          ? (() => {
+              const fields = defaultPrintLanguageFields(input.locale)
+              return {
+                [PRINT_LANGUAGE_STEP_KEY]: fields.print_language,
+                ...(fields.print_language_detail
+                  ? { [PRINT_LANGUAGE_DETAIL_STEP_KEY]: fields.print_language_detail }
+                  : {}),
+              }
+            })()
+          : {},
       uploadImages: [],
       packaging: presetId === 'packaging_kit'
         ? { version: 2, layout: 'six_faces', dimensionsMm: null, faces: {} }
@@ -1968,6 +2682,287 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const firstKey = steps[0]?.key ?? ''
     reply = appendStepAsk(getPresetKickoff(input.locale, presetId), input.locale, presetId, firstKey)
     studio = { processSteps: session.processSteps, needsUpload: preset.needsUpload || undefined }
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'assistant',
+      content: reply,
+      studio,
+    })
+    return { ok: true, reply, studio, session, threadId: input.threadId, chargedChat: 0 }
+  }
+
+  if (action === 'generate_current_step') {
+    const currentDesignStep = resolveCurrentStudioDesignStep(session)
+    if (!currentDesignStep) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    const { presetId, stepKey, generator } = currentDesignStep
+    session = clearStalePendingForArtifactGenerate(session, stepKey)
+    if (pendingPreviewBlocksWorkflowInput(session)) {
+      const pendingKey = session.pendingPreview?.screenKey ?? stepKey
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioApproveBeforeNext.replace(
+          '{screen}',
+          stepLabel(session, pendingKey, input.locale)
+        ),
+      }
+    }
+    if (input.generationRefKeys !== undefined) {
+      session = applyGenerationRefKeys(session, presetId, input.generationRefKeys)
+    }
+    if (input.message?.trim()) {
+      session = saveCurrentStudioStepBrief(session, input.message.trim())
+    }
+    const prompt = session.briefNotes[stepKey]?.trim() ?? ''
+    const canRunWithoutBrief =
+      generator === 'packaging_mockup' || generator === 'dieline_pdf'
+    if (!generator || (!canRunWithoutBrief && prompt.length < 2)) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioNoPrompt,
+      }
+    }
+    if (input.message?.trim()) {
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'user',
+        content: input.message.trim(),
+        studio: { stepKey },
+      })
+    }
+    const label = stepLabel(session, stepKey, input.locale)
+    const generationPrompt = buildDesignPromptFromMessage(
+      session,
+      presetId,
+      stepKey,
+      prompt || label,
+      input.locale
+    )
+    const generated = await generateAsset(
+      input.userId,
+      session,
+      generationPrompt,
+      stepKey,
+      label,
+      input.locale
+    )
+    session = generated.session
+    studio = generated.studio
+    reply = generated.error
+      ? generated.error
+      : generator === 'packaging_mockup' || generator === 'dieline_pdf'
+        ? deterministicPackagingGeneratedReply(input.locale, label)
+        : t.studioGeneratedStep.replace('{screen}', label)
+    await pgSaveHubThreadSession(input.threadId, session)
+    await upsertHubStudioImageMessage({
+      threadId: input.threadId,
+      content: reply,
+      studio,
+    })
+    return {
+      ok: !generated.error,
+      reply,
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      chargedImage: generated.chargedImage || undefined,
+      error: generated.error,
+    }
+  }
+
+  if (action === 'generate_packaging_barcodes') {
+    const activeStep = getActiveStepKey(session)
+    if (
+      session.presetId !== 'packaging_kit' ||
+      activeStep !== 'barcode_label' ||
+      !session.discoveryComplete
+    ) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    session = clearStalePendingForArtifactGenerate(session, 'barcode_label')
+    if (pendingPreviewBlocksWorkflowInput(session)) {
+      const pendingKey = session.pendingPreview?.screenKey ?? 'barcode_label'
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioApproveBeforeNext.replace(
+          '{screen}',
+          stepLabel(session, pendingKey, input.locale)
+        ),
+      }
+    }
+    const generateUserCopy: Record<WebLocale, string> = {
+      vi: 'Tạo mã QR sản phẩm',
+      en: 'Generate product QR code',
+      zh: '生成产品 QR 码',
+      ja: '製品QRコードを作成',
+      ko: '제품 QR 코드 생성',
+    }
+    const userCopy = generateUserCopy[input.locale]
+    const label = stepLabel(session, 'barcode_label', input.locale)
+    const bundle = await exportPackagingBarcodeBundle({
+      userId: input.userId,
+      locale: input.locale,
+      session,
+      entries: input.barcodeEntries ?? [],
+    })
+    if ('error' in bundle) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: bundle.error,
+      }
+    }
+    const barcodePackaging = {
+      ...(session.packaging ?? {
+        version: 2 as const,
+        dimensionsMm: null,
+        faces: {},
+      }),
+      barcodeUrl: bundle.primary.url,
+      barcodeArtifacts: bundle.artifacts,
+      barcodeFormEntries: bundle.formEntries,
+      barcodeQrPayload: bundle.qrPayload,
+    }
+    session = {
+      ...session,
+      pendingPreview: {
+        screenKey: 'barcode_label',
+        screenLabel: label,
+        url: bundle.primary.url,
+        generationPrompt: userCopy,
+      },
+      lastGenerationPrompt: userCopy,
+      packaging: barcodePackaging,
+    }
+    studio = {
+      imageUrl: bundle.primary.url,
+      artifactUrl: bundle.primary.url,
+      artifactKind: 'barcode',
+      artifactFileName: bundle.primary.fileName,
+      artifactLabel: label,
+      artifactNote: bundle.note,
+      artifactDownloadLabel: bundle.downloadLabel,
+      barcodeArtifacts: bundle.studioArtifacts,
+      screenKey: 'barcode_label',
+      screenLabel: label,
+      previewKind: 'banner',
+      aspectHint: 'square',
+      processSteps: session.processSteps,
+      showRegenerate: true,
+      showApproveReference: true,
+    }
+    reply = bundle.note
+    await pgSaveHubThreadSession(input.threadId, session)
+    const userMessageId = await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'user',
+      content: userCopy,
+      studio: { stepKey: 'barcode_label' },
+    })
+    await upsertHubStudioImageMessage({
+      threadId: input.threadId,
+      content: reply,
+      studio,
+    })
+    return {
+      ok: true,
+      reply,
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      userMessageId: userMessageId ?? undefined,
+    }
+  }
+
+  if (action === 'skip_packaging_face' || action === 'copy_packaging_face') {
+    const stepKey = session.currentStepKey
+    const slot = stepKey ? packagingStepKeyToSlot(stepKey) : null
+    if (session.presetId !== 'packaging_kit' || !stepKey || !slot || session.pendingPreview) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    let entry: { sourceMode: 'empty' | 'copy'; url?: string }
+    let addReference = false
+    if (action === 'copy_packaging_face') {
+      const sourceUrl = session.packaging
+        ? copySourceUrlForSlot(session.packaging, slot)
+        : null
+      if (!sourceUrl) {
+        return {
+          ok: false,
+          reply: '',
+          session,
+          threadId: input.threadId,
+          chargedChat: 0,
+          error: t.errorGeneric,
+        }
+      }
+      entry = { sourceMode: 'copy', url: sourceUrl }
+      addReference = true
+    } else {
+      entry = { sourceMode: 'empty' }
+    }
+    const label = stepLabel(session, stepKey, input.locale)
+    const stayOnStep =
+      isNavigatedBackEdit(session, session.presetId) ||
+      isPackagingFaceReEdit(session, stepKey)
+    const advanced = advanceAfterPackagingFaceStep(
+      session,
+      stepKey,
+      label,
+      input.locale,
+      entry,
+      addReference,
+      { stayOnStep }
+    )
+    session = advanced.session
+    reply = advanced.reply
+    studio = {
+      processSteps: session.processSteps,
+      ...buildReferencePreviewsPayload(session),
+      ...(session.currentStepKey
+        ? buildGenerationRefPickerPayload(session, 'packaging_kit', session.currentStepKey)
+        : {}),
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
     await pgInsertHubChatMessage({
       threadId: input.threadId,
       role: 'assistant',
@@ -1991,9 +2986,13 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         : null
     if (
       session.presetId !== 'packaging_kit' ||
-      !dimensionsMm ||
-      !isBoxSizeStepKey(getActiveStepKey(session) ?? session.currentStepKey)
+      !dimensionsMm
     ) {
+      return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: boxSizeError(input.locale, 'format') }
+    }
+    const activeStep = getActiveStepKey(session) ?? session.currentStepKey
+    const fromFaceConfirm = activeStep === 'box_face_confirm'
+    if (!isBoxSizeStepKey(activeStep) && !fromFaceConfirm) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: boxSizeError(input.locale, 'format') }
     }
     const productionCandidate = {
@@ -2029,6 +3028,33 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       briefNotes: { ...session.briefNotes, box_size: userValue },
     }
     if (dimensionsChanged) session = invalidatePackagingForDimensionChange(session)
+    session = applyPackagingSessionLabels(session, input.locale)
+    if (fromFaceConfirm) {
+      const confirmed = buildBoxSizeConfirmReply(input.locale, dimensionsMm, session.processSteps, production)
+      reply = confirmed.reply
+      await pgSaveHubThreadSession(input.threadId, session)
+      const userMessageId = await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'user',
+        content: userValue,
+        studio: { stepKey: 'box_face_confirm' },
+      })
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'assistant',
+        content: reply,
+        studio: confirmed.studio,
+      })
+      return {
+        ok: true,
+        reply,
+        studio: confirmed.studio,
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        userMessageId: userMessageId ?? undefined,
+      }
+    }
     session = completeBoxSizeDiscovery(session)
     session = applyPackagingSessionLabels(session, input.locale)
     const confirmed = buildBoxSizeConfirmReply(input.locale, dimensionsMm, session.processSteps, production)
@@ -2109,9 +3135,6 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       reply = generated.error
         ? generated.error
         : deterministicPackagingGeneratedReply(input.locale, artifactLabel)
-      if (!generated.error && session.currentStepKey && session.presetId) {
-        reply = appendStepAsk(reply, input.locale, session.presetId, session.currentStepKey)
-      }
       await pgSaveHubThreadSession(input.threadId, session)
       const userMessageId = await pgInsertHubChatMessage({
         threadId: input.threadId,
@@ -2303,16 +3326,311 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
   }
 
+  if (action === 'confirm_box_face') {
+    if (
+      session.presetId !== 'packaging_kit' ||
+      session.currentStepKey !== 'box_face_confirm' ||
+      !session.packaging?.dimensionsMm
+    ) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    const ackLabel = t.studioBoxFaceConfirmed.replace(/\*\*/g, '')
+    session = completeBoxFaceConfirmSession(session, ackLabel)
+    const advanced = advanceDiscoveryAfterBriefAnswer(
+      session,
+      input.locale,
+      'box_face_confirm',
+      ackLabel,
+      t.studioBoxFaceConfirmed
+    )
+    session = advanced.session
+    reply = advanced.reply
+    studio = advanced.studio
+    await pgSaveHubThreadSession(input.threadId, session)
+    const userMessageId = await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'user',
+      content: ackLabel,
+      studio: { stepKey: 'box_face_confirm' },
+    })
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'assistant',
+      content: reply,
+      studio,
+    })
+    return {
+      ok: true,
+      reply,
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      userMessageId: userMessageId ?? undefined,
+    }
+  }
+
+  if (action === 'set_print_language') {
+    const choiceKey = String(input.printLanguage ?? '').trim() as PackagingPrintLanguageKey
+    const choice = findPackagingPrintLanguageChoice(choiceKey)
+    if (
+      !choice ||
+      session.presetId !== 'packaging_kit' ||
+      session.currentStepKey !== 'product_type'
+    ) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    const nextBriefNotes: Record<string, string> = {
+      ...session.briefNotes,
+      [PRINT_LANGUAGE_STEP_KEY]: choice.key,
+    }
+    if (choice.key === 'other') {
+      const detail =
+        String(input.printLanguageDetail ?? '').trim() ||
+        session.briefNotes[PRINT_LANGUAGE_DETAIL_STEP_KEY]?.trim() ||
+        defaultPrintLanguageDetail(input.locale)
+      if (detail) nextBriefNotes[PRINT_LANGUAGE_DETAIL_STEP_KEY] = detail
+    } else {
+      delete nextBriefNotes[PRINT_LANGUAGE_DETAIL_STEP_KEY]
+    }
+    session = {
+      ...session,
+      briefNotes: nextBriefNotes,
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    studio = { processSteps: session.processSteps }
+    return {
+      ok: true,
+      reply: '',
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'set_label_aspect_ratio') {
+    const ratio = String(input.labelAspectRatio ?? '').trim()
+    const stepKey = session.currentStepKey
+    if (
+      !isValidGeminiAspectRatio(ratio) ||
+      session.presetId !== 'packaging_kit' ||
+      (stepKey !== 'product_label' && stepKey !== 'seal_sticker')
+    ) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    session = {
+      ...session,
+      packaging: {
+        ...packagingBase(session),
+        ...(stepKey === 'product_label'
+          ? { productLabelAspectRatio: ratio }
+          : { sealStickerAspectRatio: ratio }),
+      },
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    studio = { processSteps: session.processSteps }
+    return {
+      ok: true,
+      reply: '',
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'set_label_shape') {
+    const shape = String(input.labelShape ?? '').trim()
+    const stepKey = session.currentStepKey
+    if (
+      !isValidFlatStickerShape(shape) ||
+      session.presetId !== 'packaging_kit' ||
+      (stepKey !== 'product_label' && stepKey !== 'seal_sticker')
+    ) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    session = {
+      ...session,
+      packaging: {
+        ...packagingBase(session),
+        ...(stepKey === 'product_label'
+          ? { productLabelShape: shape }
+          : { sealStickerShape: shape }),
+      },
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    studio = { processSteps: session.processSteps }
+    return {
+      ok: true,
+      reply: '',
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'set_discovery_choice') {
+    const stepKey = String(input.discoveryChoiceStep ?? session.currentStepKey ?? '').trim()
+    const choiceKey = String(input.discoveryChoice ?? '').trim()
+    const choice =
+      stepKey === 'style_mood'
+        ? findPackagingStyleMoodChoice(choiceKey)
+        : stepKey === 'color_palette'
+          ? findPackagingColorPaletteChoice(choiceKey)
+          : undefined
+    if (
+      !choice ||
+      session.presetId !== 'packaging_kit' ||
+      session.currentStepKey !== stepKey
+    ) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    const userLabel = packagingDiscoveryChoiceLabel(choice, input.locale)
+    const briefValue = packagingDiscoveryChoiceBrief(choice, input.locale)
+    const advanced = advanceDiscoveryAfterBriefAnswer(
+      session,
+      input.locale,
+      stepKey,
+      briefValue,
+      t.studioDiscoveryBriefConfirmed.replace('{value}', userLabel)
+    )
+    session = advanced.session
+    reply = advanced.reply
+    studio = advanced.studio
+    await pgSaveHubThreadSession(input.threadId, session)
+    const userMessageId = await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'user',
+      content: userLabel,
+      studio: { stepKey },
+    })
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'assistant',
+      content: reply,
+      studio,
+    })
+    return {
+      ok: true,
+      reply,
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      userMessageId: userMessageId ?? undefined,
+    }
+  }
+
+  if (action === 'set_color_palette') {
+    const stepKey = 'color_palette'
+    const selections = normalizeStudioColorSelections(
+      input.colorPaletteSelection,
+      input.colorPaletteKeys
+    )
+    const resolved = resolveStudioColorSelections(selections)
+    if (
+      !resolved.length ||
+      !studioColorSelectionHasPrimary(selections) ||
+      !session.presetId ||
+      session.currentStepKey !== stepKey ||
+      !isStudioColorPalettePickerStep(stepKey)
+    ) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    const userLabel = studioColorPaletteUserLabel(selections, input.locale)
+    const briefValue = formatStudioColorPaletteBriefFromSelections(selections, input.locale)
+    const advanced = advanceDiscoveryAfterBriefAnswer(
+      session,
+      input.locale,
+      stepKey,
+      briefValue,
+      t.studioDiscoveryBriefConfirmed.replace('{value}', userLabel)
+    )
+    session = advanced.session
+    reply = advanced.reply
+    studio = advanced.studio
+    await pgSaveHubThreadSession(input.threadId, session)
+    const userMessageId = await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'user',
+      content: userLabel,
+      studio: { stepKey },
+    })
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'assistant',
+      content: reply,
+      studio,
+    })
+    return {
+      ok: true,
+      reply,
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      userMessageId: userMessageId ?? undefined,
+    }
+  }
+
   if (action === 'upload_generation_product') {
     const files = input.uploadFiles ?? []
-    if (!files.length || !session.presetId) {
+    const stepKey = session.currentStepKey ?? ''
+    if (
+      !files.length ||
+      !session.presetId ||
+      !stepSupportsGenerationRefPicker(session.presetId, stepKey)
+    ) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioNeedUpload }
     }
     const presetId = session.presetId
     const urls = await uploadStudioImages(input.userId, files)
     session = appendGenerationProductUrls(session, presetId, urls)
     await pgSaveHubThreadSession(input.threadId, session)
-    const stepKey = session.currentStepKey ?? ''
     reply = t.studioGenProductUploaded.replace('{n}', String(urls.length))
     studio = {
       processSteps: session.processSteps,
@@ -2503,7 +3821,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
     const stayOnStep = Boolean(
-      session.presetId && isNavigatedBackEdit(session, session.presetId)
+      session.presetId &&
+        (isNavigatedBackEdit(session, session.presetId) || isPackagingFaceReEdit(session, stepKey))
     )
     const sessionBeforeFaceUpload = session
     const advanced = advanceAfterPackagingFaceStep(
@@ -2535,6 +3854,13 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         : {}),
     }
     await pgSaveHubThreadSession(input.threadId, session)
+    if (session.packaging?.mockupUrl) {
+      await pgUpdateLatestHubStudioImageUrl({
+        threadId: input.threadId,
+        screenKey: 'box_mockup_3d',
+        imageUrl: session.packaging.mockupUrl,
+      })
+    }
     await pgInsertHubChatMessage({
       threadId: input.threadId,
       role: 'assistant',
@@ -2552,7 +3878,11 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const pendingGenerator = session.presetId
       ? getStepGenerator(session.presetId, pending.screenKey)
       : null
-    if (pendingGenerator !== 'barcode' && !canAddReferenceImage(session, pending.screenKey)) {
+    if (
+      pendingGenerator !== 'barcode' &&
+      !isPackagingContinueOnlyApproveStep(pending.screenKey) &&
+      !canAddReferenceImage(session, pending.screenKey)
+    ) {
       return {
         ok: false,
         reply: '',
@@ -2564,31 +3894,70 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
     const approvedLabel = pending.screenLabel
     const approvedKey = pending.screenKey
+    const wasReEdit = isPackagingFaceReEdit(session, approvedKey)
     const finished = await finishApprove(session, input.locale, input.threadId, input.userId)
     session = finished.session
-    const auto = await maybeAutoGenerateDeterministicPackagingStep(
-      input.userId,
-      session,
-      input.locale,
-      input.threadId
+    const stayedOnEditedFace = Boolean(
+      session.presetId &&
+        session.currentStepKey === approvedKey &&
+        (isNavigatedBackEdit(session, session.presetId) || wasReEdit)
     )
-    if (auto) {
-      session = auto.session
-      reply = auto.reply
-      studio = auto.studio
-      chargedImage = auto.chargedImage ?? 0
+    if (stayedOnEditedFace) {
+      reply = finished.reply
+      studio = mergeApprovedPackagingMockupIntoStudio(session, {
+        ...finished.studio,
+        screenKey: finished.studio.screenKey ?? approvedKey,
+        processSteps: session.processSteps,
+        showApproveReference: false,
+        showRegenerate: finished.studio.showRegenerate ?? true,
+        ...buildReferencePreviewsPayload(session),
+      })
     } else {
       const asked = buildAskForNextStep(session, input.locale, approvedLabel, approvedKey)
       reply = asked.reply
       studio = asked.studio
     }
 
-    await pgInsertHubChatMessage({
-      threadId: input.threadId,
-      role: 'assistant',
-      content: reply,
-      studio,
-    })
+    if (session.packaging?.mockupUrl && approvedKey === 'box_mockup_3d') {
+      await pgUpdateLatestHubStudioImageUrl({
+        threadId: input.threadId,
+        screenKey: 'box_mockup_3d',
+        imageUrl: session.packaging.mockupUrl,
+      })
+      await upsertHubStudioImageMessage({
+        threadId: input.threadId,
+        content: finished.reply,
+        studio: {
+          ...finished.studio,
+          imageUrl: session.packaging.mockupUrl,
+          screenKey: 'box_mockup_3d',
+          showApproveReference: false,
+          showRegenerate: true,
+          processSteps: session.processSteps,
+        },
+      })
+    } else if (session.packaging?.mockupUrl) {
+      await pgUpdateLatestHubStudioImageUrl({
+        threadId: input.threadId,
+        screenKey: 'box_mockup_3d',
+        imageUrl: session.packaging.mockupUrl,
+      })
+    }
+
+    if (stayedOnEditedFace && studio?.imageUrl && studio.screenKey) {
+      await upsertHubStudioImageMessage({
+        threadId: input.threadId,
+        content: reply,
+        studio,
+      })
+    } else {
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'assistant',
+        content: reply,
+        studio,
+      })
+    }
     return {
       ok: true,
       reply,
@@ -2624,26 +3993,17 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     } else {
       session = { ...session, generationSelection: undefined }
     }
-    const restorePrompt =
-      session.briefNotes[removed.screenKey]?.trim() || removed.screenLabel
-    session = {
-      ...session,
-      currentStepKey: savedCurrentStepKey,
-      pendingPreview: {
-        screenKey: removed.screenKey,
-        screenLabel: removed.screenLabel,
-        url: removed.url,
-        generationPrompt: restorePrompt,
-      },
-    }
+    session = applyReferenceRemoval(session, removed, savedCurrentStepKey, session.presetId)
     await pgSaveHubThreadSession(input.threadId, session)
     reply = t.studioReferenceRemoved.replace('{screen}', removed.screenLabel)
     studio = {
       processSteps: session.processSteps,
       awaitingRequirements: true,
       ...buildReferencePreviewsPayload(session),
-      ...(session.presetId
-        ? buildPendingStepStudio(session, removed.screenKey, session.presetId)
+      ...(session.presetId &&
+      savedCurrentStepKey &&
+      session.pendingPreview?.screenKey === savedCurrentStepKey
+        ? buildPendingStepStudio(session, savedCurrentStepKey, session.presetId)
         : {}),
       ...(session.presetId && savedCurrentStepKey
         ? buildGenerationRefPickerPayload(session, session.presetId, savedCurrentStepKey)
@@ -2687,9 +4047,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
   }
 
   if (action === 'crop_pending_image') {
-    const pending = session.pendingPreview
     const files = input.uploadFiles ?? []
-    if (!pending || !files.length) {
+    if (!files.length) {
       return {
         ok: false,
         reply: '',
@@ -2699,6 +4058,39 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         error: t.studioNoPreview,
       }
     }
+
+    const targetScreenKey =
+      String(input.cropScreenKey ?? '').trim() || session.pendingPreview?.screenKey
+    if (!targetScreenKey) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioNoPreview,
+      }
+    }
+
+    const savedCurrentStepKey = session.currentStepKey
+    const savedPendingPreview = session.pendingPreview
+
+    let pending =
+      session.pendingPreview?.screenKey === targetScreenKey
+        ? session.pendingPreview
+        : pendingPreviewFromApprovedReference(session, targetScreenKey, session.presetId)
+
+    if (!pending?.url) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioNoPreview,
+      }
+    }
+
     const urls = await uploadStudioImages(input.userId, files)
     const newUrl = urls[0]!
     const sessionBeforeFaceEdit = session
@@ -2711,18 +4103,29 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
             return raw ? { width: raw.widthMm, height: raw.heightMm } : undefined
           })()
         : undefined)
+    const croppedPending = {
+      ...pending,
+      originalUrl: pending.originalUrl ?? pending.url,
+      url: newUrl,
+      editedSizeMm: editedSizeMm ?? undefined,
+    }
+
     session = {
       ...session,
-      pendingPreview: {
-        ...pending,
-        originalUrl: pending.originalUrl ?? pending.url,
-        url: newUrl,
-        editedSizeMm: editedSizeMm ?? undefined,
-      },
+      pendingPreview: croppedPending,
     }
+
     const editedSlot = packagingStepKeyToSlot(pending.screenKey)
-    const existingFace = editedSlot ? session.packaging?.faceSlots?.[editedSlot] : undefined
-    if (editedSlot && existingFace && session.packaging) {
+    const faceCommitted = Boolean(
+      editedSlot &&
+        session.packaging &&
+        (session.packaging.faceSlots?.[editedSlot] ||
+          session.referenceImages.some((reference) => reference.screenKey === pending.screenKey))
+    )
+    if (faceCommitted && editedSlot && session.packaging) {
+      const previousFace = session.packaging.faceSlots?.[editedSlot]
+      const faceArtworkChanged =
+        previousFace?.sourceMode !== 'generate' || previousFace?.url !== newUrl
       session = {
         ...session,
         packaging: syncResolvedPackagingFaces({
@@ -2731,22 +4134,55 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
             ...(session.packaging.faceSlots ?? {}),
             [editedSlot]: { sourceMode: 'generate', url: newUrl },
           },
-          dielineUrl: undefined,
-          dielineVariants: undefined,
-          mockupUrl: undefined,
+          dielineUrl: faceArtworkChanged ? undefined : session.packaging.dielineUrl,
+          dielineVariants: faceArtworkChanged ? undefined : session.packaging.dielineVariants,
+          mockupUrl: faceArtworkChanged ? undefined : session.packaging.mockupUrl,
         }),
-        referenceImages: session.referenceImages.map((reference) =>
-          reference.screenKey === pending.screenKey
-            ? { ...reference, url: newUrl, approvedAt: Date.now() }
-            : reference
+        referenceImages: session.referenceImages.some(
+          (reference) => reference.screenKey === pending.screenKey
+        )
+          ? session.referenceImages.map((reference) =>
+              reference.screenKey === pending.screenKey
+                ? { ...reference, url: newUrl, approvedAt: Date.now() }
+                : reference
+            )
+          : [
+              ...session.referenceImages,
+              {
+                screenKey: pending.screenKey,
+                screenLabel: pending.screenLabel,
+                url: newUrl,
+                approvedAt: Date.now(),
+              },
+            ],
+      }
+      if (faceArtworkChanged) {
+        session = await refreshPackagingArtifactsAfterFaceChange(
+          session,
+          sessionBeforeFaceEdit,
+          input.userId
+        )
+      }
+    }
+
+    if (savedCurrentStepKey && savedCurrentStepKey !== pending.screenKey) {
+      session = {
+        ...session,
+        currentStepKey: savedCurrentStepKey,
+        pendingPreview: resolveWorkflowPendingAfterApprovedFaceEdit(
+          session,
+          pending.screenKey,
+          savedCurrentStepKey,
+          savedPendingPreview
         ),
       }
-      session = await refreshPackagingArtifactsAfterFaceChange(
-        session,
-        sessionBeforeFaceEdit,
-        input.userId
-      )
+    } else {
+      session = {
+        ...session,
+        pendingPreview: croppedPending,
+      }
     }
+
     await pgSaveHubThreadSession(input.threadId, session)
     const label = stepLabel(session, pending.screenKey, input.locale)
     reply = t.studioCropApplied.replace('{screen}', label)
@@ -2755,8 +4191,15 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
     studio =
       session.presetId != null
-        ? buildPendingStepStudio(session, pending.screenKey, session.presetId)
-        : { processSteps: session.processSteps, imageUrl: newUrl }
+        ? {
+            ...buildPendingStepStudio(
+              { ...session, pendingPreview: croppedPending },
+              pending.screenKey,
+              session.presetId
+            ),
+            showApproveReference: false,
+          }
+        : { processSteps: session.processSteps, imageUrl: newUrl, screenKey: pending.screenKey }
     const replacedMessageId = await pgReplaceLatestHubStudioImageMessage({
       threadId: input.threadId,
       screenKey: pending.screenKey,
@@ -2876,18 +4319,24 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     session = navigateSessionToStep(session, session.presetId, stepKey)
     await pgSaveHubThreadSession(input.threadId, session)
     const label = stepLabel(session, stepKey, input.locale)
+    const reEditingCommittedFace = Boolean(
+      session.presetId === 'packaging_kit' &&
+        (isPackagingFaceReEdit(session, stepKey) || isNavigatedBackEdit(session, session.presetId))
+    )
     reply = t.studioNavigatedToStep.replace('{screen}', label)
-    if (session.presetId) {
+    if (session.presetId && !reEditingCommittedFace) {
       reply = appendStepAsk(reply, input.locale, session.presetId, stepKey)
     }
     const onDiscovery = isDiscoveryStep(session.presetId!, stepKey)
     studio = {
       processSteps: session.processSteps,
-      awaitingRequirements: !onDiscovery,
+      awaitingRequirements: !onDiscovery && !reEditingCommittedFace,
       ...buildReferencePreviewsPayload(session),
-      ...(session.presetId && !onDiscovery && session.pendingPreview?.screenKey !== stepKey
-        ? buildGenerationRefPickerPayload(session, session.presetId, stepKey)
-        : {}),
+      ...(session.presetId && reEditingCommittedFace && session.pendingPreview?.screenKey === stepKey
+        ? buildPendingStepStudio(session, stepKey, session.presetId)
+        : session.presetId && !onDiscovery && session.pendingPreview?.screenKey !== stepKey
+          ? buildGenerationRefPickerPayload(session, session.presetId, stepKey)
+          : {}),
     }
     await pgInsertHubChatMessage({
       threadId: input.threadId,
@@ -2899,6 +4348,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
   }
 
   if (action === 'regenerate') {
+    const originalTimelineSession = session
     const requestedKey = String(input.regenerateStepKey ?? '').trim()
     const pending = session.pendingPreview
     const screenKey = requestedKey || pending?.screenKey || session.currentStepKey
@@ -2930,9 +4380,52 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioNoPrompt }
     }
     const label = stepLabel(session, screenKey, input.locale)
+    const sessionBeforeGenerate = session
+    const reEditFace = isPackagingFaceReEdit(sessionBeforeGenerate, screenKey)
     const genResult = await generateAsset(input.userId, session, prompt, screenKey, label, input.locale)
     if (genResult.error) {
       return { ok: false, reply: genResult.error, session, threadId: input.threadId, chargedChat: 0, error: genResult.error }
+    }
+    if (reEditFace && genResult.session.pendingPreview) {
+      const editedImageUrl = genResult.session.pendingPreview.url
+      const finished = await finishApprove(
+        genResult.session,
+        input.locale,
+        input.threadId,
+        input.userId
+      )
+      session = restoreTimelineAfterInPlaceImageEdit(
+        finished.session,
+        originalTimelineSession,
+        screenKey
+      )
+      reply = finished.reply
+      studio = {
+        ...genResult.studio,
+        ...finished.studio,
+        screenKey,
+        screenLabel: label,
+        imageUrl: editedImageUrl,
+        processSteps: session.processSteps,
+        showApproveReference: false,
+        showRegenerate: true,
+        ...buildReferencePreviewsPayload(session),
+      }
+      chargedImage = genResult.chargedImage
+      await pgSaveHubThreadSession(input.threadId, session)
+      if (session.packaging?.mockupUrl) {
+        await pgUpdateLatestHubStudioImageUrl({
+          threadId: input.threadId,
+          screenKey: 'box_mockup_3d',
+          imageUrl: session.packaging.mockupUrl,
+        })
+      }
+      await upsertHubStudioImageMessage({
+        threadId: input.threadId,
+        content: reply,
+        studio,
+      })
+      return { ok: true, reply, studio, session, threadId: input.threadId, chargedChat: 0, chargedImage }
     }
     session = genResult.session
     studio = genResult.studio
@@ -2996,11 +4489,113 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioMinChars }
   }
 
-  const chatCharge = await deductUserCredits(input.userId, HUB_CHAT_CREDIT)
-  if (!chatCharge.ok) {
-    return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: chatCharge.error }
+  const shouldChargeChat = !session.presetId || action === 'edit_step'
+  if (shouldChargeChat) {
+    const chatCharge = await deductUserCredits(input.userId, HUB_CHAT_CREDIT)
+    if (!chatCharge.ok) {
+      return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: chatCharge.error }
+    }
+    chargedChat = HUB_CHAT_CREDIT
   }
-  chargedChat = HUB_CHAT_CREDIT
+
+  if (
+    editPrepared &&
+    isInPlacePackagingImageEdit(
+      editPrepared.baseSession,
+      editPrepared.baseSession.presetId!,
+      editPrepared.editStepKey
+    )
+  ) {
+    const originalSession = editPrepared.baseSession
+    const editStepKey = editPrepared.editStepKey
+    const editLabel = stepLabel(originalSession, editStepKey, input.locale)
+    session = focusSessionOnDesignStep(
+      originalSession,
+      originalSession.presetId!,
+      editStepKey,
+      editPrepared.editMessage
+    )
+
+    const generated = await generateAsset(
+      input.userId,
+      session,
+      editPrepared.editMessage,
+      editStepKey,
+      editLabel,
+      input.locale
+    )
+    if (generated.error || !generated.session.pendingPreview) {
+      return {
+        ok: false,
+        reply: generated.error ?? t.errorGeneric,
+        session: originalSession,
+        threadId: input.threadId,
+        chargedChat,
+        error: generated.error ?? t.errorGeneric,
+      }
+    }
+
+    const editedImageUrl = generated.session.pendingPreview.url
+    const finished = await finishApprove(
+      generated.session,
+      input.locale,
+      input.threadId,
+      input.userId
+    )
+    session = restoreTimelineAfterInPlaceImageEdit(
+      finished.session,
+      originalSession,
+      editStepKey
+    )
+    reply = finished.reply
+    chargedImage = generated.chargedImage
+    studio = {
+      ...generated.studio,
+      ...finished.studio,
+      screenKey: editStepKey,
+      screenLabel: editLabel,
+      imageUrl: editedImageUrl,
+      processSteps: session.processSteps,
+      showApproveReference: false,
+      showRegenerate: true,
+      ...buildReferencePreviewsPayload(session),
+    }
+    await pgUpdateHubChatMessageContent(editPrepared.resolved.id, editPrepared.editMessage, {
+      stepKey: editStepKey,
+    })
+    await pgSaveHubThreadSession(input.threadId, session)
+    if (session.packaging?.mockupUrl) {
+      await pgUpdateLatestHubStudioImageUrl({
+        threadId: input.threadId,
+        screenKey: 'box_mockup_3d',
+        imageUrl: session.packaging.mockupUrl,
+      })
+    }
+    await upsertHubStudioImageMessage({
+      threadId: input.threadId,
+      content: reply,
+      studio,
+    })
+    const refreshed = await pgGetHubChatThread(input.userId, input.threadId)
+    const threadMessages =
+      refreshed?.messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        studio: message.studio,
+        createdAt: message.createdAt,
+      })) ?? []
+    return {
+      ok: true,
+      reply,
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat,
+      chargedImage: chargedImage || undefined,
+      threadMessages,
+    }
+  }
 
   if (editPrepared) {
     session = rewindSessionForStepEdit(
@@ -3046,35 +4641,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         ? getStepGenerator(session.presetId, session.currentStepKey)
         : null
     if (session.currentStepKey && generatorBefore && !onDiscoveryBefore && message) {
-      session.briefNotes = { ...session.briefNotes, [session.currentStepKey]: message }
-    }
-
-    if (
-      session.presetId === 'packaging_kit' &&
-      session.currentStepKey === 'product_label' &&
-      message
-    ) {
-      const labelSize = parseLabelSizeMm(message)
-      if (labelSize) {
-        session.packaging = {
-          ...packagingBase(session),
-          productLabelSizeMm: labelSize,
-        }
-      }
-    }
-
-    if (
-      session.presetId === 'packaging_kit' &&
-      session.currentStepKey === 'seal_sticker' &&
-      message
-    ) {
-      const sealSize = parseLabelSizeMm(message)
-      if (sealSize) {
-        session.packaging = {
-          ...packagingBase(session),
-          sealStickerSizeMm: sealSize,
-        }
-      }
+      session = saveCurrentStudioStepBrief(session, message)
     }
 
     session = reconcileDiscoveryProgress(session, input.locale)
@@ -3242,55 +4809,46 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       forceCompleteBoxFaceConfirm = true
     }
 
-    const packagingArtifactStep = resolvePackagingArtifactStepFromMessage(session, input.locale, message)
-    if (packagingArtifactStep && session.presetId === 'packaging_kit') {
-      const hydratedPackaging = preparePackagingFaceSlotsForArtifact({
-        packaging: session.packaging,
-        referenceImages: session.referenceImages,
-        processSteps: session.processSteps,
-      })
-      session = { ...session, packaging: hydratedPackaging }
-      if (session.currentStepKey !== packagingArtifactStep) {
-        session = focusSessionOnDesignStep(session, 'packaging_kit', packagingArtifactStep, message)
-      }
-      const artifactLabel = stepLabel(session, packagingArtifactStep, input.locale)
-      const genResult = await generateAsset(
-        input.userId,
-        session,
-        message,
-        packagingArtifactStep,
-        artifactLabel,
-        input.locale
-      )
-      session = genResult.session
-      studio = genResult.studio
-      reply = genResult.error
-        ? genResult.error
-        : t.studioGeneratedStep.replace('{screen}', artifactLabel)
-      await pgSaveHubThreadSession(input.threadId, session)
-      await upsertHubStudioImageMessage({
-        threadId: input.threadId,
-        content: reply,
-        studio,
-      })
-      return {
-        ok: true,
-        reply,
-        studio,
-        session,
-        threadId: input.threadId,
-        chargedChat,
-        chargedImage: genResult.chargedImage || undefined,
-        userMessageId,
+    const activeDesign = Boolean(session.presetId && session.processSteps.length)
+    const ai: ReturnType<typeof parseAiStudio> = activeDesign
+      ? {
+          reply: '',
+          intent: 'chat',
+          shouldGenerate: false,
+          retryIntent: 'none',
+          completeCurrentStep: Boolean(
+            session.presetId &&
+              session.currentStepKey &&
+              isDiscoveryStep(session.presetId, session.currentStepKey)
+          ),
+        }
+      : await callStudioBrain(input.apiKey, input.userId, input.locale, message, session)
+
+    const idleFeatureMatch = !activeDesign
+      ? matchFeatureFlowByMessage(message, input.locale)
+      : null
+
+    if (!activeDesign && idleFeatureMatch) {
+      if (idleFeatureMatch.kind === 'standalone') {
+        ai.suggestedPresetId = undefined
+        ai.hubRoute = 'workflow'
+      } else if (
+        idleFeatureMatch.kind === 'studio' &&
+        !ai.suggestedPresetId &&
+        isValidStudioPresetId(idleFeatureMatch.presetId)
+      ) {
+        ai.suggestedPresetId = idleFeatureMatch.presetId
+        ai.hubRoute = 'design'
       }
     }
 
-    const ai = await callStudioBrain(input.apiKey, input.userId, input.locale, message, session)
-
     const hubRoute: HubRouteKind = ai.hubRoute ?? 'design'
-    const activeDesign = Boolean(session.presetId && session.processSteps.length)
+    const useAdvisory =
+      !activeDesign &&
+      !ai.suggestedPresetId &&
+      (hubRoute !== 'design' || idleFeatureMatch?.kind === 'standalone')
 
-    if (!activeDesign && hubRoute !== 'design' && !ai.suggestedPresetId) {
+    if (useAdvisory) {
       const advisory = await buildAdvisoryPayload({
         locale: input.locale,
         userId: input.userId,
@@ -3300,7 +4858,11 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         workflowsRaw: ai.workflows,
         planRaw: ai.plan,
       })
-      reply = sanitizeAssistantReply(ai.reply || '...')
+      const fallbackReply =
+        idleFeatureMatch?.kind === 'standalone'
+          ? buildStandaloneFeatureAdvisoryReply(input.locale, idleFeatureMatch)
+          : '...'
+      reply = sanitizeAssistantReply(ai.reply?.trim() || fallbackReply)
       await pgInsertHubChatMessage({
         threadId: input.threadId,
         role: 'assistant',
@@ -3317,6 +4879,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         workflows: advisory.workflows,
         plan: advisory.plan,
         hubRoute,
+        showFeaturePicker: ai.intent === 'clarify' || advisory.workflows.length === 0,
       }
     }
 
@@ -3333,7 +4896,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     if (ai.projectTitle) session.projectTitle = ai.projectTitle
 
     const discoveryBriefEdit =
-      session.presetId && message.trim()
+      action === 'edit_step' && session.presetId && message.trim()
         ? matchDiscoveryBriefEditStep(message, input.locale, session.presetId, session)
         : null
 
@@ -3388,6 +4951,12 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       session.presetId && session.currentStepKey
         ? isDiscoveryStep(session.presetId, session.currentStepKey)
         : false
+    if (activeDesign && session.currentStepKey) {
+      reply = t.studioBriefUpdated.replace(
+        '{screen}',
+        stepLabel(session, session.currentStepKey, input.locale)
+      )
+    }
     if (!discoveryBriefEdit && session.currentStepKey && message && !justAppliedPreset) {
       if (onDiscoveryForBrief) {
         const answer = ai.briefUpdates?.[session.currentStepKey]?.trim() || message
@@ -3461,10 +5030,21 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       reply = ackRows[input.locale]
     }
 
-    const aiRetry: HubStudioAiRetryHint = sanitizeAiRetryHint(session, {
-      retryIntent: ai.retryIntent ?? 'none',
-      retryStepKey: ai.retryStepKey,
-    })
+    const aiRetry: HubStudioAiRetryHint = activeDesign
+      ? { retryIntent: 'none' }
+      : sanitizeAiRetryHint(
+          session,
+          inferAiRetryFromGenerationFlags(
+            session,
+            mergeKeywordRetryHint(session, input.locale, message, {
+              retryIntent: normalizeRetryIntent(ai.retryIntent),
+              retryStepKey: ai.retryStepKey,
+            }),
+            ai.shouldGenerate
+          ),
+          message,
+          input.locale
+        )
     const aiWantsRetry = aiRetry.retryIntent !== 'none' && aiRetry.retryIntent !== 'continue_next'
 
     if (
@@ -3542,7 +5122,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       } else {
         reply = reply || sanitizeAssistantReply(ai.reply || '...')
       }
-    } else if (ai.currentStepKey && !aiWantsRetry && session.discoveryComplete) {
+    } else if (!activeDesign && ai.currentStepKey && !aiWantsRetry && session.discoveryComplete) {
       session.currentStepKey = ai.currentStepKey
       session.processSteps = setStepInProgress(session.processSteps, ai.currentStepKey)
       reply = hadPreset || session.presetId ? sanitizeAssistantReply(ai.reply || '...') : reply || sanitizeAssistantReply(ai.reply || '...')
@@ -3556,7 +5136,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
 
     let explicitRetryStep: string | null = null
-    if (session.presetId && session.discoveryComplete) {
+    if (!activeDesign && session.presetId && session.discoveryComplete) {
       explicitRetryStep = resolveRetryTargetStep(
         session,
         session.presetId,
@@ -3583,7 +5163,10 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
             input.locale,
             aiRetry
           )
-          session = invalidatePackagingFromStep(session, explicitRetryStep)
+          session = invalidatePackagingFromStep(
+            session,
+            session.currentStepKey ?? explicitRetryStep
+          )
         }
         if (isExplicitRetryIntent(message, aiRetry)) {
           reply = sanitizeAssistantReply(reply)
@@ -3593,6 +5176,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
 
     let packagingFaceCompletedWithoutImage = false
     if (
+      !activeDesign &&
       session.presetId === 'packaging_kit' &&
       session.currentStepKey &&
       isPackagingFaceStepKey(session.currentStepKey) &&
@@ -3604,7 +5188,9 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         if (intent === 'empty') {
           const label = stepLabel(session, session.currentStepKey, input.locale)
           const stayOnStep =
-            session.presetId != null && isNavigatedBackEdit(session, session.presetId)
+            session.presetId != null &&
+            (isNavigatedBackEdit(session, session.presetId) ||
+              isPackagingFaceReEdit(session, session.currentStepKey))
           const advanced = advanceAfterPackagingFaceStep(
             session,
             session.currentStepKey,
@@ -3622,7 +5208,9 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           if (sourceUrl) {
             const label = stepLabel(session, session.currentStepKey, input.locale)
             const stayOnStep =
-              session.presetId != null && isNavigatedBackEdit(session, session.presetId)
+              session.presetId != null &&
+              (isNavigatedBackEdit(session, session.presetId) ||
+                isPackagingFaceReEdit(session, session.currentStepKey))
             const advanced = advanceAfterPackagingFaceStep(
               session,
               session.currentStepKey,
@@ -3678,7 +5266,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     )
 
     const forceGenerate = Boolean(
-      session.currentStepKey &&
+      !activeDesign &&
+        session.currentStepKey &&
         shouldForceGenerateDesign(
           session,
           session.presetId,
@@ -3741,7 +5330,12 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       session.presetId &&
       !justEnteredDesignStep &&
       !packagingFaceCompletedWithoutImage &&
-      (forceGenerate || (ai.intent === 'generate_ui' && ai.shouldGenerate))
+      (shouldExecuteDesignGeneration({
+        onDiscovery,
+        discoveryComplete: Boolean(session.discoveryComplete),
+        forceGenerate,
+        aiShouldGenerate: ai.shouldGenerate,
+      }))
     ) {
       const label = stepLabel(session, session.currentStepKey, input.locale)
       const genPrompt =
@@ -3766,11 +5360,9 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         chargedImage = genResult.chargedImage
         if (generator === 'dieline_pdf') {
           reply = deterministicPackagingGeneratedReply(input.locale, label)
-          if (session.currentStepKey && session.presetId) {
-            reply = appendStepAsk(reply, input.locale, session.presetId, session.currentStepKey)
-          }
         } else if (
           generator === 'packaging_mockup' ||
+          generator === 'packaging_face' ||
           forceGenerate ||
           (explicitRetryStep === session.currentStepKey && isExplicitRetryIntent(message, aiRetry))
         ) {
@@ -3781,23 +5373,89 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         }
       }
     } else if (
+      shouldExecuteDeferredDesignAction({
+        presetId: session.presetId,
+        explicitRetryStep,
+        aiWantsRetry,
+        aiShouldGenerate: ai.shouldGenerate,
+        packagingFaceCompletedWithoutImage,
+        alreadyGenerated: Boolean(chargedImage || studio?.imageUrl),
+        pendingBlocksGenerate: Boolean(
+          explicitRetryStep &&
+            session.pendingPreview?.screenKey === explicitRetryStep &&
+            shouldShowPendingRetry(session, explicitRetryStep, message, aiRetry)
+        ),
+      })
+    ) {
+      const targetStep = explicitRetryStep!
+      if (session.currentStepKey !== targetStep) {
+        session = focusSessionOnDesignStep(session, session.presetId!, targetStep, message)
+      }
+      if (targetStep === 'box_mockup_3d' || targetStep === 'box_dieline_pdf') {
+        const artifactResult = await runPackagingArtifactStep(
+          input.userId,
+          session,
+          input.locale,
+          message,
+          targetStep
+        )
+        session = artifactResult.session
+        studio = artifactResult.studio
+        chargedImage = artifactResult.chargedImage ?? 0
+        reply = artifactResult.error
+          ? `${sanitizeAssistantReply(reply)}\n\n(${artifactResult.error})`
+          : deterministicPackagingGeneratedReply(input.locale, artifactResult.artifactLabel)
+      } else {
+        const label = stepLabel(session, targetStep, input.locale)
+        const genPrompt =
+          ai.generationPrompt?.trim() ||
+          buildDesignPromptFromMessage(session, session.presetId!, targetStep, message, input.locale)
+        const genResult = await generateAsset(
+          input.userId,
+          session,
+          genPrompt,
+          targetStep,
+          label,
+          input.locale
+        )
+        if (genResult.error) {
+          reply = `${sanitizeAssistantReply(reply)}\n\n(${genResult.error})`
+          studio = genResult.studio.needsUpload
+            ? { processSteps: session.processSteps, needsUpload: true }
+            : { processSteps: session.processSteps }
+        } else {
+          session = genResult.session
+          studio = genResult.studio
+          chargedImage = genResult.chargedImage
+          reply = t.studioGeneratedStep.replace('{screen}', label)
+        }
+      }
+    } else if (
       wantsContinueNextStep(aiRetry) &&
       session.presetId &&
       session.currentStepKey &&
-      !onDiscovery
+      !onDiscovery &&
+      !(
+        isNavigatedBackEdit(session, session.presetId) ||
+        isPackagingFaceReEdit(session, session.currentStepKey)
+      )
     ) {
       reply = sanitizeAssistantReply(reply)
       const ask = getStepAskPrompt(input.locale, session.presetId, session.currentStepKey)
       if (ask && !reply.includes(ask)) {
         reply = appendStepAsk(reply, input.locale, session.presetId, session.currentStepKey)
       }
-      if (session.referenceImages.length > 0 && !reply.includes(t.studioReferenceWillUse.replace('{n}', ''))) {
+      if (
+        session.referenceImages.length > 0 &&
+        !isPackagingCompositeArtifactStepKey(session.currentStepKey) &&
+        !reply.includes(t.studioReferenceWillUse.replace('{n}', ''))
+      ) {
         reply += `\n\n${referenceUsageReply(input.locale, session.referenceImages.length, STUDIO_REFERENCE_ATTACH_LIMIT)}`
       }
       studio = {
         processSteps: session.processSteps,
         awaitingRequirements: true,
-        ...buildReferencePreviewsPayload(session),
+        ...buildReferencePreviewsPayload(session, session.currentStepKey),
         ...(session.presetId && session.currentStepKey
           ? buildGenerationRefPickerPayload(session, session.presetId, session.currentStepKey)
           : {}),

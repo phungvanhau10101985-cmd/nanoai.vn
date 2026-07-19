@@ -37,11 +37,17 @@ export function getFurthestReachedStepIndex(session: HubStudioSession, presetId:
   return max
 }
 
+/** Packaging box flow is linear — users cannot jump back to earlier steps. */
+export function isForwardOnlyStudioPreset(presetId: string | null | undefined): boolean {
+  return presetId === 'packaging_kit'
+}
+
 export function canNavigateToStep(
   session: HubStudioSession,
   presetId: string,
   stepKey: string
 ): boolean {
+  if (isForwardOnlyStudioPreset(presetId)) return false
   const flow = session.processSteps.length ? session.processSteps : getFlowSteps(presetId)
   const targetIdx = flow.findIndex((s) => s.key === stepKey)
   if (targetIdx < 0) return false
@@ -58,6 +64,45 @@ export function isNavigatedBackEdit(session: HubStudioSession, presetId: string)
   const currentIdx = flow.findIndex((s) => s.key === session.currentStepKey)
   const furthestIdx = getFurthestReachedStepIndex(session, presetId)
   return currentIdx >= 0 && furthestIdx >= 0 && currentIdx < furthestIdx
+}
+
+export function applyReferenceRemoval(
+  session: HubStudioSession,
+  removed: { screenKey: string; screenLabel: string; url: string },
+  savedCurrentStepKey: string | null | undefined,
+  presetId: string | null
+): HubStudioSession {
+  const restorePrompt =
+    session.briefNotes[removed.screenKey]?.trim() || removed.screenLabel
+
+  let pendingPreview: HubStudioSession['pendingPreview']
+  if (removed.screenKey === savedCurrentStepKey) {
+    pendingPreview = {
+      screenKey: removed.screenKey,
+      screenLabel: removed.screenLabel,
+      url: removed.url,
+      generationPrompt: restorePrompt,
+    }
+  } else if (session.pendingPreview?.screenKey === removed.screenKey) {
+    pendingPreview =
+      savedCurrentStepKey && presetId
+        ? pendingPreviewFromApprovedReference(
+            { ...session, currentStepKey: savedCurrentStepKey },
+            savedCurrentStepKey,
+            presetId
+          )
+        : null
+  } else {
+    pendingPreview = session.pendingPreview ?? null
+  }
+
+  return {
+    ...session,
+    currentStepKey: savedCurrentStepKey,
+    pendingPreview,
+    lastGenerationPrompt:
+      pendingPreview?.generationPrompt ?? session.lastGenerationPrompt,
+  }
 }
 
 export function navigateSessionToStep(

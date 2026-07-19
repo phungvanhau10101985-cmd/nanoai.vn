@@ -1,4 +1,5 @@
 import { packagingDielineIsReady } from '@/lib/packaging/dieline-structure'
+import { packagingBarcodeIsReady } from '@/lib/packaging/packaging-barcode-form'
 import type {
   HubStudioAiRetryHint,
   HubStudioMessagePayload,
@@ -27,7 +28,7 @@ import {
 const CREATE_VERBS =
   /tạo|tao|làm|lam|create|make|generate|design|thực hiện|thuc hien|vẽ|ve|draw|render|生成|作成|만들|创建|chưa thấy|chua thay|chưa có|chua co|lỗi|loi|sai|hỏng|hong|missing|where|đâu|dau/
 const REGENERATE_VERBS =
-  /tạo lại|tao lai|làm lại|lam lai|regenerate|again|khác|khac|重新|再生成|다시|another|redo|remake/
+  /tạo lại|tao lai|làm lại|lam lai|\b(?:regenerate|again|another|redo|remake)\b|(?:^|[\s,.;:!?()[\]{}"'“”‘’/\\-])(?:khác|khac)(?=$|[\s,.;:!?()[\]{}"'“”‘’/\\-])|重新|再生成|다시/
 
 /** Fallback keywords when AI retry fields are absent. */
 const STEP_KEY_ALIASES: Record<string, string[]> = {
@@ -36,13 +37,34 @@ const STEP_KEY_ALIASES: Record<string, string[]> = {
   logo_icon: ['logo icon', 'icon', 'favicon', 'bieu tuong', 'biểu tượng'],
   home_mobile: ['trang chu', 'trang chủ', 'homepage', 'home page', 'home mobile'],
   home_desktop: ['trang chu desktop', 'trang chủ desktop', 'homepage desktop', 'home desktop'],
+  category_mobile: ['danh muc', 'danh mục', 'category', 'categories mobile'],
+  category_desktop: ['danh muc desktop', 'danh mục desktop', 'category desktop'],
   product_list_mobile: ['danh sach sp', 'danh sách sp', 'product list', 'san pham mobile'],
   product_list_desktop: ['danh sach sp desktop', 'product list desktop'],
+  search_results_mobile: ['tim kiem', 'tìm kiếm', 'search results', 'search mobile'],
+  search_results_desktop: ['tim kiem desktop', 'tìm kiếm desktop', 'search desktop'],
   product_detail_mobile: ['chi tiet sp', 'chi tiết sp', 'product detail'],
   product_detail_desktop: ['chi tiet sp desktop', 'product detail desktop'],
   cart_mobile: ['gio hang', 'giỏ hàng', 'cart', 'shopping cart'],
+  cart_desktop: ['gio hang desktop', 'giỏ hàng desktop', 'cart desktop'],
   checkout_mobile: ['thanh toan', 'thanh toán', 'checkout', 'payment'],
+  checkout_desktop: ['thanh toan desktop', 'thanh toán desktop', 'checkout desktop'],
+  order_success_mobile: ['dat hang thanh cong', 'đặt hàng thành công', 'order success', 'order confirmation'],
+  order_success_desktop: ['dat hang thanh cong desktop', 'order success desktop'],
+  login_mobile: ['dang nhap', 'đăng nhập', 'login', 'sign in'],
+  login_desktop: ['dang nhap desktop', 'đăng nhập desktop', 'login desktop'],
   profile_mobile: ['tai khoan', 'tài khoản', 'profile', 'account'],
+  profile_desktop: ['tai khoan desktop', 'tài khoản desktop', 'account desktop'],
+  order_detail_mobile: ['chi tiet don hang', 'chi tiết đơn hàng', 'order detail'],
+  order_detail_desktop: ['chi tiet don hang desktop', 'order detail desktop'],
+  wishlist_mobile: ['yeu thich', 'yêu thích', 'wishlist', 'favorites'],
+  wishlist_desktop: ['yeu thich desktop', 'yêu thích desktop', 'wishlist desktop'],
+  about_mobile: ['gioi thieu', 'giới thiệu', 'about us', 'about mobile'],
+  about_desktop: ['gioi thieu desktop', 'giới thiệu desktop', 'about desktop'],
+  contact_mobile: ['lien he', 'liên hệ', 'contact', 'contact us'],
+  contact_desktop: ['lien he desktop', 'liên hệ desktop', 'contact desktop'],
+  policy_mobile: ['chinh sach', 'chính sách', 'policy', 'policies', 'shipping policy'],
+  policy_desktop: ['chinh sach desktop', 'chính sách desktop', 'policy desktop'],
   google_display: ['google display', 'banner google', 'google ngang'],
   google_square: ['google vuong', 'google vuông', 'google square'],
   facebook_feed: ['facebook feed', 'fb feed'],
@@ -90,7 +112,19 @@ const STEP_KEY_ALIASES: Record<string, string[]> = {
   face_lxh: ['mat lxh', 'mặt lxh', 'mat truoc sau', 'mặt trước sau', 'front back face'],
   face_wxh: ['mat wxh', 'mặt wxh', 'mat hong', 'mặt hông', 'side face'],
   box_dieline_pdf: ['dieline pdf', 'ban ve be', 'bản vẽ bế', 'pdf ky thuat', 'pdf kỹ thuật', 'file in', 'tao file in', 'tạo file in'],
-  box_mockup_3d: ['mockup 3d', 'mocup 3d', 'hop 3d', 'hộp 3d', '3d box'],
+  box_mockup_3d: [
+    'mockup 3d',
+    'mocup 3d',
+    'hop 3d',
+    'hộp 3d',
+    '3d box',
+    'mockup',
+    'mocup',
+    'tao mockup',
+    'tạo mockup',
+    'tao mocup',
+    'tạo mocup',
+  ],
   seal_sticker: ['tem niem phong', 'tem niêm phong', 'seal sticker'],
   barcode_label: ['ma vach', 'mã vạch', 'barcode'],
   living_room: ['phong khach', 'phòng khách', 'living room'],
@@ -214,6 +248,18 @@ export function shouldForceDeterministicStep(
   return true
 }
 
+/** Detect mockup intent from user text (excludes dieline). */
+export function messageRequestsPackagingMockup(message: string): boolean {
+  const n = normalize(message)
+  if (!/mockup|mocup/.test(n)) return false
+  return !messageRequestsPackagingDieline(message)
+}
+
+export function messageRequestsPackagingDieline(message: string): boolean {
+  const n = normalize(message)
+  return /dieline|file in|ban ve|bản vẽ|pdf ky thuat|pdf kỹ thuật/.test(n)
+}
+
 /** User asks to compose mockup PDF / dieline — keyword only, no AI. */
 export function resolvePackagingArtifactStepFromMessage(
   session: HubStudioSession,
@@ -228,18 +274,19 @@ export function resolvePackagingArtifactStepFromMessage(
   const onMockupStep = session.currentStepKey === 'box_mockup_3d'
   const onDielineStep = session.currentStepKey === 'box_dieline_pdf'
 
-  const n = normalize(message)
-  const mockupHint =
-    /mockup|mocup/.test(n) && (/3d|hop|hộp|box/.test(n) || onMockupStep)
-  const dielineHint = /dieline|file in|ban ve|bản vẽ|pdf ky thuat|pdf kỹ thuật/.test(n)
+  const mockupHint = messageRequestsPackagingMockup(message)
+  const dielineHint = messageRequestsPackagingDieline(message)
+  const regenerateHint = wantsStepRegenerate(message)
+  const matchHint = regenerateHint ? ({ retryIntent: 'regenerate' as const } satisfies HubStudioAiRetryHint) : undefined
 
   if (wantsStepCreation(message) || mockupHint || dielineHint) {
-    const matched = matchDesignStepRetryRequest(message, locale, session.presetId, session)
+    const matched = matchDesignStepRetryRequest(message, locale, session.presetId, session, matchHint)
     if (matched === 'box_mockup_3d' || matched === 'box_dieline_pdf') return matched
     if (mockupHint || (onMockupStep && wantsStepCreation(message))) return 'box_mockup_3d'
     if (dielineHint || (onDielineStep && wantsStepCreation(message))) return 'box_dieline_pdf'
   }
 
+  const n = normalize(message)
   if (
     onMockupStep &&
     currentGen === 'packaging_mockup' &&
@@ -258,9 +305,85 @@ function isSubstantiveDesignInput(message: string): boolean {
   return true
 }
 
+export function mergeKeywordRetryHint(
+  session: HubStudioSession,
+  locale: WebLocale,
+  message: string,
+  aiHint: HubStudioAiRetryHint
+): HubStudioAiRetryHint {
+  if (aiHint.retryIntent !== 'none' && aiHint.retryIntent !== 'continue_next') {
+    return aiHint
+  }
+  if (wantsContinueNextStep(aiHint)) return aiHint
+
+  const presetId = session.presetId
+  if (!presetId || !session.discoveryComplete) return aiHint
+
+  const artifact = resolvePackagingArtifactStepFromMessage(session, locale, message)
+  if (artifact) {
+    return {
+      retryIntent: wantsStepRegenerate(message) ? 'regenerate' : 'create',
+      retryStepKey: artifact,
+    }
+  }
+
+  if (!wantsStepCreation(message)) return aiHint
+
+  const regenHint = wantsStepRegenerate(message)
+    ? ({ retryIntent: 'regenerate' as const } satisfies HubStudioAiRetryHint)
+    : undefined
+  const matched = matchDesignStepRetryRequest(message, locale, presetId, session, regenHint)
+  if (!matched) return aiHint
+
+  return {
+    retryIntent: wantsStepRegenerate(message) ? 'regenerate' : 'create',
+    retryStepKey: matched,
+  }
+}
+
+export function inferAiRetryFromGenerationFlags(
+  session: HubStudioSession,
+  aiHint: HubStudioAiRetryHint,
+  shouldGenerate: boolean
+): HubStudioAiRetryHint {
+  if (!shouldGenerate || aiHint.retryIntent !== 'none') return aiHint
+  const stepKey = session.currentStepKey
+  if (!stepKey || !session.presetId) return aiHint
+  if (!isValidDesignStepKey(session.presetId, stepKey)) return aiHint
+  return { retryIntent: 'create', retryStepKey: stepKey }
+}
+
+/** Server should run image/asset generation — trust shouldGenerate regardless of intent label. */
+export function shouldExecuteDesignGeneration(input: {
+  onDiscovery: boolean
+  discoveryComplete: boolean
+  forceGenerate: boolean
+  aiShouldGenerate: boolean
+}): boolean {
+  if (input.onDiscovery || !input.discoveryComplete) return false
+  return input.forceGenerate || input.aiShouldGenerate === true
+}
+
+export function shouldExecuteDeferredDesignAction(input: {
+  presetId: string | null | undefined
+  explicitRetryStep: string | null
+  aiWantsRetry: boolean
+  aiShouldGenerate: boolean
+  packagingFaceCompletedWithoutImage: boolean
+  alreadyGenerated: boolean
+  pendingBlocksGenerate: boolean
+}): boolean {
+  if (!input.presetId || !input.explicitRetryStep) return false
+  if (input.packagingFaceCompletedWithoutImage || input.alreadyGenerated) return false
+  if (input.pendingBlocksGenerate) return false
+  return input.aiWantsRetry || input.aiShouldGenerate
+}
+
 export function sanitizeAiRetryHint(
   session: HubStudioSession,
-  aiHint: HubStudioAiRetryHint
+  aiHint: HubStudioAiRetryHint,
+  message?: string,
+  locale: WebLocale = 'vi'
 ): HubStudioAiRetryHint {
   const presetId = session.presetId
   if (!presetId) return aiHint
@@ -269,11 +392,39 @@ export function sanitizeAiRetryHint(
     return { retryIntent: 'continue_next' }
   }
 
+  const currentStepKey = session.currentStepKey
+  if (
+    presetId === 'packaging_kit' &&
+    currentStepKey &&
+    isPackagingFaceStepKey(currentStepKey) &&
+    aiHint.retryStepKey &&
+    aiHint.retryStepKey !== currentStepKey &&
+    (aiHint.retryIntent === 'create' || aiHint.retryIntent === 'regenerate') &&
+    getDesignStepIncompleteReason(session, presetId, currentStepKey) !== 'none' &&
+    !(message && REGENERATE_VERBS.test(message.toLowerCase()))
+  ) {
+    return { retryIntent: 'create', retryStepKey: currentStepKey }
+  }
+
   if (
     aiHint.retryStepKey &&
     isDesignStepApprovedComplete(session, presetId, aiHint.retryStepKey) &&
     aiHint.retryIntent !== 'regenerate'
   ) {
+    if (message && wantsStepRegenerate(message, aiHint)) {
+      return { ...aiHint, retryIntent: 'regenerate' }
+    }
+    if (message && wantsStepCreation(message)) {
+      const matched = matchDesignStepRetryRequest(message, locale, presetId, session, {
+        retryIntent: 'regenerate',
+      })
+      if (matched === aiHint.retryStepKey) {
+        return { ...aiHint, retryIntent: 'regenerate' }
+      }
+    }
+    if (aiHint.retryIntent === 'create') {
+      return { retryIntent: 'none' }
+    }
     return { retryIntent: 'none' }
   }
 
@@ -302,7 +453,7 @@ export function isDesignStepApprovedComplete(
     return proc?.status === 'done' && Boolean(session.packaging?.mockupUrl)
   }
   if (presetId === 'packaging_kit' && stepKey === 'barcode_label') {
-    return proc?.status === 'done' && Boolean(session.packaging?.barcodeUrl)
+    return proc?.status === 'done' && packagingBarcodeIsReady(session.packaging)
   }
   const hasRef = session.referenceImages.some((r) => r.screenKey === stepKey)
   if (presetId === 'packaging_kit' && isPackagingFaceStepKey(stepKey)) {
@@ -350,7 +501,7 @@ export function getDesignStepIncompleteReason(
     session.presetId === 'packaging_kit' &&
     ((stepKey === 'box_dieline_pdf' && packagingDielineIsReady(session.packaging)) ||
       (stepKey === 'box_mockup_3d' && session.packaging?.mockupUrl) ||
-      (stepKey === 'barcode_label' && session.packaging?.barcodeUrl))
+      (stepKey === 'barcode_label' && packagingBarcodeIsReady(session.packaging)))
   ) {
     return 'none'
   }
@@ -581,6 +732,13 @@ export function applyStepRetryRepair(
 
   const reason = getDesignStepIncompleteReason(session, presetId, targetStepKey)
   const aiTargetsStep = aiHint?.retryStepKey === targetStepKey && aiHint?.retryIntent !== 'none'
+  const existingBrief = session.briefNotes[targetStepKey]?.trim()
+  const preserveExistingBrief = Boolean(
+    existingBrief &&
+    message &&
+    wantsStepCreation(message) &&
+    !isSubstantiveDesignInput(message)
+  )
   const softRegenerate =
     reason === 'none' && aiHint?.retryIntent === 'regenerate' && (aiHint.retryStepKey === targetStepKey || !aiHint.retryStepKey)
 
@@ -588,7 +746,10 @@ export function applyStepRetryRepair(
     return {
       ...session,
       currentStepKey: targetStepKey,
-      briefNotes: message ? { ...session.briefNotes, [targetStepKey]: message } : session.briefNotes,
+      briefNotes:
+        message && !preserveExistingBrief
+          ? { ...session.briefNotes, [targetStepKey]: message }
+          : session.briefNotes,
       pendingPreview: session.pendingPreview?.screenKey === targetStepKey ? session.pendingPreview : null,
     }
   }
@@ -602,6 +763,7 @@ export function applyStepRetryRepair(
 
   const shouldUpdateBrief =
     Boolean(message) &&
+    !preserveExistingBrief &&
     (aiTargetsStep || aiHint?.retryIntent === 'create' || aiHint?.retryIntent === 'regenerate')
   const briefNotes = shouldUpdateBrief
     ? { ...session.briefNotes, [targetStepKey]: message! }

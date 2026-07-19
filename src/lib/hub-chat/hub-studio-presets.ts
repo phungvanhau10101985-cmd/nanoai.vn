@@ -43,10 +43,12 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
       'giao diện app',
       'ui app',
       'shop online',
+      'app bán hàng',
       'bán hàng',
       'ecommerce app',
       '购物app',
       'モバイルアプリ',
+      'モバイルアプリ ui',
       '모바일 앱',
     ],
   },
@@ -86,9 +88,16 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
       'landing page',
       'trang đích',
       'website giới thiệu',
+      'giao diện web',
+      'tạo giao diện web',
+      'thiết kế web',
+      'thiet ke web',
+      'website',
+      'web ui',
       'saas landing',
       '落地页',
       'ランディング',
+      'ウェブ ui',
       '랜딩 페이지',
     ],
   },
@@ -280,17 +289,30 @@ export function getStudioPreset(id: string): StudioPresetDef | undefined {
   return STUDIO_PRESETS.find((p) => p.id === id)
 }
 
-export function matchStudioPreset(message: string): StudioPresetDef | null {
+export function scoreStudioPresetMatch(message: string, preset: StudioPresetDef): number {
   const lower = message.toLowerCase()
+  let score = 0
+  for (const intent of preset.intents) {
+    if (lower.includes(intent.toLowerCase())) score += intent.length
+  }
+  return score
+}
+
+export function matchStudioPresetWithScore(
+  message: string
+): { preset: StudioPresetDef; score: number } | null {
   let best: { preset: StudioPresetDef; score: number } | null = null
   for (const preset of STUDIO_PRESETS) {
-    let score = 0
-    for (const intent of preset.intents) {
-      if (lower.includes(intent.toLowerCase())) score += intent.length
+    const score = scoreStudioPresetMatch(message, preset)
+    if (score > 0 && (!best || score > best.score)) {
+      best = { preset, score }
     }
-    if (score > 0 && (!best || score > best.score)) best = { preset, score }
   }
-  return best?.preset ?? null
+  return best
+}
+
+export function matchStudioPreset(message: string): StudioPresetDef | null {
+  return matchStudioPresetWithScore(message)?.preset ?? null
 }
 
 export function presetStepLabel(locale: WebLocale, presetId: string, stepKey: string): string {

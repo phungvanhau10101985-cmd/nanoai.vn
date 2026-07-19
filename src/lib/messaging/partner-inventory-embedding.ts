@@ -1,4 +1,5 @@
 import {
+  clearStalePartnerInventoryImageEmbeddingErrorsFromPg,
   fetchPartnerInventoryRowsByIdsForEmbeddingSyncFromPg,
   fetchPartnerInventorySliceForEmbeddingSyncFromPg,
   updatePartnerInventoryEmbeddingFieldsFromPg,
@@ -62,6 +63,7 @@ function rowAsEmbeddingComparable(
         | 'image_embedding_model'
         | 'image_embedding_dims'
         | 'image_embedding_vec'
+        | 'image_embedding_error'
       >
     >
 ): InvRow {
@@ -91,7 +93,7 @@ function rowAsEmbeddingComparable(
     image_embedding_dims: row.image_embedding_dims ?? null,
     image_embedding_vec: row.image_embedding_vec ?? null,
     image_embedding_updated_at: null,
-    image_embedding_error: null,
+    image_embedding_error: row.image_embedding_error ?? null,
     text_embedding_json: null,
     text_embedding_vec: null,
     text_embedding_model: null,
@@ -146,6 +148,7 @@ type EmbeddingComparableRow = Pick<
   | 'image_embedding_model'
   | 'image_embedding_dims'
   | 'image_embedding_vec'
+  | 'image_embedding_error'
 >
 
 function needsEmbeddingSync(row: EmbeddingComparableRow, force = false): boolean {
@@ -153,6 +156,7 @@ function needsEmbeddingSync(row: EmbeddingComparableRow, force = false): boolean
   if (!row.is_active) return false
   if (!isHttpImageUrl(imageUrl)) return false
   if (force) return true
+  if (String(row.image_embedding_error ?? '').trim()) return true
   const nextFp = rowFingerprint(row)
   const hasEmbedding = Array.isArray(row.image_embedding_json)
   const hasVectorColumn = typeof row.image_embedding_vec === 'string' && row.image_embedding_vec.trim().length > 0
@@ -251,6 +255,8 @@ export async function syncPartnerInventoryEmbeddings(
     return { ok: false, error: 'Postgres (DATABASE_URL) is not configured.' }
   }
 
+  await clearStalePartnerInventoryImageEmbeddingErrorsFromPg(partnerId)
+
   const cap = Math.max(1, Math.min(5000, options?.limit ?? SYNC_LIMIT))
   const idList = (options?.inventoryIds ?? []).map((x) => x.trim()).filter(Boolean)
   const rows: InvRow[] = []
@@ -335,6 +341,17 @@ export async function syncPartnerInventoryEmbeddings(
           typeof row.image_embedding_vec === 'string' &&
           row.image_embedding_vec.trim().length > 0
         ) {
+          if (String(row.image_embedding_error ?? '').trim()) {
+            await persistInventoryEmbeddingPatch(partnerId, row.id, {
+              image_embedding_json: row.image_embedding_json as number[],
+              image_embedding_fingerprint: row.image_embedding_fingerprint ?? fp,
+              image_embedding_model: row.image_embedding_model ?? GEMINI_EMBED_MODEL,
+              image_embedding_dims: row.image_embedding_dims ?? vec.length,
+              image_embedding_vec: row.image_embedding_vec as string,
+              image_embedding_updated_at: nowIso,
+              image_embedding_error: '',
+            })
+          }
           synced += 1
           continue
         }

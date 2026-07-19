@@ -27,6 +27,10 @@ export type HubStudioRegenerateDialogLabels = {
   refApprovedSection: string
   refProductSection: string
   refProductLabel: string
+  refStyleSection?: string
+  refStyleLabel?: string
+  refStyleUploadNote?: string
+  refStyleRemove?: string
   refAttachCount: string
   refRemoveProduct: string
 }
@@ -101,8 +105,13 @@ export function HubStudioRegenerateDialog({
                 title: labels.refPickerTitle,
                 hint: labels.refPickerHint,
                 approvedSection: labels.refApprovedSection,
+                styleSection: labels.refStyleSection ?? '',
+                styleUpload: labels.refStyleLabel ?? '',
+                styleUploadNote: labels.refStyleUploadNote ?? '',
+                removeStyle: labels.refStyleRemove ?? '',
                 productSection: labels.refProductSection,
                 productUpload: labels.refProductLabel,
+                productUploadNote: '',
                 attachCount: labels.refAttachCount,
                 removeProduct: labels.refRemoveProduct,
               }}

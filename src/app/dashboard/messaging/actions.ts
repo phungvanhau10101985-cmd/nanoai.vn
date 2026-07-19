@@ -28,6 +28,8 @@ import {
   fetchPartnerInventoryEmbeddingErrorsAllFromPg,
   fetchPartnerInventoryEmbeddingErrorsPageFromPg,
   fetchPartnerInventoryTextEmbeddingStatsFromPg,
+  clearStalePartnerInventoryImageEmbeddingErrorsFromPg,
+  clearStalePartnerInventoryTextEmbeddingErrorsFromPg,
   type PartnerInventoryEmbeddingErrorRow,
   insertPartnerInventoryDashboardItemFromPg,
   updatePartnerInventoryDashboardItemFromPg,
@@ -2008,6 +2010,7 @@ export async function getPartnerInventoryEmbeddingStats(partnerId: string) {
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
+  await clearStalePartnerInventoryImageEmbeddingErrorsFromPg(partnerId)
   const agg = await fetchPartnerInventoryEmbeddingStatsFromPg(partnerId)
   if (agg === null) return { error: 'Failed to load embedding stats.' }
   const stats: PartnerInventoryEmbeddingStats = {
@@ -2034,6 +2037,11 @@ export async function getPartnerInventoryEmbeddingErrors(
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
+
+  await Promise.all([
+    clearStalePartnerInventoryImageEmbeddingErrorsFromPg(partnerId),
+    clearStalePartnerInventoryTextEmbeddingErrorsFromPg(partnerId),
+  ])
 
   const size = Math.max(10, Math.min(200, Math.floor(Number(pageSize) || 50)))
   const index = Math.max(0, Math.floor(Number(page) || 0))
@@ -2066,6 +2074,11 @@ export async function exportPartnerInventoryEmbeddingErrorsCsv(partnerId: string
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
+
+  await Promise.all([
+    clearStalePartnerInventoryImageEmbeddingErrorsFromPg(partnerId),
+    clearStalePartnerInventoryTextEmbeddingErrorsFromPg(partnerId),
+  ])
 
   const rows = await fetchPartnerInventoryEmbeddingErrorsAllFromPg(partnerId)
   if (rows === null) return { error: 'Failed to load embedding errors for export.' }
@@ -2103,6 +2116,7 @@ export async function getPartnerInventoryTextEmbeddingStats(partnerId: string) {
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
+  await clearStalePartnerInventoryTextEmbeddingErrorsFromPg(partnerId)
   const agg = await fetchPartnerInventoryTextEmbeddingStatsFromPg(partnerId)
   if (agg === null) return { error: 'Failed to load text embedding stats.' }
   const stats: PartnerInventoryEmbeddingStats = {
@@ -2126,6 +2140,10 @@ export async function triggerPartnerInventoryEmbeddingSync(partnerId: string, li
   }
 
   const batchLimit = Math.max(20, Math.min(5000, Math.floor(Number(limit) || 400)))
+  await Promise.all([
+    clearStalePartnerInventoryImageEmbeddingErrorsFromPg(partnerId),
+    clearStalePartnerInventoryTextEmbeddingErrorsFromPg(partnerId),
+  ])
   const run = await syncPartnerInventoryEmbeddings(partnerId, { force: false, limit: batchLimit })
   if (!run.ok) return { error: run.error }
   const runText = await syncPartnerInventoryTextEmbeddings(partnerId, { force: false, limit: batchLimit })

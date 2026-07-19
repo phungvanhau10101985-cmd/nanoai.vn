@@ -143,6 +143,7 @@ export type Dictionary = {
     thinking: string
     openTool: string
     suggested: string
+    suggestedExamplePrefix: string
     loginRequired: string
     errorGeneric: string
     creditNote: string
@@ -154,6 +155,7 @@ export type Dictionary = {
     studioSubtitle: string
     studioPlaceholder: string
     studioProcessTitle: string
+    studioProcessForwardOnlyHint: string
     studioNavigateStepHint: string
     studioNavigatedToStep: string
     studioStepSavedStay: string
@@ -177,6 +179,8 @@ export type Dictionary = {
     studioReferenceRemoved: string
     studioBriefUpdated: string
     studioFacePrintStyleConfirmed: string
+    studioDiscoveryBriefConfirmed: string
+    studioBoxFaceConfirmed: string
     studioEditStep: string
     studioEditSave: string
     studioEditCancel: string
@@ -190,7 +194,14 @@ export type Dictionary = {
     studioGenRefApprovedSection: string
     studioGenRefProductSection: string
     studioGenRefProductLabel: string
+    studioGenRefProductUploadNote: string
     studioGenProductUploaded: string
+    studioGenRefStyleSection: string
+    studioGenRefStyleLabel: string
+    studioGenRefStyleUploadNote: string
+    studioGenRefStyleRemove: string
+    studioStyleRefUploaded: string
+    studioStyleRefWrongStep: string
     studioGenRefAttachCount: string
     studioLogoFirst: string
     studioNeedLogoReference: string
@@ -207,12 +218,37 @@ export type Dictionary = {
     studioFaceUploadSaved: string
     studioFaceUploadUserLabel: string
     studioFaceUploadReplaceBtn: string
+    studioFaceUploadConfirmTitle: string
+    studioFaceUploadConfirmFaceField: string
+    studioFaceUploadConfirmSizeField: string
+    studioFaceUploadConfirmFile: string
+    studioFaceUploadConfirmHint: string
+    studioFaceUploadConfirmOk: string
+    studioFaceUploadConfirmSizeUnknown: string
     studioGeneratedStep: string
+    studioGenerateCurrent: string
+    studioGenerateFace: string
+    studioGenerateMusic: string
+    studioGenerateArtifact: string
+    studioNewFlowConfirmTitle: string
+    studioNewFlowConfirmBody: string
+    studioNewFlowConfirmOk: string
+    studioNewFlowConfirmCancel: string
+    studioNewFlowThreadRequired: string
+    advisoryFeatureOpenConfirmTitle: string
+    advisoryFeatureOpenConfirmBody: string
+    advisoryFeatureOpenConfirmOk: string
+    advisoryFeatureOpenConfirmCancel: string
+    advisoryOpenFeature: string
+    advisoryStandaloneFeatureBody: string
+    featureGroupStudioInline: string
+    featurePickerHint: string
     studioLogoPendingApprove: string
     studioStepPendingApprove: string
     studioApproveBeforeNext: string
     studioRegenerated: string
     studioAllDone: string
+    studioPostFlowSuggestHint: string
     planCreated: string
     startStep: string
     continueNextStep: string
@@ -224,6 +260,7 @@ export type Dictionary = {
     planOpenQueue: string
     viewTaskQueue: string
     newThread: string
+    newThreadFlowHint: string
     chatHistory: string
     chatHistoryEmpty: string
     chatHistoryLoadFailed: string
@@ -2713,7 +2750,8 @@ const VI_DICTIONARY: Dictionary = {
     send: 'Gửi',
     thinking: 'Đang suy nghĩ…',
     openTool: 'Mở công cụ',
-    suggested: 'Gợi ý nhanh',
+    suggested: 'Ví dụ gợi ý nhanh',
+    suggestedExamplePrefix: 'Ví dụ:',
     loginRequired: 'Đăng nhập để dùng trợ lý AI (0,1 credit/lượt).',
     errorGeneric: 'Không gửi được. Thử lại sau.',
     creditNote: '0,1 credit / lượt chat hoặc sửa bước',
@@ -2725,6 +2763,7 @@ const VI_DICTIONARY: Dictionary = {
     studioSubtitle: 'Thiết kế ngay trong chat — app, banner, brand kit, ảnh SP, thiệp, nhạc quảng cáo. AI hỏi từng bước, bạn duyệt và tiếp tục.',
     studioPlaceholder: 'VD: Tôi muốn thiết kế giao diện app mobile bán hàng thời trang…',
     studioProcessTitle: 'Quy trình thiết kế',
+    studioProcessForwardOnlyHint: 'Quy trình chỉ đi tiến — hoàn thành từng bước theo thứ tự.',
     studioNavigateStepHint: 'Bấm bước đã xong để quay lại sửa — các bước sau vẫn giữ nguyên.',
     studioNavigatedToStep: 'Đang xem/sửa **{screen}**. Mô tả thay đổi hoặc bấm bước khác trên quy trình để chuyển.',
     studioStepSavedStay: 'Đã lưu **{screen}**. Bấm bước khác trên quy trình để tiếp tục.',
@@ -2748,6 +2787,8 @@ const VI_DICTIONARY: Dictionary = {
     studioReferenceRemoved: 'Đã gỡ ảnh tham chiếu: {screen}. Bạn có thể chọn lại ảnh cho bước này.',
     studioBriefUpdated: 'Đã cập nhật brief {screen}. Tiếp tục bước hiện tại bên dưới.',
     studioFacePrintStyleConfirmed: 'Đã chọn phong cách hình ảnh: **{style}** — áp dụng đồng bộ cho cả 6 mặt hộp.',
+    studioDiscoveryBriefConfirmed: 'Đã ghi nhận: **{value}**',
+    studioBoxFaceConfirmed: 'Đã xác nhận kích thước mặt hộp.',
     studioEditStep: 'Sửa',
     studioEditSave: 'Lưu',
     studioEditCancel: 'Hủy',
@@ -2758,10 +2799,19 @@ const VI_DICTIONARY: Dictionary = {
     studioReferenceCount: '({count}/{max})',
     studioGenRefPickerTitle: 'Ảnh ghép lên bao bì (lần tạo này)',
     studioGenRefPickerHint:
-      'Tối đa {max} ảnh/lần. Ô xám: mặt/logo đã duyệt — AI lấy style và đồ họa in. Ô xanh: ảnh sản phẩm — AI ghép phẳng lên mặt đang tạo (cần style «Ảnh sản phẩm ghép phẳng»). Mockup 3D không dùng ô này.',
-    studioGenRefApprovedSection: 'Ảnh tham khảo (mặt/logo đã duyệt)',
+      'Tối đa {max} ảnh/lần: Logo + ảnh mặt 1 (neo màu/style từ mặt 2) + ảnh SP ghép.',
+    studioGenRefApprovedSection: 'Logo + mặt 1 (neo style)',
+    studioGenRefStyleSection: 'Ảnh tham khảo phong cách (mặt đầu tiên)',
+    studioGenRefStyleLabel: 'Thêm ảnh tham khảo style',
+    studioGenRefStyleUploadNote:
+      'AI đọc màu sắc, kiểu dáng, layout rồi chuyển thành hướng dẫn text. Không gửi ảnh này khi tạo mặt 1 — style mặt 1 lấy từ các bước brief đã chọn.',
+    studioGenRefStyleRemove: 'Gỡ ảnh tham khảo style',
+    studioStyleRefUploaded: 'Đã phân tích ảnh tham khảo phong cách — style dùng chung cả 6 mặt.',
+    studioStyleRefWrongStep: 'Chỉ thêm ảnh tham khảo phong cách ở mặt hộp đầu tiên.',
     studioGenRefProductSection: 'Ảnh sản phẩm ghép phẳng',
-    studioGenRefProductLabel: 'Tải ảnh sản phẩm',
+    studioGenRefProductLabel: 'Thêm ảnh SP (ghép lên thiết kế)',
+    studioGenRefProductUploadNote:
+      'Chỉ ghép lên mặt AI đang tạo — không thay toàn bộ file mặt in. Muốn dùng sẵn file thiết kế từ máy? Xem mục «Thay mặt in» bên dưới.',
     studioGenProductUploaded: 'Đã thêm {n} ảnh sản phẩm cho lần tạo.',
     studioGenRefAttachCount: '{n}/{max} ảnh',
     studioLogoFirst: 'Cần tạo và chọn Logo làm tham chiếu trước khi tạo các trang giao diện.',
@@ -2779,13 +2829,40 @@ const VI_DICTIONARY: Dictionary = {
     studioFaceUploadWrongStep: 'Chỉ tải ảnh khi đang ở bước thiết kế một mặt hộp.',
     studioFaceUploadSaved: 'Đã lưu ảnh mặt **{screen}** từ máy.',
     studioFaceUploadUserLabel: '📎 Tải ảnh mặt {face}',
-    studioFaceUploadReplaceBtn: 'Tải ảnh khác',
+    studioFaceUploadReplaceBtn: 'Thay toàn bộ mặt in',
+    studioFaceUploadConfirmTitle: 'Xác nhận ảnh mặt in',
+    studioFaceUploadConfirmFaceField: 'Mặt hộp',
+    studioFaceUploadConfirmSizeField: 'Kích thước chuẩn in',
+    studioFaceUploadConfirmFile: 'File',
+    studioFaceUploadConfirmHint:
+      'Ảnh này sẽ **thay toàn bộ** mặt in ở trên. Kiểm tra đúng mặt và đúng kích thước trước khi xác nhận.',
+    studioFaceUploadConfirmOk: 'Đúng — dùng làm mặt in',
+    studioFaceUploadConfirmSizeUnknown: 'Chưa xác định — hãy kiểm tra kích thước hộp ở bước trước',
     studioGeneratedStep: 'Đã tạo {screen} theo mô tả của bạn. Xem bên dưới — ổn thì bấm «Chọn làm tham chiếu và tiếp».',
+    studioGenerateCurrent: 'Tạo ảnh cho bước này',
+    studioGenerateFace: 'Tạo ảnh mặt hộp',
+    studioGenerateMusic: 'Tạo nhạc cho bước này',
+    studioGenerateArtifact: 'Tạo đầu ra bước này',
+    studioNewFlowConfirmTitle: 'Bắt đầu dự án thiết kế mới?',
+    studioNewFlowConfirmBody: 'Bạn đang làm “{current}”. Chuyển sang “{target}” sẽ mở một hội thoại mới; dự án hiện tại vẫn được giữ nguyên trong lịch sử.',
+    studioNewFlowConfirmOk: 'Mở dự án mới',
+    studioNewFlowConfirmCancel: 'Tiếp tục dự án hiện tại',
+    studioNewFlowThreadRequired: 'Flow mới phải được mở trong một hội thoại mới để không trộn dữ liệu với dự án hiện tại.',
+    advisoryFeatureOpenConfirmTitle: 'Mở công cụ riêng?',
+    advisoryFeatureOpenConfirmBody: 'Tính năng “{feature}” chưa có flow chat đầy đủ. Bạn sẽ chuyển sang trang công cụ để thực hiện — có thể quay lại hub bất cứ lúc nào.',
+    advisoryFeatureOpenConfirmOk: 'Mở công cụ',
+    advisoryFeatureOpenConfirmCancel: 'Ở lại tư vấn',
+    advisoryOpenFeature: 'Mở tính năng',
+    advisoryStandaloneFeatureBody:
+      'Bạn muốn dùng “{feature}”. Tính năng này chạy trên trang công cụ riêng — bấm “Mở tính năng” bên dưới để xác nhận và bắt đầu.',
+    featureGroupStudioInline: 'Thiết kế trong chat',
+    featurePickerHint: 'Chọn tính năng — hệ thống mở đúng flow theo lập trình',
     studioLogoPendingApprove: 'Logo đã được tạo sẵn bên dưới — bấm «Chọn làm tham chiếu và tiếp» nếu ổn, hoặc «Tạo lại» để thử phiên bản khác.',
     studioStepPendingApprove: '{screen} đã được tạo sẵn bên dưới — bấm «Chọn làm tham chiếu và tiếp» nếu ổn, hoặc «Tạo lại» để thử phiên bản khác.',
     studioApproveBeforeNext: 'Bấm «Chọn làm tham chiếu và tiếp» cho {screen} trước — sau đó hệ thống sẽ chuyển sang bước tiếp theo.',
     studioRegenerated: 'Đã tạo lại giao diện {screen}. Bạn thấy ổn chưa?',
     studioAllDone: 'Đã hoàn tất toàn bộ quy trình thiết kế. Bạn có thể yêu cầu chỉnh sửa thêm bất kỳ màn hình nào.',
+    studioPostFlowSuggestHint: 'Muốn làm tác vụ khác? Bấm tính năng bên dưới — hệ thống sẽ mở hội thoại mới.',
     planCreated: 'Đã tạo kế hoạch {n} bước',
     startStep: 'Bắt đầu bước 1',
     continueNextStep: 'Tiếp tục bước {n}',
@@ -2797,6 +2874,7 @@ const VI_DICTIONARY: Dictionary = {
     planOpenQueue: 'Hàng đợi',
     viewTaskQueue: 'Xem hàng đợi tác vụ',
     newThread: 'Hội thoại mới',
+    newThreadFlowHint: 'Flow khác → tạo hội thoại mới',
     chatHistory: 'Danh sách đã chat',
     chatHistoryEmpty: 'Chưa có hội thoại nào.',
     chatHistoryLoadFailed: 'Không tải được danh sách hội thoại.',
@@ -5294,7 +5372,8 @@ const EN_DICTIONARY: Dictionary = {
     send: 'Send',
     thinking: 'Thinking…',
     openTool: 'Open tool',
-    suggested: 'Quick picks',
+    suggested: 'Example quick picks',
+    suggestedExamplePrefix: 'Example:',
     loginRequired: 'Sign in to use the AI assistant (0.1 credit per message).',
     errorGeneric: 'Could not send. Please try again.',
     creditNote: '0.1 credit / chat or step edit',
@@ -5306,6 +5385,7 @@ const EN_DICTIONARY: Dictionary = {
     studioSubtitle: 'Design inside chat — apps, banners, brand kits, product photos, invites, ad music. AI guides each step; you approve and continue.',
     studioPlaceholder: 'e.g. I want a mobile shopping app UI for fashion…',
     studioProcessTitle: 'Design process',
+    studioProcessForwardOnlyHint: 'Forward-only flow — complete each step in order.',
     studioNavigateStepHint: 'Click a completed step to go back and edit — later steps stay saved.',
     studioNavigatedToStep: 'Viewing/editing **{screen}**. Describe changes or click another step in the rail.',
     studioStepSavedStay: 'Saved **{screen}**. Click another step in the rail to continue.',
@@ -5329,6 +5409,8 @@ const EN_DICTIONARY: Dictionary = {
     studioReferenceRemoved: 'Removed reference: {screen}. You can select a new image for this step.',
     studioBriefUpdated: 'Updated brief for {screen}. Continue with the current step below.',
     studioFacePrintStyleConfirmed: 'Visual art style set: **{style}** — applied consistently to all 6 box faces.',
+    studioDiscoveryBriefConfirmed: 'Recorded: **{value}**',
+    studioBoxFaceConfirmed: 'Box face dimensions confirmed.',
     studioEditStep: 'Edit',
     studioEditSave: 'Save',
     studioEditCancel: 'Cancel',
@@ -5339,11 +5421,20 @@ const EN_DICTIONARY: Dictionary = {
     studioReferenceCount: '({count}/{max})',
     studioGenRefPickerTitle: 'Images to composite on packaging (this run)',
     studioGenRefPickerHint:
-      'Max {max} images per run. Gray: approved face/logo refs — style and print graphics. Green: product photos — flatten onto the face being created (needs «Flat product photo» print style). 3D mockup does not use this picker.',
-    studioGenRefApprovedSection: 'Reference (approved face/logo)',
+      'Max {max} images per run: logo + face #1 style anchor (faces 2–6) + product composites.',
+    studioGenRefApprovedSection: 'Logo + face #1 (style anchor)',
     studioGenRefProductSection: 'Product photos to flatten',
-    studioGenRefProductLabel: 'Upload product photo',
+    studioGenRefProductLabel: 'Add product photo (composite)',
+    studioGenRefProductUploadNote:
+      'Composites onto the AI face being created — does not replace the whole print file. To use your own finished face artwork from disk, use «Replace face print» below.',
     studioGenProductUploaded: 'Added {n} product photo(s) for this generation.',
+    studioGenRefStyleSection: 'Style reference (first face only)',
+    studioGenRefStyleLabel: 'Add style reference image',
+    studioGenRefStyleUploadNote:
+      'AI extracts colors, layout, and visual style as text guidance. Not sent when generating face #1 — face 1 style comes from discovery steps you already chose.',
+    studioGenRefStyleRemove: 'Remove style reference',
+    studioStyleRefUploaded: 'Style reference analyzed — shared across all 6 faces.',
+    studioStyleRefWrongStep: 'Style reference images are only available on the first box face step.',
     studioGenRefAttachCount: '{n}/{max} images',
     studioLogoFirst: 'Create and approve the Logo as reference before designing UI screens.',
     studioNeedLogoReference: 'No logo reference yet — upload your logo or describe one for AI to create, then tap «Use as reference».',
@@ -5360,13 +5451,40 @@ const EN_DICTIONARY: Dictionary = {
     studioFaceUploadWrongStep: 'Face upload is only available on a packaging face design step.',
     studioFaceUploadSaved: 'Saved **{screen}** artwork from your device.',
     studioFaceUploadUserLabel: '📎 Upload face image: {face}',
-    studioFaceUploadReplaceBtn: 'Upload different image',
+    studioFaceUploadReplaceBtn: 'Replace entire face print',
+    studioFaceUploadConfirmTitle: 'Confirm face print image',
+    studioFaceUploadConfirmFaceField: 'Box face',
+    studioFaceUploadConfirmSizeField: 'Standard print size',
+    studioFaceUploadConfirmFile: 'File',
+    studioFaceUploadConfirmHint:
+      'This image will **replace the entire** face print above. Verify the face name and size before confirming.',
+    studioFaceUploadConfirmOk: 'Correct — use as face print',
+    studioFaceUploadConfirmSizeUnknown: 'Unknown — check box dimensions from the earlier step',
     studioGeneratedStep: 'Created {screen} from your description. Review below — tap «Use as reference» if it looks good.',
+    studioGenerateCurrent: 'Generate image for this step',
+    studioGenerateFace: 'Generate box face',
+    studioGenerateMusic: 'Generate music for this step',
+    studioGenerateArtifact: 'Generate this step output',
+    studioNewFlowConfirmTitle: 'Start a new design project?',
+    studioNewFlowConfirmBody: 'You are working on “{current}”. Switching to “{target}” opens a new conversation; the current project remains intact in history.',
+    studioNewFlowConfirmOk: 'Open new project',
+    studioNewFlowConfirmCancel: 'Continue current project',
+    studioNewFlowThreadRequired: 'A new flow must open in a new conversation so its data cannot mix with the current project.',
+    advisoryFeatureOpenConfirmTitle: 'Open dedicated tool?',
+    advisoryFeatureOpenConfirmBody: '“{feature}” does not have a full in-chat flow yet. You will open the tool page to continue — you can return to the hub anytime.',
+    advisoryFeatureOpenConfirmOk: 'Open tool',
+    advisoryFeatureOpenConfirmCancel: 'Stay in chat',
+    advisoryOpenFeature: 'Open feature',
+    advisoryStandaloneFeatureBody:
+      'You want to use “{feature}”. This runs on a dedicated tool page — tap “Open feature” below to confirm and start.',
+    featureGroupStudioInline: 'In-chat design',
+    featurePickerHint: 'Pick a feature — routing is programmatic',
     studioLogoPendingApprove: 'Logo preview is below — tap «Use as reference» if it looks good, or «Regenerate» for another version.',
     studioStepPendingApprove: '{screen} preview is below — tap «Use as reference» if it looks good, or «Regenerate» for another version.',
     studioApproveBeforeNext: 'Tap «Use as reference» for {screen} first — then we move to the next step using approved images as references.',
     studioRegenerated: 'Regenerated {screen}. Does this look good?',
     studioAllDone: 'Design process complete. You can ask to refine any screen.',
+    studioPostFlowSuggestHint: 'Want another task? Tap a feature below — a new conversation will open.',
     planCreated: 'Created a {n}-step plan',
     startStep: 'Start step 1',
     continueNextStep: 'Continue step {n}',
@@ -5378,6 +5496,7 @@ const EN_DICTIONARY: Dictionary = {
     planOpenQueue: 'Task queue',
     viewTaskQueue: 'View task queue',
     newThread: 'New chat',
+    newThreadFlowHint: 'New flow → start new chat',
     chatHistory: 'Chat history',
     chatHistoryEmpty: 'No conversations yet.',
     chatHistoryLoadFailed: 'Could not load chat history.',
@@ -7922,7 +8041,8 @@ const ZH_DICTIONARY: Dictionary = {
     send: '发送',
     thinking: '思考中…',
     openTool: '打开工具',
-    suggested: '快捷推荐',
+    suggested: '示例快捷推荐',
+    suggestedExamplePrefix: '示例：',
     loginRequired: '请登录后使用 AI 助手（每次 0.1 积分）。',
     errorGeneric: '发送失败，请重试。',
     creditNote: '0.1 积分 / 次对话或编辑步骤',
@@ -7934,6 +8054,7 @@ const ZH_DICTIONARY: Dictionary = {
     studioSubtitle: '在聊天中设计 — 应用、横幅、品牌套件、产品图、邀请函、广告音乐。AI 逐步引导，您确认后继续。',
     studioPlaceholder: '例如：我想设计一个时尚电商手机应用界面…',
     studioProcessTitle: '设计流程',
+    studioProcessForwardOnlyHint: '流程仅可前进 — 请按顺序完成各步骤。',
     studioNavigateStepHint: '点击已完成步骤返回修改 — 后续步骤数据保留。',
     studioNavigatedToStep: '正在查看/编辑 **{screen}**。输入修改或点击流程条其他步骤切换。',
     studioStepSavedStay: '已保存 **{screen}**。点击流程条其他步骤继续。',
@@ -7957,6 +8078,8 @@ const ZH_DICTIONARY: Dictionary = {
     studioReferenceRemoved: '已移除参考图：{screen}。可重新为该步骤选择图片。',
     studioBriefUpdated: '已更新 {screen} 简报。请继续当前步骤。',
     studioFacePrintStyleConfirmed: '已选择图像风格：**{style}** — 六个盒面统一应用。',
+    studioDiscoveryBriefConfirmed: '已记录：**{value}**',
+    studioBoxFaceConfirmed: '已确认盒面尺寸。',
     studioEditStep: '编辑',
     studioEditSave: '保存',
     studioEditCancel: '取消',
@@ -7967,11 +8090,20 @@ const ZH_DICTIONARY: Dictionary = {
     studioReferenceCount: '({count}/{max})',
     studioGenRefPickerTitle: '本次合成到包装上的图片',
     studioGenRefPickerHint:
-      '每次最多 {max} 张。灰色：已审面/标志参考。绿色：产品照片平铺到当前面（需选「产品平铺照片」风格）。3D mockup 不使用此区。',
-    studioGenRefApprovedSection: '参考图（已审面/标志）',
+      '每次最多 {max} 张：Logo + 第1面风格锚点（第2–6面）+ 产品合成。',
+    studioGenRefApprovedSection: 'Logo + 第1面（风格锚点）',
     studioGenRefProductSection: '待平铺的产品照片',
-    studioGenRefProductLabel: '上传产品照片',
+    studioGenRefProductLabel: '添加产品图（合成到设计）',
+    studioGenRefProductUploadNote:
+      '仅合成到 AI 正在生成的盒面，不会替换整面印刷文件。若要用电脑里现成的整面设计，请用下方「替换盒面印刷」。',
     studioGenProductUploaded: '已为本次生成添加 {n} 张产品照片。',
+    studioGenRefStyleSection: '风格参考（仅首个盒面）',
+    studioGenRefStyleLabel: '添加风格参考图',
+    studioGenRefStyleUploadNote:
+      'AI 提取颜色、版式与视觉风格为文本指引。创建第1面时不发送此图——第1面风格来自已选 brief 步骤。',
+    studioGenRefStyleRemove: '移除风格参考',
+    studioStyleRefUploaded: '已分析风格参考 — 全部 6 面共用。',
+    studioStyleRefWrongStep: '风格参考图仅可在第一个盒面步骤添加。',
     studioGenRefAttachCount: '{n}/{max} 张',
     studioLogoFirst: '请先创建并批准 Logo 作为参考，再设计界面页面。',
     studioNeedLogoReference: '尚无 Logo 参考 — 请上传 logo 或描述让 AI 创建，然后点击「选为参考图」。',
@@ -7988,13 +8120,39 @@ const ZH_DICTIONARY: Dictionary = {
     studioFaceUploadWrongStep: '仅可在包装盒面设计步骤上传图片。',
     studioFaceUploadSaved: '已从本机保存 **{screen}** 图片。',
     studioFaceUploadUserLabel: '📎 上传盒面图片：{face}',
-    studioFaceUploadReplaceBtn: '上传其他图片',
+    studioFaceUploadReplaceBtn: '替换整面印刷',
+    studioFaceUploadConfirmTitle: '确认盒面印刷图',
+    studioFaceUploadConfirmFaceField: '盒面',
+    studioFaceUploadConfirmSizeField: '标准印刷尺寸',
+    studioFaceUploadConfirmFile: '文件',
+    studioFaceUploadConfirmHint: '此图片将**替换整面**印刷。确认面名称和尺寸无误后再继续。',
+    studioFaceUploadConfirmOk: '正确 — 用作该面印刷',
+    studioFaceUploadConfirmSizeUnknown: '未确定 — 请检查前面步骤的盒型尺寸',
     studioGeneratedStep: '已根据您的描述生成 {screen}。请查看下方 — 满意请点击「选为参考图」。',
+    studioGenerateCurrent: '生成此步骤的图片',
+    studioGenerateFace: '生成盒面图片',
+    studioGenerateMusic: '生成此步骤的音乐',
+    studioGenerateArtifact: '生成此步骤的输出',
+    studioNewFlowConfirmTitle: '开始新的设计项目？',
+    studioNewFlowConfirmBody: '您正在制作“{current}”。切换到“{target}”将打开新对话；当前项目会完整保留在历史记录中。',
+    studioNewFlowConfirmOk: '打开新项目',
+    studioNewFlowConfirmCancel: '继续当前项目',
+    studioNewFlowThreadRequired: '新流程必须在新对话中打开，以免与当前项目的数据混合。',
+    advisoryFeatureOpenConfirmTitle: '打开独立工具？',
+    advisoryFeatureOpenConfirmBody: '“{feature}”尚无完整的聊天内流程。将打开工具页面继续操作——可随时返回 Hub。',
+    advisoryFeatureOpenConfirmOk: '打开工具',
+    advisoryFeatureOpenConfirmCancel: '留在咨询',
+    advisoryOpenFeature: '打开功能',
+    advisoryStandaloneFeatureBody:
+      '您想使用“{feature}”。该功能在独立工具页运行——请点击下方的“打开功能”确认并开始。',
+    featureGroupStudioInline: '聊天内设计',
+    featurePickerHint: '选择功能 — 系统将按编程路由',
     studioLogoPendingApprove: 'Logo 预览已在下方 — 满意请点击「选为参考图」，或点「重新生成」换一版。',
     studioStepPendingApprove: '{screen} 预览已在下方 — 满意请点击「选为参考图」，或点「重新生成」换一版。',
     studioApproveBeforeNext: '请先为 {screen} 点击「选为参考图」— 之后将使用已批准参考图进入下一步。',
     studioRegenerated: '已重新生成 {screen}。满意吗？',
     studioAllDone: '设计流程已完成。可继续要求调整任意界面。',
+    studioPostFlowSuggestHint: '想做其他任务？点击下方功能 — 系统将打开新对话。',
     planCreated: '已创建 {n} 步计划',
     startStep: '开始第 1 步',
     continueNextStep: '继续第 {n} 步',
@@ -8006,6 +8164,7 @@ const ZH_DICTIONARY: Dictionary = {
     planOpenQueue: '任务队列',
     viewTaskQueue: '查看任务队列',
     newThread: '新对话',
+    newThreadFlowHint: '其他流程 → 新建对话',
     chatHistory: '聊天记录',
     chatHistoryEmpty: '暂无对话。',
     chatHistoryLoadFailed: '无法加载聊天记录。',
@@ -10463,7 +10622,8 @@ const JA_DICTIONARY: Dictionary = {
     send: '送信',
     thinking: '考え中…',
     openTool: 'ツールを開く',
-    suggested: 'クイック候補',
+    suggested: '例のクイック候補',
+    suggestedExamplePrefix: '例：',
     loginRequired: 'AI アシスタントにはログインが必要です（1回 0.1 クレジット）。',
     errorGeneric: '送信に失敗しました。もう一度お試しください。',
     creditNote: '0.1 クレジット / 1 メッセージまたは編集',
@@ -10475,6 +10635,7 @@ const JA_DICTIONARY: Dictionary = {
     studioSubtitle: 'チャット内で設計 — アプリ、バナー、ブランドキット、商品画像、招待状、広告音楽。AIが段階的に案内します。',
     studioPlaceholder: '例：ファッション通販のモバイルアプリUIを設計したい…',
     studioProcessTitle: '設計プロセス',
+    studioProcessForwardOnlyHint: '前進のみのフロー — 順番に各ステップを完了してください。',
     studioNavigateStepHint: '完了したステップをクリックして戻って編集 — 以降のステップは保持されます。',
     studioNavigatedToStep: '**{screen}** を表示/編集中。変更を入力するか、レールの別ステップをクリック。',
     studioStepSavedStay: '**{screen}** を保存しました。レールで別ステップをクリックして続行。',
@@ -10498,6 +10659,8 @@ const JA_DICTIONARY: Dictionary = {
     studioReferenceRemoved: '参考画像を削除しました：{screen}。このステップで再選択できます。',
     studioBriefUpdated: '{screen} のブリーフを更新しました。現在のステップを続けてください。',
     studioFacePrintStyleConfirmed: 'ビジュアルスタイルを確定: **{style}** — 6面すべてに統一適用。',
+    studioDiscoveryBriefConfirmed: '記録しました: **{value}**',
+    studioBoxFaceConfirmed: '箱面サイズを確認しました。',
     studioEditStep: '編集',
     studioEditSave: '保存',
     studioEditCancel: 'キャンセル',
@@ -10508,11 +10671,20 @@ const JA_DICTIONARY: Dictionary = {
     studioReferenceCount: '({count}/{max})',
     studioGenRefPickerTitle: 'パッケージに合成する画像（今回）',
     studioGenRefPickerHint:
-      '1回最大{max}枚。グレー：承認済み面/ロゴ参考。緑：商品写真を平面合成（「商品写真フラット」スタイル必要）。3D mockupでは使いません。',
-    studioGenRefApprovedSection: '参考（承認済み面/ロゴ）',
+      '1回最大{max}枚：ロゴ＋面1スタイル基準（面2–6）＋商品合成。',
+    studioGenRefApprovedSection: 'ロゴ＋面1（スタイル基準）',
     studioGenRefProductSection: '平置きする商品写真',
-    studioGenRefProductLabel: '商品写真をアップロード',
+    studioGenRefProductLabel: '商品写真を追加（合成）',
+    studioGenRefProductUploadNote:
+      'AI生成中の面に合成するだけで、面全体の印刷ファイルは置き換えません。完成済みの面データを使う場合は下の「面印刷を差し替え」を使ってください。',
     studioGenProductUploaded: '今回の生成用に商品写真 {n} 枚を追加しました。',
+    studioGenRefStyleSection: 'スタイル参考（最初の面のみ）',
+    studioGenRefStyleLabel: 'スタイル参考画像を追加',
+    studioGenRefStyleUploadNote:
+      '色・レイアウト・ビジュアル処理をテキスト化します。面1生成時は送りません——面1のスタイルは選択済み brief から。',
+    studioGenRefStyleRemove: 'スタイル参考を削除',
+    studioStyleRefUploaded: 'スタイル参考を分析しました — 6面共通で使用します。',
+    studioStyleRefWrongStep: 'スタイル参考画像は最初の箱面ステップでのみ追加できます。',
     studioGenRefAttachCount: '{n}/{max} 枚',
     studioLogoFirst: 'UI画面の前にロゴを作成し参考にしてください。',
     studioNeedLogoReference: 'ロゴ参考がありません — ロゴをアップロードするか、AIに作成させる説明を入力し、「参考画像にする」を押してください。',
@@ -10529,13 +10701,39 @@ const JA_DICTIONARY: Dictionary = {
     studioFaceUploadWrongStep: '箱の面デザインステップでのみアップロードできます。',
     studioFaceUploadSaved: '**{screen}** の画像を端末から保存しました。',
     studioFaceUploadUserLabel: '📎 面画像をアップロード：{face}',
-    studioFaceUploadReplaceBtn: '別の画像をアップロード',
+    studioFaceUploadReplaceBtn: '面印刷を差し替え',
+    studioFaceUploadConfirmTitle: '面印刷画像の確認',
+    studioFaceUploadConfirmFaceField: '箱の面',
+    studioFaceUploadConfirmSizeField: '標準印刷サイズ',
+    studioFaceUploadConfirmFile: 'ファイル',
+    studioFaceUploadConfirmHint: 'この画像は上記の面印刷を**すべて置き換え**ます。面名とサイズを確認してから確定してください。',
+    studioFaceUploadConfirmOk: '正しい — 面印刷に使う',
+    studioFaceUploadConfirmSizeUnknown: '未確定 — 前のステップの箱サイズを確認してください',
     studioGeneratedStep: 'ご要望どおり {screen} を生成しました。下を確認し、問題なければ「参考画像にする」を押してください。',
+    studioGenerateCurrent: 'このステップの画像を生成',
+    studioGenerateFace: '箱の面画像を生成',
+    studioGenerateMusic: 'このステップの音楽を生成',
+    studioGenerateArtifact: 'このステップの出力を生成',
+    studioNewFlowConfirmTitle: '新しいデザインプロジェクトを開始しますか？',
+    studioNewFlowConfirmBody: '現在「{current}」を作成中です。「{target}」へ切り替えると新しい会話が開き、現在のプロジェクトは履歴にそのまま保存されます。',
+    studioNewFlowConfirmOk: '新しいプロジェクトを開く',
+    studioNewFlowConfirmCancel: '現在のプロジェクトを続ける',
+    studioNewFlowThreadRequired: '現在のプロジェクトとデータが混在しないよう、新しいフローは新しい会話で開く必要があります。',
+    advisoryFeatureOpenConfirmTitle: '専用ツールを開きますか？',
+    advisoryFeatureOpenConfirmBody: '「{feature}」にはチャット内の完全フローがありません。ツールページで続行します — いつでも Hub に戻れます。',
+    advisoryFeatureOpenConfirmOk: 'ツールを開く',
+    advisoryFeatureOpenConfirmCancel: '相談を続ける',
+    advisoryOpenFeature: '機能を開く',
+    advisoryStandaloneFeatureBody:
+      '「{feature}」を使います。この機能は専用ツールページで実行されます — 下の「機能を開く」を押して確認してください。',
+    featureGroupStudioInline: 'チャット内デザイン',
+    featurePickerHint: '機能を選択 — プログラムでルーティング',
     studioLogoPendingApprove: 'ロゴのプレビューは下にあります — 問題なければ「参考画像にする」、別バージョンは「再生成」を押してください。',
     studioStepPendingApprove: '{screen}のプレビューは下にあります — 問題なければ「参考画像にする」、別バージョンは「再生成」を押してください。',
     studioApproveBeforeNext: '先に {screen} で「参考画像にする」を押してください — 承認後、参考画像を使って次のステップへ進みます。',
     studioRegenerated: '{screen} を再生成しました。よろしいですか？',
     studioAllDone: '設計プロセスが完了しました。任意の画面の調整を依頼できます。',
+    studioPostFlowSuggestHint: '別のタスクを始めますか？下の機能をタップすると新しい会話が開きます。',
     planCreated: '{n} ステップのプランを作成しました',
     startStep: 'ステップ 1 を開始',
     continueNextStep: 'ステップ {n} を続ける',
@@ -10547,6 +10745,7 @@ const JA_DICTIONARY: Dictionary = {
     planOpenQueue: 'タスクキュー',
     viewTaskQueue: 'タスクキューを見る',
     newThread: '新しいチャット',
+    newThreadFlowHint: '別フロー → 新しい会話',
     chatHistory: 'チャット履歴',
     chatHistoryEmpty: 'まだ会話がありません。',
     chatHistoryLoadFailed: 'チャット履歴を読み込めませんでした。',
@@ -13076,7 +13275,8 @@ const KO_DICTIONARY: Dictionary = {
     send: '보내기',
     thinking: '생각 중…',
     openTool: '도구 열기',
-    suggested: '빠른 추천',
+    suggested: '예시 빠른 추천',
+    suggestedExamplePrefix: '예:',
     loginRequired: 'AI 어시스턴트는 로그인 후 이용 가능합니다(메시지당 0.1 크레딧).',
     errorGeneric: '전송에 실패했습니다. 다시 시도해 주세요.',
     creditNote: '0.1 크레딧 / 메시지 또는 단계 수정',
@@ -13088,6 +13288,7 @@ const KO_DICTIONARY: Dictionary = {
     studioSubtitle: '채팅 안에서 설계 — 앱, 배너, 브랜드 키트, 상품 사진, 초대장, 광고 음악. AI가 단계별로 안내합니다.',
     studioPlaceholder: '예: 패션 쇼핑 모바일 앱 UI를 설계하고 싶어요…',
     studioProcessTitle: '설계 프로세스',
+    studioProcessForwardOnlyHint: '전진 전용 흐름 — 순서대로 각 단계를 완료하세요.',
     studioNavigateStepHint: '완료된 단계를 클릭해 돌아가 수정 — 이후 단계 데이터는 유지됩니다.',
     studioNavigatedToStep: '**{screen}** 보기/수정 중. 변경 내용을 입력하거나 레일의 다른 단계를 클릭하세요.',
     studioStepSavedStay: '**{screen}** 저장됨. 레일에서 다른 단계를 클릭해 계속하세요.',
@@ -13111,6 +13312,8 @@ const KO_DICTIONARY: Dictionary = {
     studioReferenceRemoved: '참조 이미지 제거: {screen}. 이 단계에서 다시 선택할 수 있습니다.',
     studioBriefUpdated: '{screen} 브리프를 업데이트했습니다. 아래 현재 단계를 계속하세요.',
     studioFacePrintStyleConfirmed: '이미지 스타일 확정: **{style}** — 6면 모두 동일하게 적용.',
+    studioDiscoveryBriefConfirmed: '기록됨: **{value}**',
+    studioBoxFaceConfirmed: '상자 면 크기를 확인했습니다.',
     studioEditStep: '수정',
     studioEditSave: '저장',
     studioEditCancel: '취소',
@@ -13121,11 +13324,20 @@ const KO_DICTIONARY: Dictionary = {
     studioReferenceCount: '({count}/{max})',
     studioGenRefPickerTitle: '포장에 합성할 이미지(이번 생성)',
     studioGenRefPickerHint:
-      '회당 최대 {max}장. 회색: 승인된 면/로고 참조. 초록: 제품 사진 평면 합성(「제품 사진 플랫」 스타일 필요). 3D mockup에는 사용 안 함.',
-    studioGenRefApprovedSection: '참조(승인된 면/로고)',
+      '회당 최대 {max}장: 로고 + 1면 스타일 기준(2–6면) + 제품 합성.',
+    studioGenRefApprovedSection: '로고 + 1면(스타일 기준)',
     studioGenRefProductSection: '평면 합성할 제품 사진',
-    studioGenRefProductLabel: '제품 사진 업로드',
+    studioGenRefProductLabel: '제품 사진 추가(합성)',
+    studioGenRefProductUploadNote:
+      'AI가 만드는 면 위에만 합성하며, 면 전체 인쇄 파일을 바꾸지 않습니다. PC의 완성 면 파일을 쓰려면 아래 «면 인쇄 교체»를 사용하세요.',
     studioGenProductUploaded: '이번 생성용 제품 사진 {n}장을 추가했습니다.',
+    studioGenRefStyleSection: '스타일 참조(첫 면만)',
+    studioGenRefStyleLabel: '스타일 참조 이미지 추가',
+    studioGenRefStyleUploadNote:
+      '색상·레이아웃·비주얼 처리를 텍스트로 추출합니다. 1면 생성 시 전송하지 않음 — 1면 스타일은 선택한 brief 단계에서.',
+    studioGenRefStyleRemove: '스타일 참조 제거',
+    studioStyleRefUploaded: '스타일 참조 분석 완료 — 6면 공통 사용.',
+    studioStyleRefWrongStep: '스타일 참조 이미지는 첫 박스 면 단계에서만 추가할 수 있습니다.',
     studioGenRefAttachCount: '{n}/{max}장',
     studioLogoFirst: 'UI 화면 전에 로고를 만들고 참조로 승인하세요.',
     studioNeedLogoReference: '로고 참조 없음 — 로고를 업로드하거나 AI 생성 설명을 입력한 뒤 «참조 이미지로 선택»을 누르세요.',
@@ -13142,13 +13354,39 @@ const KO_DICTIONARY: Dictionary = {
     studioFaceUploadWrongStep: '포장 면 디자인 단계에서만 업로드할 수 있습니다.',
     studioFaceUploadSaved: '기기에서 **{screen}** 면 이미지를 저장했습니다.',
     studioFaceUploadUserLabel: '📎 면 이미지 업로드: {face}',
-    studioFaceUploadReplaceBtn: '다른 이미지 업로드',
+    studioFaceUploadReplaceBtn: '면 인쇄 전체 교체',
+    studioFaceUploadConfirmTitle: '면 인쇄 이미지 확인',
+    studioFaceUploadConfirmFaceField: '상자 면',
+    studioFaceUploadConfirmSizeField: '표준 인쇄 크기',
+    studioFaceUploadConfirmFile: '파일',
+    studioFaceUploadConfirmHint: '이 이미지는 위 면 인쇄를 **전체 교체**합니다. 면 이름과 크기를 확인한 뒤 진행하세요.',
+    studioFaceUploadConfirmOk: '맞음 — 면 인쇄로 사용',
+    studioFaceUploadConfirmSizeUnknown: '미확정 — 이전 단계의 상자 치수를 확인하세요',
     studioGeneratedStep: '설명대로 {screen}을(를) 생성했습니다. 아래에서 확인 후 «참조 이미지로 선택»을 누르세요.',
+    studioGenerateCurrent: '이 단계 이미지 생성',
+    studioGenerateFace: '상자 면 이미지 생성',
+    studioGenerateMusic: '이 단계 음악 생성',
+    studioGenerateArtifact: '이 단계 결과 생성',
+    studioNewFlowConfirmTitle: '새 디자인 프로젝트를 시작할까요?',
+    studioNewFlowConfirmBody: '현재 “{current}” 작업 중입니다. “{target}”으로 전환하면 새 대화가 열리고 현재 프로젝트는 기록에 그대로 보존됩니다.',
+    studioNewFlowConfirmOk: '새 프로젝트 열기',
+    studioNewFlowConfirmCancel: '현재 프로젝트 계속',
+    studioNewFlowThreadRequired: '현재 프로젝트와 데이터가 섞이지 않도록 새 플로우는 새 대화에서 열어야 합니다.',
+    advisoryFeatureOpenConfirmTitle: '전용 도구를 열까요?',
+    advisoryFeatureOpenConfirmBody: '“{feature}”에는 완전한 채팅 플로우가 없습니다. 도구 페이지에서 계속 진행합니다 — 언제든 Hub로 돌아올 수 있습니다.',
+    advisoryFeatureOpenConfirmOk: '도구 열기',
+    advisoryFeatureOpenConfirmCancel: '상담 계속',
+    advisoryOpenFeature: '기능 열기',
+    advisoryStandaloneFeatureBody:
+      '“{feature}” 기능을 사용하려고 합니다. 전용 도구 페이지에서 실행됩니다 — 아래 “기능 열기”를 눌러 확인하세요.',
+    featureGroupStudioInline: '채팅 내 디자인',
+    featurePickerHint: '기능 선택 — 프로그램 라우팅',
     studioLogoPendingApprove: '로고 미리보기가 아래에 있습니다 — 괜찮으면 «참조 이미지로 선택», 다른 버전은 «다시 생성»을 누르세요.',
     studioStepPendingApprove: '{screen} 미리보기가 아래에 있습니다 — 괜찮으면 «참조 이미지로 선택», 다른 버전은 «다시 생성»을 누르세요.',
     studioApproveBeforeNext: '먼저 {screen}에서 «참조 이미지로 선택»을 누르세요 — 승인 후 참조 이미지로 다음 단계로 진행합니다.',
     studioRegenerated: '{screen} 다시 생성됨. 괜찮으신가요?',
     studioAllDone: '설계 프로세스가 완료되었습니다. 원하는 화면을 더 조정할 수 있습니다.',
+    studioPostFlowSuggestHint: '다른 작업을 하시겠어요? 아래 기능을 누르면 새 대화가 열립니다.',
     planCreated: '{n}단계 계획 생성됨',
     startStep: '1단계 시작',
     continueNextStep: '{n}단계 계속',
@@ -13160,6 +13398,7 @@ const KO_DICTIONARY: Dictionary = {
     planOpenQueue: '작업 대기열',
     viewTaskQueue: '작업 대기열 보기',
     newThread: '새 대화',
+    newThreadFlowHint: '다른 플로우 → 새 대화',
     chatHistory: '채팅 기록',
     chatHistoryEmpty: '아직 대화가 없습니다.',
     chatHistoryLoadFailed: '채팅 기록을 불러올 수 없습니다.',

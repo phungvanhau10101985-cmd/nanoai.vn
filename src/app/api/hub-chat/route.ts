@@ -41,28 +41,7 @@ const VALID_GROUPS = new Set<HubWorkflowGroup>([
   'music_ai',
 ])
 
-export type HubChatWorkflowSuggestion = {
-  href: string
-  labelKey: string
-  label: string
-  reason: string
-  prefillPrompt: string
-  confidence: number
-}
-
-export type HubChatPlanPayload = {
-  id: string
-  title: string
-  steps: {
-    stepIndex: number
-    href: string
-    labelKey: string
-    label: string
-    prefillPrompt: string
-    reason: string
-    status: string
-  }[]
-}
+export type { HubChatWorkflowSuggestion, HubChatPlanPayload } from '@/lib/hub-chat/hub-advisory'
 
 function cleanJsonResponse(raw: string): string {
   let t = raw.trim()
@@ -189,6 +168,7 @@ export async function POST(request: NextRequest) {
           ? { width: cropWidthMm, height: cropHeightMm }
           : undefined
       const cropAspectRatio = String(fd.get('cropAspectRatio') ?? '').trim() || undefined
+      const cropScreenKey = String(fd.get('cropScreenKey') ?? '').trim() || undefined
       const locale: WebLocale = normalizeWebLocale(localeBody) ?? 'vi'
       const files = fd.getAll('images').filter((f): f is File => f instanceof File && f.size > 0)
       const uploadFiles = files.length
@@ -213,6 +193,7 @@ export async function POST(request: NextRequest) {
         uploadFiles,
         cropSizeMm,
         cropAspectRatio,
+        cropScreenKey,
       })
       if (!result.ok) {
         return NextResponse.json({ error: result.error || 'Studio lỗi.' }, { status: result.error ? 422 : 500 })
@@ -248,6 +229,14 @@ export async function POST(request: NextRequest) {
       navigateStepKey?: string
       regenerateStepKey?: string
       facePrintStyle?: string
+      printLanguage?: string
+      printLanguageDetail?: string
+      labelAspectRatio?: string
+      labelShape?: string
+      discoveryChoice?: string
+      discoveryChoiceStep?: string
+      colorPaletteKeys?: string[]
+      colorPaletteSelection?: Array<{ key?: string; role?: string }>
       boxDielineStructure?: string
       boxDimensionsMm?: { length?: number; width?: number; height?: number }
       boxProduction?: {
@@ -256,12 +245,19 @@ export async function POST(request: NextRequest) {
         paperThicknessMm?: number
         compensationGapMm?: number
       }
+      barcodeEntries?: Array<{
+        type?: string
+        content?: string
+        label?: string
+      }>
+      featureKey?: string
     }
 
     const mode: HubChatMode = VALID_MODES.has(body?.mode as HubChatMode) ? (body.mode as HubChatMode) : 'chat'
     const locale: WebLocale = normalizeWebLocale(body?.locale) ?? 'vi'
 
     if (mode === 'studio') {
+      const t = getDictionary(locale).hubChat
       const message = String(body?.message ?? '').trim()
       const action = (body?.action as HubStudioAction) || 'message'
       const presetId = String(body?.presetId ?? '').trim() || undefined
@@ -275,6 +271,24 @@ export async function POST(request: NextRequest) {
       const navigateStepKey = String(body?.navigateStepKey ?? '').trim() || undefined
       const regenerateStepKey = String(body?.regenerateStepKey ?? '').trim() || undefined
       const facePrintStyle = String(body?.facePrintStyle ?? '').trim() || undefined
+      const printLanguage = String(body?.printLanguage ?? '').trim() || undefined
+      const printLanguageDetail = String(body?.printLanguageDetail ?? '').trim() || undefined
+      const labelAspectRatio = String(body?.labelAspectRatio ?? '').trim() || undefined
+      const labelShape = String(body?.labelShape ?? '').trim() || undefined
+      const featureKey = String(body?.featureKey ?? '').trim() || undefined
+      const discoveryChoice = String(body?.discoveryChoice ?? '').trim() || undefined
+      const discoveryChoiceStep = String(body?.discoveryChoiceStep ?? '').trim() || undefined
+      const colorPaletteKeys = Array.isArray(body?.colorPaletteKeys)
+        ? body.colorPaletteKeys.filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+        : undefined
+      const colorPaletteSelection = Array.isArray(body?.colorPaletteSelection)
+        ? body.colorPaletteSelection
+            .map((item) => ({
+              key: typeof item?.key === 'string' ? item.key.trim() : '',
+              role: item?.role === 'secondary' ? ('secondary' as const) : ('primary' as const),
+            }))
+            .filter((item) => item.key.length > 0)
+        : undefined
       const boxDielineStructure = String(body?.boxDielineStructure ?? '').trim() || undefined
       if (action === 'message' && !isValidHubStudioMessage(message)) {
         return NextResponse.json({ error: 'Nhập ít nhất 2 ký tự.' }, { status: 400 })
@@ -282,10 +296,21 @@ export async function POST(request: NextRequest) {
       if (action === 'edit_step' && !isValidHubStudioMessage(message)) {
         return NextResponse.json({ error: 'Nhập ít nhất 2 ký tự.' }, { status: 400 })
       }
+      if (action === 'classify_flow_switch' && !isValidHubStudioMessage(message)) {
+        return NextResponse.json({ error: 'Nhập ít nhất 2 ký tự.' }, { status: 400 })
+      }
+      if (action === 'classify_feature_intent' && !isValidHubStudioMessage(message)) {
+        return NextResponse.json({ error: 'Nhập ít nhất 2 ký tự.' }, { status: 400 })
+      }
+      if (action === 'select_feature' && !featureKey) {
+        return NextResponse.json({ error: t.errorGeneric }, { status: 400 })
+      }
       const threadTitle =
         action === 'start_preset' && presetId
           ? presetTitle(locale, presetId).slice(0, 80)
-          : message.slice(0, 80) || 'Studio'
+          : action === 'classify_flow_switch' || action === 'classify_feature_intent'
+            ? 'Studio'
+            : message.slice(0, 80) || 'Studio'
       const threadId = await pgEnsureHubChatThread(user.id, body?.threadId, locale, threadTitle)
       if (!threadId) return NextResponse.json({ error: 'Không tạo được hội thoại.' }, { status: 500 })
 
@@ -304,9 +329,19 @@ export async function POST(request: NextRequest) {
         navigateStepKey,
         regenerateStepKey,
         facePrintStyle,
+        printLanguage,
+        printLanguageDetail,
+        labelAspectRatio,
+        labelShape,
+        discoveryChoice,
+        discoveryChoiceStep,
+        colorPaletteKeys,
+        colorPaletteSelection,
         boxDielineStructure,
         boxDimensionsMm: body?.boxDimensionsMm,
         boxProduction: body?.boxProduction,
+        barcodeEntries: body?.barcodeEntries,
+        featureKey,
         apiKey,
       })
       if (!result.ok) {
@@ -326,6 +361,9 @@ export async function POST(request: NextRequest) {
         hubRoute: result.hubRoute,
         threadMessages: result.threadMessages ?? null,
         userMessageId: result.userMessageId ?? null,
+        flowSwitch: result.flowSwitch ?? null,
+        featureIntent: result.featureIntent ?? null,
+        showFeaturePicker: result.showFeaturePicker ?? false,
       })
     }
 

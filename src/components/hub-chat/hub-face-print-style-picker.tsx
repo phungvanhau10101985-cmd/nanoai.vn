@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { WebLocale } from '@/lib/i18n/config'
+import { formatStudioExampleLabel } from '@/lib/hub-chat/hub-studio-example-label'
 import {
   FACE_PRINT_STYLE_KEYS,
   facePrintStyleLabel,
@@ -70,7 +71,7 @@ export function HubFacePrintStylePicker({
             onClick={() => void onSelect(key)}
           >
             {busy ? <Loader2 className="mr-2 h-3.5 w-3.5 shrink-0 animate-spin" /> : null}
-            {facePrintStyleLabel(key, locale)}
+            {formatStudioExampleLabel(locale, facePrintStyleLabel(key, locale))}
           </Button>
         ))}
       </div>

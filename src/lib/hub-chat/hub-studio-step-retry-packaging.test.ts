@@ -6,6 +6,7 @@ import {
   findBlockingIncompleteStep,
   getDesignStepIncompleteReason,
   isDesignStepApprovedComplete,
+  messageRequestsPackagingMockup,
   resolveForwardDesignStepTarget,
   resolvePackagingArtifactStepFromMessage,
   shouldForceGenerateForStep,
@@ -171,6 +172,16 @@ test('resolve mockup artifact from typo message on any step', () => {
     resolvePackagingArtifactStepFromMessage(session, 'vi', 'tạo mocup 3d'),
     'box_mockup_3d'
   )
+})
+
+test('resolve mockup artifact from short "tạo mockup" on any step', () => {
+  const session = packagingSession({ currentStepKey: 'product_label' })
+  assert.equal(
+    resolvePackagingArtifactStepFromMessage(session, 'vi', 'tạo mockup'),
+    'box_mockup_3d'
+  )
+  assert.equal(messageRequestsPackagingMockup('tạo mockup'), true)
+  assert.equal(messageRequestsPackagingMockup('tạo mocup'), true)
 })
 
 test('hydrate face slots from reference images for compositor', () => {

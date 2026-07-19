@@ -3,6 +3,14 @@ import {
   type HubWorkflowGroup,
 } from '@/lib/hub-chat/hub-chat-catalog'
 import {
+  buildStandaloneWorkflowSuggestion,
+  HUB_ADVISORY_EXTRA_TOOLS,
+  matchFeatureFlowByMessage,
+  type HubFeatureFlowMatch,
+  workflowRequiresOpenConfirm,
+  type HubFeatureFlowKind,
+} from '@/lib/hub-chat/hub-feature-flow-registry'
+import {
   pgCreateHubMultiTaskPlan,
   type HubPlanStepInput,
 } from '@/lib/db/hub-chat-pg'
@@ -16,6 +24,9 @@ export type HubChatWorkflowSuggestion = {
   reason: string
   prefillPrompt: string
   confidence: number
+  flowKind?: HubFeatureFlowKind
+  requiresOpenConfirm?: boolean
+  studioPresetId?: string
 }
 
 export type HubChatPlanPayload = {
@@ -43,6 +54,18 @@ export function normalizeHubRoute(raw: unknown): HubRouteKind {
 export function buildToolCatalogForBrain(locale: WebLocale, group: HubWorkflowGroup = 'all') {
   const t = getDictionary(locale)
   const full = buildHubToolCatalog(t.tool, t.navGroup)
+  const extraHrefs = new Set(full.map((e) => e.href))
+  for (const extra of HUB_ADVISORY_EXTRA_TOOLS) {
+    if (extraHrefs.has(extra.href)) continue
+    full.push({
+      href: extra.href,
+      labelKey: extra.labelKey,
+      groupKey: 'design_creative',
+      label: t.tool[extra.labelKey] ?? extra.labelKey,
+      groupLabel: t.navGroup.design_creative ?? 'design_creative',
+    })
+    extraHrefs.add(extra.href)
+  }
   const catalog = group === 'all' ? full : full
   const catalogHrefs = new Set(catalog.map((e) => e.href))
   const catalogJson = JSON.stringify(
@@ -51,6 +74,7 @@ export function buildToolCatalogForBrain(locale: WebLocale, group: HubWorkflowGr
       labelKey: e.labelKey,
       label: e.label,
       group: e.groupLabel,
+      flow: 'standalone_open_tool',
     }))
   )
   return { catalogJson, catalogHrefs, catalog }
@@ -121,6 +145,28 @@ export function planToPayload(
   }
 }
 
+export function tagWorkflowFlowMeta(
+  workflows: HubChatWorkflowSuggestion[],
+  locale: WebLocale
+): HubChatWorkflowSuggestion[] {
+  return workflows.map((w) => {
+    const requiresOpenConfirm = workflowRequiresOpenConfirm(w.href, locale)
+    return {
+      ...w,
+      flowKind: requiresOpenConfirm ? 'standalone' : w.flowKind,
+      requiresOpenConfirm: requiresOpenConfirm || w.requiresOpenConfirm,
+    }
+  })
+}
+
+export function buildStandaloneFeatureAdvisoryReply(
+  locale: WebLocale,
+  match: Extract<HubFeatureFlowMatch, { kind: 'standalone' }>
+): string {
+  const t = getDictionary(locale).hubChat
+  return t.advisoryStandaloneFeatureBody.replace('{feature}', match.label)
+}
+
 export async function buildAdvisoryPayload(input: {
   locale: WebLocale
   userId: string
@@ -172,6 +218,13 @@ export async function buildAdvisoryPayload(input: {
       },
     ]
   }
+
+  const matched = matchFeatureFlowByMessage(input.message, input.locale)
+  if (matched?.kind === 'standalone' && !workflows.some((w) => w.href === matched.href)) {
+    workflows = [buildStandaloneWorkflowSuggestion(matched, input.message), ...workflows]
+  }
+
+  workflows = tagWorkflowFlowMeta(workflows, input.locale)
 
   return { workflows, plan }
 }

@@ -65,8 +65,8 @@ export const NEW_PRESETS_VI = {
       box_dieline_pdf: 'Kiểm tra thông số sản xuất rồi xuất Dieline PDF tỷ lệ 1:1.',
       box_mockup_3d:
         'Gõ **tạo mockup 3d** để duyệt hộp trước khi xuất Dieline PDF.',
-      product_label: 'Nhãn dán SP (đen trắng): kích thước nhãn (vd. 50×80 mm) + nội dung (tên SP, thành phần, HDSD…). Chỉ ghép logo.',
-      seal_sticker: 'Tem niêm phong: kích thước (vd. 40×40 mm), tròn/vuông, slogan. Chỉ ghép logo — không dùng ảnh mặt hộp.',
+      product_label: 'Nhãn dán SP (đen trắng): chọn kiểu + tỷ lệ khung bên dưới + nội dung (tên SP, thành phần, HDSD…). Chỉ ghép logo.',
+      seal_sticker: 'Tem niêm phong: chọn kiểu + tỷ lệ khung bên dưới + slogan/mô tả. Chỉ ghép logo — không dùng ảnh mặt hộp.',
       barcode_label: 'Mã vạch thật: tự lấy tên SP từ brief; mã SP (vd. mã SP: 188-SRM-001). Mặc định Code128 — hoặc ghi EAN-13/QR nếu cần.',
     },
   },

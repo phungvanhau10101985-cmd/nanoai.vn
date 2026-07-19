@@ -1,5 +1,6 @@
 import type { HubStudioReferenceImage, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { getPrimaryLogoStepKey, orderedReferenceUrls } from '@/lib/hub-chat/hub-studio-preset-flows'
+import { pickMobileShopReferencesForGeneration } from '@/lib/hub-chat/hub-mobile-shop-style-anchor'
 import { isLogoDesignStep } from '@/lib/hub-chat/hub-studio-presets'
 import { isStepAtOrBefore } from '@/lib/hub-chat/hub-studio-step-preview'
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
@@ -18,6 +19,10 @@ export function pickReferencesForGeneration(
   stepKey?: string | null
 ): HubStudioReferenceImage[] {
   if (!referenceImages.length) return []
+  if (presetId && stepKey) {
+    const mobileShopRefs = pickMobileShopReferencesForGeneration(referenceImages, presetId, stepKey)
+    if (mobileShopRefs) return mobileShopRefs
+  }
   const logoKey = presetId ? getPrimaryLogoStepKey(presetId) : null
   if (presetId && stepKey && isLogoDesignStep(presetId, stepKey)) {
     return []
@@ -54,7 +59,28 @@ export function canAddReferenceImage(session: HubStudioSession, screenKey: strin
   return session.referenceImages.length < STUDIO_MAX_REFERENCE_IMAGES
 }
 
-export function buildReferencePreviewsPayload(session: HubStudioSession) {
+/** Mockup / dieline composite from face slots — no reference-image picker or preview UI. */
+export function isPackagingCompositeArtifactStepKey(stepKey: string | null | undefined): boolean {
+  return stepKey === 'box_mockup_3d' || stepKey === 'box_dieline_pdf'
+}
+
+export function shouldShowStudioReferencePreviews(
+  session: HubStudioSession,
+  stepKey?: string | null
+): boolean {
+  return !isPackagingCompositeArtifactStepKey(stepKey ?? session.currentStepKey)
+}
+
+export function buildReferencePreviewsPayload(
+  session: HubStudioSession,
+  stepKey?: string | null
+) {
+  if (!shouldShowStudioReferencePreviews(session, stepKey)) {
+    return {
+      referencePreviews: [] as { url: string; label: string; screenKey: string }[],
+      showReferenceRemove: false,
+    }
+  }
   const count = session.referenceImages.length
   return {
     referencePreviews: session.referenceImages.map((r) => ({

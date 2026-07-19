@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { inferStepKeyForUserMessage, resolveEditUserMessage, rewindSessionForStepEdit } from '@/lib/hub-chat/hub-studio-step-edit'
+import {
+  inferStepKeyForUserMessage,
+  isInPlacePackagingImageEdit,
+  resolveEditUserMessage,
+  restoreTimelineAfterInPlaceImageEdit,
+  rewindSessionForStepEdit,
+} from '@/lib/hub-chat/hub-studio-step-edit'
+import { pendingPreviewBlocksWorkflowInput } from '@/lib/hub-chat/hub-studio-step-preview'
 import type { HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 
 function baseSession(overrides: Partial<HubStudioSession> = {}): HubStudioSession {
@@ -91,4 +98,161 @@ test('rewindSessionForStepEdit rewinds design logo step for regeneration', () =>
   assert.equal(next.pendingPreview, null)
   assert.equal(next.processSteps.find((s) => s.key === 'logo')?.status, 'in_progress')
   assert.equal(next.processSteps.find((s) => s.key === 'face_top')?.status, 'pending')
+})
+
+test('committed packaging face is edited in place', () => {
+  const session = baseSession({
+    currentStepKey: 'box_mockup_3d',
+    processSteps: [
+      { key: 'face_top', label: 'Top', status: 'done' },
+      { key: 'face_front', label: 'Front', status: 'done' },
+      { key: 'box_mockup_3d', label: 'Mockup', status: 'done' },
+    ],
+    packaging: {
+      version: 2,
+      dimensionsMm: { length: 100, width: 60, height: 140 },
+      faces: {},
+      faceSlots: {
+        top: { sourceMode: 'generate', url: 'https://example.com/top.png' },
+        front: { sourceMode: 'generate', url: 'https://example.com/front.png' },
+      },
+      mockupUrl: 'https://example.com/mockup.png',
+    },
+  })
+
+  assert.equal(isInPlacePackagingImageEdit(session, 'packaging_kit', 'face_top'), true)
+  assert.equal(isInPlacePackagingImageEdit(session, 'packaging_kit', 'logo'), false)
+})
+
+test('restoring an in-place image edit preserves overall timeline state', () => {
+  const original = baseSession({
+    currentStepKey: 'box_mockup_3d',
+    processSteps: [
+      { key: 'face_top', label: 'Top', status: 'done' },
+      { key: 'face_front', label: 'Front', status: 'done' },
+      { key: 'box_mockup_3d', label: 'Mockup', status: 'in_progress' },
+    ],
+    pendingPreview: {
+      screenKey: 'box_mockup_3d',
+      screenLabel: 'Mockup',
+      url: 'https://example.com/mockup.png',
+      generationPrompt: 'mockup',
+    },
+  })
+  const updated = {
+    ...original,
+    currentStepKey: 'face_top',
+    processSteps: original.processSteps.map((step) =>
+      step.key === 'face_top' ? { ...step, status: 'done' as const } : step
+    ),
+    pendingPreview: null,
+    packaging: {
+      version: 2 as const,
+      dimensionsMm: { length: 100, width: 60, height: 140 },
+      faces: {},
+      mockupUrl: 'https://example.com/mockup-new.png',
+    },
+  }
+
+  const restored = restoreTimelineAfterInPlaceImageEdit(updated, original, 'face_top')
+
+  assert.equal(restored.currentStepKey, original.currentStepKey)
+  assert.deepEqual(restored.processSteps, original.processSteps)
+  assert.equal(restored.pendingPreview?.screenKey, 'box_mockup_3d')
+  assert.equal(restored.pendingPreview?.url, 'https://example.com/mockup-new.png')
+  assert.equal(restored.packaging?.mockupUrl, 'https://example.com/mockup-new.png')
+})
+
+test('pendingPreviewBlocksWorkflowInput only blocks current in-progress step', () => {
+  assert.equal(
+    pendingPreviewBlocksWorkflowInput({
+      currentStepKey: 'box_dieline_pdf',
+      processSteps: [
+        { key: 'box_mockup_3d', label: 'Mockup', status: 'done' },
+        { key: 'box_dieline_pdf', label: 'Dieline', status: 'in_progress' },
+      ],
+      pendingPreview: {
+        screenKey: 'box_mockup_3d',
+        screenLabel: 'Mockup',
+        url: 'https://example.com/mockup.png',
+        generationPrompt: 'mockup',
+      },
+    } as HubStudioSession),
+    false
+  )
+
+  assert.equal(
+    pendingPreviewBlocksWorkflowInput({
+      currentStepKey: 'box_mockup_3d',
+      processSteps: [{ key: 'box_mockup_3d', label: 'Mockup', status: 'in_progress' }],
+      pendingPreview: {
+        screenKey: 'box_mockup_3d',
+        screenLabel: 'Mockup',
+        url: 'https://example.com/mockup.png',
+        generationPrompt: 'mockup',
+      },
+    } as HubStudioSession),
+    true
+  )
+})
+
+test('restoring after face edit clears stale mockup preview when mockup already done', () => {
+  const original = baseSession({
+    currentStepKey: 'box_dieline_pdf',
+    processSteps: [
+      { key: 'face_top', label: 'Top', status: 'done' },
+      { key: 'box_mockup_3d', label: 'Mockup', status: 'done' },
+      { key: 'box_dieline_pdf', label: 'Dieline', status: 'in_progress' },
+    ],
+    pendingPreview: {
+      screenKey: 'box_mockup_3d',
+      screenLabel: 'Mockup',
+      url: 'https://example.com/mockup-old.png',
+      generationPrompt: 'mockup',
+    },
+  })
+  const updated = {
+    ...original,
+    pendingPreview: null,
+    packaging: {
+      version: 2 as const,
+      dimensionsMm: { length: 100, width: 60, height: 140 },
+      faces: {},
+      mockupUrl: 'https://example.com/mockup-new.png',
+    },
+  }
+
+  const restored = restoreTimelineAfterInPlaceImageEdit(updated, original, 'face_top')
+
+  assert.equal(restored.pendingPreview, null)
+  assert.equal(restored.currentStepKey, 'box_dieline_pdf')
+})
+
+test('restoring a regenerated current image clears only its obsolete preview', () => {
+  const original = baseSession({
+    currentStepKey: 'face_top',
+    pendingPreview: {
+      screenKey: 'face_top',
+      screenLabel: 'Top',
+      url: 'https://example.com/top-old.png',
+      generationPrompt: 'old top',
+    },
+    lastGenerationPrompt: 'old top',
+  })
+  const updated = {
+    ...original,
+    pendingPreview: null,
+    packaging: {
+      version: 2 as const,
+      dimensionsMm: { length: 100, width: 60, height: 140 },
+      faces: {},
+      mockupUrl: 'https://example.com/mockup-new.png',
+    },
+  }
+
+  const restored = restoreTimelineAfterInPlaceImageEdit(updated, original, 'face_top')
+
+  assert.equal(restored.pendingPreview, null)
+  assert.equal(restored.lastGenerationPrompt, null)
+  assert.deepEqual(restored.processSteps, original.processSteps)
 })

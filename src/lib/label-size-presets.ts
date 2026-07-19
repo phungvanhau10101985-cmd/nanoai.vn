@@ -4,6 +4,18 @@
  */
 export const GEMINI_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '9:21', '21:9'] as const
 
+export type GeminiAspectRatio = (typeof GEMINI_ASPECT_RATIOS)[number]
+
+/** Default portrait ratio for peel-and-stick back labels. */
+export const DEFAULT_PRODUCT_LABEL_ASPECT_RATIO: GeminiAspectRatio = '2:3'
+
+/** Default square ratio for tamper-evident seal stickers. */
+export const DEFAULT_SEAL_STICKER_ASPECT_RATIO: GeminiAspectRatio = '1:1'
+
+export function isValidGeminiAspectRatio(value: string): value is GeminiAspectRatio {
+  return (GEMINI_ASPECT_RATIOS as readonly string[]).includes(value)
+}
+
 /** Danh sách tỷ lệ dạng {value, label} cho UI (Select, buttons) */
 export const GEMINI_ASPECT_RATIO_OPTIONS = GEMINI_ASPECT_RATIOS.map((r) => ({ value: r, label: r }))
 

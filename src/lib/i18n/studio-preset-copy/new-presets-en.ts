@@ -65,8 +65,8 @@ export const NEW_PRESETS_EN = {
       box_dieline_pdf: 'Review production parameters, then export the 1:1 technical Dieline PDF.',
       box_mockup_3d:
         'Type **create mockup 3d** to approve the box before exporting the Dieline PDF.',
-      product_label: 'Product label (B&W): label size (e.g. 50×80 mm) + content (name, ingredients, usage…). Logo only.',
-      seal_sticker: 'Seal sticker: size (e.g. 40×40 mm), round/square, tagline. Logo only — not box faces.',
+      product_label: 'Product label (B&W): pick shape + aspect ratio below + copy (name, ingredients, usage…). Logo only.',
+      seal_sticker: 'Seal sticker: pick shape + aspect ratio below + tagline/description. Logo only — not box faces.',
       barcode_label: 'Real barcode: uses product name from brief; product code (e.g. SKU: 188-SRM-001). Default Code128 — or EAN-13/QR if specified.',
     },
   },

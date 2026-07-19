@@ -7,6 +7,7 @@ import {
   sanitizeGenerationSelection,
   stepSupportsGenerationRefPicker,
 } from '@/lib/hub-chat/hub-studio-generation-refs'
+import { applyReferenceRemoval } from '@/lib/hub-chat/hub-studio-step-navigate'
 
 test('logo design step does not show generation ref / product compositing picker', () => {
   assert.equal(stepSupportsGenerationRefPicker('packaging_kit', 'logo'), false)
@@ -22,6 +23,20 @@ test('logo design step does not show generation ref / product compositing picker
 
 test('packaging face step still supports generation ref picker', () => {
   assert.equal(stepSupportsGenerationRefPicker('packaging_kit', 'face_front'), true)
+})
+
+test('web ui mockup steps do not show packaging product compositing picker', () => {
+  assert.equal(stepSupportsGenerationRefPicker('mobile_shop', 'home_mobile'), false)
+  assert.equal(stepSupportsGenerationRefPicker('mobile_shop', 'home_desktop'), false)
+  assert.equal(stepSupportsGenerationRefPicker('mobile_shop', 'product_detail_mobile'), false)
+  const session = {
+    ...emptyStudioSession(),
+    presetId: 'mobile_shop',
+    discoveryComplete: true,
+    currentStepKey: 'home_mobile',
+    referenceImages: [{ screenKey: 'logo', screenLabel: 'Logo', url: 'logo', approvedAt: 1 }],
+  }
+  assert.deepEqual(buildGenerationRefPickerPayload(session, 'mobile_shop', 'home_mobile'), {})
 })
 
 test('mockup 3d and dieline pdf do not show generation ref picker', () => {
@@ -102,21 +117,13 @@ test('remove reference preserves current step and process progress', () => {
     referenceImages: session.referenceImages.filter((r) => r.screenKey !== 'logo'),
   }
   next = sanitizeGenerationSelection(next, 'packaging_kit')
-  next = {
-    ...next,
-    currentStepKey: savedCurrentStepKey,
-    pendingPreview: {
-      screenKey: removed.screenKey,
-      screenLabel: removed.screenLabel,
-      url: removed.url,
-      generationPrompt: removed.screenLabel,
-    },
-  }
+  next = applyReferenceRemoval(next, removed, savedCurrentStepKey, 'packaging_kit')
 
   assert.equal(next.currentStepKey, 'face_bottom')
   assert.equal(next.processSteps.find((s) => s.key === 'logo')?.status, 'done')
   assert.equal(next.processSteps.find((s) => s.key === 'face_bottom')?.status, 'in_progress')
   assert.equal(next.packaging?.faceSlots?.top?.url, 'top-url')
   assert.equal(next.referenceImages.length, 1)
-  assert.equal(next.pendingPreview?.url, 'logo-url')
+  assert.notEqual(next.pendingPreview?.screenKey, 'logo')
+  assert.equal(next.pendingPreview, null)
 })

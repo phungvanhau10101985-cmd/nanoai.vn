@@ -35,9 +35,9 @@ test('PDF export supports continuous body source and legacy six slots', async ()
       compensationGapMm: 0.5,
     },
   })
-  assert.equal(legacy.subarray(0, 4).toString(), '%PDF')
-  assert.equal(hybrid.subarray(0, 4).toString(), '%PDF')
-  assert.notDeepEqual(hybrid, legacy)
+  assert.equal(legacy.pdfBuffer.subarray(0, 4).toString(), '%PDF')
+  assert.equal(hybrid.pdfBuffer.subarray(0, 4).toString(), '%PDF')
+  assert.notDeepEqual(hybrid.pdfBuffer, legacy.pdfBuffer)
 })
 
 test('PDF export supports the cross-fold hand-assembly structure', async () => {
@@ -57,5 +57,5 @@ test('PDF export supports the cross-fold hand-assembly structure', async () => {
       left: side,
     },
   })
-  assert.equal(pdf.subarray(0, 4).toString(), '%PDF')
+  assert.equal(pdf.pdfBuffer.subarray(0, 4).toString(), '%PDF')
 })

@@ -33,6 +33,7 @@ export function HubStudioGenerationRefPicker({
     approvedSection: string
     productSection: string
     productUpload: string
+    productUploadNote: string
     attachCount: string
     removeProduct: string
   }
@@ -40,7 +41,7 @@ export function HubStudioGenerationRefPicker({
   onUploadProduct: (files: FileList) => void
   onRemoveProduct: (url: string) => void
 }) {
-  const fileRef = useRef<HTMLInputElement>(null)
+  const productFileRef = useRef<HTMLInputElement>(null)
 
   const used = attachUsed ?? selectedKeys.length + productPreviews.length
   const atLimit = used >= attachLimit
@@ -59,37 +60,37 @@ export function HubStudioGenerationRefPicker({
         <>
           <p className="mt-2 text-[11px] font-medium text-sky-800 dark:text-sky-200">{labels.approvedSection}</p>
           <div className="mt-1 flex flex-wrap gap-2">
-          {options.map((opt) => {
-            const checked = selectedKeys.includes(opt.screenKey)
-            const disabled = busy || (!checked && atLimit)
-            return (
-              <label
-                key={opt.screenKey}
-                className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px] ${
-                  checked
-                    ? 'border-sky-400 bg-white ring-1 ring-sky-300 dark:border-sky-600 dark:bg-slate-900'
-                    : 'border-slate-200 bg-white/80 opacity-90 dark:border-slate-700 dark:bg-slate-900/60'
-                } ${disabled && !checked ? 'cursor-not-allowed opacity-50' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 shrink-0 accent-sky-600"
-                  checked={checked}
-                  disabled={disabled}
-                  onChange={(e) => onToggleRef(opt.screenKey, e.target.checked)}
-                />
-                <Image
-                  src={opt.url}
-                  alt={opt.label}
-                  width={40}
-                  height={40}
-                  className="h-10 w-10 rounded object-cover"
-                  unoptimized
-                />
-                <span className="max-w-[88px] truncate font-medium">{opt.label}</span>
-              </label>
-            )
-          })}
+            {options.map((opt) => {
+              const checked = selectedKeys.includes(opt.screenKey)
+              const disabled = busy || (!checked && atLimit)
+              return (
+                <label
+                  key={opt.screenKey}
+                  className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px] ${
+                    checked
+                      ? 'border-sky-400 bg-white ring-1 ring-sky-300 dark:border-sky-600 dark:bg-slate-900'
+                      : 'border-slate-200 bg-white/80 opacity-90 dark:border-slate-700 dark:bg-slate-900/60'
+                  } ${disabled && !checked ? 'cursor-not-allowed opacity-50' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 shrink-0 accent-sky-600"
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={(e) => onToggleRef(opt.screenKey, e.target.checked)}
+                  />
+                  <Image
+                    src={opt.url}
+                    alt={opt.label}
+                    width={40}
+                    height={40}
+                    className="h-10 w-10 rounded object-cover"
+                    unoptimized
+                  />
+                  <span className="max-w-[88px] truncate font-medium">{opt.label}</span>
+                </label>
+              )
+            })}
           </div>
         </>
       ) : null}
@@ -121,9 +122,9 @@ export function HubStudioGenerationRefPicker({
         </div>
       ) : null}
 
-      <div className="mt-2">
+      <div className="mt-2 space-y-1">
         <input
-          ref={fileRef}
+          ref={productFileRef}
           type="file"
           accept="image/*"
           multiple
@@ -138,13 +139,14 @@ export function HubStudioGenerationRefPicker({
           type="button"
           size="sm"
           variant="outline"
-          className="h-7 border-sky-300 text-xs"
+          className="h-7 border-sky-400 bg-white text-xs text-sky-950 hover:bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-50"
           disabled={busy || atLimit}
-          onClick={() => fileRef.current?.click()}
+          onClick={() => productFileRef.current?.click()}
         >
           <ImagePlus className="mr-1 h-3.5 w-3.5" />
           {labels.productUpload}
         </Button>
+        <p className="text-[10px] leading-snug text-sky-800/90 dark:text-sky-200/90">{labels.productUploadNote}</p>
       </div>
     </div>
   )

@@ -5,6 +5,43 @@ import {
 } from '@/lib/hub-chat/hub-studio-presets'
 import { applyDiscoveryBriefEdit } from '@/lib/hub-chat/hub-studio-discovery-edit'
 import { invalidatePackagingFromStep } from '@/lib/packaging/session-dependencies'
+import { isPackagingFaceReEdit } from '@/lib/packaging/hub-face-steps'
+import { resolveWorkflowPendingAfterApprovedFaceEdit } from '@/lib/hub-chat/hub-studio-step-preview'
+
+export function isInPlacePackagingImageEdit(
+  session: HubStudioSession,
+  presetId: string,
+  stepKey: string
+): boolean {
+  return presetId === 'packaging_kit' && isPackagingFaceReEdit(session, stepKey)
+}
+
+export function restoreTimelineAfterInPlaceImageEdit(
+  updated: HubStudioSession,
+  original: HubStudioSession,
+  editedStepKey: string
+): HubStudioSession {
+  const preservePending = original.pendingPreview?.screenKey !== editedStepKey
+  let pendingPreview = preservePending ? original.pendingPreview : null
+
+  if (preservePending && pendingPreview) {
+    pendingPreview = resolveWorkflowPendingAfterApprovedFaceEdit(
+      updated,
+      editedStepKey,
+      original.currentStepKey,
+      pendingPreview
+    )
+  }
+
+  return {
+    ...updated,
+    processSteps: original.processSteps,
+    currentStepKey: original.currentStepKey,
+    pendingPreview,
+    lastGenerationPrompt: preservePending && pendingPreview ? original.lastGenerationPrompt : null,
+    generationSelection: original.generationSelection,
+  }
+}
 
 export function rewindSessionForStepEdit(
   session: HubStudioSession,

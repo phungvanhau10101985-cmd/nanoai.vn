@@ -1,4 +1,4 @@
-import type { HubPackagingState } from '@/lib/hub-chat/hub-studio-types'
+import type { HubPackagingState, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import type { PackagingFaceKey } from './dimensions'
 import { getFaceDimensionsMm, normalizeBoxDimensionsMm } from './dimensions'
 import {
@@ -27,6 +27,43 @@ export const HUB_PACKAGING_FACE_STEP_KEYS = [
 
 export type HubPackagingFaceStepKey = (typeof HUB_PACKAGING_FACE_STEP_KEYS)[number]
 
+export function isFirstPackagingFaceStep(stepKey: string | null | undefined): boolean {
+  return stepKey === HUB_PACKAGING_FACE_STEP_KEYS[0]
+}
+
+export function getPrimaryPackagingStyleFaceStepKey(): HubPackagingFaceStepKey {
+  return HUB_PACKAGING_FACE_STEP_KEYS[0]
+}
+
+/** Approved face artwork URL — from referenceImages or committed faceSlots. */
+export function resolvePackagingFaceReferenceUrl(
+  session: HubStudioSession,
+  stepKey: string
+): string | null {
+  const ref = session.referenceImages.find((r) => r.screenKey === stepKey)
+  if (ref?.url) return ref.url
+  const slot = packagingStepKeyToSlot(stepKey)
+  if (!slot) return null
+  const face = session.packaging?.faceSlots?.[slot]
+  if (face?.url && face.sourceMode !== 'empty') return face.url
+  return null
+}
+
+export function hasApprovedPrimaryPackagingFace(session: HubStudioSession): boolean {
+  return Boolean(resolvePackagingFaceReferenceUrl(session, getPrimaryPackagingStyleFaceStepKey()))
+}
+
+export const PACKAGING_STYLE_REFERENCE_SCREEN_KEY = 'packaging_style_reference'
+
+/** User-uploaded mood/style board URL (face #1 only). */
+export function resolvePackagingStyleReferenceUrl(session: HubStudioSession): string | null {
+  const url =
+    session.generationSelection?.styleReferenceUrl?.trim() ||
+    session.packaging?.styleReferenceUrl?.trim() ||
+    ''
+  return url || null
+}
+
 const LEGACY_STEP_TO_SLOT: Record<string, BoxFaceSlot> = {
   face_lxw: 'top',
   face_lxh: 'front',
@@ -50,6 +87,19 @@ export type HubPackagingFaceSlotEntry = {
 
 export function isPackagingFaceStepKey(stepKey: string): boolean {
   return stepKey === 'body_strip' || stepKey in STEP_TO_SLOT
+}
+
+/** Mặt đã từng chốt (ảnh / bỏ trống / sao chép) — sửa lại không đi tiếp flow mặt mới. */
+export function isPackagingFaceReEdit(session: HubStudioSession, stepKey: string): boolean {
+  if (session.presetId !== 'packaging_kit') return false
+  if (!isPackagingFaceStepKey(stepKey)) return false
+  if (session.referenceImages.some((reference) => reference.screenKey === stepKey)) return true
+  if (stepKey === 'body_strip') {
+    return Boolean(session.packaging?.bodyStrip?.originalUrl)
+  }
+  const slot = packagingStepKeyToSlot(stepKey)
+  if (!slot) return false
+  return session.packaging?.faceSlots?.[slot] != null
 }
 
 export function packagingStepKeyToSlot(stepKey: string): BoxFaceSlot | null {

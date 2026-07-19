@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { WebLocale } from '@/lib/i18n/config'
+import { formatStudioExampleLabel } from '@/lib/hub-chat/hub-studio-example-label'
 import { cmToMm, isPositiveBoxDimensionMm } from '@/lib/packaging/dimensions'
 import {
   defaultTuckBoxProductionParams,
@@ -247,7 +248,7 @@ export function HubBoxDimensionForm({
               setLength(e.target.value)
               setError(null)
             }}
-            placeholder={t.lengthPlaceholder}
+            placeholder={formatStudioExampleLabel(locale, t.lengthPlaceholder)}
             disabled={busy}
             className="h-9 bg-white text-sm dark:bg-slate-900"
           />
@@ -262,7 +263,7 @@ export function HubBoxDimensionForm({
               setWidth(e.target.value)
               setError(null)
             }}
-            placeholder={t.widthPlaceholder}
+            placeholder={formatStudioExampleLabel(locale, t.widthPlaceholder)}
             disabled={busy}
             className="h-9 bg-white text-sm dark:bg-slate-900"
           />
@@ -277,7 +278,7 @@ export function HubBoxDimensionForm({
               setHeight(e.target.value)
               setError(null)
             }}
-            placeholder={t.heightPlaceholder}
+            placeholder={formatStudioExampleLabel(locale, t.heightPlaceholder)}
             disabled={busy}
             className="h-9 bg-white text-sm dark:bg-slate-900"
           />

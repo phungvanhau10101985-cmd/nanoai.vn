@@ -38,8 +38,24 @@ export function firstIncompleteStepKey(steps: HubStudioProcessStep[]): string | 
 
 export function getActiveStepKey(session: HubStudioSession | null | undefined): string | null {
   if (!session) return null
+  const pendingKey = session.pendingPreview?.screenKey
+  if (pendingKey && session.pendingPreview?.url) {
+    const pendingStep = session.processSteps.find((step) => step.key === pendingKey)
+    const staleDonePreview =
+      pendingStep?.status === 'done' &&
+      session.currentStepKey &&
+      session.currentStepKey !== pendingKey
+    if (!staleDonePreview) return pendingKey
+  }
   const steps = Array.isArray(session.processSteps) ? session.processSteps : []
   if (!steps.length) return session.currentStepKey ?? null
+  if (
+    session.presetId &&
+    session.currentStepKey &&
+    isNavigatedBackEdit(session, session.presetId)
+  ) {
+    return session.currentStepKey
+  }
   if (session.currentStepKey) {
     const current = steps.find((s) => s.key === session.currentStepKey)
     if (current && current.status !== 'done') return session.currentStepKey

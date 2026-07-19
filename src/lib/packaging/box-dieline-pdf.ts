@@ -19,6 +19,8 @@ import {
   DEFAULT_PANEL_BLEED_MM,
   mmToPrintPx,
   preparePanelArtworkForDieline,
+  resolveDielineRasterDpi,
+  SHARP_SAFE_CANVAS_PIXELS,
 } from '@/lib/packaging/panel-artwork-fit'
 
 const MM_TO_PT = 2.834645669
@@ -53,7 +55,9 @@ export interface BoxDielineInput {
  * Tạo PDF Dieline: ghép ảnh từng mặt vào net nắp gài, vẽ Cut (đỏ)
  * và Crease (xanh nét đứt), artwork có bleed thật.
  */
-export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffer> {
+export async function createBoxDielinePdf(
+  input: BoxDielineInput
+): Promise<{ pdfBuffer: Buffer; resolutionDpi: number }> {
   const {
     slotBuffers,
     bodyStripBuffer,
@@ -84,8 +88,12 @@ export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffe
   const offsetMm = PAGE_MARGIN_MM
   const offsetPt = offsetMm * MM_TO_PT
 
-  const imgWpx = mmToPrintPx(contentW)
-  const imgHpx = mmToPrintPx(contentH)
+  const rasterDpi = resolveDielineRasterDpi(contentW, contentH)
+  const imgWpx = mmToPrintPx(contentW, rasterDpi)
+  const imgHpx = mmToPrintPx(contentH, rasterDpi)
+  if (imgWpx * imgHpx > SHARP_SAFE_CANVAS_PIXELS) {
+    throw new Error('Input image exceeds pixel limit')
+  }
 
   const bleedOps: { input: Buffer; left: number; top: number }[] = []
   const trimOps: { input: Buffer; left: number; top: number }[] = []
@@ -98,38 +106,39 @@ export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffe
       effectiveBodyStripBuffer,
       stripWidthMm,
       boxHeight,
-      bleedMm
+      bleedMm,
+      rasterDpi
     )
     bleedOps.push({
       input: prepared.bleedBuffer,
-      left: mmToPrintPx(front.x),
-      top: mmToPrintPx(front.y),
+      left: mmToPrintPx(front.x, rasterDpi),
+      top: mmToPrintPx(front.y, rasterDpi),
     })
     trimOps.push({
       input: prepared.trimBuffer,
-      left: mmToPrintPx(bleedMm + front.x),
-      top: mmToPrintPx(bleedMm + front.y),
+      left: mmToPrintPx(bleedMm + front.x, rasterDpi),
+      top: mmToPrintPx(bleedMm + front.y, rasterDpi),
     })
   }
 
   for (const panel of panels) {
     if (effectiveBodyStripBuffer && sideSlots.has(panel.slot)) continue
-    const wPx = Math.max(1, mmToPrintPx(panel.w))
-    const hPx = Math.max(1, mmToPrintPx(panel.h))
+    const wPx = Math.max(1, mmToPrintPx(panel.w, rasterDpi))
+    const hPx = Math.max(1, mmToPrintPx(panel.h, rasterDpi))
 
     const rawBuf = slotBuffers[panel.slot]
     const faceBuf = rawBuf ?? (await whitePanelBuffer(wPx, hPx))
-    const prepared = await preparePanelArtworkForDieline(faceBuf, panel.w, panel.h, bleedMm)
+    const prepared = await preparePanelArtworkForDieline(faceBuf, panel.w, panel.h, bleedMm, rasterDpi)
 
     bleedOps.push({
       input: prepared.bleedBuffer,
-      left: mmToPrintPx(panel.x),
-      top: mmToPrintPx(panel.y),
+      left: mmToPrintPx(panel.x, rasterDpi),
+      top: mmToPrintPx(panel.y, rasterDpi),
     })
     trimOps.push({
       input: prepared.trimBuffer,
-      left: mmToPrintPx(bleedMm + panel.x),
-      top: mmToPrintPx(bleedMm + panel.y),
+      left: mmToPrintPx(bleedMm + panel.x, rasterDpi),
+      top: mmToPrintPx(bleedMm + panel.y, rasterDpi),
     })
   }
 
@@ -193,5 +202,5 @@ export async function createBoxDielinePdf(input: BoxDielineInput): Promise<Buffe
   const structureLabel = structure === 'cross_fold' ? 'Cross-fold carton' : 'Straight-tuck carton'
   pdfDoc.setSubject(`${structureLabel} dieline: red solid = cut, green dashed = crease${productionSummary}`)
   const pdfBytes = await pdfDoc.save()
-  return Buffer.from(pdfBytes)
+  return { pdfBuffer: Buffer.from(pdfBytes), resolutionDpi: rasterDpi }
 }

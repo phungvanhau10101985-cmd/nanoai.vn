@@ -873,6 +873,7 @@ export async function fetchPartnerInventorySliceForEmbeddingSyncFromPg(
   const lim = Math.max(1, Math.floor(limit))
   const off = Math.max(0, Math.floor(offset))
   const updatedCol = kind === 'image' ? 'image_embedding_updated_at' : 'text_embedding_updated_at'
+  const errorCol = kind === 'image' ? 'image_embedding_error' : 'text_embedding_error'
   const eligibleFilter =
     kind === 'image'
       ? `and coalesce(mpi.is_active, true)
@@ -890,7 +891,9 @@ export async function fetchPartnerInventorySliceForEmbeddingSyncFromPg(
     const rows = await runInventorySelectWithStockQtyFallback(
       `where mpi.partner_id = $1::uuid
        ${eligibleFilter}
-       order by mpi.${updatedCol} asc nulls first, mpi.updated_at asc nulls last
+       order by (case when trim(coalesce(mpi.${errorCol}, '')) <> '' then 0 else 1 end),
+                mpi.${updatedCol} asc nulls first,
+                mpi.updated_at asc nulls last
        limit $2 offset $3`,
       [partnerId, lim, off]
     )
@@ -1228,7 +1231,11 @@ export async function fetchPartnerInventoryEmbeddingStatsFromPg(
          (select count(*)::bigint from el) as eligible,
          (select count(*)::bigint from el where image_embedding_updated_at is not null) as done,
          (select count(*)::bigint from el where image_embedding_updated_at is null) as pending,
-         (select count(*)::bigint from el where trim(coalesce(image_embedding_error, '')) <> '') as failed`,
+         (select count(*)::bigint from el where trim(coalesce(image_embedding_error, '')) <> ''
+           and not (
+             image_embedding_json is not null
+             and nullif(trim(coalesce(image_embedding_vec::text, '')), '') is not null
+           )) as failed`,
       [partnerId]
     )
     if (!row) return null
@@ -1262,9 +1269,81 @@ export type PartnerInventoryEmbeddingErrorRow = {
 
 const INVENTORY_EMBEDDING_ERROR_WHERE = `coalesce(mpi.is_active, true)
   and (
-    trim(coalesce(mpi.image_embedding_error, '')) <> ''
-    or trim(coalesce(mpi.text_embedding_error, '')) <> ''
+    (
+      trim(coalesce(mpi.image_embedding_error, '')) <> ''
+      and not (
+        mpi.image_embedding_json is not null
+        and nullif(trim(coalesce(mpi.image_embedding_vec::text, '')), '') is not null
+      )
+    )
+    or (
+      trim(coalesce(mpi.text_embedding_error, '')) <> ''
+      and not (
+        mpi.text_embedding_json is not null
+        and nullif(trim(coalesce(mpi.text_embedding_vec::text, '')), '') is not null
+      )
+    )
   )`
+
+const INVENTORY_IMAGE_EMBED_STALE_ERROR_WHERE = `trim(coalesce(image_embedding_error, '')) <> ''
+  and image_embedding_json is not null
+  and nullif(trim(coalesce(image_embedding_vec::text, '')), '') is not null`
+
+const INVENTORY_TEXT_EMBED_STALE_ERROR_WHERE = `trim(coalesce(text_embedding_error, '')) <> ''
+  and text_embedding_json is not null
+  and nullif(trim(coalesce(text_embedding_vec::text, '')), '') is not null`
+
+/** Xóa lỗi embedding ảnh cũ khi vector đã có đủ — tránh đếm lỗi ảo sau retry thành công. */
+export async function clearStalePartnerInventoryImageEmbeddingErrorsFromPg(
+  partnerId: string
+): Promise<number | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ count: string | number }>(
+      `with cleared as (
+         update public.messaging_partner_inventory
+         set image_embedding_error = '',
+             updated_at = now()
+         where partner_id = $1::uuid
+           and ${INVENTORY_IMAGE_EMBED_STALE_ERROR_WHERE}
+         returning 1
+       )
+       select count(*)::bigint as count from cleared`,
+      [partnerId]
+    )
+    return Math.max(0, Math.floor(Number(row?.count ?? 0)))
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return 0
+    console.warn('[clearStalePartnerInventoryImageEmbeddingErrorsFromPg]', e)
+    return null
+  }
+}
+
+/** Xóa lỗi embedding văn bản cũ khi vector đã có đủ. */
+export async function clearStalePartnerInventoryTextEmbeddingErrorsFromPg(
+  partnerId: string
+): Promise<number | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ count: string | number }>(
+      `with cleared as (
+         update public.messaging_partner_inventory
+         set text_embedding_error = '',
+             updated_at = now()
+         where partner_id = $1::uuid
+           and ${INVENTORY_TEXT_EMBED_STALE_ERROR_WHERE}
+         returning 1
+       )
+       select count(*)::bigint as count from cleared`,
+      [partnerId]
+    )
+    return Math.max(0, Math.floor(Number(row?.count ?? 0)))
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return 0
+    console.warn('[clearStalePartnerInventoryTextEmbeddingErrorsFromPg]', e)
+    return null
+  }
+}
 
 function mapPartnerInventoryEmbeddingErrorRow(r: {
   id: string
@@ -1439,7 +1518,11 @@ export async function fetchPartnerInventoryTextEmbeddingStatsFromPg(
          (select count(*)::bigint from el) as eligible,
          (select count(*)::bigint from el where text_embedding_updated_at is not null) as done,
          (select count(*)::bigint from el where text_embedding_updated_at is null) as pending,
-         (select count(*)::bigint from el where trim(coalesce(text_embedding_error, '')) <> '') as failed`,
+         (select count(*)::bigint from el where trim(coalesce(text_embedding_error, '')) <> ''
+           and not (
+             text_embedding_json is not null
+             and nullif(trim(coalesce(text_embedding_vec::text, '')), '') is not null
+           )) as failed`,
       [partnerId]
     )
     if (!row) return null

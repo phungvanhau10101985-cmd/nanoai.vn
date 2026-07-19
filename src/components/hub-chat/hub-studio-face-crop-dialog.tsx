@@ -220,13 +220,15 @@ function tryLayoutCropScale(
 }
 
 function measureCropEditorViewport(el: HTMLElement): { maxW: number; maxH: number } {
-  const viewportFloor =
+  const fallbackH =
     typeof window !== 'undefined'
-      ? Math.min(620, Math.max(360, Math.floor(window.innerHeight * 0.5)))
-      : 420
+      ? Math.min(420, Math.max(220, Math.floor(window.innerHeight * 0.32)))
+      : 320
+  const measuredW = el.clientWidth
+  const measuredH = el.clientHeight
   return {
-    maxW: Math.max(280, el.clientWidth),
-    maxH: Math.max(viewportFloor, el.clientHeight),
+    maxW: Math.max(280, measuredW > 0 ? measuredW : 320),
+    maxH: Math.max(180, measuredH > 0 ? measuredH : fallbackH),
   }
 }
 
@@ -1416,7 +1418,7 @@ export function HubStudioFaceCropDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(96dvh,960px)] max-h-[96dvh] w-[min(98vw,1440px)] max-w-[98vw] flex-col gap-3 overflow-hidden p-3 sm:gap-4 sm:p-5">
+      <DialogContent className="flex h-[min(92dvh,900px)] max-h-[92dvh] w-[min(98vw,1440px)] max-w-[98vw] flex-col gap-2 overflow-hidden p-3 sm:gap-3 sm:p-4">
         <DialogHeader className="shrink-0 space-y-0">
           <DialogTitle className="flex items-center gap-2 pr-8 text-base">
             <Crop className="h-4 w-4 shrink-0" />
@@ -1424,7 +1426,7 @@ export function HubStudioFaceCropDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="max-h-[34vh] shrink-0 space-y-2 overflow-y-auto overscroll-contain pr-0.5">
+        <div className="max-h-[min(28vh,240px)] shrink-0 space-y-2 overflow-y-auto overscroll-contain pr-0.5">
           <div className="flex flex-wrap items-center gap-1.5">
             <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={addTextLayer}>
               <Type className="mr-1 h-3.5 w-3.5" />
@@ -1708,10 +1710,10 @@ export function HubStudioFaceCropDialog({
           </div>
         ) : null}
 
-        <div className="flex min-h-0 flex-[1.6] flex-col gap-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
           <div
             ref={viewportRef}
-            className="flex min-h-[min(50vh,540px)] w-full flex-1 items-center justify-center"
+            className="flex min-h-0 w-full flex-1 items-center justify-center overflow-auto"
           >
             <div
               className="relative touch-none select-none overflow-hidden rounded-lg border border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-900"
@@ -1843,53 +1845,53 @@ export function HubStudioFaceCropDialog({
             ) : null}
           </div>
           </div>
-          <div className="shrink-0 space-y-0.5">
-            <p className="text-xs text-muted-foreground">{labels.overlayHint}</p>
+          <p className="shrink-0 text-[11px] leading-snug text-muted-foreground">{labels.overlayHint}</p>
+        </div>
+
+        <div className="shrink-0 space-y-2 border-t bg-background pt-2">
+          <div className="rounded-md border border-violet-200 bg-violet-50/60 px-3 py-2 text-sm dark:border-violet-800 dark:bg-violet-950/30 sm:flex sm:items-center sm:justify-between sm:gap-3">
+            <p className="text-xs text-muted-foreground">
+              {labels.targetSize.replace(
+                '{size}',
+                formatMmSize(locale, faceSizeMm.widthMm, faceSizeMm.heightMm)
+              )}
+            </p>
+            <p className="mt-1 font-medium text-violet-900 dark:text-violet-100 sm:mt-0">
+              {labels.cropSize.replace(
+                '{size}',
+                formatMmSize(locale, printSizeMm.widthMm, printSizeMm.heightMm)
+              )}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground sm:mt-0">
+              {Math.round(cropNatural.width)} × {Math.round(cropNatural.height)} px
+            </p>
           </div>
-        </div>
 
-        <div className="shrink-0 rounded-md border border-violet-200 bg-violet-50/60 px-3 py-2 text-sm dark:border-violet-800 dark:bg-violet-950/30">
-          <p className="text-xs text-muted-foreground">
-            {labels.targetSize.replace(
-              '{size}',
-              formatMmSize(locale, faceSizeMm.widthMm, faceSizeMm.heightMm)
-            )}
-          </p>
-          <p className="mt-1 font-medium text-violet-900 dark:text-violet-100">
-            {labels.cropSize.replace(
-              '{size}',
-              formatMmSize(locale, printSizeMm.widthMm, printSizeMm.heightMm)
-            )}
-          </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {Math.round(cropNatural.width)} × {Math.round(cropNatural.height)} px
-          </p>
+          <DialogFooter className="gap-2 pb-[max(0px,env(safe-area-inset-bottom))] sm:gap-0">
+            <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
+              {labels.cancel}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-violet-300 text-violet-800 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-950/40"
+              disabled={busy || !natural.w || !aspectValid}
+              onClick={() => void handleApply()}
+            >
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {labels.save}
+            </Button>
+            <Button
+              type="button"
+              className="bg-violet-600 hover:bg-violet-700"
+              disabled={busy || !natural.w || !aspectValid}
+              onClick={() => void handleDone()}
+            >
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {labels.done}
+            </Button>
+          </DialogFooter>
         </div>
-
-        <DialogFooter className="shrink-0 gap-2 sm:gap-0">
-          <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
-            {labels.cancel}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="border-violet-300 text-violet-800 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-950/40"
-            disabled={busy || !natural.w || !aspectValid}
-            onClick={() => void handleApply()}
-          >
-            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {labels.save}
-          </Button>
-          <Button
-            type="button"
-            className="bg-violet-600 hover:bg-violet-700"
-            disabled={busy || !natural.w || !aspectValid}
-            onClick={() => void handleDone()}
-          >
-            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {labels.done}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

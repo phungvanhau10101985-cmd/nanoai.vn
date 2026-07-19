@@ -32,8 +32,9 @@ import type { HubChatPlanPayload, HubChatWorkflowSuggestion } from '@/app/api/hu
 import { HubPlanAutoRunPanel } from '@/components/hub-chat/hub-plan-auto-run-panel'
 import { HubStudioActiveStepPreview, HubStudioMessageBubble, HubStudioMessageTime, HubStudioProcessRail, HubStudioThinking } from '@/components/hub-chat/hub-studio-inline'
 import type { HubChatThreadSummary, HubMultiTaskPlanRow } from '@/lib/db/hub-chat-pg'
-import { normalizeStudioSession, type HubStudioMessagePayload, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { normalizeStudioSession, type HubStudioMessagePayload, type HubStudioProcessStep, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { applyPackagingSessionLabels } from '@/lib/packaging/packaging-face-labels'
+import { pendingPreviewBlocksWorkflowInput } from '@/lib/hub-chat/hub-studio-step-preview'
 
 function withClientStudioSession(
   raw: HubStudioSession | null | undefined,
@@ -47,19 +48,74 @@ import type { HubStudioAction } from '@/lib/hub-chat/hub-studio-handler'
 import type { FacePrintStyleKey } from '@/lib/packaging/face-print-style'
 import type { TuckBoxProductionParams } from '@/lib/packaging/tuck-box-production'
 import { HubBoxDimensionForm } from '@/components/hub-chat/hub-box-dimension-form'
+import { HubBarcodeLabelForm } from '@/components/hub-chat/hub-barcode-label-form'
+import { HubBoxFaceConfirmActions } from '@/components/hub-chat/hub-box-face-confirm-actions'
+import { HubColorPalettePicker } from '@/components/hub-chat/hub-color-palette-picker'
+import { HubDiscoveryChoicePicker } from '@/components/hub-chat/hub-discovery-choice-picker'
 import { HubFacePrintStylePicker } from '@/components/hub-chat/hub-face-print-style-picker'
+import { HubPrintLanguagePicker } from '@/components/hub-chat/hub-print-language-picker'
+import { HubLabelAspectRatioPicker } from '@/components/hub-chat/hub-label-aspect-ratio-picker'
 import { HubPackagingFaceActions } from '@/components/hub-chat/hub-packaging-face-actions'
 import { HubPackagingBodyStripActions } from '@/components/hub-chat/hub-packaging-body-strip-actions'
+import { HubPackagingFaceUploadConfirmDialog } from '@/components/hub-chat/hub-packaging-face-upload-confirm-dialog'
+import {
+  isStudioColorPalettePickerStep,
+  type StudioColorSelection,
+} from '@/lib/hub-chat/studio-color-palette'
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
-import { STUDIO_PRESETS, getStepAskPrompt, getStudioPreset, presetTitle, getPrimaryLogoStepKey, hasPrimaryLogoReference } from '@/lib/hub-chat/hub-studio-presets'
+import { STUDIO_PRESETS, getFlowSteps, getStepAskPrompt, getStepGenerator, getStudioPreset, presetStepLabel, presetTitle, getPrimaryLogoStepKey, hasPrimaryLogoReference } from '@/lib/hub-chat/hub-studio-presets'
 import { getActiveStepKey } from '@/lib/hub-chat/hub-studio-preset-intent'
 import { buildPendingStepStudio } from '@/lib/hub-chat/hub-studio-step-retry'
-import { isNavigatedBackEdit } from '@/lib/hub-chat/hub-studio-step-navigate'
-import { isPackagingFaceStepKey, packagingStepKeyToSlot } from '@/lib/packaging/hub-face-steps'
+import {
+  isForwardOnlyStudioPreset,
+  isNavigatedBackEdit,
+} from '@/lib/hub-chat/hub-studio-step-navigate'
+import {
+  getPackagingFaceSizeForStep,
+  isPackagingFaceReEdit,
+  isPackagingFaceStepKey,
+  packagingStepKeyToSlot,
+} from '@/lib/packaging/hub-face-steps'
 import { getBoxFaceSlotLabel } from '@/lib/packaging/box-face-slots'
+import {
+  getPackagingDiscoveryInputKind,
+  PACKAGING_STYLE_MOOD_CHOICES,
+} from '@/lib/packaging/packaging-discovery-choices'
+import {
+  resolvePrintLanguageKey,
+  type PackagingPrintLanguageKey,
+} from '@/lib/packaging/packaging-print-language'
+import { formatMmSize } from '@/lib/packaging/face-crop-size'
+import { DEFAULT_PRODUCT_LABEL_ASPECT_RATIO, DEFAULT_SEAL_STICKER_ASPECT_RATIO } from '@/lib/label-size-presets'
+import {
+  DEFAULT_PRODUCT_LABEL_SHAPE,
+  DEFAULT_SEAL_STICKER_SHAPE,
+  type FlatStickerShape,
+  resolveProductLabelShape,
+  resolveSealStickerShape,
+} from '@/lib/packaging/product-label-step'
+import {
+  defaultBarcodeFormEntries,
+  type PackagingBarcodeFormEntry,
+} from '@/lib/packaging/packaging-barcode-form'
 import { getStudioPresetCopy } from '@/lib/i18n/studio-preset-copy'
 import { HubStudioGenerationRefPicker } from '@/components/hub-chat/hub-studio-generation-ref-picker'
 import { HubStudioRegenerateDialog } from '@/components/hub-chat/hub-studio-regenerate-dialog'
+import { HubFeatureOpenConfirmDialog } from '@/components/hub-chat/hub-feature-open-confirm-dialog'
+import {
+  isActiveStudioFlow,
+  isStudioFlowComplete,
+} from '@/lib/hub-chat/hub-studio-flow-guard'
+import {
+  getHubFeatureCatalogEntry,
+  groupHubFeatureCatalog,
+  groupPostFlowFeatureCatalog,
+} from '@/lib/hub-chat/hub-feature-catalog'
+import {
+  getStudioStepInputPlaceholder,
+  getStudioStepSuggestions,
+} from '@/lib/hub-chat/hub-studio-step-suggestions'
+import { formatStudioExampleLabel } from '@/lib/hub-chat/hub-studio-example-label'
 import {
   buildGenerationRefPickerPayload,
   defaultGenerationReferenceKeys,
@@ -104,6 +160,73 @@ function isPendingPackagingFacePreviewLine(
     pending?.screenKey === line.studio.screenKey &&
     pending.url === line.studio.imageUrl
   )
+}
+
+function replaceLatestStudioStepLine(
+  lines: ChatLine[],
+  screenKey: string | undefined,
+  content: string,
+  studio: HubStudioMessagePayload | null | undefined
+): ChatLine[] {
+  if (!screenKey || !studio) return lines
+  let index = -1
+  for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex -= 1) {
+    const line = lines[lineIndex]
+    if (line?.role === 'assistant' && line.studio?.screenKey === screenKey) {
+      index = lineIndex
+      break
+    }
+  }
+  if (index < 0) {
+    return [
+      ...lines,
+      {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content,
+        studio,
+        createdAt: lineCreatedAt(),
+      },
+    ]
+  }
+  return lines.map((line, lineIndex) =>
+    lineIndex === index ? { ...line, content, studio, createdAt: lineCreatedAt() } : line
+  )
+}
+
+function ensureApprovedMockupTimelineLine(
+  lines: ChatLine[],
+  mockupUrl: string | undefined,
+  processSteps: HubStudioProcessStep[] | undefined,
+  fallbackContent: string
+): ChatLine[] {
+  if (!mockupUrl) return lines
+  const hasMockupLine = lines.some(
+    (line) =>
+      line.role === 'assistant' &&
+      line.studio?.screenKey === 'box_mockup_3d' &&
+      Boolean(line.studio.imageUrl)
+  )
+  if (hasMockupLine) {
+    return markApprovedPackagingMockupLine(lines, 'box_mockup_3d', mockupUrl)
+  }
+  return [
+    ...lines,
+    {
+      id: `a-mockup-${Date.now()}`,
+      role: 'assistant',
+      content: fallbackContent,
+      studio: {
+        imageUrl: mockupUrl,
+        screenKey: 'box_mockup_3d',
+        screenLabel: 'Mockup 3D',
+        processSteps,
+        showApproveReference: false,
+        showRegenerate: true,
+      },
+      createdAt: lineCreatedAt(),
+    },
+  ]
 }
 
 function replaceLatestStudioImageLine(
@@ -158,7 +281,7 @@ function collapseDuplicateStudioImageLines(lines: ChatLine[]): ChatLine[] {
   })
 }
 
-function updateLatestStudioImageUrl(
+function markApprovedPackagingMockupLine(
   lines: ChatLine[],
   screenKey: string,
   imageUrl: string | undefined
@@ -173,12 +296,28 @@ function updateLatestStudioImageUrl(
     ) {
       return lines.map((item, index) =>
         index === lineIndex
-          ? { ...item, studio: { ...item.studio!, imageUrl } }
+          ? {
+              ...item,
+              studio: {
+                ...item.studio!,
+                imageUrl,
+                showApproveReference: false,
+                showRegenerate: true,
+              },
+            }
           : item
       )
     }
   }
   return lines
+}
+
+function updateLatestStudioImageUrl(
+  lines: ChatLine[],
+  screenKey: string,
+  imageUrl: string | undefined
+): ChatLine[] {
+  return markApprovedPackagingMockupLine(lines, screenKey, imageUrl)
 }
 
 function stepStatusIcon(status: string) {
@@ -207,6 +346,14 @@ function threadListLabel(thread: HubChatThreadSummary, locale: WebLocale): strin
   return thread.title.trim() || 'NanoAI chat'
 }
 
+const STEP_INPUT_PLACEHOLDER: Record<WebLocale, string> = {
+  vi: 'Nhập nội dung in hoặc mô tả…',
+  en: 'Enter print content or description…',
+  zh: '输入印刷内容或描述…',
+  ja: '印刷内容または説明を入力…',
+  ko: '인쇄 내용 또는 설명 입력…',
+}
+
 export function HomeHubChatBar() {
   const router = useRouter()
   const { toast } = useToast()
@@ -222,6 +369,21 @@ export function HomeHubChatBar() {
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false)
   const [regeneratePromptDraft, setRegeneratePromptDraft] = useState('')
   const [regenerateTargetStepKey, setRegenerateTargetStepKey] = useState<string | null>(null)
+  const [pendingFeatureOpen, setPendingFeatureOpen] = useState<{
+    href: string
+    prefillPrompt: string
+    label: string
+  } | null>(null)
+  const [showFeaturePicker, setShowFeaturePicker] = useState(true)
+  const [reenteringBoxSize, setReenteringBoxSize] = useState(false)
+  const [faceUploadConfirmOpen, setFaceUploadConfirmOpen] = useState(false)
+  const [pendingFaceUpload, setPendingFaceUpload] = useState<{
+    file: File
+    previewUrl: string
+    faceLabel: string
+    sizeLabel: string
+    userLabel: string
+  } | null>(null)
   const [editingLineId, setEditingLineId] = useState<string | null>(null)
   const [editingStepKey, setEditingStepKey] = useState<string | null>(null)
   const [chatThreads, setChatThreads] = useState<HubChatThreadSummary[]>([])
@@ -233,8 +395,10 @@ export function HomeHubChatBar() {
   const studioFileRef = useRef<HTMLInputElement>(null)
   const studioLogoFileRef = useRef<HTMLInputElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
+  const studioWorkflowAnchorRef = useRef<HTMLDivElement>(null)
   const studioTextareaRef = useRef<HTMLTextAreaElement>(null)
   const postInFlightRef = useRef(false)
+  const prevStudioStepKeyRef = useRef<string | null>(null)
   const studioLaunchStartedRef = useRef(false)
   const loadThreadEpochRef = useRef(0)
   const searchParams = useSearchParams()
@@ -245,8 +409,38 @@ export function HomeHubChatBar() {
     el.scrollTo({ top: el.scrollHeight, behavior })
   }, [])
 
+  const scrollStudioWorkflowIntoView = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    studioWorkflowAnchorRef.current?.scrollIntoView({ behavior, block: 'end' })
+  }, [])
+
+  const shouldPinStudioWorkflowView = Boolean(
+    studioSession?.pendingPreview?.url &&
+      studioSession.pendingPreview.screenKey === getActiveStepKey(studioSession)
+  )
+
   useEffect(() => {
     if (lines.length === 0) return
+    if (shouldPinStudioWorkflowView && !busy) {
+      scrollStudioWorkflowIntoView('smooth')
+      scrollChatToBottom('auto')
+      const t1 = window.setTimeout(() => {
+        scrollStudioWorkflowIntoView('auto')
+        scrollChatToBottom('auto')
+      }, 80)
+      const t2 = window.setTimeout(() => {
+        scrollStudioWorkflowIntoView('auto')
+        scrollChatToBottom('auto')
+      }, 320)
+      const t3 = window.setTimeout(() => {
+        scrollStudioWorkflowIntoView('auto')
+        scrollChatToBottom('auto')
+      }, 900)
+      return () => {
+        window.clearTimeout(t1)
+        window.clearTimeout(t2)
+        window.clearTimeout(t3)
+      }
+    }
     scrollChatToBottom()
     const t1 = window.setTimeout(() => scrollChatToBottom(), 80)
     const t2 = window.setTimeout(() => scrollChatToBottom(), 320)
@@ -254,7 +448,7 @@ export function HomeHubChatBar() {
       window.clearTimeout(t1)
       window.clearTimeout(t2)
     }
-  }, [lines, busy, scrollChatToBottom])
+  }, [lines, busy, scrollChatToBottom, scrollStudioWorkflowIntoView, shouldPinStudioWorkflowView])
 
   useEffect(() => {
     if (!studioSession?.presetId) {
@@ -387,6 +581,15 @@ export function HomeHubChatBar() {
 
   const t = useMemo(() => getDictionary(uiLocale), [uiLocale])
   const hc = t.hubChat
+  const featureCatalogGroups = useMemo(
+    () => groupHubFeatureCatalog(uiLocale),
+    [uiLocale]
+  )
+  const postFlowFeatureGroups = useMemo(
+    () => groupPostFlowFeatureCatalog(uiLocale, studioSession?.presetId),
+    [studioSession?.presetId, uiLocale]
+  )
+  const showPostFlowSuggestions = isStudioFlowComplete(studioSession)
 
   const fetchThreadList = useCallback(async () => {
     setThreadsLoading(true)
@@ -481,7 +684,7 @@ export function HomeHubChatBar() {
 
   const modelLabel = HUB_CHAT_MODELS[0]!.label[uiLocale]
 
-  const startNewThread = () => {
+  const startNewThread = useCallback(() => {
     loadThreadEpochRef.current += 1
     clearHubThreadId()
     setThreadId(null)
@@ -490,8 +693,15 @@ export function HomeHubChatBar() {
     setActivePlanRow(null)
     setStudioSession(null)
     setMessage('')
+    setSelectedGenRefKeys([])
+    setEditingLineId(null)
+    setEditingStepKey(null)
+    setPendingFaceUpload(null)
+    setFaceUploadConfirmOpen(false)
+    setRegenerateDialogOpen(false)
+    setRegenerateTargetStepKey(null)
     studioLaunchStartedRef.current = false
-  }
+  }, [])
 
   const postStudio = useCallback(
     async (payload: {
@@ -506,14 +716,28 @@ export function HomeHubChatBar() {
       navigateStepKey?: string
       regenerateStepKey?: string
       facePrintStyle?: string
+      printLanguage?: string
+      printLanguageDetail?: string
+      labelAspectRatio?: string
+      labelShape?: FlatStickerShape
+      discoveryChoice?: string
+      discoveryChoiceStep?: string
+      colorPaletteKeys?: string[]
+      colorPaletteSelection?: StudioColorSelection[]
       boxDimensionsMm?: { length: number; width: number; height: number }
       boxProduction?: TuckBoxProductionParams
-    }) => {
-      if (busy || postInFlightRef.current) return
+      barcodeEntries?: PackagingBarcodeFormEntry[]
+      forceNewThread?: boolean
+      featureKey?: string
+    }): Promise<boolean> => {
+      if (busy || postInFlightRef.current) return false
       const silent =
         payload.action === 'set_generation_refs' ||
         payload.action === 'remove_generation_product' ||
-        payload.action === 'navigate_step'
+        payload.action === 'navigate_step' ||
+        payload.action === 'set_print_language' ||
+        payload.action === 'set_label_aspect_ratio' ||
+        payload.action === 'set_label_shape'
       const stepKeyAtSend = getActiveStepKey(studioSession)
       let optimisticUserId: string | null = null
       if (payload.action === 'start_preset' && payload.presetId && studioLaunchStartedRef.current) {
@@ -546,6 +770,39 @@ export function HomeHubChatBar() {
           },
         ])
       }
+      if (payload.action === 'select_feature' && payload.featureKey) {
+        const entry = getHubFeatureCatalogEntry(uiLocale, payload.featureKey)
+        if (entry) {
+          loadThreadEpochRef.current += 1
+          setShowThreadList(false)
+          optimisticUserId = `u-pending-${Date.now()}`
+          setLines((prev) => [
+            ...prev,
+            {
+              id: optimisticUserId!,
+              role: 'user',
+              content: entry.label,
+              createdAt: lineCreatedAt(),
+            },
+          ])
+        }
+      }
+      if (payload.action === 'generate_current_step' && payload.message?.trim()) {
+        loadThreadEpochRef.current += 1
+        setShowThreadList(false)
+        optimisticUserId = `u-pending-${Date.now()}`
+        setLines((prev) => [
+          ...prev,
+          {
+            id: optimisticUserId!,
+            role: 'user',
+            content: payload.message!.trim(),
+            stepKey: stepKeyAtSend ?? undefined,
+            studio: stepKeyAtSend ? { stepKey: stepKeyAtSend } : undefined,
+            createdAt: lineCreatedAt(),
+          },
+        ])
+      }
       postInFlightRef.current = true
       setBusy(true)
       try {
@@ -556,7 +813,7 @@ export function HomeHubChatBar() {
           body: JSON.stringify({
             mode: 'studio',
             locale: uiLocale,
-            threadId,
+            threadId: payload.forceNewThread ? null : threadId,
             message: payload.message ?? '',
             action: payload.action ?? 'message',
             presetId: payload.presetId,
@@ -568,8 +825,18 @@ export function HomeHubChatBar() {
             navigateStepKey: payload.navigateStepKey,
             regenerateStepKey: payload.regenerateStepKey,
             facePrintStyle: payload.facePrintStyle,
+            printLanguage: payload.printLanguage,
+            printLanguageDetail: payload.printLanguageDetail,
+            labelAspectRatio: payload.labelAspectRatio,
+            labelShape: payload.labelShape,
+            discoveryChoice: payload.discoveryChoice,
+            discoveryChoiceStep: payload.discoveryChoiceStep,
+            colorPaletteKeys: payload.colorPaletteKeys,
+            colorPaletteSelection: payload.colorPaletteSelection,
             boxDimensionsMm: payload.boxDimensionsMm,
             boxProduction: payload.boxProduction,
+            barcodeEntries: payload.barcodeEntries,
+            featureKey: payload.featureKey,
           }),
         })
         const data = (await res.json().catch(() => ({}))) as {
@@ -581,6 +848,7 @@ export function HomeHubChatBar() {
           threadId?: string
           workflows?: HubChatWorkflowSuggestion[]
           plan?: HubChatPlanPayload | null
+          showFeaturePicker?: boolean
           threadMessages?: {
             id: string
             role: 'user' | 'assistant'
@@ -594,7 +862,7 @@ export function HomeHubChatBar() {
           const next = sanitizeLoginNext(typeof window !== 'undefined' ? window.location.pathname : '/')
           router.push(`/auth/login?next=${encodeURIComponent(next)}`)
           toast({ title: hc.loginRequired, variant: 'destructive' })
-          return
+          return false
         }
         if (!res.ok) throw new Error(data.error || hc.errorGeneric)
         if (data.threadId) {
@@ -622,7 +890,7 @@ export function HomeHubChatBar() {
               },
             ])
           }
-          return
+          return true
         }
         if (payload.action === 'edit_step') {
           if (data.threadMessages?.length) {
@@ -648,7 +916,7 @@ export function HomeHubChatBar() {
           }
           if (typeof window !== 'undefined') window.dispatchEvent(new Event('credits-updated'))
           void fetchThreadList()
-          return
+          return true
         }
         if (payload.action === 'revert_pending_image') {
           const screenKey =
@@ -673,14 +941,28 @@ export function HomeHubChatBar() {
             if (session) setStudioSession(session)
           }
           void fetchThreadList()
-          return
+          return true
         }
         if (payload.action === 'start_preset' && payload.presetId) {
+          const launchId = parseHubStudioLaunchId(payload.presetId)
           const title =
-            studioLaunchStartedRef.current && parseHubStudioLaunchId(payload.presetId)
-              ? hubStudioLaunchPrompt(payload.presetId, uiLocale)
+            studioLaunchStartedRef.current && launchId
+              ? hubStudioLaunchPrompt(launchId, uiLocale)
               : presetTitle(uiLocale, payload.presetId)
           setLines([{ id: `u-${Date.now()}`, role: 'user', content: title, createdAt: lineCreatedAt() }])
+        } else if (payload.action === 'generate_current_step' && payload.message?.trim() && optimisticUserId) {
+          setLines((prev) =>
+            prev.map((line) =>
+              line.id === optimisticUserId
+                ? {
+                    ...line,
+                    id: data.userMessageId ?? line.id,
+                    stepKey: stepKeyAtSend ?? line.stepKey,
+                    studio: stepKeyAtSend ? { stepKey: stepKeyAtSend } : line.studio,
+                  }
+                : line
+            )
+          )
         } else if (payload.action === 'message' && payload.message?.trim() && optimisticUserId) {
           setLines((prev) =>
             prev.map((line) =>
@@ -696,36 +978,95 @@ export function HomeHubChatBar() {
           )
         }
         const replyContent = data.reply ?? hc.fallbackReply
-        const studioImageKey = data.studio?.screenKey
-        const hasStudioImage = Boolean(studioImageKey && data.studio?.imageUrl)
+        const studioStepKey = data.studio?.screenKey
+        const hasStudioImage = Boolean(studioStepKey && data.studio?.imageUrl)
+        const hasStudioArtifact = Boolean(
+          studioStepKey &&
+            !data.studio?.imageUrl &&
+            (data.studio?.artifactUrl ||
+              (data.studio?.dielineArtifacts?.length ?? 0) > 0 ||
+              (data.studio?.barcodeArtifacts?.length ?? 0) > 0)
+        )
+        const preserveMockupTimeline =
+          (payload.action === 'approve_reference' || payload.action === 'regenerate') &&
+          data.session?.packaging?.mockupUrl
         if (hasStudioImage) {
-          setLines((prev) =>
-            replaceLatestStudioImageLine(prev, studioImageKey, replyContent, data.studio)
-          )
+          setLines((prev) => {
+            let next = replaceLatestStudioImageLine(prev, studioStepKey, replyContent, data.studio)
+            if (preserveMockupTimeline) {
+              next = ensureApprovedMockupTimelineLine(
+                next,
+                data.session!.packaging!.mockupUrl,
+                data.session?.processSteps,
+                replyContent
+              )
+            }
+            return next
+          })
+        } else if (hasStudioArtifact) {
+          setLines((prev) => {
+            let next = replaceLatestStudioStepLine(prev, studioStepKey, replyContent, data.studio)
+            if (preserveMockupTimeline) {
+              next = ensureApprovedMockupTimelineLine(
+                next,
+                data.session!.packaging!.mockupUrl,
+                data.session?.processSteps,
+                replyContent
+              )
+            }
+            return next
+          })
         } else {
-          setLines((prev) => [
-            ...prev,
-            {
-              id: `a-${Date.now()}`,
-              role: 'assistant',
-              content: replyContent,
-              studio: data.studio ?? null,
-              workflows: Array.isArray(data.workflows) ? data.workflows : undefined,
-              plan: data.plan ?? undefined,
-              createdAt: lineCreatedAt(),
-            },
-          ])
+          setLines((prev) => {
+            let next: ChatLine[] = [
+              ...prev,
+              {
+                id: `a-${Date.now()}`,
+                role: 'assistant',
+                content: replyContent,
+                studio: data.studio ?? null,
+                workflows: Array.isArray(data.workflows) ? data.workflows : undefined,
+                plan: data.plan ?? undefined,
+                createdAt: lineCreatedAt(),
+              },
+            ]
+            if (preserveMockupTimeline) {
+              next = ensureApprovedMockupTimelineLine(
+                next,
+                data.session!.packaging!.mockupUrl,
+                data.session?.processSteps,
+                replyContent
+              )
+            }
+            return next
+          })
         }
         if (data.session) {
           const session = withClientStudioSession(data.session, uiLocale)
-          if (session) setStudioSession(session)
+          if (session) {
+            setStudioSession(session)
+            const activeKey = getActiveStepKey(session)
+            if (
+              activeKey &&
+              session.pendingPreview?.url &&
+              session.pendingPreview.screenKey === activeKey
+            ) {
+              setMessage('')
+            }
+          }
         }
         if (data.plan) {
           setActivePlan(data.plan)
           void fetchFullPlan(data.plan.id)
         }
+        if (typeof data.showFeaturePicker === 'boolean') {
+          setShowFeaturePicker(data.showFeaturePicker)
+        } else if (data.session?.presetId) {
+          setShowFeaturePicker(false)
+        }
         if (typeof window !== 'undefined') window.dispatchEvent(new Event('credits-updated'))
         void fetchThreadList()
+        return true
       } catch (e) {
         const msg = e instanceof Error ? e.message : hc.errorGeneric
         toast({ title: hc.errorGeneric, description: msg, variant: 'destructive' })
@@ -733,12 +1074,28 @@ export function HomeHubChatBar() {
           setEditingLineId(null)
           setEditingStepKey(null)
         }
+        if (payload.action === 'message' && optimisticUserId) {
+          setLines((prev) => prev.filter((line) => line.id !== optimisticUserId))
+        }
+        if (payload.action === 'generate_current_step' && optimisticUserId) {
+          setLines((prev) => prev.filter((line) => line.id !== optimisticUserId))
+        }
+        return false
       } finally {
         postInFlightRef.current = false
         setBusy(false)
       }
     },
     [busy, fetchFullPlan, fetchThreadList, hc, loadThread, router, studioSession, threadId, toast, uiLocale, editingStepKey]
+  )
+
+  const beginFeatureInNewThread = useCallback(
+    async (featureKey: string) => {
+      startNewThread()
+      studioLaunchStartedRef.current = true
+      await postStudio({ action: 'select_feature', featureKey, forceNewThread: true })
+    },
+    [postStudio, startNewThread]
   )
 
   const postGenerationProductUpload = useCallback(
@@ -767,7 +1124,7 @@ export function HomeHubChatBar() {
           const next = sanitizeLoginNext(typeof window !== 'undefined' ? window.location.pathname : '/')
           router.push(`/auth/login?next=${encodeURIComponent(next)}`)
           toast({ title: hc.loginRequired, variant: 'destructive' })
-          return
+          return false
         }
         if (!res.ok) throw new Error(data.error || hc.errorGeneric)
         if (data.threadId) {
@@ -844,7 +1201,7 @@ export function HomeHubChatBar() {
           const next = sanitizeLoginNext(typeof window !== 'undefined' ? window.location.pathname : '/')
           router.push(`/auth/login?next=${encodeURIComponent(next)}`)
           toast({ title: hc.loginRequired, variant: 'destructive' })
-          return
+          return false
         }
         if (!res.ok) throw new Error(data.error || hc.errorGeneric)
         if (data.threadId) {
@@ -903,7 +1260,7 @@ export function HomeHubChatBar() {
           const next = sanitizeLoginNext(typeof window !== 'undefined' ? window.location.pathname : '/')
           router.push(`/auth/login?next=${encodeURIComponent(next)}`)
           toast({ title: hc.loginRequired, variant: 'destructive' })
-          return
+          return false
         }
         if (!res.ok) throw new Error(data.error || hc.errorGeneric)
         if (data.threadId) {
@@ -964,7 +1321,7 @@ export function HomeHubChatBar() {
           const next = sanitizeLoginNext(typeof window !== 'undefined' ? window.location.pathname : '/')
           router.push(`/auth/login?next=${encodeURIComponent(next)}`)
           toast({ title: hc.loginRequired, variant: 'destructive' })
-          return
+          return false
         }
         if (!res.ok) throw new Error(data.error || hc.errorGeneric)
         if (data.threadId) {
@@ -998,6 +1355,72 @@ export function HomeHubChatBar() {
     },
     [busy, hc, router, threadId, toast, uiLocale]
   )
+
+  const resolveFaceUploadFaceLabel = useCallback(
+    (stepKey: string) => {
+      const slot = packagingStepKeyToSlot(stepKey)
+      if (slot) return getBoxFaceSlotLabel(slot, uiLocale)
+      if (studioSession?.presetId) {
+        const flow = getFlowSteps(studioSession.presetId).find((s) => s.key === stepKey)
+        return presetStepLabel(uiLocale, studioSession.presetId, flow?.labelKey ?? stepKey)
+      }
+      return stepKey
+    },
+    [studioSession, uiLocale]
+  )
+
+  const queueStudioFaceUpload = useCallback(
+    (files: FileList | File[], stepKey?: string | null) => {
+      if (busy) return
+      const list = Array.from(files).filter((f) => f.size > 0)
+      if (!list.length) return
+
+      const resolvedStepKey =
+        stepKey ??
+        (studioSession ? getActiveStepKey(studioSession) : null) ??
+        studioSession?.currentStepKey ??
+        null
+      if (!resolvedStepKey) return
+
+      const file = list[0]
+      const faceLabel = resolveFaceUploadFaceLabel(resolvedStepKey)
+      let sizeLabel = hc.studioFaceUploadConfirmSizeUnknown
+      if (studioSession?.packaging?.dimensionsMm) {
+        const size = getPackagingFaceSizeForStep(studioSession.packaging.dimensionsMm, resolvedStepKey)
+        if (size) sizeLabel = formatMmSize(uiLocale, size.widthMm, size.heightMm)
+      }
+      const userLabel = hc.studioFaceUploadUserLabel.replace('{face}', faceLabel)
+      const previewUrl = URL.createObjectURL(file)
+      setPendingFaceUpload({ file, previewUrl, faceLabel, sizeLabel, userLabel })
+      setFaceUploadConfirmOpen(true)
+    },
+    [busy, hc, resolveFaceUploadFaceLabel, studioSession, uiLocale]
+  )
+
+  const handleFaceUploadConfirmOpenChange = useCallback((open: boolean) => {
+    setFaceUploadConfirmOpen(open)
+    if (!open) {
+      setPendingFaceUpload((prev) => {
+        if (prev) URL.revokeObjectURL(prev.previewUrl)
+        return null
+      })
+    }
+  }, [])
+
+  const confirmPendingFaceUpload = useCallback(async () => {
+    if (!pendingFaceUpload || busy) return
+    const { file, userLabel, previewUrl } = pendingFaceUpload
+    setFaceUploadConfirmOpen(false)
+    setPendingFaceUpload(null)
+    URL.revokeObjectURL(previewUrl)
+    await postStudioFaceUpload([file], userLabel)
+  }, [busy, pendingFaceUpload, postStudioFaceUpload])
+
+  useEffect(() => {
+    return () => {
+      if (pendingFaceUpload) URL.revokeObjectURL(pendingFaceUpload.previewUrl)
+    }
+  }, [pendingFaceUpload])
 
   const showGenRefPicker = useMemo(() => {
     if (!studioSession?.presetId || !studioSession.discoveryComplete || !studioSession.currentStepKey) {
@@ -1097,7 +1520,15 @@ export function HomeHubChatBar() {
     if (!studioSession?.presetId || !studioSession.discoveryComplete) return false
     const logoKey = getPrimaryLogoStepKey(studioSession.presetId)
     if (!logoKey) return false
-    const onLogoStep = studioSession.currentStepKey === logoKey
+    const activeStepKey = getActiveStepKey(studioSession)
+    if (
+      activeStepKey &&
+      isPackagingFaceStepKey(activeStepKey) &&
+      studioSession.pendingPreview?.screenKey === activeStepKey
+    ) {
+      return false
+    }
+    const onLogoStep = activeStepKey === logoKey
     if (
       onLogoStep &&
       studioSession.presetId &&
@@ -1108,26 +1539,67 @@ export function HomeHubChatBar() {
     if (hasPrimaryLogoReference(studioSession.referenceImages, studioSession.presetId)) return false
     const blockingLogo =
       findBlockingIncompleteStep(studioSession, studioSession.presetId) === logoKey
-    return onLogoStep || blockingLogo
+    return (
+      onLogoStep ||
+      (blockingLogo && (!activeStepKey || !isPackagingFaceStepKey(activeStepKey)))
+    )
   }, [studioSession])
 
   const activeStepPreview = useMemo(() => {
     if (!studioSession?.presetId || !studioSession.pendingPreview?.url) return null
     const activeKey = getActiveStepKey(studioSession)
     if (!activeKey || studioSession.pendingPreview.screenKey !== activeKey) return null
-    if (!isNavigatedBackEdit(studioSession, studioSession.presetId)) return null
+    const reEditing =
+      isNavigatedBackEdit(studioSession, studioSession.presetId) ||
+      isPackagingFaceReEdit(studioSession, activeKey)
+    if (!reEditing) return null
     return buildPendingStepStudio(studioSession, activeKey, studioSession.presetId)
   }, [studioSession])
-
-  const activePreviewFaceSlot = useMemo(() => {
-    if (!activeStepPreview?.screenKey || !isPackagingFaceStepKey(activeStepPreview.screenKey)) return null
-    return packagingStepKeyToSlot(activeStepPreview.screenKey)
-  }, [activeStepPreview])
 
   const showFacePrintStylePicker = useMemo(() => {
     if (studioSession?.presetId !== 'packaging_kit') return false
     if (studioSession.discoveryComplete) return false
-    return getActiveStepKey(studioSession) === 'face_print_style'
+    const step = getActiveStepKey(studioSession)
+    return getPackagingDiscoveryInputKind(step, { reenteringBoxSize }) === 'face_print_style_picker'
+  }, [studioSession, reenteringBoxSize])
+
+  const showBoxFaceConfirmActions = useMemo(() => {
+    if (studioSession?.presetId !== 'packaging_kit') return false
+    if (studioSession.discoveryComplete) return false
+    const step = getActiveStepKey(studioSession)
+    if (reenteringBoxSize) return false
+    return getPackagingDiscoveryInputKind(step) === 'box_face_confirm'
+  }, [studioSession, reenteringBoxSize])
+
+  const showPrintLanguagePicker = useMemo(() => {
+    if (studioSession?.presetId !== 'packaging_kit') return false
+    if (studioSession.discoveryComplete) return false
+    const step = getActiveStepKey(studioSession)
+    return getPackagingDiscoveryInputKind(step) === 'print_language_picker'
+  }, [studioSession])
+
+  const selectedPrintLanguageKey = useMemo(
+    () => resolvePrintLanguageKey(studioSession?.briefNotes ?? {}),
+    [studioSession?.briefNotes]
+  )
+
+  const selectedPrintLanguageDetail = useMemo(
+    () => studioSession?.briefNotes?.print_language_detail?.trim() ?? '',
+    [studioSession?.briefNotes?.print_language_detail]
+  )
+
+  const showStyleMoodPicker = useMemo(() => {
+    if (studioSession?.presetId !== 'packaging_kit') return false
+    if (studioSession.discoveryComplete) return false
+    const step = getActiveStepKey(studioSession)
+    return getPackagingDiscoveryInputKind(step) === 'style_mood_picker'
+  }, [studioSession])
+
+  const showColorPalettePicker = useMemo(() => {
+    if (!studioSession?.presetId) return false
+    if (studioSession.discoveryComplete) return false
+    const step = getActiveStepKey(studioSession)
+    return isStudioColorPalettePickerStep(step)
   }, [studioSession])
 
   const hideInlineDielinePreview = getActiveStepKey(studioSession) === 'box_face_confirm'
@@ -1138,18 +1610,130 @@ export function HomeHubChatBar() {
     return step === 'box_mockup_3d' || step === 'box_dieline_pdf'
   }, [studioSession])
 
+  const currentDesignGenerator = useMemo(() => {
+    if (!studioSession?.presetId || !studioSession.discoveryComplete) return null
+    const stepKey = getActiveStepKey(studioSession)
+    if (!stepKey) return null
+    return getStepGenerator(studioSession.presetId, stepKey)
+  }, [studioSession])
+
+  const hideStepInputComposer = useMemo(
+    () => (studioSession ? pendingPreviewBlocksWorkflowInput(studioSession) : false),
+    [studioSession]
+  )
+
+  const showPendingStepContinue = hideStepInputComposer
+
   const showBoxDimensionForm = useMemo(() => {
     if (studioSession?.presetId !== 'packaging_kit') return false
     const step = getActiveStepKey(studioSession)
-    return step === 'box_size' || step === 'box_size_length' || step === 'box_size_width' || step === 'box_size_height'
+    return getPackagingDiscoveryInputKind(step, { reenteringBoxSize }) === 'box_dimensions'
+  }, [studioSession, reenteringBoxSize])
+
+  const showBarcodeLabelForm = useMemo(() => {
+    if (studioSession?.presetId !== 'packaging_kit') return false
+    if (!studioSession.discoveryComplete) return false
+    const step = getActiveStepKey(studioSession)
+    if (step !== 'barcode_label') return false
+    return !pendingPreviewBlocksWorkflowInput(studioSession)
   }, [studioSession])
-  const showStudioTextarea =
-    !showFacePrintStylePicker && !showBoxDimensionForm && !hideAutoPackagingArtifactStep
+
+  const showLabelAspectRatioPicker = useMemo(() => {
+    if (studioSession?.presetId !== 'packaging_kit') return false
+    if (!studioSession.discoveryComplete) return false
+    const step = getActiveStepKey(studioSession)
+    if (step !== 'product_label' && step !== 'seal_sticker') return false
+    return !pendingPreviewBlocksWorkflowInput(studioSession)
+  }, [studioSession])
+
+  const labelAspectRatioPickerVariant = useMemo((): 'product_label' | 'seal_sticker' => {
+    const step = studioSession ? getActiveStepKey(studioSession) : null
+    return step === 'seal_sticker' ? 'seal_sticker' : 'product_label'
+  }, [studioSession])
+
+  const selectedLabelAspectRatio = useMemo(() => {
+    const step = studioSession ? getActiveStepKey(studioSession) : null
+    if (step === 'seal_sticker') {
+      return studioSession?.packaging?.sealStickerAspectRatio ?? DEFAULT_SEAL_STICKER_ASPECT_RATIO
+    }
+    return studioSession?.packaging?.productLabelAspectRatio ?? DEFAULT_PRODUCT_LABEL_ASPECT_RATIO
+  }, [
+    studioSession?.packaging?.productLabelAspectRatio,
+    studioSession?.packaging?.sealStickerAspectRatio,
+    studioSession,
+  ])
+
+  const selectedLabelShape = useMemo((): FlatStickerShape => {
+    if (!studioSession) {
+      return labelAspectRatioPickerVariant === 'seal_sticker'
+        ? DEFAULT_SEAL_STICKER_SHAPE
+        : DEFAULT_PRODUCT_LABEL_SHAPE
+    }
+    return labelAspectRatioPickerVariant === 'seal_sticker'
+      ? resolveSealStickerShape(studioSession.packaging)
+      : resolveProductLabelShape(studioSession.packaging)
+  }, [studioSession, labelAspectRatioPickerVariant])
+
+  const showGenerateCurrentStep = Boolean(
+    studioSession?.presetId &&
+      studioSession.discoveryComplete &&
+      studioSession.currentStepKey &&
+      currentDesignGenerator &&
+      !showBarcodeLabelForm &&
+      !(studioSession && pendingPreviewBlocksWorkflowInput(studioSession))
+  )
+
+  const generateCurrentStepLabel =
+    currentDesignGenerator === 'lyria_music'
+      ? hc.studioGenerateMusic
+      : currentDesignGenerator === 'packaging_face'
+        ? hc.studioGenerateFace
+        : currentDesignGenerator === 'packaging_mockup' ||
+            currentDesignGenerator === 'dieline_pdf' ||
+            currentDesignGenerator === 'barcode'
+          ? hc.studioGenerateArtifact
+          : hc.studioGenerateCurrent
+
+  const generateCanRunWithoutBrief =
+    currentDesignGenerator === 'packaging_mockup' ||
+    currentDesignGenerator === 'dieline_pdf'
+
+  const currentStepHasBrief = Boolean(
+    studioSession?.currentStepKey &&
+      studioSession.briefNotes[studioSession.currentStepKey]?.trim()
+  )
+  const currentStepDraftBrief = message.trim()
+  const canGenerateCurrentStep = Boolean(
+    generateCanRunWithoutBrief ||
+      currentStepHasBrief ||
+      (currentStepDraftBrief.length >= 2 && isValidHubStudioMessage(currentStepDraftBrief))
+  )
+
+  const barcodeFormInitialEntries = useMemo((): PackagingBarcodeFormEntry[] => {
+    if (!studioSession) return []
+    const saved = studioSession.packaging?.barcodeFormEntries
+    if (saved?.length) return saved
+    return defaultBarcodeFormEntries(studioSession)
+  }, [studioSession])
+
+  const shouldAutoFocusStudioChat =
+    !hideStepInputComposer &&
+    !showFacePrintStylePicker &&
+    !showBoxFaceConfirmActions &&
+    !showStyleMoodPicker &&
+    !showColorPalettePicker &&
+    !showBoxDimensionForm &&
+    !showBarcodeLabelForm &&
+    !hideAutoPackagingArtifactStep
+
+  const focusStudioChat = useCallback(() => {
+    studioTextareaRef.current?.focus({ preventScroll: true })
+  }, [])
 
   useEffect(() => {
     if (
       busy ||
-      !showStudioTextarea ||
+      !shouldAutoFocusStudioChat ||
       editingLineId ||
       regenerateDialogOpen ||
       lines[lines.length - 1]?.role !== 'assistant'
@@ -1160,7 +1744,7 @@ export function HomeHubChatBar() {
       studioTextareaRef.current?.focus({ preventScroll: true })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [busy, editingLineId, lines, regenerateDialogOpen, showStudioTextarea])
+  }, [busy, editingLineId, lines, regenerateDialogOpen, shouldAutoFocusStudioChat])
 
   const packagingFaceSlot = useMemo(() => {
     if (studioSession?.presetId !== 'packaging_kit') return null
@@ -1282,7 +1866,11 @@ export function HomeHubChatBar() {
   }, [postStudio])
 
   const postStudioCrop = useCallback(
-    async (blob: Blob, printSizeMm: { widthMm: number; heightMm: number }) => {
+    async (
+      blob: Blob,
+      printSizeMm: { widthMm: number; heightMm: number },
+      screenKey?: string
+    ) => {
       if (busy) return
       setBusy(true)
       try {
@@ -1292,6 +1880,7 @@ export function HomeHubChatBar() {
         fd.append('locale', uiLocale)
         fd.append('cropWidthMm', String(printSizeMm.widthMm))
         fd.append('cropHeightMm', String(printSizeMm.heightMm))
+        if (screenKey) fd.append('cropScreenKey', screenKey)
         if (threadId) fd.append('threadId', threadId)
         fd.append('images', new File([blob], 'face-crop.png', { type: 'image/png' }))
         const res = await fetch('/api/hub-chat', { method: 'POST', credentials: 'same-origin', body: fd })
@@ -1314,14 +1903,15 @@ export function HomeHubChatBar() {
           setThreadId(data.threadId)
           saveHubThreadId(data.threadId)
         }
-        const screenKey =
+        const croppedScreenKey =
+          screenKey ??
+          data.studio?.screenKey ??
           data.session?.pendingPreview?.screenKey ??
-          studioSession?.pendingPreview?.screenKey ??
-          data.studio?.screenKey
+          studioSession?.pendingPreview?.screenKey
         setLines((prev) => {
           const next = replaceLatestStudioImageLine(
             prev,
-            screenKey,
+            croppedScreenKey,
             data.reply ?? hc.fallbackReply,
             data.studio
           )
@@ -1345,16 +1935,66 @@ export function HomeHubChatBar() {
     [busy, hc, router, studioSession, threadId, toast, uiLocale]
   )
 
-  const submitPackagingFaceAction = useCallback(
-    async (message: string) => {
-      await postStudio({ message, action: 'message' })
+  const submitFacePrintStyle = useCallback(
+    async (styleKey: FacePrintStyleKey) => {
+      await postStudio({ action: 'set_face_print_style', facePrintStyle: styleKey })
     },
     [postStudio]
   )
 
-  const submitFacePrintStyle = useCallback(
-    async (styleKey: FacePrintStyleKey) => {
-      await postStudio({ action: 'set_face_print_style', facePrintStyle: styleKey })
+  const submitBoxFaceConfirm = useCallback(async () => {
+    setReenteringBoxSize(false)
+    await postStudio({ action: 'confirm_box_face' })
+  }, [postStudio])
+
+  const submitPrintLanguage = useCallback(
+    async (languageKey: PackagingPrintLanguageKey, otherDetail?: string) => {
+      await postStudio({
+        action: 'set_print_language',
+        printLanguage: languageKey,
+        printLanguageDetail: otherDetail,
+      })
+    },
+    [postStudio]
+  )
+
+  const submitLabelAspectRatio = useCallback(
+    async (ratio: string) => {
+      await postStudio({
+        action: 'set_label_aspect_ratio',
+        labelAspectRatio: ratio,
+      })
+    },
+    [postStudio]
+  )
+
+  const submitLabelShape = useCallback(
+    async (shape: FlatStickerShape) => {
+      await postStudio({
+        action: 'set_label_shape',
+        labelShape: shape,
+      })
+    },
+    [postStudio]
+  )
+
+  const submitDiscoveryChoice = useCallback(
+    async (stepKey: string, choiceKey: string) => {
+      await postStudio({
+        action: 'set_discovery_choice',
+        discoveryChoice: choiceKey,
+        discoveryChoiceStep: stepKey,
+      })
+    },
+    [postStudio]
+  )
+
+  const submitColorPalette = useCallback(
+    async (selection: StudioColorSelection[]) => {
+      await postStudio({
+        action: 'set_color_palette',
+        colorPaletteSelection: selection,
+      })
     },
     [postStudio]
   )
@@ -1364,6 +2004,7 @@ export function HomeHubChatBar() {
       dimensionsMm: { length: number; width: number; height: number }
       production: TuckBoxProductionParams
     }) => {
+      setReenteringBoxSize(false)
       await postStudio({
         action: 'set_box_production',
         boxDimensionsMm: value.dimensionsMm,
@@ -1372,6 +2013,42 @@ export function HomeHubChatBar() {
     },
     [postStudio]
   )
+
+  const submitBarcodeLabels = useCallback(
+    async (entries: PackagingBarcodeFormEntry[]) => {
+      await postStudio({
+        action: 'generate_packaging_barcodes',
+        barcodeEntries: entries,
+      })
+    },
+    [postStudio]
+  )
+
+  useEffect(() => {
+    setReenteringBoxSize(false)
+  }, [studioSession?.currentStepKey])
+
+  useEffect(() => {
+    const stepKey = getActiveStepKey(studioSession)
+    if (!stepKey || !studioSession?.discoveryComplete) {
+      if (prevStudioStepKeyRef.current !== null) {
+        setMessage('')
+        prevStudioStepKeyRef.current = null
+      }
+      return
+    }
+    if (
+      studioSession.pendingPreview?.url &&
+      studioSession.pendingPreview.screenKey === stepKey
+    ) {
+      setMessage('')
+      return
+    }
+    if (prevStudioStepKeyRef.current !== stepKey) {
+      prevStudioStepKeyRef.current = stepKey
+      setMessage(studioSession.briefNotes[stepKey]?.trim() ?? '')
+    }
+  }, [studioSession])
 
   const studioInputPlaceholder = useMemo(() => {
     if (!studioSession?.presetId) {
@@ -1383,6 +2060,27 @@ export function HomeHubChatBar() {
     }
     const ask = getStepAskPrompt(uiLocale, studioSession.presetId, stepKey)
     return ask.trim() || hc.studioPlaceholder
+  }, [studioSession, uiLocale, hc.studioPlaceholder])
+
+  const activeStepSuggestions = useMemo(() => {
+    if (!isActiveStudioFlow(studioSession)) return []
+    return getStudioStepSuggestions(
+      studioSession?.presetId,
+      getActiveStepKey(studioSession),
+      uiLocale
+    )
+  }, [studioSession, uiLocale])
+
+  const chatInputPlaceholder = useMemo(() => {
+    if (studioSession?.discoveryComplete) {
+      return STEP_INPUT_PLACEHOLDER[uiLocale]
+    }
+    return getStudioStepInputPlaceholder(
+      studioSession?.presetId,
+      getActiveStepKey(studioSession),
+      uiLocale,
+      hc.studioPlaceholder
+    )
   }, [studioSession, uiLocale, hc.studioPlaceholder])
 
   const openWorkflow = (href: string, prefillPrompt: string, planCtx?: { planId: string; stepIndex: number }) => {
@@ -1406,18 +2104,98 @@ export function HomeHubChatBar() {
     openWorkflow(step.href, step.prefillPrompt, { planId: plan.id, stepIndex: step.stepIndex })
   }
 
+  const generateCurrentStep = useCallback(
+    async (text?: string) => {
+      const trimmed = (text ?? message).trim()
+      if (busy || postInFlightRef.current) {
+        toast({ title: hc.thinking, variant: 'default' })
+        return false
+      }
+      if (
+        !generateCanRunWithoutBrief &&
+        !isValidHubStudioMessage(trimmed) &&
+        !currentStepHasBrief
+      ) {
+        return false
+      }
+      const stepKey = getActiveStepKey(studioSession)
+      if (stepKey && trimmed) {
+        setStudioSession((prev) =>
+          prev
+            ? {
+                ...prev,
+                briefNotes: {
+                  ...prev.briefNotes,
+                  [stepKey]: trimmed,
+                },
+              }
+            : prev
+        )
+      }
+      return postStudio({
+        action: 'generate_current_step',
+        message: trimmed || undefined,
+        generationRefKeys: selectedGenRefKeys,
+      })
+    },
+    [
+      busy,
+      currentStepHasBrief,
+      generateCanRunWithoutBrief,
+      hc.thinking,
+      message,
+      postStudio,
+      selectedGenRefKeys,
+      studioSession,
+      toast,
+    ]
+  )
+
   const sendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
-      if (trimmed.length < 1 || busy || postInFlightRef.current || !isValidHubStudioMessage(trimmed)) return
-      setMessage('')
-      await postStudio({
+      if (trimmed.length < 1 || busy || postInFlightRef.current || !isValidHubStudioMessage(trimmed)) {
+        return
+      }
+      if (showGenerateCurrentStep) {
+        await generateCurrentStep(trimmed)
+        return
+      }
+      const stepKey = getActiveStepKey(studioSession)
+      if (stepKey && studioSession?.discoveryComplete) {
+        setStudioSession((prev) =>
+          prev
+            ? {
+                ...prev,
+                briefNotes: {
+                  ...prev.briefNotes,
+                  [stepKey]: trimmed,
+                },
+              }
+            : prev
+        )
+      }
+      const sent = await postStudio({
         message: trimmed,
         action: 'message',
         generationRefKeys: selectedGenRefKeys,
       })
+      if (sent && !studioSession?.discoveryComplete) {
+        setMessage('')
+      }
     },
-    [busy, postStudio, selectedGenRefKeys]
+    [busy, generateCurrentStep, postStudio, selectedGenRefKeys, showGenerateCurrentStep, studioSession]
+  )
+
+  const requestStartPreset = useCallback(
+    (presetId: string) => {
+      if (isActiveStudioFlow(studioSession)) {
+        toast({ title: hc.studioNewFlowThreadRequired, variant: 'default' })
+        return
+      }
+      void postStudio({ action: 'start_preset', presetId })
+    },
+    [hc.studioNewFlowThreadRequired, postStudio, studioSession, toast]
   )
 
   useEffect(() => {
@@ -1435,6 +2213,10 @@ export function HomeHubChatBar() {
 
     const launchId = consumeHubStudioLaunch()
     if (!launchId || studioLaunchStartedRef.current || busy || postInFlightRef.current) return
+    if (isActiveStudioFlow(studioSession)) {
+      toast({ title: hc.studioNewFlowThreadRequired, variant: 'default' })
+      return
+    }
 
     studioLaunchStartedRef.current = true
     loadThreadEpochRef.current += 1
@@ -1447,9 +2229,9 @@ export function HomeHubChatBar() {
     setMessage('')
     setShowThreadList(false)
 
-    void postStudio({ action: 'start_preset', presetId: launchId })
+    void postStudio({ action: 'start_preset', presetId: launchId, forceNewThread: true })
     window.setTimeout(() => scrollChatToBottom('auto'), 120)
-  }, [busy, postStudio, router, scrollChatToBottom, searchParams, searchParams.toString(), uiLocale])
+  }, [busy, hc.studioNewFlowThreadRequired, postStudio, router, scrollChatToBottom, searchParams, searchParams.toString(), studioSession, toast, uiLocale])
 
   const latestPlan = useMemo(() => {
     for (let i = lines.length - 1; i >= 0; i--) {
@@ -1477,17 +2259,34 @@ export function HomeHubChatBar() {
                 key={`${line.id}-${w.href}`}
                 className="flex flex-wrap items-center justify-between gap-2 rounded border border-white/60 bg-white/70 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-900/60"
               >
-                <span className="text-xs font-medium">
-                  {w.label || t.tool[w.labelKey as keyof typeof t.tool] || w.labelKey}
+                <span className="min-w-0 flex-1 text-xs font-medium">
+                  <span>{w.label || t.tool[w.labelKey as keyof typeof t.tool] || w.labelKey}</span>
+                  {w.reason && w.reason !== w.label ? (
+                    <span className="mt-0.5 block font-normal text-muted-foreground">{w.reason}</span>
+                  ) : null}
                 </span>
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="h-7 text-xs"
-                  onClick={() => openWorkflow(w.href, w.prefillPrompt)}
+                  className="h-7 shrink-0 text-xs"
+                  onClick={() => {
+                    if (isActiveStudioFlow(studioSession)) {
+                      toast({ title: hc.studioNewFlowThreadRequired, variant: 'default' })
+                      return
+                    }
+                    if (w.requiresOpenConfirm) {
+                      setPendingFeatureOpen({
+                        href: w.href,
+                        prefillPrompt: w.prefillPrompt,
+                        label: w.label || t.tool[w.labelKey as keyof typeof t.tool] || w.labelKey,
+                      })
+                      return
+                    }
+                    openWorkflow(w.href, w.prefillPrompt)
+                  }}
                 >
-                  {hc.openTool}
+                  {w.requiresOpenConfirm ? hc.advisoryOpenFeature : hc.openTool}
                 </Button>
               </li>
             ))}
@@ -1526,116 +2325,13 @@ export function HomeHubChatBar() {
   return (
     <div className="surface-card overflow-hidden border border-indigo-100/80 shadow-sm dark:border-indigo-900/40">
       <div className="border-b border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-3 sm:px-5 sm:py-4 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <h2 className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100 sm:text-lg">
-              <Sparkles className="h-5 w-5 text-indigo-600" />
-              {hc.title}
-            </h2>
-            <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">{hc.studioSubtitle}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-indigo-200 bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:border-indigo-800 dark:bg-slate-900/80 dark:text-indigo-300">
-              {hc.creditNote}
-            </span>
-            <span className="text-[11px] text-muted-foreground sm:text-xs">
-              {hc.modelLabel}:{' '}
-              <span className="font-medium text-slate-700 dark:text-slate-200">{modelLabel}</span>
-            </span>
-            {!threadsLoginRequired ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 gap-1 border-indigo-200 text-xs text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200"
-                onClick={() => {
-                  setShowThreadList((v) => !v)
-                  if (!threadsLoaded && !threadsLoading) void fetchThreadList()
-                }}
-                disabled={threadsLoading}
-              >
-                {threadsLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <History className="h-3.5 w-3.5" />
-                )}
-                {hc.chatHistory}
-                {chatThreads.length > 0 ? ` (${chatThreads.length})` : ''}
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 border-indigo-200 text-xs text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200"
-              onClick={startNewThread}
-              disabled={busy || (!threadId && lines.length === 0 && !studioSession)}
-            >
-              <MessageSquarePlus className="h-3.5 w-3.5" />
-              {hc.newThread}
-            </Button>
-          </div>
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100 sm:text-lg">
+            <Sparkles className="h-5 w-5 text-indigo-600" />
+            {hc.title}
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">{hc.studioSubtitle}</p>
         </div>
-        {showThreadList ? (
-          <div className="mt-3 rounded-lg border border-indigo-100 bg-white/70 px-2 py-2 dark:border-indigo-900 dark:bg-slate-900/50">
-            <p className="mb-1.5 px-1 text-xs font-medium text-indigo-900 dark:text-indigo-100">{hc.chatHistory}</p>
-            {threadsLoading ? (
-              <div className="flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                {hc.thinking}
-              </div>
-            ) : chatThreads.length === 0 ? (
-              <p className="px-1 py-2 text-xs text-muted-foreground">{hc.chatHistoryEmpty}</p>
-            ) : (
-              <ul className="max-h-44 space-y-1 overflow-y-auto">
-                {chatThreads.map((thread) => {
-                  const active = thread.id === threadId
-                  const subtitle =
-                    thread.presetId && thread.projectTitle
-                      ? presetTitle(uiLocale, thread.presetId)
-                      : thread.lastMessagePreview?.slice(0, 100) ?? null
-                  return (
-                    <li key={thread.id} className="flex items-stretch gap-0.5">
-                      <button
-                        type="button"
-                        disabled={busy || deletingThreadId === thread.id}
-                        onClick={() => void switchThread(thread.id)}
-                        className={`flex min-w-0 flex-1 flex-col rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:opacity-60 ${
-                          active
-                            ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-100'
-                            : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
-                        }`}
-                      >
-                        <span className="line-clamp-1 font-medium">{threadListLabel(thread, uiLocale)}</span>
-                        <span className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
-                          {formatThreadUpdatedAt(thread.updatedAt, uiLocale)}
-                          {subtitle ? ` · ${subtitle}` : null}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={hc.chatHistoryDelete}
-                        title={hc.chatHistoryDelete}
-                        disabled={busy || deletingThreadId === thread.id}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          void deleteThread(thread.id)
-                        }}
-                        className="flex shrink-0 items-center justify-center rounded-md px-2 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/30 dark:hover:text-red-400"
-                      >
-                        {deletingThreadId === thread.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        ) : null}
       </div>
 
       <div className="space-y-3 px-3 py-3 sm:px-5 sm:py-4">
@@ -1646,23 +2342,34 @@ export function HomeHubChatBar() {
               steps={studioSession.processSteps}
               currentStepKey={getActiveStepKey(studioSession)}
               labels={{
-                done: hc.studioNavigateStepHint,
+                done: isForwardOnlyStudioPreset(studioSession.presetId)
+                  ? hc.studioProcessForwardOnlyHint
+                  : hc.studioNavigateStepHint,
                 inProgress: '',
                 pending: '',
-                navigateHint: hc.studioNavigateStepHint,
+                navigateHint: isForwardOnlyStudioPreset(studioSession.presetId)
+                  ? hc.studioProcessForwardOnlyHint
+                  : hc.studioNavigateStepHint,
               }}
-              onNavigateStep={(stepKey) => {
-                void postStudio({ action: 'navigate_step', navigateStepKey: stepKey })
-              }}
+              onNavigateStep={
+                isForwardOnlyStudioPreset(studioSession.presetId)
+                  ? undefined
+                  : (stepKey) => {
+                      void postStudio({ action: 'navigate_step', navigateStepKey: stepKey })
+                    }
+              }
             />
           </div>
         ) : null}
 
         {lines.length > 0 && (
-          <div
-            ref={chatScrollRef}
-            className="max-h-80 space-y-2 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2 dark:border-slate-800 dark:bg-slate-900/40"
-          >
+          <div ref={studioWorkflowAnchorRef} className="space-y-3">
+            <div
+              ref={chatScrollRef}
+              className={`space-y-2 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2 dark:border-slate-800 dark:bg-slate-900/40 ${
+                shouldPinStudioWorkflowView ? 'max-h-[min(60vh,520px)]' : 'max-h-80'
+              }`}
+            >
             {displayLines.map((line) => {
               const displayLine =
                 hideInlineDielinePreview && line.studio?.boxWireframeSvg
@@ -1705,22 +2412,13 @@ export function HomeHubChatBar() {
                     }}
                     onRegenerate={openRegenerateDialog}
                     onApproveReference={() => void postStudio({ action: 'approve_reference' })}
-                    onCropImage={(blob, sizeMm) => postStudioCrop(blob, sizeMm)}
+                    onCropImage={(blob, sizeMm, screenKey) => void postStudioCrop(blob, sizeMm, screenKey)}
                     onOutpaintGaps={postStudioOutpaintGaps}
                     onRevertFaceEdit={() => postStudioRevert()}
                     onUploadFace={
                       isPendingPackagingFacePreviewLine(line, studioSession)
                         ? (files) => {
-                            const slot = packagingStepKeyToSlot(line.studio!.screenKey!)
-                            void postStudioFaceUpload(
-                              files,
-                              slot
-                                ? hc.studioFaceUploadUserLabel.replace(
-                                    '{face}',
-                                    getBoxFaceSlotLabel(slot, uiLocale)
-                                  )
-                                : undefined
-                            )
+                            queueStudioFaceUpload(files, line.studio!.screenKey!)
                           }
                         : undefined
                     }
@@ -1754,6 +2452,34 @@ export function HomeHubChatBar() {
               )
             })}
             {busy ? <HubStudioThinking label={hc.studioGenerating} /> : null}
+            </div>
+
+            {showPendingStepContinue ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/80 px-3 py-2.5 dark:border-violet-900 dark:bg-violet-950/30">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9 bg-violet-600 text-xs hover:bg-violet-700"
+                  disabled={busy}
+                  onClick={() => void postStudio({ action: 'approve_reference' })}
+                >
+                  <Check className="mr-1 h-3.5 w-3.5" />
+                  {hc.studioContinue}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-xs"
+                  disabled={busy}
+                  onClick={() =>
+                    openRegenerateDialog(studioSession?.pendingPreview?.screenKey ?? undefined)
+                  }
+                >
+                  {hc.studioRegenerate}
+                </Button>
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -1867,16 +2593,12 @@ export function HomeHubChatBar() {
             cropLabels={cropLabels}
             onRegenerate={() => openRegenerateDialog(activeStepPreview.screenKey ?? undefined)}
             onApproveReference={() => void postStudio({ action: 'approve_reference' })}
-            onCropImage={(blob, sizeMm) => postStudioCrop(blob, sizeMm)}
+            onCropImage={(blob, sizeMm, screenKey) => void postStudioCrop(blob, sizeMm, screenKey)}
             onOutpaintGaps={postStudioOutpaintGaps}
             onRevertFaceEdit={() => postStudioRevert()}
             onUploadFace={
-              activePreviewFaceSlot
-                ? (files) =>
-                    void postStudioFaceUpload(
-                      files,
-                      hc.studioFaceUploadUserLabel.replace('{face}', getBoxFaceSlotLabel(activePreviewFaceSlot, uiLocale))
-                    )
+              activeStepPreview?.screenKey && isPackagingFaceStepKey(activeStepPreview.screenKey)
+                ? (files) => queueStudioFaceUpload(files, activeStepPreview.screenKey ?? undefined)
                 : undefined
             }
           />
@@ -1896,6 +2618,7 @@ export function HomeHubChatBar() {
               approvedSection: hc.studioGenRefApprovedSection,
               productSection: hc.studioGenRefProductSection,
               productUpload: hc.studioGenRefProductLabel,
+              productUploadNote: hc.studioGenRefProductUploadNote,
               attachCount: hc.studioGenRefAttachCount,
               removeProduct: hc.studioReferenceRemove,
             }}
@@ -1904,6 +2627,72 @@ export function HomeHubChatBar() {
             onRemoveProduct={removeGenProduct}
           />
         ) : null}
+
+        {packagingFaceSlot ? (
+          <div
+            className={
+              showGenRefPicker && genRefPickerData?.showGenerationRefPicker
+                ? 'mt-4 border-t border-dashed border-slate-300 pt-3 dark:border-slate-600'
+                : undefined
+            }
+          >
+            <HubPackagingFaceActions
+              locale={uiLocale}
+              slot={packagingFaceSlot}
+              busy={busy}
+              onSkip={() => void postStudio({ action: 'skip_packaging_face' })}
+              onCopy={() => void postStudio({ action: 'copy_packaging_face' })}
+              onUpload={(files) => queueStudioFaceUpload(files)}
+            />
+          </div>
+        ) : showBodyStripActions ? (
+          <HubPackagingBodyStripActions
+            locale={uiLocale}
+            busy={busy}
+            onUpload={(files) => queueStudioFaceUpload(files, 'body_strip')}
+          />
+        ) : null}
+
+        <HubPackagingFaceUploadConfirmDialog
+          open={faceUploadConfirmOpen}
+          onOpenChange={handleFaceUploadConfirmOpenChange}
+          previewUrl={pendingFaceUpload?.previewUrl ?? null}
+          fileName={pendingFaceUpload?.file.name ?? ''}
+          faceLabel={pendingFaceUpload?.faceLabel ?? ''}
+          sizeLabel={pendingFaceUpload?.sizeLabel ?? ''}
+          busy={busy}
+          labels={{
+            title: hc.studioFaceUploadConfirmTitle,
+            faceField: hc.studioFaceUploadConfirmFaceField,
+            sizeField: hc.studioFaceUploadConfirmSizeField,
+            fileField: hc.studioFaceUploadConfirmFile,
+            hint: hc.studioFaceUploadConfirmHint.replace(/\*\*/g, ''),
+            confirm: hc.studioFaceUploadConfirmOk,
+            cancel: hc.studioCropCancel,
+          }}
+          onConfirm={confirmPendingFaceUpload}
+        />
+
+        <HubFeatureOpenConfirmDialog
+          open={Boolean(pendingFeatureOpen)}
+          onOpenChange={(open) => {
+            if (!open) setPendingFeatureOpen(null)
+          }}
+          featureTitle={pendingFeatureOpen?.label ?? ''}
+          busy={busy}
+          labels={{
+            title: hc.advisoryFeatureOpenConfirmTitle,
+            body: hc.advisoryFeatureOpenConfirmBody,
+            confirm: hc.advisoryFeatureOpenConfirmOk,
+            cancel: hc.advisoryFeatureOpenConfirmCancel,
+          }}
+          onConfirm={() => {
+            const pending = pendingFeatureOpen
+            if (!pending) return
+            setPendingFeatureOpen(null)
+            openWorkflow(pending.href, pending.prefillPrompt)
+          }}
+        />
 
         <HubStudioRegenerateDialog
           open={regenerateDialogOpen}
@@ -1941,79 +2730,314 @@ export function HomeHubChatBar() {
           onConfirm={() => void confirmRegenerate()}
         />
 
-        {showBodyStripActions ? (
-          <HubPackagingBodyStripActions
-            locale={uiLocale}
-            busy={busy}
-            onUpload={(files) => void postStudioFaceUpload(files)}
-          />
-        ) : packagingFaceSlot ? (
-          <HubPackagingFaceActions
-            locale={uiLocale}
-            slot={packagingFaceSlot}
-            busy={busy}
-            onSubmit={submitPackagingFaceAction}
-            onUpload={(files) =>
-              void postStudioFaceUpload(files, hc.studioFaceUploadUserLabel.replace('{face}', getBoxFaceSlotLabel(packagingFaceSlot, uiLocale)))
-            }
-          />
-        ) : null}
-
-        {showFacePrintStylePicker ? (
-          <HubFacePrintStylePicker locale={uiLocale} busy={busy} onSelect={submitFacePrintStyle} />
-        ) : showBoxDimensionForm ? (
-          <HubBoxDimensionForm
-            locale={uiLocale}
-            busy={busy}
-            initialDimensionsMm={studioSession?.packaging?.dimensionsMm}
-            initialProduction={studioSession?.packaging?.production}
-            onSubmit={submitBoxDimensions}
-          />
-        ) : (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <Textarea
-              ref={studioTextareaRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder={studioInputPlaceholder}
-              rows={2}
-              disabled={busy}
-              className="min-h-[72px] flex-1 resize-y text-sm"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  void sendMessage(message)
-                }
-              }}
+        <div className="flex flex-col gap-3">
+          {showPrintLanguagePicker ? (
+            <HubPrintLanguagePicker
+              locale={uiLocale}
+              selectedKey={selectedPrintLanguageKey}
+              otherDetail={selectedPrintLanguageDetail}
+              busy={busy}
+              onSelect={submitPrintLanguage}
             />
+          ) : null}
+
+          {showFacePrintStylePicker ? (
+            <HubFacePrintStylePicker locale={uiLocale} busy={busy} onSelect={submitFacePrintStyle} />
+          ) : null}
+
+          {showBoxFaceConfirmActions ? (
+            <HubBoxFaceConfirmActions
+              locale={uiLocale}
+              busy={busy}
+              onConfirm={submitBoxFaceConfirm}
+              onReenter={() => setReenteringBoxSize(true)}
+            />
+          ) : null}
+
+          {showStyleMoodPicker ? (
+            <HubDiscoveryChoicePicker
+              locale={uiLocale}
+              title={presetStepLabel(uiLocale, 'packaging_kit', 'style_mood')}
+              hint={getStepAskPrompt(uiLocale, 'packaging_kit', 'style_mood')}
+              choices={PACKAGING_STYLE_MOOD_CHOICES}
+              busy={busy}
+              showCustomOption
+              onSelect={(key) => void submitDiscoveryChoice('style_mood', key)}
+              onCustom={focusStudioChat}
+            />
+          ) : null}
+
+          {showColorPalettePicker && studioSession?.presetId ? (
+            <HubColorPalettePicker
+              locale={uiLocale}
+              title={presetStepLabel(uiLocale, studioSession.presetId, 'color_palette')}
+              hint={getStepAskPrompt(uiLocale, studioSession.presetId, 'color_palette')}
+              busy={busy}
+              onConfirm={(selection) => void submitColorPalette(selection)}
+            />
+          ) : null}
+
+          {showBoxDimensionForm ? (
+            <HubBoxDimensionForm
+              locale={uiLocale}
+              busy={busy}
+              initialDimensionsMm={studioSession?.packaging?.dimensionsMm}
+              initialProduction={studioSession?.packaging?.production}
+              onSubmit={submitBoxDimensions}
+            />
+          ) : null}
+
+          {showBarcodeLabelForm ? (
+            <HubBarcodeLabelForm
+              locale={uiLocale}
+              busy={busy}
+              initialEntries={barcodeFormInitialEntries}
+              onSubmit={submitBarcodeLabels}
+            />
+          ) : null}
+
+          {showLabelAspectRatioPicker ? (
+            <HubLabelAspectRatioPicker
+              locale={uiLocale}
+              variant={labelAspectRatioPickerVariant}
+              selectedRatio={selectedLabelAspectRatio}
+              selectedShape={selectedLabelShape}
+              busy={busy}
+              onSelectRatio={submitLabelAspectRatio}
+              onSelectShape={submitLabelShape}
+            />
+          ) : null}
+
+          {!hideStepInputComposer ? (
+            <div className="flex flex-col gap-2">
+              {studioSession?.presetId && getActiveStepKey(studioSession) ? (
+                <p className="text-xs text-muted-foreground">{studioInputPlaceholder}</p>
+              ) : null}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <Textarea
+                  ref={studioTextareaRef}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder={chatInputPlaceholder}
+                  rows={3}
+                  disabled={busy}
+                  className="min-h-[80px] w-full min-w-0 flex-1 resize-y text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      void sendMessage(message)
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  className="h-10 shrink-0 bg-indigo-600 hover:bg-indigo-700 sm:h-auto"
+                  disabled={
+                    busy ||
+                    (showGenerateCurrentStep
+                      ? !canGenerateCurrentStep
+                      : !isValidHubStudioMessage(message))
+                  }
+                  onClick={() => void sendMessage(message)}
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {busy ? hc.thinking : hc.send}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="-mx-3 border-t border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-2.5 sm:-mx-5 sm:px-5 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-indigo-200 bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:border-indigo-800 dark:bg-slate-900/80 dark:text-indigo-300">
+              {hc.creditNote}
+            </span>
+            <span className="text-[11px] text-muted-foreground sm:text-xs">
+              {hc.modelLabel}:{' '}
+              <span className="font-medium text-slate-700 dark:text-slate-200">{modelLabel}</span>
+            </span>
+            {!threadsLoginRequired ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 border-indigo-200 text-xs text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200"
+                onClick={() => {
+                  setShowThreadList((v) => !v)
+                  if (!threadsLoaded && !threadsLoading) void fetchThreadList()
+                }}
+                disabled={threadsLoading}
+              >
+                {threadsLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <History className="h-3.5 w-3.5" />
+                )}
+                {hc.chatHistory}
+                {chatThreads.length > 0 ? ` (${chatThreads.length})` : ''}
+              </Button>
+            ) : null}
             <Button
               type="button"
-              className="shrink-0 bg-indigo-600 hover:bg-indigo-700"
-              disabled={busy || !isValidHubStudioMessage(message)}
-              onClick={() => void sendMessage(message)}
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 border-indigo-200 text-xs text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200"
+              onClick={startNewThread}
+              disabled={busy || (!threadId && lines.length === 0 && !studioSession)}
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              {busy ? hc.thinking : hc.send}
+              <MessageSquarePlus className="h-3.5 w-3.5" />
+              {hc.newThread}
             </Button>
+            {isActiveStudioFlow(studioSession) ? (
+              <span className="text-[11px] text-muted-foreground">{hc.newThreadFlowHint}</span>
+            ) : null}
           </div>
-        )}
+          {showThreadList ? (
+            <div className="mt-2 rounded-lg border border-indigo-100 bg-white/70 px-2 py-2 dark:border-indigo-900 dark:bg-slate-900/50">
+              <p className="mb-1.5 px-1 text-xs font-medium text-indigo-900 dark:text-indigo-100">{hc.chatHistory}</p>
+              {threadsLoading ? (
+                <div className="flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {hc.thinking}
+                </div>
+              ) : chatThreads.length === 0 ? (
+                <p className="px-1 py-2 text-xs text-muted-foreground">{hc.chatHistoryEmpty}</p>
+              ) : (
+                <ul className="max-h-44 space-y-1 overflow-y-auto">
+                  {chatThreads.map((thread) => {
+                    const active = thread.id === threadId
+                    const subtitle =
+                      thread.presetId && thread.projectTitle
+                        ? presetTitle(uiLocale, thread.presetId)
+                        : thread.lastMessagePreview?.slice(0, 100) ?? null
+                    return (
+                      <li key={thread.id} className="flex items-stretch gap-0.5">
+                        <button
+                          type="button"
+                          disabled={busy || deletingThreadId === thread.id}
+                          onClick={() => void switchThread(thread.id)}
+                          className={`flex min-w-0 flex-1 flex-col rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:opacity-60 ${
+                            active
+                              ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-100'
+                              : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
+                          }`}
+                        >
+                          <span className="line-clamp-1 font-medium">{threadListLabel(thread, uiLocale)}</span>
+                          <span className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+                            {formatThreadUpdatedAt(thread.updatedAt, uiLocale)}
+                            {subtitle ? ` · ${subtitle}` : null}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={hc.chatHistoryDelete}
+                          title={hc.chatHistoryDelete}
+                          disabled={busy || deletingThreadId === thread.id}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void deleteThread(thread.id)
+                          }}
+                          className="flex shrink-0 items-center justify-center rounded-md px-2 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                        >
+                          {deletingThreadId === thread.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          ) : null}
+        </div>
 
-        <div>
-          <p className="mb-1.5 text-xs font-medium text-muted-foreground">{hc.suggested}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {STUDIO_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                disabled={busy}
-                onClick={() => void postStudio({ action: 'start_preset', presetId: preset.id })}
-                className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-800 transition-colors hover:border-violet-400 disabled:opacity-50 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
-              >
-                {presetTitle(uiLocale, preset.id)}
-              </button>
+        {showGenerateCurrentStep ? (
+          <Button
+            type="button"
+            className="w-full gap-2 bg-violet-600 hover:bg-violet-700 sm:w-auto"
+            disabled={busy || !canGenerateCurrentStep}
+            onClick={() => void generateCurrentStep()}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {generateCurrentStepLabel}
+          </Button>
+        ) : null}
+
+        {showPostFlowSuggestions ? (
+          <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+            <p className="text-xs font-medium text-emerald-800 dark:text-emerald-200">{hc.studioPostFlowSuggestHint}</p>
+            {postFlowFeatureGroups.map((group) => (
+              <div key={group.groupKey}>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700/80 dark:text-violet-300/80">
+                  {group.groupLabel}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.entries.map((entry) => (
+                    <button
+                      key={entry.key}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void beginFeatureInNewThread(entry.key)}
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-900 transition-colors hover:border-emerald-400 disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100"
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        </div>
+        ) : !hideStepInputComposer && showFeaturePicker && !isActiveStudioFlow(studioSession) && activeStepSuggestions.length === 0 ? (
+          <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+            <p className="text-xs font-medium text-muted-foreground">{hc.featurePickerHint}</p>
+            {featureCatalogGroups.map((group) => (
+              <div key={group.groupKey}>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700/80 dark:text-violet-300/80">
+                  {group.groupLabel}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.entries.map((entry) => (
+                    <button
+                      key={entry.key}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        void postStudio({ action: 'select_feature', featureKey: entry.key })
+                      }}
+                      className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-800 transition-colors hover:border-violet-400 disabled:opacity-50 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : !hideStepInputComposer && activeStepSuggestions.length > 0 ? (
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">{hc.suggested}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {activeStepSuggestions.map((item) => (
+                <button
+                  key={`${item.label}-${item.message}`}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setMessage(item.message)
+                    focusStudioChat()
+                  }}
+                  className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-800 transition-colors hover:border-violet-400 disabled:opacity-50 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   )

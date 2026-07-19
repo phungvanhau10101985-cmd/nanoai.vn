@@ -65,10 +65,33 @@ export type HubPackagingState = {
   >
   mockupUrl?: string
   barcodeUrl?: string
-  /** Product label sticker size (mm) — set at product_label step. */
+  barcodeFormEntries?: Array<{ label?: string; content: string }>
+  barcodeQrPayload?: string
+  barcodeArtifacts?: Array<{
+    id: string
+    type: 'qrcode' | 'ean13' | 'upca' | 'code128'
+    content: string
+    label: string
+    url: string
+    fileName: string
+  }>
+  /** Product label canvas aspect ratio (Gemini) — set at product_label step. */
+  productLabelAspectRatio?: string
+  /** Product label die-cut shape — set at product_label step. */
+  productLabelShape?: string
+  /** @deprecated Use productLabelAspectRatio — legacy sessions may still have mm size. */
   productLabelSizeMm?: { widthMm: number; heightMm: number }
-  /** Seal sticker size (mm) — set at seal_sticker step. */
+  /** Seal sticker canvas aspect ratio (Gemini) — set at seal_sticker step. */
+  sealStickerAspectRatio?: string
+  /** Seal sticker die-cut shape — set at seal_sticker step. */
+  sealStickerShape?: string
+  /** @deprecated Use sealStickerAspectRatio — legacy sessions may still have mm size. */
   sealStickerSizeMm?: { widthMm: number; heightMm: number }
+  /** Locked visual style text for all 6 faces (discovery or reference-image analysis). */
+  packagingStyleBrief?: string
+  packagingStyleBriefSource?: 'discovery' | 'reference_image'
+  /** Style reference image URL analyzed into packagingStyleBrief (not sent to image model). */
+  styleReferenceUrl?: string
 }
 
 export type HubStudioPreviewKind =
@@ -82,6 +105,8 @@ export type HubStudioPreviewKind =
 export type HubStudioGenerationSelection = {
   referenceScreenKeys: string[]
   productUrls: string[]
+  /** Style inspiration image on face_top — analyzed to text, not attached to image model. */
+  styleReferenceUrl?: string | null
 }
 
 export type HubStudioSession = {
@@ -116,6 +141,15 @@ export type HubStudioMessagePayload = {
     label: string
     downloadLabel: string
   }>
+  barcodeArtifacts?: Array<{
+    id: string
+    type: 'qrcode' | 'ean13' | 'upca' | 'code128'
+    content: string
+    label: string
+    url: string
+    fileName: string
+    downloadLabel: string
+  }>
   screenKey?: string
   screenLabel?: string
   previewKind?: HubStudioPreviewKind
@@ -135,6 +169,8 @@ export type HubStudioMessagePayload = {
   generationRefOptions?: { url: string; label: string; screenKey: string }[]
   selectedGenerationRefKeys?: string[]
   generationProductPreviews?: { url: string; label: string }[]
+  generationStyleReferencePreview?: { url: string; label: string } | null
+  showStyleReferencePicker?: boolean
   generationAttachUsed?: number
   /** Step this user message answered (for edit/replay). */
   stepKey?: string

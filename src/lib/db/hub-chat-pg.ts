@@ -215,7 +215,10 @@ export async function pgReplaceLatestHubStudioImageMessage(params: {
        where thread_id = $1::uuid
          and role = 'assistant'
          and studio_json->>'screenKey' = $2
-         and nullif(studio_json->>'imageUrl', '') is not null
+         and (
+           nullif(studio_json->>'imageUrl', '') is not null
+           or nullif(studio_json->>'artifactUrl', '') is not null
+         )
        order by created_at desc
        limit 1
      )
@@ -253,7 +256,18 @@ export async function pgUpdateLatestHubStudioImageUrl(params: {
        limit 1
      )
      update public.hub_chat_messages as message
-     set studio_json = jsonb_set(message.studio_json, '{imageUrl}', to_jsonb($3::text), true)
+     set studio_json =
+       jsonb_set(
+         jsonb_set(
+           jsonb_set(message.studio_json, '{imageUrl}', to_jsonb($3::text), true),
+           '{showApproveReference}',
+           'false'::jsonb,
+           true
+         ),
+         '{showRegenerate}',
+         'true'::jsonb,
+         true
+       )
      from target
      where message.id = target.id
      returning message.id::text`,

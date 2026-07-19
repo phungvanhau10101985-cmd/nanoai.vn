@@ -143,7 +143,7 @@ export async function renderBoxMockupPng(input: {
       if (input.faceSlots) {
         url = resolveMockupSlotUrl(slot, input.faceSlots)
       } else {
-        const face = input.faces.find((f) => f.slot === slot)
+        const face = faces.find((f) => f.slot === slot)
         url = face && face.sourceMode !== 'empty' ? face.url : null
       }
       slotImages[slot] = await loadOptionalImage(url)

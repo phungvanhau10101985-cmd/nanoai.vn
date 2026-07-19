@@ -9,7 +9,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
-import { PACKAGING_FACE_FLAT_ARTWORK_RULES } from '@/lib/packaging/face-print-prompt'
+import { stripPackagingFaceTechnicalMeasurementsFromVisualPrompt } from '@/lib/packaging/face-print-prompt'
 import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
 
 const toTenths = (value: number) => Math.round(value * 10)
@@ -113,6 +113,7 @@ Brief: ${briefEn}
 ${styleNote}
 CRITICAL: This is a product label on jar/bottle/tube — NOT a box dieline, NOT unfolded carton, NOT 3D box mockup.
 Black-and-white or minimal 2-color print layout unless user requests color.
+Typography must be razor-sharp, high-contrast, crisp vector-like — no blur, no glow, no soft shadows on text.
 Composite ONLY the attached LOGO. Readable legal/product text per brief. Keep text safely inset while artwork reaches every edge.
 FORBIDDEN: physical product, grey studio background, frame, padding, drop shadow, dimensions, size numbers, mm/cm labels, rulers, measurement arrows, red boxes, cut/fold lines, crop marks, bleed guides, or safe-zone guides.`
           : screenKey === 'seal_sticker'
@@ -121,6 +122,7 @@ Design the seal sticker for: ${projectEn}.
 Brief: ${briefEn}
 ${styleNote}
 CRITICAL: Round/square/oval seal sticker to seal packaging — NOT a box dieline, NOT unfolded carton, NOT 3D box.
+Typography must be razor-sharp, high-contrast, crisp vector-like — no blur, no glow, no soft shadows on text.
 Composite ONLY the attached LOGO plus short slogan/text per brief.
 FORBIDDEN: physical package, studio background, frame, padding, drop shadow, dimensions, size numbers, mm/cm labels, rulers, measurement arrows, red boxes, cut/fold lines, crop marks, bleed guides, or safe-zone guides.`
             : isFlatBoxDieline
@@ -163,16 +165,13 @@ Include brand logo placement, dieline-friendly layout, print quality. One finish
       return {
         aspectRatio: aspectRatioOverride || '1:1',
         imageSize: '2K',
-        prompt: `${PACKAGING_FACE_FLAT_ARTWORK_RULES}
+        prompt: stripPackagingFaceTechnicalMeasurementsFromVisualPrompt(
+          `${briefEn}
 
-Design ONE flat, edge-to-edge packaging artwork for the ${faceRole} of: ${projectEn}.
-Brief: ${briefEn}
+Design ONE flat full-bleed print artwork for the ${faceRole} of: ${projectEn}.
 ${refNote}${productNote}
-- Preserve the exact face proportion stated in the brief.
-- Place the approved logo and composite selected reference visuals onto this face.
-- Keep required text inside a safe area while the background and decorative graphics extend to every edge (full bleed).
-- NEVER render dimension annotations, measurement arrows, or mm/cm numbers on the image.
-One finished flat full-bleed print face only — artwork fills 100% of the image canvas, no margins, no 3D box mockup.`,
+Fill 100% of the API image canvas edge-to-edge — no margins, letterboxing, dimension lines, rulers, or guide overlays.`
+        ),
       }
     }
     case 'packaging_mockup':
@@ -243,6 +242,7 @@ export async function runStudioImagePipeline(input: {
   brief: string
   projectTitle?: string
   referenceImageUrls?: string[]
+  referenceImageMeta?: Array<{ screenKey: string; label?: string }>
   productImageUrls?: string[]
   aspectRatio?: string
   /** Exact trim size — normalizes generated image to print pixels before upload. */
@@ -283,14 +283,38 @@ export async function runStudioImagePipeline(input: {
   })
 
   const parts: object[] = [{ text: spec.prompt }]
+  const primaryFaceKey = 'face_top'
   for (let i = 0; i < refUrls.length; i++) {
     const url = refUrls[i]!
-    parts.push({
-      text:
-        input.kind === 'packaging_face'
-          ? `Approved reference image ${i + 1} — embed as flat 2D print on the full-bleed panel edge-to-edge; NEVER as a 3D box on grey studio background:`
-          : `Approved reference image ${i + 1} — composite logo/brand/approved face artwork onto the flat print panel:`,
-    })
+    const meta = input.referenceImageMeta?.[i]
+    const isLogoRef = meta?.screenKey === 'logo'
+    const isStyleReference =
+      meta?.screenKey === 'packaging_style_reference' &&
+      input.kind === 'packaging_face' &&
+      input.screenKey === 'face_top'
+    const isPrimaryFaceStyleRef =
+      meta?.screenKey === primaryFaceKey &&
+      input.kind === 'packaging_face' &&
+      input.screenKey &&
+      input.screenKey !== primaryFaceKey
+    const isFlatLabelStep =
+      input.kind === 'packaging' &&
+      (input.screenKey === 'product_label' || input.screenKey === 'seal_sticker')
+    let caption: string
+    if (isPrimaryFaceStyleRef) {
+      caption = `PRIMARY FACE #1 style anchor (${meta?.label ?? 'face_top'}) — match colors, illustration treatment, typography style, and material feel EXACTLY; do NOT copy layout or print text from this image:`
+    } else if (isStyleReference) {
+      caption = `STYLE REFERENCE image — combine with all style direction text; match colors, treatment, and mood; do NOT copy logos, trademarks, or 3D product scenes:`
+    } else if (isLogoRef && isFlatLabelStep) {
+      caption = `Approved LOGO — composite onto this flat label artwork only; do NOT redraw or re-typeset the logo:`
+    } else if (isLogoRef && input.kind === 'packaging_face') {
+      caption = `Approved LOGO — composite onto this flat print panel only; do NOT redraw the logo:`
+    } else if (input.kind === 'packaging_face') {
+      caption = `Approved reference image ${i + 1} — embed as flat 2D print on the full-bleed panel edge-to-edge; NEVER as a 3D box on grey studio background:`
+    } else {
+      caption = `Approved reference image ${i + 1} — composite logo/brand/approved face artwork onto the flat print panel:`
+    }
+    parts.push({ text: caption })
     const loaded = await loadImageBufferFromUrl(url)
     if (loaded) {
       parts.push({
@@ -325,25 +349,24 @@ export async function runStudioImagePipeline(input: {
       GEMINI_3_PRO_IMAGE.model,
       `hub-studio-${input.kind}`,
       input.userId,
-      '2K'
+      spec.imageSize
     )
     const imagePartRes = result.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       return { ok: false, error: 'AI không trả về ảnh.' }
     }
     const resultBufferRaw = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
-    const isFlatPrintArtwork =
-      input.kind === 'packaging_face' ||
-      (input.kind === 'packaging' &&
-        (input.screenKey === 'product_label' || input.screenKey === 'seal_sticker'))
-    const resultBuffer =
-      input.printSizeMm && isFlatPrintArtwork
-        ? await normalizePanelArtworkToPrintSize(
-            resultBufferRaw,
-            input.printSizeMm.widthMm,
-            input.printSizeMm.heightMm
-          )
-        : resultBufferRaw
+    // Box faces must match exact print trim px for dieline composite. Product labels / seal stickers
+    // keep native 2K AI output (same as /tao-nhan-gioi-thieu-san-pham) — resizing to mm@300dpi shrinks file and blurs text.
+    const shouldNormalizeToPrintSize =
+      input.kind === 'packaging_face' && Boolean(input.printSizeMm)
+    const resultBuffer = shouldNormalizeToPrintSize
+      ? await normalizePanelArtworkToPrintSize(
+          resultBufferRaw,
+          input.printSizeMm!.widthMm,
+          input.printSizeMm!.heightMm
+        )
+      : resultBufferRaw
     const resultPath = `results/${input.userId}/studio_${input.kind}_${Date.now()}.png`
     const { publicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { WebLocale } from '@/lib/i18n/config'
+import { formatStudioExampleLabel } from '@/lib/hub-chat/hub-studio-example-label'
 import type { BoxDimensionsMm } from '@/lib/packaging/dimensions'
 import type { TuckBoxProductionParams } from '@/lib/packaging/tuck-box-production'
 import {
@@ -142,7 +143,9 @@ export function HubBoxDielineStructurePicker({
               onClick={() => setDraftStructure(structure)}
             >
               <span>
-                <span className="block font-semibold">{copy.label}</span>
+                <span className="block font-semibold">
+                  {formatStudioExampleLabel(locale, copy.label)}
+                </span>
                 {draftStructure === structure ? (
                   <span className="mt-0.5 block text-[10px] font-semibold text-emerald-700">
                     {t.selected}

@@ -1,10 +1,31 @@
 import sharp from 'sharp'
+import { ensureImageWithinLimits } from '@/lib/ensure-image-limits'
 
 export const PANEL_PRINT_DPI = 300
 export const DEFAULT_PANEL_BLEED_MM = 3
+/** Stay below Sharp default input limit (~268MP) with headroom for composite layers. */
+export const SHARP_SAFE_CANVAS_PIXELS = 180_000_000
+export const MIN_DIELINE_RASTER_DPI = 96
 
 export function mmToPrintPx(mm: number, dpi = PANEL_PRINT_DPI): number {
   return Math.max(1, Math.round((mm * dpi) / 25.4))
+}
+
+/** Pick raster DPI so the full dieline net canvas stays within Sharp limits. */
+export function resolveDielineRasterDpi(
+  contentWidthMm: number,
+  contentHeightMm: number,
+  preferredDpi = PANEL_PRINT_DPI
+): number {
+  let dpi = preferredDpi
+  while (dpi > MIN_DIELINE_RASTER_DPI) {
+    const w = mmToPrintPx(contentWidthMm, dpi)
+    const h = mmToPrintPx(contentHeightMm, dpi)
+    if (w * h <= SHARP_SAFE_CANVAS_PIXELS) return dpi
+    const scale = Math.sqrt(SHARP_SAFE_CANVAS_PIXELS / (w * h)) * 0.98
+    dpi = Math.max(MIN_DIELINE_RASTER_DPI, Math.floor(dpi * scale))
+  }
+  return MIN_DIELINE_RASTER_DPI
 }
 
 /** Resize artwork to exact trim panel size — edges align with dieline fold lines. */
@@ -16,8 +37,9 @@ export async function fitPanelArtworkToTrim(
 ): Promise<Buffer> {
   const widthPx = mmToPrintPx(widthMm, dpi)
   const heightPx = mmToPrintPx(heightMm, dpi)
-  return sharp(buffer)
-    .resize(widthPx, heightPx, { fit: 'fill' })
+  const safeBuffer = await ensureImageWithinLimits(buffer)
+  return sharp(safeBuffer, { limitInputPixels: false })
+    .resize(widthPx, heightPx, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
     .png()
     .toBuffer()
 }
@@ -30,7 +52,7 @@ export async function extendPanelArtworkBleed(
 ): Promise<Buffer> {
   if (bleedMm <= 0) return trimBuffer
   const bleedPx = mmToPrintPx(bleedMm, dpi)
-  return sharp(trimBuffer)
+  return sharp(trimBuffer, { limitInputPixels: false })
     .extend({
       top: bleedPx,
       bottom: bleedPx,

@@ -10,14 +10,15 @@ import {
 } from './dieline-structure'
 import { getBodyStripSizeMm } from './body-strip'
 import { normalizePanelArtworkToPrintSize } from './panel-artwork-fit'
-import sharp from 'sharp'
+import { ensureImageWithinLimits } from '@/lib/ensure-image-limits'
 
 export type DielineSlotUrls = Partial<Record<BoxFaceSlot, string>>
 
 async function fetchImageBuffer(url: string): Promise<Buffer> {
   const response = await fetch(url)
   if (!response.ok) throw new Error(`Không tải được ảnh mặt hộp (${response.status}).`)
-  return Buffer.from(await response.arrayBuffer())
+  const raw = Buffer.from(await response.arrayBuffer())
+  return ensureImageWithinLimits(raw)
 }
 
 export async function exportBoxDielineFromUrls(input: {
@@ -47,34 +48,7 @@ export async function exportBoxDielineFromUrls(input: {
           getBodyStripSizeMm(dimensionsMm).heightMm
         )
       : undefined
-  const resolutionInputs: { buffer: Buffer; widthMm: number; heightMm: number }[] = []
-  if (bodyStripBuffer) {
-    resolutionInputs.push({
-      buffer: bodyStripBuffer,
-      widthMm: 2 * (dimensionsMm.length + dimensionsMm.width),
-      heightMm: dimensionsMm.height,
-    })
-  }
-  for (const slot of BOX_FACE_SLOT_ORDER) {
-    if (bodyStripBuffer && ['front', 'right', 'back', 'left'].includes(slot)) continue
-    const buffer = slotBuffers[slot]
-    if (!buffer) continue
-    const [widthMm, heightMm] = getBoxFaceSlotDimensionsMm(slot, dimensionsMm)
-    resolutionInputs.push({ buffer, widthMm, heightMm })
-  }
-  const dpis = await Promise.all(
-    resolutionInputs.map(async ({ buffer, widthMm, heightMm }) => {
-      const metadata = await sharp(buffer).metadata()
-      if (!metadata.width || !metadata.height) return Number.POSITIVE_INFINITY
-      return Math.min(
-        (metadata.width * 25.4) / widthMm,
-        (metadata.height * 25.4) / heightMm
-      )
-    })
-  )
-  const minDpi = Math.min(...dpis)
-  const resolutionDpi = Number.isFinite(minDpi) ? Math.round(minDpi) : undefined
-  const pdfBuffer = await createBoxDielinePdf({
+  const { pdfBuffer, resolutionDpi } = await createBoxDielinePdf({
     slotBuffers,
     bodyStripBuffer,
     boxLength: dimensionsMm.length,
@@ -109,8 +83,16 @@ export async function exportAllBoxDielineVariants(input: {
 }): Promise<Partial<Record<BoxDielineStructure, ExportedBoxDielineVariant>>> {
   const entries = await Promise.all(
     BOX_DIELINE_STRUCTURE_KEYS.map(async (structure) => {
-      const exported = await exportBoxDielineFromUrls({ ...input, structure })
-      return [structure, exported] as const
+      try {
+        const exported = await exportBoxDielineFromUrls({ ...input, structure })
+        if (!exported.pdfUrl) {
+          throw new Error(`Missing PDF URL (${structure})`)
+        }
+        return [structure, exported] as const
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error)
+        throw new Error(`${structure}: ${detail}`)
+      }
     })
   )
   return Object.fromEntries(entries) as Partial<Record<BoxDielineStructure, ExportedBoxDielineVariant>>

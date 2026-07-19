@@ -586,6 +586,7 @@ export function PartnerAiSettingsPanel({
           .replace('{synced}', String(synced))
           .replace('{failed}', String(failed)),
       })
+      setEmbeddingErrorsRefreshKey((k) => k + 1)
       await load()
     })()
       .catch(() => {
