@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
+﻿import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
@@ -9,11 +9,11 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import type { HubAutoRunImageQuality } from '@/lib/hub-agent/auto-run-support'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { normalizeBannerAspectRatioForGemini } from '@/lib/banner-ad-presets'
 
 const BANNER_COSTS = { '2K': 1.5, '4K': 3 } as const
-const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'] as const
 
-const PROMPT_BASE = `Tạo banner quảng cáo chuyên nghiệp từ ảnh sản phẩm. Đây là sản phẩm của khách hàng. Thiết kế banner hiện đại, thu hút, bố cục rõ ràng. Chữ/slogan cần được dàn kiểu đẹp, hài hòa với thiết kế, không dán chữ thô. Chỉ trả về ảnh kết quả, không chèn chữ phụ.`
+const PROMPT_BASE = `Tß║ío banner quß║úng c├ío chuy├¬n nghiß╗çp tß╗½ ß║únh sß║ún phß║⌐m. ─É├óy l├á sß║ún phß║⌐m cß╗ºa kh├ích h├áng. Thiß║┐t kß║┐ banner hiß╗çn ─æß║íi, thu h├║t, bß╗æ cß╗Ñc r├╡ r├áng. Chß╗»/slogan cß║ºn ─æ╞░ß╗úc d├án kiß╗âu ─æß║╣p, h├ái h├▓a vß╗¢i thiß║┐t kß║┐, kh├┤ng d├ín chß╗» th├┤. Chß╗ë trß║ú vß╗ü ß║únh kß║┐t quß║ú, kh├┤ng ch├¿n chß╗» phß╗Ñ.`
 
 const toTenths = (value: number) => Math.round(value * 10)
 
@@ -32,19 +32,17 @@ export type RunBannerPipelineResult =
 export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<RunBannerPipelineResult> {
   const imageQuality = input.imageQuality ?? '2K'
   const aspectRatioRaw = input.aspectRatio?.trim() || '16:9'
-  const aspectRatio = VALID_ASPECT_RATIOS.includes(aspectRatioRaw as (typeof VALID_ASPECT_RATIOS)[number])
-    ? aspectRatioRaw
-    : '16:9'
+  const aspectRatio = normalizeBannerAspectRatioForGemini(aspectRatioRaw)
   const note = input.note?.trim() ?? ''
   const images = input.imageBuffers
-  if (!images.length) return { ok: false, error: 'Thiếu ảnh sản phẩm.' }
+  if (!images.length) return { ok: false, error: 'Thiß║┐u ß║únh sß║ún phß║⌐m.' }
 
   let prompt = PROMPT_BASE
   const noteEn = note ? await normalizeToEnglish(note) : ''
   if (noteEn) {
     prompt = prompt.replace(
-      'Chỉ trả về ảnh kết quả, không chèn chữ phụ.',
-      `BRIEF THIẾT KẾ (slogan, màu sắc, bố cục): "${noteEn}". Đây là ý tưởng/ghi chú thiết kế, không phải văn bản thô để dán nguyên. Hãy dàn kiểu chữ chuyên nghiệp, hài hòa với banner. Chỉ trả về ảnh kết quả, không chèn chữ phụ.`
+      'Chß╗ë trß║ú vß╗ü ß║únh kß║┐t quß║ú, kh├┤ng ch├¿n chß╗» phß╗Ñ.',
+      `BRIEF THIß║╛T Kß║╛ (slogan, m├áu sß║»c, bß╗æ cß╗Ñc): "${noteEn}". ─É├óy l├á ├╜ t╞░ß╗ƒng/ghi ch├║ thiß║┐t kß║┐, kh├┤ng phß║úi v─ân bß║ún th├┤ ─æß╗â d├ín nguy├¬n. H├úy d├án kiß╗âu chß╗» chuy├¬n nghiß╗çp, h├ái h├▓a vß╗¢i banner. Chß╗ë trß║ú vß╗ü ß║únh kß║┐t quß║ú, kh├┤ng ch├¿n chß╗» phß╗Ñ.`
     )
   }
 
@@ -53,10 +51,10 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
   try {
     balance = await getCreditBalanceByUserId(input.userId)
   } catch {
-    return { ok: false, error: 'Không đọc được số dư credits.' }
+    return { ok: false, error: 'Kh├┤ng ─æß╗ìc ─æ╞░ß╗úc sß╗æ d╞░ credits.' }
   }
   if (toTenths(balance) < toTenths(COST)) {
-    return { ok: false, error: `Không đủ credits (cần ${COST}).` }
+    return { ok: false, error: `Kh├┤ng ─æß╗º credits (cß║ºn ${COST}).` }
   }
 
   const timestamp = Date.now()
@@ -71,7 +69,7 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
     garmentImageUrl: originalPublicUrl,
     feature: 'tao-banner',
   })
-  if (!historyItem) return { ok: false, error: 'Không thể khởi tạo phiên xử lý.' }
+  if (!historyItem) return { ok: false, error: 'Kh├┤ng thß╗â khß╗ƒi tß║ío phi├¬n xß╗¡ l├╜.' }
 
   const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
   const genAI = new GoogleGenerativeAI(apiKey)
@@ -101,7 +99,7 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
-      return { ok: false, error: 'AI không trả về ảnh hợp lệ.' }
+      return { ok: false, error: 'AI kh├┤ng trß║ú vß╗ü ß║únh hß╗úp lß╗ç.' }
     }
     const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     const resultPath = `results/${input.userId}/banner_${Date.now()}.png`
@@ -113,7 +111,7 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
     const d = await deductUserCredits(input.userId, COST)
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
-      return { ok: false, error: d.error || 'Không thể trừ credits.' }
+      return { ok: false, error: d.error || 'Kh├┤ng thß╗â trß╗½ credits.' }
     }
     await updateTryOnHistoryCompletedPg(historyItem.id, resultPublicUrl, {
       feature: 'tao-banner',
@@ -123,6 +121,6 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
   } catch (e) {
     await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
-    return { ok: false, error: `Tạo banner thất bại: ${msg}` }
+    return { ok: false, error: `Tß║ío banner thß║Ñt bß║íi: ${msg}` }
   }
 }

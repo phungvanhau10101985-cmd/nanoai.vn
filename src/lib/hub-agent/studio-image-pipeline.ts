@@ -8,6 +8,7 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
+import { normalizeBannerAspectRatioForGemini } from '@/lib/banner-ad-presets'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { stripPackagingFaceTechnicalMeasurementsFromVisualPrompt } from '@/lib/packaging/face-print-prompt'
 import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
@@ -55,7 +56,7 @@ Clean vector-like logo on simple background. One logo only, no mockup scene, no 
       }
     case 'banner':
       return {
-        aspectRatio: aspectRatioOverride || (labelEn.toLowerCase().includes('story') || labelEn.includes('9:16') ? '9:16' : '16:9'),
+        aspectRatio: normalizeBannerAspectRatioForGemini(aspectRatioOverride || undefined),
         imageSize: '2K',
         prompt: `Design a marketing BANNER / poster for: ${projectEn} — ${labelEn}.
 Brief: ${briefEn}
@@ -261,6 +262,8 @@ export async function runStudioImagePipeline(input: {
     input.aspectRatio,
     input.screenKey
   )
+  const safeAspectRatio =
+    input.kind === 'banner' ? normalizeBannerAspectRatioForGemini(spec.aspectRatio) : spec.aspectRatio
 
   let balance = 0
   try {
@@ -278,7 +281,7 @@ export async function runStudioImagePipeline(input: {
     model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: spec.imageSize, aspectRatio: spec.aspectRatio },
+      imageConfig: { imageSize: spec.imageSize, aspectRatio: safeAspectRatio },
     },
   })
 

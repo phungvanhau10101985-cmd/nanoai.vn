@@ -55,6 +55,7 @@ import { HubDiscoveryChoicePicker } from '@/components/hub-chat/hub-discovery-ch
 import { HubFacePrintStylePicker } from '@/components/hub-chat/hub-face-print-style-picker'
 import { HubPrintLanguagePicker } from '@/components/hub-chat/hub-print-language-picker'
 import { HubLabelAspectRatioPicker } from '@/components/hub-chat/hub-label-aspect-ratio-picker'
+import { HubBannerDesignPreparePanel } from '@/components/hub-chat/hub-banner-design-prepare-panel'
 import { HubPackagingFaceActions } from '@/components/hub-chat/hub-packaging-face-actions'
 import { HubPackagingBodyStripActions } from '@/components/hub-chat/hub-packaging-body-strip-actions'
 import { HubPackagingFaceUploadConfirmDialog } from '@/components/hub-chat/hub-packaging-face-upload-confirm-dialog'
@@ -63,7 +64,17 @@ import {
   type StudioColorSelection,
 } from '@/lib/hub-chat/studio-color-palette'
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
-import { STUDIO_PRESETS, getFlowSteps, getStepAskPrompt, getStepGenerator, getStudioPreset, presetStepLabel, presetTitle, getPrimaryLogoStepKey, hasPrimaryLogoReference } from '@/lib/hub-chat/hub-studio-presets'
+import { hasSaleBannerDiscoveryBrief } from '@/lib/hub-chat/hub-studio-preset-flows'
+import {
+  getFlowSteps,
+  getStepAskPrompt,
+  getStepGenerator,
+  getStudioPreset,
+  presetStepLabel,
+  presetTitle,
+  getPrimaryLogoStepKey,
+  hasPrimaryLogoReference,
+} from '@/lib/hub-chat/hub-studio-presets'
 import { getActiveStepKey } from '@/lib/hub-chat/hub-studio-preset-intent'
 import { buildPendingStepStudio } from '@/lib/hub-chat/hub-studio-step-retry'
 import {
@@ -99,6 +110,11 @@ import {
   type PackagingBarcodeFormEntry,
 } from '@/lib/packaging/packaging-barcode-form'
 import { getStudioPresetCopy } from '@/lib/i18n/studio-preset-copy'
+import {
+  MAX_BANNER_BATCH_PRESETS,
+  normalizeBannerAdPresetId,
+  type BannerAdPresetId,
+} from '@/lib/banner-ad-presets'
 import { HubStudioGenerationRefPicker } from '@/components/hub-chat/hub-studio-generation-ref-picker'
 import { HubStudioRegenerateDialog } from '@/components/hub-chat/hub-studio-regenerate-dialog'
 import { HubFeatureOpenConfirmDialog } from '@/components/hub-chat/hub-feature-open-confirm-dialog'
@@ -346,13 +362,6 @@ function threadListLabel(thread: HubChatThreadSummary, locale: WebLocale): strin
   return thread.title.trim() || 'NanoAI chat'
 }
 
-const STEP_INPUT_PLACEHOLDER: Record<WebLocale, string> = {
-  vi: 'Nhập nội dung in hoặc mô tả…',
-  en: 'Enter print content or description…',
-  zh: '输入印刷内容或描述…',
-  ja: '印刷内容または説明を入力…',
-  ko: '인쇄 내용 또는 설명 입력…',
-}
 
 export function HomeHubChatBar() {
   const router = useRouter()
@@ -365,6 +374,7 @@ export function HomeHubChatBar() {
   const [activePlan, setActivePlan] = useState<HubChatPlanPayload | null>(null)
   const [activePlanRow, setActivePlanRow] = useState<HubMultiTaskPlanRow | null>(null)
   const [studioSession, setStudioSession] = useState<HubStudioSession | null>(null)
+  const [bannerOverlayDraft, setBannerOverlayDraft] = useState('')
   const [selectedGenRefKeys, setSelectedGenRefKeys] = useState<string[]>([])
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false)
   const [regeneratePromptDraft, setRegeneratePromptDraft] = useState('')
@@ -720,6 +730,9 @@ export function HomeHubChatBar() {
       printLanguageDetail?: string
       labelAspectRatio?: string
       labelShape?: FlatStickerShape
+      bannerAdPresetId?: BannerAdPresetId
+      bannerAdPresetIds?: BannerAdPresetId[]
+      bannerOverlayText?: string
       discoveryChoice?: string
       discoveryChoiceStep?: string
       colorPaletteKeys?: string[]
@@ -737,7 +750,9 @@ export function HomeHubChatBar() {
         payload.action === 'navigate_step' ||
         payload.action === 'set_print_language' ||
         payload.action === 'set_label_aspect_ratio' ||
-        payload.action === 'set_label_shape'
+        payload.action === 'set_label_shape' ||
+        payload.action === 'set_banner_ad_format' ||
+        payload.action === 'set_banner_design_setup'
       const stepKeyAtSend = getActiveStepKey(studioSession)
       let optimisticUserId: string | null = null
       if (payload.action === 'start_preset' && payload.presetId && studioLaunchStartedRef.current) {
@@ -829,6 +844,9 @@ export function HomeHubChatBar() {
             printLanguageDetail: payload.printLanguageDetail,
             labelAspectRatio: payload.labelAspectRatio,
             labelShape: payload.labelShape,
+            bannerAdPresetId: payload.bannerAdPresetId,
+            bannerAdPresetIds: payload.bannerAdPresetIds,
+            bannerOverlayText: payload.bannerOverlayText,
             discoveryChoice: payload.discoveryChoice,
             discoveryChoiceStep: payload.discoveryChoiceStep,
             colorPaletteKeys: payload.colorPaletteKeys,
@@ -890,6 +908,16 @@ export function HomeHubChatBar() {
               },
             ])
           }
+          return true
+        }
+        if (payload.action === 'set_banner_ad_format') {
+          if (data.session) {
+            const session = withClientStudioSession(data.session, uiLocale)
+            if (session) setStudioSession(session)
+          }
+          const reloadId = data.threadId ?? threadId
+          if (reloadId) await loadThread(reloadId)
+          void fetchThreadList()
           return true
         }
         if (payload.action === 'edit_step') {
@@ -1508,6 +1536,7 @@ export function HomeHubChatBar() {
 
   const showStudioUpload = useMemo(() => {
     if (!studioSession?.presetId) return false
+    if (studioSession.presetId === 'sale_banner') return false
     const preset = getStudioPreset(studioSession.presetId)
     return Boolean(
       preset?.needsUpload &&
@@ -1617,12 +1646,33 @@ export function HomeHubChatBar() {
     return getStepGenerator(studioSession.presetId, stepKey)
   }, [studioSession])
 
+  const showBannerDesignPrepare = useMemo(() => {
+    if (studioSession?.presetId !== 'sale_banner') return false
+    const step = getActiveStepKey(studioSession)
+    if (step !== 'banner_design' && step !== 'banner_ad_format') return false
+    if (step === 'banner_design' && !studioSession.discoveryComplete) return false
+    return !pendingPreviewBlocksWorkflowInput(studioSession)
+  }, [studioSession])
+
+  const saleBannerApprovedCount = useMemo(() => {
+    if (studioSession?.presetId !== 'sale_banner') return 0
+    return studioSession.referenceImages.filter(
+      (r) => r.screenKey === 'banner_design' || r.screenKey.startsWith('banner_design_')
+    ).length
+  }, [studioSession])
+
   const hideStepInputComposer = useMemo(
-    () => (studioSession ? pendingPreviewBlocksWorkflowInput(studioSession) : false),
-    [studioSession]
+    () =>
+      (studioSession ? pendingPreviewBlocksWorkflowInput(studioSession) : false) ||
+      showBannerDesignPrepare,
+    [studioSession, showBannerDesignPrepare]
   )
 
-  const showPendingStepContinue = hideStepInputComposer
+  /** Tiếp / Tạo lại — chỉ sau khi đã generate và đang chờ duyệt preview. */
+  const showPendingStepContinue = useMemo(
+    () => Boolean(studioSession && pendingPreviewBlocksWorkflowInput(studioSession)),
+    [studioSession]
+  )
 
   const showBoxDimensionForm = useMemo(() => {
     if (studioSession?.presetId !== 'packaging_kit') return false
@@ -1684,7 +1734,9 @@ export function HomeHubChatBar() {
   )
 
   const generateCurrentStepLabel =
-    currentDesignGenerator === 'lyria_music'
+    currentDesignGenerator === 'banner' && studioSession?.presetId === 'sale_banner'
+      ? hc.studioGenerateBanner
+      : currentDesignGenerator === 'lyria_music'
       ? hc.studioGenerateMusic
       : currentDesignGenerator === 'packaging_face'
         ? hc.studioGenerateFace
@@ -1703,11 +1755,46 @@ export function HomeHubChatBar() {
       studioSession.briefNotes[studioSession.currentStepKey]?.trim()
   )
   const currentStepDraftBrief = message.trim()
-  const canGenerateCurrentStep = Boolean(
-    generateCanRunWithoutBrief ||
-      currentStepHasBrief ||
-      (currentStepDraftBrief.length >= 2 && isValidHubStudioMessage(currentStepDraftBrief))
+  const isSaleBannerDesignStep = Boolean(
+    studioSession?.presetId === 'sale_banner' && getActiveStepKey(studioSession) === 'banner_design'
   )
+  const bannerSelectedPresetIds = useMemo((): BannerAdPresetId[] => {
+    const fromSession = studioSession?.bannerAd?.selectedPresetIds
+    if (fromSession?.length) {
+      return fromSession.map((id) => normalizeBannerAdPresetId(id))
+    }
+    const single = studioSession?.bannerAd?.presetId
+    return single ? [normalizeBannerAdPresetId(single)] : []
+  }, [studioSession?.bannerAd?.presetId, studioSession?.bannerAd?.selectedPresetIds])
+
+  const hasBannerRatioSelected = bannerSelectedPresetIds.length > 0
+  const hasSaleBannerCopy = Boolean(
+    bannerOverlayDraft.trim() ||
+      studioSession?.bannerAd?.overlayText?.trim() ||
+      hasSaleBannerDiscoveryBrief(studioSession?.briefNotes)
+  )
+  const canGenerateCurrentStep = Boolean(
+    isSaleBannerDesignStep
+      ? hasBannerRatioSelected && hasSaleBannerCopy
+      : generateCanRunWithoutBrief ||
+          currentStepHasBrief ||
+          (currentStepDraftBrief.length >= 2 && isValidHubStudioMessage(currentStepDraftBrief))
+  )
+
+  const bannerGenerateMissingHints = useMemo((): string[] => {
+    if (!isSaleBannerDesignStep || canGenerateCurrentStep) return []
+    const hints: string[] = []
+    if (!hasBannerRatioSelected) hints.push(hc.studioBannerNeedRatio)
+    if (!hasSaleBannerCopy) hints.push(hc.studioBannerNeedCopy)
+    return hints
+  }, [
+    canGenerateCurrentStep,
+    hasBannerRatioSelected,
+    hasSaleBannerCopy,
+    hc.studioBannerNeedCopy,
+    hc.studioBannerNeedRatio,
+    isSaleBannerDesignStep,
+  ])
 
   const barcodeFormInitialEntries = useMemo((): PackagingBarcodeFormEntry[] => {
     if (!studioSession) return []
@@ -1724,6 +1811,7 @@ export function HomeHubChatBar() {
     !showColorPalettePicker &&
     !showBoxDimensionForm &&
     !showBarcodeLabelForm &&
+    !showBannerDesignPrepare &&
     !hideAutoPackagingArtifactStep
 
   const focusStudioChat = useCallback(() => {
@@ -1968,6 +2056,52 @@ export function HomeHubChatBar() {
     [postStudio]
   )
 
+  const submitBannerDesignSetup = useCallback(
+    async (input: {
+      bannerAdPresetId?: BannerAdPresetId
+      bannerAdPresetIds?: BannerAdPresetId[]
+      bannerOverlayText?: string
+    }) => {
+      await postStudio({
+        action: 'set_banner_design_setup',
+        bannerAdPresetId: input.bannerAdPresetId,
+        bannerAdPresetIds: input.bannerAdPresetIds,
+        bannerOverlayText: input.bannerOverlayText,
+      })
+    },
+    [postStudio]
+  )
+
+  const toggleBannerPreset = useCallback(
+    async (presetId: BannerAdPresetId) => {
+      const step = getActiveStepKey(studioSession)
+      if (step === 'banner_ad_format') {
+        await postStudio({ action: 'set_banner_ad_format', bannerAdPresetId: presetId })
+        return
+      }
+      const id = normalizeBannerAdPresetId(presetId)
+      const current = bannerSelectedPresetIds
+      let next: BannerAdPresetId[]
+      if (current.includes(id)) {
+        next = current.filter((x) => x !== id)
+      } else if (current.length >= MAX_BANNER_BATCH_PRESETS) {
+        toast({ title: hc.studioBannerBatchMax, variant: 'destructive' })
+        return
+      } else {
+        next = [...current, id]
+      }
+      await submitBannerDesignSetup({ bannerAdPresetIds: next })
+    },
+    [
+      bannerSelectedPresetIds,
+      hc.studioBannerBatchMax,
+      postStudio,
+      studioSession,
+      submitBannerDesignSetup,
+      toast,
+    ]
+  )
+
   const submitLabelShape = useCallback(
     async (shape: FlatStickerShape) => {
       await postStudio({
@@ -2029,6 +2163,10 @@ export function HomeHubChatBar() {
   }, [studioSession?.currentStepKey])
 
   useEffect(() => {
+    setBannerOverlayDraft(studioSession?.bannerAd?.overlayText ?? '')
+  }, [studioSession?.currentStepKey, studioSession?.bannerAd?.overlayText])
+
+  useEffect(() => {
     const stepKey = getActiveStepKey(studioSession)
     if (!stepKey || !studioSession?.discoveryComplete) {
       if (prevStudioStepKeyRef.current !== null) {
@@ -2059,7 +2197,10 @@ export function HomeHubChatBar() {
       return hc.studioPlaceholder
     }
     const ask = getStepAskPrompt(uiLocale, studioSession.presetId, stepKey)
-    return ask.trim() || hc.studioPlaceholder
+    if (ask.trim()) return ask
+    const flowStep = getFlowSteps(studioSession.presetId).find((s) => s.key === stepKey)
+    if (flowStep) return presetStepLabel(uiLocale, studioSession.presetId, flowStep.labelKey)
+    return hc.studioPlaceholder
   }, [studioSession, uiLocale, hc.studioPlaceholder])
 
   const activeStepSuggestions = useMemo(() => {
@@ -2072,12 +2213,13 @@ export function HomeHubChatBar() {
   }, [studioSession, uiLocale])
 
   const chatInputPlaceholder = useMemo(() => {
-    if (studioSession?.discoveryComplete) {
-      return STEP_INPUT_PLACEHOLDER[uiLocale]
+    const stepKey = getActiveStepKey(studioSession)
+    if (!studioSession?.presetId || !stepKey) {
+      return hc.studioPlaceholder
     }
     return getStudioStepInputPlaceholder(
-      studioSession?.presetId,
-      getActiveStepKey(studioSession),
+      studioSession.presetId,
+      stepKey,
       uiLocale,
       hc.studioPlaceholder
     )
@@ -2111,10 +2253,20 @@ export function HomeHubChatBar() {
         toast({ title: hc.thinking, variant: 'default' })
         return false
       }
+      const isBannerDesignStep =
+        studioSession?.presetId === 'sale_banner' &&
+        getActiveStepKey(studioSession) === 'banner_design'
+      const hasSaleBannerOverlay = Boolean(
+        isBannerDesignStep &&
+          (bannerOverlayDraft.trim() ||
+            studioSession?.bannerAd?.overlayText?.trim() ||
+            hasSaleBannerDiscoveryBrief(studioSession?.briefNotes))
+      )
       if (
         !generateCanRunWithoutBrief &&
         !isValidHubStudioMessage(trimmed) &&
-        !currentStepHasBrief
+        !currentStepHasBrief &&
+        !hasSaleBannerOverlay
       ) {
         return false
       }
@@ -2136,9 +2288,13 @@ export function HomeHubChatBar() {
         action: 'generate_current_step',
         message: trimmed || undefined,
         generationRefKeys: selectedGenRefKeys,
+        bannerAdPresetIds: isBannerDesignStep ? bannerSelectedPresetIds : undefined,
+        bannerOverlayText: isBannerDesignStep ? bannerOverlayDraft : undefined,
       })
     },
     [
+      bannerSelectedPresetIds,
+      bannerOverlayDraft,
       busy,
       currentStepHasBrief,
       generateCanRunWithoutBrief,
@@ -2808,10 +2964,29 @@ export function HomeHubChatBar() {
             />
           ) : null}
 
+          {showBannerDesignPrepare ? (
+            <HubBannerDesignPreparePanel
+              locale={uiLocale}
+              selectedPresetIds={bannerSelectedPresetIds}
+              overlayText={bannerOverlayDraft}
+              uploadImages={studioSession?.uploadImages ?? []}
+              approvedBannerCount={saleBannerApprovedCount}
+              busy={busy}
+              onTogglePreset={toggleBannerPreset}
+              onMaxPresetsSelected={() =>
+                toast({ title: hc.studioBannerBatchMax, variant: 'destructive' })
+              }
+              onOverlayTextChange={setBannerOverlayDraft}
+              onOverlayTextCommit={(text) => void submitBannerDesignSetup({ bannerOverlayText: text })}
+              onUploadFiles={(files) => void postStudioUpload(files)}
+              onFinishFlow={() => void postStudio({ action: 'banner_finish_flow' })}
+            />
+          ) : null}
+
           {!hideStepInputComposer ? (
             <div className="flex flex-col gap-2">
-              {studioSession?.presetId && getActiveStepKey(studioSession) ? (
-                <p className="text-xs text-muted-foreground">{studioInputPlaceholder}</p>
+              {studioSession?.presetId && getActiveStepKey(studioSession) && studioInputPlaceholder ? (
+                <p className="text-xs font-medium text-foreground">{studioInputPlaceholder}</p>
               ) : null}
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <Textarea
@@ -2956,15 +3131,22 @@ export function HomeHubChatBar() {
         </div>
 
         {showGenerateCurrentStep ? (
-          <Button
-            type="button"
-            className="w-full gap-2 bg-violet-600 hover:bg-violet-700 sm:w-auto"
-            disabled={busy || !canGenerateCurrentStep}
-            onClick={() => void generateCurrentStep()}
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {generateCurrentStepLabel}
-          </Button>
+          <div className="flex flex-col gap-1.5">
+            {bannerGenerateMissingHints.length > 0 ? (
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                {bannerGenerateMissingHints.join(' · ')}
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              className="w-full gap-2 bg-violet-600 hover:bg-violet-700 sm:w-auto"
+              disabled={busy || !canGenerateCurrentStep}
+              onClick={() => void generateCurrentStep()}
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {generateCurrentStepLabel}
+            </Button>
+          </div>
         ) : null}
 
         {showPostFlowSuggestions ? (

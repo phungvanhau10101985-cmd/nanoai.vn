@@ -123,6 +123,19 @@ export type HubStudioSession = {
   packaging?: HubPackagingState
   /** Per-generation reference + product picks (max STUDIO_REFERENCE_ATTACH_LIMIT total). */
   generationSelection?: HubStudioGenerationSelection
+  /** Banner quảng cáo — tỷ lệ, kênh & chữ overlay (sale_banner). */
+  bannerAd?: {
+    presetId?: string
+    aspectRatio?: string
+    platform?: string
+    /** 1–4 preset ids chọn cùng lúc. */
+    selectedPresetIds?: string[]
+    overlayText?: string
+  }
+  /** Banner còn lại trong lô tạo nhiều tỷ lệ — duyệt lần lượt. */
+  bannerBatchQueue?: HubStudioPendingPreview[]
+  /** Tổng số banner trong lô hiện tại (duyệt lần lượt). */
+  bannerBatchTotal?: number
 }
 
 export type HubStudioMessagePayload = {
@@ -174,6 +187,9 @@ export type HubStudioMessagePayload = {
   generationAttachUsed?: number
   /** Step this user message answered (for edit/replay). */
   stepKey?: string
+  /** Banner batch: vị trí hiện tại / tổng trong lô đang duyệt. */
+  bannerBatchIndex?: number
+  bannerBatchTotal?: number
   /** Inline SVG wireframe for packaging box face confirm (no AI). */
   boxWireframeSvg?: string
   /** Production checks displayed with the blank dieline/PDF artifact. */
@@ -262,5 +278,23 @@ export function normalizeStudioSession(raw: HubStudioSession | null | undefined)
     referenceImages: Array.isArray(raw.referenceImages) ? raw.referenceImages : [],
     uploadImages: Array.isArray(raw.uploadImages) ? raw.uploadImages : [],
     briefNotes: raw.briefNotes && typeof raw.briefNotes === 'object' ? raw.briefNotes : {},
+    bannerAd:
+      raw.bannerAd && typeof raw.bannerAd === 'object'
+        ? {
+            presetId: String(raw.bannerAd.presetId ?? ''),
+            aspectRatio: String(raw.bannerAd.aspectRatio ?? ''),
+            platform: raw.bannerAd.platform ? String(raw.bannerAd.platform) : undefined,
+            overlayText:
+              typeof raw.bannerAd.overlayText === 'string' ? raw.bannerAd.overlayText : undefined,
+            selectedPresetIds: Array.isArray(raw.bannerAd.selectedPresetIds)
+              ? raw.bannerAd.selectedPresetIds.map(String)
+              : undefined,
+          }
+        : undefined,
+    bannerBatchQueue: Array.isArray(raw.bannerBatchQueue) ? raw.bannerBatchQueue : undefined,
+    bannerBatchTotal:
+      typeof raw.bannerBatchTotal === 'number' && raw.bannerBatchTotal > 0
+        ? raw.bannerBatchTotal
+        : undefined,
   }
 }

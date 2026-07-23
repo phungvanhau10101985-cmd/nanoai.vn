@@ -88,19 +88,33 @@ export const STUDIO_PRESET_JA = {
   sale_banner: {
     title: '広告バナー',
     kickoff:
-      'Google Ads と Facebook/Instagram の正しい比率でバナーセットを作成します。まずキャンペーンブリーフが必要です。以下の質問に一問ずつお答えください。',
+      'Google Ads と Facebook/Instagram の正しい比率で広告バナーを作成します。まずキャンペーンブリーフが必要です。以下の質問に一問ずつお答えください。',
+    uploadHint: 'バナーに合成する商品画像をアップロード（1–13枚）。',
     steps: {
       campaign_name: 'ブリーフ：キャンペーン名',
       product_offer: 'ブリーフ：商品/オファー',
       discount_cta: 'ブリーフ：割引とCTA',
       brand_style: 'ブリーフ：ブランドスタイル',
       color_tone: 'ブリーフ：トーン',
-      ad_platforms: 'ブリーフ：広告チャネル',
-      google_display: 'Google ディスプレイ 1200×628（1.91:1）',
-      google_square: 'Google 正方形 1200×1200',
-      facebook_feed: 'Facebook フィード 1080×1080',
-      facebook_story: 'Facebook ストーリー 1080×1920',
-      instagram_reels: 'Instagram Reels 1080×1920',
+      banner_ad_format: '比率と広告チャネルを選択',
+      banner_design: 'バナーデザイン',
+      horizontal_display_ads:
+        'Googleディスプレイ · YouTube · Webバナー — AI 16:9（1200×628に近い）',
+      square_social_ads:
+        'Facebookフィード & Google正方形広告 — AI 1:1（1080×1080 / 1200×1200）',
+      portrait_social_ads:
+        'Facebook/Instagram縦型フィード — AI 4:5（1080×1350）',
+      vertical_story_ads:
+        'Story · Reels · TikTok — AI 9:16（1080×1920）',
+      web_leaderboard: 'Webリーダーボード / 横長細 — AI 4:1',
+      wide_hero_desktop: '超ワイドデスクトップヒーロー — AI 21:9',
+      print_catalog_4_3: '印刷 · 横カタログ — AI 4:3',
+      print_poster_3_4: '縦ポスター · 店頭印刷 — AI 3:4',
+      catalog_photo_3_2: 'カタログ · 横商品写真 — AI 3:2',
+      pinterest_poster_2_3: 'Pinterest · 縦ポスター — AI 2:3',
+      catalog_near_square_5_4: 'やや正方形カタログ — AI 5:4',
+      ooh_vertical_1_4: 'OOH · 超縦型ディスプレイ — AI 1:4',
+      ooh_strip_8_1: 'LED · イベント超横長 — AI 8:1',
     },
     asks: {
       campaign_name: '① キャンペーン/イベント名は？（オープン、セール、記念日…）',
@@ -108,12 +122,22 @@ export const STUDIO_PRESET_JA = {
       discount_cta: '③ 割引率は？希望するCTAは？（今すぐ購入、注文する…）',
       brand_style: '④ スタイル：上品 / 若々しい / エネルギッシュ / ミニマル？',
       color_tone: '⑤ 優先するトーンは？',
-      ad_platforms: '⑥ どのチャネルで配信？（Google、Facebook、Instagram、TikTok…）',
+      banner_ad_format: '⑥ 下からバナー比率と広告チャネルを選んでください。',
+      banner_design:
+        '⑥ 比率とチャネルを選び、合成画像をアップロード — 文案・レイアウトは任意（空欄は前の brief を使用）— 「バナー生成」を押してください。',
       google_display: 'Google 横長バナーの詳細：見出し、商品画像、ロゴ？',
       google_square: 'Google 正方形バナーの詳細：レイアウト、メインテキスト？',
       facebook_feed: 'Facebook フィードバナーの詳細：短いコピー、ビジュアル？',
       facebook_story: 'Facebook ストーリーの詳細：フルスクリーン、スワイプCTA？',
       instagram_reels: 'Reels カバーの詳細：最初の3秒のフック、テキストオーバーレイ？',
+    },
+    askExamples: {
+      campaign_name: 'オンラインストアオープンキャンペーン',
+      product_offer: 'プレミアムビタミンCセラム — 美白・シミケア',
+      discount_cta: '50%OFF — 今すぐ購入',
+      brand_style: '若々しくエネルギッシュ — 紫ピンクグラデ、太字',
+      color_tone: 'ワインレッド + ゴールド、ダーク背景',
+      banner_design: '50%OFF — 今すぐ購入 · 商品画像右、ロゴ左上',
     },
   },
   brand_kit: {

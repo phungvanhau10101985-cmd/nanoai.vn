@@ -88,19 +88,33 @@ export const STUDIO_PRESET_KO = {
   sale_banner: {
     title: '광고 배너',
     kickoff:
-      'Google Ads 및 Facebook/Instagram에 맞는 비율의 배너 세트를 만듭니다. 먼저 캠페인 브리프가 필요합니다. 아래 질문에 한 가지씩 답해 주세요.',
+      'Google Ads 및 Facebook/Instagram에 맞는 비율의 광고 배너를 만듭니다. 먼저 캠페인 브리프가 필요합니다. 아래 질문에 한 가지씩 답해 주세요.',
+    uploadHint: '배너에 합성할 제품 이미지 업로드 (1–13장).',
     steps: {
       campaign_name: '브리프: 캠페인명',
       product_offer: '브리프: 상품/혜택',
       discount_cta: '브리프: 할인 및 CTA',
       brand_style: '브리프: 브랜드 스타일',
       color_tone: '브리프: 톤',
-      ad_platforms: '브리프: 광고 채널',
-      google_display: 'Google 디스플레이 1200×628 (1.91:1)',
-      google_square: 'Google 정사각 1200×1200',
-      facebook_feed: 'Facebook 피드 1080×1080',
-      facebook_story: 'Facebook 스토리 1080×1920',
-      instagram_reels: 'Instagram Reels 1080×1920',
+      banner_ad_format: '비율 및 광고 채널 선택',
+      banner_design: '배너 디자인',
+      horizontal_display_ads:
+        'Google 디스플레이 · YouTube · 웹 배너 — AI 16:9 (1200×628 근접)',
+      square_social_ads:
+        'Facebook 피드 & Google 정사각 광고 — AI 1:1 (1080×1080 / 1200×1200)',
+      portrait_social_ads:
+        'Facebook/Instagram 세로 피드 — AI 4:5 (1080×1350)',
+      vertical_story_ads:
+        'Story · Reels · TikTok — AI 9:16 (1080×1920)',
+      web_leaderboard: '웹 리더보드 / 가로 띠 — AI 4:1',
+      wide_hero_desktop: '초와이드 데스크톱 히어로 — AI 21:9',
+      print_catalog_4_3: '인쇄 · 가로 카탈로그 — AI 4:3',
+      print_poster_3_4: '세로 포스터 · 매장 인쇄 — AI 3:4',
+      catalog_photo_3_2: '카탈로그 · 가로 제품 사진 — AI 3:2',
+      pinterest_poster_2_3: 'Pinterest · 세로 포스터 — AI 2:3',
+      catalog_near_square_5_4: '거의 정사각 카탈로그 — AI 5:4',
+      ooh_vertical_1_4: 'OOH · 초세로 화면 — AI 1:4',
+      ooh_strip_8_1: 'LED · 이벤트 초와이드 — AI 8:1',
     },
     asks: {
       campaign_name: '① 캠페인/이벤트명은? (오픈, 세일, 기념일…)',
@@ -108,12 +122,22 @@ export const STUDIO_PRESET_KO = {
       discount_cta: '③ 할인율은? 원하는 CTA는? (지금 구매, 주문하기…)',
       brand_style: '④ 스타일: 고급 / 젊은 / 역동적 / 미니멀?',
       color_tone: '⑤ 선호하는 톤은?',
-      ad_platforms: '⑥ 어떤 채널에 게재? (Google, Facebook, Instagram, TikTok…)',
+      banner_ad_format: '⑥ 아래에서 배너 비율과 광고 채널을 선택하세요.',
+      banner_design:
+        '⑥ 비율·채널 선택, 합성 이미지 업로드 — 문구·레이아웃 선택(비우면 이전 brief 사용) — «배너 생성»을 누르세요.',
       google_display: 'Google 가로 배너 세부: 헤드라인, 상품 이미지, 로고?',
       google_square: 'Google 정사각 배너 세부: 레이아웃, 메인 텍스트?',
       facebook_feed: 'Facebook 피드 배너 세부: 짧은 카피, 비주얼?',
       facebook_story: 'Facebook 스토리 세부: 전체 화면, 스와이프 CTA?',
       instagram_reels: 'Reels 커버 세부: 처음 3초 훅, 텍스트 오버레이?',
+    },
+    askExamples: {
+      campaign_name: '온라인 스토어 오픈 캠페인',
+      product_offer: '프리미엄 비타민 C 세럼 — 미백·잡티 케어',
+      discount_cta: '50% 할인 — 지금 구매',
+      brand_style: '젊고 역동적 — 보라·핑크 그라데이션, 볼드 타이포',
+      color_tone: '버건디 + 골드, 어두운 배경',
+      banner_design: '50% 할인 — 지금 구매 · 제품 이미지 오른쪽, 로고 좌상단',
     },
   },
   brand_kit: {

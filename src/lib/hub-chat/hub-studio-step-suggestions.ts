@@ -1,5 +1,6 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { formatStudioExampleLabel } from '@/lib/hub-chat/hub-studio-example-label'
+import { getStepAskExample, getStepAskPrompt } from '@/lib/hub-chat/hub-studio-presets'
 
 export type StudioStepSuggestion = {
   label: Record<WebLocale, string>
@@ -422,6 +423,30 @@ const PACKAGING_KIT_SUGGESTIONS: Record<string, StudioStepSuggestion[]> = {
 
 const COMMON_DISCOVERY_SUGGESTIONS: Record<string, StudioStepSuggestion[]> = {
   brand_name: PACKAGING_KIT_SUGGESTIONS.brand_name!,
+  domain_name: [
+    suggestion(
+      { vi: 'vananh.fashion', en: 'vananh.fashion', zh: 'vananh.fashion', ja: 'vananh.fashion', ko: 'vananh.fashion' },
+      {
+        vi: 'vananh.fashion',
+        en: 'vananh.fashion',
+        zh: 'vananh.fashion',
+        ja: 'vananh.fashion',
+        ko: 'vananh.fashion',
+      }
+    ),
+  ],
+  industry_product: [
+    suggestion(
+      { vi: 'Thời trang nữ', en: 'Women fashion', zh: '女装', ja: 'レディース', ko: '여성 패션' },
+      {
+        vi: 'Thời trang nữ — váy, áo dài, phụ kiện',
+        en: 'Women fashion — dresses, tops, accessories',
+        zh: '女装 — 连衣裙、上衣、配饰',
+        ja: 'レディースファッション — ワンピース、トップス、アクセ',
+        ko: '여성 패션 — 원피스, 상의, 액세서리',
+      }
+    ),
+  ],
   style_mood: PACKAGING_KIT_SUGGESTIONS.style_mood!,
   color_palette: PACKAGING_KIT_SUGGESTIONS.color_palette!,
   target_audience: [
@@ -456,6 +481,42 @@ const PRESET_STEP_SUGGESTIONS: Record<string, Record<string, StudioStepSuggestio
         }
       ),
     ],
+    product_offer: [
+      suggestion(
+        { vi: 'Serum / spa', en: 'Serum / spa', zh: '精华 / 水疗', ja: 'セラム / スパ', ko: '세럼 / 스파' },
+        {
+          vi: 'Serum Vitamin C cao cấp — dưỡng sáng da, giảm thâm nám',
+          en: 'Premium Vitamin C serum — brightening, anti-dark-spot',
+          zh: '高端维生素C精华 — 提亮肤色、淡化色斑',
+          ja: 'プレミアムビタミンCセラム — 美白・シミケア',
+          ko: '프리미엄 비타민 C 세럼 — 미백·잡티 케어',
+        }
+      ),
+    ],
+    brand_style: [
+      suggestion(
+        { vi: 'Trẻ / sang', en: 'Youth / luxury', zh: '年轻 / 高端', ja: '若々 / 高級', ko: '젊은 / 럭셔리' },
+        {
+          vi: 'Trẻ trung, năng động — gradient tím hồng, typography bold',
+          en: 'Youthful, energetic — purple-pink gradient, bold typography',
+          zh: '年轻活力 — 紫粉渐变，粗体字体',
+          ja: '若々しくエネルギッシュ — 紫ピンクグラデ、太字',
+          ko: '젊고 역동적 — 보라·핑크 그라데이션, 볼드 타이포',
+        }
+      ),
+    ],
+    color_tone: [
+      suggestion(
+        { vi: 'Đỏ + vàng', en: 'Red + gold', zh: '红 + 金', ja: '赤 + 金', ko: '빨강 + 금' },
+        {
+          vi: 'Đỏ đô + vàng gold trên nền tối',
+          en: 'Burgundy + gold on dark background',
+          zh: '酒红 + 金色，深色背景',
+          ja: 'ワインレッド + ゴールド、ダーク背景',
+          ko: '버건디 + 골드, 어두운 배경',
+        }
+      ),
+    ],
     discount_cta: [
       suggestion(
         { vi: 'Giảm 50%', en: '50% off', zh: '5折', ja: '50%OFF', ko: '50% 할인' },
@@ -468,12 +529,38 @@ const PRESET_STEP_SUGGESTIONS: Record<string, Record<string, StudioStepSuggestio
         }
       ),
     ],
+    banner_design: [
+      suggestion(
+        { vi: 'Headline + CTA', en: 'Headline + CTA', zh: '标题 + CTA', ja: '見出し + CTA', ko: '헤드라인 + CTA' },
+        {
+          vi: 'GIẢM 50% — MUA NGAY · ảnh sản phẩm bên phải, logo góc trên',
+          en: '50% OFF — SHOP NOW · product image on the right, logo top corner',
+          zh: '5折 — 立即购买 · 产品图在右，Logo 左上角',
+          ja: '50%OFF — 今すぐ購入 · 商品画像右、ロゴ左上',
+          ko: '50% 할인 — 지금 구매 · 제품 이미지 오른쪽, 로고 좌상단',
+        }
+      ),
+    ],
   },
 }
 
 export type StudioStepSuggestionItem = {
   label: string
   message: string
+}
+
+/** Pull a short example from ask text, e.g. parentheses after the question. */
+export function extractExampleFromAsk(ask: string): string | null {
+  const trimmed = ask.trim()
+  if (!trimmed) return null
+  const parenMatches = [...trimmed.matchAll(/\(([^)]+)\)/g)]
+  const lastParen = parenMatches.at(-1)?.[1]
+  if (lastParen) {
+    let inner = lastParen.replace(/…+$/u, '').trim()
+    inner = inner.replace(/^(?:vd|ví dụ|e\.g\.|示例|例|예)[:：]\s*/iu, '').trim()
+    if (inner.length >= 2) return inner
+  }
+  return null
 }
 
 export function getStudioStepSuggestions(
@@ -496,9 +583,23 @@ export function getStudioStepInputPlaceholder(
   locale: WebLocale,
   fallback: string
 ): string {
+  if (!presetId || !stepKey) return fallback
+
   const suggestions = getStudioStepSuggestions(presetId, stepKey, locale)
   if (suggestions[0]?.message) {
     return formatStudioExampleLabel(locale, suggestions[0].message)
   }
+
+  const askExample = getStepAskExample(locale, presetId, stepKey)
+  if (askExample) {
+    return formatStudioExampleLabel(locale, askExample)
+  }
+
+  const ask = getStepAskPrompt(locale, presetId, stepKey)
+  const extracted = extractExampleFromAsk(ask)
+  if (extracted) {
+    return formatStudioExampleLabel(locale, extracted)
+  }
+
   return fallback
 }

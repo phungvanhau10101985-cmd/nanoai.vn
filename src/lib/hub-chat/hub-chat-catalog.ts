@@ -43,17 +43,6 @@ export const HUB_CHAT_POPULAR: {
     },
   },
   {
-    href: '/tao-banner',
-    labelKey: 'create_banner',
-    samplePrompt: {
-      vi: 'Banner sale 50% mùa hè, nền xanh gradient, chữ trắng nổi bật',
-      en: 'Summer sale 50% banner, blue gradient background, bold white text',
-      zh: '夏季五折促销横幅，蓝色渐变背景，醒目白字',
-      ja: '夏の50%セールバナー、青グラデ背景、白文字',
-      ko: '여름 50% 세일 배너, 파란 그라데이션 배경, 흰색 굵은 글자',
-    },
-  },
-  {
     href: '/lam-net-anh',
     labelKey: 'enhance_image',
     samplePrompt: {

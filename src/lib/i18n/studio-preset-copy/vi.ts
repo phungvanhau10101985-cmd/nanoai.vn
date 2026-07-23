@@ -88,19 +88,33 @@ export const STUDIO_PRESET_VI = {
   sale_banner: {
     title: 'Banner quảng cáo',
     kickoff:
-      'Mình sẽ tạo bộ banner đúng tỷ lệ Google Ads & Facebook/Instagram. Trước tiên cần brief chiến dịch — trả lời từng câu bên dưới.',
+      'Mình sẽ tạo banner đúng tỷ lệ Google Ads & Facebook/Instagram. Trước tiên cần brief chiến dịch — trả lời từng câu bên dưới.',
+    uploadHint: 'Tải ảnh sản phẩm để ghép vào banner (1–13 ảnh).',
     steps: {
       campaign_name: 'Brief: Tên chiến dịch',
       product_offer: 'Brief: Sản phẩm/ưu đãi',
       discount_cta: 'Brief: Giảm giá & CTA',
       brand_style: 'Brief: Phong cách thương hiệu',
       color_tone: 'Brief: Tông màu',
-      ad_platforms: 'Brief: Kênh quảng cáo',
-      google_display: 'Google Display 1200×628 (1.91:1)',
-      google_square: 'Google vuông 1200×1200',
-      facebook_feed: 'Facebook Feed 1080×1080',
-      facebook_story: 'Facebook Story 1080×1920',
-      instagram_reels: 'Instagram Reels 1080×1920',
+      banner_ad_format: 'Chọn tỷ lệ & kênh quảng cáo',
+      banner_design: 'Thiết kế banner',
+      horizontal_display_ads:
+        'Google Display · YouTube · Banner web — AI 16:9 (gần 1200×628)',
+      square_social_ads:
+        'Facebook Feed & Google Ads vuông — AI 1:1 (1080×1080 / 1200×1200)',
+      portrait_social_ads:
+        'Facebook/Instagram feed dọc — AI 4:5 (1080×1350)',
+      vertical_story_ads:
+        'Story · Reels · TikTok — AI 9:16 (1080×1920)',
+      web_leaderboard: 'Leaderboard web / banner ngang mảnh — AI 4:1',
+      wide_hero_desktop: 'Hero desktop siêu rộng — AI 21:9',
+      print_catalog_4_3: 'In ấn · catalog ngang — AI 4:3',
+      print_poster_3_4: 'Poster dọc · in ấn cửa hàng — AI 3:4',
+      catalog_photo_3_2: 'Catalog · ảnh ngang sản phẩm — AI 3:2',
+      pinterest_poster_2_3: 'Pinterest · poster dọc — AI 2:3',
+      catalog_near_square_5_4: 'Catalog gần vuông — AI 5:4',
+      ooh_vertical_1_4: 'OOH · màn dọc cực cao — AI 1:4',
+      ooh_strip_8_1: 'LED · sự kiện banner ngang — AI 8:1',
     },
     asks: {
       campaign_name: '① Tên chiến dịch / sự kiện? (khai trương, sale 8/3…)',
@@ -108,12 +122,22 @@ export const STUDIO_PRESET_VI = {
       discount_cta: '③ Giảm giá bao nhiêu %? CTA mong muốn? (Mua ngay, Đặt hàng…)',
       brand_style: '④ Phong cách: sang / trẻ / năng động / tối giản?',
       color_tone: '⑤ Tông màu ưu tiên?',
-      ad_platforms: '⑥ Chạy trên kênh nào? (Google, Facebook, Instagram, TikTok…)',
+      banner_ad_format: '⑥ Chọn tỷ lệ banner và kênh quảng cáo phù hợp bên dưới.',
+      banner_design:
+        '⑥ Chọn tỷ lệ & kênh, tải ảnh ghép — nội dung & bố cục tùy chọn (để trống dùng brief đã nhập) — rồi «Tạo banner».',
       google_display: 'Chi tiết banner ngang Google: headline, ảnh sản phẩm, logo?',
       google_square: 'Chi tiết banner vuông Google: layout, text chính?',
       facebook_feed: 'Chi tiết banner Facebook feed: text ngắn, visual?',
       facebook_story: 'Chi tiết story Facebook: full màn hình, CTA swipe?',
       instagram_reels: 'Chi tiết Reels cover: hook 3 giây đầu, text overlay?',
+    },
+    askExamples: {
+      campaign_name: 'Chiến dịch khai trương cửa hàng online',
+      product_offer: 'Serum Vitamin C cao cấp — dưỡng sáng da, giảm thâm nám',
+      discount_cta: 'Giảm 50% — Mua ngay',
+      brand_style: 'Trẻ trung, năng động — gradient tím hồng, typography bold',
+      color_tone: 'Đỏ đô + vàng gold trên nền tối',
+      banner_design: 'GIẢM 50% — MUA NGAY · ảnh sản phẩm bên phải, logo góc trên',
     },
   },
   brand_kit: {

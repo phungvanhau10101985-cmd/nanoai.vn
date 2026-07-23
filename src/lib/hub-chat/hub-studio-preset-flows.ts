@@ -62,51 +62,12 @@ export const SALE_BANNER_FLOW: StudioFlowStepDef[] = [
   { key: 'discount_cta', labelKey: 'discount_cta', phase: 'discovery' },
   { key: 'brand_style', labelKey: 'brand_style', phase: 'discovery' },
   { key: 'color_tone', labelKey: 'color_tone', phase: 'discovery' },
-  { key: 'ad_platforms', labelKey: 'ad_platforms', phase: 'discovery' },
   {
-    key: 'google_display',
-    labelKey: 'google_display',
+    key: 'banner_design',
+    labelKey: 'banner_design',
     phase: 'design',
     generator: 'banner',
-    aspectRatio: '1.91:1',
-    platform: 'google',
     formFactor: 'desktop',
-  },
-  {
-    key: 'google_square',
-    labelKey: 'google_square',
-    phase: 'design',
-    generator: 'banner',
-    aspectRatio: '1:1',
-    platform: 'google',
-    formFactor: 'square',
-  },
-  {
-    key: 'facebook_feed',
-    labelKey: 'facebook_feed',
-    phase: 'design',
-    generator: 'banner',
-    aspectRatio: '1:1',
-    platform: 'facebook',
-    formFactor: 'square',
-  },
-  {
-    key: 'facebook_story',
-    labelKey: 'facebook_story',
-    phase: 'design',
-    generator: 'banner',
-    aspectRatio: '9:16',
-    platform: 'facebook',
-    formFactor: 'mobile',
-  },
-  {
-    key: 'instagram_reels',
-    labelKey: 'instagram_reels',
-    phase: 'design',
-    generator: 'banner',
-    aspectRatio: '9:16',
-    platform: 'instagram',
-    formFactor: 'mobile',
   },
 ]
 
@@ -419,4 +380,17 @@ export function orderedReferenceUrls(
   const logoRef = referenceImages.find((r) => r.screenKey === logoKey)
   const rest = referenceImages.filter((r) => r.screenKey !== logoKey)
   return [...(logoRef ? [logoRef.url] : []), ...rest.map((r) => r.url)]
+}
+
+export const SALE_BANNER_DISCOVERY_BRIEF_KEYS = [
+  'campaign_name',
+  'product_offer',
+  'discount_cta',
+  'brand_style',
+  'color_tone',
+] as const
+
+export function hasSaleBannerDiscoveryBrief(briefNotes: Record<string, string> | undefined): boolean {
+  if (!briefNotes) return false
+  return SALE_BANNER_DISCOVERY_BRIEF_KEYS.some((k) => Boolean(briefNotes[k]?.trim()))
 }

@@ -5,6 +5,15 @@ import type { ToolKey } from '@/lib/i18n/dictionaries'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 
+/** Standalone tool pages superseded by inline Hub Studio presets — hide from studio catalog & routing. */
+export const STANDALONE_REPLACED_BY_STUDIO: Record<string, string> = {
+  '/tao-banner': 'sale_banner',
+}
+
+export function isStandaloneReplacedByStudio(href: string): boolean {
+  return Object.prototype.hasOwnProperty.call(STANDALONE_REPLACED_BY_STUDIO, href)
+}
+
 export type HubFeatureFlowKind = 'studio' | 'standalone'
 
 export type HubFeatureFlowMatch =
@@ -75,7 +84,6 @@ const STANDALONE_EXTRA_INTENTS: Partial<Record<string, string[]>> = {
   '/sua-anh-theo-yeu-cau': ['sửa ảnh', 'edit image', 'photo edit ai'],
   '/mo-rong-khung-hinh': ['mở rộng khung', 'outpaint', 'expand image'],
   '/hoan-doi-khuon-mat': ['hoán đổi mặt', 'face swap'],
-  '/tao-banner': ['banner', 'poster quảng cáo', 'sale banner'],
   '/tao-anh-tu-chu': ['text to image', 'ảnh từ chữ', 'prompt to image'],
   '/du-anh-tu-phac-thao': ['phác thảo', 'sketch to image'],
   '/tao-anh-the': ['ảnh thẻ', 'id photo', 'passport photo'],
@@ -136,6 +144,7 @@ export function buildStandaloneFeatureEntries(locale: WebLocale): StandaloneFeat
   const byHref = new Map<string, StandaloneFeatureEntry>()
 
   for (const row of catalog) {
+    if (isStandaloneReplacedByStudio(row.href)) continue
     byHref.set(row.href, {
       href: row.href,
       labelKey: row.labelKey,
@@ -189,7 +198,6 @@ const STANDALONE_VERB_HINTS: Partial<
   '/giao-trinh': { open: true },
   '/tao-bai-thi': { create: true },
   '/tao-bai-tap-ve-nha': { create: true },
-  '/tao-banner': { create: true },
 }
 
 function scoreStandaloneMatch(message: string, entry: StandaloneFeatureEntry): number {

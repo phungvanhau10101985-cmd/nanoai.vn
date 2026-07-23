@@ -88,19 +88,33 @@ export const STUDIO_PRESET_EN = {
   sale_banner: {
     title: 'Ad Banner',
     kickoff:
-      'I will create a banner set in the correct ratios for Google Ads & Facebook/Instagram. First we need a campaign brief — answer each question below.',
+      'I will create an ad banner in the correct ratio for Google Ads & Facebook/Instagram. First we need a campaign brief — answer each question below.',
+    uploadHint: 'Upload product images to composite into the banner (1–13 images).',
     steps: {
       campaign_name: 'Brief: Campaign name',
       product_offer: 'Brief: Product/offer',
       discount_cta: 'Brief: Discount & CTA',
       brand_style: 'Brief: Brand style',
       color_tone: 'Brief: Color tone',
-      ad_platforms: 'Brief: Ad channels',
-      google_display: 'Google Display 1200×628 (1.91:1)',
-      google_square: 'Google square 1200×1200',
-      facebook_feed: 'Facebook Feed 1080×1080',
-      facebook_story: 'Facebook Story 1080×1920',
-      instagram_reels: 'Instagram Reels 1080×1920',
+      banner_ad_format: 'Pick ratio & ad channel',
+      banner_design: 'Design banner',
+      horizontal_display_ads:
+        'Google Display · YouTube · Web banner — AI 16:9 (near 1200×628)',
+      square_social_ads:
+        'Facebook Feed & Google Ads square — AI 1:1 (1080×1080 / 1200×1200)',
+      portrait_social_ads:
+        'Facebook/Instagram portrait feed — AI 4:5 (1080×1350)',
+      vertical_story_ads:
+        'Story · Reels · TikTok — AI 9:16 (1080×1920)',
+      web_leaderboard: 'Web leaderboard / thin strip — AI 4:1',
+      wide_hero_desktop: 'Ultra-wide desktop hero — AI 21:9',
+      print_catalog_4_3: 'Print · horizontal catalog — AI 4:3',
+      print_poster_3_4: 'Vertical poster · in-store print — AI 3:4',
+      catalog_photo_3_2: 'Catalog · horizontal product photo — AI 3:2',
+      pinterest_poster_2_3: 'Pinterest · vertical poster — AI 2:3',
+      catalog_near_square_5_4: 'Near-square catalog — AI 5:4',
+      ooh_vertical_1_4: 'OOH · ultra-tall portrait screen — AI 1:4',
+      ooh_strip_8_1: 'LED · event ultra-wide strip — AI 8:1',
     },
     asks: {
       campaign_name: '① Campaign / event name? (grand opening, sale, holiday promo…)',
@@ -108,12 +122,22 @@ export const STUDIO_PRESET_EN = {
       discount_cta: '③ Discount percentage? Desired CTA? (Shop now, Order now…)',
       brand_style: '④ Style: elegant / youthful / energetic / minimal?',
       color_tone: '⑤ Preferred color tone?',
-      ad_platforms: '⑥ Which channels? (Google, Facebook, Instagram, TikTok…)',
+      banner_ad_format: '⑥ Pick banner ratio and matching ad channel below.',
+      banner_design:
+        '⑥ Pick ratio & channel, upload images — copy & layout optional (empty uses earlier brief) — then «Generate banner».',
       google_display: 'Google horizontal banner details: headline, product image, logo?',
       google_square: 'Google square banner details: layout, main text?',
       facebook_feed: 'Facebook feed banner details: short copy, visual?',
       facebook_story: 'Facebook story details: full screen, swipe CTA?',
       instagram_reels: 'Reels cover details: hook in first 3 seconds, text overlay?',
+    },
+    askExamples: {
+      campaign_name: 'Online store grand opening campaign',
+      product_offer: 'Premium Vitamin C serum — brightening, anti-dark-spot',
+      discount_cta: '50% off — Shop now',
+      brand_style: 'Youthful, energetic — purple-pink gradient, bold typography',
+      color_tone: 'Burgundy + gold on dark background',
+      banner_design: '50% OFF — SHOP NOW · product image on the right, logo top corner',
     },
   },
   brand_kit: {

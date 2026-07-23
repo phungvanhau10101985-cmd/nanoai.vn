@@ -233,6 +233,9 @@ export async function POST(request: NextRequest) {
       printLanguageDetail?: string
       labelAspectRatio?: string
       labelShape?: string
+      bannerAdPresetId?: string
+      bannerAdPresetIds?: string[]
+      bannerOverlayText?: string
       discoveryChoice?: string
       discoveryChoiceStep?: string
       colorPaletteKeys?: string[]
@@ -275,6 +278,14 @@ export async function POST(request: NextRequest) {
       const printLanguageDetail = String(body?.printLanguageDetail ?? '').trim() || undefined
       const labelAspectRatio = String(body?.labelAspectRatio ?? '').trim() || undefined
       const labelShape = String(body?.labelShape ?? '').trim() || undefined
+      const bannerAdPresetId = String(body?.bannerAdPresetId ?? '').trim() || undefined
+      const bannerAdPresetIds = Array.isArray(body?.bannerAdPresetIds)
+        ? body.bannerAdPresetIds
+            .map((id) => String(id).trim())
+            .filter((id) => id.length > 0)
+        : undefined
+      const bannerOverlayText =
+        body?.bannerOverlayText !== undefined ? String(body.bannerOverlayText) : undefined
       const featureKey = String(body?.featureKey ?? '').trim() || undefined
       const discoveryChoice = String(body?.discoveryChoice ?? '').trim() || undefined
       const discoveryChoiceStep = String(body?.discoveryChoiceStep ?? '').trim() || undefined
@@ -333,6 +344,9 @@ export async function POST(request: NextRequest) {
         printLanguageDetail,
         labelAspectRatio,
         labelShape,
+        bannerAdPresetId,
+        bannerAdPresetIds,
+        bannerOverlayText,
         discoveryChoice,
         discoveryChoiceStep,
         colorPaletteKeys,

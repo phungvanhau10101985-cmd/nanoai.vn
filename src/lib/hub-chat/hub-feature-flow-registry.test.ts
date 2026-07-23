@@ -31,6 +31,17 @@ test('mở giáo trình maps to my curricula viewer', () => {
   if (match?.kind === 'standalone') assert.equal(match.href, '/giao-trinh')
 })
 
+test('banner quảng cáo maps to sale_banner studio not standalone page', () => {
+  const match = matchFeatureFlowByMessage('tạo banner quảng cáo sale 50%', 'vi')
+  assert.equal(match?.kind, 'studio')
+  if (match?.kind === 'studio') assert.equal(match.presetId, 'sale_banner')
+})
+
+test('standalone catalog excludes tools replaced by studio presets', () => {
+  const entries = buildStandaloneFeatureEntries('vi')
+  assert.ok(!entries.some((e) => e.href === '/tao-banner'))
+})
+
 test('standalone catalog covers nav tools and advisory extras', () => {
   const entries = buildStandaloneFeatureEntries('vi')
   assert.ok(entries.some((e) => e.href === '/lam-net-anh'))
@@ -56,11 +67,11 @@ test('tagWorkflowFlowMeta marks catalog hrefs as requiring confirm', () => {
   const tagged = tagWorkflowFlowMeta(
     [
       {
-        href: '/tao-banner',
-        labelKey: 'create_banner',
-        label: 'Banner',
+        href: '/lam-net-anh',
+        labelKey: 'enhance_image',
+        label: 'Enhance',
         reason: 'test',
-        prefillPrompt: 'sale',
+        prefillPrompt: 'sharpen',
         confidence: 0.8,
       },
     ],

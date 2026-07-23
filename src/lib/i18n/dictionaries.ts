@@ -276,6 +276,20 @@ export type Dictionary = {
     autoRunDone: string
     autoRunNeedImage: string
     studioNeedUpload: string
+    studioBannerSavedCreateNext: string
+    studioBannerNeedRatio: string
+    studioBannerNeedCopy: string
+    studioBannerOptimizeAi: string
+    studioBannerOptimizeEmpty: string
+    studioBannerOptimizeDone: string
+    studioBannerOptimizeDoneDesc: string
+    studioBannerOptimizeFailed: string
+    studioBannerPromptBuildFailed: string
+    studioBannerBatchMax: string
+    studioBannerBatchSelected: string
+    studioBannerBatchGenerated: string
+    studioBannerBatchApproveNext: string
+    studioGenerateBanner: string
     studioUploadBtn: string
     studioImagesUploaded: string
     studioMusicCredit: string
@@ -2890,6 +2904,21 @@ const VI_DICTIONARY: Dictionary = {
     autoRunDone: 'Đã chạy xong kế hoạch tự động',
     autoRunNeedImage: 'Cần chọn ít nhất 1 ảnh sản phẩm.',
     studioNeedUpload: 'Vui lòng tải ảnh sản phẩm/mẫu lên trước khi tạo.',
+    studioBannerSavedCreateNext:
+      'Đã lưu **Banner {n}**. Chọn tỷ lệ, ảnh ghép và nội dung chữ bên dưới để tạo banner tiếp, hoặc bấm «Hoàn tất quy trình».',
+    studioBannerNeedRatio: 'Vui lòng chọn ít nhất 1 tỷ lệ banner (tối đa 4 mỗi lần tạo).',
+    studioBannerNeedCopy: 'Vui lòng nhập nội dung chữ hiển thị trên banner.',
+    studioBannerOptimizeAi: 'Tối ưu AI',
+    studioBannerOptimizeEmpty: 'Nhập sơ ý nội dung & bố cục banner trước khi tối ưu.',
+    studioBannerOptimizeDone: 'Đã tối ưu bằng AI',
+    studioBannerOptimizeDoneDesc: 'Bạn có thể chỉnh thêm hoặc bấm lại nếu chưa ưng ý.',
+    studioBannerOptimizeFailed: 'Không tối ưu được nội dung banner. Thử lại sau.',
+    studioBannerPromptBuildFailed: 'Không tạo được prompt ảnh banner. Thử lại sau.',
+    studioBannerBatchMax: 'Mỗi lần tạo tối đa 4 tỷ lệ banner.',
+    studioBannerBatchSelected: 'Đã chọn {n} tỷ lệ → tạo {n} banner một lúc.',
+    studioBannerBatchGenerated: 'Đã tạo {n} banner — duyệt từng ảnh bên dưới.',
+    studioBannerBatchApproveNext: 'Đã lưu banner. Xem banner {index}/{total} trong lô — duyệt hoặc tạo lại.',
+    studioGenerateBanner: 'Tạo banner',
     studioUploadBtn: 'Tải ảnh lên',
     studioImagesUploaded: 'Đã tải {n} ảnh. Mô tả yêu cầu cho bước tiếp theo.',
     studioMusicCredit: 'Nhạc: {n} credits',
@@ -5512,6 +5541,21 @@ const EN_DICTIONARY: Dictionary = {
     autoRunDone: 'Auto-run plan completed',
     autoRunNeedImage: 'Select at least one product image.',
     studioNeedUpload: 'Please upload product/model photos before generating.',
+    studioBannerSavedCreateNext:
+      'Saved **Banner {n}**. Pick ratio, composite images, and overlay copy below for the next banner, or tap «Finish flow».',
+    studioBannerNeedRatio: 'Pick at least 1 banner ratio (up to 4 per run).',
+    studioBannerNeedCopy: 'Please enter the text to display on the banner.',
+    studioBannerOptimizeAi: 'Optimize with AI',
+    studioBannerOptimizeEmpty: 'Enter a draft for banner copy & layout before optimizing.',
+    studioBannerOptimizeDone: 'Optimized with AI',
+    studioBannerOptimizeDoneDesc: 'You can edit further or tap again if needed.',
+    studioBannerOptimizeFailed: 'Could not optimize banner content. Please try again.',
+    studioBannerPromptBuildFailed: 'Could not build the banner image prompt. Please try again.',
+    studioBannerBatchMax: 'You can create up to 4 banner ratios at once.',
+    studioBannerBatchSelected: '{n} ratio(s) selected → {n} banner(s) in one run.',
+    studioBannerBatchGenerated: 'Created {n} banners — review each image below.',
+    studioBannerBatchApproveNext: 'Banner saved. Review banner {index}/{total} in this batch.',
+    studioGenerateBanner: 'Generate banner',
     studioUploadBtn: 'Upload images',
     studioImagesUploaded: 'Uploaded {n} image(s). Describe requirements for the next step.',
     studioMusicCredit: 'Music: {n} credits',
@@ -8180,6 +8224,21 @@ const ZH_DICTIONARY: Dictionary = {
     autoRunDone: '自动计划已完成',
     autoRunNeedImage: '请至少选择 1 张产品图片。',
     studioNeedUpload: '生成前请先上传产品/模特图片。',
+    studioBannerSavedCreateNext:
+      '已保存 **横幅 {n}**。在下方选择比例、合成图片和文字以创建下一个横幅，或点击「完成流程」。',
+    studioBannerNeedRatio: '请至少选择 1 个横幅比例（每次最多 4 个）。',
+    studioBannerNeedCopy: '请输入横幅上显示的文字。',
+    studioBannerOptimizeAi: 'AI 优化',
+    studioBannerOptimizeEmpty: '请先输入横幅文案与布局草稿，再进行优化。',
+    studioBannerOptimizeDone: '已用 AI 优化',
+    studioBannerOptimizeDoneDesc: '可继续编辑，不满意可再次点击优化。',
+    studioBannerOptimizeFailed: '无法优化横幅内容，请稍后重试。',
+    studioBannerPromptBuildFailed: '无法生成横幅图片提示词，请稍后重试。',
+    studioBannerBatchMax: '每次最多选择 4 个横幅比例。',
+    studioBannerBatchSelected: '已选 {n} 个比例 → 一次生成 {n} 个横幅。',
+    studioBannerBatchGenerated: '已生成 {n} 个横幅 — 请在下方逐个审核。',
+    studioBannerBatchApproveNext: '横幅已保存。请审核本批第 {index}/{total} 个横幅。',
+    studioGenerateBanner: '生成横幅',
     studioUploadBtn: '上传图片',
     studioImagesUploaded: '已上传 {n} 张图片。请描述下一步需求。',
     studioMusicCredit: '音乐：{n} 积分',
@@ -10761,6 +10820,21 @@ const JA_DICTIONARY: Dictionary = {
     autoRunDone: '自動プランが完了しました',
     autoRunNeedImage: '商品画像を1枚以上選択してください。',
     studioNeedUpload: '生成前に商品・モデル写真をアップロードしてください。',
+    studioBannerSavedCreateNext:
+      '**バナー {n}** を保存しました。下で比率・合成画像・文字を選んで次のバナーを作成するか、「フローを完了」を押してください。',
+    studioBannerNeedRatio: 'バナー比率を1つ以上選んでください（1回最大4つ）。',
+    studioBannerNeedCopy: 'バナー上に表示する文字を入力してください。',
+    studioBannerOptimizeAi: 'AIで最適化',
+    studioBannerOptimizeEmpty: '最適化の前にバナー文案・レイアウトの下書きを入力してください。',
+    studioBannerOptimizeDone: 'AIで最適化しました',
+    studioBannerOptimizeDoneDesc: '編集を続けるか、再度ボタンを押してください。',
+    studioBannerOptimizeFailed: 'バナー内容を最適化できませんでした。後でもう一度お試しください。',
+    studioBannerPromptBuildFailed: 'バナー画像プロンプトを作成できませんでした。後でもう一度お試しください。',
+    studioBannerBatchMax: '1回に選べるバナー比率は最大4つです。',
+    studioBannerBatchSelected: '{n} 比率を選択 → 一度に {n} バナーを生成。',
+    studioBannerBatchGenerated: '{n} 件のバナーを生成しました — 下で1件ずつ確認してください。',
+    studioBannerBatchApproveNext: 'バナーを保存しました。このバッチ {index}/{total} を確認してください。',
+    studioGenerateBanner: 'バナー生成',
     studioUploadBtn: '画像をアップロード',
     studioImagesUploaded: '{n} 枚アップロードしました。次のステップの要件を説明してください。',
     studioMusicCredit: '音楽：{n} クレジット',
@@ -13414,6 +13488,21 @@ const KO_DICTIONARY: Dictionary = {
     autoRunDone: '자동 계획 완료',
     autoRunNeedImage: '제품 이미지를 1장 이상 선택하세요.',
     studioNeedUpload: '생성 전에 제품/모델 사진을 업로드하세요.',
+    studioBannerSavedCreateNext:
+      '**배너 {n}** 저장됨. 아래에서 비율·합성 이미지·문구를 선택해 다음 배너를 만들거나 «플로우 완료»를 누르세요.',
+    studioBannerNeedRatio: '배너 비율을 1개 이상 선택하세요(한 번에 최대 4개).',
+    studioBannerNeedCopy: '배너에 표시할 문구를 입력하세요.',
+    studioBannerOptimizeAi: 'AI 최적화',
+    studioBannerOptimizeEmpty: '최적화 전에 배너 문구·레이아웃 초안을 입력하세요.',
+    studioBannerOptimizeDone: 'AI로 최적화됨',
+    studioBannerOptimizeDoneDesc: '더 수정하거나 마음에 들지 않으면 다시 누르세요.',
+    studioBannerOptimizeFailed: '배너 내용을 최적화하지 못했습니다. 나중에 다시 시도하세요.',
+    studioBannerPromptBuildFailed: '배너 이미지 프롬프트를 만들지 못했습니다. 나중에 다시 시도하세요.',
+    studioBannerBatchMax: '한 번에 최대 4개 배너 비율을 선택할 수 있습니다.',
+    studioBannerBatchSelected: '{n}개 비율 선택 → 한 번에 {n}개 배너 생성.',
+    studioBannerBatchGenerated: '{n}개 배너를 생성했습니다 — 아래에서 하나씩 검토하세요.',
+    studioBannerBatchApproveNext: '배너를 저장했습니다. 이 배치 {index}/{total}을(를) 검토하세요.',
+    studioGenerateBanner: '배너 생성',
     studioUploadBtn: '이미지 업로드',
     studioImagesUploaded: '{n}장 업로드됨. 다음 단계 요구사항을 설명하세요.',
     studioMusicCredit: '음악: {n} 크레딧',

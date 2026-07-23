@@ -1,6 +1,7 @@
 import { buildHubToolCatalog } from '@/lib/hub-chat/hub-chat-catalog'
 import {
   buildStandaloneFeatureEntries,
+  isStandaloneReplacedByStudio,
   type HubFeatureFlowKind,
   type HubFeatureFlowMatch,
 } from '@/lib/hub-chat/hub-feature-flow-registry'
@@ -52,6 +53,7 @@ export function buildHubFeatureCatalog(locale: WebLocale): HubFeatureCatalogEntr
   const groupByHref = new Map(toolCatalog.map((row) => [row.href, row]))
 
   for (const tool of buildStandaloneFeatureEntries(locale)) {
+    if (isStandaloneReplacedByStudio(tool.href)) continue
     const meta = groupByHref.get(tool.href)
     out.push({
       key: toolFeatureKey(tool.href),
@@ -143,9 +145,13 @@ export function groupPostFlowFeatureCatalog(
   return groupHubFeatureCatalog(locale)
     .map((group) => ({
       ...group,
-      entries: presetId
-        ? group.entries.filter((entry) => !(entry.kind === 'studio' && entry.presetId === presetId))
-        : group.entries,
+      entries: group.entries.filter((entry) => {
+        if (presetId && entry.kind === 'studio' && entry.presetId === presetId) return false
+        if (entry.kind === 'standalone' && entry.href && isStandaloneReplacedByStudio(entry.href)) {
+          return false
+        }
+        return true
+      }),
     }))
     .filter((group) => group.entries.length > 0)
 }

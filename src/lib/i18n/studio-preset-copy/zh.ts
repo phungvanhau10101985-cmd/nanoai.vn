@@ -88,19 +88,33 @@ export const STUDIO_PRESET_ZH = {
   sale_banner: {
     title: '广告横幅',
     kickoff:
-      '我将按 Google Ads 与 Facebook/Instagram 的正确比例创建横幅套装。首先需要活动简报——请逐条回答以下问题。',
+      '我将按 Google Ads 与 Facebook/Instagram 的正确比例创建广告横幅。首先需要活动简报——请逐条回答以下问题。',
+    uploadHint: '上传产品图片以合成到横幅中（1–13 张）。',
     steps: {
       campaign_name: '简报：活动名称',
       product_offer: '简报：产品/优惠',
       discount_cta: '简报：折扣与行动号召',
       brand_style: '简报：品牌风格',
       color_tone: '简报：色调',
-      ad_platforms: '简报：投放渠道',
-      google_display: 'Google 展示 1200×628（1.91:1）',
-      google_square: 'Google 方形 1200×1200',
-      facebook_feed: 'Facebook 信息流 1080×1080',
-      facebook_story: 'Facebook 快拍 1080×1920',
-      instagram_reels: 'Instagram Reels 1080×1920',
+      banner_ad_format: '选择比例与广告渠道',
+      banner_design: '设计横幅',
+      horizontal_display_ads:
+        'Google 展示 · YouTube · 网页横幅 — AI 16:9（接近 1200×628）',
+      square_social_ads:
+        'Facebook 信息流 & Google 方形广告 — AI 1:1（1080×1080 / 1200×1200）',
+      portrait_social_ads:
+        'Facebook/Instagram 竖版信息流 — AI 4:5（1080×1350）',
+      vertical_story_ads:
+        'Story · Reels · TikTok — AI 9:16（1080×1920）',
+      web_leaderboard: '网页通栏 / 横条横幅 — AI 4:1',
+      wide_hero_desktop: '超宽桌面主视觉 — AI 21:9',
+      print_catalog_4_3: '印刷 · 横版目录 — AI 4:3',
+      print_poster_3_4: '竖版海报 · 店内印刷 — AI 3:4',
+      catalog_photo_3_2: '目录 · 横版产品图 — AI 3:2',
+      pinterest_poster_2_3: 'Pinterest · 竖版海报 — AI 2:3',
+      catalog_near_square_5_4: '近方形目录 — AI 5:4',
+      ooh_vertical_1_4: '户外 · 超高竖屏 — AI 1:4',
+      ooh_strip_8_1: 'LED · 活动超宽横条 — AI 8:1',
     },
     asks: {
       campaign_name: '① 活动/事件名称？（开业、促销、节日活动…）',
@@ -108,12 +122,21 @@ export const STUDIO_PRESET_ZH = {
       discount_cta: '③ 折扣多少？期望的行动号召？（立即购买、立即下单…）',
       brand_style: '④ 风格：高端 / 年轻 / 活力 / 极简？',
       color_tone: '⑤ 优先色调？',
-      ad_platforms: '⑥ 投放哪些渠道？（Google、Facebook、Instagram、TikTok…）',
+      banner_ad_format: '⑥ 在下方选择横幅比例及匹配的广告渠道。',
+      banner_design: '⑥ 选择比例与渠道、上传合成图片 — 文案与布局可选（留空则用前面 brief）— 然后「生成横幅」。',
       google_display: 'Google 横版横幅细节：标题、产品图、Logo？',
       google_square: 'Google 方形横幅细节：布局、主文案？',
       facebook_feed: 'Facebook 信息流横幅细节：短文案、视觉？',
       facebook_story: 'Facebook 快拍细节：全屏、上滑行动号召？',
       instagram_reels: 'Reels 封面细节：前 3 秒钩子、文字叠加？',
+    },
+    askExamples: {
+      campaign_name: '网店开业活动',
+      product_offer: '高端维生素C精华 — 提亮肤色、淡化色斑',
+      discount_cta: '5 折 — 立即购买',
+      brand_style: '年轻活力 — 紫粉渐变，粗体字体',
+      color_tone: '酒红 + 金色，深色背景',
+      banner_design: '5折 — 立即购买 · 产品图在右，Logo 左上角',
     },
   },
   brand_kit: {

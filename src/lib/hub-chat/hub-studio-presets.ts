@@ -4,6 +4,7 @@ import type { HubStudioProcessStep } from '@/lib/hub-chat/hub-studio-types'
 import {
   getFlowStep,
   getFlowSteps,
+  hasSaleBannerDiscoveryBrief,
   type StudioFlowStepDef,
 } from '@/lib/hub-chat/hub-studio-preset-flows'
 
@@ -55,9 +56,12 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
   {
     id: 'sale_banner',
     labelKey: 'sale_banner',
+    needsUpload: false,
     intents: [
       'banner sale',
       'banner khuyến mãi',
+      'banner quảng cáo',
+      'tạo banner',
       'quảng cáo',
       'poster sale',
       'khai trương',
@@ -328,6 +332,12 @@ export function presetTitle(locale: WebLocale, presetId: string): string {
 export function getStepAskPrompt(locale: WebLocale, presetId: string, stepKey: string): string {
   const copy = presetCopy(locale, presetId)
   return copy?.asks[stepKey] ?? ''
+}
+
+/** Short example for the chat input placeholder — parallel to asks[stepKey]. */
+export function getStepAskExample(locale: WebLocale, presetId: string, stepKey: string): string {
+  const copy = presetCopy(locale, presetId) as { askExamples?: Record<string, string> } | undefined
+  return copy?.askExamples?.[stepKey]?.trim() ?? ''
 }
 
 export function getPresetKickoff(locale: WebLocale, presetId: string): string {
