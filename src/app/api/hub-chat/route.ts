@@ -236,6 +236,16 @@ export async function POST(request: NextRequest) {
       bannerAdPresetId?: string
       bannerAdPresetIds?: string[]
       bannerOverlayText?: string
+      bannerDomainName?: string
+      menuFormatPresetId?: string
+      menuDishes?: Array<{
+        id?: string
+        order?: string
+        name?: string
+        unit?: string
+        priceVnd?: string
+      }>
+      menuVenueName?: string
       discoveryChoice?: string
       discoveryChoiceStep?: string
       colorPaletteKeys?: string[]
@@ -286,6 +296,24 @@ export async function POST(request: NextRequest) {
         : undefined
       const bannerOverlayText =
         body?.bannerOverlayText !== undefined ? String(body.bannerOverlayText) : undefined
+      const bannerDomainName =
+        body?.bannerDomainName !== undefined ? String(body.bannerDomainName) : undefined
+      const bannerBatchIndex =
+        typeof body?.bannerBatchIndex === 'number' && Number.isFinite(body.bannerBatchIndex)
+          ? body.bannerBatchIndex
+          : undefined
+      const menuFormatPresetId = String(body?.menuFormatPresetId ?? '').trim() || undefined
+      const menuDishes = Array.isArray(body?.menuDishes)
+        ? body.menuDishes.map((row, index) => ({
+            id: String(row?.id ?? `dish-${index}`),
+            order: String(row?.order ?? ''),
+            name: String(row?.name ?? ''),
+            unit: String(row?.unit ?? ''),
+            priceVnd: String(row?.priceVnd ?? ''),
+          }))
+        : undefined
+      const menuVenueName =
+        body?.menuVenueName !== undefined ? String(body.menuVenueName) : undefined
       const featureKey = String(body?.featureKey ?? '').trim() || undefined
       const discoveryChoice = String(body?.discoveryChoice ?? '').trim() || undefined
       const discoveryChoiceStep = String(body?.discoveryChoiceStep ?? '').trim() || undefined
@@ -347,6 +375,11 @@ export async function POST(request: NextRequest) {
         bannerAdPresetId,
         bannerAdPresetIds,
         bannerOverlayText,
+        bannerDomainName,
+        bannerBatchIndex,
+        menuFormatPresetId,
+        menuDishes,
+        menuVenueName,
         discoveryChoice,
         discoveryChoiceStep,
         colorPaletteKeys,

@@ -95,6 +95,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 import { trackApiUsage } from '@/lib/track-ai-usage'
+import {
+  buildDeepSeekCompletionBody,
+  DEEPSEEK_CHAT_COMPLETIONS_URL,
+  resolveDeepSeekVerifyModel,
+} from '@/lib/deepseek-api'
 import { questionsToMarkdown } from './lib/questions-to-markdown'
 import { parseWorksheetIntoBlocks } from './lib/worksheet-parse-questions'
 import { blocksToContentJson } from './lib/markdown-to-questions'
@@ -1936,18 +1941,19 @@ async function checkSlideRegionWithDeepSeek(prompt: string, userId?: string | nu
   try {
     const apiKey = process.env.DEEPSEEK_API_KEY?.trim()
     if (!apiKey) return null
-    const model = process.env.DEEPSEEK_VERIFY_MODEL?.trim() || 'deepseek-reasoner'
-    const res = await fetch('https://api.deepseek.com/chat/completions', {
+    const model = resolveDeepSeekVerifyModel()
+    const res = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        temperature: 0,
-        messages: [
-          { role: 'system', content: 'Trả về đúng JSON theo yêu cầu, không markdown.' },
-          { role: 'user', content: prompt },
-        ],
-      }),
+      body: JSON.stringify(
+        buildDeepSeekCompletionBody('verify', {
+          temperature: 0,
+          messages: [
+            { role: 'system', content: 'Trả về đúng JSON theo yêu cầu, không markdown.' },
+            { role: 'user', content: prompt },
+          ],
+        })
+      ),
     })
     if (!res.ok) return null
     const data = (await res.json().catch(() => ({}))) as {

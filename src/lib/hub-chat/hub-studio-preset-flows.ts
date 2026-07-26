@@ -57,11 +57,14 @@ export const MOBILE_SHOP_FLOW: StudioFlowStepDef[] = [
 ]
 
 export const SALE_BANNER_FLOW: StudioFlowStepDef[] = [
+  { key: 'domain_name', labelKey: 'domain_name', phase: 'discovery' },
   { key: 'campaign_name', labelKey: 'campaign_name', phase: 'discovery' },
   { key: 'product_offer', labelKey: 'product_offer', phase: 'discovery' },
   { key: 'discount_cta', labelKey: 'discount_cta', phase: 'discovery' },
   { key: 'brand_style', labelKey: 'brand_style', phase: 'discovery' },
   { key: 'color_tone', labelKey: 'color_tone', phase: 'discovery' },
+  { key: 'banner_style', labelKey: 'banner_style', phase: 'discovery' },
+  { key: 'banner_model', labelKey: 'banner_model', phase: 'discovery' },
   {
     key: 'banner_design',
     labelKey: 'banner_design',
@@ -264,6 +267,22 @@ export const PROFILE_PHOTO_PACK_FLOW: StudioFlowStepDef[] = [
   { key: 'personal_banner', labelKey: 'personal_banner', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
 ]
 
+export const FOOD_MENU_FLOW: StudioFlowStepDef[] = [
+  { key: 'venue_name', labelKey: 'venue_name', phase: 'discovery' },
+  { key: 'menu_type', labelKey: 'menu_type', phase: 'discovery' },
+  { key: 'food_illustration', labelKey: 'food_illustration', phase: 'discovery' },
+  { key: 'menu_style', labelKey: 'menu_style', phase: 'discovery' },
+  { key: 'color_tone', labelKey: 'color_tone', phase: 'discovery' },
+  {
+    key: 'menu_design',
+    labelKey: 'menu_design',
+    phase: 'design',
+    generator: 'banner',
+    aspectRatio: '3:4',
+    formFactor: 'mobile',
+  },
+]
+
 export const PRESET_FLOW_MAP: Record<string, StudioFlowStepDef[]> = {
   mobile_shop: MOBILE_SHOP_FLOW,
   sale_banner: SALE_BANNER_FLOW,
@@ -280,6 +299,7 @@ export const PRESET_FLOW_MAP: Record<string, StudioFlowStepDef[]> = {
   infographic_series: INFOGRAPHIC_SERIES_FLOW,
   fashion_campaign: FASHION_CAMPAIGN_FLOW,
   profile_photo_pack: PROFILE_PHOTO_PACK_FLOW,
+  food_menu: FOOD_MENU_FLOW,
 }
 
 export function getFlowSteps(presetId: string): StudioFlowStepDef[] {
@@ -382,15 +402,40 @@ export function orderedReferenceUrls(
   return [...(logoRef ? [logoRef.url] : []), ...rest.map((r) => r.url)]
 }
 
-export const SALE_BANNER_DISCOVERY_BRIEF_KEYS = [
+export const SALE_BANNER_COPY_BRIEF_KEYS = [
+  'domain_name',
   'campaign_name',
   'product_offer',
   'discount_cta',
+] as const
+
+/** Visual direction only — must NOT be rendered as on-banner text. */
+export const SALE_BANNER_VISUAL_BRIEF_KEYS = [
   'brand_style',
   'color_tone',
+  'banner_style',
+  'banner_model',
+] as const
+
+export const SALE_BANNER_DISCOVERY_BRIEF_KEYS = [
+  ...SALE_BANNER_COPY_BRIEF_KEYS,
+  ...SALE_BANNER_VISUAL_BRIEF_KEYS,
 ] as const
 
 export function hasSaleBannerDiscoveryBrief(briefNotes: Record<string, string> | undefined): boolean {
   if (!briefNotes) return false
   return SALE_BANNER_DISCOVERY_BRIEF_KEYS.some((k) => Boolean(briefNotes[k]?.trim()))
+}
+
+export const FOOD_MENU_DISCOVERY_BRIEF_KEYS = [
+  'venue_name',
+  'menu_type',
+  'food_illustration',
+  'menu_style',
+  'color_tone',
+] as const
+
+export function hasFoodMenuDiscoveryBrief(briefNotes: Record<string, string> | undefined): boolean {
+  if (!briefNotes) return false
+  return FOOD_MENU_DISCOVERY_BRIEF_KEYS.some((k) => Boolean(briefNotes[k]?.trim()))
 }

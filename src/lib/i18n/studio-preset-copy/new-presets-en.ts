@@ -238,4 +238,43 @@ export const NEW_PRESETS_EN = {
       personal_banner: 'Banner: name, title, personal brand gradient?',
     },
   },
+  food_menu: {
+    title: 'Restaurant menu design',
+    kickoff:
+      'Design a menu for restaurants, cafés, or drink shops. Answer style brief first — then enter dishes and generate the menu.',
+    uploadHint: 'Upload reference dish photos (optional) — AI uses them when you choose illustrated menu.',
+    steps: {
+      venue_name: 'Brief: Venue name',
+      menu_type: 'Brief: Menu type',
+      food_illustration: 'Brief: Food illustrations',
+      menu_style: 'Brief: Style',
+      color_tone: 'Brief: Color tone',
+      menu_design: 'Design menu',
+      menu_a4_portrait: 'A4 portrait — print / wall menu',
+      menu_a4_landscape: 'A4 landscape — large board / spread',
+      menu_table_tent: 'Table tent — square',
+      menu_board_vertical: 'Vertical board — screen / LED',
+      menu_board_wide: 'Wide board — TV / display',
+    },
+    asks: {
+      venue_name: '① Venue / brand name on the menu? (e.g. Hanoi Beef Pho, Morning Café)',
+      menu_type:
+        '② Menu type: wall A4, booklet, standing board, table tent, digital screen menu?',
+      food_illustration:
+        '③ Include food illustration photos on the menu? (Yes — appetizing dish photos / No — text & decoration only)',
+      menu_style:
+        '④ Style: vintage / modern / minimal / traditional / rustic / luxury café?',
+      color_tone: '⑤ Preferred color tone? (e.g. wood brown + cream, green + white)',
+      menu_design:
+        'Enter venue/brand name, upload logo, pick menu format, add dishes (no., name, unit, VND price) — then «Generate menu».',
+    },
+    askExamples: {
+      venue_name: 'Hanoi Beef Pho — 123 Le Loi St',
+      menu_type: 'Wall A4 portrait — double-sided print',
+      food_illustration: 'Yes — small dish photo beside each item',
+      menu_style: 'Modern Vietnamese — clear typography, light decorative border',
+      color_tone: 'Warm wood brown + cream, black text',
+      menu_design: 'Beef pho 65,000 VND · Bun cha 55,000 VND · Milk coffee 25,000 VND',
+    },
+  },
 } as const

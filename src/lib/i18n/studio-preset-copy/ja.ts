@@ -88,14 +88,17 @@ export const STUDIO_PRESET_JA = {
   sale_banner: {
     title: '広告バナー',
     kickoff:
-      'Google Ads と Facebook/Instagram の正しい比率で広告バナーを作成します。まずキャンペーンブリーフが必要です。以下の質問に一問ずつお答えください。',
+      'Google Ads と Facebook/Instagram の正しい比率で広告バナーを作成します。まずブランドとキャンペーンのブリーフが必要です。以下の質問に一問ずつお答えください。',
     uploadHint: 'バナーに合成する商品画像をアップロード（1–13枚）。',
     steps: {
-      campaign_name: 'ブリーフ：キャンペーン名',
+      domain_name: 'ブリーフ：ドメインまたはブランド名',
+      campaign_name: 'ブリーフ：広告メッセージ',
       product_offer: 'ブリーフ：商品/オファー',
       discount_cta: 'ブリーフ：割引とCTA',
       brand_style: 'ブリーフ：ブランドスタイル',
       color_tone: 'ブリーフ：トーン',
+      banner_style: 'ブリーフ：バナーのビジュアルスタイル',
+      banner_model: 'ブリーフ：バナーのモデル',
       banner_ad_format: '比率と広告チャネルを選択',
       banner_design: 'バナーデザイン',
       horizontal_display_ads:
@@ -117,14 +120,19 @@ export const STUDIO_PRESET_JA = {
       ooh_strip_8_1: 'LED · イベント超横長 — AI 8:1',
     },
     asks: {
-      campaign_name: '① キャンペーン/イベント名は？（オープン、セール、記念日…）',
-      product_offer: '② 何の商品/サービスを広告しますか？魅力を挙げてください。',
-      discount_cta: '③ 割引率は？希望するCTAは？（今すぐ購入、注文する…）',
-      brand_style: '④ スタイル：上品 / 若々しい / エネルギッシュ / ミニマル？',
-      color_tone: '⑤ 優先するトーンは？',
-      banner_ad_format: '⑥ 下からバナー比率と広告チャネルを選んでください。',
+      domain_name: '① バナーに表示するドメインまたはブランド名は？（例：188.com.vn または Van Anh Fashion）',
+      campaign_name: '② 主な広告メッセージは？（オープン、セール、短いスローガン…）',
+      product_offer: '③ 何の商品/サービスを広告しますか？魅力を挙げてください。',
+      discount_cta: '④ 割引率は？希望するCTAは？（今すぐ購入、注文する…）',
+      brand_style: '⑤ ブランドスタイル：上品 / 若々しい / エネルギッシュ / ミニマル？',
+      color_tone: '⑥ 優先するトーンは？',
+      banner_style:
+        '⑦ バナーのビジュアル：ライフスタイル / フラットレイ / 商品スタジオ / タイポのみ / コラージュ？',
+      banner_model:
+        '⑧ バナーのモデル（あれば）：男性か女性？アジア系か欧州系？明るい肌か濃い肌？（例：女性・アジア系・明るい肌 — または「モデル不要」）',
+      banner_ad_format: '下からバナー比率と広告チャネルを選んでください。',
       banner_design:
-        '⑥ 比率とチャネルを選び、合成画像をアップロード — 文案・レイアウトは任意（空欄は前の brief を使用）— 「バナー生成」を押してください。',
+        '比率とチャネルを選び、必要ならドメイン/ブランド名を修正、ロゴをアップロードして合成、商品写真を追加 — 「バナー生成」を押してください。',
       google_display: 'Google 横長バナーの詳細：見出し、商品画像、ロゴ？',
       google_square: 'Google 正方形バナーの詳細：レイアウト、メインテキスト？',
       facebook_feed: 'Facebook フィードバナーの詳細：短いコピー、ビジュアル？',
@@ -132,11 +140,14 @@ export const STUDIO_PRESET_JA = {
       instagram_reels: 'Reels カバーの詳細：最初の3秒のフック、テキストオーバーレイ？',
     },
     askExamples: {
-      campaign_name: 'オンラインストアオープンキャンペーン',
+      domain_name: '188.com.vn または Van Anh Fashion',
+      campaign_name: '上質なメンズスタイル — 靴・バッグ・アクセサリー',
       product_offer: 'プレミアムビタミンCセラム — 美白・シミケア',
       discount_cta: '50%OFF — 今すぐ購入',
       brand_style: '若々しくエネルギッシュ — 紫ピンクグラデ、太字',
       color_tone: 'ワインレッド + ゴールド、ダーク背景',
+      banner_style: '高級ライフスタイル — モデル着用、ソフトなスタジオ光',
+      banner_model: '女性、アジア系、明るい肌 — 上品なオフィスジャケット',
       banner_design: '50%OFF — 今すぐ購入 · 商品画像右、ロゴ左上',
     },
   },

@@ -200,6 +200,10 @@ const STANDALONE_VERB_HINTS: Partial<
   '/tao-bai-tap-ve-nha': { create: true },
 }
 
+/** Teaching / curriculum topics — standalone «Tạo giáo trình» must match one of these (not bare «tạo …»). */
+const CURRICULUM_TOPIC_MARKERS =
+  /giáo trình|giao trinh|giảng dạy|giang day|dạy học|day hoc|bài giảng|bai giang|lesson plan|curriculum|sgk|sách giáo khoa|sach giao khoa|môn học|mon hoc|tiết học|tiet hoc|phiếu bài tập|phieu bai tap|bài tập về nhà|bai tap ve nha|lớp học|lop hoc|worksheet|slide bài|slide bai/i
+
 function scoreStandaloneMatch(message: string, entry: StandaloneFeatureEntry): number {
   const lower = message.toLowerCase().trim()
   let score = 0
@@ -210,13 +214,18 @@ function scoreStandaloneMatch(message: string, entry: StandaloneFeatureEntry): n
     else if (lower.includes(token)) score += token.length
   }
 
+  if (entry.href === '/tao-giao-trinh' && !CURRICULUM_TOPIC_MARKERS.test(lower)) {
+    return 0
+  }
+
   const hints = STANDALONE_VERB_HINTS[entry.href]
-  if (hints?.create && CREATE_VERBS.test(message)) score += 24
-  if (hints?.open && OPEN_VERBS.test(message)) score += 24
+  // Verb boost only when message already matches feature intents — avoid «tạo banner» → giáo trình.
+  if (hints?.create && CREATE_VERBS.test(message) && score > 0) score += 24
+  if (hints?.open && OPEN_VERBS.test(message) && score > 0) score += 24
   if (hints?.open && CREATE_VERBS.test(message) && !OPEN_VERBS.test(message)) score -= 20
   if (hints?.create && OPEN_VERBS.test(message) && !CREATE_VERBS.test(message)) score -= 12
 
-  return score
+  return Math.max(0, score)
 }
 
 /** Prefer complete studio preset; otherwise match standalone tool page. */

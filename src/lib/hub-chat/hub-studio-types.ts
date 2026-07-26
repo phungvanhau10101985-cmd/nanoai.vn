@@ -131,10 +131,34 @@ export type HubStudioSession = {
     /** 1–4 preset ids chọn cùng lúc. */
     selectedPresetIds?: string[]
     overlayText?: string
+    /** Logo thương hiệu — ghép vào banner khi tạo ảnh. */
+    logoUrl?: string
+    /** Banner đầu tiên trong lô — tham chiếu đồng nhất model/style cho các tỷ lệ sau. */
+    batchStyleAnchorUrl?: string
   }
-  /** Banner còn lại trong lô tạo nhiều tỷ lệ — duyệt lần lượt. */
+  /** Thiết kế menu quán ăn / quán nước (food_menu). */
+  foodMenu?: {
+    formatPresetId?: string
+    aspectRatio?: string
+    /** Tên quán / thương hiệu hiển thị trên menu (ghi đè brief nếu sửa ở bước thiết kế). */
+    venueName?: string
+    /** Logo thương hiệu — ghép vào menu khi tạo ảnh. */
+    logoUrl?: string
+    dishes?: Array<{
+      id: string
+      order: string
+      name: string
+      unit: string
+      priceVnd: string
+    }>
+  }
+  /** @deprecated Dùng bannerBatchPreviews — giữ để tương thích session cũ. */
   bannerBatchQueue?: HubStudioPendingPreview[]
-  /** Tổng số banner trong lô hiện tại (duyệt lần lượt). */
+  /** Tất cả banner trong lô vừa tạo — hiển thị cùng lúc trên UI. */
+  bannerBatchPreviews?: HubStudioPendingPreview[]
+  /** Banner đang được xem / tạo lại trong lô. */
+  bannerBatchSelectedIndex?: number
+  /** Tổng số banner trong lô hiện tại. */
   bannerBatchTotal?: number
 }
 
@@ -187,7 +211,10 @@ export type HubStudioMessagePayload = {
   generationAttachUsed?: number
   /** Step this user message answered (for edit/replay). */
   stepKey?: string
-  /** Banner batch: vị trí hiện tại / tổng trong lô đang duyệt. */
+  /** Banner batch: danh sách ảnh hiển thị cùng lúc. */
+  bannerBatchItems?: Array<{ url: string; screenLabel: string; index: number }>
+  bannerBatchSelectedIndex?: number
+  /** @deprecated */
   bannerBatchIndex?: number
   bannerBatchTotal?: number
   /** Inline SVG wireframe for packaging box face confirm (no AI). */
@@ -286,12 +313,49 @@ export function normalizeStudioSession(raw: HubStudioSession | null | undefined)
             platform: raw.bannerAd.platform ? String(raw.bannerAd.platform) : undefined,
             overlayText:
               typeof raw.bannerAd.overlayText === 'string' ? raw.bannerAd.overlayText : undefined,
+            logoUrl: typeof raw.bannerAd.logoUrl === 'string' ? raw.bannerAd.logoUrl : undefined,
             selectedPresetIds: Array.isArray(raw.bannerAd.selectedPresetIds)
               ? raw.bannerAd.selectedPresetIds.map(String)
               : undefined,
           }
         : undefined,
+    foodMenu:
+      raw.foodMenu && typeof raw.foodMenu === 'object'
+        ? {
+            formatPresetId:
+              typeof raw.foodMenu.formatPresetId === 'string'
+                ? raw.foodMenu.formatPresetId
+                : undefined,
+            aspectRatio:
+              typeof raw.foodMenu.aspectRatio === 'string' ? raw.foodMenu.aspectRatio : undefined,
+            venueName:
+              typeof raw.foodMenu.venueName === 'string' ? raw.foodMenu.venueName : undefined,
+            logoUrl: typeof raw.foodMenu.logoUrl === 'string' ? raw.foodMenu.logoUrl : undefined,
+            dishes: Array.isArray(raw.foodMenu.dishes)
+              ? raw.foodMenu.dishes.map((row, index) => ({
+                  id: String(row?.id ?? `dish-${index}`),
+                  order: String(row?.order ?? ''),
+                  name: String(row?.name ?? ''),
+                  unit: String(row?.unit ?? ''),
+                  priceVnd: String(row?.priceVnd ?? ''),
+                }))
+              : undefined,
+          }
+        : undefined,
     bannerBatchQueue: Array.isArray(raw.bannerBatchQueue) ? raw.bannerBatchQueue : undefined,
+    bannerBatchPreviews: (() => {
+      if (Array.isArray(raw.bannerBatchPreviews) && raw.bannerBatchPreviews.length) {
+        return raw.bannerBatchPreviews
+      }
+      const queue = Array.isArray(raw.bannerBatchQueue) ? raw.bannerBatchQueue : []
+      const pending = raw.pendingPreview
+      if (pending && queue.length > 0) return [pending, ...queue]
+      return undefined
+    })(),
+    bannerBatchSelectedIndex:
+      typeof raw.bannerBatchSelectedIndex === 'number' && raw.bannerBatchSelectedIndex >= 0
+        ? raw.bannerBatchSelectedIndex
+        : undefined,
     bannerBatchTotal:
       typeof raw.bannerBatchTotal === 'number' && raw.bannerBatchTotal > 0
         ? raw.bannerBatchTotal

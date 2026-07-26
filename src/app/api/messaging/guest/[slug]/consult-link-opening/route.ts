@@ -9,6 +9,11 @@ import {
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
+import {
+  buildDeepSeekCompletionBody,
+  DEEPSEEK_CHAT_COMPLETIONS_URL,
+  resolveDeepSeekChatModel,
+} from '@/lib/deepseek-api'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 45
@@ -73,19 +78,21 @@ function fallbackOpeningMessage(productName: string, extraContext: string): stri
 async function generateOpeningWithDeepseek(prompt: string): Promise<string | null> {
   const key = process.env.DEEPSEEK_API_KEY?.trim()
   if (!key) return null
+  const model = resolveDeepSeekChatModel()
   try {
-    const res = await fetch('https://api.deepseek.com/chat/completions', {
+    const res = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 420,
-        temperature: 0.35,
-      }),
+      body: JSON.stringify(
+        buildDeepSeekCompletionBody('chat', {
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 420,
+          temperature: 0.35,
+        })
+      ),
     })
     const json = (await res.json().catch(() => null)) as
       | {
@@ -104,7 +111,7 @@ async function generateOpeningWithDeepseek(prompt: string): Promise<string | nul
     const cleaned = text.replace(/^["']|["']$/g, '').trim()
     if (cleaned.length < 40 || cleaned.length > 520) return null
     trackOpenAiStyleCompletionUsage({
-      model: 'deepseek-chat',
+      model,
       feature: 'messaging-consult-link-opening-deepseek',
       usage: json?.usage,
       fallbackPromptChars: prompt.length,

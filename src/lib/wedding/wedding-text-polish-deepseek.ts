@@ -1,4 +1,9 @@
 import { trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
+import {
+  buildDeepSeekCompletionBody,
+  DEEPSEEK_CHAT_COMPLETIONS_URL,
+  resolveDeepSeekChatModel,
+} from '@/lib/deepseek-api'
 
 export const WEDDING_POLISH_FIELDS = [
   'coupleIntro',
@@ -94,25 +99,26 @@ export async function polishWeddingTextWithDeepseek(input: {
   const draft = input.draft.trim()
   if (!draft) return { error: 'Nội dung trống.' }
 
-  const model = String(process.env.DEEPSEEK_MODEL || 'deepseek-chat').trim() || 'deepseek-chat'
+  const model = resolveDeepSeekChatModel()
   const userPrompt = buildUserPrompt(input)
 
   try {
-    const res = await fetch('https://api.deepseek.com/chat/completions', {
+    const res = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
-        max_tokens: 1200,
-        temperature: 0.45,
-      }),
+      body: JSON.stringify(
+        buildDeepSeekCompletionBody('chat', {
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: userPrompt },
+          ],
+          max_tokens: 1200,
+          temperature: 0.45,
+        })
+      ),
     })
 
     const json = (await res.json()) as {

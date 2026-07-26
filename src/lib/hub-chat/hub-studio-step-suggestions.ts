@@ -449,6 +449,28 @@ const COMMON_DISCOVERY_SUGGESTIONS: Record<string, StudioStepSuggestion[]> = {
   ],
   style_mood: PACKAGING_KIT_SUGGESTIONS.style_mood!,
   color_palette: PACKAGING_KIT_SUGGESTIONS.color_palette!,
+  color_tone: [
+    suggestion(
+      { vi: 'Nâu gỗ + kem', en: 'Wood + cream', zh: '木棕 + 米白', ja: 'ウッド + クリーム', ko: '우드 + 크림' },
+      {
+        vi: 'Nâu gỗ + kem ấm, chữ đen',
+        en: 'Warm wood brown + cream, black text',
+        zh: '暖木棕 + 米白，黑字',
+        ja: '暖かいウッドブラウン + クリーム、黒文字',
+        ko: '따뜻한 우드 브라운 + 크림, 검은 글자',
+      }
+    ),
+    suggestion(
+      { vi: 'Đỏ + vàng', en: 'Red + gold', zh: '红 + 金', ja: '赤 + 金', ko: '빨강 + 금' },
+      {
+        vi: 'Đỏ đô + vàng gold trên nền tối',
+        en: 'Burgundy + gold on dark background',
+        zh: '酒红 + 金色，深色背景',
+        ja: 'ワインレッド + ゴールド、ダーク背景',
+        ko: '버건디 + 골드, 어두운 배경',
+      }
+    ),
+  ],
   target_audience: [
     suggestion(
       { vi: 'Nữ 25–35', en: 'Women 25–35', zh: '女性 25–35', ja: '女性25–35歳', ko: '여성 25–35' },
@@ -469,15 +491,27 @@ const PRESET_STEP_SUGGESTIONS: Record<string, Record<string, StudioStepSuggestio
   brand_kit: COMMON_DISCOVERY_SUGGESTIONS,
   landing_page: COMMON_DISCOVERY_SUGGESTIONS,
   sale_banner: {
+    domain_name: [
+      suggestion(
+        { vi: '188.com.vn', en: '188.com.vn', zh: '188.com.vn', ja: '188.com.vn', ko: '188.com.vn' },
+        {
+          vi: '188.com.vn',
+          en: '188.com.vn',
+          zh: '188.com.vn',
+          ja: '188.com.vn',
+          ko: '188.com.vn',
+        }
+      ),
+    ],
     campaign_name: [
       suggestion(
         { vi: 'Khai trương', en: 'Grand opening', zh: '开业', ja: 'オープン', ko: '오픈' },
         {
-          vi: 'Chiến dịch khai trương cửa hàng online',
-          en: 'Online store grand opening campaign',
-          zh: '网店开业活动',
-          ja: 'オンラインストアオープンキャンペーン',
-          ko: '온라인 스토어 오픈 캠페인',
+          vi: 'Phong cách nam đẳng cấp — giày, túi, phụ kiện',
+          en: 'Premium men\'s style — shoes, bags & accessories',
+          zh: '高端男士风格 — 鞋包配饰',
+          ja: '上質なメンズスタイル — 靴・バッグ・アクセサリー',
+          ko: '프리미엄 남성 스타일 — 신발·가방·액세서리',
         }
       ),
     ],
@@ -505,15 +539,76 @@ const PRESET_STEP_SUGGESTIONS: Record<string, Record<string, StudioStepSuggestio
         }
       ),
     ],
-    color_tone: [
+    color_tone: COMMON_DISCOVERY_SUGGESTIONS.color_tone!,
+    banner_style: [
       suggestion(
-        { vi: 'Đỏ + vàng', en: 'Red + gold', zh: '红 + 金', ja: '赤 + 金', ko: '빨강 + 금' },
         {
-          vi: 'Đỏ đô + vàng gold trên nền tối',
-          en: 'Burgundy + gold on dark background',
-          zh: '酒红 + 金色，深色背景',
-          ja: 'ワインレッド + ゴールド、ダーク背景',
-          ko: '버건디 + 골드, 어두운 배경',
+          vi: 'Đời sống / sắp xếp phẳng',
+          en: 'Lifestyle / flat lay',
+          zh: '生活方式 / 平铺',
+          ja: 'ライフスタイル / フラットレイ',
+          ko: '라이프스타일 / 플랫레이',
+        },
+        {
+          vi: 'Bối cảnh đời sống cao cấp — người mẫu mặc sản phẩm, ánh sáng studio mềm',
+          en: 'Premium lifestyle — model wearing product, soft studio lighting',
+          zh: '高端生活方式 — 模特穿着产品，柔和棚拍光',
+          ja: '高級ライフスタイル — モデル着用、ソフトなスタジオ光',
+          ko: '프리미엄 라이프스타일 — 모델 착용, 부드러운 스튜디오 조명',
+        }
+      ),
+      suggestion(
+        {
+          vi: 'Sản phẩm / thuần chữ',
+          en: 'Product / typography',
+          zh: '产品 / 字体',
+          ja: '商品 / タイポ',
+          ko: '제품 / 타이포',
+        },
+        {
+          vi: 'Sắp xếp phẳng sản phẩm trên nền tối giản — không người mẫu',
+          en: 'Product flat lay on minimal background — no model',
+          zh: '极简背景产品平铺 — 无模特',
+          ja: 'ミニマル背景の商品フラットレイ — モデルなし',
+          ko: '미니멀 배경 제품 플랫레이 — 모델 없음',
+        }
+      ),
+    ],
+    banner_model: [
+      suggestion(
+        { vi: 'Nữ · châu Á', en: 'Female · Asian', zh: '女 · 亚洲', ja: '女性 · アジア', ko: '여성 · 아시아' },
+        {
+          vi: 'Nữ, châu Á, da sáng — mặc vest công sở sang trọng',
+          en: 'Female, Asian, light skin — wearing elegant office blazer',
+          zh: '女性，亚洲，肤色较浅 — 穿优雅职场西装',
+          ja: '女性、アジア系、明るい肌 — 上品なオフィスジャケット',
+          ko: '여성, 아시아, 밝은 피부 — 우아한 오피스 재킷',
+        }
+      ),
+      suggestion(
+        { vi: 'Nam · châu Âu', en: 'Male · European', zh: '男 · 欧洲', ja: '男性 · 欧州', ko: '남성 · 유럽' },
+        {
+          vi: 'Nam, châu Âu, da trung bình — phong cách thể thao năng động',
+          en: 'Male, European, medium skin — dynamic athletic look',
+          zh: '男性，欧洲，中等肤色 — 动感运动风',
+          ja: '男性、欧州系、中間的な肌 — ダイナミックなスポーティ',
+          ko: '남성, 유럽, 중간 톤 피부 — 역동적인 스포티 룩',
+        }
+      ),
+      suggestion(
+        {
+          vi: 'Không người mẫu',
+          en: 'No model',
+          zh: '无模特',
+          ja: 'モデルなし',
+          ko: '모델 없음',
+        },
+        {
+          vi: 'Không cần người mẫu — chỉ sản phẩm và typography',
+          en: 'No model needed — product and typography only',
+          zh: '不需要模特 — 仅产品与字体',
+          ja: 'モデル不要 — 商品とタイポのみ',
+          ko: '모델 불필요 — 제품과 타이포만',
         }
       ),
     ],
@@ -538,6 +633,119 @@ const PRESET_STEP_SUGGESTIONS: Record<string, Record<string, StudioStepSuggestio
           zh: '5折 — 立即购买 · 产品图在右，Logo 左上角',
           ja: '50%OFF — 今すぐ購入 · 商品画像右、ロゴ左上',
           ko: '50% 할인 — 지금 구매 · 제품 이미지 오른쪽, 로고 좌상단',
+        }
+      ),
+    ],
+  },
+  food_menu: {
+    venue_name: [
+      suggestion(
+        { vi: 'Phở Bò Hà Nội', en: 'Hanoi Beef Pho', zh: '河内牛肉粉', ja: 'ハノイ牛肉フォー', ko: '하노이 쇠고기 쌀국수' },
+        {
+          vi: 'Phở Bò Hà Nội — 123 Lê Lợi',
+          en: 'Hanoi Beef Pho — 123 Le Loi St',
+          zh: '河内牛肉粉 — 黎利路 123 号',
+          ja: 'ハノイ牛肉フォー — 123 Le Loi通り',
+          ko: '하노이 쇠고기 쌀국수 — 123 Le Loi',
+        }
+      ),
+    ],
+    menu_type: [
+      suggestion(
+        { vi: 'Treo tường A4', en: 'Wall A4', zh: '挂墙 A4', ja: '壁掛け A4', ko: '벽 A4' },
+        {
+          vi: 'Menu treo tường A4 dọc — in 2 mặt',
+          en: 'Wall A4 portrait menu — double-sided print',
+          zh: '挂墙 A4 竖版 — 双面印刷',
+          ja: '壁掛け A4 縦 — 両面印刷',
+          ko: '벽 A4 세로 — 양면 인쇄',
+        }
+      ),
+      suggestion(
+        { vi: 'Menu bàn tent', en: 'Table tent', zh: '桌牌', ja: 'テーブル tent', ko: '테이블 tent' },
+        {
+          vi: 'Menu bàn tent vuông — để trên bàn',
+          en: 'Square table tent menu for dine-in tables',
+          zh: '方形桌牌菜单 — 放餐桌上',
+          ja: '正方形テーブル tent メニュー',
+          ko: '정사각형 테이블 tent 메뉴',
+        }
+      ),
+      suggestion(
+        { vi: 'Menu digital', en: 'Digital screen', zh: '电子屏', ja: 'デジタル', ko: '디지털' },
+        {
+          vi: 'Menu digital trên màn hình TV / tablet tại quán',
+          en: 'Digital menu on TV or tablet at the venue',
+          zh: '店内 TV/平板电子菜单',
+          ja: '店内TV/タブレットのデジタルメニュー',
+          ko: '매장 TV/태블릿 디지털 메뉴',
+        }
+      ),
+      suggestion(
+        { vi: 'Menu cuốn', en: 'Booklet', zh: '册子', ja: '冊子', ko: '册子' },
+        {
+          vi: 'Menu cuốn nhiều trang — bìa cứng, cán màng',
+          en: 'Multi-page booklet menu — hard cover, laminated',
+          zh: '多页册子菜单 — 硬封覆膜',
+          ja: '多ページ冊子メニュー — 硬表紙・ラミネート',
+          ko: '다페이지 책자형 메뉴 — 하드커버 라미네이트',
+        }
+      ),
+    ],
+    food_illustration: [
+      suggestion(
+        { vi: 'Có ảnh món', en: 'With photos', zh: '有菜品图', ja: '写真あり', ko: '사진 있음' },
+        {
+          vi: 'Có — ảnh minh họa món bên cạnh tên món',
+          en: 'Yes — appetizing dish photo beside each item name',
+          zh: '有 — 菜名旁诱人菜品图',
+          ja: 'あり — 料理名横に appetizing な写真',
+          ko: '있음 — 메뉴명 옆에 음식 사진',
+        }
+      ),
+      suggestion(
+        { vi: 'Không ảnh', en: 'No photos', zh: '无图', ja: '写真なし', ko: '사진 없음' },
+        {
+          vi: 'Không — chỉ chữ, giá và trang trí typography',
+          en: 'No — text, prices, and typography decoration only',
+          zh: '无 — 仅文字、价格与排版装饰',
+          ja: 'なし — 文字・価格・装飾のみ',
+          ko: '없음 — 글자·가격·타이포 장식만',
+        }
+      ),
+    ],
+    menu_style: [
+      suggestion(
+        { vi: 'Truyền thống VN', en: 'Vietnamese classic', zh: '越南传统', ja: 'ベトナム伝統', ko: '베트남 전통' },
+        {
+          vi: 'Truyền thống Việt hiện đại — typography rõ, viền trang trí nhẹ',
+          en: 'Modern Vietnamese — clear typography, light decorative border',
+          zh: '现代越南风 — 清晰字体、轻装饰边框',
+          ja: 'モダンベトナム — 読みやすい字体、軽い装飾枠',
+          ko: '모던 베트남 — 선명한 타이포, 가벼운 장식 테두리',
+        }
+      ),
+      suggestion(
+        { vi: 'Cafe tối giản', en: 'Minimal café', zh: '极简咖啡', ja: 'ミニマルカフェ', ko: '미니멀 카페' },
+        {
+          vi: 'Tối giản sang — nền trắng, chữ serif, khoảng trắng rộng',
+          en: 'Minimal luxury — white background, serif type, generous whitespace',
+          zh: '极简高级 — 白底、衬线字、大留白',
+          ja: 'ミニマルで上品 — 白背景、セリフ体、余白多め',
+          ko: '미니멀 럭셔리 — 흰 배경, 세리프, 넉넉한 여백',
+        }
+      ),
+    ],
+    color_tone: COMMON_DISCOVERY_SUGGESTIONS.color_tone!,
+    menu_design: [
+      suggestion(
+        { vi: '3 món mẫu', en: '3 sample dishes', zh: '3 道示例', ja: '3品サンプル', ko: '샘플 3메뉴' },
+        {
+          vi: '1. Phở bò tái — tô — 65000 · 2. Bún chả — phần — 55000 · 3. Cà phê sữa — ly — 25000',
+          en: '1. Rare beef pho — bowl — 65000 · 2. Bun cha — portion — 55000 · 3. Milk coffee — cup — 25000',
+          zh: '1. 生牛肉粉 — 碗 — 65000 · 2. 烤肉米线 — 份 — 55000 · 3. 奶咖啡 — 杯 — 25000',
+          ja: '1. 生牛肉フォー — 杯 — 65000 · 2. ブンチャー — 人前 — 55000 · 3. ミルクコーヒー — 杯 — 25000',
+          ko: '1. 생 쇠고기 쌀국수 — 그릇 — 65000 · 2. 분짜 — 인분 — 55000 · 3. 밀크 커피 — 잔 — 25000',
         }
       ),
     ],
@@ -569,8 +777,15 @@ export function getStudioStepSuggestions(
   locale: WebLocale
 ): StudioStepSuggestionItem[] {
   if (!presetId || !stepKey) return []
+
   const presetMap = PRESET_STEP_SUGGESTIONS[presetId]
-  const list = presetMap?.[stepKey] ?? COMMON_DISCOVERY_SUGGESTIONS[stepKey] ?? []
+  const presetList = presetMap?.[stepKey]
+  const list =
+    (Array.isArray(presetList) && presetList.length > 0
+      ? presetList
+      : null) ??
+    COMMON_DISCOVERY_SUGGESTIONS[stepKey] ??
+    []
   return list.map((item) => ({
     label: formatStudioExampleLabel(locale, item.label[locale] ?? item.label.en),
     message: item.message[locale] ?? item.message.en,

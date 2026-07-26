@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import type { WebLocale } from '@/lib/i18n/config'
-import { HUB_CHAT_MODELS } from '@/lib/hub-chat/hub-chat-catalog'
+import { getHubChatFooterModelLabel } from '@/lib/hub-chat/hub-chat-catalog'
 import {
   clearHubThreadId,
   openHubPlanStep,
@@ -56,6 +56,7 @@ import { HubFacePrintStylePicker } from '@/components/hub-chat/hub-face-print-st
 import { HubPrintLanguagePicker } from '@/components/hub-chat/hub-print-language-picker'
 import { HubLabelAspectRatioPicker } from '@/components/hub-chat/hub-label-aspect-ratio-picker'
 import { HubBannerDesignPreparePanel } from '@/components/hub-chat/hub-banner-design-prepare-panel'
+import { HubMenuDesignPreparePanel } from '@/components/hub-chat/hub-menu-design-prepare-panel'
 import { HubPackagingFaceActions } from '@/components/hub-chat/hub-packaging-face-actions'
 import { HubPackagingBodyStripActions } from '@/components/hub-chat/hub-packaging-body-strip-actions'
 import { HubPackagingFaceUploadConfirmDialog } from '@/components/hub-chat/hub-packaging-face-upload-confirm-dialog'
@@ -64,9 +65,20 @@ import {
   type StudioColorSelection,
 } from '@/lib/hub-chat/studio-color-palette'
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
+import {
+  createEmptyMenuDish,
+  menuDishesHaveContent,
+  normalizeMenuDishes,
+  type MenuDishItem,
+} from '@/lib/hub-chat/menu-dish-items'
+import {
+  normalizeMenuFormatPresetId,
+  type MenuFormatPresetId,
+} from '@/lib/hub-chat/menu-format-presets'
 import { hasSaleBannerDiscoveryBrief } from '@/lib/hub-chat/hub-studio-preset-flows'
 import {
   getFlowSteps,
+  getStepAskExample,
   getStepAskPrompt,
   getStepGenerator,
   getStudioPreset,
@@ -128,6 +140,7 @@ import {
   groupPostFlowFeatureCatalog,
 } from '@/lib/hub-chat/hub-feature-catalog'
 import {
+  extractExampleFromAsk,
   getStudioStepInputPlaceholder,
   getStudioStepSuggestions,
 } from '@/lib/hub-chat/hub-studio-step-suggestions'
@@ -375,6 +388,9 @@ export function HomeHubChatBar() {
   const [activePlanRow, setActivePlanRow] = useState<HubMultiTaskPlanRow | null>(null)
   const [studioSession, setStudioSession] = useState<HubStudioSession | null>(null)
   const [bannerOverlayDraft, setBannerOverlayDraft] = useState('')
+  const [bannerDomainDraft, setBannerDomainDraft] = useState('')
+  const [menuDishesDraft, setMenuDishesDraft] = useState<MenuDishItem[]>([createEmptyMenuDish()])
+  const [menuVenueDraft, setMenuVenueDraft] = useState('')
   const [selectedGenRefKeys, setSelectedGenRefKeys] = useState<string[]>([])
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false)
   const [regeneratePromptDraft, setRegeneratePromptDraft] = useState('')
@@ -692,7 +708,7 @@ export function HomeHubChatBar() {
     }
   }, [threadsLoaded, chatThreads.length, lines.length, threadId])
 
-  const modelLabel = HUB_CHAT_MODELS[0]!.label[uiLocale]
+  const modelLabel = getHubChatFooterModelLabel(uiLocale, studioSession?.presetId)
 
   const startNewThread = useCallback(() => {
     loadThreadEpochRef.current += 1
@@ -733,6 +749,11 @@ export function HomeHubChatBar() {
       bannerAdPresetId?: BannerAdPresetId
       bannerAdPresetIds?: BannerAdPresetId[]
       bannerOverlayText?: string
+      bannerDomainName?: string
+      bannerBatchIndex?: number
+      menuFormatPresetId?: MenuFormatPresetId | ''
+      menuDishes?: MenuDishItem[]
+      menuVenueName?: string
       discoveryChoice?: string
       discoveryChoiceStep?: string
       colorPaletteKeys?: string[]
@@ -752,7 +773,13 @@ export function HomeHubChatBar() {
         payload.action === 'set_label_aspect_ratio' ||
         payload.action === 'set_label_shape' ||
         payload.action === 'set_banner_ad_format' ||
-        payload.action === 'set_banner_design_setup'
+        payload.action === 'set_banner_design_setup' ||
+        payload.action === 'set_menu_design_setup' ||
+        payload.action === 'select_banner_batch_item' ||
+        payload.action === 'upload_banner_logo' ||
+        payload.action === 'remove_banner_logo' ||
+        payload.action === 'upload_menu_logo' ||
+        payload.action === 'remove_menu_logo'
       const stepKeyAtSend = getActiveStepKey(studioSession)
       let optimisticUserId: string | null = null
       if (payload.action === 'start_preset' && payload.presetId && studioLaunchStartedRef.current) {
@@ -847,6 +874,11 @@ export function HomeHubChatBar() {
             bannerAdPresetId: payload.bannerAdPresetId,
             bannerAdPresetIds: payload.bannerAdPresetIds,
             bannerOverlayText: payload.bannerOverlayText,
+            bannerDomainName: payload.bannerDomainName,
+            bannerBatchIndex: payload.bannerBatchIndex,
+            menuFormatPresetId: payload.menuFormatPresetId || undefined,
+            menuDishes: payload.menuDishes,
+            menuVenueName: payload.menuVenueName,
             discoveryChoice: payload.discoveryChoice,
             discoveryChoiceStep: payload.discoveryChoiceStep,
             colorPaletteKeys: payload.colorPaletteKeys,
@@ -918,6 +950,32 @@ export function HomeHubChatBar() {
           const reloadId = data.threadId ?? threadId
           if (reloadId) await loadThread(reloadId)
           void fetchThreadList()
+          return true
+        }
+        if (payload.action === 'select_banner_batch_item') {
+          if (data.session) {
+            const session = withClientStudioSession(data.session, uiLocale)
+            if (session) setStudioSession(session)
+          }
+          if (data.studio) {
+            setLines((prev) =>
+              replaceLatestStudioImageLine(prev, 'banner_design', prev[prev.length - 1]?.content ?? '', data.studio)
+            )
+          }
+          return true
+        }
+        if (payload.action === 'upload_banner_logo' || payload.action === 'remove_banner_logo') {
+          if (data.session) {
+            const session = withClientStudioSession(data.session, uiLocale)
+            if (session) setStudioSession(session)
+          }
+          return true
+        }
+        if (payload.action === 'upload_menu_logo' || payload.action === 'remove_menu_logo') {
+          if (data.session) {
+            const session = withClientStudioSession(data.session, uiLocale)
+            if (session) setStudioSession(session)
+          }
           return true
         }
         if (payload.action === 'edit_step') {
@@ -1261,6 +1319,104 @@ export function HomeHubChatBar() {
     },
     [busy, hc, router, threadId, toast, uiLocale]
   )
+
+  const postBannerLogoUpload = useCallback(
+    async (files: FileList | File[]) => {
+      if (busy) return
+      const list = Array.from(files).filter((f) => f.size > 0).slice(0, 1)
+      if (!list.length) return
+      setBusy(true)
+      try {
+        const fd = new FormData()
+        fd.append('mode', 'studio')
+        fd.append('action', 'upload_banner_logo')
+        fd.append('locale', uiLocale)
+        if (threadId) fd.append('threadId', threadId)
+        for (const f of list) fd.append('images', f)
+        const res = await fetch('/api/hub-chat', { method: 'POST', credentials: 'same-origin', body: fd })
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean
+          error?: string
+          session?: HubStudioSession
+          threadId?: string
+        }
+        if (res.status === 401) {
+          const next = sanitizeLoginNext(typeof window !== 'undefined' ? window.location.pathname : '/')
+          router.push(`/auth/login?next=${encodeURIComponent(next)}`)
+          toast({ title: hc.loginRequired, variant: 'destructive' })
+          return
+        }
+        if (!res.ok) throw new Error(data.error || hc.errorGeneric)
+        if (data.threadId) {
+          setThreadId(data.threadId)
+          saveHubThreadId(data.threadId)
+        }
+        if (data.session) {
+          const session = withClientStudioSession(data.session, uiLocale)
+          if (session) setStudioSession(session)
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : hc.errorGeneric
+        toast({ title: hc.errorGeneric, description: msg, variant: 'destructive' })
+      } finally {
+        setBusy(false)
+      }
+    },
+    [busy, hc, router, threadId, toast, uiLocale]
+  )
+
+  const postRemoveBannerLogo = useCallback(async () => {
+    await postStudio({ action: 'remove_banner_logo' })
+  }, [postStudio])
+
+  const postMenuLogoUpload = useCallback(
+    async (files: FileList | File[]) => {
+      if (busy) return
+      const list = Array.from(files).filter((f) => f.size > 0).slice(0, 1)
+      if (!list.length) return
+      setBusy(true)
+      try {
+        const fd = new FormData()
+        fd.append('mode', 'studio')
+        fd.append('action', 'upload_menu_logo')
+        fd.append('locale', uiLocale)
+        if (threadId) fd.append('threadId', threadId)
+        for (const f of list) fd.append('images', f)
+        const res = await fetch('/api/hub-chat', { method: 'POST', credentials: 'same-origin', body: fd })
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean
+          error?: string
+          session?: HubStudioSession
+          threadId?: string
+        }
+        if (res.status === 401) {
+          const next = sanitizeLoginNext(typeof window !== 'undefined' ? window.location.pathname : '/')
+          router.push(`/auth/login?next=${encodeURIComponent(next)}`)
+          toast({ title: hc.loginRequired, variant: 'destructive' })
+          return
+        }
+        if (!res.ok) throw new Error(data.error || hc.errorGeneric)
+        if (data.threadId) {
+          setThreadId(data.threadId)
+          saveHubThreadId(data.threadId)
+        }
+        if (data.session) {
+          const session = withClientStudioSession(data.session, uiLocale)
+          if (session) setStudioSession(session)
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : hc.errorGeneric
+        toast({ title: hc.errorGeneric, description: msg, variant: 'destructive' })
+      } finally {
+        setBusy(false)
+      }
+    },
+    [busy, hc, router, threadId, toast, uiLocale]
+  )
+
+  const postRemoveMenuLogo = useCallback(async () => {
+    await postStudio({ action: 'remove_menu_logo' })
+  }, [postStudio])
 
   const postStudioLogoUpload = useCallback(
     async (files: FileList | File[]) => {
@@ -1654,6 +1810,14 @@ export function HomeHubChatBar() {
     return !pendingPreviewBlocksWorkflowInput(studioSession)
   }, [studioSession])
 
+  const showMenuDesignPrepare = useMemo(() => {
+    if (studioSession?.presetId !== 'food_menu') return false
+    const step = getActiveStepKey(studioSession)
+    if (step !== 'menu_design') return false
+    if (!studioSession.discoveryComplete) return false
+    return !pendingPreviewBlocksWorkflowInput(studioSession)
+  }, [studioSession])
+
   const saleBannerApprovedCount = useMemo(() => {
     if (studioSession?.presetId !== 'sale_banner') return 0
     return studioSession.referenceImages.filter(
@@ -1661,16 +1825,27 @@ export function HomeHubChatBar() {
     ).length
   }, [studioSession])
 
+  const foodMenuApprovedCount = useMemo(() => {
+    if (studioSession?.presetId !== 'food_menu') return 0
+    return studioSession.referenceImages.filter((r) => r.screenKey === 'menu_design').length
+  }, [studioSession])
+
   const hideStepInputComposer = useMemo(
     () =>
       (studioSession ? pendingPreviewBlocksWorkflowInput(studioSession) : false) ||
-      showBannerDesignPrepare,
-    [studioSession, showBannerDesignPrepare]
+      showBannerDesignPrepare ||
+      showMenuDesignPrepare,
+    [studioSession, showBannerDesignPrepare, showMenuDesignPrepare]
   )
 
   /** Tiếp / Tạo lại — chỉ sau khi đã generate và đang chờ duyệt preview. */
   const showPendingStepContinue = useMemo(
-    () => Boolean(studioSession && pendingPreviewBlocksWorkflowInput(studioSession)),
+    () =>
+      Boolean(
+        studioSession &&
+          pendingPreviewBlocksWorkflowInput(studioSession) &&
+          studioSession.presetId !== 'sale_banner'
+      ),
     [studioSession]
   )
 
@@ -1736,6 +1911,8 @@ export function HomeHubChatBar() {
   const generateCurrentStepLabel =
     currentDesignGenerator === 'banner' && studioSession?.presetId === 'sale_banner'
       ? hc.studioGenerateBanner
+      : currentDesignGenerator === 'banner' && studioSession?.presetId === 'food_menu'
+        ? hc.studioGenerateMenu
       : currentDesignGenerator === 'lyria_music'
       ? hc.studioGenerateMusic
       : currentDesignGenerator === 'packaging_face'
@@ -1758,6 +1935,12 @@ export function HomeHubChatBar() {
   const isSaleBannerDesignStep = Boolean(
     studioSession?.presetId === 'sale_banner' && getActiveStepKey(studioSession) === 'banner_design'
   )
+  const isFoodMenuDesignStep = Boolean(
+    studioSession?.presetId === 'food_menu' && getActiveStepKey(studioSession) === 'menu_design'
+  )
+  const menuSelectedFormatId = useMemo((): MenuFormatPresetId | '' => {
+    return normalizeMenuFormatPresetId(studioSession?.foodMenu?.formatPresetId ?? '')
+  }, [studioSession?.foodMenu?.formatPresetId])
   const bannerSelectedPresetIds = useMemo((): BannerAdPresetId[] => {
     const fromSession = studioSession?.bannerAd?.selectedPresetIds
     if (fromSession?.length) {
@@ -1773,13 +1956,31 @@ export function HomeHubChatBar() {
       studioSession?.bannerAd?.overlayText?.trim() ||
       hasSaleBannerDiscoveryBrief(studioSession?.briefNotes)
   )
+  const hasMenuDishesReady = menuDishesHaveContent(menuDishesDraft)
   const canGenerateCurrentStep = Boolean(
     isSaleBannerDesignStep
       ? hasBannerRatioSelected && hasSaleBannerCopy
-      : generateCanRunWithoutBrief ||
+      : isFoodMenuDesignStep
+        ? Boolean(menuSelectedFormatId) && hasMenuDishesReady
+        : generateCanRunWithoutBrief ||
           currentStepHasBrief ||
           (currentStepDraftBrief.length >= 2 && isValidHubStudioMessage(currentStepDraftBrief))
   )
+
+  const menuGenerateMissingHints = useMemo((): string[] => {
+    if (!isFoodMenuDesignStep || canGenerateCurrentStep) return []
+    const hints: string[] = []
+    if (!menuSelectedFormatId) hints.push(hc.studioMenuNeedFormat)
+    if (!hasMenuDishesReady) hints.push(hc.studioMenuNeedDishes)
+    return hints
+  }, [
+    canGenerateCurrentStep,
+    hasMenuDishesReady,
+    hc.studioMenuNeedDishes,
+    hc.studioMenuNeedFormat,
+    isFoodMenuDesignStep,
+    menuSelectedFormatId,
+  ])
 
   const bannerGenerateMissingHints = useMemo((): string[] => {
     if (!isSaleBannerDesignStep || canGenerateCurrentStep) return []
@@ -1812,6 +2013,7 @@ export function HomeHubChatBar() {
     !showBoxDimensionForm &&
     !showBarcodeLabelForm &&
     !showBannerDesignPrepare &&
+    !showMenuDesignPrepare &&
     !hideAutoPackagingArtifactStep
 
   const focusStudioChat = useCallback(() => {
@@ -2061,15 +2263,44 @@ export function HomeHubChatBar() {
       bannerAdPresetId?: BannerAdPresetId
       bannerAdPresetIds?: BannerAdPresetId[]
       bannerOverlayText?: string
+      bannerDomainName?: string
     }) => {
       await postStudio({
         action: 'set_banner_design_setup',
         bannerAdPresetId: input.bannerAdPresetId,
         bannerAdPresetIds: input.bannerAdPresetIds,
         bannerOverlayText: input.bannerOverlayText,
+        bannerDomainName: input.bannerDomainName,
       })
     },
     [postStudio]
+  )
+
+  const submitMenuDesignSetup = useCallback(
+    async (input: {
+      menuFormatPresetId?: MenuFormatPresetId | ''
+      menuDishes?: MenuDishItem[]
+      menuVenueName?: string
+    }) => {
+      await postStudio({
+        action: 'set_menu_design_setup',
+        menuFormatPresetId: input.menuFormatPresetId,
+        menuDishes: input.menuDishes,
+        menuVenueName: input.menuVenueName,
+      })
+    },
+    [postStudio]
+  )
+
+  const selectMenuFormat = useCallback(
+    async (presetId: MenuFormatPresetId) => {
+      await submitMenuDesignSetup({
+        menuFormatPresetId: presetId,
+        menuDishes: menuDishesDraft,
+        menuVenueName: menuVenueDraft,
+      })
+    },
+    [menuDishesDraft, menuVenueDraft, submitMenuDesignSetup]
   )
 
   const toggleBannerPreset = useCallback(
@@ -2167,6 +2398,33 @@ export function HomeHubChatBar() {
   }, [studioSession?.currentStepKey, studioSession?.bannerAd?.overlayText])
 
   useEffect(() => {
+    setBannerDomainDraft(studioSession?.briefNotes?.domain_name ?? '')
+  }, [studioSession?.currentStepKey, studioSession?.briefNotes?.domain_name])
+
+  useEffect(() => {
+    setMenuVenueDraft(
+      studioSession?.foodMenu?.venueName?.trim() ||
+        studioSession?.briefNotes?.venue_name?.trim() ||
+        ''
+    )
+  }, [
+    studioSession?.currentStepKey,
+    studioSession?.foodMenu?.venueName,
+    studioSession?.briefNotes?.venue_name,
+  ])
+
+  useEffect(() => {
+    const saved = normalizeMenuDishes(studioSession?.foodMenu?.dishes ?? [])
+    if (saved.length) {
+      setMenuDishesDraft(saved)
+      return
+    }
+    if (getActiveStepKey(studioSession) === 'menu_design') {
+      setMenuDishesDraft([createEmptyMenuDish()])
+    }
+  }, [studioSession?.currentStepKey, studioSession?.foodMenu?.dishes, studioSession])
+
+  useEffect(() => {
     const stepKey = getActiveStepKey(studioSession)
     if (!stepKey || !studioSession?.discoveryComplete) {
       if (prevStudioStepKeyRef.current !== null) {
@@ -2217,11 +2475,15 @@ export function HomeHubChatBar() {
     if (!studioSession?.presetId || !stepKey) {
       return hc.studioPlaceholder
     }
+    const stepAskExample =
+      getStepAskExample(uiLocale, studioSession.presetId, stepKey) ??
+      extractExampleFromAsk(getStepAskPrompt(uiLocale, studioSession.presetId, stepKey)) ??
+      ''
     return getStudioStepInputPlaceholder(
       studioSession.presetId,
       stepKey,
       uiLocale,
-      hc.studioPlaceholder
+      stepAskExample || hc.studioPlaceholder
     )
   }, [studioSession, uiLocale, hc.studioPlaceholder])
 
@@ -2256,6 +2518,9 @@ export function HomeHubChatBar() {
       const isBannerDesignStep =
         studioSession?.presetId === 'sale_banner' &&
         getActiveStepKey(studioSession) === 'banner_design'
+      const isMenuDesignStep =
+        studioSession?.presetId === 'food_menu' &&
+        getActiveStepKey(studioSession) === 'menu_design'
       const hasSaleBannerOverlay = Boolean(
         isBannerDesignStep &&
           (bannerOverlayDraft.trim() ||
@@ -2266,7 +2531,8 @@ export function HomeHubChatBar() {
         !generateCanRunWithoutBrief &&
         !isValidHubStudioMessage(trimmed) &&
         !currentStepHasBrief &&
-        !hasSaleBannerOverlay
+        !hasSaleBannerOverlay &&
+        !isMenuDesignStep
       ) {
         return false
       }
@@ -2290,11 +2556,19 @@ export function HomeHubChatBar() {
         generationRefKeys: selectedGenRefKeys,
         bannerAdPresetIds: isBannerDesignStep ? bannerSelectedPresetIds : undefined,
         bannerOverlayText: isBannerDesignStep ? bannerOverlayDraft : undefined,
+        bannerDomainName: isBannerDesignStep ? bannerDomainDraft : undefined,
+        menuFormatPresetId: isMenuDesignStep ? menuSelectedFormatId : undefined,
+        menuDishes: isMenuDesignStep ? menuDishesDraft : undefined,
+        menuVenueName: isMenuDesignStep ? menuVenueDraft : undefined,
       })
     },
     [
       bannerSelectedPresetIds,
       bannerOverlayDraft,
+      bannerDomainDraft,
+      menuDishesDraft,
+      menuSelectedFormatId,
+      menuVenueDraft,
       busy,
       currentStepHasBrief,
       generateCanRunWithoutBrief,
@@ -2590,6 +2864,44 @@ export function HomeHubChatBar() {
                     onRemoveReference={(screenKey) =>
                       void postStudio({ action: 'remove_reference', referenceScreenKey: screenKey })
                     }
+                    onSelectBannerBatchItem={(index) => {
+                      setStudioSession((prev) => {
+                        if (!prev) return prev
+                        const previews =
+                          prev.bannerBatchPreviews ??
+                          (prev.pendingPreview && (prev.bannerBatchQueue?.length ?? 0) > 0
+                            ? [prev.pendingPreview, ...(prev.bannerBatchQueue ?? [])]
+                            : null)
+                        if (!previews?.length || index < 0 || index >= previews.length) return prev
+                        const selected = previews[index]!
+                        return {
+                          ...prev,
+                          bannerBatchPreviews: previews.length > 1 ? previews : prev.bannerBatchPreviews,
+                          bannerBatchSelectedIndex: index,
+                          pendingPreview: selected,
+                        }
+                      })
+                      setLines((prev) => {
+                        const last = prev[prev.length - 1]
+                        if (last?.role !== 'assistant' || !last.studio?.bannerBatchItems?.length) return prev
+                        return prev.map((line, i) =>
+                          i === prev.length - 1
+                            ? {
+                                ...line,
+                                studio: {
+                                  ...line.studio!,
+                                  bannerBatchSelectedIndex: index,
+                                  imageUrl: line.studio!.bannerBatchItems![index]?.url ?? line.studio!.imageUrl,
+                                  screenLabel:
+                                    line.studio!.bannerBatchItems![index]?.screenLabel ??
+                                    line.studio!.screenLabel,
+                                },
+                              }
+                            : line
+                        )
+                      })
+                      void postStudio({ action: 'select_banner_batch_item', bannerBatchIndex: index })
+                    }}
                   />
                 ) : (
                   <div className="mr-6 max-w-full">
@@ -2968,7 +3280,9 @@ export function HomeHubChatBar() {
             <HubBannerDesignPreparePanel
               locale={uiLocale}
               selectedPresetIds={bannerSelectedPresetIds}
+              domainName={bannerDomainDraft}
               overlayText={bannerOverlayDraft}
+              logoUrl={studioSession?.bannerAd?.logoUrl}
               uploadImages={studioSession?.uploadImages ?? []}
               approvedBannerCount={saleBannerApprovedCount}
               busy={busy}
@@ -2976,10 +3290,48 @@ export function HomeHubChatBar() {
               onMaxPresetsSelected={() =>
                 toast({ title: hc.studioBannerBatchMax, variant: 'destructive' })
               }
+              onDomainNameChange={setBannerDomainDraft}
+              onDomainNameCommit={(text) => void submitBannerDesignSetup({ bannerDomainName: text })}
               onOverlayTextChange={setBannerOverlayDraft}
               onOverlayTextCommit={(text) => void submitBannerDesignSetup({ bannerOverlayText: text })}
-              onUploadFiles={(files) => void postStudioUpload(files)}
+              onUploadLogo={(files) => void postBannerLogoUpload(files)}
+              onRemoveLogo={() => void postRemoveBannerLogo()}
+              onUploadProductFiles={(files) => void postStudioUpload(files)}
               onFinishFlow={() => void postStudio({ action: 'banner_finish_flow' })}
+            />
+          ) : null}
+
+          {showMenuDesignPrepare ? (
+            <HubMenuDesignPreparePanel
+              locale={uiLocale}
+              selectedFormatId={menuSelectedFormatId}
+              venueName={menuVenueDraft}
+              logoUrl={studioSession?.foodMenu?.logoUrl}
+              dishes={menuDishesDraft}
+              uploadImages={studioSession?.uploadImages ?? []}
+              approvedMenuCount={foodMenuApprovedCount}
+              busy={busy}
+              onSelectFormat={selectMenuFormat}
+              onVenueNameChange={setMenuVenueDraft}
+              onVenueNameCommit={(text) =>
+                void submitMenuDesignSetup({
+                  menuVenueName: text,
+                  menuDishes: menuDishesDraft,
+                  menuFormatPresetId: menuSelectedFormatId,
+                })
+              }
+              onUploadLogo={(files) => void postMenuLogoUpload(files)}
+              onRemoveLogo={() => void postRemoveMenuLogo()}
+              onDishesChange={setMenuDishesDraft}
+              onDishesCommit={(dishes) =>
+                void submitMenuDesignSetup({
+                  menuDishes: dishes,
+                  menuFormatPresetId: menuSelectedFormatId,
+                  menuVenueName: menuVenueDraft,
+                })
+              }
+              onUploadProductFiles={(files) => void postStudioUpload(files)}
+              onFinishFlow={() => void postStudio({ action: 'menu_finish_flow' })}
             />
           ) : null}
 
@@ -3135,6 +3487,11 @@ export function HomeHubChatBar() {
             {bannerGenerateMissingHints.length > 0 ? (
               <p className="text-xs text-amber-800 dark:text-amber-200">
                 {bannerGenerateMissingHints.join(' · ')}
+              </p>
+            ) : null}
+            {menuGenerateMissingHints.length > 0 ? (
+              <p className="text-xs text-emerald-800 dark:text-emerald-200">
+                {menuGenerateMissingHints.join(' · ')}
               </p>
             ) : null}
             <Button

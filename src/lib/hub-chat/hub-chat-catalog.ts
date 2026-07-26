@@ -23,6 +23,13 @@ export const HUB_CHAT_MODELS = [
   },
 ] as const
 
+export function getHubChatFooterModelLabel(
+  locale: WebLocale,
+  _presetId?: string | null
+): string {
+  return HUB_CHAT_MODELS[0]!.label[locale]
+}
+
 export type HubChatModelId = (typeof HUB_CHAT_MODELS)[number]['id']
 
 /** Workflow phổ biến — chip gợi ý trên thanh chat. */

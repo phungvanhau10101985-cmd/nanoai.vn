@@ -279,17 +279,28 @@ export type Dictionary = {
     studioBannerSavedCreateNext: string
     studioBannerNeedRatio: string
     studioBannerNeedCopy: string
+    studioBannerLogoNeedFile: string
+    studioBannerLogoWrongStep: string
     studioBannerOptimizeAi: string
     studioBannerOptimizeEmpty: string
     studioBannerOptimizeDone: string
     studioBannerOptimizeDoneDesc: string
     studioBannerOptimizeFailed: string
+    studioBannerOptimizeNoDeepSeek: string
     studioBannerPromptBuildFailed: string
     studioBannerBatchMax: string
     studioBannerBatchSelected: string
     studioBannerBatchGenerated: string
+    studioBannerBatchProgress: string
+    studioBannerNext: string
     studioBannerBatchApproveNext: string
     studioGenerateBanner: string
+    studioGenerateMenu: string
+    studioMenuNeedFormat: string
+    studioMenuNeedDishes: string
+    studioMenuPromptBuildFailed: string
+    studioMenuLogoNeedFile: string
+    studioMenuLogoWrongStep: string
     studioUploadBtn: string
     studioImagesUploaded: string
     studioMusicCredit: string
@@ -2908,17 +2919,29 @@ const VI_DICTIONARY: Dictionary = {
       'Đã lưu **Banner {n}**. Chọn tỷ lệ, ảnh ghép và nội dung chữ bên dưới để tạo banner tiếp, hoặc bấm «Hoàn tất quy trình».',
     studioBannerNeedRatio: 'Vui lòng chọn ít nhất 1 tỷ lệ banner (tối đa 4 mỗi lần tạo).',
     studioBannerNeedCopy: 'Vui lòng nhập nội dung chữ hiển thị trên banner.',
+    studioBannerLogoNeedFile: 'Vui lòng chọn file ảnh logo.',
+    studioBannerLogoWrongStep: 'Chỉ tải logo khi đang ở bước Thiết kế banner.',
     studioBannerOptimizeAi: 'Tối ưu AI',
     studioBannerOptimizeEmpty: 'Nhập sơ ý nội dung & bố cục banner trước khi tối ưu.',
     studioBannerOptimizeDone: 'Đã tối ưu bằng AI',
     studioBannerOptimizeDoneDesc: 'Bạn có thể chỉnh thêm hoặc bấm lại nếu chưa ưng ý.',
     studioBannerOptimizeFailed: 'Không tối ưu được nội dung banner. Thử lại sau.',
+    studioBannerOptimizeNoDeepSeek:
+      'Chưa cấu hình DEEPSEEK_API_KEY trên server — không thể tối ưu copy banner.',
     studioBannerPromptBuildFailed: 'Không tạo được prompt ảnh banner. Thử lại sau.',
     studioBannerBatchMax: 'Mỗi lần tạo tối đa 4 tỷ lệ banner.',
     studioBannerBatchSelected: 'Đã chọn {n} tỷ lệ → tạo {n} banner một lúc.',
-    studioBannerBatchGenerated: 'Đã tạo {n} banner — duyệt từng ảnh bên dưới.',
+    studioBannerBatchGenerated: 'Đã tạo {n} banner — xem tất cả bên dưới, bấm Tiếp khi xong.',
+    studioBannerBatchProgress: 'Đang duyệt banner {index}/{total} — bấm Tiếp tục để xem banner tiếp theo.',
+    studioBannerNext: 'Tiếp',
     studioBannerBatchApproveNext: 'Đã lưu banner. Xem banner {index}/{total} trong lô — duyệt hoặc tạo lại.',
     studioGenerateBanner: 'Tạo banner',
+    studioGenerateMenu: 'Tạo menu',
+    studioMenuNeedFormat: 'Vui lòng chọn kiểu menu (tỷ lệ in hoặc màn hình).',
+    studioMenuNeedDishes: 'Vui lòng nhập ít nhất một món (tên món và giá VND).',
+    studioMenuPromptBuildFailed: 'Không tạo được prompt thiết kế menu. Thử lại sau.',
+    studioMenuLogoNeedFile: 'Vui lòng chọn file ảnh logo.',
+    studioMenuLogoWrongStep: 'Chỉ tải logo khi đang ở bước Thiết kế menu.',
     studioUploadBtn: 'Tải ảnh lên',
     studioImagesUploaded: 'Đã tải {n} ảnh. Mô tả yêu cầu cho bước tiếp theo.',
     studioMusicCredit: 'Nhạc: {n} credits',
@@ -5545,17 +5568,29 @@ const EN_DICTIONARY: Dictionary = {
       'Saved **Banner {n}**. Pick ratio, composite images, and overlay copy below for the next banner, or tap «Finish flow».',
     studioBannerNeedRatio: 'Pick at least 1 banner ratio (up to 4 per run).',
     studioBannerNeedCopy: 'Please enter the text to display on the banner.',
+    studioBannerLogoNeedFile: 'Please choose a logo image file.',
+    studioBannerLogoWrongStep: 'Logo upload is only available on the banner design step.',
     studioBannerOptimizeAi: 'Optimize with AI',
     studioBannerOptimizeEmpty: 'Enter a draft for banner copy & layout before optimizing.',
     studioBannerOptimizeDone: 'Optimized with AI',
     studioBannerOptimizeDoneDesc: 'You can edit further or tap again if needed.',
     studioBannerOptimizeFailed: 'Could not optimize banner content. Please try again.',
+    studioBannerOptimizeNoDeepSeek:
+      'DEEPSEEK_API_KEY is not configured on the server — banner copy optimization unavailable.',
     studioBannerPromptBuildFailed: 'Could not build the banner image prompt. Please try again.',
     studioBannerBatchMax: 'You can create up to 4 banner ratios at once.',
     studioBannerBatchSelected: '{n} ratio(s) selected → {n} banner(s) in one run.',
-    studioBannerBatchGenerated: 'Created {n} banners — review each image below.',
+    studioBannerBatchGenerated: 'Created {n} banners — review all below, then tap Next.',
+    studioBannerBatchProgress: 'Reviewing banner {index}/{total} — tap Continue to see the next banner.',
+    studioBannerNext: 'Next',
     studioBannerBatchApproveNext: 'Banner saved. Review banner {index}/{total} in this batch.',
     studioGenerateBanner: 'Generate banner',
+    studioGenerateMenu: 'Generate menu',
+    studioMenuNeedFormat: 'Please pick a menu format (print or display ratio).',
+    studioMenuNeedDishes: 'Please enter at least one dish with name and VND price.',
+    studioMenuPromptBuildFailed: 'Could not build the menu design prompt. Please try again.',
+    studioMenuLogoNeedFile: 'Please choose a logo image file.',
+    studioMenuLogoWrongStep: 'Logo upload is only available on the menu design step.',
     studioUploadBtn: 'Upload images',
     studioImagesUploaded: 'Uploaded {n} image(s). Describe requirements for the next step.',
     studioMusicCredit: 'Music: {n} credits',
@@ -8228,17 +8263,28 @@ const ZH_DICTIONARY: Dictionary = {
       '已保存 **横幅 {n}**。在下方选择比例、合成图片和文字以创建下一个横幅，或点击「完成流程」。',
     studioBannerNeedRatio: '请至少选择 1 个横幅比例（每次最多 4 个）。',
     studioBannerNeedCopy: '请输入横幅上显示的文字。',
+    studioBannerLogoNeedFile: '请选择 logo 图片文件。',
+    studioBannerLogoWrongStep: '仅可在横幅设计步骤上传 logo。',
     studioBannerOptimizeAi: 'AI 优化',
     studioBannerOptimizeEmpty: '请先输入横幅文案与布局草稿，再进行优化。',
     studioBannerOptimizeDone: '已用 AI 优化',
     studioBannerOptimizeDoneDesc: '可继续编辑，不满意可再次点击优化。',
     studioBannerOptimizeFailed: '无法优化横幅内容，请稍后重试。',
+    studioBannerOptimizeNoDeepSeek: '服务器未配置 DEEPSEEK_API_KEY，无法优化横幅文案。',
     studioBannerPromptBuildFailed: '无法生成横幅图片提示词，请稍后重试。',
     studioBannerBatchMax: '每次最多选择 4 个横幅比例。',
     studioBannerBatchSelected: '已选 {n} 个比例 → 一次生成 {n} 个横幅。',
-    studioBannerBatchGenerated: '已生成 {n} 个横幅 — 请在下方逐个审核。',
+    studioBannerBatchGenerated: '已生成 {n} 个横幅 — 请在下方查看全部，完成后点击下一步。',
+    studioBannerBatchProgress: '正在审核横幅 {index}/{total} — 点击继续查看下一个。',
+    studioBannerNext: '下一步',
     studioBannerBatchApproveNext: '横幅已保存。请审核本批第 {index}/{total} 个横幅。',
     studioGenerateBanner: '生成横幅',
+    studioGenerateMenu: '生成菜单',
+    studioMenuNeedFormat: '请选择菜单版式（印刷或屏幕比例）。',
+    studioMenuNeedDishes: '请至少输入一道菜（菜名和 VND 价格）。',
+    studioMenuPromptBuildFailed: '无法生成菜单设计提示词，请稍后重试。',
+    studioMenuLogoNeedFile: '请选择 logo 图片文件。',
+    studioMenuLogoWrongStep: '仅可在菜单设计步骤上传 logo。',
     studioUploadBtn: '上传图片',
     studioImagesUploaded: '已上传 {n} 张图片。请描述下一步需求。',
     studioMusicCredit: '音乐：{n} 积分',
@@ -10824,17 +10870,29 @@ const JA_DICTIONARY: Dictionary = {
       '**バナー {n}** を保存しました。下で比率・合成画像・文字を選んで次のバナーを作成するか、「フローを完了」を押してください。',
     studioBannerNeedRatio: 'バナー比率を1つ以上選んでください（1回最大4つ）。',
     studioBannerNeedCopy: 'バナー上に表示する文字を入力してください。',
+    studioBannerLogoNeedFile: 'ロゴ画像ファイルを選択してください。',
+    studioBannerLogoWrongStep: 'ロゴのアップロードはバナーデザインステップでのみ可能です。',
     studioBannerOptimizeAi: 'AIで最適化',
     studioBannerOptimizeEmpty: '最適化の前にバナー文案・レイアウトの下書きを入力してください。',
     studioBannerOptimizeDone: 'AIで最適化しました',
     studioBannerOptimizeDoneDesc: '編集を続けるか、再度ボタンを押してください。',
     studioBannerOptimizeFailed: 'バナー内容を最適化できませんでした。後でもう一度お試しください。',
+    studioBannerOptimizeNoDeepSeek:
+      'サーバーに DEEPSEEK_API_KEY が未設定のため、バナー文案を最適化できません。',
     studioBannerPromptBuildFailed: 'バナー画像プロンプトを作成できませんでした。後でもう一度お試しください。',
     studioBannerBatchMax: '1回に選べるバナー比率は最大4つです。',
     studioBannerBatchSelected: '{n} 比率を選択 → 一度に {n} バナーを生成。',
-    studioBannerBatchGenerated: '{n} 件のバナーを生成しました — 下で1件ずつ確認してください。',
+    studioBannerBatchGenerated: '{n} 件のバナーを生成しました — 下ですべて確認し、完了したら次へを押してください。',
+    studioBannerBatchProgress: 'バナー {index}/{total} を確認中 — 続けるを押すと次のバナーが表示されます。',
+    studioBannerNext: '次へ',
     studioBannerBatchApproveNext: 'バナーを保存しました。このバッチ {index}/{total} を確認してください。',
     studioGenerateBanner: 'バナー生成',
+    studioGenerateMenu: 'メニュー生成',
+    studioMenuNeedFormat: 'メニュー形式（印刷または表示比率）を選んでください。',
+    studioMenuNeedDishes: '料理を1品以上（名称とVND価格）入力してください。',
+    studioMenuPromptBuildFailed: 'メニューデザインプロンプトを作成できませんでした。後でもう一度お試しください。',
+    studioMenuLogoNeedFile: 'ロゴ画像ファイルを選択してください。',
+    studioMenuLogoWrongStep: 'ロゴのアップロードはメニューデザインステップでのみ可能です。',
     studioUploadBtn: '画像をアップロード',
     studioImagesUploaded: '{n} 枚アップロードしました。次のステップの要件を説明してください。',
     studioMusicCredit: '音楽：{n} クレジット',
@@ -13492,17 +13550,29 @@ const KO_DICTIONARY: Dictionary = {
       '**배너 {n}** 저장됨. 아래에서 비율·합성 이미지·문구를 선택해 다음 배너를 만들거나 «플로우 완료»를 누르세요.',
     studioBannerNeedRatio: '배너 비율을 1개 이상 선택하세요(한 번에 최대 4개).',
     studioBannerNeedCopy: '배너에 표시할 문구를 입력하세요.',
+    studioBannerLogoNeedFile: '로고 이미지 파일을 선택하세요.',
+    studioBannerLogoWrongStep: '로고 업로드는 배너 디자인 단계에서만 가능합니다.',
     studioBannerOptimizeAi: 'AI 최적화',
     studioBannerOptimizeEmpty: '최적화 전에 배너 문구·레이아웃 초안을 입력하세요.',
     studioBannerOptimizeDone: 'AI로 최적화됨',
     studioBannerOptimizeDoneDesc: '더 수정하거나 마음에 들지 않으면 다시 누르세요.',
     studioBannerOptimizeFailed: '배너 내용을 최적화하지 못했습니다. 나중에 다시 시도하세요.',
+    studioBannerOptimizeNoDeepSeek:
+      '서버에 DEEPSEEK_API_KEY가 설정되지 않아 배너 문구를 최적화할 수 없습니다.',
     studioBannerPromptBuildFailed: '배너 이미지 프롬프트를 만들지 못했습니다. 나중에 다시 시도하세요.',
     studioBannerBatchMax: '한 번에 최대 4개 배너 비율을 선택할 수 있습니다.',
     studioBannerBatchSelected: '{n}개 비율 선택 → 한 번에 {n}개 배너 생성.',
-    studioBannerBatchGenerated: '{n}개 배너를 생성했습니다 — 아래에서 하나씩 검토하세요.',
+    studioBannerBatchGenerated: '{n}개 배너를 생성했습니다 — 아래에서 모두 확인한 뒤 다음을 누르세요.',
+    studioBannerBatchProgress: '배너 {index}/{total} 검토 중 — 계속을 누르면 다음 배너가 표시됩니다.',
+    studioBannerNext: '다음',
     studioBannerBatchApproveNext: '배너를 저장했습니다. 이 배치 {index}/{total}을(를) 검토하세요.',
     studioGenerateBanner: '배너 생성',
+    studioGenerateMenu: '메뉴 생성',
+    studioMenuNeedFormat: '메뉴 형식(인쇄 또는 화면 비율)을 선택하세요.',
+    studioMenuNeedDishes: '최소 1개 메뉴(이름과 VND 가격)를 입력하세요.',
+    studioMenuPromptBuildFailed: '메뉴 디자인 프롬프트를 만들 수 없습니다. 나중에 다시 시도하세요.',
+    studioMenuLogoNeedFile: '로고 이미지 파일을 선택하세요.',
+    studioMenuLogoWrongStep: '로고 업로드는 메뉴 디자인 단계에서만 가능합니다.',
     studioUploadBtn: '이미지 업로드',
     studioImagesUploaded: '{n}장 업로드됨. 다음 단계 요구사항을 설명하세요.',
     studioMusicCredit: '음악: {n} 크레딧',

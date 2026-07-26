@@ -66,6 +66,11 @@ import {
   type PartnerAiSalesStage,
 } from '@/lib/messaging/partner-ai-intent-router'
 import { trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
+import {
+  buildDeepSeekCompletionBody,
+  DEEPSEEK_CHAT_COMPLETIONS_URL,
+  resolveDeepSeekChatModel,
+} from '@/lib/deepseek-api'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
 import {
   fetchPartnerPaymentSettingsFromPg,
@@ -1801,23 +1806,24 @@ export async function deepseekPartnerChat(
 ): Promise<DeepseekPartnerChatResult> {
   const key = process.env.DEEPSEEK_API_KEY?.trim()
   if (!key) return { error: 'DEEPSEEK_API_KEY not configured.' }
-  const model = 'deepseek-chat'
+  const model = resolveDeepSeekChatModel()
   try {
-    const res = await fetch('https://api.deepseek.com/chat/completions', {
+    const res = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
-        max_tokens: deepseekPartnerAiMaxTokens(),
-        temperature: 0.35,
-      }),
+      body: JSON.stringify(
+        buildDeepSeekCompletionBody('chat', {
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          max_tokens: deepseekPartnerAiMaxTokens(),
+          temperature: 0.35,
+        })
+      ),
     })
     const json = (await res.json()) as {
       choices?: { message?: { content?: string } }[]

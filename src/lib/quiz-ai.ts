@@ -2,6 +2,11 @@
  * Logic AI chung cho quiz: verify đáp án, tạo câu mới.
  * Dùng bởi slide-generate-quiz, slide-verify-quiz, slide-quiz-report.
  */
+import {
+  buildDeepSeekCompletionBody,
+  DEEPSEEK_CHAT_COMPLETIONS_URL,
+  resolveDeepSeekVerifyModel,
+} from '@/lib/deepseek-api'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
@@ -113,22 +118,23 @@ export async function verifyQuizWithAI(
   const verifyPrompt = buildVerifyPrompt(fullContent, q)
   const apiKey = (await resolveGoogleApiKeyForUser(userId))?.apiKey
   const deepSeekKey = process.env.DEEPSEEK_API_KEY?.trim()
-  const DEEPSEEK_VERIFY_MODEL = process.env.DEEPSEEK_VERIFY_MODEL?.trim() || 'deepseek-reasoner'
+  const verifyModel = resolveDeepSeekVerifyModel()
   const systemLine = 'Trả về đúng JSON theo yêu cầu, không markdown.'
 
   if (deepSeekKey) {
     try {
-      const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
+      const dsRes = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${deepSeekKey}` },
-        body: JSON.stringify({
-          model: DEEPSEEK_VERIFY_MODEL,
-          temperature: 0,
-          messages: [
-            { role: 'system', content: systemLine },
-            { role: 'user', content: verifyPrompt },
-          ],
-        }),
+        body: JSON.stringify(
+          buildDeepSeekCompletionBody('verify', {
+            temperature: 0,
+            messages: [
+              { role: 'system', content: systemLine },
+              { role: 'user', content: verifyPrompt },
+            ],
+          })
+        ),
       })
       if (dsRes.ok) {
         const dsData = (await dsRes.json().catch(() => ({}))) as {
@@ -138,7 +144,7 @@ export async function verifyQuizWithAI(
         const verifyText = String(dsData?.choices?.[0]?.message?.content ?? '').trim()
         trackOpenAiStyleCompletionUsage({
           userId: userId ?? null,
-          model: DEEPSEEK_VERIFY_MODEL,
+          model: verifyModel,
           feature: 'quiz-verify-deepseek',
           usage: dsData.usage,
           fallbackPromptChars: systemLine.length + verifyPrompt.length,

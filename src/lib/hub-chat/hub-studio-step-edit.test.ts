@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  applyInPlaceDiscoveryBriefEdit,
   inferStepKeyForUserMessage,
+  isInPlaceDiscoveryBriefEdit,
   isInPlacePackagingImageEdit,
   resolveEditUserMessage,
   restoreTimelineAfterInPlaceImageEdit,
@@ -73,6 +75,39 @@ test('resolveEditUserMessage infers legacy user row without stored stepKey', () 
   ]
   const resolved = resolveEditUserMessage(messages, 'u-999', 'brand_name', 'packaging_kit')
   assert.equal(resolved?.id, 'uuid-3')
+})
+
+test('isInPlaceDiscoveryBriefEdit is true for sale_banner discovery steps', () => {
+  const session = baseSession({ presetId: 'sale_banner', currentStepKey: 'brand_style' })
+  assert.equal(isInPlaceDiscoveryBriefEdit(session, 'sale_banner', 'campaign_name'), true)
+  assert.equal(isInPlaceDiscoveryBriefEdit(session, 'sale_banner', 'banner_design'), false)
+})
+
+test('applyInPlaceDiscoveryBriefEdit updates brief only and preserves timeline', () => {
+  const session = {
+    ...baseSession({ presetId: 'sale_banner' }),
+    currentStepKey: 'brand_style',
+    briefNotes: {
+      campaign_name: 'Sale 8/3',
+      product_offer: 'Serum C',
+    },
+    processSteps: [
+      { key: 'campaign_name', label: 'Campaign', status: 'done' as const },
+      { key: 'product_offer', label: 'Product', status: 'done' as const },
+      { key: 'discount_cta', label: 'CTA', status: 'done' as const },
+      { key: 'brand_style', label: 'Style', status: 'in_progress' as const },
+      { key: 'color_tone', label: 'Color', status: 'pending' as const },
+    ],
+  }
+  const next = applyInPlaceDiscoveryBriefEdit(
+    session,
+    'campaign_name',
+    'Quảng cáo hàng ngày, không khuyến mãi'
+  )
+  assert.equal(next.briefNotes.campaign_name, 'Quảng cáo hàng ngày, không khuyến mãi')
+  assert.equal(next.currentStepKey, 'brand_style')
+  assert.equal(next.processSteps.find((s) => s.key === 'brand_style')?.status, 'in_progress')
+  assert.equal(next.processSteps.find((s) => s.key === 'color_tone')?.status, 'pending')
 })
 
 test('rewindSessionForStepEdit rewinds discovery color and clears downstream logo reference', () => {

@@ -63,3 +63,31 @@ test('design step keeps step-specific placeholder after discovery', () => {
   assert.ok(placeholder.includes('GIẢM 50%'))
   assert.notEqual(placeholder, 'fallback')
 })
+
+const FOOD_MENU_DISCOVERY_STEPS = [
+  'venue_name',
+  'menu_type',
+  'food_illustration',
+  'menu_style',
+  'color_tone',
+] as const
+
+const GENERIC_MOBILE_PLACEHOLDER =
+  'VD: Tôi muốn thiết kế giao diện app mobile bán hàng thời trang…'
+
+for (const stepKey of FOOD_MENU_DISCOVERY_STEPS) {
+  test(`food_menu ${stepKey} has step-specific suggestions and placeholder`, () => {
+    const items = getStudioStepSuggestions('food_menu', stepKey, 'vi')
+    assert.ok(items.length >= 1, `expected suggestion chips for food_menu.${stepKey}`)
+    assert.ok(items.every((item) => item.label.startsWith('Ví dụ:')))
+
+    const placeholder = getStudioStepInputPlaceholder(
+      'food_menu',
+      stepKey,
+      'vi',
+      GENERIC_MOBILE_PLACEHOLDER
+    )
+    assert.ok(!placeholder.includes('app mobile'), `placeholder must not be generic mobile shop for ${stepKey}`)
+    assert.notEqual(placeholder, GENERIC_MOBILE_PLACEHOLDER)
+  })
+}

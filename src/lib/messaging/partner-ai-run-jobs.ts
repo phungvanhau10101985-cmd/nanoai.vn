@@ -35,6 +35,7 @@ import {
 } from '@/lib/messaging/partner-ai-followup-product-cards-clamp'
 import { parsePartnerAiLlmStructured } from '@/lib/messaging/partner-ai-product-cards'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
+import { resolveDeepSeekChatModel } from '@/lib/deepseek-api'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 
@@ -515,7 +516,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         continue
       }
 
-      const model = llm.model?.trim() || 'deepseek-chat'
+      const model = llm.model?.trim() || resolveDeepSeekChatModel()
       await insertPartnerAiTokenUsage({
         partner_id: job.partner_id,
         provider: 'deepseek',

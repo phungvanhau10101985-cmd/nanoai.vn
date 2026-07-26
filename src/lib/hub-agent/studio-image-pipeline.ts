@@ -312,6 +312,10 @@ export async function runStudioImagePipeline(input: {
       caption = `Approved LOGO — composite onto this flat label artwork only; do NOT redraw or re-typeset the logo:`
     } else if (isLogoRef && input.kind === 'packaging_face') {
       caption = `Approved LOGO — composite onto this flat print panel only; do NOT redraw the logo:`
+    } else if (meta?.screenKey === 'banner_logo' && input.kind === 'banner') {
+      caption = `Brand LOGO — embed this exact logo on the ad banner (use actual logo pixels). Do NOT redraw or replace with typed text:`
+    } else if (meta?.screenKey === 'banner_style_anchor' && input.kind === 'banner') {
+      caption = `Campaign STYLE ANCHOR — master banner from first size; match model identity, colors, typography, and mood exactly; adapt layout to new aspect ratio:`
     } else if (input.kind === 'packaging_face') {
       caption = `Approved reference image ${i + 1} — embed as flat 2D print on the full-bleed panel edge-to-edge; NEVER as a 3D box on grey studio background:`
     } else {
@@ -327,9 +331,11 @@ export async function runStudioImagePipeline(input: {
   }
   for (let i = 0; i < productUrls.length; i++) {
     const url = productUrls[i]!
-    parts.push({
-      text: `Product photo ${i + 1} — flatten this product cutout onto the flat print panel (not a 3D scene):`,
-    })
+    const productCaption =
+      input.kind === 'banner'
+        ? `Product photo ${i + 1} — composite onto the banner naturally (not a separate 3D scene):`
+        : `Product photo ${i + 1} — flatten this product cutout onto the flat print panel (not a 3D scene):`
+    parts.push({ text: productCaption })
     const loaded = await loadImageBufferFromUrl(url)
     if (loaded) {
       parts.push({

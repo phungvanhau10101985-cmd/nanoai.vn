@@ -88,14 +88,17 @@ export const STUDIO_PRESET_EN = {
   sale_banner: {
     title: 'Ad Banner',
     kickoff:
-      'I will create an ad banner in the correct ratio for Google Ads & Facebook/Instagram. First we need a campaign brief — answer each question below.',
+      'I will create an ad banner in the correct ratio for Google Ads & Facebook/Instagram. First we need brand & campaign brief — answer each question below.',
     uploadHint: 'Upload product images to composite into the banner (1–13 images).',
     steps: {
-      campaign_name: 'Brief: Campaign name',
+      domain_name: 'Brief: Domain or brand name',
+      campaign_name: 'Brief: Advertising message',
       product_offer: 'Brief: Product/offer',
       discount_cta: 'Brief: Discount & CTA',
       brand_style: 'Brief: Brand style',
       color_tone: 'Brief: Color tone',
+      banner_style: 'Brief: Banner visual style',
+      banner_model: 'Brief: Model on banner',
       banner_ad_format: 'Pick ratio & ad channel',
       banner_design: 'Design banner',
       horizontal_display_ads:
@@ -117,14 +120,19 @@ export const STUDIO_PRESET_EN = {
       ooh_strip_8_1: 'LED · event ultra-wide strip — AI 8:1',
     },
     asks: {
-      campaign_name: '① Campaign / event name? (grand opening, sale, holiday promo…)',
-      product_offer: '② What product/service are you advertising? Highlight key points.',
-      discount_cta: '③ Discount percentage? Desired CTA? (Shop now, Order now…)',
-      brand_style: '④ Style: elegant / youthful / energetic / minimal?',
-      color_tone: '⑤ Preferred color tone?',
-      banner_ad_format: '⑥ Pick banner ratio and matching ad channel below.',
+      domain_name: '① Domain or brand name to show on the banner? (e.g. 188.com.vn or Van Anh Fashion)',
+      campaign_name: '② Main advertising message? (grand opening, sale, short slogan…)',
+      product_offer: '③ What product/service are you advertising? Highlight key points.',
+      discount_cta: '④ Discount percentage? Desired CTA? (Shop now, Order now…)',
+      brand_style: '⑤ Brand style: elegant / youthful / energetic / minimal?',
+      color_tone: '⑥ Preferred color tone?',
+      banner_style:
+        '⑦ Banner visual style: lifestyle / flat lay / product studio / typography-only / collage?',
+      banner_model:
+        '⑧ Model on banner (if any): male or female? Asian or European? Light or dark skin? (e.g. female Asian, light skin — or «no model needed»)',
+      banner_ad_format: 'Pick banner ratio and matching ad channel below.',
       banner_design:
-        '⑥ Pick ratio & channel, upload images — copy & layout optional (empty uses earlier brief) — then «Generate banner».',
+        'Pick ratio & channel, edit domain/brand name if needed, upload logo to composite on banner, add product photos — then «Generate banner».',
       google_display: 'Google horizontal banner details: headline, product image, logo?',
       google_square: 'Google square banner details: layout, main text?',
       facebook_feed: 'Facebook feed banner details: short copy, visual?',
@@ -132,11 +140,14 @@ export const STUDIO_PRESET_EN = {
       instagram_reels: 'Reels cover details: hook in first 3 seconds, text overlay?',
     },
     askExamples: {
-      campaign_name: 'Online store grand opening campaign',
+      domain_name: '188.com.vn or Van Anh Fashion',
+      campaign_name: 'Premium men\'s style — shoes, bags & accessories',
       product_offer: 'Premium Vitamin C serum — brightening, anti-dark-spot',
       discount_cta: '50% off — Shop now',
       brand_style: 'Youthful, energetic — purple-pink gradient, bold typography',
       color_tone: 'Burgundy + gold on dark background',
+      banner_style: 'Premium lifestyle — model wearing product, soft studio lighting',
+      banner_model: 'Female, Asian, light skin — wearing elegant office blazer',
       banner_design: '50% OFF — SHOP NOW · product image on the right, logo top corner',
     },
   },

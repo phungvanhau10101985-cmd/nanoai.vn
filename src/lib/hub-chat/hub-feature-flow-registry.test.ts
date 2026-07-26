@@ -31,6 +31,17 @@ test('mở giáo trình maps to my curricula viewer', () => {
   if (match?.kind === 'standalone') assert.equal(match.href, '/giao-trinh')
 })
 
+test('tạo baner (typo) quảng cáo google maps to sale_banner studio not curriculum', () => {
+  const match = matchFeatureFlowByMessage('tạo baner quảng cáo google', 'vi')
+  assert.equal(match?.kind, 'studio')
+  if (match?.kind === 'studio') assert.equal(match.presetId, 'sale_banner')
+})
+
+test('bare tạo + unrelated topic does not suggest curriculum', () => {
+  const match = matchFeatureFlowByMessage('tạo baner quảng cáo google', 'vi')
+  assert.notEqual(match?.kind === 'standalone' && match.href === '/tao-giao-trinh', true)
+})
+
 test('banner quảng cáo maps to sale_banner studio not standalone page', () => {
   const match = matchFeatureFlowByMessage('tạo banner quảng cáo sale 50%', 'vi')
   assert.equal(match?.kind, 'studio')

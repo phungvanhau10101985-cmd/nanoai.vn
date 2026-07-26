@@ -8,6 +8,11 @@ import {
   type EnglishCoachUsageContext,
 } from '@/lib/english-coach-api-usage'
 import { trackOpenAiStyleCompletionUsage, type OpenAiStyleUsage } from '@/lib/track-ai-usage'
+import {
+  buildDeepSeekCompletionBody,
+  DEEPSEEK_CHAT_COMPLETIONS_URL,
+  resolveDeepSeekChatModel,
+} from '@/lib/deepseek-api'
 import { getUserForAction } from '@/lib/auth'
 import { resolveGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { buildChatPrompts } from '@/app/hoc-tieng-anh-ai/prompt/prompt-builder'
@@ -1367,23 +1372,24 @@ async function generateDeepSeekChatJson(params: {
   userPrompt: string
   apiKey: string
 }): Promise<ChatJsonProviderOutcome> {
-  const model = String(process.env.DEEPSEEK_MODEL || 'deepseek-chat').trim() || 'deepseek-chat'
+  const model = resolveDeepSeekChatModel()
   const promptChars = params.systemPrompt.length + params.userPrompt.length
-  const res = await fetch('https://api.deepseek.com/chat/completions', {
+  const res = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     },
-    body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      messages: [
-        { role: 'system', content: params.systemPrompt },
-        { role: 'user', content: params.userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-    }),
+    body: JSON.stringify(
+      buildDeepSeekCompletionBody('chat', {
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content: params.systemPrompt },
+          { role: 'user', content: params.userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+      })
+    ),
   })
   if (!res.ok) return { parsed: null }
   const data = (await res.json().catch(() => ({}))) as {

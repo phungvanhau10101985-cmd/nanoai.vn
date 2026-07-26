@@ -1,6 +1,6 @@
 /**
  * Chi phí ước tính (USD / 1 triệu token) — căn bảng giá Gemini Developer API (tham khảo Google, cập nhật ~2026-04).
- * DeepSeek-V3.2 (deepseek-chat / deepseek-reasoner): theo docs — input cache miss 0,28; output 0,42 (input cache hit 0,028 — log hiện không tách nên ước tính dùng cache miss).
+ * DeepSeek V4 (deepseek-v4-flash / deepseek-v4-pro): input cache miss 0,28; output 0,42 USD/M tokens.
  * OpenAI: tham khảo. Một số model Gemini có giá khác theo prompt >200k token / lần gọi — chỉ áp khi tính theo **từng lần gọi** (chi tiết).
  */
 
@@ -34,6 +34,8 @@ export const API_COST_PER_1M: Record<string, ModelUsdRates> = {
   /** Input: cache miss. Output: 0,42 USD/1M (cache hit input 0,028 — không dùng khi chưa có số liệu cache). */
   'deepseek-reasoner': { input: 0.28, output: 0.42 },
   'deepseek-chat': { input: 0.28, output: 0.42 },
+  'deepseek-v4-flash': { input: 0.28, output: 0.42 },
+  'deepseek-v4-pro': { input: 0.28, output: 0.42 },
   'gpt-5': { input: 2.5, output: 10 },
   'gpt-4o': { input: 2.5, output: 10 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },

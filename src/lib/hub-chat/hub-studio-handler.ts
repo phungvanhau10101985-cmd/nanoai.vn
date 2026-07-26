@@ -1,8 +1,23 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { HUB_CHAT_CREDIT } from '@/lib/hub-chat/hub-chat-catalog'
-import { optimizeBannerDesignPrompt } from '@/lib/hub-chat/banner-design-prompt-optimize'
+import {
+  formatBannerOnImageCopyForGeneration,
+  parseBannerOnImageCopy,
+} from '@/lib/hub-chat/banner-on-image-copy'
 import { buildBannerImageGenerationPrompt } from '@/lib/hub-chat/banner-image-prompt-builder'
+import { buildMenuImageGenerationPrompt } from '@/lib/hub-chat/menu-image-prompt-builder'
+import {
+  menuDishesHaveContent,
+  normalizeMenuDishes,
+  type MenuDishItem,
+} from '@/lib/hub-chat/menu-dish-items'
+import {
+  getMenuFormatPresetById,
+  getMenuFormatPresetLabel,
+  normalizeMenuFormatPresetId,
+  type MenuFormatPresetId,
+} from '@/lib/hub-chat/menu-format-presets'
 import {
   BANNER_AD_PRESETS,
   DEFAULT_BANNER_AD_PRESET_ID,
@@ -22,6 +37,7 @@ import {
   type HubStudioPendingPreview,
   type HubStudioPreviewKind,
   type HubStudioProcessStep,
+  type HubStudioReferenceImage,
   type HubStudioSession,
   type HubPackagingState,
 } from '@/lib/hub-chat/hub-studio-types'
@@ -40,10 +56,11 @@ import {
   isLogoDesignStep,
   isStepAfterPrimaryLogo,
   briefNotesForStepGeneration,
+  matchStudioPresetWithScore,
   presetTitle,
   primaryLogoApproved,
 } from '@/lib/hub-chat/hub-studio-presets'
-import { hasSaleBannerDiscoveryBrief } from '@/lib/hub-chat/hub-studio-preset-flows'
+import { hasSaleBannerDiscoveryBrief, SALE_BANNER_COPY_BRIEF_KEYS } from '@/lib/hub-chat/hub-studio-preset-flows'
 import {
   applySuggestedPreset,
   appendCurrentDiscoveryAsk,
@@ -235,7 +252,9 @@ import {
 } from '@/lib/hub-chat/hub-studio-discovery-edit'
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import {
+  applyInPlaceDiscoveryBriefEdit,
   inferStepKeyForUserMessage,
+  isInPlaceDiscoveryBriefEdit,
   isInPlacePackagingImageEdit,
   resolveEditUserMessage,
   restoreTimelineAfterInPlaceImageEdit,
@@ -346,7 +365,14 @@ export type HubStudioAction =
   | 'set_label_shape'
   | 'set_banner_ad_format'
   | 'set_banner_design_setup'
+  | 'upload_banner_logo'
+  | 'remove_banner_logo'
+  | 'upload_menu_logo'
+  | 'remove_menu_logo'
+  | 'select_banner_batch_item'
   | 'banner_finish_flow'
+  | 'set_menu_design_setup'
+  | 'menu_finish_flow'
   | 'confirm_box_face'
   | 'set_discovery_choice'
   | 'set_color_palette'
@@ -381,6 +407,11 @@ export type HubStudioHandlerInput = {
   bannerAdPresetId?: string
   bannerAdPresetIds?: string[]
   bannerOverlayText?: string
+  bannerDomainName?: string
+  bannerBatchIndex?: number
+  menuFormatPresetId?: string
+  menuDishes?: MenuDishItem[]
+  menuVenueName?: string
   discoveryChoice?: string
   discoveryChoiceStep?: string
   colorPaletteKeys?: string[]
@@ -1245,7 +1276,7 @@ PRESET / PROJECT INTENT (hubRoute "design"):
 - intent "clarify": user wants design help but preset is ambiguous — suggestedPresetId empty, workflows empty; ask user to pick a feature chip from FULL FEATURE CATALOG.
 - intent "chat": unrelated to starting a design flow — suggestedPresetId empty.
 - When presetId is already set: suggestedPresetId must be empty string (do not switch preset mid-flow unless user explicitly asks to change project type — then clarify first).
-- Examples: "thiết kế app bán quần áo" → mobile_shop; "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; "ảnh thẻ linkedin" → profile_photo_pack.
+- Examples: "thiết kế app bán quần áo" → mobile_shop; "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; "ảnh thẻ linkedin" → profile_photo_pack.
 
 RETRY / FLOW INTENT (YOU must classify — server does NOT parse fixed phrases):
 - Understand ANY natural wording (Vietnamese, English, voice-style, typos, short replies).
@@ -1668,8 +1699,11 @@ async function generateAsset(
     }
   )
   let aspectRatio = workSession.presetId ? getStepAspectRatio(workSession.presetId, screenKey) : undefined
-  if (generator === 'banner' && workSession.bannerAd?.aspectRatio) {
+  if (generator === 'banner' && workSession.presetId === 'sale_banner' && workSession.bannerAd?.aspectRatio) {
     aspectRatio = normalizeBannerAspectRatioForGemini(workSession.bannerAd.aspectRatio)
+  }
+  if (generator === 'banner' && workSession.presetId === 'food_menu' && workSession.foodMenu?.aspectRatio) {
+    aspectRatio = normalizeBannerAspectRatioForGemini(workSession.foodMenu.aspectRatio)
   }
   let printSizeMm: { widthMm: number; heightMm: number } | undefined
 
@@ -1770,7 +1804,52 @@ async function generateAsset(
   }
 
   if (generator === 'banner' && workSession.bannerAd?.overlayText?.trim()) {
-    fullPrompt += `\n\nRequired overlay text on banner (legible, prominent): "${workSession.bannerAd.overlayText.trim()}"`
+    const bannerLogoUrl = workSession.bannerAd?.logoUrl?.trim()
+    const parsed = parseBannerOnImageCopy(workSession.bannerAd.overlayText)
+    const onBannerCopy = formatBannerOnImageCopyForGeneration(parsed, {
+      omitDomain: Boolean(bannerLogoUrl),
+    })
+    fullPrompt += `\n\nRequired on-banner text (plain text only — no quotation marks on the image):\n${onBannerCopy}`
+  }
+  if (generator === 'banner' && workSession.presetId === 'sale_banner') {
+    const bannerLogoUrl = workSession.bannerAd?.logoUrl?.trim()
+    const styleAnchorUrl = workSession.bannerAd?.batchStyleAnchorUrl?.trim()
+    if (bannerLogoUrl) {
+      productUrls = productUrls.filter((u) => u !== bannerLogoUrl)
+    }
+    if (styleAnchorUrl) {
+      productUrls = productUrls.filter((u) => u !== styleAnchorUrl)
+      refUrls = refUrls.filter((u) => u !== styleAnchorUrl && u !== bannerLogoUrl)
+      if (bannerLogoUrl) {
+        refUrls = [bannerLogoUrl, styleAnchorUrl, ...refUrls]
+      } else {
+        refUrls = [styleAnchorUrl, ...refUrls]
+      }
+      fullPrompt += `\n\nCAMPAIGN STYLE ANCHOR: An attached image is the master banner from the first size in this batch. Match the SAME model identity (face, skin tone, outfit), color palette, typography style, and brand mood. Reframe the layout for this aspect ratio — do NOT copy pixel-identical layout; keep visual continuity across sizes.`
+    } else if (bannerLogoUrl) {
+      if (!refUrls.includes(bannerLogoUrl)) {
+        refUrls = [bannerLogoUrl, ...refUrls]
+      }
+    }
+    if (bannerLogoUrl) {
+      fullPrompt += `\n\nIMPORTANT — LOGO COMPOSITE: The attached brand LOGO image — embed it exactly as provided (use the actual logo pixels). Place it prominently (typically top-left or top-center). Do NOT redraw, re-typeset, or recreate the logo; do NOT replace the logo with typed domain text.`
+    }
+  }
+
+  if (generator === 'banner' && workSession.presetId === 'food_menu') {
+    const menuLogoUrl = workSession.foodMenu?.logoUrl?.trim()
+    const venueName =
+      workSession.foodMenu?.venueName?.trim() || workSession.briefNotes.venue_name?.trim()
+    if (menuLogoUrl) {
+      productUrls = productUrls.filter((u) => u !== menuLogoUrl)
+      if (!refUrls.includes(menuLogoUrl)) {
+        refUrls = [menuLogoUrl, ...refUrls]
+      }
+      fullPrompt += `\n\nIMPORTANT — LOGO COMPOSITE: The attached brand LOGO image — embed it exactly as provided (use the actual logo pixels). Place it prominently on the menu header (typically top-center or top-left). Do NOT redraw or recreate the logo.`
+    }
+    if (venueName) {
+      fullPrompt += `\n\nVenue / brand name to print prominently on the menu header: ${venueName}`
+    }
   }
 
   if (generator === 'product_photo' && !productUrls.length) {
@@ -1785,7 +1864,7 @@ async function generateAsset(
   if (generatorUsesUpload(generator) && generator !== 'product_photo' && !productUrls.length) {
     const preset = session.presetId ? getStudioPreset(session.presetId) : null
     const bannerPromptOnly =
-      session.presetId === 'sale_banner' && generator === 'banner'
+      (session.presetId === 'sale_banner' || session.presetId === 'food_menu') && generator === 'banner'
     if (preset?.needsUpload && !bannerPromptOnly) {
       const t = getDictionary(locale).hubChat
       return {
@@ -1838,6 +1917,27 @@ async function generateAsset(
     projectTitle: workSession.projectTitle,
     referenceImageUrls: refUrls,
     referenceImageMeta: refUrls.map((url) => {
+      const bannerLogoUrl =
+        generator === 'banner' && workSession.presetId === 'sale_banner'
+          ? workSession.bannerAd?.logoUrl?.trim()
+          : ''
+      const menuLogoUrl =
+        generator === 'banner' && workSession.presetId === 'food_menu'
+          ? workSession.foodMenu?.logoUrl?.trim()
+          : ''
+      const styleAnchorUrl =
+        generator === 'banner' && workSession.presetId === 'sale_banner'
+          ? workSession.bannerAd?.batchStyleAnchorUrl?.trim()
+          : ''
+      if (bannerLogoUrl && url === bannerLogoUrl) {
+        return { screenKey: 'banner_logo', label: 'Brand logo' }
+      }
+      if (menuLogoUrl && url === menuLogoUrl) {
+        return { screenKey: 'menu_logo', label: 'Brand logo' }
+      }
+      if (styleAnchorUrl && url === styleAnchorUrl) {
+        return { screenKey: 'banner_style_anchor', label: 'Campaign style anchor' }
+      }
       const ref = workSession.referenceImages.find((r) => r.url === url)
       if (ref) return { screenKey: ref.screenKey, label: ref.screenLabel }
       const primaryKey = getPrimaryPackagingStyleFaceStepKey()
@@ -2010,6 +2110,128 @@ function countSaleBannerApprovals(session: HubStudioSession): number {
   return session.referenceImages.filter((r) => isSaleBannerApprovedKey(r.screenKey)).length
 }
 
+function getSaleBannerBatchPreviews(session: HubStudioSession): HubStudioPendingPreview[] {
+  if (session.bannerBatchPreviews?.length) return session.bannerBatchPreviews
+  const pending = session.pendingPreview
+  const queue = session.bannerBatchQueue ?? []
+  if (pending && queue.length > 0) return [pending, ...queue]
+  if (pending && (session.bannerBatchTotal ?? 0) > 1) return [pending]
+  if (pending) return [pending]
+  return []
+}
+
+function buildSaleBannerBatchStudioPayload(
+  previews: HubStudioPendingPreview[],
+  selectedIndex: number,
+  base: Partial<HubStudioMessagePayload> = {}
+): HubStudioMessagePayload {
+  const safeIndex = Math.max(0, Math.min(previews.length - 1, selectedIndex))
+  const selected = previews[safeIndex] ?? previews[0]
+  const multi = previews.length > 1
+  return {
+    ...base,
+    imageUrl: selected?.url,
+    screenKey: selected?.screenKey ?? 'banner_design',
+    screenLabel: selected?.screenLabel,
+    previewKind: 'banner',
+    showRegenerate: base.showRegenerate ?? true,
+    showApproveReference: base.showApproveReference ?? true,
+    ...(multi
+      ? {
+          bannerBatchItems: previews.map((p, index) => ({
+            url: p.url,
+            screenLabel: p.screenLabel,
+            index,
+          })),
+          bannerBatchSelectedIndex: safeIndex,
+          bannerBatchTotal: previews.length,
+        }
+      : {}),
+  }
+}
+
+function syncBannerBatchPreviewItem(
+  session: HubStudioSession,
+  preview: HubStudioPendingPreview
+): HubStudioSession {
+  const previews = getSaleBannerBatchPreviews(session)
+  if (previews.length <= 1) {
+    return { ...session, pendingPreview: preview }
+  }
+  const index =
+    session.bannerBatchSelectedIndex ??
+    Math.max(0, previews.findIndex((p) => p.url === session.pendingPreview?.url))
+  const next = [...previews]
+  next[index] = preview
+  return {
+    ...session,
+    bannerBatchPreviews: next,
+    bannerBatchSelectedIndex: index,
+    pendingPreview: preview,
+    bannerBatchQueue: undefined,
+    bannerBatchTotal: next.length,
+  }
+}
+
+function finalizeSaleBannerBatchApproval(session: HubStudioSession, locale: WebLocale): HubStudioSession {
+  return {
+    ...session,
+    processSteps: setStepInProgress(
+      session.processSteps.map((s) =>
+        s.key === 'banner_design' ? { ...s, status: 'in_progress' as const } : s
+      ),
+      'banner_design'
+    ),
+    currentStepKey: 'banner_design',
+    bannerAd: session.bannerAd ? { ...session.bannerAd, overlayText: undefined } : session.bannerAd,
+    briefNotes: {
+      ...session.briefNotes,
+      banner_design: '',
+    },
+  }
+}
+
+function finishApproveSaleBannerBatch(
+  session: HubStudioSession,
+  previews: HubStudioPendingPreview[],
+  locale: WebLocale
+): HubStudioSession {
+  const existingCount = countSaleBannerApprovals(session)
+  const now = Date.now()
+  const newRefs: HubStudioReferenceImage[] = previews.map((p, i) => ({
+    screenKey: `banner_design_${existingCount + i + 1}`,
+    screenLabel:
+      previews.length > 1
+        ? `${saleBannerScreenLabel(locale, existingCount + i + 1)} — ${p.screenLabel}`
+        : saleBannerScreenLabel(locale, existingCount + i + 1),
+    url: p.url,
+    approvedAt: now + i,
+  }))
+  const firstUrl = previews[0]!.url
+  let next: HubStudioSession = {
+    ...session,
+    referenceImages: [
+      ...session.referenceImages.filter(
+        (r) => r.screenKey !== 'banner_design' && !isSaleBannerApprovedKey(r.screenKey)
+      ),
+      ...newRefs,
+    ],
+    pendingPreview: null,
+    bannerBatchPreviews: undefined,
+    bannerBatchQueue: undefined,
+    bannerBatchTotal: undefined,
+    bannerBatchSelectedIndex: undefined,
+    lastGenerationPrompt: null,
+    generationSelection: {
+      referenceScreenKeys: session.generationSelection?.referenceScreenKeys ?? [],
+      productUrls: session.generationSelection?.productUrls ?? [],
+      styleReferenceUrl: firstUrl,
+    },
+  }
+  next = finalizeSaleBannerBatchApproval(next, locale)
+  return next
+}
+
 function saleBannerScreenLabel(locale: WebLocale, n: number): string {
   const rows = {
     vi: `Banner ${n}`,
@@ -2024,6 +2246,11 @@ function saleBannerScreenLabel(locale: WebLocale, n: number): string {
 function finalizeSaleBannerApproval(session: HubStudioSession, locale: WebLocale): HubStudioSession {
   const bannerNum = countSaleBannerApprovals(session)
   const uniqueKey = `banner_design_${bannerNum}`
+  const pendingRef = session.referenceImages.find((r) => r.screenKey === 'banner_design')
+  const flowStyleRef =
+    session.generationSelection?.styleReferenceUrl ??
+    pendingRef?.url ??
+    session.referenceImages.find((r) => isSaleBannerApprovedKey(r.screenKey))?.url
 
   return {
     ...session,
@@ -2044,6 +2271,13 @@ function finalizeSaleBannerApproval(session: HubStudioSession, locale: WebLocale
       ...session.briefNotes,
       banner_design: '',
     },
+    generationSelection: flowStyleRef
+      ? {
+          referenceScreenKeys: session.generationSelection?.referenceScreenKeys ?? [],
+          productUrls: session.generationSelection?.productUrls ?? [],
+          styleReferenceUrl: session.generationSelection?.styleReferenceUrl ?? flowStyleRef,
+        }
+      : session.generationSelection,
   }
 }
 
@@ -2221,65 +2455,11 @@ function resolveSaleBannerDesignDraft(session: HubStudioSession): string {
   const overlay = session.bannerAd?.overlayText?.trim() ?? ''
   if (overlay) return overlay
   if (hasSaleBannerDiscoveryBrief(session.briefNotes)) {
-    return [
-      session.briefNotes.campaign_name,
-      session.briefNotes.product_offer,
-      session.briefNotes.discount_cta,
-      session.briefNotes.brand_style,
-      session.briefNotes.color_tone,
-    ]
-      .map((s) => s?.trim())
+    return SALE_BANNER_COPY_BRIEF_KEYS.map((key) => session.briefNotes[key]?.trim())
       .filter(Boolean)
       .join(' · ')
   }
   return ''
-}
-
-async function optimizeSaleBannerDesignBrief(input: {
-  apiKey: string
-  userId: string
-  locale: WebLocale
-  session: HubStudioSession
-  presetId: BannerAdPresetId
-}): Promise<
-  | { ok: true; session: HubStudioSession; designBrief: string }
-  | { ok: false; error: string }
-> {
-  const t = getDictionary(input.locale).hubChat
-  const draft = resolveSaleBannerDesignDraft(input.session)
-  if (!draft) {
-    return { ok: false, error: t.studioBannerNeedCopy }
-  }
-  const adPreset = getBannerAdPresetById(input.presetId)
-  const optimized = await optimizeBannerDesignPrompt({
-    apiKey: input.apiKey,
-    userId: input.userId,
-    locale: input.locale,
-    draft,
-    briefNotes: input.session.briefNotes,
-    aspectRatio: input.session.bannerAd?.aspectRatio ?? adPreset.aspectRatio,
-    adChannelLabel: getBannerAdPresetLabel(adPreset, input.locale),
-    platformHint: getBannerAdPlatformHint(input.presetId, input.locale),
-  })
-  if (!optimized.ok) {
-    return { ok: false, error: t.studioBannerOptimizeFailed }
-  }
-  const prev = input.session.bannerAd
-  const session: HubStudioSession = {
-    ...input.session,
-    bannerAd: {
-      presetId: prev?.presetId ?? adPreset.id,
-      aspectRatio: prev?.aspectRatio ?? adPreset.aspectRatio,
-      platform: prev?.platform ?? adPreset.platform,
-      selectedPresetIds: prev?.selectedPresetIds,
-      overlayText: optimized.text,
-    },
-    briefNotes: {
-      ...input.session.briefNotes,
-      banner_design: optimized.text,
-    },
-  }
-  return { ok: true, session, designBrief: optimized.text }
 }
 
 function resolveSelectedBannerPresetIds(
@@ -2301,7 +2481,10 @@ function resolveSelectedBannerPresetIds(
 
 function mergeBannerDesignInputIntoSession(
   session: HubStudioSession,
-  input: Pick<HubStudioHandlerInput, 'bannerAdPresetId' | 'bannerAdPresetIds' | 'bannerOverlayText'>
+  input: Pick<
+    HubStudioHandlerInput,
+    'bannerAdPresetId' | 'bannerAdPresetIds' | 'bannerOverlayText' | 'bannerDomainName'
+  >
 ): HubStudioSession {
   if (session.presetId !== 'sale_banner' || session.currentStepKey !== 'banner_design') {
     return session
@@ -2315,6 +2498,8 @@ function mergeBannerDesignInputIntoSession(
     : ''
   const overlayRaw =
     input.bannerOverlayText !== undefined ? String(input.bannerOverlayText).trim() : undefined
+  const domainRaw =
+    input.bannerDomainName !== undefined ? String(input.bannerDomainName).trim() : undefined
 
   const selectedPresetIds =
     input.bannerAdPresetIds !== undefined
@@ -2323,13 +2508,19 @@ function mergeBannerDesignInputIntoSession(
         ? [presetIdRaw]
         : session.bannerAd?.selectedPresetIds?.map((id) => normalizeBannerAdPresetId(id)) ?? []
 
-  if (input.bannerAdPresetIds === undefined && !presetIdRaw && overlayRaw === undefined) {
+  if (
+    input.bannerAdPresetIds === undefined &&
+    !presetIdRaw &&
+    overlayRaw === undefined &&
+    domainRaw === undefined
+  ) {
     return session
   }
   if (
     input.bannerAdPresetIds !== undefined &&
     !selectedPresetIds.length &&
-    overlayRaw === undefined
+    overlayRaw === undefined &&
+    domainRaw === undefined
   ) {
     const prev = session.bannerAd
     return {
@@ -2340,6 +2531,7 @@ function mergeBannerDesignInputIntoSession(
         presetId: '',
         aspectRatio: '',
         platform: undefined,
+        logoUrl: prev?.logoUrl,
       },
     }
   }
@@ -2348,14 +2540,20 @@ function mergeBannerDesignInputIntoSession(
     ? findBannerAdPreset(selectedPresetIds[0]!)
     : null
   const prev = session.bannerAd
+  const nextBriefNotes =
+    domainRaw !== undefined
+      ? { ...session.briefNotes, domain_name: domainRaw }
+      : session.briefNotes
   return {
     ...session,
+    briefNotes: nextBriefNotes,
     bannerAd: {
       selectedPresetIds: selectedPresetIds.length ? selectedPresetIds : prev?.selectedPresetIds,
       presetId: primary?.id ?? prev?.presetId ?? '',
       aspectRatio: primary?.aspectRatio ?? prev?.aspectRatio ?? '',
       platform: primary?.platform ?? prev?.platform,
       overlayText: overlayRaw !== undefined ? overlayRaw || undefined : prev?.overlayText,
+      logoUrl: prev?.logoUrl,
     },
   }
 }
@@ -2366,7 +2564,6 @@ async function generateSaleBannerBatch(input: {
   locale: WebLocale
   session: HubStudioSession
   presetIds: BannerAdPresetId[]
-  designBrief: string
 }): Promise<{
   ok: boolean
   session: HubStudioSession
@@ -2384,32 +2581,76 @@ async function generateSaleBannerBatch(input: {
   }
   let totalCharged = 0
   const previews: HubStudioPendingPreview[] = []
-  const hasRefs = workSession.uploadImages.length > 0
+  const hasLogo = Boolean(workSession.bannerAd?.logoUrl?.trim())
+  const hasRefs = workSession.uploadImages.length > 0 || hasLogo
+
+  const allAdChannels = input.presetIds.map((presetId) => {
+    const adPreset = getBannerAdPresetById(presetId)
+    return {
+      presetId,
+      aspectRatio: adPreset.aspectRatio,
+      adChannelLabel: getBannerAdPresetLabel(adPreset, input.locale),
+      platformHint: getBannerAdPlatformHint(presetId, input.locale),
+    }
+  })
+  const primary = allAdChannels[0]!
+  const draft = resolveSaleBannerDesignDraft(workSession)
+  if (!draft) {
+    return {
+      ok: false,
+      session: workSession,
+      chargedImage: 0,
+      error: t.studioBannerNeedCopy,
+      batchCount: 0,
+    }
+  }
+  const built = await buildBannerImageGenerationPrompt({
+    apiKey: input.apiKey,
+    userId: input.userId,
+    locale: input.locale,
+    briefNotes: workSession.briefNotes,
+    draft,
+    presetId: primary.presetId,
+    aspectRatio: primary.aspectRatio,
+    adChannelLabel: primary.adChannelLabel,
+    platformHint: primary.platformHint,
+    hasReferenceImages: hasRefs,
+    hasLogo,
+    allAdChannels,
+  })
+  if (!built.ok) {
+    return {
+      ok: false,
+      session: workSession,
+      chargedImage: 0,
+      error: t.studioBannerPromptBuildFailed,
+      batchCount: 0,
+    }
+  }
+  const prevBannerAd = workSession.bannerAd
+  workSession = {
+    ...workSession,
+    bannerAd: {
+      ...prevBannerAd,
+      presetId: prevBannerAd?.presetId ?? primary.presetId,
+      aspectRatio: prevBannerAd?.aspectRatio ?? primary.aspectRatio,
+      platform: prevBannerAd?.platform ?? undefined,
+      selectedPresetIds: input.presetIds,
+      overlayText: built.structuredCopy,
+      logoUrl: prevBannerAd?.logoUrl,
+    },
+    briefNotes: {
+      ...workSession.briefNotes,
+      banner_design: built.structuredCopy,
+    },
+  }
+  const sharedPrompt = built.prompt
+  let batchStyleAnchorUrl: string | undefined
 
   for (let i = 0; i < input.presetIds.length; i++) {
     const presetId = input.presetIds[i]!
     const adPreset = getBannerAdPresetById(presetId)
     const ratioLabel = getBannerAdPresetLabel(adPreset, input.locale)
-    const built = await buildBannerImageGenerationPrompt({
-      apiKey: input.apiKey,
-      userId: input.userId,
-      locale: input.locale,
-      briefNotes: workSession.briefNotes,
-      designBrief: input.designBrief,
-      aspectRatio: adPreset.aspectRatio,
-      adChannelLabel: ratioLabel,
-      platformHint: getBannerAdPlatformHint(presetId, input.locale),
-      hasReferenceImages: hasRefs,
-    })
-    if (!built.ok) {
-      return {
-        ok: false,
-        session: workSession,
-        chargedImage: totalCharged,
-        error: t.studioBannerPromptBuildFailed,
-        batchCount: previews.length,
-      }
-    }
 
     workSession = {
       ...workSession,
@@ -2420,6 +2661,8 @@ async function generateSaleBannerBatch(input: {
         platform: adPreset.platform,
         selectedPresetIds: input.presetIds,
         overlayText: workSession.bannerAd?.overlayText,
+        logoUrl: workSession.bannerAd?.logoUrl,
+        batchStyleAnchorUrl: i > 0 ? batchStyleAnchorUrl : undefined,
       },
       pendingPreview: null,
     }
@@ -2432,7 +2675,7 @@ async function generateSaleBannerBatch(input: {
     const gen = await generateAsset(
       input.userId,
       workSession,
-      built.prompt,
+      sharedPrompt,
       'banner_design',
       label,
       input.locale
@@ -2449,6 +2692,9 @@ async function generateSaleBannerBatch(input: {
       }
     }
     if (workSession.pendingPreview) {
+      if (i === 0 && input.presetIds.length > 1) {
+        batchStyleAnchorUrl = workSession.pendingPreview.url
+      }
       previews.push(workSession.pendingPreview)
       workSession = { ...workSession, pendingPreview: null }
     }
@@ -2466,24 +2712,21 @@ async function generateSaleBannerBatch(input: {
 
   workSession = {
     ...workSession,
+    bannerBatchPreviews: previews.length > 1 ? previews : undefined,
+    bannerBatchSelectedIndex: previews.length > 1 ? 0 : undefined,
     pendingPreview: previews[0] ?? null,
-    bannerBatchQueue: previews.slice(1),
-    bannerBatchTotal: previews.length,
+    bannerBatchQueue: undefined,
+    bannerBatchTotal: previews.length > 1 ? previews.length : undefined,
     lastGenerationPrompt: previews[0]?.generationPrompt ?? null,
+    bannerAd: workSession.bannerAd
+      ? { ...workSession.bannerAd, batchStyleAnchorUrl: undefined }
+      : workSession.bannerAd,
   }
 
-  const studio: HubStudioMessagePayload = {
-    imageUrl: previews[0]?.url,
-    screenKey: 'banner_design',
-    screenLabel: previews[0]?.screenLabel,
-    previewKind: 'banner',
+  const studio = buildSaleBannerBatchStudioPayload(previews, 0, {
     processSteps: workSession.processSteps,
-    showRegenerate: true,
-    showApproveReference: true,
     imageCharged: totalCharged,
-    bannerBatchTotal: previews.length,
-    bannerBatchIndex: 1,
-  }
+  })
 
   return {
     ok: true,
@@ -2491,6 +2734,139 @@ async function generateSaleBannerBatch(input: {
     studio,
     chargedImage: totalCharged,
     batchCount: previews.length,
+  }
+}
+
+function mergeMenuDesignInputIntoSession(
+  session: HubStudioSession,
+  input: Pick<HubStudioHandlerInput, 'menuFormatPresetId' | 'menuDishes' | 'menuVenueName'>
+): HubStudioSession {
+  if (session.presetId !== 'food_menu' || session.currentStepKey !== 'menu_design') {
+    return session
+  }
+  const hasFormat = input.menuFormatPresetId !== undefined
+  const hasDishes = input.menuDishes !== undefined
+  const hasVenue = input.menuVenueName !== undefined
+  if (!hasFormat && !hasDishes && !hasVenue) {
+    return session
+  }
+
+  const formatRaw = hasFormat ? normalizeMenuFormatPresetId(String(input.menuFormatPresetId)) : ''
+  const dishesRaw = hasDishes ? normalizeMenuDishes(input.menuDishes!) : undefined
+  const venueRaw = hasVenue ? String(input.menuVenueName).trim() : undefined
+
+  const prev = session.foodMenu
+  const formatPresetId = formatRaw || prev?.formatPresetId || ''
+  const preset = formatPresetId ? getMenuFormatPresetById(formatPresetId as MenuFormatPresetId) : null
+  const nextBriefNotes =
+    venueRaw !== undefined ? { ...session.briefNotes, venue_name: venueRaw } : session.briefNotes
+
+  return {
+    ...session,
+    briefNotes: nextBriefNotes,
+    foodMenu: {
+      formatPresetId: formatPresetId || prev?.formatPresetId,
+      aspectRatio: preset?.aspectRatio ?? prev?.aspectRatio,
+      venueName: venueRaw !== undefined ? venueRaw || undefined : prev?.venueName,
+      logoUrl: prev?.logoUrl,
+      dishes: dishesRaw !== undefined ? dishesRaw : prev?.dishes,
+    },
+  }
+}
+
+async function generateFoodMenu(input: {
+  userId: string
+  apiKey: string
+  locale: WebLocale
+  session: HubStudioSession
+}): Promise<{
+  ok: boolean
+  session: HubStudioSession
+  studio?: HubStudioMessagePayload
+  chargedImage: number
+  error?: string
+}> {
+  const t = getDictionary(input.locale).hubChat
+  let workSession: HubStudioSession = { ...input.session, pendingPreview: null }
+  const formatId = normalizeMenuFormatPresetId(workSession.foodMenu?.formatPresetId ?? '')
+  if (!formatId) {
+    return {
+      ok: false,
+      session: workSession,
+      chargedImage: 0,
+      error: t.studioMenuNeedFormat,
+    }
+  }
+  const dishes = normalizeMenuDishes(workSession.foodMenu?.dishes ?? [])
+  if (!menuDishesHaveContent(dishes)) {
+    return {
+      ok: false,
+      session: workSession,
+      chargedImage: 0,
+      error: t.studioMenuNeedDishes,
+    }
+  }
+  workSession = {
+    ...workSession,
+    foodMenu: {
+      ...workSession.foodMenu,
+      formatPresetId: formatId,
+      dishes,
+    },
+  }
+  const preset = getMenuFormatPresetById(formatId)
+  const formatLabel = getMenuFormatPresetLabel(preset, input.locale)
+  const venueName =
+    workSession.foodMenu?.venueName?.trim() || workSession.briefNotes.venue_name?.trim() || ''
+  const hasLogo = Boolean(workSession.foodMenu?.logoUrl?.trim())
+  const built = await buildMenuImageGenerationPrompt({
+    apiKey: input.apiKey,
+    userId: input.userId,
+    locale: input.locale,
+    briefNotes: workSession.briefNotes,
+    dishes,
+    formatPresetId: formatId,
+    aspectRatio: preset.aspectRatio,
+    formatLabel,
+    venueName,
+    hasLogo,
+  })
+  if (!built.ok) {
+    return {
+      ok: false,
+      session: workSession,
+      chargedImage: 0,
+      error: t.studioMenuPromptBuildFailed,
+    }
+  }
+  workSession = {
+    ...workSession,
+    foodMenu: {
+      ...workSession.foodMenu,
+      formatPresetId: formatId,
+      aspectRatio: preset.aspectRatio,
+      dishes,
+    },
+    briefNotes: {
+      ...workSession.briefNotes,
+      menu_design: built.prompt.slice(0, 500),
+    },
+  }
+  const label = stepLabel(workSession, 'menu_design', input.locale)
+  const gen = await generateAsset(
+    input.userId,
+    workSession,
+    built.prompt,
+    'menu_design',
+    label,
+    input.locale
+  )
+  return {
+    ok: !gen.error,
+    session: gen.session,
+    studio: gen.studio,
+    chargedImage: gen.chargedImage,
+    error: gen.error,
   }
 }
 
@@ -3075,6 +3451,10 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       session = mergeBannerDesignInputIntoSession(session, input)
       await pgSaveHubThreadSession(input.threadId, session)
     }
+    if (presetId === 'food_menu' && stepKey === 'menu_design') {
+      session = mergeMenuDesignInputIntoSession(session, input)
+      await pgSaveHubThreadSession(input.threadId, session)
+    }
     if (pendingPreviewBlocksWorkflowInput(session)) {
       const pendingKey = session.pendingPreview?.screenKey ?? stepKey
       return {
@@ -3107,26 +3487,6 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           error: t.studioBannerNeedRatio,
         }
       }
-      const primaryPresetId = presetIds[0]!
-      const optimizedBrief = await optimizeSaleBannerDesignBrief({
-        apiKey: input.apiKey,
-        userId: input.userId,
-        locale: input.locale,
-        session,
-        presetId: primaryPresetId,
-      })
-      if (!optimizedBrief.ok) {
-        return {
-          ok: false,
-          reply: '',
-          session,
-          threadId: input.threadId,
-          chargedChat: 0,
-          error: optimizedBrief.error,
-        }
-      }
-      session = optimizedBrief.session
-      const designBrief = optimizedBrief.designBrief
       if (input.message?.trim()) {
         await pgInsertHubChatMessage({
           threadId: input.threadId,
@@ -3142,14 +3502,15 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         locale: input.locale,
         session,
         presetIds,
-        designBrief,
       })
       session = batch.session
       studio = batch.studio
       reply = batch.error
         ? batch.error
         : batch.batchCount > 1
-          ? t.studioBannerBatchGenerated.replace('{n}', String(batch.batchCount))
+          ? t.studioBannerBatchGenerated
+              .replace('{n}', String(batch.batchCount))
+              .replace('{total}', String(batch.batchCount))
           : t.studioGeneratedStep.replace('{screen}', label)
       await pgSaveHubThreadSession(input.threadId, session)
       if (studio?.imageUrl) {
@@ -3175,6 +3536,73 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         chargedChat: 0,
         chargedImage: batch.chargedImage || undefined,
         error: batch.error,
+      }
+    }
+    if (presetId === 'food_menu' && stepKey === 'menu_design') {
+      const formatId = normalizeMenuFormatPresetId(
+        input.menuFormatPresetId ?? session.foodMenu?.formatPresetId ?? ''
+      )
+      if (!formatId) {
+        return {
+          ok: false,
+          reply: '',
+          session,
+          threadId: input.threadId,
+          chargedChat: 0,
+          error: t.studioMenuNeedFormat,
+        }
+      }
+      const dishes = normalizeMenuDishes(input.menuDishes ?? session.foodMenu?.dishes ?? [])
+      if (!menuDishesHaveContent(dishes)) {
+        return {
+          ok: false,
+          reply: '',
+          session,
+          threadId: input.threadId,
+          chargedChat: 0,
+          error: t.studioMenuNeedDishes,
+        }
+      }
+      session = mergeMenuDesignInputIntoSession(session, {
+        menuFormatPresetId: formatId,
+        menuDishes: dishes,
+      })
+      const label = stepLabel(session, stepKey, input.locale)
+      const generated = await generateFoodMenu({
+        userId: input.userId,
+        apiKey: input.apiKey,
+        locale: input.locale,
+        session,
+      })
+      session = generated.session
+      studio = generated.studio
+      reply = generated.error
+        ? generated.error
+        : t.studioGeneratedStep.replace('{screen}', label)
+      await pgSaveHubThreadSession(input.threadId, session)
+      if (studio?.imageUrl) {
+        await upsertHubStudioImageMessage({
+          threadId: input.threadId,
+          content: reply,
+          studio,
+        })
+      } else if (reply) {
+        await pgInsertHubChatMessage({
+          threadId: input.threadId,
+          role: 'assistant',
+          content: reply,
+          studio,
+        })
+      }
+      return {
+        ok: generated.ok && !generated.error,
+        reply,
+        studio,
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        chargedImage: generated.chargedImage || undefined,
+        error: generated.error,
       }
     }
     let prompt = session.briefNotes[stepKey]?.trim() ?? ''
@@ -3913,6 +4341,166 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
   }
 
+  if (action === 'upload_banner_logo') {
+    if (session.presetId !== 'sale_banner' || session.currentStepKey !== 'banner_design') {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioBannerLogoWrongStep,
+      }
+    }
+    const files = input.uploadFiles ?? []
+    if (!files.length) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioBannerLogoNeedFile,
+      }
+    }
+    const urls = await uploadStudioImages(input.userId, files.slice(0, 1))
+    const logoUrl = urls[0]
+    if (!logoUrl) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioBannerLogoNeedFile,
+      }
+    }
+    session = {
+      ...session,
+      bannerAd: {
+        ...session.bannerAd,
+        presetId: session.bannerAd?.presetId ?? '',
+        aspectRatio: session.bannerAd?.aspectRatio ?? '',
+        logoUrl,
+      },
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: '',
+      studio: { processSteps: session.processSteps },
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'remove_banner_logo') {
+    if (session.presetId !== 'sale_banner') {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    session = {
+      ...session,
+      bannerAd: session.bannerAd
+        ? { ...session.bannerAd, logoUrl: undefined }
+        : session.bannerAd,
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: '',
+      studio: { processSteps: session.processSteps },
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'upload_menu_logo') {
+    if (session.presetId !== 'food_menu' || session.currentStepKey !== 'menu_design') {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioMenuLogoWrongStep,
+      }
+    }
+    const files = input.uploadFiles ?? []
+    if (!files.length) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioMenuLogoNeedFile,
+      }
+    }
+    const urls = await uploadStudioImages(input.userId, files.slice(0, 1))
+    const logoUrl = urls[0]
+    if (!logoUrl) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioMenuLogoNeedFile,
+      }
+    }
+    session = {
+      ...session,
+      foodMenu: {
+        ...session.foodMenu,
+        logoUrl,
+      },
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: '',
+      studio: { processSteps: session.processSteps },
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'remove_menu_logo') {
+    if (session.presetId !== 'food_menu') {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    session = {
+      ...session,
+      foodMenu: session.foodMenu ? { ...session.foodMenu, logoUrl: undefined } : session.foodMenu,
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: '',
+      studio: { processSteps: session.processSteps },
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
   if (action === 'set_banner_design_setup') {
     const stepKey = session.currentStepKey
     if (session.presetId !== 'sale_banner' || stepKey !== 'banner_design') {
@@ -3965,6 +4553,58 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     return { ok: true, reply, studio, session, threadId: input.threadId, chargedChat: 0 }
   }
 
+  if (action === 'set_menu_design_setup') {
+    const stepKey = session.currentStepKey
+    if (session.presetId !== 'food_menu' || stepKey !== 'menu_design') {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    session = mergeMenuDesignInputIntoSession(session, input)
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: '',
+      studio: { processSteps: session.processSteps },
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'menu_finish_flow') {
+    if (session.presetId !== 'food_menu' || session.currentStepKey !== 'menu_design') {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    session = {
+      ...session,
+      processSteps: markStepDone(session.processSteps, 'menu_design'),
+      currentStepKey: null,
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    reply = t.studioAllDone
+    studio = { processSteps: session.processSteps }
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'assistant',
+      content: reply,
+      studio,
+    })
+    return { ok: true, reply, studio, session, threadId: input.threadId, chargedChat: 0 }
+  }
+
   if (action === 'set_banner_ad_format') {
     const presetIdRaw = String(input.bannerAdPresetId ?? '').trim()
     const adPreset = findBannerAdPreset(presetIdRaw)
@@ -3983,6 +4623,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     session = {
       ...session,
       bannerAd: {
+        ...session.bannerAd,
         presetId: adPreset.id,
         aspectRatio: adPreset.aspectRatio,
         platform: adPreset.platform,
@@ -4449,6 +5090,35 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     return { ok: true, reply, studio, session, threadId: input.threadId, chargedChat: 0 }
   }
 
+  if (action === 'select_banner_batch_item') {
+    if (session.presetId !== 'sale_banner') {
+      return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.errorGeneric }
+    }
+    const previews = getSaleBannerBatchPreviews(session)
+    if (previews.length <= 1) {
+      return { ok: true, reply: '', session, threadId: input.threadId, chargedChat: 0 }
+    }
+    const index = Math.max(
+      0,
+      Math.min(previews.length - 1, Number(input.bannerBatchIndex ?? 0))
+    )
+    const selected = previews[index]!
+    session = {
+      ...session,
+      bannerBatchPreviews: previews,
+      bannerBatchSelectedIndex: index,
+      pendingPreview: selected,
+      lastGenerationPrompt: selected.generationPrompt,
+    }
+    studio = buildSaleBannerBatchStudioPayload(previews, index, {
+      processSteps: session.processSteps,
+      showRegenerate: true,
+      showApproveReference: true,
+    })
+    await pgSaveHubThreadSession(input.threadId, session)
+    return { ok: true, reply: '', studio, session, threadId: input.threadId, chargedChat: 0 }
+  }
+
   if (action === 'approve_reference') {
     const pending = session.pendingPreview
     if (!pending) {
@@ -4474,6 +5144,46 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const approvedLabel = pending.screenLabel
     const approvedKey = pending.screenKey
     const wasReEdit = isPackagingFaceReEdit(session, approvedKey)
+    const saleBannerBatchPreviews =
+      session.presetId === 'sale_banner' &&
+      approvedKey === 'banner_design' &&
+      !wasReEdit
+        ? getSaleBannerBatchPreviews(session)
+        : []
+
+    if (saleBannerBatchPreviews.length > 1) {
+      if (
+        session.referenceImages.length + saleBannerBatchPreviews.length >
+        STUDIO_MAX_REFERENCE_IMAGES
+      ) {
+        return {
+          ok: false,
+          reply: '',
+          session,
+          threadId: input.threadId,
+          chargedChat: 0,
+          error: t.studioReferenceLimit.replace('{max}', String(STUDIO_MAX_REFERENCE_IMAGES)),
+        }
+      }
+      session = finishApproveSaleBannerBatch(session, saleBannerBatchPreviews, input.locale)
+      const n = countSaleBannerApprovals(session)
+      reply = t.studioBannerSavedCreateNext.replace('{n}', String(n))
+      studio = mergeApprovedPackagingMockupIntoStudio(session, {
+        processSteps: session.processSteps,
+        awaitingRequirements: true,
+        showApproveReference: false,
+        ...buildReferencePreviewsPayload(session, 'banner_design'),
+      })
+      await pgSaveHubThreadSession(input.threadId, session)
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'assistant',
+        content: reply,
+        studio,
+      })
+      return { ok: true, reply, studio, session, threadId: input.threadId, chargedChat: 0 }
+    }
+
     const finished = await finishApprove(session, input.locale, input.threadId, input.userId)
     session = finished.session
     const stayedOnEditedFace = Boolean(
@@ -4485,47 +5195,21 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       session.presetId === 'sale_banner' && approvedKey === 'banner_design' && !stayedOnEditedFace
     if (isSaleBannerLoop) {
       session = finalizeSaleBannerApproval(session, input.locale)
-      const queue = session.bannerBatchQueue ?? []
-      const batchTotal = session.bannerBatchTotal ?? 0
-      if (queue.length > 0) {
-        const [next, ...rest] = queue
-        const batchIndex = batchTotal > 0 ? batchTotal - rest.length : countSaleBannerApprovals(session) + 1
-        session = {
-          ...session,
-          pendingPreview: next,
-          bannerBatchQueue: rest,
-        }
-        reply = t.studioBannerBatchApproveNext
-          .replace('{index}', String(batchIndex))
-          .replace('{total}', String(batchTotal || batchIndex))
-        studio = mergeApprovedPackagingMockupIntoStudio(session, {
-          imageUrl: next.url,
-          screenKey: next.screenKey,
-          screenLabel: next.screenLabel,
-          previewKind: 'banner',
-          processSteps: session.processSteps,
-          showApproveReference: true,
-          showRegenerate: true,
-          awaitingRequirements: false,
-          bannerBatchIndex: batchIndex,
-          bannerBatchTotal: batchTotal || undefined,
-          ...buildReferencePreviewsPayload(session, 'banner_design'),
-        })
-      } else {
-        session = {
-          ...session,
-          bannerBatchTotal: undefined,
-          bannerBatchQueue: undefined,
-        }
-        const n = countSaleBannerApprovals(session)
-        reply = t.studioBannerSavedCreateNext.replace('{n}', String(n))
-        studio = mergeApprovedPackagingMockupIntoStudio(session, {
-          processSteps: session.processSteps,
-          awaitingRequirements: true,
-          showApproveReference: false,
-          ...buildReferencePreviewsPayload(session, 'banner_design'),
-        })
+      session = {
+        ...session,
+        bannerBatchTotal: undefined,
+        bannerBatchQueue: undefined,
+        bannerBatchPreviews: undefined,
+        bannerBatchSelectedIndex: undefined,
       }
+      const n = countSaleBannerApprovals(session)
+      reply = t.studioBannerSavedCreateNext.replace('{n}', String(n))
+      studio = mergeApprovedPackagingMockupIntoStudio(session, {
+        processSteps: session.processSteps,
+        awaitingRequirements: true,
+        showApproveReference: false,
+        ...buildReferencePreviewsPayload(session, 'banner_design'),
+      })
       await pgSaveHubThreadSession(input.threadId, session)
     } else if (stayedOnEditedFace) {
       reply = finished.reply
@@ -5053,7 +5737,24 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       return { ok: true, reply, studio, session, threadId: input.threadId, chargedChat: 0, chargedImage }
     }
     session = genResult.session
-    studio = genResult.studio
+    if (
+      session.presetId === 'sale_banner' &&
+      screenKey === 'banner_design' &&
+      genResult.session.pendingPreview
+    ) {
+      session = syncBannerBatchPreviewItem(session, genResult.session.pendingPreview)
+      studio = buildSaleBannerBatchStudioPayload(
+        getSaleBannerBatchPreviews(session),
+        session.bannerBatchSelectedIndex ?? 0,
+        {
+          ...genResult.studio,
+          processSteps: session.processSteps,
+          imageCharged: genResult.chargedImage,
+        }
+      )
+    } else {
+      studio = genResult.studio
+    }
     chargedImage = genResult.chargedImage
     await pgSaveHubThreadSession(input.threadId, session)
     reply = t.studioRegenerated.replace('{screen}', label)
@@ -5219,6 +5920,43 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       chargedChat,
       chargedImage: chargedImage || undefined,
       threadMessages,
+    }
+  }
+
+  if (
+    editPrepared &&
+    isInPlaceDiscoveryBriefEdit(
+      editPrepared.baseSession,
+      editPrepared.baseSession.presetId!,
+      editPrepared.editStepKey
+    )
+  ) {
+    const originalSession = editPrepared.baseSession
+    const editStepKey = editPrepared.editStepKey
+    session = applyInPlaceDiscoveryBriefEdit(
+      originalSession,
+      editStepKey,
+      editPrepared.editMessage
+    )
+    const editLabel = stepLabel(session, editStepKey, input.locale)
+    reply = t.studioBriefUpdated.replace('{screen}', editLabel)
+    await pgUpdateHubChatMessageContent(editPrepared.resolved.id, editPrepared.editMessage, {
+      stepKey: editStepKey,
+    })
+    await pgSaveHubThreadSession(input.threadId, session)
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'assistant',
+      content: reply,
+      studio: { processSteps: session.processSteps },
+    })
+    return {
+      ok: true,
+      reply,
+      studio: { processSteps: session.processSteps },
+      session,
+      threadId: input.threadId,
+      chargedChat,
     }
   }
 
@@ -5455,8 +6193,18 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
 
     if (!activeDesign && idleFeatureMatch) {
       if (idleFeatureMatch.kind === 'standalone') {
-        ai.suggestedPresetId = undefined
-        ai.hubRoute = 'workflow'
+        const studioFallback = matchStudioPresetWithScore(message)
+        if (
+          ai.suggestedPresetId &&
+          isValidStudioPresetId(ai.suggestedPresetId) &&
+          studioFallback &&
+          studioFallback.score >= 10
+        ) {
+          ai.hubRoute = 'design'
+        } else {
+          ai.suggestedPresetId = undefined
+          ai.hubRoute = 'workflow'
+        }
       } else if (
         idleFeatureMatch.kind === 'studio' &&
         !ai.suggestedPresetId &&
@@ -5588,7 +6336,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         const skipBrief =
           session.presetId &&
           isPresetTitleEcho(input.locale, session.presetId, answer) &&
-          session.currentStepKey === 'brand_name'
+          (session.currentStepKey === 'brand_name' ||
+            (session.presetId === 'sale_banner' && session.currentStepKey === 'domain_name'))
         if (!skipBrief) {
           session.briefNotes = {
             ...session.briefNotes,

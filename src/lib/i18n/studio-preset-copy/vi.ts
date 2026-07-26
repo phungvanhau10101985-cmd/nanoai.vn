@@ -88,14 +88,17 @@ export const STUDIO_PRESET_VI = {
   sale_banner: {
     title: 'Banner quảng cáo',
     kickoff:
-      'Mình sẽ tạo banner đúng tỷ lệ Google Ads & Facebook/Instagram. Trước tiên cần brief chiến dịch — trả lời từng câu bên dưới.',
+      'Mình sẽ tạo banner đúng tỷ lệ Google Ads & Facebook/Instagram. Trước tiên cần brief thương hiệu & chiến dịch — trả lời từng câu bên dưới.',
     uploadHint: 'Tải ảnh sản phẩm để ghép vào banner (1–13 ảnh).',
     steps: {
-      campaign_name: 'Brief: Tên chiến dịch',
+      domain_name: 'Brief: Tên miền hoặc thương hiệu',
+      campaign_name: 'Brief: Thông điệp quảng cáo',
       product_offer: 'Brief: Sản phẩm/ưu đãi',
       discount_cta: 'Brief: Giảm giá & CTA',
       brand_style: 'Brief: Phong cách thương hiệu',
       color_tone: 'Brief: Tông màu',
+      banner_style: 'Brief: Phong cách banner',
+      banner_model: 'Brief: Người mẫu trên banner',
       banner_ad_format: 'Chọn tỷ lệ & kênh quảng cáo',
       banner_design: 'Thiết kế banner',
       horizontal_display_ads:
@@ -117,14 +120,19 @@ export const STUDIO_PRESET_VI = {
       ooh_strip_8_1: 'LED · sự kiện banner ngang — AI 8:1',
     },
     asks: {
-      campaign_name: '① Tên chiến dịch / sự kiện? (khai trương, sale 8/3…)',
-      product_offer: '② Quảng cáo sản phẩm/dịch vụ gì? Nêu điểm nổi bật.',
-      discount_cta: '③ Giảm giá bao nhiêu %? CTA mong muốn? (Mua ngay, Đặt hàng…)',
-      brand_style: '④ Phong cách: sang / trẻ / năng động / tối giản?',
-      color_tone: '⑤ Tông màu ưu tiên?',
-      banner_ad_format: '⑥ Chọn tỷ lệ banner và kênh quảng cáo phù hợp bên dưới.',
+      domain_name: '① Tên miền hoặc thương hiệu hiển thị trên banner? (vd: 188.com.vn hoặc Vân Anh Fashion)',
+      campaign_name: '② Thông điệp quảng cáo chính? (khai trương, sale, slogan ngắn…)',
+      product_offer: '③ Quảng cáo sản phẩm/dịch vụ gì? Nêu điểm nổi bật.',
+      discount_cta: '④ Giảm giá bao nhiêu %? CTA mong muốn? (Mua ngay, Đặt hàng…)',
+      brand_style: '⑤ Phong cách thương hiệu: sang / trẻ / năng động / tối giản?',
+      color_tone: '⑥ Tông màu ưu tiên?',
+      banner_style:
+        '⑦ Phong cách banner: bối cảnh đời sống / sắp xếp phẳng (flat lay) / chụp studio sản phẩm / thuần chữ & kiểu chữ / ghép nhiều ảnh?',
+      banner_model:
+        '⑧ Người mẫu trên banner (nếu có): nam hay nữ? Châu Á hay châu Âu? Da sáng hay da tối? (vd: nữ châu Á, da sáng — hoặc «không cần người mẫu»)',
+      banner_ad_format: 'Chọn tỷ lệ banner và kênh quảng cáo phù hợp bên dưới.',
       banner_design:
-        '⑥ Chọn tỷ lệ & kênh, tải ảnh ghép — nội dung & bố cục tùy chọn (để trống dùng brief đã nhập) — rồi «Tạo banner».',
+        'Chọn tỷ lệ & kênh, sửa tên miền/thương hiệu nếu cần, tải logo ghép vào banner, thêm ảnh sản phẩm — rồi «Tạo banner».',
       google_display: 'Chi tiết banner ngang Google: headline, ảnh sản phẩm, logo?',
       google_square: 'Chi tiết banner vuông Google: layout, text chính?',
       facebook_feed: 'Chi tiết banner Facebook feed: text ngắn, visual?',
@@ -132,11 +140,14 @@ export const STUDIO_PRESET_VI = {
       instagram_reels: 'Chi tiết Reels cover: hook 3 giây đầu, text overlay?',
     },
     askExamples: {
-      campaign_name: 'Chiến dịch khai trương cửa hàng online',
+      domain_name: '188.com.vn hoặc Vân Anh Fashion',
+      campaign_name: 'Phong cách nam đẳng cấp — giày, túi, phụ kiện',
       product_offer: 'Serum Vitamin C cao cấp — dưỡng sáng da, giảm thâm nám',
       discount_cta: 'Giảm 50% — Mua ngay',
       brand_style: 'Trẻ trung, năng động — gradient tím hồng, typography bold',
       color_tone: 'Đỏ đô + vàng gold trên nền tối',
+      banner_style: 'Bối cảnh đời sống cao cấp — người mẫu mặc sản phẩm, ánh sáng studio mềm',
+      banner_model: 'Nữ, châu Á, da sáng — mặc vest công sở sang trọng',
       banner_design: 'GIẢM 50% — MUA NGAY · ảnh sản phẩm bên phải, logo góc trên',
     },
   },

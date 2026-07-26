@@ -16,6 +16,29 @@ export function isInPlacePackagingImageEdit(
   return presetId === 'packaging_kit' && isPackagingFaceReEdit(session, stepKey)
 }
 
+/** Discovery brief edits via "Sửa" — update content only, keep timeline unchanged. */
+export function isInPlaceDiscoveryBriefEdit(
+  _session: HubStudioSession,
+  presetId: string,
+  stepKey: string
+): boolean {
+  return isDiscoveryStep(presetId, stepKey)
+}
+
+export function applyInPlaceDiscoveryBriefEdit(
+  session: HubStudioSession,
+  stepKey: string,
+  newMessage: string
+): HubStudioSession {
+  return {
+    ...session,
+    briefNotes: {
+      ...session.briefNotes,
+      [stepKey]: newMessage.trim(),
+    },
+  }
+}
+
 export function restoreTimelineAfterInPlaceImageEdit(
   updated: HubStudioSession,
   original: HubStudioSession,

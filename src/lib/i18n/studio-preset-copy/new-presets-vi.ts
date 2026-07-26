@@ -238,4 +238,43 @@ export const NEW_PRESETS_VI = {
       personal_banner: 'Banner: tên, chức danh, gradient brand cá nhân?',
     },
   },
+  food_menu: {
+    title: 'Thiết kế menu quán ăn',
+    kickoff:
+      'Thiết kế menu / thực đơn cho quán ăn, quán nước, cafe. Trả lời brief phong cách trước — sau đó nhập danh sách món và tạo menu.',
+    uploadHint: 'Tải ảnh món tham khảo (tùy chọn) — AI ghép vào menu nếu bạn chọn có ảnh minh họa.',
+    steps: {
+      venue_name: 'Brief: Tên quán',
+      menu_type: 'Brief: Kiểu menu',
+      food_illustration: 'Brief: Ảnh minh họa món',
+      menu_style: 'Brief: Phong cách',
+      color_tone: 'Brief: Tông màu',
+      menu_design: 'Thiết kế menu',
+      menu_a4_portrait: 'Menu A4 dọc — in ấn / treo tường',
+      menu_a4_landscape: 'Menu A4 ngang — bảng lớn / spread',
+      menu_table_tent: 'Menu bàn — tent vuông',
+      menu_board_vertical: 'Bảng menu dọc — màn hình / LED',
+      menu_board_wide: 'Bảng menu ngang — TV / màn rộng',
+    },
+    asks: {
+      venue_name: '① Tên quán / thương hiệu hiển thị trên menu? (vd: Phở Bò Hà Nội, Cafe Sáng)',
+      menu_type:
+        '② Kiểu menu: treo tường A4, menu cuốn, bảng đứng, menu bàn (tent), menu digital trên màn hình?',
+      food_illustration:
+        '③ Có ảnh minh họa món trên menu không? (Có — ảnh món appetizing / Không — chỉ chữ & trang trí)',
+      menu_style:
+        '④ Phong cách: vintage / hiện đại / tối giản / truyền thống Việt / rustic / luxury cafe?',
+      color_tone: '⑤ Tông màu ưu tiên? (vd: nâu gỗ + kem, xanh lá + trắng, đen vàng sang)',
+      menu_design:
+        'Nhập tên quán/thương hiệu, tải logo, chọn kiểu menu, thêm từng món (STT, tên, đơn vị, giá VND) — rồi «Tạo menu».',
+    },
+    askExamples: {
+      venue_name: 'Phở Bò Hà Nội — 123 Lê Lợi',
+      menu_type: 'Menu treo tường A4 dọc — in 2 mặt',
+      food_illustration: 'Có — ảnh minh họa món bên cạnh tên món',
+      menu_style: 'Truyền thống Việt hiện đại — typography rõ, viền trang trí nhẹ',
+      color_tone: 'Nâu gỗ + kem ấm, chữ đen',
+      menu_design: 'Phở bò 65.000đ · Bún chả 55.000đ · Cà phê sữa 25.000đ',
+    },
+  },
 } as const

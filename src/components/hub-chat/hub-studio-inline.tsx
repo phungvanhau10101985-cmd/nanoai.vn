@@ -192,6 +192,91 @@ function StudioImageLightbox({
   )
 }
 
+function HubBannerBatchGallery({
+  items,
+  selectedIndex,
+  viewLargeLabel,
+  onSelect,
+}: {
+  items: Array<{ url: string; screenLabel: string; index: number }>
+  selectedIndex: number
+  viewLargeLabel: string
+  onSelect: (index: number) => void
+}) {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const cols = items.length >= 3 ? 'sm:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2'
+
+  return (
+    <>
+      <div className={`grid grid-cols-1 gap-2 ${cols}`}>
+        {items.map((item) => {
+          const selected = item.index === selectedIndex
+          const resolvedSrc = rewriteLegacyBunnyCdnUrl(item.url)
+          return (
+            <button
+              key={`${item.url}-${item.index}`}
+              type="button"
+              onClick={() => onSelect(item.index)}
+              className={`rounded-lg border-2 bg-white p-1.5 text-left transition dark:bg-slate-900 ${
+                selected
+                  ? 'border-violet-600 ring-2 ring-violet-300 dark:border-violet-400 dark:ring-violet-800'
+                  : 'border-violet-200 hover:border-violet-400 dark:border-violet-800'
+              }`}
+            >
+              <p className="mb-1 line-clamp-2 px-0.5 text-[10px] font-medium text-violet-900 dark:text-violet-100">
+                {item.screenLabel}
+              </p>
+              <div
+                role="presentation"
+                className="relative overflow-hidden rounded-md border border-violet-100 dark:border-violet-900"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onSelect(item.index)
+                  setLightboxUrl(resolvedSrc)
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- batch CDN previews */}
+                <img
+                  src={resolvedSrc}
+                  alt={item.screenLabel}
+                  className="max-h-[220px] w-full cursor-zoom-in object-contain"
+                />
+              </div>
+            </button>
+          )
+        })}
+      </div>
+      <Dialog open={Boolean(lightboxUrl)} onOpenChange={(open) => !open && setLightboxUrl(null)}>
+        <DialogContent
+          showCloseButton={false}
+          overlayClassName="z-[2147483646] bg-black/90"
+          className="!fixed !inset-0 !left-0 !top-0 z-[2147483647] !flex !h-[100dvh] !max-h-[100dvh] !min-h-[100dvh] !w-screen !max-w-none !translate-x-0 !translate-y-0 items-center justify-center rounded-none border-0 bg-black/95 p-2 shadow-none sm:rounded-none"
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-50 h-11 w-11 rounded-full border border-white/20 bg-white/20 text-white hover:bg-white/30"
+            onClick={() => setLightboxUrl(null)}
+            aria-label={viewLargeLabel}
+          >
+            <X className="h-6 w-6" />
+          </Button>
+          {lightboxUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- full CDN preview
+            <img
+              src={lightboxUrl}
+              alt=""
+              className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] object-contain"
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
 export function HubStudioProcessRail({
   steps,
   labels,
@@ -276,6 +361,7 @@ export function HubStudioMessageBubble({
   onRevertFaceEdit,
   onUploadFace,
   onOutpaintGaps,
+  onSelectBannerBatchItem,
   studioSession,
   compact = false,
   suppressImagePreview = false,
@@ -306,6 +392,7 @@ export function HubStudioMessageBubble({
     studioEditRevertOriginal: string
     studioExistingStepHint?: string
     studioFaceUploadReplaceBtn?: string
+    studioBannerNext?: string
   }
   /** Panel above input — no chat margins or assistant text wrapper. */
   compact?: boolean
@@ -325,6 +412,7 @@ export function HubStudioMessageBubble({
   onUploadFace?: (files: FileList | File[]) => void | Promise<void>
   onOutpaintGaps?: (blob: Blob, aspectRatio: string) => Promise<string | null>
   onRemoveReference?: (screenKey: string) => void
+  onSelectBannerBatchItem?: (index: number) => void
   onEditStep?: (line: StudioLine) => void
   editingLineId?: string | null
   onSaveEdit?: (lineId: string, content: string, stepKey?: string) => void
@@ -334,6 +422,36 @@ export function HubStudioMessageBubble({
 }) {
   const st = line.studio
   const isAudio = st?.previewKind === 'audio' || Boolean(st?.audioUrl)
+  const bannerBatchItems = useMemo(() => {
+    if (st?.bannerBatchItems?.length) return st.bannerBatchItems
+    const previews = studioSession?.bannerBatchPreviews
+    if ((previews?.length ?? 0) > 1) {
+      return previews!.map((p, index) => ({
+        url: p.url,
+        screenLabel: p.screenLabel,
+        index,
+      }))
+    }
+    const pending = studioSession?.pendingPreview
+    const queue = studioSession?.bannerBatchQueue ?? []
+    if (pending && queue.length > 0) {
+      return [pending, ...queue].map((p, index) => ({
+        url: p.url,
+        screenLabel: p.screenLabel,
+        index,
+      }))
+    }
+    return st?.bannerBatchItems
+  }, [st?.bannerBatchItems, studioSession?.bannerBatchPreviews, studioSession?.bannerBatchQueue, studioSession?.pendingPreview])
+  const isSaleBannerBatch = (bannerBatchItems?.length ?? 0) > 1
+  const bannerBatchSelectedIndex =
+    st?.bannerBatchSelectedIndex ??
+    studioSession?.bannerBatchSelectedIndex ??
+    0
+  const selectedBannerItem =
+    isSaleBannerBatch && bannerBatchItems
+      ? bannerBatchItems[bannerBatchSelectedIndex] ?? bannerBatchItems[0]
+      : null
   const interactivePackaging =
     studioSession?.presetId === 'packaging_kit' &&
     st?.screenKey === 'box_mockup_3d' &&
@@ -356,9 +474,11 @@ export function HubStudioMessageBubble({
       (!studioSession || shouldShowStudioReferencePreviews(studioSession))
   )
   const approveButtonLabel =
-    isAudio || isPackagingFacePreview || continueOnlyApprove
-      ? hc.studioContinue
-      : hc.studioUseReference
+    studioSession?.presetId === 'sale_banner' && st?.previewKind === 'banner'
+      ? hc.studioBannerNext ?? hc.studioContinue
+      : isAudio || isPackagingFacePreview || continueOnlyApprove
+        ? hc.studioContinue
+        : hc.studioUseReference
   const isEditing = editingLineId === line.id && line.role === 'user'
   const [draft, setDraft] = useState(line.content)
   const [cropOpen, setCropOpen] = useState(false)
@@ -678,6 +798,57 @@ export function HubStudioMessageBubble({
       ) : null}
       {st?.imageUrl && !suppressImagePreview ? (
         <div className="mt-2 space-y-2">
+          {isSaleBannerBatch && bannerBatchItems ? (
+            <>
+              <HubBannerBatchGallery
+                items={bannerBatchItems}
+                selectedIndex={bannerBatchSelectedIndex}
+                viewLargeLabel={hc.studioViewLarge}
+                onSelect={(index) => onSelectBannerBatchItem?.(index)}
+              />
+              {st.imageCharged ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {hc.studioImageCredit.replace('{n}', String(st.imageCharged))}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-1.5">
+                {selectedBannerItem ? (
+                  <HubStudioImageDownloadButton
+                    imageUrl={selectedBannerItem.url}
+                    screenKey={st.screenKey}
+                    label={selectedBannerItem.screenLabel}
+                    hc={hc}
+                  />
+                ) : null}
+                {st.showRegenerate ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    disabled={busy}
+                    onClick={() => onRegenerate(st?.screenKey)}
+                  >
+                    <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                    {hc.studioRegenerate}
+                  </Button>
+                ) : null}
+                {showContinueButton ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 bg-violet-600 text-xs hover:bg-violet-700"
+                    disabled={busy}
+                    onClick={onApproveReference}
+                  >
+                    <Check className="mr-1 h-3.5 w-3.5" />
+                    {approveButtonLabel}
+                  </Button>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <>
           {displayScreenLabel ? (
             <p className="text-xs font-medium text-violet-800 dark:text-violet-200">
               <Sparkles className="mr-1 inline h-3.5 w-3.5" />
@@ -821,6 +992,8 @@ export function HubStudioMessageBubble({
               foldGuideRatios={st.faceFoldGuideRatios}
             />
           ) : null}
+            </>
+          )}
         </div>
       ) : null}
       </div>
@@ -870,6 +1043,7 @@ export function HubStudioActiveStepPreview({
     studioCropTargetDisplay: string
     studioEditRevertOriginal: string
     studioFaceUploadReplaceBtn?: string
+    studioBannerNext?: string
   }
   uiLocale?: WebLocale
   cropLabels?: HubStudioFaceCropLabels

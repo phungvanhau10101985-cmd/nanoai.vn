@@ -13,6 +13,7 @@ import { buildMetadata } from '@/lib/seo'
 import type { Metadata } from 'next'
 import { PartnerMessagingSettingsClient } from '../partner-messaging-settings-client'
 import { getPublicOriginFromAppRouterHeaders } from '@/lib/auth/public-app-url'
+import { resolveDeepSeekChatModel } from '@/lib/deepseek-api'
 
 export function generateMetadata(): Metadata {
   const { t } = getServerDictionary()
@@ -55,7 +56,7 @@ export default async function DashboardMessagingSettingsPage({
     if (fromPg !== null) rows = fromPg.filter((p) => p.industry_key !== 'hotel')
   }
 
-  const partnerAiLlmModel = 'deepseek-chat'
+  const partnerAiLlmModel = resolveDeepSeekChatModel()
   const appOrigin = getPublicOriginFromAppRouterHeaders(headers())
 
   return (

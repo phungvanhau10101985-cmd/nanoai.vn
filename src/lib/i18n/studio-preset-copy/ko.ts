@@ -88,14 +88,17 @@ export const STUDIO_PRESET_KO = {
   sale_banner: {
     title: '광고 배너',
     kickoff:
-      'Google Ads 및 Facebook/Instagram에 맞는 비율의 광고 배너를 만듭니다. 먼저 캠페인 브리프가 필요합니다. 아래 질문에 한 가지씩 답해 주세요.',
+      'Google Ads 및 Facebook/Instagram에 맞는 비율의 광고 배너를 만듭니다. 먼저 브랜드 및 캠페인 브리프가 필요합니다. 아래 질문에 한 가지씩 답해 주세요.',
     uploadHint: '배너에 합성할 제품 이미지 업로드 (1–13장).',
     steps: {
-      campaign_name: '브리프: 캠페인명',
+      domain_name: '브리프: 도메인 또는 브랜드명',
+      campaign_name: '브리프: 광고 메시지',
       product_offer: '브리프: 상품/혜택',
       discount_cta: '브리프: 할인 및 CTA',
       brand_style: '브리프: 브랜드 스타일',
       color_tone: '브리프: 톤',
+      banner_style: '브리프: 배너 비주얼 스타일',
+      banner_model: '브리프: 배너 모델',
       banner_ad_format: '비율 및 광고 채널 선택',
       banner_design: '배너 디자인',
       horizontal_display_ads:
@@ -117,14 +120,19 @@ export const STUDIO_PRESET_KO = {
       ooh_strip_8_1: 'LED · 이벤트 초와이드 — AI 8:1',
     },
     asks: {
-      campaign_name: '① 캠페인/이벤트명은? (오픈, 세일, 기념일…)',
-      product_offer: '② 어떤 상품/서비스를 광고하나요? 핵심 포인트를 알려주세요.',
-      discount_cta: '③ 할인율은? 원하는 CTA는? (지금 구매, 주문하기…)',
-      brand_style: '④ 스타일: 고급 / 젊은 / 역동적 / 미니멀?',
-      color_tone: '⑤ 선호하는 톤은?',
-      banner_ad_format: '⑥ 아래에서 배너 비율과 광고 채널을 선택하세요.',
+      domain_name: '① 배너에 표시할 도메인 또는 브랜드명은? (예: 188.com.vn 또는 Van Anh Fashion)',
+      campaign_name: '② 주요 광고 메시지는? (오픈, 세일, 짧은 슬로건…)',
+      product_offer: '③ 어떤 상품/서비스를 광고하나요? 핵심 포인트를 알려주세요.',
+      discount_cta: '④ 할인율은? 원하는 CTA는? (지금 구매, 주문하기…)',
+      brand_style: '⑤ 브랜드 스타일: 고급 / 젊은 / 역동적 / 미니멀?',
+      color_tone: '⑥ 선호하는 톤은?',
+      banner_style:
+        '⑦ 배너 비주얼: 라이프스타일 / 플랫레이 / 제품 스튜디오 / 타이포만 / 콜라주?',
+      banner_model:
+        '⑧ 배너 모델(있을 경우): 남성 또는 여성? 아시아 또는 유럽? 밝은 피부 또는 어두운 피부? (예: 여성, 아시아, 밝은 피부 — 또는 «모델 불필요»)',
+      banner_ad_format: '아래에서 배너 비율과 광고 채널을 선택하세요.',
       banner_design:
-        '⑥ 비율·채널 선택, 합성 이미지 업로드 — 문구·레이아웃 선택(비우면 이전 brief 사용) — «배너 생성»을 누르세요.',
+        '비율·채널 선택, 필요 시 도메인/브랜드명 수정, 로고 업로드 후 합성, 제품 사진 추가 — «배너 생성»을 누르세요.',
       google_display: 'Google 가로 배너 세부: 헤드라인, 상품 이미지, 로고?',
       google_square: 'Google 정사각 배너 세부: 레이아웃, 메인 텍스트?',
       facebook_feed: 'Facebook 피드 배너 세부: 짧은 카피, 비주얼?',
@@ -132,11 +140,14 @@ export const STUDIO_PRESET_KO = {
       instagram_reels: 'Reels 커버 세부: 처음 3초 훅, 텍스트 오버레이?',
     },
     askExamples: {
-      campaign_name: '온라인 스토어 오픈 캠페인',
+      domain_name: '188.com.vn 또는 Van Anh Fashion',
+      campaign_name: '프리미엄 남성 스타일 — 신발·가방·액세서리',
       product_offer: '프리미엄 비타민 C 세럼 — 미백·잡티 케어',
       discount_cta: '50% 할인 — 지금 구매',
       brand_style: '젊고 역동적 — 보라·핑크 그라데이션, 볼드 타이포',
       color_tone: '버건디 + 골드, 어두운 배경',
+      banner_style: '프리미엄 라이프스타일 — 모델 착용, 부드러운 스튜디오 조명',
+      banner_model: '여성, 아시아, 밝은 피부 — 우아한 오피스 재킷',
       banner_design: '50% 할인 — 지금 구매 · 제품 이미지 오른쪽, 로고 좌상단',
     },
   },

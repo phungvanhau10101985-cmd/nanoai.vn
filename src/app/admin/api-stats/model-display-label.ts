@@ -54,6 +54,8 @@ export function getApiUsageModelDisplayLabel(model: string): string {
     // DeepSeek
     'deepseek-chat': 'DeepSeek Chat',
     'deepseek-reasoner': 'DeepSeek Reasoner',
+    'deepseek-v4-flash': 'DeepSeek V4 Flash',
+    'deepseek-v4-pro': 'DeepSeek V4 Pro',
   }
   if (known[model]) return known[model]
   const lower = model.toLowerCase()

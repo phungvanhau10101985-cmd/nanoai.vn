@@ -51,9 +51,27 @@ const DISCOVERY_STEP_ALIASES: Record<string, string[]> = {
   ],
   color_tone: ['tong mau', 'tông màu', 'color tone'],
   brand_style: ['brand style', 'phong cach thuong hieu', 'phong cách thương hiệu'],
+  banner_style: [
+    'phong cach banner',
+    'phong cách banner',
+    'banner style',
+    'kieu banner',
+    'kiểu banner',
+    'layout banner',
+  ],
+  banner_model: [
+    'nguoi mau',
+    'người mẫu',
+    'model',
+    'model banner',
+    'nam nu',
+    'nam nữ',
+    'giong nguoi',
+    'giống người',
+  ],
   target_audience: ['doi tuong', 'đối tượng', 'audience', 'target audience'],
   industry_product: ['nganh hang', 'ngành hàng', 'industry'],
-  domain_name: ['ten mien', 'tên miền', 'domain'],
+  domain_name: ['ten mien', 'tên miền', 'domain', 'website', 'trang web', 'thuong hieu', 'thương hiệu', 'brand name'],
 }
 
 function normalize(text: string): string {
