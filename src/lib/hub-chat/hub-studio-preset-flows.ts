@@ -95,13 +95,15 @@ export const LANDING_PAGE_FLOW: StudioFlowStepDef[] = [
   { key: 'target_audience', labelKey: 'target_audience', phase: 'discovery' },
   { key: 'style_mood', labelKey: 'style_mood', phase: 'discovery' },
   { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
-  { key: 'hero_desktop', labelKey: 'hero_desktop', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'hero_mobile', labelKey: 'hero_mobile', phase: 'design', generator: 'ui_mockup', formFactor: 'mobile' },
-  { key: 'features', labelKey: 'features', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'pricing', labelKey: 'pricing', phase: 'design', generator: 'ui_mockup', formFactor: 'mobile' },
-  { key: 'testimonials', labelKey: 'testimonials', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'faq', labelKey: 'faq', phase: 'design', generator: 'ui_mockup', formFactor: 'mobile' },
-  { key: 'cta_footer', labelKey: 'cta_footer', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
+  {
+    key: 'landing_full',
+    labelKey: 'landing_full',
+    phase: 'design',
+    generator: 'ui_mockup',
+    aspectRatio: '1:4',
+    formFactor: 'mobile',
+    referenceAnchor: true,
+  },
 ]
 
 export const PRODUCT_LISTING_FLOW: StudioFlowStepDef[] = [
@@ -115,19 +117,6 @@ export const PRODUCT_LISTING_FLOW: StudioFlowStepDef[] = [
   { key: 'product_detail', labelKey: 'product_detail', phase: 'design', generator: 'product_photo', aspectRatio: '1:1', formFactor: 'square' },
   { key: 'promo_banner_sq', labelKey: 'promo_banner_sq', phase: 'design', generator: 'banner', aspectRatio: '1:1', platform: 'shopee', formFactor: 'square' },
   { key: 'promo_banner_story', labelKey: 'promo_banner_story', phase: 'design', generator: 'banner', aspectRatio: '9:16', platform: 'tiktok', formFactor: 'mobile' },
-]
-
-export const WEDDING_INVITE_FLOW: StudioFlowStepDef[] = [
-  { key: 'event_type', labelKey: 'event_type', phase: 'discovery' },
-  { key: 'host_names', labelKey: 'host_names', phase: 'discovery' },
-  { key: 'date_venue', labelKey: 'date_venue', phase: 'discovery' },
-  { key: 'style_mood', labelKey: 'style_mood', phase: 'discovery' },
-  { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
-  { key: 'cover', labelKey: 'cover', phase: 'design', generator: 'invitation', aspectRatio: '9:16', formFactor: 'mobile' },
-  { key: 'inside_spread', labelKey: 'inside_spread', phase: 'design', generator: 'invitation', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'rsvp_card', labelKey: 'rsvp_card', phase: 'design', generator: 'invitation', aspectRatio: '1:1', formFactor: 'square' },
-  { key: 'envelope', labelKey: 'envelope', phase: 'design', generator: 'invitation', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'story_share', labelKey: 'story_share', phase: 'design', generator: 'invitation', aspectRatio: '9:16', formFactor: 'mobile' },
 ]
 
 export const AD_MUSIC_FLOW: StudioFlowStepDef[] = [
@@ -267,6 +256,28 @@ export const PROFILE_PHOTO_PACK_FLOW: StudioFlowStepDef[] = [
   { key: 'personal_banner', labelKey: 'personal_banner', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
 ]
 
+export const BAG_KIT_FLOW: StudioFlowStepDef[] = [
+  { key: 'brand_name', labelKey: 'brand_name', phase: 'discovery' },
+  { key: 'product_type', labelKey: 'product_type', phase: 'discovery' },
+  { key: 'bag_size', labelKey: 'bag_size', phase: 'discovery' },
+  { key: 'bag_panel_confirm', labelKey: 'bag_panel_confirm', phase: 'discovery' },
+  { key: 'style_mood', labelKey: 'style_mood', phase: 'discovery' },
+  { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
+  { key: 'face_print_style', labelKey: 'face_print_style', phase: 'discovery' },
+  { key: 'logo', labelKey: 'logo', phase: 'design', generator: 'logo', formFactor: 'square' },
+  { key: 'face_back', labelKey: 'face_back', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
+  { key: 'face_front', labelKey: 'face_front', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
+  {
+    key: 'bag_mockup_3d',
+    labelKey: 'bag_mockup_3d',
+    phase: 'design',
+    generator: 'packaging_mockup',
+    aspectRatio: '1:1',
+    formFactor: 'square',
+  },
+  { key: 'bag_dieline_pdf', labelKey: 'bag_dieline_pdf', phase: 'design', generator: 'bag_dieline_pdf', formFactor: 'desktop' },
+]
+
 export const FOOD_MENU_FLOW: StudioFlowStepDef[] = [
   { key: 'venue_name', labelKey: 'venue_name', phase: 'discovery' },
   { key: 'menu_type', labelKey: 'menu_type', phase: 'discovery' },
@@ -289,7 +300,6 @@ export const PRESET_FLOW_MAP: Record<string, StudioFlowStepDef[]> = {
   brand_kit: BRAND_KIT_FLOW,
   landing_page: LANDING_PAGE_FLOW,
   product_listing: PRODUCT_LISTING_FLOW,
-  wedding_invite: WEDDING_INVITE_FLOW,
   ad_music: AD_MUSIC_FLOW,
   lookbook: LOOKBOOK_FLOW,
   packaging_kit: PACKAGING_KIT_FLOW,
@@ -300,6 +310,7 @@ export const PRESET_FLOW_MAP: Record<string, StudioFlowStepDef[]> = {
   fashion_campaign: FASHION_CAMPAIGN_FLOW,
   profile_photo_pack: PROFILE_PHOTO_PACK_FLOW,
   food_menu: FOOD_MENU_FLOW,
+  bag_kit: BAG_KIT_FLOW,
 }
 
 export function getFlowSteps(presetId: string): StudioFlowStepDef[] {
@@ -438,4 +449,106 @@ export const FOOD_MENU_DISCOVERY_BRIEF_KEYS = [
 export function hasFoodMenuDiscoveryBrief(briefNotes: Record<string, string> | undefined): boolean {
   if (!briefNotes) return false
   return FOOD_MENU_DISCOVERY_BRIEF_KEYS.some((k) => Boolean(briefNotes[k]?.trim()))
+}
+
+export const LANDING_DISCOVERY_BRIEF_KEYS = [
+  'product_name',
+  'value_prop',
+  'target_audience',
+  'style_mood',
+  'color_palette',
+] as const
+
+export const LANDING_DESIGN_STEP_KEYS = ['landing_full'] as const
+
+export type LandingDesignStepKey = (typeof LANDING_DESIGN_STEP_KEYS)[number]
+
+/** Phiên cũ — map screenKey/briefNotes cũ sang landing_full. */
+export const LEGACY_LANDING_STEP_ALIASES: Record<string, LandingDesignStepKey> = {
+  hero_desktop: 'landing_full',
+  hero_mobile: 'landing_full',
+  features_desktop: 'landing_full',
+  features_mobile: 'landing_full',
+  pricing_desktop: 'landing_full',
+  pricing_mobile: 'landing_full',
+  testimonials_desktop: 'landing_full',
+  testimonials_mobile: 'landing_full',
+  faq_desktop: 'landing_full',
+  faq_mobile: 'landing_full',
+  cta_footer_desktop: 'landing_full',
+  cta_footer_mobile: 'landing_full',
+  features: 'landing_full',
+  pricing: 'landing_full',
+  testimonials: 'landing_full',
+  faq: 'landing_full',
+  cta_footer: 'landing_full',
+}
+
+const LEGACY_BRIEF_KEY_BY_CANONICAL: Partial<Record<LandingDesignStepKey, string>> = {
+  landing_full: 'hero_desktop',
+}
+
+export function normalizeLandingDesignStepKey(stepKey: string): LandingDesignStepKey | null {
+  if (LANDING_DESIGN_STEP_KEYS.includes(stepKey as LandingDesignStepKey)) {
+    return stepKey as LandingDesignStepKey
+  }
+  return LEGACY_LANDING_STEP_ALIASES[stepKey] ?? null
+}
+
+export function readLandingSectionBrief(
+  stepKey: string,
+  briefNotes: Record<string, string> | undefined
+): string {
+  if (!briefNotes) return ''
+  const direct = briefNotes[stepKey]?.trim()
+  if (direct) return direct
+  const canonical = normalizeLandingDesignStepKey(stepKey)
+  if (canonical) {
+    const fromCanonical = briefNotes[canonical]?.trim()
+    if (fromCanonical) return fromCanonical
+    const legacyKey = LEGACY_BRIEF_KEY_BY_CANONICAL[canonical]
+    if (legacyKey) {
+      return briefNotes[legacyKey]?.trim() ?? ''
+    }
+  }
+  const stripped = stepKey.replace(/_(desktop|mobile)$/, '')
+  if (stripped !== stepKey && briefNotes[stripped]?.trim()) {
+    return briefNotes[stripped].trim()
+  }
+  return ''
+}
+
+export function isLandingDesignStepKey(stepKey: string | null | undefined): stepKey is LandingDesignStepKey {
+  if (!stepKey) return false
+  if (LANDING_DESIGN_STEP_KEYS.includes(stepKey as LandingDesignStepKey)) return true
+  return stepKey in LEGACY_LANDING_STEP_ALIASES
+}
+
+export function hasLandingDiscoveryBrief(briefNotes: Record<string, string> | undefined): boolean {
+  if (!briefNotes) return false
+  return Boolean(briefNotes.product_name?.trim() && briefNotes.value_prop?.trim())
+}
+
+export function landingSectionHasCopy(
+  stepKey: string,
+  briefNotes: Record<string, string>,
+  sectionCopy?: string
+): boolean {
+  const copy = sectionCopy?.trim() || readLandingSectionBrief(stepKey, briefNotes)
+  if (copy && copy.length >= 2) return true
+  const canonical = normalizeLandingDesignStepKey(stepKey) ?? stepKey
+  if (canonical === 'landing_full' && hasLandingDiscoveryBrief(briefNotes)) return true
+  return false
+}
+
+export function isLandingFullPageStep(stepKey: string): boolean {
+  return normalizeLandingDesignStepKey(stepKey) === 'landing_full'
+}
+
+export function hasLandingHeaderLogo(landingPage: { logoUrl?: string | null } | undefined): boolean {
+  return Boolean(landingPage?.logoUrl?.trim())
+}
+
+export function isLandingFirstDesignStep(stepKey: string): boolean {
+  return normalizeLandingDesignStepKey(stepKey) === 'landing_full'
 }

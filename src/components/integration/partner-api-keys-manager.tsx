@@ -29,10 +29,16 @@ import type { PartnerApiKeysManagerStrings } from '@/lib/integration/api-keys-hu
 import {
   clearPartnerImageSearchApiSecret,
   generatePartnerImageSearchApiSecret,
+  generatePartnerOutboundWebhookSecret,
   getPartnerApiKeysBundle,
   getPartnerImageSearchApiSecret,
+  savePartnerOutboundWebhookSettings,
+  sendPartnerOutboundWebhookTest,
   setPartnerImageSearchApiEnabled,
 } from '@/app/dashboard/messaging/actions'
+import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { PARTNER_OUTBOUND_WEBHOOK_EVENTS } from '@/lib/messaging/partner-outbound-webhook-types'
 
 const MASK = '••••••••••••••••••••••••••••'
 
@@ -42,6 +48,13 @@ type BundleOk = {
   imageSearchConfigured: boolean
   imageSearchEnabled: boolean
   aiSettingsRowExists: boolean
+  outboundWebhook: {
+    configured: boolean
+    isEnabled: boolean
+    secretConfigured: boolean
+    events: string[]
+    webhookUrl: string
+  }
 }
 
 export type PartnerApiKeysManagerPartner = {
@@ -74,6 +87,13 @@ export function PartnerApiKeysManager({ partners, t, partnerId: partnerIdProp, o
   const [generating, setGenerating] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [toggling, setToggling] = useState(false)
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [webhookEnabled, setWebhookEnabled] = useState(false)
+  const [webhookEvents, setWebhookEvents] = useState<string[]>([...PARTNER_OUTBOUND_WEBHOOK_EVENTS])
+  const [webhookSecretEphemeral, setWebhookSecretEphemeral] = useState<string | null>(null)
+  const [webhookSaving, setWebhookSaving] = useState(false)
+  const [webhookTesting, setWebhookTesting] = useState(false)
+  const [webhookGenerating, setWebhookGenerating] = useState(false)
 
   const loadBundle = useCallback(
     (pid: string) => {
@@ -85,7 +105,16 @@ export function PartnerApiKeysManager({ partners, t, partnerId: partnerIdProp, o
           toast({ title: t.loadError, description: res.error, variant: 'destructive' })
           return
         }
-        if ('ok' in res && res.ok) setBundle(res)
+        if ('ok' in res && res.ok) {
+          setBundle(res)
+          setWebhookUrl(res.outboundWebhook?.webhookUrl ?? '')
+          setWebhookEnabled(Boolean(res.outboundWebhook?.isEnabled))
+          setWebhookEvents(
+            res.outboundWebhook?.events?.length
+              ? [...res.outboundWebhook.events]
+              : [...PARTNER_OUTBOUND_WEBHOOK_EVENTS]
+          )
+        }
       })()
     },
     [t.loadError, toast]
@@ -387,6 +416,133 @@ export function PartnerApiKeysManager({ partners, t, partnerId: partnerIdProp, o
             >
               {generating ? t.generating : t.generate}
             </Button>
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-sky-300/40 bg-sky-50/15 p-3 dark:border-sky-900/40 dark:bg-sky-950/20">
+            <div>
+              <p className="text-sm font-medium">{t.webhookTitle}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{t.webhookHint}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="partner-webhook-url">{t.webhookUrlLabel}</Label>
+              <Input
+                id="partner-webhook-url"
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.target.value)}
+                placeholder="https://shop.example.com/api/nanoai/webhook"
+                className="font-mono text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={webhookEnabled}
+                onCheckedChange={setWebhookEnabled}
+                aria-label={t.webhookEnabled}
+              />
+              <span className="text-xs">{t.webhookEnabled}</span>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              {PARTNER_OUTBOUND_WEBHOOK_EVENTS.map((ev) => (
+                <label key={ev} className="flex items-center gap-2 text-xs">
+                  <Checkbox
+                    checked={webhookEvents.includes(ev)}
+                    onCheckedChange={(checked) => {
+                      setWebhookEvents((prev) => {
+                        if (checked) return prev.includes(ev) ? prev : [...prev, ev]
+                        const next = prev.filter((x) => x !== ev)
+                        return next.length > 0 ? next : [...PARTNER_OUTBOUND_WEBHOOK_EVENTS]
+                      })
+                    }}
+                  />
+                  {ev === 'order.created'
+                    ? t.webhookEventOrderCreated
+                    : ev === 'lead.created'
+                      ? t.webhookEventLeadCreated
+                      : t.webhookEventPaymentPaid}
+                </label>
+              ))}
+            </div>
+            {webhookSecretEphemeral ? (
+              <code className="block break-all rounded-md border bg-background px-2 py-1.5 text-[11px] font-mono">
+                {webhookSecretEphemeral}
+              </code>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={webhookSaving || !partnerId}
+                onClick={() => {
+                  if (!partnerId) return
+                  setWebhookSaving(true)
+                  void (async () => {
+                    const res = await savePartnerOutboundWebhookSettings({
+                      partnerId,
+                      webhookUrl,
+                      isEnabled: webhookEnabled,
+                      events: webhookEvents,
+                    })
+                    setWebhookSaving(false)
+                    if ('error' in res && res.error) {
+                      toast({ title: res.error, variant: 'destructive' })
+                      return
+                    }
+                    toast({ title: t.webhookSaved })
+                    loadBundle(partnerId)
+                  })()
+                }}
+              >
+                {t.webhookSave}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={webhookGenerating || !partnerId}
+                onClick={() => {
+                  if (!partnerId) return
+                  setWebhookGenerating(true)
+                  void runWithStepUp(async () => {
+                    const res = await generatePartnerOutboundWebhookSecret(partnerId)
+                    setWebhookGenerating(false)
+                    if ('error' in res && res.error) {
+                      if (isStepUpRequiredError(res.error)) throw new Error(res.error)
+                      toast({ title: res.error, variant: 'destructive' })
+                      return
+                    }
+                    if ('secret' in res && res.secret) {
+                      setWebhookSecretEphemeral(res.secret)
+                      toast({ title: t.webhookSecretGenerated })
+                    }
+                    loadBundle(partnerId)
+                  }).catch(() => setWebhookGenerating(false))
+                }}
+              >
+                {t.webhookGenerateSecret}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={webhookTesting || !partnerId}
+                onClick={() => {
+                  if (!partnerId) return
+                  setWebhookTesting(true)
+                  void (async () => {
+                    const res = await sendPartnerOutboundWebhookTest(partnerId)
+                    setWebhookTesting(false)
+                    if ('error' in res && res.error) {
+                      toast({ title: t.webhookTestFailed, description: res.error, variant: 'destructive' })
+                      return
+                    }
+                    toast({ title: t.webhookTestOk })
+                  })()
+                }}
+              >
+                {t.webhookTest}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

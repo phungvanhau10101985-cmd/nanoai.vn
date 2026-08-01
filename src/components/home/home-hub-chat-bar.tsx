@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Check,
   Circle,
-  History,
   Loader2,
   MessageSquarePlus,
   Send,
@@ -33,7 +32,7 @@ import { HubPlanAutoRunPanel } from '@/components/hub-chat/hub-plan-auto-run-pan
 import { HubStudioActiveStepPreview, HubStudioMessageBubble, HubStudioMessageTime, HubStudioProcessRail, HubStudioThinking } from '@/components/hub-chat/hub-studio-inline'
 import type { HubChatThreadSummary, HubMultiTaskPlanRow } from '@/lib/db/hub-chat-pg'
 import { normalizeStudioSession, type HubStudioMessagePayload, type HubStudioProcessStep, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
-import { applyPackagingSessionLabels } from '@/lib/packaging/packaging-face-labels'
+import { applyStudioSessionLabels } from '@/lib/packaging/packaging-face-labels'
 import { pendingPreviewBlocksWorkflowInput } from '@/lib/hub-chat/hub-studio-step-preview'
 
 function withClientStudioSession(
@@ -42,12 +41,13 @@ function withClientStudioSession(
 ): HubStudioSession | null {
   const normalized = normalizeStudioSession(raw)
   if (!normalized) return null
-  return applyPackagingSessionLabels(normalized, locale)
+  return applyStudioSessionLabels(normalized, locale)
 }
 import type { HubStudioAction } from '@/lib/hub-chat/hub-studio-handler'
 import type { FacePrintStyleKey } from '@/lib/packaging/face-print-style'
 import type { TuckBoxProductionParams } from '@/lib/packaging/tuck-box-production'
 import { HubBoxDimensionForm } from '@/components/hub-chat/hub-box-dimension-form'
+import { HubBagDimensionForm } from '@/components/hub-chat/hub-bag-dimension-form'
 import { HubBarcodeLabelForm } from '@/components/hub-chat/hub-barcode-label-form'
 import { HubBoxFaceConfirmActions } from '@/components/hub-chat/hub-box-face-confirm-actions'
 import { HubColorPalettePicker } from '@/components/hub-chat/hub-color-palette-picker'
@@ -57,6 +57,13 @@ import { HubPrintLanguagePicker } from '@/components/hub-chat/hub-print-language
 import { HubLabelAspectRatioPicker } from '@/components/hub-chat/hub-label-aspect-ratio-picker'
 import { HubBannerDesignPreparePanel } from '@/components/hub-chat/hub-banner-design-prepare-panel'
 import { HubMenuDesignPreparePanel } from '@/components/hub-chat/hub-menu-design-prepare-panel'
+import { HubLandingDesignPreparePanel } from '@/components/hub-chat/hub-landing-design-prepare-panel'
+import { HubLandingComposedPreview } from '@/components/hub-chat/hub-landing-composed-preview'
+import { HubLandingShareMenu } from '@/components/hub-chat/hub-landing-share-menu'
+import {
+  collectLandingPageSections,
+  landingPageTitle,
+} from '@/lib/hub-chat/landing-page-sections'
 import { HubPackagingFaceActions } from '@/components/hub-chat/hub-packaging-face-actions'
 import { HubPackagingBodyStripActions } from '@/components/hub-chat/hub-packaging-body-strip-actions'
 import { HubPackagingFaceUploadConfirmDialog } from '@/components/hub-chat/hub-packaging-face-upload-confirm-dialog'
@@ -67,7 +74,7 @@ import {
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import {
   createEmptyMenuDish,
-  menuDishesHaveContent,
+  menuInputHasContent,
   normalizeMenuDishes,
   type MenuDishItem,
 } from '@/lib/hub-chat/menu-dish-items'
@@ -75,7 +82,14 @@ import {
   normalizeMenuFormatPresetId,
   type MenuFormatPresetId,
 } from '@/lib/hub-chat/menu-format-presets'
-import { hasSaleBannerDiscoveryBrief } from '@/lib/hub-chat/hub-studio-preset-flows'
+import {
+  hasLandingHeaderLogo,
+  hasSaleBannerDiscoveryBrief,
+  isLandingDesignStepKey,
+  isLandingFirstDesignStep,
+  landingSectionHasCopy,
+  readLandingSectionBrief,
+} from '@/lib/hub-chat/hub-studio-preset-flows'
 import {
   getFlowSteps,
   getStepAskExample,
@@ -104,6 +118,14 @@ import {
   getPackagingDiscoveryInputKind,
   PACKAGING_STYLE_MOOD_CHOICES,
 } from '@/lib/packaging/packaging-discovery-choices'
+import { getBagKitDiscoveryInputKind } from '@/lib/packaging/bag-discovery'
+import {
+  bagStepKeyToSlot,
+  getBagFaceSlotLabel,
+  resolveBagFacePrintSizeMm,
+  type BagFaceSlot,
+} from '@/lib/hub-chat/bag-kit-shared'
+import { isBagFaceStepKey } from '@/lib/packaging/bag-dimensions'
 import {
   resolvePrintLanguageKey,
   type PackagingPrintLanguageKey,
@@ -176,17 +198,40 @@ function lineCreatedAt(iso?: string): string {
   return iso ?? new Date().toISOString()
 }
 
-function isPendingPackagingFacePreviewLine(
+function isPackagingLikePreset(presetId: string | null | undefined): boolean {
+  return presetId === 'packaging_kit' || presetId === 'bag_kit'
+}
+
+function resolvePackagingLikeDiscoveryInputKind(
+  presetId: string | null | undefined,
+  step: string | null | undefined,
+  options?: { reenteringBoxSize?: boolean; reenteringBagSize?: boolean }
+) {
+  if (presetId === 'bag_kit') {
+    return getBagKitDiscoveryInputKind(step, { reenteringBagSize: options?.reenteringBagSize })
+  }
+  if (presetId === 'packaging_kit') {
+    return getPackagingDiscoveryInputKind(step, { reenteringBoxSize: options?.reenteringBoxSize })
+  }
+  return 'chat' as const
+}
+
+function isPendingPackagingLikeFacePreviewLine(
   line: ChatLine,
   session: HubStudioSession | null
 ): boolean {
-  if (!session || session.presetId !== 'packaging_kit') return false
+  if (!session || (session.presetId !== 'packaging_kit' && session.presetId !== 'bag_kit')) return false
   if (line.role !== 'assistant' || !line.studio?.imageUrl || !line.studio.screenKey) return false
-  if (!isPackagingFaceStepKey(line.studio.screenKey)) return false
+  const stepKey = line.studio.screenKey
+  const isFaceStep =
+    session.presetId === 'bag_kit'
+      ? isBagFaceStepKey(stepKey)
+      : isPackagingFaceStepKey(stepKey)
+  if (!isFaceStep) return false
   const pending = session.pendingPreview
   return (
-    session.currentStepKey === line.studio.screenKey &&
-    pending?.screenKey === line.studio.screenKey &&
+    session.currentStepKey === stepKey &&
+    pending?.screenKey === stepKey &&
     pending.url === line.studio.imageUrl
   )
 }
@@ -226,6 +271,8 @@ function replaceLatestStudioStepLine(
 function ensureApprovedMockupTimelineLine(
   lines: ChatLine[],
   mockupUrl: string | undefined,
+  mockupStepKey: 'box_mockup_3d' | 'bag_mockup_3d',
+  screenLabel: string,
   processSteps: HubStudioProcessStep[] | undefined,
   fallbackContent: string
 ): ChatLine[] {
@@ -233,11 +280,11 @@ function ensureApprovedMockupTimelineLine(
   const hasMockupLine = lines.some(
     (line) =>
       line.role === 'assistant' &&
-      line.studio?.screenKey === 'box_mockup_3d' &&
+      line.studio?.screenKey === mockupStepKey &&
       Boolean(line.studio.imageUrl)
   )
   if (hasMockupLine) {
-    return markApprovedPackagingMockupLine(lines, 'box_mockup_3d', mockupUrl)
+    return markApprovedPackagingMockupLine(lines, mockupStepKey, mockupUrl)
   }
   return [
     ...lines,
@@ -247,8 +294,8 @@ function ensureApprovedMockupTimelineLine(
       content: fallbackContent,
       studio: {
         imageUrl: mockupUrl,
-        screenKey: 'box_mockup_3d',
-        screenLabel: 'Mockup 3D',
+        screenKey: mockupStepKey,
+        screenLabel,
         processSteps,
         showApproveReference: false,
         showRegenerate: true,
@@ -256,6 +303,29 @@ function ensureApprovedMockupTimelineLine(
       createdAt: lineCreatedAt(),
     },
   ]
+}
+
+function resolveMockupTimelineContext(session: HubStudioSession | null | undefined): {
+  url: string
+  stepKey: 'box_mockup_3d' | 'bag_mockup_3d'
+  label: string
+} | null {
+  if (!session) return null
+  if (session.presetId === 'bag_kit' && session.bagKit?.mockupUrl) {
+    return {
+      url: session.bagKit.mockupPhotoUrl ?? session.bagKit.mockupUrl,
+      stepKey: 'bag_mockup_3d',
+      label: session.processSteps.find((step) => step.key === 'bag_mockup_3d')?.label ?? 'Mockup 3D',
+    }
+  }
+  if (session.packaging?.mockupUrl) {
+    return {
+      url: session.packaging.mockupUrl,
+      stepKey: 'box_mockup_3d',
+      label: session.processSteps.find((step) => step.key === 'box_mockup_3d')?.label ?? 'Mockup 3D',
+    }
+  }
+  return null
 }
 
 function replaceLatestStudioImageLine(
@@ -390,7 +460,10 @@ export function HomeHubChatBar() {
   const [bannerOverlayDraft, setBannerOverlayDraft] = useState('')
   const [bannerDomainDraft, setBannerDomainDraft] = useState('')
   const [menuDishesDraft, setMenuDishesDraft] = useState<MenuDishItem[]>([createEmptyMenuDish()])
+  const [menuDishesBulkDraft, setMenuDishesBulkDraft] = useState('')
   const [menuVenueDraft, setMenuVenueDraft] = useState('')
+  const [landingSectionDraft, setLandingSectionDraft] = useState('')
+  const [landingLogoDraft, setLandingLogoDraft] = useState('')
   const [selectedGenRefKeys, setSelectedGenRefKeys] = useState<string[]>([])
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false)
   const [regeneratePromptDraft, setRegeneratePromptDraft] = useState('')
@@ -402,6 +475,7 @@ export function HomeHubChatBar() {
   } | null>(null)
   const [showFeaturePicker, setShowFeaturePicker] = useState(true)
   const [reenteringBoxSize, setReenteringBoxSize] = useState(false)
+  const [reenteringBagSize, setReenteringBagSize] = useState(false)
   const [faceUploadConfirmOpen, setFaceUploadConfirmOpen] = useState(false)
   const [pendingFaceUpload, setPendingFaceUpload] = useState<{
     file: File
@@ -414,8 +488,6 @@ export function HomeHubChatBar() {
   const [editingStepKey, setEditingStepKey] = useState<string | null>(null)
   const [chatThreads, setChatThreads] = useState<HubChatThreadSummary[]>([])
   const [threadsLoading, setThreadsLoading] = useState(false)
-  const [showThreadList, setShowThreadList] = useState(false)
-  const [threadsLoaded, setThreadsLoaded] = useState(false)
   const [threadsLoginRequired, setThreadsLoginRequired] = useState(false)
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null)
   const studioFileRef = useRef<HTMLInputElement>(null)
@@ -623,7 +695,6 @@ export function HomeHubChatBar() {
       const res = await fetch('/api/hub-chat/threads', { credentials: 'same-origin' })
       if (res.status === 401) {
         setChatThreads([])
-        setThreadsLoaded(false)
         setThreadsLoginRequired(true)
         return
       }
@@ -634,7 +705,6 @@ export function HomeHubChatBar() {
         return
       }
       setChatThreads(data.threads ?? [])
-      setThreadsLoaded(true)
     } catch {
       toast({ title: hc.chatHistoryLoadFailed, variant: 'destructive' })
     } finally {
@@ -702,12 +772,6 @@ export function HomeHubChatBar() {
     void fetchThreadList()
   }, [fetchThreadList])
 
-  useEffect(() => {
-    if (threadsLoaded && chatThreads.length > 0 && lines.length === 0 && !threadId && !studioLaunchStartedRef.current) {
-      setShowThreadList(true)
-    }
-  }, [threadsLoaded, chatThreads.length, lines.length, threadId])
-
   const modelLabel = getHubChatFooterModelLabel(uiLocale, studioSession?.presetId)
 
   const startNewThread = useCallback(() => {
@@ -753,12 +817,19 @@ export function HomeHubChatBar() {
       bannerBatchIndex?: number
       menuFormatPresetId?: MenuFormatPresetId | ''
       menuDishes?: MenuDishItem[]
+      menuDishesBulkText?: string
       menuVenueName?: string
+      landingSectionCopy?: string
+      landingLogoBrief?: string
+      landingPublishedShareUrl?: string
+      landingPublishedShareToken?: string
+      landingHtmlSource?: string
       discoveryChoice?: string
       discoveryChoiceStep?: string
       colorPaletteKeys?: string[]
       colorPaletteSelection?: StudioColorSelection[]
       boxDimensionsMm?: { length: number; width: number; height: number }
+      bagDimensionsMm?: { width: number; height: number; gusset: number }
       boxProduction?: TuckBoxProductionParams
       barcodeEntries?: PackagingBarcodeFormEntry[]
       forceNewThread?: boolean
@@ -775,11 +846,17 @@ export function HomeHubChatBar() {
         payload.action === 'set_banner_ad_format' ||
         payload.action === 'set_banner_design_setup' ||
         payload.action === 'set_menu_design_setup' ||
+        payload.action === 'set_landing_design_setup' ||
+        payload.action === 'set_landing_publish_url' ||
+        payload.action === 'set_landing_html_source' ||
         payload.action === 'select_banner_batch_item' ||
         payload.action === 'upload_banner_logo' ||
         payload.action === 'remove_banner_logo' ||
         payload.action === 'upload_menu_logo' ||
-        payload.action === 'remove_menu_logo'
+        payload.action === 'remove_menu_logo' ||
+        payload.action === 'upload_landing_logo' ||
+        payload.action === 'remove_landing_logo' ||
+        payload.action === 'generate_landing_logo'
       const stepKeyAtSend = getActiveStepKey(studioSession)
       let optimisticUserId: string | null = null
       if (payload.action === 'start_preset' && payload.presetId && studioLaunchStartedRef.current) {
@@ -798,7 +875,6 @@ export function HomeHubChatBar() {
       }
       if (payload.action === 'message' && payload.message?.trim()) {
         loadThreadEpochRef.current += 1
-        setShowThreadList(false)
         optimisticUserId = `u-pending-${Date.now()}`
         setLines((prev) => [
           ...prev,
@@ -816,7 +892,6 @@ export function HomeHubChatBar() {
         const entry = getHubFeatureCatalogEntry(uiLocale, payload.featureKey)
         if (entry) {
           loadThreadEpochRef.current += 1
-          setShowThreadList(false)
           optimisticUserId = `u-pending-${Date.now()}`
           setLines((prev) => [
             ...prev,
@@ -831,7 +906,6 @@ export function HomeHubChatBar() {
       }
       if (payload.action === 'generate_current_step' && payload.message?.trim()) {
         loadThreadEpochRef.current += 1
-        setShowThreadList(false)
         optimisticUserId = `u-pending-${Date.now()}`
         setLines((prev) => [
           ...prev,
@@ -878,12 +952,19 @@ export function HomeHubChatBar() {
             bannerBatchIndex: payload.bannerBatchIndex,
             menuFormatPresetId: payload.menuFormatPresetId || undefined,
             menuDishes: payload.menuDishes,
+            menuDishesBulkText: payload.menuDishesBulkText,
             menuVenueName: payload.menuVenueName,
+            landingSectionCopy: payload.landingSectionCopy,
+            landingLogoBrief: payload.landingLogoBrief,
+            landingPublishedShareUrl: payload.landingPublishedShareUrl,
+            landingPublishedShareToken: payload.landingPublishedShareToken,
+            landingHtmlSource: payload.landingHtmlSource,
             discoveryChoice: payload.discoveryChoice,
             discoveryChoiceStep: payload.discoveryChoiceStep,
             colorPaletteKeys: payload.colorPaletteKeys,
             colorPaletteSelection: payload.colorPaletteSelection,
             boxDimensionsMm: payload.boxDimensionsMm,
+            bagDimensionsMm: payload.bagDimensionsMm,
             boxProduction: payload.boxProduction,
             barcodeEntries: payload.barcodeEntries,
             featureKey: payload.featureKey,
@@ -1073,16 +1154,19 @@ export function HomeHubChatBar() {
               (data.studio?.dielineArtifacts?.length ?? 0) > 0 ||
               (data.studio?.barcodeArtifacts?.length ?? 0) > 0)
         )
+        const mockupTimeline = resolveMockupTimelineContext(data.session)
         const preserveMockupTimeline =
           (payload.action === 'approve_reference' || payload.action === 'regenerate') &&
-          data.session?.packaging?.mockupUrl
+          Boolean(mockupTimeline?.url)
         if (hasStudioImage) {
           setLines((prev) => {
             let next = replaceLatestStudioImageLine(prev, studioStepKey, replyContent, data.studio)
-            if (preserveMockupTimeline) {
+            if (preserveMockupTimeline && mockupTimeline) {
               next = ensureApprovedMockupTimelineLine(
                 next,
-                data.session!.packaging!.mockupUrl,
+                mockupTimeline.url,
+                mockupTimeline.stepKey,
+                mockupTimeline.label,
                 data.session?.processSteps,
                 replyContent
               )
@@ -1092,10 +1176,12 @@ export function HomeHubChatBar() {
         } else if (hasStudioArtifact) {
           setLines((prev) => {
             let next = replaceLatestStudioStepLine(prev, studioStepKey, replyContent, data.studio)
-            if (preserveMockupTimeline) {
+            if (preserveMockupTimeline && mockupTimeline) {
               next = ensureApprovedMockupTimelineLine(
                 next,
-                data.session!.packaging!.mockupUrl,
+                mockupTimeline.url,
+                mockupTimeline.stepKey,
+                mockupTimeline.label,
                 data.session?.processSteps,
                 replyContent
               )
@@ -1116,10 +1202,12 @@ export function HomeHubChatBar() {
                 createdAt: lineCreatedAt(),
               },
             ]
-            if (preserveMockupTimeline) {
+            if (preserveMockupTimeline && mockupTimeline) {
               next = ensureApprovedMockupTimelineLine(
                 next,
-                data.session!.packaging!.mockupUrl,
+                mockupTimeline.url,
+                mockupTimeline.stepKey,
+                mockupTimeline.label,
                 data.session?.processSteps,
                 replyContent
               )
@@ -1418,6 +1506,68 @@ export function HomeHubChatBar() {
     await postStudio({ action: 'remove_menu_logo' })
   }, [postStudio])
 
+  const postLandingLogoUpload = useCallback(
+    async (files: FileList | File[]) => {
+      if (busy) return
+      const list = Array.from(files).filter((f) => f.size > 0).slice(0, 1)
+      if (!list.length) return
+      setBusy(true)
+      try {
+        const fd = new FormData()
+        fd.append('mode', 'studio')
+        fd.append('action', 'upload_landing_logo')
+        fd.append('locale', uiLocale)
+        if (threadId) fd.append('threadId', threadId)
+        for (const f of list) fd.append('images', f)
+        const res = await fetch('/api/hub-chat', { method: 'POST', credentials: 'same-origin', body: fd })
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean
+          error?: string
+          session?: HubStudioSession
+          threadId?: string
+        }
+        if (res.status === 401) {
+          const next = sanitizeLoginNext(typeof window !== 'undefined' ? window.location.pathname : '/')
+          router.push(`/auth/login?next=${encodeURIComponent(next)}`)
+          toast({ title: hc.loginRequired, variant: 'destructive' })
+          return
+        }
+        if (!res.ok) throw new Error(data.error || hc.errorGeneric)
+        if (data.threadId) {
+          setThreadId(data.threadId)
+          saveHubThreadId(data.threadId)
+        }
+        if (data.session) {
+          const session = withClientStudioSession(data.session, uiLocale)
+          if (session) setStudioSession(session)
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : hc.errorGeneric
+        toast({ title: hc.errorGeneric, description: msg, variant: 'destructive' })
+      } finally {
+        setBusy(false)
+      }
+    },
+    [busy, hc, router, threadId, toast, uiLocale]
+  )
+
+  const postRemoveLandingLogo = useCallback(async () => {
+    await postStudio({ action: 'remove_landing_logo' })
+  }, [postStudio])
+
+  const postGenerateLandingLogo = useCallback(
+    async (brief: string) => {
+      const ok = await postStudio({
+        action: 'generate_landing_logo',
+        landingLogoBrief: brief || landingLogoDraft,
+      })
+      if (ok) {
+        toast({ title: hc.studioLandingLogoGenerated })
+      }
+    },
+    [hc.studioLandingLogoGenerated, landingLogoDraft, postStudio, toast]
+  )
+
   const postStudioLogoUpload = useCallback(
     async (files: FileList | File[]) => {
       if (busy) return
@@ -1542,6 +1692,10 @@ export function HomeHubChatBar() {
 
   const resolveFaceUploadFaceLabel = useCallback(
     (stepKey: string) => {
+      if (studioSession?.presetId === 'bag_kit') {
+        const bagSlot = bagStepKeyToSlot(stepKey)
+        if (bagSlot) return getBagFaceSlotLabel(bagSlot, uiLocale)
+      }
       const slot = packagingStepKeyToSlot(stepKey)
       if (slot) return getBoxFaceSlotLabel(slot, uiLocale)
       if (studioSession?.presetId) {
@@ -1569,7 +1723,10 @@ export function HomeHubChatBar() {
       const file = list[0]
       const faceLabel = resolveFaceUploadFaceLabel(resolvedStepKey)
       let sizeLabel = hc.studioFaceUploadConfirmSizeUnknown
-      if (studioSession?.packaging?.dimensionsMm) {
+      if (studioSession?.bagKit?.dimensionsMm) {
+        const size = resolveBagFacePrintSizeMm(studioSession, resolvedStepKey)
+        if (size) sizeLabel = formatMmSize(uiLocale, size.widthMm, size.heightMm)
+      } else if (studioSession?.packaging?.dimensionsMm) {
         const size = getPackagingFaceSizeForStep(studioSession.packaging.dimensionsMm, resolvedStepKey)
         if (size) sizeLabel = formatMmSize(uiLocale, size.widthMm, size.heightMm)
       }
@@ -1742,25 +1899,38 @@ export function HomeHubChatBar() {
   }, [studioSession])
 
   const showFacePrintStylePicker = useMemo(() => {
-    if (studioSession?.presetId !== 'packaging_kit') return false
-    if (studioSession.discoveryComplete) return false
+    if (!isPackagingLikePreset(studioSession?.presetId)) return false
+    if (studioSession?.discoveryComplete) return false
     const step = getActiveStepKey(studioSession)
-    return getPackagingDiscoveryInputKind(step, { reenteringBoxSize }) === 'face_print_style_picker'
-  }, [studioSession, reenteringBoxSize])
+    return (
+      resolvePackagingLikeDiscoveryInputKind(studioSession?.presetId, step, {
+        reenteringBoxSize,
+        reenteringBagSize,
+      }) === 'face_print_style_picker'
+    )
+  }, [studioSession, reenteringBoxSize, reenteringBagSize])
 
   const showBoxFaceConfirmActions = useMemo(() => {
     if (studioSession?.presetId !== 'packaging_kit') return false
     if (studioSession.discoveryComplete) return false
     const step = getActiveStepKey(studioSession)
     if (reenteringBoxSize) return false
-    return getPackagingDiscoveryInputKind(step) === 'box_face_confirm'
+    return resolvePackagingLikeDiscoveryInputKind(studioSession.presetId, step) === 'box_face_confirm'
   }, [studioSession, reenteringBoxSize])
 
-  const showPrintLanguagePicker = useMemo(() => {
-    if (studioSession?.presetId !== 'packaging_kit') return false
+  const showBagPanelConfirmActions = useMemo(() => {
+    if (studioSession?.presetId !== 'bag_kit') return false
     if (studioSession.discoveryComplete) return false
     const step = getActiveStepKey(studioSession)
-    return getPackagingDiscoveryInputKind(step) === 'print_language_picker'
+    if (reenteringBagSize) return false
+    return resolvePackagingLikeDiscoveryInputKind(studioSession.presetId, step) === 'bag_panel_confirm'
+  }, [studioSession, reenteringBagSize])
+
+  const showPrintLanguagePicker = useMemo(() => {
+    if (!isPackagingLikePreset(studioSession?.presetId)) return false
+    if (studioSession?.discoveryComplete) return false
+    const step = getActiveStepKey(studioSession)
+    return resolvePackagingLikeDiscoveryInputKind(studioSession?.presetId, step) === 'print_language_picker'
   }, [studioSession])
 
   const selectedPrintLanguageKey = useMemo(
@@ -1774,10 +1944,10 @@ export function HomeHubChatBar() {
   )
 
   const showStyleMoodPicker = useMemo(() => {
-    if (studioSession?.presetId !== 'packaging_kit') return false
-    if (studioSession.discoveryComplete) return false
+    if (!isPackagingLikePreset(studioSession?.presetId)) return false
+    if (studioSession?.discoveryComplete) return false
     const step = getActiveStepKey(studioSession)
-    return getPackagingDiscoveryInputKind(step) === 'style_mood_picker'
+    return resolvePackagingLikeDiscoveryInputKind(studioSession?.presetId, step) === 'style_mood_picker'
   }, [studioSession])
 
   const showColorPalettePicker = useMemo(() => {
@@ -1787,12 +1957,19 @@ export function HomeHubChatBar() {
     return isStudioColorPalettePickerStep(step)
   }, [studioSession])
 
-  const hideInlineDielinePreview = getActiveStepKey(studioSession) === 'box_face_confirm'
+  const hideInlineDielinePreview =
+    getActiveStepKey(studioSession) === 'box_face_confirm' ||
+    getActiveStepKey(studioSession) === 'bag_panel_confirm'
 
   const hideAutoPackagingArtifactStep = useMemo(() => {
-    if (studioSession?.presetId !== 'packaging_kit') return false
     const step = getActiveStepKey(studioSession)
-    return step === 'box_mockup_3d' || step === 'box_dieline_pdf'
+    if (studioSession?.presetId === 'packaging_kit') {
+      return step === 'box_mockup_3d' || step === 'box_dieline_pdf'
+    }
+    if (studioSession?.presetId === 'bag_kit') {
+      return step === 'bag_mockup_3d' || step === 'bag_dieline_pdf'
+    }
+    return false
   }, [studioSession])
 
   const currentDesignGenerator = useMemo(() => {
@@ -1818,6 +1995,14 @@ export function HomeHubChatBar() {
     return !pendingPreviewBlocksWorkflowInput(studioSession)
   }, [studioSession])
 
+  const showLandingDesignPrepare = useMemo(() => {
+    if (studioSession?.presetId !== 'landing_page') return false
+    const step = getActiveStepKey(studioSession)
+    if (!step || !isLandingDesignStepKey(step)) return false
+    if (!studioSession.discoveryComplete) return false
+    return !pendingPreviewBlocksWorkflowInput(studioSession)
+  }, [studioSession])
+
   const saleBannerApprovedCount = useMemo(() => {
     if (studioSession?.presetId !== 'sale_banner') return 0
     return studioSession.referenceImages.filter(
@@ -1830,30 +2015,55 @@ export function HomeHubChatBar() {
     return studioSession.referenceImages.filter((r) => r.screenKey === 'menu_design').length
   }, [studioSession])
 
+  const landingPageApprovedCount = useMemo(() => {
+    if (studioSession?.presetId !== 'landing_page') return 0
+    return studioSession.referenceImages.filter((r) =>
+      isLandingDesignStepKey(r.screenKey)
+    ).length
+  }, [studioSession])
+
+  const landingComposedSections = useMemo(() => {
+    if (studioSession?.presetId !== 'landing_page') return []
+    return collectLandingPageSections(studioSession, uiLocale)
+  }, [studioSession, uiLocale])
+
+  const landingComposedTitle = useMemo(() => {
+    if (!studioSession || studioSession.presetId !== 'landing_page') return ''
+    return landingPageTitle(studioSession)
+  }, [studioSession])
+
+  const showLandingComposedPreview = Boolean(
+    studioSession?.presetId === 'landing_page' &&
+      studioSession.discoveryComplete &&
+      (landingComposedSections.length >= 1 || studioSession.landingPage?.logoUrl?.trim())
+  )
+
   const hideStepInputComposer = useMemo(
     () =>
       (studioSession ? pendingPreviewBlocksWorkflowInput(studioSession) : false) ||
       showBannerDesignPrepare ||
-      showMenuDesignPrepare,
-    [studioSession, showBannerDesignPrepare, showMenuDesignPrepare]
-  )
-
-  /** Tiếp / Tạo lại — chỉ sau khi đã generate và đang chờ duyệt preview. */
-  const showPendingStepContinue = useMemo(
-    () =>
-      Boolean(
-        studioSession &&
-          pendingPreviewBlocksWorkflowInput(studioSession) &&
-          studioSession.presetId !== 'sale_banner'
-      ),
-    [studioSession]
+      showMenuDesignPrepare ||
+      showLandingDesignPrepare,
+    [studioSession, showBannerDesignPrepare, showMenuDesignPrepare, showLandingDesignPrepare]
   )
 
   const showBoxDimensionForm = useMemo(() => {
     if (studioSession?.presetId !== 'packaging_kit') return false
     const step = getActiveStepKey(studioSession)
-    return getPackagingDiscoveryInputKind(step, { reenteringBoxSize }) === 'box_dimensions'
+    return (
+      resolvePackagingLikeDiscoveryInputKind(studioSession.presetId, step, { reenteringBoxSize }) ===
+      'box_dimensions'
+    )
   }, [studioSession, reenteringBoxSize])
+
+  const showBagDimensionForm = useMemo(() => {
+    if (studioSession?.presetId !== 'bag_kit') return false
+    const step = getActiveStepKey(studioSession)
+    return (
+      resolvePackagingLikeDiscoveryInputKind(studioSession.presetId, step, { reenteringBagSize }) ===
+      'bag_dimensions'
+    )
+  }, [studioSession, reenteringBagSize])
 
   const showBarcodeLabelForm = useMemo(() => {
     if (studioSession?.presetId !== 'packaging_kit') return false
@@ -1913,6 +2123,10 @@ export function HomeHubChatBar() {
       ? hc.studioGenerateBanner
       : currentDesignGenerator === 'banner' && studioSession?.presetId === 'food_menu'
         ? hc.studioGenerateMenu
+        : studioSession?.presetId === 'landing_page' &&
+            getActiveStepKey(studioSession) &&
+            isLandingDesignStepKey(getActiveStepKey(studioSession)!)
+          ? hc.studioGenerateLanding
       : currentDesignGenerator === 'lyria_music'
       ? hc.studioGenerateMusic
       : currentDesignGenerator === 'packaging_face'
@@ -1938,6 +2152,12 @@ export function HomeHubChatBar() {
   const isFoodMenuDesignStep = Boolean(
     studioSession?.presetId === 'food_menu' && getActiveStepKey(studioSession) === 'menu_design'
   )
+  const landingActiveStepKey = getActiveStepKey(studioSession)
+  const isLandingDesignStep = Boolean(
+    studioSession?.presetId === 'landing_page' &&
+      landingActiveStepKey &&
+      isLandingDesignStepKey(landingActiveStepKey)
+  )
   const menuSelectedFormatId = useMemo((): MenuFormatPresetId | '' => {
     return normalizeMenuFormatPresetId(studioSession?.foodMenu?.formatPresetId ?? '')
   }, [studioSession?.foodMenu?.formatPresetId])
@@ -1956,12 +2176,23 @@ export function HomeHubChatBar() {
       studioSession?.bannerAd?.overlayText?.trim() ||
       hasSaleBannerDiscoveryBrief(studioSession?.briefNotes)
   )
-  const hasMenuDishesReady = menuDishesHaveContent(menuDishesDraft)
+  const hasMenuDishesReady = menuInputHasContent(menuDishesDraft, menuDishesBulkDraft)
+  const hasLandingSectionReady = landingSectionHasCopy(
+    landingActiveStepKey ?? '',
+    studioSession?.briefNotes ?? {},
+    landingSectionDraft
+  )
+  const hasLandingHeaderLogoReady = hasLandingHeaderLogo(studioSession?.landingPage)
+  const isLandingFirstStep = Boolean(
+    landingActiveStepKey && isLandingFirstDesignStep(landingActiveStepKey)
+  )
   const canGenerateCurrentStep = Boolean(
     isSaleBannerDesignStep
       ? hasBannerRatioSelected && hasSaleBannerCopy
       : isFoodMenuDesignStep
         ? Boolean(menuSelectedFormatId) && hasMenuDishesReady
+        : isLandingDesignStep
+          ? hasLandingSectionReady && (!isLandingFirstStep || hasLandingHeaderLogoReady)
         : generateCanRunWithoutBrief ||
           currentStepHasBrief ||
           (currentStepDraftBrief.length >= 2 && isValidHubStudioMessage(currentStepDraftBrief))
@@ -1980,6 +2211,22 @@ export function HomeHubChatBar() {
     hc.studioMenuNeedFormat,
     isFoodMenuDesignStep,
     menuSelectedFormatId,
+  ])
+
+  const landingGenerateMissingHints = useMemo((): string[] => {
+    if (!isLandingDesignStep || canGenerateCurrentStep) return []
+    const hints: string[] = []
+    if (isLandingFirstStep && !hasLandingHeaderLogoReady) hints.push(hc.studioLandingNeedLogo)
+    if (!hasLandingSectionReady) hints.push(hc.studioLandingNeedCopy)
+    return hints
+  }, [
+    canGenerateCurrentStep,
+    hasLandingHeaderLogoReady,
+    hasLandingSectionReady,
+    hc.studioLandingNeedCopy,
+    hc.studioLandingNeedLogo,
+    isLandingDesignStep,
+    isLandingFirstStep,
   ])
 
   const bannerGenerateMissingHints = useMemo((): string[] => {
@@ -2008,12 +2255,15 @@ export function HomeHubChatBar() {
     !hideStepInputComposer &&
     !showFacePrintStylePicker &&
     !showBoxFaceConfirmActions &&
+    !showBagPanelConfirmActions &&
     !showStyleMoodPicker &&
     !showColorPalettePicker &&
     !showBoxDimensionForm &&
+    !showBagDimensionForm &&
     !showBarcodeLabelForm &&
     !showBannerDesignPrepare &&
     !showMenuDesignPrepare &&
+    !showLandingDesignPrepare &&
     !hideAutoPackagingArtifactStep
 
   const focusStudioChat = useCallback(() => {
@@ -2036,17 +2286,29 @@ export function HomeHubChatBar() {
     return () => window.cancelAnimationFrame(frame)
   }, [busy, editingLineId, lines, regenerateDialogOpen, shouldAutoFocusStudioChat])
 
-  const packagingFaceSlot = useMemo(() => {
-    if (studioSession?.presetId !== 'packaging_kit') return null
+  const packagingFaceSlot = useMemo((): {
+    variant: 'box' | 'bag'
+    slot: import('@/lib/packaging/box-face-slots').BoxFaceSlot | BagFaceSlot
+  } | null => {
+    if (!studioSession) return null
+    const presetId = studioSession.presetId
+    if (presetId !== 'packaging_kit' && presetId !== 'bag_kit') return null
     const step = getActiveStepKey(studioSession)
-    if (!step || !isPackagingFaceStepKey(step)) return null
+    if (!step) return null
     if (
       studioSession.pendingPreview?.screenKey === step &&
       studioSession.pendingPreview?.url
     ) {
       return null
     }
-    return packagingStepKeyToSlot(step)
+    if (presetId === 'bag_kit') {
+      if (!isBagFaceStepKey(step)) return null
+      const slot = bagStepKeyToSlot(step)
+      return slot ? { variant: 'bag', slot } : null
+    }
+    if (!isPackagingFaceStepKey(step)) return null
+    const slot = packagingStepKeyToSlot(step)
+    return slot ? { variant: 'box', slot } : null
   }, [studioSession])
 
   const showBodyStripActions = useMemo(() => {
@@ -2237,6 +2499,11 @@ export function HomeHubChatBar() {
     await postStudio({ action: 'confirm_box_face' })
   }, [postStudio])
 
+  const submitBagPanelConfirm = useCallback(async () => {
+    setReenteringBagSize(false)
+    await postStudio({ action: 'confirm_bag_panel' })
+  }, [postStudio])
+
   const submitPrintLanguage = useCallback(
     async (languageKey: PackagingPrintLanguageKey, otherDetail?: string) => {
       await postStudio({
@@ -2280,13 +2547,40 @@ export function HomeHubChatBar() {
     async (input: {
       menuFormatPresetId?: MenuFormatPresetId | ''
       menuDishes?: MenuDishItem[]
+      menuDishesBulkText?: string
       menuVenueName?: string
     }) => {
       await postStudio({
         action: 'set_menu_design_setup',
         menuFormatPresetId: input.menuFormatPresetId,
         menuDishes: input.menuDishes,
+        menuDishesBulkText: input.menuDishesBulkText,
         menuVenueName: input.menuVenueName,
+      })
+    },
+    [postStudio]
+  )
+
+  const onLandingPublished = useCallback(
+    (shareUrl: string) => {
+      const tokenMatch = shareUrl.match(/\/share\/landing\/([^/?#]+)/)
+      const token = tokenMatch?.[1]
+      setStudioSession((prev) =>
+        prev?.presetId === 'landing_page'
+          ? {
+              ...prev,
+              landingPage: {
+                ...prev.landingPage,
+                publishedShareUrl: shareUrl,
+                publishedShareToken: token,
+              },
+            }
+          : prev
+      )
+      void postStudio({
+        action: 'set_landing_publish_url',
+        landingPublishedShareUrl: shareUrl,
+        landingPublishedShareToken: token,
       })
     },
     [postStudio]
@@ -2297,10 +2591,11 @@ export function HomeHubChatBar() {
       await submitMenuDesignSetup({
         menuFormatPresetId: presetId,
         menuDishes: menuDishesDraft,
+        menuDishesBulkText: menuDishesBulkDraft,
         menuVenueName: menuVenueDraft,
       })
     },
-    [menuDishesDraft, menuVenueDraft, submitMenuDesignSetup]
+    [menuDishesBulkDraft, menuDishesDraft, menuVenueDraft, submitMenuDesignSetup]
   )
 
   const toggleBannerPreset = useCallback(
@@ -2379,6 +2674,17 @@ export function HomeHubChatBar() {
     [postStudio]
   )
 
+  const submitBagDimensions = useCallback(
+    async (value: { dimensionsMm: { width: number; height: number; gusset: number } }) => {
+      setReenteringBagSize(false)
+      await postStudio({
+        action: 'set_bag_dimensions',
+        bagDimensionsMm: value.dimensionsMm,
+      })
+    },
+    [postStudio]
+  )
+
   const submitBarcodeLabels = useCallback(
     async (entries: PackagingBarcodeFormEntry[]) => {
       await postStudio({
@@ -2391,6 +2697,7 @@ export function HomeHubChatBar() {
 
   useEffect(() => {
     setReenteringBoxSize(false)
+    setReenteringBagSize(false)
   }, [studioSession?.currentStepKey])
 
   useEffect(() => {
@@ -2423,6 +2730,26 @@ export function HomeHubChatBar() {
       setMenuDishesDraft([createEmptyMenuDish()])
     }
   }, [studioSession?.currentStepKey, studioSession?.foodMenu?.dishes, studioSession])
+
+  useEffect(() => {
+    setMenuDishesBulkDraft(studioSession?.foodMenu?.dishesBulkText ?? '')
+  }, [studioSession?.currentStepKey, studioSession?.foodMenu?.dishesBulkText, studioSession])
+
+  useEffect(() => {
+    const stepKey = getActiveStepKey(studioSession)
+    if (stepKey && isLandingDesignStepKey(stepKey)) {
+      setLandingSectionDraft(readLandingSectionBrief(stepKey, studioSession?.briefNotes))
+    }
+  }, [studioSession?.currentStepKey, studioSession?.briefNotes, studioSession])
+
+  useEffect(() => {
+    if (studioSession?.presetId !== 'landing_page') return
+    setLandingLogoDraft((prev) => {
+      if (prev.trim()) return prev
+      const brand = studioSession.briefNotes?.product_name?.trim()
+      return brand ?? ''
+    })
+  }, [studioSession?.presetId, studioSession?.briefNotes?.product_name, studioSession])
 
   useEffect(() => {
     const stepKey = getActiveStepKey(studioSession)
@@ -2521,6 +2848,12 @@ export function HomeHubChatBar() {
       const isMenuDesignStep =
         studioSession?.presetId === 'food_menu' &&
         getActiveStepKey(studioSession) === 'menu_design'
+      const isLandingStep =
+        studioSession?.presetId === 'landing_page' &&
+        (() => {
+          const step = getActiveStepKey(studioSession)
+          return step ? isLandingDesignStepKey(step) : false
+        })()
       const hasSaleBannerOverlay = Boolean(
         isBannerDesignStep &&
           (bannerOverlayDraft.trim() ||
@@ -2532,7 +2865,8 @@ export function HomeHubChatBar() {
         !isValidHubStudioMessage(trimmed) &&
         !currentStepHasBrief &&
         !hasSaleBannerOverlay &&
-        !isMenuDesignStep
+        !isMenuDesignStep &&
+        !isLandingStep
       ) {
         return false
       }
@@ -2559,7 +2893,11 @@ export function HomeHubChatBar() {
         bannerDomainName: isBannerDesignStep ? bannerDomainDraft : undefined,
         menuFormatPresetId: isMenuDesignStep ? menuSelectedFormatId : undefined,
         menuDishes: isMenuDesignStep ? menuDishesDraft : undefined,
+        menuDishesBulkText: isMenuDesignStep ? menuDishesBulkDraft : undefined,
         menuVenueName: isMenuDesignStep ? menuVenueDraft : undefined,
+        landingSectionCopy: isLandingStep
+          ? landingSectionDraft.trim() || trimmed || undefined
+          : undefined,
       })
     },
     [
@@ -2567,8 +2905,10 @@ export function HomeHubChatBar() {
       bannerOverlayDraft,
       bannerDomainDraft,
       menuDishesDraft,
+      menuDishesBulkDraft,
       menuSelectedFormatId,
       menuVenueDraft,
+      landingSectionDraft,
       busy,
       currentStepHasBrief,
       generateCanRunWithoutBrief,
@@ -2585,6 +2925,15 @@ export function HomeHubChatBar() {
     async (text: string) => {
       const trimmed = text.trim()
       if (trimmed.length < 1 || busy || postInFlightRef.current || !isValidHubStudioMessage(trimmed)) {
+        return
+      }
+      if (
+        studioSession?.presetId === 'landing_page' &&
+        studioSession.discoveryComplete &&
+        landingActiveStepKey &&
+        isLandingDesignStepKey(landingActiveStepKey)
+      ) {
+        await generateCurrentStep(trimmed)
         return
       }
       if (showGenerateCurrentStep) {
@@ -2614,7 +2963,15 @@ export function HomeHubChatBar() {
         setMessage('')
       }
     },
-    [busy, generateCurrentStep, postStudio, selectedGenRefKeys, showGenerateCurrentStep, studioSession]
+    [
+      busy,
+      generateCurrentStep,
+      landingActiveStepKey,
+      postStudio,
+      selectedGenRefKeys,
+      showGenerateCurrentStep,
+      studioSession,
+    ]
   )
 
   const requestStartPreset = useCallback(
@@ -2657,7 +3014,6 @@ export function HomeHubChatBar() {
     setActivePlanRow(null)
     setStudioSession(null)
     setMessage('')
-    setShowThreadList(false)
 
     void postStudio({ action: 'start_preset', presetId: launchId, forceNewThread: true })
     window.setTimeout(() => scrollChatToBottom('auto'), 120)
@@ -2753,7 +3109,7 @@ export function HomeHubChatBar() {
   }
 
   return (
-    <div className="surface-card overflow-hidden border border-indigo-100/80 shadow-sm dark:border-indigo-900/40">
+    <div className="surface-card border border-indigo-100/80 shadow-sm dark:border-indigo-900/40">
       <div className="border-b border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-3 sm:px-5 sm:py-4 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
         <div>
           <h2 className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100 sm:text-lg">
@@ -2764,7 +3120,92 @@ export function HomeHubChatBar() {
         </div>
       </div>
 
-      <div className="space-y-3 px-3 py-3 sm:px-5 sm:py-4">
+      <div className="flex min-h-0 flex-col lg:max-h-[calc(100dvh-13rem)] lg:flex-row lg:items-stretch">
+        <aside className="flex shrink-0 flex-col border-b border-indigo-100 bg-indigo-50/40 dark:border-indigo-900/50 dark:bg-indigo-950/20 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-5.5rem)] lg:w-64 lg:overflow-hidden lg:self-start lg:border-b-0 lg:border-r xl:w-72">
+          <div className="shrink-0 border-b border-indigo-100/80 p-3 dark:border-indigo-900/50">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 w-full gap-1.5 border-indigo-200 text-xs text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200"
+              onClick={startNewThread}
+              disabled={busy || (!threadId && lines.length === 0 && !studioSession)}
+            >
+              <MessageSquarePlus className="h-4 w-4" />
+              {hc.newThread}
+            </Button>
+            {isActiveStudioFlow(studioSession) ? (
+              <p className="mt-2 text-[11px] leading-snug text-muted-foreground">{hc.newThreadFlowHint}</p>
+            ) : null}
+          </div>
+
+          {!threadsLoginRequired ? (
+            <div className="flex min-h-0 flex-1 flex-col p-3 lg:overflow-hidden">
+              <p className="mb-2 shrink-0 text-xs font-medium text-indigo-900 dark:text-indigo-100">
+                {hc.chatHistory}
+                {chatThreads.length > 0 ? ` (${chatThreads.length})` : ''}
+              </p>
+              {threadsLoading ? (
+                <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {hc.thinking}
+                </div>
+              ) : chatThreads.length === 0 ? (
+                <p className="py-2 text-xs text-muted-foreground">{hc.chatHistoryEmpty}</p>
+              ) : (
+                <ul className="max-h-40 space-y-1 overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1">
+                  {chatThreads.map((thread) => {
+                    const active = thread.id === threadId
+                    const subtitle =
+                      thread.presetId && thread.projectTitle
+                        ? presetTitle(uiLocale, thread.presetId)
+                        : thread.lastMessagePreview?.slice(0, 100) ?? null
+                    return (
+                      <li key={thread.id} className="flex items-stretch gap-0.5">
+                        <button
+                          type="button"
+                          disabled={busy || deletingThreadId === thread.id}
+                          onClick={() => void switchThread(thread.id)}
+                          className={`flex min-w-0 flex-1 flex-col rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:opacity-60 ${
+                            active
+                              ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-100'
+                              : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
+                          }`}
+                        >
+                          <span className="line-clamp-1 font-medium">{threadListLabel(thread, uiLocale)}</span>
+                          <span className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+                            {formatThreadUpdatedAt(thread.updatedAt, uiLocale)}
+                            {subtitle ? ` · ${subtitle}` : null}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={hc.chatHistoryDelete}
+                          title={hc.chatHistoryDelete}
+                          disabled={busy || deletingThreadId === thread.id}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void deleteThread(thread.id)
+                          }}
+                          className="flex shrink-0 items-center justify-center rounded-md px-2 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                        >
+                          {deletingThreadId === thread.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          ) : null}
+        </aside>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-y-auto">
+          <div className="space-y-3 px-3 py-3 sm:px-5 sm:py-4">
         {studioSession?.processSteps?.length ? (
           <div className="rounded-lg border border-violet-100 bg-violet-50/40 px-3 py-2 dark:border-violet-900 dark:bg-violet-950/20">
             <p className="mb-1.5 text-xs font-medium text-violet-900 dark:text-violet-100">{hc.studioProcessTitle}</p>
@@ -2846,7 +3287,7 @@ export function HomeHubChatBar() {
                     onOutpaintGaps={postStudioOutpaintGaps}
                     onRevertFaceEdit={() => postStudioRevert()}
                     onUploadFace={
-                      isPendingPackagingFacePreviewLine(line, studioSession)
+                      isPendingPackagingLikeFacePreviewLine(line, studioSession)
                         ? (files) => {
                             queueStudioFaceUpload(files, line.studio!.screenKey!)
                           }
@@ -2922,32 +3363,6 @@ export function HomeHubChatBar() {
             {busy ? <HubStudioThinking label={hc.studioGenerating} /> : null}
             </div>
 
-            {showPendingStepContinue ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/80 px-3 py-2.5 dark:border-violet-900 dark:bg-violet-950/30">
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-9 bg-violet-600 text-xs hover:bg-violet-700"
-                  disabled={busy}
-                  onClick={() => void postStudio({ action: 'approve_reference' })}
-                >
-                  <Check className="mr-1 h-3.5 w-3.5" />
-                  {hc.studioContinue}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-9 text-xs"
-                  disabled={busy}
-                  onClick={() =>
-                    openRegenerateDialog(studioSession?.pendingPreview?.screenKey ?? undefined)
-                  }
-                >
-                  {hc.studioRegenerate}
-                </Button>
-              </div>
-            ) : null}
           </div>
         )}
 
@@ -3106,7 +3521,8 @@ export function HomeHubChatBar() {
           >
             <HubPackagingFaceActions
               locale={uiLocale}
-              slot={packagingFaceSlot}
+              variant={packagingFaceSlot.variant}
+              slot={packagingFaceSlot.slot}
               busy={busy}
               onSkip={() => void postStudio({ action: 'skip_packaging_face' })}
               onCopy={() => void postStudio({ action: 'copy_packaging_face' })}
@@ -3222,11 +3638,20 @@ export function HomeHubChatBar() {
             />
           ) : null}
 
-          {showStyleMoodPicker ? (
+          {showBagPanelConfirmActions ? (
+            <HubBoxFaceConfirmActions
+              locale={uiLocale}
+              busy={busy}
+              onConfirm={submitBagPanelConfirm}
+              onReenter={() => setReenteringBagSize(true)}
+            />
+          ) : null}
+
+          {showStyleMoodPicker && studioSession?.presetId ? (
             <HubDiscoveryChoicePicker
               locale={uiLocale}
-              title={presetStepLabel(uiLocale, 'packaging_kit', 'style_mood')}
-              hint={getStepAskPrompt(uiLocale, 'packaging_kit', 'style_mood')}
+              title={presetStepLabel(uiLocale, studioSession.presetId, 'style_mood')}
+              hint={getStepAskPrompt(uiLocale, studioSession.presetId, 'style_mood')}
               choices={PACKAGING_STYLE_MOOD_CHOICES}
               busy={busy}
               showCustomOption
@@ -3252,6 +3677,15 @@ export function HomeHubChatBar() {
               initialDimensionsMm={studioSession?.packaging?.dimensionsMm}
               initialProduction={studioSession?.packaging?.production}
               onSubmit={submitBoxDimensions}
+            />
+          ) : null}
+
+          {showBagDimensionForm ? (
+            <HubBagDimensionForm
+              locale={uiLocale}
+              busy={busy}
+              initialDimensionsMm={studioSession?.bagKit?.dimensionsMm}
+              onSubmit={submitBagDimensions}
             />
           ) : null}
 
@@ -3308,6 +3742,7 @@ export function HomeHubChatBar() {
               venueName={menuVenueDraft}
               logoUrl={studioSession?.foodMenu?.logoUrl}
               dishes={menuDishesDraft}
+              dishesBulkText={menuDishesBulkDraft}
               uploadImages={studioSession?.uploadImages ?? []}
               approvedMenuCount={foodMenuApprovedCount}
               busy={busy}
@@ -3317,21 +3752,77 @@ export function HomeHubChatBar() {
                 void submitMenuDesignSetup({
                   menuVenueName: text,
                   menuDishes: menuDishesDraft,
+                  menuDishesBulkText: menuDishesBulkDraft,
                   menuFormatPresetId: menuSelectedFormatId,
                 })
               }
               onUploadLogo={(files) => void postMenuLogoUpload(files)}
               onRemoveLogo={() => void postRemoveMenuLogo()}
               onDishesChange={setMenuDishesDraft}
+              onDishesBulkTextChange={setMenuDishesBulkDraft}
+              onDishesBulkTextCommit={(text) =>
+                void submitMenuDesignSetup({
+                  menuDishesBulkText: text,
+                  menuDishes: menuDishesDraft,
+                  menuFormatPresetId: menuSelectedFormatId,
+                  menuVenueName: menuVenueDraft,
+                })
+              }
               onDishesCommit={(dishes) =>
                 void submitMenuDesignSetup({
                   menuDishes: dishes,
+                  menuDishesBulkText: menuDishesBulkDraft,
                   menuFormatPresetId: menuSelectedFormatId,
                   menuVenueName: menuVenueDraft,
                 })
               }
               onUploadProductFiles={(files) => void postStudioUpload(files)}
               onFinishFlow={() => void postStudio({ action: 'menu_finish_flow' })}
+            />
+          ) : null}
+
+          {showLandingComposedPreview ? (
+            <HubLandingComposedPreview
+              locale={uiLocale}
+              title={landingComposedTitle}
+              logoUrl={studioSession?.landingPage?.logoUrl}
+              logoBrief={landingLogoDraft}
+              sections={landingComposedSections}
+              publishedShareUrl={studioSession?.landingPage?.publishedShareUrl}
+              busy={busy}
+              onLogoBriefChange={setLandingLogoDraft}
+              onUploadLogo={(files) => void postLandingLogoUpload(files)}
+              onRemoveLogo={() => void postRemoveLandingLogo()}
+              onGenerateLogo={(brief) => void postGenerateLandingLogo(brief)}
+              shareMenu={
+                <HubLandingShareMenu
+                  locale={uiLocale}
+                  title={landingComposedTitle}
+                  logoUrl={studioSession?.landingPage?.logoUrl}
+                  sections={landingComposedSections}
+                  threadId={threadId}
+                  onPublished={onLandingPublished}
+                />
+              }
+            />
+          ) : null}
+
+          {showLandingDesignPrepare && landingActiveStepKey && isLandingDesignStepKey(landingActiveStepKey) ? (
+            <HubLandingDesignPreparePanel
+              locale={uiLocale}
+              stepKey={landingActiveStepKey}
+              sectionCopy={landingSectionDraft}
+              logoUrl={studioSession?.landingPage?.logoUrl}
+              logoBrief={landingLogoDraft}
+              uploadImages={studioSession?.uploadImages ?? []}
+              approvedSectionCount={landingPageApprovedCount}
+              busy={busy}
+              onSectionCopyChange={setLandingSectionDraft}
+              onLogoBriefChange={setLandingLogoDraft}
+              onUploadLogo={(files) => void postLandingLogoUpload(files)}
+              onRemoveLogo={() => void postRemoveLandingLogo()}
+              onGenerateLogo={(brief) => void postGenerateLandingLogo(brief)}
+              onUploadProductFiles={(files) => void postStudioUpload(files)}
             />
           ) : null}
 
@@ -3375,113 +3866,6 @@ export function HomeHubChatBar() {
           ) : null}
         </div>
 
-        <div className="-mx-3 border-t border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-2.5 sm:-mx-5 sm:px-5 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-indigo-200 bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:border-indigo-800 dark:bg-slate-900/80 dark:text-indigo-300">
-              {hc.creditNote}
-            </span>
-            <span className="text-[11px] text-muted-foreground sm:text-xs">
-              {hc.modelLabel}:{' '}
-              <span className="font-medium text-slate-700 dark:text-slate-200">{modelLabel}</span>
-            </span>
-            {!threadsLoginRequired ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 gap-1 border-indigo-200 text-xs text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200"
-                onClick={() => {
-                  setShowThreadList((v) => !v)
-                  if (!threadsLoaded && !threadsLoading) void fetchThreadList()
-                }}
-                disabled={threadsLoading}
-              >
-                {threadsLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <History className="h-3.5 w-3.5" />
-                )}
-                {hc.chatHistory}
-                {chatThreads.length > 0 ? ` (${chatThreads.length})` : ''}
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 border-indigo-200 text-xs text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200"
-              onClick={startNewThread}
-              disabled={busy || (!threadId && lines.length === 0 && !studioSession)}
-            >
-              <MessageSquarePlus className="h-3.5 w-3.5" />
-              {hc.newThread}
-            </Button>
-            {isActiveStudioFlow(studioSession) ? (
-              <span className="text-[11px] text-muted-foreground">{hc.newThreadFlowHint}</span>
-            ) : null}
-          </div>
-          {showThreadList ? (
-            <div className="mt-2 rounded-lg border border-indigo-100 bg-white/70 px-2 py-2 dark:border-indigo-900 dark:bg-slate-900/50">
-              <p className="mb-1.5 px-1 text-xs font-medium text-indigo-900 dark:text-indigo-100">{hc.chatHistory}</p>
-              {threadsLoading ? (
-                <div className="flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {hc.thinking}
-                </div>
-              ) : chatThreads.length === 0 ? (
-                <p className="px-1 py-2 text-xs text-muted-foreground">{hc.chatHistoryEmpty}</p>
-              ) : (
-                <ul className="max-h-44 space-y-1 overflow-y-auto">
-                  {chatThreads.map((thread) => {
-                    const active = thread.id === threadId
-                    const subtitle =
-                      thread.presetId && thread.projectTitle
-                        ? presetTitle(uiLocale, thread.presetId)
-                        : thread.lastMessagePreview?.slice(0, 100) ?? null
-                    return (
-                      <li key={thread.id} className="flex items-stretch gap-0.5">
-                        <button
-                          type="button"
-                          disabled={busy || deletingThreadId === thread.id}
-                          onClick={() => void switchThread(thread.id)}
-                          className={`flex min-w-0 flex-1 flex-col rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:opacity-60 ${
-                            active
-                              ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-100'
-                              : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
-                          }`}
-                        >
-                          <span className="line-clamp-1 font-medium">{threadListLabel(thread, uiLocale)}</span>
-                          <span className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
-                            {formatThreadUpdatedAt(thread.updatedAt, uiLocale)}
-                            {subtitle ? ` · ${subtitle}` : null}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={hc.chatHistoryDelete}
-                          title={hc.chatHistoryDelete}
-                          disabled={busy || deletingThreadId === thread.id}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void deleteThread(thread.id)
-                          }}
-                          className="flex shrink-0 items-center justify-center rounded-md px-2 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/30 dark:hover:text-red-400"
-                        >
-                          {deletingThreadId === thread.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </div>
-          ) : null}
-        </div>
-
         {showGenerateCurrentStep ? (
           <div className="flex flex-col gap-1.5">
             {bannerGenerateMissingHints.length > 0 ? (
@@ -3494,10 +3878,18 @@ export function HomeHubChatBar() {
                 {menuGenerateMissingHints.join(' · ')}
               </p>
             ) : null}
+            {landingGenerateMissingHints.length > 0 ? (
+              <p className="text-xs text-indigo-800 dark:text-indigo-200">
+                {landingGenerateMissingHints.join(' · ')}
+              </p>
+            ) : null}
             <Button
               type="button"
               className="w-full gap-2 bg-violet-600 hover:bg-violet-700 sm:w-auto"
               disabled={busy || !canGenerateCurrentStep}
+              onMouseDown={(e) => {
+                e.preventDefault()
+              }}
               onClick={() => void generateCurrentStep()}
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
@@ -3577,7 +3969,21 @@ export function HomeHubChatBar() {
             </div>
           </div>
         ) : null}
+
+          <div className="-mx-3 border-t border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-2.5 sm:-mx-5 sm:px-5 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-indigo-200 bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:border-indigo-800 dark:bg-slate-900/80 dark:text-indigo-300">
+                {hc.creditNote}
+              </span>
+              <span className="text-[11px] text-muted-foreground sm:text-xs">
+                {hc.modelLabel}:{' '}
+                <span className="font-medium text-slate-700 dark:text-slate-200">{modelLabel}</span>
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+  </div>
   )
 }

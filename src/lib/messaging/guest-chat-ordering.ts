@@ -51,6 +51,10 @@ import {
 import { resolveStackedMessagingDiscountFromPg } from '@/lib/db/messaging-partner-loyalty-pg'
 import { guestAccountEmailMatchesAuthUserFromPg } from '@/lib/db/messaging-guest-pg'
 import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
+import {
+  emitPartnerOutboundOrderCreated,
+  emitPartnerOutboundPaymentPaid,
+} from '@/lib/messaging/partner-outbound-webhook-emit'
 
 const ORDER_THREAD_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -685,6 +689,7 @@ export async function completeOrderCheckout(input: {
     console.warn('[completeOrderCheckout] email', e)
   }
   queuePartnerOrderGoogleSheetsSync(input.partnerId, updated.id)
+  emitPartnerOutboundOrderCreated(input.partnerId, updated)
   return { ok: true, order: updated }
 }
 
@@ -904,6 +909,7 @@ export async function completeCartCheckout(input: {
     console.warn('[completeCartCheckout] email', e)
   }
   queuePartnerOrderGoogleSheetsSync(input.partnerId, updated.id)
+  emitPartnerOutboundOrderCreated(input.partnerId, updated)
   return { ok: true, order: updated }
 }
 
@@ -1243,5 +1249,8 @@ export async function verifyOrderPaymentProof(input: {
     }
   }
   queuePartnerOrderGoogleSheetsSync(input.partnerId, refreshed.id)
+  if (verification === 'verified') {
+    emitPartnerOutboundPaymentPaid(input.partnerId, refreshed)
+  }
   return { ok: true, order: refreshed, verification }
 }

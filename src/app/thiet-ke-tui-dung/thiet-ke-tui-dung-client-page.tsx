@@ -13,7 +13,7 @@ import {
   generateBagNetSvg,
   getBagNetBounds,
   type BagDimensions,
-} from './lib/bag-net-svg'
+} from '@/lib/packaging/bag-net-svg'
 import { generateBagNetPdf } from './actions'
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'

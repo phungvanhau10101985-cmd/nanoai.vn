@@ -1,14 +1,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { HUB_CHAT_CREDIT } from '@/lib/hub-chat/hub-chat-catalog'
-import {
-  formatBannerOnImageCopyForGeneration,
-  parseBannerOnImageCopy,
-} from '@/lib/hub-chat/banner-on-image-copy'
 import { buildBannerImageGenerationPrompt } from '@/lib/hub-chat/banner-image-prompt-builder'
 import { buildMenuImageGenerationPrompt } from '@/lib/hub-chat/menu-image-prompt-builder'
 import {
-  menuDishesHaveContent,
+  menuInputHasContent,
   normalizeMenuDishes,
   type MenuDishItem,
 } from '@/lib/hub-chat/menu-dish-items'
@@ -60,7 +56,19 @@ import {
   presetTitle,
   primaryLogoApproved,
 } from '@/lib/hub-chat/hub-studio-presets'
-import { hasSaleBannerDiscoveryBrief, SALE_BANNER_COPY_BRIEF_KEYS } from '@/lib/hub-chat/hub-studio-preset-flows'
+import {
+  hasSaleBannerDiscoveryBrief,
+  SALE_BANNER_COPY_BRIEF_KEYS,
+  hasLandingDiscoveryBrief,
+  hasLandingHeaderLogo,
+  isLandingDesignStepKey,
+  landingSectionHasCopy,
+  LANDING_DISCOVERY_BRIEF_KEYS,
+  normalizeLandingDesignStepKey,
+  readLandingSectionBrief,
+} from '@/lib/hub-chat/hub-studio-preset-flows'
+import { buildLandingStructuredImagePrompt, buildLandingLogoGenerationPrompt } from '@/lib/hub-chat/landing-page-prompt-builder'
+import { resolveLandingImageGenerationPrompt } from '@/lib/hub-chat/landing-page-ai-prompt-optimizer'
 import {
   applySuggestedPreset,
   appendCurrentDiscoveryAsk,
@@ -83,7 +91,7 @@ import {
   isHighConfidenceFlowSwitch,
 } from '@/lib/hub-chat/hub-studio-flow-classifier'
 import { classifyFeatureIntentWithAi } from '@/lib/hub-chat/hub-feature-intent-classifier'
-import { matchFeatureFlowByMessage } from '@/lib/hub-chat/hub-feature-flow-registry'
+import { matchFeatureFlowByMessage, resolveIdleFeatureMatch, isShortAffirmativeReply } from '@/lib/hub-chat/hub-feature-flow-registry'
 import {
   buildFullFeatureCatalogForBrain,
   getHubFeatureCatalogEntry,
@@ -217,7 +225,8 @@ import {
 import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
 import { formatMmSize } from '@/lib/packaging/face-crop-size'
 import {
-  applyPackagingSessionLabels,
+  applyStudioSessionLabels,
+  applyBagSessionLabels,
   resolvePackagingStepLabel,
 } from '@/lib/packaging/packaging-face-labels'
 import { generateBarcodeLabelBuffer } from '@/lib/barcode/generate-barcode-label'
@@ -339,6 +348,30 @@ import {
   parseBoxDielineStructure,
   type BoxDielineStructure,
 } from '@/lib/packaging/dieline-structure'
+import {
+  advanceBagDiscoveryAfterBriefAnswer,
+  advanceAfterBagFaceStep,
+  applyBagFaceSlotToSession,
+  bagKitPanelConfirmStudioExtras,
+  bagKitStartBriefNotes,
+  bagStepKeyToSlot,
+  buildBagSizeConfirmReply,
+  completeBagPanelConfirmSession,
+  copySourceUrlForBagSlot,
+  emptyBagKitState,
+  isBagFaceReEdit,
+  isBagKitPreset,
+  isFirstBagFaceStep,
+  resolveBagFacePrintSizeMm,
+  runBagDielineExport,
+  runBagMockupGeneration,
+} from '@/lib/hub-chat/bag-kit-handler'
+import {
+  formatBagBriefSize,
+  isBagFaceStepKey,
+  normalizeBagDimensionsMm,
+  parseBagDimensions,
+} from '@/lib/packaging/bag-dimensions'
 
 export type HubStudioAction =
   | 'message'
@@ -373,7 +406,15 @@ export type HubStudioAction =
   | 'banner_finish_flow'
   | 'set_menu_design_setup'
   | 'menu_finish_flow'
+  | 'upload_landing_logo'
+  | 'remove_landing_logo'
+  | 'generate_landing_logo'
+  | 'set_landing_design_setup'
+  | 'set_landing_publish_url'
+  | 'set_landing_html_source'
   | 'confirm_box_face'
+  | 'set_bag_dimensions'
+  | 'confirm_bag_panel'
   | 'set_discovery_choice'
   | 'set_color_palette'
   | 'set_box_production'
@@ -411,13 +452,20 @@ export type HubStudioHandlerInput = {
   bannerBatchIndex?: number
   menuFormatPresetId?: string
   menuDishes?: MenuDishItem[]
+  menuDishesBulkText?: string
   menuVenueName?: string
+  landingSectionCopy?: string
+  landingLogoBrief?: string
+  landingPublishedShareUrl?: string
+  landingPublishedShareToken?: string
+  landingHtmlSource?: string
   discoveryChoice?: string
   discoveryChoiceStep?: string
   colorPaletteKeys?: string[]
   colorPaletteSelection?: StudioColorSelection[]
   boxDielineStructure?: string
   boxDimensionsMm?: Partial<BoxDimensionsMm>
+  bagDimensionsMm?: Partial<{ width: number; height: number; gusset: number }>
   boxProduction?: Partial<TuckBoxProductionParams>
   barcodeEntries?: PackagingBarcodeFormEntry[]
   cropSizeMm?: { width: number; height: number }
@@ -457,6 +505,10 @@ export type HubStudioHandlerResult = {
     confidence: number
   }
   showFeaturePicker?: boolean
+}
+
+function isPackagingLikePreset(presetId: string | null | undefined): boolean {
+  return presetId === 'packaging_kit' || presetId === 'bag_kit'
 }
 
 function langName(locale: WebLocale): string {
@@ -539,6 +591,29 @@ function advanceDiscoveryAfterBriefAnswer(
     ...packagingFacePrintStyleStudioExtras(locale, nextSession),
   }
   return { session: nextSession, reply, studio }
+}
+
+function advancePackagingLikeDiscoveryAfterBriefAnswer(
+  session: HubStudioSession,
+  locale: WebLocale,
+  stepKey: string,
+  briefValue: string,
+  confirmedReply: string
+): { session: HubStudioSession; reply: string; studio: HubStudioMessagePayload } {
+  if (isBagKitPreset(session.presetId)) {
+    const advanced = advanceBagDiscoveryAfterBriefAnswer(
+      session,
+      locale,
+      stepKey,
+      briefValue,
+      confirmedReply
+    )
+    return {
+      ...advanced,
+      session: applyBagSessionLabels(advanced.session, locale),
+    }
+  }
+  return advanceDiscoveryAfterBriefAnswer(session, locale, stepKey, briefValue, confirmedReply)
 }
 
 function completeBoxSizeDiscovery(session: HubStudioSession): HubStudioSession {
@@ -1110,7 +1185,8 @@ function stepLabel(session: HubStudioSession, key: string | null, locale: WebLoc
     key,
     locale,
     session.presetId,
-    session.packaging?.dimensionsMm ?? null
+    session.packaging?.dimensionsMm ?? null,
+    session.bagKit?.dimensionsMm ?? null
   )
 }
 
@@ -1276,7 +1352,7 @@ PRESET / PROJECT INTENT (hubRoute "design"):
 - intent "clarify": user wants design help but preset is ambiguous — suggestedPresetId empty, workflows empty; ask user to pick a feature chip from FULL FEATURE CATALOG.
 - intent "chat": unrelated to starting a design flow — suggestedPresetId empty.
 - When presetId is already set: suggestedPresetId must be empty string (do not switch preset mid-flow unless user explicitly asks to change project type — then clarify first).
-- Examples: "thiết kế app bán quần áo" → mobile_shop; "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; "ảnh thẻ linkedin" → profile_photo_pack.
+- Examples: "thiết kế app bán quần áo" → mobile_shop; "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; "ảnh thẻ linkedin" → profile_photo_pack; ANY invitation intent ("thiết kế thiệp mời", "tạo thiệp cưới", "thiệp mời") → hubRoute "workflow" + tool /tao-thiep-moi-cuoi-ai (NOT inline studio preset).
 
 RETRY / FLOW INTENT (YOU must classify — server does NOT parse fixed phrases):
 - Understand ANY natural wording (Vietnamese, English, voice-style, typos, short replies).
@@ -1357,8 +1433,14 @@ async function generateAsset(
   screenLabel: string,
   locale: WebLocale
 ): Promise<{ session: HubStudioSession; studio: HubStudioMessagePayload; chargedImage: number; error?: string }> {
+  const effectiveScreenKey =
+    session.presetId === 'landing_page'
+      ? normalizeLandingDesignStepKey(screenKey) ?? screenKey
+      : screenKey
+  const isLandingFull =
+    session.presetId === 'landing_page' && effectiveScreenKey === 'landing_full'
   const generator = session.presetId
-    ? getStepGenerator(session.presetId, screenKey)
+    ? getStepGenerator(session.presetId, effectiveScreenKey)
     : ('ui_mockup' as StudioGeneratorKind)
   let workSession = session
   if (
@@ -1386,7 +1468,10 @@ async function generateAsset(
 
   const t = getDictionary(locale).hubChat
   const skipLogoGate =
-    generator === 'packaging_mockup' || generator === 'dieline_pdf' || generator === 'barcode'
+    generator === 'packaging_mockup' ||
+    generator === 'dieline_pdf' ||
+    generator === 'bag_dieline_pdf' ||
+    generator === 'barcode'
   if (
     workSession.presetId &&
     !skipLogoGate &&
@@ -1411,6 +1496,33 @@ async function generateAsset(
       studio: { processSteps: workSession.processSteps },
       chargedImage: 0,
       error: t.studioNeedLogoReference,
+    }
+  }
+
+  if (generator === 'bag_dieline_pdf') {
+    const exported = await runBagDielineExport({
+      userId,
+      locale,
+      session: workSession,
+      screenKey,
+      screenLabel,
+      generationPrompt,
+    })
+    if (!exported.ok) {
+      return {
+        session: workSession,
+        studio: { processSteps: workSession.processSteps },
+        chargedImage: 0,
+        error:
+          exported.error === 'incomplete_faces'
+            ? incompletePackagingArtworkError(locale, false)
+            : exported.error,
+      }
+    }
+    return {
+      session: exported.session,
+      studio: exported.studio,
+      chargedImage: 0,
     }
   }
 
@@ -1501,6 +1613,32 @@ async function generateAsset(
   }
 
   if (generator === 'packaging_mockup') {
+    if (isBagKitPreset(workSession.presetId)) {
+      const exported = await runBagMockupGeneration({
+        userId,
+        locale,
+        session: workSession,
+        screenKey,
+        screenLabel,
+        generationPrompt,
+      })
+      if (!exported.ok) {
+        return {
+          session: workSession,
+          studio: { processSteps: workSession.processSteps },
+          chargedImage: 0,
+          error:
+            exported.error === 'incomplete_faces'
+              ? incompletePackagingArtworkError(locale, false)
+              : exported.error,
+        }
+      }
+      return {
+        session: exported.session,
+        studio: exported.studio,
+        chargedImage: exported.chargedImage,
+      }
+    }
     const dimensionsMm = workSession.packaging?.dimensionsMm
     if (!dimensionsMm || !allPackagingFaceSlotsCommitted(workSession.packaging)) {
       return {
@@ -1634,6 +1772,18 @@ async function generateAsset(
     }
     workSession = ensured.session
   }
+  if (generator === 'packaging_face' && isBagKitPreset(workSession.presetId)) {
+    const ensured = await ensurePackagingStyleBrief(userId, workSession)
+    if (ensured.error) {
+      return {
+        session: workSession,
+        studio: { processSteps: workSession.processSteps },
+        chargedImage: 0,
+        error: ensured.error,
+      }
+    }
+    workSession = ensured.session
+  }
 
   const { referenceUrls: pickedRefs, productUrls: pickedProducts } = resolveGenerationAttachments(
     workSession,
@@ -1666,7 +1816,9 @@ async function generateAsset(
     briefExcludeKeys = ['brand_name', ...(logoStepKey ? [logoStepKey] : [])]
   }
   if (generator === 'packaging_face') {
-    const isFirstFace = isFirstPackagingFaceStep(screenKey)
+    const isFirstFace = isBagKitPreset(workSession.presetId)
+      ? isFirstBagFaceStep(screenKey)
+      : isFirstPackagingFaceStep(screenKey)
     briefExcludeKeys = [
       ...(briefExcludeKeys ?? []),
       ...(isFirstFace
@@ -1689,16 +1841,23 @@ async function generateAsset(
 
   let fullPrompt = appendReferenceContext(
     workSession,
-    appendBriefToPrompt(workSession, faceVisualPrompt, screenKey, briefExcludeKeys),
+    isLandingFull
+      ? faceVisualPrompt
+      : appendBriefToPrompt(workSession, faceVisualPrompt, effectiveScreenKey, briefExcludeKeys),
     workSession.presetId,
     {
       generator,
       attachedRefUrls: refUrls,
-      targetStepKey: screenKey,
+      targetStepKey: effectiveScreenKey,
       hasProductRefs: productUrls.length > 0,
     }
   )
-  let aspectRatio = workSession.presetId ? getStepAspectRatio(workSession.presetId, screenKey) : undefined
+  let aspectRatio = workSession.presetId
+    ? getStepAspectRatio(workSession.presetId, effectiveScreenKey)
+    : undefined
+  if (isLandingFull && !aspectRatio) {
+    aspectRatio = '1:4'
+  }
   if (generator === 'banner' && workSession.presetId === 'sale_banner' && workSession.bannerAd?.aspectRatio) {
     aspectRatio = normalizeBannerAspectRatioForGemini(workSession.bannerAd.aspectRatio)
   }
@@ -1708,6 +1867,36 @@ async function generateAsset(
   let printSizeMm: { widthMm: number; heightMm: number } | undefined
 
   if (generator === 'packaging_face') {
+    if (isBagKitPreset(workSession.presetId)) {
+      const printSize = resolveBagFacePrintSizeMm(workSession, screenKey)
+      if (!printSize) {
+        return {
+          session: workSession,
+          studio: { processSteps: workSession.processSteps },
+          chargedImage: 0,
+          error: boxSizeError(locale, 'format'),
+        }
+      }
+      printSizeMm = printSize
+      aspectRatio = getFaceGeminiAspectRatio(printSize.widthMm, printSize.heightMm)
+      fullPrompt += `\n\nFlat paper bag panel (front or back) — full bleed print artwork only, NOT a 3D bag mockup. Both panels are ${printSize.widthMm}×${printSize.heightMm} mm.`
+      if (isFirstBagFaceStep(screenKey)) {
+        fullPrompt = appendPackagingFaceOneStylePrompt(fullPrompt, workSession)
+      } else {
+        const styleBrief = workSession.bagKit?.packagingStyleBrief?.trim()
+        if (styleBrief) {
+          fullPrompt += `\n\n${formatPackagingStyleBriefBlock(styleBrief, workSession.bagKit?.packagingStyleBriefSource)}`
+        } else {
+          const printStyle = resolveFacePrintStyle(workSession.briefNotes)
+          fullPrompt += `\n\n${facePrintStylePromptBlock(printStyle)}`
+        }
+      }
+      if (hasApprovedLogoRef) {
+        fullPrompt += `\n\n${PACKAGING_FACE_APPROVED_LOGO_RULES}`
+      }
+      fullPrompt = appendPackagingPrintLanguagePrompt(fullPrompt, workSession.briefNotes)
+      fullPrompt = stripPackagingFaceTechnicalMeasurementsFromVisualPrompt(fullPrompt)
+    } else {
     const faceKey = packagingFaceKeyFromStep(screenKey)
     const faceSlot = packagingStepKeyToSlot(screenKey)
     const box = workSession.packaging?.dimensionsMm
@@ -1766,6 +1955,7 @@ async function generateAsset(
     }
     fullPrompt = appendPackagingPrintLanguagePrompt(fullPrompt, workSession.briefNotes)
     fullPrompt = stripPackagingFaceTechnicalMeasurementsFromVisualPrompt(fullPrompt)
+    }
   }
 
   if (isLogoOnlyReferenceStepKey(screenKey)) {
@@ -1803,14 +1993,6 @@ async function generateAsset(
     }
   }
 
-  if (generator === 'banner' && workSession.bannerAd?.overlayText?.trim()) {
-    const bannerLogoUrl = workSession.bannerAd?.logoUrl?.trim()
-    const parsed = parseBannerOnImageCopy(workSession.bannerAd.overlayText)
-    const onBannerCopy = formatBannerOnImageCopyForGeneration(parsed, {
-      omitDomain: Boolean(bannerLogoUrl),
-    })
-    fullPrompt += `\n\nRequired on-banner text (plain text only — no quotation marks on the image):\n${onBannerCopy}`
-  }
   if (generator === 'banner' && workSession.presetId === 'sale_banner') {
     const bannerLogoUrl = workSession.bannerAd?.logoUrl?.trim()
     const styleAnchorUrl = workSession.bannerAd?.batchStyleAnchorUrl?.trim()
@@ -1838,8 +2020,6 @@ async function generateAsset(
 
   if (generator === 'banner' && workSession.presetId === 'food_menu') {
     const menuLogoUrl = workSession.foodMenu?.logoUrl?.trim()
-    const venueName =
-      workSession.foodMenu?.venueName?.trim() || workSession.briefNotes.venue_name?.trim()
     if (menuLogoUrl) {
       productUrls = productUrls.filter((u) => u !== menuLogoUrl)
       if (!refUrls.includes(menuLogoUrl)) {
@@ -1847,8 +2027,20 @@ async function generateAsset(
       }
       fullPrompt += `\n\nIMPORTANT — LOGO COMPOSITE: The attached brand LOGO image — embed it exactly as provided (use the actual logo pixels). Place it prominently on the menu header (typically top-center or top-left). Do NOT redraw or recreate the logo.`
     }
-    if (venueName) {
-      fullPrompt += `\n\nVenue / brand name to print prominently on the menu header: ${venueName}`
+  }
+
+  if (
+    (generator === 'banner' || generator === 'ui_mockup') &&
+    workSession.presetId === 'landing_page'
+  ) {
+    const landingLogoUrl = workSession.landingPage?.logoUrl?.trim()
+    const landingScreenKey = normalizeLandingDesignStepKey(screenKey) ?? screenKey
+    if (landingLogoUrl && landingScreenKey === 'landing_full') {
+      productUrls = productUrls.filter((u) => u !== landingLogoUrl)
+      if (!refUrls.includes(landingLogoUrl)) {
+        refUrls = [landingLogoUrl, ...refUrls]
+      }
+      fullPrompt += `\n\nIMPORTANT — LOGO COMPOSITE: The attached brand LOGO image — embed it exactly as provided (use the actual logo pixels). Place it in the landing header / top nav (top-left or top-center). Do NOT redraw, re-typeset, or recreate the logo.`
     }
   }
 
@@ -1864,7 +2056,10 @@ async function generateAsset(
   if (generatorUsesUpload(generator) && generator !== 'product_photo' && !productUrls.length) {
     const preset = session.presetId ? getStudioPreset(session.presetId) : null
     const bannerPromptOnly =
-      (session.presetId === 'sale_banner' || session.presetId === 'food_menu') && generator === 'banner'
+      (session.presetId === 'sale_banner' ||
+        session.presetId === 'food_menu' ||
+        session.presetId === 'landing_page') &&
+      (generator === 'banner' || generator === 'ui_mockup')
     if (preset?.needsUpload && !bannerPromptOnly) {
       const t = getDictionary(locale).hubChat
       return {
@@ -1908,12 +2103,11 @@ async function generateAsset(
     }
   }
 
-  const gen = await runStudioImagePipeline({
+  const pipelineInputBase = {
     userId,
     kind: generator,
     screenLabel,
-    screenKey,
-    brief: fullPrompt,
+    screenKey: effectiveScreenKey,
     projectTitle: workSession.projectTitle,
     referenceImageUrls: refUrls,
     referenceImageMeta: refUrls.map((url) => {
@@ -1935,6 +2129,14 @@ async function generateAsset(
       if (menuLogoUrl && url === menuLogoUrl) {
         return { screenKey: 'menu_logo', label: 'Brand logo' }
       }
+      const landingLogoUrl =
+        (generator === 'banner' || generator === 'ui_mockup') &&
+        workSession.presetId === 'landing_page'
+          ? workSession.landingPage?.logoUrl?.trim()
+          : ''
+      if (landingLogoUrl && url === landingLogoUrl) {
+        return { screenKey: 'landing_logo', label: 'Brand logo' }
+      }
       if (styleAnchorUrl && url === styleAnchorUrl) {
         return { screenKey: 'banner_style_anchor', label: 'Campaign style anchor' }
       }
@@ -1947,15 +2149,58 @@ async function generateAsset(
       return { screenKey: '', label: '' }
     }),
     productImageUrls: productUrls.length ? productUrls : undefined,
-    aspectRatio,
     printSizeMm,
-  })
-  if (!gen.ok) {
-    return { session: workSession, studio: { processSteps: workSession.processSteps }, chargedImage: 0, error: gen.error }
+    verbatimPrompt: isLandingFull,
+  }
+
+  let gen: Awaited<ReturnType<typeof runStudioImagePipeline>> | null = null
+  let lastPipelineError = ''
+
+  if (isLandingFull) {
+    const structuredFallback = buildLandingStructuredImagePrompt({
+      locale,
+      session: workSession,
+      sectionCopy:
+        readLandingSectionBrief('landing_full', workSession.briefNotes) ||
+        generationPrompt.slice(0, 800),
+      stepLabel: screenLabel,
+    })
+    const promptAttempts = [fullPrompt, structuredFallback].filter(
+      (value, index, arr) => arr.indexOf(value) === index
+    )
+    const ratioAttempts = aspectRatio === '9:16' ? ['9:16'] : [aspectRatio ?? '1:4', '9:16']
+    for (const briefAttempt of promptAttempts) {
+      for (const ratioAttempt of ratioAttempts) {
+        gen = await runStudioImagePipeline({
+          ...pipelineInputBase,
+          brief: briefAttempt,
+          aspectRatio: ratioAttempt,
+        })
+        if (gen.ok) break
+        lastPipelineError = gen.error
+      }
+      if (gen?.ok) break
+    }
+  } else {
+    gen = await runStudioImagePipeline({
+      ...pipelineInputBase,
+      brief: fullPrompt,
+      aspectRatio,
+      verbatimPrompt: false,
+    })
+  }
+
+  if (!gen?.ok) {
+    return {
+      session: workSession,
+      studio: { processSteps: workSession.processSteps },
+      chargedImage: 0,
+      error: lastPipelineError || gen?.error || 'AI không trả về ảnh.',
+    }
   }
 
   const pending: HubStudioSession['pendingPreview'] = {
-    screenKey,
+    screenKey: effectiveScreenKey,
     screenLabel,
     url: gen.resultUrl,
     generationPrompt,
@@ -1974,7 +2219,7 @@ async function generateAsset(
     session: nextSession,
     studio: {
       imageUrl: gen.resultUrl,
-      screenKey,
+      screenKey: effectiveScreenKey,
       screenLabel,
       previewKind,
       aspectHint,
@@ -2604,12 +2849,10 @@ async function generateSaleBannerBatch(input: {
       batchCount: 0,
     }
   }
-  const built = await buildBannerImageGenerationPrompt({
-    apiKey: input.apiKey,
-    userId: input.userId,
+  const built = buildBannerImageGenerationPrompt({
     locale: input.locale,
     briefNotes: workSession.briefNotes,
-    draft,
+    overlayText: workSession.bannerAd?.overlayText,
     presetId: primary.presetId,
     aspectRatio: primary.aspectRatio,
     adChannelLabel: primary.adChannelLabel,
@@ -2739,20 +2982,25 @@ async function generateSaleBannerBatch(input: {
 
 function mergeMenuDesignInputIntoSession(
   session: HubStudioSession,
-  input: Pick<HubStudioHandlerInput, 'menuFormatPresetId' | 'menuDishes' | 'menuVenueName'>
+  input: Pick<
+    HubStudioHandlerInput,
+    'menuFormatPresetId' | 'menuDishes' | 'menuDishesBulkText' | 'menuVenueName'
+  >
 ): HubStudioSession {
   if (session.presetId !== 'food_menu' || session.currentStepKey !== 'menu_design') {
     return session
   }
   const hasFormat = input.menuFormatPresetId !== undefined
   const hasDishes = input.menuDishes !== undefined
+  const hasBulkText = input.menuDishesBulkText !== undefined
   const hasVenue = input.menuVenueName !== undefined
-  if (!hasFormat && !hasDishes && !hasVenue) {
+  if (!hasFormat && !hasDishes && !hasBulkText && !hasVenue) {
     return session
   }
 
   const formatRaw = hasFormat ? normalizeMenuFormatPresetId(String(input.menuFormatPresetId)) : ''
   const dishesRaw = hasDishes ? normalizeMenuDishes(input.menuDishes!) : undefined
+  const bulkTextRaw = hasBulkText ? String(input.menuDishesBulkText) : undefined
   const venueRaw = hasVenue ? String(input.menuVenueName).trim() : undefined
 
   const prev = session.foodMenu
@@ -2770,6 +3018,34 @@ function mergeMenuDesignInputIntoSession(
       venueName: venueRaw !== undefined ? venueRaw || undefined : prev?.venueName,
       logoUrl: prev?.logoUrl,
       dishes: dishesRaw !== undefined ? dishesRaw : prev?.dishes,
+      dishesBulkText:
+        bulkTextRaw !== undefined ? bulkTextRaw : prev?.dishesBulkText,
+    },
+  }
+}
+
+function mergeLandingDesignInputIntoSession(
+  session: HubStudioSession,
+  input: Pick<HubStudioHandlerInput, 'landingSectionCopy'>
+): HubStudioSession {
+  const rawKey = session.currentStepKey
+  const stepKey =
+    session.presetId === 'landing_page' && rawKey
+      ? normalizeLandingDesignStepKey(rawKey) ?? rawKey
+      : rawKey
+  if (session.presetId !== 'landing_page' || !stepKey || !isLandingDesignStepKey(stepKey)) {
+    return session
+  }
+  if (input.landingSectionCopy === undefined) {
+    return stepKey !== rawKey ? { ...session, currentStepKey: stepKey } : session
+  }
+  const copy = String(input.landingSectionCopy).trim()
+  return {
+    ...session,
+    currentStepKey: stepKey,
+    briefNotes: {
+      ...session.briefNotes,
+      [stepKey]: copy,
     },
   }
 }
@@ -2798,7 +3074,8 @@ async function generateFoodMenu(input: {
     }
   }
   const dishes = normalizeMenuDishes(workSession.foodMenu?.dishes ?? [])
-  if (!menuDishesHaveContent(dishes)) {
+  const dishesBulkText = workSession.foodMenu?.dishesBulkText?.trim() ?? ''
+  if (!menuInputHasContent(dishes, dishesBulkText)) {
     return {
       ok: false,
       session: workSession,
@@ -2812,6 +3089,7 @@ async function generateFoodMenu(input: {
       ...workSession.foodMenu,
       formatPresetId: formatId,
       dishes,
+      dishesBulkText: dishesBulkText || undefined,
     },
   }
   const preset = getMenuFormatPresetById(formatId)
@@ -2819,12 +3097,11 @@ async function generateFoodMenu(input: {
   const venueName =
     workSession.foodMenu?.venueName?.trim() || workSession.briefNotes.venue_name?.trim() || ''
   const hasLogo = Boolean(workSession.foodMenu?.logoUrl?.trim())
-  const built = await buildMenuImageGenerationPrompt({
-    apiKey: input.apiKey,
-    userId: input.userId,
+  const built = buildMenuImageGenerationPrompt({
     locale: input.locale,
     briefNotes: workSession.briefNotes,
     dishes,
+    dishesBulkText,
     formatPresetId: formatId,
     aspectRatio: preset.aspectRatio,
     formatLabel,
@@ -2886,18 +3163,24 @@ async function finishApprove(
       previousCurrentStepKey !== pending.screenKey
   )
   const isInPlaceFaceReEdit =
-    session.presetId === 'packaging_kit' && isPackagingFaceReEdit(session, pending.screenKey)
+    (session.presetId === 'packaging_kit' && isPackagingFaceReEdit(session, pending.screenKey)) ||
+    (isBagKitPreset(session.presetId) && isBagFaceReEdit(session, pending.screenKey))
   const generator = getStepGenerator(session.presetId, pending.screenKey)
   const isAudio = generator === 'lyria_music'
   const isPackagingFace =
     session.presetId === 'packaging_kit' &&
     generator === 'packaging_face' &&
     isPackagingFaceStepKey(pending.screenKey)
+  const isBagFace =
+    isBagKitPreset(session.presetId) &&
+    generator === 'packaging_face' &&
+    isBagFaceStepKey(pending.screenKey)
   const keepAsReference =
     !isAudio &&
     generator !== 'barcode' &&
     !isPackagingContinueOnlyApproveStep(pending.screenKey) &&
     !isPackagingFace &&
+    !isBagFace &&
     shouldKeepMobileShopReferenceOnApprove(session, pending.screenKey, generator)
 
   let nextSession: HubStudioSession = {
@@ -3046,11 +3329,44 @@ async function finishApprove(
     }
   }
 
+  if (isBagKitPreset(session.presetId) && (!isRestoringReference || isInPlaceFaceReEdit)) {
+    const slot = bagStepKeyToSlot(pending.screenKey)
+    if (slot) {
+      nextSession = applyBagFaceSlotToSession(nextSession, pending.screenKey, {
+        sourceMode: 'generate',
+        url: pending.url,
+      })
+    } else if (pending.screenKey === 'bag_mockup_3d') {
+      const existing = nextSession.bagKit ?? emptyBagKitState()
+      nextSession = {
+        ...nextSession,
+        bagKit: {
+          ...existing,
+          mockupUrl: existing.mockupUrl ?? pending.url,
+          mockupPhotoUrl:
+            existing.mockupPhotoUrl ??
+            (existing.mockupUrl && pending.url !== existing.mockupUrl ? pending.url : undefined),
+        },
+      }
+    } else if (pending.screenKey === 'bag_dieline_pdf') {
+      nextSession = {
+        ...nextSession,
+        bagKit: {
+          ...(nextSession.bagKit ?? emptyBagKitState()),
+          dielineUrl: pending.url,
+        },
+      }
+    }
+  }
+
   let next: HubStudioProcessStep | null = null
   const reEditStay = Boolean(
-    session.presetId === 'packaging_kit' &&
+    (session.presetId === 'packaging_kit' &&
       isPackagingFaceReEdit(session, pending.screenKey) &&
-      pending.screenKey === previousCurrentStepKey
+      pending.screenKey === previousCurrentStepKey) ||
+      (isBagKitPreset(session.presetId) &&
+        isBagFaceReEdit(session, pending.screenKey) &&
+        pending.screenKey === previousCurrentStepKey)
   )
   const navigatedBackStay =
     session.presetId &&
@@ -3106,7 +3422,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
   const action: HubStudioAction = input.action ?? 'message'
   let session = (await pgGetHubThreadSession(input.threadId)) ?? emptyStudioSession()
   session = reconcilePackagingProcessSteps(session, input.locale)
-  session = applyPackagingSessionLabels(session, input.locale)
+  session = applyStudioSessionLabels(session, input.locale)
   let reply = ''
   let studio: HubStudioMessagePayload | undefined
   let chargedChat = 0
@@ -3333,11 +3649,14 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
                     : {}),
                 }
               })()
-            : {},
+            : presetId === 'bag_kit'
+              ? bagKitStartBriefNotes(input.locale)
+              : {},
         uploadImages: [],
         packaging: presetId === 'packaging_kit'
           ? { version: 2, layout: 'six_faces', dimensionsMm: null, faces: {} }
           : undefined,
+        bagKit: presetId === 'bag_kit' ? emptyBagKitState() : undefined,
       }
       await pgSaveHubThreadSession(input.threadId, session)
       const firstKey = steps[0]?.key ?? ''
@@ -3414,11 +3733,14 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
                   : {}),
               }
             })()
-          : {},
+          : presetId === 'bag_kit'
+            ? bagKitStartBriefNotes(input.locale)
+            : {},
       uploadImages: [],
       packaging: presetId === 'packaging_kit'
         ? { version: 2, layout: 'six_faces', dimensionsMm: null, faces: {} }
         : undefined,
+      bagKit: presetId === 'bag_kit' ? emptyBagKitState() : undefined,
     }
     await pgSaveHubThreadSession(input.threadId, session)
     const firstKey = steps[0]?.key ?? ''
@@ -3446,6 +3768,9 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
     const { presetId, stepKey, generator } = currentDesignStep
+    if (session.currentStepKey !== stepKey) {
+      session = { ...session, currentStepKey: stepKey }
+    }
     session = clearStalePendingForArtifactGenerate(session, stepKey)
     if (presetId === 'sale_banner' && stepKey === 'banner_design') {
       session = mergeBannerDesignInputIntoSession(session, input)
@@ -3453,6 +3778,10 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
     if (presetId === 'food_menu' && stepKey === 'menu_design') {
       session = mergeMenuDesignInputIntoSession(session, input)
+      await pgSaveHubThreadSession(input.threadId, session)
+    }
+    if (presetId === 'landing_page' && isLandingDesignStepKey(stepKey)) {
+      session = mergeLandingDesignInputIntoSession(session, input)
       await pgSaveHubThreadSession(input.threadId, session)
     }
     if (pendingPreviewBlocksWorkflowInput(session)) {
@@ -3553,7 +3882,11 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         }
       }
       const dishes = normalizeMenuDishes(input.menuDishes ?? session.foodMenu?.dishes ?? [])
-      if (!menuDishesHaveContent(dishes)) {
+      const dishesBulkText =
+        input.menuDishesBulkText !== undefined
+          ? String(input.menuDishesBulkText)
+          : session.foodMenu?.dishesBulkText ?? ''
+      if (!menuInputHasContent(dishes, dishesBulkText)) {
         return {
           ok: false,
           reply: '',
@@ -3566,6 +3899,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       session = mergeMenuDesignInputIntoSession(session, {
         menuFormatPresetId: formatId,
         menuDishes: dishes,
+        menuDishesBulkText: dishesBulkText,
       })
       const label = stepLabel(session, stepKey, input.locale)
       const generated = await generateFoodMenu({
@@ -3606,16 +3940,41 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
     let prompt = session.briefNotes[stepKey]?.trim() ?? ''
+    if (input.landingSectionCopy?.trim() && presetId === 'landing_page') {
+      prompt = input.landingSectionCopy.trim()
+      session = saveCurrentStudioStepBrief(session, prompt)
+    }
     const canRunWithoutBrief =
       generator === 'packaging_mockup' || generator === 'dieline_pdf'
-    if (!generator || (!canRunWithoutBrief && prompt.length < 2)) {
+    const landingCopyReady =
+      presetId === 'landing_page' &&
+      isLandingDesignStepKey(stepKey) &&
+      landingSectionHasCopy(stepKey, session.briefNotes, prompt)
+    if (
+      presetId === 'landing_page' &&
+      stepKey === 'landing_full' &&
+      !hasLandingHeaderLogo(session.landingPage)
+    ) {
       return {
         ok: false,
         reply: '',
         session,
         threadId: input.threadId,
         chargedChat: 0,
-        error: t.studioNoPrompt,
+        error: t.studioLandingNeedLogo,
+      }
+    }
+    if (!generator || (!canRunWithoutBrief && !landingCopyReady && prompt.length < 2)) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error:
+          presetId === 'landing_page' && isLandingDesignStepKey(stepKey)
+            ? t.studioLandingNeedCopy
+            : t.studioNoPrompt,
       }
     }
     if (input.message?.trim()) {
@@ -3627,14 +3986,36 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       })
     }
     const label = stepLabel(session, stepKey, input.locale)
-    const generationPrompt = buildDesignPromptFromMessage(
-      session,
-      presetId,
-      stepKey,
-      prompt || label,
-      input.locale
-    )
-    const generated = await generateAsset(
+    const resolvedLandingCopy =
+      presetId === 'landing_page' && isLandingDesignStepKey(stepKey)
+        ? prompt ||
+          (stepKey === 'landing_full' && hasLandingDiscoveryBrief(session.briefNotes)
+            ? LANDING_DISCOVERY_BRIEF_KEYS.map((k) => session.briefNotes[k]?.trim())
+                .filter(Boolean)
+                .join(' · ')
+            : label)
+        : prompt || label
+    let generationPrompt: string
+    if (presetId === 'landing_page' && isLandingDesignStepKey(stepKey)) {
+      const landingPrompt = await resolveLandingImageGenerationPrompt({
+        userId: input.userId,
+        apiKey: input.apiKey,
+        locale: input.locale,
+        session,
+        sectionCopy: resolvedLandingCopy,
+        stepLabel: label,
+      })
+      generationPrompt = landingPrompt.prompt
+    } else {
+      generationPrompt = buildDesignPromptFromMessage(
+        session,
+        presetId,
+        stepKey,
+        prompt || label,
+        input.locale
+      )
+    }
+    let generated = await generateAsset(
       input.userId,
       session,
       generationPrompt,
@@ -3650,11 +4031,13 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         ? deterministicPackagingGeneratedReply(input.locale, label)
         : t.studioGeneratedStep.replace('{screen}', label)
     await pgSaveHubThreadSession(input.threadId, session)
-    await upsertHubStudioImageMessage({
-      threadId: input.threadId,
-      content: reply,
-      studio,
-    })
+    if (!generated.error) {
+      await upsertHubStudioImageMessage({
+        threadId: input.threadId,
+        content: reply,
+        studio,
+      })
+    }
     return {
       ok: !generated.error,
       reply,
@@ -3788,8 +4171,91 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
 
   if (action === 'skip_packaging_face' || action === 'copy_packaging_face') {
     const stepKey = session.currentStepKey
+    if (!stepKey || session.pendingPreview || !session.discoveryComplete) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+
+    if (isBagKitPreset(session.presetId)) {
+      if (!isBagFaceStepKey(stepKey)) {
+        return {
+          ok: false,
+          reply: '',
+          session,
+          threadId: input.threadId,
+          chargedChat: 0,
+          error: t.errorGeneric,
+        }
+      }
+      const slot = bagStepKeyToSlot(stepKey)
+      if (!slot) {
+        return {
+          ok: false,
+          reply: '',
+          session,
+          threadId: input.threadId,
+          chargedChat: 0,
+          error: t.errorGeneric,
+        }
+      }
+      let entry: { sourceMode: 'empty' | 'copy'; url?: string }
+      let addReference = false
+      if (action === 'copy_packaging_face') {
+        const sourceUrl = copySourceUrlForBagSlot(session.bagKit, slot)
+        if (!sourceUrl) {
+          return {
+            ok: false,
+            reply: '',
+            session,
+            threadId: input.threadId,
+            chargedChat: 0,
+            error: t.errorGeneric,
+          }
+        }
+        entry = { sourceMode: 'copy', url: sourceUrl }
+        addReference = true
+      } else {
+        entry = { sourceMode: 'empty' }
+      }
+      const label = stepLabel(session, stepKey, input.locale)
+      const stayOnStep =
+        isNavigatedBackEdit(session, session.presetId!) || isBagFaceReEdit(session, stepKey)
+      const advanced = advanceAfterBagFaceStep(
+        session,
+        stepKey,
+        label,
+        input.locale,
+        entry,
+        addReference,
+        { stayOnStep }
+      )
+      session = applyBagSessionLabels(advanced.session, input.locale)
+      reply = advanced.reply
+      studio = {
+        processSteps: session.processSteps,
+        ...buildReferencePreviewsPayload(session),
+        ...(session.currentStepKey
+          ? buildGenerationRefPickerPayload(session, 'bag_kit', session.currentStepKey)
+          : {}),
+      }
+      await pgSaveHubThreadSession(input.threadId, session)
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'assistant',
+        content: reply,
+        studio,
+      })
+      return { ok: true, reply, studio, session, threadId: input.threadId, chargedChat: 0 }
+    }
+
     const slot = stepKey ? packagingStepKeyToSlot(stepKey) : null
-    if (session.presetId !== 'packaging_kit' || !stepKey || !slot || session.pendingPreview) {
+    if (session.presetId !== 'packaging_kit' || !slot) {
       return {
         ok: false,
         reply: '',
@@ -3908,7 +4374,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       briefNotes: { ...session.briefNotes, box_size: userValue },
     }
     if (dimensionsChanged) session = invalidatePackagingForDimensionChange(session)
-    session = applyPackagingSessionLabels(session, input.locale)
+    session = applyStudioSessionLabels(session, input.locale)
     if (fromFaceConfirm) {
       const confirmed = buildBoxSizeConfirmReply(input.locale, dimensionsMm, session.processSteps, production)
       reply = confirmed.reply
@@ -3936,7 +4402,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
     session = completeBoxSizeDiscovery(session)
-    session = applyPackagingSessionLabels(session, input.locale)
+    session = applyStudioSessionLabels(session, input.locale)
     const confirmed = buildBoxSizeConfirmReply(input.locale, dimensionsMm, session.processSteps, production)
     reply = confirmed.reply
     await pgSaveHubThreadSession(input.threadId, session)
@@ -4140,7 +4606,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const styleKey = parseFacePrintStyleKey(input.facePrintStyle)
     if (
       !styleKey ||
-      session.presetId !== 'packaging_kit' ||
+      !isPackagingLikePreset(session.presetId) ||
       session.currentStepKey !== FACE_PRINT_STYLE_STEP_KEY
     ) {
       return {
@@ -4153,6 +4619,40 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
     const userLabel = facePrintStyleLabel(styleKey, input.locale)
+    const confirmedReply = t.studioFacePrintStyleConfirmed.replace('{style}', userLabel)
+    if (isBagKitPreset(session.presetId)) {
+      const advanced = advanceBagDiscoveryAfterBriefAnswer(
+        session,
+        input.locale,
+        FACE_PRINT_STYLE_STEP_KEY,
+        facePrintStyleBriefValue(styleKey),
+        confirmedReply
+      )
+      session = applyBagSessionLabels(advanced.session, input.locale)
+      reply = advanced.reply
+      studio = advanced.studio
+      await pgSaveHubThreadSession(input.threadId, session)
+      const userMessageId = await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'user',
+        content: userLabel,
+      })
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'assistant',
+        content: reply,
+        studio,
+      })
+      return {
+        ok: true,
+        reply,
+        studio,
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        userMessageId: userMessageId ?? undefined,
+      }
+    }
     session = {
       ...session,
       briefNotes: {
@@ -4257,12 +4757,124 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
   }
 
+  if (action === 'set_bag_dimensions') {
+    const raw = input.bagDimensionsMm
+    const dimensionsMm = normalizeBagDimensionsMm(raw)
+    if (!isBagKitPreset(session.presetId) || !dimensionsMm) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: boxSizeError(input.locale, 'format'),
+      }
+    }
+    const activeStep = getActiveStepKey(session) ?? session.currentStepKey
+    const fromPanelConfirm = activeStep === 'bag_panel_confirm'
+    const userValue = formatBagBriefSize(input.locale, dimensionsMm)
+    session = {
+      ...session,
+      bagKit: {
+        ...(session.bagKit ?? emptyBagKitState()),
+        dimensionsMm,
+        facesConfirmed: false,
+        dielineUrl: undefined,
+      },
+      briefNotes: { ...session.briefNotes, bag_size: userValue },
+    }
+    if (activeStep === 'bag_size' || fromPanelConfirm) {
+      const marked = markStepDone(session.processSteps, 'bag_size')
+      session = {
+        ...session,
+        processSteps: setStepInProgress(marked, 'bag_panel_confirm'),
+        currentStepKey: 'bag_panel_confirm',
+      }
+    }
+    const confirmed = buildBagSizeConfirmReply(input.locale, dimensionsMm, session.processSteps)
+    session = applyBagSessionLabels(session, input.locale)
+    reply = confirmed.reply
+    await pgSaveHubThreadSession(input.threadId, session)
+    const userMessageId = await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'user',
+      content: userValue,
+      studio: { stepKey: fromPanelConfirm ? 'bag_panel_confirm' : 'bag_size' },
+    })
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'assistant',
+      content: reply,
+      studio: confirmed.studio,
+    })
+    return {
+      ok: true,
+      reply,
+      studio: confirmed.studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      userMessageId: userMessageId ?? undefined,
+    }
+  }
+
+  if (action === 'confirm_bag_panel') {
+    if (
+      !isBagKitPreset(session.presetId) ||
+      session.currentStepKey !== 'bag_panel_confirm' ||
+      !session.bagKit?.dimensionsMm
+    ) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    const ackLabel = t.studioBoxFaceConfirmed.replace(/\*\*/g, '')
+    session = completeBagPanelConfirmSession(session, ackLabel)
+    const advanced = advanceBagDiscoveryAfterBriefAnswer(
+      session,
+      input.locale,
+      'bag_panel_confirm',
+      ackLabel,
+      t.studioBoxFaceConfirmed
+    )
+    session = applyBagSessionLabels(advanced.session, input.locale)
+    reply = advanced.reply
+    studio = advanced.studio
+    await pgSaveHubThreadSession(input.threadId, session)
+    const userMessageId = await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'user',
+      content: ackLabel,
+      studio: { stepKey: 'bag_panel_confirm' },
+    })
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'assistant',
+      content: reply,
+      studio,
+    })
+    return {
+      ok: true,
+      reply,
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      userMessageId: userMessageId ?? undefined,
+    }
+  }
+
   if (action === 'set_print_language') {
     const choiceKey = String(input.printLanguage ?? '').trim() as PackagingPrintLanguageKey
     const choice = findPackagingPrintLanguageChoice(choiceKey)
     if (
       !choice ||
-      session.presetId !== 'packaging_kit' ||
+      !isPackagingLikePreset(session.presetId) ||
       session.currentStepKey !== 'product_type'
     ) {
       return {
@@ -4501,6 +5113,177 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
   }
 
+  if (action === 'upload_landing_logo') {
+    if (session.presetId !== 'landing_page' || !session.discoveryComplete) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioLandingLogoWrongStep,
+      }
+    }
+    const files = input.uploadFiles ?? []
+    if (!files.length) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioLandingLogoNeedFile,
+      }
+    }
+    const urls = await uploadStudioImages(input.userId, files.slice(0, 1))
+    const logoUrl = urls[0]
+    if (!logoUrl) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioLandingLogoNeedFile,
+      }
+    }
+    session = {
+      ...session,
+      landingPage: {
+        ...session.landingPage,
+        logoUrl,
+      },
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: '',
+      studio: { processSteps: session.processSteps },
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'remove_landing_logo') {
+    if (session.presetId !== 'landing_page') {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    session = {
+      ...session,
+      landingPage: session.landingPage
+        ? { ...session.landingPage, logoUrl: undefined }
+        : session.landingPage,
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: '',
+      studio: { processSteps: session.processSteps },
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'generate_landing_logo') {
+    if (session.presetId !== 'landing_page' || !session.discoveryComplete) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioLandingLogoWrongStep,
+      }
+    }
+    if (pendingPreviewBlocksWorkflowInput(session)) {
+      const pendingKey = session.pendingPreview?.screenKey ?? session.currentStepKey ?? 'landing_logo'
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioApproveBeforeNext.replace(
+          '{screen}',
+          stepLabel(session, pendingKey, input.locale)
+        ),
+      }
+    }
+    const logoBrief =
+      input.landingLogoBrief?.trim() ||
+      session.briefNotes.product_name?.trim() ||
+      ''
+    if (logoBrief.length < 2) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioLandingLogoNeedBrief,
+      }
+    }
+    const generationPrompt = buildLandingLogoGenerationPrompt({
+      locale: input.locale,
+      session,
+      logoBrief,
+    })
+    const gen = await runStudioImagePipeline({
+      userId: input.userId,
+      kind: 'logo',
+      screenLabel: 'Landing header logo',
+      screenKey: 'landing_logo',
+      brief: generationPrompt,
+      projectTitle: session.projectTitle,
+      referenceImageUrls: [],
+      referenceImageMeta: [],
+      aspectRatio: '1:1',
+    })
+    if (!gen.ok) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: gen.error || t.errorGeneric,
+      }
+    }
+    session = {
+      ...session,
+      landingPage: {
+        ...session.landingPage,
+        logoUrl: gen.resultUrl,
+      },
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: t.studioLandingLogoGenerated,
+      studio: {
+        imageUrl: gen.resultUrl,
+        screenKey: 'landing_logo',
+        screenLabel: 'Landing header logo',
+        previewKind: 'logo',
+        processSteps: session.processSteps,
+        imageCharged: gen.charged,
+      },
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      chargedImage: gen.charged,
+    }
+  }
+
   if (action === 'set_banner_design_setup') {
     const stepKey = session.currentStepKey
     if (session.presetId !== 'sale_banner' || stepKey !== 'banner_design') {
@@ -4566,6 +5349,102 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
     session = mergeMenuDesignInputIntoSession(session, input)
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: '',
+      studio: { processSteps: session.processSteps },
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'set_landing_design_setup') {
+    const stepKey = session.currentStepKey
+    if (session.presetId !== 'landing_page' || !stepKey || !isLandingDesignStepKey(stepKey)) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    session = mergeLandingDesignInputIntoSession(session, input)
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: '',
+      studio: { processSteps: session.processSteps },
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'set_landing_publish_url') {
+    if (session.presetId !== 'landing_page') {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    const shareUrl = String(input.landingPublishedShareUrl ?? '').trim()
+    const shareToken = String(input.landingPublishedShareToken ?? '').trim()
+    if (!shareUrl) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    session = {
+      ...session,
+      landingPage: {
+        ...session.landingPage,
+        publishedShareUrl: shareUrl,
+        publishedShareToken: shareToken || undefined,
+      },
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: '',
+      studio: { processSteps: session.processSteps },
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+    }
+  }
+
+  if (action === 'set_landing_html_source') {
+    if (session.presetId !== 'landing_page') {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    const htmlSource = String(input.landingHtmlSource ?? '')
+    session = {
+      ...session,
+      landingPage: {
+        ...session.landingPage,
+        htmlSource: htmlSource || undefined,
+      },
+    }
     await pgSaveHubThreadSession(input.threadId, session)
     return {
       ok: true,
@@ -4730,7 +5609,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           : undefined
     if (
       !choice ||
-      session.presetId !== 'packaging_kit' ||
+      !isPackagingLikePreset(session.presetId) ||
       session.currentStepKey !== stepKey
     ) {
       return {
@@ -4744,7 +5623,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
     const userLabel = packagingDiscoveryChoiceLabel(choice, input.locale)
     const briefValue = packagingDiscoveryChoiceBrief(choice, input.locale)
-    const advanced = advanceDiscoveryAfterBriefAnswer(
+    const advanced = advancePackagingLikeDiscoveryAfterBriefAnswer(
       session,
       input.locale,
       stepKey,
@@ -4803,7 +5682,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
     const userLabel = studioColorPaletteUserLabel(selections, input.locale)
     const briefValue = formatStudioColorPaletteBriefFromSelections(selections, input.locale)
-    const advanced = advanceDiscoveryAfterBriefAnswer(
+    const advanced = advancePackagingLikeDiscoveryAfterBriefAnswer(
       session,
       input.locale,
       stepKey,
@@ -4970,15 +5849,24 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     if (!files.length) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioFaceUploadNeedFile }
     }
-    if (session.presetId !== 'packaging_kit' || !session.discoveryComplete) {
+    if (
+      (!isBagKitPreset(session.presetId) && session.presetId !== 'packaging_kit') ||
+      !session.discoveryComplete
+    ) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.errorGeneric }
     }
     const stepKey = session.currentStepKey
-    if (!stepKey || !isPackagingFaceStepKey(stepKey)) {
+    if (isBagKitPreset(session.presetId)) {
+      if (!stepKey || !isBagFaceStepKey(stepKey)) {
+        return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioFaceUploadWrongStep }
+      }
+    } else if (!stepKey || !isPackagingFaceStepKey(stepKey)) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioFaceUploadWrongStep }
     }
     const file = files[0]!
-    const faceSize = getPackagingFaceSizeForStep(session.packaging?.dimensionsMm, stepKey)
+    const faceSize = isBagKitPreset(session.presetId)
+      ? resolveBagFacePrintSizeMm(session, stepKey!)
+      : getPackagingFaceSizeForStep(session.packaging?.dimensionsMm, stepKey!)
     const uploadBuffer = faceSize
       ? await normalizePanelArtworkToPrintSize(file.buffer, faceSize.widthMm, faceSize.heightMm)
       : file.buffer
@@ -5042,8 +5930,52 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
     const stayOnStep = Boolean(
       session.presetId &&
-        (isNavigatedBackEdit(session, session.presetId) || isPackagingFaceReEdit(session, stepKey))
+        (isNavigatedBackEdit(session, session.presetId) ||
+          (isBagKitPreset(session.presetId)
+            ? isBagFaceReEdit(session, stepKey)
+            : isPackagingFaceReEdit(session, stepKey)))
     )
+    if (isBagKitPreset(session.presetId)) {
+      const advanced = advanceAfterBagFaceStep(
+        session,
+        stepKey,
+        screenLabel,
+        input.locale,
+        { sourceMode: 'generate', url },
+        true,
+        { stayOnStep }
+      )
+      session = applyBagSessionLabels(advanced.session, input.locale)
+      reply = stayOnStep
+        ? t.studioFaceUploadSaved.replace('{screen}', screenLabel)
+        : advanced.reply
+      studio = {
+        processSteps: session.processSteps,
+        imageUrl: url,
+        screenKey: stepKey,
+        screenLabel,
+        previewKind: previewKindFromGenerator('packaging_face'),
+        aspectHint: aspectHintFromGenerator('packaging_face', session.presetId, stepKey),
+        ...(session.currentStepKey
+          ? buildGenerationRefPickerPayload(session, 'bag_kit', session.currentStepKey)
+          : {}),
+      }
+      await pgSaveHubThreadSession(input.threadId, session)
+      if (session.bagKit?.mockupUrl) {
+        await pgUpdateLatestHubStudioImageUrl({
+          threadId: input.threadId,
+          screenKey: 'bag_mockup_3d',
+          imageUrl: session.bagKit.mockupPhotoUrl ?? session.bagKit.mockupUrl,
+        })
+      }
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'assistant',
+        content: reply,
+        studio,
+      })
+      return { ok: true, reply, studio, session, threadId: input.threadId, chargedChat: 0 }
+    }
     const sessionBeforeFaceUpload = session
     const advanced = advanceAfterPackagingFaceStep(
       session,
@@ -5406,12 +6338,17 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const editedSizeMm =
       input.cropSizeMm ??
       pending.editedSizeMm ??
-      (session.packaging?.dimensionsMm
+      (isBagKitPreset(session.presetId) && isBagFaceStepKey(pending.screenKey)
         ? (() => {
-            const raw = getPackagingFaceSizeForStep(session.packaging!.dimensionsMm!, pending.screenKey)
+            const raw = resolveBagFacePrintSizeMm(session, pending.screenKey)
             return raw ? { width: raw.widthMm, height: raw.heightMm } : undefined
           })()
-        : undefined)
+        : session.packaging?.dimensionsMm
+          ? (() => {
+              const raw = getPackagingFaceSizeForStep(session.packaging!.dimensionsMm!, pending.screenKey)
+              return raw ? { width: raw.widthMm, height: raw.heightMm } : undefined
+            })()
+          : undefined)
     const croppedPending = {
       ...pending,
       originalUrl: pending.originalUrl ?? pending.url,
@@ -5472,6 +6409,41 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           input.userId
         )
       }
+    }
+
+    const editedBagSlot = isBagKitPreset(session.presetId) ? bagStepKeyToSlot(pending.screenKey) : null
+    const bagFaceCommitted = Boolean(
+      editedBagSlot &&
+        session.bagKit &&
+        (session.bagKit.faceSlots?.[editedBagSlot] ||
+          session.referenceImages.some((reference) => reference.screenKey === pending.screenKey))
+    )
+    if (bagFaceCommitted && editedBagSlot && session.bagKit) {
+      session = applyBagFaceSlotToSession(session, pending.screenKey, {
+        sourceMode: 'generate',
+        url: newUrl,
+      })
+      session = {
+        ...session,
+        referenceImages: session.referenceImages.some(
+          (reference) => reference.screenKey === pending.screenKey
+        )
+          ? session.referenceImages.map((reference) =>
+              reference.screenKey === pending.screenKey
+                ? { ...reference, url: newUrl, approvedAt: Date.now() }
+                : reference
+            )
+          : [
+              ...session.referenceImages,
+              {
+                screenKey: pending.screenKey,
+                screenLabel: pending.screenLabel,
+                url: newUrl,
+                approvedAt: Date.now(),
+              },
+            ],
+      }
+      session = applyBagSessionLabels(session, input.locale)
     }
 
     if (savedCurrentStepKey && savedCurrentStepKey !== pending.screenKey) {
@@ -6025,7 +6997,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           box_size: message.trim(),
         }
         session = completeBoxSizeDiscovery(session)
-        session = applyPackagingSessionLabels(session, input.locale)
+        session = applyStudioSessionLabels(session, input.locale)
         const confirmed = buildBoxSizeConfirmReply(
           input.locale,
           parsedEarly.dimensionsMm,
@@ -6074,7 +7046,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           box_size: message.trim(),
         }
         session = completeBoxSizeDiscovery(session)
-        session = applyPackagingSessionLabels(session, input.locale)
+        session = applyStudioSessionLabels(session, input.locale)
         const confirmed = buildBoxSizeConfirmReply(input.locale, parsed.dimensionsMm, session.processSteps)
         reply = confirmed.reply
         await pgSaveHubThreadSession(input.threadId, session)
@@ -6127,7 +7099,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           faceAspectRatios: undefined,
         }
         if (dimensionsChanged) session = invalidatePackagingForDimensionChange(session)
-        session = applyPackagingSessionLabels(session, input.locale)
+        session = applyStudioSessionLabels(session, input.locale)
         reply = buildBoxFaceConfirmSummary(input.locale, reparse.dimensionsMm)
         const confirmStudio = buildBoxSizeConfirmReply(
           input.locale,
@@ -6188,8 +7160,21 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       : await callStudioBrain(input.apiKey, input.userId, input.locale, message, session)
 
     const idleFeatureMatch = !activeDesign
-      ? matchFeatureFlowByMessage(message, input.locale)
+      ? await (async () => {
+          let recentContext: string | undefined
+          if (isShortAffirmativeReply(message)) {
+            const thread = await pgGetHubChatThread(input.userId, input.threadId)
+            const lastAssistant = [...(thread?.messages ?? [])].reverse().find((m) => m.role === 'assistant')
+            recentContext = lastAssistant?.content
+          }
+          return resolveIdleFeatureMatch(message, input.locale, recentContext)
+        })()
       : null
+
+    if (idleFeatureMatch?.kind === 'standalone' && idleFeatureMatch.href === '/tao-thiep-moi-cuoi-ai') {
+      ai.suggestedPresetId = undefined
+      ai.hubRoute = 'workflow'
+    }
 
     if (!activeDesign && idleFeatureMatch) {
       if (idleFeatureMatch.kind === 'standalone') {
@@ -6252,7 +7237,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         workflows: advisory.workflows,
         plan: advisory.plan,
         hubRoute,
-        showFeaturePicker: ai.intent === 'clarify' || advisory.workflows.length === 0,
+        showFeaturePicker: advisory.workflows.length === 0 && ai.intent === 'clarify',
       }
     }
 
@@ -6301,7 +7286,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
             faceAspectRatios: undefined,
           }
           if (dimensionsChanged) session = invalidatePackagingForDimensionChange(session)
-          session = applyPackagingSessionLabels(session, input.locale)
+          session = applyStudioSessionLabels(session, input.locale)
         } else {
           session.packaging = {
             ...(session.packaging ?? { version: 2 as const, faces: {} }),
@@ -6325,10 +7310,15 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         ? isDiscoveryStep(session.presetId, session.currentStepKey)
         : false
     if (activeDesign && session.currentStepKey) {
-      reply = t.studioBriefUpdated.replace(
-        '{screen}',
-        stepLabel(session, session.currentStepKey, input.locale)
-      )
+      const screenLabel = stepLabel(session, session.currentStepKey, input.locale)
+      if (
+        session.presetId === 'landing_page' &&
+        isLandingDesignStepKey(session.currentStepKey)
+      ) {
+        reply = t.studioLandingCopySaved.replace('{screen}', screenLabel)
+      } else {
+        reply = t.studioBriefUpdated.replace('{screen}', screenLabel)
+      }
     }
     if (!discoveryBriefEdit && session.currentStepKey && message && !justAppliedPreset) {
       if (onDiscoveryForBrief) {
@@ -6393,6 +7383,24 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           faceAspectRatios: undefined,
         }
         reply = buildBoxFaceConfirmSummary(input.locale, parsed.dimensionsMm)
+        if (!ai.completeCurrentStep) ai.completeCurrentStep = true
+      } else if (ai.completeCurrentStep || /\d+\s*(?:x|×|\*)/i.test(message)) {
+        ai.completeCurrentStep = false
+        reply = boxSizeError(input.locale, parsed.error)
+      }
+    }
+
+    if (isBagKitPreset(session.presetId) && session.currentStepKey === 'bag_size') {
+      const parsed = parseBagDimensions(session.briefNotes.bag_size ?? message)
+      if (parsed.ok) {
+        session.bagKit = {
+          ...(session.bagKit ?? emptyBagKitState()),
+          dimensionsMm: parsed.dimensionsMm,
+          facesConfirmed: false,
+        }
+        const confirmed = buildBagSizeConfirmReply(input.locale, parsed.dimensionsMm, session.processSteps)
+        reply = confirmed.reply
+        studio = { ...studio, ...confirmed.studio }
         if (!ai.completeCurrentStep) ai.completeCurrentStep = true
       } else if (ai.completeCurrentStep || /\d+\s*(?:x|×|\*)/i.test(message)) {
         ai.completeCurrentStep = false

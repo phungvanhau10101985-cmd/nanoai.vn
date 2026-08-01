@@ -21,7 +21,29 @@ const LOCALE_SHORT: Record<WebLocale, string> = {
 }
 const GUEST_SESSION_STORAGE_KEY = 'nanoai_guest_session_id_v1'
 const GUEST_ACCOUNT_STORAGE_KEY = 'nanoai_guest_account_id_v1'
+const PARTNER_SITE_SESSION_KEYS = ['app_guest_session_id', 'nanoai_guest_session_id'] as const
+const PARTNER_SITE_ACCOUNT_KEYS = ['app_guest_account_id', 'nanoai_guest_account_id'] as const
 const UUID_STRING_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function readStoredGuestSessionId(): string {
+  if (typeof window === 'undefined') return ''
+  const keys = [GUEST_SESSION_STORAGE_KEY, ...PARTNER_SITE_SESSION_KEYS]
+  for (const key of keys) {
+    const sid = window.localStorage.getItem(key)?.trim() || ''
+    if (UUID_STRING_RE.test(sid)) return sid
+  }
+  return ''
+}
+
+function readStoredGuestAccountId(): string {
+  if (typeof window === 'undefined') return ''
+  const keys = [GUEST_ACCOUNT_STORAGE_KEY, ...PARTNER_SITE_ACCOUNT_KEYS]
+  for (const key of keys) {
+    const aid = window.localStorage.getItem(key)?.trim() || ''
+    if (UUID_STRING_RE.test(aid)) return aid
+  }
+  return ''
+}
 
 type WidgetLoyaltyStatus = {
   enabled?: unknown
@@ -33,8 +55,8 @@ function appendStoredGuestIdentity(urlStr: string): string {
   if (typeof window === 'undefined') return urlStr
   try {
     const u = new URL(urlStr, window.location.href)
-    const sid = window.localStorage.getItem(GUEST_SESSION_STORAGE_KEY)?.trim() || ''
-    const aid = window.localStorage.getItem(GUEST_ACCOUNT_STORAGE_KEY)?.trim() || ''
+    const sid = readStoredGuestSessionId()
+    const aid = readStoredGuestAccountId()
     if (UUID_STRING_RE.test(sid)) u.searchParams.set('guest_session_id', sid)
     if (UUID_STRING_RE.test(aid)) u.searchParams.set('guest_account_id', aid)
     return u.toString()
@@ -80,6 +102,10 @@ type Props = {
   openFullPageLabel: string
   /** `aria-label` cho ô chọn ngôn ngữ. */
   languageSelectAriaLabel: string
+  /** Parent-controlled open (partner site embed parity). */
+  externalOpenRequest?: { seq: number; iframeSrc?: string }
+  /** Override URL when opening from launcher bubble (e.g. product detail page context). */
+  resolveOpenUrl?: () => string | undefined
 }
 
 export function FloatingChatWidget({
@@ -93,6 +119,8 @@ export function FloatingChatWidget({
   closeLabel,
   openFullPageLabel,
   languageSelectAriaLabel,
+  externalOpenRequest,
+  resolveOpenUrl,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [duplicateMount, setDuplicateMount] = useState(false)
@@ -115,6 +143,14 @@ export function FloatingChatWidget({
       return chatUrl
     }
   }, [chatUrl])
+
+  useEffect(() => {
+    if (!externalOpenRequest?.seq) return
+    const next = appendStoredGuestIdentity(externalOpenRequest.iframeSrc ?? readReturnChatIframeHref() ?? chatUrl)
+    setIframeSrc(next)
+    writeReturnChatIframeHref(next)
+    setClosed(false)
+  }, [chatUrl, externalOpenRequest?.iframeSrc, externalOpenRequest?.seq])
 
   useEffect(() => {
     setUiLocale(parseUiLocaleFromChatUrl(chatUrl))
@@ -193,10 +229,12 @@ export function FloatingChatWidget({
   }, [])
 
   const openPanelWithSavedChat = useCallback(() => {
-    const next = appendStoredGuestIdentity(readReturnChatIframeHref() ?? chatUrl)
+    const resolved = resolveOpenUrl?.()?.trim()
+    const next = appendStoredGuestIdentity(resolved || readReturnChatIframeHref() || chatUrl)
     setIframeSrc(next)
+    writeReturnChatIframeHref(next)
     setClosed(false)
-  }, [chatUrl])
+  }, [chatUrl, resolveOpenUrl])
 
   const launcherSrc = typeof launcherLogoUrl === 'string' ? launcherLogoUrl.trim() : ''
   const showLauncherLogo = Boolean(launcherSrc && /^https?:\/\//i.test(launcherSrc))
@@ -301,6 +339,7 @@ export function FloatingChatWidget({
       </div>
       <div className="min-h-0 flex-1 overflow-hidden rounded-b-xl">
         <iframe
+          key={externalOpenRequest?.seq ? `pw-chat-${externalOpenRequest.seq}` : 'pw-chat-default'}
           ref={iframeRef}
           src={iframeSrc}
           title={title}

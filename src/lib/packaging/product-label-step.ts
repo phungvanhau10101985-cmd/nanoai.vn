@@ -55,6 +55,8 @@ export function isPackagingContinueOnlyApproveStep(stepKey: string | null | unde
   return (
     stepKey === 'box_mockup_3d' ||
     stepKey === 'box_dieline_pdf' ||
+    stepKey === 'bag_mockup_3d' ||
+    stepKey === 'bag_dieline_pdf' ||
     isLogoOnlyReferenceStepKey(stepKey) ||
     stepKey === 'barcode_label'
   )
@@ -64,6 +66,7 @@ export function isPackagingContinueOnlyApproveStep(stepKey: string | null | unde
 export function isPackagingPostMockupStepKey(stepKey: string | null | undefined): boolean {
   return (
     stepKey === 'box_dieline_pdf' ||
+    stepKey === 'bag_dieline_pdf' ||
     isLogoOnlyReferenceStepKey(stepKey) ||
     stepKey === 'barcode_label'
   )

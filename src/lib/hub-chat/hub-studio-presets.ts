@@ -21,6 +21,7 @@ export type StudioGeneratorKind =
   | 'packaging_mockup'
   | 'dieline_pdf'
   | 'barcode'
+  | 'bag_dieline_pdf'
   | 'interior'
   | 'story_panel'
   | 'infographic'
@@ -97,20 +98,18 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
     id: 'landing_page',
     labelKey: 'landing_page',
     intents: [
-      'landing page',
-      'trang đích',
+      'landing page mockup',
+      'landing segment',
+      'mockup landing',
+      'thiết kế ảnh landing',
+      'ảnh phân đoạn landing',
+      'trang đích mockup',
       'website giới thiệu',
-      'giao diện web',
-      'tạo giao diện web',
-      'thiết kế web',
-      'thiet ke web',
-      'website',
-      'web ui',
-      'saas landing',
-      '落地页',
-      'ランディング',
-      'ウェブ ui',
-      '랜딩 페이지',
+      'giao diện web mockup',
+      'saas landing mockup',
+      '落地页 mockup',
+      'ランディング mockup',
+      '랜딩 mockup',
     ],
   },
   {
@@ -127,20 +126,6 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
       '产品图',
       '商品画像',
       '상품 사진',
-    ],
-  },
-  {
-    id: 'wedding_invite',
-    labelKey: 'wedding_invite',
-    intents: [
-      'thiệp cưới',
-      'thiệp mời',
-      'wedding invitation',
-      'sinh nhật',
-      'event invite',
-      '婚礼请柬',
-      '招待状',
-      '청첩장',
     ],
   },
   {
@@ -278,6 +263,29 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
       '证件照',
       '証明写真',
       '증명사진',
+    ],
+  },
+  {
+    id: 'bag_kit',
+    labelKey: 'bag_kit',
+    intents: [
+      'túi đựng',
+      'tui dung',
+      'túi giấy',
+      'tui giay',
+      'paper bag',
+      'shopping bag',
+      'shopping bag design',
+      'thiết kế túi',
+      'thiet ke tui',
+      'flat bag',
+      'gusset bag',
+      '纸袋',
+      '购物袋',
+      '紙袋',
+      'ショッピングバッグ',
+      '종이백',
+      '쇼핑백',
     ],
   },
   {
@@ -420,7 +428,7 @@ export function estimatePresetCredits(presetId: string): { images: number; music
   for (const s of getFlowSteps(presetId)) {
     if (s.phase !== 'design') continue
     if (s.generator === 'lyria_music') music += 3
-    else if (s.generator === 'dieline_pdf' || s.generator === 'barcode') continue
+    else if (s.generator === 'dieline_pdf' || s.generator === 'barcode' || s.generator === 'bag_dieline_pdf') continue
     else if (s.generator) images += 1.5
   }
   return { images, music, total: images + music }

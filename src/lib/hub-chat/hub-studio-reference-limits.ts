@@ -13,6 +13,15 @@ export const STUDIO_MAX_REFERENCE_IMAGES = 8
 /** Max reference images attached to the model per generation (logo always kept first). */
 export const STUDIO_REFERENCE_ATTACH_LIMIT = 4
 
+function pickLandingPageReferencesForGeneration(
+  referenceImages: HubStudioReferenceImage[],
+  presetId: string,
+  stepKey: string
+): HubStudioReferenceImage[] | null {
+  if (presetId !== 'landing_page') return null
+  return []
+}
+
 export function pickReferencesForGeneration(
   referenceImages: HubStudioReferenceImage[],
   presetId: string | null,
@@ -22,6 +31,8 @@ export function pickReferencesForGeneration(
   if (presetId && stepKey) {
     const mobileShopRefs = pickMobileShopReferencesForGeneration(referenceImages, presetId, stepKey)
     if (mobileShopRefs) return mobileShopRefs
+    const landingRefs = pickLandingPageReferencesForGeneration(referenceImages, presetId, stepKey)
+    if (landingRefs !== null) return landingRefs
   }
   const logoKey = presetId ? getPrimaryLogoStepKey(presetId) : null
   if (presetId && stepKey && isLogoDesignStep(presetId, stepKey)) {
@@ -69,6 +80,23 @@ export function shouldShowStudioReferencePreviews(
   stepKey?: string | null
 ): boolean {
   return !isPackagingCompositeArtifactStepKey(stepKey ?? session.currentStepKey)
+}
+
+export type HubStudioReferencePreview = {
+  url: string
+  label: string
+  screenKey: string
+}
+
+/** Drop previews that were removed from the live session (historical chat lines keep stale payloads). */
+export function filterStaleReferencePreviews(
+  previews: HubStudioReferencePreview[] | null | undefined,
+  session: HubStudioSession | null | undefined
+): HubStudioReferencePreview[] {
+  if (!previews?.length) return []
+  if (!session) return previews
+  const activeKeys = new Set(session.referenceImages.map((r) => r.screenKey))
+  return previews.filter((preview) => preview.screenKey && activeKeys.has(preview.screenKey))
 }
 
 export function buildReferencePreviewsPayload(

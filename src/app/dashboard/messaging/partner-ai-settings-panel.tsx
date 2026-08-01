@@ -2118,6 +2118,11 @@ function InventoryEditor({
     product_url: '',
     product_video_url: '',
     consult_note: '',
+    material_note: '',
+    material_detail_image_url: '',
+    real_use_image_url: '',
+    real_use_image_url_2: '',
+    remarketing_id: '',
     sort_order: 0,
   })
 
@@ -2134,6 +2139,11 @@ function InventoryEditor({
       product_url: '',
       product_video_url: '',
       consult_note: '',
+      material_note: '',
+      material_detail_image_url: '',
+      real_use_image_url: '',
+      real_use_image_url_2: '',
+      remarketing_id: '',
       sort_order: rows.length,
     })
 
@@ -2244,6 +2254,11 @@ function InventoryEditor({
       product_url: r.product_url ?? '',
       product_video_url: r.product_video_url ?? '',
       consult_note: r.consult_note ?? '',
+      material_note: r.material_note ?? '',
+      material_detail_image_url: r.material_detail_image_url ?? '',
+      real_use_image_url: r.real_use_image_url ?? '',
+      real_use_image_url_2: r.real_use_image_url_2 ?? '',
+      remarketing_id: r.remarketing_id ?? '',
       sort_order: r.sort_order,
     })
   }
@@ -2262,6 +2277,11 @@ function InventoryEditor({
         product_url: draft.product_url,
         product_video_url: draft.product_video_url,
         consult_note: draft.consult_note,
+        material_note: draft.material_note,
+        material_detail_image_url: draft.material_detail_image_url,
+        real_use_image_url: draft.real_use_image_url,
+        real_use_image_url_2: draft.real_use_image_url_2,
+        remarketing_id: draft.remarketing_id,
         sort_order: draft.sort_order,
       })
       if ('error' in res && res.error) {
@@ -2702,6 +2722,24 @@ function InventoryEditor({
             <Input value={draft.price_hint} onChange={(e) => setDraft((d) => ({ ...d, price_hint: e.target.value }))} />
           </div>
           <div className="space-y-2 sm:col-span-2">
+            <Label>{t.inventoryConsultNote}</Label>
+            <Textarea
+              rows={2}
+              value={draft.consult_note}
+              onChange={(e) => setDraft((d) => ({ ...d, consult_note: e.target.value }))}
+            />
+            <p className="text-[11px] text-muted-foreground">{t.inventoryConsultNoteHint}</p>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t.inventoryMaterialNote}</Label>
+            <Textarea
+              rows={4}
+              value={draft.material_note}
+              onChange={(e) => setDraft((d) => ({ ...d, material_note: e.target.value }))}
+            />
+            <p className="text-[11px] text-muted-foreground">{t.inventoryMaterialNoteHint}</p>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
             <Label>{t.inventoryImageUrl}</Label>
             <Input
               value={draft.image_url}
@@ -2759,13 +2797,47 @@ function InventoryEditor({
             <p className="text-[11px] text-muted-foreground">{t.inventoryProductVideoUrlHint}</p>
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label>{t.inventoryConsultNote}</Label>
-            <Textarea
-              rows={2}
-              value={draft.consult_note}
-              onChange={(e) => setDraft((d) => ({ ...d, consult_note: e.target.value }))}
+            <Label>{t.inventoryMaterialDetailImageUrl}</Label>
+            <Input
+              value={draft.material_detail_image_url}
+              maxLength={2048}
+              onChange={(e) => setDraft((d) => ({ ...d, material_detail_image_url: e.target.value }))}
+              placeholder="https://"
+              className="font-mono text-xs"
             />
-            <p className="text-[11px] text-muted-foreground">{t.inventoryConsultNoteHint}</p>
+            <p className="text-[11px] text-muted-foreground">{t.inventoryMaterialDetailImageUrlHint}</p>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t.inventoryRealUseImageUrl}</Label>
+            <Input
+              value={draft.real_use_image_url}
+              maxLength={2048}
+              onChange={(e) => setDraft((d) => ({ ...d, real_use_image_url: e.target.value }))}
+              placeholder="https://"
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground">{t.inventoryRealUseImageUrlHint}</p>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t.inventoryRealUseImageUrl2}</Label>
+            <Input
+              value={draft.real_use_image_url_2}
+              maxLength={2048}
+              onChange={(e) => setDraft((d) => ({ ...d, real_use_image_url_2: e.target.value }))}
+              placeholder="https://"
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground">{t.inventoryRealUseImageUrl2Hint}</p>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t.inventoryRemarketingId}</Label>
+            <Input
+              value={draft.remarketing_id}
+              maxLength={500}
+              onChange={(e) => setDraft((d) => ({ ...d, remarketing_id: e.target.value }))}
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground">{t.inventoryRemarketingIdHint}</p>
           </div>
           <div className="space-y-2">
             <Label>{t.inventorySort}</Label>

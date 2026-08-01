@@ -105,28 +105,6 @@ export function WeddingSideInviteSettingsPanel({ side, card, settings, saving, o
         />
       </div>
 
-      <div className="space-y-1.5 sm:col-span-2">
-        <Label className="text-sm">Lời mời / kính mời {meta.sideLabel}</Label>
-        <Textarea
-          value={settings[fieldKey(p, 'Text')]}
-          onChange={(e) => patch(fieldKey(p, 'Text'), e.target.value)}
-          placeholder={card?.invitationText || 'Trân trọng kính mời…'}
-          rows={3}
-          className="resize-y text-sm"
-        />
-      </div>
-
-      <div className="space-y-1.5 sm:col-span-2">
-        <Label className="text-sm">Lời mời tiếng Anh (tuỳ chọn)</Label>
-        <Textarea
-          value={settings[fieldKey(p, 'TextEn')]}
-          onChange={(e) => patch(fieldKey(p, 'TextEn'), e.target.value)}
-          placeholder={card?.invitationTextEn || 'Cordially invite…'}
-          rows={2}
-          className="resize-y text-sm"
-        />
-      </div>
-
       <div className="sm:col-span-2">
         <WeddingTimelineEditor
           label={`Lịch trình chi tiết ${meta.sideLabel}`}
@@ -174,17 +152,6 @@ export function WeddingSideInviteSettingsPanel({ side, card, settings, saving, o
       </div>
 
       <div className="space-y-1.5 sm:col-span-2">
-        <Label className="text-sm">Lời mời riêng mặc định (khi thêm khách mới)</Label>
-        <Textarea
-          value={settings[fieldKey(p, 'DefaultPersonalMessage')]}
-          onChange={(e) => patch(fieldKey(p, 'DefaultPersonalMessage'), e.target.value)}
-          placeholder="Lời mời gợi ý điền sẵn vào cột «Lời mời riêng»…"
-          rows={2}
-          className="resize-y text-sm"
-        />
-      </div>
-
-      <div className="space-y-1.5 sm:col-span-2">
         <Label className="text-sm">Lời cảm ơn cuối thiệp {meta.sideLabel}</Label>
         <Textarea
           value={settings[fieldKey(p, 'ThankYouText')]}
@@ -194,6 +161,11 @@ export function WeddingSideInviteSettingsPanel({ side, card, settings, saving, o
           className="resize-y text-sm"
         />
       </div>
+
+      <p className="text-xs text-muted-foreground sm:col-span-2">
+        Lời mời cá nhân tự sinh theo xưng hô + tên khách trong bảng bên dưới (nhà {meta.sideLabel}: cháu{' '}
+        {side === 'groom' ? card?.groomName || '…' : card?.brideName || '…'} mời khách).
+      </p>
 
       <p className="text-xs text-muted-foreground sm:col-span-2">
         QR mừng cưới dùng STK thiệp chính — khách {meta.sideLabel} chỉ thấy QR bên {meta.sideLabel} trên link cá nhân.

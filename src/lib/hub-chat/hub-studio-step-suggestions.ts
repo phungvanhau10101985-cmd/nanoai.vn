@@ -485,11 +485,229 @@ const COMMON_DISCOVERY_SUGGESTIONS: Record<string, StudioStepSuggestion[]> = {
   ],
 }
 
+const BAG_KIT_SUGGESTIONS: Record<string, StudioStepSuggestion[]> = {
+  brand_name: COMMON_DISCOVERY_SUGGESTIONS.brand_name!,
+  product_type: [
+    suggestion(
+      { vi: 'Túi giấy mua sắm', en: 'Paper shopping bag', zh: '纸购物袋', ja: '紙ショッパー', ko: '종이 쇼핑백' },
+      {
+        vi: 'Túi giấy mua sắm — cửa hàng thời trang / mỹ phẩm',
+        en: 'Paper shopping bag — fashion or cosmetics retail',
+        zh: '纸购物袋 — 时装/美妆零售',
+        ja: '紙ショッパー — ファッション/コスメ小売',
+        ko: '종이 쇼핑백 — 패션/뷰티 리테일',
+      }
+    ),
+    suggestion(
+      { vi: 'Túi quà tặng', en: 'Gift bag', zh: '礼品袋', ja: 'ギフトバッグ', ko: '선물 가방' },
+      {
+        vi: 'Túi quà tặng — sự kiện, lễ hội, quà doanh nghiệp',
+        en: 'Gift bag — events, festivals, corporate gifts',
+        zh: '礼品袋 — 活动、节日、企业礼品',
+        ja: 'ギフトバッグ — イベント、記念品',
+        ko: '선물 가방 — 이벤트, 기념품',
+      }
+    ),
+  ],
+  bag_size: [
+    suggestion(
+      { vi: '200×280×60 mm', en: '200×280×60 mm', zh: '200×280×60 mm', ja: '200×280×60 mm', ko: '200×280×60 mm' },
+      {
+        vi: '200 × 280 × 60 mm',
+        en: '200 × 280 × 60 mm',
+        zh: '200 × 280 × 60 mm',
+        ja: '200 × 280 × 60 mm',
+        ko: '200 × 280 × 60 mm',
+      }
+    ),
+    suggestion(
+      { vi: '24×32×8 cm', en: '24×32×8 cm', zh: '24×32×8 cm', ja: '24×32×8 cm', ko: '24×32×8 cm' },
+      {
+        vi: '24 × 32 × 8 cm',
+        en: '24 × 32 × 8 cm',
+        zh: '24 × 32 × 8 cm',
+        ja: '24 × 32 × 8 cm',
+        ko: '24 × 32 × 8 cm',
+      }
+    ),
+  ],
+  bag_panel_confirm: [
+    suggestion(
+      { vi: 'OK', en: 'OK', zh: 'OK', ja: 'OK', ko: 'OK' },
+      { vi: 'OK', en: 'OK', zh: 'OK', ja: 'OK', ko: 'OK' }
+    ),
+  ],
+  style_mood: COMMON_DISCOVERY_SUGGESTIONS.style_mood!,
+  color_palette: COMMON_DISCOVERY_SUGGESTIONS.color_palette!,
+  color_tone: COMMON_DISCOVERY_SUGGESTIONS.color_tone!,
+  face_print_style: PACKAGING_KIT_SUGGESTIONS.face_print_style!,
+  face_back: [
+    suggestion(
+      { vi: 'Logo + slogan', en: 'Logo + slogan', zh: 'Logo + 标语', ja: 'ロゴ + スローガン', ko: '로고 + 슬로건' },
+      {
+        vi: 'Logo thương hiệu giữa mặt sau, slogan ngắn phía dưới, nền kraft nhẹ',
+        en: 'Brand logo centered on back, short slogan below, light kraft background',
+        zh: '背面居中品牌 logo，下方短标语，浅牛皮纸底',
+        ja: '背面中央にロゴ、下に短いスローガン、クラフト調背景',
+        ko: '뒷면 중앙 로고, 아래 짧은 슬로건, 크라프트 톤 배경',
+      }
+    ),
+    suggestion(
+      { vi: 'Bỏ trống', en: 'Leave blank', zh: '留空', ja: '空白', ko: '비우기' },
+      {
+        vi: 'Bỏ trống mặt sau',
+        en: 'Leave back face blank',
+        zh: '背面留空',
+        ja: '背面は空白',
+        ko: '뒷면 비우기',
+      }
+    ),
+  ],
+  face_front: [
+    suggestion(
+      { vi: 'Logo nổi bật', en: 'Bold logo', zh: '醒目 logo', ja: '目立つロゴ', ko: '강조 로고' },
+      {
+        vi: 'Logo lớn giữa mặt trước, tên thương hiệu, màu chủ đạo từ palette',
+        en: 'Large centered logo on front, brand name, colors from palette',
+        zh: '正面大 logo 居中，品牌名，主色来自 palette',
+        ja: '正面中央に大きなロゴ、ブランド名、パレット色',
+        ko: '앞면 중앙 큰 로고, 브랜드명, 팔레트 색상',
+      }
+    ),
+    suggestion(
+      { vi: 'Giống mặt sau', en: 'Same as back', zh: '同背面', ja: '背面と同じ', ko: '뒷면과 동일' },
+      {
+        vi: 'Giống mặt sau',
+        en: 'Same as back face',
+        zh: '与背面相同',
+        ja: '背面と同じ',
+        ko: '뒷면과 동일',
+      }
+    ),
+  ],
+  bag_mockup_3d: [
+    suggestion(
+      { vi: 'Túi đứng', en: 'Standing bag', zh: '立式袋', ja: '立てた袋', ko: '세운 가방' },
+      {
+        vi: 'Túi giấy đứng trên nền studio trắng, bóng đổ nhẹ',
+        en: 'Paper bag standing on white studio background, soft shadow',
+        zh: '纸袋立在白色棚拍背景，轻阴影',
+        ja: '白背景スタジオで立てた紙袋、ソフトシャドウ',
+        ko: '흰 스튜디오 배경에 선 종이 가방, 부드러운 그림자',
+      }
+    ),
+  ],
+  bag_dieline_pdf: [
+    suggestion(
+      { vi: 'Xuất net in', en: 'Export print net', zh: '导出印刷展开图', ja: '展開図出力', ko: '전개도 출력' },
+      {
+        vi: 'Xuất file net in PDF — mặt trước/sau đã duyệt ghép lên panel',
+        en: 'Export print-ready net PDF — approved front/back composited on panels',
+        zh: '导出印刷用展开图 PDF — 已批准正背面合成到面板',
+        ja: '印刷用展開図PDF — 承認済み正背面をパネルに合成',
+        ko: '인쇄용 전개도 PDF — 승인된 앞/뒷면 패널 합성',
+      }
+    ),
+  ],
+}
+
 const PRESET_STEP_SUGGESTIONS: Record<string, Record<string, StudioStepSuggestion[]>> = {
   packaging_kit: PACKAGING_KIT_SUGGESTIONS,
+  bag_kit: BAG_KIT_SUGGESTIONS,
   mobile_shop: COMMON_DISCOVERY_SUGGESTIONS,
   brand_kit: COMMON_DISCOVERY_SUGGESTIONS,
-  landing_page: COMMON_DISCOVERY_SUGGESTIONS,
+  landing_page: {
+    product_name: [
+      suggestion(
+        { vi: 'Thời trang', en: 'Fashion', zh: '时尚', ja: 'ファッション', ko: '패션' },
+        {
+          vi: 'Maison Élise — shop thời trang nữ + dịch vụ may đo & styling',
+          en: 'Maison Élise — women\'s fashion shop + tailoring & styling',
+          zh: 'Maison Élise — 女装店 + 定制与造型服务',
+          ja: 'Maison Élise — レディースファッション + オーダー＆スタイリング',
+          ko: 'Maison Élise — 여성 패션 샵 + 맞춤 & 스타일링',
+        }
+      ),
+      suggestion(
+        { vi: 'Mỹ phẩm & spa', en: 'Beauty & spa', zh: '美妆 & spa', ja: '美容 & spa', ko: '뷰티 & spa' },
+        {
+          vi: 'Glow Lab — mỹ phẩm organic + dịch vụ spa & tư vấn da',
+          en: 'Glow Lab — organic cosmetics + spa & skincare consulting',
+          zh: 'Glow Lab — 有机护肤 + spa 与皮肤咨询',
+          ja: 'Glow Lab — オーガニックコスメ + spa＆スキンケア相談',
+          ko: 'Glow Lab — 오가닉 화장품 + spa & 스킨케어 상담',
+        }
+      ),
+      suggestion(
+        { vi: 'F&B / nhà hàng', en: 'F&B / restaurant', zh: '餐饮', ja: '飲食', ko: 'F&B / 레스토랑' },
+        {
+          vi: 'Saigon Brew — cà phê specialty + giao đồ uống & đặt bàn online',
+          en: 'Saigon Brew — specialty coffee + delivery & online table booking',
+          zh: 'Saigon Brew — 精品咖啡 + 外送与在线订位',
+          ja: 'Saigon Brew — スペシャルティコーヒー + デリバリー＆予約',
+          ko: 'Saigon Brew — 스페셜티 커피 + 배달 & 온라인 예약',
+        }
+      ),
+    ],
+    value_prop: [
+      suggestion(
+        { vi: 'Mua sắm trọn gói', en: 'Complete shopping', zh: '一站式购物', ja: 'ワンストップ', ko: '원스톱 쇼핑' },
+        {
+          vi: 'Sản phẩm chất lượng, dịch vụ tận tâm, giao nhanh — trải nghiệm mua sắm trọn gói',
+          en: 'Quality products, caring services, fast delivery — a complete shopping experience',
+          zh: '优质产品、贴心服务、快速配送 — 一站式购物体验',
+          ja: '良質な商品、丁寧なサービス、速配送 — ワンストップ体験',
+          ko: '양질의 상품, 세심한 서비스, 빠른 배송 — 원스톱 쇼핑',
+        }
+      ),
+      suggestion(
+        { vi: 'Dịch vụ kèm theo', en: 'Bundled services', zh: '配套服务', ja: '付帯サービス', ko: '부가 서비스' },
+        {
+          vi: 'Mua online + tư vấn miễn phí + đặt lịch dịch vụ — một điểm đến cho mọi nhu cầu',
+          en: 'Shop online + free consultation + service booking — one stop for every need',
+          zh: '线上购物 + 免费咨询 + 服务预约 — 需求一站满足',
+          ja: 'オンライン購入 + 無料相談 + サービス予約 — ニーズをワンストップ',
+          ko: '온라인 쇼핑 + 무료 상담 + 서비스 예약 — 모든 니즈 원스톱',
+        }
+      ),
+    ],
+    target_audience: COMMON_DISCOVERY_SUGGESTIONS.target_audience!,
+    style_mood: [
+      suggestion(
+        { vi: 'Hiện đại, sạch', en: 'Modern & clean', zh: '现代简洁', ja: 'モダン＆クリーン', ko: '모던 & 클린' },
+        {
+          vi: 'Hiện đại, sạch — ảnh sản phẩm lớn, typography rõ, CTA nổi bật',
+          en: 'Modern & clean — large product photos, clear typography, prominent CTAs',
+          zh: '现代简洁 — 大图产品、清晰字体、突出 CTA',
+          ja: 'モダンでクリーン — 大きな商品写真、読みやすいタイポ、目立つCTA',
+          ko: '모던 & 클린 — 큰 상품 사진, 명확한 타이포, 눈에 띄는 CTA',
+        }
+      ),
+      suggestion(
+        { vi: 'Cao cấp / ấm áp', en: 'Premium / warm', zh: '高端 / 温馨', ja: '高級 / 温かみ', ko: '프리미엄 / 따뜻' },
+        {
+          vi: 'Cao cấp — ảnh full-bleed, typography tinh tế, nền kem/be hoặc tối sang trọng',
+          en: 'Premium — full-bleed imagery, refined typography, cream/beige or dark luxury bg',
+          zh: '高端 — 全出血大图、精致字体、米/深色奢华背景',
+          ja: '高級 — フルブリード、洗練タイポ、クリーム/ダークラグジュアリー',
+          ko: '프리미엄 — 풀블리드, 세련된 타이포, 크림/다크 럭셔리 배경',
+        }
+      ),
+    ],
+    color_palette: PACKAGING_KIT_SUGGESTIONS.color_palette!,
+    landing_full: [
+      suggestion(
+        { vi: 'Landing đầy đủ 1:4', en: 'Full landing 1:4', zh: '完整落地页 1:4', ja: 'フルLP 1:4', ko: '전체 랜딩 1:4' },
+        {
+          vi: 'Hero: «Mua sắm & trải nghiệm dịch vụ» · 3 cột ưu điểm · Gói Pro nổi bật · 2 review · FAQ 4 câu · CTA «Mua ngay» — logo header, ảnh dọc 1:4',
+          en: 'Hero: «Shop products & book services» · 3-column benefits · Pro tier highlighted · 2 reviews · 4 FAQ · CTA «Shop now» — logo in header, tall 1:4 image',
+          zh: '主视觉：「选购产品 & 预约服务」· 三列优势 · Pro 高亮 · 2 评价 · FAQ 4 项 · CTA「立即购买」— 页眉 logo，1:4 纵向图',
+          ja: 'ヒーロー：「商品購入＆サービス予約」· 3カラム · Pro強調 · レビュー2 · FAQ4 · CTA「今すぐ購入」— ヘッダーロゴ、1:4縦',
+          ko: '히어로: «상품 구매 & 서비스 예약» · 3열 혜택 · Pro 강조 · 후기 2 · FAQ 4 · CTA «지금 구매» — 헤더 로고, 1:4 세로',
+        }
+      ),
+    ],
+  },
   sale_banner: {
     domain_name: [
       suggestion(

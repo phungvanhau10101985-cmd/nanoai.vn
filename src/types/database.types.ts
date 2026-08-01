@@ -203,6 +203,8 @@ export interface Database {
           facebook_pixel_id: string | null
           facebook_capi_access_token: string | null
           ga4_measurement_id: string | null
+          google_ads_id: string | null
+          tiktok_pixel_id: string | null
           created_at: string
           updated_at: string
         }
@@ -221,6 +223,8 @@ export interface Database {
           facebook_pixel_id?: string | null
           facebook_capi_access_token?: string | null
           ga4_measurement_id?: string | null
+          google_ads_id?: string | null
+          tiktok_pixel_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -239,6 +243,8 @@ export interface Database {
           facebook_pixel_id?: string | null
           facebook_capi_access_token?: string | null
           ga4_measurement_id?: string | null
+          google_ads_id?: string | null
+          tiktok_pixel_id?: string | null
           created_at?: string
           updated_at?: string
         }

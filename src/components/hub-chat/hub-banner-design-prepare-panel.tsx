@@ -37,7 +37,7 @@ const COPY: Record<
     intro:
       'Chọn 1–4 tỷ lệ, tải logo để ghép vào banner (khuyến nghị), thêm ảnh sản phẩm nếu cần — rồi bấm «Tạo banner».',
     overlayLabel: 'Nội dung & bố cục banner',
-    overlayHint: 'Tùy chọn — để trống sẽ dùng nội dung chiến dịch đã nhập ở các bước trước.',
+    overlayHint: 'Gửi nguyên văn cho AI tạo ảnh — có thể để trống nếu đã nhập brief chiến dịch ở các bước trước.',
     overlayPlaceholder:
       'Ví dụ: GIẢM 50% — MUA NGAY · sản phẩm bên phải, logo góc trên trái, nền gradient tím',
     domainLabel: 'Tên miền hoặc thương hiệu',
@@ -57,7 +57,7 @@ const COPY: Record<
     intro:
       'Pick 1–4 ratios, upload your logo to composite on the banner (recommended), add product photos if needed — then tap «Generate banner».',
     overlayLabel: 'Banner copy & layout',
-    overlayHint: 'Optional — leave empty to use the campaign brief from earlier steps.',
+    overlayHint: 'Sent verbatim to the image model — leave empty if the campaign brief was filled in earlier steps.',
     overlayPlaceholder:
       'e.g. 50% OFF — SHOP NOW · product on the right, logo top-left, purple gradient background',
     domainLabel: 'Domain or brand name',
@@ -77,7 +77,7 @@ const COPY: Record<
     intro:
       '选择 1–4 个比例，上传 logo 合成到横幅（推荐），可按需添加产品图 — 然后点击「生成横幅」。',
     overlayLabel: '横幅文案与布局',
-    overlayHint: '可选 — 留空则使用前面步骤已填的活动 brief。',
+    overlayHint: '原样发送给图像模型 — 若前面步骤已填活动 brief 可留空。',
     overlayPlaceholder: '例如：5折 — 立即购买 · 产品在右，Logo 左上，紫色渐变背景',
     domainLabel: '域名或品牌名',
     domainHint: '显示在横幅上 — 可以是网站域名或品牌名称。',
@@ -96,7 +96,7 @@ const COPY: Record<
     intro:
       '1〜4 比率を選び、ロゴをアップロードしてバナーに合成（推奨）、必要なら商品画像を追加 — 「バナー生成」を押してください。',
     overlayLabel: 'バナー文案・レイアウト',
-    overlayHint: '任意 — 空欄の場合は前のステップのキャンペーン brief を使用します。',
+    overlayHint: '画像モデルへそのまま送信 — 前のステップで brief を入力済みなら空欄可。',
     overlayPlaceholder:
       '例：50%OFF — 今すぐ購入 · 商品は右、ロゴ左上、紫グラデーション背景',
     domainLabel: 'ドメインまたはブランド名',
@@ -116,7 +116,7 @@ const COPY: Record<
     intro:
       '1–4개 비율 선택, 로고 업로드해 배너에 합성(권장), 필요 시 제품 사진 추가 — «배너 생성»을 누르세요.',
     overlayLabel: '배너 문구·레이아웃',
-    overlayHint: '선택 사항 — 비워 두면 이전 단계의 캠페인 brief를 사용합니다.',
+    overlayHint: '이미지 모델에 그대로 전달 — 이전 단계에서 brief를 입력했다면 비워도 됩니다.',
     overlayPlaceholder:
       '예: 50% 할인 — 지금 구매 · 제품 오른쪽, 로고 좌상단, 보라색 gradient 배경',
     domainLabel: '도메인 또는 브랜드명',

@@ -379,6 +379,20 @@ export type PartnerApiKeysManagerStrings = {
   keyCreatedDescription: string
   noEmbedKey: string
   copyFailed: string
+  webhookTitle: string
+  webhookHint: string
+  webhookUrlLabel: string
+  webhookEnabled: string
+  webhookSave: string
+  webhookSaved: string
+  webhookGenerateSecret: string
+  webhookSecretGenerated: string
+  webhookTest: string
+  webhookTestOk: string
+  webhookTestFailed: string
+  webhookEventOrderCreated: string
+  webhookEventLeadCreated: string
+  webhookEventPaymentPaid: string
 }
 
 export const PARTNER_API_KEYS_MANAGER_COPY: Record<ApiKeysHubLocale, PartnerApiKeysManagerStrings> = {
@@ -418,6 +432,21 @@ export const PARTNER_API_KEYS_MANAGER_COPY: Record<ApiKeysHubLocale, PartnerApiK
     keyCreatedDescription: 'Đã thử sao chép vào clipboard. Hãy lưu an toàn — sau khi ẩn trang chỉ hiện dạng che.',
     noEmbedKey: '(Chưa có embed key)',
     copyFailed: 'Không sao chép được.',
+    webhookTitle: 'Webhook outbound (HTTPS)',
+    webhookHint:
+      'NanoAI POST JSON tới URL backend shop khi có lead mới, đơn mới, hoặc thanh toán xác nhận. Ký HMAC qua header X-NanoAI-Signature (sha256=…).',
+    webhookUrlLabel: 'Webhook URL (https://…)',
+    webhookEnabled: 'Bật gửi webhook',
+    webhookSave: 'Lưu webhook',
+    webhookSaved: 'Đã lưu cấu hình webhook.',
+    webhookGenerateSecret: 'Tạo signing secret',
+    webhookSecretGenerated: 'Đã tạo secret — lưu ngay, chỉ hiện một lần.',
+    webhookTest: 'Gửi webhook.test',
+    webhookTestOk: 'Đã gửi webhook test thành công.',
+    webhookTestFailed: 'Gửi webhook test thất bại.',
+    webhookEventOrderCreated: 'order.created',
+    webhookEventLeadCreated: 'lead.created',
+    webhookEventPaymentPaid: 'payment.paid',
   },
   en: {
     cardTitle: 'Shop API keys (Messaging)',
@@ -455,6 +484,21 @@ export const PARTNER_API_KEYS_MANAGER_COPY: Record<ApiKeysHubLocale, PartnerApiK
     keyCreatedDescription: 'Copied to clipboard if allowed. Store it safely — after hiding, only a masked value is shown.',
     noEmbedKey: '(No embed key)',
     copyFailed: 'Could not copy.',
+    webhookTitle: 'Outbound webhooks (HTTPS)',
+    webhookHint:
+      'NanoAI POSTs JSON to your backend when leads, orders, or verified payments occur. HMAC signature in X-NanoAI-Signature (sha256=…).',
+    webhookUrlLabel: 'Webhook URL (https://…)',
+    webhookEnabled: 'Enable webhooks',
+    webhookSave: 'Save webhook',
+    webhookSaved: 'Webhook settings saved.',
+    webhookGenerateSecret: 'Generate signing secret',
+    webhookSecretGenerated: 'Secret generated — save it now; shown once.',
+    webhookTest: 'Send webhook.test',
+    webhookTestOk: 'Test webhook delivered.',
+    webhookTestFailed: 'Test webhook failed.',
+    webhookEventOrderCreated: 'order.created',
+    webhookEventLeadCreated: 'lead.created',
+    webhookEventPaymentPaid: 'payment.paid',
   },
   zh: {
     cardTitle: '店铺 API 密钥（Messaging）',
@@ -491,6 +535,20 @@ export const PARTNER_API_KEYS_MANAGER_COPY: Record<ApiKeysHubLocale, PartnerApiK
     keyCreatedDescription: '若允许已尝试复制到剪贴板。请妥善保存 — 隐藏后页面仅显示掩码。',
     noEmbedKey: '（无嵌入密钥）',
     copyFailed: '复制失败。',
+    webhookTitle: 'Outbound Webhook（HTTPS）',
+    webhookHint: '有新线索、新订单或付款确认时，NanoAI 向您的 HTTPS URL POST JSON。签名头 X-NanoAI-Signature。',
+    webhookUrlLabel: 'Webhook URL（https://…）',
+    webhookEnabled: '启用 Webhook',
+    webhookSave: '保存',
+    webhookSaved: '已保存 Webhook 配置。',
+    webhookGenerateSecret: '生成签名密钥',
+    webhookSecretGenerated: '已生成密钥，请立即保存。',
+    webhookTest: '发送 webhook.test',
+    webhookTestOk: '测试 Webhook 发送成功。',
+    webhookTestFailed: '测试 Webhook 失败。',
+    webhookEventOrderCreated: 'order.created',
+    webhookEventLeadCreated: 'lead.created',
+    webhookEventPaymentPaid: 'payment.paid',
   },
   ja: {
     cardTitle: '店舗 API キー（Messaging）',
@@ -527,6 +585,20 @@ export const PARTNER_API_KEYS_MANAGER_COPY: Record<ApiKeysHubLocale, PartnerApiK
     keyCreatedDescription: '可能ならクリップボードにコピー済みです。安全に保管してください — 非表示にするとマスク表示のみになります。',
     noEmbedKey: '（埋め込みキーなし）',
     copyFailed: 'コピーできませんでした。',
+    webhookTitle: 'Outbound Webhook（HTTPS）',
+    webhookHint: 'リード・注文・入金確認時に JSON を POST。X-NanoAI-Signature で HMAC 署名。',
+    webhookUrlLabel: 'Webhook URL（https://…）',
+    webhookEnabled: 'Webhook を有効化',
+    webhookSave: '保存',
+    webhookSaved: 'Webhook 設定を保存しました。',
+    webhookGenerateSecret: '署名シークレットを生成',
+    webhookSecretGenerated: 'シークレットを生成しました。今すぐ保存してください。',
+    webhookTest: 'webhook.test を送信',
+    webhookTestOk: 'テスト Webhook 送信成功。',
+    webhookTestFailed: 'テスト Webhook 失敗。',
+    webhookEventOrderCreated: 'order.created',
+    webhookEventLeadCreated: 'lead.created',
+    webhookEventPaymentPaid: 'payment.paid',
   },
   ko: {
     cardTitle: '매장 API 키(Messaging)',
@@ -563,5 +635,19 @@ export const PARTNER_API_KEYS_MANAGER_COPY: Record<ApiKeysHubLocale, PartnerApiK
     keyCreatedDescription: '가능하면 클립보드에 복사했습니다. 안전히 보관하세요 — 숨기면 마스크만 표시됩니다.',
     noEmbedKey: '(임베드 키 없음)',
     copyFailed: '복사하지 못했습니다.',
+    webhookTitle: 'Outbound Webhook(HTTPS)',
+    webhookHint: '리드·주문·결제 확인 시 JSON POST. X-NanoAI-Signature HMAC 서명.',
+    webhookUrlLabel: 'Webhook URL(https://…)',
+    webhookEnabled: 'Webhook 사용',
+    webhookSave: '저장',
+    webhookSaved: 'Webhook 설정을 저장했습니다.',
+    webhookGenerateSecret: '서명 시크릿 생성',
+    webhookSecretGenerated: '시크릿 생성됨 — 지금 저장하세요.',
+    webhookTest: 'webhook.test 전송',
+    webhookTestOk: '테스트 Webhook 전송 성공.',
+    webhookTestFailed: '테스트 Webhook 실패.',
+    webhookEventOrderCreated: 'order.created',
+    webhookEventLeadCreated: 'lead.created',
+    webhookEventPaymentPaid: 'payment.paid',
   },
 }

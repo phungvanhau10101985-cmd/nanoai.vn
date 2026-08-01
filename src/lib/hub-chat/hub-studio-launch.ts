@@ -1,6 +1,6 @@
 import type { WebLocale } from '@/lib/i18n/config'
 
-export type HubStudioLaunchId = 'packaging_kit'
+export type HubStudioLaunchId = 'packaging_kit' | 'bag_kit'
 
 export const HUB_STUDIO_LAUNCH_QUERY = 'hubStudio'
 
@@ -11,6 +11,13 @@ export const HUB_STUDIO_LAUNCH_PROMPTS: Record<HubStudioLaunchId, Record<WebLoca
     zh: '设计纸盒包装',
     ja: '紙箱包装をデザイン',
     ko: '종이 상자 포장 디자인',
+  },
+  bag_kit: {
+    vi: 'thiết kế túi đựng',
+    en: 'design paper shopping bag',
+    zh: '设计纸袋',
+    ja: '紙袋をデザイン',
+    ko: '종이 쇼핑백 디자인',
   },
 }
 
@@ -24,7 +31,8 @@ export function hubStudioLaunchPrompt(launchId: HubStudioLaunchId, locale: WebLo
 
 export function parseHubStudioLaunchId(value: string | null | undefined): HubStudioLaunchId | null {
   const id = String(value ?? '').trim()
-  return id === 'packaging_kit' ? id : null
+  if (id === 'packaging_kit' || id === 'bag_kit') return id
+  return null
 }
 
 const HUB_STUDIO_LAUNCH_STORAGE_KEY = 'nanoai_hub_studio_launch'

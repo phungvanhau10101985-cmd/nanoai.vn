@@ -2,11 +2,18 @@ import { randomBytes } from 'crypto'
 import type { NextRequest } from 'next/server'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
 import {
+  resolveBagFacePreviewUrl,
+  type BagFaceSlot,
+} from '@/lib/hub-chat/bag-kit-shared'
+import type { BagDimensionsMm } from '@/lib/packaging/bag-dimensions'
+import {
   BOX_FACE_SLOT_ORDER,
   resolveMockupSlotUrl,
   type BoxFaceSlot,
   type FaceSourceMode,
 } from '@/lib/packaging/box-face-slots'
+
+export type PackagingMockupKind = 'box' | 'bag'
 
 export const PACKAGING_MOCKUP_SHARE_EXPIRY_DAYS = 30
 
@@ -27,6 +34,13 @@ export function mockupDownloadFilename(dimensionsMm: {
   const w = Math.round(dimensionsMm.width)
   const h = Math.round(dimensionsMm.height)
   return `box-mockup-${l}x${w}x${h}mm`
+}
+
+export function bagMockupDownloadFilename(dimensionsMm: BagDimensionsMm): string {
+  const w = Math.round(dimensionsMm.width)
+  const h = Math.round(dimensionsMm.height)
+  const g = Math.round(dimensionsMm.gusset)
+  return `bag-mockup-${w}x${h}x${g}mm`
 }
 
 /** Resolve absolute share URL from request (production-safe). */
@@ -76,4 +90,51 @@ export function faceUrlsToFaceSlots(
     if (url) out[slot] = { sourceMode: 'generate', url }
   }
   return out
+}
+
+export type BagMockupFaceSlotsInput = Partial<
+  Record<BagFaceSlot, { sourceMode: string; url?: string }>
+>
+
+export function resolveBagFaceUrlsForShare(
+  faceSlots: BagMockupFaceSlotsInput
+): Partial<Record<BagFaceSlot, string>> {
+  const out: Partial<Record<BagFaceSlot, string>> = {}
+  for (const slot of ['back', 'front'] as const) {
+    const url = resolveBagFacePreviewUrl({ faceSlots }, slot)
+    if (url) out[slot] = url
+  }
+  return out
+}
+
+export function bagFaceUrlsToFaceSlots(
+  faceUrls: Partial<Record<BagFaceSlot, string>>
+): BagMockupFaceSlotsInput {
+  const out: BagMockupFaceSlotsInput = {}
+  for (const slot of ['back', 'front'] as const) {
+    const url = faceUrls[slot]
+    if (url) out[slot] = { sourceMode: 'generate', url }
+  }
+  return out
+}
+
+export function isBagDimensionsMm(raw: unknown): raw is BagDimensionsMm {
+  if (!raw || typeof raw !== 'object') return false
+  const o = raw as Record<string, unknown>
+  return (
+    typeof o.width === 'number' &&
+    typeof o.height === 'number' &&
+    typeof o.gusset === 'number' &&
+    !('length' in o)
+  )
+}
+
+export function isBoxDimensionsMm(raw: unknown): raw is {
+  length: number
+  width: number
+  height: number
+} {
+  if (!raw || typeof raw !== 'object') return false
+  const o = raw as Record<string, unknown>
+  return typeof o.length === 'number' && typeof o.width === 'number' && typeof o.height === 'number'
 }

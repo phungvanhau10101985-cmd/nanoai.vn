@@ -39,7 +39,7 @@ export function getFurthestReachedStepIndex(session: HubStudioSession, presetId:
 
 /** Packaging box flow is linear — users cannot jump back to earlier steps. */
 export function isForwardOnlyStudioPreset(presetId: string | null | undefined): boolean {
-  return presetId === 'packaging_kit'
+  return presetId === 'packaging_kit' || presetId === 'bag_kit'
 }
 
 export function canNavigateToStep(
@@ -96,10 +96,20 @@ export function applyReferenceRemoval(
     pendingPreview = session.pendingPreview ?? null
   }
 
+  const processSteps =
+    presetId && removed.screenKey
+      ? session.processSteps.map((step) =>
+          step.key === removed.screenKey && step.status === 'done'
+            ? { ...step, status: 'in_progress' as const }
+            : step
+        )
+      : session.processSteps
+
   return {
     ...session,
-    currentStepKey: savedCurrentStepKey,
+    currentStepKey: savedCurrentStepKey ?? null,
     pendingPreview,
+    processSteps,
     lastGenerationPrompt:
       pendingPreview?.generationPrompt ?? session.lastGenerationPrompt,
   }

@@ -133,6 +133,7 @@ export type WeddingReminderDueRow = WeddingReminder & {
 
 export type WeddingInvitedGuest = {
   id: string
+  guestHonorific: string
   guestName: string
   inviteVenue: WeddingGuestInviteVenue
   personalInvite: string
@@ -765,6 +766,7 @@ function mapInvitedGuest(row: Record<string, unknown>): WeddingInvitedGuest {
     statusRaw === 'attending' || statusRaw === 'declined' ? statusRaw : 'pending'
   return {
     id: String(row.id),
+    guestHonorific: String(row.guest_honorific ?? ''),
     guestName: String(row.guest_name ?? ''),
     inviteVenue: normalizeGuestInviteVenueRow(row.invite_venue),
     personalInvite: String(row.personal_invite ?? ''),
@@ -793,6 +795,7 @@ export async function listWeddingInvitedGuests(cardId: string, userId: string): 
 export async function createWeddingInvitedGuest(input: {
   cardId: string
   userId: string
+  guestHonorific: string
   guestName: string
   inviteVenue: WeddingGuestInviteVenue
   personalInvite: string
@@ -806,14 +809,15 @@ export async function createWeddingInvitedGuest(input: {
   if (!name) return null
   const res = await getPgPool().query(
     `insert into public.wedding_card_invited_guests (
-       wedding_card_id, guest_name, invite_venue, personal_invite, status, guest_count, wish_message, notes
+       wedding_card_id, guest_honorific, guest_name, invite_venue, personal_invite, status, guest_count, wish_message, notes
      )
-     select $1::uuid, $2, $3, $4, $5, $6, $7, $8
+     select $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9
      from public.wedding_cards c
-     where c.id = $1::uuid and c.user_id = $9::uuid
+     where c.id = $1::uuid and c.user_id = $10::uuid
      returning *`,
     [
       input.cardId,
+      input.guestHonorific.trim().slice(0, 80),
       name,
       normalizeGuestInviteVenue(input.inviteVenue),
       input.personalInvite,
@@ -831,6 +835,7 @@ export async function updateWeddingInvitedGuest(input: {
   guestId: string
   cardId: string
   userId: string
+  guestHonorific: string
   guestName: string
   inviteVenue: WeddingGuestInviteVenue
   personalInvite: string
@@ -844,13 +849,14 @@ export async function updateWeddingInvitedGuest(input: {
   if (!name) return null
   const res = await getPgPool().query(
     `update public.wedding_card_invited_guests g
-     set guest_name = $4,
-         invite_venue = $5,
-         personal_invite = $6,
-         status = $7,
-         guest_count = $8,
-         wish_message = $9,
-         notes = $10,
+     set guest_honorific = $4,
+         guest_name = $5,
+         invite_venue = $6,
+         personal_invite = $7,
+         status = $8,
+         guest_count = $9,
+         wish_message = $10,
+         notes = $11,
          updated_at = timezone('utc'::text, now())
      from public.wedding_cards c
      where g.id = $1::uuid
@@ -862,6 +868,7 @@ export async function updateWeddingInvitedGuest(input: {
       input.guestId,
       input.cardId,
       input.userId,
+      input.guestHonorific.trim().slice(0, 80),
       name,
       normalizeGuestInviteVenue(input.inviteVenue),
       input.personalInvite,
@@ -888,6 +895,36 @@ export async function deleteWeddingInvitedGuest(guestId: string, cardId: string,
   return (res.rowCount ?? 0) > 0
 }
 
+/** Lấy lời mời cá nhân đã lưu cho khách trên thiệp đã xuất bản (theo tên hiển thị + venue). */
+export async function getPublishedInvitedGuestPersonalInvite(input: {
+  cardId: string
+  guestDisplayName: string
+  inviteVenue: WeddingGuestInviteVenue
+}): Promise<string> {
+  requirePg()
+  const key = normalizeGuestNameKey(input.guestDisplayName)
+  if (!key) return ''
+  const venue = normalizeGuestInviteVenue(input.inviteVenue)
+  const res = await getPgPool().query(
+    `select g.personal_invite
+     from public.wedding_card_invited_guests g
+     join public.wedding_cards c on c.id = g.wedding_card_id
+     where g.wedding_card_id = $1::uuid
+       and c.is_published = true
+       and lower(trim(regexp_replace(
+         case when trim(coalesce(g.guest_honorific, '')) <> ''
+           then trim(g.guest_honorific) || ' ' || trim(g.guest_name)
+           else trim(g.guest_name)
+         end,
+         '\\s+', ' ', 'g'))) = $2
+       and ($3 = '' or g.invite_venue = $3)
+     order by g.updated_at desc
+     limit 1`,
+    [input.cardId, key, venue],
+  )
+  return String(res.rows[0]?.personal_invite ?? '').trim()
+}
+
 /** Cập nhật khách trong danh sách mời khi có RSVP trùng tên (nếu có). */
 export async function syncInvitedGuestFromRsvp(input: {
   cardId: string
@@ -906,7 +943,12 @@ export async function syncInvitedGuestFromRsvp(input: {
          wish_message = case when $5 <> '' then $5 else g.wish_message end,
          updated_at = timezone('utc'::text, now())
      where g.wedding_card_id = $1::uuid
-       and lower(trim(regexp_replace(g.guest_name, '\\s+', ' ', 'g'))) = $2`,
+       and lower(trim(regexp_replace(
+         case when trim(coalesce(g.guest_honorific, '')) <> ''
+           then trim(g.guest_honorific) || ' ' || trim(g.guest_name)
+           else trim(g.guest_name)
+         end,
+         '\\s+', ' ', 'g'))) = $2`,
     [
       input.cardId,
       key,

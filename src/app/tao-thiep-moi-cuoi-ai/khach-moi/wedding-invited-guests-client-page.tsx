@@ -10,12 +10,16 @@ import { Toaster } from '@/components/ui/toaster'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import type { WeddingCard, WeddingInvitedGuest, WeddingInvitedGuestStatus } from '@/lib/db/wedding-cards-pg'
+import {
+  buildGuestDisplayName,
+  buildPersonalWeddingInviteFromSideContext,
+  WEDDING_GUEST_HONORIFIC_SUGGESTIONS,
+} from '@/lib/wedding/build-personal-wedding-invite'
 import { buildWeddingPersonalInviteUrl } from '@/lib/wedding/wedding-guest-invite-link'
 import type { WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import {
   appendWeddingSideInviteSettingsToFormData,
   EMPTY_WEDDING_SIDE_INVITE_SETTINGS,
-  pickSideInviteSettings,
   serializeWeddingSideInviteSettings,
   weddingSideInviteSettingsFromCard,
   type WeddingSideInviteSettings,
@@ -35,6 +39,7 @@ type GuestSide = 'groom_home' | 'bride_home'
 type GuestRow = {
   clientKey: string
   id: string
+  guestHonorific: string
   guestName: string
   inviteVenue: WeddingGuestInviteVenue
   personalInvite: string
@@ -62,6 +67,7 @@ function guestToRow(g: WeddingInvitedGuest): GuestRow {
   return {
     clientKey: g.id,
     id: g.id,
+    guestHonorific: g.guestHonorific,
     guestName: g.guestName,
     inviteVenue: g.inviteVenue,
     personalInvite: g.personalInvite,
@@ -72,13 +78,31 @@ function guestToRow(g: WeddingInvitedGuest): GuestRow {
   }
 }
 
-function emptyRow(side: GuestSide, defaultPersonalInvite = ''): GuestRow {
+function buildInviteForRow(
+  row: Pick<GuestRow, 'guestHonorific' | 'guestName'>,
+  side: GuestSide,
+  card: WeddingCard,
+  sideSettings: SideSettings,
+): string {
+  if (!row.guestName.trim()) return ''
+  const inviteSide = side === 'groom_home' ? 'groom' : 'bride'
+  return buildPersonalWeddingInviteFromSideContext({
+    side: inviteSide,
+    card,
+    sideSettings,
+    guestHonorific: row.guestHonorific,
+    guestName: row.guestName,
+  })
+}
+
+function emptyRow(side: GuestSide): GuestRow {
   return {
     clientKey: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     id: '',
+    guestHonorific: '',
     guestName: '',
     inviteVenue: side,
-    personalInvite: defaultPersonalInvite,
+    personalInvite: '',
     status: 'pending',
     guestCount: '1',
     wishMessage: '',
@@ -93,6 +117,7 @@ function rowKey(row: GuestRow) {
 
 function serializeRow(row: GuestRow, fixedSide: GuestSide): string {
   return JSON.stringify({
+    guestHonorific: row.guestHonorific,
     guestName: row.guestName,
     inviteVenue: fixedSide,
     personalInvite: row.personalInvite,
@@ -210,17 +235,34 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
 
   const updateRowByKey = (clientKey: string, side: GuestSide, patch: Partial<GuestRow>) => {
     setRows((prev) =>
-      prev.map((row) =>
-        row.clientKey === clientKey ? { ...row, ...patch, inviteVenue: side } : row,
-      ),
+      prev.map((row) => {
+        if (row.clientKey !== clientKey) return row
+        const next = { ...row, ...patch, inviteVenue: side }
+        const currentCard = cardRef.current
+        if (currentCard && (patch.guestHonorific !== undefined || patch.guestName !== undefined)) {
+          next.personalInvite = buildInviteForRow(next, side, currentCard, sideSettingsRef.current)
+        }
+        return next
+      }),
     )
   }
 
   const addRow = (side: GuestSide) => {
-    const sideKey = side === 'groom_home' ? 'groom' : 'bride'
-    const defaultPersonal = pickSideInviteSettings(sideSettingsRef.current, sideKey).defaultPersonalMessage
-    setRows((prev) => [...prev, emptyRow(side, defaultPersonal)])
+    setRows((prev) => [...prev, emptyRow(side)])
   }
+
+  useEffect(() => {
+    if (!card || loading) return
+    setRows((prev) =>
+      prev.map((row) => {
+        if (!row.guestName.trim()) return row
+        const side: GuestSide = row.inviteVenue === 'bride_home' ? 'bride_home' : 'groom_home'
+        const personalInvite = buildInviteForRow(row, side, card, sideSettings)
+        if (personalInvite === row.personalInvite) return row
+        return { ...row, personalInvite }
+      }),
+    )
+  }, [card, loading, sideSettings])
 
   const persistSideSettings = useCallback(async () => {
     const currentCard = cardRef.current
@@ -265,6 +307,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       const formData = new FormData()
       formData.append('cardId', currentCard.id)
       if (row.id && !row.isNew) formData.append('guestId', row.id)
+      formData.append('guestHonorific', row.guestHonorific)
       formData.append('guestName', row.guestName)
       formData.append('inviteVenue', fixedSide)
       formData.append('personalInvite', row.personalInvite)
@@ -332,7 +375,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       setRows((prev) => prev.filter((item) => item.clientKey !== row.clientKey))
       return
     }
-    if (!window.confirm(`Xóa khách «${row.guestName}» khỏi danh sách?`)) return
+    if (!window.confirm(`Xóa khách «${buildGuestDisplayName(row.guestHonorific, row.guestName)}» khỏi danh sách?`)) return
     const formData = new FormData()
     formData.append('cardId', card.id)
     formData.append('guestId', row.id)
@@ -351,7 +394,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       return
     }
     const link = buildWeddingPersonalInviteUrl(publishUrl, {
-      guestName: row.guestName,
+      guestName: buildGuestDisplayName(row.guestHonorific, row.guestName),
       inviteVenue: fixedSide,
     })
     try {
@@ -368,6 +411,11 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
 
   const renderGuestTable = (sideRows: GuestRow[], side: GuestSide, sideLabel: string) => (
     <>
+      <datalist id="wedding-guest-honorific-suggestions">
+        {WEDDING_GUEST_HONORIFIC_SUGGESTIONS.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
       {loading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -382,22 +430,24 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
           <table className="w-full table-fixed border-collapse text-sm">
             <colgroup>
               <col className="w-[2.5rem]" />
-              <col className="w-[16%]" />
+              <col className="w-[10%]" />
+              <col className="w-[12%]" />
               <col className="w-[10%]" />
               <col className="w-[3.5rem]" />
-              <col className="w-[20%]" />
-              <col className="w-[20%]" />
-              <col className="w-[16%]" />
+              <col className="w-[24%]" />
+              <col className="w-[14%]" />
+              <col className="w-[12%]" />
               <col className="w-[4.5rem]" />
               <col className="w-[2.5rem]" />
             </colgroup>
             <thead className="sticky top-0 z-10">
               <tr>
                 <th className={cn(thClass, 'text-center')}>#</th>
-                <th className={thClass}>Tên khách mời *</th>
+                <th className={thClass}>Xưng hô</th>
+                <th className={thClass}>Tên *</th>
                 <th className={thClass}>Trạng thái</th>
                 <th className={cn(thClass, 'text-center')}>SL</th>
-                <th className={thClass}>Lời mời riêng</th>
+                <th className={thClass}>Lời mời (tự sinh)</th>
                 <th className={thClass}>Lời chúc</th>
                 <th className={thClass}>Ghi chú</th>
                 <th className={cn(thClass, 'text-center')}>Link</th>
@@ -410,7 +460,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                 const personalUrl =
                   publishUrl && row.guestName.trim()
                     ? buildWeddingPersonalInviteUrl(publishUrl, {
-                        guestName: row.guestName,
+                        guestName: buildGuestDisplayName(row.guestHonorific, row.guestName),
                         inviteVenue: side,
                       })
                     : ''
@@ -434,9 +484,18 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                     </td>
                     <td className={tdClass}>
                       <Input
+                        value={row.guestHonorific}
+                        onChange={(e) => updateRowByKey(key, side, { guestHonorific: e.target.value })}
+                        placeholder="Chú, Anh, Bạn, Ba…"
+                        list="wedding-guest-honorific-suggestions"
+                        className={cellInputClass}
+                      />
+                    </td>
+                    <td className={tdClass}>
+                      <Input
                         value={row.guestName}
                         onChange={(e) => updateRowByKey(key, side, { guestName: e.target.value })}
-                        placeholder="Anh Chị Minh"
+                        placeholder="Công"
                         className={cellInputClass}
                       />
                     </td>
@@ -466,12 +525,12 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                       />
                     </td>
                     <td className={tdClass}>
-                      <Input
-                        value={row.personalInvite}
-                        onChange={(e) => updateRowByKey(key, side, { personalInvite: e.target.value })}
-                        placeholder="Lời mời…"
-                        className={cellInputClass}
-                      />
+                      <p
+                        className="px-2 py-1.5 text-xs leading-snug text-muted-foreground"
+                        title={row.personalInvite}
+                      >
+                        {row.personalInvite || '—'}
+                      </p>
                     </td>
                     <td className={tdClass}>
                       <Input
@@ -588,8 +647,8 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
               Danh sách khách mời nhà trai
             </CardTitle>
             <CardDescription>
-              Cài đặt thiệp cá nhân nhà trai (ngày, giờ, địa chỉ, lời mời, lịch trình, dress code, liên hệ, ảnh bìa…).
-              Khách trong bảng luôn là mời nhà trai.
+              Cài đặt thiệp cá nhân nhà trai (ngày, giờ, địa chỉ, lịch trình, dress code, liên hệ, ảnh bìa…).
+              Lời mời tự sinh theo xưng hô + tên từng khách.
               {card ? (
                 <>
                   {' '}
@@ -618,8 +677,8 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
               Danh sách khách mời nhà gái
             </CardTitle>
             <CardDescription>
-              Cài đặt thiệp cá nhân nhà gái (ngày, giờ, địa chỉ, lời mời, lịch trình, dress code, liên hệ, ảnh bìa…).
-              Khách trong bảng luôn là mời nhà gái.
+              Cài đặt thiệp cá nhân nhà gái (ngày, giờ, địa chỉ, lịch trình, dress code, liên hệ, ảnh bìa…).
+              Lời mời tự sinh theo xưng hô + tên từng khách.
               {card ? (
                 <>
                   {' '}

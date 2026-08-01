@@ -5,7 +5,9 @@ import { buildAdvisoryPayload, tagWorkflowFlowMeta } from '@/lib/hub-chat/hub-ad
 import {
   buildStandaloneFeatureEntries,
   matchFeatureFlowByMessage,
+  resolveIdleFeatureMatch,
 } from '@/lib/hub-chat/hub-feature-flow-registry'
+import { buildHubFeatureCatalog, studioFeatureKey } from '@/lib/hub-chat/hub-feature-catalog'
 
 test('matchFeatureFlowByMessage prefers studio preset over standalone href', () => {
   const match = matchFeatureFlowByMessage('tạo giao diện web cho spa', 'vi')
@@ -58,6 +60,52 @@ test('standalone catalog covers nav tools and advisory extras', () => {
   assert.ok(entries.some((e) => e.href === '/lam-net-anh'))
   assert.ok(entries.some((e) => e.href === '/thiet-ke-tui-dung'))
   assert.ok(entries.some((e) => e.href === '/flow-nhac-video-veo'))
+  assert.ok(entries.some((e) => e.href === '/tao-thiep-moi-cuoi-ai'))
+})
+
+test('tạo thiệp cưới maps to wedding invitation tool not online exam', () => {
+  const match = matchFeatureFlowByMessage('tạo thiệp cưới', 'vi')
+  assert.equal(match?.kind, 'standalone')
+  if (match?.kind === 'standalone') assert.equal(match.href, '/tao-thiep-moi-cuoi-ai')
+})
+
+test('thiệp cưới online maps to wedding invitation tool', () => {
+  const match = matchFeatureFlowByMessage('thiệp cưới online', 'vi')
+  assert.equal(match?.kind, 'standalone')
+  if (match?.kind === 'standalone') assert.equal(match.href, '/tao-thiep-moi-cuoi-ai')
+})
+
+test('thiết kế thiệp mời maps to wedding invitation tool', () => {
+  const match = matchFeatureFlowByMessage('thiết kế thiệp mời', 'vi')
+  assert.equal(match?.kind, 'standalone')
+  if (match?.kind === 'standalone') assert.equal(match.href, '/tao-thiep-moi-cuoi-ai')
+})
+
+test('tạo thiệp mời maps to wedding invitation tool not online exam', () => {
+  const match = matchFeatureFlowByMessage('tạo thiệp mời', 'vi')
+  assert.equal(match?.kind, 'standalone')
+  if (match?.kind === 'standalone') assert.equal(match.href, '/tao-thiep-moi-cuoi-ai')
+})
+
+test('bare thiệp mời maps to wedding invitation tool', () => {
+  const match = matchFeatureFlowByMessage('thiệp mời', 'vi')
+  assert.equal(match?.kind, 'standalone')
+  if (match?.kind === 'standalone') assert.equal(match.href, '/tao-thiep-moi-cuoi-ai')
+})
+
+test('affirmative reply after wedding tool offer opens wedding feature', () => {
+  const match = resolveIdleFeatureMatch(
+    'có',
+    'vi',
+    'Bạn muốn thiết kế thiệp mời. Hiện tại, tôi có công cụ Tạo thiệp cưới AI có thể giúp bạn.'
+  )
+  assert.equal(match?.kind, 'standalone')
+  if (match?.kind === 'standalone') assert.equal(match.href, '/tao-thiep-moi-cuoi-ai')
+})
+
+test('catalog no longer exposes wedding_invite studio preset', () => {
+  const catalog = buildHubFeatureCatalog('vi')
+  assert.ok(!catalog.some((e) => e.key === studioFeatureKey('wedding_invite')))
 })
 
 test('buildAdvisoryPayload injects standalone workflow when message matches', async () => {
@@ -71,6 +119,34 @@ test('buildAdvisoryPayload injects standalone workflow when message matches', as
     planRaw: null,
   })
   assert.ok(result.workflows.some((w) => w.href === '/phuc-dung-anh'))
+  assert.equal(result.workflows[0]?.requiresOpenConfirm, true)
+})
+
+test('buildAdvisoryPayload injects wedding tool when user asks to create wedding invite', async () => {
+  const result = await buildAdvisoryPayload({
+    locale: 'vi',
+    userId: 'user-1',
+    threadId: 'thread-1',
+    message: 'tạo thiệp cưới',
+    hubRoute: 'consultation',
+    workflowsRaw: [],
+    planRaw: null,
+  })
+  assert.equal(result.workflows[0]?.href, '/tao-thiep-moi-cuoi-ai')
+  assert.equal(result.workflows[0]?.requiresOpenConfirm, true)
+})
+
+test('buildAdvisoryPayload injects wedding tool for generic invitation design request', async () => {
+  const result = await buildAdvisoryPayload({
+    locale: 'vi',
+    userId: 'user-1',
+    threadId: 'thread-1',
+    message: 'thiết kế thiệp mời',
+    hubRoute: 'consultation',
+    workflowsRaw: [],
+    planRaw: null,
+  })
+  assert.equal(result.workflows[0]?.href, '/tao-thiep-moi-cuoi-ai')
   assert.equal(result.workflows[0]?.requiresOpenConfirm, true)
 })
 

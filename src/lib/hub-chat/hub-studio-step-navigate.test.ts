@@ -108,6 +108,7 @@ test('remove reference on current step restores editable preview', () => {
   )
   assert.equal(next.pendingPreview?.screenKey, 'face_top')
   assert.equal(next.pendingPreview?.url, 'https://example.com/top.png')
+  assert.equal(next.processSteps.find((s) => s.key === 'face_top')?.status, 'in_progress')
 })
 
 test('remove unrelated reference at seal step does not show box face preview', () => {

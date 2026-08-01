@@ -26,7 +26,7 @@ import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import { handleHubStudio, type HubStudioAction } from '@/lib/hub-chat/hub-studio-handler'
 import { presetTitle } from '@/lib/hub-chat/hub-studio-presets'
 import { reconcilePackagingProcessSteps } from '@/lib/packaging/face-print-style'
-import { applyPackagingSessionLabels } from '@/lib/packaging/packaging-face-labels'
+import { applyStudioSessionLabels } from '@/lib/packaging/packaging-face-labels'
 
 export const maxDuration = 300
 
@@ -41,6 +41,7 @@ const VALID_GROUPS = new Set<HubWorkflowGroup>([
   'music_ai',
 ])
 
+import type { HubChatPlanPayload, HubChatWorkflowSuggestion } from '@/lib/hub-chat/hub-advisory'
 export type { HubChatWorkflowSuggestion, HubChatPlanPayload } from '@/lib/hub-chat/hub-advisory'
 
 function cleanJsonResponse(raw: string): string {
@@ -122,12 +123,13 @@ export async function GET(request: NextRequest) {
 
   const thread = await pgGetHubChatThread(auth.user.id, threadId)
   if (!thread) return NextResponse.json({ error: 'Không tìm thấy hội thoại.' }, { status: 404 })
-  if (thread.session?.presetId === 'packaging_kit') {
+  if (thread.session?.presetId === 'packaging_kit' || thread.session?.presetId === 'bag_kit') {
     const locale = normalizeWebLocale(thread.locale) ?? 'vi'
-    const migrated = applyPackagingSessionLabels(
-      reconcilePackagingProcessSteps(thread.session, locale),
-      locale
-    )
+    const baseSession =
+      thread.session.presetId === 'packaging_kit'
+        ? reconcilePackagingProcessSteps(thread.session, locale)
+        : thread.session
+    const migrated = applyStudioSessionLabels(baseSession, locale)
     thread.session = migrated
     await pgSaveHubThreadSession(thread.id, migrated)
   }
@@ -245,13 +247,21 @@ export async function POST(request: NextRequest) {
         unit?: string
         priceVnd?: string
       }>
+      menuDishesBulkText?: string
       menuVenueName?: string
+      landingSectionCopy?: string
+      landingLogoBrief?: string
+      landingPublishedShareUrl?: string
+      landingPublishedShareToken?: string
+      landingHtmlSource?: string
+      bannerBatchIndex?: number
       discoveryChoice?: string
       discoveryChoiceStep?: string
       colorPaletteKeys?: string[]
       colorPaletteSelection?: Array<{ key?: string; role?: string }>
       boxDielineStructure?: string
       boxDimensionsMm?: { length?: number; width?: number; height?: number }
+      bagDimensionsMm?: { width?: number; height?: number; gusset?: number }
       boxProduction?: {
         bleedMm?: number
         glueTabMm?: number
@@ -312,8 +322,24 @@ export async function POST(request: NextRequest) {
             priceVnd: String(row?.priceVnd ?? ''),
           }))
         : undefined
+      const menuDishesBulkText =
+        body?.menuDishesBulkText !== undefined ? String(body.menuDishesBulkText) : undefined
       const menuVenueName =
         body?.menuVenueName !== undefined ? String(body.menuVenueName) : undefined
+      const landingSectionCopy =
+        body?.landingSectionCopy !== undefined ? String(body.landingSectionCopy) : undefined
+      const landingLogoBrief =
+        body?.landingLogoBrief !== undefined ? String(body.landingLogoBrief) : undefined
+      const landingPublishedShareUrl =
+        body?.landingPublishedShareUrl !== undefined
+          ? String(body.landingPublishedShareUrl)
+          : undefined
+      const landingPublishedShareToken =
+        body?.landingPublishedShareToken !== undefined
+          ? String(body.landingPublishedShareToken)
+          : undefined
+      const landingHtmlSource =
+        body?.landingHtmlSource !== undefined ? String(body.landingHtmlSource) : undefined
       const featureKey = String(body?.featureKey ?? '').trim() || undefined
       const discoveryChoice = String(body?.discoveryChoice ?? '').trim() || undefined
       const discoveryChoiceStep = String(body?.discoveryChoiceStep ?? '').trim() || undefined
@@ -379,13 +405,20 @@ export async function POST(request: NextRequest) {
         bannerBatchIndex,
         menuFormatPresetId,
         menuDishes,
+        menuDishesBulkText,
         menuVenueName,
+        landingSectionCopy,
+        landingLogoBrief,
+        landingPublishedShareUrl,
+        landingPublishedShareToken,
+        landingHtmlSource,
         discoveryChoice,
         discoveryChoiceStep,
         colorPaletteKeys,
         colorPaletteSelection,
         boxDielineStructure,
         boxDimensionsMm: body?.boxDimensionsMm,
+        bagDimensionsMm: body?.bagDimensionsMm,
         boxProduction: body?.boxProduction,
         barcodeEntries: body?.barcodeEntries,
         featureKey,

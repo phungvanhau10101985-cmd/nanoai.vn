@@ -8,6 +8,7 @@ import { getDictionary } from '@/lib/i18n/dictionaries'
 /** Standalone tool pages superseded by inline Hub Studio presets — hide from studio catalog & routing. */
 export const STANDALONE_REPLACED_BY_STUDIO: Record<string, string> = {
   '/tao-banner': 'sale_banner',
+  '/thiet-ke-tui-dung': 'bag_kit',
 }
 
 export function isStandaloneReplacedByStudio(href: string): boolean {
@@ -115,12 +116,45 @@ const STANDALONE_EXTRA_INTENTS: Partial<Record<string, string[]>> = {
   '/ghi-am-bao-cao-cuoc-hop': ['ghi âm cuộc họp', 'meeting report'],
   '/dich-anh-tai-lieu': ['dịch ảnh', 'translate document image'],
   '/tao-bai-hat-lyria-3': ['tạo nhạc', 'lyria', 'jingle', 'advertising music'],
+  '/tao-thiep-moi-cuoi-ai': [
+    'thiệp mời',
+    'thiep moi',
+    'thiệp cưới',
+    'thiep cuoi',
+    'thiệp mời cưới',
+    'thiep moi cuoi',
+    'tạo thiệp',
+    'tao thiep',
+    'tạo thiệp mời',
+    'tao thiep moi',
+    'tạo thiệp cưới',
+    'tao thiep cuoi',
+    'thiết kế thiệp mời',
+    'thiet ke thiep moi',
+    'thiết kế thiệp cưới',
+    'thiet ke thiep cuoi',
+    'làm thiệp mời',
+    'lam thiep moi',
+    'wedding invitation',
+    'wedding invite',
+    'wedding card',
+    'invitation card',
+    'design invitation',
+    'event invitation',
+    'rsvp cưới',
+    'thiep cuoi online',
+    'thiệp cưới online',
+    '婚礼请柬',
+    '結婚式招待状',
+    '청첩장',
+  ],
   '/thu-do-online/1-nguoi': ['thử đồ 1 người', 'try on single'],
   '/thu-do-online/2-nguoi': ['thử đồ 2 người', 'try on couple'],
   '/thu-do-online/3-nguoi': ['thử đồ 3 người'],
   '/thu-do-online/4-nguoi': ['thử đồ 4 người'],
   '/thu-do-online/5-nguoi': ['thử đồ 5 người'],
   [hubStudioLaunchHref('packaging_kit')]: ['bao bì', 'packaging', 'hộp sản phẩm', 'design package'],
+  [hubStudioLaunchHref('bag_kit')]: ['túi đựng', 'paper bag', 'shopping bag', 'thiết kế túi'],
 }
 
 type StandaloneFeatureEntry = {
@@ -198,11 +232,63 @@ const STANDALONE_VERB_HINTS: Partial<
   '/giao-trinh': { open: true },
   '/tao-bai-thi': { create: true },
   '/tao-bai-tap-ve-nha': { create: true },
+  '/tao-thiep-moi-cuoi-ai': { create: true },
 }
 
 /** Teaching / curriculum topics — standalone «Tạo giáo trình» must match one of these (not bare «tạo …»). */
 const CURRICULUM_TOPIC_MARKERS =
   /giáo trình|giao trinh|giảng dạy|giang day|dạy học|day hoc|bài giảng|bai giang|lesson plan|curriculum|sgk|sách giáo khoa|sach giao khoa|môn học|mon hoc|tiết học|tiet hoc|phiếu bài tập|phieu bai tap|bài tập về nhà|bai tap ve nha|lớp học|lop hoc|worksheet|slide bài|slide bai/i
+
+/** Mọi ý định tạo / thiết kế thiệp mời → mở trang Tạo thiệp cưới AI. */
+export const INVITATION_TOPIC_MARKERS =
+  /thiệp mời|thiep moi|thiệp cưới|thiep cuoi|tạo thiệp|tao thiep|thiết kế thiệp|thiet ke thiep|làm thiệp|lam thiep|design invitation|invitation card|wedding invitation|wedding invite|wedding card|event invitation|rsvp|mời cưới|moi cuoi|婚礼|请柬|招待状|청첩장/i
+
+export function isInvitationCreateIntent(message: string): boolean {
+  return INVITATION_TOPIC_MARKERS.test(message.trim())
+}
+
+export function isShortAffirmativeReply(message: string): boolean {
+  return /^(có|co|yes|yeah|yep|ok|okay|được|duoc|sure|vâng|vang|ừ|uh|mở đi|mo di|bắt đầu|bat dau|dùng|dung|đồng ý|dong y)$/i.test(
+    message.trim()
+  )
+}
+
+export function isInvitationToolContext(text: string): boolean {
+  const lower = text.toLowerCase()
+  return (
+    isInvitationCreateIntent(text) ||
+    /tạo thiệp cưới ai|wedding invitation ai|thiệp cưới ai|thiep cuoi ai|công cụ.*th(iệp|iep)|tool.*invitation|mở tính năng.*th(iệp|iep)/i.test(
+      lower
+    )
+  )
+}
+
+export function matchInvitationToolFlow(
+  locale: WebLocale
+): Extract<HubFeatureFlowMatch, { kind: 'standalone' }> | null {
+  const entry = getStandaloneFeatureByHref(locale, '/tao-thiep-moi-cuoi-ai')
+  if (!entry) return null
+  return {
+    kind: 'standalone',
+    href: entry.href,
+    labelKey: entry.labelKey as ToolKey,
+    label: entry.label,
+    score: 100,
+  }
+}
+
+export function resolveIdleFeatureMatch(
+  message: string,
+  locale: WebLocale,
+  recentContext?: string
+): HubFeatureFlowMatch | null {
+  const direct = matchFeatureFlowByMessage(message, locale)
+  if (direct) return direct
+  if (isShortAffirmativeReply(message) && recentContext && isInvitationToolContext(recentContext)) {
+    return matchInvitationToolFlow(locale)
+  }
+  return null
+}
 
 function scoreStandaloneMatch(message: string, entry: StandaloneFeatureEntry): number {
   const lower = message.toLowerCase().trim()
@@ -216,6 +302,14 @@ function scoreStandaloneMatch(message: string, entry: StandaloneFeatureEntry): n
 
   if (entry.href === '/tao-giao-trinh' && !CURRICULUM_TOPIC_MARKERS.test(lower)) {
     return 0
+  }
+
+  if (entry.href === '/tao-bai-thi' && INVITATION_TOPIC_MARKERS.test(lower)) {
+    return 0
+  }
+
+  if (entry.href === '/tao-thiep-moi-cuoi-ai' && INVITATION_TOPIC_MARKERS.test(lower)) {
+    score += 32
   }
 
   const hints = STANDALONE_VERB_HINTS[entry.href]
@@ -235,6 +329,10 @@ export function matchFeatureFlowByMessage(
 ): HubFeatureFlowMatch | null {
   const trimmed = message.trim()
   if (!trimmed) return null
+
+  if (isInvitationCreateIntent(trimmed)) {
+    return matchInvitationToolFlow(locale)
+  }
 
   const studio = matchStudioPresetWithScore(trimmed)
   let bestStandalone: { entry: StandaloneFeatureEntry; score: number } | null = null

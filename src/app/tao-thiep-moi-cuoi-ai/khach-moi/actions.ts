@@ -13,6 +13,7 @@ import {
   type WeddingInvitedGuestStatus,
 } from '@/lib/db/wedding-cards-pg'
 import { normalizeGuestInviteVenue, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
+import { stripQuyHonorificPrefix } from '@/lib/wedding/wedding-guest-honorific-map'
 
 function clean(value: FormDataEntryValue | null, max = 300): string {
   return String(value ?? '').trim().slice(0, max)
@@ -50,6 +51,7 @@ export async function saveWeddingInvitedGuest(formData: FormData) {
   const payload = {
     cardId,
     userId,
+    guestHonorific: stripQuyHonorificPrefix(clean(formData.get('guestHonorific'), 80)),
     guestName: clean(formData.get('guestName'), 200),
     inviteVenue: normalizeGuestInviteVenue(formData.get('inviteVenue')) as WeddingGuestInviteVenue,
     personalInvite: clean(formData.get('personalInvite'), 1000),
@@ -100,26 +102,26 @@ export async function saveWeddingSideInviteSettings(formData: FormData) {
     groomInviteReceptionTime: clean(formData.get('groomInviteReceptionTime'), 80),
     groomInvitePartyStartTime: clean(formData.get('groomInvitePartyStartTime'), 80),
     groomInviteWeddingDate: clean(formData.get('groomInviteWeddingDate'), 20),
-    groomInviteText: clean(formData.get('groomInviteText'), 4000),
-    groomInviteTextEn: clean(formData.get('groomInviteTextEn'), 4000),
+    groomInviteText: card.groomInviteText,
+    groomInviteTextEn: card.groomInviteTextEn,
     groomInviteEventTimeline: clean(formData.get('groomInviteEventTimeline'), 4000),
     groomInviteDressCode: clean(formData.get('groomInviteDressCode'), 600),
     groomInviteContact: clean(formData.get('groomInviteContact'), 120),
     groomInviteCoverImageUrl: clean(formData.get('groomInviteCoverImageUrl'), 1000),
-    groomInviteDefaultPersonalMessage: clean(formData.get('groomInviteDefaultPersonalMessage'), 1000),
+    groomInviteDefaultPersonalMessage: card.groomInviteDefaultPersonalMessage,
     groomInviteThankYouText: clean(formData.get('groomInviteThankYouText'), 2000),
     brideInviteAddress: clean(formData.get('brideInviteAddress'), 500),
     brideInviteMapUrl: clean(formData.get('brideInviteMapUrl'), 500),
     brideInviteReceptionTime: clean(formData.get('brideInviteReceptionTime'), 80),
     brideInvitePartyStartTime: clean(formData.get('brideInvitePartyStartTime'), 80),
     brideInviteWeddingDate: clean(formData.get('brideInviteWeddingDate'), 20),
-    brideInviteText: clean(formData.get('brideInviteText'), 4000),
-    brideInviteTextEn: clean(formData.get('brideInviteTextEn'), 4000),
+    brideInviteText: card.brideInviteText,
+    brideInviteTextEn: card.brideInviteTextEn,
     brideInviteEventTimeline: clean(formData.get('brideInviteEventTimeline'), 4000),
     brideInviteDressCode: clean(formData.get('brideInviteDressCode'), 600),
     brideInviteContact: clean(formData.get('brideInviteContact'), 120),
     brideInviteCoverImageUrl: clean(formData.get('brideInviteCoverImageUrl'), 1000),
-    brideInviteDefaultPersonalMessage: clean(formData.get('brideInviteDefaultPersonalMessage'), 1000),
+    brideInviteDefaultPersonalMessage: card.brideInviteDefaultPersonalMessage,
     brideInviteThankYouText: clean(formData.get('brideInviteThankYouText'), 2000),
   })
 

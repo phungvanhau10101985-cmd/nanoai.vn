@@ -1,4 +1,5 @@
 import { normalizeBoxDimensionsMm } from '@/lib/packaging/dimensions'
+import { normalizeBagDimensionsMm } from '@/lib/packaging/bag-dimensions'
 import type { TuckBoxProductionParams } from '@/lib/packaging/tuck-box-production'
 import type { BoxDielineStructure } from '@/lib/packaging/dieline-structure'
 
@@ -136,6 +137,26 @@ export type HubStudioSession = {
     /** Banner đầu tiên trong lô — tham chiếu đồng nhất model/style cho các tỷ lệ sau. */
     batchStyleAnchorUrl?: string
   }
+  /** Thiết kế túi đựng có gusset (bag_kit). */
+  bagKit?: {
+    version: 1
+    dimensionsMm: { width: number; height: number; gusset: number } | null
+    faceSlots?: Partial<
+      Record<
+        'back' | 'front',
+        { sourceMode: 'generate' | 'copy' | 'empty'; url?: string }
+      >
+    >
+    facesConfirmed?: boolean
+    faceAspectRatios?: Partial<Record<string, string>>
+    mockupUrl?: string
+    /** Ảnh mockup 2D photoreal (AI) — hiển thị cùng viewer 3D xoay. */
+    mockupPhotoUrl?: string
+    dielineUrl?: string
+    packagingStyleBrief?: string
+    packagingStyleBriefSource?: 'discovery' | 'reference_image'
+    styleReferenceUrl?: string
+  }
   /** Thiết kế menu quán ăn / quán nước (food_menu). */
   foodMenu?: {
     formatPresetId?: string
@@ -151,6 +172,18 @@ export type HubStudioSession = {
       unit: string
       priceVnd: string
     }>
+    /** Văn bản menu dán tự do (Word, Zalo, Excel…). */
+    dishesBulkText?: string
+  }
+  /** Thiết kế landing page (landing_page). */
+  landingPage?: {
+    /** Logo thương hiệu — ghép vào hero & các section banner. */
+    logoUrl?: string
+    /** Link công khai lần publish gần nhất. */
+    publishedShareUrl?: string
+    publishedShareToken?: string
+    /** HTML semantic đã chỉnh sửa — export / publish. */
+    htmlSource?: string
   }
   /** @deprecated Dùng bannerBatchPreviews — giữ để tương thích session cũ. */
   bannerBatchQueue?: HubStudioPendingPreview[]
@@ -319,6 +352,16 @@ export function normalizeStudioSession(raw: HubStudioSession | null | undefined)
               : undefined,
           }
         : undefined,
+    bagKit:
+      raw.bagKit && typeof raw.bagKit === 'object'
+        ? {
+            ...raw.bagKit,
+            version: 1 as const,
+            dimensionsMm: raw.bagKit.dimensionsMm
+              ? normalizeBagDimensionsMm(raw.bagKit.dimensionsMm)
+              : raw.bagKit.dimensionsMm,
+          }
+        : undefined,
     foodMenu:
       raw.foodMenu && typeof raw.foodMenu === 'object'
         ? {
@@ -340,6 +383,29 @@ export function normalizeStudioSession(raw: HubStudioSession | null | undefined)
                   priceVnd: String(row?.priceVnd ?? ''),
                 }))
               : undefined,
+            dishesBulkText:
+              typeof raw.foodMenu.dishesBulkText === 'string'
+                ? raw.foodMenu.dishesBulkText
+                : undefined,
+          }
+        : undefined,
+    landingPage:
+      raw.landingPage && typeof raw.landingPage === 'object'
+        ? {
+            logoUrl:
+              typeof raw.landingPage.logoUrl === 'string' ? raw.landingPage.logoUrl : undefined,
+            publishedShareUrl:
+              typeof raw.landingPage.publishedShareUrl === 'string'
+                ? raw.landingPage.publishedShareUrl
+                : undefined,
+            publishedShareToken:
+              typeof raw.landingPage.publishedShareToken === 'string'
+                ? raw.landingPage.publishedShareToken
+                : undefined,
+            htmlSource:
+              typeof raw.landingPage.htmlSource === 'string'
+                ? raw.landingPage.htmlSource
+                : undefined,
           }
         : undefined,
     bannerBatchQueue: Array.isArray(raw.bannerBatchQueue) ? raw.bannerBatchQueue : undefined,

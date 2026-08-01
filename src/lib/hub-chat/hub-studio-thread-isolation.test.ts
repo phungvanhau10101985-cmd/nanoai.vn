@@ -73,7 +73,7 @@ test('server blocks start_preset when the thread already has an active flow', ()
   const store: ThreadStore = new Map()
   store.set('thread-a', activePackagingSession())
 
-  const blocked = simulatePresetStart(store, 'thread-a', 'wedding_invite')
+  const blocked = simulatePresetStart(store, 'thread-a', 'landing_page')
   assert.equal(blocked.ok, false)
   assert.equal(blocked.error, 'thread_required')
   assert.equal(store.get('thread-a')?.presetId, 'packaging_kit')
@@ -84,13 +84,13 @@ test('confirmed new flow forks to a fresh thread and preserves the old session',
   const store: ThreadStore = new Map()
   store.set('thread-a', activePackagingSession())
 
-  const fork = simulateConfirmedNewFlow(store, 'thread-a', 'wedding_invite')
+  const fork = simulateConfirmedNewFlow(store, 'thread-a', 'landing_page')
 
   assert.notEqual(fork.newThreadId, 'thread-a')
   assert.equal(fork.oldSession.presetId, 'packaging_kit')
-  assert.equal(fork.newSession.presetId, 'wedding_invite')
+  assert.equal(fork.newSession.presetId, 'landing_page')
   assert.equal(store.get('thread-a')?.presetId, 'packaging_kit')
-  assert.equal(store.get(fork.newThreadId)?.presetId, 'wedding_invite')
+  assert.equal(store.get(fork.newThreadId)?.presetId, 'landing_page')
 })
 
 test('client intercepts preset chips and flow-switch messages while active', () => {
@@ -99,7 +99,7 @@ test('client intercepts preset chips and flow-switch messages while active', () 
   assert.equal(shouldConfirmPresetChipStart(session, 'landing_page'), true)
   assert.equal(
     shouldConfirmMessageFlowSwitch(session, 'Chuyển sang làm thiệp cưới'),
-    'wedding_invite'
+    null
   )
   assert.equal(
     shouldConfirmMessageFlowSwitch(

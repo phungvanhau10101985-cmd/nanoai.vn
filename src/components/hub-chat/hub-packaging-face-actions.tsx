@@ -10,6 +10,12 @@ import {
   isSecondaryBoxFaceSlot,
   type BoxFaceSlot,
 } from '@/lib/packaging/box-face-slots'
+import {
+  BAG_FACE_COPY_SOURCE,
+  getBagFaceSlotLabel,
+  isSecondaryBagFaceSlot,
+  type BagFaceSlot,
+} from '@/lib/hub-chat/bag-kit-shared'
 
 const COPY: Record<
   WebLocale,
@@ -84,13 +90,15 @@ const COPY: Record<
 export function HubPackagingFaceActions({
   locale,
   slot,
+  variant = 'box',
   busy,
   onSkip,
   onCopy,
   onUpload,
 }: {
   locale: WebLocale
-  slot: BoxFaceSlot
+  slot: BoxFaceSlot | BagFaceSlot
+  variant?: 'box' | 'bag'
   busy: boolean
   onSkip: () => void | Promise<void>
   onCopy: () => void | Promise<void>
@@ -98,8 +106,22 @@ export function HubPackagingFaceActions({
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const t = COPY[locale]
-  const copyFrom = BOX_FACE_COPY_SOURCE[slot]
-  const copySourceLabel = copyFrom ? getBoxFaceSlotLabel(copyFrom, locale) : null
+  const copyFrom =
+    variant === 'bag'
+      ? BAG_FACE_COPY_SOURCE[slot as BagFaceSlot]
+      : BOX_FACE_COPY_SOURCE[slot as BoxFaceSlot]
+  const copySourceLabel =
+    variant === 'bag'
+      ? copyFrom
+        ? getBagFaceSlotLabel(copyFrom as BagFaceSlot, locale)
+        : null
+      : copyFrom
+        ? getBoxFaceSlotLabel(copyFrom as BoxFaceSlot, locale)
+        : null
+  const showCopy =
+    variant === 'bag'
+      ? isSecondaryBagFaceSlot(slot as BagFaceSlot) && copySourceLabel
+      : isSecondaryBoxFaceSlot(slot as BoxFaceSlot) && copySourceLabel
 
   return (
     <div className="rounded-lg border-2 border-amber-300/80 bg-amber-50/90 p-3 dark:border-amber-800 dark:bg-amber-950/35">
@@ -140,7 +162,7 @@ export function HubPackagingFaceActions({
         >
           {t.blank}
         </Button>
-        {isSecondaryBoxFaceSlot(slot) && copySourceLabel ? (
+        {showCopy ? (
           <Button
             type="button"
             size="sm"
@@ -149,7 +171,7 @@ export function HubPackagingFaceActions({
             disabled={busy}
             onClick={() => void onCopy()}
           >
-            {t.sameAs(copySourceLabel)}
+            {t.sameAs(copySourceLabel!)}
           </Button>
         ) : null}
       </div>

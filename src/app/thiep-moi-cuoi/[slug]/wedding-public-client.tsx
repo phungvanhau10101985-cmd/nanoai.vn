@@ -42,7 +42,7 @@ import {
   normalizeGuestInviteVenue,
   type WeddingGuestInviteVenue,
 } from '@/lib/wedding/wedding-guest-invite-venue'
-import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
+import { resolveGuestInviteLocation, isSideSpecificGuestInvite } from '@/lib/wedding/wedding-guest-invite-location'
 import { resolveWeddingCardDisplayText } from '@/lib/wedding/wedding-card-text-interpolate'
 import { renderWeddingHighlightedText } from '@/lib/wedding/wedding-card-text-highlight'
 import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
@@ -62,10 +62,16 @@ export default function WeddingPublicClient({
   card,
   wishes,
   images,
+  initialGuestDisplayName = '',
+  initialGuestInviteVenue = '',
+  initialPersonalInvite = '',
 }: {
   card: WeddingCard
   wishes: WeddingWish[]
   images: WeddingAiImage[]
+  initialGuestDisplayName?: string
+  initialGuestInviteVenue?: WeddingGuestInviteVenue
+  initialPersonalInvite?: string
 }) {
   const { toast } = useToast()
   const uiLocale = readWebLocaleFromDocumentCookie()
@@ -130,11 +136,10 @@ export default function WeddingPublicClient({
     setSharePageUrl(window.location.href)
   }, [])
 
-  const guestDisplayName = useMemo(() => {
-    if (typeof window === 'undefined') return card.guestName.trim()
-    const fromUrl = new URLSearchParams(window.location.search).get('guest')
-    return fromUrl?.trim() || card.guestName.trim()
-  }, [card.guestName])
+  const guestDisplayName = useMemo(
+    () => initialGuestDisplayName.trim() || card.guestName.trim(),
+    [card.guestName, initialGuestDisplayName],
+  )
 
   useEffect(() => {
     if (!guestDisplayName) return
@@ -147,19 +152,17 @@ export default function WeddingPublicClient({
     if (fromUrl?.trim()) setReminderEmail(fromUrl.trim().toLowerCase())
   }, [])
 
-  /** Chỉ từ URL — lọc nội dung tiệc theo bên (nhà trai/gái). */
-  const guestDisplayVenue = useMemo((): WeddingGuestInviteVenue => {
-    if (typeof window === 'undefined') return ''
-    const fromUrl = new URLSearchParams(window.location.search).get('venue')
-    return fromUrl ? normalizeGuestInviteVenue(fromUrl) : ''
-  }, [])
+  /** Lọc nội dung tiệc theo bên (nhà trai/gái) — từ URL, truyền từ server để tránh flash khi hydrate. */
+  const guestDisplayVenue = useMemo(
+    (): WeddingGuestInviteVenue => normalizeGuestInviteVenue(initialGuestInviteVenue),
+    [initialGuestInviteVenue],
+  )
 
   /** Khối tên khách + địa chỉ trên bìa: URL venue hoặc cài đặt preview trong editor. */
   const guestBlockVenue = useMemo((): WeddingGuestInviteVenue => {
-    if (typeof window === 'undefined') return normalizeGuestInviteVenue(card.guestInviteVenue)
-    const fromUrl = new URLSearchParams(window.location.search).get('venue')
-    return fromUrl ? normalizeGuestInviteVenue(fromUrl) : normalizeGuestInviteVenue(card.guestInviteVenue)
-  }, [card.guestInviteVenue])
+    const fromUrl = normalizeGuestInviteVenue(initialGuestInviteVenue)
+    return fromUrl || normalizeGuestInviteVenue(card.guestInviteVenue)
+  }, [card.guestInviteVenue, initialGuestInviteVenue])
 
   const guestBlockVenueDisplay = useMemo(
     () => guestInviteVenueLabel(guestBlockVenue, tx),
@@ -204,6 +207,9 @@ export default function WeddingPublicClient({
       ),
     [card.weddingDate, displayWeddingDateIso, guestInviteLocation.weddingDate, uiLocale],
   )
+  const displayPersonalInvite = initialPersonalInvite.trim()
+  const showPersonalInviteOnly =
+    Boolean(displayPersonalInvite) && isSideSpecificGuestInvite(guestDisplayVenue)
   const displayCoverPhotoUrl = guestInviteLocation.coverImageUrl || coverPhotoUrl
   const displayInvitationText = guestInviteLocation.invitationText || card.invitationText
   const displayInvitationTextEn = guestInviteLocation.invitationTextEn || card.invitationTextEn
@@ -343,6 +349,7 @@ export default function WeddingPublicClient({
               theme={theme}
               invitationLabel={tx.invitation}
               cordiallyInvitesLabel={tx.cordiallyInvites}
+              personalInviteText={showPersonalInviteOnly ? displayPersonalInvite : undefined}
               openButtonLabel={tx.openInvitation}
               dateFallback={tx.dateFallback}
               photoAlt={tx.coverPhotoAlt}
@@ -403,13 +410,17 @@ export default function WeddingPublicClient({
                 “{personalize(card.loveQuote)}”
               </p>
             )}
-            <p className={cn('mx-auto mt-5 max-w-xl whitespace-pre-line text-sm leading-7 sm:mt-6 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}>
-              {personalize(displayInvitationText || tx.defaultInvitation)}
-            </p>
-            {displayInvitationTextEn && (
-              <p className={cn('mx-auto mt-3 max-w-xl whitespace-pre-line text-sm leading-7', theme.mutedText, theme.textGlow)}>
-                {personalize(displayInvitationTextEn)}
-              </p>
+            {showPersonalInviteOnly ? null : (
+              <>
+                <p className={cn('mx-auto mt-5 max-w-xl whitespace-pre-line text-sm leading-7 sm:mt-6 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}>
+                  {personalize(displayInvitationText || tx.defaultInvitation)}
+                </p>
+                {displayInvitationTextEn && (
+                  <p className={cn('mx-auto mt-3 max-w-xl whitespace-pre-line text-sm leading-7', theme.mutedText, theme.textGlow)}>
+                    {personalize(displayInvitationTextEn)}
+                  </p>
+                )}
+              </>
             )}
             {guestDisplayName && (
               <WeddingGuestInviteBlock
@@ -423,6 +434,8 @@ export default function WeddingPublicClient({
                 addressText={guestBlockLocation.address}
                 mapUrl={guestBlockLocation.mapUrl}
                 viewMapLabel={tx.guestInviteViewMap}
+                personalInviteText={showPersonalInviteOnly ? displayPersonalInvite : undefined}
+                personalInviteClassName={cn(theme.mutedText, theme.textGlow)}
                 panelClassName={theme.panelStrong}
                 cordiallyClassName={cn(theme.mutedText, theme.textGlow)}
                 nameClassName={cn(theme.text, theme.textGlowHeading)}

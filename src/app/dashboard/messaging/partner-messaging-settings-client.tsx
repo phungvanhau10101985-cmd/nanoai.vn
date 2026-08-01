@@ -45,6 +45,8 @@ import {
   getPartnerMessagingFacebookMeta,
   savePartnerMessagingFacebookMeta,
   savePartnerMessagingGa4,
+  savePartnerMessagingGoogleAds,
+  savePartnerMessagingTiktokPixel,
 } from '@/app/dashboard/messaging/actions'
 import {
   Dialog,
@@ -237,6 +239,8 @@ export function PartnerMessagingSettingsClient({
   const [metaCapiToken, setMetaCapiToken] = useState('')
   const [metaCapiConfigured, setMetaCapiConfigured] = useState(false)
   const [shopGa4MeasurementId, setShopGa4MeasurementId] = useState('')
+  const [googleAdsId, setGoogleAdsId] = useState('')
+  const [tiktokPixelId, setTiktokPixelId] = useState('')
   const [gsEnabled, setGsEnabled] = useState(false)
   const [gsSpreadsheetId, setGsSpreadsheetId] = useState('')
   const [gsSheetName, setGsSheetName] = useState('Don hang')
@@ -440,6 +444,8 @@ export function PartnerMessagingSettingsClient({
     setMetaPixelId((cur.facebook_pixel_id ?? '').trim())
     setMetaCapiToken('')
     setShopGa4MeasurementId((cur.ga4_measurement_id ?? '').trim())
+    setGoogleAdsId((cur.google_ads_id ?? '').trim())
+    setTiktokPixelId((cur.tiktok_pixel_id ?? '').trim())
   }, [partners, selectedPartnerId])
 
   useEffect(() => {
@@ -715,6 +721,8 @@ export function PartnerMessagingSettingsClient({
         return t.teamPermUsageReports
       case 'marketing_campaigns':
         return t.teamPermMarketingCampaigns
+      case 'website':
+        return t.teamPermWebsite
       default:
         return k
     }
@@ -1088,6 +1096,48 @@ export function PartnerMessagingSettingsClient({
       const nextId = shopGa4MeasurementId.trim() || null
       setPartners((prev) =>
         prev.map((p) => (p.id === selectedPartnerId ? { ...p, ga4_measurement_id: nextId } : p))
+      )
+      toast({ title: t.saveOk })
+      router.refresh()
+    })
+  }
+
+  const saveGoogleAds = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await savePartnerMessagingGoogleAds(selectedPartnerId, googleAdsId)
+      if ('error' in res && res.error) {
+        if (res.error === 'INVALID_GOOGLE_ADS_ID') {
+          toast({ title: t.shopGoogleAdsInvalidIdToast, variant: 'destructive' })
+          return
+        }
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      const nextId = googleAdsId.trim().toUpperCase() || null
+      setPartners((prev) =>
+        prev.map((p) => (p.id === selectedPartnerId ? { ...p, google_ads_id: nextId } : p))
+      )
+      toast({ title: t.saveOk })
+      router.refresh()
+    })
+  }
+
+  const saveTiktokPixel = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await savePartnerMessagingTiktokPixel(selectedPartnerId, tiktokPixelId)
+      if ('error' in res && res.error) {
+        if (res.error === 'INVALID_TIKTOK_PIXEL_ID') {
+          toast({ title: t.shopTiktokPixelInvalidIdToast, variant: 'destructive' })
+          return
+        }
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      const nextId = tiktokPixelId.trim() || null
+      setPartners((prev) =>
+        prev.map((p) => (p.id === selectedPartnerId ? { ...p, tiktok_pixel_id: nextId } : p))
       )
       toast({ title: t.saveOk })
       router.refresh()
@@ -2098,6 +2148,54 @@ export function PartnerMessagingSettingsClient({
                 ) : null}
                 <Button type="button" size="sm" onClick={saveShopGa4} disabled={pending || !selectedPartnerId || !isOwnerSelected}>
                   {t.shopGa4SaveButton}
+                </Button>
+              </CardContent>
+            </Card>
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Google Ads</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.shopGoogleAdsIdLabel}</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={googleAdsId}
+                    onChange={(e) => setGoogleAdsId(e.target.value)}
+                    placeholder={t.shopGoogleAdsIdPlaceholder}
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t.shopGoogleAdsIdHint}</p>
+                </div>
+                {!isOwnerSelected ? (
+                  <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
+                ) : null}
+                <Button type="button" size="sm" onClick={saveGoogleAds} disabled={pending || !selectedPartnerId || !isOwnerSelected}>
+                  {t.shopGoogleAdsSaveButton}
+                </Button>
+              </CardContent>
+            </Card>
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">TikTok Ads</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.shopTiktokPixelLabel}</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={tiktokPixelId}
+                    onChange={(e) => setTiktokPixelId(e.target.value)}
+                    placeholder={t.shopTiktokPixelPlaceholder}
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t.shopTiktokPixelHint}</p>
+                </div>
+                {!isOwnerSelected ? (
+                  <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
+                ) : null}
+                <Button type="button" size="sm" onClick={saveTiktokPixel} disabled={pending || !selectedPartnerId || !isOwnerSelected}>
+                  {t.shopTiktokPixelSaveButton}
                 </Button>
               </CardContent>
             </Card>

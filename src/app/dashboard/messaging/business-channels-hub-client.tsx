@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { createMessagingWorkspaceProfile } from '@/app/dashboard/messaging/actions'
+import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
 import type { Database } from '@/types/database.types'
-import { Building2, Factory, Plus, Shirt, UtensilsCrossed } from 'lucide-react'
+import { Building2, Factory, Globe, Plus, Shirt, UtensilsCrossed } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
@@ -29,7 +30,13 @@ function partnerEntryLink(partner: PartnerRow): string {
   return `/dashboard/messaging/inbox?partner=${encodeURIComponent(partner.id)}`
 }
 
-export function BusinessChannelsHubClient({ partners }: { partners: PartnerRow[] }) {
+export function BusinessChannelsHubClient({
+  partners,
+  websiteLinkLabel = 'Web / landing',
+}: {
+  partners: PartnerRow[]
+  websiteLinkLabel?: string
+}) {
   const router = useRouter()
   const { toast } = useToast()
   const [createOpen, setCreateOpen] = useState(false)
@@ -106,13 +113,11 @@ export function BusinessChannelsHubClient({ partners }: { partners: PartnerRow[]
           const meta = channelMeta(partner.industry_key)
           const Icon = meta.icon
           return (
-            <button
-              key={partner.id}
-              type="button"
-              onClick={() => router.push(partnerEntryLink(partner))}
-              className="text-left"
-            >
-              <Card className="h-full border-border/70 transition hover:border-primary/40 hover:shadow-sm">
+            <div key={partner.id} className="text-left">
+              <Card
+                className="h-full cursor-pointer border-border/70 transition hover:border-primary/40 hover:shadow-sm"
+                onClick={() => router.push(partnerEntryLink(partner))}
+              >
                 <CardContent className="pt-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className={cn('inline-flex h-9 w-9 items-center justify-center rounded-md border', meta.tone)}>
@@ -125,9 +130,24 @@ export function BusinessChannelsHubClient({ partners }: { partners: PartnerRow[]
                   <p className="mt-3 line-clamp-1 text-sm font-semibold">{partner.display_name}</p>
                   <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{meta.label}</p>
                   <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">/{partner.slug}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        router.push(partnerWebsiteDashboardPath(partner.slug))
+                      }}
+                    >
+                      <Globe className="mr-1 h-3.5 w-3.5" />
+                      {websiteLinkLabel}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
-            </button>
+            </div>
           )
         })}
       </div>

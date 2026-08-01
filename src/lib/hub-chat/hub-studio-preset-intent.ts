@@ -221,7 +221,19 @@ export function reconcileDiscoveryProgress(
     break
   }
 
-  if (!changed) return session
+  if (!changed) {
+    const discoveryDone = allDiscoveryDone(session.presetId, processSteps)
+    if (discoveryDone && !session.discoveryComplete) {
+      const firstPending = firstIncompleteStepKey(processSteps)
+      return {
+        ...session,
+        processSteps: setDiscoveryStepInProgress(processSteps, firstPending),
+        currentStepKey: firstPending ?? session.currentStepKey,
+        discoveryComplete: true,
+      }
+    }
+    return session
+  }
 
   const discoveryDone = allDiscoveryDone(session.presetId, processSteps)
   const firstPending = firstIncompleteStepKey(processSteps)

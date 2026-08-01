@@ -362,6 +362,147 @@ Cookie: <auth_session_cookie>
 
   const inventoryOpenUrl = `${baseUrl}/api/messaging/partners/${partnerId}/inventory/open-sync`
 
+  const catalogListUrl = `${baseUrl}/api/messaging/partners/${partnerId}/catalog?offset=0&limit=24`
+  const catalogProductUrl = `${baseUrl}/api/messaging/partners/${partnerId}/catalog/{inventoryId}`
+  const catalogOptionsUrl = `${baseUrl}/api/messaging/partners/${partnerId}/catalog/{inventoryId}/options`
+
+  const catalogListCurl = `curl -sS "${catalogListUrl}" \\
+  -H "Authorization: Bearer YOUR_API_KEY"`
+
+  const catalogExampleJson = `{
+  "ok": true,
+  "products": [
+    {
+      "inventory_id": "550e8400-e29b-41d4-a716-446655440000",
+      "sku": "SKU-001",
+      "name": "Cotton T-shirt",
+      "price_hint": "299.000đ",
+      "short_description": "…",
+      "detail_description": "…",
+      "sizes": ["S","M","L"],
+      "colors": [{"name":"White","img":"https://…"}],
+      "gallery_images": ["https://…"],
+      "shop_ready": true,
+      "nanoai_site_path": "/site/my-shop/products/550e8400-…"
+    }
+  ],
+  "total": 42,
+  "offset": 0,
+  "limit": 24
+}`
+
+  const leadsApiUrl = `${baseUrl}/api/messaging/partners/${partnerId}/leads`
+
+  const leadsApiCurl = `curl -sS -X POST "${leadsApiUrl}" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"Nguyen Van A","phone":"0901234567","email":"a@example.com","message":"Need size M"}'`
+
+  const leadsApiResponse = `{
+  "ok": true,
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "site_slug": "my-shop",
+  "status": "new"
+}`
+
+  const headlessCartUrl = `${baseUrl}/api/messaging/partners/${partnerId}/cart?customer_ref=USER-12345`
+
+  const headlessCartPutCurl = `curl -sS -X PUT "${baseUrl}/api/messaging/partners/${partnerId}/cart" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"customer_ref":"USER-12345","items":[{"card":{"name":"Cotton T-shirt","image_url":"https://cdn.example.com/1.jpg","product_url":"https://shop.example.com/p/1","price_hint":"299000","inventory_id":"550e8400-e29b-41d4-a716-446655440000"},"quantity":1,"color":"White","size":"M"}]}'`
+
+  const headlessCheckoutUrl = `${baseUrl}/api/messaging/partners/${partnerId}/orders/checkout`
+
+  const headlessCheckoutCurl = `curl -sS -X POST "${headlessCheckoutUrl}" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"customer_ref":"USER-12345","items":[{"card":{"name":"Cotton T-shirt","image_url":"https://cdn.example.com/1.jpg","product_url":"https://shop.example.com/p/1","price_hint":"299000"},"quantity":1,"color":"White","size":"M"}],"form":{"customerName":"Nguyen Van A","customerPhone":"0901234567","shippingAddress":"123 Le Loi, Q1, HCMC","customerEmail":"a@example.com"}}'`
+
+  const headlessCheckoutResponse = `{
+  "ok": true,
+  "customer_ref": "USER-12345",
+  "order": {
+    "order_id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "awaiting_payment",
+    "required_amount": 89700,
+    "payment_reference": "DH188…",
+    "payment_qr_url": "https://…"
+  }
+}`
+
+  const headlessOrdersListUrl = `${baseUrl}/api/messaging/partners/${partnerId}/orders?offset=0&limit=24&customer_ref=USER-12345`
+
+  const headlessOrderDetailUrl = `${baseUrl}/api/messaging/partners/${partnerId}/orders/{orderId}`
+
+  const headlessOrdersListCurl = `curl -sS "${headlessOrdersListUrl}" \\
+  -H "Authorization: Bearer YOUR_API_KEY"`
+
+  const headlessOrderDetailJson = `{
+  "ok": true,
+  "order": {
+    "order_id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "awaiting_payment",
+    "shipping_status": "pending",
+    "required_amount": 89700,
+    "payment_reference": "DH188…",
+    "payment_qr_url": "https://…",
+    "customer_ref": "USER-12345",
+    "lines": [
+      {
+        "line_id": "…",
+        "product_name": "Cotton T-shirt",
+        "quantity": 1,
+        "variant_color": "White",
+        "variant_size": "M",
+        "line_subtotal": 299000
+      }
+    ]
+  }
+}`
+
+  const outboundWebhookPayload = `{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "event": "order.created",
+  "created_at": "2026-08-01T12:00:00.000Z",
+  "partner_id": "${partnerId}",
+  "data": {
+    "order_id": "…",
+    "status": "awaiting_payment",
+    "required_amount": 89700,
+    "payment_reference": "DH188…",
+    "customer_ref": "USER-12345"
+  }
+}`
+
+  const headlessPersonalizationRecentUrl = `${baseUrl}/api/messaging/partners/${partnerId}/personalization/recently-viewed?customer_ref=USER-12345&limit=8`
+
+  const headlessPersonalizationRecommendUrl = `${baseUrl}/api/messaging/partners/${partnerId}/personalization/recommendations?customer_ref=USER-12345&limit=8`
+
+  const headlessPersonalizationEventsUrl = `${baseUrl}/api/messaging/partners/${partnerId}/personalization/events`
+
+  const headlessPersonalizationEventCurl = `curl -sS -X POST "${headlessPersonalizationEventsUrl}" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"customer_ref":"USER-12345","event":"view_product","inventory_id":"INVENTORY_UUID"}'`
+
+  const headlessPersonalizationResponse = `{
+  "ok": true,
+  "customer_ref": "USER-12345",
+  "products": [
+    {
+      "inventory_id": "…",
+      "name": "Cotton T-shirt",
+      "price_hint": "299.000đ",
+      "image_url": "https://…",
+      "product_url": "https://…",
+      "detail_path": "/site/your-slug/products/…",
+      "sku": "SKU-001"
+    }
+  ],
+  "count": 1
+}`
+
   const inventoryOpenCurl = `curl -sS -X POST "${inventoryOpenUrl}" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -611,6 +752,101 @@ Cookie: <auth_session_cookie>
             </CodeBlock>
             <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
               {tryOnExampleJson}
+            </CodeBlock>
+          </>
+        )}
+
+        {section(
+          t.catalogTitle,
+          t.catalogBody,
+          <>
+            <CodeBlock {...codeBlockCopyProps}>{catalogListUrl}</CodeBlock>
+            <p className="text-xs text-muted-foreground">{catalogProductUrl}</p>
+            <p className="text-xs text-muted-foreground">{catalogOptionsUrl}</p>
+            <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
+              {catalogListCurl}
+            </CodeBlock>
+            <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
+              {catalogExampleJson}
+            </CodeBlock>
+          </>
+        )}
+
+        {section(
+          t.leadsApiTitle,
+          t.leadsApiBody,
+          <>
+            <CodeBlock {...codeBlockCopyProps}>{leadsApiUrl}</CodeBlock>
+            <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
+              {leadsApiCurl}
+            </CodeBlock>
+            <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
+              {leadsApiResponse}
+            </CodeBlock>
+          </>
+        )}
+
+        {section(
+          t.cartApiTitle,
+          t.cartApiBody,
+          <>
+            <CodeBlock {...codeBlockCopyProps}>{headlessCartUrl}</CodeBlock>
+            <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
+              {headlessCartPutCurl}
+            </CodeBlock>
+          </>
+        )}
+
+        {section(
+          t.checkoutApiTitle,
+          t.checkoutApiBody,
+          <>
+            <CodeBlock {...codeBlockCopyProps}>{headlessCheckoutUrl}</CodeBlock>
+            <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
+              {headlessCheckoutCurl}
+            </CodeBlock>
+            <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
+              {headlessCheckoutResponse}
+            </CodeBlock>
+          </>
+        )}
+
+        {section(
+          t.ordersApiTitle,
+          t.ordersApiBody,
+          <>
+            <CodeBlock {...codeBlockCopyProps}>{headlessOrdersListUrl}</CodeBlock>
+            <p className="text-xs text-muted-foreground">{headlessOrderDetailUrl}</p>
+            <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
+              {headlessOrdersListCurl}
+            </CodeBlock>
+            <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
+              {headlessOrderDetailJson}
+            </CodeBlock>
+          </>
+        )}
+
+        {section(
+          t.webhooksApiTitle,
+          t.webhooksApiBody,
+          <>
+            <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
+              {outboundWebhookPayload}
+            </CodeBlock>
+          </>
+        )}
+
+        {section(
+          t.personalizationApiTitle,
+          t.personalizationApiBody,
+          <>
+            <CodeBlock {...codeBlockCopyProps}>{headlessPersonalizationRecentUrl}</CodeBlock>
+            <p className="text-xs text-muted-foreground">{headlessPersonalizationRecommendUrl}</p>
+            <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
+              {headlessPersonalizationEventCurl}
+            </CodeBlock>
+            <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
+              {headlessPersonalizationResponse}
             </CodeBlock>
           </>
         )}

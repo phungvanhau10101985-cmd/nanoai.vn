@@ -238,6 +238,53 @@ export const NEW_PRESETS_VI = {
       personal_banner: 'Banner: tên, chức danh, gradient brand cá nhân?',
     },
   },
+  bag_kit: {
+    title: 'Thiết kế túi đựng',
+    kickoff:
+      'Thiết kế túi giấy: Logo → **mặt sau & mặt trước** (cùng R×C) → **preview 3D** → net PDF. Chiều dày túi chỉ để mô phỏng, không in.',
+    steps: {
+      brand_name: 'Brief: Tên thương hiệu',
+      product_type: 'Brief: Loại sản phẩm',
+      bag_size: 'Brief: Kích thước túi',
+      bag_panel_confirm: 'Brief: Xác nhận mặt in',
+      style_mood: 'Brief: Phong cách',
+      color_palette: 'Brief: Màu sắc',
+      face_print_style: 'Brief: Phong cách hình ảnh',
+      logo: 'Logo',
+      face_back: 'Mặt sau in (R×C)',
+      face_front: 'Mặt trước in (R×C)',
+      bag_mockup_3d: 'Preview 3D túi',
+      bag_dieline_pdf: 'Net túi PDF chuẩn in',
+    },
+    asks: {
+      brand_name: '① Tên thương hiệu / sản phẩm?',
+      product_type: '② Sản phẩm đựng trong túi là gì? (thực phẩm, quà tặng, thời trang…)',
+      bag_size:
+        '③ Kích thước: **rộng × cao × chiều dày** (R×C×dày, cm hoặc mm). R×C là 2 mặt in bằng nhau; **chiều dày không in** — chỉ cho net/3D.',
+      bag_panel_confirm:
+        '④ Xác nhận: mặt sau & mặt trước cùng R×C; chiều dày chỉ cấu trúc — trả lời **OK** hoặc nhập lại kích thước.',
+      style_mood: '⑤ Phong cách: organic / luxury / minimal / playful?',
+      color_palette: '⑥ Bảng màu in ấn?',
+      face_print_style: '⑦ Chọn phong cách hình ảnh đồng bộ cho **cả 2 mặt in**.',
+      logo: 'Mô tả logo in trên túi — hoặc **Tải logo** nếu đã có file.',
+      face_back:
+        '⑧ Mặt sau R×C — **Tải ảnh** hoặc mô tả nội dung in hoặc **bỏ trống**. Full viền, không ghi mm trên ảnh.',
+      face_front:
+        '⑨ Mặt trước R×C (cùng kích thước mặt sau) — **Tải ảnh**, **bỏ trống**, **giống mặt sau**, hoặc mô tả riêng.',
+      bag_mockup_3d:
+        'Preview 3D: túi đứng chụp thật — ghép art mặt trước/sau đã duyệt, chiều dày túi theo brief.',
+      bag_dieline_pdf: 'Kiểm tra net triển khai (tham khảo) rồi xuất PDF chuẩn in.',
+    },
+    askExamples: {
+      brand_name: 'Cafe Sáng — specialty coffee',
+      product_type: 'Cà phê hạt & phụ kiện pha chế',
+      bag_size: '200 × 280 × 60 mm',
+      bag_panel_confirm: 'OK',
+      style_mood: 'Minimal luxury — kraft + logo vàng',
+      color_tone: 'Nâu kraft, chữ đen, accent vàng đồng',
+      face_print_style: 'Flat illustration — line art tối giản',
+    },
+  },
   food_menu: {
     title: 'Thiết kế menu quán ăn',
     kickoff:

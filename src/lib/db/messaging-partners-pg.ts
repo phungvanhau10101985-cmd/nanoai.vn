@@ -55,7 +55,9 @@ function isMissingPartnerProfileColumnError(e: unknown): boolean {
     msg.includes('deletion_requested_at') ||
     msg.includes('facebook_pixel_id') ||
     msg.includes('facebook_capi_access_token') ||
-    msg.includes('ga4_measurement_id')
+    msg.includes('ga4_measurement_id') ||
+    msg.includes('google_ads_id') ||
+    msg.includes('tiktok_pixel_id')
   )
 }
 
@@ -82,6 +84,10 @@ export type MessagingPartnerBySlugRow = {
   facebook_capi_access_token: string | null
   /** GA4 G-... — gtag config trên trang tư vấn */
   ga4_measurement_id: string | null
+  /** Google Ads AW-... — dynamic remarketing trên shop */
+  google_ads_id: string | null
+  /** TikTok Pixel — ttq trên shop */
+  tiktok_pixel_id: string | null
 }
 
 /**
@@ -101,12 +107,16 @@ export async function fetchMessagingPartnerBySlugFromPg(slug: string): Promise<M
       facebook_pixel_id: string | null
       facebook_capi_access_token: string | null
       ga4_measurement_id: string | null
+      google_ads_id: string | null
+      tiktok_pixel_id: string | null
     }>(
       `select id::text, display_name, industry_key, is_active, purge_at, coalesce(embed_key::text, '') as embed_key,
               logo_url,
               nullif(trim(coalesce(facebook_pixel_id, '')), '') as facebook_pixel_id,
               nullif(trim(coalesce(facebook_capi_access_token, '')), '') as facebook_capi_access_token,
-              nullif(trim(coalesce(ga4_measurement_id, '')), '') as ga4_measurement_id
+              nullif(trim(coalesce(ga4_measurement_id, '')), '') as ga4_measurement_id,
+              nullif(trim(coalesce(google_ads_id, '')), '') as google_ads_id,
+              nullif(trim(coalesce(tiktok_pixel_id, '')), '') as tiktok_pixel_id
        from public.messaging_partners where slug = $1 limit 1`,
       [slug]
     )
@@ -125,6 +135,8 @@ export async function fetchMessagingPartnerBySlugFromPg(slug: string): Promise<M
         ? String(row.facebook_capi_access_token).trim()
         : null,
       ga4_measurement_id: row.ga4_measurement_id ? String(row.ga4_measurement_id).trim() : null,
+      google_ads_id: row.google_ads_id ? String(row.google_ads_id).trim() : null,
+      tiktok_pixel_id: row.tiktok_pixel_id ? String(row.tiktok_pixel_id).trim() : null,
     }
   } catch (e) {
     console.warn('[fetchMessagingPartnerBySlugFromPg]', e)
@@ -229,6 +241,58 @@ export async function updateMessagingPartnerGa4ForOwnerFromPg(params: {
     return Boolean(row?.id)
   } catch (e) {
     console.warn('[updateMessagingPartnerGa4ForOwnerFromPg]', e)
+    return false
+  }
+}
+
+export async function updateMessagingPartnerGoogleAdsForOwnerFromPg(params: {
+  partner_id: string
+  owner_user_id: string
+  google_ads_id: string | null
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = safeUuid(params.partner_id)
+  const uid = safeOwnerUuid(params.owner_user_id)
+  if (!pid || !uid) return false
+  const aw = params.google_ads_id != null ? String(params.google_ads_id).trim().toUpperCase() : ''
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partners
+       set google_ads_id = $3,
+           updated_at = now()
+       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       returning id::text`,
+      [pid, uid, aw || null]
+    )
+    return Boolean(row?.id)
+  } catch (e) {
+    console.warn('[updateMessagingPartnerGoogleAdsForOwnerFromPg]', e)
+    return false
+  }
+}
+
+export async function updateMessagingPartnerTiktokPixelForOwnerFromPg(params: {
+  partner_id: string
+  owner_user_id: string
+  tiktok_pixel_id: string | null
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = safeUuid(params.partner_id)
+  const uid = safeOwnerUuid(params.owner_user_id)
+  if (!pid || !uid) return false
+  const tt = params.tiktok_pixel_id != null ? String(params.tiktok_pixel_id).trim() : ''
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partners
+       set tiktok_pixel_id = $3,
+           updated_at = now()
+       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       returning id::text`,
+      [pid, uid, tt || null]
+    )
+    return Boolean(row?.id)
+  } catch (e) {
+    console.warn('[updateMessagingPartnerTiktokPixelForOwnerFromPg]', e)
     return false
   }
 }
@@ -394,6 +458,8 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       deletion_requested_at: string | null
       facebook_pixel_id: string | null
       ga4_measurement_id: string | null
+      google_ads_id: string | null
+      tiktok_pixel_id: string | null
       created_at: unknown
       updated_at: unknown
     }>(
@@ -404,6 +470,8 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
               purge_at, deletion_requested_at,
               nullif(trim(coalesce(facebook_pixel_id, '')), '') as facebook_pixel_id,
               nullif(trim(coalesce(ga4_measurement_id, '')), '') as ga4_measurement_id,
+              nullif(trim(coalesce(google_ads_id, '')), '') as google_ads_id,
+              nullif(trim(coalesce(tiktok_pixel_id, '')), '') as tiktok_pixel_id,
               created_at, updated_at
        from public.messaging_partners
        where (
@@ -436,6 +504,8 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       facebook_pixel_id: r.facebook_pixel_id ? String(r.facebook_pixel_id).trim() : null,
       facebook_capi_access_token: null,
       ga4_measurement_id: r.ga4_measurement_id ? String(r.ga4_measurement_id).trim() : null,
+      google_ads_id: r.google_ads_id ? String(r.google_ads_id).trim() : null,
+      tiktok_pixel_id: r.tiktok_pixel_id ? String(r.tiktok_pixel_id).trim() : null,
       created_at: mapTimestamptz(r.created_at),
       updated_at: mapTimestamptz(r.updated_at),
     }))
@@ -490,6 +560,8 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
           facebook_pixel_id: null,
           facebook_capi_access_token: null,
           ga4_measurement_id: null,
+          google_ads_id: null,
+          tiktok_pixel_id: null,
           created_at: mapTimestamptz(r.created_at),
           updated_at: mapTimestamptz(r.updated_at),
         }))
@@ -689,6 +761,8 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
       facebook_pixel_id: null,
       facebook_capi_access_token: null,
       ga4_measurement_id: null,
+      google_ads_id: null,
+      tiktok_pixel_id: null,
       created_at: mapTimestamptz(row.created_at),
       updated_at: mapTimestamptz(row.updated_at),
     }
@@ -811,6 +885,8 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
       facebook_pixel_id: null,
       facebook_capi_access_token: null,
       ga4_measurement_id: null,
+      google_ads_id: null,
+      tiktok_pixel_id: null,
       created_at: mapTimestamptz(row.created_at),
       updated_at: mapTimestamptz(row.updated_at),
     }

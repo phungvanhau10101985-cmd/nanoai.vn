@@ -13,6 +13,8 @@ test('catalog includes studio presets and standalone tools', () => {
   assert.ok(catalog.some((e) => e.key === studioFeatureKey('packaging_kit')))
   assert.ok(catalog.some((e) => e.key === toolFeatureKey('/tao-giao-trinh')))
   assert.ok(catalog.some((e) => e.key === toolFeatureKey('/giao-trinh')))
+  assert.ok(catalog.some((e) => e.key === toolFeatureKey('/tao-thiep-moi-cuoi-ai')))
+  assert.ok(!catalog.some((e) => e.key === studioFeatureKey('wedding_invite')))
 })
 
 test('resolveHubFeatureSelection routes create curriculum programmatically', () => {

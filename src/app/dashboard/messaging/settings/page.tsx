@@ -12,6 +12,7 @@ import { getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import type { Metadata } from 'next'
 import { PartnerMessagingSettingsClient } from '../partner-messaging-settings-client'
+import { MessagingDashboardNavLinks } from '../messaging-dashboard-nav-links'
 import { getPublicOriginFromAppRouterHeaders } from '@/lib/auth/public-app-url'
 import { resolveDeepSeekChatModel } from '@/lib/deepseek-api'
 
@@ -62,7 +63,7 @@ export default async function DashboardMessagingSettingsPage({
   return (
     <div className="app-shell flex min-h-[calc(100dvh-5rem)] flex-col space-y-6 md:space-y-8">
       <div className="section-surface space-y-2">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="sticky top-[var(--site-header-height,3rem)] z-40 flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm backdrop-blur-md sm:p-5 md:top-[var(--site-header-height,3.5rem)] lg:p-6">
           <div className="space-y-1">
             <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-3xl">
               <Settings className="h-7 w-7 shrink-0 text-violet-600" aria-hidden />
@@ -71,12 +72,14 @@ export default async function DashboardMessagingSettingsPage({
             <p className="max-w-2xl text-sm text-muted-foreground">{pm.pageDescription}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/messaging">{pm.goToInbox}</Link>
-            </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard/messaging/marketing">{pm.marketingCampaignsLink}</Link>
-          </Button>
+            <MessagingDashboardNavLinks
+              inboxLabel={pm.goToInbox}
+              settingsLabel={pm.messagingSettingsLink}
+              marketingLabel={pm.marketingCampaignsLink}
+              ordersLabel={pm.messagingOrdersLink}
+              websiteLabel={pm.messagingWebsiteLink}
+              active="settings"
+            />
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard">{t.menu.dashboard}</Link>
           </Button>

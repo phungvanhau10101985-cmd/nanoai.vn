@@ -24,6 +24,12 @@ import {
   isPackagingFaceStepKey,
   resolvedPackagingFacesReady,
 } from '@/lib/packaging/hub-face-steps'
+import { isBagFaceStepKey } from '@/lib/packaging/bag-dimensions'
+import {
+  bagStepKeyToSlot,
+  isBagKitPreset,
+  resolveBagFacePrintSizeMm,
+} from '@/lib/hub-chat/bag-kit-shared'
 
 const CREATE_VERBS =
   /tạo|tao|làm|lam|create|make|generate|design|thực hiện|thuc hien|vẽ|ve|draw|render|生成|作成|만들|创建|chưa thấy|chua thay|chưa có|chua co|lỗi|loi|sai|hỏng|hong|missing|where|đâu|dau/
@@ -101,13 +107,7 @@ const STEP_KEY_ALIASES: Record<string, string[]> = {
   product_label: ['nhan san pham', 'nhãn sản phẩm', 'product label'],
   sticker: ['sticker', 'tem', 'nhãn dán'],
   biz_card: ['name card', 'business card', 'danh thiep', 'danh thiếp'],
-  hero_desktop: ['hero desktop', 'hero banner'],
-  hero_mobile: ['hero mobile'],
-  features: ['features', 'tinh nang', 'tính năng'],
-  pricing: ['pricing', 'bang gia', 'bảng giá'],
-  testimonials: ['testimonials', 'danh gia', 'đánh giá', 'review'],
-  faq: ['faq', 'cau hoi', 'câu hỏi thường gặp'],
-  cta_footer: ['footer', 'cta footer'],
+  landing_full: ['landing full', 'full landing', 'ladipage', 'landing page full'],
   product_white: ['anh nen trang', 'ảnh nền trắng', 'white background'],
   product_lifestyle: ['lifestyle', 'anh doi song', 'ảnh đời sống'],
   product_detail: ['anh chi tiet san pham', 'ảnh chi tiết sản phẩm'],
@@ -478,12 +478,22 @@ export function isDesignStepApprovedComplete(
   if (presetId === 'packaging_kit' && stepKey === 'box_mockup_3d') {
     return proc?.status === 'done' && Boolean(session.packaging?.mockupUrl)
   }
+  if (isBagKitPreset(presetId) && stepKey === 'bag_dieline_pdf') {
+    return proc?.status === 'done' && Boolean(session.bagKit?.dielineUrl)
+  }
+  if (isBagKitPreset(presetId) && stepKey === 'bag_mockup_3d') {
+    return proc?.status === 'done' && Boolean(session.bagKit?.mockupUrl)
+  }
   if (presetId === 'packaging_kit' && stepKey === 'barcode_label') {
     return proc?.status === 'done' && packagingBarcodeIsReady(session.packaging)
   }
   const hasRef = session.referenceImages.some((r) => r.screenKey === stepKey)
   if (presetId === 'packaging_kit' && isPackagingFaceStepKey(stepKey)) {
     return proc?.status === 'done' && (hasRef || isPackagingFaceStepCommitted(session.packaging, stepKey))
+  }
+  if (isBagKitPreset(presetId) && isBagFaceStepKey(stepKey)) {
+    const slot = bagStepKeyToSlot(stepKey)
+    return proc?.status === 'done' && (hasRef || (slot ? session.bagKit?.faceSlots?.[slot] != null : false))
   }
   return proc?.status === 'done' && hasRef
 }
@@ -533,11 +543,24 @@ export function getDesignStepIncompleteReason(
   }
 
   if (
+    isBagKitPreset(session.presetId) &&
+    ((stepKey === 'bag_dieline_pdf' && session.bagKit?.dielineUrl) ||
+      (stepKey === 'bag_mockup_3d' && session.bagKit?.mockupUrl))
+  ) {
+    return 'none'
+  }
+
+  if (
     session.presetId === 'packaging_kit' &&
     isPackagingFaceStepKey(stepKey) &&
     isPackagingFaceStepCommitted(session.packaging, stepKey)
   ) {
     return 'none'
+  }
+
+  if (isBagKitPreset(session.presetId) && isBagFaceStepKey(stepKey)) {
+    const slot = bagStepKeyToSlot(stepKey)
+    if (slot && session.bagKit?.faceSlots?.[slot] != null) return 'none'
   }
 
   if (gen === 'lyria_music') {
@@ -954,7 +977,9 @@ export function buildPendingStepStudio(
   const pending = session.pendingPreview!
   const gen = getStepGenerator(presetId, stepKey)
   const useReference = generatorSupportsReference(gen)
-  const faceTargetRaw = getPackagingFaceSizeForStep(session.packaging?.dimensionsMm, stepKey)
+  const faceTargetRaw = isBagKitPreset(presetId)
+    ? resolveBagFacePrintSizeMm(session, stepKey)
+    : getPackagingFaceSizeForStep(session.packaging?.dimensionsMm, stepKey)
   const faceTargetSizeMm =
     faceTargetRaw != null
       ? { width: faceTargetRaw.widthMm, height: faceTargetRaw.heightMm }
@@ -978,7 +1003,10 @@ export function buildPendingStepStudio(
     processSteps: session.processSteps,
     showRegenerate: true,
     showApproveReference: useReference,
-    showCropImage: gen === 'packaging_face' && Boolean(faceTargetSizeMm),
+    showCropImage:
+      gen === 'packaging_face' &&
+      Boolean(faceTargetSizeMm) &&
+      (isBagKitPreset(presetId) ? isBagFaceStepKey(stepKey) : isPackagingFaceStepKey(stepKey)),
     faceTargetSizeMm: faceTargetSizeMm ?? undefined,
     faceEditedSizeMm: pending.editedSizeMm ?? undefined,
     faceOriginalUrl: pending.originalUrl ?? undefined,

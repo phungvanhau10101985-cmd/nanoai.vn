@@ -21,6 +21,14 @@ import {
   type PartnerAiSettingsDashboardUpsert,
 } from '@/lib/db/messaging-partner-ai-settings-pg'
 import {
+  fetchPartnerOutboundWebhookFromPg,
+  setPartnerOutboundWebhookSecretFromPg,
+  upsertPartnerOutboundWebhookFromPg,
+} from '@/lib/db/messaging-partner-outbound-webhooks-pg'
+import { dispatchPartnerOutboundWebhook } from '@/lib/messaging/partner-outbound-webhook-dispatch'
+import { emitPartnerOutboundPaymentPaid } from '@/lib/messaging/partner-outbound-webhook-emit'
+import { PARTNER_OUTBOUND_WEBHOOK_EVENTS } from '@/lib/messaging/partner-outbound-webhook-types'
+import {
   deletePartnerInventoryItemForPartnerFromPg,
   fetchPartnerInventoryActivePageWithCountFromPg,
   fetchPartnerInventoryEmbeddingStatsFromPg,
@@ -75,6 +83,8 @@ import {
   insertMessagingPartnerForOwnerFromPg,
   updateMessagingPartnerFacebookMetaForOwnerFromPg,
   updateMessagingPartnerGa4ForOwnerFromPg,
+  updateMessagingPartnerGoogleAdsForOwnerFromPg,
+  updateMessagingPartnerTiktokPixelForOwnerFromPg,
   updateMessagingPartnerProfileForOwnerFromPg,
 } from '@/lib/db/messaging-partners-pg'
 import {
@@ -535,6 +545,48 @@ export async function savePartnerMessagingGa4(partnerId: string, measurementId: 
   return { ok: true as const }
 }
 
+export async function savePartnerMessagingGoogleAds(partnerId: string, googleAdsId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const raw = googleAdsId.trim().toUpperCase()
+  if (raw && !/^AW-[A-Z0-9]+$/.test(raw)) {
+    return { error: 'INVALID_GOOGLE_ADS_ID' as const }
+  }
+  const ok = await updateMessagingPartnerGoogleAdsForOwnerFromPg({
+    partner_id: partnerId,
+    owner_user_id: user.id,
+    google_ads_id: raw || null,
+  })
+  if (!ok) return { error: 'Không lưu được mã Google Ads.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function savePartnerMessagingTiktokPixel(partnerId: string, tiktokPixelId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const raw = tiktokPixelId.trim()
+  if (raw && !/^[A-Z0-9]{10,64}$/i.test(raw)) {
+    return { error: 'INVALID_TIKTOK_PIXEL_ID' as const }
+  }
+  const ok = await updateMessagingPartnerTiktokPixelForOwnerFromPg({
+    partner_id: partnerId,
+    owner_user_id: user.id,
+    tiktok_pixel_id: raw || null,
+  })
+  if (!ok) return { error: 'Không lưu được TikTok Pixel.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
 export async function getMessagingWorkspacePaymentSettings(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -862,6 +914,9 @@ export async function updateMyMessagingOrderStatus(input: {
     } catch (e) {
       console.warn('[updateMyMessagingOrderStatus] customer email', e)
     }
+    if (input.status === 'paid_verified') {
+      emitPartnerOutboundPaymentPaid(row.partner_id, row)
+    }
   }
   revalidateMessagingDashboard()
   return { ok: true }
@@ -898,6 +953,7 @@ export async function confirmMyMessagingOrderDeposit(input: {
     } catch (e) {
       console.warn('[confirmMyMessagingOrderDeposit] customer email', e)
     }
+    emitPartnerOutboundPaymentPaid(row.partner_id, row)
   }
   revalidateMessagingDashboard()
   return { ok: true }
@@ -2293,12 +2349,20 @@ export async function getPartnerApiKeysBundle(partnerId: string) {
   const imageSearchConfigured = Boolean(aiPg?.image_search_api_secret?.trim())
   const imageSearchEnabled = Boolean(aiPg?.image_search_api_enabled)
   const aiSettingsRowExists = Boolean(aiPg)
+  const webhookRow = await fetchPartnerOutboundWebhookFromPg(partnerId)
   return {
     ok: true as const,
     embedKey,
     imageSearchConfigured,
     imageSearchEnabled,
     aiSettingsRowExists,
+    outboundWebhook: {
+      configured: Boolean(webhookRow?.webhookUrl?.trim()),
+      isEnabled: Boolean(webhookRow?.isEnabled),
+      secretConfigured: Boolean(webhookRow?.webhookSecret?.trim()),
+      events: webhookRow?.events ?? ['order.created', 'lead.created', 'payment.paid'],
+      webhookUrl: webhookRow?.webhookUrl ?? '',
+    },
   }
 }
 
@@ -2358,6 +2422,74 @@ export async function setPartnerImageSearchApiEnabled(partnerId: string, enabled
   return { ok: true as const }
 }
 
+export async function savePartnerOutboundWebhookSettings(input: {
+  partnerId: string
+  webhookUrl: string
+  isEnabled: boolean
+  events: string[]
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, input.partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const allowed = new Set<string>(PARTNER_OUTBOUND_WEBHOOK_EVENTS)
+  const events = input.events.filter((e): e is (typeof PARTNER_OUTBOUND_WEBHOOK_EVENTS)[number] =>
+    allowed.has(e)
+  )
+
+  const saved = await upsertPartnerOutboundWebhookFromPg({
+    partnerId: input.partnerId,
+    webhookUrl: input.webhookUrl.trim().slice(0, 2000),
+    isEnabled: input.isEnabled,
+    events: events.length > 0 ? events : [...PARTNER_OUTBOUND_WEBHOOK_EVENTS],
+  })
+  if (!saved) return { error: 'Failed to save webhook settings.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function generatePartnerOutboundWebhookSecret(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(user.id)
+  if ('error' in step) return { error: step.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const secret = randomBytes(24).toString('hex')
+  const ok = await setPartnerOutboundWebhookSecretFromPg(partnerId, secret)
+  if (!ok) return { error: 'Failed to generate webhook secret.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const, secret }
+}
+
+export async function sendPartnerOutboundWebhookTest(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const result = await dispatchPartnerOutboundWebhook({
+    partnerId,
+    event: 'webhook.test',
+    data: { message: 'NanoAI webhook test delivery.', sent_at: new Date().toISOString() },
+    force: true,
+  })
+  if (!result.ok) {
+    return {
+      error: result.error || `Delivery failed${result.status ? ` (HTTP ${result.status})` : ''}.`,
+    }
+  }
+  return { ok: true as const, status: result.status ?? 200 }
+}
+
 export async function upsertPartnerInventoryItem(
   partnerId: string,
   itemId: string | null,
@@ -2372,6 +2504,11 @@ export async function upsertPartnerInventoryItem(
     product_url: string
     product_video_url: string
     consult_note: string
+    material_note: string
+    material_detail_image_url: string
+    real_use_image_url: string
+    real_use_image_url_2: string
+    remarketing_id: string
     sort_order: number
   }
 ) {
@@ -2388,37 +2525,40 @@ export async function upsertPartnerInventoryItem(
   const imageUrl = validateInventoryImageUrl(fields.image_url ?? '')
   const productUrl = validateInventoryImageUrl(fields.product_url ?? '')
   const productVideoUrl = validateInventoryImageUrl(fields.product_video_url ?? '')
+  const materialDetailImageUrl = validateInventoryImageUrl(fields.material_detail_image_url ?? '')
+  const realUseImageUrl = validateInventoryImageUrl(fields.real_use_image_url ?? '')
+  const realUseImageUrl2 = validateInventoryImageUrl(fields.real_use_image_url_2 ?? '')
   const consult = (fields.consult_note ?? '').trim().slice(0, 2000)
+  const materialNote = (fields.material_note ?? '').trim().slice(0, 8000)
+  const remarketingId = fields.remarketing_id.trim().slice(0, 500) || null
+  const shared = {
+    name: fields.name.trim(),
+    sku,
+    description: fields.description ?? '',
+    stock_note: fields.stock_note ?? '',
+    stock_qty: Math.max(0, Math.floor(Number(fields.stock_qty ?? 0) || 0)),
+    price_hint: fields.price_hint ?? '',
+    image_url: imageUrl,
+    product_url: productUrl,
+    product_video_url: productVideoUrl,
+    consult_note: consult,
+    material_note: materialNote,
+    material_detail_image_url: materialDetailImageUrl,
+    real_use_image_url: realUseImageUrl,
+    real_use_image_url_2: realUseImageUrl2,
+    remarketing_id: remarketingId,
+    sort_order: fields.sort_order,
+  }
   if (itemId) {
     const ok = await updatePartnerInventoryDashboardItemFromPg(partnerId, itemId, {
-      name: fields.name.trim(),
-      sku,
-      description: fields.description ?? '',
-      stock_note: fields.stock_note ?? '',
-      stock_qty: Math.max(0, Math.floor(Number(fields.stock_qty ?? 0) || 0)),
-      price_hint: fields.price_hint ?? '',
-      image_url: imageUrl,
-      product_url: productUrl,
-      product_video_url: productVideoUrl,
-      consult_note: consult,
-      sort_order: fields.sort_order,
+      ...shared,
       updated_at: now,
     })
     if (!ok) return { error: 'Failed to update inventory item.' }
     await syncPartnerInventoryEmbeddings(partnerId, { inventoryIds: [itemId], force: false })
   } else {
     const newId = await insertPartnerInventoryDashboardItemFromPg(partnerId, {
-      name: fields.name.trim(),
-      sku,
-      description: fields.description ?? '',
-      stock_note: fields.stock_note ?? '',
-      stock_qty: Math.max(0, Math.floor(Number(fields.stock_qty ?? 0) || 0)),
-      price_hint: fields.price_hint ?? '',
-      image_url: imageUrl,
-      product_url: productUrl,
-      product_video_url: productVideoUrl,
-      consult_note: consult,
-      sort_order: fields.sort_order,
+      ...shared,
       created_at: now,
       updated_at: now,
     })

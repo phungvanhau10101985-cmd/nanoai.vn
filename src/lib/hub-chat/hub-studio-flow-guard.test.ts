@@ -59,7 +59,7 @@ test('completed flow has no pending step', () => {
 test('explicit request proposes another preset without mutating a session', () => {
   assert.equal(
     detectStudioFlowSwitch('Chuyển sang làm thiệp cưới', 'packaging_kit'),
-    'wedding_invite'
+    null
   )
   assert.equal(
     detectStudioFlowSwitch('Tôi muốn thiết kế landing page', 'packaging_kit'),
@@ -84,9 +84,9 @@ test('request matching the current preset does not fork', () => {
 })
 
 test('confirmed new-flow payload always forks with a null thread id', () => {
-  const request = buildConfirmedNewFlowStartRequest('wedding_invite')
+  const request = buildConfirmedNewFlowStartRequest('landing_page')
   assert.equal(request.action, 'start_preset')
-  assert.equal(request.presetId, 'wedding_invite')
+  assert.equal(request.presetId, 'landing_page')
   assert.equal(request.forceNewThread, true)
   assert.equal(request.threadId, null)
 })

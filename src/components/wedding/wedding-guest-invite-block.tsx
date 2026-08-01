@@ -25,6 +25,8 @@ type Props = {
   venueClassName?: string
   venueDateTimeClassName?: string
   addressClassName?: string
+  personalInviteText?: string
+  personalInviteClassName?: string
   compact?: boolean
 }
 
@@ -106,6 +108,16 @@ export function WeddingGuestInviteBlock(props: Props) {
             <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: mapColors.text }} aria-hidden />
             <span className="text-center">{props.viewMapLabel}</span>
           </a>
+        ) : null}
+        {props.personalInviteText?.trim() ? (
+          <p
+            className={cn(
+              'mt-3 whitespace-pre-line border-t border-white/20 pt-3 text-left text-xs leading-relaxed sm:text-sm',
+              props.personalInviteClassName ?? props.cordiallyClassName,
+            )}
+          >
+            {props.personalInviteText.trim()}
+          </p>
         ) : null}
       </div>
     </div>

@@ -1,0 +1,363 @@
+import type { WebLocale } from '@/lib/i18n/config'
+
+export type PartnerSiteShopCopy = {
+  navHome: string
+  navProducts: string
+  navRecentlyViewed: string
+  navFavorites: string
+  navRecommended: string
+  navCart: string
+  navChat: string
+  catalogTitle: string
+  catalogEmpty: string
+  loadMore: string
+  productDetail: string
+  addToCart: string
+  buyNow: string
+  addedToCart: string
+  consultChat: string
+  cartTitle: string
+  cartEmpty: string
+  cartSubtotal: string
+  cartCheckout: string
+  cartCheckingOut: string
+  cartRemove: string
+  checkoutName: string
+  checkoutPhone: string
+  checkoutAddress: string
+  checkoutNote: string
+  checkoutSuccess: string
+  checkoutAuthRequired: string
+  checkoutAuthLink: string
+  quantity: string
+  backToShop: string
+  navOrders: string
+  sizeLabel: string
+  colorLabel: string
+  searchPlaceholder: string
+  searchButton: string
+  relatedProducts: string
+  tryOnLink: string
+  ordersTitle: string
+  ordersEmpty: string
+  authSendOtp: string
+  authVerifyOtp: string
+  authSuccess: string
+  authFailed: string
+  authOtpSent: string
+  orderIdLabel: string
+  depositAmount: string
+  paymentReference: string
+  depositPolicyNote: string
+  productDescriptionTitle: string
+  productDetailImagesTitle: string
+  productVideoTitle: string
+  favoriteAdd: string
+  favoriteRemove: string
+  chatOpenLabel: string
+  chatCloseLabel: string
+  chatFullPageLabel: string
+  chatLanguageLabel: string
+}
+
+const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
+  vi: {
+    navHome: 'Trang chủ',
+    navProducts: 'Sản phẩm',
+    navRecentlyViewed: 'Vừa xem',
+    navFavorites: 'Yêu thích',
+    navRecommended: 'Gợi ý',
+    navCart: 'Giỏ hàng',
+    navChat: 'Chat mua',
+    catalogTitle: 'Tất cả sản phẩm',
+    catalogEmpty: 'Chưa có sản phẩm.',
+    loadMore: 'Xem thêm',
+    productDetail: 'Chi tiết sản phẩm',
+    addToCart: 'Thêm vào giỏ',
+    buyNow: 'Mua ngay',
+    addedToCart: 'Đã thêm vào giỏ.',
+    consultChat: 'Chat tư vấn',
+    cartTitle: 'Giỏ hàng',
+    cartEmpty: 'Giỏ hàng trống.',
+    cartSubtotal: 'Tạm tính',
+    cartCheckout: 'Thanh toán',
+    cartCheckingOut: 'Đang tạo đơn…',
+    cartRemove: 'Xóa',
+    checkoutName: 'Họ tên',
+    checkoutPhone: 'Số điện thoại',
+    checkoutAddress: 'Địa chỉ giao hàng',
+    checkoutNote: 'Ghi chú',
+    checkoutSuccess: 'Đã tạo đơn — shop sẽ liên hệ sớm.',
+    checkoutAuthRequired: 'Cần xác minh email để thanh toán.',
+    checkoutAuthLink: 'Đăng nhập / xác minh tại chat shop',
+    quantity: 'Số lượng',
+    backToShop: 'Tiếp tục mua',
+    navOrders: 'Đơn hàng',
+    sizeLabel: 'Size',
+    colorLabel: 'Màu',
+    searchPlaceholder: 'Tìm sản phẩm…',
+    searchButton: 'Tìm',
+    relatedProducts: 'Sản phẩm liên quan',
+    tryOnLink: 'Thử đồ AI',
+    ordersTitle: 'Đơn hàng của bạn',
+    ordersEmpty: 'Chưa có đơn hàng.',
+    authSendOtp: 'Gửi mã OTP',
+    authVerifyOtp: 'Xác minh',
+    authSuccess: 'Đã xác minh email — có thể thanh toán.',
+    authFailed: 'Không xác minh được. Thử lại.',
+    authOtpSent: 'Đã gửi mã OTP tới email.',
+    orderIdLabel: 'Mã đơn',
+    depositAmount: 'Số tiền cọc',
+    paymentReference: 'Nội dung chuyển khoản',
+    depositPolicyNote: 'Cọc theo cài đặt shop — quét QR hoặc chuyển khoản đúng nội dung.',
+    productDescriptionTitle: 'Mô tả sản phẩm',
+    productDetailImagesTitle: 'Ảnh chi tiết',
+    productVideoTitle: 'Video sản phẩm',
+    favoriteAdd: 'Thêm yêu thích',
+    favoriteRemove: 'Bỏ yêu thích',
+    chatOpenLabel: 'Mở chat',
+    chatCloseLabel: 'Đóng',
+    chatFullPageLabel: 'Mở toàn trang',
+    chatLanguageLabel: 'Ngôn ngữ',
+  },
+  en: {
+    navHome: 'Home',
+    navProducts: 'Products',
+    navRecentlyViewed: 'Recent',
+    navFavorites: 'Favorites',
+    navRecommended: 'For you',
+    navCart: 'Cart',
+    navChat: 'Chat',
+    catalogTitle: 'All products',
+    catalogEmpty: 'No products yet.',
+    loadMore: 'Load more',
+    productDetail: 'Product details',
+    addToCart: 'Add to cart',
+    buyNow: 'Buy now',
+    addedToCart: 'Added to cart.',
+    consultChat: 'Chat for advice',
+    cartTitle: 'Shopping cart',
+    cartEmpty: 'Your cart is empty.',
+    cartSubtotal: 'Subtotal',
+    cartCheckout: 'Checkout',
+    cartCheckingOut: 'Placing order…',
+    cartRemove: 'Remove',
+    checkoutName: 'Full name',
+    checkoutPhone: 'Phone',
+    checkoutAddress: 'Shipping address',
+    checkoutNote: 'Note',
+    checkoutSuccess: 'Order placed — the shop will contact you soon.',
+    checkoutAuthRequired: 'Email verification required to checkout.',
+    checkoutAuthLink: 'Sign in / verify via shop chat',
+    quantity: 'Quantity',
+    backToShop: 'Continue shopping',
+    navOrders: 'Orders',
+    sizeLabel: 'Size',
+    colorLabel: 'Color',
+    searchPlaceholder: 'Search products…',
+    searchButton: 'Search',
+    relatedProducts: 'Related products',
+    tryOnLink: 'AI try-on',
+    ordersTitle: 'Your orders',
+    ordersEmpty: 'No orders yet.',
+    authSendOtp: 'Send OTP',
+    authVerifyOtp: 'Verify',
+    authSuccess: 'Email verified — you can checkout.',
+    authFailed: 'Verification failed. Try again.',
+    authOtpSent: 'OTP sent to your email.',
+    orderIdLabel: 'Order ID',
+    depositAmount: 'Deposit amount',
+    paymentReference: 'Transfer reference',
+    depositPolicyNote: 'Deposit per shop settings — scan QR or transfer with the reference.',
+    productDescriptionTitle: 'Product description',
+    productDetailImagesTitle: 'Detail images',
+    productVideoTitle: 'Product video',
+    favoriteAdd: 'Add to favorites',
+    favoriteRemove: 'Remove from favorites',
+    chatOpenLabel: 'Open chat',
+    chatCloseLabel: 'Close',
+    chatFullPageLabel: 'Open full page',
+    chatLanguageLabel: 'Language',
+  },
+  zh: {
+    navHome: '首页',
+    navProducts: '产品',
+    navRecentlyViewed: '最近浏览',
+    navFavorites: '收藏',
+    navRecommended: '推荐',
+    navCart: '购物车',
+    navChat: '聊天购买',
+    catalogTitle: '全部产品',
+    catalogEmpty: '暂无产品。',
+    loadMore: '加载更多',
+    productDetail: '产品详情',
+    addToCart: '加入购物车',
+    buyNow: '立即购买',
+    addedToCart: '已加入购物车。',
+    consultChat: '咨询聊天',
+    cartTitle: '购物车',
+    cartEmpty: '购物车为空。',
+    cartSubtotal: '小计',
+    cartCheckout: '结账',
+    cartCheckingOut: '正在下单…',
+    cartRemove: '删除',
+    checkoutName: '姓名',
+    checkoutPhone: '电话',
+    checkoutAddress: '收货地址',
+    checkoutNote: '备注',
+    checkoutSuccess: '订单已创建 — 店铺将尽快联系。',
+    checkoutAuthRequired: '结账需要验证邮箱。',
+    checkoutAuthLink: '在店铺聊天中登录/验证',
+    quantity: '数量',
+    backToShop: '继续购物',
+    navOrders: '订单',
+    sizeLabel: '尺码',
+    colorLabel: '颜色',
+    searchPlaceholder: '搜索产品…',
+    searchButton: '搜索',
+    relatedProducts: '相关产品',
+    tryOnLink: 'AI 试穿',
+    ordersTitle: '我的订单',
+    ordersEmpty: '暂无订单。',
+    authSendOtp: '发送验证码',
+    authVerifyOtp: '验证',
+    authSuccess: '邮箱已验证 — 可以结账。',
+    authFailed: '验证失败，请重试。',
+    authOtpSent: '验证码已发送到邮箱。',
+    orderIdLabel: '订单号',
+    depositAmount: '定金金额',
+    paymentReference: '转账备注',
+    depositPolicyNote: '按店铺设置支付定金 — 扫码或转账并填写备注。',
+    productDescriptionTitle: '产品描述',
+    productDetailImagesTitle: '细节图片',
+    productVideoTitle: '产品视频',
+    favoriteAdd: '加入收藏',
+    favoriteRemove: '取消收藏',
+    chatOpenLabel: '打开聊天',
+    chatCloseLabel: '关闭',
+    chatFullPageLabel: '全页打开',
+    chatLanguageLabel: '语言',
+  },
+  ja: {
+    navHome: 'ホーム',
+    navProducts: '商品',
+    navRecentlyViewed: '最近見た',
+    navFavorites: 'お気に入り',
+    navRecommended: 'おすすめ',
+    navCart: 'カート',
+    navChat: 'チャット',
+    catalogTitle: 'すべての商品',
+    catalogEmpty: '商品がありません。',
+    loadMore: 'もっと見る',
+    productDetail: '商品詳細',
+    addToCart: 'カートに追加',
+    buyNow: '今すぐ購入',
+    addedToCart: 'カートに追加しました。',
+    consultChat: 'チャット相談',
+    cartTitle: 'ショッピングカート',
+    cartEmpty: 'カートは空です。',
+    cartSubtotal: '小計',
+    cartCheckout: 'レジに進む',
+    cartCheckingOut: '注文処理中…',
+    cartRemove: '削除',
+    checkoutName: '氏名',
+    checkoutPhone: '電話番号',
+    checkoutAddress: '配送先',
+    checkoutNote: 'メモ',
+    checkoutSuccess: '注文を受け付けました — ショップから連絡があります。',
+    checkoutAuthRequired: '決済にはメール認証が必要です。',
+    checkoutAuthLink: 'ショップチャットでログイン/認証',
+    quantity: '数量',
+    backToShop: '買い物を続ける',
+    navOrders: '注文',
+    sizeLabel: 'サイズ',
+    colorLabel: '色',
+    searchPlaceholder: '商品を検索…',
+    searchButton: '検索',
+    relatedProducts: '関連商品',
+    tryOnLink: 'AI試着',
+    ordersTitle: '注文履歴',
+    ordersEmpty: '注文はまだありません。',
+    authSendOtp: 'OTP送信',
+    authVerifyOtp: '確認',
+    authSuccess: 'メール確認済み — 決済できます。',
+    authFailed: '確認に失敗しました。',
+    authOtpSent: 'OTPをメールに送信しました。',
+    orderIdLabel: '注文ID',
+    depositAmount: 'デポジット',
+    paymentReference: '振込参照',
+    depositPolicyNote: 'ショップ設定に従いデポジットをお支払いください。',
+    productDescriptionTitle: '商品説明',
+    productDetailImagesTitle: '詳細画像',
+    productVideoTitle: '商品動画',
+    favoriteAdd: 'お気に入りに追加',
+    favoriteRemove: 'お気に入りから削除',
+    chatOpenLabel: 'チャットを開く',
+    chatCloseLabel: '閉じる',
+    chatFullPageLabel: '全画面で開く',
+    chatLanguageLabel: '言語',
+  },
+  ko: {
+    navHome: '홈',
+    navProducts: '상품',
+    navRecentlyViewed: '최근 본',
+    navFavorites: '찜',
+    navRecommended: '추천',
+    navCart: '장바구니',
+    navChat: '채팅',
+    catalogTitle: '전체 상품',
+    catalogEmpty: '상품이 없습니다.',
+    loadMore: '더 보기',
+    productDetail: '상품 상세',
+    addToCart: '장바구니 담기',
+    buyNow: '바로 구매',
+    addedToCart: '장바구니에 담았습니다.',
+    consultChat: '채팅 상담',
+    cartTitle: '장바구니',
+    cartEmpty: '장바구니가 비었습니다.',
+    cartSubtotal: '소계',
+    cartCheckout: '결제',
+    cartCheckingOut: '주문 처리 중…',
+    cartRemove: '삭제',
+    checkoutName: '이름',
+    checkoutPhone: '전화번호',
+    checkoutAddress: '배송 주소',
+    checkoutNote: '메모',
+    checkoutSuccess: '주문이 접수되었습니다 — 곧 연락드립니다.',
+    checkoutAuthRequired: '결제하려면 이메일 인증이 필요합니다.',
+    checkoutAuthLink: '샵 채팅에서 로그인/인증',
+    quantity: '수량',
+    backToShop: '쇼핑 계속',
+    navOrders: '주문',
+    sizeLabel: '사이즈',
+    colorLabel: '색상',
+    searchPlaceholder: '상품 검색…',
+    searchButton: '검색',
+    relatedProducts: '관련 상품',
+    tryOnLink: 'AI 피팅',
+    ordersTitle: '내 주문',
+    ordersEmpty: '주문이 없습니다.',
+    authSendOtp: 'OTP 전송',
+    authVerifyOtp: '인증',
+    authSuccess: '이메일 인증 완료 — 결제 가능합니다.',
+    authFailed: '인증 실패. 다시 시도하세요.',
+    authOtpSent: 'OTP가 이메일로 전송되었습니다.',
+    orderIdLabel: '주문 ID',
+    depositAmount: '보증금',
+    paymentReference: '입금 참조',
+    depositPolicyNote: '샵 설정에 따른 보증금 — QR 또는 참조번호로 입금.',
+    productDescriptionTitle: '상품 설명',
+    productDetailImagesTitle: '상세 이미지',
+    productVideoTitle: '상품 영상',
+    favoriteAdd: '찜하기',
+    favoriteRemove: '찜 해제',
+    chatOpenLabel: '채팅 열기',
+    chatCloseLabel: '닫기',
+    chatFullPageLabel: '전체 페이지 열기',
+    chatLanguageLabel: '언어',
+  },
+}
+
+export function getPartnerSiteShopCopy(locale: WebLocale): PartnerSiteShopCopy {
+  return COPY[locale] ?? COPY.en
+}

@@ -26,6 +26,7 @@ type WeddingCoverShellCardProps = {
   theme: WeddingTheme
   invitationLabel: string
   cordiallyInvitesLabel: string
+  personalInviteText?: string
   openButtonLabel: string
   dateFallback: string
   photoAlt: string
@@ -119,6 +120,8 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
           addressClassName={cn(theme.mutedText, theme.textGlow)}
           weddingThemeId={theme.id}
           compact={compact}
+          personalInviteText={props.personalInviteText}
+          personalInviteClassName={cn(theme.mutedText, theme.textGlow)}
         />
       ) : null}
       {props.onOpen ? (
@@ -215,6 +218,8 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
             addressClassName={theme.mutedText}
             weddingThemeId={theme.id}
             compact={compact}
+            personalInviteText={props.personalInviteText}
+            personalInviteClassName={theme.mutedText}
           />
         ) : null}
         {props.onOpen ? (

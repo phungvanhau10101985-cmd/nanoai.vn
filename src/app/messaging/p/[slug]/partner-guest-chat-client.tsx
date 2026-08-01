@@ -50,13 +50,16 @@ import { fireMetaConsultViewContentPixelEvent } from './meta-view-content-consul
 import { fireMetaPurchasePixelEvents } from './meta-purchase-pixel-fire'
 import { MetaPixelViewContentTracker } from './meta-pixel-view-content-tracker'
 import {
-  trackShopGa4BeginCheckout,
-  trackShopGa4ProductEvent,
-  trackShopGa4Purchase,
-  trackShopGa4PurchaseEvent,
-  trackShopGa4ViewItem,
-  type ShopGa4ProductInput,
-} from './shop-ga4-ecommerce'
+  guestCardToTrackingProduct,
+  trackPartnerSiteAddToCart,
+  trackPartnerSiteBeginCheckout,
+  trackPartnerSitePurchase,
+  trackPartnerSiteViewItem,
+  trackingProductFromGa4Input,
+  trackingProductFromMetaViewContent,
+} from '@/lib/partner-website/shop/partner-site-shop-tracking'
+import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
+import type { ShopGa4ProductInput } from './shop-ga4-ecommerce'
 import { GuestWidgetOrderDetailDialog } from '@/components/messaging/guest-widget-order-detail-dialog'
 import { GuestWidgetMyOrdersDialog } from '@/components/messaging/guest-widget-my-orders-dialog'
 import {
@@ -74,6 +77,7 @@ import {
   useVisualViewportShellHeightPx,
 } from '@/hooks/use-visual-viewport-bottom-inset'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { CREATION_SIDEBAR_POPULAR_LINKS } from '@/lib/creation-tool-sidebar-config'
 import {
   LOCALE_COOKIE_NAME,
   LOCALE_COOKIE_NAME_LEGACY,
@@ -83,6 +87,8 @@ import {
 import type { Json } from '@/types/database.types'
 import {
   Camera,
+  ArrowLeft,
+  LayoutGrid,
   ShoppingCart,
   CheckCircle,
   ChevronDown,
@@ -832,9 +838,10 @@ function buildShopGa4ProductInputFromCard(
   }
 }
 
-function trackShopGa4PurchaseFromOrderSnapshot(
-  measurementId: string | null | undefined,
-  order: GuestOrderGa4Snapshot | null | undefined
+function trackGuestPurchaseFromOrderSnapshot(
+  adsTracking: PartnerSiteShopTrackingConfig,
+  order: GuestOrderGa4Snapshot | null | undefined,
+  options?: { skipMeta?: boolean }
 ): void {
   const orderId = String(order?.id ?? '').trim()
   if (!orderId) return
@@ -843,19 +850,22 @@ function trackShopGa4PurchaseFromOrderSnapshot(
     0,
     Math.round(Number(order?.amount_after_discount ?? order?.subtotal_amount ?? order?.required_amount) || 0)
   )
-  trackShopGa4PurchaseEvent({
-    measurementId,
-    transactionId: orderId,
-    value,
-    items: [
-      {
-        itemId: order?.product_inventory_id || order?.product_url || orderId,
-        itemName: order?.product_name || order?.product_inventory_id || orderId,
-        value: Math.max(0, Math.round(Number(order?.unit_price) || 0)),
-        quantity: qty,
-      },
-    ],
-  })
+  trackPartnerSitePurchase(
+    adsTracking,
+    {
+      transactionId: orderId,
+      value,
+      lines: [
+        {
+          itemId: order?.product_inventory_id || order?.product_url || orderId,
+          itemName: order?.product_name || order?.product_inventory_id || orderId,
+          value: Math.max(0, Math.round(Number(order?.unit_price) || 0)),
+          quantity: qty,
+        },
+      ],
+    },
+    options
+  )
 }
 
 function discountVndNumberForBirthday(amount: number, pct: number | null): number {
@@ -1506,13 +1516,14 @@ export function PartnerGuestChatClient({
   shopDisplayName,
   uiLocale,
   t,
+  toolT,
   orderDetailT,
   initialChatList = [],
   guestPurchaseFlow = 'in_chat',
   guestExternalCartUrlTemplate = null,
   consultFromInventory,
   metaViewContent,
-  ga4MeasurementId,
+  adsTracking,
   ga4InitialViewItem,
 }: {
   slug: string
@@ -1520,6 +1531,7 @@ export function PartnerGuestChatClient({
   /** Ngôn ngữ UI khách (cookie trang) — gửi kèm API để tin hệ thống đơn đúng ngôn ngữ. */
   uiLocale: WebLocale
   t: T
+  toolT: Dictionary['tool']
   /** Nhãn cho modal «Đơn hàng» trong khung nhúng (không cần đăng nhập NanoAI). */
   orderDetailT: Dictionary['messagingMyOrders']
   initialChatList?: ChatRailItem[]
@@ -1537,9 +1549,9 @@ export function PartnerGuestChatClient({
   } | null
   /** Meta Pixel ViewContent — server đã gửi CAPI; client dedupe bằng `eventId`. */
   metaViewContent?: MetaViewContentClientPayload | null
-  /** GA4 Measurement ID riêng của shop — chỉ dùng cho trang khách hàng. */
-  ga4MeasurementId?: string | null
-  /** Dữ liệu view_item GA4 lấy trực tiếp từ kho, vẫn chạy khi shop không cấu hình Meta Pixel. */
+  /** GA4 + Google Ads + TikTok (+ Meta browser khi không có CAPI). */
+  adsTracking: PartnerSiteShopTrackingConfig
+  /** Dữ liệu view_item lấy trực tiếp từ kho khi không có Meta Pixel. */
   ga4InitialViewItem?: ShopGa4ProductInput | null
 }) {
   const { toast } = useToast()
@@ -1720,12 +1732,15 @@ export function PartnerGuestChatClient({
   const [paymentProofBusyOrderId, setPaymentProofBusyOrderId] = useState<string | null>(null)
   const [embedOrderDetailId, setEmbedOrderDetailId] = useState<string | null>(null)
   const [embedMyOrdersOpen, setEmbedMyOrdersOpen] = useState(false)
+  const [nanoToolsSheetOpen, setNanoToolsSheetOpen] = useState(false)
   /** Tăng sau gửi biên lai thành công — tải lại dialog đơn / danh sách. */
   const [embedWidgetDataNonce, setEmbedWidgetDataNonce] = useState(0)
   /** Chat nhúng iframe trên site shop (`?embed=1`) — không có header FloatingChatWidget của nanoai.vn. */
   const [isEmbedUi, setIsEmbedUi] = useState(false)
   /** `true` khi trang chat chạy trong iframe (FloatingChatWidget / script nhúng); locale/mở rộng ở frame cha. */
   const [guestInIframe, setGuestInIframe] = useState(false)
+  /** Trang hosted trên nanoai.vn (không nhúng) — hiện điều hướng về trang chủ & công cụ NanoAI. */
+  const showNanoSiteNav = !isEmbedUi && !guestInIframe
 
   const guestBirthMaxDay = useMemo(() => {
     const m = Number.parseInt(guestBirthMonth, 10)
@@ -3070,9 +3085,9 @@ export function PartnerGuestChatClient({
       const uuidOk =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv)
       if (!uuidOk && !/^https?:\/\//i.test(pu)) return
-      const ga4Product = buildShopGa4ProductInputFromCard(card)
-      trackShopGa4ProductEvent('view_item', ga4MeasurementId, ga4Product)
-      trackShopGa4ProductEvent('add_to_cart', ga4MeasurementId, ga4Product)
+      const ga4Product = guestCardToTrackingProduct(card)
+      trackPartnerSiteViewItem(adsTracking, ga4Product, { skipMeta: true })
+      trackPartnerSiteAddToCart(adsTracking, ga4Product, ga4Product.quantity ?? 1, { skipMeta: true })
 
       void (async () => {
         try {
@@ -3131,7 +3146,7 @@ export function PartnerGuestChatClient({
         }
       })()
     },
-    [ga4MeasurementId, slug]
+    [adsTracking, slug]
   )
 
   /** Lấy SKU từ kho khi thẻ AI thiếu — chế độ 3 và Meta cần mã đúng. */
@@ -3413,11 +3428,13 @@ export function PartnerGuestChatClient({
     if (shopGa4InitialViewItemKeyRef.current === key) return
     shopGa4InitialViewItemKeyRef.current = key
     if (metaViewContent) {
-      trackShopGa4ViewItem(ga4MeasurementId, metaViewContent)
+      trackPartnerSiteViewItem(adsTracking, trackingProductFromMetaViewContent(metaViewContent), {
+        skipMeta: true,
+      })
     } else if (ga4InitialViewItem) {
-      trackShopGa4ProductEvent('view_item', ga4MeasurementId, ga4InitialViewItem)
+      trackPartnerSiteViewItem(adsTracking, trackingProductFromGa4Input(ga4InitialViewItem))
     }
-  }, [ga4InitialViewItem, ga4MeasurementId, metaViewContent])
+  }, [adsTracking, ga4InitialViewItem, metaViewContent])
 
   const sanitizeCartItemsFromServer = useCallback((raw: unknown): GuestCartItem[] => {
     if (!Array.isArray(raw)) return []
@@ -3620,10 +3637,9 @@ export function PartnerGuestChatClient({
       toast({ title: `Vui lòng điền: ${missing.join(', ')}`, variant: 'destructive' })
       return
     }
-    trackShopGa4BeginCheckout(
-      ga4MeasurementId,
-      cartSubtotal,
-      cartItems.map((item) => buildShopGa4ProductInputFromCard(item.card, item.quantity))
+    trackPartnerSiteBeginCheckout(
+      adsTracking,
+      cartItems.map((item) => guestCardToTrackingProduct(item.card, item.quantity))
     )
     setCartCheckoutBusy(true)
     try {
@@ -3701,9 +3717,22 @@ export function PartnerGuestChatClient({
         } catch {
           // Meta tùy chọn
         }
-        trackShopGa4Purchase(ga4MeasurementId, purchasePayload)
+        trackPartnerSitePurchase(
+          adsTracking,
+          {
+            transactionId: purchasePayload.order_id,
+            value: purchasePayload.value,
+            lines: purchasePayload.contents.map((item) => ({
+              itemId: item.id,
+              itemName: item.title || item.id,
+              value: item.item_price,
+              quantity: item.quantity,
+            })),
+          },
+          { skipMeta: true }
+        )
       } else if (!mp) {
-        trackShopGa4PurchaseFromOrderSnapshot(ga4MeasurementId, data.order)
+        trackGuestPurchaseFromOrderSnapshot(adsTracking, data.order)
       }
       setCartItems([])
       setCartOpen(false)
@@ -3719,8 +3748,7 @@ export function PartnerGuestChatClient({
     captureGuestAccountFromResponse,
     captureGuestSessionFromResponse,
     cartItems,
-    cartSubtotal,
-    ga4MeasurementId,
+    adsTracking,
     load,
     orderAddress,
     orderName,
@@ -3748,7 +3776,7 @@ export function PartnerGuestChatClient({
       const uuidOk =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv)
       if (!uuidOk && (!productUrl || !/^https?:\/\//i.test(productUrl))) return
-      trackShopGa4ProductEvent('view_item', ga4MeasurementId, buildShopGa4ProductInputFromCard(card))
+      trackPartnerSiteViewItem(adsTracking, guestCardToTrackingProduct(card), { skipMeta: true })
 
       void (async () => {
         try {
@@ -3788,7 +3816,7 @@ export function PartnerGuestChatClient({
         }
       })()
     },
-    [ga4MeasurementId, slug]
+    [adsTracking, slug]
   )
 
   const submitProductCardPick = async (card: PartnerAiProductCard, sourceMessageId: string) => {
@@ -4087,11 +4115,9 @@ export function PartnerGuestChatClient({
     if (!picked) return
     if (activeOrderCard) {
       const unitValue = parseVndFromHint(activeOrderCard.price_hint)
-      trackShopGa4BeginCheckout(
-        ga4MeasurementId,
-        unitValue * Math.max(1, picked.totalQty),
-        [buildShopGa4ProductInputFromCard(activeOrderCard, picked.totalQty)]
-      )
+      trackPartnerSiteBeginCheckout(adsTracking, [
+        guestCardToTrackingProduct(activeOrderCard, picked.totalQty),
+      ])
     }
     setOrderFormBusy(true)
     try {
@@ -4174,9 +4200,22 @@ export function PartnerGuestChatClient({
         } catch {
           // Meta tùy chọn
         }
-        trackShopGa4Purchase(ga4MeasurementId, purchasePayload)
+        trackPartnerSitePurchase(
+          adsTracking,
+          {
+            transactionId: purchasePayload.order_id,
+            value: purchasePayload.value,
+            lines: purchasePayload.contents.map((item) => ({
+              itemId: item.id,
+              itemName: item.title || item.id,
+              value: item.item_price,
+              quantity: item.quantity,
+            })),
+          },
+          { skipMeta: true }
+        )
       } else if (!mp) {
-        trackShopGa4PurchaseFromOrderSnapshot(ga4MeasurementId, data.order)
+        trackGuestPurchaseFromOrderSnapshot(adsTracking, data.order)
       }
       saveLocalOrderProfile({
         customerName: orderName,
@@ -5620,7 +5659,29 @@ export function PartnerGuestChatClient({
             </div>
           </div>
         ) : !isEmbedUi ? (
-          <div className="flex shrink-0 justify-end border-b border-border/60 bg-muted/25 px-3 py-1.5">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-muted/25 px-2 py-1.5 sm:px-3">
+            <div className="flex min-w-0 items-center gap-1">
+              {showNanoSiteNav ? (
+                <>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
+                    <Link href="/" aria-label={t.backHomeAria}>
+                      <ArrowLeft className="h-4 w-4" aria-hidden />
+                    </Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0 gap-1 px-2 text-xs font-medium lg:hidden"
+                    onClick={() => setNanoToolsSheetOpen(true)}
+                    aria-label={t.exploreToolsTitle}
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span className="max-w-[9rem] truncate sm:max-w-none">{t.exploreToolsButton}</span>
+                  </Button>
+                </>
+              ) : null}
+            </div>
             <GuestChatLocaleSwitches
               currentLocale={uiLocale}
               slug={slug}
@@ -7267,6 +7328,33 @@ export function PartnerGuestChatClient({
       <div className="mx-auto grid h-full w-full max-w-[1800px] grid-cols-1 gap-3 px-2 py-2 sm:px-3 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
         <aside className="hidden min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm lg:flex">
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3 [scrollbar-width:thin]">
+            {showNanoSiteNav ? (
+              <section className="space-y-2">
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/70"
+                >
+                  <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                  {t.backHome}
+                </Link>
+                <div>
+                  <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t.exploreToolsTitle}
+                  </p>
+                  <nav className="mt-1 space-y-0.5" aria-label={t.exploreToolsTitle}>
+                    {CREATION_SIDEBAR_POPULAR_LINKS.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="block rounded-lg px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+                      >
+                        {toolT[item.labelKey]}
+                      </Link>
+                    ))}
+                  </nav>
+                </div>
+              </section>
+            ) : null}
             <section className="space-y-2">
               <div className="flex items-start gap-2">
                 <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" aria-hidden />
@@ -7476,6 +7564,25 @@ export function PartnerGuestChatClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Sheet open={nanoToolsSheetOpen} onOpenChange={setNanoToolsSheetOpen}>
+        <SheetContent side="bottom" className="z-[260] max-h-[85vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{t.exploreToolsTitle}</SheetTitle>
+          </SheetHeader>
+          <nav className="mt-4 space-y-1" aria-label={t.exploreToolsTitle}>
+            {CREATION_SIDEBAR_POPULAR_LINKS.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted/80"
+                onClick={() => setNanoToolsSheetOpen(false)}
+              >
+                {toolT[item.labelKey]}
+              </Link>
+            ))}
+          </nav>
+        </SheetContent>
+      </Sheet>
       <Sheet open={cartOpen} onOpenChange={setCartOpen}>
         <SheetContent side="bottom" className="z-[260] max-h-[85vh] overflow-y-auto">
           <SheetHeader>

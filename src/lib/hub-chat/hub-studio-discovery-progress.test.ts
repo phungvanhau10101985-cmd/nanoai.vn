@@ -130,3 +130,32 @@ test('syncDiscoveryCurrentStep skips rewind when navigated back on design steps'
   session = syncDiscoveryCurrentStep(session)
   assert.equal(session.currentStepKey, 'face_back')
 })
+
+test('reconcile sets discoveryComplete when all discovery steps done but flag stale', () => {
+  const steps = buildStepsFromPreset('vi', 'landing_page')
+  const doneDiscovery = steps.map((s) =>
+    s.key === 'landing_full' ? s : { ...s, status: 'done' as const }
+  )
+  let session: HubStudioSession = {
+    projectTitle: 'Glow Lab',
+    presetId: 'landing_page',
+    uploadImages: [],
+    briefNotes: {
+      product_name: 'Glow Lab',
+      value_prop: 'Skincare',
+      target_audience: 'Women 25-40',
+      style_mood: 'Clean',
+      color_palette: '#112233',
+    },
+    discoveryComplete: false,
+    processSteps: doneDiscovery,
+    currentStepKey: 'landing_full',
+    referenceImages: [],
+    pendingPreview: null,
+    lastGenerationPrompt: null,
+  }
+
+  session = reconcileDiscoveryProgress(session)
+  assert.equal(session.discoveryComplete, true)
+  assert.equal(session.currentStepKey, 'landing_full')
+})

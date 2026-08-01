@@ -248,20 +248,28 @@ export async function runStudioImagePipeline(input: {
   aspectRatio?: string
   /** Exact trim size — normalizes generated image to print pixels before upload. */
   printSizeMm?: { widthMm: number; heightMm: number }
+  /** Use brief as the full image prompt — skip template wrap + normalizeToEnglish (landing page). */
+  verbatimPrompt?: boolean
 }): Promise<StudioImageResult> {
   const refUrls = input.referenceImageUrls ?? []
   const productUrls = input.productImageUrls ?? []
   const hasProduct = productUrls.length > 0
-  const spec = await buildPromptSpec(
-    input.kind,
-    input.screenLabel,
-    input.brief,
-    input.projectTitle,
-    refUrls.length > 0 || productUrls.length > 0,
-    hasProduct,
-    input.aspectRatio,
-    input.screenKey
-  )
+  const spec = input.verbatimPrompt
+    ? {
+        aspectRatio: input.aspectRatio || '9:16',
+        imageSize: '2K' as const,
+        prompt: input.brief.trim(),
+      }
+    : await buildPromptSpec(
+        input.kind,
+        input.screenLabel,
+        input.brief,
+        input.projectTitle,
+        refUrls.length > 0 || productUrls.length > 0,
+        hasProduct,
+        input.aspectRatio,
+        input.screenKey
+      )
   const safeAspectRatio =
     input.kind === 'banner' ? normalizeBannerAspectRatioForGemini(spec.aspectRatio) : spec.aspectRatio
 
@@ -314,6 +322,8 @@ export async function runStudioImagePipeline(input: {
       caption = `Approved LOGO — composite onto this flat print panel only; do NOT redraw the logo:`
     } else if (meta?.screenKey === 'banner_logo' && input.kind === 'banner') {
       caption = `Brand LOGO — embed this exact logo on the ad banner (use actual logo pixels). Do NOT redraw or replace with typed text:`
+    } else if (meta?.screenKey === 'landing_logo' && (input.kind === 'banner' || input.kind === 'ui_mockup')) {
+      caption = `Brand LOGO — embed this exact logo in the landing page header (use actual logo pixels). Do NOT redraw or replace with typed text:`
     } else if (meta?.screenKey === 'banner_style_anchor' && input.kind === 'banner') {
       caption = `Campaign STYLE ANCHOR — master banner from first size; match model identity, colors, typography, and mood exactly; adapt layout to new aspect ratio:`
     } else if (input.kind === 'packaging_face') {
@@ -332,9 +342,12 @@ export async function runStudioImagePipeline(input: {
   for (let i = 0; i < productUrls.length; i++) {
     const url = productUrls[i]!
     const productCaption =
-      input.kind === 'banner'
-        ? `Product photo ${i + 1} — composite onto the banner naturally (not a separate 3D scene):`
-        : `Product photo ${i + 1} — flatten this product cutout onto the flat print panel (not a 3D scene):`
+      input.screenKey === 'landing_full' &&
+      (input.kind === 'banner' || input.kind === 'ui_mockup')
+        ? `Product photo ${i + 1} — composite into the landing page hero or product section (not a separate 3D scene):`
+        : input.kind === 'banner'
+          ? `Product photo ${i + 1} — composite onto the banner naturally (not a separate 3D scene):`
+          : `Product photo ${i + 1} — flatten this product cutout onto the flat print panel (not a 3D scene):`
     parts.push({ text: productCaption })
     const loaded = await loadImageBufferFromUrl(url)
     if (loaded) {
@@ -362,7 +375,13 @@ export async function runStudioImagePipeline(input: {
     )
     const imagePartRes = result.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      return { ok: false, error: 'AI không trả về ảnh.' }
+      const finishReason = result.response.candidates?.[0]?.finishReason
+      const blockReason = result.response.promptFeedback?.blockReason
+      const detail = [finishReason, blockReason].filter(Boolean).join(' · ')
+      return {
+        ok: false,
+        error: detail ? `AI không trả về ảnh (${detail}).` : 'AI không trả về ảnh.',
+      }
     }
     const resultBufferRaw = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     // Box faces must match exact print trim px for dieline composite. Product labels / seal stickers

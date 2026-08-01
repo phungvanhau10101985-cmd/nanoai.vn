@@ -833,6 +833,88 @@ export async function fetchPartnerOrderForOwnerFromPg(
   }
 }
 
+/** Danh sách đơn headless API — lọc theo external_thread_id (headless:…) và/hoặc status. */
+export async function fetchPartnerOrdersHeadlessPageFromPg(input: {
+  partnerId: string
+  externalThreadId?: string | null
+  status?: PartnerOrderRow['status'] | null
+  offset: number
+  limit: number
+}): Promise<{ rows: PartnerOrderRow[]; count: number } | null> {
+  if (!isPgConfigured()) return null
+  const pid = String(input.partnerId ?? '').trim()
+  if (!pid) return null
+  const offset = Math.max(0, Math.floor(input.offset) || 0)
+  const limit = Math.max(1, Math.min(100, Math.floor(input.limit) || 24))
+
+  const conditions = ['partner_id = $1::uuid']
+  const params: unknown[] = [pid]
+  let paramIdx = 2
+
+  const externalThreadId = String(input.externalThreadId ?? '').trim()
+  if (externalThreadId) {
+    conditions.push(`external_thread_id = $${paramIdx}`)
+    params.push(externalThreadId)
+    paramIdx += 1
+  }
+
+  if (input.status) {
+    conditions.push(`status = $${paramIdx}`)
+    params.push(input.status)
+    paramIdx += 1
+  }
+
+  const where = conditions.join(' and ')
+
+  try {
+    const countRow = await pgQueryOne<{ count: string }>(
+      `select count(*)::text as count
+       from public.messaging_partner_orders
+       where ${where}`,
+      params
+    )
+    const count = Math.max(0, parseInt(String(countRow?.count ?? '0'), 10) || 0)
+
+    const rows = await pgQuery<Record<string, unknown>>(
+      `${ORDER_ROW_SELECT}
+       where ${where}
+       order by created_at desc
+       limit $${paramIdx} offset $${paramIdx + 1}`,
+      [...params, limit, offset]
+    )
+
+    return { rows: rows.map(mapOrderRow), count }
+  } catch (e) {
+    console.warn('[fetchPartnerOrdersHeadlessPageFromPg]', e)
+    return null
+  }
+}
+
+/** Đơn theo mã tham chiếu chuyển khoản (uppercase trim). */
+export async function fetchPartnerOrderByPaymentReferenceForPartnerFromPg(
+  partnerId: string,
+  paymentReference: string
+): Promise<PartnerOrderRow | null> {
+  if (!isPgConfigured()) return null
+  const pid = String(partnerId ?? '').trim()
+  const ref = String(paymentReference ?? '').trim().toUpperCase()
+  if (!pid || !ref) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `${ORDER_ROW_SELECT}
+       where partner_id = $1::uuid
+         and upper(trim(payment_reference)) = $2
+       order by created_at desc
+       limit 1`,
+      [pid, ref]
+    )
+    return row ? mapOrderRow(row) : null
+  } catch (e) {
+    console.warn('[fetchPartnerOrderByPaymentReferenceForPartnerFromPg]', e)
+    return null
+  }
+}
+
 /** Đơn trong cùng hội thoại widget (khách + shop). */
 export async function fetchPartnerOrdersForConversationFromPg(
   partnerId: string,

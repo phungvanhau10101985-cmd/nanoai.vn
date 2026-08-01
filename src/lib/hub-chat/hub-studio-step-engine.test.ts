@@ -62,3 +62,15 @@ test('design messages save only the current step brief', () => {
   assert.equal(next.briefNotes.face_front, 'Keep this future brief')
   assert.equal(next.currentStepKey, 'face_top')
 })
+
+test('landing legacy step keys resolve to landing_full', () => {
+  const session = sessionAtStep('landing_page', 'hero_desktop')
+  const resolved = resolveCurrentStudioDesignStep(session)
+  assert.equal(resolved?.presetId, 'landing_page')
+  assert.equal(resolved?.stepKey, 'landing_full')
+  assert.equal(resolved?.generator, 'ui_mockup')
+
+  const next = saveCurrentStudioStepBrief(session, 'Hero headline and full page sections')
+  assert.equal(next.currentStepKey, 'landing_full')
+  assert.equal(next.briefNotes.landing_full, 'Hero headline and full page sections')
+})

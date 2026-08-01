@@ -211,7 +211,7 @@ export function buildStandaloneMockupHtml(input: {
 </html>`
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -219,7 +219,7 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;')
 }
 
-function escapeAttr(value: string): string {
+export function escapeAttr(value: string): string {
   return escapeHtml(value).replace(/'/g, '&#39;')
 }
 

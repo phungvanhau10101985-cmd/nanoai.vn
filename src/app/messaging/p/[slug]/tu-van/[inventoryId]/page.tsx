@@ -12,7 +12,8 @@ import { fetchGuestWidgetUiLocaleForPartnerFromPg } from '@/lib/db/customer-care
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { resolveGuestExternalThreadIdFromCookies } from '@/lib/messaging/resolve-guest-external-thread-server'
 import { Toaster } from '@/components/ui/toaster'
-import { PartnerGuestGa4Config } from '../../partner-guest-ga4-config'
+import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
+import { partnerGuestTrackingFromPartner } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { EmbedGuestChatViewport, guestChatEmbedPopupChrome } from '../../embed-guest-chat-viewport'
 import { PartnerGuestChatClient } from '../../partner-guest-chat-client'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
@@ -196,18 +197,21 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
     value: parseVndAmountFromPriceHint(row.price_hint),
   }
 
+  const adsTracking = partnerGuestTrackingFromPartner(partner)
+
   const popupChrome = guestChatEmbedPopupChrome(sp)
 
   return (
     <>
       <Toaster />
-      <PartnerGuestGa4Config measurementId={partner.ga4_measurement_id} />
+      <PartnerSiteShopTrackingBootstrap tracking={adsTracking} />
       <EmbedGuestChatViewport popupChrome={popupChrome}>
         <PartnerGuestChatClient
           slug={slug}
           shopDisplayName={partner.display_name}
           uiLocale={uiLocale}
           t={dict.partnerGuestChat}
+          toolT={dict.tool}
           orderDetailT={dict.messagingMyOrders}
           initialChatList={chatList}
           guestPurchaseFlow={guestPurchaseConfig.flow}
@@ -219,7 +223,7 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
             productUrl: productUrl || undefined,
           }}
           metaViewContent={metaViewContent}
-          ga4MeasurementId={partner.ga4_measurement_id}
+          adsTracking={adsTracking}
           ga4InitialViewItem={ga4InitialViewItem}
         />
       </EmbedGuestChatViewport>

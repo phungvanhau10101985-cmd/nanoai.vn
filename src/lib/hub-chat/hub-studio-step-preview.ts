@@ -1,15 +1,25 @@
 import { getFlowSteps } from '@/lib/hub-chat/hub-studio-presets'
 import type { HubStudioMessagePayload, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { isBagKitPreset, bagStepKeyToSlot, resolveBagFacePreviewUrl } from '@/lib/hub-chat/bag-kit-shared'
 import { packagingStepKeyToSlot } from '@/lib/packaging/hub-face-steps'
 import { resolveMockupSlotUrl } from '@/lib/packaging/box-face-slots'
 import { packagingBarcodeIsReady } from '@/lib/packaging/packaging-barcode-form'
+import { isBagFaceStepKey } from '@/lib/packaging/bag-dimensions'
 
 const PACKAGING_MOCKUP_STEP_KEY = 'box_mockup_3d'
+const BAG_MOCKUP_STEP_KEY = 'bag_mockup_3d'
 const PACKAGING_ARTIFACT_STEP_KEYS = new Set(['box_mockup_3d', 'box_dieline_pdf'])
+const BAG_ARTIFACT_STEP_KEYS = new Set(['bag_mockup_3d', 'bag_dieline_pdf'])
 
 export function isPackagingMockupStepDone(session: HubStudioSession): boolean {
   return session.processSteps.some(
     (step) => step.key === PACKAGING_MOCKUP_STEP_KEY && step.status === 'done'
+  )
+}
+
+export function isBagMockupStepDone(session: HubStudioSession): boolean {
+  return session.processSteps.some(
+    (step) => step.key === BAG_MOCKUP_STEP_KEY && step.status === 'done'
   )
 }
 
@@ -32,12 +42,13 @@ export function clearStalePendingForArtifactGenerate(
   const pending = session.pendingPreview
   if (!pending) return session
 
+  const artifactKeys =
+    session.presetId === 'bag_kit'
+      ? BAG_ARTIFACT_STEP_KEYS
+      : PACKAGING_ARTIFACT_STEP_KEYS
+
   if (pendingPreviewBlocksWorkflowInput(session)) {
-    if (
-      PACKAGING_ARTIFACT_STEP_KEYS.has(targetStepKey) &&
-      pending.screenKey === targetStepKey &&
-      pending.url
-    ) {
+    if (artifactKeys.has(targetStepKey) && pending.screenKey === targetStepKey && pending.url) {
       return { ...session, pendingPreview: null }
     }
     return session
@@ -74,6 +85,15 @@ export function resolveWorkflowPendingAfterApprovedFaceEdit(
     return null
   }
 
+  if (savedPendingPreview.screenKey === 'bag_mockup_3d') {
+    if (isBagMockupStepDone(session)) return null
+    const url = session.bagKit?.mockupPhotoUrl ?? session.bagKit?.mockupUrl
+    if (url) {
+      return { ...savedPendingPreview, url }
+    }
+    return null
+  }
+
   if (savedPendingPreview.screenKey === editedScreenKey) return null
   return null
 }
@@ -90,7 +110,24 @@ export function buildApprovedPackagingMockupStudio(
     imageUrl: mockupUrl,
     screenKey: PACKAGING_MOCKUP_STEP_KEY,
     screenLabel: stepLabelFromSession(session, PACKAGING_MOCKUP_STEP_KEY),
-    previewKind: 'image',
+    previewKind: 'banner',
+    processSteps: session.processSteps,
+    showRegenerate: true,
+    showApproveReference: false,
+  }
+}
+
+export function buildApprovedBagMockupStudio(session: HubStudioSession): HubStudioMessagePayload | null {
+  if (!isBagKitPreset(session.presetId)) return null
+  const mockupUrl = session.bagKit?.mockupUrl
+  if (!mockupUrl || !isBagMockupStepDone(session)) return null
+  if (!session.bagKit?.dimensionsMm) return null
+  const displayUrl = session.bagKit.mockupPhotoUrl ?? mockupUrl
+  return {
+    imageUrl: displayUrl,
+    screenKey: BAG_MOCKUP_STEP_KEY,
+    screenLabel: stepLabelFromSession(session, BAG_MOCKUP_STEP_KEY),
+    previewKind: 'banner',
     processSteps: session.processSteps,
     showRegenerate: true,
     showApproveReference: false,
@@ -101,7 +138,8 @@ export function mergeApprovedPackagingMockupIntoStudio(
   session: HubStudioSession,
   studio: HubStudioMessagePayload
 ): HubStudioMessagePayload {
-  const mockup = buildApprovedPackagingMockupStudio(session)
+  const mockup =
+    buildApprovedPackagingMockupStudio(session) ?? buildApprovedBagMockupStudio(session)
   if (!mockup || studio.imageUrl) return studio
   return { ...studio, ...mockup }
 }
@@ -129,6 +167,31 @@ export function resolveStepPendingPreview(
         session.lastGenerationPrompt?.trim() ||
         ref.screenLabel,
     }
+  }
+
+  if (presetId === 'bag_kit') {
+    const label = stepLabelFromSession(session, stepKey)
+    const prompt =
+      session.briefNotes[stepKey]?.trim() ||
+      session.lastGenerationPrompt?.trim() ||
+      label
+    if (isBagFaceStepKey(stepKey)) {
+      const slot = bagStepKeyToSlot(stepKey)
+      const faceUrl = slot ? resolveBagFacePreviewUrl(session.bagKit, slot) : null
+      if (faceUrl) {
+        return { screenKey: stepKey, screenLabel: label, url: faceUrl, generationPrompt: prompt }
+      }
+    }
+    if (stepKey === 'bag_mockup_3d') {
+      const url = session.bagKit?.mockupPhotoUrl ?? session.bagKit?.mockupUrl
+      if (url) {
+        return { screenKey: stepKey, screenLabel: label, url, generationPrompt: prompt }
+      }
+    }
+    if (stepKey === 'bag_dieline_pdf' && session.bagKit?.dielineUrl) {
+      return { screenKey: stepKey, screenLabel: label, url: session.bagKit.dielineUrl, generationPrompt: prompt }
+    }
+    return null
   }
 
   if (presetId !== 'packaging_kit') return null

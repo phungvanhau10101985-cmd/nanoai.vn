@@ -14,6 +14,7 @@ import {
   Wallet,
   MessageCircle,
   Code2,
+  Globe,
   KeyRound,
   Table2,
 } from 'lucide-react'
@@ -116,6 +117,24 @@ const ADMIN_LINKS: AdminLink[] = [
       ko: 'Google 태그, Meta Pixel, 채팅 임베드. API 키는 「API 키」 페이지.',
     },
     icon: Code2,
+  },
+  {
+    href: '/admin/partner-website-templates',
+    title: {
+      vi: 'Landing template (shop)',
+      en: 'Shop landing templates',
+      zh: '店铺落地页模板',
+      ja: 'ショップLPテンプレート',
+      ko: '샵 랜딩 템플릿',
+    },
+    description: {
+      vi: 'Bật/tắt block giao diện khách dùng — backend chat do platform.',
+      en: 'Enable UI blocks for tenants — chat backend is platform-owned.',
+      zh: '启用租户 UI 区块 — 聊天后端归平台。',
+      ja: 'テナント向けUIブロック — チャットはプラットフォーム。',
+      ko: '테넌트 UI 블록 — 채팅 백엔드는 플랫폼.',
+    },
+    icon: Globe,
   },
   {
     href: '/admin/users',

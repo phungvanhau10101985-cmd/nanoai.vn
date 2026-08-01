@@ -331,18 +331,35 @@ export async function ensurePackagingStyleBrief(
   userId: string,
   session: HubStudioSession
 ): Promise<{ session: HubStudioSession; error?: string }> {
-  if (session.presetId !== 'packaging_kit') return { session }
-  const existing = session.packaging?.packagingStyleBrief?.trim()
+  if (session.presetId !== 'packaging_kit' && session.presetId !== 'bag_kit') return { session }
+  const existing =
+    session.presetId === 'bag_kit'
+      ? session.bagKit?.packagingStyleBrief?.trim()
+      : session.packaging?.packagingStyleBrief?.trim()
   if (existing) return { session }
 
   const styleRefUrl =
     session.generationSelection?.styleReferenceUrl?.trim() ||
     session.packaging?.styleReferenceUrl?.trim() ||
+    session.bagKit?.styleReferenceUrl?.trim() ||
     ''
 
   if (styleRefUrl) {
     const analyzed = await analyzePackagingStyleReferenceImage(userId, styleRefUrl)
     if (!analyzed.ok) return { session, error: analyzed.error }
+    if (session.presetId === 'bag_kit') {
+      return {
+        session: {
+          ...session,
+          bagKit: {
+            ...(session.bagKit ?? { version: 1 as const, dimensionsMm: null }),
+            packagingStyleBrief: analyzed.brief,
+            packagingStyleBriefSource: 'reference_image',
+            styleReferenceUrl: styleRefUrl,
+          },
+        },
+      }
+    }
     return {
       session: {
         ...session,
@@ -362,6 +379,19 @@ export async function ensurePackagingStyleBrief(
 
   const fromDiscovery = buildPackagingStyleBriefFromDiscovery(session.briefNotes)
   if (!fromDiscovery.trim()) return { session }
+
+  if (session.presetId === 'bag_kit') {
+    return {
+      session: {
+        ...session,
+        bagKit: {
+          ...(session.bagKit ?? { version: 1 as const, dimensionsMm: null }),
+          packagingStyleBrief: fromDiscovery,
+          packagingStyleBriefSource: 'discovery',
+        },
+      },
+    }
+  }
 
   return {
     session: {

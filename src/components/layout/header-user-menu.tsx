@@ -21,6 +21,7 @@ import {
   Languages,
   Music2,
   Sparkles,
+  Globe,
 } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { DepositCreditMenuItem } from '@/components/deposit-credit-menu-item'
@@ -242,6 +243,12 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
                 <Link href="/dashboard/messaging" className="flex items-center gap-2">
                   <MessageSquare className="h-4 w-4" aria-hidden />
                   {t.menu.partnerInbox}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/messaging/website" className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-violet-600" aria-hidden />
+                  {t.menu.messagingWebsite}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>

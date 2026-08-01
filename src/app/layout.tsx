@@ -247,12 +247,15 @@ export default async function RootLayout({
   const [currentPathname = ""] = currentPathWithQuery.split("?");
   const isMessagingGuestPage = currentPathname.startsWith("/messaging/p/");
   const isWeddingPublicPage = currentPathname.startsWith("/thiep-moi-cuoi/");
+  const isPartnerWebsitePage = currentPathname.startsWith("/site/");
   const isCustomerOwnedSurface =
     isMessagingGuestPage ||
     currentPathname.startsWith("/hospitality/p/") ||
-    isWeddingPublicPage;
-  /** Trang chat khách / thiệp cưới công khai: layout tối giản — không Header, Footer, chat widget. */
-  const useMinimalEmbedLayout = isMessagingGuestPage || isWeddingPublicPage;
+    isWeddingPublicPage ||
+    isPartnerWebsitePage;
+  /** Trang chat khách / thiệp cưới / website shop: layout tối giản — không Header, Footer, chat widget. */
+  const useMinimalEmbedLayout =
+    isMessagingGuestPage || isWeddingPublicPage || isPartnerWebsitePage;
 
   const settings = await loadAdminIntegrationsSettings();
   const locale = getCurrentWebLocale()

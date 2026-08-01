@@ -15,7 +15,7 @@ import {
 } from '@/lib/db/messaging-partner-ai-jobs-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
-import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
+import { sanitizeFashionSizeWeightMessageForCustomer } from '@/lib/messaging/fashion-size-weight-units'
 import {
   buildPartnerAiContext,
   deepseekPartnerChat,
@@ -26,6 +26,7 @@ import {
   fetchSafeSkuIsolatedProductConsultCacheFromPg,
   upsertSafeSkuIsolatedProductConsultCachePg,
 } from '@/lib/db/partner-product-consult-cache-pg'
+import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
@@ -80,6 +81,16 @@ function inventoryRowLooksLikeBagAccessory(row: InvRow | null | undefined): bool
   if (!haystackRaw) return false
   const haystack = `${haystackRaw} ${stripVietnameseDiacritics(haystackRaw)}`
   return BAG_ACCESSORY_KEYWORDS.some((kw) => haystack.includes(kw))
+}
+
+function sanitizeFashionPartnerAiMessage(
+  message: string,
+  row: InvRow | null | undefined,
+  isFashionPartner: boolean
+): string {
+  let out = sanitizeFashionFitQuestionForBag(message, row)
+  if (isFashionPartner) out = sanitizeFashionSizeWeightMessageForCustomer(out)
+  return out
 }
 
 function sanitizeFashionFitQuestionForBag(message: string, row: InvRow | null | undefined): string {
@@ -264,6 +275,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         partnerAiCtaStrategy,
         specificAnglePhotoRequest,
         specificAnglePhotoTemplateInventoryRows,
+        isFashionPartner,
       } = await buildPartnerAiContext(
         job.partner_id,
         job.conversation_id,
@@ -470,9 +482,10 @@ async function runMessagingPartnerAiJobBatchUsingPg(
               ...(partnerAiCtaStrategy ? { partner_ai_cta_strategy: partnerAiCtaStrategy } : {}),
               partner_ai_pipeline_branch: partnerAiRouteIntent,
             } as unknown as Json
-            const cachedMessage = sanitizeFashionFitQuestionForBag(
+            const cachedMessage = sanitizeFashionPartnerAiMessage(
               cached.message_text,
-              inboundAnchoredConsultRow
+              inboundAnchoredConsultRow,
+              isFashionPartner
             )
             const dCache = await deliverAutomatedPartnerMessage({
               conversation: conv,
@@ -578,7 +591,10 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         (useLastConsultedContext && lastConsultedRow && !similarCatalogVersusLastConsulted
           ? lastConsultedRow
           : null)
-      parsed = { ...parsed, message: sanitizeFashionFitQuestionForBag(parsed.message, fitQuestionGuardRow) }
+      parsed = {
+        ...parsed,
+        message: sanitizeFashionPartnerAiMessage(parsed.message, fitQuestionGuardRow, isFashionPartner),
+      }
       const productsWithVideo = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
         job.partner_id,
         parsed.products

@@ -21,6 +21,7 @@ import {
   requestMessagingWorkspaceDeletionOtp,
   sendPartnerReply,
 } from '@/app/dashboard/messaging/actions'
+import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ import {
   Camera,
   ChevronLeft,
   ClipboardList,
+  Globe,
   Headphones,
   ImagePlus,
   Building2,
@@ -210,6 +212,12 @@ export function PartnerMessagingInboxClient({
     () => partners.find((p) => p.id === selectedPartnerId) ?? null,
     [partners, selectedPartnerId]
   )
+  const partnerNavQuery = selectedPartnerId
+    ? `?partner=${encodeURIComponent(selectedPartnerId)}`
+    : ''
+  const partnerWebsiteHref = selectedPartner?.slug
+    ? partnerWebsiteDashboardPath(selectedPartner.slug)
+    : `/dashboard/messaging/website${partnerNavQuery}`
 
   const filteredConversations = useMemo(() => {
     const q = inboxQuery.trim().toLowerCase()
@@ -590,9 +598,14 @@ export function PartnerMessagingInboxClient({
       <div className="space-y-4">
         <div className="rounded-xl border border-border/70 bg-card/90 p-6 shadow-sm">
           <p className="mb-3 text-sm text-muted-foreground">{t.noWorkspaceInboxCta}</p>
-          <Button asChild>
-            <Link href="/dashboard/messaging/settings">{t.messagingSettingsLink}</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link href="/dashboard/messaging/settings">{t.messagingSettingsLink}</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/messaging/website">{t.messagingWebsiteLink}</Link>
+            </Button>
+          </div>
         </div>
         <div className="rounded-xl border border-violet-200/80 bg-violet-50/50 p-6 shadow-sm dark:border-violet-900/50 dark:bg-violet-950/25">
           <p className="text-sm font-medium text-foreground">{t.customerCareShopSetupGuideTitle}</p>
@@ -833,8 +846,13 @@ export function PartnerMessagingInboxClient({
               <Megaphone className="h-4 w-4" aria-hidden />
             </Link>
           </Button>
-          <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title="Đơn hàng">
-            <Link href="/dashboard/messaging/orders" aria-label="Đơn hàng">
+          <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title={t.messagingWebsiteLink}>
+            <Link href={partnerWebsiteHref} aria-label={t.messagingWebsiteLink}>
+              <Globe className="h-4 w-4" aria-hidden />
+            </Link>
+          </Button>
+          <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title={t.messagingOrdersLink}>
+            <Link href={`/dashboard/messaging/orders${partnerNavQuery}`} aria-label={t.messagingOrdersLink}>
               <ClipboardList className="h-4 w-4" aria-hidden />
             </Link>
           </Button>
@@ -875,9 +893,15 @@ export function PartnerMessagingInboxClient({
             </Link>
           </Button>
           <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
-            <Link href="/dashboard/messaging/orders">
+            <Link href={partnerWebsiteHref}>
+              <Globe className="h-3 w-3" aria-hidden />
+              {t.messagingWebsiteLink}
+            </Link>
+          </Button>
+          <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
+            <Link href={`/dashboard/messaging/orders${partnerNavQuery}`}>
               <ClipboardList className="h-3 w-3" aria-hidden />
-              Don hang
+              {t.messagingOrdersLink}
             </Link>
           </Button>
           <Button

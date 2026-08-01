@@ -43,6 +43,26 @@ export type PartnerDevIntegrationStrings = {
   inventoryOpenTitle: string
   inventoryOpenBody: string
   inventoryOpenRateLimit: string
+  /** Headless catalog read — GET JSON danh mục (Bearer, CORS) */
+  catalogTitle: string
+  catalogBody: string
+  /** Headless lead form — POST JSON (Bearer, CORS) */
+  leadsApiTitle: string
+  leadsApiBody: string
+  /** Headless cart sync — GET/PUT (Bearer, CORS) */
+  cartApiTitle: string
+  cartApiBody: string
+  /** Headless checkout — POST (Bearer, CORS) */
+  checkoutApiTitle: string
+  checkoutApiBody: string
+  /** Headless orders read — GET (Bearer, CORS) */
+  ordersApiTitle: string
+  ordersApiBody: string
+  /** Outbound webhooks — POST to merchant HTTPS URL */
+  webhooksApiTitle: string
+  webhooksApiBody: string
+  personalizationApiTitle: string
+  personalizationApiBody: string
   tryOnTitle: string
   tryOnBody: string
   /** Chi tiết API thử đồ B2B — trỏ tài liệu repo */
@@ -138,6 +158,27 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Gọi từ **backend web shop** (không lộ Bearer). Dùng **cùng khóa** và bật API như mục D (`image_search_api_enabled`). **Không** cần Vision. `Content-Type: application/json`. Body: `items` (mảng lớn; giới hạn theo `PARTNER_INVENTORY_OPEN_SYNC_MAX_ITEMS` trên server). Mỗi phần tử nên có `item_sku` (hoặc `sku`), `item_name` (hoặc `name`); tuỳ chọn `description`, `stock_note`, `price` / `price_hint`, `image`: { `image_url_list`: [https…] } hoặc `image_url`, `item_url` / `product_url`, `consult_note`, `sort_order`, `item_status` (`NORMAL` = đang dùng, `UNLIST` / `DELETED` / `INACTIVE` = ẩn). Open Catalog chạy theo **full reconcile**: payload là nguồn sự thật, hàng còn trong NanoAI nhưng không còn trong payload sẽ bị xóa (và gỡ khỏi Vision ở lượt sync nền). Quy tắc khớp dòng giống nhập Excel: có SKU → cập nhật theo SKU; không SKU → theo tên.',
     inventoryOpenRateLimit:
       'Giới hạn theo IP + shop (429). Tuỳ chọn: PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_MAX và PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_WINDOW_MS; nếu không set thì dùng chung biến IMAGE_SEARCH_RATE_LIMIT_*.',
+    catalogTitle: 'G — Catalog headless (đọc danh mục — GET, Bearer, CORS)',
+    catalogBody:
+      'Gọi từ **backend web shop** (không lộ Bearer). **Cùng khóa** và bật API như mục D. `Authorization: Bearer <api_key>`. `GET …/catalog?offset=0&limit=24` — danh sách sản phẩm active. Query tuỳ chọn: `shop_ready_only=true` (chỉ SP đủ ảnh+URL https cho web shop), `sku=…` (một dòng theo SKU). `GET …/catalog/{inventoryId}` — chi tiết một SP (gallery, mô tả, size/màu JSON đã parse). `GET …/catalog/{inventoryId}/options` — size, màu, giá, chính sách cọc cho UI checkout. Phản hồi JSON có `products` hoặc `product`; trường `nanoai_site_path` khi site NanoAI đã publish.',
+    leadsApiTitle: 'H — Form lead headless (POST, Bearer, CORS)',
+    leadsApiBody:
+      'Gửi lead từ form trên **web shop riêng** của khách. **Cùng Bearer** như mục G. `POST …/leads` với JSON: `name` (bắt buộc), `phone`, `email`, `message`, `site_slug` (tuỳ chọn — mặc định slug site NanoAI đã publish). Lead lưu vào dashboard **Website → Form leads**. Rate limit theo IP + shop.',
+    cartApiTitle: 'I — Giỏ hàng headless (GET/PUT, Bearer, CORS)',
+    cartApiBody:
+      'Đồng bộ giỏ server-side cho khách trên web shop riêng. **Cùng Bearer** như G. Bắt buộc `customer_ref` (1–120 ký tự `[a-zA-Z0-9._-]`) — ID ổn định do backend shop gán (user id, session id…). Query/header `X-Customer-Ref` hoặc body `customer_ref`. `GET …/cart?customer_ref=…` — đọc giỏ. `PUT …/cart` body `{ customer_ref, items }` — mỗi item: `card` (name, image_url, product_url https, price_hint, sku, inventory_id), `quantity`, `color`, `size`, `note`. Tối đa 50 dòng.',
+    checkoutApiTitle: 'I — Checkout headless (POST, Bearer, CORS)',
+    checkoutApiBody:
+      'Tạo đơn hàng (QR cọc, trạng thái) từ backend shop. `POST …/orders/checkout` JSON: `customer_ref`, `items` (cùng format PUT cart), `form`: `customerName`, `customerPhone`, `shippingAddress` (bắt buộc), `customerEmail`, `note`. Phản hồi `order` gồm `payment_qr_url`, `required_amount`, `payment_reference`. Giỏ headless được xoá sau checkout thành công.',
+    ordersApiTitle: 'J — Đơn hàng headless (GET, Bearer, CORS)',
+    ordersApiBody:
+      'Tra cứu đơn sau checkout. **Cùng Bearer** như G. `GET …/orders?offset=0&limit=24` — danh sách đơn shop (tuỳ chọn `customer_ref`, `status`, `payment_reference`). `GET …/orders/{orderId}` — chi tiết + `lines[]` (từng SP, size/màu). Khi truyền `customer_ref`, chỉ trả đơn thuộc headless checkout của khách đó. Trạng thái: `awaiting_payment`, `payment_checking`, `paid_verified`, `pending_manual_review`, `cancelled`.',
+    webhooksApiTitle: 'K — Webhook outbound (POST tới URL shop, HTTPS)',
+    webhooksApiBody:
+      'Cấu hình tại **Tích hợp API → Webhook outbound** (URL https + signing secret). NanoAI POST JSON khi: `lead.created` (form site/headless), `order.created` (checkout xong), `payment.paid` (SePay/shop xác nhận `paid_verified`). Headers: `X-NanoAI-Event`, `X-NanoAI-Delivery-Id`, `X-NanoAI-Timestamp`, `X-NanoAI-Signature: sha256=HMAC(secret, timestamp + "." + body)`. Body: `{ id, event, created_at, partner_id, data }`. Trả HTTP 2xx trong ~12s.',
+    personalizationApiTitle: 'L — Cá nhân hóa khách (GET/POST, Bearer, CORS)',
+    personalizationApiBody:
+      'Gợi ý sản phẩm, lịch sử xem và **sản phẩm yêu thích** trên web shop riêng hoặc landing `/site`. **Cùng Bearer** như G. Bắt buộc `customer_ref` (query/header/body). `GET …/personalization/recently-viewed?customer_ref=…&limit=8` — SP vừa xem. `GET …/personalization/favorites?customer_ref=…&limit=8` — SP yêu thích. `GET …/personalization/recommendations?customer_ref=…` — gợi ý từ giỏ + lịch sử + yêu thích. `GET …/personalization/profile?customer_ref=…` — UTM đã lưu, hồ sơ giao hàng (nếu có). `POST …/personalization/events` body `{ customer_ref, event: "view_product", inventory_id }`, `{ event: "toggle_favorite", inventory_id }` (trả `is_favorite`), hoặc `event: "utm_context"` kèm utm_* — ghi nhận hành vi. Trên site hosted NanoAI (`/site/{slug}`): API same-origin `/api/site/{slug}/personalization/…` (cookie phiên khách).',
     tryOnTitle: 'E — API thử đồ ảo B2B',
     tryOnBody:
       'POST multipart từ **backend shop**: `userImage` + ít nhất một `garmentImage*`. Bearer do NanoAI cấp; credits trừ vào ví billing gắn khóa. Phản hồi 200 trả `result_url` (ảnh kết quả), `history_id`, `credits_remaining`.',
@@ -237,6 +278,27 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       'Call from your **shop backend** only (never expose the Bearer key). Uses the **same API key** as D (`image_search_api_enabled`). **Does not** require Vision. `Content-Type: application/json`. Body: large `items` array (server-limited by `PARTNER_INVENTORY_OPEN_SYNC_MAX_ITEMS`). Each item should include `item_sku` (or `sku`) and `item_name` (or `name`); optional `description`, `stock_note`, `price` / `price_hint`, `image`: { `image_url_list`: ["https://…"] } or `image_url`, `item_url` / `product_url`, `consult_note`, `sort_order`, `item_status` (`NORMAL` = active, `UNLIST` / `DELETED` / `INACTIVE` = hidden). Open Catalog runs in **full reconcile** mode: the payload is the source of truth; items still in NanoAI but missing from payload are deleted (and removed from Vision during background sync). Row matching follows Excel import rules: SKU first; without SKU, match by product name.',
     inventoryOpenRateLimit:
       'Rate limited per IP + shop (429). Optional env: PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_MAX and PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_WINDOW_MS; falls back to IMAGE_SEARCH_RATE_LIMIT_* when unset.',
+    catalogTitle: 'G — Headless catalog (read products — GET, Bearer, CORS)',
+    catalogBody:
+      'Call from your **shop backend** only. **Same Bearer key** as D. `GET …/catalog?offset=0&limit=24` lists active inventory. Optional query: `shop_ready_only=true` (https image + product URL), `sku=…` (single row). `GET …/catalog/{inventoryId}` — full product (gallery, descriptions, parsed sizes/colors). `GET …/catalog/{inventoryId}/options` — purchase options (sizes, colors, price, deposit policy). Response includes `nanoai_site_path` when the NanoAI site is published.',
+    leadsApiTitle: 'H — Headless lead form (POST, Bearer, CORS)',
+    leadsApiBody:
+      'Submit contact leads from the merchant’s **own website**. **Same Bearer** as G. `POST …/leads` JSON: `name` (required), `phone`, `email`, `message`, optional `site_slug` (defaults to published NanoAI site slug). Leads appear in dashboard **Website → Form leads**. Rate limited per IP + shop.',
+    cartApiTitle: 'I — Headless cart (GET/PUT, Bearer, CORS)',
+    cartApiBody:
+      'Server-side cart for customers on the merchant’s own site. **Same Bearer** as G. Required `customer_ref` (1–120 chars `[a-zA-Z0-9._-]`) — stable ID from your backend. Query/header `X-Customer-Ref` or body `customer_ref`. `GET …/cart?customer_ref=…`. `PUT …/cart` with `{ customer_ref, items }` — each item: `card` (name, https image_url/product_url, price_hint, sku, inventory_id), `quantity`, `color`, `size`, `note`. Max 50 lines.',
+    checkoutApiTitle: 'I — Headless checkout (POST, Bearer, CORS)',
+    checkoutApiBody:
+      'Create an order (deposit QR, status) from your backend. `POST …/orders/checkout` JSON: `customer_ref`, `items` (same as PUT cart), `form`: required `customerName`, `customerPhone`, `shippingAddress`; optional `customerEmail`, `note`. Response `order` includes `payment_qr_url`, `required_amount`, `payment_reference`. Headless cart cleared after success.',
+    ordersApiTitle: 'J — Headless orders (GET, Bearer, CORS)',
+    ordersApiBody:
+      'Poll orders after checkout. **Same Bearer** as G. `GET …/orders?offset=0&limit=24` — list (optional `customer_ref`, `status`, `payment_reference`). `GET …/orders/{orderId}` — detail + `lines[]`. With `customer_ref`, only orders for that headless customer. Status values: `awaiting_payment`, `payment_checking`, `paid_verified`, `pending_manual_review`, `cancelled`.',
+    webhooksApiTitle: 'K — Outbound webhooks (POST to your HTTPS URL)',
+    webhooksApiBody:
+      'Configure under **API integration → Outbound webhooks** (https URL + signing secret). NanoAI POSTs when: `lead.created`, `order.created`, `payment.paid`. Headers: `X-NanoAI-Event`, `X-NanoAI-Delivery-Id`, `X-NanoAI-Timestamp`, `X-NanoAI-Signature: sha256=HMAC(secret, timestamp + "." + body)`. Body: `{ id, event, created_at, partner_id, data }`. Respond 2xx within ~12s.',
+    personalizationApiTitle: 'L — Customer personalization (GET/POST, Bearer, CORS)',
+    personalizationApiBody:
+      'Recommendations, browse history, and **favorite products** for your shop or NanoAI `/site` landing. **Same Bearer** as G. Requires `customer_ref`. `GET …/personalization/recently-viewed?customer_ref=…`, `GET …/personalization/favorites?customer_ref=…`, `GET …/personalization/recommendations?customer_ref=…`, `GET …/personalization/profile?customer_ref=…`. `POST …/personalization/events` with `{ customer_ref, event: "view_product", inventory_id }`, `{ event: "toggle_favorite", inventory_id }` (returns `is_favorite`), or `event: "utm_context"` + utm fields. Hosted site: same-origin `/api/site/{slug}/personalization/…`.',
     tryOnTitle: 'E — B2B virtual try-on API',
     tryOnBody:
       'POST `multipart/form-data` from your **shop backend**: `userImage` plus at least one `garmentImage*`. Partner Bearer (NanoAI-issued); credits debit the linked billing wallet. HTTP 200 returns `result_url` (image), `history_id`, `credits_remaining` (snake_case).',
@@ -332,6 +394,27 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       '仅从**店铺后端**调用（勿暴露 Bearer）。与 D 使用**同一密钥**并启用公开 API（`image_search_api_enabled`）。**无需** Vision。`Content-Type: application/json`。Body：`items` 数组（每请求最多 500 条）。每条建议含 `item_sku`（或 `sku`）、`item_name`（或 `name`）；可选 `description`、`stock_note`、`price` / `price_hint`、`image`: { `image_url_list`: [https…] } 或 `image_url`、`item_url` / `product_url`、`consult_note`、`sort_order`、`item_status`（`NORMAL` 为在售，`UNLIST` / `DELETED` / `INACTIVE` 为隐藏）。行匹配规则与 Excel 导入一致：优先 SKU，无 SKU 按名称。',
     inventoryOpenRateLimit:
       '按 IP + 店铺限流（429）。可选环境变量 PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_MAX 与 WINDOW_MS；未设置时回退到 IMAGE_SEARCH_RATE_LIMIT_*。',
+    catalogTitle: 'G — Headless 目录（读取商品 — GET，Bearer，CORS）',
+    catalogBody:
+      '仅从**店铺后端**调用。**与 D 相同 Bearer 密钥**。`GET …/catalog?offset=0&limit=24` 列出在售库存。可选：`shop_ready_only=true`（仅含 https 图+商品 URL）、`sku=…`。`GET …/catalog/{inventoryId}` — 单品详情。`GET …/catalog/{inventoryId}/options` — 尺码/颜色/价格/定金策略。已发布 NanoAI 站点时返回 `nanoai_site_path`。',
+    leadsApiTitle: 'H — Headless 线索表单（POST，Bearer，CORS）',
+    leadsApiBody:
+      '从商家**自有网站**提交联系线索。**与 G 相同 Bearer**。`POST …/leads` JSON：`name`（必填）、`phone`、`email`、`message`、可选 `site_slug`（默认已发布的 NanoAI 站点 slug）。线索出现在控制台 **Website → Form leads**。按 IP + 店铺限流。',
+    cartApiTitle: 'I — Headless 购物车（GET/PUT，Bearer，CORS）',
+    cartApiBody:
+      '商家自有站点的服务端购物车。**与 G 相同 Bearer**。必填 `customer_ref`（1–120 字符）。`GET …/cart?customer_ref=…`；`PUT …/cart` 传 `{ customer_ref, items }`，item 含 `card`、`quantity`、`color`、`size`。最多 50 行。',
+    checkoutApiTitle: 'I — Headless 结账（POST，Bearer，CORS）',
+    checkoutApiBody:
+      '从后端创建订单。`POST …/orders/checkout`：`customer_ref`、`items`、`form`（必填 customerName/Phone/shippingAddress）。返回 `payment_qr_url`、`required_amount`。成功后清空 headless 购物车。',
+    ordersApiTitle: 'J — Headless 订单（GET，Bearer，CORS）',
+    ordersApiBody:
+      '结账后查询订单。**与 G 相同 Bearer**。`GET …/orders` 列表（可选 `customer_ref`、`status`、`payment_reference`）。`GET …/orders/{orderId}` 详情含 `lines[]`。传 `customer_ref` 时仅返回该客户的 headless 订单。',
+    webhooksApiTitle: 'K — Outbound Webhook（POST 到店铺 HTTPS URL）',
+    webhooksApiBody:
+      '在 **API 集成 → Outbound Webhook** 配置 URL 与签名密钥。事件：`lead.created`、`order.created`、`payment.paid`。头：`X-NanoAI-Event`、`X-NanoAI-Signature` 等。Body：`{ id, event, created_at, partner_id, data }`。',
+    personalizationApiTitle: 'L — 客户个性化（GET/POST，Bearer，CORS）',
+    personalizationApiBody:
+      '店铺或 `/site` 落地页的浏览记录、**收藏**与推荐。**与 G 相同 Bearer**。需 `customer_ref`。`GET …/personalization/recently-viewed`、`favorites`、`recommendations`、`profile`；`POST …/personalization/events` 记录 `view_product`、`toggle_favorite`（返回 `is_favorite`）或 UTM。托管站点：`/api/site/{slug}/personalization/…`。',
     tryOnTitle: 'E — B2B 虚拟试衣 API',
     tryOnBody:
       '由**店铺后端** POST `multipart`：`userImage` + 至少一件 `garmentImage*`。NanoAI 签发的 Bearer；credits 从绑定的 billing 钱包扣减。200 返回 `result_url`（结果图）、`history_id`、`credits_remaining`。',
@@ -426,6 +509,27 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       '**店舗バックエンド**からのみ（Bearer を露出しない）。D と**同じ API キー**（`image_search_api_enabled`）。Vision **不要**。`Content-Type: application/json`。body は `items` 配列（1 リクエスト最大 500）。各要素に `item_sku`（または `sku`）、`item_name`（または `name`）；任意で `description`、`stock_note`、`price` / `price_hint`、`image`: { `image_url_list` } または `image_url`、`item_url` / `product_url`、`consult_note`、`sort_order`、`item_status`（`NORMAL`＝表示、`UNLIST` / `DELETED` / `INACTIVE`＝非表示）。行の突き合わせは Excel インポートと同じ（SKU 優先、なければ名前）。',
     inventoryOpenRateLimit:
       'IP + 店舗ごとに制限（429）。任意: PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_*、未設定時は IMAGE_SEARCH_RATE_LIMIT_* を使用。',
+    catalogTitle: 'G — Headless カタログ（商品読取 — GET、Bearer、CORS）',
+    catalogBody:
+      '**店舗バックエンド**からのみ。**D と同じ Bearer**。`GET …/catalog?offset=0&limit=24` で在庫一覧。`shop_ready_only=true`、`sku=…` 任意。`GET …/catalog/{inventoryId}` — 商品詳細。`GET …/catalog/{inventoryId}/options` — サイズ/色/価格/デポジット。公開済み NanoAI サイトで `nanoai_site_path`。',
+    leadsApiTitle: 'H — Headless リードフォーム（POST、Bearer、CORS）',
+    leadsApiBody:
+      '商家**自社サイト**からリード送信。**G と同じ Bearer**。`POST …/leads` JSON: `name`（必須）、`phone`、`email`、`message`、任意 `site_slug`（未指定時は公開済み NanoAI サイト slug）。ダッシュボード **Website → Form leads** に表示。IP + 店舗ごとに制限。',
+    cartApiTitle: 'I — Headless カート（GET/PUT、Bearer、CORS）',
+    cartApiBody:
+      '自社サイト用サーバーカート。**G と同じ Bearer**。必須 `customer_ref`。`GET …/cart?customer_ref=…`、`PUT …/cart` で `{ customer_ref, items }`。最大 50 行。',
+    checkoutApiTitle: 'I — Headless チェックアウト（POST、Bearer、CORS）',
+    checkoutApiBody:
+      'バックエンドから注文作成。`POST …/orders/checkout`：`customer_ref`、`items`、`form`（customerName/Phone/shippingAddress 必須）。`payment_qr_url` 等を返却。成功後カートクリア。',
+    ordersApiTitle: 'J — Headless 注文（GET、Bearer、CORS）',
+    ordersApiBody:
+      'チェックアウト後の注文照会。**G と同じ Bearer**。`GET …/orders` 一覧（任意 `customer_ref`、`status`、`payment_reference`）。`GET …/orders/{orderId}` 詳細 + `lines[]`。',
+    webhooksApiTitle: 'K — Outbound Webhook（店舗 HTTPS URL へ POST）',
+    webhooksApiBody:
+      '**API 連携 → Outbound Webhook** で URL と署名シークレットを設定。`lead.created` / `order.created` / `payment.paid`。ヘッダ `X-NanoAI-Signature` 等。',
+    personalizationApiTitle: 'L — 顧客パーソナライズ（GET/POST、Bearer、CORS）',
+    personalizationApiBody:
+      '自社サイトまたは `/site` LP の閲覧履歴・**お気に入り**・おすすめ。**G と同じ Bearer**。`customer_ref` 必須。`GET …/personalization/recently-viewed` / `favorites` / `recommendations` / `profile`。`POST …/personalization/events` で `view_product`、`toggle_favorite`（`is_favorite` 返却）や UTM。ホストサイトは `/api/site/{slug}/personalization/…`。',
     tryOnTitle: 'E — B2B バーチャル試着 API',
     tryOnBody:
       '**店舗バックエンド**から POST multipart：`userImage` + 少なくとも 1 枚の `garmentImage*`。NanoAI 発行の Bearer；credits はリンク済み billing ウォレットから減算。200 で `result_url`（結果画像）、`history_id`、`credits_remaining` を返します。',
@@ -520,6 +624,27 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
       '**매장 백엔드**에서만 호출(Bearer 노출 금지). D와 **동일 키** 및 `image_search_api_enabled`. Vision **불필요**. `Content-Type: application/json`. body: `items` 배열(요청당 최대 500). 항목마다 `item_sku`(또는 `sku`), `item_name`(또는 `name`); 선택 `description`, `stock_note`, `price` / `price_hint`, `image`: { `image_url_list` } 또는 `image_url`, `item_url` / `product_url`, `consult_note`, `sort_order`, `item_status`(`NORMAL` 표시, `UNLIST`/`DELETED`/`INACTIVE` 숨김). 행 매칭은 Excel 가져오기와 동일(SKU 우선, 없으면 이름).',
     inventoryOpenRateLimit:
       'IP + 매장별 제한(429). 선택 환경변수 PARTNER_INVENTORY_OPEN_SYNC_RATE_LIMIT_*; 미설정 시 IMAGE_SEARCH_RATE_LIMIT_* 사용.',
+    catalogTitle: 'G — Headless 카탈로그(상품 조회 — GET, Bearer, CORS)',
+    catalogBody:
+      '**매장 백엔드**에서만 호출. **D와 동일 Bearer**. `GET …/catalog?offset=0&limit=24` 재고 목록. `shop_ready_only=true`, `sku=…` 선택. `GET …/catalog/{inventoryId}` — 상품 상세. `GET …/catalog/{inventoryId}/options` — 사이즈/색/가격/보증금. NanoAI 사이트 게시 시 `nanoai_site_path`.',
+    leadsApiTitle: 'H — Headless 리드 폼(POST, Bearer, CORS)',
+    leadsApiBody:
+      '판매자 **자체 웹사이트**에서 리드 제출. **G와 동일 Bearer**. `POST …/leads` JSON: `name`(필수), `phone`, `email`, `message`, 선택 `site_slug`(기본값: 게시된 NanoAI 사이트 slug). 대시보드 **Website → Form leads**에 표시. IP + 매장별 제한.',
+    cartApiTitle: 'I — Headless 장바구니(GET/PUT, Bearer, CORS)',
+    cartApiBody:
+      '자체 사이트 서버 장바구니. **G와 동일 Bearer**. 필수 `customer_ref`. `GET …/cart?customer_ref=…`, `PUT …/cart` `{ customer_ref, items }`. 최대 50줄.',
+    checkoutApiTitle: 'I — Headless 결제(POST, Bearer, CORS)',
+    checkoutApiBody:
+      '백엔드에서 주문 생성. `POST …/orders/checkout`: `customer_ref`, `items`, `form`(customerName/Phone/shippingAddress 필수). `payment_qr_url` 등 반환. 성공 시 장바구니 비움.',
+    ordersApiTitle: 'J — Headless 주문(GET, Bearer, CORS)',
+    ordersApiBody:
+      '결제 후 주문 조회. **G와 동일 Bearer**. `GET …/orders` 목록(선택 `customer_ref`, `status`, `payment_reference`). `GET …/orders/{orderId}` 상세 + `lines[]`.',
+    webhooksApiTitle: 'K — Outbound Webhook(매장 HTTPS URL로 POST)',
+    webhooksApiBody:
+      '**API 연동 → Outbound Webhook**에서 URL·서명 시크릿 설정. `lead.created` / `order.created` / `payment.paid`. 헤더 `X-NanoAI-Signature` 등.',
+    personalizationApiTitle: 'L — 고객 개인화(GET/POST, Bearer, CORS)',
+    personalizationApiBody:
+      '자체 샵 또는 `/site` 랜딩의 열람 기록·**찜**·추천. **G와 동일 Bearer**. `customer_ref` 필수. `GET …/personalization/recently-viewed` / `favorites` / `recommendations` / `profile`. `POST …/personalization/events`로 `view_product`, `toggle_favorite`(`is_favorite` 반환) 또는 UTM. 호스팅 사이트: `/api/site/{slug}/personalization/…`.',
     tryOnTitle: 'E — B2B 가상 피팅 API',
     tryOnBody:
       '**매장 백엔드**에서 POST multipart: `userImage` + `garmentImage*` 최소 1개. NanoAI가 발급한 Bearer; credits는 연결된 billing 지갑에서 차감. 200 응답에 `result_url`(결과 이미지), `history_id`, `credits_remaining`.',

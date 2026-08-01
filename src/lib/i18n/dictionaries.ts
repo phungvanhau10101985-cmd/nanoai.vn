@@ -106,6 +106,8 @@ export type Dictionary = {
     supportChat: string
     /** Menu → /dashboard/messaging (kênh kinh doanh của đối tác) */
     partnerInbox: string
+    /** Menu → /dashboard/messaging/website (AI tạo web/landing cho shop) */
+    messagingWebsite: string
     /** Menu → /dashboard/api-integration (chủ shop: API, nhúng chat) */
     partnerApiIntegration: string
     /** Menu → /dashboard/customer-api-keys (BYOK AI provider keys) */
@@ -296,11 +298,19 @@ export type Dictionary = {
     studioBannerBatchApproveNext: string
     studioGenerateBanner: string
     studioGenerateMenu: string
+    studioGenerateLanding: string
     studioMenuNeedFormat: string
     studioMenuNeedDishes: string
     studioMenuPromptBuildFailed: string
     studioMenuLogoNeedFile: string
     studioMenuLogoWrongStep: string
+    studioLandingNeedCopy: string
+    studioLandingNeedLogo: string
+    studioLandingCopySaved: string
+    studioLandingLogoNeedFile: string
+    studioLandingLogoWrongStep: string
+    studioLandingLogoNeedBrief: string
+    studioLandingLogoGenerated: string
     studioUploadBtn: string
     studioImagesUploaded: string
     studioMusicCredit: string
@@ -585,6 +595,16 @@ export type Dictionary = {
     shopGa4MeasurementPlaceholder: string
     shopGa4InvalidIdToast: string
     shopGa4SaveButton: string
+    shopGoogleAdsIdLabel: string
+    shopGoogleAdsIdHint: string
+    shopGoogleAdsIdPlaceholder: string
+    shopGoogleAdsInvalidIdToast: string
+    shopGoogleAdsSaveButton: string
+    shopTiktokPixelLabel: string
+    shopTiktokPixelHint: string
+    shopTiktokPixelPlaceholder: string
+    shopTiktokPixelInvalidIdToast: string
+    shopTiktokPixelSaveButton: string
     /** URL feed CSV cho Meta Commerce / Facebook danh mục sản phẩm */
     facebookCatalogFeedTitle: string
     facebookCatalogFeedHint: string
@@ -635,6 +655,7 @@ export type Dictionary = {
     teamPermIntegrationsAnalytics: string
     teamPermUsageReports: string
     teamPermMarketingCampaigns: string
+    teamPermWebsite: string
     /** Staff có quyền analytics chỉ xem Pixel/GA4; chỉ chủ được lưu. */
     integrationsAnalyticsOwnerOnly: string
     teamRemoveMemberConfirm: string
@@ -648,6 +669,9 @@ export type Dictionary = {
     /** Nút/link tới /dashboard/messaging/settings */
     messagingSettingsLink: string
     marketingCampaignsLink: string
+    /** Link tới /dashboard/messaging/website */
+    messagingWebsiteLink: string
+    messagingOrdersLink: string
     messagingSettingsPageTitle: string
     messagingInboxDescription: string
     noWorkspaceInboxCta: string
@@ -1043,6 +1067,16 @@ export type Dictionary = {
     inventoryConsultNoteHint: string
     inventoryDescHint: string
     inventoryStockHint: string
+    inventoryMaterialNote: string
+    inventoryMaterialNoteHint: string
+    inventoryMaterialDetailImageUrl: string
+    inventoryMaterialDetailImageUrlHint: string
+    inventoryRealUseImageUrl: string
+    inventoryRealUseImageUrlHint: string
+    inventoryRealUseImageUrl2: string
+    inventoryRealUseImageUrl2Hint: string
+    inventoryRemarketingId: string
+    inventoryRemarketingIdHint: string
     inventoryFieldsGuide: string
     /** Nút/link tới /dashboard/api-integration — Open Catalog */
     inventoryOpenApiLink: string
@@ -1380,6 +1414,12 @@ export type Dictionary = {
     linkMyShops: string
     /** Nút mở dialog đơn widget (cùng `messagingMyOrders`). */
     linkMyOrders: string
+    /** Trang chat hosted trên nanoai.vn — về trang chủ. */
+    backHome: string
+    backHomeAria: string
+    /** Mở danh sách công cụ NanoAI khác (sidebar / sheet mobile). */
+    exploreToolsButton: string
+    exploreToolsTitle: string
     /** Thanh công cụ widget nhúng / sheet giỏ — ngắn gọn. */
     widgetShoppingCart: string
     /** `aria-label` cho ô chọn ngôn ngữ (select) trên thanh widget. */
@@ -2740,6 +2780,7 @@ const VI_DICTIONARY: Dictionary = {
     tasksHub: 'Tác vụ & hàng đợi',
     supportChat: 'Hỗ trợ từ NanoAI',
     partnerInbox: 'Kênh kinh doanh',
+    messagingWebsite: 'Tạo web & landing',
     partnerApiIntegration: 'Tích hợp API (chủ shop)',
     customerApiKeys: 'Thuê nền tảng AI',
     myChats: 'Tin nhắn với cửa hàng',
@@ -2937,11 +2978,20 @@ const VI_DICTIONARY: Dictionary = {
     studioBannerBatchApproveNext: 'Đã lưu banner. Xem banner {index}/{total} trong lô — duyệt hoặc tạo lại.',
     studioGenerateBanner: 'Tạo banner',
     studioGenerateMenu: 'Tạo menu',
+    studioGenerateLanding: 'Tạo ảnh phân đoạn',
     studioMenuNeedFormat: 'Vui lòng chọn kiểu menu (tỷ lệ in hoặc màn hình).',
     studioMenuNeedDishes: 'Vui lòng nhập ít nhất một món (tên món và giá VND).',
     studioMenuPromptBuildFailed: 'Không tạo được prompt thiết kế menu. Thử lại sau.',
     studioMenuLogoNeedFile: 'Vui lòng chọn file ảnh logo.',
     studioMenuLogoWrongStep: 'Chỉ tải logo khi đang ở bước Thiết kế menu.',
+    studioLandingNeedCopy: 'Nhập mô tả phân đoạn trước khi tạo ảnh.',
+    studioLandingNeedLogo: 'Tải hoặc tạo logo trước — ảnh Hero desktop (phân đoạn đầu) cần ghép logo vào header.',
+    studioLandingCopySaved:
+      'Đã lưu mô tả {screen}. Bấm «Tạo ảnh phân đoạn» để AI vẽ mockup.',
+    studioLandingLogoNeedFile: 'Vui lòng chọn file ảnh logo.',
+    studioLandingLogoWrongStep: 'Logo landing chỉ dùng sau khi hoàn tất brief thương hiệu.',
+    studioLandingLogoNeedBrief: 'Nhập prompt logo (wordmark, icon, màu…) hoặc hoàn tất tên thương hiệu ở brief trước.',
+    studioLandingLogoGenerated: 'Đã tạo logo — ghép vào header preview landing.',
     studioUploadBtn: 'Tải ảnh lên',
     studioImagesUploaded: 'Đã tải {n} ảnh. Mô tả yêu cầu cho bước tiếp theo.',
     studioMusicCredit: 'Nhạc: {n} credits',
@@ -3027,9 +3077,9 @@ const VI_DICTIONARY: Dictionary = {
         steps: { logo: 'Logo', banner: 'Banner', product_label: 'Nhãn SP', sticker: 'Sticker' },
       },
       landing_page: {
-        title: 'Landing page',
-        sample: 'Landing SaaS quản lý lớp học, tone xanh dương',
-        steps: { hero: 'Hero', features: 'Tính năng', pricing: 'Bảng giá', faq: 'FAQ', cta: 'CTA' },
+        title: 'Mockup landing bán hàng & dịch vụ',
+        sample: 'Landing đa ngành — shop bán SP + dịch vụ, ghép preview desktop/mobile',
+        steps: { hero: 'Hero', features: 'Sản phẩm & dịch vụ', pricing: 'SP / gói giá', faq: 'FAQ', cta: 'CTA' },
       },
       product_listing: {
         title: 'Ảnh sản phẩm',
@@ -3290,6 +3340,17 @@ const VI_DICTIONARY: Dictionary = {
     shopGa4MeasurementPlaceholder: 'Ví dụ: G-XXXXXXXXXX',
     shopGa4InvalidIdToast: 'Mã GA4 không hợp lệ. Định dạng: G-XXXXXXXXXX',
     shopGa4SaveButton: 'Lưu mã GA4',
+    shopGoogleAdsIdLabel: 'Mã Google Ads (AW-...)',
+    shopGoogleAdsIdHint:
+      'Thẻ chuyển đổi / tiếp thị lại động trên website shop — gửi view_item, add_to_cart, purchase.',
+    shopGoogleAdsIdPlaceholder: 'Ví dụ: AW-123456789',
+    shopGoogleAdsInvalidIdToast: 'Mã Google Ads không hợp lệ. Định dạng: AW-XXXXXXXXX',
+    shopGoogleAdsSaveButton: 'Lưu mã Google Ads',
+    shopTiktokPixelLabel: 'TikTok Pixel',
+    shopTiktokPixelHint: 'Pixel TikTok Ads — PageView, ViewContent, AddToCart, CompletePayment trên shop.',
+    shopTiktokPixelPlaceholder: 'Ví dụ: CXXXXXXXXXXXXXXXXX',
+    shopTiktokPixelInvalidIdToast: 'TikTok Pixel ID không hợp lệ.',
+    shopTiktokPixelSaveButton: 'Lưu TikTok Pixel',
     facebookCatalogFeedTitle: 'Facebook — link danh mục sản phẩm (CSV)',
     facebookCatalogFeedHint:
       'Dán URL này vào Commerce Manager khi chọn «URL hoặc Google Trang tính». CSV gồm sản phẩm đang bật; cột link là trang tư vấn trên NanoAI (không phải link web shop). Cần ảnh URL, giá VND; key = khóa nhúng (giữ bí mật).',
@@ -3345,6 +3406,7 @@ const VI_DICTIONARY: Dictionary = {
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / Catalog',
     teamPermUsageReports: 'Báo cáo sử dụng',
     teamPermMarketingCampaigns: 'Campaign marketing',
+    teamPermWebsite: 'Website & landing shop',
     integrationsAnalyticsOwnerOnly: 'Chỉ chủ workspace mới có thể lưu Pixel, CAPI và GA4.',
     teamRemoveMemberConfirm: 'Gỡ nhân viên này khỏi workspace?',
     fbLinkedLine: 'Facebook Page đã liên kết: {pageId}',
@@ -3355,6 +3417,8 @@ const VI_DICTIONARY: Dictionary = {
     chatColumnTitle: 'Hội thoại khách',
     messagingSettingsLink: 'Cài đặt kênh & AI',
     marketingCampaignsLink: 'Marketing',
+    messagingWebsiteLink: 'Tạo web & landing',
+    messagingOrdersLink: 'Đơn hàng',
     messagingSettingsPageTitle: 'Cài đặt nhắn tin (shop)',
     messagingInboxDescription:
       'Danh sách khách bên trái; khi mở một hội thoại, ô soạn tin cố định dưới cùng màn hình.',
@@ -3722,8 +3786,8 @@ const VI_DICTIONARY: Dictionary = {
     cancelEdit: 'Hủy',
     inventoryName: 'Tên hàng / sản phẩm',
     inventorySku: 'Mã SKU (tuỳ chọn)',
-    inventoryDesc: 'Thông số / mô tả ngắn',
-    inventoryStock: 'Tồn kho / còn hàng',
+    inventoryDesc: 'Size (JSON)',
+    inventoryStock: 'Màu sắc (JSON)',
     inventoryPrice: 'Giá (ghi chú text)',
     inventorySort: 'Thứ tự',
     inventoryImageUrl: 'Ảnh sản phẩm (URL)',
@@ -3744,11 +3808,24 @@ const VI_DICTIONARY: Dictionary = {
     inventoryGuestConsultLinkCopied: 'Đã copy link chat.',
     inventoryConsultNote: 'Ghi chú khi tư vấn',
     inventoryConsultNoteHint:
-      'Ví dụ: bảo hành 12 tháng, giao 2–3 ngày, đang giảm 10%, chỉ đổi nếu lỗi sản xuất, freeship đơn từ…',
-    inventoryDescHint: 'Size, màu, chất liệu, kích thước, set/bộ gồm gì…',
-    inventoryStockHint: 'Số lượng còn, hoặc “còn M/L”, “đặt thêm 5 ngày có hàng”…',
+      'Mô tả ngắn hiển thị trên web shop + ghi chú AI tư vấn (bảo hành, giao hàng, KM…).',
+    inventoryDescHint: 'JSON mảng size, vd: ["S","M","L","XL"] hoặc ["38","39","40"]. Dùng cho chọn size trên shop.',
+    inventoryStockHint:
+      'JSON mảng màu + ảnh, vd: [{"name":"Đen","img":"https://..."}]. Dùng cho chọn màu trên shop.',
+    inventoryMaterialNote: 'Mô tả chi tiết sản phẩm',
+    inventoryMaterialNoteHint:
+      'Mô tả dài trên trang shop (nhiều đoạn, xuống dòng). Chất liệu, form, bảo quản, đi kèm…',
+    inventoryMaterialDetailImageUrl: 'Ảnh chi tiết chất liệu (URL)',
+    inventoryMaterialDetailImageUrlHint:
+      'Ảnh cận cảnh vải, da, đế giày… Hiển thị trong gallery và mục ảnh chi tiết shop.',
+    inventoryRealUseImageUrl: 'Ảnh thực tế 1 (URL)',
+    inventoryRealUseImageUrlHint: 'Ảnh mặc / sử dụng thực tế — gallery shop.',
+    inventoryRealUseImageUrl2: 'Ảnh thực tế 2 (URL)',
+    inventoryRealUseImageUrl2Hint: 'Góc chụp lifestyle bổ sung — gallery shop.',
+    inventoryRemarketingId: 'Id remarketing',
+    inventoryRemarketingIdHint: 'Mã content/remarketing (Meta/Google) — dùng đồng bộ catalog và marketing.',
     inventoryFieldsGuide:
-      'Gợi ý thêm (nhập vào mô tả hoặc ghi chú tư vấn): màu–size đang có; thời gian & phí giao; KM có thời hạn; đổi trả riêng từng mặt hàng; hướng dẫn bảo quản. Mọi dòng trong danh sách kho đều được đưa vào ngữ cảnh AI để tư vấn khách; muốn AI không nhắc tới một mặt hàng thì xóa dòng đó hoặc bỏ khỏi file nhập Excel. File mẫu có cột «Trạng thái»: 1 = thêm/cập nhật, 0 = xóa mặt hàng khỏi kho (khớp Mã SKU hoặc tên).',
+      'Trường shop web: Size/Màu (JSON), mô tả ngắn (ghi chú tư vấn), mô tả chi tiết, ảnh chính + ảnh chi tiết/thực tế, video. Mọi dòng trong danh sách kho đều được đưa vào ngữ cảnh AI; muốn AI không nhắc tới một mặt hàng thì xóa dòng đó hoặc bỏ khỏi file nhập Excel. File mẫu có cột «Trạng thái»: 1 = thêm/cập nhật, 0 = xóa (khớp Mã SKU hoặc tên).',
     inventoryOpenApiLink: 'Hướng dẫn tích hợp API',
     inventoryOpenApiHint:
       'Backend website shop có thể đẩy kho vào NanoAI bằng JSON (chuẩn Open Catalog, tên trường gần Shopee). Cùng khóa Bearer với API tìm ảnh; không cần Vision.',
@@ -4103,6 +4180,10 @@ const VI_DICTIONARY: Dictionary = {
     signInWithGoogle: 'Đăng nhập',
     linkMyShops: 'Tin nhắn của tôi',
     linkMyOrders: 'Đơn hàng của tôi',
+    backHome: 'Về trang chủ',
+    backHomeAria: 'Về trang chủ',
+    exploreToolsButton: 'Công cụ NanoAI',
+    exploreToolsTitle: 'Công cụ khác của NanoAI',
     widgetShoppingCart: 'Giỏ hàng',
     widgetLanguageSelectAria: 'Ngôn ngữ',
     sendKeyboardHint: 'Enter gửi · Shift+Enter xuống dòng · Ctrl+V dán ảnh',
@@ -5586,11 +5667,20 @@ const EN_DICTIONARY: Dictionary = {
     studioBannerBatchApproveNext: 'Banner saved. Review banner {index}/{total} in this batch.',
     studioGenerateBanner: 'Generate banner',
     studioGenerateMenu: 'Generate menu',
+    studioGenerateLanding: 'Generate segment image',
     studioMenuNeedFormat: 'Please pick a menu format (print or display ratio).',
     studioMenuNeedDishes: 'Please enter at least one dish with name and VND price.',
     studioMenuPromptBuildFailed: 'Could not build the menu design prompt. Please try again.',
     studioMenuLogoNeedFile: 'Please choose a logo image file.',
     studioMenuLogoWrongStep: 'Logo upload is only available on the menu design step.',
+    studioLandingNeedCopy: 'Enter segment description before generating the image.',
+    studioLandingNeedLogo: 'Upload or generate a logo first — the first segment (Hero desktop) must composite it in the header.',
+    studioLandingCopySaved:
+      'Saved description for {screen}. Tap «Generate segment image» for the AI mockup.',
+    studioLandingLogoNeedFile: 'Please choose a logo image file.',
+    studioLandingLogoWrongStep: 'Landing logo is available after the brand brief is complete.',
+    studioLandingLogoNeedBrief: 'Enter a logo prompt (wordmark, icon, colors…) or complete the brand name in the brief first.',
+    studioLandingLogoGenerated: 'Logo created — composited on the landing preview header.',
     studioUploadBtn: 'Upload images',
     studioImagesUploaded: 'Uploaded {n} image(s). Describe requirements for the next step.',
     studioMusicCredit: 'Music: {n} credits',
@@ -5676,9 +5766,9 @@ const EN_DICTIONARY: Dictionary = {
         steps: { logo: 'Logo', banner: 'Banner', product_label: 'Product label', sticker: 'Sticker' },
       },
       landing_page: {
-        title: 'Landing page',
-        sample: 'SaaS classroom management landing, blue tone',
-        steps: { hero: 'Hero', features: 'Features', pricing: 'Pricing', faq: 'FAQ', cta: 'CTA' },
+        title: 'Commerce & services landing mockups',
+        sample: 'Multi-industry landing — products + services shop, desktop/mobile preview',
+        steps: { hero: 'Hero', features: 'Products & services', pricing: 'Products / pricing', faq: 'FAQ', cta: 'CTA' },
       },
       product_listing: {
         title: 'Product photos',
@@ -5772,6 +5862,7 @@ const EN_DICTIONARY: Dictionary = {
     tasksHub: 'Tasks & queue',
     supportChat: 'NanoAI support',
     partnerInbox: 'Business channels',
+    messagingWebsite: 'Website & landing',
     partnerApiIntegration: 'API integration (shop owner)',
     customerApiKeys: 'Rent AI platform',
     myChats: 'Messages with shops',
@@ -5986,6 +6077,17 @@ const EN_DICTIONARY: Dictionary = {
     shopGa4MeasurementPlaceholder: 'Example: G-XXXXXXXXXX',
     shopGa4InvalidIdToast: 'Invalid GA4 ID. Expected format: G-XXXXXXXXXX',
     shopGa4SaveButton: 'Save GA4 ID',
+    shopGoogleAdsIdLabel: 'Google Ads tag ID (AW-...)',
+    shopGoogleAdsIdHint:
+      'Conversion / dynamic remarketing tag on the shop site — sends view_item, add_to_cart, purchase.',
+    shopGoogleAdsIdPlaceholder: 'Example: AW-123456789',
+    shopGoogleAdsInvalidIdToast: 'Invalid Google Ads ID. Expected format: AW-XXXXXXXXX',
+    shopGoogleAdsSaveButton: 'Save Google Ads ID',
+    shopTiktokPixelLabel: 'TikTok Pixel',
+    shopTiktokPixelHint: 'TikTok Ads pixel — PageView, ViewContent, AddToCart, CompletePayment on shop pages.',
+    shopTiktokPixelPlaceholder: 'Example: CXXXXXXXXXXXXXXXXX',
+    shopTiktokPixelInvalidIdToast: 'Invalid TikTok Pixel ID.',
+    shopTiktokPixelSaveButton: 'Save TikTok Pixel',
     facebookCatalogFeedTitle: 'Facebook — product catalog feed (CSV)',
     facebookCatalogFeedHint:
       'Paste this URL in Commerce Manager (scheduled feed). CSV lists active items; the link column is the NanoAI consult page, not your shop website. Requires image URL and VND price. The key query param is your embed key — keep it private.',
@@ -6041,6 +6143,7 @@ const EN_DICTIONARY: Dictionary = {
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / Catalog',
     teamPermUsageReports: 'Usage reports',
     teamPermMarketingCampaigns: 'Marketing campaigns',
+    teamPermWebsite: 'Website & landing shop',
     integrationsAnalyticsOwnerOnly:
       'Only the workspace owner can save Pixel / Conversions API and Google Analytics.',
     teamRemoveMemberConfirm: 'Remove this person from this workspace?',
@@ -6051,6 +6154,8 @@ const EN_DICTIONARY: Dictionary = {
     chatColumnTitle: 'Customer chat',
     messagingSettingsLink: 'Channel & AI settings',
     marketingCampaignsLink: 'Marketing',
+    messagingWebsiteLink: 'Website & landing',
+    messagingOrdersLink: 'Orders',
     messagingSettingsPageTitle: 'Messaging setup (shop)',
     messagingInboxDescription:
       'Customer list on the left; when a thread is open, the composer stays fixed at the bottom of the screen.',
@@ -6420,8 +6525,8 @@ const EN_DICTIONARY: Dictionary = {
     cancelEdit: 'Cancel',
     inventoryName: 'Product name',
     inventorySku: 'SKU (optional)',
-    inventoryDesc: 'Specs / short description',
-    inventoryStock: 'Stock / availability',
+    inventoryDesc: 'Size (JSON)',
+    inventoryStock: 'Colors (JSON)',
     inventoryPrice: 'Price (text note)',
     inventorySort: 'Order',
     inventoryImageUrl: 'Product image (URL)',
@@ -6442,9 +6547,21 @@ const EN_DICTIONARY: Dictionary = {
     inventoryGuestConsultLinkCopied: 'Chat link copied.',
     inventoryConsultNote: 'Notes for advising customers',
     inventoryConsultNoteHint:
-      'e.g. 12-month warranty, ships in 2–3 days, 10% off promo, exchange only for defects, free shipping over…',
-    inventoryDescHint: 'Sizes, colors, material, dimensions, what is included in a set…',
-    inventoryStockHint: 'Qty left, or “M/L in stock”, “backorder ~5 days”…',
+      'Short text on the shop product page plus AI advisory notes (warranty, shipping, promos…).',
+    inventoryDescHint: 'JSON size array, e.g. ["S","M","L"] or ["38","39","40"]. Powers size picker on shop.',
+    inventoryStockHint:
+      'JSON color array with images, e.g. [{"name":"Black","img":"https://..."}]. Powers color picker on shop.',
+    inventoryMaterialNote: 'Full product description',
+    inventoryMaterialNoteHint:
+      'Long description on shop PDP (multiple paragraphs). Material, fit, care, in-the-box…',
+    inventoryMaterialDetailImageUrl: 'Material detail image (URL)',
+    inventoryMaterialDetailImageUrlHint: 'Close-up fabric/leather/sole shot — shop gallery & detail section.',
+    inventoryRealUseImageUrl: 'Lifestyle image 1 (URL)',
+    inventoryRealUseImageUrlHint: 'On-body or in-use photo — shop gallery.',
+    inventoryRealUseImageUrl2: 'Lifestyle image 2 (URL)',
+    inventoryRealUseImageUrl2Hint: 'Additional lifestyle angle — shop gallery.',
+    inventoryRemarketingId: 'Remarketing ID',
+    inventoryRemarketingIdHint: 'Content/remarketing ID (Meta/Google) for catalog sync and ads.',
     inventoryFieldsGuide:
       'Also useful (use description or advisory note): available colors/sizes; delivery time & fees; promo end dates; per-item return rules; care instructions. Every row in this inventory list is sent to the AI for customer replies; remove a row (or omit it from an import) if you do not want the AI to mention that product. The sample file includes a Status column: 1 = add/update, 0 = delete that row from inventory (match by SKU or name).',
     inventoryOpenApiLink: 'API integration guide',
@@ -6802,6 +6919,10 @@ const EN_DICTIONARY: Dictionary = {
     signInWithGoogle: 'Sign in',
     linkMyShops: 'My messages',
     linkMyOrders: 'My orders',
+    backHome: 'Back to home',
+    backHomeAria: 'Back to home',
+    exploreToolsButton: 'NanoAI tools',
+    exploreToolsTitle: 'Other NanoAI tools',
     widgetShoppingCart: 'Cart',
     widgetLanguageSelectAria: 'Language',
     sendKeyboardHint: 'Enter to send · Shift+Enter for a new line · Ctrl+V / Cmd+V to paste an image',
@@ -8280,11 +8401,19 @@ const ZH_DICTIONARY: Dictionary = {
     studioBannerBatchApproveNext: '横幅已保存。请审核本批第 {index}/{total} 个横幅。',
     studioGenerateBanner: '生成横幅',
     studioGenerateMenu: '生成菜单',
+    studioGenerateLanding: '生成区块图片',
     studioMenuNeedFormat: '请选择菜单版式（印刷或屏幕比例）。',
     studioMenuNeedDishes: '请至少输入一道菜（菜名和 VND 价格）。',
     studioMenuPromptBuildFailed: '无法生成菜单设计提示词，请稍后重试。',
     studioMenuLogoNeedFile: '请选择 logo 图片文件。',
     studioMenuLogoWrongStep: '仅可在菜单设计步骤上传 logo。',
+    studioLandingNeedCopy: '生成前请输入区块内容。',
+    studioLandingNeedLogo: '请先上传或生成 Logo — 首个区块（桌面 Hero）须将其合成到页眉。',
+    studioLandingCopySaved: '已保存 {screen} 文案。点击下方「生成区块」让 AI 创建 mockup。',
+    studioLandingLogoNeedFile: '请选择 logo 图片文件。',
+    studioLandingLogoWrongStep: '完成品牌简报后才可设置落地页 logo。',
+    studioLandingLogoNeedBrief: '请输入 logo 提示（字标、图标、配色…）或先在简报中填写品牌名称。',
+    studioLandingLogoGenerated: 'Logo 已生成 — 已合成到落地页预览页眉。',
     studioUploadBtn: '上传图片',
     studioImagesUploaded: '已上传 {n} 张图片。请描述下一步需求。',
     studioMusicCredit: '音乐：{n} 积分',
@@ -8370,9 +8499,9 @@ const ZH_DICTIONARY: Dictionary = {
         steps: { logo: '标志', banner: '横幅', product_label: '产品标签', sticker: '贴纸' },
       },
       landing_page: {
-        title: '落地页',
-        sample: '课堂管理 SaaS 落地页，蓝色调',
-        steps: { hero: '主视觉', features: '功能', pricing: '价格', faq: '常见问题', cta: '行动号召' },
+        title: '电商与服务落地页',
+        sample: '多行业落地页 — 产品销售 + 服务，桌面/移动预览',
+        steps: { hero: '主视觉', features: '产品与服务', pricing: '产品/价格', faq: '常见问题', cta: '行动号召' },
       },
       product_listing: {
         title: '产品图',
@@ -8481,6 +8610,7 @@ const ZH_DICTIONARY: Dictionary = {
     tasksHub: '任务与队列',
     supportChat: 'NanoAI 客服',
     partnerInbox: '业务渠道',
+    messagingWebsite: '网站与落地页',
     partnerApiIntegration: 'API 集成（店主）',
     customerApiKeys: '租用 AI 平台',
     myChats: '与店铺消息',
@@ -8685,6 +8815,16 @@ const ZH_DICTIONARY: Dictionary = {
     shopGa4MeasurementPlaceholder: '例如：G-XXXXXXXXXX',
     shopGa4InvalidIdToast: 'GA4 ID 无效。格式：G-XXXXXXXXXX',
     shopGa4SaveButton: '保存 GA4 ID',
+    shopGoogleAdsIdLabel: 'Google Ads 代码 (AW-...)',
+    shopGoogleAdsIdHint: '店铺网站的转化/动态再营销标签 — 发送 view_item、add_to_cart、purchase。',
+    shopGoogleAdsIdPlaceholder: '例如：AW-123456789',
+    shopGoogleAdsInvalidIdToast: 'Google Ads ID 无效。格式：AW-XXXXXXXXX',
+    shopGoogleAdsSaveButton: '保存 Google Ads ID',
+    shopTiktokPixelLabel: 'TikTok Pixel',
+    shopTiktokPixelHint: 'TikTok 广告 Pixel — 店铺页面的 PageView、ViewContent、AddToCart、CompletePayment。',
+    shopTiktokPixelPlaceholder: '例如：CXXXXXXXXXXXXXXXXX',
+    shopTiktokPixelInvalidIdToast: 'TikTok Pixel ID 无效。',
+    shopTiktokPixelSaveButton: '保存 TikTok Pixel',
     facebookCatalogFeedTitle: 'Facebook — 商品目录 Feed（CSV）',
     facebookCatalogFeedHint:
       '在商务管理平台粘贴此 Feed URL。CSV 中 link 列为 NanoAI 咨询页，不是店铺官网。需图片 URL 与越南盾价格。key 为嵌入密钥，请保密。',
@@ -8738,6 +8878,7 @@ const ZH_DICTIONARY: Dictionary = {
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / 目录',
     teamPermUsageReports: '用量报表',
     teamPermMarketingCampaigns: '营销活动',
+    teamPermWebsite: '网站与落地页',
     integrationsAnalyticsOwnerOnly: '只有店主可保存 Pixel、CAPI 与 GA4。',
     teamRemoveMemberConfirm: '从本工作区移除此成员？',
     fbLinkedLine: '已关联 Facebook Page：{pageId}',
@@ -8747,6 +8888,8 @@ const ZH_DICTIONARY: Dictionary = {
     chatColumnTitle: '客户会话',
     messagingSettingsLink: '渠道与 AI 设置',
     marketingCampaignsLink: '营销',
+    messagingWebsiteLink: '网站与落地页',
+    messagingOrdersLink: '订单',
     messagingSettingsPageTitle: '消息设置（店铺）',
     messagingInboxDescription: '左侧为客户列表；打开会话后，输入框固定在屏幕底部。',
     noWorkspaceInboxCta: '您还没有消息工作区。前往设置创建店铺并连接 Facebook / Zalo / 聊天。',
@@ -9104,8 +9247,8 @@ const ZH_DICTIONARY: Dictionary = {
     cancelEdit: '取消',
     inventoryName: '商品名称',
     inventorySku: 'SKU（可选）',
-    inventoryDesc: '规格 / 简述',
-    inventoryStock: '库存 / 是否有货',
+    inventoryDesc: '尺码 (JSON)',
+    inventoryStock: '颜色 (JSON)',
     inventoryPrice: '价格（文字备注）',
     inventorySort: '排序',
     inventoryImageUrl: '商品图片（URL）',
@@ -9124,9 +9267,20 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryGuestConsultLinkNeedSave: '请先保存商品以生成完整聊天链接。',
     inventoryGuestConsultLinkCopied: '已复制聊天链接。',
     inventoryConsultNote: '咨询补充说明',
-    inventoryConsultNoteHint: '例如：保修 12 个月、2–3 天发货、限时折扣、仅质量问题退换、满额包邮等。',
-    inventoryDescHint: '尺码、颜色、材质、尺寸、套装包含内容等。',
-    inventoryStockHint: '剩余数量，或“M/L 有货”“预订约 5 天到货”等。',
+    inventoryConsultNoteHint: '店铺商品页短描述 + AI 咨询备注（保修、配送、促销等）。',
+    inventoryDescHint: '尺码 JSON 数组，如 ["S","M","L"] 或 ["38","39","40"]。用于店铺尺码选择。',
+    inventoryStockHint:
+      '颜色 JSON 数组含图片，如 [{"name":"黑","img":"https://..."}]。用于店铺颜色选择。',
+    inventoryMaterialNote: '商品详细描述',
+    inventoryMaterialNoteHint: '店铺详情页长描述（可多段）。材质、版型、保养、包装内容等。',
+    inventoryMaterialDetailImageUrl: '材质细节图 (URL)',
+    inventoryMaterialDetailImageUrlHint: '面料/皮革/鞋底特写 — 店铺画廊与细节区。',
+    inventoryRealUseImageUrl: '实拍图 1 (URL)',
+    inventoryRealUseImageUrlHint: '上身或使用场景 — 店铺画廊。',
+    inventoryRealUseImageUrl2: '实拍图 2 (URL)',
+    inventoryRealUseImageUrl2Hint: '额外 lifestyle 角度 — 店铺画廊。',
+    inventoryRemarketingId: 'Remarketing ID',
+    inventoryRemarketingIdHint: 'Meta/Google 内容或再营销 ID，用于目录同步与广告。',
     inventoryFieldsGuide:
       '建议在描述或咨询说明中补充：可选颜色/尺码；配送时效与运费；促销截止时间；单品退换规则；保养说明。列表中的每一行都会提供给 AI 用于回复顾客；若不希望 AI 提及某商品，请删除该行或从导入文件中去掉。模板含「状态」列：1 = 新增/更新，0 = 从库存删除该行（按 SKU 或名称匹配）。',
     inventoryOpenApiLink: 'API 集成说明',
@@ -9470,6 +9624,10 @@ const ZH_DICTIONARY: Dictionary = {
     signInWithGoogle: '登录',
     linkMyShops: '我的消息',
     linkMyOrders: '我的订单',
+    backHome: '返回首页',
+    backHomeAria: '返回首页',
+    exploreToolsButton: 'NanoAI 工具',
+    exploreToolsTitle: 'NanoAI 其他工具',
     widgetShoppingCart: '购物车',
     widgetLanguageSelectAria: '语言',
     sendKeyboardHint: 'Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片',
@@ -10888,11 +11046,20 @@ const JA_DICTIONARY: Dictionary = {
     studioBannerBatchApproveNext: 'バナーを保存しました。このバッチ {index}/{total} を確認してください。',
     studioGenerateBanner: 'バナー生成',
     studioGenerateMenu: 'メニュー生成',
+    studioGenerateLanding: 'セクション画像を生成',
     studioMenuNeedFormat: 'メニュー形式（印刷または表示比率）を選んでください。',
     studioMenuNeedDishes: '料理を1品以上（名称とVND価格）入力してください。',
     studioMenuPromptBuildFailed: 'メニューデザインプロンプトを作成できませんでした。後でもう一度お試しください。',
     studioMenuLogoNeedFile: 'ロゴ画像ファイルを選択してください。',
     studioMenuLogoWrongStep: 'ロゴのアップロードはメニューデザインステップでのみ可能です。',
+    studioLandingNeedCopy: '生成前にセクション内容を入力してください。',
+    studioLandingNeedLogo: '先にロゴをアップロードまたは生成 — 最初のセクション（デスクトップヒーロー）のヘッダーに合成します。',
+    studioLandingCopySaved:
+      '{screen} の文案を保存しました。下の「セクション生成」で AI がモックアップを作成します。',
+    studioLandingLogoNeedFile: 'ロゴ画像ファイルを選んでください。',
+    studioLandingLogoWrongStep: 'ブランド brief 完了後にランディングロゴを設定できます。',
+    studioLandingLogoNeedBrief: 'ロゴプロンプト（ワードマーク、アイコン、配色…）を入力するか、brief のブランド名を先に入力してください。',
+    studioLandingLogoGenerated: 'ロゴを生成しました — ランディングプレビューヘッダーに合成されます。',
     studioUploadBtn: '画像をアップロード',
     studioImagesUploaded: '{n} 枚アップロードしました。次のステップの要件を説明してください。',
     studioMusicCredit: '音楽：{n} クレジット',
@@ -10978,9 +11145,9 @@ const JA_DICTIONARY: Dictionary = {
         steps: { logo: 'ロゴ', banner: 'バナー', product_label: '商品ラベル', sticker: 'ステッカー' },
       },
       landing_page: {
-        title: 'ランディング',
-        sample: '教室管理SaaSのランディング、ブルー調',
-        steps: { hero: 'ヒーロー', features: '機能', pricing: '料金', faq: 'FAQ', cta: 'CTA' },
+        title: 'EC＆サービス LP',
+        sample: '多業種LP — 商品販売＋サービス、デスクトップ/モバイルプレビュー',
+        steps: { hero: 'ヒーロー', features: '商品＆サービス', pricing: '商品/料金', faq: 'FAQ', cta: 'CTA' },
       },
       product_listing: {
         title: '商品画像',
@@ -11089,6 +11256,7 @@ const JA_DICTIONARY: Dictionary = {
     tasksHub: 'タスクとキュー',
     supportChat: 'NanoAI サポート',
     partnerInbox: 'ビジネスチャネル',
+    messagingWebsite: 'Web・ランディング',
     partnerApiIntegration: 'API 連携（店主）',
     customerApiKeys: 'AI プラットフォーム利用',
     myChats: '店舗とのメッセージ',
@@ -11302,6 +11470,16 @@ const JA_DICTIONARY: Dictionary = {
     shopGa4MeasurementPlaceholder: '例: G-XXXXXXXXXX',
     shopGa4InvalidIdToast: 'GA4 ID の形式が正しくありません。形式: G-XXXXXXXXXX',
     shopGa4SaveButton: 'GA4 ID を保存',
+    shopGoogleAdsIdLabel: 'Google Ads タグ ID (AW-...)',
+    shopGoogleAdsIdHint: 'ショップサイトのコンバージョン/ダイナミックリマーケティング — view_item、add_to_cart、purchase を送信。',
+    shopGoogleAdsIdPlaceholder: '例: AW-123456789',
+    shopGoogleAdsInvalidIdToast: 'Google Ads ID の形式が正しくありません。形式: AW-XXXXXXXXX',
+    shopGoogleAdsSaveButton: 'Google Ads ID を保存',
+    shopTiktokPixelLabel: 'TikTok Pixel',
+    shopTiktokPixelHint: 'TikTok 広告 Pixel — ショップで PageView、ViewContent、AddToCart、CompletePayment。',
+    shopTiktokPixelPlaceholder: '例: CXXXXXXXXXXXXXXXXX',
+    shopTiktokPixelInvalidIdToast: 'TikTok Pixel ID が無効です。',
+    shopTiktokPixelSaveButton: 'TikTok Pixel を保存',
     facebookCatalogFeedTitle: 'Facebook — 商品カタログフィード（CSV）',
     facebookCatalogFeedHint:
       'Commerce Manager のデータソース URL に貼り付けます。link は NanoAI の相談ページで、店舗サイトの URL ではありません。画像 URL と VND 価格が必要です。key は埋め込みキーなので秘密にしてください。',
@@ -11356,6 +11534,7 @@ const JA_DICTIONARY: Dictionary = {
     teamPermIntegrationsAnalytics: 'Meta Pixel／GA4／カタログ',
     teamPermUsageReports: '利用レポート',
     teamPermMarketingCampaigns: 'マーケティングキャンペーン',
+    teamPermWebsite: 'ウェブサイト・ランディング',
     integrationsAnalyticsOwnerOnly:
       'Pixel、Conversions API、GA4 の保存はワークスペースの店主のみできます。',
     teamRemoveMemberConfirm: 'このメンバーをワークスペースから外しますか？',
@@ -11367,6 +11546,8 @@ const JA_DICTIONARY: Dictionary = {
     chatColumnTitle: 'お客様チャット',
     messagingSettingsLink: 'チャネル・AI 設定',
     marketingCampaignsLink: 'マーケティング',
+    messagingWebsiteLink: 'Web・ランディング',
+    messagingOrdersLink: '注文',
     messagingSettingsPageTitle: 'メッセージ設定（店舗）',
     messagingInboxDescription: '左に顧客一覧。会話を開くと、入力欄は画面下に固定されます。',
     noWorkspaceInboxCta: 'メッセージ用ワークスペースがありません。設定で店舗を作成し Facebook / Zalo / チャットを接続してください。',
@@ -11735,8 +11916,8 @@ const JA_DICTIONARY: Dictionary = {
     cancelEdit: 'キャンセル',
     inventoryName: '商品名',
     inventorySku: 'SKU（任意）',
-    inventoryDesc: '仕様・短い説明',
-    inventoryStock: '在庫・在庫状況',
+    inventoryDesc: 'サイズ (JSON)',
+    inventoryStock: 'カラー (JSON)',
     inventoryPrice: '価格（テキスト）',
     inventorySort: '並び順',
     inventoryImageUrl: '商品画像（URL）',
@@ -11757,9 +11938,21 @@ const JA_DICTIONARY: Dictionary = {
     inventoryGuestConsultLinkCopied: 'チャットリンクをコピーしました。',
     inventoryConsultNote: '接客メモ',
     inventoryConsultNoteHint:
-      '例：保証12ヶ月、2–3日で発送、10%オフ、不良時のみ交換、○○円以上送料無料 など。',
-    inventoryDescHint: 'サイズ、色、素材、寸法、セット内容など。',
-    inventoryStockHint: '在庫数、「M/L 在庫あり」「取り寄せ約5日」など。',
+      'ショップ商品ページの短い説明 + AI 接客メモ（保証・配送・キャンペーンなど）。',
+    inventoryDescHint:
+      'サイズ JSON 配列。例: ["S","M","L"] または ["38","39","40"]。ショップのサイズ選択に使用。',
+    inventoryStockHint:
+      '色 JSON 配列（画像付き）。例: [{"name":"黒","img":"https://..."}]。ショップの色選択に使用。',
+    inventoryMaterialNote: '商品詳細説明',
+    inventoryMaterialNoteHint: 'ショップ詳細ページの長文（複数段落可）。素材・シルエット・お手入れなど。',
+    inventoryMaterialDetailImageUrl: '素材ディテール画像 (URL)',
+    inventoryMaterialDetailImageUrlHint: '生地・革・ソールのアップ — ギャラリーと詳細画像。',
+    inventoryRealUseImageUrl: '実使用画像 1 (URL)',
+    inventoryRealUseImageUrlHint: '着用・使用シーン — ギャラリー。',
+    inventoryRealUseImageUrl2: '実使用画像 2 (URL)',
+    inventoryRealUseImageUrl2Hint: '追加の lifestyle カット — ギャラリー。',
+    inventoryRemarketingId: 'Remarketing ID',
+    inventoryRemarketingIdHint: 'Meta/Google のコンテンツ ID。カタログ同期・広告用。',
     inventoryFieldsGuide:
       '説明または接客メモに：取り扱い色/サイズ、配送目安と送料、セール期限、商品ごとの返品条件、お手入れ方法 など。この一覧の行はすべて AI の顧客返信用コンテキストに含まれます。AI に言及させたくない商品は行を削除するか、インポート対象から外してください。テンプレの「状態」列：1 = 追加/更新、0 = 在庫から削除（SKU または商品名で照合）。',
     inventoryOpenApiLink: 'API 連携ガイド',
@@ -12116,6 +12309,10 @@ const JA_DICTIONARY: Dictionary = {
     signInWithGoogle: 'ログイン',
     linkMyShops: '自分のメッセージ',
     linkMyOrders: '自分の注文',
+    backHome: 'ホームへ',
+    backHomeAria: 'ホームへ戻る',
+    exploreToolsButton: 'NanoAI ツール',
+    exploreToolsTitle: 'NanoAI の他のツール',
     widgetShoppingCart: 'カート',
     widgetLanguageSelectAria: '言語',
     sendKeyboardHint: 'Enter で送信 · Shift+Enter で改行 · Ctrl+V / Cmd+V で画像を貼り付け',
@@ -13568,11 +13765,20 @@ const KO_DICTIONARY: Dictionary = {
     studioBannerBatchApproveNext: '배너를 저장했습니다. 이 배치 {index}/{total}을(를) 검토하세요.',
     studioGenerateBanner: '배너 생성',
     studioGenerateMenu: '메뉴 생성',
+    studioGenerateLanding: '세그먼트 이미지 생성',
     studioMenuNeedFormat: '메뉴 형식(인쇄 또는 화면 비율)을 선택하세요.',
     studioMenuNeedDishes: '최소 1개 메뉴(이름과 VND 가격)를 입력하세요.',
     studioMenuPromptBuildFailed: '메뉴 디자인 프롬프트를 만들 수 없습니다. 나중에 다시 시도하세요.',
     studioMenuLogoNeedFile: '로고 이미지 파일을 선택하세요.',
     studioMenuLogoWrongStep: '로고 업로드는 메뉴 디자인 단계에서만 가능합니다.',
+    studioLandingNeedCopy: '생성 전에 섹션 내용을 입력하세요.',
+    studioLandingNeedLogo: '먼저 로고를 업로드하거나 생성하세요 — 첫 세그먼트(데스크톱 히어로) 헤더에 합성됩니다.',
+    studioLandingCopySaved:
+      '{screen} 내용을 저장했습니다. 아래 «섹션 생성»을 눌러 AI mockup을 만드세요.',
+    studioLandingLogoNeedFile: '로고 이미지 파일을 선택하세요.',
+    studioLandingLogoWrongStep: '브랜드 brief 완료 후 랜딩 로고를 설정할 수 있습니다.',
+    studioLandingLogoNeedBrief: '로고 프롬프트(워드마크, 아이콘, 색상…)를 입력하거나 brief의 브랜드명을 먼저 입력하세요.',
+    studioLandingLogoGenerated: '로고가 생성되었습니다 — 랜딩 미리보기 헤더에 합성됩니다.',
     studioUploadBtn: '이미지 업로드',
     studioImagesUploaded: '{n}장 업로드됨. 다음 단계 요구사항을 설명하세요.',
     studioMusicCredit: '음악: {n} 크레딧',
@@ -13658,9 +13864,9 @@ const KO_DICTIONARY: Dictionary = {
         steps: { logo: '로고', banner: '배너', product_label: '상품 라벨', sticker: '스티커' },
       },
       landing_page: {
-        title: '랜딩 페이지',
-        sample: '교실 관리 SaaS 랜딩, 블루 톤',
-        steps: { hero: '히어로', features: '기능', pricing: '가격', faq: 'FAQ', cta: 'CTA' },
+        title: '커머스 & 서비스 랜딩',
+        sample: '다업종 랜딩 — 상품 판매 + 서비스, 데스크톱/모바일 미리보기',
+        steps: { hero: '히어로', features: '상품 & 서비스', pricing: '상품/가격', faq: 'FAQ', cta: 'CTA' },
       },
       product_listing: {
         title: '상품 사진',
@@ -13769,6 +13975,7 @@ const KO_DICTIONARY: Dictionary = {
     tasksHub: '작업 및 대기열',
     supportChat: 'NanoAI 고객지원',
     partnerInbox: '비즈니스 채널',
+    messagingWebsite: '웹·랜딩',
     partnerApiIntegration: 'API 연동(점주)',
     customerApiKeys: 'AI 플랫폼 임대',
     myChats: '매장과 메시지',
@@ -13982,6 +14189,16 @@ const KO_DICTIONARY: Dictionary = {
     shopGa4MeasurementPlaceholder: '예: G-XXXXXXXXXX',
     shopGa4InvalidIdToast: 'GA4 ID 형식이 올바르지 않습니다. 형식: G-XXXXXXXXXX',
     shopGa4SaveButton: 'GA4 ID 저장',
+    shopGoogleAdsIdLabel: 'Google Ads 태그 ID (AW-...)',
+    shopGoogleAdsIdHint: '쇼핑몰 전환/동적 리마케팅 태그 — view_item, add_to_cart, purchase 이벤트 전송.',
+    shopGoogleAdsIdPlaceholder: '예: AW-123456789',
+    shopGoogleAdsInvalidIdToast: 'Google Ads ID 형식이 올바르지 않습니다. 형식: AW-XXXXXXXXX',
+    shopGoogleAdsSaveButton: 'Google Ads ID 저장',
+    shopTiktokPixelLabel: 'TikTok Pixel',
+    shopTiktokPixelHint: 'TikTok 광고 Pixel — 쇼핑몰 PageView, ViewContent, AddToCart, CompletePayment.',
+    shopTiktokPixelPlaceholder: '예: CXXXXXXXXXXXXXXXXX',
+    shopTiktokPixelInvalidIdToast: 'TikTok Pixel ID가 유효하지 않습니다.',
+    shopTiktokPixelSaveButton: 'TikTok Pixel 저장',
     facebookCatalogFeedTitle: 'Facebook — 상품 카탈로그 피드(CSV)',
     facebookCatalogFeedHint:
       '커머스 관리자 데이터 소스 URL에 붙여 넣습니다. link 열은 NanoAI 상담 페이지이며 쇼핑몰 사이트 링크가 아닙니다. 이미지 URL·VND 가격 필요. key는 임베드 키로 비공개 유지.',
@@ -14036,6 +14253,7 @@ const KO_DICTIONARY: Dictionary = {
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / 카탈로그',
     teamPermUsageReports: '사용 리포트',
     teamPermMarketingCampaigns: '마케팅 캠페인',
+    teamPermWebsite: '웹사이트·랜딩',
     integrationsAnalyticsOwnerOnly:
       'Pixel·Conversions API·GA4 저장은 워크스페이스 소유자만 할 수 있습니다.',
     teamRemoveMemberConfirm: '이 구성원을 워크스페이스에서 제거할까요?',
@@ -14046,6 +14264,8 @@ const KO_DICTIONARY: Dictionary = {
     chatColumnTitle: '고객 채팅',
     messagingSettingsLink: '채널·AI 설정',
     marketingCampaignsLink: '마케팅',
+    messagingWebsiteLink: '웹·랜딩',
+    messagingOrdersLink: '주문',
     messagingSettingsPageTitle: '메시지 설정(매장)',
     messagingInboxDescription: '왼쪽에 고객 목록. 대화를 열면 입력창이 화면 하단에 고정됩니다.',
     noWorkspaceInboxCta: '메시징 워크스페이스가 없습니다. 설정에서 매장을 만들고 Facebook / Zalo / 채팅을 연결하세요.',
@@ -14410,8 +14630,8 @@ const KO_DICTIONARY: Dictionary = {
     cancelEdit: '취소',
     inventoryName: '상품명',
     inventorySku: 'SKU(선택)',
-    inventoryDesc: '사양 / 짧은 설명',
-    inventoryStock: '재고 / 재고 여부',
+    inventoryDesc: '사이즈 (JSON)',
+    inventoryStock: '색상 (JSON)',
     inventoryPrice: '가격(텍스트)',
     inventorySort: '순서',
     inventoryImageUrl: '상품 이미지(URL)',
@@ -14432,9 +14652,21 @@ const KO_DICTIONARY: Dictionary = {
     inventoryGuestConsultLinkCopied: '채팅 링크를 복사했습니다.',
     inventoryConsultNote: '상담 시 추가 안내',
     inventoryConsultNoteHint:
-      '예: 보증 12개월, 2–3일 배송, 10% 할인, 불량 시에만 교환, ○○원 이상 무료배송 등.',
-    inventoryDescHint: '사이즈, 색상, 소재, 치수, 세트 구성 등.',
-    inventoryStockHint: '남은 수량, 또는 “M/L 재고 있음”, “주문 후 약 5일” 등.',
+      '샵 상품 페이지 짧은 설명 + AI 상담 메모(보증·배송·프로모션 등).',
+    inventoryDescHint:
+      '사이즈 JSON 배열. 예: ["S","M","L"] 또는 ["38","39","40"]. 샵 사이즈 선택에 사용.',
+    inventoryStockHint:
+      '색상 JSON 배열(이미지 포함). 예: [{"name":"블랙","img":"https://..."}]. 샵 색상 선택에 사용.',
+    inventoryMaterialNote: '상품 상세 설명',
+    inventoryMaterialNoteHint: '샵 상세 페이지 긴 설명(여러 단락). 소재·핏·관리·구성품 등.',
+    inventoryMaterialDetailImageUrl: '소재 디테일 이미지 (URL)',
+    inventoryMaterialDetailImageUrlHint: '원단·가죽·밑창 클로즈업 — 갤러리 및 상세 이미지.',
+    inventoryRealUseImageUrl: '실사용 이미지 1 (URL)',
+    inventoryRealUseImageUrlHint: '착용·사용 컷 — 갤러리.',
+    inventoryRealUseImageUrl2: '실사용 이미지 2 (URL)',
+    inventoryRealUseImageUrl2Hint: '추가 lifestyle 컷 — 갤러리.',
+    inventoryRemarketingId: 'Remarketing ID',
+    inventoryRemarketingIdHint: 'Meta/Google 콘텐츠 ID. 카탈로그 동기화·광고용.',
     inventoryFieldsGuide:
       '설명 또는 상담 메모에: 판매 색상·사이즈, 배송 기간·배송비, 프로모션 종료일, 품목별 교환·환불, 관리 방법 등. 목록의 모든 행은 고객 답변용 AI 컨텍스트에 포함됩니다. AI가 언급하지 않게 하려면 해당 행을 삭제하거나 가져오기 파일에서 제외하세요. 샘플의 «상태» 열: 1 = 추가/업데이트, 0 = 재고에서 삭제(SKU 또는 상품명으로 매칭).',
     inventoryOpenApiLink: 'API 연동 안내',
@@ -14791,6 +15023,10 @@ const KO_DICTIONARY: Dictionary = {
     signInWithGoogle: '로그인',
     linkMyShops: '내 메시지',
     linkMyOrders: '내 주문',
+    backHome: '홈으로',
+    backHomeAria: '홈으로',
+    exploreToolsButton: 'NanoAI 도구',
+    exploreToolsTitle: 'NanoAI의 다른 도구',
     widgetShoppingCart: '장바구니',
     widgetLanguageSelectAria: '언어',
     sendKeyboardHint: 'Enter로 전송 · Shift+Enter로 줄 바꿈 · Ctrl+V / Cmd+V로 이미지 붙여넣기',

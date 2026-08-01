@@ -21,6 +21,38 @@ test('packaging_kit box_size returns dimension suggestions', () => {
   assert.ok(items.every((item) => item.label.startsWith('Ví dụ:')))
 })
 
+const BAG_KIT_DISCOVERY_STEPS = [
+  'brand_name',
+  'product_type',
+  'bag_size',
+  'bag_panel_confirm',
+  'style_mood',
+  'color_palette',
+  'face_print_style',
+] as const
+
+const BAG_KIT_DESIGN_STEPS = ['face_back', 'face_front', 'bag_mockup_3d', 'bag_dieline_pdf'] as const
+
+for (const stepKey of BAG_KIT_DISCOVERY_STEPS) {
+  test(`bag_kit ${stepKey} has step-specific suggestions`, () => {
+    const items = getStudioStepSuggestions('bag_kit', stepKey, 'vi')
+    assert.ok(items.length >= 1, stepKey)
+    assert.ok(items.every((item) => item.label.startsWith('Ví dụ:')))
+  })
+}
+
+for (const stepKey of BAG_KIT_DESIGN_STEPS) {
+  test(`bag_kit design ${stepKey} has suggestions`, () => {
+    const items = getStudioStepSuggestions('bag_kit', stepKey, 'en')
+    assert.ok(items.length >= 1, stepKey)
+  })
+}
+
+test('bag_kit bag_size returns dimension suggestions', () => {
+  const items = getStudioStepSuggestions('bag_kit', 'bag_size', 'vi')
+  assert.ok(items.some((item) => item.message.includes('200')))
+})
+
 test('unknown step returns empty suggestions', () => {
   assert.deepEqual(getStudioStepSuggestions('packaging_kit', 'unknown_step', 'en'), [])
 })
@@ -88,6 +120,43 @@ for (const stepKey of FOOD_MENU_DISCOVERY_STEPS) {
       GENERIC_MOBILE_PLACEHOLDER
     )
     assert.ok(!placeholder.includes('app mobile'), `placeholder must not be generic mobile shop for ${stepKey}`)
+    assert.notEqual(placeholder, GENERIC_MOBILE_PLACEHOLDER)
+  })
+}
+
+const LANDING_PAGE_DISCOVERY_STEPS = [
+  'product_name',
+  'value_prop',
+  'target_audience',
+  'style_mood',
+  'color_palette',
+] as const
+
+const LANDING_PAGE_DESIGN_STEPS = ['landing_full'] as const
+
+for (const stepKey of LANDING_PAGE_DISCOVERY_STEPS) {
+  test(`landing_page discovery ${stepKey} has step-specific suggestions and placeholder`, () => {
+    const items = getStudioStepSuggestions('landing_page', stepKey, 'vi')
+    assert.ok(items.length >= 1, `expected suggestion chips for landing_page.${stepKey}`)
+    assert.ok(items.every((item) => item.label.startsWith('Ví dụ:')))
+
+    const placeholder = getStudioStepInputPlaceholder(
+      'landing_page',
+      stepKey,
+      'vi',
+      GENERIC_MOBILE_PLACEHOLDER
+    )
+    assert.ok(!placeholder.includes('app mobile'), `placeholder must not be generic mobile shop for ${stepKey}`)
+    assert.notEqual(placeholder, GENERIC_MOBILE_PLACEHOLDER)
+  })
+}
+
+for (const stepKey of LANDING_PAGE_DESIGN_STEPS) {
+  test(`landing_page design ${stepKey} has step-specific suggestions`, () => {
+    const items = getStudioStepSuggestions('landing_page', stepKey, 'en')
+    assert.ok(items.length >= 1, stepKey)
+    const placeholder = getStudioStepInputPlaceholder('landing_page', stepKey, 'en', GENERIC_MOBILE_PLACEHOLDER)
+    assert.ok(!placeholder.includes('app mobile'), stepKey)
     assert.notEqual(placeholder, GENERIC_MOBILE_PLACEHOLDER)
   })
 }

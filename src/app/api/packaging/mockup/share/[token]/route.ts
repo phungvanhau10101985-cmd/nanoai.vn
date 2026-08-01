@@ -18,6 +18,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Share link expired or not found' }, { status: 404 })
     }
     return NextResponse.json({
+      mockupKind: row.mockup_kind,
       dimensionsMm: row.dimensions_mm,
       faceUrls: row.face_urls,
       locale: row.locale,

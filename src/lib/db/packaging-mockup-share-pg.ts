@@ -1,20 +1,36 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { WebLocale } from '@/lib/i18n/config'
+import type { BagFaceSlot } from '@/lib/hub-chat/bag-kit-shared'
+import type { BagDimensionsMm } from '@/lib/packaging/bag-dimensions'
 import type { BoxDimensionsMm } from '@/lib/packaging/dimensions'
 import type { BoxFaceSlot } from '@/lib/packaging/box-face-slots'
+import {
+  isBagDimensionsMm,
+  isBoxDimensionsMm,
+  type PackagingMockupKind,
+} from '@/lib/packaging/mockup-share-utils'
 
-export type PackagingMockupShareRow = {
-  dimensions_mm: BoxDimensionsMm
-  face_urls: Partial<Record<BoxFaceSlot, string>>
-  locale: WebLocale
-}
+export type PackagingMockupShareRow =
+  | {
+      mockup_kind: 'box'
+      dimensions_mm: BoxDimensionsMm
+      face_urls: Partial<Record<BoxFaceSlot, string>>
+      locale: WebLocale
+    }
+  | {
+      mockup_kind: 'bag'
+      dimensions_mm: BagDimensionsMm
+      face_urls: Partial<Record<BagFaceSlot, string>>
+      locale: WebLocale
+    }
 
 export async function insertPackagingMockupSharePg(input: {
   shareToken: string
   userId: string | null
-  dimensionsMm: BoxDimensionsMm
-  faceUrls: Partial<Record<BoxFaceSlot, string>>
+  mockupKind: PackagingMockupKind
+  dimensionsMm: BoxDimensionsMm | BagDimensionsMm
+  faceUrls: Partial<Record<BoxFaceSlot | BagFaceSlot, string>>
   locale: WebLocale
   expiresAtIso: string
 }): Promise<boolean | null> {
@@ -22,11 +38,12 @@ export async function insertPackagingMockupSharePg(input: {
   try {
     await pgQuery(
       `insert into public.packaging_mockup_shares (
-         share_token, user_id, dimensions_mm, face_urls, locale, expires_at
-       ) values ($1, $2::uuid, $3::jsonb, $4::jsonb, $5, $6::timestamptz)`,
+         share_token, user_id, mockup_kind, dimensions_mm, face_urls, locale, expires_at
+       ) values ($1, $2::uuid, $3, $4::jsonb, $5::jsonb, $6, $7::timestamptz)`,
       [
         input.shareToken,
         input.userId,
+        input.mockupKind,
         JSON.stringify(input.dimensionsMm),
         JSON.stringify(input.faceUrls),
         input.locale,
@@ -48,35 +65,43 @@ export async function fetchPackagingMockupShareByTokenPg(
   if (!token) return null
   try {
     const row = await pgQueryOne<{
+      mockup_kind: string | null
       dimensions_mm: unknown
       face_urls: unknown
       locale: string | null
     }>(
-      `select dimensions_mm, face_urls, locale
+      `select mockup_kind, dimensions_mm, face_urls, locale
        from public.packaging_mockup_shares
        where share_token = $1 and expires_at > timezone('utc'::text, now())
        limit 1`,
       [token]
     )
     if (!row) return null
-    const dimensionsRaw = row.dimensions_mm
+    const locale = (row.locale ?? 'vi') as WebLocale
     const faceRaw = row.face_urls
-    if (
-      !dimensionsRaw ||
-      typeof dimensionsRaw !== 'object' ||
-      !('length' in dimensionsRaw) ||
-      !('width' in dimensionsRaw) ||
-      !('height' in dimensionsRaw)
-    ) {
-      return null
-    }
-    const dimensions_mm = dimensionsRaw as BoxDimensionsMm
     const face_urls =
       faceRaw && typeof faceRaw === 'object' && !Array.isArray(faceRaw)
-        ? (faceRaw as Partial<Record<BoxFaceSlot, string>>)
+        ? (faceRaw as Partial<Record<BoxFaceSlot | BagFaceSlot, string>>)
         : {}
-    const locale = (row.locale ?? 'vi') as WebLocale
-    return { dimensions_mm, face_urls, locale }
+
+    const mockupKind = row.mockup_kind === 'bag' ? 'bag' : 'box'
+    if (mockupKind === 'bag' && isBagDimensionsMm(row.dimensions_mm)) {
+      return {
+        mockup_kind: 'bag',
+        dimensions_mm: row.dimensions_mm,
+        face_urls: face_urls as Partial<Record<BagFaceSlot, string>>,
+        locale,
+      }
+    }
+    if (isBoxDimensionsMm(row.dimensions_mm)) {
+      return {
+        mockup_kind: 'box',
+        dimensions_mm: row.dimensions_mm,
+        face_urls: face_urls as Partial<Record<BoxFaceSlot, string>>,
+        locale,
+      }
+    }
+    return null
   } catch (e) {
     console.error('[packaging-mockup-share-pg] fetchPackagingMockupShareByTokenPg', e)
     return null

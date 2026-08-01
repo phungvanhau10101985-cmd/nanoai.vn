@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getUserOrBypass } from '@/lib/auth'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
@@ -8,9 +7,9 @@ import { getDictionary } from '@/lib/i18n/dictionaries'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import { isValidUuidString } from '@/lib/validate-uuid'
-import { Button } from '@/components/ui/button'
 import { ClipboardList } from 'lucide-react'
 import { PartnerMessagingOrdersClient } from '../partner-messaging-orders-client'
+import { MessagingDashboardNavLinks } from '../messaging-dashboard-nav-links'
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = getCurrentWebLocale()
@@ -39,21 +38,21 @@ export default async function DashboardMessagingOrdersPage() {
 
   return (
     <div className="app-shell flex min-h-[calc(100dvh-5rem)] flex-col space-y-3 md:space-y-4">
-      <div className="section-surface flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3 md:pb-4">
+      <div className="section-surface sticky top-[var(--site-header-height,3rem)] z-40 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-card/95 pb-3 backdrop-blur-md md:top-[var(--site-header-height,3.5rem)] md:pb-4">
         <h1 className="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-tight sm:text-xl">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400">
             <ClipboardList className="h-4 w-4" aria-hidden />
           </span>
           <span className="leading-snug">{o.pageTitle}</span>
         </h1>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs" asChild>
-            <Link href="/dashboard/messaging">{pm.goToInbox}</Link>
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs" asChild>
-            <Link href="/dashboard/messaging/settings">{pm.messagingSettingsLink}</Link>
-          </Button>
-        </div>
+        <MessagingDashboardNavLinks
+          inboxLabel={pm.goToInbox}
+          settingsLabel={pm.messagingSettingsLink}
+          marketingLabel={pm.marketingCampaignsLink}
+          ordersLabel={pm.messagingOrdersLink}
+          websiteLabel={pm.messagingWebsiteLink}
+          active="orders"
+        />
       </div>
       <PartnerMessagingOrdersClient initialPartners={rows ?? []} ordersT={o} locale={locale} />
     </div>

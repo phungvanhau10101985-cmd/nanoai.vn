@@ -6,7 +6,9 @@ import { isValidUuidString } from '@/lib/validate-uuid'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import type { Metadata } from 'next'
-import { Building2 } from 'lucide-react'
+import Link from 'next/link'
+import { Building2, Globe } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { BusinessChannelsHubClient } from './business-channels-hub-client'
 
 export function generateMetadata(): Metadata {
@@ -21,6 +23,8 @@ export function generateMetadata(): Metadata {
 }
 
 export default async function DashboardMessagingPage() {
+  const { t } = getServerDictionary()
+  const pm = t.partnerMessaging
   const user = await getUserOrBypass()
   if (!user) redirectToLogin()
   if (!isValidUuidString(user.id)) redirectToLogin()
@@ -41,10 +45,21 @@ export default async function DashboardMessagingPage() {
         <p className="max-w-2xl text-sm text-muted-foreground">
           Chọn kênh để đi vào quản lý chính. Mỗi kênh vận hành độc lập theo lĩnh vực kinh doanh.
         </p>
+        <div className="flex flex-wrap gap-2 pt-2">
+          <Button variant="default" size="sm" asChild>
+            <Link href="/dashboard/messaging/website">
+              <Globe className="mr-1.5 h-4 w-4" aria-hidden />
+              {pm.messagingWebsiteLink}
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/messaging/inbox">{pm.goToInbox}</Link>
+          </Button>
+        </div>
       </div>
       <div className="section-surface">
         <div className="mx-auto w-full max-w-7xl">
-          <BusinessChannelsHubClient partners={rows ?? []} />
+          <BusinessChannelsHubClient partners={rows ?? []} websiteLinkLabel={pm.messagingWebsiteLink} />
         </div>
       </div>
     </div>

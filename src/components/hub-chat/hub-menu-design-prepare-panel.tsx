@@ -5,6 +5,7 @@ import { ImagePlus, Loader2, Plus, Trash2, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { MenuDishItem } from '@/lib/hub-chat/menu-dish-items'
 import { HubMenuFormatPicker, type MenuFormatPresetId } from '@/components/hub-chat/hub-menu-format-picker'
@@ -23,6 +24,11 @@ const COPY: Record<
     logoRemoveBtn: string
     dishesTitle: string
     dishesHint: string
+    dishesBulkLabel: string
+    dishesBulkHint: string
+    dishesBulkPlaceholder: string
+    dishesRowsLabel: string
+    dishesRowsHint: string
     colOrder: string
     colName: string
     colUnit: string
@@ -52,7 +58,15 @@ const COPY: Record<
     logoUploadBtn: 'Tải logo',
     logoRemoveBtn: 'Xóa logo',
     dishesTitle: 'Danh sách món',
-    dishesHint: 'Thêm từng món — số thứ tự, tên món, đơn vị (tô, ly, phần…), đơn giá VND.',
+    dishesHint:
+      'Dùng một hoặc cả hai cách bên dưới — AI nhận toàn bộ nội dung khi bạn bấm «Tạo menu».',
+    dishesBulkLabel: 'Dán menu (văn bản liền)',
+    dishesBulkHint:
+      'Dán từ Word, Zalo, Excel… — kể cả nhiều món trên một dòng, tiêu đề nhóm, bảng dính liền.',
+    dishesBulkPlaceholder:
+      'vd:\n1. 🧆 Khai Vị…\nLạc rang muối / Lạc luộcĐĩa20.000Đậu hũ lướt ván / Chiên giònĐĩa35.000\nMẹt Nướng Tổng Hợp: 350.000 VNĐ / Mẹt(Gồm: …)',
+    dishesRowsLabel: 'Hoặc nhập từng món',
+    dishesRowsHint: 'Số thứ tự, tên món, đơn vị (tô, ly, phần…), đơn giá VND.',
     colOrder: 'STT',
     colName: 'Tên món',
     colUnit: 'Đơn vị',
@@ -81,7 +95,14 @@ const COPY: Record<
     logoUploadBtn: 'Upload logo',
     logoRemoveBtn: 'Remove logo',
     dishesTitle: 'Dish list',
-    dishesHint: 'Add each dish — order no., name, unit (bowl, cup, portion…), price in VND.',
+    dishesHint: 'Use one or both sections below — AI receives all content when you tap «Generate menu».',
+    dishesBulkLabel: 'Paste menu (free-form text)',
+    dishesBulkHint:
+      'Paste from Word, chat, or Excel — including multiple dishes on one line or merged table cells.',
+    dishesBulkPlaceholder:
+      'e.g.\n1. Appetizers…\nSalted peanuts / Boiled peanutsPlate20.000\nCombo platter: 350.000 VND / Platter(includes: …)',
+    dishesRowsLabel: 'Or enter dish by dish',
+    dishesRowsHint: 'Order no., name, unit (bowl, cup, portion…), price in VND.',
     colOrder: 'No.',
     colName: 'Dish name',
     colUnit: 'Unit',
@@ -109,7 +130,13 @@ const COPY: Record<
     logoUploadBtn: '上传 Logo',
     logoRemoveBtn: '删除 Logo',
     dishesTitle: '菜品列表',
-    dishesHint: '逐条添加 — 序号、菜名、单位（碗、杯、份…）、越南盾单价。',
+    dishesHint: '可使用下方一种或两种方式 — 点击「生成菜单」时 AI 会收到全部内容。',
+    dishesBulkLabel: '粘贴菜单（自由文本）',
+    dishesBulkHint: '从 Word、聊天或 Excel 粘贴 — 含一行多菜、分组标题、合并单元格等。',
+    dishesBulkPlaceholder:
+      '例如：\n1. 开胃菜…\n花生/水煮花生盘20.000\n综合拼盘: 350.000 VND / 盘(含: …)',
+    dishesRowsLabel: '或逐条输入',
+    dishesRowsHint: '序号、菜名、单位（碗、杯、份…）、越南盾单价。',
     colOrder: '序号',
     colName: '菜名',
     colUnit: '单位',
@@ -138,7 +165,14 @@ const COPY: Record<
     logoUploadBtn: 'ロゴをアップロード',
     logoRemoveBtn: 'ロゴを削除',
     dishesTitle: '料理リスト',
-    dishesHint: '料理を追加 — 番号、名称、単位（杯、皿、人前…）、VND価格。',
+    dishesHint: '下のいずれかまたは両方を使用 — 「メニュー生成」で AI にすべて送信されます。',
+    dishesBulkLabel: 'メニューを貼付（自由テキスト）',
+    dishesBulkHint:
+      'Word・チャット・Excel から貼付 — 1行に複数料理、グループ見出し、結合セルも可。',
+    dishesBulkPlaceholder:
+      '例：\n1. 前菜…\nピーナッツ/ゆでピーナッツ皿20.000\n盛合せ: 350.000 VND / 盛(含: …)',
+    dishesRowsLabel: 'または1件ずつ入力',
+    dishesRowsHint: '番号、名称、単位（杯、皿、人前…）、VND価格。',
     colOrder: 'No.',
     colName: '料理名',
     colUnit: '単位',
@@ -167,7 +201,14 @@ const COPY: Record<
     logoUploadBtn: '로고 업로드',
     logoRemoveBtn: '로고 삭제',
     dishesTitle: '메뉴 목록',
-    dishesHint: '항목 추가 — 번호, 메뉴명, 단위(그릇, 잔, 인분…), VND 가격.',
+    dishesHint: '아래 한 가지 또는 두 가지 모두 사용 — «메뉴 생성» 시 AI에 전체 내용이 전달됩니다.',
+    dishesBulkLabel: '메뉴 붙여넣기(자유 텍스트)',
+    dishesBulkHint:
+      'Word, 채팅, Excel에서 붙여넣기 — 한 줄에 여러 메뉴, 그룹 제목, 병합 표도 가능.',
+    dishesBulkPlaceholder:
+      '예:\n1. 전채…\n땅콩/삶은 땅콩접시20.000\n모듬: 350.000 VND / 접시(포함: …)',
+    dishesRowsLabel: '또는 개별 입력',
+    dishesRowsHint: '번호, 메뉴명, 단위(그릇, 잔, 인분…), VND 가격.',
     colOrder: '번호',
     colName: '메뉴명',
     colUnit: '단위',
@@ -192,6 +233,7 @@ export function HubMenuDesignPreparePanel({
   venueName,
   logoUrl,
   dishes,
+  dishesBulkText,
   uploadImages,
   approvedMenuCount,
   busy,
@@ -201,6 +243,8 @@ export function HubMenuDesignPreparePanel({
   onUploadLogo,
   onRemoveLogo,
   onDishesChange,
+  onDishesBulkTextChange,
+  onDishesBulkTextCommit,
   onDishesCommit,
   onUploadProductFiles,
   onFinishFlow,
@@ -210,6 +254,7 @@ export function HubMenuDesignPreparePanel({
   venueName: string
   logoUrl?: string | null
   dishes: MenuDishItem[]
+  dishesBulkText: string
   uploadImages: string[]
   approvedMenuCount: number
   busy: boolean
@@ -219,6 +264,8 @@ export function HubMenuDesignPreparePanel({
   onUploadLogo: (files: FileList) => void | Promise<void>
   onRemoveLogo: () => void | Promise<void>
   onDishesChange: (dishes: MenuDishItem[]) => void
+  onDishesBulkTextChange: (text: string) => void
+  onDishesBulkTextCommit?: (text: string) => void | Promise<void>
   onDishesCommit?: (dishes: MenuDishItem[]) => void | Promise<void>
   onUploadProductFiles: (files: FileList) => void | Promise<void>
   onFinishFlow: () => void | Promise<void>
@@ -328,86 +375,106 @@ export function HubMenuDesignPreparePanel({
         onSelectPreset={onSelectFormat}
       />
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div>
           <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-100">{t.dishesTitle}</p>
           <p className="text-[11px] text-emerald-800/70 dark:text-emerald-200/70">{t.dishesHint}</p>
         </div>
-        <div className="hidden gap-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800/80 sm:grid sm:grid-cols-[3rem_1fr_5rem_6rem_2rem] dark:text-emerald-200/80">
-          <span>{t.colOrder}</span>
-          <span>{t.colName}</span>
-          <span>{t.colUnit}</span>
-          <span>{t.colPrice}</span>
-          <span className="sr-only">{t.removeDish}</span>
+
+        <div className="space-y-1.5 rounded-md border border-emerald-100 bg-white/60 p-2.5 dark:border-emerald-900 dark:bg-emerald-950/25">
+          <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-100">{t.dishesBulkLabel}</p>
+          <p className="text-[11px] text-emerald-800/70 dark:text-emerald-200/70">{t.dishesBulkHint}</p>
+          <Textarea
+            value={dishesBulkText}
+            onChange={(e) => onDishesBulkTextChange(e.target.value)}
+            onBlur={(e) => void onDishesBulkTextCommit?.(e.target.value)}
+            placeholder={t.dishesBulkPlaceholder}
+            disabled={busy}
+            className="min-h-[140px] text-xs"
+          />
         </div>
-        <div className="space-y-2">
-          {rows.map((dish) => (
-            <div
-              key={dish.id}
-              className="grid grid-cols-1 gap-1.5 rounded-md border border-emerald-100 bg-white/70 p-2 sm:grid-cols-[3rem_1fr_5rem_6rem_2rem] dark:border-emerald-900 dark:bg-emerald-950/30"
-            >
-              <Input
-                value={dish.order}
-                onChange={(e) => updateDish(dish.id, { order: e.target.value })}
-                onBlur={() => void onDishesCommit?.(dishes)}
-                placeholder={t.orderPlaceholder}
-                disabled={busy}
-                className="h-8 text-xs"
-                aria-label={t.colOrder}
-              />
-              <Input
-                value={dish.name}
-                onChange={(e) => updateDish(dish.id, { name: e.target.value })}
-                onBlur={() => void onDishesCommit?.(dishes)}
-                placeholder={t.namePlaceholder}
-                disabled={busy}
-                className="h-8 text-xs"
-                aria-label={t.colName}
-              />
-              <Input
-                value={dish.unit}
-                onChange={(e) => updateDish(dish.id, { unit: e.target.value })}
-                onBlur={() => void onDishesCommit?.(dishes)}
-                placeholder={t.unitPlaceholder}
-                disabled={busy}
-                className="h-8 text-xs"
-                aria-label={t.colUnit}
-              />
-              <Input
-                value={dish.priceVnd}
-                onChange={(e) => updateDish(dish.id, { priceVnd: e.target.value })}
-                onBlur={() => void onDishesCommit?.(dishes)}
-                placeholder={t.pricePlaceholder}
-                disabled={busy}
-                className="h-8 text-xs"
-                inputMode="numeric"
-                aria-label={t.colPrice}
-              />
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 shrink-0 text-emerald-800 hover:bg-emerald-100 hover:text-red-700 dark:text-emerald-200"
-                disabled={busy || rows.length <= 1}
-                aria-label={t.removeDish}
-                onClick={() => removeDish(dish.id)}
+
+        <div className="space-y-2 rounded-md border border-emerald-100 bg-white/60 p-2.5 dark:border-emerald-900 dark:bg-emerald-950/25">
+          <div>
+            <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-100">{t.dishesRowsLabel}</p>
+            <p className="text-[11px] text-emerald-800/70 dark:text-emerald-200/70">{t.dishesRowsHint}</p>
+          </div>
+          <div className="hidden gap-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800/80 sm:grid sm:grid-cols-[3rem_1fr_5rem_6rem_2rem] dark:text-emerald-200/80">
+            <span>{t.colOrder}</span>
+            <span>{t.colName}</span>
+            <span>{t.colUnit}</span>
+            <span>{t.colPrice}</span>
+            <span className="sr-only">{t.removeDish}</span>
+          </div>
+          <div className="space-y-2">
+            {rows.map((dish) => (
+              <div
+                key={dish.id}
+                className="grid grid-cols-1 gap-1.5 rounded-md border border-emerald-100 bg-white/70 p-2 sm:grid-cols-[3rem_1fr_5rem_6rem_2rem] dark:border-emerald-900 dark:bg-emerald-950/30"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ))}
+                <Input
+                  value={dish.order}
+                  onChange={(e) => updateDish(dish.id, { order: e.target.value })}
+                  onBlur={() => void onDishesCommit?.(dishes)}
+                  placeholder={t.orderPlaceholder}
+                  disabled={busy}
+                  className="h-8 text-xs"
+                  aria-label={t.colOrder}
+                />
+                <Input
+                  value={dish.name}
+                  onChange={(e) => updateDish(dish.id, { name: e.target.value })}
+                  onBlur={() => void onDishesCommit?.(dishes)}
+                  placeholder={t.namePlaceholder}
+                  disabled={busy}
+                  className="h-8 text-xs"
+                  aria-label={t.colName}
+                />
+                <Input
+                  value={dish.unit}
+                  onChange={(e) => updateDish(dish.id, { unit: e.target.value })}
+                  onBlur={() => void onDishesCommit?.(dishes)}
+                  placeholder={t.unitPlaceholder}
+                  disabled={busy}
+                  className="h-8 text-xs"
+                  aria-label={t.colUnit}
+                />
+                <Input
+                  value={dish.priceVnd}
+                  onChange={(e) => updateDish(dish.id, { priceVnd: e.target.value })}
+                  onBlur={() => void onDishesCommit?.(dishes)}
+                  placeholder={t.pricePlaceholder}
+                  disabled={busy}
+                  className="h-8 text-xs"
+                  inputMode="numeric"
+                  aria-label={t.colPrice}
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 shrink-0 text-emerald-800 hover:bg-emerald-100 hover:text-red-700 dark:text-emerald-200"
+                  disabled={busy || rows.length <= 1}
+                  aria-label={t.removeDish}
+                  onClick={() => removeDish(dish.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1 border-emerald-300 text-xs text-emerald-900 hover:bg-emerald-100 dark:border-emerald-700 dark:text-emerald-100"
+            disabled={busy}
+            onClick={addDish}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t.addDish}
+          </Button>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1 border-emerald-300 text-xs text-emerald-900 hover:bg-emerald-100 dark:border-emerald-700 dark:text-emerald-100"
-          disabled={busy}
-          onClick={addDish}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {t.addDish}
-        </Button>
       </div>
 
       <div className="space-y-1.5">

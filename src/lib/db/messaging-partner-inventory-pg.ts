@@ -389,27 +389,9 @@ export type PartnerInventorySearchEnrichment = {
 
 /**
  * Các URL ảnh phụ từ kho (trừ trùng ảnh chính) — dùng cho trường `color_image_urls` trong API tìm.
+ * @deprecated Import from `@/lib/messaging/inventory-extra-image-urls` (client-safe).
  */
-export function colorImageUrlsForInventorySearch(
-  mainImageUrl: string,
-  materialDetail: string,
-  realUse1: string,
-  realUse2: string
-): string[] {
-  const main = (mainImageUrl ?? '').trim()
-  const extra = [materialDetail, realUse1, realUse2]
-    .map((u) => (u ?? '').trim())
-    .filter((u) => /^https?:\/\//i.test(u))
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const u of extra) {
-    if (seen.has(u)) continue
-    if (main && u === main) continue
-    seen.add(u)
-    out.push(u)
-  }
-  return out
-}
+export { colorImageUrlsForInventorySearch } from '@/lib/messaging/inventory-extra-image-urls'
 
 export async function fetchPartnerInventorySearchEnrichmentByIdsFromPg(
   partnerId: string,
@@ -678,6 +660,29 @@ export async function fetchPartnerInventoryRowByIdForPartnerFromPg(
     return row ? mapPgInventoryRow(row) : null
   } catch (e) {
     console.warn('[fetchPartnerInventoryRowByIdForPartnerFromPg]', e)
+    return null
+  }
+}
+
+export async function fetchPartnerInventoryRowBySkuForPartnerFromPg(
+  partnerId: string,
+  sku: string
+): Promise<MessagingPartnerInventoryRow | null> {
+  if (!isPgConfigured()) return null
+  const normalizedSku = sku.trim()
+  if (!normalizedSku) return null
+  try {
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+         and lower(trim(coalesce(mpi.sku, ''))) = lower($2)
+       limit 1`,
+      [partnerId, normalizedSku]
+    )
+    const row = rows[0] ?? null
+    return row ? mapPgInventoryRow(row) : null
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryRowBySkuForPartnerFromPg]', e)
     return null
   }
 }
@@ -1639,6 +1644,11 @@ export async function updatePartnerInventoryDashboardItemFromPg(
     product_url: string
     product_video_url: string
     consult_note: string
+    material_note: string
+    material_detail_image_url: string
+    real_use_image_url: string
+    real_use_image_url_2: string
+    remarketing_id: string | null
     sort_order: number
     updated_at: string
   }
@@ -1657,9 +1667,14 @@ export async function updatePartnerInventoryDashboardItemFromPg(
         product_url = $10,
         product_video_url = $11,
         consult_note = $12,
-        sort_order = $13,
+        material_note = $13,
+        material_detail_image_url = $14,
+        real_use_image_url = $15,
+        real_use_image_url_2 = $16,
+        remarketing_id = $17,
+        sort_order = $18,
         is_active = true,
-        updated_at = $14::timestamptz
+        updated_at = $19::timestamptz
        where partner_id = $1::uuid and id = $2::uuid`,
       [
         partnerId,
@@ -1674,6 +1689,11 @@ export async function updatePartnerInventoryDashboardItemFromPg(
         fields.product_url,
         fields.product_video_url,
         fields.consult_note,
+        fields.material_note,
+        fields.material_detail_image_url,
+        fields.real_use_image_url,
+        fields.real_use_image_url_2,
+        fields.remarketing_id,
         fields.sort_order,
         fields.updated_at,
       ]
@@ -1698,6 +1718,11 @@ export async function insertPartnerInventoryDashboardItemFromPg(
     product_url: string
     product_video_url: string
     consult_note: string
+    material_note: string
+    material_detail_image_url: string
+    real_use_image_url: string
+    real_use_image_url_2: string
+    remarketing_id: string | null
     sort_order: number
     created_at: string
     updated_at: string
@@ -1708,9 +1733,10 @@ export async function insertPartnerInventoryDashboardItemFromPg(
     const row = await pgQueryOne<{ id: string }>(
       `insert into public.messaging_partner_inventory (
         partner_id, name, sku, description, stock_note, stock_qty, price_hint, image_url, product_url, product_video_url, consult_note,
+        material_note, material_detail_image_url, real_use_image_url, real_use_image_url_2, remarketing_id,
         sort_order, is_active, created_at, updated_at
       ) values (
-        $1::uuid, $2, $3, $4, $5, $6::int, $7, $8, $9, $10, $11, $12, true, $13::timestamptz, $14::timestamptz
+        $1::uuid, $2, $3, $4, $5, $6::int, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, true, $18::timestamptz, $19::timestamptz
       )
       returning id::text as id`,
       [
@@ -1725,6 +1751,11 @@ export async function insertPartnerInventoryDashboardItemFromPg(
         fields.product_url,
         fields.product_video_url,
         fields.consult_note,
+        fields.material_note,
+        fields.material_detail_image_url,
+        fields.real_use_image_url,
+        fields.real_use_image_url_2,
+        fields.remarketing_id,
         fields.sort_order,
         fields.created_at,
         fields.updated_at,

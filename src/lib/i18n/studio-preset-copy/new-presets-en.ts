@@ -238,6 +238,51 @@ export const NEW_PRESETS_EN = {
       personal_banner: 'Banner: name, title, personal brand gradient?',
     },
   },
+  bag_kit: {
+    title: 'Paper bag design',
+    kickoff:
+      'Paper bag: Logo → **back & front** (same W×H) → **3D preview** → net PDF. Bag depth is structural only — not printed.',
+    steps: {
+      brand_name: 'Brief: Brand name',
+      product_type: 'Brief: Product type',
+      bag_size: 'Brief: Bag size',
+      bag_panel_confirm: 'Brief: Confirm print panels',
+      style_mood: 'Brief: Style',
+      color_palette: 'Brief: Colors',
+      face_print_style: 'Brief: Visual art style',
+      logo: 'Logo',
+      face_back: 'Back print (W×H)',
+      face_front: 'Front print (W×H)',
+      bag_mockup_3d: '3D bag preview',
+      bag_dieline_pdf: 'Print-ready bag net PDF',
+    },
+    asks: {
+      brand_name: '① Brand / product name?',
+      product_type: '② What goes in the bag?',
+      bag_size:
+        '③ Size: **W × H × depth** (cm or mm). W×H = both print faces (equal). **Depth is not printed** — for net/3D only.',
+      bag_panel_confirm:
+        '④ Confirm: back & front same W×H; depth is structural — reply **OK** or re-enter size.',
+      style_mood: '⑤ Style: organic / luxury / minimal / playful?',
+      color_palette: '⑥ Print color palette?',
+      face_print_style: '⑦ One visual style for **both print faces**.',
+      logo: 'Describe the bag logo — or **Upload logo**.',
+      face_back: '⑧ Back W×H — **Upload**, describe print, or **leave blank**. Full bleed.',
+      face_front:
+        '⑨ Front W×H (same as back) — **Upload**, **leave blank**, **same as back**, or unique content.',
+      bag_mockup_3d: '3D preview: photoreal standing bag using approved front/back art and depth from brief.',
+      bag_dieline_pdf: 'Review reference flat net, then export print PDF.',
+    },
+    askExamples: {
+      brand_name: 'Morning Cafe — specialty coffee',
+      product_type: 'Coffee beans & brewing accessories',
+      bag_size: '200 × 280 × 60 mm',
+      bag_panel_confirm: 'OK',
+      style_mood: 'Minimal luxury — kraft + gold logo',
+      color_tone: 'Kraft brown, black type, gold accent',
+      face_print_style: 'Flat illustration — minimal line art',
+    },
+  },
   food_menu: {
     title: 'Restaurant menu design',
     kickoff:

@@ -18,9 +18,15 @@ import {
 import { resolvePackagingStepLabel } from '@/lib/packaging/packaging-face-labels'
 import { isMobileShopContinueOnlyApproveStep } from '@/lib/hub-chat/hub-mobile-shop-style-anchor'
 import { isPackagingContinueOnlyApproveStep } from '@/lib/packaging/product-label-step'
-import { shouldShowStudioReferencePreviews } from '@/lib/hub-chat/hub-studio-reference-limits'
+import {
+  buildReferencePreviewsPayload,
+  filterStaleReferencePreviews,
+  shouldShowStudioReferencePreviews,
+} from '@/lib/hub-chat/hub-studio-reference-limits'
 import type { WebLocale } from '@/lib/i18n/config'
 import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
+import { isBagKitPreset } from '@/lib/hub-chat/bag-kit-shared'
+import { PackagingBagMockup3D } from '@/components/hub-chat/packaging-bag-mockup-3d'
 import { PackagingBoxMockup3D } from '@/components/hub-chat/packaging-box-mockup-3d'
 
 type StudioLine = {
@@ -457,6 +463,12 @@ export function HubStudioMessageBubble({
     st?.screenKey === 'box_mockup_3d' &&
     studioSession.packaging?.dimensionsMm &&
     studioSession.packaging.faceSlots
+  const interactiveBagMockup =
+    isBagKitPreset(studioSession?.presetId) &&
+    st?.screenKey === 'bag_mockup_3d' &&
+    studioSession.bagKit?.dimensionsMm &&
+    studioSession.bagKit.faceSlots
+  const interactiveMockup3d = interactivePackaging || interactiveBagMockup
   const isPackagingFacePreview =
     studioSession?.presetId === 'packaging_kit' &&
     Boolean(st?.screenKey && isPackagingFaceStepKey(st.screenKey))
@@ -469,12 +481,28 @@ export function HubStudioMessageBubble({
       studioSession.pendingPreview.url
   )
   const showContinueButton = Boolean(st?.showApproveReference && pendingMatchesStep)
+  const resolvedReferencePreviews = useMemo(
+    () => filterStaleReferencePreviews(st?.referencePreviews, studioSession),
+    [st?.referencePreviews, studioSession]
+  )
+  const referencePreviewMeta = useMemo(() => {
+    if (studioSession && shouldShowStudioReferencePreviews(studioSession)) {
+      return buildReferencePreviewsPayload(studioSession)
+    }
+    return {
+      referenceCount: st?.referenceCount,
+      referenceMax: st?.referenceMax,
+      showReferenceRemove: st?.showReferenceRemove,
+    }
+  }, [studioSession, st?.referenceCount, st?.referenceMax, st?.showReferenceRemove])
   const showReferencePreviews = Boolean(
-    st?.referencePreviews?.length &&
+    resolvedReferencePreviews.length &&
       (!studioSession || shouldShowStudioReferencePreviews(studioSession))
   )
   const approveButtonLabel =
-    studioSession?.presetId === 'sale_banner' && st?.previewKind === 'banner'
+    (studioSession?.presetId === 'sale_banner' && st?.previewKind === 'banner') ||
+    studioSession?.presetId === 'food_menu' ||
+    studioSession?.presetId === 'landing_page'
       ? hc.studioBannerNext ?? hc.studioContinue
       : isAudio || isPackagingFacePreview || continueOnlyApprove
         ? hc.studioContinue
@@ -500,13 +528,14 @@ export function HubStudioMessageBubble({
 
   const displayScreenLabel = useMemo(() => {
     if (!st?.screenKey) return st?.screenLabel ?? ''
-    if (studioSession?.packaging?.dimensionsMm) {
+    if (studioSession?.packaging?.dimensionsMm || studioSession?.bagKit?.dimensionsMm) {
       return resolvePackagingStepLabel(
         studioSession.processSteps,
         st.screenKey,
         uiLocale,
         studioSession.presetId,
-        studioSession.packaging.dimensionsMm
+        studioSession.packaging?.dimensionsMm ?? null,
+        studioSession.bagKit?.dimensionsMm ?? null
       )
     }
     return st.screenLabel ?? ''
@@ -652,22 +681,23 @@ export function HubStudioMessageBubble({
         <div className="mt-2 space-y-1.5">
           <p className="text-xs font-medium text-violet-800 dark:text-violet-200">
             {hc.studioReferenceTitle}
-            {typeof st.referenceCount === 'number' && typeof st.referenceMax === 'number' ? (
+            {typeof referencePreviewMeta.referenceCount === 'number' &&
+            typeof referencePreviewMeta.referenceMax === 'number' ? (
               <span className="ml-1 font-normal text-muted-foreground">
                 {hc.studioReferenceCount
-                  .replace('{count}', String(st.referenceCount))
-                  .replace('{max}', String(st.referenceMax))}
+                  .replace('{count}', String(referencePreviewMeta.referenceCount))
+                  .replace('{max}', String(referencePreviewMeta.referenceMax))}
               </span>
             ) : null}
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {st.referencePreviews!.map((ref) => (
+            {resolvedReferencePreviews.map((ref) => (
               <div
                 key={ref.screenKey || ref.url}
                 className="relative w-[72px] overflow-hidden rounded-md border border-violet-200 bg-white dark:border-violet-800"
                 title={ref.label}
               >
-                {st.showReferenceRemove && ref.screenKey && onRemoveReference ? (
+                {referencePreviewMeta.showReferenceRemove && ref.screenKey && onRemoveReference ? (
                   <button
                     type="button"
                     disabled={busy}
@@ -869,6 +899,22 @@ export function HubStudioMessageBubble({
                 failedDescription: hc.studioDownloadFailedHint,
               }}
             />
+          ) : interactiveBagMockup ? (
+            <PackagingBagMockup3D
+              dimensionsMm={studioSession.bagKit!.dimensionsMm!}
+              faceSlots={studioSession.bagKit!.faceSlots!}
+              locale={uiLocale}
+              photoUrl={studioSession.bagKit?.mockupPhotoUrl}
+              downloadUrl={studioSession.bagKit?.mockupUrl ?? st.imageUrl}
+              viewLargeLabel={hc.studioViewLarge}
+              downloadLabels={{
+                button: hc.studioDownload,
+                png: hc.studioDownloadPng,
+                jpeg: hc.studioDownloadJpeg,
+                failedTitle: hc.studioDownloadFailed,
+                failedDescription: hc.studioDownloadFailedHint,
+              }}
+            />
           ) : (
             <StudioImageLightbox
               src={st.imageUrl}
@@ -903,7 +949,7 @@ export function HubStudioMessageBubble({
             </div>
           ) : null}
           <div className="flex flex-wrap gap-1.5">
-            {!interactivePackaging ? (
+            {!interactiveMockup3d ? (
               <HubStudioImageDownloadButton
                 imageUrl={st.imageUrl}
                 screenKey={st.screenKey}

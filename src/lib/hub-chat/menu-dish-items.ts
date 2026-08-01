@@ -43,6 +43,10 @@ export function menuDishesHaveContent(dishes: MenuDishItem[]): boolean {
   return dishes.some((d) => d.name.trim() && d.priceVnd.trim())
 }
 
+export function menuInputHasContent(dishes: MenuDishItem[], bulkText?: string): boolean {
+  return menuDishesHaveContent(dishes) || Boolean(bulkText?.trim())
+}
+
 export function formatMenuDishesForPrompt(dishes: MenuDishItem[]): string {
   const rows = dishes
     .filter((d) => d.name.trim())
@@ -64,4 +68,18 @@ export function formatMenuDishesFlat(dishes: MenuDishItem[]): string {
       return parts.join(' · ')
     })
     .join(' | ')
+}
+
+/** Gộp văn bản dán + bảng từng dòng để đưa vào prompt AI. */
+export function formatMenuInputForPrompt(dishes: MenuDishItem[], bulkText?: string): string {
+  const parts: string[] = []
+  const bulk = bulkText?.trim()
+  if (bulk) {
+    parts.push(`Free-form menu text (user pasted — interpret layout, categories, names, units, prices):\n${bulk}`)
+  }
+  const rows = formatMenuDishesForPrompt(dishes)
+  if (rows.trim()) {
+    parts.push(`Structured dish rows (order · name · unit · price VND):\n${rows}`)
+  }
+  return parts.join('\n\n')
 }

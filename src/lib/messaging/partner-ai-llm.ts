@@ -8,6 +8,10 @@ import {
 import type { GuestProfileGender } from '@/lib/db/messaging-guest-pg'
 import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import {
+  annotateFashionSizeWeightTextForAi,
+  FASHION_CHINESE_JIN_SIZE_WEIGHT_AI_PROMPT,
+} from '@/lib/messaging/fashion-size-weight-units'
+import {
   buildPartnerAiWarehouseVndPricingNote,
   shouldMarkInventoryPricesAsVndForAi,
 } from '@/lib/messaging/partner-ai-currency-context'
@@ -175,16 +179,20 @@ Trả lời bám đúng bốn dòng trên và dòng kho chi tiết; không gợi
 
 function formatInventoryLines(
   rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][],
-  options?: { markPricesAsVnd?: boolean }
+  options?: { markPricesAsVnd?: boolean; annotateChineseJinSizes?: boolean }
 ): string {
   if (!rows.length) return '(Chưa có mặt hàng nào trong danh sách kho.)'
   const priceKey = options?.markPricesAsVnd ? 'Giá (đơn vị VNĐ / ₫)' : 'Giá'
+  const annotateSizes = options?.annotateChineseJinSizes === true
+  const maybeAnnotate = (s: string) => (annotateSizes ? annotateFashionSizeWeightTextForAi(s) : s)
   return rows
     .map((r, i) => {
       const sku = r.sku?.trim() ? ` [Mã/SKU: ${r.sku.trim()}]` : ''
-      const stock = r.stock_note?.trim() ? ` | Tồn kho: ${r.stock_note.trim()}` : ''
+      const stock = r.stock_note?.trim() ? ` | Tồn kho: ${maybeAnnotate(r.stock_note.trim())}` : ''
       const price = r.price_hint?.trim() ? ` | ${priceKey}: ${r.price_hint.trim()}` : ''
-      const desc = r.description?.trim() ? ` — Thông số/mô tả: ${r.description.trim()}` : ''
+      const desc = r.description?.trim()
+        ? ` — Thông số/mô tả: ${maybeAnnotate(r.description.trim())}`
+        : ''
       const img = r.image_url?.trim()
         ? ` | Ảnh chính sản phẩm (URL — nguồn duy nhất để tạo ảnh chi tiết chất liệu và ảnh đời thường/góc tự nhiên): ${r.image_url.trim()}`
         : ''
@@ -194,7 +202,7 @@ function formatInventoryLines(
       const pv = r.product_video_url?.trim()
       const video =
         pv && /^https?:\/\//i.test(pv) ? ` | Video sản phẩm (URL): ${pv}` : ''
-      const extra = r.consult_note?.trim() ? ` | Ghi chú tư vấn: ${r.consult_note.trim()}` : ''
+      const extra = r.consult_note?.trim() ? ` | Ghi chú tư vấn: ${maybeAnnotate(r.consult_note.trim())}` : ''
       const colors = colorHintsFromInventoryRow(r)
       const mat = r.material_note?.trim() ? ` | Chất liệu (đã lưu/kho): ${r.material_note.trim()}` : ''
       const matImg = r.material_detail_image_url?.trim()
@@ -865,10 +873,10 @@ export async function buildPartnerAiContext(
   /** Khách hỏi góc ảnh rất cụ thể (inside/front/back...) — worker ưu tiên template thẻ + «Xem chi tiết», không sinh ảnh AI. */
   specificAnglePhotoRequest: boolean
   specificAnglePhotoTemplateInventoryRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] | null
+  /** Shop ngành thời trang — áp dụng quy ước cân TQ (斤) khi tư vấn size. */
+  isFashionPartner: boolean
 }> {
   const effectiveLocaleOpts = await resolvePartnerAiLocaleOpts(conversationId, localeOpts)
-  const invFmtOpts = { markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts) }
-
   let isFashionPartner = false
   if (isPgConfigured()) {
     try {
@@ -877,6 +885,10 @@ export async function buildPartnerAiContext(
     } catch (e) {
       console.warn('[partner-ai-llm] partner industry', e)
     }
+  }
+  const invFmtOpts = {
+    markPricesAsVnd: shouldMarkInventoryPricesAsVndForAi(effectiveLocaleOpts),
+    annotateChineseJinSizes: isFashionPartner,
   }
 
   let guestProfileBlockForAi = ''
@@ -1156,6 +1168,7 @@ ${humanShopFactsBlock}`,
       partnerAiCtaStrategy: payloadRouteDecision?.ctaStrategy ?? null,
       specificAnglePhotoRequest: false,
       specificAnglePhotoTemplateInventoryRows: null,
+      isFashionPartner,
     }
   }
 
@@ -1187,6 +1200,7 @@ ${humanShopFactsBlock}`,
       partnerAiCtaStrategy: payloadRouteDecision?.ctaStrategy ?? 'no_cta',
       specificAnglePhotoRequest: false,
       specificAnglePhotoTemplateInventoryRows: null,
+      isFashionPartner,
     }
   }
 
@@ -1590,7 +1604,7 @@ Phần «Danh sách kho» trong prompt user là **đúng một dòng** — **ch�
   const salesDefaultBlock = `
 Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 - Khi tư vấn dựa trên **thông tin sản phẩm có trong kho** (tên, mô tả, ghi chú tư vấn, mã, giá, tồn…): đừng chỉ liệt kê thông số — hãy diễn giải thành **ưu điểm và lợi ích cho khách**: mặc lên tự tin hơn, chỉn chu, tôn dáng, gọn gàng, phù hợp dịp (tiệc, đi làm, hằng ngày…), dễ phối đồ hoặc thoải mái khi sử dụng — luôn bám sát dữ liệu thật trong kho; không phóng đại, không khẳng định y học, giảm cân, trị bệnh hay hiệu quả tuyệt đối.
-- **Khách quan tâm / bấm tư vấn / hỏi một mẫu cụ thể:** luôn **báo giá ngay trong message** nếu dòng kho có giá (không chỉ dựa vào giá trên thẻ); nếu chưa thấy giá trong dữ liệu thì nói thật là chưa thấy giá lưu trong kho. Sau khi báo giá, hỏi đúng **một câu tư vấn fit** theo nhóm hàng: (1) quần áo/váy/đầm/set/áo/quần/blazer... → hỏi **chiều cao và cân nặng** để tư vấn size/dáng; (2) giày/dép/sandal/boot/guốc/sneaker... → hỏi khách **thường đi size bao nhiêu** để tư vấn tiếp; (3) túi/ba lô/vali/ví/phụ kiện đeo vai-xách tay... → hỏi **mục đích dùng hoặc kích thước cần đựng** (ví dụ đi làm/du lịch mấy ngày, có cần để laptop bao nhiêu inch). **Tuyệt đối không hỏi size giày khi sản phẩm đang tư vấn là túi/ba lô/vali/ví/phụ kiện**. Nếu khách đã cung cấp thông tin fit liên quan trong lịch sử gần, dùng dữ liệu đó để tư vấn thay vì hỏi lại.
+- **Khách quan tâm / bấm tư vấn / hỏi một mẫu cụ thể:** luôn **báo giá ngay trong message** nếu dòng kho có giá (không chỉ dựa vào giá trên thẻ); nếu chưa thấy giá trong dữ liệu thì nói thật là chưa thấy giá lưu trong kho. Sau khi báo giá, hỏi đúng **một câu tư vấn fit** theo nhóm hàng: (1) quần áo/váy/đầm/set/áo/quần/blazer... → hỏi **chiều cao và cân nặng (kg)** để tư vấn size/dáng; (2) giày/dép/sandal/boot/guốc/sneaker... → hỏi khách **thường đi size bao nhiêu** để tư vấn tiếp; (3) túi/ba lô/vali/ví/phụ kiện đeo vai-xách tay... → hỏi **mục đích dùng hoặc kích thước cần đựng** (ví dụ đi làm/du lịch mấy ngày, có cần để laptop bao nhiêu inch). **Tuyệt đối không hỏi size giày khi sản phẩm đang tư vấn là túi/ba lô/vali/ví/phụ kiện**. Nếu khách đã cung cấp thông tin fit liên quan trong lịch sử gần, dùng dữ liệu đó để tư vấn thay vì hỏi lại.
 - Khi đã nêu đủ thông tin sản phẩm từ kho, có thể gợi ý nhẹ bước tiếp (size/màu, hoặc chiều cao–cân nặng nếu cần) — **không** ra lệnh, **không** hối chốt. Ưu tiên để khách **tự suy nghĩ**; mời thao tác trên giao diện (đặt hàng, xem thẻ) chỉ khi tự nhiên phù hợp ngữ cảnh.
 - **Không** lặp lại cùng kiểu câu hỏi chốt màu/size kiểu "chị chọn hồng hay đen ạ?", "đã chọn được màu chưa?" ở **nhiều tin liên tiếp** — dễ gây cảm giác ép mua. Nếu đã gợi ý một lần, các tin sau **tập trung trả lời đúng câu hỏi** của khách; chỉ nhắc màu/size khi khách hỏi hoặc khi thật cần để tư vấn tiếp.
 - Giảm do dự: có thể nhắc một dòng về đổi trả / giao hàng / thanh toán CHỈ khi đã có trong chính sách shop ở trên; không bịa thêm.
@@ -1602,13 +1616,15 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 - Nhấn mạnh giá trị (phù hợp dáng, dịp mặc, chất liệu) thay vì ép mua; tránh nhiều câu hỏi trong một tin — tối đa một lời mở / gợi ý nhẹ, không xếp hàng nhiều câu hỏi.
 - Không hứa giảm giá hay khuyến mãi ngoài chính sách đã cho.${inChatBuyNowCtaBlock}${salesShopBlock}`
 
+  const fashionSizeWeightBlock = isFashionPartner ? FASHION_CHINESE_JIN_SIZE_WEIGHT_AI_PROMPT : ''
+
   const system = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 ${PARTNER_AI_TRANSCRIPT_READING_CONVENTION}
 ${PARTNER_AI_ALTERNATIVE_MODEL_QUERY_DOCTRINE}
 ${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
-${humanShopFactsBlock}
+${humanShopFactsBlock}${fashionSizeWeightBlock}
 ${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}
 ${salesDefaultBlock}${salesConversionRouterBlock}
 ${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum} Chỉ giới thiệu sản phẩm từ danh sách đó. Khi giới thiệu hoặc so sánh mặt hàng cụ thể, ưu tiên nói **lợi ích cho khách** (thẩm mỹ, độ phù hợp, sự thoải mái…) xuất phát từ thông tin trong kho, không chỉ đọc giá/mã. Nếu không có đúng sản phẩm trong danh sách, nói rõ chưa thấy thông tin khớp và chuyển hướng tư vấn: hỏi khách có muốn xem sản phẩm tương tự đang có trong kho không.
@@ -1770,6 +1786,7 @@ Chỉ để products = [] khi thực sự không tìm được mặt hàng phù 
     specificAnglePhotoRequest,
     specificAnglePhotoTemplateInventoryRows:
       specificAnglePhotoTemplateInventoryRows.length > 0 ? specificAnglePhotoTemplateInventoryRows : null,
+    isFashionPartner,
   }
 }
 
