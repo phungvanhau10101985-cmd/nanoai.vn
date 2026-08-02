@@ -29,7 +29,6 @@ import { insertPartnerOrderEventFromPg } from '@/lib/db/messaging-partner-orders
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
 import { emitPartnerOutboundPaymentPaid } from '@/lib/messaging/partner-outbound-webhook-emit'
-import { emitPartnerOutboundPaymentPaid } from '@/lib/messaging/partner-outbound-webhook-emit'
 
 type SePayBody = Record<string, string | number | boolean | null | undefined>
 
