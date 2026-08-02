@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  MESSAGING_GUEST_ACCOUNT_STORAGE_KEY,
-  MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY,
   MESSAGING_GUEST_SESSION_HEADER,
   MESSAGING_GUEST_SESSION_STORAGE_KEY,
   MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY,
   MESSAGING_GUEST_SESSION_SYNC_COOKIE,
 } from '@/lib/messaging/guest-auth-session'
-import { MESSAGING_GUEST_ACCOUNT_HEADER } from '@/lib/messaging/guest-account-session'
+import {
+  MESSAGING_GUEST_ACCOUNT_HEADER,
+  MESSAGING_GUEST_ACCOUNT_STORAGE_KEY,
+  MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY,
+} from '@/lib/messaging/guest-account-session'
 import { partnerSiteSessionApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 

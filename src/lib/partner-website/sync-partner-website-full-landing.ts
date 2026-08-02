@@ -33,6 +33,11 @@ export async function syncPartnerWebsiteFullLandingPg(input: {
     return { website: existing, upgraded: false, htmlRefreshed: false }
   }
 
+  // Visual «Sửa nhanh» owns HTML — do not regenerate project from template pages.
+  if (existing.theme?.useVisualHtml) {
+    return { website: existing, upgraded: false, htmlRefreshed: false }
+  }
+
   const { pages, changed: upgraded } = upgradeLandingV1Pages({
     pages: existing.pages,
     locale: input.locale ?? existing.locale,

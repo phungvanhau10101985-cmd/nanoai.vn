@@ -6,6 +6,7 @@ import {
 import { fetchMessagingGuestCartFromPg } from '@/lib/db/messaging-guest-cart-pg'
 import {
   appendPartnerVisitorEventInventoryIdsFromPg,
+  clearPartnerVisitorRecentlyViewedFromPg,
   fetchPartnerVisitorPersonalizationFromPg,
   mutatePartnerVisitorFavoriteFromPg,
   upsertPartnerVisitorRecentlyViewedFromPg,
@@ -104,15 +105,19 @@ export function mapInventoryRowToPersonalizationProduct(
   row: MessagingPartnerInventoryRow
 ): PartnerSitePersonalizationProduct | null {
   const imageUrl = (row.image_url ?? '').trim()
-  const productUrl = (row.product_url ?? '').trim()
-  if (!/^https?:\/\//i.test(imageUrl) || !/^https?:\/\//i.test(productUrl)) return null
+  if (!/^https?:\/\//i.test(imageUrl)) return null
+  const detailPath = partnerSiteProductPath(siteSlug, row.id)
+  const rawProductUrl = (row.product_url ?? '').trim()
+  const productUrl = /^https?:\/\//i.test(rawProductUrl)
+    ? rawProductUrl
+    : `https://shop.local${detailPath}`
   return {
     inventory_id: row.id,
     name: (row.name ?? '').trim() || 'Product',
     price_hint: (row.price_hint ?? '').trim(),
     image_url: imageUrl,
     product_url: productUrl,
-    detail_path: partnerSiteProductPath(siteSlug, row.id),
+    detail_path: detailPath,
     sku: (row.sku ?? '').trim() || null,
   }
 }
@@ -394,6 +399,13 @@ export async function trackSitePersonalizationEventDetailed(input: {
       action,
     })
     return result ? { ok: true, is_favorite: result.is_favorite } : { ok: false }
+  }
+  if (event === 'clear_recently_viewed' || event === 'clear_recent') {
+    const ok = await clearPartnerVisitorRecentlyViewedFromPg({
+      partnerId: input.partnerId,
+      accountKey: input.accountKey,
+    })
+    return { ok }
   }
   return { ok: event === 'page_view' }
 }

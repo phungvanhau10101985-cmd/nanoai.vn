@@ -57,16 +57,28 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { PartnerAiSettingsPanel } from '@/app/dashboard/messaging/partner-ai-settings-panel'
+import { PartnerBirthdayPromoSettingsCard } from '@/app/dashboard/messaging/partner-birthday-promo-settings-card'
+import { PartnerCustomDomainSettingsCard } from '@/app/dashboard/messaging/partner-custom-domain-settings-card'
+import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
+import { isMarketingEligibleIndustry } from '@/lib/messaging/partner-marketing-segment'
 import {
   ArrowLeft,
+  Bot,
   Building2,
+  Cake,
+  ClipboardList,
   CreditCard,
+  ExternalLink,
+  Globe,
+  LineChart,
+  Megaphone,
+  Package,
   Palette,
   Plug,
   RefreshCw,
   Share2,
   Table,
-  LineChart,
+  TrendingUp,
   Trophy,
   Trash2,
   Upload,
@@ -110,10 +122,48 @@ function partnerAllowsPerm(p: MessagingPartnerDashboardRow | null | undefined, k
   return Boolean(p.staff_permissions?.[k])
 }
 
-function partnerCanAiPanel(p: MessagingPartnerDashboardRow | null | undefined): boolean {
+function partnerCanAiSettingsPanel(p: MessagingPartnerDashboardRow | null | undefined): boolean {
   if (!p) return false
   if (p.dashboard_access === 'owner') return true
-  return Boolean(p.staff_permissions?.ai_settings || p.staff_permissions?.inventory)
+  return Boolean(p.staff_permissions?.ai_settings)
+}
+
+function partnerCanAiUsagePanel(p: MessagingPartnerDashboardRow | null | undefined): boolean {
+  if (!p) return false
+  if (p.dashboard_access === 'owner') return true
+  return Boolean(p.staff_permissions?.ai_settings || p.staff_permissions?.usage_reports)
+}
+
+function partnerCanPromotionsPanel(p: MessagingPartnerDashboardRow | null | undefined): boolean {
+  if (!p) return false
+  if (p.dashboard_access === 'owner') return true
+  return Boolean(p.staff_permissions?.ai_settings)
+}
+
+function partnerCanOrdersHub(p: MessagingPartnerDashboardRow | null | undefined): boolean {
+  if (!p) return false
+  if (p.industry_key === 'hotel') return false
+  if (p.dashboard_access === 'owner') return true
+  return Boolean(p.staff_permissions?.orders)
+}
+
+function partnerCanMarketingHub(p: MessagingPartnerDashboardRow | null | undefined): boolean {
+  if (!p) return false
+  if (!isMarketingEligibleIndustry(p.industry_key)) return false
+  if (p.dashboard_access === 'owner') return true
+  return Boolean(p.staff_permissions?.marketing_campaigns)
+}
+
+function partnerCanWebsiteHub(p: MessagingPartnerDashboardRow | null | undefined): boolean {
+  if (!p) return false
+  if (p.dashboard_access === 'owner') return true
+  return Boolean(p.staff_permissions?.website)
+}
+
+function partnerCanInventoryPanel(p: MessagingPartnerDashboardRow | null | undefined): boolean {
+  if (!p) return false
+  if (p.dashboard_access === 'owner') return true
+  return Boolean(p.staff_permissions?.inventory)
 }
 type LogoVersionRow = {
   id: string
@@ -169,6 +219,33 @@ function SettingsBlock({
       <div className="sm:pl-[3.25rem]">{children}</div>
     </section>
   )
+}
+
+const MESSAGING_SETTINGS_SECTION_IDS = [
+  'workspace',
+  'brand',
+  'inventory',
+  'channels',
+  'domains',
+  'analytics-meta',
+  'analytics-ads',
+  'payment',
+  'sheets',
+  'loyalty',
+  'promotions',
+  'api',
+  'ai',
+  'ai-usage',
+] as const
+
+type MessagingSettingsSectionId = (typeof MESSAGING_SETTINGS_SECTION_IDS)[number]
+
+function normalizeSettingsSectionParam(value: string | null): MessagingSettingsSectionId | null {
+  if (value === 'analytics') return 'analytics-meta'
+  if (value != null && (MESSAGING_SETTINGS_SECTION_IDS as readonly string[]).includes(value)) {
+    return value as MessagingSettingsSectionId
+  }
+  return null
 }
 
 export function PartnerMessagingSettingsClient({
@@ -263,12 +340,196 @@ export function PartnerMessagingSettingsClient({
   const [staffInviteEmail, setStaffInviteEmail] = useState('')
   const [staffRows, setStaffRows] = useState<PartnerMemberRow[]>([])
   const [staffDraftPerm, setStaffDraftPerm] = useState<Record<string, PartnerStaffPermissionMap>>({})
+  const [websitePublicUrl, setWebsitePublicUrl] = useState<string | null>(null)
+  const [websiteHasProject, setWebsiteHasProject] = useState(false)
+  const [websiteLoading, setWebsiteLoading] = useState(false)
 
   const selectedPartner = useMemo(
     () => partners.find((p) => p.id === selectedPartnerId) ?? null,
     [partners, selectedPartnerId]
   )
   const isOwnerSelected = selectedPartner?.dashboard_access === 'owner'
+  const sectionParam = searchParams.get('section')
+  const normalizedSectionParam = normalizeSettingsSectionParam(sectionParam)
+  const [activeSection, setActiveSection] = useState<MessagingSettingsSectionId>(() =>
+    normalizedSectionParam ?? 'workspace'
+  )
+
+  const settingsNavItems = useMemo(() => {
+    const items: Array<{
+      id: MessagingSettingsSectionId
+      label: string
+      icon: ComponentType<{ className?: string }>
+      visible: boolean
+    }> = [
+      { id: 'workspace', label: t.workspaceLabel, icon: Building2, visible: true },
+      {
+        id: 'brand',
+        label: t.teamPermWorkspaceBranding,
+        icon: Palette,
+        visible: Boolean(selectedPartnerId && partnerAllowsPerm(selectedPartner, 'workspace_branding')),
+      },
+      {
+        id: 'inventory',
+        label: t.teamPermInventory,
+        icon: Package,
+        visible: Boolean(selectedPartnerId && partnerCanInventoryPanel(selectedPartner)),
+      },
+      {
+        id: 'channels',
+        label: t.channelsSection,
+        icon: Share2,
+        visible: partnerAllowsPerm(selectedPartner, 'integrations_channels'),
+      },
+      {
+        id: 'domains',
+        label: t.settingsNavCustomDomain,
+        icon: Globe,
+        visible: isOwnerSelected,
+      },
+      {
+        id: 'analytics-meta',
+        label: t.settingsNavAnalyticsMeta,
+        icon: LineChart,
+        visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
+      },
+      {
+        id: 'analytics-ads',
+        label: t.settingsNavAnalyticsAds,
+        icon: TrendingUp,
+        visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
+      },
+      { id: 'payment', label: t.settingsNavPayment, icon: CreditCard, visible: isOwnerSelected },
+      { id: 'sheets', label: t.settingsNavSheets, icon: Table, visible: isOwnerSelected },
+      { id: 'loyalty', label: t.settingsNavLoyalty, icon: Trophy, visible: isOwnerSelected },
+      {
+        id: 'promotions',
+        label: t.settingsNavPromotions,
+        icon: Cake,
+        visible: Boolean(selectedPartnerId && partnerCanPromotionsPanel(selectedPartner)),
+      },
+      { id: 'api', label: t.messagingSettingsApiHubCardTitle, icon: Plug, visible: isOwnerSelected },
+      {
+        id: 'ai',
+        label: tAi.panelTitle,
+        icon: Bot,
+        visible: Boolean(selectedPartnerId && partnerCanAiSettingsPanel(selectedPartner)),
+      },
+      {
+        id: 'ai-usage',
+        label: t.settingsNavAiUsage,
+        icon: Bot,
+        visible: Boolean(selectedPartnerId && partnerCanAiUsagePanel(selectedPartner)),
+      },
+    ]
+    return items
+  }, [isOwnerSelected, selectedPartner, selectedPartnerId, t, tAi])
+
+  const visibleSettingsSections = useMemo(
+    () => settingsNavItems.filter((item) => item.visible).map((item) => item.id),
+    [settingsNavItems]
+  )
+
+  const partnerNavQuery = selectedPartnerId ? `?partner=${encodeURIComponent(selectedPartnerId)}` : ''
+
+  const settingsExternalNavItems = useMemo(() => {
+    const slug = selectedPartner?.slug?.trim() ?? ''
+    const websiteHref = slug ? partnerWebsiteDashboardPath(slug) : `/dashboard/messaging/website${partnerNavQuery}`
+    return [
+      {
+        id: 'hub-marketing',
+        href: `/dashboard/messaging/marketing${partnerNavQuery}`,
+        label: t.marketingCampaignsLink,
+        icon: Megaphone,
+        visible: Boolean(selectedPartnerId && partnerCanMarketingHub(selectedPartner)),
+      },
+      {
+        id: 'hub-website',
+        href: websiteHref,
+        label: t.messagingWebsiteLink,
+        icon: Globe,
+        visible: Boolean(selectedPartnerId && partnerCanWebsiteHub(selectedPartner)),
+      },
+      {
+        id: 'hub-orders',
+        href: `/dashboard/messaging/orders${partnerNavQuery}`,
+        label: t.messagingOrdersLink,
+        icon: ClipboardList,
+        visible: Boolean(selectedPartnerId && partnerCanOrdersHub(selectedPartner)),
+      },
+    ]
+  }, [partnerNavQuery, selectedPartner, selectedPartnerId, t])
+
+  useEffect(() => {
+    if (!selectedPartnerId || !partnerCanWebsiteHub(selectedPartner)) {
+      setWebsitePublicUrl(null)
+      setWebsiteHasProject(false)
+      setWebsiteLoading(false)
+      return
+    }
+    let cancelled = false
+    setWebsiteLoading(true)
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/messaging/partner-website/${encodeURIComponent(selectedPartnerId)}?locale=${encodeURIComponent(locale)}`
+        )
+        const json = (await res.json().catch(() => ({}))) as {
+          website?: { siteSlug?: string; isPublished?: boolean } | null
+          publicUrl?: string | null
+        }
+        if (cancelled) return
+        if (res.ok && json.website) {
+          setWebsiteHasProject(true)
+          setWebsitePublicUrl(json.publicUrl?.trim() || null)
+        } else {
+          setWebsiteHasProject(false)
+          setWebsitePublicUrl(null)
+        }
+      } catch {
+        if (!cancelled) {
+          setWebsiteHasProject(false)
+          setWebsitePublicUrl(null)
+        }
+      } finally {
+        if (!cancelled) setWebsiteLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [locale, selectedPartner, selectedPartnerId])
+
+  const websiteDashboardHref = useMemo(() => {
+    const slug = selectedPartner?.slug?.trim() ?? ''
+    if (slug) return partnerWebsiteDashboardPath(slug)
+    return `/dashboard/messaging/website${partnerNavQuery}`
+  }, [partnerNavQuery, selectedPartner?.slug])
+
+  const selectSettingsSection = useCallback(
+    (sectionId: MessagingSettingsSectionId) => {
+      setActiveSection(sectionId)
+      const next = new URLSearchParams(searchParams.toString())
+      next.set('section', sectionId)
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+    },
+    [pathname, router, searchParams]
+  )
+
+  useEffect(() => {
+    if (normalizedSectionParam && visibleSettingsSections.includes(normalizedSectionParam)) {
+      setActiveSection(normalizedSectionParam)
+      return
+    }
+    if (!visibleSettingsSections.includes(activeSection)) {
+      const fallback = visibleSettingsSections[0] ?? 'workspace'
+      setActiveSection(fallback)
+      const next = new URLSearchParams(searchParams.toString())
+      next.set('section', fallback)
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+    }
+  }, [activeSection, normalizedSectionParam, pathname, router, searchParams, visibleSettingsSections])
+
   const facebookConnectHref = useMemo(() => {
     if (!selectedPartnerId) return '#'
     return `/api/integrations/facebook/messenger/connect?partnerId=${encodeURIComponent(selectedPartnerId)}`
@@ -1384,7 +1645,7 @@ export function PartnerMessagingSettingsClient({
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <Dialog open={fbPagePickerOpen} onOpenChange={setFbPagePickerOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1480,6 +1741,29 @@ export function PartnerMessagingSettingsClient({
           <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
           {t.refresh}
         </Button>
+        {selectedPartnerId && partnerCanWebsiteHub(selectedPartner) ? (
+          websiteLoading ? (
+            <Button type="button" variant="outline" size="sm" className="ml-auto gap-1.5" disabled>
+              <Globe className="h-3.5 w-3.5 animate-pulse" aria-hidden />
+              …
+            </Button>
+          ) : websitePublicUrl ? (
+            <Button asChild variant="outline" size="sm" className="ml-auto gap-1.5">
+              <a href={websitePublicUrl} target="_blank" rel="noopener noreferrer">
+                <Globe className="h-3.5 w-3.5" aria-hidden />
+                {t.settingsOpenWebsiteButton}
+                <ExternalLink className="h-3 w-3 opacity-70" aria-hidden />
+              </a>
+            </Button>
+          ) : (
+            <Button asChild variant="outline" size="sm" className="ml-auto gap-1.5">
+              <Link href={websiteDashboardHref}>
+                <Globe className="h-3.5 w-3.5" aria-hidden />
+                {websiteHasProject ? t.settingsManageWebsiteButton : t.settingsCreateWebsiteButton}
+              </Link>
+            </Button>
+          )
+        ) : null}
       </div>
 
       {partners.length === 0 ? (
@@ -1568,14 +1852,68 @@ export function PartnerMessagingSettingsClient({
         </Card>
         </>
       ) : (
-        <div
-          className={cn(
-            'flex flex-col',
-            /* Kẻ ngang rõ: mọi mục sau mục đầu có viền trên (tránh divide-* quá nhạt / không render). */
-            '[&>*+*]:border-t-2 [&>*+*]:border-solid [&>*+*]:border-neutral-400 dark:[&>*+*]:border-neutral-500',
-            '[&>*]:py-4 sm:[&>*]:py-5 [&>*:first-child]:pt-0'
-          )}
-        >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+          <aside className="w-full shrink-0 lg:w-56 xl:w-60">
+            <div className="rounded-xl border border-border/70 bg-card/90 p-2 shadow-sm lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+1rem)]">
+              <p className="hidden px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:block">
+                {t.settingsSidebarTitle}
+              </p>
+              <nav
+                className="flex gap-1 overflow-x-auto pb-0.5 lg:flex-col lg:overflow-visible lg:pb-0"
+                aria-label={t.settingsSidebarTitle}
+              >
+                {settingsNavItems
+                  .filter((item) => item.visible)
+                  .map((item) => {
+                    const NavIcon = item.icon
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => selectSettingsSection(item.id)}
+                        className={cn(
+                          'flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors lg:w-full',
+                          activeSection === item.id
+                            ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
+                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                        )}
+                        aria-current={activeSection === item.id ? 'page' : undefined}
+                      >
+                        <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    )
+                  })}
+                {settingsExternalNavItems.some((item) => item.visible) ? (
+                  <>
+                    <p className="mt-2 hidden px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
+                      {t.settingsNavOperationsTitle}
+                    </p>
+                    {settingsExternalNavItems
+                      .filter((item) => item.visible)
+                      .map((item) => {
+                        const NavIcon = item.icon
+                        return (
+                          <Link
+                            key={item.id}
+                            href={item.href}
+                            className={cn(
+                              'flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors lg:w-full',
+                              'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                            )}
+                          >
+                            <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
+                            <span className="truncate">{item.label}</span>
+                          </Link>
+                        )
+                      })}
+                  </>
+                ) : null}
+              </nav>
+            </div>
+          </aside>
+          <div className="min-w-0 flex-1">
+          {activeSection === 'workspace' ? (
           <SettingsBlock
             id="messaging-workspace"
             icon={Building2}
@@ -1805,8 +2143,9 @@ export function PartnerMessagingSettingsClient({
             </Card>
           ) : null}
           </SettingsBlock>
+          ) : null}
 
-          {selectedPartnerId && partnerAllowsPerm(selectedPartner, 'workspace_branding') ? (
+          {activeSection === 'brand' && selectedPartnerId && partnerAllowsPerm(selectedPartner, 'workspace_branding') ? (
             <SettingsBlock
               id="messaging-brand"
               icon={Palette}
@@ -1994,7 +2333,24 @@ export function PartnerMessagingSettingsClient({
             </SettingsBlock>
           ) : null}
 
-          {partnerAllowsPerm(selectedPartner, 'integrations_channels') ? (
+          {activeSection === 'inventory' && selectedPartnerId && partnerCanInventoryPanel(selectedPartner) ? (
+            <div id="messaging-inventory" className="scroll-mt-6">
+              <PartnerAiSettingsPanel
+                key={`${selectedPartnerId}-inventory`}
+                partnerId={selectedPartnerId}
+                partnerChatSlug={selectedPartner?.slug?.trim() ?? ''}
+                locale={locale}
+                t={tAi}
+                saveOkMessage={t.saveOk}
+                aiModelId={partnerAiLlmModel}
+                panelMode="inventory-only"
+                panelTitle={t.teamPermInventory}
+                panelDescription={t.settingsNavInventoryDesc}
+              />
+            </div>
+          ) : null}
+
+          {activeSection === 'channels' && partnerAllowsPerm(selectedPartner, 'integrations_channels') ? (
           <SettingsBlock
             id="messaging-channels"
             icon={Share2}
@@ -2075,12 +2431,31 @@ export function PartnerMessagingSettingsClient({
           </SettingsBlock>
           ) : null}
 
-          {partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
+          {activeSection === 'domains' && isOwnerSelected && selectedPartnerId ? (
+            <SettingsBlock
+              id="messaging-domains"
+              icon={Globe}
+              title={t.customDomainSectionTitle}
+              description={t.customDomainSectionDesc}
+            >
+              <PartnerCustomDomainSettingsCard
+                key={selectedPartnerId}
+                partnerId={selectedPartnerId}
+                partnerSlug={selectedPartner?.slug?.trim() ?? ''}
+                siteSlug={null}
+                sitePublished={false}
+                t={t}
+                saveOkMessage={t.saveOk}
+              />
+            </SettingsBlock>
+          ) : null}
+
+          {activeSection === 'analytics-meta' && partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
           <SettingsBlock
             id="messaging-meta-consult"
             icon={LineChart}
-            title={t.metaConsultTrackingSection}
-            description={t.metaConsultTrackingHint}
+            title={t.settingsNavAnalyticsMeta}
+            description={t.settingsNavAnalyticsMetaDesc}
           >
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="pb-2">
@@ -2127,6 +2502,34 @@ export function PartnerMessagingSettingsClient({
                 </Button>
               </CardContent>
             </Card>
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t.facebookCatalogFeedTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{t.facebookCatalogFeedHint}</p>
+                {facebookCatalogFeedUrl ? (
+                  <>
+                    <Input readOnly className="h-9 font-mono text-[11px]" value={facebookCatalogFeedUrl} />
+                    <Button type="button" size="sm" variant="outline" onClick={copyFacebookCatalogFeedUrl}>
+                      {t.facebookCatalogFeedCopyButton}
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">—</p>
+                )}
+              </CardContent>
+            </Card>
+          </SettingsBlock>
+          ) : null}
+
+          {activeSection === 'analytics-ads' && partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
+          <SettingsBlock
+            id="messaging-ads-analytics"
+            icon={TrendingUp}
+            title={t.settingsNavAnalyticsAds}
+            description={t.settingsNavAnalyticsAdsDesc}
+          >
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Google Analytics 4</CardTitle>
@@ -2199,28 +2602,10 @@ export function PartnerMessagingSettingsClient({
                 </Button>
               </CardContent>
             </Card>
-            <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{t.facebookCatalogFeedTitle}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-0">
-                <p className="text-[11px] text-muted-foreground leading-relaxed">{t.facebookCatalogFeedHint}</p>
-                {facebookCatalogFeedUrl ? (
-                  <>
-                    <Input readOnly className="h-9 font-mono text-[11px]" value={facebookCatalogFeedUrl} />
-                    <Button type="button" size="sm" variant="outline" onClick={copyFacebookCatalogFeedUrl}>
-                      {t.facebookCatalogFeedCopyButton}
-                    </Button>
-                  </>
-                ) : (
-                  <p className="text-[11px] text-muted-foreground">—</p>
-                )}
-              </CardContent>
-            </Card>
           </SettingsBlock>
           ) : null}
 
-          {isOwnerSelected ? (
+          {activeSection === 'payment' && isOwnerSelected ? (
           <SettingsBlock
             id="messaging-payment"
             icon={CreditCard}
@@ -2387,102 +2772,6 @@ export function PartnerMessagingSettingsClient({
                 </p>
               </div>
               </div>
-              <Card className="border-border/70 shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                    <Table className="h-4 w-4 shrink-0" aria-hidden />
-                    Google Sheet — đồng bộ đơn hàng
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-0">
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Mỗi khi đơn được tạo/cập nhật (checkout, thanh toán, giao hàng), hệ thống ghi hoặc cập nhật một dòng trên
-                    Google Sheet của shop. Tạo <strong>service account</strong> trên Google Cloud, bật <strong>Google Sheets API</strong>, tải file
-                    JSON key — <strong>dán nguyên nội dung vào ô bên dưới</strong> (lưu theo từng workspace). Trong Google Sheet, bấm Share và thêm
-                    email <em>client_email</em> trong JSON với quyền <strong>Editor</strong>. Không cần sửa mã nguồn ứng dụng.
-                  </p>
-                  {gsServerFallback ? (
-                    <p className="text-[11px] text-muted-foreground rounded-md border border-border/70 bg-muted/30 px-2 py-1.5">
-                      Host có thể cấu thêm fallback chung (tùy chọn); shop vẫn ưu tiên JSON đã dán ở đây.
-                    </p>
-                  ) : null}
-                  {gsEnabled && !gsSyncCredentialsReady && !gsServiceAccountJsonDraft.trim() ? (
-                    <p className="rounded-md border border-amber-300/80 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
-                      Chưa có JSON service account cho shop này — đồng bộ sẽ không chạy. Dán file JSON vào ô «Service account
-                      JSON» rồi lưu (hoặc nhờ quản trị host bật fallback).
-                    </p>
-                  ) : null}
-                  <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      checked={gsEnabled}
-                      onChange={(e) => setGsEnabled(e.target.checked)}
-                      disabled={!selectedPartnerId}
-                    />
-                    Bật ghi đơn lên Google Sheet cho workspace này
-                  </label>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-2 md:col-span-2">
-                      <Label className="text-xs font-medium">Link hoặc ID Google Sheet</Label>
-                      <Input
-                        className="h-9 text-sm font-mono"
-                        value={gsSpreadsheetId}
-                        onChange={(e) => setGsSpreadsheetId(e.target.value)}
-                        placeholder="https://docs.google.com/spreadsheets/d/..."
-                        autoComplete="off"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium">Tên tab (sheet)</Label>
-                      <Input
-                        className="h-9 text-sm"
-                        value={gsSheetName}
-                        onChange={(e) => setGsSheetName(e.target.value)}
-                        placeholder="Don hang"
-                        autoComplete="off"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Label className="text-xs font-medium">Service account JSON (Google Cloud)</Label>
-                      {gsHasServiceAccount ? (
-                        <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">Đã lưu key</span>
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground">Chưa lưu</span>
-                      )}
-                    </div>
-                    <Textarea
-                      className="min-h-[120px] font-mono text-[11px] leading-snug"
-                      value={gsServiceAccountJsonDraft}
-                      onChange={(e) => setGsServiceAccountJsonDraft(e.target.value)}
-                      placeholder='Dán toàn bộ nội dung file .json (có "client_email", "private_key"). Để trống khi lưu = giữ key cũ.'
-                      spellCheck={false}
-                      autoComplete="off"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={clearGoogleSheetsServiceAccount}
-                        disabled={pending || !selectedPartnerId || !gsHasServiceAccount}
-                      >
-                        Gỡ JSON đã lưu
-                      </Button>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={saveGoogleSheetsSettings}
-                    disabled={pending || !selectedPartnerId}
-                  >
-                    Lưu cài đặt Google Sheet
-                  </Button>
-                </CardContent>
-              </Card>
               <Button type="button" size="sm" onClick={savePaymentSettings} disabled={pending || !selectedPartnerId}>
                 Luu cai dat thanh toan
               </Button>
@@ -2500,12 +2789,118 @@ export function PartnerMessagingSettingsClient({
           </SettingsBlock>
           ) : null}
 
-          {isOwnerSelected ? (
+          {activeSection === 'sheets' && isOwnerSelected ? (
+          <SettingsBlock
+            id="messaging-sheets"
+            icon={Table}
+            title={t.settingsNavSheets}
+            description={t.settingsNavSheetsDesc}
+          >
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Table className="h-4 w-4 shrink-0" aria-hidden />
+                  Google Sheet — đồng bộ đơn hàng
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Mỗi khi đơn được tạo/cập nhật (checkout, thanh toán, giao hàng), hệ thống ghi hoặc cập nhật một dòng trên
+                  Google Sheet của shop. Tạo <strong>service account</strong> trên Google Cloud, bật <strong>Google Sheets API</strong>, tải file
+                  JSON key — <strong>dán nguyên nội dung vào ô bên dưới</strong> (lưu theo từng workspace). Trong Google Sheet, bấm Share và thêm
+                  email <em>client_email</em> trong JSON với quyền <strong>Editor</strong>. Không cần sửa mã nguồn ứng dụng.
+                </p>
+                {gsServerFallback ? (
+                  <p className="text-[11px] text-muted-foreground rounded-md border border-border/70 bg-muted/30 px-2 py-1.5">
+                    Host có thể cấu thêm fallback chung (tùy chọn); shop vẫn ưu tiên JSON đã dán ở đây.
+                  </p>
+                ) : null}
+                {gsEnabled && !gsSyncCredentialsReady && !gsServiceAccountJsonDraft.trim() ? (
+                  <p className="rounded-md border border-amber-300/80 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+                    Chưa có JSON service account cho shop này — đồng bộ sẽ không chạy. Dán file JSON vào ô «Service account
+                    JSON» rồi lưu (hoặc nhờ quản trị host bật fallback).
+                  </p>
+                ) : null}
+                <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={gsEnabled}
+                    onChange={(e) => setGsEnabled(e.target.checked)}
+                    disabled={!selectedPartnerId}
+                  />
+                  Bật ghi đơn lên Google Sheet cho workspace này
+                </label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-xs font-medium">Link hoặc ID Google Sheet</Label>
+                    <Input
+                      className="h-9 text-sm font-mono"
+                      value={gsSpreadsheetId}
+                      onChange={(e) => setGsSpreadsheetId(e.target.value)}
+                      placeholder="https://docs.google.com/spreadsheets/d/..."
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Tên tab (sheet)</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={gsSheetName}
+                      onChange={(e) => setGsSheetName(e.target.value)}
+                      placeholder="Don hang"
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label className="text-xs font-medium">Service account JSON (Google Cloud)</Label>
+                    {gsHasServiceAccount ? (
+                      <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">Đã lưu key</span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">Chưa lưu</span>
+                    )}
+                  </div>
+                  <Textarea
+                    className="min-h-[120px] font-mono text-[11px] leading-snug"
+                    value={gsServiceAccountJsonDraft}
+                    onChange={(e) => setGsServiceAccountJsonDraft(e.target.value)}
+                    placeholder='Dán toàn bộ nội dung file .json (có "client_email", "private_key"). Để trống khi lưu = giữ key cũ.'
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={clearGoogleSheetsServiceAccount}
+                      disabled={pending || !selectedPartnerId || !gsHasServiceAccount}
+                    >
+                      Gỡ JSON đã lưu
+                    </Button>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={saveGoogleSheetsSettings}
+                  disabled={pending || !selectedPartnerId}
+                >
+                  Lưu cài đặt Google Sheet
+                </Button>
+              </CardContent>
+            </Card>
+          </SettingsBlock>
+          ) : null}
+
+          {activeSection === 'loyalty' && isOwnerSelected ? (
           <SettingsBlock
             id="messaging-loyalty"
             icon={Trophy}
-            title="Hạng thành viên"
-            description="Tính hạng theo chi tiêu của khách trong cửa sổ thời gian và tự động giảm giá khi chốt đơn."
+            title={t.settingsNavLoyalty}
+            description={t.settingsNavLoyaltyDesc}
           >
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="pb-2">
@@ -2596,7 +2991,23 @@ export function PartnerMessagingSettingsClient({
           </SettingsBlock>
           ) : null}
 
-          {isOwnerSelected ? (
+          {activeSection === 'promotions' && selectedPartnerId && partnerCanPromotionsPanel(selectedPartner) ? (
+          <SettingsBlock
+            id="messaging-promotions"
+            icon={Cake}
+            title={t.settingsNavPromotions}
+            description={t.settingsNavPromotionsDesc}
+          >
+            <PartnerBirthdayPromoSettingsCard
+              key={selectedPartnerId}
+              partnerId={selectedPartnerId}
+              t={tAi}
+              saveOkMessage={t.saveOk}
+            />
+          </SettingsBlock>
+          ) : null}
+
+          {activeSection === 'api' && isOwnerSelected ? (
           <SettingsBlock
             id="messaging-api"
             icon={Plug}
@@ -2637,19 +3048,38 @@ export function PartnerMessagingSettingsClient({
           </SettingsBlock>
           ) : null}
 
-          {selectedPartnerId && partnerCanAiPanel(selectedPartner) ? (
+          {activeSection === 'ai' && selectedPartnerId && partnerCanAiSettingsPanel(selectedPartner) ? (
             <div id="messaging-ai" className="scroll-mt-6">
               <PartnerAiSettingsPanel
-                key={selectedPartnerId}
+                key={`${selectedPartnerId}-ai`}
                 partnerId={selectedPartnerId}
                 partnerChatSlug={selectedPartner?.slug?.trim() ?? ''}
                 locale={locale}
                 t={tAi}
                 saveOkMessage={t.saveOk}
                 aiModelId={partnerAiLlmModel}
+                panelMode="ai-only"
               />
             </div>
           ) : null}
+
+          {activeSection === 'ai-usage' && selectedPartnerId && partnerCanAiUsagePanel(selectedPartner) ? (
+            <div id="messaging-ai-usage" className="scroll-mt-6">
+              <PartnerAiSettingsPanel
+                key={`${selectedPartnerId}-ai-usage`}
+                partnerId={selectedPartnerId}
+                partnerChatSlug={selectedPartner?.slug?.trim() ?? ''}
+                locale={locale}
+                t={tAi}
+                saveOkMessage={t.saveOk}
+                aiModelId={partnerAiLlmModel}
+                panelMode="usage-only"
+                panelTitle={t.settingsNavAiUsage}
+                panelDescription={t.settingsNavAiUsageDesc}
+              />
+            </div>
+          ) : null}
+          </div>
         </div>
       )}
     </div>

@@ -3,45 +3,34 @@
 import { Suspense, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { buttonVariants } from '@/components/ui/button'
-import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
 import { cn } from '@/lib/utils'
 
-type NavKey = 'inbox' | 'settings' | 'marketing' | 'orders' | 'website'
+type NavKey = 'inbox' | 'settings' | 'orders'
 
 type Props = {
   inboxLabel: string
   settingsLabel: string
-  marketingLabel: string
   ordersLabel: string
-  websiteLabel: string
   active?: NavKey
-  /** When set (e.g. slug-based website page), preserves partner context in nav links. */
+  /** When set, preserves partner context in nav links. */
   partnerId?: string
-  partnerSlug?: string
 }
 
 function MessagingDashboardNavLinksInner({
   inboxLabel,
   settingsLabel,
-  marketingLabel,
   ordersLabel,
-  websiteLabel,
   active,
   partnerId: partnerIdProp,
-  partnerSlug,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const partner = partnerIdProp?.trim() || searchParams.get('partner')?.trim() || ''
   const partnerQuery = partner ? `?partner=${encodeURIComponent(partner)}` : ''
-  const websiteHref = partnerSlug?.trim()
-    ? partnerWebsiteDashboardPath(partnerSlug.trim())
-    : `/dashboard/messaging/website${partnerQuery}`
 
   const go = useCallback(
     (href: string) => {
       router.push(href)
-      // Fallback when client router is blocked (overlay / extension / slow hydrate).
       window.setTimeout(() => {
         const current = `${window.location.pathname}${window.location.search}`
         if (current !== href) {
@@ -61,9 +50,7 @@ function MessagingDashboardNavLinksInner({
   const items: Array<{ key: NavKey; href: string; label: string }> = [
     { key: 'inbox', href: `/dashboard/messaging/inbox${partnerQuery}`, label: inboxLabel },
     { key: 'settings', href: `/dashboard/messaging/settings${partnerQuery}`, label: settingsLabel },
-    { key: 'marketing', href: `/dashboard/messaging/marketing${partnerQuery}`, label: marketingLabel },
     { key: 'orders', href: `/dashboard/messaging/orders${partnerQuery}`, label: ordersLabel },
-    { key: 'website', href: websiteHref, label: websiteLabel },
   ]
 
   return (

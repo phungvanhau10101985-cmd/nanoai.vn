@@ -5,6 +5,11 @@ export function partnerWebsiteDashboardPath(partnerSlug: string): string {
   return `/dashboard/messaging/p/${encodeURIComponent(slug)}/website`
 }
 
+/** Studio wizard entry — interview → mockup → build. */
+export function partnerWebsiteStudioPath(partnerSlug: string): string {
+  return `${partnerWebsiteDashboardPath(partnerSlug)}?studio=1`
+}
+
 /** Legacy hub URL with partner UUID query (redirects to slug route when possible). */
 export function partnerWebsiteDashboardLegacyPath(partnerId: string): string {
   const id = partnerId.trim()

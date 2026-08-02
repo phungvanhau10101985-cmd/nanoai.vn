@@ -1,25 +1,21 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Monitor, Smartphone, Tablet, Wand2 } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { Laptop, Monitor, Smartphone, Tablet, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
-import { getPartnerWebsiteQuickEdits } from '@/lib/partner-website/partner-website-quick-edits'
+import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
+import { PartnerWebsiteVisualEditorToolbar } from '@/components/partner-website/partner-website-visual-editor-toolbar'
 
-export type PartnerWebsitePreviewDevice = 'desktop' | 'tablet' | 'mobile'
+export type PartnerWebsitePreviewDevice = 'mobile' | 'tablet' | 'laptop' | 'desktop'
 
 const DEVICE_WIDTH: Record<PartnerWebsitePreviewDevice, number | 'full'> = {
-  desktop: 'full',
-  tablet: 768,
   mobile: 390,
+  tablet: 768,
+  laptop: 1280,
+  desktop: 'full',
 }
 
 export function PartnerWebsiteDevicePreview({
@@ -30,8 +26,12 @@ export function PartnerWebsiteDevicePreview({
   siteSlug,
   hasWebsite,
   embedded = false,
-  onQuickEdit,
   quickEditDisabled = false,
+  visualEditEnabled = false,
+  websiteTitle,
+  project,
+  onVisualEditSave,
+  onVisualEditError,
 }: {
   locale: WebLocale
   partnerId: string
@@ -42,12 +42,22 @@ export function PartnerWebsiteDevicePreview({
   hasWebsite: boolean
   /** Smaller iframe when rendered inside the publish column */
   embedded?: boolean
+  /** @deprecated AI prompt quick-edits removed — use visual edit */
   onQuickEdit?: (prompt: string) => void
   quickEditDisabled?: boolean
+  /** Enable direct visual edit on preview (template + legacy) */
+  visualEditEnabled?: boolean
+  websiteTitle?: string
+  project?: PartnerWebsiteProject | null
+  onVisualEditSave?: (project: PartnerWebsiteProject) => Promise<void>
+  onVisualEditError?: (message: string) => void
 }) {
   const t = getPartnerWebsiteCopy(locale)
   const [device, setDevice] = useState<PartnerWebsitePreviewDevice>('desktop')
-  const quickEdits = useMemo(() => getPartnerWebsiteQuickEdits(locale, t), [locale, t])
+  const [visualEditActive, setVisualEditActive] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const projectRef = useRef<PartnerWebsiteProject | null>(null)
+  projectRef.current = project ?? null
 
   const previewSrc = useMemo(() => {
     if (!partnerId || !hasWebsite) return null
@@ -71,60 +81,52 @@ export function PartnerWebsiteDevicePreview({
   }
 
   const iframeClass = embedded
-    ? device === 'desktop'
+    ? device === 'desktop' || device === 'laptop'
       ? 'min-h-[420px] flex-1'
       : 'min-h-[480px] h-[min(58vh,680px)]'
-    : device === 'desktop'
-      ? 'min-h-[520px] h-[min(72vh,640px)]'
+    : device === 'desktop' || device === 'laptop'
+      ? device === 'laptop'
+        ? 'min-h-[520px] h-[min(68vh,720px)]'
+        : 'min-h-[520px] h-[min(72vh,640px)]'
       : 'min-h-[560px] h-[640px]'
+
+  const canVisualEdit = visualEditEnabled && Boolean(onVisualEditSave)
 
   return (
     <div className={cn('space-y-3', embedded && 'flex min-h-0 flex-1 flex-col')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium">{t.previewTitle}</p>
         <div className="flex flex-wrap items-center gap-1">
-          {onQuickEdit ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-8 gap-1 px-2 text-xs"
-                  disabled={quickEditDisabled}
-                >
-                  <Wand2 className="h-3.5 w-3.5" aria-hidden />
-                  {t.quickEditButton}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                {quickEdits.map((item) => (
-                  <DropdownMenuItem
-                    key={item.id}
-                    disabled={quickEditDisabled}
-                    onClick={() => onQuickEdit(item.prompt)}
-                  >
-                    {item.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {canVisualEdit ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={visualEditActive ? 'default' : 'outline'}
+              className="h-8 gap-1 px-2 text-xs"
+              disabled={quickEditDisabled}
+              onClick={() => setVisualEditActive((v) => !v)}
+            >
+              <Wand2 className="h-3.5 w-3.5" aria-hidden />
+              {t.quickEditButton}
+            </Button>
           ) : null}
           <Button
             type="button"
             size="sm"
-            variant={device === 'desktop' ? 'default' : 'outline'}
+            variant={device === 'mobile' ? 'default' : 'outline'}
             className="h-8 gap-1 px-2 text-xs"
-            onClick={() => setDevice('desktop')}
+            disabled={visualEditActive}
+            onClick={() => setDevice('mobile')}
           >
-            <Monitor className="h-3.5 w-3.5" aria-hidden />
-            {t.viewDesktop}
+            <Smartphone className="h-3.5 w-3.5" aria-hidden />
+            {t.viewMobile}
           </Button>
           <Button
             type="button"
             size="sm"
             variant={device === 'tablet' ? 'default' : 'outline'}
             className="h-8 gap-1 px-2 text-xs"
+            disabled={visualEditActive}
             onClick={() => setDevice('tablet')}
           >
             <Tablet className="h-3.5 w-3.5" aria-hidden />
@@ -133,26 +135,58 @@ export function PartnerWebsiteDevicePreview({
           <Button
             type="button"
             size="sm"
-            variant={device === 'mobile' ? 'default' : 'outline'}
+            variant={device === 'laptop' ? 'default' : 'outline'}
             className="h-8 gap-1 px-2 text-xs"
-            onClick={() => setDevice('mobile')}
+            disabled={visualEditActive}
+            onClick={() => setDevice('laptop')}
           >
-            <Smartphone className="h-3.5 w-3.5" aria-hidden />
-            {t.viewMobile}
+            <Laptop className="h-3.5 w-3.5" aria-hidden />
+            {t.viewLaptop}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={device === 'desktop' ? 'default' : 'outline'}
+            className="h-8 gap-1 px-2 text-xs"
+            disabled={visualEditActive}
+            onClick={() => setDevice('desktop')}
+          >
+            <Monitor className="h-3.5 w-3.5" aria-hidden />
+            {t.viewDesktop}
           </Button>
         </div>
       </div>
+
+      {canVisualEdit && onVisualEditSave ? (
+        <PartnerWebsiteVisualEditorToolbar
+          locale={locale}
+          partnerId={partnerId}
+          iframeRef={iframeRef}
+          projectRef={projectRef}
+          active={visualEditActive}
+          disabled={quickEditDisabled}
+          websiteTitle={websiteTitle}
+          onSave={onVisualEditSave}
+          onCancel={() => setVisualEditActive(false)}
+          onError={(msg) => onVisualEditError?.(msg)}
+        />
+      ) : null}
+
+      {canVisualEdit && !visualEditActive ? (
+        <p className="text-[11px] text-muted-foreground">{t.visualEditSelectHint}</p>
+      ) : null}
 
       <div className={cn('overflow-auto rounded-lg border bg-muted/30 p-3', embedded && 'flex min-h-0 flex-1 flex-col')}>
         <div
           className={cn(
             'mx-auto flex flex-col overflow-hidden rounded-md border bg-white shadow-sm transition-[width] duration-200',
-            device === 'desktop' ? 'h-full w-full flex-1' : ''
+            device === 'desktop' || device === 'laptop' ? 'h-full w-full flex-1' : ''
           )}
           style={frameWidth === 'full' ? undefined : { width: frameWidth, maxWidth: '100%' }}
         >
           <iframe
             key={previewSrc}
+            ref={iframeRef}
             title={t.previewTitle}
             src={previewSrc}
             className={cn('block w-full border-0 bg-white', iframeClass)}
@@ -164,7 +198,12 @@ export function PartnerWebsiteDevicePreview({
       {publicUrl ? (
         <p className="text-xs text-muted-foreground">
           {t.previewPublicLink}:{' '}
-          <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-2 hover:underline">
+          <a
+            href={publicUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline-offset-2 hover:underline"
+          >
             {publicUrl}
           </a>
         </p>

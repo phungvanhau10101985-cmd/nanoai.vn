@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { ImagePlus, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 
-async function uploadPartnerImageFile(partnerId: string, file: File): Promise<string> {
+export async function uploadPartnerImageFile(partnerId: string, file: File): Promise<string> {
   const fd = new FormData()
   fd.set('partnerId', partnerId)
   fd.set('file', file)
@@ -221,4 +221,111 @@ export function collectPartnerWebsiteReferenceUrls(input: {
 }): string[] {
   const fromText = parseUrlLines(input.refUrlsText)
   return [...new Set([...input.uploadedRefUrls, ...fromText])].slice(0, 8)
+}
+
+/** Compact image attach strip for the edit composer (upload + previews). */
+export function PartnerWebsiteEditRefStrip({
+  locale,
+  partnerId,
+  uploadedRefUrls,
+  onUploadedRefUrlsChange,
+  disabled,
+  onError,
+}: {
+  locale: WebLocale
+  partnerId: string
+  uploadedRefUrls: string[]
+  onUploadedRefUrlsChange: (urls: string[]) => void
+  disabled?: boolean
+  onError: (message: string) => void
+}) {
+  const t = getPartnerWebsiteCopy(locale)
+  const refFileRef = useRef<HTMLInputElement>(null)
+  const [uploadBusy, setUploadBusy] = useState(false)
+  const busy = Boolean(disabled) || uploadBusy
+
+  async function handleRefUpload(files: FileList | null) {
+    if (!partnerId || !files?.length) return
+    const list = Array.from(files).filter((f) => f.size > 0).slice(0, 8 - uploadedRefUrls.length)
+    if (!list.length) return
+    setUploadBusy(true)
+    const next = [...uploadedRefUrls]
+    try {
+      for (const file of list) {
+        if (!file.type.startsWith('image/')) {
+          onError(t.imageInvalidType)
+          continue
+        }
+        try {
+          const url = await uploadPartnerImageFile(partnerId, file)
+          if (!next.includes(url)) next.push(url)
+        } catch (e) {
+          onError(e instanceof Error ? e.message : t.uploadFailed)
+        }
+      }
+      onUploadedRefUrlsChange(next.slice(0, 8))
+    } finally {
+      setUploadBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed border-border/80 bg-muted/15 p-2.5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium">{t.editRefInlineLabel}</p>
+          <p className="text-[11px] text-muted-foreground">{t.editRefInlineHint}</p>
+        </div>
+        <input
+          ref={refFileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          disabled={busy || !partnerId || uploadedRefUrls.length >= 8}
+          onChange={(e) => {
+            void handleRefUpload(e.target.files)
+            e.target.value = ''
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0 text-xs"
+          disabled={busy || !partnerId || uploadedRefUrls.length >= 8}
+          onClick={() => refFileRef.current?.click()}
+        >
+          {uploadBusy ? (
+            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <ImagePlus className="mr-1 h-3.5 w-3.5" />
+          )}
+          {t.refImagesUpload}
+        </Button>
+      </div>
+      {uploadedRefUrls.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {uploadedRefUrls.map((url) => (
+            <div
+              key={url}
+              className="group relative h-16 w-20 overflow-hidden rounded-md border bg-white shadow-sm"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="" className="h-full w-full object-cover" />
+              <button
+                type="button"
+                className="absolute right-0.5 top-0.5 rounded-full bg-black/65 p-0.5 text-white opacity-90 hover:bg-black"
+                disabled={busy}
+                aria-label={t.refImageRemove}
+                onClick={() => onUploadedRefUrlsChange(uploadedRefUrls.filter((u) => u !== url))}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
 }

@@ -4,10 +4,16 @@ import { isPgConfigured } from '@/lib/db/pool'
 import {
   fetchPartnerProfileForWebsitePg,
   fetchPartnerWebsiteByPartnerIdPg,
+  updatePartnerWebsiteCreationJournalPg,
   upsertPartnerWebsitePg,
 } from '@/lib/db/messaging-partner-websites-pg'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
+import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
+import {
+  appendJournalEntry,
+  editSuggestionsForJournal,
+} from '@/lib/partner-website/partner-website-creation-journal'
 import {
   generatePartnerWebsiteProject,
   type PartnerWebsiteChatMessage,
@@ -197,6 +203,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Could not save website project' }, { status: 500 })
     }
 
+    const pwCopy = getPartnerWebsiteCopy(locale)
+    let journal = saved.creationJournal
+    journal = appendJournalEntry(journal, {
+      kind: 'edit_request',
+      role: 'user',
+      content: message,
+      suggestions: editSuggestionsForJournal(journal, pwCopy),
+    })
+    journal = appendJournalEntry(journal, {
+      kind: 'edit_result',
+      role: 'assistant',
+      content: assistantMessage?.trim() || (locale === 'vi' ? 'Đã cập nhật website.' : 'Website updated.'),
+      suggestions: editSuggestionsForJournal({ ...journal, phase: 'built' }, pwCopy),
+    })
+    const withJournal = await updatePartnerWebsiteCreationJournalPg(partnerId, journal)
+    const websiteOut = withJournal ?? { ...saved, creationJournal: journal }
+
     const base = siteBaseUrl(req)
     return NextResponse.json({
       success: true,
@@ -207,7 +230,8 @@ export async function POST(req: NextRequest) {
       editMode,
       agentSteps,
       fileDiffs,
-      website: saved,
+      website: websiteOut,
+      journal,
       previewPath: partnerWebsitePublicPath(siteSlug),
       publicUrl: saved.isPublished ? `${base}${partnerWebsitePublicPath(siteSlug)}` : null,
       fileCount: project.files.length,

@@ -59,6 +59,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ partnerId: str
     chatPath,
     siteSlug: draft.siteSlug,
     locale: draft.locale,
+    enablePersonalization: false,
+    // Template shops compose from pages JSON; project may only have site.config + 404.html.
+    preferHtmlSource: draft.renderMode === 'template' && !draft.theme?.useVisualHtml,
   })
 
   return new NextResponse(html, {

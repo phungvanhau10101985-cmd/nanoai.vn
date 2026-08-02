@@ -13,15 +13,12 @@ import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   cancelMessagingWorkspaceDeletionSchedule,
-  confirmMessagingWorkspaceDeletionWithOtp,
   createMessagingWorkspaceProfile,
   getPartnerAiComposingForConversation,
   listPartnerConversations,
   listPartnerMessages,
-  requestMessagingWorkspaceDeletionOtp,
   sendPartnerReply,
 } from '@/app/dashboard/messaging/actions'
-import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
 import {
   Dialog,
   DialogContent,
@@ -37,12 +34,10 @@ import {
   Camera,
   ChevronLeft,
   ClipboardList,
-  Globe,
   Headphones,
   ImagePlus,
   Building2,
   Loader2,
-  Megaphone,
   MessageSquare,
   Phone,
   Plus,
@@ -50,7 +45,6 @@ import {
   Send,
   Settings,
   StickyNote,
-  Trash2,
   Users,
   X,
 } from 'lucide-react'
@@ -179,9 +173,6 @@ export function PartnerMessagingInboxClient({
   const [composerHeight, setComposerHeight] = useState(0)
   const [inboxQuery, setInboxQuery] = useState('')
   const [shopAiComposing, setShopAiComposing] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deleteOtpStep, setDeleteOtpStep] = useState<'send' | 'confirm'>('send')
-  const [deleteOtpInput, setDeleteOtpInput] = useState('')
   const [createChannelOpen, setCreateChannelOpen] = useState(false)
   const [channelKind, setChannelKind] = useState<'fashion' | 'hotel' | 'food' | 'other'>('fashion')
   const [channelDisplayName, setChannelDisplayName] = useState('')
@@ -215,9 +206,6 @@ export function PartnerMessagingInboxClient({
   const partnerNavQuery = selectedPartnerId
     ? `?partner=${encodeURIComponent(selectedPartnerId)}`
     : ''
-  const partnerWebsiteHref = selectedPartner?.slug
-    ? partnerWebsiteDashboardPath(selectedPartner.slug)
-    : `/dashboard/messaging/website${partnerNavQuery}`
 
   const filteredConversations = useMemo(() => {
     const q = inboxQuery.trim().toLowerCase()
@@ -529,54 +517,6 @@ export function PartnerMessagingInboxClient({
     })
   }
 
-  const openDeleteWorkspaceDialog = () => {
-    if (!selectedPartnerId || selectedPartner?.purge_at) return
-    setDeleteOtpStep('send')
-    setDeleteOtpInput('')
-    setDeleteDialogOpen(true)
-  }
-
-  const sendDeleteOtp = () => {
-    if (!selectedPartnerId) return
-    startTransition(async () => {
-      const res = await requestMessagingWorkspaceDeletionOtp(selectedPartnerId)
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
-      }
-      toast({ title: t.deleteWorkspaceOtpSentToast })
-      setDeleteOtpStep('confirm')
-    })
-  }
-
-  const confirmDeleteWorkspaceWithOtp = () => {
-    if (!selectedPartnerId) return
-    const otp = deleteOtpInput.replace(/\D/g, '').trim()
-    if (otp.length !== 6) {
-      toast({ title: 'Nhap du 6 so OTP.', variant: 'destructive' })
-      return
-    }
-    startTransition(async () => {
-      const res = await confirmMessagingWorkspaceDeletionWithOtp(selectedPartnerId, otp)
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
-      }
-      if ('purge_at' in res && res.purge_at) {
-        setPartners((prev) =>
-          prev.map((p) => (p.id === selectedPartnerId ? { ...p, purge_at: res.purge_at } : p))
-        )
-      }
-      setDeleteDialogOpen(false)
-      setDeleteOtpInput('')
-      toast({
-        title:
-          'Da len lich xoa workspace. Shop khong nhan tin khach cho den khi hoan tat hoac ban huy lich.',
-      })
-      router.refresh()
-    })
-  }
-
   const cancelScheduledDeletion = () => {
     if (!selectedPartnerId) return
     startTransition(async () => {
@@ -602,9 +542,6 @@ export function PartnerMessagingInboxClient({
             <Button asChild>
               <Link href="/dashboard/messaging/settings">{t.messagingSettingsLink}</Link>
             </Button>
-            <Button variant="outline" asChild>
-              <Link href="/dashboard/messaging/website">{t.messagingWebsiteLink}</Link>
-            </Button>
           </div>
         </div>
         <div className="rounded-xl border border-violet-200/80 bg-violet-50/50 p-6 shadow-sm dark:border-violet-900/50 dark:bg-violet-950/25">
@@ -619,50 +556,6 @@ export function PartnerMessagingInboxClient({
 
   return (
     <div className="relative flex h-full min-h-0 flex-col gap-1 max-md:gap-1.5">
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t.deleteWorkspaceButton}</DialogTitle>
-            <DialogDescription className="text-left">{t.deleteWorkspaceOtpIntro}</DialogDescription>
-          </DialogHeader>
-          {deleteOtpStep === 'send' ? (
-            <DialogFooter className="gap-2 sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-                {t.cancelAddWorkspace}
-              </Button>
-              <Button type="button" onClick={sendDeleteOtp} disabled={pending}>
-                {t.deleteWorkspaceOtpSend}
-              </Button>
-            </DialogFooter>
-          ) : (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="ws-del-otp">
-                  {t.deleteWorkspaceOtpLabel}
-                </label>
-                <Input
-                  id="ws-del-otp"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={8}
-                  value={deleteOtpInput}
-                  onChange={(e) => setDeleteOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="000000"
-                />
-              </div>
-              <DialogFooter className="gap-2 sm:justify-end">
-                <Button type="button" variant="outline" onClick={() => setDeleteOtpStep('send')}>
-                  {t.deleteWorkspaceOtpSend}
-                </Button>
-                <Button type="button" variant="destructive" onClick={confirmDeleteWorkspaceWithOtp} disabled={pending}>
-                  {t.deleteWorkspaceOtpConfirm}
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
       <Dialog
         open={createChannelOpen}
         onOpenChange={(next) => {
@@ -837,36 +730,14 @@ export function PartnerMessagingInboxClient({
             Tạo kênh
           </Button>
           <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title={t.messagingSettingsLink}>
-            <Link href="/dashboard/messaging/settings" aria-label={t.messagingSettingsLink}>
+            <Link href={`/dashboard/messaging/settings${partnerNavQuery}`} aria-label={t.messagingSettingsLink}>
               <Settings className="h-4 w-4" aria-hidden />
-            </Link>
-          </Button>
-          <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title={t.marketingCampaignsLink}>
-            <Link href="/dashboard/messaging/marketing" aria-label={t.marketingCampaignsLink}>
-              <Megaphone className="h-4 w-4" aria-hidden />
-            </Link>
-          </Button>
-          <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title={t.messagingWebsiteLink}>
-            <Link href={partnerWebsiteHref} aria-label={t.messagingWebsiteLink}>
-              <Globe className="h-4 w-4" aria-hidden />
             </Link>
           </Button>
           <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title={t.messagingOrdersLink}>
             <Link href={`/dashboard/messaging/orders${partnerNavQuery}`} aria-label={t.messagingOrdersLink}>
               <ClipboardList className="h-4 w-4" aria-hidden />
             </Link>
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            size="icon"
-            className="h-9 w-9 shrink-0"
-            onClick={openDeleteWorkspaceDialog}
-            disabled={pending || !selectedPartnerId || Boolean(selectedPartner?.purge_at)}
-            title={t.deleteWorkspaceButton}
-            aria-label={t.deleteWorkspaceButton}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden />
           </Button>
         </div>
         <div className="hidden flex-wrap items-center gap-1 md:flex">
@@ -881,21 +752,9 @@ export function PartnerMessagingInboxClient({
             Tạo kênh
           </Button>
           <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
-            <Link href="/dashboard/messaging/settings">
+            <Link href={`/dashboard/messaging/settings${partnerNavQuery}`}>
               <Settings className="h-3 w-3" aria-hidden />
               {t.messagingSettingsLink}
-            </Link>
-          </Button>
-          <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
-            <Link href="/dashboard/messaging/marketing">
-              <Megaphone className="h-3 w-3" aria-hidden />
-              {t.marketingCampaignsLink}
-            </Link>
-          </Button>
-          <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
-            <Link href={partnerWebsiteHref}>
-              <Globe className="h-3 w-3" aria-hidden />
-              {t.messagingWebsiteLink}
             </Link>
           </Button>
           <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
@@ -903,17 +762,6 @@ export function PartnerMessagingInboxClient({
               <ClipboardList className="h-3 w-3" aria-hidden />
               {t.messagingOrdersLink}
             </Link>
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            className="h-7 gap-1 px-2 text-[11px]"
-            onClick={openDeleteWorkspaceDialog}
-            disabled={pending || !selectedPartnerId || Boolean(selectedPartner?.purge_at)}
-          >
-            <Trash2 className="h-3 w-3" aria-hidden />
-            {t.deleteWorkspaceButton}
           </Button>
         </div>
       </div>

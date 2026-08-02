@@ -48,10 +48,7 @@ export default async function DashboardMessagingMarketingPage() {
         <MessagingDashboardNavLinks
           inboxLabel={pm.goToInbox}
           settingsLabel={pm.messagingSettingsLink}
-          marketingLabel={pm.marketingCampaignsLink}
           ordersLabel={pm.messagingOrdersLink}
-          websiteLabel={pm.messagingWebsiteLink}
-          active="marketing"
         />
       </div>
       <PartnerMarketingCampaignsClient

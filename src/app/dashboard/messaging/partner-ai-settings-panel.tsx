@@ -58,7 +58,7 @@ import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/l
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
-import { Bot, Cake, Copy, Download, FileSpreadsheet, Image as ImageIcon, Search, Sparkles, Upload } from 'lucide-react'
+import { Bot, Cake, Copy, Download, FileSpreadsheet, Image as ImageIcon, Package, Search, Sparkles, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
 type AiT = Dictionary['partnerMessagingAi']
@@ -194,6 +194,8 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
   }
 }
 
+type AiPanelMode = 'full' | 'ai-only' | 'inventory-only' | 'usage-only'
+
 export function PartnerAiSettingsPanel({
   partnerId,
   partnerChatSlug,
@@ -201,6 +203,9 @@ export function PartnerAiSettingsPanel({
   saveOkMessage,
   aiModelId,
   locale,
+  panelMode = 'full',
+  panelTitle,
+  panelDescription,
 }: {
   partnerId: string
   /** Slug workspace — `/messaging/p/{slug}` (link tư vấn kèm ảnh SP). */
@@ -210,9 +215,19 @@ export function PartnerAiSettingsPanel({
   /** Model id from server (DEEPSEEK_MODEL / default deepseek-chat) */
   aiModelId: string
   locale: WebLocale
+  panelMode?: AiPanelMode
+  panelTitle?: string
+  panelDescription?: string
 }) {
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
+  const showSettingsTab = panelMode === 'full' || panelMode === 'ai-only'
+  const showInventoryTab = panelMode === 'full' || panelMode === 'inventory-only'
+  const showUsageTab = panelMode === 'full' || panelMode === 'usage-only'
+  const hideBirthdayPromo = panelMode !== 'full'
+  const [activeTab, setActiveTab] = useState<'settings' | 'inv' | 'usage'>(() =>
+    panelMode === 'inventory-only' ? 'inv' : panelMode === 'usage-only' ? 'usage' : 'settings'
+  )
   const [loadErr, setLoadErr] = useState<string | null>(null)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [inventory, setInventory] = useState<InvRow[]>([])
@@ -267,6 +282,11 @@ export function PartnerAiSettingsPanel({
     lastRunAt: 0,
     partnerId: null,
   })
+  useEffect(() => {
+    setActiveTab(
+      panelMode === 'inventory-only' ? 'inv' : panelMode === 'usage-only' ? 'usage' : 'settings'
+    )
+  }, [partnerId, panelMode])
   useEffect(() => {
     const d = utcYmdToday()
     setUsageCalendarFrom(d)
@@ -359,7 +379,9 @@ export function PartnerAiSettingsPanel({
         getPartnerAiBundle(partnerId),
         getPartnerInventoryEmbeddingStats(partnerId),
         getPartnerInventoryTextEmbeddingStats(partnerId),
-        getPartnerBirthdayPromoSettings(partnerId),
+        hideBirthdayPromo
+          ? Promise.resolve({ settings: null as null })
+          : getPartnerBirthdayPromoSettings(partnerId),
       ])
       if (seq !== loadSeqRef.current) return
 
@@ -380,7 +402,7 @@ export function PartnerAiSettingsPanel({
         toast({ title: t.loadError, description: bundleRes.error, variant: 'destructive' })
         return
       }
-      if (!('error' in bdayRes) && bdayRes && 'settings' in bdayRes && bdayRes.settings) {
+      if (!hideBirthdayPromo && !('error' in bdayRes) && bdayRes && 'settings' in bdayRes && bdayRes.settings) {
         const bs = bdayRes.settings
         setBdayEnabled(Boolean(bs.enabled))
         setBdayDiscountPct(Math.max(0, Math.min(100, Number(bs.discount_percent) || 10)))
@@ -414,7 +436,7 @@ export function PartnerAiSettingsPanel({
             }
       await loadUsageAnalyticsWithSeq(seq, usageQuery)
     })()
-  }, [partnerId, t.loadError, toast, loadUsageAnalyticsWithSeq])
+  }, [partnerId, t.loadError, toast, loadUsageAnalyticsWithSeq, hideBirthdayPromo])
 
   useEffect(() => {
     load()
@@ -687,70 +709,120 @@ export function PartnerAiSettingsPanel({
   return (
     <Card className="overflow-hidden border-violet-200/60 bg-gradient-to-br from-violet-50/40 via-background to-background dark:border-violet-900/40 dark:from-violet-950/20 shadow-sm">
       <CardHeader className="space-y-3 border-b bg-muted/30 pb-4">
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
-            <Bot className="h-5 w-5" aria-hidden />
-          </div>
-          <div className="min-w-0 flex-1 space-y-1">
-            <CardTitle className="text-lg flex flex-wrap items-center gap-2">
-              {t.panelTitle}
-              <Sparkles className="h-4 w-4 text-amber-500 shrink-0" aria-hidden />
-            </CardTitle>
-            <CardDescription className="text-xs leading-relaxed max-w-3xl">{t.panelSubtitle}</CardDescription>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-violet-200/50 bg-background/90 p-4 shadow-sm dark:border-violet-900/40">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        {panelMode === 'inventory-only' ? (
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+              <Package className="h-5 w-5" aria-hidden />
+            </div>
             <div className="min-w-0 flex-1 space-y-1">
-              <p className="text-sm font-medium">{t.enableLabel}</p>
-              <p className="text-xs text-muted-foreground">{t.enableHint}</p>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <span
-                className={`text-xs font-semibold tabular-nums ${form.enabled ? 'text-violet-600 dark:text-violet-400' : 'text-muted-foreground'}`}
-              >
-                {settingsLoaded ? (form.enabled ? t.toggleStatusOn : t.toggleStatusOff) : '...'}
-              </span>
-              <Switch
-                checked={form.enabled}
-                onCheckedChange={(c) => persistPartial({ enabled: c })}
-                disabled={pending || !settingsLoaded}
-                aria-label={t.enableLabel}
-              />
+              <CardTitle className="text-lg flex flex-wrap items-center gap-2">
+                {panelTitle ?? t.tabInventory}
+                <Badge variant="secondary" className="h-6 min-w-6 px-2 font-mono text-[11px] tabular-nums">
+                  {inventoryTotalCount}
+                </Badge>
+              </CardTitle>
+              {panelDescription ? (
+                <CardDescription className="text-xs leading-relaxed max-w-3xl">{panelDescription}</CardDescription>
+              ) : null}
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-dashed pt-3">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t.aiEngineTitle}</span>
-            <Badge className="bg-slate-800 text-white hover:bg-slate-800 dark:bg-slate-700">DeepSeek</Badge>
-            <Badge variant="outline" className="font-mono text-[10px] font-normal">
-              {aiModelId}
-            </Badge>
+        ) : panelMode === 'usage-only' ? (
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
+              <Bot className="h-5 w-5" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <CardTitle className="text-lg">{panelTitle ?? t.usagePanelTitle}</CardTitle>
+              <CardDescription className="text-xs leading-relaxed max-w-3xl">
+                {panelDescription ?? t.usagePanelSubtitle}
+              </CardDescription>
+            </div>
           </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-            {t.aiEngineDescription.replace(/\{model\}/g, aiModelId)}
-          </p>
-        </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
+                <Bot className="h-5 w-5" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1 space-y-1">
+                <CardTitle className="text-lg flex flex-wrap items-center gap-2">
+                  {t.panelTitle}
+                  <Sparkles className="h-4 w-4 text-amber-500 shrink-0" aria-hidden />
+                </CardTitle>
+                <CardDescription className="text-xs leading-relaxed max-w-3xl">{t.panelSubtitle}</CardDescription>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-violet-200/50 bg-background/90 p-4 shadow-sm dark:border-violet-900/40">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="text-sm font-medium">{t.enableLabel}</p>
+                  <p className="text-xs text-muted-foreground">{t.enableHint}</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span
+                    className={`text-xs font-semibold tabular-nums ${form.enabled ? 'text-violet-600 dark:text-violet-400' : 'text-muted-foreground'}`}
+                  >
+                    {settingsLoaded ? (form.enabled ? t.toggleStatusOn : t.toggleStatusOff) : '...'}
+                  </span>
+                  <Switch
+                    checked={form.enabled}
+                    onCheckedChange={(c) => persistPartial({ enabled: c })}
+                    disabled={pending || !settingsLoaded}
+                    aria-label={t.enableLabel}
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-dashed pt-3">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t.aiEngineTitle}</span>
+                <Badge className="bg-slate-800 text-white hover:bg-slate-800 dark:bg-slate-700">DeepSeek</Badge>
+                <Badge variant="outline" className="font-mono text-[10px] font-normal">
+                  {aiModelId}
+                </Badge>
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                {t.aiEngineDescription.replace(/\{model\}/g, aiModelId)}
+              </p>
+            </div>
+          </>
+        )}
 
         {loadErr ? <p className="text-xs text-destructive">{loadErr}</p> : null}
       </CardHeader>
       <CardContent className="pt-4">
-        <Tabs defaultValue="settings" className="w-full">
-          <TabsList className="mb-4 grid w-full max-w-3xl grid-cols-2 sm:grid-cols-3 h-auto min-h-10 gap-1 p-1">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'settings' | 'inv' | 'usage')} className="w-full">
+          {(showSettingsTab && showUsageTab) || (showSettingsTab && showInventoryTab) || (showInventoryTab && showUsageTab) ? (
+          <TabsList
+            className={`mb-4 grid w-full max-w-3xl h-auto min-h-10 gap-1 p-1 ${
+              showSettingsTab && showInventoryTab && showUsageTab
+                ? 'grid-cols-2 sm:grid-cols-3'
+                : showSettingsTab && showUsageTab
+                  ? 'grid-cols-2'
+                  : 'grid-cols-1'
+            }`}
+          >
+            {showSettingsTab ? (
             <TabsTrigger value="settings" className="text-xs sm:text-sm">
               {t.tabSettings}
             </TabsTrigger>
+            ) : null}
+            {showInventoryTab ? (
             <TabsTrigger value="inv" className="text-xs sm:text-sm gap-1.5">
               {t.tabInventory}
               <Badge variant="secondary" className="h-5 min-w-5 px-1.5 font-mono text-[10px] tabular-nums">
                 {inventoryTotalCount}
               </Badge>
             </TabsTrigger>
+            ) : null}
+            {showUsageTab ? (
             <TabsTrigger value="usage" className="text-xs sm:text-sm">
               {t.tabUsage}
             </TabsTrigger>
+            ) : null}
           </TabsList>
+          ) : null}
 
+          {showSettingsTab ? (
           <TabsContent value="settings" className="space-y-4 mt-0">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -817,6 +889,7 @@ export function PartnerAiSettingsPanel({
               />
             </div>
 
+            {!hideBirthdayPromo ? (
             <div className="rounded-lg border border-violet-200/80 bg-violet-50/50 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
@@ -910,6 +983,7 @@ export function PartnerAiSettingsPanel({
                 Công tắc và các số trên được lưu tự động (ô số lưu sau khi bạn ngừng gõ ~0,5 giây).
               </p>
             </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label htmlFor="ai-guest-purchase-flow">{t.guestPurchaseFlowLabel}</Label>
@@ -1006,7 +1080,9 @@ export function PartnerAiSettingsPanel({
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed border-t pt-3">{t.cronSetupHint}</p>
           </TabsContent>
+          ) : null}
 
+          {showInventoryTab ? (
           <TabsContent value="inv" className="mt-0 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/25 px-3 py-2.5">
               <p className="text-sm font-medium tabular-nums">
@@ -1077,7 +1153,9 @@ export function PartnerAiSettingsPanel({
               onLoadMore={loadMoreInventory}
             />
           </TabsContent>
+          ) : null}
 
+          {showUsageTab ? (
           <TabsContent value="usage" className="mt-0 space-y-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <p className="min-w-0 flex-1 text-xs text-muted-foreground leading-relaxed">
@@ -1925,6 +2003,7 @@ export function PartnerAiSettingsPanel({
             </div>
             </div>
           </TabsContent>
+          ) : null}
         </Tabs>
       </CardContent>
     </Card>

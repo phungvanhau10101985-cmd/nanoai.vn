@@ -42,24 +42,40 @@ export function inventoryRowToShopProduct(
   row: InventoryShopSourceRow & { id: string; name?: string | null; price_hint?: string | null; sku?: string | null; product_url?: string | null }
 ): PartnerSiteShopProduct | null {
   const name = (row.name ?? '').trim() || 'Product'
-  const imageUrl = (row.image_url ?? '').trim()
-  const productUrl = (row.product_url ?? '').trim()
-  if (!/^https?:\/\//i.test(imageUrl) || !/^https?:\/\//i.test(productUrl)) return null
+  const detailPath = partnerSiteProductPath(siteSlug, row.id)
   const galleryImages = collectShopProductGalleryImages(row)
+  const rawImage =
+    (row.image_url ?? '').trim() ||
+    galleryImages[0]?.trim() ||
+    ''
+  // Prefer real https image; otherwise keep a visible placeholder so catalog is not empty.
+  const imageUrl = /^https?:\/\//i.test(rawImage)
+    ? rawImage
+    : `https://placehold.co/600x600/f1f5f9/64748b?text=${encodeURIComponent(name.slice(0, 18))}`
+  const rawProductUrl = (row.product_url ?? '').trim()
+  // Chat inventory often omits product_url — shop detail path is enough.
+  const productUrl = /^https?:\/\//i.test(rawProductUrl)
+    ? rawProductUrl
+    : `https://shop.local${detailPath}`
   return {
     id: row.id,
     name,
     description: inventoryShopDisplayDescription(row),
     detailDescription: inventoryShopDetailDescription(row),
-    galleryImages: galleryImages.length ? galleryImages : [imageUrl],
+    galleryImages: galleryImages.length
+      ? galleryImages
+      : /^https?:\/\//i.test(rawImage)
+        ? [rawImage]
+        : [imageUrl],
     detailImages: collectShopProductDetailImages(row),
     productVideoUrl: inventoryShopProductVideoUrl(row),
     priceHint: (row.price_hint ?? '').trim(),
     imageUrl,
     productUrl,
     sku: (row.sku ?? '').trim(),
-    detailPath: partnerSiteProductPath(siteSlug, row.id),
-  }}
+    detailPath,
+  }
+}
 
 export function shopProductToCartCard(product: PartnerSiteShopProduct): PartnerAiProductCard {
   const card: PartnerAiProductCard = {
@@ -78,8 +94,11 @@ export function inventoryRowToCartCard(
 ): PartnerAiProductCard | null {
   const name = (row.name ?? '').trim() || 'Product'
   const image_url = (row.image_url ?? '').trim()
-  const product_url = (row.product_url ?? '').trim()
-  if (!/^https?:\/\//i.test(image_url) || !/^https?:\/\//i.test(product_url)) return null
+  if (!/^https?:\/\//i.test(image_url)) return null
+  const rawProductUrl = (row.product_url ?? '').trim()
+  const product_url = /^https?:\/\//i.test(rawProductUrl)
+    ? rawProductUrl
+    : `https://shop.local/inventory/${encodeURIComponent(row.id)}`
   const card: PartnerAiProductCard = {
     name,
     image_url,

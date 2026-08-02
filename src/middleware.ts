@@ -8,6 +8,7 @@ import {
   LOCALE_COOKIE_NAME_LEGACY,
   normalizeWebLocale,
 } from '@/lib/i18n/config'
+import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-platform-host'
 
 const LOCALE_COOKIE_OPTS = { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' as const }
 
@@ -69,6 +70,57 @@ function applyCommonResponseHeaders(response: NextResponse, request: NextRequest
 }
 
 export async function middleware(request: NextRequest) {
+  const hostHeader =
+    request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
+    request.headers.get('host')?.split(',')[0]?.trim() ||
+    ''
+  const host = hostHeader.split(':')[0]?.toLowerCase() ?? ''
+
+  if (host && !isPlatformAppHostname(host)) {
+    try {
+      const resolveUrl = new URL('/api/messaging/resolve-host', request.url)
+      resolveUrl.searchParams.set('host', host)
+      const res = await fetch(resolveUrl.toString(), {
+        headers: { 'x-forwarded-host': hostHeader, host: hostHeader },
+        cache: 'no-store',
+      })
+      if (res.ok) {
+        const data = (await res.json()) as {
+          found?: boolean
+          rewriteRootPath?: string
+          siteSlug?: string | null
+          useForSite?: boolean
+          sitePublished?: boolean
+        }
+        if (data.found) {
+          const path = request.nextUrl.pathname
+          if ((path === '/' || path === '') && data.rewriteRootPath) {
+            const rewriteUrl = request.nextUrl.clone()
+            rewriteUrl.pathname = data.rewriteRootPath
+            const rewriteResponse = NextResponse.rewrite(rewriteUrl)
+            rewriteResponse.headers.set('x-partner-custom-domain', host)
+            return rewriteResponse
+          }
+          const lpMatch = path.match(/^\/lp\/([a-z0-9][a-z0-9-]{0,62}[a-z0-9])\/?$/i)
+          if (
+            lpMatch?.[1] &&
+            data.siteSlug &&
+            data.useForSite !== false &&
+            data.sitePublished
+          ) {
+            const rewriteUrl = request.nextUrl.clone()
+            rewriteUrl.pathname = `/site/${encodeURIComponent(data.siteSlug)}/lp/${encodeURIComponent(lpMatch[1].toLowerCase())}`
+            const rewriteResponse = NextResponse.rewrite(rewriteUrl)
+            rewriteResponse.headers.set('x-partner-custom-domain', host)
+            return rewriteResponse
+          }
+        }
+      }
+    } catch {
+      /* fall through to normal routing */
+    }
+  }
+
   const pathForLogin = request.nextUrl.pathname + (request.nextUrl.search || '')
   const forwarded = new Headers(request.headers)
   forwarded.set(APP_LOGIN_NEXT_HEADER, pathForLogin)

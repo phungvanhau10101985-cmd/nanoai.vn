@@ -4,10 +4,21 @@ import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-
 import {
   partnerSiteCartPath,
   partnerSiteHomePath,
+  partnerSiteInfoPath,
   partnerSiteOrdersPath,
   partnerSiteProductsPath,
+  partnerSiteWishlistPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
-import type { PartnerWebsiteSection, PartnerWebsiteTemplateRenderInput } from '@/lib/partner-website/template/partner-website-template-types'
+import {
+  FASHION_SHOP_FONT_DISPLAY,
+  FASHION_SHOP_FONT_UI,
+  FASHION_SHOP_GOOGLE_FONTS_HREF,
+  buildFashionShopMotionCss,
+} from '@/lib/partner-website/shop/fashion-shop-design'
+import type {
+  PartnerWebsiteSection,
+  PartnerWebsiteTemplateRenderInput,
+} from '@/lib/partner-website/template/partner-website-template-types'
 import { getSectionRegistryEntry, isSectionTypeEnabled } from '@/lib/partner-website/template/section-registry'
 
 function str(v: unknown, fallback = ''): string {
@@ -17,9 +28,11 @@ function str(v: unknown, fallback = ''): string {
 function renderHero(section: PartnerWebsiteSection, siteSlug?: string): string {
   const title = escapeHtml(str(section.props.title, 'Welcome'))
   const subtitle = escapeHtml(str(section.props.subtitle, ''))
-  const cta = escapeHtml(str(section.props.ctaText, 'Get started'))
+  const cta = escapeHtml(str(section.props.ctaText, 'Shop now'))
   const bg = str(section.props.backgroundImage)
-  const bgStyle = bg ? `background-image:linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.45)),url('${escapeAttr(bg)}');` : ''
+  const bgStyle = bg
+    ? `background-image:linear-gradient(90deg,rgba(249,115,22,.55),rgba(0,0,0,.25)),url('${escapeAttr(bg)}');`
+    : ''
   const ctaHref = siteSlug?.trim()
     ? escapeAttr(partnerSiteProductsPath(siteSlug.trim()))
     : '#products'
@@ -29,56 +42,116 @@ function renderHero(section: PartnerWebsiteSection, siteSlug?: string): string {
       ? ` data-pw-hero-variants="${escapeAttr(JSON.stringify(utmVariants))}"`
       : ''
   return `<section class="pw-hero" style="${bgStyle}"${utmData}>
-  <div class="pw-container">
-    <h1>${title}</h1>
-    ${subtitle ? `<p class="pw-muted pw-hero-sub">${subtitle}</p>` : ''}
-    <a class="pw-btn" href="${ctaHref}">${cta}</a>
+  <div class="pw-hero-inner pw-container">
+    <div class="pw-hero-copy">
+      <h1>${title}</h1>
+      ${subtitle ? `<p class="pw-hero-sub">${subtitle}</p>` : ''}
+      <a class="pw-btn pw-btn-hero" href="${ctaHref}">${cta}</a>
+      <div class="pw-hero-dots" aria-hidden="true"><span class="is-active"></span><span></span><span></span></div>
+    </div>
   </div>
 </section>`
 }
 
-function renderTrustBar(section: PartnerWebsiteSection): string {
+function renderCategories(
+  section: PartnerWebsiteSection,
+  input: PartnerWebsiteTemplateRenderInput
+): string {
+  const title = escapeHtml(str(section.props.title, 'Categories'))
   const items = Array.isArray(section.props.items) ? section.props.items : []
-  const cells = items
-    .slice(0, 6)
+  const siteSlug = input.siteSlug?.trim() ?? ''
+  const fallbackHref = siteSlug ? partnerSiteProductsPath(siteSlug) : '#products'
+  const cards = items
+    .slice(0, 8)
     .map((item) => {
       if (!item || typeof item !== 'object') return ''
       const o = item as Record<string, unknown>
-      return `<div class="pw-trust-item"><strong>${escapeHtml(str(o.value))}</strong><span>${escapeHtml(str(o.label))}</span></div>`
+      const name = escapeHtml(str(o.name, 'Category'))
+      const img = str(o.imageUrl)
+      const href = escapeAttr(str(o.href) || fallbackHref)
+      return `<a class="pw-cat-card" href="${href}">
+        <span class="pw-cat-media">${img ? `<img src="${escapeAttr(img)}" alt="${name}" loading="lazy"/>` : ''}</span>
+        <span class="pw-cat-label">${name}</span>
+      </a>`
     })
     .join('')
-  if (!cells) return ''
-  return `<section class="pw-trust-bar"><div class="pw-container pw-trust-grid">${cells}</div></section>`
+  if (!cards) return ''
+  return `<section class="pw-section pw-categories" id="categories">
+  <div class="pw-container">
+    <h2 class="pw-section-title">${title}</h2>
+    <div class="pw-cat-grid">${cards}</div>
+  </div>
+</section>`
+}
+
+function renderStaticProductCards(
+  products: unknown[],
+  opts: { showNew: boolean; hrefFallback: string; limit: number }
+): string {
+  return products
+    .slice(0, opts.limit)
+    .map((item) => {
+      if (!item || typeof item !== 'object') return ''
+      const o = item as Record<string, unknown>
+      const img = str(o.imageUrl)
+      const detailPath = str(o.detailPath)
+      const href = detailPath ? escapeAttr(detailPath) : opts.hrefFallback
+      const name = escapeHtml(str(o.name))
+      return `<article class="pw-product-card">
+        <a class="pw-product-card-media" href="${href}">
+          ${opts.showNew ? '<span class="pw-badge-new">NEW</span>' : ''}
+          ${img ? `<img src="${escapeAttr(img)}" alt="${escapeAttr(str(o.name))}" loading="lazy"/>` : '<div class="pw-product-ph"></div>'}
+        </a>
+        <div class="pw-product-card-body">
+          <h3><a href="${href}">${name}</a></h3>
+          ${str(o.price) ? `<p class="pw-price">${escapeHtml(str(o.price))}</p>` : ''}
+          <a class="pw-btn pw-btn-cart" href="${href}">${escapeHtml(str(o.ctaText, 'Add to cart'))}</a>
+        </div>
+      </article>`
+    })
+    .join('')
 }
 
 function renderProducts(section: PartnerWebsiteSection, input: PartnerWebsiteTemplateRenderInput): string {
   const title = escapeHtml(str(section.props.title, 'Products'))
   const subtitle = escapeHtml(str(section.props.subtitle, ''))
+  const limit = Math.max(1, Math.min(24, Math.floor(Number(section.props.limit) || 8)))
+  const siteSlug = input.siteSlug?.trim() ?? ''
+  const useLive = Boolean(siteSlug) && section.props.useInventory !== false && !input.samplePreview
+  const variant = str(section.props.variant, 'default')
+  const showNew = section.props.showNewBadge === true
+  const bandClass = variant === 'best-sellers' ? ' pw-band-orange' : ''
+  const sectionClass =
+    variant === 'best-sellers'
+      ? 'pw-section pw-catalog pw-best-sellers'
+      : variant === 'new-arrivals'
+        ? 'pw-section pw-catalog pw-new-arrivals'
+        : 'pw-section pw-catalog'
+  const titleClass = variant === 'best-sellers' ? 'pw-section-title pw-section-title-light' : 'pw-section-title'
   const products = Array.isArray(section.props.products) ? section.props.products : []
-  const defaultCta = escapeHtml(str(section.props.productCtaText, 'View'))
-  const chatHref = input.chatPath?.trim() ? escapeAttr(input.chatPath) : '#contact'
-  const cards = products
-    .slice(0, 24)
-    .map((item) => {
-      if (!item || typeof item !== 'object') return ''
-      const o = item as Record<string, unknown>
-      const img = str(o.imageUrl)
-      const cta = escapeHtml(str(o.ctaText, defaultCta))
-      const detailPath = str(o.detailPath)
-      const href = detailPath ? escapeAttr(detailPath) : chatHref
-      return `<article class="pw-product-card">
-        ${img ? `<a href="${href}"><img src="${escapeAttr(img)}" alt="${escapeAttr(str(o.name))}" loading="lazy"/></a>` : '<div class="pw-product-ph"></div>'}
-        <h3>${escapeHtml(str(o.name))}</h3>
-        ${str(o.price) ? `<p class="pw-price">${escapeHtml(str(o.price))}</p>` : ''}
-        ${str(o.description) ? `<p class="pw-muted pw-product-desc">${escapeHtml(str(o.description))}</p>` : ''}
-        <a class="pw-btn pw-btn-sm pw-btn-accent" href="${href}">${cta}</a>
-      </article>`
-    })
-    .join('')
-  return `<section class="pw-section" id="products"><div class="pw-container">
-    <h2>${title}</h2>
+  const chatHref = input.chatPath?.trim() ? escapeAttr(input.chatPath) : '#products'
+  const fallbackCards = renderStaticProductCards(products, {
+    showNew,
+    hrefFallback: chatHref,
+    limit,
+  })
+
+  if (useLive) {
+    return `<section class="${sectionClass}${bandClass}" id="${variant === 'best-sellers' ? 'best-sellers' : 'products'}" data-pw-catalog data-limit="${limit}" data-sort="default"${showNew ? ' data-new-badge="1"' : ''}>
+  <div class="pw-container">
+    <h2 class="${titleClass}">${title}</h2>
     ${subtitle ? `<p class="pw-muted pw-section-sub">${subtitle}</p>` : ''}
-    <div class="pw-product-grid">${cards || '<p class="pw-muted">No products yet.</p>'}</div>
+    <div class="pw-product-grid" data-pw-grid>${fallbackCards}</div>
+    <p class="pw-catalog-empty pw-personalize-empty" hidden></p>
+  </div>
+</section>`
+  }
+
+  const sectionId = variant === 'best-sellers' ? 'best-sellers' : 'products'
+  return `<section class="${sectionClass}${bandClass}" id="${sectionId}"><div class="pw-container">
+    <h2 class="${titleClass}">${title}</h2>
+    ${subtitle ? `<p class="pw-muted pw-section-sub">${subtitle}</p>` : ''}
+    <div class="pw-product-grid">${fallbackCards || '<p class="pw-muted">No products yet.</p>'}</div>
   </div></section>`
 }
 
@@ -108,7 +181,7 @@ function renderPersonalizedProducts(
   const sectionId = sectionIds[kind]
   return `<section class="pw-section pw-personalize" id="${sectionId}" data-pw-personalize="${dataKinds[kind]}" data-limit="${limit}" data-cta="${cta}" hidden>
   <div class="pw-container">
-    <h2>${title}</h2>
+    <h2 class="pw-section-title">${title}</h2>
     ${subtitle ? `<p class="pw-muted pw-section-sub">${subtitle}</p>` : ''}
     <div class="pw-product-grid" data-pw-grid></div>
     <p class="pw-muted pw-personalize-empty" hidden></p>
@@ -127,7 +200,7 @@ function renderFeatures(section: PartnerWebsiteSection): string {
       return `<article class="pw-card"><h3>${escapeHtml(str(o.title))}</h3><p>${escapeHtml(str(o.description))}</p></article>`
     })
     .join('')
-  return `<section class="pw-section pw-features"><div class="pw-container"><h2>${title}</h2><div class="pw-grid">${cards}</div></div></section>`
+  return `<section class="pw-section pw-features"><div class="pw-container"><h2 class="pw-section-title">${title}</h2><div class="pw-grid">${cards}</div></div></section>`
 }
 
 function renderTestimonials(section: PartnerWebsiteSection): string {
@@ -141,10 +214,10 @@ function renderTestimonials(section: PartnerWebsiteSection): string {
       return `<blockquote class="pw-testimonial"><p>"${escapeHtml(str(o.quote))}"</p><footer><strong>${escapeHtml(str(o.name))}</strong>${str(o.role) ? ` · ${escapeHtml(str(o.role))}` : ''}</footer></blockquote>`
     })
     .join('')
-  return `<section class="pw-section pw-testimonials"><div class="pw-container"><h2>${title}</h2><div class="pw-grid">${cards}</div></div></section>`
+  return `<section class="pw-section pw-testimonials"><div class="pw-container"><h2 class="pw-section-title">${title}</h2><div class="pw-grid">${cards}</div></div></section>`
 }
 
-function renderPricing(section: PartnerWebsiteSection, _chatPath?: string): string {
+function renderPricing(section: PartnerWebsiteSection): string {
   const title = escapeHtml(str(section.props.title, 'Pricing'))
   const plans = Array.isArray(section.props.plans) ? section.props.plans : []
   const cards = plans
@@ -158,7 +231,7 @@ function renderPricing(section: PartnerWebsiteSection, _chatPath?: string): stri
       return `<article class="pw-plan${hl}"><h3>${escapeHtml(str(o.name))}</h3><p class="pw-price">${escapeHtml(str(o.price))}</p><ul>${list}</ul><button type="button" class="pw-btn pw-btn-sm pw-chat-open" data-nanoai-open-chat>Contact</button></article>`
     })
     .join('')
-  return `<section class="pw-section"><div class="pw-container"><h2>${title}</h2><div class="pw-pricing-grid">${cards}</div></div></section>`
+  return `<section class="pw-section"><div class="pw-container"><h2 class="pw-section-title">${title}</h2><div class="pw-pricing-grid">${cards}</div></div></section>`
 }
 
 function renderFaq(section: PartnerWebsiteSection): string {
@@ -172,7 +245,7 @@ function renderFaq(section: PartnerWebsiteSection): string {
       return `<details class="pw-faq"><summary>${escapeHtml(str(o.q))}</summary><p>${escapeHtml(str(o.a))}</p></details>`
     })
     .join('')
-  return `<section class="pw-section pw-faq-wrap" id="faq"><div class="pw-container"><h2>${title}</h2>${rows}</div></section>`
+  return `<section class="pw-section pw-faq-wrap" id="faq"><div class="pw-container"><h2 class="pw-section-title">${title}</h2>${rows}</div></section>`
 }
 
 function renderLeadForm(section: PartnerWebsiteSection, siteSlug?: string): string {
@@ -190,7 +263,7 @@ function renderLeadForm(section: PartnerWebsiteSection, siteSlug?: string): stri
 
   return `<section class="pw-section pw-lead-form" id="lead-form">
   <div class="pw-container pw-lead-inner">
-    <h2>${title}</h2>
+    <h2 class="pw-section-title">${title}</h2>
     ${subtitle ? `<p class="pw-muted">${subtitle}</p>` : ''}
     <form class="pw-form" id="pw-lead-form" data-api="${escapeAttr(apiUrl)}" data-success="${successMessage}">
       <label>${nameLabel}<input name="name" type="text" required maxlength="200"/></label>
@@ -235,12 +308,12 @@ function renderLeadForm(section: PartnerWebsiteSection, siteSlug?: string): stri
 })();</script>`
 }
 
-function renderChatCta(section: PartnerWebsiteSection, _chatPath?: string): string {
+function renderChatCta(section: PartnerWebsiteSection): string {
   const title = escapeHtml(str(section.props.title, 'Ready?'))
   const subtitle = escapeHtml(str(section.props.subtitle, ''))
   const buttonText = escapeHtml(str(section.props.buttonText, 'Chat'))
   return `<section class="pw-section pw-chat-cta" id="contact"><div class="pw-container pw-center">
-  <h2>${title}</h2>
+  <h2 class="pw-section-title">${title}</h2>
   ${subtitle ? `<p class="pw-muted">${subtitle}</p>` : ''}
   <button type="button" class="pw-btn pw-btn-accent pw-btn-lg pw-chat-open" data-nanoai-open-chat>${buttonText}</button>
 </div></section>`
@@ -260,13 +333,101 @@ function renderGallery(section: PartnerWebsiteSection): string {
     })
     .join('')
   if (!cells) return ''
-  return `<section class="pw-section"><div class="pw-container"><h2>${title}</h2><div class="pw-gallery">${cells}</div></div></section>`
+  return `<section class="pw-section"><div class="pw-container"><h2 class="pw-section-title">${title}</h2><div class="pw-gallery">${cells}</div></div></section>`
 }
 
-function renderFooter(section: PartnerWebsiteSection): string {
-  const brand = escapeHtml(str(section.props.brandName, 'Shop'))
+function renderFooter(
+  section: PartnerWebsiteSection,
+  input: PartnerWebsiteTemplateRenderInput
+): string {
+  const brand = escapeHtml(str(section.props.brandName, input.title || 'Shop'))
   const note = escapeHtml(str(section.props.note, ''))
-  return `<footer class="pw-footer"><div class="pw-container"><strong>${brand}</strong>${note ? `<p class="pw-muted">${note}</p>` : ''}</div></footer>`
+  const about = escapeHtml(
+    str(
+      section.props.aboutText,
+      input.locale === 'vi'
+        ? 'Shop thời trang — chất lượng, giao nhanh, tư vấn tận tâm.'
+        : 'Fashion shop — quality pieces, fast delivery, friendly support.'
+    )
+  )
+  const siteSlug = input.siteSlug?.trim() ?? ''
+  const shop = siteSlug || input.samplePreview ? getPartnerSiteShopCopy(input.locale) : null
+  const products = siteSlug ? escapeAttr(partnerSiteProductsPath(siteSlug)) : '#products'
+  const cart = siteSlug ? escapeAttr(partnerSiteCartPath(siteSlug)) : '#'
+  const wishlist = siteSlug ? escapeAttr(partnerSiteWishlistPath(siteSlug)) : '#'
+  const orders = siteSlug ? escapeAttr(partnerSiteOrdersPath(siteSlug)) : '#'
+  const aboutPage = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'about')) : '#faq'
+  const contactPage = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'contact')) : '#lead-form'
+  const faqPage = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'faq')) : '#faq'
+  const shippingPage = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'shipping')) : '#faq'
+  const returnsPage = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'returns')) : '#faq'
+  const year = new Date().getFullYear()
+
+  const aboutLabel =
+    input.locale === 'vi' ? 'Về chúng tôi' : input.locale === 'zh' ? '关于我们' : 'About us'
+  const serviceLabel =
+    input.locale === 'vi' ? 'Hỗ trợ khách hàng' : input.locale === 'zh' ? '客户服务' : 'Customer service'
+  const contactLabel =
+    input.locale === 'vi' ? 'Liên hệ' : input.locale === 'zh' ? '联系' : 'Contact'
+  const newsLabel =
+    input.locale === 'vi' ? 'Nhận ưu đãi' : input.locale === 'zh' ? '订阅优惠' : 'Newsletter'
+  const shippingLabel =
+    input.locale === 'vi' ? 'Vận chuyển' : input.locale === 'zh' ? '配送' : 'Shipping'
+  const returnsLabel =
+    input.locale === 'vi' ? 'Đổi trả' : input.locale === 'zh' ? '退换' : 'Returns'
+
+  return `<footer class="pw-footer">
+  <div class="pw-container pw-footer-grid">
+    <div class="pw-footer-col">
+      <h3>${aboutLabel}</h3>
+      <p>${about}</p>
+      <a href="${aboutPage}">${aboutLabel}</a>
+    </div>
+    <div class="pw-footer-col">
+      <h3>${serviceLabel}</h3>
+      <a href="${products}">${shop ? escapeHtml(shop.navProducts) : 'Products'}</a>
+      <a href="${wishlist}">${shop ? escapeHtml(shop.navFavorites) : 'Wishlist'}</a>
+      <a href="${orders}">${shop ? escapeHtml(shop.navOrders) : 'Orders'}</a>
+      <a href="${faqPage}">FAQ</a>
+      <a href="${shippingPage}">${shippingLabel}</a>
+      <a href="${returnsPage}">${returnsLabel}</a>
+    </div>
+    <div class="pw-footer-col">
+      <h3>${contactLabel}</h3>
+      <a href="${contactPage}">${contactLabel}</a>
+      <button type="button" class="pw-footer-link-btn pw-chat-open" data-nanoai-open-chat>${shop ? escapeHtml(shop.navChat) : 'Chat'}</button>
+      <a href="${cart}">${shop ? escapeHtml(shop.navCart) : 'Cart'}</a>
+    </div>
+    <div class="pw-footer-col">
+      <h3>${newsLabel}</h3>
+      <p class="pw-footer-news-hint">${note || brand}</p>
+      <form class="pw-newsletter" action="#lead-form" method="get">
+        <input type="email" name="email" placeholder="Email" aria-label="Email"/>
+        <button type="submit" aria-label="Subscribe">→</button>
+      </form>
+    </div>
+  </div>
+  <div class="pw-footer-bottom">
+    <div class="pw-container pw-footer-bottom-inner">
+      <span>© ${year} ${brand}</span>
+      <span>NanoAI</span>
+    </div>
+  </div>
+</footer>`
+}
+
+function renderTrustBar(section: PartnerWebsiteSection): string {
+  const items = Array.isArray(section.props.items) ? section.props.items : []
+  const cells = items
+    .slice(0, 6)
+    .map((item) => {
+      if (!item || typeof item !== 'object') return ''
+      const o = item as Record<string, unknown>
+      return `<div class="pw-trust-item"><strong>${escapeHtml(str(o.value))}</strong><span>${escapeHtml(str(o.label))}</span></div>`
+    })
+    .join('')
+  if (!cells) return ''
+  return `<section class="pw-trust-bar"><div class="pw-container pw-trust-grid">${cells}</div></section>`
 }
 
 function renderSection(section: PartnerWebsiteSection, input: PartnerWebsiteTemplateRenderInput): string {
@@ -277,6 +438,8 @@ function renderSection(section: PartnerWebsiteSection, input: PartnerWebsiteTemp
   switch (section.type) {
     case 'hero-v1':
       return renderHero(section, input.siteSlug)
+    case 'categories-v1':
+      return renderCategories(section, input)
     case 'trust-bar-v1':
       return renderTrustBar(section)
     case 'products-v1':
@@ -292,17 +455,17 @@ function renderSection(section: PartnerWebsiteSection, input: PartnerWebsiteTemp
     case 'testimonials-v1':
       return renderTestimonials(section)
     case 'pricing-v1':
-      return renderPricing(section, input.chatPath)
+      return renderPricing(section)
     case 'faq-v1':
       return renderFaq(section)
     case 'lead-form-v1':
       return renderLeadForm(section, input.siteSlug)
     case 'chat-cta-v1':
-      return renderChatCta(section, input.chatPath)
+      return renderChatCta(section)
     case 'gallery-v1':
       return renderGallery(section)
     case 'footer-v1':
-      return renderFooter(section)
+      return renderFooter(section, input)
     default:
       return ''
   }
@@ -315,60 +478,189 @@ function buildStyles(theme: PartnerWebsiteTemplateRenderInput['theme']): string 
   --pw-bg:${theme.backgroundColor};
   --pw-text:${theme.textColor};
   --pw-muted:${theme.mutedColor};
+  --pw-dark:#374151;
+  --pw-footer:#4b5563;
+  --pw-font-display:${FASHION_SHOP_FONT_DISPLAY};
+  --pw-font-ui:${FASHION_SHOP_FONT_UI};
 }
 *{box-sizing:border-box}
-body{margin:0;font-family:${theme.fontFamily};color:var(--pw-text);background:var(--pw-bg);line-height:1.6}
-.pw-container{max-width:1080px;margin:0 auto;padding:0 20px}
-.pw-hero{padding:96px 0;background:linear-gradient(135deg,var(--pw-primary),#0f172a);color:#fff;text-align:center;background-size:cover;background-position:center}
-.pw-hero h1{font-size:clamp(2rem,5vw,3rem);margin:0 0 12px}
-.pw-hero-sub{color:rgba(255,255,255,.85);margin:0 0 24px;font-size:1.1rem}
-.pw-muted{color:var(--pw-muted);margin:0 0 16px}
-.pw-section-sub{margin:-8px 0 24px}
-.pw-btn{display:inline-block;padding:12px 22px;border-radius:999px;background:#fff;color:var(--pw-primary);font-weight:700;text-decoration:none;border:none;cursor:pointer;font-size:14px}
-.pw-btn-sm{padding:8px 16px;font-size:13px}
-.pw-btn-lg{padding:14px 28px;font-size:16px}
+html,body{margin:0}
+body{font-family:var(--pw-font-ui),${theme.fontFamily};color:var(--pw-text);background:
+  radial-gradient(900px 420px at 0% -10%, color-mix(in srgb, var(--pw-primary) 12%, transparent), transparent 55%),
+  radial-gradient(700px 360px at 100% 0%, rgba(251,191,36,.08), transparent 50%),
+  var(--pw-bg);line-height:1.5;padding-bottom:72px}
+${buildFashionShopMotionCss()}
+a{color:inherit}
+.pw-container{max-width:1180px;margin:0 auto;padding:0 20px}
+.pw-topbar{background:var(--pw-primary);color:#fff;font-size:12px}
+.pw-topbar-inner{display:flex;justify-content:flex-end;gap:18px;padding:8px 0}
+.pw-topbar a,.pw-topbar button{color:#fff;text-decoration:none;background:none;border:none;cursor:pointer;font:inherit;padding:0}
+.pw-header{background:#fff;border-bottom:1px solid #f3f4f6;position:sticky;top:0;z-index:40}
+.pw-header-main{display:flex;align-items:center;gap:12px;padding:14px 0}
+.pw-brand-cluster{position:relative;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.pw-brand{display:flex;align-items:center;gap:10px;text-decoration:none;min-width:0}
+.pw-logo{height:36px;width:auto;object-fit:contain}
+.pw-wordmark{font-weight:800;font-size:1.15rem;color:var(--pw-primary);white-space:nowrap}
+.pw-cat-btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.pw-cat-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+.pw-cat-panel{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:60;min-width:200px;padding:8px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.12)}
+.pw-cat-panel.is-open{display:grid;gap:2px}
+.pw-cat-panel a{display:block;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:700;color:#374151;text-decoration:none}
+.pw-cat-panel a:hover{background:#fff7ed;color:var(--pw-primary)}
+.pw-cat-panel a.pw-nav-sale{color:var(--pw-primary)}
+.pw-header-search{flex:1;min-width:0;max-width:560px;margin:0 auto}
+.pw-search-form{display:flex;align-items:stretch;border:2px solid var(--pw-primary);border-radius:999px;overflow:hidden;background:#fff}
+.pw-search-form input[type="search"]{flex:1;min-width:0;border:none;outline:none;padding:10px 14px;font:inherit;background:transparent}
+.pw-search-image-btn{border:none;background:#fff7ed;padding:0 10px;cursor:pointer;font-size:1.05rem;line-height:1}
+.pw-search-submit{border:none;background:var(--pw-primary);color:#fff;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:0 16px;cursor:pointer;white-space:nowrap}
+.pw-nav-main{display:none;justify-content:center;gap:18px;flex-wrap:wrap;padding:0 0 12px}
+.pw-nav-main a{text-decoration:none;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#374151}
+.pw-nav-main a.pw-nav-sale{color:var(--pw-primary)}
+.pw-header-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
+.pw-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;border:none;background:transparent;color:#374151;text-decoration:none;cursor:pointer;position:relative}
+.pw-icon-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2}
+.pw-cart-badge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:999px;background:var(--pw-primary);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.pw-mobile-header{display:none}
+.pw-hero{min-height:360px;background:linear-gradient(135deg,var(--pw-primary),#fb923c);background-size:cover;background-position:center;color:#fff;display:flex;align-items:center;border-radius:0;overflow:hidden;position:relative}
+.pw-hero::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at top right,rgba(251,146,60,.35),transparent 55%);pointer-events:none}
+.pw-hero-inner{width:100%;padding:64px 20px;position:relative;z-index:1}
+.pw-hero-copy{max-width:560px}
+.pw-hero h1{margin:0 0 12px;font-family:var(--pw-font-display);font-size:clamp(2rem,4.5vw,3.4rem);line-height:1.08;letter-spacing:.01em;text-transform:uppercase;font-weight:800}
+.pw-hero-sub{margin:0 0 20px;color:rgba(255,255,255,.92);font-size:1rem}
+.pw-btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;border-radius:999px;background:var(--pw-primary);color:#fff;font-weight:700;text-decoration:none;border:none;cursor:pointer;font-size:14px}
+.pw-btn-hero{background:#fff;color:var(--pw-primary);border-radius:10px;padding:12px 28px;text-transform:uppercase;letter-spacing:.04em}
 .pw-btn-accent{background:var(--pw-accent);color:#fff}
-.pw-section{padding:64px 0}
-.pw-section h2{font-size:clamp(1.5rem,3vw,2rem);margin:0 0 24px;text-align:center}
+.pw-btn-cart{width:100%;border-radius:8px;background:var(--pw-primary);color:#fff;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:10px 12px}
+.pw-btn-lg{padding:14px 28px;font-size:16px}
+.pw-btn-sm{padding:8px 14px;font-size:13px}
+.pw-hero-dots{display:flex;gap:6px;margin-top:18px}
+.pw-hero-dots span{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.45)}
+.pw-hero-dots span.is-active{background:#fff}
+.pw-section{padding:48px 0}
+.pw-section-title{margin:0 0 22px;text-align:center;font-family:var(--pw-font-display);font-size:clamp(1.25rem,2.5vw,1.7rem);font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--pw-primary)}
+.pw-section-title-light{color:#fff}
+.pw-section-sub{text-align:center;margin:-8px 0 24px}
+.pw-muted{color:var(--pw-muted)}
+.pw-band-orange{background:var(--pw-primary)}
+.pw-band-orange .pw-muted{color:rgba(255,255,255,.85)}
+.pw-cat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.pw-cat-card{display:flex;flex-direction:column;align-items:center;gap:10px;text-decoration:none;color:inherit}
+.pw-cat-media{display:block;width:100%;aspect-ratio:1;border:2px solid var(--pw-primary);border-radius:8px;overflow:hidden;background:#fff7ed}
+.pw-cat-media img{width:100%;height:100%;object-fit:cover;display:block}
+.pw-cat-label{font-size:13px;font-weight:700;color:#4b5563;text-align:center}
+.pw-product-grid{display:grid;gap:18px;grid-template-columns:repeat(4,minmax(0,1fr))}
+.pw-product-card{display:flex;flex-direction:column;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #ffedd5;box-shadow:0 12px 36px -18px rgba(234,88,12,.4);transition:transform .35s ease,box-shadow .35s ease}
+.pw-product-card:hover{transform:translateY(-4px);box-shadow:0 22px 44px -20px rgba(234,88,12,.5)}
+.pw-product-card-media{position:relative;display:block;aspect-ratio:4/5;background:#fff7ed}
+.pw-product-card-media img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .7s ease}
+.pw-product-card:hover .pw-product-card-media img{transform:scale(1.05)}
+.pw-product-ph{width:100%;height:100%;background:linear-gradient(135deg,#fed7aa,#ffedd5)}
+.pw-badge-new{position:absolute;top:8px;left:8px;background:#9ca3af;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.04em}
+.pw-product-card-body{padding:12px;display:grid;gap:8px}
+.pw-product-card-body h3{margin:0;font-size:14px;line-height:1.35;font-weight:600}
+.pw-product-card-body h3 a{color:inherit;text-decoration:none}
+.pw-price{margin:0;font-weight:800;color:var(--pw-primary);font-size:15px}
+.pw-shop-action-bar{display:grid;gap:8px}
+.pw-shop-action-bar .pw-btn{width:100%;border-radius:8px}
+.pw-shop-action-bar .pw-btn-sm:not(.pw-btn-accent){display:none}
 .pw-grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-.pw-card{padding:20px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
-.pw-trust-bar{background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:20px 0}
+.pw-card{padding:20px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
+.pw-trust-bar{background:#fff7ed;border-bottom:1px solid #fed7aa;padding:18px 0}
 .pw-trust-grid{display:flex;flex-wrap:wrap;gap:24px;justify-content:center;text-align:center}
-.pw-trust-item strong{display:block;font-size:1.25rem;color:var(--pw-primary)}
-.pw-trust-item span{font-size:.875rem;color:var(--pw-muted)}
-.pw-product-grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
-.pw-product-card{border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;padding-bottom:16px}
-.pw-product-card img{width:100%;aspect-ratio:1;object-fit:cover}
-.pw-product-ph{aspect-ratio:1;background:linear-gradient(135deg,#e2e8f0,#f1f5f9)}
-.pw-product-card h3,.pw-product-card p,.pw-product-card a{margin:8px 16px 0}
-.pw-price{font-weight:700;color:var(--pw-accent);margin:4px 16px}
-.pw-product-desc{font-size:.875rem}
-.pw-testimonial{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin:0}
-.pw-testimonial p{font-style:italic;margin:0 0 12px}
+.pw-trust-item strong{display:block;font-size:1.2rem;color:var(--pw-primary)}
+.pw-trust-item span{font-size:.85rem;color:var(--pw-muted)}
+.pw-testimonial{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:0}
 .pw-pricing-grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
-.pw-plan{border:1px solid #e2e8f0;border-radius:12px;padding:24px;background:#fff;text-align:center}
+.pw-plan{border:1px solid #e5e7eb;border-radius:12px;padding:24px;background:#fff;text-align:center}
 .pw-plan-highlight{border-color:var(--pw-accent);box-shadow:0 8px 24px rgba(0,0,0,.08)}
 .pw-plan ul{list-style:none;padding:0;margin:16px 0;text-align:left}
-.pw-faq-wrap details.pw-faq{border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px;margin-bottom:10px;background:#fff}
-.pw-lead-form{background:#f8fafc}
+.pw-faq-wrap details.pw-faq{border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;margin-bottom:10px;background:#fff}
+.pw-lead-form{background:#fff7ed}
 .pw-lead-inner{max-width:560px;margin:0 auto;text-align:center}
 .pw-form{text-align:left;display:grid;gap:12px;margin-top:20px}
 .pw-form label{display:grid;gap:4px;font-size:14px;font-weight:600}
-.pw-form input,.pw-form textarea{padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}
+.pw-form input,.pw-form textarea{padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font:inherit}
 .pw-form-msg{font-size:14px;margin-top:8px}
 .pw-form-ok{color:#15803d}
 .pw-form-err{color:#b91c1c}
-.pw-chat-cta{background:linear-gradient(180deg,#f8fafc,#fff);text-align:center}
+.pw-chat-cta{background:linear-gradient(180deg,#fff7ed,#fff);text-align:center}
 .pw-center{text-align:center}
 .pw-gallery{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
 .pw-gallery-item img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px}
-.pw-footer{padding:32px 0;border-top:1px solid #e2e8f0;text-align:center}
-.pw-header{padding:16px 0;border-bottom:1px solid #e2e8f0;background:#fff;position:sticky;top:0;z-index:10}
-.pw-header-inner{display:flex;align-items:center;gap:12px}
-.pw-logo{height:40px;width:auto}
-.pw-wordmark{font-weight:800;font-size:1.1rem;color:var(--pw-primary)}
-.pw-nav{margin-left:auto;display:flex;gap:16px;font-size:14px}
-.pw-nav a{color:var(--pw-primary);text-decoration:none;font-weight:600}`
+.pw-footer{background:var(--pw-footer);color:#f3f4f6;padding:48px 0 0;margin-top:24px}
+.pw-footer-grid{display:grid;gap:28px;grid-template-columns:repeat(4,minmax(0,1fr));padding-bottom:32px}
+.pw-footer-col h3{margin:0 0 12px;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:#fff}
+.pw-footer-col p,.pw-footer-col a,.pw-footer-link-btn{display:block;color:#e5e7eb;text-decoration:none;font-size:13px;margin:0 0 8px;background:none;border:none;padding:0;cursor:pointer;font:inherit;text-align:left}
+.pw-footer-news-hint{opacity:.85}
+.pw-newsletter{display:flex;gap:0;margin-top:10px}
+.pw-newsletter input{flex:1;border:none;border-radius:6px 0 0 6px;padding:10px 12px;font:inherit}
+.pw-newsletter button{border:none;background:var(--pw-primary);color:#fff;padding:0 14px;border-radius:0 6px 6px 0;font-weight:800;cursor:pointer}
+.pw-footer-bottom{border-top:1px solid rgba(255,255,255,.15);padding:14px 0}
+.pw-footer-bottom-inner{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.85}
+.pw-bottom-nav{display:none}
+.pw-fab-chat{position:fixed;right:16px;bottom:84px;z-index:9999;width:52px;height:52px;border-radius:50%;background:var(--pw-accent);color:#fff;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-size:22px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+@media (min-width:900px){
+  body{padding-bottom:0}
+  .pw-nav-main{display:flex}
+  .pw-fab-chat{bottom:16px}
+}
+@media (max-width:899px){
+  .pw-topbar{display:none}
+  .pw-header{background:var(--pw-primary);border:none;box-shadow:0 6px 18px rgba(154,52,18,.18)}
+  .pw-header-main{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;padding:8px 0}
+  .pw-brand-cluster{gap:6px;max-width:none;min-width:0;flex-shrink:0}
+  .pw-header-actions{margin-left:0;gap:2px;flex-shrink:0}
+  .pw-header-search{flex:1 1 auto;min-width:0;max-width:none;margin:0}
+  .pw-wordmark{
+    color:#fff;font-size:.92rem;font-weight:800;letter-spacing:-.01em;
+    text-shadow:0 1px 1px rgba(0,0,0,.22);
+    max-width:28vw;overflow:hidden;text-overflow:ellipsis;
+  }
+  .pw-logo{height:26px;filter:brightness(0) invert(1)}
+  .pw-icon-btn{color:#fff;flex-shrink:0;width:32px;height:34px}
+  .pw-cat-btn{
+    width:34px;height:34px;padding:0;justify-content:center;
+    border:1.5px solid rgba(255,255,255,.55);
+    background:rgba(255,255,255,.16);color:#fff;flex-shrink:0;
+  }
+  .pw-cat-btn span{display:none}
+  .pw-search-form{border:none;height:36px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.10)}
+  .pw-search-form input[type="search"]{padding:0 8px;font-size:13px;font-weight:500}
+  .pw-search-image-btn{background:transparent;padding:0 6px}
+  .pw-search-submit{min-width:36px;padding:0 10px;font-size:0;letter-spacing:0}
+  .pw-search-submit::before{content:"";display:block;width:16px;height:16px;background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E")}
+  .pw-hero{margin:12px 16px 0;border-radius:1.5rem;min-height:220px;overflow:hidden}
+  .pw-hero-inner{padding:28px 18px}
+  .pw-hero h1{font-size:1.45rem}
+  .pw-btn-hero{background:var(--pw-primary);color:#fff;border:2px solid #fff}
+  .pw-band-orange{background:transparent}
+  .pw-band-orange .pw-section-title-light{color:var(--pw-primary)}
+  .pw-cat-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;overflow-x:auto}
+  .pw-cat-media{border:none;border-radius:999px;aspect-ratio:1;max-width:72px;margin:0 auto}
+  .pw-cat-label{font-size:11px}
+  .pw-product-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .pw-footer-grid{grid-template-columns:1fr 1fr}
+  .pw-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid #e5e7eb;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  .pw-bottom-nav a{display:flex;flex-direction:column;align-items:center;gap:2px;text-decoration:none;font-size:10px;font-weight:600;color:#6b7280;padding:6px 2px}
+  .pw-bottom-nav a.is-active,.pw-bottom-nav a:first-child{color:var(--pw-primary)}
+  .pw-bottom-nav svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2}
+}
+@media (max-width:520px){
+  .pw-footer-grid{grid-template-columns:1fr}
+}`
+}
+
+function svgIcon(name: 'menu' | 'search' | 'user' | 'cart' | 'home' | 'box' | 'tag'): string {
+  const paths: Record<typeof name, string> = {
+    menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    user: '<circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3 4-4.5 7-4.5s5.5 1.5 7 4.5"/>',
+    cart: '<path d="M3 4h2l2.2 11h9.6L19 7H7"/><circle cx="10" cy="19" r="1.5"/><circle cx="16" cy="19" r="1.5"/>',
+    home: '<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/>',
+    box: '<path d="M4 8l8-4 8 4v9l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v9"/>',
+    tag: '<path d="M12 4h7v7l-9.5 9.5a2 2 0 0 1-2.8 0L4.5 18.3a2 2 0 0 1 0-2.8z"/><circle cx="16" cy="8" r="1.2"/>',
+  }
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`
 }
 
 export function renderTemplateSiteToHtml(input: PartnerWebsiteTemplateRenderInput): string {
@@ -376,39 +668,166 @@ export function renderTemplateSiteToHtml(input: PartnerWebsiteTemplateRenderInpu
   const sections = home?.sections ?? []
   const body = sections.map((s) => renderSection(s, input)).join('\n')
   const logo = input.theme.logoUrl ?? input.logoUrl
-  const shop = input.siteSlug?.trim() ? getPartnerSiteShopCopy(input.locale) : null
   const siteSlug = input.siteSlug?.trim() ?? ''
-  const nav = shop && siteSlug
-    ? `<nav class="pw-nav" aria-label="Shop">
-    <a href="${escapeAttr(partnerSiteHomePath(siteSlug))}">${escapeHtml(shop.navHome)}</a>
-    <a href="${escapeAttr(partnerSiteProductsPath(siteSlug))}">${escapeHtml(shop.navProducts)}</a>
-    <a href="#recently-viewed">${escapeHtml(shop.navRecentlyViewed)}</a>
-    <a href="#favorites">${escapeHtml(shop.navFavorites)}</a>
-    <a href="#recommended-for-you">${escapeHtml(shop.navRecommended)}</a>
-    <a href="${escapeAttr(partnerSiteOrdersPath(siteSlug))}">${escapeHtml(shop.navOrders)}</a>
-    <a href="#faq">FAQ</a>
-    <a href="#lead-form">Contact</a>
-    <a href="${escapeAttr(partnerSiteCartPath(siteSlug))}">${escapeHtml(shop.navCart)}</a>
-    <button type="button" class="pw-chat-open" data-nanoai-open-chat>${escapeHtml(shop.navChat)}</button>
+  const shop =
+    siteSlug || input.samplePreview ? getPartnerSiteShopCopy(input.locale) : null
+  const homeHref = siteSlug ? escapeAttr(partnerSiteHomePath(siteSlug)) : '#top'
+  const productsHref = siteSlug ? escapeAttr(partnerSiteProductsPath(siteSlug)) : '#products'
+  const wishlistHref = siteSlug ? escapeAttr(partnerSiteWishlistPath(siteSlug)) : '#products'
+  const cartHref = siteSlug ? escapeAttr(partnerSiteCartPath(siteSlug)) : '#products'
+  const ordersHref = siteSlug ? escapeAttr(partnerSiteOrdersPath(siteSlug)) : '#lead-form'
+  const saleHref = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'sale')) : '#products'
+  const contactHref = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'contact')) : '#lead-form'
+
+  const navSale =
+    input.locale === 'vi' ? 'Khuyến mãi' : input.locale === 'zh' ? '促销' : 'SALE'
+  const navNew =
+    input.locale === 'vi' ? 'Hàng mới' : input.locale === 'zh' ? '新品' : 'NEW ARRIVALS'
+  const navClothing =
+    input.locale === 'vi' ? 'Thời trang' : input.locale === 'zh' ? '服装' : 'CLOTHING'
+  const navBags =
+    input.locale === 'vi' ? 'Túi xách' : input.locale === 'zh' ? '箱包' : 'HANDBAGS'
+  const navShoes =
+    input.locale === 'vi' ? 'Giày dép' : input.locale === 'zh' ? '鞋履' : 'SHOES'
+  const navAcc =
+    input.locale === 'vi' ? 'Phụ kiện' : input.locale === 'zh' ? '配饰' : 'ACCESSORIES'
+  const contactUs =
+    input.locale === 'vi' ? 'Liên hệ' : input.locale === 'zh' ? '联系我们' : 'Contact us'
+  const loginLabel =
+    input.locale === 'vi' ? 'Đăng nhập' : input.locale === 'zh' ? '登录' : 'Log in'
+  const accountLabel =
+    input.locale === 'vi' ? 'Tài khoản' : input.locale === 'zh' ? '账户' : 'Account'
+  const promoLabel =
+    input.locale === 'vi' ? 'Khuyến mãi' : input.locale === 'zh' ? '促销' : 'Promotions'
+  const searchPh =
+    input.locale === 'vi'
+      ? 'Tìm sản phẩm…'
+      : input.locale === 'zh'
+        ? '搜索产品…'
+        : input.locale === 'ja'
+          ? '商品を検索…'
+          : input.locale === 'ko'
+            ? '상품 검색…'
+            : 'Search products…'
+  const searchBtn =
+    input.locale === 'vi'
+      ? 'Tìm'
+      : input.locale === 'zh'
+        ? '搜索'
+        : input.locale === 'ja'
+          ? '検索'
+          : input.locale === 'ko'
+            ? '검색'
+            : 'Search'
+  const searchImage =
+    input.locale === 'vi'
+      ? 'Tìm bằng ảnh'
+      : input.locale === 'zh'
+        ? '以图搜图'
+        : input.locale === 'ja'
+          ? '画像で検索'
+          : input.locale === 'ko'
+            ? '이미지로 검색'
+            : 'Search by image'
+
+  const topbar = shop
+    ? `<div class="pw-topbar"><div class="pw-container pw-topbar-inner">
+      <a href="${contactHref}">${escapeHtml(contactUs)}</a>
+      <a href="${wishlistHref}">${escapeHtml(shop.navFavorites)}</a>
+      <a href="${ordersHref}">${escapeHtml(loginLabel)}</a>
+    </div></div>`
+    : ''
+
+  const brandBlock = logo
+    ? `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" src="${escapeAttr(logo)}" alt="${escapeAttr(input.title)}"/><span class="pw-wordmark">${escapeHtml(input.title)}</span></a>`
+    : `<a class="pw-brand" href="${homeHref}"><span class="pw-wordmark">${escapeHtml(input.title)}</span></a>`
+
+  const searchBar = `<div class="pw-header-search">
+    <form class="pw-search-form" data-pw-search-form role="search">
+      <input data-pw-search type="search" name="q" placeholder="${escapeAttr(searchPh)}" aria-label="${escapeAttr(searchPh)}" autocomplete="off"/>
+      <button type="button" class="pw-search-image-btn" data-pw-image-search aria-label="${escapeAttr(searchImage)}" title="${escapeAttr(searchImage)}">📷</button>
+      <button type="submit" class="pw-search-submit">${escapeHtml(searchBtn)}</button>
+    </form>
+  </div>`
+
+  const categoriesLabel = shop
+    ? shop.navCategories
+    : input.locale === 'vi'
+      ? 'Danh mục'
+      : input.locale === 'zh'
+        ? '分类'
+        : input.locale === 'ja'
+          ? 'カテゴリ'
+          : input.locale === 'ko'
+            ? '카테고리'
+            : 'Categories'
+
+  const categoryLinks = `<a href="${productsHref}">${escapeHtml(navNew)}</a>
+    <a href="${productsHref}">${escapeHtml(navClothing)}</a>
+    <a href="${productsHref}">${escapeHtml(navBags)}</a>
+    <a href="${productsHref}">${escapeHtml(navShoes)}</a>
+    <a href="${productsHref}">${escapeHtml(navAcc)}</a>
+    <a class="pw-nav-sale" href="${saleHref}">${escapeHtml(navSale)}</a>`
+
+  const categoriesToggleScript = `<script data-pw-cat-toggle>(function(){
+  var btn=document.querySelector('[data-pw-cat-toggle]');
+  var panel=document.querySelector('[data-pw-cat-panel]');
+  if(!btn||!panel)return;
+  btn.addEventListener('click',function(e){
+    e.stopPropagation();
+    var open=panel.classList.toggle('is-open');
+    btn.setAttribute('aria-expanded',open?'true':'false');
+  });
+  document.addEventListener('click',function(e){
+    if(panel.contains(e.target)||btn.contains(e.target))return;
+    panel.classList.remove('is-open');
+    btn.setAttribute('aria-expanded','false');
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'){
+      panel.classList.remove('is-open');
+      btn.setAttribute('aria-expanded','false');
+    }
+  });
+})();</script>`
+
+  const header = `<header class="pw-header">
+  ${topbar}
+  <div class="pw-container pw-header-main">
+    <div class="pw-brand-cluster">
+      <button type="button" class="pw-cat-btn" data-pw-cat-toggle aria-expanded="false" aria-controls="pw-cat-panel" aria-label="${escapeAttr(categoriesLabel)}">${svgIcon('menu')}<span>${escapeHtml(categoriesLabel)}</span></button>
+      ${brandBlock}
+      <nav id="pw-cat-panel" class="pw-cat-panel" data-pw-cat-panel aria-label="${escapeAttr(categoriesLabel)}">
+        ${categoryLinks}
+      </nav>
+    </div>
+    ${searchBar}
+    <div class="pw-header-actions">
+      <a class="pw-icon-btn" href="${ordersHref}" aria-label="${escapeAttr(accountLabel)}">${svgIcon('user')}</a>
+      <a class="pw-icon-btn" href="${cartHref}" aria-label="${shop ? escapeAttr(shop.navCart) : 'Cart'}">${svgIcon('cart')}<span class="pw-cart-badge">0</span></a>
+    </div>
+  </div>
+  <nav class="pw-container pw-nav-main" aria-label="Shop">
+    ${categoryLinks}
+  </nav>
+</header>`
+
+  const bottomNav = shop
+    ? `<nav class="pw-bottom-nav" aria-label="Mobile">
+    <a class="is-active" href="${homeHref}">${svgIcon('home')}<span>${escapeHtml(shop.navHome)}</span></a>
+    <a href="${productsHref}">${svgIcon('box')}<span>${escapeHtml(shop.navProducts)}</span></a>
+    <a href="${saleHref}">${svgIcon('tag')}<span>${escapeHtml(promoLabel)}</span></a>
+    <a href="${ordersHref}">${svgIcon('user')}<span>${escapeHtml(accountLabel)}</span></a>
   </nav>`
-    : `<nav class="pw-nav" aria-label="Sections">
-    <a href="#products">Products</a>
-    <a href="#faq">FAQ</a>
-    <a href="#lead-form">Contact</a>
-    <a href="#contact">Chat</a>
-  </nav>`
-  const header = logo
-    ? `<header class="pw-header"><div class="pw-container pw-header-inner"><img class="pw-logo" src="${escapeAttr(logo)}" alt="${escapeAttr(input.title)}"/><span class="pw-wordmark">${escapeHtml(input.title)}</span>${nav}</div></header>`
-    : `<header class="pw-header"><div class="pw-container pw-header-inner"><span class="pw-wordmark">${escapeHtml(input.title)}</span>${nav}</div></header>`
+    : ''
 
   const floatingChat = input.chatPath?.trim()
-    ? `<button type="button" class="pw-fab-chat pw-chat-open" data-nanoai-open-chat aria-label="Chat">💬</button>
-<style>.pw-fab-chat{position:fixed;right:16px;bottom:16px;z-index:9999;width:52px;height:52px;border-radius:50%;background:var(--pw-accent);color:#fff;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-size:22px;box-shadow:0 8px 24px rgba(0,0,0,.2)}.pw-nav .pw-chat-open,.pw-chat-open.pw-btn{background:none;border:none;cursor:pointer;font:inherit}.pw-nav .pw-chat-open{color:var(--pw-primary);font-weight:600;font-size:14px;padding:0}</style>`
+    ? `<button type="button" class="pw-fab-chat pw-chat-open" data-nanoai-open-chat aria-label="Chat">💬</button>`
     : ''
 
   const personalizationScript = siteSlug
-      ? buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale: input.locale })
-      : ''
+    ? buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale: input.locale })
+    : ''
 
   return `<!DOCTYPE html>
 <html lang="${escapeAttr(input.locale)}">
@@ -416,12 +835,17 @@ export function renderTemplateSiteToHtml(input: PartnerWebsiteTemplateRenderInpu
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>${escapeHtml(input.title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="${FASHION_SHOP_GOOGLE_FONTS_HREF}" rel="stylesheet"/>
 <style>${buildStyles(input.theme)}</style>
 </head>
-<body>
+<body id="top">
 ${header}
 ${body}
 ${floatingChat}
+${bottomNav}
+${categoriesToggleScript}
 ${personalizationScript}
 </body>
 </html>`

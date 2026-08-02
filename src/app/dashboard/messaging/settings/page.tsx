@@ -75,9 +75,7 @@ export default async function DashboardMessagingSettingsPage({
             <MessagingDashboardNavLinks
               inboxLabel={pm.goToInbox}
               settingsLabel={pm.messagingSettingsLink}
-              marketingLabel={pm.marketingCampaignsLink}
               ordersLabel={pm.messagingOrdersLink}
-              websiteLabel={pm.messagingWebsiteLink}
               active="settings"
             />
           <Button variant="outline" size="sm" asChild>

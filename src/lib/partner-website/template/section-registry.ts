@@ -3,6 +3,8 @@
  * NanoAI admin can enable/disable section types via partner_website_platform_settings.
  */
 
+import { SHOP_TEMPLATE_PRESETS } from '@/lib/partner-website/template/shop-template-presets'
+
 export type SectionRegistryEntry = {
   type: string
   label: Record<string, string>
@@ -18,20 +20,26 @@ export const PARTNER_WEBSITE_TEMPLATE_DEFINITIONS: Record<
 > = {
   'landing-v1': {
     label: {
-      vi: 'Landing shop v1',
-      en: 'Shop landing v1',
-      zh: '店铺落地页 v1',
-      ja: 'ショップ LP v1',
-      ko: '샵 랜딩 v1',
+      vi: 'Shop thời trang',
+      en: 'Fashion shop',
+      zh: '时尚店铺',
+      ja: 'ファッションショップ',
+      ko: '패션 샵',
     },
     description: {
-      vi: 'Landing shop đầy đủ: hero, sản phẩm, FAQ, form liên hệ, chat — backend do platform.',
-      en: 'Full shop landing: hero, products, FAQ, contact form, chat — platform backend.',
-      zh: '完整店铺落地页：Hero、产品、FAQ、联系表单、聊天。',
-      ja: 'フルショップLP：Hero、商品、FAQ、フォーム、チャット。',
-      ko: '풀 샵 랜딩: Hero, 상품, FAQ, 문의 폼, 채팅.',
+      vi: 'Web mua sắm: hero, danh mục, hàng mới, bán chạy, FAQ, chat — gắn catalog & giỏ.',
+      en: 'Shopping site: hero, categories, new arrivals, best sellers, FAQ, chat — catalog & cart wired.',
+      zh: '购物站：Hero、分类、新品、畅销、FAQ、聊天 — 已接目录与购物车。',
+      ja: 'ショップ：Hero・カテゴリ・新着・ベストセラー・FAQ・チャット。',
+      ko: '쇼핑 사이트: 히어로, 카테고리, 신상품, 베스트셀러, FAQ, 채팅.',
     },
   },
+  ...Object.fromEntries(
+    SHOP_TEMPLATE_PRESETS.map((p) => [
+      p.id,
+      { label: p.label, description: p.description },
+    ])
+  ),
 }
 
 export const PARTNER_WEBSITE_SECTION_REGISTRY: SectionRegistryEntry[] = [
@@ -134,6 +142,29 @@ export const PARTNER_WEBSITE_SECTION_REGISTRY: SectionRegistryEntry[] = [
     platformLocked: false,
   },
   {
+    type: 'categories-v1',
+    label: {
+      vi: 'Danh mục',
+      en: 'Categories',
+      zh: '分类',
+      ja: 'カテゴリ',
+      ko: '카테고리',
+    },
+    description: {
+      vi: 'Danh mục nổi bật (ô vuông desktop / tròn mobile)',
+      en: 'Featured categories (cards desktop / circles mobile)',
+      zh: '精选分类（桌面卡片 / 移动圆形）',
+      ja: '注目カテゴリ（PCカード / スマホ円）',
+      ko: '추천 카테고리(데스크톱 카드 / 모바일 원형)',
+    },
+    editableFields: ['title', 'items'],
+    defaultProps: {
+      title: 'Featured categories',
+      items: [],
+    },
+    platformLocked: false,
+  },
+  {
     type: 'products-v1',
     label: { vi: 'Sản phẩm', en: 'Products', zh: '产品', ja: '商品', ko: '상품' },
     description: {
@@ -143,13 +174,24 @@ export const PARTNER_WEBSITE_SECTION_REGISTRY: SectionRegistryEntry[] = [
       ja: '商品グリッド — 在庫同期または手入力',
       ko: '상품 그리드 — 재고 동기화 또는 수동',
     },
-    editableFields: ['title', 'subtitle', 'useInventory', 'limit', 'productCtaText', 'products'],
+    editableFields: [
+      'title',
+      'subtitle',
+      'useInventory',
+      'limit',
+      'productCtaText',
+      'products',
+      'variant',
+      'showNewBadge',
+    ],
     defaultProps: {
       title: 'Products',
       subtitle: 'Best sellers',
       useInventory: true,
       limit: 8,
-      productCtaText: 'View details',
+      productCtaText: 'Add to cart',
+      variant: 'default',
+      showNewBadge: false,
       products: [
         {
           name: 'Sample product',

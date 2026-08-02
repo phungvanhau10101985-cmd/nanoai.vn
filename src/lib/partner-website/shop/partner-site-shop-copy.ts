@@ -8,6 +8,7 @@ export type PartnerSiteShopCopy = {
   navRecommended: string
   navCart: string
   navChat: string
+  navCategories: string
   catalogTitle: string
   catalogEmpty: string
   loadMore: string
@@ -36,6 +37,11 @@ export type PartnerSiteShopCopy = {
   colorLabel: string
   searchPlaceholder: string
   searchButton: string
+  searchByImage: string
+  searchSearching: string
+  searchResults: string
+  searchEmpty: string
+  searchError: string
   relatedProducts: string
   tryOnLink: string
   ordersTitle: string
@@ -54,6 +60,10 @@ export type PartnerSiteShopCopy = {
   productVideoTitle: string
   favoriteAdd: string
   favoriteRemove: string
+  wishlistTitle: string
+  wishlistEmpty: string
+  recentlyViewedTitle: string
+  recentlyViewedEmpty: string
   chatOpenLabel: string
   chatCloseLabel: string
   chatFullPageLabel: string
@@ -69,6 +79,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navRecommended: 'Gợi ý',
     navCart: 'Giỏ hàng',
     navChat: 'Chat mua',
+    navCategories: 'Danh mục',
     catalogTitle: 'Tất cả sản phẩm',
     catalogEmpty: 'Chưa có sản phẩm.',
     loadMore: 'Xem thêm',
@@ -97,6 +108,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     colorLabel: 'Màu',
     searchPlaceholder: 'Tìm sản phẩm…',
     searchButton: 'Tìm',
+    searchByImage: 'Tìm bằng ảnh',
+    searchSearching: 'Đang tìm…',
+    searchResults: 'Kết quả tìm kiếm',
+    searchEmpty: 'Không tìm thấy sản phẩm phù hợp.',
+    searchError: 'Không tìm được. Thử lại.',
     relatedProducts: 'Sản phẩm liên quan',
     tryOnLink: 'Thử đồ AI',
     ordersTitle: 'Đơn hàng của bạn',
@@ -115,6 +131,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     productVideoTitle: 'Video sản phẩm',
     favoriteAdd: 'Thêm yêu thích',
     favoriteRemove: 'Bỏ yêu thích',
+    wishlistTitle: 'Yêu thích',
+    wishlistEmpty: 'Chưa có sản phẩm yêu thích.',
+    recentlyViewedTitle: 'Vừa xem',
+    recentlyViewedEmpty: 'Chưa xem sản phẩm nào.',
     chatOpenLabel: 'Mở chat',
     chatCloseLabel: 'Đóng',
     chatFullPageLabel: 'Mở toàn trang',
@@ -128,6 +148,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navRecommended: 'For you',
     navCart: 'Cart',
     navChat: 'Chat',
+    navCategories: 'Categories',
     catalogTitle: 'All products',
     catalogEmpty: 'No products yet.',
     loadMore: 'Load more',
@@ -156,6 +177,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     colorLabel: 'Color',
     searchPlaceholder: 'Search products…',
     searchButton: 'Search',
+    searchByImage: 'Search by image',
+    searchSearching: 'Searching…',
+    searchResults: 'Search results',
+    searchEmpty: 'No matching products.',
+    searchError: 'Search failed. Try again.',
     relatedProducts: 'Related products',
     tryOnLink: 'AI try-on',
     ordersTitle: 'Your orders',
@@ -174,6 +200,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     productVideoTitle: 'Product video',
     favoriteAdd: 'Add to favorites',
     favoriteRemove: 'Remove from favorites',
+    wishlistTitle: 'Favorites',
+    wishlistEmpty: 'No favorite products yet.',
+    recentlyViewedTitle: 'Recently viewed',
+    recentlyViewedEmpty: 'No recently viewed products.',
     chatOpenLabel: 'Open chat',
     chatCloseLabel: 'Close',
     chatFullPageLabel: 'Open full page',
@@ -187,6 +217,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navRecommended: '推荐',
     navCart: '购物车',
     navChat: '聊天购买',
+    navCategories: '分类',
     catalogTitle: '全部产品',
     catalogEmpty: '暂无产品。',
     loadMore: '加载更多',
@@ -215,6 +246,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     colorLabel: '颜色',
     searchPlaceholder: '搜索产品…',
     searchButton: '搜索',
+    searchByImage: '以图搜图',
+    searchSearching: '搜索中…',
+    searchResults: '搜索结果',
+    searchEmpty: '未找到匹配商品。',
+    searchError: '搜索失败，请重试。',
     relatedProducts: '相关产品',
     tryOnLink: 'AI 试穿',
     ordersTitle: '我的订单',
@@ -233,6 +269,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     productVideoTitle: '产品视频',
     favoriteAdd: '加入收藏',
     favoriteRemove: '取消收藏',
+    wishlistTitle: '收藏',
+    wishlistEmpty: '暂无收藏商品。',
+    recentlyViewedTitle: '最近浏览',
+    recentlyViewedEmpty: '暂无浏览记录。',
     chatOpenLabel: '打开聊天',
     chatCloseLabel: '关闭',
     chatFullPageLabel: '全页打开',
@@ -246,6 +286,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navRecommended: 'おすすめ',
     navCart: 'カート',
     navChat: 'チャット',
+    navCategories: 'カテゴリ',
     catalogTitle: 'すべての商品',
     catalogEmpty: '商品がありません。',
     loadMore: 'もっと見る',
@@ -274,6 +315,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     colorLabel: '色',
     searchPlaceholder: '商品を検索…',
     searchButton: '検索',
+    searchByImage: '画像で検索',
+    searchSearching: '検索中…',
+    searchResults: '検索結果',
+    searchEmpty: '該当する商品がありません。',
+    searchError: '検索に失敗しました。',
     relatedProducts: '関連商品',
     tryOnLink: 'AI試着',
     ordersTitle: '注文履歴',
@@ -292,6 +338,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     productVideoTitle: '商品動画',
     favoriteAdd: 'お気に入りに追加',
     favoriteRemove: 'お気に入りから削除',
+    wishlistTitle: 'お気に入り',
+    wishlistEmpty: 'お気に入りはまだありません。',
+    recentlyViewedTitle: '最近見た商品',
+    recentlyViewedEmpty: '閲覧履歴はありません。',
     chatOpenLabel: 'チャットを開く',
     chatCloseLabel: '閉じる',
     chatFullPageLabel: '全画面で開く',
@@ -305,6 +355,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navRecommended: '추천',
     navCart: '장바구니',
     navChat: '채팅',
+    navCategories: '카테고리',
     catalogTitle: '전체 상품',
     catalogEmpty: '상품이 없습니다.',
     loadMore: '더 보기',
@@ -333,6 +384,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     colorLabel: '색상',
     searchPlaceholder: '상품 검색…',
     searchButton: '검색',
+    searchByImage: '이미지로 검색',
+    searchSearching: '검색 중…',
+    searchResults: '검색 결과',
+    searchEmpty: '일치하는 상품이 없습니다.',
+    searchError: '검색에 실패했습니다.',
     relatedProducts: '관련 상품',
     tryOnLink: 'AI 피팅',
     ordersTitle: '내 주문',
@@ -351,6 +407,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     productVideoTitle: '상품 영상',
     favoriteAdd: '찜하기',
     favoriteRemove: '찜 해제',
+    wishlistTitle: '찜',
+    wishlistEmpty: '찜한 상품이 없습니다.',
+    recentlyViewedTitle: '최근 본 상품',
+    recentlyViewedEmpty: '최근 본 상품이 없습니다.',
     chatOpenLabel: '채팅 열기',
     chatCloseLabel: '닫기',
     chatFullPageLabel: '전체 페이지 열기',

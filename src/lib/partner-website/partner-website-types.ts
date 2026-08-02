@@ -4,6 +4,16 @@ import type {
   PartnerWebsiteRenderMode,
   PartnerWebsiteTheme,
 } from '@/lib/partner-website/template/partner-website-template-types'
+
+export type {
+  PartnerWebsitePage,
+  PartnerWebsiteRenderMode,
+  PartnerWebsiteTheme,
+} from '@/lib/partner-website/template/partner-website-template-types'
+import type {
+  PartnerWebsiteCreationJournal,
+  PartnerWebsiteCreationJournalsV2,
+} from '@/lib/partner-website/partner-website-creation-journal'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
 import {
   normalizeTemplatePages,
@@ -41,6 +51,8 @@ export type PartnerWebsiteRow = {
   isPublished: boolean
   publishedAt: string | null
   sourceThreadId: string | null
+  creationJournal: PartnerWebsiteCreationJournal
+  creationJournals: PartnerWebsiteCreationJournalsV2
   createdAt: string
   updatedAt: string
 }

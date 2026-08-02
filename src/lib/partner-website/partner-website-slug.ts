@@ -37,3 +37,17 @@ export function validatePartnerWebsiteSlug(slug: string): string | null {
 export function partnerWebsitePublicPath(slug: string): string {
   return `/site/${encodeURIComponent(slug)}`
 }
+
+const LANDING_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
+
+export function normalizePartnerLandingSlug(raw: string): string {
+  return normalizePartnerWebsiteSlug(raw)
+}
+
+export function validatePartnerLandingSlug(slug: string): string | null {
+  const s = normalizePartnerLandingSlug(slug)
+  if (!s || s.length < 2) return 'Slug must be at least 2 characters.'
+  if (!LANDING_SLUG_RE.test(s)) return 'Slug may only use lowercase letters, numbers, and hyphens.'
+  if (s === 'lp' || s === 'products' || s === 'cart' || s === 'orders') return 'This slug is reserved.'
+  return null
+}

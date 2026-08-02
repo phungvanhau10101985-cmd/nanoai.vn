@@ -5,6 +5,7 @@ import {
   composeStandaloneHtml,
   parseProjectFilesFromDb,
   projectFilesToJson,
+  resolvePartnerWebsiteDisplayHtml,
 } from '@/lib/partner-website/partner-website-project'
 import { composePartnerWebsiteHtmlAsync } from '@/lib/partner-website/compose-partner-website-html'
 import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-partner-website-full-landing'
@@ -12,16 +13,26 @@ import {
   isFullLandingV1Template,
   upgradeLandingV1Pages,
 } from '@/lib/partner-website/template/upgrade-landing-v1-template'
-import type {
-  PartnerWebsitePage,
-  PartnerWebsiteProject,
-  PartnerWebsitePublicRow,
-  PartnerWebsiteRenderMode,
-  PartnerWebsiteRevisionRow,
-  PartnerWebsiteRow,
-  PartnerWebsiteTheme,
+import {
+  mapTemplateFieldsFromDb,
+  type PartnerWebsitePage,
+  type PartnerWebsiteProject,
+  type PartnerWebsitePublicRow,
+  type PartnerWebsiteRenderMode,
+  type PartnerWebsiteRevisionRow,
+  type PartnerWebsiteRow,
+  type PartnerWebsiteTheme,
 } from '@/lib/partner-website/partner-website-types'
-import { mapTemplateFieldsFromDb } from '@/lib/partner-website/partner-website-types'
+import type {
+  PartnerWebsiteCreationJournal,
+  PartnerWebsiteCreationJournalsV2,
+} from '@/lib/partner-website/partner-website-creation-journal'
+import {
+  normalizeCreationJournals,
+  primaryJournalFromRaw,
+  upsertJournalInBag,
+} from '@/lib/partner-website/partner-website-creation-journal'
+import { ensurePartnerWebsiteSystemPages } from '@/lib/partner-website/partner-website-system-pages'
 
 function mapRow(r: {
   id: string
@@ -41,6 +52,7 @@ function mapRow(r: {
   is_published: boolean | null
   published_at: unknown
   source_thread_id: string | null
+  creation_journal_json?: unknown
   created_at: unknown
   updated_at: unknown
 }): PartnerWebsiteRow {
@@ -48,11 +60,27 @@ function mapRow(r: {
     ? r.reference_image_urls.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
     : []
   const templateFields = mapTemplateFieldsFromDb(r)
+  const locale = normalizeWebLocale(r.locale) ?? 'vi'
+  const defaultBrandName = r.title?.trim() || undefined
+  const websiteBuilt = Boolean(
+    r.pages_json && Array.isArray(r.pages_json) && (r.pages_json as unknown[]).length > 0
+  )
+  const creationJournals = normalizeCreationJournals(r.creation_journal_json, {
+    websiteBuilt,
+    defaultBrandName,
+    locale,
+  })
+  const title = r.title?.trim() || ''
+  const project = ensurePartnerWebsiteSystemPages(parseProjectFilesFromDb(r.project_files_json), {
+    shopTitle: title || 'Shop',
+    locale,
+    homeHref: '/',
+  })
   return {
     id: r.id,
     partnerId: r.partner_id,
     siteSlug: r.site_slug,
-    title: r.title?.trim() || '',
+    title,
     briefText: r.brief_text?.trim() || '',
     logoUrl: r.logo_url?.trim() || null,
     referenceImageUrls: refs,
@@ -60,12 +88,18 @@ function mapRow(r: {
     templateId: templateFields.templateId,
     theme: templateFields.theme,
     pages: templateFields.pages,
-    project: parseProjectFilesFromDb(r.project_files_json),
+    project,
     htmlSource: r.html_source?.trim() || null,
-    locale: normalizeWebLocale(r.locale) ?? 'vi',
+    locale,
     isPublished: Boolean(r.is_published),
     publishedAt: r.published_at ? String(r.published_at) : null,
     sourceThreadId: r.source_thread_id,
+    creationJournal: primaryJournalFromRaw(r.creation_journal_json, {
+      websiteBuilt,
+      defaultBrandName,
+      locale,
+    }),
+    creationJournals,
     createdAt: String(r.created_at ?? ''),
     updatedAt: String(r.updated_at ?? ''),
   }
@@ -124,6 +158,7 @@ export async function fetchPartnerWebsiteByPartnerIdPg(
               reference_image_urls, render_mode, template_id, theme_json, pages_json,
               project_files_json, html_source, locale,
               is_published, published_at, source_thread_id::text,
+              creation_journal_json,
               created_at, updated_at
        from public.messaging_partner_websites
        where partner_id = $1::uuid
@@ -137,12 +172,15 @@ export async function fetchPartnerWebsiteByPartnerIdPg(
   }
 }
 
+/** Public site homepage — published only. Shop APIs may use allowDraft. */
 export async function fetchPublishedPartnerWebsiteBySlugPg(
-  siteSlug: string
+  siteSlug: string,
+  options?: { allowDraft?: boolean }
 ): Promise<PartnerWebsitePublicRow | null> {
   if (!isPgConfigured()) return null
   const slug = siteSlug.trim().toLowerCase()
   if (!slug) return null
+  const allowDraft = Boolean(options?.allowDraft)
   try {
     const row = await pgQueryOne<{
       partner_id: string
@@ -173,11 +211,12 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
               nullif(trim(coalesce(p.tiktok_pixel_id, '')), '') as tiktok_pixel_id
        from public.messaging_partner_websites w
        inner join public.messaging_partners p on p.id = w.partner_id
-       where w.site_slug = $1 and w.is_published = true
+       where w.site_slug = $1
+         and ($2::boolean or w.is_published = true)
          and coalesce(p.is_active, true) = true
          and p.purge_at is null
        limit 1`,
-      [slug]
+      [slug, allowDraft]
     )
     if (!row) return null
     const templateFields = mapTemplateFieldsFromDb(row)
@@ -223,7 +262,7 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
           row.html_source?.trim() ||
           composeStandaloneHtml(project) ||
           ''
-        : row.html_source?.trim() ||
+        : resolvePartnerWebsiteDisplayHtml({ project, htmlSource: row.html_source }) ||
           (await composePartnerWebsiteHtmlAsync(
             {
               ...websiteForCompose,
@@ -232,7 +271,6 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
             },
             { chatPath, hydrateInventory: true }
           )) ||
-          composeStandaloneHtml(project) ||
           ''
     if (!htmlSource) return null
     return {
@@ -278,12 +316,18 @@ export async function upsertPartnerWebsitePg(input: {
   changeNote?: string | null
   skipRevision?: boolean
   chatPath?: string
+  creationJournal?: PartnerWebsiteCreationJournal
 }): Promise<PartnerWebsiteRow | null> {
   if (!isPgConfigured()) return null
   const renderMode = input.renderMode ?? 'legacy'
   const templateId = input.templateId ?? 'landing-v1'
   const theme = input.theme ?? mapTemplateFieldsFromDb({ logo_url: input.logoUrl }).theme
   const pages = input.pages ?? []
+  const project = ensurePartnerWebsiteSystemPages(input.project, {
+    shopTitle: input.title,
+    locale: input.locale,
+    homeHref: '/',
+  })
   const html =
     input.htmlSource?.trim() ||
     (await composePartnerWebsiteHtmlAsync(
@@ -292,7 +336,7 @@ export async function upsertPartnerWebsitePg(input: {
         templateId,
         theme,
         pages,
-        project: input.project,
+        project,
         htmlSource: input.htmlSource,
         locale: input.locale,
         title: input.title,
@@ -318,11 +362,11 @@ export async function upsertPartnerWebsitePg(input: {
       `insert into public.messaging_partner_websites (
          partner_id, site_slug, title, brief_text, logo_url,
          reference_image_urls, render_mode, template_id, theme_json, pages_json,
-         project_files_json, html_source, locale, source_thread_id
+         project_files_json, html_source, locale, source_thread_id, creation_journal_json
        ) values (
          $1::uuid, $2, $3, $4, $5,
          $6::jsonb, $7, $8, $9::jsonb, $10::jsonb,
-         $11::jsonb, $12, $13, $14::uuid
+         $11::jsonb, $12, $13, $14::uuid, $15::jsonb
        )
        on conflict (partner_id) do update set
          site_slug = excluded.site_slug,
@@ -338,11 +382,13 @@ export async function upsertPartnerWebsitePg(input: {
          html_source = excluded.html_source,
          locale = excluded.locale,
          source_thread_id = coalesce(excluded.source_thread_id, messaging_partner_websites.source_thread_id),
+         creation_journal_json = coalesce(excluded.creation_journal_json, messaging_partner_websites.creation_journal_json),
          updated_at = timezone('utc'::text, now())
        returning id::text, partner_id::text, site_slug, title, brief_text, logo_url,
                  reference_image_urls, render_mode, template_id, theme_json, pages_json,
                  project_files_json, html_source, locale,
                  is_published, published_at, source_thread_id::text,
+                 creation_journal_json,
                  created_at, updated_at`,
       [
         input.partnerId,
@@ -355,10 +401,21 @@ export async function upsertPartnerWebsitePg(input: {
         templateId,
         JSON.stringify(theme),
         JSON.stringify(pages),
-        JSON.stringify(projectFilesToJson(input.project)),
+        JSON.stringify(projectFilesToJson(project)),
         html,
         input.locale,
         input.sourceThreadId?.trim() || null,
+        input.creationJournal
+          ? JSON.stringify(
+              upsertJournalInBag(
+                normalizeCreationJournals(null, {
+                  defaultBrandName: input.title,
+                  locale: input.locale,
+                }),
+                input.creationJournal
+              )
+            )
+          : null,
       ]
     )
     return row ? mapRow(row) : null
@@ -432,6 +489,7 @@ export async function updatePartnerWebsiteDraftPg(input: {
                  reference_image_urls, render_mode, template_id, theme_json, pages_json,
                  project_files_json, html_source, locale,
                  is_published, published_at, source_thread_id::text,
+                 creation_journal_json,
                  created_at, updated_at`,
       [
         input.partnerId,
@@ -471,6 +529,7 @@ export async function setPartnerWebsitePublishedPg(input: {
                  reference_image_urls, render_mode, template_id, theme_json, pages_json,
                  project_files_json, html_source, locale,
                  is_published, published_at, source_thread_id::text,
+                 creation_journal_json,
                  created_at, updated_at`,
       [input.partnerId, input.isPublished]
     )
@@ -494,6 +553,7 @@ export async function listPartnerWebsitesForPartnersPg(
               reference_image_urls, render_mode, template_id, theme_json, pages_json,
               project_files_json, html_source, locale,
               is_published, published_at, source_thread_id::text,
+              creation_journal_json,
               created_at, updated_at
        from public.messaging_partner_websites
        where partner_id = any($1::uuid[])`,
@@ -663,4 +723,69 @@ export async function restorePartnerWebsiteRevisionPg(input: {
     project: mapped.project,
     htmlSource: mapped.htmlSource,
   })
+}
+
+export async function updatePartnerWebsiteCreationJournalPg(
+  partnerId: string,
+  journal: PartnerWebsiteCreationJournal
+): Promise<PartnerWebsiteRow | null> {
+  if (!isPgConfigured()) return null
+  const pid = partnerId.trim()
+  if (!pid) return null
+  try {
+    const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
+    const bag: PartnerWebsiteCreationJournalsV2 = upsertJournalInBag(
+      existing?.creationJournals ??
+        normalizeCreationJournals(null, {
+          defaultBrandName: existing?.title,
+          locale: existing?.locale ?? 'vi',
+        }),
+      journal
+    )
+    const row = await pgQueryOne<Parameters<typeof mapRow>[0]>(
+      `update public.messaging_partner_websites set
+         creation_journal_json = $2::jsonb,
+         updated_at = timezone('utc'::text, now())
+       where partner_id = $1::uuid
+       returning id::text, partner_id::text, site_slug, title, brief_text, logo_url,
+                 reference_image_urls, render_mode, template_id, theme_json, pages_json,
+                 project_files_json, html_source, locale,
+                 is_published, published_at, source_thread_id::text,
+                 creation_journal_json,
+                 created_at, updated_at`,
+      [pid, JSON.stringify(bag)]
+    )
+    return row ? mapRow(row) : null
+  } catch (e) {
+    console.error('[messaging-partner-websites-pg] updatePartnerWebsiteCreationJournalPg', e)
+    return null
+  }
+}
+
+export async function updatePartnerWebsiteCreationJournalsPg(
+  partnerId: string,
+  bag: PartnerWebsiteCreationJournalsV2
+): Promise<PartnerWebsiteRow | null> {
+  if (!isPgConfigured()) return null
+  const pid = partnerId.trim()
+  if (!pid) return null
+  try {
+    const row = await pgQueryOne<Parameters<typeof mapRow>[0]>(
+      `update public.messaging_partner_websites set
+         creation_journal_json = $2::jsonb,
+         updated_at = timezone('utc'::text, now())
+       where partner_id = $1::uuid
+       returning id::text, partner_id::text, site_slug, title, brief_text, logo_url,
+                 reference_image_urls, render_mode, template_id, theme_json, pages_json,
+                 project_files_json, html_source, locale,
+                 is_published, published_at, source_thread_id::text,
+                 creation_journal_json,
+                 created_at, updated_at`,
+      [pid, JSON.stringify(bag)]
+    )
+    return row ? mapRow(row) : null
+  } catch (e) {
+    console.error('[messaging-partner-websites-pg] updatePartnerWebsiteCreationJournalsPg', e)
+    return null
+  }
 }

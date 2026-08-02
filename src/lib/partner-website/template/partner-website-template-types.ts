@@ -10,6 +10,11 @@ export type PartnerWebsiteTheme = {
   mutedColor: string
   fontFamily: string
   logoUrl?: string | null
+  /**
+   * When true, preview/public prefer saved project/htmlSource from visual «Sửa nhanh»
+   * instead of re-rendering from template pages.
+   */
+  useVisualHtml?: boolean
 }
 
 export type PartnerWebsiteSection = {
@@ -40,6 +45,8 @@ export type PartnerWebsiteTemplateRenderInput = {
   siteSlug?: string
   logoUrl?: string | null
   enabledSectionTypes?: string[]
+  /** Public template gallery: full shop chrome + static demo products (no live inventory). */
+  samplePreview?: boolean
 }
 
 export type TemplateSectionEditOp =
@@ -55,11 +62,11 @@ export type PartnerWebsiteTemplateEditPayload = {
 }
 
 export const DEFAULT_PARTNER_WEBSITE_THEME: PartnerWebsiteTheme = {
-  primaryColor: '#1e3a5f',
-  accentColor: '#f97316',
+  primaryColor: '#f97316',
+  accentColor: '#ea580c',
   backgroundColor: '#ffffff',
-  textColor: '#0f172a',
-  mutedColor: '#64748b',
-  fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
+  textColor: '#1f2937',
+  mutedColor: '#6b7280',
+  fontFamily: '"Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
   logoUrl: null,
 }

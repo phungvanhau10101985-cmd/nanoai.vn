@@ -890,6 +890,49 @@ export async function fetchPartnerOrdersHeadlessPageFromPg(input: {
   }
 }
 
+function normalizePhoneDigits(raw: string): string {
+  return String(raw ?? '').replace(/\D/g, '')
+}
+
+/**
+ * Tra cứu đơn công khai (trang theo dõi đơn): mã đơn (UUID hoặc payment_reference) + SĐT.
+ * Không trả đơn nếu SĐT không khớp.
+ */
+export async function fetchPartnerOrderForPublicTrackingFromPg(
+  partnerId: string,
+  orderCode: string,
+  phone: string
+): Promise<PartnerOrderRow | null> {
+  if (!isPgConfigured()) return null
+  const pid = String(partnerId ?? '').trim()
+  const code = String(orderCode ?? '').trim()
+  const phoneDigits = normalizePhoneDigits(phone)
+  if (!pid || !code || phoneDigits.length < 8) return null
+  const codeUpper = code.toUpperCase()
+  const phoneTail = phoneDigits.slice(-9)
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `${ORDER_ROW_SELECT}
+       where partner_id = $1::uuid
+         and (
+           id::text = $2
+           or upper(trim(payment_reference)) = $3
+         )
+         and (
+           regexp_replace(coalesce(customer_phone, ''), '\\D', '', 'g') = $4
+           or right(regexp_replace(coalesce(customer_phone, ''), '\\D', '', 'g'), 9) = $5
+         )
+       order by created_at desc
+       limit 1`,
+      [pid, code, codeUpper, phoneDigits, phoneTail]
+    )
+    return row ? mapOrderRow(row) : null
+  } catch (e) {
+    console.warn('[fetchPartnerOrderForPublicTrackingFromPg]', e)
+    return null
+  }
+}
+
 /** Đơn theo mã tham chiếu chuyển khoản (uppercase trim). */
 export async function fetchPartnerOrderByPaymentReferenceForPartnerFromPg(
   partnerId: string,

@@ -4,6 +4,7 @@ import {
   DEEPSEEK_CHAT_COMPLETIONS_URL,
   DEEPSEEK_V4_PRO,
 } from '@/lib/deepseek-api'
+import { loadImageBufferFromUrl } from '@/lib/hub-agent/sharpen-pipeline'
 import { buildSemanticLandingPageHtml } from '@/lib/hub-chat/landing-page-html-builder'
 import type { HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import {
@@ -22,6 +23,16 @@ import { buildDefaultLandingV1Site } from '@/lib/partner-website/template/defaul
 import { runPartnerWebsiteTemplateAgent } from '@/lib/partner-website/template/partner-website-template-agent'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import { composePartnerWebsiteHtml } from '@/lib/partner-website/compose-partner-website-html'
+import {
+  applyLogoGuardToProject,
+  PARTNER_WEBSITE_LOGO_PROMPT_RULES,
+} from '@/lib/partner-website/partner-website-logo-guard'
+import {
+  PARTNER_WEBSITE_MOCKUP_FIDELITY_RULES,
+  PARTNER_WEBSITE_RESPONSIVE_RULES,
+} from '@/lib/partner-website/partner-website-mockup-build-rules'
+import { resolvePartnerWebsiteGeminiApiKey } from '@/lib/partner-website/partner-website-gemini-key'
+import { PARTNER_WEBSITE_STUDIO_BUILD_OPENAI_MODEL } from '@/lib/partner-website/generate-partner-website-from-mockup-vision'
 import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
 import type { WebLocale } from '@/lib/i18n/config'
 
@@ -108,8 +119,12 @@ function buildFallbackSession(input: PartnerWebsiteAiGenerateInput): HubStudioSe
 }
 
 function buildContextBlock(input: PartnerWebsiteAiGenerateInput): string {
-  const refs =
-    input.referenceImageUrls?.filter((u) => u.trim()).slice(0, 5).join('\n- ') || '(none)'
+  const refUrls = input.referenceImageUrls?.filter((u) => u.trim()).slice(0, 12) ?? []
+  const refsText = refUrls.length ? refUrls.join('\n- ') : '(none)'
+  const refVisionLine =
+    refUrls.length > 0
+      ? `- ATTACHED REFERENCE IMAGES (${refUrls.length}): vision images are included — match layout, colors, typography, spacing, and section structure from these images when applying the user request.`
+      : `- Reference image URLs (style inspiration only):\n- ${refsText}`
   const chatLine = input.chatPath?.trim()
     ? `Primary CTA must link to chat: ${input.chatPath.trim()}`
     : 'Include a contact section with id="contact".'
@@ -121,14 +136,15 @@ function buildContextBlock(input: PartnerWebsiteAiGenerateInput): string {
 - Language/UI copy: ${input.locale}
 - Brand/title: ${input.title.trim() || 'Landing Page'}
 - ${logoLine}
-- Reference image URLs (style inspiration only):
-- ${refs}
+${refVisionLine}
 - ${chatLine}
-- Mobile-first responsive layout
 - Include hero, features, social proof or FAQ, footer
 - Separate CSS into css/main.css and optional js/main.js
 - index.html must link css/main.css
-- No external frameworks; pure HTML/CSS/vanilla JS only`
+- No external frameworks; pure HTML/CSS/vanilla JS only
+${PARTNER_WEBSITE_MOCKUP_FIDELITY_RULES}
+${PARTNER_WEBSITE_RESPONSIVE_RULES}
+${PARTNER_WEBSITE_LOGO_PROMPT_RULES}`
 }
 
 function buildAiPrompt(input: PartnerWebsiteAiGenerateInput): string {
@@ -288,9 +304,10 @@ async function generateWithGemini(
   prompt: string,
   modelId: PartnerWebsiteModelId,
   userId?: string | null,
-  systemPrompt = SYSTEM_PROMPT
+  systemPrompt = SYSTEM_PROMPT,
+  referenceImageUrls: string[] = []
 ): Promise<{ text: string | null; model: string }> {
-  const key = process.env.GEMINI_API_KEY?.trim()
+  const key = resolvePartnerWebsiteGeminiApiKey()
   if (!key) return { text: null, model: modelId }
   try {
     const genAI = new GoogleGenerativeAI(key)
@@ -298,10 +315,99 @@ async function generateWithGemini(
       model: modelId,
       generationConfig: { temperature: 0.45, maxOutputTokens: 8192 },
     })
-    const result = await model.generateContent([{ text: `${systemPrompt}\n\n${prompt}` }])
+    const parts: Array<{ text: string } | { inlineData: { data: string; mimeType: string } }> = [
+      { text: `${systemPrompt}\n\n${prompt}` },
+    ]
+    for (const url of referenceImageUrls.slice(0, 12)) {
+      const loaded = await loadImageBufferFromUrl(url)
+      if (loaded) {
+        parts.push({
+          inlineData: {
+            data: loaded.buffer.toString('base64'),
+            mimeType: loaded.mimeType || 'image/png',
+          },
+        })
+      }
+    }
+    const result = await model.generateContent(parts)
     const text = result.response.text()?.trim() ?? ''
     if (!text) return { text: null, model: modelId }
     trackFromUsageMetadata(result.response.usageMetadata, modelId, 'partner-website-ai-chat', userId)
+    return { text, model: modelId }
+  } catch {
+    return { text: null, model: modelId }
+  }
+}
+
+async function generateWithOpenAiVision(
+  prompt: string,
+  userId?: string | null,
+  systemPrompt = SYSTEM_PROMPT,
+  referenceImageUrls: string[] = []
+): Promise<{ text: string | null; model: string }> {
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  const modelId = PARTNER_WEBSITE_STUDIO_BUILD_OPENAI_MODEL
+  if (!openaiKey || referenceImageUrls.length === 0) return { text: null, model: modelId }
+
+  const userContent: Array<
+    | { type: 'text'; text: string }
+    | { type: 'image_url'; image_url: { url: string; detail?: 'high' | 'low' | 'auto' } }
+  > = [{ type: 'text', text: prompt }]
+  for (const url of referenceImageUrls.slice(0, 12)) {
+    const loaded = await loadImageBufferFromUrl(url)
+    if (loaded) {
+      userContent.push({
+        type: 'image_url',
+        image_url: {
+          url: `data:${loaded.mimeType};base64,${loaded.buffer.toString('base64')}`,
+          detail: 'high',
+        },
+      })
+    }
+  }
+  if (userContent.length < 2) return { text: null, model: modelId }
+
+  const body: Record<string, unknown> = {
+    model: modelId,
+    temperature: 0.4,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent },
+    ],
+  }
+  const m = modelId.toLowerCase()
+  if (m.startsWith('gpt-5') || m.startsWith('o1') || m.startsWith('o3') || m.startsWith('o4')) {
+    body.max_completion_tokens = 8192
+  } else {
+    body.max_tokens = 8192
+  }
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${openaiKey}`,
+      },
+      body: JSON.stringify(body),
+    })
+    const rawText = await res.text()
+    if (!res.ok) return { text: null, model: modelId }
+    const data = JSON.parse(rawText) as {
+      choices?: Array<{ message?: { content?: string } }>
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+    }
+    const text = String(data?.choices?.[0]?.message?.content ?? '').trim()
+    if (!text) return { text: null, model: modelId }
+    trackOpenAiStyleCompletionUsage({
+      userId,
+      model: modelId,
+      feature: 'partner-website-ai-chat-vision',
+      usage: data?.usage,
+      fallbackPromptChars: prompt.length,
+      fallbackOutputChars: text.length,
+    })
     return { text, model: modelId }
   } catch {
     return { text: null, model: modelId }
@@ -312,8 +418,14 @@ async function generateProjectWithModel(
   prompt: string,
   modelId: PartnerWebsiteModelId,
   userId?: string | null,
-  systemPrompt = SYSTEM_PROMPT
+  systemPrompt = SYSTEM_PROMPT,
+  referenceImageUrls?: string[]
 ): Promise<{ text: string | null; model: string }> {
+  const refs = referenceImageUrls?.filter((u) => u.trim()).slice(0, 12) ?? []
+  if (refs.length > 0) {
+    // Any edit/build with attached images → GPT vision only.
+    return generateWithOpenAiVision(prompt, userId, systemPrompt, refs)
+  }
   const entry = modelId.startsWith('gemini')
     ? await generateWithGemini(prompt, modelId, userId, systemPrompt)
     : await generateWithDeepseek(prompt, modelId, userId, systemPrompt)
@@ -324,9 +436,16 @@ async function generateParsedProjectWithModel(
   prompt: string,
   modelId: PartnerWebsiteModelId,
   userId?: string | null,
-  systemPrompt = SYSTEM_PROMPT
+  systemPrompt = SYSTEM_PROMPT,
+  referenceImageUrls?: string[]
 ): Promise<{ project: PartnerWebsiteProject | null; assistantMessage: string | null }> {
-  const entry = await generateProjectWithModel(prompt, modelId, userId, systemPrompt)
+  const entry = await generateProjectWithModel(
+    prompt,
+    modelId,
+    userId,
+    systemPrompt,
+    referenceImageUrls
+  )
   if (!entry.text) return { project: null, assistantMessage: null }
   return parseAiPayload(entry.text)
 }
@@ -350,7 +469,13 @@ async function tryAgentPatchEdit(
     project,
     modelId,
     generate: async (prompt, systemPrompt) => {
-      const res = await generateProjectWithModel(prompt, modelId, input.userId, systemPrompt)
+      const res = await generateProjectWithModel(
+        prompt,
+        modelId,
+        input.userId,
+        systemPrompt,
+        input.referenceImageUrls
+      )
       return { text: res.text }
     },
   })
@@ -358,7 +483,7 @@ async function tryAgentPatchEdit(
   if (!agentResult) return null
 
   return {
-    project: agentResult.project,
+    project: applyLogoGuardToProject(agentResult.project),
     source: 'ai',
     editMode: 'agent',
     editedFiles: agentResult.appliedPaths,
@@ -409,7 +534,13 @@ async function tryTemplateEdit(
     modelId,
     isInitial: !hasTemplatePages,
     generate: async (prompt, systemPrompt) => {
-      const res = await generateProjectWithModel(prompt, modelId, input.userId, systemPrompt)
+      const res = await generateProjectWithModel(
+        prompt,
+        modelId,
+        input.userId,
+        systemPrompt,
+        input.referenceImageUrls
+      )
       return { text: res.text }
     },
   })
@@ -529,11 +660,17 @@ export async function generatePartnerWebsiteProject(
   }
 
   const prompt = buildAiPrompt(input)
-  const fromAi = await generateParsedProjectWithModel(prompt, modelId, input.userId)
+  const fromAi = await generateParsedProjectWithModel(
+    prompt,
+    modelId,
+    input.userId,
+    SYSTEM_PROMPT,
+    input.referenceImageUrls
+  )
 
   if (fromAi.project && fromAi.project.files.length >= 1) {
     return {
-      project: fromAi.project,
+      project: applyLogoGuardToProject(fromAi.project),
       source: 'ai',
       editMode: 'full',
       assistantMessage:

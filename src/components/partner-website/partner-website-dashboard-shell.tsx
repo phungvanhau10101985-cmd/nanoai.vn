@@ -7,11 +7,8 @@ type Props = {
   description?: string
   inboxLabel: string
   settingsLabel: string
-  marketingLabel: string
   ordersLabel: string
-  websiteLabel: string
   partnerId?: string
-  partnerSlug?: string
   children: ReactNode
 }
 
@@ -20,11 +17,8 @@ export function PartnerWebsiteDashboardShell({
   description,
   inboxLabel,
   settingsLabel,
-  marketingLabel,
   ordersLabel,
-  websiteLabel,
   partnerId,
-  partnerSlug,
   children,
 }: Props) {
   return (
@@ -44,12 +38,8 @@ export function PartnerWebsiteDashboardShell({
         <MessagingDashboardNavLinks
           inboxLabel={inboxLabel}
           settingsLabel={settingsLabel}
-          marketingLabel={marketingLabel}
           ordersLabel={ordersLabel}
-          websiteLabel={websiteLabel}
-          active="website"
           partnerId={partnerId}
-          partnerSlug={partnerSlug}
         />
       </div>
       <div className="flex min-h-0 flex-1 flex-col">{children}</div>

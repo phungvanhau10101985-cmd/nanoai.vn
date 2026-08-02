@@ -10,7 +10,6 @@ import {
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import { composePartnerWebsiteHtmlAsync } from '@/lib/partner-website/compose-partner-website-html'
-import { ensureDefaultPartnerWebsitePg } from '@/lib/partner-website/provision-default-partner-website'
 import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-partner-website-full-landing'
 import {
   composeStandaloneHtml,
@@ -53,13 +52,8 @@ export async function GET(
 
   const locale = normalizeWebLocale(req.nextUrl.searchParams.get('locale')) ?? 'vi'
   let website = await fetchPartnerWebsiteByPartnerIdPg(pid)
-  let autoProvisioned = false
 
-  if (!website) {
-    const provisioned = await ensureDefaultPartnerWebsitePg({ partnerId: pid, locale })
-    website = provisioned.website
-    autoProvisioned = provisioned.created
-  } else if (website.renderMode === 'template') {
+  if (website?.renderMode === 'template') {
     const synced = await syncPartnerWebsiteFullLandingPg({
       partnerId: pid,
       locale,
@@ -71,7 +65,14 @@ export async function GET(
   const base = siteBaseUrl(req)
   return NextResponse.json({
     website,
-    autoProvisioned,
+    autoProvisioned: false,
+    creationInProgress: website
+      ? !website.creationJournals?.journals?.home ||
+        website.creationJournals.journals.home.phase !== 'built'
+      : true,
+    homeBuilt: Boolean(
+      website?.creationJournals?.journals?.home?.phase === 'built'
+    ),
     publicUrl: website?.isPublished
       ? `${base}${partnerWebsitePublicPath(website.siteSlug)}`
       : null,
@@ -105,6 +106,8 @@ export async function PATCH(
     logoUrl?: string | null
     htmlSource?: string | null
     project?: unknown
+    theme?: unknown
+    visualEdited?: boolean
   }
 
   if (body.action === 'publish' || body.action === 'unpublish') {
@@ -165,12 +168,21 @@ export async function PATCH(
     })
   }
 
+  const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
+  if (!existing) {
+    return NextResponse.json({ error: 'Website not found or save failed' }, { status: 404 })
+  }
+
   const project = body.project ? normalizePartnerWebsiteProject(body.project) : null
+  const theme =
+    body.visualEdited === true ? { ...existing.theme, useVisualHtml: true as const } : undefined
+
   const updated = await updatePartnerWebsiteDraftPg({
     partnerId: pid,
     title: body.title,
     briefText: body.briefText,
     logoUrl: body.logoUrl,
+    theme,
     project: project ?? undefined,
     htmlSource:
       body.htmlSource !== undefined

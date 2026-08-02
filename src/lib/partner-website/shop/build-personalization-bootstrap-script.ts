@@ -24,6 +24,22 @@ const VIEW_CTA: Record<WebLocale, string> = {
   ko: '자세히 보기',
 }
 
+const ADD_CART: Record<WebLocale, string> = {
+  vi: 'Thêm vào giỏ',
+  en: 'Add to cart',
+  zh: '加入购物车',
+  ja: 'カートに追加',
+  ko: '장바구니',
+}
+
+const FAVORITE: Record<WebLocale, string> = {
+  vi: 'Thích',
+  en: 'Favorite',
+  zh: '收藏',
+  ja: 'お気に入り',
+  ko: '찜',
+}
+
 /** Inline script: UTM hero, profile greeting, hydrate personalized product grids on /site landing. */
 export function buildPartnerSitePersonalizationBootstrapScript(input: {
   siteSlug: string
@@ -37,6 +53,8 @@ export function buildPartnerSitePersonalizationBootstrapScript(input: {
     empty: EMPTY[locale],
     greeting: GREETING[locale],
     viewCta: VIEW_CTA[locale],
+    addToCart: ADD_CART[locale],
+    favorite: FAVORITE[locale],
   }
 
   return `<script>(function(){
@@ -85,7 +103,11 @@ function applyHeroVariant(){
 function renderCard(p,cta){
   var href=p.detail_path||p.product_url||'#';
   var name=(p.name||'').replace(/"/g,'&quot;');
-  return '<article class="pw-product-card"><a href="'+href+'"><img src="'+p.image_url+'" alt="'+name+'" loading="lazy"/></a><h3>'+name+'</h3>'+(p.price_hint?'<p class="pw-price">'+p.price_hint+'</p>':'')+'<a class="pw-btn pw-btn-sm pw-btn-accent" href="'+href+'">'+(cta||COPY.viewCta)+'</a></article>';
+  var id=(p.inventory_id||'').replace(/"/g,'');
+  var actions=id
+    ? '<div class="pw-shop-action-bar" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"><button type="button" class="pw-btn pw-btn-sm pw-btn-accent" data-pw-add-cart data-inventory-id="'+id+'">'+COPY.addToCart+'</button><button type="button" class="pw-btn pw-btn-sm" data-pw-favorite data-inventory-id="'+id+'" aria-pressed="false">'+COPY.favorite+'</button></div>'
+    : '';
+  return '<article class="pw-product-card" data-inventory-id="'+id+'" data-pw-actions-ready="1"><a href="'+href+'"><img src="'+p.image_url+'" alt="'+name+'" loading="lazy"/></a><h3>'+name+'</h3>'+(p.price_hint?'<p class="pw-price">'+p.price_hint+'</p>':'')+'<a class="pw-btn pw-btn-sm pw-btn-accent" href="'+href+'">'+(cta||COPY.viewCta)+'</a>'+actions+'</article>';
 }
 function hydrateBlock(el){
   var kind=el.getAttribute('data-pw-personalize');if(!kind)return;

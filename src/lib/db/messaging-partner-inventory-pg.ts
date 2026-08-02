@@ -313,6 +313,20 @@ async function runInventorySelectWithStockQtyFallback(
   }
 }
 
+export type PartnerInventoryShopListQuery = {
+  offset: number
+  limit: number
+  /** Text search on sku/name/description/price_hint. */
+  q?: string
+  /** Collection/tag keyword (same ILIKE fields as q). */
+  collection?: string
+  /** Prefer items that look discounted in price_hint / name. */
+  sale?: boolean
+  /** Explicit inventory UUID list (collection curated). */
+  ids?: string[]
+  sort?: 'default' | 'newest' | 'name'
+}
+
 /**
  * Trang inventory active + tổng số (Postgres). `null` = không pool hoặc lỗi — caller xử lý khi không có PG.
  */
@@ -321,21 +335,82 @@ export async function fetchPartnerInventoryActivePageWithCountFromPg(
   offset: number,
   limit: number
 ): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
+  return fetchPartnerInventoryShopPageFromPg(partnerId, { offset, limit, sort: 'default' })
+}
+
+/**
+ * Shop catalog page with optional filters (search / collection / sale / ids / sort).
+ */
+export async function fetchPartnerInventoryShopPageFromPg(
+  partnerId: string,
+  query: PartnerInventoryShopListQuery
+): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
   if (!isPgConfigured()) return null
-  const off = Math.max(0, Math.floor(offset))
-  const lim = Math.max(1, Math.floor(limit))
+  const off = Math.max(0, Math.floor(query.offset))
+  const lim = Math.max(1, Math.min(48, Math.floor(query.limit)))
+  const q = String(query.q ?? '').trim().slice(0, 80)
+  const collection = String(query.collection ?? '').trim().slice(0, 80)
+  const ids = (query.ids ?? [])
+    .map((id) => id.trim())
+    .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    .slice(0, 48)
+  const sort = query.sort === 'newest' || query.sort === 'name' ? query.sort : 'default'
+
+  const conditions = ['mpi.partner_id = $1::uuid', 'coalesce(mpi.is_active, true) = true']
+  const filterParams: unknown[] = [partnerId]
+
+  if (ids.length) {
+    filterParams.push(ids)
+    conditions.push(`mpi.id = any($${filterParams.length}::uuid[])`)
+  }
+
+  const textToken = (q || collection).replace(/[%_]/g, '')
+  if (textToken) {
+    filterParams.push(`%${textToken}%`)
+    const p = `$${filterParams.length}`
+    conditions.push(
+      `(coalesce(mpi.sku, '') ilike ${p}
+        or coalesce(mpi.name, '') ilike ${p}
+        or coalesce(mpi.description, '') ilike ${p}
+        or coalesce(mpi.price_hint, '') ilike ${p}
+        or coalesce(mpi.consult_note, '') ilike ${p})`
+    )
+  }
+
+  if (query.sale) {
+    conditions.push(
+      `(coalesce(mpi.price_hint, '') ~* '(%|sale|giảm|giam|-\\s*\\d)'
+        or coalesce(mpi.name, '') ~* '(sale|giảm|giam|flash)')`
+    )
+  }
+
+  const where = conditions.join(' and ')
+  let orderBy = 'mpi.sort_order asc'
+  const selectParams = [...filterParams]
+  if (sort === 'newest') {
+    orderBy = 'mpi.created_at desc nulls last, mpi.sort_order asc'
+  } else if (sort === 'name') {
+    orderBy = 'lower(mpi.name) asc, mpi.sort_order asc'
+  } else if (ids.length) {
+    selectParams.push(ids)
+    orderBy = `array_position($${selectParams.length}::uuid[], mpi.id) nulls last, mpi.sort_order asc`
+  }
+
   try {
     const countRow = await pgQueryOne<{ c: number }>(
       `select count(*)::int as c
-       from public.messaging_partner_inventory
-       where partner_id = $1::uuid and coalesce(is_active, true) = true`,
-      [partnerId]
+       from public.messaging_partner_inventory mpi
+       where ${where}`,
+      filterParams
     )
+
+    const limitIdx = selectParams.length + 1
+    const offsetIdx = selectParams.length + 2
     const rows = await runInventorySelectWithStockQtyFallback(
-      `where mpi.partner_id = $1::uuid and coalesce(mpi.is_active, true) = true
-       order by mpi.sort_order asc
-       limit $2 offset $3`,
-      [partnerId, lim, off]
+      `where ${where}
+       order by ${orderBy}
+       limit $${limitIdx} offset $${offsetIdx}`,
+      [...selectParams, lim, off]
     )
     return {
       count: countRow?.c ?? 0,
@@ -345,7 +420,7 @@ export async function fetchPartnerInventoryActivePageWithCountFromPg(
     if (isMissingInventoryTableError(e)) {
       return { rows: [], count: 0 }
     }
-    console.warn('[fetchPartnerInventoryActivePageWithCountFromPg]', e)
+    console.warn('[fetchPartnerInventoryShopPageFromPg]', e)
     return null
   }
 }

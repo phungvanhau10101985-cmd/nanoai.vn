@@ -5,7 +5,6 @@ import {
 import { listPartnerWebsitesForPartnersPg } from '@/lib/db/messaging-partner-websites-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import type { WebLocale } from '@/lib/i18n/config'
-import { ensureDefaultPartnerWebsitePg } from '@/lib/partner-website/provision-default-partner-website'
 import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-partner-website-full-landing'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
@@ -58,15 +57,7 @@ export async function loadPartnerWebsiteDashboardData(input: {
     initialWebsites[p.id] = websiteMap.get(p.id) ?? null
   }
 
-  if (initialPartnerId && isPgConfigured() && !initialWebsites[initialPartnerId]) {
-    const provisioned = await ensureDefaultPartnerWebsitePg({
-      partnerId: initialPartnerId,
-      locale: input.locale,
-    })
-    if (provisioned.website) {
-      initialWebsites[initialPartnerId] = provisioned.website
-    }
-  } else if (initialPartnerId && isPgConfigured()) {
+  if (initialPartnerId && isPgConfigured()) {
     const row = initialWebsites[initialPartnerId]
     if (row && isFullLandingV1Template(row)) {
       const synced = await syncPartnerWebsiteFullLandingPg({

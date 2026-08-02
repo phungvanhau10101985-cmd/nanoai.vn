@@ -690,6 +690,64 @@ export type Dictionary = {
     /** Hướng dẫn tạo workspace shop chăm sóc khách (đa ngôn ngữ) */
     customerCareShopSetupGuideTitle: string
     customerCareShopSetupGuideBody: string
+    /** Sidebar trang /dashboard/messaging/settings */
+    settingsSidebarTitle: string
+    /** Nhóm link vận hành (Marketing, Web, Đơn hàng) trên sidebar Quản trị */
+    settingsNavOperationsTitle: string
+    settingsNavOperationsDesc: string
+    /** Nút mở website công khai (trang Quản trị) */
+    settingsOpenWebsiteButton: string
+    settingsManageWebsiteButton: string
+    settingsCreateWebsiteButton: string
+    settingsNavPayment: string
+    settingsNavLoyalty: string
+    settingsNavLoyaltyDesc: string
+    settingsNavPromotions: string
+    settingsNavPromotionsDesc: string
+    settingsNavAnalyticsMeta: string
+    settingsNavAnalyticsMetaDesc: string
+    settingsNavAnalyticsAds: string
+    settingsNavAnalyticsAdsDesc: string
+    settingsNavSheets: string
+    settingsNavSheetsDesc: string
+    settingsNavAiUsage: string
+    settingsNavAiUsageDesc: string
+    settingsNavInventoryDesc: string
+    settingsNavCustomDomain: string
+    customDomainSectionTitle: string
+    customDomainSectionDesc: string
+    customDomainGuideTitle: string
+    customDomainGuideBody: string
+    customDomainStep1: string
+    customDomainStep2: string
+    customDomainStep3: string
+    customDomainStep4: string
+    customDomainHostnameLabel: string
+    customDomainHostnamePlaceholder: string
+    customDomainUseForChat: string
+    customDomainUseForSite: string
+    customDomainCnameTitle: string
+    customDomainCnameHint: string
+    customDomainSslTitle: string
+    customDomainSslHint: string
+    customDomainSaveButton: string
+    customDomainVerifyButton: string
+    customDomainRemoveButton: string
+    customDomainCopyTarget: string
+    customDomainCopyFailed: string
+    customDomainStatusPending: string
+    customDomainStatusDnsOk: string
+    customDomainStatusSslActive: string
+    customDomainStatusError: string
+    customDomainPreviewTitle: string
+    customDomainPreviewChat: string
+    customDomainPreviewSite: string
+    customDomainInvalidHostname: string
+    customDomainSavedOk: string
+    customDomainRemovedOk: string
+    customDomainVerifyOk: string
+    customDomainVerifyDnsFail: string
+    customDomainVerifySslPending: string
   }
   /** /dashboard/messaging/orders — đơn tạo từ widget chat */
   partnerMessagingOrders: {
@@ -1386,6 +1444,17 @@ export type Dictionary = {
     guestExternalCartUrlTemplateHint: string
     guestExternalCartUrlTemplatePlaceholder: string
     guestExternalCartUrlTemplateSaveHint: string
+    usagePanelTitle: string
+    usagePanelSubtitle: string
+    birthdayPromoSettingsTitle: string
+    birthdayPromoSettingsDesc: string
+    birthdayPromoSettingsHint: string
+    birthdayDiscountLabel: string
+    birthdayDaysMaxLabel: string
+    birthdayDaysMinLabel: string
+    birthdayEnableAria: string
+    birthdayPromoAutoSaveHint: string
+    birthdayPromoSaveFailed: string
   }
   /** /messaging/p/[slug] — khách chat với shop trên domain NanoAI */
   partnerGuestChat: {
@@ -3415,14 +3484,14 @@ const VI_DICTIONARY: Dictionary = {
       'Để trống ô token hoặc secret nếu không đổi — hệ thống giữ giá trị đã lưu.',
     setupColumnTitle: 'Kết nối & trợ lý AI',
     chatColumnTitle: 'Hội thoại khách',
-    messagingSettingsLink: 'Cài đặt kênh & AI',
+    messagingSettingsLink: 'Quản trị',
     marketingCampaignsLink: 'Marketing',
     messagingWebsiteLink: 'Tạo web & landing',
     messagingOrdersLink: 'Đơn hàng',
-    messagingSettingsPageTitle: 'Cài đặt nhắn tin (shop)',
+    messagingSettingsPageTitle: 'Quản trị shop',
     messagingInboxDescription:
       'Danh sách khách bên trái; khi mở một hội thoại, ô soạn tin cố định dưới cùng màn hình.',
-    noWorkspaceInboxCta: 'Bạn chưa có workspace nhắn tin. Vào trang cài đặt để tạo shop và kết nối Facebook / Zalo / chat.',
+    noWorkspaceInboxCta: 'Bạn chưa có workspace nhắn tin. Vào Quản trị để tạo shop và kết nối Facebook / Zalo / chat.',
     goToInbox: 'Về hộp thư',
     inboxMobileBackAria: 'Danh sách hội thoại',
     apiIntegrationGuideLink: 'Hướng dẫn tích hợp API (khóa & endpoint)',
@@ -3435,7 +3504,70 @@ const VI_DICTIONARY: Dictionary = {
       'URL hosted, mã iframe, endpoint embed, khóa X-Embed-Key / Bearer và tài liệu cho developer đã chuyển sang trang «Tích hợp API» — không còn hiển thị trên trang cài đặt này.',
     customerCareShopSetupGuideTitle: 'Hướng dẫn tạo shop chăm sóc khách hàng',
     customerCareShopSetupGuideBody:
-      'Bước 1 — Vào Bảng điều khiển → Nhắn tin → Cài đặt kênh & AI (trang này).\n\nBước 2 — Ở mục «Tạo workspace nhắn tin», nhập tên hiển thị, tên thương hiệu, chọn ngành; có thể dán URL logo hoặc tải ảnh lên.\n\nBước 3 — Nhấn «Tạo mới». Đây là workspace của shop: mọi tin từ Facebook Page, Zalo OA, chat trên NanoAI và chat nhúng trên web shop đều vào cùng một inbox.\n\nBước 4 — Sau đó kết nối kênh (Facebook/Zalo), sao chép liên kết chat hoặc mã nhúng iframe, và tùy chọn bật trợ lý AI cùng kho hàng ngay trên trang cài đặt này.',
+      'Bước 1 — Vào Bảng điều khiển → Nhắn tin → Quản trị (trang này).\n\nBước 2 — Ở mục «Tạo workspace nhắn tin», nhập tên hiển thị, tên thương hiệu, chọn ngành; có thể dán URL logo hoặc tải ảnh lên.\n\nBước 3 — Nhấn «Tạo mới». Đây là workspace của shop: mọi tin từ Facebook Page, Zalo OA, chat trên NanoAI và chat nhúng trên web shop đều vào cùng một inbox.\n\nBước 4 — Sau đó kết nối kênh (Facebook/Zalo), sao chép liên kết chat hoặc mã nhúng iframe, và tùy chọn bật trợ lý AI cùng kho hàng ngay trên trang quản trị này.',
+    settingsSidebarTitle: 'Danh mục quản trị',
+    settingsNavOperationsTitle: 'Vận hành',
+    settingsNavOperationsDesc: 'Marketing, website và đơn hàng chat — mở trang riêng.',
+    settingsOpenWebsiteButton: 'Xem web',
+    settingsManageWebsiteButton: 'Chỉnh web',
+    settingsCreateWebsiteButton: 'Tạo web',
+    settingsNavPayment: 'Đơn hàng & thanh toán',
+    settingsNavLoyalty: 'Thành viên thân quen',
+    settingsNavLoyaltyDesc:
+      'Tính hạng theo chi tiêu của khách trong cửa sổ thời gian và tự động giảm giá khi chốt đơn.',
+    settingsNavPromotions: 'Khuyến mãi',
+    settingsNavPromotionsDesc: 'Chương trình ưu đãi tự động — email và giảm giá sinh nhật khách hàng.',
+    settingsNavAnalyticsMeta: 'Meta & Catalog',
+    settingsNavAnalyticsMetaDesc: 'Meta Pixel, Conversions API và feed catalog Facebook.',
+    settingsNavAnalyticsAds: 'GA4 & quảng cáo',
+    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads và TikTok Pixel.',
+    settingsNavSheets: 'Google Sheet',
+    settingsNavSheetsDesc: 'Đồng bộ đơn hàng từ chat lên Google Sheet của shop.',
+    settingsNavAiUsage: 'Token API AI',
+    settingsNavAiUsageDesc: 'Thống kê token LLM, embedding, tạo ảnh và chi phí ước tính.',
+    settingsNavInventoryDesc: 'Thêm, sửa, import Excel và đồng bộ kho — AI dùng dữ liệu này khi tư vấn.',
+    settingsNavCustomDomain: 'Tên miền riêng (SSL)',
+    customDomainSectionTitle: 'Tên miền thương hiệu',
+    customDomainSectionDesc:
+      'Dùng domain của shop (vd. shop.188.com.vn) thay link nanoai.vn — khách thấy HTTPS trên tên miền của bạn.',
+    customDomainGuideTitle: 'Hướng dẫn gắn tên miền riêng',
+    customDomainGuideBody:
+      'Sau khi cấu hình, chat tư vấn và website shop có thể mở trên domain của bạn với chứng chỉ SSL do nền tảng cấp tự động (không cần tự mua cert).',
+    customDomainStep1: 'Bước 1 — Nhập hostname (không gõ https://), chọn dùng cho chat và/hoặc website shop, bấm Lưu.',
+    customDomainStep2:
+      'Bước 2 — Vào nhà cung cấp domain (Cloudflare, GoDaddy, tenten…), tạo bản ghi CNAME trỏ hostname shop tới {target}.',
+    customDomainStep3:
+      'Bước 3 — Chờ DNS cập nhật (5–30 phút, đôi khi đến 24h), quay lại đây bấm «Kiểm tra DNS & SSL».',
+    customDomainStep4:
+      'Bước 4 — Khi trạng thái «SSL đang hoạt động», cập nhật link nhúng chat / marketing sang domain mới (xem ô xem trước bên dưới).',
+    customDomainHostnameLabel: 'Hostname (tên miền shop)',
+    customDomainHostnamePlaceholder: 'shop.example.com hoặc chat.188.com.vn',
+    customDomainUseForChat: 'Dùng cho chat tư vấn (hosted + embed)',
+    customDomainUseForSite: 'Dùng cho website shop (trang /site)',
+    customDomainCnameTitle: 'Bản ghi DNS (CNAME)',
+    customDomainCnameHint:
+      'Tạo CNAME: hostname shop → {target}. Không trỏ A record trực tiếp IP trừ khi đội kỹ thuật hướng dẫn.',
+    customDomainSslTitle: 'SSL (HTTPS)',
+    customDomainSslHint:
+      'NanoAI cấp HTTPS trên domain của bạn qua reverse proxy sau khi CNAME đúng. Khách luôn truy cập https:// — không cần cài Let\'s Encrypt trên server shop.',
+    customDomainSaveButton: 'Lưu tên miền',
+    customDomainVerifyButton: 'Kiểm tra DNS & SSL',
+    customDomainRemoveButton: 'Gỡ tên miền',
+    customDomainCopyTarget: 'Sao chép CNAME đích',
+    customDomainCopyFailed: 'Không sao chép được.',
+    customDomainStatusPending: 'Chờ cấu hình DNS',
+    customDomainStatusDnsOk: 'DNS OK — đang chờ SSL',
+    customDomainStatusSslActive: 'SSL đang hoạt động',
+    customDomainStatusError: 'Lỗi xác minh',
+    customDomainPreviewTitle: 'URL công khai trên domain riêng',
+    customDomainPreviewChat: 'Chat tư vấn:',
+    customDomainPreviewSite: 'Website shop:',
+    customDomainInvalidHostname: 'Tên miền không hợp lệ (không dùng nanoai.vn hoặc localhost).',
+    customDomainSavedOk: 'Đã lưu tên miền — hãy cấu hình CNAME rồi kiểm tra.',
+    customDomainRemovedOk: 'Đã gỡ tên miền riêng.',
+    customDomainVerifyOk: 'DNS và SSL đã sẵn sàng trên domain của bạn.',
+    customDomainVerifyDnsFail: 'Chưa thấy CNAME đúng — kiểm tra lại DNS.',
+    customDomainVerifySslPending: 'DNS đã đúng — SSL có thể cần thêm vài phút, thử lại sau.',
   },
   partnerMessagingOrders: {
     pageTitle: 'Quản lý đơn hàng chat',
@@ -4152,6 +4284,19 @@ const VI_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.vn/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       'Điền link thật của shop → click ra ngoài ô (hoặc bấm «Lưu cài đặt») để lưu chế độ 3.',
+    usagePanelTitle: 'Thống kê token API',
+    usagePanelSubtitle: 'Theo dõi lượng gọi LLM, embedding, tạo ảnh và chi phí ước tính theo khoảng thời gian.',
+    birthdayPromoSettingsTitle: 'Chúc mừng sinh nhật — email & ưu đãi',
+    birthdayPromoSettingsDesc:
+      'Gửi email và giảm giá tự động cho khách có ngày sinh trên tài khoản trong khoảng ngày bạn chọn.',
+    birthdayPromoSettingsHint:
+      'Gửi email cho khách đã chat, đã đăng nhập và có ngày sinh; giá sản phẩm trong kho giảm theo % khi đặt qua chat — tự động, không cần mã. Cron chạy hằng ngày (cần SMTP).',
+    birthdayDiscountLabel: 'Giảm giá (%)',
+    birthdayDaysMaxLabel: 'Trước SN — từ (ngày)',
+    birthdayDaysMinLabel: 'Trước SN — đến (ngày)',
+    birthdayEnableAria: 'Bật chương trình sinh nhật',
+    birthdayPromoAutoSaveHint: 'Công tắc và các số trên được lưu tự động (ô số lưu sau khi bạn ngừng gõ ~0,5 giây).',
+    birthdayPromoSaveFailed: 'Không lưu được cài đặt khuyến mãi sinh nhật.',
   },
   partnerGuestChat: {
     notFoundTitle: 'Không tìm thấy trang chat',
@@ -6152,11 +6297,11 @@ const EN_DICTIONARY: Dictionary = {
     credentialsKeepHint: 'Leave token or secret blank to keep the saved values.',
     setupColumnTitle: 'Channels & AI assistant',
     chatColumnTitle: 'Customer chat',
-    messagingSettingsLink: 'Channel & AI settings',
+    messagingSettingsLink: 'Admin',
     marketingCampaignsLink: 'Marketing',
     messagingWebsiteLink: 'Website & landing',
     messagingOrdersLink: 'Orders',
-    messagingSettingsPageTitle: 'Messaging setup (shop)',
+    messagingSettingsPageTitle: 'Shop admin',
     messagingInboxDescription:
       'Customer list on the left; when a thread is open, the composer stays fixed at the bottom of the screen.',
     noWorkspaceInboxCta: 'You have no messaging workspace yet. Open settings to create a shop and connect Facebook / Zalo / chat.',
@@ -6170,6 +6315,67 @@ const EN_DICTIONARY: Dictionary = {
     messagingSettingsApiHubCardTitle: 'Embed chat & APIs',
     messagingSettingsApiHubCardBody:
       'Hosted URL, iframe snippet, embed endpoint, keys, and developer docs now live on the API integration page — they are no longer shown on this settings screen.',
+    settingsSidebarTitle: 'Admin menu',
+    settingsNavOperationsTitle: 'Operations',
+    settingsNavOperationsDesc: 'Marketing, website, and chat orders — open dedicated pages.',
+    settingsOpenWebsiteButton: 'View website',
+    settingsManageWebsiteButton: 'Edit website',
+    settingsCreateWebsiteButton: 'Create website',
+    settingsNavPayment: 'Orders & payment',
+    settingsNavLoyalty: 'Returning members',
+    settingsNavLoyaltyDesc:
+      'Tier customers by spend within a time window and apply automatic discounts at checkout.',
+    settingsNavPromotions: 'Promotions',
+    settingsNavPromotionsDesc: 'Automatic offers — birthday emails and chat discounts for customers.',
+    settingsNavAnalyticsMeta: 'Meta & catalog',
+    settingsNavAnalyticsMetaDesc: 'Meta Pixel, Conversions API, and Facebook catalog feed.',
+    settingsNavAnalyticsAds: 'GA4 & ads',
+    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads, and TikTok Pixel.',
+    settingsNavSheets: 'Google Sheets',
+    settingsNavSheetsDesc: 'Sync chat orders to your shop Google Sheet.',
+    settingsNavAiUsage: 'AI API tokens',
+    settingsNavAiUsageDesc: 'LLM token stats, embeddings, image generation, and cost estimates.',
+    settingsNavInventoryDesc: 'Add, edit, import Excel, and sync stock — the AI uses this catalog when advising customers.',
+    settingsNavCustomDomain: 'Custom domain (SSL)',
+    customDomainSectionTitle: 'Branded domain',
+    customDomainSectionDesc:
+      'Use your shop domain (e.g. shop.example.com) instead of nanoai.vn — visitors get HTTPS on your hostname.',
+    customDomainGuideTitle: 'How to connect your domain',
+    customDomainGuideBody:
+      'After setup, chat and shop site can run on your domain with SSL provisioned automatically by the platform (no separate cert purchase).',
+    customDomainStep1: 'Step 1 — Enter hostname (no https://), choose chat and/or shop site, then Save.',
+    customDomainStep2:
+      'Step 2 — At your DNS provider (Cloudflare, GoDaddy, etc.), add a CNAME from your hostname to {target}.',
+    customDomainStep3: 'Step 3 — Wait for DNS (5–30 min, sometimes up to 24h), then click «Verify DNS & SSL».',
+    customDomainStep4:
+      'Step 4 — When status is «SSL active», update embed links and marketing to the new domain (see preview below).',
+    customDomainHostnameLabel: 'Hostname (shop domain)',
+    customDomainHostnamePlaceholder: 'shop.example.com',
+    customDomainUseForChat: 'Use for hosted + embed chat',
+    customDomainUseForSite: 'Use for shop website (/site)',
+    customDomainCnameTitle: 'DNS record (CNAME)',
+    customDomainCnameHint: 'Create CNAME: your hostname → {target}. Avoid pointing A records unless support advises.',
+    customDomainSslTitle: 'SSL (HTTPS)',
+    customDomainSslHint:
+      'NanoAI terminates HTTPS on your domain via reverse proxy once CNAME is correct. Visitors always use https://.',
+    customDomainSaveButton: 'Save domain',
+    customDomainVerifyButton: 'Verify DNS & SSL',
+    customDomainRemoveButton: 'Remove domain',
+    customDomainCopyTarget: 'Copy CNAME target',
+    customDomainCopyFailed: 'Could not copy.',
+    customDomainStatusPending: 'Awaiting DNS',
+    customDomainStatusDnsOk: 'DNS OK — SSL pending',
+    customDomainStatusSslActive: 'SSL active',
+    customDomainStatusError: 'Verification error',
+    customDomainPreviewTitle: 'Public URLs on your domain',
+    customDomainPreviewChat: 'Consultation chat:',
+    customDomainPreviewSite: 'Shop website:',
+    customDomainInvalidHostname: 'Invalid hostname (cannot use nanoai.vn or localhost).',
+    customDomainSavedOk: 'Domain saved — configure CNAME then verify.',
+    customDomainRemovedOk: 'Custom domain removed.',
+    customDomainVerifyOk: 'DNS and SSL are ready on your domain.',
+    customDomainVerifyDnsFail: 'CNAME not found or incorrect — check DNS.',
+    customDomainVerifySslPending: 'DNS OK — SSL may need a few more minutes; try again.',
     customerCareShopSetupGuideTitle: 'Set up your customer-care shop',
     customerCareShopSetupGuideBody:
       'Step 1 — Open Dashboard → Messaging → Channel & AI settings (this page).\n\nStep 2 — Under «Create messaging workspace», enter display name, brand name, and industry; you can paste a logo URL or upload an image.\n\nStep 3 — Click «Create». This is your shop workspace: messages from Facebook Page, Zalo OA, NanoAI-hosted chat, and embedded chat on your site all go to one inbox.\n\nStep 4 — Then connect channels (Facebook/Zalo), copy the hosted chat link or iframe snippet, and optionally enable the AI assistant and inventory on the same settings page.',
@@ -6891,6 +7097,19 @@ const EN_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       'Enter your shop URL → click outside the field (or Save settings) to apply mode 3.',
+    usagePanelTitle: 'API token usage',
+    usagePanelSubtitle: 'Track LLM calls, embeddings, image generation, and estimated cost by period.',
+    birthdayPromoSettingsTitle: 'Birthday greetings — email & offer',
+    birthdayPromoSettingsDesc:
+      'Send emails and automatic discounts for customers with a birthday on file during the window you choose.',
+    birthdayPromoSettingsHint:
+      'Emails go to logged-in customers who chatted; in-stock shelf prices drop by your % when ordering in chat — no coupon code. Daily cron (SMTP required).',
+    birthdayDiscountLabel: 'Discount (%)',
+    birthdayDaysMaxLabel: 'Before birthday — from (days)',
+    birthdayDaysMinLabel: 'Before birthday — through (days)',
+    birthdayEnableAria: 'Enable birthday program',
+    birthdayPromoAutoSaveHint: 'Toggle and numbers save automatically (number fields save ~0.5s after you stop typing).',
+    birthdayPromoSaveFailed: 'Could not save birthday promotion settings.',
   },
   partnerGuestChat: {
     notFoundTitle: 'Chat page not found',
@@ -8886,11 +9105,11 @@ const ZH_DICTIONARY: Dictionary = {
     credentialsKeepHint: '不修改时请留空 token 或 secret — 将保留已保存的值。',
     setupColumnTitle: '渠道与 AI 助手',
     chatColumnTitle: '客户会话',
-    messagingSettingsLink: '渠道与 AI 设置',
+    messagingSettingsLink: '管理',
     marketingCampaignsLink: '营销',
     messagingWebsiteLink: '网站与落地页',
     messagingOrdersLink: '订单',
-    messagingSettingsPageTitle: '消息设置（店铺）',
+    messagingSettingsPageTitle: '店铺管理',
     messagingInboxDescription: '左侧为客户列表；打开会话后，输入框固定在屏幕底部。',
     noWorkspaceInboxCta: '您还没有消息工作区。前往设置创建店铺并连接 Facebook / Zalo / 聊天。',
     goToInbox: '返回收件箱',
@@ -8905,6 +9124,61 @@ const ZH_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideTitle: '创建客服店铺指引',
     customerCareShopSetupGuideBody:
       '第 1 步 — 打开 控制台 → 消息 → 渠道与 AI 设置（本页）。\n\n第 2 步 — 在「创建消息工作区」中填写显示名称、品牌名称、选择行业；可填写 logo 链接或上传图片。\n\n第 3 步 — 点击「创建」。即店铺工作区：来自 Facebook 公共主页、Zalo OA、NanoAI 托管聊天与网站嵌入聊天的消息会进入同一收件箱。\n\n第 4 步 — 随后连接渠道（Facebook/Zalo）、复制托管聊天链接或 iframe 代码，并可在本页选择开启 AI 助手与库存。',
+    settingsSidebarTitle: '管理目录',
+    settingsNavOperationsTitle: '日常运营',
+    settingsNavOperationsDesc: '营销、网站与聊天订单 — 打开独立页面。',
+    settingsOpenWebsiteButton: '查看网站',
+    settingsManageWebsiteButton: '编辑网站',
+    settingsCreateWebsiteButton: '创建网站',
+    settingsNavPayment: '订单与支付',
+    settingsNavLoyalty: '常客会员',
+    settingsNavLoyaltyDesc: '按时间窗口内的消费划分等级，并在结账时自动打折。',
+    settingsNavPromotions: '促销活动',
+    settingsNavPromotionsDesc: '自动优惠 — 生日邮件与聊天内折扣。',
+    settingsNavAnalyticsMeta: 'Meta 与目录',
+    settingsNavAnalyticsMetaDesc: 'Meta Pixel、转化 API 与 Facebook 商品目录 feed。',
+    settingsNavAnalyticsAds: 'GA4 与广告',
+    settingsNavAnalyticsAdsDesc: 'Google Analytics 4、Google Ads 与 TikTok Pixel。',
+    settingsNavSheets: 'Google 表格',
+    settingsNavSheetsDesc: '将聊天订单同步到店铺 Google 表格。',
+    settingsNavAiUsage: 'AI API 用量',
+    settingsNavAiUsageDesc: 'LLM token、embedding、生图统计与费用估算。',
+    settingsNavInventoryDesc: '添加、编辑、Excel 导入与库存同步 — AI 咨询时使用此商品库。',
+    settingsNavCustomDomain: '自定义域名 (SSL)',
+    customDomainSectionTitle: '品牌域名',
+    customDomainSectionDesc: '使用店铺域名（如 shop.example.com）替代 nanoai.vn — 访客在您的域名上通过 HTTPS 访问。',
+    customDomainGuideTitle: '绑定自有域名指南',
+    customDomainGuideBody: '配置完成后，聊天与店铺网站可在您的域名上运行，SSL 由平台自动签发（无需自行购买证书）。',
+    customDomainStep1: '步骤 1 — 输入主机名（不要 https://），选择聊天和/或店铺网站，保存。',
+    customDomainStep2: '步骤 2 — 在 DNS 服务商添加 CNAME，将店铺主机名指向 {target}。',
+    customDomainStep3: '步骤 3 — 等待 DNS 生效（5–30 分钟，最长 24 小时），点击「验证 DNS 与 SSL」。',
+    customDomainStep4: '步骤 4 — 状态为「SSL 已启用」后，将嵌入链接与营销改为新域名（见下方预览）。',
+    customDomainHostnameLabel: '主机名（店铺域名）',
+    customDomainHostnamePlaceholder: 'shop.example.com',
+    customDomainUseForChat: '用于托管/嵌入聊天',
+    customDomainUseForSite: '用于店铺网站 (/site)',
+    customDomainCnameTitle: 'DNS 记录 (CNAME)',
+    customDomainCnameHint: '创建 CNAME：您的主机名 → {target}。除非技术支持说明，请勿直接 A 记录到 IP。',
+    customDomainSslTitle: 'SSL (HTTPS)',
+    customDomainSslHint: 'CNAME 正确后，NanoAI 通过反向代理在您的域名上提供 HTTPS，访客始终使用 https://。',
+    customDomainSaveButton: '保存域名',
+    customDomainVerifyButton: '验证 DNS 与 SSL',
+    customDomainRemoveButton: '移除域名',
+    customDomainCopyTarget: '复制 CNAME 目标',
+    customDomainCopyFailed: '无法复制。',
+    customDomainStatusPending: '等待 DNS',
+    customDomainStatusDnsOk: 'DNS 正常 — SSL 待生效',
+    customDomainStatusSslActive: 'SSL 已启用',
+    customDomainStatusError: '验证错误',
+    customDomainPreviewTitle: '自有域名上的公开 URL',
+    customDomainPreviewChat: '咨询聊天：',
+    customDomainPreviewSite: '店铺网站：',
+    customDomainInvalidHostname: '主机名无效（不可使用 nanoai.vn 或 localhost）。',
+    customDomainSavedOk: '已保存 — 请配置 CNAME 后验证。',
+    customDomainRemovedOk: '已移除自定义域名。',
+    customDomainVerifyOk: '您的域名 DNS 与 SSL 已就绪。',
+    customDomainVerifyDnsFail: 'CNAME 不正确 — 请检查 DNS。',
+    customDomainVerifySslPending: 'DNS 已正确 — SSL 可能需要几分钟，请稍后重试。',
   },
   partnerMessagingOrders: {
     pageTitle: '聊天订单管理',
@@ -9597,6 +9871,18 @@ const ZH_DICTIONARY: Dictionary = {
       '须包含 {sku}。例：https://shop.com/cart/add/{sku}?from=nanoai — 购买与加购同链；咨询仍在聊天内。',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint: '填写店铺链接 → 点击输入框外（或保存设置）以应用模式 3。',
+    usagePanelTitle: 'API 用量统计',
+    usagePanelSubtitle: '按时间段查看 LLM 调用、embedding、生图及预估费用。',
+    birthdayPromoSettingsTitle: '生日祝福 — 邮件与优惠',
+    birthdayPromoSettingsDesc: '在设定窗口内向已登记生日的客户发送邮件并自动打折。',
+    birthdayPromoSettingsHint:
+      '向已聊天且登录、有生日信息的客户发邮件；聊天下单时库存标价按百分比自动减免，无需优惠码。每日 cron（需 SMTP）。',
+    birthdayDiscountLabel: '折扣 (%)',
+    birthdayDaysMaxLabel: '生日前 — 起 (天)',
+    birthdayDaysMinLabel: '生日前 — 至 (天)',
+    birthdayEnableAria: '启用生日活动',
+    birthdayPromoAutoSaveHint: '开关与数字自动保存（数字字段停止输入约 0.5 秒后保存）。',
+    birthdayPromoSaveFailed: '无法保存生日促销设置。',
   },
   partnerGuestChat: {
     notFoundTitle: '未找到聊天页面',
@@ -11544,11 +11830,11 @@ const JA_DICTIONARY: Dictionary = {
       '変更しないトークンやシークレットは空欄のままにしてください。保存済みの値が使われます。',
     setupColumnTitle: 'チャネルと AI アシスタント',
     chatColumnTitle: 'お客様チャット',
-    messagingSettingsLink: 'チャネル・AI 設定',
+    messagingSettingsLink: '管理',
     marketingCampaignsLink: 'マーケティング',
     messagingWebsiteLink: 'Web・ランディング',
     messagingOrdersLink: '注文',
-    messagingSettingsPageTitle: 'メッセージ設定（店舗）',
+    messagingSettingsPageTitle: '店舗管理',
     messagingInboxDescription: '左に顧客一覧。会話を開くと、入力欄は画面下に固定されます。',
     noWorkspaceInboxCta: 'メッセージ用ワークスペースがありません。設定で店舗を作成し Facebook / Zalo / チャットを接続してください。',
     goToInbox: '受信箱へ',
@@ -11564,6 +11850,64 @@ const JA_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideTitle: 'カスタマーケア店舗の作成手順',
     customerCareShopSetupGuideBody:
       '手順 1 — ダッシュボード → メッセージ → チャネル・AI 設定（このページ）を開きます。\n\n手順 2 — 「メッセージワークスペースを作成」に表示名・ブランド名・業種を入力します。ロゴは URL の入力または画像アップロードが可能です。\n\n手順 3 — 「作成」をクリックします。これが店舗ワークスペースです。Facebook ページ、Zalo OA、NanoAI 上のチャット、サイト埋め込みチャットのメッセージはすべて同じ受信箱に入ります。\n\n手順 4 — 続けてチャネル（Facebook/Zalo）を接続し、ホストされたチャットリンクまたは iframe コードをコピーし、同じ設定画面で AI アシスタントや在庫を任意で有効にします。',
+    settingsSidebarTitle: '管理メニュー',
+    settingsNavOperationsTitle: '運用',
+    settingsNavOperationsDesc: 'マーケ・Web・チャット注文 — 専用ページを開きます。',
+    settingsOpenWebsiteButton: 'Webを見る',
+    settingsManageWebsiteButton: 'Webを編集',
+    settingsCreateWebsiteButton: 'Webを作成',
+    settingsNavPayment: '注文と決済',
+    settingsNavLoyalty: '常連会員',
+    settingsNavLoyaltyDesc: '期間内の購入額でランク付けし、注文確定時に自動割引します。',
+    settingsNavPromotions: 'プロモーション',
+    settingsNavPromotionsDesc: '自動オファー — 誕生日メールとチャット割引。',
+    settingsNavAnalyticsMeta: 'Meta とカタログ',
+    settingsNavAnalyticsMetaDesc: 'Meta Pixel、Conversions API、Facebook カタログ feed。',
+    settingsNavAnalyticsAds: 'GA4 と広告',
+    settingsNavAnalyticsAdsDesc: 'Google Analytics 4、Google Ads、TikTok Pixel。',
+    settingsNavSheets: 'Google スプレッドシート',
+    settingsNavSheetsDesc: 'チャット注文をショップの Google スプレッドシートに同期。',
+    settingsNavAiUsage: 'AI API トークン',
+    settingsNavAiUsageDesc: 'LLM トークン、embedding、画像生成の統計と概算コスト。',
+    settingsNavInventoryDesc: '商品の追加・編集・Excel 取込・在庫同期 — AI 相談でこのカタログを使用します。',
+    settingsNavCustomDomain: '独自ドメイン (SSL)',
+    customDomainSectionTitle: 'ブランドドメイン',
+    customDomainSectionDesc:
+      'nanoai.vn の代わりに shop ドメイン（例 shop.example.com）— 訪問者はあなたのホスト名で HTTPS アクセス。',
+    customDomainGuideTitle: '独自ドメイン接続手順',
+    customDomainGuideBody:
+      '設定後、チャットと shop サイトを独自ドメインで公開できます。SSL はプラットフォームが自動発行（証明書の個別購入不要）。',
+    customDomainStep1: '手順 1 — ホスト名を入力（https:// なし）、チャット/shop サイトを選択して保存。',
+    customDomainStep2: '手順 2 — DNS プロバイダで CNAME を作成し、ホスト名を {target} に向ける。',
+    customDomainStep3: '手順 3 — DNS 反映を待つ（5–30 分、最大 24 時間）、「DNS・SSL を確認」をクリック。',
+    customDomainStep4: '手順 4 — 「SSL 有効」になったら、埋め込みリンクを新ドメインに更新（下のプレビュー参照）。',
+    customDomainHostnameLabel: 'ホスト名（shop ドメイン）',
+    customDomainHostnamePlaceholder: 'shop.example.com',
+    customDomainUseForChat: 'ホスト/埋め込みチャットに使用',
+    customDomainUseForSite: 'shop サイト (/site) に使用',
+    customDomainCnameTitle: 'DNS レコード (CNAME)',
+    customDomainCnameHint: 'CNAME: ホスト名 → {target}。サポート指示がない限り A レコードは避けてください。',
+    customDomainSslTitle: 'SSL (HTTPS)',
+    customDomainSslHint:
+      'CNAME 正設定後、NanoAI がリバースプロキシで HTTPS を提供。訪問者は常に https:// でアクセス。',
+    customDomainSaveButton: 'ドメインを保存',
+    customDomainVerifyButton: 'DNS・SSL を確認',
+    customDomainRemoveButton: 'ドメインを削除',
+    customDomainCopyTarget: 'CNAME 先をコピー',
+    customDomainCopyFailed: 'コピーできませんでした。',
+    customDomainStatusPending: 'DNS 待ち',
+    customDomainStatusDnsOk: 'DNS OK — SSL 待ち',
+    customDomainStatusSslActive: 'SSL 有効',
+    customDomainStatusError: '検証エラー',
+    customDomainPreviewTitle: '独自ドメインの公開 URL',
+    customDomainPreviewChat: '相談チャット:',
+    customDomainPreviewSite: 'shop サイト:',
+    customDomainInvalidHostname: '無効なホスト名（nanoai.vn や localhost は不可）。',
+    customDomainSavedOk: '保存しました — CNAME 設定後に確認してください。',
+    customDomainRemovedOk: '独自ドメインを削除しました。',
+    customDomainVerifyOk: 'DNS と SSL が利用可能です。',
+    customDomainVerifyDnsFail: 'CNAME が正しくありません — DNS を確認してください。',
+    customDomainVerifySslPending: 'DNS OK — SSL は数分かかる場合があります。再試行してください。',
   },
   partnerMessagingOrders: {
     pageTitle: 'チャット注文の管理',
@@ -12281,6 +12625,18 @@ const JA_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       'ショップのURLを入力 → 欄の外をクリック（または設定を保存）でモード3を保存。',
+    usagePanelTitle: 'API トークン統計',
+    usagePanelSubtitle: '期間別の LLM 呼び出し、embedding、画像生成、概算コストを確認します。',
+    birthdayPromoSettingsTitle: 'お誕生日 — メールと特典',
+    birthdayPromoSettingsDesc: '登録された誕生日の顧客に、設定した期間内でメールと自動割引を送ります。',
+    birthdayPromoSettingsHint:
+      'チャット済みでログイン済み・誕生日登録の顧客にメール。チャット注文時に在庫価格が % 割引（クーポン不要）。毎日 cron（SMTP 要）。',
+    birthdayDiscountLabel: '割引 (%)',
+    birthdayDaysMaxLabel: '誕生日前 — 開始 (日)',
+    birthdayDaysMinLabel: '誕生日前 — 終了 (日)',
+    birthdayEnableAria: '誕生日プログラムを有効化',
+    birthdayPromoAutoSaveHint: 'スイッチと数値は自動保存（数値は入力停止約 0.5 秒後）。',
+    birthdayPromoSaveFailed: '誕生日プロモーション設定を保存できませんでした。',
   },
   partnerGuestChat: {
     notFoundTitle: 'チャットページが見つかりません',
@@ -14262,11 +14618,11 @@ const KO_DICTIONARY: Dictionary = {
     credentialsKeepHint: '바꾸지 않을 토큰이나 시크릿은 비워 두면 저장된 값이 유지됩니다.',
     setupColumnTitle: '채널 및 AI 어시스턴트',
     chatColumnTitle: '고객 채팅',
-    messagingSettingsLink: '채널·AI 설정',
+    messagingSettingsLink: '관리',
     marketingCampaignsLink: '마케팅',
     messagingWebsiteLink: '웹·랜딩',
     messagingOrdersLink: '주문',
-    messagingSettingsPageTitle: '메시지 설정(매장)',
+    messagingSettingsPageTitle: '매장 관리',
     messagingInboxDescription: '왼쪽에 고객 목록. 대화를 열면 입력창이 화면 하단에 고정됩니다.',
     noWorkspaceInboxCta: '메시징 워크스페이스가 없습니다. 설정에서 매장을 만들고 Facebook / Zalo / 채팅을 연결하세요.',
     goToInbox: '받은편지함으로',
@@ -14282,6 +14638,64 @@ const KO_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideTitle: '고객 응대 매장 만들기 안내',
     customerCareShopSetupGuideBody:
       '1단계 — 대시보드 → 메시지 → 채널·AI 설정(이 페이지)으로 이동합니다.\n\n2단계 — «메시징 워크스페이스 만들기»에서 표시 이름, 브랜드 이름, 업종을 입력합니다. 로고는 URL을 넣거나 이미지를 업로드할 수 있습니다.\n\n3단계 — «만들기»를 누릅니다. 이것이 매장 워크스페이스입니다. Facebook 페이지, Zalo OA, NanoAI 호스팅 채팅, 사이트에 임베드한 채팅의 메시지가 모두 같은 받은편지함으로 들어옵니다.\n\n4단계 — 이어서 채널(Facebook/Zalo)을 연결하고 호스팅 채팅 링크 또는 iframe 코드를 복사한 뒤, 같은 설정 페이지에서 AI 어시스트와 재고를 선택적으로 켤 수 있습니다.',
+    settingsSidebarTitle: '관리 메뉴',
+    settingsNavOperationsTitle: '운영',
+    settingsNavOperationsDesc: '마케팅, 웹사이트, 채팅 주문 — 별도 페이지로 이동합니다.',
+    settingsOpenWebsiteButton: '웹사이트 보기',
+    settingsManageWebsiteButton: '웹사이트 편집',
+    settingsCreateWebsiteButton: '웹사이트 만들기',
+    settingsNavPayment: '주문 및 결제',
+    settingsNavLoyalty: '단골 회원',
+    settingsNavLoyaltyDesc: '기간 내 구매액으로 등급을 매기고 주문 확정 시 자동 할인합니다.',
+    settingsNavPromotions: '프로모션',
+    settingsNavPromotionsDesc: '자동 혜택 — 생일 이메일 및 채팅 할인.',
+    settingsNavAnalyticsMeta: 'Meta 및 카탈로그',
+    settingsNavAnalyticsMetaDesc: 'Meta Pixel, Conversions API, Facebook 카탈로그 feed.',
+    settingsNavAnalyticsAds: 'GA4 및 광고',
+    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads, TikTok Pixel.',
+    settingsNavSheets: 'Google 시트',
+    settingsNavSheetsDesc: '채팅 주문을 매장 Google 시트에 동기화합니다.',
+    settingsNavAiUsage: 'AI API 토큰',
+    settingsNavAiUsageDesc: 'LLM 토큰, embedding, 이미지 생성 통계 및 예상 비용.',
+    settingsNavInventoryDesc: '상품 추가·수정·Excel 가져오기·재고 동기화 — AI 상담 시 이 카탈로그를 사용합니다.',
+    settingsNavCustomDomain: '맞춤 도메인 (SSL)',
+    customDomainSectionTitle: '브랜드 도메인',
+    customDomainSectionDesc:
+      'nanoai.vn 대신 매장 도메인(예 shop.example.com) 사용 — 방문자는 귀하의 호스트명으로 HTTPS 접속.',
+    customDomainGuideTitle: '맞춤 도메인 연결 안내',
+    customDomainGuideBody:
+      '설정 후 채팅과 매장 사이트를 자체 도메인에서 제공할 수 있습니다. SSL은 플랫폼이 자동 발급(별도 인증서 구매 불필요).',
+    customDomainStep1: '1단계 — 호스트명 입력(https:// 제외), 채팅 및/또는 매장 사이트 선택 후 저장.',
+    customDomainStep2: '2단계 — DNS 업체에서 CNAME을 만들어 호스트명을 {target}(으)로 연결.',
+    customDomainStep3: '3단계 — DNS 반영 대기(5–30분, 최대 24시간) 후 «DNS·SSL 확인» 클릭.',
+    customDomainStep4: '4단계 — «SSL 활성» 상태가 되면 임베드·마케팅 링크를 새 도메인으로 변경(아래 미리보기).',
+    customDomainHostnameLabel: '호스트명(매장 도메인)',
+    customDomainHostnamePlaceholder: 'shop.example.com',
+    customDomainUseForChat: '호스팅/임베드 채팅에 사용',
+    customDomainUseForSite: '매장 웹사이트(/site)에 사용',
+    customDomainCnameTitle: 'DNS 레코드(CNAME)',
+    customDomainCnameHint: 'CNAME: 호스트명 → {target}. 지원팀 안내 없이 A 레코드 직접 지정은 피하세요.',
+    customDomainSslTitle: 'SSL(HTTPS)',
+    customDomainSslHint:
+      'CNAME이 올바르면 NanoAI가 리버스 프록시로 HTTPS를 제공합니다. 방문자는 항상 https:// 로 접속.',
+    customDomainSaveButton: '도메인 저장',
+    customDomainVerifyButton: 'DNS·SSL 확인',
+    customDomainRemoveButton: '도메인 제거',
+    customDomainCopyTarget: 'CNAME 대상 복사',
+    customDomainCopyFailed: '복사할 수 없습니다.',
+    customDomainStatusPending: 'DNS 대기',
+    customDomainStatusDnsOk: 'DNS OK — SSL 대기',
+    customDomainStatusSslActive: 'SSL 활성',
+    customDomainStatusError: '검증 오류',
+    customDomainPreviewTitle: '맞춤 도메인 공개 URL',
+    customDomainPreviewChat: '상담 채팅:',
+    customDomainPreviewSite: '매장 웹사이트:',
+    customDomainInvalidHostname: '잘못된 호스트명(nanoai.vn·localhost 불가).',
+    customDomainSavedOk: '저장됨 — CNAME 설정 후 확인하세요.',
+    customDomainRemovedOk: '맞춤 도메인을 제거했습니다.',
+    customDomainVerifyOk: 'DNS와 SSL이 준비되었습니다.',
+    customDomainVerifyDnsFail: 'CNAME이 올바르지 않습니다 — DNS를 확인하세요.',
+    customDomainVerifySslPending: 'DNS OK — SSL은 몇 분 더 걸릴 수 있습니다. 다시 시도하세요.',
   },
   partnerMessagingOrders: {
     pageTitle: '채팅 주문 관리',
@@ -14995,6 +15409,18 @@ const KO_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       '쇼핑몰 URL 입력 → 입력란 밖 클릭(또는 설정 저장)으로 모드 3 적용.',
+    usagePanelTitle: 'API 토큰 통계',
+    usagePanelSubtitle: '기간별 LLM 호출, embedding, 이미지 생성 및 예상 비용을 확인합니다.',
+    birthdayPromoSettingsTitle: '생일 축하 — 이메일 및 혜택',
+    birthdayPromoSettingsDesc: '등록된 생일이 있는 고객에게 설정한 기간 동안 이메일과 자동 할인을 제공합니다.',
+    birthdayPromoSettingsHint:
+      '채팅·로그인·생일 등록 고객에게 이메일. 채팅 주문 시 재고 가격이 % 할인(쿠폰 불필요). 매일 cron(SMTP 필요).',
+    birthdayDiscountLabel: '할인 (%)',
+    birthdayDaysMaxLabel: '생일 전 — 시작 (일)',
+    birthdayDaysMinLabel: '생일 전 — 종료 (일)',
+    birthdayEnableAria: '생일 프로그램 켜기',
+    birthdayPromoAutoSaveHint: '스위치와 숫자는 자동 저장(숫자는 입력 멈춘 뒤 약 0.5초 후).',
+    birthdayPromoSaveFailed: '생일 프로모션 설정을 저장하지 못했습니다.',
   },
   partnerGuestChat: {
     notFoundTitle: '채팅 페이지를 찾을 수 없습니다',

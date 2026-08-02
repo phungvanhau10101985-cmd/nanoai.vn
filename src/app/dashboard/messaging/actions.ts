@@ -29,6 +29,21 @@ import { dispatchPartnerOutboundWebhook } from '@/lib/messaging/partner-outbound
 import { emitPartnerOutboundPaymentPaid } from '@/lib/messaging/partner-outbound-webhook-emit'
 import { PARTNER_OUTBOUND_WEBHOOK_EVENTS } from '@/lib/messaging/partner-outbound-webhook-types'
 import {
+  deletePartnerCustomDomainPg,
+  fetchPartnerCustomDomainByPartnerIdPg,
+  updatePartnerCustomDomainFlagsPg,
+  updatePartnerCustomDomainVerificationPg,
+  upsertPartnerCustomDomainPg,
+} from '@/lib/db/messaging-partner-custom-domains-pg'
+import {
+  getPartnerCustomDomainCnameTarget,
+  normalizePartnerCustomDomainHostname,
+} from '@/lib/messaging/partner-custom-domain-hostname'
+import {
+  probePartnerCustomDomainSsl,
+  verifyPartnerCustomDomainCname,
+} from '@/lib/messaging/partner-custom-domain-dns'
+import {
   deletePartnerInventoryItemForPartnerFromPg,
   fetchPartnerInventoryActivePageWithCountFromPg,
   fetchPartnerInventoryEmbeddingStatsFromPg,
@@ -2902,6 +2917,121 @@ export async function removeMessagingPartnerStaffMember(partnerId: string, membe
     memberUserId: memberUserId.trim(),
   })
   if (!rm) return { error: 'REMOVE_FAILED' as const }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function getMessagingPartnerCustomDomainSettings(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const row = await fetchPartnerCustomDomainByPartnerIdPg(partnerId)
+  return {
+    domain: row,
+    cnameTarget: getPartnerCustomDomainCnameTarget(),
+  }
+}
+
+export async function saveMessagingPartnerCustomDomainSettings(input: {
+  partnerId: string
+  hostname: string
+  useForChat: boolean
+  useForSite: boolean
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, input.partnerId)
+  if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(auth.user.id)
+  if ('error' in step) return { error: step.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const hostname = normalizePartnerCustomDomainHostname(input.hostname)
+  if (!hostname) return { error: 'INVALID_HOSTNAME' as const }
+
+  const token = randomBytes(16).toString('hex')
+  const row = await upsertPartnerCustomDomainPg({
+    partnerId: input.partnerId,
+    hostname,
+    verificationToken: token,
+    useForChat: input.useForChat,
+    useForSite: input.useForSite,
+  })
+  if (!row) return { error: 'SAVE_FAILED' as const }
+  revalidateMessagingDashboard()
+  return { ok: true as const, domain: row, cnameTarget: getPartnerCustomDomainCnameTarget() }
+}
+
+export async function verifyMessagingPartnerCustomDomain(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const row = await fetchPartnerCustomDomainByPartnerIdPg(partnerId)
+  if (!row) return { error: 'NOT_FOUND' as const }
+
+  const cname = await verifyPartnerCustomDomainCname(row.hostname)
+  if (!cname.ok) {
+    await updatePartnerCustomDomainVerificationPg({
+      partnerId,
+      dnsVerified: false,
+      sslStatus: 'pending',
+      sslLastError: cname.detail,
+    })
+    return { error: 'DNS_FAILED' as const, detail: cname.detail }
+  }
+
+  const ssl = await probePartnerCustomDomainSsl(row.hostname)
+  const sslStatus = ssl.ok ? 'ssl_active' : 'dns_ok'
+  await updatePartnerCustomDomainVerificationPg({
+    partnerId,
+    dnsVerified: true,
+    sslStatus,
+    sslLastError: ssl.ok ? null : ssl.detail,
+  })
+  revalidateMessagingDashboard()
+  const updated = await fetchPartnerCustomDomainByPartnerIdPg(partnerId)
+  return {
+    ok: true as const,
+    domain: updated,
+    dnsDetail: cname.detail,
+    sslDetail: ssl.detail,
+    sslActive: ssl.ok,
+  }
+}
+
+export async function removeMessagingPartnerCustomDomain(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(auth.user.id)
+  if ('error' in step) return { error: step.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  await deletePartnerCustomDomainPg(partnerId)
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function updateMessagingPartnerCustomDomainUsage(input: {
+  partnerId: string
+  useForChat: boolean
+  useForSite: boolean
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, input.partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  await updatePartnerCustomDomainFlagsPg({
+    partnerId: input.partnerId,
+    useForChat: input.useForChat,
+    useForSite: input.useForSite,
+  })
   revalidateMessagingDashboard()
   return { ok: true as const }
 }

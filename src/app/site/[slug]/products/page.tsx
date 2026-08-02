@@ -45,6 +45,7 @@ export default async function PartnerSiteProductsPage({ params }: Props) {
       locale={shop.site.locale}
       chatPath={shop.site.chatPath}
       tracking={partnerSiteTrackingFromPublicRow(shop.site)}
+      activeNav="products"
     >
       <PartnerSiteShopCatalogClient
         siteSlug={shop.site.siteSlug}

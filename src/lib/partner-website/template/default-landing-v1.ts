@@ -6,6 +6,7 @@ import {
   type PartnerWebsiteTheme,
 } from '@/lib/partner-website/template/partner-website-template-types'
 import { defaultPropsForSection } from '@/lib/partner-website/template/section-registry'
+import { getShopTemplateSampleProducts } from '@/lib/partner-website/template/shop-template-sample-products'
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`
@@ -50,17 +51,17 @@ const UI: Record<
   }
 > = {
   vi: {
-    heroTitle: 'Chào mừng đến shop',
-    heroSubtitle: 'Sản phẩm chất lượng — tư vấn & đặt hàng nhanh qua chat',
-    cta: 'Xem sản phẩm',
+    heroTitle: 'BỘ SƯU TẬP MỚI',
+    heroSubtitle: 'Khám phá xu hướng mới nhất',
+    cta: 'MUA NGAY',
     trust: [
       { value: '1000+', label: 'Khách hàng' },
       { value: '24/7', label: 'Tư vấn chat' },
       { value: 'Toàn quốc', label: 'Giao hàng' },
     ],
-    productsTitle: 'Sản phẩm nổi bật',
-    productsSubtitle: 'Đồng bộ từ kho hàng — cập nhật khi bạn thêm sản phẩm',
-    productCta: 'Xem chi tiết',
+    productsTitle: 'Hàng mới về',
+    productsSubtitle: '',
+    productCta: 'Thêm vào giỏ',
     recentlyViewedTitle: 'Bạn vừa xem',
     recentlyViewedSubtitle: 'Tiếp tục khám phá sản phẩm bạn quan tâm',
     favoritesTitle: 'Sản phẩm yêu thích',
@@ -103,17 +104,17 @@ const UI: Record<
     footerNote: 'Website shop — tạo trên NanoAI',
   },
   en: {
-    heroTitle: 'Welcome to our shop',
-    heroSubtitle: 'Quality products — order fast via chat',
-    cta: 'View products',
+    heroTitle: 'SUMMER ELEGANCE COLLECTION',
+    heroSubtitle: 'Shop the latest trends.',
+    cta: 'EXPLORE NOW',
     trust: [
       { value: '1000+', label: 'Customers' },
       { value: '24/7', label: 'Chat support' },
       { value: 'Nationwide', label: 'Delivery' },
     ],
-    productsTitle: 'Featured products',
-    productsSubtitle: 'Synced from inventory when available',
-    productCta: 'View details',
+    productsTitle: 'NEW ARRIVALS',
+    productsSubtitle: '',
+    productCta: 'ADD TO CART',
     recentlyViewedTitle: 'Recently viewed',
     recentlyViewedSubtitle: 'Continue exploring items you viewed',
     favoritesTitle: 'Your favorites',
@@ -155,17 +156,17 @@ const UI: Record<
     footerNote: 'Shop website — Built with NanoAI',
   },
   zh: {
-    heroTitle: '欢迎光临',
-    heroSubtitle: '优质商品 — 聊天快速下单',
-    cta: '查看产品',
+    heroTitle: '全新系列',
+    heroSubtitle: '探索最新潮流',
+    cta: '立即购买',
     trust: [
       { value: '1000+', label: '客户' },
       { value: '24/7', label: '聊天支持' },
       { value: '全国', label: '配送' },
     ],
-    productsTitle: '精选产品',
-    productsSubtitle: '有库存时自动同步',
-    productCta: '查看详情',
+    productsTitle: '新品上市',
+    productsSubtitle: '',
+    productCta: '加入购物车',
     recentlyViewedTitle: '最近浏览',
     recentlyViewedSubtitle: '继续查看您感兴趣的商品',
     favoritesTitle: '收藏的商品',
@@ -207,17 +208,17 @@ const UI: Record<
     footerNote: 'NanoAI 店铺网站',
   },
   ja: {
-    heroTitle: 'ショップへようこそ',
-    heroSubtitle: '品質商品 — チャットですぐ注文',
-    cta: '商品を見る',
+    heroTitle: '新作コレクション',
+    heroSubtitle: '最新トレンドをチェック',
+    cta: '今すぐ購入',
     trust: [
       { value: '1000+', label: 'お客様' },
       { value: '24/7', label: 'チャット' },
       { value: '全国', label: '配送' },
     ],
-    productsTitle: 'おすすめ商品',
-    productsSubtitle: '在庫から自動同期',
-    productCta: '詳細を見る',
+    productsTitle: '新着商品',
+    productsSubtitle: '',
+    productCta: 'カートに追加',
     recentlyViewedTitle: '最近見た商品',
     recentlyViewedSubtitle: '閲覧した商品を続けて見る',
     favoritesTitle: 'お気に入り',
@@ -259,17 +260,17 @@ const UI: Record<
     footerNote: 'NanoAI ショップサイト',
   },
   ko: {
-    heroTitle: '샵에 오신 것을 환영합니다',
-    heroSubtitle: '품질 상품 — 채팅으로 빠른 주문',
-    cta: '상품 보기',
+    heroTitle: '신규 컬렉션',
+    heroSubtitle: '최신 트렌드를 만나보세요',
+    cta: '지금 구매',
     trust: [
       { value: '1000+', label: '고객' },
       { value: '24/7', label: '채팅 지원' },
       { value: '전국', label: '배송' },
     ],
-    productsTitle: '추천 상품',
-    productsSubtitle: '재고에서 자동 동기화',
-    productCta: '상세 보기',
+    productsTitle: '신상품',
+    productsSubtitle: '',
+    productCta: '장바구니 담기',
     recentlyViewedTitle: '최근 본 상품',
     recentlyViewedSubtitle: '관심 상품을 계속 둘러보세요',
     favoritesTitle: '찜한 상품',
@@ -328,6 +329,30 @@ export function buildDefaultLandingV1Site(input: {
     logoUrl: input.logoUrl ?? input.theme?.logoUrl ?? null,
   }
 
+  const locale = input.locale
+  const catTitle =
+    locale === 'vi'
+      ? 'Danh mục nổi bật'
+      : locale === 'zh'
+        ? '精选分类'
+        : locale === 'ja'
+          ? '注目カテゴリ'
+          : locale === 'ko'
+            ? '추천 카테고리'
+            : 'FEATURED CATEGORIES'
+  const bestTitle =
+    locale === 'vi'
+      ? 'Sản phẩm bán chạy'
+      : locale === 'zh'
+        ? '畅销商品'
+        : locale === 'ja'
+          ? 'ベストセラー'
+          : locale === 'ko'
+            ? '베스트셀러'
+            : 'BEST SELLERS'
+  const categoryItems = defaultFashionCategories(locale)
+  const sampleProducts = getShopTemplateSampleProducts(locale)
+
   const pages: PartnerWebsitePage[] = [
     {
       slug: '/',
@@ -338,14 +363,20 @@ export function buildDefaultLandingV1Site(input: {
           type: 'hero-v1',
           props: {
             ...defaultPropsForSection('hero-v1'),
-            title: briefLine || brand,
-            subtitle: t.heroSubtitle,
+            title: t.heroTitle,
+            subtitle: briefLine || t.heroSubtitle,
             ctaText: t.cta,
+            backgroundImage:
+              'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80',
           },
         },
-        { id: uid('trust'), type: 'trust-bar-v1', props: { items: t.trust } },
         {
-          id: uid('prod'),
+          id: uid('cats'),
+          type: 'categories-v1',
+          props: { title: catTitle, items: categoryItems },
+        },
+        {
+          id: uid('new'),
           type: 'products-v1',
           props: {
             ...defaultPropsForSection('products-v1'),
@@ -354,24 +385,27 @@ export function buildDefaultLandingV1Site(input: {
             useInventory: true,
             limit: 8,
             productCtaText: t.productCta,
+            variant: 'new-arrivals',
+            showNewBadge: true,
+            products: sampleProducts.slice(0, 4),
+          },
+        },
+        {
+          id: uid('best'),
+          type: 'products-v1',
+          props: {
+            ...defaultPropsForSection('products-v1'),
+            title: bestTitle,
+            subtitle: '',
+            useInventory: true,
+            limit: 8,
+            productCtaText: t.productCta,
+            variant: 'best-sellers',
+            showNewBadge: false,
+            products: sampleProducts.slice(4, 8),
           },
         },
         ...buildLandingV1PersonalizationSections(input.locale, t.productCta),
-        {
-          id: uid('feat'),
-          type: 'features-v1',
-          props: { title: t.featuresTitle, items: t.features },
-        },
-        {
-          id: uid('test'),
-          type: 'testimonials-v1',
-          props: { title: t.testimonialsTitle, items: t.testimonials },
-        },
-        {
-          id: uid('price'),
-          type: 'pricing-v1',
-          props: { title: t.pricingTitle, plans: t.pricing },
-        },
         {
           id: uid('faq'),
           type: 'faq-v1',
@@ -403,13 +437,47 @@ export function buildDefaultLandingV1Site(input: {
         {
           id: uid('foot'),
           type: 'footer-v1',
-          props: { brandName: brand, note: t.footerNote },
+          props: {
+            brandName: brand,
+            note: t.footerNote,
+            aboutText:
+              locale === 'vi'
+                ? 'Shop thời trang — chất lượng, giao nhanh, tư vấn tận tâm.'
+                : 'Fashion shop — quality pieces, fast delivery, friendly support.',
+          },
         },
       ],
     },
   ]
 
-  return { templateId: 'landing-v1', theme, pages }
+  return { templateId: 'fashion-orange', theme, pages }
+}
+
+function defaultFashionCategories(locale: WebLocale): Array<{
+  name: string
+  imageUrl: string
+  href?: string
+}> {
+  const names =
+    locale === 'vi'
+      ? ['Thời trang', 'Túi xách', 'Giày dép', 'Phụ kiện']
+      : locale === 'zh'
+        ? ['服装', '箱包', '鞋履', '配饰']
+        : locale === 'ja'
+          ? ['ファッション', 'バッグ', 'シューズ', 'アクセサリー']
+          : locale === 'ko'
+            ? ['패션', '가방', '신발', '액세서리']
+            : ['Clothing', 'Handbags', 'Shoes', 'Accessories']
+  const images = [
+    'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=600&q=80',
+  ]
+  return names.map((name, i) => ({
+    name,
+    imageUrl: images[i]!,
+  }))
 }
 
 export function getLandingV1SectionCopy(locale: WebLocale) {
@@ -489,5 +557,6 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     mutedColor: typeof o.mutedColor === 'string' ? o.mutedColor : base.mutedColor,
     fontFamily: typeof o.fontFamily === 'string' ? o.fontFamily : base.fontFamily,
     logoUrl: typeof o.logoUrl === 'string' ? o.logoUrl : logoUrl ?? base.logoUrl ?? null,
+    ...(o.useVisualHtml === true ? { useVisualHtml: true } : {}),
   }
 }

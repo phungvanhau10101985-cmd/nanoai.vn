@@ -18,6 +18,7 @@ import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import {
   collectPartnerWebsiteReferenceUrls,
   PartnerWebsiteAssetPanel,
+  PartnerWebsiteEditRefStrip,
 } from '@/components/partner-website/partner-website-asset-panel'
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 import type { PartnerWebsiteChatMessage } from '@/lib/partner-website/partner-website-ai-generator'
@@ -322,6 +323,15 @@ export const PartnerWebsiteChatPanel = forwardRef<
             </Button>
           ))}
         </div>
+
+        <PartnerWebsiteEditRefStrip
+          locale={locale}
+          partnerId={partnerId}
+          uploadedRefUrls={uploadedRefUrls}
+          onUploadedRefUrlsChange={onUploadedRefUrlsChange}
+          disabled={busy || disabled || !partnerId}
+          onError={onError}
+        />
 
         <div className="overflow-hidden rounded-lg border bg-background shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
           <Textarea

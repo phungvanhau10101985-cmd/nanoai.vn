@@ -1,7 +1,26 @@
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
-import { composeStandaloneHtml } from '@/lib/partner-website/partner-website-project'
+import { injectPartnerWebsiteLogoGuardIntoHtml } from '@/lib/partner-website/partner-website-logo-guard'
+import {
+  composeStandaloneHtml,
+  resolvePartnerWebsiteDisplayHtml,
+} from '@/lib/partner-website/partner-website-project'
 import { hydratePartnerWebsitePages } from '@/lib/partner-website/template/hydrate-template-pages'
 import { renderTemplateSiteToHtml } from '@/lib/partner-website/template/render-template-html'
+
+function resolveVisualHtmlOverride(
+  website: Pick<PartnerWebsiteRow, 'theme' | 'project' | 'htmlSource'>
+): string {
+  if (!website.theme?.useVisualHtml) return ''
+  return (
+    resolvePartnerWebsiteDisplayHtml({
+      project: website.project,
+      htmlSource: website.htmlSource,
+    }) ||
+    composeStandaloneHtml(website.project) ||
+    website.htmlSource?.trim() ||
+    ''
+  )
+}
 
 type ComposeInput = Pick<
   PartnerWebsiteRow,
@@ -26,6 +45,10 @@ export function composePartnerWebsiteHtml(
   options?: { chatPath?: string; enabledSectionTypes?: string[] }
 ): string {
   if (website.renderMode === 'template') {
+    const visual = resolveVisualHtmlOverride(website)
+    if (visual.length >= 20) {
+      return injectPartnerWebsiteLogoGuardIntoHtml(visual)
+    }
     return renderTemplateSiteToHtml({
       locale: website.locale,
       title: website.title,
@@ -38,10 +61,11 @@ export function composePartnerWebsiteHtml(
       enabledSectionTypes: options?.enabledSectionTypes,
     })
   }
-  return (
-    website.htmlSource?.trim() ||
-    composeStandaloneHtml(website.project) ||
-    '<!DOCTYPE html><html><body><p>Site not ready.</p></body></html>'
+  return injectPartnerWebsiteLogoGuardIntoHtml(
+    resolvePartnerWebsiteDisplayHtml({
+      project: website.project,
+      htmlSource: website.htmlSource,
+    })
   )
 }
 
@@ -50,6 +74,10 @@ export async function composePartnerWebsiteHtmlAsync(
   options?: { chatPath?: string; enabledSectionTypes?: string[]; hydrateInventory?: boolean }
 ): Promise<string> {
   if (website.renderMode === 'template') {
+    const visual = resolveVisualHtmlOverride(website)
+    if (visual.length >= 20) {
+      return injectPartnerWebsiteLogoGuardIntoHtml(visual)
+    }
     let pages = website.pages
     if (options?.hydrateInventory !== false && website.partnerId) {
       pages = await hydratePartnerWebsitePages(website.partnerId, pages, website.siteSlug)

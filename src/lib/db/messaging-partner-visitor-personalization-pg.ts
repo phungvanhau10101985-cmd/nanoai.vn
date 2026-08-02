@@ -89,6 +89,35 @@ export async function fetchPartnerVisitorPersonalizationFromPg(input: {
   }
 }
 
+export async function clearPartnerVisitorRecentlyViewedFromPg(input: {
+  partnerId: string
+  accountKey: string
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const accountKey = input.accountKey.trim()
+  if (!accountKey) return false
+  const existing = await fetchPartnerVisitorPersonalizationFromPg({
+    partnerId: input.partnerId,
+    accountKey,
+  })
+  const utm = existing?.utm_context ?? {}
+  try {
+    await getPgPool().query(
+      `insert into public.messaging_partner_visitor_personalization
+         (partner_id, account_key, recently_viewed_ids, utm_context, updated_at)
+       values ($1::uuid, $2, '[]'::jsonb, $3::jsonb, now())
+       on conflict (partner_id, account_key) do update set
+         recently_viewed_ids = '[]'::jsonb,
+         updated_at = now()`,
+      [input.partnerId, accountKey, JSON.stringify(utm)]
+    )
+    return true
+  } catch (e) {
+    console.warn('[clearPartnerVisitorRecentlyViewedFromPg]', e)
+    return false
+  }
+}
+
 export async function upsertPartnerVisitorRecentlyViewedFromPg(input: {
   partnerId: string
   accountKey: string

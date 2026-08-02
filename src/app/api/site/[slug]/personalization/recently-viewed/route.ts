@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { clearPartnerVisitorRecentlyViewedFromPg } from '@/lib/db/messaging-partner-visitor-personalization-pg'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   getSiteRecentlyViewedProducts,
@@ -25,6 +26,27 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   return jsonSitePersonalization(
     request,
     { ok: true, products, count: products.length },
+    200,
+    { sessionId: visitor.sessionId, thread: visitor.thread }
+  )
+}
+
+/** DELETE — xóa lịch sử đã xem. */
+export async function DELETE(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
+  const { slug } = await ctx.params
+  const shop = await loadPartnerSiteShopContext(slug)
+  if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
+  const ok = await clearPartnerVisitorRecentlyViewedFromPg({
+    partnerId: shop.partnerId,
+    accountKey: visitor.accountKey,
+  })
+  if (!ok) return NextResponse.json({ error: 'Could not clear history' }, { status: 500 })
+
+  return jsonSitePersonalization(
+    request,
+    { ok: true, products: [], count: 0 },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
   )

@@ -250,6 +250,51 @@ export interface Database {
         }
         Relationships: []
       }
+      messaging_partner_custom_domains: {
+        Row: {
+          id: string
+          partner_id: string
+          hostname: string
+          verification_token: string
+          dns_verified_at: string | null
+          ssl_status: 'pending' | 'dns_ok' | 'ssl_active' | 'error'
+          ssl_provisioned_at: string | null
+          ssl_last_error: string | null
+          use_for_chat: boolean
+          use_for_site: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          hostname: string
+          verification_token: string
+          dns_verified_at?: string | null
+          ssl_status?: 'pending' | 'dns_ok' | 'ssl_active' | 'error'
+          ssl_provisioned_at?: string | null
+          ssl_last_error?: string | null
+          use_for_chat?: boolean
+          use_for_site?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          hostname?: string
+          verification_token?: string
+          dns_verified_at?: string | null
+          ssl_status?: 'pending' | 'dns_ok' | 'ssl_active' | 'error'
+          ssl_provisioned_at?: string | null
+          ssl_last_error?: string | null
+          use_for_chat?: boolean
+          use_for_site?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messaging_partner_members: {
         Row: {
           id: string

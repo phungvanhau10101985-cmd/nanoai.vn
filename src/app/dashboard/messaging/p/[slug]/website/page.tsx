@@ -60,11 +60,8 @@ export default async function PartnerSlugWebsiteDashboardPage({
       description={pw.pageDescription}
       inboxLabel={pm.goToInbox}
       settingsLabel={pm.messagingSettingsLink}
-      marketingLabel={pm.marketingCampaignsLink}
       ordersLabel={pm.messagingOrdersLink}
-      websiteLabel={pm.messagingWebsiteLink}
       partnerId={partner.id}
-      partnerSlug={partner.slug}
     >
       <PartnerWebsiteDashboardClient
         locale={locale}

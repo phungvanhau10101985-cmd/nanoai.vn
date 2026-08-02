@@ -15,6 +15,24 @@ import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-
 
 const toTenths = (value: number) => Math.round(value * 10)
 
+function isGeminiAspectRatioError(message: string): boolean {
+  return /aspect ratio not supported/i.test(message)
+}
+
+/** Gemini 3 Pro Image rejects some documented ratios (e.g. 1:4) — mirror Hub Studio fallbacks. */
+export function studioImageAspectRatioAttempts(
+  aspectRatio: string | undefined,
+  kind: StudioGeneratorKind
+): string[] {
+  const portrait = '9:16'
+  const landscape = '16:9'
+  const raw = aspectRatio?.trim() || (kind === 'ui_desktop' ? landscape : portrait)
+  if (raw === portrait) return [portrait]
+  if (raw === '1:4' || raw === '1:8') return [portrait, '3:4', landscape]
+  const normalized = normalizeBannerAspectRatioForGemini(raw)
+  return [normalized, portrait, landscape].filter((v, i, arr) => arr.indexOf(v) === i)
+}
+
 export type StudioImageResult =
   | { ok: true; resultUrl: string; charged: number }
   | { ok: false; error: string }
@@ -270,8 +288,7 @@ export async function runStudioImagePipeline(input: {
         input.aspectRatio,
         input.screenKey
       )
-  const safeAspectRatio =
-    input.kind === 'banner' ? normalizeBannerAspectRatioForGemini(spec.aspectRatio) : spec.aspectRatio
+  const aspectRatioAttempts = studioImageAspectRatioAttempts(spec.aspectRatio, input.kind)
 
   let balance = 0
   try {
@@ -285,13 +302,6 @@ export async function runStudioImagePipeline(input: {
 
   const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
   const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: spec.imageSize, aspectRatio: safeAspectRatio },
-    },
-  })
 
   const parts: object[] = [{ text: spec.prompt }]
   const primaryFaceKey = 'face_top'
@@ -365,44 +375,61 @@ export async function runStudioImagePipeline(input: {
   ]
 
   try {
-    const result = await model.generateContent(parts as never, { safetySettings } as never)
-    trackFromUsageMetadata(
-      result.response.usageMetadata,
-      GEMINI_3_PRO_IMAGE.model,
-      `hub-studio-${input.kind}`,
-      input.userId,
-      spec.imageSize
-    )
-    const imagePartRes = result.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
-    if (!imagePartRes || !('inlineData' in imagePartRes)) {
-      const finishReason = result.response.candidates?.[0]?.finishReason
-      const blockReason = result.response.promptFeedback?.blockReason
-      const detail = [finishReason, blockReason].filter(Boolean).join(' · ')
-      return {
-        ok: false,
-        error: detail ? `AI không trả về ảnh (${detail}).` : 'AI không trả về ảnh.',
+    let lastError = 'AI không trả về ảnh.'
+    for (const aspectRatio of aspectRatioAttempts) {
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_3_PRO_IMAGE.model,
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          imageConfig: { imageSize: spec.imageSize, aspectRatio },
+        },
+      })
+      try {
+        const result = await model.generateContent(parts as never, { safetySettings } as never)
+        trackFromUsageMetadata(
+          result.response.usageMetadata,
+          GEMINI_3_PRO_IMAGE.model,
+          `hub-studio-${input.kind}`,
+          input.userId,
+          spec.imageSize
+        )
+        const imagePartRes = result.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
+        if (!imagePartRes || !('inlineData' in imagePartRes)) {
+          const finishReason = result.response.candidates?.[0]?.finishReason
+          const blockReason = result.response.promptFeedback?.blockReason
+          const detail = [finishReason, blockReason].filter(Boolean).join(' · ')
+          lastError = detail ? `AI không trả về ảnh (${detail}).` : 'AI không trả về ảnh.'
+          continue
+        }
+        const resultBufferRaw = Buffer.from(
+          (imagePartRes as { inlineData: { data: string } }).inlineData.data,
+          'base64'
+        )
+        const shouldNormalizeToPrintSize =
+          input.kind === 'packaging_face' && Boolean(input.printSizeMm)
+        const resultBuffer = shouldNormalizeToPrintSize
+          ? await normalizePanelArtworkToPrintSize(
+              resultBufferRaw,
+              input.printSizeMm!.widthMm,
+              input.printSizeMm!.heightMm
+            )
+          : resultBufferRaw
+        const resultPath = `results/${input.userId}/studio_${input.kind}_${Date.now()}.png`
+        const { publicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
+          contentType: 'image/png',
+          upsert: true,
+        })
+        const d = await deductUserCredits(input.userId, UI_MOCKUP_CREDIT)
+        if (!d.ok) return { ok: false, error: d.error || 'Không thể trừ credits.' }
+        return { ok: true, resultUrl: publicUrl, charged: UI_MOCKUP_CREDIT }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        lastError = msg
+        if (isGeminiAspectRatioError(msg)) continue
+        return { ok: false, error: msg }
       }
     }
-    const resultBufferRaw = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
-    // Box faces must match exact print trim px for dieline composite. Product labels / seal stickers
-    // keep native 2K AI output (same as /tao-nhan-gioi-thieu-san-pham) — resizing to mm@300dpi shrinks file and blurs text.
-    const shouldNormalizeToPrintSize =
-      input.kind === 'packaging_face' && Boolean(input.printSizeMm)
-    const resultBuffer = shouldNormalizeToPrintSize
-      ? await normalizePanelArtworkToPrintSize(
-          resultBufferRaw,
-          input.printSizeMm!.widthMm,
-          input.printSizeMm!.heightMm
-        )
-      : resultBufferRaw
-    const resultPath = `results/${input.userId}/studio_${input.kind}_${Date.now()}.png`
-    const { publicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
-      contentType: 'image/png',
-      upsert: true,
-    })
-    const d = await deductUserCredits(input.userId, UI_MOCKUP_CREDIT)
-    if (!d.ok) return { ok: false, error: d.error || 'Không thể trừ credits.' }
-    return { ok: true, resultUrl: publicUrl, charged: UI_MOCKUP_CREDIT }
+    return { ok: false, error: lastError }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { ok: false, error: msg }

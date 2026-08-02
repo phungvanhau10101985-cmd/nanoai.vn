@@ -17,6 +17,10 @@ export type PartnerWebsiteCopy = {
   logoHint: string
   logoUrlPlaceholder: string
   logoUpload: string
+  logoGenerate: string
+  logoGenerating: string
+  logoGenerateHint: string
+  logoRequired: string
   logoRemove: string
   refImagesLabel: string
   refImagesHint: string
@@ -49,6 +53,7 @@ export type PartnerWebsiteCopy = {
   previewTitle: string
   previewEmpty: string
   viewDesktop: string
+  viewLaptop: string
   viewTablet: string
   viewMobile: string
   previewPublicLink: string
@@ -78,6 +83,34 @@ export type PartnerWebsiteCopy = {
   quickEditChatCta: string
   quickEditMobile: string
   quickEditFooter: string
+  visualEditModeActive: string
+  visualEditSelectHint: string
+  visualEditTextColor: string
+  visualEditReplaceImage: string
+  visualEditAiImage: string
+  visualEditDragImage: string
+  visualEditCancel: string
+  visualEditSave: string
+  visualEditSaveSuccess: string
+  visualEditSaveFailed: string
+  visualEditAiFailed: string
+  visualEditAiImageTitle: string
+  visualEditAiImageHint: string
+  visualEditAiImagePlaceholder: string
+  visualEditAiImageGenerate: string
+  visualEditAiPromptLabel: string
+  visualEditAiPromptRequired: string
+  visualEditPresets: string
+  visualEditTemplateLocked: string
+  visualEditFontSize: string
+  visualEditBold: string
+  visualEditAlignLeft: string
+  visualEditAlignCenter: string
+  visualEditAlignRight: string
+  visualEditBgColor: string
+  visualEditImageWidth: string
+  visualEditResetImagePos: string
+  visualEditSectionHint: string
   restoreButton: string
   revisionHistory: string
   restoreSuccess: string
@@ -101,7 +134,38 @@ export type PartnerWebsiteCopy = {
   tenantNavEditor: string
   tenantNavLeads: string
   tenantNavSections: string
+  tenantNavLandings: string
   tenantNavPublicSite: string
+  lpPanelTitle: string
+  lpPanelHint: string
+  lpCreateButton: string
+  lpCancelCreate: string
+  lpCreateAndBuild: string
+  lpBuilding: string
+  lpBuildSuccess: string
+  lpBuildFailed: string
+  lpNeedWebsite: string
+  lpTitleLabel: string
+  lpTitlePlaceholder: string
+  lpTitleRequired: string
+  lpSlugLabel: string
+  lpSlugPlaceholder: string
+  lpBriefLabel: string
+  lpBriefPlaceholder: string
+  lpProductsLabel: string
+  lpProductsRequired: string
+  lpProductsShort: string
+  lpMaxProducts: string
+  lpInventoryEmpty: string
+  lpEmpty: string
+  lpLoading: string
+  lpPublishSuccess: string
+  lpUnpublishSuccess: string
+  lpRebuild: string
+  lpOpenPublic: string
+  lpDelete: string
+  lpDeleteConfirm: string
+  lpDeleteSuccess: string
   noWebsitePermTitle: string
   noWebsitePermBody: string
   legacyMigrateTitle: string
@@ -110,29 +174,179 @@ export type PartnerWebsiteCopy = {
   legacyMigrating: string
   legacyMigrateSuccess: string
   legacyMigrateAlready: string
+  studioTitle: string
+  studioHint: string
+  studioWebHint: string
+  studioOpenWebChat: string
+  studioOpenLandingChat: string
+  studioWebFirstNote: string
+  studioEntryTitle: string
+  studioEntryHint: string
+  lpChatTitle: string
+  lpChatHint: string
+  lpChatStart: string
+  lpChatStepProducts: string
+  lpChatStepBrief: string
+  lpChatStepBuild: string
+  lpChatContinueProducts: string
+  lpChatContinueBrief: string
+  studioStepProgress: string
+  studioNext: string
+  studioBack: string
+  studioGenerateDesign: string
+  studioGeneratingDesign: string
+  studioApproveDesign: string
+  studioRegenerateDesign: string
+  studioBuilding: string
+  studioAnalyzingMockup: string
+  studioBuildStepPrepare: string
+  studioBuildStepShell: string
+  studioBuildStepSection: string
+  studioBuildStepHooks: string
+  studioBuildStepFinalize: string
+  studioBuildComplete: string
+  studioBuildProgressTitle: string
+  studioBuildStepAnalyzeLabel: string
+  studioBuildStepPrepareLabel: string
+  studioBuildStepShellLabel: string
+  studioBuildStepSectionLabel: string
+  studioBuildStepSectionNamed: string
+  studioBuildStepHooksLabel: string
+  studioBuildStepFinalizeLabel: string
+  studioBuildStepApplyLabel: string
+  studioApplyTemplateTitle: string
+  studioApplyTemplateHint: string
+  studioPickTemplateTitle: string
+  studioPickTemplateHint: string
+  /** Public / studio template gallery (“kho giao diện”). */
+  templateGalleryEyebrow: string
+  templateGalleryTitle: string
+  templateGalleryHint: string
+  templateGalleryViewSample: string
+  templateGalleryUseTemplate: string
+  templateGalleryReadyBadge: string
+  templateGalleryOpenLibrary: string
+  studioBuildProgressCount: string
+  studioStartInterview: string
+  studioSkipToEditor: string
+  studioSiteTypeLanding: string
+  studioSiteTypeWebShop: string
+  studioMockupPreviewTitle: string
+  studioMockupRegenerateLabel: string
+  studioMockupRegenerateHint: string
+  studioMockupRegeneratePlaceholder: string
+  studioMockupViewLarge: string
+  studioMockupPickTitle: string
+  studioMockupPickHint: string
+  studioMockupPickConfirm: string
+  studioMockupPickCancel: string
+  studioMockupVersionLabel: string
+  studioRebuildFromMockup: string
+  studioRebuildFromMockupHint: string
+  studioNewMockupThenRebuild: string
+  studioAnswerRequired: string
+  studioQ_site_type: string
+  studioH_site_type: string
+  studioQ_brand_name: string
+  studioH_brand_name: string
+  studioQ_products_sell: string
+  studioH_products_sell: string
+  studioQ_value_prop: string
+  studioH_value_prop: string
+  studioQ_target_audience: string
+  studioH_target_audience: string
+  studioQ_site_features: string
+  studioH_site_features: string
+  studioQ_desktop_header: string
+  studioH_desktop_header: string
+  studioQ_desktop_footer: string
+  studioH_desktop_footer: string
+  studioQ_mobile_header: string
+  studioH_mobile_header: string
+  studioQ_mobile_footer: string
+  studioH_mobile_footer: string
+  studioQ_style_mood: string
+  studioH_style_mood: string
+  studioQ_color_palette: string
+  studioH_color_palette: string
+  studioQ_logo_url: string
+  studioH_logo_url: string
+  journalSectionTitle: string
+  journalSectionHint: string
+  journalLoading: string
+  journalBriefSectionTitle: string
+  journalBriefSectionHint: string
+  journalAnswerHere: string
+  journalAnswerPlaceholder: string
+  journalShowAllSteps: string
+  journalHideAllSteps: string
+  journalHistoryTitle: string
+  journalEditSectionTitle: string
+  journalEditSectionHint: string
+  editRefInlineLabel: string
+  editRefInlineHint: string
+  journalStepDone: string
+  journalStepCurrent: string
+  journalStepPending: string
+  pagePickerTitle: string
+  pagePickerHint: string
+  pagePickerBack: string
+  pageStatusNotStarted: string
+  pageStatusInProgress: string
+  pageStatusBuilt: string
+  pageStatusPlatformReady: string
+  pageStatusNeedHome: string
+  pagePickerCreate: string
+  pagePickerContinue: string
+  pagePickerSetupHome: string
+  pagePickerOpenLive: string
+  pagePickerNeedHomeFirst: string
+  pagePickerPlatformHint: string
+  /** Secondary list under template gallery — platform commerce routes. */
+  pagePickerPlatformSection: string
+  pagePickerPlatformSectionHint: string
+  pagePickerChangeTemplate: string
+  resetWebsiteButton: string
+  resetWebsiteTitle: string
+  resetWebsiteDescription: string
+  resetWebsiteSendOtp: string
+  resetWebsiteOtpHint: string
+  resetWebsiteOtpPlaceholder: string
+  resetWebsiteResendOtp: string
+  resetWebsiteConfirm: string
+  resetWebsiteOtpInvalid: string
+  resetWebsiteSuccess: string
+  restoreResetTrashButton: string
+  restoreResetTrashHint: string
+  restoreResetTrashSuccess: string
+  restoreResetTrashBusy: string
 }
 
 const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
   vi: {
     pageTitle: 'Tạo web & landing',
     pageDescription:
-      'Chat AI bên trái để chỉnh giao diện; tab bên dưới quản lý lead, block và publish.',
+      'Cột trái = Kho giao diện (xem mẫu / dùng mẫu). Sau khi áp mẫu, chỉnh bằng «Sửa nhanh» trên preview bên phải.',
     selectPartner: 'Chọn kênh bán hàng',
     noPartnerTitle: 'Chưa có kênh bán hàng',
     noPartnerBody: 'Tạo workspace nhắn tin trước, sau đó quay lại để tạo website cho shop.',
     createChannelLink: 'Tạo kênh bán hàng',
-    generateSectionTitle: 'AI tạo dự án web',
+    generateSectionTitle: 'Tạo web shop từ mẫu',
     generateSectionHint:
-      'Mỗi lần tạo sẽ sinh các file index.html, css/main.css, js/main.js (và file phụ nếu cần).',
+      'Chọn mẫu cố định đã gắn catalog, giỏ hàng, chat — không tự tạo giao diện bằng AI.',
     titleLabel: 'Tên website / thương hiệu',
     briefLabel: 'Mô tả yêu cầu',
     briefPlaceholder:
       'Ví dụ:\nShop thời trang nữ\nƯu điểm: form đẹp, giao nhanh\nKhách: nữ 20–35 tuổi\nPhong cách: tối giản, màu be\nCTA: chat mua hàng',
     briefTooShort: 'Mô tả cần ít nhất vài dòng để AI hiểu yêu cầu.',
     logoLabel: 'Logo thương hiệu',
-    logoHint: 'Tải file logo hoặc dán link ảnh — AI ghép vào header website.',
+    logoHint: 'Tải file logo shop (tuỳ chọn) trước khi áp mẫu trang chủ.',
     logoUrlPlaceholder: 'https://... hoặc bấm Tải logo',
     logoUpload: 'Tải logo',
+    logoGenerate: 'Tải logo',
+    logoGenerating: 'Đang tải logo…',
+    logoGenerateHint: 'Tải logo shop (tuỳ chọn). Không dùng AI tạo logo.',
+    logoRequired: 'Vui lòng tải logo trước khi tiếp tục.',
     logoRemove: 'Xóa logo',
     refImagesLabel: 'Ảnh tham khảo',
     refImagesHint: 'Tải ảnh mẫu hoặc dán link (mỗi dòng một URL). Tối đa 8 ảnh.',
@@ -141,9 +355,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     refImageRemove: 'Xóa ảnh',
     imageInvalidType: 'Chỉ chấp nhận file ảnh.',
     uploadFailed: 'Tải ảnh thất bại.',
-    generateButton: 'Tạo dự án web bằng AI',
-    generating: 'Đang tạo dự án…',
-    generateSuccess: 'Đã tạo dự án web',
+    generateButton: 'Áp giao diện mẫu',
+    generating: 'Đang áp mẫu…',
+    generateSuccess: 'Đã áp giao diện mẫu',
     fallbackGenerated: 'AI chưa chỉnh được — xem tin nhắn chat để biết chi tiết.',
     publishSectionTitle: 'Publish website',
     publishSectionHint: 'Sau khi publish, khách truy cập qua /site/[slug].',
@@ -167,6 +381,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     previewTitle: 'Xem trước website',
     previewEmpty: 'Tạo dự án web để xem preview tại đây.',
     viewDesktop: 'Desktop',
+    viewLaptop: 'MacBook / Laptop',
     viewTablet: 'Máy tính bảng',
     viewMobile: 'Mobile',
     previewPublicLink: 'Link công khai',
@@ -198,6 +413,34 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     quickEditChatCta: 'Thêm nút chat mua hàng',
     quickEditMobile: 'Tối ưu giao diện mobile',
     quickEditFooter: 'Chỉnh footer',
+    visualEditModeActive: 'Chế độ sửa trực tiếp',
+    visualEditSelectHint: 'Bấm text/ảnh để chỉnh · Shift+bấm vùng để đổi nền',
+    visualEditTextColor: 'Màu chữ',
+    visualEditReplaceImage: 'Tải ảnh',
+    visualEditAiImage: 'AI tạo ảnh',
+    visualEditDragImage: 'Kéo ảnh để di chuyển',
+    visualEditCancel: 'Thoát',
+    visualEditSave: 'Lưu thay đổi',
+    visualEditSaveSuccess: 'Đã lưu chỉnh sửa trực tiếp',
+    visualEditSaveFailed: 'Không lưu được — thử lại',
+    visualEditAiFailed: 'AI không tạo được ảnh',
+    visualEditAiImageTitle: 'AI tạo ảnh thay thế',
+    visualEditAiImageHint: 'Mô tả ảnh mới (AI Gemini). Có thể dùng ảnh hiện tại làm tham chiếu.',
+    visualEditAiImagePlaceholder: 'Ví dụ: áo lụa tơ tằm nam màu nâu, studio lighting',
+    visualEditAiImageGenerate: 'Tạo ảnh',
+    visualEditAiPromptLabel: 'Prompt AI',
+    visualEditAiPromptRequired: 'Nhập mô tả ảnh (prompt) trước khi tạo',
+    visualEditPresets: 'Gợi ý AI',
+    visualEditTemplateLocked: 'Bấm «Sửa nhanh» trên preview để chỉnh chữ, màu, ảnh trực tiếp.',
+    visualEditFontSize: 'Cỡ chữ',
+    visualEditBold: 'Đậm',
+    visualEditAlignLeft: 'Trái',
+    visualEditAlignCenter: 'Giữa',
+    visualEditAlignRight: 'Phải',
+    visualEditBgColor: 'Màu nền',
+    visualEditImageWidth: 'Rộng ảnh',
+    visualEditResetImagePos: 'Vị trí gốc',
+    visualEditSectionHint: 'Shift+bấm section để đổi màu nền vùng',
     restoreButton: 'Quay lại bản trước',
     revisionHistory: 'Lịch sử phiên bản',
     restoreSuccess: 'Đã khôi phục bản trước — xem preview bên phải.',
@@ -221,7 +464,39 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     tenantNavEditor: 'Chỉnh web',
     tenantNavLeads: 'Lead form',
     tenantNavSections: 'Block giao diện',
+    tenantNavLandings: 'Landing pages',
     tenantNavPublicSite: 'Xem site công khai',
+    lpPanelTitle: 'Landing pages gắn sản phẩm',
+    lpPanelHint:
+      'Tạo nhiều landing quảng cáo riêng — chọn sản phẩm từ kho; khách bấm Mua hàng / thẻ SP để mở trang sản phẩm. Web chính không đổi.',
+    lpCreateButton: 'Tạo landing',
+    lpCancelCreate: 'Đóng form',
+    lpCreateAndBuild: 'Tạo & dựng landing',
+    lpBuilding: 'Đang dựng landing…',
+    lpBuildSuccess: 'Đã dựng landing từ sản phẩm đã chọn.',
+    lpBuildFailed: 'Dựng landing thất bại — thử lại.',
+    lpNeedWebsite: 'Hãy tạo web chính trước, rồi mới thêm landing pages.',
+    lpTitleLabel: 'Tiêu đề landing',
+    lpTitlePlaceholder: 'VD: Áo dài Tết — freeship',
+    lpTitleRequired: 'Nhập tiêu đề landing.',
+    lpSlugLabel: 'Slug URL',
+    lpSlugPlaceholder: 'ao-dai-tet',
+    lpBriefLabel: 'Brief nội dung',
+    lpBriefPlaceholder: 'Ưu đãi, đối tượng, giọng văn…',
+    lpProductsLabel: 'Chọn sản phẩm',
+    lpProductsRequired: 'Chọn ít nhất 1 sản phẩm.',
+    lpProductsShort: 'SP',
+    lpMaxProducts: 'Chọn tối đa {n} sản phẩm.',
+    lpInventoryEmpty: 'Chưa có sản phẩm trong kho.',
+    lpEmpty: 'Chưa có landing nào. Tạo landing gắn sản phẩm để chạy quảng cáo.',
+    lpLoading: 'Đang tải landing…',
+    lpPublishSuccess: 'Đã publish landing.',
+    lpUnpublishSuccess: 'Đã gỡ publish landing.',
+    lpRebuild: 'Dựng lại',
+    lpOpenPublic: 'Mở công khai',
+    lpDelete: 'Xóa',
+    lpDeleteConfirm: 'Xóa landing này?',
+    lpDeleteSuccess: 'Đã xóa landing.',
     noWebsitePermTitle: 'Chưa có quyền quản trị website',
     noWebsitePermBody:
       'Chủ workspace cần bật quyền "Website & landing shop" cho nhân viên trong Cài đặt → Nhóm.',
@@ -232,26 +507,191 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     legacyMigrating: 'Đang chuyển…',
     legacyMigrateSuccess: 'Đã chuyển sang landing template — xem preview bên phải.',
     legacyMigrateAlready: 'Website đã ở chế độ template.',
+    studioTitle: 'Tạo web chính',
+    studioHint:
+      'Nhập tên shop → chọn mẫu → áp giao diện. Catalog, giỏ hàng, chat đã gắn sẵn.',
+    studioWebHint:
+      'Tạo web chính bằng mẫu cố định (trang chủ + sản phẩm + giỏ). Sau khi áp mẫu, dùng «Sửa nhanh» trên preview.',
+    studioOpenWebChat: 'Thiết lập / chỉnh web shop',
+    studioOpenLandingChat: 'Mở hội thoại tạo landing',
+    studioWebFirstNote: 'Cần thiết kế web chính trước, sau đó mới tạo landing.',
+    studioEntryTitle: 'Chọn việc cần làm',
+    studioEntryHint: 'Web thiết kế một lần. Landing có thể tạo nhiều lần — mỗi landing gắn sản phẩm riêng.',
+    lpChatTitle: 'Hội thoại tạo landing',
+    lpChatHint:
+      'Chọn sản phẩm → brief → AI dựng landing. Khách mua qua trang sản phẩm; web chính không đổi.',
+    lpChatStart: 'Bắt đầu hội thoại landing mới',
+    lpChatStepProducts: 'Bước 1 — Chọn sản phẩm gắn vào landing',
+    lpChatStepBrief: 'Bước 2 — Tiêu đề & brief nội dung',
+    lpChatStepBuild: 'Bước 3 — AI dựng landing',
+    lpChatContinueProducts: 'Tiếp: nhập brief',
+    lpChatContinueBrief: 'Dựng landing',
+    studioStepProgress: 'Bước {current}/{total}',
+    studioNext: 'Tiếp',
+    studioBack: 'Quay lại',
+    studioGenerateDesign: 'Tạo mockup thiết kế',
+    studioGeneratingDesign: 'Đang tạo mockup…',
+    studioApproveDesign: 'Áp giao diện mẫu & gắn tính năng',
+    studioRegenerateDesign: 'Tạo lại mockup',
+    studioBuilding: 'Đang áp giao diện mẫu và gắn catalog, giỏ hàng, chat…',
+    studioAnalyzingMockup: 'Đang chuẩn bị giao diện mẫu…',
+    studioBuildStepPrepare: 'Đang chuẩn bị nội dung theo brief…',
+    studioBuildStepShell: 'Đang áp khung header / footer / CSS…',
+    studioBuildStepSection: 'Đang gắn các khối giao diện…',
+    studioBuildStepHooks: 'Đang gắn chat, catalog, giỏ hàng với backend…',
+    studioBuildStepFinalize: 'Đang publish và kiểm tra…',
+    studioBuildComplete: 'Đã áp giao diện mẫu — catalog, giỏ hàng và chat đã sẵn sàng.',
+    studioBuildProgressTitle: 'Tiến trình áp mẫu',
+    studioBuildStepAnalyzeLabel: 'Chuẩn bị mẫu',
+    studioBuildStepPrepareLabel: 'Chuẩn bị nội dung',
+    studioBuildStepShellLabel: 'Khung header / footer / CSS',
+    studioBuildStepSectionLabel: 'Khối giao diện',
+    studioBuildStepSectionNamed: 'Khối: {name}',
+    studioBuildStepHooksLabel: 'Gắn chat, catalog, giỏ hàng',
+    studioBuildStepFinalizeLabel: 'Publish & kiểm tra',
+    studioBuildStepApplyLabel: 'Áp giao diện mẫu landing-v1',
+    studioApplyTemplateTitle: 'Áp giao diện mẫu',
+    studioApplyTemplateHint:
+      'Tạo web bằng mẫu cố định đã gắn catalog, giỏ hàng, chat — không dùng AI dựng từ đầu. Sau khi áp mẫu, chỉnh bằng «Sửa nhanh» trên preview.',
+    studioPickTemplateTitle: 'Kho giao diện',
+    studioPickTemplateHint:
+      'Xem web mẫu hoàn chỉnh trước, rồi áp vào shop. Mẫu đã gắn catalog, giỏ hàng, wishlist, chat — sau khi áp dùng «Sửa nhanh» để chỉnh.',
+    templateGalleryEyebrow: 'Kho giao diện',
+    templateGalleryTitle: 'Web mẫu sẵn dùng',
+    templateGalleryHint:
+      'Chọn giao diện mẫu đã dựng sẵn. Xem bản demo đầy đủ trước khi áp vào website shop của bạn.',
+    templateGalleryViewSample: 'Xem web mẫu',
+    templateGalleryUseTemplate: 'Dùng giao diện này',
+    templateGalleryReadyBadge: 'Sẵn dùng',
+    templateGalleryOpenLibrary: 'Mở kho giao diện',
+    studioBuildProgressCount: '{done}/{total} bước',
+    studioStartInterview: 'Tạo web mới từ mẫu',
+    studioSkipToEditor: 'Dùng mẫu có sẵn',
+    studioSiteTypeLanding: 'Landing một trang',
+    studioSiteTypeWebShop: 'Web shop (trang chủ + catalog)',
+    studioMockupPreviewTitle: 'Áp giao diện mẫu',
+    studioMockupRegenerateLabel: 'Yêu cầu chỉnh mockup (tuỳ chọn)',
+    studioMockupRegenerateHint:
+      'Mô tả thay đổi (màu, bố cục, font, hero…) rồi bấm «Tạo lại mockup». Để trống nếu chỉ muốn biến thể ngẫu nhiên.',
+    studioMockupRegeneratePlaceholder:
+      'Ví dụ: nền tối hơn, hero lớn hơn, nút CTA màu cam, thêm section đánh giá khách…',
+    studioMockupViewLarge: 'Xem ảnh to',
+    studioMockupPickTitle: 'Áp giao diện mẫu',
+    studioMockupPickHint: 'Áp mẫu shop cố định và gắn tính năng nền tảng.',
+    studioMockupPickConfirm: 'Áp giao diện mẫu',
+    studioMockupPickCancel: 'Quay lại',
+    studioMockupVersionLabel: 'Phiên bản {n}',
+    studioRebuildFromMockup: 'Áp lại giao diện mẫu',
+    studioRebuildFromMockupHint:
+      'Đổi mẫu khác (ghi đè giao diện và mọi sửa nhanh trước đó). Catalog, giỏ, chat giữ nguyên.',
+    studioNewMockupThenRebuild: 'Áp lại giao diện mẫu',
+    studioAnswerRequired: 'Vui lòng trả lời câu hỏi này.',
+    studioQ_site_type: 'Bạn muốn landing một trang hay web shop nhiều section?',
+    studioH_site_type: 'Landing phù hợp quảng cáo/chuyển đổi; web shop có grid sản phẩm + chat mua.',
+    studioQ_brand_name: 'Tên thương hiệu / shop hiển thị trên web?',
+    studioH_brand_name: 'Tên sẽ xuất hiện trên header và tiêu đề trang.',
+    studioQ_products_sell: 'Shop bán gì? (ngành hàng / loại sản phẩm)',
+    studioH_products_sell: 'Giúp AI chọn layout và ảnh minh hoạ phù hợp.',
+    studioQ_value_prop: 'Ưu điểm, ưu đãi hoặc pain points khách hàng?',
+    studioH_value_prop: 'Ví dụ: freeship, đổi trả, chat mua nhanh, giá combo.',
+    studioQ_target_audience: 'Khách hàng mục tiêu là ai?',
+    studioH_target_audience: 'Độ tuổi, sở thích, khu vực nếu có.',
+    studioQ_site_features: 'Web cần những tính năng gì?',
+    studioH_site_features:
+      'VD: trang chủ, danh sách SP, chi tiết SP, giỏ hàng, đặt hàng, chat tư vấn, tìm kiếm, yêu thích…',
+    studioQ_desktop_header: 'Header desktop (màn hình chủ) có những gì?',
+    studioH_desktop_header: 'Logo, menu (Trang chủ/Sản phẩm…), tìm kiếm, giỏ hàng, nút chat…',
+    studioQ_desktop_footer: 'Footer desktop có những gì?',
+    studioH_desktop_footer: 'Link chính sách, liên hệ, SĐT/Zalo, mạng xã hội, copyright…',
+    studioQ_mobile_header: 'Header trên mobile có những gì?',
+    studioH_mobile_header: 'VD: hamburger + logo + giỏ; hoặc logo + tìm kiếm + giỏ.',
+    studioQ_mobile_footer: 'Footer / thanh nút dưới mobile có những nút gì?',
+    studioH_mobile_footer: 'VD: Trang chủ | Sản phẩm | Chat | Giỏ | Tài khoản — hoặc chỉ chat nổi.',
+    studioQ_style_mood: 'Phong cách & giọng văn mong muốn?',
+    studioH_style_mood: 'Tối giản, sang trọng, trẻ trung, ấm áp…',
+    studioQ_color_palette: 'Màu sắc chủ đạo?',
+    studioH_color_palette: '2–3 màu hoặc mood (pastel, dark, luxury…).',
+    studioQ_logo_url: 'Logo thương hiệu (tuỳ chọn)',
+    studioH_logo_url: 'Tải file logo — sẽ gắn vào header trang chủ.',
+    journalSectionTitle: 'Thiết lập & chỉnh web',
+    journalSectionHint: 'Chọn mẫu để tạo web; sau đó dùng chat AI để chỉnh nhanh giao diện.',
+    journalLoading: 'Đang mở thiết lập web…',
+    journalBriefSectionTitle: 'Thiết lập trang chủ',
+    journalBriefSectionHint:
+      'Nhập tên shop, tải logo (tuỳ chọn), chọn mẫu rồi áp giao diện. Không phỏng vấn / không tự tạo bằng AI.',
+    journalAnswerHere: 'Nhập câu trả lời tại đây',
+    journalAnswerPlaceholder: 'Gõ câu trả lời…',
+    journalShowAllSteps: 'Xem các bước',
+    journalHideAllSteps: 'Thu gọn bước',
+    journalHistoryTitle: 'Đã trả lời',
+    journalEditSectionTitle: 'Chỉnh sửa web',
+    journalEditSectionHint:
+      'Dùng nút «Sửa nhanh» trên preview bên phải để chỉnh chữ, màu, ảnh trực tiếp — không dùng chat AI.',
+    editRefInlineLabel: 'Ảnh mẫu đính kèm',
+    editRefInlineHint: 'Tải ảnh thiết kế hoặc mockup — AI đọc ảnh và chỉnh web cho khớp.',
+    journalStepDone: 'Xong',
+    journalStepCurrent: 'Đang hỏi',
+    journalStepPending: 'Chưa hỏi',
+    pagePickerTitle: 'Kho giao diện',
+    pagePickerHint:
+      'Chọn web mẫu dựng sẵn bên dưới → Xem mẫu hoặc Dùng ngay. Các trang SP / giỏ / yêu thích đã có sẵn trên nền tảng (không cần tạo lại).',
+    pagePickerBack: 'Kho giao diện',
+    pageStatusNotStarted: 'Chưa tạo',
+    pageStatusInProgress: 'Đang làm',
+    pageStatusBuilt: 'Đã xong',
+    pageStatusPlatformReady: 'Có sẵn',
+    pageStatusNeedHome: 'Cần trang chủ',
+    pagePickerCreate: 'Mở trang này',
+    pagePickerContinue: 'Chỉnh trang chủ',
+    pagePickerSetupHome: 'Chọn mẫu trang chủ',
+    pagePickerOpenLive: 'Mở trang sống',
+    pagePickerNeedHomeFirst: 'Hãy áp mẫu trang chủ trước.',
+    pagePickerPlatformHint: 'Trang React nền tảng — đã gắn catalog, giỏ hàng, chat.',
+    pagePickerPlatformSection: 'Trang nền tảng (có sẵn)',
+    pagePickerPlatformSectionHint:
+      'Không phải chỗ chọn mẫu. Đây là các trang hệ thống đã sẵn — chỉ mở xem khi web đã publish.',
+    pagePickerChangeTemplate: 'Đổi / áp lại mẫu',
+    resetWebsiteButton: 'Reset web',
+    resetWebsiteTitle: 'Reset & tạo lại website',
+    resetWebsiteDescription:
+      'Đưa web «{name}» vào thùng lưu 7 ngày (mockup, nội dung, mã nguồn) để tạo lại từ đầu. Trong 7 ngày có thể khôi phục.',
+    resetWebsiteSendOtp: 'Gửi OTP reset',
+    resetWebsiteOtpHint: 'Nhập mã 6 số đã gửi tới email đăng nhập của bạn.',
+    resetWebsiteOtpPlaceholder: '6 số OTP',
+    resetWebsiteResendOtp: 'Gửi lại OTP',
+    resetWebsiteConfirm: 'Xác nhận reset',
+    resetWebsiteOtpInvalid: 'OTP phải đủ 6 số.',
+    resetWebsiteSuccess: 'Đã reset website — bản cũ lưu 7 ngày để khôi phục. Bắt đầu tạo web mới.',
+    restoreResetTrashButton: 'Khôi phục web đã reset',
+    restoreResetTrashHint:
+      'Còn bản lưu từ lần reset — còn khoảng {days} ngày. Chỉ khôi phục khi chưa có web mới.',
+    restoreResetTrashSuccess: 'Đã khôi phục website từ bản lưu sau reset.',
+    restoreResetTrashBusy: 'Đang khôi phục…',
   },
   en: {
     pageTitle: 'Website & landing builder',
     pageDescription:
-      'Edit the site with AI chat on the left; use the tabs below for leads, blocks, and publish.',
+      'Left column = Template library (view sample / use template). After applying, edit with Quick edit on the right preview.',
     selectPartner: 'Select sales channel',
     noPartnerTitle: 'No sales channel yet',
     noPartnerBody: 'Create a messaging workspace first, then return here to build your shop website.',
     createChannelLink: 'Create sales channel',
-    generateSectionTitle: 'AI web project',
-    generateSectionHint: 'Each run creates index.html, css/main.css, js/main.js (plus extras when needed).',
+    generateSectionTitle: 'Create shop site from template',
+    generateSectionHint:
+      'Pick a fixed template with catalog, cart, and chat wired — no AI UI generation from scratch.',
     titleLabel: 'Website / brand name',
     briefLabel: 'Requirements brief',
     briefPlaceholder:
       'Example:\nWomen fashion boutique\nValue: great fit, fast shipping\nAudience: women 20–35\nStyle: minimal, beige palette\nCTA: chat to buy',
     briefTooShort: 'Brief must be at least a few lines for AI to understand.',
     logoLabel: 'Brand logo',
-    logoHint: 'Upload a logo file or paste an image URL — AI uses it in the site header.',
-    logoUrlPlaceholder: 'https://... or click Upload logo',
+    logoHint: 'Upload a shop logo (optional) before applying the home template.',
+    logoUrlPlaceholder: 'https://... or tap Upload logo',
     logoUpload: 'Upload logo',
+    logoGenerate: 'Upload logo',
+    logoGenerating: 'Uploading logo…',
+    logoGenerateHint: 'Upload a shop logo (optional). AI logo generation is disabled.',
+    logoRequired: 'Please upload a logo before continuing.',
     logoRemove: 'Remove logo',
     refImagesLabel: 'Reference images',
     refImagesHint: 'Upload sample images or paste URLs (one per line). Max 8 images.',
@@ -260,8 +700,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     refImageRemove: 'Remove image',
     imageInvalidType: 'Images only.',
     uploadFailed: 'Upload failed.',
-    generateButton: 'Generate web project with AI',
-    generating: 'Generating project…',
+    generateButton: 'Apply shop template',
+    generating: 'Applying template…',
     generateSuccess: 'Web project created',
     fallbackGenerated: 'Used fallback HTML template (AI did not respond).',
     publishSectionTitle: 'Publish website',
@@ -286,6 +726,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     previewTitle: 'Website preview',
     previewEmpty: 'Generate a project to preview here.',
     viewDesktop: 'Desktop',
+    viewLaptop: 'MacBook / Laptop',
     viewTablet: 'Tablet',
     viewMobile: 'Mobile',
     previewPublicLink: 'Public link',
@@ -317,6 +758,34 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     quickEditChatCta: 'Add shop chat button',
     quickEditMobile: 'Optimize for mobile',
     quickEditFooter: 'Update footer',
+    visualEditModeActive: 'Direct edit mode',
+    visualEditSelectHint: 'Click text/image · Shift+click area for background',
+    visualEditTextColor: 'Text color',
+    visualEditReplaceImage: 'Upload image',
+    visualEditAiImage: 'AI image',
+    visualEditDragImage: 'Drag image to reposition',
+    visualEditCancel: 'Exit',
+    visualEditSave: 'Save changes',
+    visualEditSaveSuccess: 'Direct edits saved',
+    visualEditSaveFailed: 'Could not save — try again',
+    visualEditAiFailed: 'AI could not generate image',
+    visualEditAiImageTitle: 'AI replace image',
+    visualEditAiImageHint: 'Describe the new image (Gemini AI). Current image can be used as reference.',
+    visualEditAiImagePlaceholder: 'e.g. brown silk shirt for men, studio lighting',
+    visualEditAiImageGenerate: 'Generate',
+    visualEditAiPromptLabel: 'AI prompt',
+    visualEditAiPromptRequired: 'Enter an image prompt before generating',
+    visualEditPresets: 'AI presets',
+    visualEditTemplateLocked: 'Click «Quick edit» on the preview to change text, colors, and images directly.',
+    visualEditFontSize: 'Font size',
+    visualEditBold: 'Bold',
+    visualEditAlignLeft: 'Left',
+    visualEditAlignCenter: 'Center',
+    visualEditAlignRight: 'Right',
+    visualEditBgColor: 'Background',
+    visualEditImageWidth: 'Image width',
+    visualEditResetImagePos: 'Reset position',
+    visualEditSectionHint: 'Shift+click a section to change its background',
     restoreButton: 'Restore previous version',
     revisionHistory: 'Version history',
     restoreSuccess: 'Previous version restored — check the preview.',
@@ -340,7 +809,39 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     tenantNavEditor: 'Edit site',
     tenantNavLeads: 'Form leads',
     tenantNavSections: 'UI blocks',
+    tenantNavLandings: 'Landing pages',
     tenantNavPublicSite: 'View public site',
+    lpPanelTitle: 'Product landing pages',
+    lpPanelHint:
+      'Create multiple ad landings — pick inventory products; buyers tap Buy / product cards to open product pages. Main website stays unchanged.',
+    lpCreateButton: 'Create landing',
+    lpCancelCreate: 'Close form',
+    lpCreateAndBuild: 'Create & build landing',
+    lpBuilding: 'Building landing…',
+    lpBuildSuccess: 'Landing built from selected products.',
+    lpBuildFailed: 'Landing build failed — retry.',
+    lpNeedWebsite: 'Create the main website first, then add landing pages.',
+    lpTitleLabel: 'Landing title',
+    lpTitlePlaceholder: 'e.g. Tet silk dress — free ship',
+    lpTitleRequired: 'Enter a landing title.',
+    lpSlugLabel: 'URL slug',
+    lpSlugPlaceholder: 'tet-silk-dress',
+    lpBriefLabel: 'Content brief',
+    lpBriefPlaceholder: 'Offer, audience, tone…',
+    lpProductsLabel: 'Select products',
+    lpProductsRequired: 'Select at least one product.',
+    lpProductsShort: 'products',
+    lpMaxProducts: 'Select up to {n} products.',
+    lpInventoryEmpty: 'No products in inventory yet.',
+    lpEmpty: 'No landings yet. Create a product landing for ads.',
+    lpLoading: 'Loading landings…',
+    lpPublishSuccess: 'Landing published.',
+    lpUnpublishSuccess: 'Landing unpublished.',
+    lpRebuild: 'Rebuild',
+    lpOpenPublic: 'Open public',
+    lpDelete: 'Delete',
+    lpDeleteConfirm: 'Delete this landing?',
+    lpDeleteSuccess: 'Landing deleted.',
     noWebsitePermTitle: 'No website admin access',
     noWebsitePermBody:
       'The workspace owner must enable "Website & landing shop" for staff in Settings → Team.',
@@ -351,16 +852,176 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     legacyMigrating: 'Migrating…',
     legacyMigrateSuccess: 'Switched to landing template — check the preview.',
     legacyMigrateAlready: 'Site is already on template mode.',
+    studioTitle: 'Create a new shop website',
+    studioHint:
+      'Enter shop name → pick a template → apply. Catalog, cart, and chat are already wired.',
+    studioWebHint:
+      'Create the main site from a fixed template (home + products + cart). After apply, quick edits still use AI.',
+    studioOpenWebChat: 'Set up / edit shop site',
+    studioOpenLandingChat: 'Open landing creation chat',
+    studioWebFirstNote: 'Design the main website first, then create landings.',
+    studioEntryTitle: 'What do you want to do?',
+    studioEntryHint: 'Website is designed once. Landings can be created many times — each with selected products.',
+    lpChatTitle: 'Landing creation chat',
+    lpChatHint:
+      'Pick products → brief → AI builds the landing. Buyers purchase on product pages; the main site stays unchanged.',
+    lpChatStart: 'Start a new landing chat',
+    lpChatStepProducts: 'Step 1 — Select products for this landing',
+    lpChatStepBrief: 'Step 2 — Title & content brief',
+    lpChatStepBuild: 'Step 3 — AI builds the landing',
+    lpChatContinueProducts: 'Next: enter brief',
+    lpChatContinueBrief: 'Build landing',
+    studioStepProgress: 'Step {current}/{total}',
+    studioNext: 'Next',
+    studioBack: 'Back',
+    studioGenerateDesign: 'Generate design mockup',
+    studioGeneratingDesign: 'Generating mockup…',
+    studioApproveDesign: 'Apply template & wire features',
+    studioRegenerateDesign: 'Regenerate mockup',
+    studioBuilding: 'Applying shop template and wiring catalog, cart, chat…',
+    studioAnalyzingMockup: 'Preparing template layout…',
+    studioBuildStepPrepare: 'Preparing copy from your brief…',
+    studioBuildStepShell: 'Applying header / footer / CSS shell…',
+    studioBuildStepSection: 'Attaching UI sections…',
+    studioBuildStepHooks: 'Wiring chat, catalog, and cart to the backend…',
+    studioBuildStepFinalize: 'Publishing and verifying…',
+    studioBuildComplete: 'Template applied — catalog, cart, and chat are ready.',
+    studioBuildProgressTitle: 'Template apply progress',
+    studioBuildStepAnalyzeLabel: 'Prepare template',
+    studioBuildStepPrepareLabel: 'Prepare copy',
+    studioBuildStepShellLabel: 'Header / footer / CSS shell',
+    studioBuildStepSectionLabel: 'UI section',
+    studioBuildStepSectionNamed: 'Section: {name}',
+    studioBuildStepHooksLabel: 'Wire chat, catalog, cart',
+    studioBuildStepFinalizeLabel: 'Publish & verify',
+    studioBuildStepApplyLabel: 'Apply landing-v1 template',
+    studioApplyTemplateTitle: 'Apply shop template',
+    studioApplyTemplateHint:
+      'Create the site from a fixed template wired to catalog, cart, and chat — no AI build from scratch. After applying, quick edit still uses AI as before.',
+    studioPickTemplateTitle: 'Template library',
+    studioPickTemplateHint:
+      'Preview a complete sample site first, then apply it to your shop. Catalog, cart, wishlist, and chat are already wired — use «Quick edit» after applying.',
+    templateGalleryEyebrow: 'Template library',
+    templateGalleryTitle: 'Ready-to-use sample sites',
+    templateGalleryHint:
+      'Browse complete shop templates. Open the full demo before applying one to your website.',
+    templateGalleryViewSample: 'View sample site',
+    templateGalleryUseTemplate: 'Use this template',
+    templateGalleryReadyBadge: 'Ready',
+    templateGalleryOpenLibrary: 'Open template library',
+    studioBuildProgressCount: '{done}/{total} steps',
+    studioStartInterview: 'New site from template',
+    studioSkipToEditor: 'Use default template',
+    studioSiteTypeLanding: 'Single-page landing',
+    studioSiteTypeWebShop: 'Shop site (home + catalog)',
+    studioMockupPreviewTitle: 'Apply shop template',
+    studioMockupRegenerateLabel: 'Mockup revision notes (optional)',
+    studioMockupRegenerateHint:
+      'Describe changes (colors, layout, fonts, hero…) then click Regenerate. Leave blank for a fresh variation.',
+    studioMockupRegeneratePlaceholder:
+      'e.g. darker background, larger hero, orange CTA button, add customer reviews section…',
+    studioMockupViewLarge: 'View full size',
+    studioMockupPickTitle: 'Apply shop template',
+    studioMockupPickHint: 'Apply the fixed shop template and wire platform features.',
+    studioMockupPickConfirm: 'Apply shop template',
+    studioMockupPickCancel: 'Back',
+    studioMockupVersionLabel: 'Version {n}',
+    studioRebuildFromMockup: 'Re-apply shop template',
+    studioRebuildFromMockupHint:
+      'Switch to another template (replaces the look and prior quick edits). Catalog, cart, and chat stay wired.',
+    studioNewMockupThenRebuild: 'Re-apply shop template',
+    studioAnswerRequired: 'Please answer this question.',
+    studioQ_site_type: 'Single-page landing or multi-section shop site?',
+    studioH_site_type: 'Landing for ads/conversion; shop site adds product grid + chat purchase.',
+    studioQ_brand_name: 'Brand / shop name shown on the site?',
+    studioH_brand_name: 'Appears in the header and page title.',
+    studioQ_products_sell: 'What do you sell? (industry / product type)',
+    studioH_products_sell: 'Helps AI pick layout and visuals.',
+    studioQ_value_prop: 'Benefits, offers, or customer pain points?',
+    studioH_value_prop: 'e.g. free shipping, returns, chat-to-buy, bundle pricing.',
+    studioQ_target_audience: 'Who is your target customer?',
+    studioH_target_audience: 'Age, interests, region if relevant.',
+    studioQ_site_features: 'Which website features do you need?',
+    studioH_site_features:
+      'e.g. home, product list, product detail, cart, checkout, consult chat, search, favorites…',
+    studioQ_desktop_header: 'What is in the desktop header (homepage)?',
+    studioH_desktop_header: 'Logo, nav (Home/Products…), search, cart, chat button…',
+    studioQ_desktop_footer: 'What is in the desktop footer?',
+    studioH_desktop_footer: 'Policy links, contact, phone, social, copyright…',
+    studioQ_mobile_header: 'What is in the mobile header?',
+    studioH_mobile_header: 'e.g. hamburger + logo + cart; or logo + search + cart.',
+    studioQ_mobile_footer: 'What buttons are in the mobile footer / bottom bar?',
+    studioH_mobile_footer: 'e.g. Home | Products | Chat | Cart | Account — or floating chat only.',
+    studioQ_style_mood: 'Desired style and tone?',
+    studioH_style_mood: 'Minimal, premium, youthful, warm…',
+    studioQ_color_palette: 'Primary brand colors?',
+    studioH_color_palette: '2–3 colors or a mood (pastel, dark, luxury…).',
+    studioQ_logo_url: 'Brand logo (optional)',
+    studioH_logo_url: 'Upload a logo file — it will appear in the homepage header.',
+    journalSectionTitle: 'Site setup & edits',
+    journalSectionHint: 'Pick a template to create the site; then use AI chat for quick UI edits.',
+    journalLoading: 'Opening site setup…',
+    journalBriefSectionTitle: 'Home setup',
+    journalBriefSectionHint:
+      'Enter shop name, upload a logo (optional), pick a template, then apply. No AI interview / no AI auto-create.',
+    journalAnswerHere: 'Enter your answer here',
+    journalAnswerPlaceholder: 'Type your answer…',
+    journalShowAllSteps: 'Show all steps',
+    journalHideAllSteps: 'Hide steps',
+    journalHistoryTitle: 'Answered',
+    journalEditSectionTitle: 'Edit website',
+    journalEditSectionHint:
+      'Use «Quick edit» on the preview to the right to change text, colors, and images directly — not AI chat.',
+    editRefInlineLabel: 'Attached reference',
+    editRefInlineHint: 'Upload a design or mockup — AI reads the image and adjusts the site to match.',
+    journalStepDone: 'Done',
+    journalStepCurrent: 'Current',
+    journalStepPending: 'Pending',
+    pagePickerTitle: 'Template library',
+    pagePickerHint:
+      'Pick a ready-made sample below → View demo or Use now. Product / cart / wishlist pages already exist on the platform (no need to rebuild them).',
+    pagePickerBack: 'Template library',
+    pageStatusNotStarted: 'Not started',
+    pageStatusInProgress: 'In progress',
+    pageStatusBuilt: 'Done',
+    pageStatusPlatformReady: 'Ready',
+    pageStatusNeedHome: 'Needs home',
+    pagePickerCreate: 'Open this page',
+    pagePickerContinue: 'Edit home',
+    pagePickerSetupHome: 'Choose home template',
+    pagePickerOpenLive: 'Open live page',
+    pagePickerNeedHomeFirst: 'Apply the home template first.',
+    pagePickerPlatformHint: 'Platform React page — catalog, cart, and chat already wired.',
+    pagePickerPlatformSection: 'Platform pages (ready)',
+    pagePickerPlatformSectionHint:
+      'Not the template picker. These are system routes — open them after the shop site is published.',
+    pagePickerChangeTemplate: 'Change / re-apply template',
+    resetWebsiteButton: 'Reset site',
+    resetWebsiteTitle: 'Reset & rebuild website',
+    resetWebsiteDescription:
+      'Move «{name}» into a 7-day trash (mockup, content, code) so you can rebuild from scratch. You can restore within 7 days.',
+    resetWebsiteSendOtp: 'Send reset OTP',
+    resetWebsiteOtpHint: 'Enter the 6-digit code sent to your login email.',
+    resetWebsiteOtpPlaceholder: '6-digit OTP',
+    resetWebsiteResendOtp: 'Resend OTP',
+    resetWebsiteConfirm: 'Confirm reset',
+    resetWebsiteOtpInvalid: 'OTP must be 6 digits.',
+    resetWebsiteSuccess: 'Site reset — previous version kept 7 days for restore. Start a new interview.',
+    restoreResetTrashButton: 'Restore reset website',
+    restoreResetTrashHint:
+      'A snapshot from the last reset is available — about {days} days left. Restore only if no new site exists.',
+    restoreResetTrashSuccess: 'Website restored from the post-reset snapshot.',
+    restoreResetTrashBusy: 'Restoring…',
   },
   zh: {
     pageTitle: '网站与落地页',
-    pageDescription: '左侧 AI 聊天编辑网站；下方标签管理线索、区块与发布。',
+    pageDescription: '左侧 = 模板库（查看样例 / 使用模板）。应用后在右侧预览用「快速编辑」调整。',
     selectPartner: '选择销售渠道',
     noPartnerTitle: '尚无销售渠道',
     noPartnerBody: '请先创建消息 workspace，再回来创建店铺网站。',
     createChannelLink: '创建销售渠道',
-    generateSectionTitle: 'AI 网页项目',
-    generateSectionHint: '每次生成 index.html、css/main.css、js/main.js 等文件。',
+    generateSectionTitle: '用模板创建店铺网站',
+    generateSectionHint: '选择已接入目录、购物车、聊天的固定模板 — 不用 AI 从零生成界面。',
     titleLabel: '网站/品牌名称',
     briefLabel: '需求说明',
     briefPlaceholder: '示例：女装店、简约风格、目标用户、主色、CTA 聊天购买',
@@ -369,6 +1030,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logoHint: '上传 Logo 或粘贴图片链接 — AI 用于网站页眉。',
     logoUrlPlaceholder: 'https://... 或点击上传 Logo',
     logoUpload: '上传 Logo',
+    logoGenerate: '上传 Logo',
+    logoGenerating: '正在上传 Logo…',
+    logoGenerateHint: '可上传店铺 Logo（可选）。已关闭 AI 生成 Logo。',
+    logoRequired: '请先上传 Logo。',
     logoRemove: '删除 Logo',
     refImagesLabel: '参考图',
     refImagesHint: '上传参考图或粘贴链接（每行一个）。最多 8 张。',
@@ -401,6 +1066,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     previewTitle: '网站预览',
     previewEmpty: '生成项目后可在此预览。',
     viewDesktop: '桌面',
+    viewLaptop: 'MacBook / 笔记本',
     viewTablet: '平板',
     viewMobile: '手机',
     previewPublicLink: '公开链接',
@@ -430,6 +1096,34 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     quickEditChatCta: '添加聊天购买按钮',
     quickEditMobile: '优化移动端',
     quickEditFooter: '更新页脚',
+    visualEditModeActive: '直接编辑模式',
+    visualEditSelectHint: '点击文字/图片 · Shift+点击区域改背景',
+    visualEditTextColor: '文字颜色',
+    visualEditReplaceImage: '上传图片',
+    visualEditAiImage: 'AI 图片',
+    visualEditDragImage: '拖动图片移动',
+    visualEditCancel: '退出',
+    visualEditSave: '保存更改',
+    visualEditSaveSuccess: '已保存直接编辑',
+    visualEditSaveFailed: '无法保存 — 请重试',
+    visualEditAiFailed: 'AI 无法生成图片',
+    visualEditAiImageTitle: 'AI 替换图片',
+    visualEditAiImageHint: '描述新图片（Gemini AI）。可使用当前图片作为参考。',
+    visualEditAiImagePlaceholder: '例如：男士棕色真丝衬衫，影棚光',
+    visualEditAiImageGenerate: '生成',
+    visualEditAiPromptLabel: 'AI 提示词',
+    visualEditAiPromptRequired: '请先输入图片描述（prompt）',
+    visualEditPresets: 'AI 预设',
+    visualEditTemplateLocked: '点击预览上的「快速编辑」可直接改文字、颜色、图片。',
+    visualEditFontSize: '字号',
+    visualEditBold: '粗体',
+    visualEditAlignLeft: '左对齐',
+    visualEditAlignCenter: '居中',
+    visualEditAlignRight: '右对齐',
+    visualEditBgColor: '背景色',
+    visualEditImageWidth: '图片宽度',
+    visualEditResetImagePos: '重置位置',
+    visualEditSectionHint: 'Shift+点击区块更改背景色',
     restoreButton: '恢复上一版本',
     revisionHistory: '版本历史',
     restoreSuccess: '已恢复上一版本 — 请查看预览。',
@@ -453,7 +1147,39 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     tenantNavEditor: '编辑网站',
     tenantNavLeads: '表单线索',
     tenantNavSections: '界面区块',
+    tenantNavLandings: '落地页',
     tenantNavPublicSite: '查看公开站点',
+    lpPanelTitle: '商品落地页',
+    lpPanelHint:
+      '可创建多个广告落地页——选择库存商品；顾客点击购买/商品卡片进入商品页。主站不变。',
+    lpCreateButton: '创建落地页',
+    lpCancelCreate: '关闭表单',
+    lpCreateAndBuild: '创建并生成',
+    lpBuilding: '正在生成落地页…',
+    lpBuildSuccess: '已根据所选商品生成落地页。',
+    lpBuildFailed: '生成失败，请重试。',
+    lpNeedWebsite: '请先创建主站，再添加落地页。',
+    lpTitleLabel: '落地页标题',
+    lpTitlePlaceholder: '例如：新年旗袍包邮',
+    lpTitleRequired: '请输入标题。',
+    lpSlugLabel: 'URL 标识',
+    lpSlugPlaceholder: 'new-year-dress',
+    lpBriefLabel: '内容简介',
+    lpBriefPlaceholder: '优惠、受众、语气…',
+    lpProductsLabel: '选择商品',
+    lpProductsRequired: '至少选择 1 个商品。',
+    lpProductsShort: '商品',
+    lpMaxProducts: '最多选择 {n} 个商品。',
+    lpInventoryEmpty: '库存暂无商品。',
+    lpEmpty: '暂无落地页。创建商品落地页用于投放。',
+    lpLoading: '正在加载…',
+    lpPublishSuccess: '已发布落地页。',
+    lpUnpublishSuccess: '已取消发布。',
+    lpRebuild: '重新生成',
+    lpOpenPublic: '打开公开页',
+    lpDelete: '删除',
+    lpDeleteConfirm: '删除此落地页？',
+    lpDeleteSuccess: '已删除。',
     noWebsitePermTitle: '暂无网站管理权限',
     noWebsitePermBody: '工作区所有者需在设置 → 团队中为员工开启「网站与落地页」权限。',
     legacyMigrateTitle: '网站处于旧版 HTML 模式',
@@ -462,16 +1188,164 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     legacyMigrating: '正在切换…',
     legacyMigrateSuccess: '已切换到落地页模板 — 请查看预览。',
     legacyMigrateAlready: '网站已是模板模式。',
+    studioTitle: '创建新店铺网站',
+    studioHint: '简短问卷 → 应用固定 landing-v1 模板 → 接入平台目录、购物车与聊天。',
+    studioWebHint: '用固定模板创建主站（首页+商品+购物车）。应用模板后，快速编辑仍可用 AI。',
+    studioOpenWebChat: '设置 / 编辑店铺网站',
+    studioOpenLandingChat: '打开落地页创建对话',
+    studioWebFirstNote: '请先设计主站，再创建落地页。',
+    studioEntryTitle: '请选择要做的事',
+    studioEntryHint: '主站设计一次。落地页可多次创建——每个落地页绑定所选商品。',
+    lpChatTitle: '落地页创建对话',
+    lpChatHint: '选择商品 → 简介 → AI 生成落地页。顾客在商品页购买；主站不变。',
+    lpChatStart: '开始新的落地页对话',
+    lpChatStepProducts: '步骤 1 — 选择落地页商品',
+    lpChatStepBrief: '步骤 2 — 标题与内容简介',
+    lpChatStepBuild: '步骤 3 — AI 生成落地页',
+    lpChatContinueProducts: '下一步：填写简介',
+    lpChatContinueBrief: '生成落地页',
+    studioStepProgress: '步骤 {current}/{total}',
+    studioNext: '下一步',
+    studioBack: '返回',
+    studioGenerateDesign: '生成设计稿',
+    studioGeneratingDesign: '正在生成设计稿…',
+    studioApproveDesign: '应用模板并接入功能',
+    studioRegenerateDesign: '重新生成',
+    studioBuilding: '正在应用店铺模板并接入目录、购物车、聊天…',
+    studioAnalyzingMockup: '正在准备模板布局…',
+    studioBuildStepPrepare: '正在根据简介准备文案…',
+    studioBuildStepShell: '正在应用页眉 / 页脚 / CSS…',
+    studioBuildStepSection: '正在挂载界面区块…',
+    studioBuildStepHooks: '正在将聊天、目录、购物车接入后端…',
+    studioBuildStepFinalize: '正在发布并校验…',
+    studioBuildComplete: '已应用模板 — 目录、购物车与聊天已就绪。',
+    studioBuildProgressTitle: '应用模板进度',
+    studioBuildStepAnalyzeLabel: '准备模板',
+    studioBuildStepPrepareLabel: '准备文案',
+    studioBuildStepShellLabel: '页眉 / 页脚 / CSS 框架',
+    studioBuildStepSectionLabel: '界面区块',
+    studioBuildStepSectionNamed: '区块：{name}',
+    studioBuildStepHooksLabel: '连接聊天、目录、购物车',
+    studioBuildStepFinalizeLabel: '发布与校验',
+    studioBuildStepApplyLabel: '应用 landing-v1 模板',
+    studioApplyTemplateTitle: '应用店铺模板',
+    studioApplyTemplateHint:
+      '用固定模板建站并接入目录、购物车、聊天 — 不用 AI 从零生成。应用后，快捷编辑仍用 AI。',
+    studioPickTemplateTitle: '模板库',
+    studioPickTemplateHint:
+      '先查看完整样例网站，再应用到您的店铺。目录、购物车、收藏与聊天已接好 — 应用后可用「快捷编辑」调整。',
+    templateGalleryEyebrow: '模板库',
+    templateGalleryTitle: '即用网站模板',
+    templateGalleryHint: '浏览完整店铺模板。应用前可先打开完整演示。',
+    templateGalleryViewSample: '查看样例网站',
+    templateGalleryUseTemplate: '使用此模板',
+    templateGalleryReadyBadge: '可用',
+    templateGalleryOpenLibrary: '打开模板库',
+    studioBuildProgressCount: '{done}/{total} 步',
+    studioStartInterview: '用模板新建网站',
+    studioSkipToEditor: '使用默认模板',
+    studioSiteTypeLanding: '单页落地页',
+    studioSiteTypeWebShop: '店铺网站（首页+目录）',
+    studioMockupPreviewTitle: '应用店铺模板',
+    studioMockupRegenerateLabel: '修改要求（可选）',
+    studioMockupRegenerateHint: '描述要改的地方（颜色、布局、字体、主视觉等）后点击「重新生成」。留空则生成新变体。',
+    studioMockupRegeneratePlaceholder: '例如：背景更深、主视觉更大、橙色 CTA、增加客户评价区块…',
+    studioMockupViewLarge: '查看大图',
+    studioMockupPickTitle: '应用店铺模板',
+    studioMockupPickHint: '应用固定店铺模板并接入平台功能。',
+    studioMockupPickConfirm: '应用店铺模板',
+    studioMockupPickCancel: '返回',
+    studioMockupVersionLabel: '版本 {n}',
+    studioRebuildFromMockup: '重新应用店铺模板',
+    studioRebuildFromMockupHint: '切换其他模板（覆盖外观及之前的快速编辑）。目录、购物车、聊天保持接入。',
+    studioNewMockupThenRebuild: '重新应用店铺模板',
+    studioAnswerRequired: '请回答此问题。',
+    studioQ_site_type: '单页落地页还是多区块店铺网站？',
+    studioH_site_type: '落地页适合广告转化；店铺网站含产品网格与聊天购买。',
+    studioQ_brand_name: '网站上显示的品牌/店铺名？',
+    studioH_brand_name: '将出现在页眉和页面标题。',
+    studioQ_products_sell: '销售什么？（行业/产品类型）',
+    studioH_products_sell: '帮助 AI 选择布局与视觉。',
+    studioQ_value_prop: '优势、优惠或客户痛点？',
+    studioH_value_prop: '如包邮、退换、聊天购买、组合价。',
+    studioQ_target_audience: '目标客户是谁？',
+    studioH_target_audience: '年龄、兴趣、地区等。',
+    studioQ_site_features: '网站需要哪些功能？',
+    studioH_site_features: '如首页、商品列表、详情、购物车、下单、咨询聊天、搜索、收藏…',
+    studioQ_desktop_header: '桌面端页头（首页）有哪些内容？',
+    studioH_desktop_header: 'Logo、导航（首页/商品…）、搜索、购物车、聊天按钮…',
+    studioQ_desktop_footer: '桌面端页脚有哪些内容？',
+    studioH_desktop_footer: '政策链接、联系方式、电话、社交、版权…',
+    studioQ_mobile_header: '移动端页头有哪些内容？',
+    studioH_mobile_header: '如汉堡+Logo+购物车；或 Logo+搜索+购物车。',
+    studioQ_mobile_footer: '移动端底栏有哪些按钮？',
+    studioH_mobile_footer: '如：首页|商品|聊天|购物车|账户 — 或仅悬浮聊天。',
+    studioQ_style_mood: '期望的风格与语气？',
+    studioH_style_mood: '简约、高级、年轻、温暖…',
+    studioQ_color_palette: '主品牌色？',
+    studioH_color_palette: '2–3 色或风格（ pastel、深色、奢华…）。',
+    studioQ_logo_url: '品牌 Logo（必填）',
+    studioH_logo_url: '上传 Logo 或点击「AI 生成 Logo」— 将用于首页页眉。',
+    journalSectionTitle: '创建日志',
+    journalSectionHint: '所有问题、回答、设计稿和编辑都保存在此 — 每个店铺唯一日志。',
+    journalLoading: '正在打开创建日志…',
+    journalBriefSectionTitle: '首页设置',
+    journalBriefSectionHint: '输入店名、上传 Logo（可选）、选择模板后应用。无访谈 / 无 AI 自动创建。',
+    journalAnswerHere: '在此输入答案',
+    journalAnswerPlaceholder: '输入答案…',
+    journalShowAllSteps: '查看全部步骤',
+    journalHideAllSteps: '收起步骤',
+    journalHistoryTitle: '已回答',
+    journalEditSectionTitle: '编辑网站',
+    journalEditSectionHint: '在右侧预览使用「快速编辑」直接改文字、颜色、图片 — 不用 AI 聊天。',
+    editRefInlineLabel: '附参考图',
+    editRefInlineHint: '上传设计稿或 mockup — AI 读取图片并调整网站样式。',
+    journalStepDone: '完成',
+    journalStepCurrent: '进行中',
+    journalStepPending: '待问',
+    pagePickerTitle: '模板库',
+    pagePickerHint:
+      '在下方选择现成模板 → 查看样例或立即使用。商品/购物车/收藏页已由平台提供（无需再创建）。',
+    pagePickerBack: '模板库',
+    pageStatusNotStarted: '未开始',
+    pageStatusInProgress: '进行中',
+    pageStatusBuilt: '已完成',
+    pageStatusPlatformReady: '已就绪',
+    pageStatusNeedHome: '需先完成首页',
+    pagePickerCreate: '打开此页',
+    pagePickerContinue: '编辑首页',
+    pagePickerSetupHome: '选择首页模板',
+    pagePickerOpenLive: '打开线上页',
+    pagePickerNeedHomeFirst: '请先应用首页模板。',
+    pagePickerPlatformHint: '平台 React 页面 — 已接入目录、购物车、聊天。',
+    pagePickerPlatformSection: '平台页面（已就绪）',
+    pagePickerPlatformSectionHint: '不是选模板的地方。这些是系统页面 — 网站发布后可打开查看。',
+    pagePickerChangeTemplate: '更换 / 重新应用模板',
+    resetWebsiteButton: '重置网站',
+    resetWebsiteTitle: '重置并重新创建',
+    resetWebsiteDescription: '将「{name}」放入 7 天回收站（mockup、内容、代码）以便重新创建。7 天内可恢复。',
+    resetWebsiteSendOtp: '发送重置 OTP',
+    resetWebsiteOtpHint: '输入发送到登录邮箱的 6 位验证码。',
+    resetWebsiteOtpPlaceholder: '6 位 OTP',
+    resetWebsiteResendOtp: '重新发送',
+    resetWebsiteConfirm: '确认重置',
+    resetWebsiteOtpInvalid: 'OTP 须为 6 位数字。',
+    resetWebsiteSuccess: '已重置网站 — 旧版保留 7 天可恢复。请开始新的创建访谈。',
+    restoreResetTrashButton: '恢复已重置的网站',
+    restoreResetTrashHint: '仍有上次重置的备份 — 约剩 {days} 天。仅在没有新网站时可恢复。',
+    restoreResetTrashSuccess: '已从重置备份恢复网站。',
+    restoreResetTrashBusy: '正在恢复…',
   },
   ja: {
     pageTitle: 'Web・ランディング作成',
-    pageDescription: '左のAIチャットで編集。下のタブでリード・ブロック・公開を管理。',
+    pageDescription:
+      '左列 = テンプレート庫（サンプル表示 / 適用）。適用後は右プレビューの「クイック編集」で調整。',
     selectPartner: '販売チャネルを選択',
     noPartnerTitle: '販売チャネルがありません',
     noPartnerBody: '先にメッセージworkspaceを作成してください。',
     createChannelLink: 'チャネルを作成',
-    generateSectionTitle: 'AI Webプロジェクト',
-    generateSectionHint: 'index.html、css/main.css、js/main.js などを生成します。',
+    generateSectionTitle: 'テンプレートでショップWeb作成',
+    generateSectionHint: 'カタログ・カート・チャット接続済みの固定テンプレートを選択 — AIでUIを一から作りません。',
     titleLabel: 'サイト/ブランド名',
     briefLabel: '要件',
     briefPlaceholder: '例：店舗概要、強み、ターゲット、トーン、CTA',
@@ -480,6 +1354,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logoHint: 'ロゴファイルまたは画像URL — サイトヘッダーに使用。',
     logoUrlPlaceholder: 'https://... またはロゴをアップロード',
     logoUpload: 'ロゴをアップロード',
+    logoGenerate: 'ロゴをアップロード',
+    logoGenerating: 'ロゴアップロード中…',
+    logoGenerateHint: 'ショップロゴをアップロード（任意）。AIロゴ生成は無効です。',
+    logoRequired: '続ける前にロゴをアップロードしてください。',
     logoRemove: 'ロゴを削除',
     refImagesLabel: '参考画像',
     refImagesHint: '参考画像をアップロードまたはURLを貼付（1行1URL）。最大8枚。',
@@ -512,6 +1390,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     previewTitle: 'サイトプレビュー',
     previewEmpty: 'プロジェクト生成後にここでプレビュー。',
     viewDesktop: 'デスクトップ',
+    viewLaptop: 'MacBook / ノート',
     viewTablet: 'タブレット',
     viewMobile: 'モバイル',
     previewPublicLink: '公開リンク',
@@ -541,6 +1420,34 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     quickEditChatCta: 'チャット購入ボタンを追加',
     quickEditMobile: 'モバイル最適化',
     quickEditFooter: 'フッターを更新',
+    visualEditModeActive: '直接編集モード',
+    visualEditSelectHint: 'テキスト/画像をクリック · Shift+クリックで背景',
+    visualEditTextColor: '文字色',
+    visualEditReplaceImage: '画像アップロード',
+    visualEditAiImage: 'AI画像',
+    visualEditDragImage: 'ドラッグで移動',
+    visualEditCancel: '終了',
+    visualEditSave: '変更を保存',
+    visualEditSaveSuccess: '直接編集を保存しました',
+    visualEditSaveFailed: '保存できません — 再試行してください',
+    visualEditAiFailed: 'AIが画像を生成できませんでした',
+    visualEditAiImageTitle: 'AIで画像を差し替え',
+    visualEditAiImageHint: '新しい画像を説明（Gemini AI）。現在の画像を参考にできます。',
+    visualEditAiImagePlaceholder: '例：男性用ブラウンのシルクシャツ、スタジオ照明',
+    visualEditAiImageGenerate: '生成',
+    visualEditAiPromptLabel: 'AIプロンプト',
+    visualEditAiPromptRequired: '生成前に画像のプロンプトを入力してください',
+    visualEditPresets: 'AIプリセット',
+    visualEditTemplateLocked: 'プレビューの「クイック編集」で文字・色・画像を直接編集できます。',
+    visualEditFontSize: '文字サイズ',
+    visualEditBold: '太字',
+    visualEditAlignLeft: '左',
+    visualEditAlignCenter: '中央',
+    visualEditAlignRight: '右',
+    visualEditBgColor: '背景色',
+    visualEditImageWidth: '画像幅',
+    visualEditResetImagePos: '位置リセット',
+    visualEditSectionHint: 'Shift+クリックでセクション背景を変更',
     restoreButton: '前のバージョンに戻す',
     revisionHistory: 'バージョン履歴',
     restoreSuccess: '前のバージョンを復元しました。',
@@ -564,7 +1471,39 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     tenantNavEditor: 'サイト編集',
     tenantNavLeads: 'フォームリード',
     tenantNavSections: 'UIブロック',
+    tenantNavLandings: 'ランディング',
     tenantNavPublicSite: '公開サイト',
+    lpPanelTitle: '商品ランディング',
+    lpPanelHint:
+      '広告用LPを複数作成——在庫商品を選択。購入ボタン/商品カードから商品ページへ。メインサイトは変更しません。',
+    lpCreateButton: 'LPを作成',
+    lpCancelCreate: 'フォームを閉じる',
+    lpCreateAndBuild: '作成して構築',
+    lpBuilding: '構築中…',
+    lpBuildSuccess: '選択商品からLPを構築しました。',
+    lpBuildFailed: '構築に失敗しました。再試行してください。',
+    lpNeedWebsite: '先にメインサイトを作成してください。',
+    lpTitleLabel: 'LPタイトル',
+    lpTitlePlaceholder: '例: テトドレス送料無料',
+    lpTitleRequired: 'タイトルを入力してください。',
+    lpSlugLabel: 'URLスラッグ',
+    lpSlugPlaceholder: 'tet-dress',
+    lpBriefLabel: 'ブリーフ',
+    lpBriefPlaceholder: 'オファー、ターゲット、トーン…',
+    lpProductsLabel: '商品を選択',
+    lpProductsRequired: '商品を1つ以上選択してください。',
+    lpProductsShort: '商品',
+    lpMaxProducts: '最大 {n} 商品まで。',
+    lpInventoryEmpty: '在庫に商品がありません。',
+    lpEmpty: 'LPはまだありません。広告用に作成してください。',
+    lpLoading: '読み込み中…',
+    lpPublishSuccess: '公開しました。',
+    lpUnpublishSuccess: '非公開にしました。',
+    lpRebuild: '再構築',
+    lpOpenPublic: '公開ページ',
+    lpDelete: '削除',
+    lpDeleteConfirm: 'このLPを削除しますか？',
+    lpDeleteSuccess: '削除しました。',
     noWebsitePermTitle: 'サイト管理権限がありません',
     noWebsitePermBody:
       'オーナーが設定 → チームで「ウェブサイト・ランディング」権限を付与する必要があります。',
@@ -575,16 +1514,167 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     legacyMigrating: '切替中…',
     legacyMigrateSuccess: 'LPテンプレートに切替しました — プレビューを確認。',
     legacyMigrateAlready: 'すでにテンプレートモードです。',
+    studioTitle: '新規ショップWeb作成',
+    studioHint: '短い質問 → 固定 landing-v1 テンプレート適用 → カタログ・カート・チャットを接続。',
+    studioWebHint: '固定テンプレートでメインWeb作成（ホーム+商品+カート）。適用後のクイック編集はAI可。',
+    studioOpenWebChat: 'ショップWebの設定 / 編集',
+    studioOpenLandingChat: 'LP作成チャットを開く',
+    studioWebFirstNote: '先にメインWebを作成してからLPを作れます。',
+    studioEntryTitle: '作業を選択',
+    studioEntryHint: 'Webは一度設計。LPは何度でも作成可能（商品を紐づけ）。',
+    lpChatTitle: 'LP作成チャット',
+    lpChatHint: '商品選択 → ブリーフ → AIがLP構築。購入は商品ページ。メインWebは不変。',
+    lpChatStart: '新しいLPチャットを開始',
+    lpChatStepProducts: 'ステップ1 — LPに載せる商品を選択',
+    lpChatStepBrief: 'ステップ2 — タイトルとブリーフ',
+    lpChatStepBuild: 'ステップ3 — AIがLPを構築',
+    lpChatContinueProducts: '次へ：ブリーフ入力',
+    lpChatContinueBrief: 'LPを構築',
+    studioStepProgress: 'ステップ {current}/{total}',
+    studioNext: '次へ',
+    studioBack: '戻る',
+    studioGenerateDesign: 'デザインモックアップ生成',
+    studioGeneratingDesign: 'モックアップ生成中…',
+    studioApproveDesign: 'テンプレート適用と機能接続',
+    studioRegenerateDesign: '再生成',
+    studioBuilding: 'ショップテンプレートを適用し、カタログ・カート・チャットを接続中…',
+    studioAnalyzingMockup: 'テンプレートレイアウトを準備中…',
+    studioBuildStepPrepare: 'ブリーフから原稿を準備中…',
+    studioBuildStepShell: 'ヘッダー / フッター / CSSを適用中…',
+    studioBuildStepSection: 'UIセクションを接続中…',
+    studioBuildStepHooks: 'チャット・カタログ・カートをバックエンドに接続中…',
+    studioBuildStepFinalize: '公開と確認中…',
+    studioBuildComplete: 'テンプレート適用完了 — カタログ・カート・チャット準備済み。',
+    studioBuildProgressTitle: 'テンプレート適用の進捗',
+    studioBuildStepAnalyzeLabel: 'テンプレート準備',
+    studioBuildStepPrepareLabel: '原稿の準備',
+    studioBuildStepShellLabel: 'ヘッダー / フッター / CSS',
+    studioBuildStepSectionLabel: 'UIセクション',
+    studioBuildStepSectionNamed: 'セクション: {name}',
+    studioBuildStepHooksLabel: 'チャット・カタログ・カート接続',
+    studioBuildStepFinalizeLabel: '公開と確認',
+    studioBuildStepApplyLabel: 'landing-v1 テンプレート適用',
+    studioApplyTemplateTitle: 'ショップテンプレートを適用',
+    studioApplyTemplateHint:
+      '固定テンプレートで作成しカタログ・カート・チャットを接続 — AIでゼロから構築しません。適用後のクイック編集は従来どおりAIです。',
+    studioPickTemplateTitle: 'テンプレート庫',
+    studioPickTemplateHint:
+      '完成サンプルを先に確認してからショップに適用。カタログ・カート・お気に入り・チャット接続済み — 適用後は「クイック編集」で調整。',
+    templateGalleryEyebrow: 'テンプレート庫',
+    templateGalleryTitle: 'すぐ使えるサンプルサイト',
+    templateGalleryHint: '完成ショップテンプレートを閲覧。適用前にフルデモを開けます。',
+    templateGalleryViewSample: 'サンプルを見る',
+    templateGalleryUseTemplate: 'このテンプレートを使う',
+    templateGalleryReadyBadge: '利用可',
+    templateGalleryOpenLibrary: 'テンプレート庫を開く',
+    studioBuildProgressCount: '{done}/{total} ステップ',
+    studioStartInterview: 'テンプレートで新規Web',
+    studioSkipToEditor: 'デフォルトテンプレート',
+    studioSiteTypeLanding: '1ページLP',
+    studioSiteTypeWebShop: 'ショップ（ホーム+カタログ）',
+    studioMockupPreviewTitle: 'ショップテンプレートを適用',
+    studioMockupRegenerateLabel: '修正リクエスト（任意）',
+    studioMockupRegenerateHint: '色・レイアウト・フォント・ヒーローなどを記入して「再生成」。空欄なら別バリエーション。',
+    studioMockupRegeneratePlaceholder: '例：背景を暗く、ヒーローを大きく、CTAをオレンジ、レビューセクション追加…',
+    studioMockupViewLarge: '拡大表示',
+    studioMockupPickTitle: 'ショップテンプレートを適用',
+    studioMockupPickHint: '固定ショップテンプレートを適用し、プラットフォーム機能を接続します。',
+    studioMockupPickConfirm: 'ショップテンプレートを適用',
+    studioMockupPickCancel: '戻る',
+    studioMockupVersionLabel: 'バージョン {n}',
+    studioRebuildFromMockup: 'ショップテンプレートを再適用',
+    studioRebuildFromMockupHint:
+      '別テンプレートに切り替え（見た目と以前のクイック編集を置き換え）。カタログ・カート・チャットは維持。',
+    studioNewMockupThenRebuild: 'ショップテンプレートを再適用',
+    studioAnswerRequired: 'この質問に回答してください。',
+    studioQ_site_type: '1ページLPかマルチセクションショップか？',
+    studioH_site_type: 'LPは広告向け；ショップは商品グリッド+チャット購入。',
+    studioQ_brand_name: 'サイトに表示するブランド/ショップ名？',
+    studioH_brand_name: 'ヘッダーとページタイトルに表示。',
+    studioQ_products_sell: '何を販売？（業種/商品タイプ）',
+    studioH_products_sell: 'レイアウトとビジュアル選定に使用。',
+    studioQ_value_prop: '強み・オファー・顧客の課題？',
+    studioH_value_prop: '送料無料、返品、チャット購入、セット価格など。',
+    studioQ_target_audience: 'ターゲット顧客は？',
+    studioH_target_audience: '年齢、趣味、地域など。',
+    studioQ_site_features: '必要なWeb機能は？',
+    studioH_site_features: '例: ホーム、商品一覧、詳細、カート、注文、相談チャット、検索、お気に入り…',
+    studioQ_desktop_header: 'デスクトップヘッダー（ホーム）の内容は？',
+    studioH_desktop_header: 'ロゴ、ナビ（ホーム/商品…）、検索、カート、チャット…',
+    studioQ_desktop_footer: 'デスクトップフッターの内容は？',
+    studioH_desktop_footer: 'ポリシーリンク、連絡先、電話、SNS、著作権…',
+    studioQ_mobile_header: 'モバイルヘッダーの内容は？',
+    studioH_mobile_header: '例: ハンバーガー+ロゴ+カート、またはロゴ+検索+カート。',
+    studioQ_mobile_footer: 'モバイル下部バーのボタンは？',
+    studioH_mobile_footer: '例: ホーム|商品|チャット|カート|アカウント — またはフローティングチャットのみ。',
+    studioQ_style_mood: '希望するスタイルとトーン？',
+    studioH_style_mood: 'ミニマル、高級、若々しい、温かみ…',
+    studioQ_color_palette: 'メインブランドカラー？',
+    studioH_color_palette: '2–3色またはムード（パステル、ダーク、ラグジュアリー…）。',
+    studioQ_logo_url: 'ブランドロゴ（必須）',
+    studioH_logo_url: 'ロゴをアップロードするか「AIでロゴ生成」— ホームページヘッダーに使用。',
+    journalSectionTitle: '作成ログ',
+    journalSectionHint: '質問・回答・モックアップ・編集をすべてここに保存 — ショップごとに1つのログ。',
+    journalLoading: '作成ログを開いています…',
+    journalBriefSectionTitle: 'ホーム設定',
+    journalBriefSectionHint: '店名入力、ロゴ（任意）、テンプレ選択して適用。インタビュー / AI自動作成なし。',
+    journalAnswerHere: 'ここに回答を入力',
+    journalAnswerPlaceholder: '回答を入力…',
+    journalShowAllSteps: '全ステップを表示',
+    journalHideAllSteps: 'ステップを閉じる',
+    journalHistoryTitle: '回答済み',
+    journalEditSectionTitle: 'Webを編集',
+    journalEditSectionHint: '右側プレビューの「クイック編集」で文字・色・画像を直接編集 — AIチャットは使いません。',
+    editRefInlineLabel: '参考画像',
+    editRefInlineHint: 'デザイン/mockupをアップロード — AIが画像を読み取りサイトを合わせます。',
+    journalStepDone: '完了',
+    journalStepCurrent: '質問中',
+    journalStepPending: '未質問',
+    pagePickerTitle: 'テンプレート庫',
+    pagePickerHint:
+      '下の完成サンプルを選ぶ → デモを見るか今すぐ使う。商品/カート/お気に入りはプラットフォーム提供（作り直し不要）。',
+    pagePickerBack: 'テンプレート庫',
+    pageStatusNotStarted: '未作成',
+    pageStatusInProgress: '作成中',
+    pageStatusBuilt: '完了',
+    pageStatusPlatformReady: '利用可能',
+    pageStatusNeedHome: 'ホームが必要',
+    pagePickerCreate: 'このページを開く',
+    pagePickerContinue: 'ホームを編集',
+    pagePickerSetupHome: 'ホームテンプレートを選ぶ',
+    pagePickerOpenLive: '公開ページを開く',
+    pagePickerNeedHomeFirst: '先にホームテンプレートを適用してください。',
+    pagePickerPlatformHint: 'プラットフォームのReactページ — カタログ・カート・チャット接続済み。',
+    pagePickerPlatformSection: 'プラットフォームページ（利用可）',
+    pagePickerPlatformSectionHint:
+      'テンプレート選択ではありません。システムページです — 公開後に開けます。',
+    pagePickerChangeTemplate: 'テンプレート変更 / 再適用',
+    resetWebsiteButton: 'Webリセット',
+    resetWebsiteTitle: 'リセットして再作成',
+    resetWebsiteDescription:
+      '「{name}」を7日間のゴミ箱に入れ（モックアップ・内容・コード）、最初から作り直せます。7日以内なら復元可能です。',
+    resetWebsiteSendOtp: 'リセットOTP送信',
+    resetWebsiteOtpHint: 'ログインメールに送られた6桁のコードを入力。',
+    resetWebsiteOtpPlaceholder: '6桁OTP',
+    resetWebsiteResendOtp: '再送信',
+    resetWebsiteConfirm: 'リセット確認',
+    resetWebsiteOtpInvalid: 'OTPは6桁必要です。',
+    resetWebsiteSuccess: 'サイトをリセットしました — 旧版は7日間復元可能です。新規作成を開始してください。',
+    restoreResetTrashButton: 'リセットしたWebを復元',
+    restoreResetTrashHint: '前回リセットのバックアップがあります — 残り約{days}日。新しいWebがない場合のみ復元できます。',
+    restoreResetTrashSuccess: 'リセット後のバックアップから復元しました。',
+    restoreResetTrashBusy: '復元中…',
   },
   ko: {
     pageTitle: '웹·랜딩 페이지',
-    pageDescription: '왼쪽 AI 채팅으로 편집. 아래 탭에서 리드·블록·게시를 관리합니다.',
+    pageDescription:
+      '왼쪽 = 템플릿 라이브러리(샘플 보기 / 사용). 적용 후 오른쪽 미리보기의 «빠른 편집»으로 수정.',
     selectPartner: '판매 채널 선택',
     noPartnerTitle: '판매 채널 없음',
     noPartnerBody: '먼저 메시징 workspace를 만든 후 돌아오세요.',
     createChannelLink: '채널 만들기',
-    generateSectionTitle: 'AI 웹 프로젝트',
-    generateSectionHint: 'index.html, css/main.css, js/main.js 등을 생성합니다.',
+    generateSectionTitle: '템플릿으로 샵 웹 만들기',
+    generateSectionHint: '카탈로그·장바구니·채팅이 연결된 고정 템플릿을 선택 — AI로 UI를 처음부터 만들지 않습니다.',
     titleLabel: '사이트/브랜드명',
     briefLabel: '요구사항',
     briefPlaceholder: '예: shop 소개, 강점, 타깃, 스타일, CTA',
@@ -593,6 +1683,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logoHint: '로고 파일 업로드 또는 이미지 URL — 사이트 헤더에 사용.',
     logoUrlPlaceholder: 'https://... 또는 로고 업로드',
     logoUpload: '로고 업로드',
+    logoGenerate: '로고 업로드',
+    logoGenerating: '로고 업로드 중…',
+    logoGenerateHint: '샵 로고를 업로드하세요(선택). AI 로고 생성은 비활성화되었습니다.',
+    logoRequired: '계속하려면 로고를 업로드하세요.',
     logoRemove: '로고 삭제',
     refImagesLabel: '참고 이미지',
     refImagesHint: '참고 이미지 업로드 또는 URL 붙여넣기(한 줄에 하나). 최대 8장.',
@@ -601,7 +1695,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     refImageRemove: '이미지 삭제',
     imageInvalidType: '이미지 파일만 가능합니다.',
     uploadFailed: '업로드 실패.',
-    generateButton: 'AI로 웹 프로젝트 생성',
+    generateButton: '템플릿 적용',
     generating: '생성 중…',
     generateSuccess: '프로젝트가 생성되었습니다',
     fallbackGenerated: '대체 HTML 템플릿을 사용했습니다.',
@@ -625,6 +1719,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     previewTitle: '웹사이트 미리보기',
     previewEmpty: '프로젝트 생성 후 여기서 미리보기.',
     viewDesktop: '데스크톱',
+    viewLaptop: 'MacBook / 노트북',
     viewTablet: '태블릿',
     viewMobile: '모바일',
     previewPublicLink: '공개 링크',
@@ -654,6 +1749,34 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     quickEditChatCta: '채팅 구매 버튼 추가',
     quickEditMobile: '모바일 최적화',
     quickEditFooter: '푸터 업데이트',
+    visualEditModeActive: '직접 편집 모드',
+    visualEditSelectHint: '텍스트/이미지 클릭 · Shift+클릭으로 배경',
+    visualEditTextColor: '글자 색',
+    visualEditReplaceImage: '이미지 업로드',
+    visualEditAiImage: 'AI 이미지',
+    visualEditDragImage: '드래그하여 이동',
+    visualEditCancel: '종료',
+    visualEditSave: '변경 저장',
+    visualEditSaveSuccess: '직접 편집 저장됨',
+    visualEditSaveFailed: '저장 실패 — 다시 시도',
+    visualEditAiFailed: 'AI가 이미지를 생성하지 못했습니다',
+    visualEditAiImageTitle: 'AI로 이미지 교체',
+    visualEditAiImageHint: '새 이미지 설명(Gemini AI). 현재 이미지를 참고로 사용할 수 있습니다.',
+    visualEditAiImagePlaceholder: '예: 남성용 갈색 실크 셔츠, 스튜디오 조명',
+    visualEditAiImageGenerate: '생성',
+    visualEditAiPromptLabel: 'AI 프롬프트',
+    visualEditAiPromptRequired: '이미지 생성 전 프롬프트를 입력하세요',
+    visualEditPresets: 'AI 프리셋',
+    visualEditTemplateLocked: '미리보기의 «빠른 편집»으로 글자·색·이미지를 직접 수정하세요.',
+    visualEditFontSize: '글자 크기',
+    visualEditBold: '굵게',
+    visualEditAlignLeft: '왼쪽',
+    visualEditAlignCenter: '가운데',
+    visualEditAlignRight: '오른쪽',
+    visualEditBgColor: '배경색',
+    visualEditImageWidth: '이미지 너비',
+    visualEditResetImagePos: '위치 초기화',
+    visualEditSectionHint: 'Shift+클릭으로 섹션 배경색 변경',
     restoreButton: '이전 버전으로 복원',
     revisionHistory: '버전 기록',
     restoreSuccess: '이전 버전을 복원했습니다.',
@@ -677,7 +1800,39 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     tenantNavEditor: '사이트 편집',
     tenantNavLeads: '폼 리드',
     tenantNavSections: 'UI 블록',
+    tenantNavLandings: '랜딩 페이지',
     tenantNavPublicSite: '공개 사이트',
+    lpPanelTitle: '상품 랜딩 페이지',
+    lpPanelHint:
+      '광고용 랜딩을 여러 개 만들 수 있습니다—재고 상품을 선택하고, 구매/상품 카드로 상품 페이지로 이동합니다. 메인 웹은 그대로입니다.',
+    lpCreateButton: '랜딩 만들기',
+    lpCancelCreate: '폼 닫기',
+    lpCreateAndBuild: '만들고 생성',
+    lpBuilding: '랜딩 생성 중…',
+    lpBuildSuccess: '선택한 상품으로 랜딩을 생성했습니다.',
+    lpBuildFailed: '생성 실패 — 다시 시도하세요.',
+    lpNeedWebsite: '먼저 메인 웹을 만든 뒤 랜딩을 추가하세요.',
+    lpTitleLabel: '랜딩 제목',
+    lpTitlePlaceholder: '예: 설날 원피스 무료배송',
+    lpTitleRequired: '제목을 입력하세요.',
+    lpSlugLabel: 'URL 슬러그',
+    lpSlugPlaceholder: 'new-year-dress',
+    lpBriefLabel: '콘텐츠 브리프',
+    lpBriefPlaceholder: '혜택, 타깃, 톤…',
+    lpProductsLabel: '상품 선택',
+    lpProductsRequired: '상품을 1개 이상 선택하세요.',
+    lpProductsShort: '상품',
+    lpMaxProducts: '최대 {n}개까지 선택.',
+    lpInventoryEmpty: '재고에 상품이 없습니다.',
+    lpEmpty: '랜딩이 없습니다. 광고용 상품 랜딩을 만드세요.',
+    lpLoading: '불러오는 중…',
+    lpPublishSuccess: '랜딩을 게시했습니다.',
+    lpUnpublishSuccess: '게시를 해제했습니다.',
+    lpRebuild: '다시 생성',
+    lpOpenPublic: '공개 열기',
+    lpDelete: '삭제',
+    lpDeleteConfirm: '이 랜딩을 삭제할까요?',
+    lpDeleteSuccess: '삭제했습니다.',
     noWebsitePermTitle: '웹사이트 관리 권한 없음',
     noWebsitePermBody:
       '워크스페이스 소유자가 설정 → 팀에서 「웹사이트·랜딩」 권한을 켜야 합니다.',
@@ -688,6 +1843,156 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     legacyMigrating: '전환 중…',
     legacyMigrateSuccess: '랜딩 템플릿으로 전환됨 — 미리보기를 확인하세요.',
     legacyMigrateAlready: '이미 템플릿 모드입니다.',
+    studioTitle: '새 샵 웹사이트 만들기',
+    studioHint: '짧은 브리프 → 고정 landing-v1 템플릿 적용 → 카탈로그·장바구니·채팅 연결.',
+    studioWebHint: '고정 템플릿으로 메인 웹 생성(홈+상품+장바구니). 적용 후 빠른 수정은 여전히 AI.',
+    studioOpenWebChat: '샵 웹 설정 / 수정',
+    studioOpenLandingChat: '랜딩 생성 대화 열기',
+    studioWebFirstNote: '메인 웹을 먼저 만든 뒤 랜딩을 만들 수 있습니다.',
+    studioEntryTitle: '할 일을 선택하세요',
+    studioEntryHint: '웹은 한 번 설계. 랜딩은 여러 번 만들 수 있으며 상품을 연결합니다.',
+    lpChatTitle: '랜딩 생성 대화',
+    lpChatHint: '상품 선택 → 브리프 → AI가 랜딩 생성. 구매는 상품 페이지. 메인 웹은 그대로.',
+    lpChatStart: '새 랜딩 대화 시작',
+    lpChatStepProducts: '1단계 — 랜딩에 넣을 상품 선택',
+    lpChatStepBrief: '2단계 — 제목과 브리프',
+    lpChatStepBuild: '3단계 — AI가 랜딩 생성',
+    lpChatContinueProducts: '다음: 브리프 입력',
+    lpChatContinueBrief: '랜딩 생성',
+    studioStepProgress: '단계 {current}/{total}',
+    studioNext: '다음',
+    studioBack: '뒤로',
+    studioGenerateDesign: '디자인 목업 생성',
+    studioGeneratingDesign: '목업 생성 중…',
+    studioApproveDesign: '템플릿 적용 및 기능 연결',
+    studioRegenerateDesign: '목업 다시 생성',
+    studioBuilding: '샵 템플릿을 적용하고 카탈로그·장바구니·채팅을 연결 중…',
+    studioAnalyzingMockup: '템플릿 레이아웃 준비 중…',
+    studioBuildStepPrepare: '브리프 기준으로 카피 준비 중…',
+    studioBuildStepShell: '헤더 / 푸터 / CSS 적용 중…',
+    studioBuildStepSection: 'UI 섹션 연결 중…',
+    studioBuildStepHooks: '채팅·카탈로그·장바구니를 백엔드에 연결 중…',
+    studioBuildStepFinalize: '게시 및 확인 중…',
+    studioBuildComplete: '템플릿 적용 완료 — 카탈로그·장바구니·채팅 준비됨.',
+    studioBuildProgressTitle: '템플릿 적용 진행',
+    studioBuildStepAnalyzeLabel: '템플릿 준비',
+    studioBuildStepPrepareLabel: '카피 준비',
+    studioBuildStepShellLabel: '헤더 / 푸터 / CSS 셸',
+    studioBuildStepSectionLabel: 'UI 섹션',
+    studioBuildStepSectionNamed: '섹션: {name}',
+    studioBuildStepHooksLabel: '채팅·카탈로그·장바구니 연결',
+    studioBuildStepFinalizeLabel: '게시 및 확인',
+    studioBuildStepApplyLabel: 'landing-v1 템플릿 적용',
+    studioApplyTemplateTitle: '샵 템플릿 적용',
+    studioApplyTemplateHint:
+      '고정 템플릿으로 생성하고 카탈로그·장바구니·채팅을 연결합니다 — AI로 처음부터 만들지 않습니다. 적용 후 빠른 수정은 기존처럼 AI를 사용합니다.',
+    studioPickTemplateTitle: '템플릿 라이브러리',
+    studioPickTemplateHint:
+      '완성 샘플 사이트를 먼저 본 뒤 샵에 적용하세요. 카탈로그·장바구니·찜·채팅이 연결되어 있습니다 — 적용 후 «빠른 수정»으로 편집하세요.',
+    templateGalleryEyebrow: '템플릿 라이브러리',
+    templateGalleryTitle: '바로 쓸 수 있는 샘플 웹',
+    templateGalleryHint: '완성된 샵 템플릿을 둘러보세요. 적용 전에 전체 데모를 열 수 있습니다.',
+    templateGalleryViewSample: '샘플 사이트 보기',
+    templateGalleryUseTemplate: '이 템플릿 사용',
+    templateGalleryReadyBadge: '사용 가능',
+    templateGalleryOpenLibrary: '템플릿 라이브러리 열기',
+    studioBuildProgressCount: '{done}/{total} 단계',
+    studioStartInterview: '템플릿으로 새 웹',
+    studioSkipToEditor: '기본 템플릿 사용',
+    studioSiteTypeLanding: '단일 랜딩',
+    studioSiteTypeWebShop: '샵 (홈+카탈로그)',
+    studioMockupPreviewTitle: '샵 템플릿 적용',
+    studioMockupRegenerateLabel: '수정 요청(선택)',
+    studioMockupRegenerateHint: '색상, 레이아웃, 폰트, 히어로 등을 적고 «목업 다시 생성»을 누르세요. 비우면 새 변형.',
+    studioMockupRegeneratePlaceholder: '예: 더 어두운 배경, 큰 히어로, 주황 CTA, 고객 후기 섹션 추가…',
+    studioMockupViewLarge: '크게 보기',
+    studioMockupPickTitle: '샵 템플릿 적용',
+    studioMockupPickHint: '고정 샵 템플릿을 적용하고 플랫폼 기능을 연결합니다.',
+    studioMockupPickConfirm: '샵 템플릿 적용',
+    studioMockupPickCancel: '돌아가기',
+    studioMockupVersionLabel: '버전 {n}',
+    studioRebuildFromMockup: '샵 템플릿 다시 적용',
+    studioRebuildFromMockupHint:
+      '다른 템플릿으로 바꿉니다(외형과 이전 빠른 편집을 덮어씀). 카탈로그·장바구니·채팅은 유지됩니다.',
+    studioNewMockupThenRebuild: '샵 템플릿 다시 적용',
+    studioAnswerRequired: '이 질문에 답해 주세요.',
+    studioQ_site_type: '단일 랜딩 vs 다중 섹션 샵?',
+    studioH_site_type: '랜딩은 광고 전환용; 샵은 상품 그리드+채팅 구매.',
+    studioQ_brand_name: '사이트에 표시할 브랜드/샵 이름?',
+    studioH_brand_name: '헤더와 페이지 제목에 표시됩니다.',
+    studioQ_products_sell: '무엇을 판매하나요? (업종/상품 유형)',
+    studioH_products_sell: '레이아웃과 비주얼 선택에 도움.',
+    studioQ_value_prop: '장점, 혜택, 고객 pain point?',
+    studioH_value_prop: '무료배송, 교환, 채팅 구매, 번들 가격 등.',
+    studioQ_target_audience: '타깃 고객은?',
+    studioH_target_audience: '연령, 관심사, 지역 등.',
+    studioQ_site_features: '웹에 필요한 기능은?',
+    studioH_site_features: '예: 홈, 상품 목록, 상세, 장바구니, 주문, 상담 채팅, 검색, 찜…',
+    studioQ_desktop_header: '데스크톱 헤더(홈)에 무엇이 있나요?',
+    studioH_desktop_header: '로고, 메뉴(홈/상품…), 검색, 장바구니, 채팅 버튼…',
+    studioQ_desktop_footer: '데스크톱 푸터에 무엇이 있나요?',
+    studioH_desktop_footer: '정책 링크, 연락처, 전화, SNS, 저작권…',
+    studioQ_mobile_header: '모바일 헤더에 무엇이 있나요?',
+    studioH_mobile_header: '예: 햄버거+로고+장바구니, 또는 로고+검색+장바구니.',
+    studioQ_mobile_footer: '모바일 하단 바 버튼은?',
+    studioH_mobile_footer: '예: 홈|상품|채팅|장바구니|계정 — 또는 플로팅 채팅만.',
+    studioQ_style_mood: '원하는 스타일과 톤?',
+    studioH_style_mood: '미니멀, 프리미엄, 젊은, 따뜻한…',
+    studioQ_color_palette: '주 브랜드 컬러?',
+    studioH_color_palette: '2–3색 또는 무드(pastel, dark, luxury…).',
+    studioQ_logo_url: '브랜드 로고(필수)',
+    studioH_logo_url: '로고 업로드 또는 「AI로 로고 생성」— 홈페이지 헤더에 사용됩니다.',
+    journalSectionTitle: '생성 일지',
+    journalSectionHint: '모든 질문, 답변, 목업, 편집이 여기 저장됩니다 — 샵당 하나의 일지.',
+    journalLoading: '생성 일지 여는 중…',
+    journalBriefSectionTitle: '홈 설정',
+    journalBriefSectionHint: '샵 이름, 로고(선택), 템플릿 선택 후 적용. 인터뷰 / AI 자동 생성 없음.',
+    journalAnswerHere: '여기에 답변 입력',
+    journalAnswerPlaceholder: '답변을 입력…',
+    journalShowAllSteps: '전체 단계 보기',
+    journalHideAllSteps: '단계 접기',
+    journalHistoryTitle: '답변한 항목',
+    journalEditSectionTitle: '웹 수정',
+    journalEditSectionHint: '오른쪽 미리보기의 «빠른 편집»으로 글자·색·이미지를 직접 수정 — AI 채팅 아님.',
+    editRefInlineLabel: '참고 이미지',
+    editRefInlineHint: '디자인/mockup 업로드 — AI가 이미지를 읽고 사이트를 맞춥니다.',
+    journalStepDone: '완료',
+    journalStepCurrent: '진행 중',
+    journalStepPending: '대기',
+    pagePickerTitle: '템플릿 라이브러리',
+    pagePickerHint:
+      '아래 완성 샘플을 고르세요 → 데모 보기 또는 바로 사용. 상품/장바구니/찜은 플랫폼에 이미 있음(다시 만들 필요 없음).',
+    pagePickerBack: '템플릿 라이브러리',
+    pageStatusNotStarted: '미시작',
+    pageStatusInProgress: '진행 중',
+    pageStatusBuilt: '완료',
+    pageStatusPlatformReady: '준비됨',
+    pageStatusNeedHome: '홈 필요',
+    pagePickerCreate: '이 페이지 열기',
+    pagePickerContinue: '홈 편집',
+    pagePickerSetupHome: '홈 템플릿 선택',
+    pagePickerOpenLive: '라이브 페이지 열기',
+    pagePickerNeedHomeFirst: '먼저 홈 템플릿을 적용하세요.',
+    pagePickerPlatformHint: '플랫폼 React 페이지 — 카탈로그·장바구니·채팅 연결됨.',
+    pagePickerPlatformSection: '플랫폼 페이지(준비됨)',
+    pagePickerPlatformSectionHint:
+      '템플릿 선택 공간이 아닙니다. 시스템 페이지이며 — 게시 후 열 수 있습니다.',
+    pagePickerChangeTemplate: '템플릿 변경 / 다시 적용',
+    resetWebsiteButton: '웹 리셋',
+    resetWebsiteTitle: '리셋 후 다시 만들기',
+    resetWebsiteDescription:
+      '「{name}」를 7일 휴지통에 넣고(목업·콘텐츠·코드) 처음부터 다시 만들 수 있습니다. 7일 내 복구 가능합니다.',
+    resetWebsiteSendOtp: '리셋 OTP 보내기',
+    resetWebsiteOtpHint: '로그인 이메일로 받은 6자리 코드를 입력하세요.',
+    resetWebsiteOtpPlaceholder: '6자리 OTP',
+    resetWebsiteResendOtp: 'OTP 재전송',
+    resetWebsiteConfirm: '리셋 확인',
+    resetWebsiteOtpInvalid: 'OTP는 6자리여야 합니다.',
+    resetWebsiteSuccess: '웹이 리셋되었습니다 — 이전 버전은 7일간 복구 가능합니다. 새 인터뷰를 시작하세요.',
+    restoreResetTrashButton: '리셋한 웹 복구하기',
+    restoreResetTrashHint: '마지막 리셋 백업이 있습니다 — 약 {days}일 남음. 새 웹이 없을 때만 복구할 수 있습니다.',
+    restoreResetTrashSuccess: '리셋 백업에서 웹을 복구했습니다.',
+    restoreResetTrashBusy: '복구 중…',
   },
 }
 
