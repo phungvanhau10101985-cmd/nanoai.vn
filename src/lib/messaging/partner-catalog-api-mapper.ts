@@ -77,6 +77,8 @@ export function mapInventoryRowToPartnerCatalogProduct(
     remarketing_id: (row.remarketing_id ?? '').trim() || null,
     shop_ready: shopReady,
     nanoai_site_path:
-      shopReady && siteSlug ? partnerSiteProductPath(siteSlug, row.id) : null,
+      shopReady && siteSlug
+        ? partnerSiteProductPath(siteSlug, row.id, { name: (row.name ?? '').trim() || 'Product' })
+        : null,
   }
 }

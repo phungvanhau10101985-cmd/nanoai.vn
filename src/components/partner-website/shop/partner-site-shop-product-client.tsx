@@ -396,11 +396,11 @@ export function PartnerSiteShopProductClient({
           <div className="pw-shop-grid" style={{ marginTop: 16 }}>
             {relatedProducts.map((p) => (
               <article key={p.id} className="pw-shop-card">
-                <Link href={partnerSiteProductPath(siteSlug, p.id, { customDomain })}>
+                <Link href={partnerSiteProductPath(siteSlug, p.id, { customDomain, name: p.name })}>
                   <img src={p.imageUrl} alt={p.name} loading="lazy" />
                 </Link>
                 <div className="pw-shop-card-body">
-                  <Link href={partnerSiteProductPath(siteSlug, p.id, { customDomain })}>
+                  <Link href={partnerSiteProductPath(siteSlug, p.id, { customDomain, name: p.name })}>
                     <h3>{p.name}</h3>
                   </Link>
                   {p.priceHint ? <p className="pw-shop-price">{p.priceHint}</p> : null}

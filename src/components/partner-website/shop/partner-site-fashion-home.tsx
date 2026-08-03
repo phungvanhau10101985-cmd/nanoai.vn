@@ -72,7 +72,7 @@ function ProductCard({
   cta: string
   customDomain: boolean
 }) {
-  const href = partnerSiteProductPath(siteSlug, product.id, { customDomain })
+  const href = partnerSiteProductPath(siteSlug, product.id, { customDomain, name: product.name })
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-orange-100/80 bg-white shadow-[0_10px_40px_-20px_rgba(234,88,12,.45)] transition duration-500 hover:-translate-y-1 hover:shadow-[0_24px_50px_-24px_rgba(234,88,12,.55)]">
       <Link href={href} className="relative aspect-[4/5] overflow-hidden bg-orange-50">

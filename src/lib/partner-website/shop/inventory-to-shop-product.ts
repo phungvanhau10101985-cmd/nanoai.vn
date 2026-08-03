@@ -42,7 +42,7 @@ export function inventoryRowToShopProduct(
   row: InventoryShopSourceRow & { id: string; name?: string | null; price_hint?: string | null; sku?: string | null; product_url?: string | null }
 ): PartnerSiteShopProduct | null {
   const name = (row.name ?? '').trim() || 'Product'
-  const detailPath = partnerSiteProductPath(siteSlug, row.id)
+  const detailPath = partnerSiteProductPath(siteSlug, row.id, { name })
   const galleryImages = collectShopProductGalleryImages(row)
   const rawImage =
     (row.image_url ?? '').trim() ||

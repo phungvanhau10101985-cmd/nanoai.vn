@@ -79,7 +79,7 @@ async function handleTextSearch(
       priceHint: null as string | null,
       price_hint: null as string | null,
       score: m.score ?? null,
-      detailPath: partnerSiteProductPath(shop.site.siteSlug, m.inventory_id),
+      detailPath: partnerSiteProductPath(shop.site.siteSlug, m.inventory_id, { name: m.name }),
     }))
     return NextResponse.json({
       ok: true,

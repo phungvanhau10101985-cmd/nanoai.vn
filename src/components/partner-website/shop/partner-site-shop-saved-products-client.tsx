@@ -176,7 +176,12 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
       {message ? <p className="pw-shop-muted">{message}</p> : null}
       <div className="pw-shop-grid" style={{ marginTop: 20 }}>
         {products.map((p) => {
-          const href = p.detail_path || partnerSiteProductPath(siteSlug, p.inventory_id, { customDomain })
+          const href =
+            p.detail_path ||
+            partnerSiteProductPath(siteSlug, p.inventory_id, {
+              customDomain,
+              name: p.name,
+            })
           const busy = busyId === p.inventory_id
           return (
             <article key={p.inventory_id} className="pw-shop-card">

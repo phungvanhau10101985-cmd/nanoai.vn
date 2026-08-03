@@ -19,7 +19,9 @@ export async function loadPartnerLandingProductSnapshots(input: {
       price: row.price_hint?.trim() || '',
       description: row.description?.trim() || row.stock_note?.trim() || '',
       imageUrl: row.image_url?.trim() || '',
-      detailPath: partnerSiteProductPath(input.siteSlug, id),
+      detailPath: partnerSiteProductPath(input.siteSlug, id, {
+        name: row.name?.trim() || row.sku || 'Product',
+      }),
     }
   })
 }

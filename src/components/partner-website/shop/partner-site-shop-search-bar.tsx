@@ -153,7 +153,14 @@ export function PartnerSiteShopSearchBar({
           <div className="pw-shop-search-grid">
             {(results || []).map((p) => {
               const id = String(p.id || p.inventory_id || '')
-              const href = p.detailPath || (id ? partnerSiteProductPath(siteSlug, id, { customDomain }) : '#')
+              const href =
+                p.detailPath ||
+                (id
+                  ? partnerSiteProductPath(siteSlug, id, {
+                      customDomain,
+                      name: p.name,
+                    })
+                  : '#')
               const img = p.imageUrl || p.image_url || ''
               const name = p.name || ''
               const price = p.priceHint || p.price_hint || ''

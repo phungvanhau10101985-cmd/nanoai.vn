@@ -739,6 +739,30 @@ export async function fetchPartnerInventoryRowByIdForPartnerFromPg(
   }
 }
 
+/** Resolve `/products/{name-slug}-{uuid8}` via id text prefix (first 8 hex of UUID). */
+export async function fetchPartnerInventoryRowByIdPrefixForPartnerFromPg(
+  partnerId: string,
+  idPrefix: string
+): Promise<MessagingPartnerInventoryRow | null> {
+  if (!isPgConfigured()) return null
+  const prefix = idPrefix.trim().toLowerCase()
+  if (!/^[0-9a-f]{8}$/.test(prefix)) return null
+  try {
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
+         and mpi.id::text like $2
+       order by mpi.updated_at desc nulls last
+       limit 1`,
+      [partnerId, `${prefix}-%`]
+    )
+    const row = rows[0] ?? null
+    return row ? mapPgInventoryRow(row) : null
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryRowByIdPrefixForPartnerFromPg]', e)
+    return null
+  }
+}
+
 export async function fetchPartnerInventoryRowBySkuForPartnerFromPg(
   partnerId: string,
   sku: string

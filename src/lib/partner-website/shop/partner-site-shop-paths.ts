@@ -1,6 +1,7 @@
 import { partnerSiteHref } from '@/lib/messaging/partner-custom-domain-site-path'
+import { buildPartnerSiteProductKey } from '@/lib/partner-website/shop/partner-site-product-slug'
 
-type PathOpts = { customDomain?: boolean }
+type PathOpts = { customDomain?: boolean; name?: string | null }
 
 export function partnerSiteHomePath(siteSlug: string, opts?: PathOpts): string {
   return partnerSiteHref(siteSlug, '/', opts?.customDomain)
@@ -14,12 +15,13 @@ export function partnerSiteProductsPath(siteSlug: string, opts?: PathOpts): stri
   return partnerSiteHref(siteSlug, '/products', opts?.customDomain)
 }
 
-export function partnerSiteProductPath(siteSlug: string, inventoryId: string, opts?: PathOpts): string {
-  return partnerSiteHref(
-    siteSlug,
-    `/products/${encodeURIComponent(inventoryId.trim())}`,
-    opts?.customDomain
-  )
+export function partnerSiteProductPath(
+  siteSlug: string,
+  inventoryId: string,
+  opts?: PathOpts
+): string {
+  const key = buildPartnerSiteProductKey(opts?.name, inventoryId)
+  return partnerSiteHref(siteSlug, `/products/${encodeURIComponent(key)}`, opts?.customDomain)
 }
 
 export function partnerSiteCartPath(siteSlug: string, opts?: PathOpts): string {

@@ -96,7 +96,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       priceHint: c.price_hint?.trim() ? c.price_hint.trim() : null,
       price_hint: c.price_hint?.trim() ? c.price_hint.trim() : null,
       score: c.score ?? null,
-      detailPath: partnerSiteProductPath(siteSlug, c.inventoryId),
+      detailPath: partnerSiteProductPath(siteSlug, c.inventoryId, { name: c.name }),
       color_variants: c.color_variants ?? [],
       color_image_urls: c.color_image_urls ?? [],
     })),

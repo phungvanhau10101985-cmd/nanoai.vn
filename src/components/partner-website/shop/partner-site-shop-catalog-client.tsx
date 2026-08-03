@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
-import { partnerSiteProductsApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteProductPath, partnerSiteProductsApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import {
@@ -91,7 +91,7 @@ export function PartnerSiteShopCatalogClient({
             imageUrl: c.image_url,
             productUrl: c.product_url,
             sku: c.sku ?? '',
-            detailPath: `/site/${encodeURIComponent(siteSlug)}/products/${encodeURIComponent(c.inventory_id!)}`,
+            detailPath: partnerSiteProductPath(siteSlug, c.inventory_id!, { name: c.name }),
           }))
       )
     } finally {

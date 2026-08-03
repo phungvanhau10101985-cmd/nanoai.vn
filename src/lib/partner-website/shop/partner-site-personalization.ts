@@ -109,7 +109,7 @@ export function mapInventoryRowToPersonalizationProduct(
 ): PartnerSitePersonalizationProduct | null {
   const imageUrl = (row.image_url ?? '').trim()
   if (!/^https?:\/\//i.test(imageUrl)) return null
-  const detailPath = partnerSiteProductPath(siteSlug, row.id)
+  const detailPath = partnerSiteProductPath(siteSlug, row.id, { name: (row.name ?? '').trim() || 'Product' })
   const rawProductUrl = (row.product_url ?? '').trim()
   const productUrl = /^https?:\/\//i.test(rawProductUrl)
     ? rawProductUrl
@@ -139,7 +139,10 @@ function relatedToPersonalizationProduct(
     price_hint: item.price_hint?.trim() ?? '',
     image_url: imageUrl,
     product_url: productUrl,
-    detail_path: inventoryId && UUID_RE.test(inventoryId) ? partnerSiteProductPath(siteSlug, inventoryId) : '',
+    detail_path:
+      inventoryId && UUID_RE.test(inventoryId)
+        ? partnerSiteProductPath(siteSlug, inventoryId, { name: item.name })
+        : '',
     sku: item.sku?.trim() || null,
   }
 }

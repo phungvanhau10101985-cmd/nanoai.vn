@@ -38,7 +38,12 @@ export async function hydratePartnerWebsitePages(
           ctaText: section.props.productCtaText ?? 'View',
           inventoryId,
           productUrl,
-          detailPath: slug && inventoryId ? partnerSiteProductPath(slug, inventoryId) : '',
+          detailPath:
+            slug && inventoryId
+              ? partnerSiteProductPath(slug, inventoryId, {
+                  name: row.name?.trim() || row.sku || 'Product',
+                })
+              : '',
         }
       })
     }
