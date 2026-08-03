@@ -45,26 +45,28 @@ if [[ -f "/etc/letsencrypt/live/${HOST}/fullchain.pem" ]]; then
 else
   # HTTP-only block để certbot HTTP-01 (trước khi có HTTPS)
   HTTP_ONLY="${NGINX_SITES_AVAILABLE}/partner-${SAFE_NAME}-http.conf"
-  cat > "${HTTP_ONLY}" <<EOF
+  cat > "${HTTP_ONLY}" <<'NGINXEOF'
 server {
     listen 80;
     listen [::]:80;
-    server_name ${HOST};
+    server_name HOST_PLACEHOLDER;
 
-    location /.well-known/acme-challenge/ {
-        root ${CERTBOT_WEBROOT};
-        try_files \\\$uri =404;
+    location ^~ /.well-known/acme-challenge/ {
+        alias CERTBOT_WEBROOT_PLACEHOLDER/.well-known/acme-challenge/;
+        default_type "text/plain";
+        try_files $uri =404;
     }
 
     location / {
         proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host \\\$host;
-        proxy_set_header X-Real-IP \\\$remote_addr;
-        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \\\$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
-EOF
+NGINXEOF
+  sed -i "s/HOST_PLACEHOLDER/${HOST}/g; s|CERTBOT_WEBROOT_PLACEHOLDER|${CERTBOT_WEBROOT}|g" "${HTTP_ONLY}"
   ln -sf "${HTTP_ONLY}" "${NGINX_SITES_ENABLED}/partner-${SAFE_NAME}-http.conf"
   nginx -t
   systemctl reload nginx
