@@ -35,6 +35,7 @@ import {
   PartnerSiteShopProvider,
   usePartnerSiteShop,
 } from '@/lib/partner-website/shop/partner-site-shop-context'
+import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 
 type Props = {
   siteSlug: string
@@ -70,8 +71,9 @@ function PartnerSiteShopShellInner({
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const n = getPartnerSiteCategoryNavLabels(locale)
-  const paths = getPartnerSiteShopNavPaths(siteSlug)
-  const accountMenuItems = getPartnerSiteAccountMenuItems({ siteSlug, locale })
+  const customDomain = usePartnerSiteCustomDomain()
+  const paths = getPartnerSiteShopNavPaths(siteSlug, customDomain)
+  const accountMenuItems = getPartnerSiteAccountMenuItems({ siteSlug, locale, customDomain })
   const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { cartCount, setCartCount, registerCartLoader } = usePartnerSiteShop()
   const [categoriesOpen, setCategoriesOpen] = useState(false)

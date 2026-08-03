@@ -16,6 +16,7 @@ import {
   getPartnerSiteShopNavPaths,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { partnerSitePersonalizationApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { PartnerSiteShopAuthPanel } from '@/components/partner-website/shop/partner-site-shop-auth-panel'
 import type { PartnerSiteVisitorProfile } from '@/lib/partner-website/shop/partner-site-personalization'
 
@@ -28,7 +29,8 @@ type Props = {
 
 export function PartnerSiteShopAccountClient({ siteSlug, partnerSlug, shopTitle, locale }: Props) {
   const t = getPartnerSiteShopCopy(locale)
-  const paths = getPartnerSiteShopNavPaths(siteSlug)
+  const customDomain = usePartnerSiteCustomDomain()
+  const paths = getPartnerSiteShopNavPaths(siteSlug, customDomain)
   const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [profile, setProfile] = useState<PartnerSiteVisitorProfile | null>(null)
   const [customerName, setCustomerName] = useState('')

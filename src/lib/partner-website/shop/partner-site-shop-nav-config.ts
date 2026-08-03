@@ -152,19 +152,20 @@ export function getPartnerSiteCategoryNavLabels(locale: WebLocale): PartnerSiteC
 }
 
 /** React shop routes — single source for header / account menu links. */
-export function getPartnerSiteShopNavPaths(siteSlug: string): PartnerSiteShopNavPaths {
+export function getPartnerSiteShopNavPaths(siteSlug: string, customDomain = false): PartnerSiteShopNavPaths {
   const slug = siteSlug.trim()
+  const pathOpts = { customDomain }
   return {
-    home: partnerSiteHomePath(slug),
-    products: partnerSiteProductsPath(slug),
-    sale: partnerSiteInfoPath(slug, 'sale'),
-    wishlist: partnerSiteWishlistPath(slug),
-    cart: partnerSiteCartPath(slug),
-    orders: partnerSiteOrdersPath(slug),
-    account: partnerSiteAccountPath(slug),
-    addresses: partnerSiteAddressesPath(slug),
-    recentlyViewed: partnerSiteRecentlyViewedPath(slug),
-    contact: partnerSiteInfoPath(slug, 'contact'),
+    home: partnerSiteHomePath(slug, pathOpts),
+    products: partnerSiteProductsPath(slug, pathOpts),
+    sale: partnerSiteInfoPath(slug, 'sale', pathOpts),
+    wishlist: partnerSiteWishlistPath(slug, pathOpts),
+    cart: partnerSiteCartPath(slug, pathOpts),
+    orders: partnerSiteOrdersPath(slug, pathOpts),
+    account: partnerSiteAccountPath(slug, pathOpts),
+    addresses: partnerSiteAddressesPath(slug, pathOpts),
+    recentlyViewed: partnerSiteRecentlyViewedPath(slug, pathOpts),
+    contact: partnerSiteInfoPath(slug, 'contact', pathOpts),
   }
 }
 
@@ -175,11 +176,12 @@ export function getPartnerSiteShopNavPaths(siteSlug: string): PartnerSiteShopNav
 export function getPartnerSiteAccountMenuItems(input: {
   siteSlug: string
   locale: WebLocale
+  customDomain?: boolean
 }): PartnerSiteAccountMenuItem[] {
   const t = getPartnerSiteShopCopy(input.locale)
   const slug = input.siteSlug.trim()
   const paths = slug
-    ? getPartnerSiteShopNavPaths(slug)
+    ? getPartnerSiteShopNavPaths(slug, input.customDomain)
     : {
         account: '#lead-form',
         cart: '#products',
@@ -192,7 +194,7 @@ export function getPartnerSiteAccountMenuItems(input: {
     { id: 'account', href: paths.account, label: t.navAccount, isHeader: true },
     {
       id: 'edit-profile',
-      href: slug ? partnerSiteAccountEditPath(slug) : paths.account,
+      href: slug ? partnerSiteAccountEditPath(slug, { customDomain: input.customDomain }) : paths.account,
       label: t.accountEditProfile,
       isAccent: true,
     },

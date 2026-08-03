@@ -1,5 +1,7 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import type { WebLocale } from '@/lib/i18n/config'
+import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import {
   getPartnerSiteInfoPage,
   type PartnerSiteInfoPageKey,
@@ -18,6 +20,8 @@ export function PartnerSiteShopInfoView({
 }) {
   const block = getPartnerSiteInfoPage(pageKey, locale)
   const t = getPartnerSiteShopCopy(locale)
+  const headerStore = headers()
+  const customDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
 
   return (
     <article className="pw-shop-info">
@@ -40,7 +44,7 @@ export function PartnerSiteShopInfoView({
       ))}
       {pageKey === 'sale' || pageKey === 'contact' ? (
         <p style={{ marginTop: 20 }}>
-          <Link href={partnerSiteProductsPath(siteSlug)} className="pw-shop-btn">
+          <Link href={partnerSiteProductsPath(siteSlug, { customDomain })} className="pw-shop-btn">
             {t.navProducts}
           </Link>
         </p>

@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
+import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { buildMetadata } from '@/lib/seo'
@@ -14,6 +16,7 @@ import { partnerWebsiteProductsEnabled, partnerWebsiteBookingEnabled } from '@/l
 import { getShopTemplateSampleProducts } from '@/lib/partner-website/template/shop-template-sample-products'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
+import { injectPartnerCustomDomainLinkRewriteScript } from '@/lib/partner-website/shop/inject-partner-custom-domain-link-script'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -132,14 +135,21 @@ export default async function PartnerSitePublicPage({ params }: Props) {
     preferHtmlSource: site.renderMode === 'template' && !site.theme?.useVisualHtml,
   })
 
+  const headerStore = headers()
+  const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
+  const publicHtml = onCustomDomain
+    ? injectPartnerCustomDomainLinkRewriteScript(html, site.siteSlug)
+    : html
+
   return (
     <PartnerSitePublicClient
-      html={html}
+      html={publicHtml}
       allowScripts
       chatPath={site.chatPath}
       shopName={site.title}
       logoUrl={site.logoUrl}
       locale={site.locale}
+      inlineHtml={onCustomDomain}
     />
   )
 }

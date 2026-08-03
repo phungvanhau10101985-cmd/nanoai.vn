@@ -16,6 +16,7 @@ import {
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
+import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 
 type Mode = 'favorites' | 'recently-viewed'
 
@@ -38,6 +39,7 @@ function toCartCard(p: PartnerSitePersonalizationProduct): PartnerAiProductCard 
 
 export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: Props) {
   const t = getPartnerSiteShopCopy(locale)
+  const customDomain = usePartnerSiteCustomDomain()
   const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount } = usePartnerSiteShop()
   const [products, setProducts] = useState<PartnerSitePersonalizationProduct[]>([])
@@ -168,13 +170,13 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
       {!loading && products.length === 0 ? (
         <p className="pw-shop-muted">
           {empty}{' '}
-          <Link href={partnerSiteProductsPath(siteSlug)}>{t.backToShop}</Link>
+          <Link href={partnerSiteProductsPath(siteSlug, { customDomain })}>{t.backToShop}</Link>
         </p>
       ) : null}
       {message ? <p className="pw-shop-muted">{message}</p> : null}
       <div className="pw-shop-grid" style={{ marginTop: 20 }}>
         {products.map((p) => {
-          const href = p.detail_path || partnerSiteProductPath(siteSlug, p.inventory_id)
+          const href = p.detail_path || partnerSiteProductPath(siteSlug, p.inventory_id, { customDomain })
           const busy = busyId === p.inventory_id
           return (
             <article key={p.inventory_id} className="pw-shop-card">
@@ -211,7 +213,7 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
       </div>
       {products.length > 0 ? (
         <p style={{ marginTop: 24 }}>
-          <Link href={partnerSiteCartPath(siteSlug)} className="pw-shop-btn">
+          <Link href={partnerSiteCartPath(siteSlug, { customDomain })} className="pw-shop-btn">
             {t.navCart}
           </Link>
         </p>

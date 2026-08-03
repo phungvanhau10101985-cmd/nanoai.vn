@@ -12,7 +12,10 @@ import {
   LOCALE_COOKIE_NAME_LEGACY,
   normalizeWebLocale,
 } from '@/lib/i18n/config'
-import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-platform-host'
+import {
+  mapPartnerCustomDomainPathToInternal,
+  mapPartnerInternalPathToPublic,
+} from '@/lib/messaging/partner-custom-domain-site-path'
 import { getInternalBaseUrl } from '@/lib/internal-url'
 
 const LOCALE_COOKIE_OPTS = { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' as const }
@@ -123,22 +126,27 @@ export async function middleware(request: NextRequest) {
         }
         if (data.found) {
           const path = request.nextUrl.pathname
-          if ((path === '/' || path === '') && data.rewriteRootPath) {
+          const siteSlug = data.siteSlug?.trim() || ''
+          const sitePublished = data.useForSite !== false && data.sitePublished && siteSlug
+
+          if (sitePublished) {
+            const publicPath = mapPartnerInternalPathToPublic(siteSlug, path)
+            if (publicPath !== null && publicPath !== path) {
+              const redirectUrl = request.nextUrl.clone()
+              redirectUrl.pathname = publicPath
+              return NextResponse.redirect(redirectUrl, 308)
+            }
+
+            const internalPath = mapPartnerCustomDomainPathToInternal(siteSlug, path)
+            if (internalPath) {
+              const rewriteUrl = request.nextUrl.clone()
+              rewriteUrl.pathname = internalPath
+              return partnerCustomDomainRewrite(request, rewriteUrl, host, internalPath)
+            }
+          } else if ((path === '/' || path === '') && data.rewriteRootPath) {
             const rewriteUrl = request.nextUrl.clone()
             rewriteUrl.pathname = data.rewriteRootPath
             return partnerCustomDomainRewrite(request, rewriteUrl, host, data.rewriteRootPath)
-          }
-          const lpMatch = path.match(/^\/lp\/([a-z0-9][a-z0-9-]{0,62}[a-z0-9])\/?$/i)
-          if (
-            lpMatch?.[1] &&
-            data.siteSlug &&
-            data.useForSite !== false &&
-            data.sitePublished
-          ) {
-            const rewriteUrl = request.nextUrl.clone()
-            const internalPath = `/site/${encodeURIComponent(data.siteSlug)}/lp/${encodeURIComponent(lpMatch[1].toLowerCase())}`
-            rewriteUrl.pathname = internalPath
-            return partnerCustomDomainRewrite(request, rewriteUrl, host, internalPath)
           }
         }
       }

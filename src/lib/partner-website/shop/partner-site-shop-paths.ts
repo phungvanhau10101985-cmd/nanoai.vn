@@ -1,21 +1,29 @@
-export function partnerSiteHomePath(siteSlug: string): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}`
+import { partnerSiteHref } from '@/lib/messaging/partner-custom-domain-site-path'
+
+type PathOpts = { customDomain?: boolean }
+
+export function partnerSiteHomePath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/', opts?.customDomain)
 }
 
-export function partnerSiteLandingPath(siteSlug: string, landingSlug: string): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}/lp/${encodeURIComponent(landingSlug.trim())}`
+export function partnerSiteLandingPath(siteSlug: string, landingSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, `/lp/${encodeURIComponent(landingSlug.trim())}`, opts?.customDomain)
 }
 
-export function partnerSiteProductsPath(siteSlug: string): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}/products`
+export function partnerSiteProductsPath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/products', opts?.customDomain)
 }
 
-export function partnerSiteProductPath(siteSlug: string, inventoryId: string): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}/products/${encodeURIComponent(inventoryId.trim())}`
+export function partnerSiteProductPath(siteSlug: string, inventoryId: string, opts?: PathOpts): string {
+  return partnerSiteHref(
+    siteSlug,
+    `/products/${encodeURIComponent(inventoryId.trim())}`,
+    opts?.customDomain
+  )
 }
 
-export function partnerSiteCartPath(siteSlug: string): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}/cart`
+export function partnerSiteCartPath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/cart', opts?.customDomain)
 }
 
 /** Same-platform shop cart (no Bearer / partner slug). */
@@ -23,20 +31,20 @@ export function partnerSiteCartApiPath(siteSlug: string): string {
   return `/api/site/${encodeURIComponent(siteSlug.trim())}/cart`
 }
 
-export function partnerSiteOrdersPath(siteSlug: string): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}/orders`
+export function partnerSiteOrdersPath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/orders', opts?.customDomain)
 }
 
-export function partnerSiteAccountPath(siteSlug: string): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}/account`
+export function partnerSiteAccountPath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/account', opts?.customDomain)
 }
 
-export function partnerSiteAccountEditPath(siteSlug: string): string {
-  return `${partnerSiteAccountPath(siteSlug)}#edit-profile`
+export function partnerSiteAccountEditPath(siteSlug: string, opts?: PathOpts): string {
+  return `${partnerSiteAccountPath(siteSlug, opts)}#edit-profile`
 }
 
-export function partnerSiteAddressesPath(siteSlug: string): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}/addresses`
+export function partnerSiteAddressesPath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/addresses', opts?.customDomain)
 }
 
 export function partnerSiteProductsApiPath(siteSlug: string): string {
@@ -51,16 +59,16 @@ export function partnerSiteOrderTrackingApiPath(siteSlug: string): string {
   return `/api/site/${encodeURIComponent(siteSlug.trim())}/order-tracking`
 }
 
-export function partnerSiteOrderTrackingPath(siteSlug: string): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}/order-tracking`
+export function partnerSiteOrderTrackingPath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/order-tracking', opts?.customDomain)
 }
 
-export function partnerSiteWishlistPath(siteSlug: string): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}/wishlist`
+export function partnerSiteWishlistPath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/wishlist', opts?.customDomain)
 }
 
-export function partnerSiteRecentlyViewedPath(siteSlug: string): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}/recently-viewed`
+export function partnerSiteRecentlyViewedPath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/recently-viewed', opts?.customDomain)
 }
 
 export function partnerSiteSessionApiPath(siteSlug: string): string {
@@ -107,7 +115,8 @@ export function partnerSiteInfoPath(
     | 'shipping'
     | 'returns'
     | 'privacy'
-    | 'terms'
+    | 'terms',
+  opts?: PathOpts
 ): string {
-  return `/site/${encodeURIComponent(siteSlug.trim())}/${page}`
+  return partnerSiteHref(siteSlug, `/${page}`, opts?.customDomain)
 }

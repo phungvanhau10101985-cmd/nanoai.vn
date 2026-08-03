@@ -10,6 +10,7 @@ import {
   partnerSiteSearchImageApiPath,
   partnerSiteSearchTextApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 
 type Hit = {
   id?: string
@@ -30,6 +31,7 @@ export function PartnerSiteShopSearchBar({
   locale: WebLocale
 }) {
   const t = getPartnerSiteShopCopy(locale)
+  const customDomain = usePartnerSiteCustomDomain()
   const fileRef = useRef<HTMLInputElement>(null)
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
@@ -151,7 +153,7 @@ export function PartnerSiteShopSearchBar({
           <div className="pw-shop-search-grid">
             {(results || []).map((p) => {
               const id = String(p.id || p.inventory_id || '')
-              const href = p.detailPath || (id ? partnerSiteProductPath(siteSlug, id) : '#')
+              const href = p.detailPath || (id ? partnerSiteProductPath(siteSlug, id, { customDomain }) : '#')
               const img = p.imageUrl || p.image_url || ''
               const name = p.name || ''
               const price = p.priceHint || p.price_hint || ''

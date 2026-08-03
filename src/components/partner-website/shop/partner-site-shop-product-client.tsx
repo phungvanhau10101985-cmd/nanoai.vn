@@ -17,8 +17,9 @@ import {
 } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { productToConsultContext } from '@/lib/partner-website/shop/partner-site-chat-embed'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
-import { partnerSiteCartPath, partnerSitePersonalizationApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteCartPath, partnerSitePersonalizationApiPath, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
+import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
   shopProductToTrackingProduct,
   trackPartnerSiteAddToCart,
@@ -46,6 +47,7 @@ export function PartnerSiteShopProductClient({
   const { setActiveProduct } = usePartnerSiteActiveProductRegistrar()
   const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, tracking } = usePartnerSiteShop()
+  const customDomain = usePartnerSiteCustomDomain()
   const [options, setOptions] = useState<ProductPurchaseOptions | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [size, setSize] = useState('')
@@ -214,7 +216,7 @@ export function PartnerSiteShopProductClient({
         shopProductToTrackingProduct(product, priceHint),
         line.quantity
       )
-      if (redirectToCart) router.push(partnerSiteCartPath(siteSlug))
+      if (redirectToCart) router.push(partnerSiteCartPath(siteSlug, { customDomain }))
       else setMessage(t.addedToCart)
     } finally {
       setBusy(false)
@@ -394,11 +396,11 @@ export function PartnerSiteShopProductClient({
           <div className="pw-shop-grid" style={{ marginTop: 16 }}>
             {relatedProducts.map((p) => (
               <article key={p.id} className="pw-shop-card">
-                <Link href={p.detailPath}>
+                <Link href={partnerSiteProductPath(siteSlug, p.id, { customDomain })}>
                   <img src={p.imageUrl} alt={p.name} loading="lazy" />
                 </Link>
                 <div className="pw-shop-card-body">
-                  <Link href={p.detailPath}>
+                  <Link href={partnerSiteProductPath(siteSlug, p.id, { customDomain })}>
                     <h3>{p.name}</h3>
                   </Link>
                   {p.priceHint ? <p className="pw-shop-price">{p.priceHint}</p> : null}

@@ -13,6 +13,7 @@ import {
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteProductsPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
+import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
   trackPartnerSiteBeginCheckout,
   trackPartnerSitePurchase,
@@ -37,6 +38,7 @@ type OrderSnapshot = {
 
 export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, locale, chatPath }: Props) {
   const t = getPartnerSiteShopCopy(locale)
+  const customDomain = usePartnerSiteCustomDomain()
   const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, tracking } = usePartnerSiteShop()
   const [items, setItems] = useState<SiteCartLine[]>([])
@@ -192,7 +194,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
       {!loading && items.length === 0 ? (
         <p className="pw-shop-muted">
           {t.cartEmpty}{' '}
-          <Link href={partnerSiteProductsPath(siteSlug)}>{t.backToShop}</Link>
+          <Link href={partnerSiteProductsPath(siteSlug, { customDomain })}>{t.backToShop}</Link>
         </p>
       ) : null}
       <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>

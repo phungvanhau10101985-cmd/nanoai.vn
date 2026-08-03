@@ -15,6 +15,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
+import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
   shopProductToTrackingProduct,
   trackPartnerSiteViewItemList,
@@ -63,13 +64,15 @@ function ProductCard({
   product,
   showNew,
   cta,
+  customDomain,
 }: {
   siteSlug: string
   product: PartnerSiteShopProduct
   showNew?: boolean
   cta: string
+  customDomain: boolean
 }) {
-  const href = partnerSiteProductPath(siteSlug, product.id)
+  const href = partnerSiteProductPath(siteSlug, product.id, { customDomain })
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-orange-100/80 bg-white shadow-[0_10px_40px_-20px_rgba(234,88,12,.45)] transition duration-500 hover:-translate-y-1 hover:shadow-[0_24px_50px_-24px_rgba(234,88,12,.55)]">
       <Link href={href} className="relative aspect-[4/5] overflow-hidden bg-orange-50">
@@ -136,6 +139,7 @@ function FashionHomeInner({
 >) {
   const t = getPartnerSiteShopCopy(locale)
   const { tracking } = usePartnerSiteShop()
+  const customDomain = usePartnerSiteCustomDomain()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   useEffect(() => {
@@ -145,8 +149,8 @@ function FashionHomeInner({
     )
   }, [bestSellers, newArrivals, tracking])
 
-  const productsHref = heroCtaHref || partnerSiteProductsPath(siteSlug)
-  const secondaryHref = heroCtaHref ? heroCtaHref : partnerSiteInfoPath(siteSlug, 'sale')
+  const productsHref = heroCtaHref || partnerSiteProductsPath(siteSlug, { customDomain })
+  const secondaryHref = heroCtaHref ? heroCtaHref : partnerSiteInfoPath(siteSlug, 'sale', { customDomain })
   const badge =
     industryBadge || (locale === 'vi' ? 'Bộ sưu tập mới' : 'New season')
   const secondaryLabel =
@@ -260,7 +264,7 @@ function FashionHomeInner({
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
           {newArrivals.slice(0, 8).map((p) => (
-            <ProductCard key={p.id} siteSlug={siteSlug} product={p} showNew cta={t.addToCart} />
+            <ProductCard key={p.id} siteSlug={siteSlug} product={p} showNew cta={t.addToCart} customDomain={customDomain} />
           ))}
         </div>
         {!newArrivals.length ? (
@@ -279,7 +283,7 @@ function FashionHomeInner({
         </h2>
         <div className="relative grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
           {(bestSellers.length ? bestSellers : newArrivals).slice(0, 8).map((p) => (
-            <ProductCard key={`best-${p.id}`} siteSlug={siteSlug} product={p} cta={t.addToCart} />
+            <ProductCard key={`best-${p.id}`} siteSlug={siteSlug} product={p} cta={t.addToCart} customDomain={customDomain} />
           ))}
         </div>
       </section>
