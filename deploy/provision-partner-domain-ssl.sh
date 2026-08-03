@@ -52,9 +52,8 @@ server {
     server_name HOST_PLACEHOLDER;
 
     location ^~ /.well-known/acme-challenge/ {
-        alias CERTBOT_WEBROOT_PLACEHOLDER/.well-known/acme-challenge/;
+        root CERTBOT_WEBROOT_PLACEHOLDER;
         default_type "text/plain";
-        try_files $uri =404;
     }
 
     location / {
@@ -70,6 +69,18 @@ NGINXEOF
   ln -sf "${HTTP_ONLY}" "${NGINX_SITES_ENABLED}/partner-${SAFE_NAME}-http.conf"
   nginx -t
   systemctl reload nginx
+
+  mkdir -p "${CERTBOT_WEBROOT}/.well-known/acme-challenge"
+  chmod -R a+rX "${CERTBOT_WEBROOT}"
+  probe_token="nanoai-probe-$$"
+  echo "${probe_token}" > "${CERTBOT_WEBROOT}/.well-known/acme-challenge/${probe_token}"
+  if ! curl -fsS "http://${HOST}/.well-known/acme-challenge/${probe_token}" | grep -q "${probe_token}"; then
+    echo "ACME webroot chưa phục vụ được từ internet — kiểm tra nginx server_name ${HOST}" >&2
+    echo "Thử: curl -v http://${HOST}/.well-known/acme-challenge/${probe_token}" >&2
+    rm -f "${CERTBOT_WEBROOT}/.well-known/acme-challenge/${probe_token}"
+    exit 1
+  fi
+  rm -f "${CERTBOT_WEBROOT}/.well-known/acme-challenge/${probe_token}"
 
   certbot certonly --webroot -w "${CERTBOT_WEBROOT}" \
     -d "${HOST}" \
