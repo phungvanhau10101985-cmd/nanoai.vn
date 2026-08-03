@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { APP_LOGIN_NEXT_HEADER, APP_LOGIN_NEXT_HEADER_LEGACY } from '@/lib/auth/app-request-headers'
+import {
+  APP_LOGIN_NEXT_HEADER,
+  APP_LOGIN_NEXT_HEADER_LEGACY,
+  PARTNER_CUSTOM_DOMAIN_HEADER,
+} from '@/lib/auth/app-request-headers'
 import { getJwtUserFromRequest } from '@/lib/auth/email-jwt-middleware'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
 import {
@@ -52,6 +56,26 @@ function refreshEmailSessionCookies(response: NextResponse, request: NextRequest
   response.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
 }
 
+function partnerCustomDomainRewrite(
+  request: NextRequest,
+  rewriteUrl: URL,
+  host: string,
+  internalPath: string
+): NextResponse {
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set(PARTNER_CUSTOM_DOMAIN_HEADER, host)
+  requestHeaders.set(APP_LOGIN_NEXT_HEADER, internalPath)
+  requestHeaders.set(APP_LOGIN_NEXT_HEADER_LEGACY, internalPath)
+  const rewriteResponse = NextResponse.rewrite(rewriteUrl, {
+    request: { headers: requestHeaders },
+  })
+  rewriteResponse.headers.set(PARTNER_CUSTOM_DOMAIN_HEADER, host)
+  applyCommonResponseHeaders(rewriteResponse, request)
+  const cookieLocale = localeFromRequestCookies(request)
+  mirrorLocaleCookies(rewriteResponse, cookieLocale || DEFAULT_WEB_LOCALE)
+  return rewriteResponse
+}
+
 function applyCommonResponseHeaders(response: NextResponse, request: NextRequest) {
   response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
   const existingVary = response.headers.get('Vary') || ''
@@ -102,9 +126,7 @@ export async function middleware(request: NextRequest) {
           if ((path === '/' || path === '') && data.rewriteRootPath) {
             const rewriteUrl = request.nextUrl.clone()
             rewriteUrl.pathname = data.rewriteRootPath
-            const rewriteResponse = NextResponse.rewrite(rewriteUrl)
-            rewriteResponse.headers.set('x-partner-custom-domain', host)
-            return rewriteResponse
+            return partnerCustomDomainRewrite(request, rewriteUrl, host, data.rewriteRootPath)
           }
           const lpMatch = path.match(/^\/lp\/([a-z0-9][a-z0-9-]{0,62}[a-z0-9])\/?$/i)
           if (
@@ -114,10 +136,9 @@ export async function middleware(request: NextRequest) {
             data.sitePublished
           ) {
             const rewriteUrl = request.nextUrl.clone()
-            rewriteUrl.pathname = `/site/${encodeURIComponent(data.siteSlug)}/lp/${encodeURIComponent(lpMatch[1].toLowerCase())}`
-            const rewriteResponse = NextResponse.rewrite(rewriteUrl)
-            rewriteResponse.headers.set('x-partner-custom-domain', host)
-            return rewriteResponse
+            const internalPath = `/site/${encodeURIComponent(data.siteSlug)}/lp/${encodeURIComponent(lpMatch[1].toLowerCase())}`
+            rewriteUrl.pathname = internalPath
+            return partnerCustomDomainRewrite(request, rewriteUrl, host, internalPath)
           }
         }
       }

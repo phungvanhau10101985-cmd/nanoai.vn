@@ -16,7 +16,10 @@ import { DepositCreditProvider } from "@/components/deposit-credit-context";
 import { buildMetadata, buildJsonLdWebApplication, buildJsonLdOrganization, SITE_URL, SITE_NAME } from "@/lib/seo";
 import { getBunnyPublicBase } from "@/lib/bunny-cdn-url";
 import { JsonLd } from "@/components/seo-json-ld";
-import { readLoginNextFromHeaders } from '@/lib/auth/app-request-headers'
+import {
+  readLoginNextFromHeaders,
+  readPartnerCustomDomainFromHeaders,
+} from '@/lib/auth/app-request-headers'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { FloatingChatWidget } from '@/components/messaging/floating-chat-widget'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
@@ -245,9 +248,11 @@ export default async function RootLayout({
   const requestOrigin = host ? `${protocol}://${host}` : "";
   const currentPathWithQuery = readLoginNextFromHeaders((name) => headerStore.get(name));
   const [currentPathname = ""] = currentPathWithQuery.split("?");
+  const partnerCustomDomain = readPartnerCustomDomainFromHeaders((name) => headerStore.get(name));
   const isMessagingGuestPage = currentPathname.startsWith("/messaging/p/");
   const isWeddingPublicPage = currentPathname.startsWith("/thiep-moi-cuoi/");
-  const isPartnerWebsitePage = currentPathname.startsWith("/site/");
+  const isPartnerWebsitePage =
+    currentPathname.startsWith("/site/") || Boolean(partnerCustomDomain);
   const isCustomerOwnedSurface =
     isMessagingGuestPage ||
     currentPathname.startsWith("/hospitality/p/") ||
