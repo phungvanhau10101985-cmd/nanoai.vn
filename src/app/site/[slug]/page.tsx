@@ -33,11 +33,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       noIndex: true,
     })
   }
-  return buildMetadata({
+  const base = buildMetadata({
     title: site.title,
     description: `${site.title} — ${site.partnerDisplayName}`,
     path: `/site/${site.siteSlug}`,
   })
+  if (site.logoUrl) {
+    base.icons = {
+      icon: [{ url: site.logoUrl }],
+      shortcut: [{ url: site.logoUrl }],
+      apple: [{ url: site.logoUrl }],
+    }
+  }
+  return base
 }
 
 export const dynamic = 'force-dynamic'

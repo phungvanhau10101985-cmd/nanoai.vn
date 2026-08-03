@@ -26,9 +26,13 @@ export async function Header() {
 
   try {
     user = await getUserOrBypass()
-    isGuestTrialUser = Boolean(user && String(user.email ?? '').includes('@guest.nanoai.local'))
+  } catch (err) {
+    console.error('[Header] getUserOrBypass failed, showing logged-out shell', err)
+  }
 
-    if (user) {
+  if (user) {
+    isGuestTrialUser = String(user.email ?? '').includes('@guest.nanoai.local')
+    try {
       const fromPg = await readUserDashboardFromPg(user.id)
       if (fromPg !== null) {
         credits = isGuestTrialUser ? 0 : fromPg.credits
@@ -42,9 +46,9 @@ export async function Header() {
         const role = await getProfileRoleWithFallback(user.id)
         isAdmin = role === 'admin'
       }
+    } catch (err) {
+      console.warn('[Header] DB fetch for user dashboard failed, using defaults', err)
     }
-  } catch (err) {
-    console.error('[Header] SSR fetch failed, showing logged-out shell', err)
   }
 
   return (

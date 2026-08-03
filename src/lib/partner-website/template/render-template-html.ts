@@ -677,12 +677,17 @@ export function renderTemplateSiteToHtml(input: PartnerWebsiteTemplateRenderInpu
     ? buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale: input.locale })
     : ''
 
+  const faviconLink = logo
+    ? `<link rel="icon" href="${escapeAttr(logo)}"/>`
+    : ''
+
   return `<!DOCTYPE html>
 <html lang="${escapeAttr(input.locale)}">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>${escapeHtml(input.title)}</title>
+${faviconLink}
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="${FASHION_SHOP_GOOGLE_FONTS_HREF}" rel="stylesheet"/>

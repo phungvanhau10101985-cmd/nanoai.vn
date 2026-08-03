@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev",
     "dev:clean": "node -e \"const fs=require('node:fs');for (const d of ['.next-dev','.next']) { try { fs.rmSync(d,{recursive:true,force:true}); } catch {} }\" && npm run dev",
+    "restart-server": "node scripts/restart-server.mjs",
     "build": "node scripts/build-lowmem.mjs",
     "build:full": "next build",
     "build:vps": "node scripts/build-lowmem.mjs --skip-typescript",

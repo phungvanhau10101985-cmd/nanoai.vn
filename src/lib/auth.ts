@@ -120,13 +120,16 @@ function getDevUser(): AppUser {
  * Lấy user hiện tại (JWT email) hoặc user giả khi bypass local / crawler.
  */
 export async function getUserOrBypass(): Promise<AppUser | null> {
+  // On localhost (non-prod): dev bypass takes priority — no login needed.
+  // Only check real email session when auth is required (production or force_real_login cookie).
+  if (!isAuthRequired()) return canonicalizeUserByEmail(getDevUser())
+  if (isSearchEngineCrawler()) return canonicalizeUserByEmail(getDevUser())
+
   const emailUser = await getEmailSessionUser()
   if (emailUser) {
     if (!isValidUuidString(emailUser.id)) return null
     return canonicalizeUserByEmail(emailUser)
   }
-  if (!isAuthRequired()) return canonicalizeUserByEmail(getDevUser())
-  if (isSearchEngineCrawler()) return canonicalizeUserByEmail(getDevUser())
   if (isCreditTrialRoute(getRequestPathForAuth())) {
     if (await canGuestUseCreditTrial()) {
       const guest = await resolveGuestTrialUser()
