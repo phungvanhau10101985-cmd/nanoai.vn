@@ -136,6 +136,24 @@ export type PartnerWebsiteCopy = {
   tenantNavSections: string
   tenantNavLandings: string
   tenantNavPublicSite: string
+  capabilitiesPanelTitle: string
+  capabilitiesPanelHint: string
+  capabilitiesLoading: string
+  capabilitiesSaveSuccess: string
+  capabilitiesReload: string
+  capWebsiteEnabled: string
+  capWebsiteEnabledHint: string
+  capWebsiteProducts: string
+  capWebsiteCategories: string
+  capWebsiteCart: string
+  capWebsitePersonalize: string
+  capWebsiteChat: string
+  capWebsiteLeadForm: string
+  capWebsiteFaq: string
+  capWebsiteBooking: string
+  capWebsiteBookingHint: string
+  capCommerceCart: string
+  capCommerceOrderTracking: string
   lpPanelTitle: string
   lpPanelHint: string
   lpCreateButton: string
@@ -466,6 +484,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     tenantNavSections: 'Block giao diện',
     tenantNavLandings: 'Landing pages',
     tenantNavPublicSite: 'Xem site công khai',
+    capabilitiesPanelTitle: 'Module website',
+    capabilitiesPanelHint:
+      'Bật/tắt từng phần trên web công khai. Mọi ngành dùng chung backend — shop tự chọn module cần dùng.',
+    capabilitiesLoading: 'Đang tải cấu hình…',
+    capabilitiesSaveSuccess: 'Đã lưu module website.',
+    capabilitiesReload: 'Tải lại',
+    capWebsiteEnabled: 'Bật website công khai',
+    capWebsiteEnabledHint: 'Tắt = /site/{slug} không hiển thị.',
+    capWebsiteProducts: 'Trang sản phẩm / catalog',
+    capWebsiteCategories: 'Danh mục trên trang chủ',
+    capWebsiteCart: 'Giỏ hàng trên web',
+    capWebsitePersonalize: 'Yêu thích & vừa xem',
+    capWebsiteChat: 'Nút chat / tư vấn',
+    capWebsiteLeadForm: 'Form liên hệ (lead)',
+    capWebsiteFaq: 'FAQ',
+    capWebsiteBooking: 'Đặt phòng (khách sạn)',
+    capWebsiteBookingHint: 'CTA hero trỏ tới trang đặt phòng hospitality.',
+    capCommerceCart: 'API giỏ / checkout',
+    capCommerceOrderTracking: 'Theo dõi đơn hàng',
     lpPanelTitle: 'Landing pages gắn sản phẩm',
     lpPanelHint:
       'Tạo nhiều landing quảng cáo riêng — chọn sản phẩm từ kho; khách bấm Mua hàng / thẻ SP để mở trang sản phẩm. Web chính không đổi.',
@@ -811,6 +848,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     tenantNavSections: 'UI blocks',
     tenantNavLandings: 'Landing pages',
     tenantNavPublicSite: 'View public site',
+    capabilitiesPanelTitle: 'Website modules',
+    capabilitiesPanelHint:
+      'Toggle public site features. One shared backend — each shop enables only what it needs.',
+    capabilitiesLoading: 'Loading configuration…',
+    capabilitiesSaveSuccess: 'Website modules saved.',
+    capabilitiesReload: 'Reload',
+    capWebsiteEnabled: 'Public website enabled',
+    capWebsiteEnabledHint: 'Off = /site/{slug} is unavailable.',
+    capWebsiteProducts: 'Product catalog pages',
+    capWebsiteCategories: 'Homepage categories',
+    capWebsiteCart: 'Web cart',
+    capWebsitePersonalize: 'Wishlist & recently viewed',
+    capWebsiteChat: 'Chat / consult button',
+    capWebsiteLeadForm: 'Contact form (leads)',
+    capWebsiteFaq: 'FAQ',
+    capWebsiteBooking: 'Room booking (hotel)',
+    capWebsiteBookingHint: 'Hero CTA links to hospitality booking page.',
+    capCommerceCart: 'Cart / checkout API',
+    capCommerceOrderTracking: 'Order tracking',
     lpPanelTitle: 'Product landing pages',
     lpPanelHint:
       'Create multiple ad landings — pick inventory products; buyers tap Buy / product cards to open product pages. Main website stays unchanged.',
@@ -1149,6 +1205,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     tenantNavSections: '界面区块',
     tenantNavLandings: '落地页',
     tenantNavPublicSite: '查看公开站点',
+    capabilitiesPanelTitle: '网站模块',
+    capabilitiesPanelHint: '开关公开网站功能。统一后端，各店铺按需启用。',
+    capabilitiesLoading: '加载配置中…',
+    capabilitiesSaveSuccess: '已保存网站模块。',
+    capabilitiesReload: '重新加载',
+    capWebsiteEnabled: '启用公开网站',
+    capWebsiteEnabledHint: '关闭后 /site/{slug} 不可访问。',
+    capWebsiteProducts: '产品目录页',
+    capWebsiteCategories: '首页分类',
+    capWebsiteCart: '网页购物车',
+    capWebsitePersonalize: '收藏与最近浏览',
+    capWebsiteChat: '聊天/咨询按钮',
+    capWebsiteLeadForm: '联系表单（线索）',
+    capWebsiteFaq: '常见问题',
+    capWebsiteBooking: '客房预订（酒店）',
+    capWebsiteBookingHint: 'Hero 按钮跳转 hospitality 预订页。',
+    capCommerceCart: '购物车/结账 API',
+    capCommerceOrderTracking: '订单跟踪',
     lpPanelTitle: '商品落地页',
     lpPanelHint:
       '可创建多个广告落地页——选择库存商品；顾客点击购买/商品卡片进入商品页。主站不变。',
@@ -1473,6 +1547,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     tenantNavSections: 'UIブロック',
     tenantNavLandings: 'ランディング',
     tenantNavPublicSite: '公開サイト',
+    capabilitiesPanelTitle: 'サイトモジュール',
+    capabilitiesPanelHint: '公開サイトの機能を切り替え。共通バックエンド — 店舗ごとに必要な機能のみ。',
+    capabilitiesLoading: '設定を読み込み中…',
+    capabilitiesSaveSuccess: 'サイトモジュールを保存しました。',
+    capabilitiesReload: '再読み込み',
+    capWebsiteEnabled: '公開サイトを有効',
+    capWebsiteEnabledHint: 'オフ = /site/{slug} は表示されません。',
+    capWebsiteProducts: '商品カタログ',
+    capWebsiteCategories: 'トップのカテゴリ',
+    capWebsiteCart: 'Webカート',
+    capWebsitePersonalize: 'お気に入り・最近見た',
+    capWebsiteChat: 'チャット/相談',
+    capWebsiteLeadForm: 'お問い合わせフォーム',
+    capWebsiteFaq: 'FAQ',
+    capWebsiteBooking: '予約（ホテル）',
+    capWebsiteBookingHint: 'Hero CTA は hospitality 予約ページへ。',
+    capCommerceCart: 'カート/決済 API',
+    capCommerceOrderTracking: '注文追跡',
     lpPanelTitle: '商品ランディング',
     lpPanelHint:
       '広告用LPを複数作成——在庫商品を選択。購入ボタン/商品カードから商品ページへ。メインサイトは変更しません。',
@@ -1802,6 +1894,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     tenantNavSections: 'UI 블록',
     tenantNavLandings: '랜딩 페이지',
     tenantNavPublicSite: '공개 사이트',
+    capabilitiesPanelTitle: '웹사이트 모듈',
+    capabilitiesPanelHint: '공개 사이트 기능을 켜거나 끕니다. 공통 백엔드 — 매장별로 필요한 기능만 사용.',
+    capabilitiesLoading: '설정 불러오는 중…',
+    capabilitiesSaveSuccess: '웹사이트 모듈이 저장되었습니다.',
+    capabilitiesReload: '새로고침',
+    capWebsiteEnabled: '공개 웹사이트 사용',
+    capWebsiteEnabledHint: '끄면 /site/{slug} 접근 불가.',
+    capWebsiteProducts: '상품 카탈로그',
+    capWebsiteCategories: '홈 카테고리',
+    capWebsiteCart: '웹 장바구니',
+    capWebsitePersonalize: '찜 & 최근 본 상품',
+    capWebsiteChat: '채팅/상담',
+    capWebsiteLeadForm: '문의 폼(리드)',
+    capWebsiteFaq: 'FAQ',
+    capWebsiteBooking: '객실 예약(호텔)',
+    capWebsiteBookingHint: 'Hero CTA → hospitality 예약 페이지.',
+    capCommerceCart: '장바구니/결제 API',
+    capCommerceOrderTracking: '주문 추적',
     lpPanelTitle: '상품 랜딩 페이지',
     lpPanelHint:
       '광고용 랜딩을 여러 개 만들 수 있습니다—재고 상품을 선택하고, 구매/상품 카드로 상품 페이지로 이동합니다. 메인 웹은 그대로입니다.',

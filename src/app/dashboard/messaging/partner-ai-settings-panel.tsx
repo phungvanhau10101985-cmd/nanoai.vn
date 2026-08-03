@@ -169,6 +169,7 @@ function defaultsFromSettings(s: SettingsRow | null) {
     vision_bg_sync_report: '',
     guest_purchase_flow: normalizeGuestPurchaseFlow(s?.guest_purchase_flow),
     guest_external_cart_url_template: String(s?.guest_external_cart_url_template ?? '').trim(),
+    shop_checkout_login_required: s?.shop_checkout_login_required !== false,
   }
 }
 
@@ -191,6 +192,7 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
     image_search_api_enabled: f.image_search_api_enabled,
     guest_purchase_flow: f.guest_purchase_flow,
     guest_external_cart_url_template: f.guest_external_cart_url_template,
+    shop_checkout_login_required: f.shop_checkout_login_required,
   }
 }
 
@@ -1044,6 +1046,22 @@ export function PartnerAiSettingsPanel({
                   <p className="text-[11px] text-muted-foreground">{t.guestExternalCartUrlTemplateSaveHint}</p>
                 </div>
               ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+              <div className="min-w-0">
+                <Label className="text-sm font-medium">{t.shopCheckoutLoginLabel}</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">{t.shopCheckoutLoginHint}</p>
+                <p className="text-[11px] font-medium text-violet-600/90 dark:text-violet-400 mt-1">
+                  {form.shop_checkout_login_required ? t.shopCheckoutLoginRequiredOn : t.shopCheckoutLoginRequiredOff}
+                </p>
+              </div>
+              <Switch
+                checked={form.shop_checkout_login_required}
+                onCheckedChange={(c) => persistPartial({ shop_checkout_login_required: c })}
+                disabled={pending || !settingsLoaded}
+                aria-label={t.shopCheckoutLoginLabel}
+              />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">

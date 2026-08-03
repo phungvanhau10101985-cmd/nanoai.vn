@@ -51,6 +51,11 @@ type Props = {
   newArrivals: PartnerSiteShopProduct[]
   bestSellers: PartnerSiteShopProduct[]
   fontClassName?: string
+  showProductSections?: boolean
+  showCategories?: boolean
+  heroCtaHref?: string
+  industryBadge?: string
+  secondaryCtaLabel?: string
 }
 
 function ProductCard({
@@ -111,7 +116,24 @@ function FashionHomeInner({
   copy,
   newArrivals,
   bestSellers,
-}: Pick<Props, 'siteSlug' | 'locale' | 'copy' | 'newArrivals' | 'bestSellers'>) {
+  showProductSections = true,
+  showCategories = true,
+  heroCtaHref,
+  industryBadge,
+  secondaryCtaLabel,
+}: Pick<
+  Props,
+  | 'siteSlug'
+  | 'locale'
+  | 'copy'
+  | 'newArrivals'
+  | 'bestSellers'
+  | 'showProductSections'
+  | 'showCategories'
+  | 'heroCtaHref'
+  | 'industryBadge'
+  | 'secondaryCtaLabel'
+>) {
   const t = getPartnerSiteShopCopy(locale)
   const { tracking } = usePartnerSiteShop()
   const [mounted, setMounted] = useState(false)
@@ -123,7 +145,12 @@ function FashionHomeInner({
     )
   }, [bestSellers, newArrivals, tracking])
 
-  const productsHref = partnerSiteProductsPath(siteSlug)
+  const productsHref = heroCtaHref || partnerSiteProductsPath(siteSlug)
+  const secondaryHref = heroCtaHref ? heroCtaHref : partnerSiteInfoPath(siteSlug, 'sale')
+  const badge =
+    industryBadge || (locale === 'vi' ? 'Bộ sưu tập mới' : 'New season')
+  const secondaryLabel =
+    secondaryCtaLabel || (locale === 'vi' ? 'Khuyến mãi' : 'Sale')
 
   return (
     <div className={cn('space-y-0', mounted && 'pw-fashion-ready')}>
@@ -141,7 +168,7 @@ function FashionHomeInner({
         <div className="relative grid min-h-[340px] content-center gap-5 px-6 py-14 sm:min-h-[420px] sm:px-12 lg:min-h-[480px]">
           <p className="pw-anim-in inline-flex w-fit items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-50 backdrop-blur">
             <Sparkles className="h-3.5 w-3.5" />
-            {locale === 'vi' ? 'Bộ sưu tập mới' : 'New season'}
+            {badge}
           </p>
           <h1
             className="pw-anim-in pw-anim-in-d1 max-w-xl text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl"
@@ -161,10 +188,10 @@ function FashionHomeInner({
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href={partnerSiteInfoPath(siteSlug, 'sale')}
+              href={secondaryHref}
               className="inline-flex items-center rounded-2xl border border-white/40 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/20"
             >
-              {locale === 'vi' ? 'Khuyến mãi' : 'Sale'}
+              {secondaryLabel}
             </Link>
           </div>
           <div className="pw-anim-in pw-anim-in-d4 mt-2 flex gap-2" aria-hidden>
@@ -175,6 +202,7 @@ function FashionHomeInner({
         </div>
       </section>
 
+      {showCategories ? (
       <section className="mb-12 sm:mb-16">
         <h2
           className="mb-6 text-center text-sm font-extrabold uppercase tracking-[0.2em] text-orange-600 sm:text-base"
@@ -211,7 +239,10 @@ function FashionHomeInner({
           ))}
         </div>
       </section>
+      ) : null}
 
+      {showProductSections ? (
+      <>
       <section className="mb-12 sm:mb-16">
         <div className="mb-6 flex items-end justify-between gap-3">
           <h2
@@ -252,6 +283,8 @@ function FashionHomeInner({
           ))}
         </div>
       </section>
+      </>
+      ) : null}
     </div>
   )
 }
@@ -284,6 +317,11 @@ export function PartnerSiteFashionHome(props: Props) {
           copy={props.copy}
           newArrivals={props.newArrivals}
           bestSellers={props.bestSellers}
+          showProductSections={props.showProductSections}
+          showCategories={props.showCategories}
+          heroCtaHref={props.heroCtaHref}
+          industryBadge={props.industryBadge}
+          secondaryCtaLabel={props.secondaryCtaLabel}
         />
       </PartnerSiteShopShell>
     </div>

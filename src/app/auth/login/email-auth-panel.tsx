@@ -4,6 +4,11 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
+import { getStableEmailTrustedBrowserId } from '@/lib/auth/email-trusted-browser-client'
+import {
+  readGuestAuthRememberDevicePreference,
+  writeGuestAuthRememberDevicePreference,
+} from '@/lib/auth/guest-auth-remember-device-client'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
 import { Mail } from 'lucide-react'
 
@@ -40,7 +45,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
   const [step, setStep] = useState<'email' | 'otp'>('email')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
-  const [rememberDevice, setRememberDevice] = useState(true)
+  const [rememberDevice, setRememberDevice] = useState(() => readGuestAuthRememberDevicePreference())
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -64,17 +69,9 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
     }
   }, [])
 
-  function getStableBrowserId(): string {
-    if (typeof window === 'undefined') return ''
-    const key = 'app_email_trusted_browser_id'
-    const current = window.localStorage.getItem(key)?.trim() || ''
-    if (/^[a-z0-9_-]{16,128}$/i.test(current)) return current.toLowerCase()
-    const created = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 16)}`
-      .replace(/[^a-z0-9_-]/gi, '')
-      .toLowerCase()
-      .slice(0, 64)
-    window.localStorage.setItem(key, created)
-    return created
+  function persistRememberDevice(value: boolean) {
+    setRememberDevice(value)
+    writeGuestAuthRememberDevicePreference(value)
   }
 
   async function sendOtp(e: React.FormEvent) {
@@ -90,7 +87,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
           email: email.trim(),
           next: safeNext,
           rememberDevice,
-          browserId: getStableBrowserId(),
+          browserId: getStableEmailTrustedBrowserId(),
         }),
       })
       const data = (await res.json().catch(() => ({}))) as {
@@ -183,7 +180,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
           email: email.trim(),
           otp: otp.replace(/\D/g, ''),
           rememberDevice,
-          browserId: getStableBrowserId(),
+          browserId: getStableEmailTrustedBrowserId(),
         }),
       })
       if (!res.ok) {
@@ -236,7 +233,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
             type="checkbox"
             className="mt-0.5 h-4 w-4"
             checked={rememberDevice}
-            onChange={(e) => setRememberDevice(e.target.checked)}
+            onChange={(e) => persistRememberDevice(e.target.checked)}
           />
           <span>
             {tr(
@@ -289,7 +286,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
           type="checkbox"
           className="mt-0.5 h-4 w-4"
           checked={rememberDevice}
-          onChange={(e) => setRememberDevice(e.target.checked)}
+          onChange={(e) => persistRememberDevice(e.target.checked)}
         />
         <span>
           {tr(

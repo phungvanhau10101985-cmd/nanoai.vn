@@ -9,7 +9,8 @@ import { PartnerSiteFashionHome } from '@/components/partner-website/shop/partne
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { buildFashionHomeCopy } from '@/lib/partner-website/shop/build-fashion-home-copy'
+import { buildPartnerSiteHomeCopy, partnerSiteHomeIndustryBadge, partnerSiteHomeSecondaryCta } from '@/lib/partner-website/shop/build-partner-site-home-copy'
+import { partnerWebsiteProductsEnabled, partnerWebsiteBookingEnabled } from '@/lib/partner-website/partner-capabilities'
 import { getShopTemplateSampleProducts } from '@/lib/partner-website/template/shop-template-sample-products'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
@@ -73,20 +74,28 @@ export default async function PartnerSitePublicPage({ params }: Props) {
     const shop = await loadPartnerSiteShopContext(slug)
     if (!shop) notFound()
 
-    const inv = await fetchPartnerInventoryActivePageWithCountFromPg(shop.partnerId, 0, 16)
+    const showProducts = partnerWebsiteProductsEnabled(shop.capabilities)
+    const bookingEnabled = partnerWebsiteBookingEnabled(shop.capabilities)
+    const inv = showProducts
+      ? await fetchPartnerInventoryActivePageWithCountFromPg(shop.partnerId, 0, 16)
+      : null
     const live = (inv?.rows ?? [])
       .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
       .filter((p): p is NonNullable<typeof p> => Boolean(p))
-    const fallback = sampleAsShopProducts(shop.site.siteSlug, shop.site.locale)
+    const fallback = showProducts ? sampleAsShopProducts(shop.site.siteSlug, shop.site.locale) : []
     const products = live.length ? live : fallback
-    const newArrivals = products.slice(0, 8)
-    const bestSellers = products.slice(0, 8).reverse()
-    const copy = buildFashionHomeCopy({
+    const newArrivals = showProducts ? products.slice(0, 8) : []
+    const bestSellers = showProducts ? products.slice(0, 8).reverse() : []
+    const copy = buildPartnerSiteHomeCopy({
       pages: shop.site.pages,
       locale: shop.site.locale,
       siteSlug: shop.site.siteSlug,
       brandTitle: shop.site.title,
+      industryKey: shop.industryKey,
     })
+    const bookingHref = bookingEnabled
+      ? `/hospitality/p/${encodeURIComponent(shop.partnerSlug)}`
+      : undefined
 
     return (
       <PartnerSiteFashionHome
@@ -101,6 +110,11 @@ export default async function PartnerSitePublicPage({ params }: Props) {
         copy={copy}
         newArrivals={newArrivals}
         bestSellers={bestSellers}
+        showProductSections={showProducts}
+        showCategories={showProducts && shop.capabilities.website.categories}
+        heroCtaHref={bookingHref}
+        industryBadge={partnerSiteHomeIndustryBadge(shop.site.locale, shop.industryKey)}
+        secondaryCtaLabel={partnerSiteHomeSecondaryCta(shop.site.locale, shop.industryKey)}
       />
     )
   }

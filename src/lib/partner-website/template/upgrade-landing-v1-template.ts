@@ -95,6 +95,11 @@ export function isFullLandingV1Template(input: {
 }): boolean {
   if (input.renderMode !== 'template') return false
   const id = (input.templateId ?? 'landing-v1').trim()
-  // Fashion shop presets share the same landing-v1 section contract.
-  return id === 'landing-v1' || id.startsWith('fashion-')
+  // Commerce / fashion / hospitality presets share the landing-v1 section contract.
+  return (
+    id === 'landing-v1' ||
+    id.startsWith('fashion-') ||
+    id.startsWith('commerce-') ||
+    id.startsWith('hospitality-')
+  )
 }

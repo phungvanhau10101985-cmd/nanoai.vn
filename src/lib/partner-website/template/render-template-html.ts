@@ -1,9 +1,12 @@
 import { escapeAttr, escapeHtml } from '@/lib/packaging/mockup-share-html'
 import { buildPartnerSitePersonalizationBootstrapScript } from '@/lib/partner-website/shop/build-personalization-bootstrap-script'
+import {
+  buildPartnerSiteAccountPanelCss,
+  buildPartnerSiteHeaderHtml,
+} from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   partnerSiteCartPath,
-  partnerSiteHomePath,
   partnerSiteInfoPath,
   partnerSiteOrdersPath,
   partnerSiteProductsPath,
@@ -517,6 +520,7 @@ a{color:inherit}
 .pw-nav-main a{text-decoration:none;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#374151}
 .pw-nav-main a.pw-nav-sale{color:var(--pw-primary)}
 .pw-header-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
+${buildPartnerSiteAccountPanelCss()}
 .pw-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;border:none;background:transparent;color:#374151;text-decoration:none;cursor:pointer;position:relative}
 .pw-icon-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2}
 .pw-cart-badge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:999px;background:var(--pw-primary);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
@@ -650,176 +654,20 @@ a{color:inherit}
 }`
 }
 
-function svgIcon(name: 'menu' | 'search' | 'user' | 'cart' | 'home' | 'box' | 'tag'): string {
-  const paths: Record<typeof name, string> = {
-    menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
-    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
-    user: '<circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3 4-4.5 7-4.5s5.5 1.5 7 4.5"/>',
-    cart: '<path d="M3 4h2l2.2 11h9.6L19 7H7"/><circle cx="10" cy="19" r="1.5"/><circle cx="16" cy="19" r="1.5"/>',
-    home: '<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/>',
-    box: '<path d="M4 8l8-4 8 4v9l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v9"/>',
-    tag: '<path d="M12 4h7v7l-9.5 9.5a2 2 0 0 1-2.8 0L4.5 18.3a2 2 0 0 1 0-2.8z"/><circle cx="16" cy="8" r="1.2"/>',
-  }
-  return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`
-}
-
 export function renderTemplateSiteToHtml(input: PartnerWebsiteTemplateRenderInput): string {
   const home = input.pages.find((p) => p.slug === '/' || p.slug === 'index') ?? input.pages[0]
   const sections = home?.sections ?? []
   const body = sections.map((s) => renderSection(s, input)).join('\n')
   const logo = input.theme.logoUrl ?? input.logoUrl
   const siteSlug = input.siteSlug?.trim() ?? ''
-  const shop =
-    siteSlug || input.samplePreview ? getPartnerSiteShopCopy(input.locale) : null
-  const homeHref = siteSlug ? escapeAttr(partnerSiteHomePath(siteSlug)) : '#top'
-  const productsHref = siteSlug ? escapeAttr(partnerSiteProductsPath(siteSlug)) : '#products'
-  const wishlistHref = siteSlug ? escapeAttr(partnerSiteWishlistPath(siteSlug)) : '#products'
-  const cartHref = siteSlug ? escapeAttr(partnerSiteCartPath(siteSlug)) : '#products'
-  const ordersHref = siteSlug ? escapeAttr(partnerSiteOrdersPath(siteSlug)) : '#lead-form'
-  const saleHref = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'sale')) : '#products'
-  const contactHref = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'contact')) : '#lead-form'
 
-  const navSale =
-    input.locale === 'vi' ? 'Khuyến mãi' : input.locale === 'zh' ? '促销' : 'SALE'
-  const navNew =
-    input.locale === 'vi' ? 'Hàng mới' : input.locale === 'zh' ? '新品' : 'NEW ARRIVALS'
-  const navClothing =
-    input.locale === 'vi' ? 'Thời trang' : input.locale === 'zh' ? '服装' : 'CLOTHING'
-  const navBags =
-    input.locale === 'vi' ? 'Túi xách' : input.locale === 'zh' ? '箱包' : 'HANDBAGS'
-  const navShoes =
-    input.locale === 'vi' ? 'Giày dép' : input.locale === 'zh' ? '鞋履' : 'SHOES'
-  const navAcc =
-    input.locale === 'vi' ? 'Phụ kiện' : input.locale === 'zh' ? '配饰' : 'ACCESSORIES'
-  const contactUs =
-    input.locale === 'vi' ? 'Liên hệ' : input.locale === 'zh' ? '联系我们' : 'Contact us'
-  const loginLabel =
-    input.locale === 'vi' ? 'Đăng nhập' : input.locale === 'zh' ? '登录' : 'Log in'
-  const accountLabel =
-    input.locale === 'vi' ? 'Tài khoản' : input.locale === 'zh' ? '账户' : 'Account'
-  const promoLabel =
-    input.locale === 'vi' ? 'Khuyến mãi' : input.locale === 'zh' ? '促销' : 'Promotions'
-  const searchPh =
-    input.locale === 'vi'
-      ? 'Tìm sản phẩm…'
-      : input.locale === 'zh'
-        ? '搜索产品…'
-        : input.locale === 'ja'
-          ? '商品を検索…'
-          : input.locale === 'ko'
-            ? '상품 검색…'
-            : 'Search products…'
-  const searchBtn =
-    input.locale === 'vi'
-      ? 'Tìm'
-      : input.locale === 'zh'
-        ? '搜索'
-        : input.locale === 'ja'
-          ? '検索'
-          : input.locale === 'ko'
-            ? '검색'
-            : 'Search'
-  const searchImage =
-    input.locale === 'vi'
-      ? 'Tìm bằng ảnh'
-      : input.locale === 'zh'
-        ? '以图搜图'
-        : input.locale === 'ja'
-          ? '画像で検索'
-          : input.locale === 'ko'
-            ? '이미지로 검색'
-            : 'Search by image'
-
-  const topbar = shop
-    ? `<div class="pw-topbar"><div class="pw-container pw-topbar-inner">
-      <a href="${contactHref}">${escapeHtml(contactUs)}</a>
-      <a href="${wishlistHref}">${escapeHtml(shop.navFavorites)}</a>
-      <a href="${ordersHref}">${escapeHtml(loginLabel)}</a>
-    </div></div>`
-    : ''
-
-  const brandBlock = logo
-    ? `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" src="${escapeAttr(logo)}" alt="${escapeAttr(input.title)}"/><span class="pw-wordmark">${escapeHtml(input.title)}</span></a>`
-    : `<a class="pw-brand" href="${homeHref}"><span class="pw-wordmark">${escapeHtml(input.title)}</span></a>`
-
-  const searchBar = `<div class="pw-header-search">
-    <form class="pw-search-form" data-pw-search-form role="search">
-      <input data-pw-search type="search" name="q" placeholder="${escapeAttr(searchPh)}" aria-label="${escapeAttr(searchPh)}" autocomplete="off"/>
-      <button type="button" class="pw-search-image-btn" data-pw-image-search aria-label="${escapeAttr(searchImage)}" title="${escapeAttr(searchImage)}">📷</button>
-      <button type="submit" class="pw-search-submit">${escapeHtml(searchBtn)}</button>
-    </form>
-  </div>`
-
-  const categoriesLabel = shop
-    ? shop.navCategories
-    : input.locale === 'vi'
-      ? 'Danh mục'
-      : input.locale === 'zh'
-        ? '分类'
-        : input.locale === 'ja'
-          ? 'カテゴリ'
-          : input.locale === 'ko'
-            ? '카테고리'
-            : 'Categories'
-
-  const categoryLinks = `<a href="${productsHref}">${escapeHtml(navNew)}</a>
-    <a href="${productsHref}">${escapeHtml(navClothing)}</a>
-    <a href="${productsHref}">${escapeHtml(navBags)}</a>
-    <a href="${productsHref}">${escapeHtml(navShoes)}</a>
-    <a href="${productsHref}">${escapeHtml(navAcc)}</a>
-    <a class="pw-nav-sale" href="${saleHref}">${escapeHtml(navSale)}</a>`
-
-  const categoriesToggleScript = `<script data-pw-cat-toggle>(function(){
-  var btn=document.querySelector('[data-pw-cat-toggle]');
-  var panel=document.querySelector('[data-pw-cat-panel]');
-  if(!btn||!panel)return;
-  btn.addEventListener('click',function(e){
-    e.stopPropagation();
-    var open=panel.classList.toggle('is-open');
-    btn.setAttribute('aria-expanded',open?'true':'false');
-  });
-  document.addEventListener('click',function(e){
-    if(panel.contains(e.target)||btn.contains(e.target))return;
-    panel.classList.remove('is-open');
-    btn.setAttribute('aria-expanded','false');
-  });
-  document.addEventListener('keydown',function(e){
-    if(e.key==='Escape'){
-      panel.classList.remove('is-open');
-      btn.setAttribute('aria-expanded','false');
-    }
-  });
-})();</script>`
-
-  const header = `<header class="pw-header">
-  ${topbar}
-  <div class="pw-container pw-header-main">
-    <div class="pw-brand-cluster">
-      <button type="button" class="pw-cat-btn" data-pw-cat-toggle aria-expanded="false" aria-controls="pw-cat-panel" aria-label="${escapeAttr(categoriesLabel)}">${svgIcon('menu')}<span>${escapeHtml(categoriesLabel)}</span></button>
-      ${brandBlock}
-      <nav id="pw-cat-panel" class="pw-cat-panel" data-pw-cat-panel aria-label="${escapeAttr(categoriesLabel)}">
-        ${categoryLinks}
-      </nav>
-    </div>
-    ${searchBar}
-    <div class="pw-header-actions">
-      <a class="pw-icon-btn" href="${ordersHref}" aria-label="${escapeAttr(accountLabel)}">${svgIcon('user')}</a>
-      <a class="pw-icon-btn" href="${cartHref}" aria-label="${shop ? escapeAttr(shop.navCart) : 'Cart'}">${svgIcon('cart')}<span class="pw-cart-badge">0</span></a>
-    </div>
-  </div>
-  <nav class="pw-container pw-nav-main" aria-label="Shop">
-    ${categoryLinks}
-  </nav>
-</header>`
-
-  const bottomNav = shop
-    ? `<nav class="pw-bottom-nav" aria-label="Mobile">
-    <a class="is-active" href="${homeHref}">${svgIcon('home')}<span>${escapeHtml(shop.navHome)}</span></a>
-    <a href="${productsHref}">${svgIcon('box')}<span>${escapeHtml(shop.navProducts)}</span></a>
-    <a href="${saleHref}">${svgIcon('tag')}<span>${escapeHtml(promoLabel)}</span></a>
-    <a href="${ordersHref}">${svgIcon('user')}<span>${escapeHtml(accountLabel)}</span></a>
-  </nav>`
-    : ''
+  const chrome = buildPartnerSiteHeaderHtml({
+    locale: input.locale,
+    title: input.title,
+    logoUrl: logo,
+    siteSlug: siteSlug || undefined,
+    samplePreview: input.samplePreview,
+  })
 
   const floatingChat = input.chatPath?.trim()
     ? `<button type="button" class="pw-fab-chat pw-chat-open" data-nanoai-open-chat aria-label="Chat">💬</button>`
@@ -841,11 +689,11 @@ export function renderTemplateSiteToHtml(input: PartnerWebsiteTemplateRenderInpu
 <style>${buildStyles(input.theme)}</style>
 </head>
 <body id="top">
-${header}
+${chrome.header}
 ${body}
 ${floatingChat}
-${bottomNav}
-${categoriesToggleScript}
+${chrome.bottomNav}
+${chrome.scripts}
 ${personalizationScript}
 </body>
 </html>`

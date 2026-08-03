@@ -44,6 +44,7 @@ export default async function PartnerSiteOrdersPage({ params }: Props) {
         siteSlug={shop.site.siteSlug}
         partnerSlug={shop.partnerSlug}
         locale={shop.site.locale}
+        chatPath={shop.site.chatPath}
       />
     </PartnerSiteShopShell>
   )

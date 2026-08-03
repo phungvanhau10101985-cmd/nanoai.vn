@@ -134,6 +134,23 @@ export function StepUpOtpProvider({ scope, children }: { scope: StepUpScope; chi
       toast({ title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error, variant: 'destructive' })
       return
     }
+    const debugOtp = 'debugOtp' in res ? String(res.debugOtp ?? '').replace(/\D/g, '').slice(0, 6) : ''
+    if (debugOtp) {
+      setOtpInput(debugOtp)
+      toast({
+        title: tr(uiLocale, 'OTP dev', 'Dev OTP', '开发OTP', '開発OTP', 'Dev OTP'),
+        description: tr(
+          uiLocale,
+          `Mã OTP (dev): ${debugOtp} — đã điền sẵn, bấm Xác minh.`,
+          `Dev OTP: ${debugOtp} — prefilled, click Verify.`,
+          `开发 OTP：${debugOtp} — 已填入，请点击验证。`,
+          `開発 OTP: ${debugOtp} — 入力済み、確認を押してください。`,
+          `Dev OTP: ${debugOtp} — 입력됨, 인증을 누르세요.`
+        ),
+      })
+      setOtpStep('confirm')
+      return
+    }
     toast({
       title: tr(uiLocale, 'Đã gửi OTP', 'OTP sent', '已发送OTP', 'OTPを送信しました', 'OTP 전송됨'),
       description: tr(

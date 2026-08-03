@@ -175,3 +175,33 @@ export async function fetchActivePartnerCustomDomainOriginPg(partnerId: string):
   const h = row?.hostname?.trim()
   return h ? `https://${h.toLowerCase()}` : null
 }
+
+/** Tên miền shop trong quản trị (SSL + dùng cho website /site) — nguồn SSO Google mặc định. */
+export async function fetchPartnerShopSiteCustomDomainOriginPg(partnerId: string): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  const row = await pgQueryOne<{ hostname: string }>(
+    `select hostname from public.messaging_partner_custom_domains
+     where partner_id = $1::uuid
+       and dns_verified_at is not null
+       and ssl_status = 'ssl_active'
+       and use_for_site = true
+     limit 1`,
+    [partnerId]
+  )
+  const h = row?.hostname?.trim()
+  return h ? `https://${h.toLowerCase()}` : null
+}
+
+/** Hostname đã lưu trong quản trị (chưa cần SSL) — dùng cho link «Xem web» / preview. */
+export async function fetchPartnerWebsiteConfiguredSiteOriginPg(partnerId: string): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  const row = await pgQueryOne<{ hostname: string }>(
+    `select hostname from public.messaging_partner_custom_domains
+     where partner_id = $1::uuid
+       and use_for_site = true
+     limit 1`,
+    [partnerId]
+  )
+  const h = row?.hostname?.trim()
+  return h ? `https://${h.toLowerCase()}` : null
+}

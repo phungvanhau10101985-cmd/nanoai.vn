@@ -29,6 +29,7 @@ export type PartnerSiteShopCopy = {
   checkoutNote: string
   checkoutSuccess: string
   checkoutAuthRequired: string
+  checkoutGuestHint: string
   checkoutAuthLink: string
   quantity: string
   backToShop: string
@@ -51,6 +52,15 @@ export type PartnerSiteShopCopy = {
   authSuccess: string
   authFailed: string
   authOtpSent: string
+  authEmailLogin: string
+  authChangeEmail: string
+  authEmailRequired: string
+  authGoogleLogin: string
+  authShopOtpOr: string
+  authLoginSubtitle: string
+  authQuickLoginFailed: string
+  authNanoAiLoginHint: string
+  authRememberDevice: string
   orderIdLabel: string
   depositAmount: string
   paymentReference: string
@@ -68,6 +78,39 @@ export type PartnerSiteShopCopy = {
   chatCloseLabel: string
   chatFullPageLabel: string
   chatLanguageLabel: string
+  navAccount: string
+  accountEditProfile: string
+  accountViewedProducts: string
+  accountAddressBook: string
+  accountEmailLabel: string
+  accountSave: string
+  accountSaved: string
+  accountSaveFailed: string
+  addressesHint: string
+  accountWelcome: string
+  accountQuickLinks: string
+  accountSectionEditProfile: string
+  orderStatusLabel: string
+  orderStatusAwaitingPayment: string
+  orderStatusPaymentChecking: string
+  orderStatusPaidVerified: string
+  orderStatusPendingManualReview: string
+  orderStatusCancelled: string
+  orderShippingStatusLabel: string
+  orderShippingPending: string
+  orderShippingConfirmed: string
+  orderShippingPacking: string
+  orderShippingShipping: string
+  orderShippingDelivered: string
+  orderShippingReturned: string
+  orderShippingCancelled: string
+  orderDateLabel: string
+  orderViewPayment: string
+  orderHidePayment: string
+  orderQuantityLabel: string
+  recentlyViewedClear: string
+  recentlyViewedCleared: string
+  addressesEmptyHint: string
 }
 
 const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
@@ -99,7 +142,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     checkoutAddress: 'Địa chỉ giao hàng',
     checkoutNote: 'Ghi chú',
     checkoutSuccess: 'Đã tạo đơn — shop sẽ liên hệ sớm.',
-    checkoutAuthRequired: 'Cần xác minh email để thanh toán.',
+    checkoutAuthRequired: 'Vui lòng đăng nhập để tiếp tục.',
+    checkoutGuestHint: 'Bạn có thể đặt hàng mà không cần đăng nhập — chỉ cần điền thông tin giao hàng.',
     checkoutAuthLink: 'Đăng nhập / xác minh tại chat shop',
     quantity: 'Số lượng',
     backToShop: 'Tiếp tục mua',
@@ -122,6 +166,15 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authSuccess: 'Đã xác minh email — có thể thanh toán.',
     authFailed: 'Không xác minh được. Thử lại.',
     authOtpSent: 'Đã gửi mã OTP tới email.',
+    authEmailLogin: 'Đăng nhập bằng email',
+    authChangeEmail: 'Đổi email khác',
+    authEmailRequired: 'Vui lòng nhập email.',
+    authGoogleLogin: 'Đăng nhập bằng Google',
+    authShopOtpOr: 'Hoặc nhập email để nhận mã',
+    authLoginSubtitle: 'Google hoặc mã OTP qua email',
+    authQuickLoginFailed: 'Chưa đăng nhập được — dùng email OTP bên dưới.',
+    authNanoAiLoginHint: 'Nhập email — bạn sẽ nhận mã OTP qua email.',
+    authRememberDevice: 'Giữ đăng nhập trên thiết bị này (lần sau có thể không cần OTP).',
     orderIdLabel: 'Mã đơn',
     depositAmount: 'Số tiền cọc',
     paymentReference: 'Nội dung chuyển khoản',
@@ -139,6 +192,39 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatCloseLabel: 'Đóng',
     chatFullPageLabel: 'Mở toàn trang',
     chatLanguageLabel: 'Ngôn ngữ',
+    navAccount: 'Tài khoản',
+    accountEditProfile: 'Chỉnh sửa hồ sơ',
+    accountViewedProducts: 'Sản phẩm đã xem',
+    accountAddressBook: 'Sổ địa chỉ',
+    accountEmailLabel: 'Email',
+    accountSave: 'Lưu thay đổi',
+    accountSaved: 'Đã lưu hồ sơ.',
+    accountSaveFailed: 'Không lưu được. Thử lại.',
+    addressesHint: 'Địa chỉ mặc định khi thanh toán.',
+    accountWelcome: 'Xin chào',
+    accountQuickLinks: 'Truy cập nhanh',
+    accountSectionEditProfile: 'Chỉnh sửa hồ sơ',
+    orderStatusLabel: 'Trạng thái',
+    orderStatusAwaitingPayment: 'Chờ thanh toán',
+    orderStatusPaymentChecking: 'Đang kiểm tra thanh toán',
+    orderStatusPaidVerified: 'Đã thanh toán',
+    orderStatusPendingManualReview: 'Chờ xác nhận',
+    orderStatusCancelled: 'Đã hủy',
+    orderShippingStatusLabel: 'Giao hàng',
+    orderShippingPending: 'Chờ xử lý',
+    orderShippingConfirmed: 'Đã xác nhận',
+    orderShippingPacking: 'Đang đóng gói',
+    orderShippingShipping: 'Đang giao',
+    orderShippingDelivered: 'Đã giao',
+    orderShippingReturned: 'Đã trả hàng',
+    orderShippingCancelled: 'Đã hủy giao',
+    orderDateLabel: 'Ngày đặt',
+    orderViewPayment: 'Xem QR / thanh toán',
+    orderHidePayment: 'Ẩn thanh toán',
+    orderQuantityLabel: 'Số lượng',
+    recentlyViewedClear: 'Xóa lịch sử',
+    recentlyViewedCleared: 'Đã xóa lịch sử xem.',
+    addressesEmptyHint: 'Chưa có địa chỉ — thêm địa chỉ giao hàng mặc định.',
   },
   en: {
     navHome: 'Home',
@@ -168,7 +254,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     checkoutAddress: 'Shipping address',
     checkoutNote: 'Note',
     checkoutSuccess: 'Order placed — the shop will contact you soon.',
-    checkoutAuthRequired: 'Email verification required to checkout.',
+    checkoutAuthRequired: 'Please sign in to continue.',
+    checkoutGuestHint: 'You can checkout without signing in — just fill in delivery details.',
     checkoutAuthLink: 'Sign in / verify via shop chat',
     quantity: 'Quantity',
     backToShop: 'Continue shopping',
@@ -191,6 +278,15 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authSuccess: 'Email verified — you can checkout.',
     authFailed: 'Verification failed. Try again.',
     authOtpSent: 'OTP sent to your email.',
+    authEmailLogin: 'Sign in with email',
+    authChangeEmail: 'Use a different email',
+    authEmailRequired: 'Please enter your email.',
+    authGoogleLogin: 'Sign in with Google',
+    authShopOtpOr: 'Or enter email to receive a code',
+    authLoginSubtitle: 'Google or OTP via email',
+    authQuickLoginFailed: 'Could not sign in — use email OTP below.',
+    authNanoAiLoginHint: 'Enter your email — you will receive an OTP code by email.',
+    authRememberDevice: 'Keep me signed in on this device (you may skip OTP next time).',
     orderIdLabel: 'Order ID',
     depositAmount: 'Deposit amount',
     paymentReference: 'Transfer reference',
@@ -208,6 +304,39 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatCloseLabel: 'Close',
     chatFullPageLabel: 'Open full page',
     chatLanguageLabel: 'Language',
+    navAccount: 'Account',
+    accountEditProfile: 'Edit profile',
+    accountViewedProducts: 'Viewed products',
+    accountAddressBook: 'Address book',
+    accountEmailLabel: 'Email',
+    accountSave: 'Save changes',
+    accountSaved: 'Profile saved.',
+    accountSaveFailed: 'Could not save. Try again.',
+    addressesHint: 'Default address used at checkout.',
+    accountWelcome: 'Hello',
+    accountQuickLinks: 'Quick links',
+    accountSectionEditProfile: 'Edit profile',
+    orderStatusLabel: 'Status',
+    orderStatusAwaitingPayment: 'Awaiting payment',
+    orderStatusPaymentChecking: 'Checking payment',
+    orderStatusPaidVerified: 'Paid',
+    orderStatusPendingManualReview: 'Pending review',
+    orderStatusCancelled: 'Cancelled',
+    orderShippingStatusLabel: 'Shipping',
+    orderShippingPending: 'Pending',
+    orderShippingConfirmed: 'Confirmed',
+    orderShippingPacking: 'Packing',
+    orderShippingShipping: 'In transit',
+    orderShippingDelivered: 'Delivered',
+    orderShippingReturned: 'Returned',
+    orderShippingCancelled: 'Shipping cancelled',
+    orderDateLabel: 'Order date',
+    orderViewPayment: 'View payment QR',
+    orderHidePayment: 'Hide payment',
+    orderQuantityLabel: 'Quantity',
+    recentlyViewedClear: 'Clear history',
+    recentlyViewedCleared: 'View history cleared.',
+    addressesEmptyHint: 'No address yet — add your default shipping address.',
   },
   zh: {
     navHome: '首页',
@@ -237,7 +366,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     checkoutAddress: '收货地址',
     checkoutNote: '备注',
     checkoutSuccess: '订单已创建 — 店铺将尽快联系。',
-    checkoutAuthRequired: '结账需要验证邮箱。',
+    checkoutAuthRequired: '请登录后继续。',
+    checkoutGuestHint: '无需登录即可下单 — 填写收货信息即可。',
     checkoutAuthLink: '在店铺聊天中登录/验证',
     quantity: '数量',
     backToShop: '继续购物',
@@ -260,6 +390,15 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authSuccess: '邮箱已验证 — 可以结账。',
     authFailed: '验证失败，请重试。',
     authOtpSent: '验证码已发送到邮箱。',
+    authEmailLogin: '邮箱登录',
+    authChangeEmail: '更换邮箱',
+    authEmailRequired: '请输入邮箱。',
+    authGoogleLogin: '使用 Google 登录',
+    authShopOtpOr: '或输入邮箱获取验证码',
+    authLoginSubtitle: 'Google 或邮箱 OTP',
+    authQuickLoginFailed: '无法登录 — 请使用下方邮箱 OTP。',
+    authNanoAiLoginHint: '输入邮箱 — 您将通过邮件收到验证码。',
+    authRememberDevice: '在此设备保持登录（下次可能免 OTP）。',
     orderIdLabel: '订单号',
     depositAmount: '定金金额',
     paymentReference: '转账备注',
@@ -277,6 +416,39 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatCloseLabel: '关闭',
     chatFullPageLabel: '全页打开',
     chatLanguageLabel: '语言',
+    navAccount: '账户',
+    accountEditProfile: '编辑资料',
+    accountViewedProducts: '浏览记录',
+    accountAddressBook: '地址簿',
+    accountEmailLabel: '邮箱',
+    accountSave: '保存更改',
+    accountSaved: '资料已保存。',
+    accountSaveFailed: '保存失败，请重试。',
+    addressesHint: '结账时使用的默认地址。',
+    accountWelcome: '您好',
+    accountQuickLinks: '快捷入口',
+    accountSectionEditProfile: '编辑资料',
+    orderStatusLabel: '状态',
+    orderStatusAwaitingPayment: '待付款',
+    orderStatusPaymentChecking: '核对付款中',
+    orderStatusPaidVerified: '已付款',
+    orderStatusPendingManualReview: '待确认',
+    orderStatusCancelled: '已取消',
+    orderShippingStatusLabel: '配送',
+    orderShippingPending: '待处理',
+    orderShippingConfirmed: '已确认',
+    orderShippingPacking: '打包中',
+    orderShippingShipping: '配送中',
+    orderShippingDelivered: '已送达',
+    orderShippingReturned: '已退货',
+    orderShippingCancelled: '配送取消',
+    orderDateLabel: '下单日期',
+    orderViewPayment: '查看付款 QR',
+    orderHidePayment: '隐藏付款',
+    orderQuantityLabel: '数量',
+    recentlyViewedClear: '清除记录',
+    recentlyViewedCleared: '浏览记录已清除。',
+    addressesEmptyHint: '暂无地址 — 请添加默认收货地址。',
   },
   ja: {
     navHome: 'ホーム',
@@ -306,7 +478,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     checkoutAddress: '配送先',
     checkoutNote: 'メモ',
     checkoutSuccess: '注文を受け付けました — ショップから連絡があります。',
-    checkoutAuthRequired: '決済にはメール認証が必要です。',
+    checkoutAuthRequired: '続行するにはログインしてください。',
+    checkoutGuestHint: 'ログイン不要で注文できます — 配送情報を入力してください。',
     checkoutAuthLink: 'ショップチャットでログイン/認証',
     quantity: '数量',
     backToShop: '買い物を続ける',
@@ -329,6 +502,15 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authSuccess: 'メール確認済み — 決済できます。',
     authFailed: '確認に失敗しました。',
     authOtpSent: 'OTPをメールに送信しました。',
+    authEmailLogin: 'メールでログイン',
+    authChangeEmail: '別のメールを使う',
+    authEmailRequired: 'メールアドレスを入力してください。',
+    authGoogleLogin: 'Googleでログイン',
+    authShopOtpOr: 'またはメールでコードを受け取る',
+    authLoginSubtitle: 'Google またはメール OTP',
+    authQuickLoginFailed: 'ログインできません — 下のメール OTP をお試しください。',
+    authNanoAiLoginHint: 'メールアドレスを入力 — OTPコードをメールで受け取ります。',
+    authRememberDevice: 'この端末でログイン状態を保持（次回 OTP 省略の場合あり）。',
     orderIdLabel: '注文ID',
     depositAmount: 'デポジット',
     paymentReference: '振込参照',
@@ -346,6 +528,39 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatCloseLabel: '閉じる',
     chatFullPageLabel: '全画面で開く',
     chatLanguageLabel: '言語',
+    navAccount: 'アカウント',
+    accountEditProfile: 'プロフィール編集',
+    accountViewedProducts: '閲覧履歴',
+    accountAddressBook: '住所録',
+    accountEmailLabel: 'メール',
+    accountSave: '変更を保存',
+    accountSaved: 'プロフィールを保存しました。',
+    accountSaveFailed: '保存できませんでした。もう一度お試しください。',
+    addressesHint: '決済時に使用する既定の住所。',
+    accountWelcome: 'こんにちは',
+    accountQuickLinks: 'クイックリンク',
+    accountSectionEditProfile: 'プロフィール編集',
+    orderStatusLabel: 'ステータス',
+    orderStatusAwaitingPayment: '支払い待ち',
+    orderStatusPaymentChecking: '支払い確認中',
+    orderStatusPaidVerified: '支払い済み',
+    orderStatusPendingManualReview: '確認待ち',
+    orderStatusCancelled: 'キャンセル',
+    orderShippingStatusLabel: '配送',
+    orderShippingPending: '処理待ち',
+    orderShippingConfirmed: '確認済み',
+    orderShippingPacking: '梱包中',
+    orderShippingShipping: '配送中',
+    orderShippingDelivered: '配達完了',
+    orderShippingReturned: '返品',
+    orderShippingCancelled: '配送キャンセル',
+    orderDateLabel: '注文日',
+    orderViewPayment: 'QR / 支払いを見る',
+    orderHidePayment: '支払いを隠す',
+    orderQuantityLabel: '数量',
+    recentlyViewedClear: '履歴を削除',
+    recentlyViewedCleared: '閲覧履歴を削除しました。',
+    addressesEmptyHint: '住所がありません — 既定の配送先を追加してください。',
   },
   ko: {
     navHome: '홈',
@@ -375,7 +590,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     checkoutAddress: '배송 주소',
     checkoutNote: '메모',
     checkoutSuccess: '주문이 접수되었습니다 — 곧 연락드립니다.',
-    checkoutAuthRequired: '결제하려면 이메일 인증이 필요합니다.',
+    checkoutAuthRequired: '계속하려면 로그인해 주세요.',
+    checkoutGuestHint: '로그인 없이 주문할 수 있습니다 — 배송 정보만 입력하세요.',
     checkoutAuthLink: '샵 채팅에서 로그인/인증',
     quantity: '수량',
     backToShop: '쇼핑 계속',
@@ -398,6 +614,15 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authSuccess: '이메일 인증 완료 — 결제 가능합니다.',
     authFailed: '인증 실패. 다시 시도하세요.',
     authOtpSent: 'OTP가 이메일로 전송되었습니다.',
+    authEmailLogin: '이메일로 로그인',
+    authChangeEmail: '다른 이메일 사용',
+    authEmailRequired: '이메일을 입력해 주세요.',
+    authGoogleLogin: 'Google로 로그인',
+    authShopOtpOr: '또는 이메일로 코드 받기',
+    authLoginSubtitle: 'Google 또는 이메일 OTP',
+    authQuickLoginFailed: '로그인할 수 없습니다 — 아래 이메일 OTP를 사용하세요.',
+    authNanoAiLoginHint: '이메일 입력 — OTP 코드를 이메일로 받습니다.',
+    authRememberDevice: '이 기기에 로그인 유지(다음에 OTP 생략될 수 있음).',
     orderIdLabel: '주문 ID',
     depositAmount: '보증금',
     paymentReference: '입금 참조',
@@ -415,6 +640,39 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatCloseLabel: '닫기',
     chatFullPageLabel: '전체 페이지 열기',
     chatLanguageLabel: '언어',
+    navAccount: '계정',
+    accountEditProfile: '프로필 수정',
+    accountViewedProducts: '최근 본 상품',
+    accountAddressBook: '주소록',
+    accountEmailLabel: '이메일',
+    accountSave: '변경 저장',
+    accountSaved: '프로필이 저장되었습니다.',
+    accountSaveFailed: '저장하지 못했습니다. 다시 시도하세요.',
+    addressesHint: '결제 시 사용하는 기본 주소입니다.',
+    accountWelcome: '안녕하세요',
+    accountQuickLinks: '빠른 메뉴',
+    accountSectionEditProfile: '프로필 수정',
+    orderStatusLabel: '상태',
+    orderStatusAwaitingPayment: '결제 대기',
+    orderStatusPaymentChecking: '결제 확인 중',
+    orderStatusPaidVerified: '결제 완료',
+    orderStatusPendingManualReview: '확인 대기',
+    orderStatusCancelled: '취소됨',
+    orderShippingStatusLabel: '배송',
+    orderShippingPending: '처리 대기',
+    orderShippingConfirmed: '확인됨',
+    orderShippingPacking: '포장 중',
+    orderShippingShipping: '배송 중',
+    orderShippingDelivered: '배송 완료',
+    orderShippingReturned: '반품',
+    orderShippingCancelled: '배송 취소',
+    orderDateLabel: '주문일',
+    orderViewPayment: 'QR / 결제 보기',
+    orderHidePayment: '결제 숨기기',
+    orderQuantityLabel: '수량',
+    recentlyViewedClear: '기록 삭제',
+    recentlyViewedCleared: '최근 본 기록을 삭제했습니다.',
+    addressesEmptyHint: '주소 없음 — 기본 배송 주소를 추가하세요.',
   },
 }
 

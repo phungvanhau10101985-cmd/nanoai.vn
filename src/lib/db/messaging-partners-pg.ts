@@ -3,6 +3,8 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { PartnerStaffPermissionMap } from '@/lib/messaging/partner-staff-permissions'
 import { normalizeStaffPermissionsFromJson } from '@/lib/messaging/partner-staff-permissions'
+import type { PartnerCapabilities } from '@/lib/partner-website/partner-capabilities'
+import { normalizePartnerCapabilities } from '@/lib/partner-website/partner-capabilities'
 
 export type MessagingPartnerRow = Database['public']['Tables']['messaging_partners']['Row']
 
@@ -57,7 +59,10 @@ function isMissingPartnerProfileColumnError(e: unknown): boolean {
     msg.includes('facebook_capi_access_token') ||
     msg.includes('ga4_measurement_id') ||
     msg.includes('google_ads_id') ||
-    msg.includes('tiktok_pixel_id')
+    msg.includes('tiktok_pixel_id') ||
+    msg.includes('partner_capabilities') ||
+    msg.includes('external_shop_origin') ||
+    msg.includes('external_shop_login_path')
   )
 }
 
@@ -981,3 +986,140 @@ export async function deactivateMessagingPartnerForOwnerFromPg(
     return false
   }
 }
+
+export async function fetchPartnerCapabilitiesRawForPartnerFromPg(
+  partnerId: string
+): Promise<{ raw: unknown; industry_key: MessagingPartnerRow['industry_key'] } | null> {
+  if (!isPgConfigured()) return null
+  const pid = safeUuid(partnerId)
+  if (!pid) return null
+  try {
+    const row = await pgQueryOne<{
+      partner_capabilities: unknown
+      industry_key: MessagingPartnerRow['industry_key'] | null
+    }>(
+      `select partner_capabilities, industry_key
+       from public.messaging_partners
+       where id = $1::uuid
+       limit 1`,
+      [pid]
+    )
+    if (!row) return null
+    return { raw: row.partner_capabilities, industry_key: row.industry_key ?? null }
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) {
+      const fallback = await pgQueryOne<{ industry_key: MessagingPartnerRow['industry_key'] | null }>(
+        `select industry_key from public.messaging_partners where id = $1::uuid limit 1`,
+        [pid]
+      )
+      if (!fallback) return null
+      return { raw: {}, industry_key: fallback.industry_key ?? null }
+    }
+    console.warn('[fetchPartnerCapabilitiesRawForPartnerFromPg]', e)
+    return null
+  }
+}
+
+export async function fetchPartnerCapabilitiesForPartnerFromPg(
+  partnerId: string,
+  industryKey: MessagingPartnerRow['industry_key'] | null = null
+): Promise<PartnerCapabilities> {
+  const fromPg = await fetchPartnerCapabilitiesRawForPartnerFromPg(partnerId)
+  const key = industryKey ?? fromPg?.industry_key ?? null
+  return normalizePartnerCapabilities(fromPg?.raw ?? {}, key)
+}
+
+export async function updatePartnerCapabilitiesForOwnerFromPg(params: {
+  partner_id: string
+  owner_user_id: string
+  capabilities: PartnerCapabilities
+}): Promise<PartnerCapabilities | null> {
+  if (!isPgConfigured()) return null
+  const pid = safeUuid(params.partner_id)
+  const uid = safeOwnerUuid(params.owner_user_id)
+  if (!pid || !uid) return null
+  const normalized = normalizePartnerCapabilities(params.capabilities)
+  try {
+    const row = await pgQueryOne<{ industry_key: MessagingPartnerRow['industry_key'] | null }>(
+      `update public.messaging_partners
+       set partner_capabilities = $3::jsonb,
+           updated_at = now()
+       where id = $1::uuid
+         and (
+           owner_user_id = $2::uuid
+           or exists (
+             select 1
+             from public.messaging_partner_members m
+             where m.partner_id = messaging_partners.id
+               and m.member_user_id = $2::uuid
+               and coalesce((m.permissions->>'website')::boolean, false)
+           )
+         )
+         and coalesce(is_active, true) = true
+       returning industry_key`,
+      [pid, uid, JSON.stringify(normalized)]
+    )
+    if (!row) return null
+    return normalizePartnerCapabilities(normalized, row.industry_key ?? null)
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) {
+      console.warn('[updatePartnerCapabilitiesForOwnerFromPg] partner_capabilities column missing — run migration.')
+      return null
+    }
+    console.warn('[updatePartnerCapabilitiesForOwnerFromPg]', e)
+    return null
+  }
+}
+
+export type PartnerExternalShopSsoRow = {
+  external_shop_origin: string | null
+  external_shop_login_path: string | null
+}
+
+export async function fetchPartnerExternalShopSsoPg(partnerId: string): Promise<PartnerExternalShopSsoRow | null> {
+  if (!isPgConfigured()) return null
+  const id = safeUuid(partnerId)
+  if (!id) return null
+  try {
+    const row = await pgQueryOne<PartnerExternalShopSsoRow>(
+      `select external_shop_origin, external_shop_login_path
+       from public.messaging_partners
+       where id = $1::uuid
+       limit 1`,
+      [id]
+    )
+    return row ?? null
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) return null
+    console.warn('[fetchPartnerExternalShopSsoPg]', e)
+    return null
+  }
+}
+
+export async function updatePartnerExternalShopSsoPg(input: {
+  partnerId: string
+  externalShopOrigin: string | null
+  externalShopLoginPath: string
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const id = safeUuid(input.partnerId)
+  if (!id) return false
+  const origin = input.externalShopOrigin?.trim() || null
+  const loginPath = input.externalShopLoginPath.trim() || '/dang-nhap'
+  try {
+    await pgQuery(
+      `update public.messaging_partners set
+         external_shop_origin = $2,
+         external_shop_login_path = $3,
+         updated_at = timezone('utc', now())
+       where id = $1::uuid`,
+      [id, origin, loginPath.startsWith('/') ? loginPath : `/${loginPath}`]
+    )
+    return true
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) return false
+    console.warn('[updatePartnerExternalShopSsoPg]', e)
+    return false
+  }
+}
+

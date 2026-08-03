@@ -25,5 +25,6 @@ export function normalizePartnerCustomDomainHostname(raw: string): string | null
 export function getPartnerCustomDomainCnameTarget(): string {
   const fromEnv = process.env.PARTNER_CUSTOM_DOMAIN_CNAME_TARGET?.trim().toLowerCase()
   if (fromEnv) return fromEnv.replace(/\.$/, '')
-  return 'sites.nanoai.vn'
+  // sites.nanoai.vn chưa có bản ghi DNS công khai — trỏ CNAME về apex app (cùng VPS, middleware đọc Host).
+  return 'nanoai.vn'
 }

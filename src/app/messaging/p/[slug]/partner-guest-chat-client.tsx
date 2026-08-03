@@ -122,6 +122,11 @@ import {
   MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY,
   MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE,
 } from '@/lib/messaging/guest-account-session'
+import { getStableEmailTrustedBrowserId } from '@/lib/auth/email-trusted-browser-client'
+import {
+  readGuestAuthRememberDevicePreference,
+  writeGuestAuthRememberDevicePreference,
+} from '@/lib/auth/guest-auth-remember-device-client'
 import {
   guestPurchaseInputFromProductCard,
   guestPurchaseOpensExternalUrl,
@@ -141,7 +146,6 @@ function msgImgSrc(url: string): string {
 
 /** Khoảng cách tới đáy (px) để coi như user đang xem cuối thread — cho phép auto-scroll theo tin/typing mới. */
 const GUEST_CHAT_STICK_TO_BOTTOM_PX = 120
-const EMAIL_TRUSTED_BROWSER_STORAGE_KEY = 'app_email_trusted_browser_id'
 const EMBED_GUEST_SESSION_QUERY_KEY = 'guest_session_id'
 const EMBED_GUEST_ACCOUNT_QUERY_KEY = 'guest_account_id'
 const UUID_STRING_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -338,22 +342,6 @@ function latestOutboundCursor(msgs: GuestMsg[]): GuestShopOutboundCursor | null 
   const at = Date.parse(best.created_at)
   if (!Number.isFinite(at)) return null
   return { at, id: best.id }
-}
-
-function getStableEmailTrustedBrowserId(): string {
-  if (typeof window === 'undefined') return ''
-  try {
-    const current = window.localStorage.getItem(EMAIL_TRUSTED_BROWSER_STORAGE_KEY)?.trim() || ''
-    if (/^[a-z0-9_-]{16,128}$/i.test(current)) return current.toLowerCase()
-    const created = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 16)}`
-      .replace(/[^a-z0-9_-]/gi, '')
-      .toLowerCase()
-      .slice(0, 64)
-    window.localStorage.setItem(EMAIL_TRUSTED_BROWSER_STORAGE_KEY, created)
-    return created
-  } catch {
-    return ''
-  }
 }
 
 function readUuidQueryParam(params: URLSearchParams, key: string): string {
@@ -1668,7 +1656,9 @@ export function PartnerGuestChatClient({
   const [authGateRequired, setAuthGateRequired] = useState(false)
   const [guestAuthEmail, setGuestAuthEmail] = useState('')
   const [guestAuthOtp, setGuestAuthOtp] = useState('')
-  const [guestAuthRememberDevice, setGuestAuthRememberDevice] = useState(true)
+  const [guestAuthRememberDevice, setGuestAuthRememberDevice] = useState(() =>
+    readGuestAuthRememberDevicePreference()
+  )
   const [guestAuthSending, setGuestAuthSending] = useState(false)
   const [guestAuthVerifying, setGuestAuthVerifying] = useState(false)
   const otpLastAutoSubmittedRef = useRef<string>('')
@@ -2370,6 +2360,26 @@ export function PartnerGuestChatClient({
             const nextPath = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`
             window.history.replaceState(null, '', nextPath)
           }
+        }
+        const resumeRes = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/auth/resume`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+          },
+          body: JSON.stringify({ browserId: getStableEmailTrustedBrowserId() }),
+        })
+        captureGuestSessionFromResponse(resumeRes)
+        captureGuestAccountFromResponse(resumeRes)
+        const resumeJson = (await resumeRes.json().catch(() => ({}))) as {
+          synced?: boolean
+          accountId?: string
+        }
+        if (resumeJson.synced && resumeJson.accountId) {
+          guestAccountIdRef.current = resumeJson.accountId
+          setAuthGateRequired(false)
+          setAuthMode('account')
         }
         const me = await fetch('/api/auth/me', {
           credentials: 'same-origin',
@@ -6960,7 +6970,11 @@ export function PartnerGuestChatClient({
                         type="checkbox"
                         className="mt-0.5 h-3.5 w-3.5"
                         checked={guestAuthRememberDevice}
-                        onChange={(e) => setGuestAuthRememberDevice(e.target.checked)}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                          setGuestAuthRememberDevice(next)
+                          writeGuestAuthRememberDevicePreference(next)
+                        }}
                       />
                       <span>{t.guestAuthRememberDeviceHint}</span>
                     </label>
@@ -7280,7 +7294,11 @@ export function PartnerGuestChatClient({
                 type="checkbox"
                 className="mt-0.5 h-3.5 w-3.5"
                 checked={guestAuthRememberDevice}
-                onChange={(e) => setGuestAuthRememberDevice(e.target.checked)}
+                onChange={(e) => {
+                  const next = e.target.checked
+                  setGuestAuthRememberDevice(next)
+                  writeGuestAuthRememberDevicePreference(next)
+                }}
               />
               <span>{t.guestAuthRememberDeviceHint}</span>
             </label>

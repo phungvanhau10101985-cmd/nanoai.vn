@@ -342,6 +342,8 @@ export function PartnerMessagingSettingsClient({
   const [staffDraftPerm, setStaffDraftPerm] = useState<Record<string, PartnerStaffPermissionMap>>({})
   const [websitePublicUrl, setWebsitePublicUrl] = useState<string | null>(null)
   const [websiteHasProject, setWebsiteHasProject] = useState(false)
+  const [websiteSiteSlug, setWebsiteSiteSlug] = useState<string | null>(null)
+  const [websitePublished, setWebsitePublished] = useState(false)
   const [websiteLoading, setWebsiteLoading] = useState(false)
 
   const selectedPartner = useMemo(
@@ -460,45 +462,48 @@ export function PartnerMessagingSettingsClient({
     ]
   }, [partnerNavQuery, selectedPartner, selectedPartnerId, t])
 
-  useEffect(() => {
+  const refreshWebsitePublicUrl = useCallback(async () => {
     if (!selectedPartnerId || !partnerCanWebsiteHub(selectedPartner)) {
       setWebsitePublicUrl(null)
       setWebsiteHasProject(false)
+      setWebsiteSiteSlug(null)
+      setWebsitePublished(false)
       setWebsiteLoading(false)
       return
     }
-    let cancelled = false
     setWebsiteLoading(true)
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/messaging/partner-website/${encodeURIComponent(selectedPartnerId)}?locale=${encodeURIComponent(locale)}`
-        )
-        const json = (await res.json().catch(() => ({}))) as {
-          website?: { siteSlug?: string; isPublished?: boolean } | null
-          publicUrl?: string | null
-        }
-        if (cancelled) return
-        if (res.ok && json.website) {
-          setWebsiteHasProject(true)
-          setWebsitePublicUrl(json.publicUrl?.trim() || null)
-        } else {
-          setWebsiteHasProject(false)
-          setWebsitePublicUrl(null)
-        }
-      } catch {
-        if (!cancelled) {
-          setWebsiteHasProject(false)
-          setWebsitePublicUrl(null)
-        }
-      } finally {
-        if (!cancelled) setWebsiteLoading(false)
+    try {
+      const res = await fetch(
+        `/api/messaging/partner-website/${encodeURIComponent(selectedPartnerId)}?locale=${encodeURIComponent(locale)}`
+      )
+      const json = (await res.json().catch(() => ({}))) as {
+        website?: { siteSlug?: string; isPublished?: boolean } | null
+        publicUrl?: string | null
       }
-    })()
-    return () => {
-      cancelled = true
+      if (res.ok && json.website) {
+        setWebsiteHasProject(true)
+        setWebsiteSiteSlug(json.website.siteSlug?.trim() || null)
+        setWebsitePublished(Boolean(json.website.isPublished))
+        setWebsitePublicUrl(json.publicUrl?.trim() || null)
+      } else {
+        setWebsiteHasProject(false)
+        setWebsiteSiteSlug(null)
+        setWebsitePublished(false)
+        setWebsitePublicUrl(null)
+      }
+    } catch {
+      setWebsiteHasProject(false)
+      setWebsiteSiteSlug(null)
+      setWebsitePublished(false)
+      setWebsitePublicUrl(null)
+    } finally {
+      setWebsiteLoading(false)
     }
   }, [locale, selectedPartner, selectedPartnerId])
+
+  useEffect(() => {
+    void refreshWebsitePublicUrl()
+  }, [refreshWebsitePublicUrl])
 
   const websiteDashboardHref = useMemo(() => {
     const slug = selectedPartner?.slug?.trim() ?? ''
@@ -2442,10 +2447,11 @@ export function PartnerMessagingSettingsClient({
                 key={selectedPartnerId}
                 partnerId={selectedPartnerId}
                 partnerSlug={selectedPartner?.slug?.trim() ?? ''}
-                siteSlug={null}
-                sitePublished={false}
+                siteSlug={websiteSiteSlug}
+                sitePublished={websitePublished}
                 t={t}
                 saveOkMessage={t.saveOk}
+                onDomainChanged={() => void refreshWebsitePublicUrl()}
               />
             </SettingsBlock>
           ) : null}

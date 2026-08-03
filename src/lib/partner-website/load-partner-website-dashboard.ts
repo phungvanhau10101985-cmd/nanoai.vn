@@ -31,7 +31,7 @@ export async function loadPartnerWebsiteDashboardData(input: {
   if (isPgConfigured()) {
     const fromPg = await fetchMessagingPartnersForDashboardFromPg(input.userId)
     if (fromPg !== null) {
-      allPartners = fromPg.filter((p) => p.industry_key !== 'hotel')
+      allPartners = fromPg
     }
   }
 

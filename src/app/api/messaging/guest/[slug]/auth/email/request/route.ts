@@ -27,6 +27,10 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 import { issueTrustedDeviceForUser, resolveTrustedDeviceFromRequest } from '@/lib/auth/email-trusted-device'
+import {
+  completeGuestEmailAuth,
+  mergeAllGuestSessionsForEmail,
+} from '@/lib/messaging/complete-guest-email-auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -112,7 +116,18 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     if (!identityOk) {
       return NextResponse.json({ error: 'Account failed' }, { status: 500 })
     }
-    const token = await createEmailSessionTokenString(trusted.userId, trusted.email)
+    await mergeAllGuestSessionsForEmail({
+      partnerId,
+      email,
+      guestAccountId: accountId,
+      currentSessionId: sessionId,
+    })
+    const auth = await completeGuestEmailAuth({
+      partnerId,
+      email,
+      guestAccountId: accountId,
+    })
+    const token = auth.sessionToken || (await createEmailSessionTokenString(trusted.userId, trusted.email))
     if (!token) {
       return NextResponse.json({ error: 'jwt_config' }, { status: 500 })
     }

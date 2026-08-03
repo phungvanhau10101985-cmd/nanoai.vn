@@ -27,6 +27,18 @@ export function partnerSiteOrdersPath(siteSlug: string): string {
   return `/site/${encodeURIComponent(siteSlug.trim())}/orders`
 }
 
+export function partnerSiteAccountPath(siteSlug: string): string {
+  return `/site/${encodeURIComponent(siteSlug.trim())}/account`
+}
+
+export function partnerSiteAccountEditPath(siteSlug: string): string {
+  return `${partnerSiteAccountPath(siteSlug)}#edit-profile`
+}
+
+export function partnerSiteAddressesPath(siteSlug: string): string {
+  return `/site/${encodeURIComponent(siteSlug.trim())}/addresses`
+}
+
 export function partnerSiteProductsApiPath(siteSlug: string): string {
   return `/api/site/${encodeURIComponent(siteSlug.trim())}/products`
 }
@@ -53,6 +65,20 @@ export function partnerSiteRecentlyViewedPath(siteSlug: string): string {
 
 export function partnerSiteSessionApiPath(siteSlug: string): string {
   return `/api/site/${encodeURIComponent(siteSlug.trim())}/session`
+}
+
+/** Đăng nhập email NanoAI (OTP) — dùng chung mọi shop, kể cả domain riêng (cùng origin). */
+export function partnerSiteNanoAiLoginHref(returnPath: string): string {
+  const next = returnPath.trim()
+  const safe =
+    next.startsWith('/') && !next.startsWith('//') && !next.includes('://') && !next.includes('\\')
+      ? next
+      : '/'
+  return `/auth/login?next=${encodeURIComponent(safe)}`
+}
+
+export function partnerSiteAuthSyncApiPath(siteSlug: string): string {
+  return `/api/site/${encodeURIComponent(siteSlug.trim())}/auth/sync-session`
 }
 
 export function partnerSitePersonalizationApiPath(siteSlug: string, subpath: string): string {

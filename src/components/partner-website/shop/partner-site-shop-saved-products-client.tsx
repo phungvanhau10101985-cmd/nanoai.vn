@@ -91,6 +91,25 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
     }
   }
 
+  async function clearRecentlyViewed() {
+    if (busyId || mode !== 'recently-viewed' || products.length === 0) return
+    setBusyId('clear')
+    setMessage('')
+    try {
+      const res = await fetch(partnerSitePersonalizationApiPath(siteSlug, 'recently-viewed'), {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: authHeaders(),
+      })
+      captureFromResponse(res)
+      if (!res.ok) return
+      setProducts([])
+      setMessage(t.recentlyViewedCleared)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   async function addToCart(product: PartnerSitePersonalizationProduct) {
     if (busyId) return
     setBusyId(product.inventory_id)
@@ -132,7 +151,19 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
 
   return (
     <div>
-      <h1>{title}</h1>
+      <div className="pw-shop-page-head">
+        <h1>{title}</h1>
+        {mode === 'recently-viewed' && !loading && products.length > 0 ? (
+          <button
+            type="button"
+            className="pw-shop-btn pw-shop-btn-outline"
+            disabled={busyId === 'clear'}
+            onClick={() => void clearRecentlyViewed()}
+          >
+            {t.recentlyViewedClear}
+          </button>
+        ) : null}
+      </div>
       {loading ? <p className="pw-shop-muted">…</p> : null}
       {!loading && products.length === 0 ? (
         <p className="pw-shop-muted">

@@ -1,46 +1,198 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
+import { PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY } from '@/lib/messaging/partner-site-customer-auth-constants'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import {
+  authPartnerSiteFromShopToken,
+  tryPartnerSiteQuickAuth,
+} from '@/lib/partner-website/shop/partner-site-shop-quick-auth'
+import {
+  buildPartnerShopGoogleLoginUrl,
+  fetchPartnerSiteShopSsoConfig,
+  isPartnerShopTokenSameOrigin,
+  type PartnerSiteShopSsoConfig,
+} from '@/lib/partner-website/shop/partner-site-shop-sso'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
+import {
+  readGuestAuthRememberDevicePreference,
+  writeGuestAuthRememberDevicePreference,
+} from '@/lib/auth/guest-auth-remember-device-client'
+import { getStableEmailTrustedBrowserId } from '@/lib/auth/email-trusted-browser-client'
 
 type Props = {
   partnerSlug: string
   siteSlug: string
+  shopTitle?: string
   locale: WebLocale
   onAuthed?: () => void
 }
 
-export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, locale, onAuthed }: Props) {
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+      />
+    </svg>
+  )
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
+export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, locale, onAuthed }: Props) {
   const t = getPartnerSiteShopCopy(locale)
-  const { authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [step, setStep] = useState<'email' | 'otp'>('email')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
 
-  async function requestOtp() {
-    const em = email.trim().toLowerCase()
-    if (!em || busy) return
+  const [rememberDevice, setRememberDevice] = useState(() => readGuestAuthRememberDevicePreference())
+  const [ssoConfig, setSsoConfig] = useState<PartnerSiteShopSsoConfig | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchPartnerSiteShopSsoConfig(siteSlug)
+      .then((cfg) => {
+        if (!cancelled && cfg) setSsoConfig(cfg)
+      })
+      .catch(() => {
+        // optional — OTP vẫn hoạt động
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [siteSlug])
+
+  const tryQuickLogin = useCallback(async (): Promise<boolean> => {
+    const result = await tryPartnerSiteQuickAuth({
+      partnerSlug,
+      siteSlug,
+      authHeaders,
+      captureFromResponse,
+      shopOrigin: ssoConfig?.shopOrigin,
+      customerTokenPath: ssoConfig?.customerTokenPath,
+      customerTokenOnShopDomain: ssoConfig?.customerTokenOnShopDomain,
+    })
+    if (result.ok) {
+      onAuthed?.()
+      return true
+    }
+    return false
+  }, [authHeaders, captureFromResponse, onAuthed, partnerSlug, siteSlug, ssoConfig])
+
+  const consumePcTokenFromUrl = useCallback(async (): Promise<boolean> => {
+    if (typeof window === 'undefined') return false
+    const sp = new URLSearchParams(window.location.search)
+    const pcToken = sp.get(PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY)?.trim() ?? ''
+    if (!pcToken) return false
+    const ok = await authPartnerSiteFromShopToken({
+      partnerSlug,
+      token: pcToken,
+      authHeaders,
+      captureFromResponse,
+    })
+    sp.delete(PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY)
+    const nextPath = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`
+    window.history.replaceState(null, '', nextPath)
+    if (ok) onAuthed?.()
+    return ok
+  }, [authHeaders, captureFromResponse, onAuthed, partnerSlug])
+
+  useEffect(() => {
+    if (!ready) return
+    void (async () => {
+      if (await consumePcTokenFromUrl()) return
+      await tryQuickLogin().catch(() => {
+        // stay on login form
+      })
+    })()
+  }, [ready, consumePcTokenFromUrl, tryQuickLogin])
+
+  async function handleGoogleLogin() {
+    if (busy || !ready) return
     setBusy(true)
     setMessage('')
+
+    const shopOrigin = ssoConfig?.shopOrigin ?? null
+    const loginPath = ssoConfig?.loginPath ?? '/dang-nhap'
+
+    if (
+      shopOrigin &&
+      ssoConfig?.customerTokenOnShopDomain &&
+      !isPartnerShopTokenSameOrigin(shopOrigin)
+    ) {
+      const returnUrl = typeof window !== 'undefined' ? window.location.href : ''
+      window.location.href = buildPartnerShopGoogleLoginUrl({
+        shopOrigin,
+        loginPath,
+        returnUrl,
+      })
+      return
+    }
+
+    try {
+      const ok = await tryQuickLogin()
+      if (!ok) setMessage(t.authQuickLoginFailed)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function requestOtp() {
+    const em = email.trim().toLowerCase()
+    if (busy || !ready) return
+    if (!em) {
+      setMessage(t.authEmailRequired)
+      return
+    }
+    if (!isValidEmail(em)) {
+      setMessage(t.authFailed)
+      return
+    }
+    setBusy(true)
+    setMessage('')
+    const browserId = getStableEmailTrustedBrowserId()
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/auth/email/request`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ email: em }),
+        body: JSON.stringify({ email: em, rememberDevice, browserId }),
       })
       captureFromResponse(res)
-      const json = (await res.json()) as { ok?: boolean; error?: string }
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; autoSignedIn?: boolean }
       if (!res.ok || !json.ok) {
         setMessage(json.error || t.authFailed)
         return
       }
+      if (json.autoSignedIn) {
+        setMessage(t.authSuccess)
+        onAuthed?.()
+        return
+      }
       setStep('otp')
       setMessage(t.authOtpSent)
+    } catch {
+      setMessage(t.authFailed)
     } finally {
       setBusy(false)
     }
@@ -49,53 +201,141 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, locale, onAuth
   async function verifyOtp() {
     const em = email.trim().toLowerCase()
     const code = otp.trim()
-    if (!em || !code || busy) return
+    if (busy || !ready) return
+    if (!code) {
+      setMessage(t.authFailed)
+      return
+    }
     setBusy(true)
     setMessage('')
+    const browserId = getStableEmailTrustedBrowserId()
     try {
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/auth/email/verify-otp`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ email: em, otp: code }),
+        body: JSON.stringify({ email: em, otp: code, rememberDevice, browserId }),
       })
       captureFromResponse(res)
-      const json = (await res.json()) as { ok?: boolean; error?: string }
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
       if (!res.ok || !json.ok) {
         setMessage(json.error || t.authFailed)
         return
       }
       setMessage(t.authSuccess)
       onAuthed?.()
+    } catch {
+      setMessage(t.authFailed)
     } finally {
       setBusy(false)
     }
   }
 
-  return (
-    <div className="pw-shop-form" style={{ marginTop: 16, padding: 16, border: '1px solid #e2e8f0', borderRadius: 12 }}>
-      <p className="pw-shop-muted">{t.checkoutAuthRequired}</p>
-      {step === 'email' ? (
-        <>
-          <label>
-            Email
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@..." />
-          </label>
-          <button type="button" className="pw-shop-btn" disabled={busy} onClick={() => void requestOtp()}>
-            {busy ? '…' : t.authSendOtp}
-          </button>
-        </>
-      ) : (
-        <>
+  if (!ready) {
+    return (
+      <div className="pw-shop-auth-panel pw-shop-form">
+        <p className="pw-shop-muted">…</p>
+      </div>
+    )
+  }
+
+  if (step === 'otp') {
+    return (
+      <div className="pw-shop-auth-panel pw-shop-form">
+        <p className="pw-shop-auth-panel-intro">{t.checkoutAuthRequired}</p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            void verifyOtp()
+          }}
+        >
+          <p className="pw-shop-muted">
+            {t.accountEmailLabel}: {email}
+          </p>
           <label>
             OTP
-            <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="123456" />
+            <input
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              placeholder="123456"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+            />
           </label>
-          <button type="button" className="pw-shop-btn" disabled={busy} onClick={() => void verifyOtp()}>
+          <button type="submit" className="pw-shop-btn" disabled={busy}>
             {busy ? '…' : t.authVerifyOtp}
           </button>
-        </>
-      )}
+          <button
+            type="button"
+            className="pw-shop-btn pw-shop-btn-outline"
+            disabled={busy}
+            onClick={() => {
+              setStep('email')
+              setOtp('')
+              setMessage('')
+            }}
+          >
+            {t.authChangeEmail}
+          </button>
+        </form>
+        {message ? <p className="pw-shop-muted">{message}</p> : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className="pw-shop-auth-panel pw-shop-form">
+      <p className="pw-shop-auth-panel-intro">{t.checkoutAuthRequired}</p>
+      {shopTitle ? <p className="pw-shop-auth-panel-welcome">{shopTitle}</p> : null}
+      <p className="pw-shop-auth-panel-hint">{t.authLoginSubtitle}</p>
+
+      {ssoConfig?.googleSsoAvailable ? (
+        <button type="button" className="pw-shop-btn-google" disabled={busy} onClick={() => void handleGoogleLogin()}>
+          <GoogleIcon />
+          <span>{t.authGoogleLogin}</span>
+        </button>
+      ) : null}
+
+      {ssoConfig?.googleSsoAvailable ? (
+        <div className="pw-shop-auth-divider">
+          <span>{t.authShopOtpOr}</span>
+        </div>
+      ) : null}
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          void requestOtp()
+        }}
+      >
+        <label>
+          {t.accountEmailLabel}
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="email@example.com"
+            autoComplete="email"
+            required
+          />
+        </label>
+        <label className="pw-shop-auth-panel-check">
+          <input
+            type="checkbox"
+            checked={rememberDevice}
+            onChange={(e) => {
+              const next = e.target.checked
+              setRememberDevice(next)
+              writeGuestAuthRememberDevicePreference(next)
+            }}
+          />
+          <span>{t.authRememberDevice}</span>
+        </label>
+        <button type="submit" className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-send-otp" disabled={busy}>
+          {busy ? '…' : t.authSendOtp}
+        </button>
+      </form>
       {message ? <p className="pw-shop-muted">{message}</p> : null}
     </div>
   )

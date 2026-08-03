@@ -1,25 +1,23 @@
 import crypto from 'node:crypto'
 import type { NextRequest } from 'next/server'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
-import { resolveCanonicalUserIdByEmail } from '@/lib/auth/resolve-canonical-email-user'
-import {
-  createEmailSessionTokenString,
-  getEmailSessionCookieOptions,
-} from '@/lib/auth/email-session-token'
+import { getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 import type { NextResponse } from 'next/server'
 import {
   findGuestAccountIdByEmailPg,
   insertGuestAccountPg,
-  listGuestChallengeSessionIdsByEmailPg,
   updateGuestAccountLastLoginPg,
   upsertGuestIdentityPg,
 } from '@/lib/db/messaging-guest-pg'
 import { upsertPartnerCustomerProfileByEmailFromPg } from '@/lib/db/messaging-partner-customer-profiles-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
 import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { readGuestSessionIdFromRequestStrictOrLoose } from '@/lib/messaging/guest-auth-session'
 import { syncGuestConversationCustomerNamesForAccountPg } from '@/lib/db/customer-care-pg'
+import {
+  completeGuestEmailAuth,
+  mergeAllGuestSessionsForEmail,
+} from '@/lib/messaging/complete-guest-email-auth'
 import { PARTNER_SITE_CUSTOMER_TOKEN_MAX_TTL_SEC } from '@/lib/messaging/partner-site-customer-auth-constants'
 
 export {
@@ -189,23 +187,12 @@ export async function authenticatePartnerSiteCustomer(params: {
     })
   }
 
-  if (sessionId) {
-    await mergeGuestSessionConversationToAccount(partnerId, sessionId, accountId)
-  }
-  try {
-    const allSessionIds = await listGuestChallengeSessionIdsByEmailPg(partnerId, email, 300)
-    for (const sid of allSessionIds) {
-      if (!sid || sid === accountId) continue
-      await mergeGuestSessionConversationToAccount(partnerId, sid, accountId)
-    }
-  } catch (e) {
-    console.warn('[partner-site-customer-auth] email session merge skipped', e)
-  }
-
-  let authUserIdForEmail: string | null = await resolveCanonicalUserIdByEmail(email)
-  if (authUserIdForEmail && authUserIdForEmail !== accountId) {
-    await mergeGuestSessionConversationToAccount(partnerId, authUserIdForEmail, accountId)
-  }
+  await mergeAllGuestSessionsForEmail({
+    partnerId,
+    email,
+    guestAccountId: accountId,
+    currentSessionId: sessionId,
+  })
 
   await syncGuestConversationCustomerNamesForAccountPg({
     partnerId,
@@ -213,16 +200,11 @@ export async function authenticatePartnerSiteCustomer(params: {
     customerNameHint: name ?? null,
   })
 
-  let sessionToken: string | null = null
-  let emailSessionIssued = false
-  if (authUserIdForEmail) {
-    try {
-      sessionToken = await createEmailSessionTokenString(authUserIdForEmail, email)
-      if (sessionToken) emailSessionIssued = true
-    } catch (e) {
-      console.warn('[partner-site-customer-auth] email JWT not issued', e)
-    }
-  }
+  const { authUserId: authUserIdForEmail, sessionToken, emailSessionIssued } = await completeGuestEmailAuth({
+    partnerId,
+    email,
+    guestAccountId: accountId,
+  })
 
   return {
     ok: true,

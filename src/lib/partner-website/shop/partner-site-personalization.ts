@@ -14,6 +14,8 @@ import {
   type PartnerVisitorUtmContext,
 } from '@/lib/db/messaging-partner-visitor-personalization-pg'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
+import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
+import { upsertPartnerCustomerProfileByEmailFromPg } from '@/lib/db/messaging-partner-customer-profiles-pg'
 import {
   createGuestSessionId,
   readGuestSessionIdFromRequestStrictOrLoose,
@@ -40,6 +42,7 @@ export type PartnerSitePersonalizationProduct = {
 }
 
 export type PartnerSiteVisitorProfile = {
+  email: string | null
   greeting_name: string | null
   customer_name: string | null
   customer_phone: string | null
@@ -333,6 +336,7 @@ export async function getSiteVisitorProfile(input: {
   const greeting_name = delivery?.customerName?.trim() || null
 
   return {
+    email: email || null,
     greeting_name,
     customer_name: delivery?.customerName?.trim() || null,
     customer_phone: delivery?.customerPhone?.trim() || null,
@@ -422,7 +426,39 @@ export function headlessPersonalizationAccountKey(customerRef: string): string {
   return headlessAccountKey(customerRef)
 }
 
-export async function resolveSiteVisitorEmail(request: NextRequest): Promise<string | null> {
+export async function resolveSiteVisitorEmail(
+  request: NextRequest,
+  partnerId?: string
+): Promise<string | null> {
   const user = await getEmailSessionUser()
-  return user?.email?.trim().toLowerCase() || null
+  const fromSession = user?.email?.trim().toLowerCase() || ''
+  if (fromSession) return fromSession
+
+  if (!partnerId) return null
+  const thread = await resolveWidgetOrderThreadFromRequest(request, partnerId)
+  if (!thread?.guestAccountId) return null
+  const accountEmail = await fetchGuestAccountEmailByIdPg(partnerId, thread.guestAccountId)
+  return accountEmail?.emailNormalized?.trim().toLowerCase() || null
+}
+
+export async function saveSiteVisitorProfile(input: {
+  partnerId: string
+  emailNormalized: string
+  emailRaw?: string | null
+  customerName?: string
+  customerPhone?: string
+  shippingAddress?: string
+}): Promise<boolean> {
+  const existing = await getCustomerDeliveryProfile({
+    partnerId: input.partnerId,
+    emailNormalized: input.emailNormalized,
+  })
+  return upsertPartnerCustomerProfileByEmailFromPg({
+    partnerId: input.partnerId,
+    emailNormalized: input.emailNormalized,
+    emailRaw: input.emailRaw?.trim() || input.emailNormalized,
+    customerName: input.customerName ?? existing?.customerName ?? '',
+    customerPhone: input.customerPhone ?? existing?.customerPhone ?? '',
+    shippingAddress: input.shippingAddress ?? existing?.shippingAddress ?? '',
+  })
 }

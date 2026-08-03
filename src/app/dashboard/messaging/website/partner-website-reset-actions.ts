@@ -17,8 +17,7 @@ import {
 } from '@/lib/db/partner-website-reset-pg'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
 import { sendSmtpMail, isSmtpConfigured } from '@/lib/email/smtp'
-import { partnerWebsitePublicPath } from '@/lib/partner-website/partner-website-slug'
-import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { resolvePartnerWebsitePublicUrl } from '@/lib/partner-website/resolve-partner-website-public-url'
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 
 const UUID_RE =
@@ -153,13 +152,11 @@ export async function restorePartnerWebsiteFromResetTrash(partnerId: string): Pr
   revalidatePath('/dashboard/messaging/website')
   revalidatePath('/dashboard/messaging/p')
 
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ||
-    process.env.APP_URL?.replace(/\/$/, '') ||
-    defaultPublicOrigin().replace(/\/$/, '')
-  const publicUrl = result.website.isPublished
-    ? `${base}${partnerWebsitePublicPath(result.website.siteSlug)}`
-    : null
+  const publicUrl = await resolvePartnerWebsitePublicUrl({
+    partnerId,
+    siteSlug: result.website.siteSlug,
+    isPublished: result.website.isPublished,
+  })
 
   return { ok: true, website: result.website, publicUrl }
 }

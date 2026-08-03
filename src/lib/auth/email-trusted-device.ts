@@ -168,42 +168,52 @@ type TrustedDeviceMatch = {
   source: 'cookie'
 }
 
+async function resolveTrustedDeviceRowFromCookie(
+  cookie: { id: string; secret: string },
+  email?: string | null
+): Promise<TrustedDeviceMatch | null> {
+  const row = await pgQueryOne<{
+    id: string
+    user_id: string
+    email_normalized: string
+    token_hash: string
+    expires_at: string
+    revoked_at: string | null
+  }>(
+    `select id::text as id, user_id::text as user_id, email_normalized, token_hash, expires_at::text as expires_at, revoked_at::text as revoked_at
+     from public.nanoai_email_trusted_devices
+     where id = $1::uuid
+     limit 1`,
+    [cookie.id]
+  )
+  if (!row || row.revoked_at || new Date(row.expires_at).getTime() <= Date.now()) return null
+  if (email && normalizeEmail(row.email_normalized) !== normalizeEmail(email)) return null
+  const hashed = sha256hex(`trusted:${cookie.secret}`)
+  if (!safeEqHex(hashed, row.token_hash)) return null
+  return {
+    userId: row.user_id,
+    email: row.email_normalized,
+    source: 'cookie',
+  }
+}
+
+/** Khớp thiết bị tin cậy khi khách nhập lại đúng email. */
 export async function resolveTrustedDeviceFromRequest(
   req: NextRequest,
   email: string
 ): Promise<TrustedDeviceMatch | null> {
-  const normalized = normalizeEmail(email)
-
   const cookie = parseTrustedDeviceCookie(readTrustedCookie(req))
-  if (cookie) {
-    const row = await pgQueryOne<{
-      id: string
-      user_id: string
-      email_normalized: string
-      token_hash: string
-      expires_at: string
-      revoked_at: string | null
-    }>(
-      `select id::text as id, user_id::text as user_id, email_normalized, token_hash, expires_at::text as expires_at, revoked_at::text as revoked_at
-       from public.nanoai_email_trusted_devices
-       where id = $1::uuid
-       limit 1`,
-      [cookie.id]
-    )
-    if (row && !row.revoked_at && new Date(row.expires_at).getTime() > Date.now()) {
-      if (normalizeEmail(row.email_normalized) === normalized) {
-        const hashed = sha256hex(`trusted:${cookie.secret}`)
-        if (safeEqHex(hashed, row.token_hash)) {
-          return {
-            userId: row.user_id,
-            email: row.email_normalized,
-            source: 'cookie',
-          }
-        }
-      }
-    }
-  }
-  return null
+  if (!cookie) return null
+  return resolveTrustedDeviceRowFromCookie(cookie, email)
+}
+
+/** Khôi phục phiên im lặng từ cookie thiết bị tin cậy (không cần nhập email). */
+export async function resolveTrustedDeviceFromRequestWithoutEmail(
+  req: NextRequest
+): Promise<TrustedDeviceMatch | null> {
+  const cookie = parseTrustedDeviceCookie(readTrustedCookie(req))
+  if (!cookie) return null
+  return resolveTrustedDeviceRowFromCookie(cookie, null)
 }
 
 export async function touchTrustedDeviceFromRequest(response: NextResponse, req: NextRequest) {

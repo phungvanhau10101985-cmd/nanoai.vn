@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
@@ -39,6 +39,7 @@ import {
   getPartnerCustomDomainCnameTarget,
   normalizePartnerCustomDomainHostname,
 } from '@/lib/messaging/partner-custom-domain-hostname'
+import { normalizePartnerShopOrigin } from '@/lib/partner-website/shop/partner-site-shop-sso'
 import {
   probePartnerCustomDomainSsl,
   verifyPartnerCustomDomainCname,
@@ -101,7 +102,12 @@ import {
   updateMessagingPartnerGoogleAdsForOwnerFromPg,
   updateMessagingPartnerTiktokPixelForOwnerFromPg,
   updateMessagingPartnerProfileForOwnerFromPg,
+  fetchPartnerCapabilitiesForPartnerFromPg,
+  updatePartnerCapabilitiesForOwnerFromPg,
+  fetchPartnerExternalShopSsoPg,
+  updatePartnerExternalShopSsoPg,
 } from '@/lib/db/messaging-partners-pg'
+import type { PartnerCapabilities } from '@/lib/partner-website/partner-capabilities'
 import {
   deleteMessagingPartnerMemberForOwnerFromPg,
   listMessagingPartnerMembersForOwnerFromPg,
@@ -368,7 +374,7 @@ export async function createMessagingWorkspace(displayName: string) {
     owner_user_id: user.id,
   })
   if (!inserted) {
-    return { error: 'Không tạo được workspace.' }
+    return { error: 'Kh├┤ng tß║ío ─æ╞░ß╗úc workspace.' }
   }
   revalidateMessagingDashboard()
   return { partner: inserted }
@@ -393,8 +399,8 @@ function logoMessagingIconPromptFromHint(hint: string): string {
   return [
     'Create an impressive bold circular messaging/chat icon based on this user design brief.',
     `User brief: "${hint}".`,
-    'There is no logo reference image — follow the brief above as the primary creative direction.',
-    'CRITICAL: Inside the circle, include the Vietnamese words "nhắn tin" clearly and boldly — under or beside the main mark — so users recognize this as the chat/contact button. High contrast, readable at small sizes; do not omit.',
+    'There is no logo reference image ΓÇö follow the brief above as the primary creative direction.',
+    'CRITICAL: Inside the circle, include the Vietnamese words "nhß║»n tin" clearly and boldly ΓÇö under or beside the main mark ΓÇö so users recognize this as the chat/contact button. High contrast, readable at small sizes; do not omit.',
     'Use a cohesive color palette that fits the brief (avoid generic gray). Prefer one strong accent color with high contrast on white.',
     'Use circular composition only. Fill the circle with useful content and avoid wasted top/bottom space.',
     'Use bold shapes, strong silhouette, high contrast, and clean geometry for 48-64px readability.',
@@ -406,13 +412,13 @@ function logoMessagingIconPromptFromHint(hint: string): string {
 function logoMessagingIconPromptWithReference(hint?: string): string {
   const hintLine = hint?.trim()
     ? `Additional user design brief (follow when compatible with the reference logo): "${hint.trim()}".`
-    : 'No text brief was provided — derive the icon purely from the reference logo image.'
+    : 'No text brief was provided ΓÇö derive the icon purely from the reference logo image.'
   return [
     'Create an impressive bold circular messaging/chat icon from this customer logo reference image.',
     hintLine,
     'Goal: make a memorable circular icon for chat bubble usage while keeping original brand feel recognizable.',
-    'CRITICAL — COLORS: Preserve the source logo colors exactly (same brand hues and saturation; no recoloring, no new palette, no color grading that changes the brand look). Bolder shapes and lighting are OK only if colors stay true to the reference.',
-    'CRITICAL: Inside the circle, include the Vietnamese words "nhắn tin" clearly and boldly — under or beside the main mark — so users recognize this as the chat/contact button. High contrast, readable at small sizes; do not omit.',
+    'CRITICAL ΓÇö COLORS: Preserve the source logo colors exactly (same brand hues and saturation; no recoloring, no new palette, no color grading that changes the brand look). Bolder shapes and lighting are OK only if colors stay true to the reference.',
+    'CRITICAL: Inside the circle, include the Vietnamese words "nhß║»n tin" clearly and boldly ΓÇö under or beside the main mark ΓÇö so users recognize this as the chat/contact button. High contrast, readable at small sizes; do not omit.',
     'Simplify aggressively: remove tiny unreadable details and keep only strongest identity elements.',
     'Prioritize the main mark/text and scale it as large as possible.',
     'Use circular composition only. Fill the circle with useful logo content and avoid wasted top/bottom space.',
@@ -451,7 +457,7 @@ export async function createMessagingWorkspaceProfile(input: {
     logo_url: normalizeLogoUrl(input.logoUrl ?? ''),
     owner_user_id: user.id,
   })
-  if (!inserted) return { error: 'Không tạo được workspace.' }
+  if (!inserted) return { error: 'Kh├┤ng tß║ío ─æ╞░ß╗úc workspace.' }
   revalidateMessagingDashboard()
   return { partner: inserted }
 }
@@ -483,7 +489,7 @@ export async function updateMessagingWorkspaceProfile(input: {
     brand_name: brand,
     logo_url: normalizeLogoUrl(input.logoUrl ?? ''),
   })
-  if (!updated) return { error: 'Không cập nhật được thông tin workspace.' }
+  if (!updated) return { error: 'Kh├┤ng cß║¡p nhß║¡t ─æ╞░ß╗úc th├┤ng tin workspace.' }
   revalidateMessagingDashboard()
   return { partner: updated }
 }
@@ -511,7 +517,7 @@ export async function getPartnerMessagingFacebookMeta(partnerId: string) {
     }
   } catch (e) {
     console.warn('[getPartnerMessagingFacebookMeta]', e)
-    return { error: 'Không đọc được cài đặt Meta Pixel.' }
+    return { error: 'Kh├┤ng ─æß╗ìc ─æ╞░ß╗úc c├ái ─æß║╖t Meta Pixel.' }
   }
 }
 
@@ -534,7 +540,7 @@ export async function savePartnerMessagingFacebookMeta(partnerId: string, input:
     update_capi_token: updateCapi,
     facebook_capi_access_token: updateCapi ? capiTok : null,
   })
-  if (!ok) return { error: 'Không lưu được Pixel / Conversions API.' }
+  if (!ok) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc Pixel / Conversions API.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -555,7 +561,7 @@ export async function savePartnerMessagingGa4(partnerId: string, measurementId: 
     owner_user_id: user.id,
     ga4_measurement_id: raw || null,
   })
-  if (!ok) return { error: 'Không lưu được mã GA4.' }
+  if (!ok) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc m├ú GA4.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -576,7 +582,7 @@ export async function savePartnerMessagingGoogleAds(partnerId: string, googleAds
     owner_user_id: user.id,
     google_ads_id: raw || null,
   })
-  if (!ok) return { error: 'Không lưu được mã Google Ads.' }
+  if (!ok) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc m├ú Google Ads.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -597,7 +603,7 @@ export async function savePartnerMessagingTiktokPixel(partnerId: string, tiktokP
     owner_user_id: user.id,
     tiktok_pixel_id: raw || null,
   })
-  if (!ok) return { error: 'Không lưu được TikTok Pixel.' }
+  if (!ok) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc TikTok Pixel.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -650,9 +656,9 @@ export async function getMessagingWorkspaceGoogleSheetsSettings(partnerId: strin
       sheetName: (row?.sheet_name ?? '').trim() || 'Don hang',
     },
     hasServiceAccount,
-    /** Host có thể cấu hình thêm một key dùng chung (tùy chọn). */
+    /** Host c├│ thß╗â cß║Ñu h├¼nh th├¬m mß╗Öt key d├╣ng chung (t├╣y chß╗ìn). */
     serverFallbackAvailable,
-    /** Đủ điều kiện gọi API Sheets: JSON shop hoặc fallback host. */
+    /** ─Éß╗º ─æiß╗üu kiß╗çn gß╗ìi API Sheets: JSON shop hoß║╖c fallback host. */
     syncCredentialsReady: hasServiceAccount || serverFallbackAvailable,
   }
 }
@@ -662,9 +668,9 @@ export async function saveMessagingWorkspaceGoogleSheetsSettings(input: {
   enabled: boolean
   spreadsheetIdOrUrl: string
   sheetName: string
-  /** Dán file JSON key mới; không gửi field này để giữ key đã lưu. */
+  /** D├ín file JSON key mß╗¢i; kh├┤ng gß╗¡i field n├áy ─æß╗â giß╗» key ─æ├ú l╞░u. */
   serviceAccountJson?: string
-  /** true = xóa JSON đã lưu cho shop (chỉ còn fallback host nếu có). */
+  /** true = x├│a JSON ─æ├ú l╞░u cho shop (chß╗ë c├▓n fallback host nß║┐u c├│). */
   clearServiceAccountJson?: boolean
 }) {
   const auth = await requireUser()
@@ -695,7 +701,7 @@ export async function saveMessagingWorkspaceGoogleSheetsSettings(input: {
   if (input.enabled && !nextServiceAccountJson && !envFallback) {
     return {
       error:
-        'Cần dán file JSON service account (Google Cloud → IAM) vào ô bên dưới, hoặc nhờ quản trị host bật fallback.',
+        'Cß║ºn d├ín file JSON service account (Google Cloud ΓåÆ IAM) v├áo ├┤ b├¬n d╞░ß╗¢i, hoß║╖c nhß╗¥ quß║ún trß╗ï host bß║¡t fallback.',
     }
   }
 
@@ -779,7 +785,7 @@ export async function getMessagingWorkspaceLoyaltySettings(partnerId: string) {
     actorUserId: user.id,
     partnerId,
   })
-  if (!row) return { error: 'Không đọc được cấu hình hạng thành viên.' }
+  if (!row) return { error: 'Kh├┤ng ─æß╗ìc ─æ╞░ß╗úc cß║Ñu h├¼nh hß║íng th├ánh vi├¬n.' }
   return row
 }
 
@@ -812,7 +818,7 @@ export async function saveMessagingWorkspaceLoyaltySettings(input: {
     maxTotalDiscountPercent: Math.max(0, Math.min(100, Number(input.maxTotalDiscountPercent) || 0)),
     tiers: input.tiers,
   })
-  if (!ok) return { error: 'Không lưu được cấu hình hạng thành viên.' }
+  if (!ok) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc cß║Ñu h├¼nh hß║íng th├ánh vi├¬n.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -827,7 +833,7 @@ export async function listMyMessagingOrders(input?: {
   partnerId?: string
   status?: string
   limit?: number
-  /** YYYY-MM-DD — ngày tạo đơn (Asia/Ho_Chi_Minh) */
+  /** YYYY-MM-DD ΓÇö ng├áy tß║ío ─æ╞ín (Asia/Ho_Chi_Minh) */
   createdFrom?: string
   createdTo?: string
 }): Promise<{ rows: PartnerOrderAdminRow[]; stats: PartnerOrderOwnerStats } | { error: string }> {
@@ -867,7 +873,7 @@ export async function listMyMessagingOrders(input?: {
 
 export type { PartnerOrderOwnerStats }
 
-/** Xuất tất cả đơn khớp bộ lọc (workspace + trạng thái) ra file .xlsx — tối đa theo biến môi trường / 50k dòng. */
+/** Xuß║Ñt tß║Ñt cß║ú ─æ╞ín khß╗¢p bß╗Ö lß╗ìc (workspace + trß║íng th├íi) ra file .xlsx ΓÇö tß╗æi ─æa theo biß║┐n m├┤i tr╞░ß╗¥ng / 50k d├▓ng. */
 export async function exportMyMessagingOrdersExcel(input?: {
   partnerId?: string
   status?: string
@@ -892,8 +898,8 @@ export async function exportMyMessagingOrdersExcel(input?: {
     createdFrom,
     createdTo,
   })
-  if (rows === null) return { error: 'Không tải được đơn hàng.' }
-  if (rows.length === 0) return { error: 'Không có đơn để xuất (thử đổi bộ lọc).' }
+  if (rows === null) return { error: 'Kh├┤ng tß║úi ─æ╞░ß╗úc ─æ╞ín h├áng.' }
+  if (rows.length === 0) return { error: 'Kh├┤ng c├│ ─æ╞ín ─æß╗â xuß║Ñt (thß╗¡ ─æß╗òi bß╗Ö lß╗ìc).' }
   const buf = buildPartnerOrdersXlsxBuffer(rows)
   const dateStr = new Date().toISOString().slice(0, 10)
   return {
@@ -1067,7 +1073,7 @@ export async function setMessagingWorkspaceActiveLogo(partnerId: string, version
   const gate = await assertPartnerStaffGate(user.id, partnerId, 'workspace_branding')
   if ('error' in gate) return { error: gate.error }
   const ok = await activatePartnerLogoVersionFromPg({ partnerId, versionId, ownerUserId: user.id })
-  if (!ok) return { error: 'Không thể đổi logo đang dùng.' }
+  if (!ok) return { error: 'Kh├┤ng thß╗â ─æß╗òi logo ─æang d├╣ng.' }
   revalidateMessagingDashboard()
   return { ok: true }
 }
@@ -1231,15 +1237,15 @@ function formatVnScheduleDate(iso: string): string {
   }
 }
 
-/** Gửi mã OTP 6 số tới email đăng nhập — bước trước khi lên lịch xóa workspace. */
+/** Gß╗¡i m├ú OTP 6 sß╗æ tß╗¢i email ─æ─âng nhß║¡p ΓÇö b╞░ß╗¢c tr╞░ß╗¢c khi l├¬n lß╗ïch x├│a workspace. */
 export async function requestMessagingWorkspaceDeletionOtp(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
   if (!isValidUuidString(partnerId)) return { error: 'Invalid workspace.' }
   const email = user.email?.trim()
-  if (!email) return { error: 'Tài khoản chưa có email — không gửi được OTP.' }
-  if (!isSmtpConfigured()) return { error: 'Máy chủ chưa cấu hình gửi email (SMTP).' }
+  if (!email) return { error: 'T├ái khoß║ún ch╞░a c├│ email ΓÇö kh├┤ng gß╗¡i ─æ╞░ß╗úc OTP.' }
+  if (!isSmtpConfigured()) return { error: 'M├íy chß╗º ch╞░a cß║Ñu h├¼nh gß╗¡i email (SMTP).' }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
 
   const gate = await assertPartnerOwner(user.id, partnerId)
@@ -1250,11 +1256,11 @@ export async function requestMessagingWorkspaceDeletionOtp(partnerId: string) {
     [partnerId, user.id]
   )
   if (pending?.purge_at) {
-    return { error: 'Workspace đã được lên lịch xóa. Bạn có thể hủy lịch trước khi hết hạn.' }
+    return { error: 'Workspace ─æ├ú ─æ╞░ß╗úc l├¬n lß╗ïch x├│a. Bß║ín c├│ thß╗â hß╗ºy lß╗ïch tr╞░ß╗¢c khi hß║┐t hß║ín.' }
   }
 
   if (await isWorkspaceDeletionOtpCooldownActiveFromPg(partnerId)) {
-    return { error: 'Vui lòng đợi vài chục giây trước khi gửi lại mã.' }
+    return { error: 'Vui l├▓ng ─æß╗úi v├ái chß╗Ñc gi├óy tr╞░ß╗¢c khi gß╗¡i lß║íi m├ú.' }
   }
 
   const otp = generateWorkspaceDeletionOtp6()
@@ -1264,13 +1270,13 @@ export async function requestMessagingWorkspaceDeletionOtp(partnerId: string) {
     ownerUserId: user.id,
     otpHash,
   })
-  if (!saved) return { error: 'Không lưu được mã xác nhận.' }
+  if (!saved) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc m├ú x├íc nhß║¡n.' }
 
   const sent = await sendSmtpMail({
     to: email,
-    subject: 'Mã OTP xóa workspace nhắn tin',
-    text: `Mã OTP của bạn: ${otp}\n\nMã có hiệu lực 10 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.`,
-    html: `<p>Mã OTP của bạn: <b>${otp}</b></p><p>Mã có hiệu lực 10 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p>`,
+    subject: 'M├ú OTP x├│a workspace nhß║»n tin',
+    text: `M├ú OTP cß╗ºa bß║ín: ${otp}\n\nM├ú c├│ hiß╗çu lß╗▒c 10 ph├║t. Nß║┐u kh├┤ng phß║úi bß║ín y├¬u cß║ºu, h├úy bß╗Å qua email n├áy.`,
+    html: `<p>M├ú OTP cß╗ºa bß║ín: <b>${otp}</b></p><p>M├ú c├│ hiß╗çu lß╗▒c 10 ph├║t. Nß║┐u kh├┤ng phß║úi bß║ín y├¬u cß║ºu, h├úy bß╗Å qua email n├áy.</p>`,
   })
 
   if (!sent.ok) {
@@ -1279,13 +1285,13 @@ export async function requestMessagingWorkspaceDeletionOtp(partnerId: string) {
     } catch (e) {
       console.warn('[requestMessagingWorkspaceDeletionOtp] rollback otp', e)
     }
-    return { error: 'Không gửi được email. Kiểm tra SMTP hoặc thử lại sau.' }
+    return { error: 'Kh├┤ng gß╗¡i ─æ╞░ß╗úc email. Kiß╗âm tra SMTP hoß║╖c thß╗¡ lß║íi sau.' }
   }
 
   return { ok: true as const }
 }
 
-/** Xác nhận OTP và lên lịch xóa sau grace (mặc định 7 ngày); gửi email thông báo lịch xóa. */
+/** X├íc nhß║¡n OTP v├á l├¬n lß╗ïch x├│a sau grace (mß║╖c ─æß╗ïnh 7 ng├áy); gß╗¡i email th├┤ng b├ío lß╗ïch x├│a. */
 export async function confirmMessagingWorkspaceDeletionWithOtp(partnerId: string, otpRaw: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -1302,7 +1308,7 @@ export async function confirmMessagingWorkspaceDeletionWithOtp(partnerId: string
     otp: otpRaw,
   })
   if (!scheduled) {
-    return { error: 'Mã OTP không đúng hoặc đã hết hạn.' }
+    return { error: 'M├ú OTP kh├┤ng ─æ├║ng hoß║╖c ─æ├ú hß║┐t hß║ín.' }
   }
 
   const email = user.email?.trim()
@@ -1313,19 +1319,19 @@ export async function confirmMessagingWorkspaceDeletionWithOtp(partnerId: string
   if (email && isSmtpConfigured()) {
     const sent = await sendSmtpMail({
       to: email,
-      subject: `Đã lên lịch xóa workspace — hủy trong ${graceDays} ngày`,
+      subject: `─É├ú l├¬n lß╗ïch x├│a workspace ΓÇö hß╗ºy trong ${graceDays} ng├áy`,
       text: [
-        `Đã lên lịch xóa workspace nhắn tin của bạn.`,
-        `Thời điểm dự kiến xóa hoàn toàn: ${when} (giờ Việt Nam), sau ${graceDays} ngày.`,
-        `Trong thời gian chờ, shop sẽ không nhận tin từ khách (widget / Facebook / Zalo).`,
-        `Bạn có thể hủy lịch xóa trong dashboard: ${baseUrl}/dashboard/messaging/settings`,
+        `─É├ú l├¬n lß╗ïch x├│a workspace nhß║»n tin cß╗ºa bß║ín.`,
+        `Thß╗¥i ─æiß╗âm dß╗▒ kiß║┐n x├│a ho├án to├án: ${when} (giß╗¥ Viß╗çt Nam), sau ${graceDays} ng├áy.`,
+        `Trong thß╗¥i gian chß╗¥, shop sß║╜ kh├┤ng nhß║¡n tin tß╗½ kh├ích (widget / Facebook / Zalo).`,
+        `Bß║ín c├│ thß╗â hß╗ºy lß╗ïch x├│a trong dashboard: ${baseUrl}/dashboard/messaging/settings`,
         ``,
-        `Nếu không phải bạn thao tác, hãy đăng nhập và hủy ngay.`,
+        `Nß║┐u kh├┤ng phß║úi bß║ín thao t├íc, h├úy ─æ─âng nhß║¡p v├á hß╗ºy ngay.`,
       ].join('\n'),
-      html: `<p>Đã <b>lên lịch xóa</b> workspace nhắn tin của bạn.</p>
-<p>Thời điểm dự kiến xóa hoàn toàn: <b>${when}</b> (giờ Việt Nam), sau <b>${graceDays} ngày</b>.</p>
-<p>Trong thời gian chờ, shop <b>không nhận tin</b> từ khách (widget / Facebook / Zalo).</p>
-<p><a href="${baseUrl}/dashboard/messaging/settings">Hủy lịch xóa</a> trong dashboard nếu đổi ý.</p>`,
+      html: `<p>─É├ú <b>l├¬n lß╗ïch x├│a</b> workspace nhß║»n tin cß╗ºa bß║ín.</p>
+<p>Thß╗¥i ─æiß╗âm dß╗▒ kiß║┐n x├│a ho├án to├án: <b>${when}</b> (giß╗¥ Viß╗çt Nam), sau <b>${graceDays} ng├áy</b>.</p>
+<p>Trong thß╗¥i gian chß╗¥, shop <b>kh├┤ng nhß║¡n tin</b> tß╗½ kh├ích (widget / Facebook / Zalo).</p>
+<p><a href="${baseUrl}/dashboard/messaging/settings">Hß╗ºy lß╗ïch x├│a</a> trong dashboard nß║┐u ─æß╗òi ├╜.</p>`,
     })
     if (!sent.ok) {
       console.warn('[confirmMessagingWorkspaceDeletionWithOtp] schedule notice email failed', sent.error)
@@ -1336,7 +1342,7 @@ export async function confirmMessagingWorkspaceDeletionWithOtp(partnerId: string
   return { ok: true as const, purge_at: scheduled.purge_at }
 }
 
-/** Hủy lịch xóa (không cần OTP). */
+/** Hß╗ºy lß╗ïch x├│a (kh├┤ng cß║ºn OTP). */
 export async function cancelMessagingWorkspaceDeletionSchedule(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -1348,7 +1354,7 @@ export async function cancelMessagingWorkspaceDeletionSchedule(partnerId: string
   if ('error' in gate) return { error: gate.error }
 
   const ok = await cancelScheduledPartnerPurgeFromPg(partnerId, user.id)
-  if (!ok) return { error: 'Không hủy được lịch xóa (hoặc workspace không còn lịch xóa).' }
+  if (!ok) return { error: 'Kh├┤ng hß╗ºy ─æ╞░ß╗úc lß╗ïch x├│a (hoß║╖c workspace kh├┤ng c├▓n lß╗ïch x├│a).' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -1401,7 +1407,7 @@ export async function listPartnerMessages(
   }
 }
 
-/** Trạng thái trợ lý AI đang chuẩn bị tin (job pending/processing) — hiển thị «đang soạn tin» trên inbox shop. */
+/** Trß║íng th├íi trß╗ú l├╜ AI ─æang chuß║⌐n bß╗ï tin (job pending/processing) ΓÇö hiß╗ân thß╗ï ┬½─æang soß║ín tin┬╗ tr├¬n inbox shop. */
 export async function getPartnerAiComposingForConversation(partnerId: string, conversationId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -1468,7 +1474,7 @@ export async function sendPartnerReply(
     const mime = mimeFromGuestImagePath(imgPath)
     imagePublicUrl = getTryOnPublicUrlFromPath(imgPath)
     rawPayload = partnerMediaPayloadToJson(buildPartnerMediaPayload(imagePublicUrl, imgPath, mime))
-    body = trimmed ? `📷 ${trimmed}` : '📷'
+    body = trimmed ? `≡ƒô╖ ${trimmed}` : '≡ƒô╖'
   } else {
     body = trimmed
   }
@@ -1506,7 +1512,7 @@ export async function sendPartnerReply(
       trimmed && imagePublicUrl
         ? `${trimmed}\n${imagePublicUrl}`
         : imagePublicUrl
-          ? `📷\n${imagePublicUrl}`
+          ? `≡ƒô╖\n${imagePublicUrl}`
           : trimmed
     const sent = await sendZaloOaText(externalId, zaloBody, zaloToken)
     if ('error' in sent) return { error: sent.error }
@@ -1609,7 +1615,7 @@ export async function savePartnerZaloChannel(partnerId: string, zaloWebhookSecre
 
 type MessagingPartnerAiSettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 
-/** Gửi xuống client: không lộ image_search_api_secret. */
+/** Gß╗¡i xuß╗æng client: kh├┤ng lß╗Ö image_search_api_secret. */
 export type PartnerAiSettingsClientRow = Omit<MessagingPartnerAiSettingsRow, 'image_search_api_secret'> & {
   image_search_api_key_configured: boolean
 }
@@ -1625,20 +1631,20 @@ export type PartnerAiSettingsPayload = {
   reply_delay_seconds: number
   typing_pause_min_ms: number
   typing_pause_max_ms: number
-  /** Thông tin/chính sách luôn đưa vào ngữ cảnh tư vấn sản phẩm. */
+  /** Th├┤ng tin/ch├¡nh s├ích lu├┤n ─æ╞░a v├áo ngß╗» cß║únh t╞░ vß║Ñn sß║ún phß║⌐m. */
   product_consultation_context: string
   append_ai_disclosure: boolean
   disclosure_suffix: string
   vision_product_search_enabled: boolean
-  /** ISO 3166-1 alpha-2 uppercase hoặc rỗng → lưu null */
+  /** ISO 3166-1 alpha-2 uppercase hoß║╖c rß╗ùng ΓåÆ l╞░u null */
   vision_shop_country: string
   vision_location: string
   vision_product_category: string
   vision_gcs_bucket: string
   image_search_api_enabled: boolean
-  /** Đặt hàng trong chat vs mở trang SP / link giỏ web shop. */
+  /** ─Éß║╖t h├áng trong chat vs mß╗ƒ trang SP / link giß╗Å web shop. */
   guest_purchase_flow: 'in_chat' | 'external_site' | 'external_cart_url'
-  /** Mẫu URL giỏ web — bắt buộc khi `external_cart_url`, phải chứa `{sku}`. */
+  /** Mß║½u URL giß╗Å web ΓÇö bß║»t buß╗Öc khi `external_cart_url`, phß║úi chß╗⌐a `{sku}`. */
   guest_external_cart_url_template: string
 }
 
@@ -1650,7 +1656,7 @@ const PARTNER_AI_TEXT_EMBED_DETAIL_ROW_LIMIT = 80
 
 export type PartnerAiUsagePeriod = 'day' | 'week' | 'month'
 
-/** Cửa sổ lăn (24h / 7d / 30d) hoặc khoảng ngày lịch UTC [from, to] (YYYY-MM-DD). */
+/** Cß╗¡a sß╗ò l─ân (24h / 7d / 30d) hoß║╖c khoß║úng ng├áy lß╗ïch UTC [from, to] (YYYY-MM-DD). */
 export type PartnerAiUsageQuery =
   | { type: 'rolling'; period: PartnerAiUsagePeriod }
   | { type: 'calendar'; fromDayUtc: string; toDayUtc: string }
@@ -1713,7 +1719,7 @@ function resolvePartnerAiUsageWindow(query: PartnerAiUsageQuery):
   }
 }
 
-/** Tổng token theo model (API) trong cửa sổ thời gian đã chọn — chủ shop xem trên dashboard. */
+/** Tß╗òng token theo model (API) trong cß╗¡a sß╗ò thß╗¥i gian ─æ├ú chß╗ìn ΓÇö chß╗º shop xem tr├¬n dashboard. */
 export async function getPartnerAiTokenUsageStats(
   partnerId: string,
   usageQuery: PartnerAiUsageQuery = { type: 'rolling', period: 'month' }
@@ -1761,8 +1767,8 @@ export async function getPartnerAiTokenUsageStats(
 }
 
 /**
- * Thống kê chi tiết: từng lần gọi LLM inbox + các khoản trừ credit (ledger + chuẩn hóa logo).
- * Lưu ý: inbox LLM hiện chỉ ghi token; trừ credit qua ví có thể là giáo trình/English coach (cùng user chủ shop) hoặc logo workspace.
+ * Thß╗æng k├¬ chi tiß║┐t: tß╗½ng lß║ºn gß╗ìi LLM inbox + c├íc khoß║ún trß╗½ credit (ledger + chuß║⌐n h├│a logo).
+ * L╞░u ├╜: inbox LLM hiß╗çn chß╗ë ghi token; trß╗½ credit qua v├¡ c├│ thß╗â l├á gi├ío tr├¼nh/English coach (c├╣ng user chß╗º shop) hoß║╖c logo workspace.
  */
 export async function getPartnerAiUsageAnalytics(
   partnerId: string,
@@ -1857,14 +1863,14 @@ export async function getPartnerAiUsageAnalytics(
 
 export type PartnerVisionCatalogStats = {
   totalInInventory: number
-  /** Có URL ảnh https, không bị loại trừ Vision */
+  /** C├│ URL ß║únh https, kh├┤ng bß╗ï loß║íi trß╗½ Vision */
   withHttpsImageUrl: number
-  /** Checksum khớp ảnh+tên hiện tại — luồng đồng bộ sẽ bỏ qua */
+  /** Checksum khß╗¢p ß║únh+t├¬n hiß╗çn tß║íi ΓÇö luß╗ông ─æß╗ông bß╗Ö sß║╜ bß╗Å qua */
   syncedUpToDate: number
-  /** Cần xử lý: chưa đẩy, hoặc đổi ảnh/tên, hoặc mất URL nhưng còn checksum (gỡ) */
+  /** Cß║ºn xß╗¡ l├╜: ch╞░a ─æß║⌐y, hoß║╖c ─æß╗òi ß║únh/t├¬n, hoß║╖c mß║Ñt URL nh╞░ng c├▓n checksum (gß╗í) */
   pendingSync: number
   visionCatalogExcluded: number
-  /** Không loại trừ nhưng không có URL https */
+  /** Kh├┤ng loß║íi trß╗½ nh╞░ng kh├┤ng c├│ URL https */
   noHttpsImageUrl: number
 }
 
@@ -2263,7 +2269,7 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
     if (!cartTpl || !/\{sku\}/i.test(cartTpl) || !/^https?:\/\//i.test(cartTpl)) {
       return {
         error:
-          'Cart URL template is required for this mode: use https://… with {sku} (e.g. https://shop.vn/cart/add/{sku}?from=nanoai).',
+          'Cart URL template is required for this mode: use https://ΓÇª with {sku} (e.g. https://shop.vn/cart/add/{sku}?from=nanoai).',
       }
     }
   }
@@ -2349,7 +2355,7 @@ export async function generatePartnerImageSearchApiSecret(partnerId: string) {
   return { ok: true as const, secret }
 }
 
-/** Không trả secret — chỉ meta cho UI mask / toggle */
+/** Kh├┤ng trß║ú secret ΓÇö chß╗ë meta cho UI mask / toggle */
 export async function getPartnerApiKeysBundle(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -2428,7 +2434,7 @@ export async function setPartnerImageSearchApiEnabled(partnerId: string, enabled
   if (ex === null) return { error: 'Failed to verify AI settings.' }
   if (!ex) {
     return {
-      error: 'Save AI settings once in Messaging → AI settings before toggling the API.',
+      error: 'Save AI settings once in Messaging ΓåÆ AI settings before toggling the API.',
     }
   }
   const ok = await updateMessagingPartnerAiImageSearchEnabledFromPg(partnerId, enabled, now)
@@ -2709,7 +2715,7 @@ export async function deletePartnerInventoryItem(partnerId: string, itemId: stri
 
 export type VisionBgSyncEnqueueErrorCode = 'already_active' | 'enable_vision_first' | 'no_ai_row'
 
-/** Xếp hàng đồng bộ Vision nền (cron VPS). `resumeAfterId` null = quét từ đầu theo cursor server. */
+/** Xß║┐p h├áng ─æß╗ông bß╗Ö Vision nß╗ün (cron VPS). `resumeAfterId` null = qu├⌐t tß╗½ ─æß║ºu theo cursor server. */
 export async function enqueueVisionCatalogBackgroundSync(
   partnerId: string,
   resumeAfterId: string | null
@@ -2740,12 +2746,12 @@ export async function cancelVisionCatalogBackgroundSync(partnerId: string) {
   return { ok: true as const }
 }
 
-/** Đóng banner báo cáo sau khi đã xem (job đã done/error). */
+/** ─É├│ng banner b├ío c├ío sau khi ─æ├ú xem (job ─æ├ú done/error). */
 export async function dismissVisionCatalogBackgroundSyncReport(partnerId: string) {
   return cancelVisionCatalogBackgroundSync(partnerId)
 }
 
-/** Mở khóa import Vision Warehouse khi lock bị treo quá lâu. */
+/** Mß╗ƒ kh├│a import Vision Warehouse khi lock bß╗ï treo qu├í l├óu. */
 export async function unlockVisionWarehouseImportLock(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -2765,8 +2771,8 @@ export async function unlockVisionWarehouseImportLock(partnerId: string) {
 }
 
 /**
- * Kill switch khẩn cấp: tắt toàn bộ Vision cho shop hiện tại và dọn mọi queue/lock runner.
- * Dùng khi chi phí Vision tăng bất thường hoặc cần dừng tức thì không qua SQL thủ công.
+ * Kill switch khß║⌐n cß║Ñp: tß║»t to├án bß╗Ö Vision cho shop hiß╗çn tß║íi v├á dß╗ìn mß╗ìi queue/lock runner.
+ * D├╣ng khi chi ph├¡ Vision t─âng bß║Ñt th╞░ß╗¥ng hoß║╖c cß║ºn dß╗½ng tß╗⌐c th├¼ kh├┤ng qua SQL thß╗º c├┤ng.
  */
 export async function emergencyDisableVisionForPartner(partnerId: string) {
   const auth = await requireUser()
@@ -2835,7 +2841,7 @@ export async function savePartnerBirthdayPromoSettings(
   return { ok: true as const }
 }
 
-/** Chỉ chủ workspace: danh sách nhân viên và email (auth.users). */
+/** Chß╗ë chß╗º workspace: danh s├ích nh├ón vi├¬n v├á email (auth.users). */
 export async function listMessagingPartnerStaffForOwner(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -2846,7 +2852,7 @@ export async function listMessagingPartnerStaffForOwner(partnerId: string) {
   return { rows }
 }
 
-/** Mời nhân viên bằng email đăng ký NanoAI (`auth.users`). Mặc định quyền inbox + đơn; chỉnh sau trong Cài đặt. */
+/** Mß╗¥i nh├ón vi├¬n bß║▒ng email ─æ─âng k├╜ NanoAI (`auth.users`). Mß║╖c ─æß╗ïnh quyß╗ün inbox + ─æ╞ín; chß╗ënh sau trong C├ái ─æß║╖t. */
 export async function inviteMessagingPartnerStaffByEmail(partnerId: string, emailRaw: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -2928,10 +2934,48 @@ export async function getMessagingPartnerCustomDomainSettings(partnerId: string)
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const row = await fetchPartnerCustomDomainByPartnerIdPg(partnerId)
+  const shopSso = await fetchPartnerExternalShopSsoPg(partnerId)
   return {
     domain: row,
     cnameTarget: getPartnerCustomDomainCnameTarget(),
+    shopSso: {
+      externalShopOrigin: shopSso?.external_shop_origin?.trim() ?? '',
+      externalShopLoginPath: shopSso?.external_shop_login_path?.trim() || '/dang-nhap',
+    },
   }
+}
+
+export async function saveMessagingPartnerShopSsoSettings(input: {
+  partnerId: string
+  externalShopOrigin: string
+  externalShopLoginPath: string
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerOwner(auth.user.id, input.partnerId)
+  if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(auth.user.id)
+  if ('error' in step) return { error: step.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const rawOrigin = input.externalShopOrigin.trim()
+  let externalShopOrigin: string | null = null
+  if (rawOrigin) {
+    externalShopOrigin = normalizePartnerShopOrigin(rawOrigin)
+    if (!externalShopOrigin) return { error: 'INVALID_SHOP_ORIGIN' as const }
+  }
+
+  const loginPathRaw = input.externalShopLoginPath.trim() || '/dang-nhap'
+  const externalShopLoginPath = loginPathRaw.startsWith('/') ? loginPathRaw : `/${loginPathRaw}`
+
+  const ok = await updatePartnerExternalShopSsoPg({
+    partnerId: input.partnerId,
+    externalShopOrigin,
+    externalShopLoginPath,
+  })
+  if (!ok) return { error: 'SAVE_FAILED' as const }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
 }
 
 export async function saveMessagingPartnerCustomDomainSettings(input: {
@@ -3035,3 +3079,35 @@ export async function updateMessagingPartnerCustomDomainUsage(input: {
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
+
+export async function getPartnerCapabilitiesBundle(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerStaffGate(auth.user.id, partnerId, 'website')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const partners = await fetchMessagingPartnersForDashboardFromPg(auth.user.id)
+  const row = partners?.find((p) => p.id === partnerId)
+  const capabilities = await fetchPartnerCapabilitiesForPartnerFromPg(partnerId, row?.industry_key ?? null)
+  return {
+    capabilities,
+    industry_key: row?.industry_key ?? null,
+  }
+}
+
+export async function savePartnerCapabilities(partnerId: string, capabilities: PartnerCapabilities) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const gate = await assertPartnerStaffGate(auth.user.id, partnerId, 'website')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const saved = await updatePartnerCapabilitiesForOwnerFromPg({
+    partner_id: partnerId,
+    owner_user_id: auth.user.id,
+    capabilities,
+  })
+  if (!saved) return { error: 'Could not save capabilities.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const, capabilities: saved }
+}
+

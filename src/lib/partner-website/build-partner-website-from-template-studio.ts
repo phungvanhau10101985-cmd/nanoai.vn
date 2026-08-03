@@ -20,6 +20,8 @@ import {
   type ShopTemplatePresetFlags,
   type ShopTemplatePresetId,
 } from '@/lib/partner-website/template/shop-template-presets'
+import { fetchPartnerCapabilitiesForPartnerFromPg } from '@/lib/db/messaging-partners-pg'
+import { mergeTemplateFlagsWithCapabilities } from '@/lib/partner-website/partner-capabilities'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 
 export type BuildPartnerWebsiteFromTemplateStudioInput = {
@@ -285,10 +287,12 @@ export async function buildPartnerWebsiteFromTemplateStudio(
   const briefText = buildPartnerWebsiteStudioBrief(input.answers, input.locale)
   const preset = getShopTemplatePreset(input.presetId)
   const paletteTheme = themeFromStudioPalette(input.answers.color_palette)
-  // Preset wins for structure; free-text features only when no preset was chosen.
-  const flags: FeatureFlags = input.presetId
+  const partnerCaps = await fetchPartnerCapabilitiesForPartnerFromPg(partnerId)
+  // Preset wins for structure; intersect with partner capabilities; free-text when no preset.
+  const presetFlags: FeatureFlags = input.presetId
     ? preset.flags
     : parseFeatureFlags(input.answers.site_features)
+  const flags: FeatureFlags = mergeTemplateFlagsWithCapabilities(presetFlags, partnerCaps)
 
   const templateSite = buildDefaultLandingV1Site({
     locale: input.locale,
@@ -352,8 +356,8 @@ export async function buildPartnerWebsiteFromTemplateStudio(
 
   const assistantMessage =
     input.locale === 'vi'
-      ? `Đã áp mẫu «${preset.label.vi}» và gắn catalog, giỏ hàng, chat. Bạn có thể chỉnh sửa tiếp trên preview.`
-      : `Applied «${preset.label.en}» and wired catalog, cart, chat. You can keep editing in the preview.`
+      ? `Đã áp mẫu «${preset.label.vi}». Bạn có thể chỉnh module và giao diện trên preview.`
+      : `Applied «${preset.label.en}». You can adjust modules and layout in the preview.`
 
   return { ok: true, website: published, assistantMessage }
 }

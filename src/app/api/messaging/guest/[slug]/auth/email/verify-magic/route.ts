@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { readGuestSessionIdFromRequest } from '@/lib/messaging/guest-auth-session'
 import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
-import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
 import { isValidMessagingGuestSessionId, LOOSE_RFC4122_UUID_STRING_RE } from '@/lib/messaging/guest-session-id'
 import {
   getClientIpFromRequest,
@@ -15,15 +14,17 @@ import {
   findGuestAccountIdByEmailPg,
   findMagicLinkChallengePg,
   insertGuestAccountPg,
-  listGuestChallengeSessionIdsByEmailPg,
   updateGuestAccountLastLoginPg,
   upsertGuestIdentityPg,
 } from '@/lib/db/messaging-guest-pg'
-import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
-import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
+import { getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 import { issueTrustedDeviceForUser } from '@/lib/auth/email-trusted-device'
+import {
+  completeGuestEmailAuth,
+  mergeAllGuestSessionsForEmail,
+} from '@/lib/messaging/complete-guest-email-auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -145,54 +146,27 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
   }
 
-  await mergeGuestSessionConversationToAccount(partnerId, sessionId, accountId)
-  // Deterministic merge by email: merge all known guest sessions for this email.
-  try {
-    const allSessionIds = await listGuestChallengeSessionIdsByEmailPg(partnerId, email, 300)
-    for (const sid of allSessionIds) {
-      if (!sid || sid === accountId) continue
-      await mergeGuestSessionConversationToAccount(partnerId, sid, accountId)
-    }
-  } catch (e) {
-    console.warn('[verify-magic] email session merge skipped', e)
-  }
-  // Backward compatibility: merge legacy auth user threads for the same email.
-  try {
-    const legacy = await pgQuery<{ id: string }>(
-      `select id::text as id
-       from auth.users
-       where lower(coalesce(email, '')) = $1`,
-      [email]
-    )
-    for (const row of legacy) {
-      const legacyThreadId = String(row.id || '').trim()
-      if (!legacyThreadId || legacyThreadId === accountId) continue
-      await mergeGuestSessionConversationToAccount(partnerId, legacyThreadId, accountId)
-    }
-  } catch (e) {
-    console.warn('[verify-magic] legacy auth user merge skipped', e)
-  }
+  await mergeAllGuestSessionsForEmail({
+    partnerId,
+    email,
+    guestAccountId: accountId,
+    currentSessionId: sessionId,
+  })
+
+  const { authUserId: authUserIdForEmail, sessionToken } = await completeGuestEmailAuth({
+    partnerId,
+    email,
+    guestAccountId: accountId,
+  })
 
   const redirectUrl = new URL(`${guestChatUrl}?auth=ok`)
   const res = NextResponse.redirect(redirectUrl)
   writeGuestAccountCookie(res, request, accountId)
-  try {
-    const ensured = await pgQuery<{ id: string }>(
-      `select (public.nanoai_ensure_user_by_email($1::text))::text as id`,
-      [email]
-    )
-    const authUserIdForEmail = String(ensured[0]?.id || '').trim()
-    if (authUserIdForEmail) {
-      const token = await createEmailSessionTokenString(authUserIdForEmail, email)
-      if (token) {
-        const opts = getEmailSessionCookieOptions()
-        res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)
-        res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
-        await issueTrustedDeviceForUser(res, request, authUserIdForEmail, email)
-      }
-    }
-  } catch (e) {
-    console.warn('[verify-magic] setEmailSessionCookie skipped', e)
+  if (sessionToken && authUserIdForEmail) {
+    const opts = getEmailSessionCookieOptions()
+    res.cookies.set(EMAIL_SESSION_COOKIE, sessionToken, opts)
+    res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, sessionToken, opts)
+    await issueTrustedDeviceForUser(res, request, authUserIdForEmail, email)
   }
   return res
 }

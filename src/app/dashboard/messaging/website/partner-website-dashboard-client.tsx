@@ -18,6 +18,7 @@ import { isHomePageBuilt } from '@/lib/partner-website/partner-website-creation-
 import { PartnerWebsiteDevicePreview } from '@/components/partner-website/partner-website-device-preview'
 import { PartnerWebsiteProjectFilesPanel } from '@/components/partner-website/partner-website-project-files-panel'
 import { PartnerWebsiteLeadsPanel } from '@/components/partner-website/partner-website-leads-panel'
+import { PartnerWebsiteCapabilitiesPanel } from '@/components/partner-website/partner-website-capabilities-panel'
 import { PartnerWebsiteLandingsPanel } from '@/components/partner-website/partner-website-landings-panel'
 import { PartnerWebsiteSectionsPanel } from '@/components/partner-website/partner-website-sections-panel'
 import { PartnerWebsiteRevisionMenu } from '@/components/partner-website/partner-website-revision-menu'
@@ -690,6 +691,13 @@ export function PartnerWebsiteDashboardClient({
               </CardContent>
             </Card>
             </div>
+
+            <PartnerWebsiteCapabilitiesPanel
+              locale={locale}
+              t={t}
+              partnerId={partnerId}
+              sectionId="partner-website-capabilities"
+            />
 
             <PartnerWebsiteLandingsPanel
               locale={locale}

@@ -15,6 +15,8 @@ const RESERVED_FIRST_SEGMENTS = new Set([
   'products',
   'cart',
   'orders',
+  'account',
+  'addresses',
   'lp',
   'wishlist',
   'recently-viewed',

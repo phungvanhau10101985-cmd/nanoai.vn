@@ -43,6 +43,7 @@ export default async function PartnerSiteCartPage({ params }: Props) {
       <PartnerSiteShopCartClient
         siteSlug={shop.site.siteSlug}
         partnerSlug={shop.partnerSlug}
+        shopTitle={shop.site.title}
         locale={shop.site.locale}
         chatPath={shop.site.chatPath}
       />

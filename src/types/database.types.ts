@@ -205,6 +205,9 @@ export interface Database {
           ga4_measurement_id: string | null
           google_ads_id: string | null
           tiktok_pixel_id: string | null
+          partner_capabilities: unknown
+          external_shop_origin: string | null
+          external_shop_login_path: string
           created_at: string
           updated_at: string
         }
@@ -225,6 +228,7 @@ export interface Database {
           ga4_measurement_id?: string | null
           google_ads_id?: string | null
           tiktok_pixel_id?: string | null
+          partner_capabilities?: unknown
           created_at?: string
           updated_at?: string
         }
@@ -245,6 +249,7 @@ export interface Database {
           ga4_measurement_id?: string | null
           google_ads_id?: string | null
           tiktok_pixel_id?: string | null
+          partner_capabilities?: unknown
           created_at?: string
           updated_at?: string
         }
@@ -743,6 +748,7 @@ export interface Database {
           vision_bg_sync_report: string
           guest_purchase_flow: string
           guest_external_cart_url_template: string | null
+          shop_checkout_login_required: boolean
           updated_at: string
         }
         Insert: {
@@ -775,6 +781,7 @@ export interface Database {
           vision_bg_sync_report?: string
           guest_purchase_flow?: string
           guest_external_cart_url_template?: string | null
+          shop_checkout_login_required?: boolean
           updated_at?: string
         }
         Update: {
@@ -807,6 +814,7 @@ export interface Database {
           vision_bg_sync_report?: string
           guest_purchase_flow?: string
           guest_external_cart_url_template?: string | null
+          shop_checkout_login_required?: boolean
           updated_at?: string
         }
         Relationships: []

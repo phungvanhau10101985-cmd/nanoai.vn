@@ -13,12 +13,12 @@ import type { PartnerCustomDomainRow } from '@/lib/db/messaging-partner-custom-d
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   buildPartnerChatPublicUrl,
-  buildPartnerSitePublicUrl,
 } from '@/lib/messaging/partner-public-url'
 import {
   getMessagingPartnerCustomDomainSettings,
   removeMessagingPartnerCustomDomain,
   saveMessagingPartnerCustomDomainSettings,
+  saveMessagingPartnerShopSsoSettings,
   updateMessagingPartnerCustomDomainUsage,
   verifyMessagingPartnerCustomDomain,
 } from '@/app/dashboard/messaging/actions'
@@ -46,6 +46,7 @@ export function PartnerCustomDomainSettingsCard({
   sitePublished,
   t,
   saveOkMessage,
+  onDomainChanged,
 }: {
   partnerId: string
   partnerSlug: string
@@ -53,6 +54,7 @@ export function PartnerCustomDomainSettingsCard({
   sitePublished: boolean
   t: T
   saveOkMessage: string
+  onDomainChanged?: () => void
 }) {
   const { toast } = useToast()
   const { runWithStepUp } = useStepUpOtp()
@@ -62,8 +64,10 @@ export function PartnerCustomDomainSettingsCard({
   const [useForChat, setUseForChat] = useState(true)
   const [useForSite, setUseForSite] = useState(true)
   const [domain, setDomain] = useState<PartnerCustomDomainRow | null>(null)
-  const [cnameTarget, setCnameTarget] = useState('sites.nanoai.vn')
+  const [cnameTarget, setCnameTarget] = useState('nanoai.vn')
   const [lastDetail, setLastDetail] = useState('')
+  const [shopLoginOrigin, setShopLoginOrigin] = useState('')
+  const [shopLoginPath, setShopLoginPath] = useState('/dang-nhap')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -78,7 +82,11 @@ export function PartnerCustomDomainSettingsCard({
         setHostname(res.domain?.hostname ?? '')
         setUseForChat(res.domain?.use_for_chat ?? true)
         setUseForSite(res.domain?.use_for_site ?? true)
-        setCnameTarget(res.cnameTarget || 'sites.nanoai.vn')
+        setCnameTarget(res.cnameTarget || 'nanoai.vn')
+        if ('shopSso' in res && res.shopSso) {
+          setShopLoginOrigin(res.shopSso.externalShopOrigin ?? '')
+          setShopLoginPath(res.shopSso.externalShopLoginPath || '/dang-nhap')
+        }
       }
     } finally {
       setLoading(false)
@@ -92,11 +100,13 @@ export function PartnerCustomDomainSettingsCard({
   const badge = statusBadge(domain?.ssl_status, t)
 
   const previewOrigin = useMemo(() => {
-    if (domain?.ssl_status === 'ssl_active' && domain.hostname) {
-      return `https://${domain.hostname}`
+    if (domain?.hostname?.trim()) {
+      return `https://${domain.hostname.trim().toLowerCase()}`
     }
     return null
   }, [domain])
+
+  const previewSslReady = domain?.ssl_status === 'ssl_active'
 
   const copyText = async (text: string) => {
     try {
@@ -131,6 +141,31 @@ export function PartnerCustomDomainSettingsCard({
         setCnameTarget(res.cnameTarget)
       }
       toast({ title: t.customDomainSavedOk })
+      onDomainChanged?.()
+      void load()
+    })
+  }
+
+  const saveShopSso = () => {
+    startTransition(async () => {
+      const res = await runWithStepUp(() =>
+        saveMessagingPartnerShopSsoSettings({
+          partnerId,
+          externalShopOrigin: shopLoginOrigin,
+          externalShopLoginPath: shopLoginPath,
+        })
+      )
+      if ('error' in res && res.error) {
+        if (isStepUpRequiredError(res)) return
+        if (res.error === 'INVALID_SHOP_ORIGIN') {
+          toast({ title: t.shopSsoInvalidOrigin, variant: 'destructive' })
+          return
+        }
+        toast({ title: String(res.error), variant: 'destructive' })
+        return
+      }
+      toast({ title: t.shopSsoSavedOk })
+      onDomainChanged?.()
       void load()
     })
   }
@@ -156,6 +191,7 @@ export function PartnerCustomDomainSettingsCard({
         toast({ title: t.customDomainVerifySslPending })
       }
       void load()
+      onDomainChanged?.()
     })
   }
 
@@ -169,6 +205,8 @@ export function PartnerCustomDomainSettingsCard({
       setDomain(null)
       setHostname('')
       toast({ title: t.customDomainRemovedOk })
+      onDomainChanged?.()
+      void load()
     })
   }
 
@@ -185,7 +223,10 @@ export function PartnerCustomDomainSettingsCard({
       if ('error' in res && res.error) {
         toast({ title: String(res.error), variant: 'destructive' })
         void load()
+        return
       }
+      onDomainChanged?.()
+      void load()
     })
   }
 
@@ -287,16 +328,27 @@ export function PartnerCustomDomainSettingsCard({
           </div>
 
           {previewOrigin ? (
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/50 p-3 dark:bg-emerald-950/20 space-y-2">
-              <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-800 dark:text-emerald-200">
+            <div
+              className={
+                previewSslReady
+                  ? 'rounded-lg border border-emerald-500/30 bg-emerald-50/50 p-3 dark:bg-emerald-950/20 space-y-2'
+                  : 'rounded-lg border border-amber-500/30 bg-amber-50/50 p-3 dark:bg-amber-950/20 space-y-2'
+              }
+            >
+              <p
+                className={`flex items-center gap-1.5 text-xs font-medium ${previewSslReady ? 'text-emerald-800 dark:text-emerald-200' : 'text-amber-900 dark:text-amber-100'}`}
+              >
                 <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                {t.customDomainPreviewTitle}
+                {previewSslReady ? t.customDomainPreviewTitle : t.customDomainPreviewPendingTitle}
               </p>
+              {!previewSslReady ? (
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{t.customDomainPreviewPendingHint}</p>
+              ) : null}
               {useForSite && siteSlug && sitePublished ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[11px] text-muted-foreground">{t.customDomainPreviewSite}</span>
-                  <code className="text-[11px]">{buildPartnerSitePublicUrl(previewOrigin, siteSlug)}</code>
-                  <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => void copyText(buildPartnerSitePublicUrl(previewOrigin, siteSlug))}>
+                  <code className="text-[11px]">{`${previewOrigin.replace(/\/$/, '')}/`}</code>
+                  <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => void copyText(`${previewOrigin.replace(/\/$/, '')}/`)}>
                     <Copy className="h-3 w-3" />
                   </Button>
                 </div>
@@ -312,6 +364,36 @@ export function PartnerCustomDomainSettingsCard({
               ) : null}
             </div>
           ) : null}
+
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3">
+            <div className="space-y-1">
+              <p className="text-xs font-medium">{t.shopSsoSectionTitle}</p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">{t.shopSsoSectionDesc}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="shop-sso-origin">{t.shopSsoLoginOriginLabel}</Label>
+              <Input
+                id="shop-sso-origin"
+                value={shopLoginOrigin}
+                onChange={(e) => setShopLoginOrigin(e.target.value)}
+                placeholder={t.shopSsoLoginOriginPlaceholder}
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="shop-sso-login-path">{t.shopSsoLoginPathLabel}</Label>
+              <Input
+                id="shop-sso-login-path"
+                value={shopLoginPath}
+                onChange={(e) => setShopLoginPath(e.target.value)}
+                placeholder={t.shopSsoLoginPathPlaceholder}
+                className="font-mono text-sm"
+              />
+            </div>
+            <Button type="button" variant="secondary" size="sm" onClick={saveShopSso} disabled={pending}>
+              {t.shopSsoSaveButton}
+            </Button>
+          </div>
 
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={saveDomain} disabled={pending || !hostname.trim()}>

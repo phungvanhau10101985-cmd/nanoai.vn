@@ -23,6 +23,7 @@ import { PartnerSiteShopOrderConfirmation } from '@/components/partner-website/s
 type Props = {
   siteSlug: string
   partnerSlug: string
+  shopTitle?: string
   locale: WebLocale
   chatPath: string
 }
@@ -34,7 +35,7 @@ type OrderSnapshot = {
   required_amount?: number | null
 }
 
-export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatPath }: Props) {
+export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, locale, chatPath }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, tracking } = usePartnerSiteShop()
@@ -42,6 +43,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const [loading, setLoading] = useState(true)
   const [checkoutBusy, setCheckoutBusy] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
+  const [checkoutLoginRequired, setCheckoutLoginRequired] = useState(true)
   const [orderName, setOrderName] = useState('')
   const [orderPhone, setOrderPhone] = useState('')
   const [orderAddress, setOrderAddress] = useState('')
@@ -64,6 +66,18 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     setLoading(true)
     void loadCart().finally(() => setLoading(false))
   }, [loadCart, ready])
+
+  useEffect(() => {
+    if (!siteSlug) return
+    void fetch(`/api/site/${encodeURIComponent(siteSlug)}/shop-config`, { credentials: 'same-origin' })
+      .then((res) => res.json())
+      .then((json: { checkoutLoginRequired?: boolean }) => {
+        setCheckoutLoginRequired(json.checkoutLoginRequired !== false)
+      })
+      .catch(() => {
+        setCheckoutLoginRequired(true)
+      })
+  }, [siteSlug])
 
   const subtotal = useMemo(
     () =>
@@ -107,7 +121,11 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/order`, {
         method: 'PATCH',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Partner-Site-Checkout': '1',
+          ...authHeaders(),
+        },
         body: JSON.stringify({
           action: 'cart_checkout',
           form: {
@@ -216,6 +234,11 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             {t.cartSubtotal}: {formatVnd(subtotal)}
           </p>
           <div className="pw-shop-form" style={{ marginTop: 20 }}>
+            {!checkoutLoginRequired ? (
+              <p className="pw-shop-muted" style={{ marginBottom: 12 }}>
+                {t.checkoutGuestHint}
+              </p>
+            ) : null}
             <label>
               {t.checkoutName}
               <input value={orderName} onChange={(e) => setOrderName(e.target.value)} />
@@ -237,10 +260,11 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             </button>
             {status && !needsAuth ? <p className="pw-shop-muted">{status}</p> : null}
           </div>
-          {needsAuth ? (
+          {needsAuth && checkoutLoginRequired ? (
             <PartnerSiteShopAuthPanel
               partnerSlug={partnerSlug}
               siteSlug={siteSlug}
+              shopTitle={shopTitle}
               locale={locale}
               onAuthed={() => {
                 setNeedsAuth(false)

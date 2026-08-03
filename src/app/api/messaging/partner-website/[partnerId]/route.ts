@@ -15,20 +15,7 @@ import {
   composeStandaloneHtml,
   normalizePartnerWebsiteProject,
 } from '@/lib/partner-website/partner-website-project'
-import { partnerWebsitePublicPath } from '@/lib/partner-website/partner-website-slug'
-import { defaultPublicOrigin } from '@/lib/public-app-origin'
-
-function siteBaseUrl(req: NextRequest): string {
-  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? ''
-  const proto = req.headers.get('x-forwarded-proto') ?? 'https'
-  if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-    return `${proto}://${host}`.replace(/\/$/, '')
-  }
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL
-  if (envUrl) return envUrl.replace(/\/$/, '')
-  if (process.env.NODE_ENV === 'production') return defaultPublicOrigin().replace(/\/$/, '')
-  return req.nextUrl.origin
-}
+import { resolvePartnerWebsitePublicUrl } from '@/lib/partner-website/resolve-partner-website-public-url'
 
 export async function GET(
   req: NextRequest,
@@ -62,7 +49,14 @@ export async function GET(
     if (synced.website) website = synced.website
   }
 
-  const base = siteBaseUrl(req)
+  const publicUrl = website
+    ? await resolvePartnerWebsitePublicUrl({
+        partnerId: pid,
+        siteSlug: website.siteSlug,
+        isPublished: website.isPublished,
+        req,
+      })
+    : null
   return NextResponse.json({
     website,
     autoProvisioned: false,
@@ -73,9 +67,7 @@ export async function GET(
     homeBuilt: Boolean(
       website?.creationJournals?.journals?.home?.phase === 'built'
     ),
-    publicUrl: website?.isPublished
-      ? `${base}${partnerWebsitePublicPath(website.siteSlug)}`
-      : null,
+    publicUrl,
   })
 }
 
@@ -158,13 +150,16 @@ export async function PATCH(
     if (!updated) {
       return NextResponse.json({ error: 'Could not update publish state' }, { status: 500 })
     }
-    const base = siteBaseUrl(req)
+    const publicUrl = await resolvePartnerWebsitePublicUrl({
+      partnerId: pid,
+      siteSlug: updated.siteSlug,
+      isPublished: updated.isPublished,
+      req,
+    })
     return NextResponse.json({
       success: true,
       website: updated,
-      publicUrl: updated.isPublished
-        ? `${base}${partnerWebsitePublicPath(updated.siteSlug)}`
-        : null,
+      publicUrl,
     })
   }
 
@@ -196,12 +191,15 @@ export async function PATCH(
     return NextResponse.json({ error: 'Website not found or save failed' }, { status: 404 })
   }
 
-  const base = siteBaseUrl(req)
+  const publicUrl = await resolvePartnerWebsitePublicUrl({
+    partnerId: pid,
+    siteSlug: updated.siteSlug,
+    isPublished: updated.isPublished,
+    req,
+  })
   return NextResponse.json({
     success: true,
     website: updated,
-    publicUrl: updated.isPublished
-      ? `${base}${partnerWebsitePublicPath(updated.siteSlug)}`
-      : null,
+    publicUrl,
   })
 }

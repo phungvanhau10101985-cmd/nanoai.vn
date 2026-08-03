@@ -2,6 +2,7 @@ import type { Database } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
 import { normalizeGuestPurchaseFlow, type GuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
+import { normalizeShopCheckoutLoginRequired } from '@/lib/partner-website/shop/shop-checkout-auth'
 
 export type MessagingPartnerAiSettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 
@@ -59,6 +60,7 @@ function mapPgRowToAiSettingsFull(row: {
   vision_bg_sync_report: string | null
   guest_purchase_flow: string | null
   guest_external_cart_url_template: string | null
+  shop_checkout_login_required: boolean | null
   updated_at: unknown
 }): MessagingPartnerAiSettingsRow {
   return {
@@ -94,6 +96,7 @@ function mapPgRowToAiSettingsFull(row: {
       row.guest_external_cart_url_template != null
         ? String(row.guest_external_cart_url_template).trim().slice(0, 2048) || null
         : null,
+    shop_checkout_login_required: normalizeShopCheckoutLoginRequired(row.shop_checkout_login_required),
     updated_at: tsIsoReq(row.updated_at),
   }
 }
@@ -137,6 +140,7 @@ export async function fetchMessagingPartnerAiSettingsFullFromPg(
         coalesce(vision_bg_sync_report, '') as vision_bg_sync_report,
         coalesce(nullif(trim(guest_purchase_flow), ''), 'in_chat') as guest_purchase_flow,
         guest_external_cart_url_template,
+        coalesce(shop_checkout_login_required, true) as shop_checkout_login_required,
         updated_at
        from public.messaging_partner_ai_settings
        where partner_id = $1::uuid
@@ -295,6 +299,7 @@ export type PartnerAiSettingsDashboardUpsert = {
   vision_bg_sync_report: string
   guest_purchase_flow: string
   guest_external_cart_url_template: string | null
+  shop_checkout_login_required: boolean
   updated_at: string
 }
 
@@ -314,10 +319,11 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         image_search_api_enabled, image_search_api_secret,
         vision_bg_sync_status, vision_bg_sync_resume_after_id, vision_bg_sync_rounds,
         vision_bg_sync_imported, vision_bg_sync_removed, vision_bg_sync_started_at, vision_bg_sync_finished_at,
-        vision_bg_sync_error, vision_bg_sync_report, guest_purchase_flow, guest_external_cart_url_template, updated_at
+        vision_bg_sync_error, vision_bg_sync_report, guest_purchase_flow, guest_external_cart_url_template,
+        shop_checkout_login_required, updated_at
       ) values (
         $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30::timestamptz
+        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31::timestamptz
       )
       on conflict (partner_id) do update set
         enabled = excluded.enabled,
@@ -348,6 +354,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         vision_bg_sync_report = excluded.vision_bg_sync_report,
         guest_purchase_flow = excluded.guest_purchase_flow,
         guest_external_cart_url_template = excluded.guest_external_cart_url_template,
+        shop_checkout_login_required = excluded.shop_checkout_login_required,
         updated_at = excluded.updated_at`,
       [
         row.partner_id,
@@ -379,6 +386,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         row.vision_bg_sync_report,
         row.guest_purchase_flow,
         row.guest_external_cart_url_template,
+        row.shop_checkout_login_required,
         row.updated_at,
       ]
     )

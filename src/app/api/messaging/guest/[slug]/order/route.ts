@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import {
+  commercePartnerErrorResponse,
+  resolveCommerceCartPartnerBySlug,
+} from '@/lib/messaging/resolve-commerce-partner'
 import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
 import { resolveWidgetOrderThreadFromRequest } from '@/lib/messaging/resolve-widget-order-thread'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
@@ -14,15 +17,21 @@ import {
 } from '@/lib/messaging/guest-chat-ordering'
 import { runMetaPurchaseAfterOrderComplete } from '@/lib/tracking/meta-purchase-after-order'
 import { isPgConfigured } from '@/lib/db/pool'
+import {
+  fetchShopCheckoutLoginRequiredForPartnerFromPg,
+  isPartnerSiteCheckoutRequest,
+} from '@/lib/partner-website/shop/shop-checkout-auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-async function resolvePartner(slug: string) {
-  const active = await resolveActiveMessagingPartnerBySlug(slug)
-  if (!active) return { error: 'not_found' as const }
-  if (active.industry_key === 'hotel') return { error: 'hospitality_uses_hospitality_api' as const }
-  return { partnerId: active.id, displayName: active.display_name }
+async function resolveCartPartner(slug: string) {
+  return resolveCommerceCartPartnerBySlug(slug)
+}
+
+async function resolveCheckoutLoginRequired(partnerId: string, request: NextRequest): Promise<boolean> {
+  if (!isPartnerSiteCheckoutRequest(request)) return true
+  return fetchShopCheckoutLoginRequiredForPartnerFromPg(partnerId)
 }
 
 function guestName(userEmail: string | null): string {
@@ -49,14 +58,10 @@ function asCard(x: unknown): PartnerAiProductCard | null {
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
-  const partner = await resolvePartner(slug)
+  const partner = await resolveCartPartner(slug)
   if ('error' in partner) {
-    const status = partner.error === 'hospitality_uses_hospitality_api' ? 409 : 404
-    const error =
-      partner.error === 'hospitality_uses_hospitality_api'
-        ? 'Hospitality uses dedicated booking APIs.'
-        : 'Not found'
-    return NextResponse.json({ error }, { status })
+    const err = commercePartnerErrorResponse(partner.error)
+    return NextResponse.json({ error: err.message }, { status: err.status })
   }
   const thread = await resolveWidgetOrderThreadFromRequest(request, partner.partnerId)
   if (!thread) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -93,7 +98,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     loginUser?.email?.trim().toLowerCase()
     || accountEmail?.emailNormalized
     || ''
-  if (!loginUser?.id && !thread.guestAccountId) {
+  const checkoutLoginRequired = await resolveCheckoutLoginRequired(partner.partnerId, request)
+  if (
+    checkoutLoginRequired
+    && !loginUser?.id
+    && !thread.guestAccountId
+  ) {
     return NextResponse.json(
       { error: 'AUTH_REQUIRED_PURCHASE_LOGIN', requireAuth: true },
       { status: 401 }
@@ -131,14 +141,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
 
 export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
-  const partner = await resolvePartner(slug)
+  const partner = await resolveCartPartner(slug)
   if ('error' in partner) {
-    const status = partner.error === 'hospitality_uses_hospitality_api' ? 409 : 404
-    const error =
-      partner.error === 'hospitality_uses_hospitality_api'
-        ? 'Hospitality uses dedicated booking APIs.'
-        : 'Not found'
-    return NextResponse.json({ error }, { status })
+    const err = commercePartnerErrorResponse(partner.error)
+    return NextResponse.json({ error: err.message }, { status: err.status })
   }
   const loginUser = await getEmailSessionUser()
   const thread = await resolveWidgetOrderThreadFromRequest(request, partner.partnerId)
@@ -147,7 +153,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     ? await fetchGuestAccountEmailByIdPg(partner.partnerId, thread.guestAccountId)
     : null
   const sessionEmail = loginUser?.email?.trim().toLowerCase() || accountEmail?.emailNormalized || ''
-  if (!sessionEmail) {
+  const checkoutLoginRequired = await resolveCheckoutLoginRequired(partner.partnerId, request)
+  if (checkoutLoginRequired && !sessionEmail) {
     return NextResponse.json(
       { error: 'AUTH_REQUIRED_PURCHASE_LOGIN', requireAuth: true },
       { status: 401 }
@@ -276,7 +283,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     anonymousSessionId: thread.anonymousSessionId,
     form: {
       customerName,
-      customerEmail: sessionEmail,
+      customerEmail: sessionEmail || formEmail,
       customerPhone,
       shippingAddress,
       color,

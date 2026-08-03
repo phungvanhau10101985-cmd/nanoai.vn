@@ -742,9 +742,20 @@ export type Dictionary = {
     customDomainPreviewTitle: string
     customDomainPreviewChat: string
     customDomainPreviewSite: string
+    customDomainPreviewPendingTitle: string
+    customDomainPreviewPendingHint: string
     customDomainInvalidHostname: string
     customDomainSavedOk: string
     customDomainRemovedOk: string
+    shopSsoSectionTitle: string
+    shopSsoSectionDesc: string
+    shopSsoLoginOriginLabel: string
+    shopSsoLoginOriginPlaceholder: string
+    shopSsoLoginPathLabel: string
+    shopSsoLoginPathPlaceholder: string
+    shopSsoSaveButton: string
+    shopSsoSavedOk: string
+    shopSsoInvalidOrigin: string
     customDomainVerifyOk: string
     customDomainVerifyDnsFail: string
     customDomainVerifySslPending: string
@@ -1444,6 +1455,10 @@ export type Dictionary = {
     guestExternalCartUrlTemplateHint: string
     guestExternalCartUrlTemplatePlaceholder: string
     guestExternalCartUrlTemplateSaveHint: string
+    shopCheckoutLoginLabel: string
+    shopCheckoutLoginHint: string
+    shopCheckoutLoginRequiredOn: string
+    shopCheckoutLoginRequiredOff: string
     usagePanelTitle: string
     usagePanelSubtitle: string
     birthdayPromoSettingsTitle: string
@@ -3562,9 +3577,22 @@ const VI_DICTIONARY: Dictionary = {
     customDomainPreviewTitle: 'URL công khai trên domain riêng',
     customDomainPreviewChat: 'Chat tư vấn:',
     customDomainPreviewSite: 'Website shop:',
+    customDomainPreviewPendingTitle: 'Link website (chờ DNS / SSL)',
+    customDomainPreviewPendingHint:
+      'Nút «Xem web» và link bên dưới dùng tên miền này. Trang chỉ mở được sau khi CNAME đúng và SSL hoạt động.',
     customDomainInvalidHostname: 'Tên miền không hợp lệ (không dùng nanoai.vn hoặc localhost).',
     customDomainSavedOk: 'Đã lưu tên miền — hãy cấu hình CNAME rồi kiểm tra.',
     customDomainRemovedOk: 'Đã gỡ tên miền riêng.',
+    shopSsoSectionTitle: 'Đăng nhập Google trên website shop',
+    shopSsoSectionDesc:
+      'Để trống «Website đăng nhập» → dùng tên miền riêng ở trên (sau khi SSL hoạt động). Điền URL nếu trang login nằm trên domain khác (vd. https://188.com.vn).',
+    shopSsoLoginOriginLabel: 'Website đăng nhập (tuỳ chọn)',
+    shopSsoLoginOriginPlaceholder: 'https://shop.example.com',
+    shopSsoLoginPathLabel: 'Đường dẫn trang đăng nhập',
+    shopSsoLoginPathPlaceholder: '/dang-nhap',
+    shopSsoSaveButton: 'Lưu cấu hình đăng nhập',
+    shopSsoSavedOk: 'Đã lưu cấu hình đăng nhập Google.',
+    shopSsoInvalidOrigin: 'URL website đăng nhập không hợp lệ.',
     customDomainVerifyOk: 'DNS và SSL đã sẵn sàng trên domain của bạn.',
     customDomainVerifyDnsFail: 'Chưa thấy CNAME đúng — kiểm tra lại DNS.',
     customDomainVerifySslPending: 'DNS đã đúng — SSL có thể cần thêm vài phút, thử lại sau.',
@@ -4284,6 +4312,11 @@ const VI_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.vn/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       'Điền link thật của shop → click ra ngoài ô (hoặc bấm «Lưu cài đặt») để lưu chế độ 3.',
+    shopCheckoutLoginLabel: 'Thanh toán trên website shop',
+    shopCheckoutLoginHint:
+      'Áp dụng trang /site/… của shop. Bật: khách xác minh email (OTP) trước khi đặt hàng. Tắt: chỉ cần họ tên, SĐT và địa chỉ giao hàng.',
+    shopCheckoutLoginRequiredOn: 'Yêu cầu đăng nhập OTP',
+    shopCheckoutLoginRequiredOff: 'Khách mua không cần đăng nhập',
     usagePanelTitle: 'Thống kê token API',
     usagePanelSubtitle: 'Theo dõi lượng gọi LLM, embedding, tạo ảnh và chi phí ước tính theo khoảng thời gian.',
     birthdayPromoSettingsTitle: 'Chúc mừng sinh nhật — email & ưu đãi',
@@ -6370,9 +6403,22 @@ const EN_DICTIONARY: Dictionary = {
     customDomainPreviewTitle: 'Public URLs on your domain',
     customDomainPreviewChat: 'Consultation chat:',
     customDomainPreviewSite: 'Shop website:',
+    customDomainPreviewPendingTitle: 'Website link (awaiting DNS / SSL)',
+    customDomainPreviewPendingHint:
+      'The «View web» button and link below use this domain. The site opens only after CNAME is correct and SSL is active.',
     customDomainInvalidHostname: 'Invalid hostname (cannot use nanoai.vn or localhost).',
     customDomainSavedOk: 'Domain saved — configure CNAME then verify.',
     customDomainRemovedOk: 'Custom domain removed.',
+    shopSsoSectionTitle: 'Google sign-in on shop website',
+    shopSsoSectionDesc:
+      'Leave «Login website» empty to use the custom domain above (after SSL is active). Enter a URL if login lives on another domain (e.g. https://188.com.vn).',
+    shopSsoLoginOriginLabel: 'Login website (optional)',
+    shopSsoLoginOriginPlaceholder: 'https://shop.example.com',
+    shopSsoLoginPathLabel: 'Login page path',
+    shopSsoLoginPathPlaceholder: '/dang-nhap',
+    shopSsoSaveButton: 'Save sign-in settings',
+    shopSsoSavedOk: 'Google sign-in settings saved.',
+    shopSsoInvalidOrigin: 'Invalid login website URL.',
     customDomainVerifyOk: 'DNS and SSL are ready on your domain.',
     customDomainVerifyDnsFail: 'CNAME not found or incorrect — check DNS.',
     customDomainVerifySslPending: 'DNS OK — SSL may need a few more minutes; try again.',
@@ -7097,6 +7143,11 @@ const EN_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       'Enter your shop URL → click outside the field (or Save settings) to apply mode 3.',
+    shopCheckoutLoginLabel: 'Checkout on shop website',
+    shopCheckoutLoginHint:
+      'Applies to your /site/… shop pages. On: customers verify email (OTP) before checkout. Off: name, phone, and shipping address only.',
+    shopCheckoutLoginRequiredOn: 'Login (OTP) required',
+    shopCheckoutLoginRequiredOff: 'Guest checkout allowed',
     usagePanelTitle: 'API token usage',
     usagePanelSubtitle: 'Track LLM calls, embeddings, image generation, and estimated cost by period.',
     birthdayPromoSettingsTitle: 'Birthday greetings — email & offer',
@@ -9173,9 +9224,21 @@ const ZH_DICTIONARY: Dictionary = {
     customDomainPreviewTitle: '自有域名上的公开 URL',
     customDomainPreviewChat: '咨询聊天：',
     customDomainPreviewSite: '店铺网站：',
+    customDomainPreviewPendingTitle: '网站链接（等待 DNS / SSL）',
+    customDomainPreviewPendingHint: '「查看网站」按钮和下方链接使用此域名。CNAME 正确且 SSL 生效后才能打开。',
     customDomainInvalidHostname: '主机名无效（不可使用 nanoai.vn 或 localhost）。',
     customDomainSavedOk: '已保存 — 请配置 CNAME 后验证。',
     customDomainRemovedOk: '已移除自定义域名。',
+    shopSsoSectionTitle: '店铺网站 Google 登录',
+    shopSsoSectionDesc:
+      '「登录网站」留空则使用上方自定义域名（SSL 生效后）。若登录页在其他域名请填写 URL（如 https://188.com.vn）。',
+    shopSsoLoginOriginLabel: '登录网站（可选）',
+    shopSsoLoginOriginPlaceholder: 'https://shop.example.com',
+    shopSsoLoginPathLabel: '登录页路径',
+    shopSsoLoginPathPlaceholder: '/dang-nhap',
+    shopSsoSaveButton: '保存登录设置',
+    shopSsoSavedOk: '已保存 Google 登录设置。',
+    shopSsoInvalidOrigin: '登录网站 URL 无效。',
     customDomainVerifyOk: '您的域名 DNS 与 SSL 已就绪。',
     customDomainVerifyDnsFail: 'CNAME 不正确 — 请检查 DNS。',
     customDomainVerifySslPending: 'DNS 已正确 — SSL 可能需要几分钟，请稍后重试。',
@@ -9871,6 +9934,11 @@ const ZH_DICTIONARY: Dictionary = {
       '须包含 {sku}。例：https://shop.com/cart/add/{sku}?from=nanoai — 购买与加购同链；咨询仍在聊天内。',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint: '填写店铺链接 → 点击输入框外（或保存设置）以应用模式 3。',
+    shopCheckoutLoginLabel: '店铺网站结账',
+    shopCheckoutLoginHint:
+      '适用于 /site/… 店铺页面。开启：结账前需邮箱 OTP 验证。关闭：仅需姓名、电话和收货地址。',
+    shopCheckoutLoginRequiredOn: '需要登录（OTP）',
+    shopCheckoutLoginRequiredOff: '允许游客结账',
     usagePanelTitle: 'API 用量统计',
     usagePanelSubtitle: '按时间段查看 LLM 调用、embedding、生图及预估费用。',
     birthdayPromoSettingsTitle: '生日祝福 — 邮件与优惠',
@@ -11902,9 +11970,22 @@ const JA_DICTIONARY: Dictionary = {
     customDomainPreviewTitle: '独自ドメインの公開 URL',
     customDomainPreviewChat: '相談チャット:',
     customDomainPreviewSite: 'shop サイト:',
+    customDomainPreviewPendingTitle: 'サイト URL（DNS / SSL 待ち）',
+    customDomainPreviewPendingHint:
+      '「サイトを見る」と下のリンクはこのドメインを使用します。CNAME と SSL 完了後に開けます。',
     customDomainInvalidHostname: '無効なホスト名（nanoai.vn や localhost は不可）。',
     customDomainSavedOk: '保存しました — CNAME 設定後に確認してください。',
     customDomainRemovedOk: '独自ドメインを削除しました。',
+    shopSsoSectionTitle: 'ショップサイトの Google ログイン',
+    shopSsoSectionDesc:
+      '「ログインサイト」を空欄にすると、上の独自ドメイン（SSL 有効後）を使用します。別ドメインの場合は URL を入力（例: https://188.com.vn）。',
+    shopSsoLoginOriginLabel: 'ログインサイト（任意）',
+    shopSsoLoginOriginPlaceholder: 'https://shop.example.com',
+    shopSsoLoginPathLabel: 'ログインページのパス',
+    shopSsoLoginPathPlaceholder: '/dang-nhap',
+    shopSsoSaveButton: 'ログイン設定を保存',
+    shopSsoSavedOk: 'Google ログイン設定を保存しました。',
+    shopSsoInvalidOrigin: 'ログインサイトの URL が無効です。',
     customDomainVerifyOk: 'DNS と SSL が利用可能です。',
     customDomainVerifyDnsFail: 'CNAME が正しくありません — DNS を確認してください。',
     customDomainVerifySslPending: 'DNS OK — SSL は数分かかる場合があります。再試行してください。',
@@ -12625,6 +12706,11 @@ const JA_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       'ショップのURLを入力 → 欄の外をクリック（または設定を保存）でモード3を保存。',
+    shopCheckoutLoginLabel: 'ショップサイトでの決済',
+    shopCheckoutLoginHint:
+      '/site/… のショップページに適用。オン：決済前にメール OTP 認証。オフ：氏名・電話・配送先のみ。',
+    shopCheckoutLoginRequiredOn: 'ログイン（OTP）必須',
+    shopCheckoutLoginRequiredOff: 'ゲスト購入可',
     usagePanelTitle: 'API トークン統計',
     usagePanelSubtitle: '期間別の LLM 呼び出し、embedding、画像生成、概算コストを確認します。',
     birthdayPromoSettingsTitle: 'お誕生日 — メールと特典',
@@ -14690,9 +14776,22 @@ const KO_DICTIONARY: Dictionary = {
     customDomainPreviewTitle: '맞춤 도메인 공개 URL',
     customDomainPreviewChat: '상담 채팅:',
     customDomainPreviewSite: '매장 웹사이트:',
+    customDomainPreviewPendingTitle: '웹사이트 링크(DNS / SSL 대기)',
+    customDomainPreviewPendingHint:
+      '「웹 보기」 버튼과 아래 링크는 이 도메인을 사용합니다. CNAME과 SSL이 활성화된 후에 열립니다.',
     customDomainInvalidHostname: '잘못된 호스트명(nanoai.vn·localhost 불가).',
     customDomainSavedOk: '저장됨 — CNAME 설정 후 확인하세요.',
     customDomainRemovedOk: '맞춤 도메인을 제거했습니다.',
+    shopSsoSectionTitle: '쇼핑몰 Google 로그인',
+    shopSsoSectionDesc:
+      '「로그인 웹사이트」를 비우면 위 맞춤 도메인(SSL 활성 후)을 사용합니다. 다른 도메인이면 URL 입력(예: https://188.com.vn).',
+    shopSsoLoginOriginLabel: '로그인 웹사이트(선택)',
+    shopSsoLoginOriginPlaceholder: 'https://shop.example.com',
+    shopSsoLoginPathLabel: '로그인 페이지 경로',
+    shopSsoLoginPathPlaceholder: '/dang-nhap',
+    shopSsoSaveButton: '로그인 설정 저장',
+    shopSsoSavedOk: 'Google 로그인 설정을 저장했습니다.',
+    shopSsoInvalidOrigin: '로그인 웹사이트 URL이 올바르지 않습니다.',
     customDomainVerifyOk: 'DNS와 SSL이 준비되었습니다.',
     customDomainVerifyDnsFail: 'CNAME이 올바르지 않습니다 — DNS를 확인하세요.',
     customDomainVerifySslPending: 'DNS OK — SSL은 몇 분 더 걸릴 수 있습니다. 다시 시도하세요.',
@@ -15409,6 +15508,11 @@ const KO_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       '쇼핑몰 URL 입력 → 입력란 밖 클릭(또는 설정 저장)으로 모드 3 적용.',
+    shopCheckoutLoginLabel: '쇼핑몰 웹사이트 결제',
+    shopCheckoutLoginHint:
+      '/site/… 쇼핑몰 페이지에 적용. 켜기: 결제 전 이메일 OTP 인증. 끄기: 이름·전화·배송지만 필요.',
+    shopCheckoutLoginRequiredOn: '로그인(OTP) 필요',
+    shopCheckoutLoginRequiredOff: '비회원 구매 허용',
     usagePanelTitle: 'API 토큰 통계',
     usagePanelSubtitle: '기간별 LLM 호출, embedding, 이미지 생성 및 예상 비용을 확인합니다.',
     birthdayPromoSettingsTitle: '생일 축하 — 이메일 및 혜택',

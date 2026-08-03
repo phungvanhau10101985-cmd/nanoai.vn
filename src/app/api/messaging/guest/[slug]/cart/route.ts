@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { resolveCommerceCartPartnerBySlug } from '@/lib/messaging/resolve-commerce-partner'
 import { resolveWidgetOrderThreadFromRequest } from '@/lib/messaging/resolve-widget-order-thread'
 import { fetchMessagingGuestCartFromPg, upsertMessagingGuestCartFromPg } from '@/lib/db/messaging-guest-cart-pg'
 import { sanitizeHeadlessCartItems } from '@/lib/messaging/partner-headless-cart-utils'
@@ -7,10 +7,9 @@ import { sanitizeHeadlessCartItems } from '@/lib/messaging/partner-headless-cart
 export const dynamic = 'force-dynamic'
 
 async function resolvePartner(slug: string) {
-  const active = await resolveActiveMessagingPartnerBySlug(slug)
-  if (!active) return { error: 'not_found' as const }
-  if (active.industry_key === 'hotel') return { error: 'hospitality_uses_hospitality_api' as const }
-  return { partnerId: active.id }
+  const active = await resolveCommerceCartPartnerBySlug(slug)
+  if ('error' in active) return active
+  return { partnerId: active.partnerId }
 }
 
 function accountKeyFromThread(thread: NonNullable<Awaited<ReturnType<typeof resolveWidgetOrderThreadFromRequest>>>): string {

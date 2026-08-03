@@ -56,14 +56,20 @@ export async function checkStepUpSessionAction(
 
 export async function requestStepUpOtpAction(
   scope: StepUpScope
-): Promise<{ ok: true } | { error: string }> {
+): Promise<{ ok: true; debugOtp?: string } | { error: string }> {
   const gate = await resolveUserForScope(scope)
   if ('error' in gate) return { error: gate.error ?? 'Unauthorized.' }
 
   const email = gate.user.email?.trim()
   if (!email) return { error: 'Tài khoản chưa có email — không gửi được OTP.' }
-  if (!isSmtpConfigured()) return { error: 'Máy chủ chưa cấu hình gửi email (SMTP).' }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const debugOtpEnabled = process.env.EMAIL_AUTH_DEBUG_OTP === '1'
+  const smtpReady = isSmtpConfigured()
+
+  if (!smtpReady && !debugOtpEnabled) {
+    return { error: 'Máy chủ chưa cấu hình gửi email (SMTP).' }
+  }
 
   if (await isStepUpOtpCooldownActiveFromPg(gate.user.id, scope)) {
     return { error: 'Vui lòng đợi vài chục giây trước khi gửi lại mã.' }
@@ -78,6 +84,11 @@ export async function requestStepUpOtpAction(
   })
   if (!saved) return { error: 'Không lưu được mã xác nhận.' }
 
+  if (!smtpReady) {
+    console.info('[requestStepUpOtpAction] debug OTP (no SMTP):', otp)
+    return { ok: true, debugOtp: otp }
+  }
+
   const mail = otpEmailBody(otp, scope)
   const sent = await sendSmtpMail({
     to: email,
@@ -87,11 +98,15 @@ export async function requestStepUpOtpAction(
   })
 
   if (!sent.ok) {
+    if (debugOtpEnabled) {
+      console.info('[requestStepUpOtpAction] debug OTP (SMTP failed):', otp, sent.error)
+      return { ok: true, debugOtp: otp }
+    }
     await clearStepUpOtpFromPg(gate.user.id, scope)
     return { error: 'Không gửi được email. Kiểm tra SMTP hoặc thử lại sau.' }
   }
 
-  return { ok: true }
+  return { ok: true, ...(debugOtpEnabled ? { debugOtp: otp } : {}) }
 }
 
 export async function verifyStepUpOtpAction(

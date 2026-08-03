@@ -7,6 +7,7 @@ import {
 } from '@/lib/messaging/guest-auth-session'
 import { readGuestAccountIdFromRequest } from '@/lib/messaging/guest-account-session'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
+import { completeGuestEmailAuth } from '@/lib/messaging/complete-guest-email-auth'
 import {
   findGuestAccountIdByEmailPg,
   insertGuestAccountPg,
@@ -109,6 +110,13 @@ export async function upsertGuestAccountForGoogleIdentity(
   }
   if (accountId && user?.id) {
     await mergeGuestSessionConversationToAccount(partnerId, user.id, accountId)
+  }
+  if (accountId && user?.email) {
+    await completeGuestEmailAuth({
+      partnerId,
+      email: user.email,
+      guestAccountId: accountId,
+    })
   }
   return accountId ?? null
 }
