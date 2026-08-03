@@ -4,9 +4,9 @@ import {
   collectShopProductDetailImages,
   collectShopProductGalleryImages,
   inventoryShopDetailDescription,
-  inventoryShopDisplayDescription,
   inventoryShopProductVideoUrl,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { inventoryShopDisplayDescription } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
 export type PartnerCatalogProduct = {

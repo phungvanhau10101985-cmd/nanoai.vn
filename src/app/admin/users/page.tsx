@@ -171,7 +171,7 @@ export default async function AdminUsersPage({
                       <DeleteUserDialog
                         userId={user.id}
                         userEmail={user.email ?? 'N/A'}
-                        userName={user.full_name}
+                        userName={user.full_name ?? null}
                       />
                     ) : null}
                   </TableCell>
