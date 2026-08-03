@@ -12,6 +12,7 @@ import {
   LOCALE_COOKIE_NAME_LEGACY,
   normalizeWebLocale,
 } from '@/lib/i18n/config'
+import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-platform-host'
 import {
   mapPartnerCustomDomainPathToInternal,
   mapPartnerInternalPathToPublic,
