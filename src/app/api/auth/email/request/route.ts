@@ -40,7 +40,8 @@ export async function POST(req: NextRequest) {
     if (!isEmailAuthEnabled()) {
       return NextResponse.json({ error: 'email_auth_disabled' }, { status: 503 })
     }
-    if (!isSmtpConfigured()) {
+    const debugOtpEnabled = process.env.EMAIL_AUTH_DEBUG_OTP === '1'
+    if (!isSmtpConfigured() && !debugOtpEnabled) {
       return NextResponse.json({ error: 'smtp_not_configured' }, { status: 503 })
     }
     if (!isPgConfigured()) {
@@ -119,14 +120,20 @@ export async function POST(req: NextRequest) {
     const rd = rememberDevice ? '1' : '0'
     const magicUrl = `${baseUrl}/api/auth/email/verify-magic?token=${encodeURIComponent(magicRaw)}&email=${encodeURIComponent(email)}&next=${encodeURIComponent(next)}&rd=${rd}`
 
-    const sent = await sendSmtpMail({
-      to: email,
-      subject: 'Mã đăng nhập NanoAI',
-      text: `Mã OTP: ${otp}\n\nMã có hiệu lực trong ${ttlMinutes} phút.\n\nHoặc đăng nhập một chạm: ${magicUrl}\n`,
-      html: `<p>Mã OTP: <b>${otp}</b></p><p>Mã có hiệu lực trong ${ttlMinutes} phút.</p><p>Hoặc <a href="${magicUrl}">đăng nhập một chạm</a>.</p>`,
-    })
+    const sent = isSmtpConfigured()
+      ? await sendSmtpMail({
+          to: email,
+          subject: 'Mã đăng nhập NanoAI',
+          text: `Mã OTP: ${otp}\n\nMã có hiệu lực trong ${ttlMinutes} phút.\n\nHoặc đăng nhập một chạm: ${magicUrl}\n`,
+          html: `<p>Mã OTP: <b>${otp}</b></p><p>Mã có hiệu lực trong ${ttlMinutes} phút.</p><p>Hoặc <a href="${magicUrl}">đăng nhập một chạm</a>.</p>`,
+        })
+      : ({ ok: true as const })
 
     if (!sent.ok) {
+      if (debugOtpEnabled) {
+        recordOtpIpHit(clientIp)
+        return NextResponse.json({ ok: true, debugOtp: otp })
+      }
       if (inserted?.id) {
         try {
           await pgQuery(`delete from public.nanoai_email_login_challenges where id = $1::uuid`, [inserted.id])
@@ -137,7 +144,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: sent.error }, { status: 500 })
     }
     recordOtpIpHit(clientIp)
-    const debugOtpEnabled = process.env.EMAIL_AUTH_DEBUG_OTP === '1'
     return NextResponse.json({
       ok: true,
       ...(debugOtpEnabled ? { debugOtp: otp } : {}),

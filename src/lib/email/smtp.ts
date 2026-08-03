@@ -43,6 +43,7 @@ export async function sendSmtpMail(opts: {
     process.env.SMTP_SECURE === 'true' ||
     process.env.SMTP_SECURE === '1' ||
     port === 465
+  const tlsRejectUnauthorized = process.env.SMTP_TLS_REJECT_UNAUTHORIZED !== '0'
 
   const headers: Record<string, string> = { ...(opts.headers ?? {}) }
   if (opts.listUnsubscribe) {
@@ -59,6 +60,7 @@ export async function sendSmtpMail(opts: {
         user: process.env.SMTP_USER!.trim(),
         pass: process.env.SMTP_PASS!.trim(),
       },
+      ...(tlsRejectUnauthorized ? {} : { tls: { rejectUnauthorized: false } }),
     })
 
     await transporter.sendMail({

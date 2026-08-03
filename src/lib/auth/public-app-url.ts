@@ -62,6 +62,13 @@ export function getPublicAppUrlForServer(req?: Request): string {
   return 'http://localhost:3000'
 }
 
+/** OAuth callback / redirect sau login — ưu tiên Host request (localhost dev), không ép APP_URL production. */
+export function getAuthFlowOrigin(req: Request): string {
+  const fromReq = getOriginFromRequest(req)
+  if (fromReq) return fromReq
+  return getPublicAppUrlForServer(req)
+}
+
 /**
  * Public origin in App Router RSC / route handlers from `headers()` (`next/headers`).
  * Keeps server HTML aligned with the client for absolute URLs built during SSR.

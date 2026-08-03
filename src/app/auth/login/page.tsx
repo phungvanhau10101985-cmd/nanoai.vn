@@ -3,6 +3,7 @@ import { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
 import { getWalletSessionUser } from '@/lib/auth'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
+import { isGoogleOAuthEnabled } from '@/lib/auth/google-oauth-config'
 import { redirect } from 'next/navigation'
 
 export const metadata: Metadata = buildMetadata({
@@ -35,6 +36,7 @@ export default async function LoginPage({
       error={searchParams?.error}
       nextPath={searchParams?.next}
       emailAuthEnabled={emailAuthEnabled}
+      googleAuthEnabled={isGoogleOAuthEnabled()}
     />
   )
 }

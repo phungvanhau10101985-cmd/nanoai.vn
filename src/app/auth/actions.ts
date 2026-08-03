@@ -1,6 +1,15 @@
 'use server'
 
+import { randomBytes } from 'crypto'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import {
+  buildGoogleOAuthAuthorizeUrl,
+  GOOGLE_OAUTH_STATE_COOKIE,
+  isGoogleOAuthEnabled,
+} from '@/lib/auth/google-oauth-config'
+import { getGoogleOAuthStateCookieOptions } from '@/lib/auth/google-oauth-state-cookie'
+import { getPublicOriginFromAppRouterHeaders } from '@/lib/auth/public-app-url'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 
 function nextQueryFromForm(formData: FormData): string {
@@ -21,5 +30,20 @@ export async function signup(formData: FormData) {
 
 export async function signInWithGoogle(formData: FormData) {
   const nq = formData && typeof formData.get === 'function' ? nextQueryFromForm(formData) : ''
-  redirect(`/auth/login?error=${encodeURIComponent('Google đã tắt — chỉ đăng nhập bằng email (OTP).')}${nq}`)
+  if (!isGoogleOAuthEnabled()) {
+    redirect(`/auth/login?error=google_auth_disabled${nq}`)
+  }
+
+  const next = sanitizeLoginNext(String(formData?.get('next') ?? ''))
+  const state = randomBytes(24).toString('hex')
+  const origin = getPublicOriginFromAppRouterHeaders(headers())
+  const redirectUri = `${origin.replace(/\/$/, '')}/auth/callback`
+  const authUrl = buildGoogleOAuthAuthorizeUrl({ redirectUri, state })
+
+  cookies().set(
+    GOOGLE_OAUTH_STATE_COOKIE,
+    JSON.stringify({ state, next, redirectUri }),
+    getGoogleOAuthStateCookieOptions()
+  )
+  redirect(authUrl)
 }
