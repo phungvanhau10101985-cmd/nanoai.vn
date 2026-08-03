@@ -9,6 +9,7 @@ import {
   normalizeWebLocale,
 } from '@/lib/i18n/config'
 import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-platform-host'
+import { getInternalBaseUrl } from '@/lib/internal-url'
 
 const LOCALE_COOKIE_OPTS = { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' as const }
 
@@ -78,10 +79,14 @@ export async function middleware(request: NextRequest) {
 
   if (host && !isPlatformAppHostname(host)) {
     try {
-      const resolveUrl = new URL('/api/messaging/resolve-host', request.url)
+      const resolveUrl = new URL('/api/messaging/resolve-host', `${getInternalBaseUrl()}/`)
       resolveUrl.searchParams.set('host', host)
       const res = await fetch(resolveUrl.toString(), {
-        headers: { 'x-forwarded-host': hostHeader, host: hostHeader },
+        headers: {
+          'x-forwarded-host': hostHeader,
+          host: hostHeader,
+          'x-forwarded-proto': request.headers.get('x-forwarded-proto') ?? 'https',
+        },
         cache: 'no-store',
       })
       if (res.ok) {
