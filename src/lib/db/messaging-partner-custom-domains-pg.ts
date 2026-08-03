@@ -193,6 +193,30 @@ export async function fetchPartnerShopSiteCustomDomainOriginPg(partnerId: string
 }
 
 /** Hostname đã lưu trong quản trị (chưa cần SSL) — dùng cho link «Xem web» / preview. */
+/** Domain đã verify DNS nhưng chưa SSL — cron/worker VPS cấp cert + nginx. */
+export async function fetchPartnerCustomDomainsNeedingSslPg(limit = 20): Promise<
+  Array<{ partner_id: string; hostname: string; ssl_status: PartnerCustomDomainRow['ssl_status'] }>
+> {
+  if (!isPgConfigured()) return []
+  const rows = await pgQuery<{ partner_id: string; hostname: string; ssl_status: string }>(
+    `select d.partner_id::text, d.hostname, d.ssl_status
+     from public.messaging_partner_custom_domains d
+     join public.messaging_partners p on p.id = d.partner_id
+     where d.dns_verified_at is not null
+       and d.ssl_status in ('dns_ok', 'pending')
+       and p.is_active = true
+       and p.purge_at is null
+     order by d.updated_at asc
+     limit $1`,
+    [limit]
+  )
+  return rows.map((r) => ({
+    partner_id: r.partner_id,
+    hostname: r.hostname,
+    ssl_status: r.ssl_status as PartnerCustomDomainRow['ssl_status'],
+  }))
+}
+
 export async function fetchPartnerWebsiteConfiguredSiteOriginPg(partnerId: string): Promise<string | null> {
   if (!isPgConfigured()) return null
   const row = await pgQueryOne<{ hostname: string }>(

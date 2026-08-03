@@ -292,11 +292,13 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   LOGO_SECRET="$(env_read MESSAGING_LOGO_CLEANUP_CRON_SECRET)"
   MKT_SECRET="$(env_read MESSAGING_PARTNER_MARKETING_CRON_SECRET)"
   WEDDING_SECRET="$(env_read WEDDING_REMINDER_CRON_SECRET)"
+  PARTNER_SSL_SECRET="$(env_read PARTNER_DOMAIN_SSL_CRON_SECRET)"
 
   if [[ -z "${AI_SECRET}" ]]; then AI_SECRET="${CRON_SECRET_FALLBACK}"; fi
   if [[ -z "${INV_SECRET}" ]]; then INV_SECRET="${AI_SECRET}"; fi
   if [[ -z "${LOGO_SECRET}" ]]; then LOGO_SECRET="${AI_SECRET}"; fi
   if [[ -z "${MKT_SECRET}" ]]; then MKT_SECRET="${AI_SECRET}"; fi
+  if [[ -z "${PARTNER_SSL_SECRET}" ]]; then PARTNER_SSL_SECRET="${CRON_SECRET_FALLBACK}"; fi
 
   if [[ -n "${AI_SECRET}" ]]; then
     ensure_cron "messaging-partner-ai" "* * * * * curl -fsS -m 90 -X POST http://127.0.0.1:3000/api/cron/messaging-partner-ai -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/messaging-partner-ai.log 2>&1"
@@ -328,8 +330,14 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
     echo "  Cảnh báo: thiếu WEDDING_REMINDER_CRON_SECRET, bỏ qua cron wedding-reminder."
   fi
 
+  if [[ -n "${PARTNER_SSL_SECRET}" ]]; then
+    ensure_cron "partner-custom-domain-ssl" "*/3 * * * * curl -fsS -m 300 -X POST http://127.0.0.1:3000/api/cron/partner-custom-domain-ssl -H \"Authorization: Bearer ${PARTNER_SSL_SECRET}\" >> /root/logs/partner-custom-domain-ssl.log 2>&1"
+  else
+    echo "  Cảnh báo: thiếu PARTNER_DOMAIN_SSL_CRON_SECRET/CRON_SECRET, bỏ qua cron partner-custom-domain-ssl."
+  fi
+
   echo "  Cron hiện tại:"
-  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-logo-cleanup|partner-marketing-campaign|wedding-reminder" || true
+  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-logo-cleanup|partner-marketing-campaign|wedding-reminder|partner-custom-domain-ssl" || true
 else
   echo "  Bỏ qua (DEPLOY_SETUP_CRONS=${DEPLOY_SETUP_CRONS})."
 fi
