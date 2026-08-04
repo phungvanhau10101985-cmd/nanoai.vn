@@ -6,14 +6,14 @@ import { PartnerSiteCustomDomainProvider } from '@/lib/partner-website/shop/part
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 
 const display = Fraunces({
-  subsets: ['latin'],
+  subsets: ['latin', 'latin-ext'],
   weight: ['500', '700', '800'],
   variable: '--pw-font-display',
   display: 'swap',
 })
 
 const ui = Outfit({
-  subsets: ['latin'],
+  subsets: ['latin', 'latin-ext'],
   weight: ['400', '500', '600', '700', '800'],
   variable: '--pw-font-ui',
   display: 'swap',

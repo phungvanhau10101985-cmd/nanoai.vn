@@ -18,6 +18,13 @@ const PARTNERS_PER_RUN = Math.max(
   )
 )
 
+/**
+ * Ngân sách thời gian cho cả route (< `maxDuration` 600s) — kho lớn (~100k SP) có thể mất vài phút/shop
+ * dù đã tải song song. Dừng nhận thêm partner mới khi gần hết ngân sách, để lại cho lượt cron kế tiếp
+ * (chạy mỗi 15 phút) thay vì bị nền tảng cắt ngang giữa chừng một lượt đồng bộ.
+ */
+const RUN_TIME_BUDGET_MS = 560_000
+
 function isAuthorized(req: NextRequest): boolean {
   const auth = req.headers.get('authorization')?.trim()
   if (!auth?.startsWith('Bearer ')) return false
@@ -49,8 +56,14 @@ async function handleCron(req: NextRequest) {
 
   const partnerIds = await fetchPartnerIdsDueForExternalCatalogSyncFromPg(PARTNERS_PER_RUN)
   const results: Array<{ partnerId: string; outcome: ExternalCatalogSyncOutcome }> = []
+  const startedAt = Date.now()
+  let skippedForBudget = 0
 
   for (const partnerId of partnerIds) {
+    if (Date.now() - startedAt > RUN_TIME_BUDGET_MS) {
+      skippedForBudget += 1
+      continue
+    }
     const outcome = await runPartnerExternalCatalogSyncJob({
       partnerId,
       deferEmbeddings: true,
@@ -61,7 +74,8 @@ async function handleCron(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    partners_run: partnerIds.length,
+    partners_run: results.length,
+    partners_deferred_next_run: skippedForBudget,
     results,
   })
 }

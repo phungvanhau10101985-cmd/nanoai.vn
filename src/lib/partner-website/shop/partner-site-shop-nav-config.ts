@@ -20,6 +20,8 @@ export type PartnerSiteAccountMenuItemId =
   | 'orders'
   | 'recently-viewed'
   | 'addresses'
+  | 'wishlist'
+  | 'contact'
 
 export type PartnerSiteAccountMenuItem = {
   id: PartnerSiteAccountMenuItemId
@@ -198,10 +200,12 @@ export function getPartnerSiteAccountMenuItems(input: {
       label: t.accountEditProfile,
       isAccent: true,
     },
-    { id: 'cart', href: paths.cart, label: t.navCart },
-    { id: 'orders', href: paths.orders, label: t.navOrders },
-    { id: 'recently-viewed', href: paths.recentlyViewed, label: t.accountViewedProducts },
-    { id: 'addresses', href: paths.addresses, label: t.accountAddressBook },
+    { id: 'cart', href: slug ? `${paths.account}#cart` : paths.cart, label: t.navCart },
+    { id: 'orders', href: slug ? `${paths.account}#orders` : paths.orders, label: t.navOrders },
+    { id: 'wishlist', href: slug ? `${paths.account}#wishlist` : paths.wishlist, label: t.navFavorites },
+    { id: 'recently-viewed', href: slug ? `${paths.account}#recently-viewed` : paths.recentlyViewed, label: t.accountViewedProducts },
+    { id: 'addresses', href: slug ? `${paths.account}#addresses` : paths.addresses, label: t.accountAddressBook },
+    { id: 'contact', href: slug ? `${paths.account}#contact` : paths.contact, label: getPartnerSiteCategoryNavLabels(input.locale).contact },
   ]
 }
 

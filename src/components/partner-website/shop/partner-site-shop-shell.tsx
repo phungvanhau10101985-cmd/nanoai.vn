@@ -4,9 +4,11 @@ import Link from 'next/link'
 import {
   ClipboardList,
   Clock,
+  Heart,
   Home,
   MapPin,
   Menu,
+  MessageCircle,
   Package,
   Pencil,
   ShoppingBag,
@@ -55,8 +57,10 @@ const ACCOUNT_MENU_ICONS: Record<PartnerSiteAccountMenuItemId, LucideIcon> = {
   'edit-profile': Pencil,
   cart: ShoppingBag,
   orders: ClipboardList,
+  wishlist: Heart,
   'recently-viewed': Clock,
   addresses: MapPin,
+  contact: MessageCircle,
 }
 
 function PartnerSiteShopShellInner({
@@ -74,7 +78,7 @@ function PartnerSiteShopShellInner({
   const customDomain = usePartnerSiteCustomDomain()
   const paths = getPartnerSiteShopNavPaths(siteSlug, customDomain)
   const accountMenuItems = getPartnerSiteAccountMenuItems({ siteSlug, locale, customDomain })
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { cartCount, setCartCount, registerCartLoader } = usePartnerSiteShop()
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -133,9 +137,9 @@ function PartnerSiteShopShellInner({
 
       <div className="pw-shop-topbar">
         <div className="pw-shop-topbar-inner">
-          <Link href={paths.contact}>{n.contact}</Link>
-          <Link href={paths.wishlist}>{t.navFavorites}</Link>
-          <Link href={paths.account}>{n.login}</Link>
+          <Link href={`${paths.account}#contact`}>{n.contact}</Link>
+          <Link href={`${paths.account}#wishlist`}>{t.navFavorites}</Link>
+          {!isAuthenticated ? <Link href={paths.account}>{n.login}</Link> : null}
         </div>
       </div>
 
@@ -208,7 +212,7 @@ function PartnerSiteShopShellInner({
               </button>
               {accountOpen ? (
                 <nav id="pw-shop-account-panel" className="pw-shop-account-panel" aria-label={t.navAccount}>
-                  {accountMenuItems.map((item) => {
+                  {accountMenuItems.filter((item) => !item.isHeader).map((item) => {
                     const Icon = ACCOUNT_MENU_ICONS[item.id]
                     return (
                       <Link
@@ -227,7 +231,7 @@ function PartnerSiteShopShellInner({
                 </nav>
               ) : null}
             </div>
-            <Link href={paths.cart} className="pw-shop-icon-btn" aria-label={t.navCart}>
+            <Link href={`${paths.account}#cart`} className="pw-shop-icon-btn" aria-label={t.navCart}>
               <ShoppingBag className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span className="pw-shop-icon-label">{t.navCart}</span>
               {cartCount > 0 ? (

@@ -6,7 +6,7 @@ export const FASHION_SHOP_FONT_DISPLAY = '"Fraunces", "Times New Roman", serif'
 export const FASHION_SHOP_FONT_UI = '"Outfit", "Segoe UI", system-ui, sans-serif'
 
 export const FASHION_SHOP_GOOGLE_FONTS_HREF =
-  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,800&family=Outfit:wght@400;500;600;700;800&display=swap'
+  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,800&family=Outfit:wght@400;500;600;700;800&subset=latin,latin-ext&display=swap'
 
 export function buildFashionShopMotionCss(): string {
   return `

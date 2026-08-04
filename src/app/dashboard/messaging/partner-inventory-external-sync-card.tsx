@@ -200,8 +200,6 @@ export function PartnerInventoryExternalSyncCard({
         return t.inventoryPrice
       case 'stock_qty':
         return t.inventoryExternalSyncRowStockQty
-      case 'stock_note':
-        return t.inventoryStock
       case 'colors_json':
         return t.inventoryExternalSyncRowColorsJson
       case 'image':

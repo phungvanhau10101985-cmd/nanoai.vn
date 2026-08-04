@@ -48,7 +48,7 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-search-card .pw-shop-price{padding:0 8px 8px;font-size:12px}
 .pw-shop-header-actions{display:flex;align-items:center;gap:4px;margin-left:auto}
 .pw-shop-account-wrap{position:relative}
-.pw-shop-account-panel{position:absolute;right:0;top:calc(100% + 8px);z-index:60;min-width:220px;display:grid;gap:2px;padding:6px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.12)}
+.pw-shop-account-panel{position:absolute;left:0;top:calc(100% + 8px);z-index:60;min-width:220px;display:grid;gap:2px;padding:6px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.12)}
 .pw-shop-account-panel a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:600;color:#374151}
 .pw-shop-account-panel a:hover{background:#fff7ed;color:var(--pw-primary)}
 .pw-shop-account-panel a.is-header{background:#eff6ff;color:#2563eb;border-left:3px solid #2563eb;border-radius:8px 8px 8px 6px;font-weight:700}
@@ -58,16 +58,24 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-account-icon{width:18px;height:18px;flex-shrink:0;color:inherit;opacity:.85}
 .pw-shop-account-panel a.is-header .pw-shop-account-icon{color:#2563eb}
 .pw-shop-account-panel a.is-accent .pw-shop-account-icon{color:#ea580c}
-.pw-shop-account-summary{margin-top:16px;padding:16px 18px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
+.pw-shop-account-summary{margin-top:0;padding:16px 18px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
 .pw-shop-account-greeting{font-size:1.1rem;font-weight:700;margin:0 0 8px}
-.pw-shop-account-links{margin-top:28px}
-.pw-shop-account-links h2,.pw-shop-account-edit h2{font-size:1rem;margin:0 0 12px;text-transform:uppercase;letter-spacing:.04em;color:var(--pw-primary)}
-.pw-shop-account-links-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
-.pw-shop-account-link-card{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:14px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;font-weight:700;font-size:13px;color:#374151}
+.pw-shop-account-layout{display:grid;gap:28px}
+@media(min-width:768px){.pw-shop-account-layout{grid-template-columns:200px 1fr}}
+.pw-shop-account-sidebar{display:flex;flex-direction:column;gap:8px}
+.pw-shop-account-sidebar h2{margin:0 0 8px}
+.pw-shop-account-content{min-width:0}
+.pw-shop-account-links{margin-top:0}
+.pw-shop-account-links h2,.pw-shop-account-edit h2{font-size:1rem;margin:0 0 10px;text-transform:uppercase;letter-spacing:.04em;color:var(--pw-primary)}
+.pw-shop-account-links-grid{display:flex;flex-direction:column;gap:6px}
+.pw-shop-account-link-card{display:flex;flex-direction:row;align-items:center;gap:8px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;font-weight:600;font-size:13px;color:#374151;cursor:pointer;width:100%;text-align:left}
 .pw-shop-account-link-card:hover{border-color:var(--pw-primary);color:var(--pw-primary);background:#fff7ed}
+.pw-shop-account-link-card.is-active{border-color:var(--pw-primary);background:var(--pw-primary);color:#fff}
+.pw-shop-account-link-card.is-active .pw-shop-account-link-icon{color:#fff;opacity:1}
 .pw-shop-account-link-card.is-accent{border-color:#fdba74;background:#fff7ed;color:#ea580c}
+.pw-shop-account-link-card.is-accent.is-active{background:#ea580c;color:#fff;border-color:#ea580c}
 .pw-shop-account-link-icon{width:20px;height:20px}
-.pw-shop-account-edit{margin-top:32px;padding-top:24px;border-top:1px solid #e5e7eb}
+.pw-shop-account-edit{margin-top:0;padding-top:0;border-top:none}
 .pw-shop-page-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
 .pw-shop-page-head h1{margin:0}
 .pw-shop-orders-list{list-style:none;padding:0;margin-top:16px;display:grid;gap:12px}
@@ -84,7 +92,7 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-icon-label{max-width:4.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pw-shop-cart-badge{position:absolute;top:0;right:2px;min-width:16px;height:16px;border-radius:999px;background:var(--pw-primary);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
 .pw-shop-nav-row{display:none;justify-content:center;gap:18px;flex-wrap:wrap;padding:0 20px 12px;max-width:1180px;margin:0 auto}
-.pw-shop-nav-row a{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#374151}
+.pw-shop-nav-row a{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#374151}
 .pw-shop-nav-row a.is-sale{color:var(--pw-primary)}
 .pw-shop-main{max-width:1180px;margin:0 auto;padding:24px 20px 48px}
 .pw-shop-main h1{font-size:clamp(1.35rem,2.2vw,1.75rem);font-weight:700;letter-spacing:0;margin:0 0 8px;line-height:1.25;color:var(--pw-text)}

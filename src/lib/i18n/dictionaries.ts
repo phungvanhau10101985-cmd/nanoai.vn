@@ -4026,7 +4026,7 @@ const VI_DICTIONARY: Dictionary = {
     inventoryExternalSyncIntervalHint:
       'Chọn giờ Việt Nam (Asia/Ho_Chi_Minh). Cron chỉ chạy 1 lần/ngày khi đã tới giờ và có URL danh sách.',
     inventoryExternalSyncRemarketingSnapshotHint:
-      'Đồng bộ GET: chỉ thêm/xóa theo Remarketing/content ID (sau trim). Mã đã có trong kho — giữ nguyên mọi trường; mã mới — thêm; mã không còn trong API — xóa hết dòng trùng mã. API trả 0 sản phẩm — giữ nguyên kho, không xóa. Hàng kho không có mã này không bị xóa; sản phẩm không map được mã thì bỏ qua trong snapshot.',
+      'Đồng bộ GET tăng tiến: lấy sản phẩm có updated_since = lần thành công gần nhất. Mã Remarketing/content ID đã có được cập nhật, mã mới được thêm; is_deleted=true sẽ xóa. API có thể trả lại item đúng mốc thời gian; UPSERT theo ID an toàn, không tạo trùng.',
     inventoryExternalSyncRunNow: 'Đồng bộ ngay',
     inventoryExternalSyncRunPending: 'Đang đồng bộ…',
     inventoryExternalSyncRunSuccess:
@@ -6856,7 +6856,7 @@ const EN_DICTIONARY: Dictionary = {
     inventoryExternalSyncIntervalHint:
       'Choose Vietnam time (Asia/Ho_Chi_Minh). Cron runs once per day after this time when a list URL is set.',
     inventoryExternalSyncRemarketingSnapshotHint:
-      'GET sync only adds/removes by Remarketing/content ID (trimmed). Existing id — no field changes; new id — insert; id missing from the feed — delete all rows with that id. Zero products in the API response — leave inventory unchanged (no deletes). Inventory rows without this id are not removed; products without a mapped id are skipped.',
+      'Incremental GET sync requests updated_since = the last successful run. Existing Remarketing/content IDs are updated, new IDs are inserted, and is_deleted=true removes them. The API may return an item at the exact timestamp; ID-based UPSERT is safe and idempotent.',
     inventoryExternalSyncRunNow: 'Sync now',
     inventoryExternalSyncRunPending: 'Syncing…',
     inventoryExternalSyncRunSuccess:
@@ -9659,7 +9659,7 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryExternalSyncIntervalHint:
       '请选择越南时间（Asia/Ho_Chi_Minh）。已填写列表 URL 且到达该时间后，cron 每天只运行一次。',
     inventoryExternalSyncRemarketingSnapshotHint:
-      'GET 同步仅按 Remarketing/内容 ID（trim）做增删。已存在 ID — 不更新任何字段；新 ID — 新增；API 中不再出现的 ID — 删除该 ID 的所有行。API 返回 0 个商品 — 不修改库存、不删除。无此 ID 的库存行不会被删；未映射到 ID 的商品不参与快照。',
+      '增量 GET 同步请求 updated_since = 最近成功同步时间。已有的再营销/内容 ID 将更新，新 ID 将新增，is_deleted=true 将删除。API 可能返回恰好位于该时间点的商品；基于 ID 的 UPSERT 安全且幂等。',
     inventoryExternalSyncRunNow: '立即同步',
     inventoryExternalSyncRunPending: '正在同步…',
     inventoryExternalSyncRunSuccess:
@@ -12420,7 +12420,7 @@ const JA_DICTIONARY: Dictionary = {
     inventoryExternalSyncIntervalHint:
       'ベトナム時間（Asia/Ho_Chi_Minh）で選択します。一覧 URL があり、この時刻を過ぎると cron は1日1回だけ実行されます。',
     inventoryExternalSyncRemarketingSnapshotHint:
-      'GET 同期は Remarketing/コンテンツ ID（trim）の追加・削除のみ。既存 ID — フィールドは更新しません；新規 ID — 追加；フィードに無い ID — その ID の行をすべて削除。API が商品 0 件 — 在庫は変更しません（削除なし）。この ID がない在庫行は削除しません；ID にマップできない商品はスキップ。',
+      '増分 GET 同期では、updated_since に前回成功時刻を指定します。既存のリマーケティング/コンテンツ ID は更新、新規 ID は追加、is_deleted=true は削除します。API が同一時刻の項目を返しても、ID ベースの UPSERT は安全で冪等です。',
     inventoryExternalSyncRunNow: '今すぐ同期',
     inventoryExternalSyncRunPending: '同期中…',
     inventoryExternalSyncRunSuccess:
@@ -15222,7 +15222,7 @@ const KO_DICTIONARY: Dictionary = {
     inventoryExternalSyncIntervalHint:
       '베트남 시간(Asia/Ho_Chi_Minh)으로 선택합니다. 목록 URL이 있고 이 시간이 지난 뒤 cron은 하루 한 번만 실행됩니다.',
     inventoryExternalSyncRemarketingSnapshotHint:
-      'GET 동기화는 Remarketing/콘텐츠 ID(trim)로만 추가·삭제합니다. 기존 ID — 필드는 바꾸지 않음; 새 ID — 추가; 피드에 없는 ID — 해당 ID 행 전부 삭제. API가 상품 0개 — 재고는 그대로(삭제 없음). 이 ID가 없는 재고 행은 삭제하지 않음; ID에 매핑되지 않은 상품은 건너뜀.',
+      '증분 GET 동기화는 updated_since = 마지막 성공 동기화 시각을 요청합니다. 기존 리마케팅/콘텐츠 ID는 업데이트하고 새 ID는 추가하며 is_deleted=true는 삭제합니다. API가 동일 시각의 항목을 다시 반환해도 ID 기반 UPSERT는 안전하고 멱등적입니다.',
     inventoryExternalSyncRunNow: '지금 동기화',
     inventoryExternalSyncRunPending: '동기화 중…',
     inventoryExternalSyncRunSuccess:

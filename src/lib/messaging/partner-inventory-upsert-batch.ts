@@ -290,6 +290,122 @@ async function upsertPartnerInventoryRemarketingSnapshotBatch(
   return { ok: true, inserted, updated: 0, deleted, embeddingsDeferred: deferEmbeddings }
 }
 
+/**
+ * Đồng bộ nhanh (incremental) theo remarketing_id: payload chỉ chứa SP mới/đã thay đổi (do web khách
+ * lọc sẵn bằng filter kiểu `updated_after`/`min_id`) — khớp remarketing_id đã có thì CẬP NHẬT nội dung
+ * (khác snapshot đầy đủ — nơi mã đã có bị bỏ qua để tránh ghi đè ngoài ý muốn khi so toàn bộ kho).
+ * Xóa theo `deleteRemarketingIds` tường minh (do web khách trả kèm), không suy luận từ việc "vắng mặt".
+ */
+export async function upsertPartnerInventoryRemarketingIncrementalBatch(
+  partnerId: string,
+  rows: InventoryExcelInsert[],
+  options: { existingRows: InventoryRow[]; deferEmbeddings?: boolean; deleteRemarketingIds?: string[] }
+): Promise<
+  | { ok: true; inserted: number; updated: number; deleted: number; embeddingsDeferred: boolean }
+  | { ok: false; error: string }
+> {
+  const now = new Date().toISOString()
+  const existingById = new Map(options.existingRows.map((r) => [r.id, r]))
+  const byRemarketing = new Map<string, InventoryRow[]>()
+  for (const row of options.existingRows) {
+    const rk = inventoryRemarketingMatchKey(row.remarketing_id)
+    if (!rk) continue
+    const arr = byRemarketing.get(rk) ?? []
+    arr.push(row)
+    byRemarketing.set(rk, arr)
+  }
+
+  let inserted = 0
+  let updated = 0
+  let deleted = 0
+  const changedIds = new Set<string>()
+  const plannedDeletes = new Set<string>()
+  const plannedUpdates = new Map<string, InventoryInsert>()
+  const plannedInserts = new Map<string, InventoryInsert>()
+
+  for (const delId of options.deleteRemarketingIds ?? []) {
+    const rk = inventoryRemarketingMatchKey(delId)
+    if (!rk) continue
+    const targets = byRemarketing.get(rk) ?? []
+    for (const t of targets) {
+      if (existingById.has(t.id) && !plannedDeletes.has(t.id)) {
+        plannedDeletes.add(t.id)
+        deleted += 1
+        changedIds.add(t.id)
+        existingById.delete(t.id)
+      }
+    }
+    byRemarketing.delete(rk)
+  }
+
+  for (const r of rows) {
+    const rk = inventoryRemarketingMatchKey(r.remarketing_id)
+    if (!rk) continue
+    const base: InventoryUpsertBase = {
+      name: r.name,
+      sku: r.sku,
+      description: r.description,
+      stock_note: r.stock_note,
+      stock_qty: r.stock_qty,
+      price_hint: r.price_hint,
+      image_url: r.image_url,
+      product_url: r.product_url,
+      product_video_url: r.product_video_url,
+      consult_note: r.consult_note,
+      remarketing_id: rk,
+      sort_order: r.sort_order,
+      is_active: r.is_active,
+      updated_at: now,
+    }
+
+    const targets = (byRemarketing.get(rk) ?? []).filter((t) => existingById.has(t.id))
+    if (targets.length === 0) {
+      if (plannedInserts.has(rk)) {
+        plannedInserts.set(rk, { ...plannedInserts.get(rk)!, ...base })
+        continue
+      }
+      const newId = randomUUID()
+      plannedInserts.set(rk, { id: newId, partner_id: partnerId, ...base, created_at: now })
+      inserted += 1
+      changedIds.add(newId)
+      continue
+    }
+    const target = targets[0]
+    const current = existingById.get(target.id)
+    if (current && sameInventoryData(current, base)) continue
+    plannedUpdates.set(target.id, {
+      id: target.id,
+      partner_id: partnerId,
+      created_at: current?.created_at ?? now,
+      ...base,
+    })
+    updated += 1
+    changedIds.add(target.id)
+  }
+
+  for (const ids of chunked(Array.from(plannedDeletes), WRITE_CHUNK_SIZE)) {
+    const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)
+    if (!ok) return { ok: false, error: 'Inventory delete failed (Postgres).' }
+  }
+  for (const rowsChunk of chunked(Array.from(plannedUpdates.values()), WRITE_CHUNK_SIZE)) {
+    const ok = await upsertPartnerInventoryChunkFromPg(rowsChunk)
+    if (!ok) return { ok: false, error: 'Inventory update failed (Postgres).' }
+  }
+  for (const rowsChunk of chunked(Array.from(plannedInserts.values()), WRITE_CHUNK_SIZE)) {
+    const ok = await insertPartnerInventoryChunkFromPg(rowsChunk)
+    if (!ok) return { ok: false, error: 'Inventory insert failed (Postgres).' }
+  }
+
+  const deferEmbeddings = Boolean(options.deferEmbeddings)
+  if (changedIds.size > 0 && !deferEmbeddings) {
+    const ids = Array.from(changedIds)
+    await syncPartnerInventoryEmbeddings(partnerId, { inventoryIds: ids, force: false })
+    await syncPartnerInventoryTextEmbeddings(partnerId, { inventoryIds: ids, force: false })
+  }
+
+  return { ok: true, inserted, updated, deleted, embeddingsDeferred: deferEmbeddings }
+}
+
 export async function upsertPartnerInventoryBatch(
   partnerId: string,
   rows: InventoryExcelInsert[],

@@ -122,6 +122,8 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
 
   const [ready, setReady] = useState(false)
 
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+
   const sessionRef = useRef('')
 
   const accountRef = useRef('')
@@ -145,6 +147,8 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
     if (aid) {
 
       accountRef.current = aid
+
+      setIsAuthenticated(true)
 
       persistAccountId(aid)
 
@@ -179,6 +183,8 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
     sessionRef.current = readStoredSessionId()
 
     accountRef.current = readStoredAccountId()
+
+    if (accountRef.current) setIsAuthenticated(true)
 
     void (async () => {
 
@@ -236,6 +242,8 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
 
           accountRef.current = syncJson.accountId
 
+          setIsAuthenticated(true)
+
           persistAccountId(syncJson.accountId)
 
         }
@@ -258,7 +266,7 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
 
 
 
-  return { ready, authHeaders, captureFromResponse }
+  return { ready, isAuthenticated, authHeaders, captureFromResponse }
 
 }
 

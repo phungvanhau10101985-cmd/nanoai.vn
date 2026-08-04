@@ -210,9 +210,9 @@ export async function getWalletSessionUser(): Promise<AppUser | null> {
 export async function getUserForAction(
   errorMessage = 'Vui lòng đăng nhập.'
 ): Promise<{ user: AppUser } | { error: string }> {
+  if (!isAuthRequired()) return { user: await canonicalizeUserByEmail(getDevUser()) }
   const user = await getWalletSessionUser()
   if (user) return { user }
-  if (!isAuthRequired()) return { user: await canonicalizeUserByEmail(getDevUser()) }
   return { error: errorMessage }
 }
 
@@ -250,9 +250,9 @@ async function resolveGuestTrialUser(): Promise<AppUser | null> {
 export async function getUserForCreditAction(
   errorMessage = 'Bạn đã dùng hết 3 credits dùng thử. Vui lòng đăng nhập để tiếp tục.'
 ): Promise<{ user: AppUser } | { error: string }> {
+  if (!isAuthRequired()) return { user: await canonicalizeUserByEmail(getDevUser()) }
   const user = await getWalletSessionUser()
   if (user) return { user }
-  if (!isAuthRequired()) return { user: await canonicalizeUserByEmail(getDevUser()) }
   if (!(await canGuestUseCreditTrial())) {
     clearGuestTrialUserIdCookie()
     return { error: errorMessage }

@@ -66,12 +66,14 @@ import {
   Bot,
   Building2,
   Cake,
+  ChevronDown,
   ClipboardList,
   CreditCard,
   ExternalLink,
   Globe,
   LineChart,
   Megaphone,
+  Menu,
   Package,
   Palette,
   Plug,
@@ -356,6 +358,7 @@ export function PartnerMessagingSettingsClient({
   const [activeSection, setActiveSection] = useState<MessagingSettingsSectionId>(() =>
     normalizedSectionParam ?? 'workspace'
   )
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const settingsNavItems = useMemo(() => {
     const items: Array<{
@@ -1858,13 +1861,86 @@ export function PartnerMessagingSettingsClient({
         </>
       ) : (
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
-          <aside className="w-full shrink-0 lg:w-56 xl:w-60">
+          {/* Mobile: hamburger menu */}
+          <div className="lg:hidden">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-between"
+              onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            >
+              <span className="flex items-center gap-2 truncate">
+                <Menu className="h-4 w-4 shrink-0" />
+                <span className="truncate">{settingsNavItems.find((item) => item.id === activeSection)?.label ?? t.settingsSidebarTitle}</span>
+              </span>
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 shrink-0 transition-transform duration-200',
+                  mobileNavOpen && 'rotate-180'
+                )}
+              />
+            </Button>
+            {mobileNavOpen ? (
+              <div className="mt-2 rounded-xl border border-border/70 bg-card/90 p-2 shadow-sm">
+                <nav className="flex flex-col gap-1" aria-label={t.settingsSidebarTitle}>
+                  {settingsNavItems
+                    .filter((item) => item.visible)
+                    .map((item) => {
+                      const NavIcon = item.icon
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => { selectSettingsSection(item.id); setMobileNavOpen(false) }}
+                          className={cn(
+                            'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full',
+                            activeSection === item.id
+                              ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
+                              : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                          )}
+                          aria-current={activeSection === item.id ? 'page' : undefined}
+                        >
+                          <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
+                          <span className="truncate">{item.label}</span>
+                        </button>
+                      )
+                    })}
+                  {settingsExternalNavItems.some((item) => item.visible) ? (
+                    <>
+                      <p className="mt-2 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {t.settingsNavOperationsTitle}
+                      </p>
+                      {settingsExternalNavItems
+                        .filter((item) => item.visible)
+                        .map((item) => {
+                          const NavIcon = item.icon
+                          return (
+                            <Link
+                              key={item.id}
+                              href={item.href}
+                              onClick={() => setMobileNavOpen(false)}
+                              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                            >
+                              <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
+                              <span className="truncate">{item.label}</span>
+                            </Link>
+                          )
+                        })}
+                    </>
+                  ) : null}
+                </nav>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Desktop: sidebar */}
+          <aside className="hidden w-full shrink-0 lg:block lg:w-56 xl:w-60">
             <div className="rounded-xl border border-border/70 bg-card/90 p-2 shadow-sm lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+1rem)]">
               <p className="hidden px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:block">
                 {t.settingsSidebarTitle}
               </p>
               <nav
-                className="flex gap-1 overflow-x-auto pb-0.5 lg:flex-col lg:overflow-visible lg:pb-0"
+                className="hidden gap-1 lg:flex lg:flex-col"
                 aria-label={t.settingsSidebarTitle}
               >
                 {settingsNavItems
@@ -1877,7 +1953,7 @@ export function PartnerMessagingSettingsClient({
                         type="button"
                         onClick={() => selectSettingsSection(item.id)}
                         className={cn(
-                          'flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors lg:w-full',
+                          'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full',
                           activeSection === item.id
                             ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -1902,10 +1978,7 @@ export function PartnerMessagingSettingsClient({
                           <Link
                             key={item.id}
                             href={item.href}
-                            className={cn(
-                              'flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors lg:w-full',
-                              'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                            )}
+                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                           >
                             <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
                             <span className="truncate">{item.label}</span>

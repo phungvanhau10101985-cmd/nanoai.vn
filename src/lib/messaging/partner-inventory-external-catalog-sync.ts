@@ -26,7 +26,7 @@ import {
 } from '@/lib/messaging/partner-inventory-external-catalog-sync-notify'
 import {
   listPartnerInventoryRows,
-  upsertPartnerInventoryBatch,
+  upsertPartnerInventoryRemarketingIncrementalBatch,
 } from '@/lib/messaging/partner-inventory-upsert-batch'
 
 /**
@@ -88,7 +88,6 @@ export function buildExternalCatalogRemarketingSnapshotRows(
 
   return out
 }
-
 function countDistinctRemarketingIds(rows: InventoryExcelInsert[]): number {
   const s = new Set<string>()
   for (const r of rows) {
@@ -102,13 +101,30 @@ const FETCH_TIMEOUT_MS = Math.max(
   10_000,
   Math.min(120_000, parseInt(process.env.EXTERNAL_CATALOG_FETCH_TIMEOUT_MS || '45000', 10) || 45_000)
 )
+/** 188 giới hạn cứng 1000 SP/trang — mặc định dùng luôn mức tối đa để giảm số trang cần gọi. */
 const PAGE_LIMIT = Math.min(
   1000,
-  Math.max(50, parseInt(process.env.EXTERNAL_CATALOG_PAGE_LIMIT || '500', 10) || 500)
+  Math.max(50, parseInt(process.env.EXTERNAL_CATALOG_PAGE_LIMIT || '1000', 10) || 1000)
 )
 const MAX_PRODUCTS = Math.min(
   200_000,
   Math.max(1_000, parseInt(process.env.EXTERNAL_CATALOG_MAX_PRODUCTS || '50000', 10) || 50_000)
+)
+/** Số trang gọi song song — giúp job ~100 trang (100k SP) chạy trong vài phút thay vì tuần tự ~50 phút. */
+const FETCH_CONCURRENCY = Math.max(
+  1,
+  Math.min(8, parseInt(process.env.EXTERNAL_CATALOG_FETCH_CONCURRENCY || '4', 10) || 4)
+)
+/** API incremental của 188 quy định `limit=500`. */
+const INCREMENTAL_PAGE_LIMIT = 500
+/**
+ * Ngưỡng an toàn cho toàn bộ vòng lặp tải trang — phải nhỏ hơn `maxDuration` của route gọi hàm này
+ * (hiện route cron/manual set 600s) để job tự dừng gọn (trả FETCH_TIMEOUT) thay vì bị nền tảng
+ * (Vercel) cắt giữa chừng. Không cấu hình vượt quá thời lượng route cho phép.
+ */
+const JOB_TIMEOUT_MS = Math.max(
+  60_000,
+  Math.min(3_500_000, parseInt(process.env.EXTERNAL_CATALOG_JOB_TIMEOUT_MS || '540000', 10) || 540_000)
 )
 
 function cellStr(v: unknown): string {
@@ -177,16 +193,26 @@ function mapProductToInventoryRow(
     if (!path) return undefined
     return getValueByPath(p, path)
   }
+  /** Giữ tương thích API 188 cũ (`code`, `product_id`, `available`) và contract incremental mới (`sku`, `id`, `stock`). */
+  const getWithFallback = (key: InventoryExternalSyncMapKey, fallbackKeys: string[]): unknown => {
+    const mapped = get(key)
+    if (mapped != null && mapped !== '') return mapped
+    for (const fallbackKey of fallbackKeys) {
+      const value = p[fallbackKey]
+      if (value != null && value !== '') return value
+    }
+    return mapped
+  }
 
-  const name = cellStr(get('name'))
+  const name = cellStr(getWithFallback('name', ['name']))
   if (!name) return null
 
-  const skuRaw = cellStr(get('sku')).slice(0, 120)
+  const skuRaw = cellStr(getWithFallback('sku', ['code', 'sku'])).slice(0, 120)
   const sku = skuRaw || null
 
   const description = cellStr(get('description')).slice(0, 4000)
 
-  const priceRaw = get('price')
+  const priceRaw = getWithFallback('price', ['price'])
   let price_hint = ''
   if (typeof priceRaw === 'number' && Number.isFinite(priceRaw)) {
     price_hint = `${Math.round(priceRaw).toLocaleString('vi-VN')}đ`
@@ -195,19 +221,16 @@ function mapProductToInventoryRow(
   }
 
   let stock_qty = 0
-  const qtyRaw = get('stock_qty')
+  const qtyRaw = getWithFallback('stock_qty', ['available', 'stock', 'stock_qty'])
   if (typeof qtyRaw === 'number' && Number.isFinite(qtyRaw)) {
     stock_qty = Math.max(0, Math.floor(qtyRaw))
   } else {
     stock_qty = Math.max(0, parseInt(cellStr(qtyRaw).replace(/[^\d-]/g, ''), 10) || 0)
   }
 
-  const stockParts: string[] = []
-  const sn = get('stock_note')
-  if (sn != null && cellStr(sn)) stockParts.push(formatStockPiece(sn))
+  /** Cột `stock_note` (NanoAI) lưu JSON màu [{name,img}] cho bộ chọn màu trên shop — chỉ lấy từ `colors_json`. */
   const cj = get('colors_json')
-  if (cj != null && cellStr(cj)) stockParts.push(formatStockPiece(cj))
-  const stock_note = stockParts.join(' | ').slice(0, 2000)
+  const stock_note = (cj != null ? formatStockPiece(cj) : '').slice(0, 2000)
 
   const image_url = validateInventoryImageUrl(cellStr(get('image')))
   const product_url = validateInventoryProductUrl(cellStr(get('slug')))
@@ -228,7 +251,7 @@ function mapProductToInventoryRow(
     consult_note = consult_note.slice(0, 2000)
   }
 
-  const remarketing_id = cellStr(get('remarketing_id')).slice(0, 500)
+  const remarketing_id = cellStr(getWithFallback('remarketing_id', ['product_id', 'id'])).slice(0, 500)
 
   let sort_order = 100
   const so = get('sort_order')
@@ -261,6 +284,37 @@ function mapProductToInventoryRow(
   }
 }
 
+function productIsSoftDeleted(product: unknown): boolean {
+  if (!product || typeof product !== 'object' || Array.isArray(product)) return false
+  const value = (product as Record<string, unknown>).is_deleted
+  return value === true || value === 1 || String(value ?? '').trim().toLowerCase() === 'true'
+}
+
+function productRemarketingId(product: unknown, fieldMapping: Record<string, string>): string {
+  if (!product || typeof product !== 'object' || Array.isArray(product)) return ''
+  const path = fieldMapping.remarketing_id?.trim()
+  const mapped = path ? getValueByPath(product, path) : undefined
+  if (mapped != null && mapped !== '') return cellStr(mapped).slice(0, 500)
+  const raw = product as Record<string, unknown>
+  return cellStr(raw.product_id ?? raw.id).slice(0, 500)
+}
+
+function incrementalCatalogEndpoint(listUrl: string): URL | null {
+  const base = assertPublicHttpsCatalogListUrl(listUrl)
+  if (!base) return null
+  /** Chuyển cấu hình 188 cũ sang endpoint incremental mới, không ảnh hưởng URL API của shop khác. */
+  if (base.hostname.toLowerCase() === '188.com.vn' && base.pathname === '/api/v1/products/list/full') {
+    base.pathname = '/api/v1/products'
+    base.search = ''
+  }
+  return base
+}
+
+function lastSuccessfulSyncOrEpoch(timestamp: string | null | undefined): string {
+  const parsed = Date.parse(String(timestamp ?? ''))
+  return Number.isNaN(parsed) ? '1970-01-01T00:00:00Z' : new Date(parsed).toISOString()
+}
+
 async function fetchJson(url: URL, signal: AbortSignal): Promise<unknown> {
   const res = await fetch(url.toString(), {
     method: 'GET',
@@ -275,8 +329,56 @@ async function fetchJson(url: URL, signal: AbortSignal): Promise<unknown> {
   return (await res.json()) as unknown
 }
 
+function extractProductsBatch(data: unknown): unknown[] | null {
+  const root = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null
+  if (!root) return null
+  const batch = Array.isArray(root.products)
+    ? root.products
+    : Array.isArray(root.items)
+      ? root.items
+      : Array.isArray(root.data)
+        ? root.data
+        : null
+  return batch
+}
+
+function extractTotal(data: unknown): number | null {
+  const root = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null
+  if (!root) return null
+  const t = Number(root.total)
+  return Number.isFinite(t) && t > 0 ? t : null
+}
+
+async function fetchOnePage(
+  base: URL,
+  skip: number,
+  jobSignal: AbortSignal,
+  extraParams?: Record<string, string>
+): Promise<unknown> {
+  const u = new URL(base.toString())
+  u.searchParams.set('skip', String(skip))
+  u.searchParams.set('limit', String(PAGE_LIMIT))
+  if (!u.searchParams.has('is_active')) u.searchParams.set('is_active', 'true')
+  if (extraParams) {
+    for (const [k, v] of Object.entries(extraParams)) u.searchParams.set(k, v)
+  }
+
+  const pageAc = new AbortController()
+  const pageTo = setTimeout(() => pageAc.abort(), FETCH_TIMEOUT_MS)
+  const onJobAbort = () => pageAc.abort()
+  jobSignal.addEventListener('abort', onJobAbort)
+  try {
+    return await fetchJson(u, pageAc.signal)
+  } finally {
+    clearTimeout(pageTo)
+    jobSignal.removeEventListener('abort', onJobAbort)
+  }
+}
+
 /**
- * Tải danh sách SP từ URL (định dạng kiểu 188: `products` + `total`, tham số skip/limit).
+ * Tải danh sách SP từ URL (định dạng kiểu 188: `products` + `total`, tham số skip/limit, tối đa
+ * 1000 SP/trang). Trang đầu gọi riêng để biết `total`, các trang còn lại gọi song song theo lô
+ * (`FETCH_CONCURRENCY`) để rút ngắn tổng thời gian job (~100 trang cho 100k SP).
  */
 export async function fetchExternalCatalogProducts(
   listUrl: string
@@ -293,52 +395,129 @@ export async function fetchExternalCatalogProducts(
     return { ok: false, code: 'INVALID_LIST_URL' as const }
   }
 
-  const products: unknown[] = []
-  let skip = 0
-  let total = Number.POSITIVE_INFINITY
   const ac = new AbortController()
-  const to = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS * 20)
+  const to = setTimeout(() => ac.abort(), JOB_TIMEOUT_MS)
 
   try {
-    while (products.length < MAX_PRODUCTS && skip < total) {
-      const u = new URL(base.toString())
-      u.searchParams.set('skip', String(skip))
-      u.searchParams.set('limit', String(PAGE_LIMIT))
-      if (!u.searchParams.has('is_active')) u.searchParams.set('is_active', 'true')
+    // Trang đầu: đọc total + batch đầu tiên.
+    const firstData = await fetchOnePage(base, 0, ac.signal)
+    const firstBatch = extractProductsBatch(firstData)
+    if (!firstBatch) return { ok: false, code: 'NO_PRODUCTS_ARRAY' as const }
 
-      const pageAc = new AbortController()
-      const pageTo = setTimeout(() => pageAc.abort(), FETCH_TIMEOUT_MS)
-      let data: unknown
-      try {
-        data = await fetchJson(u, pageAc.signal)
-      } finally {
-        clearTimeout(pageTo)
+    const products: unknown[] = [...firstBatch]
+    const total = extractTotal(firstData) ?? (firstBatch.length < PAGE_LIMIT ? firstBatch.length : Number.POSITIVE_INFINITY)
+
+    if (firstBatch.length > 0 && total > PAGE_LIMIT) {
+      // Danh sách các skip còn lại cần tải, giới hạn theo MAX_PRODUCTS.
+      const remainingSkips: number[] = []
+      for (let skip = PAGE_LIMIT; skip < total && skip < MAX_PRODUCTS; skip += PAGE_LIMIT) {
+        remainingSkips.push(skip)
       }
 
+      let cursor = 0
+      let stopEarly = false
+      const results: unknown[][] = new Array(remainingSkips.length)
+      const workers = Array.from({ length: Math.min(FETCH_CONCURRENCY, remainingSkips.length) }, async () => {
+        while (!stopEarly) {
+          const idx = cursor
+          cursor += 1
+          if (idx >= remainingSkips.length) return
+          const data = await fetchOnePage(base, remainingSkips[idx], ac.signal)
+          const batch = extractProductsBatch(data)
+          if (!batch) {
+            stopEarly = true
+            throw new Error('NO_PRODUCTS_ARRAY')
+          }
+          results[idx] = batch
+          if (batch.length === 0) stopEarly = true
+        }
+      })
+      await Promise.all(workers)
+
+      for (const batch of results) {
+        if (!batch) continue
+        for (const row of batch) {
+          products.push(row)
+          if (products.length >= MAX_PRODUCTS) break
+        }
+        if (products.length >= MAX_PRODUCTS) break
+      }
+    }
+
+    return { ok: true, products: products.slice(0, MAX_PRODUCTS) }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg === 'NO_PRODUCTS_ARRAY') return { ok: false, code: 'NO_PRODUCTS_ARRAY' as const }
+    if (msg.includes('abort')) return { ok: false, code: 'FETCH_TIMEOUT' as const }
+    return { ok: false, code: 'FETCH_FAILED' as const, detail: msg.slice(0, 500) }
+  } finally {
+    clearTimeout(to)
+  }
+}
+
+/**
+ * Tải danh sách SP mới/thay đổi từ web khách bằng filter incremental do khách xác nhận hỗ trợ
+ * theo hợp đồng 188: `updated_since`, `page`, `limit`, `data`, `pagination.total_pages`.
+ */
+export async function fetchExternalCatalogIncrementalProducts(
+  listUrl: string,
+  updatedSince: string
+): Promise<
+  | { ok: true; products: unknown[] }
+  | {
+      ok: false
+      code: 'INVALID_LIST_URL' | 'NOT_JSON_OBJECT' | 'NO_PRODUCTS_ARRAY' | 'FETCH_TIMEOUT' | 'FETCH_FAILED'
+      detail?: string
+    }
+> {
+  const base = incrementalCatalogEndpoint(listUrl)
+  if (!base) return { ok: false, code: 'INVALID_LIST_URL' as const }
+
+  const ac = new AbortController()
+  const to = setTimeout(() => ac.abort(), JOB_TIMEOUT_MS)
+
+  try {
+    const products: unknown[] = []
+    let page = 1
+    let totalPages = Number.POSITIVE_INFINITY
+    while (page <= totalPages && products.length < MAX_PRODUCTS) {
+      const u = new URL(base)
+      u.searchParams.delete('is_active')
+      u.searchParams.set('updated_since', updatedSince)
+      u.searchParams.set('page', String(page))
+      u.searchParams.set('limit', String(INCREMENTAL_PAGE_LIMIT))
+      const data = await fetchJson(u, ac.signal)
       const root = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null
-      if (!root) {
-        return { ok: false, code: 'NOT_JSON_OBJECT' as const }
+      const batch = root && Array.isArray(root.data) ? root.data : null
+      if (!batch) return { ok: false, code: 'NO_PRODUCTS_ARRAY' as const }
+      if (root?.success === false) {
+        return { ok: false, code: 'FETCH_FAILED' as const, detail: 'Incremental API returned success=false.' }
       }
-      const batch = Array.isArray(root.products)
-        ? root.products
-        : Array.isArray(root.items)
-          ? root.items
-          : Array.isArray(root.data)
-            ? root.data
-            : null
-      if (!batch) {
-        return { ok: false, code: 'NO_PRODUCTS_ARRAY' as const }
+      const pagination = root?.pagination
+      if (!pagination || typeof pagination !== 'object') {
+        return {
+          ok: false,
+          code: 'FETCH_FAILED' as const,
+          detail: 'Incremental API response must include pagination.total_pages.',
+        }
       }
-      const t = Number(root.total)
-      if (Number.isFinite(t) && t > 0) total = t
-
+      const pages = Number((pagination as Record<string, unknown>).total_pages)
+      if (Number.isInteger(pages) && pages >= 0) totalPages = pages
+      else {
+        return {
+          ok: false,
+          code: 'FETCH_FAILED' as const,
+          detail: 'Incremental API pagination.total_pages must be a non-negative integer.',
+        }
+      }
       for (const row of batch) {
         products.push(row)
         if (products.length >= MAX_PRODUCTS) break
       }
-      skip += PAGE_LIMIT
       if (batch.length === 0) break
+      page += 1
     }
+    return { ok: true, products }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (msg.includes('abort')) return { ok: false, code: 'FETCH_TIMEOUT' as const }
@@ -346,8 +525,6 @@ export async function fetchExternalCatalogProducts(
   } finally {
     clearTimeout(to)
   }
-
-  return { ok: true, products }
 }
 
 export type ExternalCatalogSyncErrorCode =
@@ -437,8 +614,9 @@ export async function runPartnerExternalCatalogSyncJob(params: {
   }
 
   const fm = settings?.field_mapping ?? {}
-
-  const pulled = await fetchExternalCatalogProducts(listUrl)
+  /** API 188 có thể trả lại item đúng mốc; UPSERT theo `product_id` vẫn idempotent, không tạo trùng. */
+  const updatedSince = lastSuccessfulSyncOrEpoch(settings?.catalog_last_sync_at)
+  const pulled = await fetchExternalCatalogIncrementalProducts(listUrl, updatedSince)
   if (!pulled.ok) {
     const persistCode = pulled.code as ExternalCatalogSyncErrorCode
     await updatePartnerExternalCatalogSyncMetaFromPg(partnerId, {
@@ -456,7 +634,13 @@ export async function runPartnerExternalCatalogSyncJob(params: {
   stats.fetched = pulled.products.length
 
   const rows: InventoryExcelInsert[] = []
+  const deletedRemarketingIds: string[] = []
   for (const raw of pulled.products) {
+    if (productIsSoftDeleted(raw)) {
+      const remarketingId = productRemarketingId(raw, fm)
+      if (remarketingId) deletedRemarketingIds.push(remarketingId)
+      continue
+    }
     const row = mapProductToInventoryRow(raw, fm)
     if (row) rows.push(row)
   }
@@ -464,7 +648,7 @@ export async function runPartnerExternalCatalogSyncJob(params: {
   stats.mappedRows = rows.length
   stats.remarketingInFeed = countDistinctRemarketingIds(rows)
 
-  if (pulled.products.length > 0 && rows.length === 0) {
+  if (pulled.products.length > 0 && rows.length === 0 && deletedRemarketingIds.length === 0) {
     await updatePartnerExternalCatalogSyncMetaFromPg(partnerId, {
       error: formatExternalCatalogSyncErrorForStorage('NO_VALID_ROWS'),
     })
@@ -506,12 +690,11 @@ export async function runPartnerExternalCatalogSyncJob(params: {
     return out
   }
 
-  const reconcileRows = buildExternalCatalogRemarketingSnapshotRows(rows, listed.rows)
   const deferEmbeddings = params.deferEmbeddings !== false
-  const batch = await upsertPartnerInventoryBatch(partnerId, reconcileRows, {
+  const batch = await upsertPartnerInventoryRemarketingIncrementalBatch(partnerId, rows, {
     existingRows: listed.rows,
     deferEmbeddings,
-    remarketingIdSnapshot: true,
+    deleteRemarketingIds: deletedRemarketingIds,
   })
   if (!batch.ok) {
     await updatePartnerExternalCatalogSyncMetaFromPg(partnerId, {
