@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import {
   getPartnerInventoryExternalSyncSettings,
-  runPartnerExternalCatalogSyncNow,
   savePartnerInventoryExternalSyncSettings,
 } from '@/app/dashboard/messaging/actions'
 import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
@@ -275,13 +274,27 @@ export function PartnerInventoryExternalSyncCard({
     void (async () => {
       setSyncRunning(true)
       try {
-        const res = await runPartnerExternalCatalogSyncNow(partnerId)
-        if ('error' in res) {
-          toastRef.current({ title: res.error, variant: 'destructive' })
+        const res = await fetch(
+          `/api/messaging/partners/${encodeURIComponent(partnerId)}/inventory/external-catalog-sync`,
+          { method: 'POST', credentials: 'include' }
+        )
+        const body = (await res.json().catch(() => null)) as
+          | { ok: true; outcome: ExternalCatalogSyncOutcome }
+          | { error?: string }
+          | null
+        if (!res.ok || !body || !('outcome' in body)) {
+          const detail =
+            body && 'error' in body && body.error ? body.error : `HTTP ${res.status}`
+          toastRef.current({
+            title: fillInventoryPlaceholders(tRef.current.inventoryExternalSyncErrFetchFailed, {
+              detail,
+            }),
+            variant: 'destructive',
+          })
           return
         }
-        const msg = messageForExternalCatalogSyncOutcome(tRef.current, res.outcome)
-        if (res.outcome.ok) {
+        const msg = messageForExternalCatalogSyncOutcome(tRef.current, body.outcome)
+        if (body.outcome.ok) {
           toastRef.current({
             title: msg,
           })
@@ -289,6 +302,14 @@ export function PartnerInventoryExternalSyncCard({
           toastRef.current({ title: msg, variant: 'destructive' })
         }
         await load()
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        toastRef.current({
+          title: fillInventoryPlaceholders(tRef.current.inventoryExternalSyncErrFetchFailed, {
+            detail: msg || '—',
+          }),
+          variant: 'destructive',
+        })
       } finally {
         setSyncRunning(false)
       }

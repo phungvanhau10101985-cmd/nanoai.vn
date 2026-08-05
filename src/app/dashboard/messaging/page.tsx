@@ -7,7 +7,7 @@ import { getServerDictionary } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Building2, Globe } from 'lucide-react'
+import { Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BusinessChannelsHubClient } from './business-channels-hub-client'
 
@@ -46,12 +46,6 @@ export default async function DashboardMessagingPage() {
           Chọn kênh để đi vào quản lý chính. Mỗi kênh vận hành độc lập theo lĩnh vực kinh doanh.
         </p>
         <div className="flex flex-wrap gap-2 pt-2">
-          <Button variant="default" size="sm" asChild>
-            <Link href="/dashboard/messaging/website">
-              <Globe className="mr-1.5 h-4 w-4" aria-hidden />
-              {pm.messagingWebsiteLink}
-            </Link>
-          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard/messaging/inbox">{pm.goToInbox}</Link>
           </Button>
