@@ -200,6 +200,16 @@ curl -fsS -o /dev/null -w "api=%{http_code}\n" http://127.0.0.1:8001/health
 curl -fsS -I https://188.com.vn/ | head -3
 ```
 
+**Lần đầu đăng ký PM2** (chưa có `188-web` / `188-api` trong `pm2 status`):
+
+```bash
+cd /var/www/188.com.vn
+pm2 start deploy/ecosystem.config.cjs
+pm2 save
+```
+
+(Không dùng `ecosystem.config.cjs` ở thư mục gốc — file nằm trong `deploy/`.)
+
 ### curl nội bộ trả `000` (không kết nối TCP)
 
 Dùng script có sẵn trong repo **188** (`/var/www/188.com.vn`):

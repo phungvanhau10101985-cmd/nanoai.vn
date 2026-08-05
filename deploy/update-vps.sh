@@ -311,7 +311,8 @@ if [[ "${DEPLOY_SKIP_188_RESTART:-}" != "1" ]]; then
   if [[ "${restarted_188}" -eq 1 ]]; then
     pm2 save
   else
-    echo "  Không thấy 188-web/188-api trong PM2 — bỏ qua (repo /var/www/188.com.vn)."
+    echo "  Không thấy 188-web/188-api trong PM2 — bỏ qua."
+    echo "  Lần đầu: cd /var/www/188.com.vn && pm2 start deploy/ecosystem.config.cjs && pm2 save"
   fi
 else
   echo "  Bỏ qua restart 188 (DEPLOY_SKIP_188_RESTART=1)."
