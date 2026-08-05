@@ -22,7 +22,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       // Restart before Node default ~2GB heap dies uncleanly (504 + zombie).
-      max_memory_restart: '1536M',
+      max_memory_restart: '2560M',
       node_args: '--max-old-space-size=3072',
       kill_timeout: 10000,
       listen_timeout: 10000,
