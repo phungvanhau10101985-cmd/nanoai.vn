@@ -17,16 +17,18 @@ set -euo pipefail
 #   DEPLOY_SKIP_LINT=1  Bỏ qua npm run lint (không khuyến nghị cho production)
 #   DEPLOY_SKIP_TYPECHECK=1  Bỏ qua npx tsc --noEmit (không khuyến nghị cho production)
 #   DEPLOY_STOP_PM2_BEFORE_BUILD=1  Dừng toàn bộ process PM2 trước khi lint/typecheck/build để giải phóng RAM (mặc định bật)
+#   DEPLOY_DELETE_PM2_BEFORE_BUILD=1  Xóa hết PM2 trước build (giải phóng RAM tối đa); deploy xong script tự start lại NanoAI + 188
+#   DEPLOY_188_APP_DIR=/var/www/188.com.vn  Thư mục repo 188 (ecosystem: deploy/ecosystem.config.cjs)
 #   DEPLOY_SKIP_MIGRATIONS=1  Bỏ qua bước chạy migration SQL mới
 #   DEPLOY_SETUP_CRONS=1  Tự đảm bảo cron AI/inventory/logo cleanup + nhắc lịch đám cưới (mặc định bật)
-#   DEPLOY_SKIP_188_RESTART=1  Không restart PM2 188-web / 188-api sau deploy NanoAI
+#   DEPLOY_SKIP_188_RESTART=1  Không khởi động lại 188-web / 188-api sau deploy NanoAI
 #
 # Script này sẽ:
 # - pull code mới nhất từ origin/<branch>
 # - chạy migration SQL trong db/migrations/ theo checksum:
 #   + file mới: tự chạy
 #   + file đã sửa nội dung: tự chạy lại
-# - build + restart PM2 (NanoAI) + restart lại 188-web / 188-api nếu đã đăng ký PM2
+# - build + start PM2 NanoAI + start/restart 188-web / 188-api (kể cả sau pm2 delete all)
 # - đảm bảo các cron chính (messaging + nhắc lịch đám cưới)
 
 APP_DIR="/var/www/Thu-do-online"
@@ -36,6 +38,7 @@ DEPLOY_HEALTHCHECK_URL="${DEPLOY_HEALTHCHECK_URL:-http://127.0.0.1:3000/}"
 DEPLOY_HEALTHCHECK_RETRIES="${DEPLOY_HEALTHCHECK_RETRIES:-15}"
 DEPLOY_PM2_LOG_LINES="${DEPLOY_PM2_LOG_LINES:-100}"
 DEPLOY_STOP_PM2_BEFORE_BUILD="${DEPLOY_STOP_PM2_BEFORE_BUILD:-1}"
+DEPLOY_188_APP_DIR="${DEPLOY_188_APP_DIR:-/var/www/188.com.vn}"
 LOG_DIR="${APP_DIR}/deploy/logs"
 DEPLOY_SETUP_CRONS="${DEPLOY_SETUP_CRONS:-1}"
 MIGRATION_STATE_FILE="${APP_DIR}/deploy/applied-migrations.sha256"
@@ -65,13 +68,31 @@ ensure_cron() {
   (crontab -l 2>/dev/null | grep -v "${marker}"; echo "${line}") | crontab -
 }
 
-restart_pm2_if_registered() {
-  local name="$1"
-  if pm2 describe "${name}" >/dev/null 2>&1; then
-    pm2 restart "${name}" --update-env
+# Sau build: restart 188 nếu còn trong PM2; nếu đã pm2 delete all thì start deploy/ecosystem.config.cjs.
+ensure_188_pm2_online() {
+  local dir="${DEPLOY_188_APP_DIR}"
+  local eco="${dir}/deploy/ecosystem.config.cjs"
+  local missing=0
+  for name in 188-web 188-api; do
+    if ! pm2 describe "${name}" >/dev/null 2>&1; then
+      missing=1
+      break
+    fi
+  done
+  if [[ "${missing}" -eq 1 ]]; then
+    if [[ ! -f "${eco}" ]]; then
+      echo "  Cảnh báo: không tìm thấy ${eco} — không start được 188.com.vn."
+      return 1
+    fi
+    echo "  Start 188.com.vn từ ${eco}..."
+    pm2 start "${eco}" --update-env
     return 0
   fi
-  return 1
+  for name in 188-web 188-api; do
+    echo "  Restart ${name} (188.com.vn)."
+    pm2 restart "${name}" --update-env
+  done
+  return 0
 }
 
 migration_hash() {
@@ -235,12 +256,16 @@ else
 fi
 echo "  DONE [5/15]"
 
-echo "[6/15] Free RAM before build (stop all PM2 processes)"
+echo "[6/15] Free RAM before build (stop/delete all PM2 processes)"
 if [[ "${DEPLOY_STOP_PM2_BEFORE_BUILD}" == "1" ]]; then
-  # Lưu process list hiện tại để có thể resurrect sau build.
   pm2 save || true
-  pm2 stop all || true
-  echo "  Đã dừng toàn bộ PM2 processes trước build."
+  if [[ "${DEPLOY_DELETE_PM2_BEFORE_BUILD:-}" == "1" ]]; then
+    pm2 delete all || true
+    echo "  Đã pm2 delete all trước build (giải phóng RAM tối đa). Deploy xong sẽ start lại NanoAI + 188."
+  else
+    pm2 stop all || true
+    echo "  Đã dừng toàn bộ PM2 processes trước build."
+  fi
 else
   echo "  Bỏ qua dừng PM2 trước build (DEPLOY_STOP_PM2_BEFORE_BUILD=${DEPLOY_STOP_PM2_BEFORE_BUILD})."
 fi
@@ -299,23 +324,13 @@ else
 fi
 pm2 save
 
-# Bước 6 dùng `pm2 stop all` → 188-web/188-api cũng bị dừng. Khởi động lại sau NanoAI.
+# Bước 6 có thể pm2 stop/delete all → khởi động lại 188 sau NanoAI (kể cả sau delete all).
 if [[ "${DEPLOY_SKIP_188_RESTART:-}" != "1" ]]; then
-  restarted_188=0
-  for name in 188-web 188-api; do
-    if restart_pm2_if_registered "${name}"; then
-      echo "  Restart ${name} (188.com.vn)."
-      restarted_188=1
-    fi
-  done
-  if [[ "${restarted_188}" -eq 1 ]]; then
+  if ensure_188_pm2_online; then
     pm2 save
-  else
-    echo "  Không thấy 188-web/188-api trong PM2 — bỏ qua."
-    echo "  Lần đầu: cd /var/www/188.com.vn && pm2 start deploy/ecosystem.config.cjs && pm2 save"
   fi
 else
-  echo "  Bỏ qua restart 188 (DEPLOY_SKIP_188_RESTART=1)."
+  echo "  Bỏ qua khởi động 188 (DEPLOY_SKIP_188_RESTART=1)."
 fi
 echo "  DONE [10/15]"
 

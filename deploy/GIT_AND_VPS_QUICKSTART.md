@@ -51,7 +51,23 @@ cd /var/www/Thu-do-online
 bash deploy/update-vps.sh main
 ```
 
-VPS RAM thấp mà build vẫn bị «Killed» ở bước TypeScript: chạy một lần với `DEPLOY_BUILD_VPS=1 bash deploy/update-vps.sh main` (xem comment đầu `deploy/update-vps.sh`). Nên có CI hoặc máy dev chạy `npm run build:full` trước khi merge.
+VPS RAM thấp mà build vẫn bị «Killed»:
+
+```bash
+cd /var/www/Thu-do-online
+git pull origin main
+DEPLOY_DELETE_PM2_BEFORE_BUILD=1 \
+DEPLOY_STOP_PM2_BEFORE_BUILD=1 \
+DEPLOY_BUILD_VPS=1 \
+DEPLOY_SKIP_LINT=1 \
+DEPLOY_SKIP_TYPECHECK=1 \
+NODE_BUILD_HEAP_MB=3072 \
+bash deploy/update-vps.sh main
+```
+
+Script tự `pm2 delete all` trước build (giải phóng RAM), build xong start lại **NanoAI + 188** (`deploy/ecosystem.config.cjs` trong `/var/www/188.com.vn`). Không cần `pm2 delete all` thủ công trước khi chạy script.
+
+Nếu chỉ thiếu RAM vừa phải: bỏ `DEPLOY_DELETE_PM2_BEFORE_BUILD=1` (mặc định chỉ `pm2 stop all`).
 
 ## 4) PM2 check
 
