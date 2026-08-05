@@ -19,13 +19,14 @@ set -euo pipefail
 #   DEPLOY_STOP_PM2_BEFORE_BUILD=1  Dừng toàn bộ process PM2 trước khi lint/typecheck/build để giải phóng RAM (mặc định bật)
 #   DEPLOY_SKIP_MIGRATIONS=1  Bỏ qua bước chạy migration SQL mới
 #   DEPLOY_SETUP_CRONS=1  Tự đảm bảo cron AI/inventory/logo cleanup + nhắc lịch đám cưới (mặc định bật)
+#   DEPLOY_SKIP_188_RESTART=1  Không restart PM2 188-web / 188-api sau deploy NanoAI
 #
 # Script này sẽ:
 # - pull code mới nhất từ origin/<branch>
 # - chạy migration SQL trong db/migrations/ theo checksum:
 #   + file mới: tự chạy
 #   + file đã sửa nội dung: tự chạy lại
-# - build + restart PM2
+# - build + restart PM2 (NanoAI) + restart lại 188-web / 188-api nếu đã đăng ký PM2
 # - đảm bảo các cron chính (messaging + nhắc lịch đám cưới)
 
 APP_DIR="/var/www/Thu-do-online"
@@ -62,6 +63,15 @@ ensure_cron() {
   local marker="$1"
   local line="$2"
   (crontab -l 2>/dev/null | grep -v "${marker}"; echo "${line}") | crontab -
+}
+
+restart_pm2_if_registered() {
+  local name="$1"
+  if pm2 describe "${name}" >/dev/null 2>&1; then
+    pm2 restart "${name}" --update-env
+    return 0
+  fi
+  return 1
 }
 
 migration_hash() {
@@ -288,6 +298,24 @@ else
   fi
 fi
 pm2 save
+
+# Bước 6 dùng `pm2 stop all` → 188-web/188-api cũng bị dừng. Khởi động lại sau NanoAI.
+if [[ "${DEPLOY_SKIP_188_RESTART:-}" != "1" ]]; then
+  restarted_188=0
+  for name in 188-web 188-api; do
+    if restart_pm2_if_registered "${name}"; then
+      echo "  Restart ${name} (188.com.vn)."
+      restarted_188=1
+    fi
+  done
+  if [[ "${restarted_188}" -eq 1 ]]; then
+    pm2 save
+  else
+    echo "  Không thấy 188-web/188-api trong PM2 — bỏ qua (repo /var/www/188.com.vn)."
+  fi
+else
+  echo "  Bỏ qua restart 188 (DEPLOY_SKIP_188_RESTART=1)."
+fi
 echo "  DONE [10/15]"
 
 echo "[11/15] Ensure cron jobs"
@@ -363,6 +391,13 @@ PM2_LOG_SNAPSHOT="${LOG_DIR}/pm2-snapshot-${APP_NAME}-$(date +%Y%m%d-%H%M%S).log
   echo ""
   echo "========== worksheet-worker (same snapshot) =========="
   pm2 logs worksheet-worker --lines "${DEPLOY_PM2_LOG_LINES}" --nostream 2>&1 || true
+  for name in 188-web 188-api; do
+    if pm2 describe "${name}" >/dev/null 2>&1; then
+      echo ""
+      echo "========== ${name} (188.com.vn) =========="
+      pm2 logs "${name}" --lines "${DEPLOY_PM2_LOG_LINES}" --nostream 2>&1 || true
+    fi
+  done
 } | tee "${PM2_LOG_SNAPSHOT}"
 echo ""
 echo "  Đã lưu: ${PM2_LOG_SNAPSHOT}"
@@ -390,6 +425,22 @@ else
     echo "LỖI: Health check thất bại sau ${DEPLOY_HEALTHCHECK_RETRIES} lần: ${DEPLOY_HEALTHCHECK_URL}" >&2
     echo "  Gợi ý: đổi port bằng DEPLOY_HEALTHCHECK_URL, hoặc DEPLOY_SKIP_HEALTHCHECK=1 nếu app không bind localhost." >&2
     exit 1
+  fi
+  if [[ "${DEPLOY_SKIP_188_RESTART:-}" != "1" ]]; then
+    if pm2 describe 188-web >/dev/null 2>&1; then
+      if curl -fsS --max-time 15 -o /dev/null "http://127.0.0.1:3001/"; then
+        echo "  OK: http://127.0.0.1:3001/ (188-web)"
+      else
+        echo "  Cảnh báo: 188-web chưa phản hồi :3001 — thử: cd /var/www/188.com.vn && bash deploy/fix-web-health.sh"
+      fi
+    fi
+    if pm2 describe 188-api >/dev/null 2>&1; then
+      if curl -fsS --max-time 15 -o /dev/null "http://127.0.0.1:8001/health"; then
+        echo "  OK: http://127.0.0.1:8001/health (188-api)"
+      else
+        echo "  Cảnh báo: 188-api chưa phản hồi :8001 — thử: cd /var/www/188.com.vn && bash deploy/fix-api-health.sh"
+      fi
+    fi
   fi
 fi
 echo "  DONE [14/15]"
