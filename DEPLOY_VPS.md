@@ -348,13 +348,26 @@ sudo nginx -t && sudo systemctl reload nginx
 | `pm2 stop thu-do-online` | Dừng |
 | `pm2 delete thu-do-online` | Xóa khỏi PM2 |
 
-### Chạy PM2 bằng ecosystem config (tùy chọn)
+### Chạy PM2 bằng ecosystem config (**bắt buộc trên VPS production**)
+
+`ecosystem.config.cjs` khởi động **next binary trực tiếp** (không qua `npm start`) để:
+- `max_memory_restart: 1536M` bắt đúng process Next (tránh «PM2 online» nhưng web 504)
+- `NODE_OPTIONS=--max-old-space-size=3072` tránh chết cứng ở heap mặc định ~2GB
+- tự restart trước khi OOM kéo sập Nginx upstream
 
 ```bash
 cd /var/www/Thu-do-online
+# Khẩn cấp khi 504 / heap OOM (không cần build nếu code đã có):
+pkill -f '/usr/share/apport/apport' 2>/dev/null || true
+pm2 delete thu-do-online worksheet-worker 2>/dev/null || true
 pm2 start ecosystem.config.cjs
 pm2 save
+# Gỡ cron Vision đã remove:
+crontab -l | grep -vE 'vision-catalog-sync|vision-bg-sync-enqueue|vision-warehouse-reindex' | crontab -
+timeout 8 curl -s -o /dev/null -w "nanoai=%{http_code}\n" http://127.0.0.1:3000/
 ```
+
+Deploy thường xuyên dùng `bash deploy/update-vps.sh main` (đã gọi ecosystem).
 
 ---
 

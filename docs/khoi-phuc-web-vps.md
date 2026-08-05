@@ -111,6 +111,33 @@ Nếu vẫn lỗi từng site → xuống §3 / §4.
 
 ---
 
+## 3b. Root cause đã gặp: Next.js heap OOM → 504
+
+Triệu chứng: PM2 `online`, `↺=0`, nhưng `curl 127.0.0.1:3000` treo / Nginx `upstream timed out`.
+
+Nguyên nhân gốc (2026-08-05):
+- `next-server` `FATAL ERROR: JavaScript heap out of memory` (~2GB)
+- PM2 theo dõi `npm start` (cha) → không restart khi con OOM
+- Auto-embed inventory + cron embed chồng tải
+- Cron Vision cũ vẫn gọi route đã remove
+
+Khắc phục trong code: `ecosystem.config.cjs` + giảm batch embed + stub vision cron + flock.
+
+Áp dụng ngay trên VPS (sau khi `git pull`):
+
+```bash
+cd /var/www/Thu-do-online
+pkill -f '/usr/share/apport/apport' 2>/dev/null || true
+pm2 delete thu-do-online worksheet-worker 2>/dev/null || true
+pm2 start ecosystem.config.cjs && pm2 save
+crontab -l | grep -vE 'vision-catalog-sync|vision-bg-sync-enqueue|vision-warehouse-reindex' | crontab - || true
+timeout 8 curl -s -o /dev/null -w "nanoai=%{http_code}\n" http://127.0.0.1:3000/
+```
+
+Hoặc full deploy: `bash deploy/update-vps.sh main`.
+
+---
+
 ## 3. Khôi phục riêng nanoai.vn
 
 **Khi:** `https://188.com.vn` OK, chỉ `nanoai.vn` hoặc `:3000` lỗi.

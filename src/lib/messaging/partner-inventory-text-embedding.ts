@@ -24,11 +24,11 @@ const GEMINI_EMBED_DIMS = Math.max(
 )
 const MAX_PARALLEL = Math.max(
   1,
-  Math.min(8, parseInt(process.env.GEMINI_TEXT_EMBED_PARALLEL || '4', 10) || 4)
+  Math.min(4, parseInt(process.env.GEMINI_TEXT_EMBED_PARALLEL || '2', 10) || 2)
 )
 const SYNC_LIMIT = Math.max(
   20,
-  Math.min(5000, parseInt(process.env.GEMINI_TEXT_EMBED_SYNC_LIMIT || '1200', 10) || 1200)
+  Math.min(1000, parseInt(process.env.GEMINI_TEXT_EMBED_SYNC_LIMIT || '400', 10) || 400)
 )
 const SCAN_PAGE_SIZE = Math.max(
   100,
@@ -396,7 +396,7 @@ export async function syncPartnerInventoryTextEmbeddings(
 
   await clearStalePartnerInventoryTextEmbeddingErrorsFromPg(partnerId)
 
-  const cap = Math.max(1, Math.min(5000, options?.limit ?? SYNC_LIMIT))
+  const cap = Math.max(1, Math.min(1000, options?.limit ?? SYNC_LIMIT))
   const idList = (options?.inventoryIds ?? []).map((x) => x.trim()).filter(Boolean)
   const rows: InvRow[] = []
 

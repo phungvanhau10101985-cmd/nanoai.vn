@@ -267,25 +267,32 @@ else
 fi
 echo "  DONE [9/15]"
 
-echo "[10/15] Restart PM2 (--update-env: nạp lại biến môi trường)"
-# Khôi phục các process đã lưu trước đó (nếu có), sau đó đảm bảo app chính + worker luôn chạy.
-pm2 resurrect || true
-if pm2 describe "${APP_NAME}" >/dev/null 2>&1; then
-  pm2 restart "${APP_NAME}" --update-env
+echo "[10/15] Restart PM2 via ecosystem.config.cjs (--update-env)"
+# Khởi động next binary trực tiếp (không qua npm) để max_memory_restart bắt đúng heap.
+# Tránh process «online giả» khi chỉ npm cha còn sống sau OOM.
+if [[ -f "${APP_DIR}/ecosystem.config.cjs" ]]; then
+  pm2 delete thu-do-online worksheet-worker >/dev/null 2>&1 || true
+  pm2 start "${APP_DIR}/ecosystem.config.cjs" --update-env
 else
-  pm2 start npm --name "${APP_NAME}" -- start
-fi
-if pm2 describe "worksheet-worker" >/dev/null 2>&1; then
-  pm2 restart worksheet-worker --update-env
-else
-  pm2 start "npm run worker" --name worksheet-worker
+  echo "  Cảnh báo: thiếu ecosystem.config.cjs — fallback npm start."
+  pm2 resurrect || true
+  if pm2 describe "${APP_NAME}" >/dev/null 2>&1; then
+    pm2 restart "${APP_NAME}" --update-env
+  else
+    pm2 start npm --name "${APP_NAME}" -- start
+  fi
+  if pm2 describe "worksheet-worker" >/dev/null 2>&1; then
+    pm2 restart worksheet-worker --update-env
+  else
+    pm2 start "npm run worker" --name worksheet-worker
+  fi
 fi
 pm2 save
 echo "  DONE [10/15]"
 
 echo "[11/15] Ensure cron jobs"
 if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
-  mkdir -p /root/logs
+  mkdir -p /root/logs /tmp/nanoai-cron-locks
   AI_SECRET="$(env_read MESSAGING_PARTNER_AI_CRON_SECRET)"
   CRON_SECRET_FALLBACK="$(env_read CRON_SECRET)"
   INV_SECRET="$(env_read MESSAGING_INVENTORY_EMBED_CRON_SECRET)"
@@ -300,6 +307,9 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   if [[ -z "${MKT_SECRET}" ]]; then MKT_SECRET="${AI_SECRET}"; fi
   if [[ -z "${PARTNER_SSL_SECRET}" ]]; then PARTNER_SSL_SECRET="${CRON_SECRET_FALLBACK}"; fi
 
+  # Gỡ cron Vision đã remove khỏi codebase (tránh POST treo khi app yếu).
+  (crontab -l 2>/dev/null | grep -vE 'vision-catalog-sync|vision-bg-sync-enqueue|vision-warehouse-reindex' || true) | crontab - || true
+
   if [[ -n "${AI_SECRET}" ]]; then
     ensure_cron "messaging-partner-ai" "* * * * * curl -fsS -m 90 -X POST http://127.0.0.1:3000/api/cron/messaging-partner-ai -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/messaging-partner-ai.log 2>&1"
   else
@@ -307,7 +317,8 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   fi
 
   if [[ -n "${INV_SECRET}" ]]; then
-    ensure_cron "messaging-inventory-embed-backfill" "*/5 * * * * curl -fsS -m 600 -X POST http://127.0.0.1:3000/api/cron/messaging-inventory-embed-backfill -H \"Authorization: Bearer ${INV_SECRET}\" >> /root/logs/inventory-embed-backfill.log 2>&1"
+    # flock: không chồng lượt embed (curl -m 180 khớp batch nhỏ hơn).
+    ensure_cron "messaging-inventory-embed-backfill" "*/5 * * * * flock -n /tmp/nanoai-cron-locks/inventory-embed.lock -c 'curl -fsS -m 180 -X POST http://127.0.0.1:3000/api/cron/messaging-inventory-embed-backfill -H \"Authorization: Bearer ${INV_SECRET}\"' >> /root/logs/inventory-embed-backfill.log 2>&1"
   else
     echo "  Cảnh báo: thiếu secret inventory cron, bỏ qua cron inventory-embed-backfill."
   fi
@@ -337,7 +348,7 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   fi
 
   echo "  Cron hiện tại:"
-  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-logo-cleanup|partner-marketing-campaign|wedding-reminder|partner-custom-domain-ssl" || true
+  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-logo-cleanup|partner-marketing-campaign|wedding-reminder|partner-custom-domain-ssl|vision-" || true
 else
   echo "  Bỏ qua (DEPLOY_SETUP_CRONS=${DEPLOY_SETUP_CRONS})."
 fi

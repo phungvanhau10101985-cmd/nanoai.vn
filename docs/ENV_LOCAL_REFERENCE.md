@@ -59,15 +59,15 @@ Tạo secret dài (≥ 32 ký tự hex), ví dụ:
 | Biến | Endpoint / mục đích |
 |------|---------------------|
 | `MESSAGING_PARTNER_AI_CRON_SECRET` | `GET/POST /api/cron/messaging-partner-ai` — Header: `Authorization: Bearer <secret>` |
-| `VISION_CATALOG_SYNC_CRON_SECRET` | `GET/POST /api/cron/vision-catalog-sync` — đồng bộ ảnh kho lên Vision Warehouse (nền) |
-| `VISION_BG_SYNC_ENQUEUE_CRON_SECRET` | `GET/POST /api/cron/vision-bg-sync-enqueue` — xếp hàng job nền (vd. 1×/ngày); **optional**, fallback secret catalog |
-| `VISION_WAREHOUSE_REINDEX_CRON_SECRET` | `GET/POST /api/cron/vision-warehouse-reindex` — analyze corpus + rebuild index; **optional** nếu dùng chung secret catalog |
+| `VISION_CATALOG_SYNC_CRON_SECRET` | ~~`/api/cron/vision-catalog-sync`~~ — **đã remove**; stub trả 410. **Gỡ crontab** Vision. |
+| `VISION_BG_SYNC_ENQUEUE_CRON_SECRET` | ~~`/api/cron/vision-bg-sync-enqueue`~~ — **đã remove**; stub trả 410. |
+| `VISION_WAREHOUSE_REINDEX_CRON_SECRET` | ~~`/api/cron/vision-warehouse-reindex`~~ — **đã remove**; stub trả 410. |
 
 **Trên VPS:** sau khi thêm vào `.env.local`, chạy `pm2 restart <app>` để Next đọc env.
 
 **Crontab:** Bearer trong `curl` phải **trùng** giá trị trong `.env.local`. Có thể dùng script đọc `.env.local` (xem `DEPLOY_VPS.md` / hướng dẫn `nanoai-cron-install.sh`).
 
-**Vision nền — bộ đôi khuyến nghị:** (1) `*/3 * * * *` gọi `/api/cron/vision-catalog-sync` để **chạy** job; (2) **một lần mỗi ngày** (vd. `15 3 * * *`) gọi `/api/cron/vision-bg-sync-enqueue` để **xếp hàng lại** (sau khi job cũ đã `done`/`error`). Hai URL khác nhau, có thể cùng secret `VISION_CATALOG_SYNC_CRON_SECRET`.
+**Vision nền:** đã gỡ khỏi codebase. Không còn cần crontab `vision-catalog-sync` / `vision-bg-sync-enqueue`. Nếu còn trong crontab, `deploy/update-vps.sh` sẽ tự xóa khi `DEPLOY_SETUP_CRONS=1`.
 
 ---
 

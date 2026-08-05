@@ -597,7 +597,7 @@ export function PartnerAiSettingsPanel({
     setEmbeddingSyncing(true)
     manualEmbedLockRef.current = true
     ;(async () => {
-      const res = await triggerPartnerInventoryEmbeddingSync(partnerId, 1200)
+      const res = await triggerPartnerInventoryEmbeddingSync(partnerId, 400)
       if ('error' in res && res.error) {
         toast({ title: res.error, variant: 'destructive' })
         return
@@ -624,12 +624,16 @@ export function PartnerAiSettingsPanel({
 
   useEffect(() => {
     let cancelled = false
-    /** Gọi định kỳ để bắt đầu chuỗi lô khi thống kê tải xong / còn backlog; không phụ thuộc pending trong deps để tránh hủy giữa chừng. */
-    const WAKE_POLL_MS = 5000
+    /**
+     * Auto-embed chỉ bổ trợ cron VPS — giữ nhẹ để tránh heap OOM khi mở tab inventory lâu.
+     * (Sự cố 2026-08-05: chuỗi 80×1200 + cron chồng → Next JS heap OOM → 504.)
+     */
+    const WAKE_POLL_MS = 30_000
     /** Tránh spam server khi vừa chạy xong một chuỗi nhưng vẫn còn pending (ví dụ max rounds). */
-    const BETWEEN_WAKE_MIN_MS = 45_000
-    const CHAIN_COOLDOWN_MS = 2000
-    const CHAIN_MAX_ROUNDS = 80
+    const BETWEEN_WAKE_MIN_MS = 120_000
+    const CHAIN_COOLDOWN_MS = 5000
+    const CHAIN_MAX_ROUNDS = 6
+    const AUTO_BATCH_LIMIT = 200
 
     const runChainedSync = async (fromWake: boolean) => {
       const state = autoEmbedSyncStateRef.current
@@ -651,7 +655,7 @@ export function PartnerAiSettingsPanel({
         while (!cancelled && !manualEmbedLockRef.current && rounds < CHAIN_MAX_ROUNDS) {
           if (embeddingPendingRef.current <= 0 && textEmbeddingPendingRef.current <= 0) break
           state.lastRunAt = Date.now()
-          const res = await triggerPartnerInventoryEmbeddingSync(partnerId, 1200)
+          const res = await triggerPartnerInventoryEmbeddingSync(partnerId, AUTO_BATCH_LIMIT)
           if (cancelled || ('error' in res && res.error)) break
           const [refreshed, textRefreshed] = await Promise.all([
             getPartnerInventoryEmbeddingStats(partnerId),

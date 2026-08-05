@@ -2216,7 +2216,8 @@ export async function triggerPartnerInventoryEmbeddingSync(partnerId: string, li
     return { error: 'DATABASE_URL is not set.' }
   }
 
-  const batchLimit = Math.max(20, Math.min(5000, Math.floor(Number(limit) || 400)))
+  // Cap cứng: batch quá lớn từ client cũ dễ đẩy heap OOM trên VPS 11GB chia nhiều app.
+  const batchLimit = Math.max(20, Math.min(400, Math.floor(Number(limit) || 200)))
   await Promise.all([
     clearStalePartnerInventoryImageEmbeddingErrorsFromPg(partnerId),
     clearStalePartnerInventoryTextEmbeddingErrorsFromPg(partnerId),
@@ -2225,7 +2226,7 @@ export async function triggerPartnerInventoryEmbeddingSync(partnerId: string, li
   if (!run.ok) return { error: run.error }
   const runText = await syncPartnerInventoryTextEmbeddings(partnerId, { force: false, limit: batchLimit })
   if (!runText.ok) return { error: runText.error }
-  revalidateMessagingDashboard()
+  // Không revalidatePath toàn dashboard sau mỗi lô — client tự refresh stats; tránh RAM/CPU spike.
   return {
     ok: true as const,
     synced: run.synced + runText.synced,
