@@ -5,6 +5,8 @@ import {
   normalizeExternalFieldMapping,
 } from '@/lib/messaging/partner-inventory-external-sync-defaults'
 
+export type CatalogInitialSyncStatus = 'pending' | 'running' | 'completed'
+
 export type PartnerInventoryExternalSyncSettingsRow = {
   partner_id: string
   site_origin: string
@@ -17,6 +19,10 @@ export type PartnerInventoryExternalSyncSettingsRow = {
   catalog_auto_sync_time_vn: string
   catalog_last_sync_at: string | null
   catalog_last_sync_error: string | null
+  catalog_initial_sync_status: CatalogInitialSyncStatus
+  catalog_initial_sync_next_page: number
+  catalog_initial_sync_total_pages: number | null
+  catalog_initial_sync_started_at: string | null
 }
 
 const CATALOG_SYNC_INTERVAL_MIN = 15
@@ -51,6 +57,10 @@ export async function fetchPartnerInventoryExternalSyncSettingsFromPg(
               coalesce(to_char(catalog_auto_sync_time_vn, 'HH24:MI'), '03:00') as catalog_auto_sync_time_vn,
               catalog_last_sync_at,
               catalog_last_sync_error,
+              coalesce(catalog_initial_sync_status, 'pending') as catalog_initial_sync_status,
+              greatest(1, coalesce(catalog_initial_sync_next_page, 1)) as catalog_initial_sync_next_page,
+              catalog_initial_sync_total_pages,
+              catalog_initial_sync_started_at,
               updated_at
        from public.messaging_partner_inventory_external_sync_settings
        where partner_id = $1::uuid
@@ -76,10 +86,24 @@ export async function fetchPartnerInventoryExternalSyncSettingsFromPg(
         row.catalog_last_sync_error != null && String(row.catalog_last_sync_error).trim()
           ? String(row.catalog_last_sync_error).trim()
           : null,
+      catalog_initial_sync_status:
+        String(row.catalog_initial_sync_status ?? '') === 'completed'
+          ? 'completed'
+          : String(row.catalog_initial_sync_status ?? '') === 'running'
+            ? 'running'
+            : 'pending',
+      catalog_initial_sync_next_page: Math.max(1, Math.floor(Number(row.catalog_initial_sync_next_page) || 1)),
+      catalog_initial_sync_total_pages:
+        Number.isInteger(Number(row.catalog_initial_sync_total_pages)) &&
+        Number(row.catalog_initial_sync_total_pages) >= 0
+          ? Number(row.catalog_initial_sync_total_pages)
+          : null,
+      catalog_initial_sync_started_at:
+        row.catalog_initial_sync_started_at != null ? String(row.catalog_initial_sync_started_at) : null,
     }
   } catch (e) {
     const err = e as { code?: string }
-    if (err.code === '42P01') return null
+    if (err.code === '42P01' || err.code === '42703') return null
     console.warn('[fetchPartnerInventoryExternalSyncSettingsFromPg]', e)
     return null
   }
@@ -146,6 +170,10 @@ export function defaultPartnerInventoryExternalSyncSettings(partnerId: string): 
     catalog_auto_sync_time_vn: '03:00',
     catalog_last_sync_at: null,
     catalog_last_sync_error: null,
+    catalog_initial_sync_status: 'pending',
+    catalog_initial_sync_next_page: 1,
+    catalog_initial_sync_total_pages: null,
+    catalog_initial_sync_started_at: null,
   }
 }
 
@@ -194,7 +222,39 @@ export async function updatePartnerExternalCatalogSyncMetaFromPg(
   }
 }
 
-/** Shop cần chạy cron: bật auto-sync, có URL list, đã tới giờ chạy theo ngày Việt Nam. */
+/** Lưu checkpoint sau khi một lô trang initial sync đã ghi kho thành công. */
+export async function updatePartnerExternalCatalogInitialSyncProgressFromPg(
+  partnerId: string,
+  patch: { nextPage: number; totalPages: number; completed: boolean }
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = String(partnerId ?? '').trim()
+  if (!pid) return false
+  const nextPage = Math.max(1, Math.floor(patch.nextPage) || 1)
+  const totalPages = Math.max(0, Math.floor(patch.totalPages) || 0)
+  try {
+    await pgQuery(
+      `update public.messaging_partner_inventory_external_sync_settings
+       set catalog_initial_sync_status = $2,
+           catalog_initial_sync_next_page = $3,
+           catalog_initial_sync_total_pages = $4,
+           catalog_initial_sync_started_at = coalesce(catalog_initial_sync_started_at, now()),
+           catalog_last_sync_at = case when $5 then now() else catalog_last_sync_at end,
+           catalog_last_sync_error = null,
+           updated_at = now()
+       where partner_id = $1::uuid`,
+      [pid, patch.completed ? 'completed' : 'running', nextPage, totalPages, patch.completed]
+    )
+    return true
+  } catch (e) {
+    const err = e as { code?: string }
+    if (err.code === '42P01' || err.code === '42703') return false
+    console.warn('[updatePartnerExternalCatalogInitialSyncProgressFromPg]', e)
+    return false
+  }
+}
+
+/** Shop cần chạy cron: initial sync chưa xong hoặc đã tới lịch incremental theo ngày Việt Nam. */
 export async function fetchPartnerIdsDueForExternalCatalogSyncFromPg(
   limit: number
 ): Promise<string[]> {
@@ -208,7 +268,8 @@ export async function fetchPartnerIdsDueForExternalCatalogSyncFromPg(
          and coalesce(trim(products_list_url), '') <> ''
          and (now() at time zone 'Asia/Ho_Chi_Minh')::time >= coalesce(catalog_auto_sync_time_vn, '03:00'::time)
          and (
-           catalog_last_sync_at is null
+           coalesce(catalog_initial_sync_status, 'pending') <> 'completed'
+           or catalog_last_sync_at is null
            or (catalog_last_sync_at at time zone 'Asia/Ho_Chi_Minh')::date
               < (now() at time zone 'Asia/Ho_Chi_Minh')::date
          )

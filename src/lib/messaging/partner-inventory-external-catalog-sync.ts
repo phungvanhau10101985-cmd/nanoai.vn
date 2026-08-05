@@ -17,6 +17,7 @@ import {
 } from '@/lib/db/messaging-partners-pg'
 import {
   fetchPartnerInventoryExternalSyncSettingsFromPg,
+  updatePartnerExternalCatalogInitialSyncProgressFromPg,
   updatePartnerExternalCatalogSyncMetaFromPg,
 } from '@/lib/db/messaging-partner-inventory-external-sync-pg'
 import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
@@ -117,6 +118,11 @@ const FETCH_CONCURRENCY = Math.max(
 )
 /** API incremental của 188 quy định `limit=500`. */
 const INCREMENTAL_PAGE_LIMIT = 500
+/** Giới hạn số trang initial sync trong một lượt cron để luôn có checkpoint trước maxDuration 600s. */
+const INITIAL_SYNC_PAGES_PER_RUN = Math.max(
+  1,
+  Math.min(25, parseInt(process.env.EXTERNAL_CATALOG_INITIAL_SYNC_PAGES_PER_RUN || '10', 10) || 10)
+)
 /**
  * Ngưỡng an toàn cho toàn bộ vòng lặp tải trang — phải nhỏ hơn `maxDuration` của route gọi hàm này
  * (hiện route cron/manual set 600s) để job tự dừng gọn (trả FETCH_TIMEOUT) thay vì bị nền tảng
@@ -461,9 +467,10 @@ export async function fetchExternalCatalogProducts(
  */
 export async function fetchExternalCatalogIncrementalProducts(
   listUrl: string,
-  updatedSince: string
+  updatedSince: string,
+  options?: { startPage?: number; maxPages?: number }
 ): Promise<
-  | { ok: true; products: unknown[] }
+  | { ok: true; products: unknown[]; totalPages: number; nextPage: number; completed: boolean }
   | {
       ok: false
       code: 'INVALID_LIST_URL' | 'NOT_JSON_OBJECT' | 'NO_PRODUCTS_ARRAY' | 'FETCH_TIMEOUT' | 'FETCH_FAILED'
@@ -478,15 +485,27 @@ export async function fetchExternalCatalogIncrementalProducts(
 
   try {
     const products: unknown[] = []
-    let page = 1
+    let page = Math.max(1, Math.floor(options?.startPage ?? 1) || 1)
+    const maxPages = Math.max(1, Math.floor(options?.maxPages ?? Number.MAX_SAFE_INTEGER) || 1)
+    let pagesFetched = 0
     let totalPages = Number.POSITIVE_INFINITY
-    while (page <= totalPages && products.length < MAX_PRODUCTS) {
+    while (page <= totalPages && pagesFetched < maxPages && products.length < MAX_PRODUCTS) {
       const u = new URL(base)
       u.searchParams.delete('is_active')
       u.searchParams.set('updated_since', updatedSince)
       u.searchParams.set('page', String(page))
       u.searchParams.set('limit', String(INCREMENTAL_PAGE_LIMIT))
-      const data = await fetchJson(u, ac.signal)
+      const pageAc = new AbortController()
+      const pageTo = setTimeout(() => pageAc.abort(), FETCH_TIMEOUT_MS)
+      const onJobAbort = () => pageAc.abort()
+      ac.signal.addEventListener('abort', onJobAbort)
+      let data: unknown
+      try {
+        data = await fetchJson(u, pageAc.signal)
+      } finally {
+        clearTimeout(pageTo)
+        ac.signal.removeEventListener('abort', onJobAbort)
+      }
       const root = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null
       const batch = root && Array.isArray(root.data) ? root.data : null
       if (!batch) return { ok: false, code: 'NO_PRODUCTS_ARRAY' as const }
@@ -514,10 +533,16 @@ export async function fetchExternalCatalogIncrementalProducts(
         products.push(row)
         if (products.length >= MAX_PRODUCTS) break
       }
-      if (batch.length === 0) break
       page += 1
+      pagesFetched += 1
     }
-    return { ok: true, products }
+    return {
+      ok: true,
+      products,
+      totalPages: Number.isFinite(totalPages) ? totalPages : 0,
+      nextPage: page,
+      completed: Number.isFinite(totalPages) && page > totalPages,
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (msg.includes('abort')) return { ok: false, code: 'FETCH_TIMEOUT' as const }
@@ -614,9 +639,22 @@ export async function runPartnerExternalCatalogSyncJob(params: {
   }
 
   const fm = settings?.field_mapping ?? {}
-  /** API 188 có thể trả lại item đúng mốc; UPSERT theo `product_id` vẫn idempotent, không tạo trùng. */
-  const updatedSince = lastSuccessfulSyncOrEpoch(settings?.catalog_last_sync_at)
-  const pulled = await fetchExternalCatalogIncrementalProducts(listUrl, updatedSince)
+  const initialSync = settings?.catalog_initial_sync_status !== 'completed'
+  /**
+   * Full sync khởi tạo luôn bắt đầu từ epoch và resume bằng trang checkpoint.
+   * Khi đã hoàn tất, API có thể trả item đúng mốc; UPSERT theo product_id vẫn idempotent.
+   */
+  const updatedSince = initialSync ? '1970-01-01T00:00:00Z' : lastSuccessfulSyncOrEpoch(settings?.catalog_last_sync_at)
+  const pulled = await fetchExternalCatalogIncrementalProducts(
+    listUrl,
+    updatedSince,
+    initialSync
+      ? {
+          startPage: settings?.catalog_initial_sync_next_page ?? 1,
+          maxPages: INITIAL_SYNC_PAGES_PER_RUN,
+        }
+      : undefined
+  )
   if (!pulled.ok) {
     const persistCode = pulled.code as ExternalCatalogSyncErrorCode
     await updatePartnerExternalCatalogSyncMetaFromPg(partnerId, {
@@ -632,6 +670,20 @@ export async function runPartnerExternalCatalogSyncJob(params: {
   }
 
   stats.fetched = pulled.products.length
+  const persistInitialCheckpoint = async (): Promise<boolean> => {
+    if (!initialSync) return true
+    const ok = await updatePartnerExternalCatalogInitialSyncProgressFromPg(partnerId, {
+      nextPage: pulled.nextPage,
+      totalPages: pulled.totalPages,
+      completed: pulled.completed,
+    })
+    if (!ok) {
+      await updatePartnerExternalCatalogSyncMetaFromPg(partnerId, {
+        error: formatExternalCatalogSyncErrorForStorage('UPSERT_FAILED', 'Could not save initial sync checkpoint.'),
+      })
+    }
+    return ok
+  }
 
   const rows: InventoryExcelInsert[] = []
   const deletedRemarketingIds: string[] = []
@@ -663,7 +715,19 @@ export async function runPartnerExternalCatalogSyncJob(params: {
     stats.skippedEmptyApi = true
     stats.mappedRows = 0
     stats.remarketingInFeed = 0
-    await updatePartnerExternalCatalogSyncMetaFromPg(partnerId, { success: true })
+    if (initialSync) {
+      if (!(await persistInitialCheckpoint())) {
+        const out: ExternalCatalogSyncOutcome = {
+          ok: false,
+          code: 'UPSERT_FAILED',
+          detail: 'Could not save initial sync checkpoint.',
+        }
+        await sendReport(out)
+        return out
+      }
+    } else {
+      await updatePartnerExternalCatalogSyncMetaFromPg(partnerId, { success: true })
+    }
     const out: ExternalCatalogSyncOutcome = {
       ok: true,
       fetched: 0,
@@ -709,7 +773,19 @@ export async function runPartnerExternalCatalogSyncJob(params: {
     return out
   }
 
-  await updatePartnerExternalCatalogSyncMetaFromPg(partnerId, { success: true })
+  if (initialSync) {
+    if (!(await persistInitialCheckpoint())) {
+      const out: ExternalCatalogSyncOutcome = {
+        ok: false,
+        code: 'UPSERT_FAILED',
+        detail: 'Could not save initial sync checkpoint.',
+      }
+      await sendReport(out)
+      return out
+    }
+  } else {
+    await updatePartnerExternalCatalogSyncMetaFromPg(partnerId, { success: true })
+  }
 
   const out: ExternalCatalogSyncOutcome = {
     ok: true,

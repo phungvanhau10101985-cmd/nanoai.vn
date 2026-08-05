@@ -1187,6 +1187,8 @@ export type Dictionary = {
     inventoryExternalSyncLastSuccess: string
     inventoryExternalSyncNeverSynced: string
     inventoryExternalSyncLastErrorLabel: string
+    inventoryExternalSyncInitialPending: string
+    inventoryExternalSyncInitialProgress: string
     inventoryExternalSyncErrNoPartnerId: string
     inventoryExternalSyncErrMissingListUrl: string
     inventoryExternalSyncErrInvalidListUrl: string
@@ -4034,6 +4036,8 @@ const VI_DICTIONARY: Dictionary = {
     inventoryExternalSyncLastSuccess: 'Lần đồng bộ gần nhất: {time}',
     inventoryExternalSyncNeverSynced: 'Chưa có lần đồng bộ hoàn tất.',
     inventoryExternalSyncLastErrorLabel: 'Lỗi gần nhất',
+    inventoryExternalSyncInitialPending: 'Đồng bộ đầy đủ ban đầu đang chờ chạy.',
+    inventoryExternalSyncInitialProgress: 'Đồng bộ đầy đủ ban đầu: trang {page}/{total}.',
     inventoryExternalSyncErrNoPartnerId: 'Thiếu mã shop.',
     inventoryExternalSyncErrMissingListUrl: 'Chưa có URL danh sách sản phẩm (REST).',
     inventoryExternalSyncErrInvalidListUrl: 'URL danh sách không hợp lệ (chỉ https công khai).',
@@ -6864,6 +6868,8 @@ const EN_DICTIONARY: Dictionary = {
     inventoryExternalSyncLastSuccess: 'Last successful sync: {time}',
     inventoryExternalSyncNeverSynced: 'No completed sync yet.',
     inventoryExternalSyncLastErrorLabel: 'Last error',
+    inventoryExternalSyncInitialPending: 'Initial full sync is waiting to run.',
+    inventoryExternalSyncInitialProgress: 'Initial full sync: page {page}/{total}.',
     inventoryExternalSyncErrNoPartnerId: 'Missing shop id.',
     inventoryExternalSyncErrMissingListUrl: 'Product list URL (REST) is not set.',
     inventoryExternalSyncErrInvalidListUrl: 'Invalid list URL (public https only).',
@@ -9667,6 +9673,8 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryExternalSyncLastSuccess: '最近成功同步：{time}',
     inventoryExternalSyncNeverSynced: '尚无完成的同步。',
     inventoryExternalSyncLastErrorLabel: '最近错误',
+    inventoryExternalSyncInitialPending: '初始完整同步正在等待运行。',
+    inventoryExternalSyncInitialProgress: '初始完整同步：第 {page}/{total} 页。',
     inventoryExternalSyncErrNoPartnerId: '缺少店铺 ID。',
     inventoryExternalSyncErrMissingListUrl: '未设置商品列表 URL（REST）。',
     inventoryExternalSyncErrInvalidListUrl: '列表 URL 无效（仅公网 https）。',
@@ -12428,6 +12436,8 @@ const JA_DICTIONARY: Dictionary = {
     inventoryExternalSyncLastSuccess: '直近の成功同期：{time}',
     inventoryExternalSyncNeverSynced: '完了した同期はまだありません。',
     inventoryExternalSyncLastErrorLabel: '直近のエラー',
+    inventoryExternalSyncInitialPending: '初回の完全同期は実行待ちです。',
+    inventoryExternalSyncInitialProgress: '初回の完全同期：{page}/{total} ページ。',
     inventoryExternalSyncErrNoPartnerId: 'ショップ ID がありません。',
     inventoryExternalSyncErrMissingListUrl: '商品一覧 URL（REST）が未設定です。',
     inventoryExternalSyncErrInvalidListUrl: '一覧 URL が無効です（公開 https のみ）。',
@@ -15230,6 +15240,8 @@ const KO_DICTIONARY: Dictionary = {
     inventoryExternalSyncLastSuccess: '마지막 성공 동기화: {time}',
     inventoryExternalSyncNeverSynced: '완료된 동기화가 아직 없습니다.',
     inventoryExternalSyncLastErrorLabel: '최근 오류',
+    inventoryExternalSyncInitialPending: '초기 전체 동기화가 실행 대기 중입니다.',
+    inventoryExternalSyncInitialProgress: '초기 전체 동기화: {page}/{total}페이지.',
     inventoryExternalSyncErrNoPartnerId: '샵 ID가 없습니다.',
     inventoryExternalSyncErrMissingListUrl: '상품 목록 URL(REST)이 설정되지 않았습니다.',
     inventoryExternalSyncErrInvalidListUrl: '목록 URL이 올바르지 않습니다(공개 https만).',

@@ -2603,6 +2603,10 @@ export type PartnerInventoryExternalSyncClientSettings = {
   catalog_auto_sync_time_vn: string
   catalog_last_sync_at: string | null
   catalog_last_sync_error: string | null
+  catalog_initial_sync_status: 'pending' | 'running' | 'completed'
+  catalog_initial_sync_next_page: number
+  catalog_initial_sync_total_pages: number | null
+  catalog_initial_sync_started_at: string | null
 }
 
 export type { ExternalCatalogSyncOutcome }
@@ -2635,6 +2639,10 @@ export async function getPartnerInventoryExternalSyncSettings(
       catalog_auto_sync_time_vn: row.catalog_auto_sync_time_vn,
       catalog_last_sync_at: row.catalog_last_sync_at,
       catalog_last_sync_error: row.catalog_last_sync_error,
+      catalog_initial_sync_status: row.catalog_initial_sync_status,
+      catalog_initial_sync_next_page: row.catalog_initial_sync_next_page,
+      catalog_initial_sync_total_pages: row.catalog_initial_sync_total_pages,
+      catalog_initial_sync_started_at: row.catalog_initial_sync_started_at,
     },
   }
 }

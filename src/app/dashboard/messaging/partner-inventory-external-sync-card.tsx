@@ -149,6 +149,9 @@ export function PartnerInventoryExternalSyncCard({
   const [syncTimeVn, setSyncTimeVn] = useState('03:00')
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
   const [lastSyncError, setLastSyncError] = useState<string | null>(null)
+  const [initialSyncStatus, setInitialSyncStatus] = useState<'pending' | 'running' | 'completed'>('pending')
+  const [initialSyncNextPage, setInitialSyncNextPage] = useState(1)
+  const [initialSyncTotalPages, setInitialSyncTotalPages] = useState<number | null>(null)
   const [syncRunning, setSyncRunning] = useState(false)
 
   /** Tránh phụ thuộc toast/t trong useCallback — parent hay tạo reference mới → effect load chạy lặp → ô input nhấp nháy. */
@@ -177,6 +180,9 @@ export function PartnerInventoryExternalSyncCard({
       setSyncTimeVn(normalizeTimeInputValue(s.catalog_auto_sync_time_vn))
       setLastSyncAt(s.catalog_last_sync_at)
       setLastSyncError(s.catalog_last_sync_error)
+      setInitialSyncStatus(s.catalog_initial_sync_status)
+      setInitialSyncNextPage(s.catalog_initial_sync_next_page)
+      setInitialSyncTotalPages(s.catalog_initial_sync_total_pages)
     } finally {
       setLoading(false)
     }
@@ -300,6 +306,15 @@ export function PartnerInventoryExternalSyncCard({
       : t.inventoryExternalSyncNeverSynced
 
   const lastErrorTranslated = messageFromStoredCatalogSyncError(t, lastSyncError)
+  const initialSyncLabel =
+    initialSyncStatus === 'completed'
+      ? null
+      : initialSyncStatus === 'running' && initialSyncTotalPages != null
+        ? fillInventoryPlaceholders(t.inventoryExternalSyncInitialProgress, {
+            page: Math.min(initialSyncNextPage, initialSyncTotalPages),
+            total: initialSyncTotalPages,
+          })
+        : t.inventoryExternalSyncInitialPending
 
   return (
     <div className="space-y-3 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] px-3 py-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
@@ -371,6 +386,9 @@ export function PartnerInventoryExternalSyncCard({
         <p className="text-[10px] text-muted-foreground border-l-2 border-emerald-600/25 pl-2">
           {t.inventoryExternalSyncRemarketingSnapshotHint}
         </p>
+        {initialSyncLabel ? (
+          <p className="text-[10px] text-primary/90 tabular-nums">{initialSyncLabel}</p>
+        ) : null}
         <p className="text-[10px] text-foreground/85 tabular-nums">{lastSuccessLabel}</p>
         {lastErrorTranslated ? (
           <p className="text-[10px] text-destructive/95 leading-snug">
