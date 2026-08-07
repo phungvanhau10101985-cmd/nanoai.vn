@@ -10,12 +10,28 @@ export type PartnerSiteShopCopy = {
   navChat: string
   navCategories: string
   catalogTitle: string
+  categorySeoBodyAriaLabel: string
+  categorySubcategoriesLabel: string
+  categoryFilterMinPrice: string
+  categoryFilterMaxPrice: string
+  categoryFilterApply: string
+  categoryFilterClear: string
+  categorySortLabel: string
+  categorySortNewest: string
+  categorySortPriceAsc: string
+  categorySortPriceDesc: string
   catalogEmpty: string
   loadMore: string
   productDetail: string
   addToCart: string
   buyNow: string
   addedToCart: string
+  /** W1.6 — cảnh báo sắp hết hàng, chỉ hiện khi 1 <= tồn kho <= ngưỡng (không chặn mua). Chứa token `{n}` — thay bằng số lượng. */
+  lowStockUrgency: string
+  galleryZoomHint: string
+  lightboxClose: string
+  lightboxPrev: string
+  lightboxNext: string
   consultChat: string
   cartTitle: string
   cartEmpty: string
@@ -23,6 +39,36 @@ export type PartnerSiteShopCopy = {
   cartCheckout: string
   cartCheckingOut: string
   cartRemove: string
+  cartPromoLabel: string
+  cartPromoPlaceholder: string
+  cartPromoApply: string
+  cartPromoApplying: string
+  cartPromoRemove: string
+  cartPromoDiscountLabel: string
+  cartTotalLabel: string
+  /** W1.7 */
+  cartShippingFeeLabel: string
+  cartShippingFeeFree: string
+  cartShippingFeeIncluded: string
+  /** Chứa token `{amount}`. */
+  cartShippingFreeThresholdHint: string
+  checkoutPaymentMethodLabel: string
+  checkoutPaymentMethodBank: string
+  checkoutPaymentMethodEwallet: string
+  checkoutPaymentMethodHint: string
+  orderConfirmEwalletTitle: string
+  orderConfirmEwalletHint: string
+  promoErrorNotFound: string
+  promoErrorInactive: string
+  promoErrorNotStarted: string
+  promoErrorExpired: string
+  promoErrorBelowMinSubtotal: string
+  promoErrorUsageLimitReached: string
+  promoErrorPerUserLimitReached: string
+  promoErrorFirstOrderOnly: string
+  promoErrorNoEligibleItems: string
+  promoErrorGrantRequired: string
+  promoErrorGeneric: string
   checkoutName: string
   checkoutPhone: string
   checkoutAddress: string
@@ -36,6 +82,22 @@ export type PartnerSiteShopCopy = {
   navOrders: string
   sizeLabel: string
   colorLabel: string
+  /** W1.5 — size guide on PDP */
+  sizeGuideButton: string
+  sizeGuideModalTitle: string
+  sizeGuideFallbackLink: string
+  sizeGuideClose: string
+  /** S0.7 — public contact channel FABs */
+  contactChannelsAria: string
+  contactChannelPhone: string
+  contactChannelZalo: string
+  contactChannelMessenger: string
+  contactChannelInstagram: string
+  /** W1.4 flash sale */
+  flashSaleBadge: string
+  flashSaleEndsIn: string
+  /** M1.4 */
+  shippingCarrierLabel: string
   searchPlaceholder: string
   searchButton: string
   searchByImage: string
@@ -47,6 +109,18 @@ export type PartnerSiteShopCopy = {
   tryOnLink: string
   ordersTitle: string
   ordersEmpty: string
+  /** W3.2 — trang cảm ơn sau checkout */
+  thankYouOrderLabel: string
+  thankYouTrackCta: string
+  /** W5.3 — shortcut trạng thái đơn */
+  ordersFilterAriaLabel: string
+  ordersFilterAll: string
+  ordersFilterWaitingPayment: string
+  ordersFilterProcessing: string
+  ordersFilterDelivered: string
+  ordersFilterReviewed: string
+  ordersFilterCancelled: string
+  ordersFilterEmpty: string
   authSendOtp: string
   authVerifyOtp: string
   authSuccess: string
@@ -78,7 +152,18 @@ export type PartnerSiteShopCopy = {
   chatCloseLabel: string
   chatFullPageLabel: string
   chatLanguageLabel: string
+  consentMessage: string
+  consentAccept: string
+  consentReject: string
   navAccount: string
+  navWallet: string
+  walletTitle: string
+  walletHint: string
+  walletEmpty: string
+  walletCopyCode: string
+  walletCodeCopied: string
+  walletExpiresLabel: string
+  walletMinSubtotalNote: string
   accountEditProfile: string
   accountViewedProducts: string
   accountAddressBook: string
@@ -90,6 +175,26 @@ export type PartnerSiteShopCopy = {
   accountWelcome: string
   accountQuickLinks: string
   accountSectionEditProfile: string
+  /** W5.1 */
+  accountSecurity: string
+  accountSecurityTitle: string
+  accountSecurityLoginNote: string
+  accountSignOutDevice: string
+  accountSignOutDone: string
+  accountSecurityReAuth: string
+  /** W5.2 */
+  accountNotifications: string
+  accountNotificationsTitle: string
+  accountNotificationsEmpty: string
+  accountNotificationsMarkAllRead: string
+  /** W5.5 */
+  accountInstallApp: string
+  accountInstallAppTitle: string
+  accountInstallAppHint: string
+  accountInstallAppButton: string
+  accountInstallAppIosTip: string
+  accountInstallAppInstalled: string
+  accountInstallAppManualTip: string
   orderStatusLabel: string
   orderStatusAwaitingPayment: string
   orderStatusPaymentChecking: string
@@ -111,6 +216,38 @@ export type PartnerSiteShopCopy = {
   recentlyViewedClear: string
   recentlyViewedCleared: string
   addressesEmptyHint: string
+  reviewsTitle: string
+  reviewsTotalSuffix: string
+  reviewsWriteButton: string
+  reviewsFormRatingLabel: string
+  reviewsFormContentPlaceholder: string
+  reviewsFormImagesLabel: string
+  reviewsFormSubmit: string
+  reviewsFormCancel: string
+  reviewsSubmitSuccess: string
+  reviewsSubmitLoginRequired: string
+  reviewsSubmitAlreadyReviewed: string
+  reviewsSubmitNotEligible: string
+  reviewsEmpty: string
+  reviewsLoadMore: string
+  reviewsUsefulLabel: string
+  reviewsMerchantReplyPrefix: string
+  qaTitle: string
+  qaAskButton: string
+  qaFormPlaceholder: string
+  qaFormSubmit: string
+  qaSubmitSuccess: string
+  qaSubmitLoginRequired: string
+  qaEmpty: string
+  qaLoadMore: string
+  qaAnswerButton: string
+  qaAnswerFormPlaceholder: string
+  qaAnswerSubmit: string
+  qaAnswerNotEligible: string
+  qaAnswerSlotFull: string
+  qaVerifiedBadge: string
+  qaAdminBadge: string
+  qaNoAnswersYet: string
 }
 
 const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
@@ -124,12 +261,27 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChat: 'Chat mua',
     navCategories: 'Danh mục',
     catalogTitle: 'Tất cả sản phẩm',
+    categorySeoBodyAriaLabel: 'Giới thiệu danh mục',
+    categorySubcategoriesLabel: 'Danh mục con',
+    categoryFilterMinPrice: 'Giá từ',
+    categoryFilterMaxPrice: 'Giá đến',
+    categoryFilterApply: 'Áp dụng',
+    categoryFilterClear: 'Xóa bộ lọc',
+    categorySortLabel: 'Sắp xếp',
+    categorySortNewest: 'Mới nhất',
+    categorySortPriceAsc: 'Giá tăng dần',
+    categorySortPriceDesc: 'Giá giảm dần',
     catalogEmpty: 'Chưa có sản phẩm.',
     loadMore: 'Xem thêm',
     productDetail: 'Chi tiết sản phẩm',
     addToCart: 'Thêm vào giỏ',
     buyNow: 'Mua ngay',
     addedToCart: 'Đã thêm vào giỏ.',
+    lowStockUrgency: 'Chỉ còn {n} sản phẩm — nhanh tay đặt hàng!',
+    galleryZoomHint: 'Chạm để phóng to, vuốt để xem ảnh khác',
+    lightboxClose: 'Đóng',
+    lightboxPrev: 'Ảnh trước',
+    lightboxNext: 'Ảnh tiếp theo',
     consultChat: 'Chat tư vấn',
     cartTitle: 'Giỏ hàng',
     cartEmpty: 'Giỏ hàng trống.',
@@ -137,6 +289,34 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     cartCheckout: 'Thanh toán',
     cartCheckingOut: 'Đang tạo đơn…',
     cartRemove: 'Xóa',
+    cartPromoLabel: 'Mã giảm giá',
+    cartPromoPlaceholder: 'Nhập mã giảm giá',
+    cartPromoApply: 'Áp dụng',
+    cartPromoApplying: 'Đang kiểm tra...',
+    cartPromoRemove: 'Bỏ mã',
+    cartPromoDiscountLabel: 'Giảm giá',
+    cartTotalLabel: 'Tổng cộng',
+    cartShippingFeeLabel: 'Phí vận chuyển',
+    cartShippingFeeFree: 'Miễn phí vận chuyển',
+    cartShippingFeeIncluded: 'Đã bao gồm phí vận chuyển',
+    cartShippingFreeThresholdHint: 'mua thêm để đạt {amount} sẽ được miễn phí ship',
+    checkoutPaymentMethodLabel: 'Phương thức thanh toán',
+    checkoutPaymentMethodBank: 'Chuyển khoản ngân hàng',
+    checkoutPaymentMethodEwallet: 'Ví điện tử',
+    checkoutPaymentMethodHint: 'Áp dụng cho phần cần thanh toán trước (nếu có); phần còn lại thanh toán khi nhận hàng.',
+    orderConfirmEwalletTitle: 'Thanh toán qua ví điện tử',
+    orderConfirmEwalletHint: 'Quét mã QR bằng ứng dụng ví điện tử, nhập đúng số tiền cần thanh toán rồi gửi ảnh biên lai bên dưới.',
+    promoErrorNotFound: 'Mã giảm giá không tồn tại.',
+    promoErrorInactive: 'Mã giảm giá không còn hiệu lực.',
+    promoErrorNotStarted: 'Mã giảm giá chưa tới ngày áp dụng.',
+    promoErrorExpired: 'Mã giảm giá đã hết hạn.',
+    promoErrorBelowMinSubtotal: 'Đơn hàng chưa đạt giá trị tối thiểu để áp mã.',
+    promoErrorUsageLimitReached: 'Mã giảm giá đã hết lượt sử dụng.',
+    promoErrorPerUserLimitReached: 'Bạn đã dùng mã này đủ số lần cho phép.',
+    promoErrorFirstOrderOnly: 'Mã chỉ áp dụng cho đơn hàng đầu tiên.',
+    promoErrorNoEligibleItems: 'Giỏ hàng chưa có sản phẩm phù hợp với mã này.',
+    promoErrorGrantRequired: 'Mã này chỉ dùng được khi đã được tặng vào ví.',
+    promoErrorGeneric: 'Không áp dụng được mã giảm giá.',
     checkoutName: 'Họ tên',
     checkoutPhone: 'Số điện thoại',
     checkoutAddress: 'Địa chỉ giao hàng',
@@ -150,6 +330,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navOrders: 'Đơn hàng',
     sizeLabel: 'Size',
     colorLabel: 'Màu',
+    sizeGuideButton: 'Hướng dẫn chọn size',
+    sizeGuideModalTitle: 'Bảng size',
+    sizeGuideFallbackLink: 'Xem hướng dẫn size',
+    sizeGuideClose: 'Đóng',
+    contactChannelsAria: 'Liên hệ nhanh',
+    contactChannelPhone: 'Gọi điện',
+    contactChannelZalo: 'Zalo',
+    contactChannelMessenger: 'Messenger',
+    contactChannelInstagram: 'Instagram',
+    flashSaleBadge: 'Flash sale',
+    flashSaleEndsIn: 'Kết thúc sau',
+    shippingCarrierLabel: 'Đơn vị vận chuyển',
     searchPlaceholder: 'Tìm sản phẩm…',
     searchButton: 'Tìm',
     searchByImage: 'Tìm bằng ảnh',
@@ -161,6 +353,16 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     tryOnLink: 'Thử đồ AI',
     ordersTitle: 'Đơn hàng của bạn',
     ordersEmpty: 'Chưa có đơn hàng.',
+    thankYouOrderLabel: 'Mã đơn',
+    thankYouTrackCta: 'Theo dõi đơn',
+    ordersFilterAriaLabel: 'Lọc theo trạng thái đơn',
+    ordersFilterAll: 'Tất cả',
+    ordersFilterWaitingPayment: 'Chờ thanh toán',
+    ordersFilterProcessing: 'Chờ nhận',
+    ordersFilterDelivered: 'Đã nhận',
+    ordersFilterReviewed: 'Đã đánh giá',
+    ordersFilterCancelled: 'Đã huỷ',
+    ordersFilterEmpty: 'Không có đơn nào ở trạng thái này.',
     authSendOtp: 'Gửi mã OTP',
     authVerifyOtp: 'Xác minh',
     authSuccess: 'Đã xác minh email — có thể thanh toán.',
@@ -192,7 +394,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatCloseLabel: 'Đóng',
     chatFullPageLabel: 'Mở toàn trang',
     chatLanguageLabel: 'Ngôn ngữ',
+    consentMessage: 'Trang web này dùng cookie để cải thiện trải nghiệm mua sắm và đo lường hiệu quả quảng cáo.',
+    consentAccept: 'Đồng ý',
+    consentReject: 'Từ chối',
     navAccount: 'Tài khoản',
+    navWallet: 'Ví quà',
+    walletTitle: 'Ví quà của bạn',
+    walletHint: 'Sao chép mã và dán vào ô mã giảm giá ở giỏ hàng để áp dụng.',
+    walletEmpty: 'Bạn chưa có voucher nào trong ví.',
+    walletCopyCode: 'Sao chép mã',
+    walletCodeCopied: 'Đã sao chép mã!',
+    walletExpiresLabel: 'Hết hạn',
+    walletMinSubtotalNote: 'Áp dụng cho đơn từ',
     accountEditProfile: 'Chỉnh sửa hồ sơ',
     accountViewedProducts: 'Sản phẩm đã xem',
     accountAddressBook: 'Sổ địa chỉ',
@@ -204,6 +417,23 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountWelcome: 'Xin chào',
     accountQuickLinks: 'Truy cập nhanh',
     accountSectionEditProfile: 'Chỉnh sửa hồ sơ',
+    accountSecurity: 'Bảo mật',
+    accountSecurityTitle: 'Bảo mật tài khoản',
+    accountSecurityLoginNote: 'Đăng nhập bằng OTP qua email hoặc Google — không dùng mật khẩu.',
+    accountSignOutDevice: 'Đăng xuất thiết bị này',
+    accountSignOutDone: 'Đã đăng xuất trên thiết bị này.',
+    accountSecurityReAuth: 'Đăng nhập lại',
+    accountNotifications: 'Thông báo',
+    accountNotificationsTitle: 'Trung tâm thông báo',
+    accountNotificationsEmpty: 'Chưa có thông báo.',
+    accountNotificationsMarkAllRead: 'Đánh dấu tất cả đã đọc',
+    accountInstallApp: 'Cài đặt app',
+    accountInstallAppTitle: 'Cài đặt ứng dụng',
+    accountInstallAppHint: 'Thêm cửa hàng vào màn hình chính để mở nhanh như một app.',
+    accountInstallAppButton: 'Cài đặt',
+    accountInstallAppIosTip: 'Trên iPhone/iPad: chạm Share → «Thêm vào MH chính».',
+    accountInstallAppInstalled: 'Ứng dụng đã được cài trên thiết bị này.',
+    accountInstallAppManualTip: 'Mở menu trình duyệt và chọn «Cài đặt ứng dụng» hoặc «Thêm vào màn hình chính».',
     orderStatusLabel: 'Trạng thái',
     orderStatusAwaitingPayment: 'Chờ thanh toán',
     orderStatusPaymentChecking: 'Đang kiểm tra thanh toán',
@@ -225,6 +455,38 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     recentlyViewedClear: 'Xóa lịch sử',
     recentlyViewedCleared: 'Đã xóa lịch sử xem.',
     addressesEmptyHint: 'Chưa có địa chỉ — thêm địa chỉ giao hàng mặc định.',
+    reviewsTitle: 'Đánh giá sản phẩm',
+    reviewsTotalSuffix: 'đánh giá',
+    reviewsWriteButton: 'Viết đánh giá',
+    reviewsFormRatingLabel: 'Chọn số sao',
+    reviewsFormContentPlaceholder: 'Chia sẻ cảm nhận của bạn về sản phẩm...',
+    reviewsFormImagesLabel: 'Thêm ảnh (không bắt buộc)',
+    reviewsFormSubmit: 'Gửi đánh giá',
+    reviewsFormCancel: 'Huỷ',
+    reviewsSubmitSuccess: 'Cảm ơn bạn đã đánh giá!',
+    reviewsSubmitLoginRequired: 'Vui lòng đăng nhập để đánh giá sản phẩm.',
+    reviewsSubmitAlreadyReviewed: 'Bạn đã đánh giá sản phẩm này rồi.',
+    reviewsSubmitNotEligible: 'Chỉ khách đã nhận hàng mới có thể đánh giá sản phẩm này.',
+    reviewsEmpty: 'Chưa có đánh giá nào — hãy là người đầu tiên!',
+    reviewsLoadMore: 'Xem thêm đánh giá',
+    reviewsUsefulLabel: 'Hữu ích',
+    reviewsMerchantReplyPrefix: 'Phản hồi từ',
+    qaTitle: 'Hỏi đáp về sản phẩm',
+    qaAskButton: 'Đặt câu hỏi',
+    qaFormPlaceholder: 'Bạn muốn hỏi gì về sản phẩm này?',
+    qaFormSubmit: 'Gửi câu hỏi',
+    qaSubmitSuccess: 'Đã gửi câu hỏi của bạn!',
+    qaSubmitLoginRequired: 'Vui lòng đăng nhập để đặt câu hỏi.',
+    qaEmpty: 'Chưa có câu hỏi nào — hãy là người đầu tiên hỏi!',
+    qaLoadMore: 'Xem thêm câu hỏi',
+    qaAnswerButton: 'Trả lời',
+    qaAnswerFormPlaceholder: 'Chia sẻ câu trả lời của bạn...',
+    qaAnswerSubmit: 'Gửi trả lời',
+    qaAnswerNotEligible: 'Chỉ khách đã mua sản phẩm này mới có thể trả lời.',
+    qaAnswerSlotFull: 'Câu hỏi này đã đủ số lượt trả lời công khai.',
+    qaVerifiedBadge: 'Đã mua hàng',
+    qaAdminBadge: 'Chủ shop',
+    qaNoAnswersYet: 'Chưa có câu trả lời.',
   },
   en: {
     navHome: 'Home',
@@ -236,12 +498,27 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChat: 'Chat',
     navCategories: 'Categories',
     catalogTitle: 'All products',
+    categorySeoBodyAriaLabel: 'About this category',
+    categorySubcategoriesLabel: 'Subcategories',
+    categoryFilterMinPrice: 'Min price',
+    categoryFilterMaxPrice: 'Max price',
+    categoryFilterApply: 'Apply',
+    categoryFilterClear: 'Clear filters',
+    categorySortLabel: 'Sort',
+    categorySortNewest: 'Newest',
+    categorySortPriceAsc: 'Price: low to high',
+    categorySortPriceDesc: 'Price: high to low',
     catalogEmpty: 'No products yet.',
     loadMore: 'Load more',
     productDetail: 'Product details',
     addToCart: 'Add to cart',
     buyNow: 'Buy now',
     addedToCart: 'Added to cart.',
+    lowStockUrgency: 'Only {n} left in stock — order soon!',
+    galleryZoomHint: 'Tap to zoom, swipe for more photos',
+    lightboxClose: 'Close',
+    lightboxPrev: 'Previous photo',
+    lightboxNext: 'Next photo',
     consultChat: 'Chat for advice',
     cartTitle: 'Shopping cart',
     cartEmpty: 'Your cart is empty.',
@@ -249,6 +526,34 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     cartCheckout: 'Checkout',
     cartCheckingOut: 'Placing order…',
     cartRemove: 'Remove',
+    cartPromoLabel: 'Promo code',
+    cartPromoPlaceholder: 'Enter promo code',
+    cartPromoApply: 'Apply',
+    cartPromoApplying: 'Checking...',
+    cartPromoRemove: 'Remove code',
+    cartPromoDiscountLabel: 'Discount',
+    cartTotalLabel: 'Total',
+    cartShippingFeeLabel: 'Shipping fee',
+    cartShippingFeeFree: 'Free shipping',
+    cartShippingFeeIncluded: 'Shipping fee included',
+    cartShippingFreeThresholdHint: 'add more to reach {amount} for free shipping',
+    checkoutPaymentMethodLabel: 'Payment method',
+    checkoutPaymentMethodBank: 'Bank transfer',
+    checkoutPaymentMethodEwallet: 'E-wallet',
+    checkoutPaymentMethodHint: 'Applies to the upfront amount (if any); the rest is paid on delivery.',
+    orderConfirmEwalletTitle: 'Pay via e-wallet',
+    orderConfirmEwalletHint: 'Scan the QR code with your e-wallet app, enter the exact amount, then send a payment screenshot below.',
+    promoErrorNotFound: 'Promo code not found.',
+    promoErrorInactive: 'This promo code is no longer active.',
+    promoErrorNotStarted: "This promo code isn't valid yet.",
+    promoErrorExpired: 'This promo code has expired.',
+    promoErrorBelowMinSubtotal: "Your order doesn't meet the minimum amount for this code.",
+    promoErrorUsageLimitReached: 'This promo code has reached its usage limit.',
+    promoErrorPerUserLimitReached: "You've already used this code the maximum number of times.",
+    promoErrorFirstOrderOnly: 'This code is only valid for first orders.',
+    promoErrorNoEligibleItems: "Your cart doesn't have items eligible for this code.",
+    promoErrorGrantRequired: 'This code is only available if it was granted to your wallet.',
+    promoErrorGeneric: 'Could not apply this promo code.',
     checkoutName: 'Full name',
     checkoutPhone: 'Phone',
     checkoutAddress: 'Shipping address',
@@ -262,6 +567,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navOrders: 'Orders',
     sizeLabel: 'Size',
     colorLabel: 'Color',
+    sizeGuideButton: 'Size guide',
+    sizeGuideModalTitle: 'Size chart',
+    sizeGuideFallbackLink: 'View size guide',
+    sizeGuideClose: 'Close',
+    contactChannelsAria: 'Quick contact',
+    contactChannelPhone: 'Call',
+    contactChannelZalo: 'Zalo',
+    contactChannelMessenger: 'Messenger',
+    contactChannelInstagram: 'Instagram',
+    flashSaleBadge: 'Flash sale',
+    flashSaleEndsIn: 'Ends in',
+    shippingCarrierLabel: 'Shipping carrier',
     searchPlaceholder: 'Search products…',
     searchButton: 'Search',
     searchByImage: 'Search by image',
@@ -273,6 +590,16 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     tryOnLink: 'AI try-on',
     ordersTitle: 'Your orders',
     ordersEmpty: 'No orders yet.',
+    thankYouOrderLabel: 'Order ID',
+    thankYouTrackCta: 'Track order',
+    ordersFilterAriaLabel: 'Filter orders by status',
+    ordersFilterAll: 'All',
+    ordersFilterWaitingPayment: 'Awaiting payment',
+    ordersFilterProcessing: 'In progress',
+    ordersFilterDelivered: 'Delivered',
+    ordersFilterReviewed: 'Reviewed',
+    ordersFilterCancelled: 'Cancelled',
+    ordersFilterEmpty: 'No orders in this status.',
     authSendOtp: 'Send OTP',
     authVerifyOtp: 'Verify',
     authSuccess: 'Email verified — you can checkout.',
@@ -304,7 +631,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatCloseLabel: 'Close',
     chatFullPageLabel: 'Open full page',
     chatLanguageLabel: 'Language',
+    consentMessage: 'This site uses cookies to improve your shopping experience and measure ad performance.',
+    consentAccept: 'Accept',
+    consentReject: 'Decline',
     navAccount: 'Account',
+    navWallet: 'My vouchers',
+    walletTitle: 'Your vouchers',
+    walletHint: 'Copy a code and paste it into the promo code field at checkout to apply it.',
+    walletEmpty: "You don't have any vouchers yet.",
+    walletCopyCode: 'Copy code',
+    walletCodeCopied: 'Code copied!',
+    walletExpiresLabel: 'Expires',
+    walletMinSubtotalNote: 'Valid for orders from',
     accountEditProfile: 'Edit profile',
     accountViewedProducts: 'Viewed products',
     accountAddressBook: 'Address book',
@@ -316,6 +654,23 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountWelcome: 'Hello',
     accountQuickLinks: 'Quick links',
     accountSectionEditProfile: 'Edit profile',
+    accountSecurity: 'Security',
+    accountSecurityTitle: 'Account security',
+    accountSecurityLoginNote: 'Sign in with email OTP or Google — no password is used.',
+    accountSignOutDevice: 'Sign out this device',
+    accountSignOutDone: 'Signed out on this device.',
+    accountSecurityReAuth: 'Sign in again',
+    accountNotifications: 'Notifications',
+    accountNotificationsTitle: 'Notification center',
+    accountNotificationsEmpty: 'No notifications yet.',
+    accountNotificationsMarkAllRead: 'Mark all as read',
+    accountInstallApp: 'Install app',
+    accountInstallAppTitle: 'Install the app',
+    accountInstallAppHint: 'Add this shop to your home screen for quick access like an app.',
+    accountInstallAppButton: 'Install',
+    accountInstallAppIosTip: 'On iPhone/iPad: tap Share → “Add to Home Screen”.',
+    accountInstallAppInstalled: 'The app is already installed on this device.',
+    accountInstallAppManualTip: 'Open your browser menu and choose “Install app” or “Add to Home Screen”.',
     orderStatusLabel: 'Status',
     orderStatusAwaitingPayment: 'Awaiting payment',
     orderStatusPaymentChecking: 'Checking payment',
@@ -337,6 +692,38 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     recentlyViewedClear: 'Clear history',
     recentlyViewedCleared: 'View history cleared.',
     addressesEmptyHint: 'No address yet — add your default shipping address.',
+    reviewsTitle: 'Product reviews',
+    reviewsTotalSuffix: 'reviews',
+    reviewsWriteButton: 'Write a review',
+    reviewsFormRatingLabel: 'Select rating',
+    reviewsFormContentPlaceholder: 'Share your thoughts about this product...',
+    reviewsFormImagesLabel: 'Add photos (optional)',
+    reviewsFormSubmit: 'Submit review',
+    reviewsFormCancel: 'Cancel',
+    reviewsSubmitSuccess: 'Thanks for your review!',
+    reviewsSubmitLoginRequired: 'Please sign in to review this product.',
+    reviewsSubmitAlreadyReviewed: 'You already reviewed this product.',
+    reviewsSubmitNotEligible: 'Only customers who received this product can review it.',
+    reviewsEmpty: 'No reviews yet — be the first!',
+    reviewsLoadMore: 'Load more reviews',
+    reviewsUsefulLabel: 'Helpful',
+    reviewsMerchantReplyPrefix: 'Reply from',
+    qaTitle: 'Questions & answers',
+    qaAskButton: 'Ask a question',
+    qaFormPlaceholder: 'What would you like to know about this product?',
+    qaFormSubmit: 'Submit question',
+    qaSubmitSuccess: 'Your question has been submitted!',
+    qaSubmitLoginRequired: 'Please sign in to ask a question.',
+    qaEmpty: 'No questions yet — be the first to ask!',
+    qaLoadMore: 'Load more questions',
+    qaAnswerButton: 'Answer',
+    qaAnswerFormPlaceholder: 'Share your answer...',
+    qaAnswerSubmit: 'Submit answer',
+    qaAnswerNotEligible: 'Only customers who bought this product can answer.',
+    qaAnswerSlotFull: 'This question already has enough public answers.',
+    qaVerifiedBadge: 'Verified buyer',
+    qaAdminBadge: 'Shop owner',
+    qaNoAnswersYet: 'No answers yet.',
   },
   zh: {
     navHome: '首页',
@@ -348,12 +735,27 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChat: '聊天购买',
     navCategories: '分类',
     catalogTitle: '全部产品',
+    categorySeoBodyAriaLabel: '分类介绍',
+    categorySubcategoriesLabel: '子分类',
+    categoryFilterMinPrice: '最低价',
+    categoryFilterMaxPrice: '最高价',
+    categoryFilterApply: '应用',
+    categoryFilterClear: '清除筛选',
+    categorySortLabel: '排序',
+    categorySortNewest: '最新',
+    categorySortPriceAsc: '价格从低到高',
+    categorySortPriceDesc: '价格从高到低',
     catalogEmpty: '暂无产品。',
     loadMore: '加载更多',
     productDetail: '产品详情',
     addToCart: '加入购物车',
     buyNow: '立即购买',
     addedToCart: '已加入购物车。',
+    lowStockUrgency: '仅剩 {n} 件 — 尽快下单！',
+    galleryZoomHint: '点击放大，滑动查看更多图片',
+    lightboxClose: '关闭',
+    lightboxPrev: '上一张',
+    lightboxNext: '下一张',
     consultChat: '咨询聊天',
     cartTitle: '购物车',
     cartEmpty: '购物车为空。',
@@ -361,6 +763,34 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     cartCheckout: '结账',
     cartCheckingOut: '正在下单…',
     cartRemove: '删除',
+    cartPromoLabel: '优惠码',
+    cartPromoPlaceholder: '输入优惠码',
+    cartPromoApply: '应用',
+    cartPromoApplying: '正在检查...',
+    cartPromoRemove: '移除优惠码',
+    cartPromoDiscountLabel: '优惠',
+    cartTotalLabel: '总计',
+    cartShippingFeeLabel: '运费',
+    cartShippingFeeFree: '免运费',
+    cartShippingFeeIncluded: '已含运费',
+    cartShippingFreeThresholdHint: '再购买以满 {amount} 即可免运费',
+    checkoutPaymentMethodLabel: '支付方式',
+    checkoutPaymentMethodBank: '银行转账',
+    checkoutPaymentMethodEwallet: '电子钱包',
+    checkoutPaymentMethodHint: '适用于需要预付的金额（如有）；其余款项到货后支付。',
+    orderConfirmEwalletTitle: '通过电子钱包支付',
+    orderConfirmEwalletHint: '使用电子钱包 App 扫描二维码，输入准确金额，然后在下方上传付款截图。',
+    promoErrorNotFound: '优惠码不存在。',
+    promoErrorInactive: '此优惠码已停用。',
+    promoErrorNotStarted: '此优惠码尚未生效。',
+    promoErrorExpired: '此优惠码已过期。',
+    promoErrorBelowMinSubtotal: '订单金额未达到使用此优惠码的最低要求。',
+    promoErrorUsageLimitReached: '此优惠码使用次数已达上限。',
+    promoErrorPerUserLimitReached: '您已达到此优惠码的最大使用次数。',
+    promoErrorFirstOrderOnly: '此优惠码仅适用于首次订单。',
+    promoErrorNoEligibleItems: '购物车中没有符合此优惠码的商品。',
+    promoErrorGrantRequired: '此优惠码仅在已获赠时可用。',
+    promoErrorGeneric: '无法应用此优惠码。',
     checkoutName: '姓名',
     checkoutPhone: '电话',
     checkoutAddress: '收货地址',
@@ -374,6 +804,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navOrders: '订单',
     sizeLabel: '尺码',
     colorLabel: '颜色',
+    sizeGuideButton: '尺码指南',
+    sizeGuideModalTitle: '尺码表',
+    sizeGuideFallbackLink: '查看尺码指南',
+    sizeGuideClose: '关闭',
+    contactChannelsAria: '快速联系',
+    contactChannelPhone: '电话',
+    contactChannelZalo: 'Zalo',
+    contactChannelMessenger: 'Messenger',
+    contactChannelInstagram: 'Instagram',
+    flashSaleBadge: '限时特惠',
+    flashSaleEndsIn: '距结束',
+    shippingCarrierLabel: '物流公司',
     searchPlaceholder: '搜索产品…',
     searchButton: '搜索',
     searchByImage: '以图搜图',
@@ -385,6 +827,16 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     tryOnLink: 'AI 试穿',
     ordersTitle: '我的订单',
     ordersEmpty: '暂无订单。',
+    thankYouOrderLabel: '订单编号',
+    thankYouTrackCta: '跟踪订单',
+    ordersFilterAriaLabel: '按订单状态筛选',
+    ordersFilterAll: '全部',
+    ordersFilterWaitingPayment: '待付款',
+    ordersFilterProcessing: '待收货',
+    ordersFilterDelivered: '已收货',
+    ordersFilterReviewed: '已评价',
+    ordersFilterCancelled: '已取消',
+    ordersFilterEmpty: '该状态下没有订单。',
     authSendOtp: '发送验证码',
     authVerifyOtp: '验证',
     authSuccess: '邮箱已验证 — 可以结账。',
@@ -416,7 +868,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatCloseLabel: '关闭',
     chatFullPageLabel: '全页打开',
     chatLanguageLabel: '语言',
+    consentMessage: '本网站使用 Cookie 以改善您的购物体验并评估广告效果。',
+    consentAccept: '同意',
+    consentReject: '拒绝',
     navAccount: '账户',
+    navWallet: '我的优惠券',
+    walletTitle: '您的优惠券',
+    walletHint: '复制代码并粘贴到结账时的优惠码栏即可使用。',
+    walletEmpty: '您的钱包中还没有优惠券。',
+    walletCopyCode: '复制代码',
+    walletCodeCopied: '代码已复制！',
+    walletExpiresLabel: '过期时间',
+    walletMinSubtotalNote: '适用于满',
     accountEditProfile: '编辑资料',
     accountViewedProducts: '浏览记录',
     accountAddressBook: '地址簿',
@@ -428,6 +891,23 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountWelcome: '您好',
     accountQuickLinks: '快捷入口',
     accountSectionEditProfile: '编辑资料',
+    accountSecurity: '安全',
+    accountSecurityTitle: '账户安全',
+    accountSecurityLoginNote: '通过邮箱 OTP 或 Google 登录 — 无需密码。',
+    accountSignOutDevice: '退出此设备',
+    accountSignOutDone: '已在此设备退出登录。',
+    accountSecurityReAuth: '重新登录',
+    accountNotifications: '通知',
+    accountNotificationsTitle: '通知中心',
+    accountNotificationsEmpty: '暂无通知。',
+    accountNotificationsMarkAllRead: '全部标为已读',
+    accountInstallApp: '安装应用',
+    accountInstallAppTitle: '安装应用',
+    accountInstallAppHint: '将店铺添加到主屏幕，像应用一样快速打开。',
+    accountInstallAppButton: '安装',
+    accountInstallAppIosTip: '在 iPhone/iPad：点分享 →「添加到主屏幕」。',
+    accountInstallAppInstalled: '此设备已安装该应用。',
+    accountInstallAppManualTip: '打开浏览器菜单，选择「安装应用」或「添加到主屏幕」。',
     orderStatusLabel: '状态',
     orderStatusAwaitingPayment: '待付款',
     orderStatusPaymentChecking: '核对付款中',
@@ -449,6 +929,38 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     recentlyViewedClear: '清除记录',
     recentlyViewedCleared: '浏览记录已清除。',
     addressesEmptyHint: '暂无地址 — 请添加默认收货地址。',
+    reviewsTitle: '商品评价',
+    reviewsTotalSuffix: '条评价',
+    reviewsWriteButton: '写评价',
+    reviewsFormRatingLabel: '选择星级',
+    reviewsFormContentPlaceholder: '分享您对该商品的感受...',
+    reviewsFormImagesLabel: '添加图片（可选）',
+    reviewsFormSubmit: '提交评价',
+    reviewsFormCancel: '取消',
+    reviewsSubmitSuccess: '感谢您的评价！',
+    reviewsSubmitLoginRequired: '请登录后再评价商品。',
+    reviewsSubmitAlreadyReviewed: '您已经评价过该商品。',
+    reviewsSubmitNotEligible: '只有收到商品的客户才能评价。',
+    reviewsEmpty: '暂无评价 — 快来抢沙发！',
+    reviewsLoadMore: '查看更多评价',
+    reviewsUsefulLabel: '有用',
+    reviewsMerchantReplyPrefix: '来自',
+    qaTitle: '商品问答',
+    qaAskButton: '提问',
+    qaFormPlaceholder: '您想了解这款商品的什么信息？',
+    qaFormSubmit: '提交问题',
+    qaSubmitSuccess: '您的问题已提交！',
+    qaSubmitLoginRequired: '请登录后再提问。',
+    qaEmpty: '暂无问题 — 快来提第一个问题！',
+    qaLoadMore: '查看更多问题',
+    qaAnswerButton: '回答',
+    qaAnswerFormPlaceholder: '分享您的回答...',
+    qaAnswerSubmit: '提交回答',
+    qaAnswerNotEligible: '只有购买过该商品的客户才能回答。',
+    qaAnswerSlotFull: '该问题的公开回答名额已满。',
+    qaVerifiedBadge: '已购买',
+    qaAdminBadge: '店主',
+    qaNoAnswersYet: '暂无回答。',
   },
   ja: {
     navHome: 'ホーム',
@@ -460,12 +972,27 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChat: 'チャット',
     navCategories: 'カテゴリ',
     catalogTitle: 'すべての商品',
+    categorySeoBodyAriaLabel: 'カテゴリー紹介',
+    categorySubcategoriesLabel: 'サブカテゴリー',
+    categoryFilterMinPrice: '最低価格',
+    categoryFilterMaxPrice: '最高価格',
+    categoryFilterApply: '適用',
+    categoryFilterClear: 'フィルターを解除',
+    categorySortLabel: '並び替え',
+    categorySortNewest: '新着順',
+    categorySortPriceAsc: '価格が安い順',
+    categorySortPriceDesc: '価格が高い順',
     catalogEmpty: '商品がありません。',
     loadMore: 'もっと見る',
     productDetail: '商品詳細',
     addToCart: 'カートに追加',
     buyNow: '今すぐ購入',
     addedToCart: 'カートに追加しました。',
+    lowStockUrgency: '残り{n}点 — お早めにご注文ください！',
+    galleryZoomHint: 'タップで拡大、スワイプで他の写真を表示',
+    lightboxClose: '閉じる',
+    lightboxPrev: '前の写真',
+    lightboxNext: '次の写真',
     consultChat: 'チャット相談',
     cartTitle: 'ショッピングカート',
     cartEmpty: 'カートは空です。',
@@ -473,6 +1000,34 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     cartCheckout: 'レジに進む',
     cartCheckingOut: '注文処理中…',
     cartRemove: '削除',
+    cartPromoLabel: 'プロモコード',
+    cartPromoPlaceholder: 'プロモコードを入力',
+    cartPromoApply: '適用',
+    cartPromoApplying: '確認中...',
+    cartPromoRemove: 'コードを削除',
+    cartPromoDiscountLabel: '割引',
+    cartTotalLabel: '合計',
+    cartShippingFeeLabel: '送料',
+    cartShippingFeeFree: '送料無料',
+    cartShippingFeeIncluded: '送料込み',
+    cartShippingFreeThresholdHint: '{amount}以上のご購入で送料無料',
+    checkoutPaymentMethodLabel: 'お支払い方法',
+    checkoutPaymentMethodBank: '銀行振込',
+    checkoutPaymentMethodEwallet: '電子マネー',
+    checkoutPaymentMethodHint: '前払い金額がある場合に適用されます。残額は商品受け取り時にお支払いください。',
+    orderConfirmEwalletTitle: '電子マネーでのお支払い',
+    orderConfirmEwalletHint: '電子マネーアプリでQRコードを読み取り、正確な金額を入力してから、下記に支払い画面のスクリーンショットを送信してください。',
+    promoErrorNotFound: 'プロモコードが見つかりません。',
+    promoErrorInactive: 'このプロモコードは無効です。',
+    promoErrorNotStarted: 'このプロモコードはまだ有効ではありません。',
+    promoErrorExpired: 'このプロモコードは期限切れです。',
+    promoErrorBelowMinSubtotal: 'ご注文の金額がこのコードの最低金額に達していません。',
+    promoErrorUsageLimitReached: 'このプロモコードは使用回数の上限に達しました。',
+    promoErrorPerUserLimitReached: 'このコードの使用回数上限に達しました。',
+    promoErrorFirstOrderOnly: 'このコードは初回注文のみ有効です。',
+    promoErrorNoEligibleItems: 'カート内にこのコードの対象商品がありません。',
+    promoErrorGrantRequired: 'このコードはウォレットに付与された場合のみ使用できます。',
+    promoErrorGeneric: 'このプロモコードは適用できません。',
     checkoutName: '氏名',
     checkoutPhone: '電話番号',
     checkoutAddress: '配送先',
@@ -486,6 +1041,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navOrders: '注文',
     sizeLabel: 'サイズ',
     colorLabel: '色',
+    sizeGuideButton: 'サイズガイド',
+    sizeGuideModalTitle: 'サイズ表',
+    sizeGuideFallbackLink: 'サイズガイドを見る',
+    sizeGuideClose: '閉じる',
+    contactChannelsAria: 'クイック連絡',
+    contactChannelPhone: '電話',
+    contactChannelZalo: 'Zalo',
+    contactChannelMessenger: 'Messenger',
+    contactChannelInstagram: 'Instagram',
+    flashSaleBadge: 'フラッシュセール',
+    flashSaleEndsIn: '終了まで',
+    shippingCarrierLabel: '配送業者',
     searchPlaceholder: '商品を検索…',
     searchButton: '検索',
     searchByImage: '画像で検索',
@@ -497,6 +1064,16 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     tryOnLink: 'AI試着',
     ordersTitle: '注文履歴',
     ordersEmpty: '注文はまだありません。',
+    thankYouOrderLabel: '注文ID',
+    thankYouTrackCta: '注文を追跡',
+    ordersFilterAriaLabel: '注文ステータスで絞り込み',
+    ordersFilterAll: 'すべて',
+    ordersFilterWaitingPayment: '支払い待ち',
+    ordersFilterProcessing: '受け取り待ち',
+    ordersFilterDelivered: '受け取り済み',
+    ordersFilterReviewed: 'レビュー済み',
+    ordersFilterCancelled: 'キャンセル',
+    ordersFilterEmpty: 'このステータスの注文はありません。',
     authSendOtp: 'OTP送信',
     authVerifyOtp: '確認',
     authSuccess: 'メール確認済み — 決済できます。',
@@ -528,7 +1105,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatCloseLabel: '閉じる',
     chatFullPageLabel: '全画面で開く',
     chatLanguageLabel: '言語',
+    consentMessage: '当サイトは、ショッピング体験の向上と広告効果測定のためにCookieを使用しています。',
+    consentAccept: '同意する',
+    consentReject: '拒否する',
     navAccount: 'アカウント',
+    navWallet: 'マイクーポン',
+    walletTitle: 'あなたのクーポン',
+    walletHint: 'コードをコピーしてカートのプロモコード欄に貼り付けてください。',
+    walletEmpty: 'まだクーポンはありません。',
+    walletCopyCode: 'コードをコピー',
+    walletCodeCopied: 'コードをコピーしました！',
+    walletExpiresLabel: '有効期限',
+    walletMinSubtotalNote: '対象注文金額',
     accountEditProfile: 'プロフィール編集',
     accountViewedProducts: '閲覧履歴',
     accountAddressBook: '住所録',
@@ -540,6 +1128,23 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountWelcome: 'こんにちは',
     accountQuickLinks: 'クイックリンク',
     accountSectionEditProfile: 'プロフィール編集',
+    accountSecurity: 'セキュリティ',
+    accountSecurityTitle: 'アカウントのセキュリティ',
+    accountSecurityLoginNote: 'メール OTP または Google でログイン — パスワードは使いません。',
+    accountSignOutDevice: 'この端末からサインアウト',
+    accountSignOutDone: 'この端末からサインアウトしました。',
+    accountSecurityReAuth: '再ログイン',
+    accountNotifications: '通知',
+    accountNotificationsTitle: '通知センター',
+    accountNotificationsEmpty: '通知はまだありません。',
+    accountNotificationsMarkAllRead: 'すべて既読にする',
+    accountInstallApp: 'アプリをインストール',
+    accountInstallAppTitle: 'アプリをインストール',
+    accountInstallAppHint: 'ホーム画面に追加すると、アプリのようにすぐ開けます。',
+    accountInstallAppButton: 'インストール',
+    accountInstallAppIosTip: 'iPhone/iPad：共有 →「ホーム画面に追加」。',
+    accountInstallAppInstalled: 'この端末にはすでにインストール済みです。',
+    accountInstallAppManualTip: 'ブラウザのメニューから「アプリをインストール」または「ホーム画面に追加」を選んでください。',
     orderStatusLabel: 'ステータス',
     orderStatusAwaitingPayment: '支払い待ち',
     orderStatusPaymentChecking: '支払い確認中',
@@ -561,6 +1166,38 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     recentlyViewedClear: '履歴を削除',
     recentlyViewedCleared: '閲覧履歴を削除しました。',
     addressesEmptyHint: '住所がありません — 既定の配送先を追加してください。',
+    reviewsTitle: '商品レビュー',
+    reviewsTotalSuffix: '件のレビュー',
+    reviewsWriteButton: 'レビューを書く',
+    reviewsFormRatingLabel: '評価を選択',
+    reviewsFormContentPlaceholder: 'この商品についての感想をシェアしてください...',
+    reviewsFormImagesLabel: '写真を追加（任意）',
+    reviewsFormSubmit: 'レビューを送信',
+    reviewsFormCancel: 'キャンセル',
+    reviewsSubmitSuccess: 'レビューありがとうございます！',
+    reviewsSubmitLoginRequired: 'レビューを投稿するにはログインしてください。',
+    reviewsSubmitAlreadyReviewed: 'この商品はすでにレビュー済みです。',
+    reviewsSubmitNotEligible: '商品を受け取ったお客様のみレビューできます。',
+    reviewsEmpty: 'まだレビューがありません — 最初のレビューを書いてみましょう！',
+    reviewsLoadMore: 'レビューをもっと見る',
+    reviewsUsefulLabel: '参考になった',
+    reviewsMerchantReplyPrefix: '返信元:',
+    qaTitle: '商品Q&A',
+    qaAskButton: '質問する',
+    qaFormPlaceholder: 'この商品について知りたいことは？',
+    qaFormSubmit: '質問を送信',
+    qaSubmitSuccess: '質問を送信しました！',
+    qaSubmitLoginRequired: '質問するにはログインしてください。',
+    qaEmpty: 'まだ質問がありません — 最初の質問をしてみましょう！',
+    qaLoadMore: '質問をもっと見る',
+    qaAnswerButton: '回答する',
+    qaAnswerFormPlaceholder: 'あなたの回答をシェアしてください...',
+    qaAnswerSubmit: '回答を送信',
+    qaAnswerNotEligible: 'この商品を購入したお客様のみ回答できます。',
+    qaAnswerSlotFull: 'この質問はすでに公開回答の上限に達しています。',
+    qaVerifiedBadge: '購入者',
+    qaAdminBadge: 'ショップオーナー',
+    qaNoAnswersYet: 'まだ回答がありません。',
   },
   ko: {
     navHome: '홈',
@@ -572,12 +1209,27 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChat: '채팅',
     navCategories: '카테고리',
     catalogTitle: '전체 상품',
+    categorySeoBodyAriaLabel: '카테고리 소개',
+    categorySubcategoriesLabel: '하위 카테고리',
+    categoryFilterMinPrice: '최소 가격',
+    categoryFilterMaxPrice: '최대 가격',
+    categoryFilterApply: '적용',
+    categoryFilterClear: '필터 지우기',
+    categorySortLabel: '정렬',
+    categorySortNewest: '최신순',
+    categorySortPriceAsc: '가격 낮은순',
+    categorySortPriceDesc: '가격 높은순',
     catalogEmpty: '상품이 없습니다.',
     loadMore: '더 보기',
     productDetail: '상품 상세',
     addToCart: '장바구니 담기',
     buyNow: '바로 구매',
     addedToCart: '장바구니에 담았습니다.',
+    lowStockUrgency: '재고 {n}개 남음 — 서둘러 주문하세요!',
+    galleryZoomHint: '탭하여 확대, 스와이프하여 다른 사진 보기',
+    lightboxClose: '닫기',
+    lightboxPrev: '이전 사진',
+    lightboxNext: '다음 사진',
     consultChat: '채팅 상담',
     cartTitle: '장바구니',
     cartEmpty: '장바구니가 비었습니다.',
@@ -585,6 +1237,34 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     cartCheckout: '결제',
     cartCheckingOut: '주문 처리 중…',
     cartRemove: '삭제',
+    cartPromoLabel: '할인 코드',
+    cartPromoPlaceholder: '할인 코드 입력',
+    cartPromoApply: '적용',
+    cartPromoApplying: '확인 중...',
+    cartPromoRemove: '코드 제거',
+    cartPromoDiscountLabel: '할인',
+    cartTotalLabel: '총액',
+    cartShippingFeeLabel: '배송비',
+    cartShippingFeeFree: '무료 배송',
+    cartShippingFeeIncluded: '배송비 포함',
+    cartShippingFreeThresholdHint: '{amount} 이상 구매 시 무료 배송',
+    checkoutPaymentMethodLabel: '결제 방법',
+    checkoutPaymentMethodBank: '계좌 이체',
+    checkoutPaymentMethodEwallet: '전자지갑',
+    checkoutPaymentMethodHint: '선결제 금액(있는 경우)에 적용되며, 나머지는 수령 시 결제합니다.',
+    orderConfirmEwalletTitle: '전자지갑으로 결제',
+    orderConfirmEwalletHint: '전자지갑 앱으로 QR 코드를 스캔하고 정확한 금액을 입력한 후, 아래에 결제 화면 캡처를 보내주세요.',
+    promoErrorNotFound: '할인 코드를 찾을 수 없습니다.',
+    promoErrorInactive: '이 할인 코드는 더 이상 유효하지 않습니다.',
+    promoErrorNotStarted: '이 할인 코드는 아직 사용할 수 없습니다.',
+    promoErrorExpired: '이 할인 코드는 만료되었습니다.',
+    promoErrorBelowMinSubtotal: '주문 금액이 이 코드의 최소 금액에 도달하지 않았습니다.',
+    promoErrorUsageLimitReached: '이 할인 코드의 사용 한도에 도달했습니다.',
+    promoErrorPerUserLimitReached: '이 코드의 최대 사용 횟수에 도달했습니다.',
+    promoErrorFirstOrderOnly: '이 코드는 첫 주문에만 적용됩니다.',
+    promoErrorNoEligibleItems: '장바구니에 이 코드에 해당하는 상품이 없습니다.',
+    promoErrorGrantRequired: '이 코드는 지갑으로 지급된 경우에만 사용할 수 있습니다.',
+    promoErrorGeneric: '이 할인 코드를 적용할 수 없습니다.',
     checkoutName: '이름',
     checkoutPhone: '전화번호',
     checkoutAddress: '배송 주소',
@@ -598,6 +1278,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navOrders: '주문',
     sizeLabel: '사이즈',
     colorLabel: '색상',
+    sizeGuideButton: '사이즈 가이드',
+    sizeGuideModalTitle: '사이즈표',
+    sizeGuideFallbackLink: '사이즈 가이드 보기',
+    sizeGuideClose: '닫기',
+    contactChannelsAria: '빠른 연락',
+    contactChannelPhone: '전화',
+    contactChannelZalo: 'Zalo',
+    contactChannelMessenger: 'Messenger',
+    contactChannelInstagram: 'Instagram',
+    flashSaleBadge: '플래시 세일',
+    flashSaleEndsIn: '종료까지',
+    shippingCarrierLabel: '배송사',
     searchPlaceholder: '상품 검색…',
     searchButton: '검색',
     searchByImage: '이미지로 검색',
@@ -609,6 +1301,16 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     tryOnLink: 'AI 피팅',
     ordersTitle: '내 주문',
     ordersEmpty: '주문이 없습니다.',
+    thankYouOrderLabel: '주문 번호',
+    thankYouTrackCta: '주문 조회',
+    ordersFilterAriaLabel: '주문 상태별 필터',
+    ordersFilterAll: '전체',
+    ordersFilterWaitingPayment: '결제 대기',
+    ordersFilterProcessing: '수령 대기',
+    ordersFilterDelivered: '수령 완료',
+    ordersFilterReviewed: '리뷰 완료',
+    ordersFilterCancelled: '취소됨',
+    ordersFilterEmpty: '이 상태의 주문이 없습니다.',
     authSendOtp: 'OTP 전송',
     authVerifyOtp: '인증',
     authSuccess: '이메일 인증 완료 — 결제 가능합니다.',
@@ -640,7 +1342,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatCloseLabel: '닫기',
     chatFullPageLabel: '전체 페이지 열기',
     chatLanguageLabel: '언어',
+    consentMessage: '이 사이트는 쇼핑 경험 개선과 광고 효과 측정을 위해 쿠키를 사용합니다.',
+    consentAccept: '동의',
+    consentReject: '거부',
     navAccount: '계정',
+    navWallet: '내 쿠폰함',
+    walletTitle: '내 쿠폰함',
+    walletHint: '코드를 복사해 장바구니의 할인 코드란에 붙여넣으면 적용됩니다.',
+    walletEmpty: '아직 쿠폰이 없습니다.',
+    walletCopyCode: '코드 복사',
+    walletCodeCopied: '코드가 복사되었습니다!',
+    walletExpiresLabel: '만료일',
+    walletMinSubtotalNote: '적용 최소 주문 금액',
     accountEditProfile: '프로필 수정',
     accountViewedProducts: '최근 본 상품',
     accountAddressBook: '주소록',
@@ -652,6 +1365,23 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountWelcome: '안녕하세요',
     accountQuickLinks: '빠른 메뉴',
     accountSectionEditProfile: '프로필 수정',
+    accountSecurity: '보안',
+    accountSecurityTitle: '계정 보안',
+    accountSecurityLoginNote: '이메일 OTP 또는 Google로 로그인합니다 — 비밀번호는 사용하지 않습니다.',
+    accountSignOutDevice: '이 기기에서 로그아웃',
+    accountSignOutDone: '이 기기에서 로그아웃했습니다.',
+    accountSecurityReAuth: '다시 로그인',
+    accountNotifications: '알림',
+    accountNotificationsTitle: '알림 센터',
+    accountNotificationsEmpty: '알림이 없습니다.',
+    accountNotificationsMarkAllRead: '모두 읽음으로 표시',
+    accountInstallApp: '앱 설치',
+    accountInstallAppTitle: '앱 설치',
+    accountInstallAppHint: '홈 화면에 추가하면 앱처럼 빠르게 열 수 있습니다.',
+    accountInstallAppButton: '설치',
+    accountInstallAppIosTip: 'iPhone/iPad: 공유 → «홈 화면에 추가».',
+    accountInstallAppInstalled: '이 기기에 이미 설치되어 있습니다.',
+    accountInstallAppManualTip: '브라우저 메뉴에서 «앱 설치» 또는 «홈 화면에 추가»를 선택하세요.',
     orderStatusLabel: '상태',
     orderStatusAwaitingPayment: '결제 대기',
     orderStatusPaymentChecking: '결제 확인 중',
@@ -673,6 +1403,38 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     recentlyViewedClear: '기록 삭제',
     recentlyViewedCleared: '최근 본 기록을 삭제했습니다.',
     addressesEmptyHint: '주소 없음 — 기본 배송 주소를 추가하세요.',
+    reviewsTitle: '상품 리뷰',
+    reviewsTotalSuffix: '개 리뷰',
+    reviewsWriteButton: '리뷰 작성',
+    reviewsFormRatingLabel: '별점 선택',
+    reviewsFormContentPlaceholder: '이 상품에 대한 후기를 남겨주세요...',
+    reviewsFormImagesLabel: '사진 추가 (선택)',
+    reviewsFormSubmit: '리뷰 제출',
+    reviewsFormCancel: '취소',
+    reviewsSubmitSuccess: '리뷰를 남겨주셔서 감사합니다!',
+    reviewsSubmitLoginRequired: '리뷰를 작성하려면 로그인해주세요.',
+    reviewsSubmitAlreadyReviewed: '이미 이 상품에 리뷰를 작성했습니다.',
+    reviewsSubmitNotEligible: '상품을 수령한 고객만 리뷰를 작성할 수 있습니다.',
+    reviewsEmpty: '아직 리뷰가 없습니다 — 첫 리뷰를 남겨보세요!',
+    reviewsLoadMore: '리뷰 더 보기',
+    reviewsUsefulLabel: '도움이 됨',
+    reviewsMerchantReplyPrefix: '답변:',
+    qaTitle: '상품 문의',
+    qaAskButton: '질문하기',
+    qaFormPlaceholder: '이 상품에 대해 궁금한 점이 있나요?',
+    qaFormSubmit: '질문 등록',
+    qaSubmitSuccess: '질문이 등록되었습니다!',
+    qaSubmitLoginRequired: '질문하려면 로그인해주세요.',
+    qaEmpty: '아직 질문이 없습니다 — 첫 질문을 남겨보세요!',
+    qaLoadMore: '질문 더 보기',
+    qaAnswerButton: '답변하기',
+    qaAnswerFormPlaceholder: '답변을 작성해주세요...',
+    qaAnswerSubmit: '답변 등록',
+    qaAnswerNotEligible: '이 상품을 구매한 고객만 답변할 수 있습니다.',
+    qaAnswerSlotFull: '이 질문은 공개 답변 수가 이미 가득 찼습니다.',
+    qaVerifiedBadge: '구매 확인',
+    qaAdminBadge: '판매자',
+    qaNoAnswersYet: '아직 답변이 없습니다.',
   },
 }
 

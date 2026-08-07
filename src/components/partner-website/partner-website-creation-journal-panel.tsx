@@ -385,8 +385,8 @@ export const PartnerWebsiteCreationJournalPanel = forwardRef<
     if (!journal || journal.phase !== 'built') return []
     const last = journal.entries[journal.entries.length - 1]
     if (last?.suggestions?.length) return last.suggestions
-    return editSuggestionsForJournal(journal, t)
-  }, [journal, t])
+    return editSuggestionsForJournal(journal, t, { locale })
+  }, [journal, locale, t])
 
   useEffect(() => {
     onBusyChange?.(busy || initBusy)

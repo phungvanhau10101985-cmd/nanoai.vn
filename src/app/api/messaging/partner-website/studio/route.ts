@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
+import { fetchPartnerCapabilitiesForPartnerFromPg } from '@/lib/db/messaging-partners-pg'
 import {
+  fetchPartnerProfileForWebsitePg,
   updatePartnerWebsiteCreationJournalPg,
   updatePartnerWebsiteDraftPg,
 } from '@/lib/db/messaging-partner-websites-pg'
+import { getPartnerWebsiteEditSuggestions } from '@/lib/partner-website/partner-website-quick-edits'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
@@ -327,7 +330,7 @@ export async function POST(req: NextRequest) {
         kind: 'site_built',
         role: 'assistant',
         content: result.assistantMessage,
-        suggestions: editSuggestions(locale, t),
+        suggestions: await editSuggestions(locale, t, partnerId),
       })
       journal = {
         ...journal,
@@ -373,7 +376,7 @@ export async function POST(req: NextRequest) {
         kind: 'site_built',
         role: 'assistant',
         content: result.assistantMessage,
-        suggestions: editSuggestions(locale, t),
+        suggestions: await editSuggestions(locale, t, partnerId),
       })
       journal = {
         ...journal,
@@ -409,16 +412,19 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function editSuggestions(
+async function editSuggestions(
   locale: WebLocale,
-  t: ReturnType<typeof getPartnerWebsiteCopy>
-): string[] {
-  return [
-    t.chatSuggestEditHero,
-    t.chatSuggestEditColor,
-    t.quickEditAddFaq,
-    t.quickEditHeroColor,
-    t.quickEditHeroTitle,
-    t.quickEditChatCta,
-  ]
+  t: ReturnType<typeof getPartnerWebsiteCopy>,
+  partnerId: string
+): Promise<string[]> {
+  const profile = await fetchPartnerProfileForWebsitePg(partnerId)
+  const industryKey = profile?.industryKey ?? 'fashion'
+  const capabilities = await fetchPartnerCapabilitiesForPartnerFromPg(partnerId, industryKey)
+  return getPartnerWebsiteEditSuggestions({
+    locale,
+    t,
+    industryKey,
+    capabilities,
+    phase: 'built',
+  })
 }

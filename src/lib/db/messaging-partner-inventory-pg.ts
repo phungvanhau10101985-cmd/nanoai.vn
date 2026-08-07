@@ -4,6 +4,17 @@ import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
+import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
+
+/**
+ * W4.10 — giá dạng số tự tính từ `price_hint` mỗi lần ghi (tạo/sửa/import). Dòng cũ chưa
+ * từng ghi lại giữ `price_amount = null` cho tới lần sửa kế tiếp — không backfill hàng loạt
+ * để tránh đổi hành vi hiển thị giá hiện có (additive, xem docs/188_BEHAVIOR_SPEC.md mục A.4).
+ */
+function computePriceAmountForWrite(priceHint: string | null | undefined): number | null {
+  const amount = parseVndFromPriceHint(priceHint ?? undefined)
+  return amount > 0 ? amount : null
+}
 
 export type MessagingPartnerInventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 export type MessagingPartnerInventoryInsert = Database['public']['Tables']['messaging_partner_inventory']['Insert']
@@ -70,6 +81,15 @@ function isMissingRemarketingIdColumnError(e: unknown): boolean {
   return msg.includes('remarketing_id') && msg.includes('messaging_partner_inventory')
 }
 
+/** W4.10 — DB chưa áp migration `price_amount`/`price_currency`. */
+function isMissingPriceAmountColumnError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (err.code !== '42703') return false
+  const msg = String(err.message ?? '').toLowerCase()
+  return msg.includes('price_amount') && msg.includes('messaging_partner_inventory')
+}
+
 type PgInventoryRaw = {
   id: string
   partner_id: string
@@ -90,6 +110,11 @@ type PgInventoryRaw = {
   real_use_image_url: string
   real_use_image_url_2: string
   is_active: boolean | null
+  price_amount: number | string | null
+  price_currency: string
+  sale_price_amount: number | string | null
+  sale_starts_at: unknown
+  sale_ends_at: unknown
   image_embedding_json: unknown
   image_embedding_vec: string | null
   image_embedding_model: string | null
@@ -134,6 +159,11 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
     real_use_image_url: String(r.real_use_image_url ?? ''),
     real_use_image_url_2: String(r.real_use_image_url_2 ?? ''),
     is_active: r.is_active !== false,
+    price_amount: numOrNull(r.price_amount),
+    price_currency: String(r.price_currency ?? 'VND').trim() || 'VND',
+    sale_price_amount: numOrNull(r.sale_price_amount),
+    sale_starts_at: tsIso(r.sale_starts_at),
+    sale_ends_at: tsIso(r.sale_ends_at),
     image_embedding_json: parseEmbeddingJson(r.image_embedding_json),
     image_embedding_vec: r.image_embedding_vec ?? null,
     image_embedding_model: r.image_embedding_model ?? null,
@@ -178,6 +208,57 @@ const INVENTORY_PAGE_SELECT = `select
   coalesce(mpi.real_use_image_url, '') as real_use_image_url,
   coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
   coalesce(mpi.is_active, true) as is_active,
+  mpi.price_amount,
+  coalesce(mpi.price_currency, 'VND') as price_currency,
+  mpi.sale_price_amount,
+  mpi.sale_starts_at,
+  mpi.sale_ends_at,
+  mpi.image_embedding_json,
+  mpi.image_embedding_vec::text as image_embedding_vec,
+  mpi.image_embedding_model,
+  mpi.image_embedding_dims,
+  mpi.image_embedding_fingerprint,
+  mpi.image_embedding_updated_at,
+  mpi.image_embedding_error,
+  mpi.text_embedding_json,
+  mpi.text_embedding_vec::text as text_embedding_vec,
+  mpi.text_embedding_model,
+  mpi.text_embedding_dims,
+  mpi.text_embedding_fingerprint,
+  mpi.text_embedding_updated_at,
+  mpi.text_embedding_error,
+  mpi.vision_catalog_checksum,
+  mpi.vision_catalog_synced_at,
+  coalesce(mpi.vision_catalog_excluded, false) as vision_catalog_excluded,
+  mpi.consult_link_opening_text,
+  mpi.consult_link_opening_input_fingerprint,
+  mpi.created_at,
+  mpi.updated_at
+from public.messaging_partner_inventory mpi`
+
+/** DB chưa migration `price_amount`/`price_currency` (W4.10) — giữ đủ cột khác. */
+const INVENTORY_PAGE_SELECT_PRE_PRICE_AMOUNT = `select
+  mpi.id::text as id,
+  mpi.partner_id::text as partner_id,
+  mpi.sort_order,
+  mpi.sku,
+  coalesce(mpi.name, '') as name,
+  coalesce(mpi.description, '') as description,
+  coalesce(mpi.stock_note, '') as stock_note,
+  coalesce(mpi.stock_qty, 0) as stock_qty,
+  coalesce(mpi.price_hint, '') as price_hint,
+  coalesce(mpi.image_url, '') as image_url,
+  coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.product_video_url, '') as product_video_url,
+  coalesce(mpi.consult_note, '') as consult_note,
+  coalesce(mpi.remarketing_id, '') as remarketing_id,
+  coalesce(mpi.material_note, '') as material_note,
+  coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,
+  coalesce(mpi.real_use_image_url, '') as real_use_image_url,
+  coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
+  coalesce(mpi.is_active, true) as is_active,
+  null::numeric as price_amount,
+  'VND'::text as price_currency,
   mpi.image_embedding_json,
   mpi.image_embedding_vec::text as image_embedding_vec,
   mpi.image_embedding_model,
@@ -222,6 +303,8 @@ const INVENTORY_PAGE_SELECT_PRE_REMARKETING = `select
   coalesce(mpi.real_use_image_url, '') as real_use_image_url,
   coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
   coalesce(mpi.is_active, true) as is_active,
+  null::numeric as price_amount,
+  'VND'::text as price_currency,
   mpi.image_embedding_json,
   mpi.image_embedding_vec::text as image_embedding_vec,
   mpi.image_embedding_model,
@@ -265,6 +348,8 @@ const INVENTORY_PAGE_SELECT_LEGACY = `select
   coalesce(mpi.real_use_image_url, '') as real_use_image_url,
   coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
   coalesce(mpi.is_active, true) as is_active,
+  null::numeric as price_amount,
+  'VND'::text as price_currency,
   mpi.image_embedding_json,
   mpi.image_embedding_vec::text as image_embedding_vec,
   mpi.image_embedding_model,
@@ -295,6 +380,9 @@ async function runInventorySelectWithStockQtyFallback(
   try {
     return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT}\n${sqlFromSelect}`, params)
   } catch (e) {
+    if (isMissingPriceAmountColumnError(e)) {
+      return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_PRE_PRICE_AMOUNT}\n${sqlFromSelect}`, params)
+    }
     if (isMissingRemarketingIdColumnError(e)) {
       try {
         return await pgQuery<PgInventoryRaw>(
@@ -325,6 +413,172 @@ export type PartnerInventoryShopListQuery = {
   /** Explicit inventory UUID list (collection curated). */
   ids?: string[]
   sort?: 'default' | 'newest' | 'name'
+}
+
+export type PartnerCategoryInventoryQuery = {
+  offset: number
+  limit: number
+  categoryId: string
+  sort?: 'newest' | 'name' | 'price_asc' | 'price_desc'
+  /** W4.11 — khoảng giá (VND). Sản phẩm chưa có `price_amount` (chưa từng sửa/import lại từ W4.10) bị loại khỏi kết quả lọc giá — xem docs/188_BEHAVIOR_SPEC.md mục A.7. */
+  minPrice?: number
+  maxPrice?: number
+  /** W4.11 fashion facets — match option JSON stored in description / stock_note. */
+  size?: string
+  color?: string
+}
+
+/**
+ * Trang sản phẩm gán trực tiếp vào 1 danh mục (W4.9/W4.11). Sort mặc định = mới nhất — xem
+ * docs/188_BEHAVIOR_SPEC.md mục A.4 (cố ý KHÔNG copy sort=random mặc định của 188).
+ * `null` = không pool hoặc lỗi — caller xử lý khi không có PG.
+ */
+export async function fetchPartnerInventoryPageByCategoryFromPg(
+  partnerId: string,
+  query: PartnerCategoryInventoryQuery
+): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
+  if (!isPgConfigured()) return null
+  const off = Math.max(0, Math.floor(query.offset))
+  const lim = Math.max(1, Math.min(96, Math.floor(query.limit)))
+  const categoryId = query.categoryId.trim()
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) {
+    return { rows: [], count: 0 }
+  }
+  const orderBy =
+    query.sort === 'name'
+      ? 'lower(mpi.name) asc, mpi.sort_order asc'
+      : query.sort === 'price_asc'
+        ? 'mpi.price_amount asc nulls last, mpi.sort_order asc'
+        : query.sort === 'price_desc'
+          ? 'mpi.price_amount desc nulls last, mpi.sort_order asc'
+          : 'mpi.created_at desc nulls last, mpi.sort_order asc'
+
+  const conditions = [
+    'mpi.partner_id = $1::uuid',
+    'coalesce(mpi.is_active, true) = true',
+    `exists (
+      select 1 from public.messaging_partner_inventory_categories pic
+      where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
+    )`,
+  ]
+  const params: unknown[] = [partnerId, categoryId]
+  const minPrice = typeof query.minPrice === 'number' && Number.isFinite(query.minPrice) ? Math.max(0, query.minPrice) : null
+  const maxPrice = typeof query.maxPrice === 'number' && Number.isFinite(query.maxPrice) ? Math.max(0, query.maxPrice) : null
+  if (minPrice !== null) {
+    params.push(minPrice)
+    conditions.push(`mpi.price_amount >= $${params.length}::numeric`)
+  }
+  if (maxPrice !== null) {
+    params.push(maxPrice)
+    conditions.push(`mpi.price_amount <= $${params.length}::numeric`)
+  }
+  const size = String(query.size ?? '').trim().slice(0, 40)
+  const color = String(query.color ?? '').trim().slice(0, 40)
+  if (size) {
+    params.push(`%"${size.replace(/"/g, '')}"%`)
+    conditions.push(`coalesce(mpi.description, '') like $${params.length}`)
+  }
+  if (color) {
+    params.push(`%"${color.replace(/"/g, '')}"%`)
+    conditions.push(`coalesce(mpi.stock_note, '') like $${params.length}`)
+  }
+  const where = conditions.join(' and ')
+
+  try {
+    const countRow = await pgQueryOne<{ c: number }>(
+      `select count(*)::int as c from public.messaging_partner_inventory mpi where ${where}`,
+      params
+    )
+    const limitIdx = params.length + 1
+    const offsetIdx = params.length + 2
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where ${where}
+       order by ${orderBy}
+       limit $${limitIdx} offset $${offsetIdx}`,
+      [...params, lim, off]
+    )
+    return { count: countRow?.c ?? 0, rows: rows.map(mapPgInventoryRow) }
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return { rows: [], count: 0 }
+    console.warn('[fetchPartnerInventoryPageByCategoryFromPg]', e)
+    return null
+  }
+}
+
+/** W4.11 — facet value counts for a category (fashion size/color from option JSON). */
+export async function fetchPartnerCategoryFacetCountsFromPg(
+  partnerId: string,
+  categoryId: string
+): Promise<{ sizes: Array<{ value: string; count: number }>; colors: Array<{ value: string; count: number }> } | null> {
+  if (!isPgConfigured()) return null
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) {
+    return { sizes: [], colors: [] }
+  }
+  try {
+    const rows = await pgQuery<{ description: string; stock_note: string }>(
+      `select coalesce(mpi.description, '') as description, coalesce(mpi.stock_note, '') as stock_note
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+         and exists (
+           select 1 from public.messaging_partner_inventory_categories pic
+           where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
+         )
+       limit 500`,
+      [partnerId, categoryId]
+    )
+    const {
+      parseInventorySizesForFacet,
+      parseInventoryColorsForFacet,
+    } = await import('@/lib/partner-website/shop/partner-shop-industry-facets')
+    const sizeMap = new Map<string, number>()
+    const colorMap = new Map<string, number>()
+    for (const r of rows) {
+      for (const s of parseInventorySizesForFacet(r.description)) {
+        sizeMap.set(s, (sizeMap.get(s) ?? 0) + 1)
+      }
+      for (const c of parseInventoryColorsForFacet(r.stock_note)) {
+        colorMap.set(c, (colorMap.get(c) ?? 0) + 1)
+      }
+    }
+    const toList = (m: Map<string, number>) =>
+      [...m.entries()]
+        .map(([value, count]) => ({ value, count }))
+        .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
+        .slice(0, 40)
+    return { sizes: toList(sizeMap), colors: toList(colorMap) }
+  } catch (e) {
+    console.warn('[fetchPartnerCategoryFacetCountsFromPg]', e)
+    return null
+  }
+}
+
+/** W4.11 — min/max `price_amount` trong 1 danh mục, cho UI hiển thị khoảng giá gợi ý. */
+export async function fetchPartnerCategoryPriceRangeFromPg(
+  partnerId: string,
+  categoryId: string
+): Promise<{ min: number; max: number } | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ min_price: string | number | null; max_price: string | number | null }>(
+      `select min(mpi.price_amount) as min_price, max(mpi.price_amount) as max_price
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+         and mpi.price_amount is not null
+         and exists (
+           select 1 from public.messaging_partner_inventory_categories pic
+           where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
+         )`,
+      [partnerId, categoryId]
+    )
+    if (!row || row.min_price == null || row.max_price == null) return null
+    return { min: Number(row.min_price), max: Number(row.max_price) }
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return null
+    console.warn('[fetchPartnerCategoryPriceRangeFromPg]', e)
+    return null
+  }
 }
 
 /**
@@ -1206,6 +1460,7 @@ function inventoryInsertRowParams(r: MessagingPartnerInventoryInsert): unknown[]
     r.is_active !== false,
     r.created_at ?? nowIso,
     r.updated_at ?? nowIso,
+    computePriceAmountForWrite(r.price_hint),
   ]
 }
 
@@ -1225,14 +1480,14 @@ export async function insertPartnerInventoryChunkFromPg(
       const rowParams = inventoryInsertRowParams(r)
       if (!rowParams) return false
       valuesSql.push(
-        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
+        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz, $${p++}::numeric)`
       )
       params.push(...rowParams)
     }
     await getPgPool().query(
       `insert into public.messaging_partner_inventory (
         id, partner_id, sort_order, sku, name, description, stock_note, stock_qty, price_hint,
-        image_url, product_url, product_video_url, consult_note, remarketing_id, is_active, created_at, updated_at
+        image_url, product_url, product_video_url, consult_note, remarketing_id, is_active, created_at, updated_at, price_amount
       ) values ${valuesSql.join(', ')}`,
       params
     )
@@ -1259,14 +1514,14 @@ export async function upsertPartnerInventoryChunkFromPg(
       const rowParams = inventoryInsertRowParams(r)
       if (!rowParams) return false
       valuesSql.push(
-        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz)`
+        `($${p++}::uuid, $${p++}::uuid, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::int, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::text, $${p++}::bool, $${p++}::timestamptz, $${p++}::timestamptz, $${p++}::numeric)`
       )
       params.push(...rowParams)
     }
     await getPgPool().query(
       `insert into public.messaging_partner_inventory (
         id, partner_id, sort_order, sku, name, description, stock_note, stock_qty, price_hint,
-        image_url, product_url, product_video_url, consult_note, remarketing_id, is_active, created_at, updated_at
+        image_url, product_url, product_video_url, consult_note, remarketing_id, is_active, created_at, updated_at, price_amount
       ) values ${valuesSql.join(', ')}
       on conflict (id) do update set
         partner_id = excluded.partner_id,
@@ -1284,7 +1539,8 @@ export async function upsertPartnerInventoryChunkFromPg(
         remarketing_id = excluded.remarketing_id,
         is_active = excluded.is_active,
         created_at = excluded.created_at,
-        updated_at = excluded.updated_at
+        updated_at = excluded.updated_at,
+        price_amount = excluded.price_amount
       where public.messaging_partner_inventory.partner_id = excluded.partner_id`,
       params
     )
@@ -1750,6 +2006,9 @@ export async function updatePartnerInventoryDashboardItemFromPg(
     remarketing_id: string | null
     sort_order: number
     updated_at: string
+    sale_price_amount?: number | null
+    sale_starts_at?: string | null
+    sale_ends_at?: string | null
   }
 ): Promise<boolean> {
   if (!isPgConfigured()) return false
@@ -1773,6 +2032,10 @@ export async function updatePartnerInventoryDashboardItemFromPg(
         remarketing_id = $17,
         sort_order = $18,
         is_active = true,
+        price_amount = $20::numeric,
+        sale_price_amount = $21::numeric,
+        sale_starts_at = $22::timestamptz,
+        sale_ends_at = $23::timestamptz,
         updated_at = $19::timestamptz
        where partner_id = $1::uuid and id = $2::uuid`,
       [
@@ -1795,6 +2058,10 @@ export async function updatePartnerInventoryDashboardItemFromPg(
         fields.remarketing_id,
         fields.sort_order,
         fields.updated_at,
+        computePriceAmountForWrite(fields.price_hint),
+        fields.sale_price_amount == null ? null : Math.max(0, Number(fields.sale_price_amount)),
+        fields.sale_starts_at || null,
+        fields.sale_ends_at || null,
       ]
     )
     return (r.rowCount ?? 0) > 0
@@ -1833,9 +2100,9 @@ export async function insertPartnerInventoryDashboardItemFromPg(
       `insert into public.messaging_partner_inventory (
         partner_id, name, sku, description, stock_note, stock_qty, price_hint, image_url, product_url, product_video_url, consult_note,
         material_note, material_detail_image_url, real_use_image_url, real_use_image_url_2, remarketing_id,
-        sort_order, is_active, created_at, updated_at
+        sort_order, is_active, price_amount, created_at, updated_at
       ) values (
-        $1::uuid, $2, $3, $4, $5, $6::int, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, true, $18::timestamptz, $19::timestamptz
+        $1::uuid, $2, $3, $4, $5, $6::int, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, true, $20::numeric, $18::timestamptz, $19::timestamptz
       )
       returning id::text as id`,
       [
@@ -1858,6 +2125,7 @@ export async function insertPartnerInventoryDashboardItemFromPg(
         fields.sort_order,
         fields.created_at,
         fields.updated_at,
+        computePriceAmountForWrite(fields.price_hint),
       ]
     )
     return row?.id ?? null

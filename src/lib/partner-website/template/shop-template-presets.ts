@@ -1,10 +1,23 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 
-export type ShopTemplatePresetId = 'commerce-blue' | 'fashion-orange' | 'hospitality-stay'
+export type ShopTemplatePresetId =
+  | 'commerce-blue'
+  | 'fashion-orange'
+  | 'hospitality-stay'
+  | 'food-warm'
+  | 'commerce-minimal'
+  | 'soft-neutral'
 
 export function isShopTemplatePresetId(id: string | null | undefined): id is ShopTemplatePresetId {
-  return id === 'commerce-blue' || id === 'fashion-orange' || id === 'hospitality-stay'
+  return (
+    id === 'commerce-blue' ||
+    id === 'fashion-orange' ||
+    id === 'hospitality-stay' ||
+    id === 'food-warm' ||
+    id === 'commerce-minimal' ||
+    id === 'soft-neutral'
+  )
 }
 
 export type ShopTemplatePresetFlags = {
@@ -157,6 +170,99 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
     },
     flags: HOSPITALITY_FLAGS,
   },
+  {
+    id: 'food-warm',
+    templateId: 'food-warm',
+    label: {
+      vi: 'Quán ăn / F&B (ấm)',
+      en: 'Food & beverage (warm)',
+      zh: '餐饮（暖色）',
+      ja: '飲食（ウォーム）',
+      ko: '음식점 (웜톤)',
+    },
+    description: {
+      vi: 'Tone ấm cho quán ăn/đồ uống: hero, danh mục món, sản phẩm, chat đặt món.',
+      en: 'Warm tones for F&B: hero, menu categories, products, order chat.',
+      zh: '餐饮暖色：Hero、菜单分类、产品、点餐聊天。',
+      ja: '飲食向け暖色：Hero・カテゴリ・商品・注文チャット。',
+      ko: 'F&B 웜톤: 히어로, 메뉴 카테고리, 상품, 주문 채팅.',
+    },
+    swatch: { primary: '#c2410c', accent: '#ea580c', background: '#fff7ed' },
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80',
+    readyToUse: true,
+    theme: {
+      primaryColor: '#c2410c',
+      accentColor: '#ea580c',
+      backgroundColor: '#fff7ed',
+      textColor: '#431407',
+      mutedColor: '#9a3412',
+      fontFamily: '"Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+    },
+    flags: COMMERCE_FULL_FLAGS,
+  },
+  {
+    id: 'commerce-minimal',
+    templateId: 'commerce-minimal',
+    label: {
+      vi: 'Shop tối giản',
+      en: 'Minimal commerce',
+      zh: '极简商城',
+      ja: 'ミニマルショップ',
+      ko: '미니멀 쇼핑몰',
+    },
+    description: {
+      vi: 'Nền trắng, chữ đen, nhấn đen — tập trung sản phẩm và chuyển đổi.',
+      en: 'White canvas, black accents — product-first conversion layout.',
+      zh: '白底黑强调 — 以产品与转化为中心。',
+      ja: '白基調・黒アクセント — 商品中心のCV向け。',
+      ko: '화이트·블랙 액센트 — 상품 중심 전환 UI.',
+    },
+    swatch: { primary: '#111827', accent: '#374151', background: '#ffffff' },
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80',
+    readyToUse: true,
+    theme: {
+      primaryColor: '#111827',
+      accentColor: '#374151',
+      backgroundColor: '#ffffff',
+      textColor: '#111827',
+      mutedColor: '#6b7280',
+      fontFamily: '"Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+    },
+    flags: COMMERCE_FULL_FLAGS,
+  },
+  {
+    id: 'soft-neutral',
+    templateId: 'soft-neutral',
+    label: {
+      vi: 'Trung tính mềm',
+      en: 'Soft neutral',
+      zh: '柔和中性',
+      ja: 'ソフトニュートラル',
+      ko: '소프트 뉴트럴',
+    },
+    description: {
+      vi: 'Tone be/xám nhẹ — phù hợp lifestyle, handmade, cửa hàng nhỏ.',
+      en: 'Soft beige/gray — lifestyle, handmade, boutique shops.',
+      zh: '柔和米色/灰 — 生活方式、手作、精品店。',
+      ja: 'ベージュ／グレー — ライフスタイル・ハンドメイド向け。',
+      ko: '베이지·그레이 — 라이프스타일·핸드메이드.',
+    },
+    swatch: { primary: '#78716c', accent: '#a8a29e', background: '#fafaf9' },
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
+    readyToUse: true,
+    theme: {
+      primaryColor: '#78716c',
+      accentColor: '#a8a29e',
+      backgroundColor: '#fafaf9',
+      textColor: '#292524',
+      mutedColor: '#78716c',
+      fontFamily: '"Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+    },
+    flags: COMMERCE_FULL_FLAGS,
+  },
 ]
 
 export const DEFAULT_SHOP_TEMPLATE_PRESET_ID: ShopTemplatePresetId = 'commerce-blue'
@@ -183,5 +289,6 @@ export function suggestedShopTemplatePresetForIndustry(
 ): ShopTemplatePresetId {
   if (industryKey === 'hotel') return 'hospitality-stay'
   if (industryKey === 'fashion') return 'fashion-orange'
+  if (industryKey === 'food') return 'food-warm'
   return 'commerce-blue'
 }

@@ -138,6 +138,8 @@ export default async function DashboardPartnerWebsitePage({
 
       ordersLabel={pm.messagingOrdersLink}
 
+      analyticsLabel={pm.messagingAnalyticsLink}
+
       partnerId={activePartner?.id}
 
     >

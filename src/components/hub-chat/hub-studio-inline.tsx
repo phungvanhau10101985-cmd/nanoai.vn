@@ -466,8 +466,8 @@ export function HubStudioMessageBubble({
   const interactiveBagMockup =
     isBagKitPreset(studioSession?.presetId) &&
     st?.screenKey === 'bag_mockup_3d' &&
-    studioSession.bagKit?.dimensionsMm &&
-    studioSession.bagKit.faceSlots
+    studioSession?.bagKit?.dimensionsMm &&
+    studioSession?.bagKit.faceSlots
   const interactiveMockup3d = interactivePackaging || interactiveBagMockup
   const isPackagingFacePreview =
     studioSession?.presetId === 'packaging_kit' &&
@@ -901,11 +901,11 @@ export function HubStudioMessageBubble({
             />
           ) : interactiveBagMockup ? (
             <PackagingBagMockup3D
-              dimensionsMm={studioSession.bagKit!.dimensionsMm!}
-              faceSlots={studioSession.bagKit!.faceSlots!}
+              dimensionsMm={studioSession!.bagKit!.dimensionsMm!}
+              faceSlots={studioSession!.bagKit!.faceSlots!}
               locale={uiLocale}
-              photoUrl={studioSession.bagKit?.mockupPhotoUrl}
-              downloadUrl={studioSession.bagKit?.mockupUrl ?? st.imageUrl}
+              photoUrl={studioSession?.bagKit?.mockupPhotoUrl}
+              downloadUrl={studioSession?.bagKit?.mockupUrl ?? st.imageUrl}
               viewLargeLabel={hc.studioViewLarge}
               downloadLabels={{
                 button: hc.studioDownload,

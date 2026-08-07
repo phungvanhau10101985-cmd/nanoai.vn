@@ -2,6 +2,7 @@
 
 const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'products',
+  'c',
   'cart',
   'orders',
   'account',
@@ -16,8 +17,18 @@ const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'returns',
   'privacy',
   'terms',
+  'payment',
+  'thank-you',
+  'stores',
+  'lookbook',
+  'size-guide',
+  'blog',
   'lp',
+  'pages',
   'order-tracking',
+  'sitemap.xml',
+  'manifest.webmanifest',
+  'sw.js',
 ])
 
 export function partnerSiteInternalPrefix(siteSlug: string): string {

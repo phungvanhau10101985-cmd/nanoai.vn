@@ -8,6 +8,7 @@ type Props = {
   inboxLabel: string
   settingsLabel: string
   ordersLabel: string
+  analyticsLabel: string
   partnerId?: string
   children: ReactNode
 }
@@ -18,6 +19,7 @@ export function PartnerWebsiteDashboardShell({
   inboxLabel,
   settingsLabel,
   ordersLabel,
+  analyticsLabel,
   partnerId,
   children,
 }: Props) {
@@ -39,6 +41,7 @@ export function PartnerWebsiteDashboardShell({
           inboxLabel={inboxLabel}
           settingsLabel={settingsLabel}
           ordersLabel={ordersLabel}
+          analyticsLabel={analyticsLabel}
           partnerId={partnerId}
         />
       </div>

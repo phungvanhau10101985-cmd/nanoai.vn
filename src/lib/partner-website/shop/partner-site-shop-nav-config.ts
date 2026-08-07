@@ -3,6 +3,7 @@ import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-
 import {
   partnerSiteAccountEditPath,
   partnerSiteAccountPath,
+  partnerSiteAccountTabPath,
   partnerSiteAddressesPath,
   partnerSiteCartPath,
   partnerSiteHomePath,
@@ -18,10 +19,14 @@ export type PartnerSiteAccountMenuItemId =
   | 'edit-profile'
   | 'cart'
   | 'orders'
+  | 'wallet'
   | 'recently-viewed'
   | 'addresses'
   | 'wishlist'
   | 'contact'
+  | 'security'
+  | 'notifications'
+  | 'install-app'
 
 export type PartnerSiteAccountMenuItem = {
   id: PartnerSiteAccountMenuItemId
@@ -46,6 +51,12 @@ export type PartnerSiteCategoryNavLabels = {
   returns: string
   privacy: string
   terms: string
+  /** W3.2 */
+  payment: string
+  stores: string
+  lookbook: string
+  sizeGuide: string
+  blog: string
 }
 
 export type PartnerSiteShopNavPaths = {
@@ -79,6 +90,11 @@ export function getPartnerSiteCategoryNavLabels(locale: WebLocale): PartnerSiteC
       returns: 'Đổi trả',
       privacy: 'Bảo mật',
       terms: 'Điều khoản',
+      payment: 'Thanh toán',
+      stores: 'Cửa hàng',
+      lookbook: 'Lookbook',
+      sizeGuide: 'Hướng dẫn size',
+      blog: 'Blog',
     }
   }
   if (locale === 'zh') {
@@ -97,6 +113,11 @@ export function getPartnerSiteCategoryNavLabels(locale: WebLocale): PartnerSiteC
       returns: '退换',
       privacy: '隐私',
       terms: '条款',
+      payment: '支付说明',
+      stores: '门店',
+      lookbook: 'Lookbook',
+      sizeGuide: '尺码指南',
+      blog: '博客',
     }
   }
   if (locale === 'ja') {
@@ -115,6 +136,11 @@ export function getPartnerSiteCategoryNavLabels(locale: WebLocale): PartnerSiteC
       returns: '返品',
       privacy: 'プライバシー',
       terms: '利用規約',
+      payment: 'お支払い',
+      stores: '店舗',
+      lookbook: 'ルックブック',
+      sizeGuide: 'サイズガイド',
+      blog: 'ブログ',
     }
   }
   if (locale === 'ko') {
@@ -133,6 +159,11 @@ export function getPartnerSiteCategoryNavLabels(locale: WebLocale): PartnerSiteC
       returns: '교환·반품',
       privacy: '개인정보',
       terms: '이용약관',
+      payment: '결제 안내',
+      stores: '매장',
+      lookbook: '룩북',
+      sizeGuide: '사이즈 가이드',
+      blog: '블로그',
     }
   }
   return {
@@ -150,6 +181,11 @@ export function getPartnerSiteCategoryNavLabels(locale: WebLocale): PartnerSiteC
     returns: 'Returns',
     privacy: 'Privacy',
     terms: 'Terms',
+    payment: 'Payment',
+    stores: 'Stores',
+    lookbook: 'Lookbook',
+    sizeGuide: 'Size guide',
+    blog: 'Blog',
   }
 }
 
@@ -190,7 +226,12 @@ export function getPartnerSiteAccountMenuItems(input: {
         orders: '#lead-form',
         recentlyViewed: '#products',
         addresses: '#lead-form',
+        wishlist: '#products',
+        contact: '#lead-form',
       }
+
+  const tab = (id: Parameters<typeof partnerSiteAccountTabPath>[1], fallback: string) =>
+    slug ? partnerSiteAccountTabPath(slug, id, { customDomain: input.customDomain }) : fallback
 
   return [
     { id: 'account', href: paths.account, label: t.navAccount, isHeader: true },
@@ -200,12 +241,16 @@ export function getPartnerSiteAccountMenuItems(input: {
       label: t.accountEditProfile,
       isAccent: true,
     },
-    { id: 'cart', href: slug ? `${paths.account}#cart` : paths.cart, label: t.navCart },
-    { id: 'orders', href: slug ? `${paths.account}#orders` : paths.orders, label: t.navOrders },
-    { id: 'wishlist', href: slug ? `${paths.account}#wishlist` : paths.wishlist, label: t.navFavorites },
-    { id: 'recently-viewed', href: slug ? `${paths.account}#recently-viewed` : paths.recentlyViewed, label: t.accountViewedProducts },
-    { id: 'addresses', href: slug ? `${paths.account}#addresses` : paths.addresses, label: t.accountAddressBook },
-    { id: 'contact', href: slug ? `${paths.account}#contact` : paths.contact, label: getPartnerSiteCategoryNavLabels(input.locale).contact },
+    { id: 'cart', href: tab('cart', paths.cart), label: t.navCart },
+    { id: 'orders', href: tab('orders', paths.orders), label: t.navOrders },
+    { id: 'wallet', href: tab('wallet', paths.account), label: t.navWallet },
+    { id: 'wishlist', href: tab('wishlist', paths.wishlist), label: t.navFavorites },
+    { id: 'recently-viewed', href: tab('recently-viewed', paths.recentlyViewed), label: t.accountViewedProducts },
+    { id: 'addresses', href: tab('addresses', paths.addresses), label: t.accountAddressBook },
+    { id: 'security', href: tab('security', paths.account), label: t.accountSecurity },
+    { id: 'notifications', href: tab('notifications', paths.account), label: t.accountNotifications },
+    { id: 'install-app', href: tab('install-app', paths.account), label: t.accountInstallApp },
+    { id: 'contact', href: tab('contact', paths.contact), label: getPartnerSiteCategoryNavLabels(input.locale).contact },
   ]
 }
 

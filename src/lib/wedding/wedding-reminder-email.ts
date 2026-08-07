@@ -91,6 +91,8 @@ export async function sendWeddingReminderEmail(row: WeddingReminderDueRow): Prom
         ? ` ${row.guestName.trim()}`
         : ''
 
+  const dateLabel = formatWeddingDateForDisplay(weddingDateIso, locale)
+
   const vars = {
     couple,
     guest: guestToken,

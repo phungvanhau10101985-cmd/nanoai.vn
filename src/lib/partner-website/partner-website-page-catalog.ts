@@ -193,6 +193,7 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     key: 'payment',
     htmlPath: 'payment.html',
     routePath: '/payment',
+    studioMode: 'platform',
     discoveryKeys: PAGE_FEATURE_KEYS,
     defaultFeaturesVi: [
       'Các phương thức TT (COD, chuyển khoản, ví), hướng dẫn từng bước',
@@ -207,6 +208,7 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     key: 'thank_you',
     htmlPath: 'thank-you.html',
     routePath: '/thank-you',
+    studioMode: 'platform',
     discoveryKeys: PAGE_FEATURE_KEYS,
     defaultFeaturesVi: [
       'Xác nhận đặt hàng thành công, mã đơn, bước tiếp theo, CTA theo dõi đơn',
@@ -221,6 +223,7 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     key: 'stores',
     htmlPath: 'stores.html',
     routePath: '/stores',
+    studioMode: 'platform',
     discoveryKeys: PAGE_FEATURE_KEYS,
     defaultFeaturesVi: [
       'Danh sách cửa hàng, địa chỉ, giờ mở cửa, bản đồ, chỉ đường',
@@ -235,6 +238,7 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     key: 'blog',
     htmlPath: 'blog.html',
     routePath: '/blog',
+    studioMode: 'platform',
     discoveryKeys: PAGE_FEATURE_KEYS,
     defaultFeaturesVi: [
       'Danh sách bài viết/style tip, thẻ chủ đề, đọc tiếp, CTA shop',
@@ -263,6 +267,7 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     key: 'lookbook',
     htmlPath: 'lookbook.html',
     routePath: '/lookbook',
+    studioMode: 'platform',
     discoveryKeys: PAGE_FEATURE_KEYS,
     defaultFeaturesVi: [
       'Gallery look/editorial, shop the look, CTA chat / xem SP',
@@ -277,6 +282,7 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     key: 'size_guide',
     htmlPath: 'size-guide.html',
     routePath: '/size-guide',
+    studioMode: 'platform',
     discoveryKeys: PAGE_FEATURE_KEYS,
     defaultFeaturesVi: [
       'Bảng size áo/quần, cách đo, tip chọn size, CTA chat tư vấn',

@@ -149,7 +149,7 @@ export function PartnerWebsiteRevisionMenu({
               disabled={Boolean(restoringId)}
               onClick={() => void restoreRevision(latestId)}
             >
-              {t.restoreButton}
+              {t.undoLastButton}
             </DropdownMenuItem>
           </>
         ) : null}

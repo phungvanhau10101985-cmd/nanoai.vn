@@ -5,12 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-type NavKey = 'inbox' | 'settings' | 'orders'
+type NavKey = 'inbox' | 'settings' | 'orders' | 'analytics'
 
 type Props = {
   inboxLabel: string
   settingsLabel: string
   ordersLabel: string
+  analyticsLabel: string
   active?: NavKey
   /** When set, preserves partner context in nav links. */
   partnerId?: string
@@ -20,6 +21,7 @@ function MessagingDashboardNavLinksInner({
   inboxLabel,
   settingsLabel,
   ordersLabel,
+  analyticsLabel,
   active,
   partnerId: partnerIdProp,
 }: Props) {
@@ -51,6 +53,7 @@ function MessagingDashboardNavLinksInner({
     { key: 'inbox', href: `/dashboard/messaging/inbox${partnerQuery}`, label: inboxLabel },
     { key: 'settings', href: `/dashboard/messaging/settings${partnerQuery}`, label: settingsLabel },
     { key: 'orders', href: `/dashboard/messaging/orders${partnerQuery}`, label: ordersLabel },
+    { key: 'analytics', href: `/dashboard/messaging/analytics${partnerQuery}`, label: analyticsLabel },
   ]
 
   return (

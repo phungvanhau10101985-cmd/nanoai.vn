@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { emptyStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { emptyStudioSession, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import {
   buildGenerationRefPickerPayload,
   sanitizeGenerationSelection,
@@ -82,7 +82,7 @@ test('sanitizeGenerationSelection keeps valid reference keys', () => {
 })
 
 test('remove reference preserves current step and process progress', () => {
-  const session = {
+  const session: HubStudioSession = {
     ...emptyStudioSession(),
     presetId: 'packaging_kit',
     currentStepKey: 'face_bottom',
@@ -112,7 +112,7 @@ test('remove reference preserves current step and process progress', () => {
 
   const removed = session.referenceImages.find((r) => r.screenKey === 'logo')!
   const savedCurrentStepKey = session.currentStepKey
-  let next = {
+  let next: HubStudioSession = {
     ...session,
     referenceImages: session.referenceImages.filter((r) => r.screenKey !== 'logo'),
   }

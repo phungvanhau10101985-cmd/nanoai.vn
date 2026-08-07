@@ -60,6 +60,12 @@ function isMissingPartnerProfileColumnError(e: unknown): boolean {
     msg.includes('ga4_measurement_id') ||
     msg.includes('google_ads_id') ||
     msg.includes('tiktok_pixel_id') ||
+    msg.includes('gtm_container_id') ||
+    msg.includes('default_currency') ||
+    msg.includes('contact_phone') ||
+    msg.includes('contact_zalo_url') ||
+    msg.includes('contact_messenger_url') ||
+    msg.includes('contact_instagram_url') ||
     msg.includes('partner_capabilities') ||
     msg.includes('external_shop_origin') ||
     msg.includes('external_shop_login_path')
@@ -302,6 +308,173 @@ export async function updateMessagingPartnerTiktokPixelForOwnerFromPg(params: {
   }
 }
 
+export async function updateMessagingPartnerGtmContainerForOwnerFromPg(params: {
+  partner_id: string
+  owner_user_id: string
+  gtm_container_id: string | null
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = safeUuid(params.partner_id)
+  const uid = safeOwnerUuid(params.owner_user_id)
+  if (!pid || !uid) return false
+  const gtm = params.gtm_container_id != null ? String(params.gtm_container_id).trim() : ''
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partners
+       set gtm_container_id = $3,
+           updated_at = now()
+       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       returning id::text`,
+      [pid, uid, gtm || null]
+    )
+    return Boolean(row?.id)
+  } catch (e) {
+    console.warn('[updateMessagingPartnerGtmContainerForOwnerFromPg]', e)
+    return false
+  }
+}
+
+export async function fetchMessagingPartnerDefaultCurrencyFromPg(
+  partnerId: string
+): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  const pid = safeUuid(partnerId)
+  if (!pid) return null
+  try {
+    const row = await pgQueryOne<{ default_currency: string | null }>(
+      `select coalesce(nullif(trim(default_currency), ''), 'VND') as default_currency
+       from public.messaging_partners where id = $1::uuid limit 1`,
+      [pid]
+    )
+    return row?.default_currency ? String(row.default_currency).trim().toUpperCase() : 'VND'
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) return 'VND'
+    console.warn('[fetchMessagingPartnerDefaultCurrencyFromPg]', e)
+    return null
+  }
+}
+
+export async function updateMessagingPartnerDefaultCurrencyForOwnerFromPg(params: {
+  partner_id: string
+  owner_user_id: string
+  default_currency: string
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = safeUuid(params.partner_id)
+  const uid = safeOwnerUuid(params.owner_user_id)
+  if (!pid || !uid) return false
+  const currency = String(params.default_currency ?? '')
+    .trim()
+    .toUpperCase()
+    .slice(0, 8)
+  if (!currency) return false
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partners
+       set default_currency = $3,
+           updated_at = now()
+       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       returning id::text`,
+      [pid, uid, currency]
+    )
+    return Boolean(row?.id)
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) {
+      console.warn(
+        '[updateMessagingPartnerDefaultCurrencyForOwnerFromPg] default_currency column missing — run migration.'
+      )
+      return false
+    }
+    console.warn('[updateMessagingPartnerDefaultCurrencyForOwnerFromPg]', e)
+    return false
+  }
+}
+
+export async function fetchMessagingPartnerContactChannelsFromPg(partnerId: string): Promise<{
+  contact_phone: string | null
+  contact_zalo_url: string | null
+  contact_messenger_url: string | null
+  contact_instagram_url: string | null
+} | null> {
+  if (!isPgConfigured()) return null
+  const pid = safeUuid(partnerId)
+  if (!pid) return null
+  try {
+    const row = await pgQueryOne<{
+      contact_phone: string | null
+      contact_zalo_url: string | null
+      contact_messenger_url: string | null
+      contact_instagram_url: string | null
+    }>(
+      `select contact_phone, contact_zalo_url, contact_messenger_url, contact_instagram_url
+       from public.messaging_partners where id = $1::uuid limit 1`,
+      [pid]
+    )
+    if (!row) return null
+    return {
+      contact_phone: row.contact_phone,
+      contact_zalo_url: row.contact_zalo_url,
+      contact_messenger_url: row.contact_messenger_url,
+      contact_instagram_url: row.contact_instagram_url,
+    }
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) {
+      return {
+        contact_phone: null,
+        contact_zalo_url: null,
+        contact_messenger_url: null,
+        contact_instagram_url: null,
+      }
+    }
+    console.warn('[fetchMessagingPartnerContactChannelsFromPg]', e)
+    return null
+  }
+}
+
+export async function updateMessagingPartnerContactChannelsForOwnerFromPg(params: {
+  partner_id: string
+  owner_user_id: string
+  contact_phone: string | null
+  contact_zalo_url: string | null
+  contact_messenger_url: string | null
+  contact_instagram_url: string | null
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = safeUuid(params.partner_id)
+  const uid = safeOwnerUuid(params.owner_user_id)
+  if (!pid || !uid) return false
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partners
+       set contact_phone = $3,
+           contact_zalo_url = $4,
+           contact_messenger_url = $5,
+           contact_instagram_url = $6,
+           updated_at = now()
+       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       returning id::text`,
+      [
+        pid,
+        uid,
+        params.contact_phone,
+        params.contact_zalo_url,
+        params.contact_messenger_url,
+        params.contact_instagram_url,
+      ]
+    )
+    return Boolean(row?.id)
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) {
+      console.warn(
+        '[updateMessagingPartnerContactChannelsForOwnerFromPg] contact_* columns missing — run migration.'
+      )
+      return false
+    }
+    console.warn('[updateMessagingPartnerContactChannelsForOwnerFromPg]', e)
+    return false
+  }
+}
+
 export type MessagingPartnerByIdRow = {
   id: string
   industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
@@ -465,6 +638,8 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       ga4_measurement_id: string | null
       google_ads_id: string | null
       tiktok_pixel_id: string | null
+      gtm_container_id: string | null
+      default_currency: string | null
       created_at: unknown
       updated_at: unknown
     }>(
@@ -477,6 +652,8 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
               nullif(trim(coalesce(ga4_measurement_id, '')), '') as ga4_measurement_id,
               nullif(trim(coalesce(google_ads_id, '')), '') as google_ads_id,
               nullif(trim(coalesce(tiktok_pixel_id, '')), '') as tiktok_pixel_id,
+              nullif(trim(coalesce(gtm_container_id, '')), '') as gtm_container_id,
+              coalesce(nullif(trim(default_currency), ''), 'VND') as default_currency,
               created_at, updated_at
        from public.messaging_partners
        where (
@@ -511,6 +688,15 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       ga4_measurement_id: r.ga4_measurement_id ? String(r.ga4_measurement_id).trim() : null,
       google_ads_id: r.google_ads_id ? String(r.google_ads_id).trim() : null,
       tiktok_pixel_id: r.tiktok_pixel_id ? String(r.tiktok_pixel_id).trim() : null,
+      gtm_container_id: r.gtm_container_id ? String(r.gtm_container_id).trim() : null,
+      default_currency: String(r.default_currency ?? 'VND').trim().toUpperCase() || 'VND',
+      contact_phone: null,
+      contact_zalo_url: null,
+      contact_messenger_url: null,
+      contact_instagram_url: null,
+      partner_capabilities: null,
+      external_shop_origin: null,
+      external_shop_login_path: '',
       created_at: mapTimestamptz(r.created_at),
       updated_at: mapTimestamptz(r.updated_at),
     }))
@@ -567,6 +753,15 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
           ga4_measurement_id: null,
           google_ads_id: null,
           tiktok_pixel_id: null,
+          gtm_container_id: null,
+          default_currency: 'VND',
+          contact_phone: null,
+          contact_zalo_url: null,
+          contact_messenger_url: null,
+          contact_instagram_url: null,
+          partner_capabilities: null,
+          external_shop_origin: null,
+          external_shop_login_path: '',
           created_at: mapTimestamptz(r.created_at),
           updated_at: mapTimestamptz(r.updated_at),
         }))
@@ -655,6 +850,17 @@ export async function fetchMessagingPartnersForDashboardFromPg(
         facebook_pixel_id: r.facebook_pixel_id ? String(r.facebook_pixel_id).trim() : null,
         facebook_capi_access_token: null,
         ga4_measurement_id: r.ga4_measurement_id ? String(r.ga4_measurement_id).trim() : null,
+        google_ads_id: null,
+        tiktok_pixel_id: null,
+        gtm_container_id: null,
+        default_currency: 'VND',
+        contact_phone: null,
+        contact_zalo_url: null,
+        contact_messenger_url: null,
+        contact_instagram_url: null,
+        partner_capabilities: null,
+        external_shop_origin: null,
+        external_shop_login_path: '',
         created_at: mapTimestamptz(r.created_at),
         updated_at: mapTimestamptz(r.updated_at),
         dashboard_access: 'staff',
@@ -768,6 +974,15 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
       ga4_measurement_id: null,
       google_ads_id: null,
       tiktok_pixel_id: null,
+      gtm_container_id: null,
+      default_currency: 'VND',
+      contact_phone: null,
+      contact_zalo_url: null,
+      contact_messenger_url: null,
+      contact_instagram_url: null,
+      partner_capabilities: null,
+      external_shop_origin: null,
+      external_shop_login_path: '',
       created_at: mapTimestamptz(row.created_at),
       updated_at: mapTimestamptz(row.updated_at),
     }
@@ -809,6 +1024,17 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
           facebook_pixel_id: null,
           facebook_capi_access_token: null,
           ga4_measurement_id: null,
+          google_ads_id: null,
+          tiktok_pixel_id: null,
+          gtm_container_id: null,
+          default_currency: 'VND',
+          contact_phone: null,
+          contact_zalo_url: null,
+          contact_messenger_url: null,
+          contact_instagram_url: null,
+          partner_capabilities: null,
+          external_shop_origin: null,
+          external_shop_login_path: '',
           created_at: mapTimestamptz(row.created_at),
           updated_at: mapTimestamptz(row.updated_at),
         }
@@ -892,6 +1118,15 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
       ga4_measurement_id: null,
       google_ads_id: null,
       tiktok_pixel_id: null,
+      gtm_container_id: null,
+      default_currency: 'VND',
+      contact_phone: null,
+      contact_zalo_url: null,
+      contact_messenger_url: null,
+      contact_instagram_url: null,
+      partner_capabilities: null,
+      external_shop_origin: null,
+      external_shop_login_path: '',
       created_at: mapTimestamptz(row.created_at),
       updated_at: mapTimestamptz(row.updated_at),
     }
@@ -945,6 +1180,17 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
           facebook_pixel_id: null,
           facebook_capi_access_token: null,
           ga4_measurement_id: null,
+          google_ads_id: null,
+          tiktok_pixel_id: null,
+          gtm_container_id: null,
+          default_currency: 'VND',
+          contact_phone: null,
+          contact_zalo_url: null,
+          contact_messenger_url: null,
+          contact_instagram_url: null,
+          partner_capabilities: null,
+          external_shop_origin: null,
+          external_shop_login_path: '',
           created_at: mapTimestamptz(row.created_at),
           updated_at: mapTimestamptz(row.updated_at),
         }

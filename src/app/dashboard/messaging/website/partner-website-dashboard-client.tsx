@@ -19,8 +19,17 @@ import { PartnerWebsiteDevicePreview } from '@/components/partner-website/partne
 import { PartnerWebsiteProjectFilesPanel } from '@/components/partner-website/partner-website-project-files-panel'
 import { PartnerWebsiteLeadsPanel } from '@/components/partner-website/partner-website-leads-panel'
 import { PartnerWebsiteCapabilitiesPanel } from '@/components/partner-website/partner-website-capabilities-panel'
+import { PartnerWebsiteCategoriesPanel } from '@/components/partner-website/partner-website-categories-panel'
+import { PartnerWebsiteReviewsQaPanel } from '@/components/partner-website/partner-website-reviews-qa-panel'
+import { PartnerWebsitePromotionsPanel } from '@/components/partner-website/partner-website-promotions-panel'
+import { PartnerWebsiteCustomersPanel } from '@/components/partner-website/partner-website-customers-panel'
+import { PartnerWebsiteStaticPagesPanel } from '@/components/partner-website/partner-website-static-pages-panel'
 import { PartnerWebsiteLandingsPanel } from '@/components/partner-website/partner-website-landings-panel'
 import { PartnerWebsiteSectionsPanel } from '@/components/partner-website/partner-website-sections-panel'
+import { PartnerWebsiteThemeColorsPanel } from '@/components/partner-website/partner-website-theme-colors-panel'
+import { PartnerWebsiteNavFooterPanel } from '@/components/partner-website/partner-website-nav-footer-panel'
+import { PartnerWebsiteFloatingCtaPanel } from '@/components/partner-website/partner-website-floating-cta-panel'
+import { PartnerWebsiteSearchAliasesPanel } from '@/components/partner-website/partner-website-search-aliases-panel'
 import { PartnerWebsiteRevisionMenu } from '@/components/partner-website/partner-website-revision-menu'
 import { PartnerWebsiteResetDialog } from '@/components/partner-website/partner-website-reset-dialog'
 import {
@@ -699,6 +708,54 @@ export function PartnerWebsiteDashboardClient({
               sectionId="partner-website-capabilities"
             />
 
+            <PartnerWebsiteCategoriesPanel
+              locale={locale}
+              t={t}
+              partnerId={partnerId}
+              sectionId="partner-website-categories"
+              onToast={(message, variant) =>
+                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+              }
+            />
+
+            <PartnerWebsiteReviewsQaPanel
+              locale={locale}
+              t={t}
+              partnerId={partnerId}
+              sectionId="partner-website-reviews-qa"
+              onToast={(message, variant) =>
+                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+              }
+            />
+
+            <PartnerWebsiteCustomersPanel
+              locale={locale}
+              t={t}
+              partnerId={partnerId}
+              sectionId="partner-website-customers"
+            />
+
+            <PartnerWebsiteStaticPagesPanel
+              locale={locale}
+              t={t}
+              partnerId={partnerId}
+              siteSlug={website?.siteSlug}
+              sectionId="partner-website-static-pages"
+              onToast={(message, variant) =>
+                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+              }
+            />
+
+            <PartnerWebsitePromotionsPanel
+              locale={locale}
+              t={t}
+              partnerId={partnerId}
+              sectionId="partner-website-promotions"
+              onToast={(message, variant) =>
+                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+              }
+            />
+
             <PartnerWebsiteLandingsPanel
               locale={locale}
               t={t}
@@ -713,7 +770,59 @@ export function PartnerWebsiteDashboardClient({
               }
             />
 
-            <PartnerWebsiteSectionsPanel locale={locale} website={website} sectionId="partner-website-sections" />
+            <PartnerWebsiteSectionsPanel
+              locale={locale}
+              website={website}
+              partnerId={partnerId}
+              sectionId="partner-website-sections"
+              onToast={(message, variant) =>
+                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+              }
+              onWebsiteRefresh={handleWebsiteRefresh}
+            />
+
+            <PartnerWebsiteThemeColorsPanel
+              locale={locale}
+              website={website}
+              partnerId={partnerId}
+              sectionId="partner-website-theme-colors"
+              onToast={(message, variant) =>
+                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+              }
+              onWebsiteRefresh={handleWebsiteRefresh}
+            />
+
+            <PartnerWebsiteNavFooterPanel
+              locale={locale}
+              website={website}
+              partnerId={partnerId}
+              sectionId="partner-website-nav-footer"
+              onToast={(message, variant) =>
+                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+              }
+              onWebsiteRefresh={handleWebsiteRefresh}
+            />
+
+            <PartnerWebsiteFloatingCtaPanel
+              locale={locale}
+              website={website}
+              partnerId={partnerId}
+              sectionId="partner-website-floating-cta"
+              onToast={(message, variant) =>
+                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+              }
+              onWebsiteRefresh={handleWebsiteRefresh}
+            />
+
+            <PartnerWebsiteSearchAliasesPanel
+              locale={locale}
+              t={t}
+              partnerId={partnerId}
+              sectionId="partner-website-search-aliases"
+              onToast={(message, variant) =>
+                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+              }
+            />
 
             <PartnerWebsiteLeadsPanel
               locale={locale}

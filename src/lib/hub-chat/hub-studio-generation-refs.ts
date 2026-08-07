@@ -1,5 +1,6 @@
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
 import { getPrimaryLogoStepKey, getStepGenerator, isLogoDesignStep } from '@/lib/hub-chat/hub-studio-presets'
+import type { HubStudioMessagePayload, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { isLogoOnlyReferenceStepKey, isPackagingPostMockupStepKey } from '@/lib/packaging/product-label-step'
 import {
   getPrimaryPackagingStyleFaceStepKey,

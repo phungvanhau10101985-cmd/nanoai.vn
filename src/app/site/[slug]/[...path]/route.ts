@@ -28,6 +28,12 @@ const RESERVED_FIRST_SEGMENTS = new Set([
   'returns',
   'privacy',
   'terms',
+  'payment',
+  'thank-you',
+  'stores',
+  'lookbook',
+  'size-guide',
+  'blog',
 ])
 
 function resolveProjectHtmlPath(segments: string[]): string | null {

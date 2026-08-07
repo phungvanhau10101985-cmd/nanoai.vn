@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getUserForCreditAction } from '@/lib/auth'
+import type { AppUser } from '@/lib/auth/app-user'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import {
@@ -23,7 +24,9 @@ import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-ty
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-async function requireOwner(partnerId: string) {
+async function requireOwner(
+  partnerId: string
+): Promise<{ error: string } | { user: AppUser }> {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error as string }
   const user = auth.user
@@ -42,7 +45,9 @@ async function requireOwner(partnerId: string) {
   return { user }
 }
 
-export async function requestPartnerWebsiteResetOtp(partnerId: string) {
+export async function requestPartnerWebsiteResetOtp(
+  partnerId: string
+): Promise<{ error: string } | { ok: true; debugOtp?: string }> {
   const gate = await requireOwner(partnerId)
   if ('error' in gate) return { error: gate.error }
   const { user } = gate
@@ -107,7 +112,10 @@ export async function requestPartnerWebsiteResetOtp(partnerId: string) {
   return { ok: true as const, ...(debugOtpEnabled ? { debugOtp: otp } : {}) }
 }
 
-export async function confirmPartnerWebsiteResetWithOtp(partnerId: string, otpRaw: string) {
+export async function confirmPartnerWebsiteResetWithOtp(
+  partnerId: string,
+  otpRaw: string
+): Promise<{ error: string } | { ok: true }> {
   const gate = await requireOwner(partnerId)
   if ('error' in gate) return { error: gate.error }
   const { user } = gate

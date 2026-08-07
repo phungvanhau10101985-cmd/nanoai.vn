@@ -545,10 +545,29 @@ export function normalizeTemplatePages(raw: unknown): PartnerWebsitePage[] {
     }))
 }
 
+function normalizeFloatingCta(raw: unknown): PartnerWebsiteTheme['floatingCta'] | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const label = typeof o.label === 'string' ? o.label.trim().slice(0, 80) : ''
+  const href = typeof o.href === 'string' ? o.href.trim().slice(0, 2000) : ''
+  if (!label && !href) return null
+  const imageUrl =
+    typeof o.imageUrl === 'string' && o.imageUrl.trim()
+      ? o.imageUrl.trim().slice(0, 2000)
+      : null
+  return {
+    enabled: o.enabled === true,
+    label: label || 'CTA',
+    href: href || '#',
+    imageUrl,
+  }
+}
+
 export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): PartnerWebsiteTheme {
   const base = { ...DEFAULT_PARTNER_WEBSITE_THEME, logoUrl: logoUrl ?? null }
   if (!raw || typeof raw !== 'object') return base
   const o = raw as Record<string, unknown>
+  const floatingCta = normalizeFloatingCta(o.floatingCta)
   return {
     primaryColor: typeof o.primaryColor === 'string' ? o.primaryColor : base.primaryColor,
     accentColor: typeof o.accentColor === 'string' ? o.accentColor : base.accentColor,
@@ -558,5 +577,6 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     fontFamily: typeof o.fontFamily === 'string' ? o.fontFamily : base.fontFamily,
     logoUrl: typeof o.logoUrl === 'string' ? o.logoUrl : logoUrl ?? base.logoUrl ?? null,
     ...(o.useVisualHtml === true ? { useVisualHtml: true } : {}),
+    ...(floatingCta ? { floatingCta } : {}),
   }
 }

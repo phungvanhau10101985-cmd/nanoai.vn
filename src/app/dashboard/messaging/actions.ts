@@ -27,6 +27,7 @@ import {
 } from '@/lib/db/messaging-partner-outbound-webhooks-pg'
 import { dispatchPartnerOutboundWebhook } from '@/lib/messaging/partner-outbound-webhook-dispatch'
 import { emitPartnerOutboundPaymentPaid } from '@/lib/messaging/partner-outbound-webhook-emit'
+import { sendPartnerMetaPurchaseCapiOnPaymentConfirmed } from '@/lib/tracking/meta-purchase-after-order'
 import { PARTNER_OUTBOUND_WEBHOOK_EVENTS } from '@/lib/messaging/partner-outbound-webhook-types'
 import {
   deletePartnerCustomDomainPg,
@@ -101,6 +102,10 @@ import {
   updateMessagingPartnerGa4ForOwnerFromPg,
   updateMessagingPartnerGoogleAdsForOwnerFromPg,
   updateMessagingPartnerTiktokPixelForOwnerFromPg,
+  updateMessagingPartnerGtmContainerForOwnerFromPg,
+  updateMessagingPartnerDefaultCurrencyForOwnerFromPg,
+  updateMessagingPartnerContactChannelsForOwnerFromPg,
+  fetchMessagingPartnerContactChannelsFromPg,
   updateMessagingPartnerProfileForOwnerFromPg,
   fetchPartnerCapabilitiesForPartnerFromPg,
   updatePartnerCapabilitiesForOwnerFromPg,
@@ -185,7 +190,11 @@ import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inve
 import { isValidUuidString } from '@/lib/validate-uuid'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
 import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
-import { formatShippingUpdateChatBodyForCustomer } from '@/lib/messaging/order-customer-notify-i18n'
+import {
+  formatShippingUpdateChatBodyForCustomer,
+  shippingStatusLabelForCustomerEmail,
+} from '@/lib/messaging/order-customer-notify-i18n'
+import { notifyPartnerCustomerOrderUpdateFromPg } from '@/lib/db/messaging-partner-customer-notifications-pg'
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
@@ -209,6 +218,7 @@ import {
   confirmPartnerOrderDepositForOwnerFromPg,
   updatePartnerOrderStatusForOwnerFromPg,
   updatePartnerOrderShippingStatusForOwnerFromPg,
+  updatePartnerOrderRefundForOwnerFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
 import {
   fetchPartnerLoyaltyDashboardForActorFromPg,
@@ -608,6 +618,99 @@ export async function savePartnerMessagingTiktokPixel(partnerId: string, tiktokP
   return { ok: true as const }
 }
 
+export async function savePartnerMessagingGtmContainer(partnerId: string, gtmContainerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const raw = gtmContainerId.trim().toUpperCase()
+  if (raw && !/^GTM-[A-Z0-9]+$/.test(raw)) {
+    return { error: 'INVALID_GTM_CONTAINER_ID' as const }
+  }
+  const ok = await updateMessagingPartnerGtmContainerForOwnerFromPg({
+    partner_id: partnerId,
+    owner_user_id: user.id,
+    gtm_container_id: raw || null,
+  })
+  if (!ok) return { error: 'Khong luu duoc GTM container.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function savePartnerMessagingDefaultCurrency(partnerId: string, defaultCurrency: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const allowed = new Set(['VND', 'USD', 'THB', 'JPY', 'KRW', 'CNY'])
+  const raw = defaultCurrency.trim().toUpperCase()
+  if (!allowed.has(raw)) {
+    return { error: 'INVALID_CURRENCY' as const }
+  }
+  const ok = await updateMessagingPartnerDefaultCurrencyForOwnerFromPg({
+    partner_id: partnerId,
+    owner_user_id: user.id,
+    default_currency: raw,
+  })
+  if (!ok) return { error: 'Could not save default currency.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function getMessagingPartnerContactChannels(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const row = await fetchMessagingPartnerContactChannelsFromPg(partnerId)
+  return {
+    channels: {
+      contact_phone: row?.contact_phone ?? '',
+      contact_zalo_url: row?.contact_zalo_url ?? '',
+      contact_messenger_url: row?.contact_messenger_url ?? '',
+      contact_instagram_url: row?.contact_instagram_url ?? '',
+    },
+  }
+}
+
+export async function savePartnerMessagingContactChannels(
+  partnerId: string,
+  input: {
+    contact_phone?: string
+    contact_zalo_url?: string
+    contact_messenger_url?: string
+    contact_instagram_url?: string
+  }
+) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const {
+    normalizeContactHttpUrl,
+    normalizeContactPhone,
+  } = await import('@/lib/partner-website/shop/partner-site-contact-channels')
+  const ok = await updateMessagingPartnerContactChannelsForOwnerFromPg({
+    partner_id: partnerId,
+    owner_user_id: user.id,
+    contact_phone: normalizeContactPhone(input.contact_phone),
+    contact_zalo_url: normalizeContactHttpUrl(input.contact_zalo_url),
+    contact_messenger_url: normalizeContactHttpUrl(input.contact_messenger_url),
+    contact_instagram_url: normalizeContactHttpUrl(input.contact_instagram_url),
+  })
+  if (!ok) return { error: 'Could not save contact channels.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
 export async function getMessagingWorkspacePaymentSettings(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -634,6 +737,14 @@ export async function getMessagingWorkspacePaymentSettings(partnerId: string) {
       sepay_qr_template: 'compact' as const,
       sepay_webhook_token: randomBytes(12).toString('hex'),
       sepay_secret_key: '',
+      shipping_fee_amount: 0,
+      shipping_free_threshold_amount: null,
+      ewallet_enabled: false,
+      ewallet_provider_label: '',
+      ewallet_account_name: '',
+      ewallet_account_number: '',
+      ewallet_qr_url: '',
+      shipping_carrier_label: '',
       updated_at: new Date(0).toISOString(),
     },
   }
@@ -734,6 +845,15 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
   sepayQrTemplate?: '' | 'compact' | 'qronly'
   sepayWebhookToken?: string
   sepaySecretKey?: string
+  /** W1.7 */
+  shippingFeeAmount?: number
+  shippingFreeThresholdAmount?: number | null
+  ewalletEnabled?: boolean
+  ewalletProviderLabel?: string
+  ewalletAccountName?: string
+  ewalletAccountNumber?: string
+  ewalletQrUrl?: string
+  shippingCarrierLabel?: string
 }) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -768,6 +888,15 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
     sepayQrTemplate: input.sepayQrTemplate === 'qronly' ? 'qronly' : input.sepayQrTemplate === '' ? '' : 'compact',
     sepayWebhookToken: stableWebhookToken,
     sepaySecretKey: (input.sepaySecretKey ?? '').trim().slice(0, 180),
+    shippingFeeAmount: Math.max(0, Math.round(Number(input.shippingFeeAmount) || 0)),
+    shippingFreeThresholdAmount:
+      input.shippingFreeThresholdAmount == null ? null : Math.max(0, Math.round(Number(input.shippingFreeThresholdAmount) || 0)),
+    ewalletEnabled: input.ewalletEnabled === true,
+    ewalletProviderLabel: (input.ewalletProviderLabel ?? '').trim().slice(0, 60),
+    ewalletAccountName: (input.ewalletAccountName ?? '').trim().slice(0, 120),
+    ewalletAccountNumber: (input.ewalletAccountNumber ?? '').trim().slice(0, 60),
+    ewalletQrUrl: (input.ewalletQrUrl ?? '').trim().slice(0, 2000),
+    shippingCarrierLabel: (input.shippingCarrierLabel ?? '').trim().slice(0, 80),
   })
   if (!ok) return { error: 'Khong luu duoc cai dat thanh toan.' }
   revalidateMessagingDashboard()
@@ -935,8 +1064,18 @@ export async function updateMyMessagingOrderStatus(input: {
     } catch (e) {
       console.warn('[updateMyMessagingOrderStatus] customer email', e)
     }
+    // W5.2 — in-app notification (fire-and-forget)
+    void notifyPartnerCustomerOrderUpdateFromPg({
+      partnerId: row.partner_id,
+      conversationId: row.conversation_id,
+      title: `Order ${row.payment_reference || row.id.slice(0, 8)}`,
+      body: `Payment status: ${input.status}`,
+    })
     if (input.status === 'paid_verified') {
       emitPartnerOutboundPaymentPaid(row.partner_id, row)
+      sendPartnerMetaPurchaseCapiOnPaymentConfirmed({ partnerId: row.partner_id, order: row }).catch((e) =>
+        console.warn('[updateMyMessagingOrderStatus] Meta CAPI Purchase', e)
+      )
     }
   }
   revalidateMessagingDashboard()
@@ -975,6 +1114,9 @@ export async function confirmMyMessagingOrderDeposit(input: {
       console.warn('[confirmMyMessagingOrderDeposit] customer email', e)
     }
     emitPartnerOutboundPaymentPaid(row.partner_id, row)
+    sendPartnerMetaPurchaseCapiOnPaymentConfirmed({ partnerId: row.partner_id, order: row }).catch((e) =>
+      console.warn('[confirmMyMessagingOrderDeposit] Meta CAPI Purchase', e)
+    )
   }
   revalidateMessagingDashboard()
   return { ok: true }
@@ -1050,6 +1192,61 @@ export async function updateMyMessagingOrderShipping(input: {
     await emailCustomerShippingStatusChanged({ order: updated, customerLocale: customerLocaleRaw })
   } catch (e) {
     console.warn('[updateMyMessagingOrderShipping] customer email', e)
+  }
+  // W5.2 — in-app notification (fire-and-forget)
+  const shipLabel = shippingStatusLabelForCustomerEmail(customerLocale, input.shippingStatus)
+  void notifyPartnerCustomerOrderUpdateFromPg({
+    partnerId: updated.partner_id,
+    conversationId: updated.conversation_id,
+    title: `Order ${updated.payment_reference || updated.id.slice(0, 8)}`,
+    body: outboundOrderBody || shipLabel,
+  })
+  revalidateMessagingDashboard()
+  return { ok: true }
+}
+
+/** W1.7 — chủ shop đánh dấu hoàn tiền thủ công (không có cổng thanh toán thật nào tự động hoàn). */
+export async function updateMyMessagingOrderRefund(input: {
+  orderId: string
+  refundStatus: 'none' | 'requested' | 'refunded'
+  refundAmount: number
+  refundNote?: string
+}): Promise<{ ok: true } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
+  const note = (input.refundNote ?? '').trim().slice(0, 1000)
+  const updated = await updatePartnerOrderRefundForOwnerFromPg({
+    ownerUserId: user.id,
+    orderId: input.orderId,
+    refundStatus: input.refundStatus,
+    refundAmount: input.refundAmount,
+    refundNote: note,
+  })
+  if (!updated) return { error: 'Khong cap nhat duoc trang thai hoan tien.' }
+  await insertPartnerOrderEventFromPg({
+    orderId: updated.id,
+    eventType: 'refund_status',
+    title: 'Cap nhat hoan tien',
+    detail: `Trang thai: ${input.refundStatus}${input.refundAmount > 0 ? ` | So tien: ${input.refundAmount}` : ''}${note ? ` | ${note}` : ''}`,
+    source: 'shop',
+    createdBy: user.id,
+  })
+  if (input.refundStatus === 'refunded') {
+    await insertMessagePg({
+      conversationId: updated.conversation_id,
+      direction: 'outbound',
+      body: `Đơn hàng đã được hoàn tiền: **${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(input.refundAmount)))}đ**.${note ? `\n${note}` : ''}`,
+      rawPayload: {
+        source: 'system_order',
+        order_id: updated.id,
+        order_status: updated.status,
+        order_refund_status: input.refundStatus,
+        order_refund_amount: input.refundAmount,
+      },
+    })
   }
   revalidateMessagingDashboard()
   return { ok: true }
@@ -1646,6 +1843,7 @@ export type PartnerAiSettingsPayload = {
   guest_purchase_flow: 'in_chat' | 'external_site' | 'external_cart_url'
   /** Mß║½u URL giß╗Å web ΓÇö bß║»t buß╗Öc khi `external_cart_url`, phß║úi chß╗⌐a `{sku}`. */
   guest_external_cart_url_template: string
+  shop_checkout_login_required: boolean
 }
 
 const PARTNER_AI_USAGE_DETAIL_ROW_LIMIT = 250
@@ -2314,6 +2512,7 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
     guest_purchase_flow: purchaseFlow,
     guest_external_cart_url_template:
       (payload.guest_external_cart_url_template ?? '').trim().slice(0, 2048) || null,
+    shop_checkout_login_required: Boolean(payload.shop_checkout_login_required),
     ...(visionBgReset as Pick<
       PartnerAiSettingsDashboardUpsert,
       | 'vision_bg_sync_status'
@@ -2532,6 +2731,10 @@ export async function upsertPartnerInventoryItem(
     real_use_image_url_2: string
     remarketing_id: string
     sort_order: number
+    /** W1.4 flash sale */
+    sale_price_amount?: number | null
+    sale_starts_at?: string | null
+    sale_ends_at?: string | null
   }
 ) {
   const auth = await requireUser()
@@ -2575,6 +2778,12 @@ export async function upsertPartnerInventoryItem(
     const ok = await updatePartnerInventoryDashboardItemFromPg(partnerId, itemId, {
       ...shared,
       updated_at: now,
+      sale_price_amount:
+        fields.sale_price_amount == null || fields.sale_price_amount === ('' as unknown)
+          ? null
+          : Math.max(0, Number(fields.sale_price_amount)),
+      sale_starts_at: fields.sale_starts_at?.trim() || null,
+      sale_ends_at: fields.sale_ends_at?.trim() || null,
     })
     if (!ok) return { error: 'Failed to update inventory item.' }
     await syncPartnerInventoryEmbeddings(partnerId, { inventoryIds: [itemId], force: false })

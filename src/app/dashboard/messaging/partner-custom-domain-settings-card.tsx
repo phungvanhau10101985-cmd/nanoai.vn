@@ -22,21 +22,37 @@ import {
   updateMessagingPartnerCustomDomainUsage,
   verifyMessagingPartnerCustomDomain,
 } from '@/app/dashboard/messaging/actions'
-import { CheckCircle2, Copy, Globe, Loader2, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, Copy, Globe, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
 
 type T = Dictionary['partnerMessaging']
 
 function statusBadge(sslStatus: PartnerCustomDomainRow['ssl_status'] | undefined, t: T) {
   if (!sslStatus || sslStatus === 'pending') {
-    return { label: t.customDomainStatusPending, variant: 'secondary' as const }
+    return {
+      label: t.customDomainStatusPending,
+      variant: 'secondary' as const,
+      hint: t.customDomainStatusHintPending,
+    }
   }
   if (sslStatus === 'dns_ok') {
-    return { label: t.customDomainStatusDnsOk, variant: 'outline' as const }
+    return {
+      label: t.customDomainStatusDnsOk,
+      variant: 'outline' as const,
+      hint: t.customDomainStatusHintDnsOk,
+    }
   }
   if (sslStatus === 'ssl_active') {
-    return { label: t.customDomainStatusSslActive, variant: 'default' as const }
+    return {
+      label: t.customDomainStatusSslActive,
+      variant: 'default' as const,
+      hint: t.customDomainStatusHintSslActive,
+    }
   }
-  return { label: t.customDomainStatusError, variant: 'destructive' as const }
+  return {
+    label: t.customDomainStatusError,
+    variant: 'destructive' as const,
+    hint: t.customDomainStatusHintError,
+  }
 }
 
 export function PartnerCustomDomainSettingsCard({
@@ -78,7 +94,7 @@ export function PartnerCustomDomainSettingsCard({
         return
       }
       if ('domain' in res) {
-        setDomain(res.domain)
+        setDomain(res.domain ?? null)
         setHostname(res.domain?.hostname ?? '')
         setUseForChat(res.domain?.use_for_chat ?? true)
         setUseForSite(res.domain?.use_for_site ?? true)
@@ -268,6 +284,9 @@ export function PartnerCustomDomainSettingsCard({
             {domain ? <Badge variant={badge.variant}>{badge.label}</Badge> : null}
           </div>
           <CardDescription className="text-xs">{t.customDomainSectionDesc}</CardDescription>
+          {domain ? (
+            <p className="text-[11px] leading-relaxed text-muted-foreground">{badge.hint}</p>
+          ) : null}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -324,7 +343,20 @@ export function PartnerCustomDomainSettingsCard({
               {t.customDomainSslTitle}
             </p>
             <p className="text-[11px] text-muted-foreground leading-relaxed">{t.customDomainSslHint}</p>
-            {lastDetail ? <p className="text-[10px] text-muted-foreground font-mono">{lastDetail}</p> : null}
+            {domain?.ssl_status === 'error' || lastDetail ? (
+              <div
+                className={
+                  domain?.ssl_status === 'error'
+                    ? 'rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2'
+                    : 'rounded-md border border-border/60 bg-background/60 px-2.5 py-2'
+                }
+              >
+                <p className="text-[10px] font-medium text-foreground">{t.customDomainLastErrorTitle}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words font-mono text-[10px] text-muted-foreground">
+                  {lastDetail || badge.hint}
+                </p>
+              </div>
+            ) : null}
           </div>
 
           {previewOrigin ? (
@@ -401,6 +433,20 @@ export function PartnerCustomDomainSettingsCard({
             </Button>
             <Button type="button" variant="secondary" onClick={verifyDomain} disabled={pending || !domain}>
               {t.customDomainVerifyButton}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={verifyDomain}
+              disabled={pending || !domain}
+              className="gap-1.5"
+            >
+              {pending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+              )}
+              {t.customDomainRefreshStatusButton}
             </Button>
             {domain ? (
               <Button type="button" variant="outline" onClick={removeDomain} disabled={pending}>

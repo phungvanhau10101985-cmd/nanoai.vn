@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type TouchEvent as ReactTouchEvent } from 'react'
 import type { ProductPurchaseOptions } from '@/lib/messaging/guest-chat-ordering'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -17,7 +17,12 @@ import {
 } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { productToConsultContext } from '@/lib/partner-website/shop/partner-site-chat-embed'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
-import { partnerSiteCartPath, partnerSitePersonalizationApiPath, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  partnerSiteCartPath,
+  partnerSiteInfoPath,
+  partnerSitePersonalizationApiPath,
+  partnerSiteProductPath,
+} from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
@@ -25,6 +30,11 @@ import {
   trackPartnerSiteAddToCart,
   trackPartnerSiteViewItem,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
+import { PartnerSiteProductReviewsQa } from '@/components/partner-website/shop/partner-site-product-reviews-qa'
+import {
+  formatPartnerShopMoneyVnd,
+  isPartnerFlashSaleActive,
+} from '@/lib/partner-website/shop/partner-shop-flash-sale'
 
 type Props = {
   siteSlug: string
@@ -33,6 +43,12 @@ type Props = {
   product: PartnerSiteShopProduct
   relatedProducts?: PartnerSiteShopProduct[]
 }
+
+/** W1.6 — chỉ hiện cảnh báo "sắp hết hàng" khi tồn kho THẤP nhưng > 0, không hiện khi = 0.
+ * Lý do: `stock_qty` mặc định 0 cho shop chưa từng cấu hình (không phải tín hiệu hết hàng thật) —
+ * hiện "Hết hàng" cho mọi sản phẩm chưa nhập tồn kho sẽ làm sai lệch hàng loạt shop hiện có. */
+const LOW_STOCK_URGENCY_THRESHOLD = 5
+const SWIPE_THRESHOLD_PX = 40
 
 export function PartnerSiteShopProductClient({
   siteSlug,
@@ -57,6 +73,18 @@ export function PartnerSiteShopProductClient({
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteBusy, setFavoriteBusy] = useState(false)
   const [activeImage, setActiveImage] = useState(product.imageUrl)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxZoomed, setLightboxZoomed] = useState(false)
+  const [stickyBuyVisible, setStickyBuyVisible] = useState(false)
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false)
+  const touchStartXRef = useRef<number | null>(null)
+  const buyActionsRef = useRef<HTMLDivElement | null>(null)
+  const flashActive = isPartnerFlashSaleActive({
+    priceAmount: product.priceAmount ?? null,
+    salePriceAmount: product.salePriceAmount ?? null,
+    saleStartsAt: product.saleStartsAt ?? null,
+    saleEndsAt: product.saleEndsAt ?? null,
+  })
 
   const displayImage =
     options?.colors.find((c) => c.name === color)?.img?.trim() || product.imageUrl
@@ -82,7 +110,38 @@ export function PartnerSiteShopProductClient({
     setActiveImage(displayImage)
   }, [displayImage])
 
+  // W1.6 — thanh mua nổi (mobile): hiện khi khối nút mua chính đã cuộn khỏi màn hình.
+  useEffect(() => {
+    const el = buyActionsRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      ([entry]) => setStickyBuyVisible(!entry.isIntersecting),
+      { rootMargin: '0px 0px -20% 0px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   const galleryImages = product.galleryImages.length ? product.galleryImages : [product.imageUrl]
+
+  // W1.6 — vuốt ngang đổi ảnh (dùng chung cho ảnh chính lẫn lightbox).
+  function goToGalleryImage(delta: number) {
+    if (galleryImages.length < 2) return
+    const idx = galleryImages.indexOf(activeImage)
+    const next = ((idx === -1 ? 0 : idx) + delta + galleryImages.length) % galleryImages.length
+    setActiveImage(galleryImages[next])
+  }
+  function handleGalleryTouchStart(e: ReactTouchEvent) {
+    touchStartXRef.current = e.touches[0]?.clientX ?? null
+  }
+  function handleGalleryTouchEnd(e: ReactTouchEvent) {
+    const startX = touchStartXRef.current
+    touchStartXRef.current = null
+    if (startX == null) return
+    const dx = (e.changedTouches[0]?.clientX ?? startX) - startX
+    if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return
+    goToGalleryImage(dx > 0 ? -1 : 1)
+  }
   const detailBody = product.detailDescription.trim()
   const detailParagraphs = detailBody
     ? detailBody.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
@@ -227,7 +286,22 @@ export function PartnerSiteShopProductClient({
     <div>
       <div className="pw-shop-product-layout">
         <div className="pw-shop-product-gallery">
-          <img className="pw-shop-product-img" src={activeImage} alt={product.name} />
+          <img
+            className="pw-shop-product-img"
+            src={activeImage}
+            alt={product.name}
+            onClick={() => {
+              setLightboxZoomed(false)
+              setLightboxOpen(true)
+            }}
+            onTouchStart={handleGalleryTouchStart}
+            onTouchEnd={handleGalleryTouchEnd}
+          />
+          {galleryImages.length > 1 ? (
+            <p className="pw-shop-muted" style={{ fontSize: 12, margin: '4px 0 0' }}>
+              {t.galleryZoomHint}
+            </p>
+          ) : null}
           {galleryImages.length > 1 ? (
             <div className="pw-shop-product-thumbs">
               {galleryImages.map((url) => (
@@ -260,23 +334,88 @@ export function PartnerSiteShopProductClient({
               {isFavorite ? '♥' : '♡'}
             </button>
           </div>
-          {(options?.price_hint || product.priceHint) ? (
+          {flashActive && product.salePriceAmount != null ? (
+            <div style={{ marginTop: 8 }}>
+              <span className="pw-shop-urgency-badge">{t.flashSaleBadge}</span>
+              <p className="pw-shop-price" style={{ fontSize: '1.25rem' }}>
+                {formatPartnerShopMoneyVnd(product.salePriceAmount)}
+                {product.priceAmount != null ? (
+                  <span className="pw-shop-muted" style={{ marginLeft: 8, textDecoration: 'line-through', fontSize: '1rem' }}>
+                    {formatPartnerShopMoneyVnd(product.priceAmount)}
+                  </span>
+                ) : null}
+              </p>
+            </div>
+          ) : (options?.price_hint || product.priceHint) ? (
             <p className="pw-shop-price" style={{ fontSize: '1.25rem' }}>
               {options?.price_hint || product.priceHint}
             </p>
           ) : null}
           {product.description ? <p className="pw-shop-muted">{product.description}</p> : null}
+          {product.stockQty > 0 && product.stockQty <= LOW_STOCK_URGENCY_THRESHOLD ? (
+            <span className="pw-shop-urgency-badge">{t.lowStockUrgency.replace('{n}', String(product.stockQty))}</span>
+          ) : null}
           {options?.sizes.length ? (
-            <label style={{ display: 'grid', gap: 4, marginTop: 12 }}>
-              {t.sizeLabel}
-              <select value={size} onChange={(e) => setSize(e.target.value)}>
-                {options.sizes.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div style={{ marginTop: 12 }}>
+              <label style={{ display: 'grid', gap: 4 }}>
+                {t.sizeLabel}
+                <select value={size} onChange={(e) => setSize(e.target.value)}>
+                  {options.sizes.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {product.sizeGuideImageUrl ? (
+                <button
+                  type="button"
+                  className="pw-shop-btn pw-shop-btn-outline"
+                  style={{ marginTop: 8, fontSize: 13 }}
+                  onClick={() => setSizeGuideOpen(true)}
+                >
+                  {t.sizeGuideButton}
+                </button>
+              ) : (
+                <Link
+                  href={partnerSiteInfoPath(siteSlug, 'size-guide', { customDomain: Boolean(customDomain) })}
+                  style={{ display: 'inline-block', marginTop: 8, fontSize: 13 }}
+                >
+                  {t.sizeGuideFallbackLink}
+                </Link>
+              )}
+            </div>
+          ) : null}
+          {sizeGuideOpen && product.sizeGuideImageUrl ? (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={t.sizeGuideModalTitle}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 80,
+                background: 'rgba(0,0,0,0.65)',
+                display: 'grid',
+                placeItems: 'center',
+                padding: 16,
+              }}
+              onClick={() => setSizeGuideOpen(false)}
+            >
+              <div
+                style={{ background: '#fff', borderRadius: 12, maxWidth: 560, width: '100%', padding: 12 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <strong>{t.sizeGuideModalTitle}</strong>
+                  <button type="button" onClick={() => setSizeGuideOpen(false)}>
+                    {t.sizeGuideClose}
+                  </button>
+                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={product.sizeGuideImageUrl} alt={t.sizeGuideModalTitle} style={{ width: '100%', height: 'auto' }} />
+              </div>
+            </div>
           ) : null}
           {options?.colors.length ? (
             <div style={{ marginTop: 12 }}>
@@ -315,7 +454,7 @@ export function PartnerSiteShopProductClient({
               {t.depositPolicyNote}
             </p>
           ) : null}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 20 }}>
+          <div ref={buyActionsRef} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 20 }}>
             <button type="button" className="pw-shop-btn" disabled={!ready || busy} onClick={() => void addLine(false)}>
               {t.addToCart}
             </button>
@@ -390,6 +529,7 @@ export function PartnerSiteShopProductClient({
           ) : null}
         </section>
       ) : null}
+      <PartnerSiteProductReviewsQa siteSlug={siteSlug} inventoryId={product.id} locale={locale} />
       {relatedProducts.length > 0 ? (
         <section style={{ marginTop: 40 }}>
           <h2>{t.relatedProducts}</h2>
@@ -410,6 +550,84 @@ export function PartnerSiteShopProductClient({
           </div>
         </section>
       ) : null}
+
+      {lightboxOpen ? (
+        <div className="pw-shop-lightbox" onClick={() => setLightboxOpen(false)} role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className="pw-shop-lightbox-close"
+            onClick={(e) => {
+              e.stopPropagation()
+              setLightboxOpen(false)
+            }}
+            aria-label={t.lightboxClose}
+          >
+            ×
+          </button>
+          {galleryImages.length > 1 ? (
+            <>
+              <button
+                type="button"
+                className="pw-shop-lightbox-nav pw-shop-lightbox-prev"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  goToGalleryImage(-1)
+                }}
+                aria-label={t.lightboxPrev}
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                className="pw-shop-lightbox-nav pw-shop-lightbox-next"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  goToGalleryImage(1)
+                }}
+                aria-label={t.lightboxNext}
+              >
+                ›
+              </button>
+            </>
+          ) : null}
+          <img
+            src={activeImage}
+            alt={product.name}
+            className={lightboxZoomed ? 'is-zoomed' : ''}
+            onClick={(e) => {
+              e.stopPropagation()
+              setLightboxZoomed((z) => !z)
+            }}
+            onTouchStart={handleGalleryTouchStart}
+            onTouchEnd={handleGalleryTouchEnd}
+          />
+          {galleryImages.length > 1 ? (
+            <div className="pw-shop-lightbox-dots" onClick={(e) => e.stopPropagation()}>
+              {galleryImages.map((url) => (
+                <span key={url} className={url === activeImage ? 'is-active' : ''} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className={`pw-shop-sticky-buy${stickyBuyVisible ? ' is-visible' : ''}`}>
+        <img src={displayImage} alt="" />
+        <div className="pw-shop-sticky-buy-info">
+          <p style={{ fontWeight: 600 }}>{options?.name || product.name}</p>
+          {(options?.price_hint || product.priceHint) ? (
+            <p className="pw-shop-price">{options?.price_hint || product.priceHint}</p>
+          ) : null}
+        </div>
+        <div className="pw-shop-sticky-buy-actions">
+          <button type="button" className="pw-shop-btn pw-shop-btn-outline" disabled={!ready || busy} onClick={() => void addLine(false)}>
+            {t.addToCart}
+          </button>
+          <button type="button" className="pw-shop-btn" disabled={!ready || busy} onClick={() => void addLine(true)}>
+            {t.buyNow}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

@@ -59,14 +59,18 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
     if (order && customerRefFilter && order.external_thread_id !== headlessExternalThreadId(customerRefFilter)) {
       return jsonCatalogWithCors(req, { ok: true, orders: [], total: 0, offset: 0, limit: 1 }, 200)
     }
-    return jsonCatalogWithCors(req, {
-      ok: true,
-      orders: order ? [mapPartnerOrderToHeadlessSnapshot(order)] : [],
-      total: order ? 1 : 0,
-      offset: 0,
-      limit: 1,
-      payment_reference: paymentReference.toUpperCase(),
-    })
+    return jsonCatalogWithCors(
+      req,
+      {
+        ok: true,
+        orders: order ? [mapPartnerOrderToHeadlessSnapshot(order)] : [],
+        total: order ? 1 : 0,
+        offset: 0,
+        limit: 1,
+        payment_reference: paymentReference.toUpperCase(),
+      },
+      200
+    )
   }
 
   const customerRef = headlessCustomerRefFromRequest(req, req.nextUrl)
@@ -95,13 +99,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
     return jsonCatalogWithCors(req, { error: 'Could not load orders.' }, 500)
   }
 
-  return jsonCatalogWithCors(req, {
-    ok: true,
-    orders: page.rows.map(mapPartnerOrderToHeadlessSnapshot),
-    total: page.count,
-    offset,
-    limit,
-    ...(customerRef ? { customer_ref: customerRef } : {}),
-    ...(statusFilter ? { status: statusFilter } : {}),
-  })
+  return jsonCatalogWithCors(
+    req,
+    {
+      ok: true,
+      orders: page.rows.map(mapPartnerOrderToHeadlessSnapshot),
+      total: page.count,
+      offset,
+      limit,
+      ...(customerRef ? { customer_ref: customerRef } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
+    },
+    200
+  )
 }

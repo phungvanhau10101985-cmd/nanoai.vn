@@ -10,6 +10,7 @@ import {
 import { applyGuestIdentityToResponse } from '@/lib/messaging/guest-auth-session'
 import { fetchGuestWidgetConversationIdFromPg } from '@/lib/db/customer-care-pg'
 import { fetchPartnerOrdersForConversationFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import { fetchReviewedOrderIdsFromPg } from '@/lib/db/messaging-partner-reviews-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export const dynamic = 'force-dynamic'
@@ -55,8 +56,16 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       })
       return res
     }
-    const orders = await fetchPartnerOrdersForConversationFromPg(partnerId, convIdPg, 80)
-    const res = NextResponse.json({ orders: orders ?? [] })
+    const orders = (await fetchPartnerOrdersForConversationFromPg(partnerId, convIdPg, 80)) ?? []
+    const reviewedIds = await fetchReviewedOrderIdsFromPg(
+      partnerId,
+      orders.map((o) => o.id).filter(Boolean)
+    )
+    const enriched = orders.map((o) => ({
+      ...o,
+      has_review: reviewedIds.has(o.id),
+    }))
+    const res = NextResponse.json({ orders: enriched })
     applyGuestIdentityToResponse(res, request, {
       newSessionId: identity.newSessionId,
       user: identity.user ?? null,

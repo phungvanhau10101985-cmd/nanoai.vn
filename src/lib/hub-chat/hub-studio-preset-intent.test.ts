@@ -2,11 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { getActiveStepKey } from '@/lib/hub-chat/hub-studio-preset-intent'
-import type { HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { emptyStudioSession, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { navigateSessionToStep } from '@/lib/hub-chat/hub-studio-step-navigate'
 
 function sessionAtFaceLeft(): HubStudioSession {
   return {
+    ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,
     currentStepKey: 'face_left',
@@ -38,6 +39,7 @@ test('getActiveStepKey stays on edited face when navigated back', () => {
 
 test('getActiveStepKey ignores stale done mockup preview when workflow moved on', () => {
   const session: HubStudioSession = {
+    ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,
     currentStepKey: 'box_dieline_pdf',

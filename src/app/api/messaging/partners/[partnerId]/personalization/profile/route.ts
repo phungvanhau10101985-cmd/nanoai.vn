@@ -56,9 +56,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
     email: null,
   })
 
-  return jsonHeadlessPersonalizationWithCors(req, {
-    ok: true,
-    customer_ref: customerRef,
-    profile,
-  })
+  return jsonHeadlessPersonalizationWithCors(
+    req,
+    {
+      ok: true,
+      customer_ref: customerRef,
+      profile,
+    },
+    200
+  )
 }

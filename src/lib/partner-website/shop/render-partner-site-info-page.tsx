@@ -12,7 +12,13 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPublishedPartnerStaticPageBySlugFromPg } from '@/lib/db/messaging-partner-static-pages-pg'
+import { splitStaticPageContentToParagraphs } from '@/lib/partner-website/pages/partner-static-page-types'
 
+/**
+ * W3.3 — merchant có thể ghi đè title/content/SEO của 8 trang có sẵn qua CMS (W3.4). Không có
+ * override (hoặc `is_published=false`) → giữ nguyên hành vi hardcode cũ, 100% tương thích ngược.
+ */
 export async function buildPartnerSiteInfoMetadata(
   slug: string,
   pageKey: PartnerSiteInfoPageKey
@@ -20,22 +26,41 @@ export async function buildPartnerSiteInfoMetadata(
   const shop = await loadPartnerSiteShopContext(slug)
   const locale = shop?.site.locale ?? 'vi'
   const block = getPartnerSiteInfoPage(pageKey, locale)
+  const override = shop ? await fetchPublishedPartnerStaticPageBySlugFromPg(shop.partnerId, pageKey) : null
+
+  if (override) {
+    const firstParagraph = splitStaticPageContentToParagraphs(override.content)[0] ?? ''
+    return buildMetadata({
+      title: override.seoTitle || `${shop?.site.title || 'Shop'} — ${override.title}`,
+      description: override.seoDescription || firstParagraph || override.title,
+      path: `/site/${slug}/${pageKey}`,
+      noIndex: !override.seoIndex,
+    })
+  }
+
   return buildMetadata({
     title: `${shop?.site.title || 'Shop'} — ${block.title}`,
     description: block.paragraphs[0] || block.title,
     path: `/site/${slug}/${pageKey}`,
+    // thank-you là trang sau checkout — không index.
+    noIndex: pageKey === 'thank-you',
   })
 }
 
 export async function PartnerSiteInfoPageScreen({
   slug,
   pageKey,
+  orderId = null,
 }: {
   slug: string
   pageKey: PartnerSiteInfoPageKey
+  /** W3.2 — thank-you sau checkout (`?order=`). */
+  orderId?: string | null
 }) {
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
+
+  const override = await fetchPublishedPartnerStaticPageBySlugFromPg(shop.partnerId, pageKey)
 
   const activeNav =
     pageKey === 'sale' ? 'sale' : pageKey === 'about' || pageKey === 'contact' ? 'home' : 'products'
@@ -50,6 +75,7 @@ export async function PartnerSiteInfoPageScreen({
       <div style={{ marginTop: 28 }}>
         <PartnerSiteShopCatalogClient
           siteSlug={shop.site.siteSlug}
+          partnerSlug={shop.partnerSlug}
           locale={shop.site.locale}
           initialProducts={initialProducts}
           initialTotal={page?.count ?? initialProducts.length}
@@ -69,11 +95,15 @@ export async function PartnerSiteInfoPageScreen({
       chatPath={shop.site.chatPath}
       tracking={partnerSiteTrackingFromPublicRow(shop.site)}
       activeNav={activeNav}
+      footerJson={shop.site.footerJson}
+      navJson={shop.site.navJson}
     >
       <PartnerSiteShopInfoView
         siteSlug={shop.site.siteSlug}
         locale={shop.site.locale}
         pageKey={pageKey}
+        orderId={pageKey === 'thank-you' ? orderId : null}
+        override={override ? { title: override.title, paragraphs: splitStaticPageContentToParagraphs(override.content) } : null}
       />
       {saleCatalog}
     </PartnerSiteShopShell>

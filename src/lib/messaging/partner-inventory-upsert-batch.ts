@@ -7,6 +7,7 @@ import {
   upsertPartnerInventoryChunkFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import type { InventoryExcelInsert } from '@/lib/messaging/partner-inventory-excel'
 import {
   inventoryNameMatchKey,
@@ -137,6 +138,14 @@ function toInventoryRow(id: string, partnerId: string, base: InventoryUpsertBase
     real_use_image_url: '',
     real_use_image_url_2: '',
     is_active: base.is_active,
+    price_amount: (() => {
+      const amount = parseVndFromPriceHint(base.price_hint)
+      return amount > 0 ? amount : null
+    })(),
+    price_currency: 'VND',
+    sale_price_amount: null,
+    sale_starts_at: null,
+    sale_ends_at: null,
     image_embedding_json: null,
     image_embedding_fingerprint: null,
     image_embedding_model: null,

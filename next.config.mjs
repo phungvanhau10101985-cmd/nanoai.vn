@@ -218,7 +218,9 @@ const nextConfig = {
 const withPWA = withPWAInit({
     dest: 'public',
     disable: process.env.NODE_ENV === 'development',
-    register: true,
+    // Platform registration is mounted only on NanoAI-owned pages. Tenant
+    // storefronts use their own worker and may own the root scope on custom domains.
+    register: false,
     skipWaiting: true,
     /** Tránh precache `/` — mỗi build mới vẫn có thể phục vụ shell HTML cũ từ precache. */
     cacheStartUrl: false,

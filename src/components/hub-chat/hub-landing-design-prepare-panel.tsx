@@ -129,7 +129,7 @@ export function HubLandingDesignPreparePanel({
         locale={locale}
         logoUrl={logoUrl}
         logoBrief={logoBrief}
-        busy={busy}
+        busy={busy ?? false}
         onLogoBriefChange={onLogoBriefChange}
         onUploadLogo={onUploadLogo}
         onRemoveLogo={onRemoveLogo}

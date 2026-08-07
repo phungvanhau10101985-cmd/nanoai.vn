@@ -77,7 +77,7 @@ export type BannerAdPreset = {
 }
 
 /** Một dòng / một tỷ lệ — label i18n ghi rõ kênh ads phù hợp. */
-export const BANNER_AD_PRESETS: BannerAdPreset[] = [
+export const BANNER_AD_PRESETS = [
   { id: 'horizontal_display_ads', aspectRatio: '16:9', labelKey: 'horizontal_display_ads', platform: 'google' },
   { id: 'square_social_ads', aspectRatio: '1:1', labelKey: 'square_social_ads', platform: 'other' },
   { id: 'portrait_social_ads', aspectRatio: '4:5', labelKey: 'portrait_social_ads', platform: 'instagram' },
@@ -91,7 +91,7 @@ export const BANNER_AD_PRESETS: BannerAdPreset[] = [
   { id: 'catalog_near_square_5_4', aspectRatio: '5:4', labelKey: 'catalog_near_square_5_4', platform: 'other' },
   { id: 'ooh_vertical_1_4', aspectRatio: '1:4', labelKey: 'ooh_vertical_1_4', platform: 'other' },
   { id: 'ooh_strip_8_1', aspectRatio: '8:1', labelKey: 'ooh_strip_8_1', platform: 'other' },
-]
+] as const satisfies readonly BannerAdPreset[]
 
 /** @deprecated — tất cả preset đã gom vào BANNER_AD_PRESETS */
 export const BANNER_GENERIC_RATIO_PRESET_IDS: BannerAdPresetId[] = []

@@ -1,6 +1,7 @@
 import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-inventory-pg'
 import { decodeHtmlEntitiesLite } from '@/lib/tracking/decode-html-entities-lite'
 import { parseVndAmountFromPriceHint } from '@/lib/tracking/parse-vnd-from-price-hint'
+import { hashMetaCapiEmail, hashMetaCapiPhone } from '@/lib/tracking/meta-capi-hash'
 
 export type MetaViewContentClientPayload = {
   eventId: string
@@ -14,7 +15,7 @@ export type MetaViewContentClientPayload = {
   remarketing_id?: string
 }
 
-/** Tham số chung ViewContent / AddToCart (CAPI + Pixel). */
+/** Tham số chung ViewContent / AddToCart / InitiateCheckout / Purchase (CAPI + Pixel). */
 export type MetaCommerceCustomData = {
   content_ids: string[]
   content_name: string
@@ -22,6 +23,10 @@ export type MetaCommerceCustomData = {
   currency: 'VND'
   value: number
   remarketing_id?: string
+  /** Chỉ Purchase — chi tiết từng dòng sản phẩm trong đơn. */
+  contents?: Array<{ id: string; quantity: number; item_price: number }>
+  num_items?: number
+  order_id?: string
 }
 
 /** Trả về từ API «Mua ngay» — hai event_id khác nhau để dedupe CAPI/Pixel từng loại. */
@@ -87,6 +92,9 @@ function capiCustomDataPayload(data: MetaCommerceCustomData) {
     currency: data.currency,
     value: data.value,
     ...(data.remarketing_id ? { remarketing_id: data.remarketing_id.slice(0, 128) } : {}),
+    ...(data.contents ? { contents: data.contents } : {}),
+    ...(data.num_items != null ? { num_items: data.num_items } : {}),
+    ...(data.order_id ? { order_id: data.order_id } : {}),
   }
 }
 
@@ -101,8 +109,11 @@ export async function sendMetaConversionsApiBatch(params: {
   fbc?: string | null
   /** Facebook browser id cookie `_fbp` */
   fbp?: string | null
+  /** Email/SĐT thô — hash SHA-256 nội bộ trước khi gửi (Advanced Matching, xem meta-capi-hash.ts). */
+  customerEmail?: string | null
+  customerPhone?: string | null
   events: Array<{
-    event_name: 'ViewContent' | 'AddToCart'
+    event_name: 'ViewContent' | 'AddToCart' | 'InitiateCheckout' | 'Purchase'
     event_id: string
     custom_data: MetaCommerceCustomData
   }>
@@ -112,7 +123,7 @@ export async function sendMetaConversionsApiBatch(params: {
   if (params.events.length === 0) return { ok: false, error: 'no_events' }
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(params.pixelId.trim())}/events`
   const eventTime = Math.floor(Date.now() / 1000)
-  const user_data: Record<string, string> = {}
+  const user_data: Record<string, string | string[]> = {}
   if (params.clientIp && /^[\d.:a-fA-Fx]+$/.test(params.clientIp.trim())) {
     user_data.client_ip_address = params.clientIp.trim()
   }
@@ -127,6 +138,10 @@ export async function sendMetaConversionsApiBatch(params: {
   if (/^fb\.1\.\d+\.\d+$/.test(fbp)) {
     user_data.fbp = fbp
   }
+  const emHash = hashMetaCapiEmail(params.customerEmail)
+  if (emHash) user_data.em = [emHash]
+  const phHash = hashMetaCapiPhone(params.customerPhone)
+  if (phHash) user_data.ph = [phHash]
   const body = {
     data: params.events.map((ev) => ({
       event_name: ev.event_name,
@@ -154,6 +169,56 @@ export async function sendMetaConversionsApiBatch(params: {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'fetch_failed' }
   }
+}
+
+/** S0.3 — send CAPI and enqueue outbox on failure when partnerId provided. */
+export async function sendMetaConversionsApiBatchWithOutbox(params: {
+  partnerId?: string | null
+  pixelId: string
+  accessToken: string
+  eventSourceUrl: string
+  clientIp: string | null
+  userAgent: string | null
+  fbc?: string | null
+  fbp?: string | null
+  customerEmail?: string | null
+  customerPhone?: string | null
+  events: Array<{
+    event_name: 'ViewContent' | 'AddToCart' | 'InitiateCheckout' | 'Purchase'
+    event_id: string
+    custom_data: MetaCommerceCustomData
+  }>
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await sendMetaConversionsApiBatch(params)
+  if (result.ok || !params.partnerId) return result
+  try {
+    const { enqueuePartnerMetaCapiOutboxFromPg } = await import(
+      '@/lib/db/messaging-partner-meta-capi-outbox-pg'
+    )
+    for (const ev of params.events) {
+      await enqueuePartnerMetaCapiOutboxFromPg({
+        partnerId: params.partnerId,
+        eventId: ev.event_id,
+        eventName: ev.event_name,
+        payload: {
+          pixelId: params.pixelId,
+          accessToken: params.accessToken,
+          eventSourceUrl: params.eventSourceUrl,
+          clientIp: params.clientIp,
+          userAgent: params.userAgent,
+          fbc: params.fbc ?? null,
+          fbp: params.fbp ?? null,
+          customerEmail: params.customerEmail ?? null,
+          customerPhone: params.customerPhone ?? null,
+          event: ev,
+        },
+        lastError: result.error,
+      })
+    }
+  } catch {
+    /* ignore outbox errors */
+  }
+  return result
 }
 
 /** Gửi ViewContent lên Meta Conversions API (máy chủ). */

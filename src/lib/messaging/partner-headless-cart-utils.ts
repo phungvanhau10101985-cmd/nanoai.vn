@@ -79,20 +79,21 @@ export type HeadlessCartCheckoutLine = {
 export function parseHeadlessCartCheckoutLines(raw: unknown): HeadlessCartCheckoutLine[] {
   if (!Array.isArray(raw)) return []
   return raw
-    .map((x) => {
+    .map((x): HeadlessCartCheckoutLine | null => {
       if (!x || typeof x !== 'object' || Array.isArray(x)) return null
       const o = x as Record<string, unknown>
       const card = asPartnerProductCard(o.card)
       if (!card) return null
+      const variantLineImages = Array.isArray(o.variantLineImages)
+        ? o.variantLineImages.filter((v): v is string => typeof v === 'string').slice(0, 24)
+        : undefined
       return {
         card,
         color: String(o.color ?? '').trim(),
         size: String(o.size ?? '').trim(),
         quantity: Math.max(1, Math.min(99, Math.floor(Number(o.quantity) || 1))),
         note: String(o.note ?? '').trim(),
-        variantLineImages: Array.isArray(o.variantLineImages)
-          ? o.variantLineImages.filter((v): v is string => typeof v === 'string').slice(0, 24)
-          : undefined,
+        ...(variantLineImages ? { variantLineImages } : {}),
       }
     })
     .filter((x): x is HeadlessCartCheckoutLine => Boolean(x))

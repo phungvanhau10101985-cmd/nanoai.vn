@@ -420,7 +420,9 @@ export async function POST(request: NextRequest) {
         boxDimensionsMm: body?.boxDimensionsMm,
         bagDimensionsMm: body?.bagDimensionsMm,
         boxProduction: body?.boxProduction,
-        barcodeEntries: body?.barcodeEntries,
+        barcodeEntries: body?.barcodeEntries
+          ?.filter((e): e is { type?: string; content: string; label?: string } => Boolean(e.content))
+          .map((e) => ({ content: e.content, label: e.label })),
         featureKey,
         apiKey,
       })

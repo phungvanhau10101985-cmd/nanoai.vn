@@ -34,6 +34,12 @@ async function resolveCheckoutLoginRequired(partnerId: string, request: NextRequ
   return fetchShopCheckoutLoginRequiredForPartnerFromPg(partnerId)
 }
 
+/** W1.7 — chuẩn hoá lựa chọn phương thức thanh toán từ FE; giá trị lạ -> undefined (backend tự fallback 'cod'). */
+function asPaymentMethod(raw: unknown): 'cod' | 'bank_transfer' | 'ewallet' | undefined {
+  const v = String(raw ?? '').trim()
+  return v === 'cod' || v === 'bank_transfer' || v === 'ewallet' ? v : undefined
+}
+
 function guestName(userEmail: string | null): string {
   const em = (userEmail || '').trim()
   return em ? `Guest ${em}` : 'Guest'
@@ -175,6 +181,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       quantity?: number
       note?: string
       variantLineImages?: unknown
+      promoCode?: string
+      paymentMethod?: string
     }
   } | null
   const action = body?.action
@@ -255,6 +263,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
         shippingAddress,
         note: String(f.note ?? '').trim(),
         lines,
+        promoCode: String(f.promoCode ?? '').trim() || undefined,
+        paymentMethod: asPaymentMethod(f.paymentMethod),
       },
     })
     if ('error' in done) return NextResponse.json({ error: done.error }, { status: 400 })
@@ -291,6 +301,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       quantity,
       note: String(f.note ?? '').trim(),
       ...(variantLineImages && variantLineImages.length > 0 ? { variantLineImages } : {}),
+      promoCode: String(f.promoCode ?? '').trim() || undefined,
+      paymentMethod: asPaymentMethod(f.paymentMethod),
     },
   })
   if ('error' in done) {

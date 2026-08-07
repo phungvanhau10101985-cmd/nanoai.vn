@@ -46,6 +46,8 @@ function mapRow(r: {
   template_id?: string | null
   theme_json?: unknown
   pages_json?: unknown
+  nav_json?: unknown
+  footer_json?: unknown
   project_files_json: unknown
   html_source: string | null
   locale: string | null
@@ -91,6 +93,8 @@ function mapRow(r: {
     project,
     htmlSource: r.html_source?.trim() || null,
     locale,
+    navJson: r.nav_json ?? null,
+    footerJson: r.footer_json ?? null,
     isPublished: Boolean(r.is_published),
     publishedAt: r.published_at ? String(r.published_at) : null,
     sourceThreadId: r.source_thread_id,
@@ -111,6 +115,8 @@ export async function fetchPartnerProfileForWebsitePg(partnerId: string): Promis
   displayName: string
   brandName: string | null
   logoUrl: string | null
+  /** W2.2 — dùng cho gợi ý sửa nhanh theo ngành. */
+  industryKey: 'fashion' | 'hotel' | 'food' | 'other' | null
 } | null> {
   if (!isPgConfigured()) return null
   const pid = partnerId.trim()
@@ -122,23 +128,34 @@ export async function fetchPartnerProfileForWebsitePg(partnerId: string): Promis
       display_name: string | null
       brand_name: string | null
       logo_url: string | null
+      industry_key: string | null
     }>(
       `select id::text, slug,
               coalesce(nullif(trim(display_name), ''), slug) as display_name,
               nullif(trim(brand_name), '') as brand_name,
-              nullif(trim(logo_url), '') as logo_url
+              nullif(trim(logo_url), '') as logo_url,
+              nullif(trim(industry_key::text), '') as industry_key
        from public.messaging_partners
        where id = $1::uuid
        limit 1`,
       [pid]
     )
     if (!row) return null
+    const rawIndustry = row.industry_key?.trim() || null
+    const industryKey =
+      rawIndustry === 'fashion' ||
+      rawIndustry === 'hotel' ||
+      rawIndustry === 'food' ||
+      rawIndustry === 'other'
+        ? rawIndustry
+        : null
     return {
       id: row.id,
       slug: row.slug,
       displayName: row.display_name?.trim() || row.slug,
       brandName: row.brand_name?.trim() || null,
       logoUrl: row.logo_url?.trim() || null,
+      industryKey,
     }
   } catch (e) {
     console.error('[messaging-partner-websites-pg] fetchPartnerProfileForWebsitePg', e)
@@ -155,7 +172,7 @@ export async function fetchPartnerWebsiteByPartnerIdPg(
   try {
     const row = await pgQueryOne<Parameters<typeof mapRow>[0]>(
       `select id::text, partner_id::text, site_slug, title, brief_text, logo_url,
-              reference_image_urls, render_mode, template_id, theme_json, pages_json,
+              reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
               project_files_json, html_source, locale,
               is_published, published_at, source_thread_id::text,
               creation_journal_json,
@@ -169,6 +186,26 @@ export async function fetchPartnerWebsiteByPartnerIdPg(
   } catch (e) {
     console.error('[messaging-partner-websites-pg] fetchPartnerWebsiteByPartnerIdPg', e)
     return null
+  }
+}
+
+/** S0.5 — published shop site slugs for root sitemap index (no /lp). */
+export async function listPublishedPartnerWebsiteSlugsFromPg(limit = 500): Promise<string[]> {
+  if (!isPgConfigured()) return []
+  try {
+    const rows = await pgQuery<{ site_slug: string }>(
+      `select site_slug
+       from public.messaging_partner_websites
+       where is_published = true
+         and coalesce(nullif(trim(site_slug), ''), '') <> ''
+       order by published_at desc nulls last, updated_at desc
+       limit $1`,
+      [Math.max(1, Math.min(2000, limit))]
+    )
+    return rows.map((r) => String(r.site_slug).trim().toLowerCase()).filter(Boolean)
+  } catch (e) {
+    console.warn('[listPublishedPartnerWebsiteSlugsFromPg]', e)
+    return []
   }
 }
 
@@ -200,15 +237,22 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
       ga4_measurement_id: string | null
       google_ads_id: string | null
       tiktok_pixel_id: string | null
+      gtm_container_id: string | null
+      default_currency: string | null
+      nav_json: unknown
+      footer_json: unknown
     }>(
       `select w.partner_id::text, w.site_slug, w.title, w.logo_url, w.html_source, w.project_files_json,
               w.render_mode, w.template_id, w.theme_json, w.pages_json, w.locale,
+              w.nav_json, w.footer_json,
               p.slug as partner_slug,
               coalesce(nullif(trim(p.brand_name), ''), nullif(trim(p.display_name), ''), p.slug) as partner_display_name,
               nullif(trim(coalesce(p.facebook_pixel_id, '')), '') as facebook_pixel_id,
               nullif(trim(coalesce(p.ga4_measurement_id, '')), '') as ga4_measurement_id,
               nullif(trim(coalesce(p.google_ads_id, '')), '') as google_ads_id,
-              nullif(trim(coalesce(p.tiktok_pixel_id, '')), '') as tiktok_pixel_id
+              nullif(trim(coalesce(p.tiktok_pixel_id, '')), '') as tiktok_pixel_id,
+              nullif(trim(coalesce(p.gtm_container_id, '')), '') as gtm_container_id,
+              coalesce(nullif(trim(p.default_currency), ''), 'VND') as default_currency
        from public.messaging_partner_websites w
        inner join public.messaging_partners p on p.id = w.partner_id
        where w.site_slug = $1
@@ -284,6 +328,8 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
       project,
       htmlSource,
       locale: websiteForCompose.locale,
+      navJson: row.nav_json ?? null,
+      footerJson: row.footer_json ?? null,
       partnerSlug,
       partnerDisplayName: row.partner_display_name?.trim() || partnerSlug,
       chatPath,
@@ -291,8 +337,16 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
       ga4MeasurementId: row.ga4_measurement_id,
       googleAdsId: row.google_ads_id,
       tiktokPixelId: row.tiktok_pixel_id,
+      gtmContainerId: row.gtm_container_id,
+      defaultCurrency: String(row.default_currency ?? 'VND').trim().toUpperCase() || 'VND',
     }
   } catch (e) {
+    const err = e as { code?: string; message?: string } | null
+    if (err?.code === '42703' && String(err.message ?? '').includes('default_currency')) {
+      console.warn(
+        '[fetchPublishedPartnerWebsiteBySlugPg] default_currency missing — run migration 20260806160000'
+      )
+    }
     console.error('[messaging-partner-websites-pg] fetchPublishedPartnerWebsiteBySlugPg', e)
     return null
   }
@@ -337,7 +391,7 @@ export async function upsertPartnerWebsitePg(input: {
         theme,
         pages,
         project,
-        htmlSource: input.htmlSource,
+        htmlSource: input.htmlSource ?? null,
         locale: input.locale,
         title: input.title,
         logoUrl: input.logoUrl ?? null,
@@ -361,7 +415,7 @@ export async function upsertPartnerWebsitePg(input: {
     const row = await pgQueryOne<Parameters<typeof mapRow>[0]>(
       `insert into public.messaging_partner_websites (
          partner_id, site_slug, title, brief_text, logo_url,
-         reference_image_urls, render_mode, template_id, theme_json, pages_json,
+         reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
          project_files_json, html_source, locale, source_thread_id, creation_journal_json
        ) values (
          $1::uuid, $2, $3, $4, $5,
@@ -385,7 +439,7 @@ export async function upsertPartnerWebsitePg(input: {
          creation_journal_json = coalesce(excluded.creation_journal_json, messaging_partner_websites.creation_journal_json),
          updated_at = timezone('utc'::text, now())
        returning id::text, partner_id::text, site_slug, title, brief_text, logo_url,
-                 reference_image_urls, render_mode, template_id, theme_json, pages_json,
+                 reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
                  project_files_json, html_source, locale,
                  is_published, published_at, source_thread_id::text,
                  creation_journal_json,
@@ -438,6 +492,9 @@ export async function updatePartnerWebsiteDraftPg(input: {
   project?: PartnerWebsiteProject
   htmlSource?: string | null
   chatPath?: string
+  /** W2.4 — snapshot trước khi ghi (reorder/theme…). */
+  changeNote?: string | null
+  skipRevision?: boolean
 }): Promise<PartnerWebsiteRow | null> {
   if (!isPgConfigured()) return null
   const existing = await fetchPartnerWebsiteByPartnerIdPg(input.partnerId)
@@ -471,6 +528,13 @@ export async function updatePartnerWebsiteDraftPg(input: {
         ) || existing.htmlSource
 
   try {
+    if (!input.skipRevision && (input.theme || input.pages || input.project || input.htmlSource !== undefined)) {
+      await savePartnerWebsiteRevisionPg({
+        website: existing,
+        changeNote: input.changeNote ?? null,
+      })
+    }
+
     const row = await pgQueryOne<Parameters<typeof mapRow>[0]>(
       `update public.messaging_partner_websites set
          title = coalesce($2, title),
@@ -486,7 +550,7 @@ export async function updatePartnerWebsiteDraftPg(input: {
          updated_at = timezone('utc'::text, now())
        where partner_id = $1::uuid
        returning id::text, partner_id::text, site_slug, title, brief_text, logo_url,
-                 reference_image_urls, render_mode, template_id, theme_json, pages_json,
+                 reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
                  project_files_json, html_source, locale,
                  is_published, published_at, source_thread_id::text,
                  creation_journal_json,
@@ -512,6 +576,41 @@ export async function updatePartnerWebsiteDraftPg(input: {
   }
 }
 
+/** W2.3 — lưu nav/footer JSON (không đụng html/theme). */
+export async function updatePartnerWebsiteNavFooterPg(input: {
+  partnerId: string
+  navJson: unknown
+  footerJson: unknown
+}): Promise<PartnerWebsiteRow | null> {
+  if (!isPgConfigured()) return null
+  const existing = await fetchPartnerWebsiteByPartnerIdPg(input.partnerId)
+  if (!existing) return null
+  try {
+    await savePartnerWebsiteRevisionPg({
+      website: existing,
+      changeNote: 'update_nav_footer',
+    })
+    const row = await pgQueryOne<Parameters<typeof mapRow>[0]>(
+      `update public.messaging_partner_websites set
+         nav_json = $2::jsonb,
+         footer_json = $3::jsonb,
+         updated_at = timezone('utc'::text, now())
+       where partner_id = $1::uuid
+       returning id::text, partner_id::text, site_slug, title, brief_text, logo_url,
+                 reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json, nav_json, footer_json,
+                 project_files_json, html_source, locale,
+                 is_published, published_at, source_thread_id::text,
+                 creation_journal_json,
+                 created_at, updated_at`,
+      [input.partnerId, JSON.stringify(input.navJson ?? null), JSON.stringify(input.footerJson ?? null)]
+    )
+    return row ? mapRow(row) : null
+  } catch (e) {
+    console.error('[messaging-partner-websites-pg] updatePartnerWebsiteNavFooterPg', e)
+    return null
+  }
+}
+
 export async function setPartnerWebsitePublishedPg(input: {
   partnerId: string
   isPublished: boolean
@@ -526,7 +625,7 @@ export async function setPartnerWebsitePublishedPg(input: {
          updated_at = timezone('utc'::text, now())
        where partner_id = $1::uuid
        returning id::text, partner_id::text, site_slug, title, brief_text, logo_url,
-                 reference_image_urls, render_mode, template_id, theme_json, pages_json,
+                 reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
                  project_files_json, html_source, locale,
                  is_published, published_at, source_thread_id::text,
                  creation_journal_json,
@@ -550,7 +649,7 @@ export async function listPartnerWebsitesForPartnersPg(
   try {
     const rows = await pgQuery<Parameters<typeof mapRow>[0]>(
       `select id::text, partner_id::text, site_slug, title, brief_text, logo_url,
-              reference_image_urls, render_mode, template_id, theme_json, pages_json,
+              reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
               project_files_json, html_source, locale,
               is_published, published_at, source_thread_id::text,
               creation_journal_json,
@@ -622,7 +721,7 @@ export async function savePartnerWebsiteRevisionPg(input: {
     await pgQuery(
       `insert into public.messaging_partner_website_revisions (
          partner_id, website_id, title, brief_text, logo_url,
-         reference_image_urls, render_mode, template_id, theme_json, pages_json,
+         reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
          project_files_json, html_source, locale, change_note
        ) values ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, $14)`,
       [
@@ -666,7 +765,7 @@ export async function listPartnerWebsiteRevisionsPg(
   try {
     const rows = await pgQuery<Parameters<typeof mapRevisionRow>[0]>(
       `select id::text, partner_id::text, website_id::text, title, brief_text, logo_url,
-              reference_image_urls, render_mode, template_id, theme_json, pages_json,
+              reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
               project_files_json, html_source, locale, change_note, created_at
        from public.messaging_partner_website_revisions
        where partner_id = $1::uuid
@@ -692,7 +791,7 @@ export async function restorePartnerWebsiteRevisionPg(input: {
 
   const revision = await pgQueryOne<Parameters<typeof mapRevisionRow>[0]>(
     `select id::text, partner_id::text, website_id::text, title, brief_text, logo_url,
-            reference_image_urls, render_mode, template_id, theme_json, pages_json,
+            reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
             project_files_json, html_source, locale, change_note, created_at
      from public.messaging_partner_website_revisions
      where id = $1::uuid and partner_id = $2::uuid
@@ -748,7 +847,7 @@ export async function updatePartnerWebsiteCreationJournalPg(
          updated_at = timezone('utc'::text, now())
        where partner_id = $1::uuid
        returning id::text, partner_id::text, site_slug, title, brief_text, logo_url,
-                 reference_image_urls, render_mode, template_id, theme_json, pages_json,
+                 reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
                  project_files_json, html_source, locale,
                  is_published, published_at, source_thread_id::text,
                  creation_journal_json,
@@ -776,7 +875,7 @@ export async function updatePartnerWebsiteCreationJournalsPg(
          updated_at = timezone('utc'::text, now())
        where partner_id = $1::uuid
        returning id::text, partner_id::text, site_slug, title, brief_text, logo_url,
-                 reference_image_urls, render_mode, template_id, theme_json, pages_json,
+                 reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
                  project_files_json, html_source, locale,
                  is_published, published_at, source_thread_id::text,
                  creation_journal_json,

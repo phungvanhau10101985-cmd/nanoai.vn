@@ -84,7 +84,7 @@ export function barcodeFormValidationError(
 }
 
 export function packagingBarcodeIsReady(
-  packaging: HubStudioSession['packaging'] | undefined
+  packaging: Partial<NonNullable<HubStudioSession['packaging']>> | undefined
 ): boolean {
   if (!packaging) return false
   if (packaging.barcodeArtifacts?.length) return true

@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
     }
     const saved = await saveSiteVisitorUtmContext({ partnerId, accountKey, utm })
     if (!saved) return jsonHeadlessPersonalizationWithCors(req, { error: 'Could not save context.' }, 500)
-    return jsonHeadlessPersonalizationWithCors(req, { ok: true, customer_ref: parsedRef, utm: saved })
+    return jsonHeadlessPersonalizationWithCors(req, { ok: true, customer_ref: parsedRef, utm: saved }, 200)
   }
 
   if (!event) {

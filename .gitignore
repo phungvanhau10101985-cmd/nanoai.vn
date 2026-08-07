@@ -34,6 +34,11 @@ yarn-error.log*
 .env.production
 .env.development
 .env.test
+.env.local.dev
+.env.local.server
+
+# build logs / scratch output
+.next-build-log.txt
 
 # vercel
 .vercel

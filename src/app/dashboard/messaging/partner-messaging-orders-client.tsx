@@ -25,6 +25,7 @@ import {
   listMyMessagingOrders,
   updateMyMessagingOrderShipping,
   updateMyMessagingOrderStatus,
+  updateMyMessagingOrderRefund,
   type PartnerOrderOwnerStats,
 } from '@/app/dashboard/messaging/actions'
 
@@ -80,6 +81,12 @@ type OrderRow = {
   latest_proof_image_url: string | null
   latest_proof_status: 'pending' | 'verified' | 'failed' | 'manual_review' | null
   latest_proof_reason: string | null
+  /** W1.7 */
+  payment_method?: 'cod' | 'bank_transfer' | 'ewallet'
+  shipping_fee_amount?: number
+  refund_status?: 'none' | 'requested' | 'refunded'
+  refund_amount?: number
+  refund_note?: string
 }
 
 type OrderEventRow = {
@@ -294,6 +301,9 @@ export function PartnerMessagingOrdersClient({
   const [reviewedMap, setReviewedMap] = useState<Record<string, boolean>>({})
 
   const [noteByOrder, setNoteByOrder] = useState<Record<string, string>>({})
+  // W1.7 — hoàn tiền thủ công (không có cổng thanh toán thật nào tự động hoàn).
+  const [refundNoteByOrder, setRefundNoteByOrder] = useState<Record<string, string>>({})
+  const [refundAmountByOrder, setRefundAmountByOrder] = useState<Record<string, string>>({})
   const [detailModalOrderId, setDetailModalOrderId] = useState<string | null>(null)
   const [eventsByOrder, setEventsByOrder] = useState<Record<string, OrderEventRow[]>>({})
   const [stats, setStats] = useState<PartnerOrderOwnerStats | null>(null)
@@ -463,6 +473,32 @@ export function PartnerMessagingOrdersClient({
         return n
       })
       loadOrders()
+    })
+  }
+
+  const markRefunded = (orderId: string) => {
+    startTransition(async () => {
+      const note = (refundNoteByOrder[orderId] ?? '').trim()
+      const amountRaw = (refundAmountByOrder[orderId] ?? '').replace(/[^\d]/g, '')
+      const amount = Math.max(0, Math.round(Number(amountRaw) || 0))
+      const res = await updateMyMessagingOrderRefund({
+        orderId,
+        refundStatus: 'refunded',
+        refundAmount: amount,
+        refundNote: note,
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: t.toastRefundUpdated })
+      loadOrders()
+      if (detailModalOrderId === orderId) {
+        const evt = await listMyMessagingOrderEvents({ orderId, limit: 60 })
+        if ('rows' in evt) {
+          setEventsByOrder((prev) => ({ ...prev, [orderId]: (evt.rows ?? []) as unknown as OrderEventRow[] }))
+        }
+      }
     })
   }
 
@@ -1221,6 +1257,40 @@ export function PartnerMessagingOrdersClient({
                             {t.openChat}
                           </Link>
                         </Button>
+                      </div>
+
+                      <div className="space-y-2 border-t border-border/60 pt-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {t.refundSectionTitle}
+                          {d.refund_status === 'refunded' ? (
+                            <Badge variant="secondary" className="ml-2 align-middle">
+                              {t.refundSectionTitle}: {new Intl.NumberFormat('vi-VN').format(d.refund_amount ?? 0)}đ
+                            </Badge>
+                          ) : null}
+                        </p>
+                        {d.refund_status !== 'refunded' ? (
+                          <div className="grid gap-2 md:grid-cols-[160px_1fr_auto]">
+                            <Input
+                              value={refundAmountByOrder[d.id] ?? ''}
+                              onChange={(e) =>
+                                setRefundAmountByOrder((prev) => ({ ...prev, [d.id]: e.target.value.replace(/[^\d]/g, '') }))
+                              }
+                              placeholder={t.refundAmountLabel}
+                              className="h-9"
+                            />
+                            <Input
+                              value={refundNoteByOrder[d.id] ?? ''}
+                              onChange={(e) => setRefundNoteByOrder((prev) => ({ ...prev, [d.id]: e.target.value }))}
+                              placeholder={t.refundNoteLabel}
+                              className="h-9"
+                            />
+                            <Button type="button" size="sm" variant="secondary" onClick={() => markRefunded(d.id)} disabled={pending}>
+                              {t.btnMarkRefunded}
+                            </Button>
+                          </div>
+                        ) : d.refund_note ? (
+                          <p className="text-xs text-muted-foreground">{d.refund_note}</p>
+                        ) : null}
                       </div>
 
                       <div className="border-t border-border/60 pt-4">

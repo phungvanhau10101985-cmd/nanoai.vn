@@ -20,6 +20,17 @@ export type PartnerPaymentSettingsRow = {
   sepay_qr_template: '' | 'compact' | 'qronly'
   sepay_webhook_token: string
   sepay_secret_key: string
+  /** W1.7 — phí ship cố định (VND); 0 = không thu (mặc định, giữ hành vi cũ). */
+  shipping_fee_amount: number
+  /** W1.7 — miễn ship khi đơn (sau giảm giá) >= ngưỡng; null = không có ngưỡng miễn phí. */
+  shipping_free_threshold_amount: number | null
+  ewallet_enabled: boolean
+  ewallet_provider_label: string
+  ewallet_account_name: string
+  ewallet_account_number: string
+  ewallet_qr_url: string
+  /** M1.4 — display-only carrier label. */
+  shipping_carrier_label: string
   updated_at: string
 }
 
@@ -70,6 +81,18 @@ export type PartnerOrderRow = {
   google_sheet_row: number | null
   /** Số hàng liên tiếp trên Sheet (mỗi mẫu một hàng); null = legacy (1 hàng). */
   google_sheet_row_count: number | null
+  /** W1.4 — voucher đã áp (nếu có). Tách biệt hoàn toàn khỏi loyalty/birthday ở trên. */
+  promo_id: string | null
+  promo_code: string
+  promo_discount_amount: number
+  /** W1.7 — phương thức khách chọn để trả cọc/trả trước (chỉ có ý nghĩa khi required_amount > 0). */
+  payment_method: 'cod' | 'bank_transfer' | 'ewallet'
+  /** W1.7 — snapshot phí ship lúc đặt hàng. KHÔNG cộng vào amount_after_discount (xem migration). */
+  shipping_fee_amount: number
+  refund_status: 'none' | 'requested' | 'refunded'
+  refund_amount: number
+  refund_note: string
+  refunded_at: string | null
 }
 
 export type PartnerOrderLineRow = {
@@ -178,6 +201,21 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
       const n = Math.floor(num(raw, 0))
       return n > 0 ? n : null
     })(),
+    promo_id: r.promo_id ? String(r.promo_id) : null,
+    promo_code: String(r.promo_code ?? ''),
+    promo_discount_amount: num(r.promo_discount_amount, 0),
+    payment_method: (() => {
+      const v = String(r.payment_method ?? 'cod')
+      return v === 'bank_transfer' || v === 'ewallet' ? v : 'cod'
+    })(),
+    shipping_fee_amount: Math.max(0, num(r.shipping_fee_amount, 0)),
+    refund_status: (() => {
+      const v = String(r.refund_status ?? 'none')
+      return v === 'requested' || v === 'refunded' ? v : 'none'
+    })(),
+    refund_amount: Math.max(0, num(r.refund_amount, 0)),
+    refund_note: String(r.refund_note ?? ''),
+    refunded_at: r.refunded_at ? String(r.refunded_at) : null,
   }
 }
 
@@ -238,6 +276,14 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
               coalesce(sepay_qr_template, 'compact') as sepay_qr_template,
               coalesce(sepay_webhook_token, '') as sepay_webhook_token,
               coalesce(sepay_secret_key, '') as sepay_secret_key,
+              coalesce(shipping_fee_amount, 0) as shipping_fee_amount,
+              shipping_free_threshold_amount,
+              coalesce(ewallet_enabled, false) as ewallet_enabled,
+              coalesce(ewallet_provider_label, '') as ewallet_provider_label,
+              coalesce(ewallet_account_name, '') as ewallet_account_name,
+              coalesce(ewallet_account_number, '') as ewallet_account_number,
+              coalesce(ewallet_qr_url, '') as ewallet_qr_url,
+              coalesce(shipping_carrier_label, '') as shipping_carrier_label,
               updated_at
        from public.messaging_partner_payment_settings
        where partner_id = $1::uuid
@@ -272,6 +318,15 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
             : 'compact',
       sepay_webhook_token: String(row.sepay_webhook_token ?? ''),
       sepay_secret_key: String(row.sepay_secret_key ?? ''),
+      shipping_fee_amount: Math.max(0, num(row.shipping_fee_amount, 0)),
+      shipping_free_threshold_amount:
+        row.shipping_free_threshold_amount == null ? null : Math.max(0, num(row.shipping_free_threshold_amount, 0)),
+      ewallet_enabled: row.ewallet_enabled === true,
+      ewallet_provider_label: String(row.ewallet_provider_label ?? ''),
+      ewallet_account_name: String(row.ewallet_account_name ?? ''),
+      ewallet_account_number: String(row.ewallet_account_number ?? ''),
+      ewallet_qr_url: String(row.ewallet_qr_url ?? ''),
+      shipping_carrier_label: String(row.shipping_carrier_label ?? ''),
       updated_at: String(row.updated_at ?? ''),
     }
   } catch (e) {
@@ -298,6 +353,15 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
   sepayQrTemplate?: '' | 'compact' | 'qronly'
   sepayWebhookToken?: string
   sepaySecretKey?: string
+  /** W1.7 */
+  shippingFeeAmount?: number
+  shippingFreeThresholdAmount?: number | null
+  ewalletEnabled?: boolean
+  ewalletProviderLabel?: string
+  ewalletAccountName?: string
+  ewalletAccountNumber?: string
+  ewalletQrUrl?: string
+  shippingCarrierLabel?: string
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
   try {
@@ -306,10 +370,16 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
          partner_id, bank_name, bank_bin, account_number, account_holder,
          default_deposit_percent, default_deposit_mode, default_deposit_amount, notify_email, require_payment_proof,
          sepay_enabled, sepay_bank_code, sepay_account_number, sepay_qr_template, sepay_webhook_token, sepay_secret_key,
+         shipping_fee_amount, shipping_free_threshold_amount,
+         ewallet_enabled, ewallet_provider_label, ewallet_account_name, ewallet_account_number, ewallet_qr_url,
+         shipping_carrier_label,
          updated_at
        ) values (
          $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9,
          $10, $11, $12, $13, $14, $15, $16,
+         $17::numeric, $18::numeric,
+         $19, $20, $21, $22, $23,
+         $24,
          now()
        )
        on conflict (partner_id) do update set
@@ -328,6 +398,14 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
          sepay_qr_template = excluded.sepay_qr_template,
          sepay_webhook_token = excluded.sepay_webhook_token,
          sepay_secret_key = excluded.sepay_secret_key,
+         shipping_fee_amount = excluded.shipping_fee_amount,
+         shipping_free_threshold_amount = excluded.shipping_free_threshold_amount,
+         ewallet_enabled = excluded.ewallet_enabled,
+         ewallet_provider_label = excluded.ewallet_provider_label,
+         ewallet_account_name = excluded.ewallet_account_name,
+         ewallet_account_number = excluded.ewallet_account_number,
+         ewallet_qr_url = excluded.ewallet_qr_url,
+         shipping_carrier_label = excluded.shipping_carrier_label,
          updated_at = now()`,
       [
         input.partnerId,
@@ -346,6 +424,14 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
         input.sepayQrTemplate === 'qronly' ? 'qronly' : input.sepayQrTemplate === '' ? '' : 'compact',
         String(input.sepayWebhookToken ?? '').trim().slice(0, 120),
         String(input.sepaySecretKey ?? '').trim().slice(0, 180),
+        Math.max(0, Math.round(num(input.shippingFeeAmount, 0))),
+        input.shippingFreeThresholdAmount == null ? null : Math.max(0, Math.round(num(input.shippingFreeThresholdAmount, 0))),
+        input.ewalletEnabled === true,
+        String(input.ewalletProviderLabel ?? '').trim().slice(0, 60),
+        String(input.ewalletAccountName ?? '').trim().slice(0, 120),
+        String(input.ewalletAccountNumber ?? '').trim().slice(0, 60),
+        String(input.ewalletQrUrl ?? '').trim().slice(0, 2000),
+        String(input.shippingCarrierLabel ?? '').trim().slice(0, 80),
       ]
     )
     return true
@@ -493,7 +579,10 @@ export async function insertPartnerOrderDraftFromPg(input: {
                  product_inventory_id::text, product_name, product_image_url, product_url,
                  unit_price, subtotal_amount, deposit_percent, required_amount, paid_amount,
                  currency, payment_reference, payment_qr_url, verified_note, shipping_status,
-                 created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count`,
+                 created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count,
+                 coalesce(payment_method, 'cod') as payment_method, coalesce(shipping_fee_amount, 0) as shipping_fee_amount,
+                 coalesce(refund_status, 'none') as refund_status, coalesce(refund_amount, 0) as refund_amount,
+                 coalesce(refund_note, '') as refund_note, refunded_at`,
       [
         input.partnerId,
         input.conversationId,
@@ -552,6 +641,11 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
   paymentReference: string
   paymentQrUrl: string
   discountSnapshot?: PartnerStackedDiscountSnapshot
+  /** W1.4 — lớp giảm giá voucher cho checkout AI chat đơn lẻ, cùng quy ước với `updatePartnerOrderCartCheckoutFromPg`. */
+  promo?: { id: string; code: string; discountAmount: number } | null
+  /** W1.7 */
+  paymentMethod?: 'cod' | 'bank_transfer' | 'ewallet'
+  shippingFeeAmount?: number
 }): Promise<PartnerOrderRow | null> {
   if (!isPgConfigured()) return null
   const qty = Math.max(1, Math.min(99, Math.floor(input.quantity || 1)))
@@ -581,6 +675,11 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
            total_discount_percent = $25::numeric,
            total_discount_amount = $26::numeric,
            amount_after_discount = $27::numeric,
+           promo_id = $28::uuid,
+           promo_code = $29,
+           promo_discount_amount = $30::numeric,
+           payment_method = $31,
+           shipping_fee_amount = $32::numeric,
            status = 'awaiting_payment',
            updated_at = now()
        where id = $1::uuid
@@ -597,7 +696,9 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
                  birthday_discount_percent, birthday_discount_amount, total_discount_percent, total_discount_amount,
                  amount_after_discount, deposit_percent, required_amount, paid_amount,
                  currency, payment_reference, payment_qr_url, verified_note, shipping_status,
-                 created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count`,
+                 created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count,
+                 promo_id::text, promo_code, promo_discount_amount,
+                 payment_method, shipping_fee_amount, refund_status, refund_amount, refund_note, refunded_at`,
       [
         input.orderId,
         input.partnerId,
@@ -626,6 +727,11 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
         num(input.discountSnapshot?.totalDiscountPercent, 0),
         Math.max(0, Math.round(num(input.discountSnapshot?.totalDiscountAmount, 0))),
         Math.max(0, Math.round(num(input.discountSnapshot?.amountAfterDiscount, 0))),
+        input.promo?.id ?? null,
+        input.promo?.code ?? '',
+        Math.max(0, Math.round(num(input.promo?.discountAmount, 0))),
+        input.paymentMethod === 'bank_transfer' || input.paymentMethod === 'ewallet' ? input.paymentMethod : 'cod',
+        Math.max(0, Math.round(num(input.shippingFeeAmount, 0))),
       ]
     )
     return row ? mapOrderRow(row) : null
@@ -663,6 +769,12 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
   paymentQrUrl: string
   primaryLine: PartnerOrderLineUpsertInput
   discountSnapshot?: PartnerStackedDiscountSnapshot
+  /** W1.4 — lớp giảm giá voucher, TÁCH BIỆT khỏi loyalty/birthday. `amountAfterDiscount` truyền vào
+   * đã trừ sẵn khoản này (tính ở `guest-chat-ordering.ts`) — hàm này chỉ lưu lại để hiển thị/báo cáo. */
+  promo?: { id: string; code: string; discountAmount: number } | null
+  /** W1.7 */
+  paymentMethod?: 'cod' | 'bank_transfer' | 'ewallet'
+  shippingFeeAmount?: number
 }): Promise<PartnerOrderRow | null> {
   if (!isPgConfigured()) return null
   const subtotal = Math.max(0, Math.round(num(input.subtotalAmount, 0)))
@@ -697,6 +809,11 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
            total_discount_percent = $27::numeric,
            total_discount_amount = $28::numeric,
            amount_after_discount = $29::numeric,
+           promo_id = $30::uuid,
+           promo_code = $31,
+           promo_discount_amount = $32::numeric,
+           payment_method = $33,
+           shipping_fee_amount = $34::numeric,
            status = 'awaiting_payment',
            updated_at = now()
        where id = $1::uuid
@@ -713,7 +830,9 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
                  birthday_discount_percent, birthday_discount_amount, total_discount_percent, total_discount_amount,
                  amount_after_discount, deposit_percent, required_amount, paid_amount,
                  currency, payment_reference, payment_qr_url, verified_note, shipping_status,
-                 created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count`,
+                 created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count,
+                 promo_id::text, promo_code, promo_discount_amount,
+                 payment_method, shipping_fee_amount, refund_status, refund_amount, refund_note, refunded_at`,
       [
         input.orderId,
         input.partnerId,
@@ -744,6 +863,11 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
         num(input.discountSnapshot?.totalDiscountPercent, 0),
         Math.max(0, Math.round(num(input.discountSnapshot?.totalDiscountAmount, 0))),
         Math.max(0, Math.round(num(input.discountSnapshot?.amountAfterDiscount, 0))),
+        input.promo?.id ?? null,
+        input.promo?.code ?? '',
+        Math.max(0, Math.round(num(input.promo?.discountAmount, 0))),
+        input.paymentMethod === 'bank_transfer' || input.paymentMethod === 'ewallet' ? input.paymentMethod : 'cod',
+        Math.max(0, Math.round(num(input.shippingFeeAmount, 0))),
       ]
     )
     return row ? mapOrderRow(row) : null
@@ -773,7 +897,11 @@ const ORDER_ROW_SELECT = `select id::text, partner_id::text, conversation_id::te
               birthday_discount_percent, birthday_discount_amount, total_discount_percent, total_discount_amount,
               amount_after_discount, deposit_percent, required_amount, paid_amount,
               currency, payment_reference, payment_qr_url, verified_note, shipping_status,
-              created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count
+              created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count,
+              promo_id::text, promo_code, promo_discount_amount,
+              coalesce(payment_method, 'cod') as payment_method, coalesce(shipping_fee_amount, 0) as shipping_fee_amount,
+              coalesce(refund_status, 'none') as refund_status, coalesce(refund_amount, 0) as refund_amount,
+              coalesce(refund_note, '') as refund_note, refunded_at
        from public.messaging_partner_orders`
 
 /** Đọc đơn theo id + shop — dùng khi khách đổi phiên (guest ↔ đăng nhập) vẫn phải khớp đơn nháp. */
@@ -819,7 +947,11 @@ export async function fetchPartnerOrderForOwnerFromPg(
               o.birthday_discount_percent, o.birthday_discount_amount, o.total_discount_percent, o.total_discount_amount,
               o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count
+              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
+              o.promo_id::text, o.promo_code, o.promo_discount_amount,
+              coalesce(o.payment_method, 'cod') as payment_method, coalesce(o.shipping_fee_amount, 0) as shipping_fee_amount,
+              coalesce(o.refund_status, 'none') as refund_status, coalesce(o.refund_amount, 0) as refund_amount,
+              coalesce(o.refund_note, '') as refund_note, o.refunded_at
        from public.messaging_partner_orders o
        inner join public.messaging_partners mp on mp.id = o.partner_id
        where o.id = $1::uuid and ${sqlPartnerMpActorHasPerm(2, 'orders')}
@@ -1043,6 +1175,10 @@ export async function fetchWidgetOrdersForLinkedUserFromPg(
               o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
               o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
+              o.promo_id::text, o.promo_code, o.promo_discount_amount,
+              coalesce(o.payment_method, 'cod') as payment_method, coalesce(o.shipping_fee_amount, 0) as shipping_fee_amount,
+              coalesce(o.refund_status, 'none') as refund_status, coalesce(o.refund_amount, 0) as refund_amount,
+              coalesce(o.refund_note, '') as refund_note, o.refunded_at,
               coalesce(mp.display_name, '') as partner_display_name,
               coalesce(mp.slug, '') as partner_slug
        from public.messaging_partner_orders o
@@ -1345,6 +1481,10 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
               o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
               o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
+              o.promo_id::text, o.promo_code, o.promo_discount_amount,
+              coalesce(o.payment_method, 'cod') as payment_method, coalesce(o.shipping_fee_amount, 0) as shipping_fee_amount,
+              coalesce(o.refund_status, 'none') as refund_status, coalesce(o.refund_amount, 0) as refund_amount,
+              coalesce(o.refund_note, '') as refund_note, o.refunded_at,
               coalesce(mp.display_name, '') as partner_display_name,
               coalesce(ls.order_item_count, 1) as order_item_count,
               coalesce(ls.order_items_summary, '') as order_items_summary,
@@ -1417,6 +1557,10 @@ export async function fetchPartnerOrdersForOwnerExportFromPg(input: {
               o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
               o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
               o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
+              o.promo_id::text, o.promo_code, o.promo_discount_amount,
+              coalesce(o.payment_method, 'cod') as payment_method, coalesce(o.shipping_fee_amount, 0) as shipping_fee_amount,
+              coalesce(o.refund_status, 'none') as refund_status, coalesce(o.refund_amount, 0) as refund_amount,
+              coalesce(o.refund_note, '') as refund_note, o.refunded_at,
               coalesce(mp.display_name, '') as partner_display_name,
               coalesce(ls.order_item_count, 1) as order_item_count,
               coalesce(ls.order_items_summary, '') as order_items_summary,
@@ -1520,6 +1664,63 @@ export async function confirmPartnerOrderDepositForOwnerFromPg(input: {
   }
 }
 
+/** W1.7 — chủ shop đánh dấu hoàn tiền thủ công (không tích hợp cổng thanh toán thật nào tự động hoàn). */
+export async function updatePartnerOrderRefundForOwnerFromPg(input: {
+  ownerUserId: string
+  orderId: string
+  refundStatus: 'none' | 'requested' | 'refunded'
+  refundAmount: number
+  refundNote: string
+}): Promise<PartnerOrderAdminRow | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `update public.messaging_partner_orders o
+       set refund_status = $3,
+           refund_amount = $4::numeric,
+           refund_note = $5,
+           refunded_at = case when $3 = 'refunded' then now() else o.refunded_at end,
+           updated_at = now()
+       from public.messaging_partners mp
+       where o.id = $1::uuid
+         and mp.id = o.partner_id
+         and ${sqlPartnerMpActorHasPerm(2, 'orders')}
+       returning o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
+                 o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
+                 o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
+                 o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
+                 o.unit_price, o.subtotal_amount,
+                 o.loyalty_tier_code, o.loyalty_tier_name, o.loyalty_discount_percent, o.loyalty_discount_amount,
+                 o.birthday_discount_percent, o.birthday_discount_amount, o.total_discount_percent, o.total_discount_amount,
+                 o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
+                 o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
+                 o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
+                 o.promo_id::text, o.promo_code, o.promo_discount_amount,
+                 o.payment_method, o.shipping_fee_amount, o.refund_status, o.refund_amount, o.refund_note, o.refunded_at`,
+      [
+        input.orderId,
+        input.ownerUserId,
+        input.refundStatus,
+        Math.max(0, Math.round(num(input.refundAmount, 0))),
+        input.refundNote.trim().slice(0, 1000),
+      ]
+    )
+    if (!row) return null
+    return {
+      ...mapOrderRow(row),
+      partner_display_name: '',
+      order_item_count: 1,
+      order_items_summary: '',
+      latest_proof_image_url: null,
+      latest_proof_status: null,
+      latest_proof_reason: null,
+    }
+  } catch (e) {
+    console.warn('[updatePartnerOrderRefundForOwnerFromPg]', e)
+    return null
+  }
+}
+
 export async function updatePartnerOrderShippingStatusForOwnerFromPg(input: {
   ownerUserId: string
   orderId: string
@@ -1546,7 +1747,11 @@ export async function updatePartnerOrderShippingStatusForOwnerFromPg(input: {
                  o.birthday_discount_percent, o.birthday_discount_amount, o.total_discount_percent, o.total_discount_amount,
                  o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
                  o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
-                 o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count`,
+                 o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
+                 o.promo_id::text, o.promo_code, o.promo_discount_amount,
+                 coalesce(o.payment_method, 'cod') as payment_method, coalesce(o.shipping_fee_amount, 0) as shipping_fee_amount,
+                 coalesce(o.refund_status, 'none') as refund_status, coalesce(o.refund_amount, 0) as refund_amount,
+                 coalesce(o.refund_note, '') as refund_note, o.refunded_at`,
       [input.orderId, input.ownerUserId, input.shippingStatus, input.note]
     )
     if (!row) return null

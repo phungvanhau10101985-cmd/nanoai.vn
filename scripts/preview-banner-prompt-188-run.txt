@@ -1,0 +1,18 @@
+﻿[dotenv@17.3.1] injecting env (30) from .env -- tip: ΓÜÖ∩╕Å  override existing env vars with { override: true }
+[dotenv@17.3.1] injecting env (62) from .env.local -- tip: ≡ƒñû agentic secret storage: https://dotenvx.com/as2
+node.exe : E:\python-code\Thu-do-online\scripts\preview-banner-prompt-188-gemini.ts:55
+At C:\Users\Mr Hau\AppData\Local\Programs\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (E:\python-code\...88-gemini.ts:55:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  if (!built.ok) throw new Error(built.error)
+                       ^
+
+
+Error: API_ERROR
+    at main (E:\python-code\Thu-do-online\scripts\preview-banner-prompt-188-gemini.ts:55:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+Node.js v22.14.0

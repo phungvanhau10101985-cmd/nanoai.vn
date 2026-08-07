@@ -15,6 +15,13 @@ export type PartnerWebsiteTheme = {
    * instead of re-rendering from template pages.
    */
   useVisualHtml?: boolean
+  /** M3.2 — optional fixed bottom-right CTA above chat FAB. */
+  floatingCta?: {
+    enabled: boolean
+    label: string
+    href: string
+    imageUrl?: string | null
+  }
 }
 
 export type PartnerWebsiteSection = {

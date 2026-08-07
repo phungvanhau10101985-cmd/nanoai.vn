@@ -11,7 +11,10 @@ import {
   type SiteCartLine,
 } from '@/lib/partner-website/shop/cart-line-utils'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
-import { partnerSiteProductsPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  partnerSiteInfoPath,
+  partnerSiteProductsPath,
+} from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
@@ -34,6 +37,8 @@ type OrderSnapshot = {
   payment_qr_url?: string | null
   payment_reference?: string | null
   required_amount?: number | null
+  payment_method?: 'cod' | 'bank_transfer' | 'ewallet' | null
+  shipping_fee_amount?: number | null
 }
 
 export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, locale, chatPath }: Props) {
@@ -52,6 +57,23 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
   const [orderNote, setOrderNote] = useState('')
   const [status, setStatus] = useState('')
   const [completedOrder, setCompletedOrder] = useState<OrderSnapshot | null>(null)
+  const [promoCodeInput, setPromoCodeInput] = useState('')
+  const [promoBusy, setPromoBusy] = useState(false)
+  const [promoMessage, setPromoMessage] = useState('')
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; name: string; discountAmount: number } | null>(null)
+  // W1.7 — phí ship + lựa chọn thanh toán. Phí ship chỉ hiển thị ước tính ở đây; số cuối cùng do
+  // backend tính lại lúc checkout (giống mọi số tiền khác trong hệ thống — không tin số FE gửi).
+  const [shippingPolicy, setShippingPolicy] = useState<{
+    feeAmount: number
+    freeThresholdAmount: number | null
+    carrierLabel: string | null
+  }>({
+    feeAmount: 0,
+    freeThresholdAmount: null,
+    carrierLabel: null,
+  })
+  const [ewalletAvailable, setEwalletAvailable] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'ewallet'>('bank_transfer')
 
   const loadCart = useCallback(async () => {
     const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/cart`, {
@@ -73,9 +95,26 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
     if (!siteSlug) return
     void fetch(`/api/site/${encodeURIComponent(siteSlug)}/shop-config`, { credentials: 'same-origin' })
       .then((res) => res.json())
-      .then((json: { checkoutLoginRequired?: boolean }) => {
-        setCheckoutLoginRequired(json.checkoutLoginRequired !== false)
-      })
+      .then(
+        (json: {
+          checkoutLoginRequired?: boolean
+          shippingPolicy?: {
+            feeAmount?: number
+            freeThresholdAmount?: number | null
+            carrierLabel?: string | null
+          }
+          ewalletAvailable?: boolean
+        }) => {
+          setCheckoutLoginRequired(json.checkoutLoginRequired !== false)
+          setShippingPolicy({
+            feeAmount: Math.max(0, Math.round(json.shippingPolicy?.feeAmount ?? 0)),
+            freeThresholdAmount:
+              json.shippingPolicy?.freeThresholdAmount == null ? null : Math.max(0, Math.round(json.shippingPolicy.freeThresholdAmount)),
+            carrierLabel: String(json.shippingPolicy?.carrierLabel ?? '').trim() || null,
+          })
+          setEwalletAvailable(json.ewalletAvailable === true)
+        }
+      )
       .catch(() => {
         setCheckoutLoginRequired(true)
       })
@@ -89,6 +128,78 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
       }, 0),
     [items]
   )
+
+  const promoErrorText = useCallback(
+    (code: string): string => {
+      const map: Record<string, string> = {
+        not_found: t.promoErrorNotFound,
+        invalid_code: t.promoErrorNotFound,
+        inactive: t.promoErrorInactive,
+        not_started: t.promoErrorNotStarted,
+        expired: t.promoErrorExpired,
+        below_min_subtotal: t.promoErrorBelowMinSubtotal,
+        usage_limit_reached: t.promoErrorUsageLimitReached,
+        per_user_limit_reached: t.promoErrorPerUserLimitReached,
+        first_order_only: t.promoErrorFirstOrderOnly,
+        no_eligible_items: t.promoErrorNoEligibleItems,
+        grant_required: t.promoErrorGrantRequired,
+      }
+      return map[code] ?? t.promoErrorGeneric
+    },
+    [t]
+  )
+
+  async function applyPromoCode() {
+    const code = promoCodeInput.trim()
+    if (!code || promoBusy) return
+    setPromoBusy(true)
+    setPromoMessage('')
+    try {
+      const cartLines = items
+        .map((item) => ({
+          inventoryId: item.card.inventory_id || '',
+          lineSubtotal: parseVndFromPriceHint(item.card.price_hint) * item.quantity,
+        }))
+        .filter((l) => l.inventoryId)
+      const res = await fetch(`/api/site/${encodeURIComponent(siteSlug)}/promotions/validate`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ code, cartLines }),
+      })
+      captureFromResponse(res)
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean
+        error?: string
+        code?: string
+        name?: string
+        discountAmount?: number
+      }
+      if (!json.ok) {
+        setAppliedPromo(null)
+        setPromoMessage(promoErrorText(json.error ?? ''))
+        return
+      }
+      setAppliedPromo({ code: json.code ?? code, name: json.name ?? '', discountAmount: json.discountAmount ?? 0 })
+      setPromoMessage('')
+    } finally {
+      setPromoBusy(false)
+    }
+  }
+
+  function removePromoCode() {
+    setAppliedPromo(null)
+    setPromoCodeInput('')
+    setPromoMessage('')
+  }
+
+  const payableSubtotal = Math.max(0, subtotal - (appliedPromo?.discountAmount ?? 0))
+  const shippingFeeEstimate = useMemo(() => {
+    if (shippingPolicy.feeAmount <= 0) return 0
+    if (shippingPolicy.freeThresholdAmount != null && payableSubtotal >= shippingPolicy.freeThresholdAmount) return 0
+    return shippingPolicy.feeAmount
+  }, [shippingPolicy, payableSubtotal])
+  const orderTotal = payableSubtotal + shippingFeeEstimate
 
   async function saveItems(next: SiteCartLine[]) {
     setItems(next)
@@ -135,6 +246,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
             customerPhone: orderPhone.trim(),
             shippingAddress: orderAddress.trim(),
             note: orderNote.trim(),
+            ...(appliedPromo ? { promoCode: appliedPromo.code } : {}),
+            ...(ewalletAvailable ? { paymentMethod } : {}),
           },
           items: items.map((item) => ({
             card: item.card as PartnerAiProductCard,
@@ -157,17 +270,22 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
         if (json.error === 'AUTH_REQUIRED_PURCHASE_LOGIN' || json.requireAuth) {
           setNeedsAuth(true)
           setStatus(t.checkoutAuthRequired)
+        } else if (json.error?.startsWith('promo_invalid:')) {
+          setAppliedPromo(null)
+          setStatus(promoErrorText(json.error.split(':')[1] ?? ''))
         } else {
           setStatus(json.error || t.authFailed)
         }
         return
       }
-      setCompletedOrder(json.order ?? null)
+      setAppliedPromo(null)
+      setPromoCodeInput('')
       if (json.order?.id) {
         trackPartnerSitePurchase(tracking, {
           transactionId: json.order.id,
-          value: subtotal,
+          value: orderTotal,
           lines: checkoutLines,
+          customerPhone: orderPhone.trim() || undefined,
         })
       }
       setItems([])
@@ -178,6 +296,13 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
         body: JSON.stringify({ items: [] }),
       })
       await refreshCartCount()
+      // W3.2 — chuyển sang trang cảm ơn (giữ confirmation inline nếu không có mã đơn).
+      if (json.order?.id && typeof window !== 'undefined') {
+        const thankYou = partnerSiteInfoPath(siteSlug, 'thank-you', { customDomain })
+        window.location.assign(`${thankYou}?order=${encodeURIComponent(json.order.id)}`)
+        return
+      }
+      setCompletedOrder(json.order ?? null)
     } finally {
       setCheckoutBusy(false)
     }
@@ -235,6 +360,80 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
           <p>
             {t.cartSubtotal}: {formatVnd(subtotal)}
           </p>
+          <div style={{ marginTop: 12 }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>{t.cartPromoLabel}</label>
+            {appliedPromo ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span className="pw-shop-price">
+                  {appliedPromo.code} — {t.cartPromoDiscountLabel} {formatVnd(appliedPromo.discountAmount)}
+                </span>
+                <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={removePromoCode}>
+                  {t.cartPromoRemove}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={promoCodeInput}
+                  onChange={(e) => setPromoCodeInput(e.target.value)}
+                  placeholder={t.cartPromoPlaceholder}
+                  style={{ flex: '1 1 200px' }}
+                />
+                <button
+                  type="button"
+                  className="pw-shop-btn pw-shop-btn-outline"
+                  disabled={promoBusy || !promoCodeInput.trim()}
+                  onClick={() => void applyPromoCode()}
+                >
+                  {promoBusy ? t.cartPromoApplying : t.cartPromoApply}
+                </button>
+              </div>
+            )}
+            {promoMessage ? <p className="pw-shop-muted" style={{ marginTop: 6 }}>{promoMessage}</p> : null}
+          </div>
+          <p className="pw-shop-muted" style={{ marginTop: 8 }}>
+            {shippingFeeEstimate > 0
+              ? `${t.cartShippingFeeLabel}: ${formatVnd(shippingFeeEstimate)}`
+              : shippingPolicy.feeAmount > 0
+                ? t.cartShippingFeeFree
+                : t.cartShippingFeeIncluded}
+            {shippingPolicy.carrierLabel
+              ? ` — ${t.shippingCarrierLabel}: ${shippingPolicy.carrierLabel}`
+              : ''}
+            {shippingPolicy.freeThresholdAmount != null && shippingFeeEstimate > 0
+              ? ` — ${t.cartShippingFreeThresholdHint.replace('{amount}', formatVnd(shippingPolicy.freeThresholdAmount))}`
+              : ''}
+          </p>
+          <p style={{ marginTop: 8, fontWeight: 700 }}>
+            {t.cartTotalLabel}: {formatVnd(orderTotal)}
+          </p>
+          {ewalletAvailable ? (
+            <div style={{ marginTop: 12 }}>
+              <p style={{ fontWeight: 600, marginBottom: 6 }}>{t.checkoutPaymentMethodLabel}</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                  <input
+                    type="radio"
+                    name="payment-method"
+                    checked={paymentMethod === 'bank_transfer'}
+                    onChange={() => setPaymentMethod('bank_transfer')}
+                  />
+                  {t.checkoutPaymentMethodBank}
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                  <input
+                    type="radio"
+                    name="payment-method"
+                    checked={paymentMethod === 'ewallet'}
+                    onChange={() => setPaymentMethod('ewallet')}
+                  />
+                  {t.checkoutPaymentMethodEwallet}
+                </label>
+              </div>
+              <p className="pw-shop-muted" style={{ marginTop: 4, fontSize: 12 }}>{t.checkoutPaymentMethodHint}</p>
+            </div>
+          ) : null}
           <div className="pw-shop-form" style={{ marginTop: 20 }}>
             {!checkoutLoginRequired ? (
               <p className="pw-shop-muted" style={{ marginBottom: 12 }}>

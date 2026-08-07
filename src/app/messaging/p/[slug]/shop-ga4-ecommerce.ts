@@ -7,6 +7,7 @@ declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void
     __nanoShopGa4MeasurementId?: string
+    __nanoShopCurrency?: string
   }
 }
 
@@ -73,16 +74,27 @@ function cleanItem(raw: ShopGa4ProductInput): Ga4Item | null {
   }
 }
 
+function resolveShopGa4Currency(explicit?: string | null): string {
+  const fromArg = String(explicit ?? '')
+    .trim()
+    .toUpperCase()
+  if (fromArg) return fromArg
+  const fromWindow =
+    typeof window !== 'undefined' ? String(window.__nanoShopCurrency ?? '').trim().toUpperCase() : ''
+  return fromWindow || 'VND'
+}
+
 function sendShopGa4Event(
   eventName: ShopGa4EventName,
   measurementId: string | null | undefined,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  currency?: string | null
 ): void {
   const id = canSendShopGa4Event(measurementId)
   if (!id) return
   window.gtag?.('event', eventName, {
     send_to: id,
-    currency: 'VND',
+    currency: resolveShopGa4Currency(currency),
     ...params,
   })
 }

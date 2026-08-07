@@ -57,13 +57,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
     if (shopReadyOnly && !product.shop_ready) {
       return jsonCatalogWithCors(req, { ok: true, products: [], total: 0, offset: 0, limit: 1 }, 200)
     }
-    return jsonCatalogWithCors(req, {
-      ok: true,
-      products: [product],
-      total: 1,
-      offset: 0,
-      limit: 1,
-    })
+    return jsonCatalogWithCors(
+      req,
+      {
+        ok: true,
+        products: [product],
+        total: 1,
+        offset: 0,
+        limit: 1,
+      },
+      200
+    )
   }
 
   const offset = Math.max(0, Number(req.nextUrl.searchParams.get('offset') ?? 0) || 0)
@@ -82,13 +86,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
     products = products.filter((p) => p.shop_ready)
   }
 
-  return jsonCatalogWithCors(req, {
-    ok: true,
-    products,
-    total: page.count,
-    offset,
-    limit,
-    shop_ready_only: shopReadyOnly,
-    published_site_slug: publishedSiteSlug,
-  })
+  return jsonCatalogWithCors(
+    req,
+    {
+      ok: true,
+      products,
+      total: page.count,
+      offset,
+      limit,
+      shop_ready_only: shopReadyOnly,
+      published_site_slug: publishedSiteSlug,
+    },
+    200
+  )
 }

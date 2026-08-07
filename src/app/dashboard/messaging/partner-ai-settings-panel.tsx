@@ -2215,6 +2215,9 @@ function InventoryEditor({
     stock_note: '',
     stock_qty: '0',
     price_hint: '',
+    sale_price_amount: '',
+    sale_starts_at: '',
+    sale_ends_at: '',
     image_url: '',
     product_url: '',
     product_video_url: '',
@@ -2236,6 +2239,9 @@ function InventoryEditor({
       stock_note: '',
       stock_qty: '0',
       price_hint: '',
+      sale_price_amount: '',
+      sale_starts_at: '',
+      sale_ends_at: '',
       image_url: '',
       product_url: '',
       product_video_url: '',
@@ -2351,6 +2357,9 @@ function InventoryEditor({
       stock_note: r.stock_note,
       stock_qty: String(r.stock_qty ?? 0),
       price_hint: r.price_hint,
+      sale_price_amount: r.sale_price_amount != null ? String(r.sale_price_amount) : '',
+      sale_starts_at: r.sale_starts_at ? String(r.sale_starts_at).slice(0, 16) : '',
+      sale_ends_at: r.sale_ends_at ? String(r.sale_ends_at).slice(0, 16) : '',
       image_url: r.image_url ?? '',
       product_url: r.product_url ?? '',
       product_video_url: r.product_video_url ?? '',
@@ -2367,6 +2376,7 @@ function InventoryEditor({
   const save = () => {
     if (!draft.name.trim()) return
     startTransition(async () => {
+      const saleRaw = draft.sale_price_amount.trim()
       const res = await upsertPartnerInventoryItem(partnerId, draft.id, {
         name: draft.name,
         sku: draft.sku,
@@ -2384,6 +2394,11 @@ function InventoryEditor({
         real_use_image_url_2: draft.real_use_image_url_2,
         remarketing_id: draft.remarketing_id,
         sort_order: draft.sort_order,
+        sale_price_amount: saleRaw === '' ? null : Math.max(0, Number(saleRaw) || 0),
+        sale_starts_at: draft.sale_starts_at.trim()
+          ? new Date(draft.sale_starts_at).toISOString()
+          : null,
+        sale_ends_at: draft.sale_ends_at.trim() ? new Date(draft.sale_ends_at).toISOString() : null,
       })
       if ('error' in res && res.error) {
         toast({ title: res.error, variant: 'destructive' })
@@ -2821,6 +2836,30 @@ function InventoryEditor({
           <div className="space-y-2">
             <Label>{t.inventoryPrice}</Label>
             <Input value={draft.price_hint} onChange={(e) => setDraft((d) => ({ ...d, price_hint: e.target.value }))} />
+          </div>
+          <div className="space-y-2">
+            <Label>Flash sale price (VND)</Label>
+            <Input
+              value={draft.sale_price_amount}
+              onChange={(e) => setDraft((d) => ({ ...d, sale_price_amount: e.target.value.replace(/[^\d]/g, '') }))}
+              placeholder="Empty = no flash sale"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Sale starts</Label>
+            <Input
+              type="datetime-local"
+              value={draft.sale_starts_at}
+              onChange={(e) => setDraft((d) => ({ ...d, sale_starts_at: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Sale ends</Label>
+            <Input
+              type="datetime-local"
+              value={draft.sale_ends_at}
+              onChange={(e) => setDraft((d) => ({ ...d, sale_ends_at: e.target.value }))}
+            />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>{t.inventoryConsultNote}</Label>

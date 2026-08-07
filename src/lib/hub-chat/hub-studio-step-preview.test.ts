@@ -19,6 +19,7 @@ function packagingSession(overrides: Partial<HubStudioSession> = {}): HubStudioS
     uploadImages: [],
     referenceImages: [],
     pendingPreview: null,
+    lastGenerationPrompt: null,
     packaging: {
       version: 2,
       dimensionsMm: { length: 100, width: 80, height: 60 },

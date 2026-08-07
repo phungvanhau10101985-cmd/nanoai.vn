@@ -1,6 +1,7 @@
 import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-inventory-pg'
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import { decodeHtmlEntitiesLite } from '@/lib/tracking/decode-html-entities-lite'
+import { hashMetaCapiEmail, hashMetaCapiPhone } from '@/lib/tracking/meta-capi-hash'
 
 const GRAPH_VERSION = 'v21.0'
 
@@ -16,12 +17,12 @@ function uniqueIds(ids: string[]): string[] {
   return out
 }
 
-/** Purchase — Meta Pixel + CAPI (value = tổng đơn VND). */
+/** Purchase — Meta Pixel + CAPI (value = tổng đơn theo currency shop). */
 export type MetaPurchaseClientPayload = {
   pixelId: string
   eventId: string
   value: number
-  currency: 'VND'
+  currency: string
   content_ids: string[]
   content_type: 'product'
   num_items: number
@@ -33,11 +34,15 @@ export type MetaPurchaseClientPayload = {
 export function buildMetaPurchaseCustomDataFromOrder(params: {
   order: PartnerOrderRow
   inventory: MessagingPartnerInventoryRow | null
+  currency?: string | null
 }): Omit<MetaPurchaseClientPayload, 'pixelId' | 'eventId'> {
   const order = params.order
   const value = Math.max(0, Math.round(Number(order.subtotal_amount) || 0))
   const qty = Math.max(1, Math.min(99, Math.floor(Number(order.quantity) || 1)))
   const unit = Math.max(0, Math.round(Number(order.unit_price) || 0))
+  const currency = String(params.currency ?? 'VND')
+    .trim()
+    .toUpperCase() || 'VND'
 
   const inv = params.inventory
   let lineId = order.product_inventory_id?.trim() || order.id
@@ -56,7 +61,7 @@ export function buildMetaPurchaseCustomDataFromOrder(params: {
 
   return {
     value,
-    currency: 'VND',
+    currency,
     content_ids: ids,
     content_type: 'product',
     num_items: qty,
@@ -75,19 +80,33 @@ export async function sendMetaPurchaseConversionsApi(params: {
   eventSourceUrl: string
   clientIp: string | null
   userAgent: string | null
+  /** Meta CAPI dedupe `_fbc`/`_fbp` — xem docs/188_BEHAVIOR_SPEC.md mục E.1/E.4. */
+  fbc?: string | null
+  fbp?: string | null
+  /** Hash SHA-256 nội bộ trước khi gửi (Advanced Matching) — không gửi plaintext. */
+  customerEmail?: string | null
+  customerPhone?: string | null
   customData: Omit<MetaPurchaseClientPayload, 'pixelId' | 'eventId'>
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const token = params.accessToken.trim()
   if (!token) return { ok: false, error: 'missing_token' }
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(params.pixelId.trim())}/events`
   const eventTime = Math.floor(Date.now() / 1000)
-  const user_data: Record<string, string> = {}
+  const user_data: Record<string, string | string[]> = {}
   if (params.clientIp && /^[\d.:a-fA-Fx]+$/.test(params.clientIp.trim())) {
     user_data.client_ip_address = params.clientIp.trim()
   }
   if (params.userAgent && params.userAgent.trim()) {
     user_data.client_user_agent = params.userAgent.trim().slice(0, 512)
   }
+  const fbc = String(params.fbc ?? '').trim()
+  if (/^fb\.1\.\d+\.[A-Za-z0-9_-]+$/.test(fbc)) user_data.fbc = fbc
+  const fbp = String(params.fbp ?? '').trim()
+  if (/^fb\.1\.\d+\.\d+$/.test(fbp)) user_data.fbp = fbp
+  const emHash = hashMetaCapiEmail(params.customerEmail)
+  if (emHash) user_data.em = [emHash]
+  const phHash = hashMetaCapiPhone(params.customerPhone)
+  if (phHash) user_data.ph = [phHash]
   const cd = params.customData
   const custom_data: Record<string, unknown> = {
     value: cd.value,

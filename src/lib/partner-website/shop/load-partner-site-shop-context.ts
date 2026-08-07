@@ -27,11 +27,21 @@ export async function loadPartnerSiteShopContext(siteSlug: string): Promise<Part
   if (!partner) return null
   const capabilities = await fetchPartnerCapabilitiesForPartnerFromPg(partner.id, partner.industry_key)
   if (!partnerWebsiteEnabled(capabilities)) return null
-  const theme = extractPartnerWebsiteThemeFromProject(site.project, site.theme)
+  // W2.6 — template mode: theme_json là nguồn sự thật (color picker). Project CSS chỉ
+  // bổ sung field thiếu; tránh shell bị kẹt màu cũ trong css/main.css.
+  const fromCss = extractPartnerWebsiteThemeFromProject(site.project, site.theme)
+  const theme =
+    site.renderMode === 'template'
+      ? {
+          ...fromCss,
+          ...site.theme,
+          logoUrl: site.logoUrl ?? site.theme.logoUrl ?? fromCss.logoUrl ?? null,
+        }
+      : { ...fromCss, logoUrl: site.logoUrl ?? fromCss.logoUrl ?? null }
   return {
     site: {
       ...site,
-      theme: { ...theme, logoUrl: site.logoUrl ?? theme.logoUrl ?? null },
+      theme,
     },
     partnerId: partner.id,
     partnerSlug: site.partnerSlug,

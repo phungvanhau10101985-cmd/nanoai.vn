@@ -41,9 +41,13 @@ export async function GET(
     linkedUserId: null,
   })
 
-  return jsonCatalogWithCors(req, {
-    ok: true,
-    inventory_id: inventoryId,
-    options,
-  })
+  return jsonCatalogWithCors(
+    req,
+    {
+      ok: true,
+      inventory_id: inventoryId,
+      options,
+    },
+    200
+  )
 }

@@ -5,7 +5,7 @@ import { briefNotesForStepGeneration } from '@/lib/hub-chat/hub-studio-preset-fl
 import { pickReferencesForGeneration } from '@/lib/hub-chat/hub-studio-reference-limits'
 import { navigateSessionToStep } from '@/lib/hub-chat/hub-studio-step-navigate'
 import { resolveStepPendingPreview } from '@/lib/hub-chat/hub-studio-step-preview'
-import { emptyStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { emptyStudioSession, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 
 test('briefNotesForStepGeneration on logo excludes downstream face briefs', () => {
   const notes = briefNotesForStepGeneration('packaging_kit', 'logo', {
@@ -23,7 +23,7 @@ test('briefNotesForStepGeneration on logo excludes downstream face briefs', () =
 })
 
 test('navigate to logo restores pending preview from approved reference', () => {
-  let session = {
+  let session: HubStudioSession = {
     ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,
@@ -64,7 +64,7 @@ test('logo generation attaches no reference images from later steps', () => {
 })
 
 test('navigate to face_top restores pending preview from faceSlots', () => {
-  let session = {
+  let session: HubStudioSession = {
     ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,

@@ -15,6 +15,9 @@ alter table public.messaging_partner_inventory_external_sync_settings
   check (catalog_initial_sync_status in ('pending', 'running', 'completed'));
 
 alter table public.messaging_partner_inventory_external_sync_settings
+  drop constraint if exists messaging_partner_inventory_external_sync_initial_next_page_check;
+
+alter table public.messaging_partner_inventory_external_sync_settings
   add constraint messaging_partner_inventory_external_sync_initial_next_page_check
   check (catalog_initial_sync_next_page >= 1);
 

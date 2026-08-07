@@ -205,6 +205,12 @@ export interface Database {
           ga4_measurement_id: string | null
           google_ads_id: string | null
           tiktok_pixel_id: string | null
+          gtm_container_id: string | null
+          default_currency: string
+          contact_phone: string | null
+          contact_zalo_url: string | null
+          contact_messenger_url: string | null
+          contact_instagram_url: string | null
           partner_capabilities: unknown
           external_shop_origin: string | null
           external_shop_login_path: string
@@ -228,6 +234,12 @@ export interface Database {
           ga4_measurement_id?: string | null
           google_ads_id?: string | null
           tiktok_pixel_id?: string | null
+          gtm_container_id?: string | null
+          default_currency?: string
+          contact_phone?: string | null
+          contact_zalo_url?: string | null
+          contact_messenger_url?: string | null
+          contact_instagram_url?: string | null
           partner_capabilities?: unknown
           created_at?: string
           updated_at?: string
@@ -249,6 +261,12 @@ export interface Database {
           ga4_measurement_id?: string | null
           google_ads_id?: string | null
           tiktok_pixel_id?: string | null
+          gtm_container_id?: string | null
+          default_currency?: string
+          contact_phone?: string | null
+          contact_zalo_url?: string | null
+          contact_messenger_url?: string | null
+          contact_instagram_url?: string | null
           partner_capabilities?: unknown
           created_at?: string
           updated_at?: string
@@ -939,6 +957,11 @@ export interface Database {
           real_use_image_url: string
           real_use_image_url_2: string
           is_active: boolean
+          price_amount: number | null
+          price_currency: string
+          sale_price_amount: number | null
+          sale_starts_at: string | null
+          sale_ends_at: string | null
           image_embedding_json: number[] | null
           image_embedding_vec: string | null
           image_embedding_model: string | null
@@ -981,6 +1004,11 @@ export interface Database {
           real_use_image_url?: string
           real_use_image_url_2?: string
           is_active?: boolean
+          price_amount?: number | null
+          price_currency?: string
+          sale_price_amount?: number | null
+          sale_starts_at?: string | null
+          sale_ends_at?: string | null
           image_embedding_json?: number[] | null
           image_embedding_vec?: string | null
           image_embedding_model?: string | null
@@ -1023,6 +1051,11 @@ export interface Database {
           real_use_image_url?: string
           real_use_image_url_2?: string
           is_active?: boolean
+          price_amount?: number | null
+          price_currency?: string
+          sale_price_amount?: number | null
+          sale_starts_at?: string | null
+          sale_ends_at?: string | null
           image_embedding_json?: number[] | null
           image_embedding_vec?: string | null
           image_embedding_model?: string | null

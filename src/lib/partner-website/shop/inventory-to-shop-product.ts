@@ -21,6 +21,18 @@ export type PartnerSiteShopProduct = {
   productUrl: string
   sku: string
   detailPath: string
+  /** Tồn kho hiện tại — chỉ dùng để hiển thị cảnh báo "sắp hết hàng" (W1.6), KHÔNG dùng để chặn mua
+   * (nhiều shop chưa từng nhập số liệu này nên mặc định 0 — chặn mua theo giá trị này sẽ hỏng
+   * checkout hàng loạt cho shop chưa cấu hình tồn kho, xem partner-site-shop-product-client.tsx). */
+  stockQty: number
+  /** W4.10 / W1.4 — optional on mock/SSR stubs */
+  priceAmount?: number | null
+  priceCurrency?: string
+  salePriceAmount?: number | null
+  saleStartsAt?: string | null
+  saleEndsAt?: string | null
+  /** W1.5 — resolved from primary category when available. */
+  sizeGuideImageUrl?: string | null
 }
 /** Mô tả hiển thị shop — bỏ qua cột JSON size/màu (description / stock_note). */
 export function inventoryShopDisplayDescription(row: {
@@ -39,7 +51,20 @@ export function inventoryShopDisplayDescription(row: {
 
 export function inventoryRowToShopProduct(
   siteSlug: string,
-  row: InventoryShopSourceRow & { id: string; name?: string | null; price_hint?: string | null; sku?: string | null; product_url?: string | null }
+  row: InventoryShopSourceRow & {
+    id: string
+    name?: string | null
+    price_hint?: string | null
+    sku?: string | null
+    product_url?: string | null
+    stock_qty?: number | null
+    price_amount?: number | null
+    price_currency?: string | null
+    sale_price_amount?: number | null
+    sale_starts_at?: string | null
+    sale_ends_at?: string | null
+    sizeGuideImageUrl?: string | null
+  }
 ): PartnerSiteShopProduct | null {
   const name = (row.name ?? '').trim() || 'Product'
   const detailPath = partnerSiteProductPath(siteSlug, row.id, { name })
@@ -74,6 +99,16 @@ export function inventoryRowToShopProduct(
     productUrl,
     sku: (row.sku ?? '').trim(),
     detailPath,
+    stockQty: Math.max(0, Math.round(Number(row.stock_qty ?? 0)) || 0),
+    priceAmount: row.price_amount != null && Number.isFinite(Number(row.price_amount)) ? Number(row.price_amount) : null,
+    priceCurrency: String(row.price_currency ?? 'VND').trim() || 'VND',
+    salePriceAmount:
+      row.sale_price_amount != null && Number.isFinite(Number(row.sale_price_amount))
+        ? Number(row.sale_price_amount)
+        : null,
+    saleStartsAt: row.sale_starts_at ? String(row.sale_starts_at) : null,
+    saleEndsAt: row.sale_ends_at ? String(row.sale_ends_at) : null,
+    sizeGuideImageUrl: row.sizeGuideImageUrl?.trim() || null,
   }
 }
 

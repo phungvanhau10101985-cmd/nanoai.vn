@@ -87,11 +87,16 @@ export function PartnerSiteShopCatalogClient({
             id: c.inventory_id!,
             name: c.name,
             description: '',
+            detailDescription: '',
+            galleryImages: [],
+            detailImages: [],
+            productVideoUrl: null,
             priceHint: c.price_hint ?? '',
             imageUrl: c.image_url,
             productUrl: c.product_url,
             sku: c.sku ?? '',
             detailPath: partnerSiteProductPath(siteSlug, c.inventory_id!, { name: c.name }),
+            stockQty: 0,
           }))
       )
     } finally {

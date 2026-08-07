@@ -2,8 +2,11 @@
 
 import Link from 'next/link'
 import {
+  Bell,
   ClipboardList,
   Clock,
+  Download,
+  Gift,
   Heart,
   Home,
   MapPin,
@@ -11,6 +14,7 @@ import {
   MessageCircle,
   Package,
   Pencil,
+  Shield,
   ShoppingBag,
   Tag,
   UserRound,
@@ -21,14 +25,32 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { PartnerSiteShopSearchBar } from '@/components/partner-website/shop/partner-site-shop-search-bar'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
+import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
-import { partnerSiteCartApiPath, partnerSiteInfoPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  partnerSiteAccountTabPath,
+  partnerSiteCartApiPath,
+  partnerSiteCategoriesApiPath,
+  partnerSiteCategoryPath,
+  partnerSiteHomePath,
+  partnerSiteInfoPath,
+} from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  resolvePartnerCategoryDisplayName,
+  type PartnerCategoryTreeNode,
+} from '@/lib/partner-website/category/partner-category-types'
 import {
   getPartnerSiteAccountMenuItems,
   getPartnerSiteCategoryNavLabels,
   getPartnerSiteShopNavPaths,
   type PartnerSiteAccountMenuItemId,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
+import {
+  DEFAULT_PARTNER_SITE_FOOTER_LINKS,
+  normalizePartnerSiteNavLinks,
+  resolvePartnerSiteNavHref,
+  visibleSortedNavLinks,
+} from '@/lib/partner-website/shop/partner-site-nav-footer'
 import { buildPartnerSiteShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
@@ -38,6 +60,7 @@ import {
   usePartnerSiteShop,
 } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
 
 type Props = {
   siteSlug: string
@@ -49,6 +72,9 @@ type Props = {
   chatPath: string
   tracking: PartnerSiteShopTrackingConfig
   activeNav?: 'home' | 'products' | 'sale' | 'account' | 'cart' | 'wishlist'
+  /** W2.3 — optional merchant nav/footer overrides. */
+  navJson?: unknown | null
+  footerJson?: unknown | null
   children: React.ReactNode
 }
 
@@ -57,9 +83,13 @@ const ACCOUNT_MENU_ICONS: Record<PartnerSiteAccountMenuItemId, LucideIcon> = {
   'edit-profile': Pencil,
   cart: ShoppingBag,
   orders: ClipboardList,
+  wallet: Gift,
   wishlist: Heart,
   'recently-viewed': Clock,
   addresses: MapPin,
+  security: Shield,
+  notifications: Bell,
+  'install-app': Download,
   contact: MessageCircle,
 }
 
@@ -71,6 +101,7 @@ function PartnerSiteShopShellInner({
   locale,
   tracking,
   activeNav = 'products',
+  footerJson = null,
   children,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
@@ -78,8 +109,57 @@ function PartnerSiteShopShellInner({
   const customDomain = usePartnerSiteCustomDomain()
   const paths = getPartnerSiteShopNavPaths(siteSlug, customDomain)
   const accountMenuItems = getPartnerSiteAccountMenuItems({ siteSlug, locale, customDomain })
+  const footerLinks = visibleSortedNavLinks(
+    normalizePartnerSiteNavLinks(footerJson, DEFAULT_PARTNER_SITE_FOOTER_LINKS)
+  )
+  const footerLabel = (hrefKey: string, override?: string | null) => {
+    if (override?.trim()) return override.trim()
+    const map: Record<string, string> = {
+      about: n.about,
+      contact: n.contact,
+      stores: n.stores,
+      lookbook: n.lookbook,
+      products: t.navProducts,
+      sale: n.sale,
+      wishlist: t.navFavorites,
+      'size-guide': n.sizeGuide,
+      faq: n.faq,
+      shipping: n.shipping,
+      returns: n.returns,
+      payment: n.payment,
+      privacy: n.privacy,
+      terms: n.terms,
+      blog: n.blog,
+      home: t.navHome,
+      cart: t.navCart,
+      orders: t.navOrders,
+      account: t.navAccount,
+    }
+    return map[hrefKey] || hrefKey
+  }
+  const infoPath = (key: string) =>
+    partnerSiteInfoPath(
+      siteSlug,
+      key as
+        | 'about'
+        | 'contact'
+        | 'faq'
+        | 'sale'
+        | 'shipping'
+        | 'returns'
+        | 'privacy'
+        | 'terms'
+        | 'payment'
+        | 'thank-you'
+        | 'stores'
+        | 'lookbook'
+        | 'size-guide'
+        | 'blog',
+      { customDomain }
+    )
   const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { cartCount, setCartCount, registerCartLoader } = usePartnerSiteShop()
+  const [categoryTree, setCategoryTree] = useState<PartnerCategoryTreeNode[] | null>(null)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const categoriesRef = useRef<HTMLDivElement | null>(null)
@@ -130,15 +210,52 @@ function PartnerSiteShopShellInner({
     void loadCartCount()
   }, [loadCartCount, ready])
 
+  // W5.5 — metadata provides the tenant manifest; storefront owns its own SW.
+  useEffect(() => {
+    const home = partnerSiteHomePath(siteSlug, { customDomain })
+    const swHref = customDomain
+      ? '/sw.js'
+      : `/site/${encodeURIComponent(siteSlug)}/sw.js`
+
+    if (!('serviceWorker' in navigator)) return
+    // Avoid registering on localhost draft noise; still OK for published custom domains.
+    const host = window.location.hostname
+    const isLocal = host === 'localhost' || host === '127.0.0.1'
+    if (isLocal && !customDomain) return
+    void navigator.serviceWorker.register(swHref, { scope: home.endsWith('/') ? home : `${home}/` }).catch(() => {
+      /* ignore */
+    })
+  }, [customDomain, siteSlug])
+
+  // W4.8 — mega menu thật từ cây danh mục (active). Rỗng = shop chưa cấu hình danh mục
+  // -> fallback nhãn cố định cũ bên dưới (W4.3, không phá site đang publish).
+  useEffect(() => {
+    let cancelled = false
+    fetch(partnerSiteCategoriesApiPath(siteSlug), { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { tree?: PartnerCategoryTreeNode[] } | null) => {
+        if (!cancelled) setCategoryTree(json?.tree ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setCategoryTree([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [siteSlug])
+
+  const hasCategoryTree = Boolean(categoryTree && categoryTree.length > 0)
+
   return (
     <div className="pw-shop">
       <PartnerSiteShopTrackingBootstrap tracking={tracking} />
+      <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} />
       <style dangerouslySetInnerHTML={{ __html: buildPartnerSiteShopThemeCss(theme) }} />
 
       <div className="pw-shop-topbar">
         <div className="pw-shop-topbar-inner">
-          <Link href={`${paths.account}#contact`}>{n.contact}</Link>
-          <Link href={`${paths.account}#wishlist`}>{t.navFavorites}</Link>
+          <Link href={partnerSiteAccountTabPath(siteSlug, 'contact', { customDomain })}>{n.contact}</Link>
+          <Link href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })}>{t.navFavorites}</Link>
           {!isAuthenticated ? <Link href={paths.account}>{n.login}</Link> : null}
         </div>
       </div>
@@ -170,21 +287,40 @@ function PartnerSiteShopShellInner({
             )}
             {categoriesOpen ? (
               <nav id="pw-shop-cat-panel" className="pw-shop-cat-panel" aria-label={t.navCategories}>
-                <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
-                  {n.newArrivals}
-                </Link>
-                <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
-                  {n.clothing}
-                </Link>
-                <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
-                  {n.bags}
-                </Link>
-                <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
-                  {n.shoes}
-                </Link>
-                <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
-                  {n.accessories}
-                </Link>
+                {hasCategoryTree ? (
+                  <>
+                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                      {n.newArrivals}
+                    </Link>
+                    {categoryTree!.map((cat) => (
+                      <Link
+                        key={cat.id}
+                        href={partnerSiteCategoryPath(siteSlug, cat.path, { customDomain })}
+                        onClick={() => setCategoriesOpen(false)}
+                      >
+                        {resolvePartnerCategoryDisplayName(cat, locale)}
+                      </Link>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                      {n.newArrivals}
+                    </Link>
+                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                      {n.clothing}
+                    </Link>
+                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                      {n.bags}
+                    </Link>
+                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                      {n.shoes}
+                    </Link>
+                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                      {n.accessories}
+                    </Link>
+                  </>
+                )}
                 <Link href={paths.sale} className="is-sale" onClick={() => setCategoriesOpen(false)}>
                   {n.sale}
                 </Link>
@@ -231,7 +367,7 @@ function PartnerSiteShopShellInner({
                 </nav>
               ) : null}
             </div>
-            <Link href={`${paths.account}#cart`} className="pw-shop-icon-btn" aria-label={t.navCart}>
+            <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className="pw-shop-icon-btn" aria-label={t.navCart}>
               <ShoppingBag className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span className="pw-shop-icon-label">{t.navCart}</span>
               {cartCount > 0 ? (
@@ -242,10 +378,20 @@ function PartnerSiteShopShellInner({
         </div>
         <nav className="pw-shop-nav-row" aria-label="Shop">
           <Link href={paths.products}>{n.newArrivals}</Link>
-          <Link href={paths.products}>{n.clothing}</Link>
-          <Link href={paths.products}>{n.bags}</Link>
-          <Link href={paths.products}>{n.shoes}</Link>
-          <Link href={paths.products}>{n.accessories}</Link>
+          {hasCategoryTree ? (
+            categoryTree!.map((cat) => (
+              <Link key={cat.id} href={partnerSiteCategoryPath(siteSlug, cat.path, { customDomain })}>
+                {resolvePartnerCategoryDisplayName(cat, locale)}
+              </Link>
+            ))
+          ) : (
+            <>
+              <Link href={paths.products}>{n.clothing}</Link>
+              <Link href={paths.products}>{n.bags}</Link>
+              <Link href={paths.products}>{n.shoes}</Link>
+              <Link href={paths.products}>{n.accessories}</Link>
+            </>
+          )}
           <Link href={paths.sale} className="is-sale">
             {n.sale}
           </Link>
@@ -256,27 +402,19 @@ function PartnerSiteShopShellInner({
 
       <footer className="pw-shop-footer">
         <div className="pw-shop-footer-inner">
+          {/* W2.3 — 1 cột danh sách link từ footer_json (fallback default). */}
           <div>
-            <h3>{n.about}</h3>
-            <Link href={partnerSiteInfoPath(siteSlug, 'about')}>{n.about}</Link>
-            <Link href={paths.contact}>{n.contact}</Link>
+            <h3>{title}</h3>
+            {footerLinks.map((item) => (
+              <Link
+                key={item.id}
+                href={resolvePartnerSiteNavHref(item.hrefKey, paths, infoPath)}
+              >
+                {footerLabel(item.hrefKey, item.labelOverride)}
+              </Link>
+            ))}
           </div>
           <div>
-            <h3>{t.navProducts}</h3>
-            <Link href={paths.products}>{t.navProducts}</Link>
-            <Link href={paths.sale}>{n.sale}</Link>
-            <Link href={paths.wishlist}>{t.navFavorites}</Link>
-          </div>
-          <div>
-            <h3>{n.faq}</h3>
-            <Link href={partnerSiteInfoPath(siteSlug, 'faq')}>{n.faq}</Link>
-            <Link href={partnerSiteInfoPath(siteSlug, 'shipping')}>{n.shipping}</Link>
-            <Link href={partnerSiteInfoPath(siteSlug, 'returns')}>{n.returns}</Link>
-          </div>
-          <div>
-            <h3>{n.privacy}</h3>
-            <Link href={partnerSiteInfoPath(siteSlug, 'privacy')}>{n.privacy}</Link>
-            <Link href={partnerSiteInfoPath(siteSlug, 'terms')}>{n.terms}</Link>
             <p>{title}</p>
           </div>
         </div>
@@ -300,6 +438,29 @@ function PartnerSiteShopShellInner({
           <span>{t.navAccount}</span>
         </Link>
       </nav>
+
+      {theme.floatingCta?.enabled && theme.floatingCta.href ? (
+        <a
+          href={theme.floatingCta.href}
+          className="fixed bottom-[15.5rem] right-3 z-[2147482900] flex max-w-[11rem] items-center gap-2 rounded-full bg-[var(--pw-primary,#f97316)] px-3 py-2.5 text-sm font-semibold text-white shadow-lg md:bottom-[5.5rem] md:right-4"
+          style={{ color: '#fff' }}
+        >
+          {theme.floatingCta.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={theme.floatingCta.imageUrl}
+              alt=""
+              className="h-8 w-8 shrink-0 rounded-full object-cover"
+            />
+          ) : null}
+          <span className="truncate">{theme.floatingCta.label || 'CTA'}</span>
+        </a>
+      ) : null}
+      <PartnerSiteContactChannelsFab
+        siteSlug={siteSlug}
+        locale={locale}
+        hasFloatingCta={Boolean(theme.floatingCta?.enabled && theme.floatingCta.href)}
+      />
     </div>
   )
 }

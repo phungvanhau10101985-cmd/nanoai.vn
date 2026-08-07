@@ -34,6 +34,7 @@ function baseSession(overrides: Partial<HubStudioSession> = {}): HubStudioSessio
     ],
     uploadImages: [],
     pendingPreview: null,
+    lastGenerationPrompt: null,
     ...overrides,
   }
 }

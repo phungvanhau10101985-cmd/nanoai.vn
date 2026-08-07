@@ -1,4 +1,10 @@
 import type { WebLocale } from '@/lib/i18n/config'
+import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
+import type {
+  PartnerCapabilities,
+  PartnerIndustryKey,
+} from '@/lib/partner-website/partner-capabilities'
+import { getPartnerWebsiteEditSuggestions } from '@/lib/partner-website/partner-website-quick-edits'
 import {
   defaultFeatureSuggestions,
   discoveryKeysForPage,
@@ -539,18 +545,18 @@ export function listMockupVersionsFromJournal(
 
 export function editSuggestionsForJournal(
   journal: PartnerWebsiteCreationJournal,
-  t: {
-    chatSuggestEditHero: string
-    chatSuggestEditColor: string
-    quickEditAddFaq: string
-    quickEditHeroColor: string
-    quickEditHeroTitle: string
-    quickEditChatCta: string
+  t: PartnerWebsiteCopy,
+  opts?: {
+    locale?: WebLocale
+    industryKey?: PartnerIndustryKey
+    capabilities?: PartnerCapabilities | null
   }
 ): string[] {
-  const base = [t.chatSuggestEditHero, t.chatSuggestEditColor, t.quickEditAddFaq]
-  if (journal.phase === 'built') {
-    return [...base, t.quickEditHeroColor, t.quickEditHeroTitle, t.quickEditChatCta]
-  }
-  return base
+  return getPartnerWebsiteEditSuggestions({
+    locale: opts?.locale ?? 'vi',
+    t,
+    industryKey: opts?.industryKey ?? 'fashion',
+    capabilities: opts?.capabilities ?? null,
+    phase: journal.phase === 'built' ? 'built' : 'other',
+  })
 }

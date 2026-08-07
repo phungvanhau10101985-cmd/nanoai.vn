@@ -127,10 +127,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
     }
   }
 
-  return jsonHeadlessWriteWithCors(req, {
-    ok: true,
-    customer_ref: customerRef,
-    order: mapPartnerOrderToHeadlessSnapshot(done.order),
-    ...(metaPurchase ? { meta_purchase: metaPurchase } : {}),
-  })
+  return jsonHeadlessWriteWithCors(
+    req,
+    {
+      ok: true,
+      customer_ref: customerRef,
+      order: mapPartnerOrderToHeadlessSnapshot(done.order),
+      ...(metaPurchase ? { meta_purchase: metaPurchase } : {}),
+    },
+    200
+  )
 }

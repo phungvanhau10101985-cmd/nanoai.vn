@@ -24,6 +24,8 @@ import {
 
   MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY,
 
+  MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE,
+
 } from '@/lib/messaging/guest-account-session'
 
 import { partnerSiteAuthSyncApiPath, partnerSiteSessionApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -266,7 +268,37 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
 
 
 
-  return { ready, isAuthenticated, authHeaders, captureFromResponse }
+  const clearSession = useCallback(async () => {
+    sessionRef.current = ''
+    accountRef.current = ''
+    setIsAuthenticated(false)
+    try {
+      window.localStorage.removeItem(MESSAGING_GUEST_SESSION_STORAGE_KEY)
+      window.localStorage.removeItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY)
+      window.localStorage.removeItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY)
+      window.localStorage.removeItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY)
+    } catch {
+      /* ignore */
+    }
+    try {
+      const expire = 'Max-Age=0; path=/'
+      document.cookie = `${MESSAGING_GUEST_SESSION_SYNC_COOKIE}=; ${expire}`
+      document.cookie = `${MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE}=; ${expire}`
+    } catch {
+      /* ignore */
+    }
+    try {
+      await fetch(partnerSiteSessionApiPath(siteSlug), {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      })
+    } catch {
+      /* ignore */
+    }
+    window.location.reload()
+  }, [siteSlug])
+
+  return { ready, isAuthenticated, authHeaders, captureFromResponse, clearSession }
 
 }
 

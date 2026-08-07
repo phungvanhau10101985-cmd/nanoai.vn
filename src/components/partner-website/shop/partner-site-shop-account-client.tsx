@@ -1,13 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
+  Bell,
   ClipboardList,
   Clock,
+  Copy,
+  Download,
+  Gift,
   Heart,
   MapPin,
   MessageCircle,
   Pencil,
+  Shield,
   ShoppingBag,
   UserRound,
 } from 'lucide-react'
@@ -17,28 +23,73 @@ import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-
 import {
   getPartnerSiteCategoryNavLabels,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
-import { partnerSitePersonalizationApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  isPartnerSiteAccountTab,
+  partnerSiteAccountTabPath,
+  partnerSiteNotificationsApiPath,
+  partnerSitePersonalizationApiPath,
+  type PartnerSiteAccountTab,
+} from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PartnerSiteShopAuthPanel } from '@/components/partner-website/shop/partner-site-shop-auth-panel'
 import { PartnerSiteShopCartClient } from '@/components/partner-website/shop/partner-site-shop-cart-client'
 import { PartnerSiteShopOrdersClient } from '@/components/partner-website/shop/partner-site-shop-orders-client'
 import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website/shop/partner-site-shop-saved-products-client'
 import { PartnerSiteShopAddressesClient } from '@/components/partner-website/shop/partner-site-shop-addresses-client'
 import { usePartnerSiteChatWidget } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
+import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import type { PartnerSiteVisitorProfile } from '@/lib/partner-website/shop/partner-site-personalization'
 
-type AccountTab = 'overview' | 'cart' | 'orders' | 'wishlist' | 'recently-viewed' | 'addresses' | 'edit-profile' | 'contact'
+type AccountTab = PartnerSiteAccountTab
+
+type WalletVoucher = {
+  code: string
+  name: string
+  description: string
+  discountType: 'percent' | 'fixed_amount'
+  discountPercent: number | null
+  discountAmount: number | null
+  maxDiscountAmount: number | null
+  minSubtotal: number
+  expiresAt: string | null
+}
+
+type NotificationItem = {
+  id: string
+  type: string
+  title: string
+  body: string
+  href: string
+  readAt: string | null
+  createdAt: string
+}
+
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
 
 type Props = {
   siteSlug: string
   partnerSlug: string
   shopTitle?: string
   locale: WebLocale
+  initialTab?: AccountTab
+  initialOrdersFilter?: string | null
 }
 
-export function PartnerSiteShopAccountClient({ siteSlug, partnerSlug, shopTitle, locale }: Props) {
+export function PartnerSiteShopAccountClient({
+  siteSlug,
+  partnerSlug,
+  shopTitle,
+  locale,
+  initialTab = 'overview',
+  initialOrdersFilter = null,
+}: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const n = getPartnerSiteCategoryNavLabels(locale)
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const router = useRouter()
+  const customDomain = usePartnerSiteCustomDomain()
+  const { ready, authHeaders, captureFromResponse, clearSession } = usePartnerSiteGuestSession(siteSlug)
   const [profile, setProfile] = useState<PartnerSiteVisitorProfile | null>(null)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -46,8 +97,29 @@ export function PartnerSiteShopAccountClient({ siteSlug, partnerSlug, shopTitle,
   const [saving, setSaving] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [status, setStatus] = useState('')
-  const [activeTab, setActiveTab] = useState<AccountTab>('overview')
+  const [activeTab, setActiveTab] = useState<AccountTab>(
+    isPartnerSiteAccountTab(initialTab) ? initialTab : 'overview'
+  )
+  const [ordersFilter, setOrdersFilter] = useState<string | null>(initialOrdersFilter)
+  const [wallet, setWallet] = useState<WalletVoucher[]>([])
+  const [walletLoading, setWalletLoading] = useState(false)
+  const [copiedCode, setCopiedCode] = useState('')
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [notificationsLoading, setNotificationsLoading] = useState(false)
+  const [showReAuth, setShowReAuth] = useState(false)
+  const [deferredInstall, setDeferredInstall] = useState<BeforeInstallPromptEvent | null>(null)
+  const [isStandalone, setIsStandalone] = useState(false)
+  const [isIos, setIsIos] = useState(false)
   const { openChat } = usePartnerSiteChatWidget()
+
+  const navigateTab = useCallback(
+    (tab: AccountTab) => {
+      setActiveTab(tab)
+      const href = partnerSiteAccountTabPath(siteSlug, tab, { customDomain })
+      router.push(href)
+    },
+    [customDomain, router, siteSlug]
+  )
 
   const loadProfile = useCallback(async () => {
     const res = await fetch(partnerSitePersonalizationApiPath(siteSlug, 'profile'), {
@@ -73,22 +145,100 @@ export function PartnerSiteShopAccountClient({ siteSlug, partnerSlug, shopTitle,
     void loadProfile().finally(() => setLoading(false))
   }, [loadProfile, ready])
 
+  // W5.6 — legacy hash deep links → real account routes
   useEffect(() => {
-    if (loading || typeof window === 'undefined') return
-    const hash = window.location.hash
-    if (!hash) return
+    if (typeof window === 'undefined') return
+    const rawHash = window.location.hash
+    if (!rawHash) return
+    const hashPath = rawHash.split('?')[0]
+    const hashQuery = rawHash.includes('?') ? rawHash.slice(rawHash.indexOf('?') + 1) : ''
     const tabFromHash: Partial<Record<string, AccountTab>> = {
       '#edit-profile': 'edit-profile',
       '#cart': 'cart',
       '#orders': 'orders',
+      '#wallet': 'wallet',
       '#wishlist': 'wishlist',
       '#recently-viewed': 'recently-viewed',
       '#addresses': 'addresses',
       '#contact': 'contact',
+      '#security': 'security',
+      '#notifications': 'notifications',
+      '#install-app': 'install-app',
     }
-    const tab = tabFromHash[hash]
-    if (tab) setActiveTab(tab)
-  }, [loading])
+    const tab = tabFromHash[hashPath]
+    if (!tab) return
+    let href = partnerSiteAccountTabPath(siteSlug, tab, { customDomain })
+    if (tab === 'orders' && hashQuery) {
+      const params = new URLSearchParams(hashQuery)
+      const filter = params.get('tab')
+      if (filter) {
+        setOrdersFilter(filter)
+        href = `${href}?tab=${encodeURIComponent(filter)}`
+      }
+    }
+    router.replace(href)
+  }, [customDomain, router, siteSlug])
+
+  useEffect(() => {
+    if (isPartnerSiteAccountTab(initialTab)) setActiveTab(initialTab)
+  }, [initialTab])
+
+  useEffect(() => {
+    setOrdersFilter(initialOrdersFilter)
+  }, [initialOrdersFilter])
+
+  useEffect(() => {
+    if (activeTab !== 'wallet' || !ready) return
+    setWalletLoading(true)
+    void fetch(`/api/site/${encodeURIComponent(siteSlug)}/promotions/wallet`, {
+      credentials: 'same-origin',
+      headers: authHeaders(),
+    })
+      .then((res) => {
+        captureFromResponse(res)
+        return res.json()
+      })
+      .then((json: { vouchers?: WalletVoucher[] }) => setWallet(json.vouchers ?? []))
+      .finally(() => setWalletLoading(false))
+  }, [activeTab, authHeaders, captureFromResponse, ready, siteSlug])
+
+  useEffect(() => {
+    if (activeTab !== 'notifications' || !ready || needsAuth) return
+    setNotificationsLoading(true)
+    void fetch(partnerSiteNotificationsApiPath(siteSlug), {
+      credentials: 'same-origin',
+      headers: authHeaders(),
+    })
+      .then((res) => {
+        captureFromResponse(res)
+        return res.json()
+      })
+      .then((json: { notifications?: NotificationItem[] }) => setNotifications(json.notifications ?? []))
+      .finally(() => setNotificationsLoading(false))
+  }, [activeTab, authHeaders, captureFromResponse, needsAuth, ready, siteSlug])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const win = window as Window & { MSStream?: boolean; standalone?: boolean }
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !win.MSStream
+    const standalone =
+      win.standalone === true || window.matchMedia('(display-mode: standalone)').matches
+    setIsIos(ios)
+    setIsStandalone(standalone)
+    if (standalone) return
+    const handler = (e: Event) => {
+      e.preventDefault()
+      setDeferredInstall(e as BeforeInstallPromptEvent)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  function copyVoucherCode(code: string) {
+    void navigator.clipboard?.writeText(code)
+    setCopiedCode(code)
+    setTimeout(() => setCopiedCode(''), 2000)
+  }
 
   async function saveProfile() {
     if (saving) return
@@ -132,20 +282,67 @@ export function PartnerSiteShopAccountClient({ siteSlug, partnerSlug, shopTitle,
     }
   }
 
+  async function markAllNotificationsRead() {
+    const res = await fetch(partnerSiteNotificationsApiPath(siteSlug), {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ markAllRead: true }),
+    })
+    captureFromResponse(res)
+    if (!res.ok) return
+    setNotifications((prev) =>
+      prev.map((nItem) => ({ ...nItem, readAt: nItem.readAt ?? new Date().toISOString() }))
+    )
+  }
+
+  async function markNotificationRead(id: string) {
+    const res = await fetch(partnerSiteNotificationsApiPath(siteSlug), {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ notificationId: id }),
+    })
+    captureFromResponse(res)
+    if (!res.ok) return
+    setNotifications((prev) =>
+      prev.map((nItem) =>
+        nItem.id === id ? { ...nItem, readAt: nItem.readAt ?? new Date().toISOString() } : nItem
+      )
+    )
+  }
+
+  async function handleInstallApp() {
+    if (!deferredInstall) return
+    await deferredInstall.prompt()
+    const { outcome } = await deferredInstall.userChoice
+    if (outcome === 'accepted') setDeferredInstall(null)
+  }
+
   const displayName =
     profile?.customer_name?.trim() ||
     profile?.greeting_name?.trim() ||
     profile?.email?.split('@')[0] ||
     ''
 
-  const tabs: { id: AccountTab; label: string; Icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean; strokeWidth?: number }> }[] = [
+  const unreadCount = notifications.filter((nItem) => !nItem.readAt).length
+
+  const tabs: {
+    id: AccountTab
+    label: string
+    Icon: typeof UserRound
+  }[] = [
     { id: 'overview', label: t.navAccount, Icon: UserRound },
     { id: 'cart', label: t.navCart, Icon: ShoppingBag },
     { id: 'orders', label: t.navOrders, Icon: ClipboardList },
+    { id: 'wallet', label: t.navWallet, Icon: Gift },
     { id: 'wishlist', label: t.navFavorites, Icon: Heart },
     { id: 'recently-viewed', label: t.accountViewedProducts, Icon: Clock },
     { id: 'addresses', label: t.accountAddressBook, Icon: MapPin },
     { id: 'edit-profile', label: t.accountEditProfile, Icon: Pencil },
+    { id: 'security', label: t.accountSecurity, Icon: Shield },
+    { id: 'notifications', label: t.accountNotifications, Icon: Bell },
+    { id: 'install-app', label: t.accountInstallApp, Icon: Download },
     { id: 'contact', label: n.contact, Icon: MessageCircle },
   ]
 
@@ -178,7 +375,7 @@ export function PartnerSiteShopAccountClient({ siteSlug, partnerSlug, shopTitle,
                     key={id}
                     type="button"
                     className={`pw-shop-account-link-card${activeTab === id ? ' is-active' : ''}`}
-                    onClick={() => setActiveTab(id)}
+                    onClick={() => navigateTab(id)}
                   >
                     <Icon className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} />
                     <span>{label}</span>
@@ -229,7 +426,60 @@ export function PartnerSiteShopAccountClient({ siteSlug, partnerSlug, shopTitle,
                 partnerSlug={partnerSlug}
                 locale={locale}
                 chatPath=""
+                initialFilter={ordersFilter}
               />
+            ) : null}
+
+            {activeTab === 'wallet' ? (
+              <section>
+                <h2>{t.walletTitle}</h2>
+                <p className="pw-shop-muted" style={{ marginBottom: 16 }}>
+                  {t.walletHint}
+                </p>
+                {walletLoading ? <p className="pw-shop-muted">…</p> : null}
+                {!walletLoading && wallet.length === 0 ? (
+                  <p className="pw-shop-muted">{t.walletEmpty}</p>
+                ) : null}
+                <div style={{ display: 'grid', gap: 12 }}>
+                  {wallet.map((v) => (
+                    <div
+                      key={v.code}
+                      style={{ border: '1px dashed #d1d5db', borderRadius: 12, padding: 16, display: 'grid', gap: 6 }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                        <strong>{v.name}</strong>
+                        <span className="pw-shop-price">
+                          {v.discountType === 'percent' ? `${v.discountPercent}%` : `${(v.discountAmount ?? 0).toLocaleString('vi-VN')}đ`}
+                        </span>
+                      </div>
+                      {v.description ? <p className="pw-shop-muted" style={{ margin: 0 }}>{v.description}</p> : null}
+                      {v.minSubtotal > 0 ? (
+                        <p className="pw-shop-muted" style={{ margin: 0, fontSize: 13 }}>
+                          {t.walletMinSubtotalNote} {v.minSubtotal.toLocaleString('vi-VN')}đ
+                        </p>
+                      ) : null}
+                      {v.expiresAt ? (
+                        <p className="pw-shop-muted" style={{ margin: 0, fontSize: 13 }}>
+                          {t.walletExpiresLabel}: {new Date(v.expiresAt).toLocaleDateString(locale)}
+                        </p>
+                      ) : null}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                        <code style={{ background: '#f3f4f6', padding: '4px 10px', borderRadius: 6, fontWeight: 700 }}>
+                          {v.code}
+                        </code>
+                        <button
+                          type="button"
+                          className="pw-shop-btn pw-shop-btn-outline"
+                          onClick={() => copyVoucherCode(v.code)}
+                        >
+                          <Copy className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} style={{ width: 16, height: 16, marginRight: 4 }} />
+                          {copiedCode === v.code ? t.walletCodeCopied : t.walletCopyCode}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
             ) : null}
 
             {activeTab === 'wishlist' ? (
@@ -280,6 +530,125 @@ export function PartnerSiteShopAccountClient({ siteSlug, partnerSlug, shopTitle,
                   </button>
                   {status ? <p className="pw-shop-muted">{status}</p> : null}
                 </div>
+              </section>
+            ) : null}
+
+            {activeTab === 'security' ? (
+              <section className="pw-shop-account-edit">
+                <h2>{t.accountSecurityTitle}</h2>
+                {profile?.email ? (
+                  <p className="pw-shop-muted" style={{ marginTop: 12 }}>
+                    {t.accountEmailLabel}: {profile.email}
+                  </p>
+                ) : null}
+                <p className="pw-shop-muted" style={{ marginTop: 8, marginBottom: 16 }}>
+                  {t.accountSecurityLoginNote}
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  <button
+                    type="button"
+                    className="pw-shop-btn pw-shop-btn-outline"
+                    onClick={() => void clearSession()}
+                  >
+                    {t.accountSignOutDevice}
+                  </button>
+                  <button
+                    type="button"
+                    className="pw-shop-btn"
+                    onClick={() => setShowReAuth((v) => !v)}
+                  >
+                    {t.accountSecurityReAuth}
+                  </button>
+                </div>
+                {showReAuth ? (
+                  <div style={{ marginTop: 20 }}>
+                    <PartnerSiteShopAuthPanel
+                      partnerSlug={partnerSlug}
+                      siteSlug={siteSlug}
+                      shopTitle={shopTitle}
+                      locale={locale}
+                      onAuthed={() => {
+                        setShowReAuth(false)
+                        void loadProfile()
+                      }}
+                    />
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+
+            {activeTab === 'notifications' ? (
+              <section className="pw-shop-account-edit">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <h2 style={{ margin: 0 }}>{t.accountNotificationsTitle}</h2>
+                  {unreadCount > 0 ? (
+                    <button
+                      type="button"
+                      className="pw-shop-btn pw-shop-btn-outline"
+                      onClick={() => void markAllNotificationsRead()}
+                    >
+                      {t.accountNotificationsMarkAllRead}
+                    </button>
+                  ) : null}
+                </div>
+                {notificationsLoading ? <p className="pw-shop-muted">…</p> : null}
+                {!notificationsLoading && notifications.length === 0 ? (
+                  <p className="pw-shop-muted" style={{ marginTop: 16 }}>{t.accountNotificationsEmpty}</p>
+                ) : null}
+                <ul style={{ listStyle: 'none', padding: 0, margin: '16px 0 0', display: 'grid', gap: 10 }}>
+                  {notifications.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className="pw-shop-account-link-card"
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          opacity: item.readAt ? 0.72 : 1,
+                          fontWeight: item.readAt ? 400 : 600,
+                        }}
+                        onClick={() => {
+                          if (!item.readAt) void markNotificationRead(item.id)
+                          if (item.href) router.push(item.href)
+                        }}
+                      >
+                        <strong style={{ display: 'block' }}>{item.title}</strong>
+                        {item.body ? (
+                          <span className="pw-shop-muted" style={{ display: 'block', marginTop: 4, fontWeight: 400 }}>
+                            {item.body}
+                          </span>
+                        ) : null}
+                        <span className="pw-shop-muted" style={{ display: 'block', marginTop: 6, fontSize: 12, fontWeight: 400 }}>
+                          {item.createdAt ? new Date(item.createdAt).toLocaleString(locale) : ''}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {activeTab === 'install-app' ? (
+              <section className="pw-shop-account-edit">
+                <h2>{t.accountInstallAppTitle}</h2>
+                <p className="pw-shop-muted" style={{ marginTop: 8, marginBottom: 16 }}>
+                  {t.accountInstallAppHint}
+                </p>
+                {isStandalone ? (
+                  <p className="pw-shop-muted">{t.accountInstallAppInstalled}</p>
+                ) : null}
+                {!isStandalone && deferredInstall ? (
+                  <button type="button" className="pw-shop-btn" onClick={() => void handleInstallApp()}>
+                    <Download className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} style={{ marginRight: 6 }} />
+                    {t.accountInstallAppButton}
+                  </button>
+                ) : null}
+                {!isStandalone && isIos ? (
+                  <p className="pw-shop-muted" style={{ marginTop: 12 }}>{t.accountInstallAppIosTip}</p>
+                ) : null}
+                {!isStandalone && !isIos && !deferredInstall ? (
+                  <p className="pw-shop-muted" style={{ marginTop: 12 }}>{t.accountInstallAppManualTip}</p>
+                ) : null}
               </section>
             ) : null}
 

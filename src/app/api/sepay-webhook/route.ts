@@ -29,6 +29,7 @@ import { insertPartnerOrderEventFromPg } from '@/lib/db/messaging-partner-orders
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
 import { emitPartnerOutboundPaymentPaid } from '@/lib/messaging/partner-outbound-webhook-emit'
+import { sendPartnerMetaPurchaseCapiOnPaymentConfirmed } from '@/lib/tracking/meta-purchase-after-order'
 
 type SePayBody = Record<string, string | number | boolean | null | undefined>
 
@@ -329,6 +330,11 @@ export async function POST(request: NextRequest) {
       queuePartnerOrderGoogleSheetsSync(partnerId, order.id)
       if (refreshed && nextStatus === 'paid_verified') {
         emitPartnerOutboundPaymentPaid(partnerId, refreshed)
+        // S0.3 — Purchase CAPI server-side khi thanh toán được xác nhận THẬT (event_id ổn định
+        // theo đơn để dedupe đúng với lần gửi lúc tạo đơn). Xem docs/188_BEHAVIOR_SPEC.md mục E.4.
+        sendPartnerMetaPurchaseCapiOnPaymentConfirmed({ partnerId, order: refreshed }).catch((e) =>
+          console.warn('[sepay-webhook] Meta CAPI Purchase (paid_verified)', e)
+        )
       }
       return NextResponse.json({
         success: true,

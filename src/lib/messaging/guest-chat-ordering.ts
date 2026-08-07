@@ -35,6 +35,12 @@ import {
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { resolveActiveBirthdayDiscountPercentForLinkedUser } from '@/lib/db/messaging-partner-birthday-promo-pg'
+import {
+  recordPromotionUsageFromPg,
+  validatePromotionCodeFromPg,
+} from '@/lib/db/messaging-partner-promotions-pg'
+import { sendPartnerMetaPurchaseCapiOnPaymentConfirmed } from '@/lib/tracking/meta-purchase-after-order'
+import { notifyPartnerOwnerNewOrder } from '@/lib/messaging/partner-admin-notifications'
 import { guestImageObjectExists } from '@/lib/messaging/guest-chat-image'
 import { getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 import {
@@ -131,6 +137,10 @@ export type CheckoutFormInput = {
   note: string
   /** URL ảnh màu/mẫu (palette) khách đã chọn — lưu JSON vào DB khi checkout. */
   variantLineImages?: string[]
+  /** W1.4 — mã voucher khách tự nhập (tự nhập redeem, khác 188: 188 không có bước này). */
+  promoCode?: string
+  /** W1.7 — chỉ có ý nghĩa lựa chọn thật khi đơn có cọc (required_amount > 0); mặc định 'cod'. */
+  paymentMethod?: 'cod' | 'bank_transfer' | 'ewallet'
 }
 
 export type CartCheckoutLineInput = {
@@ -179,6 +189,12 @@ export type ProductPurchaseOptions = {
     percent: number
     fixed_amount: number
   }
+  /** W1.7 — hiển thị cho khách trước khi checkout (phí ship, ngưỡng miễn ship, ví điện tử có sẵn không). */
+  shipping_policy: {
+    fee_amount: number
+    free_threshold_amount: number | null
+  }
+  ewallet_available: boolean
 }
 
 function trim(s: string, max = 240): string {
@@ -193,8 +209,16 @@ function toVnd(n: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(n || 0)))}đ`
 }
 
+/** W1.7 — dòng phí ship trong tin nhắn xác nhận đơn; rỗng nếu đơn được miễn ship hoặc shop không thu phí. */
+function orderShippingFeeSummaryLine(order: PartnerOrderRow): string {
+  if (order.shipping_fee_amount <= 0) return ''
+  return `Phí vận chuyển: **${toVnd(order.shipping_fee_amount)}**\n`
+}
+
 function orderDiscountSummaryLine(order: PartnerOrderRow): string {
-  if (order.total_discount_amount <= 0) return ''
+  const promoAmount = Math.max(0, order.promo_discount_amount || 0)
+  const totalDiscount = order.total_discount_amount + promoAmount
+  if (totalDiscount <= 0) return ''
   const parts: string[] = []
   if (order.birthday_discount_amount > 0) {
     parts.push(`sinh nhật ${order.birthday_discount_percent}%`)
@@ -203,8 +227,11 @@ function orderDiscountSummaryLine(order: PartnerOrderRow): string {
     const tier = order.loyalty_tier_name || order.loyalty_tier_code || 'thành viên'
     parts.push(`${tier} ${order.loyalty_discount_percent}%`)
   }
+  if (promoAmount > 0) {
+    parts.push(`mã ${order.promo_code || 'giảm giá'}`)
+  }
   const reason = parts.length > 0 ? ` (${parts.join(' + ')})` : ''
-  return `Giảm giá${reason}: **-${toVnd(order.total_discount_amount)}**\n` +
+  return `Giảm giá${reason}: **-${toVnd(totalDiscount)}**\n` +
     `Tổng sau giảm: **${toVnd(order.amount_after_discount)}**\n`
 }
 
@@ -239,6 +266,37 @@ function resolveRequiredAmountByDepositRule(input: {
   }
   const p = clampPercent(input.percent, 30)
   return { requiredAmount: Math.ceil((subtotal * p) / 100), appliedPercent: p, fallbackApplied: false }
+}
+
+/**
+ * W1.7 — phí ship cố định + miễn phí theo ngưỡng. Tính trên `payableSubtotal` (giá trị sản phẩm
+ * SAU giảm giá, TRƯỚC khi cộng ship) — không dùng để tính cọc, chỉ cộng thêm lúc hiển thị tổng
+ * cuối cho khách (xem comment trong migration `20260806130000_...` để biết lý do không đổi
+ * `amount_after_discount`).
+ */
+function resolveShippingFeeAmount(
+  settings: { shipping_fee_amount: number; shipping_free_threshold_amount: number | null },
+  payableSubtotal: number
+): number {
+  const fee = Math.max(0, Math.round(settings.shipping_fee_amount || 0))
+  if (fee <= 0) return 0
+  const threshold = settings.shipping_free_threshold_amount
+  if (threshold != null && payableSubtotal >= threshold) return 0
+  return fee
+}
+
+/**
+ * W1.7 — phương thức thanh toán khách chọn CHỈ có ý nghĩa khi đơn có cọc (`requiredAmount > 0`);
+ * không có cọc thì luôn coi là 'cod' (giữ nguyên hành vi cũ — mọi đơn không cọc đều COD).
+ */
+function resolvePaymentMethodForCheckout(input: {
+  requested: string | undefined
+  requiredAmount: number
+  ewalletEnabled: boolean
+}): 'cod' | 'bank_transfer' | 'ewallet' {
+  if (input.requiredAmount <= 0) return 'cod'
+  if (input.requested === 'ewallet' && input.ewalletEnabled) return 'ewallet'
+  return 'bank_transfer'
 }
 
 function inferVietQrBankCodeFromName(rawBankName: string): string {
@@ -387,9 +445,45 @@ function partnerPaymentDisplayFromSettings(settings: PartnerPaymentSettingsRow):
   }
 }
 
+/** W1.7 — thông tin ví điện tử hiển thị cho khách, chỉ có khi shop bật + đã cấu hình đủ. */
+function partnerEwalletDisplayFromSettings(
+  settings: PartnerPaymentSettingsRow
+): { provider_label: string; account_name: string; account_number: string; qr_url: string } | null {
+  if (!settings.ewallet_enabled) return null
+  const qrUrl = String(settings.ewallet_qr_url ?? '').trim()
+  if (!qrUrl) return null
+  return {
+    provider_label: String(settings.ewallet_provider_label ?? '').trim(),
+    account_name: String(settings.ewallet_account_name ?? '').trim(),
+    account_number: String(settings.ewallet_account_number ?? '').trim(),
+    qr_url: qrUrl,
+  }
+}
+
+type PartnerOrderPaymentDisplay =
+  | ({ kind: 'bank' } & { bank_name: string; account_number: string; account_holder: string })
+  | ({ kind: 'ewallet' } & { provider_label: string; account_name: string; account_number: string; qr_url: string })
+
+/** W1.7 — chọn hiển thị bank hay ewallet theo `order.payment_method`; null nếu không có cọc. */
+function resolveOrderPaymentDisplay(
+  order: PartnerOrderRow,
+  settings: PartnerPaymentSettingsRow
+): PartnerOrderPaymentDisplay | null {
+  if (order.required_amount <= 0) return null
+  if (order.payment_method === 'ewallet') {
+    const ew = partnerEwalletDisplayFromSettings(settings)
+    return ew ? { kind: 'ewallet', ...ew } : null
+  }
+  const bankRaw = partnerPaymentDisplayFromSettings(settings)
+  const bank = String(order.payment_qr_url ?? '').trim()
+    ? enrichPaymentDisplayFromQrUrl(String(order.payment_qr_url).trim(), bankRaw)
+    : bankRaw
+  return { kind: 'bank', ...bank }
+}
+
 function orderCardPayload(
   order: PartnerOrderRow,
-  paymentDisplay: { bank_name: string; account_number: string; account_holder: string } | null,
+  paymentDisplay: PartnerOrderPaymentDisplay | null,
   lines?: PartnerOrderLineRow[]
 ): Record<string, unknown> {
   const payableAmount = order.amount_after_discount > 0 ? order.amount_after_discount : order.subtotal_amount
@@ -399,6 +493,8 @@ function orderCardPayload(
     order_id: order.id,
     order_status: order.status,
     order_subtotal_amount: order.subtotal_amount,
+    order_shipping_fee_amount: order.shipping_fee_amount,
+    order_payment_method: order.payment_method,
     order_total_discount_amount: order.total_discount_amount,
     order_amount_after_discount: payableAmount,
     order_loyalty_tier_name: order.loyalty_tier_name,
@@ -435,9 +531,16 @@ function orderCardPayload(
     base.order_item_count = orderLines.length
   }
   if (paymentDisplay && order.required_amount > 0) {
-    base.order_bank_name = paymentDisplay.bank_name
-    base.order_bank_account = paymentDisplay.account_number
-    base.order_bank_holder = paymentDisplay.account_holder
+    if (paymentDisplay.kind === 'ewallet') {
+      base.order_ewallet_provider_label = paymentDisplay.provider_label
+      base.order_ewallet_account_name = paymentDisplay.account_name
+      base.order_ewallet_account_number = paymentDisplay.account_number
+      base.order_ewallet_qr_url = paymentDisplay.qr_url
+    } else {
+      base.order_bank_name = paymentDisplay.bank_name
+      base.order_bank_account = paymentDisplay.account_number
+      base.order_bank_holder = paymentDisplay.account_holder
+    }
   }
   return base
 }
@@ -572,7 +675,34 @@ export async function completeOrderCheckout(input: {
       guestAccountId: input.guestAccountId ?? null,
     },
   })
-  const payableSubtotal = discountSnapshot.amountAfterDiscount
+  // W1.4 — voucher là lớp giảm giá TÁCH BIỆT, áp SAU loyalty/birthday, cùng nguyên tắc với
+  // `completeCartCheckout` (backend luôn tính lại, không tin số FE gửi — D.2).
+  let appliedPromo: { id: string; code: string; discountAmount: number } | null = null
+  const rawPromoCode = (input.form.promoCode ?? '').trim()
+  if (rawPromoCode) {
+    const cartLinesForPromo = oldOrder.product_inventory_id
+      ? [{ inventoryId: oldOrder.product_inventory_id, lineSubtotal: subtotal }]
+      : []
+    const validated = await validatePromotionCodeFromPg({
+      partnerId: input.partnerId,
+      code: rawPromoCode,
+      subtotal: discountSnapshot.amountAfterDiscount,
+      cartLines: cartLinesForPromo,
+      guestAccountId: input.guestAccountId ?? null,
+      linkedUserId: input.linkedUserId ?? null,
+      emailNormalized: input.form.customerEmail,
+    })
+    if (!validated.ok) return { error: `promo_invalid:${validated.error}` }
+    appliedPromo = {
+      id: validated.promotion.id,
+      code: validated.promotion.code,
+      discountAmount: validated.discountAmount,
+    }
+  }
+  const payableSubtotal = Math.max(0, discountSnapshot.amountAfterDiscount - (appliedPromo?.discountAmount ?? 0))
+  const finalDiscountSnapshot = appliedPromo
+    ? { ...discountSnapshot, amountAfterDiscount: payableSubtotal }
+    : discountSnapshot
   // Deposit is controlled entirely by shop settings; customer cannot override.
   const mode = settings.default_deposit_mode ?? 'percent'
   const percent = clampPercent(settings.default_deposit_percent ?? 30, 30)
@@ -584,30 +714,41 @@ export async function completeOrderCheckout(input: {
     fixedAmount,
   })
   const expectedAmount = calc.requiredAmount
+  const shippingFeeAmount = resolveShippingFeeAmount(settings, payableSubtotal)
+  const paymentMethod = resolvePaymentMethodForCheckout({
+    requested: input.form.paymentMethod,
+    requiredAmount: expectedAmount,
+    ewalletEnabled: settings.ewallet_enabled,
+  })
   let qrUrl = ''
   if (expectedAmount > 0) {
-    if (!useSepayQr) {
-      const effectiveBankBin =
-        String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
-      if (!String(settings.account_number ?? '').trim() || !effectiveBankBin) {
-        return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
+    if (paymentMethod === 'ewallet') {
+      qrUrl = String(settings.ewallet_qr_url ?? '').trim()
+      if (!qrUrl) return { error: 'Shop chưa cài đặt QR ví điện tử.' }
+    } else {
+      if (!useSepayQr) {
+        const effectiveBankBin =
+          String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
+        if (!String(settings.account_number ?? '').trim() || !effectiveBankBin) {
+          return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
+        }
       }
+      qrUrl = buildOrderPaymentQrBySettings({
+        amount: expectedAmount,
+        paymentReference,
+        accountHolder: settings.account_holder,
+        settings: {
+          sepay_enabled: settings.sepay_enabled,
+          sepay_bank_code: settings.sepay_bank_code,
+          sepay_account_number: settings.sepay_account_number,
+          sepay_qr_template: settings.sepay_qr_template,
+          bank_name: settings.bank_name,
+          bank_bin: settings.bank_bin,
+          account_number: settings.account_number,
+        },
+      })
+      if (!qrUrl) return { error: 'Chưa xác định được mã ngân hàng để tạo QR. Vui lòng kiểm tra tên ngân hàng.' }
     }
-    qrUrl = buildOrderPaymentQrBySettings({
-      amount: expectedAmount,
-      paymentReference,
-      accountHolder: settings.account_holder,
-      settings: {
-        sepay_enabled: settings.sepay_enabled,
-        sepay_bank_code: settings.sepay_bank_code,
-        sepay_account_number: settings.sepay_account_number,
-        sepay_qr_template: settings.sepay_qr_template,
-        bank_name: settings.bank_name,
-        bank_bin: settings.bank_bin,
-        account_number: settings.account_number,
-      },
-    })
-    if (!qrUrl) return { error: 'Chưa xác định được mã ngân hàng để tạo QR. Vui lòng kiểm tra tên ngân hàng.' }
   }
 
   const updated = await updatePartnerOrderCheckoutFromPg({
@@ -628,9 +769,22 @@ export async function completeOrderCheckout(input: {
     requiredAmount: calc.requiredAmount,
     paymentReference,
     paymentQrUrl: qrUrl,
-    discountSnapshot,
+    discountSnapshot: finalDiscountSnapshot,
+    promo: appliedPromo,
+    paymentMethod,
+    shippingFeeAmount,
   })
   if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
+  if (appliedPromo) {
+    await recordPromotionUsageFromPg({
+      partnerId: input.partnerId,
+      promotionId: appliedPromo.id,
+      orderId: updated.id,
+      discountAmount: appliedPromo.discountAmount,
+      guestAccountId: input.guestAccountId ?? null,
+      linkedUserId: input.linkedUserId ?? null,
+    })
+  }
   await syncPrimaryPartnerOrderLineFromOrderFromPg(updated)
   const updatedLines = await fetchPartnerOrderLinesFromPg(updated.id)
   const em = trim(input.form.customerEmail, 180).toLowerCase()
@@ -645,11 +799,7 @@ export async function completeOrderCheckout(input: {
     })
   }
 
-  const paymentDisplayRaw = updated.required_amount > 0 ? partnerPaymentDisplayFromSettings(settings) : null
-  const paymentDisplay =
-    paymentDisplayRaw && updated.required_amount > 0 && String(updated.payment_qr_url ?? '').trim()
-      ? enrichPaymentDisplayFromQrUrl(String(updated.payment_qr_url).trim(), paymentDisplayRaw)
-      : paymentDisplayRaw
+  const paymentDisplay = resolveOrderPaymentDisplay(updated, settings)
   await insertMessagePg({
     conversationId: oldOrder.conversation_id,
     direction: 'outbound',
@@ -658,18 +808,21 @@ export async function completeOrderCheckout(input: {
         ? `Đơn hàng đã được tạo thành công.\n` +
           `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
           orderDiscountSummaryLine(updated) +
+          orderShippingFeeSummaryLine(updated) +
           `Cần đặt cọc trước: **${toVnd(updated.required_amount)}** (${updated.deposit_percent}%).\n` +
-          `Còn thanh toán khi nhận hàng: **${toVnd(Math.max(0, updated.amount_after_discount - updated.required_amount))}**.\n` +
-          `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới (có nút sao chép từng mục).\n` +
+          `Còn thanh toán khi nhận hàng: **${toVnd(Math.max(0, updated.amount_after_discount - updated.required_amount) + updated.shipping_fee_amount)}**.\n` +
           `${calc.fallbackApplied ? 'Lưu ý: Số tiền đặt cọc vượt giá trị đơn, hệ thống đã fallback về 20% giá trị đơn.\n' : ''}` +
-          (useSepayQr
-            ? `Sau khi chuyển khoản đúng số tiền và nội dung CK: hệ thống của ${shopDisplayName || 'shop'} xác nhận tự động — không cần gửi ảnh biên lai.`
-            : `Sau khi chuyển khoản: bấm nút gửi ảnh biên lai ngay dưới mã QR.`)
+          (updated.payment_method === 'ewallet'
+            ? `Quét QR ví điện tử trong khối «Thanh toán» bên dưới, sau đó bấm nút gửi ảnh biên lai.`
+            : useSepayQr
+              ? `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới (có nút sao chép từng mục).\nSau khi chuyển khoản đúng số tiền và nội dung CK: hệ thống của ${shopDisplayName || 'shop'} xác nhận tự động — không cần gửi ảnh biên lai.`
+              : `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới (có nút sao chép từng mục).\nSau khi chuyển khoản: bấm nút gửi ảnh biên lai ngay dưới mã QR.`)
         : `Đơn hàng đã được tạo thành công.\n` +
           `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
           orderDiscountSummaryLine(updated) +
+          orderShippingFeeSummaryLine(updated) +
           `Thanh toán trước: **0đ**.\n` +
-          `Thanh toán khi nhận hàng: **${toVnd(updated.amount_after_discount)}**.\n` +
+          `Thanh toán khi nhận hàng: **${toVnd(updated.amount_after_discount + updated.shipping_fee_amount)}**.\n` +
           `Đơn này không yêu cầu đặt cọc trước. Shop sẽ liên hệ xác nhận đơn và giao hàng.`,
     rawPayload: toJson(orderCardPayload(updated, paymentDisplay, updatedLines)),
   })
@@ -690,6 +843,9 @@ export async function completeOrderCheckout(input: {
   }
   queuePartnerOrderGoogleSheetsSync(input.partnerId, updated.id)
   emitPartnerOutboundOrderCreated(input.partnerId, updated)
+  notifyPartnerOwnerNewOrder(input.partnerId, updated).catch((e) =>
+    console.warn('[completeOrderCheckout] notify owner', e)
+  )
   return { ok: true, order: updated }
 }
 
@@ -707,6 +863,19 @@ async function cartInputLineToOrderLine(input: {
   if (invHint) {
     const fromInv = parseVndAmountFromText(invHint)
     if (fromInv > 0) baseUnit = fromInv
+  }
+  // W1.4 — flash sale price wins when window active (backend recalculates; do not trust client).
+  if (inv) {
+    const { resolvePartnerEffectiveUnitPrice } = await import(
+      '@/lib/partner-website/shop/partner-shop-flash-sale'
+    )
+    const saleUnit = resolvePartnerEffectiveUnitPrice({
+      priceAmount: inv.price_amount,
+      salePriceAmount: inv.sale_price_amount ?? null,
+      saleStartsAt: inv.sale_starts_at ?? null,
+      saleEndsAt: inv.sale_ends_at ?? null,
+    })
+    if (saleUnit != null && saleUnit >= 0) baseUnit = saleUnit
   }
   const unitPrice = Math.max(0, Math.round(baseUnit))
   const variantImageUrlsJson = variantLineImagesToStoredJson(input.line.variantLineImages)
@@ -779,7 +948,42 @@ export async function completeCartCheckout(input: {
       guestAccountId: input.guestAccountId ?? null,
     },
   })
-  const payableSubtotal = discountSnapshot.amountAfterDiscount
+
+  // W1.4 — voucher là lớp giảm giá TÁCH BIỆT, áp SAU loyalty/birthday. Backend luôn tính lại từ đầu
+  // (không tin số FE gửi) — xem docs/188_BEHAVIOR_SPEC.md mục D.2.
+  let appliedPromo: { id: string; code: string; discountAmount: number } | null = null
+  const rawPromoCode = (input.form.promoCode ?? '').trim()
+  if (rawPromoCode) {
+    const cartLinesForPromo = lines
+      .filter((l): l is typeof l & { productInventoryId: string } => Boolean(l.productInventoryId))
+      .map((l) => ({
+        inventoryId: l.productInventoryId,
+        lineSubtotal:
+          Math.max(0, Math.round(Number(l.unitPrice) || 0)) *
+          Math.max(1, Math.min(99, Math.floor(Number(l.quantity) || 1))),
+      }))
+    const validated = await validatePromotionCodeFromPg({
+      partnerId: input.partnerId,
+      code: rawPromoCode,
+      subtotal: discountSnapshot.amountAfterDiscount,
+      cartLines: cartLinesForPromo,
+      guestAccountId: input.guestAccountId ?? null,
+      linkedUserId: input.linkedUserId ?? null,
+      emailNormalized: input.form.customerEmail,
+    })
+    if (!validated.ok) return { error: `promo_invalid:${validated.error}` }
+    appliedPromo = {
+      id: validated.promotion.id,
+      code: validated.promotion.code,
+      discountAmount: validated.discountAmount,
+    }
+  }
+  const payableSubtotal = Math.max(0, discountSnapshot.amountAfterDiscount - (appliedPromo?.discountAmount ?? 0))
+  // `amount_after_discount` lưu DB phải phản ánh ĐÚNG số tiền cuối cùng (sau cả loyalty/birthday lẫn
+  // promo) — nếu không, deposit tính đúng nhưng field hiển thị lại sai (không đồng bộ).
+  const finalDiscountSnapshot = appliedPromo
+    ? { ...discountSnapshot, amountAfterDiscount: payableSubtotal }
+    : discountSnapshot
   const mode = settings.default_deposit_mode ?? 'percent'
   const percent = clampPercent(settings.default_deposit_percent ?? 30, 30)
   const fixedAmount = normalizeMoney(settings.default_deposit_amount ?? 0)
@@ -805,6 +1009,14 @@ export async function completeCartCheckout(input: {
 
   const partnerRow = await fetchMessagingPartnersByIdsFromPg([input.partnerId])
   const shopDisplayName = String(partnerRow?.[0]?.display_name ?? '').trim()
+  // W1.7 — phí ship (cộng thêm lúc hiển thị, KHÔNG đổi cọc/amount_after_discount) + phương thức
+  // thanh toán khách chọn (chỉ có ý nghĩa thật khi có cọc).
+  const shippingFeeAmount = resolveShippingFeeAmount(settings, payableSubtotal)
+  const paymentMethod = resolvePaymentMethodForCheckout({
+    requested: input.form.paymentMethod,
+    requiredAmount: calc.requiredAmount,
+    ewalletEnabled: settings.ewallet_enabled,
+  })
   const useSepayQr =
     settings.sepay_enabled === true &&
     Boolean(String(settings.sepay_bank_code ?? '').trim()) &&
@@ -814,28 +1026,35 @@ export async function completeCartCheckout(input: {
     : buildStablePaymentReference(draft.id, shopDisplayName)
   let qrUrl = ''
   if (calc.requiredAmount > 0) {
-    if (!useSepayQr) {
-      const effectiveBankBin =
-        String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
-      if (!String(settings.account_number ?? '').trim() || !effectiveBankBin) {
-        return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
+    if (paymentMethod === 'ewallet') {
+      // Giống SePay QR về UX (khách tự quét/chuyển) nhưng đây là ảnh QR TĨNH merchant tự upload —
+      // không nhúng số tiền/nội dung như QR ngân hàng.
+      qrUrl = String(settings.ewallet_qr_url ?? '').trim()
+      if (!qrUrl) return { error: 'Shop chưa cài đặt QR ví điện tử.' }
+    } else {
+      if (!useSepayQr) {
+        const effectiveBankBin =
+          String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
+        if (!String(settings.account_number ?? '').trim() || !effectiveBankBin) {
+          return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
+        }
       }
+      qrUrl = buildOrderPaymentQrBySettings({
+        amount: calc.requiredAmount,
+        paymentReference,
+        accountHolder: settings.account_holder,
+        settings: {
+          sepay_enabled: settings.sepay_enabled,
+          sepay_bank_code: settings.sepay_bank_code,
+          sepay_account_number: settings.sepay_account_number,
+          sepay_qr_template: settings.sepay_qr_template,
+          bank_name: settings.bank_name,
+          bank_bin: settings.bank_bin,
+          account_number: settings.account_number,
+        },
+      })
+      if (!qrUrl) return { error: 'Chưa xác định được mã ngân hàng để tạo QR. Vui lòng kiểm tra tên ngân hàng.' }
     }
-    qrUrl = buildOrderPaymentQrBySettings({
-      amount: calc.requiredAmount,
-      paymentReference,
-      accountHolder: settings.account_holder,
-      settings: {
-        sepay_enabled: settings.sepay_enabled,
-        sepay_bank_code: settings.sepay_bank_code,
-        sepay_account_number: settings.sepay_account_number,
-        sepay_qr_template: settings.sepay_qr_template,
-        bank_name: settings.bank_name,
-        bank_bin: settings.bank_bin,
-        account_number: settings.account_number,
-      },
-    })
-    if (!qrUrl) return { error: 'Chưa xác định được mã ngân hàng để tạo QR. Vui lòng kiểm tra tên ngân hàng.' }
   }
 
   const updated = await updatePartnerOrderCartCheckoutFromPg({
@@ -854,8 +1073,21 @@ export async function completeCartCheckout(input: {
     paymentReference,
     paymentQrUrl: qrUrl,
     primaryLine: first,
-    discountSnapshot,
+    discountSnapshot: finalDiscountSnapshot,
+    promo: appliedPromo,
+    paymentMethod,
+    shippingFeeAmount,
   })
+  if (updated && appliedPromo) {
+    await recordPromotionUsageFromPg({
+      partnerId: input.partnerId,
+      promotionId: appliedPromo.id,
+      orderId: updated.id,
+      discountAmount: appliedPromo.discountAmount,
+      guestAccountId: input.guestAccountId ?? null,
+      linkedUserId: input.linkedUserId ?? null,
+    })
+  }
   if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
   const savedLines = await fetchPartnerOrderLinesFromPg(updated.id)
   const em = trim(input.form.customerEmail, 180).toLowerCase()
@@ -870,11 +1102,7 @@ export async function completeCartCheckout(input: {
     })
   }
 
-  const paymentDisplayRaw = updated.required_amount > 0 ? partnerPaymentDisplayFromSettings(settings) : null
-  const paymentDisplay =
-    paymentDisplayRaw && updated.required_amount > 0 && String(updated.payment_qr_url ?? '').trim()
-      ? enrichPaymentDisplayFromQrUrl(String(updated.payment_qr_url).trim(), paymentDisplayRaw)
-      : paymentDisplayRaw
+  const paymentDisplay = resolveOrderPaymentDisplay(updated, settings)
   await insertMessagePg({
     conversationId: conv.conversationId,
     direction: 'outbound',
@@ -883,14 +1111,18 @@ export async function completeCartCheckout(input: {
         ? `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
           `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
           orderDiscountSummaryLine(updated) +
+          orderShippingFeeSummaryLine(updated) +
           `Cần đặt cọc trước: **${toVnd(updated.required_amount)}** (${updated.deposit_percent}%).\n` +
-          `Còn thanh toán khi nhận hàng: **${toVnd(Math.max(0, updated.amount_after_discount - updated.required_amount))}**.\n` +
-          `STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới.`
+          `Còn thanh toán khi nhận hàng: **${toVnd(Math.max(0, updated.amount_after_discount - updated.required_amount) + updated.shipping_fee_amount)}**.\n` +
+          (updated.payment_method === 'ewallet'
+            ? 'Quét QR ví điện tử trong khối «Thanh toán» bên dưới.'
+            : 'STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới.')
         : `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
           `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
           orderDiscountSummaryLine(updated) +
+          orderShippingFeeSummaryLine(updated) +
           `Thanh toán trước: **0đ**.\n` +
-          `Thanh toán khi nhận hàng: **${toVnd(updated.amount_after_discount)}**.`,
+          `Thanh toán khi nhận hàng: **${toVnd(updated.amount_after_discount + updated.shipping_fee_amount)}**.`,
     rawPayload: toJson(orderCardPayload(updated, paymentDisplay, savedLines)),
   })
   await insertPartnerOrderEventFromPg({
@@ -910,6 +1142,9 @@ export async function completeCartCheckout(input: {
   }
   queuePartnerOrderGoogleSheetsSync(input.partnerId, updated.id)
   emitPartnerOutboundOrderCreated(input.partnerId, updated)
+  notifyPartnerOwnerNewOrder(input.partnerId, updated).catch((e) =>
+    console.warn('[completeCartCheckout] notify owner', e)
+  )
   return { ok: true, order: updated }
 }
 
@@ -1011,6 +1246,12 @@ export async function getProductPurchaseOptions(input: {
       percent,
       fixed_amount: fixedAmount,
     },
+    shipping_policy: {
+      fee_amount: Math.max(0, Math.round(settings?.shipping_fee_amount ?? 0)),
+      free_threshold_amount:
+        settings?.shipping_free_threshold_amount == null ? null : Math.max(0, Math.round(settings.shipping_free_threshold_amount)),
+    },
+    ewallet_available: Boolean(settings?.ewallet_enabled && String(settings?.ewallet_qr_url ?? '').trim()),
   }
 }
 
@@ -1251,6 +1492,9 @@ export async function verifyOrderPaymentProof(input: {
   queuePartnerOrderGoogleSheetsSync(input.partnerId, refreshed.id)
   if (verification === 'verified') {
     emitPartnerOutboundPaymentPaid(input.partnerId, refreshed)
+    sendPartnerMetaPurchaseCapiOnPaymentConfirmed({ partnerId: input.partnerId, order: refreshed }).catch((e) =>
+      console.warn('[verifyOrderPaymentProof] Meta CAPI Purchase', e)
+    )
   }
   return { ok: true, order: refreshed, verification }
 }

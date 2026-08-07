@@ -26,14 +26,24 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const site = await fetchPublishedPartnerWebsiteBySlugPg(slug).catch(() => null)
-  if (!site?.logoUrl) return {}
+  if (!site) return {}
+  const headerStore = headers()
+  const customDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
+  const manifest = customDomain
+    ? '/manifest.webmanifest'
+    : `/site/${encodeURIComponent(site.siteSlug)}/manifest.webmanifest`
 
   return {
-    icons: {
-      icon: [{ url: site.logoUrl }],
-      shortcut: [{ url: site.logoUrl }],
-      apple: [{ url: site.logoUrl }],
-    },
+    manifest,
+    ...(site.logoUrl
+      ? {
+          icons: {
+            icon: [{ url: site.logoUrl }],
+            shortcut: [{ url: site.logoUrl }],
+            apple: [{ url: site.logoUrl }],
+          },
+        }
+      : {}),
   }
 }
 

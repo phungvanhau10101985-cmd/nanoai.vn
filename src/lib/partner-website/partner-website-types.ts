@@ -48,6 +48,9 @@ export type PartnerWebsiteRow = {
   project: PartnerWebsiteProject
   htmlSource: string | null
   locale: WebLocale
+  /** W2.3 — null/empty = shell defaults. */
+  navJson: unknown | null
+  footerJson: unknown | null
   isPublished: boolean
   publishedAt: string | null
   sourceThreadId: string | null
@@ -87,6 +90,8 @@ export type PartnerWebsitePublicRow = {
   project: PartnerWebsiteProject
   htmlSource: string
   locale: WebLocale
+  navJson: unknown | null
+  footerJson: unknown | null
   partnerSlug: string
   partnerDisplayName: string
   chatPath: string
@@ -94,6 +99,9 @@ export type PartnerWebsitePublicRow = {
   ga4MeasurementId: string | null
   googleAdsId: string | null
   tiktokPixelId: string | null
+  gtmContainerId: string | null
+  /** S0.10 */
+  defaultCurrency?: string | null
 }
 
 export function mapTemplateFieldsFromDb(input: {

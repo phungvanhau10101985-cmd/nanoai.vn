@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { emptyStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { emptyStudioSession, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import {
   applyStepRetryRepair,
   inferAiRetryFromGenerationFlags,
@@ -13,7 +13,7 @@ import {
 } from '@/lib/hub-chat/hub-studio-step-retry'
 
 test('mergeKeywordRetryHint fills mockup action when AI sent none', () => {
-  const session = {
+  const session: HubStudioSession = {
     ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,
@@ -29,7 +29,7 @@ test('mergeKeywordRetryHint fills mockup action when AI sent none', () => {
 })
 
 test('inferAiRetryFromGenerationFlags maps shouldGenerate to current step create', () => {
-  const session = {
+  const session: HubStudioSession = {
     ...emptyStudioSession(),
     presetId: 'mobile_shop',
     discoveryComplete: true,
@@ -63,7 +63,7 @@ test('shouldExecuteDesignGeneration trusts shouldGenerate without generate_ui in
 })
 
 test('sanitizeAiRetryHint upgrades completed step to regenerate from user message', () => {
-  const session = {
+  const session: HubStudioSession = {
     ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,
@@ -88,7 +88,7 @@ test('sanitizeAiRetryHint upgrades completed step to regenerate from user messag
 })
 
 test('sanitizeAiRetryHint keeps a new packaging face brief on the current face', () => {
-  const session = {
+  const session: HubStudioSession = {
     ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,
@@ -123,7 +123,7 @@ test('customer wording is not mistaken for a regenerate command', () => {
 })
 
 test('sanitizeAiRetryHint still permits an explicit request to recreate the logo', () => {
-  const session = {
+  const session: HubStudioSession = {
     ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,
@@ -147,7 +147,7 @@ test('sanitizeAiRetryHint still permits an explicit request to recreate the logo
 })
 
 test('applyStepRetryRepair preserves a detailed face brief on a short create command', () => {
-  const session = {
+  const session: HubStudioSession = {
     ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,

@@ -85,10 +85,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
 
   emitPartnerOutboundLeadCreated(partnerId, saved)
 
-  return jsonHeadlessWriteWithCors(req, {
-    ok: true,
-    id: saved.id,
-    site_slug: saved.siteSlug,
-    status: saved.status,
-  })
+  return jsonHeadlessWriteWithCors(
+    req,
+    {
+      ok: true,
+      id: saved.id,
+      site_slug: saved.siteSlug,
+      status: saved.status,
+    },
+    200
+  )
 }

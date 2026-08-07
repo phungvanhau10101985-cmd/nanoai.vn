@@ -65,10 +65,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
     limit,
   })
 
-  return jsonHeadlessPersonalizationWithCors(req, {
-    ok: true,
-    customer_ref: customerRef,
-    products,
-    count: products.length,
-  })
+  return jsonHeadlessPersonalizationWithCors(
+    req,
+    {
+      ok: true,
+      customer_ref: customerRef,
+      products,
+      count: products.length,
+    },
+    200
+  )
 }

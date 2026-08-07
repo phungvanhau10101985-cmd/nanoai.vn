@@ -61,6 +61,7 @@ export default async function PartnerSlugWebsiteDashboardPage({
       inboxLabel={pm.goToInbox}
       settingsLabel={pm.messagingSettingsLink}
       ordersLabel={pm.messagingOrdersLink}
+      analyticsLabel={pm.messagingAnalyticsLink}
       partnerId={partner.id}
     >
       <PartnerWebsiteDashboardClient

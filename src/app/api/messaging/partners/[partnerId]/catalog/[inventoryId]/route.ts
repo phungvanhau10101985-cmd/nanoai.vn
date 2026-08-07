@@ -36,8 +36,12 @@ export async function GET(
   const publishedSiteSlug =
     website?.isPublished && website.siteSlug?.trim() ? website.siteSlug.trim() : null
 
-  return jsonCatalogWithCors(req, {
-    ok: true,
-    product: mapInventoryRowToPartnerCatalogProduct(row, { publishedSiteSlug }),
-  })
+  return jsonCatalogWithCors(
+    req,
+    {
+      ok: true,
+      product: mapInventoryRowToPartnerCatalogProduct(row, { publishedSiteSlug }),
+    },
+    200
+  )
 }

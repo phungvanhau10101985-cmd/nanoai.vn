@@ -247,17 +247,24 @@ function OrderPaymentPanel({
   if (!qrUrl || !/^https?:\/\//i.test(qrUrl)) return null
 
   const ref = typeof o.order_payment_reference === 'string' ? o.order_payment_reference.trim() : ''
+  // W1.7 — ví điện tử: QR tĩnh merchant tự upload, không có "nội dung CK"/tài khoản ngân hàng.
+  const isEwallet = o.order_payment_method === 'ewallet'
   const bankRaw = typeof o.order_bank_name === 'string' ? o.order_bank_name.trim() : ''
   const accRaw = typeof o.order_bank_account === 'string' ? o.order_bank_account.trim() : ''
   const holderRaw = typeof o.order_bank_holder === 'string' ? o.order_bank_holder.trim() : ''
-  const enriched = enrichPaymentDisplayFromQrUrl(qrUrl, {
-    bank_name: bankRaw,
-    account_number: accRaw,
-    account_holder: holderRaw,
-  })
+  const enriched = isEwallet
+    ? { bank_name: bankRaw, account_number: accRaw, account_holder: holderRaw }
+    : enrichPaymentDisplayFromQrUrl(qrUrl, {
+        bank_name: bankRaw,
+        account_number: accRaw,
+        account_holder: holderRaw,
+      })
   const bank = displayBankName(enriched.bank_name)
   const acc = enriched.account_number
   const holder = enriched.account_holder
+  const ewalletProviderLabel = typeof o.order_ewallet_provider_label === 'string' ? o.order_ewallet_provider_label.trim() : ''
+  const ewalletAccountName = typeof o.order_ewallet_account_name === 'string' ? o.order_ewallet_account_name.trim() : ''
+  const ewalletAccountNumber = typeof o.order_ewallet_account_number === 'string' ? o.order_ewallet_account_number.trim() : ''
   const reqRaw = o.order_required_amount
   const amount = typeof reqRaw === 'number' && Number.isFinite(reqRaw) ? Math.max(0, Math.round(reqRaw)) : 0
   const orderId = typeof o.order_id === 'string' ? o.order_id.trim() : ''
@@ -306,7 +313,7 @@ function OrderPaymentPanel({
       }`}
     >
       <p className={`text-sm font-semibold sm:text-base ${onViolet ? 'text-white' : 'text-foreground'}`}>
-        {depositDone ? 'Đã đặt cọc' : 'Thanh toán chuyển khoản'}
+        {depositDone ? 'Đã đặt cọc' : isEwallet ? 'Thanh toán ví điện tử' : 'Thanh toán chuyển khoản'}
       </p>
       {depositDone ? (
         <p
@@ -324,34 +331,61 @@ function OrderPaymentPanel({
           onViolet ? 'border-white/15 bg-black/10' : 'border-border/60 bg-background/50'
         }`}
       >
-        {bank ? <CompactPaymentField label="Ngân hàng" value={bank} copyText={bank} onViolet={onViolet} /> : null}
-        {acc ? (
-          <CompactPaymentField label="STK" value={acc} copyText={acc} monospace onViolet={onViolet} />
-        ) : null}
-        {holder ? (
-          <CompactPaymentField label="Chủ TK" value={holder} copyText={holder} onViolet={onViolet} />
-        ) : null}
-        {amount > 0 ? (
-          <CompactPaymentField
-            label="Số tiền"
-            value={<>{new Intl.NumberFormat('vi-VN').format(amount)}đ</>}
-            copyText={String(amount)}
-            monospace
-            onViolet={onViolet}
-          />
-        ) : null}
-        {ref ? (
-          <CompactPaymentField
-            label="Nội dung CK"
-            value={<span className="font-mono">{ref}</span>}
-            copyText={ref}
-            monospace
-            onViolet={onViolet}
-          />
-        ) : null}
+        {isEwallet ? (
+          <>
+            {ewalletProviderLabel ? (
+              <CompactPaymentField label="Ví điện tử" value={ewalletProviderLabel} copyText={ewalletProviderLabel} onViolet={onViolet} />
+            ) : null}
+            {ewalletAccountNumber ? (
+              <CompactPaymentField label="SĐT/Số TK ví" value={ewalletAccountNumber} copyText={ewalletAccountNumber} monospace onViolet={onViolet} />
+            ) : null}
+            {ewalletAccountName ? (
+              <CompactPaymentField label="Chủ ví" value={ewalletAccountName} copyText={ewalletAccountName} onViolet={onViolet} />
+            ) : null}
+            {amount > 0 ? (
+              <CompactPaymentField
+                label="Số tiền"
+                value={<>{new Intl.NumberFormat('vi-VN').format(amount)}đ</>}
+                copyText={String(amount)}
+                monospace
+                onViolet={onViolet}
+              />
+            ) : null}
+          </>
+        ) : (
+          <>
+            {bank ? <CompactPaymentField label="Ngân hàng" value={bank} copyText={bank} onViolet={onViolet} /> : null}
+            {acc ? (
+              <CompactPaymentField label="STK" value={acc} copyText={acc} monospace onViolet={onViolet} />
+            ) : null}
+            {holder ? (
+              <CompactPaymentField label="Chủ TK" value={holder} copyText={holder} onViolet={onViolet} />
+            ) : null}
+            {amount > 0 ? (
+              <CompactPaymentField
+                label="Số tiền"
+                value={<>{new Intl.NumberFormat('vi-VN').format(amount)}đ</>}
+                copyText={String(amount)}
+                monospace
+                onViolet={onViolet}
+              />
+            ) : null}
+            {ref ? (
+              <CompactPaymentField
+                label="Nội dung CK"
+                value={<span className="font-mono">{ref}</span>}
+                copyText={ref}
+                monospace
+                onViolet={onViolet}
+              />
+            ) : null}
+          </>
+        )}
       </div>
       <p className={`mt-1.5 text-[10px] leading-snug sm:text-[11px] ${onViolet ? 'text-white/75' : 'text-muted-foreground'}`}>
-        {isSepay ? (
+        {isEwallet ? (
+          <>Quét mã QR bên dưới bằng app ví điện tử, nhập đúng số tiền rồi gửi ảnh biên lai sau khi chuyển.</>
+        ) : isSepay ? (
           <>
             «Nội dung CK» là memo trên app — nhập đúng chuỗi bên trên (hoặc quét QR). {shopBrand} nhận xác nhận tự động —{' '}
             <strong className={onViolet ? 'text-white' : 'text-foreground'}>không cần gửi ảnh biên lai</strong>.

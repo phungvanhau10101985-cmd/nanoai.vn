@@ -4,6 +4,7 @@ import { fetchPublishedPartnerLandingBySiteAndSlugPg } from '@/lib/db/messaging-
 import { loadPartnerLandingProductSnapshots } from '@/lib/partner-website/landing/partner-landing-products'
 import { renderPartnerLandingHtml } from '@/lib/partner-website/landing/render-partner-landing-html'
 import { buildMetadata } from '@/lib/seo'
+import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { PartnerSitePublicClient } from '../../partner-site-public-client'
 
 type Props = {
@@ -23,10 +24,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       noIndex: true,
     })
   }
-  return buildMetadata({
+  return buildPartnerSiteMetadata({
+    siteSlug: landing.siteSlug,
+    siteName: landing.title,
     title: landing.title,
     description: landing.briefText.slice(0, 160) || landing.title,
-    path: `/site/${landing.siteSlug}/lp/${landing.landingSlug}`,
+    path: `/lp/${landing.landingSlug}`,
+    image: landing.logoUrl,
   })
 }
 

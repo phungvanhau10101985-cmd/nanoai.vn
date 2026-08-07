@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
 import { formatVnd } from '@/lib/partner-website/shop/cart-line-utils'
@@ -10,6 +10,13 @@ import {
   formatPartnerSiteOrderStatus,
   formatPartnerSiteShippingStatus,
 } from '@/lib/partner-website/shop/partner-site-order-labels'
+import {
+  countPartnerSiteOrdersByStatusFilter,
+  orderMatchesPartnerSiteStatusFilter,
+  parsePartnerSiteOrderStatusFilter,
+  PARTNER_SITE_ORDER_STATUS_FILTER_KEYS,
+  type PartnerSiteOrderStatusFilterKey,
+} from '@/lib/partner-website/shop/partner-site-order-status-filters'
 
 type OrderRow = {
   id: string
@@ -24,6 +31,7 @@ type OrderRow = {
   payment_reference?: string | null
   shipping_address?: string | null
   created_at?: string | null
+  has_review?: boolean | null
 }
 
 type Props = {
@@ -31,14 +39,49 @@ type Props = {
   partnerSlug: string
   locale: WebLocale
   chatPath: string
+  /** W5.3 — filter ban đầu (vd từ hash `#orders?tab=waiting_payment`). */
+  initialFilter?: string | null
 }
 
-export function PartnerSiteShopOrdersClient({ siteSlug, partnerSlug, locale, chatPath }: Props) {
+function filterLabel(
+  key: PartnerSiteOrderStatusFilterKey,
+  t: ReturnType<typeof getPartnerSiteShopCopy>
+): string {
+  switch (key) {
+    case 'all':
+      return t.ordersFilterAll
+    case 'waiting_payment':
+      return t.ordersFilterWaitingPayment
+    case 'processing':
+      return t.ordersFilterProcessing
+    case 'delivered':
+      return t.ordersFilterDelivered
+    case 'reviewed':
+      return t.ordersFilterReviewed
+    case 'cancelled':
+      return t.ordersFilterCancelled
+  }
+}
+
+export function PartnerSiteShopOrdersClient({
+  siteSlug: _siteSlug,
+  partnerSlug,
+  locale,
+  chatPath,
+  initialFilter,
+}: Props) {
   const t = getPartnerSiteShopCopy(locale)
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(_siteSlug)
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [filter, setFilter] = useState<PartnerSiteOrderStatusFilterKey>(() =>
+    parsePartnerSiteOrderStatusFilter(initialFilter)
+  )
+
+  useEffect(() => {
+    setFilter(parsePartnerSiteOrderStatusFilter(initialFilter))
+  }, [initialFilter])
 
   useEffect(() => {
     if (!ready) return
@@ -58,13 +101,66 @@ export function PartnerSiteShopOrdersClient({ siteSlug, partnerSlug, locale, cha
     })()
   }, [authHeaders, captureFromResponse, partnerSlug, ready])
 
+  const counts = useMemo(() => countPartnerSiteOrdersByStatusFilter(orders), [orders])
+  const visibleOrders = useMemo(
+    () => orders.filter((o) => orderMatchesPartnerSiteStatusFilter(o, filter)),
+    [filter, orders]
+  )
+
+  const selectFilter = (key: PartnerSiteOrderStatusFilterKey) => {
+    setFilter(key)
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    const onAccountOrders = /\/account\/orders\/?$/.test(url.pathname)
+    if (onAccountOrders) {
+      if (key === 'all') url.searchParams.delete('tab')
+      else url.searchParams.set('tab', key)
+      url.hash = ''
+      window.history.replaceState(null, '', `${url.pathname}${url.search}`)
+      return
+    }
+    if (key === 'all') {
+      url.hash = '#orders'
+    } else {
+      url.hash = `#orders?tab=${key}`
+    }
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }
+
   return (
     <div>
       <h1>{t.ordersTitle}</h1>
+
+      {!loading && orders.length > 0 ? (
+        <div className="pw-shop-order-filters" role="tablist" aria-label={t.ordersFilterAriaLabel}>
+          {PARTNER_SITE_ORDER_STATUS_FILTER_KEYS.map((key) => {
+            const count = counts[key]
+            const active = filter === key
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`pw-shop-order-filter-chip${active ? ' is-active' : ''}`}
+                onClick={() => selectFilter(key)}
+              >
+                <span>{filterLabel(key, t)}</span>
+                {count > 0 ? <span className="pw-shop-order-filter-badge">{count}</span> : null}
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+
       {loading ? <p className="pw-shop-muted">…</p> : null}
       {!loading && orders.length === 0 ? <p className="pw-shop-muted">{t.ordersEmpty}</p> : null}
+      {!loading && orders.length > 0 && visibleOrders.length === 0 ? (
+        <p className="pw-shop-muted">{t.ordersFilterEmpty}</p>
+      ) : null}
+
       <ul className="pw-shop-orders-list">
-        {orders.map((o) => {
+        {visibleOrders.map((o) => {
           const expanded = expandedId === o.id
           const qr = o.payment_qr_url?.trim() ?? ''
           const ref = o.payment_reference?.trim() ?? ''

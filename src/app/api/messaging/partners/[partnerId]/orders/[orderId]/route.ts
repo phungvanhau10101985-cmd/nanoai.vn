@@ -69,8 +69,12 @@ export async function GET(
 
   const lines = await fetchPartnerOrderLinesFromPg(order.id)
 
-  return jsonCatalogWithCors(req, {
-    ok: true,
-    order: mapPartnerOrderDetailToHeadless(order, lines),
-  })
+  return jsonCatalogWithCors(
+    req,
+    {
+      ok: true,
+      order: mapPartnerOrderDetailToHeadless(order, lines),
+    },
+    200
+  )
 }

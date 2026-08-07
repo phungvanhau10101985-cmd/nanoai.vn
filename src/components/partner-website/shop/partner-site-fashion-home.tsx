@@ -57,6 +57,9 @@ type Props = {
   heroCtaHref?: string
   industryBadge?: string
   secondaryCtaLabel?: string
+  /** W2.3 */
+  footerJson?: unknown | null
+  navJson?: unknown | null
 }
 
 function ProductCard({
@@ -313,6 +316,8 @@ export function PartnerSiteFashionHome(props: Props) {
         locale={props.locale}
         chatPath={props.chatPath}
         tracking={props.tracking}
+        footerJson={props.footerJson}
+        navJson={props.navJson}
         activeNav="home"
       >
         <FashionHomeInner

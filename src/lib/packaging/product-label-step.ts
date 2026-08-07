@@ -107,7 +107,7 @@ export function resolveProductLabelAspectRatio(
 }
 
 export function resolveSealStickerAspectRatio(
-  packaging: HubPackagingState | undefined,
+  packaging: Partial<HubPackagingState> | undefined,
   generationPrompt?: string
 ): GeminiAspectRatio {
   const stored = packaging?.sealStickerAspectRatio?.trim()
@@ -130,13 +130,13 @@ export function isValidFlatStickerShape(value: string): value is FlatStickerShap
   return (FLAT_STICKER_SHAPES as readonly string[]).includes(value)
 }
 
-export function resolveProductLabelShape(packaging: HubPackagingState | undefined): FlatStickerShape {
+export function resolveProductLabelShape(packaging: Partial<HubPackagingState> | undefined): FlatStickerShape {
   const stored = packaging?.productLabelShape
   if (stored && isValidFlatStickerShape(stored)) return stored
   return DEFAULT_PRODUCT_LABEL_SHAPE
 }
 
-export function resolveSealStickerShape(packaging: HubPackagingState | undefined): FlatStickerShape {
+export function resolveSealStickerShape(packaging: Partial<HubPackagingState> | undefined): FlatStickerShape {
   const stored = packaging?.sealStickerShape
   if (stored && isValidFlatStickerShape(stored)) return stored
   return DEFAULT_SEAL_STICKER_SHAPE

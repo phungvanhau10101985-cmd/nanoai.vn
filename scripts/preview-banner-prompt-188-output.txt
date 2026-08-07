@@ -1,0 +1,66 @@
+# Banner prompt preview — brief 188.com.vn (24/7/2026)
+
+## Brief đã nhập
+
+| Step | Giá trị |
+|------|---------|
+| domain_name | 188.com.vn |
+| campaign_name | quảng cáo hàng ngày |
+| product_offer | thời trang nam, túi xách nam, giày dép nam, phụ kiện nam |
+| discount_cta | khám phá ngay |
+| brand_style | sang |
+| color_tone | cam chính xám phụ |
+| banner_style | bối cảnh đời sống |
+| banner_model | nam châu á |
+| Preset | horizontal_display_ads (16:9 Google Display) |
+
+---
+
+## Bước 1 — DeepSeek Reasoner (tối ưu copy in trên banner)
+
+**Input draft:**
+188.com.vn · quảng cáo hàng ngày · thời trang nam, túi xách nam, giày dép nam, phụ kiện nam · khám phá ngay
+
+**Output (structured):**
+```
+HEADLINE: Thời trang nam, túi xách, giày dép, phụ kiện nam
+SUBHEAD: Quảng cáo hàng ngày
+CTA: Khám phá ngay
+DOMAIN: 188.com.vn
+```
+
+**designBrief gửi sang Gemini (imageCopy):**
+```
+Headline (large, bold): Thời trang nam, túi xách, giày dép, phụ kiện nam
+Subhead (smaller): Quảng cáo hàng ngày
+CTA button text: Khám phá ngay
+Optional small URL text: 188.com.vn
+CRITICAL: Print only the text values above — never print the words HEADLINE, SUBHEAD, CTA, DOMAIN or any field labels.
+```
+
+---
+
+## Bước 2 — Gemini 2.5 Flash (viết prompt tạo ảnh)
+
+**Final prompt gửi vào Gemini 3 Pro Image:**
+
+Generate a single, polished ad banner image for Google Display, YouTube, and web headers, formatted with an aspect ratio of 16:9 (approximately 1200x628 pixels). The layout is precisely divided: the left 40% of the banner is dedicated to a clean text block, while the right 60% features a compelling hero visual.
+
+The text block on the left is structured from top to bottom, set against a warm, inviting orange background that establishes the primary brand color. At the very top, subtly placed, is the domain text "188.com.vn" in a small, elegant white font. Below this, the primary message "Thời trang nam, túi xách, giày dép, phụ kiện nam" appears as a large, bold white headline, commanding immediate attention. Following this, the subhead "Quảng cáo hàng ngày" is presented in a slightly smaller, legible white font, providing additional context. At the bottom of the text block, a prominent, high-contrast call-to-action button is positioned. This button should be a clean rectangular shape with slightly rounded corners, colored in a sophisticated grey to stand out clearly against the orange background. The text inside the button must read "Khám phá ngay" in a clear, legible white font. All text within this block should maintain clear hierarchy and excellent readability, with ample safe margins around all elements.
+
+The hero visual on the right 60% of the banner depicts a premium lifestyle scene. The mood is sophisticated and elegant ("sang"). The primary color tone is a warm, inviting orange, complemented by refined grey accents, creating a balanced and inviting aesthetic. The scene features a stylish Asian male model, perhaps in his late 20s or early 30s, exuding confidence and modern elegance. He is captured in a dynamic yet natural pose within an upscale urban or contemporary setting, reflecting a daily life context. He is wearing and interacting with various men's fashion items, showcasing a curated selection of products: a well-fitted piece of men's clothing (e.g., a jacket or shirt), a premium men's bag (e.g., a messenger or tote), stylish men's shoes, and subtle men's accessories (e.g., a watch or bracelet). The products are integrated seamlessly into his attire and surroundings, highlighting their quality and desirability. The overall image quality should resemble professional ad photography, ensuring crisp details and appealing textures. The color palette of the visual should align with the orange and grey scheme, with orange dominating the background and elements, and grey used for sophisticated contrast in clothing or architectural details, creating a cohesive visual experience. No watermarks or extraneous elements should be present.
+
+---
+
+## Bước 3 — generateAsset bổ sung (khi tạo ảnh thật)
+
+- Platform hint: *Banner ngang Google Display, YouTube, web/header — headline rõ, CTA nổi bật (AI 16:9).*
+- Lặp lại block *Required on-banner text* từ overlay đã tối ưu
+- Nếu có **logo upload**: đính kèm ảnh logo + `IMPORTANT — LOGO COMPOSITE: embed exact logo pixels…`
+
+---
+
+## Ghi chú kỹ thuật
+
+- Trước đó `maxOutputTokens: 1400` khiến Gemini 2.5 Flash cắt prompt (~55 từ) vì thinking chiếm token — **đã tăng lên 8192** trong `banner-image-prompt-builder.ts`.
+- Chạy lại preview: `npx tsx scripts/preview-banner-prompt-188.ts`

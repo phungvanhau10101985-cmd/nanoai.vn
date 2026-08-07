@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import type { HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { emptyStudioSession, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import {
   applyReferenceRemoval,
   canNavigateToStep,
@@ -12,6 +12,7 @@ import {
 
 function sessionAtFaceLeft(): HubStudioSession {
   return {
+    ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,
     currentStepKey: 'face_left',
@@ -39,7 +40,8 @@ test('packaging_kit is forward-only — no step navigation', () => {
 })
 
 test('non-packaging presets keep step navigation when steps are reached', () => {
-  const session = {
+  const session: HubStudioSession = {
+    ...emptyStudioSession(),
     presetId: 'mobile_app_ui',
     discoveryComplete: true,
     currentStepKey: 'home_mobile',

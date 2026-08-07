@@ -5,6 +5,7 @@ import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-heade
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { buildMetadata } from '@/lib/seo'
+import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { renderPartnerWebsiteHtml } from '@/lib/partner-website/partner-website-render'
 import { PartnerSitePublicClient } from './partner-site-public-client'
 import { PartnerSiteFashionHome } from '@/components/partner-website/shop/partner-site-fashion-home'
@@ -33,10 +34,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       noIndex: true,
     })
   }
-  const base = buildMetadata({
+  const base = buildPartnerSiteMetadata({
+    siteSlug: site.siteSlug,
+    siteName: site.title,
     title: site.title,
     description: `${site.title} — ${site.partnerDisplayName}`,
-    path: `/site/${site.siteSlug}`,
+    path: '/',
+    image: site.logoUrl,
+    locale: site.locale,
   })
   if (site.logoUrl) {
     base.icons = {
@@ -68,6 +73,7 @@ function sampleAsShopProducts(
     productUrl: productsPath,
     sku: `SAMPLE-${i + 1}`,
     detailPath: productsPath,
+    stockQty: 0,
   }))
 }
 
@@ -126,6 +132,8 @@ export default async function PartnerSitePublicPage({ params }: Props) {
         heroCtaHref={bookingHref}
         industryBadge={partnerSiteHomeIndustryBadge(shop.site.locale, shop.industryKey)}
         secondaryCtaLabel={partnerSiteHomeSecondaryCta(shop.site.locale, shop.industryKey)}
+        footerJson={shop.site.footerJson}
+        navJson={shop.site.navJson}
       />
     )
   }

@@ -605,6 +605,37 @@ export type Dictionary = {
     shopTiktokPixelPlaceholder: string
     shopTiktokPixelInvalidIdToast: string
     shopTiktokPixelSaveButton: string
+    shopGtmContainerLabel: string
+    shopGtmContainerHint: string
+    shopGtmContainerPlaceholder: string
+    shopGtmContainerInvalidIdToast: string
+    shopGtmContainerSaveButton: string
+    /** S0.10 */
+    shopDefaultCurrencyLabel: string
+    shopDefaultCurrencyHint: string
+    shopDefaultCurrencySaveButton: string
+    shopDefaultCurrencyInvalidToast: string
+    shopContactChannelsTitle: string
+    shopContactChannelsHint: string
+    shopContactPhoneLabel: string
+    shopContactZaloLabel: string
+    shopContactMessengerLabel: string
+    shopContactInstagramLabel: string
+    shopContactChannelsSaveButton: string
+    shopShippingCarrierLabel: string
+    shopShippingCarrierHint: string
+    shopShippingCarrierPlaceholder: string
+    /** M3.3 */
+    messagingSettingsWebhookCardTitle: string
+    messagingSettingsWebhookCardBody: string
+    messagingSettingsWebhookOpenButton: string
+    /** S0.1 */
+    customDomainRefreshStatusButton: string
+    customDomainStatusHintPending: string
+    customDomainStatusHintDnsOk: string
+    customDomainStatusHintSslActive: string
+    customDomainStatusHintError: string
+    customDomainLastErrorTitle: string
     /** URL feed CSV cho Meta Commerce / Facebook danh mục sản phẩm */
     facebookCatalogFeedTitle: string
     facebookCatalogFeedHint: string
@@ -672,6 +703,7 @@ export type Dictionary = {
     /** Link tới /dashboard/messaging/website */
     messagingWebsiteLink: string
     messagingOrdersLink: string
+    messagingAnalyticsLink: string
     messagingSettingsPageTitle: string
     messagingInboxDescription: string
     noWorkspaceInboxCta: string
@@ -827,6 +859,12 @@ export type Dictionary = {
     timelineLoading: string
     toastStatusUpdated: string
     toastShippingUpdated: string
+    /** W1.7 */
+    refundSectionTitle: string
+    refundAmountLabel: string
+    refundNoteLabel: string
+    btnMarkRefunded: string
+    toastRefundUpdated: string
     /** {count} {filename} */
     toastExportDone: string
     /** Tiền cọc so với mức yêu cầu */
@@ -902,6 +940,33 @@ export type Dictionary = {
     modalOrderNoteLabel: string
     modalShippingAddressHeading: string
     modalContactSectionTitle: string
+  }
+  /** /dashboard/messaging/analytics — S0.8 dashboard doanh thu/conversion/UTM */
+  partnerMessagingAnalytics: {
+    pageTitle: string
+    pageDescription: string
+    allWorkspaces: string
+    dateFrom: string
+    dateTo: string
+    applyFilter: string
+    statRevenue: string
+    statRevenueHint: string
+    statOrders: string
+    statOrdersHint: string
+    statAvgOrderValue: string
+    statVisitors: string
+    statVisitorsHint: string
+    statConversionRate: string
+    revenueByDayTitle: string
+    revenueByUtmTitle: string
+    utmSourceColumn: string
+    utmCampaignColumn: string
+    topProductsTitle: string
+    productColumn: string
+    quantityColumn: string
+    revenueColumn: string
+    ordersColumn: string
+    noData: string
   }
   /** /dashboard/messaging/marketing — remarketing hàng loạt (widget chat) */
   partnerMessagingMarketing: {
@@ -3437,6 +3502,34 @@ const VI_DICTIONARY: Dictionary = {
     shopTiktokPixelPlaceholder: 'Ví dụ: CXXXXXXXXXXXXXXXXX',
     shopTiktokPixelInvalidIdToast: 'TikTok Pixel ID không hợp lệ.',
     shopTiktokPixelSaveButton: 'Lưu TikTok Pixel',
+    shopGtmContainerLabel: 'GTM Container ID',
+    shopGtmContainerHint: 'Nhập ID container Google Tag Manager (GTM-XXXXXXX) — hệ thống tự sinh script chèn vào trang shop.',
+    shopGtmContainerPlaceholder: 'GTM-XXXXXXX',
+    shopGtmContainerInvalidIdToast: 'GTM Container ID không hợp lệ (phải dạng GTM-XXXXXXX).',
+    shopGtmContainerSaveButton: 'Lưu GTM Container',
+    shopDefaultCurrencyLabel: "Tiền tệ cửa hàng",
+    shopDefaultCurrencyHint: "Dùng cho hiển thị và sự kiện theo dõi (GA4/Meta/TikTok). Không quy đổi tỷ giá.",
+    shopDefaultCurrencySaveButton: "Lưu tiền tệ",
+    shopDefaultCurrencyInvalidToast: "Mã tiền tệ không hợp lệ.",
+    shopContactChannelsTitle: "Liên hệ công khai (shop)",
+    shopContactChannelsHint: "Hiện nút gọi/Zalo/Messenger/Instagram trên trang shop. Không dùng token webhook.",
+    shopContactPhoneLabel: "Số điện thoại",
+    shopContactZaloLabel: "Link Zalo (zalo.me/...)",
+    shopContactMessengerLabel: "Link Messenger (m.me/...)",
+    shopContactInstagramLabel: "Link Instagram",
+    shopContactChannelsSaveButton: "Lưu liên hệ công khai",
+    shopShippingCarrierLabel: "Đơn vị vận chuyển (nhãn)",
+    shopShippingCarrierHint: "Chỉ hiển thị cho khách — không kết nối API GHN/GHTK.",
+    shopShippingCarrierPlaceholder: "Ví dụ: GHN, GHTK, Viettel Post",
+    messagingSettingsWebhookCardTitle: "Webhook outbound & API key",
+    messagingSettingsWebhookCardBody: "Cấu hình URL nhận sự kiện (lead/order/payment), signing secret và khoá API tại trang Tích hợp API.",
+    messagingSettingsWebhookOpenButton: "Mở cấu hình Webhook / API",
+    customDomainRefreshStatusButton: "Làm mới trạng thái DNS/SSL",
+    customDomainStatusHintPending: "Chưa xác minh DNS — thêm CNAME rồi bấm xác minh hoặc làm mới.",
+    customDomainStatusHintDnsOk: "DNS đúng — hệ thống đang chờ cấp chứng chỉ SSL.",
+    customDomainStatusHintSslActive: "Domain đã sẵn sàng với HTTPS.",
+    customDomainStatusHintError: "Xác minh thất bại — kiểm tra CNAME và thử làm mới lại.",
+    customDomainLastErrorTitle: "Chi tiết lỗi gần nhất",
     facebookCatalogFeedTitle: 'Facebook — link danh mục sản phẩm (CSV)',
     facebookCatalogFeedHint:
       'Dán URL này vào Commerce Manager khi chọn «URL hoặc Google Trang tính». CSV gồm sản phẩm đang bật; cột link là trang tư vấn trên NanoAI (không phải link web shop). Cần ảnh URL, giá VND; key = khóa nhúng (giữ bí mật).',
@@ -3505,6 +3598,7 @@ const VI_DICTIONARY: Dictionary = {
     marketingCampaignsLink: 'Marketing',
     messagingWebsiteLink: 'Tạo web & landing',
     messagingOrdersLink: 'Đơn hàng',
+    messagingAnalyticsLink: 'Doanh thu',
     messagingSettingsPageTitle: 'Quản trị shop',
     messagingInboxDescription:
       'Danh sách khách bên trái; khi mở một hội thoại, ô soạn tin cố định dưới cùng màn hình.',
@@ -3572,10 +3666,10 @@ const VI_DICTIONARY: Dictionary = {
     customDomainRemoveButton: 'Gỡ tên miền',
     customDomainCopyTarget: 'Sao chép CNAME đích',
     customDomainCopyFailed: 'Không sao chép được.',
-    customDomainStatusPending: 'Chờ cấu hình DNS',
-    customDomainStatusDnsOk: 'DNS OK — đang chờ SSL',
-    customDomainStatusSslActive: 'SSL đang hoạt động',
-    customDomainStatusError: 'Lỗi xác minh',
+    customDomainStatusPending: 'Chờ DNS',
+    customDomainStatusDnsOk: 'DNS OK · chờ SSL',
+    customDomainStatusSslActive: 'SSL hoạt động',
+    customDomainStatusError: 'Lỗi DNS/SSL',
     customDomainPreviewTitle: 'URL công khai trên domain riêng',
     customDomainPreviewChat: 'Chat tư vấn:',
     customDomainPreviewSite: 'Website shop:',
@@ -3667,6 +3761,11 @@ const VI_DICTIONARY: Dictionary = {
     timelineLoading: 'Đang tải lịch sử…',
     toastStatusUpdated: 'Đã cập nhật trạng thái đơn.',
     toastShippingUpdated: 'Đã cập nhật giao hàng và thông báo về chat.',
+    refundSectionTitle: 'Hoàn tiền',
+    refundAmountLabel: 'Số tiền hoàn (VND)',
+    refundNoteLabel: 'Ghi chú hoàn tiền',
+    btnMarkRefunded: 'Đánh dấu đã hoàn tiền',
+    toastRefundUpdated: 'Đã cập nhật hoàn tiền và thông báo về chat.',
     toastExportDone: 'Đã tải {count} đơn ({filename}).',
     depositNone: 'Chưa cọc',
     depositPartial: 'Cọc một phần',
@@ -3732,6 +3831,32 @@ const VI_DICTIONARY: Dictionary = {
     modalOrderNoteLabel: 'Ghi chú đơn',
     modalShippingAddressHeading: 'Địa chỉ nhận hàng',
     modalContactSectionTitle: 'Khách hàng & xử lý đơn',
+  },
+  partnerMessagingAnalytics: {
+    pageTitle: 'Doanh thu & Chuyển đổi',
+    pageDescription: 'Theo dõi doanh thu, tỉ lệ chuyển đổi và hiệu quả nguồn khách theo UTM.',
+    allWorkspaces: 'Tất cả workspace',
+    dateFrom: 'Từ ngày',
+    dateTo: 'Đến ngày',
+    applyFilter: 'Áp dụng',
+    statRevenue: 'Doanh thu',
+    statRevenueHint: 'Đơn đã xác nhận thanh toán + đã giao thành công',
+    statOrders: 'Đơn hàng',
+    statOrdersHint: 'Tổng số đơn trong khoảng thời gian',
+    statAvgOrderValue: 'Giá trị đơn trung bình',
+    statVisitors: 'Khách truy cập (ước tính)',
+    statVisitorsHint: 'Số khách vãng lai ghi nhận được — không phải số liệu tuyệt đối chính xác',
+    statConversionRate: 'Tỉ lệ chuyển đổi (ước tính)',
+    revenueByDayTitle: 'Doanh thu theo ngày',
+    revenueByUtmTitle: 'Doanh thu theo nguồn (UTM)',
+    utmSourceColumn: 'Nguồn',
+    utmCampaignColumn: 'Chiến dịch',
+    topProductsTitle: 'Sản phẩm bán chạy',
+    productColumn: 'Sản phẩm',
+    quantityColumn: 'Số lượng',
+    revenueColumn: 'Doanh thu',
+    ordersColumn: 'Đơn',
+    noData: 'Chưa có dữ liệu trong khoảng thời gian này.',
   },
   partnerMessagingMarketing: {
     pageTitle: 'Marketing remarketing',
@@ -6270,6 +6395,34 @@ const EN_DICTIONARY: Dictionary = {
     shopTiktokPixelPlaceholder: 'Example: CXXXXXXXXXXXXXXXXX',
     shopTiktokPixelInvalidIdToast: 'Invalid TikTok Pixel ID.',
     shopTiktokPixelSaveButton: 'Save TikTok Pixel',
+    shopGtmContainerLabel: 'GTM Container ID',
+    shopGtmContainerHint: 'Enter your Google Tag Manager container ID (GTM-XXXXXXX) — the system generates the script for your shop pages.',
+    shopGtmContainerPlaceholder: 'GTM-XXXXXXX',
+    shopGtmContainerInvalidIdToast: 'Invalid GTM Container ID (must be in GTM-XXXXXXX format).',
+    shopGtmContainerSaveButton: 'Save GTM Container',
+    shopDefaultCurrencyLabel: "Shop currency",
+    shopDefaultCurrencyHint: "Used for display and tracking events (GA4/Meta/TikTok). No FX conversion.",
+    shopDefaultCurrencySaveButton: "Save currency",
+    shopDefaultCurrencyInvalidToast: "Invalid currency code.",
+    shopContactChannelsTitle: "Public shop contact",
+    shopContactChannelsHint: "Shows Call/Zalo/Messenger/Instagram buttons on the shop. Not webhook tokens.",
+    shopContactPhoneLabel: "Phone number",
+    shopContactZaloLabel: "Zalo link (zalo.me/...)",
+    shopContactMessengerLabel: "Messenger link (m.me/...)",
+    shopContactInstagramLabel: "Instagram link",
+    shopContactChannelsSaveButton: "Save public contact",
+    shopShippingCarrierLabel: "Shipping carrier (label)",
+    shopShippingCarrierHint: "Display only — no GHN/GHTK API.",
+    shopShippingCarrierPlaceholder: "e.g. GHN, GHTK, Viettel Post",
+    messagingSettingsWebhookCardTitle: "Outbound webhooks & API keys",
+    messagingSettingsWebhookCardBody: "Configure event URLs (lead/order/payment), signing secret, and API keys on the API integration page.",
+    messagingSettingsWebhookOpenButton: "Open Webhook / API settings",
+    customDomainRefreshStatusButton: "Refresh DNS/SSL status",
+    customDomainStatusHintPending: "DNS not verified yet — add the CNAME, then verify or refresh.",
+    customDomainStatusHintDnsOk: "DNS looks good — waiting for SSL certificate provisioning.",
+    customDomainStatusHintSslActive: "Domain is ready with HTTPS.",
+    customDomainStatusHintError: "Verification failed — check CNAME and try refreshing again.",
+    customDomainLastErrorTitle: "Latest error detail",
     facebookCatalogFeedTitle: 'Facebook — product catalog feed (CSV)',
     facebookCatalogFeedHint:
       'Paste this URL in Commerce Manager (scheduled feed). CSV lists active items; the link column is the NanoAI consult page, not your shop website. Requires image URL and VND price. The key query param is your embed key — keep it private.',
@@ -6338,6 +6491,7 @@ const EN_DICTIONARY: Dictionary = {
     marketingCampaignsLink: 'Marketing',
     messagingWebsiteLink: 'Website & landing',
     messagingOrdersLink: 'Orders',
+    messagingAnalyticsLink: 'Revenue',
     messagingSettingsPageTitle: 'Shop admin',
     messagingInboxDescription:
       'Customer list on the left; when a thread is open, the composer stays fixed at the bottom of the screen.',
@@ -6400,10 +6554,10 @@ const EN_DICTIONARY: Dictionary = {
     customDomainRemoveButton: 'Remove domain',
     customDomainCopyTarget: 'Copy CNAME target',
     customDomainCopyFailed: 'Could not copy.',
-    customDomainStatusPending: 'Awaiting DNS',
-    customDomainStatusDnsOk: 'DNS OK — SSL pending',
+    customDomainStatusPending: 'Pending DNS',
+    customDomainStatusDnsOk: 'DNS OK · SSL pending',
     customDomainStatusSslActive: 'SSL active',
-    customDomainStatusError: 'Verification error',
+    customDomainStatusError: 'DNS/SSL error',
     customDomainPreviewTitle: 'Public URLs on your domain',
     customDomainPreviewChat: 'Consultation chat:',
     customDomainPreviewSite: 'Shop website:',
@@ -6497,6 +6651,11 @@ const EN_DICTIONARY: Dictionary = {
     timelineLoading: 'Loading timeline…',
     toastStatusUpdated: 'Order status updated.',
     toastShippingUpdated: 'Shipping updated and chat notified.',
+    refundSectionTitle: 'Refund',
+    refundAmountLabel: 'Refund amount (VND)',
+    refundNoteLabel: 'Refund note',
+    btnMarkRefunded: 'Mark as refunded',
+    toastRefundUpdated: 'Refund updated and chat notified.',
     toastExportDone: 'Downloaded {count} orders ({filename}).',
     depositNone: 'No deposit yet',
     depositPartial: 'Partial deposit',
@@ -6562,6 +6721,32 @@ const EN_DICTIONARY: Dictionary = {
     modalOrderNoteLabel: 'Order note',
     modalShippingAddressHeading: 'Shipping address',
     modalContactSectionTitle: 'Customer & order handling',
+  },
+  partnerMessagingAnalytics: {
+    pageTitle: 'Revenue & Conversion',
+    pageDescription: 'Track revenue, conversion rate, and traffic source performance by UTM.',
+    allWorkspaces: 'All workspaces',
+    dateFrom: 'From date',
+    dateTo: 'To date',
+    applyFilter: 'Apply',
+    statRevenue: 'Revenue',
+    statRevenueHint: 'Orders confirmed paid and delivered',
+    statOrders: 'Orders',
+    statOrdersHint: 'Total orders in the selected period',
+    statAvgOrderValue: 'Average order value',
+    statVisitors: 'Visitors (estimated)',
+    statVisitorsHint: 'Tracked visitors — not an exact absolute figure',
+    statConversionRate: 'Conversion rate (estimated)',
+    revenueByDayTitle: 'Revenue by day',
+    revenueByUtmTitle: 'Revenue by source (UTM)',
+    utmSourceColumn: 'Source',
+    utmCampaignColumn: 'Campaign',
+    topProductsTitle: 'Best-selling products',
+    productColumn: 'Product',
+    quantityColumn: 'Quantity',
+    revenueColumn: 'Revenue',
+    ordersColumn: 'Orders',
+    noData: 'No data for this period yet.',
   },
   partnerMessagingMarketing: {
     pageTitle: 'Remarketing campaigns',
@@ -9101,6 +9286,34 @@ const ZH_DICTIONARY: Dictionary = {
     shopTiktokPixelPlaceholder: '例如：CXXXXXXXXXXXXXXXXX',
     shopTiktokPixelInvalidIdToast: 'TikTok Pixel ID 无效。',
     shopTiktokPixelSaveButton: '保存 TikTok Pixel',
+    shopGtmContainerLabel: 'GTM 容器 ID',
+    shopGtmContainerHint: '输入 Google 跟踪代码管理器容器 ID（GTM-XXXXXXX）——系统会自动生成脚本并插入商店页面。',
+    shopGtmContainerPlaceholder: 'GTM-XXXXXXX',
+    shopGtmContainerInvalidIdToast: 'GTM 容器 ID 无效（格式应为 GTM-XXXXXXX）。',
+    shopGtmContainerSaveButton: '保存 GTM 容器',
+    shopDefaultCurrencyLabel: "店铺货币",
+    shopDefaultCurrencyHint: "用于展示与追踪事件（GA4/Meta/TikTok）。不进行汇率换算。",
+    shopDefaultCurrencySaveButton: "保存货币",
+    shopDefaultCurrencyInvalidToast: "货币代码无效。",
+    shopContactChannelsTitle: "店铺公开联系方式",
+    shopContactChannelsHint: "在店铺页显示电话/Zalo/Messenger/Instagram 按钮。不是 webhook token。",
+    shopContactPhoneLabel: "电话号码",
+    shopContactZaloLabel: "Zalo 链接 (zalo.me/...)",
+    shopContactMessengerLabel: "Messenger 链接 (m.me/...)",
+    shopContactInstagramLabel: "Instagram 链接",
+    shopContactChannelsSaveButton: "保存公开联系方式",
+    shopShippingCarrierLabel: "物流公司（标签）",
+    shopShippingCarrierHint: "仅展示给顾客 — 不对接 GHN/GHTK API。",
+    shopShippingCarrierPlaceholder: "例如：GHN、GHTK",
+    messagingSettingsWebhookCardTitle: "出站 Webhook 与 API 密钥",
+    messagingSettingsWebhookCardBody: "在 API 集成页配置事件接收 URL（线索/订单/付款）、签名密钥和 API 密钥。",
+    messagingSettingsWebhookOpenButton: "打开 Webhook / API 设置",
+    customDomainRefreshStatusButton: "刷新 DNS/SSL 状态",
+    customDomainStatusHintPending: "尚未验证 DNS — 添加 CNAME 后验证或刷新。",
+    customDomainStatusHintDnsOk: "DNS 正常 — 正在等待签发 SSL 证书。",
+    customDomainStatusHintSslActive: "域名已启用 HTTPS。",
+    customDomainStatusHintError: "验证失败 — 请检查 CNAME 并重试刷新。",
+    customDomainLastErrorTitle: "最近错误详情",
     facebookCatalogFeedTitle: 'Facebook — 商品目录 Feed（CSV）',
     facebookCatalogFeedHint:
       '在商务管理平台粘贴此 Feed URL。CSV 中 link 列为 NanoAI 咨询页，不是店铺官网。需图片 URL 与越南盾价格。key 为嵌入密钥，请保密。',
@@ -9166,6 +9379,7 @@ const ZH_DICTIONARY: Dictionary = {
     marketingCampaignsLink: '营销',
     messagingWebsiteLink: '网站与落地页',
     messagingOrdersLink: '订单',
+    messagingAnalyticsLink: '营收',
     messagingSettingsPageTitle: '店铺管理',
     messagingInboxDescription: '左侧为客户列表；打开会话后，输入框固定在屏幕底部。',
     noWorkspaceInboxCta: '您还没有消息工作区。前往设置创建店铺并连接 Facebook / Zalo / 聊天。',
@@ -9315,6 +9529,11 @@ const ZH_DICTIONARY: Dictionary = {
     timelineLoading: '正在加载记录…',
     toastStatusUpdated: '订单状态已更新。',
     toastShippingUpdated: '物流已更新并已通知聊天。',
+    refundSectionTitle: '退款',
+    refundAmountLabel: '退款金额（VND）',
+    refundNoteLabel: '退款备注',
+    btnMarkRefunded: '标记为已退款',
+    toastRefundUpdated: '退款已更新并已通知聊天。',
     toastExportDone: '已下载 {count} 条订单（{filename}）。',
     depositNone: '未付定金',
     depositPartial: '部分定金',
@@ -9380,6 +9599,32 @@ const ZH_DICTIONARY: Dictionary = {
     modalOrderNoteLabel: '订单备注',
     modalShippingAddressHeading: '收货地址',
     modalContactSectionTitle: '客户与订单处理',
+  },
+  partnerMessagingAnalytics: {
+    pageTitle: '营收与转化',
+    pageDescription: '跟踪营收、转化率以及各 UTM 来源的效果。',
+    allWorkspaces: '所有工作区',
+    dateFrom: '开始日期',
+    dateTo: '结束日期',
+    applyFilter: '应用',
+    statRevenue: '营收',
+    statRevenueHint: '已确认付款并成功送达的订单',
+    statOrders: '订单数',
+    statOrdersHint: '所选时间段内的订单总数',
+    statAvgOrderValue: '平均客单价',
+    statVisitors: '访客数（估算）',
+    statVisitorsHint: '已记录的访客数——并非绝对精确的数据',
+    statConversionRate: '转化率（估算）',
+    revenueByDayTitle: '每日营收',
+    revenueByUtmTitle: '按来源（UTM）营收',
+    utmSourceColumn: '来源',
+    utmCampaignColumn: '活动',
+    topProductsTitle: '畅销商品',
+    productColumn: '商品',
+    quantityColumn: '数量',
+    revenueColumn: '营收',
+    ordersColumn: '订单数',
+    noData: '该时间段暂无数据。',
   },
   partnerMessagingMarketing: {
     pageTitle: '再营销群发',
@@ -11842,6 +12087,34 @@ const JA_DICTIONARY: Dictionary = {
     shopTiktokPixelPlaceholder: '例: CXXXXXXXXXXXXXXXXX',
     shopTiktokPixelInvalidIdToast: 'TikTok Pixel ID が無効です。',
     shopTiktokPixelSaveButton: 'TikTok Pixel を保存',
+    shopGtmContainerLabel: 'GTM コンテナ ID',
+    shopGtmContainerHint: 'Google タグマネージャーのコンテナ ID（GTM-XXXXXXX）を入力してください——ショップページ用のスクリプトを自動生成します。',
+    shopGtmContainerPlaceholder: 'GTM-XXXXXXX',
+    shopGtmContainerInvalidIdToast: 'GTM コンテナ ID が無効です（GTM-XXXXXXX の形式である必要があります）。',
+    shopGtmContainerSaveButton: 'GTM コンテナを保存',
+    shopDefaultCurrencyLabel: "ショップ通貨",
+    shopDefaultCurrencyHint: "表示とトラッキングイベント（GA4/Meta/TikTok）に使用。為替換算はありません。",
+    shopDefaultCurrencySaveButton: "通貨を保存",
+    shopDefaultCurrencyInvalidToast: "無効な通貨コードです。",
+    shopContactChannelsTitle: "公開連絡先（ショップ）",
+    shopContactChannelsHint: "ショップに電話/Zalo/Messenger/Instagramボタンを表示します。Webhookトークンではありません。",
+    shopContactPhoneLabel: "電話番号",
+    shopContactZaloLabel: "Zaloリンク (zalo.me/...)",
+    shopContactMessengerLabel: "Messengerリンク (m.me/...)",
+    shopContactInstagramLabel: "Instagramリンク",
+    shopContactChannelsSaveButton: "公開連絡先を保存",
+    shopShippingCarrierLabel: "配送業者（表示名）",
+    shopShippingCarrierHint: "表示のみ — GHN/GHTK API連携なし。",
+    shopShippingCarrierPlaceholder: "例: GHN、GHTK",
+    messagingSettingsWebhookCardTitle: "アウトバウンド Webhook と API キー",
+    messagingSettingsWebhookCardBody: "API 連携ページでイベント URL（リード/注文/支払い）、署名シークレット、API キーを設定します。",
+    messagingSettingsWebhookOpenButton: "Webhook / API 設定を開く",
+    customDomainRefreshStatusButton: "DNS/SSL 状態を更新",
+    customDomainStatusHintPending: "DNS 未確認 — CNAME を追加して確認または更新してください。",
+    customDomainStatusHintDnsOk: "DNS OK — SSL 証明書の発行待ちです。",
+    customDomainStatusHintSslActive: "ドメインは HTTPS で利用可能です。",
+    customDomainStatusHintError: "確認失敗 — CNAME を確認して再更新してください。",
+    customDomainLastErrorTitle: "最新のエラー詳細",
     facebookCatalogFeedTitle: 'Facebook — 商品カタログフィード（CSV）',
     facebookCatalogFeedHint:
       'Commerce Manager のデータソース URL に貼り付けます。link は NanoAI の相談ページで、店舗サイトの URL ではありません。画像 URL と VND 価格が必要です。key は埋め込みキーなので秘密にしてください。',
@@ -11910,6 +12183,7 @@ const JA_DICTIONARY: Dictionary = {
     marketingCampaignsLink: 'マーケティング',
     messagingWebsiteLink: 'Web・ランディング',
     messagingOrdersLink: '注文',
+    messagingAnalyticsLink: '売上',
     messagingSettingsPageTitle: '店舗管理',
     messagingInboxDescription: '左に顧客一覧。会話を開くと、入力欄は画面下に固定されます。',
     noWorkspaceInboxCta: 'メッセージ用ワークスペースがありません。設定で店舗を作成し Facebook / Zalo / チャットを接続してください。',
@@ -12065,6 +12339,11 @@ const JA_DICTIONARY: Dictionary = {
     timelineLoading: '履歴を読み込み中…',
     toastStatusUpdated: '注文ステータスを更新しました。',
     toastShippingUpdated: '配送を更新しチャットに通知しました。',
+    refundSectionTitle: '返金',
+    refundAmountLabel: '返金額（VND）',
+    refundNoteLabel: '返金メモ',
+    btnMarkRefunded: '返金済みにする',
+    toastRefundUpdated: '返金を更新しチャットに通知しました。',
     toastExportDone: '{count} 件をダウンロードしました（{filename}）。',
     depositNone: '未入金',
     depositPartial: '一部入金',
@@ -12130,6 +12409,32 @@ const JA_DICTIONARY: Dictionary = {
     modalOrderNoteLabel: '注文メモ',
     modalShippingAddressHeading: 'お届け先住所',
     modalContactSectionTitle: 'お客様・注文の対応',
+  },
+  partnerMessagingAnalytics: {
+    pageTitle: '売上とコンバージョン',
+    pageDescription: '売上、コンバージョン率、UTM別の流入効果を確認できます。',
+    allWorkspaces: 'すべてのワークスペース',
+    dateFrom: '開始日',
+    dateTo: '終了日',
+    applyFilter: '適用',
+    statRevenue: '売上',
+    statRevenueHint: '支払い確認済みかつ配達完了の注文',
+    statOrders: '注文数',
+    statOrdersHint: '選択期間内の注文合計数',
+    statAvgOrderValue: '平均注文単価',
+    statVisitors: '訪問者数（推定）',
+    statVisitorsHint: '記録された訪問者数——正確な絶対値ではありません',
+    statConversionRate: 'コンバージョン率（推定）',
+    revenueByDayTitle: '日別売上',
+    revenueByUtmTitle: '流入元（UTM）別売上',
+    utmSourceColumn: '流入元',
+    utmCampaignColumn: 'キャンペーン',
+    topProductsTitle: '売れ筋商品',
+    productColumn: '商品',
+    quantityColumn: '数量',
+    revenueColumn: '売上',
+    ordersColumn: '注文数',
+    noData: 'この期間のデータはまだありません。',
   },
   partnerMessagingMarketing: {
     pageTitle: 'リマーケティング一斉送信',
@@ -14651,6 +14956,34 @@ const KO_DICTIONARY: Dictionary = {
     shopTiktokPixelPlaceholder: '예: CXXXXXXXXXXXXXXXXX',
     shopTiktokPixelInvalidIdToast: 'TikTok Pixel ID가 유효하지 않습니다.',
     shopTiktokPixelSaveButton: 'TikTok Pixel 저장',
+    shopGtmContainerLabel: 'GTM 컨테이너 ID',
+    shopGtmContainerHint: 'Google 태그 관리자 컨테이너 ID(GTM-XXXXXXX)를 입력하세요 — 상점 페이지에 삽입할 스크립트를 자동 생성합니다.',
+    shopGtmContainerPlaceholder: 'GTM-XXXXXXX',
+    shopGtmContainerInvalidIdToast: 'GTM 컨테이너 ID가 올바르지 않습니다(GTM-XXXXXXX 형식이어야 함).',
+    shopGtmContainerSaveButton: 'GTM 컨테이너 저장',
+    shopDefaultCurrencyLabel: "상점 통화",
+    shopDefaultCurrencyHint: "표시 및 추적 이벤트(GA4/Meta/TikTok)에 사용합니다. 환율 변환은 없습니다.",
+    shopDefaultCurrencySaveButton: "통화 저장",
+    shopDefaultCurrencyInvalidToast: "잘못된 통화 코드입니다.",
+    shopContactChannelsTitle: "공개 연락처 (스토어)",
+    shopContactChannelsHint: "스토어에 전화/Zalo/Messenger/Instagram 버튼을 표시합니다. 웹훅 토큰이 아닙니다.",
+    shopContactPhoneLabel: "전화번호",
+    shopContactZaloLabel: "Zalo 링크 (zalo.me/...)",
+    shopContactMessengerLabel: "Messenger 링크 (m.me/...)",
+    shopContactInstagramLabel: "Instagram 링크",
+    shopContactChannelsSaveButton: "공개 연락처 저장",
+    shopShippingCarrierLabel: "배송사 (라벨)",
+    shopShippingCarrierHint: "표시 전용 — GHN/GHTK API 연동 없음.",
+    shopShippingCarrierPlaceholder: "예: GHN, GHTK",
+    messagingSettingsWebhookCardTitle: "아웃바운드 Webhook 및 API 키",
+    messagingSettingsWebhookCardBody: "API 연동 페이지에서 이벤트 URL(리드/주문/결제), 서명 시크릿, API 키를 설정하세요.",
+    messagingSettingsWebhookOpenButton: "Webhook / API 설정 열기",
+    customDomainRefreshStatusButton: "DNS/SSL 상태 새로고침",
+    customDomainStatusHintPending: "DNS 미확인 — CNAME을 추가한 뒤 확인하거나 새로고침하세요.",
+    customDomainStatusHintDnsOk: "DNS 정상 — SSL 인증서 발급 대기 중.",
+    customDomainStatusHintSslActive: "도메인이 HTTPS로 준비되었습니다.",
+    customDomainStatusHintError: "확인 실패 — CNAME을 점검하고 다시 새로고침하세요.",
+    customDomainLastErrorTitle: "최근 오류 상세",
     facebookCatalogFeedTitle: 'Facebook — 상품 카탈로그 피드(CSV)',
     facebookCatalogFeedHint:
       '커머스 관리자 데이터 소스 URL에 붙여 넣습니다. link 열은 NanoAI 상담 페이지이며 쇼핑몰 사이트 링크가 아닙니다. 이미지 URL·VND 가격 필요. key는 임베드 키로 비공개 유지.',
@@ -14718,6 +15051,7 @@ const KO_DICTIONARY: Dictionary = {
     marketingCampaignsLink: '마케팅',
     messagingWebsiteLink: '웹·랜딩',
     messagingOrdersLink: '주문',
+    messagingAnalyticsLink: '매출',
     messagingSettingsPageTitle: '매장 관리',
     messagingInboxDescription: '왼쪽에 고객 목록. 대화를 열면 입력창이 화면 하단에 고정됩니다.',
     noWorkspaceInboxCta: '메시징 워크스페이스가 없습니다. 설정에서 매장을 만들고 Facebook / Zalo / 채팅을 연결하세요.',
@@ -14872,6 +15206,11 @@ const KO_DICTIONARY: Dictionary = {
     timelineLoading: '기록을 불러오는 중…',
     toastStatusUpdated: '주문 상태를 업데이트했습니다.',
     toastShippingUpdated: '배송을 업데이트하고 채팅에 알렸습니다.',
+    refundSectionTitle: '환불',
+    refundAmountLabel: '환불 금액 (VND)',
+    refundNoteLabel: '환불 메모',
+    btnMarkRefunded: '환불 완료로 표시',
+    toastRefundUpdated: '환불 정보를 업데이트하고 채팅에 알렸습니다.',
     toastExportDone: '{count}건을 다운로드했습니다({filename}).',
     depositNone: '미입금',
     depositPartial: '부분 입금',
@@ -14937,6 +15276,32 @@ const KO_DICTIONARY: Dictionary = {
     modalOrderNoteLabel: '주문 메모',
     modalShippingAddressHeading: '배송지 주소',
     modalContactSectionTitle: '고객·주문 처리',
+  },
+  partnerMessagingAnalytics: {
+    pageTitle: '매출 및 전환',
+    pageDescription: '매출, 전환율, UTM별 유입 성과를 확인하세요.',
+    allWorkspaces: '모든 워크스페이스',
+    dateFrom: '시작일',
+    dateTo: '종료일',
+    applyFilter: '적용',
+    statRevenue: '매출',
+    statRevenueHint: '결제 확인 및 배송 완료된 주문',
+    statOrders: '주문 수',
+    statOrdersHint: '선택한 기간의 총 주문 수',
+    statAvgOrderValue: '평균 주문 금액',
+    statVisitors: '방문자 수(추정)',
+    statVisitorsHint: '기록된 방문자 수 — 정확한 절대값이 아닙니다',
+    statConversionRate: '전환율(추정)',
+    revenueByDayTitle: '일별 매출',
+    revenueByUtmTitle: '유입 경로(UTM)별 매출',
+    utmSourceColumn: '유입 경로',
+    utmCampaignColumn: '캠페인',
+    topProductsTitle: '베스트셀러 상품',
+    productColumn: '상품',
+    quantityColumn: '수량',
+    revenueColumn: '매출',
+    ordersColumn: '주문 수',
+    noData: '이 기간에 대한 데이터가 아직 없습니다.',
   },
   partnerMessagingMarketing: {
     pageTitle: '리마케팅 대량 발송',

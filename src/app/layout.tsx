@@ -23,6 +23,7 @@ import {
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { FloatingChatWidget } from '@/components/messaging/floating-chat-widget'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
+import { PlatformServiceWorkerRegistration } from '@/components/pwa/platform-service-worker-registration'
 
 const AnalyticsTracker = nextDynamic(
   () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
@@ -489,6 +490,7 @@ export default async function RootLayout({
           <main>{children}</main>
         ) : (
           <>
+            <PlatformServiceWorkerRegistration />
             <Header />
             <DepositCreditProvider>
               <main className="pb-16 md:pb-0">{children}</main>

@@ -41,8 +41,49 @@ export function partnerSiteAccountPath(siteSlug: string, opts?: PathOpts): strin
   return partnerSiteHref(siteSlug, '/account', opts?.customDomain)
 }
 
+/** W5.6 — valid account tabs. `overview` lives at `/account` (no trailing segment). */
+export const PARTNER_SITE_ACCOUNT_TABS = [
+  'overview',
+  'cart',
+  'orders',
+  'wallet',
+  'wishlist',
+  'recently-viewed',
+  'addresses',
+  'edit-profile',
+  'contact',
+  'security',
+  'notifications',
+  'install-app',
+] as const
+
+export type PartnerSiteAccountTab = (typeof PARTNER_SITE_ACCOUNT_TABS)[number]
+
+const PARTNER_SITE_ACCOUNT_TAB_SET = new Set<string>(PARTNER_SITE_ACCOUNT_TABS)
+
+export function isPartnerSiteAccountTab(value: string): value is PartnerSiteAccountTab {
+  return PARTNER_SITE_ACCOUNT_TAB_SET.has(value.trim())
+}
+
+/** W5.6 — `/account` for overview; `/account/{tab}` for the rest. */
+export function partnerSiteAccountTabPath(
+  siteSlug: string,
+  tab: PartnerSiteAccountTab | string,
+  opts?: PathOpts
+): string {
+  const normalized = tab.trim().toLowerCase()
+  if (!normalized || normalized === 'overview') {
+    return partnerSiteAccountPath(siteSlug, opts)
+  }
+  return partnerSiteHref(siteSlug, `/account/${encodeURIComponent(normalized)}`, opts?.customDomain)
+}
+
 export function partnerSiteAccountEditPath(siteSlug: string, opts?: PathOpts): string {
-  return `${partnerSiteAccountPath(siteSlug, opts)}#edit-profile`
+  return partnerSiteAccountTabPath(siteSlug, 'edit-profile', opts)
+}
+
+export function partnerSiteNotificationsApiPath(siteSlug: string): string {
+  return `/api/site/${encodeURIComponent(siteSlug.trim())}/notifications`
 }
 
 export function partnerSiteAddressesPath(siteSlug: string, opts?: PathOpts): string {
@@ -51,6 +92,25 @@ export function partnerSiteAddressesPath(siteSlug: string, opts?: PathOpts): str
 
 export function partnerSiteProductsApiPath(siteSlug: string): string {
   return `/api/site/${encodeURIComponent(siteSlug.trim())}/products`
+}
+
+/** W4.7 — trang danh mục công khai `/site/{slug}/c/{...path}`. `categoryPath` không có `/` đầu/cuối. */
+export function partnerSiteCategoryPath(
+  siteSlug: string,
+  categoryPath: string,
+  opts?: PathOpts
+): string {
+  const segments = categoryPath
+    .split('/')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => encodeURIComponent(s))
+  return partnerSiteHref(siteSlug, `/c/${segments.join('/')}`, opts?.customDomain)
+}
+
+/** W4.8 — cây danh mục công khai (active only) cho mega menu. */
+export function partnerSiteCategoriesApiPath(siteSlug: string): string {
+  return `/api/site/${encodeURIComponent(siteSlug.trim())}/categories`
 }
 
 export function partnerSiteProductApiPath(siteSlug: string, inventoryId: string): string {
@@ -117,8 +177,19 @@ export function partnerSiteInfoPath(
     | 'shipping'
     | 'returns'
     | 'privacy'
-    | 'terms',
+    | 'terms'
+    | 'payment'
+    | 'thank-you'
+    | 'stores'
+    | 'lookbook'
+    | 'size-guide'
+    | 'blog',
   opts?: PathOpts
 ): string {
   return partnerSiteHref(siteSlug, `/${page}`, opts?.customDomain)
+}
+
+/** W3.4 — trang tĩnh tự do do merchant tạo (không phải 1 trong 8 trang có sẵn ở `partnerSiteInfoPath`). */
+export function partnerSiteCustomPagePath(siteSlug: string, pageSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, `/pages/${encodeURIComponent(pageSlug)}`, opts?.customDomain)
 }

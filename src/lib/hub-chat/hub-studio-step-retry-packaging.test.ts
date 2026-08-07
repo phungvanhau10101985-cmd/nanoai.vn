@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import type { HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { emptyStudioSession, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import {
   findBlockingIncompleteStep,
   getDesignStepIncompleteReason,
@@ -18,6 +18,7 @@ import { resolveMockupSlotUrl } from '@/lib/packaging/box-face-slots'
 
 function packagingSession(overrides: Partial<HubStudioSession> = {}): HubStudioSession {
   return {
+    ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,
     currentStepKey: 'box_dieline_pdf',

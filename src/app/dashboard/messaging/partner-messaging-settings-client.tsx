@@ -47,7 +47,13 @@ import {
   savePartnerMessagingGa4,
   savePartnerMessagingGoogleAds,
   savePartnerMessagingTiktokPixel,
+  savePartnerMessagingGtmContainer,
+  savePartnerMessagingDefaultCurrency,
+  getMessagingPartnerContactChannels,
+  savePartnerMessagingContactChannels,
 } from '@/app/dashboard/messaging/actions'
+import { PARTNER_SHOP_CURRENCIES } from '@/lib/partner-website/shop/partner-shop-currency'
+import { PARTNER_DEV_INTEGRATION_COPY } from '@/lib/integration/partner-dev-integration-copy'
 import {
   Dialog,
   DialogContent,
@@ -314,12 +320,27 @@ export function PartnerMessagingSettingsClient({
   const [paymentSePayWebhookToken, setPaymentSePayWebhookToken] = useState('')
   const [paymentSePaySecretKey, setPaymentSePaySecretKey] = useState('')
   const [paymentSePayWebhookUrl, setPaymentSePayWebhookUrl] = useState('')
+  // W1.7 — phí ship + ví điện tử (QR thủ công, giống cơ chế nhập tay của ngân hàng ở trên).
+  const [paymentShippingFeeAmount, setPaymentShippingFeeAmount] = useState('0')
+  const [paymentShippingFreeThreshold, setPaymentShippingFreeThreshold] = useState('')
+  const [paymentEwalletEnabled, setPaymentEwalletEnabled] = useState(false)
+  const [paymentEwalletProviderLabel, setPaymentEwalletProviderLabel] = useState('')
+  const [paymentEwalletAccountName, setPaymentEwalletAccountName] = useState('')
+  const [paymentEwalletAccountNumber, setPaymentEwalletAccountNumber] = useState('')
+  const [paymentEwalletQrUrl, setPaymentEwalletQrUrl] = useState('')
   const [metaPixelId, setMetaPixelId] = useState('')
   const [metaCapiToken, setMetaCapiToken] = useState('')
   const [metaCapiConfigured, setMetaCapiConfigured] = useState(false)
   const [shopGa4MeasurementId, setShopGa4MeasurementId] = useState('')
   const [googleAdsId, setGoogleAdsId] = useState('')
   const [tiktokPixelId, setTiktokPixelId] = useState('')
+  const [gtmContainerId, setGtmContainerId] = useState('')
+  const [defaultCurrency, setDefaultCurrency] = useState('VND')
+  const [contactPhone, setContactPhone] = useState('')
+  const [contactZaloUrl, setContactZaloUrl] = useState('')
+  const [contactMessengerUrl, setContactMessengerUrl] = useState('')
+  const [contactInstagramUrl, setContactInstagramUrl] = useState('')
+  const [paymentShippingCarrierLabel, setPaymentShippingCarrierLabel] = useState('')
   const [gsEnabled, setGsEnabled] = useState(false)
   const [gsSpreadsheetId, setGsSpreadsheetId] = useState('')
   const [gsSheetName, setGsSheetName] = useState('Don hang')
@@ -715,6 +736,19 @@ export function PartnerMessagingSettingsClient({
     setShopGa4MeasurementId((cur.ga4_measurement_id ?? '').trim())
     setGoogleAdsId((cur.google_ads_id ?? '').trim())
     setTiktokPixelId((cur.tiktok_pixel_id ?? '').trim())
+    setGtmContainerId((cur.gtm_container_id ?? '').trim())
+    setDefaultCurrency(String(cur.default_currency ?? 'VND').trim().toUpperCase() || 'VND')
+    const pid = selectedPartnerId
+    if (!pid) return
+    void (async () => {
+      const res = await getMessagingPartnerContactChannels(pid)
+      if ('channels' in res && res.channels) {
+        setContactPhone(res.channels.contact_phone || '')
+        setContactZaloUrl(res.channels.contact_zalo_url || '')
+        setContactMessengerUrl(res.channels.contact_messenger_url || '')
+        setContactInstagramUrl(res.channels.contact_instagram_url || '')
+      }
+    })()
   }, [partners, selectedPartnerId])
 
   useEffect(() => {
@@ -763,6 +797,18 @@ export function PartnerMessagingSettingsClient({
           setPaymentSePayQrTemplate(res.settings.sepay_qr_template === 'qronly' ? 'qronly' : 'compact')
           setPaymentSePayWebhookToken(res.settings.sepay_webhook_token || '')
           setPaymentSePaySecretKey(res.settings.sepay_secret_key || '')
+          setPaymentShippingFeeAmount(String(Math.max(0, Math.round(Number(res.settings.shipping_fee_amount) || 0))))
+          setPaymentShippingFreeThreshold(
+            res.settings.shipping_free_threshold_amount == null
+              ? ''
+              : String(Math.max(0, Math.round(Number(res.settings.shipping_free_threshold_amount) || 0)))
+          )
+          setPaymentEwalletEnabled(Boolean(res.settings.ewallet_enabled))
+          setPaymentEwalletProviderLabel(res.settings.ewallet_provider_label || '')
+          setPaymentEwalletAccountName(res.settings.ewallet_account_name || '')
+          setPaymentEwalletAccountNumber(res.settings.ewallet_account_number || '')
+          setPaymentEwalletQrUrl(res.settings.ewallet_qr_url || '')
+          setPaymentShippingCarrierLabel(res.settings.shipping_carrier_label || '')
           paymentLastSavedSnapshotRef.current = JSON.stringify({
             partnerId: selectedPartnerId,
             bankName: res.settings.bank_name || '',
@@ -784,6 +830,17 @@ export function PartnerMessagingSettingsClient({
             sepayQrTemplate: res.settings.sepay_qr_template === 'qronly' ? 'qronly' : 'compact',
             sepayWebhookToken: res.settings.sepay_webhook_token || '',
             sepaySecretKey: res.settings.sepay_secret_key || '',
+            shippingFeeAmount: Math.max(0, Math.round(Number(res.settings.shipping_fee_amount) || 0)),
+            shippingFreeThresholdAmount:
+              res.settings.shipping_free_threshold_amount == null
+                ? null
+                : Math.max(0, Math.round(Number(res.settings.shipping_free_threshold_amount) || 0)),
+            ewalletEnabled: Boolean(res.settings.ewallet_enabled),
+            ewalletProviderLabel: res.settings.ewallet_provider_label || '',
+            ewalletAccountName: res.settings.ewallet_account_name || '',
+            ewalletAccountNumber: res.settings.ewallet_account_number || '',
+            ewalletQrUrl: res.settings.ewallet_qr_url || '',
+            shippingCarrierLabel: res.settings.shipping_carrier_label || '',
           })
           setPaymentAutoSaveStatus('idle')
         }
@@ -1413,6 +1470,49 @@ export function PartnerMessagingSettingsClient({
     })
   }
 
+  const saveGtmContainer = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await savePartnerMessagingGtmContainer(selectedPartnerId, gtmContainerId)
+      if ('error' in res && res.error) {
+        if (res.error === 'INVALID_GTM_CONTAINER_ID') {
+          toast({ title: t.shopGtmContainerInvalidIdToast, variant: 'destructive' })
+          return
+        }
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      const nextId = gtmContainerId.trim() || null
+      setPartners((prev) =>
+        prev.map((p) => (p.id === selectedPartnerId ? { ...p, gtm_container_id: nextId } : p))
+      )
+      toast({ title: t.saveOk })
+      router.refresh()
+    })
+  }
+
+  const saveDefaultCurrency = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await savePartnerMessagingDefaultCurrency(selectedPartnerId, defaultCurrency)
+      if ('error' in res && res.error) {
+        if (res.error === 'INVALID_CURRENCY') {
+          toast({ title: t.shopDefaultCurrencyInvalidToast, variant: 'destructive' })
+          return
+        }
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      setPartners((prev) =>
+        prev.map((p) =>
+          p.id === selectedPartnerId ? { ...p, default_currency: defaultCurrency.toUpperCase() } : p
+        )
+      )
+      toast({ title: t.saveOk })
+      router.refresh()
+    })
+  }
+
   const copyFacebookCatalogFeedUrl = useCallback(() => {
     if (!facebookCatalogFeedUrl) return
     void navigator.clipboard.writeText(facebookCatalogFeedUrl).then(() => {
@@ -1438,6 +1538,15 @@ export function PartnerMessagingSettingsClient({
         sepayQrTemplate: paymentSePayQrTemplate,
         sepayWebhookToken: paymentSePayWebhookToken,
         sepaySecretKey: paymentSePaySecretKey,
+        shippingFeeAmount: Math.max(0, Math.round(Number(paymentShippingFeeAmount) || 0)),
+        shippingFreeThresholdAmount:
+          paymentShippingFreeThreshold.trim() === '' ? null : Math.max(0, Math.round(Number(paymentShippingFreeThreshold) || 0)),
+        ewalletEnabled: paymentEwalletEnabled,
+        ewalletProviderLabel: paymentEwalletProviderLabel,
+        ewalletAccountName: paymentEwalletAccountName,
+        ewalletAccountNumber: paymentEwalletAccountNumber,
+        ewalletQrUrl: paymentEwalletQrUrl,
+        shippingCarrierLabel: paymentShippingCarrierLabel,
       }),
     [
       paymentAccountHolder,
@@ -1454,6 +1563,14 @@ export function PartnerMessagingSettingsClient({
       paymentSePayQrTemplate,
       paymentSePaySecretKey,
       paymentSePayWebhookToken,
+      paymentShippingFeeAmount,
+      paymentShippingFreeThreshold,
+      paymentEwalletEnabled,
+      paymentEwalletProviderLabel,
+      paymentEwalletAccountName,
+      paymentEwalletAccountNumber,
+      paymentEwalletQrUrl,
+      paymentShippingCarrierLabel,
     ]
   )
 
@@ -1478,6 +1595,15 @@ export function PartnerMessagingSettingsClient({
           sepayQrTemplate: paymentSePayQrTemplate,
           sepayWebhookToken: paymentSePayWebhookToken,
           sepaySecretKey: paymentSePaySecretKey,
+          shippingFeeAmount: Math.max(0, Math.round(Number(paymentShippingFeeAmount) || 0)),
+          shippingFreeThresholdAmount:
+            paymentShippingFreeThreshold.trim() === '' ? null : Math.max(0, Math.round(Number(paymentShippingFreeThreshold) || 0)),
+          ewalletEnabled: paymentEwalletEnabled,
+          ewalletProviderLabel: paymentEwalletProviderLabel,
+          ewalletAccountName: paymentEwalletAccountName,
+          ewalletAccountNumber: paymentEwalletAccountNumber,
+          ewalletQrUrl: paymentEwalletQrUrl,
+          shippingCarrierLabel: paymentShippingCarrierLabel,
         })
       )
       if ('error' in res && res.error) {
@@ -1505,12 +1631,38 @@ export function PartnerMessagingSettingsClient({
       paymentSePayQrTemplate,
       paymentSePaySecretKey,
       paymentSePayWebhookToken,
+      paymentShippingFeeAmount,
+      paymentShippingFreeThreshold,
+      paymentEwalletEnabled,
+      paymentEwalletProviderLabel,
+      paymentEwalletAccountName,
+      paymentEwalletAccountNumber,
+      paymentEwalletQrUrl,
+      paymentShippingCarrierLabel,
       paymentSnapshot,
       runWithStepUp,
       selectedPartnerId,
       toast,
     ]
   )
+
+  const saveContactChannels = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await savePartnerMessagingContactChannels(selectedPartnerId, {
+        contact_phone: contactPhone,
+        contact_zalo_url: contactZaloUrl,
+        contact_messenger_url: contactMessengerUrl,
+        contact_instagram_url: contactInstagramUrl,
+      })
+      if ('error' in res && res.error) {
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: t.saveOk })
+      router.refresh()
+    })
+  }
 
   const savePaymentSettings = () => {
     if (!selectedPartnerId) return
@@ -2270,6 +2422,62 @@ export function PartnerMessagingSettingsClient({
                     </Select>
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="ws-currency-main">{t.shopDefaultCurrencyLabel}</Label>
+                    <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
+                      <SelectTrigger id="ws-currency-main" className="h-10 w-full bg-background">
+                        <SelectValue placeholder="VND" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PARTNER_SHOP_CURRENCIES.map((code) => (
+                          <SelectItem key={code} value={code}>
+                            {code}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">{t.shopDefaultCurrencyHint}</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={saveDefaultCurrency}
+                      disabled={pending || !selectedPartnerId || !isOwnerSelected}
+                    >
+                      {t.shopDefaultCurrencySaveButton}
+                    </Button>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>{t.shopContactChannelsTitle}</Label>
+                    <p className="text-[11px] text-muted-foreground">{t.shopContactChannelsHint}</p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t.shopContactPhoneLabel}</Label>
+                        <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="+84..." />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t.shopContactZaloLabel}</Label>
+                        <Input value={contactZaloUrl} onChange={(e) => setContactZaloUrl(e.target.value)} placeholder="https://zalo.me/..." />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t.shopContactMessengerLabel}</Label>
+                        <Input value={contactMessengerUrl} onChange={(e) => setContactMessengerUrl(e.target.value)} placeholder="https://m.me/..." />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t.shopContactInstagramLabel}</Label>
+                        <Input value={contactInstagramUrl} onChange={(e) => setContactInstagramUrl(e.target.value)} placeholder="https://instagram.com/..." />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={saveContactChannels}
+                      disabled={pending || !selectedPartnerId || !isOwnerSelected}
+                    >
+                      {t.shopContactChannelsSaveButton}
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="ws-logo-main">Logo URL</Label>
                     <Input
                       id="ws-logo-main"
@@ -2681,6 +2889,30 @@ export function PartnerMessagingSettingsClient({
                 </Button>
               </CardContent>
             </Card>
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Google Tag Manager</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.shopGtmContainerLabel}</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={gtmContainerId}
+                    onChange={(e) => setGtmContainerId(e.target.value)}
+                    placeholder={t.shopGtmContainerPlaceholder}
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t.shopGtmContainerHint}</p>
+                </div>
+                {!isOwnerSelected ? (
+                  <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
+                ) : null}
+                <Button type="button" size="sm" onClick={saveGtmContainer} disabled={pending || !selectedPartnerId || !isOwnerSelected}>
+                  {t.shopGtmContainerSaveButton}
+                </Button>
+              </CardContent>
+            </Card>
           </SettingsBlock>
           ) : null}
 
@@ -2850,6 +3082,107 @@ export function PartnerMessagingSettingsClient({
                   Neu thieu bien SePay, he thong tu dong fallback ve QR thuong hien tai.
                 </p>
               </div>
+              </div>
+              <div className="space-y-3 border-t border-border/60 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Phí vận chuyển</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Phí ship cố định (VND)</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={paymentShippingFeeAmount}
+                      onChange={(e) => setPaymentShippingFeeAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
+                      placeholder="0 = không thu phí ship"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Miễn phí ship từ đơn (VND, để trống = không áp dụng)</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={paymentShippingFreeThreshold}
+                      onChange={(e) => setPaymentShippingFreeThreshold(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
+                      placeholder="Vi du: 500000"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.shopShippingCarrierLabel}</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={paymentShippingCarrierLabel}
+                    onChange={(e) => setPaymentShippingCarrierLabel(e.target.value.slice(0, 80))}
+                    placeholder={t.shopShippingCarrierPlaceholder}
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t.shopShippingCarrierHint}</p>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Phí ship hiển thị riêng cho khách lúc checkout, không tính vào giá trị đơn dùng để đặt cọc/tích điểm.
+                </p>
+              </div>
+              <div className="space-y-3 border-t border-border/60 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ví điện tử (QR thủ công)</p>
+                <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Tùy chọn — cho khách quét QR ví điện tử (Momo/ZaloPay/...) để trả cọc thay vì chuyển khoản ngân hàng. Khách tự
+                    nhập số tiền khi chuyển (QR tĩnh, không nhúng sẵn số tiền), sau đó gửi ảnh biên lai để xác nhận thủ công.
+                  </p>
+                  <label className="mb-2 inline-flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={paymentEwalletEnabled}
+                      onChange={(e) => setPaymentEwalletEnabled(e.target.checked)}
+                    />
+                    Cho phép khách chọn thanh toán qua ví điện tử
+                  </label>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Tên ví điện tử</Label>
+                      <Input
+                        className="h-9 text-sm"
+                        value={paymentEwalletProviderLabel}
+                        onChange={(e) => setPaymentEwalletProviderLabel(e.target.value)}
+                        placeholder="Momo / ZaloPay / ViettelPay..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Số điện thoại / số tài khoản ví</Label>
+                      <Input
+                        className="h-9 text-sm"
+                        value={paymentEwalletAccountNumber}
+                        onChange={(e) => setPaymentEwalletAccountNumber(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Chủ ví</Label>
+                      <Input
+                        className="h-9 text-sm"
+                        value={paymentEwalletAccountName}
+                        onChange={(e) => setPaymentEwalletAccountName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">URL ảnh QR ví điện tử</Label>
+                      <Input
+                        className="h-9 text-sm"
+                        value={paymentEwalletQrUrl}
+                        onChange={(e) => setPaymentEwalletQrUrl(e.target.value)}
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
+                  {paymentEwalletEnabled && !paymentEwalletQrUrl.trim() ? (
+                    <p className="mt-2 rounded-md border border-red-300 bg-red-50 px-2 py-1 text-[11px] text-red-700">
+                      Đang bật ví điện tử nhưng chưa có ảnh QR — khách sẽ không chọn được phương thức này cho tới khi bạn dán URL ảnh QR.
+                    </p>
+                  ) : null}
+                  {paymentEwalletQrUrl.trim() ? (
+                    <img
+                      src={paymentEwalletQrUrl.trim()}
+                      alt="QR ví điện tử"
+                      className="mt-2 h-32 w-32 rounded-md border border-border/60 object-contain bg-white"
+                    />
+                  ) : null}
+                </div>
               </div>
               <Button type="button" size="sm" onClick={savePaymentSettings} disabled={pending || !selectedPartnerId}>
                 Luu cai dat thanh toan
@@ -3122,6 +3455,33 @@ export function PartnerMessagingSettingsClient({
               </Button>
               <p className="w-full text-[11px] text-muted-foreground">{t.apiIntegrationGuideShort}</p>
               <p className="w-full text-[11px] text-muted-foreground">{t.partnerSiteLoginGuideShort}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/70 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">{t.messagingSettingsWebhookCardTitle}</CardTitle>
+              <CardDescription className="text-xs">{t.messagingSettingsWebhookCardBody}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-0">
+              <p className="text-[11px] font-medium text-muted-foreground">
+                {PARTNER_DEV_INTEGRATION_COPY[locale]?.webhooksApiTitle ??
+                  PARTNER_DEV_INTEGRATION_COPY.en.webhooksApiTitle}
+              </p>
+              <p className="whitespace-pre-line text-[11px] leading-relaxed text-muted-foreground">
+                {PARTNER_DEV_INTEGRATION_COPY[locale]?.webhooksApiBody ??
+                  PARTNER_DEV_INTEGRATION_COPY.en.webhooksApiBody}
+              </p>
+              <Button type="button" size="sm" asChild>
+                <Link
+                  href={
+                    selectedPartnerId
+                      ? `/dashboard/api-integration?partner=${selectedPartnerId}#partner-api-keys`
+                      : '/dashboard/api-integration#partner-api-keys'
+                  }
+                >
+                  {t.messagingSettingsWebhookOpenButton}
+                </Link>
+              </Button>
             </CardContent>
           </Card>
           </SettingsBlock>

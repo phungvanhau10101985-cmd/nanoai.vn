@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
+import { fetchPartnerCapabilitiesForPartnerFromPg } from '@/lib/db/messaging-partners-pg'
 import {
   fetchPartnerProfileForWebsitePg,
   fetchPartnerWebsiteByPartnerIdPg,
@@ -204,18 +205,21 @@ export async function POST(req: NextRequest) {
     }
 
     const pwCopy = getPartnerWebsiteCopy(locale)
+    const industryKey = partner.industryKey ?? 'fashion'
+    const capabilities = await fetchPartnerCapabilitiesForPartnerFromPg(partnerId, industryKey)
+    const suggestOpts = { locale, industryKey, capabilities }
     let journal = saved.creationJournal
     journal = appendJournalEntry(journal, {
       kind: 'edit_request',
       role: 'user',
       content: message,
-      suggestions: editSuggestionsForJournal(journal, pwCopy),
+      suggestions: editSuggestionsForJournal(journal, pwCopy, suggestOpts),
     })
     journal = appendJournalEntry(journal, {
       kind: 'edit_result',
       role: 'assistant',
       content: assistantMessage?.trim() || (locale === 'vi' ? 'Đã cập nhật website.' : 'Website updated.'),
-      suggestions: editSuggestionsForJournal({ ...journal, phase: 'built' }, pwCopy),
+      suggestions: editSuggestionsForJournal({ ...journal, phase: 'built' }, pwCopy, suggestOpts),
     })
     const withJournal = await updatePartnerWebsiteCreationJournalPg(partnerId, journal)
     const websiteOut = withJournal ?? { ...saved, creationJournal: journal }

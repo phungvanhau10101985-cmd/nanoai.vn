@@ -53,11 +53,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
     accountKey: headlessAccountKey(customerRef),
   })
 
-  return jsonHeadlessCartWithCors(req, {
-    ok: true,
-    customer_ref: customerRef,
-    items: Array.isArray(items) ? items : [],
-  })
+  return jsonHeadlessCartWithCors(
+    req,
+    {
+      ok: true,
+      customer_ref: customerRef,
+      items: Array.isArray(items) ? items : [],
+    },
+    200
+  )
 }
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ partnerId: string }> }) {
@@ -89,5 +93,9 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ partnerId: 
     return jsonHeadlessCartWithCors(req, { error: 'Could not save cart.' }, 500)
   }
 
-  return jsonHeadlessCartWithCors(req, { ok: true, customer_ref: customerRef, item_count: Array.isArray(items) ? items.length : 0 })
+  return jsonHeadlessCartWithCors(
+    req,
+    { ok: true, customer_ref: customerRef, item_count: Array.isArray(items) ? items.length : 0 },
+    200
+  )
 }

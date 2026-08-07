@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import type { HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { emptyStudioSession, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { isPackagingFaceReEdit } from '@/lib/packaging/hub-face-steps'
 
 test('isPackagingFaceReEdit detects committed face artwork', () => {
   const session: HubStudioSession = {
+    ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,
     currentStepKey: 'face_left',
@@ -27,6 +28,7 @@ test('isPackagingFaceReEdit detects committed face artwork', () => {
 
 test('isPackagingFaceReEdit is false before first face commit', () => {
   const session: HubStudioSession = {
+    ...emptyStudioSession(),
     presetId: 'packaging_kit',
     discoveryComplete: true,
     currentStepKey: 'face_left',
