@@ -6,25 +6,25 @@ if exist "%LOCALAPPDATA%\Programs\nodejs\npm.cmd" (
     set "PATH=%LOCALAPPDATA%\Programs\nodejs;%PATH%"
 )
 
-REM Next.js dev mac dinh 3000. Neu ban dat PORT trong .env.local khac — sua DEV_PORT cho trung nhau voi dong lenh npm run dev.
+REM Next.js dev mac dinh 3000. Neu ban dat PORT trong .env.local khac — sua DEV_PORT cho trung.
+REM 188-com-vn local: backend 8001 + frontend 3001 — KHONG bi script nay kill (xem scripts/restart-server-stop-dev.ps1).
 set "DEV_PORT=3000"
-REM Dashboard ngrok (mac dinh 4040). Chi giai phong khi ngrok LISTEN tai cong nay.
-set "NGROK_UI_PORT=4040"
+if exist ".env.local" (
+    for /f "usebackq tokens=1,2 delims==" %%A in (`findstr /i /r "^PORT=" ".env.local" 2^>nul`) do (
+        set "DEV_PORT=%%B"
+    )
+)
 
 echo ========================================
-echo   RESET - Dừng hết, xoa cache, khoi dong lai
+echo   RESET - Thu-do-online (khong anh huong 188-com-vn)
 echo ========================================
 echo.
 
-echo [1/7] Giai phong cong du an ^(Next.js PORT=%DEV_PORT%, ngrok UI=%NGROK_UI_PORT%^)...
-REM Khong tat het node/ngrok/tsx — chi kill process LISTEN tai cac cong tren, va dong cua so dev neu con mo.
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$ports=@(%DEV_PORT%,%NGROK_UI_PORT%);foreach($po in $ports){Get-NetTCPConnection -LocalPort $po -ErrorAction SilentlyContinue|Where-Object{$_.State -eq 'Listen'}|Select-Object -ExpandProperty OwningProcess -Unique|ForEach-Object{Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue}}"
-taskkill /F /FI "WINDOWTITLE eq Next.js Dev Server*" 2>nul
-taskkill /F /FI "WINDOWTITLE eq Worksheet Worker*" 2>nul
-taskkill /F /FI "WINDOWTITLE eq ngrok*" 2>nul
-REM Worksheet Worker (tsx) thuong khong mo cong listening — dong bang tieu de cua so neu script da start truoc do.
-echo       Da dung tien trinh LISTEN tai cong du an va cua so dev/worker/ngrok
+echo [1/7] Giai phong dev Thu-do ^(PORT=%DEV_PORT% only — 188 giu 8001/3001^)...
+REM Do not pass -ProjectRoot "%~dp0" — trailing \ before " breaks PowerShell quoting.
+REM Script defaults ProjectRoot to parent of scripts\ (this repo root).
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\restart-server-stop-dev.ps1" -DevPort %DEV_PORT%
+echo       Da dung process Thu-do tren port %DEV_PORT% + ngrok forward %DEV_PORT%
 timeout /t 2 /nobreak >nul
 echo.
 
@@ -86,16 +86,17 @@ echo       Worker dang khoi dong...
 timeout /t 5 /nobreak >nul
 echo.
 
-echo [7/7] Khoi dong ngrok (^http %DEV_PORT%^)...
+echo [7/7] Khoi dong ngrok (^http %DEV_PORT%^ — chi tunnel Thu-do^)...
 where ngrok >nul 2>&1
 if errorlevel 1 (
     echo       [CANH BAO] Khong tim thay ngrok trong PATH — bo qua. Dev local: http://localhost:%DEV_PORT%
 ) else (
-    start "ngrok" cmd /k "cd /d "%~dp0" && ngrok http %DEV_PORT%"
-    echo       ngrok dang khoi dong...
+    start "NGROK Thu-do %DEV_PORT%" cmd /k "cd /d "%~dp0" && ngrok http %DEV_PORT%"
+    echo       ngrok Thu-do dang khoi dong (188 ngrok 3001 khong bi dong)...
 )
 echo.
 echo ========================================
-echo   Xong. Next.js, Worker, ngrok dang chay.
+echo   Xong. Thu-do: Next.js, Worker, ngrok :%DEV_PORT%
+echo   188-com-vn (8001/3001) — khong bi anh huong boi script nay.
 echo ========================================
 pause

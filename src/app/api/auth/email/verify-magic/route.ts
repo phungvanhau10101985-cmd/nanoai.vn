@@ -6,6 +6,7 @@ import { issueTrustedDeviceForUser } from '@/lib/auth/email-trusted-device'
 import { mergeGuestTrialUserDataAfterLogin } from '@/lib/auth/merge-guest-trial-user-data'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
+import { markNewUserSignupSource, signupSourceFromLoginNext } from '@/lib/auth/signup-source'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { readGuestSessionIdFromRequestStrictOrLoose } from '@/lib/messaging/guest-auth-session'
@@ -87,6 +88,13 @@ export async function GET(req: NextRequest) {
     if (!uidRow?.id) {
       return absoluteRedirect(req, '/auth/login?error=user')
     }
+
+    await markNewUserSignupSource({
+      userId: uidRow.id,
+      isNewUser,
+      source: signupSourceFromLoginNext(next),
+      loginNext: next,
+    })
 
     await pgQuery(`update public.nanoai_email_login_challenges set consumed_at = now() where id = $1::uuid`, [row.id])
 

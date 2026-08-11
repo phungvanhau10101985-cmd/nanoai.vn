@@ -480,7 +480,12 @@ export function HubStudioMessageBubble({
       studioSession?.pendingPreview?.screenKey === st.screenKey &&
       studioSession.pendingPreview.url
   )
-  const showContinueButton = Boolean(st?.showApproveReference && pendingMatchesStep)
+  const showContinueButton = Boolean(
+    st?.showApproveReference &&
+      pendingMatchesStep &&
+      // design_recreate redesign image: only Tạo lại (logo still uses Tiếp)
+      !(studioSession?.presetId === 'design_recreate' && st?.screenKey && st.screenKey !== 'logo')
+  )
   const resolvedReferencePreviews = useMemo(
     () => filterStaleReferencePreviews(st?.referencePreviews, studioSession),
     [st?.referencePreviews, studioSession]
@@ -502,7 +507,8 @@ export function HubStudioMessageBubble({
   const approveButtonLabel =
     (studioSession?.presetId === 'sale_banner' && st?.previewKind === 'banner') ||
     studioSession?.presetId === 'food_menu' ||
-    studioSession?.presetId === 'landing_page'
+    studioSession?.presetId === 'landing_page' ||
+    (studioSession?.presetId === 'design_recreate' && st?.screenKey === 'logo')
       ? hc.studioBannerNext ?? hc.studioContinue
       : isAudio || isPackagingFacePreview || continueOnlyApprove
         ? hc.studioContinue

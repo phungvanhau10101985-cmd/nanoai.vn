@@ -20,6 +20,7 @@ import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { ProductStudioManualDialog } from '@/components/partner-website/product-studio/product-studio-manual-dialog'
 import {
   deletePartnerInventoryItem,
   getPartnerAiBundle,
@@ -2544,6 +2545,7 @@ function InventoryEditor({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
+        <ProductStudioManualDialog partnerId={partnerId} t={t} onPublished={onChanged} />
         <Button
           type="button"
           variant="secondary"

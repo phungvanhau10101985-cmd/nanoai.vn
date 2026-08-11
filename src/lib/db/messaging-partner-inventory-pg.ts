@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { Database } from '@/types/database.types'
+import type { Database, Json } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
@@ -90,6 +90,24 @@ function isMissingPriceAmountColumnError(e: unknown): boolean {
   return msg.includes('price_amount') && msg.includes('messaging_partner_inventory')
 }
 
+/** PS.1 — DB chưa áp migration Product Studio (colors_json/sizes_json/gallery_urls/...). */
+function isMissingProductStudioColumnError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (err.code !== '42703') return false
+  const msg = String(err.message ?? '').toLowerCase()
+  return (
+    msg.includes('messaging_partner_inventory') &&
+    (msg.includes('colors_json') ||
+      msg.includes('sizes_json') ||
+      msg.includes('gallery_urls') ||
+      msg.includes('detail_image_urls') ||
+      msg.includes('product_studio_meta') ||
+      msg.includes('origin') ||
+      msg.includes('product_studio_job_id'))
+  )
+}
+
 type PgInventoryRaw = {
   id: string
   partner_id: string
@@ -134,8 +152,56 @@ type PgInventoryRaw = {
   vision_catalog_excluded: boolean | null
   consult_link_opening_text: string | null
   consult_link_opening_input_fingerprint: string | null
+  colors_json?: unknown
+  sizes_json?: unknown
+  gallery_urls?: unknown
+  detail_image_urls?: unknown
+  product_studio_meta?: unknown
+  origin?: string | null
+  product_studio_job_id?: string | null
   created_at: unknown
   updated_at: unknown
+}
+
+/** PS.1 — jsonb đã được node-postgres parse thành array/object JS sẵn; chỉ cần validate hình dạng. */
+function parseJsonArrayColumn(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'string' && raw.trim().startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function parseColorsJsonColumn(raw: unknown): { name: string; img: string }[] | null {
+  const arr = parseJsonArrayColumn(raw)
+  if (!arr.length) return null
+  const out: { name: string; img: string }[] = []
+  for (const item of arr) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const name = typeof o.name === 'string' ? o.name.trim() : ''
+    const img = typeof o.img === 'string' ? o.img.trim() : ''
+    if (name && img) out.push({ name, img })
+  }
+  return out.length ? out : null
+}
+
+function parseSizesJsonColumn(raw: unknown): string[] | null {
+  const arr = parseJsonArrayColumn(raw)
+  if (!arr.length) return null
+  const out = arr.map((x) => String(x ?? '').trim()).filter(Boolean)
+  return out.length ? out : null
+}
+
+function parseStringArrayColumn(raw: unknown): string[] {
+  return parseJsonArrayColumn(raw)
+    .map((x) => String(x ?? '').trim())
+    .filter(Boolean)
 }
 
 function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
@@ -183,10 +249,74 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
     vision_catalog_excluded: r.vision_catalog_excluded !== false,
     consult_link_opening_text: r.consult_link_opening_text != null ? String(r.consult_link_opening_text) : null,
     consult_link_opening_input_fingerprint: r.consult_link_opening_input_fingerprint ?? null,
+    colors_json: parseColorsJsonColumn(r.colors_json),
+    sizes_json: parseSizesJsonColumn(r.sizes_json),
+    gallery_urls: parseStringArrayColumn(r.gallery_urls),
+    detail_image_urls: parseStringArrayColumn(r.detail_image_urls),
+    product_studio_meta:
+      r.product_studio_meta && typeof r.product_studio_meta === 'object' ? (r.product_studio_meta as Json) : null,
+    origin: r.origin ?? null,
+    product_studio_job_id: r.product_studio_job_id ?? null,
     created_at: tsIsoReq(r.created_at),
     updated_at: tsIsoReq(r.updated_at),
   }
 }
+
+/** PS.1 — tầng cao nhất, gồm cột Product Studio. Fallback xuống `INVENTORY_PAGE_SELECT_PRE_PRODUCT_STUDIO` nếu DB chưa migration. */
+const INVENTORY_PAGE_SELECT_WITH_PRODUCT_STUDIO = `select
+  mpi.id::text as id,
+  mpi.partner_id::text as partner_id,
+  mpi.sort_order,
+  mpi.sku,
+  coalesce(mpi.name, '') as name,
+  coalesce(mpi.description, '') as description,
+  coalesce(mpi.stock_note, '') as stock_note,
+  coalesce(mpi.stock_qty, 0) as stock_qty,
+  coalesce(mpi.price_hint, '') as price_hint,
+  coalesce(mpi.image_url, '') as image_url,
+  coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.product_video_url, '') as product_video_url,
+  coalesce(mpi.consult_note, '') as consult_note,
+  coalesce(mpi.remarketing_id, '') as remarketing_id,
+  coalesce(mpi.material_note, '') as material_note,
+  coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,
+  coalesce(mpi.real_use_image_url, '') as real_use_image_url,
+  coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
+  coalesce(mpi.is_active, true) as is_active,
+  mpi.price_amount,
+  coalesce(mpi.price_currency, 'VND') as price_currency,
+  mpi.sale_price_amount,
+  mpi.sale_starts_at,
+  mpi.sale_ends_at,
+  mpi.image_embedding_json,
+  mpi.image_embedding_vec::text as image_embedding_vec,
+  mpi.image_embedding_model,
+  mpi.image_embedding_dims,
+  mpi.image_embedding_fingerprint,
+  mpi.image_embedding_updated_at,
+  mpi.image_embedding_error,
+  mpi.text_embedding_json,
+  mpi.text_embedding_vec::text as text_embedding_vec,
+  mpi.text_embedding_model,
+  mpi.text_embedding_dims,
+  mpi.text_embedding_fingerprint,
+  mpi.text_embedding_updated_at,
+  mpi.text_embedding_error,
+  mpi.vision_catalog_checksum,
+  mpi.vision_catalog_synced_at,
+  coalesce(mpi.vision_catalog_excluded, false) as vision_catalog_excluded,
+  mpi.consult_link_opening_text,
+  mpi.consult_link_opening_input_fingerprint,
+  mpi.colors_json,
+  mpi.sizes_json,
+  mpi.gallery_urls,
+  mpi.detail_image_urls,
+  mpi.product_studio_meta,
+  mpi.origin,
+  mpi.product_studio_job_id::text as product_studio_job_id,
+  mpi.created_at,
+  mpi.updated_at
+from public.messaging_partner_inventory mpi`
 
 const INVENTORY_PAGE_SELECT = `select
   mpi.id::text as id,
@@ -378,6 +508,11 @@ async function runInventorySelectWithStockQtyFallback(
   params: unknown[]
 ): Promise<PgInventoryRaw[]> {
   try {
+    return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_WITH_PRODUCT_STUDIO}\n${sqlFromSelect}`, params)
+  } catch (e0) {
+    if (!isMissingProductStudioColumnError(e0)) throw e0
+  }
+  try {
     return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT}\n${sqlFromSelect}`, params)
   } catch (e) {
     if (isMissingPriceAmountColumnError(e)) {
@@ -515,18 +650,42 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
     return { sizes: [], colors: [] }
   }
   try {
-    const rows = await pgQuery<{ description: string; stock_note: string }>(
-      `select coalesce(mpi.description, '') as description, coalesce(mpi.stock_note, '') as stock_note
-       from public.messaging_partner_inventory mpi
-       where mpi.partner_id = $1::uuid
-         and coalesce(mpi.is_active, true) = true
-         and exists (
-           select 1 from public.messaging_partner_inventory_categories pic
-           where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
-         )
-       limit 500`,
-      [partnerId, categoryId]
-    )
+    type FacetRow = {
+      description: string
+      stock_note: string
+      sizes_json?: unknown
+      colors_json?: unknown
+    }
+    let rows: FacetRow[]
+    try {
+      rows = await pgQuery<FacetRow>(
+        `select coalesce(mpi.description, '') as description, coalesce(mpi.stock_note, '') as stock_note,
+                mpi.sizes_json, mpi.colors_json
+         from public.messaging_partner_inventory mpi
+         where mpi.partner_id = $1::uuid
+           and coalesce(mpi.is_active, true) = true
+           and exists (
+             select 1 from public.messaging_partner_inventory_categories pic
+             where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
+           )
+         limit 500`,
+        [partnerId, categoryId]
+      )
+    } catch (e) {
+      if (!isMissingProductStudioColumnError(e)) throw e
+      rows = await pgQuery<FacetRow>(
+        `select coalesce(mpi.description, '') as description, coalesce(mpi.stock_note, '') as stock_note
+         from public.messaging_partner_inventory mpi
+         where mpi.partner_id = $1::uuid
+           and coalesce(mpi.is_active, true) = true
+           and exists (
+             select 1 from public.messaging_partner_inventory_categories pic
+             where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
+           )
+         limit 500`,
+        [partnerId, categoryId]
+      )
+    }
     const {
       parseInventorySizesForFacet,
       parseInventoryColorsForFacet,
@@ -534,10 +693,12 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
     const sizeMap = new Map<string, number>()
     const colorMap = new Map<string, number>()
     for (const r of rows) {
-      for (const s of parseInventorySizesForFacet(r.description)) {
+      const structuredSizes = parseSizesJsonColumn(r.sizes_json)
+      const structuredColors = parseColorsJsonColumn(r.colors_json)
+      for (const s of parseInventorySizesForFacet(r.description, structuredSizes)) {
         sizeMap.set(s, (sizeMap.get(s) ?? 0) + 1)
       }
-      for (const c of parseInventoryColorsForFacet(r.stock_note)) {
+      for (const c of parseInventoryColorsForFacet(r.stock_note, structuredColors)) {
         colorMap.set(c, (colorMap.get(c) ?? 0) + 1)
       }
     }
@@ -2133,6 +2294,81 @@ export async function insertPartnerInventoryDashboardItemFromPg(
     console.warn('[insertPartnerInventoryDashboardItemFromPg]', e)
     return null
   }
+}
+
+/**
+ * PS.9 — tạo dòng kho từ Product Studio (thủ công hoặc AI). Khác `insertPartnerInventoryDashboardItemFromPg`:
+ * dùng cột structured `colors_json`/`sizes_json` làm nguồn thật (không giấu trong `description`/`stock_note`
+ * như quy ước cũ) — `description` giữ đúng vai trò mô tả sản phẩm thật, `stock_note` để trống.
+ */
+export async function insertPartnerInventoryFromProductStudioFromPg(
+  partnerId: string,
+  fields: {
+    name: string
+    description: string
+    priceAmount: number
+    colors: { name: string; img: string }[]
+    sizes: string[]
+    mainImage: string
+    galleryUrls: string[]
+    detailImageUrls: string[]
+    material: string
+    stockQty: number
+    origin: 'manual' | 'manual_ai'
+    productStudioJobId: string | null
+    productStudioMeta: Record<string, unknown> | null
+  }
+): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const now = new Date().toISOString()
+    const priceHint = formatVndForInventoryWrite(fields.priceAmount)
+    const nextSortOrderRow = await pgQueryOne<{ next: number }>(
+      `select coalesce(max(sort_order), 0) + 1 as next from public.messaging_partner_inventory where partner_id = $1::uuid`,
+      [partnerId]
+    )
+    const sortOrder = nextSortOrderRow?.next ?? 0
+    const row = await pgQueryOne<{ id: string }>(
+      `insert into public.messaging_partner_inventory (
+         partner_id, name, description, stock_note, stock_qty, price_hint, image_url, material_note,
+         sort_order, is_active, price_amount, colors_json, sizes_json, gallery_urls, detail_image_urls,
+         product_studio_meta, origin, product_studio_job_id, created_at, updated_at
+       ) values (
+         $1::uuid, $2, $3, '', $4::int, $5, $6, $7,
+         $8::int, true, $9::numeric, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb,
+         $14::jsonb, $15, $16::uuid, $17::timestamptz, $17::timestamptz
+       )
+       returning id::text as id`,
+      [
+        partnerId,
+        fields.name.trim().slice(0, 500),
+        fields.description.trim(),
+        Math.max(0, Math.round(fields.stockQty)),
+        priceHint,
+        fields.mainImage.trim(),
+        fields.material.trim().slice(0, 2000),
+        sortOrder,
+        fields.priceAmount > 0 ? fields.priceAmount : null,
+        JSON.stringify(fields.colors),
+        JSON.stringify(fields.sizes),
+        JSON.stringify(fields.galleryUrls),
+        JSON.stringify(fields.detailImageUrls),
+        fields.productStudioMeta ? JSON.stringify(fields.productStudioMeta) : null,
+        fields.origin,
+        fields.productStudioJobId,
+        now,
+      ]
+    )
+    return row?.id ?? null
+  } catch (e) {
+    console.error('[insertPartnerInventoryFromProductStudioFromPg]', e)
+    return null
+  }
+}
+
+function formatVndForInventoryWrite(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return ''
+  return `${new Intl.NumberFormat('vi-VN').format(Math.round(amount))}đ`
 }
 
 export async function deletePartnerInventoryItemForPartnerFromPg(

@@ -23,8 +23,13 @@ export function partnerShopFacetDefsForIndustry(
   return []
 }
 
-/** Same storage as getProductPurchaseOptions: sizes in description JSON array. */
-export function parseInventorySizesForFacet(description: string | null | undefined): string[] {
+/** Same storage as getProductPurchaseOptions: sizes in description JSON array.
+ * PS.1 — `structured` (cột `sizes_json` mới) được ưu tiên khi có; `description` chỉ là fallback quy ước cũ. */
+export function parseInventorySizesForFacet(
+  description: string | null | undefined,
+  structured?: string[] | null
+): string[] {
+  if (structured && structured.length) return structured.slice(0, 40)
   const raw = String(description ?? '').trim()
   if (!raw.startsWith('[')) return []
   try {
@@ -39,8 +44,18 @@ export function parseInventorySizesForFacet(description: string | null | undefin
   }
 }
 
-/** Colors in stock_note JSON — array of {name} or strings. */
-export function parseInventoryColorsForFacet(stockNote: string | null | undefined): string[] {
+/** Colors in stock_note JSON — array of {name} or strings.
+ * PS.1 — `structured` (cột `colors_json` mới) được ưu tiên khi có; `stockNote` chỉ là fallback quy ước cũ. */
+export function parseInventoryColorsForFacet(
+  stockNote: string | null | undefined,
+  structured?: { name: string; img?: string }[] | null
+): string[] {
+  if (structured && structured.length) {
+    return structured
+      .map((c) => c.name.trim())
+      .filter(Boolean)
+      .slice(0, 40)
+  }
   const raw = String(stockNote ?? '').trim()
   if (!raw.startsWith('[')) return []
   try {

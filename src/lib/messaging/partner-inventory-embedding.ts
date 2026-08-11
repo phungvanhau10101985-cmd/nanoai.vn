@@ -111,6 +111,13 @@ function rowAsEmbeddingComparable(
     vision_catalog_excluded: false,
     consult_link_opening_text: null,
     consult_link_opening_input_fingerprint: null,
+    colors_json: null,
+    sizes_json: null,
+    gallery_urls: [],
+    detail_image_urls: [],
+    product_studio_meta: null,
+    origin: null,
+    product_studio_job_id: null,
     created_at: '',
     updated_at: '',
   }

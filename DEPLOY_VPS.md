@@ -41,6 +41,26 @@ Mở **http://localhost:3000**. File `.env.local` trên máy bạn dùng `NEXT_P
 | SePay (nếu test nạp tiền) | Tùy chọn | MERCHANT_ID, SECRET_KEY... |
 | `APP_URL` | Tùy chọn | Có thể dùng `http://localhost:3000` thay cho BASE_URL |
 
+### Thông tin SSH VPS (máy dev / Cursor)
+
+Lưu **riêng** trong `.env.local.server` (đã gitignore — không push Git):
+
+```powershell
+copy .env.local.server.example .env.local.server
+# Sửa VPS_HOST, VPS_PASSWORD, ...
+```
+
+Script tiện ích (PowerShell, từ thư mục gốc repo):
+
+| Lệnh | Mục đích |
+|------|----------|
+| `powershell -File scripts/vps-ssh.ps1` | SSH vào VPS |
+| `powershell -File scripts/vps-deploy.ps1` | `git pull` + `deploy/update-vps.sh main` |
+| `powershell -File scripts/vps-verify.ps1` | `deploy/verify-edge-stack.sh` |
+| `powershell -File scripts/vps-exec.ps1 "pm2 status"` | Chạy lệnh tùy ý |
+| `powershell -File scripts/vps-logs.ps1` | `pm2 logs thu-do-online` |
+| `powershell -File scripts/vps-install-ssh-key.ps1` | Cài SSH key (một lần, bớt gõ password) |
+
 ### Deploy lên VPS – không ghi đè .env production
 
 **Quan trọng:** `.env.local` trên VPS có cấu hình production (nanoai.vn). Khi deploy từ local, **không được copy/ghi đè** file này.

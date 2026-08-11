@@ -165,6 +165,13 @@ function toInventoryRow(id: string, partnerId: string, base: InventoryUpsertBase
     vision_catalog_excluded: false,
     consult_link_opening_text: null,
     consult_link_opening_input_fingerprint: null,
+    colors_json: null,
+    sizes_json: null,
+    gallery_urls: [],
+    detail_image_urls: [],
+    product_studio_meta: null,
+    origin: 'import',
+    product_studio_job_id: null,
     created_at: createdAt,
     updated_at: base.updated_at,
   }

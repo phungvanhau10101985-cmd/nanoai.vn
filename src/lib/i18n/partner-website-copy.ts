@@ -238,6 +238,32 @@ export type PartnerWebsiteCopy = {
   lpPublishSuccess: string
   lpUnpublishSuccess: string
   lpRebuild: string
+  /** L3.6 — Ladipage AI: nguồn dữ liệu + quản lý section */
+  lpSourceTypeLabel: string
+  lpSourceProducts: string
+  lpSourceCategory: string
+  lpCategoryLabel: string
+  lpCategoryPlaceholder: string
+  lpManageAiContent: string
+  lpSectionsDialogTitle: string
+  lpSectionHero: string
+  lpSectionHighlights: string
+  lpSectionMaterial: string
+  lpSectionProductsGrid: string
+  lpSectionTrustCta: string
+  lpSectionFaq: string
+  lpSectionStatusPending: string
+  lpSectionStatusReady: string
+  lpSectionStatusError: string
+  lpSectionStatusGenerating: string
+  lpSectionGenerate: string
+  lpSectionRegenerate: string
+  lpSectionCustomPromptPlaceholder: string
+  lpSectionSaveManual: string
+  lpSeoTitle: string
+  lpSeoGenerate: string
+  lpSeoMetaTitleLabel: string
+  lpSeoMetaDescriptionLabel: string
   lpOpenPublic: string
   lpDelete: string
   lpDeleteConfirm: string
@@ -275,6 +301,8 @@ export type PartnerWebsiteCopy = {
   categoryDeleteSuccess: string
   categoryEdit: string
   categoryProductCount: string
+  /** PS.8 — badge cho category do Product Studio AI tự tạo */
+  categoryAiGeneratedBadge: string
   categoryAssignProducts: string
   categoryAssignProductsTitle: string
   categoryAssignProductsSave: string
@@ -769,6 +797,31 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     lpPublishSuccess: 'Đã publish landing.',
     lpUnpublishSuccess: 'Đã gỡ publish landing.',
     lpRebuild: 'Dựng lại',
+    lpSourceTypeLabel: 'Nguồn sản phẩm',
+    lpSourceProducts: 'Chọn sản phẩm cụ thể',
+    lpSourceCategory: 'Theo danh mục (top sản phẩm mới nhất)',
+    lpCategoryLabel: 'Danh mục',
+    lpCategoryPlaceholder: 'Chọn danh mục…',
+    lpManageAiContent: 'Quản lý nội dung AI',
+    lpSectionsDialogTitle: 'Nội dung Ladipage AI',
+    lpSectionHero: 'Mở đầu (Hero)',
+    lpSectionHighlights: 'Điểm mạnh',
+    lpSectionMaterial: 'Chất liệu / USP',
+    lpSectionProductsGrid: 'Lưới sản phẩm (tự động, luôn cập nhật)',
+    lpSectionTrustCta: 'Cam kết & kêu gọi mua',
+    lpSectionFaq: 'Câu hỏi thường gặp',
+    lpSectionStatusPending: 'Chưa tạo',
+    lpSectionStatusReady: 'Đã sẵn sàng',
+    lpSectionStatusError: 'Lỗi',
+    lpSectionStatusGenerating: 'Đang tạo…',
+    lpSectionGenerate: 'Tạo nội dung',
+    lpSectionRegenerate: 'Tạo lại',
+    lpSectionCustomPromptPlaceholder: 'Yêu cầu thêm cho AI (tuỳ chọn)…',
+    lpSectionSaveManual: 'Lưu sửa tay',
+    lpSeoTitle: 'SEO landing',
+    lpSeoGenerate: 'Tự sinh SEO bằng AI',
+    lpSeoMetaTitleLabel: 'Meta title',
+    lpSeoMetaDescriptionLabel: 'Meta description',
     lpOpenPublic: 'Mở công khai',
     lpDelete: 'Xóa',
     lpDeleteConfirm: 'Xóa landing này?',
@@ -807,6 +860,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryDeleteSuccess: 'Đã xóa danh mục.',
     categoryEdit: 'Sửa',
     categoryProductCount: 'sản phẩm',
+    categoryAiGeneratedBadge: 'AI tạo — xem lại',
     categoryAssignProducts: 'Gán sản phẩm',
     categoryAssignProductsTitle: 'Chọn sản phẩm cho danh mục này',
     categoryAssignProductsSave: 'Lưu danh sách sản phẩm',
@@ -1315,6 +1369,31 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     lpPublishSuccess: 'Landing published.',
     lpUnpublishSuccess: 'Landing unpublished.',
     lpRebuild: 'Rebuild',
+    lpSourceTypeLabel: 'Product source',
+    lpSourceProducts: 'Pick specific products',
+    lpSourceCategory: 'By category (newest top products)',
+    lpCategoryLabel: 'Category',
+    lpCategoryPlaceholder: 'Select category…',
+    lpManageAiContent: 'Manage AI content',
+    lpSectionsDialogTitle: 'Ladipage AI content',
+    lpSectionHero: 'Hero',
+    lpSectionHighlights: 'Highlights',
+    lpSectionMaterial: 'Material / USP',
+    lpSectionProductsGrid: 'Product grid (automatic, always live)',
+    lpSectionTrustCta: 'Trust & call to action',
+    lpSectionFaq: 'FAQ',
+    lpSectionStatusPending: 'Not generated',
+    lpSectionStatusReady: 'Ready',
+    lpSectionStatusError: 'Error',
+    lpSectionStatusGenerating: 'Generating…',
+    lpSectionGenerate: 'Generate',
+    lpSectionRegenerate: 'Regenerate',
+    lpSectionCustomPromptPlaceholder: 'Extra instruction for AI (optional)…',
+    lpSectionSaveManual: 'Save manual edit',
+    lpSeoTitle: 'Landing SEO',
+    lpSeoGenerate: 'Auto-generate SEO with AI',
+    lpSeoMetaTitleLabel: 'Meta title',
+    lpSeoMetaDescriptionLabel: 'Meta description',
     lpOpenPublic: 'Open public',
     lpDelete: 'Delete',
     lpDeleteConfirm: 'Delete this landing?',
@@ -1354,6 +1433,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryDeleteSuccess: 'Category deleted.',
     categoryEdit: 'Edit',
     categoryProductCount: 'products',
+    categoryAiGeneratedBadge: 'AI-created — review',
     categoryAssignProducts: 'Assign products',
     categoryAssignProductsTitle: 'Choose products for this category',
     categoryAssignProductsSave: 'Save product list',
@@ -1854,6 +1934,31 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     lpPublishSuccess: '已发布落地页。',
     lpUnpublishSuccess: '已取消发布。',
     lpRebuild: '重新生成',
+    lpSourceTypeLabel: '商品来源',
+    lpSourceProducts: '选择指定商品',
+    lpSourceCategory: '按分类（最新热销商品）',
+    lpCategoryLabel: '分类',
+    lpCategoryPlaceholder: '选择分类…',
+    lpManageAiContent: '管理 AI 内容',
+    lpSectionsDialogTitle: 'Ladipage AI 内容',
+    lpSectionHero: '首图（Hero）',
+    lpSectionHighlights: '产品亮点',
+    lpSectionMaterial: '材质 / 卖点',
+    lpSectionProductsGrid: '商品栏（自动，实时更新）',
+    lpSectionTrustCta: '信任保证与行动号召',
+    lpSectionFaq: '常见问题',
+    lpSectionStatusPending: '未生成',
+    lpSectionStatusReady: '已就绪',
+    lpSectionStatusError: '出错',
+    lpSectionStatusGenerating: '生成中…',
+    lpSectionGenerate: '生成内容',
+    lpSectionRegenerate: '重新生成',
+    lpSectionCustomPromptPlaceholder: '给 AI 的额外要求（可选）…',
+    lpSectionSaveManual: '保存手动编辑',
+    lpSeoTitle: '落地页 SEO',
+    lpSeoGenerate: 'AI 自动生成 SEO',
+    lpSeoMetaTitleLabel: 'Meta 标题',
+    lpSeoMetaDescriptionLabel: 'Meta 描述',
     lpOpenPublic: '打开公开页',
     lpDelete: '删除',
     lpDeleteConfirm: '删除此落地页？',
@@ -1891,6 +1996,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryDeleteSuccess: '已删除分类。',
     categoryEdit: '编辑',
     categoryProductCount: '件商品',
+    categoryAiGeneratedBadge: 'AI生成 — 待确认',
     categoryAssignProducts: '分配商品',
     categoryAssignProductsTitle: '选择该分类下的商品',
     categoryAssignProductsSave: '保存商品列表',
@@ -2377,6 +2483,31 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     lpPublishSuccess: '公開しました。',
     lpUnpublishSuccess: '非公開にしました。',
     lpRebuild: '再構築',
+    lpSourceTypeLabel: '商品ソース',
+    lpSourceProducts: '商品を個別に選択',
+    lpSourceCategory: 'カテゴリー別（最新の人気商品）',
+    lpCategoryLabel: 'カテゴリー',
+    lpCategoryPlaceholder: 'カテゴリーを選択…',
+    lpManageAiContent: 'AIコンテンツを管理',
+    lpSectionsDialogTitle: 'Ladipage AI コンテンツ',
+    lpSectionHero: 'ヒーロー',
+    lpSectionHighlights: 'ハイライト',
+    lpSectionMaterial: '素材・USP',
+    lpSectionProductsGrid: '商品グリッド（自動・常にライブ）',
+    lpSectionTrustCta: '安心保証と行動喚起',
+    lpSectionFaq: 'よくある質問',
+    lpSectionStatusPending: '未生成',
+    lpSectionStatusReady: '準備完了',
+    lpSectionStatusError: 'エラー',
+    lpSectionStatusGenerating: '生成中…',
+    lpSectionGenerate: '生成する',
+    lpSectionRegenerate: '再生成',
+    lpSectionCustomPromptPlaceholder: 'AIへの追加指示（任意）…',
+    lpSectionSaveManual: '手動編集を保存',
+    lpSeoTitle: 'ランディングSEO',
+    lpSeoGenerate: 'AIでSEOを自動生成',
+    lpSeoMetaTitleLabel: 'メタタイトル',
+    lpSeoMetaDescriptionLabel: 'メタディスクリプション',
     lpOpenPublic: '公開ページ',
     lpDelete: '削除',
     lpDeleteConfirm: 'このLPを削除しますか？',
@@ -2415,6 +2546,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryDeleteSuccess: 'カテゴリーを削除しました。',
     categoryEdit: '編集',
     categoryProductCount: '点の商品',
+    categoryAiGeneratedBadge: 'AI生成 — 確認要',
     categoryAssignProducts: '商品を割り当て',
     categoryAssignProductsTitle: 'このカテゴリーの商品を選択',
     categoryAssignProductsSave: '商品リストを保存',
@@ -2906,6 +3038,31 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     lpPublishSuccess: '랜딩을 게시했습니다.',
     lpUnpublishSuccess: '게시를 해제했습니다.',
     lpRebuild: '다시 생성',
+    lpSourceTypeLabel: '상품 소스',
+    lpSourceProducts: '특정 상품 선택',
+    lpSourceCategory: '카테고리별 (최신 인기 상품)',
+    lpCategoryLabel: '카테고리',
+    lpCategoryPlaceholder: '카테고리 선택…',
+    lpManageAiContent: 'AI 콘텐츠 관리',
+    lpSectionsDialogTitle: 'Ladipage AI 콘텐츠',
+    lpSectionHero: '히어로',
+    lpSectionHighlights: '주요 강점',
+    lpSectionMaterial: '소재 / USP',
+    lpSectionProductsGrid: '상품 목록 (자동, 실시간 반영)',
+    lpSectionTrustCta: '신뢰 보증 및 구매 유도',
+    lpSectionFaq: '자주 묻는 질문',
+    lpSectionStatusPending: '미생성',
+    lpSectionStatusReady: '준비 완료',
+    lpSectionStatusError: '오류',
+    lpSectionStatusGenerating: '생성 중…',
+    lpSectionGenerate: '콘텐츠 생성',
+    lpSectionRegenerate: '다시 생성',
+    lpSectionCustomPromptPlaceholder: 'AI에 추가 지시사항 (선택)…',
+    lpSectionSaveManual: '수동 편집 저장',
+    lpSeoTitle: '랜딩 SEO',
+    lpSeoGenerate: 'AI로 SEO 자동 생성',
+    lpSeoMetaTitleLabel: '메타 제목',
+    lpSeoMetaDescriptionLabel: '메타 설명',
     lpOpenPublic: '공개 열기',
     lpDelete: '삭제',
     lpDeleteConfirm: '이 랜딩을 삭제할까요?',
@@ -2944,6 +3101,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryDeleteSuccess: '카테고리를 삭제했습니다.',
     categoryEdit: '수정',
     categoryProductCount: '개 상품',
+    categoryAiGeneratedBadge: 'AI 생성 — 확인 필요',
     categoryAssignProducts: '상품 지정',
     categoryAssignProductsTitle: '이 카테고리의 상품 선택',
     categoryAssignProductsSave: '상품 목록 저장',

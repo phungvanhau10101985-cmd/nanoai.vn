@@ -1239,8 +1239,9 @@ export async function getProductPurchaseOptions(input: {
     image_url: row.image_url ?? '',
     product_url: row.product_url ?? '',
     price_hint: priceHint,
-    sizes: parseSizeJson(row.description),
-    colors: parseColorVariantsJson(row.stock_note),
+    // PS.1 — ưu tiên cột structured mới; fallback quy ước JSON cũ (description/stock_note) khi dòng chưa qua Product Studio.
+    sizes: row.sizes_json ?? parseSizeJson(row.description),
+    colors: row.colors_json ?? parseColorVariantsJson(row.stock_note),
     deposit_policy: {
       mode,
       percent,

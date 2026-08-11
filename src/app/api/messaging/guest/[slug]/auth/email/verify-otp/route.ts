@@ -21,6 +21,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
 import { getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 import { issueTrustedDeviceForUser } from '@/lib/auth/email-trusted-device'
+import { inferGuestSignupSource } from '@/lib/auth/signup-source'
 import {
   completeGuestEmailAuth,
   mergeAllGuestSessionsForEmail,
@@ -65,11 +66,13 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     otp?: string
     rememberDevice?: boolean
     browserId?: string
+    accountOrigin?: string
   } | null
   const email = normalizeEmail(body?.email ?? '')
   const otp = String(body?.otp ?? '').trim()
   const rememberDevice = body?.rememberDevice !== false
   const browserId = String(body?.browserId || '').trim()
+  const signupSource = inferGuestSignupSource(request, body?.accountOrigin)
   if (!email || !otp) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
 
   const ip = getClientIpFromRequest(request)
@@ -156,6 +159,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     partnerId,
     email,
     guestAccountId: accountId,
+    signupSource,
+    partnerSlug: slug,
   })
 
   const res = NextResponse.json({ ok: true, accountId, emailSessionIssued })

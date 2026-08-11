@@ -49,6 +49,7 @@ export function HubStudioRegenerateDialog({
   attachLimit = STUDIO_REFERENCE_ATTACH_LIMIT,
   busy,
   labels,
+  allowEmptyPrompt = false,
   onToggleRef,
   onUploadProduct,
   onRemoveProduct,
@@ -67,6 +68,8 @@ export function HubStudioRegenerateDialog({
   attachLimit?: number
   busy: boolean
   labels: HubStudioRegenerateDialogLabels
+  /** When true, confirm is allowed with an empty prompt (optional add-on notes). */
+  allowEmptyPrompt?: boolean
   onToggleRef: (screenKey: string, checked: boolean) => void
   onUploadProduct: (files: FileList) => void
   onRemoveProduct: (url: string) => void
@@ -125,7 +128,7 @@ export function HubStudioRegenerateDialog({
           <Button
             type="button"
             className="bg-violet-600 hover:bg-violet-700"
-            disabled={busy || prompt.trim().length < 2}
+            disabled={busy || (!allowEmptyPrompt && prompt.trim().length < 2)}
             onClick={onConfirm}
           >
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}

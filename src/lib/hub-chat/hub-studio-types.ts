@@ -193,6 +193,13 @@ export type HubStudioSession = {
   bannerBatchSelectedIndex?: number
   /** Tổng số banner trong lô hiện tại. */
   bannerBatchTotal?: number
+  /** Dựng lại thiết kế từ mẫu sản phẩm (design_recreate). */
+  designRecreate?: {
+    recreationBrief?: string
+    briefSource?: 'sample_images' | 'discovery'
+    analyzedAt?: number
+    sampleUrls?: string[]
+  }
 }
 
 export type HubStudioMessagePayload = {
@@ -227,6 +234,8 @@ export type HubStudioMessagePayload = {
   processSteps?: HubStudioProcessStep[]
   showRegenerate?: boolean
   showApproveReference?: boolean
+  /** Keep every regeneration visible (do not replace/collapse same screenKey). */
+  stackImageVersions?: boolean
   imageCharged?: number
   needsUpload?: boolean
   awaitingRequirements?: boolean

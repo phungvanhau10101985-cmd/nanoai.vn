@@ -968,6 +968,181 @@ const PRESET_STEP_SUGGESTIONS: Record<string, Record<string, StudioStepSuggestio
       ),
     ],
   },
+  design_recreate: {
+    design_sector: [
+      suggestion(
+        { vi: 'Thời trang', en: 'Fashion', zh: '时尚', ja: 'ファッション', ko: '패션' },
+        { vi: 'fashion', en: 'fashion', zh: 'fashion', ja: 'fashion', ko: 'fashion' }
+      ),
+      suggestion(
+        { vi: 'Phụ kiện', en: 'Accessories', zh: '配饰', ja: 'アクセサリー', ko: '액세서리' },
+        { vi: 'accessories', en: 'accessories', zh: 'accessories', ja: 'accessories', ko: 'accessories' }
+      ),
+      suggestion(
+        { vi: 'Bao bì', en: 'Packaging', zh: '包装', ja: 'パッケージ', ko: '패키징' },
+        { vi: 'packaging', en: 'packaging', zh: 'packaging', ja: 'packaging', ko: 'packaging' }
+      ),
+    ],
+    design_format: [
+      suggestion(
+        { vi: 'Bảng concept đầy đủ', en: 'Full concept board', zh: '完整概念板', ja: 'フルコンセプトボード', ko: '전체 컨셉 보드' },
+        { vi: 'concept_board', en: 'concept_board', zh: 'concept_board', ja: 'concept_board', ko: 'concept_board' }
+      ),
+      suggestion(
+        { vi: 'Minh họa hero', en: 'Hero illustration', zh: '主图插画', ja: 'ヒーローイラスト', ko: '히어로 일러스트' },
+        { vi: 'hero_illustration', en: 'hero_illustration', zh: 'hero_illustration', ja: 'hero_illustration', ko: 'hero_illustration' }
+      ),
+      suggestion(
+        { vi: 'Bản vẽ kỹ thuật', en: 'Technical flat', zh: '技术平稿', ja: '技術フラット', ko: '기술 플랫' },
+        { vi: 'technical_flat', en: 'technical_flat', zh: 'technical_flat', ja: 'technical_flat', ko: 'technical_flat' }
+      ),
+    ],
+    render_style: [
+      suggestion(
+        {
+          vi: 'Concept sheet thời trang',
+          en: 'Fashion concept sheet',
+          zh: '时尚概念板',
+          ja: 'ファッションコンセプト',
+          ko: '패션 컨셉 시트',
+        },
+        {
+          vi: 'fashion_concept_sheet',
+          en: 'fashion_concept_sheet',
+          zh: 'fashion_concept_sheet',
+          ja: 'fashion_concept_sheet',
+          ko: 'fashion_concept_sheet',
+        }
+      ),
+      suggestion(
+        { vi: 'Phác thảo chì', en: 'Pencil sketch', zh: '铅笔素描', ja: '鉛筆スケッチ', ko: '연필 스케치' },
+        { vi: 'pencil_sketch', en: 'pencil_sketch', zh: 'pencil_sketch', ja: 'pencil_sketch', ko: 'pencil_sketch' }
+      ),
+      suggestion(
+        {
+          vi: 'Phác thảo marker',
+          en: 'Marker sketch',
+          zh: '马克笔速写',
+          ja: 'マーカー',
+          ko: '마커 스케치',
+        },
+        {
+          vi: 'marker_fashion_sketch',
+          en: 'marker_fashion_sketch',
+          zh: 'marker_fashion_sketch',
+          ja: 'marker_fashion_sketch',
+          ko: 'marker_fashion_sketch',
+        }
+      ),
+      suggestion(
+        { vi: 'Màu nước digital', en: 'Digital watercolor', zh: '数字水彩', ja: 'デジタル水彩', ko: '디지털 수채화' },
+        {
+          vi: 'watercolor_illustration',
+          en: 'watercolor_illustration',
+          zh: 'watercolor_illustration',
+          ja: 'watercolor_illustration',
+          ko: 'watercolor_illustration',
+        }
+      ),
+    ],
+    sample_upload: [
+      suggestion(
+        { vi: 'Đã tải ảnh', en: 'Photos uploaded', zh: '已上传图片', ja: '画像アップロード済み', ko: '사진 업로드 완료' },
+        {
+          vi: 'Đã tải 3 ảnh mẫu — trước, sau, chi tiết thêu',
+          en: 'Uploaded 3 sample photos — front, back, embroidery detail',
+          zh: '已上传3张样品 — 正面、背面、刺绣细节',
+          ja: 'サンプル3枚アップロード — 正面・背面・刺繍詳細',
+          ko: '샘플 3장 업로드 — 앞·뒤·자수 디테일',
+        }
+      ),
+    ],
+    color_palette: COMMON_DISCOVERY_SUGGESTIONS.color_palette!,
+    design_notes: [
+      suggestion(
+        { vi: 'Dịp Tết', en: 'Tet holiday', zh: '春节', ja: 'テト', ko: '설날' },
+        {
+          vi: 'Dịp Tết — phối quần rộng lụa kem + túi da beige + giày cao gót',
+          en: 'Tet holiday — wide cream silk trousers + beige leather bag + heels',
+          zh: '春节 — 搭配米色阔腿丝裤 + 米色皮包 + 高跟鞋',
+          ja: 'テト — クリームワイドシルクパンツ + ベージュバッグ + ヒール',
+          ko: '설날 — 크림 와이드 실크 팬츠 + 베이지 가방 + 힐',
+        }
+      ),
+    ],
+    design_language: [
+      suggestion(
+        { vi: 'Tiếng Việt', en: 'Vietnamese', zh: '越南语', ja: 'ベトナム語', ko: '베트남어' },
+        { vi: 'vi', en: 'vi', zh: 'vi', ja: 'vi', ko: 'vi' }
+      ),
+      suggestion(
+        { vi: 'Tiếng Anh', en: 'English', zh: '英语', ja: '英語', ko: '영어' },
+        { vi: 'en', en: 'en', zh: 'en', ja: 'en', ko: 'en' }
+      ),
+      suggestion(
+        { vi: 'Song ngữ VI+EN', en: 'Bilingual VI+EN', zh: '双语越+英', ja: '二言語 越+英', ko: '이중언어 베+영' },
+        { vi: 'bilingual', en: 'bilingual', zh: 'bilingual', ja: 'bilingual', ko: 'bilingual' }
+      ),
+    ],
+    logo: [
+      suggestion(
+        { vi: 'Monogram vàng', en: 'Gold monogram', zh: '金色字母', ja: 'ゴールドモノグラム', ko: '골드 모노그램' },
+        {
+          vi: 'Logo monogram chữ cái vàng kim, nền trong suốt, nét thanh lịch',
+          en: 'Gold lettermark monogram logo, transparent background, elegant lines',
+          zh: '金色字母组合 Logo，透明背景，优雅线条',
+          ja: 'ゴールドのレターマーク、透明背景、上品なライン',
+          ko: '골드 레터마크 모노그램, 투명 배경, 우아한 라인',
+        }
+      ),
+      suggestion(
+        { vi: 'Đã có file logo', en: 'Have logo file', zh: '已有 Logo 文件', ja: 'ロゴファイルあり', ko: '로고 파일 있음' },
+        {
+          vi: 'Đã có file logo — sẽ bấm Tải logo',
+          en: 'I already have a logo file — will tap Upload logo',
+          zh: '已有 Logo 文件 — 将点击上传 Logo',
+          ja: 'ロゴファイルあり — ロゴをアップロードします',
+          ko: '로고 파일 있음 — 로고 업로드 예정',
+        }
+      ),
+    ],
+    concept_sheet: [
+      suggestion(
+        { vi: 'Concept board đầy đủ', en: 'Full concept board', zh: '完整概念板', ja: 'フルコンセプト', ko: '전체 컨셉' },
+        {
+          vi: 'Bảng concept đầy đủ — nhân vật + chi tiết + kỹ thuật + màu + phối đồ',
+          en: 'Full concept board — character + details + technical + colors + styling',
+          zh: '完整概念板 — 人物 + 细节 + 技术稿 + 配色 + 搭配',
+          ja: 'フルコンセプト — 人物 + 詳細 + 技術 + 配色 + スタイリング',
+          ko: '전체 컨셉 — 인물 + 디테일 + 기술 + 색상 + 스타일링',
+        }
+      ),
+    ],
+    detail_panel: [
+      suggestion(
+        { vi: 'Chi tiết cận', en: 'Detail close-ups', zh: '细节特写', ja: 'ディテール', ko: '디테일' },
+        {
+          vi: '3 panel chi tiết: cổ áo, thêu hoa, tay loe',
+          en: '3 detail panels: collar, floral embroidery, bell sleeves',
+          zh: '3 个细节：领口、花卉刺绣、喇叭袖',
+          ja: '3詳細: 襟、花刺繍、ベルスリーブ',
+          ko: '디테일 3패널: collar, 꽃 자수, 벨 슬리브',
+        }
+      ),
+    ],
+    technical_flat: [
+      suggestion(
+        { vi: 'Flat kỹ thuật', en: 'Technical flat', zh: '技术平稿', ja: '技術フラット', ko: '기술 플랫' },
+        {
+          vi: 'Bản vẽ phẳng: mặt trước, sau, bên — nét vẽ sạch',
+          en: 'Flat sketches: front, back, side — clean line art',
+          zh: '平稿：正、背、侧 — 干净线稿',
+          ja: 'フラット: 前・後・横 — クリーン線画',
+          ko: '플랫 스케치: 앞·뒤·옆 — 깔끔한 라인',
+        }
+      ),
+    ],
+  },
 }
 
 export type StudioStepSuggestionItem = {

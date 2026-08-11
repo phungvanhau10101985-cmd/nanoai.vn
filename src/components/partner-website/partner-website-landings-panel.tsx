@@ -8,10 +8,22 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
-import type { PartnerLandingPageRow } from '@/lib/partner-website/landing/partner-landing-types'
+import type { PartnerLandingPageRow, PartnerLandingSourceType } from '@/lib/partner-website/landing/partner-landing-types'
 import { PARTNER_LANDING_MAX_PRODUCTS } from '@/lib/partner-website/landing/partner-landing-types'
+import { LandingAiSectionsDialog } from '@/components/partner-website/landing/landing-ai-sections-dialog'
 import { cn } from '@/lib/utils'
-import { ExternalLink, Loader2, MessageSquarePlus, Trash2 } from 'lucide-react'
+import { ExternalLink, Loader2, MessageSquarePlus, Sparkles, Trash2 } from 'lucide-react'
+
+type CategoryPickRow = { id: string; name: string; children: CategoryPickRow[] }
+
+function flattenCategoriesForPicker(nodes: CategoryPickRow[], depth = 0): { id: string; label: string }[] {
+  const out: { id: string; label: string }[] = []
+  for (const n of nodes) {
+    out.push({ id: n.id, label: `${'— '.repeat(depth)}${n.name}` })
+    out.push(...flattenCategoriesForPicker(n.children ?? [], depth + 1))
+  }
+  return out
+}
 
 type InventoryPickRow = {
   id: string
@@ -62,6 +74,10 @@ export function PartnerWebsiteLandingsPanel({
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [inventory, setInventory] = useState<InventoryPickRow[]>([])
   const [invLoading, setInvLoading] = useState(false)
+  const [sourceType, setSourceType] = useState<PartnerLandingSourceType>('products')
+  const [categories, setCategories] = useState<{ id: string; label: string }[]>([])
+  const [categoryId, setCategoryId] = useState('')
+  const [sectionsDialogLanding, setSectionsDialogLanding] = useState<LandingListItem | null>(null)
 
   const loadLandings = useCallback(async () => {
     if (!partnerId) return
@@ -97,6 +113,17 @@ export function PartnerWebsiteLandingsPanel({
     }
   }, [partnerId, onToast, t.errorGeneric])
 
+  const loadCategories = useCallback(async () => {
+    if (!partnerId) return
+    try {
+      const res = await fetch(`/api/messaging/partners/${encodeURIComponent(partnerId)}/categories`)
+      const json = (await res.json()) as { tree?: CategoryPickRow[] }
+      if (res.ok) setCategories(flattenCategoriesForPicker(json.tree ?? []))
+    } catch {
+      // L3.6 — landing theo danh mục là tuỳ chọn; im lặng bỏ qua nếu chưa có quyền/chưa có category.
+    }
+  }, [partnerId])
+
   useEffect(() => {
     void loadLandings()
   }, [loadLandings])
@@ -111,9 +138,12 @@ export function PartnerWebsiteLandingsPanel({
     setBriefText('')
     setLandingSlug('')
     setSelectedIds([])
+    setSourceType('products')
+    setCategoryId('')
     void loadInventory()
+    void loadCategories()
     onChatStarted?.()
-  }, [websiteReady, onToast, t.studioWebFirstNote, loadInventory, onChatStarted])
+  }, [websiteReady, onToast, t.studioWebFirstNote, loadInventory, loadCategories, onChatStarted])
 
   useEffect(() => {
     if (autoStartChat && websiteReady && phase === 'idle') {
@@ -141,12 +171,18 @@ export function PartnerWebsiteLandingsPanel({
       onToast(t.lpTitleRequired, 'destructive')
       return
     }
-    if (selectedIds.length < 1) {
+    if (sourceType === 'products' && selectedIds.length < 1) {
       onToast(t.lpProductsRequired, 'destructive')
+      return
+    }
+    if (sourceType === 'category' && !categoryId) {
+      onToast(t.lpCategoryPlaceholder, 'destructive')
       return
     }
     setPhase('building')
     try {
+      // L3.2/L3.6 — landing mới luôn dùng engine Ladipage AI (section cố định, tự bootstrap server-side)
+      // — không còn gọi /build (mockup + AI-HTML tự do) như luồng cũ.
       const res = await fetch(
         `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/landings`,
         {
@@ -156,7 +192,9 @@ export function PartnerWebsiteLandingsPanel({
             title: title.trim(),
             briefText: briefText.trim(),
             landingSlug: landingSlug.trim() || undefined,
-            inventoryIds: selectedIds,
+            inventoryIds: sourceType === 'products' ? selectedIds : [],
+            sourceType,
+            categoryId: sourceType === 'category' ? categoryId : undefined,
             locale,
           }),
         }
@@ -164,25 +202,14 @@ export function PartnerWebsiteLandingsPanel({
       const json = (await res.json()) as { landing?: PartnerLandingPageRow; error?: string }
       if (!res.ok || !json.landing) throw new Error(json.error || t.errorGeneric)
 
-      setBusyId(json.landing.id)
-      const buildRes = await fetch(
-        `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/landings/${encodeURIComponent(json.landing.id)}/build`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ locale, regenerateMockup: true }),
-        }
-      )
-      const buildJson = (await buildRes.json()) as { error?: string; assistantMessage?: string }
-      if (!buildRes.ok) throw new Error(buildJson.error || t.lpBuildFailed)
-
-      onToast(buildJson.assistantMessage || t.lpBuildSuccess)
+      onToast(t.lpBuildSuccess)
       setPhase('idle')
       setTitle('')
       setBriefText('')
       setLandingSlug('')
       setSelectedIds([])
       await loadLandings()
+      setSectionsDialogLanding(json.landing as LandingListItem)
     } catch (e) {
       onToast(e instanceof Error ? e.message : t.errorGeneric, 'destructive')
       setPhase('brief')
@@ -307,7 +334,58 @@ export function PartnerWebsiteLandingsPanel({
             </div>
 
             {phase === 'products' ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>{t.lpSourceTypeLabel}</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={sourceType === 'products' ? 'default' : 'outline'}
+                      onClick={() => setSourceType('products')}
+                    >
+                      {t.lpSourceProducts}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={sourceType === 'category' ? 'default' : 'outline'}
+                      disabled={categories.length === 0}
+                      onClick={() => setSourceType('category')}
+                    >
+                      {t.lpSourceCategory}
+                    </Button>
+                  </div>
+                </div>
+
+                {sourceType === 'category' ? (
+                  <div className="space-y-1.5">
+                    <Label>{t.lpCategoryLabel}</Label>
+                    <select
+                      value={categoryId}
+                      onChange={(e) => setCategoryId(e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">{t.lpCategoryPlaceholder}</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!categoryId}
+                      onClick={() => setPhase('brief')}
+                    >
+                      {t.lpChatContinueProducts}
+                    </Button>
+                  </div>
+                ) : null}
+
+                {sourceType === 'products' ? (
+                  <>
                 <div className="flex items-center justify-between gap-2">
                   <Label>
                     {t.lpProductsLabel} ({selectedIds.length}/{PARTNER_LANDING_MAX_PRODUCTS})
@@ -360,6 +438,8 @@ export function PartnerWebsiteLandingsPanel({
                 >
                   {t.lpChatContinueProducts}
                 </Button>
+                  </>
+                ) : null}
               </div>
             ) : null}
 
@@ -465,6 +545,16 @@ export function PartnerWebsiteLandingsPanel({
                       size="sm"
                       variant="secondary"
                       disabled={busy}
+                      onClick={() => setSectionsDialogLanding(lp)}
+                    >
+                      <Sparkles className="mr-1 h-3 w-3" />
+                      {t.lpManageAiContent}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy}
                       onClick={() => void handleRebuild(lp.id)}
                     >
                       {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
@@ -473,9 +563,7 @@ export function PartnerWebsiteLandingsPanel({
                     <Button
                       type="button"
                       size="sm"
-                      disabled={
-                        busy || (lp.isPublished ? false : !(lp.htmlSource || lp.project.files.length))
-                      }
+                      disabled={busy}
                       onClick={() => void handlePublish(lp.id, !lp.isPublished)}
                     >
                       {lp.isPublished ? t.unpublishButton : t.publishButton}
@@ -497,6 +585,17 @@ export function PartnerWebsiteLandingsPanel({
           </ul>
         ) : null}
       </CardContent>
+
+      {sectionsDialogLanding ? (
+        <LandingAiSectionsDialog
+          partnerId={partnerId}
+          landing={sectionsDialogLanding}
+          t={t}
+          open={Boolean(sectionsDialogLanding)}
+          onOpenChange={(open) => !open && setSectionsDialogLanding(null)}
+          onToast={onToast}
+        />
+      ) : null}
     </Card>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -36,6 +37,8 @@ type CategoryNode = {
   seoBodyGeneratedAt: string | null
   sizeGuideImageUrl?: string
   productCount?: number
+  /** PS.8 — true nếu Product Studio AI tự tạo node này khi đăng sản phẩm — cần merchant xem lại. */
+  aiGenerated?: boolean
   children: CategoryNode[]
 }
 
@@ -112,7 +115,7 @@ type Props = {
   onToast: (message: string, variant?: 'default' | 'destructive') => void
 }
 
-export function PartnerWebsiteCategoriesPanel({ locale, t, partnerId, sectionId = 'partner-website-categories', onToast }: Props) {
+export function PartnerWebsiteCategoriesPanel({ t, partnerId, sectionId = 'partner-website-categories', onToast }: Props) {
   const [tree, setTree] = useState<CategoryNode[]>([])
   const [loading, setLoading] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -373,8 +376,14 @@ export function PartnerWebsiteCategoriesPanel({ locale, t, partnerId, sectionId 
         >
           <FolderTree className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <div className="min-w-0 flex-1">
-            <p className={cn('truncate text-sm font-medium', !node.isActive && 'text-muted-foreground line-through')}>
+            <p className={cn('flex items-center gap-1.5 truncate text-sm font-medium', !node.isActive && 'text-muted-foreground line-through')}>
               {node.name}
+              {node.aiGenerated ? (
+                <Badge variant="secondary" className="gap-1 text-[10px]">
+                  <Sparkles className="h-2.5 w-2.5" />
+                  {t.categoryAiGeneratedBadge}
+                </Badge>
+              ) : null}
             </p>
             <p className="text-xs text-muted-foreground">
               /{node.path} · {node.productCount ?? 0} {t.categoryProductCount}

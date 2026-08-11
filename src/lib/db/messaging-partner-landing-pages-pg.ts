@@ -5,6 +5,7 @@ import {
   PARTNER_LANDING_MAX_PRODUCTS,
   type PartnerLandingPagePublicRow,
   type PartnerLandingPageRow,
+  type PartnerLandingSourceType,
 } from '@/lib/partner-website/landing/partner-landing-types'
 import {
   parseProjectFilesFromDb,
@@ -42,6 +43,12 @@ type LandingDbRow = {
   published_at: unknown
   created_at: unknown
   updated_at: unknown
+  source_type?: string | null
+  category_id?: string | null
+  products_limit?: number | null
+  material_filter?: string | null
+  meta_title?: string | null
+  meta_description?: string | null
   [key: string]: unknown
 }
 
@@ -63,12 +70,19 @@ function mapLandingRow(r: LandingDbRow): PartnerLandingPageRow {
     publishedAt: r.published_at ? String(r.published_at) : null,
     createdAt: String(r.created_at ?? ''),
     updatedAt: String(r.updated_at ?? ''),
+    sourceType: r.source_type === 'category' ? 'category' : 'products',
+    categoryId: r.category_id ?? null,
+    productsLimit: Number(r.products_limit ?? 12) || 12,
+    materialFilter: r.material_filter?.trim() || null,
+    metaTitle: r.meta_title?.trim() || null,
+    metaDescription: r.meta_description?.trim() || null,
   }
 }
 
 const SELECT_COLS = `id::text, partner_id::text, website_id::text, landing_slug, title, brief_text,
   locale, inventory_ids, project_files_json, html_source, reference_image_urls, mockup_url,
-  is_published, published_at, created_at, updated_at`
+  is_published, published_at, created_at, updated_at, source_type, category_id::text as category_id,
+  products_limit, material_filter, meta_title, meta_description`
 
 export async function listPartnerLandingPagesPg(
   partnerId: string
@@ -133,7 +147,8 @@ export async function fetchPublishedPartnerLandingBySiteAndSlugPg(
       `select lp.id::text, lp.partner_id::text, lp.website_id::text, lp.landing_slug, lp.title,
               lp.brief_text, lp.locale, lp.inventory_ids, lp.project_files_json, lp.html_source,
               lp.reference_image_urls, lp.mockup_url, lp.is_published, lp.published_at,
-              lp.created_at, lp.updated_at,
+              lp.created_at, lp.updated_at, lp.source_type, lp.category_id::text as category_id,
+              lp.products_limit, lp.material_filter, lp.meta_title, lp.meta_description,
               w.site_slug, p.slug as partner_slug, coalesce(nullif(trim(w.logo_url), ''), p.logo_url) as logo_url
        from public.messaging_partner_landing_pages lp
        inner join public.messaging_partner_websites w on w.id = lp.website_id
@@ -170,16 +185,24 @@ export async function insertPartnerLandingPagePg(input: {
   briefText: string
   locale: WebLocale
   inventoryIds: string[]
+  /** L3.2 — landing theo danh mục (top N sản phẩm live) thay vì chọn tay 1-8 SP. */
+  sourceType?: PartnerLandingSourceType
+  categoryId?: string | null
+  productsLimit?: number
+  materialFilter?: string | null
 }): Promise<PartnerLandingPageRow | null> {
   if (!isPgConfigured()) return null
   const ids = asUuidArray(input.inventoryIds)
-  if (ids.length < 1) return null
+  const sourceType: PartnerLandingSourceType = input.sourceType === 'category' ? 'category' : 'products'
+  if (sourceType === 'products' && ids.length < 1) return null
+  if (sourceType === 'category' && !input.categoryId?.trim()) return null
   try {
     const row = await pgQueryOne<LandingDbRow>(
       `insert into public.messaging_partner_landing_pages (
-         partner_id, website_id, landing_slug, title, brief_text, locale, inventory_ids
+         partner_id, website_id, landing_slug, title, brief_text, locale, inventory_ids,
+         source_type, category_id, products_limit, material_filter
        ) values (
-         $1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid[]
+         $1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid[], $8, $9::uuid, $10::int, $11
        )
        returning ${SELECT_COLS}`,
       [
@@ -190,6 +213,10 @@ export async function insertPartnerLandingPagePg(input: {
         input.briefText.trim().slice(0, 4000),
         input.locale,
         ids,
+        sourceType,
+        sourceType === 'category' ? input.categoryId!.trim() : null,
+        Math.max(1, Math.min(96, input.productsLimit ?? 12)),
+        input.materialFilter?.trim() || null,
       ]
     )
     return row ? mapLandingRow(row) : null
@@ -211,6 +238,12 @@ export async function updatePartnerLandingPagePg(input: {
   htmlSource?: string | null
   referenceImageUrls?: string[]
   mockupUrl?: string | null
+  sourceType?: PartnerLandingSourceType
+  categoryId?: string | null
+  productsLimit?: number
+  materialFilter?: string | null
+  metaTitle?: string | null
+  metaDescription?: string | null
 }): Promise<PartnerLandingPageRow | null> {
   if (!isPgConfigured()) return null
   const existing = await fetchPartnerLandingPageByIdPg(input.partnerId, input.landingId)
@@ -223,9 +256,14 @@ export async function updatePartnerLandingPagePg(input: {
     input.landingSlug !== undefined
       ? input.landingSlug.trim().toLowerCase()
       : existing.landingSlug
+  const sourceType: PartnerLandingSourceType =
+    input.sourceType !== undefined ? (input.sourceType === 'category' ? 'category' : 'products') : existing.sourceType
   const inventoryIds =
     input.inventoryIds !== undefined ? asUuidArray(input.inventoryIds) : existing.inventoryIds
-  if (inventoryIds.length < 1) return null
+  const categoryId = input.categoryId !== undefined ? input.categoryId?.trim() || null : existing.categoryId
+  // L3.2 — landing "products" cần >=1 SP; landing "category" cần category_id, inventory_ids có thể rỗng (resolve live).
+  if (sourceType === 'products' && inventoryIds.length < 1) return null
+  if (sourceType === 'category' && !categoryId) return null
   const locale = input.locale ?? existing.locale
   const project = input.project ?? existing.project
   const htmlSource =
@@ -236,6 +274,12 @@ export async function updatePartnerLandingPagePg(input: {
       : existing.referenceImageUrls
   const mockupUrl =
     input.mockupUrl !== undefined ? input.mockupUrl?.trim() || null : existing.mockupUrl
+  const productsLimit = Math.max(1, Math.min(96, input.productsLimit ?? existing.productsLimit))
+  const materialFilter =
+    input.materialFilter !== undefined ? input.materialFilter?.trim() || null : existing.materialFilter
+  const metaTitle = input.metaTitle !== undefined ? input.metaTitle?.trim() || null : existing.metaTitle
+  const metaDescription =
+    input.metaDescription !== undefined ? input.metaDescription?.trim() || null : existing.metaDescription
 
   try {
     const row = await pgQueryOne<LandingDbRow>(
@@ -249,6 +293,12 @@ export async function updatePartnerLandingPagePg(input: {
          html_source = $9,
          reference_image_urls = $10::jsonb,
          mockup_url = $11,
+         source_type = $12,
+         category_id = $13::uuid,
+         products_limit = $14::int,
+         material_filter = $15,
+         meta_title = $16,
+         meta_description = $17,
          updated_at = timezone('utc', now())
        where partner_id = $1::uuid and id = $2::uuid
        returning ${SELECT_COLS}`,
@@ -264,6 +314,12 @@ export async function updatePartnerLandingPagePg(input: {
         htmlSource,
         JSON.stringify(referenceImageUrls),
         mockupUrl,
+        sourceType,
+        categoryId,
+        productsLimit,
+        materialFilter,
+        metaTitle,
+        metaDescription,
       ]
     )
     return row ? mapLandingRow(row) : null

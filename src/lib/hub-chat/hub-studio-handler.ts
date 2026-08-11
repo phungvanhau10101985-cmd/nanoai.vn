@@ -318,6 +318,17 @@ import {
   packagingStyleDiscoveryExcludeKeys,
 } from '@/lib/packaging/packaging-style-brief'
 import {
+  appendDesignRecreateGeneratePrompt,
+  designRecreateUploadReply,
+  ensureDesignRecreationBrief,
+} from '@/lib/design/design-recreation-brief'
+import {
+  DESIGN_RECREATE_LOGO_KEY,
+  reconcileDesignRecreateProcessSteps,
+} from '@/lib/design/design-recreate-process-steps'
+import { findDesignRecreateDiscoveryChoice } from '@/lib/design/design-discovery-choices'
+import { DESIGN_RECREATE_MAX_UPLOAD, SECTOR_TEMPLATES, resolveDesignSector } from '@/lib/design/design-sector-templates'
+import {
   applyDefaultPrintLanguageToBriefNotes,
   defaultPrintLanguageDetail,
   defaultPrintLanguageFields,
@@ -380,6 +391,7 @@ export type HubStudioAction =
   | 'approve_reference'
   | 'regenerate'
   | 'upload_images'
+  | 'confirm_sample_upload'
   | 'upload_logo_reference'
   | 'upload_packaging_face'
   | 'upload_generation_product'
@@ -550,6 +562,14 @@ function advanceDiscoveryAfterBriefAnswer(
   userLabel: string,
   confirmedReply: string
 ): { session: HubStudioSession; reply: string; studio: HubStudioMessagePayload } {
+  const presetId = session.presetId
+  if (!presetId) {
+    return {
+      session,
+      reply: confirmedReply,
+      studio: { processSteps: session.processSteps },
+    }
+  }
   let nextSession = {
     ...session,
     briefNotes: {
@@ -558,24 +578,23 @@ function advanceDiscoveryAfterBriefAnswer(
     },
     processSteps: markStepDone(session.processSteps, stepKey),
   }
-  const justFinishedDiscovery = allDiscoveryDone('packaging_kit', nextSession.processSteps)
+  const justFinishedDiscovery = allDiscoveryDone(presetId, nextSession.processSteps)
   if (justFinishedDiscovery) nextSession.discoveryComplete = true
   const next = nextPendingStep(nextSession.processSteps)
   nextSession.currentStepKey = next?.key ?? null
   nextSession.processSteps = setStepInProgress(nextSession.processSteps, nextSession.currentStepKey)
   let reply = confirmedReply
   if (justFinishedDiscovery && nextSession.currentStepKey) {
-    const logoKey = getPrimaryLogoStepKey('packaging_kit')
-    if (logoKey && nextSession.currentStepKey === logoKey) {
+    const logoKey = getPrimaryLogoStepKey(presetId)
+    if (logoKey && nextSession.currentStepKey === logoKey && isLogoDesignStep(presetId, logoKey)) {
       reply = `${reply}\n\n${getDictionary(locale).hubChat.studioStartWithLogo}`
     }
-    reply = appendStepAsk(reply, locale, 'packaging_kit', nextSession.currentStepKey)
+    reply = appendStepAsk(reply, locale, presetId, nextSession.currentStepKey)
   } else if (
-    nextSession.presetId &&
     nextSession.currentStepKey &&
-    isDiscoveryStep(nextSession.presetId, nextSession.currentStepKey)
+    isDiscoveryStep(presetId, nextSession.currentStepKey)
   ) {
-    reply = appendStepAsk(reply, locale, nextSession.presetId, nextSession.currentStepKey)
+    reply = appendStepAsk(reply, locale, presetId, nextSession.currentStepKey)
   }
   nextSession = reconcileDiscoveryProgress(nextSession, locale)
   nextSession = syncDiscoveryCurrentStep(nextSession, locale)
@@ -682,7 +701,8 @@ async function upsertHubStudioImageMessage(params: {
 }): Promise<void> {
   const screenKey = params.studio?.screenKey
   const imageUrl = params.studio?.imageUrl ?? params.studio?.artifactUrl
-  if (screenKey && imageUrl) {
+  const stackVersions = Boolean(params.studio?.stackImageVersions)
+  if (screenKey && imageUrl && !stackVersions) {
     const replacedMessageId = await pgReplaceLatestHubStudioImageMessage({
       threadId: params.threadId,
       screenKey,
@@ -1352,7 +1372,7 @@ PRESET / PROJECT INTENT (hubRoute "design"):
 - intent "clarify": user wants design help but preset is ambiguous — suggestedPresetId empty, workflows empty; ask user to pick a feature chip from FULL FEATURE CATALOG.
 - intent "chat": unrelated to starting a design flow — suggestedPresetId empty.
 - When presetId is already set: suggestedPresetId must be empty string (do not switch preset mid-flow unless user explicitly asks to change project type — then clarify first).
-- Examples: "thiết kế app bán quần áo" → mobile_shop; "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; "ảnh thẻ linkedin" → profile_photo_pack; ANY invitation intent ("thiết kế thiệp mời", "tạo thiệp cưới", "thiệp mời") → hubRoute "workflow" + tool /tao-thiep-moi-cuoi-ai (NOT inline studio preset).
+- Examples: "thiết kế app bán quần áo" → mobile_shop; "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; ANY phrase with both "lại" + "thiết kế" (e.g. "tạo lại bản thiết kế", "dựng lại thiết kế", "làm lại thiết kế", "thiết kế lại") OR "concept sheet từ ảnh" / "làm giống mẫu sản phẩm" → design_recreate (do NOT ask which design — start design_recreate immediately); "ảnh thẻ linkedin" → profile_photo_pack; ANY invitation intent ("thiết kế thiệp mời", "tạo thiệp cưới", "thiệp mời") → hubRoute "workflow" + tool /tao-thiep-moi-cuoi-ai (NOT inline studio preset).
 
 RETRY / FLOW INTENT (YOU must classify — server does NOT parse fixed phrases):
 - Understand ANY natural wording (Vietnamese, English, voice-style, typos, short replies).
@@ -1784,6 +1804,19 @@ async function generateAsset(
     }
     workSession = ensured.session
   }
+  if (workSession.presetId === 'design_recreate') {
+    const ensured = await ensureDesignRecreationBrief(userId, workSession)
+    workSession = ensured.session
+    if (!workSession.uploadImages.length) {
+      const t = getDictionary(locale).hubChat
+      return {
+        session: workSession,
+        studio: { processSteps: workSession.processSteps, needsUpload: true },
+        chargedImage: 0,
+        error: t.studioNeedUpload,
+      }
+    }
+  }
 
   const { referenceUrls: pickedRefs, productUrls: pickedProducts } = resolveGenerationAttachments(
     workSession,
@@ -1863,6 +1896,13 @@ async function generateAsset(
   }
   if (generator === 'banner' && workSession.presetId === 'food_menu' && workSession.foodMenu?.aspectRatio) {
     aspectRatio = normalizeBannerAspectRatioForGemini(workSession.foodMenu.aspectRatio)
+  }
+  if (workSession.presetId === 'design_recreate') {
+    fullPrompt = appendDesignRecreateGeneratePrompt(fullPrompt, workSession, effectiveScreenKey)
+    if (effectiveScreenKey === 'concept_sheet') {
+      const sector = resolveDesignSector(workSession.briefNotes)
+      aspectRatio = SECTOR_TEMPLATES[sector].aspectRatio
+    }
   }
   let printSizeMm: { widthMm: number; heightMm: number } | undefined
 
@@ -2211,6 +2251,9 @@ async function generateAsset(
     lastGenerationPrompt: generationPrompt,
   }
   const useReference = generatorSupportsReference(generator)
+  // design_recreate: single redesign image — only Tạo lại (no Tiếp), stack all versions.
+  const isDesignRecreateImage =
+    workSession.presetId === 'design_recreate' && effectiveScreenKey !== DESIGN_RECREATE_LOGO_KEY
   const pendingStudio =
     workSession.presetId && generator === 'packaging_face'
       ? buildPendingStepStudio(nextSession, screenKey, workSession.presetId)
@@ -2225,7 +2268,8 @@ async function generateAsset(
       aspectHint,
       processSteps: nextSession.processSteps,
       showRegenerate: true,
-      showApproveReference: useReference,
+      showApproveReference: isDesignRecreateImage ? false : useReference,
+      ...(isDesignRecreateImage ? { stackImageVersions: true } : {}),
       imageCharged: gen.charged,
       ...(pendingStudio
         ? {
@@ -2339,7 +2383,9 @@ ${PACKAGING_MOCKUP_SCENE_RULES}`
   }
 
   let block = `Use these approved reference images (attached to model):\n${refList}`
-  if (logoRef) {
+  if (logoRef && presetId === 'design_recreate') {
+    block += `\nIMPORTANT: Composite the approved CLIENT LOGO (${logoRef.screenLabel}) onto the design board (title/header or brand-mark corner). Embed exact logo pixels — do NOT redraw. Do NOT copy marks from product sample photos.`
+  } else if (logoRef) {
     block += `\nIMPORTANT: Place the approved LOGO (${logoRef.screenLabel}) in the app header / brand area. Match logo colors and typography across the whole UI.`
   } else {
     block += '\nMatch visual style, colors and typography across all references.'
@@ -3422,6 +3468,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
   const action: HubStudioAction = input.action ?? 'message'
   let session = (await pgGetHubThreadSession(input.threadId)) ?? emptyStudioSession()
   session = reconcilePackagingProcessSteps(session, input.locale)
+  session = reconcileDesignRecreateProcessSteps(session, input.locale)
   session = applyStudioSessionLabels(session, input.locale)
   let reply = ''
   let studio: HubStudioMessagePayload | undefined
@@ -4573,11 +4620,53 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     if (!files.length) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioNeedUpload }
     }
-    const urls = await uploadStudioImages(input.userId, files)
-    session = { ...session, uploadImages: [...session.uploadImages, ...urls] }
+    let filesToUpload = files
+    if (session.presetId === 'design_recreate') {
+      const remaining = Math.max(0, DESIGN_RECREATE_MAX_UPLOAD - session.uploadImages.length)
+      filesToUpload = files.slice(0, remaining)
+      if (!filesToUpload.length) {
+        return {
+          ok: false,
+          reply: '',
+          session,
+          threadId: input.threadId,
+          chargedChat: 0,
+          error: designRecreateUploadReply(input.locale, 'max'),
+        }
+      }
+    }
+    const urls = await uploadStudioImages(input.userId, filesToUpload)
+    session = {
+      ...session,
+      uploadImages: [...session.uploadImages, ...urls],
+      ...(session.presetId === 'design_recreate'
+        ? {
+            designRecreate: {
+              ...(session.designRecreate ?? {}),
+              recreationBrief: undefined,
+              briefSource: undefined,
+              analyzedAt: undefined,
+            },
+          }
+        : {}),
+    }
+    if (session.presetId === 'design_recreate' && session.uploadImages.length > 0) {
+      const ensured = await ensureDesignRecreationBrief(input.userId, session)
+      session = ensured.session
+      reply = t.studioImagesUploaded.replace('{n}', String(urls.length))
+      if (session.designRecreate?.recreationBrief) {
+        reply += designRecreateUploadReply(input.locale, 'analyzed')
+      } else if (ensured.error) {
+        reply += ` (${ensured.error})`
+      }
+    } else {
+      reply = t.studioImagesUploaded.replace('{n}', String(urls.length))
+    }
     await pgSaveHubThreadSession(input.threadId, session)
-    reply = t.studioImagesUploaded.replace('{n}', String(urls.length))
-    studio = { processSteps: session.processSteps, needsUpload: false }
+    studio = {
+      processSteps: session.processSteps,
+      needsUpload: session.presetId === 'design_recreate' ? session.uploadImages.length < DESIGN_RECREATE_MAX_UPLOAD : false,
+    }
     await pgInsertHubChatMessage({
       threadId: input.threadId,
       role: 'assistant',
@@ -4585,6 +4674,90 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       studio,
     })
     return { ok: true, reply, studio, session, threadId: input.threadId, chargedChat: 0 }
+  }
+
+  if (action === 'confirm_sample_upload') {
+    const stepKey = 'sample_upload'
+    const activeKey = getActiveStepKey(session) ?? session.currentStepKey
+    if (
+      session.presetId !== 'design_recreate' ||
+      activeKey !== stepKey ||
+      session.uploadImages.length < 1
+    ) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error:
+          session.presetId === 'design_recreate' && session.uploadImages.length < 1
+            ? designRecreateUploadReply(input.locale, 'need_image')
+            : t.errorGeneric,
+      }
+    }
+    if (!session.designRecreate?.recreationBrief) {
+      const ensured = await ensureDesignRecreationBrief(input.userId, session)
+      session = ensured.session
+    }
+    const n = session.uploadImages.length
+    const userLabel =
+      input.locale === 'en'
+        ? `Uploaded ${n} sample photo(s)`
+        : input.locale === 'zh'
+          ? `已上传 ${n} 张样品图`
+          : input.locale === 'ja'
+            ? `サンプル画像 ${n} 枚をアップロード`
+            : input.locale === 'ko'
+              ? `샘플 사진 ${n}장 업로드`
+              : `Đã tải ${n} ảnh mẫu`
+    let nextSession: HubStudioSession = {
+      ...session,
+      briefNotes: {
+        ...session.briefNotes,
+        [stepKey]: userLabel,
+      },
+      processSteps: markStepDone(session.processSteps, stepKey),
+    }
+    const justFinishedDiscovery = allDiscoveryDone('design_recreate', nextSession.processSteps)
+    if (justFinishedDiscovery) nextSession.discoveryComplete = true
+    const next = nextPendingStep(nextSession.processSteps)
+    nextSession.currentStepKey = next?.key ?? null
+    nextSession.processSteps = setStepInProgress(nextSession.processSteps, nextSession.currentStepKey)
+    let confirmReply = designRecreateUploadReply(input.locale, 'confirmed')
+    if (nextSession.currentStepKey) {
+      confirmReply = appendStepAsk(confirmReply, input.locale, 'design_recreate', nextSession.currentStepKey)
+    }
+    nextSession = reconcileDiscoveryProgress(nextSession, input.locale)
+    nextSession = syncDiscoveryCurrentStep(nextSession, input.locale)
+    session = nextSession
+    reply = confirmReply
+    studio = {
+      processSteps: session.processSteps,
+      needsUpload: false,
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    const userMessageId = await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'user',
+      content: userLabel,
+      studio: { stepKey },
+    })
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'assistant',
+      content: reply,
+      studio,
+    })
+    return {
+      ok: true,
+      reply,
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      userMessageId: userMessageId ?? undefined,
+    }
   }
 
   if (action === 'set_generation_refs') {
@@ -5601,17 +5774,20 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
   if (action === 'set_discovery_choice') {
     const stepKey = String(input.discoveryChoiceStep ?? session.currentStepKey ?? '').trim()
     const choiceKey = String(input.discoveryChoice ?? '').trim()
-    const choice =
+    const designChoice =
+      session.presetId === 'design_recreate'
+        ? findDesignRecreateDiscoveryChoice(stepKey, choiceKey, session.briefNotes)
+        : undefined
+    const packagingChoice =
       stepKey === 'style_mood'
         ? findPackagingStyleMoodChoice(choiceKey)
         : stepKey === 'color_palette'
           ? findPackagingColorPaletteChoice(choiceKey)
           : undefined
-    if (
-      !choice ||
-      !isPackagingLikePreset(session.presetId) ||
-      session.currentStepKey !== stepKey
-    ) {
+    const choice = designChoice ?? packagingChoice
+    const allowDesign = session.presetId === 'design_recreate' && Boolean(designChoice)
+    const allowPackaging = isPackagingLikePreset(session.presetId) && Boolean(packagingChoice)
+    if (!choice || (!allowDesign && !allowPackaging) || session.currentStepKey !== stepKey) {
       return {
         ok: false,
         reply: '',
@@ -5622,14 +5798,29 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
     const userLabel = packagingDiscoveryChoiceLabel(choice, input.locale)
-    const briefValue = packagingDiscoveryChoiceBrief(choice, input.locale)
-    const advanced = advancePackagingLikeDiscoveryAfterBriefAnswer(
-      session,
-      input.locale,
-      stepKey,
-      briefValue,
-      t.studioDiscoveryBriefConfirmed.replace('{value}', userLabel)
-    )
+    // design_recreate: keys for sector/format/render/language; human brief for design_notes.
+    const briefValue =
+      session.presetId === 'design_recreate'
+        ? stepKey === 'design_notes'
+          ? packagingDiscoveryChoiceBrief(choice, input.locale)
+          : choice.key
+        : packagingDiscoveryChoiceBrief(choice, input.locale)
+    const advanced =
+      session.presetId === 'design_recreate'
+        ? advanceDiscoveryAfterBriefAnswer(
+            session,
+            input.locale,
+            stepKey,
+            briefValue,
+            t.studioDiscoveryBriefConfirmed.replace('{value}', userLabel)
+          )
+        : advancePackagingLikeDiscoveryAfterBriefAnswer(
+            session,
+            input.locale,
+            stepKey,
+            briefValue,
+            t.studioDiscoveryBriefConfirmed.replace('{value}', userLabel)
+          )
     session = advanced.session
     reply = advanced.reply
     studio = advanced.studio
@@ -5771,7 +5962,14 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
     const logoKey = getPrimaryLogoStepKey(session.presetId)
     if (!logoKey || !isLogoDesignStep(session.presetId, logoKey)) {
-      return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.errorGeneric }
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioLogoUploadWrongStep,
+      }
     }
     if (session.currentStepKey !== logoKey) {
       const blockingStep = findBlockingIncompleteStep(session, session.presetId)
@@ -6652,11 +6850,18 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       session = applyGenerationRefKeys(session, session.presetId, input.generationRefKeys)
     }
     const customPrompt = String(input.message ?? '').trim()
-    const prompt =
-      customPrompt ||
+    const basePrompt =
       stepPreview?.generationPrompt ||
       session.briefNotes[screenKey]?.trim() ||
-      session.lastGenerationPrompt
+      session.lastGenerationPrompt ||
+      ''
+    const isDesignRecreateRegenerate =
+      session.presetId === 'design_recreate' && screenKey !== DESIGN_RECREATE_LOGO_KEY
+    const prompt = isDesignRecreateRegenerate
+      ? customPrompt
+        ? `${basePrompt}\n\nADDITIONAL CLIENT REQUESTS FOR THIS REGENERATE (apply on the design board):\n${customPrompt}`
+        : basePrompt
+      : customPrompt || basePrompt
     if (!prompt) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioNoPrompt }
     }
@@ -7246,7 +7451,11 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       !hadPreset && Boolean(ai.suggestedPresetId && isValidStudioPresetId(ai.suggestedPresetId))
     if (!session.presetId && ai.suggestedPresetId && isValidStudioPresetId(ai.suggestedPresetId)) {
       session = applySuggestedPreset(session, input.locale, ai.suggestedPresetId)
-      reply = appendPresetKickoffIfNeeded(ai.reply || '...', input.locale, ai.suggestedPresetId, true)
+      // Rule-matched studio start (e.g. "tạo lại bản thiết kế") — skip AI clarify fluff.
+      const ruleStartedStudio =
+        idleFeatureMatch?.kind === 'studio' && idleFeatureMatch.presetId === ai.suggestedPresetId
+      const baseReply = ruleStartedStudio ? '' : ai.reply || '...'
+      reply = appendPresetKickoffIfNeeded(baseReply, input.locale, ai.suggestedPresetId, true)
       reply = appendFirstStepAsk(reply, input.locale, ai.suggestedPresetId, session.currentStepKey)
       ai.completeCurrentStep = false
     }
@@ -7502,9 +7711,16 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         if (justFinishedDiscovery && session.presetId) {
           const presetId = session.presetId
           const logoKey = getPrimaryLogoStepKey(presetId)
-          if (logoKey && session.currentStepKey === logoKey) {
+          // Chỉ nhắc bước Logo khi preset thật sự có generator=logo (không dùng referenceAnchor như concept_sheet).
+          if (
+            logoKey &&
+            session.currentStepKey === logoKey &&
+            isLogoDesignStep(presetId, logoKey)
+          ) {
             reply = `${reply}\n\n${t.studioStartWithLogo}`
             reply = appendStepAsk(reply, input.locale, presetId, logoKey)
+          } else if (session.currentStepKey) {
+            reply = appendStepAsk(reply, input.locale, presetId, session.currentStepKey)
           }
         } else if (session.presetId && session.currentStepKey && isDiscoveryStep(session.presetId, session.currentStepKey)) {
           reply = appendStepAsk(reply, input.locale, session.presetId, session.currentStepKey)

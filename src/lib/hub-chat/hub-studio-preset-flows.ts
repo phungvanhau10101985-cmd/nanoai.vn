@@ -294,6 +294,27 @@ export const FOOD_MENU_FLOW: StudioFlowStepDef[] = [
   },
 ]
 
+export const DESIGN_RECREATE_FLOW: StudioFlowStepDef[] = [
+  { key: 'design_sector', labelKey: 'design_sector', phase: 'discovery' },
+  { key: 'design_format', labelKey: 'design_format', phase: 'discovery' },
+  { key: 'render_style', labelKey: 'render_style', phase: 'discovery' },
+  { key: 'sample_upload', labelKey: 'sample_upload', phase: 'discovery' },
+  { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
+  { key: 'design_notes', labelKey: 'design_notes', phase: 'discovery' },
+  { key: 'design_language', labelKey: 'design_language', phase: 'discovery' },
+  /** Logo bắt buộc — gắn lên bảng thiết kế sau khi duyệt. */
+  { key: 'logo', labelKey: 'logo', phase: 'design', generator: 'logo', formFactor: 'square' },
+  /** Một ảnh thiết kế lại — sau đó chỉ Tạo lại (không bước Tiếp). */
+  {
+    key: 'concept_sheet',
+    labelKey: 'concept_sheet',
+    phase: 'design',
+    generator: 'banner',
+    aspectRatio: '3:4',
+    formFactor: 'mobile',
+  },
+]
+
 export const PRESET_FLOW_MAP: Record<string, StudioFlowStepDef[]> = {
   mobile_shop: MOBILE_SHOP_FLOW,
   sale_banner: SALE_BANNER_FLOW,
@@ -311,6 +332,7 @@ export const PRESET_FLOW_MAP: Record<string, StudioFlowStepDef[]> = {
   profile_photo_pack: PROFILE_PHOTO_PACK_FLOW,
   food_menu: FOOD_MENU_FLOW,
   bag_kit: BAG_KIT_FLOW,
+  design_recreate: DESIGN_RECREATE_FLOW,
 }
 
 export function getFlowSteps(presetId: string): StudioFlowStepDef[] {

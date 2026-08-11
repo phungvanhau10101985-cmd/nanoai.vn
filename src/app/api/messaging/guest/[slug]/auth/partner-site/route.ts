@@ -50,6 +50,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     embedKey,
     request,
     tokenRaw: token,
+    partnerSlug: slug,
   })
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status })

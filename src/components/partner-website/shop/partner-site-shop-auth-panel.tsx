@@ -176,7 +176,12 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ email: em, rememberDevice, browserId }),
+        body: JSON.stringify({
+          email: em,
+          rememberDevice,
+          browserId,
+          accountOrigin: 'customer_website',
+        }),
       })
       captureFromResponse(res)
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; autoSignedIn?: boolean }
@@ -214,7 +219,13 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ email: em, otp: code, rememberDevice, browserId }),
+        body: JSON.stringify({
+          email: em,
+          otp: code,
+          rememberDevice,
+          browserId,
+          accountOrigin: 'customer_website',
+        }),
       })
       captureFromResponse(res)
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }

@@ -160,3 +160,28 @@ for (const stepKey of LANDING_PAGE_DESIGN_STEPS) {
     assert.notEqual(placeholder, GENERIC_MOBILE_PLACEHOLDER)
   })
 }
+
+const DESIGN_RECREATE_DISCOVERY_STEPS = [
+  'design_sector',
+  'design_format',
+  'render_style',
+  'sample_upload',
+  'color_palette',
+  'design_notes',
+  'design_language',
+] as const
+
+for (const stepKey of DESIGN_RECREATE_DISCOVERY_STEPS) {
+  test(`design_recreate ${stepKey} has step-specific suggestions and placeholder`, () => {
+    const items = getStudioStepSuggestions('design_recreate', stepKey, 'vi')
+    assert.ok(items.length >= 1, `expected suggestion chips for design_recreate.${stepKey}`)
+    const placeholder = getStudioStepInputPlaceholder(
+      'design_recreate',
+      stepKey,
+      'vi',
+      GENERIC_MOBILE_PLACEHOLDER
+    )
+    assert.ok(!placeholder.includes('app mobile'), `placeholder must not be generic mobile shop for ${stepKey}`)
+    assert.notEqual(placeholder, GENERIC_MOBILE_PLACEHOLDER)
+  })
+}

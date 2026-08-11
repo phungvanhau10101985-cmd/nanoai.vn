@@ -4,6 +4,8 @@ import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY, isEmailAuthEnabled }
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 import { issueTrustedDeviceForUser } from '@/lib/auth/email-trusted-device'
 import { mergeGuestTrialUserDataAfterLogin } from '@/lib/auth/merge-guest-trial-user-data'
+import { markNewUserSignupSource, signupSourceFromLoginNext } from '@/lib/auth/signup-source'
+import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { readGuestSessionIdFromRequestStrictOrLoose } from '@/lib/messaging/guest-auth-session'
@@ -38,11 +40,13 @@ export async function POST(req: NextRequest) {
       otp?: string
       rememberDevice?: boolean
       browserId?: string
+      next?: string
     } | null
     const email = normalizeEmail(String(body?.email || ''))
     const otp = String(body?.otp ?? '').replace(/\D/g, '').trim()
     const rememberDevice = body?.rememberDevice !== false
     const browserId = String(body?.browserId || '').trim()
+    const loginNext = sanitizeLoginNext(body?.next)
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || otp.length !== 6) {
       return NextResponse.json({ error: 'invalid_payload' }, { status: 400 })
     }
@@ -78,6 +82,13 @@ export async function POST(req: NextRequest) {
     if (!uidRow?.id) {
       return NextResponse.json({ error: 'user_create_failed' }, { status: 500 })
     }
+
+    await markNewUserSignupSource({
+      userId: uidRow.id,
+      isNewUser,
+      source: signupSourceFromLoginNext(loginNext),
+      loginNext,
+    })
 
     await pgQuery(`update public.nanoai_email_login_challenges set consumed_at = now() where id = $1::uuid`, [row.id])
 

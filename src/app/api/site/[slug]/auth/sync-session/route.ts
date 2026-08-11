@@ -16,6 +16,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     request,
     response: cookieRes,
     partnerId: shop.partnerId,
+    signupSource: 'customer_website',
+    partnerSlug: shop.partnerSlug,
   })
 
   if (result.accountId) {

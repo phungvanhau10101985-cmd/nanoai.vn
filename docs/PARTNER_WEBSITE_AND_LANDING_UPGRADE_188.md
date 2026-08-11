@@ -207,35 +207,88 @@ Hiện tại (`partner-site-shop-account-client.tsx`): 1 trang, chuyển tab b�
 
 ---
 
-## Checklist — Landing (`L.*`)
+## Checklist — Landing (`L.*`) — nay chạy trên engine Ladipage AI (`L3.*`)
 
-### L0 — Vòng đời landing (baseline)
+> **2026-08-11:** L.* (freeform AI-build HTML) đã được **thay thế bởi engine `L3.*`** (section cố định
+> hero/highlights/material/products_grid/trust_cta/faq, luôn resolve sản phẩm/danh mục THẬT — không AI bịa),
+> theo yêu cầu "kết hợp cả 2" của user: cấu trúc chuyển đổi cao (188) + AI-build render/CSS linh hoạt (NanoAI).
+> Landing cũ (chưa từng generate section) vẫn render y hệt qua iframe/`htmlSource` — không hồi quy. Chi tiết
+> đầy đủ xem nhóm `L3.*` dưới đây; các dòng `L0-L2` giữ lại để đối chiếu lịch sử.
+
+### L0 — Vòng đời landing (baseline, vẫn dùng cho landing cũ)
 
 | ID | Hạng mục | Trạng thái | Ghi chú / file neo |
 |----|----------|------------|-------------------|
 | L0.1 | Create draft: chọn 1–8 SP + title/slug/brief | ✅ Done | landings API + panel |
-| L0.2 | Build AI: mockup + HTML/CSS/JS project | ✅ Done | `build-partner-landing-from-products.ts` |
+| L0.2 | Build AI: mockup + HTML/CSS/JS project | 🚫 Superseded (2026-08-11) | Chỉ còn dùng cho landing tạo trước `L3.*`; landing mới dùng engine section |
 | L0.3 | Preview / publish / unpublish / delete | ✅ Done | `…/landings/[landingId]`, public `lp/[landingSlug]` |
 | L0.4 | Giữ web chính không đổi khi tạo/sửa LP | ✅ Done | Product rule đã chốt |
 
-### L1 — Bán hàng trên landing (P0 cũ)
+### L1 — Bán hàng trên landing (nay đóng qua `L3.*`)
 
 | ID | Hạng mục | Trạng thái | Ghi chú / file neo |
 |----|----------|------------|-------------------|
-| L1.1 | **Mua ngay trên LP** — sheet biến thể, Add cart / Buy Now, giữ UTM | ❌ Todo | Hiện `build-landing-buy-script.ts` → modal → PDP. Reuse W1.1/W1.2 |
-| L1.2 | Offer / urgency trên LP (giá gạch, coupon, countdown, scarcity) | ❌ Todo | — |
-| L1.3 | Trust trên LP (review summary, guarantee, FAQ gần CTA) | 🟡 Partial | AI có thể gen FAQ; thiếu review thật từ data |
-| L1.4 | Form chiến dịch trên LP (UTM/product, thank-you, Lead event) | 🟡 Partial | Lead form thuộc web chính; LP chưa campaign-aware |
-| L1.5 | Editor sau build (sửa text/ảnh/section, không bắt buộc rebuild) | ❌ Todo | Panel chỉ preview/rebuild/publish/delete |
-| L1.6 | Đổi danh sách SP sau create + rebuild từ mockup cũ | ❌ Todo | DB có `inventoryIds`; UI chưa expose |
+| L1.1 | **Mua ngay trên LP** — Add cart / Buy Now, giữ UTM | ✅ Done (2026-08-11, qua L3.8) | Mỗi thẻ SP trong `products_grid` link thẳng PDP thật (`data-nanoai-inventory`) — tái dùng nguyên luồng cart/variant W1.1/W1.2, không viết lại |
+| L1.2 | Offer / urgency trên LP | 🟡 Partial | Gộp vào `trust_cta`/`hero` copy AI — chưa có giá gạch/countdown riêng |
+| L1.3 | Trust trên LP (review summary thật, FAQ gần CTA) | ✅ Done (2026-08-11, qua L3.9) | `trust_cta` hiện rating/tổng review THẬT (`fetchPartnerProductRatingSummaryFromPg`, không phải AI bịa số) |
+| L1.4 | Form chiến dịch trên LP | 🟡 Partial | Chưa làm riêng — ngoài phạm vi PS/L3 lần này |
+| L1.5 | Editor sau build (sửa text/ảnh/section, không cần rebuild) | ✅ Done (2026-08-11, qua L3.6) | Panel "Quản lý nội dung AI" — tạo/tạo lại/sửa tay từng section độc lập, không rebuild toàn trang |
+| L1.6 | Đổi danh sách SP/category sau tạo | 🟡 Partial | Đổi `sourceType`/`inventoryIds` qua PATCH landing đã hỗ trợ ở API; UI chọn lại sau khi tạo chưa có (mới có ở bước tạo) — để phiên sau |
 
 ### L2 — SEO & đo lường riêng LP
 
 | ID | Hạng mục | Trạng thái | Ghi chú / file neo |
 |----|----------|------------|-------------------|
-| L2.1 | SEO editable per LP (title/desc/OG/canonical + JSON-LD) | ❌ Todo | `lp/[landingSlug]/page.tsx` metadata cơ bản |
-| L2.2 | Funnel per LP: view → click → cart → order/lead | ❌ Todo | Phụ thuộc S2.* |
-| L2.3 | Share/affiliate link cho LP (`ref`, QR, attribution) | ❌ Todo | 188: `AffiliateShareBar` |
+| L2.1 | SEO editable per LP (title/desc + guardrail chống trùng category) | ✅ Done (2026-08-11, qua L3.7) | Cột `meta_title`/`meta_description` + nút "Tự sinh SEO bằng AI" trong panel |
+| L2.2 | Funnel per LP: view → click → cart → order/lead | ❌ Todo | Phụ thuộc S2.* — ngoài phạm vi PS/L3 lần này |
+| L2.3 | Share/affiliate link cho LP (`ref`, QR, attribution) | ❌ Todo | 188: `AffiliateShareBar` — ngoài phạm vi |
+
+### L3 — Ladipage AI (section cố định, dựa 100% trên sản phẩm/danh mục thật) — MỚI 2026-08-11
+
+| ID | Hạng mục | Trạng thái | Ghi chú / file neo |
+|----|----------|------------|-------------------|
+| L3.1 | Data model: bảng `messaging_partner_landing_sections` + `source_type`/`category_id`/`products_limit`/`material_filter`/`meta_title`/`meta_description` trên landing | ✅ Done | `db/migrations/20260811170000_messaging_partner_landing_ai_sections.sql`, `messaging-partner-landing-sections-pg.ts` |
+| L3.2 | Context builder — resolve sản phẩm LIVE theo `products`/`category`, đối trọng SEO category, dominant material, rating thật | ✅ Done | `landing-ai-context.ts` |
+| L3.3 | Sinh text từng section (DeepSeek, locale-aware, brand voice = tên shop thật) | ✅ Done | `landing-ai-content-generator.ts` |
+| L3.4 | Sinh ảnh — hero = ảnh SP thật (không AI); material = Gemini image-edit từ ảnh SP thật | ✅ Done | `landing-ai-material-image.ts`, dispatcher `landing-ai-dispatcher.ts` |
+| L3.5 | `products_grid` luôn render live (giá/tồn hiện tại) | ✅ Done | Không snapshot — resolve lại mỗi lần render |
+| L3.6 | Admin UI: tạo landing theo SP hoặc category + panel quản lý section (tạo/tạo lại/sửa tay) | ✅ Done | `partner-website-landings-panel.tsx`, `landing-ai-sections-dialog.tsx` |
+| L3.7 | SEO auto-gen + guardrail chống trùng category page | ✅ Done | `landing-ai-seo.ts`, route `generate-seo` |
+| L3.8 | Public render React thật (không qua iframe) khi hero "ready"; landing cũ giữ iframe cũ | ✅ Done | `landing-ai-sections-view.tsx`, `site/[slug]/lp/[landingSlug]/page.tsx` |
+| L3.9 | Trust hiện rating/review THẬT (không phải AI bịa số liệu) | ✅ Done | `fetchPartnerProductRatingSummaryFromPg` gộp vào context |
+| L3.10 | Đổi SP/category sau tạo rồi tạo lại section liên quan | 🟡 Partial | Backend hỗ trợ (PATCH landing đổi `sourceType`/`inventoryIds`); UI chọn lại sau khi tạo — để phiên sau |
+
+Test: `scripts/test-ladipage-ai-l3-1-4.ts` (data model/context/dispatcher, DeepSeek thật), `scripts/test-ladipage-ai-l3-public-render.ts` (HTTP thật qua dev server — xác nhận landing mới render React + landing cũ không hồi quy).
+
+---
+
+## Checklist — Product Studio (`PS.*`) — Đăng sản phẩm thủ công/AI — MỚI 2026-08-11
+
+Tham chiếu 188 `manual_product_create_service.py`, tổng quát hoá multi-tenant/đa ngôn ngữ. Xem
+`docs/188_BEHAVIOR_SPEC.md` cho nguyên tắc "không nên copy" đã áp dụng (không hardcode taxonomy/brand/ngôn ngữ).
+
+| ID | Hạng mục | Trạng thái | Ghi chú / file neo |
+|----|----------|------------|-------------------|
+| PS.1 | Data model: cột structured trên inventory (`colors_json`/`sizes_json`/`gallery_urls`/`detail_image_urls`/`origin`/`product_studio_job_id`) + bảng job `messaging_partner_product_studio_jobs` + cột `ai_generated` trên categories | ✅ Done | `db/migrations/20260811163000_messaging_partner_product_studio.sql`. Đọc ưu tiên cột mới, fallback quy ước JSON cũ (`stock_note`/`description`) — không hồi quy sản phẩm cũ |
+| PS.2 | Job runner (đồng bộ trong request, đủ nhanh vì mỗi bước AI chỉ vài giây) + cron resume job kẹt | ✅ Done | `product-studio-job-runner.ts`, `api/cron/product-studio-resume` |
+| PS.3 | Mode thủ công: upload nhiều ảnh thật + colors/sizes structured, publish thẳng không cần AI | ✅ Done | `product-studio-manual-dialog.tsx` |
+| PS.4 | Mode AI: upload 1-3 ảnh tham chiếu (không public) + thuộc tính (product_type/gender/style/sizes/tên màu/model_presence/shot_style/aspect_ratio) | ✅ Done | `product-studio-ai-panel.tsx` |
+| PS.5 | Studio slot pipeline: màu → gallery → chi tiết → chất liệu, Gemini image-edit qua `runStudioImagePipeline` (đúng đường billing credit đã dùng cho AI-build web/landing) + Duyệt/Tạo lại | ✅ Done | `product-studio-slot-pipeline.ts` |
+| PS.6 | Vision auto-naming khi để trống tên (Gemini đọc ảnh màu chính đã duyệt) | ✅ Done | `product-studio-vision-naming.ts` |
+| PS.7 | Publish — DeepSeek viết mô tả khi merchant để trống (locale-aware, brand = tên shop thật) | ✅ Done | `product-studio-description-ai.ts` |
+| PS.8 | Publish — AI tự resolve/mở rộng cây danh mục CỦA SHOP (khớp node có sẵn ở mỗi cấp L1/L2/L3, chỉ tạo mới khi không có node phù hợp, tránh trùng) — mọi node mới đánh dấu `ai_generated=true`, merchant tự xem lại/sửa/gộp qua CRUD W4.4 có sẵn | ✅ Done | `product-studio-taxonomy-ai.ts`, badge "AI tạo — xem lại" trong `partner-website-categories-panel.tsx` |
+| PS.9 | Publish — bridge tự tạo + publish 1 Ladipage AI (`L3.*`) riêng cho sản phẩm vừa đăng | ✅ Done | `product-studio-ladipage-bridge.ts` |
+| PS.10 | Admin UI: nút "Đăng sản phẩm" trong panel inventory, tab Thủ công/AI trong 1 dialog | ✅ Done | `product-studio-manual-dialog.tsx` trong `partner-ai-settings-panel.tsx` |
+| PS.11 | i18n đủ 5 ngôn ngữ (UI dashboard) | ✅ Done | `dictionaries.ts` (`productStudio*`), `partner-website-copy.ts` (`lpSection*`/`lpSource*`) |
+| PS.12 | Credit/cost — dùng đúng hạ tầng đã có | ✅ Done | Ảnh: `runStudioImagePipeline` (trừ credit user thật, giống mọi công cụ AI-build khác). Text (mô tả/taxonomy/vision-name): `deepseekPartnerChat`/Gemini text — không trừ credit, giống `partner-category-seo-ai.ts` |
+
+Quyết định thiết kế quan trọng (khác 188, đã xác nhận với user):
+- **PS.8 được phép tự tạo node danh mục mới** (188 chỉ chọn trong taxonomy có sẵn) — vì NanoAI multi-tenant, nhiều shop mới chưa từng tạo category nào; luôn ưu tiên khớp node gần giống trước khi tạo mới để tránh phình cây.
+- **PS.9 luôn chạy sau publish** (không cần bật capability riêng) — vì Landing hiện không capability-gated trong hệ thống hiện tại; bridge tự bỏ qua an toàn nếu shop chưa có web chính.
+
+Test: `scripts/test-product-studio-ps1-3.ts` (schema/manual publish + regression backward-compat),
+`scripts/test-product-studio-ai-ps4-6.ts` (slot order/commit + Vision naming thật + publish đọc đúng ảnh từ studio),
+`scripts/test-product-studio-ps7-9.ts` (mô tả AI thật + bootstrap category từ rỗng + chống trùng khi đăng SP thứ 2 + tôn trọng category merchant tự chọn + bridge Ladipage).
 
 ---
 
@@ -500,16 +553,39 @@ Sửa tài liệu **cùng PR** với code.
 | Copy UI | `src/lib/i18n/partner-website-copy.ts` |
 | Custom domain | `src/app/dashboard/messaging/partner-custom-domain-settings-card.tsx` |
 
-### Landing (L)
+### Landing (L) / Ladipage AI (L3)
 
 | Vai trò | Path |
 |---------|------|
 | Panel | `src/components/partner-website/partner-website-landings-panel.tsx` |
-| Types | `src/lib/partner-website/landing/partner-landing-types.ts` |
-| Build | `src/lib/partner-website/landing/build-partner-landing-from-products.ts` |
-| Buy script | `src/lib/partner-website/landing/build-landing-buy-script.ts` |
+| Sections dialog | `src/components/partner-website/landing/landing-ai-sections-dialog.tsx` |
+| Public render (section mới) | `src/components/partner-website/landing/landing-ai-sections-view.tsx` |
+| Types | `src/lib/partner-website/landing/partner-landing-types.ts`, `landing-ai-types.ts` |
+| Context builder | `src/lib/partner-website/landing/landing-ai-context.ts` |
+| Content generator (DeepSeek) | `src/lib/partner-website/landing/landing-ai-content-generator.ts` |
+| Material image (Gemini) | `src/lib/partner-website/landing/landing-ai-material-image.ts` |
+| Dispatcher | `src/lib/partner-website/landing/landing-ai-dispatcher.ts` |
+| SEO | `src/lib/partner-website/landing/landing-ai-seo.ts` |
+| Build cũ (freeform, vẫn dùng cho landing cũ) | `src/lib/partner-website/landing/build-partner-landing-from-products.ts` |
+| Buy script (freeform cũ) | `src/lib/partner-website/landing/build-landing-buy-script.ts` |
 | Public LP | `src/app/site/[slug]/lp/[landingSlug]/page.tsx` |
-| API | `src/app/api/messaging/partner-website/[partnerId]/landings/` |
+| API | `src/app/api/messaging/partner-website/[partnerId]/landings/` (`.../sections/`, `.../generate-seo`) |
+
+### Product Studio (PS)
+
+| Vai trò | Path |
+|---------|------|
+| Dialog (thủ công + AI) | `src/components/partner-website/product-studio/product-studio-manual-dialog.tsx`, `product-studio-ai-panel.tsx` |
+| Types | `src/lib/partner-website/product-studio/product-studio-types.ts` |
+| Job runner (publish) | `src/lib/partner-website/product-studio/product-studio-job-runner.ts` |
+| Studio slot pipeline (AI ảnh) | `src/lib/partner-website/product-studio/product-studio-slot-pipeline.ts` |
+| Vision naming | `src/lib/partner-website/product-studio/product-studio-vision-naming.ts` |
+| Mô tả AI (PS.7) | `src/lib/partner-website/product-studio/product-studio-description-ai.ts` |
+| Taxonomy AI (PS.8) | `src/lib/partner-website/product-studio/product-studio-taxonomy-ai.ts` |
+| Bridge Ladipage (PS.9) | `src/lib/partner-website/product-studio/product-studio-ladipage-bridge.ts` |
+| DB — job | `src/lib/db/messaging-partner-product-studio-jobs-pg.ts` |
+| API | `src/app/api/messaging/partners/[partnerId]/product-studio/` |
+| Cron resume | `src/app/api/cron/product-studio-resume/route.ts` |
 
 ### Shared (S)
 
@@ -588,5 +664,7 @@ Sửa tài liệu **cùng PR** với code.
 | 2026-08-06 | **S0.1 / S0.10 / M3.2 / M3.3 / M3.4** (Phase 9 Batch 3) | Domain card polish (DNS/SSL status + refresh). Currency `default_currency` + tracking đọc currency; hreflang self-tag theo locale. FAB `floatingCta` trong theme. Webhook/API key UI tái dùng outbound webhooks. Search aliases table + admin CRUD + prefer alias trong site search. Migrations `20260806140000`…`170000`. Test: `scripts/test-phase9-mvp-batch.ts`. | 🎯 **Phase 9 hoàn tất MVP** (W5.7/W5.8 vẫn 🚫) |
 
 | 2026-08-06 | **Đóng Partial trừ Landing** | S0.7 contact FABs; W1.5 size guide PDP; S0.5 sitemap gốc; S0.6 shipping/return JSON-LD; M1.4 carrier label; W1.3 Done-MVP; W4.11 fashion facets; S0.3 Meta CAPI outbox + cron; W1.4 flash sale (không bundle). Migrations `20260806180000`…`220000`. Test: `scripts/test-close-partial-debts.ts`. | 🎯 Web chính Partial còn lại đóng MVP (Landing/Hub/tax-ship-tỉnh vẫn ngoài) |
+
+| 2026-08-11 | **PS.1-PS.12, L3.1-L3.9** | **Ladipage AI + Product Studio** (đăng sản phẩm thủ công/AI) — mở lại Landing theo yêu cầu user, học chuẩn 188 (Ladipage AI section cố định + Studio đăng SP), tổng quát hoá multi-tenant/đa ngôn ngữ (không clone kiến trúc). **Product Studio**: migration `20260811163000_messaging_partner_product_studio.sql` (cột structured trên inventory + bảng job + `ai_generated` trên categories, đọc ưu tiên cột mới/fallback quy ước cũ — 0 hồi quy SP cũ, xác nhận qua test); job runner mode thủ công publish đồng bộ, mode AI qua Studio slot pipeline (màu→gallery→chi tiết→chất liệu, Gemini image-edit qua `runStudioImagePipeline` — đúng đường billing credit user thật, không phải token usage nội bộ) + duyệt/tạo lại từng ảnh; Vision auto-naming (Gemini đọc ảnh màu chính); publish tích hợp DeepSeek viết mô tả khi để trống (locale-aware, brand = tên shop thật) + **AI tự resolve/mở rộng cây danh mục của shop** (khớp node có sẵn ở từng cấp L1/L2/L3 trước, chỉ tạo mới khi không có node phù hợp — xác nhận qua test "đăng SP thứ 2 cùng loại tái dùng đúng 3 category đã tạo, không nổ số lượng"; tôn trọng tuyệt đối category do merchant tự chọn, AI không ghi đè) + bridge tự tạo/publish 1 Ladipage 1-SP. **Ladipage AI (L3)**: bảng mới `messaging_partner_landing_sections` (migration `20260811170000_...ai_sections.sql`) thay thế cách sinh nội dung AI-HTML tự do cho landing MỚI — landing cũ (0 section) giữ nguyên render iframe/`htmlSource`, chỉ chuyển sang React thật khi hero "ready" (tránh trang rỗng nếu ai đó chỉ mở panel "Quản lý nội dung AI" của landing cũ); hỗ trợ thêm `source_type=category` (đóng gap "landing theo danh mục" của 188, W4.11 material facet); mỗi sản phẩm luôn resolve LIVE (không snapshot); trust hiện rating thật (`fetchPartnerProductRatingSummaryFromPg`, không AI bịa số); nút mua trên products_grid link thẳng PDP thật (tái dùng W1.1/W1.2, không viết luồng mua riêng). Test mới: `test-product-studio-ps1-3.ts`, `test-product-studio-ai-ps4-6.ts`, `test-product-studio-ps7-9.ts`, `test-ladipage-ai-l3-1-4.ts`, `test-ladipage-ai-l3-public-render.ts` — DB layer + HTTP thật qua dev server + gọi AI thật (DeepSeek/Gemini text, Gemini Vision) — tất cả pass; re-run 25+ bộ test trọng điểm cũ (W1.4×3, W1.5×3, W1.6, W1.7, W2.2-2.4, W3.2/3.4×2, W4 Phase2-5, W4.12, W5.3, W5.4, S0.3/S0.4/S0.8×2, M2.1×2, M4.1, phase9-mvp-batch, close-partial-debts) xác nhận **0 hồi quy**; `tsc --noEmit` + `eslint` toàn project 0 lỗi mới trên mọi file đã sửa/tạo (các lỗi lint pre-existing ở `hub-chat/*`/`packaging/*`/`wedding/*` xác nhận không liên quan, có từ trước phiên này) | 🎯 **PS.1-12 + L3.1-9 hoàn tất phần cốt lõi** — đăng SP thủ công/AI hoạt động đầu-cuối, tự tạo landing bán hàng ngay khi đăng SP ("sản phẩm → landing chuyển đổi cao" đúng yêu cầu kết hợp 2 tính năng). Còn để phiên sau (đã ghi nhận, không phải lỗi): `L1.2`/`L1.4`/`L2.2`/`L2.3` (offer/urgency riêng, form chiến dịch, funnel đo lường, affiliate link — ngoài phạm vi PS/L3 lần này), `L3.10` UI đổi SP/category SAU KHI landing đã tạo (backend đã hỗ trợ qua PATCH, chỉ thiếu UI) |
 
 <!-- Thêm dòng mới mỗi khi hoàn tất hoặc đổi phạm vi ID -->

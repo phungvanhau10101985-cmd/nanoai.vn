@@ -3,6 +3,8 @@ import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-websit
 
 export const PARTNER_LANDING_MAX_PRODUCTS = 8
 
+export type PartnerLandingSourceType = 'products' | 'category'
+
 export type PartnerLandingPageRow = {
   id: string
   partnerId: string
@@ -20,6 +22,13 @@ export type PartnerLandingPageRow = {
   publishedAt: string | null
   createdAt: string
   updatedAt: string
+  /** L3.2 — products (1-8 SP, hành vi cũ) | category (top N sản phẩm live theo categoryId). */
+  sourceType: PartnerLandingSourceType
+  categoryId: string | null
+  productsLimit: number
+  materialFilter: string | null
+  metaTitle: string | null
+  metaDescription: string | null
 }
 
 export type PartnerLandingPagePublicRow = PartnerLandingPageRow & {

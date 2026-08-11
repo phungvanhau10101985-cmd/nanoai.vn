@@ -116,6 +116,7 @@ export async function upsertGuestAccountForGoogleIdentity(
       partnerId,
       email: user.email,
       guestAccountId: accountId,
+      signupSource: 'partner_website',
     })
   }
   return accountId ?? null

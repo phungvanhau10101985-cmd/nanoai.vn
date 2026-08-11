@@ -27,6 +27,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 import { issueTrustedDeviceForUser, resolveTrustedDeviceFromRequest } from '@/lib/auth/email-trusted-device'
+import { inferGuestSignupSource } from '@/lib/auth/signup-source'
 import {
   completeGuestEmailAuth,
   mergeAllGuestSessionsForEmail,
@@ -75,10 +76,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     email?: string
     rememberDevice?: boolean
     browserId?: string
+    accountOrigin?: string
   } | null
   const email = normalizeEmail(body?.email ?? '')
   const rememberDevice = body?.rememberDevice !== false
   const browserId = String(body?.browserId || '').trim()
+  const signupSource = inferGuestSignupSource(request, body?.accountOrigin)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
   }
@@ -126,6 +129,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       partnerId,
       email,
       guestAccountId: accountId,
+      signupSource,
+      partnerSlug: slug,
     })
     const token = auth.sessionToken || (await createEmailSessionTokenString(trusted.userId, trusted.email))
     if (!token) {

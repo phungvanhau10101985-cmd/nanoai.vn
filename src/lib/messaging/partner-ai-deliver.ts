@@ -3,7 +3,10 @@ import { insertMessage } from '@/lib/customer-care/conversation-service'
 import { sendFacebookMessengerImageUrl, sendFacebookMessengerText } from '@/lib/customer-care/facebook-messenger'
 import { sendZaloOaText } from '@/lib/customer-care/zalo-oa'
 import { buildPartnerMediaPayload, partnerMediaPayloadToJson } from '@/lib/messaging/guest-chat-image'
-import type { PartnerMaterialDetailFollowup } from '@/lib/messaging/partner-inventory-material-detail-image'
+import {
+  buildMaterialDetailImageChatCaption,
+  type PartnerMaterialDetailFollowup,
+} from '@/lib/messaging/partner-inventory-material-detail-image'
 import type { PartnerRealUseImageFollowup } from '@/lib/messaging/partner-inventory-real-use-image'
 import { getFacebookSendToken, getZaloSendToken } from '@/lib/messaging/partner-channels-db'
 import { splitAutomatedReplyIntoChunks } from '@/lib/messaging/partner-ai-split-reply'
@@ -102,7 +105,9 @@ export async function deliverAutomatedPartnerMessage(params: {
     const zaloLine =
       imageKind === 'real_use'
         ? `📷 Em gửi ảnh đời thường góc tự nhiên để mình xem sản phẩm chân thực ạ: ${imageFollowup.publicUrl}`
-        : `📷 Chi tiết chất liệu & màu sắc (từ ảnh sản phẩm chính): ${imageFollowup.publicUrl}`
+        : `${buildMaterialDetailImageChatCaption(
+            materialDetailFollowup ?? { publicUrl: imageFollowup.publicUrl, storagePath: '', mime: 'image/png' }
+          )}: ${imageFollowup.publicUrl}`
     const last = outboundTexts[outboundTexts.length - 1]
     outboundTexts = [...outboundTexts.slice(0, -1), `${last}\n\n${zaloLine}`]
   }
@@ -178,7 +183,9 @@ export async function deliverAutomatedPartnerMessage(params: {
     const caption =
       imageKind === 'real_use'
         ? '📷 Em gửi ảnh đời thường góc tự nhiên để mình xem sản phẩm chân thực ạ'
-        : '📷 Chi tiết chất liệu & màu sắc (từ ảnh sản phẩm chính).'
+        : buildMaterialDetailImageChatCaption(
+            materialDetailFollowup ?? { publicUrl: imageFollowup.publicUrl, storagePath: '', mime: 'image/png' }
+          )
     const ins2 = await insertMessage({
       conversationId: conversation.id,
       direction: 'outbound',

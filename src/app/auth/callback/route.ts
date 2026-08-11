@@ -9,6 +9,7 @@ import {
 import { mergeGuestTrialUserDataAfterLogin } from '@/lib/auth/merge-guest-trial-user-data'
 import { getAuthFlowOrigin } from '@/lib/auth/public-app-url'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
+import { markNewUserSignupSource, signupSourceFromLoginNext } from '@/lib/auth/signup-source'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
 import { readGuestSessionIdFromRequestStrictOrLoose } from '@/lib/messaging/guest-auth-session'
@@ -108,6 +109,13 @@ export async function GET(req: NextRequest) {
       clearGoogleOAuthStateCookie(res)
       return res
     }
+
+    await markNewUserSignupSource({
+      userId: uidRow.id,
+      isNewUser,
+      source: signupSourceFromLoginNext(next),
+      loginNext: next,
+    })
 
     const jwt = await createEmailSessionTokenString(uidRow.id, email)
     if (!jwt) {

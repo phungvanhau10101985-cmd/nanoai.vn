@@ -43,6 +43,28 @@ export default async function AdminUsersPage({
       minute: '2-digit',
     }).format(d)
   }
+  const formatSignupSource = (user: {
+    signup_source?: string | null
+    signup_partner_slug?: string | null
+    signup_partner_name?: string | null
+  }) => {
+    const source = String(user.signup_source || '').trim()
+    const partnerLabel =
+      String(user.signup_partner_name || '').trim() ||
+      String(user.signup_partner_slug || '').trim()
+    if (source === 'nanoai') {
+      return 'NanoAI'
+    }
+    if (source === 'customer_website') {
+      const base = tr('Web khách', 'Customer site', '客户网站', '顧客サイト', '고객 웹사이트')
+      return partnerLabel ? `${base}: ${partnerLabel}` : base
+    }
+    if (source === 'partner_website') {
+      const base = tr('Web đối tác', 'Partner site', '合作网站', 'パートナーサイト', '파트너 웹사이트')
+      return partnerLabel ? `${base}: ${partnerLabel}` : base
+    }
+    return tr('Không rõ', 'Unknown', '未知', '不明', '알 수 없음')
+  }
   const emailQuery = searchParams?.email?.trim() ?? ''
   const { sort, dir } = parseAdminUsersSort(searchParams)
   const currentUser = await getUserOrBypass()
@@ -128,6 +150,9 @@ export default async function AdminUsersPage({
                     {sortIcon('created')}
                   </Link>
                 </TableHead>
+                <TableHead>
+                  {tr('Nơi tạo tài khoản', 'Account origin', '注册来源', 'アカウント作成元', '계정 생성처')}
+                </TableHead>
                 <TableHead className="text-right">
                   <Link
                     href={buildAdminUsersHref({
@@ -144,7 +169,7 @@ export default async function AdminUsersPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user: { id: string; full_name?: string | null; avatar_url?: string | null; role?: string | null; email?: string; balance?: number; created_at?: string | null }) => (
+              {users.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-4">
@@ -164,6 +189,9 @@ export default async function AdminUsersPage({
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{formatCreatedAt(user.created_at)}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatSignupSource(user)}
+                  </TableCell>
                   <TableCell className="text-right font-medium">{user.balance}</TableCell>
                   <TableCell className="text-right">
                     <EditCreditDialog userId={user.id} currentBalance={user.balance ?? 0} />

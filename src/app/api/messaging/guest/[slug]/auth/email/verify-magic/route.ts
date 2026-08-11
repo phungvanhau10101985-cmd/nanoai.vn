@@ -21,6 +21,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
 import { getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 import { issueTrustedDeviceForUser } from '@/lib/auth/email-trusted-device'
+import { inferGuestSignupSource } from '@/lib/auth/signup-source'
 import {
   completeGuestEmailAuth,
   mergeAllGuestSessionsForEmail,
@@ -153,10 +154,13 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     currentSessionId: sessionId,
   })
 
+  const signupSource = inferGuestSignupSource(request)
   const { authUserId: authUserIdForEmail, sessionToken } = await completeGuestEmailAuth({
     partnerId,
     email,
     guestAccountId: accountId,
+    signupSource,
+    partnerSlug: slug,
   })
 
   const redirectUrl = new URL(`${guestChatUrl}?auth=ok`)

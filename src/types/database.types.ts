@@ -25,6 +25,10 @@ export interface Database {
           english_coach_gender: string | null
           gender: string | null
           birth_date: string | null
+          /** nanoai | customer_website | partner_website */
+          signup_source: string | null
+          signup_partner_id: string | null
+          signup_partner_slug: string | null
         }
         Insert: {
           id: string
@@ -40,6 +44,9 @@ export interface Database {
           english_coach_gender?: string | null
           gender?: string | null
           birth_date?: string | null
+          signup_source?: string | null
+          signup_partner_id?: string | null
+          signup_partner_slug?: string | null
         }
         Update: {
           id?: string
@@ -55,6 +62,9 @@ export interface Database {
           english_coach_gender?: string | null
           gender?: string | null
           birth_date?: string | null
+          signup_source?: string | null
+          signup_partner_id?: string | null
+          signup_partner_slug?: string | null
         }
         Relationships: []
       }
@@ -981,6 +991,13 @@ export interface Database {
           vision_catalog_excluded: boolean
           consult_link_opening_text: string | null
           consult_link_opening_input_fingerprint: string | null
+          colors_json: { name: string; img: string }[] | null
+          sizes_json: string[] | null
+          gallery_urls: string[]
+          detail_image_urls: string[]
+          product_studio_meta: Json | null
+          origin: string | null
+          product_studio_job_id: string | null
           created_at: string
           updated_at: string
         }
@@ -1028,6 +1045,13 @@ export interface Database {
           vision_catalog_excluded?: boolean
           consult_link_opening_text?: string | null
           consult_link_opening_input_fingerprint?: string | null
+          colors_json?: { name: string; img: string }[] | null
+          sizes_json?: string[] | null
+          gallery_urls?: string[]
+          detail_image_urls?: string[]
+          product_studio_meta?: Json | null
+          origin?: string | null
+          product_studio_job_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1075,6 +1099,13 @@ export interface Database {
           vision_catalog_excluded?: boolean
           consult_link_opening_text?: string | null
           consult_link_opening_input_fingerprint?: string | null
+          colors_json?: { name: string; img: string }[] | null
+          sizes_json?: string[] | null
+          gallery_urls?: string[]
+          detail_image_urls?: string[]
+          product_studio_meta?: Json | null
+          origin?: string | null
+          product_studio_job_id?: string | null
           created_at?: string
           updated_at?: string
         }

@@ -1,5 +1,6 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
+import type { SignupSource } from '@/lib/auth/signup-source'
 
 export type AdminProfileWithBalanceRow = {
   id: string
@@ -9,6 +10,10 @@ export type AdminProfileWithBalanceRow = {
   email: string | null
   balance: number
   created_at: string | null
+  signup_source: SignupSource | null
+  signup_partner_id: string | null
+  signup_partner_slug: string | null
+  signup_partner_name: string | null
 }
 
 export type AdminUsersSort = 'name' | 'created' | 'credits'
@@ -62,10 +67,15 @@ export async function pgListProfilesWithCreditBalance(
               p.role,
               nullif(au.email, '') as email,
               coalesce(nullif(to_jsonb(p)->>'created_at', ''), au.created_at::text) as created_at,
-              coalesce(c.balance::float8, 0)::float8 as balance
+              coalesce(c.balance::float8, 0)::float8 as balance,
+              nullif(p.signup_source, '') as signup_source,
+              p.signup_partner_id::text as signup_partner_id,
+              coalesce(nullif(p.signup_partner_slug, ''), nullif(mp.slug, '')) as signup_partner_slug,
+              nullif(mp.display_name, '') as signup_partner_name
        from public.profiles p
        left join auth.users au on au.id = p.id
        left join public.credits c on c.user_id = p.id
+       left join public.messaging_partners mp on mp.id = p.signup_partner_id
        where lower(coalesce(au.email, '')) not like 'guest-trial-%@guest.nanoai.local'
        ${emailFilter}
        ${buildAdminUsersOrderBy(sort, sortDir)}`,

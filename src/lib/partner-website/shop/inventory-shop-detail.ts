@@ -10,6 +10,10 @@ export type InventoryShopSourceRow = {
   real_use_image_url?: string | null
   real_use_image_url_2?: string | null
   product_video_url?: string | null
+  /** PS.1 — ảnh phụ bổ sung (Product Studio / upload nhiều ảnh) — nối THÊM, không thay thế nguồn cũ. */
+  gallery_urls?: string[] | null
+  /** PS.1 — ảnh chi tiết/chất liệu do Product Studio sinh — nối THÊM vào ảnh chi tiết hiện có. */
+  detail_image_urls?: string[] | null
 }
 
 function isHttpsUrl(raw: string): boolean {
@@ -49,6 +53,9 @@ export function collectShopProductGalleryImages(row: InventoryShopSourceRow): st
   )) {
     push(url)
   }
+  // PS.1 — ảnh phụ Product Studio (studio slots hoặc upload nhiều ảnh thủ công), nối thêm cuối.
+  for (const url of row.gallery_urls ?? []) push(url)
+  for (const url of row.detail_image_urls ?? []) push(url)
 
   return out
 }

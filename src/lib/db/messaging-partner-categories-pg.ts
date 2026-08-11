@@ -40,6 +40,7 @@ type CategoryDbRow = {
   seo_body_generated_at: unknown
   seo_body_generated_locale: string | null
   size_guide_image_url: string
+  ai_generated: boolean
   created_at: unknown
   updated_at: unknown
 }
@@ -48,7 +49,7 @@ const SELECT_COLS = `id::text, partner_id::text, parent_id::text, name, name_i18
   sort_order, is_active, coalesce(image_url, '') as image_url, coalesce(description, '') as description,
   description_i18n, coalesce(seo_title, '') as seo_title, coalesce(seo_description, '') as seo_description,
   seo_index, coalesce(seo_body, '') as seo_body, seo_body_generated_at, seo_body_generated_locale,
-  coalesce(size_guide_image_url, '') as size_guide_image_url,
+  coalesce(size_guide_image_url, '') as size_guide_image_url, coalesce(ai_generated, false) as ai_generated,
   created_at, updated_at`
 
 function mapCategoryRow(r: CategoryDbRow): PartnerCategoryRow {
@@ -73,6 +74,7 @@ function mapCategoryRow(r: CategoryDbRow): PartnerCategoryRow {
     seoBodyGeneratedAt: r.seo_body_generated_at ? String(r.seo_body_generated_at) : null,
     seoBodyGeneratedLocale: r.seo_body_generated_locale ?? null,
     sizeGuideImageUrl: r.size_guide_image_url ?? '',
+    aiGenerated: r.ai_generated === true,
     createdAt: String(r.created_at ?? ''),
     updatedAt: String(r.updated_at ?? ''),
   }
@@ -220,9 +222,11 @@ export async function insertPartnerCategoryFromPg(
     const row = await pgQueryOne<CategoryDbRow>(
       `insert into public.messaging_partner_categories (
         partner_id, parent_id, name, name_i18n, slug, path, depth, sort_order, is_active,
-        image_url, description, description_i18n, seo_title, seo_description, seo_index
+        image_url, description, description_i18n, seo_title, seo_description, seo_index, ai_generated,
+        ai_generated_at
       ) values (
-        $1::uuid, $2::uuid, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15
+        $1::uuid, $2::uuid, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16,
+        case when $16 then now() else null end
       )
       returning ${SELECT_COLS}`,
       [
@@ -241,6 +245,7 @@ export async function insertPartnerCategoryFromPg(
         (input.seoTitle ?? '').trim().slice(0, 200),
         (input.seoDescription ?? '').trim().slice(0, 500),
         input.seoIndex !== false,
+        input.aiGenerated === true,
       ]
     )
     if (!row) return { ok: false, error: 'db_error' }
@@ -446,7 +451,8 @@ export async function updatePartnerCategoryFieldsFromPg(
   if (patch.name !== undefined) {
     const name = patch.name.trim().slice(0, 200)
     if (!name) return null
-    sets.push(`name = $${p++}`)
+    // PS.8 — merchant sửa tên = coi như đã xem lại node do AI tạo, xoá cờ "cần xem lại".
+    sets.push(`name = $${p++}`, 'ai_generated = false', 'ai_generated_at = null')
     params.push(name)
   }
   if (patch.nameI18n !== undefined) {

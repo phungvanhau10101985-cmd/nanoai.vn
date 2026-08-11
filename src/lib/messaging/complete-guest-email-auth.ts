@@ -3,6 +3,7 @@ import { listGuestChallengeSessionIdsByEmailPg } from '@/lib/db/messaging-guest-
 import { pgQuery } from '@/lib/db/pg-query'
 import { resolveCanonicalUserIdByEmail } from '@/lib/auth/resolve-canonical-email-user'
 import { createEmailSessionTokenString } from '@/lib/auth/email-session-token'
+import type { SignupSource } from '@/lib/auth/signup-source'
 import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-account-merge'
 
 export type CompleteGuestEmailAuthResult = {
@@ -67,11 +68,19 @@ export async function completeGuestEmailAuth(params: {
   partnerId: string
   email: string
   guestAccountId: string
+  /** Mặc định web đối tác (chat widget / SSO). Shop gửi `customer_website`. */
+  signupSource?: SignupSource
+  partnerSlug?: string | null
 }): Promise<CompleteGuestEmailAuthResult> {
   const email = normalizeEmail(params.email)
   const { partnerId, guestAccountId } = params
+  const signupSource = params.signupSource ?? 'partner_website'
 
-  const authUserId = await resolveCanonicalUserIdByEmail(email)
+  const authUserId = await resolveCanonicalUserIdByEmail(email, {
+    source: signupSource,
+    partnerId,
+    partnerSlug: params.partnerSlug,
+  })
   if (authUserId && authUserId !== guestAccountId) {
     await mergeGuestSessionConversationToAccount(partnerId, authUserId, guestAccountId)
   }

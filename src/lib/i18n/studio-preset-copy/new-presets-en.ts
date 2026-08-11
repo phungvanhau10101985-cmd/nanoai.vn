@@ -322,4 +322,49 @@ export const NEW_PRESETS_EN = {
       menu_design: 'Beef pho 65,000 VND · Bun cha 55,000 VND · Milk coffee 25,000 VND',
     },
   },
+  design_recreate: {
+    title: 'Recreate design from sample',
+    kickoff:
+      'Upload samples → pick sector / output format / render style → AI analyzes → board language → **logo (required)** → concept board (with logo applied).',
+    uploadHint: 'Upload product sample photos — up to 4 angles (front, back, side, detail)',
+    steps: {
+      design_sector: 'Brief: Design sector',
+      design_format: 'Brief: Output format',
+      render_style: 'Brief: Render style',
+      sample_upload: 'Brief: Sample photos',
+      color_palette: 'Brief: Color palette',
+      design_notes: 'Brief: Extra notes',
+      design_language: 'Brief: Board language',
+      logo: 'Logo',
+      concept_sheet: 'Full concept board',
+      detail_panel: 'Detail close-up panel',
+      technical_flat: 'Technical flat sketch',
+    },
+    asks: {
+      design_sector: '① Choose a design sector below.',
+      design_format: '② Choose an output format below.',
+      render_style: '③ Choose a render style below.',
+      sample_upload:
+        '④ **Upload sample photos** — up to 4 angles (front, back, side, embroidery/collar/sleeve detail). AI will analyze to recreate the design.',
+      color_palette: '⑤ Preferred color palette? (e.g. peach + cream + gold — or let AI extract from samples)',
+      design_notes: '⑥ Choose extra notes below (or Other — type custom).',
+      design_language: '⑦ Choose the language for text/labels on the design board below.',
+      logo:
+        'Logo (required) will be placed on the design boards: **have a logo** → tap **Upload logo**; **none yet** → describe below for AI to create. Approve the logo before the concept board.',
+      concept_sheet:
+        'Choose a concept-board layout below (always includes INSPIRATION text + approved logo).',
+      detail_panel: 'Choose a detail-panel layout below.',
+      technical_flat: 'Choose a technical-flat layout below.',
+    },
+    askExamples: {
+      design_sector: 'Fashion — modern áo dài',
+      design_format: 'Full concept board (professional design lookbook sheet)',
+      render_style: 'Fashion concept sheet (watercolor + tech flats)',
+      sample_upload: 'Uploaded 3 photos: front, back, embroidery detail',
+      color_palette: 'Peach, cream beige, light green, metallic gold',
+      design_notes: 'Tet holiday — pair with wide silk trousers + beige leather bag + heels',
+      design_language: 'English',
+      logo: 'Gold monogram lettermark on transparent background',
+    },
+  },
 } as const

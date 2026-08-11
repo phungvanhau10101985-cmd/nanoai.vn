@@ -2,7 +2,7 @@ import type { Database } from '@/types/database.types'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { isPgConfigured } from '@/lib/db/pool'
 import { updatePartnerInventoryMaterialDetailImageUrlFromPg } from '@/lib/db/messaging-partner-inventory-pg'
-import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import {
   customerMessageAsksAboutMaterial,
   pickInventoryRowForReferenceImage,
@@ -15,7 +15,7 @@ type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
 const IMAGE_MODEL = GEMINI_3_PRO_IMAGE.model
 
-const MATERIAL_COLLAGE_PROMPT = `You are an e-commerce creative assistant. The user attached EXACTLY ONE **primary product image** — the main listing photo of ONE real product (Image A — full product or packshot). This is the authoritative product photo, not an optional reference.
+const MATERIAL_COLLAGE_PROMPT_BASE = `You are an e-commerce creative assistant. The user attached EXACTLY ONE **primary product image** — the main listing photo of ONE real product (Image A — full product or packshot). This is the authoritative product photo, not an optional reference.
 
 Task: generate ONE composite "material & fabric detail" image (Image B) that looks like a professional listing zoom sheet for THAT SAME garment/accessory only, derived only from Image A.
 
@@ -23,13 +23,98 @@ Rules (strict):
 - Treat Image A as the only source of truth for silhouette, color, fabric type, trims, hardware, and patterns. Do NOT depict a different product, different colorway, or generic stock fabric.
 - Simulate extreme close-ups and tight crops AS IF the camera zoomed into specific regions of Image A (neckline/collar, sleeve/cuff, side seam, hem, zipper/buttons, strap, bag leather grain, shoe upper stitching, etc.—pick regions that exist on this product). Panels should read as magnified fragments of this item, not unrelated textiles.
 - Layout: one larger panel may echo the overall product context; surrounding panels are macro detail shots (texture, weave/knit, sheer vs opaque layers, stitching, hem). Optional small comparison strips with pinked/zigzag edges showing color/material consistency with Image A.
-- Photorealistic, soft bright lighting, clean neutral accents, no text, no watermark, no logos.
-- Output only the generated image.`
+- Photorealistic, soft bright lighting, clean neutral accents.
+
+Typography & sales copy ON the image (required — Vietnamese):
+- Add a short benefit-led headline strip (1 line, e.g. "Chất liệu cao cấp — cảm nhận rõ từng chi tiết" or similar — vary wording).
+- Add 3–4 compact callout labels near detail panels (each 2–6 words): plausible material benefits such as mềm mại, thoáng mát, bền đẹp, giữ form, dễ chăm sóc, sang trọng, ôm dáng… — pick only benefits that fit the visible material in Image A and any shop catalog context provided.
+- Add one closing confidence line (e.g. "Chất liệu này đáng chọn — mặc lên tự tin hơn" — vary wording) in a footer or side strip.
+- Use clean sans-serif, high contrast, readable at mobile size; professional e-commerce infographic — not cluttered.
+- No fake brand logos, no watermark, no price tags, no medical/weight-loss claims.
+
+Output only the generated image.`
 
 export type PartnerMaterialDetailFollowup = {
   publicUrl: string
   storagePath: string
   mime: string
+  /** Copy ưu điểm chất liệu gửi kèm ảnh trong chat (tăng chuyển đổi). */
+  pitchText?: string
+}
+
+function mergeInventoryTextForPitch(row: InvRow): string {
+  return [row.name, row.material_note, row.description, row.consult_note]
+    .map((s) => (s ?? '').trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
+function buildProductContextBlock(row: InvRow): string {
+  const lines: string[] = []
+  const name = (row.name ?? '').trim()
+  if (name) lines.push(`Product name: ${name}`)
+  const material = (row.material_note ?? '').trim()
+  if (material) lines.push(`Material (shop catalog): ${material}`)
+  const desc = (row.description ?? '').trim().slice(0, 400)
+  if (desc) lines.push(`Description excerpt: ${desc}`)
+  const consult = (row.consult_note ?? '').trim().slice(0, 280)
+  if (consult) lines.push(`Consult note excerpt: ${consult}`)
+  if (!lines.length) return ''
+  return `\n\nShop catalog context (use for accurate on-image text — do not invent material type or claims beyond this):\n${lines.join('\n')}`
+}
+
+function buildMaterialCollagePrompt(row: InvRow): string {
+  return `${MATERIAL_COLLAGE_PROMPT_BASE}${buildProductContextBlock(row)}`
+}
+
+/** Copy ngắn ưu điểm chất liệu — gửi kèm ảnh chi tiết trong chat. */
+async function generateMaterialDetailSalesPitch(row: InvRow, partnerId: string): Promise<string | null> {
+  const catalog = mergeInventoryTextForPitch(row).trim()
+  if (catalog.length < 3) return null
+  const key = process.env.GOOGLE_API_KEY?.trim()
+  if (!key) return null
+  const genAI = new GoogleGenerativeAI(key)
+  const model = genAI.getGenerativeModel({ model: GEMINI_25_FLASH_NO_THINKING.model })
+  const prompt =
+    'Bạn là copywriter thời trang e-commerce. Viết 2–3 câu tiếng Việt ngắn gọn về **ưu điểm chất liệu** của sản phẩm — giọng tư vấn thân thiện (em/shop), giúp khách cảm thấy chất liệu **đáng mua** (mềm, bền, thoáng, sang, dễ phối, giữ form…). ' +
+    'Chỉ dựa trên dữ liệu shop bên dưới; không bịa loại vải/chất liệu; không hứa y tế, giảm cân hay hiệu quả tuyệt đối. Có thể thêm 1–2 gạch đầu dòng ngắn (mỗi dòng ≤ 8 từ). Không emoji, không URL.\n\n' +
+    `Dữ liệu shop:\n${catalog.slice(0, 1800)}`
+  try {
+    const result = await model.generateContent([{ text: prompt }] as never)
+    const response = result.response
+    const um = response.usageMetadata
+    void insertPartnerAiTokenUsage({
+      partner_id: partnerId,
+      provider: 'google',
+      model: GEMINI_25_FLASH_NO_THINKING.model,
+      prompt_tokens: Math.max(0, um?.promptTokenCount ?? 0),
+      completion_tokens: Math.max(0, um?.candidatesTokenCount ?? 0),
+      total_tokens: Math.max(0, um?.totalTokenCount ?? 0),
+      usage_kind: 'material_infer',
+    })
+    void trackFromUsageMetadata(
+      response.usageMetadata,
+      GEMINI_25_FLASH_NO_THINKING.model,
+      'partner-inventory-material-pitch',
+      null,
+      null
+    )
+    const raw = response
+      .text()
+      .trim()
+      .replace(/^["']|["']$/g, '')
+      .slice(0, 900)
+    return raw.length > 0 ? raw : null
+  } catch (e) {
+    console.warn('[material-detail-image] sales pitch gen failed', e)
+    return null
+  }
+}
+
+export function buildMaterialDetailImageChatCaption(followup: PartnerMaterialDetailFollowup): string {
+  const pitch = followup.pitchText?.trim()
+  const lead = '📷 Chi tiết chất liệu & màu sắc (từ ảnh sản phẩm chính).'
+  return pitch ? `${lead}\n\n${pitch}` : lead
 }
 
 function patchMaterialDetailImage<T extends InvRow>(rows: T[], id: string, url: string): T[] {
@@ -51,7 +136,10 @@ async function fetchImageAsInlinePart(url: string): Promise<{ mimeType: string; 
   }
 }
 
-async function generateMaterialDetailCollageBuffer(productImageUrl: string): Promise<{
+async function generateMaterialDetailCollageBuffer(
+  productImageUrl: string,
+  row: InvRow
+): Promise<{
   buffer: Buffer
   prompt_tokens: number
   completion_tokens: number
@@ -78,7 +166,7 @@ async function generateMaterialDetailCollageBuffer(productImageUrl: string): Pro
   try {
     const genResult = await model.generateContent(
       [
-        MATERIAL_COLLAGE_PROMPT,
+        buildMaterialCollagePrompt(row),
         { inlineData: { mimeType: inline.mimeType, data: inline.data } },
       ] as never,
       { safetySettings } as never
@@ -133,6 +221,8 @@ export async function enrichInventoryMaterialDetailCollageIfNeeded(
   )
   if (!focus) return emptyFollowup
 
+  const pitchText = (await generateMaterialDetailSalesPitch(focus, partnerId)) ?? undefined
+
   const existing = (focus.material_detail_image_url ?? '').trim()
   if (/^https?:\/\//i.test(existing)) {
     return {
@@ -143,11 +233,12 @@ export async function enrichInventoryMaterialDetailCollageIfNeeded(
         publicUrl: existing,
         storagePath: '',
         mime: 'image/png',
+        pitchText,
       },
     }
   }
 
-  const gen = await generateMaterialDetailCollageBuffer(focus.image_url.trim())
+  const gen = await generateMaterialDetailCollageBuffer(focus.image_url.trim(), focus)
   if (!gen?.buffer.length) return emptyFollowup
 
   await insertPartnerAiTokenUsage({
@@ -181,6 +272,7 @@ export async function enrichInventoryMaterialDetailCollageIfNeeded(
       publicUrl: nextUrl,
       storagePath: up.path,
       mime: 'image/png',
+      pitchText,
     },
   }
 }

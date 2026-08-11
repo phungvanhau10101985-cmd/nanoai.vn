@@ -59,6 +59,8 @@ export type PartnerCategoryRow = {
   seoBodyGeneratedLocale: string | null
   /** W1.5 — ảnh bảng size (PDP modal); rỗng = fallback trang /size-guide. */
   sizeGuideImageUrl: string
+  /** PS.8 — true nếu Product Studio AI tự tạo node này khi đăng sản phẩm (không phải merchant tạo tay). */
+  aiGenerated: boolean
   createdAt: string
   updatedAt: string
 }
@@ -84,6 +86,8 @@ export type PartnerCategoryCreateInput = {
   seoDescription?: string
   seoIndex?: boolean
   seoBody?: string
+  /** PS.8 — đánh dấu node do AI tự tạo (Product Studio) — badge "cần xem lại" trong admin panel. */
+  aiGenerated?: boolean
 }
 
 export type PartnerCategoryUpdateInput = Partial<

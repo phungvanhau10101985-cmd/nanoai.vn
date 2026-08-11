@@ -181,6 +181,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
           otp: otp.replace(/\D/g, ''),
           rememberDevice,
           browserId: getStableEmailTrustedBrowserId(),
+          next: safeNext,
         }),
       })
       if (!res.ok) {

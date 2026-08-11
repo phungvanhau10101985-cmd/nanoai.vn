@@ -4,9 +4,11 @@ import {
   insertPartnerLandingPagePg,
   listPartnerLandingPagesPg,
 } from '@/lib/db/messaging-partner-landing-pages-pg'
+import { ensureDefaultLandingSectionsPg } from '@/lib/db/messaging-partner-landing-sections-pg'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { normalizeWebLocale } from '@/lib/i18n/config'
+import { defaultLandingSectionPlan } from '@/lib/partner-website/landing/landing-ai-types'
 import { PARTNER_LANDING_MAX_PRODUCTS } from '@/lib/partner-website/landing/partner-landing-types'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import {
@@ -104,6 +106,11 @@ export async function POST(
     landingSlug?: string
     inventoryIds?: unknown
     locale?: string
+    /** L3.2/L3.6 — "products" (chọn tay 1-8 SP, hành vi cũ) | "category" (top N sản phẩm live). */
+    sourceType?: string
+    categoryId?: string
+    productsLimit?: number
+    materialFilter?: string
   }
 
   const title = String(body.title ?? '').trim()
@@ -111,14 +118,18 @@ export async function POST(
     return NextResponse.json({ error: 'title required' }, { status: 400 })
   }
 
+  const sourceType = body.sourceType === 'category' ? 'category' : 'products'
   const inventoryIds = Array.isArray(body.inventoryIds)
     ? body.inventoryIds.map((x) => String(x ?? '').trim()).filter(Boolean)
     : []
-  if (inventoryIds.length < 1 || inventoryIds.length > PARTNER_LANDING_MAX_PRODUCTS) {
+  if (sourceType === 'products' && (inventoryIds.length < 1 || inventoryIds.length > PARTNER_LANDING_MAX_PRODUCTS)) {
     return NextResponse.json(
       { error: `Select 1–${PARTNER_LANDING_MAX_PRODUCTS} products` },
       { status: 400 }
     )
+  }
+  if (sourceType === 'category' && !String(body.categoryId ?? '').trim()) {
+    return NextResponse.json({ error: 'categoryId required for category landing' }, { status: 400 })
   }
 
   const landingSlug = normalizePartnerLandingSlug(
@@ -138,6 +149,10 @@ export async function POST(
     briefText: String(body.briefText ?? '').trim(),
     locale,
     inventoryIds,
+    sourceType,
+    categoryId: sourceType === 'category' ? String(body.categoryId).trim() : null,
+    productsLimit: body.productsLimit,
+    materialFilter: body.materialFilter,
   })
 
   if (!landing) {
@@ -146,6 +161,9 @@ export async function POST(
       { status: 409 }
     )
   }
+
+  // L3.1/L3.6 — landing mới luôn dùng engine Ladipage AI (section cố định) từ đầu.
+  await ensureDefaultLandingSectionsPg(landing.id, defaultLandingSectionPlan())
 
   return NextResponse.json({ success: true, landing })
 }

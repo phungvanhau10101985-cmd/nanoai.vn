@@ -5,6 +5,7 @@ import {
   getPrimaryLogoStepKey,
   getStepAskPrompt,
   isDiscoveryStep,
+  isLogoDesignStep,
 } from '@/lib/hub-chat/hub-studio-presets'
 import {
   defaultPrintLanguageFields,
@@ -132,7 +133,7 @@ export function advanceBagDiscoveryAfterBriefAnswer(
   let reply = confirmedReply
   if (justFinishedDiscovery && nextSession.currentStepKey) {
     const logoKey = getPrimaryLogoStepKey(presetId)
-    if (logoKey && nextSession.currentStepKey === logoKey) {
+    if (logoKey && nextSession.currentStepKey === logoKey && isLogoDesignStep(presetId, logoKey)) {
       reply = `${reply}\n\n${getDictionary(locale).hubChat.studioStartWithLogo}`
     }
     reply = appendStepAsk(reply, locale, presetId, nextSession.currentStepKey)

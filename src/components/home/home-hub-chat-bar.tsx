@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Check,
   Circle,
+  ImagePlus,
   Loader2,
   MessageSquarePlus,
   Send,
@@ -71,6 +72,18 @@ import {
   isStudioColorPalettePickerStep,
   type StudioColorSelection,
 } from '@/lib/hub-chat/studio-color-palette'
+import {
+  designFormatChoices,
+  designLanguageChoices,
+  designNotesChoices,
+  designRecreateDesignChoices,
+  designRenderStyleChoices,
+  designSectorChoices,
+  getDesignRecreateDesignInputKind,
+  getDesignRecreateDiscoveryInputKind,
+  isDesignRecreateChoiceStep,
+  isDesignRecreateDesignChoiceStep,
+} from '@/lib/design/design-discovery-choices'
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import {
   createEmptyMenuDish,
@@ -100,6 +113,7 @@ import {
   presetTitle,
   getPrimaryLogoStepKey,
   hasPrimaryLogoReference,
+  isLogoDesignStep,
 } from '@/lib/hub-chat/hub-studio-presets'
 import { getActiveStepKey } from '@/lib/hub-chat/hub-studio-preset-intent'
 import { buildPendingStepStudio } from '@/lib/hub-chat/hub-studio-step-retry'
@@ -116,6 +130,7 @@ import {
 import { getBoxFaceSlotLabel } from '@/lib/packaging/box-face-slots'
 import {
   getPackagingDiscoveryInputKind,
+  packagingDiscoveryChoiceBrief,
   PACKAGING_STYLE_MOOD_CHOICES,
 } from '@/lib/packaging/packaging-discovery-choices'
 import { getBagKitDiscoveryInputKind } from '@/lib/packaging/bag-discovery'
@@ -144,6 +159,7 @@ import {
   type PackagingBarcodeFormEntry,
 } from '@/lib/packaging/packaging-barcode-form'
 import { getStudioPresetCopy } from '@/lib/i18n/studio-preset-copy'
+import { DESIGN_RECREATE_MAX_UPLOAD } from '@/lib/design/design-sector-templates'
 import {
   MAX_BANNER_BATCH_PRESETS,
   normalizeBannerAdPresetId,
@@ -335,13 +351,27 @@ function replaceLatestStudioImageLine(
   studio: HubStudioMessagePayload | null | undefined
 ): ChatLine[] {
   if (!screenKey || !studio?.imageUrl) return lines
+  // design_recreate: keep every version visible instead of replacing.
+  if (studio.stackImageVersions) {
+    return [
+      ...lines,
+      {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content,
+        studio,
+        createdAt: lineCreatedAt(),
+      },
+    ]
+  }
   let index = -1
   for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex -= 1) {
     const line = lines[lineIndex]
     if (
       line?.role === 'assistant' &&
       line.studio?.screenKey === screenKey &&
-      Boolean(line.studio.imageUrl)
+      Boolean(line.studio.imageUrl) &&
+      !line.studio.stackImageVersions
     ) {
       index = lineIndex
       break
@@ -370,12 +400,15 @@ function collapseDuplicateStudioImageLines(lines: ChatLine[]): ChatLine[] {
   lines.forEach((line, index) => {
     const screenKey = line.studio?.screenKey
     if (line.role !== 'assistant' || !screenKey || !line.studio?.imageUrl) return
+    // Stacked redesign versions must all stay visible.
+    if (line.studio.stackImageVersions) return
     latestByScreen.set(screenKey, index)
   })
   if (latestByScreen.size === 0) return lines
   return lines.filter((line, index) => {
     const screenKey = line.studio?.screenKey
     if (line.role !== 'assistant' || !screenKey || !line.studio?.imageUrl) return true
+    if (line.studio.stackImageVersions) return true
     return latestByScreen.get(screenKey) === index
   })
 }
@@ -452,6 +485,8 @@ export function HomeHubChatBar() {
   const [uiLocale, setUiLocale] = useState<WebLocale>('vi')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  /** Which discovery/design choice button is currently submitting (avoids all buttons spinning). */
+  const [pendingChoiceKey, setPendingChoiceKey] = useState<string | null>(null)
   const [threadId, setThreadId] = useState<string | null>(null)
   const [lines, setLines] = useState<ChatLine[]>([])
   const [activePlan, setActivePlan] = useState<HubChatPlanPayload | null>(null)
@@ -1258,6 +1293,7 @@ export function HomeHubChatBar() {
       } finally {
         postInFlightRef.current = false
         setBusy(false)
+        setPendingChoiceKey(null)
       }
     },
     [busy, fetchFullPlan, fetchThreadList, hc, loadThread, router, studioSession, threadId, toast, uiLocale, editingStepKey]
@@ -1811,16 +1847,23 @@ export function HomeHubChatBar() {
         studioSession.currentStepKey ??
         ''
       setRegenerateTargetStepKey(resolvedKey || null)
-      const stepPreview =
-        studioSession.pendingPreview?.screenKey === resolvedKey
-          ? studioSession.pendingPreview
-          : null
-      const prompt =
-        stepPreview?.generationPrompt ??
-        (resolvedKey ? studioSession.briefNotes[resolvedKey]?.trim() : undefined) ??
-        studioSession.lastGenerationPrompt ??
-        ''
-      setRegeneratePromptDraft(prompt)
+      const isDesignRecreateBoard =
+        studioSession.presetId === 'design_recreate' && resolvedKey !== 'logo'
+      if (isDesignRecreateBoard) {
+        // Extra notes only — server appends onto the previous generation prompt.
+        setRegeneratePromptDraft('')
+      } else {
+        const stepPreview =
+          studioSession.pendingPreview?.screenKey === resolvedKey
+            ? studioSession.pendingPreview
+            : null
+        const prompt =
+          stepPreview?.generationPrompt ??
+          (resolvedKey ? studioSession.briefNotes[resolvedKey]?.trim() : undefined) ??
+          studioSession.lastGenerationPrompt ??
+          ''
+        setRegeneratePromptDraft(prompt)
+      }
       if (studioSession.presetId && resolvedKey) {
         const withSel = ensureGenerationSelection(studioSession, studioSession.presetId)
         const payload = buildGenerationRefPickerPayload(withSel, studioSession.presetId, resolvedKey)
@@ -1836,7 +1879,9 @@ export function HomeHubChatBar() {
 
   const confirmRegenerate = useCallback(async () => {
     const trimmed = regeneratePromptDraft.trim()
-    if (trimmed.length < 2) return
+    const allowEmpty =
+      studioSession?.presetId === 'design_recreate' && regenerateTargetStepKey !== 'logo'
+    if (!allowEmpty && trimmed.length < 2) return
     setRegenerateDialogOpen(false)
     await postStudio({
       action: 'regenerate',
@@ -1845,23 +1890,66 @@ export function HomeHubChatBar() {
       regenerateStepKey: regenerateTargetStepKey ?? undefined,
     })
     setRegenerateTargetStepKey(null)
-  }, [postStudio, regeneratePromptDraft, regenerateTargetStepKey, selectedGenRefKeys])
+  }, [
+    postStudio,
+    regeneratePromptDraft,
+    regenerateTargetStepKey,
+    selectedGenRefKeys,
+    studioSession?.presetId,
+  ])
 
   const showStudioUpload = useMemo(() => {
     if (!studioSession?.presetId) return false
     if (studioSession.presetId === 'sale_banner') return false
     const preset = getStudioPreset(studioSession.presetId)
-    return Boolean(
-      preset?.needsUpload &&
-        studioSession.discoveryComplete &&
-        !studioSession.uploadImages.length
-    )
+    if (!preset?.needsUpload) return false
+
+    // design_recreate: bước tải ảnh mẫu nằm trong discovery (sample_upload), không đợi discoveryComplete.
+    if (studioSession.presetId === 'design_recreate') {
+      const step = getActiveStepKey(studioSession)
+      const count = studioSession.uploadImages.length
+      const underMax = count < DESIGN_RECREATE_MAX_UPLOAD
+      if (step === 'sample_upload' && underMax) return true
+      if (studioSession.discoveryComplete && count === 0) return true
+      return false
+    }
+
+    return Boolean(studioSession.discoveryComplete && !studioSession.uploadImages.length)
   }, [studioSession])
+
+  const studioUploadHint = useMemo(() => {
+    if (!studioSession?.presetId) return hc.studioNeedUpload
+    const row = getStudioPresetCopy(uiLocale)[
+      studioSession.presetId as keyof ReturnType<typeof getStudioPresetCopy>
+    ] as { uploadHint?: string } | undefined
+    return row?.uploadHint ?? hc.studioNeedUpload
+  }, [hc.studioNeedUpload, studioSession?.presetId, uiLocale])
+
+  const studioUploadCountLabel = useMemo(() => {
+    const n = studioSession?.uploadImages.length ?? 0
+    if (studioSession?.presetId !== 'design_recreate' || n <= 0) return null
+    const max = DESIGN_RECREATE_MAX_UPLOAD
+    if (uiLocale === 'en') return `${n}/${max} uploaded`
+    if (uiLocale === 'zh') return `已上传 ${n}/${max}`
+    if (uiLocale === 'ja') return `${n}/${max} 枚アップロード済み`
+    if (uiLocale === 'ko') return `${n}/${max}장 업로드됨`
+    return `Đã tải ${n}/${max} ảnh`
+  }, [studioSession?.presetId, studioSession?.uploadImages.length, uiLocale])
+
+  const showSampleUploadStep = useMemo(() => {
+    if (studioSession?.presetId !== 'design_recreate') return false
+    return getActiveStepKey(studioSession) === 'sample_upload'
+  }, [studioSession])
+
+  const canConfirmSampleUpload = Boolean(
+    showSampleUploadStep && (studioSession?.uploadImages.length ?? 0) >= 1
+  )
 
   const showStudioLogoUpload = useMemo(() => {
     if (!studioSession?.presetId || !studioSession.discoveryComplete) return false
     const logoKey = getPrimaryLogoStepKey(studioSession.presetId)
-    if (!logoKey) return false
+    // Chỉ hiện «Tải logo» với bước generator=logo thật — không dùng referenceAnchor (vd. concept_sheet).
+    if (!logoKey || !isLogoDesignStep(studioSession.presetId, logoKey)) return false
     const activeStepKey = getActiveStepKey(studioSession)
     if (
       activeStepKey &&
@@ -1949,6 +2037,31 @@ export function HomeHubChatBar() {
     const step = getActiveStepKey(studioSession)
     return resolvePackagingLikeDiscoveryInputKind(studioSession?.presetId, step) === 'style_mood_picker'
   }, [studioSession])
+
+  const designRecreatePickerKind = useMemo(() => {
+    if (studioSession?.presetId !== 'design_recreate') return null
+    if (studioSession.discoveryComplete) return null
+    return getDesignRecreateDiscoveryInputKind(getActiveStepKey(studioSession))
+  }, [studioSession])
+
+  const showDesignSectorPicker = designRecreatePickerKind === 'sector_picker'
+  const showDesignFormatPicker = designRecreatePickerKind === 'format_picker'
+  const showDesignRenderStylePicker = designRecreatePickerKind === 'render_style_picker'
+  const showDesignNotesPicker = designRecreatePickerKind === 'notes_picker'
+  const showDesignLanguagePicker = designRecreatePickerKind === 'language_picker'
+
+  const designRecreateDesignPickerKind = useMemo(() => {
+    if (studioSession?.presetId !== 'design_recreate') return null
+    if (!studioSession.discoveryComplete) return null
+    if (pendingPreviewBlocksWorkflowInput(studioSession)) return null
+    return getDesignRecreateDesignInputKind(getActiveStepKey(studioSession))
+  }, [studioSession])
+
+  const showDesignConceptSheetPicker = designRecreateDesignPickerKind === 'concept_sheet_picker'
+  const showDesignDetailPanelPicker = designRecreateDesignPickerKind === 'detail_panel_picker'
+  const showDesignTechnicalFlatPicker = designRecreateDesignPickerKind === 'technical_flat_picker'
+  const showDesignRecreateDesignPicker =
+    showDesignConceptSheetPicker || showDesignDetailPanelPicker || showDesignTechnicalFlatPicker
 
   const showColorPalettePicker = useMemo(() => {
     if (!studioSession?.presetId) return false
@@ -2043,8 +2156,17 @@ export function HomeHubChatBar() {
       (studioSession ? pendingPreviewBlocksWorkflowInput(studioSession) : false) ||
       showBannerDesignPrepare ||
       showMenuDesignPrepare ||
+      showLandingDesignPrepare ||
+      showSampleUploadStep ||
+      showDesignRecreateDesignPicker,
+    [
+      studioSession,
+      showBannerDesignPrepare,
+      showMenuDesignPrepare,
       showLandingDesignPrepare,
-    [studioSession, showBannerDesignPrepare, showMenuDesignPrepare, showLandingDesignPrepare]
+      showSampleUploadStep,
+      showDesignRecreateDesignPicker,
+    ]
   )
 
   const showBoxDimensionForm = useMemo(() => {
@@ -2115,6 +2237,7 @@ export function HomeHubChatBar() {
       studioSession.currentStepKey &&
       currentDesignGenerator &&
       !showBarcodeLabelForm &&
+      !showDesignRecreateDesignPicker &&
       !(studioSession && pendingPreviewBlocksWorkflowInput(studioSession))
   )
 
@@ -2257,6 +2380,12 @@ export function HomeHubChatBar() {
     !showBoxFaceConfirmActions &&
     !showBagPanelConfirmActions &&
     !showStyleMoodPicker &&
+    !showDesignSectorPicker &&
+    !showDesignFormatPicker &&
+    !showDesignRenderStylePicker &&
+    !showDesignNotesPicker &&
+    !showDesignLanguagePicker &&
+    !showDesignRecreateDesignPicker &&
     !showColorPalettePicker &&
     !showBoxDimensionForm &&
     !showBagDimensionForm &&
@@ -2264,6 +2393,7 @@ export function HomeHubChatBar() {
     !showBannerDesignPrepare &&
     !showMenuDesignPrepare &&
     !showLandingDesignPrepare &&
+    !showSampleUploadStep &&
     !hideAutoPackagingArtifactStep
 
   const focusStudioChat = useCallback(() => {
@@ -2640,6 +2770,7 @@ export function HomeHubChatBar() {
 
   const submitDiscoveryChoice = useCallback(
     async (stepKey: string, choiceKey: string) => {
+      setPendingChoiceKey(choiceKey)
       await postStudio({
         action: 'set_discovery_choice',
         discoveryChoice: choiceKey,
@@ -2790,11 +2921,15 @@ export function HomeHubChatBar() {
 
   const activeStepSuggestions = useMemo(() => {
     if (!isActiveStudioFlow(studioSession)) return []
-    return getStudioStepSuggestions(
-      studioSession?.presetId,
-      getActiveStepKey(studioSession),
-      uiLocale
-    )
+    const stepKey = getActiveStepKey(studioSession)
+    // Picker steps already show full choice grids — skip duplicate chips.
+    if (
+      studioSession?.presetId === 'design_recreate' &&
+      (isDesignRecreateChoiceStep(stepKey) || isDesignRecreateDesignChoiceStep(stepKey))
+    ) {
+      return []
+    }
+    return getStudioStepSuggestions(studioSession?.presetId, stepKey, uiLocale)
   }, [studioSession, uiLocale])
 
   const chatInputPlaceholder = useMemo(() => {
@@ -3409,7 +3544,7 @@ export function HomeHubChatBar() {
 
         {showStudioLogoUpload ? (
           <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50/80 px-2 py-1.5 text-xs text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-100">
-            <span>{hc.studioLogoUploadHint}</span>
+            <span className="min-w-0 flex-1">{hc.studioLogoUploadHint}</span>
             <input
               ref={studioLogoFileRef}
               type="file"
@@ -3433,16 +3568,15 @@ export function HomeHubChatBar() {
         ) : null}
 
         {showStudioUpload ? (
-          <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50/80 px-2 py-1.5 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
-            <span>
-              {(() => {
-                if (!studioSession?.presetId) return hc.studioNeedUpload
-                const row = getStudioPresetCopy(uiLocale)[
-                  studioSession.presetId as keyof ReturnType<typeof getStudioPresetCopy>
-                ] as { uploadHint?: string } | undefined
-                return row?.uploadHint ?? hc.studioNeedUpload
-              })()}
-            </span>
+          <div className="mb-2 space-y-3 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="min-w-0 flex-1 text-sm font-medium">{studioUploadHint}</span>
+              {studioUploadCountLabel ? (
+                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] dark:bg-amber-900/50">
+                  {studioUploadCountLabel}
+                </span>
+              ) : null}
+            </div>
             <input
               ref={studioFileRef}
               type="file"
@@ -3453,16 +3587,56 @@ export function HomeHubChatBar() {
                 if (e.target.files?.length) void postStudioUpload(e.target.files)
               }}
             />
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 border-amber-300 text-xs"
-              disabled={busy}
-              onClick={() => studioFileRef.current?.click()}
-            >
-              {hc.studioUploadBtn}
-            </Button>
+            {studioSession?.uploadImages.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {studioSession.uploadImages.map((url) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={url}
+                    src={url}
+                    alt=""
+                    className="h-16 w-16 rounded-md border border-amber-200 object-cover dark:border-amber-800"
+                  />
+                ))}
+              </div>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="h-9 gap-1.5 bg-amber-600 text-xs text-white hover:bg-amber-700"
+                disabled={busy}
+                onClick={() => studioFileRef.current?.click()}
+              >
+                <ImagePlus className="h-4 w-4" />
+                {hc.studioUploadBtn}
+              </Button>
+              {showSampleUploadStep ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9 gap-1.5 bg-violet-600 text-xs text-white hover:bg-violet-700"
+                  disabled={busy || !canConfirmSampleUpload}
+                  onClick={() => void postStudio({ action: 'confirm_sample_upload' })}
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {hc.studioContinue}
+                </Button>
+              ) : null}
+            </div>
+            {showSampleUploadStep && !canConfirmSampleUpload ? (
+              <p className="text-[11px] text-amber-800/90 dark:text-amber-200/90">
+                {uiLocale === 'en'
+                  ? 'Upload at least 1 photo, then tap Continue. No chat message needed.'
+                  : uiLocale === 'zh'
+                    ? '至少上传 1 张图后点「继续」。无需在聊天框输入。'
+                    : uiLocale === 'ja'
+                      ? '1枚以上アップロードしてから「続ける」を押してください。チャット入力は不要です。'
+                      : uiLocale === 'ko'
+                        ? '사진 1장 이상 업로드한 뒤 계속을 누르세요. 채팅 입력은 필요 없습니다.'
+                        : 'Tải ít nhất 1 ảnh rồi bấm Tiếp tục. Không cần nhập ô chat.'}
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -3587,17 +3761,32 @@ export function HomeHubChatBar() {
           screenLabel={regenerateScreenLabel}
           prompt={regeneratePromptDraft}
           onPromptChange={setRegeneratePromptDraft}
-          showRefPicker={Boolean(regenerateDialogPickerData?.showGenerationRefPicker)}
+          showRefPicker={
+            Boolean(regenerateDialogPickerData?.showGenerationRefPicker) &&
+            !(studioSession?.presetId === 'design_recreate' && regenerateTargetStepKey !== 'logo')
+          }
           refOptions={regenerateDialogPickerData?.generationRefOptions ?? []}
           selectedRefKeys={selectedGenRefKeys}
           productPreviews={regenerateDialogPickerData?.generationProductPreviews ?? []}
           attachUsed={regenerateDialogPickerData?.generationAttachUsed}
           attachLimit={regenerateDialogPickerData?.referenceAttachLimit ?? STUDIO_REFERENCE_ATTACH_LIMIT}
           busy={busy}
+          allowEmptyPrompt={
+            studioSession?.presetId === 'design_recreate' && regenerateTargetStepKey !== 'logo'
+          }
           labels={{
-            title: hc.studioRegenerateDialogTitle,
-            promptLabel: hc.studioRegeneratePromptLabel,
-            promptHint: hc.studioRegeneratePromptHint,
+            title:
+              studioSession?.presetId === 'design_recreate' && regenerateTargetStepKey !== 'logo'
+                ? hc.studioDesignRecreateRegenerateTitle
+                : hc.studioRegenerateDialogTitle,
+            promptLabel:
+              studioSession?.presetId === 'design_recreate' && regenerateTargetStepKey !== 'logo'
+                ? hc.studioDesignRecreateRegeneratePromptLabel
+                : hc.studioRegeneratePromptLabel,
+            promptHint:
+              studioSession?.presetId === 'design_recreate' && regenerateTargetStepKey !== 'logo'
+                ? hc.studioDesignRecreateRegeneratePromptHint
+                : hc.studioRegeneratePromptHint,
             confirm: hc.studioRegenerateConfirm,
             cancel: hc.studioEditCancel,
             refPickerTitle: hc.studioGenRefPickerTitle,
@@ -3654,9 +3843,106 @@ export function HomeHubChatBar() {
               hint={getStepAskPrompt(uiLocale, studioSession.presetId, 'style_mood')}
               choices={PACKAGING_STYLE_MOOD_CHOICES}
               busy={busy}
+              selectedKey={pendingChoiceKey}
               showCustomOption
               onSelect={(key) => void submitDiscoveryChoice('style_mood', key)}
               onCustom={focusStudioChat}
+            />
+          ) : null}
+
+          {showDesignSectorPicker && studioSession?.presetId === 'design_recreate' ? (
+            <HubDiscoveryChoicePicker
+              locale={uiLocale}
+              title={presetStepLabel(uiLocale, 'design_recreate', 'design_sector')}
+              hint={getStepAskPrompt(uiLocale, 'design_recreate', 'design_sector')}
+              choices={designSectorChoices()}
+              busy={busy}
+              selectedKey={pendingChoiceKey}
+              exampleLabels={false}
+              onSelect={(key) => void submitDiscoveryChoice('design_sector', key)}
+            />
+          ) : null}
+
+          {showDesignFormatPicker && studioSession?.presetId === 'design_recreate' ? (
+            <HubDiscoveryChoicePicker
+              locale={uiLocale}
+              title={presetStepLabel(uiLocale, 'design_recreate', 'design_format')}
+              hint={getStepAskPrompt(uiLocale, 'design_recreate', 'design_format')}
+              choices={designFormatChoices(studioSession.briefNotes)}
+              busy={busy}
+              selectedKey={pendingChoiceKey}
+              exampleLabels={false}
+              onSelect={(key) => void submitDiscoveryChoice('design_format', key)}
+            />
+          ) : null}
+
+          {showDesignRenderStylePicker && studioSession?.presetId === 'design_recreate' ? (
+            <HubDiscoveryChoicePicker
+              locale={uiLocale}
+              title={presetStepLabel(uiLocale, 'design_recreate', 'render_style')}
+              hint={getStepAskPrompt(uiLocale, 'design_recreate', 'render_style')}
+              choices={designRenderStyleChoices(studioSession.briefNotes)}
+              busy={busy}
+              selectedKey={pendingChoiceKey}
+              exampleLabels={false}
+              onSelect={(key) => void submitDiscoveryChoice('render_style', key)}
+            />
+          ) : null}
+
+          {showDesignNotesPicker && studioSession?.presetId === 'design_recreate' ? (
+            <HubDiscoveryChoicePicker
+              locale={uiLocale}
+              title={presetStepLabel(uiLocale, 'design_recreate', 'design_notes')}
+              hint={getStepAskPrompt(uiLocale, 'design_recreate', 'design_notes')}
+              choices={designNotesChoices()}
+              busy={busy}
+              selectedKey={pendingChoiceKey}
+              exampleLabels={false}
+              showCustomOption
+              onSelect={(key) => void submitDiscoveryChoice('design_notes', key)}
+              onCustom={focusStudioChat}
+            />
+          ) : null}
+
+          {showDesignLanguagePicker && studioSession?.presetId === 'design_recreate' ? (
+            <HubDiscoveryChoicePicker
+              locale={uiLocale}
+              title={presetStepLabel(uiLocale, 'design_recreate', 'design_language')}
+              hint={getStepAskPrompt(uiLocale, 'design_recreate', 'design_language')}
+              choices={designLanguageChoices()}
+              busy={busy}
+              selectedKey={pendingChoiceKey}
+              exampleLabels={false}
+              showCustomOption
+              onSelect={(key) => void submitDiscoveryChoice('design_language', key)}
+              onCustom={focusStudioChat}
+            />
+          ) : null}
+
+          {showDesignRecreateDesignPicker && studioSession?.presetId === 'design_recreate' ? (
+            <HubDiscoveryChoicePicker
+              locale={uiLocale}
+              title={presetStepLabel(
+                uiLocale,
+                'design_recreate',
+                getActiveStepKey(studioSession) ?? 'concept_sheet'
+              )}
+              hint={getStepAskPrompt(
+                uiLocale,
+                'design_recreate',
+                getActiveStepKey(studioSession) ?? 'concept_sheet'
+              )}
+              choices={designRecreateDesignChoices(getActiveStepKey(studioSession))}
+              busy={busy}
+              selectedKey={pendingChoiceKey}
+              exampleLabels={false}
+              onSelect={(key) => {
+                const stepKey = getActiveStepKey(studioSession)
+                const choice = designRecreateDesignChoices(stepKey).find((c) => c.key === key)
+                if (!choice) return
+                setPendingChoiceKey(key)
+                void generateCurrentStep(packagingDiscoveryChoiceBrief(choice, uiLocale))
+              }}
             />
           ) : null}
 

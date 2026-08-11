@@ -324,4 +324,49 @@ export const NEW_PRESETS_VI = {
       menu_design: 'Phở bò 65.000đ · Bún chả 55.000đ · Cà phê sữa 25.000đ',
     },
   },
+  design_recreate: {
+    title: 'Dựng lại thiết kế từ mẫu',
+    kickoff:
+      'Gửi ảnh mẫu → chọn mảng / định dạng / phong cách render → AI phân tích → ngôn ngữ trên bản thiết kế → **logo (bắt buộc)** → bảng concept (có gắn logo).',
+    uploadHint: 'Tải ảnh mẫu sản phẩm — tối đa 4 góc (trước, sau, bên, chi tiết)',
+    steps: {
+      design_sector: 'Brief: Mảng thiết kế',
+      design_format: 'Brief: Định dạng output',
+      render_style: 'Brief: Phong cách render',
+      sample_upload: 'Brief: Ảnh mẫu',
+      color_palette: 'Brief: Bảng màu',
+      design_notes: 'Brief: Ghi chú thêm',
+      design_language: 'Brief: Ngôn ngữ trên bản thiết kế',
+      logo: 'Logo',
+      concept_sheet: 'Bảng concept đầy đủ',
+      detail_panel: 'Panel chi tiết cận',
+      technical_flat: 'Bản vẽ kỹ thuật',
+    },
+    asks: {
+      design_sector: '① Chọn mảng thiết kế bên dưới.',
+      design_format: '② Chọn định dạng output bên dưới.',
+      render_style: '③ Chọn phong cách render bên dưới.',
+      sample_upload:
+        '④ **Tải ảnh mẫu** — tối đa 4 ảnh các góc (trước, sau, bên, chi tiết thêu/cổ/tay). AI sẽ phân tích để dựng lại thiết kế.',
+      color_palette: '⑤ Bảng màu ưu tiên? (vd: hồng đào + kem + vàng kim — hoặc để AI tự trích từ ảnh mẫu)',
+      design_notes: '⑥ Chọn ghi chú thêm bên dưới (hoặc Khác — nhập tay).',
+      design_language: '⑦ Chọn ngôn ngữ cho chữ/nhãn trên bản thiết kế bên dưới.',
+      logo:
+        'Logo (bắt buộc) sẽ gắn trên bản thiết kế: **đã có logo** → bấm **Tải logo**; **chưa có** → mô tả bên dưới để AI tạo. Phải duyệt logo trước khi sang bảng concept.',
+      concept_sheet:
+        'Chọn kiểu bảng concept bên dưới (luôn có đoạn text CẢM HỨNG + gắn logo đã duyệt).',
+      detail_panel: 'Chọn kiểu panel chi tiết cận bên dưới.',
+      technical_flat: 'Chọn kiểu bản vẽ kỹ thuật bên dưới.',
+    },
+    askExamples: {
+      design_sector: 'Thời trang — áo dài cách tân',
+      design_format: 'Bảng concept đầy đủ (giống lookbook thiết kế chuyên nghiệp)',
+      render_style: 'Bảng concept thời trang (màu nước + flat kỹ thuật)',
+      sample_upload: 'Đã tải 3 ảnh: trước, sau, chi tiết thêu',
+      color_palette: 'Hồng đào, kem be, xanh lá nhạt, vàng kim',
+      design_notes: 'Dịp Tết — phối quần rộng lụa + túi da beige + giày cao gót',
+      design_language: 'Tiếng Việt',
+      logo: 'Logo chữ cái monogram vàng kim trên nền trong suốt',
+    },
+  },
 } as const

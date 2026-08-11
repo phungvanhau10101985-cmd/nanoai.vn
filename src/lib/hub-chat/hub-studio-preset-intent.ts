@@ -17,6 +17,7 @@ import {
   isValidFacePrintStyleBrief,
   reconcilePackagingProcessSteps,
 } from '@/lib/packaging/face-print-style'
+import { reconcileDesignRecreateProcessSteps } from '@/lib/design/design-recreate-process-steps'
 
 export function isValidStudioPresetId(presetId: string | null | undefined): boolean {
   const id = String(presetId ?? '').trim()
@@ -154,6 +155,7 @@ export function reconcileDiscoveryProgress(
 ): HubStudioSession {
   session = stripObsoletePackagingSteps(session)
   if (locale) session = reconcilePackagingProcessSteps(session, locale)
+  if (locale) session = reconcileDesignRecreateProcessSteps(session, locale)
   if (!session.presetId || session.discoveryComplete || !session.processSteps.length) {
     return session
   }
@@ -249,6 +251,7 @@ export function reconcileDiscoveryProgress(
 export function syncDiscoveryCurrentStep(session: HubStudioSession, locale?: WebLocale): HubStudioSession {
   session = stripObsoletePackagingSteps(session)
   if (locale) session = reconcilePackagingProcessSteps(session, locale)
+  if (locale) session = reconcileDesignRecreateProcessSteps(session, locale)
   if (!session.presetId || session.discoveryComplete || !session.processSteps.length) return session
   if (isNavigatedBackEdit(session, session.presetId)) return session
   const firstPendingKey = firstIncompleteStepKey(session.processSteps)

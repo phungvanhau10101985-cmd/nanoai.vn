@@ -13,6 +13,7 @@ import {
   upsertGuestIdentityPg,
 } from '@/lib/db/messaging-guest-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import type { SignupSource } from '@/lib/auth/signup-source'
 import {
   completeGuestEmailAuth,
   mergeAllGuestSessionsForEmail,
@@ -51,6 +52,8 @@ async function signInGuestAccountForEmail(input: {
   email: string
   sessionId: string
   existingAccountId?: string | null
+  signupSource?: SignupSource
+  partnerSlug?: string | null
 }): Promise<string | null> {
   const email = normalizeEmail(input.email)
   const nowIso = new Date().toISOString()
@@ -91,6 +94,8 @@ async function signInGuestAccountForEmail(input: {
     partnerId: input.partnerId,
     email,
     guestAccountId: accountId,
+    signupSource: input.signupSource ?? 'partner_website',
+    partnerSlug: input.partnerSlug,
   })
 
   writeGuestAccountCookie(input.response, input.request, accountId)
@@ -116,7 +121,10 @@ export async function applyResumeGuestWebAuth(input: {
   request: NextRequest
   response: NextResponse
   partnerId: string
+  signupSource?: SignupSource
+  partnerSlug?: string | null
 }): Promise<ResumeGuestWebAuthResult> {
+  const signupSource = input.signupSource ?? 'partner_website'
   if (!isPgConfigured()) {
     return { synced: false, source: 'none', accountId: null, email: null, sessionId: null }
   }
@@ -169,6 +177,8 @@ export async function applyResumeGuestWebAuth(input: {
       partnerId: input.partnerId,
       email: trusted.email,
       sessionId,
+      signupSource,
+      partnerSlug: input.partnerSlug,
     })
     if (accountId) {
       await touchTrustedDeviceFromRequest(input.response, input.request)

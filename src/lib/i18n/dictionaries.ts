@@ -166,6 +166,10 @@ export type Dictionary = {
     studioRegenerateDialogTitle: string
     studioRegeneratePromptLabel: string
     studioRegeneratePromptHint: string
+    /** design_recreate: optional add-on notes when regenerating the single board image */
+    studioDesignRecreateRegenerateTitle: string
+    studioDesignRecreateRegeneratePromptLabel: string
+    studioDesignRecreateRegeneratePromptHint: string
     studioRegenerateConfirm: string
     studioExistingStepHint: string
     studioUseReference: string
@@ -387,6 +391,7 @@ export type Dictionary = {
       story_with_images: { title: string; sample: string; steps: Record<string, string> }
       infographic_series: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
       fashion_campaign: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
+      design_recreate: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
       profile_photo_pack: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
     }
   }
@@ -1283,6 +1288,52 @@ export type Dictionary = {
     inventoryDownloadTemplate: string
     inventoryExportExcel: string
     inventoryImportExcel: string
+    /** PS.10 — Product Studio: nút mở wizard đăng sản phẩm thủ công/AI */
+    productStudioOpenButton: string
+    productStudioTitle: string
+    productStudioManualTab: string
+    productStudioAiTab: string
+    productStudioFieldName: string
+    productStudioFieldPrice: string
+    productStudioFieldMaterial: string
+    productStudioFieldStyle: string
+    productStudioFieldGender: string
+    productStudioFieldProductType: string
+    productStudioFieldSizes: string
+    productStudioFieldNoSize: string
+    productStudioFieldColors: string
+    productStudioAddColor: string
+    productStudioColorName: string
+    productStudioColorImage: string
+    productStudioFieldMainImage: string
+    productStudioFieldGallery: string
+    productStudioFieldDescription: string
+    productStudioFieldNotes: string
+    productStudioFieldStock: string
+    productStudioUploadButton: string
+    productStudioUploading: string
+    productStudioSubmit: string
+    productStudioSubmitting: string
+    productStudioSuccess: string
+    productStudioCancel: string
+    productStudioRemove: string
+    productStudioRequiredName: string
+    productStudioRequiredImage: string
+    productStudioRequiredPrice: string
+    productStudioAiComingSoon: string
+    productStudioRefImagesLabel: string
+    productStudioColorNamesLabel: string
+    productStudioModelPresenceLabel: string
+    productStudioShotStyleLabel: string
+    productStudioAspectRatioLabel: string
+    productStudioGalleryCountLabel: string
+    productStudioDetailCountLabel: string
+    productStudioStartStudio: string
+    productStudioApprove: string
+    productStudioRegenerate: string
+    productStudioStudioDone: string
+    productStudioSuggestName: string
+    productStudioSuggestedName: string
     inventoryImportReplaceWarning: string
     /** {count} tổng dòng; {inserted} thêm mới; {updated} cập nhật; {deleted} đã xóa */
     inventoryImportSuccess: string
@@ -2989,6 +3040,10 @@ const VI_DICTIONARY: Dictionary = {
     studioRegenerateDialogTitle: 'Tạo lại — xem & chọn nội dung',
     studioRegeneratePromptLabel: 'Mô tả / nội dung tạo ảnh',
     studioRegeneratePromptHint: 'Chỉnh mô tả nếu cần — đây là nội dung AI sẽ dùng để tạo phiên bản mới.',
+    studioDesignRecreateRegenerateTitle: 'Tạo lại bản thiết kế',
+    studioDesignRecreateRegeneratePromptLabel: 'Nội dung muốn thêm vào ảnh (tuỳ chọn)',
+    studioDesignRecreateRegeneratePromptHint:
+      'Ví dụ: đổi màu cổ áo, thêm chi tiết thêu, tên thiết kế… Có thể để trống rồi bấm Tạo lại.',
     studioRegenerateConfirm: 'Tạo lại ngay',
     studioExistingStepHint: 'Ảnh đã tạo — giữ nguyên hoặc bấm Tạo lại nếu muốn phiên bản khác.',
     studioUseReference: 'Chọn làm tham chiếu và tiếp',
@@ -3035,8 +3090,8 @@ const VI_DICTIONARY: Dictionary = {
     studioNeedLogoReference: 'Chưa có Logo tham chiếu — tải logo lên hoặc mô tả để AI tạo, rồi bấm «Chọn làm tham chiếu và tiếp».',
     studioLogoApprovedNext: 'Đã lưu Logo làm tham chiếu. Tiếp theo: {next} — mô tả yêu cầu (Logo đồng bộ trên các bước sau).',
     studioStartWithLogo:
-      'Brief đã đủ. Bước Logo: **đã có logo** → bấm **Tải logo** làm tham chiếu; **chưa có** → mô tả bên dưới để AI tạo. Logo duyệt sẽ dùng cho mọi bước sau.',
-    studioLogoUploadHint: 'Đã có logo? Tải file ảnh lên — hoặc mô tả bên dưới để AI tạo logo mới.',
+      'Brief đã đủ. Bước Logo (bắt buộc): **đã có logo** → bấm **Tải logo** làm tham chiếu; **chưa có** → mô tả bên dưới để AI tạo. Phải có logo duyệt trước khi sang bước sau.',
+    studioLogoUploadHint: 'Bắt buộc có logo: tải file ảnh lên — hoặc mô tả bên dưới để AI tạo logo mới.',
     studioLogoUploadBtn: 'Tải logo',
     studioLogoUploadUserLabel: '📎 Tải logo làm tham chiếu',
     studioLogoUploadNeedFile: 'Vui lòng chọn file ảnh logo.',
@@ -3286,6 +3341,12 @@ const VI_DICTIONARY: Dictionary = {
         sample: 'Campaign BST hè, try-on 2 outfit + banner sale',
         uploadHint: 'Tải ảnh mẫu/trang phục',
         steps: { hero: 'Hero', try1: 'Try-on 1', banner: 'Banner sale' },
+      },
+      design_recreate: {
+        title: 'Dựng lại thiết kế từ mẫu',
+        sample: 'Dựng lại áo dài cách tân từ ảnh mẫu — bảng concept đầy đủ',
+        uploadHint: 'Tải ảnh mẫu sản phẩm — tối đa 4 góc',
+        steps: { concept: 'Concept board', detail: 'Chi tiết', technical: 'Kỹ thuật' },
       },
       profile_photo_pack: {
         title: 'Ảnh thẻ / profile',
@@ -4189,6 +4250,51 @@ const VI_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Tải file Excel mẫu',
     inventoryExportExcel: 'Xuất Excel',
     inventoryImportExcel: 'Nhập Excel',
+    productStudioOpenButton: 'Đăng sản phẩm',
+    productStudioTitle: 'Đăng sản phẩm',
+    productStudioManualTab: 'Thủ công',
+    productStudioAiTab: 'Bằng AI',
+    productStudioFieldName: 'Tên sản phẩm',
+    productStudioFieldPrice: 'Giá (đ)',
+    productStudioFieldMaterial: 'Chất liệu',
+    productStudioFieldStyle: 'Kiểu dáng',
+    productStudioFieldGender: 'Giới tính',
+    productStudioFieldProductType: 'Loại sản phẩm',
+    productStudioFieldSizes: 'Size (ngăn cách bằng dấu phẩy)',
+    productStudioFieldNoSize: 'Không phân size',
+    productStudioFieldColors: 'Màu sắc',
+    productStudioAddColor: 'Thêm màu',
+    productStudioColorName: 'Tên màu',
+    productStudioColorImage: 'Ảnh màu',
+    productStudioFieldMainImage: 'Ảnh chính',
+    productStudioFieldGallery: 'Ảnh phụ (gallery)',
+    productStudioFieldDescription: 'Mô tả sản phẩm',
+    productStudioFieldNotes: 'Ghi chú thêm (không hiển thị khách)',
+    productStudioFieldStock: 'Tồn kho',
+    productStudioUploadButton: 'Tải ảnh lên',
+    productStudioUploading: 'Đang tải ảnh…',
+    productStudioSubmit: 'Đăng sản phẩm',
+    productStudioSubmitting: 'Đang đăng…',
+    productStudioSuccess: 'Đã đăng sản phẩm thành công!',
+    productStudioCancel: 'Huỷ',
+    productStudioRemove: 'Xoá',
+    productStudioRequiredName: 'Vui lòng nhập tên sản phẩm.',
+    productStudioRequiredImage: 'Vui lòng tải lên ít nhất 1 ảnh.',
+    productStudioRequiredPrice: 'Vui lòng nhập giá hợp lệ.',
+    productStudioAiComingSoon: 'Đăng bằng AI sẽ mở trong bản cập nhật tới — dùng Thủ công để đăng ngay.',
+    productStudioRefImagesLabel: 'Ảnh tham chiếu (không hiển thị cho khách, tối đa 3)',
+    productStudioColorNamesLabel: 'Tên màu muốn tạo (cách nhau bằng dấu phẩy)',
+    productStudioModelPresenceLabel: 'Có người mẫu trong ảnh',
+    productStudioShotStyleLabel: 'Bối cảnh chụp',
+    productStudioAspectRatioLabel: 'Tỉ lệ ảnh',
+    productStudioGalleryCountLabel: 'Số ảnh gallery',
+    productStudioDetailCountLabel: 'Số ảnh chi tiết',
+    productStudioStartStudio: 'Bắt đầu tạo ảnh bằng AI',
+    productStudioApprove: 'Duyệt ảnh này',
+    productStudioRegenerate: 'Tạo lại',
+    productStudioStudioDone: 'Đã đủ ảnh — sẵn sàng đăng sản phẩm',
+    productStudioSuggestName: 'Đặt tên bằng AI',
+    productStudioSuggestedName: 'Tên do AI đề xuất',
     inventoryImportReplaceWarning:
       'Nhập Excel: trùng Mã SKU (không phân biệt hoa thường) với kho thì cập nhật, chưa có thì thêm mới. Không có SKU thì khớp theo tên với hàng trong kho cũng không SKU (nhiều dòng trùng tên: ưu tiên dòng đầu trùng trong kho). Cột «Trạng thái» (hoặc is_active): 1 = thêm/cập nhật; 0 = xóa mặt hàng đó khỏi kho (cần Mã SKU hoặc tên để khớp). Thứ tự hiển thị gán theo thứ tự dòng trong file nếu file không có cột Thứ tự. Hàng đang có mà không nằm trong file vẫn giữ nguyên. Tiếp tục?',
     inventoryImportSuccess: 'Đã xử lý {count} dòng: thêm {inserted}, cập nhật {updated}, xóa {deleted}.',
@@ -5834,6 +5940,10 @@ const EN_DICTIONARY: Dictionary = {
     studioRegenerateDialogTitle: 'Regenerate — review & pick inputs',
     studioRegeneratePromptLabel: 'Description / generation prompt',
     studioRegeneratePromptHint: 'Edit if needed — this is what AI uses for the new version.',
+    studioDesignRecreateRegenerateTitle: 'Regenerate design board',
+    studioDesignRecreateRegeneratePromptLabel: 'Extra content to add to the image (optional)',
+    studioDesignRecreateRegeneratePromptHint:
+      'E.g. change collar color, add embroidery, design name… Leave empty to regenerate as-is.',
     studioRegenerateConfirm: 'Regenerate now',
     studioExistingStepHint: 'Existing output — keep it or tap Regenerate for a new version.',
     studioUseReference: 'Use as reference & continue',
@@ -5880,8 +5990,8 @@ const EN_DICTIONARY: Dictionary = {
     studioNeedLogoReference: 'No logo reference yet — upload your logo or describe one for AI to create, then tap «Use as reference».',
     studioLogoApprovedNext: 'Logo saved as reference. Next: {next} — describe requirements (logo stays consistent on later steps).',
     studioStartWithLogo:
-      'Brief complete. Logo step: **already have a logo** → tap **Upload logo** as reference; **need one** → describe below for AI to create. Approved logo is used on all later steps.',
-    studioLogoUploadHint: 'Already have a logo? Upload the image — or describe below for AI to create a new one.',
+      'Brief complete. Logo step (required): **already have a logo** → tap **Upload logo** as reference; **need one** → describe below for AI to create. An approved logo is required before later steps.',
+    studioLogoUploadHint: 'A logo is required: upload an image — or describe below for AI to create a new one.',
     studioLogoUploadBtn: 'Upload logo',
     studioLogoUploadUserLabel: '📎 Upload logo as reference',
     studioLogoUploadNeedFile: 'Please choose a logo image file.',
@@ -6131,6 +6241,12 @@ const EN_DICTIONARY: Dictionary = {
         sample: 'Summer collection campaign, 2 try-ons + sale banner',
         uploadHint: 'Upload model/outfit photos',
         steps: { hero: 'Hero', try1: 'Try-on 1', banner: 'Sale banner' },
+      },
+      design_recreate: {
+        title: 'Recreate design from sample',
+        sample: 'Recreate modern áo dài from sample photos — full concept board',
+        uploadHint: 'Upload product samples — up to 4 angles',
+        steps: { concept: 'Concept board', detail: 'Details', technical: 'Technical' },
       },
       profile_photo_pack: {
         title: 'ID / profile pack',
@@ -7081,6 +7197,51 @@ const EN_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Download sample Excel',
     inventoryExportExcel: 'Export Excel',
     inventoryImportExcel: 'Import Excel',
+    productStudioOpenButton: 'Add product',
+    productStudioTitle: 'Add product',
+    productStudioManualTab: 'Manual',
+    productStudioAiTab: 'With AI',
+    productStudioFieldName: 'Product name',
+    productStudioFieldPrice: 'Price',
+    productStudioFieldMaterial: 'Material',
+    productStudioFieldStyle: 'Style',
+    productStudioFieldGender: 'Gender',
+    productStudioFieldProductType: 'Product type',
+    productStudioFieldSizes: 'Sizes (comma separated)',
+    productStudioFieldNoSize: 'No sizes',
+    productStudioFieldColors: 'Colors',
+    productStudioAddColor: 'Add color',
+    productStudioColorName: 'Color name',
+    productStudioColorImage: 'Color photo',
+    productStudioFieldMainImage: 'Main photo',
+    productStudioFieldGallery: 'Extra photos (gallery)',
+    productStudioFieldDescription: 'Product description',
+    productStudioFieldNotes: 'Internal notes (not shown to customers)',
+    productStudioFieldStock: 'Stock',
+    productStudioUploadButton: 'Upload photo',
+    productStudioUploading: 'Uploading…',
+    productStudioSubmit: 'Publish product',
+    productStudioSubmitting: 'Publishing…',
+    productStudioSuccess: 'Product published successfully!',
+    productStudioCancel: 'Cancel',
+    productStudioRemove: 'Remove',
+    productStudioRequiredName: 'Please enter a product name.',
+    productStudioRequiredImage: 'Please upload at least 1 photo.',
+    productStudioRequiredPrice: 'Please enter a valid price.',
+    productStudioAiComingSoon: 'AI posting is coming soon — use Manual to publish now.',
+    productStudioRefImagesLabel: 'Reference photos (not shown to customers, max 3)',
+    productStudioColorNamesLabel: 'Color names to generate (comma separated)',
+    productStudioModelPresenceLabel: 'Include a model in photos',
+    productStudioShotStyleLabel: 'Shot style',
+    productStudioAspectRatioLabel: 'Aspect ratio',
+    productStudioGalleryCountLabel: 'Gallery photo count',
+    productStudioDetailCountLabel: 'Detail photo count',
+    productStudioStartStudio: 'Start AI image studio',
+    productStudioApprove: 'Approve this photo',
+    productStudioRegenerate: 'Regenerate',
+    productStudioStudioDone: 'Enough photos — ready to publish',
+    productStudioSuggestName: 'Suggest name with AI',
+    productStudioSuggestedName: 'AI-suggested name',
     inventoryImportReplaceWarning:
       'Excel import: rows matching an existing SKU (case-insensitive) are updated; otherwise inserted. Without a SKU, rows match by name to existing rows that also have no SKU (if several match, the first matching row is used). Status column (or is_active): 1 = add/update; 0 = delete that item from inventory (requires SKU or name to match). Display order follows row order in the file unless a Sort order column is present. Items already in stock that are not in the file stay unchanged. Continue?',
     inventoryImportSuccess: 'Processed {count} row(s): {inserted} added, {updated} updated, {deleted} removed.',
@@ -8724,6 +8885,9 @@ const ZH_DICTIONARY: Dictionary = {
     studioRegenerateDialogTitle: '重新生成 — 查看并选择内容',
     studioRegeneratePromptLabel: '描述 / 生成提示',
     studioRegeneratePromptHint: '可按需修改 — AI 将据此生成新版本。',
+    studioDesignRecreateRegenerateTitle: '重新生成设计稿',
+    studioDesignRecreateRegeneratePromptLabel: '想添加到图片的内容（可选）',
+    studioDesignRecreateRegeneratePromptHint: '例如：改领口颜色、加刺绣、设计名称… 可留空后直接重新生成。',
     studioRegenerateConfirm: '立即重新生成',
     studioExistingStepHint: '已有输出 — 可保留或点重新生成。',
     studioUseReference: '选为参考并继续',
@@ -8770,8 +8934,8 @@ const ZH_DICTIONARY: Dictionary = {
     studioNeedLogoReference: '尚无 Logo 参考 — 请上传 logo 或描述让 AI 创建，然后点击「选为参考图」。',
     studioLogoApprovedNext: 'Logo 已存为参考。下一步：{next} — 描述需求（后续步骤保持 Logo 一致）。',
     studioStartWithLogo:
-      'Brief 已完成。Logo 步骤：**已有 logo** → 点击 **上传 logo** 作为参考；**还没有** → 在下方描述让 AI 创建。已批准的 logo 用于后续所有步骤。',
-    studioLogoUploadHint: '已有 logo？上传图片 — 或在下方描述让 AI 创建新 logo。',
+      'Brief 已完成。Logo 步骤（必填）：**已有 logo** → 点击 **上传 logo** 作为参考；**还没有** → 在下方描述让 AI 创建。须批准 logo 后才能进入后续步骤。',
+    studioLogoUploadHint: '必须有 logo：上传图片 — 或在下方描述让 AI 创建新 logo。',
     studioLogoUploadBtn: '上传 logo',
     studioLogoUploadUserLabel: '📎 上传 logo 作为参考',
     studioLogoUploadNeedFile: '请选择 logo 图片文件。',
@@ -9018,6 +9182,12 @@ const ZH_DICTIONARY: Dictionary = {
         sample: '夏季系列 campaign，2套试穿+促销横幅',
         uploadHint: '上传模特/服装照片',
         steps: { hero: 'Hero', try1: '试穿1', banner: '促销横幅' },
+      },
+      design_recreate: {
+        title: '从样品还原设计',
+        sample: '从样品图还原改良奥黛 — 完整概念板',
+        uploadHint: '上传产品样品 — 最多4个角度',
+        steps: { concept: '概念板', detail: '细节', technical: '技术稿' },
       },
       profile_photo_pack: {
         title: '证件照/头像套件',
@@ -9944,6 +10114,51 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: '下载 Excel 模板',
     inventoryExportExcel: '导出 Excel',
     inventoryImportExcel: '导入 Excel',
+    productStudioOpenButton: '发布商品',
+    productStudioTitle: '发布商品',
+    productStudioManualTab: '手动',
+    productStudioAiTab: 'AI 生成',
+    productStudioFieldName: '商品名称',
+    productStudioFieldPrice: '价格',
+    productStudioFieldMaterial: '材质',
+    productStudioFieldStyle: '款式',
+    productStudioFieldGender: '性别',
+    productStudioFieldProductType: '商品类型',
+    productStudioFieldSizes: '尺码（用逗号分隔）',
+    productStudioFieldNoSize: '无需尺码',
+    productStudioFieldColors: '颜色',
+    productStudioAddColor: '添加颜色',
+    productStudioColorName: '颜色名称',
+    productStudioColorImage: '颜色图片',
+    productStudioFieldMainImage: '主图',
+    productStudioFieldGallery: '附加图片（图库）',
+    productStudioFieldDescription: '商品描述',
+    productStudioFieldNotes: '内部备注（客户不可见）',
+    productStudioFieldStock: '库存',
+    productStudioUploadButton: '上传图片',
+    productStudioUploading: '正在上传…',
+    productStudioSubmit: '发布商品',
+    productStudioSubmitting: '正在发布…',
+    productStudioSuccess: '商品发布成功！',
+    productStudioCancel: '取消',
+    productStudioRemove: '删除',
+    productStudioRequiredName: '请输入商品名称。',
+    productStudioRequiredImage: '请上传至少一张图片。',
+    productStudioRequiredPrice: '请输入有效价格。',
+    productStudioAiComingSoon: 'AI 发布功能即将推出 — 请先使用手动发布。',
+    productStudioRefImagesLabel: '参考图片（客户不可见，最多3张）',
+    productStudioColorNamesLabel: '要生成的颜色名称（用逗号分隔）',
+    productStudioModelPresenceLabel: '图片中包含模特',
+    productStudioShotStyleLabel: '拍摄风格',
+    productStudioAspectRatioLabel: '图片比例',
+    productStudioGalleryCountLabel: '图库图片数量',
+    productStudioDetailCountLabel: '细节图片数量',
+    productStudioStartStudio: '开始 AI 生成图片',
+    productStudioApprove: '通过此图片',
+    productStudioRegenerate: '重新生成',
+    productStudioStudioDone: '图片已足够 — 可以发布商品',
+    productStudioSuggestName: 'AI 建议名称',
+    productStudioSuggestedName: 'AI 建议的名称',
     inventoryImportReplaceWarning:
       '导入 Excel：与现有 SKU（不区分大小写）匹配则更新，否则新增。无 SKU 时按名称与同样无 SKU 的库存行匹配（多条同名时取库存中第一条匹配）。「状态」列（或 is_active）：1 = 新增/更新；0 = 从库存删除（需填写 SKU 或名称以匹配）。若无“排序”列，显示顺序按文件中的行顺序。未出现在文件中的现有商品将保留。是否继续？',
     inventoryImportSuccess: '已处理 {count} 行：新增 {inserted}，更新 {updated}，删除 {deleted}。',
@@ -11514,6 +11729,10 @@ const JA_DICTIONARY: Dictionary = {
     studioRegenerateDialogTitle: '再生成 — 内容を確認・選択',
     studioRegeneratePromptLabel: '説明 / 生成プロンプト',
     studioRegeneratePromptHint: '必要なら編集 — AIが新バージョンに使う内容です。',
+    studioDesignRecreateRegenerateTitle: 'デザインボードを再生成',
+    studioDesignRecreateRegeneratePromptLabel: '画像に追加したい内容（任意）',
+    studioDesignRecreateRegeneratePromptHint:
+      '例：襟の色変更、刺繍追加、デザイン名… 空のまま再生成もできます。',
     studioRegenerateConfirm: '再生成する',
     studioExistingStepHint: '出力済み — このまま使うか「再生成」を押してください。',
     studioUseReference: '参考にして次へ',
@@ -11560,8 +11779,8 @@ const JA_DICTIONARY: Dictionary = {
     studioNeedLogoReference: 'ロゴ参考がありません — ロゴをアップロードするか、AIに作成させる説明を入力し、「参考画像にする」を押してください。',
     studioLogoApprovedNext: 'ロゴを参考に保存しました。次：{next} — 要件を説明（以降のステップでロゴを統一）。',
     studioStartWithLogo:
-      'ブリーフ完了。ロゴステップ：**既にロゴあり** → **ロゴをアップロード**で参考に；**まだない** → 下に説明してAIが作成。承認したロゴは以降すべてのステップで使用。',
-    studioLogoUploadHint: 'ロゴをお持ちですか？画像をアップロード — または下に説明してAIに新規作成。',
+      'ブリーフ完了。ロゴステップ（必須）：**既にロゴあり** → **ロゴをアップロード**で参考に；**まだない** → 下に説明してAIが作成。承認したロゴが必要です。',
+    studioLogoUploadHint: 'ロゴは必須です。画像をアップロード — または下に説明してAIに新規作成。',
     studioLogoUploadBtn: 'ロゴをアップロード',
     studioLogoUploadUserLabel: '📎 ロゴを参考としてアップロード',
     studioLogoUploadNeedFile: 'ロゴ画像ファイルを選択してください。',
@@ -11810,6 +12029,12 @@ const JA_DICTIONARY: Dictionary = {
         sample: '夏コレ campaign、2着 try-on + セールバナー',
         uploadHint: 'モデル/衣装写真をアップロード',
         steps: { hero: 'Hero', try1: 'Try-on 1', banner: 'セールバナー' },
+      },
+      design_recreate: {
+        title: 'サンプルからデザイン再現',
+        sample: 'サンプル写真からアオザイを再現 — フルコンセプトボード',
+        uploadHint: 'サンプル画像 — 最大4アングル',
+        steps: { concept: 'コンセプト', detail: '詳細', technical: '技術' },
       },
       profile_photo_pack: {
         title: '証明写真/プロフィール',
@@ -12769,6 +12994,51 @@ const JA_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Excelテンプレをダウンロード',
     inventoryExportExcel: 'Excelに出力',
     inventoryImportExcel: 'Excelから取込',
+    productStudioOpenButton: '商品を出品',
+    productStudioTitle: '商品を出品',
+    productStudioManualTab: '手動',
+    productStudioAiTab: 'AIで作成',
+    productStudioFieldName: '商品名',
+    productStudioFieldPrice: '価格',
+    productStudioFieldMaterial: '素材',
+    productStudioFieldStyle: 'スタイル',
+    productStudioFieldGender: '性別',
+    productStudioFieldProductType: '商品タイプ',
+    productStudioFieldSizes: 'サイズ（カンマ区切り）',
+    productStudioFieldNoSize: 'サイズなし',
+    productStudioFieldColors: 'カラー',
+    productStudioAddColor: 'カラーを追加',
+    productStudioColorName: 'カラー名',
+    productStudioColorImage: 'カラー画像',
+    productStudioFieldMainImage: 'メイン画像',
+    productStudioFieldGallery: '追加画像（ギャラリー）',
+    productStudioFieldDescription: '商品説明',
+    productStudioFieldNotes: '内部メモ（顧客には表示されません）',
+    productStudioFieldStock: '在庫',
+    productStudioUploadButton: '画像をアップロード',
+    productStudioUploading: 'アップロード中…',
+    productStudioSubmit: '商品を出品',
+    productStudioSubmitting: '出品中…',
+    productStudioSuccess: '商品を出品しました！',
+    productStudioCancel: 'キャンセル',
+    productStudioRemove: '削除',
+    productStudioRequiredName: '商品名を入力してください。',
+    productStudioRequiredImage: '画像を1枚以上アップロードしてください。',
+    productStudioRequiredPrice: '有効な価格を入力してください。',
+    productStudioAiComingSoon: 'AI出品は近日公開予定です — 今は手動で出品してください。',
+    productStudioRefImagesLabel: '参考画像（顧客には表示されません、最大3枚）',
+    productStudioColorNamesLabel: '生成したいカラー名（カンマ区切り）',
+    productStudioModelPresenceLabel: '画像にモデルを含める',
+    productStudioShotStyleLabel: '撮影スタイル',
+    productStudioAspectRatioLabel: 'アスペクト比',
+    productStudioGalleryCountLabel: 'ギャラリー画像枚数',
+    productStudioDetailCountLabel: '詳細画像枚数',
+    productStudioStartStudio: 'AI画像生成を開始',
+    productStudioApprove: 'この画像を承認',
+    productStudioRegenerate: '再生成',
+    productStudioStudioDone: '画像が十分です — 出品可能です',
+    productStudioSuggestName: 'AIで名前を提案',
+    productStudioSuggestedName: 'AI提案の名前',
     inventoryImportReplaceWarning:
       'Excel取込：既存の SKU（大文字小文字無視）と一致すれば更新、なければ新規追加。SKU がない行は、SKU なしの既存行と商品名で照合（複数ある場合は在庫の先頭一致を使用）。「状態」列（または is_active）：1 = 追加/更新、0 = 在庫から削除（SKU または商品名が必要）。「並び順」列がなければ表示順はファイルの行順です。ファイルに無い既存商品はそのまま残ります。続行しますか？',
     inventoryImportSuccess: '{count} 行を処理：新規 {inserted}、更新 {updated}、削除 {deleted}。',
@@ -14383,6 +14653,10 @@ const KO_DICTIONARY: Dictionary = {
     studioRegenerateDialogTitle: '다시 생성 — 내용 확인 및 선택',
     studioRegeneratePromptLabel: '설명 / 생성 프롬프트',
     studioRegeneratePromptHint: '필요하면 수정 — AI가 새 버전에 사용할 내용입니다.',
+    studioDesignRecreateRegenerateTitle: '디자인 보드 다시 생성',
+    studioDesignRecreateRegeneratePromptLabel: '이미지에 추가할 내용 (선택)',
+    studioDesignRecreateRegeneratePromptHint:
+      '예: 카라 색 변경, 자수 추가, 디자인 이름… 비워 두고 다시 생성해도 됩니다.',
     studioRegenerateConfirm: '지금 다시 생성',
     studioExistingStepHint: '이미 생성됨 — 유지하거나 다시 생성을 누르세요.',
     studioUseReference: '참조로 선택하고 계속',
@@ -14429,8 +14703,8 @@ const KO_DICTIONARY: Dictionary = {
     studioNeedLogoReference: '로고 참조 없음 — 로고를 업로드하거나 AI 생성 설명을 입력한 뒤 «참조 이미지로 선택»을 누르세요.',
     studioLogoApprovedNext: '로고 참조 저장됨. 다음: {next} — 요구사항 설명 (이후 단계에서 로고 일관 유지).',
     studioStartWithLogo:
-      '브리프 완료. 로고 단계: **로고 있음** → **로고 업로드**로 참조 설정; **없음** → 아래에 설명해 AI가 생성. 승인된 로고는 이후 모든 단계에 사용.',
-    studioLogoUploadHint: '로고가 있나요? 이미지 업로드 — 또는 아래에 설명해 AI가 새 로고 생성.',
+      '브리프 완료. 로고 단계(필수): **로고 있음** → **로고 업로드**로 참조 설정; **없음** → 아래에 설명해 AI가 생성. 승인된 로고가 있어야 다음 단계로 진행합니다.',
+    studioLogoUploadHint: '로고는 필수입니다. 이미지 업로드 — 또는 아래에 설명해 AI가 새 로고 생성.',
     studioLogoUploadBtn: '로고 업로드',
     studioLogoUploadUserLabel: '📎 로고를 참조로 업로드',
     studioLogoUploadNeedFile: '로고 이미지 파일을 선택하세요.',
@@ -14679,6 +14953,12 @@ const KO_DICTIONARY: Dictionary = {
         sample: '여름 컬렉션, 2회 try-on + 세일 배너',
         uploadHint: '모델/의상 사진 업로드',
         steps: { hero: 'Hero', try1: 'Try-on 1', banner: '세일 배너' },
+      },
+      design_recreate: {
+        title: '샘플에서 디자인 재현',
+        sample: '샘플 사진에서 아오자이 재현 — 전체 컨셉 보드',
+        uploadHint: '제품 샘플 업로드 — 최대 4각도',
+        steps: { concept: '컨셉', detail: '디테일', technical: '기술' },
       },
       profile_photo_pack: {
         title: '증명사진/프로필',
@@ -15633,6 +15913,51 @@ const KO_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Excel 샘플 받기',
     inventoryExportExcel: 'Excel보내기',
     inventoryImportExcel: 'Excel 가져오기',
+    productStudioOpenButton: '상품 등록',
+    productStudioTitle: '상품 등록',
+    productStudioManualTab: '직접 등록',
+    productStudioAiTab: 'AI로 생성',
+    productStudioFieldName: '상품명',
+    productStudioFieldPrice: '가격',
+    productStudioFieldMaterial: '소재',
+    productStudioFieldStyle: '스타일',
+    productStudioFieldGender: '성별',
+    productStudioFieldProductType: '상품 유형',
+    productStudioFieldSizes: '사이즈 (쉼표로 구분)',
+    productStudioFieldNoSize: '사이즈 없음',
+    productStudioFieldColors: '색상',
+    productStudioAddColor: '색상 추가',
+    productStudioColorName: '색상 이름',
+    productStudioColorImage: '색상 이미지',
+    productStudioFieldMainImage: '메인 이미지',
+    productStudioFieldGallery: '추가 이미지 (갤러리)',
+    productStudioFieldDescription: '상품 설명',
+    productStudioFieldNotes: '내부 메모 (고객에게 표시되지 않음)',
+    productStudioFieldStock: '재고',
+    productStudioUploadButton: '이미지 업로드',
+    productStudioUploading: '업로드 중…',
+    productStudioSubmit: '상품 등록',
+    productStudioSubmitting: '등록 중…',
+    productStudioSuccess: '상품이 등록되었습니다!',
+    productStudioCancel: '취소',
+    productStudioRemove: '삭제',
+    productStudioRequiredName: '상품명을 입력해 주세요.',
+    productStudioRequiredImage: '이미지를 1개 이상 업로드해 주세요.',
+    productStudioRequiredPrice: '올바른 가격을 입력해 주세요.',
+    productStudioAiComingSoon: 'AI 등록은 다음 업데이트에서 제공됩니다 — 지금은 직접 등록을 이용해 주세요.',
+    productStudioRefImagesLabel: '참조 이미지 (고객에게 표시되지 않음, 최대 3개)',
+    productStudioColorNamesLabel: '생성할 색상 이름 (쉼표로 구분)',
+    productStudioModelPresenceLabel: '이미지에 모델 포함',
+    productStudioShotStyleLabel: '촬영 스타일',
+    productStudioAspectRatioLabel: '이미지 비율',
+    productStudioGalleryCountLabel: '갤러리 이미지 수',
+    productStudioDetailCountLabel: '디테일 이미지 수',
+    productStudioStartStudio: 'AI 이미지 생성 시작',
+    productStudioApprove: '이 이미지 승인',
+    productStudioRegenerate: '다시 생성',
+    productStudioStudioDone: '이미지가 충분합니다 — 등록 준비 완료',
+    productStudioSuggestName: 'AI로 이름 제안',
+    productStudioSuggestedName: 'AI 제안 이름',
     inventoryImportReplaceWarning:
       'Excel 가져오기: 기존 SKU와 일치(대소문자 무시)하면 업데이트, 없으면 추가. SKU가 없으면 SKU 없는 기존 행과 상품명으로 매칭(여러 개면 재고에서 먼저 맞는 행). «상태» 열(또는 is_active): 1 = 추가/업데이트, 0 = 재고에서 삭제(SKU 또는 상품명 필요). «정렬» 열이 없으면 표시 순서는 파일 행 순서입니다. 파일에 없는 기존 상품은 유지됩니다. 계속할까요?',
     inventoryImportSuccess: '{count}행 처리: 추가 {inserted}, 업데이트 {updated}, 삭제 {deleted}.',

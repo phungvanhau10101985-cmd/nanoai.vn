@@ -319,6 +319,48 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
       '식당 메뉴',
     ],
   },
+  {
+    id: 'design_recreate',
+    labelKey: 'design_recreate',
+    needsUpload: true,
+    uploadHintKey: 'design_recreate',
+    intents: [
+      'tạo lại bản thiết kế',
+      'tao lai ban thiet ke',
+      'tạo lại thiết kế',
+      'tao lai thiet ke',
+      'dựng lại bản thiết kế',
+      'dung lai ban thiet ke',
+      'dựng lại thiết kế',
+      'dung lai thiet ke',
+      'làm lại bản thiết kế',
+      'lam lai ban thiet ke',
+      'làm lại thiết kế',
+      'lam lai thiet ke',
+      'thiết kế lại',
+      'thiet ke lai',
+      'làm giống mẫu',
+      'lam giong mau',
+      'recreate design',
+      'redesign from sample',
+      'thiết kế theo mẫu',
+      'thiet ke theo mau',
+      'concept sheet từ ảnh',
+      'concept sheet tu anh',
+      'bảng concept thiết kế',
+      'bang concept thiet ke',
+      'fashion concept board',
+      'design from sample',
+      'mẫu sản phẩm thiết kế',
+      '设计还原',
+      '重新设计',
+      '概念板',
+      'デザイン再現',
+      'デザインやり直',
+      '디자인 재현',
+      '다시 디자인',
+    ],
+  },
 ]
 
 type PresetCopy = {
@@ -340,11 +382,51 @@ export function getStudioPreset(id: string): StudioPresetDef | undefined {
   return STUDIO_PRESETS.find((p) => p.id === id)
 }
 
+function foldHubIntentText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * "tạo lại / dựng lại / làm lại … thiết kế" (có cả "lại" + "thiết kế") → design_recreate.
+ * Ví dụ: "tạo lại bản thiết kế", "dựng lại thiết kế", "thiết kế lại từ mẫu".
+ */
+export function matchesDesignRecreateAgainIntent(message: string): boolean {
+  const trimmed = message.trim()
+  if (!trimmed) return false
+  const folded = foldHubIntentText(trimmed)
+  const hasDesignWord =
+    folded.includes('thiet ke') ||
+    folded.includes('ban thiet ke') ||
+    /\bdesign\b/.test(folded) ||
+    folded.includes('concept sheet') ||
+    folded.includes('concept board')
+  if (!hasDesignWord) return false
+
+  const hasAgainWord =
+    /(^|[^a-z])lai([^a-z]|$)/.test(folded) ||
+    /\b(recreate|redesign|remake|rebuild)\b/.test(folded) ||
+    folded.includes('dung lai') ||
+    folded.includes('tao lai') ||
+    folded.includes('lam lai') ||
+    folded.includes('thiet ke lai')
+
+  return hasAgainWord
+}
+
 export function scoreStudioPresetMatch(message: string, preset: StudioPresetDef): number {
   const lower = message.toLowerCase()
   let score = 0
   for (const intent of preset.intents) {
     if (lower.includes(intent.toLowerCase())) score += intent.length
+  }
+  if (preset.id === 'design_recreate' && matchesDesignRecreateAgainIntent(message)) {
+    // Strong enough to win over weak standalone / other studio keyword hits.
+    score = Math.max(score, 48)
   }
   return score
 }

@@ -6,6 +6,7 @@ import {
   setPartnerLandingPublishedPg,
   updatePartnerLandingPagePg,
 } from '@/lib/db/messaging-partner-landing-pages-pg'
+import { listLandingSectionsPg } from '@/lib/db/messaging-partner-landing-sections-pg'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { normalizeWebLocale } from '@/lib/i18n/config'
@@ -87,13 +88,26 @@ export async function PATCH(
     landingSlug?: string
     inventoryIds?: unknown
     locale?: string
+    sourceType?: string
+    categoryId?: string | null
+    productsLimit?: number
+    materialFilter?: string | null
+    metaTitle?: string | null
+    metaDescription?: string | null
   }
 
   if (body.action === 'publish' || body.action === 'unpublish') {
     const existing = await fetchPartnerLandingPageByIdPg(pid, lid)
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    if (body.action === 'publish' && !(existing.htmlSource?.trim() || existing.project.files.length)) {
-      return NextResponse.json({ error: 'Build landing before publishing' }, { status: 400 })
+    if (body.action === 'publish') {
+      // L3.6/L3.8 — landing dùng engine Ladipage AI mới (có section) chỉ cần hero đã "ready";
+      // landing cũ (chưa có section nào) giữ nguyên điều kiện cũ (đã build HTML tự do).
+      const sections = await listLandingSectionsPg(lid)
+      const hasReadySections = sections.some((s) => s.sectionType === 'hero' && s.status === 'ready')
+      const hasLegacyBuild = Boolean(existing.htmlSource?.trim() || existing.project.files.length)
+      if (!hasReadySections && !hasLegacyBuild) {
+        return NextResponse.json({ error: 'Build landing (or generate hero section) before publishing' }, { status: 400 })
+      }
     }
     const landing = await setPartnerLandingPublishedPg({
       partnerId: pid,
@@ -113,10 +127,17 @@ export async function PATCH(
     })
   }
 
+  const existingForUpdate = await fetchPartnerLandingPageByIdPg(pid, lid)
+  const effectiveSourceType =
+    body.sourceType === 'category' || body.sourceType === 'products'
+      ? body.sourceType
+      : existingForUpdate?.sourceType ?? 'products'
+
   const inventoryIds = Array.isArray(body.inventoryIds)
     ? body.inventoryIds.map((x) => String(x ?? '').trim()).filter(Boolean)
     : undefined
   if (
+    effectiveSourceType === 'products' &&
     inventoryIds &&
     (inventoryIds.length < 1 || inventoryIds.length > PARTNER_LANDING_MAX_PRODUCTS)
   ) {
@@ -141,6 +162,12 @@ export async function PATCH(
     landingSlug,
     inventoryIds,
     locale: normalizeWebLocale(body.locale) ?? undefined,
+    sourceType: body.sourceType === 'category' || body.sourceType === 'products' ? body.sourceType : undefined,
+    categoryId: body.categoryId,
+    productsLimit: body.productsLimit,
+    materialFilter: body.materialFilter,
+    metaTitle: body.metaTitle,
+    metaDescription: body.metaDescription,
   })
   if (!landing) {
     return NextResponse.json({ error: 'Update failed' }, { status: 400 })

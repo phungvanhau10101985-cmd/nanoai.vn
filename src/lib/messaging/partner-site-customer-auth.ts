@@ -131,6 +131,7 @@ export async function authenticatePartnerSiteCustomer(params: {
   embedKey: string
   request: NextRequest
   tokenRaw: string
+  partnerSlug?: string | null
 }): Promise<PartnerSiteCustomerAuthResult> {
   if (!isPgConfigured()) {
     return { ok: false, status: 503, error: 'Server database is not configured.' }
@@ -204,6 +205,8 @@ export async function authenticatePartnerSiteCustomer(params: {
     partnerId,
     email,
     guestAccountId: accountId,
+    signupSource: 'partner_website',
+    partnerSlug: params.partnerSlug,
   })
 
   return {
