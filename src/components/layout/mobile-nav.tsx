@@ -42,7 +42,15 @@ export function MobileNav({ isAdmin, t }: MobileNavProps) {
               href="/"
               className="flex items-center gap-2 font-bold text-lg tracking-tight"
             >
-              <Image src="/icons/icon-192x192.png" alt={t.app.siteName} width={40} height={40} className="rounded-lg" />
+              <Image
+                src="/icons/icon-192x192.png"
+                alt={t.app.siteName}
+                width={40}
+                height={40}
+                priority
+                unoptimized
+                className="rounded-lg"
+              />
               {t.app.siteName}
             </Link>
           </SheetClose>

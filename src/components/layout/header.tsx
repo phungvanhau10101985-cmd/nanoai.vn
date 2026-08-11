@@ -58,7 +58,15 @@ export async function Header() {
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 md:max-w-none md:flex-none md:gap-3.5 lg:gap-4">
             <Link href="/" className="group flex min-w-0 shrink-0 items-center gap-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/70 bg-card/90 shadow-sm transition-transform duration-200 group-hover:scale-[1.02] lg:h-9 lg:w-9">
-                <Image src="/icons/icon-192x192.png" alt={t.app.siteName} width={24} height={24} className="rounded-md lg:h-6 lg:w-6" />
+                <Image
+                  src="/icons/icon-192x192.png"
+                  alt={t.app.siteName}
+                  width={24}
+                  height={24}
+                  priority
+                  unoptimized
+                  className="rounded-md lg:h-6 lg:w-6"
+                />
               </span>
               <span className="min-w-0 truncate text-sm font-semibold tracking-tight sm:text-base lg:text-lg">{t.app.siteName}</span>
             </Link>
