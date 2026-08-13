@@ -32,7 +32,6 @@ import {
   partnerSiteCartApiPath,
   partnerSiteCategoriesApiPath,
   partnerSiteCategoryPath,
-  partnerSiteHomePath,
   partnerSiteInfoPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
