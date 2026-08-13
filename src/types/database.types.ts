@@ -777,6 +777,9 @@ export interface Database {
           guest_purchase_flow: string
           guest_external_cart_url_template: string | null
           shop_checkout_login_required: boolean
+          after_sales_return_address: string
+          shipping_lookup_url: string
+          shipping_lookup_api_key: string | null
           updated_at: string
         }
         Insert: {
@@ -810,6 +813,9 @@ export interface Database {
           guest_purchase_flow?: string
           guest_external_cart_url_template?: string | null
           shop_checkout_login_required?: boolean
+          after_sales_return_address?: string
+          shipping_lookup_url?: string
+          shipping_lookup_api_key?: string | null
           updated_at?: string
         }
         Update: {
@@ -843,6 +849,9 @@ export interface Database {
           guest_purchase_flow?: string
           guest_external_cart_url_template?: string | null
           shop_checkout_login_required?: boolean
+          after_sales_return_address?: string
+          shipping_lookup_url?: string
+          shipping_lookup_api_key?: string | null
           updated_at?: string
         }
         Relationships: []

@@ -420,7 +420,7 @@ export async function upsertPartnerWebsitePg(input: {
        ) values (
          $1::uuid, $2, $3, $4, $5,
          $6::jsonb, $7, $8, $9::jsonb, $10::jsonb,
-         $11::jsonb, $12, $13, $14::uuid, $15::jsonb
+         $11::jsonb, $12::jsonb, $13::jsonb, $14, $15, $16::uuid, $17::jsonb
        )
        on conflict (partner_id) do update set
          site_slug = excluded.site_slug,
@@ -455,6 +455,8 @@ export async function upsertPartnerWebsitePg(input: {
         templateId,
         JSON.stringify(theme),
         JSON.stringify(pages),
+        null,
+        null,
         JSON.stringify(projectFilesToJson(project)),
         html,
         input.locale,
@@ -597,7 +599,7 @@ export async function updatePartnerWebsiteNavFooterPg(input: {
          updated_at = timezone('utc'::text, now())
        where partner_id = $1::uuid
        returning id::text, partner_id::text, site_slug, title, brief_text, logo_url,
-                 reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json, nav_json, footer_json,
+                 reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
                  project_files_json, html_source, locale,
                  is_published, published_at, source_thread_id::text,
                  creation_journal_json,
@@ -721,7 +723,7 @@ export async function savePartnerWebsiteRevisionPg(input: {
     await pgQuery(
       `insert into public.messaging_partner_website_revisions (
          partner_id, website_id, title, brief_text, logo_url,
-         reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
+         reference_image_urls, render_mode, template_id, theme_json, pages_json,
          project_files_json, html_source, locale, change_note
        ) values ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, $14)`,
       [

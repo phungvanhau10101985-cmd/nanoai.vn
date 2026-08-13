@@ -63,6 +63,10 @@ export type PartnerDevIntegrationStrings = {
   webhooksApiBody: string
   personalizationApiTitle: string
   personalizationApiBody: string
+  /** Shop implements GET/POST lookup; NanoAI calls it server-to-server */
+  shippingLookupTitle: string
+  shippingLookupBody: string
+  shippingLookupDocNote: string
   tryOnTitle: string
   tryOnBody: string
   /** Chi tiết API thử đồ B2B — trỏ tài liệu repo */
@@ -179,6 +183,11 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     personalizationApiTitle: 'L — Cá nhân hóa khách (GET/POST, Bearer, CORS)',
     personalizationApiBody:
       'Gợi ý sản phẩm, lịch sử xem và **sản phẩm yêu thích** trên web shop riêng hoặc landing `/site`. **Cùng Bearer** như G. Bắt buộc `customer_ref` (query/header/body). `GET …/personalization/recently-viewed?customer_ref=…&limit=8` — SP vừa xem. `GET …/personalization/favorites?customer_ref=…&limit=8` — SP yêu thích. `GET …/personalization/recommendations?customer_ref=…` — gợi ý từ giỏ + lịch sử + yêu thích. `GET …/personalization/profile?customer_ref=…` — UTM đã lưu, hồ sơ giao hàng (nếu có). `POST …/personalization/events` body `{ customer_ref, event: "view_product", inventory_id }`, `{ event: "toggle_favorite", inventory_id }` (trả `is_favorite`), hoặc `event: "utm_context"` kèm utm_* — ghi nhận hành vi. Trên site hosted NanoAI (`/site/{slug}`): API same-origin `/api/site/{slug}/personalization/…` (cookie phiên khách).',
+    shippingLookupTitle: 'M — Cổng tra cứu vận chuyển (web shop triển khai, NanoAI gọi)',
+    shippingLookupBody:
+      'Khác các mục trên: **web shop của bạn** mở endpoint HTTPS; NanoAI gọi **server-to-server** khi khách chat gửi mã đơn (DH/DC), SĐT, hoặc mã vận (…VN). Điền URL + API key tại **Messaging → Cài đặt AI**. Xác thực: header `X-Api-Key` hoặc `Authorization: Bearer`. GET hoặc POST JSON. Ưu tiên trường: `ems_code` > `order_code` > `phone` > `q` (q tự nhận DH/DC, SĐT, mã …VN). Phản hồi 200 `{ ok: true, query_type, tracking_number, order, shop_timeline, ems_record, ems_tracking }`. Chatbot ưu tiên `ems_tracking.current_status_description` → `ems_tracking.events` → `order.status_label`. Không log key. SĐT chỉ qua kênh server. HTTP: 400 thiếu đầu vào, 401 sai key, 404 không thấy đơn, 429 rate limit, 503 API tắt. Cache phía NanoAI ~90 giây.',
+    shippingLookupDocNote:
+      'Bảng trạng thái đơn, phase EMS, ví dụ curl/JSON đầy đủ: `docs/PARTNER_SHIPPING_LOOKUP_INTEGRATION.md`.',
     tryOnTitle: 'E — API thử đồ ảo B2B',
     tryOnBody:
       'POST multipart từ **backend shop**: `userImage` + ít nhất một `garmentImage*`. Bearer do NanoAI cấp; credits trừ vào ví billing gắn khóa. Phản hồi 200 trả `result_url` (ảnh kết quả), `history_id`, `credits_remaining`.',
@@ -299,6 +308,11 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     personalizationApiTitle: 'L — Customer personalization (GET/POST, Bearer, CORS)',
     personalizationApiBody:
       'Recommendations, browse history, and **favorite products** for your shop or NanoAI `/site` landing. **Same Bearer** as G. Requires `customer_ref`. `GET …/personalization/recently-viewed?customer_ref=…`, `GET …/personalization/favorites?customer_ref=…`, `GET …/personalization/recommendations?customer_ref=…`, `GET …/personalization/profile?customer_ref=…`. `POST …/personalization/events` with `{ customer_ref, event: "view_product", inventory_id }`, `{ event: "toggle_favorite", inventory_id }` (returns `is_favorite`), or `event: "utm_context"` + utm fields. Hosted site: same-origin `/api/site/{slug}/personalization/…`.',
+    shippingLookupTitle: 'M — Shipping lookup gateway (your shop implements; NanoAI calls it)',
+    shippingLookupBody:
+      'Unlike the APIs above, **your shop website** exposes an HTTPS endpoint; NanoAI calls it **server-to-server** when a chat customer sends an order code (DH/DC), phone, or tracking number (…VN). Paste the URL and API key under **Messaging → AI settings**. Auth: `X-Api-Key` or `Authorization: Bearer`. GET or POST JSON. Field priority: `ems_code` > `order_code` > `phone` > `q` (q auto-detects DH/DC, phone, …VN codes). HTTP 200 `{ ok: true, query_type, tracking_number, order, shop_timeline, ems_record, ems_tracking }`. Chatbot display order: `ems_tracking.current_status_description` → `ems_tracking.events` → `order.status_label`. Never log the key. Phones stay server-to-server. Errors: 400 missing input, 401 bad key, 404 not found, 429 rate limit, 503 API off. NanoAI caches ~90 seconds.',
+    shippingLookupDocNote:
+      'Full status tables, EMS phases, curl/JSON examples: `docs/PARTNER_SHIPPING_LOOKUP_INTEGRATION.md`.',
     tryOnTitle: 'E — B2B virtual try-on API',
     tryOnBody:
       'POST `multipart/form-data` from your **shop backend**: `userImage` plus at least one `garmentImage*`. Partner Bearer (NanoAI-issued); credits debit the linked billing wallet. HTTP 200 returns `result_url` (image), `history_id`, `credits_remaining` (snake_case).',
@@ -415,6 +429,11 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     personalizationApiTitle: 'L — 客户个性化（GET/POST，Bearer，CORS）',
     personalizationApiBody:
       '店铺或 `/site` 落地页的浏览记录、**收藏**与推荐。**与 G 相同 Bearer**。需 `customer_ref`。`GET …/personalization/recently-viewed`、`favorites`、`recommendations`、`profile`；`POST …/personalization/events` 记录 `view_product`、`toggle_favorite`（返回 `is_favorite`）或 UTM。托管站点：`/api/site/{slug}/personalization/…`。',
+    shippingLookupTitle: 'M — 物流查询网关（店铺实现，NanoAI 调用）',
+    shippingLookupBody:
+      '与以上接口相反：**由店铺网站**提供 HTTPS 接口，顾客在聊天中发送订单号（DH/DC）、手机号或运单号（…VN）时，NanoAI **在服务器端**调用。在 **消息 → AI 设置** 填写 URL 与 API key。鉴权：`X-Api-Key` 或 `Authorization: Bearer`。GET 或 POST JSON。字段优先级：`ems_code` > `order_code` > `phone` > `q`。200 返回 `{ ok: true, query_type, tracking_number, order, shop_timeline, ems_record, ems_tracking }`。聊天展示顺序：承运商当前状态 → 物流节点 → 店铺订单状态。不要记录密钥。手机号仅服务器间传输。错误：400 缺参、401 密钥错误、404 未找到、429 限流、503 未开启。NanoAI 缓存约 90 秒。',
+    shippingLookupDocNote:
+      '完整状态表、EMS 阶段、curl/JSON 示例见 `docs/PARTNER_SHIPPING_LOOKUP_INTEGRATION.md`。',
     tryOnTitle: 'E — B2B 虚拟试衣 API',
     tryOnBody:
       '由**店铺后端** POST `multipart`：`userImage` + 至少一件 `garmentImage*`。NanoAI 签发的 Bearer；credits 从绑定的 billing 钱包扣减。200 返回 `result_url`（结果图）、`history_id`、`credits_remaining`。',
@@ -530,6 +549,11 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     personalizationApiTitle: 'L — 顧客パーソナライズ（GET/POST、Bearer、CORS）',
     personalizationApiBody:
       '自社サイトまたは `/site` LP の閲覧履歴・**お気に入り**・おすすめ。**G と同じ Bearer**。`customer_ref` 必須。`GET …/personalization/recently-viewed` / `favorites` / `recommendations` / `profile`。`POST …/personalization/events` で `view_product`、`toggle_favorite`（`is_favorite` 返却）や UTM。ホストサイトは `/api/site/{slug}/personalization/…`。',
+    shippingLookupTitle: 'M — 配送照会ゲートウェイ（ショップ実装、NanoAI が呼び出し）',
+    shippingLookupBody:
+      '上記 API とは逆で、**ショップサイト**が HTTPS エンドポイントを公開し、チャットで注文番号（DH/DC）・電話番号・追跡番号（…VN）が来たとき NanoAI が **サーバー間** で呼び出します。**メッセージ → AI 設定** に URL と API キーを入力。認証は `X-Api-Key` または `Authorization: Bearer`。GET / POST JSON。優先順：`ems_code` > `order_code` > `phone` > `q`。200 は `{ ok: true, query_type, tracking_number, order, shop_timeline, ems_record, ems_tracking }`。チャット表示順：配送会社の現況 → 履歴 → 店舗ステータス。キーをログに残さない。電話番号はサーバー間のみ。400/401/404/429/503。NanoAI は約 90 秒キャッシュします。',
+    shippingLookupDocNote:
+      'ステータス表・EMS フェーズ・curl/JSON の詳細は `docs/PARTNER_SHIPPING_LOOKUP_INTEGRATION.md`。',
     tryOnTitle: 'E — B2B バーチャル試着 API',
     tryOnBody:
       '**店舗バックエンド**から POST multipart：`userImage` + 少なくとも 1 枚の `garmentImage*`。NanoAI 発行の Bearer；credits はリンク済み billing ウォレットから減算。200 で `result_url`（結果画像）、`history_id`、`credits_remaining` を返します。',
@@ -645,6 +669,11 @@ export const PARTNER_DEV_INTEGRATION_COPY: Record<ApiKeysHubLocale, PartnerDevIn
     personalizationApiTitle: 'L — 고객 개인화(GET/POST, Bearer, CORS)',
     personalizationApiBody:
       '자체 샵 또는 `/site` 랜딩의 열람 기록·**찜**·추천. **G와 동일 Bearer**. `customer_ref` 필수. `GET …/personalization/recently-viewed` / `favorites` / `recommendations` / `profile`. `POST …/personalization/events`로 `view_product`, `toggle_favorite`(`is_favorite` 반환) 또는 UTM. 호스팅 사이트: `/api/site/{slug}/personalization/…`.',
+    shippingLookupTitle: 'M — 배송 조회 게이트웨이(쇼핑몰 구현, NanoAI가 호출)',
+    shippingLookupBody:
+      '위 API와 반대로 **쇼핑몰 사이트**가 HTTPS 엔드포인트를 열고, 채팅에서 주문번호(DH/DC)·전화번호·운송장(…VN)이 오면 NanoAI가 **서버 간** 호출합니다. **메시징 → AI 설정**에 URL과 API 키를 입력하세요. 인증: `X-Api-Key` 또는 `Authorization: Bearer`. GET/POST JSON. 우선순위: `ems_code` > `order_code` > `phone` > `q`. 200 `{ ok: true, query_type, tracking_number, order, shop_timeline, ems_record, ems_tracking }`. 채팅 표시 순서: 운송사 현재 상태 → 이력 → 매장 주문 상태. 키를 로그하지 마세요. 전화번호는 서버 간에만. 400/401/404/429/503. NanoAI는 약 90초 캐시합니다.',
+    shippingLookupDocNote:
+      '상태 표, EMS 단계, curl/JSON 예시는 `docs/PARTNER_SHIPPING_LOOKUP_INTEGRATION.md`.',
     tryOnTitle: 'E — B2B 가상 피팅 API',
     tryOnBody:
       '**매장 백엔드**에서 POST multipart: `userImage` + `garmentImage*` 최소 1개. NanoAI가 발급한 Bearer; credits는 연결된 billing 지갑에서 차감. 200 응답에 `result_url`(결과 이미지), `history_id`, `credits_remaining`.',

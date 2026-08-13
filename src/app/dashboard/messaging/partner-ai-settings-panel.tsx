@@ -33,6 +33,8 @@ import {
   getPartnerAiTokenUsageStats,
   getPartnerAiUsageAnalytics,
   savePartnerAiSettings,
+  testPartnerShippingLookup,
+  clearPartnerShippingLookupApiKey,
   upsertPartnerInventoryItem,
   type PartnerInventoryEmbeddingStats,
   type PartnerAiSettingsClientRow,
@@ -171,6 +173,10 @@ function defaultsFromSettings(s: SettingsRow | null) {
     guest_purchase_flow: normalizeGuestPurchaseFlow(s?.guest_purchase_flow),
     guest_external_cart_url_template: String(s?.guest_external_cart_url_template ?? '').trim(),
     shop_checkout_login_required: s?.shop_checkout_login_required !== false,
+    after_sales_return_address: String(s?.after_sales_return_address ?? '').trim(),
+    shipping_lookup_url: String(s?.shipping_lookup_url ?? '').trim(),
+    shipping_lookup_api_key: '',
+    shipping_lookup_api_key_configured: Boolean(s?.shipping_lookup_api_key_configured),
   }
 }
 
@@ -194,6 +200,9 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
     guest_purchase_flow: f.guest_purchase_flow,
     guest_external_cart_url_template: f.guest_external_cart_url_template,
     shop_checkout_login_required: f.shop_checkout_login_required,
+    after_sales_return_address: f.after_sales_return_address,
+    shipping_lookup_url: f.shipping_lookup_url,
+    shipping_lookup_api_key: f.shipping_lookup_api_key,
   }
 }
 
@@ -894,6 +903,114 @@ export function PartnerAiSettingsPanel({
                 }
                 className="resize-y min-h-[160px]"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ai-after-sales-return-address">{t.afterSalesReturnAddressLabel}</Label>
+              <p className="text-xs text-muted-foreground">{t.afterSalesReturnAddressHint}</p>
+              <Textarea
+                id="ai-after-sales-return-address"
+                rows={4}
+                placeholder={t.afterSalesReturnAddressPlaceholder}
+                value={form.after_sales_return_address}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, after_sales_return_address: e.target.value }))
+                }
+                className="resize-y min-h-[96px]"
+              />
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border/80 bg-muted/20 p-4">
+              <div className="space-y-1">
+                <Label>{t.shippingLookupTitle}</Label>
+                <p className="text-xs text-muted-foreground">{t.shippingLookupHint}</p>
+                <Link
+                  href={`/dashboard/api-integration?partner=${encodeURIComponent(partnerId)}#shipping-lookup`}
+                  className="text-xs text-violet-600 underline underline-offset-2 dark:text-violet-400"
+                >
+                  {t.shippingLookupGuideLink}
+                </Link>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ai-shipping-lookup-url">{t.shippingLookupUrlLabel}</Label>
+                <Input
+                  id="ai-shipping-lookup-url"
+                  type="url"
+                  autoComplete="off"
+                  placeholder={t.shippingLookupUrlPlaceholder}
+                  value={form.shipping_lookup_url}
+                  onChange={(e) => setForm((f) => ({ ...f, shipping_lookup_url: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ai-shipping-lookup-key">{t.shippingLookupKeyLabel}</Label>
+                <p className="text-xs text-muted-foreground">{t.shippingLookupKeyHint}</p>
+                <Input
+                  id="ai-shipping-lookup-key"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder={t.shippingLookupKeyPlaceholder}
+                  value={form.shipping_lookup_api_key}
+                  onChange={(e) => setForm((f) => ({ ...f, shipping_lookup_api_key: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {form.shipping_lookup_api_key_configured
+                    ? t.shippingLookupKeyConfigured
+                    : t.shippingLookupKeyMissing}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() => {
+                    startTransition(async () => {
+                      const res = await testPartnerShippingLookup(partnerId, {
+                        url: form.shipping_lookup_url,
+                        apiKey: form.shipping_lookup_api_key || undefined,
+                      })
+                      if ('error' in res && res.error) {
+                        toast({ title: res.error, variant: 'destructive' })
+                        return
+                      }
+                      toast({
+                        title: `${t.shippingLookupTestButton}: HTTP ${'httpStatus' in res ? res.httpStatus : ''} ${
+                          'detail' in res && res.detail ? res.detail : ''
+                        }`.trim(),
+                      })
+                    })
+                  }}
+                >
+                  {t.shippingLookupTestButton}
+                </Button>
+                {form.shipping_lookup_api_key_configured ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => {
+                      startTransition(async () => {
+                        const res = await clearPartnerShippingLookupApiKey(partnerId)
+                        if ('error' in res && res.error) {
+                          toast({ title: res.error, variant: 'destructive' })
+                          return
+                        }
+                        setForm((f) => ({
+                          ...f,
+                          shipping_lookup_api_key: '',
+                          shipping_lookup_api_key_configured: false,
+                        }))
+                        toast({ title: saveOkMessage })
+                      })
+                    }}
+                  >
+                    {t.shippingLookupClearKey}
+                  </Button>
+                ) : null}
+              </div>
             </div>
 
             {!hideBirthdayPromo ? (

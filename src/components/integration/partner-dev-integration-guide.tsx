@@ -475,6 +475,44 @@ Cookie: <auth_session_cookie>
   }
 }`
 
+  const shippingLookupCurl = `curl -sS -H "X-Api-Key: YOUR_SHIPPING_LOOKUP_API_KEY" \\
+  "https://YOUR-SHOP.com/api/v1/shipping/lookup?q=DH042"
+
+curl -sS -H "X-Api-Key: YOUR_SHIPPING_LOOKUP_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"phone":"0901234567"}' \\
+  "https://YOUR-SHOP.com/api/v1/shipping/lookup"
+
+curl -sS -H "Authorization: Bearer YOUR_SHIPPING_LOOKUP_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"ems_code":"EH042737692VN"}' \\
+  "https://YOUR-SHOP.com/api/v1/shipping/lookup"`
+
+  const shippingLookupResponse = `{
+  "ok": true,
+  "query": "DH042",
+  "query_type": "order_code",
+  "matched_by": "order_code",
+  "is_latest_order": false,
+  "tracking_number": "EH042737692VN",
+  "shipping_provider": "EMS",
+  "order": {
+    "order_code": "DH042",
+    "status": "shipping",
+    "status_label": "Đang giao hàng",
+    "items": [{ "product_name": "Áo thun", "selected_size": "XL", "quantity": 2 }]
+  },
+  "shop_timeline": { "current_step_key": "domestic_shipping", "events": [] },
+  "ems_record": { "ems_tracking_code": "EH042737692VN", "ems_phase": "out_for_delivery" },
+  "ems_tracking": {
+    "available": true,
+    "current_status_description": "Giao bưu tá phát hàng",
+    "events": [
+      { "description": "Giao bưu tá phát hàng", "address": "Hà Nội", "traced_at": "2026-08-12T08:10:00" }
+    ]
+  }
+}`
+
   const headlessPersonalizationRecentUrl = `${baseUrl}/api/messaging/partners/${partnerId}/personalization/recently-viewed?customer_ref=USER-12345&limit=8`
 
   const headlessPersonalizationRecommendUrl = `${baseUrl}/api/messaging/partners/${partnerId}/personalization/recommendations?customer_ref=USER-12345&limit=8`
@@ -865,6 +903,22 @@ Cookie: <auth_session_cookie>
             <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200/90">{t.inventoryOpenRateLimit}</p>
           </>
         )}
+
+        <div id="shipping-lookup">
+          {section(
+            t.shippingLookupTitle,
+            t.shippingLookupBody,
+            <>
+              <CodeBlock title={t.codeLabelExampleServer} {...codeBlockCopyProps}>
+                {shippingLookupCurl}
+              </CodeBlock>
+              <CodeBlock title={t.codeLabelResponseShape} {...codeBlockCopyProps}>
+                {shippingLookupResponse}
+              </CodeBlock>
+              <p className="text-xs leading-relaxed text-muted-foreground">{t.shippingLookupDocNote}</p>
+            </>
+          )}
+        </div>
 
         <div className="rounded-lg border border-dashed bg-muted/30 p-3">
           <p className="text-sm font-medium text-foreground">{t.checklistTitle}</p>

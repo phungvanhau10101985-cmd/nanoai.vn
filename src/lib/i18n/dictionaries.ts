@@ -729,9 +729,11 @@ export type Dictionary = {
     customerCareShopSetupGuideBody: string
     /** Sidebar trang /dashboard/messaging/settings */
     settingsSidebarTitle: string
-    /** Nhóm link vận hành (Marketing, Web, Đơn hàng) trên sidebar Quản trị */
+    /** Nhóm link vận hành (Marketing, Đơn hàng) trên sidebar Quản trị */
     settingsNavOperationsTitle: string
     settingsNavOperationsDesc: string
+    /** Nhóm quản trị website trên sidebar Quản trị */
+    settingsNavWebsiteTitle: string
     /** Nút mở website công khai (trang Quản trị) */
     settingsOpenWebsiteButton: string
     settingsManageWebsiteButton: string
@@ -1168,6 +1170,21 @@ export type Dictionary = {
     productConsultationContextLabel: string
     productConsultationContextHint: string
     productConsultationContextPlaceholder: string
+    afterSalesReturnAddressLabel: string
+    afterSalesReturnAddressHint: string
+    afterSalesReturnAddressPlaceholder: string
+    shippingLookupTitle: string
+    shippingLookupHint: string
+    shippingLookupUrlLabel: string
+    shippingLookupUrlPlaceholder: string
+    shippingLookupKeyLabel: string
+    shippingLookupKeyHint: string
+    shippingLookupKeyPlaceholder: string
+    shippingLookupKeyConfigured: string
+    shippingLookupKeyMissing: string
+    shippingLookupTestButton: string
+    shippingLookupClearKey: string
+    shippingLookupGuideLink: string
     disclosureToggle: string
     disclosureSuffixLabel: string
     disclosureSuffixHint: string
@@ -3679,7 +3696,8 @@ const VI_DICTIONARY: Dictionary = {
       'Bước 1 — Vào Bảng điều khiển → Nhắn tin → Quản trị (trang này).\n\nBước 2 — Ở mục «Tạo workspace nhắn tin», nhập tên hiển thị, tên thương hiệu, chọn ngành; có thể dán URL logo hoặc tải ảnh lên.\n\nBước 3 — Nhấn «Tạo mới». Đây là workspace của shop: mọi tin từ Facebook Page, Zalo OA, chat trên NanoAI và chat nhúng trên web shop đều vào cùng một inbox.\n\nBước 4 — Sau đó kết nối kênh (Facebook/Zalo), sao chép liên kết chat hoặc mã nhúng iframe, và tùy chọn bật trợ lý AI cùng kho hàng ngay trên trang quản trị này.',
     settingsSidebarTitle: 'Danh mục quản trị',
     settingsNavOperationsTitle: 'Vận hành',
-    settingsNavOperationsDesc: 'Marketing, website và đơn hàng chat — mở trang riêng.',
+    settingsNavOperationsDesc: 'Marketing và đơn hàng chat — mở trang riêng.',
+    settingsNavWebsiteTitle: 'Quản trị website',
     settingsOpenWebsiteButton: 'Xem web',
     settingsManageWebsiteButton: 'Chỉnh web',
     settingsCreateWebsiteButton: 'Tạo web',
@@ -4117,6 +4135,25 @@ const VI_DICTIONARY: Dictionary = {
       'Một ô duy nhất cho toàn bộ thông tin AI luôn phải dùng: chính sách shop, giọng điệu trả lời, cách tư vấn, cách chốt đơn, đổi trả, cọc, giao hàng…',
     productConsultationContextPlaceholder:
       'Ví dụ: giọng lịch sự, xưng em — anh/chị. Luôn nhắc khách kiểm tra bảng size trước khi chốt. Hàng sale không đổi trả. Đơn may theo số đo cần cọc 50%. Khi khách lăn tăn, giải thích chính sách nhẹ nhàng, không ép mua…',
+    afterSalesReturnAddressLabel: 'Địa chỉ nhận hàng hoàn / đổi size / trả hàng',
+    afterSalesReturnAddressHint:
+      'Địa chỉ shop nhận khi khách gửi hàng hoàn, đổi size hoặc trả hàng. AI sẽ gửi địa chỉ này trong chat hậu mãi. Để trống thì AI vẫn hướng dẫn quy trình, không tự bịa địa chỉ.',
+    afterSalesReturnAddressPlaceholder:
+      'Ví dụ: 188 Fashion — số …, phường …, quận …, Hà Nội. SĐT nhận hàng: …',
+    shippingLookupTitle: 'Cổng API tra cứu vận chuyển (web shop)',
+    shippingLookupHint:
+      'NanoAI gọi API này từ máy chủ (không lộ key) khi khách gửi mã đơn, SĐT hoặc mã vận. Điền URL + key shop cấp. Xem hướng dẫn tích hợp để web shop triển khai cùng contract.',
+    shippingLookupUrlLabel: 'URL tra cứu vận chuyển',
+    shippingLookupUrlPlaceholder: 'https://188.com.vn/api/v1/shipping/lookup',
+    shippingLookupKeyLabel: 'API key (shop cấp cho NanoAI)',
+    shippingLookupKeyHint:
+      'Header X-Api-Key hoặc Authorization Bearer. Để trống khi lưu nếu đã có key. Không đưa key vào frontend public.',
+    shippingLookupKeyPlaceholder: 'Dán key mới — để trống để giữ key đã lưu',
+    shippingLookupKeyConfigured: 'Đã lưu API key.',
+    shippingLookupKeyMissing: 'Chưa có API key.',
+    shippingLookupTestButton: 'Thử kết nối',
+    shippingLookupClearKey: 'Xóa key',
+    shippingLookupGuideLink: 'Hướng dẫn tích hợp cổng vận chuyển',
     disclosureToggle: 'Thêm dòng công bố tin nhắn từ AI',
     disclosureSuffixLabel: 'Nội dung công bố (cuối tin)',
     disclosureSuffixHint: 'Hiển thị ở cuối mỗi tin AI gửi để khách biết đây là trợ lý tự động.',
@@ -6624,7 +6661,8 @@ const EN_DICTIONARY: Dictionary = {
       'Hosted URL, iframe snippet, embed endpoint, keys, and developer docs now live on the API integration page — they are no longer shown on this settings screen.',
     settingsSidebarTitle: 'Admin menu',
     settingsNavOperationsTitle: 'Operations',
-    settingsNavOperationsDesc: 'Marketing, website, and chat orders — open dedicated pages.',
+    settingsNavOperationsDesc: 'Marketing and chat orders — open dedicated pages.',
+    settingsNavWebsiteTitle: 'Website admin',
     settingsOpenWebsiteButton: 'View website',
     settingsManageWebsiteButton: 'Edit website',
     settingsCreateWebsiteButton: 'Create website',
@@ -7065,6 +7103,25 @@ const EN_DICTIONARY: Dictionary = {
       'One field for everything the AI must always use: shop policies, reply tone, consultation style, closing guidance, exchanges, deposits, shipping…',
     productConsultationContextPlaceholder:
       'e.g. use a polite and concise tone. Always ask customers to check the size chart before ordering. Sale items are final. Made-to-measure orders require a 50% deposit. Handle hesitation gently without pressuring customers…',
+    afterSalesReturnAddressLabel: 'Return / size-exchange address',
+    afterSalesReturnAddressHint:
+      'Shop address for returns, size exchanges, and send-backs. The AI includes this in after-sales chat. If empty, the AI still explains the process and does not invent an address.',
+    afterSalesReturnAddressPlaceholder:
+      'e.g. 188 Fashion — street, ward, district, city. Receiving phone: …',
+    shippingLookupTitle: 'Shipping lookup API (shop website)',
+    shippingLookupHint:
+      'NanoAI calls this API server-to-server (key never exposed) when a customer sends an order code, phone, or tracking number. Enter the shop URL and API key. See the integration guide for the contract your website should implement.',
+    shippingLookupUrlLabel: 'Shipping lookup URL',
+    shippingLookupUrlPlaceholder: 'https://188.com.vn/api/v1/shipping/lookup',
+    shippingLookupKeyLabel: 'API key (issued by the shop)',
+    shippingLookupKeyHint:
+      'Sent as X-Api-Key or Authorization Bearer. Leave blank on save to keep the stored key. Never put the key in public frontend code.',
+    shippingLookupKeyPlaceholder: 'Paste a new key — leave blank to keep the saved key',
+    shippingLookupKeyConfigured: 'API key is saved.',
+    shippingLookupKeyMissing: 'No API key yet.',
+    shippingLookupTestButton: 'Test connection',
+    shippingLookupClearKey: 'Remove key',
+    shippingLookupGuideLink: 'Shipping lookup integration guide',
     disclosureToggle: 'Append an AI disclosure line',
     disclosureSuffixLabel: 'Disclosure text (end of message)',
     disclosureSuffixHint: 'Shown at the end of each AI message so customers know it is automated.',
@@ -9567,7 +9624,8 @@ const ZH_DICTIONARY: Dictionary = {
       '第 1 步 — 打开 控制台 → 消息 → 渠道与 AI 设置（本页）。\n\n第 2 步 — 在「创建消息工作区」中填写显示名称、品牌名称、选择行业；可填写 logo 链接或上传图片。\n\n第 3 步 — 点击「创建」。即店铺工作区：来自 Facebook 公共主页、Zalo OA、NanoAI 托管聊天与网站嵌入聊天的消息会进入同一收件箱。\n\n第 4 步 — 随后连接渠道（Facebook/Zalo）、复制托管聊天链接或 iframe 代码，并可在本页选择开启 AI 助手与库存。',
     settingsSidebarTitle: '管理目录',
     settingsNavOperationsTitle: '日常运营',
-    settingsNavOperationsDesc: '营销、网站与聊天订单 — 打开独立页面。',
+    settingsNavOperationsDesc: '营销与聊天订单 — 打开独立页面。',
+    settingsNavWebsiteTitle: '网站管理',
     settingsOpenWebsiteButton: '查看网站',
     settingsManageWebsiteButton: '编辑网站',
     settingsCreateWebsiteButton: '创建网站',
@@ -9988,6 +10046,25 @@ const ZH_DICTIONARY: Dictionary = {
       '一个输入框填写 AI 必须始终参考的全部内容：店铺政策、回复语气、导购方式、促单方式、退换、定金、配送等。',
     productConsultationContextPlaceholder:
       '例如：语气礼貌简短；下单前提醒顾客查看尺码表；特价商品不退换；按尺寸定制需支付 50% 定金；顾客犹豫时温和说明政策，不强迫购买等。',
+    afterSalesReturnAddressLabel: '退换货 / 换码收件地址',
+    afterSalesReturnAddressHint:
+      '店铺收取退货、换码或寄回商品的地址。AI 会在售后聊天中发送该地址。留空时仍说明流程，不会编造地址。',
+    afterSalesReturnAddressPlaceholder:
+      '例如：188 Fashion — 街道、区、市。收件电话：…',
+    shippingLookupTitle: '物流查询 API（店铺网站）',
+    shippingLookupHint:
+      '顾客发送订单号、手机号或运单号时，NanoAI 在服务器端调用此 API（不暴露密钥）。填写店铺 URL 与 API key。请参阅集成指南以实现相同接口。',
+    shippingLookupUrlLabel: '物流查询 URL',
+    shippingLookupUrlPlaceholder: 'https://188.com.vn/api/v1/shipping/lookup',
+    shippingLookupKeyLabel: 'API key（店铺颁发给 NanoAI）',
+    shippingLookupKeyHint:
+      '请求头 X-Api-Key 或 Authorization Bearer。保存时留空则保留已存密钥。切勿把密钥放进前端。',
+    shippingLookupKeyPlaceholder: '粘贴新密钥 — 留空则保留已保存的密钥',
+    shippingLookupKeyConfigured: '已保存 API key。',
+    shippingLookupKeyMissing: '尚未设置 API key。',
+    shippingLookupTestButton: '测试连接',
+    shippingLookupClearKey: '删除密钥',
+    shippingLookupGuideLink: '物流查询集成指南',
     disclosureToggle: '在末尾附加 AI 说明',
     disclosureSuffixLabel: '说明文字（消息末尾）',
     disclosureSuffixHint: '每条 AI 消息末尾显示，提示为自动回复。',
@@ -12427,7 +12504,8 @@ const JA_DICTIONARY: Dictionary = {
       '手順 1 — ダッシュボード → メッセージ → チャネル・AI 設定（このページ）を開きます。\n\n手順 2 — 「メッセージワークスペースを作成」に表示名・ブランド名・業種を入力します。ロゴは URL の入力または画像アップロードが可能です。\n\n手順 3 — 「作成」をクリックします。これが店舗ワークスペースです。Facebook ページ、Zalo OA、NanoAI 上のチャット、サイト埋め込みチャットのメッセージはすべて同じ受信箱に入ります。\n\n手順 4 — 続けてチャネル（Facebook/Zalo）を接続し、ホストされたチャットリンクまたは iframe コードをコピーし、同じ設定画面で AI アシスタントや在庫を任意で有効にします。',
     settingsSidebarTitle: '管理メニュー',
     settingsNavOperationsTitle: '運用',
-    settingsNavOperationsDesc: 'マーケ・Web・チャット注文 — 専用ページを開きます。',
+    settingsNavOperationsDesc: 'マーケ・チャット注文 — 専用ページを開きます。',
+    settingsNavWebsiteTitle: 'Web管理',
     settingsOpenWebsiteButton: 'Webを見る',
     settingsManageWebsiteButton: 'Webを編集',
     settingsCreateWebsiteButton: 'Webを作成',
@@ -12862,6 +12940,25 @@ const JA_DICTIONARY: Dictionary = {
       'AI が常に参照する内容を1つの欄に入力します。店舗ポリシー、返信トーン、接客方針、購入案内、交換、手付け、配送など。',
     productConsultationContextPlaceholder:
       '例：丁寧で簡潔なトーン。注文前にサイズ表の確認を促す。セール品は返品交換不可。採寸オーダーは50%の手付けが必要。迷っているお客様には押し売りせず、やさしく説明する。',
+    afterSalesReturnAddressLabel: '返品・サイズ交換の受取住所',
+    afterSalesReturnAddressHint:
+      '返品・サイズ交換・返送を受け取る店舗住所です。AI がアフター対応のチャットでこの住所を送ります。空欄の場合は手順のみ案内し、住所は作りません。',
+    afterSalesReturnAddressPlaceholder:
+      '例：188 Fashion — 番地、区、市。受取電話：…',
+    shippingLookupTitle: '配送照会 API（ショップサイト）',
+    shippingLookupHint:
+      '顧客が注文番号・電話番号・追跡番号を送ったとき、NanoAI がサーバーからこの API を呼び出します（キーは公開しません）。ショップの URL と API キーを入力してください。契約仕様は統合ガイドを参照。',
+    shippingLookupUrlLabel: '配送照会 URL',
+    shippingLookupUrlPlaceholder: 'https://188.com.vn/api/v1/shipping/lookup',
+    shippingLookupKeyLabel: 'API キー（ショップ発行）',
+    shippingLookupKeyHint:
+      'ヘッダー X-Api-Key または Authorization Bearer。保存時に空欄なら既存キーを維持。フロントに置かないでください。',
+    shippingLookupKeyPlaceholder: '新しいキーを貼り付け — 空欄なら保存済みキーを維持',
+    shippingLookupKeyConfigured: 'API キーを保存済みです。',
+    shippingLookupKeyMissing: 'API キーは未設定です。',
+    shippingLookupTestButton: '接続テスト',
+    shippingLookupClearKey: 'キーを削除',
+    shippingLookupGuideLink: '配送照会の統合ガイド',
     disclosureToggle: 'AI である旨を文末に付ける',
     disclosureSuffixLabel: '表示文（メッセージ末尾）',
     disclosureSuffixHint: '各 AI メッセージの末尾に表示し、自動返信であることを示します。',
@@ -15350,7 +15447,8 @@ const KO_DICTIONARY: Dictionary = {
       '1단계 — 대시보드 → 메시지 → 채널·AI 설정(이 페이지)으로 이동합니다.\n\n2단계 — «메시징 워크스페이스 만들기»에서 표시 이름, 브랜드 이름, 업종을 입력합니다. 로고는 URL을 넣거나 이미지를 업로드할 수 있습니다.\n\n3단계 — «만들기»를 누릅니다. 이것이 매장 워크스페이스입니다. Facebook 페이지, Zalo OA, NanoAI 호스팅 채팅, 사이트에 임베드한 채팅의 메시지가 모두 같은 받은편지함으로 들어옵니다.\n\n4단계 — 이어서 채널(Facebook/Zalo)을 연결하고 호스팅 채팅 링크 또는 iframe 코드를 복사한 뒤, 같은 설정 페이지에서 AI 어시스트와 재고를 선택적으로 켤 수 있습니다.',
     settingsSidebarTitle: '관리 메뉴',
     settingsNavOperationsTitle: '운영',
-    settingsNavOperationsDesc: '마케팅, 웹사이트, 채팅 주문 — 별도 페이지로 이동합니다.',
+    settingsNavOperationsDesc: '마케팅 및 채팅 주문 — 별도 페이지로 이동합니다.',
+    settingsNavWebsiteTitle: '웹사이트 관리',
     settingsOpenWebsiteButton: '웹사이트 보기',
     settingsManageWebsiteButton: '웹사이트 편집',
     settingsCreateWebsiteButton: '웹사이트 만들기',
@@ -15781,6 +15879,25 @@ const KO_DICTIONARY: Dictionary = {
       'AI가 항상 참고해야 할 내용을 한 곳에 입력하세요: 매장 정책, 답변 톤, 상담 방식, 구매 유도 방식, 교환, 계약금, 배송 등.',
     productConsultationContextPlaceholder:
       '예: 정중하고 간결한 톤. 주문 전 사이즈표 확인 안내. 세일 상품은 교환/환불 불가. 맞춤 제작 주문은 50% 계약금 필요. 망설이는 고객에게는 부담을 주지 않고 부드럽게 설명.',
+    afterSalesReturnAddressLabel: '반품 / 사이즈 교환 수령 주소',
+    afterSalesReturnAddressHint:
+      '반품·사이즈 교환·반송 상품을 받는 매장 주소입니다. AI가 애프터 채팅에서 이 주소를 보냅니다. 비워 두면 절차만 안내하고 주소를 지어내지 않습니다.',
+    afterSalesReturnAddressPlaceholder:
+      '예: 188 Fashion — 도로, 동, 구, 시. 수령 전화: …',
+    shippingLookupTitle: '배송 조회 API (쇼핑몰 사이트)',
+    shippingLookupHint:
+      '고객이 주문번호·전화번호·운송장 번호를 보내면 NanoAI가 서버에서 이 API를 호출합니다(키는 공개되지 않음). 쇼핑몰 URL과 API 키를 입력하세요. 동일 계약은 연동 가이드를 참고하세요.',
+    shippingLookupUrlLabel: '배송 조회 URL',
+    shippingLookupUrlPlaceholder: 'https://188.com.vn/api/v1/shipping/lookup',
+    shippingLookupKeyLabel: 'API 키 (쇼핑몰이 NanoAI에 발급)',
+    shippingLookupKeyHint:
+      '헤더 X-Api-Key 또는 Authorization Bearer. 저장 시 비워 두면 기존 키를 유지합니다. 프론트엔드에 넣지 마세요.',
+    shippingLookupKeyPlaceholder: '새 키 붙여넣기 — 비우면 저장된 키 유지',
+    shippingLookupKeyConfigured: 'API 키가 저장되어 있습니다.',
+    shippingLookupKeyMissing: 'API 키가 없습니다.',
+    shippingLookupTestButton: '연결 테스트',
+    shippingLookupClearKey: '키 삭제',
+    shippingLookupGuideLink: '배송 조회 연동 가이드',
     disclosureToggle: '메시지 끝에 AI 안내 문구 추가',
     disclosureSuffixLabel: '안내 문구(메시지 끝)',
     disclosureSuffixHint: '각 AI 메시지 끝에 표시되어 자동 답장임을 알립니다.',

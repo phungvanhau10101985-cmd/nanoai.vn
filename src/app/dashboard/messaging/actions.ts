@@ -5,6 +5,11 @@ import { revalidatePath } from 'next/cache'
 import { getUserForCreditAction } from '@/lib/auth'
 import { RESERVED_MESSAGING_GUEST_SLUGS } from '@/lib/messaging/reserved-guest-slugs'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
+import {
+  assertPublicHttpsShippingLookupUrl,
+  classifyShippingLookupQuery,
+  lookupPartnerShipping,
+} from '@/lib/messaging/partner-shipping-lookup'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import {
   clearMessagingPartnerAiImageSearchSecretFromPg,
@@ -12,12 +17,14 @@ import {
   fetchMessagingPartnerAiImageSearchAuthFromPg,
   fetchMessagingPartnerAiSettingsFullFromPg,
   fetchMessagingPartnerAiUpsertPrereqFromPg,
+  fetchMessagingPartnerShippingLookupAuthFromPg,
   partnerMessagingAiSettingsRowExistsFromPg,
   peekMessagingPartnerAiImageSearchSecretFromPg,
   upsertMessagingPartnerAiSettingsDashboardFromPg,
   updateMessagingPartnerAiImageSearchEnabledFromPg,
   updateMessagingPartnerAiImageSearchSecretFromPg,
   updateMessagingPartnerAiVisionBgIdleFromPg,
+  updateMessagingPartnerShippingLookupApiKeyFromPg,
   type PartnerAiSettingsDashboardUpsert,
 } from '@/lib/db/messaging-partner-ai-settings-pg'
 import {
@@ -1813,14 +1820,22 @@ export async function savePartnerZaloChannel(partnerId: string, zaloWebhookSecre
 type MessagingPartnerAiSettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 
 /** Gß╗¡i xuß╗æng client: kh├┤ng lß╗Ö image_search_api_secret. */
-export type PartnerAiSettingsClientRow = Omit<MessagingPartnerAiSettingsRow, 'image_search_api_secret'> & {
+export type PartnerAiSettingsClientRow = Omit<
+  MessagingPartnerAiSettingsRow,
+  'image_search_api_secret' | 'shipping_lookup_api_key'
+> & {
   image_search_api_key_configured: boolean
+  shipping_lookup_api_key_configured: boolean
 }
 
 function toPartnerAiSettingsClient(row: MessagingPartnerAiSettingsRow | null): PartnerAiSettingsClientRow | null {
   if (!row) return null
-  const { image_search_api_secret: _sec, ...rest } = row
-  return { ...rest, image_search_api_key_configured: Boolean(_sec) }
+  const { image_search_api_secret: _sec, shipping_lookup_api_key: _shipKey, ...rest } = row
+  return {
+    ...rest,
+    image_search_api_key_configured: Boolean(_sec),
+    shipping_lookup_api_key_configured: Boolean(_shipKey?.trim()),
+  }
 }
 
 export type PartnerAiSettingsPayload = {
@@ -1844,6 +1859,10 @@ export type PartnerAiSettingsPayload = {
   /** Mß║½u URL giß╗Å web ΓÇö bß║»t buß╗Öc khi `external_cart_url`, phß║úi chß╗⌐a `{sku}`. */
   guest_external_cart_url_template: string
   shop_checkout_login_required: boolean
+  after_sales_return_address: string
+  shipping_lookup_url: string
+  /** Để trống = giữ khóa đã lưu. */
+  shipping_lookup_api_key: string
 }
 
 const PARTNER_AI_USAGE_DETAIL_ROW_LIMIT = 250
@@ -2472,6 +2491,10 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
       }
     }
   }
+  const shippingLookupUrl = (payload.shipping_lookup_url ?? '').trim().slice(0, 2048)
+  if (shippingLookupUrl && !assertPublicHttpsShippingLookupUrl(shippingLookupUrl)) {
+    return { error: 'Shipping lookup URL must be public HTTPS (localhost allowed only in development).' }
+  }
   const now = new Date().toISOString()
   const existingAi = await fetchMessagingPartnerAiUpsertPrereqFromPg(partnerId)
 
@@ -2513,6 +2536,8 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
     guest_external_cart_url_template:
       (payload.guest_external_cart_url_template ?? '').trim().slice(0, 2048) || null,
     shop_checkout_login_required: Boolean(payload.shop_checkout_login_required),
+    after_sales_return_address: (payload.after_sales_return_address ?? '').trim().slice(0, 2000),
+    shipping_lookup_url: shippingLookupUrl,
     ...(visionBgReset as Pick<
       PartnerAiSettingsDashboardUpsert,
       | 'vision_bg_sync_status'
@@ -2529,8 +2554,65 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
   }
   const ok = await upsertMessagingPartnerAiSettingsDashboardFromPg(upsertPayload)
   if (!ok) return { error: 'Failed to save AI settings.' }
+  const keyDraft = (payload.shipping_lookup_api_key ?? '').trim().slice(0, 512)
+  if (keyDraft) {
+    const keyOk = await updateMessagingPartnerShippingLookupApiKeyFromPg(partnerId, keyDraft, now)
+    if (!keyOk) return { error: 'Failed to save shipping lookup API key.' }
+  }
   revalidateMessagingDashboard()
   return { ok: true as const }
+}
+
+export async function clearPartnerShippingLookupApiKey(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'ai_settings')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const ok = await updateMessagingPartnerShippingLookupApiKeyFromPg(
+    partnerId,
+    null,
+    new Date().toISOString()
+  )
+  if (!ok) return { error: 'Failed to clear shipping lookup API key.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+/** Gọi cổng shop (không lộ key). 200/400/404 = đã kết nối; 401/503 = sai key / API tắt. */
+export async function testPartnerShippingLookup(
+  partnerId: string,
+  input?: { url?: string; apiKey?: string; q?: string }
+) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'ai_settings')
+  if ('error' in gate) return { error: gate.error }
+  const saved = await fetchMessagingPartnerShippingLookupAuthFromPg(partnerId)
+  const url = (input?.url ?? saved?.shipping_lookup_url ?? '').trim()
+  const apiKey = (input?.apiKey ?? saved?.shipping_lookup_api_key ?? '').trim()
+  if (!url || !assertPublicHttpsShippingLookupUrl(url)) {
+    return { error: 'Enter a valid public HTTPS lookup URL first.' }
+  }
+  if (!apiKey) return { error: 'Enter or save the shop API key first.' }
+  const qRaw = (input?.q ?? '').trim()
+  const query = qRaw
+    ? classifyShippingLookupQuery(qRaw) ?? { type: 'q' as const, value: qRaw.slice(0, 64) }
+    : { type: 'q' as const, value: 'DH001' }
+  const outcome = await lookupPartnerShipping({ url, apiKey, query })
+  if (outcome.ok) {
+    return {
+      ok: true as const,
+      httpStatus: outcome.hit.httpStatus,
+      detail: outcome.hit.orderCode || outcome.hit.statusLabel || 'ok',
+    }
+  }
+  if (outcome.httpStatus === 400 || outcome.httpStatus === 404) {
+    return { ok: true as const, httpStatus: outcome.httpStatus, detail: outcome.detail }
+  }
+  return { error: outcome.detail || `HTTP ${outcome.httpStatus}`, httpStatus: outcome.httpStatus }
 }
 
 export async function generatePartnerImageSearchApiSecret(partnerId: string) {

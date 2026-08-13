@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -540,7 +540,7 @@ export function PartnerMessagingInboxClient({
           <p className="mb-3 text-sm text-muted-foreground">{t.noWorkspaceInboxCta}</p>
           <div className="flex flex-wrap gap-2">
             <Button asChild>
-              <Link href="/dashboard/messaging/settings">{t.messagingSettingsLink}</Link>
+              <Link href={`/dashboard/messaging/settings${partnerNavQuery}`}>{t.messagingSettingsLink}</Link>
             </Button>
           </div>
         </div>
@@ -729,16 +729,22 @@ export function PartnerMessagingInboxClient({
             <Plus className="mr-1 h-3.5 w-3.5 shrink-0" aria-hidden />
             Tạo kênh
           </Button>
-          <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title={t.messagingSettingsLink}>
-            <Link href={`/dashboard/messaging/settings${partnerNavQuery}`} aria-label={t.messagingSettingsLink}>
-              <Settings className="h-4 w-4" aria-hidden />
-            </Link>
-          </Button>
-          <Button type="button" variant="secondary" size="icon" className="h-9 w-9 shrink-0" asChild title={t.messagingOrdersLink}>
-            <Link href={`/dashboard/messaging/orders${partnerNavQuery}`} aria-label={t.messagingOrdersLink}>
-              <ClipboardList className="h-4 w-4" aria-hidden />
-            </Link>
-          </Button>
+          <Link
+            href={`/dashboard/messaging/settings${partnerNavQuery}`}
+            aria-label={t.messagingSettingsLink}
+            title={t.messagingSettingsLink}
+            className={cn(buttonVariants({ variant: 'secondary', size: 'icon' }), 'h-9 w-9 shrink-0')}
+          >
+            <Settings className="h-4 w-4" aria-hidden />
+          </Link>
+          <Link
+            href={`/dashboard/messaging/orders${partnerNavQuery}`}
+            aria-label={t.messagingOrdersLink}
+            title={t.messagingOrdersLink}
+            className={cn(buttonVariants({ variant: 'secondary', size: 'icon' }), 'h-9 w-9 shrink-0')}
+          >
+            <ClipboardList className="h-4 w-4" aria-hidden />
+          </Link>
         </div>
         <div className="hidden flex-wrap items-center gap-1 md:flex">
           <Button
@@ -751,18 +757,20 @@ export function PartnerMessagingInboxClient({
             <Plus className="mr-1 h-3 w-3" aria-hidden />
             Tạo kênh
           </Button>
-          <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
-            <Link href={`/dashboard/messaging/settings${partnerNavQuery}`}>
-              <Settings className="h-3 w-3" aria-hidden />
-              {t.messagingSettingsLink}
-            </Link>
-          </Button>
-          <Button type="button" variant="secondary" size="sm" asChild className="h-7 gap-1 px-2 text-[11px]">
-            <Link href={`/dashboard/messaging/orders${partnerNavQuery}`}>
-              <ClipboardList className="h-3 w-3" aria-hidden />
-              {t.messagingOrdersLink}
-            </Link>
-          </Button>
+          <Link
+            href={`/dashboard/messaging/settings${partnerNavQuery}`}
+            className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'h-7 gap-1 px-2 text-[11px]')}
+          >
+            <Settings className="h-3 w-3" aria-hidden />
+            {t.messagingSettingsLink}
+          </Link>
+          <Link
+            href={`/dashboard/messaging/orders${partnerNavQuery}`}
+            className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'h-7 gap-1 px-2 text-[11px]')}
+          >
+            <ClipboardList className="h-3 w-3" aria-hidden />
+            {t.messagingOrdersLink}
+          </Link>
         </div>
       </div>
 

@@ -61,6 +61,9 @@ function mapPgRowToAiSettingsFull(row: {
   guest_purchase_flow: string | null
   guest_external_cart_url_template: string | null
   shop_checkout_login_required: boolean | null
+  after_sales_return_address: string | null
+  shipping_lookup_url: string | null
+  shipping_lookup_api_key: string | null
   updated_at: unknown
 }): MessagingPartnerAiSettingsRow {
   return {
@@ -97,6 +100,9 @@ function mapPgRowToAiSettingsFull(row: {
         ? String(row.guest_external_cart_url_template).trim().slice(0, 2048) || null
         : null,
     shop_checkout_login_required: normalizeShopCheckoutLoginRequired(row.shop_checkout_login_required),
+    after_sales_return_address: String(row.after_sales_return_address ?? '').trim().slice(0, 2000),
+    shipping_lookup_url: String(row.shipping_lookup_url ?? '').trim().slice(0, 2048),
+    shipping_lookup_api_key: row.shipping_lookup_api_key != null ? String(row.shipping_lookup_api_key) : null,
     updated_at: tsIsoReq(row.updated_at),
   }
 }
@@ -141,6 +147,9 @@ export async function fetchMessagingPartnerAiSettingsFullFromPg(
         coalesce(nullif(trim(guest_purchase_flow), ''), 'in_chat') as guest_purchase_flow,
         guest_external_cart_url_template,
         coalesce(shop_checkout_login_required, true) as shop_checkout_login_required,
+        coalesce(after_sales_return_address, '') as after_sales_return_address,
+        coalesce(shipping_lookup_url, '') as shipping_lookup_url,
+        shipping_lookup_api_key,
         updated_at
        from public.messaging_partner_ai_settings
        where partner_id = $1::uuid
@@ -300,6 +309,8 @@ export type PartnerAiSettingsDashboardUpsert = {
   guest_purchase_flow: string
   guest_external_cart_url_template: string | null
   shop_checkout_login_required: boolean
+  after_sales_return_address: string
+  shipping_lookup_url: string
   updated_at: string
 }
 
@@ -320,10 +331,10 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         vision_bg_sync_status, vision_bg_sync_resume_after_id, vision_bg_sync_rounds,
         vision_bg_sync_imported, vision_bg_sync_removed, vision_bg_sync_started_at, vision_bg_sync_finished_at,
         vision_bg_sync_error, vision_bg_sync_report, guest_purchase_flow, guest_external_cart_url_template,
-        shop_checkout_login_required, updated_at
+        shop_checkout_login_required, after_sales_return_address, shipping_lookup_url, updated_at
       ) values (
         $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31::timestamptz
+        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33::timestamptz
       )
       on conflict (partner_id) do update set
         enabled = excluded.enabled,
@@ -355,6 +366,8 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         guest_purchase_flow = excluded.guest_purchase_flow,
         guest_external_cart_url_template = excluded.guest_external_cart_url_template,
         shop_checkout_login_required = excluded.shop_checkout_login_required,
+        after_sales_return_address = excluded.after_sales_return_address,
+        shipping_lookup_url = excluded.shipping_lookup_url,
         updated_at = excluded.updated_at`,
       [
         row.partner_id,
@@ -387,6 +400,8 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         row.guest_purchase_flow,
         row.guest_external_cart_url_template,
         row.shop_checkout_login_required,
+        row.after_sales_return_address,
+        row.shipping_lookup_url,
         row.updated_at,
       ]
     )
@@ -432,6 +447,58 @@ export async function clearMessagingPartnerAiImageSearchSecretFromPg(
     return (r.rowCount ?? 0) > 0
   } catch (e) {
     console.warn('[clearMessagingPartnerAiImageSearchSecretFromPg]', e)
+    return false
+  }
+}
+
+export type MessagingPartnerShippingLookupAuthRow = {
+  shipping_lookup_url: string
+  shipping_lookup_api_key: string | null
+}
+
+export async function fetchMessagingPartnerShippingLookupAuthFromPg(
+  partnerId: string
+): Promise<MessagingPartnerShippingLookupAuthRow | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{
+      shipping_lookup_url: string | null
+      shipping_lookup_api_key: string | null
+    }>(
+      `select coalesce(shipping_lookup_url, '') as shipping_lookup_url,
+              shipping_lookup_api_key
+       from public.messaging_partner_ai_settings
+       where partner_id = $1::uuid
+       limit 1`,
+      [partnerId]
+    )
+    if (!row) return null
+    return {
+      shipping_lookup_url: String(row.shipping_lookup_url ?? '').trim().slice(0, 2048),
+      shipping_lookup_api_key: row.shipping_lookup_api_key != null ? String(row.shipping_lookup_api_key) : null,
+    }
+  } catch (e) {
+    console.warn('[fetchMessagingPartnerShippingLookupAuthFromPg]', e)
+    return null
+  }
+}
+
+export async function updateMessagingPartnerShippingLookupApiKeyFromPg(
+  partnerId: string,
+  apiKey: string | null,
+  updatedAt: string
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    const r = await getPgPool().query(
+      `update public.messaging_partner_ai_settings
+       set shipping_lookup_api_key = $2, updated_at = $3::timestamptz
+       where partner_id = $1::uuid`,
+      [partnerId, apiKey, updatedAt]
+    )
+    return (r.rowCount ?? 0) > 0
+  } catch (e) {
+    console.warn('[updateMessagingPartnerShippingLookupApiKeyFromPg]', e)
     return false
   }
 }

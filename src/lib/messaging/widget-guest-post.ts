@@ -47,6 +47,11 @@ import {
 import { partnerAiMessageAloneSuggestsClarifyIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
 import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
+import {
+  detectAfterSalesGuestImage,
+  sendAfterSalesGuestImageReply,
+  type AfterSalesImageDetection,
+} from '@/lib/messaging/partner-ai-after-sales-image'
 import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
 import type { GuestProfileGender } from '@/lib/db/messaging-guest-pg'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -67,6 +72,7 @@ export type WidgetGuestImageBatchItemResult = {
   productPickCandidates: GuestVisionCandidatePayload[]
   autoSelectedTopCandidate: GuestVisionCandidatePayload | null
   paymentVerificationHandled: boolean
+  afterSalesHandled?: boolean
 }
 
 type ImageProductSignal = {
@@ -451,6 +457,7 @@ export async function postWidgetGuestMessage(params: {
       shopTyping?: { maxWaitMs: number }
       visionPickRequired?: boolean
       paymentVerificationHandled?: boolean
+      afterSalesHandled?: boolean
       conversationId?: string
       messageId?: string | null
       imageBatchItem?: WidgetGuestImageBatchItemResult
@@ -560,6 +567,8 @@ export async function postWidgetGuestMessage(params: {
   let imageSkuMatchDirectConsult = false
   /** Ảnh biên lai CK — đối chiếu sau khi lưu tin inbound (tránh LLM gợi ý SP). */
   let deferredPaymentVerify: { orderId: string; ocr: TransferReceiptOcrResult } | null = null
+  /** Ảnh đơn / vận đơn / cọc / đổi size — trả lời hậu mãi, không vision pick. */
+  let afterSalesPending: AfterSalesImageDetection | null = null
 
   if (imagePath) {
     if (!isGuestMessagingStoragePathForPartner(imagePath, params.partnerId)) {
@@ -587,15 +596,41 @@ export async function postWidgetGuestMessage(params: {
       console.warn('[widget-guest-post] payment receipt detection', e)
     }
 
-    try {
-      let aiEnabled = false
-      if (isPgConfigured()) {
-        const fromPg = await fetchMessagingPartnerAiEnabledFromPg(params.partnerId)
-        if (fromPg !== null) {
-          aiEnabled = fromPg.enabled
-        }
+    let aiEnabled = false
+    if (isPgConfigured()) {
+      const fromPg = await fetchMessagingPartnerAiEnabledFromPg(params.partnerId)
+      if (fromPg !== null) {
+        aiEnabled = fromPg.enabled
       }
-      if (aiEnabled && !deferredPaymentVerify && !isProductCardConsult && !trustedEmbedProductAnchor) {
+    }
+
+    try {
+      if (
+        aiEnabled &&
+        imagePublicUrl &&
+        !deferredPaymentVerify &&
+        !isProductCardConsult &&
+        !isAutoOpening
+      ) {
+        afterSalesPending = await detectAfterSalesGuestImage({
+          partnerId: params.partnerId,
+          externalThreadId: params.externalThreadId,
+          caption: imageCaption,
+          imagePublicUrl,
+        })
+      }
+    } catch (e) {
+      console.warn('[widget-guest-post] after-sales image detect', e)
+    }
+
+    try {
+      if (
+        aiEnabled &&
+        !deferredPaymentVerify &&
+        !afterSalesPending &&
+        !isProductCardConsult &&
+        !trustedEmbedProductAnchor
+      ) {
         const buf = await downloadTryOnObject(imagePath)
         if (buf) {
           const imageSignal = await analyzeProductSignalFromImage(buf, mime)
@@ -922,6 +957,7 @@ export async function postWidgetGuestMessage(params: {
   const shouldSendVisionPickReminder =
     !params.deferImageBatchReply && Boolean(imagePath) && visionPickRequired && !imageSkuMatchDirectConsult
   let paymentVerificationHandled = false
+  let afterSalesHandled = false
 
   if (newMessageId && imagePath && deferredPaymentVerify) {
     try {
@@ -941,8 +977,24 @@ export async function postWidgetGuestMessage(params: {
     }
   }
 
+  if (newMessageId && afterSalesPending) {
+    try {
+      afterSalesHandled = await sendAfterSalesGuestImageReply({
+        partnerId: params.partnerId,
+        conversationId,
+        triggerMessageId: newMessageId,
+        caption: text.trim(),
+        detection: afterSalesPending,
+        uiLocale: params.uiLocale,
+        externalThreadId: params.externalThreadId,
+      })
+    } catch (e) {
+      console.warn('[widget-guest-post] after-sales image reply', e)
+    }
+  }
+
   if (newMessageId) {
-    if (shouldSendVisionPickReminder) {
+    if (shouldSendVisionPickReminder && !afterSalesHandled) {
       const captionTrim = text.trim()
       const purchaseIntentOnImage =
         captionTrim.length > 0 && inboundTextLooksLikePurchasePickListIntent(captionTrim)
@@ -987,7 +1039,13 @@ export async function postWidgetGuestMessage(params: {
       .join('\n')
     // Khi đã có gợi ý vector (ảnh hoặc chữ), chờ khách chọn SP — không gọi LLM tư vấn trước.
     // Ảnh biên lai CK: đã định tuyến đối chiếu thanh toán — không gọi LLM gợi ý SP.
-    if (!params.deferImageBatchReply && !isAutoOpening && !visionPickRequired && !deferredPaymentVerify) {
+    if (
+      !params.deferImageBatchReply &&
+      !isAutoOpening &&
+      !visionPickRequired &&
+      !deferredPaymentVerify &&
+      !afterSalesHandled
+    ) {
       const inboundForAi = [inboundTextForPartnerAi(body, imagePublicUrl), aiContextHints].filter(Boolean).join('\n')
       const hint = await handlePartnerInboundForAi({
         partnerId: params.partnerId,
@@ -1011,8 +1069,9 @@ export async function postWidgetGuestMessage(params: {
     conversationId,
     messageId: newMessageId,
     shopTyping,
-    visionPickRequired: visionPickRequired || undefined,
+    visionPickRequired: afterSalesHandled ? undefined : visionPickRequired || undefined,
     paymentVerificationHandled: paymentVerificationHandled || undefined,
+    afterSalesHandled: afterSalesHandled || undefined,
     imageBatchItem:
       params.deferImageBatchReply && imagePath
         ? {
@@ -1022,6 +1081,7 @@ export async function postWidgetGuestMessage(params: {
             productPickCandidates,
             autoSelectedTopCandidate,
             paymentVerificationHandled,
+            afterSalesHandled,
           }
         : undefined,
   }

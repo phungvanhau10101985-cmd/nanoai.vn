@@ -10,6 +10,7 @@ import type { Database } from '@/types/database.types'
 import type { PartnerWebsiteRow, PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import { partnerWebsitePublicPath } from '@/lib/partner-website/partner-website-slug'
 import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
+import { scrollToPartnerWebsiteAdminSection } from '@/lib/partner-website/partner-website-admin-nav'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import type { WebLocale } from '@/lib/i18n/config'
 import { PartnerWebsiteCreationJournalPanel, type PartnerWebsiteCreationJournalPanelHandle } from '@/components/partner-website/partner-website-creation-journal-panel'
@@ -411,8 +412,21 @@ export function PartnerWebsiteDashboardClient({
           : section === 'leads'
             ? 'partner-website-leads'
             : 'partner-website-sections'
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    scrollToPartnerWebsiteAdminSection(id)
   }, [])
+
+  useEffect(() => {
+    const hash = window.location.hash.replace(/^#/, '').trim()
+    if (!hash) return
+    const timer = window.setTimeout(() => {
+      scrollToPartnerWebsiteAdminSection(hash)
+      if (hash === 'partner-website-editor') setActiveSection('editor')
+      else if (hash === 'partner-website-landings') setActiveSection('landings')
+      else if (hash === 'partner-website-leads') setActiveSection('leads')
+      else if (hash === 'partner-website-sections') setActiveSection('sections')
+    }, provisioning ? 400 : 80)
+    return () => window.clearTimeout(timer)
+  }, [provisioning, website?.id])
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-0 md:px-2">

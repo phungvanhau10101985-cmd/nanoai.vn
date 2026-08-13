@@ -66,6 +66,11 @@ import { PartnerAiSettingsPanel } from '@/app/dashboard/messaging/partner-ai-set
 import { PartnerBirthdayPromoSettingsCard } from '@/app/dashboard/messaging/partner-birthday-promo-settings-card'
 import { PartnerCustomDomainSettingsCard } from '@/app/dashboard/messaging/partner-custom-domain-settings-card'
 import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
+import {
+  buildPartnerWebsiteAdminNavItems,
+  partnerWebsiteAdminSectionHref,
+} from '@/lib/partner-website/partner-website-admin-nav'
+import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { isMarketingEligibleIndustry } from '@/lib/messaging/partner-marketing-segment'
 import {
   ArrowLeft,
@@ -381,6 +386,8 @@ export function PartnerMessagingSettingsClient({
   )
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
+  const tWeb = useMemo(() => getPartnerWebsiteCopy(locale), [locale])
+
   const settingsNavItems = useMemo(() => {
     const items: Array<{
       id: MessagingSettingsSectionId
@@ -458,9 +465,22 @@ export function PartnerMessagingSettingsClient({
 
   const partnerNavQuery = selectedPartnerId ? `?partner=${encodeURIComponent(selectedPartnerId)}` : ''
 
-  const settingsExternalNavItems = useMemo(() => {
+  const websiteDashboardHref = useMemo(() => {
     const slug = selectedPartner?.slug?.trim() ?? ''
-    const websiteHref = slug ? partnerWebsiteDashboardPath(slug) : `/dashboard/messaging/website${partnerNavQuery}`
+    if (slug) return partnerWebsiteDashboardPath(slug)
+    return `/dashboard/messaging/website${partnerNavQuery}`
+  }, [partnerNavQuery, selectedPartner?.slug])
+
+  const settingsWebsiteNavItems = useMemo(() => {
+    const visible = Boolean(selectedPartnerId && partnerCanWebsiteHub(selectedPartner))
+    return buildPartnerWebsiteAdminNavItems(tWeb, t.messagingWebsiteLink).map((item) => ({
+      ...item,
+      href: partnerWebsiteAdminSectionHref(websiteDashboardHref, item.sectionId),
+      visible,
+    }))
+  }, [selectedPartner, selectedPartnerId, t.messagingWebsiteLink, tWeb, websiteDashboardHref])
+
+  const settingsExternalNavItems = useMemo(() => {
     return [
       {
         id: 'hub-marketing',
@@ -468,13 +488,6 @@ export function PartnerMessagingSettingsClient({
         label: t.marketingCampaignsLink,
         icon: Megaphone,
         visible: Boolean(selectedPartnerId && partnerCanMarketingHub(selectedPartner)),
-      },
-      {
-        id: 'hub-website',
-        href: websiteHref,
-        label: t.messagingWebsiteLink,
-        icon: Globe,
-        visible: Boolean(selectedPartnerId && partnerCanWebsiteHub(selectedPartner)),
       },
       {
         id: 'hub-orders',
@@ -528,12 +541,6 @@ export function PartnerMessagingSettingsClient({
   useEffect(() => {
     void refreshWebsitePublicUrl()
   }, [refreshWebsitePublicUrl])
-
-  const websiteDashboardHref = useMemo(() => {
-    const slug = selectedPartner?.slug?.trim() ?? ''
-    if (slug) return partnerWebsiteDashboardPath(slug)
-    return `/dashboard/messaging/website${partnerNavQuery}`
-  }, [partnerNavQuery, selectedPartner?.slug])
 
   const selectSettingsSection = useCallback(
     (sectionId: MessagingSettingsSectionId) => {
@@ -2057,6 +2064,29 @@ export function PartnerMessagingSettingsClient({
                         </button>
                       )
                     })}
+                  {settingsWebsiteNavItems.some((item) => item.visible) ? (
+                    <>
+                      <p className="mt-2 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {t.settingsNavWebsiteTitle}
+                      </p>
+                      {settingsWebsiteNavItems
+                        .filter((item) => item.visible)
+                        .map((item) => {
+                          const NavIcon = item.icon
+                          return (
+                            <Link
+                              key={item.sectionId}
+                              href={item.href}
+                              onClick={() => setMobileNavOpen(false)}
+                              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                            >
+                              <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
+                              <span className="truncate">{item.label}</span>
+                            </Link>
+                          )
+                        })}
+                    </>
+                  ) : null}
                   {settingsExternalNavItems.some((item) => item.visible) ? (
                     <>
                       <p className="mt-2 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -2117,6 +2147,28 @@ export function PartnerMessagingSettingsClient({
                       </button>
                     )
                   })}
+                {settingsWebsiteNavItems.some((item) => item.visible) ? (
+                  <>
+                    <p className="mt-2 hidden px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
+                      {t.settingsNavWebsiteTitle}
+                    </p>
+                    {settingsWebsiteNavItems
+                      .filter((item) => item.visible)
+                      .map((item) => {
+                        const NavIcon = item.icon
+                        return (
+                          <Link
+                            key={item.sectionId}
+                            href={item.href}
+                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                          >
+                            <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
+                            <span className="truncate">{item.label}</span>
+                          </Link>
+                        )
+                      })}
+                  </>
+                ) : null}
                 {settingsExternalNavItems.some((item) => item.visible) ? (
                   <>
                     <p className="mt-2 hidden px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">

@@ -42,6 +42,8 @@ export default async function DashboardMessagingSettingsPage({
   const sp = searchParams ? await searchParams : {}
   const partnerParamRaw = sp?.partner
   const partnerParam = Array.isArray(partnerParamRaw) ? partnerParamRaw[0] : partnerParamRaw
+  const partnerIdForNav =
+    partnerParam && isValidUuidString(String(partnerParam).trim()) ? String(partnerParam).trim() : undefined
   if (partnerParam && isValidUuidString(String(partnerParam).trim()) && isPgConfigured()) {
     const info = await fetchMessagingPartnerByIdFromPg(String(partnerParam).trim())
     // Hotel partners have their own hospitality settings (rooms, AI concierge,
@@ -78,6 +80,7 @@ export default async function DashboardMessagingSettingsPage({
               ordersLabel={pm.messagingOrdersLink}
               analyticsLabel={pm.messagingAnalyticsLink}
               active="settings"
+              partnerId={partnerIdForNav}
             />
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard">{t.menu.dashboard}</Link>

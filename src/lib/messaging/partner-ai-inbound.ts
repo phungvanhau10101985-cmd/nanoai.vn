@@ -24,13 +24,16 @@ import {
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
 import { normalizeWebLocale } from '@/lib/i18n/config'
-import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
+import { inboundTextLooksLikeAfterSalesNotCheckout, inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
 import {
   buildPurchasePickListCardsFromConversation,
   purchasePickListMessageBody,
 } from '@/lib/messaging/partner-ai-purchase-pick-list'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
-import { partnerAiRouteDecisionToPayload } from '@/lib/messaging/partner-ai-intent-router'
+import {
+  partnerAiRouteDecisionToPayload,
+  type PartnerAiRouteDecision,
+} from '@/lib/messaging/partner-ai-intent-router'
 import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
 import {
   chatOrderFollowupGuideMessageNeutral,
@@ -38,6 +41,11 @@ import {
   precedingPairHasFashionProductAdvice,
   resolveChatOrderFollowupCards,
 } from '@/lib/messaging/partner-ai-chat-order-followup'
+import {
+  extractShippingLookupQuery,
+  formatShippingLookupCustomerReply,
+  lookupPartnerShippingFromPg,
+} from '@/lib/messaging/partner-shipping-lookup'
 
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 
@@ -60,10 +68,10 @@ async function mergePartnerAiWidgetIntentFromClassifier(input: {
   messageId: string
   inboundBody: string
   intentClassifyText?: string | null
-}): Promise<void> {
-  if (process.env.PARTNER_AI_WIDGET_INTENT_CLASSIFIER === '0') return
+}): Promise<PartnerAiRouteDecision | null> {
+  if (process.env.PARTNER_AI_WIDGET_INTENT_CLASSIFIER === '0') return null
   const raw = (input.intentClassifyText ?? stripInboundBodyForIntentClassify(input.inboundBody)).trim()
-  if (raw.length < 1) return
+  if (raw.length < 1) return null
   try {
     const lastShop = await fetchLastOutboundCustomerCareMessageBodyPg(input.conversationId)
     const decision = await classifyWidgetInboundIntent({
@@ -71,10 +79,12 @@ async function mergePartnerAiWidgetIntentFromClassifier(input: {
       customerText: raw,
       lastShopMessage: lastShop,
     })
-    if (!decision) return
+    if (!decision) return null
     await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, partnerAiRouteDecisionToPayload(decision))
+    return decision
   } catch (e) {
     console.warn('[partner-ai-inbound] mergePartnerAiWidgetIntentFromClassifier', e)
+    return null
   }
 }
 
@@ -170,6 +180,28 @@ async function runInstantChatOrderFollowup(ctx: {
   if (err.error) console.error('[partner-ai] instant chat order follow-up deliver', err.error)
 }
 
+async function runInstantShippingLookupReply(ctx: {
+  conversationId: string
+  settings: SettingsRow
+  body: string
+}) {
+  let conv: Database['public']['Tables']['customer_care_conversations']['Row'] | null = null
+  try {
+    conv = await fetchCustomerCareConversationByIdPg(ctx.conversationId)
+  } catch (e) {
+    console.warn('[partner-ai] runInstantShippingLookupReply PG conv failed', e)
+  }
+  if (!conv) return
+  await sleep(typingDelayMs(ctx.settings))
+  const err = await deliverAutomatedPartnerMessage({
+    conversation: conv,
+    settings: ctx.settings,
+    body: ctx.body,
+    rawPayload: { source: 'guest_shipping_lookup_reply' } as unknown as Json,
+  })
+  if (err.error) console.error('[partner-ai] instant shipping lookup deliver', err.error)
+}
+
 /** Gợi ý UI phía khách: hiện “đang trả lời” trong khoảng maxWaitMs (poll nhanh hơn). */
 export type PartnerInboundShopTypingHint = { show: false } | { show: true; maxWaitMs: number }
 
@@ -203,7 +235,7 @@ export async function handlePartnerInboundForAi(input: {
 
     if (!settings?.enabled) return { show: false }
 
-    await mergePartnerAiWidgetIntentFromClassifier({
+    const routeDecision = await mergePartnerAiWidgetIntentFromClassifier({
       partnerId: input.partnerId,
       conversationId: input.conversationId,
       messageId: input.messageId,
@@ -273,9 +305,39 @@ export async function handlePartnerInboundForAi(input: {
     /** Ảnh khách + ý mua: chỉ carousel vector theo ảnh (`widget-guest-post`), không gộp list «đã bấm Tư vấn». */
     const skipPurchasePickForCustomerImage =
       input.channel === 'widget' && inboundBodyHasCustomerUploadedImage(input.inboundBody)
+    const skipPurchasePickForAfterSales = routeDecision?.intent === 'policy_or_order_support'
+    const probeForLookup = stripInboundBodyForIntentClassify(
+      typeof input.intentClassifyText === 'string' && input.intentClassifyText.trim()
+        ? input.intentClassifyText
+        : input.inboundBody
+    )
+    const shippingQuery = extractShippingLookupQuery(probeForLookup, {
+      allowPhone: inboundTextLooksLikeAfterSalesNotCheckout(probeForLookup),
+    })
+    if (
+      shippingQuery &&
+      (skipPurchasePickForAfterSales || inboundTextLooksLikeAfterSalesNotCheckout(probeForLookup))
+    ) {
+      try {
+        const live = await lookupPartnerShippingFromPg(input.partnerId, shippingQuery)
+        if (live?.ok) {
+          await cancelPendingAiJobsForConversation(input.conversationId)
+          void runInstantShippingLookupReply({
+            conversationId: input.conversationId,
+            settings,
+            body: formatShippingLookupCustomerReply(live.hit, pickUiLocale),
+          })
+          const typingHi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
+          return { show: true, maxWaitMs: typingHi + 10_000 }
+        }
+      } catch (e) {
+        console.warn('[partner-ai-inbound] shipping lookup', e)
+      }
+    }
     if (
       !skipPurchasePickBranch &&
       !skipPurchasePickForCustomerImage &&
+      !skipPurchasePickForAfterSales &&
       inboundTextLooksLikePurchasePickListIntent(input.inboundBody)
     ) {
       const cards = await buildPurchasePickListCardsFromConversation(input.partnerId, input.conversationId)

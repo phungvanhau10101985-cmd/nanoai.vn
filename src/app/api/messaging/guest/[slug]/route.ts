@@ -431,7 +431,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       }
     }
     if (!batchError && conversationId && batchItems.length > 0) {
-      const productBatchItems = batchItems.filter((item) => !item.paymentVerificationHandled)
+      const productBatchItems = batchItems.filter(
+        (item) => !item.paymentVerificationHandled && !item.afterSalesHandled
+      )
       const matchedCandidates = productBatchItems
         .map((item) => item.autoSelectedTopCandidate)
         .filter((item): item is NonNullable<typeof item> => Boolean(item))

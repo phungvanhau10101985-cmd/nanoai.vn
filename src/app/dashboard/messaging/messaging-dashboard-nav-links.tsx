@@ -1,7 +1,8 @@
 'use client'
 
-import { Suspense, useCallback } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -25,28 +26,14 @@ function MessagingDashboardNavLinksInner({
   active,
   partnerId: partnerIdProp,
 }: Props) {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const partner = partnerIdProp?.trim() || searchParams.get('partner')?.trim() || ''
   const partnerQuery = partner ? `?partner=${encodeURIComponent(partner)}` : ''
 
-  const go = useCallback(
-    (href: string) => {
-      router.push(href)
-      window.setTimeout(() => {
-        const current = `${window.location.pathname}${window.location.search}`
-        if (current !== href) {
-          window.location.assign(href)
-        }
-      }, 120)
-    },
-    [router]
-  )
-
   const itemClass = (key: NavKey) =>
     cn(
       buttonVariants({ variant: key === active ? 'default' : 'outline', size: 'sm' }),
-      'relative z-[60] h-8 cursor-pointer text-xs pointer-events-auto'
+      'relative z-[60] h-8 text-xs pointer-events-auto'
     )
 
   const items: Array<{ key: NavKey; href: string; label: string }> = [
@@ -64,14 +51,9 @@ function MessagingDashboardNavLinksInner({
       {items
         .filter((item) => item.key !== active)
         .map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className={itemClass(item.key)}
-            onClick={() => go(item.href)}
-          >
+          <Link key={item.key} href={item.href} className={itemClass(item.key)}>
             {item.label}
-          </button>
+          </Link>
         ))}
     </nav>
   )
