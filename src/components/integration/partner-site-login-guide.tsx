@@ -200,7 +200,7 @@ curl -s -X POST "${guestBase}/auth/partner-site" \\
         <CardHeader>
           <CardTitle className="text-base">{t.noWorkspaceTitle}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-sm">
+        <CardContent className="space-y-4 px-4 pb-4 pt-0 text-sm">
           <p className="text-muted-foreground">{t.noWorkspaceBody}</p>
           {embedded ? null : (
             <Button size="sm" asChild>
@@ -213,7 +213,7 @@ curl -s -X POST "${guestBase}/auth/partner-site" \\
   }
 
   return (
-    <div id="partner-site-login-guide" className="scroll-mt-6 space-y-6">
+    <div id="partner-site-login-guide" className="scroll-mt-4 space-y-3">
       {embedded ? null : (
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
@@ -233,22 +233,22 @@ curl -s -X POST "${guestBase}/auth/partner-site" \\
       </div>
       )}
 
-      <div className="flex items-start gap-3 rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm dark:from-slate-900 dark:to-slate-950">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10">
-          <UserCheck className="h-5 w-5 text-violet-600 dark:text-violet-400" aria-hidden />
+      <div className="flex items-start gap-2.5 rounded-xl border bg-gradient-to-br from-white to-slate-50 px-3 py-2.5 shadow-sm dark:from-slate-900 dark:to-slate-950">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10">
+          <UserCheck className="h-4 w-4 text-violet-600 dark:text-violet-400" aria-hidden />
         </div>
-        <div>
+        <div className="min-w-0">
           {embedded ? (
-            <h2 className="text-xl font-bold tracking-tight sm:text-2xl">{t.pageTitle}</h2>
+            <h2 className="text-sm font-semibold tracking-tight sm:text-base">{t.pageTitle}</h2>
           ) : (
-            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{t.pageTitle}</h1>
+            <h1 className="text-lg font-semibold tracking-tight sm:text-xl">{t.pageTitle}</h1>
           )}
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t.pageLead}</p>
+          <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{t.pageLead}</p>
         </div>
       </div>
 
       <Card className="border-primary/15">
-        <CardContent className="space-y-4 pt-6 text-sm">
+        <CardContent className="space-y-3 px-4 py-3 text-sm">
           {hidePartnerPicker ? null : (
           <label className="block space-y-1">
             <span className="text-xs font-medium text-foreground">{t.selectShopHint}</span>
@@ -279,13 +279,13 @@ curl -s -X POST "${guestBase}/auth/partner-site" \\
       </Card>
 
       <Card className="border-amber-500/30 bg-amber-500/5">
-        <CardHeader className="pb-2">
+        <CardHeader className="px-4 py-3 pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <AlertCircle className="h-4 w-4 text-amber-700 dark:text-amber-300" />
             {t.problemTitle}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm">
+        <CardContent className="space-y-3 px-4 pb-4 pt-0 text-sm">
           <p className="text-muted-foreground">{t.problemBody}</p>
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full min-w-[320px] text-left text-xs">
@@ -325,10 +325,10 @@ curl -s -X POST "${guestBase}/auth/partner-site" \\
       </Card>
 
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="px-4 py-3 pb-2">
           <CardTitle className="text-base">{t.flowTitle}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-sm">
+        <CardContent className="space-y-4 px-4 pb-4 pt-0 text-sm">
           <pre className="overflow-x-auto rounded-md border bg-muted/40 p-3 text-[11px] leading-relaxed">
 {`[Server shop]  Sign token (email + name + exp) with Embed Key
       ↓
@@ -350,10 +350,10 @@ curl -s -X POST "${guestBase}/auth/partner-site" \\
       </Card>
 
       <Card className="border-emerald-500/30 bg-emerald-500/5">
-        <CardHeader className="pb-2">
+        <CardHeader className="px-4 py-3 pb-2">
           <CardTitle className="text-base">{t.opsNoteTitle}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm">
+        <CardContent className="space-y-3 px-4 pb-4 pt-0 text-sm">
           <p className="text-muted-foreground">{t.opsNoteBody}</p>
           <CodeBlock title={t.apiPathLabel} t={t}>
             {shopTokenApiPath}
@@ -365,19 +365,19 @@ curl -s -X POST "${guestBase}/auth/partner-site" \\
       </Card>
 
       <Card className="border-rose-500/30 bg-rose-500/5">
-        <CardHeader className="pb-2">
+        <CardHeader className="px-4 py-3 pb-2">
           <CardTitle className="text-base">{t.troubleshootTitle}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4 pt-0">
           <p className="whitespace-pre-line text-xs leading-relaxed text-muted-foreground">{t.troubleshootBody}</p>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="px-4 py-3 pb-2">
           <CardTitle className="text-base">{t.tokenTitle}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm">
+        <CardContent className="space-y-3 px-4 pb-4 pt-0 text-sm">
           <p className="text-muted-foreground">{t.tokenBody}</p>
           {selectedPartner?.embed_key?.trim() ? (
             <p className="text-xs text-muted-foreground">
@@ -417,10 +417,10 @@ curl -s -X POST "${guestBase}/auth/partner-site" \\
       </Card>
 
       <Card className="border-dashed">
-        <CardHeader className="pb-2">
+        <CardHeader className="px-4 py-3 pb-2">
           <CardTitle className="text-base">{t.checklistTitle}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4 pt-0">
           <p className="whitespace-pre-line text-xs leading-relaxed text-muted-foreground">{t.checklistBody}</p>
         </CardContent>
       </Card>

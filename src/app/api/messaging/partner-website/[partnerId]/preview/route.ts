@@ -5,7 +5,7 @@ import {
   fetchPartnerProfileForWebsitePg,
   fetchPartnerWebsiteByPartnerIdPg,
 } from '@/lib/db/messaging-partner-websites-pg'
-import { composePartnerWebsiteHtmlAsync } from '@/lib/partner-website/compose-partner-website-html'
+import { composePartnerWebsiteHtmlAsync, resolveExactVisualHomepageHtml } from '@/lib/partner-website/compose-partner-website-html'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import { renderPartnerWebsiteHtml } from '@/lib/partner-website/partner-website-render'
 import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-partner-website-full-landing'
@@ -35,17 +35,33 @@ export async function GET(_req: Request, ctx: { params: Promise<{ partnerId: str
   const profile = await fetchPartnerProfileForWebsitePg(pid)
   const chatPath = profile ? `/messaging/p/${encodeURIComponent(profile.slug)}` : undefined
 
-  const synced = await syncPartnerWebsiteFullLandingPg({
-    partnerId: pid,
-    locale: website.locale,
-    refreshHtml: true,
-  })
+  const skipHtmlRefresh = Boolean(website.theme?.useVisualHtml)
+  if (skipHtmlRefresh) {
+    const visualHtml = resolveExactVisualHomepageHtml(website)
+    if (visualHtml.length >= 40) {
+      return new NextResponse(visualHtml, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        },
+      })
+    }
+  }
+
+  const synced = skipHtmlRefresh
+    ? { website }
+    : await syncPartnerWebsiteFullLandingPg({
+        partnerId: pid,
+        locale: website.locale,
+        refreshHtml: true,
+      })
   const draft = synced.website ?? website
 
   const htmlSource =
     (await composePartnerWebsiteHtmlAsync(
       { ...draft, partnerId: pid, siteSlug: draft.siteSlug },
-      { chatPath, hydrateInventory: true }
+      { chatPath, hydrateInventory: !skipHtmlRefresh }
     )) ||
     draft.htmlSource?.trim() ||
     ''
@@ -60,8 +76,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ partnerId: str
     siteSlug: draft.siteSlug,
     locale: draft.locale,
     enablePersonalization: false,
-    // Template shops compose from pages JSON; project may only have site.config + 404.html.
-    preferHtmlSource: draft.renderMode === 'template' && !draft.theme?.useVisualHtml,
+    preferHtmlSource: (htmlSource.trim().length >= 40),
   })
 
   return new NextResponse(html, {

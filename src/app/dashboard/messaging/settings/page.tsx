@@ -63,29 +63,26 @@ export default async function DashboardMessagingSettingsPage({
   const appOrigin = getPublicOriginFromAppRouterHeaders(headers())
 
   return (
-    <div className="app-shell flex min-h-[calc(100dvh-5rem)] flex-col space-y-6 md:space-y-8">
-      <div className="section-surface space-y-2">
-        <div className="sticky top-[var(--site-header-height,3rem)] z-40 flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm backdrop-blur-md sm:p-5 md:top-[var(--site-header-height,3.5rem)] lg:p-6">
-          <div className="space-y-1">
-            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-3xl">
-              <Settings className="h-7 w-7 shrink-0 text-violet-600" aria-hidden />
-              {pm.messagingSettingsPageTitle}
-            </h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">{pm.pageDescription}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <MessagingDashboardNavLinks
-              inboxLabel={pm.goToInbox}
-              settingsLabel={pm.messagingSettingsLink}
-              ordersLabel={pm.messagingOrdersLink}
-              analyticsLabel={pm.messagingAnalyticsLink}
-              active="settings"
-              partnerId={partnerIdForNav}
-            />
+    <div className="app-shell flex min-h-[calc(100dvh-5rem)] flex-col space-y-3 py-0 sm:py-0 md:space-y-3 lg:py-0 xl:py-0">
+      <div className="sticky top-[var(--site-header-height,3rem)] z-40 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-card/95 px-3 py-2 shadow-sm backdrop-blur-md sm:px-4 md:top-[var(--site-header-height,3.5rem)]">
+        <h1 className="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-tight sm:text-xl">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400">
+            <Settings className="h-4 w-4" aria-hidden />
+          </span>
+          <span className="leading-snug">{pm.messagingSettingsPageTitle}</span>
+        </h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <MessagingDashboardNavLinks
+            inboxLabel={pm.goToInbox}
+            settingsLabel={pm.messagingSettingsLink}
+            ordersLabel={pm.messagingOrdersLink}
+            analyticsLabel={pm.messagingAnalyticsLink}
+            active="settings"
+            partnerId={partnerIdForNav}
+          />
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard">{t.menu.dashboard}</Link>
           </Button>
-          </div>
         </div>
       </div>
       <PartnerMessagingSettingsClient

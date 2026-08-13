@@ -131,6 +131,10 @@ export function partnerWebsiteProductsEnabled(caps: PartnerCapabilities): boolea
   return caps.website.enabled && caps.website.products
 }
 
+export function partnerWebsitePersonalizeEnabled(caps: PartnerCapabilities): boolean {
+  return caps.website.enabled && caps.website.personalize
+}
+
 export function partnerWebsiteBookingEnabled(caps: PartnerCapabilities): boolean {
   return caps.website.enabled && caps.website.booking
 }

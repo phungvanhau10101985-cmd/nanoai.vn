@@ -279,7 +279,7 @@ export function PartnerApiKeysManager({
   if (partners.length === 0) {
     return (
       <Card id="partner-api-keys">
-        <CardHeader className="pb-2">
+        <CardHeader className="px-4 py-3 pb-2">
           <CardTitle className="text-base">{t.cardTitle}</CardTitle>
           <CardDescription>{t.noShops}</CardDescription>
         </CardHeader>
@@ -290,11 +290,11 @@ export function PartnerApiKeysManager({
   return (
     <>
       <Card id="partner-api-keys">
-        <CardHeader className="pb-2">
+        <CardHeader className="px-4 py-3 pb-2">
           <CardTitle className="text-base">{t.cardTitle}</CardTitle>
           <CardDescription className="leading-relaxed">{t.cardLead}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-3 px-4 pb-4 pt-0">
           {hidePartnerPicker ? null : (
           <div className="space-y-2">
             <Label>{t.selectShop}</Label>

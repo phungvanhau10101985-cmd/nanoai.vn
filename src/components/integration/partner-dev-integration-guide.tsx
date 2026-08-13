@@ -581,10 +581,10 @@ curl -sS -H "Authorization: Bearer YOUR_SHIPPING_LOOKUP_API_KEY" \\
   if (!partners.length) {
     return (
       <Card className="border-primary/15">
-        <CardHeader className="pb-2">
+        <CardHeader className="px-4 py-3 pb-2">
           <CardTitle className="text-base">{t.noWorkspaceTitle}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-sm">
+        <CardContent className="space-y-3 px-4 pb-4 pt-0 text-sm">
           <p className="leading-relaxed text-muted-foreground">{t.noWorkspaceBody}</p>
           {embedded ? null : (
             <Button size="sm" asChild>
@@ -599,10 +599,10 @@ curl -sS -H "Authorization: Bearer YOUR_SHIPPING_LOOKUP_API_KEY" \\
 
   return (
     <Card className="border-primary/15">
-      <CardHeader className="pb-2">
+      <CardHeader className="px-4 py-3 pb-2">
         <CardTitle className="text-base">{t.title}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6 text-sm">
+      <CardContent className="space-y-3 px-4 pb-4 pt-0 text-sm">
         <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] leading-relaxed text-foreground">
           {t.hostedAutoFilledNote}
         </p>

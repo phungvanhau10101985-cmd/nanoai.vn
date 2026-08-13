@@ -87,7 +87,7 @@ Khi xong một hạng mục: đổi ❌/🟡 → ✅, ghi ngày + ghi chú ngắ
 
 - ✅ Template presets (universal / fashion / hospitality) + capabilities
 - ✅ Publish / preview / revisions / reset 7 ngày
-- ✅ Visual editor (Sửa nhanh trên HTML) — không còn chat AI tạo/chỉnh web chính
+- ✅ Visual editor (Sửa nhanh trên HTML) — bấm ảnh/banner/logo để tải hoặc tạo AI (prompt + ảnh tham khảo); kéo nút; sửa chữ trực tiếp và link ẩn dưới nút
 - ✅ Platform shop: catalog, PDP (variant/gallery/video), cart, guest order, deposit QR
 - ✅ Wishlist, recently viewed, related, try-on/consult hooks
 - ✅ Lead form + panel leads
@@ -150,7 +150,7 @@ Khi xong một hạng mục: đổi ❌/🟡 → ✅, ghi ngày + ghi chú ngắ
 
 | ID | Hạng mục | Trạng thái | Ghi chú / file neo |
 |----|----------|------------|-------------------|
-| W2.1 | Visual editor (text/ảnh/section bg) | ✅ Done | `partner-website-visual-editor-toolbar.tsx`. **🚫 Chat AI tạo/chỉnh web** gỡ 2026-08-13 (`/chat`, `/generate`, chat panel). |
+| W2.1 | Visual editor (text/ảnh/section bg) | ✅ Done | `partner-website-visual-editor-toolbar.tsx`. **🚫 Chat AI tạo/chỉnh web** gỡ 2026-08-13. **2026-08-13**: nút **Thêm** chèn icon + chữ header (thích, đã xem, giỏ, đơn hàng, tài khoản, địa chỉ, liên hệ, đăng nhập) — href shop + badge API; kéo/mũi tên; bấm nút hiện **+** (xoay 45°) để xóa. |
 | W2.2 | Quick-edit prompts đa ngành (bớt hardcode fashion) | 🚫 Removed (2026-08-13) | Chip gợi ý chat AI không còn UI merchant. Lib `getPartnerWebsiteEditSuggestions` giữ cho test. |
 | W2.3 | Merchant theme color picker (main + supporting) | ✅ Done (2026-08-13) | Bảng màu chính + phụ trợ trên «Tạo web»; chọn mẫu/màu thì preview đổi ngay (iframe CSS vars). PATCH `update_theme_colors`. Token: primary/accent/buy/cart/background/text/muted/surface. Nav/footer JSON vẫn mặc định (không panel menu). |
 | W2.4 | Section manager drag-reorder + undo block-level | 🚫 Removed (2026-08-13) | Gỡ panel merchant «Block giao diện» + PATCH `reorder_sections` — chỉnh trang chủ bằng Sửa nhanh. AI vẫn reorder qua `sectionOps` khi sinh template. `undo_last` (revision) giữ. |
@@ -680,3 +680,19 @@ Sửa tài liệu **cùng PR** với code.
 | 2026-08-13 | **Tạo web — ngữ cảnh sửa** | Banner «đang sửa web nào»: tên shop + ngành + mẫu đang dùng / mặc định theo ngành. Fashion → mặc định `fashion-orange`. Mở `/website` không chỉ định kênh thì ưu tiên shop fashion/188. Test `scripts/test-pick-preferred-website-partner.ts`. Rule AI: `.cursor/rules/partner-website-188-fashion-default.mdc`. | ✅ Done |
 
 | 2026-08-13 | **W2.3 theme colors** | Bảng chọn màu chính + phụ trợ trên Tạo web. Chọn mẫu/màu → preview đổi ngay (CSS vars). PATCH `update_theme_colors`. Token buy/cart/surface. Test `partner-website-theme-tokens.test.ts`. | ✅ Done |
+
+| 2026-08-13 | **Sửa nhanh khối** | Ẩn / xóa / nhân bản khối trang chủ; lớp phủ banner + khoảng cách dọc/ngang. Khối ẩn hiện mờ trong editor, lưu thì ẩn trên web. | ✅ Done |
+
+| 2026-08-13 | **Sửa nhanh full màn** | Bấm «Sửa nhanh» mở overlay toàn viewport: thanh công cụ trên cùng, iframe chiếm phần còn lại. Thoát / ESC về preview trong dashboard. | ✅ Done |
+
+| 2026-08-13 | **Sửa nhanh + bảng màu** | Overlay Sửa nhanh có cột bảng chọn màu (chính + phụ trợ). Chọn swatch → preview đổi ngay (CSS vars), debounce PATCH `update_theme_colors`. | ✅ Done |
+
+| 2026-08-13 | **Sửa nhanh gọn** | Toolbar + bảng màu thu nhỏ: màu thành thanh ngang trên cùng, phụ trợ trong menu; web chiếm gần hết màn. | ✅ Done |
+
+| 2026-08-13 | **W2.1 chrome widgets** | Sửa nhanh: nút **Thêm** chèn thích / đã xem / giỏ / đơn hàng / tài khoản / địa chỉ / liên hệ / đăng nhập. Href route shop + badge API. | ✅ Done |
+
+| 2026-08-13 | **Trang chủ = storefront React** | «Xem thử» / «Xem web» / preview iframe dùng `PartnerSiteFashionHome` + shop shell (cùng /products /cart). Không dùng HTML Sửa nhanh làm trang chủ. | ✅ Done |
+
+| 2026-08-13 | **Một web + phiên bản 7 ngày** | Bỏ bản HTML song song khi đăng web shop template. Nút «Xem phiên bản»: xem / khôi phục từng phiên; lưu theo phiên; quá 7 ngày không khôi phục thì xóa. | ✅ Done |
+
+| 2026-08-13 | **Sửa nhanh + chrome shop đủ nút** | Sửa nhanh trên thanh Xem thử; bảng màu luôn trên preview; trang chủ xem được khi chưa đăng. Header: yêu thích; đáy mobile: giỏ; home: flash sale + vừa xem/yêu thích. | ✅ Done |

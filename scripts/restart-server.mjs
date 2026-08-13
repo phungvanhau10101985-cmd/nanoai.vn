@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { copyFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -43,6 +43,20 @@ for (const d of ['.next-dev', '.next']) {
     rmSync(resolve(root, d), { recursive: true, force: true })
   } catch {}
 }
+
+const pub = resolve(root, 'public')
+for (const name of ['sw.js', 'sw.js.map']) {
+  try {
+    rmSync(resolve(pub, name), { force: true })
+  } catch {}
+}
+try {
+  for (const name of readdirSync(pub)) {
+    if (/^(workbox|worker)-.+\.js(\.map)?$/.test(name)) {
+      rmSync(resolve(pub, name), { force: true })
+    }
+  }
+} catch {}
 
 // 4. Start dev server
 execSync('npm run dev', { stdio: 'inherit', cwd: root })

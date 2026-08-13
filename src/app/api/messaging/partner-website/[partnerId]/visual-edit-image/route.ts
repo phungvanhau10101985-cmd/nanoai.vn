@@ -30,22 +30,32 @@ export async function POST(
     prompt?: string
     referenceImageUrl?: string | null
     title?: string
+    kind?: string
+    aspectRatio?: string
   }
   const prompt = String(body.prompt ?? '').trim()
   if (prompt.length < 4) {
     return NextResponse.json({ error: 'prompt too short' }, { status: 400 })
   }
 
+  const kindRaw = String(body.kind ?? '').trim()
+  const kind =
+    kindRaw === 'logo' ? 'logo' : kindRaw === 'product_photo' ? 'product_photo' : 'banner'
+  const aspectRatio =
+    String(body.aspectRatio ?? '').trim() || (kind === 'logo' ? '1:1' : kind === 'banner' ? '16:9' : '1:1')
+  const screenLabel =
+    kind === 'logo' ? 'Website logo' : kind === 'banner' ? 'Website banner' : 'Website section image'
+
   const ref = body.referenceImageUrl?.trim()
   const result = await runStudioImagePipeline({
     userId: auth.user.id,
-    kind: 'product_photo',
-    screenLabel: 'Website section image',
+    kind,
+    screenLabel,
     brief: prompt,
     projectTitle: body.title?.trim() || 'Partner website',
     referenceImageUrls: ref && /^https?:\/\//i.test(ref) ? [ref] : undefined,
     productImageUrls: ref && /^https?:\/\//i.test(ref) ? [ref] : undefined,
-    aspectRatio: '16:9',
+    aspectRatio,
     verbatimPrompt: false,
   })
 

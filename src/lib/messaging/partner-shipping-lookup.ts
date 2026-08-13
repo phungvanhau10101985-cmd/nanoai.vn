@@ -357,28 +357,219 @@ function formatItemsLine(items: PartnerShippingLookupOrderItem[], loc: string): 
   return `Sản phẩm: ${parts.join('; ')}.`
 }
 
-function formatEmsEvents(events: PartnerShippingLookupHit['emsEvents'], loc: string): string {
-  if (!events.length) return ''
-  const lines = events.slice(0, 4).map((ev) => {
-    const where = ev.address ? ` — ${ev.address}` : ''
-    return `• ${ev.description}${where}`
+function collapseWs(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function tidyAddress(value: string): string {
+  const parts = collapseWs(value)
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+  const out: string[] = []
+  for (const part of parts) {
+    const n = part.normalize('NFC')
+    if (out.some((prev) => prev.localeCompare(n, 'vi', { sensitivity: 'accent' }) === 0)) continue
+    out.push(n)
+  }
+  return out.join(', ')
+}
+
+/** Bỏ mã bưu cục / tiếng Anh kỹ thuật / chuỗi Zalo dính từ EMS. */
+function stripEmsNoise(value: string): string {
+  return collapseWs(
+    value
+      .replace(/\(\d{3,}:\s*[^)]*\)/g, ' ')
+      .replace(/\((?:Delivered|Arrival at PO|Transport arrival at PO|Info received|Accepted)\)/gi, ' ')
+      .replace(/^EMI\s*[-–]\s*/i, '')
+      .replace(/^\[COD\]\s*/i, '[COD] ')
+      .replace(/Người nhận\s*:\s*(?:\(\)\s*)?\+*.*$/gi, ' ')
+      .replace(/\bshop\s*188\b/gi, ' ')
+      .replace(/\bZALO\b/gi, ' ')
+      .replace(/\(\)\s*/g, ' ')
+      .replace(/\+{2,}/g, ' ')
+      .replace(/\s+[.,]/g, '.')
+      .replace(/\.{2,}/g, '.')
+  )
+}
+
+function extractEmsRecipient(raw: string): string {
+  const m = String(raw || '').match(/Người nhận\s*:\s*(.+)$/i)
+  if (!m) return ''
+  const name = collapseWs(
+    m[1]
+      .replace(/^\(\)\s*/, '')
+      .replace(/\++/g, ' ')
+      .replace(/\bshop\s*188\b/gi, ' ')
+      .replace(/\bZALO\b/gi, ' ')
+      .replace(/[.,;:]+$/g, '')
+  )
+  if (name.length < 2 || !/[A-Za-zÀ-ỹ]/.test(name)) return ''
+  return name.slice(0, 48)
+}
+
+function isPhoneLookupHit(hit: PartnerShippingLookupHit): boolean {
+  return hit.queryType === 'phone' || Boolean(normalizeVnMobileDigits(hit.query))
+}
+
+function customerOrderRef(hit: PartnerShippingLookupHit): string {
+  if (hit.orderCode && !normalizeVnMobileDigits(hit.orderCode)) return hit.orderCode
+  if (!isPhoneLookupHit(hit) && hit.query && !normalizeVnMobileDigits(hit.query)) return hit.query
+  return ''
+}
+
+function customerStatusText(hit: PartnerShippingLookupHit): string {
+  const shop = stripEmsNoise(hit.statusLabel || hit.status)
+  const ems = stripEmsNoise(hit.emsStatus)
+  const picked =
+    shop && ems && shop.localeCompare(ems, 'vi', { sensitivity: 'accent' }) === 0 ? shop : shop || ems
+  return collapseWs(picked.replace(/[.,;:]+$/g, ''))
+}
+
+function isDeliveredHit(hit: PartnerShippingLookupHit): boolean {
+  return /phát thành công|delivered|đã giao(?: hàng)? thành công|giao thành công/i.test(
+    `${hit.status} ${hit.statusLabel} ${hit.emsStatus}`
+  )
+}
+
+function emsEventKind(description: string): string {
+  const d = description.toLowerCase()
+  if (/thu tiền|\[cod\]/i.test(d)) return 'cod'
+  if (/phát thành công|delivered|đã phát/i.test(d)) return 'delivered'
+  if (/giao bưu tá|out for delivery|đang phát/i.test(d)) return 'out'
+  if (/đến bưu cục|arrival at po|transport arrival/i.test(d)) return 'arrival'
+  return collapseWs(d).slice(0, 40) || 'other'
+}
+
+function formatEventWhen(raw: string): string {
+  const t = Date.parse(raw)
+  if (!Number.isFinite(t)) return ''
+  const d = new Date(t)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${d.getDate()}/${d.getMonth() + 1} ${hh}:${mm}`
+}
+
+function selectCustomerEmsEvents(
+  events: PartnerShippingLookupHit['emsEvents'],
+  delivered: boolean
+): PartnerShippingLookupHit['emsEvents'] {
+  const seen = new Set<string>()
+  const out: PartnerShippingLookupHit['emsEvents'] = []
+  const limit = delivered ? 2 : 3
+  for (const ev of events) {
+    const kind = emsEventKind(ev.description)
+    if (delivered && kind === 'arrival') continue
+    if (kind !== 'other' && seen.has(kind)) continue
+    seen.add(kind)
+    out.push(ev)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+function formatEmsEvents(
+  events: PartnerShippingLookupHit['emsEvents'],
+  loc: string,
+  delivered: boolean
+): string {
+  const picked = selectCustomerEmsEvents(events, delivered)
+  if (!picked.length) return ''
+  const lines = picked.map((ev) => {
+    const desc = stripEmsNoise(ev.description)
+    const where = tidyAddress(ev.address)
+    const locBit = where && !desc.toLowerCase().includes(where.toLowerCase()) ? ` — ${where}` : ''
+    const when = formatEventWhen(ev.tracedAt)
+    const timeBit = when ? ` (${when})` : ''
+    return `• ${desc}${locBit}${timeBit}`
   })
   if (loc.startsWith('en')) return `Tracking updates:\n${lines.join('\n')}`
   if (loc.startsWith('zh')) return `物流节点：\n${lines.join('\n')}`
   if (loc.startsWith('ja')) return `配送履歴：\n${lines.join('\n')}`
   if (loc.startsWith('ko')) return `배송 이력:\n${lines.join('\n')}`
-  return `Hành trình gần nhất:\n${lines.join('\n')}`
+  return `Hành trình:\n${lines.join('\n')}`
 }
 
-/** Tin trả khách từ dữ liệu live — không lặp SĐT/địa chỉ. */
+function lookupIntroLine(hit: PartnerShippingLookupHit, loc: string): string {
+  const ref = customerOrderRef(hit)
+  const latestPhone = hit.isLatestOrder && isPhoneLookupHit(hit)
+  if (loc.startsWith('en')) {
+    if (ref && latestPhone) return `We found order ${ref} (latest order for this phone).`
+    if (ref) return `We found order ${ref}.`
+    if (latestPhone) return 'We found the latest order for this phone number.'
+    return 'We found the order.'
+  }
+  if (loc.startsWith('zh')) {
+    if (ref && latestPhone) return `已查到订单 ${ref}（该手机号的最新订单）。`
+    if (ref) return `已查到订单 ${ref}。`
+    if (latestPhone) return '已查到该手机号的最新订单。'
+    return '已查到订单。'
+  }
+  if (loc.startsWith('ja')) {
+    if (ref && latestPhone) return `ご注文 ${ref} を確認しました（この電話番号の最新注文）。`
+    if (ref) return `ご注文 ${ref} を確認しました。`
+    if (latestPhone) return 'この電話番号の最新注文を確認しました。'
+    return 'ご注文を確認しました。'
+  }
+  if (loc.startsWith('ko')) {
+    if (ref && latestPhone) return `주문 ${ref}을(를) 확인했습니다 (이 번호의 최신 주문).`
+    if (ref) return `주문 ${ref}을(를) 확인했습니다.`
+    if (latestPhone) return '이 번호의 최신 주문을 확인했습니다.'
+    return '주문을 확인했습니다.'
+  }
+  if (ref && latestPhone) return `Dạ em đã tra đơn ${ref} (đơn mới nhất theo SĐT chị gửi) ạ.`
+  if (ref) return `Dạ em đã tra đơn ${ref} ạ.`
+  if (latestPhone) return 'Dạ em đã tra đơn mới nhất theo SĐT chị gửi ạ.'
+  return 'Dạ em đã tra đơn giúp chị ạ.'
+}
+
+function lookupClosingLine(
+  loc: string,
+  opts: { delivered: boolean; depositLike: boolean; shippingLike: boolean }
+): string {
+  if (loc.startsWith('en')) {
+    if (opts.delivered) return 'The parcel has been delivered. Message us if you need anything else.'
+    if (opts.depositLike) {
+      return 'Thank you for your trust. The order has been sent to packing / warehouse. Estimated delivery is about 8–12 days (except unusual delays).'
+    }
+    if (opts.shippingLike) return 'Please rest assured — the parcel is on the way. Message us if you need anything else.'
+    return 'Message us if you need anything else.'
+  }
+  if (loc.startsWith('zh')) {
+    if (opts.delivered) return '包裹已妥投。如需帮助请再联系我们。'
+    if (opts.depositLike) return '感谢信任。订单已转交打包出库，预计约 8–12 天送达（特殊情况除外）。'
+    if (opts.shippingLike) return '请放心等待收货。如需帮助请再联系我们。'
+    return '如需帮助请再联系我们。'
+  }
+  if (loc.startsWith('ja')) {
+    if (opts.delivered) return 'お届け済みです。ご不明点があればご連絡ください。'
+    if (opts.depositLike) return 'ご信頼ありがとうございます。梱包・出荷担当へ回しました。お届け目安は約8〜12日です。'
+    if (opts.shippingLike) return '安心してお待ちください。ご不明点があればご連絡ください。'
+    return 'ご不明点があればご連絡ください。'
+  }
+  if (loc.startsWith('ko')) {
+    if (opts.delivered) return '배송이 완료되었습니다. 도움이 더 필요하시면 말씀해 주세요.'
+    if (opts.depositLike) return '믿고 맡겨 주셔서 감사합니다. 포장·출고로 전달했습니다. 수령 예정은 약 8–12일입니다.'
+    if (opts.shippingLike) return '안심하고 수령을 기다려 주세요. 도움이 더 필요하시면 말씀해 주세요.'
+    return '도움이 더 필요하시면 말씀해 주세요.'
+  }
+  if (opts.delivered) return 'Đơn đã giao tới người nhận ạ. Nếu cần em hỗ trợ thêm cứ nhắn ạ.'
+  if (opts.depositLike) {
+    return 'Em cảm ơn chị đã tin tưởng. Em đã chuyển đơn sang bộ phận đóng hàng xuất kho. Thời gian dự kiến nhận hàng khoảng 8–12 ngày (trừ trường hợp bất thường).'
+  }
+  if (opts.shippingLike) return 'Chị yên tâm chờ nhận hàng giúp em nhé. Nếu cần em hỗ trợ thêm cứ nhắn ạ.'
+  return 'Nếu cần em hỗ trợ thêm cứ nhắn ạ.'
+}
+
+/** Tin trả khách từ dữ liệu live — gọn, không lặp SĐT / chuỗi EMS kỹ thuật. */
 export function formatShippingLookupCustomerReply(
   hit: PartnerShippingLookupHit,
   uiLocale?: string | null
 ): string {
   const loc = locPrefix(uiLocale)
-  const code = hit.orderCode ? ` ${hit.orderCode}` : hit.query ? ` ${hit.query}` : ''
-  const latest = hit.isLatestOrder
-  const status = hit.statusLabel || hit.emsStatus || hit.status
+  const delivered = isDeliveredHit(hit)
+  const status = customerStatusText(hit)
+  const recipient = extractEmsRecipient(hit.emsStatus) || extractEmsRecipient(hit.statusLabel)
   const track = hit.trackingNumber
     ? loc.startsWith('en')
       ? `Tracking: ${hit.trackingNumber}${hit.shippingProvider ? ` (${hit.shippingProvider})` : ''}.`
@@ -390,102 +581,43 @@ export function formatShippingLookupCustomerReply(
             ? `운송장: ${hit.trackingNumber}${hit.shippingProvider ? ` (${hit.shippingProvider})` : ''}.`
             : `Mã vận đơn: ${hit.trackingNumber}${hit.shippingProvider ? ` (${hit.shippingProvider})` : ''}.`
     : ''
-  const emsNow = hit.emsStatus
+  const recipientLine = recipient
     ? loc.startsWith('en')
-      ? `Carrier status: ${hit.emsStatus}.`
+      ? `Recipient: ${recipient}.`
       : loc.startsWith('zh')
-        ? `承运商状态：${hit.emsStatus}。`
+        ? `收件人：${recipient}。`
         : loc.startsWith('ja')
-          ? `配送状況：${hit.emsStatus}。`
+          ? `受取人：${recipient}。`
           : loc.startsWith('ko')
-            ? `배송 상태: ${hit.emsStatus}.`
-            : `Trạng thái vận chuyển: ${hit.emsStatus}.`
+            ? `수령인: ${recipient}.`
+            : `Người nhận: ${recipient}.`
+    : ''
+  const statusLine = status
+    ? loc.startsWith('en')
+      ? `Status: ${status}.`
+      : loc.startsWith('zh')
+        ? `状态：${status}。`
+        : loc.startsWith('ja')
+          ? `状況：${status}。`
+          : loc.startsWith('ko')
+            ? `상태: ${status}.`
+            : `Tình trạng: ${status}.`
     : ''
   const items = formatItemsLine(hit.items, loc)
-  const events = formatEmsEvents(hit.emsEvents, loc)
+  const events = formatEmsEvents(hit.emsEvents, loc, delivered)
   const depositLike = /deposit|cọc|coc|waiting_deposit|deposit_paid/i.test(`${hit.status} ${hit.statusLabel}`)
-  const shippingLike = /ship|giao|gửi|delivered|transit/i.test(`${hit.status} ${hit.statusLabel} ${hit.emsStatus}`)
+  const shippingLike = /ship|giao|gửi|delivered|transit|đang phát/i.test(
+    `${hit.status} ${hit.statusLabel} ${hit.emsStatus}`
+  )
 
-  if (loc.startsWith('en')) {
-    return [
-      `We found order${code}${latest ? ' (latest order for this phone)' : ''}.`,
-      status ? `Status: ${status}.` : '',
-      track,
-      emsNow,
-      items,
-      events,
-      depositLike
-        ? 'Thank you for your trust. The order has been sent to packing / warehouse. Estimated delivery is about 8–12 days (except unusual delays).'
-        : shippingLike
-          ? 'Please rest assured — the parcel is on the way. Message us if you need anything else.'
-          : 'Message us if you need anything else.',
-    ]
-      .filter(Boolean)
-      .join('\n')
-  }
-  if (loc.startsWith('zh')) {
-    return [
-      `已查到订单${code}${latest ? '（该手机号的最新订单）' : ''}。`,
-      status ? `状态：${status}。` : '',
-      track,
-      emsNow,
-      items,
-      events,
-      depositLike
-        ? '感谢信任。订单已转交打包出库，预计约 8–12 天送达（特殊情况除外）。'
-        : shippingLike
-          ? '请放心等待收货。如需帮助请再联系我们。'
-          : '如需帮助请再联系我们。',
-    ]
-      .filter(Boolean)
-      .join('\n')
-  }
-  if (loc.startsWith('ja')) {
-    return [
-      `ご注文${code}を確認しました${latest ? '（この電話番号の最新注文）' : ''}。`,
-      status ? `状況：${status}。` : '',
-      track,
-      emsNow,
-      items,
-      events,
-      depositLike
-        ? 'ご信頼ありがとうございます。梱包・出荷担当へ回しました。お届け目安は約8〜12日です。'
-        : shippingLike
-          ? '安心してお待ちください。ご不明点があればご連絡ください。'
-          : 'ご不明点があればご連絡ください。',
-    ]
-      .filter(Boolean)
-      .join('\n')
-  }
-  if (loc.startsWith('ko')) {
-    return [
-      `주문${code}을(를) 확인했습니다${latest ? ' (이 번호의 최신 주문)' : ''}.`,
-      status ? `상태: ${status}.` : '',
-      track,
-      emsNow,
-      items,
-      events,
-      depositLike
-        ? '믿고 맡겨 주셔서 감사합니다. 포장·출고로 전달했습니다. 수령 예정은 약 8–12일입니다.'
-        : shippingLike
-          ? '안심하고 수령을 기다려 주세요. 도움이 더 필요하시면 말씀해 주세요.'
-          : '도움이 더 필요하시면 말씀해 주세요.',
-    ]
-      .filter(Boolean)
-      .join('\n')
-  }
   return [
-    `Dạ em đã tra đơn${code}${latest ? ' (đơn mới nhất theo SĐT chị gửi)' : ''} ạ.`,
-    status ? `Tình trạng: ${status}.` : '',
+    lookupIntroLine(hit, loc),
+    statusLine,
     track,
-    emsNow,
+    recipientLine,
     items,
     events,
-    depositLike
-      ? 'Em cảm ơn chị đã tin tưởng. Em đã chuyển đơn sang bộ phận đóng hàng xuất kho. Thời gian dự kiến nhận hàng khoảng 8–12 ngày (trừ trường hợp bất thường).'
-      : shippingLike
-        ? 'Chị yên tâm chờ nhận hàng giúp em nhé. Nếu cần em hỗ trợ thêm cứ nhắn ạ.'
-        : 'Nếu cần em hỗ trợ thêm cứ nhắn ạ.',
+    lookupClosingLine(loc, { delivered, depositLike, shippingLike: shippingLike && !delivered }),
   ]
     .filter(Boolean)
     .join('\n')

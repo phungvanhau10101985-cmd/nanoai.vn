@@ -137,7 +137,7 @@ export function PartnerBirthdayPromoSettingsCard({
   if (loading) {
     return (
       <Card className="border-border/70 shadow-sm">
-        <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+        <CardContent className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           …
         </CardContent>
@@ -147,14 +147,14 @@ export function PartnerBirthdayPromoSettingsCard({
 
   return (
     <Card className="border-violet-200/80 bg-violet-50/40 shadow-sm dark:border-violet-900/40 dark:bg-violet-950/20">
-      <CardHeader className="pb-2">
+      <CardHeader className="px-4 py-3 pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <Cake className="h-4 w-4 text-violet-600" aria-hidden />
           {t.birthdayPromoSettingsTitle}
         </CardTitle>
         <CardDescription className="text-xs leading-relaxed">{t.birthdayPromoSettingsDesc}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 px-4 pb-4 pt-0">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <p className="text-xs text-muted-foreground max-w-xl">{t.birthdayPromoSettingsHint}</p>
           <Switch

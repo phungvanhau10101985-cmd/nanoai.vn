@@ -7,6 +7,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
+import { PartnerSiteHomePersonalizationRails } from '@/components/partner-website/shop/partner-site-home-personalization-rails'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   partnerSiteInfoPath,
@@ -21,6 +22,10 @@ import {
   trackPartnerSiteViewItemList,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { cn } from '@/lib/utils'
+import {
+  formatPartnerShopMoneyVnd,
+  isPartnerFlashSaleActive,
+} from '@/lib/partner-website/shop/partner-shop-flash-sale'
 
 export type FashionHomeCategory = {
   name: string
@@ -51,9 +56,11 @@ type Props = {
   copy: FashionHomeCopy
   newArrivals: PartnerSiteShopProduct[]
   bestSellers: PartnerSiteShopProduct[]
+  flashSale?: PartnerSiteShopProduct[]
   fontClassName?: string
   showProductSections?: boolean
   showCategories?: boolean
+  showPersonalize?: boolean
   heroCtaHref?: string
   industryBadge?: string
   secondaryCtaLabel?: string
@@ -66,22 +73,39 @@ function ProductCard({
   siteSlug,
   product,
   showNew,
+  showFlash,
   cta,
   customDomain,
 }: {
   siteSlug: string
   product: PartnerSiteShopProduct
   showNew?: boolean
+  showFlash?: boolean
   cta: string
   customDomain: boolean
 }) {
   const href = partnerSiteProductPath(siteSlug, product.id, { customDomain, name: product.name })
+  const flash =
+    showFlash ||
+    isPartnerFlashSaleActive({
+      priceAmount: product.priceAmount ?? null,
+      salePriceAmount: product.salePriceAmount ?? null,
+      saleStartsAt: product.saleStartsAt ?? null,
+      saleEndsAt: product.saleEndsAt ?? null,
+    })
+  const saleLabel =
+    flash && product.salePriceAmount != null ? formatPartnerShopMoneyVnd(product.salePriceAmount) : null
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-orange-100/80 bg-white shadow-[0_10px_40px_-20px_rgba(234,88,12,.45)] transition duration-500 hover:-translate-y-1 hover:shadow-[0_24px_50px_-24px_rgba(234,88,12,.55)]">
       <Link href={href} className="relative aspect-[4/5] overflow-hidden bg-orange-50">
         {showNew ? (
           <span className="absolute left-3 top-3 z-10 rounded-md bg-stone-500/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur">
             NEW
+          </span>
+        ) : null}
+        {flash ? (
+          <span className="absolute right-3 top-3 z-10 rounded-md bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+            SALE
           </span>
         ) : null}
         {product.imageUrl ? (
@@ -101,7 +125,14 @@ function ProductCard({
         <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-stone-800">
           <Link href={href}>{product.name}</Link>
         </h3>
-        {product.priceHint ? (
+        {saleLabel ? (
+          <p className="flex flex-wrap items-baseline gap-2">
+            <span className="pw-fh-price text-base font-extrabold tracking-tight">{saleLabel}</span>
+            {product.priceHint ? (
+              <span className="text-xs text-stone-400 line-through">{product.priceHint}</span>
+            ) : null}
+          </p>
+        ) : product.priceHint ? (
           <p className="pw-fh-price text-base font-extrabold tracking-tight">{product.priceHint}</p>
         ) : null}
         <Link
@@ -122,8 +153,10 @@ function FashionHomeInner({
   copy,
   newArrivals,
   bestSellers,
+  flashSale = [],
   showProductSections = true,
   showCategories = true,
+  showPersonalize = false,
   heroCtaHref,
   industryBadge,
   secondaryCtaLabel,
@@ -134,8 +167,10 @@ function FashionHomeInner({
   | 'copy'
   | 'newArrivals'
   | 'bestSellers'
+  | 'flashSale'
   | 'showProductSections'
   | 'showCategories'
+  | 'showPersonalize'
   | 'heroCtaHref'
   | 'industryBadge'
   | 'secondaryCtaLabel'
@@ -165,6 +200,7 @@ function FashionHomeInner({
         <div className="absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
+            data-pw-edit="heroImage"
             src={copy.heroImage}
             alt=""
             className="h-full w-full object-cover"
@@ -178,16 +214,21 @@ function FashionHomeInner({
             {badge}
           </p>
           <h1
+            data-pw-edit="heroTitle"
             className="pw-anim-in pw-anim-in-d1 max-w-xl text-[1.7rem] font-bold leading-[1.15] tracking-tight text-white sm:text-5xl sm:leading-[1.05] lg:text-6xl"
             style={{ fontFamily: 'var(--pw-font-display)' }}
           >
             {copy.heroTitle}
           </h1>
-          <p className="pw-anim-in pw-anim-in-d2 max-w-md text-base text-orange-50/95 sm:text-lg">
+          <p
+            data-pw-edit="heroSubtitle"
+            className="pw-anim-in pw-anim-in-d2 max-w-md text-base text-orange-50/95 sm:text-lg"
+          >
             {copy.heroSubtitle}
           </p>
           <div className="pw-anim-in pw-anim-in-d3 flex flex-wrap gap-3">
             <Link
+              data-pw-edit="heroCta"
               href={productsHref}
               className="pw-fh-hero-cta inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-extrabold uppercase tracking-[0.08em] shadow-lg shadow-black/20 transition hover:scale-[1.02]"
             >
@@ -212,6 +253,7 @@ function FashionHomeInner({
       {showCategories ? (
       <section className="mb-12 sm:mb-16">
         <h2
+          data-pw-edit="categoriesTitle"
           className="pw-fh-heading mb-6 text-center text-sm font-extrabold uppercase tracking-[0.2em] sm:text-base"
           style={{ fontFamily: 'var(--pw-font-display)' }}
         >
@@ -234,6 +276,7 @@ function FashionHomeInner({
                 {cat.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
+                    data-pw-edit={`categoryImage:${i}`}
                     src={cat.imageUrl}
                     alt=""
                     className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
@@ -241,8 +284,31 @@ function FashionHomeInner({
                   />
                 ) : null}
               </span>
-              <span className="text-sm font-bold text-stone-700">{cat.name}</span>
+              <span data-pw-edit={`categoryName:${i}`} className="text-sm font-bold text-stone-700">
+                {cat.name}
+              </span>
             </Link>
+          ))}
+        </div>
+      </section>
+      ) : null}
+
+      {showProductSections && flashSale.length ? (
+      <section className="mb-12 sm:mb-16">
+        <div className="mb-6 flex items-end justify-between gap-3">
+          <h2
+            className="pw-fh-heading text-sm font-extrabold uppercase tracking-[0.2em] sm:text-base"
+            style={{ fontFamily: 'var(--pw-font-display)' }}
+          >
+            {t.flashSaleBadge}
+          </h2>
+          <Link href={productsHref} className="pw-fh-more text-xs font-bold uppercase tracking-wider text-stone-500">
+            {t.navProducts} →
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
+          {flashSale.slice(0, 8).map((p) => (
+            <ProductCard key={`flash-${p.id}`} siteSlug={siteSlug} product={p} showFlash cta={t.addToCart} customDomain={customDomain} />
           ))}
         </div>
       </section>
@@ -253,6 +319,7 @@ function FashionHomeInner({
       <section className="mb-12 sm:mb-16">
         <div className="mb-6 flex items-end justify-between gap-3">
           <h2
+            data-pw-edit="newArrivalsTitle"
             className="pw-fh-heading text-sm font-extrabold uppercase tracking-[0.2em] sm:text-base"
             style={{ fontFamily: 'var(--pw-font-display)' }}
           >
@@ -279,6 +346,7 @@ function FashionHomeInner({
         <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/15 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-20 left-10 h-48 w-48 rounded-full bg-amber-200/30 blur-2xl" />
         <h2
+          data-pw-edit="bestSellersTitle"
           className="relative mb-8 text-center text-sm font-extrabold uppercase tracking-[0.22em] text-white sm:text-base"
           style={{ fontFamily: 'var(--pw-font-display)' }}
         >
@@ -292,6 +360,8 @@ function FashionHomeInner({
       </section>
       </>
       ) : null}
+
+      {showPersonalize ? <PartnerSiteHomePersonalizationRails siteSlug={siteSlug} locale={locale} /> : null}
     </div>
   )
 }
@@ -326,8 +396,10 @@ export function PartnerSiteFashionHome(props: Props) {
           copy={props.copy}
           newArrivals={props.newArrivals}
           bestSellers={props.bestSellers}
+          flashSale={props.flashSale}
           showProductSections={props.showProductSections}
           showCategories={props.showCategories}
+          showPersonalize={props.showPersonalize}
           heroCtaHref={props.heroCtaHref}
           industryBadge={props.industryBadge}
           secondaryCtaLabel={props.secondaryCtaLabel}

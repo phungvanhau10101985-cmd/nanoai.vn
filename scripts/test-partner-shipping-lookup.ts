@@ -82,6 +82,59 @@ function main() {
   assert.match(vi, /EH042737692VN/)
   assert.doesNotMatch(vi, /0901234567/)
   assert.doesNotMatch(vi, /bấm \*\*Mua/i)
+  assert.doesNotMatch(vi, /Trạng thái vận chuyển/)
+
+  const phoneDelivered: PartnerShippingLookupHit = {
+    query: '0369597965',
+    queryType: 'phone',
+    isLatestOrder: true,
+    trackingNumber: 'EH045793631VN',
+    shippingProvider: 'EMS',
+    orderCode: '',
+    status: '',
+    statusLabel: '',
+    paymentStatusLabel: '',
+    shippingMethod: 'EMS',
+    items: [],
+    emsStatus: 'Đã phát thành công . Người nhận:()+++++ Văn Thiện shop188 ZALO.',
+    emsEvents: [
+      {
+        description: '[COD]Đã thu tiền (272250: BCVH Hạ Lang - Cao Bằng                      )',
+        address: 'Xóm Thanh Hạ, Cao Bằng, Cao Bằng',
+        tracedAt: '2026-08-13T19:46:30',
+      },
+      {
+        description: 'EMI - Phát thành công (Delivered) (272250: BCVH Hạ Lang - Cao Bằng                      )',
+        address: 'Xóm Thanh Hạ, Cao Bằng, Cao Bằng',
+        tracedAt: '2026-08-13T19:46:32',
+      },
+      {
+        description: 'Đã đến bưu cục (Arrival at PO) (272250: BCVH Hạ Lang - Cao Bằng                      )',
+        address: 'Xóm Thanh Hạ, Cao Bằng, Cao Bằng',
+        tracedAt: '2026-08-13T19:46:32',
+      },
+      {
+        description: 'Đã vận chuyển đến bưu cục (Transport arrival at PO) (272250: BCVH Hạ Lang - Cao Bằng                      )',
+        address: 'Xóm Thanh Hạ, Cao Bằng, Cao Bằng',
+        tracedAt: '2026-08-13T19:46:34',
+      },
+    ],
+    httpStatus: 200,
+  }
+  const deliveredVi = formatShippingLookupCustomerReply(phoneDelivered, 'vi')
+  assert.match(deliveredVi, /đơn mới nhất theo SĐT/i)
+  assert.match(deliveredVi, /EH045793631VN/)
+  assert.match(deliveredVi, /Đã phát thành công/)
+  assert.match(deliveredVi, /Người nhận: Văn Thiện/)
+  assert.match(deliveredVi, /Đơn đã giao tới người nhận/)
+  assert.doesNotMatch(deliveredVi, /0369597965/)
+  assert.doesNotMatch(deliveredVi, /\(\)\+{2,}/)
+  assert.doesNotMatch(deliveredVi, /shop188/i)
+  assert.doesNotMatch(deliveredVi, /272250/)
+  assert.doesNotMatch(deliveredVi, /Arrival at PO/)
+  assert.doesNotMatch(deliveredVi, /chờ nhận hàng/)
+  assert.doesNotMatch(deliveredVi, /Trạng thái vận chuyển/)
+  assert.doesNotMatch(deliveredVi, /Đã đến bưu cục/)
 
   console.log('OK partner-shipping-lookup')
 }

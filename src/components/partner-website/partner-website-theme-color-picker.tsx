@@ -29,14 +29,16 @@ function SwatchGrid({
   selectedHex,
   onPick,
   disabled,
+  compact = false,
 }: {
   swatches: Array<{ id: string; hex: string }>
   selectedHex: string
   onPick: (hex: string) => void
   disabled?: boolean
+  compact?: boolean
 }) {
   return (
-    <div className="grid grid-cols-6 gap-1.5">
+    <div className={cn('grid grid-cols-6', compact ? 'gap-1' : 'gap-1.5')}>
       {swatches.map((s) => {
         const on = hexesClose(s.hex, selectedHex)
         return (
@@ -49,7 +51,8 @@ function SwatchGrid({
             aria-pressed={on}
             onClick={() => onPick(s.hex)}
             className={cn(
-              'h-7 w-full rounded-md border shadow-sm transition',
+              'w-full rounded-md border shadow-sm transition',
+              compact ? 'h-5' : 'h-7',
               on ? 'ring-2 ring-offset-1 ring-foreground/80' : 'border-border/80 hover:scale-[1.04]',
               disabled && 'opacity-50'
             )}
@@ -66,29 +69,43 @@ function RoleColorRow({
   value,
   disabled,
   onChange,
+  compact = false,
 }: {
   label: string
   value: string
   disabled?: boolean
   onChange: (hex: string) => void
+  compact?: boolean
 }) {
   return (
-    <label className="flex items-center gap-2 rounded-md border border-border/60 bg-background px-2 py-1">
+    <label
+      className={cn(
+        'flex items-center rounded-md border border-border/60 bg-background',
+        compact ? 'gap-1.5 px-1.5 py-0.5' : 'gap-2 px-2 py-1'
+      )}
+    >
       <input
         type="color"
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="h-7 w-8 cursor-pointer rounded border border-border bg-transparent p-0"
+        className={cn(
+          'cursor-pointer rounded border border-border bg-transparent p-0',
+          compact ? 'h-5 w-6' : 'h-7 w-8'
+        )}
       />
-      <span className="min-w-0 flex-1 truncate text-[11px] font-medium">{label}</span>
-      <input
-        value={value}
-        disabled={disabled}
-        maxLength={7}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-[4.6rem] rounded border border-border/70 bg-muted/30 px-1 py-0.5 font-mono text-[10px] uppercase"
-      />
+      <span className={cn('min-w-0 flex-1 truncate font-medium', compact ? 'text-[10px]' : 'text-[11px]')}>
+        {label}
+      </span>
+      {compact ? null : (
+        <input
+          value={value}
+          disabled={disabled}
+          maxLength={7}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-[4.6rem] rounded border border-border/70 bg-muted/30 px-1 py-0.5 font-mono text-[10px] uppercase"
+        />
+      )}
     </label>
   )
 }
@@ -99,12 +116,16 @@ export function PartnerWebsiteThemeColorPicker({
   disabled,
   onLiveChange,
   saving,
+  compact = false,
+  layout = 'stack',
 }: {
   t: PartnerWebsiteCopy
   theme: PartnerWebsiteTheme
   disabled?: boolean
   onLiveChange: (next: PartnerWebsiteTheme) => void
   saving?: boolean
+  compact?: boolean
+  layout?: 'stack' | 'bar'
 }) {
   const resolved = useMemo(() => resolveShopThemeColors(theme), [theme])
   const mainFields: RoleField[] = [
@@ -124,14 +145,112 @@ export function PartnerWebsiteThemeColorPicker({
     onLiveChange(mergeShopThemeColors(theme, { [key]: hex }))
   }
 
+  if (layout === 'bar') {
+    return (
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-violet-200/80 bg-violet-50/70 px-2 py-1 dark:border-violet-900/40 dark:bg-violet-950/30">
+        <span className="shrink-0 text-[10px] font-semibold text-violet-950 dark:text-violet-100">
+          {t.themeColorTitle}
+        </span>
+        {saving ? (
+          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+          </span>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-1">
+          {SHOP_MAIN_COLOR_SWATCHES.map((s) => {
+            const on = hexesClose(s.hex, resolved.primaryColor)
+            return (
+              <button
+                key={s.id}
+                type="button"
+                disabled={disabled}
+                title={s.hex}
+                aria-label={s.hex}
+                aria-pressed={on}
+                onClick={() => onLiveChange(themeFromMainSwatch(theme, s.hex))}
+                className={cn(
+                  'h-5 w-5 shrink-0 rounded-sm border shadow-sm',
+                  on ? 'ring-2 ring-offset-1 ring-foreground/80' : 'border-border/70 hover:scale-110',
+                  disabled && 'opacity-50'
+                )}
+                style={{ background: s.hex }}
+              />
+            )
+          })}
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          {mainFields.map((f) => (
+            <label key={f.key} className="inline-flex items-center gap-1" title={f.label}>
+              <input
+                type="color"
+                value={resolved[f.key]}
+                disabled={disabled}
+                onChange={(e) => patchRole(f.key, e.target.value)}
+                className="h-5 w-5 cursor-pointer rounded border border-border bg-transparent p-0"
+              />
+              <span className="hidden text-[10px] text-muted-foreground lg:inline">{f.label}</span>
+            </label>
+          ))}
+        </div>
+        <details className="relative">
+          <summary className="cursor-pointer list-none text-[10px] font-medium text-violet-800 dark:text-violet-200 [&::-webkit-details-marker]:hidden">
+            {t.themeColorAuxTitle} ▾
+          </summary>
+          <div className="absolute left-0 top-full z-20 mt-1 w-56 space-y-1.5 rounded-md border bg-background p-2 shadow-lg">
+            <p className="text-[10px] text-muted-foreground">{t.themeColorAuxBgTitle}</p>
+            <SwatchGrid
+              swatches={SHOP_AUX_BG_SWATCHES}
+              selectedHex={resolved.backgroundColor}
+              disabled={disabled}
+              compact
+              onPick={(hex) => onLiveChange(themeFromAuxBackgroundSwatch(theme, hex))}
+            />
+            <p className="text-[10px] text-muted-foreground">{t.themeColorAuxCartTitle}</p>
+            <SwatchGrid
+              swatches={SHOP_AUX_CART_SWATCHES}
+              selectedHex={resolved.cartButtonColor}
+              disabled={disabled}
+              compact
+              onPick={(hex) => onLiveChange(themeFromAuxCartSwatch(theme, hex))}
+            />
+            <div className="grid grid-cols-1 gap-0.5">
+              {auxFields.map((f) => (
+                <RoleColorRow
+                  key={f.key}
+                  label={f.label}
+                  value={resolved[f.key]}
+                  disabled={disabled}
+                  compact
+                  onChange={(hex) => patchRole(f.key, hex)}
+                />
+              ))}
+            </div>
+          </div>
+        </details>
+      </div>
+    )
+  }
+
   return (
-    <section className="space-y-2 rounded-lg border border-violet-200 bg-violet-50/40 p-2.5 dark:border-violet-900/50 dark:bg-violet-950/20">
+    <section
+      className={cn(
+        'rounded-lg border border-violet-200 bg-violet-50/40 dark:border-violet-900/50 dark:bg-violet-950/20',
+        compact ? 'space-y-1.5 p-1.5' : 'space-y-2 p-2.5'
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold leading-none text-violet-950 dark:text-violet-100">
+          <p
+            className={cn(
+              'font-semibold leading-none text-violet-950 dark:text-violet-100',
+              compact ? 'text-[11px]' : 'text-[13px]'
+            )}
+          >
             {t.themeColorTitle}
           </p>
-          <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{t.themeColorHint}</p>
+          {compact ? null : (
+            <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{t.themeColorHint}</p>
+          )}
         </div>
         {saving ? (
           <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
@@ -141,81 +260,121 @@ export function PartnerWebsiteThemeColorPicker({
         ) : null}
       </div>
 
-      <div
-        className="overflow-hidden rounded-md border bg-white shadow-sm"
-        aria-hidden
-      >
-        <div className="h-2" style={{ background: resolved.primaryColor }} />
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5" style={{ background: resolved.backgroundColor }}>
-          <span className="text-[10px] font-bold" style={{ color: resolved.primaryColor }}>
-            Aa
-          </span>
-          <div className="flex gap-1">
-            <span
-              className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
-              style={{ background: resolved.cartButtonColor }}
-            >
-              {t.themeColorCart}
+      {compact ? null : (
+        <div className="overflow-hidden rounded-md border bg-white shadow-sm" aria-hidden>
+          <div className="h-2" style={{ background: resolved.primaryColor }} />
+          <div
+            className="flex items-center justify-between gap-2 px-2 py-1.5"
+            style={{ background: resolved.backgroundColor }}
+          >
+            <span className="text-[10px] font-bold" style={{ color: resolved.primaryColor }}>
+              Aa
             </span>
-            <span
-              className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
-              style={{ background: resolved.buyButtonColor }}
-            >
-              {t.themeColorBuy}
-            </span>
+            <div className="flex gap-1">
+              <span
+                className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
+                style={{ background: resolved.cartButtonColor }}
+              >
+                {t.themeColorCart}
+              </span>
+              <span
+                className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
+                style={{ background: resolved.buyButtonColor }}
+              >
+                {t.themeColorBuy}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="space-y-1.5">
-        <p className="text-[11px] font-semibold">{t.themeColorMainTitle}</p>
+      <div className={cn(compact ? 'space-y-1' : 'space-y-1.5')}>
+        <p className={cn('font-semibold', compact ? 'text-[10px]' : 'text-[11px]')}>{t.themeColorMainTitle}</p>
         <SwatchGrid
           swatches={SHOP_MAIN_COLOR_SWATCHES}
           selectedHex={resolved.primaryColor}
           disabled={disabled}
+          compact={compact}
           onPick={(hex) => onLiveChange(themeFromMainSwatch(theme, hex))}
         />
-        <div className="grid grid-cols-1 gap-1">
+        <div className="grid grid-cols-1 gap-0.5">
           {mainFields.map((f) => (
             <RoleColorRow
               key={f.key}
               label={f.label}
               value={resolved[f.key]}
               disabled={disabled}
+              compact={compact}
               onChange={(hex) => patchRole(f.key, hex)}
             />
           ))}
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <p className="text-[11px] font-semibold">{t.themeColorAuxTitle}</p>
-        <p className="text-[10px] text-muted-foreground">{t.themeColorAuxBgTitle}</p>
-        <SwatchGrid
-          swatches={SHOP_AUX_BG_SWATCHES}
-          selectedHex={resolved.backgroundColor}
-          disabled={disabled}
-          onPick={(hex) => onLiveChange(themeFromAuxBackgroundSwatch(theme, hex))}
-        />
-        <p className="text-[10px] text-muted-foreground">{t.themeColorAuxCartTitle}</p>
-        <SwatchGrid
-          swatches={SHOP_AUX_CART_SWATCHES}
-          selectedHex={resolved.cartButtonColor}
-          disabled={disabled}
-          onPick={(hex) => onLiveChange(themeFromAuxCartSwatch(theme, hex))}
-        />
-        <div className="grid grid-cols-1 gap-1">
-          {auxFields.map((f) => (
-            <RoleColorRow
-              key={f.key}
-              label={f.label}
-              value={resolved[f.key]}
+      {compact ? (
+        <details className="space-y-1 rounded-md border border-violet-200/70 bg-background/60 px-1.5 py-1 dark:border-violet-900/40">
+          <summary className="cursor-pointer text-[10px] font-semibold">{t.themeColorAuxTitle}</summary>
+          <div className="mt-1 space-y-1">
+            <p className="text-[10px] text-muted-foreground">{t.themeColorAuxBgTitle}</p>
+            <SwatchGrid
+              swatches={SHOP_AUX_BG_SWATCHES}
+              selectedHex={resolved.backgroundColor}
               disabled={disabled}
-              onChange={(hex) => patchRole(f.key, hex)}
+              compact
+              onPick={(hex) => onLiveChange(themeFromAuxBackgroundSwatch(theme, hex))}
             />
-          ))}
+            <p className="text-[10px] text-muted-foreground">{t.themeColorAuxCartTitle}</p>
+            <SwatchGrid
+              swatches={SHOP_AUX_CART_SWATCHES}
+              selectedHex={resolved.cartButtonColor}
+              disabled={disabled}
+              compact
+              onPick={(hex) => onLiveChange(themeFromAuxCartSwatch(theme, hex))}
+            />
+            <div className="grid grid-cols-1 gap-0.5">
+              {auxFields.map((f) => (
+                <RoleColorRow
+                  key={f.key}
+                  label={f.label}
+                  value={resolved[f.key]}
+                  disabled={disabled}
+                  compact
+                  onChange={(hex) => patchRole(f.key, hex)}
+                />
+              ))}
+            </div>
+          </div>
+        </details>
+      ) : (
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold">{t.themeColorAuxTitle}</p>
+          <p className="text-[10px] text-muted-foreground">{t.themeColorAuxBgTitle}</p>
+          <SwatchGrid
+            swatches={SHOP_AUX_BG_SWATCHES}
+            selectedHex={resolved.backgroundColor}
+            disabled={disabled}
+            onPick={(hex) => onLiveChange(themeFromAuxBackgroundSwatch(theme, hex))}
+          />
+          <p className="text-[10px] text-muted-foreground">{t.themeColorAuxCartTitle}</p>
+          <SwatchGrid
+            swatches={SHOP_AUX_CART_SWATCHES}
+            selectedHex={resolved.cartButtonColor}
+            disabled={disabled}
+            onPick={(hex) => onLiveChange(themeFromAuxCartSwatch(theme, hex))}
+          />
+          <div className="grid grid-cols-1 gap-1">
+            {auxFields.map((f) => (
+              <RoleColorRow
+                key={f.key}
+                label={f.label}
+                value={resolved[f.key]}
+                disabled={disabled}
+                onChange={(hex) => patchRole(f.key, hex)}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   )
 }

@@ -725,14 +725,14 @@ export function PartnerAiSettingsPanel({
 
   return (
     <Card className="overflow-hidden border-violet-200/60 bg-gradient-to-br from-violet-50/40 via-background to-background dark:border-violet-900/40 dark:from-violet-950/20 shadow-sm">
-      <CardHeader className="space-y-3 border-b bg-muted/30 pb-4">
+      <CardHeader className="space-y-2 border-b bg-muted/30 px-4 py-3">
         {panelMode === 'inventory-only' ? (
           <div className="flex flex-wrap items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
-              <Package className="h-5 w-5" aria-hidden />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm">
+              <Package className="h-4 w-4" aria-hidden />
             </div>
             <div className="min-w-0 flex-1 space-y-1">
-              <CardTitle className="text-lg flex flex-wrap items-center gap-2">
+              <CardTitle className="text-base flex flex-wrap items-center gap-2">
                 {panelTitle ?? t.tabInventory}
                 <Badge variant="secondary" className="h-6 min-w-6 px-2 font-mono text-[11px] tabular-nums">
                   {inventoryTotalCount}
@@ -745,11 +745,11 @@ export function PartnerAiSettingsPanel({
           </div>
         ) : panelMode === 'usage-only' ? (
           <div className="flex flex-wrap items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
-              <Bot className="h-5 w-5" aria-hidden />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm">
+              <Bot className="h-4 w-4" aria-hidden />
             </div>
             <div className="min-w-0 flex-1 space-y-1">
-              <CardTitle className="text-lg">{panelTitle ?? t.usagePanelTitle}</CardTitle>
+              <CardTitle className="text-base">{panelTitle ?? t.usagePanelTitle}</CardTitle>
               <CardDescription className="text-xs leading-relaxed max-w-3xl">
                 {panelDescription ?? t.usagePanelSubtitle}
               </CardDescription>
@@ -757,11 +757,11 @@ export function PartnerAiSettingsPanel({
           </div>
         ) : isShippingOnly ? (
           <div className="flex flex-wrap items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm">
-              <Truck className="h-5 w-5" aria-hidden />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-600 text-white shadow-sm">
+              <Truck className="h-4 w-4" aria-hidden />
             </div>
             <div className="min-w-0 flex-1 space-y-1">
-              <CardTitle className="text-lg">{panelTitle ?? t.shippingLookupTitle}</CardTitle>
+              <CardTitle className="text-base">{panelTitle ?? t.shippingLookupTitle}</CardTitle>
               {panelDescription ? (
                 <CardDescription className="text-xs leading-relaxed max-w-3xl">{panelDescription}</CardDescription>
               ) : (
@@ -772,11 +772,11 @@ export function PartnerAiSettingsPanel({
         ) : (
           <>
             <div className="flex flex-wrap items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
-                <Bot className="h-5 w-5" aria-hidden />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm">
+                <Bot className="h-4 w-4" aria-hidden />
               </div>
               <div className="min-w-0 flex-1 space-y-1">
-                <CardTitle className="text-lg flex flex-wrap items-center gap-2">
+                <CardTitle className="text-base flex flex-wrap items-center gap-2">
                   {t.panelTitle}
                   <Sparkles className="h-4 w-4 text-amber-500 shrink-0" aria-hidden />
                 </CardTitle>
@@ -784,8 +784,8 @@ export function PartnerAiSettingsPanel({
               </div>
             </div>
 
-            <div className="rounded-xl border border-violet-200/50 bg-background/90 p-4 shadow-sm dark:border-violet-900/40">
-              <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="rounded-lg border border-violet-200/50 bg-background/90 p-3 shadow-sm dark:border-violet-900/40">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-1">
                   <p className="text-sm font-medium">{t.enableLabel}</p>
                   <p className="text-xs text-muted-foreground">{t.enableHint}</p>
@@ -804,7 +804,7 @@ export function PartnerAiSettingsPanel({
                   />
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-dashed pt-3">
+              <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-dashed pt-2">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t.aiEngineTitle}</span>
                 <Badge className="bg-slate-800 text-white hover:bg-slate-800 dark:bg-slate-700">DeepSeek</Badge>
                 <Badge variant="outline" className="font-mono text-[10px] font-normal">
@@ -820,12 +820,12 @@ export function PartnerAiSettingsPanel({
 
         {loadErr ? <p className="text-xs text-destructive">{loadErr}</p> : null}
       </CardHeader>
-      <CardContent className="pt-4">
+      <CardContent className="px-4 py-3">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'settings' | 'inv' | 'usage')} className="w-full">
           {!isShippingOnly &&
           ((showSettingsTab && showUsageTab) || (showSettingsTab && showInventoryTab) || (showInventoryTab && showUsageTab)) ? (
           <TabsList
-            className={`mb-4 grid w-full max-w-3xl h-auto min-h-10 gap-1 p-1 ${
+            className={`mb-3 grid w-full max-w-3xl h-auto min-h-9 gap-1 p-1 ${
               showSettingsTab && showInventoryTab && showUsageTab
                 ? 'grid-cols-2 sm:grid-cols-3'
                 : showSettingsTab && showUsageTab

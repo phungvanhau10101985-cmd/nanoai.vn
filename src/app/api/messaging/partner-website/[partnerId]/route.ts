@@ -15,6 +15,7 @@ import { composePartnerWebsiteHtmlAsync } from '@/lib/partner-website/compose-pa
 import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-partner-website-full-landing'
 import {
   composeStandaloneHtml,
+  extractIndexHtml,
   normalizePartnerWebsiteProject,
 } from '@/lib/partner-website/partner-website-project'
 import { resolvePartnerWebsitePublicUrl } from '@/lib/partner-website/resolve-partner-website-public-url'
@@ -24,6 +25,8 @@ import {
 } from '@/lib/partner-website/partner-website-logo-guard'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
+import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
+import { applyFashionHomeCopyToPages, parseFashionHomeCopyPatch } from '@/lib/partner-website/shop/build-fashion-home-copy'
 import {
   mergeShopThemeColors,
   parseThemeColorPatch,
@@ -57,7 +60,7 @@ export async function GET(
     const synced = await syncPartnerWebsiteFullLandingPg({
       partnerId: pid,
       locale,
-      refreshHtml: true,
+      refreshHtml: false,
     })
     if (synced.website) website = synced.website
   }
@@ -112,6 +115,7 @@ export async function PATCH(
       | 'update_floating_cta'
       | 'update_brand'
       | 'update_theme_colors'
+      | 'update_shop_home_copy'
       | 'undo_last'
     floatingCta?: unknown
     title?: string
@@ -121,6 +125,7 @@ export async function PATCH(
     project?: unknown
     theme?: unknown
     visualEdited?: boolean
+    fashionHome?: unknown
   }
 
   if (body.action === 'update_floating_cta') {
@@ -241,6 +246,29 @@ export async function PATCH(
     return NextResponse.json({ success: true, website: updated, publicUrl })
   }
 
+  if (body.action === 'update_shop_home_copy') {
+    const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
+    if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
+    const patch = parseFashionHomeCopyPatch(body.fashionHome)
+    if (!patch) {
+      return NextResponse.json({ error: 'Invalid shop home copy' }, { status: 400 })
+    }
+    const pages = applyFashionHomeCopyToPages(existing.pages, patch)
+    const updated = await updatePartnerWebsiteDraftPg({
+      partnerId: pid,
+      pages,
+      changeNote: 'update_shop_home',
+    })
+    if (!updated) return NextResponse.json({ error: 'Could not save shop home' }, { status: 500 })
+    const publicUrl = await resolvePartnerWebsitePublicUrl({
+      partnerId: pid,
+      siteSlug: updated.siteSlug,
+      isPublished: updated.isPublished,
+      req,
+    })
+    return NextResponse.json({ success: true, website: updated, publicUrl })
+  }
+
   // Hoàn tác thao tác gần nhất = restore revision mới nhất.
   if (body.action === 'undo_last') {
     const revs = await listPartnerWebsiteRevisionsPg(pid, 1)
@@ -259,6 +287,27 @@ export async function PATCH(
       return NextResponse.json({ error: 'Website not found — generate first' }, { status: 404 })
     }
     if (body.action === 'publish') {
+      // React storefront shops: one live site (theme/pages). Do not generate a second HTML homepage.
+      if (isFullLandingV1Template(existing)) {
+        const updated = await setPartnerWebsitePublishedPg({
+          partnerId: pid,
+          isPublished: true,
+        })
+        if (!updated) {
+          return NextResponse.json({ error: 'Could not update publish state' }, { status: 500 })
+        }
+        const publicUrl = await resolvePartnerWebsitePublicUrl({
+          partnerId: pid,
+          siteSlug: updated.siteSlug,
+          isPublished: updated.isPublished,
+          req,
+        })
+        return NextResponse.json({
+          success: true,
+          website: updated,
+          publicUrl,
+        })
+      }
       const locale = normalizeWebLocale(req.nextUrl.searchParams.get('locale')) ?? existing.locale ?? 'vi'
       const synced = await syncPartnerWebsiteFullLandingPg({
         partnerId: pid,
@@ -322,6 +371,12 @@ export async function PATCH(
   const project = body.project ? normalizePartnerWebsiteProject(body.project) : null
   const theme =
     body.visualEdited === true ? { ...existing.theme, useVisualHtml: true as const } : undefined
+  const visualHtmlExact =
+    body.visualEdited === true
+      ? typeof body.htmlSource === 'string' && body.htmlSource.trim().length >= 40
+        ? body.htmlSource.trim()
+        : extractIndexHtml(project ?? existing.project)?.trim() || existing.htmlSource
+      : undefined
 
   const updated = await updatePartnerWebsiteDraftPg({
     partnerId: pid,
@@ -331,11 +386,14 @@ export async function PATCH(
     theme,
     project: project ?? undefined,
     htmlSource:
-      body.htmlSource !== undefined
-        ? body.htmlSource
-        : project
-          ? composeStandaloneHtml(project)
-          : undefined,
+      visualHtmlExact !== undefined
+        ? visualHtmlExact
+        : body.htmlSource !== undefined
+          ? body.htmlSource
+          : project
+            ? composeStandaloneHtml(project)
+            : undefined,
+    changeNote: body.visualEdited === true ? 'visual_edit' : undefined,
   })
 
   if (!updated) {

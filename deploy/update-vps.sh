@@ -6,7 +6,7 @@ set -euo pipefail
 #   ./deploy/update-vps.sh production     # custom branch
 #
 # Admin «deploy» / «deploy VPS» / «chạy update-vps» = chạy FILE NÀY ĐẦY ĐỦ
-# (lint + typecheck + build:full + PM2 + 188 + cron + health + nginx).
+# (lint + typecheck ở [7/15], rồi build:full không chạy lại lint/tsc + PM2 + 188 + cron + health + nginx).
 # Không bật DEPLOY_SKIP_LINT / DEPLOY_SKIP_TYPECHECK / DEPLOY_BUILD_VPS
 # trừ khi admin nói rõ bỏ bước đó.
 #
@@ -377,14 +377,14 @@ echo "  DONE [8/15]"
 echo "[9/15] Build app"
 stop_all_apps_for_deploy
 assert_no_app_listeners
-# Mặc định build đầy đủ để đảm bảo không bỏ qua lint/typecheck trong next build.
+# Lint + tsc đã chạy ở [7/15]. next build không chạy lại (trùng, tốn CPU).
 # Chỉ bật DEPLOY_BUILD_VPS=1 khi VPS quá yếu và đã xác nhận quality ở CI/máy khác.
 if [[ "${DEPLOY_BUILD_VPS:-}" == "1" ]]; then
   echo "  DEPLOY_BUILD_VPS=1 → npm run build:vps (skip TypeScript trong bước build)."
   npm run build:vps
 else
-  # Ép bật lại full checks, tránh bị dính env cũ của shell (SKIP_ESLINT_ON_BUILD=1).
-  SKIP_ESLINT_ON_BUILD=0 NEXT_BUILD_SKIP_TYPECHECK=0 npm run build:full
+  echo "  Lint + tsc đã xong ở [7/15] — next build bỏ lint/typecheck trùng."
+  SKIP_ESLINT_ON_BUILD=1 NEXT_BUILD_SKIP_TYPECHECK=1 npm run build:full
 fi
 echo "  DONE [9/15]"
 

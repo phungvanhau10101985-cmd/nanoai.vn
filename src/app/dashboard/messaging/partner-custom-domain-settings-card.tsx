@@ -251,7 +251,7 @@ export function PartnerCustomDomainSettingsCard({
   if (loading) {
     return (
       <Card className="border-border/70 shadow-sm">
-        <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+        <CardContent className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           …
         </CardContent>
@@ -262,10 +262,10 @@ export function PartnerCustomDomainSettingsCard({
   const compact = variant === 'website'
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {!compact ? (
       <Card className="border-emerald-200/70 bg-emerald-50/30 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/20">
-        <CardHeader className="pb-2">
+        <CardHeader className="px-4 py-3 pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Globe className="h-4 w-4 text-emerald-600" aria-hidden />
             {t.customDomainGuideTitle}
@@ -274,7 +274,7 @@ export function PartnerCustomDomainSettingsCard({
             {t.customDomainGuideBody}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2 text-xs text-muted-foreground">
+        <CardContent className="space-y-2 px-4 pb-4 pt-0 text-xs text-muted-foreground">
           <p>{t.customDomainStep1}</p>
           <p>{t.customDomainStep2.replace('{target}', cnameTarget)}</p>
           <p>{t.customDomainStep3}</p>
@@ -285,7 +285,7 @@ export function PartnerCustomDomainSettingsCard({
 
       <Card className={compact ? 'border-0 bg-transparent shadow-none' : 'border-border/70 shadow-sm'}>
         {!compact ? (
-        <CardHeader className="pb-2">
+        <CardHeader className="px-4 py-3 pb-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-sm font-medium">{t.customDomainSectionTitle}</CardTitle>
             {domain ? <Badge variant={badge.variant}>{badge.label}</Badge> : null}
@@ -300,7 +300,7 @@ export function PartnerCustomDomainSettingsCard({
           {domain ? <Badge variant={badge.variant}>{badge.label}</Badge> : null}
         </div>
         )}
-        <CardContent className={compact ? 'space-y-4 p-0' : 'space-y-4'}>
+        <CardContent className={compact ? 'space-y-3 p-0' : 'space-y-3 px-4 pb-4 pt-0'}>
           <div className="space-y-2">
             <Label htmlFor="custom-domain-host">{t.customDomainHostnameLabel}</Label>
             <Input

@@ -12,12 +12,18 @@ import { PartnerSiteFashionHome } from '@/components/partner-website/shop/partne
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { buildPartnerSiteHomeCopy, partnerSiteHomeIndustryBadge, partnerSiteHomeSecondaryCta } from '@/lib/partner-website/shop/build-partner-site-home-copy'
-import { partnerWebsiteProductsEnabled, partnerWebsiteBookingEnabled } from '@/lib/partner-website/partner-capabilities'
+import {
+  buildPartnerSiteHomeCopy,
+  partnerSiteHomeIndustryBadge,
+  partnerSiteHomeSecondaryCta,
+} from '@/lib/partner-website/shop/build-partner-site-home-copy'
+import { partnerWebsiteProductsEnabled, partnerWebsiteBookingEnabled, partnerWebsitePersonalizeEnabled } from '@/lib/partner-website/partner-capabilities'
 import { getShopTemplateSampleProducts } from '@/lib/partner-website/template/shop-template-sample-products'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { isPartnerFlashSaleActive } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
 import { injectPartnerCustomDomainLinkRewriteScript } from '@/lib/partner-website/shop/inject-partner-custom-domain-link-script'
+import { resolveExactVisualHomepageHtml } from '@/lib/partner-website/compose-partner-website-html'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -79,15 +85,35 @@ function sampleAsShopProducts(
 
 export default async function PartnerSitePublicPage({ params }: Props) {
   const { slug } = await params
-  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug).catch(() => null)
+  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
   if (!site) notFound()
 
-  const useModernFashionHome =
-    isFullLandingV1Template(site) &&
-    site.renderMode === 'template' &&
-    !site.theme?.useVisualHtml
+  // Sửa nhanh save owns the live homepage — same HTML as preview / public.
+  const visualHtml = resolveExactVisualHomepageHtml(site)
 
-  if (useModernFashionHome) {
+  if (visualHtml.length >= 40) {
+    const headerStore = headers()
+    const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
+    const publicHtml = onCustomDomain
+      ? injectPartnerCustomDomainLinkRewriteScript(visualHtml, site.siteSlug)
+      : visualHtml
+
+    return (
+      <PartnerSitePublicClient
+        html={publicHtml}
+        allowScripts
+        chatPath={site.chatPath}
+        shopName={site.title}
+        logoUrl={site.logoUrl}
+        locale={site.locale}
+        inlineHtml={onCustomDomain}
+      />
+    )
+  }
+
+  const useShopHome = isFullLandingV1Template(site) && site.renderMode === 'template'
+
+  if (useShopHome) {
     const shop = await loadPartnerSiteShopContext(slug)
     if (!shop) notFound()
 
@@ -103,6 +129,16 @@ export default async function PartnerSitePublicPage({ params }: Props) {
     const products = live.length ? live : fallback
     const newArrivals = showProducts ? products.slice(0, 8) : []
     const bestSellers = showProducts ? products.slice(0, 8).reverse() : []
+    const flashSale = showProducts
+      ? products.filter((p) =>
+          isPartnerFlashSaleActive({
+            priceAmount: p.priceAmount ?? null,
+            salePriceAmount: p.salePriceAmount ?? null,
+            saleStartsAt: p.saleStartsAt ?? null,
+            saleEndsAt: p.saleEndsAt ?? null,
+          })
+        )
+      : []
     const copy = buildPartnerSiteHomeCopy({
       pages: shop.site.pages,
       locale: shop.site.locale,
@@ -127,8 +163,10 @@ export default async function PartnerSitePublicPage({ params }: Props) {
         copy={copy}
         newArrivals={newArrivals}
         bestSellers={bestSellers}
+        flashSale={flashSale}
         showProductSections={showProducts}
         showCategories={showProducts && shop.capabilities.website.categories}
+        showPersonalize={partnerWebsitePersonalizeEnabled(shop.capabilities)}
         heroCtaHref={bookingHref}
         industryBadge={partnerSiteHomeIndustryBadge(shop.site.locale, shop.industryKey)}
         secondaryCtaLabel={partnerSiteHomeSecondaryCta(shop.site.locale, shop.industryKey)}
@@ -148,7 +186,7 @@ export default async function PartnerSitePublicPage({ params }: Props) {
     ga4MeasurementId: site.ga4MeasurementId,
     googleAdsId: site.googleAdsId,
     tiktokPixelId: site.tiktokPixelId,
-    preferHtmlSource: site.renderMode === 'template' && !site.theme?.useVisualHtml,
+    preferHtmlSource: (site.htmlSource?.trim().length ?? 0) >= 40,
   })
 
   const headerStore = headers()

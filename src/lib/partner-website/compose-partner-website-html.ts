@@ -1,25 +1,26 @@
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 import { injectPartnerWebsiteLogoGuardIntoHtml } from '@/lib/partner-website/partner-website-logo-guard'
 import {
-  composeStandaloneHtml,
+  extractIndexHtml,
   resolvePartnerWebsiteDisplayHtml,
 } from '@/lib/partner-website/partner-website-project'
 import { hydratePartnerWebsitePages } from '@/lib/partner-website/template/hydrate-template-pages'
 import { renderTemplateSiteToHtml } from '@/lib/partner-website/template/render-template-html'
 
-function resolveVisualHtmlOverride(
+/** Homepage HTML from Sửa nhanh — as saved, no template CSS/JS injected. */
+export function resolveExactVisualHomepageHtml(
   website: Pick<PartnerWebsiteRow, 'theme' | 'project' | 'htmlSource'>
 ): string {
   if (!website.theme?.useVisualHtml) return ''
-  return (
-    resolvePartnerWebsiteDisplayHtml({
-      project: website.project,
-      htmlSource: website.htmlSource,
-    }) ||
-    composeStandaloneHtml(website.project) ||
-    website.htmlSource?.trim() ||
-    ''
-  )
+  const source = website.htmlSource?.trim() || ''
+  if (source.length >= 40) return source
+  return extractIndexHtml(website.project)?.trim() || ''
+}
+
+function resolveVisualHtmlOverride(
+  website: Pick<PartnerWebsiteRow, 'theme' | 'project' | 'htmlSource'>
+): string {
+  return resolveExactVisualHomepageHtml(website)
 }
 
 type ComposeInput = Pick<
@@ -47,7 +48,7 @@ export function composePartnerWebsiteHtml(
   if (website.renderMode === 'template') {
     const visual = resolveVisualHtmlOverride(website)
     if (visual.length >= 20) {
-      return injectPartnerWebsiteLogoGuardIntoHtml(visual)
+      return visual
     }
     return renderTemplateSiteToHtml({
       locale: website.locale,
@@ -76,7 +77,7 @@ export async function composePartnerWebsiteHtmlAsync(
   if (website.renderMode === 'template') {
     const visual = resolveVisualHtmlOverride(website)
     if (visual.length >= 20) {
-      return injectPartnerWebsiteLogoGuardIntoHtml(visual)
+      return visual
     }
     let pages = website.pages
     if (options?.hydrateInventory !== false && website.partnerId) {

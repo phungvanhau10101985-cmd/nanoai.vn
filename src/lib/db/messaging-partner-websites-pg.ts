@@ -7,12 +7,17 @@ import {
   projectFilesToJson,
   resolvePartnerWebsiteDisplayHtml,
 } from '@/lib/partner-website/partner-website-project'
-import { composePartnerWebsiteHtmlAsync } from '@/lib/partner-website/compose-partner-website-html'
+import { composePartnerWebsiteHtmlAsync, resolveExactVisualHomepageHtml } from '@/lib/partner-website/compose-partner-website-html'
 import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-partner-website-full-landing'
 import {
   isFullLandingV1Template,
   upgradeLandingV1Pages,
 } from '@/lib/partner-website/template/upgrade-landing-v1-template'
+import {
+  PARTNER_WEBSITE_REVISION_RETENTION_DAYS,
+  isRevisionExpired,
+  shouldCoalesceRevisionSession,
+} from '@/lib/partner-website/partner-website-revision-policy'
 import {
   mapTemplateFieldsFromDb,
   type PartnerWebsitePage,
@@ -266,6 +271,40 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
     const templateFields = mapTemplateFieldsFromDb(row)
     const project = parseProjectFilesFromDb(row.project_files_json)
     const locale = normalizeWebLocale(row.locale) ?? 'vi'
+    const partnerSlug = row.partner_slug.trim()
+    const chatPath = `/messaging/p/${encodeURIComponent(partnerSlug)}`
+    const publicMeta = {
+      siteSlug: row.site_slug,
+      title: row.title?.trim() || row.partner_display_name?.trim() || 'Website',
+      logoUrl: row.logo_url?.trim() || null,
+      renderMode: templateFields.renderMode,
+      templateId: templateFields.templateId,
+      theme: templateFields.theme,
+      pages: templateFields.pages,
+      project,
+      locale,
+      navJson: row.nav_json ?? null,
+      footerJson: row.footer_json ?? null,
+      partnerSlug,
+      partnerDisplayName: row.partner_display_name?.trim() || partnerSlug,
+      chatPath,
+      facebookPixelId: row.facebook_pixel_id,
+      ga4MeasurementId: row.ga4_measurement_id,
+      googleAdsId: row.google_ads_id,
+      tiktokPixelId: row.tiktok_pixel_id,
+      gtmContainerId: row.gtm_container_id,
+      defaultCurrency: String(row.default_currency ?? 'VND').trim().toUpperCase() || 'VND',
+    }
+
+    const visualHtml = resolveExactVisualHomepageHtml({
+      theme: templateFields.theme,
+      project,
+      htmlSource: row.html_source,
+    })
+    if (visualHtml.length >= 40) {
+      return { ...publicMeta, htmlSource: visualHtml }
+    }
+
     let pages = templateFields.pages
 
     if (isFullLandingV1Template(templateFields)) {
@@ -291,8 +330,6 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
       title: row.title?.trim() || row.partner_display_name?.trim() || 'Website',
       logoUrl: row.logo_url?.trim() || null,
     }
-    const partnerSlug = row.partner_slug.trim()
-    const chatPath = `/messaging/p/${encodeURIComponent(partnerSlug)}`
     const htmlSource =
       templateFields.renderMode === 'template'
         ? (await composePartnerWebsiteHtmlAsync(
@@ -317,29 +354,7 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
           )) ||
           ''
     if (!htmlSource) return null
-    return {
-      siteSlug: row.site_slug,
-      title: websiteForCompose.title,
-      logoUrl: row.logo_url?.trim() || null,
-      renderMode: templateFields.renderMode,
-      templateId: templateFields.templateId,
-      theme: templateFields.theme,
-      pages: templateFields.pages,
-      project,
-      htmlSource,
-      locale: websiteForCompose.locale,
-      navJson: row.nav_json ?? null,
-      footerJson: row.footer_json ?? null,
-      partnerSlug,
-      partnerDisplayName: row.partner_display_name?.trim() || partnerSlug,
-      chatPath,
-      facebookPixelId: row.facebook_pixel_id,
-      ga4MeasurementId: row.ga4_measurement_id,
-      googleAdsId: row.google_ads_id,
-      tiktokPixelId: row.tiktok_pixel_id,
-      gtmContainerId: row.gtm_container_id,
-      defaultCurrency: String(row.default_currency ?? 'VND').trim().toUpperCase() || 'VND',
-    }
+    return { ...publicMeta, pages, htmlSource }
   } catch (e) {
     const err = e as { code?: string; message?: string } | null
     if (err?.code === '42703' && String(err.message ?? '').includes('default_currency')) {
@@ -712,7 +727,14 @@ function mapRevisionRow(r: {
   }
 }
 
-const MAX_REVISIONS_PER_PARTNER = 20
+async function pruneExpiredPartnerWebsiteRevisionsPg(partnerId: string): Promise<void> {
+  await pgQuery(
+    `delete from public.messaging_partner_website_revisions
+     where partner_id = $1::uuid
+       and created_at < timezone('utc'::text, now()) - ($2::int * interval '1 day')`,
+    [partnerId, PARTNER_WEBSITE_REVISION_RETENTION_DAYS]
+  )
+}
 
 export async function savePartnerWebsiteRevisionPg(input: {
   website: PartnerWebsiteRow
@@ -720,6 +742,26 @@ export async function savePartnerWebsiteRevisionPg(input: {
 }): Promise<void> {
   if (!isPgConfigured()) return
   try {
+    await pruneExpiredPartnerWebsiteRevisionsPg(input.website.partnerId)
+    const last = await pgQueryOne<{ change_note: string | null; created_at: string | Date }>(
+      `select change_note, created_at
+       from public.messaging_partner_website_revisions
+       where partner_id = $1::uuid
+       order by created_at desc
+       limit 1`,
+      [input.website.partnerId]
+    )
+    const lastCreatedAtIso =
+      last?.created_at instanceof Date ? last.created_at.toISOString() : last?.created_at ?? null
+    if (
+      shouldCoalesceRevisionSession({
+        lastChangeNote: last?.change_note,
+        lastCreatedAtIso,
+        nextChangeNote: input.changeNote,
+      })
+    ) {
+      return
+    }
     await pgQuery(
       `insert into public.messaging_partner_website_revisions (
          partner_id, website_id, title, brief_text, logo_url,
@@ -743,17 +785,6 @@ export async function savePartnerWebsiteRevisionPg(input: {
         input.changeNote?.slice(0, 500) ?? null,
       ]
     )
-    await pgQuery(
-      `delete from public.messaging_partner_website_revisions r
-       where r.partner_id = $1::uuid
-         and r.id not in (
-           select id from public.messaging_partner_website_revisions
-           where partner_id = $1::uuid
-           order by created_at desc
-           limit $2
-         )`,
-      [input.website.partnerId, MAX_REVISIONS_PER_PARTNER]
-    )
   } catch (e) {
     console.error('[messaging-partner-websites-pg] savePartnerWebsiteRevisionPg', e)
   }
@@ -761,19 +792,23 @@ export async function savePartnerWebsiteRevisionPg(input: {
 
 export async function listPartnerWebsiteRevisionsPg(
   partnerId: string,
-  limit = 20
+  limit = 50
 ): Promise<PartnerWebsiteRevisionRow[]> {
   if (!isPgConfigured()) return []
+  const pid = partnerId.trim()
+  if (!pid) return []
   try {
+    await pruneExpiredPartnerWebsiteRevisionsPg(pid)
     const rows = await pgQuery<Parameters<typeof mapRevisionRow>[0]>(
       `select id::text, partner_id::text, website_id::text, title, brief_text, logo_url,
-              reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
+              reference_image_urls, render_mode, template_id, theme_json, pages_json,
               project_files_json, html_source, locale, change_note, created_at
        from public.messaging_partner_website_revisions
        where partner_id = $1::uuid
+         and created_at >= timezone('utc'::text, now()) - ($3::int * interval '1 day')
        order by created_at desc
        limit $2`,
-      [partnerId.trim(), limit]
+      [pid, limit, PARTNER_WEBSITE_REVISION_RETENTION_DAYS]
     )
     return rows.map(mapRevisionRow)
   } catch (e) {
@@ -793,7 +828,7 @@ export async function restorePartnerWebsiteRevisionPg(input: {
 
   const revision = await pgQueryOne<Parameters<typeof mapRevisionRow>[0]>(
     `select id::text, partner_id::text, website_id::text, title, brief_text, logo_url,
-            reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
+            reference_image_urls, render_mode, template_id, theme_json, pages_json,
             project_files_json, html_source, locale, change_note, created_at
      from public.messaging_partner_website_revisions
      where id = $1::uuid and partner_id = $2::uuid
@@ -803,6 +838,7 @@ export async function restorePartnerWebsiteRevisionPg(input: {
   if (!revision) return null
 
   const mapped = mapRevisionRow(revision)
+  if (isRevisionExpired(mapped.createdAt)) return null
   const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
   if (!existing) return null
 
@@ -823,6 +859,7 @@ export async function restorePartnerWebsiteRevisionPg(input: {
     pages: mapped.pages,
     project: mapped.project,
     htmlSource: mapped.htmlSource,
+    skipRevision: true,
   })
 }
 

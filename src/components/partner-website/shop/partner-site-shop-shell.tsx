@@ -16,7 +16,6 @@ import {
   Pencil,
   Shield,
   ShoppingBag,
-  Tag,
   UserRound,
   type LucideIcon,
 } from 'lucide-react'
@@ -266,6 +265,7 @@ function PartnerSiteShopShellInner({
         <div className="pw-shop-topbar-inner">
           <Link href={partnerSiteAccountTabPath(siteSlug, 'contact', { customDomain })}>{n.contact}</Link>
           <Link href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })}>{t.navFavorites}</Link>
+          <Link href={partnerSiteAccountTabPath(siteSlug, 'orders', { customDomain })}>{t.navOrders}</Link>
           {!isAuthenticated ? <Link href={paths.account}>{n.login}</Link> : null}
         </div>
       </div>
@@ -377,6 +377,10 @@ function PartnerSiteShopShellInner({
                 </nav>
               ) : null}
             </div>
+            <Link href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })} className="pw-shop-icon-btn" aria-label={t.navFavorites}>
+              <Heart className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
+              <span className="pw-shop-icon-label">{t.navFavorites}</span>
+            </Link>
             <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className="pw-shop-icon-btn" aria-label={t.navCart}>
               <ShoppingBag className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span className="pw-shop-icon-label">{t.navCart}</span>
@@ -451,7 +455,7 @@ function PartnerSiteShopShellInner({
       </footer>
 
       <nav className="pw-shop-bottom-nav" aria-label="Mobile">
-        <Link href={paths.home} className={activeNav === 'home' ? 'is-active' : undefined}>
+          <Link href={paths.home} className={activeNav === 'home' ? 'is-active' : undefined}>
           <Home className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navHome}</span>
         </Link>
@@ -459,9 +463,12 @@ function PartnerSiteShopShellInner({
           <Package className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navProducts}</span>
         </Link>
-        <Link href={paths.sale} className={activeNav === 'sale' ? 'is-active' : undefined}>
-          <Tag className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
-          <span>{n.sale}</span>
+        <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className={activeNav === 'cart' ? 'is-active' : undefined}>
+          <ShoppingBag className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
+          <span>{t.navCart}</span>
+          {cartCount > 0 ? (
+            <span className="pw-shop-cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
+          ) : null}
         </Link>
         <Link href={paths.account} className={activeNav === 'account' ? 'is-active' : undefined}>
           <UserRound className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />

@@ -204,9 +204,9 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const logo = input.logoUrl?.trim() ?? ''
 
   const topbar = `<div class="pw-topbar"><div class="pw-container pw-topbar-inner">
-      <a href="${contactHref}">${escapeHtml(n.contact)}</a>
-      <a href="${wishlistHref}">${escapeHtml(shop.navFavorites)}</a>
-      <a href="${accountHref}">${escapeHtml(n.login)}</a>
+      <a href="${contactHref}" data-pw-chrome-btn="contact">${escapeHtml(n.contact)}</a>
+      <a href="${wishlistHref}" data-pw-chrome-btn="favorites-link">${escapeHtml(shop.navFavorites)}</a>
+      <a href="${accountHref}" data-pw-chrome-btn="login">${escapeHtml(n.login)}</a>
     </div></div>`
 
   const brandBlock = logo
@@ -245,7 +245,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
           ${accountMenuHtml}
         </nav>
       </div>
-      <a class="pw-icon-btn" href="${cartHref}" aria-label="${escapeAttr(shop.navCart)}">${svgIcon('cart')}<span class="pw-cart-badge">0</span></a>
+      <a class="pw-icon-btn" data-pw-chrome-btn="cart" href="${cartHref}" aria-label="${escapeAttr(shop.navCart)}">${svgIcon('cart')}<span class="pw-cart-badge" data-pw-chrome-badge hidden>0</span></a>
     </div>
   </div>
   <nav class="pw-container pw-nav-main" aria-label="Shop">

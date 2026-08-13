@@ -254,9 +254,10 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
   .pw-shop-footer{padding:32px 16px 0;margin-top:28px}
   .pw-shop-footer-bar{padding-bottom:12px}
   .pw-shop-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid #e5e7eb;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
-  .pw-shop-bottom-nav a{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#6b7280;padding:6px 2px}
+  .pw-shop-bottom-nav a{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:600;color:#6b7280;padding:6px 2px;position:relative}
   .pw-shop-bottom-nav a .pw-shop-nav-icon{width:22px;height:22px}
   .pw-shop-bottom-nav a.is-active{color:var(--pw-primary)}
+  .pw-shop-bottom-nav .pw-shop-cart-badge{top:2px;right:18%;background:var(--pw-primary);color:#fff;box-shadow:none}
   .pw-shop-sticky-buy.is-visible{display:flex;position:fixed;left:0;right:0;bottom:58px;z-index:49;align-items:center;gap:10px;padding:8px 12px;background:#fff;border-top:1px solid #e5e7eb;box-shadow:0 -4px 14px rgba(15,23,42,.08)}
   .pw-shop-sticky-buy img{width:42px;height:42px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--pw-surface)}
   .pw-shop-sticky-buy-info{flex:1;min-width:0}

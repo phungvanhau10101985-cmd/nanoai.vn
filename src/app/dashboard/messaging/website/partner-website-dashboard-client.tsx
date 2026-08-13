@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { PartnerWebsiteCreationJournalPanel } from '@/components/partner-website/partner-website-creation-journal-panel'
 import type { PartnerWebsiteCreationJournal } from '@/lib/partner-website/partner-website-creation-journal'
 import { isHomePageBuilt } from '@/lib/partner-website/partner-website-creation-journal'
-import { PartnerWebsiteDevicePreview } from '@/components/partner-website/partner-website-device-preview'
+import { PartnerWebsiteDevicePreview, type PartnerWebsiteDevicePreviewHandle } from '@/components/partner-website/partner-website-device-preview'
 import { PartnerWebsiteLeadsPanel } from '@/components/partner-website/partner-website-leads-panel'
 import { PartnerWebsiteCapabilitiesPanel } from '@/components/partner-website/partner-website-capabilities-panel'
 import { PartnerWebsiteCategoriesPanel } from '@/components/partner-website/partner-website-categories-panel'
@@ -42,7 +42,7 @@ import {
   PartnerWebsiteTenantAdminBar,
   type PartnerWebsiteTenantSection,
 } from '@/components/partner-website/partner-website-tenant-admin-bar'
-import { ExternalLink, Globe, Loader2, PanelLeftOpen, Undo2 } from 'lucide-react'
+import { ExternalLink, Globe, Loader2, PanelLeftOpen, Undo2, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type NavLabels = {
@@ -108,6 +108,7 @@ export function PartnerWebsiteDashboardClient({
     initialWebsiteRow?.updatedAt ?? String(Date.now())
   )
   const [chatBusy, setChatBusy] = useState(false)
+  const previewRef = useRef<PartnerWebsiteDevicePreviewHandle>(null)
   const [provisioning, setProvisioning] = useState(false)
   const [migrating, setMigrating] = useState(false)
   const [, setCreationJournal] = useState<PartnerWebsiteCreationJournal | null>(
@@ -358,10 +359,18 @@ export function PartnerWebsiteDashboardClient({
   const handleVisualEditSave = useCallback(
     async (project: PartnerWebsiteProject) => {
       if (!partnerId || !website) return
+      const html =
+        project.files.find((f) => f.path === project.entryPath && f.kind === 'html')?.content ||
+        project.files.find((f) => f.kind === 'html')?.content ||
+        ''
       const res = await fetch(`/api/messaging/partner-website/${encodeURIComponent(partnerId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project, visualEdited: true }),
+        body: JSON.stringify({
+          project,
+          htmlSource: html,
+          visualEdited: true,
+        }),
       })
       const json = (await res.json().catch(() => ({}))) as {
         website?: PartnerWebsiteRow
@@ -615,7 +624,12 @@ export function PartnerWebsiteDashboardClient({
                     >
                       {website && partnerId ? (
                         <a
-                          href={`/api/messaging/partner-website/${encodeURIComponent(partnerId)}/preview`}
+                          href={
+                            publicUrl ||
+                            (website.siteSlug
+                              ? `/site/${encodeURIComponent(website.siteSlug)}`
+                              : `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/preview`)
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
                         >
@@ -624,6 +638,16 @@ export function PartnerWebsiteDashboardClient({
                       ) : (
                         <span>{t.previewButton}</span>
                       )}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      disabled={chatBusy || !website}
+                      onClick={() => previewRef.current?.openVisualEdit()}
+                    >
+                      <Wand2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+                      {t.quickEditButton}
                     </Button>
                     <Button
                       type="button"
@@ -658,6 +682,8 @@ export function PartnerWebsiteDashboardClient({
                         partnerId={partnerId}
                         disabled={!partnerId || publishing}
                         onRestored={handleWebsiteRestored}
+                        onPreviewVersion={(theme) => setLiveTheme(theme)}
+                        onExitPreview={() => setLiveTheme(website?.theme ?? null)}
                         onError={(message) => toast({ title: message, variant: 'destructive' })}
                       />
                     ) : null}
@@ -696,6 +722,7 @@ export function PartnerWebsiteDashboardClient({
 
               <CardContent className="flex min-h-0 flex-1 flex-col px-3 pb-3 pt-0 sm:px-4">
                 <PartnerWebsiteDevicePreview
+                  ref={previewRef}
                   locale={locale}
                   partnerId={partnerId}
                   previewVersion={previewVersion}
@@ -705,13 +732,18 @@ export function PartnerWebsiteDashboardClient({
                   hasWebsite={Boolean(website)}
                   embedded
                   quickEditDisabled={chatBusy || !website}
-                  visualEditEnabled={Boolean(website?.project?.files?.length)}
+                  visualEditEnabled={Boolean(website)}
                   websiteTitle={website?.title}
                   project={website?.project}
-                  onVisualEditSave={
-                    website?.project?.files?.length ? handleVisualEditSave : undefined
-                  }
+                  htmlSource={website?.htmlSource}
+                  useVisualHtml={Boolean(website?.theme?.useVisualHtml)}
+                  onVisualEditSave={website ? handleVisualEditSave : undefined}
                   onVisualEditError={(message) => toast({ title: message, variant: 'destructive' })}
+                  onLiveThemeChange={setLiveTheme}
+                  onThemePersisted={(theme) => {
+                    setLiveTheme(theme)
+                    setWebsite((prev) => (prev ? { ...prev, theme } : prev))
+                  }}
                 />
               </CardContent>
             </Card>

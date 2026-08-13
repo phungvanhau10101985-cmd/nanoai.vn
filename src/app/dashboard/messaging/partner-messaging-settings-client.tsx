@@ -76,7 +76,6 @@ import {
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { isMarketingEligibleIndustry } from '@/lib/messaging/partner-marketing-segment'
 import {
-  ArrowLeft,
   Bot,
   Building2,
   Cake,
@@ -217,24 +216,24 @@ function SettingsBlock({
   return (
     <section
       id={id}
-      className={cn('scroll-mt-6 space-y-3', className)}
+      className={cn('scroll-mt-4 space-y-2', className)}
       aria-labelledby={id ? `${id}-title` : undefined}
     >
-      <div className="flex gap-3 sm:gap-4">
+      <div className="flex items-start gap-2.5">
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-300"
           aria-hidden
         >
-          <Icon className="h-5 w-5" />
+          <Icon className="h-4 w-4" />
         </div>
-        <div className="min-w-0 flex-1 space-y-1">
-          <h2 id={id ? `${id}-title` : undefined} className="text-base font-semibold leading-snug tracking-tight sm:text-lg">
+        <div className="min-w-0 flex-1">
+          <h2 id={id ? `${id}-title` : undefined} className="text-sm font-semibold leading-snug tracking-tight sm:text-base">
             {title}
           </h2>
-          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          {description ? <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{description}</p> : null}
         </div>
       </div>
-      <div className="sm:pl-[3.25rem]">{children}</div>
+      <div className="space-y-2">{children}</div>
     </section>
   )
 }
@@ -277,7 +276,7 @@ const PartnerWebsiteDashboardClient = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex min-h-[16rem] items-center justify-center rounded-xl border border-border/70 bg-card/80">
+      <div className="flex min-h-[8rem] items-center justify-center rounded-xl border border-border/70 bg-card/80">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden />
       </div>
     ),
@@ -1852,7 +1851,7 @@ export function PartnerMessagingSettingsClient({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="w-full space-y-3">
       <Dialog open={fbPagePickerOpen} onOpenChange={setFbPagePickerOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1938,24 +1937,18 @@ export function PartnerMessagingSettingsClient({
       </Dialog>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" asChild className="gap-1.5">
-          <Link href="/dashboard/messaging">
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            {t.goToInbox}
-          </Link>
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={refreshPartners} disabled={pending}>
+        <Button type="button" variant="ghost" size="sm" className="h-8 px-2.5" onClick={refreshPartners} disabled={pending}>
           <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
           {t.refresh}
         </Button>
         {selectedPartnerId && partnerCanWebsiteHub(selectedPartner) ? (
           websiteLoading ? (
-            <Button type="button" variant="outline" size="sm" className="ml-auto gap-1.5" disabled>
+            <Button type="button" variant="outline" size="sm" className="ml-auto h-8 gap-1.5" disabled>
               <Globe className="h-3.5 w-3.5 animate-pulse" aria-hidden />
               …
             </Button>
           ) : websitePublicUrl ? (
-            <Button asChild variant="outline" size="sm" className="ml-auto gap-1.5">
+            <Button asChild variant="outline" size="sm" className="ml-auto h-8 gap-1.5">
               <a href={websitePublicUrl} target="_blank" rel="noopener noreferrer">
                 <Globe className="h-3.5 w-3.5" aria-hidden />
                 {t.settingsOpenWebsiteButton}
@@ -1967,7 +1960,7 @@ export function PartnerMessagingSettingsClient({
               type="button"
               variant="outline"
               size="sm"
-              className="ml-auto gap-1.5"
+              className="ml-auto h-8 gap-1.5"
               onClick={() => selectSettingsSection('partner-website-editor')}
             >
               <Globe className="h-3.5 w-3.5" aria-hidden />
@@ -1980,21 +1973,21 @@ export function PartnerMessagingSettingsClient({
       {partners.length === 0 ? (
         <>
         <Card className="border-violet-200/80 bg-violet-50/50 shadow-sm dark:border-violet-900/50 dark:bg-violet-950/25">
-          <CardHeader className="pb-2">
+          <CardHeader className="px-4 py-3 pb-2">
             <CardTitle className="text-base">{t.customerCareShopSetupGuideTitle}</CardTitle>
           </CardHeader>
-          <CardContent className="pt-0">
+          <CardContent className="px-4 pb-4 pt-0">
             <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
               {t.customerCareShopSetupGuideBody}
             </p>
           </CardContent>
         </Card>
         <Card className="border-border/70 shadow-sm">
-          <CardHeader>
+          <CardHeader className="px-4 py-3 pb-2">
             <CardTitle className="text-base">{t.createWorkspace}</CardTitle>
             <CardDescription className="text-xs">{t.cardDescription}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 px-4 pb-4 pt-0">
             <div className="space-y-2">
               <Label htmlFor="ws-name-settings">{t.workspaceNameLabel}</Label>
               <Input
@@ -2065,7 +2058,7 @@ export function PartnerMessagingSettingsClient({
       ) : (
         <div
           className={cn(
-            'flex flex-col gap-4 lg:flex-row lg:gap-6',
+            'flex flex-col gap-3 lg:flex-row lg:gap-4',
             activeSection === 'partner-website-editor' ? 'lg:items-stretch lg:gap-3' : 'lg:items-start'
           )}
         >
@@ -2105,7 +2098,7 @@ export function PartnerMessagingSettingsClient({
                           type="button"
                           onClick={() => { selectSettingsSection(item.id); setMobileNavOpen(false) }}
                           className={cn(
-                            'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full',
+                            'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
                             activeSection === item.id
                               ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
                               : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -2119,7 +2112,7 @@ export function PartnerMessagingSettingsClient({
                     })}
                   {settingsWebsiteNavItems.some((item) => item.visible) ? (
                     <>
-                      <p className="mt-2 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <p className="mt-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                         {t.settingsNavWebsiteTitle}
                       </p>
                       {settingsWebsiteNavItems
@@ -2132,7 +2125,7 @@ export function PartnerMessagingSettingsClient({
                               type="button"
                               onClick={() => { selectSettingsSection(item.sectionId); setMobileNavOpen(false) }}
                               className={cn(
-                                'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full',
+                                'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
                                 activeSection === item.sectionId
                                   ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
                                   : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -2148,7 +2141,7 @@ export function PartnerMessagingSettingsClient({
                   ) : null}
                   {settingsExternalNavItems.some((item) => item.visible) ? (
                     <>
-                      <p className="mt-2 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <p className="mt-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                         {t.settingsNavOperationsTitle}
                       </p>
                       {settingsExternalNavItems
@@ -2160,7 +2153,7 @@ export function PartnerMessagingSettingsClient({
                               key={item.id}
                               href={item.href}
                               onClick={() => setMobileNavOpen(false)}
-                              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                             >
                               <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
                               <span className="truncate">{item.label}</span>
@@ -2181,8 +2174,8 @@ export function PartnerMessagingSettingsClient({
               activeSection === 'partner-website-editor' ? 'lg:w-48' : 'lg:w-56 xl:w-60'
             )}
           >
-            <div className="rounded-xl border border-border/70 bg-card/90 p-2 shadow-sm lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+1rem)]">
-              <p className="hidden px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:block">
+            <div className="rounded-xl border border-border/70 bg-card/90 p-1.5 shadow-sm lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+0.5rem)]">
+              <p className="hidden px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
                 {t.settingsSidebarTitle}
               </p>
               <nav
@@ -2199,7 +2192,7 @@ export function PartnerMessagingSettingsClient({
                         type="button"
                         onClick={() => selectSettingsSection(item.id)}
                         className={cn(
-                          'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full',
+                          'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
                           activeSection === item.id
                             ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -2213,7 +2206,7 @@ export function PartnerMessagingSettingsClient({
                   })}
                 {settingsWebsiteNavItems.some((item) => item.visible) ? (
                   <>
-                    <p className="mt-2 hidden px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
+                    <p className="mt-1 hidden px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
                       {t.settingsNavWebsiteTitle}
                     </p>
                     {settingsWebsiteNavItems
@@ -2226,7 +2219,7 @@ export function PartnerMessagingSettingsClient({
                             type="button"
                             onClick={() => selectSettingsSection(item.sectionId)}
                             className={cn(
-                              'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full',
+                              'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
                               activeSection === item.sectionId
                                 ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
                                 : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -2242,7 +2235,7 @@ export function PartnerMessagingSettingsClient({
                 ) : null}
                 {settingsExternalNavItems.some((item) => item.visible) ? (
                   <>
-                    <p className="mt-2 hidden px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
+                    <p className="mt-1 hidden px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
                       {t.settingsNavOperationsTitle}
                     </p>
                     {settingsExternalNavItems
@@ -2253,7 +2246,7 @@ export function PartnerMessagingSettingsClient({
                           <Link
                             key={item.id}
                             href={item.href}
-                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                           >
                             <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
                             <span className="truncate">{item.label}</span>
@@ -2301,10 +2294,7 @@ export function PartnerMessagingSettingsClient({
             ) : null}
 
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{t.workspaceLabel}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3 pt-0">
+              <CardContent className="flex flex-col gap-3 px-4 py-3">
                 <Select
                   value={selectedPartnerId ?? undefined}
                   onValueChange={(v) => setSelectedPartnerAndPersist(v)}
@@ -2348,11 +2338,11 @@ export function PartnerMessagingSettingsClient({
 
             {isOwnerSelected && selectedPartnerId ? (
               <Card className="border-border/70 shadow-sm">
-                <CardHeader className="pb-2">
+                <CardHeader className="px-4 py-3 pb-2">
                   <CardTitle className="text-sm font-medium">{t.teamStaffSectionTitle}</CardTitle>
                   <CardDescription className="text-xs">{t.teamStaffSectionHint}</CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-col gap-4 pt-0">
+                <CardContent className="flex flex-col gap-3 px-4 pb-4 pt-0">
                   <div className="flex flex-wrap items-end gap-2">
                     <div className="min-w-[12rem] flex-1 space-y-1.5">
                       <Label htmlFor="staff-invite-email">{t.teamInviteEmailLabel}</Label>
@@ -2424,10 +2414,10 @@ export function PartnerMessagingSettingsClient({
 
           {isOwnerSelected && showAddWorkspace ? (
             <Card className="border-dashed border-violet-300/60 bg-violet-50/20 dark:border-violet-800/50 dark:bg-violet-950/10">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm">{t.addAnotherWorkspace}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <div className="space-y-2">
                   <Label htmlFor="ws-name-extra">{t.workspaceNameLabel}</Label>
                   <Input
@@ -2511,10 +2501,10 @@ export function PartnerMessagingSettingsClient({
               description="Tên hiển thị, ngành hàng và logo dùng trên widget chat."
             >
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Chi tiết shop</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="ws-name-main">{t.workspaceNameLabel}</Label>
@@ -2646,14 +2636,14 @@ export function PartnerMessagingSettingsClient({
               </CardContent>
             </Card>
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Tao icon tin nhan</CardTitle>
                 <CardDescription className="text-xs">
                   Can co it nhat mot trong hai: goi y text hoac anh logo tham chieu. Ca hai deu tuy chon — co mot la
                   du.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <div className="space-y-2">
                   <Label htmlFor="ws-icon-hint">Goi y tao icon (tuy chon)</Label>
                   <Textarea
@@ -2748,7 +2738,7 @@ export function PartnerMessagingSettingsClient({
           ) : null}
 
           {activeSection === 'inventory' && selectedPartnerId && partnerCanInventoryPanel(selectedPartner) ? (
-            <div id="messaging-inventory" className="scroll-mt-6">
+            <div id="messaging-inventory" className="scroll-mt-4">
               <PartnerAiSettingsPanel
                 key={`${selectedPartnerId}-inventory`}
                 partnerId={selectedPartnerId}
@@ -2772,17 +2762,17 @@ export function PartnerMessagingSettingsClient({
             description={t.credentialsKeepHint}
           >
           <Card className="border-border/70 shadow-sm">
-            <CardHeader className="pb-2">
+            <CardHeader className="px-4 py-3 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Facebook &amp; Zalo</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 pt-0">
+            <CardContent className="space-y-3 px-4 pb-4 pt-0">
               {channelSnap?.facebookPageId ? (
                 <p className="text-xs text-muted-foreground">
                   {t.fbLinkedLine.replace('{pageId}', channelSnap.facebookPageId)}
                 </p>
               ) : null}
               {channelSnap?.zaloConfigured ? <p className="text-xs text-muted-foreground">{t.zaloLinkedLine}</p> : null}
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <div className="rounded-md border border-border/70 bg-muted/20 p-2.5 text-xs">
                     <p className="mb-2 text-muted-foreground">
@@ -2873,10 +2863,10 @@ export function PartnerMessagingSettingsClient({
             description={t.settingsNavAnalyticsMetaDesc}
           >
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Meta Pixel &amp; CAPI</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">{t.facebookPixelLabel}</Label>
                   <Input
@@ -2918,10 +2908,10 @@ export function PartnerMessagingSettingsClient({
               </CardContent>
             </Card>
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{t.facebookCatalogFeedTitle}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">{t.facebookCatalogFeedHint}</p>
                 {facebookCatalogFeedUrl ? (
                   <>
@@ -2946,10 +2936,10 @@ export function PartnerMessagingSettingsClient({
             description={t.settingsNavAnalyticsAdsDesc}
           >
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Google Analytics 4</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">{t.shopGa4MeasurementLabel}</Label>
                   <Input
@@ -2970,10 +2960,10 @@ export function PartnerMessagingSettingsClient({
               </CardContent>
             </Card>
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Google Ads</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">{t.shopGoogleAdsIdLabel}</Label>
                   <Input
@@ -2994,10 +2984,10 @@ export function PartnerMessagingSettingsClient({
               </CardContent>
             </Card>
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">TikTok Ads</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">{t.shopTiktokPixelLabel}</Label>
                   <Input
@@ -3018,10 +3008,10 @@ export function PartnerMessagingSettingsClient({
               </CardContent>
             </Card>
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Google Tag Manager</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">{t.shopGtmContainerLabel}</Label>
                   <Input
@@ -3052,10 +3042,10 @@ export function PartnerMessagingSettingsClient({
             description="Thông tin chuyển khoản, đặt cọc và tùy chọn SePay cho đơn tạo trong khung chat."
           >
           <Card className="border-border/70 shadow-sm">
-            <CardHeader className="pb-2">
+            <CardHeader className="px-4 py-3 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Chuyển khoản &amp; đặt cọc</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 pt-0">
+            <CardContent className="space-y-3 px-4 pb-4 pt-0">
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Ngan hang</Label>
@@ -3127,7 +3117,7 @@ export function PartnerMessagingSettingsClient({
                 />
                 Bat buoc khach gui anh chung tu chuyen khoan de AI doi chieu
               </label>
-              <div className="space-y-3 border-t border-border/60 pt-4">
+              <div className="space-y-3 border-t border-border/60 pt-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">SePay (qr.sepay.vn)</p>
               <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
                 <p className="mb-2 text-xs text-muted-foreground">Tùy chọn — QR qua SePay khi đã điền đủ biến.</p>
@@ -3211,7 +3201,7 @@ export function PartnerMessagingSettingsClient({
                 </p>
               </div>
               </div>
-              <div className="space-y-3 border-t border-border/60 pt-4">
+              <div className="space-y-3 border-t border-border/60 pt-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.settingsNavShipping}</p>
                 <button
                   type="button"
@@ -3221,7 +3211,7 @@ export function PartnerMessagingSettingsClient({
                   {t.settingsShippingOpenFromPayment}
                 </button>
               </div>
-              <div className="space-y-3 border-t border-border/60 pt-4">
+              <div className="space-y-3 border-t border-border/60 pt-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ví điện tử (QR thủ công)</p>
                 <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
                   <p className="mb-2 text-xs text-muted-foreground">
@@ -3311,10 +3301,10 @@ export function PartnerMessagingSettingsClient({
             description={t.settingsNavShippingDesc}
           >
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{t.settingsNavShippingFeeTitle}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="text-xs font-medium">Phí ship cố định (VND)</Label>
@@ -3378,13 +3368,13 @@ export function PartnerMessagingSettingsClient({
             description={t.settingsNavSheetsDesc}
           >
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Table className="h-4 w-4 shrink-0" aria-hidden />
                   Google Sheet — đồng bộ đơn hàng
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   Mỗi khi đơn được tạo/cập nhật (checkout, thanh toán, giao hàng), hệ thống ghi hoặc cập nhật một dòng trên
                   Google Sheet của shop. Tạo <strong>service account</strong> trên Google Cloud, bật <strong>Google Sheets API</strong>, tải file
@@ -3484,13 +3474,13 @@ export function PartnerMessagingSettingsClient({
             description={t.settingsNavLoyaltyDesc}
           >
             <Card className="border-border/70 shadow-sm">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Cấu hình loyalty theo shop</CardTitle>
                 <CardDescription className="text-xs">
                   Mặc định L1-L5 theo chi tiêu 6 tháng. Giảm giá được lưu snapshot trên đơn hàng.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4 pt-0">
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                   <input
                     type="checkbox"
@@ -3596,7 +3586,7 @@ export function PartnerMessagingSettingsClient({
             description={t.messagingSettingsApiHubCardBody}
           >
             {selectedPartnerId ? (
-              <div className="space-y-6">
+              <div className="space-y-3">
                 <PartnerApiIntegrationWorkspace
                   key={`api-hub-${selectedPartnerId}`}
                   partners={apiHubPartners}
@@ -3607,7 +3597,7 @@ export function PartnerMessagingSettingsClient({
                   embedded
                   betweenKeysAndGuide={
                     <Card>
-                      <CardHeader className="pb-2">
+                      <CardHeader className="px-4 py-3 pb-2">
                         <CardTitle className="text-base">{API_KEYS_HUB_COPY[locale].ruleTitle}</CardTitle>
                         <CardDescription className="text-sm leading-relaxed">
                           {API_KEYS_HUB_COPY[locale].partnerRuleBody}
@@ -3628,7 +3618,7 @@ export function PartnerMessagingSettingsClient({
               </div>
             ) : (
               <Card className="border-border/70 shadow-sm">
-                <CardHeader className="pb-2">
+                <CardHeader className="px-4 py-3 pb-2">
                   <CardTitle className="text-sm font-medium">{t.messagingSettingsApiHubCardTitle}</CardTitle>
                 </CardHeader>
               </Card>
@@ -3637,7 +3627,7 @@ export function PartnerMessagingSettingsClient({
           ) : null}
 
           {activeSection === 'ai' && selectedPartnerId && partnerCanAiSettingsPanel(selectedPartner) ? (
-            <div id="messaging-ai" className="scroll-mt-6">
+            <div id="messaging-ai" className="scroll-mt-4">
               <PartnerAiSettingsPanel
                 key={`${selectedPartnerId}-ai`}
                 partnerId={selectedPartnerId}
@@ -3652,7 +3642,7 @@ export function PartnerMessagingSettingsClient({
           ) : null}
 
           {activeSection === 'ai-usage' && selectedPartnerId && partnerCanAiUsagePanel(selectedPartner) ? (
-            <div id="messaging-ai-usage" className="scroll-mt-6">
+            <div id="messaging-ai-usage" className="scroll-mt-4">
               <PartnerAiSettingsPanel
                 key={`${selectedPartnerId}-ai-usage`}
                 partnerId={selectedPartnerId}
@@ -3669,7 +3659,7 @@ export function PartnerMessagingSettingsClient({
           ) : null}
 
           {isPartnerWebsiteAdminSectionId(activeSection) && selectedPartner && partnerCanWebsiteHub(selectedPartner) ? (
-            <div id="partner-website-admin" className="flex min-h-0 min-w-0 flex-1 flex-col scroll-mt-6">
+            <div id="partner-website-admin" className="flex min-h-0 min-w-0 flex-1 flex-col scroll-mt-4">
               <PartnerWebsiteDashboardClient
                 key={selectedPartner.id}
                 locale={locale}

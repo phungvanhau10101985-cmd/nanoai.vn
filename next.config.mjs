@@ -1,4 +1,30 @@
+import { readdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import withPWAInit from '@ducanh2912/next-pwa';
+
+/** Leftover next-pwa output from `next build` would be served in `next dev` and 404 stale buildIds. */
+function removeLeftoverProductionPwaFiles() {
+    if (process.env.NODE_ENV !== 'development') return;
+    const pub = join(process.cwd(), 'public');
+    for (const name of ['sw.js', 'sw.js.map']) {
+        try {
+            rmSync(join(pub, name), { force: true });
+        } catch {
+            /* ignore */
+        }
+    }
+    try {
+        for (const name of readdirSync(pub)) {
+            if (/^(workbox|worker)-.+\.js(\.map)?$/.test(name)) {
+                rmSync(join(pub, name), { force: true });
+            }
+        }
+    } catch {
+        /* ignore */
+    }
+}
+
+removeLeftoverProductionPwaFiles();
 
 /** Host cho ảnh URL cũ (Storage REST `/storage/v1/object/...`) — không hardcode domain trong repo. */
 function hostnameFromEnvUrl(key) {
@@ -215,11 +241,18 @@ const nextConfig = {
         ];
     },
     async rewrites() {
-        return [
+        const rewrites = [
             { source: '/giao-trinh', destination: '/tao-giao-trinh' },
             { source: '/giao-trinh/:path*', destination: '/tao-giao-trinh/:path*' },
             { source: '/api/giao-trinh/:path*', destination: '/api/tao-giao-trinh/:path*' },
         ];
+        if (process.env.NODE_ENV === 'development') {
+            rewrites.unshift({
+                source: '/sw.js',
+                destination: '/api/dev/unregister-sw',
+            });
+        }
+        return rewrites;
     },
 };
 
