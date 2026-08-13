@@ -50,6 +50,17 @@ DEPLOY_188_APP_DIR="${DEPLOY_188_APP_DIR:-/var/www/188.com.vn}"
 LOG_DIR="${APP_DIR}/deploy/logs"
 DEPLOY_SETUP_CRONS="${DEPLOY_SETUP_CRONS:-1}"
 MIGRATION_STATE_FILE="${APP_DIR}/deploy/applied-migrations.sha256"
+DEPLOY_LOCK_FILE="${APP_DIR}/deploy/.deploy-in-progress.lock"
+
+acquire_deploy_lock() {
+  if [[ -f "${DEPLOY_LOCK_FILE}" ]]; then
+    echo "LỖI: Deploy khác đang chạy (lock: ${DEPLOY_LOCK_FILE}). Chỉ chạy một deploy VPS tại một thời điểm." >&2
+    exit 1
+  fi
+  mkdir -p "$(dirname "${DEPLOY_LOCK_FILE}")"
+  echo "$$ $(date -Is)" > "${DEPLOY_LOCK_FILE}"
+  trap 'rm -f "${DEPLOY_LOCK_FILE}"' EXIT
+}
 
 env_read_from_file() {
   local key="$1"
@@ -83,13 +94,14 @@ stop_all_apps_for_deploy() {
   pkill -f "next build" 2>/dev/null || true
   pkill -f "next/dist/bin/next build" 2>/dev/null || true
   pkill -f "next start" 2>/dev/null || true
-  pm2 save 2>/dev/null || true
   if [[ "${DEPLOY_STOP_PM2_BEFORE_BUILD}" == "1" ]]; then
     if [[ "${DEPLOY_DELETE_PM2_BEFORE_BUILD}" == "1" ]]; then
       pm2 delete all 2>/dev/null || true
-      echo "  pm2 delete all — không còn process PM2."
+      pm2 save --force 2>/dev/null || true
+      echo "  pm2 delete all — không còn process PM2 (dump PM2 đã xóa sạch)."
     else
       pm2 stop all 2>/dev/null || true
+      pm2 save --force 2>/dev/null || true
       echo "  pm2 stop all."
     fi
   fi
@@ -170,6 +182,7 @@ migration_hash() {
 
 echo "[1/15] Go to app directory: ${APP_DIR}"
 cd "${APP_DIR}"
+acquire_deploy_lock
 echo "  DONE [1/15]"
 
 OLD_COMMIT=$(git rev-parse HEAD 2>/dev/null || true)
@@ -322,6 +335,7 @@ fi
 echo "  DONE [6/15]"
 
 echo "[7/15] Pre-build validation (lint + typecheck)"
+stop_all_apps_for_deploy
 assert_no_app_listeners
 # Xóa .next cũ trước typecheck — tránh TS2307 từ .next/types của route đã xóa.
 rm -rf .next
@@ -344,6 +358,7 @@ rm -rf .next
 echo "  DONE [8/15]"
 
 echo "[9/15] Build app"
+stop_all_apps_for_deploy
 assert_no_app_listeners
 # Mặc định build đầy đủ để đảm bảo không bỏ qua lint/typecheck trong next build.
 # Chỉ bật DEPLOY_BUILD_VPS=1 khi VPS quá yếu và đã xác nhận quality ở CI/máy khác.
