@@ -51,6 +51,8 @@ LOG_DIR="${APP_DIR}/deploy/logs"
 DEPLOY_SETUP_CRONS="${DEPLOY_SETUP_CRONS:-1}"
 MIGRATION_STATE_FILE="${APP_DIR}/deploy/applied-migrations.sha256"
 DEPLOY_LOCK_FILE="${APP_DIR}/deploy/.deploy-in-progress.lock"
+# 188 watchdog-api/web skip recover when this file exists (age < 2h).
+DEPLOY_188_LOCK_FILE="${DEPLOY_188_APP_DIR}/deploy/.deploy-in-progress"
 
 acquire_deploy_lock() {
   if [[ -f "${DEPLOY_LOCK_FILE}" ]]; then
@@ -59,7 +61,10 @@ acquire_deploy_lock() {
   fi
   mkdir -p "$(dirname "${DEPLOY_LOCK_FILE}")"
   echo "$$ $(date -Is)" > "${DEPLOY_LOCK_FILE}"
-  trap 'rm -f "${DEPLOY_LOCK_FILE}"' EXIT
+  mkdir -p "$(dirname "${DEPLOY_188_LOCK_FILE}")"
+  echo "nanoai $$ $(date -Is)" > "${DEPLOY_188_LOCK_FILE}"
+  echo "  188 watchdog lock: ${DEPLOY_188_LOCK_FILE}"
+  trap 'rm -f "${DEPLOY_LOCK_FILE}"; if grep -q "^nanoai " "${DEPLOY_188_LOCK_FILE}" 2>/dev/null; then rm -f "${DEPLOY_188_LOCK_FILE}"; fi' EXIT
 }
 
 env_read_from_file() {
@@ -121,22 +126,34 @@ stop_all_apps_for_deploy() {
   sleep 1
 }
 
-assert_no_app_listeners() {
+apps_still_running() {
   local port
   for port in 3000 3001 8001; do
     if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
-      echo "LỖI: port ${port} vẫn listen — từ chối deploy khi app còn chạy." >&2
-      ss -tlnp 2>/dev/null | grep ":${port} " || true
-      exit 1
+      return 0
     fi
   done
   if pm2 status 2>/dev/null | grep -qE 'online|waiting|launching|stopping'; then
-    echo "LỖI: PM2 vẫn còn app — từ chối deploy khi web/188 còn chạy." >&2
-    pm2 status || true
-    exit 1
+    return 0
   fi
-  echo "  OK: PM2 trống, 3000/3001/8001 không listen."
-  free -m 2>/dev/null | head -2 || free -h | head -2
+  return 1
+}
+
+assert_no_app_listeners() {
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    if ! apps_still_running; then
+      echo "  OK: PM2 trống, 3000/3001/8001 không listen."
+      free -m 2>/dev/null | head -2 || free -h | head -2
+      return 0
+    fi
+    echo "  Còn app/port — dừng lại lần ${attempt}/5 (188 watchdog có thể vừa phục hồi)..."
+    stop_all_apps_for_deploy
+  done
+  echo "LỖI: PM2/port vẫn còn app — từ chối deploy khi web/188 còn chạy." >&2
+  pm2 status || true
+  ss -tlnp 2>/dev/null | grep -E ':3000 |:3001 |:8001 ' || true
+  exit 1
 }
 
 # Sau build: restart 188 nếu còn trong PM2; nếu đã pm2 delete all thì start deploy/ecosystem.config.cjs.
