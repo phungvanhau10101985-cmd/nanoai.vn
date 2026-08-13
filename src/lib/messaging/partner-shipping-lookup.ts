@@ -309,18 +309,25 @@ export async function lookupPartnerShipping(input: {
     method: 'POST',
     body: JSON.stringify({ [param]: input.query.value }),
   })
-  const postMissing =
-    !postOutcome.ok && isEndpointMissing404(postOutcome.httpStatus, { error: postOutcome.detail }, postOutcome.detail)
+  if (postOutcome.ok) {
+    cacheSet(cacheKey, postOutcome)
+    return postOutcome
+  }
+  const postMissing = isEndpointMissing404(postOutcome.httpStatus, { error: postOutcome.detail }, postOutcome.detail)
   const postAuthFail = postOutcome.httpStatus === 401 || postOutcome.httpStatus === 503
-  if (postOutcome.ok || (!postMissing && (postOutcome.httpStatus === 404 || postOutcome.httpStatus === 400 || postAuthFail))) {
-    if (postOutcome.ok || postOutcome.httpStatus === 404) cacheSet(cacheKey, postOutcome)
+  if (!postMissing && (postOutcome.httpStatus === 404 || postOutcome.httpStatus === 400 || postAuthFail)) {
+    if (postOutcome.httpStatus === 404) cacheSet(cacheKey, postOutcome)
     return postOutcome
   }
 
   const getUrl = new URL(parsed.toString())
   getUrl.searchParams.set(param, input.query.value)
   const getOutcome = await fetchShippingLookupHttp(getUrl, key, { method: 'GET' })
-  if (getOutcome.ok || getOutcome.httpStatus === 404) cacheSet(cacheKey, getOutcome)
+  if (getOutcome.ok) {
+    cacheSet(cacheKey, getOutcome)
+    return getOutcome
+  }
+  if (getOutcome.httpStatus === 404) cacheSet(cacheKey, getOutcome)
   return getOutcome
 }
 
