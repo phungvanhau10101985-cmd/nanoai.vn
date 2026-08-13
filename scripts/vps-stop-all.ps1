@@ -20,7 +20,7 @@ Write-Host '=== RAM TRUOC ===' -ForegroundColor Cyan
 Invoke-Remote 'free -m' | Out-Null
 
 Write-Host '=== pm2 delete all ===' -ForegroundColor Cyan
-Invoke-Remote 'pm2 delete all; pm2 save' | Out-Null
+Invoke-Remote 'pm2 delete all 2>/dev/null || true; pm2 save --force 2>/dev/null || true' | Out-Null
 
 Write-Host '=== fuser ports ===' -ForegroundColor Cyan
 Invoke-Remote 'fuser -k 3000/tcp 2>/dev/null; fuser -k 3001/tcp 2>/dev/null; fuser -k 8001/tcp 2>/dev/null; sleep 2; sync' | Out-Null
