@@ -19,6 +19,9 @@ function Invoke-Remote([string]$cmd) {
 Write-Host '=== RAM TRUOC ===' -ForegroundColor Cyan
 Invoke-Remote 'free -m' | Out-Null
 
+Write-Host '=== kill build/tsc ===' -ForegroundColor Cyan
+Invoke-Remote 'pkill -f "next build" 2>/dev/null || true; pkill -f "tsc --noEmit" 2>/dev/null || true; sleep 2' | Out-Null
+
 Write-Host '=== pm2 delete all ===' -ForegroundColor Cyan
 Invoke-Remote 'pm2 delete all 2>/dev/null || true; pm2 save --force 2>/dev/null || true' | Out-Null
 
