@@ -104,7 +104,8 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
       backgroundColor: '#ffffff',
       textColor: '#1e293b',
       mutedColor: '#64748b',
-      fontFamily: '"Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+      fontFamily:
+        '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
     },
     flags: COMMERCE_FULL_FLAGS,
   },
@@ -135,7 +136,8 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
       backgroundColor: '#ffffff',
       textColor: '#1f2937',
       mutedColor: '#6b7280',
-      fontFamily: '"Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+      fontFamily:
+        '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
     },
     flags: COMMERCE_FULL_FLAGS,
   },
@@ -166,7 +168,8 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
       backgroundColor: '#f0fdfa',
       textColor: '#134e4a',
       mutedColor: '#5eead4',
-      fontFamily: '"Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+      fontFamily:
+        '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
     },
     flags: HOSPITALITY_FLAGS,
   },
@@ -197,7 +200,8 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
       backgroundColor: '#fff7ed',
       textColor: '#431407',
       mutedColor: '#9a3412',
-      fontFamily: '"Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+      fontFamily:
+        '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
     },
     flags: COMMERCE_FULL_FLAGS,
   },
@@ -228,7 +232,8 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
       backgroundColor: '#ffffff',
       textColor: '#111827',
       mutedColor: '#6b7280',
-      fontFamily: '"Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+      fontFamily:
+        '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
     },
     flags: COMMERCE_FULL_FLAGS,
   },
@@ -259,7 +264,8 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
       backgroundColor: '#fafaf9',
       textColor: '#292524',
       mutedColor: '#78716c',
-      fontFamily: '"Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+      fontFamily:
+        '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
     },
     flags: COMMERCE_FULL_FLAGS,
   },

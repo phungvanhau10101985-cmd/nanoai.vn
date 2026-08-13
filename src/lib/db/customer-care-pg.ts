@@ -1358,6 +1358,30 @@ export async function fetchTwoCareMessagesImmediatelyBeforePg(
   }
 }
 
+/** Tin inbound gần nhất — lấy SĐT/mã đơn đã gửi ở tin trước khi khách hỏi «hàng đến đâu». */
+export async function fetchRecentInboundCustomerCareMessageBodiesPg(
+  conversationId: string,
+  limit: number
+): Promise<string[]> {
+  if (!isPgConfigured() || !conversationId.trim()) return []
+  const lim = Math.max(1, Math.min(20, Math.floor(limit)))
+  try {
+    const rows = await pgQuery<{ body: unknown }>(
+      `select body from public.customer_care_messages
+       where conversation_id = $1::uuid and direction = 'inbound'
+       order by created_at desc, id desc
+       limit $2`,
+      [conversationId.trim(), lim]
+    )
+    return rows
+      .map((r) => String(r.body ?? '').trim())
+      .filter((b) => b.length > 0)
+  } catch (e) {
+    console.warn('[customer-care-pg] fetchRecentInboundCustomerCareMessageBodiesPg', e)
+    return []
+  }
+}
+
 /** Tin shop (outbound) mới nhất — dùng cho phân loại ý định widget (LLM). */
 export async function fetchLastOutboundCustomerCareMessageBodyPg(
   conversationId: string

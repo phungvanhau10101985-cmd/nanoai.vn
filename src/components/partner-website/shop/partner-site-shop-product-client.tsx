@@ -455,10 +455,10 @@ export function PartnerSiteShopProductClient({
             </p>
           ) : null}
           <div ref={buyActionsRef} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 20 }}>
-            <button type="button" className="pw-shop-btn" disabled={!ready || busy} onClick={() => void addLine(false)}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => void addLine(false)}>
               {t.addToCart}
             </button>
-            <button type="button" className="pw-shop-btn" disabled={!ready || busy} onClick={() => void addLine(true)}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => void addLine(true)}>
               {t.buyNow}
             </button>
             <button
@@ -620,10 +620,10 @@ export function PartnerSiteShopProductClient({
           ) : null}
         </div>
         <div className="pw-shop-sticky-buy-actions">
-          <button type="button" className="pw-shop-btn pw-shop-btn-outline" disabled={!ready || busy} onClick={() => void addLine(false)}>
+          <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => void addLine(false)}>
             {t.addToCart}
           </button>
-          <button type="button" className="pw-shop-btn" disabled={!ready || busy} onClick={() => void addLine(true)}>
+          <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => void addLine(true)}>
             {t.buyNow}
           </button>
         </div>

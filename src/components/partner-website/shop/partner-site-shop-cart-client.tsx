@@ -456,7 +456,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
               {t.checkoutNote}
               <textarea rows={2} value={orderNote} onChange={(e) => setOrderNote(e.target.value)} />
             </label>
-            <button type="button" className="pw-shop-btn" disabled={checkoutBusy} onClick={() => void checkout()}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={checkoutBusy} onClick={() => void checkout()}>
               {checkoutBusy ? t.cartCheckingOut : t.cartCheckout}
             </button>
             {status && !needsAuth ? <p className="pw-shop-muted">{status}</p> : null}

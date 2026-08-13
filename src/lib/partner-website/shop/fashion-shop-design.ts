@@ -1,12 +1,14 @@
 /**
- * Fashion shop v2 design tokens — distinctive type + orange retail atmosphere.
- * Used by React home and HTML template preview for visual parity.
+ * Fashion shop design tokens — type + orange retail atmosphere.
+ * UI font must include Vietnamese glyphs (Outfit does not).
  */
-export const FASHION_SHOP_FONT_DISPLAY = '"Fraunces", "Times New Roman", serif'
-export const FASHION_SHOP_FONT_UI = '"Outfit", "Segoe UI", system-ui, sans-serif'
+export const FASHION_SHOP_FONT_DISPLAY = '"Fraunces", "Be Vietnam Pro", "Times New Roman", serif'
+export const FASHION_SHOP_FONT_UI =
+  '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, sans-serif'
 
+/** Google CSS2 auto-splits unicode-range including vietnamese for these families. */
 export const FASHION_SHOP_GOOGLE_FONTS_HREF =
-  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,800&family=Outfit:wght@400;500;600;700;800&subset=latin,latin-ext&display=swap'
+  'https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,800&display=swap'
 
 export function buildFashionShopMotionCss(): string {
   return `

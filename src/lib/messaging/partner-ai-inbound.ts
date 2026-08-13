@@ -5,6 +5,7 @@ import {
   fetchConversationUiLocaleFromPg,
   fetchCustomerCareConversationByIdPg,
   fetchLastOutboundCustomerCareMessageBodyPg,
+  fetchRecentInboundCustomerCareMessageBodiesPg,
   fetchTwoCareMessagesImmediatelyBeforePg,
   mergeCustomerCareMessageRawPayloadPatchPg,
 } from '@/lib/db/customer-care-pg'
@@ -24,13 +25,14 @@ import {
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
 import { normalizeWebLocale } from '@/lib/i18n/config'
-import { inboundTextLooksLikeAfterSalesNotCheckout, inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
+import { inboundTextLooksLikeOrderStatusAsk, inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
 import {
   buildPurchasePickListCardsFromConversation,
   purchasePickListMessageBody,
 } from '@/lib/messaging/partner-ai-purchase-pick-list'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
 import {
+  createPartnerAiRouteDecision,
   partnerAiRouteDecisionToPayload,
   type PartnerAiRouteDecision,
 } from '@/lib/messaging/partner-ai-intent-router'
@@ -43,7 +45,10 @@ import {
 } from '@/lib/messaging/partner-ai-chat-order-followup'
 import {
   extractShippingLookupQuery,
+  extractShippingLookupQueryFromThread,
   formatShippingLookupCustomerReply,
+  formatShippingLookupMissReply,
+  formatShippingLookupNeedIdReply,
   lookupPartnerShippingFromPg,
 } from '@/lib/messaging/partner-shipping-lookup'
 
@@ -235,7 +240,7 @@ export async function handlePartnerInboundForAi(input: {
 
     if (!settings?.enabled) return { show: false }
 
-    const routeDecision = await mergePartnerAiWidgetIntentFromClassifier({
+    let routeDecision = await mergePartnerAiWidgetIntentFromClassifier({
       partnerId: input.partnerId,
       conversationId: input.conversationId,
       messageId: input.messageId,
@@ -305,27 +310,58 @@ export async function handlePartnerInboundForAi(input: {
     /** Ảnh khách + ý mua: chỉ carousel vector theo ảnh (`widget-guest-post`), không gộp list «đã bấm Tư vấn». */
     const skipPurchasePickForCustomerImage =
       input.channel === 'widget' && inboundBodyHasCustomerUploadedImage(input.inboundBody)
-    const skipPurchasePickForAfterSales = routeDecision?.intent === 'policy_or_order_support'
     const probeForLookup = stripInboundBodyForIntentClassify(
       typeof input.intentClassifyText === 'string' && input.intentClassifyText.trim()
         ? input.intentClassifyText
         : input.inboundBody
     )
-    const shippingQuery = extractShippingLookupQuery(probeForLookup, {
-      allowPhone: inboundTextLooksLikeAfterSalesNotCheckout(probeForLookup),
+    const orderStatusAsk = inboundTextLooksLikeOrderStatusAsk(probeForLookup)
+    if (orderStatusAsk && routeDecision?.intent !== 'policy_or_order_support') {
+      routeDecision = createPartnerAiRouteDecision('policy_or_order_support', {
+        source: 'hard_rule',
+        reason: 'order_status_lookup',
+        confidence: 1,
+      })
+      try {
+        await mergeCustomerCareMessageRawPayloadPatchPg(
+          input.messageId,
+          partnerAiRouteDecisionToPayload(routeDecision)
+        )
+      } catch (e) {
+        console.warn('[partner-ai-inbound] order-status hard-rule payload', e)
+      }
+    }
+    const skipPurchasePickForAfterSales =
+      routeDecision?.intent === 'policy_or_order_support' || orderStatusAsk
+    const allowPhoneLookup = orderStatusAsk || skipPurchasePickForAfterSales
+    let shippingQuery = extractShippingLookupQuery(probeForLookup, {
+      allowPhone: allowPhoneLookup,
     })
-    if (
-      shippingQuery &&
-      (skipPurchasePickForAfterSales || inboundTextLooksLikeAfterSalesNotCheckout(probeForLookup))
-    ) {
+    if (!shippingQuery && allowPhoneLookup && isPgConfigured()) {
+      try {
+        const recentInbound = await fetchRecentInboundCustomerCareMessageBodiesPg(
+          input.conversationId,
+          8
+        )
+        shippingQuery = extractShippingLookupQueryFromThread(recentInbound, {
+          allowPhone: true,
+        })
+      } catch (e) {
+        console.warn('[partner-ai-inbound] shipping lookup thread phone', e)
+      }
+    }
+    if (shippingQuery && (allowPhoneLookup || shippingQuery.type !== 'phone')) {
       try {
         const live = await lookupPartnerShippingFromPg(input.partnerId, shippingQuery)
-        if (live?.ok) {
+        if (live) {
           await cancelPendingAiJobsForConversation(input.conversationId)
+          const body = live.ok
+            ? formatShippingLookupCustomerReply(live.hit, pickUiLocale)
+            : formatShippingLookupMissReply(shippingQuery, live, pickUiLocale)
           void runInstantShippingLookupReply({
             conversationId: input.conversationId,
             settings,
-            body: formatShippingLookupCustomerReply(live.hit, pickUiLocale),
+            body,
           })
           const typingHi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
           return { show: true, maxWaitMs: typingHi + 10_000 }
@@ -333,6 +369,16 @@ export async function handlePartnerInboundForAi(input: {
       } catch (e) {
         console.warn('[partner-ai-inbound] shipping lookup', e)
       }
+    }
+    if (orderStatusAsk && !shippingQuery) {
+      await cancelPendingAiJobsForConversation(input.conversationId)
+      void runInstantShippingLookupReply({
+        conversationId: input.conversationId,
+        settings,
+        body: formatShippingLookupNeedIdReply(pickUiLocale),
+      })
+      const typingHi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
+      return { show: true, maxWaitMs: typingHi + 10_000 }
     }
     if (
       !skipPurchasePickBranch &&

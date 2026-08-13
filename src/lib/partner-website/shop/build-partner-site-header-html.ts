@@ -149,7 +149,7 @@ export function buildPartnerSiteAccountPanelCss(): string {
 .pw-account-panel{display:none;position:absolute;right:0;top:calc(100% + 8px);z-index:60;min-width:220px;padding:6px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.12)}
 .pw-account-panel.is-open{display:grid;gap:2px}
 .pw-account-panel a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:600;color:#374151;text-decoration:none}
-.pw-account-panel a:hover{background:#fff7ed;color:var(--pw-primary)}
+.pw-account-panel a:hover{background:var(--pw-surface);color:var(--pw-primary)}
 .pw-account-panel a.is-header{background:#eff6ff;color:#2563eb;border-left:3px solid #2563eb;border-radius:8px 8px 8px 6px;font-weight:700}
 .pw-account-panel a.is-header:hover{background:#dbeafe;color:#1d4ed8}
 .pw-account-panel a.is-accent{background:#fff7ed;color:#ea580c;border-left:3px solid #f97316;border-radius:8px 8px 8px 6px;font-weight:700}

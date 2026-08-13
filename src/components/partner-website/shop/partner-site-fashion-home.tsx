@@ -102,11 +102,11 @@ function ProductCard({
           <Link href={href}>{product.name}</Link>
         </h3>
         {product.priceHint ? (
-          <p className="text-base font-extrabold tracking-tight text-orange-600">{product.priceHint}</p>
+          <p className="pw-fh-price text-base font-extrabold tracking-tight">{product.priceHint}</p>
         ) : null}
         <Link
           href={href}
-          className="mt-auto inline-flex w-full items-center justify-center gap-1 rounded-xl bg-orange-500 px-3 py-2.5 text-xs font-extrabold uppercase tracking-[0.08em] text-white transition hover:bg-orange-600"
+          className="pw-fh-cta mt-auto inline-flex w-full items-center justify-center gap-1 rounded-xl px-3 py-2.5 text-xs font-extrabold uppercase tracking-[0.08em] transition"
         >
           {cta}
           <ArrowRight className="h-3.5 w-3.5" />
@@ -172,13 +172,13 @@ function FashionHomeInner({
           <div className="absolute inset-0 bg-gradient-to-r from-orange-950/75 via-orange-700/45 to-transparent" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(251,146,60,.35),transparent_55%)]" />
         </div>
-        <div className="relative grid min-h-[340px] content-center gap-5 px-6 py-14 sm:min-h-[420px] sm:px-12 lg:min-h-[480px]">
+        <div className="relative grid min-h-[280px] content-center gap-4 px-5 py-10 sm:min-h-[420px] sm:gap-5 sm:px-12 sm:py-14 lg:min-h-[480px]">
           <p className="pw-anim-in inline-flex w-fit items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-50 backdrop-blur">
             <Sparkles className="h-3.5 w-3.5" />
             {badge}
           </p>
           <h1
-            className="pw-anim-in pw-anim-in-d1 max-w-xl text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl"
+            className="pw-anim-in pw-anim-in-d1 max-w-xl text-[1.7rem] font-bold leading-[1.15] tracking-tight text-white sm:text-5xl sm:leading-[1.05] lg:text-6xl"
             style={{ fontFamily: 'var(--pw-font-display)' }}
           >
             {copy.heroTitle}
@@ -189,7 +189,7 @@ function FashionHomeInner({
           <div className="pw-anim-in pw-anim-in-d3 flex flex-wrap gap-3">
             <Link
               href={productsHref}
-              className="inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-orange-600 shadow-lg shadow-orange-950/20 transition hover:scale-[1.02] hover:bg-orange-50"
+              className="pw-fh-hero-cta inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-extrabold uppercase tracking-[0.08em] shadow-lg shadow-black/20 transition hover:scale-[1.02]"
             >
               {copy.heroCta}
               <ArrowRight className="h-4 w-4" />
@@ -212,7 +212,7 @@ function FashionHomeInner({
       {showCategories ? (
       <section className="mb-12 sm:mb-16">
         <h2
-          className="mb-6 text-center text-sm font-extrabold uppercase tracking-[0.2em] text-orange-600 sm:text-base"
+          className="pw-fh-heading mb-6 text-center text-sm font-extrabold uppercase tracking-[0.2em] sm:text-base"
           style={{ fontFamily: 'var(--pw-font-display)' }}
         >
           {copy.categoriesTitle}
@@ -230,7 +230,7 @@ function FashionHomeInner({
                 i === 3 && 'pw-anim-in-d3'
               )}
             >
-              <span className="relative block aspect-square w-full max-w-[140px] overflow-hidden rounded-full border-[3px] border-orange-400 bg-orange-50 shadow-md transition duration-500 group-hover:scale-105 group-hover:border-orange-500 sm:max-w-none">
+              <span className="pw-fh-cat relative block aspect-square w-full max-w-[140px] overflow-hidden rounded-full border-[3px] shadow-md transition duration-500 group-hover:scale-105 sm:max-w-none">
                 {cat.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -253,14 +253,14 @@ function FashionHomeInner({
       <section className="mb-12 sm:mb-16">
         <div className="mb-6 flex items-end justify-between gap-3">
           <h2
-            className="text-sm font-extrabold uppercase tracking-[0.2em] text-orange-600 sm:text-base"
+            className="pw-fh-heading text-sm font-extrabold uppercase tracking-[0.2em] sm:text-base"
             style={{ fontFamily: 'var(--pw-font-display)' }}
           >
             {copy.newArrivalsTitle}
           </h2>
           <Link
             href={productsHref}
-            className="text-xs font-bold uppercase tracking-wider text-stone-500 hover:text-orange-600"
+            className="pw-fh-more text-xs font-bold uppercase tracking-wider text-stone-500"
           >
             {t.navProducts} →
           </Link>
@@ -275,7 +275,7 @@ function FashionHomeInner({
         ) : null}
       </section>
 
-      <section className="relative mb-4 overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-orange-500 via-orange-500 to-amber-500 px-4 py-10 sm:mb-8 sm:rounded-[2rem] sm:px-8 sm:py-12">
+      <section className="pw-fh-band relative mb-4 overflow-hidden rounded-[1.75rem] px-4 py-10 sm:mb-8 sm:rounded-[2rem] sm:px-8 sm:py-12">
         <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/15 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-20 left-10 h-48 w-48 rounded-full bg-amber-200/30 blur-2xl" />
         <h2
@@ -300,11 +300,11 @@ export function PartnerSiteFashionHome(props: Props) {
   return (
     <div
       className={props.fontClassName}
-      style={{ fontFamily: 'var(--pw-font-ui), Outfit, system-ui, sans-serif' }}
+      style={{ fontFamily: 'var(--pw-font-ui), "Be Vietnam Pro", system-ui, sans-serif' }}
     >
       <style
         dangerouslySetInnerHTML={{
-          __html: `@keyframes pwFadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}.pw-fashion-ready .pw-anim-in{animation:pwFadeUp .7s cubic-bezier(.22,1,.36,1) both}.pw-fashion-ready .pw-anim-in-d1{animation-delay:.08s}.pw-fashion-ready .pw-anim-in-d2{animation-delay:.16s}.pw-fashion-ready .pw-anim-in-d3{animation-delay:.24s}.pw-fashion-ready .pw-anim-in-d4{animation-delay:.32s}@media (prefers-reduced-motion:reduce){.pw-fashion-ready .pw-anim-in{animation:none}}`,
+          __html: `@keyframes pwFadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}.pw-fashion-ready .pw-anim-in{animation:pwFadeUp .7s cubic-bezier(.22,1,.36,1) both}.pw-fashion-ready .pw-anim-in-d1{animation-delay:.08s}.pw-fashion-ready .pw-anim-in-d2{animation-delay:.16s}.pw-fashion-ready .pw-anim-in-d3{animation-delay:.24s}.pw-fashion-ready .pw-anim-in-d4{animation-delay:.32s}@media (prefers-reduced-motion:reduce){.pw-fashion-ready .pw-anim-in{animation:none}}.pw-fh-price{color:var(--pw-primary)}.pw-fh-heading{color:var(--pw-primary)}.pw-fh-cta{background:var(--pw-cart);color:#fff}.pw-fh-cta:hover{filter:brightness(.95)}.pw-fh-hero-cta{color:var(--pw-primary)}.pw-fh-cat{border-color:var(--pw-primary);background:var(--pw-surface)}.pw-fh-band{background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent))}.pw-fh-more:hover{color:var(--pw-primary)}`,
         }}
       />
       <PartnerSiteShopShell

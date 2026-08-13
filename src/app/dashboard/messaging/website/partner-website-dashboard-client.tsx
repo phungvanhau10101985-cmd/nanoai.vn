@@ -42,7 +42,7 @@ import {
   PartnerWebsiteTenantAdminBar,
   type PartnerWebsiteTenantSection,
 } from '@/components/partner-website/partner-website-tenant-admin-bar'
-import { ExternalLink, Globe, Loader2, Undo2 } from 'lucide-react'
+import { ExternalLink, Globe, Loader2, PanelLeftOpen, Undo2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type NavLabels = {
@@ -59,6 +59,7 @@ type WebsiteDashboardPartner = {
   brand_name: string | null
   display_name: string | null
   logo_url?: string | null
+  industry_key?: 'fashion' | 'hotel' | 'food' | 'other' | null
 }
 
 type Props = {
@@ -95,6 +96,7 @@ export function PartnerWebsiteDashboardClient({
   const initialWebsiteRow =
     initialWebsites[initialPartnerId] ?? initialWebsites[partners[0]?.id ?? ''] ?? null
   const [website, setWebsite] = useState<PartnerWebsiteRow | null>(initialWebsiteRow)
+  const [liveTheme, setLiveTheme] = useState(initialWebsiteRow?.theme ?? null)
   const [publicUrl, setPublicUrl] = useState<string | null>(null)
   const [logoUrl, setLogoUrl] = useState(
     initialWebsiteRow?.logoUrl ?? initialPartner?.logo_url?.trim() ?? ''
@@ -114,6 +116,7 @@ export function PartnerWebsiteDashboardClient({
   const [journalResetKey, setJournalResetKey] = useState(0)
   const [resetTrash, setResetTrash] = useState<PartnerWebsiteResetTrashInfo | null>(null)
   const [restoringTrash, setRestoringTrash] = useState(false)
+  const [setupCollapsed, setSetupCollapsed] = useState(false)
 
   const partner = useMemo(() => partners.find((p) => p.id === partnerId) ?? null, [partners, partnerId])
   const partnerTitle =
@@ -142,6 +145,7 @@ export function PartnerWebsiteDashboardClient({
           setLogoUrl(json.website.logoUrl ?? '')
           setCreationJournal(json.website.creationJournal)
           setPreviewVersion(json.website.updatedAt || String(Date.now()))
+          setLiveTheme(json.website.theme)
           if (json.autoProvisioned) {
             toast({
               title: t.autoProvisionTitle,
@@ -171,10 +175,12 @@ export function PartnerWebsiteDashboardClient({
       setWebsite(cached)
       setLogoUrl(cached.logoUrl ?? nextPartner?.logo_url?.trim() ?? '')
       setPreviewVersion(cached.updatedAt || String(Date.now()))
+      setLiveTheme(cached.theme)
     } else {
       setWebsite(null)
       setLogoUrl(nextPartner?.logo_url?.trim() ?? '')
       setPreviewVersion(String(Date.now()))
+      setLiveTheme(null)
     }
     void loadWebsite(nextId)
     if (embeddedSectionId) return
@@ -227,6 +233,7 @@ export function PartnerWebsiteDashboardClient({
     setPublicUrl(payload.publicUrl)
     setCreationJournal(payload.website.creationJournal)
     setLogoUrl(payload.website.logoUrl ?? logoUrl)
+    setLiveTheme(payload.website.theme)
     setPreviewVersion(payload.website.updatedAt || String(Date.now()))
     toast({
       title: payload.source === 'fallback' ? t.fallbackGenerated : t.generateSuccess,
@@ -240,6 +247,7 @@ export function PartnerWebsiteDashboardClient({
     setWebsite(payload.website)
     setPublicUrl(payload.publicUrl)
     setLogoUrl(payload.website.logoUrl ?? '')
+    setLiveTheme(payload.website.theme)
     setPreviewVersion(payload.website.updatedAt || String(Date.now()))
     toast({ title: t.restoreSuccess })
     router.refresh()
@@ -269,6 +277,7 @@ export function PartnerWebsiteDashboardClient({
     setCreationJournal(null)
     setLogoUrl(partner?.logo_url?.trim() ?? '')
     setPreviewVersion(String(Date.now()))
+    setLiveTheme(null)
     setJournalResetKey((k) => k + 1)
     toast({ title: t.resetWebsiteSuccess })
     void loadWebsite(partnerId)
@@ -331,8 +340,12 @@ export function PartnerWebsiteDashboardClient({
     setWebsite(nextWebsite)
     setCreationJournal(nextWebsite.creationJournal)
     setLogoUrl(nextWebsite.logoUrl ?? logoUrl)
+    setLiveTheme(nextWebsite.theme)
     setPreviewVersion(nextWebsite.updatedAt || String(Date.now()))
   }
+
+  const websiteForEditor =
+    website && liveTheme ? { ...website, theme: liveTheme } : website
 
   const homeBuilt = website ? isHomePageBuilt(website.creationJournals) : false
   const canOpenLanding = Boolean(website && homeBuilt)
@@ -392,8 +405,8 @@ export function PartnerWebsiteDashboardClient({
     <div
       className={
         isEmbedded
-          ? 'flex w-full flex-1 flex-col gap-4'
-          : 'mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-0 md:px-2'
+          ? 'flex w-full min-h-0 flex-1 flex-col gap-2'
+          : 'mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-3 px-0 md:px-1'
       }
     >
       {partners.length === 0 ? (
@@ -431,6 +444,17 @@ export function PartnerWebsiteDashboardClient({
                     onClick={() => onPartnerChange(p.id)}
                   >
                     {p.brand_name || p.display_name || p.slug}
+                    <span className="ml-1 font-normal opacity-80">
+                      (
+                      {(p.industry_key || 'fashion') === 'hotel'
+                        ? t.industryLabelHotel
+                        : (p.industry_key || 'fashion') === 'food'
+                          ? t.industryLabelFood
+                          : (p.industry_key || 'fashion') === 'other'
+                            ? t.industryLabelOther
+                            : t.industryLabelFashion}
+                      )
+                    </span>
                   </Button>
                 ))}
               </CardContent>
@@ -500,14 +524,20 @@ export function PartnerWebsiteDashboardClient({
                 />
               ) : null}
 
-              <div className="flex min-h-0 flex-1 flex-col gap-4">
+              <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div
               id="partner-website-editor"
               className={cn(
-                'grid min-h-0 flex-1 scroll-mt-24 gap-4 lg:grid-cols-[minmax(360px,420px)_1fr] lg:items-stretch',
+                'grid min-h-[calc(100dvh-8.5rem)] flex-1 scroll-mt-24 gap-3 lg:items-stretch',
+                setupCollapsed
+                  ? 'lg:grid-cols-1'
+                  : isEmbedded
+                    ? 'lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)]'
+                    : 'lg:grid-cols-[minmax(240px,280px)_minmax(0,1fr)]',
                 sectionWrapClass('partner-website-editor')
               )}
             >
+              <div className={cn('h-full min-h-0 min-w-0', setupCollapsed && 'hidden')}>
               <PartnerWebsiteCreationJournalPanel
                 key={`${partnerId}-${journalResetKey}`}
                 locale={locale}
@@ -515,7 +545,9 @@ export function PartnerWebsiteDashboardClient({
                 partnerId={partnerId}
                 partnerTitle={partnerTitle}
                 defaultBrandName={partner?.brand_name || partner?.display_name || ''}
-                website={website}
+                industryKey={partner?.industry_key ?? 'fashion'}
+                partnerSlug={partner?.slug}
+                website={websiteForEditor}
                 logoUrl={logoUrl}
                 onLogoUrlChange={setLogoUrl}
                 disabled={!partnerId}
@@ -524,6 +556,12 @@ export function PartnerWebsiteDashboardClient({
                 onWebsiteUpdated={handleWebsiteUpdated}
                 onWebsiteRefresh={handleWebsiteRefresh}
                 onJournalChange={setCreationJournal}
+                onCollapse={() => setSetupCollapsed(true)}
+                onLiveThemeChange={setLiveTheme}
+                onThemePersisted={(theme) => {
+                  setLiveTheme(theme)
+                  setWebsite((prev) => (prev ? { ...prev, theme } : prev))
+                }}
                 domainSlot={
                   partnerId && partner?.slug ? (
                     <PartnerCustomDomainSettingsCard
@@ -540,25 +578,38 @@ export function PartnerWebsiteDashboardClient({
                   ) : null
                 }
               />
+              </div>
 
-              <Card className="flex h-full min-h-0 flex-col">
-              <CardHeader className="shrink-0 space-y-3 pb-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
+              <Card className="flex h-full min-h-0 min-w-0 flex-col">
+              <CardHeader className="shrink-0 space-y-2 px-3 pb-2 pt-3 sm:px-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {setupCollapsed ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0 gap-1 px-2"
+                        onClick={() => setSetupCollapsed(false)}
+                      >
+                        <PanelLeftOpen className="h-3.5 w-3.5" aria-hidden />
+                        <span className="hidden sm:inline">{t.setupPanelExpand}</span>
+                      </Button>
+                    ) : null}
                     <CardTitle className="flex items-center gap-2 text-base">
                       <Globe className="h-4 w-4 shrink-0" />
                       {t.previewTitle}
                     </CardTitle>
-                    <CardDescription className="mt-1">{t.publishSectionHint}</CardDescription>
                   </div>
                 </div>
 
                 {website ? (
-                  <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
+                  <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-2">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="h-7 px-2 text-xs"
                       disabled={!website}
                       asChild={Boolean(website && partnerId)}
                     >
@@ -577,16 +628,18 @@ export function PartnerWebsiteDashboardClient({
                     <Button
                       type="button"
                       size="sm"
+                      className="h-7 px-2 text-xs"
                       disabled={publishing || website.isPublished}
                       onClick={() => void handlePublish(true)}
                     >
-                      {publishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {publishing ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
                       {t.publishButton}
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="h-7 px-2 text-xs"
                       disabled={publishing || !website.isPublished}
                       onClick={() => void handlePublish(false)}
                     >
@@ -641,11 +694,12 @@ export function PartnerWebsiteDashboardClient({
                 )}
               </CardHeader>
 
-              <CardContent className="flex min-h-0 flex-1 flex-col pt-0">
+              <CardContent className="flex min-h-0 flex-1 flex-col px-3 pb-3 pt-0 sm:px-4">
                 <PartnerWebsiteDevicePreview
                   locale={locale}
                   partnerId={partnerId}
                   previewVersion={previewVersion}
+                  liveTheme={liveTheme ?? website?.theme ?? null}
                   publicUrl={publicUrl}
                   siteSlug={website?.siteSlug}
                   hasWebsite={Boolean(website)}

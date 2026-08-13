@@ -7,6 +7,7 @@ import {
   classifyShippingLookupQuery,
   extractShippingLookupQuery,
   formatShippingLookupCustomerReply,
+  formatShippingLookupMissReply,
   type PartnerShippingLookupHit,
 } from '../src/lib/messaging/partner-shipping-lookup'
 
@@ -34,9 +35,28 @@ function main() {
   const fromEms = extractShippingLookupQuery('mã vận EH042737692VN')
   assert.equal(fromEms?.type, 'ems_code')
 
-  const phoneOnly = extractShippingLookupQuery('0912345678', { allowPhone: true })
-  assert.equal(phoneOnly?.type, 'phone')
-  assert.equal(extractShippingLookupQuery('xin chào shop', { allowPhone: true }), null)
+  const phoneChat = extractShippingLookupQuery(
+    'Kiểm tra hộ mình sdt của mình là 0369597965 kiểm tra đơn của mình gửi đến đâu rồi',
+    { allowPhone: true }
+  )
+  assert.equal(phoneChat?.type, 'phone')
+  assert.equal(phoneChat?.value, '0369597965')
+  assert.equal(
+    extractShippingLookupQuery(
+      'Kiểm tra hộ mình sdt của mình là 0369597965 kiểm tra đơn của mình gửi đến đâu rồi',
+      { allowPhone: false }
+    ),
+    null
+  )
+
+  const missVi = formatShippingLookupMissReply(
+    { type: 'phone', value: '0369597965' },
+    { httpStatus: 404, detail: 'Endpoint not found' },
+    'vi'
+  )
+  assert.match(missVi, /chưa tìm thấy đơn/i)
+  assert.doesNotMatch(missVi, /0369597965/)
+  assert.doesNotMatch(missVi, /bấm \*\*Mua/i)
 
   const hit: PartnerShippingLookupHit = {
     query: 'DH042',

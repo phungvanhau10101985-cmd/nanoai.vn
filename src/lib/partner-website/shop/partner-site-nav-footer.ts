@@ -110,6 +110,41 @@ export function visibleSortedNavLinks(items: PartnerSiteNavLinkItem[]): PartnerS
   return items.filter((x) => x.visible).sort((a, b) => a.sortOrder - b.sortOrder)
 }
 
+export type PartnerSiteFooterColumnId = 'shop' | 'shopping' | 'support' | 'legal'
+
+export const PARTNER_SITE_FOOTER_COLUMN_ORDER: PartnerSiteFooterColumnId[] = [
+  'shop',
+  'shopping',
+  'support',
+  'legal',
+]
+
+const FOOTER_COLUMN_KEYS: Record<PartnerSiteFooterColumnId, readonly PartnerSiteNavHrefKey[]> = {
+  shop: ['about', 'contact', 'stores', 'lookbook', 'blog'],
+  shopping: ['home', 'products', 'sale', 'wishlist', 'size-guide', 'cart'],
+  support: ['faq', 'shipping', 'returns', 'payment', 'orders', 'account'],
+  legal: ['privacy', 'terms'],
+}
+
+export function groupPartnerSiteFooterLinks(
+  links: PartnerSiteNavLinkItem[]
+): Record<PartnerSiteFooterColumnId, PartnerSiteNavLinkItem[]> {
+  const grouped: Record<PartnerSiteFooterColumnId, PartnerSiteNavLinkItem[]> = {
+    shop: [],
+    shopping: [],
+    support: [],
+    legal: [],
+  }
+  const keyToCol = new Map<string, PartnerSiteFooterColumnId>()
+  for (const col of PARTNER_SITE_FOOTER_COLUMN_ORDER) {
+    for (const key of FOOTER_COLUMN_KEYS[col]) keyToCol.set(key, col)
+  }
+  for (const link of links) {
+    grouped[keyToCol.get(link.hrefKey) ?? 'shop'].push(link)
+  }
+  return grouped
+}
+
 /** Resolve platform href for a nav key (relative to shop root). */
 export function resolvePartnerSiteNavHref(
   hrefKey: PartnerSiteNavHrefKey,

@@ -23,6 +23,7 @@ import {
 import { fetchPartnerCapabilitiesForPartnerFromPg } from '@/lib/db/messaging-partners-pg'
 import { mergeTemplateFlagsWithCapabilities } from '@/lib/partner-website/partner-capabilities'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
+import { themeFromPresetPartial } from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 export type BuildPartnerWebsiteFromTemplateStudioInput = {
   locale: WebLocale
@@ -303,9 +304,10 @@ export async function buildPartnerWebsiteFromTemplateStudio(
   })
 
   const theme: PartnerWebsiteTheme = {
-    ...templateSite.theme,
-    ...preset.theme,
-    ...paletteTheme,
+    ...themeFromPresetPartial(
+      { ...DEFAULT_PARTNER_WEBSITE_THEME, ...templateSite.theme, ...preset.theme },
+      { ...preset.theme, ...paletteTheme }
+    ),
     logoUrl,
     // Re-apply template clears visual «Sửa nhanh» HTML override.
     useVisualHtml: false,

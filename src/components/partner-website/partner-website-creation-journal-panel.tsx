@@ -1,9 +1,9 @@
 'use client'
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Circle, ImagePlus, LayoutTemplate, Loader2, X } from 'lucide-react'
+import { Check, Circle, ImagePlus, LayoutTemplate, Loader2, PanelLeftClose, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -16,12 +16,20 @@ import {
 } from '@/lib/partner-website/partner-website-creation-journal'
 import { shopTemplateSamplePreviewPath } from '@/lib/partner-website/template/build-shop-template-sample-html'
 import {
-  DEFAULT_SHOP_TEMPLATE_PRESET_ID,
+  isShopTemplatePresetId,
   listShopTemplatePresets,
   shopTemplatePresetDescription,
   shopTemplatePresetLabel,
+  suggestedShopTemplatePresetForIndustry,
   type ShopTemplatePresetId,
 } from '@/lib/partner-website/template/shop-template-presets'
+import { looksLikeConnected188Shop } from '@/lib/partner-website/pick-preferred-website-partner'
+import {
+  PartnerWebsiteThemeColorPicker,
+  useDebouncedThemeSave,
+} from '@/components/partner-website/partner-website-theme-color-picker'
+import { themeFromPresetPartial } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 
 type PagePickerItem = {
   key: string
@@ -34,6 +42,8 @@ type Props = {
   partnerId: string
   partnerTitle: string
   defaultBrandName?: string
+  industryKey?: 'fashion' | 'hotel' | 'food' | 'other' | null
+  partnerSlug?: string | null
   website: PartnerWebsiteRow | null
   logoUrl: string
   onLogoUrlChange: (url: string) => void
@@ -49,6 +59,9 @@ type Props = {
   onJournalChange?: (journal: PartnerWebsiteCreationJournal) => void
   onBusyChange?: (busy: boolean) => void
   domainSlot?: ReactNode
+  onCollapse?: () => void
+  onLiveThemeChange?: (theme: PartnerWebsiteTheme) => void
+  onThemePersisted?: (theme: PartnerWebsiteTheme) => void
 }
 
 function StudioBuildProgressList({
@@ -133,15 +146,23 @@ function StepBadge({ n, done }: { n: number; done?: boolean }) {
   return (
     <span
       className={cn(
-        'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
-        done
-          ? 'bg-emerald-600 text-white'
-          : 'bg-orange-500 text-white'
+        'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
+        done ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white'
       )}
     >
-      {done ? <Check className="h-3.5 w-3.5" aria-hidden /> : n}
+      {done ? <Check className="h-3 w-3" aria-hidden /> : n}
     </span>
   )
+}
+
+function industryLabel(
+  t: PartnerWebsiteCopy,
+  industryKey: 'fashion' | 'hotel' | 'food' | 'other' | null | undefined
+): string {
+  if (industryKey === 'hotel') return t.industryLabelHotel
+  if (industryKey === 'food') return t.industryLabelFood
+  if (industryKey === 'other') return t.industryLabelOther
+  return t.industryLabelFashion
 }
 
 export function PartnerWebsiteCreationJournalPanel({
@@ -150,6 +171,8 @@ export function PartnerWebsiteCreationJournalPanel({
   partnerId,
   partnerTitle,
   defaultBrandName,
+  industryKey = 'fashion',
+  partnerSlug,
   website,
   logoUrl,
   onLogoUrlChange,
@@ -160,6 +183,9 @@ export function PartnerWebsiteCreationJournalPanel({
   onJournalChange,
   onBusyChange,
   domainSlot,
+  onCollapse,
+  onLiveThemeChange,
+  onThemePersisted,
 }: Props) {
   const [journal, setJournal] = useState<PartnerWebsiteCreationJournal | null>(null)
   const [pages, setPages] = useState<PagePickerItem[]>([])
@@ -176,11 +202,26 @@ export function PartnerWebsiteCreationJournalPanel({
   const [logoUploadBusy, setLogoUploadBusy] = useState(false)
   const [brandSaving, setBrandSaving] = useState(false)
   const [setupBrand, setSetupBrand] = useState('')
-  const [selectedPresetId, setSelectedPresetId] = useState<ShopTemplatePresetId>(
-    DEFAULT_SHOP_TEMPLATE_PRESET_ID
+  const [selectedPresetId, setSelectedPresetId] = useState<ShopTemplatePresetId>(() =>
+    suggestedShopTemplatePresetForIndustry(industryKey)
   )
   const [templateLibraryOpen, setTemplateLibraryOpen] = useState(true)
+  const { saving: themeSaving, schedule: scheduleThemeSave } = useDebouncedThemeSave(
+    partnerId,
+    (savedTheme) => onThemePersisted?.(savedTheme),
+    () => onError(t.themeColorSaveError)
+  )
   const shopPresets = useMemo(() => listShopTemplatePresets(), [])
+  const suggestedPresetId = suggestedShopTemplatePresetForIndustry(industryKey)
+  const appliedPresetId =
+    website?.templateId && isShopTemplatePresetId(website.templateId) ? website.templateId : null
+  const orderedPresets = useMemo(() => {
+    return [...shopPresets].sort((a, b) => {
+      if (a.id === suggestedPresetId && b.id !== suggestedPresetId) return -1
+      if (b.id === suggestedPresetId && a.id !== suggestedPresetId) return 1
+      return 0
+    })
+  }, [shopPresets, suggestedPresetId])
   const homeBuilt = Boolean(
     (website && isHomePageBuilt(website.creationJournals)) ||
       pages.some((p) => p.key === 'home' && p.status === 'built')
@@ -192,6 +233,10 @@ export function PartnerWebsiteCreationJournalPanel({
     setPages([])
     setTemplateLibraryOpen(true)
   }, [partnerId])
+
+  useEffect(() => {
+    setSelectedPresetId(appliedPresetId ?? suggestedPresetId)
+  }, [appliedPresetId, suggestedPresetId])
 
   useEffect(() => {
     onBusyChange?.(busy || initBusy || brandSaving)
@@ -424,17 +469,64 @@ export function PartnerWebsiteCreationJournalPanel({
     }
   }
 
+  function handleThemeLive(next: PartnerWebsiteTheme) {
+    onLiveThemeChange?.(next)
+    if (website) scheduleThemeSave(next)
+  }
+
+  function handleSelectPresetLook(presetId: ShopTemplatePresetId) {
+    setSelectedPresetId(presetId)
+    const preset = shopPresets.find((p) => p.id === presetId)
+    if (!preset || !website) return
+    handleThemeLive(themeFromPresetPartial(website.theme, preset.theme))
+  }
+
   const logoPreviewUrl = logoUrl.trim()
   const controlsDisabled = busy || disabled || buildingSite || initBusy
+  const shopName = setupBrand.trim() || defaultBrandName?.trim() || partnerTitle.trim() || 'Shop'
+  const industryText = industryLabel(t, industryKey)
+  const contextTemplate = shopTemplatePresetLabel(
+    shopPresets.find((p) => p.id === (appliedPresetId ?? suggestedPresetId)) ?? shopPresets[0]!,
+    locale
+  )
+  const contextText = (homeBuilt && appliedPresetId ? t.editingContextApplied : t.editingContextDefault)
+    .replace('{shop}', shopName)
+    .replace('{industry}', industryText)
+    .replace('{template}', contextTemplate)
+  const connected188 = looksLikeConnected188Shop({
+    slug: partnerSlug,
+    display_name: partnerTitle,
+    brand_name: defaultBrandName,
+  })
 
   return (
     <Card className="flex h-full min-h-0 flex-col">
-      <CardHeader className="shrink-0 space-y-2 pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <LayoutTemplate className="h-4 w-4" />
-          {t.setupStepsTitle}
+      <CardHeader className="shrink-0 space-y-1.5 px-3 pb-2 pt-3">
+        <CardTitle className="flex items-center gap-2 text-[13px] font-semibold leading-none">
+          <LayoutTemplate className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{t.setupStepsTitle}</span>
+          {onCollapse ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={onCollapse}
+              aria-label={t.setupPanelCollapse}
+              title={t.setupPanelCollapse}
+            >
+              <PanelLeftClose className="h-3.5 w-3.5" aria-hidden />
+            </Button>
+          ) : null}
         </CardTitle>
-        <CardDescription>{t.setupStepsHint}</CardDescription>
+        <div className="rounded-md border border-sky-200 bg-sky-50/80 px-2 py-1.5 dark:border-sky-900/60 dark:bg-sky-950/30">
+          <p className="text-[11px] leading-snug text-sky-950 dark:text-sky-100">{contextText}</p>
+          {connected188 ? (
+            <p className="mt-0.5 text-[10px] text-sky-800 dark:text-sky-200">
+              {t.editingContextConnected.replace('{host}', '188.com.vn')}
+            </p>
+          ) : null}
+        </div>
         {(buildingSite || Boolean(buildFailedStepId)) && buildSteps.length > 0 ? (
           <StudioBuildProgressList
             t={t}
@@ -446,52 +538,64 @@ export function PartnerWebsiteCreationJournalPanel({
         ) : null}
       </CardHeader>
 
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 pt-0">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3 pt-0">
         {initBusy && pages.length === 0 ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
             {t.journalLoading}
           </p>
         ) : null}
 
-        <section className="space-y-2 rounded-xl border border-border/70 bg-muted/10 p-3">
-          <div className="flex items-center gap-2">
+        <section className="space-y-1.5 rounded-lg border border-border/70 bg-muted/10 p-2.5">
+          <div className="flex items-center gap-1.5">
             <StepBadge n={1} done={setupBrand.trim().length >= 2} />
-            <div>
-              <p className="text-sm font-semibold">{t.setupStep1Title}</p>
-              <p className="text-[11px] text-muted-foreground">{t.setupStep1Hint}</p>
-            </div>
+            <p className="text-[13px] font-semibold leading-none">{t.setupStep1Title}</p>
           </div>
-          <Input
-            value={setupBrand}
-            onChange={(e) => setSetupBrand(e.target.value)}
-            placeholder={t.titleLabel}
-            disabled={controlsDisabled || brandSaving}
-          />
-          <p className="text-xs font-medium">{t.logoLabel}</p>
-          {logoPreviewUrl && /^https?:\/\//i.test(logoPreviewUrl) ? (
-            <div className="flex flex-wrap items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={logoPreviewUrl}
-                alt=""
-                className="h-14 max-w-[160px] rounded border bg-white object-contain p-1"
-              />
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={setupBrand}
+              onChange={(e) => setSetupBrand(e.target.value)}
+              placeholder={t.titleLabel}
+              disabled={controlsDisabled || brandSaving}
+              className="h-8 text-sm"
+            />
+            {website ? (
               <Button
                 type="button"
-                variant="outline"
                 size="sm"
-                disabled={controlsDisabled || logoUploadBusy}
-                onClick={() => {
-                  onLogoUrlChange('')
-                  if (website) void saveBrand('')
-                }}
+                className="h-8 shrink-0 px-2.5 text-xs"
+                disabled={controlsDisabled || brandSaving || setupBrand.trim().length < 2}
+                onClick={() => void saveBrand()}
               >
-                {t.logoRemove}
+                {brandSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                {t.setupBrandSave}
               </Button>
-            </div>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {logoPreviewUrl && /^https?:\/\//i.test(logoPreviewUrl) ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={logoPreviewUrl}
+                  alt=""
+                  className="h-8 max-w-[96px] rounded border bg-white object-contain p-0.5"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  disabled={controlsDisabled || logoUploadBusy}
+                  onClick={() => {
+                    onLogoUrlChange('')
+                    if (website) void saveBrand('')
+                  }}
+                >
+                  {t.logoRemove}
+                </Button>
+              </>
+            ) : null}
             <input
               ref={logoFileRef}
               type="file"
@@ -507,47 +611,34 @@ export function PartnerWebsiteCreationJournalPanel({
               type="button"
               variant="outline"
               size="sm"
+              className="h-8 px-2.5 text-xs"
               disabled={controlsDisabled || logoUploadBusy || !partnerId}
               onClick={() => logoFileRef.current?.click()}
             >
               {logoUploadBusy ? (
-                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <ImagePlus className="mr-1 h-3.5 w-3.5" />
+                <ImagePlus className="h-3.5 w-3.5" />
               )}
               {t.logoUpload}
             </Button>
-            {website ? (
-              <Button
-                type="button"
-                size="sm"
-                disabled={controlsDisabled || brandSaving || setupBrand.trim().length < 2}
-                onClick={() => void saveBrand()}
-              >
-                {brandSaving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-                {t.setupBrandSave}
-              </Button>
-            ) : null}
           </div>
         </section>
 
-        <section className="space-y-2 rounded-xl border border-orange-200 bg-orange-50/40 p-3 dark:border-orange-900/50 dark:bg-orange-950/20">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-start gap-2">
+        <section className="space-y-1.5 rounded-lg border border-orange-200 bg-orange-50/40 p-2.5 dark:border-orange-900/50 dark:bg-orange-950/20">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex min-w-0 items-center gap-1.5">
               <StepBadge n={2} done={homeBuilt} />
-              <div>
-                <p className="text-sm font-semibold text-orange-950 dark:text-orange-100">
-                  {t.setupStep2Title}
-                </p>
-                <p className="text-[11px] text-muted-foreground">{t.setupStep2Hint}</p>
-              </div>
+              <p className="truncate text-[13px] font-semibold text-orange-950 dark:text-orange-100">
+                {t.setupStep2Title}
+              </p>
             </div>
             {homeBuilt ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="shrink-0"
+                className="h-7 shrink-0 px-2 text-xs"
                 onClick={() => setTemplateLibraryOpen((open) => !open)}
               >
                 {templateLibraryOpen ? t.templateGalleryCloseLibrary : t.pagePickerChangeTemplate}
@@ -556,25 +647,27 @@ export function PartnerWebsiteCreationJournalPanel({
           </div>
 
           {templateLibraryOpen || !homeBuilt ? (
-            <div className="grid gap-3">
-              {shopPresets.map((preset) => {
+            <div className="grid gap-2">
+              {orderedPresets.map((preset) => {
                 const selected = selectedPresetId === preset.id
+                const inUse = appliedPresetId === preset.id
+                const suggested = !inUse && suggestedPresetId === preset.id
                 const previewHref = shopTemplateSamplePreviewPath(preset.id, locale)
                 return (
                   <div
                     key={preset.id}
                     className={cn(
-                      'overflow-hidden rounded-xl border-2 bg-background transition-colors',
-                      selected ? 'border-orange-500 ring-2 ring-orange-500/20' : 'border-border'
+                      'overflow-hidden rounded-lg border bg-background transition-colors',
+                      selected ? 'border-orange-500 ring-1 ring-orange-500/20' : 'border-border'
                     )}
                   >
                     <button
                       type="button"
                       disabled={controlsDisabled}
-                      onClick={() => setSelectedPresetId(preset.id)}
+                      onClick={() => handleSelectPresetLook(preset.id)}
                       className="block w-full text-left"
                     >
-                      <div className="relative aspect-[16/9] overflow-hidden bg-orange-50">
+                      <div className="relative aspect-[2/1] overflow-hidden bg-orange-50">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={preset.coverImageUrl}
@@ -582,22 +675,31 @@ export function PartnerWebsiteCreationJournalPanel({
                           className="h-full w-full object-cover"
                         />
                         {preset.readyToUse ? (
-                          <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                          <span className="absolute left-1.5 top-1.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
                             {t.templateGalleryReadyBadge}
                           </span>
                         ) : null}
+                        {inUse ? (
+                          <span className="absolute right-1.5 top-1.5 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                            {t.templateInUseBadge}
+                          </span>
+                        ) : suggested ? (
+                          <span className="absolute right-1.5 top-1.5 rounded-full bg-sky-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                            {t.templateSuggestedBadge}
+                          </span>
+                        ) : null}
                       </div>
-                      <div className="space-y-1 p-3">
-                        <p className="text-sm font-semibold">
+                      <div className="space-y-0.5 px-2 py-1.5">
+                        <p className="text-[13px] font-semibold leading-snug">
                           {shopTemplatePresetLabel(preset, locale)}
                         </p>
-                        <p className="text-[11px] leading-snug text-muted-foreground">
+                        <p className="line-clamp-2 text-[10px] leading-snug text-muted-foreground">
                           {shopTemplatePresetDescription(preset, locale)}
                         </p>
                       </div>
                     </button>
-                    <div className="flex flex-wrap gap-2 border-t border-border/60 px-3 py-2.5">
-                      <Button type="button" size="sm" variant="outline" asChild>
+                    <div className="flex flex-wrap gap-1.5 border-t border-border/60 px-2 py-1.5">
+                      <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" asChild>
                         <a href={previewHref} target="_blank" rel="noopener noreferrer">
                           {t.templateGalleryViewSample}
                         </a>
@@ -605,11 +707,12 @@ export function PartnerWebsiteCreationJournalPanel({
                       <Button
                         type="button"
                         size="sm"
+                        className="h-7 px-2 text-xs"
                         disabled={controlsDisabled || setupBrand.trim().length < 2}
                         onClick={() => void applyTemplate(preset.id)}
                       >
                         {busy || buildingSite ? (
-                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : null}
                         {homeBuilt ? t.pagePickerChangeTemplate : t.templateGalleryUseTemplate}
                       </Button>
@@ -619,34 +722,43 @@ export function PartnerWebsiteCreationJournalPanel({
               })}
             </div>
           ) : null}
+
+          {website ? (
+            <PartnerWebsiteThemeColorPicker
+              t={t}
+              theme={website.theme}
+              disabled={controlsDisabled}
+              saving={themeSaving}
+              onLiveChange={handleThemeLive}
+            />
+          ) : null}
         </section>
 
         {homeBuilt ? (
-          <section className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-            <div className="flex items-start gap-2">
+          <section className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+            <div className="flex items-center gap-1.5">
               <StepBadge n={3} done />
-              <div>
-                <p className="text-sm font-semibold text-emerald-950 dark:text-emerald-100">
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold leading-none text-emerald-950 dark:text-emerald-100">
                   {t.setupStep3Title}
                 </p>
-                <p className="text-[11px] text-muted-foreground">{t.setupStep3Hint}</p>
+                <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{t.setupStep3Hint}</p>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">{t.journalEditSectionHint}</p>
           </section>
         ) : null}
 
         {homeBuilt ? (
-          <section className="space-y-2 rounded-xl border border-border/70 bg-muted/10 p-3">
-            <div className="flex items-start gap-2">
+          <section className="space-y-1.5 rounded-lg border border-border/70 bg-muted/10 p-2.5">
+            <div className="flex items-center gap-1.5">
               <StepBadge n={4} />
-              <div>
-                <p className="text-sm font-semibold">{t.setupStep4Title}</p>
-                <p className="text-[11px] text-muted-foreground">{t.setupStep4Hint}</p>
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold leading-none">{t.setupStep4Title}</p>
+                <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{t.setupStep4Hint}</p>
               </div>
             </div>
             {website?.siteSlug ? (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground">
                 {t.setupLiveUrlLabel}:{' '}
                 <code className="rounded bg-background px-1 py-0.5">/site/{website.siteSlug}</code>
               </p>
@@ -656,14 +768,10 @@ export function PartnerWebsiteCreationJournalPanel({
         ) : null}
 
         {homeBuilt ? (
-          <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3 dark:border-sky-900/50 dark:bg-sky-950/20">
-            <p className="text-sm font-semibold text-sky-950 dark:text-sky-100">
-              {t.setupSellReadyTitle}
-            </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-              {t.setupSellReadyHint}
-            </p>
-          </div>
+          <p className="rounded-lg border border-sky-200 bg-sky-50/60 px-2.5 py-1.5 text-[11px] leading-snug text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/20 dark:text-sky-100">
+            <span className="font-semibold">{t.setupSellReadyTitle}. </span>
+            {t.setupSellReadyHint}
+          </p>
         ) : null}
       </CardContent>
     </Card>

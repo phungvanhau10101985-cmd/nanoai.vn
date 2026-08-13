@@ -8,6 +8,13 @@ export type PartnerWebsiteTheme = {
   backgroundColor: string
   textColor: string
   mutedColor: string
+  /** Nút Mua hàng — mặc định = primaryColor. */
+  buyButtonColor?: string
+  /** Nút Thêm giỏ — mặc định xám phụ trợ. */
+  cartButtonColor?: string
+  /** Nền nhạt (hover / card wash). */
+  surfaceColor?: string
+  borderColor?: string
   fontFamily: string
   logoUrl?: string | null
   /**
@@ -74,6 +81,11 @@ export const DEFAULT_PARTNER_WEBSITE_THEME: PartnerWebsiteTheme = {
   backgroundColor: '#ffffff',
   textColor: '#1f2937',
   mutedColor: '#6b7280',
-  fontFamily: '"Outfit", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+  buyButtonColor: '#f97316',
+  cartButtonColor: '#6b7280',
+  surfaceColor: '#fff7ed',
+  borderColor: '#e5e7eb',
+  fontFamily:
+    '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
   logoUrl: null,
 }

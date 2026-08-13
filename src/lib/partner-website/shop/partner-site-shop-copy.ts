@@ -248,6 +248,14 @@ export type PartnerSiteShopCopy = {
   qaVerifiedBadge: string
   qaAdminBadge: string
   qaNoAnswersYet: string
+  footerColShop: string
+  footerColShopping: string
+  footerColSupport: string
+  footerColLegal: string
+  footerBrandHint: string
+  /** Tokens `{year}` `{shop}` */
+  footerCopyright: string
+  footerPaymentHint: string
 }
 
 const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
@@ -487,6 +495,13 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaVerifiedBadge: 'Đã mua hàng',
     qaAdminBadge: 'Chủ shop',
     qaNoAnswersYet: 'Chưa có câu trả lời.',
+    footerColShop: 'Cửa hàng',
+    footerColShopping: 'Mua sắm',
+    footerColSupport: 'Hỗ trợ khách hàng',
+    footerColLegal: 'Chính sách',
+    footerBrandHint: 'Mua sắm trực tuyến — sản phẩm đúng mô tả, giao hàng toàn quốc.',
+    footerCopyright: '© {year} {shop}. Bảo lưu mọi quyền.',
+    footerPaymentHint: 'Thanh toán: COD · Chuyển khoản',
   },
   en: {
     navHome: 'Home',
@@ -724,6 +739,13 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaVerifiedBadge: 'Verified buyer',
     qaAdminBadge: 'Shop owner',
     qaNoAnswersYet: 'No answers yet.',
+    footerColShop: 'Shop',
+    footerColShopping: 'Shopping',
+    footerColSupport: 'Customer support',
+    footerColLegal: 'Policies',
+    footerBrandHint: 'Shop online — products as described, nationwide delivery.',
+    footerCopyright: '© {year} {shop}. All rights reserved.',
+    footerPaymentHint: 'Payment: COD · Bank transfer',
   },
   zh: {
     navHome: '首页',
@@ -961,6 +983,13 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaVerifiedBadge: '已购买',
     qaAdminBadge: '店主',
     qaNoAnswersYet: '暂无回答。',
+    footerColShop: '店铺',
+    footerColShopping: '购物',
+    footerColSupport: '客户支持',
+    footerColLegal: '政策',
+    footerBrandHint: '在线购物 — 描述相符，全国配送。',
+    footerCopyright: '© {year} {shop}。保留所有权利。',
+    footerPaymentHint: '支付：货到付款 · 银行转账',
   },
   ja: {
     navHome: 'ホーム',
@@ -1198,6 +1227,13 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaVerifiedBadge: '購入者',
     qaAdminBadge: 'ショップオーナー',
     qaNoAnswersYet: 'まだ回答がありません。',
+    footerColShop: 'ショップ',
+    footerColShopping: 'ショッピング',
+    footerColSupport: 'カスタマーサポート',
+    footerColLegal: 'ポリシー',
+    footerBrandHint: 'オンラインショップ — 記載どおりの商品、全国配送。',
+    footerCopyright: '© {year} {shop}. 無断転載を禁じます。',
+    footerPaymentHint: '支払い：代金引換 · 銀行振込',
   },
   ko: {
     navHome: '홈',
@@ -1435,6 +1471,13 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaVerifiedBadge: '구매 확인',
     qaAdminBadge: '판매자',
     qaNoAnswersYet: '아직 답변이 없습니다.',
+    footerColShop: '스토어',
+    footerColShopping: '쇼핑',
+    footerColSupport: '고객 지원',
+    footerColLegal: '약관',
+    footerBrandHint: '온라인 쇼핑 — 설명과 일치하는 상품, 전국 배송.',
+    footerCopyright: '© {year} {shop}. 모든 권리 보유.',
+    footerPaymentHint: '결제: 착불 · 계좌이체',
   },
 }
 

@@ -37,6 +37,7 @@ import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website
 import { PartnerSiteShopAddressesClient } from '@/components/partner-website/shop/partner-site-shop-addresses-client'
 import { usePartnerSiteChatWidget } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import { usePartnerPwaInstall } from '@/lib/partner-website/shop/partner-site-pwa-install'
 import type { PartnerSiteVisitorProfile } from '@/lib/partner-website/shop/partner-site-personalization'
 
 type AccountTab = PartnerSiteAccountTab
@@ -61,11 +62,6 @@ type NotificationItem = {
   href: string
   readAt: string | null
   createdAt: string
-}
-
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
 type Props = {
@@ -107,9 +103,7 @@ export function PartnerSiteShopAccountClient({
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [notificationsLoading, setNotificationsLoading] = useState(false)
   const [showReAuth, setShowReAuth] = useState(false)
-  const [deferredInstall, setDeferredInstall] = useState<BeforeInstallPromptEvent | null>(null)
-  const [isStandalone, setIsStandalone] = useState(false)
-  const [isIos, setIsIos] = useState(false)
+  const { deferredInstall, isStandalone, isIos, promptInstall } = usePartnerPwaInstall()
   const { openChat } = usePartnerSiteChatWidget()
 
   const navigateTab = useCallback(
@@ -217,23 +211,6 @@ export function PartnerSiteShopAccountClient({
       .finally(() => setNotificationsLoading(false))
   }, [activeTab, authHeaders, captureFromResponse, needsAuth, ready, siteSlug])
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const win = window as Window & { MSStream?: boolean; standalone?: boolean }
-    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !win.MSStream
-    const standalone =
-      win.standalone === true || window.matchMedia('(display-mode: standalone)').matches
-    setIsIos(ios)
-    setIsStandalone(standalone)
-    if (standalone) return
-    const handler = (e: Event) => {
-      e.preventDefault()
-      setDeferredInstall(e as BeforeInstallPromptEvent)
-    }
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
-  }, [])
-
   function copyVoucherCode(code: string) {
     void navigator.clipboard?.writeText(code)
     setCopiedCode(code)
@@ -313,10 +290,7 @@ export function PartnerSiteShopAccountClient({
   }
 
   async function handleInstallApp() {
-    if (!deferredInstall) return
-    await deferredInstall.prompt()
-    const { outcome } = await deferredInstall.userChoice
-    if (outcome === 'accepted') setDeferredInstall(null)
+    await promptInstall()
   }
 
   const displayName =

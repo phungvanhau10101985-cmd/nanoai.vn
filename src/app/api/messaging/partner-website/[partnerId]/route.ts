@@ -23,6 +23,12 @@ import {
   ensureBrandLogoInProject,
 } from '@/lib/partner-website/partner-website-logo-guard'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
+import {
+  mergeShopThemeColors,
+  parseThemeColorPatch,
+  rewriteThemeCssVarsInHtml,
+} from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 export async function GET(
   req: NextRequest,
@@ -105,6 +111,7 @@ export async function PATCH(
       | 'save_draft'
       | 'update_floating_cta'
       | 'update_brand'
+      | 'update_theme_colors'
       | 'undo_last'
     floatingCta?: unknown
     title?: string
@@ -186,6 +193,45 @@ export async function PATCH(
       changeNote: 'update_brand',
     })
     if (!updated) return NextResponse.json({ error: 'Could not save brand' }, { status: 500 })
+    const publicUrl = await resolvePartnerWebsitePublicUrl({
+      partnerId: pid,
+      siteSlug: updated.siteSlug,
+      isPublished: updated.isPublished,
+      req,
+    })
+    return NextResponse.json({ success: true, website: updated, publicUrl })
+  }
+
+  if (body.action === 'update_theme_colors') {
+    const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
+    if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
+    const patch = parseThemeColorPatch(body.theme)
+    if (!patch) {
+      return NextResponse.json({ error: 'Invalid theme colors' }, { status: 400 })
+    }
+    const nextTheme: PartnerWebsiteTheme = mergeShopThemeColors(existing.theme, patch)
+    const visualHtml = existing.theme?.useVisualHtml
+      ? rewriteThemeCssVarsInHtml(
+          existing.htmlSource?.trim() || composeStandaloneHtml(existing.project) || '',
+          nextTheme
+        )
+      : undefined
+    const nextProject =
+      existing.renderMode === 'template'
+        ? syncTemplateToProject({
+            templateId: existing.templateId,
+            theme: nextTheme,
+            pages: existing.pages,
+          })
+        : existing.project
+    const updated = await updatePartnerWebsiteDraftPg({
+      partnerId: pid,
+      theme: nextTheme,
+      project: nextProject,
+      htmlSource: visualHtml,
+      changeNote: 'update_theme_colors',
+    })
+    if (!updated) return NextResponse.json({ error: 'Could not save theme colors' }, { status: 500 })
     const publicUrl = await resolvePartnerWebsitePublicUrl({
       partnerId: pid,
       siteSlug: updated.siteSlug,

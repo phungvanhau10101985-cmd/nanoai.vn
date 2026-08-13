@@ -39,8 +39,28 @@ const AFTER_SALES_NOT_CHECKOUT_RE = new RegExp(
     String.raw`cọc.{0,20}(?:không|ko|nhỉ)`,
     String.raw`\bcheck\s*(?:giúp|đơn|don|order|sđt|sdt)\b`,
     String.raw`\btình\s*trạng\s*(?:đơn|don)\b`,
+    String.raw`kiểm\s*tra.{0,48}(?:đơn|don|sđt|sdt)`,
+    String.raw`kiem\s*tra.{0,48}(?:don|sdt)`,
+    String.raw`(?:đơn|don).{0,40}(?:gửi|gui|giao)\s*(?:chưa|chua|đến|den|tới|toi|đâu|dau)?`,
+    String.raw`gửi\s*chưa`,
+    String.raw`gui\s*chua`,
+    String.raw`gửi\s*(?:đến|tới|toi)\s*đâu`,
+    String.raw`gui\s*(?:den|toi)\s*dau`,
+    String.raw`đơn\s+của\s+(?:mình|tôi|em|anh|chị)`,
+    String.raw`don\s+cua\s+(?:minh|toi)`,
+    String.raw`\b(?:sđt|sdt)\b.{0,32}(?:đơn|don|kiểm|kiem)`,
+    String.raw`(?:đơn|don).{0,32}(?:sđt|sdt|điện\s*thoại|dien\s*thoai)`,
     String.raw`\btrack(?:ing)?\s+(?:my\s+)?order\b`,
     String.raw`\bwhere\s+is\s+my\s+order\b`,
+    String.raw`hàng.{0,40}(?:đến|den|tới|toi)\s*đâu`,
+    String.raw`hang.{0,40}(?:den|toi)\s*dau`,
+    String.raw`hàng.{0,40}gửi\s*chưa`,
+    String.raw`hang.{0,40}gui\s*chua`,
+    String.raw`chưa\s*nhận\s*được`,
+    String.raw`chua\s*nhan\s*duoc`,
+    String.raw`sao\s+chưa\s+nhận`,
+    String.raw`đến\s*đâu\s*rồi`,
+    String.raw`den\s*dau\s*roi`,
   ].join('|'),
   'i'
 )
@@ -140,6 +160,11 @@ export function inboundTextLooksLikeAfterSalesNotCheckout(raw: string): boolean 
   const msg = normalizeCustomerMessageForInventorySearch(raw)
   if (!msg) return false
   return AFTER_SALES_NOT_CHECKOUT_RE.test(msg)
+}
+
+/** Hỏi tình trạng hàng/đơn — kể cả chưa nêu mã DH (dùng SĐT tin này hoặc tin trước). */
+export function inboundTextLooksLikeOrderStatusAsk(raw: string): boolean {
+  return inboundTextLooksLikeAfterSalesNotCheckout(raw)
 }
 
 export function inboundTextLooksLikePurchasePickListIntent(raw: string): boolean {

@@ -219,6 +219,75 @@ function parseHit(payload: Record<string, unknown>, httpStatus: number): Partner
   }
 }
 
+function lookupQueryParam(query: ShippingLookupQuery): 'order_code' | 'phone' | 'ems_code' | 'q' {
+  if (query.type === 'order_code') return 'order_code'
+  if (query.type === 'phone') return 'phone'
+  if (query.type === 'ems_code') return 'ems_code'
+  return 'q'
+}
+
+function isEndpointMissing404(httpStatus: number, rec: Record<string, unknown>, detail: string): boolean {
+  if (httpStatus !== 404) return false
+  const err = str(rec.error, 80).toLowerCase()
+  return err === 'endpoint not found' || /available_paths_sample/i.test(JSON.stringify(rec)) || /endpoint not found/i.test(detail)
+}
+
+function outcomeFromLookupHttp(
+  httpStatus: number,
+  rec: Record<string, unknown>,
+  detail: string
+): PartnerShippingLookupOutcome {
+  if (httpStatus === 200) {
+    const hit = parseHit(rec, httpStatus)
+    return hit
+      ? { ok: true, hit }
+      : { ok: false, httpStatus, detail: detail || 'Invalid lookup payload.' }
+  }
+  return {
+    ok: false,
+    httpStatus,
+    detail: detail || (httpStatus === 401 ? 'Unauthorized' : httpStatus === 404 ? 'Not found' : `HTTP ${httpStatus}`),
+  }
+}
+
+async function fetchShippingLookupHttp(
+  endpoint: URL,
+  apiKey: string,
+  init: { method: 'GET' | 'POST'; body?: string }
+): Promise<PartnerShippingLookupOutcome> {
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), LOOKUP_TIMEOUT_MS)
+  try {
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'X-Api-Key': apiKey,
+    }
+    if (init.method === 'POST') headers['Content-Type'] = 'application/json'
+    const resp = await fetch(endpoint.toString(), {
+      method: init.method,
+      headers,
+      body: init.body,
+      signal: ac.signal,
+      redirect: 'error',
+    })
+    const httpStatus = resp.status
+    let body: unknown = null
+    try {
+      body = await resp.json()
+    } catch {
+      body = null
+    }
+    const rec = body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : {}
+    const detail = str(rec.detail || rec.error || rec.message, 240)
+    return outcomeFromLookupHttp(httpStatus, rec, detail)
+  } catch (e) {
+    const aborted = e instanceof Error && e.name === 'AbortError'
+    return { ok: false, httpStatus: 0, detail: aborted ? 'Lookup timeout.' : 'Lookup request failed.' }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function lookupPartnerShipping(input: {
   url: string
   apiKey: string
@@ -233,59 +302,26 @@ export async function lookupPartnerShipping(input: {
   const cached = cacheGet(cacheKey)
   if (cached) return cached
 
-  const param =
-    input.query.type === 'order_code'
-      ? 'order_code'
-      : input.query.type === 'phone'
-        ? 'phone'
-        : input.query.type === 'ems_code'
-          ? 'ems_code'
-          : 'q'
-  const endpoint = new URL(parsed.toString())
-  endpoint.searchParams.set(param, input.query.value)
-
-  const ac = new AbortController()
-  const timer = setTimeout(() => ac.abort(), LOOKUP_TIMEOUT_MS)
-  try {
-    const resp = await fetch(endpoint.toString(), {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'X-Api-Key': key,
-      },
-      signal: ac.signal,
-      redirect: 'error',
-    })
-    const httpStatus = resp.status
-    let body: unknown = null
-    try {
-      body = await resp.json()
-    } catch {
-      body = null
-    }
-    const rec = body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : {}
-    const detail = str(rec.detail || rec.error || rec.message, 240)
-    if (httpStatus === 200) {
-      const hit = parseHit(rec, httpStatus)
-      const outcome: PartnerShippingLookupOutcome = hit
-        ? { ok: true, hit }
-        : { ok: false, httpStatus, detail: detail || 'Invalid lookup payload.' }
-      cacheSet(cacheKey, outcome)
-      return outcome
-    }
-    const outcome: PartnerShippingLookupOutcome = {
-      ok: false,
-      httpStatus,
-      detail: detail || (httpStatus === 401 ? 'Unauthorized' : httpStatus === 404 ? 'Not found' : `HTTP ${httpStatus}`),
-    }
-    if (httpStatus === 404) cacheSet(cacheKey, outcome)
-    return outcome
-  } catch (e) {
-    const aborted = e instanceof Error && e.name === 'AbortError'
-    return { ok: false, httpStatus: 0, detail: aborted ? 'Lookup timeout.' : 'Lookup request failed.' }
-  } finally {
-    clearTimeout(timer)
+  const param = lookupQueryParam(input.query)
+  const postUrl = new URL(parsed.toString())
+  postUrl.search = ''
+  const postOutcome = await fetchShippingLookupHttp(postUrl, key, {
+    method: 'POST',
+    body: JSON.stringify({ [param]: input.query.value }),
+  })
+  const postMissing =
+    !postOutcome.ok && isEndpointMissing404(postOutcome.httpStatus, { error: postOutcome.detail }, postOutcome.detail)
+  const postAuthFail = postOutcome.httpStatus === 401 || postOutcome.httpStatus === 503
+  if (postOutcome.ok || (!postMissing && (postOutcome.httpStatus === 404 || postOutcome.httpStatus === 400 || postAuthFail))) {
+    if (postOutcome.ok || postOutcome.httpStatus === 404) cacheSet(cacheKey, postOutcome)
+    return postOutcome
   }
+
+  const getUrl = new URL(parsed.toString())
+  getUrl.searchParams.set(param, input.query.value)
+  const getOutcome = await fetchShippingLookupHttp(getUrl, key, { method: 'GET' })
+  if (getOutcome.ok || getOutcome.httpStatus === 404) cacheSet(cacheKey, getOutcome)
+  return getOutcome
 }
 
 export async function lookupPartnerShippingFromPg(
@@ -446,4 +482,91 @@ export function formatShippingLookupCustomerReply(
   ]
     .filter(Boolean)
     .join('\n')
+}
+
+/** Lookup không ra đơn — vẫn trả khách, không đẩy sang LLM bán hàng. */
+export function formatShippingLookupMissReply(
+  query: ShippingLookupQuery,
+  outcome: { httpStatus: number; detail: string },
+  uiLocale?: string | null
+): string {
+  const loc = locPrefix(uiLocale)
+  const isPhone = query.type === 'phone'
+  const code = query.type === 'order_code' || query.type === 'ems_code' ? query.value : ''
+  const notFound =
+    outcome.httpStatus === 404 ||
+    /not found|không tìm thấy|khong tim thay|endpoint not found/i.test(outcome.detail || '')
+
+  if (loc.startsWith('en')) {
+    if (notFound && isPhone) {
+      return 'We could not find an order for this phone number. Please send the order code (DH…) or tracking number so we can check it right away.'
+    }
+    if (notFound && code) {
+      return `We could not find order ${code}. Please double-check the code, or send the phone number used when ordering / the tracking number.`
+    }
+    return 'We could not look up the order right now. Please send the order code (DH…) or tracking number and we will check again.'
+  }
+  if (loc.startsWith('zh')) {
+    if (notFound && isPhone) {
+      return '未查到该手机号的订单。请再发订单号（DH…）或运单号，我们马上帮您查。'
+    }
+    if (notFound && code) {
+      return `未找到订单 ${code}。请核对订单号，或发送下单手机号 / 运单号。`
+    }
+    return '暂时无法查询订单。请发送订单号（DH…）或运单号，我们再查一次。'
+  }
+  if (loc.startsWith('ja')) {
+    if (notFound && isPhone) {
+      return 'この電話番号の注文が見つかりませんでした。注文番号（DH…）または追跡番号を送っていただければすぐ確認します。'
+    }
+    if (notFound && code) {
+      return `注文 ${code} が見つかりませんでした。番号をご確認いただくか、注文時の電話番号 / 追跡番号をお送りください。`
+    }
+    return 'ただいま注文を確認できません。注文番号（DH…）または追跡番号をお送りください。'
+  }
+  if (loc.startsWith('ko')) {
+    if (notFound && isPhone) {
+      return '이 전화번호로 주문을 찾지 못했습니다. 주문번호(DH…) 또는 운송장 번호를 보내 주시면 바로 확인해 드릴게요.'
+    }
+    if (notFound && code) {
+      return `주문 ${code}을(를) 찾지 못했습니다. 번호를 다시 확인해 주시거나 주문 시 전화번호 / 운송장 번호를 보내 주세요.`
+    }
+    return '지금은 주문을 조회할 수 없습니다. 주문번호(DH…) 또는 운송장 번호를 보내 주세요.'
+  }
+  if (notFound && isPhone) {
+    return 'Dạ em chưa tìm thấy đơn theo số điện thoại chị gửi ạ. Chị gửi giúp em mã đơn (DH…) hoặc mã vận đơn để em tra chính xác hơn ạ.'
+  }
+  if (notFound && code) {
+    return `Dạ em chưa tìm thấy đơn ${code} ạ. Chị kiểm tra lại mã, hoặc gửi SĐT lúc đặt hàng / mã vận đơn giúp em nhé.`
+  }
+  return 'Dạ em chưa tra được đơn trên hệ thống lúc này ạ. Chị gửi giúp em mã đơn (DH…) hoặc mã vận đơn, em kiểm tra lại ngay ạ.'
+}
+
+/** Đã rõ ý tra đơn nhưng chưa có SĐT / mã DH / mã vận. */
+export function formatShippingLookupNeedIdReply(uiLocale?: string | null): string {
+  const loc = locPrefix(uiLocale)
+  if (loc.startsWith('en')) {
+    return 'Please send the phone number used when ordering, or the order code (DH…) / tracking number, and I will check the latest order right away.'
+  }
+  if (loc.startsWith('zh')) {
+    return '请发送下单手机号，或订单号（DH…）/ 运单号，我马上帮您查该号码的最新订单。'
+  }
+  if (loc.startsWith('ja')) {
+    return 'ご注文時の電話番号、または注文番号（DH…）／追跡番号を送っていただければ、最新の注文をすぐ確認します。'
+  }
+  if (loc.startsWith('ko')) {
+    return '주문 시 사용한 전화번호, 또는 주문번호(DH…) / 운송장 번호를 보내 주시면 최신 주문을 바로 확인해 드릴게요.'
+  }
+  return 'Dạ chị gửi giúp em số điện thoại lúc đặt hàng, hoặc mã đơn (DH…) / mã vận đơn — em tra đơn mới nhất theo số đó ngay ạ.'
+}
+
+export function extractShippingLookupQueryFromThread(
+  texts: string[],
+  opts?: { allowPhone?: boolean }
+): ShippingLookupQuery | null {
+  for (const text of texts) {
+    const q = extractShippingLookupQuery(text, opts)
+    if (q) return q
+  }
+  return null
 }

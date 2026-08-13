@@ -543,7 +543,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
 
       // Không thêm độ trễ «đang gõ» sau khi LLM đã trả lời — API đã tốn thời gian.
       let parsed = parsePartnerAiLlmStructured(llm.text)
-      if (clarifyShoppingIntent) {
+      if (clarifyShoppingIntent || partnerAiRouteIntent === 'policy_or_order_support') {
         parsed = { ...parsed, products: [] }
       }
       if (
@@ -576,7 +576,12 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         parsed = { ...parsed, products: nextProducts }
       }
       /** Nhánh B — neo SP từ link/payload: clamp thẻ về đúng một dòng kho, tách khỏi carousel tìm rộng. */
-      if (!clarifyShoppingIntent && inboundAnchoredProductConsultBranch && inboundAnchoredConsultRow) {
+      if (
+        !clarifyShoppingIntent &&
+        partnerAiRouteIntent !== 'policy_or_order_support' &&
+        inboundAnchoredProductConsultBranch &&
+        inboundAnchoredConsultRow
+      ) {
         let nextProducts = parsed.products
         nextProducts = clampProductCardsToLastConsultedRow(nextProducts, inboundAnchoredConsultRow)
         if (nextProducts.length === 0) {

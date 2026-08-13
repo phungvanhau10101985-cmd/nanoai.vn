@@ -47,6 +47,8 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import {
   DEFAULT_PARTNER_SITE_FOOTER_LINKS,
+  PARTNER_SITE_FOOTER_COLUMN_ORDER,
+  groupPartnerSiteFooterLinks,
   normalizePartnerSiteNavLinks,
   resolvePartnerSiteNavHref,
   visibleSortedNavLinks,
@@ -61,6 +63,12 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
+import {
+  partnerSitePwaScope,
+  partnerSitePwaStartUrl,
+  partnerSitePwaSwPath,
+} from '@/lib/partner-website/shop/partner-site-pwa'
+import { ensurePartnerPwaInstallListener } from '@/lib/partner-website/shop/partner-site-pwa-install'
 
 type Props = {
   siteSlug: string
@@ -112,6 +120,13 @@ function PartnerSiteShopShellInner({
   const footerLinks = visibleSortedNavLinks(
     normalizePartnerSiteNavLinks(footerJson, DEFAULT_PARTNER_SITE_FOOTER_LINKS)
   )
+  const footerGroups = groupPartnerSiteFooterLinks(footerLinks)
+  const footerColumnTitle: Record<(typeof PARTNER_SITE_FOOTER_COLUMN_ORDER)[number], string> = {
+    shop: t.footerColShop,
+    shopping: t.footerColShopping,
+    support: t.footerColSupport,
+    legal: t.footerColLegal,
+  }
   const footerLabel = (hrefKey: string, override?: string | null) => {
     if (override?.trim()) return override.trim()
     const map: Record<string, string> = {
@@ -210,21 +225,17 @@ function PartnerSiteShopShellInner({
     void loadCartCount()
   }, [loadCartCount, ready])
 
-  // W5.5 — metadata provides the tenant manifest; storefront owns its own SW.
+  // W5.5 — per-shop SW (never NanoAI public/sw.js) + capture install prompt early.
   useEffect(() => {
-    const home = partnerSiteHomePath(siteSlug, { customDomain })
-    const swHref = customDomain
-      ? '/sw.js'
-      : `/site/${encodeURIComponent(siteSlug)}/sw.js`
-
+    ensurePartnerPwaInstallListener()
     if (!('serviceWorker' in navigator)) return
-    // Avoid registering on localhost draft noise; still OK for published custom domains.
-    const host = window.location.hostname
-    const isLocal = host === 'localhost' || host === '127.0.0.1'
-    if (isLocal && !customDomain) return
-    void navigator.serviceWorker.register(swHref, { scope: home.endsWith('/') ? home : `${home}/` }).catch(() => {
-      /* ignore */
-    })
+    const startUrl = partnerSitePwaStartUrl(siteSlug, customDomain)
+    const swHref = partnerSitePwaSwPath(siteSlug, customDomain)
+    void navigator.serviceWorker
+      .register(swHref, { scope: partnerSitePwaScope(startUrl) })
+      .catch(() => {
+        /* PWA remains optional when worker registration is unavailable. */
+      })
   }, [customDomain, siteSlug])
 
   // W4.8 — mega menu thật từ cây danh mục (active). Rỗng = shop chưa cấu hình danh mục
@@ -402,21 +413,41 @@ function PartnerSiteShopShellInner({
 
       <footer className="pw-shop-footer">
         <div className="pw-shop-footer-inner">
-          {/* W2.3 — 1 cột danh sách link từ footer_json (fallback default). */}
-          <div>
-            <h3>{title}</h3>
-            {footerLinks.map((item) => (
-              <Link
-                key={item.id}
-                href={resolvePartnerSiteNavHref(item.hrefKey, paths, infoPath)}
-              >
-                {footerLabel(item.hrefKey, item.labelOverride)}
-              </Link>
-            ))}
+          <div className="pw-shop-footer-brand">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="pw-shop-footer-logo" src={logoUrl} alt="" />
+            ) : null}
+            <p className="pw-shop-footer-name">{title}</p>
+            <p className="pw-shop-footer-hint">{t.footerBrandHint}</p>
           </div>
-          <div>
-            <p>{title}</p>
-          </div>
+          {PARTNER_SITE_FOOTER_COLUMN_ORDER.map((colId) => {
+            const items = footerGroups[colId]
+            if (!items.length) return null
+            const heading = footerColumnTitle[colId]
+            return (
+              <nav key={colId} className="pw-shop-footer-col" aria-label={heading}>
+                <h3>{heading}</h3>
+                <ul>
+                  {items.map((item) => (
+                    <li key={item.id}>
+                      <Link href={resolvePartnerSiteNavHref(item.hrefKey, paths, infoPath)}>
+                        {footerLabel(item.hrefKey, item.labelOverride)}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            )
+          })}
+        </div>
+        <div className="pw-shop-footer-bar">
+          <p>
+            {t.footerCopyright
+              .replace('{year}', String(new Date().getFullYear()))
+              .replace('{shop}', title)}
+          </p>
+          <p>{t.footerPaymentHint}</p>
         </div>
       </footer>
 

@@ -1030,6 +1030,7 @@ export async function buildPartnerAiContext(
       : null
   /** [Nhánh B] Tin kèm page_context (link/embed/thẻ) + đã resolve được dòng kho — khóa tư vấn một SP, không lẫn nhánh tìm rộng. */
   let inboundAnchoredProductConsultBranch =
+    partnerAiRouteIntent !== 'policy_or_order_support' &&
     !similarCatalogVersusLastConsulted &&
     explicitSkuRows.length > 0 &&
     Boolean(rawPayloadHasInboundProductPageContext(triggerRawPayload))
@@ -1060,6 +1061,7 @@ export async function buildPartnerAiContext(
   const forceSingleRowContextFromWidgetIntent =
     effectiveLocaleOpts?.channel === 'widget' &&
     widgetIntent === 'context_reply' &&
+    partnerAiRouteIntent !== 'policy_or_order_support' &&
     Boolean(contextReplySingleRow) &&
     !similarCatalogVersusLastConsulted
   if (forceSingleRowContextFromWidgetIntent && contextReplySingleRow) {
@@ -1101,9 +1103,9 @@ export async function buildPartnerAiContext(
   const useLastConsultedContext =
     !opensGeneralShopCatalog &&
     Boolean(lastConsultedRow) &&
+    partnerAiRouteIntent !== 'policy_or_order_support' &&
     (partnerAiRouteIntent === 'follow_up_current_product' ||
       partnerAiRouteIntent === 'purchase_or_order' ||
-      partnerAiRouteIntent === 'policy_or_order_support' ||
       shouldAugmentInventorySearchWithLastConsulted(latestCustomerMessage, {
         visionInventorySelected: Boolean(selectedInventoryId) && !followUpStyleMessage,
       }))

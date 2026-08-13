@@ -29,6 +29,8 @@ const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'sitemap.xml',
   'manifest.webmanifest',
   'sw.js',
+  'pw-shop-sw.js',
+  'pwa-icon',
 ])
 
 export function partnerSiteInternalPrefix(siteSlug: string): string {
@@ -65,6 +67,11 @@ export function mapPartnerCustomDomainPathToInternal(
     return null
   }
 
+  // Custom-domain `/sw.js` is NanoAI next-pwa. Shop workers use `/pw-shop-sw.js`.
+  if (root === 'pw-shop-sw.js' || root === 'sw.js') {
+    return `${prefix}/sw.js`
+  }
+
   return `${prefix}${path}`
 }
 
@@ -78,6 +85,7 @@ export function mapPartnerInternalPathToPublic(siteSlug: string, pathname: strin
   if (path === prefix) return '/'
   if (path.startsWith(`${prefix}/`)) {
     const tail = path.slice(prefix.length)
+    if (tail === '/sw.js' || tail === '/pw-shop-sw.js') return '/pw-shop-sw.js'
     return tail || '/'
   }
   return null

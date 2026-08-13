@@ -1,4 +1,10 @@
 import type { MetadataRoute } from 'next'
+import { headers } from 'next/headers'
+import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
+import { resolveActivePartnerCustomDomainByHostPg } from '@/lib/db/messaging-partner-custom-domains-pg'
+import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-platform-host'
+import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import { buildPartnerShopWebManifest } from '@/lib/partner-website/shop/partner-site-pwa'
 
 const shortcutIcon = [
   {
@@ -9,7 +15,7 @@ const shortcutIcon = [
   },
 ]
 
-export default function manifest(): MetadataRoute.Manifest {
+function nanoAiManifest(): MetadataRoute.Manifest {
   return {
     name: 'NanoAI - Sáng tạo không giới hạn cùng AI',
     short_name: 'NanoAI',
@@ -81,4 +87,36 @@ export default function manifest(): MetadataRoute.Manifest {
       },
     ],
   }
+}
+
+/** Platform NanoAI PWA. On a shop custom domain, never fall through to NanoAI branding. */
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const headerStore = headers()
+  const customHost =
+    readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)) ||
+    headerStore.get('x-forwarded-host')?.split(',')[0]?.trim().toLowerCase().split(':')[0] ||
+    headerStore.get('host')?.split(',')[0]?.trim().toLowerCase().split(':')[0] ||
+    ''
+
+  if (customHost && !isPlatformAppHostname(customHost)) {
+    const row = await resolveActivePartnerCustomDomainByHostPg(customHost).catch(() => null)
+    const siteSlug = row?.site_slug?.trim() || ''
+    if (siteSlug && row?.use_for_site !== false && row?.site_published) {
+      const shop = await loadPartnerSiteShopContext(siteSlug).catch(() => null)
+      if (shop) {
+        const name = shop.site.title.trim() || shop.site.partnerDisplayName || 'Shop'
+        return buildPartnerShopWebManifest({
+          siteSlug: shop.site.siteSlug,
+          name,
+          description: shop.site.partnerDisplayName || name,
+          customDomain: true,
+          backgroundColor: shop.site.theme.backgroundColor,
+          themeColor: shop.site.theme.primaryColor,
+          locale: shop.site.locale,
+        }) as MetadataRoute.Manifest
+      }
+    }
+  }
+
+  return nanoAiManifest()
 }

@@ -8,6 +8,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-partner-website-full-landing'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
+import { pickPreferredWebsitePartnerId } from '@/lib/partner-website/pick-preferred-website-partner'
 
 export function partnerCanManageWebsite(p: MessagingPartnerDashboardRow): boolean {
   if (p.dashboard_access === 'owner') return true
@@ -46,7 +47,8 @@ export async function loadPartnerWebsiteDashboardData(input: {
       ? requestedPartnerId
       : ''
 
-  const initialPartnerId = bySlug?.id ?? byId ?? partners[0]?.id ?? ''
+  const initialPartnerId =
+    bySlug?.id ?? byId ?? pickPreferredWebsitePartnerId(partners)
 
   const websiteMap = isPgConfigured()
     ? await listPartnerWebsitesForPartnersPg(partners.map((p) => p.id))

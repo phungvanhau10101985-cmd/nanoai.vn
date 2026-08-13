@@ -2063,7 +2063,12 @@ export function PartnerMessagingSettingsClient({
         </Card>
         </>
       ) : (
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+        <div
+          className={cn(
+            'flex flex-col gap-4 lg:flex-row lg:gap-6',
+            activeSection === 'partner-website-editor' ? 'lg:items-stretch lg:gap-3' : 'lg:items-start'
+          )}
+        >
           {/* Mobile: hamburger menu */}
           <div className="lg:hidden">
             <Button
@@ -2170,7 +2175,12 @@ export function PartnerMessagingSettingsClient({
           </div>
 
           {/* Desktop: sidebar */}
-          <aside className="hidden w-full shrink-0 lg:block lg:w-56 xl:w-60">
+          <aside
+            className={cn(
+              'hidden w-full shrink-0 lg:block',
+              activeSection === 'partner-website-editor' ? 'lg:w-48' : 'lg:w-56 xl:w-60'
+            )}
+          >
             <div className="rounded-xl border border-border/70 bg-card/90 p-2 shadow-sm lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+1rem)]">
               <p className="hidden px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:block">
                 {t.settingsSidebarTitle}
@@ -2255,7 +2265,12 @@ export function PartnerMessagingSettingsClient({
               </nav>
             </div>
           </aside>
-          <div className="min-w-0 flex-1">
+          <div
+            className={cn(
+              'min-w-0 flex-1',
+              activeSection === 'partner-website-editor' && 'flex min-h-[calc(100dvh-8rem)] flex-col'
+            )}
+          >
           {activeSection === 'workspace' ? (
           <SettingsBlock
             id="messaging-workspace"
@@ -3654,7 +3669,7 @@ export function PartnerMessagingSettingsClient({
           ) : null}
 
           {isPartnerWebsiteAdminSectionId(activeSection) && selectedPartner && partnerCanWebsiteHub(selectedPartner) ? (
-            <div id="partner-website-admin" className="scroll-mt-6">
+            <div id="partner-website-admin" className="flex min-h-0 min-w-0 flex-1 flex-col scroll-mt-6">
               <PartnerWebsiteDashboardClient
                 key={selectedPartner.id}
                 locale={locale}
