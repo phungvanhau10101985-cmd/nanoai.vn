@@ -29,21 +29,8 @@ if (-not $session) {
 }
 
 $remote = (
-  "set -e",
   "export NODE_OPTIONS='--max-old-space-size=4096'",
   "cd '$($env:VPS_APP_DIR)'",
-  "echo '=== Pre-deploy: stop all apps, max free RAM ==='",
-  "pkill -f 'next build' 2>/dev/null || true",
-  "pkill -f 'next/dist/bin/next build' 2>/dev/null || true",
-  "pm2 delete all 2>/dev/null || true",
-  "pm2 save --force 2>/dev/null || true",
-  "pkill -f '/var/www/188.com.vn' 2>/dev/null || true",
-  "pkill -f '/var/www/Thu-do-online/node_modules/.bin/next' 2>/dev/null || true",
-  "fuser -k 3000/tcp 2>/dev/null || true",
-  "fuser -k 3001/tcp 2>/dev/null || true",
-  "fuser -k 8001/tcp 2>/dev/null || true",
-  "rm -f deploy/.deploy-in-progress.lock",
-  "sync; sleep 2; free -m | head -2",
   "git fetch origin",
   "git checkout '$Branch'",
   "git pull origin '$Branch'",
