@@ -76,6 +76,57 @@ ensure_cron() {
   (crontab -l 2>/dev/null | grep -v "${marker}"; echo "${line}") | crontab -
 }
 
+# Tắt toàn bộ PM2 + build tay + process mồ côi — không app web nào chạy trong lúc lint/build.
+stop_all_apps_for_deploy() {
+  echo "  NODE_OPTIONS=${NODE_OPTIONS}"
+  echo "  Dừng mọi next build / PM2 / app NanoAI + 188..."
+  pkill -f "next build" 2>/dev/null || true
+  pkill -f "next/dist/bin/next build" 2>/dev/null || true
+  pkill -f "next start" 2>/dev/null || true
+  pm2 save 2>/dev/null || true
+  if [[ "${DEPLOY_STOP_PM2_BEFORE_BUILD}" == "1" ]]; then
+    if [[ "${DEPLOY_DELETE_PM2_BEFORE_BUILD}" == "1" ]]; then
+      pm2 delete all 2>/dev/null || true
+      echo "  pm2 delete all — không còn process PM2."
+    else
+      pm2 stop all 2>/dev/null || true
+      echo "  pm2 stop all."
+    fi
+  fi
+  pkill -f "${APP_DIR}/node_modules/.bin/next" 2>/dev/null || true
+  pkill -f "${APP_DIR}/.next" 2>/dev/null || true
+  pkill -f "${DEPLOY_188_APP_DIR}/frontend" 2>/dev/null || true
+  pkill -f "${DEPLOY_188_APP_DIR}/backend" 2>/dev/null || true
+  sleep 2
+  if command -v fuser >/dev/null 2>&1; then
+    for port in 3000 3001 8001; do
+      fuser -k "${port}/tcp" 2>/dev/null || true
+    done
+    echo "  Đã giải phóng port 3000/3001/8001."
+  fi
+  rm -rf .next
+  sync || true
+  sleep 1
+}
+
+assert_no_app_listeners() {
+  local port
+  for port in 3000 3001 8001; do
+    if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
+      echo "LỖI: port ${port} vẫn listen — từ chối deploy khi app còn chạy." >&2
+      ss -tlnp 2>/dev/null | grep ":${port} " || true
+      exit 1
+    fi
+  done
+  if pm2 status 2>/dev/null | grep -qE 'online|waiting|launching|stopping'; then
+    echo "LỖI: PM2 vẫn còn app — từ chối deploy khi web/188 còn chạy." >&2
+    pm2 status || true
+    exit 1
+  fi
+  echo "  OK: PM2 trống, 3000/3001/8001 không listen."
+  free -m 2>/dev/null | head -2 || free -h | head -2
+}
+
 # Sau build: restart 188 nếu còn trong PM2; nếu đã pm2 delete all thì start deploy/ecosystem.config.cjs.
 ensure_188_pm2_online() {
   local dir="${DEPLOY_188_APP_DIR}"
@@ -154,15 +205,21 @@ if [[ -n "${OLD_COMMIT}" ]] && [[ "${OLD_COMMIT}" != "${NEW_HEAD}" ]]; then
   echo ""
 fi
 
-echo "[4/15] Install dependencies (lockfile-first)"
+echo "[4/15] Stop all apps — không chạy web/188 trong suốt deploy"
+stop_all_apps_for_deploy
+assert_no_app_listeners
+echo "  NanoAI + 188 sẽ start lại sau build (188 sau health OK)."
+echo "  DONE [4/15]"
+
+echo "[5/15] Install dependencies (lockfile-first)"
 if [[ -f "package-lock.json" ]]; then
   npm ci
 else
   npm install
 fi
-echo "  DONE [4/15]"
+echo "  DONE [5/15]"
 
-echo "[5/15] Apply SQL migrations (new + modified)"
+echo "[6/15] Apply SQL migrations (new + modified)"
 if [[ "${DEPLOY_SKIP_MIGRATIONS:-}" == "1" ]]; then
   echo "  Bỏ qua (DEPLOY_SKIP_MIGRATIONS=1)."
 else
@@ -262,35 +319,10 @@ else
     fi
   fi
 fi
-echo "  DONE [5/15]"
-
-echo "[6/15] Free RAM before build (PM2 + .next artifacts)"
-echo "  NODE_OPTIONS=${NODE_OPTIONS}"
-if [[ "${DEPLOY_STOP_PM2_BEFORE_BUILD}" == "1" ]]; then
-  pm2 save || true
-  if [[ "${DEPLOY_DELETE_PM2_BEFORE_BUILD}" == "1" ]]; then
-    pm2 delete all || true
-    echo "  Đã pm2 delete all trước build (giải phóng RAM tối đa). NanoAI start sau build; 188 start sau health OK."
-  else
-    pm2 stop all || true
-    echo "  Đã dừng toàn bộ PM2 processes trước build."
-  fi
-  sleep 2
-  if command -v fuser >/dev/null 2>&1; then
-    for port in 3000 3001 8001; do
-      fuser -k "${port}/tcp" 2>/dev/null || true
-    done
-    echo "  Đã giải phóng port 3000/3001/8001 (process mồ côi nếu có)."
-  fi
-else
-  echo "  Bỏ qua dừng PM2 trước build (DEPLOY_STOP_PM2_BEFORE_BUILD=${DEPLOY_STOP_PM2_BEFORE_BUILD})."
-fi
-rm -rf .next
-echo "  Đã xóa .next cũ."
-sync || true
 echo "  DONE [6/15]"
 
 echo "[7/15] Pre-build validation (lint + typecheck)"
+assert_no_app_listeners
 # Xóa .next cũ trước typecheck — tránh TS2307 từ .next/types của route đã xóa.
 rm -rf .next
 if [[ "${DEPLOY_SKIP_LINT:-}" == "1" ]]; then
@@ -312,6 +344,7 @@ rm -rf .next
 echo "  DONE [8/15]"
 
 echo "[9/15] Build app"
+assert_no_app_listeners
 # Mặc định build đầy đủ để đảm bảo không bỏ qua lint/typecheck trong next build.
 # Chỉ bật DEPLOY_BUILD_VPS=1 khi VPS quá yếu và đã xác nhận quality ở CI/máy khác.
 if [[ "${DEPLOY_BUILD_VPS:-}" == "1" ]]; then

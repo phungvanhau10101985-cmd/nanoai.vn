@@ -20,25 +20,25 @@ $cred = New-Object System.Management.Automation.PSCredential($env:VPS_USER, $sec
 $session = New-SSHSession -ComputerName $env:VPS_HOST -Credential $cred -Port ([int]$env:VPS_PORT) -AcceptKey -ConnectionTimeout 30
 if (-not $session) { throw 'SSH login failed.' }
 
-$remote = @'
-echo "=== RAM ==="
-free -h
-echo ""
-echo "=== PM2 ==="
-pm2 status 2>/dev/null || echo "(pm2 empty)"
-echo ""
-echo "=== LISTEN PORTS ==="
-ss -tlnp 2>/dev/null | grep -E ':3000|:3001|:8001|:5432|:80 |:443 ' || true
-echo ""
-echo "=== TOP PROCESSES (node/nginx/postgres) ==="
-ps aux --sort=-%mem | grep -E 'node|next|nginx|postgres|python' | grep -v grep | head -20
-echo ""
-echo "=== SERVICES ==="
-systemctl is-active nginx 2>/dev/null; systemctl is-active postgresql 2>/dev/null || systemctl is-active postgres 2>/dev/null
-echo ""
-echo "=== GIT (Thu-do-online) ==="
-cd /var/www/Thu-do-online && git log -1 --oneline && test -d .next && echo ".next: exists" || echo ".next: missing"
-'@
+$remote = (
+  'echo "=== RAM (MB) ==="',
+  'free -m',
+  'echo ""',
+  'echo "=== PM2 ==="',
+  'pm2 status 2>/dev/null || echo empty',
+  'echo ""',
+  'echo "=== APP PORTS ==="',
+  'ss -tlnp 2>/dev/null | grep -E ":3000|:3001|:8001" || echo none',
+  'echo ""',
+  'echo "=== CURL ==="',
+  'curl -s -o /dev/null -w "3000=%{http_code}\n" --connect-timeout 2 http://127.0.0.1:3000/ 2>/dev/null || echo "3000=FAIL"',
+  'curl -s -o /dev/null -w "3001=%{http_code}\n" --connect-timeout 2 http://127.0.0.1:3001/ 2>/dev/null || echo "3001=FAIL"',
+  'curl -s -o /dev/null -w "8001=%{http_code}\n" --connect-timeout 2 http://127.0.0.1:8001/health 2>/dev/null || echo "8001=FAIL"',
+  'echo ""',
+  'echo "=== 188/NANOAI PROCESSES ==="',
+  'ps aux | grep 188.com | grep -v grep || echo none',
+  'ps aux | grep Thu-do-online | grep -v grep || echo none'
+) -join "`n"
 
 $result = Invoke-SSHCommand -SessionId $session.SessionId -Command $remote -TimeOut 90
 Remove-SSHSession -SessionId $session.SessionId | Out-Null
