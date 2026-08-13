@@ -6,7 +6,7 @@ import {
   type HubFeatureFlowMatch,
 } from '@/lib/hub-chat/hub-feature-flow-registry'
 import { STUDIO_PRESETS, presetTitle } from '@/lib/hub-chat/hub-studio-presets'
-import type { NavGroupKey, ToolKey } from '@/lib/i18n/dictionaries'
+import type { ToolKey } from '@/lib/i18n/dictionaries'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 

@@ -23,10 +23,7 @@ export const HUB_CHAT_MODELS = [
   },
 ] as const
 
-export function getHubChatFooterModelLabel(
-  locale: WebLocale,
-  _presetId?: string | null
-): string {
+export function getHubChatFooterModelLabel(locale: WebLocale): string {
   return HUB_CHAT_MODELS[0]!.label[locale]
 }
 

@@ -6,6 +6,8 @@ import {
   fitPanelArtworkToTrim,
   mmToPrintPx,
   preparePanelArtworkForDieline,
+  resolveDielineRasterDpi,
+  SHARP_SAFE_CANVAS_PIXELS,
 } from './panel-artwork-fit'
 
 test('mmToPrintPx uses 300dpi rounding', () => {
@@ -42,7 +44,6 @@ test('extendPanelArtworkBleed adds bleed pixels on all sides', async () => {
 })
 
 test('resolveDielineRasterDpi lowers dpi for very large nets', () => {
-  const { resolveDielineRasterDpi, mmToPrintPx, SHARP_SAFE_CANVAS_PIXELS } = require('./panel-artwork-fit') as typeof import('./panel-artwork-fit')
   const dpi = resolveDielineRasterDpi(4000, 3000)
   const w = mmToPrintPx(4000, dpi)
   const h = mmToPrintPx(3000, dpi)

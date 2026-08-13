@@ -167,7 +167,7 @@ export async function fetchRemoteProductImageIntoGuestStorage(
     if (buf.length < 32) {
       return { error: 'Invalid image.' }
     }
-    let mime = sniffImageMimeFromMagic(buf) ?? ''
+    const mime = sniffImageMimeFromMagic(buf) ?? ''
     if (!mime || !isAllowedGuestImageMime(mime)) {
       return { error: 'Unsupported image type.' }
     }

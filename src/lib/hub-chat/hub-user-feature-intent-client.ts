@@ -41,7 +41,7 @@ function ruleMatchToIntent(
     if (presetSwitch) return { action: 'studio_switch', presetId: presetSwitch }
   }
 
-  if (shouldSkipFlowSwitchAiClassification(trimmed, session)) return null
+  if (shouldSkipFlowSwitchAiClassification(trimmed)) return null
 
   const featureMatch = matchFeatureFlowByMessage(trimmed, locale)
   if (!featureMatch) return null
@@ -102,7 +102,7 @@ export async function resolveUserFeatureIntent(input: {
   const ruleIntent = ruleMatchToIntent(trimmed, input.locale, input.session)
   if (ruleIntent) return ruleIntent
 
-  if (shouldSkipFlowSwitchAiClassification(trimmed, input.session)) return null
+  if (shouldSkipFlowSwitchAiClassification(trimmed)) return null
 
   try {
     const res = await fetch('/api/hub-chat', {

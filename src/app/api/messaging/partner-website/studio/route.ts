@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      let journal = advanceJournalAfterAnswer({
+      const journal = advanceJournalAfterAnswer({
         journal: draft.journal,
         stepKey,
         answer,

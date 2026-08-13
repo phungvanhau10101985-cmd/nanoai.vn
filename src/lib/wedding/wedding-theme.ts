@@ -64,8 +64,6 @@ const PANEL_FROST_INNER_DARK =
 const PANEL_UI_DARK =
   'bg-slate-950/64 backdrop-blur-lg ring-1 ring-white/12 shadow-[0_4px_20px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06)]'
 
-const GLASS_BASE = GLASS_SHELL
-
 const WEDDING_THEMES: Record<string, WeddingTheme> = {
   luxury: {
     id: 'luxury',

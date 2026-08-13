@@ -67,16 +67,6 @@ function parseFeatureFlags(raw: string | undefined): FeatureFlags {
       categories: true,
     }
   }
-  const products = has(
-    'san pham',
-    'product',
-    'catalog',
-    'kho',
-    'inventory',
-    'gio hang',
-    'cart',
-    'grid'
-  )
   const personalize = has(
     'yeu thich',
     'favorite',
@@ -88,13 +78,9 @@ function parseFeatureFlags(raw: string | undefined): FeatureFlags {
     'ca nhan',
     'personal'
   )
-  const chat = has('chat', 'nhan tin', 'tu van', 'messaging')
   const lead = has('form', 'lien he', 'contact', 'lead')
-  const faq = has('faq', 'hoi dap', 'cau hoi')
-  const features = has('tinh nang', 'feature', 'loi ich', 'benefit', 'vi sao')
   const testimonials = has('danh gia', 'testimonial', 'review', 'khach hang')
   const pricing = has('bang gia', 'pricing', 'goi dich vu')
-  const trust = has('tin cay', 'trust', 'uy tin') || products || chat
   // Shop essentials always stay on; optional blocks follow keywords.
   return {
     products: true,
@@ -274,7 +260,7 @@ export async function buildPartnerWebsiteFromTemplateStudio(
     partner.logoUrl?.trim() ||
     null
 
-  let siteSlug =
+  const siteSlug =
     input.siteSlug?.trim().toLowerCase() ||
     existing?.siteSlug?.trim().toLowerCase() ||
     normalizePartnerWebsiteSlug(partner.slug) ||

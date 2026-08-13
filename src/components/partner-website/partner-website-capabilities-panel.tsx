@@ -51,7 +51,7 @@ function patchCapabilities(prev: PartnerCapabilities, key: CapKey, value: boolea
   return next
 }
 
-export function PartnerWebsiteCapabilitiesPanel({ locale: _locale, t, partnerId, sectionId }: Props) {
+export function PartnerWebsiteCapabilitiesPanel({ t, partnerId, sectionId }: Props) {
   const { toast } = useToast()
   const [caps, setCaps] = useState<PartnerCapabilities | null>(null)
   const [loading, setLoading] = useState(true)

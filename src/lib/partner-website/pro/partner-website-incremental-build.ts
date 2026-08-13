@@ -36,7 +36,6 @@ import {
 } from '@/lib/partner-website/pro/partner-website-pro-content'
 import {
   generatePartnerWebsiteProSectionImages,
-  type PartnerWebsiteProSectionImages,
 } from '@/lib/partner-website/pro/partner-website-pro-images'
 import {
   collectImageSlotsFromSpec,
@@ -397,7 +396,7 @@ async function resolveSiteContext(input: RunIncrementalBuildStepInput): Promise<
     siteSlug: siteSlugRaw,
     logoUrl,
     chatPath: `/messaging/p/${encodeURIComponent(partner.slug)}`,
-    siteType: resolvePartnerWebsiteSiteType(input.answers.site_type),
+    siteType: resolvePartnerWebsiteSiteType(),
     briefText,
     pageKey: normalizePartnerWebsitePageKey(input.pageKey),
   }
@@ -733,9 +732,8 @@ export async function runPartnerWebsiteIncrementalBuildStep(
     }
   }
 
-  let content: PartnerWebsiteProContent
   try {
-    content = JSON.parse(artifacts.contentJson) as PartnerWebsiteProContent
+    JSON.parse(artifacts.contentJson) as PartnerWebsiteProContent
   } catch {
     return { ok: false, error: 'Invalid content artifacts', stage: input.stage }
   }

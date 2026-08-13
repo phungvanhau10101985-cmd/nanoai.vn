@@ -5,7 +5,6 @@ import {
   readLandingSectionBrief,
 } from '@/lib/hub-chat/hub-studio-preset-flows'
 import {
-  getStepAskPrompt,
   presetTitle,
 } from '@/lib/hub-chat/hub-studio-presets'
 import type { HubStudioSession } from '@/lib/hub-chat/hub-studio-types'

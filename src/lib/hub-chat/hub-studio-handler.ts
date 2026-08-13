@@ -16,7 +16,6 @@ import {
 } from '@/lib/hub-chat/menu-format-presets'
 import {
   BANNER_AD_PRESETS,
-  DEFAULT_BANNER_AD_PRESET_ID,
   MAX_BANNER_BATCH_PRESETS,
   findBannerAdPreset,
   getBannerAdPlatformHint,
@@ -363,7 +362,6 @@ import {
   advanceBagDiscoveryAfterBriefAnswer,
   advanceAfterBagFaceStep,
   applyBagFaceSlotToSession,
-  bagKitPanelConfirmStudioExtras,
   bagKitStartBriefNotes,
   bagStepKeyToSlot,
   buildBagSizeConfirmReply,
@@ -2464,7 +2462,7 @@ function syncBannerBatchPreviewItem(
   }
 }
 
-function finalizeSaleBannerBatchApproval(session: HubStudioSession, locale: WebLocale): HubStudioSession {
+function finalizeSaleBannerBatchApproval(session: HubStudioSession): HubStudioSession {
   return {
     ...session,
     processSteps: setStepInProgress(
@@ -2519,7 +2517,7 @@ function finishApproveSaleBannerBatch(
       styleReferenceUrl: firstUrl,
     },
   }
-  next = finalizeSaleBannerBatchApproval(next, locale)
+  next = finalizeSaleBannerBatchApproval(next)
   return next
 }
 
@@ -3553,7 +3551,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
 
-    if (!shouldSkipFlowSwitchAiClassification(message, session)) {
+    if (!shouldSkipFlowSwitchAiClassification(message)) {
       const featureMatch = matchFeatureFlowByMessage(message, input.locale)
       if (featureMatch?.kind === 'standalone' && featureMatch.score >= 8) {
         return {
@@ -3581,7 +3579,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
 
-    if (shouldSkipFlowSwitchAiClassification(message, session)) {
+    if (shouldSkipFlowSwitchAiClassification(message)) {
       return {
         ok: true,
         reply: '',
@@ -4062,7 +4060,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         input.locale
       )
     }
-    let generated = await generateAsset(
+    const generated = await generateAsset(
       input.userId,
       session,
       generationPrompt,
@@ -6514,7 +6512,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const savedCurrentStepKey = session.currentStepKey
     const savedPendingPreview = session.pendingPreview
 
-    let pending =
+    const pending =
       session.pendingPreview?.screenKey === targetScreenKey
         ? session.pendingPreview
         : pendingPreviewFromApprovedReference(session, targetScreenKey, session.presetId)

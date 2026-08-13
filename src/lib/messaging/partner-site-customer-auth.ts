@@ -201,7 +201,7 @@ export async function authenticatePartnerSiteCustomer(params: {
     customerNameHint: name ?? null,
   })
 
-  const { authUserId: authUserIdForEmail, sessionToken, emailSessionIssued } = await completeGuestEmailAuth({
+  const { sessionToken, emailSessionIssued } = await completeGuestEmailAuth({
     partnerId,
     email,
     guestAccountId: accountId,

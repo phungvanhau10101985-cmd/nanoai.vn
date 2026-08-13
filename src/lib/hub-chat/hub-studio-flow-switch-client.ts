@@ -31,7 +31,7 @@ export async function resolveStudioFlowSwitch(input: {
   const ruleMatch = detectStudioFlowSwitch(trimmed, currentPresetId)
   if (ruleMatch) return ruleMatch
 
-  if (shouldSkipFlowSwitchAiClassification(trimmed, input.session)) return null
+  if (shouldSkipFlowSwitchAiClassification(trimmed)) return null
 
   try {
     const res = await fetch('/api/hub-chat', {

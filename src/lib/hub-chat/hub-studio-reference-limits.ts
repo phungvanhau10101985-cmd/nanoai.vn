@@ -15,8 +15,7 @@ export const STUDIO_REFERENCE_ATTACH_LIMIT = 4
 
 function pickLandingPageReferencesForGeneration(
   referenceImages: HubStudioReferenceImage[],
-  presetId: string,
-  stepKey: string
+  presetId: string
 ): HubStudioReferenceImage[] | null {
   if (presetId !== 'landing_page') return null
   return []
@@ -31,7 +30,7 @@ export function pickReferencesForGeneration(
   if (presetId && stepKey) {
     const mobileShopRefs = pickMobileShopReferencesForGeneration(referenceImages, presetId, stepKey)
     if (mobileShopRefs) return mobileShopRefs
-    const landingRefs = pickLandingPageReferencesForGeneration(referenceImages, presetId, stepKey)
+    const landingRefs = pickLandingPageReferencesForGeneration(referenceImages, presetId)
     if (landingRefs !== null) return landingRefs
   }
   const logoKey = presetId ? getPrimaryLogoStepKey(presetId) : null

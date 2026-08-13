@@ -116,7 +116,7 @@ export function advanceBagDiscoveryAfterBriefAnswer(
   userLabel: string,
   confirmedReply: string
 ): { session: HubStudioSession; reply: string; studio: HubStudioMessagePayload } {
-  let nextSession: HubStudioSession = {
+  const nextSession: HubStudioSession = {
     ...session,
     briefNotes: {
       ...session.briefNotes,

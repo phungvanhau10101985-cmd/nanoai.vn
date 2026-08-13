@@ -1,4 +1,3 @@
-import type { WebLocale } from '@/lib/i18n/config'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 
 export type WeddingGuestInviteVenue = '' | 'groom_home' | 'bride_home'

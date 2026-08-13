@@ -4,7 +4,6 @@ import type { HubStudioProcessStep } from '@/lib/hub-chat/hub-studio-types'
 import {
   getFlowStep,
   getFlowSteps,
-  hasSaleBannerDiscoveryBrief,
   type StudioFlowStepDef,
 } from '@/lib/hub-chat/hub-studio-preset-flows'
 

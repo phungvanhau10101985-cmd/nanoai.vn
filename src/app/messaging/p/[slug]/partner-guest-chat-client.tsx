@@ -810,22 +810,6 @@ function parseVndFromHint(priceHint: string | undefined): number {
   return Number.isFinite(n) ? Math.max(0, n) : 0
 }
 
-function buildShopGa4ProductInputFromCard(
-  card: PartnerAiProductCard,
-  quantity = 1
-): ShopGa4ProductInput {
-  const sku = (card.sku ?? '').trim()
-  const inv = (card.inventory_id ?? '').trim()
-  const productUrl = (card.product_url ?? '').trim()
-  const name = (card.name ?? '').trim()
-  return {
-    itemId: sku || inv || productUrl,
-    itemName: name || sku || inv || productUrl,
-    value: parseVndFromHint(card.price_hint),
-    quantity,
-  }
-}
-
 function trackGuestPurchaseFromOrderSnapshot(
   adsTracking: PartnerSiteShopTrackingConfig,
   order: GuestOrderGa4Snapshot | null | undefined,
@@ -3417,7 +3401,6 @@ export function PartnerGuestChatClient({
   )
 
   const openGuestProductOrderFormFromCard = triggerGuestProductPurchase
-  const addProductCardToCart = triggerGuestProductPurchase
 
   const cartSubtotal = useMemo(
     () =>
@@ -4124,7 +4107,6 @@ export function PartnerGuestChatClient({
     const picked = buildCurrentOrderSelection()
     if (!picked) return
     if (activeOrderCard) {
-      const unitValue = parseVndFromHint(activeOrderCard.price_hint)
       trackPartnerSiteBeginCheckout(adsTracking, [
         guestCardToTrackingProduct(activeOrderCard, picked.totalQty),
       ])

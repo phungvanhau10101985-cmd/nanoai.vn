@@ -32,10 +32,7 @@ export const FLOW_SWITCH_AI_MIN_CONFIDENCE = 0.75
 const MAX_AI_CLASSIFY_MESSAGE_LEN = 400
 
 /** Skip AI when the message is clearly step content, not a meta switch request. */
-export function shouldSkipFlowSwitchAiClassification(
-  message: string,
-  _session?: HubStudioSession | null
-): boolean {
+export function shouldSkipFlowSwitchAiClassification(message: string): boolean {
   const trimmed = message.trim()
   if (!trimmed) return true
   if (/[\n\r]/.test(trimmed)) return true

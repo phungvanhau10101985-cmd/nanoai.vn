@@ -4,7 +4,6 @@ import {
   DESIGN_SECTOR_KEYS,
   type DesignFormatKey,
   type DesignRenderStyleKey,
-  type DesignSectorKey,
   designSectorLabel,
   formatsForSector,
   renderStylesForSector,

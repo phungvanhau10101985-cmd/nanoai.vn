@@ -153,7 +153,6 @@ export function formatMarketingCampaignEmailContent(input: {
   const text = textLines.join('\n')
 
   // ----- html part -----
-  const safeShop = esc(shop)
   const safeChat = esc(input.chatUrl)
   const safeOptOut = esc(input.optOutUrl)
 

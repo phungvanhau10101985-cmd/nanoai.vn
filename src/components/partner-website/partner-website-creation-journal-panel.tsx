@@ -166,7 +166,7 @@ export function PartnerWebsiteCreationJournalPanel({
   const [initBusy, setInitBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [buildingSite, setBuildingSite] = useState(false)
-  const [buildStatusLabel, setBuildStatusLabel] = useState('')
+  const [, setBuildStatusLabel] = useState('')
   const [buildSteps, setBuildSteps] = useState<Array<{ id: string; label: string }>>([])
   const [buildActiveStepId, setBuildActiveStepId] = useState<string | null>(null)
   const [buildCompletedStepIds, setBuildCompletedStepIds] = useState<string[]>([])

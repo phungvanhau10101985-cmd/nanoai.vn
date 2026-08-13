@@ -182,7 +182,6 @@ import {
   getStudioStepInputPlaceholder,
   getStudioStepSuggestions,
 } from '@/lib/hub-chat/hub-studio-step-suggestions'
-import { formatStudioExampleLabel } from '@/lib/hub-chat/hub-studio-example-label'
 import {
   buildGenerationRefPickerPayload,
   defaultGenerationReferenceKeys,
@@ -807,7 +806,7 @@ export function HomeHubChatBar() {
     void fetchThreadList()
   }, [fetchThreadList])
 
-  const modelLabel = getHubChatFooterModelLabel(uiLocale, studioSession?.presetId)
+  const modelLabel = getHubChatFooterModelLabel(uiLocale)
 
   const startNewThread = useCallback(() => {
     loadThreadEpochRef.current += 1
@@ -3107,17 +3106,6 @@ export function HomeHubChatBar() {
       showGenerateCurrentStep,
       studioSession,
     ]
-  )
-
-  const requestStartPreset = useCallback(
-    (presetId: string) => {
-      if (isActiveStudioFlow(studioSession)) {
-        toast({ title: hc.studioNewFlowThreadRequired, variant: 'default' })
-        return
-      }
-      void postStudio({ action: 'start_preset', presetId })
-    },
-    [hc.studioNewFlowThreadRequired, postStudio, studioSession, toast]
   )
 
   useEffect(() => {

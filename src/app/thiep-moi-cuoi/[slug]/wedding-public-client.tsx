@@ -98,10 +98,6 @@ export default function WeddingPublicClient({
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
   const coverPhotoScale = resolveCoverPhotoScale(sectionConfig)
   const weddingDateIso = useMemo(() => resolveWeddingDateIso(card.weddingDate), [card.weddingDate])
-  const weddingDateLabel = useMemo(
-    () => formatWeddingDateForDisplay(weddingDateIso ?? card.weddingDate, uiLocale),
-    [card.weddingDate, uiLocale, weddingDateIso],
-  )
   const weddingDisplayTime = useMemo(
     () => resolveWeddingDisplayTime(card.weddingTime, card.partyStartTime) || card.weddingTime,
     [card.partyStartTime, card.weddingTime],

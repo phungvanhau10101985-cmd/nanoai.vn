@@ -5,7 +5,6 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { WebLocale } from '@/lib/i18n/config'
-import { formatStudioExampleLabel } from '@/lib/hub-chat/hub-studio-example-label'
 import { cmToMm } from '@/lib/packaging/dimensions'
 import type { BagDimensionsMm } from '@/lib/packaging/bag-dimensions'
 

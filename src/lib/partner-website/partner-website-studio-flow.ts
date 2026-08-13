@@ -337,7 +337,7 @@ export function studioStepSuggestions(locale: WebLocale, key: PartnerWebsiteStud
   return PARTNER_WEBSITE_STUDIO_STEP_SUGGESTIONS[locale][key] ?? PARTNER_WEBSITE_STUDIO_STEP_SUGGESTIONS.en[key] ?? []
 }
 
-export function resolvePartnerWebsiteSiteType(_raw: string | undefined): PartnerWebsiteSiteType {
+export function resolvePartnerWebsiteSiteType(): PartnerWebsiteSiteType {
   return PARTNER_WEBSITE_STUDIO_DEFAULT_SITE_TYPE
 }
 

@@ -1,4 +1,3 @@
-import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 /**
  * Giá credits hiển thị trên UI luồng giáo trình / phiếu.
  * Khi bật trừ credit phía server, giữ khớp các giá trị này.

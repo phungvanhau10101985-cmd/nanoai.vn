@@ -146,7 +146,6 @@ export function buildBoxWireframeSvg(dimensionsMm: BoxDimensionsMm, locale: WebL
   const sf00 = shift(f00)
   const sf10 = shift(f10)
   const sf11 = shift(f11)
-  const sf01 = shift(f01)
   const sf03 = shift(f03)
   const sf13 = shift(f13)
   const sf23 = shift(f23)
