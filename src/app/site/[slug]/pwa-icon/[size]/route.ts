@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { PARTNER_CUSTOM_DOMAIN_HEADER } from '@/lib/auth/app-request-headers'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { buildPartnerPwaIconPng } from '@/lib/partner-website/shop/partner-site-pwa-icon'
 import {
