@@ -30,11 +30,12 @@ if (-not $session) {
 
 $remote = (
   "set -e",
+  "export NODE_OPTIONS='--max-old-space-size=4096'",
   "cd '$($env:VPS_APP_DIR)'",
   "git fetch origin",
   "git checkout '$Branch'",
   "git pull origin '$Branch'",
-  "bash deploy/update-vps.sh '$Branch'"
+  "DEPLOY_DELETE_PM2_BEFORE_BUILD=1 bash deploy/update-vps.sh '$Branch'"
 ) -join "`n"
 
 $result = Invoke-SSHCommand -SessionId $session.SessionId -Command $remote -TimeOut 7200

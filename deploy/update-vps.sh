@@ -277,6 +277,8 @@ fi
 echo "  DONE [6/15]"
 
 echo "[7/15] Pre-build validation (lint + typecheck)"
+# Xóa .next cũ trước typecheck — tránh TS2307 từ .next/types của route đã xóa.
+rm -rf .next
 if [[ "${DEPLOY_SKIP_LINT:-}" == "1" ]]; then
   echo "  Bỏ qua lint (DEPLOY_SKIP_LINT=1)."
 else
