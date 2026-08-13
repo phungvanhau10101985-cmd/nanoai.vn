@@ -494,7 +494,7 @@ export async function updatePartnerWebsiteDraftPg(input: {
   project?: PartnerWebsiteProject
   htmlSource?: string | null
   chatPath?: string
-  /** W2.4 — snapshot trước khi ghi (reorder/theme…). */
+  /** Snapshot trước khi ghi (theme…). */
   changeNote?: string | null
   skipRevision?: boolean
 }): Promise<PartnerWebsiteRow | null> {

@@ -63,6 +63,7 @@ export function PartnerCustomDomainSettingsCard({
   t,
   saveOkMessage,
   onDomainChanged,
+  variant = 'full',
 }: {
   partnerId: string
   partnerSlug: string
@@ -71,6 +72,7 @@ export function PartnerCustomDomainSettingsCard({
   t: T
   saveOkMessage: string
   onDomainChanged?: () => void
+  variant?: 'full' | 'website'
 }) {
   const { toast } = useToast()
   const { runWithStepUp } = useStepUpOtp()
@@ -257,8 +259,11 @@ export function PartnerCustomDomainSettingsCard({
     )
   }
 
+  const compact = variant === 'website'
+
   return (
     <div className="space-y-4">
+      {!compact ? (
       <Card className="border-emerald-200/70 bg-emerald-50/30 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/20">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -276,8 +281,10 @@ export function PartnerCustomDomainSettingsCard({
           <p>{t.customDomainStep4}</p>
         </CardContent>
       </Card>
+      ) : null}
 
-      <Card className="border-border/70 shadow-sm">
+      <Card className={compact ? 'border-0 bg-transparent shadow-none' : 'border-border/70 shadow-sm'}>
+        {!compact ? (
         <CardHeader className="pb-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-sm font-medium">{t.customDomainSectionTitle}</CardTitle>
@@ -288,7 +295,12 @@ export function PartnerCustomDomainSettingsCard({
             <p className="text-[11px] leading-relaxed text-muted-foreground">{badge.hint}</p>
           ) : null}
         </CardHeader>
-        <CardContent className="space-y-4">
+        ) : (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          {domain ? <Badge variant={badge.variant}>{badge.label}</Badge> : null}
+        </div>
+        )}
+        <CardContent className={compact ? 'space-y-4 p-0' : 'space-y-4'}>
           <div className="space-y-2">
             <Label htmlFor="custom-domain-host">{t.customDomainHostnameLabel}</Label>
             <Input
@@ -300,6 +312,7 @@ export function PartnerCustomDomainSettingsCard({
             />
           </div>
 
+          {!compact ? (
           <div className="flex flex-wrap gap-4 text-xs">
             <label className="inline-flex items-center gap-2">
               <input
@@ -320,6 +333,7 @@ export function PartnerCustomDomainSettingsCard({
               {t.customDomainUseForSite}
             </label>
           </div>
+          ) : null}
 
           <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2">
             <p className="text-xs font-medium">{t.customDomainCnameTitle}</p>
@@ -397,6 +411,7 @@ export function PartnerCustomDomainSettingsCard({
             </div>
           ) : null}
 
+          {!compact ? (
           <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3">
             <div className="space-y-1">
               <p className="text-xs font-medium">{t.shopSsoSectionTitle}</p>
@@ -426,6 +441,7 @@ export function PartnerCustomDomainSettingsCard({
               {t.shopSsoSaveButton}
             </Button>
           </div>
+          ) : null}
 
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={saveDomain} disabled={pending || !hostname.trim()}>

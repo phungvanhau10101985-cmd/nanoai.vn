@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
-import { fetchPartnerCapabilitiesForPartnerFromPg } from '@/lib/db/messaging-partners-pg'
 import {
-  fetchPartnerProfileForWebsitePg,
   updatePartnerWebsiteCreationJournalPg,
   updatePartnerWebsiteDraftPg,
 } from '@/lib/db/messaging-partner-websites-pg'
-import { getPartnerWebsiteEditSuggestions } from '@/lib/partner-website/partner-website-quick-edits'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
@@ -263,7 +260,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Retired AI creation paths — shop sites use fixed templates only; AI remains for post-build edits via /chat.
+    // Retired AI creation paths — shop sites use fixed templates + visual HTML edit only.
     if (
       action === 'generate_logo' ||
       action === 'generate_mockup' ||
@@ -274,8 +271,8 @@ export async function POST(req: NextRequest) {
         {
           error:
             locale === 'vi'
-              ? 'Đã tắt tự tạo bằng AI. Chọn mẫu cố định rồi bấm áp giao diện. Sau khi có web, chỉnh nhanh vẫn dùng AI.'
-              : 'AI auto-creation is disabled. Pick a fixed template and apply it. After the site exists, quick edits still use AI.',
+              ? 'Đã tắt tự tạo bằng AI. Chọn mẫu cố định rồi bấm áp giao diện. Sau khi có web, chỉnh trực tiếp bằng «Sửa nhanh» trên preview.'
+              : 'AI auto-creation is disabled. Pick a fixed template and apply it. After the site exists, edit HTML with Quick edit on the preview.',
         },
         { status: 410 }
       )
@@ -330,7 +327,7 @@ export async function POST(req: NextRequest) {
         kind: 'site_built',
         role: 'assistant',
         content: result.assistantMessage,
-        suggestions: await editSuggestions(locale, t, partnerId),
+        suggestions: [],
       })
       journal = {
         ...journal,
@@ -376,7 +373,7 @@ export async function POST(req: NextRequest) {
         kind: 'site_built',
         role: 'assistant',
         content: result.assistantMessage,
-        suggestions: await editSuggestions(locale, t, partnerId),
+        suggestions: [],
       })
       journal = {
         ...journal,
@@ -410,21 +407,4 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }
-}
-
-async function editSuggestions(
-  locale: WebLocale,
-  t: ReturnType<typeof getPartnerWebsiteCopy>,
-  partnerId: string
-): Promise<string[]> {
-  const profile = await fetchPartnerProfileForWebsitePg(partnerId)
-  const industryKey = profile?.industryKey ?? 'fashion'
-  const capabilities = await fetchPartnerCapabilitiesForPartnerFromPg(partnerId, industryKey)
-  return getPartnerWebsiteEditSuggestions({
-    locale,
-    t,
-    industryKey,
-    capabilities,
-    phase: 'built',
-  })
 }

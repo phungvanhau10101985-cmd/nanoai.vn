@@ -739,6 +739,11 @@ export type Dictionary = {
     settingsManageWebsiteButton: string
     settingsCreateWebsiteButton: string
     settingsNavPayment: string
+    settingsNavShipping: string
+    settingsNavShippingDesc: string
+    settingsNavShippingFeeTitle: string
+    settingsShippingOpenFromPayment: string
+    settingsNavShippingSaveFee: string
     settingsNavLoyalty: string
     settingsNavLoyaltyDesc: string
     settingsNavPromotions: string
@@ -1351,6 +1356,92 @@ export type Dictionary = {
     productStudioStudioDone: string
     productStudioSuggestName: string
     productStudioSuggestedName: string
+    productStudioStepAttrs: string
+    productStudioStepStudioSettings: string
+    productStudioStepStudio: string
+    productStudioStepImages: string
+    productStudioStepPublish: string
+    productStudioManualModeHint: string
+    productStudioColorRowHint: string
+    productStudioRequiredColor: string
+    productStudioColorNameMissing: string
+    productStudioRequiredGallery: string
+    productStudioStartPublish: string
+    productStudioNamePlaceholder: string
+    productStudioColorNamePlaceholder: string
+    productStudioImageEmpty: string
+    productStudioFieldGalleryMin: string
+    productStudioManualAiDescHint: string
+    productStudioNext: string
+    productStudioBack: string
+    productStudioRequiredMaterial: string
+    productStudioRequiredSizes: string
+    productStudioRequiredModelFields: string
+    productStudioAiModeHint: string
+    productStudioTypeApparel: string
+    productStudioTypeShoes: string
+    productStudioTypeAccessory: string
+    productStudioTypeHousehold: string
+    productStudioTypeFood: string
+    productStudioTypeOther: string
+    productStudioGenderFemale: string
+    productStudioGenderMale: string
+    productStudioGenderUnisex: string
+    productStudioShotStudio: string
+    productStudioShotLifestyle: string
+    productStudioShotOutdoor: string
+    productStudioModelNone: string
+    productStudioModelYes: string
+    productStudioModelGender: string
+    productStudioModelAge: string
+    productStudioModelEthnicity: string
+    productStudioModelAgeBaby: string
+    productStudioModelAgeChild: string
+    productStudioModelAgeTeen: string
+    productStudioModelAgeAdult: string
+    productStudioModelAgeMiddle: string
+    productStudioModelEthnicityAsian: string
+    productStudioModelEthnicityWestern: string
+    productStudioNonWearableHint: string
+    productStudioTabColor: string
+    productStudioTabGallery: string
+    productStudioTabMaterial: string
+    productStudioTabDetail: string
+    productStudioTabDetailOptional: string
+    productStudioColorFirstHint: string
+    productStudioColorNextHint: string
+    productStudioGalleryHint: string
+    productStudioDetailHint: string
+    productStudioMaterialHint: string
+    productStudioSampleImage: string
+    productStudioSampleImageNew: string
+    productStudioPickRefs: string
+    productStudioGenerate: string
+    productStudioApproveContinue: string
+    productStudioFaceLockLabel: string
+    productStudioProgressTitle: string
+    productStudioProgressColor: string
+    productStudioProgressGallery: string
+    productStudioProgressMaterial: string
+    productStudioProgressDetail: string
+    productStudioSelectGalleryStep: string
+    productStudioSelectDetailStep: string
+    productStudioConfirmSelection: string
+    productStudioSkipDetail: string
+    productStudioResumeTitle: string
+    productStudioResumeContinue: string
+    productStudioResumeDelete: string
+    productStudioNoUploadHere: string
+    productStudioSizeChipPlaceholder: string
+    productStudioNeedAttach: string
+    productStudioNeedRefs: string
+    productStudioSeoName: string
+    productStudioShotLocked: string
+    productStudioSwitchTabHint: string
+    productStudioMinPublishHint: string
+    productStudioPromptColorPlaceholder: string
+    productStudioGalleryMinHint: string
+    productStudioDetailOptionalHint: string
     inventoryImportReplaceWarning: string
     /** {count} tổng dòng; {inserted} thêm mới; {updated} cập nhật; {deleted} đã xóa */
     inventoryImportSuccess: string
@@ -3702,6 +3793,12 @@ const VI_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: 'Chỉnh web',
     settingsCreateWebsiteButton: 'Tạo web',
     settingsNavPayment: 'Đơn hàng & thanh toán',
+    settingsNavShipping: 'Quản lý vận chuyển',
+    settingsNavShippingDesc:
+      'Phí ship, đơn vị vận chuyển, địa chỉ hoàn hàng và cổng API tra cứu đơn trên web shop (NanoAI gọi khi khách hỏi đơn / mã vận).',
+    settingsNavShippingFeeTitle: 'Phí vận chuyển (đơn trên chat)',
+    settingsShippingOpenFromPayment: 'Phí ship, đơn vị vận chuyển, địa chỉ hoàn và cổng tra cứu đơn → Quản lý vận chuyển',
+    settingsNavShippingSaveFee: 'Lưu phí vận chuyển',
     settingsNavLoyalty: 'Thành viên thân quen',
     settingsNavLoyaltyDesc:
       'Tính hạng theo chi tiêu của khách trong cửa sổ thời gian và tự động giảm giá khi chốt đơn.',
@@ -4297,7 +4394,7 @@ const VI_DICTIONARY: Dictionary = {
     productStudioFieldStyle: 'Kiểu dáng',
     productStudioFieldGender: 'Giới tính',
     productStudioFieldProductType: 'Loại sản phẩm',
-    productStudioFieldSizes: 'Size (ngăn cách bằng dấu phẩy)',
+    productStudioFieldSizes: 'Size',
     productStudioFieldNoSize: 'Không phân size',
     productStudioFieldColors: 'Màu sắc',
     productStudioAddColor: 'Thêm màu',
@@ -4332,6 +4429,98 @@ const VI_DICTIONARY: Dictionary = {
     productStudioStudioDone: 'Đã đủ ảnh — sẵn sàng đăng sản phẩm',
     productStudioSuggestName: 'Đặt tên bằng AI',
     productStudioSuggestedName: 'Tên do AI đề xuất',
+    productStudioStepAttrs: 'Thuộc tính',
+    productStudioStepStudioSettings: 'Cài đặt Studio',
+    productStudioStepStudio: 'Studio ảnh',
+    productStudioStepImages: 'Ảnh',
+    productStudioStepPublish: 'Đăng',
+    productStudioManualModeHint:
+      'Upload ảnh chính, gallery và ảnh từng màu từ máy. AI viết mô tả khi đăng.',
+    productStudioColorRowHint: 'Mỗi dòng: tên + ảnh',
+    productStudioRequiredColor: 'Cần ít nhất 1 ảnh màu (có tên + ảnh).',
+    productStudioColorNameMissing: 'Mỗi ảnh màu cần có tên màu.',
+    productStudioRequiredGallery: 'Cần ít nhất 2 ảnh gallery.',
+    productStudioStartPublish: 'Bắt đầu đăng sản phẩm',
+    productStudioNamePlaceholder: 'VD: Áo sơ mi linen nữ form rộng…',
+    productStudioColorNamePlaceholder: 'VD: Đen, Be, Hồng phấn…',
+    productStudioImageEmpty: 'Ảnh',
+    productStudioFieldGalleryMin: 'Ảnh gallery * (tối thiểu 2)',
+    productStudioManualAiDescHint: 'Không cần nhập mô tả — AI sẽ viết khi đăng.',
+    productStudioNext: 'Tiếp',
+    productStudioBack: 'Quay lại',
+    productStudioRequiredMaterial: 'Vui lòng nhập chất liệu.',
+    productStudioRequiredSizes: 'Thêm size (Enter sau mỗi size) hoặc chọn «Không phân size».',
+    productStudioRequiredModelFields: 'Chọn «Có người mẫu» thì cần giới tính, tuổi và gốc người mẫu.',
+    productStudioAiModeHint:
+      'Không nhập tên sản phẩm ở bước này. Sang Studio: upload ảnh mẫu từng màu — AI tự đọc tên màu. Ảnh màu đầu: AI đọc luôn tên SEO.',
+    productStudioTypeApparel: 'Quần áo',
+    productStudioTypeShoes: 'Giày dép',
+    productStudioTypeAccessory: 'Phụ kiện',
+    productStudioTypeHousehold: 'Gia dụng',
+    productStudioTypeFood: 'Thực phẩm',
+    productStudioTypeOther: 'Khác',
+    productStudioGenderFemale: 'Nữ',
+    productStudioGenderMale: 'Nam',
+    productStudioGenderUnisex: 'Unisex',
+    productStudioShotStudio: 'Studio chuyên nghiệp (nền sạch)',
+    productStudioShotLifestyle: 'Lifestyle trong nhà',
+    productStudioShotOutdoor: 'Phong cảnh / ngoài trời',
+    productStudioModelNone: 'Không người mẫu — chỉ sản phẩm',
+    productStudioModelYes: 'Có người mẫu mặc đồ / cầm SP',
+    productStudioModelGender: 'Giới tính người mẫu',
+    productStudioModelAge: 'Tuổi người mẫu',
+    productStudioModelEthnicity: 'Quốc tịch / gốc người mẫu',
+    productStudioModelAgeBaby: 'Em bé (0–3 tuổi)',
+    productStudioModelAgeChild: 'Trẻ em (4–12 tuổi)',
+    productStudioModelAgeTeen: 'Thiếu niên (13–17 tuổi)',
+    productStudioModelAgeAdult: 'Người lớn (18–35 tuổi)',
+    productStudioModelAgeMiddle: 'Trung niên (35–55 tuổi)',
+    productStudioModelEthnicityAsian: 'Châu Á',
+    productStudioModelEthnicityWestern: 'Châu Âu / phương Tây',
+    productStudioNonWearableHint: 'Loại này chụp ảnh sản phẩm tĩnh, không có người mẫu mặc/đeo/dùng.',
+    productStudioTabColor: 'Ảnh màu',
+    productStudioTabGallery: 'Ảnh gallery',
+    productStudioTabMaterial: 'Ảnh chất liệu',
+    productStudioTabDetail: 'Ảnh chi tiết',
+    productStudioTabDetailOptional: 'tuỳ chọn',
+    productStudioColorFirstHint:
+      'Ảnh màu đầu tiên: upload ảnh mẫu SP — AI tự đọc tên SP + tên màu, giữ góc nhìn/tư thế như ảnh mẫu.',
+    productStudioColorNextHint:
+      'Ảnh màu tiếp theo: upload ảnh mẫu SP mới — AI lấy kiểu/màu từ ảnh này, giữ khuôn mặt từ ảnh màu #1.',
+    productStudioGalleryHint: 'Chọn ảnh ref rồi Tạo mới — AI tạo cùng sản phẩm nhưng góc ảnh khác. Cần đủ 2 ảnh gallery trước khi đăng.',
+    productStudioDetailHint: 'Ảnh chi tiết tuỳ chọn — chọn ref rồi Tạo mới; AI cận cảnh góc khác ref.',
+    productStudioMaterialHint:
+      'Collage chi tiết chất liệu — chọn ảnh tham khảo rồi Tạo mới. Bắt buộc 1 ảnh chất liệu trước khi đăng.',
+    productStudioSampleImage: 'Ảnh mẫu sản phẩm',
+    productStudioSampleImageNew: 'Ảnh mẫu sản phẩm mới',
+    productStudioPickRefs: 'Chọn ảnh tham khảo (tối đa 3)',
+    productStudioGenerate: 'Tạo mới',
+    productStudioApproveContinue: 'OK — Tiếp',
+    productStudioFaceLockLabel: 'Khuôn mẫu người mẫu (từ ảnh màu #1)',
+    productStudioProgressTitle: 'Tiến độ ảnh trước khi đăng',
+    productStudioProgressColor: 'Ảnh màu',
+    productStudioProgressGallery: 'Gallery',
+    productStudioProgressMaterial: 'Ảnh chất liệu',
+    productStudioProgressDetail: 'Ảnh chi tiết',
+    productStudioSelectGalleryStep: 'Bước 1: Chọn ảnh gallery',
+    productStudioSelectDetailStep: 'Bước 2: Chọn ảnh chi tiết',
+    productStudioConfirmSelection: 'Xác nhận lựa chọn',
+    productStudioSkipDetail: 'Bỏ qua ảnh chi tiết',
+    productStudioResumeTitle: 'Có phiên tạo sản phẩm đang dở',
+    productStudioResumeContinue: 'Tiếp tục',
+    productStudioResumeDelete: 'Xóa',
+    productStudioNoUploadHere:
+      'Không upload ảnh ở bước này. Sang Studio ảnh, mỗi màu bạn upload ảnh tham chiếu riêng khi bấm Tạo.',
+    productStudioSizeChipPlaceholder: 'Gõ size rồi Enter (VD: S hoặc 39)',
+    productStudioNeedAttach: 'Upload ảnh mẫu sản phẩm — AI tự đọc tên màu.',
+    productStudioNeedRefs: 'Chọn ít nhất 1 ảnh tham khảo hoặc upload ảnh kèm.',
+    productStudioSeoName: 'Tên SEO',
+    productStudioShotLocked: 'Bối cảnh cố định',
+    productStudioSwitchTabHint: 'Chuyển tab bất kỳ lúc nào — hệ thống không tự nhảy sang mục khác khi đã đủ ảnh tối thiểu.',
+    productStudioMinPublishHint: 'Bắt buộc trước khi đăng: 1 ảnh màu, 2 gallery, 1 ảnh chất liệu. Ảnh chi tiết tuỳ chọn.',
+    productStudioPromptColorPlaceholder: 'Để trống → AI giữ góc nhìn như ảnh mẫu. Hoặc nhập thêm chi tiết (cầm túi, cổ V…).',
+    productStudioGalleryMinHint: 'Gallery đã chọn — tối thiểu 2 ảnh.',
+    productStudioDetailOptionalHint: 'Chi tiết đã chọn — không chọn gì cũng được (bỏ qua).',
     inventoryImportReplaceWarning:
       'Nhập Excel: trùng Mã SKU (không phân biệt hoa thường) với kho thì cập nhật, chưa có thì thêm mới. Không có SKU thì khớp theo tên với hàng trong kho cũng không SKU (nhiều dòng trùng tên: ưu tiên dòng đầu trùng trong kho). Cột «Trạng thái» (hoặc is_active): 1 = thêm/cập nhật; 0 = xóa mặt hàng đó khỏi kho (cần Mã SKU hoặc tên để khớp). Thứ tự hiển thị gán theo thứ tự dòng trong file nếu file không có cột Thứ tự. Hàng đang có mà không nằm trong file vẫn giữ nguyên. Tiếp tục?',
     inventoryImportSuccess: 'Đã xử lý {count} dòng: thêm {inserted}, cập nhật {updated}, xóa {deleted}.',
@@ -6667,6 +6856,12 @@ const EN_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: 'Edit website',
     settingsCreateWebsiteButton: 'Create website',
     settingsNavPayment: 'Orders & payment',
+    settingsNavShipping: 'Shipping management',
+    settingsNavShippingDesc:
+      'Shipping fees, carrier label, return address, and the shop shipping-lookup API (NanoAI calls it when customers ask about orders / tracking).',
+    settingsNavShippingFeeTitle: 'Shipping fee (chat orders)',
+    settingsShippingOpenFromPayment: 'Shipping fee, carrier, return address, and lookup API → Shipping management',
+    settingsNavShippingSaveFee: 'Save shipping fees',
     settingsNavLoyalty: 'Returning members',
     settingsNavLoyaltyDesc:
       'Tier customers by spend within a time window and apply automatic discounts at checkout.',
@@ -7264,7 +7459,7 @@ const EN_DICTIONARY: Dictionary = {
     productStudioFieldStyle: 'Style',
     productStudioFieldGender: 'Gender',
     productStudioFieldProductType: 'Product type',
-    productStudioFieldSizes: 'Sizes (comma separated)',
+    productStudioFieldSizes: 'Size',
     productStudioFieldNoSize: 'No sizes',
     productStudioFieldColors: 'Colors',
     productStudioAddColor: 'Add color',
@@ -7299,6 +7494,97 @@ const EN_DICTIONARY: Dictionary = {
     productStudioStudioDone: 'Enough photos — ready to publish',
     productStudioSuggestName: 'Suggest name with AI',
     productStudioSuggestedName: 'AI-suggested name',
+    productStudioStepAttrs: 'Attributes',
+    productStudioStepStudioSettings: 'Studio settings',
+    productStudioStepStudio: 'Photo studio',
+    productStudioStepImages: 'Photos',
+    productStudioStepPublish: 'Publish',
+    productStudioManualModeHint:
+      'Upload the main photo, gallery, and a photo per color from your device. AI writes the description when you publish.',
+    productStudioColorRowHint: 'Each row: name + photo',
+    productStudioRequiredColor: 'Need at least 1 color photo (name + image).',
+    productStudioColorNameMissing: 'Each color photo needs a color name.',
+    productStudioRequiredGallery: 'Need at least 2 gallery photos.',
+    productStudioStartPublish: 'Publish product',
+    productStudioNamePlaceholder: 'e.g. Oversized linen shirt for women…',
+    productStudioColorNamePlaceholder: 'e.g. Black, Beige, Blush…',
+    productStudioImageEmpty: 'Photo',
+    productStudioFieldGalleryMin: 'Gallery photos * (min 2)',
+    productStudioManualAiDescHint: 'No description needed — AI writes it when you publish.',
+    productStudioNext: 'Next',
+    productStudioBack: 'Back',
+    productStudioRequiredMaterial: 'Please enter the material.',
+    productStudioRequiredSizes: 'Add a size (press Enter after each) or choose “No sizes”.',
+    productStudioRequiredModelFields: 'If a model is included, choose gender, age, and ethnicity.',
+    productStudioAiModeHint:
+      'Skip the product name here. In Studio, upload a sample photo per color — AI reads the color name. The first color photo also becomes the SEO title.',
+    productStudioTypeApparel: 'Apparel',
+    productStudioTypeShoes: 'Shoes',
+    productStudioTypeAccessory: 'Accessories',
+    productStudioTypeHousehold: 'Home goods',
+    productStudioTypeFood: 'Food',
+    productStudioTypeOther: 'Other',
+    productStudioGenderFemale: 'Women',
+    productStudioGenderMale: 'Men',
+    productStudioGenderUnisex: 'Unisex',
+    productStudioShotStudio: 'Professional studio (clean background)',
+    productStudioShotLifestyle: 'Indoor lifestyle',
+    productStudioShotOutdoor: 'Outdoor / scenery',
+    productStudioModelNone: 'No model — product only',
+    productStudioModelYes: 'Include a model wearing / holding the product',
+    productStudioModelGender: 'Model gender',
+    productStudioModelAge: 'Model age',
+    productStudioModelEthnicity: 'Model ethnicity',
+    productStudioModelAgeBaby: 'Baby (0–3)',
+    productStudioModelAgeChild: 'Child (4–12)',
+    productStudioModelAgeTeen: 'Teen (13–17)',
+    productStudioModelAgeAdult: 'Adult (18–35)',
+    productStudioModelAgeMiddle: 'Middle-aged (35–55)',
+    productStudioModelEthnicityAsian: 'Asian',
+    productStudioModelEthnicityWestern: 'Western / European',
+    productStudioNonWearableHint: 'This type is shot as a still product — no model wearing or holding it.',
+    productStudioTabColor: 'Color photos',
+    productStudioTabGallery: 'Gallery',
+    productStudioTabMaterial: 'Material photo',
+    productStudioTabDetail: 'Detail photos',
+    productStudioTabDetailOptional: 'optional',
+    productStudioColorFirstHint:
+      'First color: upload a product sample — AI reads the product name and color, keeping the sample’s pose and angle.',
+    productStudioColorNextHint:
+      'Next color: upload a new sample — AI takes style/color from this photo and keeps the face from color #1.',
+    productStudioGalleryHint: 'Pick refs then Generate — same product, different angle. Need 2 gallery photos before publishing.',
+    productStudioDetailHint: 'Detail photos are optional — pick a ref then Generate a close-up from a different crop.',
+    productStudioMaterialHint: 'Material collage — pick a reference then Generate. 1 material photo is required before publishing.',
+    productStudioSampleImage: 'Product sample photo',
+    productStudioSampleImageNew: 'New product sample photo',
+    productStudioPickRefs: 'Pick reference photos (max 3)',
+    productStudioGenerate: 'Generate',
+    productStudioApproveContinue: 'OK — Continue',
+    productStudioFaceLockLabel: 'Model face lock (from color #1)',
+    productStudioProgressTitle: 'Photo progress before publishing',
+    productStudioProgressColor: 'Color photos',
+    productStudioProgressGallery: 'Gallery',
+    productStudioProgressMaterial: 'Material photo',
+    productStudioProgressDetail: 'Detail photos',
+    productStudioSelectGalleryStep: 'Step 1: Choose gallery photos',
+    productStudioSelectDetailStep: 'Step 2: Choose detail photos',
+    productStudioConfirmSelection: 'Confirm selection',
+    productStudioSkipDetail: 'Skip detail photos',
+    productStudioResumeTitle: 'Unfinished product sessions',
+    productStudioResumeContinue: 'Continue',
+    productStudioResumeDelete: 'Delete',
+    productStudioNoUploadHere:
+      'Don’t upload photos on this step. In Photo studio, upload a reference for each color when you tap Generate.',
+    productStudioSizeChipPlaceholder: 'Type a size then Enter (e.g. S or 39)',
+    productStudioNeedAttach: 'Upload a product sample — AI will read the color name.',
+    productStudioNeedRefs: 'Pick at least 1 reference photo or upload an extra sample.',
+    productStudioSeoName: 'SEO name',
+    productStudioShotLocked: 'Locked shot style',
+    productStudioSwitchTabHint: 'Switch tabs anytime — the system does not auto-jump after the minimum photos are ready.',
+    productStudioMinPublishHint: 'Required before publishing: 1 color photo, 2 gallery, 1 material photo. Detail photos are optional.',
+    productStudioPromptColorPlaceholder: 'Leave empty to keep the sample pose/angle. Or add notes (bag carry, V-neck…).',
+    productStudioGalleryMinHint: 'Gallery selected — at least 2 photos.',
+    productStudioDetailOptionalHint: 'Detail selected — you can skip this step.',
     inventoryImportReplaceWarning:
       'Excel import: rows matching an existing SKU (case-insensitive) are updated; otherwise inserted. Without a SKU, rows match by name to existing rows that also have no SKU (if several match, the first matching row is used). Status column (or is_active): 1 = add/update; 0 = delete that item from inventory (requires SKU or name to match). Display order follows row order in the file unless a Sort order column is present. Items already in stock that are not in the file stay unchanged. Continue?',
     inventoryImportSuccess: 'Processed {count} row(s): {inserted} added, {updated} updated, {deleted} removed.',
@@ -9630,6 +9916,12 @@ const ZH_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: '编辑网站',
     settingsCreateWebsiteButton: '创建网站',
     settingsNavPayment: '订单与支付',
+    settingsNavShipping: '物流管理',
+    settingsNavShippingDesc:
+      '运费、承运商标签、退货地址，以及店铺物流查询 API（顾客询问订单/运单时由 NanoAI 调用）。',
+    settingsNavShippingFeeTitle: '运费（聊天订单）',
+    settingsShippingOpenFromPayment: '运费、承运商、退货地址与查询接口 → 物流管理',
+    settingsNavShippingSaveFee: '保存运费',
     settingsNavLoyalty: '常客会员',
     settingsNavLoyaltyDesc: '按时间窗口内的消费划分等级，并在结账时自动打折。',
     settingsNavPromotions: '促销活动',
@@ -10201,7 +10493,7 @@ const ZH_DICTIONARY: Dictionary = {
     productStudioFieldStyle: '款式',
     productStudioFieldGender: '性别',
     productStudioFieldProductType: '商品类型',
-    productStudioFieldSizes: '尺码（用逗号分隔）',
+    productStudioFieldSizes: '尺码',
     productStudioFieldNoSize: '无需尺码',
     productStudioFieldColors: '颜色',
     productStudioAddColor: '添加颜色',
@@ -10236,6 +10528,93 @@ const ZH_DICTIONARY: Dictionary = {
     productStudioStudioDone: '图片已足够 — 可以发布商品',
     productStudioSuggestName: 'AI 建议名称',
     productStudioSuggestedName: 'AI 建议的名称',
+    productStudioStepAttrs: '属性',
+    productStudioStepStudioSettings: '工作室设置',
+    productStudioStepStudio: '图片工作室',
+    productStudioStepImages: '图片',
+    productStudioStepPublish: '发布',
+    productStudioManualModeHint: '从设备上传主图、图库以及每个颜色的图片。发布时由 AI 撰写描述。',
+    productStudioColorRowHint: '每行：名称 + 图片',
+    productStudioRequiredColor: '至少需要 1 张颜色图（名称 + 图片）。',
+    productStudioColorNameMissing: '每张颜色图都需要颜色名称。',
+    productStudioRequiredGallery: '至少需要 2 张图库图片。',
+    productStudioStartPublish: '开始发布商品',
+    productStudioNamePlaceholder: '例如：宽松亚麻女衬衫…',
+    productStudioColorNamePlaceholder: '例如：黑色、米色、粉杏色…',
+    productStudioImageEmpty: '图片',
+    productStudioFieldGalleryMin: '图库图片 *（至少 2 张）',
+    productStudioManualAiDescHint: '无需填写描述 — 发布时由 AI 撰写。',
+    productStudioNext: '下一步',
+    productStudioBack: '返回',
+    productStudioRequiredMaterial: '请输入材质。',
+    productStudioRequiredSizes: '添加尺码（每项按 Enter）或选择「不分尺码」。',
+    productStudioRequiredModelFields: '选择「有模特」时需填写性别、年龄和族裔。',
+    productStudioAiModeHint:
+      '此步无需填写商品名。进入工作室后为每个颜色上传样品图 — AI 会读取颜色名。第一张颜色图同时生成 SEO 标题。',
+    productStudioTypeApparel: '服装',
+    productStudioTypeShoes: '鞋履',
+    productStudioTypeAccessory: '配件',
+    productStudioTypeHousehold: '家居',
+    productStudioTypeFood: '食品',
+    productStudioTypeOther: '其他',
+    productStudioGenderFemale: '女',
+    productStudioGenderMale: '男',
+    productStudioGenderUnisex: '中性',
+    productStudioShotStudio: '专业棚拍（干净背景）',
+    productStudioShotLifestyle: '室内生活场景',
+    productStudioShotOutdoor: '户外 / 风景',
+    productStudioModelNone: '无模特 — 仅产品',
+    productStudioModelYes: '包含模特穿着 / 手持产品',
+    productStudioModelGender: '模特性别',
+    productStudioModelAge: '模特年龄',
+    productStudioModelEthnicity: '模特族裔',
+    productStudioModelAgeBaby: '婴儿（0–3 岁）',
+    productStudioModelAgeChild: '儿童（4–12 岁）',
+    productStudioModelAgeTeen: '青少年（13–17 岁）',
+    productStudioModelAgeAdult: '成人（18–35 岁）',
+    productStudioModelAgeMiddle: '中年（35–55 岁）',
+    productStudioModelEthnicityAsian: '亚洲',
+    productStudioModelEthnicityWestern: '欧美',
+    productStudioNonWearableHint: '此类型拍摄静态产品图，不使用模特穿着或手持。',
+    productStudioTabColor: '颜色图',
+    productStudioTabGallery: '图库',
+    productStudioTabMaterial: '材质图',
+    productStudioTabDetail: '细节图',
+    productStudioTabDetailOptional: '可选',
+    productStudioColorFirstHint: '第一张颜色图：上传产品样品 — AI 读取商品名和颜色，并保持样品的角度与姿势。',
+    productStudioColorNextHint: '下一颜色：上传新样品 — AI 从该图取款式/颜色，并锁定第 1 张的面部。',
+    productStudioGalleryHint: '选择参考图后生成 — 同一商品、不同角度。发布前至少 2 张图库图。',
+    productStudioDetailHint: '细节图可选 — 选择参考图后生成不同裁切的特写。',
+    productStudioMaterialHint: '材质拼贴 — 选择参考图后生成。发布前必须有 1 张材质图。',
+    productStudioSampleImage: '产品样品图',
+    productStudioSampleImageNew: '新的产品样品图',
+    productStudioPickRefs: '选择参考图（最多 3 张）',
+    productStudioGenerate: '生成',
+    productStudioApproveContinue: '确认 — 继续',
+    productStudioFaceLockLabel: '模特面部锁定（来自颜色 #1）',
+    productStudioProgressTitle: '发布前图片进度',
+    productStudioProgressColor: '颜色图',
+    productStudioProgressGallery: '图库',
+    productStudioProgressMaterial: '材质图',
+    productStudioProgressDetail: '细节图',
+    productStudioSelectGalleryStep: '第 1 步：选择图库图片',
+    productStudioSelectDetailStep: '第 2 步：选择细节图片',
+    productStudioConfirmSelection: '确认选择',
+    productStudioSkipDetail: '跳过细节图',
+    productStudioResumeTitle: '有未完成的创建会话',
+    productStudioResumeContinue: '继续',
+    productStudioResumeDelete: '删除',
+    productStudioNoUploadHere: '此步不要上传图片。进入图片工作室后，为每个颜色单独上传参考图再生成。',
+    productStudioSizeChipPlaceholder: '输入尺码后按 Enter（如 S 或 39）',
+    productStudioNeedAttach: '请上传产品样品 — AI 会读取颜色名。',
+    productStudioNeedRefs: '请至少选择 1 张参考图或上传附加样品。',
+    productStudioSeoName: 'SEO 名称',
+    productStudioShotLocked: '固定拍摄场景',
+    productStudioSwitchTabHint: '可随时切换标签 — 达到最低数量后系统不会自动跳转。',
+    productStudioMinPublishHint: '发布前必须：1 张颜色图、2 张图库、1 张材质图。细节图可选。',
+    productStudioPromptColorPlaceholder: '留空则保持样品角度/姿势。也可补充说明（挎包、V领…）。',
+    productStudioGalleryMinHint: '已选图库 — 至少 2 张。',
+    productStudioDetailOptionalHint: '已选细节 — 也可以跳过。',
     inventoryImportReplaceWarning:
       '导入 Excel：与现有 SKU（不区分大小写）匹配则更新，否则新增。无 SKU 时按名称与同样无 SKU 的库存行匹配（多条同名时取库存中第一条匹配）。「状态」列（或 is_active）：1 = 新增/更新；0 = 从库存删除（需填写 SKU 或名称以匹配）。若无“排序”列，显示顺序按文件中的行顺序。未出现在文件中的现有商品将保留。是否继续？',
     inventoryImportSuccess: '已处理 {count} 行：新增 {inserted}，更新 {updated}，删除 {deleted}。',
@@ -12510,6 +12889,12 @@ const JA_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: 'Webを編集',
     settingsCreateWebsiteButton: 'Webを作成',
     settingsNavPayment: '注文と決済',
+    settingsNavShipping: '配送管理',
+    settingsNavShippingDesc:
+      '送料、配送業者、返送先住所、ショップの配送照会 API（注文・追跡の問い合わせ時に NanoAI が呼び出します）。',
+    settingsNavShippingFeeTitle: '送料（チャット注文）',
+    settingsShippingOpenFromPayment: '送料・配送業者・返送先・照会 API → 配送管理',
+    settingsNavShippingSaveFee: '送料を保存',
     settingsNavLoyalty: '常連会員',
     settingsNavLoyaltyDesc: '期間内の購入額でランク付けし、注文確定時に自動割引します。',
     settingsNavPromotions: 'プロモーション',
@@ -13101,7 +13486,7 @@ const JA_DICTIONARY: Dictionary = {
     productStudioFieldStyle: 'スタイル',
     productStudioFieldGender: '性別',
     productStudioFieldProductType: '商品タイプ',
-    productStudioFieldSizes: 'サイズ（カンマ区切り）',
+    productStudioFieldSizes: 'サイズ',
     productStudioFieldNoSize: 'サイズなし',
     productStudioFieldColors: 'カラー',
     productStudioAddColor: 'カラーを追加',
@@ -13136,6 +13521,94 @@ const JA_DICTIONARY: Dictionary = {
     productStudioStudioDone: '画像が十分です — 出品可能です',
     productStudioSuggestName: 'AIで名前を提案',
     productStudioSuggestedName: 'AI提案の名前',
+    productStudioStepAttrs: '属性',
+    productStudioStepStudioSettings: 'スタジオ設定',
+    productStudioStepStudio: 'フォトスタジオ',
+    productStudioStepImages: '写真',
+    productStudioStepPublish: '出品',
+    productStudioManualModeHint:
+      'メイン写真・ギャラリー・各カラー写真を端末からアップロードします。出品時にAIが説明文を作成します。',
+    productStudioColorRowHint: '各行：名前 + 写真',
+    productStudioRequiredColor: 'カラー写真が少なくとも1枚必要です（名前 + 画像）。',
+    productStudioColorNameMissing: '各カラー写真に色名が必要です。',
+    productStudioRequiredGallery: 'ギャラリー写真が少なくとも2枚必要です。',
+    productStudioStartPublish: '商品を出品する',
+    productStudioNamePlaceholder: '例: リネンオーバーサイズシャツ…',
+    productStudioColorNamePlaceholder: '例: ブラック、ベージュ、ピンク…',
+    productStudioImageEmpty: '写真',
+    productStudioFieldGalleryMin: 'ギャラリー写真 *（最低2枚）',
+    productStudioManualAiDescHint: '説明文は不要です — 出品時にAIが作成します。',
+    productStudioNext: '次へ',
+    productStudioBack: '戻る',
+    productStudioRequiredMaterial: '素材を入力してください。',
+    productStudioRequiredSizes: 'サイズを追加（Enter）するか「サイズなし」を選んでください。',
+    productStudioRequiredModelFields: '「モデルあり」の場合は性別・年齢・出自を選んでください。',
+    productStudioAiModeHint:
+      'このステップでは商品名は不要です。スタジオで色ごとにサンプル写真をアップロードすると、AIが色名を読み取ります。最初の色写真はSEO名にもなります。',
+    productStudioTypeApparel: 'アパレル',
+    productStudioTypeShoes: 'シューズ',
+    productStudioTypeAccessory: 'アクセサリー',
+    productStudioTypeHousehold: '家庭用品',
+    productStudioTypeFood: '食品',
+    productStudioTypeOther: 'その他',
+    productStudioGenderFemale: 'レディース',
+    productStudioGenderMale: 'メンズ',
+    productStudioGenderUnisex: 'ユニセックス',
+    productStudioShotStudio: 'プロスタジオ（清潔な背景）',
+    productStudioShotLifestyle: 'インドアライフスタイル',
+    productStudioShotOutdoor: '屋外 / 風景',
+    productStudioModelNone: 'モデルなし — 商品のみ',
+    productStudioModelYes: 'モデルが着用 / 手に持つ',
+    productStudioModelGender: 'モデルの性別',
+    productStudioModelAge: 'モデルの年齢',
+    productStudioModelEthnicity: 'モデルの出自',
+    productStudioModelAgeBaby: '乳幼児（0–3歳）',
+    productStudioModelAgeChild: '子ども（4–12歳）',
+    productStudioModelAgeTeen: 'ティーン（13–17歳）',
+    productStudioModelAgeAdult: '大人（18–35歳）',
+    productStudioModelAgeMiddle: '中年（35–55歳）',
+    productStudioModelEthnicityAsian: 'アジア系',
+    productStudioModelEthnicityWestern: '欧米系',
+    productStudioNonWearableHint: 'この種類は静止商品撮影です。モデルの着用・手持ちはありません。',
+    productStudioTabColor: 'カラー写真',
+    productStudioTabGallery: 'ギャラリー',
+    productStudioTabMaterial: '素材写真',
+    productStudioTabDetail: 'ディテール写真',
+    productStudioTabDetailOptional: '任意',
+    productStudioColorFirstHint: '最初のカラー：サンプルをアップロード — AIが商品名と色を読み、サンプルの角度・ポーズを維持します。',
+    productStudioColorNextHint: '次のカラー：新しいサンプルをアップロード — この写真からスタイル/色を取り、カラー#1の顔を維持します。',
+    productStudioGalleryHint: '参照画像を選んで生成 — 同じ商品・別角度。公開前にギャラリー2枚が必要です。',
+    productStudioDetailHint: 'ディテールは任意 — 参照を選んで別のクローズアップを生成します。',
+    productStudioMaterialHint: '素材コラージュ — 参照を選んで生成。公開前に素材写真1枚が必要です。',
+    productStudioSampleImage: '商品サンプル写真',
+    productStudioSampleImageNew: '新しい商品サンプル写真',
+    productStudioPickRefs: '参照画像を選択（最大3枚）',
+    productStudioGenerate: '生成',
+    productStudioApproveContinue: 'OK — 続ける',
+    productStudioFaceLockLabel: 'モデル顔ロック（カラー#1から）',
+    productStudioProgressTitle: '公開前の写真進捗',
+    productStudioProgressColor: 'カラー写真',
+    productStudioProgressGallery: 'ギャラリー',
+    productStudioProgressMaterial: '素材写真',
+    productStudioProgressDetail: 'ディテール写真',
+    productStudioSelectGalleryStep: 'ステップ1：ギャラリー写真を選ぶ',
+    productStudioSelectDetailStep: 'ステップ2：ディテール写真を選ぶ',
+    productStudioConfirmSelection: '選択を確定',
+    productStudioSkipDetail: 'ディテールをスキップ',
+    productStudioResumeTitle: '未完了の作成セッションがあります',
+    productStudioResumeContinue: '続ける',
+    productStudioResumeDelete: '削除',
+    productStudioNoUploadHere: 'このステップでは写真をアップロードしません。スタジオで色ごとに参照画像をアップロードして生成します。',
+    productStudioSizeChipPlaceholder: 'サイズを入力して Enter（例: S または 39）',
+    productStudioNeedAttach: '商品サンプルをアップロードしてください — AIが色名を読み取ります。',
+    productStudioNeedRefs: '参照画像を1枚以上選ぶか、追加サンプルをアップロードしてください。',
+    productStudioSeoName: 'SEO名',
+    productStudioShotLocked: '固定撮影スタイル',
+    productStudioSwitchTabHint: 'いつでもタブを切り替えられます — 最低枚数に達しても自動では移動しません。',
+    productStudioMinPublishHint: '公開前に必須：カラー1枚、ギャラリー2枚、素材1枚。ディテールは任意です。',
+    productStudioPromptColorPlaceholder: '空欄ならサンプルの角度・ポーズを維持。またはメモを追加（バッグの持ち方、Vネックなど）。',
+    productStudioGalleryMinHint: 'ギャラリー選択済み — 最低2枚。',
+    productStudioDetailOptionalHint: 'ディテール選択済み — スキップもできます。',
     inventoryImportReplaceWarning:
       'Excel取込：既存の SKU（大文字小文字無視）と一致すれば更新、なければ新規追加。SKU がない行は、SKU なしの既存行と商品名で照合（複数ある場合は在庫の先頭一致を使用）。「状態」列（または is_active）：1 = 追加/更新、0 = 在庫から削除（SKU または商品名が必要）。「並び順」列がなければ表示順はファイルの行順です。ファイルに無い既存商品はそのまま残ります。続行しますか？',
     inventoryImportSuccess: '{count} 行を処理：新規 {inserted}、更新 {updated}、削除 {deleted}。',
@@ -15453,6 +15926,12 @@ const KO_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: '웹사이트 편집',
     settingsCreateWebsiteButton: '웹사이트 만들기',
     settingsNavPayment: '주문 및 결제',
+    settingsNavShipping: '배송 관리',
+    settingsNavShippingDesc:
+      '배송비, 운송사, 반송 주소, 쇼핑몰 배송 조회 API(고객이 주문/운송장을 물을 때 NanoAI가 호출).',
+    settingsNavShippingFeeTitle: '배송비(채팅 주문)',
+    settingsShippingOpenFromPayment: '배송비, 운송사, 반송 주소, 조회 API → 배송 관리',
+    settingsNavShippingSaveFee: '배송비 저장',
     settingsNavLoyalty: '단골 회원',
     settingsNavLoyaltyDesc: '기간 내 구매액으로 등급을 매기고 주문 확정 시 자동 할인합니다.',
     settingsNavPromotions: '프로모션',
@@ -16040,7 +16519,7 @@ const KO_DICTIONARY: Dictionary = {
     productStudioFieldStyle: '스타일',
     productStudioFieldGender: '성별',
     productStudioFieldProductType: '상품 유형',
-    productStudioFieldSizes: '사이즈 (쉼표로 구분)',
+    productStudioFieldSizes: '사이즈',
     productStudioFieldNoSize: '사이즈 없음',
     productStudioFieldColors: '색상',
     productStudioAddColor: '색상 추가',
@@ -16075,6 +16554,94 @@ const KO_DICTIONARY: Dictionary = {
     productStudioStudioDone: '이미지가 충분합니다 — 등록 준비 완료',
     productStudioSuggestName: 'AI로 이름 제안',
     productStudioSuggestedName: 'AI 제안 이름',
+    productStudioStepAttrs: '속성',
+    productStudioStepStudioSettings: '스튜디오 설정',
+    productStudioStepStudio: '사진 스튜디오',
+    productStudioStepImages: '사진',
+    productStudioStepPublish: '등록',
+    productStudioManualModeHint:
+      '대표 사진, 갤러리, 색상별 사진을 기기에서 업로드하세요. 등록 시 AI가 설명을 작성합니다.',
+    productStudioColorRowHint: '각 줄: 이름 + 사진',
+    productStudioRequiredColor: '색상 사진이 최소 1장 필요합니다 (이름 + 이미지).',
+    productStudioColorNameMissing: '각 색상 사진에 색 이름이 필요합니다.',
+    productStudioRequiredGallery: '갤러리 사진이 최소 2장 필요합니다.',
+    productStudioStartPublish: '상품 등록 시작',
+    productStudioNamePlaceholder: '예: 린넨 오버사이즈 셔츠…',
+    productStudioColorNamePlaceholder: '예: 블랙, 베이지, 블러시…',
+    productStudioImageEmpty: '사진',
+    productStudioFieldGalleryMin: '갤러리 사진 * (최소 2장)',
+    productStudioManualAiDescHint: '설명은 입력하지 않아도 됩니다 — 등록 시 AI가 작성합니다.',
+    productStudioNext: '다음',
+    productStudioBack: '뒤로',
+    productStudioRequiredMaterial: '소재를 입력해 주세요.',
+    productStudioRequiredSizes: '사이즈를 추가하거나(Enter) «사이즈 없음»을 선택하세요.',
+    productStudioRequiredModelFields: '«모델 포함»을 선택하면 성별, 나이, 출신을 선택해야 합니다.',
+    productStudioAiModeHint:
+      '이 단계에서는 상품명을 입력하지 마세요. 스튜디오에서 색상마다 샘플 사진을 올리면 AI가 색 이름을 읽습니다. 첫 색상 사진은 SEO 이름에도 사용됩니다.',
+    productStudioTypeApparel: '의류',
+    productStudioTypeShoes: '신발',
+    productStudioTypeAccessory: '액세서리',
+    productStudioTypeHousehold: '생활용품',
+    productStudioTypeFood: '식품',
+    productStudioTypeOther: '기타',
+    productStudioGenderFemale: '여성',
+    productStudioGenderMale: '남성',
+    productStudioGenderUnisex: '유니섹스',
+    productStudioShotStudio: '전문 스튜디오 (깨끗한 배경)',
+    productStudioShotLifestyle: '실내 라이프스타일',
+    productStudioShotOutdoor: '야외 / 풍경',
+    productStudioModelNone: '모델 없음 — 상품만',
+    productStudioModelYes: '모델이 착용 / 들고 있음',
+    productStudioModelGender: '모델 성별',
+    productStudioModelAge: '모델 나이',
+    productStudioModelEthnicity: '모델 출신',
+    productStudioModelAgeBaby: '영아 (0–3세)',
+    productStudioModelAgeChild: '어린이 (4–12세)',
+    productStudioModelAgeTeen: '청소년 (13–17세)',
+    productStudioModelAgeAdult: '성인 (18–35세)',
+    productStudioModelAgeMiddle: '중년 (35–55세)',
+    productStudioModelEthnicityAsian: '아시아',
+    productStudioModelEthnicityWestern: '서양 / 유럽',
+    productStudioNonWearableHint: '이 유형은 정지 상품 촬영이며 모델이 입거나 들지 않습니다.',
+    productStudioTabColor: '컬러 사진',
+    productStudioTabGallery: '갤러리',
+    productStudioTabMaterial: '소재 사진',
+    productStudioTabDetail: '디테일 사진',
+    productStudioTabDetailOptional: '선택',
+    productStudioColorFirstHint: '첫 컬러: 상품 샘플을 업로드 — AI가 상품명과 색을 읽고 샘플의 각도와 포즈를 유지합니다.',
+    productStudioColorNextHint: '다음 컬러: 새 샘플을 업로드 — 이 사진에서 스타일/색을 가져오고 컬러 #1의 얼굴을 유지합니다.',
+    productStudioGalleryHint: '참조를 고른 뒤 생성 — 같은 상품, 다른 각도. 등록 전 갤러리 2장이 필요합니다.',
+    productStudioDetailHint: '디테일은 선택 사항 — 참조를 고른 뒤 다른 크롭의 클로즈업을 생성합니다.',
+    productStudioMaterialHint: '소재 콜라주 — 참조를 고른 뒤 생성. 등록 전 소재 사진 1장이 필요합니다.',
+    productStudioSampleImage: '상품 샘플 사진',
+    productStudioSampleImageNew: '새 상품 샘플 사진',
+    productStudioPickRefs: '참조 사진 선택 (최대 3장)',
+    productStudioGenerate: '생성',
+    productStudioApproveContinue: '확인 — 계속',
+    productStudioFaceLockLabel: '모델 얼굴 고정 (컬러 #1에서)',
+    productStudioProgressTitle: '등록 전 사진 진행 상황',
+    productStudioProgressColor: '컬러 사진',
+    productStudioProgressGallery: '갤러리',
+    productStudioProgressMaterial: '소재 사진',
+    productStudioProgressDetail: '디테일 사진',
+    productStudioSelectGalleryStep: '1단계: 갤러리 사진 선택',
+    productStudioSelectDetailStep: '2단계: 디테일 사진 선택',
+    productStudioConfirmSelection: '선택 확인',
+    productStudioSkipDetail: '디테일 건너뛰기',
+    productStudioResumeTitle: '끝나지 않은 생성 세션이 있습니다',
+    productStudioResumeContinue: '계속',
+    productStudioResumeDelete: '삭제',
+    productStudioNoUploadHere: '이 단계에서는 사진을 올리지 마세요. 사진 스튜디오에서 색상마다 참조를 올리고 생성합니다.',
+    productStudioSizeChipPlaceholder: '사이즈를 입력한 뒤 Enter (예: S 또는 39)',
+    productStudioNeedAttach: '상품 샘플을 업로드하세요 — AI가 색 이름을 읽습니다.',
+    productStudioNeedRefs: '참조 사진을 1장 이상 고르거나 추가 샘플을 업로드하세요.',
+    productStudioSeoName: 'SEO 이름',
+    productStudioShotLocked: '고정 촬영 스타일',
+    productStudioSwitchTabHint: '언제든지 탭을 바꿀 수 있습니다 — 최소 장수에 도달해도 자동으로 넘어가지 않습니다.',
+    productStudioMinPublishHint: '등록 전 필수: 컬러 1장, 갤러리 2장, 소재 1장. 디테일은 선택입니다.',
+    productStudioPromptColorPlaceholder: '비워 두면 샘플 각도/포즈를 유지합니다. 또는 메모를 추가하세요.',
+    productStudioGalleryMinHint: '갤러리 선택됨 — 최소 2장.',
+    productStudioDetailOptionalHint: '디테일 선택됨 — 건너뛰어도 됩니다.',
     inventoryImportReplaceWarning:
       'Excel 가져오기: 기존 SKU와 일치(대소문자 무시)하면 업데이트, 없으면 추가. SKU가 없으면 SKU 없는 기존 행과 상품명으로 매칭(여러 개면 재고에서 먼저 맞는 행). «상태» 열(또는 is_active): 1 = 추가/업데이트, 0 = 재고에서 삭제(SKU 또는 상품명 필요). «정렬» 열이 없으면 표시 순서는 파일 행 순서입니다. 파일에 없는 기존 상품은 유지됩니다. 계속할까요?',
     inventoryImportSuccess: '{count}행 처리: 추가 {inserted}, 업데이트 {updated}, 삭제 {deleted}.',

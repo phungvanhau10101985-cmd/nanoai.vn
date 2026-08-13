@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
     mode: payload.mode,
     payload,
     status: payload.mode === 'manual' ? 'publishing' : 'draft',
-    step: payload.mode === 'manual' ? 'create_product' : 'awaiting_studio',
+    step: payload.mode === 'manual' ? 'create_product' : 'awaiting_input',
   })
   if (!job) return NextResponse.json({ error: 'Could not create job' }, { status: 500 })
 

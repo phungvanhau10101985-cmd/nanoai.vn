@@ -61,7 +61,7 @@ import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/l
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
-import { Bot, Cake, Copy, Download, FileSpreadsheet, Image as ImageIcon, Package, Search, Sparkles, Upload } from 'lucide-react'
+import { Bot, Cake, Copy, Download, FileSpreadsheet, Image as ImageIcon, Package, Search, Sparkles, Truck, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
 type AiT = Dictionary['partnerMessagingAi']
@@ -206,7 +206,7 @@ function formToPayload(f: FormState): PartnerAiSettingsPayload {
   }
 }
 
-type AiPanelMode = 'full' | 'ai-only' | 'inventory-only' | 'usage-only'
+type AiPanelMode = 'full' | 'ai-only' | 'inventory-only' | 'usage-only' | 'shipping-only'
 
 export function PartnerAiSettingsPanel({
   partnerId,
@@ -233,7 +233,8 @@ export function PartnerAiSettingsPanel({
 }) {
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
-  const showSettingsTab = panelMode === 'full' || panelMode === 'ai-only'
+  const isShippingOnly = panelMode === 'shipping-only'
+  const showSettingsTab = panelMode === 'full' || panelMode === 'ai-only' || isShippingOnly
   const showInventoryTab = panelMode === 'full' || panelMode === 'inventory-only'
   const showUsageTab = panelMode === 'full' || panelMode === 'usage-only'
   const hideBirthdayPromo = panelMode !== 'full'
@@ -754,6 +755,20 @@ export function PartnerAiSettingsPanel({
               </CardDescription>
             </div>
           </div>
+        ) : isShippingOnly ? (
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm">
+              <Truck className="h-5 w-5" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <CardTitle className="text-lg">{panelTitle ?? t.shippingLookupTitle}</CardTitle>
+              {panelDescription ? (
+                <CardDescription className="text-xs leading-relaxed max-w-3xl">{panelDescription}</CardDescription>
+              ) : (
+                <CardDescription className="text-xs leading-relaxed max-w-3xl">{t.shippingLookupHint}</CardDescription>
+              )}
+            </div>
+          </div>
         ) : (
           <>
             <div className="flex flex-wrap items-start gap-3">
@@ -807,7 +822,8 @@ export function PartnerAiSettingsPanel({
       </CardHeader>
       <CardContent className="pt-4">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'settings' | 'inv' | 'usage')} className="w-full">
-          {(showSettingsTab && showUsageTab) || (showSettingsTab && showInventoryTab) || (showInventoryTab && showUsageTab) ? (
+          {!isShippingOnly &&
+          ((showSettingsTab && showUsageTab) || (showSettingsTab && showInventoryTab) || (showInventoryTab && showUsageTab)) ? (
           <TabsList
             className={`mb-4 grid w-full max-w-3xl h-auto min-h-10 gap-1 p-1 ${
               showSettingsTab && showInventoryTab && showUsageTab
@@ -840,6 +856,8 @@ export function PartnerAiSettingsPanel({
 
           {showSettingsTab ? (
           <TabsContent value="settings" className="space-y-4 mt-0">
+            {!isShippingOnly ? (
+            <>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="ai-delay">{t.delayLabel}</Label>
@@ -904,6 +922,8 @@ export function PartnerAiSettingsPanel({
                 className="resize-y min-h-[160px]"
               />
             </div>
+            </>
+            ) : null}
 
             <div className="space-y-2">
               <Label htmlFor="ai-after-sales-return-address">{t.afterSalesReturnAddressLabel}</Label>
@@ -1013,6 +1033,8 @@ export function PartnerAiSettingsPanel({
               </div>
             </div>
 
+            {!isShippingOnly ? (
+            <>
             {!hideBirthdayPromo ? (
             <div className="rounded-lg border border-violet-200/80 bg-violet-50/50 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1212,13 +1234,17 @@ export function PartnerAiSettingsPanel({
                 className="resize-none"
               />
             </div>
+            </>
+            ) : null}
 
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={saveSettings} disabled={pending}>
                 {t.saveSettings}
               </Button>
             </div>
+            {!isShippingOnly ? (
             <p className="text-[11px] text-muted-foreground leading-relaxed border-t pt-3">{t.cronSetupHint}</p>
+            ) : null}
           </TabsContent>
           ) : null}
 

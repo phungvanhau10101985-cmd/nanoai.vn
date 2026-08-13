@@ -23,6 +23,8 @@ type Props = {
   partners: Array<{ id: string; display_name: string | null; slug: string; logo_url: string | null; embed_key?: string }>
   /** Đồng bộ với ô chọn shop ở mục khóa API phía trên */
   selectedPartnerId?: string
+  /** Trong trang Cài đặt: link đăng nhập shop cuộn tới mục cùng trang. */
+  embedded?: boolean
 }
 
 function CodeBlock({
@@ -106,7 +108,13 @@ function CodeBlock({
   )
 }
 
-export function PartnerDevIntegrationGuide({ baseUrl, t, partners, selectedPartnerId }: Props) {
+export function PartnerDevIntegrationGuide({
+  baseUrl,
+  t,
+  partners,
+  selectedPartnerId,
+  embedded = false,
+}: Props) {
   const effectivePid = useMemo(() => {
     if (!partners.length) return ''
     if (selectedPartnerId && partners.some((p) => p.id === selectedPartnerId)) return selectedPartnerId
@@ -578,9 +586,11 @@ curl -sS -H "Authorization: Bearer YOUR_SHIPPING_LOOKUP_API_KEY" \\
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
           <p className="leading-relaxed text-muted-foreground">{t.noWorkspaceBody}</p>
-          <Button size="sm" asChild>
-            <Link href="/dashboard/messaging/settings">{t.noWorkspaceCta}</Link>
-          </Button>
+          {embedded ? null : (
+            <Button size="sm" asChild>
+              <Link href="/dashboard/messaging/settings">{t.noWorkspaceCta}</Link>
+            </Button>
+          )}
           <p className="text-xs leading-relaxed text-muted-foreground">{t.snippetNote}</p>
         </CardContent>
       </Card>
@@ -692,16 +702,25 @@ curl -sS -H "Authorization: Bearer YOUR_SHIPPING_LOOKUP_API_KEY" \\
             <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
               <p className="text-xs font-medium text-foreground">{t.partnerSiteAuthTitle}</p>
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                <Link
-                  href={
-                    selectedPartner?.id
-                      ? `/dashboard/messaging/partner-site-login?partner=${encodeURIComponent(selectedPartner.id)}`
-                      : '/dashboard/messaging/partner-site-login'
-                  }
-                  className="font-medium text-primary underline-offset-2 hover:underline"
-                >
-                  → {t.partnerSiteAuthTitle}
-                </Link>
+                {embedded ? (
+                  <a
+                    href="#partner-site-login-guide"
+                    className="font-medium text-primary underline-offset-2 hover:underline"
+                  >
+                    → {t.partnerSiteAuthTitle}
+                  </a>
+                ) : (
+                  <Link
+                    href={
+                      selectedPartner?.id
+                        ? `/dashboard/messaging/partner-site-login?partner=${encodeURIComponent(selectedPartner.id)}`
+                        : '/dashboard/messaging/partner-site-login'
+                    }
+                    className="font-medium text-primary underline-offset-2 hover:underline"
+                  >
+                    → {t.partnerSiteAuthTitle}
+                  </Link>
+                )}
                 {' — '}
                 {t.partnerSiteAuthBody}
               </p>

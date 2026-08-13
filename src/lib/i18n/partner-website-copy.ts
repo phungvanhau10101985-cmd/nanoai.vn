@@ -7,30 +7,16 @@ export type PartnerWebsiteCopy = {
   noPartnerTitle: string
   noPartnerBody: string
   createChannelLink: string
-  generateSectionTitle: string
-  generateSectionHint: string
   titleLabel: string
-  briefLabel: string
-  briefPlaceholder: string
-  briefTooShort: string
   logoLabel: string
   logoHint: string
   logoUrlPlaceholder: string
   logoUpload: string
-  logoGenerate: string
-  logoGenerating: string
   logoGenerateHint: string
   logoRequired: string
   logoRemove: string
-  refImagesLabel: string
-  refImagesHint: string
-  refImagesUpload: string
-  refImagesPlaceholder: string
-  refImageRemove: string
   imageInvalidType: string
   uploadFailed: string
-  generateButton: string
-  generating: string
   generateSuccess: string
   fallbackGenerated: string
   publishSectionTitle: string
@@ -42,7 +28,6 @@ export type PartnerWebsiteCopy = {
   publishedBadge: string
   draftBadge: string
   slugLabel: string
-  filesGenerated: string
   publishToView: string
   publishButton: string
   unpublishButton: string
@@ -58,24 +43,8 @@ export type PartnerWebsiteCopy = {
   viewMobile: string
   previewPublicLink: string
   openChatLink: string
-  fileTreeTitle: string
-  fileTreeHint: string
-  fileTreeEmpty: string
   errorGeneric: string
-  chatSectionTitle: string
-  chatSectionHint: string
-  chatModelLabel: string
-  chatInputPlaceholder: string
-  chatSend: string
   chatThinking: string
-  chatWelcome: string
-  chatWelcomeExisting: string
-  chatMessageTooShort: string
-  chatAssetsToggle: string
-  chatAssetsHide: string
-  chatSuggestCreate: string
-  chatSuggestEditHero: string
-  chatSuggestEditColor: string
   quickEditButton: string
   quickEditHeroColor: string
   quickEditHeroTitle: string
@@ -112,49 +81,12 @@ export type PartnerWebsiteCopy = {
   visualEditResetImagePos: string
   visualEditSectionHint: string
   restoreButton: string
-  /** W2.4 — hoàn tác thao tác gần nhất (revision mới nhất). */
+  /** Hoàn tác thao tác gần nhất (revision mới nhất). */
   undoLastButton: string
   revisionHistory: string
   restoreSuccess: string
   restoreNone: string
   restoring: string
-  viewCode: string
-  viewDiff: string
-  diffTitle: string
-  diffEmpty: string
-  agentStepsTitle: string
-  fileChanged: string
-  templateModeBadge: string
-  sectionsPanelTitle: string
-  sectionsPanelHint: string
-  sectionsPanelLockedNote: string
-  /** W2.4 */
-  sectionsMoveUp: string
-  sectionsMoveDown: string
-  sectionsSaveSuccess: string
-  sectionsSaveError: string
-  sectionsVisualHtmlLockedNote: string
-  /** W2.3 */
-  themeColorsPanelTitle: string
-  themeColorsPanelHint: string
-  themeColorPrimary: string
-  themeColorAccent: string
-  themeColorBackground: string
-  themeColorText: string
-  /** W2.3 nav/footer */
-  navFooterPanelTitle: string
-  navFooterPanelHint: string
-  navFooterLockedNote: string
-  navFooterNavTitle: string
-  navFooterFooterTitle: string
-  navFooterSave: string
-  navFooterSaveSuccess: string
-  navFooterSaveError: string
-  themeColorMuted: string
-  themeColorsSave: string
-  themeColorsSaveSuccess: string
-  themeColorsSaveError: string
-  themeColorsVisualHtmlLockedNote: string
   /** M3.2 */
   floatingCtaPanelTitle: string
   floatingCtaPanelHint: string
@@ -191,7 +123,6 @@ export type PartnerWebsiteCopy = {
   leadsMarkRead: string
   tenantNavEditor: string
   tenantNavLeads: string
-  tenantNavSections: string
   tenantNavLandings: string
   tenantNavPublicSite: string
   capabilitiesPanelTitle: string
@@ -459,6 +390,7 @@ export type PartnerWebsiteCopy = {
   templateGalleryUseTemplate: string
   templateGalleryReadyBadge: string
   templateGalleryOpenLibrary: string
+  templateGalleryCloseLibrary: string
   studioBuildProgressCount: string
   studioStartInterview: string
   studioSkipToEditor: string
@@ -516,8 +448,22 @@ export type PartnerWebsiteCopy = {
   journalHistoryTitle: string
   journalEditSectionTitle: string
   journalEditSectionHint: string
-  editRefInlineLabel: string
-  editRefInlineHint: string
+  setupStepsTitle: string
+  setupStepsHint: string
+  setupStep1Title: string
+  setupStep1Hint: string
+  setupStep2Title: string
+  setupStep2Hint: string
+  setupStep3Title: string
+  setupStep3Hint: string
+  setupStep4Title: string
+  setupStep4Hint: string
+  setupSellReadyTitle: string
+  setupSellReadyHint: string
+  setupBrandSave: string
+  setupBrandSaveError: string
+  setupChangeTemplateConfirm: string
+  setupLiveUrlLabel: string
   journalStepDone: string
   journalStepCurrent: string
   journalStepPending: string
@@ -559,41 +505,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
   vi: {
     pageTitle: 'Tạo web & landing',
     pageDescription:
-      'Cột trái = Kho giao diện (xem mẫu / dùng mẫu). Sau khi áp mẫu, chỉnh bằng «Sửa nhanh» trên preview bên phải.',
+      '4 bước: tên + logo → chọn giao diện → sửa trên preview → tên miền. Bán hàng (giỏ, chat, thanh toán) đã gắn sẵn.',
     selectPartner: 'Chọn kênh bán hàng',
     noPartnerTitle: 'Chưa có kênh bán hàng',
     noPartnerBody: 'Tạo workspace nhắn tin trước, sau đó quay lại để tạo website cho shop.',
     createChannelLink: 'Tạo kênh bán hàng',
-    generateSectionTitle: 'Tạo web shop từ mẫu',
-    generateSectionHint:
-      'Chọn mẫu cố định đã gắn catalog, giỏ hàng, chat — không tự tạo giao diện bằng AI.',
     titleLabel: 'Tên website / thương hiệu',
-    briefLabel: 'Mô tả yêu cầu',
-    briefPlaceholder:
-      'Ví dụ:\nShop thời trang nữ\nƯu điểm: form đẹp, giao nhanh\nKhách: nữ 20–35 tuổi\nPhong cách: tối giản, màu be\nCTA: chat mua hàng',
-    briefTooShort: 'Mô tả cần ít nhất vài dòng để AI hiểu yêu cầu.',
     logoLabel: 'Logo thương hiệu',
     logoHint: 'Tải file logo shop (tuỳ chọn) trước khi áp mẫu trang chủ.',
     logoUrlPlaceholder: 'https://... hoặc bấm Tải logo',
     logoUpload: 'Tải logo',
-    logoGenerate: 'Tải logo',
-    logoGenerating: 'Đang tải logo…',
     logoGenerateHint: 'Tải logo shop (tuỳ chọn). Không dùng AI tạo logo.',
     logoRequired: 'Vui lòng tải logo trước khi tiếp tục.',
     logoRemove: 'Xóa logo',
-    refImagesLabel: 'Ảnh tham khảo',
-    refImagesHint: 'Tải ảnh mẫu hoặc dán link (mỗi dòng một URL). Tối đa 8 ảnh.',
-    refImagesUpload: 'Tải ảnh tham khảo',
-    refImagesPlaceholder: 'https://...\nhttps://...',
-    refImageRemove: 'Xóa ảnh',
     imageInvalidType: 'Chỉ chấp nhận file ảnh.',
     uploadFailed: 'Tải ảnh thất bại.',
-    generateButton: 'Áp giao diện mẫu',
-    generating: 'Đang áp mẫu…',
     generateSuccess: 'Đã áp giao diện mẫu',
     fallbackGenerated: 'AI chưa chỉnh được — xem tin nhắn chat để biết chi tiết.',
     publishSectionTitle: 'Publish website',
-    publishSectionHint: 'Sau khi publish, khách truy cập qua /site/[slug].',
+    publishSectionHint: 'Publish xong khách vào /site/[slug]. Giỏ hàng và chat đã sẵn trên web.',
     emptyState: 'Đang tải website shop…',
     autoProvisionTitle: 'Đã tạo landing shop sẵn dùng',
     autoProvisionHint:
@@ -602,7 +532,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     publishedBadge: 'Đang public',
     draftBadge: 'Nháp',
     slugLabel: 'Slug',
-    filesGenerated: 'Số file',
     publishToView: 'Publish để có link công khai.',
     publishButton: 'Publish website',
     unpublishButton: 'Gỡ publish',
@@ -619,26 +548,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     viewMobile: 'Mobile',
     previewPublicLink: 'Link công khai',
     openChatLink: 'Mở chat shop',
-    fileTreeTitle: 'Cấu trúc dự án',
-    fileTreeHint: 'Các file do AI tạo — xem nội dung từng file bên dưới.',
-    fileTreeEmpty: 'Chưa có file — chat để AI tạo dự án web.',
     errorGeneric: 'Không thực hiện được. Thử lại sau.',
-    chatSectionTitle: 'Chat tạo & chỉnh web',
-    chatSectionHint: 'Chat với AI — mỗi lần gửi sẽ cập nhật preview bên phải ngay lập tức.',
-    chatModelLabel: 'Model AI',
-    chatInputPlaceholder: 'Mô tả website hoặc yêu cầu chỉnh sửa…',
-    chatSend: 'Gửi',
-    chatThinking: 'AI đang tạo / chỉnh website…',
-    chatWelcome:
-      'Landing shop đã sẵn sàng! Gõ yêu cầu để chỉnh giao diện — ví dụ: "Đổi màu hero cam", "Thêm FAQ". Chỉ sửa phần hiển thị; chat & form dùng backend có sẵn.',
-    chatWelcomeExisting:
-      'Chỉnh giao diện bằng chat — màu, nội dung, block. Backend (chat, form, sản phẩm từ kho) do NanoAI quản lý.',
-    chatMessageTooShort: 'Tin nhắn quá ngắn — mô tả rõ hơn một chút.',
-    chatAssetsToggle: 'Logo & ảnh tham khảo',
-    chatAssetsHide: 'Ẩn logo & ảnh',
-    chatSuggestCreate: 'Tạo landing shop thời trang',
-    chatSuggestEditHero: 'Viết lại tiêu đề hero ngắn gọn hơn',
-    chatSuggestEditColor: 'Thêm section FAQ và nút chat',
+    chatThinking: 'Đang áp giao diện mẫu…',
     quickEditButton: 'Sửa nhanh',
     quickEditHeroColor: 'Đổi màu hero',
     quickEditHeroTitle: 'Viết lại tiêu đề hero',
@@ -678,42 +589,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     undoLastButton: 'Hoàn tác gần nhất',
     revisionHistory: 'Lịch sử phiên bản',
     restoreSuccess: 'Đã khôi phục bản trước — xem preview bên phải.',
-    restoreNone: 'Chưa có bản lưu. Từ giờ mỗi lần AI chỉnh web sẽ tự lưu snapshot.',
+    restoreNone: 'Chưa có bản lưu. Từ giờ mỗi lần áp mẫu hoặc «Sửa nhanh» sẽ tự lưu snapshot.',
     restoring: 'Đang khôi phục…',
-    viewCode: 'Code',
-    viewDiff: 'Diff',
-    diffTitle: 'Thay đổi dòng code',
-    diffEmpty: 'Chọn file đã sửa để xem diff.',
-    agentStepsTitle: 'Agent',
-    fileChanged: 'đã sửa',
-    templateModeBadge: 'Template (chỉ giao diện)',
-    sectionsPanelTitle: 'Block giao diện',
-    sectionsPanelHint: 'Khách chỉnh qua chat — backend/chat do NanoAI quản lý.',
-    sectionsPanelLockedNote: 'Nút chat & xử lý đơn hàng nằm trong code platform — không sửa được từ đây.',
-    sectionsMoveUp: 'Di chuyển lên',
-    sectionsMoveDown: 'Di chuyển xuống',
-    sectionsSaveSuccess: 'Đã lưu thứ tự block.',
-    sectionsSaveError: 'Không lưu được thứ tự block, thử lại sau.',
-    sectionsVisualHtmlLockedNote: 'Trang đang dùng chế độ "Sửa nhanh" (chỉnh trực tiếp trên giao diện) nên không thể sắp xếp block ở đây. Áp dụng lại 1 mẫu giao diện để quay lại chế độ chỉnh theo block.',
-    themeColorsPanelTitle: 'Màu sắc giao diện',
-    themeColorsPanelHint: 'Đổi màu chủ đạo áp dụng cho toàn bộ trang chủ và khung cửa hàng (giỏ hàng, sản phẩm, tài khoản...).',
-    themeColorPrimary: 'Màu chính',
-    themeColorAccent: 'Màu nhấn',
-    themeColorBackground: 'Màu nền',
-    themeColorText: 'Màu chữ',
-    navFooterPanelTitle: 'Menu & chân trang',
-    navFooterPanelHint: 'Bật/tắt và sắp xếp link có sẵn trên header/footer cửa hàng (không nhập HTML tự do).',
-    navFooterLockedNote: 'Đang ở chế độ Sửa nhanh (HTML) — không chỉnh menu/footer tại đây.',
-    navFooterNavTitle: 'Menu trên (header)',
-    navFooterFooterTitle: 'Chân trang (footer)',
-    navFooterSave: 'Lưu menu & footer',
-    navFooterSaveSuccess: 'Đã lưu menu & footer.',
-    navFooterSaveError: 'Không lưu được menu/footer.',
-    themeColorMuted: 'Màu chữ phụ',
-    themeColorsSave: 'Lưu màu sắc',
-    themeColorsSaveSuccess: 'Đã lưu màu sắc giao diện.',
-    themeColorsSaveError: 'Không lưu được màu sắc, thử lại sau.',
-    themeColorsVisualHtmlLockedNote: 'Trang đang dùng chế độ "Sửa nhanh" nên đổi màu ở đây sẽ không có tác dụng. Áp dụng lại 1 mẫu giao diện để quay lại chế độ chỉnh theo block.',
     floatingCtaPanelTitle: "Nút CTA nổi",
     floatingCtaPanelHint: "Nút cố định góc phải dưới (phía trên chat) — chỉ hiện khi bật và có đường dẫn.",
     floatingCtaEnabled: "Bật nút CTA nổi",
@@ -748,7 +625,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     leadsMarkRead: 'Đã xử lý',
     tenantNavEditor: 'Chỉnh web',
     tenantNavLeads: 'Lead form',
-    tenantNavSections: 'Block giao diện',
     tenantNavLandings: 'Landing pages',
     tenantNavPublicSite: 'Xem site công khai',
     capabilitiesPanelTitle: 'Module website',
@@ -962,7 +838,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Chủ workspace cần bật quyền "Website & landing shop" cho nhân viên trong Cài đặt → Nhóm.',
     legacyMigrateTitle: 'Website đang ở chế độ code cũ (legacy)',
     legacyMigrateHint:
-      'Chuyển sang landing shop template đầy đủ block — chat chỉnh giao diện dễ hơn, form lead & chat CTA tích hợp sẵn. Giữ slug và trạng thái publish.',
+      'Chuyển sang landing shop template đầy đủ block — form lead & chat CTA tích hợp sẵn. Giữ slug và trạng thái publish.',
     legacyMigrateButton: 'Chuyển sang landing template',
     legacyMigrating: 'Đang chuyển…',
     legacyMigrateSuccess: 'Đã chuyển sang landing template — xem preview bên phải.',
@@ -1024,6 +900,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryUseTemplate: 'Dùng giao diện này',
     templateGalleryReadyBadge: 'Sẵn dùng',
     templateGalleryOpenLibrary: 'Mở kho giao diện',
+    templateGalleryCloseLibrary: 'Đóng kho giao diện',
     studioBuildProgressCount: '{done}/{total} bước',
     studioStartInterview: 'Tạo web mới từ mẫu',
     studioSkipToEditor: 'Dùng mẫu có sẵn',
@@ -1074,7 +951,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     studioQ_logo_url: 'Logo thương hiệu (tuỳ chọn)',
     studioH_logo_url: 'Tải file logo — sẽ gắn vào header trang chủ.',
     journalSectionTitle: 'Thiết lập & chỉnh web',
-    journalSectionHint: 'Chọn mẫu để tạo web; sau đó dùng chat AI để chỉnh nhanh giao diện.',
+    journalSectionHint: 'Chọn mẫu để tạo web; sau đó dùng «Sửa nhanh» trên preview để chỉnh giao diện.',
     journalLoading: 'Đang mở thiết lập web…',
     journalBriefSectionTitle: 'Thiết lập trang chủ',
     journalBriefSectionHint:
@@ -1087,8 +964,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     journalEditSectionTitle: 'Chỉnh sửa web',
     journalEditSectionHint:
       'Dùng nút «Sửa nhanh» trên preview bên phải để chỉnh chữ, màu, ảnh trực tiếp — không dùng chat AI.',
-    editRefInlineLabel: 'Ảnh mẫu đính kèm',
-    editRefInlineHint: 'Tải ảnh thiết kế hoặc mockup — AI đọc ảnh và chỉnh web cho khớp.',
+    setupStepsTitle: 'Tạo web bán hàng',
+    setupStepsHint:
+      '4 bước: tên + logo → chọn giao diện → sửa trên preview → tên miền. Giỏ hàng, chat, thanh toán đã gắn sẵn.',
+    setupStep1Title: 'Tên shop & logo',
+    setupStep1Hint: 'Tên hiện trên header. Logo dùng chung mọi trang.',
+    setupStep2Title: 'Chọn giao diện',
+    setupStep2Hint: 'Xem mẫu rồi bấm dùng. Catalog, giỏ, chat tự gắn.',
+    setupStep3Title: 'Sửa giao diện',
+    setupStep3Hint: 'Bấm «Sửa nhanh» bên phải — sửa chữ, ảnh, màu rồi lưu.',
+    setupStep4Title: 'Tên miền',
+    setupStep4Hint: 'Bán ngay bằng link /site/…. Domain riêng (CNAME) là tuỳ chọn.',
+    setupSellReadyTitle: 'Web đã sẵn sàng bán',
+    setupSellReadyHint:
+      'Trang sản phẩm, giỏ hàng, đặt hàng, chat, yêu thích đã có trên nền tảng. Đăng sản phẩm trong kho là khách mua được — không cần tạo thêm trang bán hàng.',
+    setupBrandSave: 'Lưu tên & logo',
+    setupBrandSaveError: 'Không lưu được tên/logo. Thử lại.',
+    setupChangeTemplateConfirm:
+      'Đổi giao diện sẽ ghi đè trang chủ (kể cả chỉnh Sửa nhanh). Sản phẩm và giỏ hàng giữ nguyên. Tiếp tục?',
+    setupLiveUrlLabel: 'Link bán hàng',
     journalStepDone: 'Xong',
     journalStepCurrent: 'Đang hỏi',
     journalStepPending: 'Chưa hỏi',
@@ -1131,37 +1025,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
   en: {
     pageTitle: 'Website & landing builder',
     pageDescription:
-      'Left column = Template library (view sample / use template). After applying, edit with Quick edit on the right preview.',
+      '4 steps: name + logo → pick a template → edit on the preview → domain. Cart, chat, and checkout are already wired.',
     selectPartner: 'Select sales channel',
     noPartnerTitle: 'No sales channel yet',
     noPartnerBody: 'Create a messaging workspace first, then return here to build your shop website.',
     createChannelLink: 'Create sales channel',
-    generateSectionTitle: 'Create shop site from template',
-    generateSectionHint:
-      'Pick a fixed template with catalog, cart, and chat wired — no AI UI generation from scratch.',
     titleLabel: 'Website / brand name',
-    briefLabel: 'Requirements brief',
-    briefPlaceholder:
-      'Example:\nWomen fashion boutique\nValue: great fit, fast shipping\nAudience: women 20–35\nStyle: minimal, beige palette\nCTA: chat to buy',
-    briefTooShort: 'Brief must be at least a few lines for AI to understand.',
     logoLabel: 'Brand logo',
     logoHint: 'Upload a shop logo (optional) before applying the home template.',
     logoUrlPlaceholder: 'https://... or tap Upload logo',
     logoUpload: 'Upload logo',
-    logoGenerate: 'Upload logo',
-    logoGenerating: 'Uploading logo…',
     logoGenerateHint: 'Upload a shop logo (optional). AI logo generation is disabled.',
     logoRequired: 'Please upload a logo before continuing.',
     logoRemove: 'Remove logo',
-    refImagesLabel: 'Reference images',
-    refImagesHint: 'Upload sample images or paste URLs (one per line). Max 8 images.',
-    refImagesUpload: 'Upload reference images',
-    refImagesPlaceholder: 'https://...\nhttps://...',
-    refImageRemove: 'Remove image',
     imageInvalidType: 'Images only.',
     uploadFailed: 'Upload failed.',
-    generateButton: 'Apply shop template',
-    generating: 'Applying template…',
     generateSuccess: 'Web project created',
     fallbackGenerated: 'Used fallback HTML template (AI did not respond).',
     publishSectionTitle: 'Publish website',
@@ -1174,7 +1052,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     publishedBadge: 'Live',
     draftBadge: 'Draft',
     slugLabel: 'Slug',
-    filesGenerated: 'Files',
     publishToView: 'Publish to get a public URL.',
     publishButton: 'Publish website',
     unpublishButton: 'Unpublish',
@@ -1191,26 +1068,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     viewMobile: 'Mobile',
     previewPublicLink: 'Public link',
     openChatLink: 'Open shop chat',
-    fileTreeTitle: 'Project files',
-    fileTreeHint: 'AI-generated files — select a path to view content.',
-    fileTreeEmpty: 'No files yet — chat with AI to generate the web project.',
     errorGeneric: 'Something went wrong. Try again.',
-    chatSectionTitle: 'Chat to build & edit',
-    chatSectionHint: 'Chat with AI — each message updates the live preview on the right.',
-    chatModelLabel: 'AI model',
-    chatInputPlaceholder: 'Describe your site or request edits…',
-    chatSend: 'Send',
-    chatThinking: 'AI is building / updating your site…',
-    chatWelcome:
-      'Your shop landing is ready! Type to edit UI — e.g. "Change hero to orange", "Add FAQ". Display only; chat & forms use the platform backend.',
-    chatWelcomeExisting:
-      'Edit the UI via chat — colors, copy, blocks. Backend (chat, forms, inventory products) is managed by NanoAI.',
-    chatMessageTooShort: 'Message too short — add a bit more detail.',
-    chatAssetsToggle: 'Logo & reference images',
-    chatAssetsHide: 'Hide logo & images',
-    chatSuggestCreate: 'Create a fashion shop landing',
-    chatSuggestEditHero: 'Rewrite the hero headline to be shorter',
-    chatSuggestEditColor: 'Add FAQ section and chat button',
+    chatThinking: 'Applying the shop template…',
     quickEditButton: 'Quick edit',
     quickEditHeroColor: 'Change hero color',
     quickEditHeroTitle: 'Rewrite hero headline',
@@ -1250,42 +1109,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     undoLastButton: 'Undo last change',
     revisionHistory: 'Version history',
     restoreSuccess: 'Previous version restored — check the preview.',
-    restoreNone: 'No saved versions yet. Snapshots are saved on each AI edit from now on.',
+    restoreNone: 'No saved versions yet. Snapshots are saved on each template apply or Quick edit from now on.',
     restoring: 'Restoring…',
-    viewCode: 'Code',
-    viewDiff: 'Diff',
-    diffTitle: 'Line changes',
-    diffEmpty: 'Select a changed file to view diff.',
-    agentStepsTitle: 'Agent',
-    fileChanged: 'changed',
-    templateModeBadge: 'Template (UI only)',
-    sectionsPanelTitle: 'UI blocks',
-    sectionsPanelHint: 'Edit via chat — chat/backend is managed by NanoAI platform.',
-    sectionsPanelLockedNote: 'Chat button & order logic live in platform code — not editable here.',
-    sectionsMoveUp: 'Move up',
-    sectionsMoveDown: 'Move down',
-    sectionsSaveSuccess: 'Block order saved.',
-    sectionsSaveError: 'Could not save block order, try again.',
-    sectionsVisualHtmlLockedNote: 'This site is using "Quick edit" mode (direct on-canvas editing), so blocks can\'t be reordered here. Re-apply a template preset to switch back to block-based editing.',
-    themeColorsPanelTitle: 'Theme colors',
-    themeColorsPanelHint: 'Change the main colors applied across your homepage and shop shell (cart, products, account...).',
-    themeColorPrimary: 'Primary color',
-    themeColorAccent: 'Accent color',
-    themeColorBackground: 'Background color',
-    themeColorText: 'Text color',
-    navFooterPanelTitle: 'Menu & footer',
-    navFooterPanelHint: 'Show/hide and reorder built-in header/footer links (no free HTML).',
-    navFooterLockedNote: 'Visual HTML mode is on — menu/footer cannot be edited here.',
-    navFooterNavTitle: 'Header menu',
-    navFooterFooterTitle: 'Footer links',
-    navFooterSave: 'Save menu & footer',
-    navFooterSaveSuccess: 'Menu & footer saved.',
-    navFooterSaveError: 'Could not save menu/footer.',
-    themeColorMuted: 'Muted text color',
-    themeColorsSave: 'Save colors',
-    themeColorsSaveSuccess: 'Theme colors saved.',
-    themeColorsSaveError: 'Could not save colors, try again.',
-    themeColorsVisualHtmlLockedNote: 'This site is using "Quick edit" mode, so color changes here won\'t take effect. Re-apply a template preset to switch back to block-based editing.',
     floatingCtaPanelTitle: "Floating CTA",
     floatingCtaPanelHint: "Fixed bottom-right button (above chat) — shown only when enabled with a link.",
     floatingCtaEnabled: "Enable floating CTA",
@@ -1320,7 +1145,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     leadsMarkRead: 'Mark handled',
     tenantNavEditor: 'Edit site',
     tenantNavLeads: 'Form leads',
-    tenantNavSections: 'UI blocks',
     tenantNavLandings: 'Landing pages',
     tenantNavPublicSite: 'View public site',
     capabilitiesPanelTitle: 'Website modules',
@@ -1535,7 +1359,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'The workspace owner must enable "Website & landing shop" for staff in Settings → Team.',
     legacyMigrateTitle: 'Site is on legacy HTML mode',
     legacyMigrateHint:
-      'Switch to the full landing template — easier AI UI edits, built-in lead form and chat CTA. Keeps slug and publish state.',
+      'Switch to the full landing template — built-in lead form and chat CTA. Keeps slug and publish state.',
     legacyMigrateButton: 'Switch to landing template',
     legacyMigrating: 'Migrating…',
     legacyMigrateSuccess: 'Switched to landing template — check the preview.',
@@ -1544,7 +1368,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     studioHint:
       'Enter shop name → pick a template → apply. Catalog, cart, and chat are already wired.',
     studioWebHint:
-      'Create the main site from a fixed template (home + products + cart). After apply, quick edits still use AI.',
+      'Create the main site from a fixed template (home + products + cart). After apply, use Quick edit on the preview.',
     studioOpenWebChat: 'Set up / edit shop site',
     studioOpenLandingChat: 'Open landing creation chat',
     studioWebFirstNote: 'Design the main website first, then create landings.',
@@ -1585,7 +1409,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     studioBuildStepApplyLabel: 'Apply landing-v1 template',
     studioApplyTemplateTitle: 'Apply shop template',
     studioApplyTemplateHint:
-      'Create the site from a fixed template wired to catalog, cart, and chat — no AI build from scratch. After applying, quick edit still uses AI as before.',
+      'Create the site from a fixed template wired to catalog, cart, and chat — no AI build from scratch. After applying, edit with Quick edit on the preview.',
     studioPickTemplateTitle: 'Template library',
     studioPickTemplateHint:
       'Preview a complete sample site first, then apply it to your shop. Catalog, cart, wishlist, and chat are already wired — use «Quick edit» after applying.',
@@ -1597,6 +1421,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryUseTemplate: 'Use this template',
     templateGalleryReadyBadge: 'Ready',
     templateGalleryOpenLibrary: 'Open template library',
+    templateGalleryCloseLibrary: 'Close template library',
     studioBuildProgressCount: '{done}/{total} steps',
     studioStartInterview: 'New site from template',
     studioSkipToEditor: 'Use default template',
@@ -1647,7 +1472,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     studioQ_logo_url: 'Brand logo (optional)',
     studioH_logo_url: 'Upload a logo file — it will appear in the homepage header.',
     journalSectionTitle: 'Site setup & edits',
-    journalSectionHint: 'Pick a template to create the site; then use AI chat for quick UI edits.',
+    journalSectionHint: 'Pick a template to create the site; then use Quick edit on the preview to change the UI.',
     journalLoading: 'Opening site setup…',
     journalBriefSectionTitle: 'Home setup',
     journalBriefSectionHint:
@@ -1660,8 +1485,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     journalEditSectionTitle: 'Edit website',
     journalEditSectionHint:
       'Use «Quick edit» on the preview to the right to change text, colors, and images directly — not AI chat.',
-    editRefInlineLabel: 'Attached reference',
-    editRefInlineHint: 'Upload a design or mockup — AI reads the image and adjusts the site to match.',
+    setupStepsTitle: 'Create a selling site',
+    setupStepsHint:
+      '4 steps: name + logo → pick a template → edit on the preview → domain. Cart, chat, and checkout are already wired.',
+    setupStep1Title: 'Shop name & logo',
+    setupStep1Hint: 'Name shows in the header. Logo is shared on every page.',
+    setupStep2Title: 'Choose a look',
+    setupStep2Hint: 'Preview a sample, then apply. Catalog, cart, and chat attach automatically.',
+    setupStep3Title: 'Edit the look',
+    setupStep3Hint: 'Click Quick edit on the right — change text, images, colors, then save.',
+    setupStep4Title: 'Domain',
+    setupStep4Hint: 'Sell now on /site/…. A custom domain (CNAME) is optional.',
+    setupSellReadyTitle: 'Ready to sell',
+    setupSellReadyHint:
+      'Product, cart, checkout, chat, and wishlist pages are platform-built. Publish products in inventory and customers can buy — no extra storefront pages to create.',
+    setupBrandSave: 'Save name & logo',
+    setupBrandSaveError: 'Could not save name/logo. Try again.',
+    setupChangeTemplateConfirm:
+      'Changing the template overwrites the homepage (including Quick edit changes). Products and cart stay. Continue?',
+    setupLiveUrlLabel: 'Selling link',
     journalStepDone: 'Done',
     journalStepCurrent: 'Current',
     journalStepPending: 'Pending',
@@ -1703,35 +1545,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
   },
   zh: {
     pageTitle: '网站与落地页',
-    pageDescription: '左侧 = 模板库（查看样例 / 使用模板）。应用后在右侧预览用「快速编辑」调整。',
+    pageDescription: '四步：店名+Logo → 选模板 → 预览里编辑 → 域名。购物车、聊天、结账已接好。',
     selectPartner: '选择销售渠道',
     noPartnerTitle: '尚无销售渠道',
     noPartnerBody: '请先创建消息 workspace，再回来创建店铺网站。',
     createChannelLink: '创建销售渠道',
-    generateSectionTitle: '用模板创建店铺网站',
-    generateSectionHint: '选择已接入目录、购物车、聊天的固定模板 — 不用 AI 从零生成界面。',
     titleLabel: '网站/品牌名称',
-    briefLabel: '需求说明',
-    briefPlaceholder: '示例：女装店、简约风格、目标用户、主色、CTA 聊天购买',
-    briefTooShort: '说明至少需要几行文字。',
     logoLabel: '品牌 Logo',
     logoHint: '上传 Logo 或粘贴图片链接 — AI 用于网站页眉。',
     logoUrlPlaceholder: 'https://... 或点击上传 Logo',
     logoUpload: '上传 Logo',
-    logoGenerate: '上传 Logo',
-    logoGenerating: '正在上传 Logo…',
     logoGenerateHint: '可上传店铺 Logo（可选）。已关闭 AI 生成 Logo。',
     logoRequired: '请先上传 Logo。',
     logoRemove: '删除 Logo',
-    refImagesLabel: '参考图',
-    refImagesHint: '上传参考图或粘贴链接（每行一个）。最多 8 张。',
-    refImagesUpload: '上传参考图',
-    refImagesPlaceholder: 'https://...',
-    refImageRemove: '删除图片',
     imageInvalidType: '仅支持图片文件。',
     uploadFailed: '上传失败。',
-    generateButton: 'AI 生成网页项目',
-    generating: '正在生成…',
     generateSuccess: '已创建网页项目',
     fallbackGenerated: '已使用备用 HTML 模板。',
     publishSectionTitle: '发布网站',
@@ -1743,7 +1571,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     publishedBadge: '已发布',
     draftBadge: '草稿',
     slugLabel: 'Slug',
-    filesGenerated: '文件数',
     publishToView: '发布后可获得公开链接。',
     publishButton: '发布网站',
     unpublishButton: '取消发布',
@@ -1759,24 +1586,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     viewMobile: '手机',
     previewPublicLink: '公开链接',
     openChatLink: '打开店铺聊天',
-    fileTreeTitle: '项目结构',
-    fileTreeHint: 'AI 生成的文件列表。',
-    fileTreeEmpty: '尚无文件 — 通过聊天让 AI 生成网站项目。',
     errorGeneric: '操作失败，请重试。',
-    chatSectionTitle: '聊天创建与编辑',
-    chatSectionHint: '与 AI 对话 — 每次发送立即更新右侧预览。',
-    chatModelLabel: 'AI 模型',
-    chatInputPlaceholder: '描述网站或提出修改…',
-    chatSend: '发送',
-    chatThinking: 'AI 正在生成/更新网站…',
-    chatWelcome: '落地页已就绪！输入要求修改界面（颜色、文案、区块）。聊天与表单使用平台后端。',
-    chatWelcomeExisting: '已有网站。可要求改颜色、文案、布局… 右侧预览即时更新。',
-    chatMessageTooShort: '消息太短 — 请补充说明。',
-    chatAssetsToggle: 'Logo 与参考图',
-    chatAssetsHide: '隐藏 Logo 与参考图',
-    chatSuggestCreate: '创建时尚店铺落地页',
-    chatSuggestEditHero: '将主标题改得更简洁有吸引力',
-    chatSuggestEditColor: '添加 FAQ 与聊天按钮',
+    chatThinking: '正在应用店铺模板…',
     quickEditButton: '快速编辑',
     quickEditHeroColor: '更改主视觉颜色',
     quickEditHeroTitle: '重写主标题',
@@ -1816,42 +1627,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     undoLastButton: '撤销最近更改',
     revisionHistory: '版本历史',
     restoreSuccess: '已恢复上一版本 — 请查看预览。',
-    restoreNone: '尚无保存版本。此后每次 AI 修改都会自动保存快照。',
+    restoreNone: '尚无保存版本。此后每次应用模板或「快速编辑」都会自动保存快照。',
     restoring: '正在恢复…',
-    viewCode: '代码',
-    viewDiff: 'Diff',
-    diffTitle: '行级变更',
-    diffEmpty: '选择已修改文件查看 diff。',
-    agentStepsTitle: 'Agent',
-    fileChanged: '已修改',
-    templateModeBadge: '模板（仅 UI）',
-    sectionsPanelTitle: 'UI 区块',
-    sectionsPanelHint: '通过聊天编辑 — 聊天/后端由 NanoAI 平台管理。',
-    sectionsPanelLockedNote: '聊天按钮与订单逻辑在平台代码中 — 此处不可编辑。',
-    sectionsMoveUp: '上移',
-    sectionsMoveDown: '下移',
-    sectionsSaveSuccess: '已保存区块顺序。',
-    sectionsSaveError: '保存区块顺序失败，请重试。',
-    sectionsVisualHtmlLockedNote: '该网站正在使用"快速编辑"模式（直接在画布上编辑），因此无法在此处调整区块顺序。重新应用一个模板即可恢复为按区块编辑模式。',
-    themeColorsPanelTitle: '主题颜色',
-    themeColorsPanelHint: '更改应用于首页及店铺框架（购物车、商品、账户等）的主要颜色。',
-    themeColorPrimary: '主色',
-    themeColorAccent: '强调色',
-    themeColorBackground: '背景色',
-    themeColorText: '文字颜色',
-    navFooterPanelTitle: '菜单与页脚',
-    navFooterPanelHint: '显示/隐藏并调整页眉页脚内置链接顺序（不支持自由 HTML）。',
-    navFooterLockedNote: '当前为快速编辑（HTML）模式 — 无法在此编辑菜单/页脚。',
-    navFooterNavTitle: '页眉菜单',
-    navFooterFooterTitle: '页脚链接',
-    navFooterSave: '保存菜单与页脚',
-    navFooterSaveSuccess: '已保存菜单与页脚。',
-    navFooterSaveError: '无法保存菜单/页脚。',
-    themeColorMuted: '次要文字颜色',
-    themeColorsSave: '保存颜色',
-    themeColorsSaveSuccess: '主题颜色已保存。',
-    themeColorsSaveError: '保存颜色失败，请重试。',
-    themeColorsVisualHtmlLockedNote: '该网站正在使用"快速编辑"模式，此处的颜色更改不会生效。重新应用一个模板即可恢复为按区块编辑模式。',
     floatingCtaPanelTitle: "悬浮 CTA",
     floatingCtaPanelHint: "右下角固定按钮（在聊天上方）— 仅在启用并填写链接时显示。",
     floatingCtaEnabled: "启用悬浮 CTA",
@@ -1886,7 +1663,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     leadsMarkRead: '已处理',
     tenantNavEditor: '编辑网站',
     tenantNavLeads: '表单线索',
-    tenantNavSections: '界面区块',
     tenantNavLandings: '落地页',
     tenantNavPublicSite: '查看公开站点',
     capabilitiesPanelTitle: '网站模块',
@@ -2096,14 +1872,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     noWebsitePermTitle: '暂无网站管理权限',
     noWebsitePermBody: '工作区所有者需在设置 → 团队中为员工开启「网站与落地页」权限。',
     legacyMigrateTitle: '网站处于旧版 HTML 模式',
-    legacyMigrateHint: '切换到完整落地页模板 — AI 编辑更方便，内置表单线索与聊天按钮。保留 slug 与发布状态。',
+    legacyMigrateHint: '切换到完整落地页模板 — 内置表单线索与聊天按钮。保留 slug 与发布状态。',
     legacyMigrateButton: '切换到落地页模板',
     legacyMigrating: '正在切换…',
     legacyMigrateSuccess: '已切换到落地页模板 — 请查看预览。',
     legacyMigrateAlready: '网站已是模板模式。',
     studioTitle: '创建新店铺网站',
     studioHint: '简短问卷 → 应用固定 landing-v1 模板 → 接入平台目录、购物车与聊天。',
-    studioWebHint: '用固定模板创建主站（首页+商品+购物车）。应用模板后，快速编辑仍可用 AI。',
+    studioWebHint: '用固定模板创建主站（首页+商品+购物车）。应用模板后，在预览上用「快速编辑」调整。',
     studioOpenWebChat: '设置 / 编辑店铺网站',
     studioOpenLandingChat: '打开落地页创建对话',
     studioWebFirstNote: '请先设计主站，再创建落地页。',
@@ -2143,7 +1919,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     studioBuildStepApplyLabel: '应用 landing-v1 模板',
     studioApplyTemplateTitle: '应用店铺模板',
     studioApplyTemplateHint:
-      '用固定模板建站并接入目录、购物车、聊天 — 不用 AI 从零生成。应用后，快捷编辑仍用 AI。',
+      '用固定模板建站并接入目录、购物车、聊天 — 不用 AI 从零生成。应用后，在预览上用「快速编辑」调整。',
     studioPickTemplateTitle: '模板库',
     studioPickTemplateHint:
       '先查看完整样例网站，再应用到您的店铺。目录、购物车、收藏与聊天已接好 — 应用后可用「快捷编辑」调整。',
@@ -2154,6 +1930,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryUseTemplate: '使用此模板',
     templateGalleryReadyBadge: '可用',
     templateGalleryOpenLibrary: '打开模板库',
+    templateGalleryCloseLibrary: '关闭模板库',
     studioBuildProgressCount: '{done}/{total} 步',
     studioStartInterview: '用模板新建网站',
     studioSkipToEditor: '使用默认模板',
@@ -2198,9 +1975,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     studioQ_color_palette: '主品牌色？',
     studioH_color_palette: '2–3 色或风格（ pastel、深色、奢华…）。',
     studioQ_logo_url: '品牌 Logo（必填）',
-    studioH_logo_url: '上传 Logo 或点击「AI 生成 Logo」— 将用于首页页眉。',
+    studioH_logo_url: '上传 Logo 文件 — 将用于首页页眉。',
     journalSectionTitle: '创建日志',
-    journalSectionHint: '所有问题、回答、设计稿和编辑都保存在此 — 每个店铺唯一日志。',
+    journalSectionHint: '选择模板创建网站；之后在预览上用「快速编辑」改界面。',
     journalLoading: '正在打开创建日志…',
     journalBriefSectionTitle: '首页设置',
     journalBriefSectionHint: '输入店名、上传 Logo（可选）、选择模板后应用。无访谈 / 无 AI 自动创建。',
@@ -2211,8 +1988,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     journalHistoryTitle: '已回答',
     journalEditSectionTitle: '编辑网站',
     journalEditSectionHint: '在右侧预览使用「快速编辑」直接改文字、颜色、图片 — 不用 AI 聊天。',
-    editRefInlineLabel: '附参考图',
-    editRefInlineHint: '上传设计稿或 mockup — AI 读取图片并调整网站样式。',
+    setupStepsTitle: '创建可售卖网站',
+    setupStepsHint: '四步：店名+Logo → 选模板 → 预览里编辑 → 域名。购物车、聊天、结账已接好。',
+    setupStep1Title: '店名与 Logo',
+    setupStep1Hint: '名称显示在页眉。Logo 全站共用。',
+    setupStep2Title: '选择外观',
+    setupStep2Hint: '先看样例再应用。目录、购物车、聊天自动接入。',
+    setupStep3Title: '编辑外观',
+    setupStep3Hint: '点击右侧「快速编辑」改文字、图片、颜色后保存。',
+    setupStep4Title: '域名',
+    setupStep4Hint: '可用 /site/… 立即开售。自定义域名（CNAME）可选。',
+    setupSellReadyTitle: '已可开售',
+    setupSellReadyHint:
+      '商品、购物车、结账、聊天、收藏页由平台提供。在库存发布商品即可购买 — 无需再做销售页。',
+    setupBrandSave: '保存店名和 Logo',
+    setupBrandSaveError: '无法保存店名/Logo，请重试。',
+    setupChangeTemplateConfirm:
+      '更换模板会覆盖首页（含快速编辑）。商品与购物车保留。继续？',
+    setupLiveUrlLabel: '销售链接',
     journalStepDone: '完成',
     journalStepCurrent: '进行中',
     journalStepPending: '待问',
@@ -2252,35 +2045,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
   ja: {
     pageTitle: 'Web・ランディング作成',
     pageDescription:
-      '左列 = テンプレート庫（サンプル表示 / 適用）。適用後は右プレビューの「クイック編集」で調整。',
+      '4ステップ：店名+ロゴ → テンプレ選択 → プレビューで編集 → ドメイン。カート・チャット・決済は接続済み。',
     selectPartner: '販売チャネルを選択',
     noPartnerTitle: '販売チャネルがありません',
     noPartnerBody: '先にメッセージworkspaceを作成してください。',
     createChannelLink: 'チャネルを作成',
-    generateSectionTitle: 'テンプレートでショップWeb作成',
-    generateSectionHint: 'カタログ・カート・チャット接続済みの固定テンプレートを選択 — AIでUIを一から作りません。',
     titleLabel: 'サイト/ブランド名',
-    briefLabel: '要件',
-    briefPlaceholder: '例：店舗概要、強み、ターゲット、トーン、CTA',
-    briefTooShort: '要件は数行以上入力してください。',
     logoLabel: 'ブランドロゴ',
     logoHint: 'ロゴファイルまたは画像URL — サイトヘッダーに使用。',
     logoUrlPlaceholder: 'https://... またはロゴをアップロード',
     logoUpload: 'ロゴをアップロード',
-    logoGenerate: 'ロゴをアップロード',
-    logoGenerating: 'ロゴアップロード中…',
     logoGenerateHint: 'ショップロゴをアップロード（任意）。AIロゴ生成は無効です。',
     logoRequired: '続ける前にロゴをアップロードしてください。',
     logoRemove: 'ロゴを削除',
-    refImagesLabel: '参考画像',
-    refImagesHint: '参考画像をアップロードまたはURLを貼付（1行1URL）。最大8枚。',
-    refImagesUpload: '参考画像をアップロード',
-    refImagesPlaceholder: 'https://...',
-    refImageRemove: '画像を削除',
     imageInvalidType: '画像ファイルのみ。',
     uploadFailed: 'アップロードに失敗しました。',
-    generateButton: 'AIでWebプロジェクト生成',
-    generating: '生成中…',
     generateSuccess: 'プロジェクトを作成しました',
     fallbackGenerated: 'フォールバックHTMLを使用しました。',
     publishSectionTitle: '公開',
@@ -2292,7 +2071,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     publishedBadge: '公開中',
     draftBadge: '下書き',
     slugLabel: 'Slug',
-    filesGenerated: 'ファイル数',
     publishToView: '公開するとURLが表示されます。',
     publishButton: 'サイトを公開',
     unpublishButton: '公開解除',
@@ -2308,24 +2086,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     viewMobile: 'モバイル',
     previewPublicLink: '公開リンク',
     openChatLink: 'ショップチャット',
-    fileTreeTitle: 'プロジェクト構成',
-    fileTreeHint: 'AIが生成したファイル一覧。',
-    fileTreeEmpty: 'ファイルがありません — チャットでWebプロジェクトを生成してください。',
     errorGeneric: 'エラーが発生しました。',
-    chatSectionTitle: 'チャットで作成・編集',
-    chatSectionHint: 'AIとチャット — 送信のたびに右のプレビューが更新されます。',
-    chatModelLabel: 'AIモデル',
-    chatInputPlaceholder: 'サイトの説明または修正依頼…',
-    chatSend: '送信',
-    chatThinking: 'AIがサイトを生成/更新中…',
-    chatWelcome: 'LP準備完了！UI変更はチャットで（色・文案・セクション）。チャット/フォームはプラットフォーム后端。',
-    chatWelcomeExisting: 'サイトは既にあります。色・文案・レイアウトの変更を依頼できます。',
-    chatMessageTooShort: 'メッセージが短すぎます。',
-    chatAssetsToggle: 'ロゴと参考画像',
-    chatAssetsHide: 'ロゴと画像を隠す',
-    chatSuggestCreate: 'ファッションショップのLPを作成',
-    chatSuggestEditHero: 'ヒーロー見出しをより短く魅力的に',
-    chatSuggestEditColor: 'FAQとチャットボタンを追加',
+    chatThinking: 'ショップテンプレートを適用中…',
     quickEditButton: 'クイック編集',
     quickEditHeroColor: 'ヒーローの色を変更',
     quickEditHeroTitle: 'ヒーロー見出しを書き直す',
@@ -2365,42 +2127,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     undoLastButton: '直前の変更を取り消す',
     revisionHistory: 'バージョン履歴',
     restoreSuccess: '前のバージョンを復元しました。',
-    restoreNone: '保存されたバージョンがありません。',
+    restoreNone: '保存されたバージョンがありません。今後はテンプレート適用またはクイック編集のたびにスナップショットを保存します。',
     restoring: '復元中…',
-    viewCode: 'コード',
-    viewDiff: 'Diff',
-    diffTitle: '行の変更',
-    diffEmpty: '変更ファイルを選択して diff を表示。',
-    agentStepsTitle: 'Agent',
-    fileChanged: '変更',
-    templateModeBadge: 'テンプレート（UIのみ）',
-    sectionsPanelTitle: 'UIブロック',
-    sectionsPanelHint: 'チャットで編集 — チャット/バックエンドはプラットフォーム管理。',
-    sectionsPanelLockedNote: 'チャットボタンと処理ロジックはプラットフォームコード — ここでは編集不可。',
-    sectionsMoveUp: '上に移動',
-    sectionsMoveDown: '下に移動',
-    sectionsSaveSuccess: 'ブロックの順序を保存しました。',
-    sectionsSaveError: 'ブロックの順序を保存できませんでした。もう一度お試しください。',
-    sectionsVisualHtmlLockedNote: 'このサイトは「クイック編集」モード（画面上で直接編集）を使用しているため、ここではブロックの並び替えができません。テンプレートを再適用するとブロック編集モードに戻ります。',
-    themeColorsPanelTitle: 'テーマカラー',
-    themeColorsPanelHint: 'ホームページとショップ画面（カート、商品、アカウントなど）全体に適用されるメインカラーを変更します。',
-    themeColorPrimary: 'メインカラー',
-    themeColorAccent: 'アクセントカラー',
-    themeColorBackground: '背景色',
-    themeColorText: '文字色',
-    navFooterPanelTitle: 'メニューとフッター',
-    navFooterPanelHint: 'ヘッダー／フッターの既存リンクの表示と並び替え（自由HTML不可）。',
-    navFooterLockedNote: 'ビジュアルHTMLモード中 — ここではメニュー/フッターを編集できません。',
-    navFooterNavTitle: 'ヘッダーメニュー',
-    navFooterFooterTitle: 'フッターリンク',
-    navFooterSave: 'メニューとフッターを保存',
-    navFooterSaveSuccess: 'メニューとフッターを保存しました。',
-    navFooterSaveError: 'メニュー/フッターを保存できません。',
-    themeColorMuted: '補助文字色',
-    themeColorsSave: '色を保存',
-    themeColorsSaveSuccess: 'テーマカラーを保存しました。',
-    themeColorsSaveError: '色を保存できませんでした。もう一度お試しください。',
-    themeColorsVisualHtmlLockedNote: 'このサイトは「クイック編集」モードを使用しているため、ここでの色の変更は反映されません。テンプレートを再適用するとブロック編集モードに戻ります。',
     floatingCtaPanelTitle: "フローティング CTA",
     floatingCtaPanelHint: "右下固定ボタン（チャットの上）— 有効かつリンクがある場合のみ表示。",
     floatingCtaEnabled: "フローティング CTA を有効化",
@@ -2435,7 +2163,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     leadsMarkRead: '対応済み',
     tenantNavEditor: 'サイト編集',
     tenantNavLeads: 'フォームリード',
-    tenantNavSections: 'UIブロック',
     tenantNavLandings: 'ランディング',
     tenantNavPublicSite: '公開サイト',
     capabilitiesPanelTitle: 'サイトモジュール',
@@ -2648,14 +2375,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'オーナーが設定 → チームで「ウェブサイト・ランディング」権限を付与する必要があります。',
     legacyMigrateTitle: 'レガシー HTML モードのサイト',
     legacyMigrateHint:
-      'フルLPテンプレートに切替 — AI編集が容易、リードフォーム・チャットCTA内蔵。slugと公開状態を維持。',
+      'フルLPテンプレートに切替 — リードフォーム・チャットCTA内蔵。slugと公開状態を維持。',
     legacyMigrateButton: 'LPテンプレートに切替',
     legacyMigrating: '切替中…',
     legacyMigrateSuccess: 'LPテンプレートに切替しました — プレビューを確認。',
     legacyMigrateAlready: 'すでにテンプレートモードです。',
     studioTitle: '新規ショップWeb作成',
     studioHint: '短い質問 → 固定 landing-v1 テンプレート適用 → カタログ・カート・チャットを接続。',
-    studioWebHint: '固定テンプレートでメインWeb作成（ホーム+商品+カート）。適用後のクイック編集はAI可。',
+    studioWebHint: '固定テンプレートでメインWeb作成（ホーム+商品+カート）。適用後はプレビューの「クイック編集」で調整。',
     studioOpenWebChat: 'ショップWebの設定 / 編集',
     studioOpenLandingChat: 'LP作成チャットを開く',
     studioWebFirstNote: '先にメインWebを作成してからLPを作れます。',
@@ -2695,7 +2422,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     studioBuildStepApplyLabel: 'landing-v1 テンプレート適用',
     studioApplyTemplateTitle: 'ショップテンプレートを適用',
     studioApplyTemplateHint:
-      '固定テンプレートで作成しカタログ・カート・チャットを接続 — AIでゼロから構築しません。適用後のクイック編集は従来どおりAIです。',
+      '固定テンプレートで作成しカタログ・カート・チャットを接続 — AIでゼロから構築しません。適用後はプレビューの「クイック編集」で調整します。',
     studioPickTemplateTitle: 'テンプレート庫',
     studioPickTemplateHint:
       '完成サンプルを先に確認してからショップに適用。カタログ・カート・お気に入り・チャット接続済み — 適用後は「クイック編集」で調整。',
@@ -2706,6 +2433,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryUseTemplate: 'このテンプレートを使う',
     templateGalleryReadyBadge: '利用可',
     templateGalleryOpenLibrary: 'テンプレート庫を開く',
+    templateGalleryCloseLibrary: 'テンプレート庫を閉じる',
     studioBuildProgressCount: '{done}/{total} ステップ',
     studioStartInterview: 'テンプレートで新規Web',
     studioSkipToEditor: 'デフォルトテンプレート',
@@ -2751,9 +2479,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     studioQ_color_palette: 'メインブランドカラー？',
     studioH_color_palette: '2–3色またはムード（パステル、ダーク、ラグジュアリー…）。',
     studioQ_logo_url: 'ブランドロゴ（必須）',
-    studioH_logo_url: 'ロゴをアップロードするか「AIでロゴ生成」— ホームページヘッダーに使用。',
+    studioH_logo_url: 'ロゴファイルをアップロード — ホームページヘッダーに使用。',
     journalSectionTitle: '作成ログ',
-    journalSectionHint: '質問・回答・モックアップ・編集をすべてここに保存 — ショップごとに1つのログ。',
+    journalSectionHint: 'テンプレートでサイトを作成し、プレビューの「クイック編集」でUIを直します。',
     journalLoading: '作成ログを開いています…',
     journalBriefSectionTitle: 'ホーム設定',
     journalBriefSectionHint: '店名入力、ロゴ（任意）、テンプレ選択して適用。インタビュー / AI自動作成なし。',
@@ -2764,8 +2492,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     journalHistoryTitle: '回答済み',
     journalEditSectionTitle: 'Webを編集',
     journalEditSectionHint: '右側プレビューの「クイック編集」で文字・色・画像を直接編集 — AIチャットは使いません。',
-    editRefInlineLabel: '参考画像',
-    editRefInlineHint: 'デザイン/mockupをアップロード — AIが画像を読み取りサイトを合わせます。',
+    setupStepsTitle: '販売サイトを作成',
+    setupStepsHint:
+      '4ステップ：店名+ロゴ → テンプレ選択 → プレビューで編集 → ドメイン。カート・チャット・決済は接続済み。',
+    setupStep1Title: '店名とロゴ',
+    setupStep1Hint: '名前はヘッダーに表示。ロゴは全ページ共通。',
+    setupStep2Title: 'デザインを選ぶ',
+    setupStep2Hint: 'サンプルを見て適用。カタログ・カート・チャットは自動接続。',
+    setupStep3Title: 'デザインを編集',
+    setupStep3Hint: '右の「クイック編集」で文字・画像・色を変えて保存。',
+    setupStep4Title: 'ドメイン',
+    setupStep4Hint: '/site/… ですぐ販売。独自ドメイン（CNAME）は任意。',
+    setupSellReadyTitle: '販売準備完了',
+    setupSellReadyHint:
+      '商品・カート・決済・チャット・お気に入りはプラットフォーム提供。在庫を公開すれば購入できます。販売ページを別途作る必要はありません。',
+    setupBrandSave: '店名とロゴを保存',
+    setupBrandSaveError: '店名/ロゴを保存できませんでした。再試行してください。',
+    setupChangeTemplateConfirm:
+      'テンプレート変更はホームページ（クイック編集含む）を上書きします。商品とカートは残ります。続行しますか？',
+    setupLiveUrlLabel: '販売リンク',
     journalStepDone: '完了',
     journalStepCurrent: '質問中',
     journalStepPending: '未質問',
@@ -2807,35 +2552,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
   ko: {
     pageTitle: '웹·랜딩 페이지',
     pageDescription:
-      '왼쪽 = 템플릿 라이브러리(샘플 보기 / 사용). 적용 후 오른쪽 미리보기의 «빠른 편집»으로 수정.',
+      '4단계: 이름+로고 → 템플릿 선택 → 미리보기에서 수정 → 도메인. 장바구니·채팅·결제는 이미 연결됨.',
     selectPartner: '판매 채널 선택',
     noPartnerTitle: '판매 채널 없음',
     noPartnerBody: '먼저 메시징 workspace를 만든 후 돌아오세요.',
     createChannelLink: '채널 만들기',
-    generateSectionTitle: '템플릿으로 샵 웹 만들기',
-    generateSectionHint: '카탈로그·장바구니·채팅이 연결된 고정 템플릿을 선택 — AI로 UI를 처음부터 만들지 않습니다.',
     titleLabel: '사이트/브랜드명',
-    briefLabel: '요구사항',
-    briefPlaceholder: '예: shop 소개, 강점, 타깃, 스타일, CTA',
-    briefTooShort: '요구사항을 몇 줄 이상 입력하세요.',
     logoLabel: '브랜드 로고',
     logoHint: '로고 파일 업로드 또는 이미지 URL — 사이트 헤더에 사용.',
     logoUrlPlaceholder: 'https://... 또는 로고 업로드',
     logoUpload: '로고 업로드',
-    logoGenerate: '로고 업로드',
-    logoGenerating: '로고 업로드 중…',
     logoGenerateHint: '샵 로고를 업로드하세요(선택). AI 로고 생성은 비활성화되었습니다.',
     logoRequired: '계속하려면 로고를 업로드하세요.',
     logoRemove: '로고 삭제',
-    refImagesLabel: '참고 이미지',
-    refImagesHint: '참고 이미지 업로드 또는 URL 붙여넣기(한 줄에 하나). 최대 8장.',
-    refImagesUpload: '참고 이미지 업로드',
-    refImagesPlaceholder: 'https://...',
-    refImageRemove: '이미지 삭제',
     imageInvalidType: '이미지 파일만 가능합니다.',
     uploadFailed: '업로드 실패.',
-    generateButton: '템플릿 적용',
-    generating: '생성 중…',
     generateSuccess: '프로젝트가 생성되었습니다',
     fallbackGenerated: '대체 HTML 템플릿을 사용했습니다.',
     publishSectionTitle: '게시',
@@ -2847,7 +2578,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     publishedBadge: '게시됨',
     draftBadge: '초안',
     slugLabel: 'Slug',
-    filesGenerated: '파일 수',
     publishToView: '게시하면 공개 URL이 표시됩니다.',
     publishButton: '웹사이트 게시',
     unpublishButton: '게시 취소',
@@ -2863,24 +2593,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     viewMobile: '모바일',
     previewPublicLink: '공개 링크',
     openChatLink: '샵 채팅',
-    fileTreeTitle: '프로젝트 구조',
-    fileTreeHint: 'AI가 생성한 파일 목록.',
-    fileTreeEmpty: '파일 없음 — 채팅으로 웹 프로젝트를 생성하세요.',
     errorGeneric: '오류가 발생했습니다.',
-    chatSectionTitle: '채팅으로 생성·편집',
-    chatSectionHint: 'AI와 대화 — 전송할 때마다 오른쪽 미리보기가 갱신됩니다.',
-    chatModelLabel: 'AI 모델',
-    chatInputPlaceholder: '사이트 설명 또는 수정 요청…',
-    chatSend: '보내기',
-    chatThinking: 'AI가 사이트 생성/수정 중…',
-    chatWelcome: '랜딩 준비됨! UI 수정은 채팅으로 (색상, 문구, 섹션). 채팅/폼은 플랫폼 백엔드 사용.',
-    chatWelcomeExisting: '이미 사이트가 있습니다. 색상, 문구, 레이아웃 수정을 요청하세요.',
-    chatMessageTooShort: '메시지가 너무 짧습니다.',
-    chatAssetsToggle: '로고 및 참고 이미지',
-    chatAssetsHide: '로고·이미지 숨기기',
-    chatSuggestCreate: '패션 shop 랜딩 생성',
-    chatSuggestEditHero: '히어로 제목을 더 짧고 매력적으로',
-    chatSuggestEditColor: 'FAQ와 채팅 버튼 추가',
+    chatThinking: '샵 템플릿 적용 중…',
     quickEditButton: '빠른 편집',
     quickEditHeroColor: '히어로 색상 변경',
     quickEditHeroTitle: '히어로 제목 다시 쓰기',
@@ -2920,42 +2634,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     undoLastButton: '최근 변경 취소',
     revisionHistory: '버전 기록',
     restoreSuccess: '이전 버전을 복원했습니다.',
-    restoreNone: '저장된 버전이 없습니다.',
+    restoreNone: '저장된 버전이 없습니다. 이제부터 템플릿 적용 또는 «빠른 편집»마다 스냅샷을 저장합니다.',
     restoring: '복원 중…',
-    viewCode: '코드',
-    viewDiff: 'Diff',
-    diffTitle: '줄 변경',
-    diffEmpty: '변경된 파일을 선택해 diff를 보세요.',
-    agentStepsTitle: 'Agent',
-    fileChanged: '변경됨',
-    templateModeBadge: '템플릿 (UI만)',
-    sectionsPanelTitle: 'UI 블록',
-    sectionsPanelHint: '채팅으로 편집 — 채팅/백엔드는 NanoAI 플랫폼 관리.',
-    sectionsPanelLockedNote: '채팅 버튼과 처리 로직은 플랫폼 코드 — 여기서 편집 불가.',
-    sectionsMoveUp: '위로 이동',
-    sectionsMoveDown: '아래로 이동',
-    sectionsSaveSuccess: '블록 순서가 저장되었습니다.',
-    sectionsSaveError: '블록 순서를 저장하지 못했습니다. 다시 시도하세요.',
-    sectionsVisualHtmlLockedNote: '이 사이트는 "빠른 편집" 모드(화면에서 직접 편집)를 사용 중이라 여기서 블록 순서를 바꿀 수 없습니다. 템플릿을 다시 적용하면 블록 편집 모드로 돌아갑니다.',
-    themeColorsPanelTitle: '테마 색상',
-    themeColorsPanelHint: '홈페이지와 쇼핑몰 화면(장바구니, 상품, 계정 등) 전체에 적용되는 주요 색상을 변경합니다.',
-    themeColorPrimary: '기본 색상',
-    themeColorAccent: '강조 색상',
-    themeColorBackground: '배경 색상',
-    themeColorText: '텍스트 색상',
-    navFooterPanelTitle: '메뉴 & 푸터',
-    navFooterPanelHint: '헤더/푸터 기본 링크 표시·순서 변경 (자유 HTML 불가).',
-    navFooterLockedNote: '비주얼 HTML 모드 — 여기서 메뉴/푸터를 편집할 수 없습니다.',
-    navFooterNavTitle: '헤더 메뉴',
-    navFooterFooterTitle: '푸터 링크',
-    navFooterSave: '메뉴 & 푸터 저장',
-    navFooterSaveSuccess: '메뉴 & 푸터를 저장했습니다.',
-    navFooterSaveError: '메뉴/푸터를 저장하지 못했습니다.',
-    themeColorMuted: '보조 텍스트 색상',
-    themeColorsSave: '색상 저장',
-    themeColorsSaveSuccess: '테마 색상이 저장되었습니다.',
-    themeColorsSaveError: '색상을 저장하지 못했습니다. 다시 시도하세요.',
-    themeColorsVisualHtmlLockedNote: '이 사이트는 "빠른 편집" 모드를 사용 중이라 여기서 색상을 변경해도 적용되지 않습니다. 템플릿을 다시 적용하면 블록 편집 모드로 돌아갑니다.',
     floatingCtaPanelTitle: "플로팅 CTA",
     floatingCtaPanelHint: "오른쪽 하단 고정 버튼(채팅 위) — 활성화되고 링크가 있을 때만 표시됩니다.",
     floatingCtaEnabled: "플로팅 CTA 사용",
@@ -2990,7 +2670,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     leadsMarkRead: '처리 완료',
     tenantNavEditor: '사이트 편집',
     tenantNavLeads: '폼 리드',
-    tenantNavSections: 'UI 블록',
     tenantNavLandings: '랜딩 페이지',
     tenantNavPublicSite: '공개 사이트',
     capabilitiesPanelTitle: '웹사이트 모듈',
@@ -3203,14 +2882,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '워크스페이스 소유자가 설정 → 팀에서 「웹사이트·랜딩」 권한을 켜야 합니다.',
     legacyMigrateTitle: '레거시 HTML 모드 사이트',
     legacyMigrateHint:
-      '전체 랜딩 템플릿으로 전환 — AI UI 편집 용이, 리드 폼·채팅 CTA 내장. slug·게시 상태 유지.',
+      '전체 랜딩 템플릿으로 전환 — 리드 폼·채팅 CTA 내장. slug·게시 상태 유지.',
     legacyMigrateButton: '랜딩 템플릿으로 전환',
     legacyMigrating: '전환 중…',
     legacyMigrateSuccess: '랜딩 템플릿으로 전환됨 — 미리보기를 확인하세요.',
     legacyMigrateAlready: '이미 템플릿 모드입니다.',
     studioTitle: '새 샵 웹사이트 만들기',
     studioHint: '짧은 브리프 → 고정 landing-v1 템플릿 적용 → 카탈로그·장바구니·채팅 연결.',
-    studioWebHint: '고정 템플릿으로 메인 웹 생성(홈+상품+장바구니). 적용 후 빠른 수정은 여전히 AI.',
+    studioWebHint: '고정 템플릿으로 메인 웹 생성(홈+상품+장바구니). 적용 후 미리보기의 «빠른 편집»으로 수정하세요.',
     studioOpenWebChat: '샵 웹 설정 / 수정',
     studioOpenLandingChat: '랜딩 생성 대화 열기',
     studioWebFirstNote: '메인 웹을 먼저 만든 뒤 랜딩을 만들 수 있습니다.',
@@ -3250,7 +2929,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     studioBuildStepApplyLabel: 'landing-v1 템플릿 적용',
     studioApplyTemplateTitle: '샵 템플릿 적용',
     studioApplyTemplateHint:
-      '고정 템플릿으로 생성하고 카탈로그·장바구니·채팅을 연결합니다 — AI로 처음부터 만들지 않습니다. 적용 후 빠른 수정은 기존처럼 AI를 사용합니다.',
+      '고정 템플릿으로 생성하고 카탈로그·장바구니·채팅을 연결합니다 — AI로 처음부터 만들지 않습니다. 적용 후 미리보기의 «빠른 편집»으로 수정하세요.',
     studioPickTemplateTitle: '템플릿 라이브러리',
     studioPickTemplateHint:
       '완성 샘플 사이트를 먼저 본 뒤 샵에 적용하세요. 카탈로그·장바구니·찜·채팅이 연결되어 있습니다 — 적용 후 «빠른 수정»으로 편집하세요.',
@@ -3261,6 +2940,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryUseTemplate: '이 템플릿 사용',
     templateGalleryReadyBadge: '사용 가능',
     templateGalleryOpenLibrary: '템플릿 라이브러리 열기',
+    templateGalleryCloseLibrary: '템플릿 라이브러리 닫기',
     studioBuildProgressCount: '{done}/{total} 단계',
     studioStartInterview: '템플릿으로 새 웹',
     studioSkipToEditor: '기본 템플릿 사용',
@@ -3306,9 +2986,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     studioQ_color_palette: '주 브랜드 컬러?',
     studioH_color_palette: '2–3색 또는 무드(pastel, dark, luxury…).',
     studioQ_logo_url: '브랜드 로고(필수)',
-    studioH_logo_url: '로고 업로드 또는 「AI로 로고 생성」— 홈페이지 헤더에 사용됩니다.',
+    studioH_logo_url: '로고 파일을 업로드하면 홈페이지 헤더에 사용됩니다.',
     journalSectionTitle: '생성 일지',
-    journalSectionHint: '모든 질문, 답변, 목업, 편집이 여기 저장됩니다 — 샵당 하나의 일지.',
+    journalSectionHint: '템플릿으로 사이트를 만든 뒤, 미리보기의 «빠른 편집»으로 화면을 수정합니다.',
     journalLoading: '생성 일지 여는 중…',
     journalBriefSectionTitle: '홈 설정',
     journalBriefSectionHint: '샵 이름, 로고(선택), 템플릿 선택 후 적용. 인터뷰 / AI 자동 생성 없음.',
@@ -3319,8 +2999,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     journalHistoryTitle: '답변한 항목',
     journalEditSectionTitle: '웹 수정',
     journalEditSectionHint: '오른쪽 미리보기의 «빠른 편집»으로 글자·색·이미지를 직접 수정 — AI 채팅 아님.',
-    editRefInlineLabel: '참고 이미지',
-    editRefInlineHint: '디자인/mockup 업로드 — AI가 이미지를 읽고 사이트를 맞춥니다.',
+    setupStepsTitle: '판매 웹 만들기',
+    setupStepsHint:
+      '4단계: 이름+로고 → 템플릿 선택 → 미리보기에서 수정 → 도메인. 장바구니·채팅·결제는 이미 연결됨.',
+    setupStep1Title: '샵 이름 & 로고',
+    setupStep1Hint: '이름은 헤더에 표시. 로고는 모든 페이지 공통.',
+    setupStep2Title: '디자인 고르기',
+    setupStep2Hint: '샘플을 본 뒤 적용. 카탈로그·장바구니·채팅이 자동 연결.',
+    setupStep3Title: '디자인 수정',
+    setupStep3Hint: '오른쪽 «빠른 편집»으로 글자·이미지·색을 바꾼 뒤 저장.',
+    setupStep4Title: '도메인',
+    setupStep4Hint: '/site/… 로 바로 판매. 고유 도메인(CNAME)은 선택.',
+    setupSellReadyTitle: '판매 준비 완료',
+    setupSellReadyHint:
+      '상품·장바구니·결제·채팅·찜 페이지는 플랫폼이 제공합니다. 재고에 상품을 올리면 구매 가능 — 판매 페이지를 따로 만들 필요 없습니다.',
+    setupBrandSave: '이름 & 로고 저장',
+    setupBrandSaveError: '이름/로고를 저장하지 못했습니다. 다시 시도하세요.',
+    setupChangeTemplateConfirm:
+      '템플릿을 바꾸면 홈페이지(빠른 편집 포함)가 덮어씌워집니다. 상품과 장바구니는 유지됩니다. 계속할까요?',
+    setupLiveUrlLabel: '판매 링크',
     journalStepDone: '완료',
     journalStepCurrent: '진행 중',
     journalStepPending: '대기',

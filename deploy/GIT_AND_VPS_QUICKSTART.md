@@ -36,6 +36,8 @@ pm2 restart thu-do-online
 
 ## 3) Daily update deploy
 
+Khi admin bảo **deploy**: luôn chạy **đầy đủ** `deploy/update-vps.sh` (lint + typecheck + `build:full` + PM2 + 188 + health). Không `DEPLOY_SKIP_*` / `DEPLOY_BUILD_VPS`.
+
 After local code changes:
 
 ```bash
@@ -51,7 +53,7 @@ cd /var/www/Thu-do-online
 bash deploy/update-vps.sh main
 ```
 
-VPS RAM thấp mà build vẫn bị «Killed»:
+Chỉ khi **admin nói rõ** VPS yếu / bỏ lint / build nhẹ — mới dùng biến skip. Không dùng cho lệnh deploy thường:
 
 ```bash
 cd /var/www/Thu-do-online
@@ -65,9 +67,7 @@ NODE_BUILD_HEAP_MB=3072 \
 bash deploy/update-vps.sh main
 ```
 
-Script tự `pm2 delete all` trước build (giải phóng RAM), build xong start lại **NanoAI + 188** (`deploy/ecosystem.config.cjs` trong `/var/www/188.com.vn`). Không cần `pm2 delete all` thủ công trước khi chạy script.
-
-Nếu chỉ thiếu RAM vừa phải: bỏ `DEPLOY_DELETE_PM2_BEFORE_BUILD=1` (mặc định chỉ `pm2 stop all`).
+Script mặc định `pm2 stop all` trước build. `DEPLOY_DELETE_PM2_BEFORE_BUILD=1` thì `pm2 delete all` (giải phóng RAM tối đa); build xong start lại **NanoAI + 188**.
 
 ## 4) PM2 check
 

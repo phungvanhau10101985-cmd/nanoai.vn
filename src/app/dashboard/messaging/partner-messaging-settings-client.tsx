@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { ComponentType, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -53,7 +54,6 @@ import {
   savePartnerMessagingContactChannels,
 } from '@/app/dashboard/messaging/actions'
 import { PARTNER_SHOP_CURRENCIES } from '@/lib/partner-website/shop/partner-shop-currency'
-import { PARTNER_DEV_INTEGRATION_COPY } from '@/lib/integration/partner-dev-integration-copy'
 import {
   Dialog,
   DialogContent,
@@ -65,10 +65,13 @@ import {
 import { PartnerAiSettingsPanel } from '@/app/dashboard/messaging/partner-ai-settings-panel'
 import { PartnerBirthdayPromoSettingsCard } from '@/app/dashboard/messaging/partner-birthday-promo-settings-card'
 import { PartnerCustomDomainSettingsCard } from '@/app/dashboard/messaging/partner-custom-domain-settings-card'
-import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
+import { PartnerApiIntegrationWorkspace } from '@/components/integration/partner-api-integration-workspace'
+import { PartnerSiteLoginGuide } from '@/components/integration/partner-site-login-guide'
+import { API_KEYS_HUB_COPY } from '@/lib/integration/api-keys-hub-copy'
 import {
   buildPartnerWebsiteAdminNavItems,
-  partnerWebsiteAdminSectionHref,
+  isPartnerWebsiteAdminSectionId,
+  type PartnerWebsiteAdminSectionId,
 } from '@/lib/partner-website/partner-website-admin-nav'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { isMarketingEligibleIndustry } from '@/lib/messaging/partner-marketing-segment'
@@ -83,6 +86,7 @@ import {
   ExternalLink,
   Globe,
   LineChart,
+  Loader2,
   Megaphone,
   Menu,
   Package,
@@ -94,6 +98,7 @@ import {
   TrendingUp,
   Trophy,
   Trash2,
+  Truck,
   Upload,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -243,6 +248,7 @@ const MESSAGING_SETTINGS_SECTION_IDS = [
   'analytics-meta',
   'analytics-ads',
   'payment',
+  'shipping',
   'sheets',
   'loyalty',
   'promotions',
@@ -252,14 +258,31 @@ const MESSAGING_SETTINGS_SECTION_IDS = [
 ] as const
 
 type MessagingSettingsSectionId = (typeof MESSAGING_SETTINGS_SECTION_IDS)[number]
+type SettingsPageSectionId = MessagingSettingsSectionId | PartnerWebsiteAdminSectionId
 
-function normalizeSettingsSectionParam(value: string | null): MessagingSettingsSectionId | null {
+function normalizeSettingsSectionParam(value: string | null): SettingsPageSectionId | null {
   if (value === 'analytics') return 'analytics-meta'
   if (value != null && (MESSAGING_SETTINGS_SECTION_IDS as readonly string[]).includes(value)) {
     return value as MessagingSettingsSectionId
   }
+  if (isPartnerWebsiteAdminSectionId(value)) return value
   return null
 }
+
+const PartnerWebsiteDashboardClient = dynamic(
+  () =>
+    import('@/app/dashboard/messaging/website/partner-website-dashboard-client').then(
+      (mod) => mod.PartnerWebsiteDashboardClient
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[16rem] items-center justify-center rounded-xl border border-border/70 bg-card/80">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden />
+      </div>
+    ),
+  }
+)
 
 export function PartnerMessagingSettingsClient({
   initialPartners,
@@ -378,10 +401,21 @@ export function PartnerMessagingSettingsClient({
     () => partners.find((p) => p.id === selectedPartnerId) ?? null,
     [partners, selectedPartnerId]
   )
+  const apiHubPartners = useMemo(
+    () =>
+      partners.map((p) => ({
+        id: p.id,
+        display_name: p.display_name,
+        slug: p.slug,
+        logo_url: p.logo_url ?? null,
+        embed_key: p.embed_key ?? '',
+      })),
+    [partners]
+  )
   const isOwnerSelected = selectedPartner?.dashboard_access === 'owner'
   const sectionParam = searchParams.get('section')
   const normalizedSectionParam = normalizeSettingsSectionParam(sectionParam)
-  const [activeSection, setActiveSection] = useState<MessagingSettingsSectionId>(() =>
+  const [activeSection, setActiveSection] = useState<SettingsPageSectionId>(() =>
     normalizedSectionParam ?? 'workspace'
   )
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -433,6 +467,7 @@ export function PartnerMessagingSettingsClient({
         visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
       },
       { id: 'payment', label: t.settingsNavPayment, icon: CreditCard, visible: isOwnerSelected },
+      { id: 'shipping', label: t.settingsNavShipping, icon: Truck, visible: isOwnerSelected },
       { id: 'sheets', label: t.settingsNavSheets, icon: Table, visible: isOwnerSelected },
       { id: 'loyalty', label: t.settingsNavLoyalty, icon: Trophy, visible: isOwnerSelected },
       {
@@ -465,20 +500,22 @@ export function PartnerMessagingSettingsClient({
 
   const partnerNavQuery = selectedPartnerId ? `?partner=${encodeURIComponent(selectedPartnerId)}` : ''
 
-  const websiteDashboardHref = useMemo(() => {
-    const slug = selectedPartner?.slug?.trim() ?? ''
-    if (slug) return partnerWebsiteDashboardPath(slug)
-    return `/dashboard/messaging/website${partnerNavQuery}`
-  }, [partnerNavQuery, selectedPartner?.slug])
-
   const settingsWebsiteNavItems = useMemo(() => {
     const visible = Boolean(selectedPartnerId && partnerCanWebsiteHub(selectedPartner))
     return buildPartnerWebsiteAdminNavItems(tWeb, t.messagingWebsiteLink).map((item) => ({
       ...item,
-      href: partnerWebsiteAdminSectionHref(websiteDashboardHref, item.sectionId),
       visible,
     }))
-  }, [selectedPartner, selectedPartnerId, t.messagingWebsiteLink, tWeb, websiteDashboardHref])
+  }, [selectedPartner, selectedPartnerId, t.messagingWebsiteLink, tWeb])
+
+  const visibleWebsiteSectionIds = useMemo(
+    () => settingsWebsiteNavItems.filter((item) => item.visible).map((item) => item.sectionId),
+    [settingsWebsiteNavItems]
+  )
+
+  const allVisibleSectionIds = useMemo((): SettingsPageSectionId[] => {
+    return [...visibleSettingsSections, ...visibleWebsiteSectionIds]
+  }, [visibleSettingsSections, visibleWebsiteSectionIds])
 
   const settingsExternalNavItems = useMemo(() => {
     return [
@@ -542,29 +579,32 @@ export function PartnerMessagingSettingsClient({
     void refreshWebsitePublicUrl()
   }, [refreshWebsitePublicUrl])
 
-  const selectSettingsSection = useCallback(
-    (sectionId: MessagingSettingsSectionId) => {
-      setActiveSection(sectionId)
-      const next = new URLSearchParams(searchParams.toString())
-      next.set('section', sectionId)
-      router.replace(`${pathname}?${next.toString()}`, { scroll: false })
-    },
-    [pathname, router, searchParams]
-  )
+  const selectSettingsSection = useCallback((sectionId: SettingsPageSectionId) => {
+    setActiveSection(sectionId)
+    const next = new URLSearchParams(window.location.search)
+    next.set('section', sectionId)
+    const qs = next.toString()
+    window.history.replaceState(
+      window.history.state ?? {},
+      '',
+      `${window.location.pathname}${qs ? `?${qs}` : ''}`
+    )
+  }, [])
 
   useEffect(() => {
-    if (normalizedSectionParam && visibleSettingsSections.includes(normalizedSectionParam)) {
-      setActiveSection(normalizedSectionParam)
-      return
-    }
-    if (!visibleSettingsSections.includes(activeSection)) {
-      const fallback = visibleSettingsSections[0] ?? 'workspace'
-      setActiveSection(fallback)
-      const next = new URLSearchParams(searchParams.toString())
-      next.set('section', fallback)
-      router.replace(`${pathname}?${next.toString()}`, { scroll: false })
-    }
-  }, [activeSection, normalizedSectionParam, pathname, router, searchParams, visibleSettingsSections])
+    if (allVisibleSectionIds.length === 0) return
+    if (allVisibleSectionIds.includes(activeSection)) return
+    const fallback = allVisibleSectionIds[0] ?? 'workspace'
+    setActiveSection(fallback)
+    const next = new URLSearchParams(window.location.search)
+    next.set('section', fallback)
+    const qs = next.toString()
+    window.history.replaceState(
+      window.history.state ?? {},
+      '',
+      `${window.location.pathname}${qs ? `?${qs}` : ''}`
+    )
+  }, [activeSection, allVisibleSectionIds])
 
   const facebookConnectHref = useMemo(() => {
     if (!selectedPartnerId) return '#'
@@ -1923,11 +1963,15 @@ export function PartnerMessagingSettingsClient({
               </a>
             </Button>
           ) : (
-            <Button asChild variant="outline" size="sm" className="ml-auto gap-1.5">
-              <Link href={websiteDashboardHref}>
-                <Globe className="h-3.5 w-3.5" aria-hidden />
-                {websiteHasProject ? t.settingsManageWebsiteButton : t.settingsCreateWebsiteButton}
-              </Link>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-auto gap-1.5"
+              onClick={() => selectSettingsSection('partner-website-editor')}
+            >
+              <Globe className="h-3.5 w-3.5" aria-hidden />
+              {websiteHasProject ? t.settingsManageWebsiteButton : t.settingsCreateWebsiteButton}
             </Button>
           )
         ) : null}
@@ -2030,7 +2074,11 @@ export function PartnerMessagingSettingsClient({
             >
               <span className="flex items-center gap-2 truncate">
                 <Menu className="h-4 w-4 shrink-0" />
-                <span className="truncate">{settingsNavItems.find((item) => item.id === activeSection)?.label ?? t.settingsSidebarTitle}</span>
+                <span className="truncate">{
+                  settingsNavItems.find((item) => item.id === activeSection)?.label
+                  ?? settingsWebsiteNavItems.find((item) => item.sectionId === activeSection)?.label
+                  ?? t.settingsSidebarTitle
+                }</span>
               </span>
               <ChevronDown
                 className={cn(
@@ -2074,15 +2122,21 @@ export function PartnerMessagingSettingsClient({
                         .map((item) => {
                           const NavIcon = item.icon
                           return (
-                            <Link
+                            <button
                               key={item.sectionId}
-                              href={item.href}
-                              onClick={() => setMobileNavOpen(false)}
-                              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                              type="button"
+                              onClick={() => { selectSettingsSection(item.sectionId); setMobileNavOpen(false) }}
+                              className={cn(
+                                'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full',
+                                activeSection === item.sectionId
+                                  ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
+                                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                              )}
+                              aria-current={activeSection === item.sectionId ? 'page' : undefined}
                             >
                               <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
                               <span className="truncate">{item.label}</span>
-                            </Link>
+                            </button>
                           )
                         })}
                     </>
@@ -2157,14 +2211,21 @@ export function PartnerMessagingSettingsClient({
                       .map((item) => {
                         const NavIcon = item.icon
                         return (
-                          <Link
+                          <button
                             key={item.sectionId}
-                            href={item.href}
-                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                            type="button"
+                            onClick={() => selectSettingsSection(item.sectionId)}
+                            className={cn(
+                              'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors w-full',
+                              activeSection === item.sectionId
+                                ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
+                                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                            )}
+                            aria-current={activeSection === item.sectionId ? 'page' : undefined}
                           >
                             <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
                             <span className="truncate">{item.label}</span>
-                          </Link>
+                          </button>
                         )
                       })}
                   </>
@@ -3136,40 +3197,14 @@ export function PartnerMessagingSettingsClient({
               </div>
               </div>
               <div className="space-y-3 border-t border-border/60 pt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Phí vận chuyển</p>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium">Phí ship cố định (VND)</Label>
-                    <Input
-                      className="h-9 text-sm"
-                      value={paymentShippingFeeAmount}
-                      onChange={(e) => setPaymentShippingFeeAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
-                      placeholder="0 = không thu phí ship"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium">Miễn phí ship từ đơn (VND, để trống = không áp dụng)</Label>
-                    <Input
-                      className="h-9 text-sm"
-                      value={paymentShippingFreeThreshold}
-                      onChange={(e) => setPaymentShippingFreeThreshold(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
-                      placeholder="Vi du: 500000"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">{t.shopShippingCarrierLabel}</Label>
-                  <Input
-                    className="h-9 text-sm"
-                    value={paymentShippingCarrierLabel}
-                    onChange={(e) => setPaymentShippingCarrierLabel(e.target.value.slice(0, 80))}
-                    placeholder={t.shopShippingCarrierPlaceholder}
-                  />
-                  <p className="text-[11px] text-muted-foreground">{t.shopShippingCarrierHint}</p>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Phí ship hiển thị riêng cho khách lúc checkout, không tính vào giá trị đơn dùng để đặt cọc/tích điểm.
-                </p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.settingsNavShipping}</p>
+                <button
+                  type="button"
+                  onClick={() => selectSettingsSection('shipping')}
+                  className="text-left text-sm text-violet-700 underline-offset-2 hover:underline dark:text-violet-300"
+                >
+                  {t.settingsShippingOpenFromPayment}
+                </button>
               </div>
               <div className="space-y-3 border-t border-border/60 pt-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ví điện tử (QR thủ công)</p>
@@ -3250,6 +3285,73 @@ export function PartnerMessagingSettingsClient({
               </p>
             </CardContent>
           </Card>
+          </SettingsBlock>
+          ) : null}
+
+          {activeSection === 'shipping' && isOwnerSelected ? (
+          <SettingsBlock
+            id="messaging-shipping"
+            icon={Truck}
+            title={t.settingsNavShipping}
+            description={t.settingsNavShippingDesc}
+          >
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t.settingsNavShippingFeeTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Phí ship cố định (VND)</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={paymentShippingFeeAmount}
+                      onChange={(e) => setPaymentShippingFeeAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
+                      placeholder="0 = không thu phí ship"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Miễn phí ship từ đơn (VND, để trống = không áp dụng)</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={paymentShippingFreeThreshold}
+                      onChange={(e) => setPaymentShippingFreeThreshold(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
+                      placeholder="Vi du: 500000"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.shopShippingCarrierLabel}</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={paymentShippingCarrierLabel}
+                    onChange={(e) => setPaymentShippingCarrierLabel(e.target.value.slice(0, 80))}
+                    placeholder={t.shopShippingCarrierPlaceholder}
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t.shopShippingCarrierHint}</p>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Phí ship hiển thị riêng cho khách lúc checkout, không tính vào giá trị đơn dùng để đặt cọc/tích điểm.
+                </p>
+                <Button type="button" size="sm" onClick={savePaymentSettings} disabled={pending || !selectedPartnerId}>
+                  {t.settingsNavShippingSaveFee}
+                </Button>
+              </CardContent>
+            </Card>
+            {selectedPartnerId ? (
+              <PartnerAiSettingsPanel
+                key={`${selectedPartnerId}-shipping`}
+                partnerId={selectedPartnerId}
+                partnerChatSlug={selectedPartner?.slug?.trim() ?? ''}
+                locale={locale}
+                t={tAi}
+                saveOkMessage={t.saveOk}
+                aiModelId={partnerAiLlmModel}
+                panelMode="shipping-only"
+                panelTitle={tAi.shippingLookupTitle}
+                panelDescription={tAi.shippingLookupHint}
+              />
+            ) : null}
           </SettingsBlock>
           ) : null}
 
@@ -3478,64 +3580,44 @@ export function PartnerMessagingSettingsClient({
             title={t.messagingSettingsApiHubCardTitle}
             description={t.messagingSettingsApiHubCardBody}
           >
-          <Card className="border-border/60 border-violet-500/20 bg-muted/30 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">API keys &amp; nhúng</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2 pt-0">
-              <Button type="button" variant="default" size="sm" asChild>
-                <Link
-                  href={
-                    selectedPartnerId
-                      ? `/dashboard/api-integration?partner=${selectedPartnerId}#partner-api-keys`
-                      : '/dashboard/api-integration#partner-api-keys'
+            {selectedPartnerId ? (
+              <div className="space-y-6">
+                <PartnerApiIntegrationWorkspace
+                  key={`api-hub-${selectedPartnerId}`}
+                  partners={apiHubPartners}
+                  initialSelectedPartnerId={selectedPartnerId}
+                  baseUrl={appOrigin}
+                  locale={locale}
+                  hidePartnerPicker
+                  embedded
+                  betweenKeysAndGuide={
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">{API_KEYS_HUB_COPY[locale].ruleTitle}</CardTitle>
+                        <CardDescription className="text-sm leading-relaxed">
+                          {API_KEYS_HUB_COPY[locale].partnerRuleBody}
+                        </CardDescription>
+                      </CardHeader>
+                    </Card>
                   }
-                >
-                  {t.apiIntegrationGuideLink}
-                </Link>
-              </Button>
-              <Button type="button" variant="outline" size="sm" asChild>
-                <Link
-                  href={
-                    selectedPartnerId
-                      ? `/dashboard/messaging/partner-site-login?partner=${selectedPartnerId}`
-                      : '/dashboard/messaging/partner-site-login'
-                  }
-                >
-                  {t.partnerSiteLoginGuideLink}
-                </Link>
-              </Button>
-              <p className="w-full text-[11px] text-muted-foreground">{t.apiIntegrationGuideShort}</p>
-              <p className="w-full text-[11px] text-muted-foreground">{t.partnerSiteLoginGuideShort}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border/70 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">{t.messagingSettingsWebhookCardTitle}</CardTitle>
-              <CardDescription className="text-xs">{t.messagingSettingsWebhookCardBody}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              <p className="text-[11px] font-medium text-muted-foreground">
-                {PARTNER_DEV_INTEGRATION_COPY[locale]?.webhooksApiTitle ??
-                  PARTNER_DEV_INTEGRATION_COPY.en.webhooksApiTitle}
-              </p>
-              <p className="whitespace-pre-line text-[11px] leading-relaxed text-muted-foreground">
-                {PARTNER_DEV_INTEGRATION_COPY[locale]?.webhooksApiBody ??
-                  PARTNER_DEV_INTEGRATION_COPY.en.webhooksApiBody}
-              </p>
-              <Button type="button" size="sm" asChild>
-                <Link
-                  href={
-                    selectedPartnerId
-                      ? `/dashboard/api-integration?partner=${selectedPartnerId}#partner-api-keys`
-                      : '/dashboard/api-integration#partner-api-keys'
-                  }
-                >
-                  {t.messagingSettingsWebhookOpenButton}
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+                />
+                <PartnerSiteLoginGuide
+                  key={`site-login-${selectedPartnerId}`}
+                  baseUrl={appOrigin}
+                  locale={locale}
+                  partners={apiHubPartners}
+                  initialSelectedPartnerId={selectedPartnerId}
+                  embedded
+                  hidePartnerPicker
+                />
+              </div>
+            ) : (
+              <Card className="border-border/70 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">{t.messagingSettingsApiHubCardTitle}</CardTitle>
+                </CardHeader>
+              </Card>
+            )}
           </SettingsBlock>
           ) : null}
 
@@ -3567,6 +3649,28 @@ export function PartnerMessagingSettingsClient({
                 panelMode="usage-only"
                 panelTitle={t.settingsNavAiUsage}
                 panelDescription={t.settingsNavAiUsageDesc}
+              />
+            </div>
+          ) : null}
+
+          {isPartnerWebsiteAdminSectionId(activeSection) && selectedPartner && partnerCanWebsiteHub(selectedPartner) ? (
+            <div id="partner-website-admin" className="scroll-mt-6">
+              <PartnerWebsiteDashboardClient
+                key={selectedPartner.id}
+                locale={locale}
+                partners={[selectedPartner]}
+                initialWebsites={{}}
+                initialPartnerId={selectedPartner.id}
+                hidePartnerPicker
+                lockedPartnerSlug={selectedPartner.slug}
+                embeddedSectionId={activeSection}
+                navLabels={{
+                  inbox: t.goToInbox,
+                  orders: t.messagingOrdersLink,
+                  marketing: t.marketingCampaignsLink,
+                  settings: t.messagingSettingsLink,
+                  website: t.messagingWebsiteLink,
+                }}
               />
             </div>
           ) : null}

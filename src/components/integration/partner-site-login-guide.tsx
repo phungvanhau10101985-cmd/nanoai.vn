@@ -25,6 +25,10 @@ type Props = {
   locale: ApiKeysHubLocale
   partners: Partner[]
   initialSelectedPartnerId: string | null
+  /** Nhúng trong Cài đặt: không hiện nút nhảy sang trang khác. */
+  embedded?: boolean
+  /** Ẩn ô chọn shop khi workspace đã chọn ở trang cha. */
+  hidePartnerPicker?: boolean
 }
 
 function CodeBlock({
@@ -90,6 +94,8 @@ export function PartnerSiteLoginGuide({
   locale,
   partners,
   initialSelectedPartnerId,
+  embedded = false,
+  hidePartnerPicker = false,
 }: Props) {
   const t = PARTNER_SITE_LOGIN_GUIDE_COPY[locale]
   const router = useRouter()
@@ -196,16 +202,19 @@ curl -s -X POST "${guestBase}/auth/partner-site" \\
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
           <p className="text-muted-foreground">{t.noWorkspaceBody}</p>
-          <Button size="sm" asChild>
-            <Link href="/dashboard/messaging/settings">{t.noWorkspaceCta}</Link>
-          </Button>
+          {embedded ? null : (
+            <Button size="sm" asChild>
+              <Link href="/dashboard/messaging/settings">{t.noWorkspaceCta}</Link>
+            </Button>
+          )}
         </CardContent>
       </Card>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div id="partner-site-login-guide" className="scroll-mt-6 space-y-6">
+      {embedded ? null : (
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
           <Link href="/dashboard/messaging/settings">{t.backMessagingSettings}</Link>
@@ -222,19 +231,25 @@ curl -s -X POST "${guestBase}/auth/partner-site" \\
           </Link>
         </Button>
       </div>
+      )}
 
       <div className="flex items-start gap-3 rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm dark:from-slate-900 dark:to-slate-950">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10">
           <UserCheck className="h-5 w-5 text-violet-600 dark:text-violet-400" aria-hidden />
         </div>
         <div>
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{t.pageTitle}</h1>
+          {embedded ? (
+            <h2 className="text-xl font-bold tracking-tight sm:text-2xl">{t.pageTitle}</h2>
+          ) : (
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{t.pageTitle}</h1>
+          )}
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t.pageLead}</p>
         </div>
       </div>
 
       <Card className="border-primary/15">
         <CardContent className="space-y-4 pt-6 text-sm">
+          {hidePartnerPicker ? null : (
           <label className="block space-y-1">
             <span className="text-xs font-medium text-foreground">{t.selectShopHint}</span>
             <select
@@ -249,6 +264,7 @@ curl -s -X POST "${guestBase}/auth/partner-site" \\
               ))}
             </select>
           </label>
+          )}
           <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] leading-relaxed">
             {t.hostedAutoFilledNote}
           </p>

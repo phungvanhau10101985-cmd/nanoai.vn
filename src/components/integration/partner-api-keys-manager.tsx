@@ -69,9 +69,17 @@ type Props = {
   /** Đồng bộ với hướng dẫn nhúng — truyền cả hai khi có shop */
   partnerId?: string
   onPartnerIdChange?: (id: string) => void
+  /** Ẩn ô chọn shop khi đã chọn workspace ở trang Cài đặt. */
+  hidePartnerPicker?: boolean
 }
 
-export function PartnerApiKeysManager({ partners, t, partnerId: partnerIdProp, onPartnerIdChange }: Props) {
+export function PartnerApiKeysManager({
+  partners,
+  t,
+  partnerId: partnerIdProp,
+  onPartnerIdChange,
+  hidePartnerPicker = false,
+}: Props) {
   const { toast } = useToast()
   const { runWithStepUp } = useStepUpOtp()
   const [internalPartnerId, setInternalPartnerId] = useState(partners[0]?.id ?? '')
@@ -287,6 +295,7 @@ export function PartnerApiKeysManager({ partners, t, partnerId: partnerIdProp, o
           <CardDescription className="leading-relaxed">{t.cardLead}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {hidePartnerPicker ? null : (
           <div className="space-y-2">
             <Label>{t.selectShop}</Label>
             <Select value={partnerId} onValueChange={setPartnerId}>
@@ -312,6 +321,7 @@ export function PartnerApiKeysManager({ partners, t, partnerId: partnerIdProp, o
               ) : null
             })()}
           </div>
+          )}
 
           <div className="space-y-3 rounded-lg border border-emerald-300/40 bg-emerald-50/15 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
             <div>

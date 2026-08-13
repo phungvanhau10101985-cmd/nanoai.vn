@@ -8,13 +8,7 @@ import {
   restorePartnerWebsiteRevisionPg,
   setPartnerWebsitePublishedPg,
   updatePartnerWebsiteDraftPg,
-  updatePartnerWebsiteNavFooterPg,
 } from '@/lib/db/messaging-partner-websites-pg'
-import {
-  DEFAULT_PARTNER_SITE_FOOTER_LINKS,
-  DEFAULT_PARTNER_SITE_NAV_LINKS,
-  normalizePartnerSiteNavLinks,
-} from '@/lib/partner-website/shop/partner-site-nav-footer'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import { composePartnerWebsiteHtmlAsync } from '@/lib/partner-website/compose-partner-website-html'
@@ -24,16 +18,11 @@ import {
   normalizePartnerWebsiteProject,
 } from '@/lib/partner-website/partner-website-project'
 import { resolvePartnerWebsitePublicUrl } from '@/lib/partner-website/resolve-partner-website-public-url'
-import { applyTemplateEditPayload } from '@/lib/partner-website/template/apply-template-edits'
+import {
+  ensureBrandLogoInHtml,
+  ensureBrandLogoInProject,
+} from '@/lib/partner-website/partner-website-logo-guard'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
-
-/** W2.3 — 5 token màu chỉnh trực tiếp qua UI (không qua chat AI). fontFamily/logoUrl/useVisualHtml giữ nguyên. */
-const EDITABLE_THEME_COLOR_KEYS = ['primaryColor', 'accentColor', 'backgroundColor', 'textColor', 'mutedColor'] as const
-type EditableThemeColorKey = (typeof EDITABLE_THEME_COLOR_KEYS)[number]
-
-function isHexColor(v: unknown): v is string {
-  return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.trim())
-}
 
 export async function GET(
   req: NextRequest,
@@ -114,14 +103,10 @@ export async function PATCH(
       | 'publish'
       | 'unpublish'
       | 'save_draft'
-      | 'reorder_sections'
-      | 'update_theme_colors'
       | 'update_floating_cta'
-      | 'update_nav_footer'
+      | 'update_brand'
       | 'undo_last'
     floatingCta?: unknown
-    navJson?: unknown
-    footerJson?: unknown
     title?: string
     briefText?: string
     logoUrl?: string | null
@@ -129,68 +114,6 @@ export async function PATCH(
     project?: unknown
     theme?: unknown
     visualEdited?: boolean
-    // W2.4 — sắp xếp lại section (không qua chat AI).
-    pageSlug?: string
-    sectionIds?: unknown
-    // W2.3 — đổi màu theme trực tiếp (không qua chat AI, không đụng useVisualHtml).
-    themeColors?: unknown
-  }
-
-  if (body.action === 'reorder_sections') {
-    const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
-    if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
-    if (existing.renderMode !== 'template') {
-      return NextResponse.json({ error: 'NOT_TEMPLATE_MODE' }, { status: 400 })
-    }
-    if (existing.theme.useVisualHtml) {
-      return NextResponse.json({ error: 'VISUAL_HTML_LOCKED' }, { status: 409 })
-    }
-    const pageSlug = String(body.pageSlug ?? '').trim()
-    const sectionIds = Array.isArray(body.sectionIds)
-      ? body.sectionIds.filter((x): x is string => typeof x === 'string')
-      : []
-    if (!pageSlug || sectionIds.length === 0) {
-      return NextResponse.json({ error: 'Missing pageSlug/sectionIds' }, { status: 400 })
-    }
-    const result = applyTemplateEditPayload(
-      { templateId: existing.templateId, theme: existing.theme, pages: existing.pages },
-      { sectionOps: [{ op: 'reorder', pageSlug, sectionIds }] },
-      []
-    )
-    if (result.errors.length > 0) {
-      return NextResponse.json({ error: result.errors.join('; ') }, { status: 400 })
-    }
-    const updated = await updatePartnerWebsiteDraftPg({
-      partnerId: pid,
-      pages: result.site.pages,
-      changeNote: 'reorder_sections',
-    })
-    if (!updated) return NextResponse.json({ error: 'Could not save section order' }, { status: 500 })
-    return NextResponse.json({ success: true, website: updated })
-  }
-
-  if (body.action === 'update_theme_colors') {
-    const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
-    if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
-    if (existing.theme.useVisualHtml) {
-      return NextResponse.json({ error: 'VISUAL_HTML_LOCKED' }, { status: 409 })
-    }
-    const raw = (body.themeColors && typeof body.themeColors === 'object' ? body.themeColors : {}) as Record<string, unknown>
-    const patch: Partial<Record<EditableThemeColorKey, string>> = {}
-    for (const key of EDITABLE_THEME_COLOR_KEYS) {
-      if (isHexColor(raw[key])) patch[key] = (raw[key] as string).trim()
-    }
-    if (Object.keys(patch).length === 0) {
-      return NextResponse.json({ error: 'No valid color provided (expects #rrggbb)' }, { status: 400 })
-    }
-    const nextTheme: PartnerWebsiteTheme = { ...existing.theme, ...patch }
-    const updated = await updatePartnerWebsiteDraftPg({
-      partnerId: pid,
-      theme: nextTheme,
-      changeNote: 'update_theme_colors',
-    })
-    if (!updated) return NextResponse.json({ error: 'Could not save theme colors' }, { status: 500 })
-    return NextResponse.json({ success: true, website: updated })
   }
 
   if (body.action === 'update_floating_cta') {
@@ -228,20 +151,51 @@ export async function PATCH(
     return NextResponse.json({ success: true, website: updated })
   }
 
-  if (body.action === 'update_nav_footer') {
+  if (body.action === 'update_brand') {
     const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
     if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
-    if (existing.theme.useVisualHtml) {
-      return NextResponse.json({ error: 'VISUAL_HTML_LOCKED' }, { status: 409 })
+    const title =
+      typeof body.title === 'string' && body.title.trim().length >= 2
+        ? body.title.trim().slice(0, 120)
+        : existing.title
+    const logoUrl =
+      typeof body.logoUrl === 'string'
+        ? body.logoUrl.trim() || null
+        : existing.logoUrl
+    const nextTheme: PartnerWebsiteTheme = {
+      ...existing.theme,
+      logoUrl,
     }
-    const navJson = normalizePartnerSiteNavLinks(body.navJson, DEFAULT_PARTNER_SITE_NAV_LINKS)
-    const footerJson = normalizePartnerSiteNavLinks(body.footerJson, DEFAULT_PARTNER_SITE_FOOTER_LINKS)
-    const updated = await updatePartnerWebsiteNavFooterPg({ partnerId: pid, navJson, footerJson })
-    if (!updated) return NextResponse.json({ error: 'Could not save nav/footer' }, { status: 500 })
-    return NextResponse.json({ success: true, website: updated })
+    const nextProject = logoUrl
+      ? ensureBrandLogoInProject(existing.project, logoUrl, title)
+      : existing.project
+    const visualHtml = existing.theme?.useVisualHtml
+      ? ensureBrandLogoInHtml(
+          existing.htmlSource?.trim() || composeStandaloneHtml(nextProject) || '',
+          logoUrl,
+          title
+        )
+      : undefined
+    const updated = await updatePartnerWebsiteDraftPg({
+      partnerId: pid,
+      title,
+      logoUrl,
+      theme: nextTheme,
+      project: nextProject,
+      htmlSource: visualHtml,
+      changeNote: 'update_brand',
+    })
+    if (!updated) return NextResponse.json({ error: 'Could not save brand' }, { status: 500 })
+    const publicUrl = await resolvePartnerWebsitePublicUrl({
+      partnerId: pid,
+      siteSlug: updated.siteSlug,
+      isPublished: updated.isPublished,
+      req,
+    })
+    return NextResponse.json({ success: true, website: updated, publicUrl })
   }
 
-  // W2.4 — hoàn tác thao tác gần nhất = restore revision mới nhất.
+  // Hoàn tác thao tác gần nhất = restore revision mới nhất.
   if (body.action === 'undo_last') {
     const revs = await listPartnerWebsiteRevisionsPg(pid, 1)
     const latest = revs[0]

@@ -2313,6 +2313,8 @@ export async function insertPartnerInventoryFromProductStudioFromPg(
     galleryUrls: string[]
     detailImageUrls: string[]
     material: string
+    /** Ảnh collage chất liệu (Studio) — cột `material_detail_image_url`, tách khỏi gallery/chi tiết như 188. */
+    materialDetailImageUrl?: string | null
     stockQty: number
     origin: 'manual' | 'manual_ai'
     productStudioJobId: string | null
@@ -2331,12 +2333,13 @@ export async function insertPartnerInventoryFromProductStudioFromPg(
     const row = await pgQueryOne<{ id: string }>(
       `insert into public.messaging_partner_inventory (
          partner_id, name, description, stock_note, stock_qty, price_hint, image_url, material_note,
+         material_detail_image_url,
          sort_order, is_active, price_amount, colors_json, sizes_json, gallery_urls, detail_image_urls,
          product_studio_meta, origin, product_studio_job_id, created_at, updated_at
        ) values (
-         $1::uuid, $2, $3, '', $4::int, $5, $6, $7,
-         $8::int, true, $9::numeric, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb,
-         $14::jsonb, $15, $16::uuid, $17::timestamptz, $17::timestamptz
+         $1::uuid, $2, $3, '', $4::int, $5, $6, $7, $8,
+         $9::int, true, $10::numeric, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb,
+         $15::jsonb, $16, $17::uuid, $18::timestamptz, $18::timestamptz
        )
        returning id::text as id`,
       [
@@ -2347,6 +2350,7 @@ export async function insertPartnerInventoryFromProductStudioFromPg(
         priceHint,
         fields.mainImage.trim(),
         fields.material.trim().slice(0, 2000),
+        (fields.materialDetailImageUrl || '').trim() || null,
         sortOrder,
         fields.priceAmount > 0 ? fields.priceAmount : null,
         JSON.stringify(fields.colors),

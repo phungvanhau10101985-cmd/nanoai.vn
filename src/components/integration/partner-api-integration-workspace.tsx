@@ -25,6 +25,10 @@ type Props = {
   locale: ApiKeysHubLocale
   /** Giữ thứ tự: khóa API → quy tắc → hướng dẫn */
   betweenKeysAndGuide?: ReactNode
+  /** Ẩn ô chọn shop khi workspace đã chọn ở trang cha. */
+  hidePartnerPicker?: boolean
+  /** Nhúng trong Cài đặt: không nhảy trang khi mở hướng dẫn đăng nhập shop. */
+  embedded?: boolean
 }
 
 export function PartnerApiIntegrationWorkspace({
@@ -33,6 +37,8 @@ export function PartnerApiIntegrationWorkspace({
   baseUrl,
   locale,
   betweenKeysAndGuide,
+  hidePartnerPicker = false,
+  embedded = false,
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -74,9 +80,9 @@ export function PartnerApiIntegrationWorkspace({
   if (partners.length === 0) {
     return (
       <>
-        <PartnerApiKeysManager partners={[]} t={tKeys} />
+        <PartnerApiKeysManager partners={[]} t={tKeys} hidePartnerPicker={hidePartnerPicker} />
         {betweenKeysAndGuide}
-        <PartnerDevIntegrationGuide baseUrl={baseUrl} t={tGuide} partners={[]} />
+        <PartnerDevIntegrationGuide baseUrl={baseUrl} t={tGuide} partners={[]} embedded={embedded} />
       </>
     )
   }
@@ -88,6 +94,7 @@ export function PartnerApiIntegrationWorkspace({
         t={tKeys}
         partnerId={partnerId}
         onPartnerIdChange={setPartnerId}
+        hidePartnerPicker={hidePartnerPicker}
       />
       {betweenKeysAndGuide}
       <PartnerDevIntegrationGuide
@@ -95,6 +102,7 @@ export function PartnerApiIntegrationWorkspace({
         t={tGuide}
         partners={partners}
         selectedPartnerId={partnerId}
+        embedded={embedded}
       />
     </>
   )

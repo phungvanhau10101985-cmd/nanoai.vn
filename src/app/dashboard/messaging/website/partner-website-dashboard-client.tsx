@@ -1,23 +1,25 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
-import type { Database } from '@/types/database.types'
 import type { PartnerWebsiteRow, PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import { partnerWebsitePublicPath } from '@/lib/partner-website/partner-website-slug'
 import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
-import { scrollToPartnerWebsiteAdminSection } from '@/lib/partner-website/partner-website-admin-nav'
+import {
+  scrollToPartnerWebsiteAdminSection,
+  type PartnerWebsiteAdminSectionId,
+} from '@/lib/partner-website/partner-website-admin-nav'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
+import { getDictionary } from '@/lib/i18n/dictionaries'
 import type { WebLocale } from '@/lib/i18n/config'
-import { PartnerWebsiteCreationJournalPanel, type PartnerWebsiteCreationJournalPanelHandle } from '@/components/partner-website/partner-website-creation-journal-panel'
+import { PartnerWebsiteCreationJournalPanel } from '@/components/partner-website/partner-website-creation-journal-panel'
 import type { PartnerWebsiteCreationJournal } from '@/lib/partner-website/partner-website-creation-journal'
 import { isHomePageBuilt } from '@/lib/partner-website/partner-website-creation-journal'
 import { PartnerWebsiteDevicePreview } from '@/components/partner-website/partner-website-device-preview'
-import { PartnerWebsiteProjectFilesPanel } from '@/components/partner-website/partner-website-project-files-panel'
 import { PartnerWebsiteLeadsPanel } from '@/components/partner-website/partner-website-leads-panel'
 import { PartnerWebsiteCapabilitiesPanel } from '@/components/partner-website/partner-website-capabilities-panel'
 import { PartnerWebsiteCategoriesPanel } from '@/components/partner-website/partner-website-categories-panel'
@@ -26,13 +28,11 @@ import { PartnerWebsitePromotionsPanel } from '@/components/partner-website/part
 import { PartnerWebsiteCustomersPanel } from '@/components/partner-website/partner-website-customers-panel'
 import { PartnerWebsiteStaticPagesPanel } from '@/components/partner-website/partner-website-static-pages-panel'
 import { PartnerWebsiteLandingsPanel } from '@/components/partner-website/partner-website-landings-panel'
-import { PartnerWebsiteSectionsPanel } from '@/components/partner-website/partner-website-sections-panel'
-import { PartnerWebsiteThemeColorsPanel } from '@/components/partner-website/partner-website-theme-colors-panel'
-import { PartnerWebsiteNavFooterPanel } from '@/components/partner-website/partner-website-nav-footer-panel'
 import { PartnerWebsiteFloatingCtaPanel } from '@/components/partner-website/partner-website-floating-cta-panel'
 import { PartnerWebsiteSearchAliasesPanel } from '@/components/partner-website/partner-website-search-aliases-panel'
 import { PartnerWebsiteRevisionMenu } from '@/components/partner-website/partner-website-revision-menu'
 import { PartnerWebsiteResetDialog } from '@/components/partner-website/partner-website-reset-dialog'
+import { PartnerCustomDomainSettingsCard } from '@/app/dashboard/messaging/partner-custom-domain-settings-card'
 import {
   getPartnerWebsiteResetTrashStatus,
   restorePartnerWebsiteFromResetTrash,
@@ -42,10 +42,8 @@ import {
   PartnerWebsiteTenantAdminBar,
   type PartnerWebsiteTenantSection,
 } from '@/components/partner-website/partner-website-tenant-admin-bar'
-import type { FileDiff } from '@/lib/partner-website/partner-website-line-diff'
 import { ExternalLink, Globe, Loader2, Undo2 } from 'lucide-react'
-
-type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
+import { cn } from '@/lib/utils'
 
 type NavLabels = {
   inbox: string
@@ -55,21 +53,25 @@ type NavLabels = {
   website: string
 }
 
-function resolveSelectedFile(website: PartnerWebsiteRow, diffPath?: string): string {
-  if (diffPath?.trim()) return diffPath.trim()
-  if (website.renderMode === 'template') return 'site.config.json'
-  return website.project.entryPath || 'index.html'
+type WebsiteDashboardPartner = {
+  id: string
+  slug: string
+  brand_name: string | null
+  display_name: string | null
+  logo_url?: string | null
 }
 
 type Props = {
   locale: WebLocale
-  partners: PartnerRow[]
+  partners: WebsiteDashboardPartner[]
   hadPartnersWithoutWebsitePerm?: boolean
   initialWebsites: Record<string, PartnerWebsiteRow | null>
   initialPartnerId: string
   navLabels: NavLabels
   hidePartnerPicker?: boolean
   lockedPartnerSlug?: string
+  /** When set, only this admin section is shown (in-page embed on settings). */
+  embeddedSectionId?: PartnerWebsiteAdminSectionId
 }
 
 export function PartnerWebsiteDashboardClient({
@@ -81,8 +83,10 @@ export function PartnerWebsiteDashboardClient({
   navLabels,
   hidePartnerPicker = false,
   lockedPartnerSlug,
+  embeddedSectionId,
 }: Props) {
   const t = getPartnerWebsiteCopy(locale)
+  const pm = getDictionary(locale).partnerMessaging
   const { toast } = useToast()
   const router = useRouter()
 
@@ -95,47 +99,25 @@ export function PartnerWebsiteDashboardClient({
   const [logoUrl, setLogoUrl] = useState(
     initialWebsiteRow?.logoUrl ?? initialPartner?.logo_url?.trim() ?? ''
   )
-  const [refUrlsText, setRefUrlsText] = useState(
-    initialWebsiteRow?.referenceImageUrls.filter((u) => /^https?:\/\//i.test(u)).join('\n') ?? ''
-  )
-  const [uploadedRefUrls, setUploadedRefUrls] = useState<string[]>(
-    initialWebsiteRow?.referenceImageUrls.filter((u) => /^https?:\/\//i.test(u)) ?? []
-  )
   const [publishing, setPublishing] = useState(false)
-  const [selectedFile, setSelectedFile] = useState(() =>
-    initialWebsiteRow ? resolveSelectedFile(initialWebsiteRow) : 'index.html'
-  )
   const [activeSection, setActiveSection] = useState<PartnerWebsiteTenantSection>('editor')
   const [autoStartLandingChat, setAutoStartLandingChat] = useState(false)
   const [previewVersion, setPreviewVersion] = useState(
     initialWebsiteRow?.updatedAt ?? String(Date.now())
   )
   const [chatBusy, setChatBusy] = useState(false)
-  const [fileDiffs, setFileDiffs] = useState<FileDiff[]>([])
   const [provisioning, setProvisioning] = useState(false)
   const [migrating, setMigrating] = useState(false)
-  const [creationJournal, setCreationJournal] = useState<PartnerWebsiteCreationJournal | null>(
+  const [, setCreationJournal] = useState<PartnerWebsiteCreationJournal | null>(
     initialWebsiteRow?.creationJournal ?? null
   )
   const [journalResetKey, setJournalResetKey] = useState(0)
   const [resetTrash, setResetTrash] = useState<PartnerWebsiteResetTrashInfo | null>(null)
   const [restoringTrash, setRestoringTrash] = useState(false)
-  const chatRef = useRef<PartnerWebsiteCreationJournalPanelHandle>(null)
 
   const partner = useMemo(() => partners.find((p) => p.id === partnerId) ?? null, [partners, partnerId])
   const partnerTitle =
     website?.title?.trim() || partner?.brand_name || partner?.display_name || 'Website'
-
-  function splitReferenceUrls(urls: string[]): { uploaded: string[]; text: string } {
-    const httpUrls = urls.filter((u) => /^https?:\/\//i.test(u.trim()))
-    return { uploaded: httpUrls, text: httpUrls.join('\n') }
-  }
-
-  function applyWebsiteRefs(urls: string[]) {
-    const split = splitReferenceUrls(urls)
-    setUploadedRefUrls(split.uploaded)
-    setRefUrlsText(split.text)
-  }
 
   const loadWebsite = useCallback(
     async (pid: string) => {
@@ -158,13 +140,7 @@ export function PartnerWebsiteDashboardClient({
         setPublicUrl(json.publicUrl ?? null)
         if (json.website) {
           setLogoUrl(json.website.logoUrl ?? '')
-          applyWebsiteRefs(json.website.referenceImageUrls)
           setCreationJournal(json.website.creationJournal)
-          setSelectedFile(
-            json.website.renderMode === 'template'
-              ? 'site.config.json'
-              : json.website.project.entryPath || 'index.html'
-          )
           setPreviewVersion(json.website.updatedAt || String(Date.now()))
           if (json.autoProvisioned) {
             toast({
@@ -181,28 +157,27 @@ export function PartnerWebsiteDashboardClient({
   )
 
   useEffect(() => {
-    if (partnerId) void loadWebsite(partnerId)
-  }, [partnerId, loadWebsite])
+    if (!partnerId) return
+    void loadWebsite(partnerId)
+    // Only refetch when the workspace changes — not when parent re-renders (section click).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadWebsite identity is unstable (toast)
+  }, [partnerId])
 
   function onPartnerChange(nextId: string) {
     setPartnerId(nextId)
-    setFileDiffs([])
     const cached = initialWebsites[nextId]
     const nextPartner = partners.find((p) => p.id === nextId)
     if (cached) {
       setWebsite(cached)
       setLogoUrl(cached.logoUrl ?? nextPartner?.logo_url?.trim() ?? '')
-      applyWebsiteRefs(cached.referenceImageUrls)
-      setSelectedFile(resolveSelectedFile(cached))
       setPreviewVersion(cached.updatedAt || String(Date.now()))
     } else {
       setWebsite(null)
       setLogoUrl(nextPartner?.logo_url?.trim() ?? '')
-      setUploadedRefUrls([])
-      setRefUrlsText('')
       setPreviewVersion(String(Date.now()))
     }
     void loadWebsite(nextId)
+    if (embeddedSectionId) return
     const slug = nextPartner?.slug ?? lockedPartnerSlug
     if (slug) {
       router.replace(partnerWebsiteDashboardPath(slug))
@@ -232,7 +207,6 @@ export function PartnerWebsiteDashboardClient({
       }
       setWebsite(json.website)
       setPublicUrl(json.publicUrl ?? null)
-      setSelectedFile(resolveSelectedFile(json.website))
       setPreviewVersion(json.website.updatedAt || String(Date.now()))
       toast({
         title: json.migrated ? t.legacyMigrateSuccess : t.legacyMigrateAlready,
@@ -248,16 +222,11 @@ export function PartnerWebsiteDashboardClient({
     publicUrl: string | null
     assistantMessage: string
     source?: string
-    fileDiffs?: FileDiff[]
   }) {
     setWebsite(payload.website)
     setPublicUrl(payload.publicUrl)
     setCreationJournal(payload.website.creationJournal)
     setLogoUrl(payload.website.logoUrl ?? logoUrl)
-    applyWebsiteRefs(payload.website.referenceImageUrls)
-    const nextDiffs = payload.fileDiffs ?? []
-    setFileDiffs(nextDiffs)
-    setSelectedFile(resolveSelectedFile(payload.website, nextDiffs[0]?.path))
     setPreviewVersion(payload.website.updatedAt || String(Date.now()))
     toast({
       title: payload.source === 'fallback' ? t.fallbackGenerated : t.generateSuccess,
@@ -271,9 +240,6 @@ export function PartnerWebsiteDashboardClient({
     setWebsite(payload.website)
     setPublicUrl(payload.publicUrl)
     setLogoUrl(payload.website.logoUrl ?? '')
-    applyWebsiteRefs(payload.website.referenceImageUrls)
-    setFileDiffs([])
-    setSelectedFile(resolveSelectedFile(payload.website))
     setPreviewVersion(payload.website.updatedAt || String(Date.now()))
     toast({ title: t.restoreSuccess })
     router.refresh()
@@ -301,10 +267,7 @@ export function PartnerWebsiteDashboardClient({
     setWebsite(null)
     setPublicUrl(null)
     setCreationJournal(null)
-    setFileDiffs([])
     setLogoUrl(partner?.logo_url?.trim() ?? '')
-    setUploadedRefUrls([])
-    setRefUrlsText('')
     setPreviewVersion(String(Date.now()))
     setJournalResetKey((k) => k + 1)
     toast({ title: t.resetWebsiteSuccess })
@@ -326,8 +289,6 @@ export function PartnerWebsiteDashboardClient({
       setPublicUrl(res.publicUrl)
       setCreationJournal(res.website.creationJournal)
       setLogoUrl(res.website.logoUrl ?? '')
-      applyWebsiteRefs(res.website.referenceImageUrls)
-      setSelectedFile(resolveSelectedFile(res.website))
       setPreviewVersion(res.website.updatedAt || String(Date.now()))
       setJournalResetKey((k) => k + 1)
       setResetTrash(null)
@@ -370,13 +331,14 @@ export function PartnerWebsiteDashboardClient({
     setWebsite(nextWebsite)
     setCreationJournal(nextWebsite.creationJournal)
     setLogoUrl(nextWebsite.logoUrl ?? logoUrl)
-    applyWebsiteRefs(nextWebsite.referenceImageUrls)
-    setSelectedFile(resolveSelectedFile(nextWebsite))
     setPreviewVersion(nextWebsite.updatedAt || String(Date.now()))
   }
 
   const homeBuilt = website ? isHomePageBuilt(website.creationJournals) : false
   const canOpenLanding = Boolean(website && homeBuilt)
+  const isEmbedded = Boolean(embeddedSectionId)
+  const sectionWrapClass = (sectionId: PartnerWebsiteAdminSectionId) =>
+    isEmbedded && embeddedSectionId !== sectionId ? 'hidden' : undefined
 
   const previewPath = website ? partnerWebsitePublicPath(website.siteSlug) : null
 
@@ -409,13 +371,12 @@ export function PartnerWebsiteDashboardClient({
         ? 'partner-website-editor'
         : section === 'landings'
           ? 'partner-website-landings'
-          : section === 'leads'
-            ? 'partner-website-leads'
-            : 'partner-website-sections'
+          : 'partner-website-leads'
     scrollToPartnerWebsiteAdminSection(id)
   }, [])
 
   useEffect(() => {
+    if (isEmbedded) return
     const hash = window.location.hash.replace(/^#/, '').trim()
     if (!hash) return
     const timer = window.setTimeout(() => {
@@ -423,13 +384,18 @@ export function PartnerWebsiteDashboardClient({
       if (hash === 'partner-website-editor') setActiveSection('editor')
       else if (hash === 'partner-website-landings') setActiveSection('landings')
       else if (hash === 'partner-website-leads') setActiveSection('leads')
-      else if (hash === 'partner-website-sections') setActiveSection('sections')
     }, provisioning ? 400 : 80)
     return () => window.clearTimeout(timer)
-  }, [provisioning, website?.id])
+  }, [isEmbedded, provisioning, website?.id])
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-0 md:px-2">
+    <div
+      className={
+        isEmbedded
+          ? 'flex w-full flex-1 flex-col gap-4'
+          : 'mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-0 md:px-2'
+      }
+    >
       {partners.length === 0 ? (
         <Card>
           <CardHeader>
@@ -450,7 +416,7 @@ export function PartnerWebsiteDashboardClient({
         </Card>
       ) : (
         <>
-          {!hidePartnerPicker ? (
+          {!hidePartnerPicker && !isEmbedded ? (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">{t.selectPartner}</CardTitle>
@@ -471,61 +437,30 @@ export function PartnerWebsiteDashboardClient({
             </Card>
           ) : null}
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">{t.studioEntryTitle}</CardTitle>
-              <CardDescription className="text-xs">{t.studioEntryHint}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
+          {resetTrash && !website && (!isEmbedded || !sectionWrapClass('partner-website-editor')) ? (
+            <div className="space-y-2 rounded-md border border-dashed border-amber-300 bg-amber-50/60 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+              <p className="text-xs text-muted-foreground">
+                {t.restoreResetTrashHint.replace('{days}', String(resetTrash.daysLeft || 1))}
+              </p>
               <Button
                 type="button"
                 size="sm"
-                variant={activeSection === 'editor' ? 'default' : 'outline'}
-                onClick={() => scrollToSection('editor')}
+                variant="secondary"
+                disabled={restoringTrash || !partnerId}
+                onClick={() => void handleRestoreResetTrash()}
               >
-                {t.studioOpenWebChat}
+                {restoringTrash ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                {restoringTrash ? t.restoreResetTrashBusy : t.restoreResetTrashButton}
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={activeSection === 'landings' ? 'default' : 'outline'}
-                disabled={!canOpenLanding}
-                title={!canOpenLanding ? t.studioWebFirstNote : undefined}
-                onClick={() => {
-                  setAutoStartLandingChat(true)
-                  scrollToSection('landings')
-                }}
-              >
-                {t.studioOpenLandingChat}
-              </Button>
-              {!canOpenLanding ? (
-                <p className="w-full text-xs text-muted-foreground">{t.studioWebFirstNote}</p>
-              ) : null}
-              {resetTrash && !website ? (
-                <div className="mt-1 w-full space-y-2 rounded-md border border-dashed border-amber-300 bg-amber-50/60 p-3 dark:border-amber-800 dark:bg-amber-950/30">
-                  <p className="text-xs text-muted-foreground">
-                    {t.restoreResetTrashHint.replace('{days}', String(resetTrash.daysLeft || 1))}
-                  </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={restoringTrash || !partnerId}
-                    onClick={() => void handleRestoreResetTrash()}
-                  >
-                    {restoringTrash ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Undo2 className="mr-1.5 h-3.5 w-3.5" />
-                    )}
-                    {restoringTrash ? t.restoreResetTrashBusy : t.restoreResetTrashButton}
-                  </Button>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
+            </div>
+          ) : null}
 
           {website?.renderMode === 'legacy' ? (
+            <div className={sectionWrapClass('partner-website-editor')}>
             <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">{t.legacyMigrateTitle}</CardTitle>
@@ -543,9 +478,10 @@ export function PartnerWebsiteDashboardClient({
                 </Button>
               </CardContent>
             </Card>
+            </div>
           ) : null}
 
-          {website && homeBuilt ? (
+          {!isEmbedded && website && homeBuilt ? (
                 <PartnerWebsiteTenantAdminBar
                   partnerTitle={partnerTitle}
                   siteSlug={website?.siteSlug}
@@ -557,7 +493,6 @@ export function PartnerWebsiteDashboardClient({
                     editor: t.tenantNavEditor,
                     landings: t.tenantNavLandings,
                     leads: t.tenantNavLeads,
-                    sections: t.tenantNavSections,
                     publicSite: t.tenantNavPublicSite,
                   }}
                   activeSection={activeSection}
@@ -565,14 +500,16 @@ export function PartnerWebsiteDashboardClient({
                 />
               ) : null}
 
-              <div className="flex min-h-[calc(100dvh-12rem)] flex-1 flex-col gap-4">
+              <div className="flex min-h-0 flex-1 flex-col gap-4">
             <div
               id="partner-website-editor"
-              className="grid min-h-0 flex-1 scroll-mt-24 gap-4 lg:grid-cols-[minmax(360px,420px)_1fr] lg:items-stretch"
+              className={cn(
+                'grid min-h-0 flex-1 scroll-mt-24 gap-4 lg:grid-cols-[minmax(360px,420px)_1fr] lg:items-stretch',
+                sectionWrapClass('partner-website-editor')
+              )}
             >
               <PartnerWebsiteCreationJournalPanel
                 key={`${partnerId}-${journalResetKey}`}
-                ref={chatRef}
                 locale={locale}
                 t={t}
                 partnerId={partnerId}
@@ -581,16 +518,27 @@ export function PartnerWebsiteDashboardClient({
                 website={website}
                 logoUrl={logoUrl}
                 onLogoUrlChange={setLogoUrl}
-                refUrlsText={refUrlsText}
-                onRefUrlsTextChange={setRefUrlsText}
-                uploadedRefUrls={uploadedRefUrls}
-                onUploadedRefUrlsChange={setUploadedRefUrls}
                 disabled={!partnerId}
                 onBusyChange={setChatBusy}
                 onError={(message) => toast({ title: message, variant: 'destructive' })}
                 onWebsiteUpdated={handleWebsiteUpdated}
                 onWebsiteRefresh={handleWebsiteRefresh}
                 onJournalChange={setCreationJournal}
+                domainSlot={
+                  partnerId && partner?.slug ? (
+                    <PartnerCustomDomainSettingsCard
+                      key={partnerId}
+                      variant="website"
+                      partnerId={partnerId}
+                      partnerSlug={partner.slug}
+                      siteSlug={website?.siteSlug ?? null}
+                      sitePublished={Boolean(website?.isPublished)}
+                      t={pm}
+                      saveOkMessage={pm.saveOk}
+                      onDomainChanged={() => void loadWebsite(partnerId)}
+                    />
+                  ) : null
+                }
               />
 
               <Card className="flex h-full min-h-0 flex-col">
@@ -715,13 +663,16 @@ export function PartnerWebsiteDashboardClient({
             </Card>
             </div>
 
+            <div className={sectionWrapClass('partner-website-capabilities')}>
             <PartnerWebsiteCapabilitiesPanel
               locale={locale}
               t={t}
               partnerId={partnerId}
               sectionId="partner-website-capabilities"
             />
+            </div>
 
+            <div className={sectionWrapClass('partner-website-categories')}>
             <PartnerWebsiteCategoriesPanel
               locale={locale}
               t={t}
@@ -731,7 +682,9 @@ export function PartnerWebsiteDashboardClient({
                 toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
               }
             />
+            </div>
 
+            <div className={sectionWrapClass('partner-website-reviews-qa')}>
             <PartnerWebsiteReviewsQaPanel
               locale={locale}
               t={t}
@@ -741,14 +694,18 @@ export function PartnerWebsiteDashboardClient({
                 toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
               }
             />
+            </div>
 
+            <div className={sectionWrapClass('partner-website-customers')}>
             <PartnerWebsiteCustomersPanel
               locale={locale}
               t={t}
               partnerId={partnerId}
               sectionId="partner-website-customers"
             />
+            </div>
 
+            <div className={sectionWrapClass('partner-website-static-pages')}>
             <PartnerWebsiteStaticPagesPanel
               locale={locale}
               t={t}
@@ -759,7 +716,9 @@ export function PartnerWebsiteDashboardClient({
                 toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
               }
             />
+            </div>
 
+            <div className={sectionWrapClass('partner-website-promotions')}>
             <PartnerWebsitePromotionsPanel
               locale={locale}
               t={t}
@@ -769,7 +728,9 @@ export function PartnerWebsiteDashboardClient({
                 toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
               }
             />
+            </div>
 
+            <div className={sectionWrapClass('partner-website-landings')}>
             <PartnerWebsiteLandingsPanel
               locale={locale}
               t={t}
@@ -783,40 +744,9 @@ export function PartnerWebsiteDashboardClient({
                 toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
               }
             />
+            </div>
 
-            <PartnerWebsiteSectionsPanel
-              locale={locale}
-              website={website}
-              partnerId={partnerId}
-              sectionId="partner-website-sections"
-              onToast={(message, variant) =>
-                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
-              }
-              onWebsiteRefresh={handleWebsiteRefresh}
-            />
-
-            <PartnerWebsiteThemeColorsPanel
-              locale={locale}
-              website={website}
-              partnerId={partnerId}
-              sectionId="partner-website-theme-colors"
-              onToast={(message, variant) =>
-                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
-              }
-              onWebsiteRefresh={handleWebsiteRefresh}
-            />
-
-            <PartnerWebsiteNavFooterPanel
-              locale={locale}
-              website={website}
-              partnerId={partnerId}
-              sectionId="partner-website-nav-footer"
-              onToast={(message, variant) =>
-                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
-              }
-              onWebsiteRefresh={handleWebsiteRefresh}
-            />
-
+            <div className={sectionWrapClass('partner-website-floating-cta')}>
             <PartnerWebsiteFloatingCtaPanel
               locale={locale}
               website={website}
@@ -827,7 +757,9 @@ export function PartnerWebsiteDashboardClient({
               }
               onWebsiteRefresh={handleWebsiteRefresh}
             />
+            </div>
 
+            <div className={sectionWrapClass('partner-website-search-aliases')}>
             <PartnerWebsiteSearchAliasesPanel
               locale={locale}
               t={t}
@@ -837,22 +769,16 @@ export function PartnerWebsiteDashboardClient({
                 toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
               }
             />
+            </div>
 
+            <div className={sectionWrapClass('partner-website-leads')}>
             <PartnerWebsiteLeadsPanel
               locale={locale}
               partnerId={partnerId}
               enabled={Boolean(website?.renderMode === 'template')}
               sectionId="partner-website-leads"
             />
-
-            <PartnerWebsiteProjectFilesPanel
-              locale={locale}
-              website={website}
-              selectedFile={selectedFile}
-              onSelectFile={setSelectedFile}
-              fileDiffs={fileDiffs}
-              layout="bottom"
-            />
+            </div>
           </div>
         </>
       )}

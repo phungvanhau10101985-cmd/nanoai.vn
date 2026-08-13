@@ -34,6 +34,8 @@ export type ProductVisionNamingResult = {
   name: string
   analysis: string
   colors: string[]
+  /** Tên màu/biến thể đọc từ ảnh mẫu — dùng khi tạo ảnh màu #1. */
+  colorName?: string
 }
 
 export async function nameProductFromReferenceImage(
@@ -65,7 +67,7 @@ short, SEO-friendly product name for an online shop listing — natural, specifi
 no brand names you can't see, NEVER mention any internal code/SKU.
 Known attributes: ${attrs.join(', ') || 'none provided'}.
 Write entirely in ${lang}.
-Return ONLY this JSON: {"name": "product name (max 12 words)", "analysis": "1 short sentence describing what you see (silhouette, color, notable details)", "colors": ["color name(s) you can see, 1-3 items"]}`
+Return ONLY this JSON: {"name": "product name (max 12 words)", "analysis": "1 short sentence describing what you see (silhouette, color, notable details)", "colors": ["color name(s) you can see, 1-3 items"], "colorName": "the primary colorway/variant name visible in the photo"}`
 
   try {
     const result = await model.generateContent([
@@ -79,13 +81,58 @@ Return ONLY this JSON: {"name": "product name (max 12 words)", "analysis": "1 sh
     const parsed = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>
     const name = String(parsed.name ?? '').trim()
     if (!name) return null
+    const colors = Array.isArray(parsed.colors)
+      ? parsed.colors.map((x) => String(x ?? '').trim()).filter(Boolean)
+      : []
+    const colorName = String(parsed.colorName ?? colors[0] ?? '').trim()
     return {
       name: name.slice(0, 200),
       analysis: String(parsed.analysis ?? '').trim(),
-      colors: Array.isArray(parsed.colors) ? parsed.colors.map((x) => String(x ?? '').trim()).filter(Boolean) : [],
+      colors,
+      colorName: colorName || undefined,
     }
   } catch (e) {
     console.warn('[product-studio-vision-naming] failed', e)
+    return null
+  }
+}
+
+/** Màu #2+: chỉ đọc tên màu/biến thể từ ảnh mẫu mới (không đổi tên SP). */
+export async function nameColorwayFromReferenceImage(
+  userId: string | null,
+  imageUrl: string,
+  productType: string,
+  locale: WebLocale
+): Promise<string | null> {
+  const inline = await fetchImageAsInlinePart(imageUrl)
+  if (!inline) return null
+  let apiKey: string
+  try {
+    apiKey = (await requireGoogleApiKeyForUser(userId)).apiKey
+  } catch {
+    return null
+  }
+  const lang = LOCALE_LANGUAGE_NAME[locale] ?? LOCALE_LANGUAGE_NAME.vi
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel({ model: GEMINI_25_FLASH_NO_THINKING.model })
+  const prompt = `You are an e-commerce cataloguer. Look at the attached product photo and name ONLY the
+colorway / variant (e.g. "Black", "Beige", "Strawberry"). Product type hint: ${productType || 'unknown'}.
+Write the name in ${lang}. Return ONLY this JSON: {"colorName": "short color/variant name"}`
+
+  try {
+    const result = await model.generateContent([
+      { text: prompt },
+      { inlineData: { mimeType: inline.mimeType, data: inline.data } },
+    ] as never)
+    const text = result.response.text()?.trim() ?? ''
+    const start = text.indexOf('{')
+    const end = text.lastIndexOf('}')
+    if (start === -1 || end <= start) return null
+    const parsed = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>
+    const colorName = String(parsed.colorName ?? '').trim()
+    return colorName ? colorName.slice(0, 80) : null
+  } catch (e) {
+    console.warn('[product-studio-vision-naming] colorway failed', e)
     return null
   }
 }

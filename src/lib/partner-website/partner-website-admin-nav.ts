@@ -3,13 +3,10 @@ import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import {
   FolderTree,
   Globe,
-  LayoutGrid,
   LayoutTemplate,
   Mail,
   MessageSquareQuote,
   MousePointerClick,
-  Palette,
-  PanelBottom,
   Rocket,
   Search,
   Settings2,
@@ -17,33 +14,74 @@ import {
   Users,
 } from 'lucide-react'
 
+export const PARTNER_WEBSITE_ADMIN_SECTION_IDS = [
+  'partner-website-editor',
+  'partner-website-capabilities',
+  'partner-website-categories',
+  'partner-website-reviews-qa',
+  'partner-website-customers',
+  'partner-website-static-pages',
+  'partner-website-promotions',
+  'partner-website-landings',
+  'partner-website-floating-cta',
+  'partner-website-search-aliases',
+  'partner-website-leads',
+] as const
+
+export type PartnerWebsiteAdminSectionId = (typeof PARTNER_WEBSITE_ADMIN_SECTION_IDS)[number]
+
 export type PartnerWebsiteAdminNavItem = {
-  sectionId: string
+  sectionId: PartnerWebsiteAdminSectionId
   label: string
   icon: ComponentType<{ className?: string }>
 }
 
-/** Sidebar entries on /dashboard/messaging/settings → website dashboard anchors. */
+const NAV_ICONS: Record<PartnerWebsiteAdminSectionId, ComponentType<{ className?: string }>> = {
+  'partner-website-editor': Globe,
+  'partner-website-capabilities': Settings2,
+  'partner-website-categories': FolderTree,
+  'partner-website-reviews-qa': MessageSquareQuote,
+  'partner-website-customers': Users,
+  'partner-website-static-pages': LayoutTemplate,
+  'partner-website-promotions': Ticket,
+  'partner-website-landings': Rocket,
+  'partner-website-floating-cta': MousePointerClick,
+  'partner-website-search-aliases': Search,
+  'partner-website-leads': Mail,
+}
+
+export function isPartnerWebsiteAdminSectionId(
+  value: string | null | undefined
+): value is PartnerWebsiteAdminSectionId {
+  return (
+    value != null &&
+    (PARTNER_WEBSITE_ADMIN_SECTION_IDS as readonly string[]).includes(value)
+  )
+}
+
+/** Sidebar entries on /dashboard/messaging/settings — in-page website admin sections. */
 export function buildPartnerWebsiteAdminNavItems(
   t: PartnerWebsiteCopy,
   mainWebsiteLabel: string
 ): PartnerWebsiteAdminNavItem[] {
-  return [
-    { sectionId: 'partner-website-editor', label: mainWebsiteLabel, icon: Globe },
-    { sectionId: 'partner-website-capabilities', label: t.capabilitiesPanelTitle, icon: Settings2 },
-    { sectionId: 'partner-website-categories', label: t.categoriesTitle, icon: FolderTree },
-    { sectionId: 'partner-website-reviews-qa', label: t.reviewsAdminTitle, icon: MessageSquareQuote },
-    { sectionId: 'partner-website-customers', label: t.customersTitle, icon: Users },
-    { sectionId: 'partner-website-static-pages', label: t.staticPagesTitle, icon: LayoutTemplate },
-    { sectionId: 'partner-website-promotions', label: t.promotionsTitle, icon: Ticket },
-    { sectionId: 'partner-website-landings', label: t.lpPanelTitle, icon: Rocket },
-    { sectionId: 'partner-website-sections', label: t.sectionsPanelTitle, icon: LayoutGrid },
-    { sectionId: 'partner-website-theme-colors', label: t.themeColorsPanelTitle, icon: Palette },
-    { sectionId: 'partner-website-nav-footer', label: t.navFooterPanelTitle, icon: PanelBottom },
-    { sectionId: 'partner-website-floating-cta', label: t.floatingCtaPanelTitle, icon: MousePointerClick },
-    { sectionId: 'partner-website-search-aliases', label: t.searchAliasesPanelTitle, icon: Search },
-    { sectionId: 'partner-website-leads', label: t.leadsPanelTitle, icon: Mail },
-  ]
+  const labels: Record<PartnerWebsiteAdminSectionId, string> = {
+    'partner-website-editor': mainWebsiteLabel,
+    'partner-website-capabilities': t.capabilitiesPanelTitle,
+    'partner-website-categories': t.categoriesTitle,
+    'partner-website-reviews-qa': t.reviewsAdminTitle,
+    'partner-website-customers': t.customersTitle,
+    'partner-website-static-pages': t.staticPagesTitle,
+    'partner-website-promotions': t.promotionsTitle,
+    'partner-website-landings': t.lpPanelTitle,
+    'partner-website-floating-cta': t.floatingCtaPanelTitle,
+    'partner-website-search-aliases': t.searchAliasesPanelTitle,
+    'partner-website-leads': t.leadsPanelTitle,
+  }
+  return PARTNER_WEBSITE_ADMIN_SECTION_IDS.map((sectionId) => ({
+    sectionId,
+    label: labels[sectionId],
+    icon: NAV_ICONS[sectionId],
+  }))
 }
 
 export function partnerWebsiteAdminSectionHref(baseHref: string, sectionId: string): string {

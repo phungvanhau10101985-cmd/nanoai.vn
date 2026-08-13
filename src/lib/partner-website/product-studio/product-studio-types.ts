@@ -36,9 +36,30 @@ export type ProductStudioModelPresence = (typeof PRODUCT_STUDIO_MODEL_PRESENCE)[
 
 export type ProductStudioColorItem = { name: string; img: string }
 
-/** Slot ảnh AI: màu -> gallery -> chi tiết/chất liệu (thứ tự cố định, giống Studio 188). */
+/** Slot ảnh AI: màu / gallery / chi tiết / chất liệu — merchant tự chọn tab, không auto-nhảy (giống 188). */
 export const PRODUCT_STUDIO_SLOT_KINDS = ['color', 'gallery', 'detail', 'material'] as const
 export type ProductStudioSlotKind = (typeof PRODUCT_STUDIO_SLOT_KINDS)[number]
+
+/** Ảnh mẫu khách upload (không public) — cùng pool với ảnh Studio đã duyệt. */
+export const PRODUCT_STUDIO_REF_POOL_KINDS = [...PRODUCT_STUDIO_SLOT_KINDS, 'ref'] as const
+export type ProductStudioRefPoolKind = (typeof PRODUCT_STUDIO_REF_POOL_KINDS)[number]
+
+export const PRODUCT_STUDIO_WEARABLE_TYPES: readonly ProductStudioProductType[] = [
+  'apparel',
+  'shoes',
+  'accessory',
+]
+
+/** Ngưỡng bắt buộc trước khi đăng — giống 188 (ảnh chi tiết tuỳ chọn). */
+export const STUDIO_MIN_COLOR_IMAGES = 1
+export const STUDIO_MIN_GALLERY_IMAGES = 2
+export const STUDIO_MIN_MATERIAL_IMAGES = 1
+export const STUDIO_REF_PICKER_MAX = 3
+export const STUDIO_MATERIAL_ASPECT_RATIO = '4:3'
+
+export function isWearableProductType(t: string | undefined | null): boolean {
+  return PRODUCT_STUDIO_WEARABLE_TYPES.includes((t || '').trim() as ProductStudioProductType)
+}
 
 export type ProductStudioJobPayload = {
   mode: ProductStudioMode
@@ -78,7 +99,7 @@ export type ProductStudioRefPoolItem = {
   id: string
   url: string
   label: string
-  kind: ProductStudioSlotKind
+  kind: ProductStudioRefPoolKind
 }
 
 export type ProductStudioCurrentSlot = {
@@ -89,10 +110,16 @@ export type ProductStudioCurrentSlot = {
   promptUsed?: string
   approved?: boolean
   error?: string
+  attachUrl?: string
+  refUrls?: string[]
+  userPrompt?: string
+  index?: number
+  attempt?: number
 }
 
 export type ProductStudioState = {
   productKey?: string
+  phase?: ProductStudioSlotKind
   colors: ProductStudioColorItem[]
   gallery: string[]
   detail: string[]
@@ -102,6 +129,9 @@ export type ProductStudioState = {
   mainImage?: string | null
   refPool: ProductStudioRefPoolItem[]
   currentSlot?: ProductStudioCurrentSlot | null
+  lastRefUrls?: Partial<Record<ProductStudioSlotKind, string[]>>
+  colorUserPrompt?: string
+  canPublish?: boolean
 }
 
 export type ProductStudioJobRow = {
@@ -136,7 +166,64 @@ export type ProductStudioPublishResult = {
 }
 
 export function defaultProductStudioState(): ProductStudioState {
-  return { colors: [], gallery: [], detail: [], refPool: [], currentSlot: null }
+  return {
+    colors: [],
+    gallery: [],
+    detail: [],
+    refPool: [],
+    currentSlot: null,
+    phase: 'color',
+    lastRefUrls: {},
+    colorUserPrompt: '',
+    canPublish: false,
+  }
+}
+
+export function studioColorCount(studio: ProductStudioState): number {
+  return studio.colors.filter((c) => (c.img || '').trim()).length
+}
+
+export function studioPublishMissing(studio: ProductStudioState): string[] {
+  const missing: string[] = []
+  const nColors = studioColorCount(studio)
+  if (nColors < STUDIO_MIN_COLOR_IMAGES) missing.push(`color:${nColors}/${STUDIO_MIN_COLOR_IMAGES}`)
+  if (studio.gallery.length < STUDIO_MIN_GALLERY_IMAGES) {
+    missing.push(`gallery:${studio.gallery.length}/${STUDIO_MIN_GALLERY_IMAGES}`)
+  }
+  if (!(studio.materialImage || '').trim()) missing.push(`material:0/${STUDIO_MIN_MATERIAL_IMAGES}`)
+  return missing
+}
+
+export function studioCanPublish(studio: ProductStudioState): boolean {
+  return studioPublishMissing(studio).length === 0
+}
+
+export function firstApprovedColor(studio: ProductStudioState): ProductStudioColorItem | null {
+  const row = studio.colors.find((c) => (c.img || '').trim())
+  if (row) return row
+  const fromPool = studio.refPool.find((p) => p.kind === 'color' && p.url)
+  if (fromPool?.url) return { name: fromPool.label || '', img: fromPool.url }
+  return null
+}
+
+export function collectStudioSelectableImages(
+  studio: ProductStudioState
+): { url: string; label: string }[] {
+  const items = new Map<string, { url: string; label: string }>()
+  const add = (url: string | null | undefined, label: string) => {
+    const value = (url || '').trim()
+    if (!value || items.has(value)) return
+    items.set(value, { url: value, label })
+  }
+  for (const item of studio.refPool) {
+    if (item.kind === 'ref') continue
+    add(item.url, item.label || item.kind)
+  }
+  studio.colors.forEach((c, i) => add(c.img, c.name || `color ${i + 1}`))
+  studio.gallery.forEach((url, i) => add(url, `gallery ${i + 1}`))
+  studio.detail.forEach((url, i) => add(url, `detail ${i + 1}`))
+  add(studio.materialImage, 'material')
+  return [...items.values()]
 }
 
 export function jsonToProductStudioPayload(raw: Json): ProductStudioJobPayload {
@@ -188,10 +275,34 @@ export function jsonToProductStudioPayload(raw: Json): ProductStudioJobPayload {
   }
 }
 
+function parseRefPoolKind(raw: unknown): ProductStudioRefPoolKind {
+  const k = String(raw ?? '').trim()
+  if (PRODUCT_STUDIO_REF_POOL_KINDS.includes(k as ProductStudioRefPoolKind)) {
+    return k as ProductStudioRefPoolKind
+  }
+  return 'gallery'
+}
+
+function parseLastRefUrls(raw: unknown): Partial<Record<ProductStudioSlotKind, string[]>> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const o = raw as Record<string, unknown>
+  const out: Partial<Record<ProductStudioSlotKind, string[]>> = {}
+  for (const kind of PRODUCT_STUDIO_SLOT_KINDS) {
+    if (!Array.isArray(o[kind])) continue
+    out[kind] = o[kind].map((x) => String(x ?? '').trim()).filter(Boolean).slice(0, STUDIO_REF_PICKER_MAX)
+  }
+  return out
+}
+
 export function jsonToProductStudioState(raw: Json): ProductStudioState {
   const o = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>
-  return {
+  const phaseRaw = String(o.phase ?? '').trim()
+  const phase = PRODUCT_STUDIO_SLOT_KINDS.includes(phaseRaw as ProductStudioSlotKind)
+    ? (phaseRaw as ProductStudioSlotKind)
+    : 'color'
+  const state: ProductStudioState = {
     productKey: o.productKey ? String(o.productKey).trim() : undefined,
+    phase,
     colors: Array.isArray(o.colors)
       ? o.colors
           .map((c) => {
@@ -213,11 +324,14 @@ export function jsonToProductStudioState(raw: Json): ProductStudioState {
           id: String(r.id ?? ''),
           url: String(r.url ?? ''),
           label: String(r.label ?? ''),
-          kind: PRODUCT_STUDIO_SLOT_KINDS.includes(r.kind as ProductStudioSlotKind)
-            ? (r.kind as ProductStudioSlotKind)
-            : 'gallery',
+          kind: parseRefPoolKind(r.kind),
         }))
       : [],
     currentSlot: o.currentSlot && typeof o.currentSlot === 'object' ? (o.currentSlot as ProductStudioCurrentSlot) : null,
+    lastRefUrls: parseLastRefUrls(o.lastRefUrls),
+    colorUserPrompt: o.colorUserPrompt ? String(o.colorUserPrompt).trim() : '',
+    canPublish: false,
   }
+  state.canPublish = studioCanPublish(state)
+  return state
 }

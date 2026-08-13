@@ -5,6 +5,11 @@ set -euo pipefail
 #   ./deploy/update-vps.sh                # branch = main
 #   ./deploy/update-vps.sh production     # custom branch
 #
+# Admin «deploy» / «deploy VPS» / «chạy update-vps» = chạy FILE NÀY ĐẦY ĐỦ
+# (lint + typecheck + build:full + PM2 + 188 + cron + health + nginx).
+# Không bật DEPLOY_SKIP_LINT / DEPLOY_SKIP_TYPECHECK / DEPLOY_BUILD_VPS
+# trừ khi admin nói rõ bỏ bước đó.
+#
 # Tùy chọn môi trường:
 #   DEPLOY_HEALTHCHECK_URL   URL kiểm tra sau khi PM2 chạy (mặc định http://127.0.0.1:3000/)
 #   DEPLOY_SKIP_HEALTHCHECK=1  Bỏ qua bước curl app

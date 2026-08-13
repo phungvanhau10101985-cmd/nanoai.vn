@@ -11,10 +11,11 @@ import {
 import { generateProductStudioDescription } from '@/lib/partner-website/product-studio/product-studio-description-ai'
 import { bootstrapSingleProductLandingForStudio } from '@/lib/partner-website/product-studio/product-studio-ladipage-bridge'
 import { resolveOrCreateProductStudioCategory } from '@/lib/partner-website/product-studio/product-studio-taxonomy-ai'
-import type {
-  ProductStudioJobPayload,
-  ProductStudioJobRow,
-  ProductStudioPublishResult,
+import {
+  studioPublishMissing,
+  type ProductStudioJobPayload,
+  type ProductStudioJobRow,
+  type ProductStudioPublishResult,
 } from '@/lib/partner-website/product-studio/product-studio-types'
 
 /**
@@ -31,6 +32,9 @@ export function validateProductStudioPayloadForPublish(
   const errors: ProductStudioValidationError[] = []
   if (!payload.price || payload.price <= 0) {
     errors.push({ field: 'price', message: 'price_required' })
+  }
+  if (!payload.material.trim()) {
+    errors.push({ field: 'material', message: 'material_required' })
   }
   if (payload.mode === 'manual') {
     if (!payload.productName.trim()) {
@@ -73,12 +77,18 @@ function resolveGalleryAndDetailFromStudio(job: ProductStudioJobRow): {
   gallery: string[]
   detail: string[]
   colors: { name: string; img: string }[]
+  materialImage: string
 } {
   const studio = job.studio
   const mainImage = (studio.mainImage ?? '').trim() || studio.colors[0]?.img || ''
-  const gallery = [...studio.gallery]
-  const detail = studio.materialImage ? [...studio.detail, studio.materialImage] : [...studio.detail]
-  return { mainImage, gallery, detail, colors: studio.colors }
+  // Giống 188: gallery / chi tiết / chất liệu tách riêng — không nhét ảnh chất liệu vào detail.
+  return {
+    mainImage,
+    gallery: [...studio.gallery],
+    detail: [...studio.detail],
+    colors: studio.colors,
+    materialImage: (studio.materialImage || '').trim(),
+  }
 }
 
 export async function publishProductStudioJob(
@@ -94,6 +104,16 @@ export async function publishProductStudioJob(
     const msg = validation.errors.map((e) => `${e.field}:${e.message}`).join(', ')
     await updateProductStudioJobPg({ partnerId, jobId, status: 'failed', errorMessage: msg })
     return { ok: false, error: msg }
+  }
+
+  if (job.payload.mode === 'ai') {
+    const missing = studioPublishMissing(job.studio)
+    if (missing.length) {
+      return { ok: false, error: `studio_incomplete:${missing.join(',')}` }
+    }
+    if (job.status === 'ready_for_review' && job.studio.currentSlot?.candidateUrl) {
+      return { ok: false, error: 'approve_pending' }
+    }
   }
 
   await updateProductStudioJobPg({
@@ -118,10 +138,10 @@ export async function publishProductStudioJob(
     description = aiDescription || resolveFallbackProductDescription(payload, name)
   }
 
-  const { mainImage, gallery, detail, colors } =
+  const { mainImage, gallery, detail, colors, materialImage } =
     payload.mode === 'ai'
       ? resolveGalleryAndDetailFromStudio(job)
-      : { ...resolveGalleryAndDetailFromPayload(payload), colors: payload.colors ?? [] }
+      : { ...resolveGalleryAndDetailFromPayload(payload), colors: payload.colors ?? [], materialImage: '' }
 
   if (!mainImage) {
     await updateProductStudioJobPg({ partnerId, jobId, status: 'failed', errorMessage: 'missing_main_image' })
@@ -138,6 +158,7 @@ export async function publishProductStudioJob(
     galleryUrls: gallery,
     detailImageUrls: detail,
     material: payload.material ?? '',
+    materialDetailImageUrl: materialImage || null,
     stockQty: payload.available ?? 0,
     origin: payload.mode === 'ai' ? 'manual_ai' : 'manual',
     productStudioJobId: jobId,
@@ -220,13 +241,13 @@ export async function resumeStuckProductStudioJob(job: ProductStudioJobRow): Pro
     return
   }
   if (job.status === 'generating') {
-    // PS.5 (Phase D) sẽ xử lý resume đúng slot đang tạo — tạm đưa về ready_for_review để merchant tự bấm tiếp,
-    // an toàn hơn là để job treo vô hạn.
+    const hasCandidate = Boolean(job.studio.currentSlot?.candidateUrl)
     await updateProductStudioJobPg({
       partnerId: job.partnerId,
       jobId: job.id,
-      status: 'ready_for_review',
-      message: 'Đã khôi phục sau gián đoạn — vui lòng kiểm tra và tiếp tục.',
+      status: hasCandidate ? 'ready_for_review' : 'draft',
+      step: hasCandidate ? 'awaiting_approval' : 'awaiting_input',
+      message: 'recovered',
     })
   }
 }

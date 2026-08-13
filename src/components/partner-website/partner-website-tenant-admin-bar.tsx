@@ -5,12 +5,11 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ExternalLink } from 'lucide-react'
 
-export type PartnerWebsiteTenantSection = 'editor' | 'leads' | 'sections' | 'landings'
+export type PartnerWebsiteTenantSection = 'editor' | 'leads' | 'landings'
 
 type SectionLabels = {
   editor: string
   leads: string
-  sections: string
   landings: string
   publicSite: string
 }
@@ -42,7 +41,6 @@ export function PartnerWebsiteTenantAdminBar({
     { key: 'editor', label: sections.editor },
     { key: 'landings', label: sections.landings },
     { key: 'leads', label: sections.leads },
-    { key: 'sections', label: sections.sections },
   ]
 
   return (
