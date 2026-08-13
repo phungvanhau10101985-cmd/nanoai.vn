@@ -21,8 +21,9 @@ set -euo pipefail
 #   DEPLOY_BUILD_VPS=1  Build kiểu «rất yếu»: npm run build:vps (bỏ cả kiểm tra TypeScript khi build — chỉ khi máy vẫn OOM; nên chạy build:full trên máy khác/CI)
 #   DEPLOY_SKIP_LINT=1  Bỏ qua npm run lint (không khuyến nghị cho production)
 #   DEPLOY_SKIP_TYPECHECK=1  Bỏ qua npx tsc --noEmit (không khuyến nghị cho production)
-#   DEPLOY_STOP_PM2_BEFORE_BUILD=1  Dừng toàn bộ process PM2 trước khi lint/typecheck/build để giải phóng RAM (mặc định bật)
-#   DEPLOY_DELETE_PM2_BEFORE_BUILD=1  Xóa hết PM2 trước build (giải phóng RAM tối đa); deploy xong script tự start lại NanoAI + 188
+#   DEPLOY_STOP_PM2_BEFORE_BUILD=1  Dừng/xóa PM2 trước lint/typecheck/build để giải phóng RAM (mặc định bật)
+#   DEPLOY_DELETE_PM2_BEFORE_BUILD=1  pm2 delete all trước build (mặc định bật — giải phóng RAM tối đa); deploy xong script tự start lại NanoAI + 188
+#   NODE_OPTIONS=--max-old-space-size=4096  Heap Node cho lint/typecheck/build (script tự set nếu chưa có)
 #   DEPLOY_188_APP_DIR=/var/www/188.com.vn  Thư mục repo 188 (ecosystem: deploy/ecosystem.config.cjs)
 #   DEPLOY_SKIP_MIGRATIONS=1  Bỏ qua bước chạy migration SQL mới
 #   DEPLOY_SETUP_CRONS=1  Tự đảm bảo cron AI/inventory/logo cleanup + nhắc lịch đám cưới (mặc định bật)
@@ -43,6 +44,8 @@ DEPLOY_HEALTHCHECK_URL="${DEPLOY_HEALTHCHECK_URL:-http://127.0.0.1:3000/}"
 DEPLOY_HEALTHCHECK_RETRIES="${DEPLOY_HEALTHCHECK_RETRIES:-15}"
 DEPLOY_PM2_LOG_LINES="${DEPLOY_PM2_LOG_LINES:-100}"
 DEPLOY_STOP_PM2_BEFORE_BUILD="${DEPLOY_STOP_PM2_BEFORE_BUILD:-1}"
+DEPLOY_DELETE_PM2_BEFORE_BUILD="${DEPLOY_DELETE_PM2_BEFORE_BUILD:-1}"
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
 DEPLOY_188_APP_DIR="${DEPLOY_188_APP_DIR:-/var/www/188.com.vn}"
 LOG_DIR="${APP_DIR}/deploy/logs"
 DEPLOY_SETUP_CRONS="${DEPLOY_SETUP_CRONS:-1}"
@@ -261,10 +264,11 @@ else
 fi
 echo "  DONE [5/15]"
 
-echo "[6/15] Free RAM before build (stop/delete all PM2 processes)"
+echo "[6/15] Free RAM before build (PM2 + .next artifacts)"
+echo "  NODE_OPTIONS=${NODE_OPTIONS}"
 if [[ "${DEPLOY_STOP_PM2_BEFORE_BUILD}" == "1" ]]; then
   pm2 save || true
-  if [[ "${DEPLOY_DELETE_PM2_BEFORE_BUILD:-}" == "1" ]]; then
+  if [[ "${DEPLOY_DELETE_PM2_BEFORE_BUILD}" == "1" ]]; then
     pm2 delete all || true
     echo "  Đã pm2 delete all trước build (giải phóng RAM tối đa). Deploy xong sẽ start lại NanoAI + 188."
   else
@@ -274,6 +278,9 @@ if [[ "${DEPLOY_STOP_PM2_BEFORE_BUILD}" == "1" ]]; then
 else
   echo "  Bỏ qua dừng PM2 trước build (DEPLOY_STOP_PM2_BEFORE_BUILD=${DEPLOY_STOP_PM2_BEFORE_BUILD})."
 fi
+rm -rf .next
+echo "  Đã xóa .next cũ."
+sync || true
 echo "  DONE [6/15]"
 
 echo "[7/15] Pre-build validation (lint + typecheck)"
