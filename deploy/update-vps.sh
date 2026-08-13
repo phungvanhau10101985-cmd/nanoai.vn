@@ -22,7 +22,7 @@ set -euo pipefail
 #   DEPLOY_SKIP_LINT=1  Bỏ qua npm run lint (không khuyến nghị cho production)
 #   DEPLOY_SKIP_TYPECHECK=1  Bỏ qua npx tsc --noEmit (không khuyến nghị cho production)
 #   DEPLOY_STOP_PM2_BEFORE_BUILD=1  Dừng/xóa PM2 trước lint/typecheck/build để giải phóng RAM (mặc định bật)
-#   DEPLOY_DELETE_PM2_BEFORE_BUILD=1  pm2 delete all trước build (mặc định bật — giải phóng RAM tối đa); deploy xong script tự start lại NanoAI + 188
+#   DEPLOY_DELETE_PM2_BEFORE_BUILD=1  pm2 delete all trước build (mặc định bật); NanoAI start sau build, 188 start sau khi NanoAI health OK
 #   NODE_OPTIONS=--max-old-space-size=4096  Heap Node cho lint/typecheck/build (script tự set nếu chưa có)
 #   DEPLOY_188_APP_DIR=/var/www/188.com.vn  Thư mục repo 188 (ecosystem: deploy/ecosystem.config.cjs)
 #   DEPLOY_SKIP_MIGRATIONS=1  Bỏ qua bước chạy migration SQL mới
@@ -34,7 +34,7 @@ set -euo pipefail
 # - chạy migration SQL trong db/migrations/ theo checksum:
 #   + file mới: tự chạy
 #   + file đã sửa nội dung: tự chạy lại
-# - build + start PM2 NanoAI + start/restart 188-web / 188-api (kể cả sau pm2 delete all)
+# - build + start PM2 NanoAI (thu-do-online + worker), health OK → mới start 188-web / 188-api
 # - đảm bảo các cron chính (messaging + nhắc lịch đám cưới)
 
 APP_DIR="/var/www/Thu-do-online"
@@ -270,10 +270,17 @@ if [[ "${DEPLOY_STOP_PM2_BEFORE_BUILD}" == "1" ]]; then
   pm2 save || true
   if [[ "${DEPLOY_DELETE_PM2_BEFORE_BUILD}" == "1" ]]; then
     pm2 delete all || true
-    echo "  Đã pm2 delete all trước build (giải phóng RAM tối đa). Deploy xong sẽ start lại NanoAI + 188."
+    echo "  Đã pm2 delete all trước build (giải phóng RAM tối đa). NanoAI start sau build; 188 start sau health OK."
   else
     pm2 stop all || true
     echo "  Đã dừng toàn bộ PM2 processes trước build."
+  fi
+  sleep 2
+  if command -v fuser >/dev/null 2>&1; then
+    for port in 3000 3001 8001; do
+      fuser -k "${port}/tcp" 2>/dev/null || true
+    done
+    echo "  Đã giải phóng port 3000/3001/8001 (process mồ côi nếu có)."
   fi
 else
   echo "  Bỏ qua dừng PM2 trước build (DEPLOY_STOP_PM2_BEFORE_BUILD=${DEPLOY_STOP_PM2_BEFORE_BUILD})."
@@ -316,7 +323,8 @@ else
 fi
 echo "  DONE [9/15]"
 
-echo "[10/15] Restart PM2 via ecosystem.config.cjs (--update-env)"
+echo "[10/15] Start NanoAI PM2 (thu-do-online + worksheet-worker)"
+# Chỉ khởi động NanoAI — 188 start ở bước 15 sau khi health NanoAI OK.
 # Khởi động next binary trực tiếp (không qua npm) để max_memory_restart bắt đúng heap.
 # Tránh process «online giả» khi chỉ npm cha còn sống sau OOM.
 if [[ -f "${APP_DIR}/ecosystem.config.cjs" ]]; then
@@ -337,15 +345,6 @@ else
   fi
 fi
 pm2 save
-
-# Bước 6 có thể pm2 stop/delete all → khởi động lại 188 sau NanoAI (kể cả sau delete all).
-if [[ "${DEPLOY_SKIP_188_RESTART:-}" != "1" ]]; then
-  if ensure_188_pm2_online; then
-    pm2 save
-  fi
-else
-  echo "  Bỏ qua khởi động 188 (DEPLOY_SKIP_188_RESTART=1)."
-fi
 echo "  DONE [10/15]"
 
 echo "[11/15] Ensure cron jobs"
@@ -437,7 +436,7 @@ echo "[13/15] PM2 status"
 pm2 status
 echo "  DONE [13/15]"
 
-echo "[14/15] Health check (HTTP app)"
+echo "[14/15] Health check NanoAI (HTTP :3000)"
 if [[ "${DEPLOY_SKIP_HEALTHCHECK:-}" == "1" ]]; then
   echo "  Bỏ qua (DEPLOY_SKIP_HEALTHCHECK=1)."
 else
@@ -448,43 +447,46 @@ else
       echo "  OK: ${DEPLOY_HEALTHCHECK_URL} (lần thử ${i}/${DEPLOY_HEALTHCHECK_RETRIES})"
       break
     fi
-    echo "  Chờ app lên... (${i}/${DEPLOY_HEALTHCHECK_RETRIES})"
+    echo "  Chờ NanoAI lên... (${i}/${DEPLOY_HEALTHCHECK_RETRIES})"
     sleep 2
   done
   if [[ "${ok}" -ne 1 ]]; then
-    echo "LỖI: Health check thất bại sau ${DEPLOY_HEALTHCHECK_RETRIES} lần: ${DEPLOY_HEALTHCHECK_URL}" >&2
-    echo "  Gợi ý: đổi port bằng DEPLOY_HEALTHCHECK_URL, hoặc DEPLOY_SKIP_HEALTHCHECK=1 nếu app không bind localhost." >&2
+    echo "LỖI: Health check NanoAI thất bại sau ${DEPLOY_HEALTHCHECK_RETRIES} lần: ${DEPLOY_HEALTHCHECK_URL}" >&2
+    echo "  188 chưa được khởi động (chờ NanoAI OK)." >&2
+    echo "  Gợi ý: pm2 logs thu-do-online --lines 80" >&2
     exit 1
-  fi
-  if [[ "${DEPLOY_SKIP_188_RESTART:-}" != "1" ]]; then
-    if pm2 describe 188-web >/dev/null 2>&1; then
-      if curl -fsS --max-time 15 -o /dev/null "http://127.0.0.1:3001/"; then
-        echo "  OK: http://127.0.0.1:3001/ (188-web)"
-      else
-        echo "  Cảnh báo: 188-web chưa phản hồi :3001 — thử: cd /var/www/188.com.vn && bash deploy/fix-web-health.sh"
-      fi
-    fi
-    if pm2 describe 188-api >/dev/null 2>&1; then
-      if curl -fsS --max-time 15 -o /dev/null "http://127.0.0.1:8001/health"; then
-        echo "  OK: http://127.0.0.1:8001/health (188-api)"
-      else
-        echo "  Cảnh báo: 188-api chưa phản hồi :8001 — thử: cd /var/www/188.com.vn && bash deploy/fix-api-health.sh"
-      fi
-    fi
   fi
 fi
 echo "  DONE [14/15]"
 
-echo "[15/15] Edge stack (nginx + domain công khai)"
+echo "[15/15] Start 188 + edge stack (nginx + domain)"
+if [[ "${DEPLOY_SKIP_188_RESTART:-}" != "1" ]]; then
+  echo "  NanoAI đã OK — khởi động 188.com.vn..."
+  if ensure_188_pm2_online; then
+    pm2 save
+    if curl -fsS --max-time 15 -o /dev/null "http://127.0.0.1:3001/" 2>/dev/null; then
+      echo "  OK: http://127.0.0.1:3001/ (188-web)"
+    else
+      echo "  Cảnh báo: 188-web chưa phản hồi :3001 — thử: cd /var/www/188.com.vn && bash deploy/fix-web-health.sh"
+    fi
+    if curl -fsS --max-time 15 -o /dev/null "http://127.0.0.1:8001/health" 2>/dev/null; then
+      echo "  OK: http://127.0.0.1:8001/health (188-api)"
+    else
+      echo "  Cảnh báo: 188-api chưa phản hồi :8001 — thử: cd /var/www/188.com.vn && bash deploy/fix-api-health.sh"
+    fi
+  fi
+else
+  echo "  Bỏ qua khởi động 188 (DEPLOY_SKIP_188_RESTART=1)."
+fi
 if [[ "${DEPLOY_SKIP_EDGE_CHECK:-}" == "1" ]]; then
-  echo "  Bỏ qua (DEPLOY_SKIP_EDGE_CHECK=1)."
+  echo "  Bỏ qua edge check (DEPLOY_SKIP_EDGE_CHECK=1)."
 else
   VERIFY_EDGE_AUTOFIX_NGINX=0 bash "${APP_DIR}/deploy/verify-edge-stack.sh"
 fi
 echo "  DONE [15/15]"
 
 echo ""
-echo "Hoàn tất. PM2 đang chạy bản build từ commit ${NEW_HEAD} (trùng origin/${BRANCH})."
+echo "Hoàn tất. NanoAI + 188 (nếu bật) từ commit ${NEW_HEAD} (trùng origin/${BRANCH})."
 
 if [[ "${DEPLOY_REBOOT_VPS:-}" == "1" ]]; then
   echo ""
