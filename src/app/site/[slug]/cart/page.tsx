@@ -6,6 +6,7 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopCartClient } from '@/components/partner-website/shop/partner-site-shop-cart-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
+import { maybePartnerSiteVisualPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -31,6 +32,8 @@ export default async function PartnerSiteCartPage({ params }: Props) {
   const { slug } = await params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
+  const visual = maybePartnerSiteVisualPage(shop.site, 'cart')
+  if (visual) return visual
 
   return (
     <PartnerSiteShopShell

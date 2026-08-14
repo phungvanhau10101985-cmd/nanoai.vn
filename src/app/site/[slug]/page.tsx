@@ -24,6 +24,9 @@ import { isPartnerFlashSaleActive } from '@/lib/partner-website/shop/partner-sho
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
 import { injectPartnerCustomDomainLinkRewriteScript } from '@/lib/partner-website/shop/inject-partner-custom-domain-link-script'
 import { resolveExactVisualHomepageHtml } from '@/lib/partner-website/compose-partner-website-html'
+import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import { resolvePublicVisualPageHtml } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { visualHtmlLooksUsable } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -89,9 +92,11 @@ export default async function PartnerSitePublicPage({ params }: Props) {
   if (!site) notFound()
 
   // Sửa nhanh save owns the live homepage — same HTML as preview / public.
-  const visualHtml = resolveExactVisualHomepageHtml(site)
+  const visualHtml = injectPartnerShopChromeLayoutCss(
+    resolvePublicVisualPageHtml(site, 'home') || resolveExactVisualHomepageHtml(site)
+  )
 
-  if (visualHtml.length >= 40) {
+  if (visualHtmlLooksUsable(visualHtml)) {
     const headerStore = headers()
     const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
     const publicHtml = onCustomDomain

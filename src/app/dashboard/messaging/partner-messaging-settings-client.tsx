@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { ComponentType, ReactNode } from 'react'
@@ -16,7 +15,7 @@ import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
 import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import type { MessagingPartnerDashboardRow } from '@/lib/db/messaging-partners-pg'
 import type { PartnerMemberRow } from '@/lib/db/messaging-partner-members-pg'
-import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
 import type { PartnerStaffPermKey, PartnerStaffPermissionMap } from '@/lib/messaging/partner-staff-permissions'
 import { PARTNER_STAFF_PERM_KEYS } from '@/lib/messaging/partner-staff-permissions'
 import type { Database } from '@/types/database.types'
@@ -50,8 +49,6 @@ import {
   savePartnerMessagingTiktokPixel,
   savePartnerMessagingGtmContainer,
   savePartnerMessagingDefaultCurrency,
-  getMessagingPartnerContactChannels,
-  savePartnerMessagingContactChannels,
 } from '@/app/dashboard/messaging/actions'
 import { PARTNER_SHOP_CURRENCIES } from '@/lib/partner-website/shop/partner-shop-currency'
 import {
@@ -76,6 +73,7 @@ import {
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { isMarketingEligibleIndustry } from '@/lib/messaging/partner-marketing-segment'
 import {
+  Bell,
   Bot,
   Building2,
   Cake,
@@ -93,8 +91,10 @@ import {
   Plug,
   RefreshCw,
   Share2,
+  Store,
   Table,
   TrendingUp,
+  Video,
   Trophy,
   Trash2,
   Truck,
@@ -245,6 +245,8 @@ const MESSAGING_SETTINGS_SECTION_IDS = [
   'channels',
   'domains',
   'analytics-meta',
+  'analytics-google-merchant',
+  'analytics-tiktok-catalog',
   'analytics-ads',
   'payment',
   'shipping',
@@ -257,30 +259,66 @@ const MESSAGING_SETTINGS_SECTION_IDS = [
 ] as const
 
 type MessagingSettingsSectionId = (typeof MESSAGING_SETTINGS_SECTION_IDS)[number]
-type SettingsPageSectionId = MessagingSettingsSectionId | PartnerWebsiteAdminSectionId
+const OPERATIONS_SECTION_IDS = ['hub-notifications', 'hub-marketing', 'hub-orders'] as const
+type OperationsSectionId = (typeof OPERATIONS_SECTION_IDS)[number]
+type SettingsPageSectionId = MessagingSettingsSectionId | PartnerWebsiteAdminSectionId | OperationsSectionId
+
+function isOperationsSectionId(value: string | null | undefined): value is OperationsSectionId {
+  return Boolean(value && (OPERATIONS_SECTION_IDS as readonly string[]).includes(value))
+}
 
 function normalizeSettingsSectionParam(value: string | null): SettingsPageSectionId | null {
   if (value === 'analytics') return 'analytics-meta'
+  if (value === 'notifications') return 'hub-notifications'
+  if (value === 'marketing') return 'hub-marketing'
+  if (value === 'orders') return 'hub-orders'
   if (value != null && (MESSAGING_SETTINGS_SECTION_IDS as readonly string[]).includes(value)) {
     return value as MessagingSettingsSectionId
   }
+  if (value === 'partner-website-capabilities' || value === 'partner-website-search-aliases') {
+    return 'partner-website-editor'
+  }
   if (isPartnerWebsiteAdminSectionId(value)) return value
+  if (isOperationsSectionId(value)) return value
   return null
 }
+
+const sectionLoading = (
+  <div className="flex min-h-[8rem] items-center justify-center rounded-xl border border-border/70 bg-card/80">
+    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden />
+  </div>
+)
 
 const PartnerWebsiteDashboardClient = dynamic(
   () =>
     import('@/app/dashboard/messaging/website/partner-website-dashboard-client').then(
       (mod) => mod.PartnerWebsiteDashboardClient
     ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-[8rem] items-center justify-center rounded-xl border border-border/70 bg-card/80">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden />
-      </div>
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerNotificationsClient = dynamic(
+  () =>
+    import('@/app/dashboard/messaging/partner-notifications-client').then(
+      (mod) => mod.PartnerNotificationsClient
     ),
-  }
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerMarketingCampaignsClient = dynamic(
+  () =>
+    import('@/app/dashboard/messaging/partner-marketing-campaigns-client').then(
+      (mod) => mod.PartnerMarketingCampaignsClient
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerMessagingOrdersClient = dynamic(
+  () =>
+    import('@/app/dashboard/messaging/partner-messaging-orders-client').then(
+      (mod) => mod.PartnerMessagingOrdersClient
+    ),
+  { ssr: false, loading: () => sectionLoading }
 )
 
 export function PartnerMessagingSettingsClient({
@@ -363,10 +401,6 @@ export function PartnerMessagingSettingsClient({
   const [tiktokPixelId, setTiktokPixelId] = useState('')
   const [gtmContainerId, setGtmContainerId] = useState('')
   const [defaultCurrency, setDefaultCurrency] = useState('VND')
-  const [contactPhone, setContactPhone] = useState('')
-  const [contactZaloUrl, setContactZaloUrl] = useState('')
-  const [contactMessengerUrl, setContactMessengerUrl] = useState('')
-  const [contactInstagramUrl, setContactInstagramUrl] = useState('')
   const [paymentShippingCarrierLabel, setPaymentShippingCarrierLabel] = useState('')
   const [gsEnabled, setGsEnabled] = useState(false)
   const [gsSpreadsheetId, setGsSpreadsheetId] = useState('')
@@ -420,70 +454,95 @@ export function PartnerMessagingSettingsClient({
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const tWeb = useMemo(() => getPartnerWebsiteCopy(locale), [locale])
+  const dict = useMemo(() => getDictionary(locale), [locale])
 
   const settingsNavItems = useMemo(() => {
     const items: Array<{
       id: MessagingSettingsSectionId
+      group: 'shop' | 'sales' | 'connect' | 'customers' | 'ai'
       label: string
       icon: ComponentType<{ className?: string }>
       visible: boolean
     }> = [
-      { id: 'workspace', label: t.workspaceLabel, icon: Building2, visible: true },
+      { id: 'workspace', group: 'shop', label: t.settingsNavWorkspace, icon: Building2, visible: true },
       {
         id: 'brand',
+        group: 'shop',
         label: t.teamPermWorkspaceBranding,
         icon: Palette,
         visible: Boolean(selectedPartnerId && partnerAllowsPerm(selectedPartner, 'workspace_branding')),
       },
       {
         id: 'inventory',
+        group: 'shop',
         label: t.teamPermInventory,
         icon: Package,
         visible: Boolean(selectedPartnerId && partnerCanInventoryPanel(selectedPartner)),
       },
+      { id: 'payment', group: 'sales', label: t.settingsNavPayment, icon: CreditCard, visible: isOwnerSelected },
+      { id: 'shipping', group: 'sales', label: t.settingsNavShipping, icon: Truck, visible: isOwnerSelected },
       {
         id: 'channels',
+        group: 'connect',
         label: t.channelsSection,
         icon: Share2,
         visible: partnerAllowsPerm(selectedPartner, 'integrations_channels'),
       },
       {
         id: 'domains',
+        group: 'connect',
         label: t.settingsNavCustomDomain,
         icon: Globe,
         visible: isOwnerSelected,
       },
       {
         id: 'analytics-meta',
+        group: 'connect',
         label: t.settingsNavAnalyticsMeta,
         icon: LineChart,
         visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
       },
       {
+        id: 'analytics-google-merchant',
+        group: 'connect',
+        label: t.settingsNavAnalyticsGoogleMerchant,
+        icon: Store,
+        visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
+      },
+      {
+        id: 'analytics-tiktok-catalog',
+        group: 'connect',
+        label: t.settingsNavAnalyticsTiktokCatalog,
+        icon: Video,
+        visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
+      },
+      {
         id: 'analytics-ads',
+        group: 'connect',
         label: t.settingsNavAnalyticsAds,
         icon: TrendingUp,
         visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
       },
-      { id: 'payment', label: t.settingsNavPayment, icon: CreditCard, visible: isOwnerSelected },
-      { id: 'shipping', label: t.settingsNavShipping, icon: Truck, visible: isOwnerSelected },
-      { id: 'sheets', label: t.settingsNavSheets, icon: Table, visible: isOwnerSelected },
-      { id: 'loyalty', label: t.settingsNavLoyalty, icon: Trophy, visible: isOwnerSelected },
+      { id: 'api', group: 'connect', label: t.messagingSettingsApiHubCardTitle, icon: Plug, visible: isOwnerSelected },
+      { id: 'sheets', group: 'connect', label: t.settingsNavSheets, icon: Table, visible: isOwnerSelected },
+      { id: 'loyalty', group: 'customers', label: t.settingsNavLoyalty, icon: Trophy, visible: isOwnerSelected },
       {
         id: 'promotions',
+        group: 'customers',
         label: t.settingsNavPromotions,
         icon: Cake,
         visible: Boolean(selectedPartnerId && partnerCanPromotionsPanel(selectedPartner)),
       },
-      { id: 'api', label: t.messagingSettingsApiHubCardTitle, icon: Plug, visible: isOwnerSelected },
       {
         id: 'ai',
+        group: 'ai',
         label: tAi.panelTitle,
         icon: Bot,
         visible: Boolean(selectedPartnerId && partnerCanAiSettingsPanel(selectedPartner)),
       },
       {
         id: 'ai-usage',
+        group: 'ai',
         label: t.settingsNavAiUsage,
         icon: Bot,
         visible: Boolean(selectedPartnerId && partnerCanAiUsagePanel(selectedPartner)),
@@ -497,43 +556,103 @@ export function PartnerMessagingSettingsClient({
     [settingsNavItems]
   )
 
-  const partnerNavQuery = selectedPartnerId ? `?partner=${encodeURIComponent(selectedPartnerId)}` : ''
-
   const settingsWebsiteNavItems = useMemo(() => {
     const visible = Boolean(selectedPartnerId && partnerCanWebsiteHub(selectedPartner))
-    return buildPartnerWebsiteAdminNavItems(tWeb, t.messagingWebsiteLink).map((item) => ({
+    return buildPartnerWebsiteAdminNavItems(tWeb, t.settingsNavWebsiteEditor).map((item) => ({
       ...item,
       visible,
     }))
-  }, [selectedPartner, selectedPartnerId, t.messagingWebsiteLink, tWeb])
+  }, [selectedPartner, selectedPartnerId, t.settingsNavWebsiteEditor, tWeb])
 
   const visibleWebsiteSectionIds = useMemo(
     () => settingsWebsiteNavItems.filter((item) => item.visible).map((item) => item.sectionId),
     [settingsWebsiteNavItems]
   )
 
-  const allVisibleSectionIds = useMemo((): SettingsPageSectionId[] => {
-    return [...visibleSettingsSections, ...visibleWebsiteSectionIds]
-  }, [visibleSettingsSections, visibleWebsiteSectionIds])
-
-  const settingsExternalNavItems = useMemo(() => {
+  const settingsOperationsNavItems = useMemo(() => {
     return [
       {
-        id: 'hub-marketing',
-        href: `/dashboard/messaging/marketing${partnerNavQuery}`,
-        label: t.marketingCampaignsLink,
-        icon: Megaphone,
-        visible: Boolean(selectedPartnerId && partnerCanMarketingHub(selectedPartner)),
-      },
-      {
-        id: 'hub-orders',
-        href: `/dashboard/messaging/orders${partnerNavQuery}`,
+        id: 'hub-orders' as const,
         label: t.messagingOrdersLink,
         icon: ClipboardList,
         visible: Boolean(selectedPartnerId && partnerCanOrdersHub(selectedPartner)),
       },
+      {
+        id: 'hub-notifications' as const,
+        label: t.notificationsLink,
+        icon: Bell,
+        visible: Boolean(
+          selectedPartnerId &&
+            selectedPartner &&
+            selectedPartner.industry_key !== 'hotel' &&
+            (selectedPartner.dashboard_access === 'owner' ||
+              selectedPartner.staff_permissions?.website ||
+              selectedPartner.staff_permissions?.marketing_campaigns)
+        ),
+      },
+      {
+        id: 'hub-marketing' as const,
+        label: t.marketingCampaignsLink,
+        icon: Megaphone,
+        visible: Boolean(selectedPartnerId && partnerCanMarketingHub(selectedPartner)),
+      },
     ]
-  }, [partnerNavQuery, selectedPartner, selectedPartnerId, t])
+  }, [selectedPartner, selectedPartnerId, t])
+
+  const visibleOperationsSectionIds = useMemo(
+    () => settingsOperationsNavItems.filter((item) => item.visible).map((item) => item.id),
+    [settingsOperationsNavItems]
+  )
+
+  const allVisibleSectionIds = useMemo((): SettingsPageSectionId[] => {
+    return [...visibleSettingsSections, ...visibleWebsiteSectionIds, ...visibleOperationsSectionIds]
+  }, [visibleSettingsSections, visibleWebsiteSectionIds, visibleOperationsSectionIds])
+
+  const sidebarGroups = useMemo(() => {
+    const fromSettings = (group: 'shop' | 'sales' | 'connect' | 'customers' | 'ai') =>
+      settingsNavItems
+        .filter((item) => item.group === group)
+        .map((item) => ({
+          id: item.id as SettingsPageSectionId,
+          label: item.label,
+          icon: item.icon,
+          visible: item.visible,
+        }))
+    return [
+      { id: 'shop', title: t.settingsNavShopTitle, items: fromSettings('shop') },
+      { id: 'sales', title: t.settingsNavSalesTitle, items: fromSettings('sales') },
+      { id: 'operations', title: t.settingsNavOperationsTitle, items: settingsOperationsNavItems },
+      {
+        id: 'customers',
+        title: t.settingsNavCustomersTitle,
+        items: [
+          ...settingsWebsiteNavItems
+            .filter((item) => item.sectionId === 'partner-website-customers')
+            .map((item) => ({
+              id: item.sectionId as SettingsPageSectionId,
+              label: item.label,
+              icon: item.icon,
+              visible: item.visible,
+            })),
+          ...fromSettings('customers'),
+        ],
+      },
+      {
+        id: 'website',
+        title: t.settingsNavWebsiteTitle,
+        items: settingsWebsiteNavItems
+          .filter((item) => item.sectionId !== 'partner-website-customers')
+          .map((item) => ({
+            id: item.sectionId as SettingsPageSectionId,
+            label: item.label,
+            icon: item.icon,
+            visible: item.visible,
+          })),
+      },
+      { id: 'connect', title: t.settingsNavConnectTitle, items: fromSettings('connect') },
+      { id: 'ai', title: t.settingsNavAiGroupTitle, items: fromSettings('ai') },
+    ]
+  }, [settingsNavItems, settingsOperationsNavItems, settingsWebsiteNavItems, t])
 
   const refreshWebsitePublicUrl = useCallback(async () => {
     if (!selectedPartnerId || !partnerCanWebsiteHub(selectedPartner)) {
@@ -610,13 +729,24 @@ export function PartnerMessagingSettingsClient({
     return `/api/integrations/facebook/messenger/connect?partnerId=${encodeURIComponent(selectedPartnerId)}`
   }, [selectedPartnerId])
 
-  const facebookCatalogFeedUrl = useMemo(() => {
+  const catalogFeedUrls = useMemo(() => {
     const s = selectedPartner?.slug?.trim()
     const k = selectedPartner?.embed_key?.trim()
-    if (!s || !k || !appOrigin.trim()) return ''
+    if (!s || !k || !appOrigin.trim()) {
+      return { facebook: '', googleMerchant: '', tiktok: '' }
+    }
     const origin = appOrigin.replace(/\/$/, '')
-    return `${origin}/api/messaging/catalog/${encodeURIComponent(s)}/facebook-feed?key=${encodeURIComponent(k)}`
+    const base = `${origin}/api/messaging/catalog/${encodeURIComponent(s)}`
+    const q = `?key=${encodeURIComponent(k)}`
+    return {
+      facebook: `${base}/facebook-feed${q}`,
+      googleMerchant: `${base}/google-merchant-feed${q}`,
+      tiktok: `${base}/tiktok-feed${q}`,
+    }
   }, [appOrigin, selectedPartner?.slug, selectedPartner?.embed_key])
+  const facebookCatalogFeedUrl = catalogFeedUrls.facebook
+  const googleMerchantCatalogFeedUrl = catalogFeedUrls.googleMerchant
+  const tiktokCatalogFeedUrl = catalogFeedUrls.tiktok
 
   const setSelectedPartnerAndPersist = useCallback(
     (partnerId: string | null) => {
@@ -784,17 +914,6 @@ export function PartnerMessagingSettingsClient({
     setTiktokPixelId((cur.tiktok_pixel_id ?? '').trim())
     setGtmContainerId((cur.gtm_container_id ?? '').trim())
     setDefaultCurrency(String(cur.default_currency ?? 'VND').trim().toUpperCase() || 'VND')
-    const pid = selectedPartnerId
-    if (!pid) return
-    void (async () => {
-      const res = await getMessagingPartnerContactChannels(pid)
-      if ('channels' in res && res.channels) {
-        setContactPhone(res.channels.contact_phone || '')
-        setContactZaloUrl(res.channels.contact_zalo_url || '')
-        setContactMessengerUrl(res.channels.contact_messenger_url || '')
-        setContactInstagramUrl(res.channels.contact_instagram_url || '')
-      }
-    })()
   }, [partners, selectedPartnerId])
 
   useEffect(() => {
@@ -1559,12 +1678,24 @@ export function PartnerMessagingSettingsClient({
     })
   }
 
+  const copyCatalogFeedUrl = useCallback(
+    (url: string, copiedToast: string) => {
+      if (!url) return
+      void navigator.clipboard.writeText(url).then(() => {
+        toast({ title: copiedToast })
+      })
+    },
+    [toast]
+  )
   const copyFacebookCatalogFeedUrl = useCallback(() => {
-    if (!facebookCatalogFeedUrl) return
-    void navigator.clipboard.writeText(facebookCatalogFeedUrl).then(() => {
-      toast({ title: t.facebookCatalogFeedCopiedToast })
-    })
-  }, [facebookCatalogFeedUrl, t.facebookCatalogFeedCopiedToast, toast])
+    copyCatalogFeedUrl(facebookCatalogFeedUrl, t.facebookCatalogFeedCopiedToast)
+  }, [copyCatalogFeedUrl, facebookCatalogFeedUrl, t.facebookCatalogFeedCopiedToast])
+  const copyGoogleMerchantCatalogFeedUrl = useCallback(() => {
+    copyCatalogFeedUrl(googleMerchantCatalogFeedUrl, t.googleMerchantCatalogFeedCopiedToast)
+  }, [copyCatalogFeedUrl, googleMerchantCatalogFeedUrl, t.googleMerchantCatalogFeedCopiedToast])
+  const copyTiktokCatalogFeedUrl = useCallback(() => {
+    copyCatalogFeedUrl(tiktokCatalogFeedUrl, t.tiktokCatalogFeedCopiedToast)
+  }, [copyCatalogFeedUrl, tiktokCatalogFeedUrl, t.tiktokCatalogFeedCopiedToast])
 
   const paymentSnapshot = useCallback(
     (partnerId: string) =>
@@ -1691,24 +1822,6 @@ export function PartnerMessagingSettingsClient({
       toast,
     ]
   )
-
-  const saveContactChannels = () => {
-    if (!selectedPartnerId) return
-    startTransition(async () => {
-      const res = await savePartnerMessagingContactChannels(selectedPartnerId, {
-        contact_phone: contactPhone,
-        contact_zalo_url: contactZaloUrl,
-        contact_messenger_url: contactMessengerUrl,
-        contact_instagram_url: contactInstagramUrl,
-      })
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
-      }
-      toast({ title: t.saveOk })
-      router.refresh()
-    })
-  }
 
   const savePaymentSettings = () => {
     if (!selectedPartnerId) return
@@ -2075,6 +2188,7 @@ export function PartnerMessagingSettingsClient({
                 <span className="truncate">{
                   settingsNavItems.find((item) => item.id === activeSection)?.label
                   ?? settingsWebsiteNavItems.find((item) => item.sectionId === activeSection)?.label
+                  ?? settingsOperationsNavItems.find((item) => item.id === activeSection)?.label
                   ?? t.settingsSidebarTitle
                 }</span>
               </span>
@@ -2088,80 +2202,37 @@ export function PartnerMessagingSettingsClient({
             {mobileNavOpen ? (
               <div className="mt-2 rounded-xl border border-border/70 bg-card/90 p-2 shadow-sm">
                 <nav className="flex flex-col gap-1" aria-label={t.settingsSidebarTitle}>
-                  {settingsNavItems
-                    .filter((item) => item.visible)
-                    .map((item) => {
-                      const NavIcon = item.icon
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => { selectSettingsSection(item.id); setMobileNavOpen(false) }}
-                          className={cn(
-                            'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
-                            activeSection === item.id
-                              ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
-                              : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                          )}
-                          aria-current={activeSection === item.id ? 'page' : undefined}
-                        >
-                          <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
-                          <span className="truncate">{item.label}</span>
-                        </button>
-                      )
-                    })}
-                  {settingsWebsiteNavItems.some((item) => item.visible) ? (
-                    <>
-                      <p className="mt-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {t.settingsNavWebsiteTitle}
-                      </p>
-                      {settingsWebsiteNavItems
-                        .filter((item) => item.visible)
-                        .map((item) => {
+                  {sidebarGroups.map((group) => {
+                    const items = group.items.filter((item) => item.visible)
+                    if (items.length === 0) return null
+                    return (
+                      <div key={group.id}>
+                        <p className="mt-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {group.title}
+                        </p>
+                        {items.map((item) => {
                           const NavIcon = item.icon
                           return (
                             <button
-                              key={item.sectionId}
+                              key={item.id}
                               type="button"
-                              onClick={() => { selectSettingsSection(item.sectionId); setMobileNavOpen(false) }}
+                              onClick={() => { selectSettingsSection(item.id); setMobileNavOpen(false) }}
                               className={cn(
                                 'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
-                                activeSection === item.sectionId
+                                activeSection === item.id
                                   ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
                                   : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                               )}
-                              aria-current={activeSection === item.sectionId ? 'page' : undefined}
+                              aria-current={activeSection === item.id ? 'page' : undefined}
                             >
                               <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
                               <span className="truncate">{item.label}</span>
                             </button>
                           )
                         })}
-                    </>
-                  ) : null}
-                  {settingsExternalNavItems.some((item) => item.visible) ? (
-                    <>
-                      <p className="mt-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {t.settingsNavOperationsTitle}
-                      </p>
-                      {settingsExternalNavItems
-                        .filter((item) => item.visible)
-                        .map((item) => {
-                          const NavIcon = item.icon
-                          return (
-                            <Link
-                              key={item.id}
-                              href={item.href}
-                              onClick={() => setMobileNavOpen(false)}
-                              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                            >
-                              <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
-                              <span className="truncate">{item.label}</span>
-                            </Link>
-                          )
-                        })}
-                    </>
-                  ) : null}
+                      </div>
+                    )
+                  })}
                 </nav>
               </div>
             ) : null}
@@ -2182,79 +2253,37 @@ export function PartnerMessagingSettingsClient({
                 className="hidden gap-1 lg:flex lg:flex-col"
                 aria-label={t.settingsSidebarTitle}
               >
-                {settingsNavItems
-                  .filter((item) => item.visible)
-                  .map((item) => {
-                    const NavIcon = item.icon
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => selectSettingsSection(item.id)}
-                        className={cn(
-                          'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
-                          activeSection === item.id
-                            ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
-                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                        )}
-                        aria-current={activeSection === item.id ? 'page' : undefined}
-                      >
-                        <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
-                        <span className="truncate">{item.label}</span>
-                      </button>
-                    )
-                  })}
-                {settingsWebsiteNavItems.some((item) => item.visible) ? (
-                  <>
-                    <p className="mt-1 hidden px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
-                      {t.settingsNavWebsiteTitle}
-                    </p>
-                    {settingsWebsiteNavItems
-                      .filter((item) => item.visible)
-                      .map((item) => {
+                {sidebarGroups.map((group) => {
+                  const items = group.items.filter((item) => item.visible)
+                  if (items.length === 0) return null
+                  return (
+                    <div key={group.id}>
+                      <p className="mt-1 hidden px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
+                        {group.title}
+                      </p>
+                      {items.map((item) => {
                         const NavIcon = item.icon
                         return (
                           <button
-                            key={item.sectionId}
+                            key={item.id}
                             type="button"
-                            onClick={() => selectSettingsSection(item.sectionId)}
+                            onClick={() => selectSettingsSection(item.id)}
                             className={cn(
                               'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
-                              activeSection === item.sectionId
+                              activeSection === item.id
                                 ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
                                 : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                             )}
-                            aria-current={activeSection === item.sectionId ? 'page' : undefined}
+                            aria-current={activeSection === item.id ? 'page' : undefined}
                           >
                             <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
                             <span className="truncate">{item.label}</span>
                           </button>
                         )
                       })}
-                  </>
-                ) : null}
-                {settingsExternalNavItems.some((item) => item.visible) ? (
-                  <>
-                    <p className="mt-1 hidden px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
-                      {t.settingsNavOperationsTitle}
-                    </p>
-                    {settingsExternalNavItems
-                      .filter((item) => item.visible)
-                      .map((item) => {
-                        const NavIcon = item.icon
-                        return (
-                          <Link
-                            key={item.id}
-                            href={item.href}
-                            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                          >
-                            <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
-                            <span className="truncate">{item.label}</span>
-                          </Link>
-                        )
-                      })}
-                  </>
-                ) : null}
+                    </div>
+                  )
+                })}
               </nav>
             </div>
           </aside>
@@ -2268,7 +2297,7 @@ export function PartnerMessagingSettingsClient({
           <SettingsBlock
             id="messaging-workspace"
             icon={Building2}
-            title={t.workspaceLabel}
+            title={t.settingsNavWorkspace}
             description={t.cardDescription}
           >
             {selectedPartner?.purge_at ? (
@@ -2564,37 +2593,6 @@ export function PartnerMessagingSettingsClient({
                       {t.shopDefaultCurrencySaveButton}
                     </Button>
                   </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>{t.shopContactChannelsTitle}</Label>
-                    <p className="text-[11px] text-muted-foreground">{t.shopContactChannelsHint}</p>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">{t.shopContactPhoneLabel}</Label>
-                        <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="+84..." />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">{t.shopContactZaloLabel}</Label>
-                        <Input value={contactZaloUrl} onChange={(e) => setContactZaloUrl(e.target.value)} placeholder="https://zalo.me/..." />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">{t.shopContactMessengerLabel}</Label>
-                        <Input value={contactMessengerUrl} onChange={(e) => setContactMessengerUrl(e.target.value)} placeholder="https://m.me/..." />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">{t.shopContactInstagramLabel}</Label>
-                        <Input value={contactInstagramUrl} onChange={(e) => setContactInstagramUrl(e.target.value)} placeholder="https://instagram.com/..." />
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={saveContactChannels}
-                      disabled={pending || !selectedPartnerId || !isOwnerSelected}
-                    >
-                      {t.shopContactChannelsSaveButton}
-                    </Button>
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="ws-logo-main">Logo URL</Label>
                     <Input
@@ -2759,7 +2757,7 @@ export function PartnerMessagingSettingsClient({
             id="messaging-channels"
             icon={Share2}
             title={t.channelsSection}
-            description={t.credentialsKeepHint}
+            description={t.channelsSectionDesc}
           >
           <Card className="border-border/70 shadow-sm">
             <CardHeader className="px-4 py-3 pb-2">
@@ -2928,6 +2926,62 @@ export function PartnerMessagingSettingsClient({
           </SettingsBlock>
           ) : null}
 
+          {activeSection === 'analytics-google-merchant' && partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
+          <SettingsBlock
+            id="messaging-google-merchant"
+            icon={Store}
+            title={t.settingsNavAnalyticsGoogleMerchant}
+            description={t.settingsNavAnalyticsGoogleMerchantDesc}
+          >
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="px-4 py-3 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t.googleMerchantCatalogFeedTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{t.googleMerchantCatalogFeedHint}</p>
+                {googleMerchantCatalogFeedUrl ? (
+                  <>
+                    <Input readOnly className="h-9 font-mono text-[11px]" value={googleMerchantCatalogFeedUrl} />
+                    <Button type="button" size="sm" variant="outline" onClick={copyGoogleMerchantCatalogFeedUrl}>
+                      {t.googleMerchantCatalogFeedCopyButton}
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">—</p>
+                )}
+              </CardContent>
+            </Card>
+          </SettingsBlock>
+          ) : null}
+
+          {activeSection === 'analytics-tiktok-catalog' && partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
+          <SettingsBlock
+            id="messaging-tiktok-catalog"
+            icon={Video}
+            title={t.settingsNavAnalyticsTiktokCatalog}
+            description={t.settingsNavAnalyticsTiktokCatalogDesc}
+          >
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="px-4 py-3 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t.tiktokCatalogFeedTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{t.tiktokCatalogFeedHint}</p>
+                {tiktokCatalogFeedUrl ? (
+                  <>
+                    <Input readOnly className="h-9 font-mono text-[11px]" value={tiktokCatalogFeedUrl} />
+                    <Button type="button" size="sm" variant="outline" onClick={copyTiktokCatalogFeedUrl}>
+                      {t.tiktokCatalogFeedCopyButton}
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">—</p>
+                )}
+              </CardContent>
+            </Card>
+          </SettingsBlock>
+          ) : null}
+
           {activeSection === 'analytics-ads' && partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
           <SettingsBlock
             id="messaging-ads-analytics"
@@ -3038,8 +3092,8 @@ export function PartnerMessagingSettingsClient({
           <SettingsBlock
             id="messaging-payment"
             icon={CreditCard}
-            title="Đơn hàng & thanh toán trong chat"
-            description="Thông tin chuyển khoản, đặt cọc và tùy chọn SePay cho đơn tạo trong khung chat."
+            title={t.settingsNavPayment}
+            description={t.settingsNavPaymentDesc}
           >
           <Card className="border-border/70 shadow-sm">
             <CardHeader className="px-4 py-3 pb-2">
@@ -3200,16 +3254,6 @@ export function PartnerMessagingSettingsClient({
                   Neu thieu bien SePay, he thong tu dong fallback ve QR thuong hien tai.
                 </p>
               </div>
-              </div>
-              <div className="space-y-3 border-t border-border/60 pt-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.settingsNavShipping}</p>
-                <button
-                  type="button"
-                  onClick={() => selectSettingsSection('shipping')}
-                  className="text-left text-sm text-violet-700 underline-offset-2 hover:underline dark:text-violet-300"
-                >
-                  {t.settingsShippingOpenFromPayment}
-                </button>
               </div>
               <div className="space-y-3 border-t border-border/60 pt-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ví điện tử (QR thủ công)</p>
@@ -3676,6 +3720,45 @@ export function PartnerMessagingSettingsClient({
                   settings: t.messagingSettingsLink,
                   website: t.messagingWebsiteLink,
                 }}
+              />
+            </div>
+          ) : null}
+
+          {activeSection === 'hub-notifications' && selectedPartnerId && selectedPartner ? (
+            <div id="messaging-notifications" className="scroll-mt-4">
+              <PartnerNotificationsClient
+                key={selectedPartnerId}
+                initialPartners={[selectedPartner]}
+                t={dict.partnerMessagingNotifications}
+                locale={locale}
+                lockedPartnerId={selectedPartnerId}
+                hidePartnerPicker
+              />
+            </div>
+          ) : null}
+
+          {activeSection === 'hub-marketing' && selectedPartnerId && partnerCanMarketingHub(selectedPartner) ? (
+            <div id="messaging-marketing" className="scroll-mt-4">
+              <PartnerMarketingCampaignsClient
+                key={selectedPartnerId}
+                initialPartners={[selectedPartner!]}
+                marketingT={dict.partnerMessagingMarketing}
+                locale={locale}
+                lockedPartnerId={selectedPartnerId}
+                hidePartnerPicker
+              />
+            </div>
+          ) : null}
+
+          {activeSection === 'hub-orders' && selectedPartnerId && partnerCanOrdersHub(selectedPartner) ? (
+            <div id="messaging-orders" className="scroll-mt-4">
+              <PartnerMessagingOrdersClient
+                key={selectedPartnerId}
+                initialPartners={[selectedPartner!]}
+                ordersT={dict.partnerMessagingOrders}
+                locale={locale}
+                lockedPartnerId={selectedPartnerId}
+                hidePartnerPicker
               />
             </div>
           ) : null}

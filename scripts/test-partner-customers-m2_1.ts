@@ -1,4 +1,4 @@
-// Smoke test (M2.1): CRM nhẹ — danh sách khách hàng gộp theo email, tổng chi tiêu, số đơn.
+// Smoke test (M2.1): CRM nhẹ — khách đã đăng ký tài khoản shop, kèm thống kê đơn.
 // Chạy: npx tsx scripts/test-partner-customers-m2_1.ts
 // Có thể chạy thêm qua HTTP thật (dev server) nếu SMOKE_BASE_URL được set.
 import { config } from 'dotenv'
@@ -55,6 +55,17 @@ async function main() {
 
   const emailA = `khach-a-${tag}@example.com`
   const emailB = `khach-b-${tag}@example.com`
+  const emailC = `khach-c-${tag}@example.com`
+  const emailGuestOnly = `khach-guest-${tag}@example.com`
+
+  async function seedGuestAccount(email: string): Promise<void> {
+    await pool.query(
+      `insert into public.messaging_guest_accounts (
+         partner_id, email_raw, email_normalized, first_verified_at, last_login_at
+       ) values ($1::uuid, $2, $3, now(), now())`,
+      [partnerId, email, email.toLowerCase()]
+    )
+  }
 
   try {
     // Khách A: 2 đơn delivered (tính vào total_spent) + 1 đơn awaiting_payment (không tính spent nhưng tính order_count).
@@ -65,9 +76,20 @@ async function main() {
     // Khách B: 1 đơn cancelled (không tính spent, có tính order_count).
     await seedOrder({ email: emailB, name: 'Khách B', phone: '0900000002', status: 'cancelled', shippingStatus: 'cancelled', subtotal: 500000, createdAt: '2026-01-02T00:00:00Z' })
 
+    // Khách checkout không tài khoản: có đơn nhưng không được liệt kê.
+    await seedOrder({ email: emailGuestOnly, name: 'Khách guest', phone: '0900000004', status: 'paid_verified', shippingStatus: 'delivered', subtotal: 90000, createdAt: '2026-01-07T00:00:00Z' })
+
+    await seedGuestAccount(emailA)
+    await seedGuestAccount(emailB)
+    await seedGuestAccount(emailC)
+
     const result = await fetchPartnerCustomersForAdminFromPg({ partnerId })
     assert(result, 'fetchPartnerCustomersForAdminFromPg trả về null')
-    assert(result.total === 2, `phải gộp đúng 2 khách hàng (theo email chuẩn hoá), thực tế ${result.total}`)
+    assert(result.total === 3, `phải liệt kê đúng 3 tài khoản đã đăng ký, thực tế ${result.total}`)
+    assert(
+      !result.rows.some((r) => r.emailNormalized === emailGuestOnly.toLowerCase()),
+      'khách đặt đơn nhưng chưa đăng ký tài khoản không được hiện'
+    )
 
     const customerA = result.rows.find((r) => r.emailNormalized === emailA.toLowerCase())
     assert(customerA, 'phải tìm thấy khách A')
@@ -84,12 +106,20 @@ async function main() {
     assert(customerB!.orderCount === 1 && customerB!.completedOrderCount === 0 && customerB!.totalSpent === 0, `khách B (đơn cancelled) không được tính spent: ${JSON.stringify(customerB)}`)
     console.log('OK đơn cancelled: tính vào order_count nhưng KHÔNG tính vào total_spent/completed_order_count')
 
+    const customerC = result.rows.find((r) => r.emailNormalized === emailC.toLowerCase())
+    assert(customerC, 'phải tìm thấy khách C (đã đăng ký, chưa mua)')
+    assert(
+      customerC!.orderCount === 0 && customerC!.completedOrderCount === 0 && customerC!.totalSpent === 0,
+      `khách C chưa mua phải có số đơn/chi tiêu = 0: ${JSON.stringify(customerC)}`
+    )
+    console.log('OK khách đã đăng ký nhưng chưa đặt đơn vẫn hiện, số đơn = 0')
+
     // Search theo tên.
     const searched = await fetchPartnerCustomersForAdminFromPg({ partnerId, search: 'khách b' })
     assert(searched && searched.total === 1 && searched.rows[0].emailNormalized === emailB.toLowerCase(), `search theo tên phải lọc đúng: ${JSON.stringify(searched)}`)
     console.log('OK search theo tên/email/sđt hoạt động đúng')
 
-    console.log('\n✅ ALL M2.1 (CRM nhẹ: danh sách khách hàng) CHECKS PASSED')
+    console.log('\n✅ ALL M2.1 (CRM nhẹ: khách đã đăng ký tài khoản) CHECKS PASSED')
   } finally {
     await pool.query(`delete from public.customer_care_conversations where partner_id = $1::uuid`, [partnerId])
     await pool.query(`delete from public.messaging_partners where id = $1::uuid`, [partnerId])

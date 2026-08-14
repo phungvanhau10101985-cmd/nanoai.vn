@@ -42,7 +42,7 @@ export async function notifyPartnerOwnerNewOrder(partnerId: string, order: Partn
     type: 'messaging_partner_new_order',
     title: 'Đơn hàng mới',
     body: `${order.customer_name || 'Khách hàng'} vừa đặt đơn ${toVnd(amount)}${order.product_name ? ` — ${order.product_name}` : ''}.`,
-    pushUrl: `/dashboard/messaging/orders?partner=${partnerId}`,
+    pushUrl: `/dashboard/messaging/settings?section=hub-orders&partner=${partnerId}`,
   })
 }
 
@@ -57,6 +57,20 @@ export async function notifyPartnerOwnerNewQuestion(input: {
     title: 'Khách hỏi sản phẩm mới',
     body: `${input.askerName || 'Khách hàng'}: "${input.content.slice(0, 140)}"`,
     pushUrl: `/dashboard/messaging/website?partner=${input.partnerId}`,
+  })
+}
+
+export async function notifyPartnerOwnerOrderCustomerAction(input: {
+  partnerId: string
+  title: string
+  body: string
+}): Promise<void> {
+  await notifyPartnerOwner({
+    partnerId: input.partnerId,
+    type: 'messaging_partner_order_customer_action',
+    title: input.title,
+    body: input.body,
+    pushUrl: `/dashboard/messaging/settings?section=hub-orders&partner=${input.partnerId}`,
   })
 }
 

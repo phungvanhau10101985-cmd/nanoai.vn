@@ -78,17 +78,21 @@ export function PartnerMarketingCampaignsClient({
   initialPartners,
   marketingT,
   locale,
+  lockedPartnerId,
+  hidePartnerPicker,
 }: {
   initialPartners: PartnerRow[]
   marketingT: Dictionary['partnerMessagingMarketing']
   locale: string
+  lockedPartnerId?: string
+  hidePartnerPicker?: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
 
-  const partnerFromUrl = searchParams.get('partner')?.trim() ?? ''
+  const partnerFromUrl = lockedPartnerId?.trim() || searchParams.get('partner')?.trim() || ''
   const [selectedPartnerId, setSelectedPartnerId] = useState(
     initialPartners.some((p) => p.id === partnerFromUrl) ? partnerFromUrl : initialPartners[0]?.id ?? ''
   )
@@ -263,13 +267,19 @@ export function PartnerMarketingCampaignsClient({
   }, [selectedPartnerId, loadPreview, loadCampaigns, loadOptOutCount])
 
   useEffect(() => {
+    const locked = lockedPartnerId?.trim() || ''
+    if (locked && locked !== selectedPartnerId) setSelectedPartnerId(locked)
+  }, [lockedPartnerId, selectedPartnerId])
+
+  useEffect(() => {
+    if (hidePartnerPicker) return
     if (!selectedPartnerId) return
     // Chỉ ghi URL khi param chưa khớp — tránh vòng lặp replace → searchParams đổi → effect chạy lại.
     if (partnerFromUrl === selectedPartnerId) return
     const q = new URLSearchParams(searchParams.toString())
     q.set('partner', selectedPartnerId)
     router.replace(`/dashboard/messaging/marketing?${q.toString()}`, { scroll: false })
-  }, [selectedPartnerId, router, searchParams, partnerFromUrl])
+  }, [hidePartnerPicker, selectedPartnerId, router, searchParams, partnerFromUrl])
 
   const loadCampaignDetail = (campaignId: string) => {
     if (!selectedPartnerId) return
@@ -382,6 +392,9 @@ export function PartnerMarketingCampaignsClient({
 
   return (
     <div className="space-y-4">
+      {hidePartnerPicker ? (
+        <p className="text-xs text-muted-foreground">{marketingT.safeModeNote}</p>
+      ) : (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">{marketingT.workspaceLabel}</CardTitle>
@@ -401,6 +414,7 @@ export function PartnerMarketingCampaignsClient({
           ))}
         </CardContent>
       </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

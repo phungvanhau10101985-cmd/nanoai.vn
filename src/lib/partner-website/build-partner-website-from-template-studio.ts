@@ -309,8 +309,17 @@ export async function buildPartnerWebsiteFromTemplateStudio(
       { ...preset.theme, ...paletteTheme }
     ),
     logoUrl,
-    // Re-apply template clears visual «Sửa nhanh» HTML override.
+    // Re-apply template clears visual «Sửa nhanh» HTML overrides.
     useVisualHtml: false,
+    useVisualMobileHtml: false,
+    visualPageKeys: [],
+    visualMobilePageKeys: [],
+    visualCategoryPaths: [],
+    visualMobileCategoryPaths: [],
+    visualProductIds: [],
+    visualMobileProductIds: [],
+    visualCmsSlugs: [],
+    visualMobileCmsSlugs: [],
   }
   const templateId = preset.templateId
   const project = syncTemplateToProject({

@@ -561,6 +561,8 @@ export type PartnerCategoryInventoryQuery = {
   /** W4.11 fashion facets — match option JSON stored in description / stock_note. */
   size?: string
   color?: string
+  /** L3 — lọc chất liệu (material_note), giống 188 category ladipage. */
+  material?: string
 }
 
 /**
@@ -617,6 +619,11 @@ export async function fetchPartnerInventoryPageByCategoryFromPg(
     params.push(`%"${color.replace(/"/g, '')}"%`)
     conditions.push(`coalesce(mpi.stock_note, '') like $${params.length}`)
   }
+  const material = String(query.material ?? '').trim().slice(0, 200)
+  if (material) {
+    params.push(material.toLowerCase())
+    conditions.push(`lower(trim(coalesce(mpi.material_note, ''))) = $${params.length}`)
+  }
   const where = conditions.join(' and ')
 
   try {
@@ -637,6 +644,41 @@ export async function fetchPartnerInventoryPageByCategoryFromPg(
     if (isMissingInventoryTableError(e)) return { rows: [], count: 0 }
     console.warn('[fetchPartnerInventoryPageByCategoryFromPg]', e)
     return null
+  }
+}
+
+export type PartnerCategoryMaterialCount = { material: string; count: number }
+
+/** L3 — chất liệu có trong danh mục (giống 188 GET /admin/ladipages/materials). */
+export async function listPartnerCategoryMaterialsFromPg(
+  partnerId: string,
+  categoryId: string
+): Promise<PartnerCategoryMaterialCount[]> {
+  if (!isPgConfigured()) return []
+  const cid = categoryId.trim()
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cid)) return []
+  try {
+    const rows = await pgQuery<{ material: string; count: number }>(
+      `select trim(mpi.material_note) as material, count(*)::int as count
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+         and trim(coalesce(mpi.material_note, '')) <> ''
+         and exists (
+           select 1 from public.messaging_partner_inventory_categories pic
+           where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
+         )
+       group by 1
+       order by count desc, material asc
+       limit 80`,
+      [partnerId, cid]
+    )
+    return rows
+      .map((r) => ({ material: String(r.material ?? '').trim(), count: Number(r.count) || 0 }))
+      .filter((r) => r.material)
+  } catch (e) {
+    console.warn('[listPartnerCategoryMaterialsFromPg]', e)
+    return []
   }
 }
 

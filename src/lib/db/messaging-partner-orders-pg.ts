@@ -1890,3 +1890,79 @@ export async function fetchPartnerOrderEventsForLinkedUserFromPg(input: {
     return null
   }
 }
+
+const GUEST_ORDER_RETURNING = `id::text, partner_id::text, conversation_id::text, external_thread_id, status,
+                 customer_name, customer_email, customer_phone, shipping_address,
+                 variant_color, variant_size, variant_image_urls, quantity, note,
+                 product_inventory_id::text, product_name, product_image_url, product_url,
+                 unit_price, subtotal_amount,
+                 loyalty_tier_code, loyalty_tier_name, loyalty_discount_percent, loyalty_discount_amount,
+                 birthday_discount_percent, birthday_discount_amount, total_discount_percent, total_discount_amount,
+                 amount_after_discount, deposit_percent, required_amount, paid_amount,
+                 currency, payment_reference, payment_qr_url, verified_note, shipping_status,
+                 created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count,
+                 promo_id::text, promo_code, promo_discount_amount,
+                 coalesce(payment_method, 'cod') as payment_method, coalesce(shipping_fee_amount, 0) as shipping_fee_amount,
+                 coalesce(refund_status, 'none') as refund_status, coalesce(refund_amount, 0) as refund_amount,
+                 coalesce(refund_note, '') as refund_note, refunded_at`
+
+/** Khách huỷ đơn chưa thanh toán / chưa giao — chỉ đúng conversation của khách. */
+export async function cancelPartnerOrderForConversationFromPg(input: {
+  partnerId: string
+  conversationId: string
+  orderId: string
+  reason: string
+}): Promise<PartnerOrderRow | null> {
+  if (!isPgConfigured()) return null
+  const reason = input.reason.trim().slice(0, 500)
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `update public.messaging_partner_orders
+       set status = 'cancelled',
+           shipping_status = case
+             when shipping_status in ('delivered', 'returned') then shipping_status
+             else 'cancelled'
+           end,
+           verified_note = case when $4 <> '' then $4 else verified_note end,
+           updated_at = now()
+       where id = $1::uuid
+         and partner_id = $2::uuid
+         and conversation_id = $3::uuid
+         and status in ('awaiting_payment', 'payment_checking')
+         and shipping_status not in ('delivered', 'returned')
+       returning ${GUEST_ORDER_RETURNING}`,
+      [input.orderId, input.partnerId, input.conversationId, reason]
+    )
+    return row ? mapOrderRow(row) : null
+  } catch (e) {
+    console.warn('[cancelPartnerOrderForConversationFromPg]', e)
+    return null
+  }
+}
+
+/** Khách xác nhận đã nhận — chỉ khi shop đang giao. */
+export async function confirmPartnerOrderReceivedForConversationFromPg(input: {
+  partnerId: string
+  conversationId: string
+  orderId: string
+}): Promise<PartnerOrderRow | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `update public.messaging_partner_orders
+       set shipping_status = 'delivered',
+           updated_at = now()
+       where id = $1::uuid
+         and partner_id = $2::uuid
+         and conversation_id = $3::uuid
+         and status <> 'cancelled'
+         and shipping_status = 'shipping'
+       returning ${GUEST_ORDER_RETURNING}`,
+      [input.orderId, input.partnerId, input.conversationId]
+    )
+    return row ? mapOrderRow(row) : null
+  } catch (e) {
+    console.warn('[confirmPartnerOrderReceivedForConversationFromPg]', e)
+    return null
+  }
+}

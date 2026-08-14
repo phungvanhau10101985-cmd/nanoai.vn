@@ -77,7 +77,11 @@ export function buildPartnerWebsiteAdminNavItems(
     'partner-website-search-aliases': t.searchAliasesPanelTitle,
     'partner-website-leads': t.leadsPanelTitle,
   }
-  return PARTNER_WEBSITE_ADMIN_SECTION_IDS.map((sectionId) => ({
+  return PARTNER_WEBSITE_ADMIN_SECTION_IDS.filter(
+    (sectionId) =>
+      sectionId !== 'partner-website-capabilities' &&
+      sectionId !== 'partner-website-search-aliases'
+  ).map((sectionId) => ({
     sectionId,
     label: labels[sectionId],
     icon: NAV_ICONS[sectionId],

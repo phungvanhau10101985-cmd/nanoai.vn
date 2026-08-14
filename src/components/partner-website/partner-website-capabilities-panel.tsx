@@ -20,6 +20,8 @@ type Props = {
   t: PartnerWebsiteCopy
   partnerId: string
   sectionId?: string
+  /** Nested under Sửa nhanh — no extra Card, collapsed by default. */
+  compact?: boolean
 }
 
 type CapKey =
@@ -51,7 +53,7 @@ function patchCapabilities(prev: PartnerCapabilities, key: CapKey, value: boolea
   return next
 }
 
-export function PartnerWebsiteCapabilitiesPanel({ t, partnerId, sectionId }: Props) {
+export function PartnerWebsiteCapabilitiesPanel({ t, partnerId, sectionId, compact }: Props) {
   const { toast } = useToast()
   const [caps, setCaps] = useState<PartnerCapabilities | null>(null)
   const [loading, setLoading] = useState(true)
@@ -114,52 +116,68 @@ export function PartnerWebsiteCapabilitiesPanel({ t, partnerId, sectionId }: Pro
     return Boolean(caps.commerce[k])
   }
 
+  const body = (
+    <div className="space-y-4">
+      {loading ? (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {t.capabilitiesLoading}
+        </p>
+      ) : !caps ? (
+        <p className="text-sm text-muted-foreground">{t.errorGeneric}</p>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {rows.map((row) => (
+              <div
+                key={row.key}
+                className="flex items-start justify-between gap-3 rounded-lg border border-border/60 px-3 py-2.5"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <Label htmlFor={`cap-${row.key}`} className="text-sm font-medium leading-snug">
+                    {row.label}
+                  </Label>
+                  {row.hint ? (
+                    <p className="text-[11px] text-muted-foreground">{row.hint}</p>
+                  ) : null}
+                </div>
+                <Switch
+                  id={`cap-${row.key}`}
+                  checked={valueFor(row.key)}
+                  disabled={pending}
+                  onCheckedChange={(checked) => onToggle(row.key, checked)}
+                />
+              </div>
+            ))}
+          </div>
+          <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => void load()}>
+            {pending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+            {t.capabilitiesReload}
+          </Button>
+        </>
+      )}
+    </div>
+  )
+
+  if (compact) {
+    return (
+      <details id={sectionId} className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+        <summary className="cursor-pointer select-none text-sm font-medium">
+          {t.capabilitiesPanelTitle}
+        </summary>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">{t.capabilitiesPanelHint}</p>
+        <div className="mt-3">{body}</div>
+      </details>
+    )
+  }
+
   return (
     <Card id={sectionId}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">{t.capabilitiesPanelTitle}</CardTitle>
         <CardDescription className="text-xs">{t.capabilitiesPanelHint}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {loading ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t.capabilitiesLoading}
-          </p>
-        ) : !caps ? (
-          <p className="text-sm text-muted-foreground">{t.errorGeneric}</p>
-        ) : (
-          <>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {rows.map((row) => (
-                <div
-                  key={row.key}
-                  className="flex items-start justify-between gap-3 rounded-lg border border-border/60 px-3 py-2.5"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <Label htmlFor={`cap-${row.key}`} className="text-sm font-medium leading-snug">
-                      {row.label}
-                    </Label>
-                    {row.hint ? (
-                      <p className="text-[11px] text-muted-foreground">{row.hint}</p>
-                    ) : null}
-                  </div>
-                  <Switch
-                    id={`cap-${row.key}`}
-                    checked={valueFor(row.key)}
-                    disabled={pending}
-                    onCheckedChange={(checked) => onToggle(row.key, checked)}
-                  />
-                </div>
-              ))}
-            </div>
-            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => void load()}>
-              {pending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-              {t.capabilitiesReload}
-            </Button>
-          </>
-        )}
-      </CardContent>
+      <CardContent>{body}</CardContent>
     </Card>
   )
 }

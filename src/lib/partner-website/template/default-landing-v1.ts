@@ -581,6 +581,71 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     fontFamily: typeof o.fontFamily === 'string' ? o.fontFamily : base.fontFamily,
     logoUrl: typeof o.logoUrl === 'string' ? o.logoUrl : logoUrl ?? base.logoUrl ?? null,
     ...(o.useVisualHtml === true ? { useVisualHtml: true } : {}),
+    ...(o.useVisualMobileHtml === true ? { useVisualMobileHtml: true } : {}),
+    ...(Array.isArray(o.visualPageKeys) && o.visualPageKeys.length
+      ? {
+          visualPageKeys: o.visualPageKeys
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 40),
+        }
+      : {}),
+    ...(Array.isArray(o.visualMobilePageKeys) && o.visualMobilePageKeys.length
+      ? {
+          visualMobilePageKeys: o.visualMobilePageKeys
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 40),
+        }
+      : {}),
+    ...(Array.isArray(o.visualCategoryPaths) && o.visualCategoryPaths.length
+      ? {
+          visualCategoryPaths: o.visualCategoryPaths
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
+    ...(Array.isArray(o.visualMobileCategoryPaths) && o.visualMobileCategoryPaths.length
+      ? {
+          visualMobileCategoryPaths: o.visualMobileCategoryPaths
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
+    ...(Array.isArray(o.visualProductIds) && o.visualProductIds.length
+      ? {
+          visualProductIds: o.visualProductIds
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
+    ...(Array.isArray(o.visualMobileProductIds) && o.visualMobileProductIds.length
+      ? {
+          visualMobileProductIds: o.visualMobileProductIds
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
+    ...(Array.isArray(o.visualCmsSlugs) && o.visualCmsSlugs.length
+      ? {
+          visualCmsSlugs: o.visualCmsSlugs
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
+    ...(Array.isArray(o.visualMobileCmsSlugs) && o.visualMobileCmsSlugs.length
+      ? {
+          visualMobileCmsSlugs: o.visualMobileCmsSlugs
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
     ...(floatingCta ? { floatingCta } : {}),
   }
 }

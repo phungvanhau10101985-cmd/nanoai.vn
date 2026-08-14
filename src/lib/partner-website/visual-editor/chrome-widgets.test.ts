@@ -6,14 +6,20 @@ import {
   chromeWidgetHost,
   chromeWidgetHref,
   isVisualEditorChromeWidgetKind,
+  VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS,
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import {
+  partnerSiteAccountEditPath,
   partnerSiteAccountPath,
+  partnerSiteAccountTabPath,
   partnerSiteAddressesPath,
   partnerSiteCartPath,
+  partnerSiteHomePath,
   partnerSiteInfoPath,
   partnerSiteNanoAiLoginHref,
   partnerSiteOrdersPath,
+  partnerSiteOrderTrackingPath,
+  partnerSiteProductsPath,
   partnerSiteRecentlyViewedPath,
   partnerSiteWishlistPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -26,12 +32,38 @@ test('chrome widgets accept shop header kinds', () => {
   assert.equal(isVisualEditorChromeWidgetKind('favorites-link'), true)
   assert.equal(isVisualEditorChromeWidgetKind('orders-link'), true)
   assert.equal(isVisualEditorChromeWidgetKind('account'), true)
-  assert.equal(isVisualEditorChromeWidgetKind('wallet'), false)
+  assert.equal(isVisualEditorChromeWidgetKind('wallet'), true)
+  assert.equal(isVisualEditorChromeWidgetKind('home'), true)
+  assert.equal(isVisualEditorChromeWidgetKind('chat'), true)
+  assert.equal(isVisualEditorChromeWidgetKind('notifications'), true)
+})
+
+test('chrome widget picker lists every shop destination in each place group', () => {
+  assert.deepEqual(
+    VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS.map((group) => group.id),
+    ['header', 'mid', 'nav']
+  )
+  const kinds = VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS[0]?.kinds || []
+  assert.equal(new Set(kinds).size, kinds.length)
+  assert.ok(kinds.includes('home'))
+  assert.ok(kinds.includes('wallet'))
+  assert.ok(kinds.includes('blog'))
+  assert.ok(!kinds.includes('favorites-link'))
+  assert.ok(!kinds.includes('orders-link'))
+  for (const group of VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS) {
+    assert.deepEqual(group.kinds, kinds)
+  }
 })
 
 test('chrome widgets place icons in header actions and text in topbar', () => {
   assert.equal(chromeWidgetHost('cart'), 'actions')
   assert.equal(chromeWidgetHost('orders'), 'actions')
+  assert.equal(chromeWidgetHost('wishlist', 'icon-label'), 'actions')
+  assert.equal(chromeWidgetHost('wishlist', 'icon-label', 'header'), 'actions')
+  assert.equal(chromeWidgetHost('login', 'icon-label', 'nav'), 'nav')
+  assert.equal(chromeWidgetHost('login', 'text', 'nav'), 'nav')
+  assert.equal(chromeWidgetHost('login', 'icon-label', 'mid'), 'mid')
+  assert.equal(chromeWidgetHost('login', 'text', 'header'), 'topbar')
   assert.equal(chromeWidgetAppearance('wishlist'), 'icon')
   assert.equal(chromeWidgetHost('contact'), 'topbar')
   assert.equal(chromeWidgetHost('login'), 'topbar')
@@ -51,10 +83,31 @@ test('chrome widgets wire each kind to the real shop route', () => {
   assert.equal(chromeWidgetHref('addresses', '188-shop'), partnerSiteAddressesPath('188-shop'))
   assert.equal(chromeWidgetHref('contact', '188-shop'), partnerSiteInfoPath('188-shop', 'contact'))
   assert.equal(chromeWidgetHref('favorites-link', '188-shop'), partnerSiteWishlistPath('188-shop'))
+  assert.equal(chromeWidgetHref('home', '188-shop'), partnerSiteHomePath('188-shop'))
+  assert.equal(chromeWidgetHref('products', '188-shop'), partnerSiteProductsPath('188-shop'))
+  assert.equal(chromeWidgetHref('sale', '188-shop'), partnerSiteInfoPath('188-shop', 'sale'))
+  assert.equal(chromeWidgetHref('wallet', '188-shop'), partnerSiteAccountTabPath('188-shop', 'wallet'))
+  assert.equal(chromeWidgetHref('edit-profile', '188-shop'), partnerSiteAccountEditPath('188-shop'))
+  assert.equal(chromeWidgetHref('order-tracking', '188-shop'), partnerSiteOrderTrackingPath('188-shop'))
+  assert.equal(chromeWidgetHref('about', '188-shop'), partnerSiteInfoPath('188-shop', 'about'))
   assert.equal(
     chromeWidgetHref('login', '188-shop'),
     partnerSiteNanoAiLoginHref(partnerSiteAccountPath('188-shop'))
   )
+})
+
+test('chrome widgets emit chat as a shop chat button', () => {
+  const html = buildVisualEditorChromeWidgetHtml({
+    kind: 'chat',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon-label',
+  })
+  assert.match(html, /<button type="button"/)
+  assert.match(html, /data-pw-chrome-btn="chat"/)
+  assert.match(html, /data-nanoai-open-chat/)
+  assert.match(html, /Chat mua/)
+  assert.doesNotMatch(html, / href=/)
 })
 
 test('chrome widgets emit icon markup with API badge hook', () => {
@@ -64,10 +117,36 @@ test('chrome widgets emit icon markup with API badge hook', () => {
     locale: 'vi',
   })
   assert.match(html, /data-pw-chrome-btn="wishlist"/)
-  assert.match(html, /class="pw-icon-btn"/)
+  assert.match(html, /class="pw-icon-btn pw-shop-icon-btn pw-chrome-has-label"/)
+  assert.match(html, /class="pw-shop-nav-icon"/)
+  assert.match(html, /width="20"/)
+  assert.match(html, /height="20"/)
+  assert.match(html, /pw-chrome-btn-label/)
+  assert.match(html, /pw-shop-nav-label/)
   assert.match(html, /data-pw-chrome-badge/)
+  assert.match(html, /pw-chrome-icon-wrap/)
   assert.ok(html.includes(partnerSiteWishlistPath('188-shop')))
   assert.match(html, /draggable="false"/)
+})
+
+test('chrome widgets can emit icon-only or icon+label', () => {
+  const iconOnly = buildVisualEditorChromeWidgetHtml({
+    kind: 'cart',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon',
+  })
+  assert.match(iconOnly, /pw-chrome-icon-only/)
+  assert.doesNotMatch(iconOnly, /pw-chrome-btn-label/)
+  const both = buildVisualEditorChromeWidgetHtml({
+    kind: 'cart',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon-label',
+  })
+  assert.match(both, /pw-chrome-has-label/)
+  assert.match(both, /pw-chrome-btn-label/)
+  assert.match(both, /Giỏ hàng/)
 })
 
 test('chrome widgets emit topbar text links without icon badge', () => {
@@ -75,6 +154,7 @@ test('chrome widgets emit topbar text links without icon badge', () => {
     kind: 'orders-link',
     siteSlug: '188-shop',
     locale: 'vi',
+    style: 'text',
   })
   assert.match(html, /data-pw-chrome-btn="orders-link"/)
   assert.match(html, /class="pw-chrome-link"/)

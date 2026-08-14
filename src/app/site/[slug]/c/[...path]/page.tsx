@@ -28,6 +28,7 @@ import {
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { JsonLd } from '@/components/seo-json-ld'
+import { maybePartnerSiteVisualCategoryPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 
 type Props = { params: Promise<{ slug: string; path: string[] }> }
 
@@ -95,6 +96,8 @@ export default async function PartnerSiteCategoryPage({ params }: Props) {
   const ctx = await resolveCategoryContext(slug, path)
   if (!ctx) notFound()
   const { shop, category, ancestors, children } = ctx
+  const visual = maybePartnerSiteVisualCategoryPage(shop.site, category.path)
+  if (visual) return visual
   const t = getPartnerSiteShopCopy(shop.site.locale)
   const locale = shop.site.locale
 

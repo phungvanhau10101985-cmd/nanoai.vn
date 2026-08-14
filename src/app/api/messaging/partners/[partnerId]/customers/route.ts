@@ -4,7 +4,7 @@ import { fetchPartnerCustomersForAdminFromPg } from '@/lib/db/messaging-partner-
 import { isPgConfigured } from '@/lib/db/pool'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 
-/** M2.1 — danh sách khách hàng (CRM nhẹ): ai đã mua, tổng chi tiêu, lịch sử đơn. Gate: quyền `orders`. */
+/** M2.1 — danh sách khách đã đăng ký tài khoản shop (CRM nhẹ), kèm thống kê đơn. Gate: quyền `orders`. */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
   if (!isPgConfigured()) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })

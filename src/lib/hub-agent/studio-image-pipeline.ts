@@ -336,6 +336,13 @@ export async function runStudioImagePipeline(input: {
       caption = `Brand LOGO — embed this exact logo in the landing page header (use actual logo pixels). Do NOT redraw or replace with typed text:`
     } else if (meta?.screenKey === 'banner_style_anchor' && input.kind === 'banner') {
       caption = `Campaign STYLE ANCHOR — master banner from first size; match model identity, colors, typography, and mood exactly; adapt layout to new aspect ratio:`
+    } else if (input.kind === 'logo' && meta?.screenKey === 'logo_backdrop') {
+      caption =
+        'SURROUNDING BACKGROUND of the logo slot (left) plus shop theme color swatches (right: primary / accent / buy). Match the backdrop exactly and use the primary swatch as the dominant brand color of the logo:'
+    } else if (input.kind === 'logo' && meta?.screenKey === 'logo_style') {
+      caption = 'LOGO STYLE REFERENCE — follow typography, icon, and layout direction from this image:'
+    } else if (input.kind === 'logo') {
+      caption = `Logo reference ${i + 1} — use as visual direction for the new logo (colors, lettering, mark), not a mockup scene:`
     } else if (input.kind === 'packaging_face') {
       caption = `Approved reference image ${i + 1} — embed as flat 2D print on the full-bleed panel edge-to-edge; NEVER as a 3D box on grey studio background:`
     } else {

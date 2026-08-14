@@ -35,6 +35,7 @@ import { PartnerSiteShopCartClient } from '@/components/partner-website/shop/par
 import { PartnerSiteShopOrdersClient } from '@/components/partner-website/shop/partner-site-shop-orders-client'
 import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website/shop/partner-site-shop-saved-products-client'
 import { PartnerSiteShopAddressesClient } from '@/components/partner-website/shop/partner-site-shop-addresses-client'
+import { PartnerSitePushEnableCard } from '@/components/partner-website/shop/partner-site-push-enable-card'
 import { usePartnerSiteChatWidget } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { usePartnerPwaInstall } from '@/lib/partner-website/shop/partner-site-pwa-install'
@@ -102,6 +103,7 @@ export function PartnerSiteShopAccountClient({
   const [copiedCode, setCopiedCode] = useState('')
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [notificationsLoading, setNotificationsLoading] = useState(false)
+  const [unreadFromApi, setUnreadFromApi] = useState(0)
   const [showReAuth, setShowReAuth] = useState(false)
   const { deferredInstall, isStandalone, isIos, promptInstall } = usePartnerPwaInstall()
   const { openChat } = usePartnerSiteChatWidget()
@@ -207,8 +209,26 @@ export function PartnerSiteShopAccountClient({
         captureFromResponse(res)
         return res.json()
       })
-      .then((json: { notifications?: NotificationItem[] }) => setNotifications(json.notifications ?? []))
+      .then((json: { notifications?: NotificationItem[]; unreadCount?: number }) => {
+        setNotifications(json.notifications ?? [])
+        if (typeof json.unreadCount === 'number') setUnreadFromApi(json.unreadCount)
+      })
       .finally(() => setNotificationsLoading(false))
+  }, [activeTab, authHeaders, captureFromResponse, needsAuth, ready, siteSlug])
+
+  useEffect(() => {
+    if (!ready || needsAuth || activeTab === 'notifications') return
+    void fetch(partnerSiteNotificationsApiPath(siteSlug, { unread: true }), {
+      credentials: 'same-origin',
+      headers: authHeaders(),
+    })
+      .then((res) => {
+        captureFromResponse(res)
+        return res.json()
+      })
+      .then((json: { unreadCount?: number }) => {
+        setUnreadFromApi(Math.max(0, Number(json.unreadCount ?? 0) || 0))
+      })
   }, [activeTab, authHeaders, captureFromResponse, needsAuth, ready, siteSlug])
 
   function copyVoucherCode(code: string) {
@@ -268,6 +288,7 @@ export function PartnerSiteShopAccountClient({
     })
     captureFromResponse(res)
     if (!res.ok) return
+    setUnreadFromApi(0)
     setNotifications((prev) =>
       prev.map((nItem) => ({ ...nItem, readAt: nItem.readAt ?? new Date().toISOString() }))
     )
@@ -282,6 +303,7 @@ export function PartnerSiteShopAccountClient({
     })
     captureFromResponse(res)
     if (!res.ok) return
+    setUnreadFromApi((n) => Math.max(0, n - 1))
     setNotifications((prev) =>
       prev.map((nItem) =>
         nItem.id === id ? { ...nItem, readAt: nItem.readAt ?? new Date().toISOString() } : nItem
@@ -299,7 +321,10 @@ export function PartnerSiteShopAccountClient({
     profile?.email?.split('@')[0] ||
     ''
 
-  const unreadCount = notifications.filter((nItem) => !nItem.readAt).length
+  const unreadCount =
+    activeTab === 'notifications'
+      ? notifications.filter((nItem) => !nItem.readAt).length
+      : unreadFromApi
 
   const tabs: {
     id: AccountTab
@@ -353,6 +378,11 @@ export function PartnerSiteShopAccountClient({
                   >
                     <Icon className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} />
                     <span>{label}</span>
+                    {id === 'notifications' && unreadCount > 0 ? (
+                      <span className="pw-shop-cart-badge" style={{ position: 'static', marginLeft: 6 }}>
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    ) : null}
                   </button>
                 ))}
               </div>
@@ -553,52 +583,89 @@ export function PartnerSiteShopAccountClient({
 
             {activeTab === 'notifications' ? (
               <section className="pw-shop-account-edit">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <h2 style={{ margin: 0 }}>{t.accountNotificationsTitle}</h2>
-                  {unreadCount > 0 ? (
+                {needsAuth ? (
+                  <div style={{ textAlign: 'center', padding: '32px 8px' }}>
+                    <p className="pw-shop-muted" style={{ marginBottom: 12 }}>{t.accountNotificationsLogin}</p>
                     <button
                       type="button"
-                      className="pw-shop-btn pw-shop-btn-outline"
-                      onClick={() => void markAllNotificationsRead()}
+                      className="pw-shop-btn"
+                      onClick={() => setShowReAuth(true)}
                     >
-                      {t.accountNotificationsMarkAllRead}
+                      {t.accountNotificationsSignIn}
                     </button>
-                  ) : null}
-                </div>
-                {notificationsLoading ? <p className="pw-shop-muted">…</p> : null}
-                {!notificationsLoading && notifications.length === 0 ? (
-                  <p className="pw-shop-muted" style={{ marginTop: 16 }}>{t.accountNotificationsEmpty}</p>
-                ) : null}
-                <ul style={{ listStyle: 'none', padding: 0, margin: '16px 0 0', display: 'grid', gap: 10 }}>
-                  {notifications.map((item) => (
-                    <li key={item.id}>
-                      <button
-                        type="button"
-                        className="pw-shop-account-link-card"
-                        style={{
-                          width: '100%',
-                          textAlign: 'left',
-                          opacity: item.readAt ? 0.72 : 1,
-                          fontWeight: item.readAt ? 400 : 600,
-                        }}
-                        onClick={() => {
-                          if (!item.readAt) void markNotificationRead(item.id)
-                          if (item.href) router.push(item.href)
-                        }}
-                      >
-                        <strong style={{ display: 'block' }}>{item.title}</strong>
-                        {item.body ? (
-                          <span className="pw-shop-muted" style={{ display: 'block', marginTop: 4, fontWeight: 400 }}>
-                            {item.body}
-                          </span>
-                        ) : null}
-                        <span className="pw-shop-muted" style={{ display: 'block', marginTop: 6, fontSize: 12, fontWeight: 400 }}>
-                          {item.createdAt ? new Date(item.createdAt).toLocaleString(locale) : ''}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                  </div>
+                ) : (
+                  <>
+                    <PartnerSitePushEnableCard siteSlug={siteSlug} locale={locale} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <h2 style={{ margin: 0 }}>{t.accountNotificationsTitle}</h2>
+                      {unreadCount > 0 ? (
+                        <button
+                          type="button"
+                          className="pw-shop-btn pw-shop-btn-outline"
+                          onClick={() => void markAllNotificationsRead()}
+                        >
+                          {t.accountNotificationsMarkAllRead}
+                        </button>
+                      ) : null}
+                    </div>
+                    {notificationsLoading ? (
+                      <p className="pw-shop-muted" style={{ marginTop: 16 }}>{t.accountNotificationsLoading}</p>
+                    ) : null}
+                    {!notificationsLoading && notifications.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '40px 12px', marginTop: 16, borderRadius: 12, border: '1px solid var(--pw-border, #f3f4f6)', background: 'var(--pw-surface, #f9fafb)' }}>
+                        <Bell aria-hidden="true" strokeWidth={1.5} style={{ width: 48, height: 48, margin: '0 auto 12px', color: '#d1d5db' }} />
+                        <p className="pw-shop-muted">{t.accountNotificationsEmpty}</p>
+                      </div>
+                    ) : null}
+                    <ul style={{ listStyle: 'none', padding: 0, margin: '16px 0 0', display: 'grid', gap: 10 }}>
+                      {notifications.map((item) => (
+                        <li key={item.id}>
+                          <button
+                            type="button"
+                            className="pw-shop-account-link-card"
+                            style={{
+                              width: '100%',
+                              textAlign: 'left',
+                              background: item.readAt ? '#fff' : 'color-mix(in srgb, var(--pw-primary) 8%, #fff)',
+                              borderColor: item.readAt ? 'var(--pw-border, #f3f4f6)' : 'color-mix(in srgb, var(--pw-primary) 22%, #fff)',
+                              fontWeight: item.readAt ? 400 : 600,
+                            }}
+                            onClick={() => {
+                              if (!item.readAt) void markNotificationRead(item.id)
+                              if (item.href) router.push(item.href)
+                            }}
+                          >
+                            <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                {!item.readAt ? (
+                                  <span
+                                    aria-hidden="true"
+                                    style={{ width: 8, height: 8, borderRadius: 999, background: 'var(--pw-primary)', flexShrink: 0 }}
+                                  />
+                                ) : null}
+                                <strong style={{ display: 'block' }}>{item.title}</strong>
+                              </span>
+                              <span className="pw-shop-muted" style={{ fontSize: 12, fontWeight: 400, whiteSpace: 'nowrap' }}>
+                                {item.createdAt
+                                  ? new Date(item.createdAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                                  : ''}
+                              </span>
+                            </span>
+                            {item.body ? (
+                              <span
+                                className="pw-shop-muted"
+                                style={{ display: 'block', marginTop: 6, paddingLeft: 16, fontWeight: 400, whiteSpace: 'pre-line' }}
+                              >
+                                {item.body}
+                              </span>
+                            ) : null}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </section>
             ) : null}
 

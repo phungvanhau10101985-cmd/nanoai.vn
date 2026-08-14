@@ -7,6 +7,7 @@ import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { fetchPublishedPartnerStaticPageBySlugFromPg } from '@/lib/db/messaging-partner-static-pages-pg'
 import { splitStaticPageContentToParagraphs } from '@/lib/partner-website/pages/partner-static-page-types'
+import { maybePartnerSiteVisualCmsPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 
 type Props = { params: Promise<{ slug: string; pageSlug: string }> }
 
@@ -49,6 +50,9 @@ export default async function PartnerSiteCustomPage({ params }: Props) {
 
   const page = await fetchPublishedPartnerStaticPageBySlugFromPg(shop.partnerId, pageSlug)
   if (!page) notFound()
+
+  const visual = maybePartnerSiteVisualCmsPage(shop.site, page.slug)
+  if (visual) return visual
 
   const paragraphs = splitStaticPageContentToParagraphs(page.content)
 

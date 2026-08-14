@@ -1,3 +1,5 @@
+import { logoAspectFromSize } from './build-logo-slot-prompt'
+
 /** First `url(...)` in a CSS background-image value (skips gradients). */
 export function extractFirstCssUrl(cssValue: string): string {
   const m = cssValue.match(/url\(\s*(['"]?)([^"')]+)\1\s*\)/i)
@@ -28,14 +30,18 @@ export function inferVisualEditImageKind(sel: {
   width?: number
   height?: number
 }): { kind: 'logo' | 'banner' | 'product_photo'; aspectRatio: string } {
-  if (sel.isLogo) return { kind: 'logo', aspectRatio: '1:1' }
   const w = Number(sel.width) || 0
   const h = Number(sel.height) || 0
-  if (sel.isBgImage) return { kind: 'banner', aspectRatio: '16:9' }
+  const aspect = w > 0 && h > 0 ? logoAspectFromSize(w, h) : '1:1'
+  if (sel.isLogo) {
+    return { kind: 'logo', aspectRatio: aspect }
+  }
+  if (sel.isBgImage) return { kind: 'banner', aspectRatio: w > 0 && h > 0 ? aspect : '16:9' }
   if (w > 0 && h > 0) {
     const r = w / h
-    if (r >= 1.4) return { kind: 'banner', aspectRatio: '16:9' }
-    if (r <= 0.75) return { kind: 'product_photo', aspectRatio: '3:4' }
+    if (r >= 1.4) return { kind: 'banner', aspectRatio: aspect }
+    if (r <= 0.75) return { kind: 'product_photo', aspectRatio: aspect }
+    return { kind: 'product_photo', aspectRatio: aspect }
   }
   return { kind: 'product_photo', aspectRatio: '1:1' }
 }

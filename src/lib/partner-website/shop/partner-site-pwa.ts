@@ -83,14 +83,24 @@ export function buildPartnerShopWebManifest(input: {
 export function buildPartnerShopServiceWorkerSource(input: {
   siteSlug: string
   startUrl: string
+  customDomain?: boolean
+  inboxPath?: string
+  iconPath?: string
 }): string {
   const slug = input.siteSlug.trim().toLowerCase()
-  const cacheName = `pw-shop-shell-v3-${slug}`
+  const cacheName = `pw-shop-shell-v4-${slug}`
   const home = input.startUrl
+  const customDomain = Boolean(input.customDomain)
+  const inbox =
+    input.inboxPath?.trim() ||
+    (customDomain ? '/account/notifications' : `/site/${encodeURIComponent(slug)}/account/notifications`)
+  const icon = input.iconPath?.trim() || partnerSitePwaIconPath(slug, 192, customDomain)
   return `
-/* Partner shop SW — per-tenant shell (${slug}) */
+/* Partner shop SW — per-tenant shell + Web Push (${slug}) */
 const CACHE = ${JSON.stringify(cacheName)};
 const SHELL = ${JSON.stringify(home)};
+const INBOX = ${JSON.stringify(inbox)};
+const ICON = ${JSON.stringify(icon)};
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -120,6 +130,60 @@ self.addEventListener('fetch', (event) => {
       fetch(req).catch(() => caches.match(SHELL).then((r) => r || Response.error()))
     );
   }
+});
+
+self.addEventListener('push', function (event) {
+  var data = {};
+  try {
+    if (event.data) data = event.data.json();
+  } catch (e) {
+    try {
+      var t = event.data && event.data.text();
+      if (t) data = JSON.parse(t);
+    } catch (e2) {}
+  }
+  var title = data.title || 'Shop';
+  var body = data.body || '';
+  var urlPath = data.url || INBOX;
+  var origin = self.location.origin;
+  var openUrl = urlPath.indexOf('http') === 0 ? urlPath : origin + (urlPath.charAt(0) === '/' ? urlPath : '/' + urlPath);
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: body,
+      icon: ICON,
+      tag: data.tag || 'pw-shop',
+      renotify: !!data.renotify,
+      data: { url: openUrl },
+    }).then(function () {
+      return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clients) {
+        clients.forEach(function (c) {
+          try { c.postMessage({ type: 'PW_SHOP_NOTIFICATIONS_REFRESH' }); } catch (e3) {}
+        });
+      });
+    })
+  );
+});
+
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  var raw = (event.notification.data && event.notification.data.url) || (self.location.origin + INBOX);
+  var urlToOpen = raw.indexOf('http') === 0 ? raw : self.location.origin + (raw.charAt(0) === '/' ? raw : '/' + raw);
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        var client = clientList[i];
+        if (client.url.indexOf(self.location.origin) === 0 && 'focus' in client) {
+          return client.focus().then(function () {
+            if ('navigate' in client) {
+              try { return client.navigate(urlToOpen); } catch (e) {}
+            }
+            return self.clients.openWindow(urlToOpen);
+          });
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(urlToOpen);
+    })
+  );
 });
 `.trim()
 }

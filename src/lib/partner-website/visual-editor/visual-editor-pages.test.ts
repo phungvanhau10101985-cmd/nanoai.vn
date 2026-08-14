@@ -1,0 +1,261 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
+import { visualHtmlLooksUsable } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
+import {
+  addVisualPageKey,
+  categoryPathFromSitePath,
+  categoryVisualHtmlPath,
+  cmsSlugFromSitePath,
+  cmsVisualHtmlPath,
+  composeResponsiveVisualHtml,
+  isolateVisualHtmlForDevice,
+  mergeVisualPageHtmlIntoProject,
+  stripVisualAddedChrome,
+  normalizeVisualPageKeys,
+  pageKeyFromSitePath,
+  productKeyFromSitePath,
+  productVisualHtmlPath,
+  resolveExactVisualCategoryHtml,
+  resolveExactVisualPageHtml,
+  resolveExactVisualProductHtml,
+  resolvePublicVisualPageHtml,
+  resolveVisualProductIdFromKey,
+  shouldServeVisualPageHtml,
+  visualEditorDeviceVariant,
+  visualEditorHtmlPath,
+  visualEditorPreviewPath,
+} from '@/lib/partner-website/visual-editor/visual-editor-pages'
+
+test('visual editor paths map catalog pages', () => {
+  assert.equal(visualEditorHtmlPath('home'), 'index.html')
+  assert.equal(visualEditorHtmlPath('about'), 'about.html')
+  assert.equal(visualEditorHtmlPath('recently_viewed'), 'recently-viewed.html')
+  assert.equal(visualEditorHtmlPath('home', 'mobile'), 'index.mobile.html')
+  assert.equal(visualEditorHtmlPath('about', 'mobile'), 'about.mobile.html')
+  assert.equal(visualEditorDeviceVariant('mobile'), 'mobile')
+  assert.equal(visualEditorDeviceVariant('tablet'), 'desktop')
+  assert.equal(visualEditorDeviceVariant('desktop'), 'desktop')
+  assert.equal(visualEditorPreviewPath('188-shop', 'home'), '/site/188-shop')
+  assert.equal(visualEditorPreviewPath('188-shop', 'products'), '/site/188-shop/products')
+  assert.equal(visualEditorPreviewPath('188-shop', 'size_guide'), '/site/188-shop/size-guide')
+  assert.equal(
+    visualEditorPreviewPath('188-shop', 'collection', 'thoi-trang/ao'),
+    '/site/188-shop/c/thoi-trang/ao'
+  )
+  assert.equal(
+    visualEditorPreviewPath('188-shop', 'product_detail', null, 'tui-deo-00073cac'),
+    '/site/188-shop/products/tui-deo-00073cac'
+  )
+  assert.equal(
+    visualEditorPreviewPath('188-shop', 'home', null, null, 'huong-dan-mua'),
+    '/site/188-shop/pages/huong-dan-mua'
+  )
+  assert.equal(categoryVisualHtmlPath('thoi-trang/ao'), 'c/thoi-trang__ao.html')
+  assert.equal(categoryVisualHtmlPath('ao-nam', 'mobile'), 'c/ao-nam.mobile.html')
+  assert.equal(
+    productVisualHtmlPath('00073cac-1111-2222-3333-444444444444'),
+    'p/00073cac-1111-2222-3333-444444444444.html'
+  )
+  assert.equal(cmsVisualHtmlPath('huong-dan-mua', 'mobile'), 'cms/huong-dan-mua.mobile.html')
+})
+
+test('saved visual page html is isolated from homepage', () => {
+  const about = '<!DOCTYPE html><html><body><h1>About shop</h1></body></html>'
+  const home = '<!DOCTYPE html><html><body><h1>Home</h1></body></html>'
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      useVisualHtml: true,
+      visualPageKeys: ['about'],
+    },
+    htmlSource: home,
+    project: {
+      entryPath: 'site.config.json',
+      files: [
+        { path: 'site.config.json', kind: 'json' as const, content: '{}' },
+        { path: 'about.html', kind: 'html' as const, content: about },
+      ],
+    },
+  }
+  assert.equal(resolveExactVisualPageHtml(website, 'home'), home)
+  assert.equal(resolveExactVisualPageHtml(website, 'about'), about)
+  assert.equal(resolveExactVisualPageHtml(website, 'faq'), '')
+})
+
+test('without visualPageKeys there is no non-home override', () => {
+  const out = resolveExactVisualPageHtml(
+    {
+      theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: true },
+      htmlSource: '<!DOCTYPE html><html><body>home</body></html>',
+      project: {
+        entryPath: 'index.html',
+        files: [{ path: 'about.html', kind: 'html', content: '<!DOCTYPE html><html><body>about</body></html>' }],
+      },
+    },
+    'about'
+  )
+  assert.equal(out, '')
+})
+
+test('merge visual page html does not overwrite site.config.json', () => {
+  const project = {
+    entryPath: 'site.config.json',
+    files: [{ path: 'site.config.json', kind: 'json' as const, content: '{"ok":true}' }],
+  }
+  const next = mergeVisualPageHtmlIntoProject(
+    project,
+    '<!DOCTYPE html><html><body>FAQ</body></html>',
+    'faq.html'
+  )
+  assert.equal(next.files.find((f) => f.path === 'site.config.json')?.content, '{"ok":true}')
+  assert.equal(next.files.find((f) => f.path === 'faq.html')?.kind, 'html')
+})
+
+test('pageKeyFromSitePath maps shop routes', () => {
+  assert.equal(pageKeyFromSitePath('/site/188-shop', '188-shop'), 'home')
+  assert.equal(pageKeyFromSitePath('/site/188-shop/about', '188-shop'), 'about')
+  assert.equal(pageKeyFromSitePath('/site/188-shop/account/orders', '188-shop'), 'account')
+  assert.equal(pageKeyFromSitePath('/site/188-shop/orders', '188-shop'), 'orders')
+  assert.equal(pageKeyFromSitePath('/site/188-shop/addresses', '188-shop'), 'addresses')
+  assert.equal(pageKeyFromSitePath('/site/188-shop/products/abc-1', '188-shop'), 'product_detail')
+  assert.equal(pageKeyFromSitePath('/site/188-shop/lp/summer', '188-shop'), null)
+  assert.equal(pageKeyFromSitePath('/site/188-shop/c/ao-nam', '188-shop'), 'collection')
+  assert.equal(categoryPathFromSitePath('/site/188-shop/c/thoi-trang/ao', '188-shop'), 'thoi-trang/ao')
+  assert.equal(productKeyFromSitePath('/site/188-shop/products/tui-deo-00073cac', '188-shop'), 'tui-deo-00073cac')
+  assert.equal(cmsSlugFromSitePath('/site/188-shop/pages/huong-dan-mua', '188-shop'), 'huong-dan-mua')
+  assert.equal(
+    resolveVisualProductIdFromKey('tui-deo-00073cac', [
+      { id: '00073cac-1111-2222-3333-444444444444' },
+    ]),
+    '00073cac-1111-2222-3333-444444444444'
+  )
+})
+
+test('category visual html is isolated per path', () => {
+  const html = '<!DOCTYPE html><html><body><h1>Ao nam</h1></body></html>'
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      visualCategoryPaths: ['ao-nam'],
+    },
+    htmlSource: null,
+    project: {
+      entryPath: 'site.config.json',
+      files: [{ path: 'c/ao-nam.html', kind: 'html' as const, content: html }],
+    },
+  }
+  assert.equal(resolveExactVisualCategoryHtml(website, 'ao-nam'), html)
+  assert.equal(resolveExactVisualCategoryHtml(website, 'tui'), '')
+})
+
+test('generic product detail html is not served for every PDP', () => {
+  assert.equal(shouldServeVisualPageHtml('product_detail'), false)
+  assert.equal(shouldServeVisualPageHtml('about'), true)
+  assert.equal(shouldServeVisualPageHtml('cart'), true)
+  assert.equal(shouldServeVisualPageHtml('orders'), true)
+  assert.equal(shouldServeVisualPageHtml('addresses'), true)
+})
+
+test('product visual html is isolated per inventory id', () => {
+  const html = '<!DOCTYPE html><html><body><h1>Tui deo</h1></body></html>'
+  const id = '00073cac-1111-2222-3333-444444444444'
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      visualProductIds: [id],
+    },
+    htmlSource: null,
+    project: {
+      entryPath: 'site.config.json',
+      files: [{ path: `p/${id}.html`, kind: 'html' as const, content: html }],
+    },
+  }
+  assert.equal(resolveExactVisualProductHtml(website, id), html)
+  assert.equal(resolveExactVisualProductHtml(website, '11111111-1111-1111-1111-111111111111'), '')
+})
+
+test('mobile visual html is isolated from desktop', () => {
+  const desktop = '<!DOCTYPE html><html><body><h1>Desktop about</h1></body></html>'
+  const mobile = '<!DOCTYPE html><html><body><h1>Mobile about</h1></body></html>'
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      visualPageKeys: ['about'],
+      visualMobilePageKeys: ['about'],
+    },
+    htmlSource: null,
+    project: {
+      entryPath: 'site.config.json',
+      files: [
+        { path: 'about.html', kind: 'html' as const, content: desktop },
+        { path: 'about.mobile.html', kind: 'html' as const, content: mobile },
+      ],
+    },
+  }
+  assert.equal(resolveExactVisualPageHtml(website, 'about', 'desktop'), desktop)
+  assert.equal(resolveExactVisualPageHtml(website, 'about', 'mobile'), mobile)
+  const pub = resolvePublicVisualPageHtml(website, 'about')
+  assert.ok(pub.includes('Desktop about'))
+  assert.ok(pub.includes('Mobile about'))
+  assert.ok(pub.includes('pw-visual-device-split'))
+  assert.ok(pub.includes('pw-shop-chrome-layout'))
+  assert.ok(pub.includes('[data-pw-chrome-added][data-pw-device="mobile"]'))
+})
+
+test('compose responsive visual html keeps a single desktop variant as-is', () => {
+  const only = '<!DOCTYPE html><html><body>Just one</body></html>'
+  assert.equal(composeResponsiveVisualHtml(only, ''), only)
+})
+
+test('mobile-only visual html does not leak added chrome onto desktop', () => {
+  const mobile =
+    '<!DOCTYPE html><html><body><header class="pw-header"><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="wallet">$</a></div></header></body></html>'
+  const pub = composeResponsiveVisualHtml('', mobile)
+  assert.ok(pub.includes('pw-visual-desktop'))
+  assert.ok(pub.includes('pw-visual-mobile'))
+  assert.ok(pub.includes('data-pw-device="mobile"'))
+  const desktopBody = pub.match(/data-pw-visual-device="desktop"[^>]*>([\s\S]*?)<div class="pw-visual-mobile"/i)?.[1] || ''
+  assert.equal(desktopBody.includes('data-pw-chrome-added'), false)
+})
+
+test('isolate visual html unwraps composed page and stamps chrome', () => {
+  const composed = composeResponsiveVisualHtml(
+    '<!DOCTYPE html><html><body><h1>Desk</h1></body></html>',
+    '<!DOCTYPE html><html><body><h1>Mob</h1><a data-pw-chrome-added="1" data-pw-chrome-btn="orders">Box</a></body></html>'
+  )
+  const mobile = isolateVisualHtmlForDevice(composed, 'mobile')
+  assert.ok(mobile.includes('Mob'))
+  assert.equal(mobile.includes('Desk'), false)
+  assert.ok(mobile.includes('data-pw-device="mobile"'))
+  const stripped = stripVisualAddedChrome(mobile)
+  assert.equal(stripped.includes('data-pw-chrome-added'), false)
+})
+
+test('empty visual html is not usable for Sửa nhanh', () => {
+  assert.equal(visualHtmlLooksUsable(''), false)
+  assert.equal(visualHtmlLooksUsable('<!DOCTYPE html><html><body></body></html>'), false)
+  assert.equal(visualHtmlLooksUsable('<!DOCTYPE html><html><body><h1>Home</h1></body></html>'), true)
+  assert.equal(
+    visualHtmlLooksUsable('<!DOCTYPE html><html><body><div class="pw-shop">188</div></body></html>'),
+    true
+  )
+  assert.equal(
+    visualHtmlLooksUsable(
+      '<!DOCTYPE html><html><body><style>.pw-shop-bottom-nav{display:flex}</style><div class="pw-visual-desktop"></div></body></html>'
+    ),
+    false
+  )
+  assert.equal(
+    visualHtmlLooksUsable(
+      '<!DOCTYPE html><html><body><iframe srcdoc="<div class=pw-shop>188</div>"></iframe></body></html>'
+    ),
+    false
+  )
+})
+
+test('visualPageKeys stay unique and skip home', () => {
+  assert.deepEqual(normalizeVisualPageKeys(['about', 'about', 'home', 'faq']), ['about', 'faq'])
+  assert.deepEqual(addVisualPageKey(['about'], 'faq'), ['about', 'faq'])
+  assert.deepEqual(addVisualPageKey(['about'], 'home'), ['about'])
+})

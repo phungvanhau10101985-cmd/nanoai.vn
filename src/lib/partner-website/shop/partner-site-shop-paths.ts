@@ -82,8 +82,13 @@ export function partnerSiteAccountEditPath(siteSlug: string, opts?: PathOpts): s
   return partnerSiteAccountTabPath(siteSlug, 'edit-profile', opts)
 }
 
-export function partnerSiteNotificationsApiPath(siteSlug: string): string {
-  return `/api/site/${encodeURIComponent(siteSlug.trim())}/notifications`
+export function partnerSiteNotificationsApiPath(siteSlug: string, opts?: { unread?: boolean }): string {
+  const base = `/api/site/${encodeURIComponent(siteSlug.trim())}/notifications`
+  return opts?.unread ? `${base}?count=1` : base
+}
+
+export function partnerSitePushApiPath(siteSlug: string): string {
+  return `/api/site/${encodeURIComponent(siteSlug.trim())}/push`
 }
 
 export function partnerSiteAddressesPath(siteSlug: string, opts?: PathOpts): string {

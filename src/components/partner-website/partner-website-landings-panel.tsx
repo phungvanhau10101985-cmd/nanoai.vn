@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,11 +8,15 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
-import type { PartnerLandingPageRow, PartnerLandingSourceType } from '@/lib/partner-website/landing/partner-landing-types'
-import { PARTNER_LANDING_MAX_PRODUCTS } from '@/lib/partner-website/landing/partner-landing-types'
+import type { LandingAiKind, PartnerLandingPageRow } from '@/lib/partner-website/landing/partner-landing-types'
+import { PARTNER_LANDING_MAX_PRODUCTS, landingAiKindOf } from '@/lib/partner-website/landing/partner-landing-types'
 import { LandingAiSectionsDialog } from '@/components/partner-website/landing/landing-ai-sections-dialog'
+import {
+  LandingProductPicker,
+  type LandingPickerProduct,
+} from '@/components/partner-website/landing/landing-product-picker'
 import { cn } from '@/lib/utils'
-import { ExternalLink, Loader2, MessageSquarePlus, Sparkles, Trash2 } from 'lucide-react'
+import { ExternalLink, Loader2, Plus, Sparkles } from 'lucide-react'
 
 type CategoryPickRow = { id: string; name: string; children: CategoryPickRow[] }
 
@@ -25,21 +29,14 @@ function flattenCategoriesForPicker(nodes: CategoryPickRow[], depth = 0): { id: 
   return out
 }
 
-type InventoryPickRow = {
-  id: string
-  name: string
-  sku: string | null
-  priceHint: string
-  imageUrl: string
-  description: string
-}
-
 type LandingListItem = PartnerLandingPageRow & {
+  kind?: LandingAiKind
   publicUrl?: string | null
   previewPath?: string | null
 }
 
-type ChatPhase = 'idle' | 'products' | 'brief' | 'building'
+type SourceMode = 'category' | 'product_single' | 'products_multi'
+type View = 'list' | 'new'
 
 type Props = {
   locale: WebLocale
@@ -57,61 +54,60 @@ export function PartnerWebsiteLandingsPanel({
   locale,
   t,
   partnerId,
-  siteSlug,
   websiteReady,
   sectionId = 'partner-website-landings',
   autoStartChat = false,
   onToast,
   onChatStarted,
 }: Props) {
+  const [view, setView] = useState<View>('list')
+  const [kind, setKind] = useState<LandingAiKind>('single')
   const [landings, setLandings] = useState<LandingListItem[]>([])
+  const [stats, setStats] = useState<Record<LandingAiKind, { total: number; published: number }>>({
+    single: { total: 0, published: 0 },
+    category: { total: 0, published: 0 },
+    multi: { total: 0, published: 0 },
+  })
   const [loading, setLoading] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [phase, setPhase] = useState<ChatPhase>('idle')
+  const [editLanding, setEditLanding] = useState<LandingListItem | null>(null)
+  const [autogen, setAutogen] = useState(false)
+
+  const [sourceMode, setSourceMode] = useState<SourceMode>('product_single')
   const [title, setTitle] = useState('')
+  const [titleTouched, setTitleTouched] = useState(false)
   const [briefText, setBriefText] = useState('')
-  const [landingSlug, setLandingSlug] = useState('')
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [inventory, setInventory] = useState<InventoryPickRow[]>([])
-  const [invLoading, setInvLoading] = useState(false)
-  const [sourceType, setSourceType] = useState<PartnerLandingSourceType>('products')
+  const [selectedProducts, setSelectedProducts] = useState<LandingPickerProduct[]>([])
   const [categories, setCategories] = useState<{ id: string; label: string }[]>([])
   const [categoryId, setCategoryId] = useState('')
-  const [sectionsDialogLanding, setSectionsDialogLanding] = useState<LandingListItem | null>(null)
+  const [productsLimit, setProductsLimit] = useState(12)
+  const [materialOptions, setMaterialOptions] = useState<{ material: string; count: number }[]>([])
+  const [materialFilter, setMaterialFilter] = useState('')
+  const [includeMaterial, setIncludeMaterial] = useState(true)
+  const [includeFaq, setIncludeFaq] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
 
   const loadLandings = useCallback(async () => {
     if (!partnerId) return
     setLoading(true)
     try {
       const res = await fetch(
-        `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/landings`
+        `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/landings?kind=${encodeURIComponent(kind)}`
       )
-      const json = (await res.json()) as { landings?: LandingListItem[]; error?: string }
+      const json = (await res.json()) as {
+        landings?: LandingListItem[]
+        stats?: Record<LandingAiKind, { total: number; published: number }>
+        error?: string
+      }
       if (!res.ok) throw new Error(json.error || t.errorGeneric)
       setLandings(json.landings ?? [])
+      if (json.stats) setStats(json.stats)
     } catch (e) {
       onToast(e instanceof Error ? e.message : t.errorGeneric, 'destructive')
     } finally {
       setLoading(false)
     }
-  }, [partnerId, onToast, t.errorGeneric])
-
-  const loadInventory = useCallback(async () => {
-    if (!partnerId) return
-    setInvLoading(true)
-    try {
-      const res = await fetch(
-        `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/landings/inventory?page=0&pageSize=60`
-      )
-      const json = (await res.json()) as { rows?: InventoryPickRow[]; error?: string }
-      if (!res.ok) throw new Error(json.error || t.errorGeneric)
-      setInventory(json.rows ?? [])
-    } catch (e) {
-      onToast(e instanceof Error ? e.message : t.errorGeneric, 'destructive')
-    } finally {
-      setInvLoading(false)
-    }
-  }, [partnerId, onToast, t.errorGeneric])
+  }, [partnerId, kind, onToast, t.errorGeneric])
 
   const loadCategories = useCallback(async () => {
     if (!partnerId) return
@@ -120,7 +116,7 @@ export function PartnerWebsiteLandingsPanel({
       const json = (await res.json()) as { tree?: CategoryPickRow[] }
       if (res.ok) setCategories(flattenCategoriesForPicker(json.tree ?? []))
     } catch {
-      // L3.6 — landing theo danh mục là tuỳ chọn; im lặng bỏ qua nếu chưa có quyền/chưa có category.
+      /* optional */
     }
   }, [partnerId])
 
@@ -128,94 +124,131 @@ export function PartnerWebsiteLandingsPanel({
     void loadLandings()
   }, [loadLandings])
 
-  const startChat = useCallback(() => {
-    if (!websiteReady) {
-      onToast(t.studioWebFirstNote, 'destructive')
-      return
+  useEffect(() => {
+    if (autoStartChat && websiteReady && view === 'list') {
+      setView('new')
+      onChatStarted?.()
     }
-    setPhase('products')
-    setTitle('')
-    setBriefText('')
-    setLandingSlug('')
-    setSelectedIds([])
-    setSourceType('products')
-    setCategoryId('')
-    void loadInventory()
-    void loadCategories()
-    onChatStarted?.()
-  }, [websiteReady, onToast, t.studioWebFirstNote, loadInventory, loadCategories, onChatStarted])
+  }, [autoStartChat, websiteReady, view, onChatStarted])
 
   useEffect(() => {
-    if (autoStartChat && websiteReady && phase === 'idle') {
-      startChat()
+    if (view === 'new') void loadCategories()
+  }, [view, loadCategories])
+
+  useEffect(() => {
+    if (sourceMode !== 'category' || !categoryId) {
+      setMaterialOptions([])
+      setMaterialFilter('')
+      return
     }
-  }, [autoStartChat, websiteReady, phase, startChat])
+    let alive = true
+    void (async () => {
+      const res = await fetch(
+        `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/landings/category-materials?categoryId=${encodeURIComponent(categoryId)}`
+      )
+      const json = (await res.json()) as { items?: { material: string; count: number }[] }
+      if (alive) setMaterialOptions(json.items ?? [])
+    })()
+    return () => {
+      alive = false
+    }
+  }, [sourceMode, categoryId, partnerId])
 
-  const toggleProduct = (id: string) => {
-    setSelectedIds((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id)
-      if (prev.length >= PARTNER_LANDING_MAX_PRODUCTS) {
-        onToast(t.lpMaxProducts.replace('{n}', String(PARTNER_LANDING_MAX_PRODUCTS)), 'destructive')
-        return prev
+  useEffect(() => {
+    if (titleTouched) return
+    if (sourceMode === 'category') {
+      const opt = categories.find((c) => c.id === categoryId)
+      if (opt) {
+        const leaf = opt.label.replace(/^— /g, '').split('— ').pop()?.trim() || opt.label
+        setTitle(materialFilter ? `${leaf} - ${materialFilter}` : leaf)
       }
-      return [...prev, id]
-    })
-  }
+    } else if (sourceMode === 'product_single' && selectedProducts.length === 1) {
+      setTitle(selectedProducts[0].name)
+    } else if (sourceMode === 'products_multi' && selectedProducts.length >= 2) {
+      setTitle(`${selectedProducts.length} ${t.lpKindMulti}`)
+    }
+  }, [sourceMode, categoryId, categories, selectedProducts, titleTouched, materialFilter])
 
-  const handleCreateAndBuild = async () => {
+  const kindTabs = useMemo(
+    () =>
+      [
+        { id: 'single' as const, label: t.lpKindSingle },
+        { id: 'category' as const, label: t.lpKindCategory },
+        { id: 'multi' as const, label: t.lpKindMulti },
+      ],
+    [t]
+  )
+
+  const openCreate = (mode?: SourceMode) => {
     if (!websiteReady) {
       onToast(t.lpNeedWebsite, 'destructive')
       return
     }
+    setSourceMode(mode ?? (kind === 'category' ? 'category' : kind === 'multi' ? 'products_multi' : 'product_single'))
+    setTitle('')
+    setTitleTouched(false)
+    setBriefText('')
+    setSelectedProducts([])
+    setCategoryId('')
+    setMaterialFilter('')
+    setIncludeMaterial(true)
+    setIncludeFaq(true)
+    setView('new')
+    onChatStarted?.()
+  }
+
+  const handleCreate = async () => {
     if (title.trim().length < 2) {
       onToast(t.lpTitleRequired, 'destructive')
       return
     }
-    if (sourceType === 'products' && selectedIds.length < 1) {
-      onToast(t.lpProductsRequired, 'destructive')
+    if (sourceMode === 'product_single' && selectedProducts.length !== 1) {
+      onToast(t.lpPickOneProduct, 'destructive')
       return
     }
-    if (sourceType === 'category' && !categoryId) {
+    if (sourceMode === 'products_multi' && selectedProducts.length < 2) {
+      onToast(t.lpPickMultiProducts, 'destructive')
+      return
+    }
+    if (sourceMode === 'category' && !categoryId) {
       onToast(t.lpCategoryPlaceholder, 'destructive')
       return
     }
-    setPhase('building')
+    if (sourceMode === 'category' && includeMaterial && !materialFilter.trim()) {
+      onToast(t.lpMaterialFilterRequired, 'destructive')
+      return
+    }
+    setSubmitting(true)
     try {
-      // L3.2/L3.6 — landing mới luôn dùng engine Ladipage AI (section cố định, tự bootstrap server-side)
-      // — không còn gọi /build (mockup + AI-HTML tự do) như luồng cũ.
-      const res = await fetch(
-        `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/landings`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: title.trim(),
-            briefText: briefText.trim(),
-            landingSlug: landingSlug.trim() || undefined,
-            inventoryIds: sourceType === 'products' ? selectedIds : [],
-            sourceType,
-            categoryId: sourceType === 'category' ? categoryId : undefined,
-            locale,
-          }),
-        }
-      )
+      const sourceType = sourceMode === 'category' ? 'category' : 'products'
+      const res = await fetch(`/api/messaging/partner-website/${encodeURIComponent(partnerId)}/landings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          briefText: briefText.trim(),
+          inventoryIds: sourceType === 'products' ? selectedProducts.map((p) => p.id) : [],
+          sourceType,
+          categoryId: sourceType === 'category' ? categoryId : undefined,
+          productsLimit,
+          materialFilter: sourceType === 'category' ? materialFilter : undefined,
+          includeMaterial,
+          includeFaq,
+          locale,
+        }),
+      })
       const json = (await res.json()) as { landing?: PartnerLandingPageRow; error?: string }
       if (!res.ok || !json.landing) throw new Error(json.error || t.errorGeneric)
-
-      onToast(t.lpBuildSuccess)
-      setPhase('idle')
-      setTitle('')
-      setBriefText('')
-      setLandingSlug('')
-      setSelectedIds([])
+      onToast(t.lpCreateDraftSuccess)
+      setView('list')
+      setKind(landingAiKindOf(json.landing))
       await loadLandings()
-      setSectionsDialogLanding(json.landing as LandingListItem)
+      setAutogen(true)
+      setEditLanding(json.landing as LandingListItem)
     } catch (e) {
       onToast(e instanceof Error ? e.message : t.errorGeneric, 'destructive')
-      setPhase('brief')
-      await loadLandings()
     } finally {
-      setBusyId(null)
+      setSubmitting(false)
     }
   }
 
@@ -233,28 +266,6 @@ export function PartnerWebsiteLandingsPanel({
       const json = (await res.json()) as { error?: string }
       if (!res.ok) throw new Error(json.error || t.errorGeneric)
       onToast(publish ? t.lpPublishSuccess : t.lpUnpublishSuccess)
-      await loadLandings()
-    } catch (e) {
-      onToast(e instanceof Error ? e.message : t.errorGeneric, 'destructive')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  const handleRebuild = async (landingId: string) => {
-    setBusyId(landingId)
-    try {
-      const res = await fetch(
-        `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/landings/${encodeURIComponent(landingId)}/build`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ locale, regenerateMockup: true }),
-        }
-      )
-      const json = (await res.json()) as { error?: string; assistantMessage?: string }
-      if (!res.ok) throw new Error(json.error || t.lpBuildFailed)
-      onToast(json.assistantMessage || t.lpBuildSuccess)
       await loadLandings()
     } catch (e) {
       onToast(e instanceof Error ? e.message : t.errorGeneric, 'destructive')
@@ -282,317 +293,295 @@ export function PartnerWebsiteLandingsPanel({
     }
   }
 
-  const inChat = phase !== 'idle'
+  const currentStat = stats[kind]
 
   return (
-    <Card id={sectionId} className="scroll-mt-24">
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-base">{t.lpChatTitle}</CardTitle>
-            <CardDescription className="mt-1 text-xs">{t.lpChatHint}</CardDescription>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            disabled={!websiteReady || phase === 'building'}
-            onClick={() => (inChat ? setPhase('idle') : startChat())}
-          >
-            <MessageSquarePlus className="mr-1.5 h-3.5 w-3.5" />
-            {inChat ? t.lpCancelCreate : t.lpChatStart}
-          </Button>
+    <Card id={sectionId}>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            {t.lpPanelTitle}
+          </CardTitle>
+          <CardDescription>{t.lpPanelHint}</CardDescription>
         </div>
+        {view === 'list' ? (
+          <Button type="button" size="sm" onClick={() => openCreate()}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            {t.lpCreateNew}
+          </Button>
+        ) : (
+          <Button type="button" size="sm" variant="outline" onClick={() => setView('list')}>
+            {t.lpBackToList}
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
-        {!websiteReady ? (
-          <p className="text-sm text-amber-700 dark:text-amber-300">{t.studioWebFirstNote}</p>
-        ) : null}
-
-        {inChat ? (
-          <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
-            <div className="space-y-2 text-sm">
-              <p className="rounded-lg bg-background px-3 py-2 shadow-sm">{t.lpChatStepProducts}</p>
-              {phase !== 'products' ? (
-                <p className="rounded-lg bg-primary/10 px-3 py-2 text-xs">
-                  {selectedIds.length} {t.lpProductsShort}
-                </p>
-              ) : null}
-              {phase === 'brief' || phase === 'building' ? (
-                <>
-                  <p className="rounded-lg bg-background px-3 py-2 shadow-sm">{t.lpChatStepBrief}</p>
-                  {title.trim() ? (
-                    <p className="rounded-lg bg-primary/10 px-3 py-2 text-xs">{title}</p>
-                  ) : null}
-                </>
-              ) : null}
-              {phase === 'building' ? (
-                <p className="flex items-center gap-2 rounded-lg bg-background px-3 py-2 shadow-sm">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {t.lpChatStepBuild}
-                </p>
-              ) : null}
+        {view === 'list' ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {kindTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setKind(tab.id)}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-sm font-medium',
+                    kind === tab.id
+                      ? 'border-transparent bg-[var(--pw-primary,#0f172a)] text-white'
+                      : 'border-border bg-background hover:bg-muted'
+                  )}
+                >
+                  {tab.label}
+                  <span className="ml-1.5 text-xs opacity-80">({stats[tab.id].total})</span>
+                </button>
+              ))}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-lg border border-border/70 p-3 text-sm">
+                <p className="text-muted-foreground">{t.lpStatsTotal}</p>
+                <p className="text-xl font-semibold">{currentStat.total}</p>
+              </div>
+              <div className="rounded-lg border border-border/70 p-3 text-sm">
+                <p className="text-muted-foreground">{t.lpStatsPublished}</p>
+                <p className="text-xl font-semibold">{currentStat.published}</p>
+              </div>
+            </div>
+            {loading ? (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> {t.lpLoading}
+              </p>
+            ) : landings.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-6 text-center">
+                <p className="text-sm text-muted-foreground">{t.lpEmptyKind}</p>
+                <Button type="button" className="mt-3" size="sm" onClick={() => openCreate()}>
+                  {t.lpCreateNew}
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs uppercase text-muted-foreground">
+                      <th className="py-2 pr-3">{t.lpTitleLabel}</th>
+                      <th className="py-2 pr-3">{t.lpUpdated}</th>
+                      <th className="py-2 pr-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {landings.map((lp) => (
+                      <tr key={lp.id} className="border-b border-border/50">
+                        <td className="py-2.5 pr-3">
+                          <p className="font-medium">{lp.title}</p>
+                          <p className="text-xs text-muted-foreground">/lp/{lp.landingSlug}</p>
+                          <span
+                            className={cn(
+                              'mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                              lp.isPublished ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'
+                            )}
+                          >
+                            {lp.isPublished ? t.lpPublished : t.lpDraft}
+                          </span>
+                        </td>
+                        <td className="py-2.5 pr-3 text-xs text-muted-foreground">
+                          {lp.updatedAt ? new Date(lp.updatedAt).toLocaleDateString(locale) : '—'}
+                        </td>
+                        <td className="py-2.5">
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              disabled={busyId === lp.id}
+                              onClick={() => {
+                                setAutogen(false)
+                                setEditLanding(lp)
+                              }}
+                            >
+                              {t.lpEdit}
+                            </Button>
+                            {lp.isPublished && lp.publicUrl ? (
+                              <Button type="button" size="sm" variant="outline" asChild>
+                                <a href={lp.publicUrl} target="_blank" rel="noreferrer">
+                                  <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                                  {t.lpView}
+                                </a>
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={busyId === lp.id}
+                              onClick={() => void handlePublish(lp.id, !lp.isPublished)}
+                            >
+                              {lp.isPublished ? t.lpUnpublish : t.lpPublish}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={busyId === lp.id}
+                              onClick={() => void handleDelete(lp.id)}
+                            >
+                              {t.lpDelete}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <Label className="mb-2 block">{t.lpSourceTypeLabel}</Label>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ['product_single', t.lpSourceSingle],
+                    ['products_multi', t.lpSourceMulti],
+                    ['category', t.lpSourceCategory],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setSourceMode(id)
+                      setSelectedProducts([])
+                      setTitleTouched(false)
+                    }}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-sm font-medium',
+                      sourceMode === id
+                        ? 'border-transparent bg-[var(--pw-primary,#0f172a)] text-white'
+                        : 'border-border hover:bg-muted'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {phase === 'products' ? (
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label>{t.lpSourceTypeLabel}</Label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={sourceType === 'products' ? 'default' : 'outline'}
-                      onClick={() => setSourceType('products')}
-                    >
-                      {t.lpSourceProducts}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={sourceType === 'category' ? 'default' : 'outline'}
-                      disabled={categories.length === 0}
-                      onClick={() => setSourceType('category')}
-                    >
-                      {t.lpSourceCategory}
-                    </Button>
-                  </div>
+            {sourceMode === 'category' ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>{t.lpCategoryLabel}</Label>
+                  <select
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                  >
+                    <option value="">{t.lpCategoryPlaceholder}</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-
-                {sourceType === 'category' ? (
-                  <div className="space-y-1.5">
-                    <Label>{t.lpCategoryLabel}</Label>
+                <div className="space-y-1">
+                  <Label>{t.lpProductsLimitLabel}</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={productsLimit}
+                    onChange={(e) => setProductsLimit(Number(e.target.value) || 12)}
+                  />
+                </div>
+                {includeMaterial ? (
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label>{t.lpMaterialFilterLabel}</Label>
                     <select
-                      value={categoryId}
-                      onChange={(e) => setCategoryId(e.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={materialFilter}
+                      onChange={(e) => setMaterialFilter(e.target.value)}
                     >
                       <option value="">{t.lpCategoryPlaceholder}</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label}
+                      {materialOptions.map((m) => (
+                        <option key={m.material} value={m.material}>
+                          {m.material} ({m.count} SP)
                         </option>
                       ))}
                     </select>
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={!categoryId}
-                      onClick={() => setPhase('brief')}
-                    >
-                      {t.lpChatContinueProducts}
-                    </Button>
                   </div>
-                ) : null}
-
-                {sourceType === 'products' ? (
-                  <>
-                <div className="flex items-center justify-between gap-2">
-                  <Label>
-                    {t.lpProductsLabel} ({selectedIds.length}/{PARTNER_LANDING_MAX_PRODUCTS})
-                  </Label>
-                  {invLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                </div>
-                <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
-                  {inventory.map((row) => {
-                    const checked = selectedIds.includes(row.id)
-                    return (
-                      <button
-                        key={row.id}
-                        type="button"
-                        onClick={() => toggleProduct(row.id)}
-                        className={cn(
-                          'flex gap-2 rounded-lg border p-2 text-left transition-colors',
-                          checked
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border/60 bg-background hover:bg-muted/40'
-                        )}
-                      >
-                        {row.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={row.imageUrl}
-                            alt=""
-                            className="h-14 w-14 shrink-0 rounded-md object-cover bg-muted"
-                          />
-                        ) : (
-                          <span className="h-14 w-14 shrink-0 rounded-md bg-muted" />
-                        )}
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium">{row.name}</span>
-                          <span className="block text-xs text-muted-foreground">
-                            {row.priceHint || row.sku || '—'}
-                          </span>
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-                {!invLoading && inventory.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">{t.lpInventoryEmpty}</p>
-                ) : null}
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={selectedIds.length < 1}
-                  onClick={() => setPhase('brief')}
-                >
-                  {t.lpChatContinueProducts}
-                </Button>
-                  </>
                 ) : null}
               </div>
-            ) : null}
-
-            {phase === 'brief' ? (
-              <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="lp-title">{t.lpTitleLabel}</Label>
-                    <Input
-                      id="lp-title"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder={t.lpTitlePlaceholder}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="lp-slug">{t.lpSlugLabel}</Label>
-                    <Input
-                      id="lp-slug"
-                      value={landingSlug}
-                      onChange={(e) => setLandingSlug(e.target.value)}
-                      placeholder={t.lpSlugPlaceholder}
-                    />
-                    {siteSlug ? (
-                      <p className="text-[11px] text-muted-foreground">
-                        /site/{siteSlug}/lp/{landingSlug.trim() || '…'}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="lp-brief">{t.lpBriefLabel}</Label>
-                  <Textarea
-                    id="lp-brief"
-                    value={briefText}
-                    onChange={(e) => setBriefText(e.target.value)}
-                    placeholder={t.lpBriefPlaceholder}
-                    rows={3}
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => setPhase('products')}>
-                    {t.studioBack}
-                  </Button>
-                  <Button type="button" size="sm" onClick={() => void handleCreateAndBuild()}>
-                    {t.lpChatContinueBrief}
-                  </Button>
-                </div>
+            ) : (
+              <div className="space-y-1">
+                <Label>{sourceMode === 'product_single' ? t.lpSourceSingle : t.lpSourceMulti}</Label>
+                <LandingProductPicker
+                  partnerId={partnerId}
+                  selected={selectedProducts}
+                  onChange={setSelectedProducts}
+                  mode={sourceMode === 'product_single' ? 'single' : 'multi'}
+                  searchPlaceholder={t.lpSearchProducts}
+                  maxProducts={PARTNER_LANDING_MAX_PRODUCTS}
+                />
               </div>
-            ) : null}
+            )}
 
-            {phase === 'building' ? (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t.lpBuilding}
-              </p>
-            ) : null}
+            <div className="space-y-1">
+              <Label>{t.lpTitleLabel}</Label>
+              <Input
+                value={title}
+                onChange={(e) => {
+                  setTitleTouched(true)
+                  setTitle(e.target.value)
+                }}
+                placeholder={t.lpTitlePlaceholder}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>{t.lpBriefOptional}</Label>
+              <Textarea
+                value={briefText}
+                onChange={(e) => setBriefText(e.target.value)}
+                placeholder={t.lpBriefPlaceholder}
+                rows={3}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={includeMaterial} onChange={(e) => setIncludeMaterial(e.target.checked)} />
+              {t.lpIncludeMaterial}
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={includeFaq} onChange={(e) => setIncludeFaq(e.target.checked)} />
+              {t.lpIncludeFaq}
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setView('list')}>
+                {t.lpCancel}
+              </Button>
+              <Button type="button" disabled={submitting} onClick={() => void handleCreate()}>
+                {submitting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+                {t.lpCreateWithAi}
+              </Button>
+            </div>
           </div>
-        ) : null}
-
-        {loading ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t.lpLoading}
-          </p>
-        ) : landings.length === 0 && !inChat ? (
-          <p className="text-sm text-muted-foreground">{t.lpEmpty}</p>
-        ) : landings.length > 0 ? (
-          <ul className="space-y-3">
-            {landings.map((lp) => {
-              const busy = busyId === lp.id
-              const previewHref =
-                lp.previewPath ||
-                `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/landings/${encodeURIComponent(lp.id)}/preview`
-              return (
-                <li
-                  key={lp.id}
-                  className="flex flex-col gap-2 rounded-lg border border-border/60 p-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{lp.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      /lp/{lp.landingSlug} · {lp.inventoryIds.length} {t.lpProductsShort} ·{' '}
-                      {lp.isPublished ? t.publishedBadge : t.draftBadge}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button type="button" size="sm" variant="outline" asChild>
-                      <a href={previewHref} target="_blank" rel="noopener noreferrer">
-                        {t.previewButton}
-                      </a>
-                    </Button>
-                    {lp.publicUrl ? (
-                      <Button type="button" size="sm" variant="outline" asChild>
-                        <a href={lp.publicUrl} target="_blank" rel="noopener noreferrer">
-                          {t.lpOpenPublic}
-                          <ExternalLink className="ml-1 h-3 w-3" />
-                        </a>
-                      </Button>
-                    ) : null}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() => setSectionsDialogLanding(lp)}
-                    >
-                      <Sparkles className="mr-1 h-3 w-3" />
-                      {t.lpManageAiContent}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() => void handleRebuild(lp.id)}
-                    >
-                      {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                      {t.lpRebuild}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => void handlePublish(lp.id, !lp.isPublished)}
-                    >
-                      {lp.isPublished ? t.unpublishButton : t.publishButton}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={() => void handleDelete(lp.id)}
-                      aria-label={t.lpDelete}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        ) : null}
+        )}
       </CardContent>
 
-      {sectionsDialogLanding ? (
+      {editLanding ? (
         <LandingAiSectionsDialog
           partnerId={partnerId}
-          landing={sectionsDialogLanding}
+          landing={editLanding}
           t={t}
-          open={Boolean(sectionsDialogLanding)}
-          onOpenChange={(open) => !open && setSectionsDialogLanding(null)}
+          open
+          autogen={autogen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditLanding(null)
+              setAutogen(false)
+              void loadLandings()
+            }
+          }}
           onToast={onToast}
         />
       ) : null}

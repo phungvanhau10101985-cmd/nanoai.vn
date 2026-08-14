@@ -28,6 +28,7 @@ import {
   resolvePartnerCategoryAncestors,
   resolvePartnerCategoryDisplayName,
 } from '@/lib/partner-website/category/partner-category-types'
+import { maybePartnerSiteVisualProductPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 
 type Props = { params: Promise<{ slug: string; inventoryId: string }> }
 
@@ -81,6 +82,9 @@ export default async function PartnerSiteProductDetailPage({ params }: Props) {
       })
     )
   }
+
+  const visual = maybePartnerSiteVisualProductPage(shop.site, row.id)
+  if (visual) return visual
 
   const relatedPage = await fetchPartnerInventoryActivePageWithCountFromPg(shop.partnerId, 0, 8)
   const relatedProducts = (relatedPage?.rows ?? [])

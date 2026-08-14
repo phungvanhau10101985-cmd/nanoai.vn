@@ -17,6 +17,8 @@ import {
   PARTNER_SITE_ORDER_STATUS_FILTER_KEYS,
   type PartnerSiteOrderStatusFilterKey,
 } from '@/lib/partner-website/shop/partner-site-order-status-filters'
+import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 
 type OrderRow = {
   id: string
@@ -24,14 +26,19 @@ type OrderRow = {
   shipping_status?: string | null
   product_name?: string | null
   product_image_url?: string | null
+  product_inventory_id?: string | null
+  product_url?: string | null
   required_amount?: number | null
   subtotal_amount?: number | null
+  paid_amount?: number | null
   quantity?: number | null
   payment_qr_url?: string | null
   payment_reference?: string | null
   shipping_address?: string | null
   created_at?: string | null
   has_review?: boolean | null
+  can_cancel?: boolean | null
+  can_confirm_received?: boolean | null
 }
 
 type Props = {
@@ -39,9 +46,10 @@ type Props = {
   partnerSlug: string
   locale: WebLocale
   chatPath: string
-  /** W5.3 — filter ban đầu (vd từ hash `#orders?tab=waiting_payment`). */
   initialFilter?: string | null
 }
+
+type Panel = 'none' | 'detail' | 'payment' | 'track' | 'cancel' | 'confirm'
 
 function filterLabel(
   key: PartnerSiteOrderStatusFilterKey,
@@ -60,21 +68,49 @@ function filterLabel(
       return t.ordersFilterReviewed
     case 'cancelled':
       return t.ordersFilterCancelled
+    case 'returned':
+      return t.ordersFilterReturned
   }
 }
 
+function timelineSteps(
+  ship: string | null | undefined,
+  t: ReturnType<typeof getPartnerSiteShopCopy>
+): Array<{ key: string; label: string; done: boolean; active: boolean }> {
+  const order = ['pending', 'confirmed', 'packing', 'shipping', 'delivered']
+  const idx = Math.max(0, order.indexOf(String(ship ?? 'pending')))
+  const labels = [
+    t.orderTimelineCreated,
+    t.orderTimelineConfirmed,
+    t.orderTimelinePacking,
+    t.orderTimelineShipping,
+    t.orderTimelineDelivered,
+  ]
+  return order.map((key, i) => ({
+    key,
+    label: labels[i] ?? key,
+    done: i < idx || ship === 'delivered',
+    active: i === idx && ship !== 'delivered' && ship !== 'cancelled' && ship !== 'returned',
+  }))
+}
+
 export function PartnerSiteShopOrdersClient({
-  siteSlug: _siteSlug,
+  siteSlug,
   partnerSlug,
   locale,
   chatPath,
   initialFilter,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(_siteSlug)
+  const customDomain = usePartnerSiteCustomDomain()
+  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [panel, setPanel] = useState<Panel>('none')
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [actionStatus, setActionStatus] = useState('')
   const [filter, setFilter] = useState<PartnerSiteOrderStatusFilterKey>(() =>
     parsePartnerSiteOrderStatusFilter(initialFilter)
   )
@@ -83,22 +119,27 @@ export function PartnerSiteShopOrdersClient({
     setFilter(parsePartnerSiteOrderStatusFilter(initialFilter))
   }, [initialFilter])
 
+  const reload = async () => {
+    const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/orders`, {
+      credentials: 'same-origin',
+      headers: authHeaders(),
+    })
+    captureFromResponse(res)
+    const json = (await res.json()) as { orders?: OrderRow[] }
+    setOrders(Array.isArray(json.orders) ? json.orders : [])
+  }
+
   useEffect(() => {
     if (!ready) return
     void (async () => {
       setLoading(true)
       try {
-        const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/orders`, {
-          credentials: 'same-origin',
-          headers: authHeaders(),
-        })
-        captureFromResponse(res)
-        const json = (await res.json()) as { orders?: OrderRow[] }
-        setOrders(Array.isArray(json.orders) ? json.orders : [])
+        await reload()
       } finally {
         setLoading(false)
       }
     })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once session ready
   }, [authHeaders, captureFromResponse, partnerSlug, ready])
 
   const counts = useMemo(() => countPartnerSiteOrdersByStatusFilter(orders), [orders])
@@ -125,6 +166,45 @@ export function PartnerSiteShopOrdersClient({
       url.hash = `#orders?tab=${key}`
     }
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }
+
+  const togglePanel = (id: string, next: Panel) => {
+    if (openId === id && panel === next) {
+      setOpenId(null)
+      setPanel('none')
+      return
+    }
+    setOpenId(id)
+    setPanel(next)
+    setActionStatus('')
+  }
+
+  async function patchOrder(orderId: string, action: 'cancel' | 'confirm_received', reason?: string) {
+    setBusyId(orderId)
+    setActionStatus('')
+    try {
+      const res = await fetch(
+        `/api/messaging/guest/${encodeURIComponent(partnerSlug)}/order/${encodeURIComponent(orderId)}`,
+        {
+          method: 'PATCH',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ action, reason }),
+        }
+      )
+      captureFromResponse(res)
+      if (!res.ok) {
+        setActionStatus(t.orderActionFailed)
+        return
+      }
+      await reload()
+      setActionStatus(action === 'cancel' ? t.orderCancelOk : t.orderConfirmReceivedOk)
+      setPanel('none')
+      setOpenId(null)
+      setCancelReason('')
+    } finally {
+      setBusyId(null)
+    }
   }
 
   return (
@@ -158,13 +238,29 @@ export function PartnerSiteShopOrdersClient({
       {!loading && orders.length > 0 && visibleOrders.length === 0 ? (
         <p className="pw-shop-muted">{t.ordersFilterEmpty}</p>
       ) : null}
+      {actionStatus ? <p className="pw-shop-muted" style={{ marginTop: 8 }}>{actionStatus}</p> : null}
 
       <ul className="pw-shop-orders-list">
         {visibleOrders.map((o) => {
-          const expanded = expandedId === o.id
+          const open = openId === o.id
           const qr = o.payment_qr_url?.trim() ?? ''
           const ref = o.payment_reference?.trim() ?? ''
           const showPayment = Boolean(qr || ref || (o.required_amount != null && o.required_amount > 0))
+          const waitingPay = o.status === 'awaiting_payment' || o.status === 'payment_checking'
+          const canTrack =
+            o.status !== 'cancelled' &&
+            o.shipping_status !== 'cancelled' &&
+            (o.status === 'paid_verified' ||
+              o.status === 'pending_manual_review' ||
+              ['confirmed', 'packing', 'shipping', 'delivered'].includes(String(o.shipping_status ?? '')))
+          const reviewHref = o.product_inventory_id
+            ? partnerSiteProductPath(siteSlug, o.product_inventory_id, {
+                customDomain,
+                name: o.product_name,
+              })
+            : o.product_url || ''
+          const steps = timelineSteps(o.shipping_status, t)
+
           return (
             <li key={o.id} className="pw-shop-order-card">
               <div className="pw-shop-order-card-head">
@@ -174,7 +270,7 @@ export function PartnerSiteShopOrdersClient({
                 <div className="pw-shop-order-card-main">
                   <strong>{o.product_name || t.orderIdLabel}</strong>
                   <p className="pw-shop-muted">
-                    {t.orderIdLabel}: {o.id}
+                    {t.orderIdLabel}: {ref || o.id}
                   </p>
                   {o.created_at ? (
                     <p className="pw-shop-muted">
@@ -203,18 +299,64 @@ export function PartnerSiteShopOrdersClient({
                   ) : null}
                 </div>
               </div>
-              {showPayment ? (
-                <div className="pw-shop-order-actions">
-                  <button
-                    type="button"
-                    className="pw-shop-btn pw-shop-btn-outline"
-                    onClick={() => setExpandedId(expanded ? null : o.id)}
-                  >
-                    {expanded ? t.orderHidePayment : t.orderViewPayment}
+
+              <div className="pw-shop-order-actions">
+                <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'detail')}>
+                  {open && panel === 'detail' ? t.orderHideDetail : t.orderDetail}
+                </button>
+                {showPayment && waitingPay ? (
+                  <button type="button" className="pw-shop-btn" onClick={() => togglePanel(o.id, 'payment')}>
+                    {open && panel === 'payment' ? t.orderHidePayment : t.orderViewPayment}
                   </button>
+                ) : null}
+                {canTrack ? (
+                  <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'track')}>
+                    {open && panel === 'track' ? t.orderHideTrack : t.orderTrack}
+                  </button>
+                ) : null}
+                {o.can_confirm_received ? (
+                  <button type="button" className="pw-shop-btn" onClick={() => togglePanel(o.id, 'confirm')}>
+                    {t.orderConfirmReceived}
+                  </button>
+                ) : null}
+                {o.has_review === false && o.shipping_status === 'delivered' && reviewHref ? (
+                  <a href={reviewHref} className="pw-shop-btn pw-shop-btn-outline">
+                    {t.orderReview}
+                  </a>
+                ) : null}
+                {o.can_cancel ? (
+                  <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'cancel')}>
+                    {t.orderCancel}
+                  </button>
+                ) : null}
+              </div>
+
+              {open && panel === 'detail' ? (
+                <div className="pw-shop-order-payment">
+                  {o.shipping_address ? (
+                    <p>
+                      <strong>{t.orderAddressLabel}:</strong> {o.shipping_address}
+                    </p>
+                  ) : null}
+                  {o.subtotal_amount != null ? (
+                    <p className="pw-shop-muted">
+                      {t.cartSubtotal}: {formatVnd(Number(o.subtotal_amount))}
+                    </p>
+                  ) : null}
+                  {o.paid_amount != null && o.paid_amount > 0 ? (
+                    <p className="pw-shop-muted">
+                      {t.depositAmount}: {formatVnd(Number(o.paid_amount))}
+                    </p>
+                  ) : null}
+                  {ref ? (
+                    <p className="pw-shop-muted">
+                      {t.paymentReference}: {ref}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
-              {expanded && showPayment ? (
+
+              {open && panel === 'payment' && showPayment ? (
                 <div className="pw-shop-order-payment">
                   {ref ? (
                     <p className="pw-shop-muted">
@@ -232,6 +374,82 @@ export function PartnerSiteShopOrdersClient({
                       {t.navChat}
                     </a>
                   </p>
+                </div>
+              ) : null}
+
+              {open && panel === 'track' ? (
+                <div className="pw-shop-order-payment">
+                  <p style={{ fontWeight: 700, margin: '0 0 10px' }}>{t.orderTimelineTitle}</p>
+                  <ol className="pw-shop-order-timeline">
+                    {steps.map((step) => (
+                      <li
+                        key={step.key}
+                        className={step.done ? 'is-done' : step.active ? 'is-active' : undefined}
+                      >
+                        {step.label}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ) : null}
+
+              {open && panel === 'confirm' ? (
+                <div className="pw-shop-order-payment">
+                  <p>{t.orderConfirmReceivedHint}</p>
+                  <div className="pw-shop-order-actions" style={{ marginTop: 12 }}>
+                    <button
+                      type="button"
+                      className="pw-shop-btn"
+                      disabled={busyId === o.id}
+                      onClick={() => void patchOrder(o.id, 'confirm_received')}
+                    >
+                      {t.orderConfirmReceived}
+                    </button>
+                    <button
+                      type="button"
+                      className="pw-shop-btn pw-shop-btn-outline"
+                      onClick={() => {
+                        setOpenId(null)
+                        setPanel('none')
+                      }}
+                    >
+                      {t.reviewsFormCancel}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {open && panel === 'cancel' ? (
+                <div className="pw-shop-order-payment">
+                  <p className="pw-shop-muted">{t.orderCancelHint}</p>
+                  <label className="pw-shop-muted" style={{ display: 'block', marginTop: 8 }}>
+                    {t.orderCancelReason}
+                    <input
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      style={{ display: 'block', width: '100%', marginTop: 6, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--pw-border, #e5e7eb)' }}
+                    />
+                  </label>
+                  <div className="pw-shop-order-actions" style={{ marginTop: 12 }}>
+                    <button
+                      type="button"
+                      className="pw-shop-btn pw-shop-btn-outline"
+                      disabled={busyId === o.id}
+                      onClick={() => void patchOrder(o.id, 'cancel', cancelReason)}
+                    >
+                      {t.orderCancel}
+                    </button>
+                    <button
+                      type="button"
+                      className="pw-shop-btn"
+                      onClick={() => {
+                        setOpenId(null)
+                        setPanel('none')
+                      }}
+                    >
+                      {t.reviewsFormCancel}
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </li>

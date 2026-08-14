@@ -10,6 +10,7 @@ export type PartnerSiteOrderStatusFilterKey =
   | 'delivered'
   | 'reviewed'
   | 'cancelled'
+  | 'returned'
 
 export type PartnerSiteOrderFilterInput = {
   status?: string | null
@@ -17,10 +18,8 @@ export type PartnerSiteOrderFilterInput = {
   has_review?: boolean | null
 }
 
-/** Nhóm shortcut (không gồm `all`). `other` = returned / trạng thái lạ — chỉ hiện ở "Tất cả". */
-export type PartnerSiteOrderStatusBucket =
-  | Exclude<PartnerSiteOrderStatusFilterKey, 'all'>
-  | 'other'
+/** Nhóm shortcut (không gồm `all`). `other` = trạng thái lạ — chỉ hiện ở "Tất cả". */
+export type PartnerSiteOrderStatusBucket = Exclude<PartnerSiteOrderStatusFilterKey, 'all'> | 'other'
 
 export const PARTNER_SITE_ORDER_STATUS_FILTER_KEYS: readonly PartnerSiteOrderStatusFilterKey[] = [
   'all',
@@ -29,6 +28,7 @@ export const PARTNER_SITE_ORDER_STATUS_FILTER_KEYS: readonly PartnerSiteOrderSta
   'delivered',
   'reviewed',
   'cancelled',
+  'returned',
 ] as const
 
 export function classifyPartnerSiteOrderStatusBucket(
@@ -40,7 +40,7 @@ export function classifyPartnerSiteOrderStatusBucket(
   if (status === 'cancelled' || ship === 'cancelled') return 'cancelled'
   if (order.has_review) return 'reviewed'
   if (ship === 'delivered') return 'delivered'
-  if (ship === 'returned') return 'other'
+  if (ship === 'returned') return 'returned'
   if (status === 'awaiting_payment' || status === 'payment_checking') return 'waiting_payment'
   if (
     status === 'paid_verified' ||
@@ -73,6 +73,7 @@ export function countPartnerSiteOrdersByStatusFilter(
     delivered: 0,
     reviewed: 0,
     cancelled: 0,
+    returned: 0,
   }
   for (const order of orders) {
     const bucket = classifyPartnerSiteOrderStatusBucket(order)

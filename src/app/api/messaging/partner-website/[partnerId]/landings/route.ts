@@ -9,7 +9,12 @@ import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-web
 import { isPgConfigured } from '@/lib/db/pool'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { defaultLandingSectionPlan } from '@/lib/partner-website/landing/landing-ai-types'
-import { PARTNER_LANDING_MAX_PRODUCTS } from '@/lib/partner-website/landing/partner-landing-types'
+import {
+  PARTNER_LANDING_CATEGORY_LIMIT_MAX,
+  PARTNER_LANDING_MAX_PRODUCTS,
+  landingAiKindOf,
+  type LandingAiKind,
+} from '@/lib/partner-website/landing/partner-landing-types'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import {
   normalizePartnerLandingSlug,
@@ -53,14 +58,32 @@ export async function GET(
   }
 
   const website = await fetchPartnerWebsiteByPartnerIdPg(pid)
-  const landings = await listPartnerLandingPagesPg(pid)
+  const all = await listPartnerLandingPagesPg(pid)
+  const kindRaw = String(req.nextUrl.searchParams.get('kind') ?? '').trim()
+  const kind: LandingAiKind | '' =
+    kindRaw === 'single' || kindRaw === 'category' || kindRaw === 'multi' ? kindRaw : ''
+  const landings = kind ? all.filter((lp) => landingAiKindOf(lp) === kind) : all
   const base = siteBaseUrl(req)
+
+  const kindStats = (k: LandingAiKind) => {
+    const rows = all.filter((lp) => landingAiKindOf(lp) === k)
+    return {
+      total: rows.length,
+      published: rows.filter((lp) => lp.isPublished).length,
+    }
+  }
 
   return NextResponse.json({
     websiteExists: Boolean(website),
     siteSlug: website?.siteSlug ?? null,
+    stats: {
+      single: kindStats('single'),
+      category: kindStats('category'),
+      multi: kindStats('multi'),
+    },
     landings: landings.map((lp) => ({
       ...lp,
+      kind: landingAiKindOf(lp),
       publicUrl:
         website && lp.isPublished
           ? `${base}${partnerSiteLandingPath(website.siteSlug, lp.landingSlug)}`
@@ -106,11 +129,13 @@ export async function POST(
     landingSlug?: string
     inventoryIds?: unknown
     locale?: string
-    /** L3.2/L3.6 — "products" (chọn tay 1-8 SP, hành vi cũ) | "category" (top N sản phẩm live). */
+    /** L3.2/L3.6 — "products" | "category". */
     sourceType?: string
     categoryId?: string
     productsLimit?: number
     materialFilter?: string
+    includeMaterial?: boolean
+    includeFaq?: boolean
   }
 
   const title = String(body.title ?? '').trim()
@@ -131,6 +156,16 @@ export async function POST(
   if (sourceType === 'category' && !String(body.categoryId ?? '').trim()) {
     return NextResponse.json({ error: 'categoryId required for category landing' }, { status: 400 })
   }
+  const includeMaterial = body.includeMaterial !== false
+  const includeFaq = body.includeFaq !== false
+  const materialFilter = String(body.materialFilter ?? '').trim()
+  if (sourceType === 'category' && includeMaterial && !materialFilter) {
+    return NextResponse.json({ error: 'materialFilter required when material section is enabled' }, { status: 400 })
+  }
+  const productsLimit = Math.max(
+    1,
+    Math.min(PARTNER_LANDING_CATEGORY_LIMIT_MAX, Number(body.productsLimit ?? 12) || 12)
+  )
 
   const landingSlug = normalizePartnerLandingSlug(
     body.landingSlug?.trim() || title.replace(/\s+/g, '-').slice(0, 48)
@@ -151,8 +186,8 @@ export async function POST(
     inventoryIds,
     sourceType,
     categoryId: sourceType === 'category' ? String(body.categoryId).trim() : null,
-    productsLimit: body.productsLimit,
-    materialFilter: body.materialFilter,
+    productsLimit,
+    materialFilter: materialFilter || null,
   })
 
   if (!landing) {
@@ -163,7 +198,7 @@ export async function POST(
   }
 
   // L3.1/L3.6 — landing mới luôn dùng engine Ladipage AI (section cố định) từ đầu.
-  await ensureDefaultLandingSectionsPg(landing.id, defaultLandingSectionPlan())
+  await ensureDefaultLandingSectionsPg(landing.id, defaultLandingSectionPlan({ includeMaterial, includeFaq }))
 
   return NextResponse.json({ success: true, landing })
 }

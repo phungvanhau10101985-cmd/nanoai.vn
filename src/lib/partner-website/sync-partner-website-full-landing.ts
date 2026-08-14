@@ -7,6 +7,13 @@ import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import {
+  normalizeVisualCategoryPaths,
+  normalizeVisualCmsSlugs,
+  normalizeVisualPageKeys,
+  normalizeVisualProductIds,
+  preserveAndRecolorVisualPageFiles,
+} from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import {
   isFullLandingV1Template,
   upgradeLandingV1Pages,
 } from '@/lib/partner-website/template/upgrade-landing-v1-template'
@@ -50,10 +57,23 @@ export async function syncPartnerWebsiteFullLandingPg(input: {
 
   const profile = await fetchPartnerProfileForWebsitePg(pid)
   const chatPath = profile ? `/messaging/p/${encodeURIComponent(profile.slug)}` : undefined
-  const project = syncTemplateToProject({
+  const synced = syncTemplateToProject({
     templateId: existing.templateId,
     theme: existing.theme,
     pages,
+  })
+  const project = preserveAndRecolorVisualPageFiles({
+    previous: existing.project,
+    next: synced,
+    theme: existing.theme,
+    visualPageKeys: normalizeVisualPageKeys(existing.theme.visualPageKeys),
+    visualMobilePageKeys: normalizeVisualPageKeys(existing.theme.visualMobilePageKeys),
+    visualCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualCategoryPaths),
+    visualMobileCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualMobileCategoryPaths),
+    visualProductIds: normalizeVisualProductIds(existing.theme.visualProductIds),
+    visualMobileProductIds: normalizeVisualProductIds(existing.theme.visualMobileProductIds),
+    visualCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualCmsSlugs),
+    visualMobileCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualMobileCmsSlugs),
   })
 
   const saved = await updatePartnerWebsiteDraftPg({

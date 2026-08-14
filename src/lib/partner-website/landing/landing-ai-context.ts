@@ -72,6 +72,7 @@ export async function buildLandingAiContext(
       categoryId: landing.categoryId,
       offset: 0,
       limit: landing.productsLimit,
+      material: landing.materialFilter || undefined,
     })
     rows = page?.rows ?? []
   } else {

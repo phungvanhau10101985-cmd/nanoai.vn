@@ -90,8 +90,18 @@ export type LandingAiContext = {
   totalReviews: number
 }
 
-export function defaultLandingSectionPlan(): LandingAiSectionType[] {
-  return ['hero', 'highlights', 'material', 'products_grid', 'trust_cta', 'faq']
+/** Giống 188 `build_fixed_sections_plan`: material/FAQ có thể tắt lúc tạo. */
+export function defaultLandingSectionPlan(opts?: {
+  includeMaterial?: boolean
+  includeFaq?: boolean
+}): LandingAiSectionType[] {
+  const includeMaterial = opts?.includeMaterial !== false
+  const includeFaq = opts?.includeFaq !== false
+  const plan: LandingAiSectionType[] = ['hero', 'highlights']
+  if (includeMaterial) plan.push('material')
+  plan.push('products_grid', 'trust_cta')
+  if (includeFaq) plan.push('faq')
+  return plan
 }
 
 export function jsonToLandingSectionData(raw: Json): LandingSectionData {

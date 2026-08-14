@@ -120,7 +120,28 @@ export type PartnerSiteShopCopy = {
   ordersFilterDelivered: string
   ordersFilterReviewed: string
   ordersFilterCancelled: string
+  ordersFilterReturned: string
   ordersFilterEmpty: string
+  orderTrack: string
+  orderHideTrack: string
+  orderConfirmReceived: string
+  orderConfirmReceivedHint: string
+  orderConfirmReceivedOk: string
+  orderCancel: string
+  orderCancelHint: string
+  orderCancelOk: string
+  orderCancelReason: string
+  orderReview: string
+  orderDetail: string
+  orderHideDetail: string
+  orderTimelineTitle: string
+  orderTimelineCreated: string
+  orderTimelineConfirmed: string
+  orderTimelinePacking: string
+  orderTimelineShipping: string
+  orderTimelineDelivered: string
+  orderActionFailed: string
+  orderAddressLabel: string
   authSendOtp: string
   authVerifyOtp: string
   authSuccess: string
@@ -187,6 +208,17 @@ export type PartnerSiteShopCopy = {
   accountNotificationsTitle: string
   accountNotificationsEmpty: string
   accountNotificationsMarkAllRead: string
+  accountNotificationsLogin: string
+  accountNotificationsLoading: string
+  accountNotificationsSignIn: string
+  pushEnableTitle: string
+  pushEnableHint: string
+  pushEnableButton: string
+  pushEnabled: string
+  pushDenied: string
+  pushUnsupported: string
+  pushIosHint: string
+  pushSyncing: string
   /** W5.5 */
   accountInstallApp: string
   accountInstallAppTitle: string
@@ -256,6 +288,17 @@ export type PartnerSiteShopCopy = {
   /** Tokens `{year}` `{shop}` */
   footerCopyright: string
   footerPaymentHint: string
+  lpExploreProducts: string
+  lpViewProducts: string
+  lpSuggestedForYou: string
+  lpHighlightsHeading: string
+  lpFaqHeading: string
+  lpRealReviews: string
+  lpViewFullCategory: string
+  lpMaterialChip: string
+  lpTrust1: string
+  lpTrust2: string
+  lpTrust3: string
 }
 
 const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
@@ -370,7 +413,28 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     ordersFilterDelivered: 'Đã nhận',
     ordersFilterReviewed: 'Đã đánh giá',
     ordersFilterCancelled: 'Đã huỷ',
+    ordersFilterReturned: 'Đơn hoàn',
     ordersFilterEmpty: 'Không có đơn nào ở trạng thái này.',
+    orderTrack: 'Theo dõi đơn',
+    orderHideTrack: 'Ẩn lịch trình',
+    orderConfirmReceived: 'Đã nhận hàng',
+    orderConfirmReceivedHint: 'Xác nhận bạn đã nhận đủ hàng. Sau đó bạn có thể đánh giá sản phẩm.',
+    orderConfirmReceivedOk: 'Đã xác nhận nhận hàng.',
+    orderCancel: 'Huỷ đơn',
+    orderCancelHint: 'Chỉ huỷ được khi đơn chưa thanh toán / chưa giao.',
+    orderCancelOk: 'Đã huỷ đơn hàng.',
+    orderCancelReason: 'Lý do huỷ (không bắt buộc)',
+    orderReview: 'Đánh giá',
+    orderDetail: 'Chi tiết đơn',
+    orderHideDetail: 'Ẩn chi tiết',
+    orderTimelineTitle: 'Lịch trình đơn hàng',
+    orderTimelineCreated: 'Đã đặt hàng',
+    orderTimelineConfirmed: 'Shop đã xác nhận',
+    orderTimelinePacking: 'Đang đóng gói',
+    orderTimelineShipping: 'Đang giao hàng',
+    orderTimelineDelivered: 'Đã nhận hàng',
+    orderActionFailed: 'Không thực hiện được. Thử lại.',
+    orderAddressLabel: 'Địa chỉ giao',
     authSendOtp: 'Gửi mã OTP',
     authVerifyOtp: 'Xác minh',
     authSuccess: 'Đã xác minh email — có thể thanh toán.',
@@ -433,8 +497,19 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountSecurityReAuth: 'Đăng nhập lại',
     accountNotifications: 'Thông báo',
     accountNotificationsTitle: 'Trung tâm thông báo',
-    accountNotificationsEmpty: 'Chưa có thông báo.',
+    accountNotificationsEmpty: 'Bạn chưa có thông báo nào.',
     accountNotificationsMarkAllRead: 'Đánh dấu tất cả đã đọc',
+    accountNotificationsLogin: 'Vui lòng đăng nhập để xem thông báo.',
+    accountNotificationsLoading: 'Đang tải thông báo...',
+    accountNotificationsSignIn: 'Đăng nhập ngay',
+    pushEnableTitle: 'Thông báo trên trình duyệt',
+    pushEnableHint: 'Nhận thông báo đơn hàng và tin từ shop ngay cả khi bạn không mở trang.',
+    pushEnableButton: 'Bật thông báo đẩy',
+    pushEnabled: 'Đã bật thông báo đẩy trên thiết bị này.',
+    pushDenied: 'Trình duyệt đang chặn thông báo. Hãy cho phép trong cài đặt trang.',
+    pushUnsupported: 'Trình duyệt này chưa hỗ trợ thông báo đẩy.',
+    pushIosHint: 'Trên iPhone/iPad: thêm shop vào màn hình chính rồi bật thông báo trong app.',
+    pushSyncing: 'Đang bật…',
     accountInstallApp: 'Cài đặt app',
     accountInstallAppTitle: 'Cài đặt ứng dụng',
     accountInstallAppHint: 'Thêm cửa hàng vào màn hình chính để mở nhanh như một app.',
@@ -502,6 +577,17 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerBrandHint: 'Mua sắm trực tuyến — sản phẩm đúng mô tả, giao hàng toàn quốc.',
     footerCopyright: '© {year} {shop}. Bảo lưu mọi quyền.',
     footerPaymentHint: 'Thanh toán: COD · Chuyển khoản',
+    lpExploreProducts: 'Khám phá sản phẩm',
+    lpViewProducts: 'Xem sản phẩm',
+    lpSuggestedForYou: 'Gợi ý dành cho bạn',
+    lpHighlightsHeading: 'Điểm nổi bật & đáng mua',
+    lpFaqHeading: 'Câu hỏi thường gặp',
+    lpRealReviews: '{rating}/5 · {count} đánh giá thật',
+    lpViewFullCategory: 'Xem toàn bộ danh mục →',
+    lpMaterialChip: 'Chất liệu: {name}',
+    lpTrust1: 'Chọn lựa kỹ lưỡng',
+    lpTrust2: 'Đặt hàng thuận tiện',
+    lpTrust3: 'Hỗ trợ khi cần',
   },
   en: {
     navHome: 'Home',
@@ -614,7 +700,28 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     ordersFilterDelivered: 'Delivered',
     ordersFilterReviewed: 'Reviewed',
     ordersFilterCancelled: 'Cancelled',
+    ordersFilterReturned: 'Returned',
     ordersFilterEmpty: 'No orders in this status.',
+    orderTrack: 'Track order',
+    orderHideTrack: 'Hide timeline',
+    orderConfirmReceived: 'I received the order',
+    orderConfirmReceivedHint: 'Confirm you received everything. You can review the product after that.',
+    orderConfirmReceivedOk: 'Delivery confirmed.',
+    orderCancel: 'Cancel order',
+    orderCancelHint: 'You can cancel only before payment is confirmed or the order is shipped.',
+    orderCancelOk: 'Order cancelled.',
+    orderCancelReason: 'Cancel reason (optional)',
+    orderReview: 'Review',
+    orderDetail: 'Order details',
+    orderHideDetail: 'Hide details',
+    orderTimelineTitle: 'Order timeline',
+    orderTimelineCreated: 'Order placed',
+    orderTimelineConfirmed: 'Shop confirmed',
+    orderTimelinePacking: 'Packing',
+    orderTimelineShipping: 'Out for delivery',
+    orderTimelineDelivered: 'Delivered',
+    orderActionFailed: 'Could not complete this action. Try again.',
+    orderAddressLabel: 'Shipping address',
     authSendOtp: 'Send OTP',
     authVerifyOtp: 'Verify',
     authSuccess: 'Email verified — you can checkout.',
@@ -677,8 +784,19 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountSecurityReAuth: 'Sign in again',
     accountNotifications: 'Notifications',
     accountNotificationsTitle: 'Notification center',
-    accountNotificationsEmpty: 'No notifications yet.',
+    accountNotificationsEmpty: 'You have no notifications yet.',
     accountNotificationsMarkAllRead: 'Mark all as read',
+    accountNotificationsLogin: 'Please sign in to view notifications.',
+    accountNotificationsLoading: 'Loading notifications...',
+    accountNotificationsSignIn: 'Sign in now',
+    pushEnableTitle: 'Browser notifications',
+    pushEnableHint: 'Get order and shop alerts even when this page is closed.',
+    pushEnableButton: 'Turn on push notifications',
+    pushEnabled: 'Push notifications are on for this device.',
+    pushDenied: 'Notifications are blocked. Allow them in your browser site settings.',
+    pushUnsupported: 'This browser does not support push notifications.',
+    pushIosHint: 'On iPhone/iPad: add the shop to your Home Screen, then enable notifications in the app.',
+    pushSyncing: 'Turning on…',
     accountInstallApp: 'Install app',
     accountInstallAppTitle: 'Install the app',
     accountInstallAppHint: 'Add this shop to your home screen for quick access like an app.',
@@ -746,6 +864,17 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerBrandHint: 'Shop online — products as described, nationwide delivery.',
     footerCopyright: '© {year} {shop}. All rights reserved.',
     footerPaymentHint: 'Payment: COD · Bank transfer',
+    lpExploreProducts: 'Explore products',
+    lpViewProducts: 'View products',
+    lpSuggestedForYou: 'Suggested for you',
+    lpHighlightsHeading: 'Highlights worth buying',
+    lpFaqHeading: 'Frequently asked questions',
+    lpRealReviews: '{rating}/5 · {count} real reviews',
+    lpViewFullCategory: 'View full category →',
+    lpMaterialChip: 'Material: {name}',
+    lpTrust1: 'Carefully selected',
+    lpTrust2: 'Easy ordering',
+    lpTrust3: 'Support when you need it',
   },
   zh: {
     navHome: '首页',
@@ -858,7 +987,28 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     ordersFilterDelivered: '已收货',
     ordersFilterReviewed: '已评价',
     ordersFilterCancelled: '已取消',
+    ordersFilterReturned: '已退货',
     ordersFilterEmpty: '该状态下没有订单。',
+    orderTrack: '跟踪订单',
+    orderHideTrack: '隐藏进度',
+    orderConfirmReceived: '已收货',
+    orderConfirmReceivedHint: '确认您已收到全部商品。之后可以评价商品。',
+    orderConfirmReceivedOk: '已确认收货。',
+    orderCancel: '取消订单',
+    orderCancelHint: '仅在未确认付款或未发货时可以取消。',
+    orderCancelOk: '订单已取消。',
+    orderCancelReason: '取消原因（可选）',
+    orderReview: '评价',
+    orderDetail: '订单详情',
+    orderHideDetail: '隐藏详情',
+    orderTimelineTitle: '订单进度',
+    orderTimelineCreated: '已下单',
+    orderTimelineConfirmed: '店铺已确认',
+    orderTimelinePacking: '打包中',
+    orderTimelineShipping: '配送中',
+    orderTimelineDelivered: '已收货',
+    orderActionFailed: '操作失败，请重试。',
+    orderAddressLabel: '收货地址',
     authSendOtp: '发送验证码',
     authVerifyOtp: '验证',
     authSuccess: '邮箱已验证 — 可以结账。',
@@ -921,8 +1071,19 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountSecurityReAuth: '重新登录',
     accountNotifications: '通知',
     accountNotificationsTitle: '通知中心',
-    accountNotificationsEmpty: '暂无通知。',
+    accountNotificationsEmpty: '您还没有通知。',
     accountNotificationsMarkAllRead: '全部标为已读',
+    accountNotificationsLogin: '请登录后查看通知。',
+    accountNotificationsLoading: '正在加载通知...',
+    accountNotificationsSignIn: '立即登录',
+    pushEnableTitle: '浏览器通知',
+    pushEnableHint: '即使未打开页面，也能收到订单和店铺通知。',
+    pushEnableButton: '开启推送通知',
+    pushEnabled: '此设备已开启推送通知。',
+    pushDenied: '浏览器已拦截通知。请在网站设置中允许。',
+    pushUnsupported: '此浏览器不支持推送通知。',
+    pushIosHint: '在 iPhone/iPad：先将店铺添加到主屏幕，再在应用中开启通知。',
+    pushSyncing: '正在开启…',
     accountInstallApp: '安装应用',
     accountInstallAppTitle: '安装应用',
     accountInstallAppHint: '将店铺添加到主屏幕，像应用一样快速打开。',
@@ -990,6 +1151,17 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerBrandHint: '在线购物 — 描述相符，全国配送。',
     footerCopyright: '© {year} {shop}。保留所有权利。',
     footerPaymentHint: '支付：货到付款 · 银行转账',
+    lpExploreProducts: '探索商品',
+    lpViewProducts: '查看商品',
+    lpSuggestedForYou: '为你推荐',
+    lpHighlightsHeading: '亮点与购买理由',
+    lpFaqHeading: '常见问题',
+    lpRealReviews: '{rating}/5 · {count} 条真实评价',
+    lpViewFullCategory: '查看全部分类 →',
+    lpMaterialChip: '材质：{name}',
+    lpTrust1: '精选好物',
+    lpTrust2: '下单便捷',
+    lpTrust3: '随时支持',
   },
   ja: {
     navHome: 'ホーム',
@@ -1102,7 +1274,28 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     ordersFilterDelivered: '受け取り済み',
     ordersFilterReviewed: 'レビュー済み',
     ordersFilterCancelled: 'キャンセル',
+    ordersFilterReturned: '返品',
     ordersFilterEmpty: 'このステータスの注文はありません。',
+    orderTrack: '注文を追跡',
+    orderHideTrack: '進捗を隠す',
+    orderConfirmReceived: '受け取りました',
+    orderConfirmReceivedHint: '商品をすべて受け取ったことを確認します。その後レビューできます。',
+    orderConfirmReceivedOk: '受け取りを確認しました。',
+    orderCancel: '注文をキャンセル',
+    orderCancelHint: '支払い確認前、または発送前のみキャンセルできます。',
+    orderCancelOk: '注文をキャンセルしました。',
+    orderCancelReason: 'キャンセル理由（任意）',
+    orderReview: 'レビュー',
+    orderDetail: '注文詳細',
+    orderHideDetail: '詳細を隠す',
+    orderTimelineTitle: '注文の進捗',
+    orderTimelineCreated: '注文済み',
+    orderTimelineConfirmed: 'ショップ確認済み',
+    orderTimelinePacking: '梱包中',
+    orderTimelineShipping: '配送中',
+    orderTimelineDelivered: '受け取り済み',
+    orderActionFailed: '操作できませんでした。再試行してください。',
+    orderAddressLabel: 'お届け先',
     authSendOtp: 'OTP送信',
     authVerifyOtp: '確認',
     authSuccess: 'メール確認済み — 決済できます。',
@@ -1167,6 +1360,17 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountNotificationsTitle: '通知センター',
     accountNotificationsEmpty: '通知はまだありません。',
     accountNotificationsMarkAllRead: 'すべて既読にする',
+    accountNotificationsLogin: '通知を見るにはログインしてください。',
+    accountNotificationsLoading: '通知を読み込み中...',
+    accountNotificationsSignIn: '今すぐログイン',
+    pushEnableTitle: 'ブラウザ通知',
+    pushEnableHint: 'このページを閉じていても、注文やショップのお知らせを受け取れます。',
+    pushEnableButton: 'プッシュ通知をオンにする',
+    pushEnabled: 'この端末でプッシュ通知がオンです。',
+    pushDenied: '通知がブロックされています。サイト設定で許可してください。',
+    pushUnsupported: 'このブラウザはプッシュ通知に対応していません。',
+    pushIosHint: 'iPhone/iPad：ホーム画面に追加してから、アプリ内で通知をオンにしてください。',
+    pushSyncing: 'オンにしています…',
     accountInstallApp: 'アプリをインストール',
     accountInstallAppTitle: 'アプリをインストール',
     accountInstallAppHint: 'ホーム画面に追加すると、アプリのようにすぐ開けます。',
@@ -1234,6 +1438,17 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerBrandHint: 'オンラインショップ — 記載どおりの商品、全国配送。',
     footerCopyright: '© {year} {shop}. 無断転載を禁じます。',
     footerPaymentHint: '支払い：代金引換 · 銀行振込',
+    lpExploreProducts: '商品を見る',
+    lpViewProducts: '商品を見る',
+    lpSuggestedForYou: 'あなたへのおすすめ',
+    lpHighlightsHeading: '注目ポイント',
+    lpFaqHeading: 'よくある質問',
+    lpRealReviews: '{rating}/5 · 本物のレビュー {count}件',
+    lpViewFullCategory: 'カテゴリをすべて見る →',
+    lpMaterialChip: '素材：{name}',
+    lpTrust1: '厳選した商品',
+    lpTrust2: 'かんたん注文',
+    lpTrust3: '必要なときにサポート',
   },
   ko: {
     navHome: '홈',
@@ -1346,7 +1561,28 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     ordersFilterDelivered: '수령 완료',
     ordersFilterReviewed: '리뷰 완료',
     ordersFilterCancelled: '취소됨',
+    ordersFilterReturned: '반품',
     ordersFilterEmpty: '이 상태의 주문이 없습니다.',
+    orderTrack: '주문 추적',
+    orderHideTrack: '진행 숨기기',
+    orderConfirmReceived: '수령했습니다',
+    orderConfirmReceivedHint: '상품을 모두 받았는지 확인합니다. 이후 리뷰를 남길 수 있습니다.',
+    orderConfirmReceivedOk: '수령을 확인했습니다.',
+    orderCancel: '주문 취소',
+    orderCancelHint: '결제 확인 전 또는 발송 전에만 취소할 수 있습니다.',
+    orderCancelOk: '주문을 취소했습니다.',
+    orderCancelReason: '취소 사유 (선택)',
+    orderReview: '리뷰',
+    orderDetail: '주문 상세',
+    orderHideDetail: '상세 숨기기',
+    orderTimelineTitle: '주문 진행',
+    orderTimelineCreated: '주문 완료',
+    orderTimelineConfirmed: '샵 확인',
+    orderTimelinePacking: '포장 중',
+    orderTimelineShipping: '배송 중',
+    orderTimelineDelivered: '수령 완료',
+    orderActionFailed: '처리할 수 없습니다. 다시 시도하세요.',
+    orderAddressLabel: '배송 주소',
     authSendOtp: 'OTP 전송',
     authVerifyOtp: '인증',
     authSuccess: '이메일 인증 완료 — 결제 가능합니다.',
@@ -1411,6 +1647,17 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountNotificationsTitle: '알림 센터',
     accountNotificationsEmpty: '알림이 없습니다.',
     accountNotificationsMarkAllRead: '모두 읽음으로 표시',
+    accountNotificationsLogin: '알림을 보려면 로그인해 주세요.',
+    accountNotificationsLoading: '알림을 불러오는 중...',
+    accountNotificationsSignIn: '지금 로그인',
+    pushEnableTitle: '브라우저 알림',
+    pushEnableHint: '이 페이지를 닫아도 주문과 샵 알림을 받을 수 있습니다.',
+    pushEnableButton: '푸시 알림 켜기',
+    pushEnabled: '이 기기에서 푸시 알림이 켜져 있습니다.',
+    pushDenied: '알림이 차단되었습니다. 브라우저 사이트 설정에서 허용하세요.',
+    pushUnsupported: '이 브라우저는 푸시 알림을 지원하지 않습니다.',
+    pushIosHint: 'iPhone/iPad: 홈 화면에 샵을 추가한 뒤 앱에서 알림을 켜세요.',
+    pushSyncing: '켜는 중…',
     accountInstallApp: '앱 설치',
     accountInstallAppTitle: '앱 설치',
     accountInstallAppHint: '홈 화면에 추가하면 앱처럼 빠르게 열 수 있습니다.',
@@ -1478,6 +1725,17 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerBrandHint: '온라인 쇼핑 — 설명과 일치하는 상품, 전국 배송.',
     footerCopyright: '© {year} {shop}. 모든 권리 보유.',
     footerPaymentHint: '결제: 착불 · 계좌이체',
+    lpExploreProducts: '상품 둘러보기',
+    lpViewProducts: '상품 보기',
+    lpSuggestedForYou: '당신을 위한 추천',
+    lpHighlightsHeading: '구매 포인트',
+    lpFaqHeading: '자주 묻는 질문',
+    lpRealReviews: '{rating}/5 · 실제 후기 {count}개',
+    lpViewFullCategory: '카테고리 전체 보기 →',
+    lpMaterialChip: '소재: {name}',
+    lpTrust1: '신중하게 고른 상품',
+    lpTrust2: '간편한 주문',
+    lpTrust3: '필요할 때 지원',
   },
 }
 

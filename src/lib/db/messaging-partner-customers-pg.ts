@@ -2,11 +2,10 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
 /**
- * M2.1 (docs/PARTNER_WEBSITE_AND_LANDING_UPGRADE_188.md) — CRM nhẹ: danh sách khách hàng theo shop.
- * Khác `partner-website-leads-panel.tsx` (đó là lead form, đây là khách ĐÃ ĐẶT ĐƠN thật).
- * Gộp theo email chuẩn hoá (nguồn duy nhất luôn có trên mọi đơn — guest_account_id/linked_user_id
- * có thể null tuỳ kênh, xem docs/188_BEHAVIOR_SPEC.md không đề cập mục này nhưng theo đúng nguyên
- * tắc "1 nguồn sự thật" đã áp dụng cho W4/W1.5).
+ * M2.1 (docs/PARTNER_WEBSITE_AND_LANDING_UPGRADE_188.md) — CRM nhẹ: khách đã đăng ký tài khoản shop.
+ * Nguồn danh sách = `messaging_guest_accounts` (đã tạo tài khoản), không phải mọi người từng đặt đơn.
+ * Khách checkout không tài khoản không hiện. Khách đăng ký nhưng chưa mua vẫn hiện (số đơn = 0).
+ * Tổng chi tiêu / đơn đã giao chỉ tính `paid_verified` + `delivered`.
  */
 
 export type PartnerCustomerSummaryRow = {
@@ -51,8 +50,8 @@ function mapCustomerRow(r: CustomerDbRow): PartnerCustomerSummaryRow {
 }
 
 /**
- * Danh sách khách hàng đã có ít nhất 1 đơn (mọi trạng thái) tại shop, gộp theo email chuẩn hoá.
- * `totalSpent`/`completedOrderCount` chỉ tính đơn `paid_verified` + `delivered` (doanh thu thật).
+ * Danh sách khách đã tạo tài khoản tại shop, kèm thống kê đơn (có thể = 0).
+ * Tên/SĐT: hồ sơ khách, fallback đơn gần nhất.
  */
 export async function fetchPartnerCustomersForAdminFromPg(input: {
   partnerId: string
@@ -66,69 +65,92 @@ export async function fetchPartnerCustomersForAdminFromPg(input: {
   const offset = (page - 1) * pageSize
   const search = (input.search ?? '').trim().toLowerCase()
 
-  const searchClause = search ? `and (email_key ilike $2 or lower(customer_name) ilike $2 or customer_phone ilike $2)` : ''
+  const searchClause = search
+    ? `and (
+         a.email_key ilike $2
+         or a.email_raw ilike $2
+         or lower(coalesce(nullif(trim(p.customer_name), ''), nullif(trim(lo.customer_name), ''), '')) ilike $2
+         or coalesce(nullif(trim(p.customer_phone), ''), nullif(trim(lo.customer_phone), ''), '') ilike $2
+       )`
+    : ''
   const params: unknown[] = search ? [input.partnerId, `%${search}%`] : [input.partnerId]
+
+  const ctes = `
+    with accounts as (
+      select
+        ga.email_normalized as email_key,
+        ga.email_raw,
+        ga.last_login_at,
+        ga.created_at as registered_at
+      from public.messaging_guest_accounts ga
+      where ga.partner_id = $1::uuid
+    ),
+    order_agg as (
+      select
+        lower(trim(customer_email)) as email_key,
+        count(*)::int as order_count,
+        count(*) filter (
+          where status = 'paid_verified' and coalesce(shipping_status, 'pending') = 'delivered'
+        )::int as completed_order_count,
+        sum(
+          case when status = 'paid_verified' and coalesce(shipping_status, 'pending') = 'delivered'
+            then greatest(
+              0::numeric,
+              coalesce(
+                nullif(amount_after_discount, 0),
+                subtotal_amount - coalesce(total_discount_amount, 0) - coalesce(promo_discount_amount, 0),
+                subtotal_amount,
+                0
+              )
+            )
+            else 0::numeric
+          end
+        ) as total_spent,
+        max(created_at) as last_order_at,
+        min(created_at) as first_order_at
+      from public.messaging_partner_orders
+      where partner_id = $1::uuid and trim(coalesce(customer_email, '')) <> ''
+      group by 1
+    ),
+    latest_order as (
+      select distinct on (lower(trim(customer_email)))
+        lower(trim(customer_email)) as email_key,
+        customer_name,
+        customer_phone
+      from public.messaging_partner_orders
+      where partner_id = $1::uuid and trim(coalesce(customer_email, '')) <> ''
+      order by lower(trim(customer_email)), created_at desc
+    )
+  `
+
+  const joins = `
+    from accounts a
+    left join public.messaging_partner_customer_profiles p
+      on p.partner_id = $1::uuid and p.email_normalized = a.email_key
+    left join order_agg oa using (email_key)
+    left join latest_order lo using (email_key)
+    where true ${searchClause}
+  `
 
   try {
     const rows = await pgQuery<CustomerDbRow>(
-      `with order_agg as (
-         select
-           lower(trim(customer_email)) as email_key,
-           count(*)::int as order_count,
-           count(*) filter (
-             where status = 'paid_verified' and coalesce(shipping_status, 'pending') = 'delivered'
-           )::int as completed_order_count,
-           sum(
-             case when status = 'paid_verified' and coalesce(shipping_status, 'pending') = 'delivered'
-               then greatest(
-                 0::numeric,
-                 coalesce(
-                   nullif(amount_after_discount, 0),
-                   subtotal_amount - coalesce(total_discount_amount, 0) - coalesce(promo_discount_amount, 0),
-                   subtotal_amount,
-                   0
-                 )
-               )
-               else 0::numeric
-             end
-           ) as total_spent,
-           max(created_at) as last_order_at,
-           min(created_at) as first_order_at
-         from public.messaging_partner_orders
-         where partner_id = $1::uuid and trim(coalesce(customer_email, '')) <> ''
-         group by 1
-       ),
-       latest_order as (
-         select distinct on (lower(trim(customer_email)))
-           lower(trim(customer_email)) as email_key,
-           customer_name,
-           customer_phone
-         from public.messaging_partner_orders
-         where partner_id = $1::uuid and trim(coalesce(customer_email, '')) <> ''
-         order by lower(trim(customer_email)), created_at desc
-       )
-       select oa.email_key, coalesce(lo.customer_name, '') as customer_name,
-              coalesce(lo.customer_phone, '') as customer_phone,
-              oa.order_count, oa.completed_order_count, oa.total_spent, oa.first_order_at, oa.last_order_at
-       from order_agg oa
-       join latest_order lo using (email_key)
-       where true ${searchClause}
-       order by oa.last_order_at desc
+      `${ctes}
+       select
+         a.email_key,
+         coalesce(nullif(trim(p.customer_name), ''), nullif(trim(lo.customer_name), ''), '') as customer_name,
+         coalesce(nullif(trim(p.customer_phone), ''), nullif(trim(lo.customer_phone), ''), '') as customer_phone,
+         coalesce(oa.order_count, 0) as order_count,
+         coalesce(oa.completed_order_count, 0) as completed_order_count,
+         coalesce(oa.total_spent, 0) as total_spent,
+         oa.first_order_at,
+         oa.last_order_at
+       ${joins}
+       order by a.last_login_at desc nulls last, a.registered_at desc
        limit ${pageSize} offset ${offset}`,
       params
     )
     const totalRow = await pgQueryOne<{ c: number }>(
-      `with latest_order as (
-         select distinct on (lower(trim(customer_email)))
-           lower(trim(customer_email)) as email_key,
-           customer_name,
-           customer_phone
-         from public.messaging_partner_orders
-         where partner_id = $1::uuid and trim(coalesce(customer_email, '')) <> ''
-         order by lower(trim(customer_email)), created_at desc
-       )
-       select count(*)::int as c from latest_order
-       where true ${searchClause}`,
+      `${ctes} select count(*)::int as c ${joins}`,
       params
     )
     return { rows: rows.map(mapCustomerRow), total: totalRow?.c ?? 0 }

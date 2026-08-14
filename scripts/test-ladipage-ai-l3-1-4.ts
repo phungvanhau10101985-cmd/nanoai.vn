@@ -16,12 +16,22 @@ import { buildLandingAiContext } from '../src/lib/partner-website/landing/landin
 import { generateOrRegenerateLandingSection } from '../src/lib/partner-website/landing/landing-ai-dispatcher'
 import { generateLandingSeo } from '../src/lib/partner-website/landing/landing-ai-content-generator'
 import { defaultLandingSectionPlan } from '../src/lib/partner-website/landing/landing-ai-types'
+import { landingAiKindOf } from '../src/lib/partner-website/landing/partner-landing-types'
 
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(`FAIL: ${msg}`)
 }
 
 async function main() {
+  assert(
+    defaultLandingSectionPlan({ includeMaterial: false, includeFaq: false }).join(',') ===
+      'hero,highlights,products_grid,trust_cta',
+    'plan tắt material/FAQ phải giống 188'
+  )
+  assert(landingAiKindOf({ sourceType: 'category', inventoryIds: [] }) === 'category', 'kind category')
+  assert(landingAiKindOf({ sourceType: 'products', inventoryIds: ['a'] }) === 'single', 'kind single')
+  assert(landingAiKindOf({ sourceType: 'products', inventoryIds: ['a', 'b'] }) === 'multi', 'kind multi')
+
   const pool = getPgPool()
 
   const ownerRes = await pool.query(`select id from auth.users limit 1`)

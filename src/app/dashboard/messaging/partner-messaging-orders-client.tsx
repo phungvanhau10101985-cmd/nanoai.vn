@@ -282,15 +282,19 @@ export function PartnerMessagingOrdersClient({
   initialPartners,
   ordersT,
   locale,
+  lockedPartnerId,
+  hidePartnerPicker,
 }: {
   initialPartners: PartnerRow[]
   ordersT: OrdersT
   locale: WebLocale
+  lockedPartnerId?: string
+  hidePartnerPicker?: boolean
 }) {
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
   const [rows, setRows] = useState<OrderRow[]>([])
-  const [selectedPartnerId, setSelectedPartnerId] = useState<string>('all')
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string>(lockedPartnerId?.trim() || 'all')
   const /** YYYY-MM-DD */ [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [query, setQuery] = useState('')
@@ -315,6 +319,11 @@ export function PartnerMessagingOrdersClient({
     setConsultedMap(loadBoolMap(LS_CONSULT_FLAG))
     setReviewedMap(loadBoolMap(LS_REVIEW_FLAG))
   }, [])
+
+  useEffect(() => {
+    const locked = lockedPartnerId?.trim() || ''
+    if (locked && locked !== selectedPartnerId) setSelectedPartnerId(locked)
+  }, [lockedPartnerId, selectedPartnerId])
 
   const toggleConsulted = useCallback((orderId: string, next: boolean) => {
     setConsultedMap((prev) => {
@@ -502,6 +511,14 @@ export function PartnerMessagingOrdersClient({
     })
   }
 
+  const nextShippingStatus = (s: OrderRow['shipping_status']): OrderRow['shipping_status'] | null => {
+    if (s === 'pending') return 'confirmed'
+    if (s === 'confirmed') return 'packing'
+    if (s === 'packing') return 'shipping'
+    if (s === 'shipping') return 'delivered'
+    return null
+  }
+
   const setShipping = (orderId: string, shippingStatus: OrderRow['shipping_status']) => {
     startTransition(async () => {
       const note = (noteByOrder[orderId] ?? '').trim()
@@ -548,6 +565,7 @@ export function PartnerMessagingOrdersClient({
       <Card className="overflow-hidden border-border/80 shadow-sm">
         <CardContent className="space-y-3 p-3 sm:p-4">
           <div className="flex flex-wrap items-end gap-2 sm:gap-3">
+            {hidePartnerPicker ? null : (
             <div className="flex min-w-[180px] flex-1 flex-col gap-1">
               <Label className="text-[11px] font-medium text-muted-foreground">{t.allWorkspaces}</Label>
               <Select value={selectedPartnerId} onValueChange={setSelectedPartnerId}>
@@ -564,6 +582,7 @@ export function PartnerMessagingOrdersClient({
                 </SelectContent>
               </Select>
             </div>
+            )}
             <div className="flex flex-wrap gap-2 sm:gap-3">
               <div className="flex flex-col gap-1">
                 <Label htmlFor="messaging-orders-date-from" className="text-[11px] font-medium text-muted-foreground">
@@ -1219,7 +1238,20 @@ export function PartnerMessagingOrdersClient({
                         </Button>
                       </div>
 
-                      <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                      <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
+                        {nextShippingStatus(d.shipping_status) ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => {
+                              const next = nextShippingStatus(d.shipping_status)
+                              if (next) setShipping(d.id, next)
+                            }}
+                            disabled={pending}
+                          >
+                            → {shippingLabel(t, nextShippingStatus(d.shipping_status) ?? d.shipping_status)}
+                          </Button>
+                        ) : null}
                         <Select
                           value={d.shipping_status}
                           onValueChange={(v) =>

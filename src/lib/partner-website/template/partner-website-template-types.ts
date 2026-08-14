@@ -22,6 +22,24 @@ export type PartnerWebsiteTheme = {
    * instead of re-rendering from template pages.
    */
   useVisualHtml?: boolean
+  /** Homepage has a separate mobile «Sửa nhanh» HTML (`index.mobile.html`). */
+  useVisualMobileHtml?: boolean
+  /** Non-home pages that have a saved «Sửa nhanh» HTML override in project.files. */
+  visualPageKeys?: string[]
+  /** Non-home pages with a separate mobile «Sửa nhanh» HTML (`*.mobile.html`). */
+  visualMobilePageKeys?: string[]
+  /** Category paths (`ao-nam`, `thoi-trang/ao`) with desktop «Sửa nhanh» HTML. */
+  visualCategoryPaths?: string[]
+  /** Category paths with mobile «Sửa nhanh» HTML. */
+  visualMobileCategoryPaths?: string[]
+  /** Inventory UUIDs with desktop «Sửa nhanh» HTML (per product). */
+  visualProductIds?: string[]
+  /** Inventory UUIDs with mobile «Sửa nhanh» HTML. */
+  visualMobileProductIds?: string[]
+  /** Custom CMS slugs (`/pages/{slug}`) with desktop «Sửa nhanh» HTML. */
+  visualCmsSlugs?: string[]
+  /** Custom CMS slugs with mobile «Sửa nhanh» HTML. */
+  visualMobileCmsSlugs?: string[]
   /** M3.2 — optional fixed bottom-right CTA above chat FAB. */
   floatingCta?: {
     enabled: boolean

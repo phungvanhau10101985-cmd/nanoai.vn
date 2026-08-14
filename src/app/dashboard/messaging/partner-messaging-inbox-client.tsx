@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { messagingSettingsSectionHref } from '@/lib/messaging/messaging-settings-section-href'
 import {
   cancelMessagingWorkspaceDeletionSchedule,
   createMessagingWorkspaceProfile,
@@ -738,7 +739,7 @@ export function PartnerMessagingInboxClient({
             <Settings className="h-4 w-4" aria-hidden />
           </Link>
           <Link
-            href={`/dashboard/messaging/orders${partnerNavQuery}`}
+            href={messagingSettingsSectionHref('hub-orders', selectedPartnerId || undefined)}
             aria-label={t.messagingOrdersLink}
             title={t.messagingOrdersLink}
             className={cn(buttonVariants({ variant: 'secondary', size: 'icon' }), 'h-9 w-9 shrink-0')}
@@ -765,7 +766,7 @@ export function PartnerMessagingInboxClient({
             {t.messagingSettingsLink}
           </Link>
           <Link
-            href={`/dashboard/messaging/orders${partnerNavQuery}`}
+            href={messagingSettingsSectionHref('hub-orders', selectedPartnerId || undefined)}
             className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'h-7 gap-1 px-2 text-[11px]')}
           >
             <ClipboardList className="h-3 w-3" aria-hidden />

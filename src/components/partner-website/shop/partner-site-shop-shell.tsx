@@ -32,6 +32,7 @@ import {
   partnerSiteCategoriesApiPath,
   partnerSiteCategoryPath,
   partnerSiteInfoPath,
+  partnerSiteNotificationsApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   resolvePartnerCategoryDisplayName,
@@ -67,6 +68,7 @@ import {
   partnerSitePwaSwPath,
 } from '@/lib/partner-website/shop/partner-site-pwa'
 import { ensurePartnerPwaInstallListener } from '@/lib/partner-website/shop/partner-site-pwa-install'
+import { PW_SHOP_NOTIFICATIONS_REFRESH_EVENT } from '@/lib/partner-website/shop/partner-site-push-subscribe-client'
 
 type Props = {
   siteSlug: string
@@ -175,6 +177,7 @@ function PartnerSiteShopShellInner({
   const [categoryTree, setCategoryTree] = useState<PartnerCategoryTreeNode[] | null>(null)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
   const categoriesRef = useRef<HTMLDivElement | null>(null)
   const accountRef = useRef<HTMLDivElement | null>(null)
 
@@ -222,6 +225,34 @@ function PartnerSiteShopShellInner({
     if (!ready) return
     void loadCartCount()
   }, [loadCartCount, ready])
+
+  useEffect(() => {
+    if (!ready || !isAuthenticated) {
+      setUnreadNotifications(0)
+      return
+    }
+    let cancelled = false
+    const loadUnread = async () => {
+      const res = await fetch(partnerSiteNotificationsApiPath(siteSlug, { unread: true }), {
+        credentials: 'same-origin',
+        headers: authHeaders(),
+      })
+      captureFromResponse(res)
+      const json = (await res.json().catch(() => ({}))) as { unreadCount?: number }
+      if (!cancelled) setUnreadNotifications(Math.max(0, Number(json.unreadCount ?? 0) || 0))
+    }
+    void loadUnread()
+    const id = window.setInterval(() => void loadUnread(), 60_000)
+    const onRefresh = () => {
+      void loadUnread()
+    }
+    window.addEventListener(PW_SHOP_NOTIFICATIONS_REFRESH_EVENT, onRefresh)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+      window.removeEventListener(PW_SHOP_NOTIFICATIONS_REFRESH_EVENT, onRefresh)
+    }
+  }, [authHeaders, captureFromResponse, isAuthenticated, ready, siteSlug])
 
   // W5.5 — per-shop SW (never NanoAI public/sw.js) + capture install prompt early.
   useEffect(() => {
@@ -377,6 +408,17 @@ function PartnerSiteShopShellInner({
                 </nav>
               ) : null}
             </div>
+            <Link
+              href={partnerSiteAccountTabPath(siteSlug, 'notifications', { customDomain })}
+              className="pw-shop-icon-btn"
+              aria-label={t.accountNotifications}
+            >
+              <Bell className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
+              <span className="pw-shop-icon-label">{t.accountNotifications}</span>
+              {unreadNotifications > 0 ? (
+                <span className="pw-shop-cart-badge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>
+              ) : null}
+            </Link>
             <Link href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })} className="pw-shop-icon-btn" aria-label={t.navFavorites}>
               <Heart className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span className="pw-shop-icon-label">{t.navFavorites}</span>

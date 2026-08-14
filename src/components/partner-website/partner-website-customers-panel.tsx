@@ -9,8 +9,8 @@ import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { Loader2, Users } from 'lucide-react'
 
 /**
- * M2.1 (docs/PARTNER_WEBSITE_AND_LANDING_UPGRADE_188.md) — CRM nhẹ: danh sách khách hàng đã mua.
- * Khác `PartnerWebsiteLeadsPanel` (đó là lead form, chưa chắc đã mua).
+ * M2.1 (docs/PARTNER_WEBSITE_AND_LANDING_UPGRADE_188.md) — CRM nhẹ: khách đã đăng ký tài khoản shop.
+ * Khác `PartnerWebsiteLeadsPanel` (lead form, chưa chắc đã tạo tài khoản).
  */
 
 type CustomerRow = {

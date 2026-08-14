@@ -29,7 +29,6 @@ import { PartnerWebsiteCustomersPanel } from '@/components/partner-website/partn
 import { PartnerWebsiteStaticPagesPanel } from '@/components/partner-website/partner-website-static-pages-panel'
 import { PartnerWebsiteLandingsPanel } from '@/components/partner-website/partner-website-landings-panel'
 import { PartnerWebsiteFloatingCtaPanel } from '@/components/partner-website/partner-website-floating-cta-panel'
-import { PartnerWebsiteSearchAliasesPanel } from '@/components/partner-website/partner-website-search-aliases-panel'
 import { PartnerWebsiteRevisionMenu } from '@/components/partner-website/partner-website-revision-menu'
 import { PartnerWebsiteResetDialog } from '@/components/partner-website/partner-website-reset-dialog'
 import { PartnerCustomDomainSettingsCard } from '@/app/dashboard/messaging/partner-custom-domain-settings-card'
@@ -42,8 +41,13 @@ import {
   PartnerWebsiteTenantAdminBar,
   type PartnerWebsiteTenantSection,
 } from '@/components/partner-website/partner-website-tenant-admin-bar'
-import { ExternalLink, Globe, Loader2, PanelLeftOpen, Undo2, Wand2 } from 'lucide-react'
+import { ExternalLink, Globe, Loader2, PanelLeftOpen, Undo2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  visualEditorTargetHtmlPath,
+  type VisualDeviceVariant,
+} from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { normalizePartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 
 type NavLabels = {
   inbox: string
@@ -357,11 +361,29 @@ export function PartnerWebsiteDashboardClient({
   const previewPath = website ? partnerWebsitePublicPath(website.siteSlug) : null
 
   const handleVisualEditSave = useCallback(
-    async (project: PartnerWebsiteProject) => {
+    async (
+      project: PartnerWebsiteProject,
+      pageKey = 'home',
+      device: VisualDeviceVariant = 'desktop',
+      extras?: { categoryPath?: string | null; productId?: string | null; cmsSlug?: string | null }
+    ) => {
       if (!partnerId || !website) return
+      const key = normalizePartnerWebsitePageKey(pageKey)
+      const categoryPath = extras?.categoryPath || null
+      const productId = extras?.productId || null
+      const cmsSlug = extras?.cmsSlug || null
+      const htmlPath = visualEditorTargetHtmlPath({
+        pageKey: key,
+        variant: device,
+        categoryPath,
+        productId,
+        cmsSlug,
+      })
       const html =
-        project.files.find((f) => f.path === project.entryPath && f.kind === 'html')?.content ||
-        project.files.find((f) => f.kind === 'html')?.content ||
+        project.files.find((f) => f.path === htmlPath && f.kind === 'html')?.content ||
+        (key === 'home' && device === 'desktop' && !categoryPath && !productId && !cmsSlug
+          ? project.files.find((f) => f.path === 'index.html' && f.kind === 'html')?.content
+          : undefined) ||
         ''
       const res = await fetch(`/api/messaging/partner-website/${encodeURIComponent(partnerId)}`, {
         method: 'PATCH',
@@ -370,6 +392,11 @@ export function PartnerWebsiteDashboardClient({
           project,
           htmlSource: html,
           visualEdited: true,
+          visualPageKey: key,
+          visualDevice: device,
+          visualCategoryPath: categoryPath || undefined,
+          visualProductId: productId || undefined,
+          visualCmsSlug: cmsSlug || undefined,
         }),
       })
       const json = (await res.json().catch(() => ({}))) as {
@@ -380,6 +407,7 @@ export function PartnerWebsiteDashboardClient({
         throw new Error(json.error || t.visualEditSaveFailed)
       }
       setWebsite(json.website)
+      setLiveTheme(json.website.theme)
       setPreviewVersion(json.website.updatedAt || String(Date.now()))
       toast({ title: t.visualEditSaveSuccess })
     },
@@ -643,16 +671,6 @@ export function PartnerWebsiteDashboardClient({
                       type="button"
                       size="sm"
                       className="h-7 px-2 text-xs"
-                      disabled={chatBusy || !website}
-                      onClick={() => previewRef.current?.openVisualEdit()}
-                    >
-                      <Wand2 className="mr-1 h-3.5 w-3.5" aria-hidden />
-                      {t.quickEditButton}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
                       disabled={publishing || website.isPublished}
                       onClick={() => void handlePublish(true)}
                     >
@@ -744,18 +762,26 @@ export function PartnerWebsiteDashboardClient({
                     setLiveTheme(theme)
                     setWebsite((prev) => (prev ? { ...prev, theme } : prev))
                   }}
+                  onAdminLogoChange={(url) => {
+                    setLogoUrl(url)
+                    setWebsite((prev) =>
+                      prev ? { ...prev, logoUrl: url, theme: { ...prev.theme, logoUrl: url } } : prev
+                    )
+                  }}
                 />
+                {website ? (
+                  <div className="mt-3 border-t border-border/60 pt-3">
+                    <PartnerWebsiteCapabilitiesPanel
+                      locale={locale}
+                      t={t}
+                      partnerId={partnerId}
+                      sectionId="partner-website-capabilities"
+                      compact
+                    />
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
-            </div>
-
-            <div className={sectionWrapClass('partner-website-capabilities')}>
-            <PartnerWebsiteCapabilitiesPanel
-              locale={locale}
-              t={t}
-              partnerId={partnerId}
-              sectionId="partner-website-capabilities"
-            />
             </div>
 
             <div className={sectionWrapClass('partner-website-categories')}>
@@ -842,18 +868,6 @@ export function PartnerWebsiteDashboardClient({
                 toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
               }
               onWebsiteRefresh={handleWebsiteRefresh}
-            />
-            </div>
-
-            <div className={sectionWrapClass('partner-website-search-aliases')}>
-            <PartnerWebsiteSearchAliasesPanel
-              locale={locale}
-              t={t}
-              partnerId={partnerId}
-              sectionId="partner-website-search-aliases"
-              onToast={(message, variant) =>
-                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
-              }
             />
             </div>
 

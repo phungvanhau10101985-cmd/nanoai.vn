@@ -150,7 +150,7 @@ Khi xong một hạng mục: đổi ❌/🟡 → ✅, ghi ngày + ghi chú ngắ
 
 | ID | Hạng mục | Trạng thái | Ghi chú / file neo |
 |----|----------|------------|-------------------|
-| W2.1 | Visual editor (text/ảnh/section bg) | ✅ Done | `partner-website-visual-editor-toolbar.tsx`. **🚫 Chat AI tạo/chỉnh web** gỡ 2026-08-13. **2026-08-13**: nút **Thêm** chèn icon + chữ header (thích, đã xem, giỏ, đơn hàng, tài khoản, địa chỉ, liên hệ, đăng nhập) — href shop + badge API; kéo/mũi tên; bấm nút hiện **+** (xoay 45°) để xóa. |
+| W2.1 | Visual editor (text/ảnh/section bg) | ✅ Done | `partner-website-visual-editor-toolbar.tsx`. **🚫 Chat AI tạo/chỉnh web** gỡ 2026-08-13. **2026-08-14**: Sửa nhanh mọi trang + **tách bản Mobile/Desktop** (`*.html` / `*.mobile.html`). PDP không serve HTML đóng băng. |
 | W2.2 | Quick-edit prompts đa ngành (bớt hardcode fashion) | 🚫 Removed (2026-08-13) | Chip gợi ý chat AI không còn UI merchant. Lib `getPartnerWebsiteEditSuggestions` giữ cho test. |
 | W2.3 | Merchant theme color picker (main + supporting) | ✅ Done (2026-08-13) | Bảng màu chính + phụ trợ trên «Tạo web»; chọn mẫu/màu thì preview đổi ngay (iframe CSS vars). PATCH `update_theme_colors`. Token: primary/accent/buy/cart/background/text/muted/surface. Nav/footer JSON vẫn mặc định (không panel menu). |
 | W2.4 | Section manager drag-reorder + undo block-level | 🚫 Removed (2026-08-13) | Gỡ panel merchant «Block giao diện» + PATCH `reorder_sections` — chỉnh trang chủ bằng Sửa nhanh. AI vẫn reorder qua `sectionOps` khi sinh template. `undo_last` (revision) giữ. |
@@ -252,11 +252,11 @@ Hiện tại (`partner-site-shop-account-client.tsx`): 1 trang, chuyển tab b�
 | L3.3 | Sinh text từng section (DeepSeek, locale-aware, brand voice = tên shop thật) | ✅ Done | `landing-ai-content-generator.ts` |
 | L3.4 | Sinh ảnh — hero = ảnh SP thật (không AI); material = Gemini image-edit từ ảnh SP thật | ✅ Done | `landing-ai-material-image.ts`, dispatcher `landing-ai-dispatcher.ts` |
 | L3.5 | `products_grid` luôn render live (giá/tồn hiện tại) | ✅ Done | Không snapshot — resolve lại mỗi lần render |
-| L3.6 | Admin UI: tạo landing theo SP hoặc category + panel quản lý section (tạo/tạo lại/sửa tay) | ✅ Done | `partner-website-landings-panel.tsx`, `landing-ai-sections-dialog.tsx` |
+| L3.6 | Admin UI: tạo landing theo SP hoặc category + panel quản lý section (tạo/tạo lại/sửa tay) | ✅ Done (2026-08-14, khớp 188) | Wizard 3 nguồn (1 SP / nhiều SP / danh mục + lọc chất liệu + limit) → autogen; list 3 tab; editor full-screen sửa tay + SEO + đổi SP |
 | L3.7 | SEO auto-gen + guardrail chống trùng category page | ✅ Done | `landing-ai-seo.ts`, route `generate-seo` |
 | L3.8 | Public render React thật (không qua iframe) khi hero "ready"; landing cũ giữ iframe cũ | ✅ Done | `landing-ai-sections-view.tsx`, `site/[slug]/lp/[landingSlug]/page.tsx` |
 | L3.9 | Trust hiện rating/review THẬT (không phải AI bịa số liệu) | ✅ Done | `fetchPartnerProductRatingSummaryFromPg` gộp vào context |
-| L3.10 | Đổi SP/category sau tạo rồi tạo lại section liên quan | 🟡 Partial | Backend hỗ trợ (PATCH landing đổi `sourceType`/`inventoryIds`); UI chọn lại sau khi tạo — để phiên sau |
+| L3.10 | Đổi SP/category sau tạo rồi tạo lại section liên quan | 🟡 Partial | Đổi danh sách SP + material_filter trên editor; đổi `sourceType` sau tạo vẫn chưa (188 cũng không cho đổi nguồn) |
 
 Test: `scripts/test-ladipage-ai-l3-1-4.ts` (data model/context/dispatcher, DeepSeek thật), `scripts/test-ladipage-ai-l3-public-render.ts` (HTTP thật qua dev server — xác nhận landing mới render React + landing cũ không hồi quy).
 
@@ -306,6 +306,7 @@ Test: `scripts/test-product-studio-ps1-3.ts` (schema/manual publish + regression
 | S0.8 | Dashboard merchant: đơn / doanh thu / conversion / UTM | ✅ Done (2026-08-06) | W+L | Trang mới `/dashboard/messaging/analytics` — doanh thu THẬT (đơn `paid_verified`+`delivered`, cùng công thức `amount_after_discount` đã dùng cho M2.1/W1.4), doanh thu theo ngày (biểu đồ recharts), doanh thu theo UTM source/campaign (join qua `visitor_personalization`), top sản phẩm bán chạy. Khách truy cập/tỉ lệ chuyển đổi ghi rõ là ƯỚC TÍNH (không có bảng đếm page-view riêng, dùng `visitor_personalization` làm proxy) |
 | S0.9 | Consent / cookie banner gắn pixel ads | ✅ Done (2026-08-06) | W+L | Banner cookie theo từng shop (`localStorage` scoped theo `siteSlug` — tránh share consent nhầm giữa các shop khác nhau trên cùng domain platform); **chặn thật** mọi tracking (GA4/Ads/Meta/TikTok/GTM/CAPI/dataLayer) cho tới khi khách bấm "Đồng ý" — chặn ở cả tầng bootstrap lẫn từng hàm track riêng lẻ (PDP/cart gọi trực tiếp, không chỉ qua bootstrap) |
 | S0.10 | Đa tiền tệ / hreflang / catalog dịch theo locale shop | ✅ Done-MVP (2026-08-06) | W | Cột `default_currency` (default VND) trên partners; tracking/GA4/Meta đọc currency từ partner; metadata `hreflang` self-tag theo `site.locale` (1 locale/shop). **Không làm**: FX đa tiền tệ / catalog đa locale URL |
+| S0.11 | Feed catalog Google Merchant Center + TikTok | ✅ Done (2026-08-14) | W | Menu **Google Merchant Center** / **TikTok Catalog** cạnh Meta & Catalog. Feed TSV/CSV theo `embed_key`; `id`/`sku_id` = remarketing_id hoặc inventory.id (khớp Meta); `link` ưu tiên PDP shop đã publish. Test: `scripts/test-s0_11-ads-catalog-feeds.ts` |
 
 ---
 
@@ -344,7 +345,7 @@ Nguồn đối chiếu: sidebar admin 188 (`/admin/*`). Đây là các màn **me
 
 | ID | Hạng mục | Trạng thái | Phụ thuộc | Ghi chú / file neo |
 |----|----------|------------|-----------|-------------------|
-| M2.1 | **Danh sách khách hàng (CRM nhẹ)** — ai đã mua, tổng chi tiêu, lịch sử đơn | ✅ Done (2026-08-05) | — | `PartnerWebsiteCustomersPanel` — gộp theo email chuẩn hoá, tổng chi tiêu CHỈ tính đơn `paid_verified`+`delivered`, search theo tên/SĐT/email, phân trang |
+| M2.1 | **Danh sách khách hàng (CRM nhẹ)** — khách đã đăng ký tài khoản shop, kèm thống kê đơn | ✅ Done (2026-08-14) | — | `PartnerWebsiteCustomersPanel` — nguồn = `messaging_guest_accounts` (đã tạo tài khoản, kể cả chưa mua); checkout không tài khoản không hiện; tổng chi tiêu CHỈ tính đơn `paid_verified`+`delivered`; search theo tên/SĐT/email; phân trang |
 | M2.2 | **Admin khuyến mãi/voucher** — tạo/sửa mã giảm giá, điều kiện áp dụng | ✅ Done (2026-08-05) | W1.4 | `PartnerWebsitePromotionsPanel` — CRUD đầy đủ, bật/tắt nhanh, hiển thị used_count |
 | M2.3 | **Cấu hình nạp tiền/QR** — nhập QR/tài khoản nhận cọc | ✅ Done (đã có sẵn, đính chính 2026-08-06) | W1.3 | `partner-messaging-settings-client.tsx` mục "Đơn hàng & thanh toán" — merchant tự nhập ngân hàng/STK/chủ TK, kiểu đặt cọc (%/số tiền cố định/không cọc), bắt buộc ảnh chứng từ, cấu hình đầy đủ SePay (bank code, STK, QR template, webhook token tự sinh, secret key) |
 | M2.4 | Thành viên (điểm) / Affiliate & ví | 🚫 Out of scope (mặc định) | Capability flag | = `W5.7`/`W5.8` — chỉ bật theo capability |
@@ -696,3 +697,9 @@ Sửa tài liệu **cùng PR** với code.
 | 2026-08-13 | **Một web + phiên bản 7 ngày** | Bỏ bản HTML song song khi đăng web shop template. Nút «Xem phiên bản»: xem / khôi phục từng phiên; lưu theo phiên; quá 7 ngày không khôi phục thì xóa. | ✅ Done |
 
 | 2026-08-13 | **Sửa nhanh + chrome shop đủ nút** | Sửa nhanh trên thanh Xem thử; bảng màu luôn trên preview; trang chủ xem được khi chưa đăng. Header: yêu thích; đáy mobile: giỏ; home: flash sale + vừa xem/yêu thích. | ✅ Done |
+
+| 2026-08-14 | **S0.11** | Feed danh mục **Google Merchant Center** (TSV) và **TikTok Catalog** (CSV) cạnh Meta & Catalog. Cùng `embed_key`, cùng id remarketing với Facebook; link ưu tiên trang sản phẩm web shop đã đăng. Test `scripts/test-s0_11-ads-catalog-feeds.ts`. | ✅ Done |
+
+| 2026-08-14 | **M2.1** | Menu/CRM «Khách đã đăng ký tài khoản»: danh sách lấy từ tài khoản shop đã tạo, không còn gộp theo người đã đặt đơn. Khách chưa mua vẫn hiện; checkout không tài khoản không hiện. Copy 5 ngôn ngữ. Test `scripts/test-partner-customers-m2_1.ts`. | ✅ Done |
+
+| 2026-08-14 | **L3 / Ladipage AI** | Khớp UX 188: wizard 3 nguồn, lọc chất liệu, limit SP, tạo → autogen, list 3 tab, editor full-screen (sửa tay + SEO + đổi SP), public theme/i18n/trust strip/sticky CTA, 1-SP redirect PDP. Không clone kiến trúc 188. | ✅ Done |

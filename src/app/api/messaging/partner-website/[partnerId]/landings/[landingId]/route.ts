@@ -53,8 +53,10 @@ export async function GET(
 
   const website = await fetchPartnerWebsiteByPartnerIdPg(partnerId.trim())
   const base = siteBaseUrl(req)
+  const sections = await listLandingSectionsPg(landing.id)
   return NextResponse.json({
     landing,
+    sections,
     publicUrl:
       website && landing.isPublished
         ? `${base}${partnerSiteLandingPath(website.siteSlug, landing.landingSlug)}`

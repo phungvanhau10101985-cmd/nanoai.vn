@@ -2,6 +2,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import {
   partnerSiteCartApiPath,
   partnerSiteCartPath,
+  partnerSiteNotificationsApiPath,
   partnerSitePersonalizationApiPath,
   partnerSiteProductApiPath,
   partnerSiteProductPath,
@@ -70,6 +71,7 @@ export function buildPartnerSiteShopActionsBootstrapScript(input: {
   const eventsApi = partnerSitePersonalizationApiPath(slug, 'events')
   const favApi = `${partnerSitePersonalizationApiPath(slug, 'favorites')}?limit=48`
   const recentApi = `${partnerSitePersonalizationApiPath(slug, 'recently-viewed')}?limit=48`
+  const notifApi = partnerSiteNotificationsApiPath(slug, { unread: true })
   const cartPath = partnerSiteCartPath(slug)
   const productApiPrefix = partnerSiteProductApiPath(slug, '__ID__').replace('__ID__', '')
   const detailPrefix = partnerSiteProductPath(slug, '__ID__').replace('__ID__', '')
@@ -79,6 +81,7 @@ var CART_API=${JSON.stringify(cartApi)};
 var EVENTS_API=${JSON.stringify(eventsApi)};
 var FAV_API=${JSON.stringify(favApi)};
 var RECENT_API=${JSON.stringify(recentApi)};
+var NOTIF_API=${JSON.stringify(notifApi)};
 var PRODUCT_API_PREFIX=${JSON.stringify(productApiPrefix)};
 var CART_PATH=${JSON.stringify(cartPath)};
 var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
@@ -222,6 +225,30 @@ document.addEventListener('click',function(ev){
     toggleFavorite(p2,favBtn).finally(function(){favBtn.disabled=false;});
   }
 },true);
+function pinChromeIconBadges(){
+  var buttons=document.querySelectorAll('[data-pw-chrome-btn],.pw-shop-bottom-nav a,.pw-bottom-nav a,.pw-shop-icon-btn,.pw-icon-btn');
+  for(var i=0;i<buttons.length;i++){
+    var el=buttons[i];
+    var badge=el.querySelector('[data-pw-chrome-badge],.pw-cart-badge,.pw-shop-cart-badge');
+    if(!badge)continue;
+    var owner=badge.closest('a,button,[data-pw-chrome-btn],.pw-icon-btn,.pw-shop-icon-btn');
+    if(owner&&owner!==el)continue;
+    var wrap=el.querySelector(':scope > .pw-chrome-icon-wrap');
+    if(!wrap){
+      var svg=el.querySelector(':scope > svg')||el.querySelector('svg');
+      if(!svg)continue;
+      var existing=svg.closest('.pw-chrome-icon-wrap');
+      if(existing&&el.contains(existing))wrap=existing;
+      else{
+        wrap=document.createElement('span');
+        wrap.className='pw-chrome-icon-wrap';
+        if(svg.parentNode)svg.parentNode.insertBefore(wrap,svg);
+        wrap.appendChild(svg);
+      }
+    }
+    if(badge.parentNode!==wrap)wrap.appendChild(badge);
+  }
+}
 function setChromeBadge(sel, n){
   document.querySelectorAll(sel).forEach(function(el){
     var b=el.querySelector('[data-pw-chrome-badge],.pw-cart-badge');
@@ -239,6 +266,7 @@ function cartQty(items){
   return n;
 }
 function hydrateChromeBadges(){
+  pinChromeIconBadges();
   apiFetch(CART_API).then(function(res){
     if(!res.ok)return;
     setChromeBadge('[data-pw-chrome-btn="cart"],a.pw-icon-btn[href*="/cart"]', cartQty(res.j&&res.j.items));
@@ -252,6 +280,11 @@ function hydrateChromeBadges(){
     if(!res.ok)return;
     var n=((res.j&&res.j.products)||[]).length;
     setChromeBadge('[data-pw-chrome-btn="recently-viewed"]', n);
+  }).catch(function(){});
+  apiFetch(NOTIF_API).then(function(res){
+    if(!res.ok)return;
+    var n=(res.j&&typeof res.j.unreadCount==='number')?res.j.unreadCount:0;
+    setChromeBadge('[data-pw-chrome-btn="notifications"]', n);
   }).catch(function(){});
 }
 document.addEventListener('pw-cart-updated', hydrateChromeBadges);

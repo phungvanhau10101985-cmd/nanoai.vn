@@ -5,6 +5,7 @@ import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { messagingSettingsSectionHref } from '@/lib/messaging/messaging-settings-section-href'
 
 type NavKey = 'inbox' | 'settings' | 'orders' | 'analytics'
 
@@ -39,7 +40,7 @@ function MessagingDashboardNavLinksInner({
   const items: Array<{ key: NavKey; href: string; label: string }> = [
     { key: 'inbox', href: `/dashboard/messaging/inbox${partnerQuery}`, label: inboxLabel },
     { key: 'settings', href: `/dashboard/messaging/settings${partnerQuery}`, label: settingsLabel },
-    { key: 'orders', href: `/dashboard/messaging/orders${partnerQuery}`, label: ordersLabel },
+    { key: 'orders', href: messagingSettingsSectionHref('hub-orders', partner), label: ordersLabel },
     { key: 'analytics', href: `/dashboard/messaging/analytics${partnerQuery}`, label: analyticsLabel },
   ]
 

@@ -522,6 +522,7 @@ export type Dictionary = {
     createButton: string
     saveOk: string
     channelsSection: string
+    channelsSectionDesc: string
     fbPageId: string
     fbPageToken: string
     fbVerifyToken: string
@@ -646,6 +647,14 @@ export type Dictionary = {
     facebookCatalogFeedHint: string
     facebookCatalogFeedCopyButton: string
     facebookCatalogFeedCopiedToast: string
+    googleMerchantCatalogFeedTitle: string
+    googleMerchantCatalogFeedHint: string
+    googleMerchantCatalogFeedCopyButton: string
+    googleMerchantCatalogFeedCopiedToast: string
+    tiktokCatalogFeedTitle: string
+    tiktokCatalogFeedHint: string
+    tiktokCatalogFeedCopyButton: string
+    tiktokCatalogFeedCopiedToast: string
     nanoaiEmbedCodeLabel: string
     facebookChatEmbedCodeLabel: string
     zaloChatEmbedCodeLabel: string
@@ -705,6 +714,7 @@ export type Dictionary = {
     /** Nút/link tới /dashboard/messaging/settings */
     messagingSettingsLink: string
     marketingCampaignsLink: string
+    notificationsLink: string
     /** Link tới /dashboard/messaging/website */
     messagingWebsiteLink: string
     messagingOrdersLink: string
@@ -734,6 +744,14 @@ export type Dictionary = {
     settingsNavOperationsDesc: string
     /** Nhóm quản trị website trên sidebar Quản trị */
     settingsNavWebsiteTitle: string
+    settingsNavShopTitle: string
+    settingsNavSalesTitle: string
+    settingsNavWorkspace: string
+    settingsNavWebsiteEditor: string
+    settingsNavConnectTitle: string
+    settingsNavCustomersTitle: string
+    settingsNavAiGroupTitle: string
+    settingsNavPaymentDesc: string
     /** Nút mở website công khai (trang Quản trị) */
     settingsOpenWebsiteButton: string
     settingsManageWebsiteButton: string
@@ -750,6 +768,10 @@ export type Dictionary = {
     settingsNavPromotionsDesc: string
     settingsNavAnalyticsMeta: string
     settingsNavAnalyticsMetaDesc: string
+    settingsNavAnalyticsGoogleMerchant: string
+    settingsNavAnalyticsGoogleMerchantDesc: string
+    settingsNavAnalyticsTiktokCatalog: string
+    settingsNavAnalyticsTiktokCatalogDesc: string
     settingsNavAnalyticsAds: string
     settingsNavAnalyticsAdsDesc: string
     settingsNavSheets: string
@@ -1046,6 +1068,56 @@ export type Dictionary = {
     exportCustomerEmailsDone: string
     exportCustomerEmailsLoading: string
     noWorkspace: string
+  }
+  /** /dashboard/messaging/notifications — tạo thông báo + email giống 188 */
+  partnerMessagingNotifications: {
+    pageTitle: string
+    pageDescription: string
+    workspaceLabel: string
+    composeTitle: string
+    composeHint: string
+    titleLabel: string
+    bodyLabel: string
+    scheduleLabel: string
+    expireHint: string
+    sendEmailLabel: string
+    pushHint: string
+    smtpMissing: string
+    audienceCount: string
+    sendButton: string
+    sending: string
+    composeSuccess: string
+    importTitle: string
+    importHint: string
+    colPhone: string
+    colTitle: string
+    colContent: string
+    colTime: string
+    colEmailOptional: string
+    downloadTemplate: string
+    importButton: string
+    importing: string
+    importSuccess: string
+    resultTitle: string
+    resultTotal: string
+    resultSuccess: string
+    resultError: string
+    resultEmail: string
+    historyTitle: string
+    historyEmpty: string
+    historyWhen: string
+    historySource: string
+    sourceCompose: string
+    sourceImport: string
+    noWorkspace: string
+    errorGeneric: string
+    errorMissingFile: string
+    errorInvalidFile: string
+    errorReadFile: string
+    errorMissingColumns: string
+    errorEmptySheet: string
+    errorNoRecipients: string
+    errorInvalidSchedule: string
   }
   /** /dashboard/messaging — trợ lý AI (chờ nhân viên + LLM / kho) */
   partnerMessagingAi: {
@@ -3582,7 +3654,9 @@ const VI_DICTIONARY: Dictionary = {
     workspaceLabel: 'Workspace',
     createButton: 'Tạo mới',
     saveOk: 'Đã lưu.',
-    channelsSection: 'Kết nối kênh (Facebook & Zalo)',
+    channelsSection: 'Thu tin Zalo & Facebook',
+    channelsSectionDesc:
+      'Kéo tin khách nhắn trên Zalo OA và Facebook Page vào hộp thư NanoAI để AI và nhân viên trả lời.',
     fbPageId: 'Facebook Page ID',
     fbPageToken: 'Page access token',
     fbVerifyToken: 'Verify token (webhook GET)',
@@ -3704,6 +3778,16 @@ const VI_DICTIONARY: Dictionary = {
       'Dán URL này vào Commerce Manager khi chọn «URL hoặc Google Trang tính». CSV gồm sản phẩm đang bật; cột link là trang tư vấn trên NanoAI (không phải link web shop). Cần ảnh URL, giá VND; key = khóa nhúng (giữ bí mật).',
     facebookCatalogFeedCopyButton: 'Sao chép URL feed',
     facebookCatalogFeedCopiedToast: 'Đã sao chép URL feed danh mục.',
+    googleMerchantCatalogFeedTitle: 'Google Merchant Center — feed sản phẩm (TSV)',
+    googleMerchantCatalogFeedHint:
+      'Dán URL này vào Merchant Center: Sản phẩm → Nguồn dữ liệu → Lấy theo lịch. TSV gồm sản phẩm đang bật; cột id khớp remarketing với Meta/TikTok; cột link ưu tiên trang sản phẩm web shop đã đăng. Cần ảnh URL và giá; key = khóa nhúng (giữ bí mật).',
+    googleMerchantCatalogFeedCopyButton: 'Sao chép URL feed',
+    googleMerchantCatalogFeedCopiedToast: 'Đã sao chép URL feed Google Merchant Center.',
+    tiktokCatalogFeedTitle: 'TikTok — danh mục sản phẩm (CSV)',
+    tiktokCatalogFeedHint:
+      'Dán URL này vào TikTok Ads Manager: Tài sản → Catalog → Nguồn dữ liệu → Feed theo lịch. CSV gồm sản phẩm đang bật; cột sku_id khớp id remarketing với Meta/Google. Cần ảnh URL và giá; key = khóa nhúng (giữ bí mật).',
+    tiktokCatalogFeedCopyButton: 'Sao chép URL feed',
+    tiktokCatalogFeedCopiedToast: 'Đã sao chép URL feed danh mục TikTok.',
     nanoaiEmbedCodeLabel: 'Mã nhúng chat NanoAI',
     facebookChatEmbedCodeLabel: 'Mã nhúng chat Facebook',
     zaloChatEmbedCodeLabel: 'Mã nhúng chat Zalo',
@@ -3750,7 +3834,7 @@ const VI_DICTIONARY: Dictionary = {
     teamPermAiSettings: 'Cài đặt AI',
     teamPermWorkspaceBranding: 'Thương hiệu & logo',
     teamPermWorkspacePayment: 'Thanh toán trong chat',
-    teamPermIntegrationsChannels: 'Kênh Facebook / Zalo',
+    teamPermIntegrationsChannels: 'Thu tin Zalo / Facebook',
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / Catalog',
     teamPermUsageReports: 'Báo cáo sử dụng',
     teamPermMarketingCampaigns: 'Campaign marketing',
@@ -3764,7 +3848,8 @@ const VI_DICTIONARY: Dictionary = {
     setupColumnTitle: 'Kết nối & trợ lý AI',
     chatColumnTitle: 'Hội thoại khách',
     messagingSettingsLink: 'Quản trị',
-    marketingCampaignsLink: 'Marketing',
+    marketingCampaignsLink: 'Remarketing chat',
+    notificationsLink: 'Thông báo khách web',
     messagingWebsiteLink: 'Tạo web & landing',
     messagingOrdersLink: 'Đơn hàng',
     messagingAnalyticsLink: 'Doanh thu',
@@ -3787,13 +3872,21 @@ const VI_DICTIONARY: Dictionary = {
       'Bước 1 — Vào Bảng điều khiển → Nhắn tin → Quản trị (trang này).\n\nBước 2 — Ở mục «Tạo workspace nhắn tin», nhập tên hiển thị, tên thương hiệu, chọn ngành; có thể dán URL logo hoặc tải ảnh lên.\n\nBước 3 — Nhấn «Tạo mới». Đây là workspace của shop: mọi tin từ Facebook Page, Zalo OA, chat trên NanoAI và chat nhúng trên web shop đều vào cùng một inbox.\n\nBước 4 — Sau đó kết nối kênh (Facebook/Zalo), sao chép liên kết chat hoặc mã nhúng iframe, và tùy chọn bật trợ lý AI cùng kho hàng ngay trên trang quản trị này.',
     settingsSidebarTitle: 'Danh mục quản trị',
     settingsNavOperationsTitle: 'Vận hành',
-    settingsNavOperationsDesc: 'Marketing và đơn hàng chat — mở trang riêng.',
+    settingsNavOperationsDesc: 'Đơn hàng, thông báo khách và chiến dịch marketing.',
     settingsNavWebsiteTitle: 'Quản trị website',
+    settingsNavShopTitle: 'Cửa hàng',
+    settingsNavSalesTitle: 'Bán hàng',
+    settingsNavWorkspace: 'Shop & nhân viên',
+    settingsNavWebsiteEditor: 'Giao diện web shop',
+    settingsNavConnectTitle: 'Kết nối',
+    settingsNavCustomersTitle: 'Khách hàng',
+    settingsNavAiGroupTitle: 'AI',
+    settingsNavPaymentDesc: 'Tài khoản nhận tiền, đặt cọc và SePay cho đơn trên web/chat.',
     settingsOpenWebsiteButton: 'Xem web',
     settingsManageWebsiteButton: 'Chỉnh web',
     settingsCreateWebsiteButton: 'Tạo web',
-    settingsNavPayment: 'Đơn hàng & thanh toán',
-    settingsNavShipping: 'Quản lý vận chuyển',
+    settingsNavPayment: 'Cài đặt thanh toán',
+    settingsNavShipping: 'Cài đặt vận chuyển',
     settingsNavShippingDesc:
       'Phí ship, đơn vị vận chuyển, địa chỉ hoàn hàng và cổng API tra cứu đơn trên web shop (NanoAI gọi khi khách hỏi đơn / mã vận).',
     settingsNavShippingFeeTitle: 'Phí vận chuyển (đơn trên chat)',
@@ -3802,12 +3895,16 @@ const VI_DICTIONARY: Dictionary = {
     settingsNavLoyalty: 'Thành viên thân quen',
     settingsNavLoyaltyDesc:
       'Tính hạng theo chi tiêu của khách trong cửa sổ thời gian và tự động giảm giá khi chốt đơn.',
-    settingsNavPromotions: 'Khuyến mãi',
-    settingsNavPromotionsDesc: 'Chương trình ưu đãi tự động — email và giảm giá sinh nhật khách hàng.',
+    settingsNavPromotions: 'Ưu đãi sinh nhật',
+    settingsNavPromotionsDesc: 'Email và giảm giá sinh nhật khách hàng — tách với voucher trên website.',
     settingsNavAnalyticsMeta: 'Meta & Catalog',
     settingsNavAnalyticsMetaDesc: 'Meta Pixel, Conversions API và feed catalog Facebook.',
-    settingsNavAnalyticsAds: 'GA4 & quảng cáo',
-    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads và TikTok Pixel.',
+    settingsNavAnalyticsGoogleMerchant: 'Google Merchant Center',
+    settingsNavAnalyticsGoogleMerchantDesc: 'Feed TSV sản phẩm để đồng bộ catalog Google Merchant Center.',
+    settingsNavAnalyticsTiktokCatalog: 'TikTok Catalog',
+    settingsNavAnalyticsTiktokCatalogDesc: 'Feed CSV sản phẩm để đồng bộ catalog TikTok Ads.',
+    settingsNavAnalyticsAds: 'Pixel theo dõi',
+    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads và TikTok Pixel — không phải feed catalog.',
     settingsNavSheets: 'Google Sheet',
     settingsNavSheetsDesc: 'Đồng bộ đơn hàng từ chat lên Google Sheet của shop.',
     settingsNavAiUsage: 'Token API AI',
@@ -4105,6 +4202,55 @@ const VI_DICTIONARY: Dictionary = {
     exportCustomerEmailsDone: 'Đã xuất {count} khách → {filename}',
     exportCustomerEmailsLoading: 'Đang xuất…',
     noWorkspace: 'Chưa có workspace. Tạo workspace trong Cài đặt nhắn tin.',
+  },
+  partnerMessagingNotifications: {
+    pageTitle: 'Thông báo khách hàng',
+    pageDescription: 'Tạo thông báo trong tài khoản shop, gửi email và Web Push — giống 188.com.vn.',
+    workspaceLabel: 'Chọn workspace',
+    composeTitle: 'Tạo thông báo',
+    composeHint: 'Gửi tới mọi khách đã có tài khoản shop. Thông báo hiện trong Trung tâm thông báo, có thể gửi kèm email, và đẩy ra trình duyệt nếu khách đã bật.',
+    titleLabel: 'Tiêu đề',
+    bodyLabel: 'Nội dung',
+    scheduleLabel: 'Thời điểm gửi',
+    expireHint: 'Thông báo tự xóa sau 15 ngày kể từ thời điểm gửi.',
+    sendEmailLabel: 'Gửi kèm email cho khách có địa chỉ email',
+    pushHint: 'Khách đã bật thông báo trình duyệt sẽ nhận Web Push khi đến giờ gửi (không gửi sớm nếu hẹn lịch).',
+    smtpMissing: 'Chưa cấu hình SMTP trên máy chủ — vẫn tạo thông báo trong app.',
+    audienceCount: '{count} khách có tài khoản shop',
+    sendButton: 'Tạo và gửi',
+    sending: 'Đang gửi…',
+    composeSuccess: 'Đã tạo thông báo.',
+    importTitle: 'Import thông báo từ Excel/CSV',
+    importHint: 'Mỗi dòng một khách — tìm theo số điện thoại hoặc email đã đăng ký shop.',
+    colPhone: 'Cột 1: phone (Số điện thoại)',
+    colTitle: 'Cột 2: title (Tiêu đề)',
+    colContent: 'Cột 3: content (Nội dung)',
+    colTime: 'Cột 4: time_will_send (Thời gian gửi: dd/mm/yyyy HH:MM:SS)',
+    colEmailOptional: 'Cột 5 (tuỳ chọn): email — dùng khi không có số điện thoại',
+    downloadTemplate: 'Tải file mẫu',
+    importButton: 'Upload và Import',
+    importing: 'Đang xử lý…',
+    importSuccess: 'Đã import thông báo.',
+    resultTitle: 'Kết quả Import:',
+    resultTotal: 'Tổng số dòng',
+    resultSuccess: 'Thành công',
+    resultError: 'Lỗi',
+    resultEmail: 'Đã gửi email',
+    historyTitle: 'Lịch sử gửi',
+    historyEmpty: 'Chưa có đợt gửi nào.',
+    historyWhen: 'Thời điểm',
+    historySource: 'Nguồn',
+    sourceCompose: 'Soạn tay',
+    sourceImport: 'Excel/CSV',
+    noWorkspace: 'Chưa có workspace shop. Tạo workspace trong Quản trị.',
+    errorGeneric: 'Không gửi được thông báo.',
+    errorMissingFile: 'Chưa chọn file.',
+    errorInvalidFile: 'Định dạng file không hợp lệ. Hãy tải Excel hoặc CSV.',
+    errorReadFile: 'Không đọc được file.',
+    errorMissingColumns: 'Thiếu cột: phone, title, content, time_will_send.',
+    errorEmptySheet: 'File không có dòng dữ liệu.',
+    errorNoRecipients: 'Chưa có khách có tài khoản shop.',
+    errorInvalidSchedule: 'Thời điểm gửi không hợp lệ.',
   },
   partnerMessagingAi: {
     panelTitle: 'Trợ lý AI tự động',
@@ -6648,7 +6794,9 @@ const EN_DICTIONARY: Dictionary = {
     workspaceLabel: 'Workspace',
     createButton: 'Create',
     saveOk: 'Saved.',
-    channelsSection: 'Channels (Facebook & Zalo)',
+    channelsSection: 'Import Zalo & Facebook chats',
+    channelsSectionDesc:
+      'Pull customer messages from Zalo OA and Facebook Page into the NanoAI inbox for AI and staff replies.',
     fbPageId: 'Facebook Page ID',
     fbPageToken: 'Page access token',
     fbVerifyToken: 'Verify token (webhook GET)',
@@ -6770,6 +6918,16 @@ const EN_DICTIONARY: Dictionary = {
       'Paste this URL in Commerce Manager (scheduled feed). CSV lists active items; the link column is the NanoAI consult page, not your shop website. Requires image URL and VND price. The key query param is your embed key — keep it private.',
     facebookCatalogFeedCopyButton: 'Copy feed URL',
     facebookCatalogFeedCopiedToast: 'Catalog feed URL copied.',
+    googleMerchantCatalogFeedTitle: 'Google Merchant Center — product feed (TSV)',
+    googleMerchantCatalogFeedHint:
+      'Paste this URL in Merchant Center: Products → Feeds → Scheduled fetch. TSV lists active items; the id column matches Meta/TikTok remarketing; the link column prefers your published shop product page. Requires image URL and price. The key query param is your embed key — keep it private.',
+    googleMerchantCatalogFeedCopyButton: 'Copy feed URL',
+    googleMerchantCatalogFeedCopiedToast: 'Google Merchant Center feed URL copied.',
+    tiktokCatalogFeedTitle: 'TikTok — product catalog (CSV)',
+    tiktokCatalogFeedHint:
+      'Paste this URL in TikTok Ads Manager: Assets → Catalog → Data source → Scheduled feed. CSV lists active items; sku_id matches the Meta/Google catalog id. Requires image URL and price. The key query param is your embed key — keep it private.',
+    tiktokCatalogFeedCopyButton: 'Copy feed URL',
+    tiktokCatalogFeedCopiedToast: 'TikTok catalog feed URL copied.',
     nanoaiEmbedCodeLabel: 'NanoAI chat embed code',
     facebookChatEmbedCodeLabel: 'Facebook chat embed code',
     zaloChatEmbedCodeLabel: 'Zalo chat embed code',
@@ -6816,7 +6974,7 @@ const EN_DICTIONARY: Dictionary = {
     teamPermAiSettings: 'AI settings',
     teamPermWorkspaceBranding: 'Branding & logo',
     teamPermWorkspacePayment: 'In-chat payments',
-    teamPermIntegrationsChannels: 'Facebook / Zalo channels',
+    teamPermIntegrationsChannels: 'Import Zalo / Facebook chats',
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / Catalog',
     teamPermUsageReports: 'Usage reports',
     teamPermMarketingCampaigns: 'Marketing campaigns',
@@ -6830,7 +6988,8 @@ const EN_DICTIONARY: Dictionary = {
     setupColumnTitle: 'Channels & AI assistant',
     chatColumnTitle: 'Customer chat',
     messagingSettingsLink: 'Admin',
-    marketingCampaignsLink: 'Marketing',
+    marketingCampaignsLink: 'Chat remarketing',
+    notificationsLink: 'Shop customer alerts',
     messagingWebsiteLink: 'Website & landing',
     messagingOrdersLink: 'Orders',
     messagingAnalyticsLink: 'Revenue',
@@ -6850,13 +7009,21 @@ const EN_DICTIONARY: Dictionary = {
       'Hosted URL, iframe snippet, embed endpoint, keys, and developer docs now live on the API integration page — they are no longer shown on this settings screen.',
     settingsSidebarTitle: 'Admin menu',
     settingsNavOperationsTitle: 'Operations',
-    settingsNavOperationsDesc: 'Marketing and chat orders — open dedicated pages.',
+    settingsNavOperationsDesc: 'Orders, customer notifications, and marketing campaigns.',
     settingsNavWebsiteTitle: 'Website admin',
+    settingsNavShopTitle: 'Shop',
+    settingsNavSalesTitle: 'Sales',
+    settingsNavWorkspace: 'Shop & staff',
+    settingsNavWebsiteEditor: 'Shop website look',
+    settingsNavConnectTitle: 'Connections',
+    settingsNavCustomersTitle: 'Customers',
+    settingsNavAiGroupTitle: 'AI',
+    settingsNavPaymentDesc: 'Payout account, deposit rules, and SePay for web/chat orders.',
     settingsOpenWebsiteButton: 'View website',
     settingsManageWebsiteButton: 'Edit website',
     settingsCreateWebsiteButton: 'Create website',
-    settingsNavPayment: 'Orders & payment',
-    settingsNavShipping: 'Shipping management',
+    settingsNavPayment: 'Payment settings',
+    settingsNavShipping: 'Shipping settings',
     settingsNavShippingDesc:
       'Shipping fees, carrier label, return address, and the shop shipping-lookup API (NanoAI calls it when customers ask about orders / tracking).',
     settingsNavShippingFeeTitle: 'Shipping fee (chat orders)',
@@ -6865,12 +7032,16 @@ const EN_DICTIONARY: Dictionary = {
     settingsNavLoyalty: 'Returning members',
     settingsNavLoyaltyDesc:
       'Tier customers by spend within a time window and apply automatic discounts at checkout.',
-    settingsNavPromotions: 'Promotions',
-    settingsNavPromotionsDesc: 'Automatic offers — birthday emails and chat discounts for customers.',
+    settingsNavPromotions: 'Birthday offers',
+    settingsNavPromotionsDesc: 'Birthday emails and discounts — separate from website vouchers.',
     settingsNavAnalyticsMeta: 'Meta & catalog',
     settingsNavAnalyticsMetaDesc: 'Meta Pixel, Conversions API, and Facebook catalog feed.',
-    settingsNavAnalyticsAds: 'GA4 & ads',
-    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads, and TikTok Pixel.',
+    settingsNavAnalyticsGoogleMerchant: 'Google Merchant Center',
+    settingsNavAnalyticsGoogleMerchantDesc: 'TSV product feed to sync your Google Merchant Center catalog.',
+    settingsNavAnalyticsTiktokCatalog: 'TikTok catalog',
+    settingsNavAnalyticsTiktokCatalogDesc: 'CSV product feed to sync your TikTok Ads catalog.',
+    settingsNavAnalyticsAds: 'Tracking pixels',
+    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads, and TikTok Pixel — not product catalog feeds.',
     settingsNavSheets: 'Google Sheets',
     settingsNavSheetsDesc: 'Sync chat orders to your shop Google Sheet.',
     settingsNavAiUsage: 'AI API tokens',
@@ -7169,6 +7340,55 @@ const EN_DICTIONARY: Dictionary = {
     exportCustomerEmailsDone: 'Exported {count} customers → {filename}',
     exportCustomerEmailsLoading: 'Exporting…',
     noWorkspace: 'No workspace yet. Create one in Messaging settings.',
+  },
+  partnerMessagingNotifications: {
+    pageTitle: 'Customer notifications',
+    pageDescription: 'Create in-app shop notifications, email, and Web Push — same flow as 188.com.vn.',
+    workspaceLabel: 'Select workspace',
+    composeTitle: 'Create notification',
+    composeHint: 'Send to every customer with a shop account. Shown in the notification center, optionally emailed, and pushed to the browser if they enabled it.',
+    titleLabel: 'Title',
+    bodyLabel: 'Content',
+    scheduleLabel: 'Send time',
+    expireHint: 'Notifications are deleted 15 days after the send time.',
+    sendEmailLabel: 'Also email customers who have an email address',
+    pushHint: 'Customers who enabled browser notifications receive a Web Push at the scheduled time (not earlier).',
+    smtpMissing: 'SMTP is not configured — in-app notifications are still created.',
+    audienceCount: '{count} customers with a shop account',
+    sendButton: 'Create and send',
+    sending: 'Sending…',
+    composeSuccess: 'Notification created.',
+    importTitle: 'Import notifications from Excel/CSV',
+    importHint: 'One customer per row — lookup by phone or registered shop email.',
+    colPhone: 'Column 1: phone',
+    colTitle: 'Column 2: title',
+    colContent: 'Column 3: content',
+    colTime: 'Column 4: time_will_send (dd/mm/yyyy HH:MM:SS)',
+    colEmailOptional: 'Column 5 (optional): email — used when phone is missing',
+    downloadTemplate: 'Download template',
+    importButton: 'Upload and import',
+    importing: 'Processing…',
+    importSuccess: 'Notifications imported.',
+    resultTitle: 'Import result:',
+    resultTotal: 'Rows',
+    resultSuccess: 'Success',
+    resultError: 'Errors',
+    resultEmail: 'Emails sent',
+    historyTitle: 'Send history',
+    historyEmpty: 'No broadcasts yet.',
+    historyWhen: 'When',
+    historySource: 'Source',
+    sourceCompose: 'Compose',
+    sourceImport: 'Excel/CSV',
+    noWorkspace: 'No shop workspace yet. Create one in Admin.',
+    errorGeneric: 'Could not send notifications.',
+    errorMissingFile: 'No file selected.',
+    errorInvalidFile: 'Invalid file format. Upload Excel or CSV.',
+    errorReadFile: 'Could not read the file.',
+    errorMissingColumns: 'Missing columns: phone, title, content, time_will_send.',
+    errorEmptySheet: 'The file has no data rows.',
+    errorNoRecipients: 'No customers with a shop account yet.',
+    errorInvalidSchedule: 'Invalid send time.',
   },
   partnerMessagingAi: {
     panelTitle: 'AI auto-replies',
@@ -9714,7 +9934,8 @@ const ZH_DICTIONARY: Dictionary = {
     workspaceLabel: '工作区',
     createButton: '创建',
     saveOk: '已保存。',
-    channelsSection: '渠道（Facebook 与 Zalo）',
+    channelsSection: '导入 Zalo 与 Facebook 消息',
+    channelsSectionDesc: '将顾客在 Zalo OA 和 Facebook Page 的消息导入 NanoAI 收件箱，供 AI 与员工回复。',
     fbPageId: 'Facebook Page ID',
     fbPageToken: '主页访问令牌',
     fbVerifyToken: '验证令牌（Webhook GET）',
@@ -9832,6 +10053,16 @@ const ZH_DICTIONARY: Dictionary = {
       '在商务管理平台粘贴此 Feed URL。CSV 中 link 列为 NanoAI 咨询页，不是店铺官网。需图片 URL 与越南盾价格。key 为嵌入密钥，请保密。',
     facebookCatalogFeedCopyButton: '复制 Feed URL',
     facebookCatalogFeedCopiedToast: '已复制目录 Feed URL。',
+    googleMerchantCatalogFeedTitle: 'Google Merchant Center — 商品 Feed（TSV）',
+    googleMerchantCatalogFeedHint:
+      '在 Merchant Center 粘贴此 URL：商品 → 数据源 → 定时抓取。TSV 含已上架商品；id 与 Meta/TikTok 再营销一致；link 优先已发布店铺商品页。需图片 URL 与价格。key 为嵌入密钥，请保密。',
+    googleMerchantCatalogFeedCopyButton: '复制 Feed URL',
+    googleMerchantCatalogFeedCopiedToast: '已复制 Google Merchant Center Feed URL。',
+    tiktokCatalogFeedTitle: 'TikTok — 商品目录（CSV）',
+    tiktokCatalogFeedHint:
+      '在 TikTok 广告管理平台粘贴此 URL：资产 → 目录 → 数据源 → 定时 Feed。CSV 含已上架商品；sku_id 与 Meta/Google 目录 id 一致。需图片 URL 与价格。key 为嵌入密钥，请保密。',
+    tiktokCatalogFeedCopyButton: '复制 Feed URL',
+    tiktokCatalogFeedCopiedToast: '已复制 TikTok 目录 Feed URL。',
     nanoaiEmbedCodeLabel: 'NanoAI 聊天嵌入代码',
     facebookChatEmbedCodeLabel: 'Facebook 聊天嵌入代码',
     zaloChatEmbedCodeLabel: 'Zalo 聊天嵌入代码',
@@ -9876,7 +10107,7 @@ const ZH_DICTIONARY: Dictionary = {
     teamPermAiSettings: 'AI 设置',
     teamPermWorkspaceBranding: '品牌与 logo',
     teamPermWorkspacePayment: '聊天内付款',
-    teamPermIntegrationsChannels: 'Facebook / Zalo 渠道',
+    teamPermIntegrationsChannels: '导入 Zalo / Facebook 消息',
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / 目录',
     teamPermUsageReports: '用量报表',
     teamPermMarketingCampaigns: '营销活动',
@@ -9889,7 +10120,8 @@ const ZH_DICTIONARY: Dictionary = {
     setupColumnTitle: '渠道与 AI 助手',
     chatColumnTitle: '客户会话',
     messagingSettingsLink: '管理',
-    marketingCampaignsLink: '营销',
+    marketingCampaignsLink: '聊天再营销',
+    notificationsLink: '店铺客户通知',
     messagingWebsiteLink: '网站与落地页',
     messagingOrdersLink: '订单',
     messagingAnalyticsLink: '营收',
@@ -9910,13 +10142,21 @@ const ZH_DICTIONARY: Dictionary = {
       '第 1 步 — 打开 控制台 → 消息 → 渠道与 AI 设置（本页）。\n\n第 2 步 — 在「创建消息工作区」中填写显示名称、品牌名称、选择行业；可填写 logo 链接或上传图片。\n\n第 3 步 — 点击「创建」。即店铺工作区：来自 Facebook 公共主页、Zalo OA、NanoAI 托管聊天与网站嵌入聊天的消息会进入同一收件箱。\n\n第 4 步 — 随后连接渠道（Facebook/Zalo）、复制托管聊天链接或 iframe 代码，并可在本页选择开启 AI 助手与库存。',
     settingsSidebarTitle: '管理目录',
     settingsNavOperationsTitle: '日常运营',
-    settingsNavOperationsDesc: '营销与聊天订单 — 打开独立页面。',
+    settingsNavOperationsDesc: '订单、客户通知与营销活动。',
     settingsNavWebsiteTitle: '网站管理',
+    settingsNavShopTitle: '店铺',
+    settingsNavSalesTitle: '销售',
+    settingsNavWorkspace: '店铺与员工',
+    settingsNavWebsiteEditor: '店铺网站外观',
+    settingsNavConnectTitle: '连接',
+    settingsNavCustomersTitle: '客户',
+    settingsNavAiGroupTitle: 'AI',
+    settingsNavPaymentDesc: '收款账户、定金规则以及网页/聊天订单的 SePay。',
     settingsOpenWebsiteButton: '查看网站',
     settingsManageWebsiteButton: '编辑网站',
     settingsCreateWebsiteButton: '创建网站',
-    settingsNavPayment: '订单与支付',
-    settingsNavShipping: '物流管理',
+    settingsNavPayment: '支付设置',
+    settingsNavShipping: '物流设置',
     settingsNavShippingDesc:
       '运费、承运商标签、退货地址，以及店铺物流查询 API（顾客询问订单/运单时由 NanoAI 调用）。',
     settingsNavShippingFeeTitle: '运费（聊天订单）',
@@ -9924,12 +10164,16 @@ const ZH_DICTIONARY: Dictionary = {
     settingsNavShippingSaveFee: '保存运费',
     settingsNavLoyalty: '常客会员',
     settingsNavLoyaltyDesc: '按时间窗口内的消费划分等级，并在结账时自动打折。',
-    settingsNavPromotions: '促销活动',
-    settingsNavPromotionsDesc: '自动优惠 — 生日邮件与聊天内折扣。',
+    settingsNavPromotions: '生日优惠',
+    settingsNavPromotionsDesc: '生日邮件与折扣 — 与网站优惠券分开。',
     settingsNavAnalyticsMeta: 'Meta 与目录',
     settingsNavAnalyticsMetaDesc: 'Meta Pixel、转化 API 与 Facebook 商品目录 feed。',
-    settingsNavAnalyticsAds: 'GA4 与广告',
-    settingsNavAnalyticsAdsDesc: 'Google Analytics 4、Google Ads 与 TikTok Pixel。',
+    settingsNavAnalyticsGoogleMerchant: 'Google Merchant Center',
+    settingsNavAnalyticsGoogleMerchantDesc: 'TSV 商品 Feed，用于同步 Google Merchant Center 目录。',
+    settingsNavAnalyticsTiktokCatalog: 'TikTok 目录',
+    settingsNavAnalyticsTiktokCatalogDesc: 'CSV 商品 Feed，用于同步 TikTok 广告目录。',
+    settingsNavAnalyticsAds: '追踪像素',
+    settingsNavAnalyticsAdsDesc: 'Google Analytics 4、Google Ads 与 TikTok Pixel — 不是商品目录 Feed。',
     settingsNavSheets: 'Google 表格',
     settingsNavSheetsDesc: '将聊天订单同步到店铺 Google 表格。',
     settingsNavAiUsage: 'AI API 用量',
@@ -10214,6 +10458,55 @@ const ZH_DICTIONARY: Dictionary = {
     exportCustomerEmailsDone: '已导出 {count} 位客户 → {filename}',
     exportCustomerEmailsLoading: '导出中…',
     noWorkspace: '尚无工作区。请在消息设置中创建。',
+  },
+  partnerMessagingNotifications: {
+    pageTitle: '客户通知',
+    pageDescription: '创建店铺站内通知、邮件和浏览器推送 — 与 188.com.vn 相同。',
+    workspaceLabel: '选择工作区',
+    composeTitle: '创建通知',
+    composeHint: '发送给所有已有店铺账户的客户。显示在通知中心，可同时发邮件，若客户已开启则会推送到浏览器。',
+    titleLabel: '标题',
+    bodyLabel: '内容',
+    scheduleLabel: '发送时间',
+    expireHint: '通知将在发送时间起 15 天后自动删除。',
+    sendEmailLabel: '同时向有邮箱的客户发送邮件',
+    pushHint: '已开启浏览器通知的客户会在预定时间收到 Web Push（不会提前发送）。',
+    smtpMissing: '服务器未配置 SMTP — 仍会创建站内通知。',
+    audienceCount: '{count} 位已有店铺账户的客户',
+    sendButton: '创建并发送',
+    sending: '发送中…',
+    composeSuccess: '已创建通知。',
+    importTitle: '从 Excel/CSV 导入通知',
+    importHint: '每行一位客户 — 按手机号或已注册邮箱查找。',
+    colPhone: '第 1 列：phone（手机号）',
+    colTitle: '第 2 列：title（标题）',
+    colContent: '第 3 列：content（内容）',
+    colTime: '第 4 列：time_will_send（发送时间：dd/mm/yyyy HH:MM:SS）',
+    colEmailOptional: '第 5 列（可选）：email — 无手机号时使用',
+    downloadTemplate: '下载模板',
+    importButton: '上传并导入',
+    importing: '处理中…',
+    importSuccess: '已导入通知。',
+    resultTitle: '导入结果：',
+    resultTotal: '总行数',
+    resultSuccess: '成功',
+    resultError: '错误',
+    resultEmail: '已发邮件',
+    historyTitle: '发送记录',
+    historyEmpty: '暂无发送记录。',
+    historyWhen: '时间',
+    historySource: '来源',
+    sourceCompose: '手动撰写',
+    sourceImport: 'Excel/CSV',
+    noWorkspace: '尚无店铺工作区。请在管理中创建。',
+    errorGeneric: '无法发送通知。',
+    errorMissingFile: '未选择文件。',
+    errorInvalidFile: '文件格式无效。请上传 Excel 或 CSV。',
+    errorReadFile: '无法读取文件。',
+    errorMissingColumns: '缺少列：phone、title、content、time_will_send。',
+    errorEmptySheet: '文件没有数据行。',
+    errorNoRecipients: '尚无已注册店铺账户的客户。',
+    errorInvalidSchedule: '发送时间无效。',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自动回复',
@@ -12680,7 +12973,9 @@ const JA_DICTIONARY: Dictionary = {
     workspaceLabel: 'ワークスペース',
     createButton: '作成',
     saveOk: '保存しました。',
-    channelsSection: 'チャネル（Facebook と Zalo）',
+    channelsSection: 'Zalo・Facebook を AI へ',
+    channelsSectionDesc:
+      'Zalo OA と Facebook Page の顧客メッセージを NanoAI 受信箱に取り込み、AI とスタッフが返信します。',
     fbPageId: 'Facebook Page ID',
     fbPageToken: 'ページアクセストークン',
     fbVerifyToken: '検証トークン（Webhook GET）',
@@ -12801,6 +13096,16 @@ const JA_DICTIONARY: Dictionary = {
       'Commerce Manager のデータソース URL に貼り付けます。link は NanoAI の相談ページで、店舗サイトの URL ではありません。画像 URL と VND 価格が必要です。key は埋め込みキーなので秘密にしてください。',
     facebookCatalogFeedCopyButton: 'フィード URL をコピー',
     facebookCatalogFeedCopiedToast: 'フィード URL をコピーしました。',
+    googleMerchantCatalogFeedTitle: 'Google Merchant Center — 商品フィード（TSV）',
+    googleMerchantCatalogFeedHint:
+      'Merchant Center の「商品 → フィード → 定期取得」にこの URL を貼り付けます。TSV は公開中の商品のみ。id は Meta/TikTok のリマーケティングと一致し、link は公開済みショップの商品ページを優先します。画像 URL と価格が必要です。key は埋め込みキーなので秘密にしてください。',
+    googleMerchantCatalogFeedCopyButton: 'フィード URL をコピー',
+    googleMerchantCatalogFeedCopiedToast: 'Google Merchant Center のフィード URL をコピーしました。',
+    tiktokCatalogFeedTitle: 'TikTok — 商品カタログ（CSV）',
+    tiktokCatalogFeedHint:
+      'TikTok 広告マネージャーの「アセット → カタログ → データソース → 定期フィード」に貼り付けます。CSV は公開中の商品のみ。sku_id は Meta/Google のカタログ id と一致します。画像 URL と価格が必要です。key は埋め込みキーなので秘密にしてください。',
+    tiktokCatalogFeedCopyButton: 'フィード URL をコピー',
+    tiktokCatalogFeedCopiedToast: 'TikTok カタログのフィード URL をコピーしました。',
     nanoaiEmbedCodeLabel: 'NanoAI チャット埋め込みコード',
     facebookChatEmbedCodeLabel: 'Facebook チャット埋め込みコード',
     zaloChatEmbedCodeLabel: 'Zalo チャット埋め込みコード',
@@ -12846,7 +13151,7 @@ const JA_DICTIONARY: Dictionary = {
     teamPermAiSettings: 'AI 設定',
     teamPermWorkspaceBranding: 'ブランド／ロゴ',
     teamPermWorkspacePayment: 'チャット内決済',
-    teamPermIntegrationsChannels: 'Facebook / Zalo チャネル',
+    teamPermIntegrationsChannels: 'Zalo / Facebook メッセージ取込',
     teamPermIntegrationsAnalytics: 'Meta Pixel／GA4／カタログ',
     teamPermUsageReports: '利用レポート',
     teamPermMarketingCampaigns: 'マーケティングキャンペーン',
@@ -12861,7 +13166,8 @@ const JA_DICTIONARY: Dictionary = {
     setupColumnTitle: 'チャネルと AI アシスタント',
     chatColumnTitle: 'お客様チャット',
     messagingSettingsLink: '管理',
-    marketingCampaignsLink: 'マーケティング',
+    marketingCampaignsLink: 'チャットリマーケティング',
+    notificationsLink: 'ショップ顧客通知',
     messagingWebsiteLink: 'Web・ランディング',
     messagingOrdersLink: '注文',
     messagingAnalyticsLink: '売上',
@@ -12883,13 +13189,21 @@ const JA_DICTIONARY: Dictionary = {
       '手順 1 — ダッシュボード → メッセージ → チャネル・AI 設定（このページ）を開きます。\n\n手順 2 — 「メッセージワークスペースを作成」に表示名・ブランド名・業種を入力します。ロゴは URL の入力または画像アップロードが可能です。\n\n手順 3 — 「作成」をクリックします。これが店舗ワークスペースです。Facebook ページ、Zalo OA、NanoAI 上のチャット、サイト埋め込みチャットのメッセージはすべて同じ受信箱に入ります。\n\n手順 4 — 続けてチャネル（Facebook/Zalo）を接続し、ホストされたチャットリンクまたは iframe コードをコピーし、同じ設定画面で AI アシスタントや在庫を任意で有効にします。',
     settingsSidebarTitle: '管理メニュー',
     settingsNavOperationsTitle: '運用',
-    settingsNavOperationsDesc: 'マーケ・チャット注文 — 専用ページを開きます。',
+    settingsNavOperationsDesc: '注文、お客様通知、マーケティング。',
     settingsNavWebsiteTitle: 'Web管理',
+    settingsNavShopTitle: 'ショップ',
+    settingsNavSalesTitle: '販売',
+    settingsNavWorkspace: 'ショップとスタッフ',
+    settingsNavWebsiteEditor: 'ショップサイトの見た目',
+    settingsNavConnectTitle: '連携',
+    settingsNavCustomersTitle: 'お客様',
+    settingsNavAiGroupTitle: 'AI',
+    settingsNavPaymentDesc: '入金口座、デポジット、Web/チャット注文の SePay。',
     settingsOpenWebsiteButton: 'Webを見る',
     settingsManageWebsiteButton: 'Webを編集',
     settingsCreateWebsiteButton: 'Webを作成',
-    settingsNavPayment: '注文と決済',
-    settingsNavShipping: '配送管理',
+    settingsNavPayment: '決済設定',
+    settingsNavShipping: '配送設定',
     settingsNavShippingDesc:
       '送料、配送業者、返送先住所、ショップの配送照会 API（注文・追跡の問い合わせ時に NanoAI が呼び出します）。',
     settingsNavShippingFeeTitle: '送料（チャット注文）',
@@ -12897,12 +13211,16 @@ const JA_DICTIONARY: Dictionary = {
     settingsNavShippingSaveFee: '送料を保存',
     settingsNavLoyalty: '常連会員',
     settingsNavLoyaltyDesc: '期間内の購入額でランク付けし、注文確定時に自動割引します。',
-    settingsNavPromotions: 'プロモーション',
-    settingsNavPromotionsDesc: '自動オファー — 誕生日メールとチャット割引。',
+    settingsNavPromotions: '誕生日特典',
+    settingsNavPromotionsDesc: '誕生日メールと割引 — サイトのクーポンとは別です。',
     settingsNavAnalyticsMeta: 'Meta とカタログ',
     settingsNavAnalyticsMetaDesc: 'Meta Pixel、Conversions API、Facebook カタログ feed。',
-    settingsNavAnalyticsAds: 'GA4 と広告',
-    settingsNavAnalyticsAdsDesc: 'Google Analytics 4、Google Ads、TikTok Pixel。',
+    settingsNavAnalyticsGoogleMerchant: 'Google Merchant Center',
+    settingsNavAnalyticsGoogleMerchantDesc: 'Google Merchant Center カタログ同期用の TSV 商品フィード。',
+    settingsNavAnalyticsTiktokCatalog: 'TikTok カタログ',
+    settingsNavAnalyticsTiktokCatalogDesc: 'TikTok 広告カタログ同期用の CSV 商品フィード。',
+    settingsNavAnalyticsAds: '計測ピクセル',
+    settingsNavAnalyticsAdsDesc: 'Google Analytics 4、Google Ads、TikTok Pixel — カタログフィードではありません。',
     settingsNavSheets: 'Google スプレッドシート',
     settingsNavSheetsDesc: 'チャット注文をショップの Google スプレッドシートに同期。',
     settingsNavAiUsage: 'AI API トークン',
@@ -13196,6 +13514,55 @@ const JA_DICTIONARY: Dictionary = {
     exportCustomerEmailsDone: '{count} 人を出力しました → {filename}',
     exportCustomerEmailsLoading: '出力中…',
     noWorkspace: 'ワークスペースがありません。メッセージ設定で作成してください。',
+  },
+  partnerMessagingNotifications: {
+    pageTitle: 'お客様通知',
+    pageDescription: 'ショップのアプリ内通知、メール、Web Push を作成 — 188.com.vn と同じ流れです。',
+    workspaceLabel: 'ワークスペースを選択',
+    composeTitle: '通知を作成',
+    composeHint: 'ショップアカウントを持つ全お客様に送信。通知センターに表示し、任意でメールも送れます。ブラウザ通知をオンにしたお客様には Web Push も届きます。',
+    titleLabel: 'タイトル',
+    bodyLabel: '本文',
+    scheduleLabel: '送信日時',
+    expireHint: '通知は送信から15日後に自動削除されます。',
+    sendEmailLabel: 'メールアドレスがあるお客様にもメールを送る',
+    pushHint: 'ブラウザ通知をオンにしたお客様には、予約時刻に Web Push が届きます（早めには送りません）。',
+    smtpMissing: 'SMTP 未設定 — アプリ内通知は作成されます。',
+    audienceCount: 'ショップアカウントのあるお客様 {count} 人',
+    sendButton: '作成して送信',
+    sending: '送信中…',
+    composeSuccess: '通知を作成しました。',
+    importTitle: 'Excel/CSV から通知をインポート',
+    importHint: '1行1人 — 電話番号または登録メールで検索します。',
+    colPhone: '列1: phone（電話番号）',
+    colTitle: '列2: title（タイトル）',
+    colContent: '列3: content（本文）',
+    colTime: '列4: time_will_send（送信日時: dd/mm/yyyy HH:MM:SS）',
+    colEmailOptional: '列5（任意）: email — 電話番号がない場合に使用',
+    downloadTemplate: 'テンプレートをダウンロード',
+    importButton: 'アップロードしてインポート',
+    importing: '処理中…',
+    importSuccess: '通知をインポートしました。',
+    resultTitle: 'インポート結果:',
+    resultTotal: '行数',
+    resultSuccess: '成功',
+    resultError: 'エラー',
+    resultEmail: '送信済みメール',
+    historyTitle: '送信履歴',
+    historyEmpty: 'まだ送信がありません。',
+    historyWhen: '日時',
+    historySource: 'ソース',
+    sourceCompose: '作成',
+    sourceImport: 'Excel/CSV',
+    noWorkspace: 'ショップのワークスペースがありません。管理で作成してください。',
+    errorGeneric: '通知を送信できませんでした。',
+    errorMissingFile: 'ファイルが選択されていません。',
+    errorInvalidFile: 'ファイル形式が無効です。Excel または CSV をアップロードしてください。',
+    errorReadFile: 'ファイルを読み取れませんでした。',
+    errorMissingColumns: '不足列: phone, title, content, time_will_send。',
+    errorEmptySheet: 'データ行がありません。',
+    errorNoRecipients: 'ショップアカウントのあるお客様がいません。',
+    errorInvalidSchedule: '送信日時が無効です。',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自動返信',
@@ -15718,7 +16085,9 @@ const KO_DICTIONARY: Dictionary = {
     workspaceLabel: '워크스페이스',
     createButton: '만들기',
     saveOk: '저장되었습니다.',
-    channelsSection: '채널(Facebook 및 Zalo)',
+    channelsSection: 'Zalo·Facebook 메시지 가져오기',
+    channelsSectionDesc:
+      'Zalo OA와 Facebook Page에서 온 고객 메시지를 NanoAI 받은편지함으로 가져와 AI와 직원이 답장합니다.',
     fbPageId: 'Facebook Page ID',
     fbPageToken: '페이지 액세스 토큰',
     fbVerifyToken: '검증 토큰(Webhook GET)',
@@ -15839,6 +16208,16 @@ const KO_DICTIONARY: Dictionary = {
       '커머스 관리자 데이터 소스 URL에 붙여 넣습니다. link 열은 NanoAI 상담 페이지이며 쇼핑몰 사이트 링크가 아닙니다. 이미지 URL·VND 가격 필요. key는 임베드 키로 비공개 유지.',
     facebookCatalogFeedCopyButton: '피드 URL 복사',
     facebookCatalogFeedCopiedToast: '피드 URL을 복사했습니다.',
+    googleMerchantCatalogFeedTitle: 'Google Merchant Center — 상품 피드(TSV)',
+    googleMerchantCatalogFeedHint:
+      'Merchant Center의 제품 → 피드 → 예약 가져오기에 이 URL을 붙여 넣으세요. TSV는 활성 상품만 포함합니다. id는 Meta/TikTok 리마케팅과 같고, link는 게시된 쇼핑몰 상품 페이지를 우선합니다. 이미지 URL과 가격이 필요합니다. key는 임베드 키이므로 비공개로 유지하세요.',
+    googleMerchantCatalogFeedCopyButton: '피드 URL 복사',
+    googleMerchantCatalogFeedCopiedToast: 'Google Merchant Center 피드 URL을 복사했습니다.',
+    tiktokCatalogFeedTitle: 'TikTok — 상품 카탈로그(CSV)',
+    tiktokCatalogFeedHint:
+      'TikTok 광고 관리자의 자산 → 카탈로그 → 데이터 소스 → 예약 피드에 붙여 넣으세요. CSV는 활성 상품만 포함합니다. sku_id는 Meta/Google 카탈로그 id와 같습니다. 이미지 URL과 가격이 필요합니다. key는 임베드 키이므로 비공개로 유지하세요.',
+    tiktokCatalogFeedCopyButton: '피드 URL 복사',
+    tiktokCatalogFeedCopiedToast: 'TikTok 카탈로그 피드 URL을 복사했습니다.',
     nanoaiEmbedCodeLabel: 'NanoAI 채팅 임베드 코드',
     facebookChatEmbedCodeLabel: 'Facebook 채팅 임베드 코드',
     zaloChatEmbedCodeLabel: 'Zalo 채팅 임베드 코드',
@@ -15884,7 +16263,7 @@ const KO_DICTIONARY: Dictionary = {
     teamPermAiSettings: 'AI 설정',
     teamPermWorkspaceBranding: '브랜드·로고',
     teamPermWorkspacePayment: '채팅 결제',
-    teamPermIntegrationsChannels: 'Facebook / Zalo 채널',
+    teamPermIntegrationsChannels: 'Zalo / Facebook 메시지 가져오기',
     teamPermIntegrationsAnalytics: 'Meta Pixel / GA4 / 카탈로그',
     teamPermUsageReports: '사용 리포트',
     teamPermMarketingCampaigns: '마케팅 캠페인',
@@ -15898,7 +16277,8 @@ const KO_DICTIONARY: Dictionary = {
     setupColumnTitle: '채널 및 AI 어시스턴트',
     chatColumnTitle: '고객 채팅',
     messagingSettingsLink: '관리',
-    marketingCampaignsLink: '마케팅',
+    marketingCampaignsLink: '채팅 리마케팅',
+    notificationsLink: '쇼핑몰 고객 알림',
     messagingWebsiteLink: '웹·랜딩',
     messagingOrdersLink: '주문',
     messagingAnalyticsLink: '매출',
@@ -15920,13 +16300,21 @@ const KO_DICTIONARY: Dictionary = {
       '1단계 — 대시보드 → 메시지 → 채널·AI 설정(이 페이지)으로 이동합니다.\n\n2단계 — «메시징 워크스페이스 만들기»에서 표시 이름, 브랜드 이름, 업종을 입력합니다. 로고는 URL을 넣거나 이미지를 업로드할 수 있습니다.\n\n3단계 — «만들기»를 누릅니다. 이것이 매장 워크스페이스입니다. Facebook 페이지, Zalo OA, NanoAI 호스팅 채팅, 사이트에 임베드한 채팅의 메시지가 모두 같은 받은편지함으로 들어옵니다.\n\n4단계 — 이어서 채널(Facebook/Zalo)을 연결하고 호스팅 채팅 링크 또는 iframe 코드를 복사한 뒤, 같은 설정 페이지에서 AI 어시스트와 재고를 선택적으로 켤 수 있습니다.',
     settingsSidebarTitle: '관리 메뉴',
     settingsNavOperationsTitle: '운영',
-    settingsNavOperationsDesc: '마케팅 및 채팅 주문 — 별도 페이지로 이동합니다.',
+    settingsNavOperationsDesc: '주문, 고객 알림, 마케팅 캠페인.',
     settingsNavWebsiteTitle: '웹사이트 관리',
+    settingsNavShopTitle: '샵',
+    settingsNavSalesTitle: '판매',
+    settingsNavWorkspace: '매장과 직원',
+    settingsNavWebsiteEditor: '쇼핑몰 사이트 디자인',
+    settingsNavConnectTitle: '연결',
+    settingsNavCustomersTitle: '고객',
+    settingsNavAiGroupTitle: 'AI',
+    settingsNavPaymentDesc: '입금 계좌, 보증금 규칙, 웹/채팅 주문의 SePay.',
     settingsOpenWebsiteButton: '웹사이트 보기',
     settingsManageWebsiteButton: '웹사이트 편집',
     settingsCreateWebsiteButton: '웹사이트 만들기',
-    settingsNavPayment: '주문 및 결제',
-    settingsNavShipping: '배송 관리',
+    settingsNavPayment: '결제 설정',
+    settingsNavShipping: '배송 설정',
     settingsNavShippingDesc:
       '배송비, 운송사, 반송 주소, 쇼핑몰 배송 조회 API(고객이 주문/운송장을 물을 때 NanoAI가 호출).',
     settingsNavShippingFeeTitle: '배송비(채팅 주문)',
@@ -15934,12 +16322,16 @@ const KO_DICTIONARY: Dictionary = {
     settingsNavShippingSaveFee: '배송비 저장',
     settingsNavLoyalty: '단골 회원',
     settingsNavLoyaltyDesc: '기간 내 구매액으로 등급을 매기고 주문 확정 시 자동 할인합니다.',
-    settingsNavPromotions: '프로모션',
-    settingsNavPromotionsDesc: '자동 혜택 — 생일 이메일 및 채팅 할인.',
+    settingsNavPromotions: '생일 혜택',
+    settingsNavPromotionsDesc: '생일 이메일과 할인 — 웹사이트 쿠폰과 별도입니다.',
     settingsNavAnalyticsMeta: 'Meta 및 카탈로그',
     settingsNavAnalyticsMetaDesc: 'Meta Pixel, Conversions API, Facebook 카탈로그 feed.',
-    settingsNavAnalyticsAds: 'GA4 및 광고',
-    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads, TikTok Pixel.',
+    settingsNavAnalyticsGoogleMerchant: 'Google Merchant Center',
+    settingsNavAnalyticsGoogleMerchantDesc: 'Google Merchant Center 카탈로그 동기화용 TSV 상품 피드.',
+    settingsNavAnalyticsTiktokCatalog: 'TikTok 카탈로그',
+    settingsNavAnalyticsTiktokCatalogDesc: 'TikTok 광고 카탈로그 동기화용 CSV 상품 피드.',
+    settingsNavAnalyticsAds: '추적 픽셀',
+    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads, TikTok Pixel — 카탈로그 피드가 아닙니다.',
     settingsNavSheets: 'Google 시트',
     settingsNavSheetsDesc: '채팅 주문을 매장 Google 시트에 동기화합니다.',
     settingsNavAiUsage: 'AI API 토큰',
@@ -16232,6 +16624,55 @@ const KO_DICTIONARY: Dictionary = {
     exportCustomerEmailsDone: '{count}명보냄 → {filename}',
     exportCustomerEmailsLoading: '보내는 중…',
     noWorkspace: '워크스페이스가 없습니다. 메시징 설정에서 생성하세요.',
+  },
+  partnerMessagingNotifications: {
+    pageTitle: '고객 알림',
+    pageDescription: '샵 인앱 알림, 이메일, Web Push를 만듭니다 — 188.com.vn과 동일한 흐름입니다.',
+    workspaceLabel: '워크스페이스 선택',
+    composeTitle: '알림 만들기',
+    composeHint: '샵 계정이 있는 모든 고객에게 보냅니다. 알림 센터에 표시되고, 이메일도 보낼 수 있으며, 브라우저 알림을 켠 고객에게는 Web Push도 갑니다.',
+    titleLabel: '제목',
+    bodyLabel: '내용',
+    scheduleLabel: '발송 시각',
+    expireHint: '알림은 발송 시각부터 15일 후 자동 삭제됩니다.',
+    sendEmailLabel: '이메일이 있는 고객에게도 메일 보내기',
+    pushHint: '브라우저 알림을 켠 고객은 예약 시각에 Web Push를 받습니다(미리 보내지 않음).',
+    smtpMissing: 'SMTP가 설정되지 않았습니다 — 인앱 알림은 그대로 생성됩니다.',
+    audienceCount: '샵 계정이 있는 고객 {count}명',
+    sendButton: '만들고 보내기',
+    sending: '보내는 중…',
+    composeSuccess: '알림을 만들었습니다.',
+    importTitle: 'Excel/CSV에서 알림 가져오기',
+    importHint: '한 줄에 한 고객 — 전화번호 또는 등록 이메일로 찾습니다.',
+    colPhone: '열 1: phone (전화번호)',
+    colTitle: '열 2: title (제목)',
+    colContent: '열 3: content (내용)',
+    colTime: '열 4: time_will_send (발송 시각: dd/mm/yyyy HH:MM:SS)',
+    colEmailOptional: '열 5(선택): email — 전화번호가 없을 때 사용',
+    downloadTemplate: '템플릿 다운로드',
+    importButton: '업로드하고 가져오기',
+    importing: '처리 중…',
+    importSuccess: '알림을 가져왔습니다.',
+    resultTitle: '가져오기 결과:',
+    resultTotal: '총 행',
+    resultSuccess: '성공',
+    resultError: '오류',
+    resultEmail: '보낸 이메일',
+    historyTitle: '발송 기록',
+    historyEmpty: '아직 발송이 없습니다.',
+    historyWhen: '시각',
+    historySource: '출처',
+    sourceCompose: '직접 작성',
+    sourceImport: 'Excel/CSV',
+    noWorkspace: '샵 워크스페이스가 없습니다. 관리에서 만드세요.',
+    errorGeneric: '알림을 보내지 못했습니다.',
+    errorMissingFile: '파일을 선택하지 않았습니다.',
+    errorInvalidFile: '파일 형식이 올바르지 않습니다. Excel 또는 CSV를 업로드하세요.',
+    errorReadFile: '파일을 읽을 수 없습니다.',
+    errorMissingColumns: '누락된 열: phone, title, content, time_will_send.',
+    errorEmptySheet: '데이터 행이 없습니다.',
+    errorNoRecipients: '샵 계정이 있는 고객이 없습니다.',
+    errorInvalidSchedule: '발송 시각이 올바르지 않습니다.',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 자동 답장',

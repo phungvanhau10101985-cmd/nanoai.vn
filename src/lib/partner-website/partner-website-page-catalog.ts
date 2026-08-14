@@ -23,6 +23,8 @@ export type PartnerWebsitePageKey =
   | 'wishlist'
   | 'recently_viewed'
   | 'account'
+  | 'orders'
+  | 'addresses'
   | 'payment'
   | 'thank_you'
   | 'blog'
@@ -187,6 +189,34 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     defaultFeaturesEn: [
       'Sign in/up, profile, recent orders, shipping addresses',
       'Account menu + support chat CTA',
+    ],
+  },
+  {
+    key: 'orders',
+    htmlPath: 'orders.html',
+    routePath: '/orders',
+    discoveryKeys: PAGE_FEATURE_KEYS,
+    defaultFeaturesVi: [
+      'Danh sách đơn hàng, trạng thái, xem chi tiết, mua lại',
+      'Empty state + CTA tiếp tục mua sắm',
+    ],
+    defaultFeaturesEn: [
+      'Order list, status, detail, buy again',
+      'Empty state + continue shopping CTA',
+    ],
+  },
+  {
+    key: 'addresses',
+    htmlPath: 'addresses.html',
+    routePath: '/addresses',
+    discoveryKeys: PAGE_FEATURE_KEYS,
+    defaultFeaturesVi: [
+      'Sổ địa chỉ giao hàng, thêm/sửa/xóa, đặt mặc định',
+      'Form địa chỉ + xác nhận',
+    ],
+    defaultFeaturesEn: [
+      'Shipping address book, add/edit/delete, set default',
+      'Address form + confirm',
     ],
   },
   {
@@ -456,6 +486,8 @@ export function pageCatalogLabels(locale: WebLocale): Record<
       wishlist: { title: 'Wishlist / favorites', hint: 'Saved favorite products' },
       recently_viewed: { title: 'Recently viewed', hint: 'Products you viewed lately' },
       account: { title: 'Account', hint: 'Sign in, profile, orders' },
+      orders: { title: 'Orders', hint: 'Order history and status' },
+      addresses: { title: 'Addresses', hint: 'Shipping address book' },
       payment: { title: 'Payment guide', hint: 'COD, transfer, e-wallets' },
       thank_you: { title: 'Order success', hint: 'Thank-you after checkout' },
       stores: { title: 'Stores', hint: 'Offline store list & map' },
@@ -484,6 +516,8 @@ export function pageCatalogLabels(locale: WebLocale): Record<
       wishlist: { title: '心愿单/收藏', hint: '收藏的商品' },
       recently_viewed: { title: '最近浏览', hint: '最近看过的商品' },
       account: { title: '账户', hint: '登录、资料、订单' },
+      orders: { title: '订单', hint: '订单记录与状态' },
+      addresses: { title: '地址', hint: '收货地址簿' },
       payment: { title: '支付说明', hint: '货到付款、转账、电子钱包' },
       thank_you: { title: '下单成功', hint: '感谢页与下一步' },
       stores: { title: '门店', hint: '线下门店与地图' },
@@ -512,6 +546,8 @@ export function pageCatalogLabels(locale: WebLocale): Record<
       wishlist: { title: 'お気に入り', hint: '保存した商品' },
       recently_viewed: { title: '閲覧履歴', hint: '最近見た商品' },
       account: { title: 'アカウント', hint: 'ログイン・プロフィール・注文' },
+      orders: { title: '注文履歴', hint: '注文一覧と配送状況' },
+      addresses: { title: '住所', hint: 'お届け先アドレス帳' },
       payment: { title: 'お支払い案内', hint: '代引・振込・電子マネー' },
       thank_you: { title: '注文完了', hint: 'サンクスページと次の案内' },
       stores: { title: '店舗一覧', hint: '実店舗と地図' },
@@ -540,6 +576,8 @@ export function pageCatalogLabels(locale: WebLocale): Record<
       wishlist: { title: '위시리스트/찜', hint: '찜한 상품' },
       recently_viewed: { title: '최근 본 상품', hint: '최근에 본 상품 목록' },
       account: { title: '계정', hint: '로그인, 프로필, 주문' },
+      orders: { title: '주문', hint: '주문 내역과 상태' },
+      addresses: { title: '주소', hint: '배송지 주소록' },
       payment: { title: '결제 안내', hint: '착불, 이체, 전자지갑' },
       thank_you: { title: '주문 완료', hint: '감사 페이지와 다음 단계' },
       stores: { title: '매장', hint: '오프라인 매장과 지도' },
@@ -567,6 +605,8 @@ export function pageCatalogLabels(locale: WebLocale): Record<
     wishlist: { title: 'Yêu thích', hint: 'Trang nền tảng — favorites' },
     recently_viewed: { title: 'Đã xem gần đây', hint: 'Trang nền tảng — recently viewed' },
     account: { title: 'Tài khoản', hint: 'Đăng nhập, hồ sơ, đơn hàng' },
+    orders: { title: 'Đơn hàng', hint: 'Lịch sử và trạng thái đơn' },
+    addresses: { title: 'Địa chỉ', hint: 'Sổ địa chỉ giao hàng' },
     payment: { title: 'Thanh toán', hint: 'COD, chuyển khoản, ví điện tử' },
     thank_you: { title: 'Đặt hàng thành công', hint: 'Xác nhận đơn và bước tiếp' },
     stores: { title: 'Cửa hàng', hint: 'Danh sách store offline + bản đồ' },

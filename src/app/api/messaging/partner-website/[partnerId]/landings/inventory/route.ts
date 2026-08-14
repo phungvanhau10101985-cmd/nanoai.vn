@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForCreditAction } from '@/lib/auth'
-import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerInventoryShopPageFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 
@@ -26,9 +26,15 @@ export async function GET(
   }
 
   const page = Math.max(0, Number(req.nextUrl.searchParams.get('page') || 0) || 0)
-  const pageSize = Math.min(100, Math.max(20, Number(req.nextUrl.searchParams.get('pageSize') || 40) || 40))
+  const pageSize = Math.min(48, Math.max(8, Number(req.nextUrl.searchParams.get('pageSize') || 20) || 20))
   const from = page * pageSize
-  const inv = await fetchPartnerInventoryActivePageWithCountFromPg(pid, from, pageSize)
+  const q = String(req.nextUrl.searchParams.get('q') || '').trim()
+  const inv = await fetchPartnerInventoryShopPageFromPg(pid, {
+    offset: from,
+    limit: pageSize,
+    q: q || undefined,
+    sort: 'newest',
+  })
   if (!inv) {
     return NextResponse.json({ error: 'Failed to load inventory' }, { status: 500 })
   }

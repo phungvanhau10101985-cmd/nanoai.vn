@@ -64,6 +64,11 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     const enriched = orders.map((o) => ({
       ...o,
       has_review: reviewedIds.has(o.id),
+      can_cancel:
+        (o.status === 'awaiting_payment' || o.status === 'payment_checking') &&
+        o.shipping_status !== 'delivered' &&
+        o.shipping_status !== 'returned',
+      can_confirm_received: o.status !== 'cancelled' && o.shipping_status === 'shipping',
     }))
     const res = NextResponse.json({ orders: enriched })
     applyGuestIdentityToResponse(res, request, {

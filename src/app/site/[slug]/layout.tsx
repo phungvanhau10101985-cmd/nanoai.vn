@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Be_Vietnam_Pro, Fraunces } from 'next/font/google'
 import { headers } from 'next/headers'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
+import { PartnerSiteShopPushBoot } from '@/components/partner-website/shop/partner-site-shop-push-boot'
 import { PartnerSiteCustomDomainProvider } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import {
@@ -84,6 +85,7 @@ export default async function PartnerSiteSlugLayout({
         {name ? <meta name="apple-mobile-web-app-title" content={name} /> : null}
         {icon180 ? <link rel="apple-touch-icon" href={icon180} /> : null}
       </head>
+      <PartnerSiteShopPushBoot siteSlug={site?.siteSlug || slug} />
       <div className={`${display.variable} ${ui.variable}`}>{children}</div>
     </PartnerSiteCustomDomainProvider>
   )

@@ -3,8 +3,10 @@ import { PARTNER_CUSTOM_DOMAIN_HEADER } from '@/lib/auth/app-request-headers'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   buildPartnerShopServiceWorkerSource,
+  partnerSitePwaIconPath,
   partnerSitePwaStartUrl,
 } from '@/lib/partner-website/shop/partner-site-pwa'
+import { partnerSiteAccountTabPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +23,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
   const source = buildPartnerShopServiceWorkerSource({
     siteSlug: shop.site.siteSlug,
     startUrl,
+    customDomain,
+    inboxPath: partnerSiteAccountTabPath(shop.site.siteSlug, 'notifications', { customDomain }),
+    iconPath: partnerSitePwaIconPath(shop.site.siteSlug, 192, customDomain),
   })
 
   return new NextResponse(source, {

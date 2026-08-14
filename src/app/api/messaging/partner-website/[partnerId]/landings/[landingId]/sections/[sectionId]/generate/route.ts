@@ -18,7 +18,12 @@ export async function POST(
   const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
-  const result = await runLandingSectionGenerate(pid, landingId.trim(), sectionId.trim(), { target: 'all' })
+  const body = (await req.json().catch(() => ({}))) as { target?: string; customPrompt?: string }
+  const target = body.target === 'text' || body.target === 'image' ? body.target : 'all'
+  const result = await runLandingSectionGenerate(pid, landingId.trim(), sectionId.trim(), {
+    target,
+    customPrompt: (body.customPrompt ?? '').trim() || undefined,
+  })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
   return NextResponse.json({ section: result.section })
 }

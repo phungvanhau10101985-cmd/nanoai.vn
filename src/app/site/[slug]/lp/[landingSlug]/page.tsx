@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { fetchPublishedPartnerLandingBySiteAndSlugPg } from '@/lib/db/messaging-partner-landing-pages-pg'
 import { listLandingSectionsPg } from '@/lib/db/messaging-partner-landing-sections-pg'
@@ -10,6 +10,8 @@ import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-sit
 import { PartnerSitePublicClient } from '../../partner-site-public-client'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { LandingAiSectionsView } from '@/components/partner-website/landing/landing-ai-sections-view'
+import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
+import { buildThemeCssVarBlock } from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 type Props = {
   params: Promise<{ slug: string; landingSlug: string }>
@@ -57,6 +59,11 @@ export default async function PartnerLandingPublicPage({ params }: Props) {
   if (heroReady) {
     const context = await buildLandingAiContext(landing.partnerId, landing)
     if (context) {
+      if (landing.sourceType === 'products' && context.products.length === 1 && context.products[0]?.detailPath) {
+        redirect(context.products[0].detailPath)
+      }
+      const website = await fetchPublishedPartnerWebsiteBySlugPg(landing.siteSlug).catch(() => null)
+      const themeCss = website?.theme ? `:root{${buildThemeCssVarBlock(website.theme)}}` : ''
       return (
         <PartnerSiteChatWidgetProvider
           chatPath={landing.chatPath}
@@ -64,6 +71,7 @@ export default async function PartnerLandingPublicPage({ params }: Props) {
           logoUrl={landing.logoUrl}
           locale={landing.locale}
         >
+          {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
           <LandingAiSectionsView sections={sections} context={context} />
         </PartnerSiteChatWidgetProvider>
       )

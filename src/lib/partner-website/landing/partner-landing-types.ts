@@ -1,7 +1,19 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 
-export const PARTNER_LANDING_MAX_PRODUCTS = 8
+/** Giống 188: chọn nhiều SP trên 1 landing (không còn giới hạn 8). */
+export const PARTNER_LANDING_MAX_PRODUCTS = 60
+export const PARTNER_LANDING_CATEGORY_LIMIT_MAX = 60
+
+export type LandingAiKind = 'single' | 'category' | 'multi'
+
+export function landingAiKindOf(lp: {
+  sourceType: PartnerLandingSourceType
+  inventoryIds: string[]
+}): LandingAiKind {
+  if (lp.sourceType === 'category') return 'category'
+  return lp.inventoryIds.length <= 1 ? 'single' : 'multi'
+}
 
 export type PartnerLandingSourceType = 'products' | 'category'
 

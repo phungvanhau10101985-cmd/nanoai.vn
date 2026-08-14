@@ -29,6 +29,8 @@ export async function POST(
   const body = (await req.json()) as {
     prompt?: string
     referenceImageUrl?: string | null
+    referenceImageUrls?: string[] | null
+    referenceImageMeta?: Array<{ screenKey: string; label?: string }> | null
     title?: string
     kind?: string
     aspectRatio?: string
@@ -46,17 +48,27 @@ export async function POST(
   const screenLabel =
     kind === 'logo' ? 'Website logo' : kind === 'banner' ? 'Website banner' : 'Website section image'
 
-  const ref = body.referenceImageUrl?.trim()
+  const refs: string[] = []
+  const extra = [body.referenceImageUrl, ...(Array.isArray(body.referenceImageUrls) ? body.referenceImageUrls : [])]
+  for (const raw of extra) {
+    const ref = String(raw || '').trim()
+    if (/^https?:\/\//i.test(ref) && !refs.includes(ref)) refs.push(ref)
+    if (refs.length >= 6) break
+  }
+  const meta = Array.isArray(body.referenceImageMeta)
+    ? body.referenceImageMeta.slice(0, refs.length)
+    : undefined
   const result = await runStudioImagePipeline({
     userId: auth.user.id,
     kind,
     screenLabel,
     brief: prompt,
     projectTitle: body.title?.trim() || 'Partner website',
-    referenceImageUrls: ref && /^https?:\/\//i.test(ref) ? [ref] : undefined,
-    productImageUrls: ref && /^https?:\/\//i.test(ref) ? [ref] : undefined,
+    referenceImageUrls: refs.length ? refs : undefined,
+    referenceImageMeta: meta,
+    productImageUrls: kind === 'logo' ? undefined : refs.length ? refs : undefined,
     aspectRatio,
-    verbatimPrompt: false,
+    verbatimPrompt: kind === 'logo',
   })
 
   if (!result.ok) {

@@ -6,6 +6,7 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website/shop/partner-site-shop-saved-products-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
+import { maybePartnerSiteVisualPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -36,6 +37,8 @@ export default async function PartnerSiteWishlistPage({ params }: Props) {
   const { slug } = await params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
+  const visual = maybePartnerSiteVisualPage(shop.site, 'wishlist')
+  if (visual) return visual
 
   return (
     <PartnerSiteShopShell

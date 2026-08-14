@@ -36,7 +36,7 @@ function main() {
   )
   assert.equal(
     classifyPartnerSiteOrderStatusBucket({ status: 'paid_verified', shipping_status: 'returned' }),
-    'other'
+    'returned'
   )
 
   const orders = [
@@ -55,10 +55,15 @@ function main() {
   assert.equal(counts.delivered, 1)
   assert.equal(counts.reviewed, 1)
   assert.equal(counts.cancelled, 1)
-  // returned không vào shortcut riêng
+  assert.equal(counts.returned, 1)
   assert.equal(
-    counts.waiting_payment + counts.processing + counts.delivered + counts.reviewed + counts.cancelled,
-    6
+    counts.waiting_payment +
+      counts.processing +
+      counts.delivered +
+      counts.reviewed +
+      counts.cancelled +
+      counts.returned,
+    7
   )
 
   assert.equal(orderMatchesPartnerSiteStatusFilter(orders[0], 'waiting_payment'), true)

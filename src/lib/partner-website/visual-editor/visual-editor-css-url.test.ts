@@ -30,9 +30,13 @@ describe('visual-editor css url', () => {
 
   it('infers logo / banner / product kinds', () => {
     expect(inferVisualEditImageKind({ isLogo: true })).toEqual({ kind: 'logo', aspectRatio: '1:1' })
+    expect(inferVisualEditImageKind({ isLogo: true, width: 160, height: 36 })).toEqual({
+      kind: 'logo',
+      aspectRatio: '4:1',
+    })
     expect(inferVisualEditImageKind({ isBgImage: true, width: 1200, height: 400 })).toEqual({
       kind: 'banner',
-      aspectRatio: '16:9',
+      aspectRatio: '21:9',
     })
     expect(inferVisualEditImageKind({ width: 800, height: 400 })).toEqual({
       kind: 'banner',
@@ -40,7 +44,7 @@ describe('visual-editor css url', () => {
     })
     expect(inferVisualEditImageKind({ width: 300, height: 480 })).toEqual({
       kind: 'product_photo',
-      aspectRatio: '3:4',
+      aspectRatio: '2:3',
     })
   })
 })
@@ -52,6 +56,27 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('isBtnEl')
     expect(s).toContain('isChromeBtn')
     expect(s).toContain('insertChromeBtn')
+    expect(s).toContain('data-pw-device')
+    expect(s).toContain("editDevice === 'mobile'")
+    expect(s).toContain('insertText')
+    expect(s).toContain('insertButton')
+    expect(s).toContain('setChromeStyle')
+    expect(s).toContain('setButtonStyle')
+    expect(s).toContain('applyBtnStyle')
+    expect(s).toContain('placeOverlayButton')
+    expect(s).toContain('findBannerHost')
+    expect(s).toContain('r.height / 2')
+    expect(s).toContain('__nanoaiVeBound')
+    expect(s).toContain('lastInsertButtonAt')
+    expect(s).toContain('placeCaretAtPoint')
+    expect(s).toContain('caretRangeFromPoint')
+    expect(s).toContain('setButtonLabel')
+    expect(s).toContain('setButtonColor')
+    expect(s).toContain('setButtonBorder')
+    expect(s).toContain('data-pw-btn-text')
+    expect(s).toContain('data-pw-btn-border')
+    expect(s).toContain('.pw-header-actions [data-pw-chrome-added]')
+    expect(s).toContain('flex-direction:row!important')
     expect(s).toContain('deleteChromeBtn')
     expect(s).toContain('ensureChromeHost')
     expect(s).toContain('nanoai-ve-move-handle')
@@ -61,15 +86,48 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('nanoai-ve-guide-v')
     expect(s).toContain('positionAlignGuides')
     expect(s).toContain('nudgeSelected')
+    expect(s).toContain('selected.style.transform = \'translate(\' + (p.x + dx) + \'px,\' + (p.y + dy) + \'px)\'')
+    expect(s).toContain('function nudgeSelected(dx, dy) {\n    if (!selected || !canDragEl(selected)) return\n    ensureDragDisplay(selected)\n    var p = parseTransform(selected)\n    selected.style.transform = \'translate(\' + (p.x + dx) + \'px,\' + (p.y + dy) + \'px)\'\n    positionAllHandles()')
     expect(s).toContain('stopImmediatePropagation')
     expect(s).toContain('isBgImageEl')
+    expect(s).toContain('findBgImageEl')
+    expect(s).toContain('if (bgHost) return bgHost')
+    expect(s).toContain('nanoai-ve-layer-switch')
+    expect(s).toContain('applyLayerMode')
+    expect(s).toContain('heroImgIn')
+    expect(s).toContain('data-pw-edit="heroImage"')
+    expect(s).toContain('setLayerMode')
+    expect(s).toContain('layerBlock')
+    expect(s).toContain('Khối')
+    expect(s).toContain('HISTORY_MAX = 30')
+    expect(s).toContain('undoHistory')
+    expect(s).toContain('redoHistory')
+    expect(s).toContain("d.type === 'undo'")
+    expect(s).toContain('(^|\\s)pw-(hero|section|')
+    expect(s).not.toContain("new RegExp('pw-(hero|")
     expect(s).toContain('setImageSrc')
+    expect(s).toContain('sampleSurroundingBg')
+    expect(s).toContain('applyLogoToEl')
+    expect(s).toContain('nanoai-ve-logo-btn')
+    expect(s).toContain('logoCreate')
+    expect(s).toContain('allSlots')
+    expect(s).toContain('Tạo logo')
+    expect(s).toContain('Tạo lại logo')
+    expect(s).toContain('logoFaceOf')
+    expect(s).toContain('recreateLogo')
+    expect(s).toContain('startAddLogo')
+    expect(s).toContain('data-pw-logo-added')
+    expect(s).toContain('nanoai-ve-logo-rect')
+    expect(s).toContain('finishAddLogo')
     expect(s).toContain('isTextEl(el)')
     expect(s).toContain('ensureDragDisplay')
     expect(s).toContain('hideBlock')
     expect(s).toContain('duplicateBlock')
     expect(s).toContain('setOverlay')
     expect(s).toContain('setPadding')
+    expect(s).toContain('chromeSlotAtX')
+    expect(s).toContain('chromeHostChildren')
+    expect(s).toContain('pinChromeIconBadges')
   })
 })
 

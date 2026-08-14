@@ -197,13 +197,13 @@ function FashionHomeInner({
   return (
     <div className={cn('space-y-0', mounted && 'pw-fashion-ready')}>
       <section className="relative mb-8 overflow-hidden rounded-[1.75rem] sm:mb-12 sm:rounded-[2rem]">
-        <div className="absolute inset-0">
+        <div className="pointer-events-none absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             data-pw-edit="heroImage"
             src={copy.heroImage}
             alt=""
-            className="h-full w-full object-cover"
+            className="pointer-events-auto h-full w-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-orange-950/75 via-orange-700/45 to-transparent" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(251,146,60,.35),transparent_55%)]" />

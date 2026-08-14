@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
+  countUnreadPartnerCustomerNotificationsFromPg,
   listPartnerCustomerNotificationsFromPg,
   markAllPartnerCustomerNotificationsReadFromPg,
   markPartnerCustomerNotificationReadFromPg,
@@ -25,27 +26,45 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!guestAccountId) {
     return jsonSitePersonalization(
       request,
-      { ok: true, notifications: [], requireAuth: true },
+      { ok: true, notifications: [], unreadCount: 0, requireAuth: true },
       200,
       { sessionId: visitor.sessionId, thread: visitor.thread }
     )
   }
 
   const url = request.nextUrl
-  const limit = Number(url.searchParams.get('limit') ?? 50)
+  if (url.searchParams.get('count') === '1' || url.searchParams.get('unread') === '1') {
+    const unreadCount = await countUnreadPartnerCustomerNotificationsFromPg({
+      partnerId: shop.partnerId,
+      guestAccountId,
+    })
+    return jsonSitePersonalization(
+      request,
+      { ok: true, unreadCount },
+      200,
+      { sessionId: visitor.sessionId, thread: visitor.thread }
+    )
+  }
+
+  const limit = Number(url.searchParams.get('limit') ?? 100)
   const offset = Number(url.searchParams.get('offset') ?? url.searchParams.get('skip') ?? 0)
   const rows = await listPartnerCustomerNotificationsFromPg({
     partnerId: shop.partnerId,
     guestAccountId,
-    limit: Number.isFinite(limit) ? limit : 50,
+    limit: Number.isFinite(limit) ? limit : 100,
     offset: Number.isFinite(offset) ? offset : 0,
   })
   if (rows === null) return NextResponse.json({ error: 'Could not load notifications' }, { status: 500 })
+  const unreadCount = await countUnreadPartnerCustomerNotificationsFromPg({
+    partnerId: shop.partnerId,
+    guestAccountId,
+  })
 
   return jsonSitePersonalization(
     request,
     {
       ok: true,
+      unreadCount,
       notifications: rows.map((n) => ({
         id: n.id,
         type: n.type,
@@ -54,6 +73,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
         href: n.href,
         readAt: n.readAt,
         createdAt: n.createdAt,
+        scheduledAt: n.scheduledAt,
       })),
     },
     200,

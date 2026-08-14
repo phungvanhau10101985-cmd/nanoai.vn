@@ -8,6 +8,7 @@ import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-
 import { PartnerSiteShopCatalogClient } from '@/components/partner-website/shop/partner-site-shop-catalog-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { maybePartnerSiteVisualPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -34,6 +35,8 @@ export default async function PartnerSiteProductsPage({ params }: Props) {
   const { slug } = await params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
+  const visual = maybePartnerSiteVisualPage(shop.site, 'products')
+  if (visual) return visual
 
   const page = await fetchPartnerInventoryActivePageWithCountFromPg(shop.partnerId, 0, 24)
   const initialProducts = (page?.rows ?? [])
