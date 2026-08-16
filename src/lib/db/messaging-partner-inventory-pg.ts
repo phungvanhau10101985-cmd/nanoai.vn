@@ -2417,6 +2417,117 @@ function formatVndForInventoryWrite(amount: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(Math.round(amount))}đ`
 }
 
+export async function countPartnerInventoryFromPg(partnerId: string): Promise<number> {
+  if (!isPgConfigured()) return 0
+  try {
+    const row = await pgQueryOne<{ cnt: number }>(
+      `select count(*)::int as cnt from public.messaging_partner_inventory where partner_id = $1::uuid`,
+      [partnerId]
+    )
+    return row?.cnt ?? 0
+  } catch (e) {
+    console.warn('[countPartnerInventoryFromPg]', e)
+    return 0
+  }
+}
+
+export async function fetchPartnerInventorySkusFromPg(
+  partnerId: string,
+  skus: string[]
+): Promise<Set<string>> {
+  const out = new Set<string>()
+  if (!isPgConfigured() || skus.length === 0) return out
+  try {
+    const rows = await pgQuery<{ sku: string }>(
+      `select sku from public.messaging_partner_inventory
+       where partner_id = $1::uuid and sku = any($2::text[])`,
+      [partnerId, skus]
+    )
+    for (const r of rows) {
+      const sku = String(r.sku ?? '').trim()
+      if (sku) out.add(sku)
+    }
+  } catch (e) {
+    console.warn('[fetchPartnerInventorySkusFromPg]', e)
+  }
+  return out
+}
+
+/**
+ * Insert sản phẩm demo shop (fashion) — đủ cột Product Studio + SKU/consult/ảnh thực tế.
+ * `description` là mô tả thật; màu/size nằm ở `colors_json`/`sizes_json`.
+ */
+export async function insertPartnerInventoryShopDemoFromPg(
+  partnerId: string,
+  fields: {
+    sku: string
+    name: string
+    description: string
+    priceAmount: number
+    colors: { name: string; img: string }[]
+    sizes: string[]
+    mainImage: string
+    galleryUrls: string[]
+    detailImageUrls: string[]
+    material: string
+    materialDetailImageUrl?: string | null
+    realUseImageUrl?: string | null
+    realUseImageUrl2?: string | null
+    consultNote: string
+    remarketingId: string
+    stockQty: number
+    sortOrder: number
+    productStudioMeta: Record<string, unknown>
+  }
+): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const now = new Date().toISOString()
+    const priceHint = formatVndForInventoryWrite(fields.priceAmount)
+    const row = await pgQueryOne<{ id: string }>(
+      `insert into public.messaging_partner_inventory (
+         partner_id, name, sku, description, stock_note, stock_qty, price_hint, image_url,
+         consult_note, material_note, material_detail_image_url, real_use_image_url, real_use_image_url_2,
+         remarketing_id, sort_order, is_active, price_amount, colors_json, sizes_json,
+         gallery_urls, detail_image_urls, product_studio_meta, origin, created_at, updated_at
+       ) values (
+         $1::uuid, $2, $3, $4, '', $5::int, $6, $7,
+         $8, $9, $10, $11, $12,
+         $13, $14::int, true, $15::numeric, $16::jsonb, $17::jsonb,
+         $18::jsonb, $19::jsonb, $20::jsonb, 'import', $21::timestamptz, $21::timestamptz
+       )
+       returning id::text as id`,
+      [
+        partnerId,
+        fields.name.trim().slice(0, 500),
+        fields.sku.trim().slice(0, 80),
+        fields.description.trim(),
+        Math.max(0, Math.round(fields.stockQty)),
+        priceHint,
+        fields.mainImage.trim(),
+        fields.consultNote.trim().slice(0, 4000),
+        fields.material.trim().slice(0, 2000),
+        (fields.materialDetailImageUrl || '').trim(),
+        (fields.realUseImageUrl || '').trim(),
+        (fields.realUseImageUrl2 || '').trim(),
+        fields.remarketingId.trim().slice(0, 120),
+        fields.sortOrder,
+        fields.priceAmount > 0 ? fields.priceAmount : null,
+        JSON.stringify(fields.colors),
+        JSON.stringify(fields.sizes),
+        JSON.stringify(fields.galleryUrls),
+        JSON.stringify(fields.detailImageUrls),
+        JSON.stringify(fields.productStudioMeta),
+        now,
+      ]
+    )
+    return row?.id ?? null
+  } catch (e) {
+    console.error('[insertPartnerInventoryShopDemoFromPg]', e)
+    return null
+  }
+}
+
 export async function deletePartnerInventoryItemForPartnerFromPg(
   partnerId: string,
   itemId: string

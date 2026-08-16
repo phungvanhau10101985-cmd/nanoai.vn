@@ -1048,6 +1048,24 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
   }
 }
 
+export async function clearMessagingPartnerLogoUrlPg(partnerId: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = safeUuid(partnerId)
+  if (!pid) return false
+  try {
+    await pgQuery(
+      `update public.messaging_partners
+       set logo_url = null, updated_at = now()
+       where id = $1::uuid`,
+      [pid]
+    )
+    return true
+  } catch (e) {
+    console.error('[messaging-partners-pg] clearMessagingPartnerLogoUrlPg', e)
+    return false
+  }
+}
+
 export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
   partner_id: string
   owner_user_id: string

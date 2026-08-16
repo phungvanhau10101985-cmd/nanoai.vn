@@ -12,6 +12,7 @@ import { normalizeBannerAspectRatioForGemini } from '@/lib/banner-ad-presets'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { stripPackagingFaceTechnicalMeasurementsFromVisualPrompt } from '@/lib/packaging/face-print-prompt'
 import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
+import { stripBackground } from '@/lib/remove-background'
 
 const toTenths = (value: number) => Math.round(value * 10)
 
@@ -70,7 +71,7 @@ async function buildPromptSpec(
         prompt: `Design a professional LOGO mark for: ${projectEn}.
 Brief: ${briefEn}
 ${styleNote}
-Clean vector-like logo on simple background. One logo only, no mockup scene, no extra text borders.`,
+Clean vector-like logo on a simple solid background so the background can be cut out. Isolated mark only, no mockup scene, no extra text borders.`,
       }
     case 'banner':
       return {
@@ -336,11 +337,12 @@ export async function runStudioImagePipeline(input: {
       caption = `Brand LOGO — embed this exact logo in the landing page header (use actual logo pixels). Do NOT redraw or replace with typed text:`
     } else if (meta?.screenKey === 'banner_style_anchor' && input.kind === 'banner') {
       caption = `Campaign STYLE ANCHOR — master banner from first size; match model identity, colors, typography, and mood exactly; adapt layout to new aspect ratio:`
-    } else if (input.kind === 'logo' && meta?.screenKey === 'logo_backdrop') {
+    } else if (input.kind === 'logo' && (meta?.screenKey === 'logo_colors' || meta?.screenKey === 'logo_backdrop')) {
       caption =
-        'SURROUNDING BACKGROUND of the logo slot (left) plus shop theme color swatches (right: primary / accent / buy). Match the backdrop exactly and use the primary swatch as the dominant brand color of the logo:'
+        'USER-PICKED COLORS ONLY — this is a color chip, not a layout. The full-bleed field is the canvas/background. The small corner square is logo ink. Use these two colors only. Fill the entire output canvas edge-to-edge with the background color. Do NOT leave a white/cream bar at the top or bottom (no letterboxing). Do NOT sample colors from the shop interface, header photo, or theme swatches:'
     } else if (input.kind === 'logo' && meta?.screenKey === 'logo_style') {
-      caption = 'LOGO STYLE REFERENCE — follow typography, icon, and layout direction from this image:'
+      caption =
+        'LOGO STYLE REFERENCE — follow typography and icon shapes only. Do NOT copy colors from this image (use the user-picked colors). Do NOT copy margins, letterboxing, a white/cream footer bar, or canvas padding from this image. Do NOT copy a wide horizontal lockup into a square or other mismatched frame; rearrange to fill the requested aspect ratio at the largest size:'
     } else if (input.kind === 'logo') {
       caption = `Logo reference ${i + 1} — use as visual direction for the new logo (colors, lettering, mark), not a mockup scene:`
     } else if (input.kind === 'packaging_face') {
@@ -414,13 +416,15 @@ export async function runStudioImagePipeline(input: {
         )
         const shouldNormalizeToPrintSize =
           input.kind === 'packaging_face' && Boolean(input.printSizeMm)
-        const resultBuffer = shouldNormalizeToPrintSize
+        const normalizedBuffer = shouldNormalizeToPrintSize
           ? await normalizePanelArtworkToPrintSize(
               resultBufferRaw,
               input.printSizeMm!.widthMm,
               input.printSizeMm!.heightMm
             )
           : resultBufferRaw
+        const resultBuffer =
+          input.kind === 'logo' ? Buffer.from(await stripBackground(normalizedBuffer)) : normalizedBuffer
         const resultPath = `results/${input.userId}/studio_${input.kind}_${Date.now()}.png`
         const { publicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
           contentType: 'image/png',

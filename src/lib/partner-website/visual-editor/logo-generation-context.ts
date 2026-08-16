@@ -54,6 +54,46 @@ export function makeThemeSwatchDataUrl(input: {
   return canvas.toDataURL('image/png')
 }
 
+/** Kích thước swatch màu: cùng tỉ lệ logo, để Gemini không letterbox tấm ngang 512×160 vào khung vuông. */
+export function logoColorSwatchSize(aspectRatio?: string): { w: number; h: number } {
+  const [aw, ah] = String(aspectRatio || '1:1').split(':').map(Number)
+  const rw = Number.isFinite(aw) && aw > 0 ? aw : 1
+  const rh = Number.isFinite(ah) && ah > 0 ? ah : 1
+  const max = 512
+  let w = max
+  let h = Math.round((max * rh) / rw)
+  if (h > max) {
+    h = max
+    w = Math.round((max * rw) / rh)
+  }
+  return { w: Math.max(64, w), h: Math.max(64, h) }
+}
+
+/**
+ * Swatch màu user chọn: cả tấm = nền (full-bleed), ô nhỏ góc = mực logo.
+ * Không chia trái/phải kiểu 512×160 — model hay đệm vệt trắng dưới khi xuất 1:1.
+ */
+export function makeUserLogoColorSwatchDataUrl(input: {
+  bgColor: string
+  inkColor: string
+  aspectRatio?: string
+}): string {
+  if (typeof document === 'undefined') return ''
+  const { w, h } = logoColorSwatchSize(input.aspectRatio)
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return ''
+  ctx.fillStyle = input.bgColor || '#ffffff'
+  ctx.fillRect(0, 0, w, h)
+  const chip = Math.max(28, Math.round(Math.min(w, h) * 0.16))
+  const pad = Math.max(10, Math.round(chip * 0.28))
+  ctx.fillStyle = input.inkColor || '#111827'
+  ctx.fillRect(w - chip - pad, h - chip - pad, chip, chip)
+  return canvas.toDataURL('image/png')
+}
+
 export function requestLogoContextFromIframe(
   iframe: HTMLIFrameElement | null
 ): Promise<LogoContextCapture | null> {

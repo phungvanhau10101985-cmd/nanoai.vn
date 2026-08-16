@@ -23,6 +23,8 @@ import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventor
 import { isPartnerFlashSaleActive } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
 import { injectPartnerCustomDomainLinkRewriteScript } from '@/lib/partner-website/shop/inject-partner-custom-domain-link-script'
+import { injectPartnerLogoHomeLinkScript } from '@/lib/partner-website/shop/inject-partner-logo-home-link'
+import { injectPartnerShopRuntimeScriptsIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { resolveExactVisualHomepageHtml } from '@/lib/partner-website/compose-partner-website-html'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import { resolvePublicVisualPageHtml } from '@/lib/partner-website/visual-editor/visual-editor-pages'
@@ -99,9 +101,17 @@ export default async function PartnerSitePublicPage({ params }: Props) {
   if (visualHtmlLooksUsable(visualHtml)) {
     const headerStore = headers()
     const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
+    const withLogoHome = injectPartnerLogoHomeLinkScript(
+      injectPartnerShopRuntimeScriptsIntoHtml(visualHtml, {
+        siteSlug: site.siteSlug,
+        locale: site.locale,
+      }),
+      site.siteSlug,
+      onCustomDomain
+    )
     const publicHtml = onCustomDomain
-      ? injectPartnerCustomDomainLinkRewriteScript(visualHtml, site.siteSlug)
-      : visualHtml
+      ? injectPartnerCustomDomainLinkRewriteScript(withLogoHome, site.siteSlug)
+      : withLogoHome
 
     return (
       <PartnerSitePublicClient
@@ -196,9 +206,10 @@ export default async function PartnerSitePublicPage({ params }: Props) {
 
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
+  const withLogoHome = injectPartnerLogoHomeLinkScript(html, site.siteSlug, onCustomDomain)
   const publicHtml = onCustomDomain
-    ? injectPartnerCustomDomainLinkRewriteScript(html, site.siteSlug)
-    : html
+    ? injectPartnerCustomDomainLinkRewriteScript(withLogoHome, site.siteSlug)
+    : withLogoHome
 
   return (
     <PartnerSitePublicClient

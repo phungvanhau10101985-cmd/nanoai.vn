@@ -2,6 +2,7 @@ import { createHash, randomInt } from 'node:crypto'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
+import { insertPartnerWebsitePresetLooksFromTrashPg } from '@/lib/db/messaging-partner-website-preset-looks-pg'
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 
 const UUID_SQL = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -194,6 +195,12 @@ export async function verifyPartnerWebsiteResetOtpAndDeleteFromPg(params: {
                 from public.messaging_partner_landing_pages l
                 where l.partner_id = s.partner_id),
                '[]'::jsonb
+             ),
+             'presetLooks', coalesce(
+               (select jsonb_agg(to_jsonb(pl) order by pl.preset_id)
+                from public.messaging_partner_website_preset_looks pl
+                where pl.partner_id = s.partner_id),
+               '[]'::jsonb
              )
            ),
            timezone('utc'::text, now()),
@@ -280,6 +287,7 @@ export async function restorePartnerWebsiteFromResetTrashPg(params: {
       website?: Record<string, unknown>
       revisions?: Array<Record<string, unknown>>
       landings?: Array<Record<string, unknown>>
+      presetLooks?: Array<Record<string, unknown>>
     }
     const w = payload.website
     if (!w?.id || !w.partner_id || !w.site_slug) {
@@ -417,6 +425,15 @@ export async function restorePartnerWebsiteFromResetTrashPg(params: {
       } catch (e) {
         console.warn('[restorePartnerWebsiteFromResetTrashPg] landing', e)
       }
+    }
+
+    const presetLooks = Array.isArray(payload.presetLooks) ? payload.presetLooks : []
+    if (presetLooks.length) {
+      await insertPartnerWebsitePresetLooksFromTrashPg({
+        partnerId: pid,
+        websiteId,
+        looks: presetLooks,
+      })
     }
 
     await pgQuery(

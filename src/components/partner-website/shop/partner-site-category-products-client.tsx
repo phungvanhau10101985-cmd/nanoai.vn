@@ -11,6 +11,7 @@ import {
   shopProductToTrackingProduct,
   trackPartnerSiteViewItemList,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
+import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 /**
  * W4.9/W4.11 — lưới sản phẩm trong 1 trang danh mục (chỉ sản phẩm gán trực tiếp, không gộp nhánh con)
@@ -209,16 +210,17 @@ export function PartnerSiteCategoryProductsClient({
   return (
     <div>
       {showFilterBar ? (
-        <div style={{ display: 'grid', gap: 12, marginBottom: 16 }}>
+        <div className="pw-shop-filters" data-pw-region={PW_REGION.filters} style={{ display: 'grid', gap: 12, marginBottom: 16 }}>
           {facetSizes.length > 0 ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{t.sizeLabel}</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }} data-pw-el={PW_EL.sectionTitle}>{t.sizeLabel}</span>
               {facetSizes.map((f) => (
                 <button
                   key={f.value}
                   type="button"
                   className={sizeFacet === f.value ? 'pw-shop-btn' : 'pw-shop-btn pw-shop-btn-outline'}
                   style={{ padding: '5px 10px', fontSize: 12 }}
+                  data-pw-el={PW_EL.facet}
                   onClick={() => toggleSize(f.value)}
                 >
                   {f.value} ({f.count})
@@ -228,13 +230,14 @@ export function PartnerSiteCategoryProductsClient({
           ) : null}
           {facetColors.length > 0 ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{t.colorLabel}</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }} data-pw-el={PW_EL.sectionTitle}>{t.colorLabel}</span>
               {facetColors.map((f) => (
                 <button
                   key={f.value}
                   type="button"
                   className={colorFacet === f.value ? 'pw-shop-btn' : 'pw-shop-btn pw-shop-btn-outline'}
                   style={{ padding: '5px 10px', fontSize: 12 }}
+                  data-pw-el={PW_EL.facet}
                   onClick={() => toggleColor(f.value)}
                 >
                   {f.value} ({f.count})
@@ -243,7 +246,7 @@ export function PartnerSiteCategoryProductsClient({
             </div>
           ) : null}
           {priceRange && priceRange.max > priceRange.min ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+            <div className="pw-shop-toolbar" data-pw-region={PW_REGION.toolbar} style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
                 {t.categoryFilterMinPrice}
                 <input
@@ -285,6 +288,7 @@ export function PartnerSiteCategoryProductsClient({
                   value={sort}
                   onChange={(e) => onSortChange(e.target.value as CategorySort)}
                   style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  data-pw-el={PW_EL.sort}
                 >
                   <option value="newest">{t.categorySortNewest}</option>
                   <option value="price_asc">{t.categorySortPriceAsc}</option>
@@ -296,35 +300,37 @@ export function PartnerSiteCategoryProductsClient({
         </div>
       ) : null}
 
-      {products.length === 0 ? (
-        <p className="pw-shop-muted">{t.catalogEmpty}</p>
-      ) : (
-        <div className="pw-shop-grid">
-          {products.map((p) => (
-            <article key={p.id} className="pw-shop-card">
-              <Link href={p.detailPath}>
-                <img src={p.imageUrl} alt={p.name} loading="lazy" />
-              </Link>
-              <div className="pw-shop-card-body">
-                <Link href={p.detailPath}>
-                  <h3>{p.name}</h3>
+      <section data-pw-region={PW_REGION.catalog} data-pw-catalog>
+        {products.length === 0 ? (
+          <p className="pw-shop-muted">{t.catalogEmpty}</p>
+        ) : (
+          <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid>
+            {products.map((p) => (
+              <article key={p.id} className="pw-shop-card" data-pw-el={PW_EL.card}>
+                <Link href={p.detailPath} data-pw-el={PW_EL.cardMedia}>
+                  <img src={p.imageUrl} alt={p.name} loading="lazy" />
                 </Link>
-                {p.priceHint ? <p className="pw-shop-price">{p.priceHint}</p> : null}
-                <Link href={p.detailPath} className="pw-shop-btn" style={{ marginTop: 12 }}>
-                  {t.productDetail}
-                </Link>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-      {products.length < total ? (
-        <p style={{ marginTop: 24 }}>
-          <button type="button" className="pw-shop-btn pw-shop-btn-outline" disabled={loading} onClick={loadMore}>
-            {loading ? '…' : t.loadMore}
-          </button>
-        </p>
-      ) : null}
+                <div className="pw-shop-card-body">
+                  <Link href={p.detailPath}>
+                    <h3 data-pw-el={PW_EL.cardName}>{p.name}</h3>
+                  </Link>
+                  {p.priceHint ? <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>{p.priceHint}</p> : null}
+                  <Link href={p.detailPath} className="pw-shop-btn" style={{ marginTop: 12 }} data-pw-el={PW_EL.cardBuy}>
+                    {t.productDetail}
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+        {products.length < total ? (
+          <p style={{ marginTop: 24 }}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-outline" disabled={loading} onClick={loadMore}>
+              {loading ? '…' : t.loadMore}
+            </button>
+          </p>
+        ) : null}
+      </section>
     </div>
   )
 }

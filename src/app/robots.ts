@@ -16,6 +16,7 @@ export default function robots(): MetadataRoute.Robots {
     '/messaging/p/',
     '/messaging/my-chats',
     '/messaging/my-orders',
+    '/tao-thiep-moi-cuoi-ai/khach-moi',
   ]
 
   return {

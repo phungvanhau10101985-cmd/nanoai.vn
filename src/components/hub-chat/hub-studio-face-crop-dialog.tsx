@@ -44,6 +44,10 @@ import {
 } from '@/lib/packaging/face-edit-eraser'
 import { magicInpaintCanvas, preloadMagicInpaintLibrary } from '@/lib/packaging/face-edit-magic-inpaint'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
+import {
+  cssColorToHex,
+  ThemeColorConfirmPicker,
+} from '@/components/partner-website/partner-website-confirm-color-picker'
 
 type CropEditTool = 'crop' | 'eraser' | 'magic'
 type CropFrameMode = 'free' | 'print'
@@ -64,6 +68,7 @@ export type HubStudioFaceCropLabels = {
   overlayHint: string
   textPlaceholder: string
   textColor: string
+  colorOk: string
   deleteLayer: string
   fillEdgeColor: string
   fillEdgeColorOff: string
@@ -1699,13 +1704,10 @@ export function HubStudioFaceCropDialog({
               className="h-9 text-sm"
               placeholder={labels.textPlaceholder}
             />
-            <Input
-              type="color"
-              value={selectedText.color}
-              onChange={(e) => updateSelectedTextColor(e.target.value)}
-              className="h-9 w-12 shrink-0 cursor-pointer p-1"
-              aria-label={labels.textColor}
-              title={labels.textColor}
+            <ThemeColorConfirmPicker
+              value={cssColorToHex(selectedText.color, '#111827')}
+              okLabel={labels.colorOk}
+              onConfirm={(color) => updateSelectedTextColor(color)}
             />
           </div>
         ) : null}

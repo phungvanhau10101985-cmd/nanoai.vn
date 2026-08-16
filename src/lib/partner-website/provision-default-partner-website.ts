@@ -9,6 +9,7 @@ import { buildDefaultLandingV1Site } from '@/lib/partner-website/template/defaul
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import { validatePartnerWebsiteSlug } from '@/lib/partner-website/partner-website-slug'
 import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-partner-website-full-landing'
+import { maybeSeedShopDemoInventoryOnWebsiteCreate } from '@/lib/messaging/seed-shop-demo-inventory'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
 
 /**
@@ -73,6 +74,10 @@ export async function ensureDefaultPartnerWebsitePg(input: {
     changeNote: 'auto_provision_default_landing',
     chatPath,
   })
+
+  if (saved) {
+    await maybeSeedShopDemoInventoryOnWebsiteCreate(pid, partner.industryKey)
+  }
 
   return { website: saved, created: Boolean(saved) }
 }

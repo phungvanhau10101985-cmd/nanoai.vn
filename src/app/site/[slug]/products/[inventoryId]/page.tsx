@@ -29,6 +29,7 @@ import {
   resolvePartnerCategoryDisplayName,
 } from '@/lib/partner-website/category/partner-category-types'
 import { maybePartnerSiteVisualProductPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
+import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = { params: Promise<{ slug: string; inventoryId: string }> }
 
@@ -226,6 +227,7 @@ export default async function PartnerSiteProductDetailPage({ params }: Props) {
       tracking={partnerSiteTrackingFromPublicRow(shop.site)}
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
+      pageKind={PW_PAGE.product}
     >
       <JsonLd data={productJsonLd} />
       {breadcrumbJsonLd ? <JsonLd data={breadcrumbJsonLd} /> : null}

@@ -2489,6 +2489,7 @@ export function HomeHubChatBar() {
       overlayHint: hc.studioEditOverlayHint,
       textPlaceholder: hc.studioEditTextPlaceholder,
       textColor: hc.studioEditTextColor,
+      colorOk: hc.studioEditColorOk,
       deleteLayer: hc.studioEditDeleteLayer,
     }),
     [hc]

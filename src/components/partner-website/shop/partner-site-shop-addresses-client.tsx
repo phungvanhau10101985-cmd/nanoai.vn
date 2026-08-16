@@ -8,6 +8,7 @@ import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-
 import { partnerSiteAccountPath, partnerSitePersonalizationApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PartnerSiteShopAuthPanel } from '@/components/partner-website/shop/partner-site-shop-auth-panel'
 import type { PartnerSiteVisitorProfile } from '@/lib/partner-website/shop/partner-site-personalization'
+import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
   siteSlug: string
@@ -90,9 +91,9 @@ export function PartnerSiteShopAddressesClient({ siteSlug, partnerSlug, shopTitl
   }
 
   return (
-    <div>
-      <h1>{t.accountAddressBook}</h1>
-      <p className="pw-shop-muted">{t.addressesHint}</p>
+    <div data-pw-region={PW_REGION.accountMain}>
+      <h1 data-pw-el={PW_EL.heading}>{t.accountAddressBook}</h1>
+      <p className="pw-shop-muted" data-pw-el={PW_EL.body}>{t.addressesHint}</p>
       {loading ? <p className="pw-shop-muted">…</p> : null}
       {!loading && needsAuth ? (
         <PartnerSiteShopAuthPanel
@@ -124,19 +125,19 @@ export function PartnerSiteShopAddressesClient({ siteSlug, partnerSlug, shopTitl
               ) : null}
             </div>
           ) : (
-            <p className="pw-shop-muted">{t.addressesEmptyHint}</p>
+            <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>{t.addressesEmptyHint}</p>
           )}
-          <div className="pw-shop-form" style={{ marginTop: 16 }}>
+          <div className="pw-shop-form" data-pw-region={PW_REGION.form} style={{ marginTop: 16 }}>
             {profile?.email ? (
               <p className="pw-shop-muted">
                 {t.accountEmailLabel}: {profile.email}
               </p>
             ) : null}
-            <label>
+            <label data-pw-el={PW_EL.label}>
               {t.checkoutAddress}
-              <textarea rows={4} value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} />
+              <textarea rows={4} value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} data-pw-el={PW_EL.field} />
             </label>
-            <button type="button" className="pw-shop-btn" disabled={saving} onClick={() => void saveAddress()}>
+            <button type="button" className="pw-shop-btn" disabled={saving} onClick={() => void saveAddress()} data-pw-el={PW_EL.submit}>
               {saving ? '…' : t.accountSave}
             </button>
             {status ? <p className="pw-shop-muted">{status}</p> : null}

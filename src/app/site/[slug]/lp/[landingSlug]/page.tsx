@@ -11,7 +11,10 @@ import { PartnerSitePublicClient } from '../../partner-site-public-client'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { LandingAiSectionsView } from '@/components/partner-website/landing/landing-ai-sections-view'
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
-import { buildThemeCssVarBlock } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import {
+  buildThemeCssVarBlock,
+  rewriteThemeCssVarsInHtml,
+} from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 type Props = {
   params: Promise<{ slug: string; landingSlug: string }>
@@ -54,6 +57,7 @@ export default async function PartnerLandingPublicPage({ params }: Props) {
   // điều kiện publish. Landing cũ mới mở panel "Quản lý nội dung AI" (tự bootstrap section rỗng,
   // toàn "pending") KHÔNG được đổi cách render công khai khi chưa có nội dung thật — tránh hiện
   // trang rỗng cho landing cũ đã publish bằng HTML tự do.
+  const website = await fetchPublishedPartnerWebsiteBySlugPg(landing.siteSlug).catch(() => null)
   const sections = await listLandingSectionsPg(landing.id).catch(() => [])
   const heroReady = sections.some((s) => s.sectionType === 'hero' && s.status === 'ready')
   if (heroReady) {
@@ -62,7 +66,6 @@ export default async function PartnerLandingPublicPage({ params }: Props) {
       if (landing.sourceType === 'products' && context.products.length === 1 && context.products[0]?.detailPath) {
         redirect(context.products[0].detailPath)
       }
-      const website = await fetchPublishedPartnerWebsiteBySlugPg(landing.siteSlug).catch(() => null)
       const themeCss = website?.theme ? `:root{${buildThemeCssVarBlock(website.theme)}}` : ''
       return (
         <PartnerSiteChatWidgetProvider
@@ -92,10 +95,11 @@ export default async function PartnerLandingPublicPage({ params }: Props) {
     locale: landing.locale,
     products,
   })
+  const themed = website?.theme ? rewriteThemeCssVarsInHtml(html, website.theme) : html
 
   return (
     <PartnerSitePublicClient
-      html={html}
+      html={themed}
       allowScripts
       chatPath={landing.chatPath}
       shopName={landing.title}

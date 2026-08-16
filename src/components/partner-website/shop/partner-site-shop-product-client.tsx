@@ -35,6 +35,7 @@ import {
   formatPartnerShopMoneyVnd,
   isPartnerFlashSaleActive,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
+import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
   siteSlug: string
@@ -285,11 +286,12 @@ export function PartnerSiteShopProductClient({
   return (
     <div>
       <div className="pw-shop-product-layout">
-        <div className="pw-shop-product-gallery">
+        <div className="pw-shop-product-gallery" data-pw-region={PW_REGION.gallery}>
           <img
             className="pw-shop-product-img"
             src={activeImage}
             alt={product.name}
+            data-pw-el={PW_EL.mainImage}
             onClick={() => {
               setLightboxZoomed(false)
               setLightboxOpen(true)
@@ -309,6 +311,7 @@ export function PartnerSiteShopProductClient({
                   key={url}
                   type="button"
                   className={`pw-shop-product-thumb${activeImage === url ? ' is-active' : ''}`}
+                  data-pw-el={PW_EL.thumb}
                   onClick={() => setActiveImage(url)}
                   aria-label={product.name}
                 >
@@ -318,9 +321,9 @@ export function PartnerSiteShopProductClient({
             </div>
           ) : null}
         </div>
-        <div>
+        <div className="pw-shop-pdp-info" data-pw-region={PW_REGION.pdpInfo}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, justifyContent: 'space-between' }}>
-            <h1 style={{ margin: 0, flex: 1 }}>{options?.name || product.name}</h1>
+            <h1 style={{ margin: 0, flex: 1 }} data-pw-el={PW_EL.title}>{options?.name || product.name}</h1>
             <button
               type="button"
               className="pw-shop-btn pw-shop-btn-outline"
@@ -330,33 +333,34 @@ export function PartnerSiteShopProductClient({
               aria-label={isFavorite ? t.favoriteRemove : t.favoriteAdd}
               title={isFavorite ? t.favoriteRemove : t.favoriteAdd}
               style={{ flexShrink: 0, fontSize: '1.25rem', lineHeight: 1, padding: '8px 12px' }}
+              data-pw-el={PW_EL.wishlist}
             >
               {isFavorite ? '♥' : '♡'}
             </button>
           </div>
           {flashActive && product.salePriceAmount != null ? (
             <div style={{ marginTop: 8 }}>
-              <span className="pw-shop-urgency-badge">{t.flashSaleBadge}</span>
-              <p className="pw-shop-price" style={{ fontSize: '1.25rem' }}>
+              <span className="pw-shop-urgency-badge" data-pw-el={PW_EL.badge}>{t.flashSaleBadge}</span>
+              <p className="pw-shop-price" style={{ fontSize: '1.25rem' }} data-pw-el={PW_EL.price}>
                 {formatPartnerShopMoneyVnd(product.salePriceAmount)}
                 {product.priceAmount != null ? (
-                  <span className="pw-shop-muted" style={{ marginLeft: 8, textDecoration: 'line-through', fontSize: '1rem' }}>
+                  <span className="pw-shop-muted" style={{ marginLeft: 8, textDecoration: 'line-through', fontSize: '1rem' }} data-pw-el={PW_EL.comparePrice}>
                     {formatPartnerShopMoneyVnd(product.priceAmount)}
                   </span>
                 ) : null}
               </p>
             </div>
           ) : (options?.price_hint || product.priceHint) ? (
-            <p className="pw-shop-price" style={{ fontSize: '1.25rem' }}>
+            <p className="pw-shop-price" style={{ fontSize: '1.25rem' }} data-pw-el={PW_EL.price}>
               {options?.price_hint || product.priceHint}
             </p>
           ) : null}
-          {product.description ? <p className="pw-shop-muted">{product.description}</p> : null}
+          {product.description ? <p className="pw-shop-muted" data-pw-el={PW_EL.desc}>{product.description}</p> : null}
           {product.stockQty > 0 && product.stockQty <= LOW_STOCK_URGENCY_THRESHOLD ? (
-            <span className="pw-shop-urgency-badge">{t.lowStockUrgency.replace('{n}', String(product.stockQty))}</span>
+            <span className="pw-shop-urgency-badge" data-pw-el={PW_EL.badge}>{t.lowStockUrgency.replace('{n}', String(product.stockQty))}</span>
           ) : null}
           {options?.sizes.length ? (
-            <div style={{ marginTop: 12 }}>
+            <div style={{ marginTop: 12 }} data-pw-el={PW_EL.variant}>
               <label style={{ display: 'grid', gap: 4 }}>
                 {t.sizeLabel}
                 <select value={size} onChange={(e) => setSize(e.target.value)}>
@@ -418,7 +422,7 @@ export function PartnerSiteShopProductClient({
             </div>
           ) : null}
           {options?.colors.length ? (
-            <div style={{ marginTop: 12 }}>
+            <div style={{ marginTop: 12 }} data-pw-el={PW_EL.variant}>
               <p style={{ fontWeight: 600, marginBottom: 8 }}>{t.colorLabel}</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {options.colors.map((c) => (
@@ -439,7 +443,7 @@ export function PartnerSiteShopProductClient({
               </div>
             </div>
           ) : null}
-          <label style={{ display: 'grid', gap: 4, marginTop: 16, maxWidth: 120 }}>
+          <label style={{ display: 'grid', gap: 4, marginTop: 16, maxWidth: 120 }} data-pw-el={PW_EL.qty}>
             {t.quantity}
             <input
               type="number"
@@ -455,16 +459,17 @@ export function PartnerSiteShopProductClient({
             </p>
           ) : null}
           <div ref={buyActionsRef} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 20 }}>
-            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => void addLine(false)}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => void addLine(false)} data-pw-el={PW_EL.cardCart}>
               {t.addToCart}
             </button>
-            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => void addLine(true)}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => void addLine(true)} data-pw-el={PW_EL.buy}>
               {t.buyNow}
             </button>
             <button
               type="button"
               className="pw-shop-btn pw-shop-btn-outline"
               onClick={() => openConsult(consultCtx)}
+              data-pw-el={PW_EL.cta}
             >
               {t.consultChat}
             </button>
@@ -472,6 +477,7 @@ export function PartnerSiteShopProductClient({
               type="button"
               className="pw-shop-btn pw-shop-btn-outline"
               onClick={() => openTryOn(consultCtx)}
+              data-pw-el={PW_EL.cta}
             >
               {t.tryOnLink}
             </button>
@@ -480,11 +486,11 @@ export function PartnerSiteShopProductClient({
         </div>
       </div>
       {showDetailDescription || detailImageUrls.length > 0 || videoEmbedUrl ? (
-        <section className="pw-shop-product-detail">
+        <section className="pw-shop-product-detail" data-pw-region={PW_REGION.pdpInfo}>
           {showDetailDescription ? (
             <div>
               <h2>{t.productDescriptionTitle}</h2>
-              <div className="pw-shop-product-detail-body">
+              <div className="pw-shop-product-detail-body" data-pw-el={PW_EL.desc}>
                 {detailParagraphs.map((paragraph) => (
                   <p key={paragraph.slice(0, 48)} style={{ margin: '0 0 12px' }}>
                     {paragraph}
@@ -531,19 +537,19 @@ export function PartnerSiteShopProductClient({
       ) : null}
       <PartnerSiteProductReviewsQa siteSlug={siteSlug} inventoryId={product.id} locale={locale} />
       {relatedProducts.length > 0 ? (
-        <section style={{ marginTop: 40 }}>
-          <h2>{t.relatedProducts}</h2>
-          <div className="pw-shop-grid" style={{ marginTop: 16 }}>
+        <section style={{ marginTop: 40 }} data-pw-region={PW_REGION.catalog} data-pw-catalog>
+          <h2 data-pw-el={PW_EL.sectionTitle}>{t.relatedProducts}</h2>
+          <div className="pw-shop-grid" style={{ marginTop: 16 }} data-pw-el={PW_EL.grid} data-pw-grid>
             {relatedProducts.map((p) => (
-              <article key={p.id} className="pw-shop-card">
-                <Link href={partnerSiteProductPath(siteSlug, p.id, { customDomain, name: p.name })}>
+              <article key={p.id} className="pw-shop-card" data-pw-el={PW_EL.card}>
+                <Link href={partnerSiteProductPath(siteSlug, p.id, { customDomain, name: p.name })} data-pw-el={PW_EL.cardMedia}>
                   <img src={p.imageUrl} alt={p.name} loading="lazy" />
                 </Link>
                 <div className="pw-shop-card-body">
                   <Link href={partnerSiteProductPath(siteSlug, p.id, { customDomain, name: p.name })}>
-                    <h3>{p.name}</h3>
+                    <h3 data-pw-el={PW_EL.cardName}>{p.name}</h3>
                   </Link>
-                  {p.priceHint ? <p className="pw-shop-price">{p.priceHint}</p> : null}
+                  {p.priceHint ? <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>{p.priceHint}</p> : null}
                 </div>
               </article>
             ))}
@@ -620,10 +626,10 @@ export function PartnerSiteShopProductClient({
           ) : null}
         </div>
         <div className="pw-shop-sticky-buy-actions">
-          <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => void addLine(false)}>
+          <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => void addLine(false)} data-pw-el={PW_EL.cardCart}>
             {t.addToCart}
           </button>
-          <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => void addLine(true)}>
+          <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => void addLine(true)} data-pw-el={PW_EL.buy}>
             {t.buyNow}
           </button>
         </div>

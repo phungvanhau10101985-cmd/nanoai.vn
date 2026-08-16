@@ -48,6 +48,10 @@ import {
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { normalizePartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
+import {
+  applyFirstImageLogoToHtml,
+  applyFirstImageLogoToProject,
+} from '@/lib/partner-website/visual-editor/apply-first-image-logo'
 
 type NavLabels = {
   inbox: string
@@ -237,7 +241,7 @@ export function PartnerWebsiteDashboardClient({
     setWebsite(payload.website)
     setPublicUrl(payload.publicUrl)
     setCreationJournal(payload.website.creationJournal)
-    setLogoUrl(payload.website.logoUrl ?? logoUrl)
+    setLogoUrl(payload.website.logoUrl ?? '')
     setLiveTheme(payload.website.theme)
     setPreviewVersion(payload.website.updatedAt || String(Date.now()))
     toast({
@@ -344,7 +348,7 @@ export function PartnerWebsiteDashboardClient({
   function handleWebsiteRefresh(nextWebsite: PartnerWebsiteRow) {
     setWebsite(nextWebsite)
     setCreationJournal(nextWebsite.creationJournal)
-    setLogoUrl(nextWebsite.logoUrl ?? logoUrl)
+    setLogoUrl(nextWebsite.logoUrl ?? '')
     setLiveTheme(nextWebsite.theme)
     setPreviewVersion(nextWebsite.updatedAt || String(Date.now()))
   }
@@ -367,7 +371,9 @@ export function PartnerWebsiteDashboardClient({
       device: VisualDeviceVariant = 'desktop',
       extras?: { categoryPath?: string | null; productId?: string | null; cmsSlug?: string | null }
     ) => {
-      if (!partnerId || !website) return
+      if (!partnerId || !website) {
+        throw new Error(t.visualEditSaveFailed)
+      }
       const key = normalizePartnerWebsitePageKey(pageKey)
       const categoryPath = extras?.categoryPath || null
       const productId = extras?.productId || null
@@ -595,9 +601,19 @@ export function PartnerWebsiteDashboardClient({
                 onJournalChange={setCreationJournal}
                 onCollapse={() => setSetupCollapsed(true)}
                 onLiveThemeChange={setLiveTheme}
-                onThemePersisted={(theme) => {
+                onThemePersisted={(theme, extras) => {
                   setLiveTheme(theme)
-                  setWebsite((prev) => (prev ? { ...prev, theme } : prev))
+                  setWebsite((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          theme,
+                          ...(extras?.htmlSource !== undefined ? { htmlSource: extras.htmlSource } : {}),
+                          ...(extras?.project ? { project: extras.project as PartnerWebsiteProject } : {}),
+                        }
+                      : prev
+                  )
+                  setPreviewVersion(String(Date.now()))
                 }}
                 domainSlot={
                   partnerId && partner?.slug ? (
@@ -758,15 +774,34 @@ export function PartnerWebsiteDashboardClient({
                   onVisualEditSave={website ? handleVisualEditSave : undefined}
                   onVisualEditError={(message) => toast({ title: message, variant: 'destructive' })}
                   onLiveThemeChange={setLiveTheme}
-                  onThemePersisted={(theme) => {
+                  onThemePersisted={(theme, extras) => {
                     setLiveTheme(theme)
-                    setWebsite((prev) => (prev ? { ...prev, theme } : prev))
+                    setWebsite((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            theme,
+                            ...(extras?.htmlSource !== undefined ? { htmlSource: extras.htmlSource } : {}),
+                            ...(extras?.project ? { project: extras.project } : {}),
+                          }
+                        : prev
+                    )
+                    setPreviewVersion(String(Date.now()))
                   }}
                   onAdminLogoChange={(url) => {
                     setLogoUrl(url)
-                    setWebsite((prev) =>
-                      prev ? { ...prev, logoUrl: url, theme: { ...prev.theme, logoUrl: url } } : prev
-                    )
+                    setWebsite((prev) => {
+                      if (!prev) return prev
+                      return {
+                        ...prev,
+                        logoUrl: url,
+                        theme: { ...prev.theme, logoUrl: url },
+                        project: applyFirstImageLogoToProject(prev.project, url, prev.title),
+                        htmlSource: prev.htmlSource
+                          ? applyFirstImageLogoToHtml(prev.htmlSource, url, prev.title)
+                          : prev.htmlSource,
+                      }
+                    })
                   }}
                 />
                 {website ? (

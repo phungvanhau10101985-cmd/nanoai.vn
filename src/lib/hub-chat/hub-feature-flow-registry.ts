@@ -1,6 +1,12 @@
 import { buildHubToolCatalog } from '@/lib/hub-chat/hub-chat-catalog'
 import { hubStudioLaunchHref } from '@/lib/hub-chat/hub-studio-launch'
-import { STUDIO_PRESETS, matchStudioPresetWithScore, presetTitle } from '@/lib/hub-chat/hub-studio-presets'
+import {
+  STUDIO_PRESETS,
+  matchStudioPresetWithScore,
+  matchesLandingPageIntent,
+  matchesWebAppDesignIntent,
+  presetTitle,
+} from '@/lib/hub-chat/hub-studio-presets'
 import type { ToolKey } from '@/lib/i18n/dictionaries'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
@@ -8,6 +14,7 @@ import { getDictionary } from '@/lib/i18n/dictionaries'
 /** Standalone tool pages superseded by inline Hub Studio presets — hide from studio catalog & routing. */
 export const STANDALONE_REPLACED_BY_STUDIO: Record<string, string> = {
   '/tao-banner': 'sale_banner',
+  '/thiet-ke-bao-bi': 'packaging_kit',
   '/thiet-ke-tui-dung': 'bag_kit',
 }
 
@@ -334,6 +341,13 @@ export function matchFeatureFlowByMessage(
     return matchInvitationToolFlow(locale)
   }
 
+  if (matchesLandingPageIntent(trimmed)) {
+    return { kind: 'studio', presetId: 'landing_page', score: 56 }
+  }
+  if (matchesWebAppDesignIntent(trimmed)) {
+    return { kind: 'studio', presetId: 'mobile_shop', score: 48 }
+  }
+
   const studio = matchStudioPresetWithScore(trimmed)
   let bestStandalone: { entry: StandaloneFeatureEntry; score: number } | null = null
   for (const entry of buildStandaloneFeatureEntries(locale)) {
@@ -380,6 +394,12 @@ export function matchFeatureFlowByMessage(
 export function buildFeatureFlowCatalogForBrain(locale: WebLocale): string {
   const studioLines = STUDIO_PRESETS.map((p) => {
     const title = presetTitle(locale, p.id)
+    if (p.id === 'mobile_shop') {
+      return `${p.id}: ${title} | flow=studio_complete | use_for=tạo web, giao diện web, thiết kế web app`
+    }
+    if (p.id === 'landing_page') {
+      return `${p.id}: ${title} | flow=studio_complete | use_for=landing page, ladipage only`
+    }
     return `${p.id}: ${title} | flow=studio_complete`
   })
   const standaloneLines = buildStandaloneFeatureEntries(locale).map(

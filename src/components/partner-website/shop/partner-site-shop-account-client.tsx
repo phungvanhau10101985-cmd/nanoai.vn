@@ -40,6 +40,7 @@ import { usePartnerSiteChatWidget } from '@/components/partner-website/shop/part
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { usePartnerPwaInstall } from '@/lib/partner-website/shop/partner-site-pwa-install'
 import type { PartnerSiteVisitorProfile } from '@/lib/partner-website/shop/partner-site-personalization'
+import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type AccountTab = PartnerSiteAccountTab
 
@@ -347,7 +348,7 @@ export function PartnerSiteShopAccountClient({
 
   return (
     <div>
-      <h1>{t.navAccount}</h1>
+      <h1 data-pw-el={PW_EL.heading}>{t.navAccount}</h1>
       {loading ? <p className="pw-shop-muted">…</p> : null}
 
       {!loading && needsAuth ? (
@@ -365,15 +366,16 @@ export function PartnerSiteShopAccountClient({
 
       {!loading && !needsAuth ? (
         <div className="pw-shop-account-layout">
-          <aside className="pw-shop-account-sidebar">
+          <aside className="pw-shop-account-sidebar" data-pw-region={PW_REGION.accountNav}>
             <section className="pw-shop-account-links" aria-label={t.accountQuickLinks}>
-              <h2>{t.accountQuickLinks}</h2>
+              <h2 data-pw-el={PW_EL.title}>{t.accountQuickLinks}</h2>
               <div className="pw-shop-account-links-grid">
                 {tabs.map(({ id, label, Icon }) => (
                   <button
                     key={id}
                     type="button"
                     className={`pw-shop-account-link-card${activeTab === id ? ' is-active' : ''}`}
+                    data-pw-el={PW_EL.menuItem}
                     onClick={() => navigateTab(id)}
                   >
                     <Icon className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} />
@@ -389,10 +391,10 @@ export function PartnerSiteShopAccountClient({
             </section>
           </aside>
 
-          <div className="pw-shop-account-content">
+          <div className="pw-shop-account-content" data-pw-region={PW_REGION.accountMain}>
             {activeTab === 'overview' ? (
               <div className="pw-shop-account-summary">
-                <p className="pw-shop-account-greeting">
+                <p className="pw-shop-account-greeting" data-pw-el={PW_EL.heading}>
                   {t.accountWelcome}
                   {displayName ? `, ${displayName}` : ''}
                 </p>
@@ -436,18 +438,19 @@ export function PartnerSiteShopAccountClient({
 
             {activeTab === 'wallet' ? (
               <section>
-                <h2>{t.walletTitle}</h2>
+                <h2 data-pw-el={PW_EL.heading}>{t.walletTitle}</h2>
                 <p className="pw-shop-muted" style={{ marginBottom: 16 }}>
                   {t.walletHint}
                 </p>
                 {walletLoading ? <p className="pw-shop-muted">…</p> : null}
                 {!walletLoading && wallet.length === 0 ? (
-                  <p className="pw-shop-muted">{t.walletEmpty}</p>
+                  <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>{t.walletEmpty}</p>
                 ) : null}
                 <div style={{ display: 'grid', gap: 12 }}>
                   {wallet.map((v) => (
                     <div
                       key={v.code}
+                      data-pw-el={PW_EL.card}
                       style={{ border: '1px dashed #d1d5db', borderRadius: 12, padding: 16, display: 'grid', gap: 6 }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -513,23 +516,23 @@ export function PartnerSiteShopAccountClient({
 
             {activeTab === 'edit-profile' ? (
               <section className="pw-shop-account-edit">
-                <h2>{t.accountSectionEditProfile}</h2>
-                <div className="pw-shop-form" style={{ marginTop: 16 }}>
+                <h2 data-pw-el={PW_EL.heading}>{t.accountSectionEditProfile}</h2>
+                <div className="pw-shop-form" data-pw-region={PW_REGION.form} style={{ marginTop: 16 }}>
                   {profile?.email ? (
-                    <label>
+                    <label data-pw-el={PW_EL.label}>
                       {t.accountEmailLabel}
-                      <input value={profile.email} readOnly />
+                      <input value={profile.email} readOnly data-pw-el={PW_EL.field} />
                     </label>
                   ) : null}
-                  <label>
+                  <label data-pw-el={PW_EL.label}>
                     {t.checkoutName}
-                    <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                    <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} data-pw-el={PW_EL.field} />
                   </label>
-                  <label>
+                  <label data-pw-el={PW_EL.label}>
                     {t.checkoutPhone}
-                    <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+                    <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} data-pw-el={PW_EL.field} />
                   </label>
-                  <button type="button" className="pw-shop-btn" disabled={saving} onClick={() => void saveProfile()}>
+                  <button type="button" className="pw-shop-btn" disabled={saving} onClick={() => void saveProfile()} data-pw-el={PW_EL.submit}>
                     {saving ? '…' : t.accountSave}
                   </button>
                   {status ? <p className="pw-shop-muted">{status}</p> : null}
@@ -539,7 +542,7 @@ export function PartnerSiteShopAccountClient({
 
             {activeTab === 'security' ? (
               <section className="pw-shop-account-edit">
-                <h2>{t.accountSecurityTitle}</h2>
+                <h2 data-pw-el={PW_EL.heading}>{t.accountSecurityTitle}</h2>
                 {profile?.email ? (
                   <p className="pw-shop-muted" style={{ marginTop: 12 }}>
                     {t.accountEmailLabel}: {profile.email}
@@ -615,7 +618,7 @@ export function PartnerSiteShopAccountClient({
                     {!notificationsLoading && notifications.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '40px 12px', marginTop: 16, borderRadius: 12, border: '1px solid var(--pw-border, #f3f4f6)', background: 'var(--pw-surface, #f9fafb)' }}>
                         <Bell aria-hidden="true" strokeWidth={1.5} style={{ width: 48, height: 48, margin: '0 auto 12px', color: '#d1d5db' }} />
-                        <p className="pw-shop-muted">{t.accountNotificationsEmpty}</p>
+                        <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>{t.accountNotificationsEmpty}</p>
                       </div>
                     ) : null}
                     <ul style={{ listStyle: 'none', padding: 0, margin: '16px 0 0', display: 'grid', gap: 10 }}>
@@ -671,7 +674,7 @@ export function PartnerSiteShopAccountClient({
 
             {activeTab === 'install-app' ? (
               <section className="pw-shop-account-edit">
-                <h2>{t.accountInstallAppTitle}</h2>
+                <h2 data-pw-el={PW_EL.heading}>{t.accountInstallAppTitle}</h2>
                 <p className="pw-shop-muted" style={{ marginTop: 8, marginBottom: 16 }}>
                   {t.accountInstallAppHint}
                 </p>
@@ -695,7 +698,7 @@ export function PartnerSiteShopAccountClient({
 
             {activeTab === 'contact' ? (
               <section className="pw-shop-account-edit">
-                <h2>{t.chatOpenLabel}</h2>
+                <h2 data-pw-el={PW_EL.heading}>{t.chatOpenLabel}</h2>
                 <p className="pw-shop-muted" style={{ marginBottom: 16 }}>
                   {t.chatOpenLabel}
                 </p>

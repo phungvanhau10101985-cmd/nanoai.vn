@@ -52,6 +52,8 @@ import {
   isStepAfterPrimaryLogo,
   briefNotesForStepGeneration,
   matchStudioPresetWithScore,
+  matchesLandingPageIntent,
+  matchesWebAppDesignIntent,
   presetTitle,
   primaryLogoApproved,
 } from '@/lib/hub-chat/hub-studio-presets'
@@ -1370,7 +1372,7 @@ PRESET / PROJECT INTENT (hubRoute "design"):
 - intent "clarify": user wants design help but preset is ambiguous — suggestedPresetId empty, workflows empty; ask user to pick a feature chip from FULL FEATURE CATALOG.
 - intent "chat": unrelated to starting a design flow — suggestedPresetId empty.
 - When presetId is already set: suggestedPresetId must be empty string (do not switch preset mid-flow unless user explicitly asks to change project type — then clarify first).
-- Examples: "thiết kế app bán quần áo" → mobile_shop; "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; ANY phrase with both "lại" + "thiết kế" (e.g. "tạo lại bản thiết kế", "dựng lại thiết kế", "làm lại thiết kế", "thiết kế lại") OR "concept sheet từ ảnh" / "làm giống mẫu sản phẩm" → design_recreate (do NOT ask which design — start design_recreate immediately); "ảnh thẻ linkedin" → profile_photo_pack; ANY invitation intent ("thiết kế thiệp mời", "tạo thiệp cưới", "thiệp mời") → hubRoute "workflow" + tool /tao-thiep-moi-cuoi-ai (NOT inline studio preset).
+- Examples: "tạo web", "tạo giao diện web", "thiết kế web", "thiết kế web app", "thiết kế app bán quần áo" → mobile_shop (web app / shop website). ONLY "tạo landing page", "tạo ladipage", "thiết kế landing" → landing_page. Never map generic "tạo web" / "giao diện web" to landing_page. "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; ANY phrase with both "lại" + "thiết kế" (e.g. "tạo lại bản thiết kế", "dựng lại thiết kế", "làm lại thiết kế", "thiết kế lại") OR "concept sheet từ ảnh" / "làm giống mẫu sản phẩm" → design_recreate (do NOT ask which design — start design_recreate immediately); "ảnh thẻ linkedin" → profile_photo_pack; ANY invitation intent ("thiết kế thiệp mời", "tạo thiệp cưới", "thiệp mời") → hubRoute "workflow" + tool /tao-thiep-moi-cuoi-ai (NOT inline studio preset).
 
 RETRY / FLOW INTENT (YOU must classify — server does NOT parse fixed phrases):
 - Understand ANY natural wording (Vietnamese, English, voice-style, typos, short replies).
@@ -7377,6 +7379,16 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     if (idleFeatureMatch?.kind === 'standalone' && idleFeatureMatch.href === '/tao-thiep-moi-cuoi-ai') {
       ai.suggestedPresetId = undefined
       ai.hubRoute = 'workflow'
+    }
+
+    if (
+      !activeDesign &&
+      idleFeatureMatch?.kind === 'studio' &&
+      ((idleFeatureMatch.presetId === 'mobile_shop' && matchesWebAppDesignIntent(message)) ||
+        (idleFeatureMatch.presetId === 'landing_page' && matchesLandingPageIntent(message)))
+    ) {
+      ai.suggestedPresetId = idleFeatureMatch.presetId
+      ai.hubRoute = 'design'
     }
 
     if (!activeDesign && idleFeatureMatch) {

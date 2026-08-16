@@ -17,6 +17,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Mode = 'favorites' | 'recently-viewed'
 
@@ -152,9 +153,9 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
   }
 
   return (
-    <div>
+    <section data-pw-region={PW_REGION.catalog} data-pw-catalog>
       <div className="pw-shop-page-head">
-        <h1>{title}</h1>
+        <h1 data-pw-el={PW_EL.sectionTitle}>{title}</h1>
         {mode === 'recently-viewed' && !loading && products.length > 0 ? (
           <button
             type="button"
@@ -174,7 +175,7 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
         </p>
       ) : null}
       {message ? <p className="pw-shop-muted">{message}</p> : null}
-      <div className="pw-shop-grid" style={{ marginTop: 20 }}>
+      <div className="pw-shop-grid" style={{ marginTop: 20 }} data-pw-el={PW_EL.grid} data-pw-grid>
         {products.map((p) => {
           const href =
             p.detail_path ||
@@ -184,20 +185,21 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
             })
           const busy = busyId === p.inventory_id
           return (
-            <article key={p.inventory_id} className="pw-shop-card">
-              <Link href={href}>
+            <article key={p.inventory_id} className="pw-shop-card" data-pw-el={PW_EL.card}>
+              <Link href={href} data-pw-el={PW_EL.cardMedia}>
                 <img src={p.image_url} alt={p.name} />
               </Link>
               <div className="pw-shop-card-body">
                 <Link href={href} style={{ textDecoration: 'none', color: 'inherit' }}>
-                  <strong>{p.name}</strong>
+                  <strong data-pw-el={PW_EL.cardName}>{p.name}</strong>
                 </Link>
-                {p.price_hint ? <p className="pw-shop-price">{p.price_hint}</p> : null}
+                {p.price_hint ? <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>{p.price_hint}</p> : null}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                   <button
                     type="button"
                     className="pw-shop-btn"
                     disabled={busy}
+                    data-pw-el={PW_EL.cardCart}
                     onClick={() => void addToCart(p)}
                   >
                     {t.addToCart}
@@ -223,6 +225,6 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
           </Link>
         </p>
       ) : null}
-    </div>
+    </section>
   )
 }

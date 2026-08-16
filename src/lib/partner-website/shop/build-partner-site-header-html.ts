@@ -7,6 +7,7 @@ import {
   getPartnerSitePromoNavLabel,
   getPartnerSiteShopNavPaths,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
+import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export type PartnerSiteHeaderHtmlInput = {
   locale: WebLocale
@@ -72,12 +73,12 @@ function searchLabels(locale: WebLocale) {
 
 function buildCategoryLinks(productsHref: string, saleHref: string, locale: WebLocale): string {
   const n = getPartnerSiteCategoryNavLabels(locale)
-  return `<a href="${productsHref}">${escapeHtml(n.newArrivals)}</a>
-    <a href="${productsHref}">${escapeHtml(n.clothing)}</a>
-    <a href="${productsHref}">${escapeHtml(n.bags)}</a>
-    <a href="${productsHref}">${escapeHtml(n.shoes)}</a>
-    <a href="${productsHref}">${escapeHtml(n.accessories)}</a>
-    <a class="pw-nav-sale" href="${saleHref}">${escapeHtml(n.sale)}</a>`
+  return `<a href="${productsHref}" ${pwElAttr(PW_EL.navLink)}>${escapeHtml(n.newArrivals)}</a>
+    <a href="${productsHref}" ${pwElAttr(PW_EL.navLink)}>${escapeHtml(n.clothing)}</a>
+    <a href="${productsHref}" ${pwElAttr(PW_EL.navLink)}>${escapeHtml(n.bags)}</a>
+    <a href="${productsHref}" ${pwElAttr(PW_EL.navLink)}>${escapeHtml(n.shoes)}</a>
+    <a href="${productsHref}" ${pwElAttr(PW_EL.navLink)}>${escapeHtml(n.accessories)}</a>
+    <a class="pw-nav-sale" href="${saleHref}" ${pwElAttr(PW_EL.navLink)}>${escapeHtml(n.sale)}</a>`
 }
 
 function buildAccountMenuHtml(items: ReturnType<typeof getPartnerSiteAccountMenuItems>): string {
@@ -152,11 +153,11 @@ export function buildPartnerSiteAccountPanelCss(): string {
 .pw-account-panel a:hover{background:var(--pw-surface);color:var(--pw-primary)}
 .pw-account-panel a.is-header{background:#eff6ff;color:#2563eb;border-left:3px solid #2563eb;border-radius:8px 8px 8px 6px;font-weight:700}
 .pw-account-panel a.is-header:hover{background:#dbeafe;color:#1d4ed8}
-.pw-account-panel a.is-accent{background:#fff7ed;color:#ea580c;border-left:3px solid #f97316;border-radius:8px 8px 8px 6px;font-weight:700}
-.pw-account-panel a.is-accent:hover{background:#ffedd5;color:#c2410c}
+.pw-account-panel a.is-accent{background:var(--pw-surface);color:var(--pw-accent);border-left:3px solid var(--pw-primary);border-radius:8px 8px 8px 6px;font-weight:700}
+.pw-account-panel a.is-accent:hover{background:var(--pw-surface);color:var(--pw-primary)}
 .pw-account-panel svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0}
 .pw-account-panel a.is-header svg{color:#2563eb}
-.pw-account-panel a.is-accent svg{color:#ea580c}
+.pw-account-panel a.is-accent svg{color:var(--pw-accent)}
 .pw-account-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 10px;border-radius:999px;border:none;background:transparent;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;position:relative}
 .pw-account-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2}
 @media(min-width:900px){.pw-account-btn-label{display:inline}}
@@ -203,17 +204,17 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const promoLabel = getPartnerSitePromoNavLabel(input.locale)
   const logo = input.logoUrl?.trim() ?? ''
 
-  const topbar = `<div class="pw-topbar"><div class="pw-container pw-topbar-inner">
-      <a href="${contactHref}" data-pw-chrome-btn="contact">${escapeHtml(n.contact)}</a>
-      <a href="${wishlistHref}" data-pw-chrome-btn="favorites-link">${escapeHtml(shop.navFavorites)}</a>
-      <a href="${accountHref}" data-pw-chrome-btn="login">${escapeHtml(n.login)}</a>
+  const topbar = `<div class="pw-topbar" ${pwRegionAttr(PW_REGION.topbar)}><div class="pw-container pw-topbar-inner">
+      <a href="${contactHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="contact">${escapeHtml(n.contact)}</a>
+      <a href="${wishlistHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="favorites-link">${escapeHtml(shop.navFavorites)}</a>
+      <a href="${accountHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="login">${escapeHtml(n.login)}</a>
     </div></div>`
 
   const brandBlock = logo
-    ? `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" src="${escapeAttr(logo)}" alt="${escapeAttr(input.title)}"/><span class="pw-wordmark">${escapeHtml(input.title)}</span></a>`
-    : `<a class="pw-brand" href="${homeHref}"><span class="pw-wordmark">${escapeHtml(input.title)}</span></a>`
+    ? `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" ${pwElAttr(PW_EL.logo)} src="${escapeAttr(logo)}" alt="${escapeAttr(input.title)}"/><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(input.title)}</span></a>`
+    : `<a class="pw-brand" href="${homeHref}"><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(input.title)}</span></a>`
 
-  const searchBar = `<div class="pw-header-search">
+  const searchBar = `<div class="pw-header-search" ${pwElAttr(PW_EL.search)}>
     <form class="pw-search-form" data-pw-search-form role="search">
       <input data-pw-search type="search" name="q" placeholder="${escapeAttr(search.placeholder)}" aria-label="${escapeAttr(search.placeholder)}" autocomplete="off"/>
       <button type="button" class="pw-search-image-btn" data-pw-image-search aria-label="${escapeAttr(search.image)}" title="${escapeAttr(search.image)}">📷</button>
@@ -224,11 +225,11 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const categoryLinks = buildCategoryLinks(productsHref, saleHref, input.locale)
   const accountMenuHtml = buildAccountMenuHtml(accountMenuItems)
 
-  const header = `<header class="pw-header">
+  const header = `<header class="pw-header" ${pwRegionAttr(PW_REGION.header)}>
   ${topbar}
   <div class="pw-container pw-header-main">
     <div class="pw-brand-cluster">
-      <button type="button" class="pw-cat-btn" data-pw-cat-toggle aria-expanded="false" aria-controls="pw-cat-panel" aria-label="${escapeAttr(shop.navCategories)}">${svgIcon('menu')}<span>${escapeHtml(shop.navCategories)}</span></button>
+      <button type="button" class="pw-cat-btn" ${pwElAttr(PW_EL.catToggle)} data-pw-cat-toggle aria-expanded="false" aria-controls="pw-cat-panel" aria-label="${escapeAttr(shop.navCategories)}">${svgIcon('menu')}<span>${escapeHtml(shop.navCategories)}</span></button>
       ${brandBlock}
       <nav id="pw-cat-panel" class="pw-cat-panel" data-pw-cat-panel aria-label="${escapeAttr(shop.navCategories)}">
         ${categoryLinks}
@@ -237,7 +238,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
     ${searchBar}
     <div class="pw-header-actions">
       <div class="pw-account-wrap">
-        <button type="button" class="pw-account-btn" data-pw-account-toggle aria-expanded="false" aria-controls="pw-account-panel" aria-label="${escapeAttr(shop.navAccount)}">
+        <button type="button" class="pw-account-btn" ${pwElAttr(PW_EL.account)} data-pw-account-toggle aria-expanded="false" aria-controls="pw-account-panel" aria-label="${escapeAttr(shop.navAccount)}">
           ${svgIcon('user')}
           <span class="pw-account-btn-label">${escapeHtml(shop.navAccount)}</span>
         </button>
@@ -245,15 +246,15 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
           ${accountMenuHtml}
         </nav>
       </div>
-      <a class="pw-icon-btn" data-pw-chrome-btn="cart" href="${cartHref}" aria-label="${escapeAttr(shop.navCart)}">${svgIcon('cart')}<span class="pw-cart-badge" data-pw-chrome-badge hidden>0</span></a>
+      <a class="pw-icon-btn" ${pwElAttr(PW_EL.cart)} data-pw-chrome-btn="cart" href="${cartHref}" aria-label="${escapeAttr(shop.navCart)}">${svgIcon('cart')}<span class="pw-cart-badge" data-pw-chrome-badge hidden>0</span></a>
     </div>
   </div>
-  <nav class="pw-container pw-nav-main" aria-label="Shop">
+  <nav class="pw-container pw-nav-main" ${pwRegionAttr(PW_REGION.nav)} aria-label="Shop">
     ${categoryLinks}
   </nav>
 </header>`
 
-  const bottomNav = `<nav class="pw-bottom-nav" aria-label="Mobile">
+  const bottomNav = `<nav class="pw-bottom-nav" ${pwRegionAttr(PW_REGION.nav)} aria-label="Mobile">
     <a class="is-active" href="${homeHref}">${svgIcon('home')}<span>${escapeHtml(shop.navHome)}</span></a>
     <a href="${productsHref}">${svgIcon('box')}<span>${escapeHtml(shop.navProducts)}</span></a>
     <a href="${saleHref}">${svgIcon('tag')}<span>${escapeHtml(promoLabel)}</span></a>

@@ -87,6 +87,7 @@ ${catalog}
 Rules:
 - switchPresetId MUST be empty string when the user continues the current project: step brief, design feedback, colors, logo notes, approvals ("ok", "tiếp theo"), regenerate requests, packaging face content, dimensions, or general questions about the current step.
 - switchPresetId MUST be a different preset id ONLY when the user clearly asks to start/switch to another project type (new app, wedding invite, landing page, interior, etc.) in ANY natural wording or language.
+- "tạo web" / "tạo giao diện web" / "thiết kế web app" → mobile_shop. ONLY explicit "landing page" / "ladipage" → landing_page.
 - When ambiguous or unsure: switchPresetId empty, confidence below 0.5.
 - Never invent preset ids.
 

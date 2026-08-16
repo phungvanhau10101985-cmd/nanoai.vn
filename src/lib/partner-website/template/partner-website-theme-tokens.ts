@@ -240,45 +240,163 @@ export function buildThemeCssVarBlock(theme: PartnerWebsiteTheme): string {
     .join(';')
 }
 
-const LIVE_STYLE_ID = 'pw-theme-root'
-
-export function applyThemeCssVarsToDocument(doc: Document, theme: PartnerWebsiteTheme): void {
+function buildThemeCssVarImportantBlock(theme: PartnerWebsiteTheme): string {
   const vars = themeCssVarMap(theme)
-  const root = doc.documentElement
-  for (const [name, value] of Object.entries(vars)) {
-    root.style.setProperty(name, value)
-  }
-  let style = doc.getElementById(LIVE_STYLE_ID) as HTMLStyleElement | null
-  if (!style) {
-    style = doc.createElement('style')
-    style.id = LIVE_STYLE_ID
-    doc.head?.appendChild(style)
-  }
-  style.textContent = `:root{${Object.entries(vars)
+  return Object.entries(vars)
     .map(([k, v]) => `${k}:${v} !important`)
-    .join(';')}}`
+    .join(';')
 }
 
-export function rewriteThemeCssVarsInHtml(html: string, theme: PartnerWebsiteTheme): string {
-  if (!html.trim()) return html
-  const block = buildThemeCssVarBlock(theme)
-  const liveTag = `<style id="${LIVE_STYLE_ID}">:root{${block}}</style>`
-  const withId = html.replace(
-    /<style id="pw-theme-root">[\s\S]*?<\/style>/i,
-    liveTag
-  )
-  if (withId !== html) return withId
+export const PW_THEME_ROOT_STYLE_ID = 'pw-theme-root'
 
-  const replacedRoot = html.replace(
-    /:root\s*\{[^}]*--pw-primary:[^}]*\}/i,
-    `:root{${block}}`
-  )
-  if (replacedRoot !== html) return replacedRoot
+const EDITOR_STYLE_IDS = new Set(['nanoai-visual-editor-styles', 'pw-shop-chrome-layout', PW_THEME_ROOT_STYLE_ID])
 
-  if (/<\/head>/i.test(html)) {
-    return html.replace(/<\/head>/i, `${liveTag}</head>`)
+/**
+ * Theme contract (W2.3):
+ * - Live pick only writes CSS variables on `#pw-theme-root`.
+ * - Visual editor paint (`style=""` / added bg / logo) is never rewritten.
+ * - Saved HTML chrome rules that still use brand hex are rebound to `var(--pw-*)`.
+ */
+function rewriteStyleTagCss(html: string, rewriteCss: (css: string) => string): string {
+  return html.replace(/<style\b([^>]*)>([\s\S]*?)<\/style>/gi, (full, attrs: string, css: string) => {
+    const id = /id=["']([^"']+)["']/i.exec(attrs)?.[1] || ''
+    if (EDITOR_STYLE_IDS.has(id)) return full
+    return `<style${attrs}>${rewriteCss(css)}</style>`
+  })
+}
+
+const PW_NAV_INK = '#374151'
+const NAV_HOST = String.raw`(?:\.pw-nav-main|\.pw-shop-nav-row|\.pw-cat-panel|\.pw-shop-cat-panel)`
+
+function chromeSelectorKind(
+  selector: string
+): 'topbar' | 'search-submit' | 'search-form' | 'price' | 'buy' | 'cart' | 'nav-ink' | null {
+  const parts = selector
+    .split(',')
+    .map((part) => part.replace(/::?[a-z-]+/gi, '').trim().toLowerCase())
+    .filter(Boolean)
+  if (!parts.length) return null
+  const isNavInk = (part: string) =>
+    /\.pw-nav-sale\b/.test(part) ||
+    new RegExp(`${NAV_HOST}(?:\\s|>).*(?:\\ba\\b|\\bbutton\\b)|${NAV_HOST}$`).test(part)
+  if (parts.every(isNavInk)) return 'nav-ink'
+  const every = (re: RegExp) =>
+    parts.every((part) => re.test(part) && !/\s+(a|button|span|svg|img)\b/.test(part.replace(re, ' ')))
+  if (every(/\.pw-(?:shop-)?topbar$/)) return 'topbar'
+  if (every(/\.pw-(?:shop-)?search-submit$/)) return 'search-submit'
+  if (every(/\.pw-(?:shop-)?search-form$/)) return 'search-form'
+  if (every(/\.pw-(?:shop-|fh-)?price$/)) return 'price'
+  if (every(/\.pw-(?:shop-)?(?:cart-badge)$/)) return 'topbar'
+  if (every(/\.pw-(?:shop-)?(?:wordmark|brand)$/)) return 'price'
+  if (every(/\.pw-(?:shop-)?btn-cart$/)) return 'cart'
+  if (every(/\.pw-(?:shop-)?btn-buy$|\.pw-shop-btn$|\.pw-btn$/)) return 'buy'
+  return null
+}
+
+/** Convert leftover chrome hex in class rules to tokens. Leaves inline `style=""` alone. */
+export function bindChromeThemeVarsInCss(css: string): string {
+  return css.replace(/([^{}@]+)\{([^{}]+)\}/g, (full, rawSel: string, body: string) => {
+    const kind = chromeSelectorKind(rawSel)
+    if (!kind) return full
+    let next = body
+    if (kind === 'topbar' || kind === 'search-submit') {
+      next = next.replace(/background(?:-color)?\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'background:var(--pw-primary)')
+    } else if (kind === 'search-form') {
+      next = next.replace(
+        /(border(?:-color)?)\s*:\s*([^;]*?)#[0-9a-fA-F]{3,8}/gi,
+        '$1:$2var(--pw-primary)'
+      )
+    } else if (kind === 'price') {
+      next = next.replace(/color\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'color:var(--pw-primary)')
+    } else if (kind === 'cart') {
+      next = next.replace(/background(?:-color)?\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'background:var(--pw-cart)')
+    } else if (kind === 'buy') {
+      next = next.replace(/background(?:-color)?\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'background:var(--pw-buy)')
+    } else if (kind === 'nav-ink') {
+      next = next.replace(
+        /color\s*:\s*(?:var\(--pw-[a-z-]+\)|#[0-9a-fA-F]{3,8})/gi,
+        `color:${PW_NAV_INK}`
+      )
+    }
+    return `${rawSel}{${next}}`
+  })
+}
+
+export function applyThemeCssVarsToDocument(doc: Document, theme: PartnerWebsiteTheme): void {
+  let style = doc.getElementById(PW_THEME_ROOT_STYLE_ID) as HTMLStyleElement | null
+  if (!style) {
+    style = doc.createElement('style')
+    style.id = PW_THEME_ROOT_STYLE_ID
   }
-  return `${liveTag}${html}`
+  style.textContent = `:root{${buildThemeCssVarImportantBlock(theme)}}`
+  const host = doc.head || doc.documentElement
+  if (style.parentNode !== host) host.appendChild(style)
+}
+
+/** Apply theme tokens to a preview frame and same-origin nested shop/landing iframes. */
+export function applyThemeCssVarsToFrameWindow(
+  win: Window | null | undefined,
+  theme: PartnerWebsiteTheme
+): void {
+  if (!win) return
+  try {
+    const doc = win.document
+    if (doc?.documentElement) applyThemeCssVarsToDocument(doc, theme)
+    doc?.querySelectorAll('iframe').forEach((frame) => {
+      const inner = frame as HTMLIFrameElement
+      try {
+        applyThemeCssVarsToFrameWindow(inner.contentWindow, theme)
+      } catch {
+        /* nested cross-origin */
+      }
+      inner.addEventListener(
+        'load',
+        () => {
+          try {
+            applyThemeCssVarsToFrameWindow(inner.contentWindow, theme)
+          } catch {
+            /* nested cross-origin */
+          }
+        },
+        { once: true }
+      )
+    })
+  } catch {
+    /* cross-origin preview */
+  }
+}
+
+function upsertPwVarsInRootBlock(block: string, vars: Record<string, string>): string {
+  let next = block
+  for (const [name, value] of Object.entries(vars)) {
+    const re = new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*[^;}]+`, 'gi')
+    if (re.test(next)) {
+      re.lastIndex = 0
+      next = next.replace(re, `${name}:${value}`)
+    } else {
+      next = next.replace(/}\s*$/, `;${name}:${value}}`)
+    }
+  }
+  return next
+}
+
+export function rewriteThemeCssVarsInHtml(
+  html: string,
+  theme: PartnerWebsiteTheme,
+  _previousTheme?: PartnerWebsiteTheme | null
+): string {
+  if (!html.trim()) return html
+  const vars = themeCssVarMap(theme)
+  const liveTag = `<style id="${PW_THEME_ROOT_STYLE_ID}">:root{${buildThemeCssVarImportantBlock(theme)}}</style>`
+  let out = html
+  out = rewriteStyleTagCss(out, (css) => bindChromeThemeVarsInCss(css))
+  out = out.replace(new RegExp(`<style id="${PW_THEME_ROOT_STYLE_ID}">[\\s\\S]*?<\\/style>`, 'gi'), '')
+  out = out.replace(/:root\s*\{[^}]*--pw-primary:[^}]*\}/gi, (block) => upsertPwVarsInRootBlock(block, vars))
+  out = out.replace(/\bhtml\s*\{[^}]*--pw-primary:[^}]*\}/gi, (block) => upsertPwVarsInRootBlock(block, vars))
+  if (/<\/head>/i.test(out)) {
+    return out.replace(/<\/head>/i, `${liveTag}</head>`)
+  }
+  return `${liveTag}${out}`
 }
 
 export function parseThemeColorPatch(raw: unknown): Partial<ResolvedShopThemeColors> | null {

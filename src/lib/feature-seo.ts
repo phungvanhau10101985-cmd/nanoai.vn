@@ -125,6 +125,71 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       { question: 'Có thể tạo nhiều mẫu liên tiếp không?', answer: 'Có, đây là cách phổ biến để test hiệu quả quảng cáo.' },
     ],
   },
+  'tao-thiep-moi-cuoi-ai': {
+    key: 'tao-thiep-moi-cuoi-ai',
+    pageTitle: 'Tạo thiệp cưới AI – thiệp mời cưới online',
+    pageDescription:
+      'Tạo thiệp cưới AI online: chọn phong cách, xem trước nội dung miễn phí, sinh ảnh nền bằng AI, xuất thiệp điện tử và RSVP gửi khách mời bằng một link.',
+    path: '/tao-thiep-moi-cuoi-ai',
+    keywords: [
+      'tạo thiệp cưới AI',
+      'thiệp cưới online',
+      'thiệp cưới AI',
+      'thiệp mời cưới online',
+      'thiệp cưới điện tử',
+      'làm thiệp cưới online',
+      'RSVP cưới online',
+      'wedding invitation AI',
+    ],
+    serviceName: 'Tạo thiệp cưới AI',
+    serviceDescription:
+      'Tạo thiệp mời cưới online bằng AI: visual nền, chữ tiếng Việt do hệ thống render, xuất bản link thiệp điện tử và RSVP.',
+    h2: 'Tạo thiệp cưới AI online, gửi khách mời chỉ với một đường dẫn',
+    overview:
+      'Thiệp cưới điện tử giúp cặp đôi gửi lời mời nhanh, chỉnh sửa được và theo dõi RSVP mà không cần in hàng loạt. Công cụ trên NanoAI kết hợp ảnh nền do AI sinh với nội dung tiếng Việt do hệ thống sắp chữ, để thiệp đọc rõ trên điện thoại và máy tính.',
+    benefits: [
+      'Xem trước nội dung và xuất bản link miễn phí, chỉ tốn credit khi sinh ảnh AI mới',
+      'Chữ tiếng Việt do hệ thống render, hạn chế lỗi font trên ảnh AI',
+      'Có RSVP, danh sách khách mời và link thiệp cá nhân cho từng khách',
+    ],
+    useCases: [
+      'Tạo thiệp mời cưới online gửi Zalo, Messenger hoặc email',
+      'Thiệp cưới điện tử cho tiệc nhà trai, nhà gái với nội dung riêng',
+      'Thu RSVP và lời chúc từ khách mời trên cùng một trang thiệp',
+    ],
+    tips: [
+      'Chọn phong cách và vỏ thiệp trước, rồi mới sinh ảnh nền AI',
+      'Điền đủ tên, ngày, giờ và địa điểm để thiệp và lịch sự kiện đồng bộ',
+      'Xuất bản link rồi gửi từng khách bản cá nhân từ danh sách khách mời',
+    ],
+    faqs: [
+      {
+        question: 'Tạo thiệp cưới AI có miễn phí không?',
+        answer:
+          'Chọn phong cách, soạn nội dung, xem trước, QR, RSVP và xuất bản link không tốn credit. Chỉ trừ credit khi bạn yêu cầu AI sinh ảnh nền mới.',
+      },
+      {
+        question: 'Khách mời xem thiệp cưới online thế nào?',
+        answer:
+          'Sau khi xuất bản, bạn nhận một link thiệp điện tử. Có thể gửi link chung hoặc link cá nhân theo từng khách; khách mở trên điện thoại, không cần tải app.',
+      },
+      {
+        question: 'Có RSVP cưới online không?',
+        answer:
+          'Có. Khách xác nhận tham dự ngay trên thiệp. Bạn quản lý danh sách khách, trạng thái tham dự và lời chúc trong trang khách mời.',
+      },
+      {
+        question: 'Chữ tiếng Việt trên thiệp AI có bị lỗi font không?',
+        answer:
+          'Phần chữ (tên, lời mời, ngày giờ) do hệ thống render riêng, không phụ thuộc chữ vẽ trong ảnh AI, nên tiếng Việt giữ dấu đầy đủ.',
+      },
+      {
+        question: 'Gửi thiệp qua Zalo hoặc Facebook được không?',
+        answer:
+          'Được. Link thiệp là URL web, chia sẻ như mọi đường dẫn khác. Ảnh xem trước khi gửi phụ thuộc nền tảng (Open Graph).',
+      },
+    ],
+  },
   'tao-anh-tu-chu': {
     key: 'tao-anh-tu-chu',
     pageTitle: 'Tạo ảnh bằng ý tưởng online',
@@ -324,23 +389,43 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
   },
   'thiet-ke-bao-bi': {
     key: 'thiet-ke-bao-bi',
-    pageTitle: 'Thiết kế bao bì AI - Hộp carton, túi đựng',
-    pageDescription: 'Thiết kế bao bì bằng AI: hộp carton, túi đựng. Tải ảnh sản phẩm in lên hộp/túi, nhập thương hiệu, sản phẩm. AI tạo mockup chuyên nghiệp, thẩm mỹ cao. 1,5–3 credits/lượt.',
+    pageTitle: 'Thiết kế hộp giấy AI - 6 mặt, mockup 3D, dieline PDF',
+    pageDescription: 'Thiết kế hộp giấy AI online: 6 mặt in đồng bộ, mockup 3D xoay được, bản dieline PDF đưa xưởng. Phù hợp hộp mỹ phẩm, serum, quà tặng — bắt đầu ngay.',
     path: '/thiet-ke-bao-bi',
-    keywords: ['thiết kế bao bì ai', 'mockup bao bì', 'thiết kế hộp carton', 'mockup túi đựng', 'in ảnh sản phẩm lên hộp', 'packaging design ai'],
-    serviceName: 'Thiết kế bao bì AI - Hộp carton, túi đựng',
-    serviceDescription: 'AI tạo mockup bao bì chuyên nghiệp: hộp carton, túi đựng. Tải ảnh sản phẩm in lên bề mặt, nhập thương hiệu, sản phẩm, logo. Xuất ảnh chất lượng cao.',
-    h2: 'Thiết kế bao bì AI - Hộp carton, túi đựng',
-    overview: 'Trang thiết kế bao bì đóng hàng: hộp carton và túi đựng. Tải ảnh sản phẩm để in lên mặt hộp/túi, AI tạo mockup photorealistic, thẩm mỹ cao, phù hợp quảng cáo và trình bày.',
-    benefits: ['Tải ảnh sản phẩm in lên hộp/túi', 'AI tạo mockup chuyên nghiệp, thẩm mỹ cao', 'Hai loại: hộp carton, túi đựng', 'Nhập thương hiệu, sản phẩm, logo tùy chọn', 'Phong cách: hiện đại, cao cấp, tự nhiên, rực rỡ'],
-    useCases: ['Mockup hộp đựng sản phẩm', 'Mockup túi đựng có in ảnh sản phẩm'],
-    tips: ['Tải ảnh sản phẩm rõ nét để in lên hộp/túi', 'Nhập tên thương hiệu và sản phẩm rõ ràng', 'Upload logo để tăng nhận diện', 'Chọn phong cách phù hợp ngành hàng', '2K cho nhanh, 4K cho chất lượng cao'],
+    keywords: [
+      'thiết kế hộp giấy',
+      'thiết kế hộp giấy ai',
+      'thiết kế bao bì mỹ phẩm',
+      'hộp đựng serum',
+      'mockup hộp 3d',
+      'dieline hộp giấy',
+      'net triển khai hộp giấy',
+      'hộp carton nắp gài',
+      'paper box design ai',
+    ],
+    serviceName: 'Thiết kế hộp giấy AI',
+    serviceDescription: 'AI thiết kế hộp giấy nắp gài: 6 mặt in, mockup 3D xoay được, dieline PDF, nhãn sản phẩm, tem niêm phong và mã vạch theo kích thước mm.',
+    h2: 'Thiết kế hộp giấy AI từ brief đến file in',
+    overview: 'Thiết kế hộp giấy trên NanoAI đi từ brief đến bản in: nhập thương hiệu, loại sản phẩm, kích thước mm và phong cách. AI tạo 6 mặt hộp đồng bộ, mockup 3D kéo xoay được, rồi xuất dieline (net triển khai) PDF cho xưởng — kèm nhãn, tem niêm phong và mã vạch. Mẫu trên trang là hộp mỹ phẩm serum Vitamin C + B5, kích thước 400×200×200 mm.',
+    benefits: [
+      'Sáu mặt hộp cùng một bộ nhận diện, không lệch màu từng mặt',
+      'Mockup 3D xem trước hộp thật, kéo xoay đủ các mặt in',
+      'Bản dieline / net triển khai PDF theo mm để đưa xưởng',
+      'Kèm nhãn sản phẩm, tem niêm phong và mã vạch',
+    ],
+    useCases: ['Hộp mỹ phẩm, serum, thực phẩm chức năng', 'Hộp carton nắp gài đóng hàng shop', 'Bản in thử và gửi xưởng bao bì trước khi sản xuất'],
+    tips: [
+      'Ghi rõ tên thương hiệu và tên sản phẩm trước khi tạo mặt',
+      'Nhập kích thước D×R×C mm đúng hộp sẽ in (ví dụ 400×200×200 mm)',
+      'Chọn một phong cách in cho cả 6 mặt: tối giản, cao cấp hoặc rực rỡ',
+    ],
     faqs: [
-      { question: 'Có dùng AI không?', answer: 'Có. AI (Gemini) tạo mockup photorealistic từ ảnh sản phẩm và thông tin bạn nhập.' },
-      { question: 'Có mất phí không?', answer: 'Có. 1,5 credit (2K) hoặc 3 credit (4K) mỗi lượt tạo.' },
-      { question: 'Ảnh sản phẩm dùng để làm gì?', answer: 'Ảnh sản phẩm được in lên mặt hộp/túi trong mockup, như bao bì thật.' },
-      { question: 'Hộp và túi khác gì?', answer: 'Hộp: carton 3D đóng hàng. Túi: stand-up pouch hoặc flat bag đựng sản phẩm.' },
-      { question: 'Có upload logo được không?', answer: 'Có, logo tùy chọn. AI tích hợp logo vào thiết kế.' },
+      { question: 'Thiết kế hộp giấy AI làm được những gì?', answer: 'Bạn nhập brief (thương hiệu, sản phẩm, kích thước, phong cách). AI tạo logo và 6 mặt hộp đồng bộ, rồi dựng mockup 3D và file dieline PDF để in hộp giấy nắp gài.' },
+      { question: 'Mockup 3D khác ảnh tĩnh thế nào?', answer: 'Ảnh tĩnh dùng để xem nhanh và chia sẻ. Mockup 3D HTML cho phép kéo xoay, xem đủ 6 mặt in như hộp thật trước khi đặt xưởng.' },
+      { question: 'Dieline / net triển khai dùng để làm gì?', answer: 'Đây là bản 2D trải phẳng đủ mặt hộp, tai dán và đường cắt/gấp. Xưởng dùng file này để bế, cấn và dán hộp. Trên NanoAI bước này xuất PDF theo kích thước mm.' },
+      { question: 'Có làm hộp mỹ phẩm, hộp đựng serum được không?', answer: 'Có. Mẫu trên trang là hộp serum Vitamin C + B5: mặt chính, thành phần, công dụng, hướng dẫn dùng, mã vạch và thông tin nhà sản xuất.' },
+      { question: 'Hộp giấy khác túi đựng thế nào?', answer: 'Trang này dành cho hộp giấy (6 mặt + dieline hộp nắp gài). Túi giấy / shopping bag là flow riêng trên NanoAI.' },
+      { question: 'Có cần đăng nhập không?', answer: 'Xem mẫu 3D, dieline và hướng dẫn trên trang này không cần đăng nhập. Tạo ảnh AI và xuất file in cần tài khoản NanoAI.' },
     ],
   },
   'thiet-ke-tui-dung': {

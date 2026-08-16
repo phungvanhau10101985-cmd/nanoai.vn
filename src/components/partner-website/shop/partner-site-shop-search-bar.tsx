@@ -11,6 +11,7 @@ import {
   partnerSiteSearchTextApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Hit = {
   id?: string
@@ -103,7 +104,7 @@ export function PartnerSiteShopSearchBar({
   }
 
   return (
-    <div className="pw-shop-search-wrap">
+    <div className="pw-shop-search-wrap" data-pw-el={PW_EL.search}>
       <form className="pw-shop-search-form" role="search" onSubmit={(e) => void runText(e)}>
         <input
           type="search"

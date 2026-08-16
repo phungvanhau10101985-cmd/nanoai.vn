@@ -61,4 +61,47 @@ test('rewrites :root CSS variables in saved HTML', () => {
   })
   assert.match(next, /--pw-primary:#2563eb/)
   assert.match(next, /--pw-buy:#2563eb/)
+  assert.match(next, /id="pw-theme-root"/)
+  assert.match(next, /--pw-primary:#2563eb !important/)
+})
+
+test('later :root block does not keep the old primary color', () => {
+  const html =
+    '<html><head><style>:root{--pw-primary:#f97316}</style><style>:root{--pw-primary:#c2410c;--pw-accent:#ea580c}</style></head><body></body></html>'
+  const next = rewriteThemeCssVarsInHtml(html, {
+    ...DEFAULT_PARTNER_WEBSITE_THEME,
+    primaryColor: '#0f766e',
+    buyButtonColor: '#0f766e',
+  })
+  assert.equal((next.match(/--pw-primary:#0f766e/g) || []).length >= 2, true)
+  assert.equal(next.includes('--pw-primary:#c2410c'), false)
+  assert.equal(next.includes('--pw-primary:#f97316'), false)
+})
+
+test('rebinds chrome class hex to tokens and leaves inline paint alone', () => {
+  const html =
+    '<html><head><style>.pw-topbar{background:#c2410c}.pw-hero{background:#c2410c}</style></head><body><button style="background:#c2410c">TÌM</button><div data-pw-added-bg style="background:#c2410c"></div></body></html>'
+  const next = rewriteThemeCssVarsInHtml(html, {
+    ...DEFAULT_PARTNER_WEBSITE_THEME,
+    primaryColor: '#0f766e',
+    buyButtonColor: '#0f766e',
+  })
+  assert.match(next, /\.pw-topbar\{background:var\(--pw-primary\)/)
+  assert.match(next, /\.pw-hero\{background:#c2410c/)
+  assert.match(next, /<button style="background:#c2410c">TÌM<\/button>/)
+  assert.match(next, /data-pw-added-bg style="background:#c2410c"/)
+  assert.match(next, /id="pw-theme-root"/)
+  assert.match(next, /--pw-primary:#0f766e !important/)
+})
+
+test('nav links including sale stay ink and do not follow theme', () => {
+  const html =
+    '<html><head><style>.pw-nav-main a{color:var(--pw-primary)}.pw-nav-main a.pw-nav-sale{color:var(--pw-primary)}</style></head><body></body></html>'
+  const next = rewriteThemeCssVarsInHtml(html, {
+    ...DEFAULT_PARTNER_WEBSITE_THEME,
+    primaryColor: '#0f766e',
+    buyButtonColor: '#0f766e',
+  })
+  assert.match(next, /\.pw-nav-main a\{color:#374151/)
+  assert.match(next, /\.pw-nav-main a\.pw-nav-sale\{color:#374151/)
 })

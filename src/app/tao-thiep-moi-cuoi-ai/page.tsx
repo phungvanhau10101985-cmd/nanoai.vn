@@ -1,34 +1,51 @@
+import Link from 'next/link'
 import { Metadata } from 'next'
 import { JsonLd } from '@/components/seo-json-ld'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
+import { Button } from '@/components/ui/button'
 import { getUserOrBypass } from '@/lib/auth'
-import { redirectToLogin } from '@/lib/auth/login-redirect'
+import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
+import { getServerDictionary } from '@/lib/i18n/server'
 import { buildJsonLdService, buildMetadata, SITE_URL } from '@/lib/seo'
+import { FeatureSeoSection } from '@/components/feature-seo-section'
 import WeddingCardAiClientPage from './wedding-card-ai-client-page'
 
+const seo = getFeatureSeo('tao-thiep-moi-cuoi-ai')
+
 export const metadata: Metadata = buildMetadata({
-  title: 'Tạo thiệp mời cưới bằng AI',
-  description:
-    'Tạo thiệp mời cưới online bằng AI: chọn phong cách, preview nội dung miễn phí, tạo background/artwork AI và xuất bản link RSVP.',
-  path: '/tao-thiep-moi-cuoi-ai',
-  keywords: ['tạo thiệp mời cưới ai', 'thiệp cưới online', 'wedding invitation ai', 'rsvp cưới online'],
+  title: seo.pageTitle,
+  description: seo.pageDescription,
+  path: seo.path,
+  keywords: seo.keywords,
 })
 
 export default async function TaoThiepMoiCuoiAiPage() {
   const user = await getUserOrBypass()
-  if (!user) redirectToLogin()
-  const jsonLd = buildJsonLdService(
-    'Tạo thiệp mời cưới bằng AI',
-    'Tạo visual thiệp cưới bằng AI, render chữ tiếng Việt bằng hệ thống và xuất bản link RSVP online.',
-    `${SITE_URL}/tao-thiep-moi-cuoi-ai`
-  )
+  const { t } = getServerDictionary()
+  const jsonLd = buildJsonLdService(seo.serviceName, seo.serviceDescription, `${SITE_URL}${seo.path}`)
+  const faqJsonLd = buildFeatureFaqJsonLd(seo)
+  const loginHref = `/auth/login?next=${encodeURIComponent(seo.path)}`
 
   return (
     <div className="app-shell">
       <JsonLd data={jsonLd} />
-      <CreationToolPageShell currentHref="/tao-thiep-moi-cuoi-ai">
-        <WeddingCardAiClientPage />
+      <JsonLd data={faqJsonLd} />
+      <CreationToolPageShell currentHref={seo.path}>
+        {user ? (
+          <WeddingCardAiClientPage />
+        ) : (
+          <section className="mx-auto max-w-3xl rounded-3xl bg-gradient-to-br from-rose-50 via-white to-amber-50 p-6 shadow-sm ring-1 ring-rose-100 sm:p-8">
+            <p className="text-sm font-medium text-rose-600">{t.tool.wedding_invitation_ai}</p>
+            <h1 className="mt-1 text-2xl font-bold text-slate-950 md:text-3xl">{seo.pageTitle}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">{t.weddingCardAiBrief.loginGateLead}</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{t.weddingCardAiBrief.loginGateHint}</p>
+            <Button asChild className="mt-5">
+              <Link href={loginHref}>{t.weddingCardAiBrief.loginGateCta}</Link>
+            </Button>
+          </section>
+        )}
       </CreationToolPageShell>
+      <FeatureSeoSection seo={seo} />
     </div>
   )
 }

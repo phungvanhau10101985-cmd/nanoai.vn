@@ -34,6 +34,9 @@ test('chrome widgets accept shop header kinds', () => {
   assert.equal(isVisualEditorChromeWidgetKind('account'), true)
   assert.equal(isVisualEditorChromeWidgetKind('wallet'), true)
   assert.equal(isVisualEditorChromeWidgetKind('home'), true)
+  assert.equal(isVisualEditorChromeWidgetKind('categories'), true)
+  assert.equal(isVisualEditorChromeWidgetKind('search'), true)
+  assert.equal(isVisualEditorChromeWidgetKind('search-image'), true)
   assert.equal(isVisualEditorChromeWidgetKind('chat'), true)
   assert.equal(isVisualEditorChromeWidgetKind('notifications'), true)
 })
@@ -46,6 +49,9 @@ test('chrome widget picker lists every shop destination in each place group', ()
   const kinds = VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS[0]?.kinds || []
   assert.equal(new Set(kinds).size, kinds.length)
   assert.ok(kinds.includes('home'))
+  assert.ok(kinds.includes('categories'))
+  assert.ok(kinds.includes('search'))
+  assert.ok(kinds.includes('search-image'))
   assert.ok(kinds.includes('wallet'))
   assert.ok(kinds.includes('blog'))
   assert.ok(!kinds.includes('favorites-link'))
@@ -110,6 +116,53 @@ test('chrome widgets emit chat as a shop chat button', () => {
   assert.doesNotMatch(html, / href=/)
 })
 
+test('chrome widgets emit category toggle as cat-toggle button', () => {
+  const html = buildVisualEditorChromeWidgetHtml({
+    kind: 'categories',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon-label',
+  })
+  assert.match(html, /<button type="button"/)
+  assert.match(html, /data-pw-el="cat-toggle"/)
+  assert.match(html, /data-pw-cat-toggle/)
+  assert.match(html, /aria-controls="pw-shop-cat-panel"/)
+  assert.match(html, /Danh mục/)
+  assert.doesNotMatch(html, / href=/)
+  assert.doesNotMatch(html, /data-pw-chrome-btn/)
+})
+
+test('chrome widgets emit search box with image search and submit', () => {
+  const html = buildVisualEditorChromeWidgetHtml({
+    kind: 'search',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon-label',
+  })
+  assert.match(html, /data-pw-el="search"/)
+  assert.match(html, /data-pw-search/)
+  assert.match(html, /data-pw-image-search/)
+  assert.match(html, /pw-search-submit/)
+  assert.match(html, /Tìm sản phẩm/)
+  assert.match(html, /Tìm bằng ảnh/)
+  assert.doesNotMatch(html, /data-pw-chrome-btn/)
+  assert.doesNotMatch(html, / href=/)
+})
+
+test('chrome widgets emit image-search camera button', () => {
+  const html = buildVisualEditorChromeWidgetHtml({
+    kind: 'search-image',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon-label',
+  })
+  assert.match(html, /<button type="button"/)
+  assert.match(html, /data-pw-image-search/)
+  assert.match(html, /Tìm bằng ảnh/)
+  assert.doesNotMatch(html, / href=/)
+  assert.doesNotMatch(html, /data-pw-chrome-btn/)
+})
+
 test('chrome widgets emit icon markup with API badge hook', () => {
   const html = buildVisualEditorChromeWidgetHtml({
     kind: 'wishlist',
@@ -124,9 +177,26 @@ test('chrome widgets emit icon markup with API badge hook', () => {
   assert.match(html, /pw-chrome-btn-label/)
   assert.match(html, /pw-shop-nav-label/)
   assert.match(html, /data-pw-chrome-badge/)
+  assert.match(html, /data-pw-chrome-count/)
   assert.match(html, /pw-chrome-icon-wrap/)
   assert.ok(html.includes(partnerSiteWishlistPath('188-shop')))
   assert.match(html, /draggable="false"/)
+  const notif = buildVisualEditorChromeWidgetHtml({
+    kind: 'notifications',
+    siteSlug: '188-shop',
+    locale: 'vi',
+  })
+  assert.match(notif, /data-pw-chrome-btn="notifications"/)
+  assert.match(notif, /data-pw-chrome-badge/)
+  assert.match(notif, /data-pw-chrome-count/)
+  const viewed = buildVisualEditorChromeWidgetHtml({
+    kind: 'recently-viewed',
+    siteSlug: '188-shop',
+    locale: 'vi',
+  })
+  assert.match(viewed, /data-pw-chrome-btn="recently-viewed"/)
+  assert.match(viewed, /data-pw-chrome-badge/)
+  assert.match(viewed, /data-pw-chrome-count/)
 })
 
 test('chrome widgets can emit icon-only or icon+label', () => {

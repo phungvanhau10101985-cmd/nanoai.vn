@@ -4,6 +4,9 @@ import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/pa
 import { visualHtmlLooksUsable } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import {
   addVisualPageKey,
+  appendVisualDeviceQuery,
+  VISUAL_MOBILE_PREVIEW_PX,
+  VISUAL_TABLET_PREVIEW_PX,
   categoryPathFromSitePath,
   categoryVisualHtmlPath,
   cmsSlugFromSitePath,
@@ -11,6 +14,7 @@ import {
   composeResponsiveVisualHtml,
   isolateVisualHtmlForDevice,
   mergeVisualPageHtmlIntoProject,
+  preserveAndRecolorVisualPageFiles,
   stripVisualAddedChrome,
   normalizeVisualPageKeys,
   pageKeyFromSitePath,
@@ -32,11 +36,19 @@ test('visual editor paths map catalog pages', () => {
   assert.equal(visualEditorHtmlPath('about'), 'about.html')
   assert.equal(visualEditorHtmlPath('recently_viewed'), 'recently-viewed.html')
   assert.equal(visualEditorHtmlPath('home', 'mobile'), 'index.mobile.html')
+  assert.equal(visualEditorHtmlPath('home', 'tablet'), 'index.tablet.html')
   assert.equal(visualEditorHtmlPath('about', 'mobile'), 'about.mobile.html')
+  assert.equal(visualEditorHtmlPath('about', 'tablet'), 'about.tablet.html')
   assert.equal(visualEditorDeviceVariant('mobile'), 'mobile')
-  assert.equal(visualEditorDeviceVariant('tablet'), 'desktop')
+  assert.equal(visualEditorDeviceVariant('tablet'), 'tablet')
+  assert.equal(visualEditorDeviceVariant('laptop'), 'desktop')
   assert.equal(visualEditorDeviceVariant('desktop'), 'desktop')
   assert.equal(visualEditorPreviewPath('188-shop', 'home'), '/site/188-shop')
+  assert.equal(appendVisualDeviceQuery('/site/188-shop/products', 'mobile'), '/site/188-shop/products?pw-device=mobile')
+  assert.equal(appendVisualDeviceQuery('/site/188-shop/products', 'tablet'), '/site/188-shop/products?pw-device=tablet')
+  assert.equal(appendVisualDeviceQuery('/site/188-shop?v=1', 'desktop'), '/site/188-shop?v=1&pw-device=desktop')
+  assert.equal(VISUAL_MOBILE_PREVIEW_PX, 390)
+  assert.equal(VISUAL_TABLET_PREVIEW_PX, 768)
   assert.equal(visualEditorPreviewPath('188-shop', 'products'), '/site/188-shop/products')
   assert.equal(visualEditorPreviewPath('188-shop', 'size_guide'), '/site/188-shop/size-guide')
   assert.equal(
@@ -53,6 +65,7 @@ test('visual editor paths map catalog pages', () => {
   )
   assert.equal(categoryVisualHtmlPath('thoi-trang/ao'), 'c/thoi-trang__ao.html')
   assert.equal(categoryVisualHtmlPath('ao-nam', 'mobile'), 'c/ao-nam.mobile.html')
+  assert.equal(categoryVisualHtmlPath('ao-nam', 'tablet'), 'c/ao-nam.tablet.html')
   assert.equal(
     productVisualHtmlPath('00073cac-1111-2222-3333-444444444444'),
     'p/00073cac-1111-2222-3333-444444444444.html'
@@ -201,6 +214,8 @@ test('mobile visual html is isolated from desktop', () => {
   assert.ok(pub.includes('pw-visual-device-split'))
   assert.ok(pub.includes('pw-shop-chrome-layout'))
   assert.ok(pub.includes('[data-pw-chrome-added][data-pw-device="mobile"]'))
+  assert.ok(pub.includes('pw-theme-root'))
+  assert.ok(pub.includes('--pw-primary'))
 })
 
 test('compose responsive visual html keeps a single desktop variant as-is', () => {
@@ -219,6 +234,19 @@ test('mobile-only visual html does not leak added chrome onto desktop', () => {
   assert.equal(desktopBody.includes('data-pw-chrome-added'), false)
 })
 
+test('isolate desktop html keeps nested sections from composed page', () => {
+  const desktop =
+    '<!DOCTYPE html><html><body><div class="pw-header"><span>Logo</span></div><h1>Hero saved</h1></body></html>'
+  const tablet = '<!DOCTYPE html><html><body><h1>Tablet stale</h1></body></html>'
+  const mobile = '<!DOCTYPE html><html><body><h1>Mobile stale</h1></body></html>'
+  const composed = composeResponsiveVisualHtml(desktop, mobile, tablet)
+  const isolated = isolateVisualHtmlForDevice(composed, 'desktop')
+  assert.ok(isolated.includes('Hero saved'))
+  assert.ok(isolated.includes('Logo'))
+  assert.equal(isolated.includes('Tablet stale'), false)
+  assert.equal(isolated.includes('Mobile stale'), false)
+})
+
 test('isolate visual html unwraps composed page and stamps chrome', () => {
   const composed = composeResponsiveVisualHtml(
     '<!DOCTYPE html><html><body><h1>Desk</h1></body></html>',
@@ -230,6 +258,83 @@ test('isolate visual html unwraps composed page and stamps chrome', () => {
   assert.ok(mobile.includes('data-pw-device="mobile"'))
   const stripped = stripVisualAddedChrome(mobile)
   assert.equal(stripped.includes('data-pw-chrome-added'), false)
+})
+
+test('count badge chrome stays when isolating another device', () => {
+  const desktop = `<!DOCTYPE html><html><body>
+    <div class="pw-header-actions">
+      <a data-pw-chrome-added="1" data-pw-chrome-btn="notifications" data-pw-device="desktop" href="/account/notifications">N</a>
+      <a data-pw-chrome-added="1" data-pw-chrome-btn="wallet" data-pw-device="desktop">$</a>
+    </div>
+  </body></html>`
+  const mobile = isolateVisualHtmlForDevice(desktop, 'mobile', { stripAddedChrome: true })
+  assert.match(mobile, /data-pw-chrome-btn="notifications"/)
+  assert.match(mobile, /data-pw-device="mobile"/)
+  assert.match(mobile, /data-pw-chrome-count="1"/)
+  assert.doesNotMatch(mobile, /data-pw-chrome-btn="wallet"/)
+})
+
+test('saving one device copies missing count badges onto sibling html', () => {
+  const project = {
+    entryPath: 'index.html',
+    files: [
+      {
+        path: 'index.html',
+        kind: 'html' as const,
+        content: `<!DOCTYPE html><html><body><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="notifications" href="/n">N</a></div></body></html>`,
+      },
+      {
+        path: 'index.mobile.html',
+        kind: 'html' as const,
+        content: `<!DOCTYPE html><html><body><div class="pw-header-actions"><a href="/account">Acc</a></div></body></html>`,
+      },
+    ],
+  }
+  const next = mergeVisualPageHtmlIntoProject(project, project.files[0].content, 'index.html')
+  const mobile = next.files.find((f) => f.path === 'index.mobile.html')?.content || ''
+  assert.match(mobile, /data-pw-chrome-btn="notifications"/)
+  assert.match(mobile, /data-pw-device="mobile"/)
+})
+
+test('tablet visual html is isolated from desktop and mobile', () => {
+  const desktop = '<!DOCTYPE html><html><body><h1>Desktop about</h1></body></html>'
+  const tablet = '<!DOCTYPE html><html><body><h1>Tablet about</h1></body></html>'
+  const mobile = '<!DOCTYPE html><html><body><h1>Mobile about</h1></body></html>'
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      visualPageKeys: ['about'],
+      visualTabletPageKeys: ['about'],
+      visualMobilePageKeys: ['about'],
+    },
+    htmlSource: null,
+    project: {
+      entryPath: 'site.config.json',
+      files: [
+        { path: 'about.html', kind: 'html' as const, content: desktop },
+        { path: 'about.tablet.html', kind: 'html' as const, content: tablet },
+        { path: 'about.mobile.html', kind: 'html' as const, content: mobile },
+      ],
+    },
+  }
+  assert.equal(resolveExactVisualPageHtml(website, 'about', 'desktop'), desktop)
+  assert.equal(resolveExactVisualPageHtml(website, 'about', 'tablet'), tablet)
+  assert.equal(resolveExactVisualPageHtml(website, 'about', 'mobile'), mobile)
+  const pub = resolvePublicVisualPageHtml(website, 'about')
+  assert.ok(pub.includes('Desktop about'))
+  assert.ok(pub.includes('Tablet about'))
+  assert.ok(pub.includes('Mobile about'))
+  assert.ok(pub.includes('pw-visual-tablet'))
+  assert.ok(pub.includes('min-width:1280px'))
+})
+
+test('public html without tablet still uses desktop from 768px', () => {
+  const desktop = '<!DOCTYPE html><html><body><h1>Desktop about</h1></body></html>'
+  const mobile = '<!DOCTYPE html><html><body><h1>Mobile about</h1></body></html>'
+  const pub = composeResponsiveVisualHtml(desktop, mobile)
+  assert.equal(pub.includes('pw-visual-tablet'), false)
+  assert.ok(pub.includes('pw-visual-desktop'))
+  assert.ok(pub.includes('pw-visual-mobile'))
 })
 
 test('empty visual html is not usable for Sửa nhanh', () => {
@@ -252,6 +357,47 @@ test('empty visual html is not usable for Sửa nhanh', () => {
     ),
     false
   )
+})
+
+test('saving one device html does not replace the other device file', () => {
+  const project = {
+    entryPath: 'index.html',
+    files: [
+      { path: 'index.html', kind: 'html' as const, content: '<!DOCTYPE html><html><body>DESK SAVED</body></html>' },
+      { path: 'index.mobile.html', kind: 'html' as const, content: '<!DOCTYPE html><html><body>OLD MOB</body></html>' },
+      { path: 'index.tablet.html', kind: 'html' as const, content: '<!DOCTYPE html><html><body>OLD TAB</body></html>' },
+    ],
+  }
+  const next = mergeVisualPageHtmlIntoProject(
+    project,
+    '<!DOCTYPE html><html><body>NEW TAB</body></html>',
+    'index.tablet.html'
+  )
+  assert.equal(next.files.find((f) => f.path === 'index.html')?.content.includes('DESK SAVED'), true)
+  assert.equal(next.files.find((f) => f.path === 'index.mobile.html')?.content.includes('OLD MOB'), true)
+  assert.equal(next.files.find((f) => f.path === 'index.tablet.html')?.content.includes('NEW TAB'), true)
+})
+
+test('theme recolor keeps saved desktop homepage html', () => {
+  const previous = {
+    entryPath: 'index.html',
+    files: [
+      { path: 'index.html', kind: 'html' as const, content: '<!DOCTYPE html><html><body>DESK SAVED</body></html>' },
+    ],
+  }
+  const generated = {
+    entryPath: 'index.html',
+    files: [
+      { path: 'index.html', kind: 'html' as const, content: '<!DOCTYPE html><html><body>TEMPLATE HOME</body></html>' },
+    ],
+  }
+  const next = preserveAndRecolorVisualPageFiles({
+    previous,
+    next: generated,
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: true },
+  })
+  assert.equal(next.files.find((f) => f.path === 'index.html')?.content.includes('DESK SAVED'), true)
+  assert.equal(next.files.find((f) => f.path === 'index.html')?.content.includes('TEMPLATE HOME'), false)
 })
 
 test('visualPageKeys stay unique and skip home', () => {

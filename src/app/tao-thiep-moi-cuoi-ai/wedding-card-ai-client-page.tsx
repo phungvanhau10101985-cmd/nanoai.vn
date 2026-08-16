@@ -901,9 +901,9 @@ export default function WeddingCardAiClientPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-medium text-rose-600">AI Wedding Invitation</p>
-              <h1 className="mt-1 text-2xl font-bold text-slate-950 md:text-3xl">Tạo thiệp mời cưới bằng AI</h1>
+              <h1 className="mt-1 text-2xl font-bold text-slate-950 md:text-3xl">Tạo thiệp cưới AI – thiệp mời cưới online</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Chọn preset miễn phí, preview nội dung bằng HTML/CSS, chỉ tốn credit khi AI sinh ảnh mới. Text tiếng Việt do hệ thống render riêng.
+                Chọn phong cách miễn phí, xem trước nội dung, chỉ tốn credit khi AI sinh ảnh mới. Chữ tiếng Việt do hệ thống render riêng.
               </p>
             </div>
             <div className="rounded-2xl bg-white/80 p-3 text-sm text-slate-700 shadow-sm">

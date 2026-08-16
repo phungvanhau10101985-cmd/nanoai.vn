@@ -12,6 +12,7 @@ import {
   partnerSiteOrdersPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export function PartnerSiteShopInfoView({
   siteSlug,
@@ -37,18 +38,18 @@ export function PartnerSiteShopInfoView({
   const order = orderId?.trim() || ''
 
   return (
-    <article className="pw-shop-info">
-      <h1>{title}</h1>
+    <article className="pw-shop-info" data-pw-region={PW_REGION.content}>
+      <h1 data-pw-el={PW_EL.heading}>{title}</h1>
       {pageKey === 'thank-you' && order ? (
-        <p className="pw-shop-thankyou-order">
+        <p className="pw-shop-thankyou-order" data-pw-el={PW_EL.body}>
           {t.thankYouOrderLabel}: <strong>{order}</strong>
         </p>
       ) : null}
       {paragraphs.map((p) => (
-        <p key={p.slice(0, 24)}>{p}</p>
+        <p key={p.slice(0, 24)} data-pw-el={PW_EL.body}>{p}</p>
       ))}
       {!override && block.bullets?.length ? (
-        <ul>
+        <ul data-pw-el={PW_EL.body}>
           {block.bullets.map((b) => (
             <li key={b}>{b}</li>
           ))}
@@ -56,14 +57,14 @@ export function PartnerSiteShopInfoView({
       ) : null}
       {!override &&
         block.faq?.map((item) => (
-          <details key={item.q}>
+          <details key={item.q} data-pw-el={PW_EL.faqItem}>
             <summary>{item.q}</summary>
             <p>{item.a}</p>
           </details>
         ))}
       {pageKey === 'sale' || pageKey === 'contact' ? (
         <p style={{ marginTop: 20 }}>
-          <Link href={partnerSiteProductsPath(siteSlug, { customDomain })} className="pw-shop-btn">
+          <Link href={partnerSiteProductsPath(siteSlug, { customDomain })} className="pw-shop-btn" data-pw-el={PW_EL.cta}>
             {t.navProducts}
           </Link>
         </p>
@@ -73,13 +74,14 @@ export function PartnerSiteShopInfoView({
           <Link
             href={partnerSiteAccountTabPath(siteSlug, 'orders', { customDomain })}
             className="pw-shop-btn"
+            data-pw-el={PW_EL.cta}
           >
             {t.navOrders}
           </Link>
-          <Link href={partnerSiteOrdersPath(siteSlug, { customDomain })} className="pw-shop-btn pw-shop-btn-outline">
+          <Link href={partnerSiteOrdersPath(siteSlug, { customDomain })} className="pw-shop-btn pw-shop-btn-outline" data-pw-el={PW_EL.link}>
             {t.thankYouTrackCta}
           </Link>
-          <Link href={partnerSiteProductsPath(siteSlug, { customDomain })} className="pw-shop-btn pw-shop-btn-outline">
+          <Link href={partnerSiteProductsPath(siteSlug, { customDomain })} className="pw-shop-btn pw-shop-btn-outline" data-pw-el={PW_EL.link}>
             {t.backToShop}
           </Link>
         </p>

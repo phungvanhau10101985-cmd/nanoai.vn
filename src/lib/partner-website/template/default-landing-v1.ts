@@ -582,6 +582,7 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     logoUrl: typeof o.logoUrl === 'string' ? o.logoUrl : logoUrl ?? base.logoUrl ?? null,
     ...(o.useVisualHtml === true ? { useVisualHtml: true } : {}),
     ...(o.useVisualMobileHtml === true ? { useVisualMobileHtml: true } : {}),
+    ...(o.useVisualTabletHtml === true ? { useVisualTabletHtml: true } : {}),
     ...(Array.isArray(o.visualPageKeys) && o.visualPageKeys.length
       ? {
           visualPageKeys: o.visualPageKeys
@@ -593,6 +594,14 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     ...(Array.isArray(o.visualMobilePageKeys) && o.visualMobilePageKeys.length
       ? {
           visualMobilePageKeys: o.visualMobilePageKeys
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 40),
+        }
+      : {}),
+    ...(Array.isArray(o.visualTabletPageKeys) && o.visualTabletPageKeys.length
+      ? {
+          visualTabletPageKeys: o.visualTabletPageKeys
             .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
             .map((k) => k.trim())
             .slice(0, 40),
@@ -614,6 +623,14 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
             .slice(0, 80),
         }
       : {}),
+    ...(Array.isArray(o.visualTabletCategoryPaths) && o.visualTabletCategoryPaths.length
+      ? {
+          visualTabletCategoryPaths: o.visualTabletCategoryPaths
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
     ...(Array.isArray(o.visualProductIds) && o.visualProductIds.length
       ? {
           visualProductIds: o.visualProductIds
@@ -630,6 +647,14 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
             .slice(0, 80),
         }
       : {}),
+    ...(Array.isArray(o.visualTabletProductIds) && o.visualTabletProductIds.length
+      ? {
+          visualTabletProductIds: o.visualTabletProductIds
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
     ...(Array.isArray(o.visualCmsSlugs) && o.visualCmsSlugs.length
       ? {
           visualCmsSlugs: o.visualCmsSlugs
@@ -641,6 +666,14 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     ...(Array.isArray(o.visualMobileCmsSlugs) && o.visualMobileCmsSlugs.length
       ? {
           visualMobileCmsSlugs: o.visualMobileCmsSlugs
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
+    ...(Array.isArray(o.visualTabletCmsSlugs) && o.visualTabletCmsSlugs.length
+      ? {
+          visualTabletCmsSlugs: o.visualTabletCmsSlugs
             .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
             .map((k) => k.trim())
             .slice(0, 80),

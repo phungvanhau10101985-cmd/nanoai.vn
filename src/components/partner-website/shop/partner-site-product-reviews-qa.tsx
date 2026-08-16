@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import type { WebLocale } from '@/lib/i18n/config'
+import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type ReviewRow = {
   id: string
@@ -261,8 +262,8 @@ export function PartnerSiteProductReviewsQa({ siteSlug, inventoryId, locale }: P
 
   return (
     <div style={{ marginTop: 40, display: 'grid', gap: 40 }}>
-      <section>
-        <h2>{t.reviewsTitle}</h2>
+      <section className="pw-shop-reviews" data-pw-region={PW_REGION.reviews}>
+        <h2 data-pw-el={PW_EL.sectionTitle}>{t.reviewsTitle}</h2>
         {summary && summary.total > 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
             <span style={{ fontSize: '1.5rem', fontWeight: 700 }}>{summary.average}/5</span>
@@ -327,16 +328,16 @@ export function PartnerSiteProductReviewsQa({ siteSlug, inventoryId, locale }: P
         <div style={{ marginTop: 20, display: 'grid', gap: 16 }}>
           {reviews.length === 0 ? <p className="pw-shop-muted">{t.reviewsEmpty}</p> : null}
           {reviews.map((r) => (
-            <article key={r.id} style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 16 }}>
+            <article key={r.id} style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 16 }} data-pw-el={PW_EL.card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                <strong>{r.reviewerName}</strong>
+                <strong data-pw-el={PW_EL.cardName}>{r.reviewerName}</strong>
                 <span className="pw-shop-muted" style={{ fontSize: 12 }}>
                   {new Date(r.createdAt).toLocaleDateString(locale)}
                 </span>
               </div>
               <StarDisplay rating={r.rating} />
               {r.title ? <p style={{ fontWeight: 600, margin: '6px 0 2px' }}>{r.title}</p> : null}
-              <p style={{ margin: '4px 0' }}>{r.content}</p>
+              <p style={{ margin: '4px 0' }} data-pw-el={PW_EL.body}>{r.content}</p>
               {r.imageUrls.length > 0 ? (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '8px 0' }}>
                   {r.imageUrls.map((url) => (
@@ -379,8 +380,8 @@ export function PartnerSiteProductReviewsQa({ siteSlug, inventoryId, locale }: P
         </div>
       </section>
 
-      <section>
-        <h2>{t.qaTitle}</h2>
+      <section className="pw-shop-reviews" data-pw-region={PW_REGION.reviews}>
+        <h2 data-pw-el={PW_EL.sectionTitle}>{t.qaTitle}</h2>
         {!askOpen ? (
           <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setAskOpen(true)}>
             {t.qaAskButton}
@@ -409,14 +410,14 @@ export function PartnerSiteProductReviewsQa({ siteSlug, inventoryId, locale }: P
         <div style={{ marginTop: 20, display: 'grid', gap: 16 }}>
           {questions.length === 0 ? <p className="pw-shop-muted">{t.qaEmpty}</p> : null}
           {questions.map((q) => (
-            <article key={q.id} style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 16 }}>
+            <article key={q.id} style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 16 }} data-pw-el={PW_EL.card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                <strong>{q.askerName}</strong>
+                <strong data-pw-el={PW_EL.cardName}>{q.askerName}</strong>
                 <span className="pw-shop-muted" style={{ fontSize: 12 }}>
                   {new Date(q.createdAt).toLocaleDateString(locale)}
                 </span>
               </div>
-              <p style={{ margin: '4px 0' }}>{q.content}</p>
+              <p style={{ margin: '4px 0' }} data-pw-el={PW_EL.body}>{q.content}</p>
               <div style={{ display: 'grid', gap: 8, marginLeft: 16, marginTop: 8 }}>
                 {q.answers.length === 0 ? <p className="pw-shop-muted" style={{ fontSize: 13 }}>{t.qaNoAnswersYet}</p> : null}
                 {q.answers.map((a) => (

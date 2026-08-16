@@ -9,26 +9,27 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 }
 .pw-shop{min-height:100dvh;background:
   radial-gradient(900px 420px at 0% -10%, color-mix(in srgb, var(--pw-primary) 14%, transparent), transparent 55%),
-  radial-gradient(700px 360px at 100% 0%, rgba(251,191,36,.10), transparent 50%),
+  radial-gradient(700px 360px at 100% 0%, color-mix(in srgb, var(--pw-accent) 12%, transparent), transparent 50%),
   var(--pw-bg);color:var(--pw-text);font-family:var(--pw-font-ui), "Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, sans-serif;line-height:1.6;padding-bottom:72px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
 .pw-shop h1,.pw-shop h2,.pw-shop-info h1,.pw-shop-brand{font-family:var(--pw-font-display), var(--pw-font-ui), "Be Vietnam Pro", "Segoe UI", sans-serif}
 .pw-shop a{color:inherit;text-decoration:none}
-.pw-shop-topbar{background:var(--pw-primary);color:#fff;font-size:12px}
+.pw-shop-topbar{background:var(--pw-primary);color:#fff;font-size:12px;position:relative;z-index:3;isolation:isolate}
 .pw-shop-topbar-inner{max-width:var(--pw-content);margin:0 auto;padding:8px 20px;display:flex;justify-content:flex-end;gap:16px}
 .pw-shop-topbar a,.pw-shop-topbar button{color:#fff;background:none;border:none;cursor:pointer;font:inherit;padding:0}
-.pw-shop-header{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid #f3f4f6}
+.pw-shop-header{position:sticky;top:0;z-index:200;isolation:isolate;background:#fff;border-bottom:1px solid #f3f4f6}
 .pw-shop-header-inner{max-width:var(--pw-content);margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
-.pw-shop-brand-cluster{position:relative;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.pw-shop-brand-cluster{position:relative;display:flex;align-items:center;gap:10px;flex-shrink:0;pointer-events:none}
+.pw-shop-brand-cluster > *,.pw-shop-brand-cluster a,.pw-shop-brand-cluster button,.pw-shop-brand-cluster img,.pw-shop-brand-cluster [data-pw-el]{pointer-events:auto}
 .pw-shop-cat-btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
 .pw-shop-nav-icon{width:20px;height:20px;flex-shrink:0;display:block}
 .pw-shop-cat-panel{position:absolute;left:0;top:calc(100% + 8px);z-index:60;min-width:200px;display:grid;gap:2px;padding:8px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.12)}
 .pw-shop-cat-panel a{display:block;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:700;color:#374151}
 .pw-shop-cat-panel a:hover{background:var(--pw-surface);color:var(--pw-primary)}
-.pw-shop-cat-panel a.is-sale{color:var(--pw-primary)}
+.pw-shop-cat-panel a.is-sale{color:#374151}
 .pw-shop-logo{height:36px;width:auto;object-fit:contain}
 .pw-shop-brand{font-weight:800;font-size:1.1rem;color:var(--pw-primary);white-space:nowrap}
-.pw-shop-search-wrap{flex:1;min-width:0;max-width:640px;margin:0 auto;position:relative}
-.pw-shop-search-form{display:flex;align-items:stretch;border:2px solid var(--pw-primary);border-radius:999px;overflow:hidden;background:#fff}
+.pw-shop-search-wrap{flex:1 1 0%;min-width:0;max-width:none;margin:0;position:relative;z-index:1}
+.pw-shop-search-form{display:flex;align-items:stretch;width:100%;border:2px solid var(--pw-primary);border-radius:999px;overflow:hidden;background:#fff}
 .pw-shop-search-form input[type="search"]{flex:1;min-width:0;border:none;outline:none;padding:10px 14px;font:inherit;background:transparent;color:#111827}
 .pw-shop-search-form input[type="search"]::placeholder{color:#9ca3af}
 .pw-shop-search-image{display:inline-flex;align-items:center;justify-content:center;border:none;background:var(--pw-surface);padding:0 10px;cursor:pointer;color:var(--pw-primary)}
@@ -50,11 +51,11 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-account-panel a:hover{background:var(--pw-surface);color:var(--pw-primary)}
 .pw-shop-account-panel a.is-header{background:#eff6ff;color:#2563eb;border-left:3px solid #2563eb;border-radius:8px 8px 8px 6px;font-weight:700}
 .pw-shop-account-panel a.is-header:hover{background:#dbeafe;color:#1d4ed8}
-.pw-shop-account-panel a.is-accent{background:var(--pw-surface);color:#ea580c;border-left:3px solid #f97316;border-radius:8px 8px 8px 6px;font-weight:700}
-.pw-shop-account-panel a.is-accent:hover{background:#ffedd5;color:#c2410c}
+.pw-shop-account-panel a.is-accent{background:var(--pw-surface);color:var(--pw-accent);border-left:3px solid var(--pw-primary);border-radius:8px 8px 8px 6px;font-weight:700}
+.pw-shop-account-panel a.is-accent:hover{background:var(--pw-surface);color:var(--pw-primary)}
 .pw-shop-account-icon{width:18px;height:18px;flex-shrink:0;color:inherit;opacity:.85}
 .pw-shop-account-panel a.is-header .pw-shop-account-icon{color:#2563eb}
-.pw-shop-account-panel a.is-accent .pw-shop-account-icon{color:#ea580c}
+.pw-shop-account-panel a.is-accent .pw-shop-account-icon{color:var(--pw-accent)}
 .pw-shop-account-summary{margin-top:0;padding:16px 18px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
 .pw-shop-account-greeting{font-size:1.1rem;font-weight:700;margin:0 0 8px}
 .pw-shop-account-layout{display:grid;gap:28px}
@@ -69,8 +70,8 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-account-link-card:hover{border-color:var(--pw-primary);color:var(--pw-primary);background:var(--pw-surface)}
 .pw-shop-account-link-card.is-active{border-color:var(--pw-primary);background:var(--pw-primary);color:#fff}
 .pw-shop-account-link-card.is-active .pw-shop-account-link-icon{color:#fff;opacity:1}
-.pw-shop-account-link-card.is-accent{border-color:#fdba74;background:var(--pw-surface);color:#ea580c}
-.pw-shop-account-link-card.is-accent.is-active{background:#ea580c;color:#fff;border-color:#ea580c}
+.pw-shop-account-link-card.is-accent{border-color:var(--pw-primary);background:var(--pw-surface);color:var(--pw-accent)}
+.pw-shop-account-link-card.is-accent.is-active{background:var(--pw-accent);color:#fff;border-color:var(--pw-accent)}
 .pw-shop-account-link-icon{width:20px;height:20px}
 .pw-shop-account-edit{margin-top:0;padding-top:0;border-top:none}
 .pw-shop-page-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
@@ -109,9 +110,10 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-icon-btn svg,.pw-shop-icon-btn svg,.pw-shop-header-actions>a>svg,.pw-header-actions>a>svg,[data-pw-chrome-btn]>svg,[data-pw-chrome-added] svg{width:20px;height:20px;max-width:20px;max-height:20px;flex-shrink:0;display:block;stroke:currentColor;fill:none}
 .pw-shop-icon-label{max-width:4.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pw-shop-cart-badge{position:absolute;top:0;right:2px;min-width:16px;height:16px;border-radius:999px;background:var(--pw-primary);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.pw-cart-badge[hidden],.pw-shop-cart-badge[hidden],[data-pw-chrome-badge][hidden]{display:none!important}
 .pw-shop-nav-row{display:none;justify-content:center;gap:22px;flex-wrap:wrap;padding:0 24px 14px;max-width:var(--pw-content);margin:0 auto}
 .pw-shop-nav-row a,.pw-shop-nav-row button{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#374151;background:none;border:none;cursor:pointer;padding:0}
-.pw-shop-nav-row a.is-sale{color:var(--pw-primary)}
+.pw-shop-nav-row a.is-sale,.pw-shop-nav-row a.pw-nav-sale{color:#374151}
 .pw-shop-main{max-width:var(--pw-content);margin:0 auto;padding:20px 16px 40px}
 .pw-shop-main h1{font-size:clamp(1.35rem,2.2vw,1.75rem);font-weight:700;letter-spacing:0;margin:0 0 8px;line-height:1.25;color:var(--pw-text)}
 .pw-shop-info h1{margin:0 0 16px;font-size:clamp(1.4rem,2.5vw,1.8rem);font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--pw-primary)}
@@ -225,12 +227,14 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 }
 @media(max-width:899px){
   .pw-shop-topbar{display:none}
-  .pw-shop-header{background:var(--pw-primary);box-shadow:0 6px 18px rgba(154,52,18,.18)}
+  .pw-shop-header{background:var(--pw-primary);box-shadow:0 6px 18px color-mix(in srgb, var(--pw-primary) 35%, transparent)}
   .pw-shop-header-inner{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;padding:8px 10px}
-  .pw-shop-brand-cluster{gap:6px;max-width:none;min-width:0;flex-shrink:0}
-  .pw-shop-header-actions{gap:0;margin-left:0;flex-shrink:0}
+  .pw-shop-brand-cluster{gap:6px;max-width:90px;min-width:0;width:auto;overflow:visible;position:relative;z-index:50;flex:0 0 auto}
+  .pw-shop-header-actions{gap:0;margin-left:auto;width:auto;max-width:none;overflow:visible;flex:0 0 auto}
   .pw-shop-account-wrap{display:none}
-  .pw-shop-search-wrap{flex:1 1 auto;min-width:0;max-width:none;margin:0}
+  .pw-shop-search-wrap{flex:1 1 0%;min-width:72px;max-width:none;width:auto;margin:0;z-index:1}
+  .pw-shop-search-wrap[data-pw-search-width]{flex:1 1 0%;min-width:72px}
+  .pw-shop-search-form{width:100%}
   .pw-shop-header a.pw-shop-brand,
   .pw-shop-brand{
     color:#fff;
@@ -238,11 +242,13 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
     font-weight:700;
     letter-spacing:0;
     line-height:1.2;
-    max-width:28vw;
-    overflow:hidden;
-    text-overflow:ellipsis;
+    max-width:none;
+    overflow:visible;
+    position:relative;
+    z-index:50;
   }
-  .pw-shop-logo{height:28px;padding:3px 6px;background:#fff;border-radius:8px;filter:none}
+  .pw-shop-logo{height:28px;padding:0;background:transparent;border-radius:0;filter:none;position:relative;z-index:90;overflow:visible;object-fit:contain;object-position:left center}
+  .pw-logo-frame,.pw-shop-header [data-pw-logo-frame="1"]{padding:0;background:transparent;max-width:none;max-height:none;overflow:hidden}
   .pw-shop-cat-btn{
     width:34px;height:34px;padding:0;justify-content:center;
     border:1.5px solid rgba(255,255,255,.55);
@@ -270,7 +276,7 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
   .pw-shop-cart-badge{background:#fff;color:var(--pw-primary);top:-2px;right:-2px;box-shadow:0 0 0 1px rgba(255,255,255,.2)}
   .pw-shop-footer{padding:32px 16px 0;margin-top:28px}
   .pw-shop-footer-bar{padding-bottom:12px}
-  .pw-shop-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;background:#fff;border-top:1px solid #e5e7eb;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  .pw-shop-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:180;isolation:isolate;display:flex;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;background:#fff;border-top:1px solid #e5e7eb;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
   .pw-shop-bottom-nav a,.pw-shop-bottom-nav .pw-icon-btn,.pw-shop-bottom-nav .pw-shop-icon-btn{flex:1 1 0;min-width:0;min-height:0;width:auto;height:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10px;font-weight:600;color:#6b7280;padding:6px 2px;position:relative;background:transparent}
   .pw-shop-bottom-nav a .pw-shop-nav-icon,.pw-shop-bottom-nav a svg{width:22px;height:22px;max-width:22px;max-height:22px;stroke:currentColor;fill:none}
   .pw-shop-bottom-nav .pw-chrome-icon-wrap{position:relative;display:inline-flex;flex-direction:row;align-items:center;justify-content:center;width:22px;height:22px;overflow:visible}

@@ -1,7 +1,13 @@
 import {
+  fetchPartnerWebsitePresetLookPg,
+  presetLookFromWebsite,
+  savePartnerWebsitePresetLookPg,
+} from '@/lib/db/messaging-partner-website-preset-looks-pg'
+import {
   fetchPartnerProfileForWebsitePg,
   fetchPartnerWebsiteByPartnerIdPg,
   setPartnerWebsitePublishedPg,
+  updatePartnerWebsiteDraftPg,
   upsertPartnerWebsitePg,
 } from '@/lib/db/messaging-partner-websites-pg'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -16,11 +22,16 @@ import {
   type PartnerWebsiteTheme,
 } from '@/lib/partner-website/template/partner-website-template-types'
 import {
+  planPresetLookSwitch,
+  presetIdFromTemplateId,
+} from '@/lib/partner-website/template/partner-website-preset-look'
+import {
   getShopTemplatePreset,
   type ShopTemplatePresetFlags,
   type ShopTemplatePresetId,
 } from '@/lib/partner-website/template/shop-template-presets'
 import { fetchPartnerCapabilitiesForPartnerFromPg } from '@/lib/db/messaging-partners-pg'
+import { maybeSeedShopDemoInventoryOnWebsiteCreate } from '@/lib/messaging/seed-shop-demo-inventory'
 import { mergeTemplateFlagsWithCapabilities } from '@/lib/partner-website/partner-capabilities'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import { themeFromPresetPartial } from '@/lib/partner-website/template/partner-website-theme-tokens'
@@ -248,6 +259,50 @@ export async function buildPartnerWebsiteFromTemplateStudio(
   if (!partner) return { ok: false, error: 'Partner not found' }
 
   const existing = await fetchPartnerWebsiteByPartnerIdPg(partnerId)
+  const preset = getShopTemplatePreset(input.presetId)
+  const currentPresetId = presetIdFromTemplateId(existing?.templateId)
+  const savedTargetLook = existing
+    ? await fetchPartnerWebsitePresetLookPg(partnerId, preset.id, existing.logoUrl)
+    : null
+  const switchPlan = planPresetLookSwitch({
+    currentPresetId,
+    targetPresetId: preset.id,
+    hasSavedTargetLook: Boolean(savedTargetLook),
+  })
+
+  if (switchPlan.snapshotOutgoing && existing && currentPresetId) {
+    await savePartnerWebsitePresetLookPg({
+      partnerId,
+      websiteId: existing.id,
+      look: presetLookFromWebsite(existing, currentPresetId),
+    })
+  }
+
+  if (switchPlan.action === 'restore' && existing && savedTargetLook) {
+    const restoredTheme: PartnerWebsiteTheme = {
+      ...savedTargetLook.theme,
+      logoUrl: existing.logoUrl ?? savedTargetLook.theme.logoUrl ?? null,
+    }
+    const restored = await updatePartnerWebsiteDraftPg({
+      partnerId,
+      renderMode: 'template',
+      templateId: savedTargetLook.templateId || preset.templateId,
+      theme: restoredTheme,
+      pages: savedTargetLook.pages,
+      project: savedTargetLook.project,
+      htmlSource: savedTargetLook.htmlSource,
+      changeNote: `studio_restore_preset_${preset.id as ShopTemplatePresetId}`,
+    })
+    if (!restored) return { ok: false, error: 'Could not restore website look' }
+    const published =
+      (await setPartnerWebsitePublishedPg({ partnerId, isPublished: true })) || restored
+    const assistantMessage =
+      input.locale === 'vi'
+        ? `Đã chuyển sang mẫu «${preset.label.vi}». Các sửa đổi Sửa nhanh của mẫu này vẫn được giữ.`
+        : `Switched to «${preset.label.en}». Quick-edit changes for this look are restored.`
+    return { ok: true, website: published, assistantMessage }
+  }
+
   const brand =
     input.answers.brand_name?.trim() ||
     existing?.title?.trim() ||
@@ -272,7 +327,6 @@ export async function buildPartnerWebsiteFromTemplateStudio(
   }
 
   const briefText = buildPartnerWebsiteStudioBrief(input.answers, input.locale)
-  const preset = getShopTemplatePreset(input.presetId)
   const paletteTheme = themeFromStudioPalette(input.answers.color_palette)
   const partnerCaps = await fetchPartnerCapabilitiesForPartnerFromPg(partnerId)
   // Preset wins for structure; intersect with partner capabilities; free-text when no preset.
@@ -309,17 +363,23 @@ export async function buildPartnerWebsiteFromTemplateStudio(
       { ...preset.theme, ...paletteTheme }
     ),
     logoUrl,
-    // Re-apply template clears visual «Sửa nhanh» HTML overrides.
+    // Fresh generate (new look or explicit reset) clears live visual HTML.
+    // Previous look was snapshotted before this write when switching presets.
     useVisualHtml: false,
     useVisualMobileHtml: false,
+    useVisualTabletHtml: false,
     visualPageKeys: [],
     visualMobilePageKeys: [],
+    visualTabletPageKeys: [],
     visualCategoryPaths: [],
     visualMobileCategoryPaths: [],
+    visualTabletCategoryPaths: [],
     visualProductIds: [],
     visualMobileProductIds: [],
+    visualTabletProductIds: [],
     visualCmsSlugs: [],
     visualMobileCmsSlugs: [],
+    visualTabletCmsSlugs: [],
   }
   const templateId = preset.templateId
   const project = syncTemplateToProject({
@@ -347,6 +407,8 @@ export async function buildPartnerWebsiteFromTemplateStudio(
   })
 
   if (!website) return { ok: false, error: 'Could not save website' }
+
+  await maybeSeedShopDemoInventoryOnWebsiteCreate(partnerId, partner.industryKey)
 
   const published =
     (await setPartnerWebsitePublishedPg({ partnerId, isPublished: true })) || website

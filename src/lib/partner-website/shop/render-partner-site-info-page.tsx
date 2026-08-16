@@ -16,6 +16,7 @@ import { fetchPublishedPartnerStaticPageBySlugFromPg } from '@/lib/db/messaging-
 import { splitStaticPageContentToParagraphs } from '@/lib/partner-website/pages/partner-static-page-types'
 import { maybePartnerSiteVisualPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { infoPageKeyToVisualPageKey } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 /**
  * W3.3 — merchant có thể ghi đè title/content/SEO của 8 trang có sẵn qua CMS (W3.4). Không có
@@ -102,6 +103,7 @@ export async function PartnerSiteInfoPageScreen({
       activeNav={activeNav}
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
+      pageKind={pageKey === 'sale' || pageKey === 'lookbook' ? PW_PAGE.listing : PW_PAGE.info}
     >
       <PartnerSiteShopInfoView
         siteSlug={shop.site.siteSlug}

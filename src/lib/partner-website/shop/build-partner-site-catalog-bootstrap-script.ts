@@ -4,6 +4,7 @@ import {
   partnerSiteProductsApiPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 const COPY: Record<
   WebLocale,
@@ -81,9 +82,9 @@ function renderCard(p, opts){
   var price=esc(p.priceHint||'');
   var badge=(opts&&opts.newBadge)?'<span class="pw-badge-new">NEW</span>':'';
   var cartBtn=id
-    ? '<button type="button" class="pw-btn pw-btn-cart" data-pw-add-cart data-inventory-id="'+esc(id)+'">'+COPY.addToCart+'</button>'
-    : '<a class="pw-btn pw-btn-cart" href="'+esc(href)+'">'+COPY.viewCta+'</a>';
-  return '<article class="pw-product-card" data-inventory-id="'+esc(id)+'" data-pw-actions-ready="1"><a class="pw-product-card-media" href="'+esc(href)+'">'+badge+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3><a href="'+esc(href)+'">'+name+'</a></h3>'+(price?'<p class="pw-price">'+price+'</p>':'')+'<div class="pw-shop-action-bar">'+cartBtn+'</div></div></article>';
+    ? '<button type="button" class="pw-btn pw-btn-cart" ${pwElAttr(PW_EL.cardCart)} data-pw-add-cart data-inventory-id="'+esc(id)+'">'+COPY.addToCart+'</button>'
+    : '<a class="pw-btn pw-btn-cart" ${pwElAttr(PW_EL.cardCart)} href="'+esc(href)+'">'+COPY.viewCta+'</a>';
+  return '<article class="pw-product-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'" data-pw-actions-ready="1"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+badge+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h3>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+'<div class="pw-shop-action-bar">'+cartBtn+'</div></div></article>';
 }
 function queryFor(el){
   var limit=Math.max(1,Math.min(24,parseInt(el.getAttribute('data-limit')||'8',10)||8));
@@ -133,7 +134,7 @@ function ensureStyles(){
   if(document.getElementById('pw-catalog-card-css'))return;
   var st=document.createElement('style');
   st.id='pw-catalog-card-css';
-  st.textContent='.pw-product-grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}.pw-product-card{display:flex;flex-direction:column;border:1px solid #f3f4f6;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 4px 14px rgba(15,23,42,.06)}.pw-product-card-media{position:relative;display:block;aspect-ratio:1;background:#f8fafc}.pw-product-card-media img{width:100%;height:100%;object-fit:cover;display:block}.pw-badge-new{position:absolute;top:8px;left:8px;background:#9ca3af;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px}.pw-product-card-body{padding:12px;display:grid;gap:8px}.pw-product-card-body h3{margin:0;font-size:14px;line-height:1.35}.pw-product-card-body h3 a{color:inherit;text-decoration:none}.pw-price{margin:0;font-weight:800;color:var(--pw-primary,#f97316)}.pw-shop-action-bar{display:grid;gap:8px}.pw-btn,.pw-btn-cart{display:inline-flex;align-items:center;justify-content:center;width:100%;padding:10px 12px;border-radius:8px;border:none;background:var(--pw-primary,#f97316);color:#fff;text-decoration:none;font:800 12px/1.2 system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;cursor:pointer}';
+  st.textContent='.pw-product-grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}.pw-product-card{display:flex;flex-direction:column;border:1px solid #f3f4f6;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 4px 14px rgba(15,23,42,.06)}.pw-product-card-media{position:relative;display:block;aspect-ratio:1;background:#f8fafc}.pw-product-card-media img{width:100%;height:100%;object-fit:cover;display:block}.pw-badge-new{position:absolute;top:8px;left:8px;background:#9ca3af;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px}.pw-product-card-body{padding:12px;display:grid;gap:8px}.pw-product-card-body h3{margin:0;font-size:14px;line-height:1.35}.pw-product-card-body h3 a{color:inherit;text-decoration:none}.pw-price{margin:0;font-weight:800;color:var(--pw-primary)}.pw-shop-action-bar{display:grid;gap:8px}.pw-btn,.pw-btn-cart{display:inline-flex;align-items:center;justify-content:center;width:100%;padding:10px 12px;border-radius:8px;border:none;color:#fff;text-decoration:none;font:800 12px/1.2 system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;cursor:pointer}.pw-btn{background:var(--pw-buy)}.pw-btn-cart{background:var(--pw-cart)}';
   document.head.appendChild(st);
 }
 function run(){
@@ -163,13 +164,13 @@ export function buildLiveCatalogSectionHtml(input: {
   const title = input.title.trim() || (locale === 'en' ? 'Products' : 'Sản phẩm')
   const productsHref = partnerSiteProductsPath(input.siteSlug)
   const empty = COPY[locale].empty
-  return `<section class="pw-catalog pw-section" data-pw-section-id="${escapeAttr(input.sectionId)}" data-pw-catalog data-limit="${limit}" data-sort="default">
+  return `<section class="pw-catalog pw-section" ${pwRegionAttr(PW_REGION.catalog)} data-pw-section-id="${escapeAttr(input.sectionId)}" data-pw-catalog data-limit="${limit}" data-sort="default">
   <div class="pw-container" style="padding:32px 20px">
     <div style="display:flex;align-items:end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px">
-      <h2 style="margin:0;font-size:clamp(1.4rem,2.5vw,2rem)">${escapeHtml(title)}</h2>
-      <a class="pw-btn" href="${escapeAttr(productsHref)}">${escapeHtml(seeAll)}</a>
+      <h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0;font-size:clamp(1.4rem,2.5vw,2rem)">${escapeHtml(title)}</h2>
+      <a class="pw-btn" ${pwElAttr(PW_EL.sectionMore)} href="${escapeAttr(productsHref)}">${escapeHtml(seeAll)}</a>
     </div>
-    <div data-pw-grid class="pw-product-grid"></div>
+    <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}></div>
     <p class="pw-catalog-empty pw-personalize-empty" hidden>${escapeHtml(empty)}</p>
   </div>
 </section>`

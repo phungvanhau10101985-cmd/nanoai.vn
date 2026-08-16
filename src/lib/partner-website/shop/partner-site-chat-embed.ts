@@ -105,7 +105,7 @@ export function productToConsultContext(input: {
 
 /** Inline script for landing HTML in srcDoc iframe — forwards chat clicks to parent widget. */
 export function buildPartnerSiteLandingChatBridgeScript(): string {
-  return `<script>(function(){
+  return `<script data-pw-chat-bridge>(function(){
 var SRC=${JSON.stringify(PARTNER_SITE_CHAT_MSG_SOURCE)};
 function postOpen(opts){
   opts=opts||{};

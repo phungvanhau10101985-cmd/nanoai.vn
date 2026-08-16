@@ -47,6 +47,25 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
       'app bán hàng',
       'bán hàng',
       'ecommerce app',
+      'tạo web',
+      'tao web',
+      'tạo website',
+      'tao website',
+      'tạo giao diện web',
+      'tao giao dien web',
+      'giao diện web',
+      'giao dien web',
+      'thiết kế web',
+      'thiet ke web',
+      'thiết kế web app',
+      'thiet ke web app',
+      'thiết kế website',
+      'thiet ke website',
+      'web app',
+      'create website',
+      'design website',
+      'design web app',
+      'create web app',
       '购物app',
       'モバイルアプリ',
       'モバイルアプリ ui',
@@ -97,18 +116,28 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
     id: 'landing_page',
     labelKey: 'landing_page',
     intents: [
+      'landing page',
+      'landingpage',
+      'ladipage',
+      'ladi page',
+      'ladipge',
+      'tạo landing',
+      'tao landing',
+      'tạo ladipage',
+      'tao ladipage',
+      'thiết kế landing',
+      'thiet ke landing',
+      'trang đích',
+      'trang dich',
       'landing page mockup',
       'landing segment',
       'mockup landing',
       'thiết kế ảnh landing',
       'ảnh phân đoạn landing',
-      'trang đích mockup',
-      'website giới thiệu',
-      'giao diện web mockup',
       'saas landing mockup',
-      '落地页 mockup',
-      'ランディング mockup',
-      '랜딩 mockup',
+      '落地页',
+      'ランディング',
+      '랜딩페이지',
     ],
   },
   {
@@ -165,6 +194,9 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
       'design package',
       'packaging',
       'hộp sản phẩm',
+      'hộp giấy',
+      'thiết kế hộp giấy',
+      'paper box',
       'nhãn sản phẩm',
       'tem niêm phong',
       '包装设计',
@@ -386,6 +418,7 @@ function foldHubIntentText(text: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
+    .replace(/đ/g, 'd')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -394,6 +427,50 @@ function foldHubIntentText(text: string): string {
  * "tạo lại / dựng lại / làm lại … thiết kế" (có cả "lại" + "thiết kế") → design_recreate.
  * Ví dụ: "tạo lại bản thiết kế", "dựng lại thiết kế", "thiết kế lại từ mẫu".
  */
+/** Explicit landing / ladipage only — generic «tạo web» must NOT match. */
+export function matchesLandingPageIntent(message: string): boolean {
+  const folded = foldHubIntentText(message)
+  if (!folded) return false
+  return (
+    /\blanding(?:\s*page)?\b/.test(folded) ||
+    /\blandingpage\b/.test(folded) ||
+    /\bladi\s*page\b/.test(folded) ||
+    /\bladipage\b/.test(folded) ||
+    /\bladipge\b/.test(folded) ||
+    folded.includes('trang dich') ||
+    folded.includes('落地页') ||
+    folded.includes('ランディング') ||
+    folded.includes('랜딩')
+  )
+}
+
+/**
+ * Studio web-app design (`mobile_shop`): tạo web, giao diện web, thiết kế web app.
+ * Loses to `matchesLandingPageIntent` when the user also names landing/ladipage.
+ */
+export function matchesWebAppDesignIntent(message: string): boolean {
+  const folded = foldHubIntentText(message)
+  if (!folded) return false
+  if (matchesLandingPageIntent(message)) return false
+  return (
+    /(?:^|[^a-z])(?:tao|thiet ke|lam|design|create|make)\s+(?:giao dien\s+)?web(?:site| app)?(?:[^a-z]|$)/.test(
+      folded
+    ) ||
+    folded.includes('giao dien web') ||
+    folded.includes('thiet ke web') ||
+    folded.includes('web app') ||
+    folded.includes('studio flow tao web') ||
+    folded.includes('studio tao web') ||
+    /\b(?:create|design|make)\s+(?:a\s+)?(?:website|web app)\b/.test(folded) ||
+    folded.includes('设计网站') ||
+    folded.includes('做网站') ||
+    folded.includes('网站设计') ||
+    folded.includes('ウェブサイト') ||
+    folded.includes('웹사이트') ||
+    folded.includes('웹앱')
+  )
+}
+
 export function matchesDesignRecreateAgainIntent(message: string): boolean {
   const trimmed = message.trim()
   if (!trimmed) return false
@@ -425,6 +502,12 @@ export function scoreStudioPresetMatch(message: string, preset: StudioPresetDef)
   }
   if (preset.id === 'design_recreate' && matchesDesignRecreateAgainIntent(message)) {
     // Strong enough to win over weak standalone / other studio keyword hits.
+    score = Math.max(score, 48)
+  }
+  if (preset.id === 'landing_page' && matchesLandingPageIntent(message)) {
+    score = Math.max(score, 56)
+  }
+  if (preset.id === 'mobile_shop' && matchesWebAppDesignIntent(message)) {
     score = Math.max(score, 48)
   }
   return score

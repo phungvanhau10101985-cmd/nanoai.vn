@@ -72,7 +72,7 @@ ${catalog}
 Rules:
 - featureKey MUST be empty string when the user continues the CURRENT inline step (brief, packaging face text, approvals, regenerate current step, dimensions, colors) OR message is unrelated to starting/using another feature.
 - featureKey MUST be set when user clearly wants a DIFFERENT feature: standalone tool (tool:...) OR another inline studio flow (studio:...).
-- Examples: "tôi cần làm nét ảnh" → tool:/lam-net-anh; "tạo giáo trình" → tool:/tao-giao-trinh; "chuyển làm landing page" → studio:landing_page.
+- Examples: "tôi cần làm nét ảnh" → tool:/lam-net-anh; "tạo giáo trình" → tool:/tao-giao-trinh; "tạo web" / "tạo giao diện web" / "thiết kế web app" → studio:mobile_shop; ONLY "tạo landing page" / "tạo ladipage" → studio:landing_page.
 - When ambiguous or unsure: featureKey empty, confidence below 0.5.
 - Never invent featureKey values not in the catalog.
 

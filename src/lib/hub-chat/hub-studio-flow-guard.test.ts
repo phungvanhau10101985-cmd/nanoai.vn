@@ -67,13 +67,14 @@ test('explicit request proposes another preset without mutating a session', () =
   )
   assert.equal(
     detectStudioFlowSwitch('tạo giao diện web', 'packaging_kit'),
-    'landing_page'
+    'mobile_shop'
   )
 })
 
 test('compact preset intent proposes another flow without an explicit verb', () => {
-  assert.equal(detectStudioFlowSwitch('giao diện web', 'packaging_kit'), 'landing_page')
+  assert.equal(detectStudioFlowSwitch('giao diện web', 'packaging_kit'), 'mobile_shop')
   assert.equal(detectStudioFlowSwitch('App bán hàng', 'packaging_kit'), 'mobile_shop')
+  assert.equal(detectStudioFlowSwitch('tạo ladipage', 'packaging_kit'), 'landing_page')
 })
 
 test('request matching the current preset does not fork', () => {

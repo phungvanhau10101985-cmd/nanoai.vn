@@ -61,6 +61,7 @@ import {
   usePartnerSiteShop,
 } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import { PW_EL, PW_REGION, type PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
 import {
   partnerSitePwaScope,
@@ -80,6 +81,8 @@ type Props = {
   chatPath: string
   tracking: PartnerSiteShopTrackingConfig
   activeNav?: 'home' | 'products' | 'sale' | 'account' | 'cart' | 'wishlist'
+  /** Sửa nhanh — loại trang (home / listing / …). */
+  pageKind?: PwPageKind
   /** W2.3 — optional merchant nav/footer overrides. */
   navJson?: unknown | null
   footerJson?: unknown | null
@@ -109,6 +112,7 @@ function PartnerSiteShopShellInner({
   locale,
   tracking,
   activeNav = 'products',
+  pageKind,
   footerJson = null,
   children,
 }: Props) {
@@ -211,8 +215,10 @@ function PartnerSiteShopShellInner({
       headers: authHeaders(),
     })
     captureFromResponse(res)
-    const json = (await res.json().catch(() => ({}))) as { items?: unknown[] }
-    const count = Array.isArray(json.items) ? json.items.length : 0
+    const json = (await res.json().catch(() => ({}))) as { items?: Array<{ quantity?: number }> }
+    const count = Array.isArray(json.items)
+      ? json.items.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 1), 0)
+      : 0
     setCartCount(count)
     return count
   }, [authHeaders, captureFromResponse, setCartCount, siteSlug])
@@ -287,26 +293,27 @@ function PartnerSiteShopShellInner({
   const hasCategoryTree = Boolean(categoryTree && categoryTree.length > 0)
 
   return (
-    <div className="pw-shop">
+    <div className="pw-shop" {...(pageKind ? { 'data-pw-page': pageKind } : {})}>
       <PartnerSiteShopTrackingBootstrap tracking={tracking} />
       <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} />
       <style dangerouslySetInnerHTML={{ __html: buildPartnerSiteShopThemeCss(theme) }} />
 
-      <div className="pw-shop-topbar">
+      <div className="pw-shop-topbar" data-pw-region={PW_REGION.topbar}>
         <div className="pw-shop-topbar-inner">
-          <Link href={partnerSiteAccountTabPath(siteSlug, 'contact', { customDomain })}>{n.contact}</Link>
-          <Link href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })}>{t.navFavorites}</Link>
-          <Link href={partnerSiteAccountTabPath(siteSlug, 'orders', { customDomain })}>{t.navOrders}</Link>
-          {!isAuthenticated ? <Link href={paths.account}>{n.login}</Link> : null}
+          <Link href={partnerSiteAccountTabPath(siteSlug, 'contact', { customDomain })} data-pw-el={PW_EL.link}>{n.contact}</Link>
+          <Link href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })} data-pw-el={PW_EL.link}>{t.navFavorites}</Link>
+          <Link href={partnerSiteAccountTabPath(siteSlug, 'orders', { customDomain })} data-pw-el={PW_EL.link}>{t.navOrders}</Link>
+          {!isAuthenticated ? <Link href={paths.account} data-pw-el={PW_EL.link}>{n.login}</Link> : null}
         </div>
       </div>
 
-      <header className="pw-shop-header">
+      <header className="pw-shop-header" data-pw-region={PW_REGION.header}>
         <div className="pw-shop-header-inner">
           <div className="pw-shop-brand-cluster" ref={categoriesRef}>
             <button
               type="button"
               className="pw-shop-cat-btn"
+              data-pw-el={PW_EL.catToggle}
               aria-expanded={categoriesOpen}
               aria-controls="pw-shop-cat-panel"
               onClick={() => {
@@ -319,10 +326,10 @@ function PartnerSiteShopShellInner({
             </button>
             {logoUrl ? (
               <Link href={paths.home}>
-                <img className="pw-shop-logo" src={logoUrl} alt={title} />
+                <img className="pw-shop-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
               </Link>
             ) : (
-              <Link href={paths.home} className="pw-shop-brand">
+              <Link href={paths.home} className="pw-shop-brand" data-pw-el={PW_EL.wordmark}>
                 {title}
               </Link>
             )}
@@ -330,13 +337,14 @@ function PartnerSiteShopShellInner({
               <nav id="pw-shop-cat-panel" className="pw-shop-cat-panel" aria-label={t.navCategories}>
                 {hasCategoryTree ? (
                   <>
-                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.newArrivals}
                     </Link>
                     {categoryTree!.map((cat) => (
                       <Link
                         key={cat.id}
                         href={partnerSiteCategoryPath(siteSlug, cat.path, { customDomain })}
+                        data-pw-el={PW_EL.navLink}
                         onClick={() => setCategoriesOpen(false)}
                       >
                         {resolvePartnerCategoryDisplayName(cat, locale)}
@@ -345,24 +353,24 @@ function PartnerSiteShopShellInner({
                   </>
                 ) : (
                   <>
-                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.newArrivals}
                     </Link>
-                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.clothing}
                     </Link>
-                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.bags}
                     </Link>
-                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.shoes}
                     </Link>
-                    <Link href={paths.products} onClick={() => setCategoriesOpen(false)}>
+                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.accessories}
                     </Link>
                   </>
                 )}
-                <Link href={paths.sale} className="is-sale" onClick={() => setCategoriesOpen(false)}>
+                <Link href={paths.sale} className="is-sale" data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                   {n.sale}
                 </Link>
               </nav>
@@ -376,6 +384,7 @@ function PartnerSiteShopShellInner({
               <button
                 type="button"
                 className="pw-shop-icon-btn"
+                data-pw-el={PW_EL.account}
                 aria-expanded={accountOpen}
                 aria-controls="pw-shop-account-panel"
                 aria-label={t.navAccount}
@@ -423,7 +432,7 @@ function PartnerSiteShopShellInner({
               <Heart className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span className="pw-shop-icon-label">{t.navFavorites}</span>
             </Link>
-            <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className="pw-shop-icon-btn" aria-label={t.navCart}>
+            <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className="pw-shop-icon-btn" data-pw-el={PW_EL.cart} aria-label={t.navCart}>
               <ShoppingBag className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span className="pw-shop-icon-label">{t.navCart}</span>
               {cartCount > 0 ? (
@@ -432,23 +441,23 @@ function PartnerSiteShopShellInner({
             </Link>
           </div>
         </div>
-        <nav className="pw-shop-nav-row" aria-label="Shop">
-          <Link href={paths.products}>{n.newArrivals}</Link>
+        <nav className="pw-shop-nav-row" data-pw-region={PW_REGION.nav} aria-label="Shop">
+          <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.newArrivals}</Link>
           {hasCategoryTree ? (
             categoryTree!.map((cat) => (
-              <Link key={cat.id} href={partnerSiteCategoryPath(siteSlug, cat.path, { customDomain })}>
+              <Link key={cat.id} href={partnerSiteCategoryPath(siteSlug, cat.path, { customDomain })} data-pw-el={PW_EL.navLink}>
                 {resolvePartnerCategoryDisplayName(cat, locale)}
               </Link>
             ))
           ) : (
             <>
-              <Link href={paths.products}>{n.clothing}</Link>
-              <Link href={paths.products}>{n.bags}</Link>
-              <Link href={paths.products}>{n.shoes}</Link>
-              <Link href={paths.products}>{n.accessories}</Link>
+              <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.clothing}</Link>
+              <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.bags}</Link>
+              <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.shoes}</Link>
+              <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.accessories}</Link>
             </>
           )}
-          <Link href={paths.sale} className="is-sale">
+          <Link href={paths.sale} className="is-sale" data-pw-el={PW_EL.navLink}>
             {n.sale}
           </Link>
         </nav>
@@ -456,12 +465,14 @@ function PartnerSiteShopShellInner({
 
       <main className="pw-shop-main">{children}</main>
 
-      <footer className="pw-shop-footer">
+      <footer className="pw-shop-footer" data-pw-region={PW_REGION.footer}>
         <div className="pw-shop-footer-inner">
           <div className="pw-shop-footer-brand">
             {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img className="pw-shop-footer-logo" src={logoUrl} alt="" />
+              <Link href={paths.home}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="pw-shop-footer-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
+              </Link>
             ) : null}
             <p className="pw-shop-footer-name">{title}</p>
             <p className="pw-shop-footer-hint">{t.footerBrandHint}</p>
@@ -471,12 +482,12 @@ function PartnerSiteShopShellInner({
             if (!items.length) return null
             const heading = footerColumnTitle[colId]
             return (
-              <nav key={colId} className="pw-shop-footer-col" aria-label={heading}>
+              <nav key={colId} className="pw-shop-footer-col" data-pw-el={PW_EL.col} aria-label={heading}>
                 <h3>{heading}</h3>
                 <ul>
                   {items.map((item) => (
                     <li key={item.id}>
-                      <Link href={resolvePartnerSiteNavHref(item.hrefKey, paths, infoPath)}>
+                      <Link href={resolvePartnerSiteNavHref(item.hrefKey, paths, infoPath)} data-pw-el={PW_EL.link}>
                         {footerLabel(item.hrefKey, item.labelOverride)}
                       </Link>
                     </li>
@@ -486,7 +497,7 @@ function PartnerSiteShopShellInner({
             )
           })}
         </div>
-        <div className="pw-shop-footer-bar">
+        <div className="pw-shop-footer-bar" data-pw-el={PW_EL.copyright}>
           <p>
             {t.footerCopyright
               .replace('{year}', String(new Date().getFullYear()))
@@ -496,23 +507,23 @@ function PartnerSiteShopShellInner({
         </div>
       </footer>
 
-      <nav className="pw-shop-bottom-nav" aria-label="Mobile">
-          <Link href={paths.home} className={activeNav === 'home' ? 'is-active' : undefined}>
+      <nav className="pw-shop-bottom-nav" data-pw-region={PW_REGION.nav} aria-label="Mobile">
+          <Link href={paths.home} className={activeNav === 'home' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink}>
           <Home className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navHome}</span>
         </Link>
-        <Link href={paths.products} className={activeNav === 'products' ? 'is-active' : undefined}>
+        <Link href={paths.products} className={activeNav === 'products' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink}>
           <Package className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navProducts}</span>
         </Link>
-        <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className={activeNav === 'cart' ? 'is-active' : undefined}>
+        <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className={activeNav === 'cart' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink}>
           <ShoppingBag className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navCart}</span>
           {cartCount > 0 ? (
             <span className="pw-shop-cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
           ) : null}
         </Link>
-        <Link href={paths.account} className={activeNav === 'account' ? 'is-active' : undefined}>
+        <Link href={paths.account} className={activeNav === 'account' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink}>
           <UserRound className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navAccount}</span>
         </Link>

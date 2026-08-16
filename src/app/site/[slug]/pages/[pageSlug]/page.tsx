@@ -8,6 +8,7 @@ import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/par
 import { fetchPublishedPartnerStaticPageBySlugFromPg } from '@/lib/db/messaging-partner-static-pages-pg'
 import { splitStaticPageContentToParagraphs } from '@/lib/partner-website/pages/partner-static-page-types'
 import { maybePartnerSiteVisualCmsPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
+import { PW_EL, PW_PAGE, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = { params: Promise<{ slug: string; pageSlug: string }> }
 
@@ -68,11 +69,12 @@ export default async function PartnerSiteCustomPage({ params }: Props) {
       tracking={partnerSiteTrackingFromPublicRow(shop.site)}
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
+      pageKind={PW_PAGE.info}
     >
-      <article className="pw-shop-info">
-        <h1>{page.title}</h1>
+      <article className="pw-shop-info" data-pw-region={PW_REGION.content}>
+        <h1 data-pw-el={PW_EL.heading}>{page.title}</h1>
         {paragraphs.map((p) => (
-          <p key={p.slice(0, 24)}>{p}</p>
+          <p key={p.slice(0, 24)} data-pw-el={PW_EL.body}>{p}</p>
         ))}
       </article>
     </PartnerSiteShopShell>

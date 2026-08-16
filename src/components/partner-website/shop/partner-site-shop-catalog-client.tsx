@@ -12,6 +12,7 @@ import {
   shopProductToTrackingProduct,
   trackPartnerSiteViewItemList,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
+import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
   siteSlug: string
@@ -105,9 +106,9 @@ export function PartnerSiteShopCatalogClient({
   }
 
   return (
-    <div>
-      <h1>{t.catalogTitle}</h1>
-      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+    <section data-pw-region={PW_REGION.catalog} data-pw-catalog>
+      <h1 data-pw-el={PW_EL.sectionTitle}>{t.catalogTitle}</h1>
+      <div className="pw-shop-toolbar" data-pw-region={PW_REGION.toolbar} style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
         <input
           type="search"
           placeholder={t.searchPlaceholder}
@@ -120,18 +121,18 @@ export function PartnerSiteShopCatalogClient({
         </button>
       </div>
       {products.length === 0 ? <p className="pw-shop-muted">{t.catalogEmpty}</p> : null}
-      <div className="pw-shop-grid" style={{ marginTop: 20 }}>
+      <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid style={{ marginTop: 20 }}>
         {products.map((p) => (
-          <article key={p.id} className="pw-shop-card">
-            <Link href={p.detailPath}>
+          <article key={p.id} className="pw-shop-card" data-pw-el={PW_EL.card}>
+            <Link href={p.detailPath} data-pw-el={PW_EL.cardMedia}>
               <img src={p.imageUrl} alt={p.name} loading="lazy" />
             </Link>
             <div className="pw-shop-card-body">
               <Link href={p.detailPath}>
-                <h3>{p.name}</h3>
+                <h3 data-pw-el={PW_EL.cardName}>{p.name}</h3>
               </Link>
-              {p.priceHint ? <p className="pw-shop-price">{p.priceHint}</p> : null}
-              <Link href={p.detailPath} className="pw-shop-btn" style={{ marginTop: 12 }}>
+              {p.priceHint ? <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>{p.priceHint}</p> : null}
+              <Link href={p.detailPath} className="pw-shop-btn" style={{ marginTop: 12 }} data-pw-el={PW_EL.cardBuy}>
                 {t.productDetail}
               </Link>
             </div>
@@ -145,6 +146,6 @@ export function PartnerSiteShopCatalogClient({
           </button>
         </p>
       ) : null}
-    </div>
+    </section>
   )
 }

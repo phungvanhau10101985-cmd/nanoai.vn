@@ -7,6 +7,7 @@ import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-
 import { PartnerSiteShopCartClient } from '@/components/partner-website/shop/partner-site-shop-cart-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { maybePartnerSiteVisualPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
+import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -47,6 +48,8 @@ export default async function PartnerSiteCartPage({ params }: Props) {
       tracking={partnerSiteTrackingFromPublicRow(shop.site)}
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
+      activeNav="cart"
+      pageKind={PW_PAGE.cart}
     >
       <PartnerSiteShopCartClient
         siteSlug={shop.site.siteSlug}

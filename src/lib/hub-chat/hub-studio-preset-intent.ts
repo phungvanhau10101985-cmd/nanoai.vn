@@ -29,7 +29,15 @@ export function buildPresetCatalogForBrain(locale: WebLocale): string {
   return STUDIO_PRESETS.map((p) => {
     const title = presetTitle(locale, p.id)
     const upload = p.needsUpload ? ' | needs_upload=true' : ''
-    return `${p.id}: ${title}${upload}`
+    let routeHint = ''
+    if (p.id === 'mobile_shop') {
+      routeHint =
+        ' | use_for: tạo web, tạo giao diện web, thiết kế web, thiết kế web app, website shop, mobile app UI. NOT landing/ladipage'
+    } else if (p.id === 'landing_page') {
+      routeHint =
+        ' | use_for: landing page / ladipage / trang đích ONLY. Do NOT use for tạo web / giao diện web / web app'
+    }
+    return `${p.id}: ${title}${upload}${routeHint}`
   }).join('\n')
 }
 

@@ -68,12 +68,16 @@ export async function syncPartnerWebsiteFullLandingPg(input: {
     theme: existing.theme,
     visualPageKeys: normalizeVisualPageKeys(existing.theme.visualPageKeys),
     visualMobilePageKeys: normalizeVisualPageKeys(existing.theme.visualMobilePageKeys),
+    visualTabletPageKeys: normalizeVisualPageKeys(existing.theme.visualTabletPageKeys),
     visualCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualCategoryPaths),
     visualMobileCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualMobileCategoryPaths),
+    visualTabletCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualTabletCategoryPaths),
     visualProductIds: normalizeVisualProductIds(existing.theme.visualProductIds),
     visualMobileProductIds: normalizeVisualProductIds(existing.theme.visualMobileProductIds),
+    visualTabletProductIds: normalizeVisualProductIds(existing.theme.visualTabletProductIds),
     visualCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualCmsSlugs),
     visualMobileCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualMobileCmsSlugs),
+    visualTabletCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualTabletCmsSlugs),
   })
 
   const saved = await updatePartnerWebsiteDraftPg({

@@ -10,6 +10,7 @@ import {
   isPartnerSiteAccountTab,
   type PartnerSiteAccountTab,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
   params: Promise<{ slug: string; tab: string }>
@@ -87,6 +88,7 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
       activeNav="account"
+      pageKind={PW_PAGE.account}
     >
       <PartnerSiteShopAccountClient
         siteSlug={shop.site.siteSlug}

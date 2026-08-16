@@ -22,6 +22,7 @@ import {
   trackPartnerSiteViewItemList,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { cn } from '@/lib/utils'
+import { PW_EL, PW_PAGE, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
   formatPartnerShopMoneyVnd,
   isPartnerFlashSaleActive,
@@ -96,8 +97,11 @@ function ProductCard({
   const saleLabel =
     flash && product.salePriceAmount != null ? formatPartnerShopMoneyVnd(product.salePriceAmount) : null
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-orange-100/80 bg-white shadow-[0_10px_40px_-20px_rgba(234,88,12,.45)] transition duration-500 hover:-translate-y-1 hover:shadow-[0_24px_50px_-24px_rgba(234,88,12,.55)]">
-      <Link href={href} className="relative aspect-[4/5] overflow-hidden bg-orange-50">
+    <article
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-orange-100/80 bg-white shadow-[0_10px_40px_-20px_rgba(234,88,12,.45)] transition duration-500 hover:-translate-y-1 hover:shadow-[0_24px_50px_-24px_rgba(234,88,12,.55)]"
+      data-pw-el={PW_EL.card}
+    >
+      <Link href={href} className="relative aspect-[4/5] overflow-hidden bg-orange-50" data-pw-el={PW_EL.cardMedia}>
         {showNew ? (
           <span className="absolute left-3 top-3 z-10 rounded-md bg-stone-500/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur">
             NEW
@@ -122,7 +126,7 @@ function ProductCard({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
       </Link>
       <div className="flex flex-1 flex-col gap-2 p-3.5 sm:p-4">
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-stone-800">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-stone-800" data-pw-el={PW_EL.cardName}>
           <Link href={href}>{product.name}</Link>
         </h3>
         {saleLabel ? (
@@ -138,6 +142,7 @@ function ProductCard({
         <Link
           href={href}
           className="pw-fh-cta mt-auto inline-flex w-full items-center justify-center gap-1 rounded-xl px-3 py-2.5 text-xs font-extrabold uppercase tracking-[0.08em] transition"
+          data-pw-el={PW_EL.cardCart}
         >
           {cta}
           <ArrowRight className="h-3.5 w-3.5" />
@@ -196,11 +201,15 @@ function FashionHomeInner({
 
   return (
     <div className={cn('space-y-0', mounted && 'pw-fashion-ready')}>
-      <section className="relative mb-8 overflow-hidden rounded-[1.75rem] sm:mb-12 sm:rounded-[2rem]">
+      <section
+        className="relative mb-8 overflow-hidden rounded-[1.75rem] sm:mb-12 sm:rounded-[2rem]"
+        data-pw-region={PW_REGION.banner}
+      >
         <div className="pointer-events-none absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             data-pw-edit="heroImage"
+            data-pw-el={PW_EL.media}
             src={copy.heroImage}
             alt=""
             className="pointer-events-auto h-full w-full object-cover"
@@ -208,13 +217,14 @@ function FashionHomeInner({
           <div className="absolute inset-0 bg-gradient-to-r from-orange-950/75 via-orange-700/45 to-transparent" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(251,146,60,.35),transparent_55%)]" />
         </div>
-        <div className="relative grid min-h-[280px] content-center gap-4 px-5 py-10 sm:min-h-[420px] sm:gap-5 sm:px-12 sm:py-14 lg:min-h-[480px]">
-          <p className="pw-anim-in inline-flex w-fit items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-50 backdrop-blur">
+        <div className="relative grid min-h-[280px] content-center gap-4 px-5 py-10 sm:min-h-[420px] sm:gap-5 sm:px-12 sm:py-14 lg:min-h-[480px]" data-pw-el={PW_EL.copy}>
+          <p className="pw-anim-in inline-flex w-fit items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-50 backdrop-blur" data-pw-el={PW_EL.badge}>
             <Sparkles className="h-3.5 w-3.5" />
             {badge}
           </p>
           <h1
             data-pw-edit="heroTitle"
+            data-pw-el={PW_EL.title}
             className="pw-anim-in pw-anim-in-d1 max-w-xl text-[1.7rem] font-bold leading-[1.15] tracking-tight text-white sm:text-5xl sm:leading-[1.05] lg:text-6xl"
             style={{ fontFamily: 'var(--pw-font-display)' }}
           >
@@ -222,6 +232,7 @@ function FashionHomeInner({
           </h1>
           <p
             data-pw-edit="heroSubtitle"
+            data-pw-el={PW_EL.subtitle}
             className="pw-anim-in pw-anim-in-d2 max-w-md text-base text-orange-50/95 sm:text-lg"
           >
             {copy.heroSubtitle}
@@ -229,6 +240,7 @@ function FashionHomeInner({
           <div className="pw-anim-in pw-anim-in-d3 flex flex-wrap gap-3">
             <Link
               data-pw-edit="heroCta"
+              data-pw-el={PW_EL.cta}
               href={productsHref}
               className="pw-fh-hero-cta inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-extrabold uppercase tracking-[0.08em] shadow-lg shadow-black/20 transition hover:scale-[1.02]"
             >
@@ -237,12 +249,13 @@ function FashionHomeInner({
             </Link>
             <Link
               href={secondaryHref}
+              data-pw-el={PW_EL.ctaSecondary}
               className="inline-flex items-center rounded-2xl border border-white/40 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/20"
             >
               {secondaryLabel}
             </Link>
           </div>
-          <div className="pw-anim-in pw-anim-in-d4 mt-2 flex gap-2" aria-hidden>
+          <div className="pw-anim-in pw-anim-in-d4 mt-2 flex gap-2" aria-hidden data-pw-el={PW_EL.dots}>
             <span className="h-2 w-2 rounded-full bg-white" />
             <span className="h-2 w-2 rounded-full bg-white/40" />
             <span className="h-2 w-2 rounded-full bg-white/40" />
@@ -251,9 +264,10 @@ function FashionHomeInner({
       </section>
 
       {showCategories ? (
-      <section className="mb-12 sm:mb-16">
+      <section className="mb-12 sm:mb-16" data-pw-region={PW_REGION.categories}>
         <h2
           data-pw-edit="categoriesTitle"
+          data-pw-el={PW_EL.sectionTitle}
           className="pw-fh-heading mb-6 text-center text-sm font-extrabold uppercase tracking-[0.2em] sm:text-base"
           style={{ fontFamily: 'var(--pw-font-display)' }}
         >
@@ -271,8 +285,9 @@ function FashionHomeInner({
                 i === 2 && 'pw-anim-in-d2',
                 i === 3 && 'pw-anim-in-d3'
               )}
+              data-pw-el={PW_EL.card}
             >
-              <span className="pw-fh-cat relative block aspect-square w-full max-w-[140px] overflow-hidden rounded-full border-[3px] shadow-md transition duration-500 group-hover:scale-105 sm:max-w-none">
+              <span className="pw-fh-cat relative block aspect-square w-full max-w-[140px] overflow-hidden rounded-full border-[3px] shadow-md transition duration-500 group-hover:scale-105 sm:max-w-none" data-pw-el={PW_EL.cardMedia}>
                 {cat.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -284,7 +299,7 @@ function FashionHomeInner({
                   />
                 ) : null}
               </span>
-              <span data-pw-edit={`categoryName:${i}`} className="text-sm font-bold text-stone-700">
+              <span data-pw-edit={`categoryName:${i}`} data-pw-el={PW_EL.cardName} className="text-sm font-bold text-stone-700">
                 {cat.name}
               </span>
             </Link>
@@ -294,19 +309,20 @@ function FashionHomeInner({
       ) : null}
 
       {showProductSections && flashSale.length ? (
-      <section className="mb-12 sm:mb-16">
+      <section className="mb-12 sm:mb-16" data-pw-region={PW_REGION.catalog}>
         <div className="mb-6 flex items-end justify-between gap-3">
           <h2
             className="pw-fh-heading text-sm font-extrabold uppercase tracking-[0.2em] sm:text-base"
             style={{ fontFamily: 'var(--pw-font-display)' }}
+            data-pw-el={PW_EL.sectionTitle}
           >
             {t.flashSaleBadge}
           </h2>
-          <Link href={productsHref} className="pw-fh-more text-xs font-bold uppercase tracking-wider text-stone-500">
+          <Link href={productsHref} className="pw-fh-more text-xs font-bold uppercase tracking-wider text-stone-500" data-pw-el={PW_EL.sectionMore}>
             {t.navProducts} →
           </Link>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5" data-pw-el={PW_EL.grid}>
           {flashSale.slice(0, 8).map((p) => (
             <ProductCard key={`flash-${p.id}`} siteSlug={siteSlug} product={p} showFlash cta={t.addToCart} customDomain={customDomain} />
           ))}
@@ -316,10 +332,11 @@ function FashionHomeInner({
 
       {showProductSections ? (
       <>
-      <section className="mb-12 sm:mb-16">
+      <section className="mb-12 sm:mb-16" data-pw-region={PW_REGION.catalog}>
         <div className="mb-6 flex items-end justify-between gap-3">
           <h2
             data-pw-edit="newArrivalsTitle"
+            data-pw-el={PW_EL.sectionTitle}
             className="pw-fh-heading text-sm font-extrabold uppercase tracking-[0.2em] sm:text-base"
             style={{ fontFamily: 'var(--pw-font-display)' }}
           >
@@ -328,11 +345,12 @@ function FashionHomeInner({
           <Link
             href={productsHref}
             className="pw-fh-more text-xs font-bold uppercase tracking-wider text-stone-500"
+            data-pw-el={PW_EL.sectionMore}
           >
             {t.navProducts} →
           </Link>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5" data-pw-el={PW_EL.grid}>
           {newArrivals.slice(0, 8).map((p) => (
             <ProductCard key={p.id} siteSlug={siteSlug} product={p} showNew cta={t.addToCart} customDomain={customDomain} />
           ))}
@@ -342,17 +360,18 @@ function FashionHomeInner({
         ) : null}
       </section>
 
-      <section className="pw-fh-band relative mb-4 overflow-hidden rounded-[1.75rem] px-4 py-10 sm:mb-8 sm:rounded-[2rem] sm:px-8 sm:py-12">
+      <section className="pw-fh-band relative mb-4 overflow-hidden rounded-[1.75rem] px-4 py-10 sm:mb-8 sm:rounded-[2rem] sm:px-8 sm:py-12" data-pw-region={PW_REGION.catalog}>
         <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/15 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-20 left-10 h-48 w-48 rounded-full bg-amber-200/30 blur-2xl" />
         <h2
           data-pw-edit="bestSellersTitle"
+          data-pw-el={PW_EL.sectionTitle}
           className="relative mb-8 text-center text-sm font-extrabold uppercase tracking-[0.22em] text-white sm:text-base"
           style={{ fontFamily: 'var(--pw-font-display)' }}
         >
           {copy.bestSellersTitle}
         </h2>
-        <div className="relative grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
+        <div className="relative grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5" data-pw-el={PW_EL.grid}>
           {(bestSellers.length ? bestSellers : newArrivals).slice(0, 8).map((p) => (
             <ProductCard key={`best-${p.id}`} siteSlug={siteSlug} product={p} cta={t.addToCart} customDomain={customDomain} />
           ))}
@@ -389,6 +408,7 @@ export function PartnerSiteFashionHome(props: Props) {
         footerJson={props.footerJson}
         navJson={props.navJson}
         activeNav="home"
+        pageKind={PW_PAGE.home}
       >
         <FashionHomeInner
           siteSlug={props.siteSlug}

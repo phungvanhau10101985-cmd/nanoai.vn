@@ -24,6 +24,19 @@ export function clampPaddingPx(n: number): number {
   return Math.max(0, Math.min(160, Math.round(n)))
 }
 
+/** Tick «Dùng ảnh hiện tại làm tham khảo» when the selection actually has a photo. */
+export function shouldUseCurrentImageAsRef(sel: {
+  src?: string
+  isLogo?: boolean
+  logoFace?: string
+  isImage?: boolean
+  isBgImage?: boolean
+}): boolean {
+  if (!String(sel.src || '').trim()) return false
+  if (sel.isLogo) return sel.logoFace === 'image'
+  return Boolean(sel.isImage || sel.isBgImage)
+}
+
 export function inferVisualEditImageKind(sel: {
   isLogo?: boolean
   isBgImage?: boolean

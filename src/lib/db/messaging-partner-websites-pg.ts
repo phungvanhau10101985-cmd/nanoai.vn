@@ -556,7 +556,7 @@ export async function updatePartnerWebsiteDraftPg(input: {
       `update public.messaging_partner_websites set
          title = coalesce($2, title),
          brief_text = coalesce($3, brief_text),
-         logo_url = coalesce($4, logo_url),
+         logo_url = case when $12::boolean then nullif(trim(coalesce($4, '')), '') else logo_url end,
          reference_image_urls = coalesce($5::jsonb, reference_image_urls),
          render_mode = coalesce($6, render_mode),
          template_id = coalesce($7, template_id),
@@ -584,6 +584,7 @@ export async function updatePartnerWebsiteDraftPg(input: {
         input.pages ? JSON.stringify(pages) : null,
         input.project ? JSON.stringify(projectFilesToJson(project)) : null,
         htmlSource?.trim() || null,
+        input.logoUrl !== undefined,
       ]
     )
     return row ? mapRow(row) : null

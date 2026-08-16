@@ -105,7 +105,7 @@ function renderProducts(list){
     return '<a href="'+esc(href)+'" class="pw-search-card" style="display:block;text-decoration:none;color:inherit;border-radius:12px;overflow:hidden;background:#f5f5f5">'
       +(img?'<img src="'+esc(img)+'" alt="'+esc(name)+'" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover;display:block"/>':'')
       +'<div style="padding:.65rem"><div style="font-weight:600;font-size:.9rem">'+esc(name)+'</div>'
-      +(price?'<div style="color:#ea580c;margin-top:.25rem;font-size:.85rem">'+esc(price)+'</div>':'')
+      +(price?'<div style="color:var(--pw-primary);margin-top:.25rem;font-size:.85rem">'+esc(price)+'</div>':'')
       +'</div></a>';
   }).join('');
 }
@@ -171,8 +171,7 @@ function bindText(){
   }
 }
 function ensureImageControl(){
-  var btn=document.querySelector('[data-pw-image-search]');
-  var file=document.querySelector('input[data-pw-image-search-input], input[type="file"][accept*="image"][data-pw-image-search-input]');
+  var file=document.querySelector('input[data-pw-image-search-input]');
   if(!file){
     file=document.createElement('input');
     file.type='file';
@@ -181,23 +180,27 @@ function ensureImageControl(){
     file.hidden=true;
     document.body.appendChild(file);
   }
-  if(!btn){
+  var btns=document.querySelectorAll('[data-pw-image-search], .pw-search-image-btn, .pw-shop-search-image');
+  if(!btns.length){
     var host=document.querySelector('[data-pw-search], input[type="search"], header .search, header form')||document.querySelector('header');
     if(host){
-      btn=document.createElement('button');
-      btn.type='button';
-      btn.setAttribute('data-pw-image-search','1');
-      btn.setAttribute('aria-label',COPY.imageBtn);
-      btn.title=COPY.imageBtn;
-      btn.textContent='📷';
-      btn.style.cssText='margin-left:.35rem;border:0;background:transparent;cursor:pointer;font-size:1.1rem;line-height:1;padding:.25rem';
+      var created=document.createElement('button');
+      created.type='button';
+      created.setAttribute('data-pw-image-search','1');
+      created.setAttribute('aria-label',COPY.imageBtn);
+      created.title=COPY.imageBtn;
+      created.textContent='📷';
+      created.style.cssText='margin-left:.35rem;border:0;background:transparent;cursor:pointer;font-size:1.1rem;line-height:1;padding:.25rem';
       if(host.parentNode){
-        if(host.tagName==='INPUT'||host.tagName==='FORM')host.parentNode.insertBefore(btn,host.nextSibling);
-        else host.appendChild(btn);
+        if(host.tagName==='INPUT'||host.tagName==='FORM')host.parentNode.insertBefore(created,host.nextSibling);
+        else host.appendChild(created);
       }
+      btns=document.querySelectorAll('[data-pw-image-search], .pw-search-image-btn, .pw-shop-search-image');
     }
   }
-  if(btn&&!btn.getAttribute('data-pw-image-bound')){
+  for(var i=0;i<btns.length;i++){
+    var btn=btns[i];
+    if(btn.getAttribute('data-pw-image-bound'))continue;
     btn.setAttribute('data-pw-image-bound','1');
     btn.addEventListener('click',function(){file.click();});
   }

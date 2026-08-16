@@ -39,7 +39,6 @@ import { DuAnhTuPhacThaoIcon } from '@/components/icons/du-anh-tu-phac-thao-icon
 import { TaoTemNiemPhongBaoHanhIcon } from '@/components/icons/tao-tem-niem-phong-bao-hanh-icon'
 import { ThietKeConDauIcon } from '@/components/icons/thiet-ke-con-dau-icon'
 import { ThietKeBaoBiIcon } from '@/components/icons/thiet-ke-bao-bi-icon'
-import { hubStudioLaunchHref } from '@/lib/hub-chat/hub-studio-launch'
 import { TaoBaiHatLyria3Icon } from '@/components/icons/tao-bai-hat-lyria-3-icon'
 import { XoaNenPngIcon } from '@/components/icons/xoa-nen-png-icon'
 import { SuaAnhTheoYeuCauIcon } from '@/components/icons/sua-anh-theo-yeu-cau-icon'
@@ -95,7 +94,7 @@ export const AI_TOOLS = [
   { href: '/tao-nhan-gioi-thieu-san-pham', labelKey: 'create_product_label' as ToolKey, icon: TaoNhanGioiThieuSanPhamIcon },
   { href: '/tao-tem-niem-phong-bao-hanh', labelKey: 'create_seal_warranty_label' as ToolKey, icon: TaoTemNiemPhongBaoHanhIcon },
   { href: '/thiet-ke-con-dau', labelKey: 'design_stamp' as ToolKey, icon: ThietKeConDauIcon },
-  { href: hubStudioLaunchHref('packaging_kit'), labelKey: 'design_package' as ToolKey, icon: ThietKeBaoBiIcon },
+  { href: '/thiet-ke-bao-bi', labelKey: 'design_package' as ToolKey, icon: ThietKeBaoBiIcon },
   { href: '/tao-ma-vach', labelKey: 'create_barcode' as ToolKey, icon: TaoMaVachIcon },
   { href: '/che-anh', labelKey: 'meme_maker' as ToolKey, icon: CheAnhIcon },
   { href: '/xoa-vat-the', labelKey: 'remove_object' as ToolKey, icon: XoaVatTheIcon },
@@ -186,7 +185,7 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
       { href: '/tao-nhan-gioi-thieu-san-pham', labelKey: 'create_product_label' as ToolKey, icon: TaoNhanGioiThieuSanPhamIcon },
       { href: '/tao-tem-niem-phong-bao-hanh', labelKey: 'create_seal_warranty_label' as ToolKey, icon: TaoTemNiemPhongBaoHanhIcon },
       { href: '/thiet-ke-con-dau', labelKey: 'design_stamp' as ToolKey, icon: ThietKeConDauIcon },
-      { href: hubStudioLaunchHref('packaging_kit'), labelKey: 'design_package' as ToolKey, icon: ThietKeBaoBiIcon },
+      { href: '/thiet-ke-bao-bi', labelKey: 'design_package' as ToolKey, icon: ThietKeBaoBiIcon },
       { href: '/tao-ma-vach', labelKey: 'create_barcode' as ToolKey, icon: TaoMaVachIcon },
       { href: '/che-anh', labelKey: 'meme_maker' as ToolKey, icon: CheAnhIcon },
     ],

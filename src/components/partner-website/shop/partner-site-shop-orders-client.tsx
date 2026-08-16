@@ -18,6 +18,7 @@ import {
   type PartnerSiteOrderStatusFilterKey,
 } from '@/lib/partner-website/shop/partner-site-order-status-filters'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 
 type OrderRow = {
@@ -208,8 +209,8 @@ export function PartnerSiteShopOrdersClient({
   }
 
   return (
-    <div>
-      <h1>{t.ordersTitle}</h1>
+    <div data-pw-region={PW_REGION.accountMain}>
+      <h1 data-pw-el={PW_EL.heading}>{t.ordersTitle}</h1>
 
       {!loading && orders.length > 0 ? (
         <div className="pw-shop-order-filters" role="tablist" aria-label={t.ordersFilterAriaLabel}>
@@ -234,7 +235,7 @@ export function PartnerSiteShopOrdersClient({
       ) : null}
 
       {loading ? <p className="pw-shop-muted">…</p> : null}
-      {!loading && orders.length === 0 ? <p className="pw-shop-muted">{t.ordersEmpty}</p> : null}
+      {!loading && orders.length === 0 ? <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>{t.ordersEmpty}</p> : null}
       {!loading && orders.length > 0 && visibleOrders.length === 0 ? (
         <p className="pw-shop-muted">{t.ordersFilterEmpty}</p>
       ) : null}
@@ -262,7 +263,7 @@ export function PartnerSiteShopOrdersClient({
           const steps = timelineSteps(o.shipping_status, t)
 
           return (
-            <li key={o.id} className="pw-shop-order-card">
+            <li key={o.id} className="pw-shop-order-card" data-pw-el={PW_EL.card}>
               <div className="pw-shop-order-card-head">
                 {o.product_image_url ? (
                   <img src={o.product_image_url} alt={o.product_name ?? ''} className="pw-shop-order-thumb" />

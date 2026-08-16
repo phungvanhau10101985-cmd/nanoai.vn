@@ -78,6 +78,7 @@ import {
   type ExternalCatalogSyncOutcome,
 } from '@/lib/messaging/partner-inventory-external-catalog-sync'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
+import { maybeSeedShopDemoInventoryOnCreate, maybeSeedShopDemoInventoryOnWebsiteCreate, seedShopDemoInventoryForPartner } from '@/lib/messaging/seed-shop-demo-inventory'
 import {
   emergencyClearVisionWarehouseRunnerFromPg,
   fetchVisionWarehouseRunnerLockFieldsFromPg,
@@ -391,8 +392,9 @@ export async function createMessagingWorkspace(displayName: string) {
     owner_user_id: user.id,
   })
   if (!inserted) {
-    return { error: 'Kh├┤ng tß║ío ─æ╞░ß╗úc workspace.' }
+    return { error: 'Không tạo được workspace.' }
   }
+  await maybeSeedShopDemoInventoryOnCreate(inserted.id, inserted.industry_key)
   revalidateMessagingDashboard()
   return { partner: inserted }
 }
@@ -474,7 +476,8 @@ export async function createMessagingWorkspaceProfile(input: {
     logo_url: normalizeLogoUrl(input.logoUrl ?? ''),
     owner_user_id: user.id,
   })
-  if (!inserted) return { error: 'Kh├┤ng tß║ío ─æ╞░ß╗úc workspace.' }
+  if (!inserted) return { error: 'Không tạo được workspace.' }
+  await maybeSeedShopDemoInventoryOnCreate(inserted.id, inserted.industry_key)
   revalidateMessagingDashboard()
   return { partner: inserted }
 }
@@ -506,7 +509,8 @@ export async function updateMessagingWorkspaceProfile(input: {
     brand_name: brand,
     logo_url: normalizeLogoUrl(input.logoUrl ?? ''),
   })
-  if (!updated) return { error: 'Kh├┤ng cß║¡p nhß║¡t ─æ╞░ß╗úc th├┤ng tin workspace.' }
+  if (!updated) return { error: 'Không cập nhật được thông tin workspace.' }
+  await maybeSeedShopDemoInventoryOnWebsiteCreate(updated.id, updated.industry_key)
   revalidateMessagingDashboard()
   return { partner: updated }
 }
@@ -3011,6 +3015,19 @@ export async function deletePartnerInventoryItem(partnerId: string, itemId: stri
   if (!ok) return { error: 'Failed to delete inventory item.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
+}
+
+export async function reloadShopDemoInventory(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const result = await seedShopDemoInventoryForPartner(partnerId)
+  if (!result.ok) return { error: result.error || 'Failed to reload demo products.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const, inserted: result.inserted, skipped: result.skipped }
 }
 
 export type VisionBgSyncEnqueueErrorCode = 'already_active' | 'enable_vision_first' | 'no_ai_row'

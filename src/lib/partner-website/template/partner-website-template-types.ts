@@ -24,22 +24,32 @@ export type PartnerWebsiteTheme = {
   useVisualHtml?: boolean
   /** Homepage has a separate mobile «Sửa nhanh» HTML (`index.mobile.html`). */
   useVisualMobileHtml?: boolean
+  /** Homepage has a separate tablet «Sửa nhanh» HTML (`index.tablet.html`). */
+  useVisualTabletHtml?: boolean
   /** Non-home pages that have a saved «Sửa nhanh» HTML override in project.files. */
   visualPageKeys?: string[]
   /** Non-home pages with a separate mobile «Sửa nhanh» HTML (`*.mobile.html`). */
   visualMobilePageKeys?: string[]
+  /** Non-home pages with a separate tablet «Sửa nhanh» HTML (`*.tablet.html`). */
+  visualTabletPageKeys?: string[]
   /** Category paths (`ao-nam`, `thoi-trang/ao`) with desktop «Sửa nhanh» HTML. */
   visualCategoryPaths?: string[]
   /** Category paths with mobile «Sửa nhanh» HTML. */
   visualMobileCategoryPaths?: string[]
+  /** Category paths with tablet «Sửa nhanh» HTML. */
+  visualTabletCategoryPaths?: string[]
   /** Inventory UUIDs with desktop «Sửa nhanh» HTML (per product). */
   visualProductIds?: string[]
   /** Inventory UUIDs with mobile «Sửa nhanh» HTML. */
   visualMobileProductIds?: string[]
+  /** Inventory UUIDs with tablet «Sửa nhanh» HTML. */
+  visualTabletProductIds?: string[]
   /** Custom CMS slugs (`/pages/{slug}`) with desktop «Sửa nhanh» HTML. */
   visualCmsSlugs?: string[]
   /** Custom CMS slugs with mobile «Sửa nhanh» HTML. */
   visualMobileCmsSlugs?: string[]
+  /** Custom CMS slugs with tablet «Sửa nhanh» HTML. */
+  visualTabletCmsSlugs?: string[]
   /** M3.2 — optional fixed bottom-right CTA above chat FAB. */
   floatingCta?: {
     enabled: boolean

@@ -197,4 +197,36 @@ export function ensureBrandLogoInProject(
   return changed ? { ...project, files } : project
 }
 
+function isBrandLogoImgTag(tag: string): boolean {
+  return /(?:\bclass=["'][^"']*\b(?:pw-logo|pw-shop-logo|pw-shop-footer-logo|site-logo)\b|\bdata-pw-logo-added=|\bdata-pw-logo-float=|\bdata-pw-el=["']logo["'])/i.test(
+    tag
+  )
+}
+
+/** Empty header/footer logo images so Xóa logo actually removes them from the shop HTML. */
+export function clearBrandLogoInHtml(html: string): string {
+  if (!html.trim()) return html
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    if (!isBrandLogoImgTag(tag)) return tag
+    let next = tag.replace(/\bsrc=["'][^"']*["']/i, 'src=""')
+    if (!/\bsrc=/.test(next)) next = next.replace(/<img\b/i, '<img src=""')
+    if (!/\bdata-pw-logo-empty=/.test(next)) {
+      next = next.replace(/<img\b/i, '<img data-pw-logo-empty="1"')
+    }
+    return next
+  })
+}
+
+export function clearBrandLogoInProject(project: PartnerWebsiteProject): PartnerWebsiteProject {
+  let changed = false
+  const files = project.files.map((f) => {
+    if (f.kind !== 'html') return f
+    const next = clearBrandLogoInHtml(f.content)
+    if (next === f.content) return f
+    changed = true
+    return { ...f, content: next }
+  })
+  return changed ? { ...project, files } : project
+}
+
 export const applyPartnerWebsiteBuildGuardsToProject = applyLogoGuardToProject

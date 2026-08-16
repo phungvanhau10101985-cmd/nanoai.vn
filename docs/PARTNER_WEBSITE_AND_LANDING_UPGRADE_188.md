@@ -150,12 +150,13 @@ Khi xong một hạng mục: đổi ❌/🟡 → ✅, ghi ngày + ghi chú ngắ
 
 | ID | Hạng mục | Trạng thái | Ghi chú / file neo |
 |----|----------|------------|-------------------|
-| W2.1 | Visual editor (text/ảnh/section bg) | ✅ Done | `partner-website-visual-editor-toolbar.tsx`. **🚫 Chat AI tạo/chỉnh web** gỡ 2026-08-13. **2026-08-14**: Sửa nhanh mọi trang + **tách bản Mobile/Desktop** (`*.html` / `*.mobile.html`). PDP không serve HTML đóng băng. |
+| W2.1 | Visual editor (text/ảnh/section bg) | ✅ Done | `partner-website-visual-editor-toolbar.tsx`. **🚫 Chat AI tạo/chỉnh web** gỡ 2026-08-13. **2026-08-14**: Sửa nhanh mọi trang + **tách bản Mobile/Desktop** (`*.html` / `*.mobile.html`). **2026-08-16**: thêm bản **Tablet** (`*.tablet.html`) — 3 giao diện độc lập (Mobile / máy tính bảng / Desktop; Laptop xem chung bản máy tính). PDP không serve HTML đóng băng. |
 | W2.2 | Quick-edit prompts đa ngành (bớt hardcode fashion) | 🚫 Removed (2026-08-13) | Chip gợi ý chat AI không còn UI merchant. Lib `getPartnerWebsiteEditSuggestions` giữ cho test. |
-| W2.3 | Merchant theme color picker (main + supporting) | ✅ Done (2026-08-13) | Bảng màu chính + phụ trợ trên «Tạo web»; chọn mẫu/màu thì preview đổi ngay (iframe CSS vars). PATCH `update_theme_colors`. Token: primary/accent/buy/cart/background/text/muted/surface. Nav/footer JSON vẫn mặc định (không panel menu). |
+| W2.3 | Merchant theme color picker (main + supporting) | ✅ Done (2026-08-16) | Một nguồn `theme_json` → `--pw-*`. Chọn màu chỉ ghi `#pw-theme-root` (kể cả iframe lồng); không đụng `style=""` / nền thêm / logo của Sửa nhanh. Serve HTML (shop + landing + CMS) upsert token + rebind chrome hex trong `<style>`. PATCH `update_theme_colors`. |
 | W2.4 | Section manager drag-reorder + undo block-level | 🚫 Removed (2026-08-13) | Gỡ panel merchant «Block giao diện» + PATCH `reorder_sections` — chỉnh trang chủ bằng Sửa nhanh. AI vẫn reorder qua `sectionOps` khi sinh template. `undo_last` (revision) giữ. |
 | W2.5 | Thư viện mẫu ngành phong phú hơn 3 presets | ✅ Done (2026-08-06) | 6 presets: commerce-blue, fashion-orange, hospitality-stay, **food-warm**, **commerce-minimal**, **soft-neutral**; `suggestedShopTemplatePresetForIndustry` (food → food-warm); capabilities vẫn filter section |
 | W2.6 | Đồng bộ brand visual giữa home template và shell PDP/cart | ✅ Done-MVP (2026-08-06) | Shop shell ưu tiên `theme_json` tokens (đặc biệt sau color picker); hết lệch home ↔ shop khi merchant đổi màu qua dashboard |
+| W2.7 | Đổi mẫu giữ Sửa nhanh theo preset | ✅ Done (2026-08-16) | Đổi giao diện snapshot HTML+theme theo `preset_id`; quay lại mẫu cũ khôi phục sửa đổi. Áp lại đúng mẫu đang dùng = reset mẫu đó. Bảng `messaging_partner_website_preset_looks`. Test `partner-website-preset-look.test.ts`. |
 
 ### W4 — Đa danh mục (⭐ ưu tiên hiện tại — quyết định 2026-08-05)
 
@@ -681,6 +682,10 @@ Sửa tài liệu **cùng PR** với code.
 | 2026-08-13 | **Tạo web — ngữ cảnh sửa** | Banner «đang sửa web nào»: tên shop + ngành + mẫu đang dùng / mặc định theo ngành. Fashion → mặc định `fashion-orange`. Mở `/website` không chỉ định kênh thì ưu tiên shop fashion/188. Test `scripts/test-pick-preferred-website-partner.ts`. Rule AI: `.cursor/rules/partner-website-188-fashion-default.mdc`. | ✅ Done |
 
 | 2026-08-13 | **W2.3 theme colors** | Bảng chọn màu chính + phụ trợ trên Tạo web. Chọn mẫu/màu → preview đổi ngay (CSS vars). PATCH `update_theme_colors`. Token buy/cart/surface. Test `partner-website-theme-tokens.test.ts`. | ✅ Done |
+
+| 2026-08-16 | **W2.3 theme contract** | Live pick chỉ `#pw-theme-root` + walk iframe cùng origin; HTML lưu/serve rebind chrome class → `var(--pw-*)` trong `<style>`, giữ nguyên paint Sửa nhanh. Landing HTML + CMS visual cùng `rewriteThemeCssVarsInHtml`. Chrome React/template dùng token, không hex cam. | ✅ Done |
+
+| 2026-08-16 | **W2.7 đổi mẫu giữ Sửa nhanh** | Snapshot look theo preset trước khi đổi giao diện; quay lại mẫu cũ khôi phục HTML Sửa nhanh (desktop/mobile) + theme. Áp lại mẫu đang dùng vẫn reset mẫu đó. Migration `20260816140000_messaging_partner_website_preset_looks.sql`. Test `partner-website-preset-look.test.ts`. | ✅ Done |
 
 | 2026-08-13 | **Sửa nhanh khối** | Ẩn / xóa / nhân bản khối trang chủ; lớp phủ banner + khoảng cách dọc/ngang. Khối ẩn hiện mờ trong editor, lưu thì ẩn trên web. | ✅ Done |
 

@@ -36,6 +36,7 @@ import {
   testPartnerShippingLookup,
   clearPartnerShippingLookupApiKey,
   upsertPartnerInventoryItem,
+  reloadShopDemoInventory,
   type PartnerInventoryEmbeddingStats,
   type PartnerAiSettingsClientRow,
   type PartnerAiSettingsPayload,
@@ -61,7 +62,7 @@ import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/l
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
-import { Bot, Cake, Copy, Download, FileSpreadsheet, Image as ImageIcon, Package, Search, Sparkles, Truck, Upload } from 'lucide-react'
+import { Bot, Cake, Copy, Download, FileSpreadsheet, Image as ImageIcon, Package, RefreshCw, Search, Sparkles, Truck, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
 type AiT = Dictionary['partnerMessagingAi']
@@ -2721,6 +2722,34 @@ function InventoryEditor({
         >
           <Download className="h-3.5 w-3.5 shrink-0" aria-hidden />
           {t.inventoryImportExcel}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={excelBusy || pending}
+          title={t.inventoryReloadDemoHint}
+          onClick={() => {
+            startTransition(async () => {
+              const res = await reloadShopDemoInventory(partnerId)
+              if ('error' in res && res.error) {
+                toast({ title: t.inventoryReloadDemoFailed, variant: 'destructive' })
+                return
+              }
+              const inserted = 'ok' in res && res.ok ? res.inserted : 0
+              toast({
+                title:
+                  inserted > 0
+                    ? t.inventoryReloadDemoSuccess.replace('{count}', String(inserted))
+                    : t.inventoryReloadDemoNone,
+              })
+              onChanged()
+            })
+          }}
+        >
+          <RefreshCw className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {t.inventoryReloadDemoProducts}
         </Button>
         <input
           ref={importInputRef}

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   injectPartnerShopChromeLayoutCss,
+  stripVisualEditorRuntimeStateClasses,
   PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID,
 } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 
@@ -12,14 +13,65 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes(PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID), true)
   assert.equal(once.includes('flex-direction:row'), true)
   assert.equal(once.includes('.pw-header-actions [data-pw-chrome-added]'), true)
+  assert.equal(once.includes('.pw-header-search,.pw-shop-search-wrap'), true)
+  assert.equal(once.includes('flex:1 1 0%'), true)
+  assert.equal(once.includes('data-pw-search-width'), true)
+  assert.equal(once.includes('min-width:72px'), true)
+  assert.equal(once.includes('z-index:200'), true)
+  assert.equal(once.includes('.pw-topbar,.pw-shop-topbar'), true)
+  assert.equal(once.includes('z-index:180'), true)
+  assert.equal(once.includes('position:fixed!important'), true)
+  assert.equal(once.includes('z-index:160'), true)
+  assert.equal(once.includes('data-pw-logo-frame'), true)
+  assert.equal(once.includes('data-pw-logo-float'), true)
+  assert.equal(once.includes('data-pw-logo-empty'), true)
+  assert.equal(once.includes('.pw-logo-frame:not([data-pw-logo-float="1"]) ~ .pw-logo-frame:not([data-pw-logo-float="1"])'), true)
+  assert.equal(once.includes('[data-pw-logo-float="1"]:not([data-pw-z])'), true)
+  assert.equal(once.includes('[data-pw-chrome-badge][hidden]'), true)
+  assert.equal(once.includes('-webkit-text-fill-color'), true)
+  assert.equal(once.includes('overflow:visible!important'), true)
+  assert.equal(once.includes('.pw-shop-brand-cluster{pointer-events:none!important}'), true)
+  assert.equal(once.includes('.pw-shop-brand-cluster > *'), true)
+  assert.equal(once.includes('pointer-events:auto!important'), true)
   assert.equal(once.includes('data-pw-device="mobile"'), true)
+  assert.equal(once.includes('data-pw-device="tablet"'), true)
+  assert.equal(once.includes(':not([data-pw-chrome-count])'), true)
   assert.equal(once.includes('min-width:768px'), true)
+  assert.equal(once.includes('min-width:1280px'), true)
   assert.equal(once.includes('white-space:normal'), true)
   assert.equal(once.includes('flex-wrap:nowrap'), true)
+  assert.equal(once.includes('.pw-nav-main>a.pw-nav-sale'), true)
+  assert.equal(once.includes('color:#374151!important'), true)
   assert.equal(once.includes('pw-shop-chrome-badge-pin'), true)
+  assert.equal(once.includes('pw-shop-stick-header'), true)
+  assert.equal(once.includes('data-pw-stick-header'), true)
+  assert.equal(once.includes('__pwStickHeaderSync'), true)
   assert.equal(twice, once)
   const stale = once.replace('flex-direction:row', 'flex-direction:column')
   const refreshed = injectPartnerShopChromeLayoutCss(stale)
   assert.equal(refreshed.includes('flex-direction:row'), true)
   assert.equal((refreshed.match(/id="pw-shop-chrome-layout"/g) || []).length, 1)
+  const duped = `${once}<style id="pw-shop-chrome-layout">.old{}</style>`
+  const collapsed = injectPartnerShopChromeLayoutCss(duped)
+  assert.equal((collapsed.match(/id="pw-shop-chrome-layout"/g) || []).length, 1)
+  assert.equal(collapsed.includes('flex:1 1 0%'), true)
+  assert.equal(collapsed.includes('data-pw-search-width'), true)
+})
+
+test('saved html never keeps the editor runtime state on <body>', () => {
+  const saved =
+    '<!DOCTYPE html><html><head></head><body class="antialiased nanoai-ve-mobile nanoai-ve-active" data-pw-bg-role="canvas"><header class="pw-shop-header"></header></body></html>'
+  const out = injectPartnerShopChromeLayoutCss(saved)
+  assert.equal(/<body[^>]*\bnanoai-ve-active\b/.test(out), false)
+  // Device isolation classes and other body attributes must survive.
+  assert.equal(out.includes('nanoai-ve-mobile'), true)
+  assert.equal(out.includes('antialiased'), true)
+  assert.equal(out.includes('data-pw-bg-role="canvas"'), true)
+
+  const onlyState = stripVisualEditorRuntimeStateClasses('<body class="nanoai-ve-active"><p>x</p></body>')
+  assert.equal(onlyState.includes('class='), false)
+  assert.equal(onlyState.includes('<p>x</p>'), true)
+
+  const clean = '<body class="antialiased"><p>x</p></body>'
+  assert.equal(stripVisualEditorRuntimeStateClasses(clean), clean)
 })

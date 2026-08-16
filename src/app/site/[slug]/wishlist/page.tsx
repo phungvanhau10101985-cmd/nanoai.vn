@@ -7,6 +7,7 @@ import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-
 import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website/shop/partner-site-shop-saved-products-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { maybePartnerSiteVisualPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
+import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -52,6 +53,8 @@ export default async function PartnerSiteWishlistPage({ params }: Props) {
       tracking={partnerSiteTrackingFromPublicRow(shop.site)}
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
+      activeNav="wishlist"
+      pageKind={PW_PAGE.account}
     >
       <PartnerSiteShopSavedProductsClient
         siteSlug={shop.site.siteSlug}

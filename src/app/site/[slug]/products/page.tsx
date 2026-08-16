@@ -9,6 +9,7 @@ import { PartnerSiteShopCatalogClient } from '@/components/partner-website/shop/
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { maybePartnerSiteVisualPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
+import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -56,6 +57,7 @@ export default async function PartnerSiteProductsPage({ params }: Props) {
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
       activeNav="products"
+      pageKind={PW_PAGE.listing}
     >
       <PartnerSiteShopCatalogClient
         siteSlug={shop.site.siteSlug}

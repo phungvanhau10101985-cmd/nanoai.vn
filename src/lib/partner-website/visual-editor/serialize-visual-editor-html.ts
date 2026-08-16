@@ -1,12 +1,55 @@
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import { resetChromeCountBadges } from '@/lib/partner-website/shop/chrome-count-badges'
+import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
 import { pinChromeIconBadges } from '@/lib/partner-website/shop/pin-chrome-icon-badges'
+import { releaseStickHeaderPins } from '@/lib/partner-website/shop/stick-header-elements'
 import {
   isolateVisualHtmlForDevice,
+  syncChromeCountBadgesAcrossProjectFiles,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
 const EDITOR_STYLE_ID = 'nanoai-visual-editor-styles'
 const EDITOR_SCRIPT_ID = 'nanoai-visual-editor-script'
+
+const HEADER_LOGO_PAINT_SEL =
+  'header, .pw-header, .pw-shop-header, .pw-header-main, .pw-shop-header-inner, .pw-brand-cluster, .pw-shop-brand-cluster, a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home], .pw-logo-frame, [data-pw-logo-frame="1"]'
+
+function sanitizeHeaderLogoLayout(clone: Element, variant?: VisualDeviceVariant) {
+  clone.querySelectorAll(HEADER_LOGO_PAINT_SEL).forEach((node) => {
+    const el = node as HTMLElement
+    if (!el.style) return
+    el.style.removeProperty('background-image')
+    el.style.removeProperty('background-repeat')
+    el.style.removeProperty('background-size')
+    el.style.removeProperty('background-position')
+    const overflow = `${el.style.overflow} ${el.style.overflowX}`
+    if (/\b(auto|scroll)\b/.test(overflow)) {
+      el.style.removeProperty('overflow')
+      el.style.removeProperty('overflow-x')
+    }
+  })
+  const maxW = variant === 'mobile' ? 390 : variant === 'tablet' ? 768 : 1200
+  const maxH = variant === 'mobile' ? 240 : 240
+  clone
+    .querySelectorAll(
+      'header .pw-logo-frame, header [data-pw-logo-frame="1"], .pw-header .pw-logo-frame, .pw-shop-header .pw-logo-frame'
+    )
+    .forEach((node) => {
+      const el = node as HTMLElement
+      if (!el.style) return
+      const w = parseFloat(el.style.width) || maxW
+      const h = parseFloat(el.style.height) || maxH
+      if (!w || w > maxW) {
+        el.style.setProperty('width', `${maxW}px`, 'important')
+        el.style.setProperty('max-width', `${maxW}px`, 'important')
+      }
+      if (!h || h > maxH) {
+        el.style.setProperty('height', `${maxH}px`, 'important')
+        el.style.setProperty('max-height', `${maxH}px`, 'important')
+      }
+    })
+}
 
 function resetBottomNavChromeInlineStyles(clone: Element) {
   clone
@@ -41,9 +84,21 @@ function stripEditorAndRuntimeNodes(clone: Element) {
   })
   clone.querySelectorAll('next-route-announcer, template[data-next-error-message]').forEach((el) => el.remove())
   clone.querySelectorAll('link[rel="preload"][as="script"], link[rel="modulepreload"]').forEach((el) => el.remove())
-  clone.querySelectorAll('.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging').forEach((el) => {
-    el.classList.remove('nanoai-ve-highlight', 'nanoai-ve-hover', 'nanoai-ve-dragging')
-  })
+  clone
+    .querySelectorAll(
+      '.nanoai-ve-active,.nanoai-ve-selected,.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging,.nanoai-ve-photo-edit'
+    )
+    .forEach((el) => {
+      el.classList.remove(
+        'nanoai-ve-active',
+        'nanoai-ve-selected',
+        'nanoai-ve-highlight',
+        'nanoai-ve-hover',
+        'nanoai-ve-dragging',
+        'nanoai-ve-photo-edit'
+      )
+      if (!el.getAttribute('class')?.trim()) el.removeAttribute('class')
+    })
   clone.querySelectorAll('[contenteditable]').forEach((el) => {
     el.removeAttribute('contenteditable')
   })
@@ -140,11 +195,16 @@ export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceV
   const clone = doc.documentElement.cloneNode(true) as HTMLElement
   stripEditorAndRuntimeNodes(clone)
   resetBottomNavChromeInlineStyles(clone)
+  releaseStickHeaderPins(clone)
+  sanitizeHeaderLogoLayout(clone, variant)
   pinChromeIconBadges(clone)
+  resetChromeCountBadges(clone)
   inlineSameOriginStylesheets(doc, clone)
   ensureViewportMeta(clone)
   ensureBaseHref(clone, documentOrigin(doc))
-  const raw = injectPartnerShopChromeLayoutCss(`<!DOCTYPE html>\n${clone.outerHTML}`)
+  const raw = injectPartnerShopChromeLayoutCss(
+    stripEmptyLogoPlaceholdersFromHtml(`<!DOCTYPE html>\n${clone.outerHTML}`)
+  )
   return variant ? isolateVisualHtmlForDevice(raw, variant) : raw
 }
 
@@ -170,7 +230,7 @@ export function mergeVisualHtmlIntoProject(
   if (!found) {
     files.push({ path, kind: 'html', content: html })
   }
-  return { ...project, files }
+  return syncChromeCountBadgesAcrossProjectFiles({ ...project, files }, path, html)
 }
 
 export function stubVisualEditorProject(htmlSource?: string | null): {

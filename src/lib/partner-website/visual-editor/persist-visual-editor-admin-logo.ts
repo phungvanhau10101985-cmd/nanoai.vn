@@ -2,7 +2,7 @@ export function isPersistableAdminLogoUrl(url: string): boolean {
   return /^https?:\/\//i.test(String(url || '').trim())
 }
 
-/** Ghi ảnh logo vừa thiết kế vào mục logo quản trị (website.logoUrl), không đè HTML từng vị trí. */
+/** Ghi ảnh logo vào mục quản trị. Lần đầu (chưa có ảnh) thay mọi logo chữ trên HTML desktop + mobile; lần sau không đè từng vị trí. */
 export async function persistVisualEditorAdminLogo(
   partnerId: string,
   logoUrl: string

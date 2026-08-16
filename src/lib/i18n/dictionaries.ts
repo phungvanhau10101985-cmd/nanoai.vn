@@ -370,6 +370,7 @@ export type Dictionary = {
     studioEditOverlayHint: string
     studioEditTextPlaceholder: string
     studioEditTextColor: string
+    studioEditColorOk: string
     studioEditDeleteLayer: string
     studioEditRevertOriginal: string
     studioEditReverted: string
@@ -1382,6 +1383,13 @@ export type Dictionary = {
     inventoryDownloadTemplate: string
     inventoryExportExcel: string
     inventoryImportExcel: string
+    /** Tải lại 10 sản phẩm demo (túi/giày/quần áo) sau khi merchant đã xóa */
+    inventoryReloadDemoProducts: string
+    inventoryReloadDemoHint: string
+    /** {count} = số sản phẩm vừa thêm */
+    inventoryReloadDemoSuccess: string
+    inventoryReloadDemoNone: string
+    inventoryReloadDemoFailed: string
     /** PS.10 — Product Studio: nút mở wizard đăng sản phẩm thủ công/AI */
     productStudioOpenButton: string
     productStudioTitle: string
@@ -2752,6 +2760,9 @@ export type Dictionary = {
     guestInviteVenueHint: string
     effectsToggleLabel: string
     effectsToggleDesc: string
+    loginGateLead: string
+    loginGateHint: string
+    loginGateCta: string
   }
   weddingCardAiImage: {
     customReferenceLabel: string
@@ -3433,6 +3444,7 @@ const VI_DICTIONARY: Dictionary = {
     studioEditOverlayHint: 'Chạm/chọn lớp để kéo — kéo góc tím để phóng to/thu nhỏ nhãn dán hoặc ảnh chèn.',
     studioEditTextPlaceholder: 'Nội dung chữ',
     studioEditTextColor: 'Màu chữ',
+    studioEditColorOk: 'OK',
     studioEditDeleteLayer: 'Xóa lớp',
     studioEditRevertOriginal: 'Quay lại ảnh gốc',
     studioEditReverted: 'Đã khôi phục ảnh gốc AI ({screen}).',
@@ -4530,6 +4542,12 @@ const VI_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Tải file Excel mẫu',
     inventoryExportExcel: 'Xuất Excel',
     inventoryImportExcel: 'Nhập Excel',
+    inventoryReloadDemoProducts: 'Tải lại sản phẩm demo',
+    inventoryReloadDemoHint:
+      '10 sản phẩm mẫu từ catalog thời trang (3 túi nhiều màu, 3 giày nhiều màu·size, 4 quần áo nhiều màu·size). Có thể xóa rồi tải lại.',
+    inventoryReloadDemoSuccess: 'Đã thêm {count} sản phẩm demo.',
+    inventoryReloadDemoNone: 'Sản phẩm demo đã có đủ trong kho. Xóa bớt rồi tải lại nếu muốn.',
+    inventoryReloadDemoFailed: 'Không tải được sản phẩm demo.',
     productStudioOpenButton: 'Đăng sản phẩm',
     productStudioTitle: 'Đăng sản phẩm',
     productStudioManualTab: 'Thủ công',
@@ -5894,6 +5912,10 @@ const VI_DICTIONARY: Dictionary = {
     guestInviteVenueHint: 'Hiển thị cùng tên khách trên thiệp (ví dụ: Đến tại nhà trai).',
     effectsToggleLabel: 'Bật hiệu ứng thiệp',
     effectsToggleDesc: 'Bao gồm: tự động cuộn sau khi mở thiệp, nút nhạc nổi và tự động phát nhạc. Tắt nếu muốn thiệp tĩnh hoàn toàn.',
+    loginGateLead:
+      'Đăng nhập để tạo thiệp cưới AI, xem trước nội dung miễn phí và xuất bản link RSVP cho khách mời.',
+    loginGateHint: 'Chọn phong cách, soạn lời mời tiếng Việt và gửi thiệp điện tử chỉ với một đường dẫn. Chỉ tốn credit khi AI sinh ảnh mới.',
+    loginGateCta: 'Đăng nhập để tạo thiệp',
   },
   weddingCardAiImage: {
     customReferenceLabel: 'Ảnh tham khảo tùy chỉnh (tùy chọn)',
@@ -6525,6 +6547,7 @@ const EN_DICTIONARY: Dictionary = {
     studioEditOverlayHint: 'Tap a layer to move — drag purple corners to resize stickers or inserted images.',
     studioEditTextPlaceholder: 'Text content',
     studioEditTextColor: 'Text color',
+    studioEditColorOk: 'OK',
     studioEditDeleteLayer: 'Delete layer',
     studioEditRevertOriginal: 'Revert to original',
     studioEditReverted: 'Restored original AI image ({screen}).',
@@ -7669,6 +7692,12 @@ const EN_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Download sample Excel',
     inventoryExportExcel: 'Export Excel',
     inventoryImportExcel: 'Import Excel',
+    inventoryReloadDemoProducts: 'Reload demo products',
+    inventoryReloadDemoHint:
+      '10 sample fashion products (3 bags with colors, 3 shoes with colors & sizes, 4 apparel items with colors & sizes). Delete them, then reload anytime.',
+    inventoryReloadDemoSuccess: 'Added {count} demo product(s).',
+    inventoryReloadDemoNone: 'Demo products are already in inventory. Delete some, then reload.',
+    inventoryReloadDemoFailed: 'Could not reload demo products.',
     productStudioOpenButton: 'Add product',
     productStudioTitle: 'Add product',
     productStudioManualTab: 'Manual',
@@ -9031,6 +9060,10 @@ const EN_DICTIONARY: Dictionary = {
     guestInviteVenueHint: 'Shown with the guest name on the card (e.g. At the groom’s family home).',
     effectsToggleLabel: 'Enable invitation effects',
     effectsToggleDesc: 'Includes: auto-scroll after opening, floating music button, and auto-play music. Turn off for a completely static invitation.',
+    loginGateLead:
+      'Sign in to create an AI wedding invitation, preview content for free, and publish an RSVP link for guests.',
+    loginGateHint: 'Pick a style, write the invitation, and share one digital link. Credits are used only when AI generates a new image.',
+    loginGateCta: 'Sign in to create an invitation',
   },
   weddingCardAiImage: {
     customReferenceLabel: 'Custom reference image (optional)',
@@ -9657,6 +9690,7 @@ const ZH_DICTIONARY: Dictionary = {
     studioEditOverlayHint: '点选图层移动 — 拖紫色角缩放贴纸或插入图片。',
     studioEditTextPlaceholder: '文字内容',
     studioEditTextColor: '文字颜色',
+    studioEditColorOk: '确定',
     studioEditDeleteLayer: '删除图层',
     studioEditRevertOriginal: '恢复原图',
     studioEditReverted: '已恢复 AI 原图（{screen}）。',
@@ -10776,6 +10810,12 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: '下载 Excel 模板',
     inventoryExportExcel: '导出 Excel',
     inventoryImportExcel: '导入 Excel',
+    inventoryReloadDemoProducts: '重新加载演示商品',
+    inventoryReloadDemoHint:
+      '10 件时装示例商品（3 个多色包包、3 个多色多码鞋履、4 个多色多码服装）。可删除后再加载。',
+    inventoryReloadDemoSuccess: '已添加 {count} 件演示商品。',
+    inventoryReloadDemoNone: '演示商品已在库存中。删除后再加载即可。',
+    inventoryReloadDemoFailed: '无法加载演示商品。',
     productStudioOpenButton: '发布商品',
     productStudioTitle: '发布商品',
     productStudioManualTab: '手动',
@@ -12066,6 +12106,9 @@ const ZH_DICTIONARY: Dictionary = {
     guestInviteVenueHint: '与宾客姓名一同显示在请柬上（如：于男方家）。',
     effectsToggleLabel: '启用请柬特效',
     effectsToggleDesc: '包括：打开后自动滚动、浮动音乐按钮和自动播放音乐。关闭以获得完全静态的请柬。',
+    loginGateLead: '登录即可用 AI 制作婚礼请柬，免费预览内容，并发布宾客 RSVP 链接。',
+    loginGateHint: '选择风格、撰写邀请词，用一个链接发送电子请柬。仅在 AI 生成新图片时消耗积分。',
+    loginGateCta: '登录后开始制作',
   },
   weddingCardAiImage: {
     customReferenceLabel: '自定义参考图（可选）',
@@ -12690,6 +12733,7 @@ const JA_DICTIONARY: Dictionary = {
     studioEditOverlayHint: 'レイヤーを選択して移動 — 紫の角でステッカー/挿入画像のサイズ変更。',
     studioEditTextPlaceholder: 'テキスト',
     studioEditTextColor: '文字色',
+    studioEditColorOk: 'OK',
     studioEditDeleteLayer: 'レイヤー削除',
     studioEditRevertOriginal: '原寸に戻す',
     studioEditReverted: 'AI原寸画像に戻しました（{screen}）。',
@@ -13843,6 +13887,12 @@ const JA_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Excelテンプレをダウンロード',
     inventoryExportExcel: 'Excelに出力',
     inventoryImportExcel: 'Excelから取込',
+    inventoryReloadDemoProducts: 'デモ商品を再読込',
+    inventoryReloadDemoHint:
+      'ファッションのサンプル商品10点（多色バッグ3、多色・サイズ靴3、多色・サイズ衣類4）。削除してから再読込できます。',
+    inventoryReloadDemoSuccess: 'デモ商品を {count} 件追加しました。',
+    inventoryReloadDemoNone: 'デモ商品はすでに在庫にあります。削除してから再読込してください。',
+    inventoryReloadDemoFailed: 'デモ商品を読み込めませんでした。',
     productStudioOpenButton: '商品を出品',
     productStudioTitle: '商品を出品',
     productStudioManualTab: '手動',
@@ -15173,6 +15223,9 @@ const JA_DICTIONARY: Dictionary = {
     guestInviteVenueHint: 'ゲスト名と一緒に表示（例：新郎側ご自宅）。',
     effectsToggleLabel: '招待状エフェクトを有効にする',
     effectsToggleDesc: '自動スクロール、浮遊音楽ボタン、音楽の自動再生を含みます。完全に静的な招待状にする場合はオフにしてください。',
+    loginGateLead: 'ログインするとAIで結婚式の招待状を作成し、内容を無料でプレビューし、ゲスト向けRSVPリンクを公開できます。',
+    loginGateHint: 'スタイルを選び、招待文を書いて、1つのリンクで電子招待状を送れます。クレジットはAIが新しい画像を生成するときだけ消費されます。',
+    loginGateCta: 'ログインして招待状を作成',
   },
   weddingCardAiImage: {
     customReferenceLabel: 'カスタム参考画像（任意）',
@@ -15802,6 +15855,7 @@ const KO_DICTIONARY: Dictionary = {
     studioEditOverlayHint: '레이어 선택 후 이동 — 보라색 모서리로 스티커/삽입 이미지 크기 조절.',
     studioEditTextPlaceholder: '텍스트 내용',
     studioEditTextColor: '글자 색상',
+    studioEditColorOk: '확인',
     studioEditDeleteLayer: '레이어 삭제',
     studioEditRevertOriginal: '원본으로 되돌리기',
     studioEditReverted: 'AI 원본 이미지로 복원했습니다 ({screen}).',
@@ -16950,6 +17004,12 @@ const KO_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Excel 샘플 받기',
     inventoryExportExcel: 'Excel보내기',
     inventoryImportExcel: 'Excel 가져오기',
+    inventoryReloadDemoProducts: '데모 상품 다시 받기',
+    inventoryReloadDemoHint:
+      '패션 샘플 상품 10개(컬러 가방 3, 컬러·사이즈 신발 3, 컬러·사이즈 의류 4). 삭제한 뒤 다시 받을 수 있습니다.',
+    inventoryReloadDemoSuccess: '데모 상품 {count}개를 추가했습니다.',
+    inventoryReloadDemoNone: '데모 상품이 이미 재고에 있습니다. 삭제한 뒤 다시 받으세요.',
+    inventoryReloadDemoFailed: '데모 상품을 불러오지 못했습니다.',
     productStudioOpenButton: '상품 등록',
     productStudioTitle: '상품 등록',
     productStudioManualTab: '직접 등록',
@@ -18274,6 +18334,9 @@ const KO_DICTIONARY: Dictionary = {
     guestInviteVenueHint: '하객 이름과 함께 청첩장에 표시됩니다 (예: 신랑 측 자택).',
     effectsToggleLabel: '청첩장 효과 켜기',
     effectsToggleDesc: '자동 스크롤, 플로팅 음악 버튼 및 음악 자동 재생이 포함됩니다. 완전히 정적인 청첩장을 원하시면 끄세요.',
+    loginGateLead: '로그인하면 AI 청첩장을 만들고, 내용을 무료로 미리 보고, 하객 RSVP 링크를 게시할 수 있습니다.',
+    loginGateHint: '스타일을 고르고 초대 문구를 작성한 뒤 링크 하나로 전자 청첩장을 보내세요. 크레딧은 AI가 새 이미지를 생성할 때만 사용됩니다.',
+    loginGateCta: '로그인하고 청첩장 만들기',
   },
   weddingCardAiImage: {
     customReferenceLabel: '맞춤 참조 이미지 (선택)',

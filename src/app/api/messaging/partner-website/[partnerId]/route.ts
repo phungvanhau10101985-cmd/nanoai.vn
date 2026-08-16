@@ -9,6 +9,7 @@ import {
   setPartnerWebsitePublishedPg,
   updatePartnerWebsiteDraftPg,
 } from '@/lib/db/messaging-partner-websites-pg'
+import { clearMessagingPartnerLogoUrlPg } from '@/lib/db/messaging-partners-pg'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import { composePartnerWebsiteHtmlAsync } from '@/lib/partner-website/compose-partner-website-html'
@@ -20,9 +21,15 @@ import {
 } from '@/lib/partner-website/partner-website-project'
 import { resolvePartnerWebsitePublicUrl } from '@/lib/partner-website/resolve-partner-website-public-url'
 import {
+  clearBrandLogoInHtml,
+  clearBrandLogoInProject,
   ensureBrandLogoInHtml,
   ensureBrandLogoInProject,
 } from '@/lib/partner-website/partner-website-logo-guard'
+import {
+  applyFirstImageLogoToHtml,
+  applyFirstImageLogoToProject,
+} from '@/lib/partner-website/visual-editor/apply-first-image-logo'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
@@ -34,10 +41,7 @@ import {
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { normalizePartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 import {
-  addVisualCategoryPath,
-  addVisualCmsSlug,
-  addVisualPageKey,
-  addVisualProductId,
+  applyVisualEditThemeFlag,
   categoryVisualHtmlPath,
   cmsVisualHtmlPath,
   normalizeVisualCategoryPath,
@@ -47,8 +51,10 @@ import {
   normalizeVisualPageKeys,
   normalizeVisualProductId,
   normalizeVisualProductIds,
+  parseVisualDeviceVariant,
   preserveAndRecolorVisualPageFiles,
   productVisualHtmlPath,
+  mergeVisualPageHtmlIntoProject,
   visualEditorHtmlPath,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
@@ -134,6 +140,7 @@ export async function PATCH(
       | 'update_floating_cta'
       | 'update_brand'
       | 'update_logo_url'
+      | 'clear_logo'
       | 'update_theme_colors'
       | 'update_shop_home_copy'
       | 'undo_last'
@@ -196,22 +203,28 @@ export async function PATCH(
         ? body.title.trim().slice(0, 120)
         : existing.title
     const logoUrl =
-      typeof body.logoUrl === 'string'
-        ? body.logoUrl.trim() || null
-        : existing.logoUrl
+      body.logoUrl === null || body.logoUrl === ''
+        ? null
+        : typeof body.logoUrl === 'string'
+          ? body.logoUrl.trim() || null
+          : existing.logoUrl
     const nextTheme: PartnerWebsiteTheme = {
       ...existing.theme,
       logoUrl,
     }
     const nextProject = logoUrl
       ? ensureBrandLogoInProject(existing.project, logoUrl, title)
-      : existing.project
+      : clearBrandLogoInProject(existing.project)
     const visualHtml = existing.theme?.useVisualHtml
-      ? ensureBrandLogoInHtml(
-          existing.htmlSource?.trim() || composeStandaloneHtml(nextProject) || '',
-          logoUrl,
-          title
-        )
+      ? logoUrl
+        ? ensureBrandLogoInHtml(
+            existing.htmlSource?.trim() || composeStandaloneHtml(nextProject) || '',
+            logoUrl,
+            title
+          )
+        : clearBrandLogoInHtml(
+            existing.htmlSource?.trim() || composeStandaloneHtml(nextProject) || ''
+          )
       : undefined
     const updated = await updatePartnerWebsiteDraftPg({
       partnerId: pid,
@@ -223,6 +236,7 @@ export async function PATCH(
       changeNote: 'update_brand',
     })
     if (!updated) return NextResponse.json({ error: 'Could not save brand' }, { status: 500 })
+    if (!logoUrl) await clearMessagingPartnerLogoUrlPg(pid)
     const publicUrl = await resolvePartnerWebsitePublicUrl({
       partnerId: pid,
       siteSlug: updated.siteSlug,
@@ -230,6 +244,36 @@ export async function PATCH(
       req,
     })
     return NextResponse.json({ success: true, website: updated, publicUrl })
+  }
+
+  if (body.action === 'clear_logo') {
+    const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
+    if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
+    const nextTheme: PartnerWebsiteTheme = {
+      ...existing.theme,
+      logoUrl: null,
+    }
+    const nextProject = clearBrandLogoInProject(existing.project)
+    const visualHtml = clearBrandLogoInHtml(
+      existing.htmlSource?.trim() || composeStandaloneHtml(nextProject) || ''
+    )
+    const updated = await updatePartnerWebsiteDraftPg({
+      partnerId: pid,
+      logoUrl: null,
+      theme: nextTheme,
+      project: nextProject,
+      htmlSource: visualHtml,
+      changeNote: 'clear_logo',
+    })
+    if (!updated) return NextResponse.json({ error: 'Could not remove logo' }, { status: 500 })
+    await clearMessagingPartnerLogoUrlPg(pid)
+    const publicUrl = await resolvePartnerWebsitePublicUrl({
+      partnerId: pid,
+      siteSlug: updated.siteSlug,
+      isPublished: updated.isPublished,
+      req,
+    })
+    return NextResponse.json({ success: true, website: { ...updated, logoUrl: null }, publicUrl })
   }
 
   if (body.action === 'update_logo_url') {
@@ -243,11 +287,16 @@ export async function PATCH(
       ...existing.theme,
       logoUrl,
     }
+    const nextProject = applyFirstImageLogoToProject(existing.project, logoUrl, existing.title)
+    const nextHtmlSource = existing.htmlSource
+      ? applyFirstImageLogoToHtml(existing.htmlSource, logoUrl, existing.title)
+      : existing.htmlSource
     const updated = await updatePartnerWebsiteDraftPg({
       partnerId: pid,
       logoUrl,
       theme: nextTheme,
-      htmlSource: existing.htmlSource,
+      project: nextProject,
+      htmlSource: nextHtmlSource,
       skipRevision: true,
       changeNote: 'update_logo_url',
     })
@@ -272,7 +321,8 @@ export async function PATCH(
     const visualHtml = existing.theme?.useVisualHtml
       ? rewriteThemeCssVarsInHtml(
           existing.htmlSource?.trim() || composeStandaloneHtml(existing.project) || '',
-          nextTheme
+          nextTheme,
+          existing.theme
         )
       : undefined
     const syncedProject =
@@ -287,14 +337,19 @@ export async function PATCH(
       previous: existing.project,
       next: syncedProject,
       theme: nextTheme,
+      previousTheme: existing.theme,
       visualPageKeys: normalizeVisualPageKeys(existing.theme.visualPageKeys),
       visualMobilePageKeys: normalizeVisualPageKeys(existing.theme.visualMobilePageKeys),
+      visualTabletPageKeys: normalizeVisualPageKeys(existing.theme.visualTabletPageKeys),
       visualCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualCategoryPaths),
       visualMobileCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualMobileCategoryPaths),
+      visualTabletCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualTabletCategoryPaths),
       visualProductIds: normalizeVisualProductIds(existing.theme.visualProductIds),
       visualMobileProductIds: normalizeVisualProductIds(existing.theme.visualMobileProductIds),
+      visualTabletProductIds: normalizeVisualProductIds(existing.theme.visualTabletProductIds),
       visualCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualCmsSlugs),
       visualMobileCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualMobileCmsSlugs),
+      visualTabletCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualTabletCmsSlugs),
     })
     const updated = await updatePartnerWebsiteDraftPg({
       partnerId: pid,
@@ -440,7 +495,7 @@ export async function PATCH(
     body.visualEdited === true
       ? normalizePartnerWebsitePageKey(body.visualPageKey ?? 'home')
       : 'home'
-  const visualDevice = body.visualDevice === 'mobile' ? 'mobile' : 'desktop'
+  const visualDevice = parseVisualDeviceVariant(body.visualDevice)
   const visualCategoryPath =
     body.visualEdited === true && typeof body.visualCategoryPath === 'string'
       ? normalizeVisualCategoryPath(body.visualCategoryPath)
@@ -463,73 +518,13 @@ export async function PATCH(
   const isDynamicVisualTarget = Boolean(visualProductId || visualCmsSlug || visualCategoryPath)
   const theme =
     body.visualEdited === true
-      ? visualProductId
-        ? visualDevice === 'mobile'
-          ? {
-              ...existing.theme,
-              visualMobileProductIds: addVisualProductId(
-                normalizeVisualProductIds(existing.theme.visualMobileProductIds),
-                visualProductId
-              ),
-            }
-          : {
-              ...existing.theme,
-              visualProductIds: addVisualProductId(
-                normalizeVisualProductIds(existing.theme.visualProductIds),
-                visualProductId
-              ),
-            }
-        : visualCmsSlug
-          ? visualDevice === 'mobile'
-            ? {
-                ...existing.theme,
-                visualMobileCmsSlugs: addVisualCmsSlug(
-                  normalizeVisualCmsSlugs(existing.theme.visualMobileCmsSlugs),
-                  visualCmsSlug
-                ),
-              }
-            : {
-                ...existing.theme,
-                visualCmsSlugs: addVisualCmsSlug(
-                  normalizeVisualCmsSlugs(existing.theme.visualCmsSlugs),
-                  visualCmsSlug
-                ),
-              }
-          : visualCategoryPath
-            ? visualDevice === 'mobile'
-              ? {
-                  ...existing.theme,
-                  visualMobileCategoryPaths: addVisualCategoryPath(
-                    normalizeVisualCategoryPaths(existing.theme.visualMobileCategoryPaths),
-                    visualCategoryPath
-                  ),
-                }
-              : {
-                  ...existing.theme,
-                  visualCategoryPaths: addVisualCategoryPath(
-                    normalizeVisualCategoryPaths(existing.theme.visualCategoryPaths),
-                    visualCategoryPath
-                  ),
-                }
-            : visualDevice === 'mobile'
-              ? visualPageKey === 'home'
-                ? { ...existing.theme, useVisualMobileHtml: true as const }
-                : {
-                    ...existing.theme,
-                    visualMobilePageKeys: addVisualPageKey(
-                      normalizeVisualPageKeys(existing.theme.visualMobilePageKeys),
-                      visualPageKey
-                    ),
-                  }
-              : visualPageKey === 'home'
-                ? { ...existing.theme, useVisualHtml: true as const }
-                : {
-                    ...existing.theme,
-                    visualPageKeys: addVisualPageKey(
-                      normalizeVisualPageKeys(existing.theme.visualPageKeys),
-                      visualPageKey
-                    ),
-                  }
+      ? applyVisualEditThemeFlag(existing.theme, {
+          pageKey: visualPageKey,
+          variant: visualDevice,
+          categoryPath: visualCategoryPath,
+          productId: visualProductId,
+          cmsSlug: visualCmsSlug,
+        })
       : undefined
   const visualHtmlExact =
     body.visualEdited === true &&
@@ -547,16 +542,10 @@ export async function PATCH(
         ? body.htmlSource.trim()
         : project?.files.find((f) => f.path === htmlPath && f.kind === 'html')?.content
       : undefined
+  const targetVisualHtml = (visualHtmlExact || pageHtmlExact || '').trim()
   const projectToSave =
-    pageHtmlExact && project
-      ? {
-          ...project,
-          files: project.files.some((f) => f.path === htmlPath && f.kind === 'html')
-            ? project.files.map((f) =>
-                f.path === htmlPath && f.kind === 'html' ? { ...f, content: pageHtmlExact } : f
-              )
-            : [...project.files, { path: htmlPath, kind: 'html' as const, content: pageHtmlExact }],
-        }
+    body.visualEdited === true && targetVisualHtml.length >= 40
+      ? mergeVisualPageHtmlIntoProject(existing.project, targetVisualHtml, htmlPath)
       : project
 
   const updated = await updatePartnerWebsiteDraftPg({

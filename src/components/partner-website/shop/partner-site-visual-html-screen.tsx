@@ -4,6 +4,8 @@ import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-heade
 import type { PartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 import type { PartnerWebsitePublicRow } from '@/lib/partner-website/partner-website-types'
 import { injectPartnerCustomDomainLinkRewriteScript } from '@/lib/partner-website/shop/inject-partner-custom-domain-link-script'
+import { injectPartnerLogoHomeLinkScript } from '@/lib/partner-website/shop/inject-partner-logo-home-link'
+import { injectPartnerShopRuntimeScriptsIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import {
   resolvePublicVisualCategoryHtml,
@@ -22,7 +24,14 @@ export function PartnerSiteVisualHtmlScreen({
 }) {
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
-  const laidOut = injectPartnerShopChromeLayoutCss(html)
+  const laidOut = injectPartnerLogoHomeLinkScript(
+    injectPartnerShopRuntimeScriptsIntoHtml(injectPartnerShopChromeLayoutCss(html), {
+      siteSlug: site.siteSlug,
+      locale: site.locale,
+    }),
+    site.siteSlug,
+    onCustomDomain
+  )
   const publicHtml = onCustomDomain
     ? injectPartnerCustomDomainLinkRewriteScript(laidOut, site.siteSlug)
     : laidOut

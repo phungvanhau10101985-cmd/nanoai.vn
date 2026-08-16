@@ -29,6 +29,7 @@ import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/par
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { JsonLd } from '@/components/seo-json-ld'
 import { maybePartnerSiteVisualCategoryPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
+import { PW_EL, PW_PAGE, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = { params: Promise<{ slug: string; path: string[] }> }
 
@@ -163,35 +164,36 @@ export default async function PartnerSiteCategoryPage({ params }: Props) {
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
       activeNav="products"
+      pageKind={PW_PAGE.listing}
     >
       <JsonLd data={breadcrumbJsonLd} />
       <JsonLd data={collectionPageJsonLd} />
-      <nav className="pw-shop-breadcrumb" aria-label="Breadcrumb">
-        <Link href={partnerSiteHomePath(shop.site.siteSlug)}>{t.navHome}</Link>
+      <nav className="pw-shop-breadcrumb" data-pw-region={PW_REGION.breadcrumb} aria-label="Breadcrumb">
+        <Link href={partnerSiteHomePath(shop.site.siteSlug)} data-pw-el={PW_EL.crumb}>{t.navHome}</Link>
         {ancestors.map((a) => (
           <span key={a.id}>
             {' / '}
-            <Link href={partnerSiteCategoryPath(shop.site.siteSlug, a.path)}>
+            <Link href={partnerSiteCategoryPath(shop.site.siteSlug, a.path)} data-pw-el={PW_EL.crumb}>
               {resolvePartnerCategoryDisplayName(a, locale)}
             </Link>
           </span>
         ))}
-        <span>{' / '}{categoryName}</span>
+        <span data-pw-el={PW_EL.crumb}>{' / '}{categoryName}</span>
       </nav>
 
       {category.imageUrl ? (
         <div className="pw-shop-category-banner">
           <img src={category.imageUrl} alt={categoryName} />
-          <h1>{categoryName}</h1>
+          <h1 data-pw-el={PW_EL.sectionTitle}>{categoryName}</h1>
         </div>
       ) : (
-        <h1>{categoryName}</h1>
+        <h1 data-pw-el={PW_EL.sectionTitle}>{categoryName}</h1>
       )}
       {categoryDescription ? <p className="pw-shop-muted">{categoryDescription}</p> : null}
 
       {children.length > 0 ? (
-        <section style={{ marginTop: 20 }}>
-          <h2 style={{ fontSize: '0.95rem', fontWeight: 600 }}>{t.categorySubcategoriesLabel}</h2>
+        <section style={{ marginTop: 20 }} data-pw-region={PW_REGION.categories}>
+          <h2 style={{ fontSize: '0.95rem', fontWeight: 600 }} data-pw-el={PW_EL.sectionTitle}>{t.categorySubcategoriesLabel}</h2>
           <div className="pw-shop-category-tiles">
             {children.map((child) => {
               const childName = resolvePartnerCategoryDisplayName(child, locale)
@@ -201,13 +203,14 @@ export default async function PartnerSiteCategoryPage({ params }: Props) {
                   key={child.id}
                   href={partnerSiteCategoryPath(shop.site.siteSlug, child.path)}
                   className="pw-shop-category-tile"
+                  data-pw-el={PW_EL.card}
                 >
                   {child.imageUrl ? (
-                    <img src={child.imageUrl} alt={childName} loading="lazy" />
+                    <img src={child.imageUrl} alt={childName} loading="lazy" data-pw-el={PW_EL.cardMedia} />
                   ) : (
-                    <span className="pw-shop-category-tile-placeholder" />
+                    <span className="pw-shop-category-tile-placeholder" data-pw-el={PW_EL.cardMedia} />
                   )}
-                  <span className="pw-shop-category-tile-name">{childName}</span>
+                  <span className="pw-shop-category-tile-name" data-pw-el={PW_EL.cardName}>{childName}</span>
                   {count > 0 ? <span className="pw-shop-category-tile-count">{count}</span> : null}
                 </Link>
               )

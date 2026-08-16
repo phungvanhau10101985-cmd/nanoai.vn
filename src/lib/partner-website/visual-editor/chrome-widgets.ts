@@ -33,6 +33,9 @@ function escapeHtml(value: string): string {
 export const VISUAL_EDITOR_CHROME_WIDGET_KINDS = [
   'home',
   'products',
+  'categories',
+  'search',
+  'search-image',
   'sale',
   'cart',
   'wishlist',
@@ -81,6 +84,9 @@ export type VisualEditorChromeWidgetPickerGroupId = VisualEditorChromeWidgetPlac
 export const VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS: VisualEditorChromeWidgetKind[] = [
   'home',
   'products',
+  'categories',
+  'search',
+  'search-image',
   'sale',
   'cart',
   'wishlist',
@@ -127,6 +133,11 @@ const SVG: Partial<Record<VisualEditorChromeWidgetKind, string>> = {
   home: chromeSvg('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/>'),
   products: chromeSvg(
     '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>'
+  ),
+  categories: chromeSvg('<path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/>'),
+  search: chromeSvg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
+  'search-image': chromeSvg(
+    '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>'
   ),
   sale: chromeSvg('<path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'),
   wishlist: chromeSvg(
@@ -238,7 +249,9 @@ export function chromeWidgetAppearance(
 export function chromeWidgetHref(kind: VisualEditorChromeWidgetKind, siteSlug: string): string {
   const slug = siteSlug.trim()
   if (kind === 'home') return partnerSiteHomePath(slug)
-  if (kind === 'products') return partnerSiteProductsPath(slug)
+  if (kind === 'products' || kind === 'categories' || kind === 'search' || kind === 'search-image') {
+    return partnerSiteProductsPath(slug)
+  }
   if (kind === 'sale') return partnerSiteInfoPath(slug, 'sale')
   if (kind === 'wishlist' || kind === 'favorites-link') return partnerSiteWishlistPath(slug)
   if (kind === 'recently-viewed') return partnerSiteRecentlyViewedPath(slug)
@@ -273,6 +286,9 @@ export function chromeWidgetLabel(kind: VisualEditorChromeWidgetKind, locale: We
   const nav = getPartnerSiteCategoryNavLabels(locale)
   if (kind === 'home') return shop.navHome
   if (kind === 'products') return shop.navProducts
+  if (kind === 'categories') return shop.navCategories
+  if (kind === 'search') return shop.searchPlaceholder.replace(/[.…]+$/, '').trim() || shop.searchPlaceholder
+  if (kind === 'search-image') return shop.searchByImage
   if (kind === 'sale') return nav.sale
   if (kind === 'wishlist' || kind === 'favorites-link') return shop.navFavorites
   if (kind === 'recently-viewed') return shop.navRecentlyViewed
@@ -314,17 +330,54 @@ export function buildVisualEditorChromeWidgetHtml(input: {
   if (!slug) return ''
   const kind = input.kind
   const style = input.style
-  const href = escapeAttr(chromeWidgetHref(kind, slug))
   const label = chromeWidgetLabel(kind, input.locale)
   const labelAttr = escapeAttr(label)
+  const placeAttr = input.place ? ` data-pw-chrome-place="${input.place}"` : ''
+  if (kind === 'search') {
+    const shop = getPartnerSiteShopCopy(input.locale)
+    const ph = escapeAttr(shop.searchPlaceholder)
+    const imgLabel = escapeAttr(shop.searchByImage)
+    const btnAttr = escapeAttr(shop.searchButton)
+    const cameraSvg = SVG['search-image'] || ''
+    return `<div class="pw-shop-search-wrap pw-header-search" data-pw-el="search" data-pw-chrome-added="1"${placeAttr} draggable="false"><form class="pw-shop-search-form pw-search-form" data-pw-search-form role="search"><input data-pw-search type="search" name="q" placeholder="${ph}" aria-label="${ph}" autocomplete="off"/><button type="button" class="pw-shop-search-image pw-search-image-btn" data-pw-image-search aria-label="${imgLabel}" title="${imgLabel}"><span class="pw-chrome-icon-wrap">${cameraSvg}</span></button><button type="submit" class="pw-shop-search-submit pw-search-submit" aria-label="${btnAttr}"><span class="pw-shop-search-submit-label">${escapeHtml(shop.searchButton)}</span></button></form></div>`
+  }
+  if (kind === 'search-image') {
+    const svg = SVG['search-image'] || ''
+    const appearance = chromeWidgetAppearance(kind, style)
+    if (appearance === 'link') {
+      return `<button type="button" class="pw-shop-search-image pw-search-image-btn pw-chrome-link" data-pw-image-search="1" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>`
+    }
+    const withLabel = style !== 'icon'
+    const styleClass = withLabel ? 'pw-chrome-has-label' : 'pw-chrome-icon-only'
+    const styleAttr = withLabel ? 'icon-label' : 'icon'
+    const labelHtml = withLabel
+      ? `<span class="pw-shop-nav-label pw-chrome-btn-label">${escapeHtml(label)}</span>`
+      : ''
+    return `<button type="button" class="pw-shop-search-image pw-search-image-btn pw-icon-btn pw-shop-icon-btn ${styleClass}" data-pw-image-search="1" data-pw-chrome-added="1" data-pw-chrome-style="${styleAttr}"${placeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>`
+  }
+  if (kind === 'categories') {
+    const svg = SVG.categories || ''
+    const appearance = chromeWidgetAppearance(kind, style)
+    if (appearance === 'link') {
+      return `<button type="button" class="pw-shop-cat-btn pw-chrome-link" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>`
+    }
+    const withLabel = style !== 'icon'
+    const styleClass = withLabel ? 'pw-chrome-has-label' : 'pw-chrome-icon-only'
+    const styleAttr = withLabel ? 'icon-label' : 'icon'
+    const labelHtml = withLabel
+      ? `<span class="pw-shop-nav-label pw-chrome-btn-label">${escapeHtml(label)}</span>`
+      : ''
+    return `<button type="button" class="pw-shop-cat-btn pw-icon-btn pw-shop-icon-btn ${styleClass}" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-added="1" data-pw-chrome-style="${styleAttr}"${placeAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>`
+  }
+  const href = escapeAttr(chromeWidgetHref(kind, slug))
   const isChat = kind === 'chat'
   const chatAttr = isChat ? ' data-nanoai-open-chat' : ''
-  const placeAttr = input.place ? ` data-pw-chrome-place="${input.place}"` : ''
   const openTag = isChat
     ? `<button type="button" class="`
     : `<a class="`
   const closeTag = isChat ? '</button>' : '</a>'
   const hrefAttr = isChat ? '' : ` href="${href}"`
+  const countAttr = ICON_BADGE_KINDS.has(kind) ? ' data-pw-chrome-count="1"' : ''
   if (chromeWidgetAppearance(kind, style) === 'link') {
     return `${openTag}pw-chrome-link${isChat ? ' pw-chat-open' : ''}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr}${hrefAttr}${chatAttr} draggable="false">${escapeHtml(label)}${closeTag}`
   }
@@ -340,5 +393,5 @@ export function buildVisualEditorChromeWidgetHtml(input: {
     : ''
   const iconHtml = `<span class="pw-chrome-icon-wrap">${svg}${badge}</span>`
   const chatClass = isChat ? ' pw-chat-open' : ''
-  return `${openTag}pw-icon-btn pw-shop-icon-btn ${styleClass}${chatClass}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="${styleAttr}"${placeAttr}${hrefAttr}${chatAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${iconHtml}${labelHtml}${closeTag}`
+  return `${openTag}pw-icon-btn pw-shop-icon-btn ${styleClass}${chatClass}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="${styleAttr}"${countAttr}${placeAttr}${hrefAttr}${chatAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${iconHtml}${labelHtml}${closeTag}`
 }

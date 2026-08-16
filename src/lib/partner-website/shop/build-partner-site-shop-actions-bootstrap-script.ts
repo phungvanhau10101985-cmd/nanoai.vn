@@ -7,6 +7,7 @@ import {
   partnerSiteProductApiPath,
   partnerSiteProductPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_CHROME_COUNT_BADGE_RUNTIME_JS } from '@/lib/partner-website/shop/chrome-count-badges'
 
 const COPY: Record<
   WebLocale,
@@ -249,16 +250,7 @@ function pinChromeIconBadges(){
     if(badge.parentNode!==wrap)wrap.appendChild(badge);
   }
 }
-function setChromeBadge(sel, n){
-  document.querySelectorAll(sel).forEach(function(el){
-    var b=el.querySelector('[data-pw-chrome-badge],.pw-cart-badge');
-    if(!b)return;
-    var count=Math.max(0,Number(n)||0);
-    if(!count){b.setAttribute('hidden','');b.textContent='0';return;}
-    b.removeAttribute('hidden');
-    b.textContent=count>99?'99+':String(count);
-  });
-}
+${PW_CHROME_COUNT_BADGE_RUNTIME_JS}
 function cartQty(items){
   if(!Array.isArray(items))return 0;
   var n=0;
@@ -267,27 +259,43 @@ function cartQty(items){
 }
 function hydrateChromeBadges(){
   pinChromeIconBadges();
+  pwStampChromeCountKinds(document);
+  var got={cart:0,notifications:0,recently:0,wishlist:0};
+  var pending=4;
+  function finish(){
+    pending-=1;
+    if(pending>0)return;
+    if(pwIsAdminChromePreview()&&!got.cart&&!got.notifications&&!got.recently){
+      pwApplyDemoChromeCountBadges(document);
+    }
+  }
   apiFetch(CART_API).then(function(res){
-    if(!res.ok)return;
-    setChromeBadge('[data-pw-chrome-btn="cart"],a.pw-icon-btn[href*="/cart"]', cartQty(res.j&&res.j.items));
-  }).catch(function(){});
+    if(res.ok){
+      got.cart=cartQty(res.j&&res.j.items);
+      pwSetChromeCountBadgeByKind('cart',got.cart);
+    }
+  }).catch(function(){}).then(finish);
   apiFetch(FAV_API).then(function(res){
-    if(!res.ok)return;
-    var n=(res.j&&typeof res.j.count==='number')?res.j.count:((res.j&&res.j.products)||[]).length;
-    setChromeBadge('[data-pw-chrome-btn="wishlist"]', n);
-  }).catch(function(){});
+    if(res.ok){
+      got.wishlist=(res.j&&typeof res.j.count==='number')?res.j.count:((res.j&&res.j.products)||[]).length;
+      pwSetChromeCountBadgeByKind('wishlist',got.wishlist);
+    }
+  }).catch(function(){}).then(finish);
   apiFetch(RECENT_API).then(function(res){
-    if(!res.ok)return;
-    var n=((res.j&&res.j.products)||[]).length;
-    setChromeBadge('[data-pw-chrome-btn="recently-viewed"]', n);
-  }).catch(function(){});
+    if(res.ok){
+      got.recently=(res.j&&typeof res.j.count==='number')?res.j.count:((res.j&&res.j.products)||[]).length;
+      pwSetChromeCountBadgeByKind('recently-viewed',got.recently);
+    }
+  }).catch(function(){}).then(finish);
   apiFetch(NOTIF_API).then(function(res){
-    if(!res.ok)return;
-    var n=(res.j&&typeof res.j.unreadCount==='number')?res.j.unreadCount:0;
-    setChromeBadge('[data-pw-chrome-btn="notifications"]', n);
-  }).catch(function(){});
+    if(res.ok){
+      got.notifications=(res.j&&typeof res.j.unreadCount==='number')?res.j.unreadCount:0;
+      pwSetChromeCountBadgeByKind('notifications',got.notifications);
+    }
+  }).catch(function(){}).then(finish);
 }
 document.addEventListener('pw-cart-updated', hydrateChromeBadges);
+document.addEventListener('pw-shop-notifications-refresh', hydrateChromeBadges);
 function run(){enhanceCards();hydrateChromeBadges();
   var obs=typeof MutationObserver!=='undefined'?new MutationObserver(function(){enhanceCards();}):null;
   if(obs)obs.observe(document.documentElement,{childList:true,subtree:true});

@@ -12,7 +12,23 @@ import { buildHubFeatureCatalog, studioFeatureKey } from '@/lib/hub-chat/hub-fea
 test('matchFeatureFlowByMessage prefers studio preset over standalone href', () => {
   const match = matchFeatureFlowByMessage('tạo giao diện web cho spa', 'vi')
   assert.equal(match?.kind, 'studio')
-  if (match?.kind === 'studio') assert.equal(match.presetId, 'landing_page')
+  if (match?.kind === 'studio') assert.equal(match.presetId, 'mobile_shop')
+})
+
+test('tạo web and thiết kế web app start mobile_shop not landing_page', () => {
+  for (const phrase of ['tạo web', 'Tạo giao diện web', 'thiết kế web app', 'studio flow tạo web']) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'studio', phrase)
+    if (match?.kind === 'studio') assert.equal(match.presetId, 'mobile_shop', phrase)
+  }
+})
+
+test('explicit landing / ladipage phrases start landing_page', () => {
+  for (const phrase of ['tạo landing page', 'tạo ladipage', 'thiết kế landing', 'tạo ladipge']) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'studio', phrase)
+    if (match?.kind === 'studio') assert.equal(match.presetId, 'landing_page', phrase)
+  }
 })
 
 test('matchFeatureFlowByMessage resolves standalone restore image tool', () => {
@@ -53,6 +69,12 @@ test('banner quảng cáo maps to sale_banner studio not standalone page', () =>
 test('standalone catalog excludes tools replaced by studio presets', () => {
   const entries = buildStandaloneFeatureEntries('vi')
   assert.ok(!entries.some((e) => e.href === '/tao-banner'))
+})
+
+test('thiết kế hộp giấy maps to packaging_kit studio not a dead redirect', () => {
+  const match = matchFeatureFlowByMessage('thiết kế hộp giấy', 'vi')
+  assert.equal(match?.kind, 'studio')
+  if (match?.kind === 'studio') assert.equal(match.presetId, 'packaging_kit')
 })
 
 test('standalone catalog covers nav tools and advisory extras', () => {

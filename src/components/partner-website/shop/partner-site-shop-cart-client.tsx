@@ -23,6 +23,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PartnerSiteShopAuthPanel } from '@/components/partner-website/shop/partner-site-shop-auth-panel'
 import { PartnerSiteShopOrderConfirmation } from '@/components/partner-website/shop/partner-site-shop-order-confirmation'
+import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
   siteSlug: string
@@ -314,24 +315,25 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
 
   return (
     <div>
-      <h1>{t.cartTitle}</h1>
+      <section className="pw-shop-cart-list" data-pw-region={PW_REGION.cartList}>
+      <h1 data-pw-el={PW_EL.sectionTitle}>{t.cartTitle}</h1>
       {loading ? <p className="pw-shop-muted">…</p> : null}
       {!loading && items.length === 0 ? (
-        <p className="pw-shop-muted">
+        <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>
           {t.cartEmpty}{' '}
           <Link href={partnerSiteProductsPath(siteSlug, { customDomain })}>{t.backToShop}</Link>
         </p>
       ) : null}
       <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
         {items.map((item) => (
-          <div key={item.id} className="pw-shop-cart-row">
-            <img src={item.card.image_url} alt={item.card.name} />
+          <div key={item.id} className="pw-shop-cart-row" data-pw-el={PW_EL.line}>
+            <img src={item.card.image_url} alt={item.card.name} data-pw-el={PW_EL.cardMedia} />
             <div>
-              <strong>{item.card.name}</strong>
-              {item.card.price_hint ? <p className="pw-shop-price">{item.card.price_hint}</p> : null}
+              <strong data-pw-el={PW_EL.cardName}>{item.card.name}</strong>
+              {item.card.price_hint ? <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>{item.card.price_hint}</p> : null}
               {item.color ? <p className="pw-shop-muted">{t.colorLabel}: {item.color}</p> : null}
               {item.size ? <p className="pw-shop-muted">{t.sizeLabel}: {item.size}</p> : null}
-              <label style={{ display: 'grid', gap: 4, marginTop: 8, maxWidth: 80 }}>
+              <label style={{ display: 'grid', gap: 4, marginTop: 8, maxWidth: 80 }} data-pw-el={PW_EL.qty}>
                 {t.quantity}
                 <input
                   type="number"
@@ -348,6 +350,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
             <button
               type="button"
               className="pw-shop-btn pw-shop-btn-outline"
+              data-pw-el={PW_EL.remove}
               onClick={() => void saveItems(items.filter((x) => x.id !== item.id))}
             >
               {t.cartRemove}
@@ -355,12 +358,13 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
           </div>
         ))}
       </div>
+      </section>
       {items.length > 0 ? (
-        <div style={{ marginTop: 24 }}>
-          <p>
+        <div className="pw-shop-cart-summary" data-pw-region={PW_REGION.cartSummary} style={{ marginTop: 24 }}>
+          <p data-pw-el={PW_EL.price}>
             {t.cartSubtotal}: {formatVnd(subtotal)}
           </p>
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 12 }} data-pw-el={PW_EL.coupon}>
             <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>{t.cartPromoLabel}</label>
             {appliedPromo ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -405,7 +409,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
               ? ` — ${t.cartShippingFreeThresholdHint.replace('{amount}', formatVnd(shippingPolicy.freeThresholdAmount))}`
               : ''}
           </p>
-          <p style={{ marginTop: 8, fontWeight: 700 }}>
+          <p style={{ marginTop: 8, fontWeight: 700 }} data-pw-el={PW_EL.price}>
             {t.cartTotalLabel}: {formatVnd(orderTotal)}
           </p>
           {ewalletAvailable ? (
@@ -434,29 +438,29 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
               <p className="pw-shop-muted" style={{ marginTop: 4, fontSize: 12 }}>{t.checkoutPaymentMethodHint}</p>
             </div>
           ) : null}
-          <div className="pw-shop-form" style={{ marginTop: 20 }}>
+          <div className="pw-shop-form" data-pw-region={PW_REGION.form} style={{ marginTop: 20 }}>
             {!checkoutLoginRequired ? (
               <p className="pw-shop-muted" style={{ marginBottom: 12 }}>
                 {t.checkoutGuestHint}
               </p>
             ) : null}
-            <label>
+            <label data-pw-el={PW_EL.label}>
               {t.checkoutName}
-              <input value={orderName} onChange={(e) => setOrderName(e.target.value)} />
+              <input value={orderName} onChange={(e) => setOrderName(e.target.value)} data-pw-el={PW_EL.field} />
             </label>
-            <label>
+            <label data-pw-el={PW_EL.label}>
               {t.checkoutPhone}
-              <input value={orderPhone} onChange={(e) => setOrderPhone(e.target.value)} />
+              <input value={orderPhone} onChange={(e) => setOrderPhone(e.target.value)} data-pw-el={PW_EL.field} />
             </label>
-            <label>
+            <label data-pw-el={PW_EL.label}>
               {t.checkoutAddress}
-              <textarea rows={3} value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} />
+              <textarea rows={3} value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} data-pw-el={PW_EL.field} />
             </label>
-            <label>
+            <label data-pw-el={PW_EL.label}>
               {t.checkoutNote}
-              <textarea rows={2} value={orderNote} onChange={(e) => setOrderNote(e.target.value)} />
+              <textarea rows={2} value={orderNote} onChange={(e) => setOrderNote(e.target.value)} data-pw-el={PW_EL.field} />
             </label>
-            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={checkoutBusy} onClick={() => void checkout()}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={checkoutBusy} onClick={() => void checkout()} data-pw-el={PW_EL.checkout}>
               {checkoutBusy ? t.cartCheckingOut : t.cartCheckout}
             </button>
             {status && !needsAuth ? <p className="pw-shop-muted">{status}</p> : null}

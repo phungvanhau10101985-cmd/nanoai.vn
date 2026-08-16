@@ -11,7 +11,7 @@ export const metadata: Metadata = buildMetadata({
   title: 'Danh sách khách mời thiệp cưới',
   description: 'Quản lý khách mời, trạng thái tham dự và link thiệp cá nhân cho từng khách.',
   path: '/tao-thiep-moi-cuoi-ai/khach-moi',
-  keywords: ['danh sách khách mời cưới', 'wedding guest list', 'link thiệp cá nhân'],
+  noIndex: true,
 })
 
 type Props = {

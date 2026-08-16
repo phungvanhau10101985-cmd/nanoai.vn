@@ -61,7 +61,10 @@ type Props = {
   domainSlot?: ReactNode
   onCollapse?: () => void
   onLiveThemeChange?: (theme: PartnerWebsiteTheme) => void
-  onThemePersisted?: (theme: PartnerWebsiteTheme) => void
+  onThemePersisted?: (
+    theme: PartnerWebsiteTheme,
+    extras?: { htmlSource?: string | null; project?: unknown }
+  ) => void
 }
 
 function StudioBuildProgressList({
@@ -208,7 +211,7 @@ export function PartnerWebsiteCreationJournalPanel({
   const [templateLibraryOpen, setTemplateLibraryOpen] = useState(true)
   const { saving: themeSaving, schedule: scheduleThemeSave } = useDebouncedThemeSave(
     partnerId,
-    (savedTheme) => onThemePersisted?.(savedTheme),
+    (savedTheme, extras) => onThemePersisted?.(savedTheme, extras),
     () => onError(t.themeColorSaveError)
   )
   const shopPresets = useMemo(() => listShopTemplatePresets(), [])
@@ -308,7 +311,7 @@ export function PartnerWebsiteCreationJournalPanel({
         body: JSON.stringify({
           action: 'update_brand',
           title: brand,
-          logoUrl: nextLogoUrl.trim() || null,
+          logoUrl: nextLogoUrl.trim(),
         }),
       })
       const json = (await res.json().catch(() => ({}))) as {
@@ -324,6 +327,33 @@ export function PartnerWebsiteCreationJournalPanel({
       onError(e instanceof Error ? e.message : t.setupBrandSaveError)
     } finally {
       setBrandSaving(false)
+    }
+  }
+
+  async function handleLogoRemove() {
+    onLogoUrlChange('')
+    if (!partnerId || !website) return
+    setLogoUploadBusy(true)
+    try {
+      const res = await fetch(`/api/messaging/partner-website/${encodeURIComponent(partnerId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear_logo' }),
+      })
+      const json = (await res.json().catch(() => ({}))) as {
+        website?: PartnerWebsiteRow
+        error?: string
+      }
+      if (!res.ok || !json.website) {
+        onError(json.error || t.setupBrandSaveError)
+        return
+      }
+      onLogoUrlChange('')
+      onWebsiteRefresh?.({ ...json.website, logoUrl: null })
+    } catch (e) {
+      onError(e instanceof Error ? e.message : t.setupBrandSaveError)
+    } finally {
+      setLogoUploadBusy(false)
     }
   }
 
@@ -385,7 +415,12 @@ export function PartnerWebsiteCreationJournalPanel({
 
   async function applyTemplate(presetId: ShopTemplatePresetId = selectedPresetId) {
     if (busy || disabled) return
-    if (homeBuilt && !window.confirm(t.setupChangeTemplateConfirm)) return
+    if (homeBuilt) {
+      const resetting = Boolean(appliedPresetId && presetId === appliedPresetId)
+      if (!window.confirm(resetting ? t.setupResetTemplateConfirm : t.setupChangeTemplateConfirm)) {
+        return
+      }
+    }
     setSelectedPresetId(presetId)
     setBuildingSite(true)
     setBusy(true)
@@ -587,10 +622,7 @@ export function PartnerWebsiteCreationJournalPanel({
                   size="sm"
                   className="h-8 px-2 text-xs"
                   disabled={controlsDisabled || logoUploadBusy}
-                  onClick={() => {
-                    onLogoUrlChange('')
-                    if (website) void saveBrand('')
-                  }}
+                  onClick={() => void handleLogoRemove()}
                 >
                   {t.logoRemove}
                 </Button>

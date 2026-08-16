@@ -1,12 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlignCenter, AlignLeft, AlignRight, ArrowLeft, Bell, Bold, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Download, ExternalLink, Eye, EyeOff, FileText, Heart, Home, ImagePlus, Images, Info, LayoutTemplate, Loader2, Lock, LogIn, MapPin, MessageCircle, MousePointerClick, Newspaper, Package, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Shield, ShoppingBag, Sparkles, Store, Tag, Trash2, Truck, Type, Undo2, User, Wallet, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowLeft, ArrowUp, Bell, Bold, Camera, ChevronsDown, ChevronsUp, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutTemplate, Loader2, Lock, LogIn, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Shield, ShoppingBag, Sparkles, Square, Store, Tag, Trash2, Truck, Type, Undo2, Ungroup, User, Wallet, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
-import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
+import { getPartnerWebsiteCopy, type PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import { uploadPartnerImageFile } from '@/components/partner-website/partner-website-asset-panel'
 import {
@@ -16,26 +18,44 @@ import {
 import {
   mergeVisualHtmlIntoProject,
   serializeVisualEditorHtml,
+  visualHtmlLooksUsable,
 } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
-import { inferVisualEditImageKind } from '@/lib/partner-website/visual-editor/visual-editor-css-url'
+import { inferVisualEditImageKind, shouldUseCurrentImageAsRef } from '@/lib/partner-website/visual-editor/visual-editor-css-url'
 import {
+  logoSizeFromAspect,
   mergeLogoSlotPrompt,
+  type LogoDeviceKind,
   type LogoSlotKind,
   type LogoSlotPromptInput,
 } from '@/lib/partner-website/visual-editor/build-logo-slot-prompt'
 import {
   collectHttpImageUrls,
   dataUrlToPngFile,
-  makeThemeSwatchDataUrl,
-  requestLogoContextFromIframe,
+  makeUserLogoColorSwatchDataUrl,
 } from '@/lib/partner-website/visual-editor/logo-generation-context'
 import { persistVisualEditorAdminLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-admin-logo'
+import {
+  applyFirstImageLogoToProject,
+  extractFilledLogoUrl,
+} from '@/lib/partner-website/visual-editor/apply-first-image-logo'
+import { appendVisualDeviceQuery, visualDeviceVariantFromHtmlPath } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
-import { resolveShopThemeColors } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import { isHexColor, resolveShopThemeColors, themeCssVarMap } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import {
+  cssColorToHex,
+  ThemeColorConfirmPicker,
+} from '@/components/partner-website/partner-website-confirm-color-picker'
+import { PartnerWebsiteThemeColorPicker } from '@/components/partner-website/partner-website-theme-color-picker'
+import {
+  parsePwBgStack,
+  type PwBgStackItem,
+  type PwBgStackRole,
+} from '@/lib/partner-website/visual-editor/pw-bg-stack'
 import {
   buildVisualEditorChromeWidgetHtml,
   chromeWidgetHost,
   chromeWidgetLabel,
+  isVisualEditorChromeWidgetKind,
   VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS,
   type VisualEditorChromeWidgetKind,
   type VisualEditorChromeWidgetPickerGroupId,
@@ -48,16 +68,58 @@ import {
   type FashionHomeCopyPatch,
 } from '@/lib/partner-website/shop/build-fashion-home-copy'
 
+const VISUAL_EDITOR_EDIT_KINDS = [
+  'added-bg',
+  'logo',
+  'wordmark',
+  'search',
+  'search-submit',
+  'search-image',
+  'cat-toggle',
+  'added-btn',
+  'added-text',
+  'chrome',
+  'cta',
+  'nav-link',
+  'image',
+  'dots',
+  'field',
+  'badge',
+  'other',
+] as const
+type VisualEditorEditKind = (typeof VISUAL_EDITOR_EDIT_KINDS)[number]
+
 export type VisualEditorSelection = {
   isText: boolean
   isImage: boolean
   isBlock: boolean
+  isMoveBlock: boolean
+  canUngroup: boolean
+  canGroup: boolean
   isButton: boolean
+  isAddedBtn: boolean
+  isCatToggle: boolean
+  isSearch: boolean
+  isAddedBg: boolean
+  editKind: VisualEditorEditKind
+  chromeKind: string
+  canDelete: boolean
+  layerPos: 'only' | 'bottom' | 'top' | 'middle' | ''
+  layerIndex: number
+  layerCount: number
+  bgLayer: number
+  bgIndex: number
+  bgCount: number
+  bgStack: PwBgStackItem[]
   isChrome: boolean
   chromeStyle: VisualEditorChromeWidgetStyle | ''
   btnStyle: 'hero' | 'primary' | 'outline' | ''
   btnColor: string
   btnBorder: string
+  iconColor: string
+  placeholderColor: string
+  dotColor: string
+  dotActiveColor: string
   text: string
   isBgImage: boolean
   isLogo: boolean
@@ -72,6 +134,10 @@ export type VisualEditorSelection = {
   logoFilledCount: number
   logoCropX: number
   logoCropY: number
+  logoZoom: number
+  isBannerPhoto: boolean
+  bannerZoom: number
+  logoLayer: 'block' | 'image' | ''
   hasImageLayer: boolean
   hasParentBlock: boolean
   canOverlay: boolean
@@ -89,9 +155,17 @@ export type VisualEditorSelection = {
   imageWidth: number
   width: number
   height: number
+  canStickHeader: boolean
+  stickHeader: boolean
 }
 
 type HiddenBlock = { id: string; label: string }
+
+function parseEditKind(raw: unknown): VisualEditorEditKind {
+  return VISUAL_EDITOR_EDIT_KINDS.includes(raw as VisualEditorEditKind)
+    ? (raw as VisualEditorEditKind)
+    : 'other'
+}
 
 function parseLogoSlot(raw: unknown): LogoSlotKind {
   return raw === 'footer' || raw === 'header' ? raw : 'other'
@@ -105,12 +179,33 @@ function selectionFromMessage(data: {
   isText?: boolean
   isImage?: boolean
   isBlock?: boolean
+  isMoveBlock?: boolean
+  canUngroup?: boolean
+  canGroup?: boolean
   isButton?: boolean
+  isAddedBtn?: boolean
+  isCatToggle?: boolean
+  isSearch?: boolean
+  isAddedBg?: boolean
+  editKind?: string
+  chromeKind?: string
+  canDelete?: boolean
+  layerPos?: string
+  layerIndex?: number
+  layerCount?: number
+  bgLayer?: number
+  bgIndex?: number
+  bgCount?: number
+  bgStack?: unknown
   isChrome?: boolean
   chromeStyle?: string
   btnStyle?: string
   btnColor?: string
   btnBorder?: string
+  iconColor?: string
+  placeholderColor?: string
+  dotColor?: string
+  dotActiveColor?: string
   text?: string
   isBgImage?: boolean
   isLogo?: boolean
@@ -125,6 +220,10 @@ function selectionFromMessage(data: {
   logoFilledCount?: number
   logoCropX?: number
   logoCropY?: number
+  logoZoom?: number
+  isBannerPhoto?: boolean
+  bannerZoom?: number
+  logoLayer?: string
   hasImageLayer?: boolean
   hasParentBlock?: boolean
   canOverlay?: boolean
@@ -141,12 +240,37 @@ function selectionFromMessage(data: {
   href?: string
   imageWidth?: number
   rect?: { width?: number; height?: number }
+  canStickHeader?: boolean
+  stickHeader?: boolean
 }): VisualEditorSelection {
   return {
     isText: Boolean(data.isText),
     isImage: Boolean(data.isImage),
     isBlock: Boolean(data.isBlock),
+    isMoveBlock: Boolean(data.isMoveBlock),
+    canUngroup: Boolean(data.canUngroup),
+    canGroup: Boolean(data.canGroup),
     isButton: Boolean(data.isButton),
+    isAddedBtn: Boolean(data.isAddedBtn),
+    isCatToggle: Boolean(data.isCatToggle),
+    isSearch: Boolean(data.isSearch),
+    isAddedBg: Boolean(data.isAddedBg),
+    editKind: parseEditKind(data.editKind),
+    chromeKind: String(data.chromeKind ?? '').replace(/[^a-z0-9-]/g, ''),
+    canDelete: Boolean(data.canDelete),
+    layerPos:
+      data.layerPos === 'only' ||
+      data.layerPos === 'bottom' ||
+      data.layerPos === 'top' ||
+      data.layerPos === 'middle'
+        ? data.layerPos
+        : '',
+    layerIndex: Number(data.layerIndex) || 0,
+    layerCount: Number(data.layerCount) || 0,
+    bgLayer: Number(data.bgLayer) || 0,
+    bgIndex: Number(data.bgIndex) || 0,
+    bgCount: Number(data.bgCount) || 0,
+    bgStack: parsePwBgStack(data.bgStack),
     isChrome: Boolean(data.isChrome),
     chromeStyle:
       data.chromeStyle === 'icon' || data.chromeStyle === 'icon-label' || data.chromeStyle === 'text'
@@ -158,6 +282,10 @@ function selectionFromMessage(data: {
         : '',
     btnColor: String(data.btnColor ?? ''),
     btnBorder: String(data.btnBorder ?? ''),
+    iconColor: String(data.iconColor ?? ''),
+    placeholderColor: String(data.placeholderColor ?? ''),
+    dotColor: String(data.dotColor ?? ''),
+    dotActiveColor: String(data.dotActiveColor ?? ''),
     text: String(data.text ?? ''),
     isBgImage: Boolean(data.isBgImage),
     isLogo: Boolean(data.isLogo),
@@ -170,8 +298,14 @@ function selectionFromMessage(data: {
     themeBuy: String(data.themeBuy ?? ''),
     logoSlotCount: Number(data.logoSlotCount) || 0,
     logoFilledCount: Number(data.logoFilledCount) || 0,
-    logoCropX: Number.isFinite(Number(data.logoCropX)) ? Number(data.logoCropX) : 50,
-    logoCropY: Number.isFinite(Number(data.logoCropY)) ? Number(data.logoCropY) : 50,
+    logoCropX: Number.isFinite(Number(data.logoCropX)) ? Number(data.logoCropX) : 0,
+    logoCropY: Number.isFinite(Number(data.logoCropY)) ? Number(data.logoCropY) : 0,
+    logoZoom: Number.isFinite(Number(data.logoZoom)) ? Math.max(30, Math.min(400, Number(data.logoZoom))) : 100,
+    isBannerPhoto: Boolean(data.isBannerPhoto),
+    bannerZoom: Number.isFinite(Number(data.bannerZoom))
+      ? Math.max(50, Math.min(300, Number(data.bannerZoom)))
+      : 100,
+    logoLayer: data.logoLayer === 'block' || data.logoLayer === 'image' ? data.logoLayer : '',
     hasImageLayer: Boolean(data.hasImageLayer),
     hasParentBlock: Boolean(data.hasParentBlock),
     canOverlay: Boolean(data.canOverlay),
@@ -189,33 +323,97 @@ function selectionFromMessage(data: {
     imageWidth: Number(data.imageWidth) || 100,
     width: Number(data.rect?.width) || 0,
     height: Number(data.rect?.height) || 0,
+    canStickHeader: Boolean(data.canStickHeader),
+    stickHeader: Boolean(data.stickHeader),
   }
+}
+
+function bgStackRoleLabel(t: PartnerWebsiteCopy, role: PwBgStackRole): string {
+  const labels: Record<PwBgStackRole, string> = {
+    canvas: t.visualEditBgStackCanvas,
+    header: t.visualEditBgStackHeader,
+    banner: t.visualEditBgStackBanner,
+    categories: t.visualEditBgStackCategories,
+    catalog: t.visualEditBgStackCatalog,
+    promo: t.visualEditBgStackPromo,
+    footer: t.visualEditBgStackFooter,
+    content: t.visualEditBgStackContent,
+    form: t.visualEditBgStackForm,
+    gallery: t.visualEditBgStackGallery,
+    'pdp-info': t.visualEditBgStackPdpInfo,
+    reviews: t.visualEditBgStackReviews,
+    'cart-list': t.visualEditBgStackCartList,
+    'cart-summary': t.visualEditBgStackCartSummary,
+    'account-nav': t.visualEditBgStackAccountNav,
+    'account-main': t.visualEditBgStackAccountMain,
+    added: t.visualEditBgStackAdded,
+  }
+  return labels[role] || t.visualEditBgStackAdded
+}
+
+const LOGO_ASPECT_OPTIONS = ['1:1', '3:2', '4:1', '8:1', '16:9', '21:9'] as const
+
+const LOGO_COLOR_NAMES: Record<string, string> = {
+  trắng: '#ffffff',
+  white: '#ffffff',
+  đen: '#111827',
+  black: '#111827',
+  đỏ: '#dc2626',
+  red: '#dc2626',
+  cam: '#c2410c',
+  orange: '#c2410c',
+  vàng: '#eab308',
+  yellow: '#eab308',
+  xanh: '#2563eb',
+  blue: '#2563eb',
+  'xanh lá': '#16a34a',
+  green: '#16a34a',
+  tím: '#7c3aed',
+  purple: '#7c3aed',
+  hồng: '#db2777',
+  pink: '#db2777',
+  xám: '#6b7280',
+  gray: '#6b7280',
+  grey: '#6b7280',
+}
+
+function parseLogoColorText(raw: string): string | null {
+  const s = String(raw || '').trim()
+  if (!s) return null
+  const named = LOGO_COLOR_NAMES[s.toLowerCase()]
+  if (named) return named
+  const withHash = s.startsWith('#') || /^rgba?\(/i.test(s) ? s : `#${s}`
+  if (isHexColor(withHash) || /^rgba?\(/i.test(withHash)) return cssColorToHex(withHash, '#000000')
+  if (/^[0-9a-fA-F]{3}$/.test(s) || /^[0-9a-fA-F]{6}$/.test(s)) return cssColorToHex(`#${s}`, '#000000')
+  return null
 }
 
 function logoPromptInputFrom(
   selection: VisualEditorSelection,
   websiteTitle: string,
   htmlPath: string,
-  theme?: PartnerWebsiteTheme | null
+  pick?: { bgColor?: string; inkColor?: string; width?: number; height?: number; aspectRatio?: string }
 ): LogoSlotPromptInput {
-  const resolved = theme ? resolveShopThemeColors(theme) : null
+  const device: LogoDeviceKind = visualDeviceVariantFromHtmlPath(htmlPath)
+  const sized = pick?.aspectRatio ? logoSizeFromAspect(pick.aspectRatio, device) : null
   return {
     shopTitle: websiteTitle || 'Shop',
-    slot: selection.logoSlot,
-    device: htmlPath.includes('.mobile.html') ? 'mobile' : 'desktop',
-    bgColor: selection.logoBg || selection.bgColor || 'rgb(255, 255, 255)',
-    width: selection.width,
-    height: selection.height,
-    primaryColor: selection.themePrimary || resolved?.primaryColor || '',
-    accentColor: selection.themeAccent || resolved?.accentColor || '',
-    buyButtonColor: selection.themeBuy || resolved?.buyButtonColor || '',
-    bgImageUrl: selection.logoBgImage || '',
+    slot: selection.logoSlot || 'header',
+    device,
+    bgColor: pick?.bgColor || 'rgb(255, 255, 255)',
+    inkColor: pick?.inkColor,
+    aspectRatio: pick?.aspectRatio,
+    width: pick?.width || sized?.w || selection.width,
+    height: pick?.height || sized?.h || selection.height,
   }
 }
 
 const CHROME_WIDGET_ICONS: Record<VisualEditorChromeWidgetKind, LucideIcon> = {
   home: Home,
   products: Package,
+  categories: Menu,
+  search: Search,
+  'search-image': Camera,
   sale: Tag,
   cart: ShoppingBag,
   wishlist: Heart,
@@ -257,6 +455,7 @@ type Props = {
   disabled?: boolean
   websiteTitle?: string
   compact?: boolean
+  sidebar?: boolean
   onSave?: (project: PartnerWebsiteProject) => Promise<void>
   onSaveShopHome?: (patch: FashionHomeCopyPatch) => Promise<void>
   onCancel: () => void
@@ -271,16 +470,144 @@ type Props = {
   viewHref?: string
   /** Màu giao diện đang chọn — gửi vào prompt tạo logo. */
   theme?: PartnerWebsiteTheme | null
+  onThemeLiveChange?: (next: PartnerWebsiteTheme) => void
+  themeSaving?: boolean
+}
+
+type VisualEditorIframeWindow = Window & {
+  __nanoaiVeBound?: number
+  __nanoaiVeActivate?: (payload?: Record<string, unknown>) => void
+  __nanoaiVeDeactivate?: () => void
 }
 
 function postToIframe(iframe: HTMLIFrameElement | null, type: string, payload?: Record<string, unknown>) {
   iframe?.contentWindow?.postMessage({ source: NANOAI_VE_MESSAGE, type, ...payload }, '*')
 }
 
+function iframeEditorWindow(iframe: HTMLIFrameElement | null): VisualEditorIframeWindow | null {
+  return (iframe?.contentWindow as VisualEditorIframeWindow | null) || null
+}
+
+function shopDocIsBlank(doc: Document | null): boolean {
+  if (!doc) return true
+  try {
+    return doc.location?.href === 'about:blank'
+  } catch {
+    return false
+  }
+}
+
 function cleanSerializedHtml(raw: string): string {
   const parser = new DOMParser()
   const doc = parser.parseFromString(raw, 'text/html')
   return serializeVisualEditorHtml(doc)
+}
+
+type VisualEditOpenPanel = 'add' | 'logo' | 'theme' | 'block'
+
+const FLOATING_PANEL_W = 320
+const FLOATING_PANEL_TOP = 52
+
+function defaultFloatingPanelPos(): { x: number; y: number } {
+  if (typeof window === 'undefined') return { x: 16, y: FLOATING_PANEL_TOP }
+  return {
+    x: Math.max(8, window.innerWidth - FLOATING_PANEL_W - 16),
+    y: FLOATING_PANEL_TOP,
+  }
+}
+
+function clampFloatingPanelPos(x: number, y: number, el: HTMLElement | null) {
+  const w = el?.offsetWidth || FLOATING_PANEL_W
+  const h = Math.min(el?.offsetHeight || 240, window.innerHeight - 16)
+  const maxX = Math.max(8, window.innerWidth - w - 8)
+  const maxY = Math.max(8, window.innerHeight - Math.min(h, 64) - 8)
+  return {
+    x: Math.min(Math.max(8, x), maxX),
+    y: Math.min(Math.max(8, y), maxY),
+  }
+}
+
+function VisualEditFloatingPanel({
+  title,
+  dragHint,
+  closeLabel,
+  pos,
+  onPosChange,
+  onClose,
+  children,
+}: {
+  title: string
+  dragHint: string
+  closeLabel: string
+  pos: { x: number; y: number }
+  onPosChange: (next: { x: number; y: number }) => void
+  onClose: () => void
+  children: ReactNode
+}) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
+
+  function onDragPointerDown(e: ReactPointerEvent<HTMLElement>) {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y }
+  }
+
+  function onDragPointerMove(e: ReactPointerEvent<HTMLElement>) {
+    const drag = dragRef.current
+    if (!drag) return
+    onPosChange(
+      clampFloatingPanelPos(drag.origX + e.clientX - drag.startX, drag.origY + e.clientY - drag.startY, panelRef.current)
+    )
+  }
+
+  function onDragPointerUp(e: ReactPointerEvent<HTMLElement>) {
+    dragRef.current = null
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <div
+      ref={panelRef}
+      className="fixed z-[120] flex w-[20rem] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-lg border bg-background shadow-lg"
+      style={{ left: pos.x, top: pos.y }}
+      role="dialog"
+      aria-label={title}
+    >
+      <div className="flex items-center gap-1 border-b bg-muted/40 px-1.5 py-1">
+        <span
+          className="inline-flex cursor-grab touch-none select-none items-center text-muted-foreground active:cursor-grabbing"
+          title={dragHint}
+          onPointerDown={onDragPointerDown}
+          onPointerMove={onDragPointerMove}
+          onPointerUp={onDragPointerUp}
+          onPointerCancel={onDragPointerUp}
+        >
+          <GripVertical className="h-4 w-4" aria-hidden />
+        </span>
+        <span
+          className="min-w-0 flex-1 cursor-grab touch-none select-none truncate text-xs font-semibold active:cursor-grabbing"
+          title={dragHint}
+          onPointerDown={onDragPointerDown}
+          onPointerMove={onDragPointerMove}
+          onPointerUp={onDragPointerUp}
+          onPointerCancel={onDragPointerUp}
+        >
+          {title}
+        </span>
+        <Button type="button" size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-[10px]" onClick={onClose}>
+          <X className="h-3 w-3" aria-hidden />
+          {closeLabel}
+        </Button>
+      </div>
+      <div className="max-h-[min(70vh,28rem)] overflow-y-auto p-2">{children}</div>
+    </div>
+  )
 }
 
 export function PartnerWebsiteVisualEditorToolbar({
@@ -293,6 +620,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   disabled,
   websiteTitle,
   compact = false,
+  sidebar = false,
   onSave,
   onSaveShopHome,
   onCancel,
@@ -303,6 +631,8 @@ export function PartnerWebsiteVisualEditorToolbar({
   htmlPath = 'index.html',
   viewHref,
   theme,
+  onThemeLiveChange,
+  themeSaving,
 }: Props) {
   const t = getPartnerWebsiteCopy(locale)
   const [selection, setSelection] = useState<VisualEditorSelection | null>(null)
@@ -317,27 +647,45 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [addWidgetStyle, setAddWidgetStyle] = useState<VisualEditorChromeWidgetStyle>('icon-label')
   const [addBtnStyle, setAddBtnStyle] = useState<'hero' | 'primary' | 'outline'>('hero')
   const [addBtnLabel, setAddBtnLabel] = useState(t.visualEditAddButtonLabel)
+  const [textDraft, setTextDraft] = useState('')
   const [addBtnColor, setAddBtnColor] = useState('')
+  const [addBgColor, setAddBgColor] = useState(
+    theme ? resolveShopThemeColors(theme).surfaceColor : '#f3f4f6'
+  )
   const [addBtnBorder, setAddBtnBorder] = useState('#ffffff')
   const [addBtnHref, setAddBtnHref] = useState(siteSlug ? partnerSiteProductsPath(siteSlug) : '')
   const [addButtonPanelOpen, setAddButtonPanelOpen] = useState(false)
   const [addWidgetPlace, setAddWidgetPlace] = useState<VisualEditorChromeWidgetPlace>('header')
-  const [addWidgetOpen, setAddWidgetOpen] = useState(false)
+  const [openPanel, setOpenPanel] = useState<VisualEditOpenPanel | null>(null)
+  const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
+  const [bgColorPickerOpen, setBgColorPickerOpen] = useState(false)
+  const pinnedBgSelectionRef = useRef<VisualEditorSelection | null>(null)
+  const [logoAspect, setLogoAspect] = useState<(typeof LOGO_ASPECT_OPTIONS)[number]>('4:1')
+  const [logoBgChoice, setLogoBgChoice] = useState<'theme' | 'white' | 'custom'>('theme')
+  const [logoBgCustom, setLogoBgCustom] = useState('#c2410c')
+  const [logoInkChoice, setLogoInkChoice] = useState<'white' | 'theme' | 'custom'>('white')
+  const [logoInkCustom, setLogoInkCustom] = useState('#ffffff')
+  const [logoInkText, setLogoInkText] = useState('')
   const [logoDrawActive, setLogoDrawActive] = useState(false)
   const [hiddenBlocks, setHiddenBlocks] = useState<HiddenBlock[]>([])
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
-  const addWidgetMenuRef = useRef<HTMLDivElement>(null)
   const insertBtnLockRef = useRef(false)
+  const insertBgLockRef = useRef(false)
   const btnLabelFocusedRef = useRef(false)
+  const textDraftFocusedRef = useRef(false)
   const btnHrefFocusedRef = useRef(false)
   const btnLabelInputRef = useRef<HTMLInputElement>(null)
+  const textDraftInputRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const refFileRef = useRef<HTMLInputElement>(null)
+  const logoFileRef = useRef<HTMLInputElement>(null)
   const scriptInjectedRef = useRef(false)
   const lastLogoKeyRef = useRef('')
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const aiLockRef = useRef(false)
+  const leftoverLogoSavedRef = useRef('')
+  const saveWaiterRef = useRef<{ resolve: (ok: boolean) => void } | null>(null)
 
   useEffect(() => {
     onDirtyChange?.(dirty)
@@ -345,43 +693,57 @@ export function PartnerWebsiteVisualEditorToolbar({
 
   useEffect(() => {
     if (!active) {
-      setAddWidgetOpen(false)
+      setOpenPanel(null)
       setAddButtonPanelOpen(false)
       setLogoDrawActive(false)
     }
   }, [active])
 
   useEffect(() => {
-    if (!addWidgetOpen) return
-    const onPointerDown = (ev: Event) => {
-      const root = addWidgetMenuRef.current
-      if (!root) return
-      if (ev.target instanceof Node && root.contains(ev.target)) return
-      setAddWidgetOpen(false)
-    }
+    if (!openPanel) return
     const onKeyDown = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') setAddWidgetOpen(false)
+      if (ev.key === 'Escape') setOpenPanel(null)
     }
-    document.addEventListener('pointerdown', onPointerDown, true)
     document.addEventListener('keydown', onKeyDown)
-    const iframeDoc = iframeRef.current?.contentDocument
-    iframeDoc?.addEventListener('pointerdown', onPointerDown, true)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true)
-      document.removeEventListener('keydown', onKeyDown)
-      iframeDoc?.removeEventListener('pointerdown', onPointerDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [openPanel])
+
+  const hadSelectionRef = useRef(false)
+  useEffect(() => {
+    const has = Boolean(selection)
+    if (has && !hadSelectionRef.current) {
+      setOpenPanel((cur) => cur ?? 'block')
+      setPanelPos((pos) => pos ?? defaultFloatingPanelPos())
     }
-  }, [addWidgetOpen, iframeRef])
+    hadSelectionRef.current = has
+  }, [selection])
+
+  const activatePayloadRef = useRef<{
+    device: ReturnType<typeof visualDeviceVariantFromHtmlPath>
+    logoUrl: string
+    vars: ReturnType<typeof themeCssVarMap> | undefined
+  }>({ device: 'desktop', logoUrl: '', vars: undefined })
+  activatePayloadRef.current = {
+    device: visualDeviceVariantFromHtmlPath(htmlPath),
+    logoUrl: theme?.logoUrl || '',
+    vars: theme ? themeCssVarMap(theme) : undefined,
+  }
 
   const injectScript = useCallback(() => {
     const iframe = iframeRef.current
     const doc = iframe?.contentDocument
-    const win = iframe?.contentWindow as (Window & { __nanoaiVeBound?: number }) | null
-    if (!doc || !win) return
-    postToIframe(iframe, 'deactivate')
+    const win = iframeEditorWindow(iframe)
+    if (!doc?.body || !win || shopDocIsBlank(doc)) return false
+    try {
+      win.__nanoaiVeDeactivate?.()
+    } catch {
+      /* ignore */
+    }
     doc.getElementById('nanoai-visual-editor-script')?.remove()
     try {
       win.__nanoaiVeBound = 0
+      win.__nanoaiVeActivate = undefined
+      win.__nanoaiVeDeactivate = undefined
     } catch {
       /* ignore */
     }
@@ -390,7 +752,21 @@ export function PartnerWebsiteVisualEditorToolbar({
     script.textContent = buildVisualEditorScript(locale)
     doc.body.appendChild(script)
     scriptInjectedRef.current = true
+    return Boolean(doc.body.classList.contains('nanoai-ve-active') || win.__nanoaiVeActivate)
   }, [iframeRef, locale])
+
+  const activateEditor = useCallback((iframe: HTMLIFrameElement | null) => {
+    const win = iframeEditorWindow(iframe)
+    try {
+      if (typeof win?.__nanoaiVeActivate === 'function') {
+        win.__nanoaiVeActivate(activatePayloadRef.current)
+        return
+      }
+    } catch {
+      /* fallback */
+    }
+    postToIframe(iframe, 'activate', activatePayloadRef.current)
+  }, [])
 
   useEffect(() => {
     scriptInjectedRef.current = false
@@ -400,62 +776,140 @@ export function PartnerWebsiteVisualEditorToolbar({
     if (!active) return
     const iframe = iframeRef.current
     if (!iframe) return
+    let cancelled = false
+    let timer = 0
+    let started = Date.now()
+
+    const shopDocReady = () => {
+      const doc = iframe.contentDocument
+      if (!doc?.body || shopDocIsBlank(doc)) return false
+      return Boolean(
+        doc.querySelector(
+          'header, .pw-header, .pw-shop-header, .pw-shop, [data-pw-page], .pw-hero, [data-pw-region="header"]'
+        )
+      )
+    }
+
+    // Saved HTML can carry a stale `nanoai-ve-active` class. Trusting the class alone would
+    // skip injection forever, leaving clicks to follow the page's own links instead of selecting.
+    const editorLive = () =>
+      Boolean(
+        iframeEditorWindow(iframe)?.__nanoaiVeBound &&
+          iframe.contentDocument?.body?.classList.contains('nanoai-ve-active')
+      )
+
+    const arm = () => {
+      if (cancelled) return
+      if (editorLive()) return
+      if (!shopDocReady()) {
+        if (Date.now() - started < 8000) {
+          window.clearTimeout(timer)
+          timer = window.setTimeout(arm, 50)
+        }
+        return
+      }
+      injectScript()
+      activateEditor(iframe)
+      if (cancelled || editorLive()) return
+      if (Date.now() - started < 8000) {
+        window.clearTimeout(timer)
+        timer = window.setTimeout(arm, 80)
+      }
+    }
 
     const onLoad = () => {
-      scriptInjectedRef.current = false
-      injectScript()
-      postToIframe(iframe, 'activate', {
-        device: htmlPath.includes('.mobile.html') ? 'mobile' : 'desktop',
-      })
+      if (cancelled) return
+      started = Date.now()
+      arm()
     }
 
     iframe.addEventListener('load', onLoad)
-    if (iframe.contentDocument?.readyState === 'complete') onLoad()
+    arm()
+    const watchdog = window.setInterval(() => {
+      if (cancelled) return
+      if (!shopDocReady()) return
+      if (editorLive()) return
+      injectScript()
+      activateEditor(iframe)
+    }, 400)
 
     return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+      window.clearInterval(watchdog)
       iframe.removeEventListener('load', onLoad)
-      postToIframe(iframe, 'deactivate')
     }
-  }, [active, documentKey, htmlPath, iframeRef, injectScript])
+  }, [active, documentKey, htmlPath, iframeRef, injectScript, activateEditor])
+
+  useEffect(() => {
+    if (active) return
+    try {
+      iframeEditorWindow(iframeRef.current)?.__nanoaiVeDeactivate?.()
+    } catch {
+      /* ignore */
+    }
+  }, [active, iframeRef])
 
   const handleSaveHtml = useCallback(
-    async (rawHtml: string) => {
+    async (rawHtml: string): Promise<boolean> => {
       setSaving(true)
       try {
         const iframe = iframeRef.current
         const doc = iframe?.contentDocument
         if (onSave) {
           const html = doc
-            ? serializeVisualEditorHtml(doc, htmlPath.includes('.mobile.html') ? 'mobile' : 'desktop')
+            ? serializeVisualEditorHtml(doc, visualDeviceVariantFromHtmlPath(htmlPath))
             : cleanSerializedHtml(rawHtml)
+          if (!visualHtmlLooksUsable(html)) {
+            onError(t.visualEditSaveFailed)
+            saveWaiterRef.current?.resolve(false)
+            saveWaiterRef.current = null
+            return false
+          }
           const projectRaw = projectRef.current?.files?.length
             ? projectRef.current
             : { entryPath: 'index.html', files: [{ path: htmlPath, kind: 'html' as const, content: html }] }
-          const next = mergeVisualHtmlIntoProject(projectRaw, html, htmlPath) as PartnerWebsiteProject
+          const leftoverLogoUrl = extractFilledLogoUrl(html) || theme?.logoUrl || ''
+          const merged = mergeVisualHtmlIntoProject(projectRaw, html, htmlPath) as PartnerWebsiteProject
+          const next = leftoverLogoUrl
+            ? applyFirstImageLogoToProject(merged, leftoverLogoUrl, websiteTitle)
+            : merged
           await onSave(next)
           setDirty(false)
-          return
+          saveWaiterRef.current?.resolve(true)
+          saveWaiterRef.current = null
+          return true
         }
         if (onSaveShopHome) {
           if (!doc) {
             onError(t.visualEditSaveFailed)
-            return
+            saveWaiterRef.current?.resolve(false)
+            saveWaiterRef.current = null
+            return false
           }
           const patch = extractFashionHomeCopyFromDocument(doc)
           if (Object.values(patch).some((v) => v != null && !(Array.isArray(v) && v.length === 0))) {
             await onSaveShopHome(patch)
           }
           setDirty(false)
-          return
+          saveWaiterRef.current?.resolve(true)
+          saveWaiterRef.current = null
+          return true
         }
         onError(t.visualEditSaveFailed)
+        saveWaiterRef.current?.resolve(false)
+        saveWaiterRef.current = null
+        return false
       } catch (e) {
         onError(e instanceof Error ? e.message : t.visualEditSaveFailed)
+        saveWaiterRef.current?.resolve(false)
+        saveWaiterRef.current = null
+        return false
       } finally {
         setSaving(false)
       }
     },
-    [htmlPath, iframeRef, onError, onSave, onSaveShopHome, projectRef, t.visualEditSaveFailed]
+    [htmlPath, iframeRef, onError, onSave, onSaveShopHome, projectRef, t.visualEditSaveFailed, theme?.logoUrl, websiteTitle]
   )
 
   useEffect(() => {
@@ -478,12 +932,28 @@ export function PartnerWebsiteVisualEditorToolbar({
         isText?: boolean
         isImage?: boolean
         isBlock?: boolean
+        isMoveBlock?: boolean
+        canUngroup?: boolean
+        canGroup?: boolean
         isButton?: boolean
+        isAddedBtn?: boolean
+        isCatToggle?: boolean
+        isSearch?: boolean
+        isAddedBg?: boolean
+        editKind?: string
+        chromeKind?: string
+        canDelete?: boolean
+        canStickHeader?: boolean
+        stickHeader?: boolean
         isChrome?: boolean
         chromeStyle?: string
         btnStyle?: string
         btnColor?: string
         btnBorder?: string
+        iconColor?: string
+        placeholderColor?: string
+        dotColor?: string
+        dotActiveColor?: string
         text?: string
         isBgImage?: boolean
         isLogo?: boolean
@@ -498,6 +968,9 @@ export function PartnerWebsiteVisualEditorToolbar({
         logoFilledCount?: number
         logoCropX?: number
         logoCropY?: number
+        logoZoom?: number
+        isBannerPhoto?: boolean
+        bannerZoom?: number
         hasImageLayer?: boolean
         hasParentBlock?: boolean
         canOverlay?: boolean
@@ -526,21 +999,23 @@ export function PartnerWebsiteVisualEditorToolbar({
         const next = selectionFromMessage(data)
         setSelection(next)
         setHrefDraft(next.href)
-        setUseCurrentRef(Boolean(next.src) && next.logoFace === 'image')
+        setUseCurrentRef(shouldUseCurrentImageAsRef(next))
         if (next.isLogo) {
           const logoKey = `${next.logoSlot}:${Math.round(next.width)}x${Math.round(next.height)}:${next.logoBg}:${next.themePrimary}:${next.logoBgImage}`
           if (data.type === 'logoCreate' || lastLogoKeyRef.current !== logoKey) {
             lastLogoKeyRef.current = logoKey
-            setAiPrompt(mergeLogoSlotPrompt('', logoPromptInputFrom(next, websiteTitle || 'Shop', htmlPath, theme)))
+            setAiPrompt((prev) =>
+              data.type === 'logoCreate' || /website logo for|drawn slot is/i.test(prev) ? '' : prev
+            )
           }
         }
         if (data.type === 'logoCreate' && next.isLogo) {
           requestAnimationFrame(() => promptTextareaRef.current?.focus())
         }
-        if (data.isButton && !data.isChrome) {
+        if (next.editKind === 'added-btn' || next.editKind === 'cta') {
           setAddButtonPanelOpen(true)
           const label = String(data.text ?? '').trim()
-          if (label && !btnLabelFocusedRef.current) setAddBtnLabel(label)
+          if (!btnLabelFocusedRef.current) setAddBtnLabel(label || t.visualEditAddButtonLabel)
           if (data.btnStyle === 'hero' || data.btnStyle === 'primary' || data.btnStyle === 'outline') {
             setAddBtnStyle(data.btnStyle)
           }
@@ -548,16 +1023,27 @@ export function PartnerWebsiteVisualEditorToolbar({
             setAddBtnColor(String(data.btnColor ?? ''))
             if (data.btnBorder) setAddBtnBorder(String(data.btnBorder))
           }
-          if (next.href && !btnHrefFocusedRef.current) setAddBtnHref(next.href)
+          if (!btnHrefFocusedRef.current) setAddBtnHref(next.href)
+        } else {
+          setAddButtonPanelOpen(false)
+        }
+        if (next.isText && !textDraftFocusedRef.current) {
+          setTextDraft(String(data.text ?? ''))
         }
       }
       if (data.type === 'deselect') {
         setSelection(null)
         setHrefDraft('')
+        setAddButtonPanelOpen(false)
+        pinnedBgSelectionRef.current = null
       }
       if (data.type === 'logoDrawStart') setLogoDrawActive(true)
       if (data.type === 'logoDrawEnd') setLogoDrawActive(false)
-      if (data.type === 'ready' || data.type === 'loaded') {
+      if (data.type === 'loaded') {
+        if (active) activateEditor(iframeRef.current)
+        postToIframe(iframeRef.current, 'listHidden')
+      }
+      if (data.type === 'ready') {
         postToIframe(iframeRef.current, 'listHidden')
       }
       if (data.type === 'dirty') {
@@ -574,6 +1060,10 @@ export function PartnerWebsiteVisualEditorToolbar({
           data.hidden.map((row) => ({ id: String(row.id ?? ''), label: String(row.label ?? '') })).filter((row) => row.id)
         )
       }
+      if (data.type === 'leftoverLogoApplied' && leftoverLogoSavedRef.current !== documentKey) {
+        leftoverLogoSavedRef.current = documentKey
+        postToIframe(iframeRef.current, 'serialize')
+      }
       if (data.type === 'html' && data.html) {
         void handleSaveHtml(data.html)
       }
@@ -581,7 +1071,7 @@ export function PartnerWebsiteVisualEditorToolbar({
 
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [active, handleSaveHtml])
+  }, [active, activateEditor, documentKey, handleSaveHtml, t.visualEditAddButtonLabel])
 
   useEffect(() => {
     if (!active) return
@@ -618,8 +1108,42 @@ export function PartnerWebsiteVisualEditorToolbar({
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [active, iframeRef, selection])
 
-  function requestSave() {
-    postToIframe(iframeRef.current, 'serialize')
+  async function requestSave(): Promise<boolean> {
+    const iframe = iframeRef.current
+    const doc = iframe?.contentDocument
+    if (doc?.documentElement) {
+      return handleSaveHtml('')
+    }
+    if (!iframe) {
+      onError(t.visualEditSaveFailed)
+      return false
+    }
+    return new Promise((resolve) => {
+      saveWaiterRef.current = { resolve }
+      postToIframe(iframe, 'serialize')
+      window.setTimeout(() => {
+        if (saveWaiterRef.current) {
+          saveWaiterRef.current = null
+          onError(t.visualEditSaveFailed)
+          resolve(false)
+        }
+      }, 20000)
+    })
+  }
+
+  const liveViewHref = viewHref
+    ? appendVisualDeviceQuery(viewHref, visualDeviceVariantFromHtmlPath(htmlPath))
+    : undefined
+
+  async function openLiveView() {
+    if (!liveViewHref) return
+    const ok = await requestSave()
+    if (!ok) return
+    const bust = `v=${Date.now()}`
+    const href = /[?&]v=/.test(liveViewHref)
+      ? liveViewHref.replace(/([?&])v=[^&]*/, `$1${bust}`)
+      : `${liveViewHref}${liveViewHref.includes('?') ? '&' : '?'}${bust}`
+    window.open(href, '_blank', 'noopener,noreferrer')
   }
 
   async function persistAdminLogo(url: string) {
@@ -629,6 +1153,37 @@ export function PartnerWebsiteVisualEditorToolbar({
       return
     }
     onAdminLogoChange?.(url)
+  }
+
+  async function handleUploadAsLogo(files: FileList | null) {
+    if (!files?.length || !partnerId) return
+    const file = files[0]
+    if (!file?.type.startsWith('image/')) {
+      onError(t.imageInvalidType)
+      return
+    }
+    setUploadBusy(true)
+    try {
+      const url = await uploadPartnerImageFile(partnerId, file)
+      if (!selection?.isLogo) {
+        const device: LogoDeviceKind = visualDeviceVariantFromHtmlPath(htmlPath)
+        const size = logoSizeFromAspect(logoAspect, device)
+        postToIframe(iframeRef.current, 'placeHeaderLogo', {
+          width: size.w,
+          height: size.h,
+          bgColor: 'transparent',
+        })
+        await new Promise((resolve) => window.setTimeout(resolve, 80))
+      }
+      postToIframe(iframeRef.current, 'setImageSrc', { url, allSlots: true })
+      setDirty(true)
+      await persistAdminLogo(url)
+      setOpenPanel(null)
+    } catch (e) {
+      onError(e instanceof Error ? e.message : t.uploadFailed)
+    } finally {
+      setUploadBusy(false)
+    }
   }
 
   async function handleUploadReplace(files: FileList | null) {
@@ -733,47 +1288,151 @@ export function PartnerWebsiteVisualEditorToolbar({
     }
   }
 
-  async function handleGenerateAi() {
-    if (!partnerId || !selection) return
-    if (selection.isLogo) {
+  function logoThemeHex() {
+    const resolved = theme ? resolveShopThemeColors(theme) : null
+    return cssColorToHex(selection?.themePrimary || resolved?.primaryColor || '', '#c2410c')
+  }
+
+  function logoPickColors() {
+    const themeHex = logoThemeHex()
+    const customBg = parseLogoColorText(logoBgCustom) || themeHex
+    const bgColor = logoBgChoice === 'white' ? '#ffffff' : logoBgChoice === 'custom' ? customBg : themeHex
+    const customInk = parseLogoColorText(logoInkCustom) || '#ffffff'
+    const swatchInk =
+      logoInkChoice === 'white' ? '#ffffff' : logoInkChoice === 'theme' ? themeHex : customInk
+    const typedInk = logoInkText.trim()
+    const inkColor = typedInk ? parseLogoColorText(typedInk) || typedInk : swatchInk
+    return { themeHex, bgColor, inkColor }
+  }
+
+  function applyLogoBgChoice(choice: 'theme' | 'white') {
+    setLogoBgChoice(choice)
+    if (choice === 'white' && logoInkChoice === 'white') setLogoInkChoice('theme')
+    if (choice === 'theme' && logoInkChoice === 'theme') setLogoInkChoice('white')
+  }
+
+  function applyLogoColorDraft(kind: 'bg' | 'ink', raw: string) {
+    if (kind === 'bg') {
+      setLogoBgCustom(raw)
+      setLogoBgChoice('custom')
+      return
+    }
+    setLogoInkCustom(raw)
+    setLogoInkChoice('custom')
+  }
+
+  async function handleCreateLogoFromPanel() {
+    if (!partnerId || aiLockRef.current) return
+    const device: LogoDeviceKind = visualDeviceVariantFromHtmlPath(htmlPath)
+    const size = logoSizeFromAspect(logoAspect, device)
+    const { bgColor } = logoPickColors()
+    postToIframe(iframeRef.current, 'placeHeaderLogo', {
+      width: size.w,
+      height: size.h,
+      bgColor,
+    })
+    setOpenPanel(null)
+    await new Promise((resolve) => window.setTimeout(resolve, 80))
+    await handleGenerateAi({ forceLogo: true })
+  }
+
+  async function handleGenerateAi(opts?: { forceLogo?: boolean }) {
+    if (!partnerId) return
+    const asLogo = Boolean(opts?.forceLogo || selection?.isLogo)
+    if (asLogo) {
       if (aiLockRef.current) return
       aiLockRef.current = true
       setAiBusy(true)
       try {
-      const ctx = logoPromptInputFrom(selection, websiteTitle || 'Shop', htmlPath, theme)
-      const captured = await requestLogoContextFromIframe(iframeRef.current)
-      if (captured?.bgColor) ctx.bgColor = captured.bgColor
-      if (captured?.bgImageUrl) ctx.bgImageUrl = captured.bgImageUrl
-      if (captured?.themePrimary) ctx.primaryColor = captured.themePrimary
-      if (captured?.themeAccent) ctx.accentColor = captured.themeAccent
-      if (captured?.themeBuy) ctx.buyButtonColor = captured.themeBuy
+      const pick = logoPickColors()
+      const device: LogoDeviceKind = visualDeviceVariantFromHtmlPath(htmlPath)
+      const size = logoSizeFromAspect(logoAspect, device)
+      const ctx = logoPromptInputFrom(
+        selection || {
+          isText: false,
+          isImage: true,
+          isBlock: false,
+          isMoveBlock: false,
+          canUngroup: false,
+          canGroup: false,
+          isButton: false,
+          isChrome: false,
+          chromeStyle: '',
+          btnStyle: '',
+          btnColor: '',
+          btnBorder: '',
+          iconColor: '',
+          placeholderColor: '',
+          dotColor: '',
+          dotActiveColor: '',
+          text: '',
+          isBgImage: false,
+          isLogo: true,
+          logoFace: 'empty',
+          logoSlot: 'header',
+          logoBg: pick.bgColor,
+          logoBgImage: '',
+          themePrimary: pick.themeHex,
+          themeAccent: '',
+          themeBuy: '',
+          logoSlotCount: 0,
+          logoFilledCount: 0,
+          logoCropX: 0,
+          logoCropY: 0,
+          logoZoom: 100,
+          isBannerPhoto: false,
+          bannerZoom: 100,
+          logoLayer: 'block',
+          hasImageLayer: true,
+          hasParentBlock: false,
+          canOverlay: false,
+          overlay: 0,
+          paddingY: 0,
+          paddingX: 0,
+          blockLabel: '',
+          textColor: '',
+          fontSize: 16,
+          fontWeight: '400',
+          textAlign: 'left',
+          bgColor: pick.bgColor,
+          src: '',
+          href: '',
+          imageWidth: 100,
+          width: size.w,
+          height: size.h,
+        },
+        websiteTitle || 'Shop',
+        htmlPath,
+        {
+          bgColor: pick.bgColor,
+          inkColor: pick.inkColor,
+          width: size.w,
+          height: size.h,
+          aspectRatio: logoAspect,
+        }
+      )
+      ctx.bgColor = pick.bgColor
+      ctx.inkColor = pick.inkColor
       const prompt = mergeLogoSlotPrompt(aiPrompt, ctx)
       const refs: string[] = []
       const meta: Array<{ screenKey: string; label?: string }> = []
-      const contextDataUrl =
-        captured?.dataUrl ||
-        makeThemeSwatchDataUrl({
-          bgColor: ctx.bgColor,
-          primaryColor: ctx.primaryColor || '#111827',
-          accentColor: ctx.accentColor || ctx.primaryColor || '#111827',
-          buyButtonColor: ctx.buyButtonColor || ctx.primaryColor || '#111827',
-        })
-      const contextFile = dataUrlToPngFile(contextDataUrl, 'logo-theme-context.png')
+      const contextDataUrl = makeUserLogoColorSwatchDataUrl({
+        bgColor: pick.bgColor,
+        inkColor: pick.inkColor,
+        aspectRatio: logoAspect,
+      })
+      const contextFile = dataUrlToPngFile(contextDataUrl, 'logo-user-colors.png')
       if (contextFile) {
         try {
           refs.push(await uploadPartnerImageFile(partnerId, contextFile))
-          meta.push({ screenKey: 'logo_backdrop', label: 'Surrounding background + theme colors' })
+          meta.push({ screenKey: 'logo_colors', label: 'User-picked background and logo colors' })
         } catch {
           /* keep generating with prompt colors if upload fails */
         }
       }
-      if (ctx.bgImageUrl && /^https?:\/\//i.test(ctx.bgImageUrl) && !refs.includes(ctx.bgImageUrl)) {
-        refs.push(ctx.bgImageUrl)
-        meta.push({ screenKey: 'logo_backdrop', label: 'Header/footer background image' })
-      }
       const styleRef =
         refUrl.trim() ||
-        (useCurrentRef && selection.logoFace === 'image' ? selection.src.trim() : '')
+        (useCurrentRef && selection?.logoFace === 'image' ? selection.src.trim() : '')
       if (styleRef) {
         refs.push(styleRef)
         meta.push({ screenKey: 'logo_style', label: 'Logo style reference' })
@@ -781,10 +1440,10 @@ export function PartnerWebsiteVisualEditorToolbar({
       await requestGeneratedImage({
         prompt,
         kind: 'logo',
-        aspectRatio: inferVisualEditImageKind(selection).aspectRatio,
+        aspectRatio: logoAspect,
         referenceImageUrls: refs,
         referenceImageMeta: meta,
-        allSlots: selection.logoFilledCount === 0,
+        allSlots: !selection || selection.logoFilledCount === 0,
         lockHeld: true,
       })
       } catch (e) {
@@ -795,13 +1454,32 @@ export function PartnerWebsiteVisualEditorToolbar({
       }
       return
     }
+    if (!selection) return
     const prompt = aiPrompt.trim()
     if (prompt.length < 4) {
       onError(t.visualEditAiPromptRequired)
       return
     }
     const inferred = inferVisualEditImageKind(selection)
-    const referenceImageUrl = refUrl.trim() || (useCurrentRef ? selection.src.trim() : '')
+    let referenceImageUrl = refUrl.trim() || (useCurrentRef ? selection.src.trim() : '')
+    if (useCurrentRef && !refUrl.trim() && selection.src.trim() && !/^https?:\/\//i.test(referenceImageUrl)) {
+      try {
+        const res = await fetch(selection.src.trim())
+        if (res.ok) {
+          const blob = await res.blob()
+          if (blob.type.startsWith('image/') && partnerId) {
+            const file = new File(
+              [blob],
+              'current-ref.png',
+              { type: blob.type || 'image/png' }
+            )
+            referenceImageUrl = await uploadPartnerImageFile(partnerId, file)
+          }
+        }
+      } catch {
+        /* keep original src; API only accepts http(s) */
+      }
+    }
     await requestGeneratedImage({
       prompt,
       kind: inferred.kind,
@@ -811,6 +1489,8 @@ export function PartnerWebsiteVisualEditorToolbar({
   }
 
   function commitHref(next: string) {
+    const kind = selection?.editKind
+    if (kind !== 'added-btn' && kind !== 'cta' && kind !== 'nav-link' && kind !== 'added-text') return
     setHrefDraft(next)
     postToIframe(iframeRef.current, 'setHref', { href: next })
     setDirty(true)
@@ -836,13 +1516,24 @@ export function PartnerWebsiteVisualEditorToolbar({
       host: chromeWidgetHost(kind, addWidgetStyle, place),
     })
     setDirty(true)
-    setAddWidgetOpen(false)
+    setOpenPanel(null)
   }
 
   function insertTextBlock() {
     postToIframe(iframeRef.current, 'insertText')
     setDirty(true)
-    setAddWidgetOpen(false)
+    setOpenPanel(null)
+  }
+
+  function insertBgBlock() {
+    if (insertBgLockRef.current) return
+    insertBgLockRef.current = true
+    window.setTimeout(() => {
+      insertBgLockRef.current = false
+    }, 700)
+    postToIframe(iframeRef.current, 'insertBg', { color: addBgColor || '#f3f4f6' })
+    setDirty(true)
+    setOpenPanel(null)
   }
 
   function insertButtonBlock() {
@@ -858,7 +1549,8 @@ export function PartnerWebsiteVisualEditorToolbar({
       color: addBtnColor,
     })
     setDirty(true)
-    setAddWidgetOpen(false)
+    setPanelPos((pos) => pos ?? defaultFloatingPanelPos())
+    setOpenPanel('block')
     setAddButtonPanelOpen(true)
   }
 
@@ -875,182 +1567,706 @@ export function PartnerWebsiteVisualEditorToolbar({
   if (!active) return null
 
   const isBold = selection?.fontWeight === '700' || selection?.fontWeight === 'bold'
-  const showImageTools = Boolean(selection?.isImage || selection?.isBgImage || selection?.isLogo)
+  const busy = disabled || saving || uploadBusy || aiBusy
   const logoActionLabel =
     selection?.logoFace === 'image' ? t.visualEditRecreateLogo : t.visualEditCreateLogo
-  const hasRealLogoSrc = Boolean(selection?.isLogo && selection.logoFace === 'image' && selection.src)
-  const showHref = Boolean(selection?.isButton || (selection && selection.href && selection.isText && !selection.isImage))
-  const showChromeStyle = Boolean(selection?.isChrome)
-  const showCtaStyle = Boolean(selection?.isButton && !selection.isChrome)
-  const showBlockTools = Boolean(selection?.isBlock)
-  const busy = disabled || saving || uploadBusy || aiBusy
+  const hasRealLogoSrc = Boolean(
+    selection?.isLogo && (selection.logoFace === 'image' || Boolean(selection.src))
+  )
+  const logoTheme = logoThemeHex()
+  const logoSwatch = (selected: boolean, color: string, title: string, onClick: () => void) => (
+    <button
+      type="button"
+      disabled={busy}
+      title={title}
+      aria-label={title}
+      className={cn(
+        'h-6 w-6 shrink-0 rounded-sm border',
+        selected ? 'border-primary ring-1 ring-primary' : 'border-border'
+      )}
+      style={{ backgroundColor: color }}
+      onClick={onClick}
+    />
+  )
+  const logoCreateFields = (
+    <div className="grid w-full min-w-0 gap-1">
+      <div className="flex flex-wrap gap-0.5" title={t.visualEditLogoAspect}>
+        {LOGO_ASPECT_OPTIONS.map((aspect) => (
+          <button
+            key={aspect}
+            type="button"
+            disabled={busy}
+            className={cn(
+              'rounded border px-1 py-0.5 text-[10px] font-semibold leading-none',
+              logoAspect === aspect ? 'border-primary bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
+            )}
+            onClick={() => setLogoAspect(aspect)}
+          >
+            {aspect}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1">
+        <span className="text-[10px] text-muted-foreground">{t.visualEditLogoBgLabel}</span>
+        <div className="flex min-w-0 items-center gap-1">
+          {logoSwatch(logoBgChoice === 'theme', logoTheme, t.visualEditLogoBgTheme, () => applyLogoBgChoice('theme'))}
+          {logoSwatch(logoBgChoice === 'white', '#ffffff', t.visualEditLogoBgWhite, () => applyLogoBgChoice('white'))}
+          <input
+            type="text"
+            value={logoBgChoice === 'custom' ? logoBgCustom : logoBgChoice === 'white' ? '#ffffff' : logoTheme}
+            placeholder={t.visualEditLogoColorHexPlaceholder}
+            disabled={busy}
+            title={t.visualEditLogoColorHex}
+            className="h-6 min-w-0 flex-1 rounded border bg-background px-1.5 font-mono text-[10px]"
+            onChange={(e) => applyLogoColorDraft('bg', e.target.value)}
+          />
+        </div>
+        <span className="text-[10px] text-muted-foreground">{t.visualEditLogoInkLabel}</span>
+        <div className="flex min-w-0 items-center gap-1">
+          {logoSwatch(logoInkChoice === 'white', '#ffffff', t.visualEditLogoInkWhite, () => setLogoInkChoice('white'))}
+          {logoSwatch(logoInkChoice === 'theme', logoTheme, t.visualEditLogoInkTheme, () => setLogoInkChoice('theme'))}
+          {logoSwatch(
+            logoInkChoice === 'custom',
+            parseLogoColorText(logoInkCustom) || '#111827',
+            t.visualEditLogoInkOther,
+            () => setLogoInkChoice('custom')
+          )}
+        </div>
+      </div>
+      <input
+        type="text"
+        value={logoInkText}
+        placeholder={t.visualEditLogoInkTextPlaceholder}
+        disabled={busy}
+        title={t.visualEditLogoInkTextPlaceholder}
+        className="h-6 w-full min-w-0 rounded border bg-background px-1.5 text-[10px]"
+        onChange={(e) => setLogoInkText(e.target.value)}
+      />
+      <div className="flex min-w-0 items-center gap-1">
+        <input
+          type="text"
+          value={aiPrompt}
+          onChange={(e) => setAiPrompt(e.target.value)}
+          placeholder={t.visualEditLogoIdeaLabel}
+          disabled={busy}
+          className="h-6 min-w-0 flex-1 rounded border bg-background px-1.5 text-[10px]"
+        />
+        {refUrl ? <img src={refUrl} alt="" className="h-6 w-8 rounded border bg-white object-contain" /> : null}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-6 w-6 shrink-0 p-0"
+          disabled={busy}
+          title={t.visualEditUploadReference}
+          onClick={() => refFileRef.current?.click()}
+        >
+          {uploadBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
+        </Button>
+        {refUrl ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-6 w-6 shrink-0 p-0"
+            disabled={busy}
+            title={t.visualEditRemoveReference}
+            onClick={() => {
+              setRefUrl('')
+              setUseCurrentRef(false)
+            }}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+  const editKind = selection?.editKind ?? 'other'
+  const showCtaStyle = editKind === 'added-btn' || editKind === 'cta'
+  const showHref = showCtaStyle || editKind === 'nav-link' || editKind === 'added-text'
+  const showChromeStyle = editKind === 'chrome'
+  const showCatToggleHint = editKind === 'cat-toggle'
+  const showSearchHint = editKind === 'search'
+  const showSearchSubmitHint = editKind === 'search-submit'
+  const showSearchImageHint = editKind === 'search-image'
+  const showWordmarkHint = editKind === 'wordmark'
+  const showDotsHint = editKind === 'dots'
+  const showFieldHint = editKind === 'field'
+  const showBadgeHint = editKind === 'badge'
+  const showAddedBgHint = editKind === 'added-bg'
+  const showNavLinkHint = editKind === 'nav-link'
+  const showWidgetColors =
+    editKind === 'cat-toggle' ||
+    editKind === 'chrome' ||
+    editKind === 'search' ||
+    editKind === 'search-submit' ||
+    editKind === 'search-image' ||
+    editKind === 'field' ||
+    editKind === 'badge'
+  const showWidgetIconColor = editKind === 'cat-toggle' || editKind === 'chrome'
+  const showWidgetTextColor =
+    editKind === 'search' ||
+    editKind === 'search-submit' ||
+    editKind === 'search-image' ||
+    editKind === 'field'
+  const showPlaceholderColor = editKind === 'field'
+  const showDotColors = editKind === 'dots'
+  const chromeLikeKind =
+    editKind === 'cat-toggle' ||
+    editKind === 'chrome' ||
+    editKind === 'search' ||
+    editKind === 'search-submit' ||
+    editKind === 'search-image'
+  const showStickHeader = Boolean(selection?.canStickHeader)
+  const showBlockTools = Boolean(selection?.isBlock && !chromeLikeKind)
+  const showLayerSwitch = Boolean(
+    selection?.hasImageLayer &&
+      !selection.isLogo &&
+      !chromeLikeKind &&
+      editKind !== 'added-bg' &&
+      editKind !== 'nav-link' &&
+      editKind !== 'wordmark' &&
+      editKind !== 'dots' &&
+      editKind !== 'field' &&
+      editKind !== 'badge'
+  )
+  const showLayerStack = Boolean(
+    selection &&
+      editKind !== 'search' &&
+      editKind !== 'search-submit' &&
+      editKind !== 'search-image' &&
+      editKind !== 'logo' &&
+      editKind !== 'wordmark' &&
+      editKind !== 'cat-toggle' &&
+      editKind !== 'chrome' &&
+      editKind !== 'nav-link' &&
+      editKind !== 'dots' &&
+      editKind !== 'field'
+  )
+  const showTextTools = Boolean(
+    (selection?.isText ||
+      editKind === 'wordmark' ||
+      editKind === 'badge' ||
+      (editKind === 'chrome' && selection.chromeStyle && selection.chromeStyle !== 'icon')) &&
+      editKind !== 'added-bg' &&
+      editKind !== 'search' &&
+      editKind !== 'search-submit' &&
+      editKind !== 'search-image' &&
+      editKind !== 'logo' &&
+      editKind !== 'image' &&
+      editKind !== 'field' &&
+      editKind !== 'dots'
+  )
+  const showImageTools = Boolean(
+    selection &&
+      (editKind === 'logo' ||
+        editKind === 'image' ||
+        ((selection.isImage || selection.isBgImage || selection.isBannerPhoto) &&
+          editKind !== 'chrome' &&
+          editKind !== 'cat-toggle' &&
+          editKind !== 'search' &&
+          editKind !== 'search-submit' &&
+          editKind !== 'search-image' &&
+          editKind !== 'wordmark' &&
+          editKind !== 'dots' &&
+          editKind !== 'field' &&
+          editKind !== 'badge' &&
+          editKind !== 'added-bg' &&
+          editKind !== 'added-btn' &&
+          editKind !== 'cta' &&
+          editKind !== 'nav-link'))
+  )
+  const chromeTitle =
+    selection?.chromeKind && isVisualEditorChromeWidgetKind(selection.chromeKind)
+      ? chromeWidgetLabel(selection.chromeKind, locale)
+      : t.visualEditChromeWidgetTitle
+  const deleteLabel =
+    editKind === 'added-bg'
+      ? t.visualEditDeleteBg
+      : editKind === 'chrome' ||
+          editKind === 'cat-toggle' ||
+          editKind === 'added-btn' ||
+          editKind === 'cta'
+        ? t.visualEditChromeDelete
+        : t.visualEditDeleteUnit
+  if (selection?.isBlock || selection?.isAddedBg) {
+    pinnedBgSelectionRef.current = selection
+  } else if (selection && !bgColorPickerOpen) {
+    pinnedBgSelectionRef.current = null
+  }
+  const colorSel =
+    selection?.isBlock || selection?.isAddedBg
+      ? selection
+      : bgColorPickerOpen
+        ? pinnedBgSelectionRef.current
+        : null
+  const showBgColorPicker = Boolean(
+    colorSel &&
+      (colorSel.isBlock || colorSel.isAddedBg) &&
+      (selection?.isBlock || selection?.isAddedBg || bgColorPickerOpen)
+  )
 
   const btn = compact ? 'h-6 px-1.5 text-[10px]' : 'h-7 px-2 text-xs'
   const slider = compact ? 'h-5 w-16 accent-primary' : 'h-7 w-24 accent-primary'
+  const hrefField =
+    showHref && selection && !showCtaStyle && !addButtonPanelOpen ? (
+      <label className="flex min-w-0 w-full flex-col gap-0.5 text-[10px]">
+        <span className="shrink-0 text-muted-foreground">
+          {editKind === 'added-text' || editKind === 'nav-link' ? t.visualEditTextHref : t.visualEditButtonHref}
+        </span>
+        <input
+          type="text"
+          value={hrefDraft}
+          placeholder={t.visualEditButtonHrefPlaceholder}
+          className={cn(
+            'min-w-0 w-full rounded-md border bg-background px-2',
+            compact ? 'h-6 text-[10px]' : 'h-8 text-xs'
+          )}
+          disabled={busy}
+          onChange={(e) => setHrefDraft(e.target.value)}
+          onBlur={(e) => commitHref(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              commitHref(hrefDraft)
+            }
+          }}
+        />
+      </label>
+    ) : null
+
+  function togglePanel(id: VisualEditOpenPanel) {
+    setOpenPanel((cur) => (cur === id ? null : id))
+    setPanelPos((pos) => pos ?? defaultFloatingPanelPos())
+  }
+
+  const blockPanelTitle =
+    editKind === 'cat-toggle'
+      ? t.visualEditCatToggleTitle
+      : editKind === 'added-bg'
+        ? t.visualEditAddBg
+        : editKind === 'search'
+          ? t.visualEditSearchTitle
+          : editKind === 'search-submit'
+            ? t.visualEditSearchSubmitTitle
+            : editKind === 'search-image'
+              ? t.visualEditSearchImageTitle
+              : editKind === 'wordmark'
+                ? t.visualEditWordmarkTitle
+                : editKind === 'dots'
+                  ? t.visualEditDotsTitle
+                  : editKind === 'field'
+                    ? t.visualEditFieldTitle
+                    : editKind === 'badge'
+                      ? t.visualEditBadgeTitle
+          : editKind === 'chrome'
+            ? chromeTitle
+            : editKind === 'added-btn' || editKind === 'cta'
+              ? t.visualEditPageButtonTitle
+              : editKind === 'nav-link'
+                ? t.visualEditNavLinkTitle
+                : editKind === 'logo'
+                  ? t.visualEditLogoPanelTitle
+                  : editKind === 'image'
+                    ? t.visualEditImagePanelTitle
+                    : t.visualEditMenuBlock
+  const panelTitle =
+    openPanel === 'add'
+      ? t.visualEditAddWidget
+      : openPanel === 'logo'
+        ? t.visualEditAddLogo
+        : openPanel === 'theme'
+          ? t.visualEditMenuTheme
+          : blockPanelTitle
 
   return (
     <>
-      <div
-        className={cn(
-          'flex flex-col rounded-lg border border-primary/30 bg-primary/5',
-          compact ? 'gap-1 px-2 py-1' : 'gap-2 px-3 py-2'
-        )}
-      >
-        <div className={cn('flex flex-wrap items-center', compact ? 'gap-1' : 'gap-2')}>
+      <input
+        ref={refFileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          void handleUploadReference(e.target.files)
+          e.target.value = ''
+        }}
+      />
+      <input
+        ref={logoFileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          void handleUploadAsLogo(e.target.files)
+          e.target.value = ''
+        }}
+      />
+      <div className={cn('flex min-w-0 flex-col', sidebar && 'h-full')}>
+        <div className={cn('flex min-w-0 flex-nowrap items-center overflow-x-auto', compact ? 'gap-1' : 'gap-2')}>
           <Button
             type="button"
             size="sm"
-            variant="outline"
+            variant={openPanel === 'add' ? 'default' : 'outline'}
             className={cn(btn, 'gap-1')}
-            disabled={saving}
-            onClick={onCancel}
+            disabled={busy}
+            title={t.visualEditAddWidget}
+            aria-expanded={openPanel === 'add'}
+            onClick={() => togglePanel('add')}
           >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            {t.visualEditBack}
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            {t.visualEditAddWidget}
           </Button>
-          <div className="relative" ref={addWidgetMenuRef}>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className={cn(btn, 'gap-1')}
-              disabled={busy}
-              title={t.visualEditAddWidget}
-              aria-expanded={addWidgetOpen}
-              aria-haspopup="menu"
-              onClick={() => setAddWidgetOpen((open) => !open)}
-            >
-              <Plus className="h-3.5 w-3.5" aria-hidden />
-              {t.visualEditAddWidget}
-            </Button>
-            {addWidgetOpen ? (
-            <div className="absolute left-0 top-full z-30 mt-1 flex w-[16.5rem] max-h-[min(70vh,24rem)] flex-col overflow-hidden rounded-md border bg-background shadow-lg">
-              <div className="shrink-0 space-y-1 border-b p-1">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
-                  disabled={busy}
-                  onClick={insertTextBlock}
-                >
-                  <Type className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  {t.visualEditAddText}
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
-                  disabled={busy}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    insertButtonBlock()
-                  }}
-                >
-                  <MousePointerClick className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  {t.visualEditAddButton}
-                </button>
-                <p className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t.visualEditAddStyleTitle}
-                </p>
-                <div className="flex gap-1 px-1">
-                  {(
-                    [
-                      ['icon', t.visualEditAddStyleIcon],
-                      ['icon-label', t.visualEditAddStyleIconLabel],
-                      ['text', t.visualEditAddStyleText],
-                    ] as const
-                  ).map(([style, label]) => (
-                    <button
-                      key={style}
-                      type="button"
-                      className={cn(
-                        'flex-1 rounded px-1.5 py-1 text-[10px] font-medium',
-                        addWidgetStyle === style ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
-                      )}
-                      disabled={busy}
-                      onClick={() => setAddWidgetStyle(style)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-1 px-1 pb-0.5">
-                  {VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS.map((group) => {
-                    const tabTitle: Record<VisualEditorChromeWidgetPickerGroupId, string> = {
-                      header: t.visualEditAddGroupHeader,
-                      mid: t.visualEditAddGroupMid,
-                      nav: t.visualEditAddGroupNav,
-                    }
-                    return (
-                      <button
-                        key={group.id}
-                        type="button"
-                        className={cn(
-                          'flex-1 rounded px-1.5 py-1 text-[10px] font-semibold',
-                          addWidgetPlace === group.id
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted hover:bg-muted/80'
-                        )}
-                        disabled={busy}
-                        onClick={() => setAddWidgetPlace(group.id)}
-                      >
-                        {tabTitle[group.id]}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-1">
-                {(
-                  VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS.find((group) => group.id === addWidgetPlace)
-                    ?.kinds ?? []
-                ).map((kind) => {
-                  const Icon = CHROME_WIDGET_ICONS[kind]
-                  return (
-                    <button
-                      key={`${addWidgetPlace}-${kind}`}
-                      type="button"
-                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] hover:bg-muted"
-                      disabled={busy}
-                      onClick={() => insertChromeWidget(kind, addWidgetPlace)}
-                    >
-                      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                      {chromeWidgetLabel(kind, locale)}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-            ) : null}
-          </div>
           <Button
             type="button"
             size="sm"
-            variant={logoDrawActive ? 'default' : 'outline'}
+            variant={openPanel === 'logo' ? 'default' : 'outline'}
             className={cn(btn, 'gap-1')}
             disabled={busy}
             title={t.visualEditAddLogoHint}
+            aria-expanded={openPanel === 'logo'}
             onClick={() => {
               if (logoDrawActive) postToIframe(iframeRef.current, 'cancelAddLogo')
-              else postToIframe(iframeRef.current, 'startAddLogo')
+              togglePanel('logo')
             }}
           >
             <ImagePlus className="h-3.5 w-3.5" aria-hidden />
             {t.visualEditAddLogo}
           </Button>
-          {selection ? (
-            <span className="max-w-[14rem] text-[10px] leading-tight text-muted-foreground">
-              {t.visualEditNudgeHint}
-            </span>
+          {theme && onThemeLiveChange ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={openPanel === 'theme' ? 'default' : 'outline'}
+              className={cn(btn, 'gap-1')}
+              disabled={busy}
+              title={t.themeColorTitle}
+              aria-expanded={openPanel === 'theme'}
+              onClick={() => togglePanel('theme')}
+            >
+              <Palette className="h-3.5 w-3.5" aria-hidden />
+              {t.visualEditMenuTheme}
+            </Button>
           ) : null}
-          <p className={cn('font-medium text-primary', compact ? 'text-[10px]' : 'text-xs')}>
-            {t.visualEditModeActive}
-          </p>
-          {selection?.hasImageLayer ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={openPanel === 'block' ? 'default' : 'outline'}
+            className={cn(btn, 'gap-1')}
+            disabled={busy || !selection}
+            title={t.visualEditMenuBlock}
+            aria-expanded={openPanel === 'block'}
+            onClick={() => togglePanel('block')}
+          >
+            <LayoutTemplate className="h-3.5 w-3.5" aria-hidden />
+            {t.visualEditMenuBlock}
+          </Button>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={cn(btn, 'gap-1')}
+              disabled={busy || !canUndo}
+              title={`${t.visualEditUndo} (Ctrl+Z)`}
+              onClick={() => postToIframe(iframeRef.current, 'undo')}
+            >
+              <Undo2 className="h-3.5 w-3.5" aria-hidden />
+              {compact ? null : t.visualEditUndo}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={cn(btn, 'gap-1')}
+              disabled={busy || !canRedo}
+              title={`${t.visualEditRedo} (Ctrl+Y)`}
+              onClick={() => postToIframe(iframeRef.current, 'redo')}
+            >
+              <Redo2 className="h-3.5 w-3.5" aria-hidden />
+              {compact ? null : t.visualEditRedo}
+            </Button>
+            {liveViewHref ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className={cn(btn, 'gap-1')}
+                disabled={busy || saving}
+                title={t.visualEditViewSite}
+                onClick={() => void openLiveView()}
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                {t.visualEditViewSite}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={btn}
+              disabled={saving}
+              onClick={onCancel}
+            >
+              <X className="mr-1 h-3 w-3" />
+              {t.visualEditCancel}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className={btn}
+              disabled={busy}
+              onClick={requestSave}
+            >
+              {saving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+              {t.visualEditSave}
+            </Button>
+          </div>
+        </div>
+        {typeof document !== 'undefined' && openPanel && panelPos
+          ? createPortal(
+              <VisualEditFloatingPanel
+                title={panelTitle}
+                dragHint={t.visualEditPanelDragHint}
+                closeLabel={t.visualEditPanelClose}
+                pos={panelPos}
+                onPosChange={setPanelPos}
+                onClose={() => setOpenPanel(null)}
+              >
+                {openPanel === 'add' ? (
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
+                      disabled={busy}
+                      onClick={insertTextBlock}
+                    >
+                      <Type className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      {t.visualEditAddText}
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
+                      disabled={busy}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        insertButtonBlock()
+                      }}
+                    >
+                      <MousePointerClick className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      {t.visualEditAddButton}
+                    </button>
+                    <div className="flex items-center gap-1.5 rounded px-2 py-1.5">
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[11px] font-medium hover:bg-muted"
+                        disabled={busy}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          insertBgBlock()
+                        }}
+                      >
+                        <Square className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {t.visualEditAddBg}
+                      </button>
+                      <ThemeColorConfirmPicker
+                        value={cssColorToHex(addBgColor, '#f3f4f6')}
+                        disabled={busy}
+                        compact={compact}
+                        okLabel={t.themeColorOk}
+                        onConfirm={setAddBgColor}
+                      />
+                    </div>
+                    <p className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {t.visualEditAddStyleTitle}
+                    </p>
+                    <div className="flex gap-1 px-1">
+                      {(
+                        [
+                          ['icon', t.visualEditAddStyleIcon],
+                          ['icon-label', t.visualEditAddStyleIconLabel],
+                          ['text', t.visualEditAddStyleText],
+                        ] as const
+                      ).map(([style, label]) => (
+                        <button
+                          key={style}
+                          type="button"
+                          className={cn(
+                            'flex-1 rounded px-1.5 py-1 text-[10px] font-medium',
+                            addWidgetStyle === style ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
+                          )}
+                          disabled={busy}
+                          onClick={() => setAddWidgetStyle(style)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-1 px-1 pb-0.5">
+                      {VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS.map((group) => {
+                        const tabTitle: Record<VisualEditorChromeWidgetPickerGroupId, string> = {
+                          header: t.visualEditAddGroupHeader,
+                          mid: t.visualEditAddGroupMid,
+                          nav: t.visualEditAddGroupNav,
+                        }
+                        return (
+                          <button
+                            key={group.id}
+                            type="button"
+                            className={cn(
+                              'flex-1 rounded px-1.5 py-1 text-[10px] font-semibold',
+                              addWidgetPlace === group.id
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted hover:bg-muted/80'
+                            )}
+                            disabled={busy}
+                            onClick={() => setAddWidgetPlace(group.id)}
+                          >
+                            {tabTitle[group.id]}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {(
+                        VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS.find((group) => group.id === addWidgetPlace)
+                          ?.kinds ?? []
+                      ).map((kind) => {
+                        const Icon = CHROME_WIDGET_ICONS[kind]
+                        return (
+                          <button
+                            key={`${addWidgetPlace}-${kind}`}
+                            type="button"
+                            className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] hover:bg-muted"
+                            disabled={busy}
+                            onClick={() => insertChromeWidget(kind, addWidgetPlace)}
+                          >
+                            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            {chromeWidgetLabel(kind, locale)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+                {openPanel === 'logo' ? (
+                  <div className="space-y-1.5">
+                    {logoCreateFields}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className={cn(btn, 'w-full')}
+                      disabled={busy}
+                      onClick={() => logoFileRef.current?.click()}
+                    >
+                      {uploadBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <ImagePlus className="mr-1 h-3 w-3" />}
+                      {t.visualEditUploadAsLogo}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className={cn(btn, 'w-full')}
+                      disabled={busy}
+                      onClick={() => void handleCreateLogoFromPanel()}
+                    >
+                      {aiBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+                      {t.visualEditCreateLogo}
+                    </Button>
+                  </div>
+                ) : null}
+                {openPanel === 'theme' && theme && onThemeLiveChange ? (
+                  <PartnerWebsiteThemeColorPicker
+                    t={t}
+                    theme={theme}
+                    compact
+                    layout="stack"
+                    disabled={busy}
+                    saving={themeSaving}
+                    onLiveChange={onThemeLiveChange}
+                  />
+                ) : null}
+                {openPanel === 'block' ? (
+                  <div className="flex flex-col gap-2">
+                    {selection && !selection.isLogo ? (
+                      <p className="text-[10px] leading-tight text-muted-foreground">{t.visualEditNudgeHint}</p>
+                    ) : null}
+        {showAddedBgHint && selection ? (
+          <div className="rounded-md border bg-background px-2 py-1.5">
+            <p className="text-[11px] font-semibold leading-4">{t.visualEditBgStackAdded}</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditAddedBgHint}</p>
+          </div>
+        ) : null}
+        {showSearchHint && selection ? (
+          <div className="rounded-md border bg-background px-2 py-1.5">
+            <p className="text-[11px] font-semibold leading-4">{t.visualEditSearchTitle}</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditSearchHint}</p>
+          </div>
+        ) : null}
+        {showSearchSubmitHint && selection ? (
+          <div className="rounded-md border bg-background px-2 py-1.5">
+            <p className="text-[11px] font-semibold leading-4">{t.visualEditSearchSubmitTitle}</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditSearchSubmitHint}</p>
+          </div>
+        ) : null}
+        {showSearchImageHint && selection ? (
+          <div className="rounded-md border bg-background px-2 py-1.5">
+            <p className="text-[11px] font-semibold leading-4">{t.visualEditSearchImageTitle}</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditSearchImageHint}</p>
+          </div>
+        ) : null}
+        {showWordmarkHint && selection ? (
+          <div className="rounded-md border bg-background px-2 py-1.5">
+            <p className="text-[11px] font-semibold leading-4">{t.visualEditWordmarkTitle}</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditWordmarkHint}</p>
+          </div>
+        ) : null}
+        {showDotsHint && selection ? (
+          <div className="rounded-md border bg-background px-2 py-1.5">
+            <p className="text-[11px] font-semibold leading-4">{t.visualEditDotsTitle}</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditDotsHint}</p>
+          </div>
+        ) : null}
+        {showFieldHint && selection ? (
+          <div className="rounded-md border bg-background px-2 py-1.5">
+            <p className="text-[11px] font-semibold leading-4">{t.visualEditFieldTitle}</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditFieldHint}</p>
+          </div>
+        ) : null}
+        {showBadgeHint && selection ? (
+          <div className="rounded-md border bg-background px-2 py-1.5">
+            <p className="text-[11px] font-semibold leading-4">{t.visualEditBadgeTitle}</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditBadgeHint}</p>
+          </div>
+        ) : null}
+        {showCatToggleHint && selection ? (
+          <div className="rounded-md border bg-background px-2 py-1.5">
+            <p className="text-[11px] font-semibold leading-4">{t.visualEditCatToggleTitle}</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditCatToggleHint}</p>
+          </div>
+        ) : null}
+        {showNavLinkHint && selection ? (
+          <div className="rounded-md border bg-background px-2 py-1.5">
+            <p className="text-[11px] font-semibold leading-4">{t.visualEditNavLinkTitle}</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditNavLinkHint}</p>
+          </div>
+        ) : null}
+          {showLayerSwitch && selection ? (
             <div className="flex overflow-hidden rounded-md border border-primary/40 bg-white">
               <Button
                 type="button"
                 size="sm"
-                variant={selection.isBlock ? 'default' : 'ghost'}
+                variant={
+                  selection.isLogo
+                    ? selection.logoLayer === 'block'
+                      ? 'default'
+                      : 'ghost'
+                    : selection.isBlock || selection.isMoveBlock
+                      ? 'default'
+                      : 'ghost'
+                }
                 className={cn(btn, 'rounded-none')}
                 disabled={busy}
                 onClick={() => postToIframe(iframeRef.current, 'setLayerMode', { mode: 'block' })}
@@ -1060,7 +2276,15 @@ export function PartnerWebsiteVisualEditorToolbar({
               <Button
                 type="button"
                 size="sm"
-                variant={selection.isImage || selection.isBgImage ? 'default' : 'ghost'}
+                variant={
+                  selection.isLogo
+                    ? selection.logoLayer === 'image'
+                      ? 'default'
+                      : 'ghost'
+                    : selection.isImage || selection.isBgImage
+                      ? 'default'
+                      : 'ghost'
+                }
                 className={cn(btn, 'rounded-none')}
                 disabled={busy}
                 onClick={() => postToIframe(iframeRef.current, 'setLayerMode', { mode: 'image' })}
@@ -1069,19 +2293,221 @@ export function PartnerWebsiteVisualEditorToolbar({
               </Button>
             </div>
           ) : null}
-          {selection?.isText ? (
-            <>
-              <label className="flex items-center gap-1 text-[10px]">
-                <span className="text-muted-foreground">{t.visualEditTextColor}</span>
-                <input
-                  type="color"
-                  key={`tc-${selection.textColor}`}
-                  defaultValue={rgbToHex(selection.textColor) || '#111827'}
-                  className={cn('cursor-pointer rounded border p-0.5', compact ? 'h-6 w-7' : 'h-7 w-9')}
+          {showImageTools && selection?.isBannerPhoto ? (
+            <label
+              className="flex min-w-[10rem] flex-1 items-center gap-1.5 text-[10px] sm:min-w-[14rem]"
+              title={t.visualEditBannerZoomHint}
+            >
+              <span className="shrink-0 text-muted-foreground">{t.visualEditBannerZoom}</span>
+              <input
+                type="range"
+                min={50}
+                max={300}
+                value={selection.bannerZoom}
+                className={cn(slider, 'min-w-0 flex-1')}
+                disabled={busy}
+                onChange={(e) =>
+                  postToIframe(iframeRef.current, 'setBannerZoom', { zoom: Number(e.target.value) })
+                }
+              />
+              <span className="w-8 shrink-0 tabular-nums text-muted-foreground">{selection.bannerZoom}%</span>
+            </label>
+          ) : null}
+          {selection?.canUngroup ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={btn}
+              disabled={busy}
+              title={t.visualEditUngroupBlock}
+              onClick={() => postToIframe(iframeRef.current, 'ungroupBlock')}
+            >
+              <Ungroup className="h-3 w-3" />
+              {compact ? null : <span className="ml-1">{t.visualEditUngroupBlock}</span>}
+            </Button>
+          ) : null}
+          {selection?.canGroup ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={btn}
+              disabled={busy}
+              title={t.visualEditGroupBlock}
+              onClick={() => postToIframe(iframeRef.current, 'groupBlock')}
+            >
+              <LayoutTemplate className="h-3 w-3" />
+              {compact ? null : <span className="ml-1">{t.visualEditGroupBlock}</span>}
+            </Button>
+          ) : null}
+          {showWidgetColors && selection ? (
+            <div
+              className={cn(
+                'flex flex-wrap items-center rounded-md border bg-background/90',
+                compact ? 'gap-1 p-1.5' : 'gap-1.5 p-2'
+              )}
+            >
+              <div className="flex items-center gap-1 text-[10px]">
+                <span className="text-muted-foreground">{t.visualEditAddButtonColor}</span>
+                <ThemeColorConfirmPicker
+                  value={cssColorToHex(selection.btnColor || selection.bgColor || '', '#ffffff')}
                   disabled={busy}
-                  onChange={(e) => postToIframe(iframeRef.current, 'setColor', { color: e.target.value })}
+                  compact={compact}
+                  okLabel={t.themeColorOk}
+                  onConfirm={(color) => {
+                    postToIframe(iframeRef.current, 'setButtonColor', { color })
+                    setDirty(true)
+                  }}
                 />
-              </label>
+              </div>
+              <div className="flex items-center gap-1 text-[10px]">
+                <span className="text-muted-foreground">{t.visualEditAddButtonBorder}</span>
+                <ThemeColorConfirmPicker
+                  value={cssColorToHex(selection.btnBorder || '', '#e5e7eb')}
+                  disabled={busy}
+                  compact={compact}
+                  okLabel={t.themeColorOk}
+                  onConfirm={(color) => {
+                    postToIframe(iframeRef.current, 'setButtonBorder', { color })
+                    setDirty(true)
+                  }}
+                />
+              </div>
+              {showWidgetIconColor ? (
+                <div className="flex items-center gap-1 text-[10px]">
+                  <span className="text-muted-foreground">
+                    {editKind === 'cat-toggle' ? t.visualEditCatToggleIconColor : t.visualEditIconColor}
+                  </span>
+                  <ThemeColorConfirmPicker
+                    value={cssColorToHex(selection.iconColor || selection.textColor || '', '#374151')}
+                    disabled={busy}
+                    compact={compact}
+                    okLabel={t.themeColorOk}
+                    onConfirm={(color) => {
+                      postToIframe(iframeRef.current, 'setIconColor', { color })
+                      setDirty(true)
+                    }}
+                  />
+                </div>
+              ) : null}
+              {showWidgetTextColor ? (
+                <div className="flex items-center gap-1 text-[10px]">
+                  <span className="text-muted-foreground">{t.visualEditTextColor}</span>
+                  <ThemeColorConfirmPicker
+                    value={cssColorToHex(selection.textColor, '#111827')}
+                    disabled={busy}
+                    compact={compact}
+                    okLabel={t.themeColorOk}
+                    onConfirm={(color) => {
+                      postToIframe(iframeRef.current, 'setColor', { color })
+                      setDirty(true)
+                    }}
+                  />
+                </div>
+              ) : null}
+              {showPlaceholderColor ? (
+                <div className="flex items-center gap-1 text-[10px]">
+                  <span className="text-muted-foreground">{t.visualEditPlaceholderColor}</span>
+                  <ThemeColorConfirmPicker
+                    value={cssColorToHex(selection.placeholderColor || '', '#9ca3af')}
+                    disabled={busy}
+                    compact={compact}
+                    okLabel={t.themeColorOk}
+                    onConfirm={(color) => {
+                      postToIframe(iframeRef.current, 'setPlaceholderColor', { color })
+                      setDirty(true)
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {showDotColors && selection ? (
+            <div
+              className={cn(
+                'flex flex-wrap items-center rounded-md border bg-background/90',
+                compact ? 'gap-1 p-1.5' : 'gap-1.5 p-2'
+              )}
+            >
+              <div className="flex items-center gap-1 text-[10px]">
+                <span className="text-muted-foreground">{t.visualEditDotColor}</span>
+                <ThemeColorConfirmPicker
+                  value={cssColorToHex(selection.dotColor || '', '#ffffff')}
+                  disabled={busy}
+                  compact={compact}
+                  okLabel={t.themeColorOk}
+                  onConfirm={(color) => {
+                    postToIframe(iframeRef.current, 'setDotColor', { color })
+                    setDirty(true)
+                  }}
+                />
+              </div>
+              <div className="flex items-center gap-1 text-[10px]">
+                <span className="text-muted-foreground">{t.visualEditDotActiveColor}</span>
+                <ThemeColorConfirmPicker
+                  value={cssColorToHex(selection.dotActiveColor || '', '#ffffff')}
+                  disabled={busy}
+                  compact={compact}
+                  okLabel={t.themeColorOk}
+                  onConfirm={(color) => {
+                    postToIframe(iframeRef.current, 'setDotActiveColor', { color })
+                    setDirty(true)
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
+          {showTextTools && selection ? (
+            <>
+              {selection.isText && !selection.isButton && editKind !== 'chrome' && editKind !== 'cat-toggle' ? (
+                <input
+                  ref={textDraftInputRef}
+                  type="text"
+                  value={textDraft}
+                  placeholder={t.visualEditTextContent}
+                  className={cn(
+                    'min-w-[8rem] flex-1 rounded-md border bg-background px-2',
+                    compact ? 'h-6 text-[10px]' : 'h-8 text-xs'
+                  )}
+                  disabled={busy}
+                  onFocus={() => {
+                    textDraftFocusedRef.current = true
+                  }}
+                  onBlur={() => {
+                    textDraftFocusedRef.current = false
+                  }}
+                  onChange={(e) => {
+                    const input = e.currentTarget
+                    const start = input.selectionStart
+                    const end = input.selectionEnd
+                    const text = input.value
+                    setTextDraft(text)
+                    postToIframe(iframeRef.current, 'setTextContent', { text })
+                    setDirty(true)
+                    requestAnimationFrame(() => {
+                      const el = textDraftInputRef.current
+                      if (!el || start == null || end == null) return
+                      try {
+                        el.setSelectionRange(start, end)
+                      } catch {
+                        /* ignore */
+                      }
+                    })
+                  }}
+                />
+              ) : null}
+              {hrefField}
+              <div className="flex items-center gap-1 text-[10px]">
+                <span className="text-muted-foreground">{t.visualEditTextColor}</span>
+                <ThemeColorConfirmPicker
+                  value={cssColorToHex(selection.textColor, '#111827')}
+                  disabled={busy}
+                  compact={compact}
+                  okLabel={t.themeColorOk}
+                  onConfirm={(color) => postToIframe(iframeRef.current, 'setColor', { color })}
+                />
+              </div>
               <label className="flex items-center gap-1 text-[10px]">
                 <span className="text-muted-foreground">{t.visualEditFontSize}</span>
                 <input
@@ -1132,21 +2558,106 @@ export function PartnerWebsiteVisualEditorToolbar({
               </div>
             </>
           ) : null}
-          {selection?.isBlock ? (
-            <label className="flex items-center gap-1 text-[10px]">
-              <span className="text-muted-foreground">{t.visualEditBgColor}</span>
-              <input
-                type="color"
-                key={`bg-${selection.bgColor}`}
-                defaultValue={rgbToHex(selection.bgColor) || '#ffffff'}
-                className={cn('cursor-pointer rounded border p-0.5', compact ? 'h-6 w-7' : 'h-7 w-9')}
+          {!showTextTools ? hrefField : null}
+          {showBgColorPicker && colorSel ? (
+            <div className="flex items-center gap-1 text-[10px]">
+              <span className="text-muted-foreground">
+                {colorSel.isAddedBg ? t.visualEditAddBgColor : t.visualEditBgColor}
+              </span>
+              <ThemeColorConfirmPicker
+                value={cssColorToHex(colorSel.bgColor, colorSel.isAddedBg ? addBgColor : '#ffffff')}
                 disabled={busy}
-                onChange={(e) => postToIframe(iframeRef.current, 'setBgColor', { color: e.target.value })}
+                compact={compact}
+                okLabel={t.themeColorOk}
+                onOpenChange={setBgColorPickerOpen}
+                onConfirm={(color) => postToIframe(iframeRef.current, 'setBgColor', { color })}
               />
+            </div>
+          ) : null}
+          {showLayerStack && selection ? (
+            <div className="flex min-w-[12rem] flex-col overflow-hidden rounded-md border bg-background">
+              {selection.isAddedBg ? (
+                <div className="min-w-0 border-b px-1.5 py-0.5">
+                  <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t.visualEditBgStackTitle}
+                    {selection.bgCount ? ` · ${selection.bgIndex}/${Math.max(0, selection.bgCount - 1)}` : ''}
+                  </p>
+                  <ol className="mt-0.5 max-h-24 overflow-auto">
+                    {[...selection.bgStack].reverse().map((row) => (
+                      <li
+                        key={`${row.role}-${row.index}`}
+                        className={cn(
+                          'flex items-center gap-1 text-[10px] leading-4',
+                          row.current ? 'font-semibold text-primary' : 'text-muted-foreground'
+                        )}
+                      >
+                        <span className="w-3 tabular-nums">{row.index}</span>
+                        <span className="min-w-0 truncate">{bgStackRoleLabel(t, row.role)}</span>
+                        {row.locked ? (
+                          <span className="ml-auto shrink-0 text-[9px]">{t.visualEditBgStackLocked}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ) : (
+                <p className="border-b px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t.visualEditLayerTitle}
+                  {selection.layerCount > 1 ? ` · ${selection.layerIndex}/${selection.layerCount}` : ''}
+                </p>
+              )}
+              <div className="flex">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={cn(btn, 'flex-1 rounded-none border-0 border-r')}
+                  disabled={busy || selection.layerPos === 'top' || selection.layerPos === 'only'}
+                  title={t.visualEditLayerUp}
+                  onClick={() =>
+                    postToIframe(iframeRef.current, selection.isAddedBg ? 'layerBgUp' : 'layerElUp')
+                  }
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                  <span className="ml-1">{t.visualEditLayerUp}</span>
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={cn(btn, 'flex-1 rounded-none border-0')}
+                  disabled={busy || selection.layerPos === 'bottom' || selection.layerPos === 'only'}
+                  title={t.visualEditLayerDown}
+                  onClick={() =>
+                    postToIframe(iframeRef.current, selection.isAddedBg ? 'layerBgDown' : 'layerElDown')
+                  }
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                  <span className="ml-1">{t.visualEditLayerDown}</span>
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          {showStickHeader && selection ? (
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-background px-2 py-1.5">
+              <Switch
+                className="mt-0.5 shrink-0 data-[state=checked]:bg-primary"
+                checked={selection.stickHeader}
+                disabled={busy}
+                onCheckedChange={(on) => {
+                  postToIframe(iframeRef.current, 'setStickHeader', { on })
+                  setDirty(true)
+                }}
+              />
+              <span className="min-w-0">
+                <span className="block text-[11px] font-semibold leading-4">{t.visualEditStickHeader}</span>
+                <span className="block text-[10px] leading-4 text-muted-foreground">{t.visualEditStickHeaderHint}</span>
+              </span>
             </label>
           ) : null}
-          {selection?.isImage ? (
+          {showImageTools && (selection.isImage || selection.isBannerPhoto) && !selection.isLogo ? (
             <>
+              {selection.isImage && !selection.isBannerPhoto ? (
               <label className="flex items-center gap-1 text-[10px]">
                 <span className="text-muted-foreground">{t.visualEditImageWidth}</span>
                 <input
@@ -1162,43 +2673,6 @@ export function PartnerWebsiteVisualEditorToolbar({
                 />
                 <span className="w-7 tabular-nums text-muted-foreground">{selection.imageWidth}%</span>
               </label>
-              {selection.isLogo ? (
-                <>
-                  <label className="flex items-center gap-1 text-[10px]">
-                    <span className="text-muted-foreground">{t.visualEditLogoCropX}</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={selection.logoCropX}
-                      className={slider}
-                      disabled={busy}
-                      onChange={(e) =>
-                        postToIframe(iframeRef.current, 'setLogoCrop', {
-                          x: Number(e.target.value),
-                          y: selection.logoCropY,
-                        })
-                      }
-                    />
-                  </label>
-                  <label className="flex items-center gap-1 text-[10px]">
-                    <span className="text-muted-foreground">{t.visualEditLogoCropY}</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={selection.logoCropY}
-                      className={slider}
-                      disabled={busy}
-                      onChange={(e) =>
-                        postToIframe(iframeRef.current, 'setLogoCrop', {
-                          x: selection.logoCropX,
-                          y: Number(e.target.value),
-                        })
-                      }
-                    />
-                  </label>
-                </>
               ) : null}
               <Button
                 type="button"
@@ -1299,21 +2773,21 @@ export function PartnerWebsiteVisualEditorToolbar({
               ) : null}
             </>
           ) : null}
-          {selection && !selection.isBlock ? (
+          {selection && !selection.isBlock && selection.canDelete ? (
             <Button
               type="button"
               size="sm"
               variant="outline"
               className={cn(btn, 'text-destructive')}
               disabled={busy}
-              title={t.visualEditChromeDelete}
+              title={deleteLabel}
               onClick={() => {
                 postToIframe(iframeRef.current, 'deleteUnit')
                 setDirty(true)
               }}
             >
               <Plus className="h-3 w-3 rotate-45" aria-hidden />
-              {compact ? null : <span className="ml-1">{t.visualEditChromeDelete}</span>}
+              {compact ? null : <span className="ml-1">{deleteLabel}</span>}
             </Button>
           ) : null}
           {selection?.hasParentBlock && !selection.isBlock ? (
@@ -1330,65 +2804,9 @@ export function PartnerWebsiteVisualEditorToolbar({
               {selection.blockLabel && !compact ? ` · ${selection.blockLabel}` : ''}
             </Button>
           ) : null}
-          {!selection && !compact ? (
+          {!selection ? (
             <span className="text-[11px] text-muted-foreground">{t.visualEditSelectHint}</span>
           ) : null}
-          <div className="ml-auto flex items-center gap-1">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className={cn(btn, 'gap-1')}
-              disabled={busy || !canUndo}
-              title={`${t.visualEditUndo} (Ctrl+Z)`}
-              onClick={() => postToIframe(iframeRef.current, 'undo')}
-            >
-              <Undo2 className="h-3.5 w-3.5" aria-hidden />
-              {compact ? null : t.visualEditUndo}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className={cn(btn, 'gap-1')}
-              disabled={busy || !canRedo}
-              title={`${t.visualEditRedo} (Ctrl+Y)`}
-              onClick={() => postToIframe(iframeRef.current, 'redo')}
-            >
-              <Redo2 className="h-3.5 w-3.5" aria-hidden />
-              {compact ? null : t.visualEditRedo}
-            </Button>
-            {viewHref ? (
-              <Button type="button" size="sm" variant="outline" className={cn(btn, 'gap-1')} asChild>
-                <a href={viewHref} target="_blank" rel="noopener noreferrer" title={t.visualEditViewSite}>
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                  {t.visualEditViewSite}
-                </a>
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className={btn}
-              disabled={saving}
-              onClick={onCancel}
-            >
-              <X className="mr-1 h-3 w-3" />
-              {t.visualEditCancel}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className={btn}
-              disabled={busy || !dirty}
-              onClick={requestSave}
-            >
-              {saving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-              {t.visualEditSave}
-            </Button>
-          </div>
-        </div>
 
         {hiddenBlocks.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1 text-[10px]">
@@ -1412,7 +2830,12 @@ export function PartnerWebsiteVisualEditorToolbar({
         ) : null}
 
         {showChromeStyle && selection ? (
-          <div className="flex flex-wrap items-center gap-1 text-[10px]">
+          <div className="flex flex-col gap-1.5 rounded-md border bg-background px-2 py-1.5">
+            <div>
+              <p className="text-[11px] font-semibold leading-4">{chromeTitle}</p>
+              <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeWidgetHint}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1 text-[10px]">
             <span className="shrink-0 text-muted-foreground">{t.visualEditAddStyleTitle}</span>
             {(
               [
@@ -1433,47 +2856,49 @@ export function PartnerWebsiteVisualEditorToolbar({
                 {label}
               </Button>
             ))}
+            </div>
           </div>
         ) : null}
 
-        {(addButtonPanelOpen || showCtaStyle) ? (
+        {showCtaStyle && selection ? (
           <div
             className={cn(
               'flex flex-wrap items-center rounded-md border bg-background/90',
               compact ? 'gap-1 p-1.5' : 'gap-1.5 p-2'
             )}
           >
-            <span className="shrink-0 text-[10px] font-semibold">{t.visualEditAddButton}</span>
-            <label className="flex items-center gap-1 text-[10px]">
+            <div className="flex min-w-full flex-col gap-0.5">
+              <span className="text-[11px] font-semibold leading-4">{t.visualEditPageButtonTitle}</span>
+              <span className="text-[10px] leading-4 text-muted-foreground">{t.visualEditPageButtonHint}</span>
+            </div>
+            <div className="flex items-center gap-1 text-[10px]">
               <span className="text-muted-foreground">{t.visualEditAddButtonColor}</span>
-              <input
-                type="color"
-                value={addBtnColor || rgbToHex(selection?.bgColor || '') || '#ffffff'}
-                className={cn('cursor-pointer rounded border p-0.5', compact ? 'h-6 w-7' : 'h-7 w-9')}
+              <ThemeColorConfirmPicker
+                value={cssColorToHex(addBtnColor || selection?.bgColor || '', '#ffffff')}
                 disabled={busy}
-                onChange={(e) => {
-                  const color = e.target.value
+                compact={compact}
+                okLabel={t.themeColorOk}
+                onConfirm={(color) => {
                   setAddBtnColor(color)
                   postToIframe(iframeRef.current, 'setButtonColor', { color })
                   setDirty(true)
                 }}
               />
-            </label>
-            <label className="flex items-center gap-1 text-[10px]">
+            </div>
+            <div className="flex items-center gap-1 text-[10px]">
               <span className="text-muted-foreground">{t.visualEditAddButtonBorder}</span>
-              <input
-                type="color"
-                value={addBtnBorder || selection?.btnBorder || '#ffffff'}
-                className={cn('cursor-pointer rounded border p-0.5', compact ? 'h-6 w-7' : 'h-7 w-9')}
+              <ThemeColorConfirmPicker
+                value={cssColorToHex(addBtnBorder || selection?.btnBorder || '', '#ffffff')}
                 disabled={busy}
-                onChange={(e) => {
-                  const color = e.target.value
+                compact={compact}
+                okLabel={t.themeColorOk}
+                onConfirm={(color) => {
                   setAddBtnBorder(color)
                   postToIframe(iframeRef.current, 'setButtonBorder', { color })
                   setDirty(true)
                 }}
               />
-            </label>
+            </div>
             <input
               ref={btnLabelInputRef}
               type="text"
@@ -1561,136 +2986,131 @@ export function PartnerWebsiteVisualEditorToolbar({
           </div>
         ) : null}
 
-        {showHref && selection && !showCtaStyle && !addButtonPanelOpen ? (
-          <label className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px]">
-            <span className="shrink-0 text-muted-foreground">{t.visualEditButtonHref}</span>
-            <input
-              type="text"
-              value={hrefDraft}
-              placeholder={t.visualEditButtonHrefPlaceholder}
-              className={cn(
-                'min-w-[12rem] flex-1 rounded-md border bg-background px-2',
-                compact ? 'h-6 text-[10px]' : 'h-8 text-xs'
-              )}
-              disabled={busy}
-              onChange={(e) => setHrefDraft(e.target.value)}
-              onBlur={(e) => commitHref(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  commitHref(hrefDraft)
-                }
-              }}
-            />
-          </label>
-        ) : null}
-
         {showImageTools && selection ? (
           <div
             className={cn(
-              'flex flex-col rounded-md border bg-background/80',
-              compact && !selection.isLogo ? 'gap-1 p-1.5' : 'gap-2 p-2'
+              'w-full rounded-md border bg-background/80',
+              selection.isLogo
+                ? 'flex w-full max-w-md flex-col gap-1 p-1.5'
+                : cn('flex flex-col', compact ? 'gap-1 p-1.5' : 'gap-2 p-2')
             )}
           >
-            {compact && !selection.isLogo ? null : (
+            {selection.isBannerPhoto ? (
+              <label
+                className="flex w-full items-center gap-2 text-[10px] sm:col-span-2"
+                title={t.visualEditBannerZoomHint}
+              >
+                <span className="shrink-0 font-medium text-muted-foreground">{t.visualEditBannerZoom}</span>
+                <input
+                  type="range"
+                  min={50}
+                  max={300}
+                  value={selection.bannerZoom}
+                  className={cn(slider, 'h-6 min-w-0 w-full max-w-none flex-1 accent-primary')}
+                  disabled={busy}
+                  onChange={(e) =>
+                    postToIframe(iframeRef.current, 'setBannerZoom', { zoom: Number(e.target.value) })
+                  }
+                />
+                <span className="w-8 shrink-0 tabular-nums text-muted-foreground">{selection.bannerZoom}%</span>
+              </label>
+            ) : null}
+            {selection.isLogo ? (
               <>
-                <p className="text-xs font-medium">
-                  {selection.isLogo ? logoActionLabel : t.visualEditAiImageTitle}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {selection.isLogo ? t.visualEditLogoHint : t.visualEditAiImageHint}
-                </p>
+                {logoCreateFields}
+                {hasRealLogoSrc ? (
+                  <div className="flex w-full flex-col gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 px-2 text-[11px]"
+                      disabled={busy}
+                      title={t.visualEditLogoZoomHint}
+                      onClick={() => postToIframe(iframeRef.current, 'openLogoCrop', {})}
+                    >
+                      <Crop className="mr-1 h-3 w-3" />
+                      {t.visualEditLogoCrop}
+                    </Button>
+                    <p className="text-[10px] leading-snug text-muted-foreground">{t.visualEditLogoZoomHint}</p>
+                    <label className="flex w-full items-center gap-1.5 text-[10px]" title={t.visualEditLogoZoomHint}>
+                      <span className="w-14 shrink-0 text-muted-foreground">{t.visualEditLogoZoom}</span>
+                      <button
+                        type="button"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded border bg-background text-xs font-semibold"
+                        disabled={busy}
+                        aria-label="-"
+                        onClick={() =>
+                          postToIframe(iframeRef.current, 'setLogoZoom', {
+                            zoom: Math.max(30, selection.logoZoom - 10),
+                          })
+                        }
+                      >
+                        −
+                      </button>
+                      <input
+                        type="range"
+                        min={30}
+                        max={400}
+                        value={selection.logoZoom}
+                        className={cn(slider, 'h-6 min-w-0 w-full flex-1 accent-primary')}
+                        disabled={busy}
+                        onChange={(e) =>
+                          postToIframe(iframeRef.current, 'setLogoZoom', { zoom: Number(e.target.value) })
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded border bg-background text-xs font-semibold"
+                        disabled={busy}
+                        aria-label="+"
+                        onClick={() =>
+                          postToIframe(iframeRef.current, 'setLogoZoom', {
+                            zoom: Math.min(400, selection.logoZoom + 10),
+                          })
+                        }
+                      >
+                        +
+                      </button>
+                      <span className="w-8 shrink-0 tabular-nums text-muted-foreground">{selection.logoZoom}%</span>
+                    </label>
+                    <button
+                      type="button"
+                      className="self-start text-[10px] text-muted-foreground underline-offset-2 hover:underline"
+                      disabled={busy}
+                      onClick={() => postToIframe(iframeRef.current, 'setLogoReset', {})}
+                    >
+                      {t.visualEditResetImagePos}
+                    </button>
+                  </div>
+                ) : null}
               </>
+            ) : compact ? null : (
+              <div className="min-w-0">
+                <p className="text-xs font-medium">{t.visualEditAiImageTitle}</p>
+                <p className="text-[11px] text-muted-foreground">{t.visualEditAiImageHint}</p>
+              </div>
             )}
-            <label className="flex min-w-0 flex-col gap-1" htmlFor="nanoai-ve-ai-prompt">
-              <span className={cn(selection.isLogo ? 'text-[11px] font-medium' : 'sr-only')}>
-                {selection.isLogo ? t.visualEditLogoPromptLabel : t.visualEditAiPromptLabel}
+            {selection.isLogo ? null : (
+            <label className="flex min-w-0 flex-col gap-0.5" htmlFor="nanoai-ve-ai-prompt">
+              <span className="sr-only">
+                {t.visualEditAiPromptLabel}
               </span>
               <textarea
                 id="nanoai-ve-ai-prompt"
                 ref={promptTextareaRef}
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
-                placeholder={
-                  selection.isLogo ? t.visualEditLogoPromptPlaceholder : t.visualEditAiImagePlaceholder
-                }
-                rows={selection.isLogo ? 3 : compact ? 1 : 2}
+                placeholder={t.visualEditAiImagePlaceholder}
+                rows={compact ? 1 : 2}
                 disabled={busy}
                 className={cn(
-                  'w-full resize-y rounded-md border bg-background px-2 py-1',
-                  compact && !selection.isLogo ? 'text-[10px]' : 'text-xs'
+                  'w-full rounded-md border bg-background px-2 py-1 resize-y',
+                  compact ? 'text-[10px]' : 'text-xs'
                 )}
               />
             </label>
-            {selection.isLogo ? (
-              <div className="flex flex-col gap-1.5 rounded-md border border-dashed bg-muted/20 p-1.5">
-                <span className="text-[11px] font-medium">{t.visualEditLogoReferenceLabel}</span>
-                <p className="text-[10px] text-muted-foreground">{t.visualEditLogoReferenceHint}</p>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {refUrl || hasRealLogoSrc ? (
-                    <img
-                      src={refUrl || selection.src}
-                      alt=""
-                      className="h-12 w-16 rounded border bg-white object-contain"
-                    />
-                  ) : null}
-                  <input
-                    ref={refFileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      void handleUploadReference(e.target.files)
-                      e.target.value = ''
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className={btn}
-                    disabled={busy}
-                    onClick={() => refFileRef.current?.click()}
-                  >
-                    {uploadBusy ? (
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                    ) : (
-                      <ImagePlus className="mr-1 h-3 w-3" />
-                    )}
-                    {t.visualEditUploadReference}
-                  </Button>
-                  {refUrl ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className={btn}
-                      disabled={busy}
-                      onClick={() => {
-                        setRefUrl('')
-                        setUseCurrentRef(false)
-                      }}
-                    >
-                      {t.visualEditRemoveReference}
-                    </Button>
-                  ) : null}
-                  {hasRealLogoSrc ? (
-                    <label className="flex items-center gap-1 text-[10px]">
-                      <input
-                        type="checkbox"
-                        checked={useCurrentRef && !refUrl}
-                        disabled={busy}
-                        onChange={(e) => {
-                          setUseCurrentRef(e.target.checked)
-                          if (e.target.checked) setRefUrl('')
-                        }}
-                      />
-                      {t.visualEditUseCurrentAsRef}
-                    </label>
-                  ) : null}
-                </div>
-              </div>
-            ) : (
+            )}
+            {selection.isLogo ? null : (
               <div className="flex flex-wrap items-center gap-1.5">
                 {selection.src ? (
                   <img
@@ -1711,16 +3131,6 @@ export function PartnerWebsiteVisualEditorToolbar({
                   />
                   {t.visualEditUseCurrentAsRef}
                 </label>
-                <input
-                  ref={refFileRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    void handleUploadReference(e.target.files)
-                    e.target.value = ''
-                  }}
-                />
                 <Button
                   type="button"
                   size="sm"
@@ -1733,7 +3143,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 </Button>
               </div>
             )}
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className={cn('flex flex-wrap items-center gap-1', selection.isLogo && 'shrink-0')}>
               <input
                 ref={fileRef}
                 type="file"
@@ -1748,8 +3158,9 @@ export function PartnerWebsiteVisualEditorToolbar({
                 type="button"
                 size="sm"
                 variant="outline"
-                className={btn}
+                className={selection.isLogo ? 'h-6 px-1.5 text-[10px]' : btn}
                 disabled={busy}
+                title={selection.isLogo ? t.visualEditUploadAsLogo : t.visualEditReplaceImage}
                 onClick={() => fileRef.current?.click()}
               >
                 {uploadBusy ? (
@@ -1757,13 +3168,14 @@ export function PartnerWebsiteVisualEditorToolbar({
                 ) : (
                   <ImagePlus className="mr-1 h-3 w-3" />
                 )}
-                {t.visualEditReplaceImage}
+                {selection.isLogo ? t.visualEditUploadAsLogo : t.visualEditReplaceImage}
               </Button>
               <Button
                 type="button"
                 size="sm"
-                className={btn}
+                className={selection.isLogo ? 'h-6 px-1.5 text-[10px]' : btn}
                 disabled={busy}
+                title={selection.isLogo ? logoActionLabel : t.visualEditCreateWithAi}
                 onClick={() => void handleGenerateAi()}
               >
                 {aiBusy ? (
@@ -1778,28 +3190,44 @@ export function PartnerWebsiteVisualEditorToolbar({
                   type="button"
                   size="sm"
                   variant="outline"
-                  className={btn}
+                  className={selection.isLogo ? 'h-6 px-1.5 text-[10px]' : btn}
                   disabled={busy}
+                  title={t.visualEditApplyLogoAll}
                   onClick={() => {
                     postToIframe(iframeRef.current, 'setImageSrc', { url: selection.src, allSlots: true })
                     setDirty(true)
                     void persistAdminLogo(selection.src)
                   }}
                 >
-                  {t.visualEditApplyLogoAll}
+                  <Images className={cn('h-3 w-3', !selection.isLogo && 'mr-1')} />
+                  {selection.isLogo ? null : t.visualEditApplyLogoAll}
                 </Button>
+              ) : null}
+              {selection.isLogo && hasRealLogoSrc ? (
+                <label className="flex items-center gap-1 text-[10px] text-muted-foreground" title={t.visualEditUseCurrentAsRef}>
+                  <input
+                    type="checkbox"
+                    checked={useCurrentRef && !refUrl}
+                    disabled={busy}
+                    onChange={(e) => {
+                      setUseCurrentRef(e.target.checked)
+                      if (e.target.checked) setRefUrl('')
+                    }}
+                  />
+                  {t.visualEditUseCurrentAsRef}
+                </label>
               ) : null}
             </div>
           </div>
         ) : null}
+                  </div>
+                ) : null}
+              </VisualEditFloatingPanel>,
+              document.body
+            )
+          : null}
       </div>
     </>
   )
 }
 
-function rgbToHex(rgb: string): string | null {
-  const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
-  if (!m) return null
-  const hex = (n: string) => Number(n).toString(16).padStart(2, '0')
-  return `#${hex(m[1]!)}${hex(m[2]!)}${hex(m[3]!)}`
-}
