@@ -196,6 +196,7 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('applyDefaultZ')
     expect(s).toContain('z-index:15!important')
     expect(s).toContain('[data-pw-edit-device="mobile"] .pw-bottom-nav')
+    expect(s).toContain('[data-pw-edit-device="desktop"] .pw-bottom-nav')
     expect(s).not.toContain('.nanoai-ve-active .pw-bottom-nav,.nanoai-ve-active .pw-shop-bottom-nav{z-index:1!important')
     expect(s).toContain('ensureLogoFrame')
     expect(s).toContain('setLogoZoom')

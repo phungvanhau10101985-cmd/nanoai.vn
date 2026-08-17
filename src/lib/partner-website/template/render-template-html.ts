@@ -604,8 +604,11 @@ ${buildPartnerSiteAccountPanelCss()}
 .pw-bottom-nav{display:none}
 .pw-fab-chat{position:fixed;right:16px;bottom:84px;z-index:9999;width:52px;height:52px;border-radius:50%;background:var(--pw-accent);color:#fff;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-size:22px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
 @media (min-width:900px){
-  body{padding-bottom:0}
   .pw-nav-main{display:flex}
+}
+@media (min-width:1280px){
+  body{padding-bottom:0}
+  .pw-bottom-nav{display:none}
   .pw-fab-chat{bottom:16px}
 }
 @media (max-width:899px){
@@ -647,6 +650,8 @@ ${buildPartnerSiteAccountPanelCss()}
   .pw-cat-label{font-size:11px}
   .pw-product-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .pw-footer-grid{grid-template-columns:1fr 1fr}
+}
+@media (max-width:1279px){
   .pw-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:180;isolation:isolate;display:flex;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;background:#fff;border-top:1px solid #e5e7eb;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
   .pw-bottom-nav a,.pw-bottom-nav .pw-icon-btn,.pw-bottom-nav .pw-shop-icon-btn{flex:1 1 0;min-width:0;min-height:0;width:auto;height:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-decoration:none;font-size:10px;font-weight:600;color:#6b7280;padding:6px 2px;background:transparent;transform:none}
   .pw-bottom-nav a.is-active,.pw-bottom-nav a:first-child{color:var(--pw-primary)}
@@ -667,6 +672,7 @@ export function renderTemplateSiteToHtml(input: PartnerWebsiteTemplateRenderInpu
   const logo = input.theme.logoUrl ?? input.logoUrl
   const siteSlug = input.siteSlug?.trim() ?? ''
 
+  // Shared chrome on every generated page — only `body` (middle) differs.
   const chrome = buildPartnerSiteHeaderHtml({
     locale: input.locale,
     title: input.title,

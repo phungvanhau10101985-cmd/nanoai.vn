@@ -3,6 +3,16 @@ import {
   PW_CHROME_COUNT_BADGE_HIDE_CSS,
   PW_CHROME_COUNT_BADGE_RUNTIME_JS,
 } from '../shop/chrome-count-badges'
+import {
+  PW_SCENE_ATTR,
+  PW_SCENE_BAND,
+  PW_SCENE_DEFAULT_INDEX,
+  PW_SCENE_LAYERS,
+  PW_SCENE_LOCAL_MAX,
+  PW_SCENE_MAX_INDEX,
+  PW_SCENE_MIN_INDEX,
+  PW_SCENE_Z_MAX,
+} from './pw-scene'
 
 export const NANOAI_VE_MESSAGE = 'nanoai-visual-editor'
 /** Số bước hoàn tác trong một phiên sửa. 30 đủ dùng, HTML snapshot không quá nặng. */
@@ -103,7 +113,7 @@ const COPY: Record<WebLocale, VisualEditorCopy> = {
 }
 
 /** IIFE body injected into preview iframe. Avoid `${` — this is a JS template literal. */
-const RUNTIME_BODY = `(function (MSG, COPY) {
+const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   if (window.__nanoaiVeBound) return
   window.__nanoaiVeBound = 1
   var selected = null
@@ -114,6 +124,8 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
   var skipClick = false
   var veListening = false
   var layerMode = 'block'
+  /** Lớp không gian đang khoá để bấm được phần tử bị che. -1 = không khoá. */
+  var sceneFocus = -1
   var logoLayerPicked = false
   var editDevice = 'desktop'
   var logoDraw = { on: false, dragging: false, x1: 0, y1: 0, x2: 0, y2: 0 }
@@ -3232,6 +3244,8 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
     if (isAddedOverlay(unit)) return unit
     if (isLogoLayerUnit(unit)) return unit
     if (isFullBleedChrome(unit)) return unit
+    var bottomNav = unit.closest ? unit.closest('.pw-bottom-nav, .pw-shop-bottom-nav') : null
+    if (bottomNav) return bottomNav
     var header = unit.closest ? unit.closest('header, .pw-header, .pw-shop-header') : null
     if (header) {
       var main = header.querySelector ? (header.querySelector('.pw-header-main, .pw-shop-header-inner') || header) : header
@@ -3269,7 +3283,7 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
   }
   function writeUserZ(el, z) {
     if (!el || isFullBleedChrome(el)) return
-    var n = Math.max(0, Math.min(400, Math.round(Number(z) || 0)))
+    var n = Math.max(0, Math.min(SCENE.zMax, Math.round(Number(z) || 0)))
     el.setAttribute('data-pw-z', String(n))
     try {
       var pos = cs(el).position
@@ -3278,6 +3292,81 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
       }
     } catch (errPos) {}
     el.style.setProperty('z-index', String(n), 'important')
+  }
+  function sceneClampIndex(index) {
+    var n = Math.round(Number(index))
+    if (!isFinite(n)) return SCENE.defaultIndex
+    return Math.min(SCENE.maxIndex, Math.max(SCENE.minIndex, n))
+  }
+  function sceneIndexOfZ(z) {
+    var n = Number(z)
+    if (!isFinite(n)) return SCENE.defaultIndex
+    return sceneClampIndex(Math.floor(Math.max(0, n) / SCENE.band))
+  }
+  function sceneLocalOfZ(z) {
+    var n = Number(z)
+    if (!isFinite(n) || n <= 0) return 0
+    var capped = Math.min(SCENE.zMax, Math.round(n))
+    return Math.min(SCENE.localMax, capped - sceneIndexOfZ(capped) * SCENE.band)
+  }
+  function sceneZ(index, local) {
+    var l = Math.min(SCENE.localMax, Math.max(0, Math.round(Number(local) || 0)))
+    return sceneClampIndex(index) * SCENE.band + l
+  }
+  /** Lớp của phần tử — theo cả trang, không theo vùng cha. */
+  function readSceneIndex(el) {
+    if (!el || !el.getAttribute) return SCENE.defaultIndex
+    var raw = el.getAttribute(SCENE.attr)
+    if (raw != null && String(raw).trim() !== '') {
+      var n = parseInt(raw, 10)
+      if (isFinite(n) && n >= SCENE.minIndex && n <= SCENE.maxIndex) return n
+    }
+    return sceneIndexOfZ(readUserZ(el))
+  }
+  function writeSceneIndex(el, index) {
+    if (!el || isFullBleedChrome(el)) return
+    var i = sceneClampIndex(index)
+    el.setAttribute(SCENE.attr, String(i))
+    writeUserZ(el, sceneZ(i, sceneLocalOfZ(readUserZ(el))))
+  }
+  function sceneLayerPos(index) {
+    var i = sceneClampIndex(index)
+    // Lớp dưới (1) là thấp nhất phần tử được đặt — nền (0) không nhận phần tử rời.
+    if (i <= SCENE.minIndex + 1) return 'bottom'
+    if (i >= SCENE.maxIndex) return 'top'
+    return 'middle'
+  }
+  /** Chọn lớp để bấm: chỉ phần tử trên lớp đó nhận chuột. */
+  function sceneFocusAllows(el) {
+    if (sceneFocus < SCENE.minIndex) return true
+    if (!el) return false
+    return readSceneIndex(el) === sceneFocus
+  }
+  function setSceneFocus(index) {
+    var n = Math.round(Number(index))
+    sceneFocus = isFinite(n) && n >= SCENE.minIndex && n <= SCENE.maxIndex ? n : -1
+    post('scene', { focus: sceneFocus })
+  }
+  function setElementScene(index) {
+    if (!selected) return
+    var el = isAddedOverlay(selected) ? selected : layerPromoteHost(selected)
+    if (!el) return
+    // Lớp nền (0) chỉ là mặt đất — không đặt phần tử rời lên đó.
+    var i = sceneClampIndex(index)
+    if (i <= SCENE.minIndex) i = SCENE.minIndex + 1
+    writeSceneIndex(el, i)
+    revealLayeredLogo(el)
+    revealLayeredLogo(selected)
+    post('dirty', {})
+    refreshSelect()
+  }
+  function stepElementScene(dir) {
+    if (!selected) return
+    var el = isAddedOverlay(selected) ? selected : layerPromoteHost(selected)
+    if (!el) return
+    var next = readSceneIndex(el) + (Number(dir) > 0 ? 1 : -1)
+    if (next <= SCENE.minIndex || next > SCENE.maxIndex) return
+    setElementScene(next)
   }
   function revealLayeredLogo(el) {
     if (!isLogoLayerUnit(el)) return
@@ -4648,6 +4737,10 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
       transform: canDragEl(el) ? parseTransform(el) : null,
       canStickHeader: canStickHeaderEl(el),
       stickHeader: isStickHeaderOn(el),
+      scene: readSceneIndex(isAddedOverlay(el) ? el : (layerPromoteHost(el) || el)),
+      scenePos: sceneLayerPos(readSceneIndex(isAddedOverlay(el) ? el : (layerPromoteHost(el) || el))),
+      sceneCount: SCENE.maxIndex + 1,
+      sceneFocus: sceneFocus,
     }
   }
   function clearHover() {
@@ -5743,6 +5836,7 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
     for (var i = 0; i < stack.length; i++) {
       var n = stack[i]
       if (!n || n.nodeType !== 1) continue
+      if (!sceneFocusAllows(n)) continue
       if (isIgnored(n) || isBgLayerEl(n) || isOverlayNode(n)) continue
       if (n.classList && (n.classList.contains('nanoai-ve-layer-switch') || n.classList.contains('nanoai-ve-move-handle') || n.classList.contains('nanoai-ve-resize-handle'))) continue
       if (isPointerPassthrough(n)) continue
@@ -6332,6 +6426,7 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
       '.nanoai-ve-active .pw-cat-panel:not(.is-open),.nanoai-ve-active .pw-shop-cat-panel:not(.is-open),.nanoai-ve-active .pw-account-panel:not(.is-open),.nanoai-ve-active .pw-shop-account-panel:not(.is-open),.nanoai-ve-active [data-pw-cat-panel]:not(.is-open),.nanoai-ve-active [data-pw-account-panel]:not(.is-open){display:none!important;pointer-events:none!important;visibility:hidden!important}',
       '.nanoai-ve-active .pw-nav-main a,.nanoai-ve-active .pw-shop-nav-row a,.nanoai-ve-active .pw-topbar a,.nanoai-ve-active .pw-shop-topbar a,.nanoai-ve-active [data-pw-el="nav-link"],.nanoai-ve-active [data-pw-el="link"],.nanoai-ve-active [data-pw-el="cat-toggle"],.nanoai-ve-active .pw-cat-btn,.nanoai-ve-active .pw-shop-cat-btn{pointer-events:auto!important;position:relative;z-index:6}',
       '.pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;grid-template-columns:none!important}',
+      '[data-pw-edit-device="desktop"] .pw-bottom-nav,[data-pw-edit-device="desktop"] .pw-shop-bottom-nav{display:none!important}',
       '.pw-bottom-nav a:not([data-pw-chrome-added]),.pw-shop-bottom-nav a:not([data-pw-chrome-added]),.pw-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]),.pw-shop-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]){flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;color:#6b7280!important;flex-direction:column;align-items:center;justify-content:center;background:transparent!important}',
       '.pw-bottom-nav [data-pw-chrome-added],.pw-shop-bottom-nav [data-pw-chrome-added]{flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;flex-direction:column;align-items:center;justify-content:center;background:transparent!important;cursor:grab}',
       '.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-brand-cluster,.pw-shop-brand-cluster{overflow:visible!important}',
@@ -6781,6 +6876,10 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
     if (d.type === 'layerBgDown') layerAddedBg(-1)
     if (d.type === 'layerElUp') stepElementLayer(1)
     if (d.type === 'layerElDown') stepElementLayer(-1)
+    if (d.type === 'setScene') setElementScene(d.scene)
+    if (d.type === 'sceneUp') stepElementScene(1)
+    if (d.type === 'sceneDown') stepElementScene(-1)
+    if (d.type === 'setSceneFocus') setSceneFocus(d.scene)
     if (d.type === 'layerElFront') bringElementFront()
     if (d.type === 'layerElBack') sendElementBack()
     if (d.type === 'setChromeStyle') setChromeStyle(d.style)
@@ -6855,7 +6954,28 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
   post('loaded', {})
 })`
 
+/** Hằng số lớp không gian — runtime và server dùng chung một nguồn. */
+const SCENE_RUNTIME = {
+  attr: PW_SCENE_ATTR,
+  band: PW_SCENE_BAND,
+  localMax: PW_SCENE_LOCAL_MAX,
+  minIndex: PW_SCENE_MIN_INDEX,
+  maxIndex: PW_SCENE_MAX_INDEX,
+  defaultIndex: PW_SCENE_DEFAULT_INDEX,
+  zMax: PW_SCENE_Z_MAX,
+  keys: PW_SCENE_LAYERS.map((layer) => layer.key),
+}
+
 export function buildVisualEditorScript(locale: WebLocale): string {
   const copy = COPY[locale in COPY ? locale : 'en']
-  return RUNTIME_BODY + '(' + JSON.stringify(NANOAI_VE_MESSAGE) + ',' + JSON.stringify(copy) + ');'
+  return (
+    RUNTIME_BODY +
+    '(' +
+    JSON.stringify(NANOAI_VE_MESSAGE) +
+    ',' +
+    JSON.stringify(copy) +
+    ',' +
+    JSON.stringify(SCENE_RUNTIME) +
+    ');'
+  )
 }

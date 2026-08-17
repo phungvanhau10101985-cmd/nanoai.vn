@@ -28,10 +28,17 @@ import {
   resolvePartnerCategoryAncestors,
   resolvePartnerCategoryDisplayName,
 } from '@/lib/partner-website/category/partner-category-types'
-import { maybePartnerSiteVisualProductPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
+import {
+  maybePartnerSiteVisualProductPage,
+  readVisualPreviewDevice,
+  type PartnerSiteSearchParams,
+} from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
-type Props = { params: Promise<{ slug: string; inventoryId: string }> }
+type Props = {
+  params: Promise<{ slug: string; inventoryId: string }>
+  searchParams?: PartnerSiteSearchParams
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, inventoryId } = await params
@@ -61,7 +68,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export const dynamic = 'force-dynamic'
 
-export default async function PartnerSiteProductDetailPage({ params }: Props) {
+export default async function PartnerSiteProductDetailPage({ params, searchParams }: Props) {
   const { slug, inventoryId } = await params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
@@ -84,7 +91,11 @@ export default async function PartnerSiteProductDetailPage({ params }: Props) {
     )
   }
 
-  const visual = maybePartnerSiteVisualProductPage(shop.site, row.id)
+  const visual = maybePartnerSiteVisualProductPage(
+    shop.site,
+    row.id,
+    await readVisualPreviewDevice(searchParams)
+  )
   if (visual) return visual
 
   const relatedPage = await fetchPartnerInventoryActivePageWithCountFromPg(shop.partnerId, 0, 8)

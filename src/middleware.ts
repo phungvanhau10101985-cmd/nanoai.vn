@@ -3,6 +3,7 @@ import {
   APP_LOGIN_NEXT_HEADER,
   APP_LOGIN_NEXT_HEADER_LEGACY,
   PARTNER_CUSTOM_DOMAIN_HEADER,
+  PARTNER_VISUAL_DEVICE_HEADER,
 } from '@/lib/auth/app-request-headers'
 import { getJwtUserFromRequest } from '@/lib/auth/email-jwt-middleware'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
@@ -60,6 +61,16 @@ function refreshEmailSessionCookies(response: NextResponse, request: NextRequest
   response.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
 }
 
+/** Chỉ nhận từ query — xoá header client tự gắn để không giả được bản máy. */
+function applyVisualDeviceHeader(headers: Headers, request: NextRequest) {
+  const raw = request.nextUrl.searchParams.get('pw-device')?.trim().toLowerCase() || ''
+  if (raw === 'mobile' || raw === 'tablet' || raw === 'desktop') {
+    headers.set(PARTNER_VISUAL_DEVICE_HEADER, raw)
+    return
+  }
+  headers.delete(PARTNER_VISUAL_DEVICE_HEADER)
+}
+
 function partnerCustomDomainRewrite(
   request: NextRequest,
   rewriteUrl: URL,
@@ -67,6 +78,7 @@ function partnerCustomDomainRewrite(
   internalPath: string
 ): NextResponse {
   const requestHeaders = new Headers(request.headers)
+  applyVisualDeviceHeader(requestHeaders, request)
   requestHeaders.set(PARTNER_CUSTOM_DOMAIN_HEADER, host)
   requestHeaders.set(APP_LOGIN_NEXT_HEADER, internalPath)
   requestHeaders.set(APP_LOGIN_NEXT_HEADER_LEGACY, internalPath)
@@ -158,6 +170,7 @@ export async function middleware(request: NextRequest) {
 
   const pathForLogin = request.nextUrl.pathname + (request.nextUrl.search || '')
   const forwarded = new Headers(request.headers)
+  applyVisualDeviceHeader(forwarded, request)
   forwarded.set(APP_LOGIN_NEXT_HEADER, pathForLogin)
   forwarded.set(APP_LOGIN_NEXT_HEADER_LEGACY, pathForLogin)
   const requestWithLoginNext = new NextRequest(request.url, { headers: forwarded })

@@ -555,6 +555,7 @@ function PartnerSiteShopShellInner({
   )
 }
 
+/** Shared storefront chrome: same header, footer, and bottom nav on every page. Only `children` differs. */
 export function PartnerSiteShopShell(props: Props) {
   return (
     <PartnerSiteChatWidgetProvider

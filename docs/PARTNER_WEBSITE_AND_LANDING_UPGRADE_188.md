@@ -9,7 +9,8 @@ Sản phẩm dashboard: **Tạo web & landing** = **hai phần bắt buộc cùn
 
 - **Mẫu tham chiếu:** `E:\python-code\188-com-vn` (storefront bán hàng hoàn chỉnh — đọc UX/chuyển đổi/SEO/tracking; **không** copy kiến trúc monobrand).
 - **UI copy:** `src/lib/i18n/partner-website-copy.ts` (`pageTitle: Tạo web & landing`).
-- **Cập nhật lần cuối:** 2026-08-05
+- **Cập nhật lần cuối:** 2026-08-17
+- **Chrome dùng chung (mọi giao diện sau):** [`PARTNER_WEBSITE_SHARED_CHROME.md`](./PARTNER_WEBSITE_SHARED_CHROME.md) — header/footer/thanh đáy giống nhau; chỉ phần giữa đổi theo trang.
 - **Cách dùng mỗi phiên:** xem [Cách dùng tài liệu này](#cách-dùng-tài-liệu-này).
 
 > File cũ `docs/PARTNER_LANDING_UPGRADE_188.md` đã gộp vào đây — dùng file này.
@@ -523,7 +524,8 @@ Phụ:                  H.2 → H.3
 2. Chọn đúng **một ID** còn ❌ hoặc 🟡.  
 3. Nêu trong chat: `Làm ID L1.1 — mục tiêu: … — không đụng W2.*`.  
 4. Nếu làm L: không phá web chính. Nếu làm W: không phá luồng LP create→build→publish.  
-5. Reuse code shop hiện có trước khi viết path mới.
+5. Reuse code shop hiện có trước khi viết path mới.  
+6. Giao diện shop mới: header / footer / thanh đáy dùng chung — [`PARTNER_WEBSITE_SHARED_CHROME.md`](./PARTNER_WEBSITE_SHARED_CHROME.md).
 
 ### Khi báo hoàn tất
 
@@ -551,6 +553,7 @@ Sửa tài liệu **cùng PR** với code.
 | Templates | `src/lib/partner-website/template/shop-template-presets.ts` |
 | Sections | `src/lib/partner-website/template/section-registry.ts` |
 | Page catalog | `src/lib/partner-website/partner-website-page-catalog.ts` |
+| Chrome dùng chung | `src/lib/partner-website/shop/sync-shared-chrome.ts` — [hướng dẫn](./PARTNER_WEBSITE_SHARED_CHROME.md) |
 | Shop PDP/Cart | `src/components/partner-website/shop/partner-site-shop-*.tsx` |
 | Copy UI | `src/lib/i18n/partner-website-copy.ts` |
 | Custom domain | `src/app/dashboard/messaging/partner-custom-domain-settings-card.tsx` |

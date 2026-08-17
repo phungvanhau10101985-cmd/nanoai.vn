@@ -123,9 +123,12 @@ header a.pw-brand img.pw-logo ~ img.pw-logo,header a.pw-shop-brand img.pw-logo ~
 }
 @media (min-width:1280px){
 [data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-chrome-count]){display:none!important}
+.pw-bottom-nav,.pw-shop-bottom-nav{display:none!important}
+body{padding-bottom:0}
 }
-@media (max-width:899px){
-.pw-bottom-nav,.pw-shop-bottom-nav{position:fixed!important;left:0;right:0;bottom:0;z-index:180!important;isolation:isolate;background:#fff}
+@media (max-width:1279px){
+.pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important;position:fixed!important;left:0;right:0;bottom:0;z-index:180!important;isolation:isolate;background:#fff}
+body{padding-bottom:72px}
 }
 ${PARTNER_SHOP_MOBILE_HEADER_SEARCH_LOCK_CSS}
 ${PARTNER_SHOP_STICK_HEADER_CSS}

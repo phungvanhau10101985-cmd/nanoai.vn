@@ -2,9 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
 import { visualHtmlLooksUsable, sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
+import { PW_SCENE_DESIGN_WIDTH } from '@/lib/partner-website/visual-editor/pw-scene'
 import {
   addVisualPageKey,
   appendVisualDeviceQuery,
+  VISUAL_DESKTOP_MIN_PX,
   VISUAL_MOBILE_PREVIEW_PX,
   VISUAL_TABLET_PREVIEW_PX,
   categoryPathFromSitePath,
@@ -28,10 +30,17 @@ import {
   resolvePublicVisualPageHtml,
   resolveVisualProductIdFromKey,
   shouldServeVisualPageHtml,
+  visualDevicePreviewFrameStyle,
   visualEditorDeviceVariant,
   visualEditorHtmlPath,
   visualEditorPreviewPath,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+
+test('scene layers use the same design width as the device preview', () => {
+  assert.equal(PW_SCENE_DESIGN_WIDTH.mobile, VISUAL_MOBILE_PREVIEW_PX)
+  assert.equal(PW_SCENE_DESIGN_WIDTH.tablet, VISUAL_TABLET_PREVIEW_PX)
+  assert.equal(PW_SCENE_DESIGN_WIDTH.desktop, VISUAL_DESKTOP_MIN_PX)
+})
 
 test('visual editor paths map catalog pages', () => {
   assert.equal(visualEditorHtmlPath('home'), 'index.html')
@@ -49,6 +58,13 @@ test('visual editor paths map catalog pages', () => {
   assert.equal(appendVisualDeviceQuery('/site/188-shop/products', 'mobile'), '/site/188-shop/products?pw-device=mobile')
   assert.equal(appendVisualDeviceQuery('/site/188-shop/products', 'tablet'), '/site/188-shop/products?pw-device=tablet')
   assert.equal(appendVisualDeviceQuery('/site/188-shop?v=1', 'desktop'), '/site/188-shop?v=1&pw-device=desktop')
+  assert.deepEqual(visualDevicePreviewFrameStyle('mobile'), { width: VISUAL_MOBILE_PREVIEW_PX })
+  assert.deepEqual(visualDevicePreviewFrameStyle('tablet'), { width: VISUAL_TABLET_PREVIEW_PX })
+  assert.deepEqual(visualDevicePreviewFrameStyle('desktop'), {
+    width: '100%',
+    minWidth: VISUAL_DESKTOP_MIN_PX,
+  })
+  assert.deepEqual(visualDevicePreviewFrameStyle(null), {})
   assert.equal(VISUAL_MOBILE_PREVIEW_PX, 390)
   assert.equal(VISUAL_TABLET_PREVIEW_PX, 768)
   assert.equal(visualEditorPreviewPath('188-shop', 'products'), '/site/188-shop/products')
@@ -96,6 +112,42 @@ test('saved visual page html is isolated from homepage', () => {
   assert.equal(resolveExactVisualPageHtml(website, 'home'), home)
   assert.equal(resolveExactVisualPageHtml(website, 'about'), about)
   assert.equal(resolveExactVisualPageHtml(website, 'faq'), '')
+})
+
+test('non-home visual html uses shared home header footer and bottom nav', () => {
+  const home = `<!DOCTYPE html><html><body>
+<header class="pw-header">SharedHead</header>
+<section>Home mid</section>
+<footer class="pw-footer">SharedFoot</footer>
+<nav class="pw-bottom-nav">SharedNav</nav>
+</body></html>`
+  const about = `<!DOCTYPE html><html><body>
+<header class="pw-header">AboutHead</header>
+<main>About mid</main>
+<footer class="pw-footer">AboutFoot</footer>
+</body></html>`
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      useVisualHtml: true,
+      visualPageKeys: ['about'],
+    },
+    htmlSource: home,
+    project: {
+      entryPath: 'index.html',
+      files: [
+        { path: 'index.html', kind: 'html' as const, content: home },
+        { path: 'about.html', kind: 'html' as const, content: about },
+      ],
+    },
+  }
+  const out = resolveExactVisualPageHtml(website, 'about')
+  assert.match(out, /SharedHead/)
+  assert.match(out, /SharedFoot/)
+  assert.match(out, /SharedNav/)
+  assert.match(out, /About mid/)
+  assert.equal(out.includes('AboutHead'), false)
+  assert.equal(out.includes('Home mid'), false)
 })
 
 test('without visualPageKeys there is no non-home override', () => {
@@ -483,6 +535,52 @@ test('pw-device preview serves only the edited device file', () => {
   const composed = resolvePublicVisualPageHtml(website, 'home')
   assert.match(composed, /Desk home/)
   assert.match(composed, /Mob home/)
+})
+
+test('device slice survives runtime scripts appended after the wrapper', () => {
+  const composed = composeResponsiveVisualHtml(
+    '<!DOCTYPE html><html><body><h1>Desk</h1></body></html>',
+    '<!DOCTYPE html><html><body><div class="pw-header-actions"><h1>Mob</h1><a data-pw-chrome-added="1" data-pw-chrome-btn="orders" href="/orders">Box</a></div></body></html>'
+  )
+  // The live page injects badge-pin / stick-header / bootstrap scripts before </body>.
+  const served = composed.replace(
+    /<\/body>/i,
+    '<script id="pw-shop-chrome-badge-pin"></script>\n<script data-pw-shop-actions-bootstrap></script>\n</body>'
+  )
+  const mobile = isolateVisualHtmlForDevice(served, 'mobile')
+  assert.match(mobile, /Mob/)
+  assert.doesNotMatch(mobile, /Desk/)
+  assert.match(mobile, /data-pw-chrome-btn="orders"/)
+})
+
+test('device stamping does not depend on attribute order', () => {
+  const html =
+    '<!DOCTYPE html><html><body><div class="pw-header-actions"><a data-pw-device="desktop" data-pw-chrome-added="1" data-pw-chrome-btn="wallet">$</a></div></body></html>'
+  const mobile = isolateVisualHtmlForDevice(html, 'mobile')
+  assert.doesNotMatch(mobile, /data-pw-chrome-btn="wallet"/)
+})
+
+test('pw-device view serves the saved file for that device untouched', () => {
+  const mobile =
+    '<!DOCTYPE html><html><body><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="products" href="/products">Box</a></div></body></html>'
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      useVisualHtml: true,
+      useVisualMobileHtml: true,
+    },
+    htmlSource: '<!DOCTYPE html><html><body><h1>Desk home</h1></body></html>',
+    project: {
+      entryPath: 'index.html',
+      files: [{ path: 'index.mobile.html', kind: 'html' as const, content: mobile }],
+    },
+  }
+  const view = resolvePublicVisualPageHtml(website, 'home', 'mobile')
+  // Widgets added only on Mobile must survive; no synthesized desktop twin may replace them.
+  assert.match(view, /data-pw-chrome-btn="products"/)
+  assert.doesNotMatch(view, /Desk home/)
+  assert.doesNotMatch(view, /data-pw-visual-device=/)
+  assert.doesNotMatch(view, /pw-visual-device-split/)
 })
 
 test('save and pw-device view keep dragged notification position', () => {

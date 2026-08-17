@@ -127,6 +127,7 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
         logoUrl={site.logoUrl}
         locale={site.locale}
         inlineHtml={onCustomDomain}
+        initialDevice={previewDevice}
       />
     )
   }
@@ -225,6 +226,7 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
       logoUrl={site.logoUrl}
       locale={site.locale}
       inlineHtml={onCustomDomain}
+      initialDevice={previewDevice}
     />
   )
 }

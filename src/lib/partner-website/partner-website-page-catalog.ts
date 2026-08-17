@@ -66,7 +66,8 @@ export function listPartnerWebsiteStudioPickerPages(): PartnerWebsitePageDef[] {
 
 /**
  * Non-home pages only collect page features.
- * Colors / style / header / footer always inherit from the home conversation.
+ * Colors / style / header / footer / bottom nav inherit from home.
+ * Only the middle of each page differs — `docs/PARTNER_WEBSITE_SHARED_CHROME.md`.
  */
 const PAGE_FEATURE_KEYS: PartnerWebsiteStudioStepKey[] = ['site_features']
 

@@ -16,6 +16,7 @@ import {
 import {
   PARTNER_WEBSITE_MOCKUP_FIDELITY_RULES,
   PARTNER_WEBSITE_RESPONSIVE_RULES,
+  PARTNER_WEBSITE_SHARED_CHROME_PROMPT_RULES,
 } from '@/lib/partner-website/partner-website-mockup-build-rules'
 import { getPartnerWebsitePageDef, normalizePartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 import {
@@ -788,7 +789,8 @@ ${PARTNER_WEBSITE_LOGO_PROMPT_RULES}
 - <main id="pw-main"></main> must be empty placeholder for sections
 - Match palette hex from spec
 ${PARTNER_WEBSITE_MOCKUP_FIDELITY_RULES}
-${PARTNER_WEBSITE_RESPONSIVE_RULES}`
+${PARTNER_WEBSITE_RESPONSIVE_RULES}
+${PARTNER_WEBSITE_SHARED_CHROME_PROMPT_RULES}`
 
     const { text } = await callOpenAiJson({
       userId: input.userId,
@@ -958,7 +960,7 @@ ${slotUrls.map((x) => `- ${x.key}: ${x.url}`).join('\n') || '(no dedicated URLs 
 Full copy JSON (pick relevant fields):
 ${artifacts.contentJson}
 
-Existing HTML (keep header/footer; insert section before </main> or before footer):
+Existing HTML (keep header/footer/bottom-nav; insert section before </main> or before footer):
 \`\`\`html
 ${currentHtml.slice(0, 28000)}
 \`\`\`

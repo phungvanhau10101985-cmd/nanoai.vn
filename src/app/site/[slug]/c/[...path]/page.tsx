@@ -28,10 +28,17 @@ import {
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { JsonLd } from '@/components/seo-json-ld'
-import { maybePartnerSiteVisualCategoryPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
+import {
+  maybePartnerSiteVisualCategoryPage,
+  readVisualPreviewDevice,
+  type PartnerSiteSearchParams,
+} from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { PW_EL, PW_PAGE, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
-type Props = { params: Promise<{ slug: string; path: string[] }> }
+type Props = {
+  params: Promise<{ slug: string; path: string[] }>
+  searchParams?: PartnerSiteSearchParams
+}
 
 /**
  * W4.7/W4.9 — trang danh mục công khai `/site/{slug}/c/{...path}`.
@@ -92,12 +99,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export const dynamic = 'force-dynamic'
 
-export default async function PartnerSiteCategoryPage({ params }: Props) {
+export default async function PartnerSiteCategoryPage({ params, searchParams }: Props) {
   const { slug, path } = await params
   const ctx = await resolveCategoryContext(slug, path)
   if (!ctx) notFound()
   const { shop, category, ancestors, children } = ctx
-  const visual = maybePartnerSiteVisualCategoryPage(shop.site, category.path)
+  const visual = maybePartnerSiteVisualCategoryPage(
+    shop.site,
+    category.path,
+    await readVisualPreviewDevice(searchParams)
+  )
   if (visual) return visual
   const t = getPartnerSiteShopCopy(shop.site.locale)
   const locale = shop.site.locale

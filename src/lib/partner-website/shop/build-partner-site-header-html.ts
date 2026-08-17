@@ -165,8 +165,9 @@ export function buildPartnerSiteAccountPanelCss(): string {
 }
 
 /**
- * Shared HTML header for template preview + gallery samples.
+ * Shared HTML header + bottom nav for every shop page (template preview + gallery samples).
  * Links point to React shop when `siteSlug` is set.
+ * See `docs/PARTNER_WEBSITE_SHARED_CHROME.md`.
  */
 export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): PartnerSiteHeaderHtmlOutput {
   const siteSlug = input.siteSlug?.trim() ?? ''

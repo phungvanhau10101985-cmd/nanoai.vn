@@ -176,7 +176,23 @@ export type PartnerWebsiteCopy = {
   visualEditLayerDown: string
   visualEditLayerFront: string
   visualEditLayerBack: string
+  visualEditSceneTitle: string
+  visualEditSceneHint: string
+  visualEditSceneWorkLayer: string
+  visualEditSceneElementLayer: string
+  visualEditSceneAllLayers: string
+  visualEditSceneCurrent: string
+  visualEditSceneBase: string
+  visualEditSceneLower: string
+  visualEditSceneMiddle: string
+  visualEditSceneUpper: string
+  visualEditSceneFloat: string
+  visualEditSceneUp: string
+  visualEditSceneDown: string
+  visualEditSceneLock: string
+  visualEditSceneLockOn: string
   visualEditLayerTitle: string
+  visualEditLayerOrderHint: string
   visualEditStickHeader: string
   visualEditStickHeaderHint: string
   visualEditCatToggleTitle: string
@@ -954,7 +970,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerDown: 'Đưa xuống',
     visualEditLayerFront: 'Đưa lên trên',
     visualEditLayerBack: 'Đưa xuống dưới',
-    visualEditLayerTitle: 'Lớp',
+    visualEditSceneTitle: 'Lớp không gian',
+    visualEditSceneHint:
+      'Hàng nút là lớp làm việc để bấm chọn phần tử. Khi đã chọn phần tử, dùng Lên lớp/Xuống lớp để đổi lớp của phần tử.',
+    visualEditSceneWorkLayer: 'Lớp làm việc',
+    visualEditSceneElementLayer: 'Phần tử đang ở',
+    visualEditSceneAllLayers: 'Tất cả lớp',
+    visualEditSceneCurrent: 'Đang ở',
+    visualEditSceneBase: 'Nền',
+    visualEditSceneLower: 'Lớp dưới',
+    visualEditSceneMiddle: 'Lớp giữa',
+    visualEditSceneUpper: 'Lớp trên',
+    visualEditSceneFloat: 'Lớp nổi',
+    visualEditSceneUp: 'Lên lớp',
+    visualEditSceneDown: 'Xuống lớp',
+    visualEditSceneLock: 'Chọn lớp để bấm',
+    visualEditSceneLockOn: 'Đang chọn lớp',
+    visualEditLayerTitle: 'Thứ tự trong lớp',
+    visualEditLayerOrderHint: 'Vị trí trước/sau so với phần tử khác cùng lớp (ví dụ 3/3 = thứ 3 trong 3 phần tử).',
     visualEditStickHeader: 'Gắn vào header',
     visualEditStickHeaderHint:
       'Bật: khi cuộn chạm header thì dính phía dưới header. Tắt: phần tử trôi lên theo trang. Vẫn kéo được.',
@@ -1750,7 +1783,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerDown: 'Send down',
     visualEditLayerFront: 'Bring to front',
     visualEditLayerBack: 'Send to back',
-    visualEditLayerTitle: 'Layer',
+    visualEditSceneTitle: 'Space layers',
+    visualEditSceneHint:
+      'The buttons choose the working layer for selecting items. After selecting an item, use Layer up/down to move it.',
+    visualEditSceneWorkLayer: 'Working layer',
+    visualEditSceneElementLayer: 'Element is on',
+    visualEditSceneAllLayers: 'All layers',
+    visualEditSceneCurrent: 'On',
+    visualEditSceneBase: 'Base',
+    visualEditSceneLower: 'Lower',
+    visualEditSceneMiddle: 'Middle',
+    visualEditSceneUpper: 'Upper',
+    visualEditSceneFloat: 'Float',
+    visualEditSceneUp: 'Layer up',
+    visualEditSceneDown: 'Layer down',
+    visualEditSceneLock: 'Select layer to click',
+    visualEditSceneLockOn: 'Layer selected',
+    visualEditLayerTitle: 'Order in layer',
+    visualEditLayerOrderHint: 'Front/back among other items on the same layer (e.g. 3/3 = 3rd of 3).',
     visualEditStickHeader: 'Pin to header',
     visualEditStickHeaderHint:
       'On: sticks under the header when it reaches it while scrolling. Off: scrolls away with the page. You can still drag it.',
@@ -2544,7 +2594,23 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerDown: '下移一层',
     visualEditLayerFront: '移到最前',
     visualEditLayerBack: '移到最后',
-    visualEditLayerTitle: '图层',
+    visualEditSceneTitle: '空间层',
+    visualEditSceneHint: '按钮用于选择可操作层。选中元素后，用升一层/降一层移动该元素。',
+    visualEditSceneWorkLayer: '工作层',
+    visualEditSceneElementLayer: '元素所在层',
+    visualEditSceneAllLayers: '所有层',
+    visualEditSceneCurrent: '当前',
+    visualEditSceneBase: '底面',
+    visualEditSceneLower: '下层',
+    visualEditSceneMiddle: '中层',
+    visualEditSceneUpper: '上层',
+    visualEditSceneFloat: '浮层',
+    visualEditSceneUp: '升一层',
+    visualEditSceneDown: '降一层',
+    visualEditSceneLock: '选择可点击层',
+    visualEditSceneLockOn: '已选择层',
+    visualEditLayerTitle: '同层顺序',
+    visualEditLayerOrderHint: '与同层其他元素的前后关系（例如 3/3 = 共 3 个中的第 3 个）。',
     visualEditStickHeader: '固定到页头',
     visualEditStickHeaderHint: '开启：滚动碰到页头时吸附在页头下方。关闭：随页面一起滚走。仍可拖动。',
     visualEditCatToggleTitle: '分类菜单',
@@ -3318,7 +3384,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerDown: '下へ',
     visualEditLayerFront: '最前面へ',
     visualEditLayerBack: '最背面へ',
-    visualEditLayerTitle: 'レイヤー',
+    visualEditSceneTitle: '空間レイヤー',
+    visualEditSceneHint:
+      'ボタンは選択できる作業レイヤーを切り替えます。要素を選択した後は「上へ/下へ」でその要素の層を移動します。',
+    visualEditSceneWorkLayer: '作業レイヤー',
+    visualEditSceneElementLayer: '要素の層',
+    visualEditSceneAllLayers: 'すべての層',
+    visualEditSceneCurrent: '現在',
+    visualEditSceneBase: '地面',
+    visualEditSceneLower: '下層',
+    visualEditSceneMiddle: '中層',
+    visualEditSceneUpper: '上層',
+    visualEditSceneFloat: '浮動層',
+    visualEditSceneUp: '一つ上の層へ',
+    visualEditSceneDown: '一つ下の層へ',
+    visualEditSceneLock: 'クリックする層を選択',
+    visualEditSceneLockOn: '層を選択中',
+    visualEditLayerTitle: '層内の順序',
+    visualEditLayerOrderHint: '同じ層の他要素との前後（例: 3/3 = 3個中の3番目）。',
     visualEditStickHeader: 'ヘッダーに固定',
     visualEditStickHeaderHint:
       'オン：スクロールしてヘッダーに触れると下に固定。オフ：ページと一緒に流れる。ドラッグはできます。',
@@ -4102,7 +4185,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerDown: '아래로',
     visualEditLayerFront: '맨 앞으로',
     visualEditLayerBack: '맨 뒤로',
-    visualEditLayerTitle: '레이어',
+    visualEditSceneTitle: '공간 레이어',
+    visualEditSceneHint:
+      '버튼은 요소를 선택할 작업 레이어를 고릅니다. 요소를 선택한 뒤에는 위/아래로 레이어를 이동합니다.',
+    visualEditSceneWorkLayer: '작업 레이어',
+    visualEditSceneElementLayer: '요소 위치',
+    visualEditSceneAllLayers: '모든 레이어',
+    visualEditSceneCurrent: '현재',
+    visualEditSceneBase: '바닥',
+    visualEditSceneLower: '아래층',
+    visualEditSceneMiddle: '중간층',
+    visualEditSceneUpper: '위층',
+    visualEditSceneFloat: '떠 있는 층',
+    visualEditSceneUp: '한 층 위로',
+    visualEditSceneDown: '한 층 아래로',
+    visualEditSceneLock: '클릭할 레이어 선택',
+    visualEditSceneLockOn: '레이어 선택 중',
+    visualEditLayerTitle: '층 안 순서',
+    visualEditLayerOrderHint: '같은 층 다른 요소와의 앞뒤 관계(예: 3/3 = 3개 중 3번째).',
     visualEditStickHeader: '헤더에 고정',
     visualEditStickHeaderHint:
       '켜기: 스크롤하다 헤더에 닿으면 헤더 아래에 붙습니다. 끄기: 페이지와 함께 올라갑니다. 드래그는 가능합니다.',

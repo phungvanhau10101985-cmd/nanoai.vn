@@ -14,7 +14,10 @@ import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-
 import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchPublishedPartnerStaticPageBySlugFromPg } from '@/lib/db/messaging-partner-static-pages-pg'
 import { splitStaticPageContentToParagraphs } from '@/lib/partner-website/pages/partner-static-page-types'
-import { maybePartnerSiteVisualPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
+import {
+  maybePartnerSiteVisualPage,
+  readVisualPreviewDevice,
+} from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { infoPageKeyToVisualPageKey } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
@@ -63,7 +66,11 @@ export async function PartnerSiteInfoPageScreen({
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
 
-  const visual = maybePartnerSiteVisualPage(shop.site, infoPageKeyToVisualPageKey(pageKey))
+  const visual = maybePartnerSiteVisualPage(
+    shop.site,
+    infoPageKeyToVisualPageKey(pageKey),
+    await readVisualPreviewDevice()
+  )
   if (visual) return visual
 
   const override = await fetchPublishedPartnerStaticPageBySlugFromPg(shop.partnerId, pageKey)

@@ -47,6 +47,12 @@ import {
   type PwBgStackRole,
 } from '@/lib/partner-website/visual-editor/pw-bg-stack'
 import {
+  PW_SCENE_DEFAULT_INDEX,
+  PW_SCENE_LAYERS,
+  clampPwSceneIndex,
+  pwSceneLayerPos,
+} from '@/lib/partner-website/visual-editor/pw-scene'
+import {
   buildVisualEditorChromeWidgetHtml,
   chromeWidgetHost,
   chromeWidgetLabel,
@@ -152,6 +158,10 @@ export type VisualEditorSelection = {
   height: number
   canStickHeader: boolean
   stickHeader: boolean
+  /** Lớp không gian toàn trang của phần tử — khác `layerIndex` (thứ tự trong vùng cha). */
+  scene: number
+  scenePos: 'bottom' | 'middle' | 'top'
+  sceneCount: number
 }
 
 type HiddenBlock = { id: string; label: string }
@@ -237,6 +247,9 @@ function selectionFromMessage(data: {
   rect?: { width?: number; height?: number }
   canStickHeader?: boolean
   stickHeader?: boolean
+  scene?: number
+  scenePos?: string
+  sceneCount?: number
 }): VisualEditorSelection {
   return {
     isText: Boolean(data.isText),
@@ -320,7 +333,24 @@ function selectionFromMessage(data: {
     height: Number(data.rect?.height) || 0,
     canStickHeader: Boolean(data.canStickHeader),
     stickHeader: Boolean(data.stickHeader),
+    scene: clampPwSceneIndex(data.scene),
+    scenePos:
+      data.scenePos === 'bottom' || data.scenePos === 'top' || data.scenePos === 'middle'
+        ? data.scenePos
+        : pwSceneLayerPos(data.scene),
+    sceneCount: Number(data.sceneCount) || PW_SCENE_LAYERS.length,
   }
+}
+
+function sceneLayerLabel(t: PartnerWebsiteCopy, index: number): string {
+  const labels = [
+    t.visualEditSceneBase,
+    t.visualEditSceneLower,
+    t.visualEditSceneMiddle,
+    t.visualEditSceneUpper,
+    t.visualEditSceneFloat,
+  ]
+  return labels[clampPwSceneIndex(index)] ?? t.visualEditSceneMiddle
 }
 
 function bgStackRoleLabel(t: PartnerWebsiteCopy, role: PwBgStackRole): string {
@@ -666,6 +696,8 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [logoInkText, setLogoInkText] = useState('')
   const [logoDrawActive, setLogoDrawActive] = useState(false)
   const [hiddenBlocks, setHiddenBlocks] = useState<HiddenBlock[]>([])
+  /** Lớp không gian đang được lọc để bấm. -1 = bấm mọi lớp. */
+  const [sceneFocus, setSceneFocus] = useState(-1)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
   const insertBtnLockRef = useRef(false)
@@ -918,6 +950,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       setRefUrl('')
       setHrefDraft('')
       setHiddenBlocks([])
+      setSceneFocus(-1)
       setCanUndo(false)
       setCanRedo(false)
       return
@@ -990,8 +1023,14 @@ export function PartnerWebsiteVisualEditorToolbar({
         canUndo?: boolean
         canRedo?: boolean
         dirty?: boolean
+        focus?: number
       }
       if (data?.source !== NANOAI_VE_MESSAGE) return
+
+      if (data.type === 'scene') {
+        const focus = Number(data.focus)
+        setSceneFocus(Number.isFinite(focus) && focus >= 0 ? clampPwSceneIndex(focus) : -1)
+      }
 
       if (data.type === 'select' || data.type === 'logoCreate') {
         const next = selectionFromMessage(data)
@@ -1421,6 +1460,9 @@ export function PartnerWebsiteVisualEditorToolbar({
           height: size.h,
           canStickHeader: false,
           stickHeader: false,
+          scene: PW_SCENE_DEFAULT_INDEX,
+          scenePos: 'middle',
+          sceneCount: PW_SCENE_LAYERS.length,
         },
         websiteTitle || 'Shop',
         htmlPath,
@@ -1765,6 +1807,8 @@ export function PartnerWebsiteVisualEditorToolbar({
       editKind !== 'dots' &&
       editKind !== 'field'
   )
+  // Lớp không gian: mọi phần tử chọn được đều phải biết đang ở lớp nào và đổi lớp được.
+  const showSceneStack = Boolean(sceneFocus >= 0 || selection)
   const showTextTools = Boolean(
     (selection?.isText ||
       editKind === 'wordmark' ||
@@ -2599,6 +2643,84 @@ export function PartnerWebsiteVisualEditorToolbar({
               />
             </div>
           ) : null}
+          {showSceneStack ? (
+            <div className="flex min-w-[12rem] flex-col gap-1 rounded-md border bg-background px-1.5 py-1">
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t.visualEditSceneTitle}
+              </p>
+              <p className="text-[10px] leading-4 text-muted-foreground">
+                {t.visualEditSceneWorkLayer}:{' '}
+                <span className="font-semibold text-foreground">
+                  {sceneFocus >= 0 ? sceneLayerLabel(t, sceneFocus) : t.visualEditSceneAllLayers}
+                </span>
+              </p>
+              <div className="flex overflow-hidden rounded-md border">
+                {[...PW_SCENE_LAYERS].reverse().map((layer) => {
+                  const locked = sceneFocus === layer.index
+                  return (
+                    <button
+                      key={layer.key}
+                      type="button"
+                      disabled={busy}
+                      title={`${sceneLayerLabel(t, layer.index)} · ${t.visualEditSceneLock}`}
+                      aria-pressed={locked}
+                      className={cn(
+                        'relative flex-1 border-r px-1 py-1 text-[10px] leading-4 last:border-r-0 disabled:opacity-50',
+                        locked
+                          ? 'bg-primary font-semibold text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-muted'
+                      )}
+                      onClick={() =>
+                        postToIframe(iframeRef.current, 'setSceneFocus', {
+                          scene: locked ? -1 : layer.index,
+                        })
+                      }
+                    >
+                      <span className="inline-flex items-center justify-center gap-0.5">
+                        {locked ? <MousePointerClick className="h-2.5 w-2.5 shrink-0 opacity-90" aria-hidden /> : null}
+                        {sceneLayerLabel(t, layer.index)}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              {selection ? (
+                <p className="rounded border bg-muted/40 px-1.5 py-1 text-[10px] leading-4 text-muted-foreground">
+                  {t.visualEditSceneElementLayer}:{' '}
+                  <span className="font-semibold text-foreground">{sceneLayerLabel(t, selection.scene)}</span>
+                </p>
+              ) : null}
+              <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditSceneHint}</p>
+              {selection ? (
+                <div className="flex overflow-hidden rounded-md border">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={cn(btn, 'flex-1 rounded-none border-0 border-r')}
+                    disabled={busy || selection.scenePos === 'top'}
+                    title={t.visualEditSceneUp}
+                    onClick={() => postToIframe(iframeRef.current, 'sceneUp')}
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                    <span className="ml-1">{t.visualEditSceneUp}</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={cn(btn, 'flex-1 rounded-none border-0')}
+                    disabled={busy || selection.scenePos === 'bottom'}
+                    title={t.visualEditSceneDown}
+                    onClick={() => postToIframe(iframeRef.current, 'sceneDown')}
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                    <span className="ml-1">{t.visualEditSceneDown}</span>
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {showLayerStack && selection ? (
             <div className="flex min-w-[12rem] flex-col overflow-hidden rounded-md border bg-background">
               {selection.isAddedBg ? (
@@ -2626,10 +2748,13 @@ export function PartnerWebsiteVisualEditorToolbar({
                   </ol>
                 </div>
               ) : (
-                <p className="border-b px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t.visualEditLayerTitle}
-                  {selection.layerCount > 1 ? ` · ${selection.layerIndex}/${selection.layerCount}` : ''}
-                </p>
+                <div className="min-w-0 border-b px-1.5 py-0.5">
+                  <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t.visualEditLayerTitle}
+                    {selection.layerCount > 1 ? ` · ${selection.layerIndex}/${selection.layerCount}` : ''}
+                  </p>
+                  <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditLayerOrderHint}</p>
+                </div>
               )}
               <div className="flex">
                 <Button

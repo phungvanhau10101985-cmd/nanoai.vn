@@ -22,6 +22,11 @@ import {
   restampChromeCountBadgeWidgets,
 } from '@/lib/partner-website/shop/chrome-count-badges'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
+import {
+  applySharedChrome,
+  extractSharedChrome,
+  hasSharedChrome,
+} from '@/lib/partner-website/shop/sync-shared-chrome'
 
 /** Pages shown in the dashboard preview picker (real `/site/{slug}/…` routes). */
 export const VISUAL_EDITOR_PAGE_KEYS: PartnerWebsitePageKey[] = [
@@ -70,6 +75,19 @@ export const VISUAL_MOBILE_PREVIEW_PX = 390
 export const VISUAL_TABLET_PREVIEW_PX = 768
 /** Laptop + Desktop share the computer layout. Public tablet band ends just below. */
 export const VISUAL_DESKTOP_MIN_PX = 1280
+
+/**
+ * Iframe viewport for `?pw-device=` / Sửa nhanh canvas.
+ * Docked DevTools shrinks the browser chrome — keep this width so desktop CSS does not collapse.
+ */
+export function visualDevicePreviewFrameStyle(
+  device: VisualDeviceVariant | null
+): { width?: number | string; minWidth?: number } {
+  if (device === 'mobile') return { width: VISUAL_MOBILE_PREVIEW_PX }
+  if (device === 'tablet') return { width: VISUAL_TABLET_PREVIEW_PX }
+  if (device === 'desktop') return { width: '100%', minWidth: VISUAL_DESKTOP_MIN_PX }
+  return {}
+}
 
 export function parseVisualDeviceVariant(raw: unknown): VisualDeviceVariant {
   return raw === 'mobile' || raw === 'tablet' ? raw : 'desktop'
@@ -442,7 +460,7 @@ type VisualWebsitePick = {
   htmlSource?: string | null
 }
 
-export function resolveExactVisualPageHtml(
+function readExactVisualPageHtml(
   website: VisualWebsitePick,
   pageKey: PartnerWebsitePageKey,
   variant: VisualDeviceVariant = 'desktop'
@@ -466,6 +484,36 @@ export function resolveExactVisualPageHtml(
   return file?.content?.trim() || ''
 }
 
+function withCanonicalSharedChrome(
+  html: string,
+  website: VisualWebsitePick,
+  variant: VisualDeviceVariant
+): string {
+  const trimmed = html.trim()
+  if (trimmed.length < 40) return html
+  let homeRaw = readExactVisualPageHtml(website, 'home', variant)
+  let stripLogoFloat = false
+  if (homeRaw.length < 40 && variant !== 'desktop') {
+    homeRaw = readExactVisualPageHtml(website, 'home', 'desktop')
+    stripLogoFloat = true
+  }
+  if (homeRaw.length < 40) return html
+  const home = isolateVisualHtmlForDevice(homeRaw, variant)
+  const chrome = extractSharedChrome(home.length >= 40 ? home : homeRaw)
+  if (!hasSharedChrome(chrome)) return html
+  return applySharedChrome(trimmed, chrome, { targetVariant: variant, stripLogoFloat })
+}
+
+export function resolveExactVisualPageHtml(
+  website: VisualWebsitePick,
+  pageKey: PartnerWebsitePageKey,
+  variant: VisualDeviceVariant = 'desktop'
+): string {
+  const raw = readExactVisualPageHtml(website, pageKey, variant)
+  if (pageKey === 'home' || raw.length < 40) return raw
+  return withCanonicalSharedChrome(raw, website, variant)
+}
+
 export function resolveSavedVisualPageHtml(input: {
   pageKey: PartnerWebsitePageKey
   variant?: VisualDeviceVariant
@@ -476,12 +524,48 @@ export function resolveSavedVisualPageHtml(input: {
   return resolveExactVisualPageHtml(input, input.pageKey, input.variant ?? 'desktop')
 }
 
-function extractDeviceWrapperBody(html: string, variant: VisualDeviceVariant): string {
-  const re = new RegExp(
-    `<div[^>]*data-pw-visual-device="${variant}"[^>]*>([\\s\\S]*?)</div>\\s*(?=<div[^>]*data-pw-visual-device=|</body>)`,
-    'i'
+/** Blank out script/style/comment bodies so tag counting never trips on HTML inside JS. */
+function maskHtmlForTagScan(html: string): string {
+  return html.replace(
+    /<!--[\s\S]*?-->|<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>/gi,
+    (block) => ' '.repeat(block.length)
   )
-  return html.match(re)?.[1]?.trim() || ''
+}
+
+function closingTagIndex(masked: string, from: number, tag: string): number {
+  const re = new RegExp(`<${tag}\\b[^>]*>|</${tag}\\s*>`, 'gi')
+  re.lastIndex = from
+  let depth = 1
+  let match: RegExpExecArray | null
+  while ((match = re.exec(masked))) {
+    if (match[0][1] === '/') {
+      depth -= 1
+      if (depth === 0) return match.index
+      continue
+    }
+    if (!/\/>$/.test(match[0])) depth += 1
+  }
+  return -1
+}
+
+/**
+ * Depth-aware so the slice survives whatever sits after the wrapper. The public page appends
+ * runtime scripts before `</body>`, so a lookahead for `</div></body>` silently missed the
+ * mobile wrapper and the viewer fell back to the desktop slice.
+ */
+function extractDeviceWrapperBody(html: string, variant: VisualDeviceVariant): string {
+  const masked = maskHtmlForTagScan(html)
+  const open = new RegExp(`<div[^>]*\\bdata-pw-visual-device="${variant}"[^>]*>`, 'i').exec(masked)
+  if (!open) return ''
+  const start = open.index + open[0].length
+  const end = closingTagIndex(masked, start, 'div')
+  if (end < 0) return ''
+  return html.slice(start, end).trim()
+}
+
+/** A composed page always carries wrappers — never guess another device inside one. */
+function hasDeviceWrappers(html: string): boolean {
+  return /\bdata-pw-visual-device="(?:desktop|tablet|mobile)"/i.test(html)
 }
 
 function rebuildStandaloneHtml(sourceHtml: string, body: string): string {
@@ -505,23 +589,19 @@ export function stripVisualAddedChrome(html: string, opts?: { keepCountBadges?: 
   })
 }
 
+/**
+ * Attribute order in saved HTML is not fixed, so match the widget first and read its attributes
+ * instead of requiring `data-pw-chrome-added` to precede `data-pw-device`.
+ */
 function stampVisualAddedChrome(html: string, variant: VisualDeviceVariant): string {
-  const others = VISUAL_DEVICE_VARIANTS.filter((v) => v !== variant)
-  let next = html
-  for (const opposite of others) {
-    next = next.replace(
-      new RegExp(
-        `<(a|button)\\b[^>]*data-pw-chrome-added="1"[^>]*data-pw-device="${opposite}"[^>]*>[\\s\\S]*?<\\/\\1>`,
-        'gi'
-      ),
-      (full) => (chromeCountBadgeKindFromHtmlSnippet(full) ? full : '')
-    )
-  }
-  next = next.replace(
-    /<(a|button)\b([^>]*data-pw-chrome-added="1"[^>]*)>/gi,
+  const next = html.replace(
+    /<(a|button)\b([^>]*)>([\s\S]*?)<\/\1>/gi,
     (full, tag: string, attrs: string) => {
-      if (/\bdata-pw-device=/.test(attrs)) return full
-      return `<${tag}${attrs} data-pw-device="${variant}">`
+      if (!/\bdata-pw-chrome-added="1"/i.test(attrs)) return full
+      const device = attrs.match(/\bdata-pw-device=["']([^"']*)["']/i)?.[1]
+      if (device === variant) return full
+      if (device) return chromeCountBadgeKindFromHtmlSnippet(full) ? full : ''
+      return full.replace(`<${tag}${attrs}>`, () => `<${tag}${attrs} data-pw-device="${variant}">`)
     }
   )
   return restampChromeCountBadgeWidgets(next, variant)
@@ -535,9 +615,15 @@ export function isolateVisualHtmlForDevice(
 ): string {
   const trimmed = html.trim()
   if (!trimmed) return ''
-  const sliced =
-    extractDeviceWrapperBody(trimmed, variant) ||
-    (variant !== 'desktop' ? extractDeviceWrapperBody(trimmed, 'desktop') : '')
+  let sliced = extractDeviceWrapperBody(trimmed, variant)
+  if (!sliced && hasDeviceWrappers(trimmed)) {
+    // Bản máy này chưa lưu — mượn bản gần nhất, không trả cả trang đã gộp.
+    for (const fallback of VISUAL_DEVICE_VARIANTS) {
+      if (fallback === variant) continue
+      sliced = extractDeviceWrapperBody(trimmed, fallback)
+      if (sliced) break
+    }
+  }
   const source = sliced ? rebuildStandaloneHtml(trimmed, sliced) : trimmed
   const stripped = opts?.stripAddedChrome
     ? stripVisualAddedChrome(source, { keepCountBadges: true })
@@ -674,6 +760,21 @@ function servePublicVisualHtml(
   return theme ? rewriteThemeCssVarsInHtml(composed, theme) : composed
 }
 
+/**
+ * Xem một máy (`?pw-device=`) = đúng file đã lưu của máy đó. Không gộp rồi tách lại: bản gộp phải
+ * dựng thêm một bản máy khác (đã gỡ widget Sửa nhanh), nên trang xem dễ hiện thiếu nút.
+ */
+function servePublicOneDeviceVisualHtml(
+  html: string,
+  variant: VisualDeviceVariant,
+  theme?: PartnerWebsiteTheme | null
+): string {
+  const out = injectPartnerShopChromeLayoutCss(
+    isolateVisualHtmlForDevice(stripEmptyLogoPlaceholdersFromHtml(html), variant)
+  )
+  return theme ? rewriteThemeCssVarsInHtml(out, theme) : out
+}
+
 export function resolvePublicVisualPageHtml(
   website: VisualWebsitePick,
   pageKey: PartnerWebsitePageKey,
@@ -681,12 +782,7 @@ export function resolvePublicVisualPageHtml(
 ): string {
   if (variant === 'desktop' || variant === 'tablet' || variant === 'mobile') {
     const exact = resolveExactVisualPageHtml(website, pageKey, variant)
-    return servePublicVisualHtml(
-      variant === 'desktop' ? exact : '',
-      variant === 'mobile' ? exact : '',
-      website.theme,
-      variant === 'tablet' ? exact : ''
-    )
+    if (exact.length >= 40) return servePublicOneDeviceVisualHtml(exact, variant, website.theme)
   }
   const desktop = resolveExactVisualPageHtml(website, pageKey, 'desktop')
   const mobile = resolveExactVisualPageHtml(website, pageKey, 'mobile')
@@ -705,10 +801,20 @@ export function resolveExactVisualCategoryHtml(
   if (!keys.includes(path)) return ''
   const htmlPath = categoryVisualHtmlPath(path, variant)
   const file = website.project?.files.find((f) => f.path === htmlPath && f.kind === 'html')
-  return file?.content?.trim() || ''
+  const raw = file?.content?.trim() || ''
+  if (raw.length < 40) return ''
+  return withCanonicalSharedChrome(raw, website, variant)
 }
 
-export function resolvePublicVisualCategoryHtml(website: VisualWebsitePick, categoryPath: string): string {
+export function resolvePublicVisualCategoryHtml(
+  website: VisualWebsitePick,
+  categoryPath: string,
+  variant?: VisualDeviceVariant | null
+): string {
+  if (variant) {
+    const exact = resolveExactVisualCategoryHtml(website, categoryPath, variant)
+    if (exact.length >= 40) return servePublicOneDeviceVisualHtml(exact, variant, website.theme)
+  }
   const desktop = resolveExactVisualCategoryHtml(website, categoryPath, 'desktop')
   const mobile = resolveExactVisualCategoryHtml(website, categoryPath, 'mobile')
   const tablet = resolveExactVisualCategoryHtml(website, categoryPath, 'tablet')
@@ -726,10 +832,20 @@ export function resolveExactVisualProductHtml(
   if (!keys.includes(id)) return ''
   const htmlPath = productVisualHtmlPath(id, variant)
   const file = website.project?.files.find((f) => f.path === htmlPath && f.kind === 'html')
-  return file?.content?.trim() || ''
+  const raw = file?.content?.trim() || ''
+  if (raw.length < 40) return ''
+  return withCanonicalSharedChrome(raw, website, variant)
 }
 
-export function resolvePublicVisualProductHtml(website: VisualWebsitePick, productId: string): string {
+export function resolvePublicVisualProductHtml(
+  website: VisualWebsitePick,
+  productId: string,
+  variant?: VisualDeviceVariant | null
+): string {
+  if (variant) {
+    const exact = resolveExactVisualProductHtml(website, productId, variant)
+    if (exact.length >= 40) return servePublicOneDeviceVisualHtml(exact, variant, website.theme)
+  }
   const desktop = resolveExactVisualProductHtml(website, productId, 'desktop')
   const mobile = resolveExactVisualProductHtml(website, productId, 'mobile')
   const tablet = resolveExactVisualProductHtml(website, productId, 'tablet')
@@ -747,10 +863,20 @@ export function resolveExactVisualCmsHtml(
   if (!keys.includes(slug)) return ''
   const htmlPath = cmsVisualHtmlPath(slug, variant)
   const file = website.project?.files.find((f) => f.path === htmlPath && f.kind === 'html')
-  return file?.content?.trim() || ''
+  const raw = file?.content?.trim() || ''
+  if (raw.length < 40) return ''
+  return withCanonicalSharedChrome(raw, website, variant)
 }
 
-export function resolvePublicVisualCmsHtml(website: VisualWebsitePick, cmsSlug: string): string {
+export function resolvePublicVisualCmsHtml(
+  website: VisualWebsitePick,
+  cmsSlug: string,
+  variant?: VisualDeviceVariant | null
+): string {
+  if (variant) {
+    const exact = resolveExactVisualCmsHtml(website, cmsSlug, variant)
+    if (exact.length >= 40) return servePublicOneDeviceVisualHtml(exact, variant, website.theme)
+  }
   const desktop = resolveExactVisualCmsHtml(website, cmsSlug, 'desktop')
   const mobile = resolveExactVisualCmsHtml(website, cmsSlug, 'mobile')
   const tablet = resolveExactVisualCmsHtml(website, cmsSlug, 'tablet')

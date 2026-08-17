@@ -6,10 +6,14 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopAccountClient } from '@/components/partner-website/shop/partner-site-shop-account-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { maybePartnerSiteVisualPage } from '@/components/partner-website/shop/partner-site-visual-html-screen'
+import {
+  maybePartnerSiteVisualPage,
+  readVisualPreviewDevice,
+  type PartnerSiteSearchParams,
+} from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
-type Props = { params: Promise<{ slug: string }> }
+type Props = { params: Promise<{ slug: string }>; searchParams?: PartnerSiteSearchParams }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
@@ -29,11 +33,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export const dynamic = 'force-dynamic'
 
-export default async function PartnerSiteAccountPage({ params }: Props) {
+export default async function PartnerSiteAccountPage({ params, searchParams }: Props) {
   const { slug } = await params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
-  const visual = maybePartnerSiteVisualPage(shop.site, 'account')
+  const visual = maybePartnerSiteVisualPage(
+    shop.site,
+    'account',
+    await readVisualPreviewDevice(searchParams)
+  )
   if (visual) return visual
 
   return (

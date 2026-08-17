@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react'
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { Laptop, Monitor, Smartphone, Tablet, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -830,6 +830,12 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const canVisualEdit = visualEditEnabled && Boolean(onVisualEditSave || onShopHomeSave)
   const editFrameWidth = frameWidth
   const deviceFrameIsFull = frameWidth === 'full'
+  const lockComputerCanvas = device === 'desktop' || device === 'laptop'
+  const computerCanvasStyle: CSSProperties = deviceFrameIsFull
+    ? { width: '100%', minWidth: VISUAL_DESKTOP_MIN_PX, height: '100%' }
+    : lockComputerCanvas && typeof editFrameWidth === 'number'
+      ? { width: editFrameWidth, minWidth: editFrameWidth, height: '100%' }
+      : { width: editFrameWidth as number, maxWidth: '100%', height: '100%' }
   const pageSelectValue = previewCmsSlug
     ? `cms:${previewCmsSlug}`
     : previewProductId
@@ -1193,17 +1199,19 @@ export const PartnerWebsiteDevicePreview = forwardRef<
               <p className="text-[11px] text-muted-foreground">{t.visualEditPreparing}</p>
             ) : null}
           </div>
-          <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-muted/30">
+          <div
+            className={cn(
+              'relative min-h-0 min-w-0 flex-1 bg-muted/30',
+              lockComputerCanvas ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden'
+            )}
+          >
             <div
               className={cn(
-                'relative mx-auto h-full overflow-hidden bg-white',
+                'relative mx-auto h-full bg-white',
+                lockComputerCanvas ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden',
                 deviceFrameIsFull ? 'w-full' : 'border-x shadow-sm'
               )}
-              style={
-                deviceFrameIsFull
-                  ? { width: '100%', height: '100%' }
-                  : { width: editFrameWidth, maxWidth: '100%', height: '100%' }
-              }
+              style={computerCanvasStyle}
             >
               <iframe
                 key={editSrcDoc ? `ve-srcdoc-${editVariant}-${previewPageKey}` : previewSrc}
@@ -1230,13 +1238,16 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       >
         <div
           className={cn(
-            'relative mx-auto flex min-h-0 flex-col overflow-hidden rounded-md border bg-white shadow-sm transition-[width] duration-200',
+            'relative mx-auto flex min-h-0 flex-col rounded-md border bg-white shadow-sm transition-[width] duration-200',
+            lockComputerCanvas ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden',
             deviceFrameIsFull ? 'h-full w-full flex-1' : ''
           )}
           style={
             deviceFrameIsFull
-              ? undefined
-              : { width: editFrameWidth, maxWidth: '100%' }
+              ? { minWidth: VISUAL_DESKTOP_MIN_PX }
+              : lockComputerCanvas && typeof editFrameWidth === 'number'
+                ? { width: editFrameWidth, minWidth: editFrameWidth }
+                : { width: editFrameWidth as number, maxWidth: '100%' }
           }
         >
           <iframe

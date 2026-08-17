@@ -40,6 +40,7 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes(':not([data-pw-chrome-count])'), true)
   assert.equal(once.includes('min-width:768px'), true)
   assert.equal(once.includes('min-width:1280px'), true)
+  assert.equal(once.includes('max-width:1279px'), true)
   assert.equal(once.includes('white-space:normal'), true)
   assert.equal(once.includes('flex-wrap:nowrap'), true)
   assert.equal(once.includes('.pw-nav-main>a.pw-nav-sale'), true)

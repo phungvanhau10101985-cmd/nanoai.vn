@@ -44,6 +44,7 @@ import {
 import { ExternalLink, Globe, Loader2, PanelLeftOpen, Undo2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
+  appendVisualDeviceQuery,
   visualEditorTargetHtmlPath,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
@@ -672,12 +673,13 @@ export function PartnerWebsiteDashboardClient({
                     >
                       {website && partnerId ? (
                         <a
-                          href={
+                          href={appendVisualDeviceQuery(
                             publicUrl ||
-                            (website.siteSlug
-                              ? `/site/${encodeURIComponent(website.siteSlug)}`
-                              : `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/preview`)
-                          }
+                              (website.siteSlug
+                                ? `/site/${encodeURIComponent(website.siteSlug)}`
+                                : `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/preview`),
+                            'desktop'
+                          )}
                           target="_blank"
                           rel="noopener noreferrer"
                         >

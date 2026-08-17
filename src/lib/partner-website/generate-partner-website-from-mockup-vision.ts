@@ -10,6 +10,7 @@ import {
 import {
   PARTNER_WEBSITE_MOCKUP_FIDELITY_RULES,
   PARTNER_WEBSITE_RESPONSIVE_RULES,
+  PARTNER_WEBSITE_SHARED_CHROME_PROMPT_RULES,
   PARTNER_WEBSITE_STUDIO_BUILD_SYSTEM_EXTRA,
 } from '@/lib/partner-website/partner-website-mockup-build-rules'
 import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
@@ -149,6 +150,7 @@ Technical rules:
 - Match mockup IMAGE COUNT: many photos in mockup ⇒ many <img> in HTML (not 1 lonely image + empty space)
 ${PARTNER_WEBSITE_MOCKUP_FIDELITY_RULES}
 ${PARTNER_WEBSITE_RESPONSIVE_RULES}
+${PARTNER_WEBSITE_SHARED_CHROME_PROMPT_RULES}
 ${PARTNER_WEBSITE_LOGO_PROMPT_RULES}
 
 Return JSON:

@@ -6,8 +6,7 @@ import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   isolateVisualHtmlForDevice,
-  VISUAL_MOBILE_PREVIEW_PX,
-  VISUAL_TABLET_PREVIEW_PX,
+  visualDevicePreviewFrameStyle,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
 function readForcedDevice(search: URLSearchParams | null): 'mobile' | 'tablet' | 'desktop' | null {
@@ -24,6 +23,7 @@ export function PartnerSitePublicClient({
   logoUrl,
   locale,
   inlineHtml = false,
+  initialDevice = null,
 }: {
   html: string
   allowScripts?: boolean
@@ -33,6 +33,8 @@ export function PartnerSitePublicClient({
   locale: WebLocale
   /** Render landing HTML in-page (custom domain) instead of iframe — links update browser URL. */
   inlineHtml?: boolean
+  /** From `?pw-device=` on the server so the first paint already locks desktop width. */
+  initialDevice?: 'mobile' | 'tablet' | 'desktop' | null
 }) {
   return (
     <Suspense
@@ -45,7 +47,7 @@ export function PartnerSitePublicClient({
           logoUrl={logoUrl}
           locale={locale}
           inlineHtml={inlineHtml}
-          forceDevice={null}
+          forceDevice={initialDevice}
         />
       }
     >
@@ -57,6 +59,7 @@ export function PartnerSitePublicClient({
         logoUrl={logoUrl}
         locale={locale}
         inlineHtml={inlineHtml}
+        initialDevice={initialDevice}
       />
     </Suspense>
   )
@@ -70,9 +73,15 @@ function PartnerSitePublicClientWithParams(props: {
   logoUrl?: string | null
   locale: WebLocale
   inlineHtml?: boolean
+  initialDevice?: 'mobile' | 'tablet' | 'desktop' | null
 }) {
   const params = useSearchParams()
-  return <PartnerSitePublicFrame {...props} forceDevice={readForcedDevice(params)} />
+  return (
+    <PartnerSitePublicFrame
+      {...props}
+      forceDevice={readForcedDevice(params) ?? props.initialDevice ?? null}
+    />
+  )
 }
 
 function PartnerSitePublicFrame({
@@ -95,9 +104,11 @@ function PartnerSitePublicFrame({
   forceDevice: 'mobile' | 'tablet' | 'desktop' | null
 }) {
   const compactPreview = forceDevice === 'mobile' || forceDevice === 'tablet'
-  const previewWidth = forceDevice === 'tablet' ? VISUAL_TABLET_PREVIEW_PX : VISUAL_MOBILE_PREVIEW_PX
+  const desktopLocked = forceDevice === 'desktop'
+  const previewFrameStyle = visualDevicePreviewFrameStyle(forceDevice)
   const previewHtml = forceDevice ? isolateVisualHtmlForDevice(html, forceDevice) || html : html
-  if (inlineHtml && !compactPreview) {
+  /** Desktop + F12 must stay in an iframe: in-page HTML uses the shrunk window for media queries. */
+  if (inlineHtml && !compactPreview && !desktopLocked) {
     return (
       <PartnerSiteChatWidgetProvider
         chatPath={chatPath}
@@ -124,7 +135,11 @@ function PartnerSitePublicFrame({
     >
       <div
         className={
-          compactPreview ? 'flex min-h-screen justify-center bg-neutral-200' : 'min-h-screen bg-white'
+          compactPreview
+            ? 'flex min-h-screen justify-center bg-neutral-200'
+            : desktopLocked
+              ? 'min-h-screen overflow-x-auto bg-white'
+              : 'min-h-screen bg-white'
         }
       >
         <iframe
@@ -134,9 +149,11 @@ function PartnerSitePublicFrame({
           className={
             compactPreview
               ? 'block h-[100dvh] max-w-full border-0 bg-white shadow-lg'
-              : 'fixed inset-0 h-full w-full border-0 bg-white'
+              : desktopLocked
+                ? 'block h-[100dvh] border-0 bg-white'
+                : 'fixed inset-0 h-full w-full border-0 bg-white'
           }
-          style={compactPreview ? { width: previewWidth } : undefined}
+          style={compactPreview || desktopLocked ? previewFrameStyle : undefined}
         />
       </div>
     </PartnerSiteChatWidgetProvider>
