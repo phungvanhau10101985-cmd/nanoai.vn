@@ -14,12 +14,10 @@ import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-s
 
 function HomeRail({
   siteSlug,
-  locale,
   title,
   apiTail,
 }: {
   siteSlug: string
-  locale: WebLocale
   title: string
   apiTail: string
 }) {
@@ -99,11 +97,10 @@ export function PartnerSiteHomePersonalizationRails({
     <>
       <HomeRail
         siteSlug={siteSlug}
-        locale={locale}
         title={t.recentlyViewedTitle}
         apiTail="recently-viewed?limit=8"
       />
-      <HomeRail siteSlug={siteSlug} locale={locale} title={t.wishlistTitle} apiTail="favorites?limit=8" />
+      <HomeRail siteSlug={siteSlug} title={t.wishlistTitle} apiTail="favorites?limit=8" />
     </>
   )
 }

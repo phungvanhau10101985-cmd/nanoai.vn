@@ -380,11 +380,7 @@ function upsertPwVarsInRootBlock(block: string, vars: Record<string, string>): s
   return next
 }
 
-export function rewriteThemeCssVarsInHtml(
-  html: string,
-  theme: PartnerWebsiteTheme,
-  _previousTheme?: PartnerWebsiteTheme | null
-): string {
+export function rewriteThemeCssVarsInHtml(html: string, theme: PartnerWebsiteTheme): string {
   if (!html.trim()) return html
   const vars = themeCssVarMap(theme)
   const liveTag = `<style id="${PW_THEME_ROOT_STYLE_ID}">:root{${buildThemeCssVarImportantBlock(theme)}}</style>`

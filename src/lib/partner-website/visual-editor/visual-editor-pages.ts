@@ -845,7 +845,7 @@ export function preserveAndRecolorVisualPageFiles(input: {
       if (f.kind !== 'html' || !keepPaths.has(f.path)) return f
       const prev = input.previous.files.find((p) => p.path === f.path && p.kind === 'html')
       const content = prev?.content || f.content
-      return { ...f, content: rewriteThemeCssVarsInHtml(content, input.theme, input.previousTheme) }
+      return { ...f, content: rewriteThemeCssVarsInHtml(content, input.theme) }
     }),
   }
 }

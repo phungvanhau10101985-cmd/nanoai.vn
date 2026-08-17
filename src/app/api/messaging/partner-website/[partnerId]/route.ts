@@ -321,8 +321,7 @@ export async function PATCH(
     const visualHtml = existing.theme?.useVisualHtml
       ? rewriteThemeCssVarsInHtml(
           existing.htmlSource?.trim() || composeStandaloneHtml(existing.project) || '',
-          nextTheme,
-          existing.theme
+          nextTheme
         )
       : undefined
     const syncedProject =
