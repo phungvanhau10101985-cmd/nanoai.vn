@@ -5,72 +5,11 @@ import { pinChromeIconBadges } from '@/lib/partner-website/shop/pin-chrome-icon-
 import { releaseStickHeaderPins } from '@/lib/partner-website/shop/stick-header-elements'
 import {
   isolateVisualHtmlForDevice,
-  syncChromeCountBadgesAcrossProjectFiles,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
 const EDITOR_STYLE_ID = 'nanoai-visual-editor-styles'
 const EDITOR_SCRIPT_ID = 'nanoai-visual-editor-script'
-
-const HEADER_LOGO_PAINT_SEL =
-  'header, .pw-header, .pw-shop-header, .pw-header-main, .pw-shop-header-inner, .pw-brand-cluster, .pw-shop-brand-cluster, a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home], .pw-logo-frame, [data-pw-logo-frame="1"]'
-
-function sanitizeHeaderLogoLayout(clone: Element, variant?: VisualDeviceVariant) {
-  clone.querySelectorAll(HEADER_LOGO_PAINT_SEL).forEach((node) => {
-    const el = node as HTMLElement
-    if (!el.style) return
-    el.style.removeProperty('background-image')
-    el.style.removeProperty('background-repeat')
-    el.style.removeProperty('background-size')
-    el.style.removeProperty('background-position')
-    const overflow = `${el.style.overflow} ${el.style.overflowX}`
-    if (/\b(auto|scroll)\b/.test(overflow)) {
-      el.style.removeProperty('overflow')
-      el.style.removeProperty('overflow-x')
-    }
-  })
-  const maxW = variant === 'mobile' ? 390 : variant === 'tablet' ? 768 : 1200
-  const maxH = variant === 'mobile' ? 240 : 240
-  clone
-    .querySelectorAll(
-      'header .pw-logo-frame, header [data-pw-logo-frame="1"], .pw-header .pw-logo-frame, .pw-shop-header .pw-logo-frame'
-    )
-    .forEach((node) => {
-      const el = node as HTMLElement
-      if (!el.style) return
-      const w = parseFloat(el.style.width) || maxW
-      const h = parseFloat(el.style.height) || maxH
-      if (!w || w > maxW) {
-        el.style.setProperty('width', `${maxW}px`, 'important')
-        el.style.setProperty('max-width', `${maxW}px`, 'important')
-      }
-      if (!h || h > maxH) {
-        el.style.setProperty('height', `${maxH}px`, 'important')
-        el.style.setProperty('max-height', `${maxH}px`, 'important')
-      }
-    })
-}
-
-function resetBottomNavChromeInlineStyles(clone: Element) {
-  clone
-    .querySelectorAll(
-      '.pw-bottom-nav [data-pw-chrome-added], .pw-shop-bottom-nav [data-pw-chrome-added], .pw-bottom-nav > a, .pw-shop-bottom-nav > a'
-    )
-    .forEach((node) => {
-      const el = node as HTMLElement
-      if (!el.style) return
-      el.style.removeProperty('transform')
-      el.style.removeProperty('left')
-      el.style.removeProperty('top')
-      el.style.removeProperty('right')
-      el.style.removeProperty('bottom')
-      el.style.removeProperty('position')
-      el.style.removeProperty('width')
-      el.style.removeProperty('height')
-      el.style.removeProperty('inset')
-      if (!el.getAttribute('style')?.trim()) el.removeAttribute('style')
-    })
-}
 
 function stripEditorAndRuntimeNodes(clone: Element) {
   clone.querySelector(`#${EDITOR_STYLE_ID}`)?.remove()
@@ -190,13 +129,17 @@ function documentOrigin(doc: Document): string {
   return ''
 }
 
-/** Strip visual-editor artifacts before persisting iframe HTML. */
+/**
+ * Strip visual-editor artifacts before persisting iframe HTML.
+ *
+ * Saving must not change layout. Only editor overlays, scroll-transient pins and
+ * live-data values may be touched here — anything that clamps or reseats authored
+ * geometry belongs in the editor runtime, where the user can see it happen.
+ */
 export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceVariant): string {
   const clone = doc.documentElement.cloneNode(true) as HTMLElement
   stripEditorAndRuntimeNodes(clone)
-  resetBottomNavChromeInlineStyles(clone)
   releaseStickHeaderPins(clone)
-  sanitizeHeaderLogoLayout(clone, variant)
   pinChromeIconBadges(clone)
   resetChromeCountBadges(clone)
   inlineSameOriginStylesheets(doc, clone)
@@ -205,7 +148,16 @@ export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceV
   const raw = injectPartnerShopChromeLayoutCss(
     stripEmptyLogoPlaceholdersFromHtml(`<!DOCTYPE html>\n${clone.outerHTML}`)
   )
-  return variant ? isolateVisualHtmlForDevice(raw, variant) : raw
+  const stored = sanitizeVisualHtmlForStore(raw)
+  if (!variant) return stored
+  // Always persist the isolated device document. Falling back to `stored` can write a
+  // composed desktop+tablet+mobile page into a single device file.
+  return sanitizeVisualHtmlForStore(isolateVisualHtmlForDevice(stored, variant))
+}
+
+/** Postgres jsonb/text reject NUL; strip before persist. */
+export function sanitizeVisualHtmlForStore(html: string): string {
+  return String(html || '').replace(/\u0000/g, '')
 }
 
 /** Freeze the live React preview into static HTML so Sửa nhanh tools (drag, add, hide…) work. */
@@ -230,7 +182,7 @@ export function mergeVisualHtmlIntoProject(
   if (!found) {
     files.push({ path, kind: 'html', content: html })
   }
-  return syncChromeCountBadgesAcrossProjectFiles({ ...project, files }, path, html)
+  return { ...project, files }
 }
 
 export function stubVisualEditorProject(htmlSource?: string | null): {
@@ -275,7 +227,11 @@ export function visualHtmlLooksUsable(html: string): boolean {
   const withoutIframes = content
     .replace(/<iframe\b[\s\S]*?<\/iframe>/gi, '')
     .replace(/<iframe\b[^>]*>/gi, '')
-  if (/class=["'][^"']*\b(pw-shop|pw-header|pw-shop-header|pw-hero)\b|data-pw-edit/i.test(withoutIframes)) {
+  if (
+    /class=["'][^"']*\b(pw-shop|pw-header|pw-shop-header|pw-hero)\b|data-pw-edit|data-pw-region|data-pw-page/i.test(
+      withoutIframes
+    )
+  ) {
     return true
   }
   const text = withoutIframes

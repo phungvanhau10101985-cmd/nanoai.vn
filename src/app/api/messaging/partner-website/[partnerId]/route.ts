@@ -57,6 +57,7 @@ import {
   mergeVisualPageHtmlIntoProject,
   visualEditorHtmlPath,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 
 export async function GET(
   req: NextRequest,
@@ -132,7 +133,7 @@ export async function PATCH(
     return NextResponse.json({ error: access.error }, { status: access.status })
   }
 
-  const body = (await req.json()) as {
+  type PartnerWebsitePatchBody = {
     action?:
       | 'publish'
       | 'unpublish'
@@ -153,11 +154,18 @@ export async function PATCH(
     theme?: unknown
     visualEdited?: boolean
     visualPageKey?: string
-    visualDevice?: 'desktop' | 'mobile'
+    visualDevice?: 'desktop' | 'tablet' | 'mobile'
     visualCategoryPath?: string
     visualProductId?: string
     visualCmsSlug?: string
     fashionHome?: unknown
+  }
+
+  let body: PartnerWebsitePatchBody
+  try {
+    body = (await req.json()) as PartnerWebsitePatchBody
+  } catch {
+    return NextResponse.json({ error: 'Invalid or too large save payload' }, { status: 400 })
   }
 
   if (body.action === 'update_floating_cta') {
@@ -525,23 +533,28 @@ export async function PATCH(
           cmsSlug: visualCmsSlug,
         })
       : undefined
+  const incomingHtml =
+    typeof body.htmlSource === 'string' ? sanitizeVisualHtmlForStore(body.htmlSource).trim() : ''
   const visualHtmlExact =
     body.visualEdited === true &&
     !isDynamicVisualTarget &&
     visualPageKey === 'home' &&
     visualDevice === 'desktop'
-      ? typeof body.htmlSource === 'string' && body.htmlSource.trim().length >= 40
-        ? body.htmlSource.trim()
+      ? incomingHtml.length >= 40
+        ? incomingHtml
         : extractIndexHtml(project ?? existing.project)?.trim() || existing.htmlSource
       : undefined
   const pageHtmlExact =
     body.visualEdited === true &&
     (isDynamicVisualTarget || !(visualPageKey === 'home' && visualDevice === 'desktop'))
-      ? typeof body.htmlSource === 'string' && body.htmlSource.trim().length >= 40
-        ? body.htmlSource.trim()
+      ? incomingHtml.length >= 40
+        ? incomingHtml
         : project?.files.find((f) => f.path === htmlPath && f.kind === 'html')?.content
       : undefined
-  const targetVisualHtml = (visualHtmlExact || pageHtmlExact || '').trim()
+  const targetVisualHtml = sanitizeVisualHtmlForStore(visualHtmlExact || pageHtmlExact || '').trim()
+  if (body.visualEdited === true && targetVisualHtml.length < 40) {
+    return NextResponse.json({ error: 'Visual HTML is empty — cannot save' }, { status: 400 })
+  }
   const projectToSave =
     body.visualEdited === true && targetVisualHtml.length >= 40
       ? mergeVisualPageHtmlIntoProject(existing.project, targetVisualHtml, htmlPath)
@@ -556,11 +569,13 @@ export async function PATCH(
     project: projectToSave ?? undefined,
     htmlSource:
       visualHtmlExact !== undefined
-        ? visualHtmlExact
+        ? targetVisualHtml
         : body.visualEdited === true
           ? existing.htmlSource
           : body.htmlSource !== undefined
-            ? body.htmlSource
+            ? body.htmlSource == null
+              ? body.htmlSource
+              : sanitizeVisualHtmlForStore(body.htmlSource)
             : projectToSave
               ? composeStandaloneHtml(projectToSave)
               : undefined,
@@ -568,7 +583,7 @@ export async function PATCH(
   })
 
   if (!updated) {
-    return NextResponse.json({ error: 'Website not found or save failed' }, { status: 404 })
+    return NextResponse.json({ error: 'Could not save website HTML' }, { status: 500 })
   }
 
   const publicUrl = await resolvePartnerWebsitePublicUrl({

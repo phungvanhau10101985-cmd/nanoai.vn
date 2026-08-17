@@ -27,11 +27,15 @@ import { injectPartnerLogoHomeLinkScript } from '@/lib/partner-website/shop/inje
 import { injectPartnerShopRuntimeScriptsIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { resolveExactVisualHomepageHtml } from '@/lib/partner-website/compose-partner-website-html'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
-import { resolvePublicVisualPageHtml } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import {
+  parseVisualDeviceQuery,
+  resolvePublicVisualPageHtml,
+} from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { visualHtmlLooksUsable } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 
 type Props = {
   params: Promise<{ slug: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -88,14 +92,15 @@ function sampleAsShopProducts(
   }))
 }
 
-export default async function PartnerSitePublicPage({ params }: Props) {
+export default async function PartnerSitePublicPage({ params, searchParams }: Props) {
   const { slug } = await params
   const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
   if (!site) notFound()
 
-  // Sửa nhanh save owns the live homepage — same HTML as preview / public.
+  const previewDevice = parseVisualDeviceQuery((await searchParams)['pw-device'])
+  // Sửa nhanh → Xem (`?pw-device=`) must serve the same isolated file as the editor.
   const visualHtml = injectPartnerShopChromeLayoutCss(
-    resolvePublicVisualPageHtml(site, 'home') || resolveExactVisualHomepageHtml(site)
+    resolvePublicVisualPageHtml(site, 'home', previewDevice) || resolveExactVisualHomepageHtml(site)
   )
 
   if (visualHtmlLooksUsable(visualHtml)) {

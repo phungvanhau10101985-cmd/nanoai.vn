@@ -391,20 +391,24 @@ export function PartnerWebsiteDashboardClient({
           ? project.files.find((f) => f.path === 'index.html' && f.kind === 'html')?.content
           : undefined) ||
         ''
-      const res = await fetch(`/api/messaging/partner-website/${encodeURIComponent(partnerId)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project,
-          htmlSource: html,
-          visualEdited: true,
-          visualPageKey: key,
-          visualDevice: device,
-          visualCategoryPath: categoryPath || undefined,
-          visualProductId: productId || undefined,
-          visualCmsSlug: cmsSlug || undefined,
-        }),
-      })
+      let res: Response
+      try {
+        res = await fetch(`/api/messaging/partner-website/${encodeURIComponent(partnerId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            htmlSource: html,
+            visualEdited: true,
+            visualPageKey: key,
+            visualDevice: device,
+            visualCategoryPath: categoryPath || undefined,
+            visualProductId: productId || undefined,
+            visualCmsSlug: cmsSlug || undefined,
+          }),
+        })
+      } catch {
+        throw new Error(t.visualEditSaveFailed)
+      }
       const json = (await res.json().catch(() => ({}))) as {
         website?: PartnerWebsiteRow
         error?: string

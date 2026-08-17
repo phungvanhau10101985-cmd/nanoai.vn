@@ -75,6 +75,12 @@ export function parseVisualDeviceVariant(raw: unknown): VisualDeviceVariant {
   return raw === 'mobile' || raw === 'tablet' ? raw : 'desktop'
 }
 
+/** Query `?pw-device=` from Sửa nhanh → Xem. Null = responsive composed page. */
+export function parseVisualDeviceQuery(raw: unknown): VisualDeviceVariant | null {
+  const v = Array.isArray(raw) ? raw[0] : raw
+  return v === 'mobile' || v === 'tablet' || v === 'desktop' ? v : null
+}
+
 export function visualDeviceVariantFromHtmlPath(path: string): VisualDeviceVariant {
   if (/\.mobile\.html$/i.test(path)) return 'mobile'
   if (/\.tablet\.html$/i.test(path)) return 'tablet'
@@ -670,8 +676,18 @@ function servePublicVisualHtml(
 
 export function resolvePublicVisualPageHtml(
   website: VisualWebsitePick,
-  pageKey: PartnerWebsitePageKey
+  pageKey: PartnerWebsitePageKey,
+  variant?: VisualDeviceVariant | null
 ): string {
+  if (variant === 'desktop' || variant === 'tablet' || variant === 'mobile') {
+    const exact = resolveExactVisualPageHtml(website, pageKey, variant)
+    return servePublicVisualHtml(
+      variant === 'desktop' ? exact : '',
+      variant === 'mobile' ? exact : '',
+      website.theme,
+      variant === 'tablet' ? exact : ''
+    )
+  }
   const desktop = resolveExactVisualPageHtml(website, pageKey, 'desktop')
   const mobile = resolveExactVisualPageHtml(website, pageKey, 'mobile')
   const tablet = resolveExactVisualPageHtml(website, pageKey, 'tablet')
@@ -758,7 +774,7 @@ export function mergeVisualPageHtmlIntoProject(
   if (!found) {
     files.push({ path, kind: 'html', content: html })
   }
-  return syncChromeCountBadgesAcrossProjectFiles({ ...project, files }, path, html)
+  return { ...project, files }
 }
 
 export function syncChromeCountBadgesAcrossProjectFiles<

@@ -583,7 +583,7 @@ export async function updatePartnerWebsiteDraftPg(input: {
         input.theme ? JSON.stringify(theme) : null,
         input.pages ? JSON.stringify(pages) : null,
         input.project ? JSON.stringify(projectFilesToJson(project)) : null,
-        htmlSource?.trim() || null,
+        htmlSource?.replace(/\u0000/g, '').trim() || null,
         input.logoUrl !== undefined,
       ]
     )

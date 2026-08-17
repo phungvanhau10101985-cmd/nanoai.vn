@@ -323,6 +323,7 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('.nanoai-ve-active [data-pw-el="nav-link"]')
     expect(s).toContain('.nanoai-ve-active [data-pw-el="link"]')
     expect(s).toContain('.nanoai-ve-active .pw-shop-header-inner{overflow:visible!important')
+    expect(s).toContain('.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;min-width:0;position:relative!important;max-width:none!important;width:100%!important;margin-left:0!important;margin-right:0!important}')
     expect(s).not.toContain('overflow-x:clip!important')
     expect(s).toContain('.pw-hero-inner,.nanoai-ve-active .pw-banner-inner')
     expect(s).not.toContain('.nanoai-ve-active .pw-hero-inner,.nanoai-ve-active .pw-banner-inner{pointer-events:auto')
@@ -401,11 +402,17 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('restoreBrandWordmarks')
     expect(s).toContain('headerLogoFreeCap')
     expect(s).toContain('pinHeaderLogoFloat')
+    expect(s).toContain('headerLogoHost')
+    expect(s).toContain('ensureHeaderLogoHostPos')
+    expect(s).toContain('already && sameHost')
+    expect(s).toContain('Math.max(0, isFinite(left) ? left : 0)')
     expect(s).toContain('releaseFloatedBrandLink')
     expect(s).toContain('data-pw-logo-float')
     expect(s).toContain('headerLogoMaxBox')
     expect(s).toContain('reflowHeaderChrome')
-    expect(s).toContain("if (reflowHeaderChrome()) post('dirty', {})")
+    expect(s).toContain("d.type === 'resetHistory'")
+    expect(s).toContain('resetHistoryBaseline')
+    expect(s).not.toContain("if (reflowHeaderChrome()) post('dirty', {})")
     expect(s).toContain('data-pw-edit-device')
     expect(s).toContain('nanoai-ve-mobile')
     expect(s).toContain('max-width:200px')
@@ -431,6 +438,23 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain("if (isAddedChrome(el) || isChromeBtn(el) || isHeaderWidget(el))")
     expect(s).toContain("} else if (drag.mode === 'reorder') {")
     expect(s).not.toContain("drag.mode === 'reorder' || isAddedChrome(selected)")
+  })
+})
+
+describe('visual-editor header logo geometry is settled while editing', () => {
+  const s = buildVisualEditorScript('vi')
+
+  it('caps the header logo by the authored device width, not the live viewport', () => {
+    expect(s).toContain('headerLogoDeviceWidth')
+    expect(s).toContain("if (editDevice === 'mobile') return 390")
+    expect(s).toContain("if (editDevice === 'tablet') return 768")
+    expect(s).toContain('return 1200')
+    expect(s).toContain('Math.min(headerLogoDeviceWidth(), Math.round(viewW))')
+  })
+
+  it('snaps a dropped float logo back inside the header on mouse up', () => {
+    expect(s).toContain("Math.max(0, Math.round(bakeR.left - bakeHr.left)) + 'px'")
+    expect(s).toContain("Math.max(0, Math.round(bakeR.top - bakeHr.top)) + 'px'")
   })
 })
 

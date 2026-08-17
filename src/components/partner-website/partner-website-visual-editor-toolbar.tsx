@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutTemplate, Loader2, Lock, LogIn, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Shield, ShoppingBag, Sparkles, Square, Store, Tag, Trash2, Truck, Type, Undo2, Ungroup, User, Wallet, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -16,7 +16,6 @@ import {
   NANOAI_VE_MESSAGE,
 } from '@/lib/partner-website/visual-editor/build-visual-editor-script'
 import {
-  mergeVisualHtmlIntoProject,
   serializeVisualEditorHtml,
   visualHtmlLooksUsable,
 } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
@@ -34,10 +33,6 @@ import {
   makeUserLogoColorSwatchDataUrl,
 } from '@/lib/partner-website/visual-editor/logo-generation-context'
 import { persistVisualEditorAdminLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-admin-logo'
-import {
-  applyFirstImageLogoToProject,
-  extractFilledLogoUrl,
-} from '@/lib/partner-website/visual-editor/apply-first-image-logo'
 import { appendVisualDeviceQuery, visualDeviceVariantFromHtmlPath } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { isHexColor, resolveShopThemeColors, themeCssVarMap } from '@/lib/partner-website/template/partner-website-theme-tokens'
@@ -472,6 +467,8 @@ type Props = {
   theme?: PartnerWebsiteTheme | null
   onThemeLiveChange?: (next: PartnerWebsiteTheme) => void
   themeSaving?: boolean
+  saveFnRef?: MutableRefObject<(() => Promise<boolean>) | null>
+  onRequestLeave?: (kind: 'view' | 'exit') => void
 }
 
 type VisualEditorIframeWindow = Window & {
@@ -497,10 +494,10 @@ function shopDocIsBlank(doc: Document | null): boolean {
   }
 }
 
-function cleanSerializedHtml(raw: string): string {
+function cleanSerializedHtml(raw: string, htmlPath: string): string {
   const parser = new DOMParser()
   const doc = parser.parseFromString(raw, 'text/html')
-  return serializeVisualEditorHtml(doc)
+  return serializeVisualEditorHtml(doc, visualDeviceVariantFromHtmlPath(htmlPath))
 }
 
 type VisualEditOpenPanel = 'add' | 'logo' | 'theme' | 'block'
@@ -615,7 +612,6 @@ export function PartnerWebsiteVisualEditorToolbar({
   partnerId,
   siteSlug,
   iframeRef,
-  projectRef,
   active,
   disabled,
   websiteTitle,
@@ -633,6 +629,8 @@ export function PartnerWebsiteVisualEditorToolbar({
   theme,
   onThemeLiveChange,
   themeSaving,
+  saveFnRef,
+  onRequestLeave,
 }: Props) {
   const t = getPartnerWebsiteCopy(locale)
   const [selection, setSelection] = useState<VisualEditorSelection | null>(null)
@@ -684,12 +682,11 @@ export function PartnerWebsiteVisualEditorToolbar({
   const lastLogoKeyRef = useRef('')
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const aiLockRef = useRef(false)
-  const leftoverLogoSavedRef = useRef('')
   const saveWaiterRef = useRef<{ resolve: (ok: boolean) => void } | null>(null)
 
   useEffect(() => {
-    onDirtyChange?.(dirty)
-  }, [dirty, onDirtyChange])
+    onDirtyChange?.(dirty || canUndo)
+  }, [dirty, canUndo, onDirtyChange])
 
   useEffect(() => {
     if (!active) {
@@ -857,25 +854,23 @@ export function PartnerWebsiteVisualEditorToolbar({
         const iframe = iframeRef.current
         const doc = iframe?.contentDocument
         if (onSave) {
-          const html = doc
-            ? serializeVisualEditorHtml(doc, visualDeviceVariantFromHtmlPath(htmlPath))
-            : cleanSerializedHtml(rawHtml)
+          const variant = visualDeviceVariantFromHtmlPath(htmlPath)
+          const html = doc ? serializeVisualEditorHtml(doc, variant) : cleanSerializedHtml(rawHtml, htmlPath)
           if (!visualHtmlLooksUsable(html)) {
             onError(t.visualEditSaveFailed)
             saveWaiterRef.current?.resolve(false)
             saveWaiterRef.current = null
             return false
           }
-          const projectRaw = projectRef.current?.files?.length
-            ? projectRef.current
-            : { entryPath: 'index.html', files: [{ path: htmlPath, kind: 'html' as const, content: html }] }
-          const leftoverLogoUrl = extractFilledLogoUrl(html) || theme?.logoUrl || ''
-          const merged = mergeVisualHtmlIntoProject(projectRaw, html, htmlPath) as PartnerWebsiteProject
-          const next = leftoverLogoUrl
-            ? applyFirstImageLogoToProject(merged, leftoverLogoUrl, websiteTitle)
-            : merged
+          const next: PartnerWebsiteProject = {
+            entryPath: htmlPath,
+            files: [{ path: htmlPath, kind: 'html', content: html }],
+          }
           await onSave(next)
           setDirty(false)
+          setCanUndo(false)
+          setCanRedo(false)
+          postToIframe(iframeRef.current, 'resetHistory')
           saveWaiterRef.current?.resolve(true)
           saveWaiterRef.current = null
           return true
@@ -892,6 +887,9 @@ export function PartnerWebsiteVisualEditorToolbar({
             await onSaveShopHome(patch)
           }
           setDirty(false)
+          setCanUndo(false)
+          setCanRedo(false)
+          postToIframe(iframeRef.current, 'resetHistory')
           saveWaiterRef.current?.resolve(true)
           saveWaiterRef.current = null
           return true
@@ -909,7 +907,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         setSaving(false)
       }
     },
-    [htmlPath, iframeRef, onError, onSave, onSaveShopHome, projectRef, t.visualEditSaveFailed, theme?.logoUrl, websiteTitle]
+    [htmlPath, iframeRef, onError, onSave, onSaveShopHome, t.visualEditSaveFailed]
   )
 
   useEffect(() => {
@@ -1060,11 +1058,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           data.hidden.map((row) => ({ id: String(row.id ?? ''), label: String(row.label ?? '') })).filter((row) => row.id)
         )
       }
-      if (data.type === 'leftoverLogoApplied' && documentKey && leftoverLogoSavedRef.current !== documentKey) {
-        leftoverLogoSavedRef.current = documentKey
-        postToIframe(iframeRef.current, 'serialize')
-      }
-      if (data.type === 'html' && data.html) {
+      if (data.type === 'html' && data.html && saveWaiterRef.current) {
         void handleSaveHtml(data.html)
       }
     }
@@ -1076,6 +1070,12 @@ export function PartnerWebsiteVisualEditorToolbar({
   useEffect(() => {
     if (!active) return
     function onKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault()
+        e.stopPropagation()
+        if (!disabled && (dirty || canUndo)) void requestSave()
+        return
+      }
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
@@ -1106,7 +1106,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [active, iframeRef, selection])
+  }, [active, disabled, dirty, canUndo, iframeRef, selection])
 
   async function requestSave(): Promise<boolean> {
     const iframe = iframeRef.current
@@ -1131,14 +1131,19 @@ export function PartnerWebsiteVisualEditorToolbar({
     })
   }
 
+  if (saveFnRef) saveFnRef.current = requestSave
+
   const liveViewHref = viewHref
     ? appendVisualDeviceQuery(viewHref, visualDeviceVariantFromHtmlPath(htmlPath))
     : undefined
 
-  async function openLiveView() {
+  function openLiveView() {
+    if (dirty || canUndo || saving || busy) return
+    if (onRequestLeave) {
+      onRequestLeave('view')
+      return
+    }
     if (!liveViewHref) return
-    const ok = await requestSave()
-    if (!ok) return
     const bust = `v=${Date.now()}`
     const href = /[?&]v=/.test(liveViewHref)
       ? liveViewHref.replace(/([?&])v=[^&]*/, `$1${bust}`)
@@ -2002,15 +2007,18 @@ export function PartnerWebsiteVisualEditorToolbar({
               <Redo2 className="h-3.5 w-3.5" aria-hidden />
               {compact ? null : t.visualEditRedo}
             </Button>
+            <span className="px-1 text-[10px] text-muted-foreground">
+              {dirty || canUndo ? t.visualEditUnsavedStatus : t.visualEditSavedStatus}
+            </span>
             {liveViewHref ? (
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 className={cn(btn, 'gap-1')}
-                disabled={busy || saving}
-                title={t.visualEditViewSite}
-                onClick={() => void openLiveView()}
+                disabled={busy || saving || dirty || canUndo}
+                title={dirty || canUndo ? t.visualEditViewNeedsSave : t.visualEditViewSite}
+                onClick={() => openLiveView()}
               >
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                 {t.visualEditViewSite}
@@ -2022,7 +2030,7 @@ export function PartnerWebsiteVisualEditorToolbar({
               variant="ghost"
               className={btn}
               disabled={saving}
-              onClick={onCancel}
+              onClick={() => (onRequestLeave ? onRequestLeave('exit') : onCancel())}
             >
               <X className="mr-1 h-3 w-3" />
               {t.visualEditCancel}
@@ -2031,7 +2039,8 @@ export function PartnerWebsiteVisualEditorToolbar({
               type="button"
               size="sm"
               className={btn}
-              disabled={busy}
+              disabled={busy || !(dirty || canUndo)}
+              title={`${t.visualEditSave} (Ctrl+S)`}
               onClick={requestSave}
             >
               {saving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}

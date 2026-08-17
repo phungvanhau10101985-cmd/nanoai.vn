@@ -4,6 +4,7 @@ import {
   injectPartnerShopChromeLayoutCss,
   stripVisualEditorRuntimeStateClasses,
   PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID,
+  PARTNER_SHOP_LOGO_HOST_SCRIPT,
 } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 
 test('chrome layout css is injected once before </head>', () => {
@@ -22,6 +23,7 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('z-index:180'), true)
   assert.equal(once.includes('position:fixed!important'), true)
   assert.equal(once.includes('z-index:160'), true)
+  assert.equal(once.includes('min-width:0;position:relative!important;max-width:none!important'), true)
   assert.equal(once.includes('data-pw-logo-frame'), true)
   assert.equal(once.includes('data-pw-logo-float'), true)
   assert.equal(once.includes('data-pw-logo-empty'), true)
@@ -44,6 +46,9 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('color:#374151!important'), true)
   assert.equal(once.includes('pw-shop-chrome-badge-pin'), true)
   assert.equal(once.includes('pw-shop-stick-header'), true)
+  assert.equal(once.includes('pw-shop-logo-host'), true)
+  assert.equal(PARTNER_SHOP_LOGO_HOST_SCRIPT.includes("el.style.setProperty('left','0px','important')"), true)
+  assert.equal(PARTNER_SHOP_LOGO_HOST_SCRIPT.includes('getBoundingClientRect'), false)
   assert.equal(once.includes('data-pw-stick-header'), true)
   assert.equal(once.includes('__pwStickHeaderSync'), true)
   assert.equal(twice, once)

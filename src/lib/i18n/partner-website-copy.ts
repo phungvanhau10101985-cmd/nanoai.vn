@@ -63,6 +63,14 @@ export type PartnerWebsiteCopy = {
   visualEditDeviceHint: string
   visualEditSwitchDeviceConfirm: string
   visualEditSwitchPageConfirm: string
+  visualEditLeaveTitle: string
+  visualEditLeaveBody: string
+  visualEditLeaveSave: string
+  visualEditLeaveDiscard: string
+  visualEditLeaveStay: string
+  visualEditSavedStatus: string
+  visualEditUnsavedStatus: string
+  visualEditViewNeedsSave: string
   visualEditCategoryGroup: string
   visualEditCategoryEmpty: string
   visualEditProductGroup: string
@@ -833,6 +841,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditDeviceHint: 'Mobile, máy tính bảng và Desktop lưu riêng. Sửa trên máy nào thì Xem mở đúng bản đó, cùng độ rộng.',
     visualEditSwitchDeviceConfirm: 'Chưa lưu bản này. Đổi máy sẽ mất chỉnh chưa lưu. Tiếp tục?',
     visualEditSwitchPageConfirm: 'Chưa lưu bản này. Đổi trang sẽ mất chỉnh chưa lưu. Tiếp tục?',
+    visualEditLeaveTitle: 'Chưa lưu chỉnh sửa',
+    visualEditLeaveBody: 'Có chỉnh chưa lưu trên bản đang mở. Lưu trước khi rời, bỏ chỉnh, hoặc ở lại.',
+    visualEditLeaveSave: 'Lưu',
+    visualEditLeaveDiscard: 'Không lưu',
+    visualEditLeaveStay: 'Ở lại',
+    visualEditSavedStatus: 'Đã lưu',
+    visualEditUnsavedStatus: 'Chưa lưu',
+    visualEditViewNeedsSave: 'Lưu thay đổi trước khi xem web',
     visualEditCategoryGroup: 'Danh mục sản phẩm',
     visualEditCategoryEmpty: 'Chưa có danh mục',
     visualEditProductGroup: 'Chi tiết sản phẩm',
@@ -1621,6 +1637,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditDeviceHint: 'Mobile, tablet, and desktop are saved separately. View opens that same layout at the same width.',
     visualEditSwitchDeviceConfirm: 'This layout is not saved. Switching device discards unsaved edits. Continue?',
     visualEditSwitchPageConfirm: 'This layout is not saved. Switching pages discards unsaved edits. Continue?',
+    visualEditLeaveTitle: 'Unsaved edits',
+    visualEditLeaveBody: 'This layout has unsaved edits. Save before leaving, discard them, or stay.',
+    visualEditLeaveSave: 'Save',
+    visualEditLeaveDiscard: "Don't save",
+    visualEditLeaveStay: 'Stay',
+    visualEditSavedStatus: 'Saved',
+    visualEditUnsavedStatus: 'Unsaved',
+    visualEditViewNeedsSave: 'Save changes before viewing the site',
     visualEditCategoryGroup: 'Product categories',
     visualEditCategoryEmpty: 'No categories yet',
     visualEditProductGroup: 'Product details',
@@ -2407,6 +2431,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditDeviceHint: '手机版、平板版和桌面版分开保存。查看会打开当前正在编辑的版本，宽度相同。',
     visualEditSwitchDeviceConfirm: '此布局尚未保存。切换设备会丢失未保存修改。继续？',
     visualEditSwitchPageConfirm: '此布局尚未保存。切换页面会丢失未保存修改。继续？',
+    visualEditLeaveTitle: '尚未保存修改',
+    visualEditLeaveBody: '当前布局有未保存的修改。可先保存再离开、放弃修改，或留在此页。',
+    visualEditLeaveSave: '保存',
+    visualEditLeaveDiscard: '不保存',
+    visualEditLeaveStay: '留下',
+    visualEditSavedStatus: '已保存',
+    visualEditUnsavedStatus: '未保存',
+    visualEditViewNeedsSave: '请先保存再查看网站',
     visualEditCategoryGroup: '商品分类',
     visualEditCategoryEmpty: '暂无分类',
     visualEditProductGroup: '商品详情',
@@ -3173,6 +3205,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditDeviceHint: 'モバイル・タブレット・デスクトップは別保存。表示は編集中の版を同じ幅で開きます。',
     visualEditSwitchDeviceConfirm: '未保存の変更があります。端末を切り替えると破棄されます。続行しますか？',
     visualEditSwitchPageConfirm: '未保存の変更があります。ページを切り替えると破棄されます。続行しますか？',
+    visualEditLeaveTitle: '未保存の変更',
+    visualEditLeaveBody: 'このレイアウトには未保存の変更があります。保存してから移動、破棄、またはこのまま編集を続けてください。',
+    visualEditLeaveSave: '保存',
+    visualEditLeaveDiscard: '保存しない',
+    visualEditLeaveStay: '戻る',
+    visualEditSavedStatus: '保存済み',
+    visualEditUnsavedStatus: '未保存',
+    visualEditViewNeedsSave: 'サイトを見る前に保存してください',
     visualEditCategoryGroup: '商品カテゴリ',
     visualEditCategoryEmpty: 'カテゴリがありません',
     visualEditProductGroup: '商品詳細',
@@ -3949,6 +3989,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditDeviceHint: '모바일, 태블릿, 데스크톱은 따로 저장됩니다. 보기는 지금 편집 중인 판을 같은 너비로 엽니다.',
     visualEditSwitchDeviceConfirm: '저장하지 않은 변경이 있습니다. 기기를 바꾸면 사라집니다. 계속할까요?',
     visualEditSwitchPageConfirm: '저장하지 않은 변경이 있습니다. 페이지를 바꾸면 사라집니다. 계속할까요?',
+    visualEditLeaveTitle: '저장하지 않은 변경',
+    visualEditLeaveBody: '현재 레이아웃에 저장하지 않은 변경이 있습니다. 저장하고 이동하거나, 버리거나, 계속 편집하세요.',
+    visualEditLeaveSave: '저장',
+    visualEditLeaveDiscard: '저장 안 함',
+    visualEditLeaveStay: '머물기',
+    visualEditSavedStatus: '저장됨',
+    visualEditUnsavedStatus: '저장 안 됨',
+    visualEditViewNeedsSave: '웹을 보려면 먼저 저장하세요',
     visualEditCategoryGroup: '상품 카테고리',
     visualEditCategoryEmpty: '카테고리 없음',
     visualEditProductGroup: '상품 상세',

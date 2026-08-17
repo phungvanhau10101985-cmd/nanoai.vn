@@ -127,7 +127,7 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
   var TEXT_TAGS = {h1:1,h2:1,h3:1,h4:1,h5:1,h6:1,p:1,span:1,li:1,label:1,figcaption:1,a:1,button:1,td:1,th:1,strong:1,em:1,small:1,blockquote:1,dt:1,dd:1,b:1,i:1,u:1}
   function post(type, payload) {
     try { window.parent.postMessage(Object.assign({ source: MSG, type: type }, payload || {}), '*') } catch (e) {}
-    if (type === 'dirty') scheduleHistoryPush()
+    if (type === 'dirty' && !historyLock) scheduleHistoryPush()
   }
   function postHistory() {
     post('history', {
@@ -214,6 +214,13 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
     if (historyIndex < 0 || historyIndex >= historyStack.length - 1) { postHistory(); return }
     historyIndex += 1
     restorePage(historyStack[historyIndex])
+    postHistory()
+  }
+  function resetHistoryBaseline() {
+    if (historyTimer) { clearTimeout(historyTimer); historyTimer = null }
+    historyLock = false
+    historyStack = [snapshotPage()]
+    historyIndex = 0
     postHistory()
   }
   function cs(el) { return window.getComputedStyle(el) }
@@ -858,9 +865,15 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
       else document.body.classList.remove('nanoai-ve-tablet')
     }
   }
+  function headerLogoDeviceWidth() {
+    if (editDevice === 'mobile') return 390
+    if (editDevice === 'tablet') return 768
+    return 1200
+  }
   function headerLogoFreeCap() {
     var viewW = window.innerWidth || document.documentElement.clientWidth || 390
-    return { w: Math.max(240, Math.round(viewW)), h: 240 }
+    var cap = Math.min(headerLogoDeviceWidth(), Math.round(viewW))
+    return { w: Math.max(240, cap), h: 240 }
   }
   function headerLogoMaxBox() {
     return headerLogoFreeCap()
@@ -894,6 +907,8 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
     var header = el.closest ? el.closest('header, .pw-header, .pw-shop-header') : null
     if (!header) header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
     if (!header) return false
+    var host = headerMainOf(header) || header
+    ensureHeaderLogoHostPos(host)
     var img = logoImgOf(el) || (isImgEl(el) ? el : null)
     if (img) {
       unlockLogoImage(img)
@@ -912,11 +927,12 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
     var parentLink = unit.closest ? unit.closest('a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home]') : null
     var measure = img || unit
     var mr = measure.getBoundingClientRect()
-    var hr = header.getBoundingClientRect()
+    var hr = host.getBoundingClientRect()
     var beforeParent = unit.parentNode
     var beforeLeft = unit.style.left
     var beforeTop = unit.style.top
-    if (unit.parentNode !== header) header.appendChild(unit)
+    var sameHost = unit.parentNode === host
+    if (unit.parentNode !== host) host.appendChild(unit)
     if (parentLink && parentLink !== unit) releaseFloatedBrandLink(parentLink)
     unit.setAttribute('data-pw-logo-float', '1')
     var already = unit.getAttribute('data-pw-logo-floated') === '1' && !box
@@ -930,11 +946,13 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
       w = box.w
       h = box.h
       unit.style.removeProperty('transform')
-    } else if (already) {
+    } else if (already && sameHost) {
       w = parseFloat(unit.style.width) || (logoFrameOf(el) && parseFloat(logoFrameOf(el).style.width)) || unit.getBoundingClientRect().width
       h = parseFloat(unit.style.height) || (logoFrameOf(el) && parseFloat(logoFrameOf(el).style.height)) || unit.getBoundingClientRect().height
       left = parseFloat(unit.style.left)
       top = parseFloat(unit.style.top)
+      if (!isFinite(left) || left < 0) left = 0
+      if (!isFinite(top) || top < 0) top = 0
     } else {
       left = mr.left - hr.left
       top = mr.top - hr.top
@@ -953,10 +971,8 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
     }
     unit.style.setProperty('position', 'absolute', 'important')
     unit.style.setProperty('display', isImgEl(unit) ? 'block' : 'inline-block', 'important')
-    if (!already || (box && box.w >= 8) || (hr.width && w >= hr.width * 0.72)) {
-      unit.style.setProperty('left', Math.round(Math.max(0, left)) + 'px', 'important')
-      unit.style.setProperty('top', Math.round(Math.max(0, top)) + 'px', 'important')
-    }
+    unit.style.setProperty('left', Math.round(Math.max(0, isFinite(left) ? left : 0)) + 'px', 'important')
+    unit.style.setProperty('top', Math.round(Math.max(0, isFinite(top) ? top : 0)) + 'px', 'important')
     applyDefaultZ(unit, 160)
     unit.style.setProperty('margin', '0', 'important')
     unit.style.setProperty('max-width', 'none', 'important')
@@ -984,6 +1000,19 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
   function headerMainOf(header) {
     if (!header || !header.querySelector) return header || null
     return header.querySelector('.pw-header-main, .pw-shop-header-inner') || header
+  }
+  function headerLogoHost(el) {
+    var header = (el && el.closest) ? el.closest('header, .pw-header, .pw-shop-header') : null
+    if (!header) header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
+    if (!header) return null
+    return headerMainOf(header) || header
+  }
+  function ensureHeaderLogoHostPos(host) {
+    if (!host) return
+    try {
+      var pos = cs(host).position
+      if (!pos || pos === 'static') host.style.position = 'relative'
+    } catch (errHostPos) {}
   }
   function reflowHeaderChrome() {
     syncEditDeviceAttr()
@@ -3257,8 +3286,14 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
       unit.style.setProperty('opacity', '1', 'important')
       unit.style.setProperty('visibility', 'visible', 'important')
       if (cs(unit).display === 'none') unit.style.setProperty('display', 'inline-block', 'important')
-      var header = unit.closest ? unit.closest('header, .pw-header, .pw-shop-header') : null
-      if (header && unit.parentNode === header) header.appendChild(unit)
+      var host = headerLogoHost(unit)
+      if (host) {
+        if (unit.parentNode !== host) {
+          try { pinHeaderLogoFloat(unit, null) } catch (errPinReveal) {}
+        } else {
+          host.appendChild(unit)
+        }
+      }
     }
     var img = logoImgOf(el) || (isLogoImg(el) ? el : null)
     if (img && img.style) {
@@ -5133,7 +5168,8 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
   function headerLogoStartBox(w, h) {
     var header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
     if (!header) return null
-    var hr = header.getBoundingClientRect()
+    var host = headerMainOf(header) || header
+    var hr = host.getBoundingClientRect()
     var cluster = header.querySelector('.pw-brand-cluster, .pw-shop-brand-cluster') || header.querySelector('.pw-cat-btn, .pw-shop-cat-btn')
     var cr = cluster ? cluster.getBoundingClientRect() : { right: hr.left + 44, top: hr.top, height: hr.height }
     return {
@@ -6207,10 +6243,13 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
       var bake = headerLogoUnit(selected)
       var bakeHeader = bake && bake.closest ? bake.closest('header, .pw-header, .pw-shop-header') : null
       if (bake && bakeHeader && bake.getAttribute('data-pw-logo-float') === '1') {
-        var bakeHr = bakeHeader.getBoundingClientRect()
+        var bakeHost = headerMainOf(bakeHeader) || bakeHeader
+        ensureHeaderLogoHostPos(bakeHost)
+        if (bake.parentNode !== bakeHost) bakeHost.appendChild(bake)
+        var bakeHr = bakeHost.getBoundingClientRect()
         var bakeR = bake.getBoundingClientRect()
-        bake.style.setProperty('left', Math.round(bakeR.left - bakeHr.left) + 'px', 'important')
-        bake.style.setProperty('top', Math.round(bakeR.top - bakeHr.top) + 'px', 'important')
+        bake.style.setProperty('left', Math.max(0, Math.round(bakeR.left - bakeHr.left)) + 'px', 'important')
+        bake.style.setProperty('top', Math.max(0, Math.round(bakeR.top - bakeHr.top)) + 'px', 'important')
         bake.style.removeProperty('transform')
       }
     }
@@ -6296,7 +6335,7 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
       '.pw-bottom-nav a:not([data-pw-chrome-added]),.pw-shop-bottom-nav a:not([data-pw-chrome-added]),.pw-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]),.pw-shop-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]){flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;color:#6b7280!important;flex-direction:column;align-items:center;justify-content:center;background:transparent!important}',
       '.pw-bottom-nav [data-pw-chrome-added],.pw-shop-bottom-nav [data-pw-chrome-added]{flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;flex-direction:column;align-items:center;justify-content:center;background:transparent!important;cursor:grab}',
       '.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-brand-cluster,.pw-shop-brand-cluster{overflow:visible!important}',
-      '.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;min-width:0}',
+      '.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;min-width:0;position:relative!important;max-width:none!important;width:100%!important;margin-left:0!important;margin-right:0!important}',
       '.pw-brand-cluster,.pw-shop-brand-cluster,.pw-brand:not([data-pw-logo-float]),.pw-shop-brand:not([data-pw-logo-float]),a[data-pw-logo-home]:not([data-pw-logo-float]){position:relative!important;z-index:120!important;flex:0 0 auto!important;overflow:visible!important}',
       '.pw-brand-cluster,.pw-shop-brand-cluster{pointer-events:none!important}',
       '.pw-brand-cluster > *,.pw-shop-brand-cluster > *,.pw-brand-cluster a,.pw-shop-brand-cluster a,.pw-brand-cluster button,.pw-shop-brand-cluster button,.pw-brand-cluster img,.pw-shop-brand-cluster img,.pw-brand-cluster [data-pw-el],.pw-shop-brand-cluster [data-pw-el],.pw-brand-cluster .pw-logo-frame,.pw-shop-brand-cluster .pw-logo-frame,.pw-brand-cluster [data-pw-logo-frame],.pw-shop-brand-cluster [data-pw-logo-frame]{pointer-events:auto!important}',
@@ -6417,16 +6456,17 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
     skipClick = false
     drag.active = false
     drag.ready = false
+    var wasLive = document.body.classList.contains('nanoai-ve-active')
+    historyLock = true
     injectStyles()
     syncEditDeviceAttr()
     try { sanitizeLogoFrames() } catch (errSan) {}
     try { rescueHeaderLogos() } catch (errRescue) {}
-    try { if (reflowHeaderChrome()) post('dirty', {}) } catch (errHeadLogo) {}
+    try { reflowHeaderChrome() } catch (errHeadLogo) {}
     try { lockExistingSearchBoxes() } catch (errSearch) {}
     try { pinChromeIconBadges(document) } catch (errPin) {}
     try { pwApplyDemoChromeCountBadges(document) } catch (errDemo) {}
     try { restoreWidgetColors(document) } catch (errWidget) {}
-    var wasLive = document.body.classList.contains('nanoai-ve-active')
     document.body.classList.add('nanoai-ve-active')
     try { hideLayerSwitches() } catch (errHide) {}
     try { stampPwUiContract() } catch (errStamp2) {}
@@ -6434,12 +6474,11 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
     try { stampCatalogLocks() } catch (errLock2) {}
     try { prepareImageLayerBlocks() } catch (errPrep) {}
     bindVeListeners()
+    historyLock = false
     post('ready', { hint: COPY.selectHint })
     if (!wasLive) {
-      historyStack = []
-      historyIndex = -1
       if (historyTimer) { clearTimeout(historyTimer); historyTimer = null }
-      pushHistory()
+      resetHistoryBaseline()
     }
     postHidden()
     syncLayerSwitches()
@@ -6786,6 +6825,7 @@ const RUNTIME_BODY = `(function (MSG, COPY) {
     }
     if (d.type === 'undo') undoHistory()
     if (d.type === 'redo') redoHistory()
+    if (d.type === 'resetHistory') resetHistoryBaseline()
     if (d.type === 'listHidden') postHidden()
     if (d.type === 'serialize') {
       try {

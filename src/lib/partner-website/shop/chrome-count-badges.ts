@@ -101,8 +101,14 @@ function stripPositionStyleAttr(attrs: string): string {
   })
 }
 
-function rewriteCountBadgeAttrs(attrs: string, variant: ChromeCountBadgeDevice): string {
-  let next = stripPositionStyleAttr(attrs)
+function rewriteCountBadgeAttrs(
+  attrs: string,
+  variant: ChromeCountBadgeDevice,
+  opts?: { stripPosition?: boolean }
+): string {
+  // Keep user-dragged transform/left/top on save and Xem web. Only strip when
+  // copying a widget onto another device so desktop coordinates do not leak.
+  let next = opts?.stripPosition ? stripPositionStyleAttr(attrs) : attrs
   if (/\bdata-pw-device=/.test(next)) {
     next = next.replace(/\sdata-pw-device=(["'])[^"']*\1/gi, ` data-pw-device="${variant}"`)
   } else {
@@ -113,10 +119,14 @@ function rewriteCountBadgeAttrs(attrs: string, variant: ChromeCountBadgeDevice):
 }
 
 /** Keep cart / notifications / viewed / wishlist visible on every device HTML. */
-export function restampChromeCountBadgeWidgets(html: string, variant: ChromeCountBadgeDevice): string {
+export function restampChromeCountBadgeWidgets(
+  html: string,
+  variant: ChromeCountBadgeDevice,
+  opts?: { stripPosition?: boolean }
+): string {
   return html.replace(/<(a|button)\b([^>]*)>([\s\S]*?)<\/\1>/gi, (full, tag: string, attrs: string, inner: string) => {
     if (!chromeCountBadgeKindFromHtmlSnippet(full)) return full
-    return `<${tag}${rewriteCountBadgeAttrs(attrs, variant)}>${inner}</${tag}>`
+    return `<${tag}${rewriteCountBadgeAttrs(attrs, variant, opts)}>${inner}</${tag}>`
   })
 }
 
@@ -199,7 +209,7 @@ export function copyMissingChromeCountBadgeWidgets(
   const widgets = extractChromeCountBadgeWidgets(sourceHtml)
   for (const widget of widgets) {
     if (htmlHasChromeCountBadgeKind(next, widget.kind)) continue
-    const prepared = restampChromeCountBadgeWidgets(widget.html, variant)
+    const prepared = restampChromeCountBadgeWidgets(widget.html, variant, { stripPosition: true })
     const hosts: ChromeCountBadgeHost[] = [widget.host, 'actions', 'nav', 'mid', 'topbar']
     const tried = new Set<ChromeCountBadgeHost>()
     for (const host of hosts) {

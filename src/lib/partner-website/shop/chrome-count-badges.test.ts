@@ -8,6 +8,7 @@ import {
   DEMO_CHROME_COUNT_BADGES,
   formatChromeCountBadge,
   PW_CHROME_COUNT_BADGE_RUNTIME_JS,
+  restampChromeCountBadgeWidgets,
 } from '@/lib/partner-website/shop/chrome-count-badges'
 
 test('chrome count badge infers kind from shop routes', () => {
@@ -66,4 +67,12 @@ test('count badge widgets copy onto the other device html', () => {
   const again = copyMissingChromeCountBadgeWidgets(desktop, next, 'mobile')
   assert.equal((again.match(/data-pw-chrome-btn="notifications"/g) || []).length, 1)
   assert.equal((again.match(/data-pw-chrome-btn="cart"/g) || []).length, 1)
+})
+
+test('restamp on the same device keeps the dragged notification position', () => {
+  const html = `<a class="pw-shop-icon-btn" data-pw-chrome-btn="notifications" href="/account/notifications" style="transform: translate(346px, 0px);">Bell</a>`
+  const next = restampChromeCountBadgeWidgets(html, 'desktop')
+  assert.match(next, /transform:\s*translate\(346px, 0px\)/)
+  assert.match(next, /data-pw-device="desktop"/)
+  assert.match(next, /data-pw-chrome-count="1"/)
 })

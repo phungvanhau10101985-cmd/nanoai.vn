@@ -17,7 +17,7 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-topbar-inner{max-width:var(--pw-content);margin:0 auto;padding:8px 20px;display:flex;justify-content:flex-end;gap:16px}
 .pw-shop-topbar a,.pw-shop-topbar button{color:#fff;background:none;border:none;cursor:pointer;font:inherit;padding:0}
 .pw-shop-header{position:sticky;top:0;z-index:200;isolation:isolate;background:#fff;border-bottom:1px solid #f3f4f6}
-.pw-shop-header-inner{max-width:var(--pw-content);margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+.pw-shop-header-inner{max-width:none;width:100%;margin:0;padding:12px 16px;display:flex;align-items:center;gap:12px}
 .pw-shop-brand-cluster{position:relative;display:flex;align-items:center;gap:10px;flex-shrink:0;pointer-events:none}
 .pw-shop-brand-cluster > *,.pw-shop-brand-cluster a,.pw-shop-brand-cluster button,.pw-shop-brand-cluster img,.pw-shop-brand-cluster [data-pw-el]{pointer-events:auto}
 .pw-shop-cat-btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}

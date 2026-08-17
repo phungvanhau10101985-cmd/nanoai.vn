@@ -12,6 +12,24 @@ import {
 /** Persistent chrome layout — same rules Sửa nhanh uses, kept on the live shop. */
 export const PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID = 'pw-shop-chrome-layout'
 
+/** Clamp leftover negative logo coords. Do not reparent by viewport — that pulls the logo off-screen on wide live views. */
+export const PARTNER_SHOP_LOGO_HOST_SCRIPT_ID = 'pw-shop-logo-host'
+export const PARTNER_SHOP_LOGO_HOST_SCRIPT = `(function(){
+  function clamp(){
+    var logos=document.querySelectorAll('[data-pw-logo-float="1"]');
+    for(var i=0;i<logos.length;i++){
+      var el=logos[i];
+      if(!el||!el.style)continue;
+      var left=parseFloat(el.style.left);
+      var top=parseFloat(el.style.top);
+      if(isFinite(left)&&left<0)el.style.setProperty('left','0px','important');
+      if(isFinite(top)&&top<0)el.style.setProperty('top','0px','important');
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',clamp);
+  else clamp();
+})();`
+
 /** Mobile header: search is its own box — width does not follow logo/buttons. */
 export const PARTNER_SHOP_MOBILE_HEADER_SEARCH_LOCK_CSS = `@media (max-width:899px){
 .pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;column-gap:6px!important;padding:8px 10px!important}
@@ -65,7 +83,7 @@ ${PW_CHROME_COUNT_BADGE_HIDE_CSS}
 .pw-header,.pw-shop-header{position:sticky!important;top:0!important;z-index:200!important;isolation:isolate}
 .pw-topbar,.pw-shop-topbar{position:relative!important;z-index:3!important;isolation:isolate}
 .pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-brand-cluster,.pw-shop-brand-cluster{overflow:visible!important}
-.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;min-width:0}
+.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;min-width:0;position:relative!important;max-width:none!important;width:100%!important;margin-left:0!important;margin-right:0!important}
 .pw-brand-cluster,.pw-shop-brand-cluster,.pw-brand:not([data-pw-logo-float]),.pw-shop-brand:not([data-pw-logo-float]),a[data-pw-logo-home]:not([data-pw-logo-float]){position:relative!important;z-index:120!important;flex:0 0 auto!important;overflow:visible!important}
 .pw-brand-cluster,.pw-shop-brand-cluster{pointer-events:none!important}
 .pw-brand-cluster > *,.pw-shop-brand-cluster > *,.pw-brand-cluster a,.pw-shop-brand-cluster a,.pw-brand-cluster button,.pw-shop-brand-cluster button,.pw-brand-cluster img,.pw-shop-brand-cluster img,.pw-brand-cluster [data-pw-el],.pw-shop-brand-cluster [data-pw-el],.pw-brand-cluster .pw-logo-frame,.pw-shop-brand-cluster .pw-logo-frame,.pw-brand-cluster [data-pw-logo-frame],.pw-shop-brand-cluster [data-pw-logo-frame]{pointer-events:auto!important}
@@ -168,6 +186,7 @@ export function injectPartnerShopChromeLayoutCss(html: string): string {
     else out = `${out}\n${scriptTag}`
   }
   out = injectNamedScript(out, PARTNER_SHOP_STICK_HEADER_SCRIPT_ID, PARTNER_SHOP_STICK_HEADER_SCRIPT)
+  out = injectNamedScript(out, PARTNER_SHOP_LOGO_HOST_SCRIPT_ID, PARTNER_SHOP_LOGO_HOST_SCRIPT)
   return out
 }
 

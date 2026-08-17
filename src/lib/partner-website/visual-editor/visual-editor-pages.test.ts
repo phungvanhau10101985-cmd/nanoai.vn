@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
-import { visualHtmlLooksUsable } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
+import { visualHtmlLooksUsable, sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import {
   addVisualPageKey,
   appendVisualDeviceQuery,
@@ -13,6 +13,7 @@ import {
   cmsVisualHtmlPath,
   composeResponsiveVisualHtml,
   isolateVisualHtmlForDevice,
+  applyVisualEditThemeFlag,
   mergeVisualPageHtmlIntoProject,
   preserveAndRecolorVisualPageFiles,
   stripVisualAddedChrome,
@@ -20,6 +21,7 @@ import {
   pageKeyFromSitePath,
   productKeyFromSitePath,
   productVisualHtmlPath,
+  parseVisualDeviceQuery,
   resolveExactVisualCategoryHtml,
   resolveExactVisualPageHtml,
   resolveExactVisualProductHtml,
@@ -274,7 +276,7 @@ test('count badge chrome stays when isolating another device', () => {
   assert.doesNotMatch(mobile, /data-pw-chrome-btn="wallet"/)
 })
 
-test('saving one device copies missing count badges onto sibling html', () => {
+test('saving one device html does not rewrite sibling device files', () => {
   const project = {
     entryPath: 'index.html',
     files: [
@@ -292,8 +294,8 @@ test('saving one device copies missing count badges onto sibling html', () => {
   }
   const next = mergeVisualPageHtmlIntoProject(project, project.files[0].content, 'index.html')
   const mobile = next.files.find((f) => f.path === 'index.mobile.html')?.content || ''
-  assert.match(mobile, /data-pw-chrome-btn="notifications"/)
-  assert.match(mobile, /data-pw-device="mobile"/)
+  assert.equal(mobile.includes('data-pw-chrome-btn="notifications"'), false)
+  assert.equal(mobile.includes('href="/account"'), true)
 })
 
 test('tablet visual html is isolated from desktop and mobile', () => {
@@ -347,6 +349,12 @@ test('empty visual html is not usable for Sửa nhanh', () => {
   )
   assert.equal(
     visualHtmlLooksUsable(
+      '<!DOCTYPE html><html><body data-pw-page="home"><section data-pw-region="banner"><h1>Hero</h1></section></body></html>'
+    ),
+    true
+  )
+  assert.equal(
+    visualHtmlLooksUsable(
       '<!DOCTYPE html><html><body><style>.pw-shop-bottom-nav{display:flex}</style><div class="pw-visual-desktop"></div></body></html>'
     ),
     false
@@ -357,6 +365,10 @@ test('empty visual html is not usable for Sửa nhanh', () => {
     ),
     false
   )
+})
+
+test('sanitizeVisualHtmlForStore strips NUL before persist', () => {
+  assert.equal(sanitizeVisualHtmlForStore('ok\u0000html'), 'okhtml')
 })
 
 test('saving one device html does not replace the other device file', () => {
@@ -404,4 +416,95 @@ test('visualPageKeys stay unique and skip home', () => {
   assert.deepEqual(normalizeVisualPageKeys(['about', 'about', 'home', 'faq']), ['about', 'faq'])
   assert.deepEqual(addVisualPageKey(['about'], 'faq'), ['about', 'faq'])
   assert.deepEqual(addVisualPageKey(['about'], 'home'), ['about'])
+})
+
+test('visual edit theme flags only the page and device being saved', () => {
+  const theme = {
+    ...DEFAULT_PARTNER_WEBSITE_THEME,
+    useVisualHtml: true,
+    visualPageKeys: ['about'],
+  }
+  const homeMobile = applyVisualEditThemeFlag(theme, { pageKey: 'home', variant: 'mobile' })
+  assert.equal(homeMobile.useVisualMobileHtml, true)
+  assert.equal(homeMobile.useVisualHtml, true)
+  assert.deepEqual(homeMobile.visualPageKeys, ['about'])
+
+  const aboutTablet = applyVisualEditThemeFlag(theme, { pageKey: 'about', variant: 'tablet' })
+  assert.deepEqual(aboutTablet.visualTabletPageKeys, ['about'])
+  assert.deepEqual(aboutTablet.visualPageKeys, ['about'])
+  assert.equal(aboutTablet.useVisualHtml, true)
+
+  const faqMobile = applyVisualEditThemeFlag(theme, { pageKey: 'faq', variant: 'mobile' })
+  assert.deepEqual(faqMobile.visualMobilePageKeys, ['faq'])
+  assert.deepEqual(faqMobile.visualPageKeys, ['about'])
+})
+
+test('isolating a device for persist does not keep the sibling wrapper', () => {
+  const composed = composeResponsiveVisualHtml(
+    '<!DOCTYPE html><html><body><h1>Desktop about</h1></body></html>',
+    '<!DOCTYPE html><html><body><h1>Mobile about</h1></body></html>'
+  )
+  const mobile = isolateVisualHtmlForDevice(composed, 'mobile')
+  assert.match(mobile, /Mobile about/)
+  assert.doesNotMatch(mobile, /Desktop about/)
+  assert.doesNotMatch(mobile, /data-pw-visual-device="desktop"/)
+})
+
+test('pw-device preview serves only the edited device file', () => {
+  assert.equal(parseVisualDeviceQuery('desktop'), 'desktop')
+  assert.equal(parseVisualDeviceQuery('mobile'), 'mobile')
+  assert.equal(parseVisualDeviceQuery('tablet'), 'tablet')
+  assert.equal(parseVisualDeviceQuery('laptop'), null)
+  assert.equal(parseVisualDeviceQuery(undefined), null)
+
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      useVisualHtml: true,
+      useVisualMobileHtml: true,
+    },
+    htmlSource: '<!DOCTYPE html><html><body><h1>Desk home</h1></body></html>',
+    project: {
+      entryPath: 'index.html',
+      files: [
+        {
+          path: 'index.mobile.html',
+          kind: 'html' as const,
+          content: '<!DOCTYPE html><html><body><h1>Mob home</h1></body></html>',
+        },
+      ],
+    },
+  }
+  const desk = resolvePublicVisualPageHtml(website, 'home', 'desktop')
+  assert.match(desk, /Desk home/)
+  assert.doesNotMatch(desk, /Mob home/)
+  assert.doesNotMatch(desk, /data-pw-visual-device="mobile"/)
+
+  const composed = resolvePublicVisualPageHtml(website, 'home')
+  assert.match(composed, /Desk home/)
+  assert.match(composed, /Mob home/)
+})
+
+test('save and pw-device view keep dragged notification position', () => {
+  const home = `<!DOCTYPE html><html><body>
+    <header class="pw-header"><div class="pw-header-actions">
+      <a class="pw-shop-icon-btn" data-pw-chrome-btn="notifications" href="/site/188/account/notifications" style="transform: translate(346px, 0px);">Bell</a>
+    </div></header>
+  </body></html>`
+  const isolated = isolateVisualHtmlForDevice(home, 'desktop')
+  assert.match(isolated, /transform:\s*translate\(346px, 0px\)/)
+
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      useVisualHtml: true,
+    },
+    htmlSource: isolated,
+    project: {
+      entryPath: 'index.html',
+      files: [{ path: 'index.html', kind: 'html' as const, content: isolated }],
+    },
+  }
+  const preview = resolvePublicVisualPageHtml(website, 'home', 'desktop')
+  assert.match(preview, /transform:\s*translate\(346px, 0px\)/)
 })

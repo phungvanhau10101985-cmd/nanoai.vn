@@ -4,6 +4,14 @@ import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef }
 import { createPortal } from 'react-dom'
 import { Laptop, Monitor, Smartphone, Tablet, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
@@ -45,6 +53,7 @@ import {
   visualEditorDeviceVariant,
   visualEditorPreviewPath,
   visualEditorTargetHtmlPath,
+  appendVisualDeviceQuery,
   VISUAL_MOBILE_PREVIEW_PX,
   VISUAL_TABLET_PREVIEW_PX,
   VISUAL_DESKTOP_MIN_PX,
@@ -72,6 +81,12 @@ export type PartnerWebsitePreviewDevice = 'mobile' | 'tablet' | 'laptop' | 'desk
 export type PartnerWebsiteDevicePreviewHandle = {
   openVisualEdit: () => void
 }
+
+type VisualEditLeaveIntent =
+  | { kind: 'device'; next: PartnerWebsitePreviewDevice }
+  | { kind: 'page'; next: string }
+  | { kind: 'view' }
+  | { kind: 'exit' }
 
 const DEVICE_WIDTH: Record<PartnerWebsitePreviewDevice, number | 'full'> = {
   mobile: VISUAL_MOBILE_PREVIEW_PX,
@@ -160,6 +175,8 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const [visualEditActive, setVisualEditActive] = useState(false)
   const [editSrcDoc, setEditSrcDoc] = useState<string | null>(null)
   const [editDirty, setEditDirty] = useState(false)
+  const [leaveIntent, setLeaveIntent] = useState<VisualEditLeaveIntent | null>(null)
+  const [leaveBusy, setLeaveBusy] = useState(false)
   const [freezeTick, setFreezeTick] = useState(0)
   const [portalReady, setPortalReady] = useState(false)
   const editVariant = visualEditorDeviceVariant(device)
@@ -167,6 +184,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const projectRef = useRef<PartnerWebsiteProject | null>(null)
   const freezeLockRef = useRef(false)
   const flushedHtmlByVariantRef = useRef<Partial<Record<VisualDeviceVariant, string>>>({})
+  const saveFnRef = useRef<(() => Promise<boolean>) | null>(null)
   projectRef.current = project ?? null
 
   const { saving: themeSaving, schedule: scheduleThemeSave } = useDebouncedThemeSave(
@@ -286,24 +304,10 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     return liveTheme ? rewriteThemeCssVarsInHtml(laidOut, liveTheme) : laidOut
   }
 
-  function flushCurrentEditHtml(): string {
-    const iframe = iframeRef.current
-    const doc = iframe?.contentDocument
-    if (!doc?.documentElement) return ''
-    try {
-      const html = freezeDocumentForVisualEditor(doc, editVariant)
-      if (!visualHtmlLooksUsable(html)) return ''
-      flushedHtmlByVariantRef.current[editVariant] = html
-      return html
-    } catch {
-      return ''
-    }
-  }
-
   function savedHtmlForVariant(variant: VisualDeviceVariant): string {
     const flushed = flushedHtmlByVariantRef.current[variant]
     if (flushed && visualHtmlLooksUsable(flushed)) {
-      return withSyncedCountBadges(isolateVisualHtmlForDevice(flushed, variant), variant)
+      return isolateVisualHtmlForDevice(flushed, variant)
     }
 
     const seedFrom = (sourceHtml: string): string => {
@@ -319,7 +323,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     if (previewProductId) {
       const exact = resolveExactVisualProductHtml(websitePick, previewProductId, variant)
       if (visualHtmlLooksUsable(exact)) {
-        return withSyncedCountBadges(isolateVisualHtmlForDevice(exact, variant), variant)
+        return isolateVisualHtmlForDevice(exact, variant)
       }
       if (variant === 'tablet') {
         const fromMobile = seedFrom(resolveExactVisualProductHtml(websitePick, previewProductId, 'mobile'))
@@ -330,7 +334,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     if (previewCmsSlug) {
       const exact = resolveExactVisualCmsHtml(websitePick, previewCmsSlug, variant)
       if (visualHtmlLooksUsable(exact)) {
-        return withSyncedCountBadges(isolateVisualHtmlForDevice(exact, variant), variant)
+        return isolateVisualHtmlForDevice(exact, variant)
       }
       if (variant === 'tablet') {
         const fromMobile = seedFrom(resolveExactVisualCmsHtml(websitePick, previewCmsSlug, 'mobile'))
@@ -341,7 +345,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     if (previewCategoryPath) {
       const exact = resolveExactVisualCategoryHtml(websitePick, previewCategoryPath, variant)
       if (visualHtmlLooksUsable(exact)) {
-        return withSyncedCountBadges(isolateVisualHtmlForDevice(exact, variant), variant)
+        return isolateVisualHtmlForDevice(exact, variant)
       }
       if (variant === 'tablet') {
         const fromMobile = seedFrom(resolveExactVisualCategoryHtml(websitePick, previewCategoryPath, 'mobile'))
@@ -351,7 +355,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     }
     const exact = resolveExactVisualPageHtml(websitePick, previewPageKey, variant)
     if (visualHtmlLooksUsable(exact)) {
-      return withSyncedCountBadges(isolateVisualHtmlForDevice(exact, variant), variant)
+      return isolateVisualHtmlForDevice(exact, variant)
     }
     if (variant === 'tablet') {
       const fromMobile = seedFrom(resolveExactVisualPageHtml(websitePick, previewPageKey, 'mobile'))
@@ -368,7 +372,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       )
     }
     if (previewPageKey !== 'home') {
-      return withSyncedCountBadges(
+      return isolateVisualHtmlForDevice(
         resolveSavedVisualPageHtml({
           pageKey: previewPageKey,
           variant,
@@ -448,13 +452,12 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     setVisualEditActive(true)
   }
 
-  function changeDevice(next: PartnerWebsitePreviewDevice) {
+  function applyDevice(next: PartnerWebsitePreviewDevice) {
+    flushedHtmlByVariantRef.current = {}
     const nextVariant = visualEditorDeviceVariant(next)
-    if (visualEditActive && nextVariant !== visualEditorDeviceVariant(device)) {
-      const flushed = flushCurrentEditHtml()
-      if (!flushed && editDirty && !window.confirm(t.visualEditSwitchDeviceConfirm)) return
+    setEditDirty(false)
+    if (visualEditActive) {
       const saved = savedHtmlForVariant(nextVariant)
-      setEditDirty(false)
       if (visualHtmlLooksUsable(saved)) {
         freezeLockRef.current = true
         setEditSrcDoc(visualEditSrcDoc(saved))
@@ -462,6 +465,111 @@ export const PartnerWebsiteDevicePreview = forwardRef<
         freezeLockRef.current = false
         setEditSrcDoc(null)
       }
+    }
+    setDevice(next)
+  }
+
+  function applyPageSelect(next: string) {
+    if (visualEditActive) {
+      flushedHtmlByVariantRef.current = {}
+      freezeLockRef.current = false
+      setEditSrcDoc(null)
+      setEditDirty(false)
+    }
+    if (next.startsWith('c:')) {
+      setPreviewPageKey('collection')
+      setPreviewCategoryPath(next.slice(2))
+      setPreviewProductId(null)
+      setPreviewProductKey(null)
+      setPreviewCmsSlug(null)
+      return
+    }
+    if (next.startsWith('p:')) {
+      const id = next.slice(2)
+      const hit = productOptions.find((p) => p.id === id)
+      setPreviewPageKey('product_detail')
+      setPreviewProductId(id)
+      setPreviewProductKey(hit?.key ?? id)
+      setPreviewCategoryPath(null)
+      setPreviewCmsSlug(null)
+      return
+    }
+    if (next.startsWith('cms:')) {
+      setPreviewCmsSlug(next.slice(4))
+      setPreviewCategoryPath(null)
+      setPreviewProductId(null)
+      setPreviewProductKey(null)
+      return
+    }
+    if (isVisualEditorPageKey(next) && next !== 'collection' && next !== 'product_detail') {
+      setPreviewPageKey(next)
+      clearDynamicPreview()
+    }
+  }
+
+  function openLiveViewNow() {
+    const slug = siteSlug?.trim()
+    if (!slug) return
+    const href = appendVisualDeviceQuery(
+      `${visualEditorPreviewPath(
+        slug,
+        previewPageKey,
+        previewCategoryPath,
+        previewProductKey,
+        previewCmsSlug
+      )}?v=${Date.now()}`,
+      editVariant
+    )
+    window.open(href, '_blank', 'noopener,noreferrer')
+  }
+
+  function exitVisualEdit() {
+    flushedHtmlByVariantRef.current = {}
+    freezeLockRef.current = false
+    setEditSrcDoc(null)
+    setEditDirty(false)
+    setVisualEditActive(false)
+  }
+
+  function fulfillLeave(intent: VisualEditLeaveIntent) {
+    if (intent.kind === 'device') applyDevice(intent.next)
+    else if (intent.kind === 'page') applyPageSelect(intent.next)
+    else if (intent.kind === 'view') openLiveViewNow()
+    else exitVisualEdit()
+  }
+
+  function requestLeave(intent: VisualEditLeaveIntent) {
+    if (!editDirty) {
+      fulfillLeave(intent)
+      return
+    }
+    setLeaveIntent(intent)
+  }
+
+  async function resolveLeave(mode: 'save' | 'discard' | 'stay') {
+    if (mode === 'stay' || !leaveIntent) {
+      setLeaveIntent(null)
+      return
+    }
+    const intent = leaveIntent
+    if (mode === 'save') {
+      setLeaveBusy(true)
+      try {
+        const ok = (await saveFnRef.current?.()) ?? false
+        if (!ok) return
+      } finally {
+        setLeaveBusy(false)
+      }
+    }
+    setLeaveIntent(null)
+    fulfillLeave(intent)
+  }
+
+  function changeDevice(next: PartnerWebsitePreviewDevice) {
+    const nextVariant = visualEditorDeviceVariant(next)
+    if (visualEditActive && nextVariant !== visualEditorDeviceVariant(device)) {
+      requestLeave({ kind: 'device', next })
+      return
     }
     setDevice(next)
   }
@@ -588,14 +696,16 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setVisualEditActive(false)
+      if (e.key !== 'Escape') return
+      if (leaveIntent) return
+      requestLeave({ kind: 'exit' })
     }
     window.addEventListener('keydown', onKey)
     return () => {
       document.body.style.overflow = prevOverflow
       window.removeEventListener('keydown', onKey)
     }
-  }, [visualEditActive])
+  }, [visualEditActive, leaveIntent, editDirty])
 
   const previewSrc = useMemo(() => {
     if (!hasWebsite) return null
@@ -741,41 +851,10 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   function handlePageSelectChange(next: string) {
     if (next === pageSelectValue) return
     if (visualEditActive) {
-      if (editDirty && !window.confirm(t.visualEditSwitchPageConfirm)) return
-      flushedHtmlByVariantRef.current = {}
-      freezeLockRef.current = false
-      setEditSrcDoc(null)
-      setEditDirty(false)
-    }
-    if (next.startsWith('c:')) {
-      setPreviewPageKey('collection')
-      setPreviewCategoryPath(next.slice(2))
-      setPreviewProductId(null)
-      setPreviewProductKey(null)
-      setPreviewCmsSlug(null)
+      requestLeave({ kind: 'page', next })
       return
     }
-    if (next.startsWith('p:')) {
-      const id = next.slice(2)
-      const hit = productOptions.find((p) => p.id === id)
-      setPreviewPageKey('product_detail')
-      setPreviewProductId(id)
-      setPreviewProductKey(hit?.key ?? id)
-      setPreviewCategoryPath(null)
-      setPreviewCmsSlug(null)
-      return
-    }
-    if (next.startsWith('cms:')) {
-      setPreviewCmsSlug(next.slice(4))
-      setPreviewCategoryPath(null)
-      setPreviewProductId(null)
-      setPreviewProductKey(null)
-      return
-    }
-    if (isVisualEditorPageKey(next) && next !== 'collection' && next !== 'product_detail') {
-      setPreviewPageKey(next)
-      clearDynamicPreview()
-    }
+    applyPageSelect(next)
   }
 
   const pageSelectOptions = (
@@ -1046,7 +1125,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                   ? `srcdoc-${editVariant}-${previewPageKey}-${previewCategoryPath || ''}-${previewProductId || ''}-${previewCmsSlug || ''}`
                   : `live-${previewSrc}`
               }
-              disabled={quickEditDisabled}
+              disabled={quickEditDisabled || !editSrcDoc}
               websiteTitle={websiteTitle}
               theme={liveTheme}
               htmlPath={visualEditorTargetHtmlPath({
@@ -1098,16 +1177,14 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                   ? onShopHomeSave
                   : undefined
               }
-              onCancel={() => {
-                flushedHtmlByVariantRef.current = {}
-                setVisualEditActive(false)
-                setEditDirty(false)
-              }}
+              onCancel={() => requestLeave({ kind: 'exit' })}
               onDirtyChange={setEditDirty}
               onError={(msg) => onVisualEditError?.(msg)}
               onAdminLogoChange={onAdminLogoChange}
               onThemeLiveChange={liveTheme ? handleThemeLive : undefined}
               themeSaving={themeSaving}
+              saveFnRef={saveFnRef}
+              onRequestLeave={(kind) => requestLeave({ kind })}
               compact
             />
               </div>
@@ -1199,6 +1276,31 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       ) : siteSlug ? (
         <p className="text-xs text-muted-foreground">{t.publishToView}</p>
       ) : null}
+
+      <AlertDialog
+        open={Boolean(leaveIntent)}
+        onOpenChange={(open) => {
+          if (!open && !leaveBusy) void resolveLeave('stay')
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.visualEditLeaveTitle}</AlertDialogTitle>
+            <AlertDialogDescription>{t.visualEditLeaveBody}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:justify-end">
+            <Button type="button" variant="ghost" disabled={leaveBusy} onClick={() => void resolveLeave('stay')}>
+              {t.visualEditLeaveStay}
+            </Button>
+            <Button type="button" variant="outline" disabled={leaveBusy} onClick={() => void resolveLeave('discard')}>
+              {t.visualEditLeaveDiscard}
+            </Button>
+            <Button type="button" disabled={leaveBusy} onClick={() => void resolveLeave('save')}>
+              {t.visualEditLeaveSave}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 
