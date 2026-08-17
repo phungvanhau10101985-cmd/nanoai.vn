@@ -1060,7 +1060,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           data.hidden.map((row) => ({ id: String(row.id ?? ''), label: String(row.label ?? '') })).filter((row) => row.id)
         )
       }
-      if (data.type === 'leftoverLogoApplied' && leftoverLogoSavedRef.current !== documentKey) {
+      if (data.type === 'leftoverLogoApplied' && documentKey && leftoverLogoSavedRef.current !== documentKey) {
         leftoverLogoSavedRef.current = documentKey
         postToIframe(iframeRef.current, 'serialize')
       }
@@ -1356,6 +1356,20 @@ export function PartnerWebsiteVisualEditorToolbar({
           canUngroup: false,
           canGroup: false,
           isButton: false,
+          isAddedBtn: false,
+          isCatToggle: false,
+          isSearch: false,
+          isAddedBg: false,
+          editKind: 'logo',
+          chromeKind: '',
+          canDelete: false,
+          layerPos: '',
+          layerIndex: 0,
+          layerCount: 0,
+          bgLayer: 0,
+          bgIndex: 0,
+          bgCount: 0,
+          bgStack: [],
           isChrome: false,
           chromeStyle: '',
           btnStyle: '',
@@ -1400,6 +1414,8 @@ export function PartnerWebsiteVisualEditorToolbar({
           imageWidth: 100,
           width: size.w,
           height: size.h,
+          canStickHeader: false,
+          stickHeader: false,
         },
         websiteTitle || 'Shop',
         htmlPath,
@@ -1748,7 +1764,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     (selection?.isText ||
       editKind === 'wordmark' ||
       editKind === 'badge' ||
-      (editKind === 'chrome' && selection.chromeStyle && selection.chromeStyle !== 'icon')) &&
+      (editKind === 'chrome' && selection?.chromeStyle && selection.chromeStyle !== 'icon')) &&
       editKind !== 'added-bg' &&
       editKind !== 'search' &&
       editKind !== 'search-submit' &&
@@ -2655,7 +2671,7 @@ export function PartnerWebsiteVisualEditorToolbar({
               </span>
             </label>
           ) : null}
-          {showImageTools && (selection.isImage || selection.isBannerPhoto) && !selection.isLogo ? (
+          {showImageTools && selection && (selection.isImage || selection.isBannerPhoto) && !selection.isLogo ? (
             <>
               {selection.isImage && !selection.isBannerPhoto ? (
               <label className="flex items-center gap-1 text-[10px]">

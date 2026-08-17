@@ -77,7 +77,7 @@ export function isPwBgPaintZRole(raw: string | null | undefined): boolean {
 
 export function pwBgRoleOrder(role: string): number {
   if (role === 'added') return 50
-  const i = PW_BG_BUILTIN_ORDER.indexOf(role as PwBgStackRole)
+  const i = (PW_BG_BUILTIN_ORDER as readonly string[]).indexOf(role)
   return i < 0 ? 99 : i
 }
 
