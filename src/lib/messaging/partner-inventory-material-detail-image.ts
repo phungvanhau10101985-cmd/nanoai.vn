@@ -1,6 +1,7 @@
 import type { Database } from '@/types/database.types'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { isPgConfigured } from '@/lib/db/pool'
+import { fetchImageWith1688Bypass, is1688ImageUrl } from '@/lib/fetch-image-1688'
 import { updatePartnerInventoryMaterialDetailImageUrlFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import {
@@ -100,12 +101,21 @@ function patchMaterialDetailImage<T extends InvRow>(rows: T[], id: string, url: 
 
 async function fetchImageAsInlinePart(url: string): Promise<{ mimeType: string; data: string } | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(25_000) })
-    if (!res.ok) return null
-    const mime = res.headers.get('content-type')?.split(';')[0]?.trim() || 'image/jpeg'
-    if (!mime.startsWith('image/')) return null
-    const buf = Buffer.from(await res.arrayBuffer())
-    if (buf.length > 8 * 1024 * 1024) return null
+    let buf: Buffer
+    let mime = 'image/jpeg'
+    if (is1688ImageUrl(url)) {
+      buf = await fetchImageWith1688Bypass(url)
+    } else {
+      const res = await fetch(url, { signal: AbortSignal.timeout(25_000) })
+      if (!res.ok) return null
+      mime = res.headers.get('content-type')?.split(';')[0]?.trim() || 'image/jpeg'
+      if (!mime.startsWith('image/')) return null
+      buf = Buffer.from(await res.arrayBuffer())
+    }
+    if (!buf?.length || buf.length > 8 * 1024 * 1024) return null
+    if (buf[0] === 0x89) mime = 'image/png'
+    else if (buf[0] === 0xff && buf[1] === 0xd8) mime = 'image/jpeg'
+    else if (buf.toString('ascii', 0, 4) === 'RIFF') mime = 'image/webp'
     return { mimeType: mime, data: buf.toString('base64') }
   } catch (e) {
     console.warn('[material-detail-image] fetch ref failed', url.slice(0, 80), e)
@@ -218,26 +228,10 @@ export async function enrichInventoryMaterialDetailCollageIfNeeded(
   const gen = await generateMaterialDetailCollageBuffer(focus.image_url.trim(), focus)
   if (!gen?.buffer.length) return emptyFollowup
 
-  await insertPartnerAiTokenUsage({
-    partner_id: partnerId,
-    provider: 'google',
-    model: IMAGE_MODEL,
-    prompt_tokens: gen.prompt_tokens,
-    completion_tokens: gen.completion_tokens,
-    total_tokens: gen.total_tokens,
-    usage_kind: 'image_material_detail',
-  })
+  const stored = await storeGeneratedMaterialDetailImage(partnerId, focus.id, gen)
+  if (!stored) return emptyFollowup
 
-  const up = await uploadPartnerChatImageBuffer(partnerId, gen.buffer, 'image/png')
-  if ('error' in up) {
-    console.warn('[material-detail-image] upload failed', up.error)
-    return emptyFollowup
-  }
-
-  const ok = await updatePartnerInventoryMaterialDetailImageUrlFromPg(partnerId, focus.id, up.publicUrl)
-  if (!ok) return emptyFollowup
-
-  const nextUrl = up.publicUrl.trim()
+  const nextUrl = stored.publicUrl
   return {
     explicitSkuRows: patchMaterialDetailImage(input.explicitSkuRows, focus.id, nextUrl),
     invForContext: patchMaterialDetailImage(input.invForContext, focus.id, nextUrl),
@@ -247,9 +241,53 @@ export async function enrichInventoryMaterialDetailCollageIfNeeded(
         : input.selectedRow,
     materialDetailFollowup: {
       publicUrl: nextUrl,
-      storagePath: up.path,
+      storagePath: stored.storagePath,
       mime: 'image/png',
       pitchText,
     },
+  }
+}
+
+async function storeGeneratedMaterialDetailImage(
+  partnerId: string,
+  inventoryId: string,
+  gen: { buffer: Buffer; prompt_tokens: number; completion_tokens: number; total_tokens: number }
+): Promise<{ publicUrl: string; storagePath: string } | null> {
+  await insertPartnerAiTokenUsage({
+    partner_id: partnerId,
+    provider: 'google',
+    model: IMAGE_MODEL,
+    prompt_tokens: gen.prompt_tokens,
+    completion_tokens: gen.completion_tokens,
+    total_tokens: gen.total_tokens,
+    usage_kind: 'image_material_detail',
+  })
+  const up = await uploadPartnerChatImageBuffer(partnerId, gen.buffer, 'image/png')
+  if ('error' in up) {
+    console.warn('[material-detail-image] upload failed', up.error)
+    return null
+  }
+  const ok = await updatePartnerInventoryMaterialDetailImageUrlFromPg(partnerId, inventoryId, up.publicUrl)
+  if (!ok) return null
+  return { publicUrl: up.publicUrl.trim(), storagePath: up.path }
+}
+
+/** Tạo lại ảnh chất liệu (bỏ cache) — dùng cho thử SKU / đăng SP. */
+export async function regenerateInventoryMaterialDetailImage(
+  partnerId: string,
+  row: InvRow
+): Promise<PartnerMaterialDetailFollowup | null> {
+  const src = (row.image_url ?? '').trim()
+  if (!/^https?:\/\//i.test(src)) return null
+  const gen = await generateMaterialDetailCollageBuffer(src, row)
+  if (!gen?.buffer.length) return null
+  const stored = await storeGeneratedMaterialDetailImage(partnerId, row.id, gen)
+  if (!stored) return null
+  const pitchText = (await generateMaterialDetailSalesPitch(row, partnerId)) ?? undefined
+  return {
+    publicUrl: stored.publicUrl,
+    storagePath: stored.storagePath,
+    mime: 'image/png',
+    pitchText,
   }
 }

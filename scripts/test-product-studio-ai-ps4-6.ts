@@ -79,9 +79,9 @@ async function main() {
       locale: 'vi',
       materialCallouts: ['Vân da rõ nét', 'Đường may chắc tay', 'Khóa tinh tế', 'Phom dáng sang trọng'],
     })
-    assert(materialPrompt.includes('MAGNIFYING-GLASS'), 'prompt chất liệu phải có kính lúp vải')
+    assert(materialPrompt.toLowerCase().includes('magnifying glass'), 'prompt chất liệu phải có kính lúp')
     assert(materialPrompt.includes('CAM KẾT: BAO ĐỔI TRẢ 7 NGÀY'), 'prompt chất liệu phải có footer cam kết')
-    assert(materialPrompt.includes('3-column cross'), 'prompt chất liệu phải đúng layout 2-1-2')
+    assert(materialPrompt.includes('SURROUNDING DETAIL CARDS'), 'prompt chất liệu phải có 4 ô góc')
     console.log('OK buildProductStudioSlotPrompt — màu giữ góc mẫu, gallery đổi góc, chất liệu infographic')
 
     const job = await insertProductStudioJobPg({

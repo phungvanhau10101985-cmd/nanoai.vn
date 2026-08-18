@@ -508,7 +508,7 @@ a{color:inherit}
 .pw-cat-panel a{display:block;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:700;color:#374151;text-decoration:none}
 .pw-cat-panel a:hover{background:var(--pw-surface);color:var(--pw-primary)}
 .pw-cat-panel a.pw-nav-sale{color:#374151}
-.pw-header-search{flex:1 1 0%;min-width:0;max-width:none;margin:0;position:relative;z-index:1}
+.pw-header-search{flex:1 1 0%;min-width:72px;min-height:36px;max-width:100%;width:auto;margin:0;position:relative;z-index:1}
 .pw-search-form{display:flex;align-items:stretch;width:100%;border:2px solid var(--pw-primary);border-radius:999px;overflow:hidden;background:#fff}
 .pw-search-form input[type="search"]{flex:1;min-width:0;border:none;outline:none;padding:10px 14px;font:inherit;background:transparent}
 .pw-search-image-btn{border:none;background:var(--pw-surface);padding:0 10px;cursor:pointer;font-size:1.05rem;line-height:1}

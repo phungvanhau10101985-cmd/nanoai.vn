@@ -44,7 +44,8 @@ Generate ONE photorealistic image that looks like an **authentic casual phone ph
 Style goals (pick what fits apparel vs bag/shoes):
 - **Phone camera / UGC vibe**: slightly imperfect framing, natural indoor light (window, warm room light), or soft daylight; optional **mirror selfie** (full-length or upper body in front of a home mirror, subtle reflection context) or **arm-length selfie** angle—like someone took it at home before going out.
 - The product must match Image A exactly (same cut, color, material look, hardware)—not a different SKU or colorway.
-- Anonymous adult; natural pose; **no** glossy catalog backdrop, **no** professional three-point lighting, **no** runway or e-commerce packshot feel.
+- **Person (when visible — required for wearable / on-body shots):** East Asian / Southeast Asian adult, **Vietnamese-looking** everyday customer. Match gender to the wearer already in Image A if a person is shown; otherwise match the typical wearer of this SKU (women’s fashion → East/Southeast Asian woman). Still anonymous (no celebrity). **Do not** generate Caucasian / Western / European, African, or South Asian faces.
+- Natural pose; **no** glossy catalog backdrop, **no** professional three-point lighting, **no** runway or e-commerce packshot feel.
 
 **Everyday authenticity (critical):**
 - **Ordinary life, not editorial**: believable everyday setting (home, simple street, casual indoor)—avoid fashion-spread staging, fake “perfect” compositions, or looks-like-a-brand-ad shots.
@@ -57,7 +58,7 @@ const REAL_USE_PROMPT_SLOT2 = `You are an e-commerce creative assistant. The use
 
 Create a **second** shot that is clearly different from the first, still **phone-photo authentic** (real customer vibe):
 - Change the situation: e.g. if the first was mirror selfie, use a different angle (walking indoor, standing by a window, soft outdoor snap) or vice versa; keep the same **authentic UGC / tự chụp** look—not studio.
-- Same exact product as Image A (colors, cut, trims, hardware). Still anonymous adult, natural light, believable everyday place.
+- Same exact product as Image A (colors, cut, trims, hardware). Same **East Asian / Southeast Asian (Vietnamese-looking)** person type as the first shot — **not** Caucasian/Western. Natural light, believable everyday place.
 - Keep the same **everyday authenticity** as the first image: candid real-life feel, natural (non-glam) appearance if people are visible, and **truthful** product color/texture vs Image A—no beauty filters that distort the item.
 
 No text, no watermark, no logos, no price tags in frame. Output only the generated image.`

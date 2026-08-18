@@ -28,7 +28,7 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-cat-panel a.is-sale{color:#374151}
 .pw-shop-logo{height:36px;width:auto;object-fit:contain}
 .pw-shop-brand{font-weight:800;font-size:1.1rem;color:var(--pw-primary);white-space:nowrap}
-.pw-shop-search-wrap{flex:1 1 0%;min-width:0;max-width:none;margin:0;position:relative;z-index:1}
+.pw-shop-search-wrap{flex:1 1 0%;min-width:72px;min-height:36px;max-width:100%;width:auto;margin:0;position:relative;z-index:1}
 .pw-shop-search-form{display:flex;align-items:stretch;width:100%;border:2px solid var(--pw-primary);border-radius:999px;overflow:hidden;background:#fff}
 .pw-shop-search-form input[type="search"]{flex:1;min-width:0;border:none;outline:none;padding:10px 14px;font:inherit;background:transparent;color:#111827}
 .pw-shop-search-form input[type="search"]::placeholder{color:#9ca3af}

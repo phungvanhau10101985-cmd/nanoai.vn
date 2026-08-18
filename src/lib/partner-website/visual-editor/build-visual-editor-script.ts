@@ -850,6 +850,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function logoMoveEl(el) {
     if (!el) return null
+    if (!isLogoSlot(el) && !logoFrameOf(el) && !logoImgOf(el) && !isLogoImg(el)) return null
     if (isInHeader(el)) {
       var unit = headerLogoUnit(el)
       if (unit) return unit
@@ -1046,15 +1047,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var link = headerBrandLink(header)
     if (link && (logoImgOf(link) || (link.querySelector && link.querySelector('img.pw-logo, img.pw-shop-logo')))) hideBrandLinkText(link)
     var search = header.querySelector('.pw-header-search, .pw-shop-search-wrap, [data-pw-el="search"]')
-    if (search && main && isMobileEdit()) {
+    if (search && main && isMobileEdit() && !isUserMoved(search) && !(search.getAttribute && search.getAttribute('data-nanoai-ve-selected'))) {
+      ensureSearchVisible()
+      search = header.querySelector('.pw-header-search, .pw-shop-search-wrap, [data-pw-el="search"]')
       var actions = header.querySelector('.pw-header-actions, .pw-shop-header-actions')
       var mainW = main.getBoundingClientRect().width || (window.innerWidth || 390)
       var used = 0
       if (cluster) used += cluster.getBoundingClientRect().width
       if (actions) used += actions.getBoundingClientRect().width
-      var leftover = Math.max(72, Math.round(mainW - used - 12))
-      var saved = parseFloat(search.getAttribute('data-pw-search-width') || '')
-      lockSearchBox(search, saved > 0 ? Math.min(saved, leftover) : leftover)
+      var leftover = Math.max(96, Math.round(mainW - used - 12))
+      var saved = parseFloat(search && search.getAttribute ? (search.getAttribute('data-pw-search-width') || '') : '')
+      if (search) lockSearchBox(search, saved > 0 ? Math.min(saved, leftover) : leftover)
     }
     return changed
   }
@@ -1698,10 +1701,128 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var cls = clsOf(el)
     return cls.indexOf('pw-header-search') >= 0 || cls.indexOf('pw-shop-search-wrap') >= 0
   }
+  function isHeaderChromeEl(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (isSearchEl(el) || searchSubmitElOf(el) === el || searchImageElOf(el) === el) return true
+    if (catToggleElOf(el) || isCatToggleEl(el)) return true
+    if (isChromeBtn(el) || isAddedChrome(el) || isHeaderWidget(el)) return true
+    return false
+  }
+  function chromeReorderUnit(el) {
+    if (!el || el.nodeType !== 1) return el
+    if (isSearchEl(el) || searchElOf(el) === el) return searchElOf(el) || el
+    var accountWrap = el.closest ? el.closest('.pw-account-wrap, .pw-shop-account-wrap') : null
+    if (accountWrap && (isChromeBtn(el) || isHeaderWidget(el) || pwElOf(el) === 'account')) return accountWrap
+    return catToggleElOf(el) || chromeBtnElOf(el) || el
+  }
+  function headerChromeHitSelector() {
+    return '[data-pw-el="search"],.pw-header-search,.pw-shop-search-wrap,[data-pw-el="account"],.pw-account-btn,[data-pw-account-toggle],[data-pw-el="cart"],[data-pw-chrome-btn],[data-pw-chrome-added],.pw-icon-btn,.pw-shop-icon-btn,[data-pw-el="cat-toggle"],[data-pw-cat-toggle],.pw-cat-btn,.pw-shop-cat-btn,.pw-search-submit,.pw-shop-search-submit,[data-pw-image-search],.pw-search-image-btn'
+  }
+  function pointInElPad(el, x, y, pad) {
+    if (!el || !isFinite(x) || !isFinite(y)) return false
+    var extra = isFinite(pad) ? pad : 0
+    try {
+      var r = el.getBoundingClientRect()
+      return x >= r.left - extra && x <= r.right + extra && y >= r.top - extra && y <= r.bottom + extra
+    } catch (errPad) {
+      return false
+    }
+  }
+  function isVisibleSearchCandidate(el) {
+    if (!el || el.nodeType !== 1) return false
+    try {
+      var st = cs(el)
+      if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false
+      var r = el.getBoundingClientRect()
+      return r.width >= 8 && r.height >= 8
+    } catch (errVisibleSearch) {
+      return false
+    }
+  }
+  function searchCandidatesIn(header, main) {
+    var out = []
+    var seen = []
+    function addAll(root) {
+      if (!root || !root.querySelectorAll) return
+      var nodes = root.querySelectorAll('.pw-header-search, .pw-shop-search-wrap, [data-pw-el="search"]')
+      for (var i = 0; i < nodes.length; i++) {
+        if (seen.indexOf(nodes[i]) >= 0) continue
+        seen.push(nodes[i])
+        out.push(nodes[i])
+      }
+    }
+    addAll(main)
+    if (header && header !== main) addAll(header)
+    return out
+  }
+  function searchAtPoint(header, main, x, y) {
+    var nodes = searchCandidatesIn(header, main)
+    var stamped = pwStampDevice()
+    var fallback = null
+    var deviceFallback = null
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i]
+      if (!isVisibleSearchCandidate(node)) continue
+      if (pointInElPad(node, x, y, isMobileEdit() ? 22 : 8)) return node
+      if (!fallback) fallback = node
+      var dev = node.getAttribute ? String(node.getAttribute('data-pw-device') || '') : ''
+      if (!deviceFallback && (!dev || dev === stamped)) deviceFallback = node
+    }
+    return deviceFallback || fallback
+  }
+  function headerSearchSlotAtPoint(x, y) {
+    if (!isFinite(x) || !isFinite(y)) return null
+    var header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
+    if (!header) return null
+    var main = headerMainOf(header) || header
+    var search = searchAtPoint(header, main, x, y)
+    if (!search) return null
+    if (pointInElPad(search, x, y, isMobileEdit() ? 22 : 8)) return search
+    return null
+  }
+  function headerChromeAtPoint(x, y) {
+    if (!isFinite(x) || !isFinite(y)) return null
+    var header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
+    if (!header) return null
+    var searchHit = headerSearchSlotAtPoint(x, y)
+    if (searchHit) return searchHit
+    if (!pointInEl(header, x, y)) return null
+    var nodes = header.querySelectorAll(headerChromeHitSelector())
+    var best = null
+    var bestArea = Infinity
+    var i
+    var n
+    var r
+    var area
+    for (i = 0; i < nodes.length; i++) {
+      n = nodes[i]
+      if (!pointInEl(n, x, y)) continue
+      if (n.closest && n.closest('.pw-cat-panel, .pw-account-panel, .pw-shop-cat-panel, .pw-shop-account-panel')) continue
+      try { r = n.getBoundingClientRect() } catch (errHit) { continue }
+      area = Math.max(1, r.width * r.height)
+      if (area < bestArea) {
+        bestArea = area
+        best = n
+      }
+    }
+    if (!best) return null
+    if (searchSubmitElOf(best)) return searchSubmitElOf(best)
+    if (searchImageElOf(best)) return searchImageElOf(best)
+    if (catToggleElOf(best)) return catToggleElOf(best)
+    if (chromeBtnElOf(best) && !(searchElOf(best) && !best.closest('.pw-header-actions, .pw-shop-header-actions'))) {
+      return chromeBtnElOf(best)
+    }
+    if (isSearchEl(best) || searchElOf(best)) return searchElOf(best) || best
+    if (isChromeBtn(best) || isHeaderWidget(best) || isAddedChrome(best)) return chromeBtnElOf(best) || best
+    return best
+  }
   function searchElOf(el) {
     if (!el) return null
     if (isSearchEl(el)) return el
     return el.closest ? el.closest('.pw-header-search, .pw-shop-search-wrap, [data-pw-el="search"]') : null
+  }
+  function searchMoveEl(el) {
+    return searchElOf(el) || el
   }
   function isSearchSubmitEl(el) {
     if (!el || el.nodeType !== 1) return false
@@ -1772,27 +1893,164 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (pwElOf(el) === 'badge') return el
     return el.closest ? el.closest('[data-pw-el="badge"]') : null
   }
+  function releasePinnedChrome(el) {
+    if (!el || !el.style) return
+    el.style.removeProperty('transform')
+    el.style.removeProperty('left')
+    el.style.removeProperty('top')
+    el.style.removeProperty('right')
+    el.style.removeProperty('bottom')
+  }
+  function pinSearchSlot(el) {
+    if (!el || !el.style) return
+    if (isUserMoved(el) || (el.getAttribute && el.getAttribute('data-nanoai-ve-selected'))) return
+    el.style.setProperty('transform', 'none', 'important')
+    el.style.setProperty('left', 'auto', 'important')
+    el.style.setProperty('top', 'auto', 'important')
+    el.style.setProperty('right', 'auto', 'important')
+    el.style.setProperty('bottom', 'auto', 'important')
+    el.style.setProperty('position', 'relative', 'important')
+    el.style.setProperty('margin', '0', 'important')
+    el.style.setProperty('opacity', '1', 'important')
+    el.style.setProperty('visibility', 'visible', 'important')
+  }
+  function compactSearchMinWidth() {
+    return editDevice === 'tablet' ? 120 : 96
+  }
+  function searchPlaceholderText() {
+    var existing = document.querySelector('.pw-header-search input, .pw-shop-search-wrap input, input[data-pw-search]')
+    var ph = existing && (existing.getAttribute('placeholder') || existing.placeholder)
+    if (ph) return String(ph)
+    return 'Tìm sản phẩm...'
+  }
+  function createSearchCluster() {
+    var wrap = document.createElement('div')
+    wrap.className = 'pw-header-search pw-shop-search-wrap'
+    wrap.setAttribute('data-pw-el', 'search')
+    var ph = searchPlaceholderText().replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+    wrap.innerHTML = '<form class="pw-search-form pw-shop-search-form" data-pw-search-form role="search">' +
+      '<input data-pw-search type="search" name="q" placeholder="' + ph + '" aria-label="' + ph + '" autocomplete="off"/>' +
+      '<button type="button" class="pw-search-image-btn pw-shop-search-image" data-pw-image-search aria-label="Search image"></button>' +
+      '<button type="submit" class="pw-search-submit pw-shop-search-submit" aria-label="Search"></button></form>'
+    return wrap
+  }
+  function seatSearchInHeader(search, main) {
+    if (!search || !main) return
+    var actions = main.querySelector('.pw-header-actions, .pw-shop-header-actions')
+    if (actions && actions.parentNode === main) {
+      if (search.parentNode !== main || search.nextElementSibling !== actions) main.insertBefore(search, actions)
+      return
+    }
+    if (search.parentNode !== main) main.appendChild(search)
+  }
+  function ensureSearchVisible() {
+    var header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
+    if (!header) return
+    var main = headerMainOf(header)
+    if (!main) return
+    var search = main.querySelector('.pw-header-search, .pw-shop-search-wrap, [data-pw-el="search"]')
+    if (!search) search = header.querySelector('.pw-header-search, .pw-shop-search-wrap, [data-pw-el="search"]')
+    if (!search) search = document.querySelector('.pw-header-search, .pw-shop-search-wrap, [data-pw-el="search"]')
+    if (!search) search = createSearchCluster()
+    if (search.getAttribute && search.getAttribute('data-pw-hidden') === '1') search.removeAttribute('data-pw-hidden')
+    if (search.setAttribute) search.setAttribute('data-pw-device', pwStampDevice())
+    seatSearchInHeader(search, main)
+    if (search.style) search.style.setProperty('display', 'flex', 'important')
+    if (!isMobileEdit()) return
+    if (isUserMoved(search) || (search.getAttribute && search.getAttribute('data-nanoai-ve-selected'))) return
+    if (search.style) {
+      search.style.removeProperty('transform')
+      search.style.removeProperty('left')
+      search.style.removeProperty('top')
+      search.style.removeProperty('right')
+      search.style.removeProperty('bottom')
+      search.style.removeProperty('display')
+      search.style.removeProperty('visibility')
+      search.style.removeProperty('opacity')
+      search.style.removeProperty('width')
+      search.style.removeProperty('height')
+      search.style.removeProperty('max-width')
+    }
+    pinSearchSlot(search)
+    lockSearchBox(search, compactSearchMinWidth() + 38)
+  }
   function lockSearchBox(el, widthPx) {
     if (!el) return
-    var w = Math.max(72, Math.min(360, Math.round(Number(widthPx) || 158)))
+    var minW = isMobileEdit() ? compactSearchMinWidth() : 72
+    var w = Math.max(minW, Math.min(360, Math.round(Number(widthPx) || 158)))
     var mobile = isMobileEdit()
-    el.style.setProperty('min-width', '72px', 'important')
+    var pinnedMobile = mobile && !isUserMoved(el) && !(el.getAttribute && el.getAttribute('data-nanoai-ve-selected'))
+    pinSearchSlot(el)
+    el.style.setProperty('min-width', minW + 'px', 'important')
     el.setAttribute('data-pw-search-width', String(w))
-    if (mobile) {
+    if (pinnedMobile) {
       el.style.setProperty('flex', '1 1 0%', 'important')
       el.style.setProperty('width', 'auto', 'important')
-      el.style.setProperty('max-width', w + 'px', 'important')
+      el.style.setProperty('max-width', '100%', 'important')
     } else {
       el.style.setProperty('flex', '0 0 auto', 'important')
       el.style.setProperty('width', w + 'px', 'important')
       el.style.setProperty('max-width', 'none', 'important')
     }
   }
+  function pinChromeFlowEl(el) {
+    if (!el || !el.style) return
+    if (el.classList && el.classList.contains('pw-stick-header-on')) return
+    if (isUserMoved(el) || (el.getAttribute && el.getAttribute('data-nanoai-ve-selected'))) return
+    if (el.closest && el.closest('.pw-cat-panel, .pw-account-panel, .pw-shop-cat-panel, .pw-shop-account-panel')) return
+    el.style.setProperty('transform', 'none', 'important')
+    el.style.setProperty('left', 'auto', 'important')
+    el.style.setProperty('top', 'auto', 'important')
+    el.style.setProperty('right', 'auto', 'important')
+    el.style.setProperty('bottom', 'auto', 'important')
+    el.style.setProperty('position', 'relative', 'important')
+  }
+  function pinHeaderChromeIcons() {
+    var nodes = document.querySelectorAll(
+      'header .pw-icon-btn, header .pw-shop-icon-btn, .pw-header .pw-icon-btn, .pw-shop-header .pw-icon-btn, ' +
+        '.pw-header-actions [data-pw-chrome-btn], .pw-shop-header-actions [data-pw-chrome-btn], ' +
+        '.pw-header-actions [data-pw-chrome-added], .pw-shop-header-actions [data-pw-chrome-added], ' +
+        '.pw-cat-btn, .pw-shop-cat-btn, .pw-account-btn, ' +
+        '.pw-bottom-nav > a, .pw-shop-bottom-nav > a, .pw-bottom-nav > button, .pw-shop-bottom-nav > button'
+    )
+    var i
+    for (i = 0; i < nodes.length; i++) pinChromeFlowEl(nodes[i])
+  }
+  function chromeFlexHostOf(el) {
+    if (!el || !el.closest) return null
+    return el.closest(
+      '.pw-header-actions, .pw-shop-header-actions, .pw-bottom-nav, .pw-shop-bottom-nav, .pw-topbar-inner, .pw-shop-topbar-inner, .pw-nav-main, .pw-shop-nav-row, .pw-brand-cluster, .pw-shop-brand-cluster, .pw-header-main, .pw-shop-header-inner'
+    )
+  }
+  function applyTranslatePx(el, x, y) {
+    if (!el || !el.style) return
+    el.style.setProperty('transform', 'translate(' + x + 'px,' + y + 'px)', 'important')
+  }
+  function clampTranslateToViewport(el, x, y) {
+    if (!el || !el.style) return
+    applyTranslatePx(el, x, y)
+    var b = el.getBoundingClientRect()
+    var viewW = window.innerWidth || document.documentElement.clientWidth || 390
+    var viewH = window.innerHeight || document.documentElement.clientHeight || 640
+    var pad = 24
+    var nx = x
+    var ny = y
+    if (b.right < pad) nx += pad - b.right
+    if (b.left > viewW - pad) nx -= b.left - (viewW - pad)
+    if (b.bottom < pad) ny += pad - b.bottom
+    if (b.top > viewH - pad) ny -= b.top - (viewH - pad)
+    if (nx !== x || ny !== y) applyTranslatePx(el, nx, ny)
+  }
   function lockExistingSearchBoxes() {
     var nodes = document.querySelectorAll('.pw-header-search, .pw-shop-search-wrap, [data-pw-el="search"]')
     var i
     for (i = 0; i < nodes.length; i++) {
       var box = nodes[i]
+      if (isUserMoved(box) || (box.getAttribute && box.getAttribute('data-nanoai-ve-selected'))) continue
+      if (isMobileEdit()) {
+        lockSearchBox(box, compactSearchMinWidth() + 38)
+        continue
+      }
       var saved = parseFloat(box.getAttribute('data-pw-search-width') || '')
       if (saved > 0) {
         lockSearchBox(box, saved)
@@ -1807,10 +2065,27 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var style = currentChromeStyle(el)
     return style === 'icon'
   }
+  function chromeLabelEl(el) {
+    if (!el || !el.querySelector) return null
+    var host = chromeBtnElOf(el) || searchSubmitElOf(el) || el
+    return host.querySelector('.pw-chrome-btn-label, .pw-shop-nav-label, .pw-account-btn-label, .pw-shop-search-submit-label')
+  }
+  function canEditChromeLabel(el) {
+    if (!el || isIconOnlyChrome(el) || isSearchEl(el)) return false
+    if (isSearchSubmitEl(el) || searchSubmitElOf(el) === el) return true
+    if (isChromeBtn(el) || isHeaderWidget(el)) return Boolean(chromeLabelEl(el) || String(el.textContent || '').replace(/[0-9]+/g, '').trim())
+    return false
+  }
+  function searchInputOf(el) {
+    var host = isSearchEl(el) ? el : searchElOf(el)
+    if (!host || !host.querySelector) return null
+    return host.querySelector('[data-pw-search], input[type="search"], input[name="q"]')
+  }
   function canEditText(el) {
     if (!el || isImgEl(el) || isIconOnlyChrome(el) || isContentBlockEl(el) || isLockedCatalogEl(el)) return false
-    if (isAddedBg(el) || isSearchEl(el)) return false
-    if (isChromeBtn(el) && isInHeader(el)) return false
+    if (isAddedBg(el)) return false
+    if (isSearchEl(el) && !isSearchSubmitEl(el) && searchSubmitElOf(el) !== el) return false
+    if (canEditChromeLabel(el)) return true
     if (isAddedText(el) || isTextEl(el)) return true
     if (isHeaderWidget(el) && el.tagName.toLowerCase() === 'a') {
       return String(el.textContent || '').replace(/[0-9]+/g, '').trim().length > 0
@@ -1820,8 +2095,23 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function isEditableTextTarget(el) {
     if (!el) return false
     if (isAddedText(el)) return true
+    if (canEditChromeLabel(el)) return true
     if (isBtnEl(el) || isChromeBtn(el) || isHeaderWidget(el) || isAddedBtn(el)) return false
     return canEditText(el)
+  }
+  function applyChromeTypeStyle(el, prop, value) {
+    var host = chromeBtnElOf(el) || searchSubmitElOf(el) || (isSearchEl(el) ? el : searchElOf(el)) || el
+    var lab = chromeLabelEl(host)
+    if (host && host.style) host.style.setProperty(prop, value, 'important')
+    if (lab && lab.style) lab.style.setProperty(prop, value, 'important')
+    if (isSearchSubmitEl(host) && !lab && host.style) host.style.setProperty(prop, value, 'important')
+  }
+  function markUserMoved(el) {
+    if (!el || !el.setAttribute) return
+    el.setAttribute('data-pw-user-move', '1')
+  }
+  function isUserMoved(el) {
+    return !!(el && el.getAttribute && el.getAttribute('data-pw-user-move'))
   }
   function isChromeNav(el) {
     if (isChromeBtn(el)) return false
@@ -3714,7 +4004,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return 'icon'
   }
   function chromeLabelText(el) {
-    var lab = el.querySelector ? el.querySelector('.pw-chrome-btn-label, .pw-shop-nav-label, .pw-account-btn-label') : null
+    var lab = chromeLabelEl(el) || (el.querySelector ? el.querySelector('.pw-chrome-btn-label, .pw-shop-nav-label, .pw-account-btn-label, .pw-shop-search-submit-label') : null)
     if (lab && String(lab.textContent || '').trim()) return String(lab.textContent || '').trim()
     var aria = String(el.getAttribute('aria-label') || el.getAttribute('title') || '').trim()
     if (aria) return aria
@@ -4125,8 +4415,32 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       return false
     }
   }
+  function setChromeLabel(text) {
+    if (!selected) return
+    if (clsOf(selected).indexOf('pw-brand') >= 0) return
+    if (!(isChromeBtn(selected) || isHeaderWidget(selected) || isSearchSubmitEl(selected) || canEditChromeLabel(selected))) return
+    var next = String(text || '').trim() || ' '
+    var el = selected
+    var isAccount = clsOf(el).indexOf('pw-account-btn') >= 0 || !!(el.getAttribute && el.getAttribute('data-pw-account-toggle'))
+    var lab = chromeLabelEl(el)
+    if (!lab) {
+      lab = document.createElement('span')
+      lab.className = isSearchSubmitEl(el) ? 'pw-shop-search-submit-label' : (isAccount ? 'pw-account-btn-label' : 'pw-shop-nav-label pw-chrome-btn-label')
+      el.appendChild(lab)
+    }
+    lab.textContent = next
+    el.setAttribute('aria-label', next)
+    el.setAttribute('title', next)
+    positionAllHandles()
+    post('dirty', {})
+  }
   function setButtonLabel(text) {
-    if (!selected || catToggleElOf(selected) || !isBtnEl(selected) || isChromeBtn(selected)) return
+    if (!selected || catToggleElOf(selected)) return
+    if (isChromeBtn(selected) || (isHeaderWidget(selected) && isInHeader(selected)) || isSearchSubmitEl(selected) || canEditChromeLabel(selected)) {
+      setChromeLabel(text)
+      return
+    }
+    if (!isBtnEl(selected)) return
     if (iframeTextFocused(selected)) return
     selected.textContent = String(text || '') || ' '
     positionAllHandles()
@@ -4223,12 +4537,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var frameTarget = (isInHeader(selected) && headerLogoUnit(selected)) || logoMoveEl(selected) || selected
       ensureDragDisplay(frameTarget)
       var fp = parseTransform(frameTarget)
-      frameTarget.style.transform = 'translate(' + (fp.x + dx) + 'px,' + (fp.y + dy) + 'px)'
+      clampTranslateToViewport(frameTarget, fp.x + dx, fp.y + dy)
     } else if (isBannerContentEl(selected) || isMoveBlockEl(selected) || isTextEl(selected) || isBtnEl(selected)) {
       var contentTarget = selected
       ensureDragDisplay(contentTarget)
       var cp = parseTransform(contentTarget)
-      contentTarget.style.transform = 'translate(' + (cp.x + dx) + 'px,' + (cp.y + dy) + 'px)'
+      clampTranslateToViewport(contentTarget, cp.x + dx, cp.y + dy)
     } else if (isBannerPhotoTarget(selected) && bannerHostOf(selected)) {
       var panHostB = bannerHostOf(selected)
       var prB = panHostB.getBoundingClientRect()
@@ -4251,10 +4565,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var py = Math.max(0, Math.min(100, cy - (dy / Math.max(1, pr.height)) * 80))
       panBannerPhoto(panHost, px, py)
     } else {
-      var target = logoMoveEl(selected) || selected
+      var target = searchMoveEl(selected) || logoMoveEl(selected) || selected
       ensureDragDisplay(target)
       var p = parseTransform(target)
-      target.style.transform = 'translate(' + (p.x + dx) + 'px,' + (p.y + dy) + 'px)'
+      clampTranslateToViewport(target, p.x + dx, p.y + dy)
     }
     positionAllHandles()
     post('dirty', {})
@@ -4452,12 +4766,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (el && el.getAttribute && el.getAttribute('data-pw-added-btn') === '1') return 'translate'
     if (isLogoFrame(el) || isLogoImg(el)) return 'translate'
     if (isSearchEl(el)) return 'translate'
-    if (pwElOf(el) === 'cat-toggle' || hasClassToken(el, 'pw-cat-btn') || hasClassToken(el, 'pw-shop-cat-btn')) return 'translate'
+    if (pwElOf(el) === 'cat-toggle' || hasClassToken(el, 'pw-cat-btn') || hasClassToken(el, 'pw-shop-cat-btn')) {
+      return 'translate'
+    }
     if (isAddedChrome(el) || isChromeBtn(el) || isHeaderWidget(el)) {
-      if (el.closest && el.closest('.pw-bottom-nav, .pw-shop-bottom-nav')) {
-        var navParent = el.parentElement
-        if (navParent && navParent.children && navParent.children.length >= 2) return 'reorder'
-      }
       return 'translate'
     }
     var bHost = bannerHostOf(el)
@@ -4725,7 +5037,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       })(),
       href: hrefOf(el),
       canDelete: canDeleteEl(el),
-      text: String(el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200),
+      text: (isChromeBtn(el) || isHeaderWidget(el) || isSearchSubmitEl(el) ? chromeLabelText(el) : String(el.textContent || '')).replace(/\s+/g, ' ').trim().slice(0, 200),
+      placeholder: (function () {
+        var ph = searchInputOf(el)
+        return ph ? String(ph.getAttribute('placeholder') || ph.placeholder || '') : ''
+      })(),
       btnColor: el.getAttribute ? (el.getAttribute('data-pw-btn-color') || '') : '',
       btnBorder: el.getAttribute ? (el.getAttribute('data-pw-btn-border') || readWidgetBorder(el)) : '',
       btnText: el.getAttribute ? (el.getAttribute('data-pw-btn-text') || '') : '',
@@ -4774,6 +5090,31 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     el.classList.remove('nanoai-ve-dragging')
     el.removeAttribute('data-nanoai-ve-selected')
     if (el.getAttribute('contenteditable') === 'true') el.removeAttribute('contenteditable')
+    var labs = el.querySelectorAll ? el.querySelectorAll('[contenteditable="true"]') : []
+    var li
+    for (li = 0; li < labs.length; li++) labs[li].removeAttribute('contenteditable')
+    finishSearchPlaceholderEdit(el)
+  }
+  function beginSearchPlaceholderEdit(host) {
+    var searchField = searchInputOf(host)
+    if (!searchField) return
+    searchField.setAttribute('data-pw-edit-placeholder', '1')
+    searchField.style.setProperty('pointer-events', 'auto', 'important')
+    searchField.value = searchField.getAttribute('placeholder') || searchField.placeholder || ''
+    try {
+      if (searchField.focus) searchField.focus()
+      if (searchField.select) searchField.select()
+    } catch (errPh) {}
+  }
+  function finishSearchPlaceholderEdit(el) {
+    var input = searchInputOf(el) || (el && el.getAttribute && el.getAttribute('data-pw-search') != null ? el : null)
+    if (!input) return
+    if (input.getAttribute('data-pw-edit-placeholder') !== '1') return
+    var typed = String(input.value || '').trim()
+    if (typed) input.setAttribute('placeholder', typed)
+    input.value = ''
+    input.removeAttribute('data-pw-edit-placeholder')
+    input.style.removeProperty('pointer-events')
   }
   function clearForeignEditorMarks(keep) {
     var leftovers = document.querySelectorAll('[data-nanoai-ve-selected],.nanoai-ve-highlight')
@@ -5391,7 +5732,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     if (dx || dy) {
       var p = parseTransform(target)
-      target.style.transform = 'translate(' + (p.x + dx) + 'px,' + (p.y + dy) + 'px)'
+      clampTranslateToViewport(target, p.x + dx, p.y + dy)
     }
   }
   function positionAlignGuides() {
@@ -5510,11 +5851,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         drag.baseY = p.y
       }
     } else {
-      var moveEl2 = logoMoveEl(selected) || selected
+      var moveEl2 = searchMoveEl(selected) || logoMoveEl(selected) || selected
+      if (!isSearchEl(moveEl2) && isHeaderChromeEl(moveEl2)) releasePinnedChrome(moveEl2)
       var p2 = parseTransform(moveEl2)
       drag.baseX = p2.x
       drag.baseY = p2.y
-      drag.mode = dragModeFor(selected)
+      drag.mode = dragModeFor(isSearchEl(moveEl2) ? moveEl2 : selected)
       if (drag.mode === 'bg-pan') {
         var panHost0 = bannerHostOf(selected) || (isBgLayerEl(selected) && selected.parentElement) || selected
         var pan0 = parseBannerPan(panHost0)
@@ -5595,15 +5937,16 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function updateDropTarget(e) {
     if (!selected) return
-    if (isAddedChrome(selected)) {
+    if ((isAddedChrome(selected) || isChromeBtn(selected)) && !isSearchEl(selected) && searchElOf(selected) !== selected) {
       var host = chromeDropHostFromPoint(e.clientX, e.clientY)
+      var unit = chromeReorderUnit(selected)
       drag.dropHost = host
       if (!host) {
         drag.dropTarget = null
         hideDropLine()
         return
       }
-      var slot = chromeSlotAtX(host, e.clientX, selected)
+      var slot = chromeSlotAtX(host, e.clientX, unit)
       drag.dropTarget = slot.beforeEl
       drag.dropBefore = slot.before
       if (slot.beforeEl) showDropLine(slot.beforeEl, slot.before, true)
@@ -5752,14 +6095,24 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     selected.classList.add('nanoai-ve-highlight')
     selected.setAttribute('data-nanoai-ve-selected', '1')
     var payload = buildPayload(selected)
-    if (isSearchEl(selected) || searchElOf(selected) === selected) {
-      try {
-        var searchField = selected.querySelector && selected.querySelector('input, textarea, select')
-        if (searchField && searchField.blur) searchField.blur()
-        selected.blur()
-      } catch (errBlurSearch) {}
-    } else if (isChromeBtn(selected) || (isHeaderWidget(selected) && isInHeader(selected))) {
-      try { selected.blur() } catch (errBlur) {}
+    if (canEditChromeLabel(selected)) {
+      var labelEdit = chromeLabelEl(selected) || (isSearchSubmitEl(selected) ? selected : null)
+      if (!labelEdit && selected.childNodes) {
+        var onlyText = true
+        var ci
+        for (ci = 0; ci < selected.childNodes.length; ci++) {
+          if (selected.childNodes[ci].nodeType === 1) {
+            onlyText = false
+            break
+          }
+        }
+        if (onlyText) labelEdit = selected
+      }
+      if (labelEdit) {
+        labelEdit.setAttribute('contenteditable', 'true')
+        try { labelEdit.focus() } catch (errLab) {}
+        if (ev && typeof ev.clientX === 'number' && labelEdit === selected) placeCaretAtPoint(selected, ev.clientX, ev.clientY)
+      }
     } else if (canEditText(selected) || selected.getAttribute('data-pw-added-btn') === '1') {
       selected.setAttribute('contenteditable', 'true')
       if (ev && typeof ev.clientX === 'number') placeCaretAtPoint(selected, ev.clientX, ev.clientY)
@@ -5805,7 +6158,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!cluster || !cluster.querySelectorAll || !isFinite(x) || !isFinite(y)) return null
     var header = cluster.closest ? cluster.closest('header, .pw-header, .pw-shop-header') : null
     var scope = header || cluster
-    var kids = scope.querySelectorAll('[data-pw-added-text],[data-pw-added-btn],[data-pw-el="title"],[data-pw-el="subtitle"],h1,h2,h3,p,img.pw-logo, img.pw-shop-logo, [data-pw-el="logo"], [data-pw-el="wordmark"], [data-pw-logo-added], [data-pw-logo-float], .pw-logo-frame, [data-pw-logo-frame], .pw-wordmark, [data-pw-el="cat-toggle"], [data-pw-cat-toggle], .pw-cat-btn, .pw-shop-cat-btn, a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home], svg')
+    var kids = scope.querySelectorAll('[data-pw-added-text],[data-pw-added-btn],[data-pw-el="title"],[data-pw-el="subtitle"],h1,h2,h3,p,img.pw-logo, img.pw-shop-logo, [data-pw-el="logo"], [data-pw-el="wordmark"], [data-pw-logo-added], [data-pw-logo-float], .pw-logo-frame, [data-pw-logo-frame], .pw-wordmark, [data-pw-el="cat-toggle"], [data-pw-cat-toggle], .pw-cat-btn, .pw-shop-cat-btn, a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home], svg, [data-pw-el="search"], .pw-header-search, .pw-shop-search-wrap, [data-pw-el="account"], .pw-account-btn, [data-pw-account-toggle], [data-pw-el="cart"], [data-pw-chrome-btn], [data-pw-chrome-added], .pw-icon-btn, .pw-shop-icon-btn, .pw-search-submit, .pw-shop-search-submit, [data-pw-image-search], .pw-search-image-btn')
     var hits = []
     var i
     for (i = 0; i < kids.length; i++) {
@@ -5830,6 +6183,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return hits[0]
   }
   function resolvePointerTarget(start, x, y) {
+    var chromeAt = headerChromeAtPoint(x, y)
+    if (chromeAt) return chromeAt
     var stack = []
     try { stack = document.elementsFromPoint(x, y) || [] } catch (eStack) { stack = [] }
     var sawContent = false
@@ -5871,6 +6226,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return start
   }
   function findSelectable(start, x, y) {
+    var chromeAt = headerChromeAtPoint(x, y)
+    if (chromeAt) return chromeAt
     var el = start
     if (el && el.nodeType !== 1) el = el.parentElement
     if (isBrandClusterEl(el) || isShopRegionHost(el)) {
@@ -5997,7 +6354,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (cat) return cat
       if (isLogoFrame(n) || isLogoImg(n) || (n.getAttribute && n.getAttribute('data-pw-logo-added') === '1')) return logoImgOf(n) || n
       var role = pwElOf(n)
-      if (role === 'nav-link' || role === 'link' || role === 'crumb' || role === 'logo' || role === 'wordmark' || role === 'cat-toggle' || role === 'title' || role === 'subtitle' || role === 'cta' || role === 'cta-secondary' || role === 'badge' || role === 'search') return n
+      if (role === 'nav-link' || role === 'link' || role === 'crumb' || role === 'logo' || role === 'wordmark' || role === 'cat-toggle' || role === 'title' || role === 'subtitle' || role === 'cta' || role === 'cta-secondary' || role === 'badge' || role === 'search' || role === 'account' || role === 'cart') return n
       if (n.tagName && n.tagName.toLowerCase() === 'a' && n.closest && n.closest('.pw-nav-main, .pw-shop-nav-row, .pw-topbar, .pw-shop-topbar, .pw-cat-panel, .pw-shop-cat-panel')) return n
       if (isHeaderWidget(n) || isChromeBtn(n) || isSearchEl(n) || isTextEl(n) || isBtnEl(n) || isImgEl(n)) return n
       n = n.parentElement
@@ -6044,11 +6401,27 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       beginHandleDrag(e)
       return
     }
-    if (found && selected && (isChromeBtn(selected) || isHeaderWidget(selected) || isAddedChrome(selected)) && (found === selected || (selected.contains && selected.contains(found)))) {
+    if (found && isHeaderChromeEl(found) && !isLogoTarget(found) && !logoCrop.live) {
+      var typeTarget = e.target
+      var labelHit = chromeLabelEl(found)
+      var searchHost = searchElOf(found)
+      if (searchHost && (isSearchEl(found) || found === searchHost)) {
+        e.preventDefault()
+        e.stopPropagation()
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation()
+        if (selected !== searchHost) selectEl(searchHost, e)
+        beginHandleDrag(e)
+        return
+      }
+      if (labelHit && (typeTarget === labelHit || (labelHit.contains && labelHit.contains(typeTarget)))) {
+        if (selected !== found) selectEl(found, e)
+        return
+      }
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation()
+      if (selected !== found) selectEl(found, e)
       beginHandleDrag(e)
-      return
-    }
-    if (found && (isAddedChrome(found) || isChromeBtn(found) || isHeaderWidget(found)) && !isLogoTarget(found) && !logoCrop.live) {
       return
     }
     if (found && selected && isLogoTarget(selected) && (found === selected || logoFrameOf(found) === logoFrameOf(selected) || (selected.contains && selected.contains(found)) || (found.contains && found.contains(selected)))) {
@@ -6090,6 +6463,18 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     }
   }
+  function onDblClick(e) {
+    if (!document.body.classList.contains('nanoai-ve-active')) return
+    if (isIgnored(e.target) || isOverlayNode(e.target)) return
+    var pointerTarget = resolvePointerTarget(e.target, e.clientX, e.clientY)
+    var found = findSelectable(pointerTarget, e.clientX, e.clientY)
+    var host = found ? searchElOf(found) : null
+    if (!host || !isSearchEl(host)) return
+    e.preventDefault()
+    e.stopPropagation()
+    if (selected !== host) selectEl(host, e)
+    beginSearchPlaceholderEdit(host)
+  }
   function onClick(e) {
     if (!document.body.classList.contains('nanoai-ve-active')) return
     if (logoDraw.on) { e.preventDefault(); e.stopPropagation(); return }
@@ -6099,10 +6484,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isIgnored(t) || isOverlayNode(t)) return
     var found = findSelectable(t, e.clientX, e.clientY)
     if (!found) found = closestEditable(t) || closestEditable(e.target)
-    if (selected && selected.contains(t) && selected.getAttribute('contenteditable') === 'true' && !drag.active) {
-      if (!found || found === selected) {
-        return
-      }
+    if (selected && selected.contains(t) && !drag.active) {
+      var liveEdit = selected.getAttribute('contenteditable') === 'true' || (t.getAttribute && t.getAttribute('contenteditable') === 'true') || (t.getAttribute && t.getAttribute('data-pw-edit-placeholder') === '1')
+      if (liveEdit && (!found || found === selected)) return
     }
     e.preventDefault()
     e.stopPropagation()
@@ -6164,8 +6548,26 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     clearSelection()
     post('deselect', {})
   }
-  function onInput() {
-    if (!selected || selected.getAttribute('contenteditable') !== 'true') return
+  function onInput(e) {
+    if (!selected) return
+    var t = e && e.target
+    if (t && t.getAttribute && t.getAttribute('data-pw-edit-placeholder') === '1') {
+      var typed = String(t.value || '').trim()
+      if (typed) t.setAttribute('placeholder', typed)
+      post('dirty', {})
+      post('select', buildPayload(selected))
+      return
+    }
+    var lab = chromeLabelEl(selected)
+    var editing = (selected.getAttribute('contenteditable') === 'true') || (lab && lab.getAttribute('contenteditable') === 'true') || (t && t.getAttribute && t.getAttribute('contenteditable') === 'true')
+    if (!editing) return
+    if (lab && (t === lab || lab.getAttribute('contenteditable') === 'true')) {
+      var next = String(lab.textContent || '').replace(/\s+/g, ' ').trim()
+      if (next) {
+        selected.setAttribute('aria-label', next)
+        selected.setAttribute('title', next)
+      }
+    }
     post('dirty', {})
     post('select', buildPayload(selected))
   }
@@ -6198,6 +6600,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var dx = e.clientX - resize.startX
       var dy = e.clientY - resize.startY
       if (resize.mode === 'search-width' || isSearchEl(selected)) {
+        markUserMoved(selected)
         lockSearchBox(selected, resize.startW + dx)
         positionAllHandles()
         post('dirty', {})
@@ -6254,6 +6657,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         ensureDragDisplay(selected)
         selected.classList.add('nanoai-ve-dragging')
         document.body.classList.add('nanoai-ve-dragging')
+        if (isSearchEl(selected) || isHeaderChromeEl(selected)) markUserMoved(searchMoveEl(selected))
         if (isAddedChrome(selected) || isChromeBtn(selected) || isHeaderWidget(selected)) selected.style.pointerEvents = 'none'
         if (selected.getAttribute('contenteditable') === 'true') {
           try { selected.blur() } catch (err) {}
@@ -6275,6 +6679,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     } else if (logoDrag === 'logo-box') {
       var moveEl = (isInHeader(selected) && headerLogoUnit(selected)) || logoMoveEl(selected) || selected
       moveEl.style.transform = 'translate(' + (drag.baseX + dx2) + 'px,' + (drag.baseY + dy) + 'px)'
+      clampTranslateToViewport(moveEl, drag.baseX + dx2, drag.baseY + dy)
       if (!isLogoTarget(selected)) snapSelected()
     } else if (drag.mode === 'bg-pan' || (layerMode === 'image' && bannerHostOf(selected) && !isBannerLeafEl(selected) && !isMoveBlockEl(selected) && !isTextEl(selected) && !isBtnEl(selected))) {
       var panHost2 = bannerHostOf(selected) || selected.parentElement || selected
@@ -6284,13 +6689,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var py2 = Math.max(0, Math.min(100, drag.baseY - (dy / Math.max(1, pr2.height)) * 80))
       applyBannerPhoto(panHost2, parseBannerZoom(panHost2), px2, py2)
     } else if (isBannerHostEl(selected)) {
-      selected.style.transform = 'translate(' + (drag.baseX + dx2) + 'px,' + (drag.baseY + dy) + 'px)'
+      clampTranslateToViewport(selected, drag.baseX + dx2, drag.baseY + dy)
       snapSelected()
+    } else if (drag.mode === 'search-slot') {
+      return
     } else if (drag.mode === 'reorder') {
       selected.style.opacity = '0.55'
       updateDropTarget(e)
     } else {
-      selected.style.transform = 'translate(' + (drag.baseX + dx2) + 'px,' + (drag.baseY + dy) + 'px)'
+      clampTranslateToViewport(searchMoveEl(selected) || selected, drag.baseX + dx2, drag.baseY + dy)
       snapSelected()
     }
     positionAllHandles()
@@ -6316,11 +6723,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     document.body.classList.remove('nanoai-ve-dragging')
     if (selected) selected.classList.remove('nanoai-ve-dragging')
     if (wasDrag && selected && mode === 'reorder') {
-      if (isAddedChrome(selected) || isChromeBtn(selected)) {
+      if ((isAddedChrome(selected) || isChromeBtn(selected)) && !isSearchEl(selected) && searchElOf(selected) !== selected) {
+        var unitUp = chromeReorderUnit(selected)
         var host = chromeDropHostFromPoint(drag.lastX, drag.lastY) || drag.dropHost
         if (host) {
-          var slot = chromeSlotAtX(host, drag.lastX, selected)
-          snapChromeToHost(selected, host, slot.beforeEl, slot.before)
+          var slot = chromeSlotAtX(host, drag.lastX, unitUp)
+          snapChromeToHost(unitUp, host, slot.beforeEl, slot.before)
         }
       } else if (drag.dropTarget) applyReorder()
       selected.style.opacity = ''
@@ -6328,6 +6736,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     } else if (wasDrag && selected) {
       selected.style.opacity = ''
       selected.style.pointerEvents = ''
+      if (mode === 'translate' && isHeaderChromeEl(selected)) markUserMoved(searchMoveEl(selected))
     }
     hideDropLine()
     drag.dropTarget = null
@@ -6367,6 +6776,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-highlight{outline:1px dashed #2563eb!important;outline-offset:0!important}',
       '.nanoai-ve-hover{outline:1px dashed #2563eb!important;outline-offset:0!important}',
       '.nanoai-ve-highlight[data-pw-bg-layer="1"],.nanoai-ve-hover[data-pw-bg-layer="1"]{outline:2px dashed #f59e0b!important}',
+      'html,body{overflow-x:hidden!important;max-width:100%}',
+      '.pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]){transform:none!important;left:auto!important;top:auto!important}',
       '.nanoai-ve-highlight[data-pw-region="banner"],.nanoai-ve-hover[data-pw-region="banner"]{outline:2px dashed #2563eb!important}',
       '.nanoai-ve-highlight[data-pw-move-block="1"],.nanoai-ve-hover[data-pw-move-block="1"]{outline:2px dashed #2563eb!important}',
       '[contenteditable=true]{cursor:text!important;min-width:0;outline:none!important}',
@@ -6443,19 +6854,26 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.pw-logo-frame,[data-pw-logo-frame="1"]{display:inline-flex!important;align-items:center;justify-content:center;overflow:hidden!important;flex-shrink:0;position:relative;z-index:160!important;vertical-align:middle;max-width:none!important;max-height:none!important}',
       '[data-pw-edit-device="mobile"] .pw-header-main,[data-pw-edit-device="mobile"] .pw-shop-header-inner,[data-pw-edit-device="tablet"] .pw-header-main,[data-pw-edit-device="tablet"] .pw-shop-header-inner,.nanoai-ve-mobile .pw-header-main,.nanoai-ve-mobile .pw-shop-header-inner,.nanoai-ve-tablet .pw-header-main,.nanoai-ve-tablet .pw-shop-header-inner,.nanoai-ve-active .pw-header-main,.nanoai-ve-active .pw-shop-header-inner{overflow:visible!important;min-width:0!important;padding:8px 10px!important}',
       '[data-pw-edit-device="mobile"] .pw-brand-cluster,[data-pw-edit-device="mobile"] .pw-shop-brand-cluster,[data-pw-edit-device="tablet"] .pw-brand-cluster,[data-pw-edit-device="tablet"] .pw-shop-brand-cluster,.nanoai-ve-mobile .pw-brand-cluster,.nanoai-ve-mobile .pw-shop-brand-cluster,.nanoai-ve-tablet .pw-brand-cluster,.nanoai-ve-tablet .pw-shop-brand-cluster{max-width:200px!important;overflow:visible!important}',
-      '[data-pw-edit-device="mobile"] .pw-header-search,[data-pw-edit-device="mobile"] .pw-shop-search-wrap,[data-pw-edit-device="tablet"] .pw-header-search,[data-pw-edit-device="tablet"] .pw-shop-search-wrap,.nanoai-ve-mobile .pw-header-search,.nanoai-ve-mobile .pw-shop-search-wrap,.nanoai-ve-tablet .pw-header-search,.nanoai-ve-tablet .pw-shop-search-wrap{flex:1 1 0%!important;min-width:72px!important;width:auto!important}',
+      '[data-pw-edit-device="mobile"] .pw-header-search:not([data-pw-user-move]):not([data-nanoai-ve-selected]),[data-pw-edit-device="mobile"] .pw-shop-search-wrap:not([data-pw-user-move]):not([data-nanoai-ve-selected]),.nanoai-ve-mobile .pw-header-search:not([data-pw-user-move]):not([data-nanoai-ve-selected]),.nanoai-ve-mobile .pw-shop-search-wrap:not([data-pw-user-move]):not([data-nanoai-ve-selected]){flex:1 1 0%!important;min-width:96px!important;min-height:36px!important;width:auto!important;max-width:100%!important;margin:0!important;transform:none!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;position:relative!important;opacity:1!important;visibility:visible!important}',
+      '[data-pw-edit-device="tablet"] .pw-header-search:not([data-pw-user-move]):not([data-nanoai-ve-selected]),[data-pw-edit-device="tablet"] .pw-shop-search-wrap:not([data-pw-user-move]):not([data-nanoai-ve-selected]),.nanoai-ve-tablet .pw-header-search:not([data-pw-user-move]):not([data-nanoai-ve-selected]),.nanoai-ve-tablet .pw-shop-search-wrap:not([data-pw-user-move]):not([data-nanoai-ve-selected]){flex:1 1 0%!important;min-width:120px!important;min-height:36px!important;width:auto!important;max-width:100%!important;margin:0!important;transform:none!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;position:relative!important;opacity:1!important;visibility:visible!important}',
       '[data-pw-edit-device="mobile"] .pw-brand:has(img) .pw-wordmark,.nanoai-ve-mobile .pw-brand:has(img) .pw-wordmark,[data-pw-edit-device="tablet"] .pw-brand:has(img) .pw-wordmark,.nanoai-ve-tablet .pw-brand:has(img) .pw-wordmark,[data-pw-edit-device="mobile"] [data-pw-logo-wordmark-hidden="1"],.nanoai-ve-mobile [data-pw-logo-wordmark-hidden="1"],[data-pw-edit-device="tablet"] [data-pw-logo-wordmark-hidden="1"],.nanoai-ve-tablet [data-pw-logo-wordmark-hidden="1"]{display:none!important}',
-      '@media (max-width:899px){.pw-brand-cluster,.pw-shop-brand-cluster{max-width:200px!important;overflow:visible!important}.pw-header-search,.pw-shop-search-wrap{flex:1 1 0%!important;min-width:72px!important;width:auto!important}}',
+      '@media (max-width:899px){.pw-brand-cluster,.pw-shop-brand-cluster{max-width:200px!important;overflow:visible!important}.pw-header-search:not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-shop-search-wrap:not([data-pw-user-move]):not([data-nanoai-ve-selected]){flex:1 1 0%!important;min-width:96px!important;min-height:36px!important;width:auto!important;max-width:100%!important;transform:none!important;position:relative!important;left:auto!important;top:auto!important;opacity:1!important;visibility:visible!important}}',
       '.pw-logo-frame img,[data-pw-logo-frame="1"] img{max-width:none!important;max-height:none!important;width:100%!important;height:100%!important;object-fit:contain!important}',
       '.pw-header-search,.pw-shop-search-wrap{flex:1 1 auto!important;min-width:72px!important;width:auto!important;margin:0!important;z-index:1}',
+      '.nanoai-ve-active .pw-header-search,.nanoai-ve-active .pw-shop-search-wrap,.nanoai-ve-active [data-pw-el="search"]{z-index:170!important;pointer-events:auto!important;position:relative!important;cursor:pointer!important}',
+      '[data-pw-edit-device="desktop"] .nanoai-ve-active .pw-header-search,[data-pw-edit-device="desktop"] .nanoai-ve-active .pw-shop-search-wrap{cursor:grab!important}',
+      '.nanoai-ve-active .pw-header-search *,.nanoai-ve-active .pw-shop-search-wrap *{pointer-events:auto!important}',
       '.nanoai-ve-active .pw-header-search input[type="search"],.nanoai-ve-active .pw-shop-search-wrap input[type="search"],.nanoai-ve-active input[data-pw-search]{pointer-events:none!important;caret-color:transparent!important}',
+      '.nanoai-ve-active input[data-pw-edit-placeholder="1"]{pointer-events:auto!important;caret-color:auto!important}',
       '.pw-header-search[data-pw-search-width],.pw-shop-search-wrap[data-pw-search-width]{flex:1 1 auto!important;min-width:72px!important}',
       '.pw-search-form,.pw-shop-search-form,form[data-pw-search-form]{display:flex!important;width:100%!important;min-width:0!important}',
       '.pw-search-form input[type="search"],.pw-shop-search-form input[type="search"],input[data-pw-search]{flex:1 1 auto!important;min-width:0!important;width:auto!important;max-width:none!important}',
       '[data-pw-ph]::placeholder,input[style*="--pw-ph"]::placeholder,textarea[style*="--pw-ph"]::placeholder{color:var(--pw-ph)!important}',
       '[data-pw-edit-device="mobile"] .pw-search-submit::before,[data-pw-edit-device="tablet"] .pw-search-submit::before,.nanoai-ve-mobile .pw-search-submit::before,.nanoai-ve-tablet .pw-search-submit::before{background-color:currentColor!important;background-image:none!important;-webkit-mask:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.4%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2711%27 cy=%2711%27 r=%277%27/%3E%3Cpath d=%27m20 20-3.5-3.5%27/%3E%3C/svg%3E");mask:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.4%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2711%27 cy=%2711%27 r=%277%27/%3E%3Cpath d=%27m20 20-3.5-3.5%27/%3E%3C/svg%3E")}',
       '.pw-header-actions,.pw-shop-header-actions{flex:0 0 auto!important;margin-left:0!important;z-index:2}',
-      '@media (max-width:899px){.nanoai-ve-active .pw-header-main,.nanoai-ve-active .pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;column-gap:6px!important;overflow:visible!important;min-width:0!important;padding:8px 10px!important}.pw-brand-cluster,.pw-shop-brand-cluster{flex:0 0 auto!important;width:auto!important;max-width:200px!important;overflow:visible!important}.pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){max-width:none!important}.pw-header-search,.pw-shop-search-wrap{flex:1 1 0%!important;min-width:72px!important;width:auto!important;margin:0!important}.pw-header-actions,.pw-shop-header-actions{flex:0 0 auto!important;display:flex!important;flex-wrap:nowrap!important;width:auto!important;max-width:none!important;overflow:visible!important;margin-left:auto!important}}',
+      '.nanoai-ve-active .pw-header-actions,.nanoai-ve-active .pw-shop-header-actions{z-index:170!important;pointer-events:auto!important;position:relative!important}',
+      '.nanoai-ve-active .pw-header-actions > *,.nanoai-ve-active .pw-shop-header-actions > *,.nanoai-ve-active [data-pw-el="account"],.nanoai-ve-active .pw-account-btn,.nanoai-ve-active [data-pw-chrome-btn],.nanoai-ve-active [data-pw-chrome-added]{position:relative;z-index:171;pointer-events:auto!important}',
+      '@media (max-width:899px){.nanoai-ve-active .pw-header-main,.nanoai-ve-active .pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;column-gap:6px!important;overflow:visible!important;min-width:0!important;max-width:100%!important;padding:8px 10px!important}.pw-brand-cluster,.pw-shop-brand-cluster{flex:0 0 auto!important;width:auto!important;max-width:200px!important;overflow:visible!important}.pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){max-width:none!important}.pw-header-search:not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-shop-search-wrap:not([data-pw-user-move]):not([data-nanoai-ve-selected]){flex:1 1 0%!important;min-width:96px!important;min-height:36px!important;width:auto!important;max-width:100%!important;margin:0!important;transform:none!important;position:relative!important;left:auto!important;top:auto!important;opacity:1!important;visibility:visible!important}.pw-header-actions,.pw-shop-header-actions{flex:0 0 auto!important;display:flex!important;flex-wrap:nowrap!important;width:auto!important;max-width:42%!important;margin-left:auto!important}}',
       '.nanoai-ve-active .pw-header-actions a,.nanoai-ve-active .pw-shop-header-actions a,.nanoai-ve-active header [data-pw-chrome-btn],.nanoai-ve-active header [data-pw-chrome-added]{cursor:grab!important}',
       '.pw-header-actions [data-pw-chrome-added],.pw-shop-header-actions [data-pw-chrome-added]{display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:6px!important;width:auto!important;height:auto!important;min-width:0;min-height:36px;padding:0 10px;font-size:13px;font-weight:700;background:transparent!important;cursor:grab}',
       '.pw-header-actions [data-pw-chrome-added] .pw-chrome-btn-label,.pw-shop-header-actions [data-pw-chrome-added] .pw-chrome-btn-label,.pw-header-actions [data-pw-chrome-added] .pw-shop-nav-label,.pw-shop-header-actions [data-pw-chrome-added] .pw-shop-nav-label{display:inline!important;max-width:none!important;overflow:visible!important;white-space:nowrap!important;font-size:13px!important;font-weight:700;line-height:1.2}',
@@ -6523,6 +6941,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!veListening) return
     veListening = false
     document.removeEventListener('click', onClick, true)
+    document.removeEventListener('dblclick', onDblClick, true)
     document.removeEventListener('mousedown', onMouseDown, true)
     document.removeEventListener('input', onInput, true)
     document.removeEventListener('mouseover', onMouseOver, true)
@@ -6536,6 +6955,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function bindVeListeners() {
     unbindVeListeners()
     document.addEventListener('click', onClick, true)
+    document.addEventListener('dblclick', onDblClick, true)
     document.addEventListener('mousedown', onMouseDown, true)
     document.addEventListener('input', onInput, true)
     document.addEventListener('mouseover', onMouseOver, true)
@@ -6558,7 +6978,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { sanitizeLogoFrames() } catch (errSan) {}
     try { rescueHeaderLogos() } catch (errRescue) {}
     try { reflowHeaderChrome() } catch (errHeadLogo) {}
+    try { ensureSearchVisible() } catch (errSearchVis) {}
     try { lockExistingSearchBoxes() } catch (errSearch) {}
+    try { pinHeaderChromeIcons() } catch (errChromePin) {}
     try { pinChromeIconBadges(document) } catch (errPin) {}
     try { pwApplyDemoChromeCountBadges(document) } catch (errDemo) {}
     try { restoreWidgetColors(document) } catch (errWidget) {}
@@ -6731,12 +7153,19 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       post('dirty', {})
       refreshSelect()
     }
-    if (d.type === 'setFontSize' && selected && d.size) { selected.style.fontSize = Math.max(10, Math.min(96, Number(d.size))) + 'px'; post('dirty', {}); refreshSelect() }
+    if (d.type === 'setFontSize' && selected && d.size) {
+      var fs = Math.max(10, Math.min(96, Number(d.size))) + 'px'
+      if (isHeaderChromeEl(selected) || isWidgetSurfaceEl(selected)) applyChromeTypeStyle(selected, 'font-size', fs)
+      else selected.style.fontSize = fs
+      post('dirty', {})
+      refreshSelect()
+    }
     if (d.type === 'setFontWeight' && selected) {
       var w = selected.style.fontWeight === '700' || selected.style.fontWeight === 'bold' ? '400' : '700'
       if (d.bold === true) w = '700'
       if (d.bold === false) w = '400'
-      selected.style.fontWeight = w
+      if (isHeaderChromeEl(selected) || isWidgetSurfaceEl(selected)) applyChromeTypeStyle(selected, 'font-weight', w)
+      else selected.style.fontWeight = w
       post('dirty', {})
       refreshSelect()
     }
@@ -6885,6 +7314,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'setChromeStyle') setChromeStyle(d.style)
     if (d.type === 'setButtonStyle') setButtonStyle(d.style)
     if (d.type === 'setButtonLabel') setButtonLabel(d.text)
+    if (d.type === 'setSearchPlaceholder') {
+      var phIn = selected ? searchInputOf(selected) : null
+      if (phIn) {
+        phIn.setAttribute('placeholder', String(d.text || ''))
+        if (phIn.getAttribute('data-pw-edit-placeholder') === '1') phIn.value = String(d.text || '')
+        post('dirty', {})
+        refreshSelect()
+      }
+    }
     if (d.type === 'setTextContent') setTextContent(d.text)
     if (d.type === 'setButtonColor') setButtonColor(d.color)
     if (d.type === 'setButtonBorder') setButtonBorder(d.color)

@@ -253,7 +253,9 @@ export async function generateProductStudioSlot(
   }
 
   const materialCallouts =
-    kind === 'material' ? fallbackMaterialQualityCallouts(payload.material, locale) : studio.materialCallouts
+    kind === 'material'
+      ? fallbackMaterialQualityCallouts(payload.material, locale, payload.productName)
+      : studio.materialCallouts
   if (kind === 'material') {
     studio.materialCallouts = materialCallouts
   }

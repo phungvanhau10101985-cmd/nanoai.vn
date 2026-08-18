@@ -386,6 +386,15 @@ test('isolate visual html unwraps composed page and stamps chrome', () => {
   assert.equal(stripped.includes('data-pw-chrome-added'), false)
 })
 
+test('isolate tablet html restamps search instead of hiding a mobile-stamped cluster', () => {
+  const html =
+    '<!DOCTYPE html><html><body><header class="pw-header"><div class="pw-header-search" data-pw-el="search" data-pw-chrome-added="1" data-pw-device="mobile"><form data-pw-search-form><input name="q"/></form></div></header></body></html>'
+  const tablet = isolateVisualHtmlForDevice(html, 'tablet')
+  assert.match(tablet, /pw-header-search/)
+  assert.match(tablet, /data-pw-device="tablet"/)
+  assert.doesNotMatch(tablet, /data-pw-device="mobile"/)
+})
+
 test('count badge chrome stays when isolating another device', () => {
   const desktop = `<!DOCTYPE html><html><body>
     <div class="pw-header-actions">

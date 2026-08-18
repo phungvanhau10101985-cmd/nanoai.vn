@@ -122,6 +122,7 @@ export type VisualEditorSelection = {
   dotColor: string
   dotActiveColor: string
   text: string
+  placeholder: string
   isBgImage: boolean
   isLogo: boolean
   logoFace: 'text' | 'image' | 'empty'
@@ -212,6 +213,7 @@ function selectionFromMessage(data: {
   dotColor?: string
   dotActiveColor?: string
   text?: string
+  placeholder?: string
   isBgImage?: boolean
   isLogo?: boolean
   logoFace?: string
@@ -295,6 +297,7 @@ function selectionFromMessage(data: {
     dotColor: String(data.dotColor ?? ''),
     dotActiveColor: String(data.dotActiveColor ?? ''),
     text: String(data.text ?? ''),
+    placeholder: String(data.placeholder ?? ''),
     isBgImage: Boolean(data.isBgImage),
     isLogo: Boolean(data.isLogo),
     logoFace: parseLogoFace(data.logoFace),
@@ -1064,8 +1067,14 @@ export function PartnerWebsiteVisualEditorToolbar({
         } else {
           setAddButtonPanelOpen(false)
         }
-        if (next.isText && !textDraftFocusedRef.current) {
+        if (next.editKind === 'chrome' || next.editKind === 'search' || next.editKind === 'search-submit' || next.editKind === 'search-image' || next.editKind === 'cat-toggle') {
+          setOpenPanel((cur) => (cur === 'add' || cur === 'logo' || cur === 'theme' ? cur : 'block'))
+        }
+        if ((next.isText || next.editKind === 'chrome' || next.editKind === 'search-submit') && !textDraftFocusedRef.current) {
           setTextDraft(String(data.text ?? ''))
+        }
+        if (next.editKind === 'search' && !textDraftFocusedRef.current) {
+          setTextDraft(String(data.placeholder ?? ''))
         }
       }
       if (data.type === 'deselect') {
@@ -1424,6 +1433,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           dotColor: '',
           dotActiveColor: '',
           text: '',
+          placeholder: '',
           isBgImage: false,
           isLogo: true,
           logoFace: 'empty',
@@ -2092,6 +2102,139 @@ export function PartnerWebsiteVisualEditorToolbar({
             </Button>
           </div>
         </div>
+        {chromeLikeKind && selection ? (
+          <div className="flex flex-wrap items-center gap-1.5 border-t px-2 py-1.5">
+            {showChromeStyle ? (
+              <div className="flex flex-wrap items-center gap-1">
+                {(
+                  [
+                    ['icon', t.visualEditAddStyleIcon],
+                    ['icon-label', t.visualEditAddStyleIconLabel],
+                    ['text', t.visualEditAddStyleText],
+                  ] as const
+                ).map(([style, label]) => (
+                  <Button
+                    key={style}
+                    type="button"
+                    size="sm"
+                    variant={selection.chromeStyle === style ? 'default' : 'outline'}
+                    className={btn}
+                    disabled={busy}
+                    onClick={() => applySelectedChromeStyle(style)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            {editKind === 'search' ? (
+              <label className="flex min-w-[10rem] flex-1 items-center gap-1 text-[10px]">
+                <span className="shrink-0 text-muted-foreground">{t.visualEditSearchTitle}</span>
+                <input
+                  type="text"
+                  value={textDraft}
+                  placeholder={t.visualEditTextContent}
+                  className={cn('min-w-0 flex-1 rounded-md border bg-background px-2', compact ? 'h-6 text-[10px]' : 'h-8 text-xs')}
+                  disabled={busy}
+                  onFocus={() => {
+                    textDraftFocusedRef.current = true
+                  }}
+                  onBlur={() => {
+                    textDraftFocusedRef.current = false
+                  }}
+                  onChange={(e) => {
+                    const text = e.currentTarget.value
+                    setTextDraft(text)
+                    postToIframe(iframeRef.current, 'setSearchPlaceholder', { text })
+                    setDirty(true)
+                  }}
+                />
+              </label>
+            ) : null}
+            {(showChromeStyle && selection.chromeStyle !== 'icon') || editKind === 'search-submit' ? (
+              <label className="flex min-w-[8rem] flex-1 items-center gap-1 text-[10px]">
+                <span className="shrink-0 text-muted-foreground">{t.visualEditTextContent}</span>
+                <input
+                  type="text"
+                  value={textDraft}
+                  placeholder={t.visualEditTextContent}
+                  className={cn('min-w-0 flex-1 rounded-md border bg-background px-2', compact ? 'h-6 text-[10px]' : 'h-8 text-xs')}
+                  disabled={busy}
+                  onFocus={() => {
+                    textDraftFocusedRef.current = true
+                  }}
+                  onBlur={() => {
+                    textDraftFocusedRef.current = false
+                  }}
+                  onChange={(e) => {
+                    const text = e.currentTarget.value
+                    setTextDraft(text)
+                    postToIframe(iframeRef.current, 'setButtonLabel', { text })
+                    setDirty(true)
+                  }}
+                />
+              </label>
+            ) : null}
+            {showWidgetColors ? (
+              <>
+                <div className="flex items-center gap-1 text-[10px]">
+                  <span className="text-muted-foreground">{t.visualEditAddButtonColor}</span>
+                  <ThemeColorConfirmPicker
+                    value={cssColorToHex(selection.btnColor || selection.bgColor || '', '#ffffff')}
+                    disabled={busy}
+                    compact={compact}
+                    okLabel={t.themeColorOk}
+                    onConfirm={(color) => {
+                      postToIframe(iframeRef.current, 'setButtonColor', { color })
+                      setDirty(true)
+                    }}
+                  />
+                </div>
+                <div className="flex items-center gap-1 text-[10px]">
+                  <span className="text-muted-foreground">{t.visualEditAddButtonBorder}</span>
+                  <ThemeColorConfirmPicker
+                    value={cssColorToHex(selection.btnBorder || '', '#e5e7eb')}
+                    disabled={busy}
+                    compact={compact}
+                    okLabel={t.themeColorOk}
+                    onConfirm={(color) => {
+                      postToIframe(iframeRef.current, 'setButtonBorder', { color })
+                      setDirty(true)
+                    }}
+                  />
+                </div>
+                {showWidgetIconColor ? (
+                  <div className="flex items-center gap-1 text-[10px]">
+                    <span className="text-muted-foreground">{t.visualEditIconColor}</span>
+                    <ThemeColorConfirmPicker
+                      value={cssColorToHex(selection.iconColor || selection.textColor || '', '#374151')}
+                      disabled={busy}
+                      compact={compact}
+                      okLabel={t.themeColorOk}
+                      onConfirm={(color) => {
+                        postToIframe(iframeRef.current, 'setIconColor', { color })
+                        setDirty(true)
+                      }}
+                    />
+                  </div>
+                ) : null}
+                <div className="flex items-center gap-1 text-[10px]">
+                  <span className="text-muted-foreground">{t.visualEditTextColor}</span>
+                  <ThemeColorConfirmPicker
+                    value={cssColorToHex(selection.textColor, '#111827')}
+                    disabled={busy}
+                    compact={compact}
+                    okLabel={t.themeColorOk}
+                    onConfirm={(color) => {
+                      postToIframe(iframeRef.current, 'setColor', { color })
+                      setDirty(true)
+                    }}
+                  />
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
         {typeof document !== 'undefined' && openPanel && panelPos
           ? createPortal(
               <VisualEditFloatingPanel
@@ -3007,6 +3150,34 @@ export function PartnerWebsiteVisualEditorToolbar({
               </Button>
             ))}
             </div>
+            {selection.chromeStyle && selection.chromeStyle !== 'icon' ? (
+              <label className="flex min-w-0 w-full flex-col gap-0.5 text-[10px]">
+                <span className="shrink-0 text-muted-foreground">{t.visualEditTextContent}</span>
+                <input
+                  ref={textDraftInputRef}
+                  type="text"
+                  value={textDraft}
+                  placeholder={t.visualEditTextContent}
+                  className={cn(
+                    'min-w-0 w-full rounded-md border bg-background px-2',
+                    compact ? 'h-6 text-[10px]' : 'h-8 text-xs'
+                  )}
+                  disabled={busy}
+                  onFocus={() => {
+                    textDraftFocusedRef.current = true
+                  }}
+                  onBlur={() => {
+                    textDraftFocusedRef.current = false
+                  }}
+                  onChange={(e) => {
+                    const text = e.currentTarget.value
+                    setTextDraft(text)
+                    postToIframe(iframeRef.current, 'setButtonLabel', { text })
+                    setDirty(true)
+                  }}
+                />
+              </label>
+            ) : null}
           </div>
         ) : null}
 

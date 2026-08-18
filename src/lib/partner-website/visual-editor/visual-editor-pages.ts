@@ -619,6 +619,25 @@ export function stripVisualAddedChrome(html: string, opts?: { keepCountBadges?: 
  * Attribute order in saved HTML is not fixed, so match the widget first and read its attributes
  * instead of requiring `data-pw-chrome-added` to precede `data-pw-device`.
  */
+function stampVisualSearchChrome(html: string, variant: VisualDeviceVariant): string {
+  return html.replace(/<div\b[^>]*>/gi, (full) => {
+    if (
+      !/\bdata-pw-el=["']search["']/i.test(full) &&
+      !/\bpw-header-search\b/.test(full) &&
+      !/\bpw-shop-search-wrap\b/.test(full)
+    ) {
+      return full
+    }
+    if (/\bdata-pw-device=["']/.test(full)) {
+      return full.replace(/\bdata-pw-device=["'][^"']*["']/i, `data-pw-device="${variant}"`)
+    }
+    if (/\bdata-pw-chrome-added="1"/i.test(full)) {
+      return full.replace(/>$/, ` data-pw-device="${variant}">`)
+    }
+    return full
+  })
+}
+
 function stampVisualAddedChrome(html: string, variant: VisualDeviceVariant): string {
   const next = html.replace(
     /<(a|button)\b([^>]*)>([\s\S]*?)<\/\1>/gi,
@@ -630,7 +649,7 @@ function stampVisualAddedChrome(html: string, variant: VisualDeviceVariant): str
       return full.replace(`<${tag}${attrs}>`, () => `<${tag}${attrs} data-pw-device="${variant}">`)
     }
   )
-  return restampChromeCountBadgeWidgets(next, variant)
+  return restampChromeCountBadgeWidgets(stampVisualSearchChrome(next, variant), variant)
 }
 
 /** Lấy đúng một bản Mobile, Tablet hoặc Desktop từ HTML (kể cả trang đã gộp). */
@@ -671,16 +690,16 @@ const VISUAL_TWO_DEVICE_SPLIT_CSS = `.pw-visual-desktop{display:block}
 .pw-visual-mobile{display:block!important}
 }
 @media (min-width:768px){
-[data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-chrome-count]),
-.pw-header-actions [data-pw-chrome-added]:not([data-pw-device="desktop"]):not([data-pw-chrome-count]),
-.pw-shop-header-actions [data-pw-chrome-added]:not([data-pw-device="desktop"]):not([data-pw-chrome-count]),
+[data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),
+.pw-header-actions [data-pw-chrome-added]:not([data-pw-device="desktop"]):not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),
+.pw-shop-header-actions [data-pw-chrome-added]:not([data-pw-device="desktop"]):not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),
 .pw-topbar [data-pw-chrome-added]:not([data-pw-device="desktop"]):not([data-pw-chrome-count]),
 .pw-bottom-nav [data-pw-chrome-added]:not([data-pw-device="desktop"]):not([data-pw-chrome-count]),
 .pw-shop-bottom-nav [data-pw-chrome-added]:not([data-pw-device="desktop"]):not([data-pw-chrome-count]){display:none!important}
 }
 @media (max-width:767px){
-[data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-chrome-count]),
-[data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-chrome-count]){display:none!important}
+[data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),
+[data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 }`
 
 const VISUAL_THREE_DEVICE_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-tablet,.pw-visual-mobile{display:none!important}
@@ -689,17 +708,17 @@ const VISUAL_THREE_DEVICE_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-tablet,.pw-
 }
 @media (min-width:768px) and (max-width:1279px){
 .pw-visual-tablet{display:block!important}
-[data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-chrome-count]),
-[data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-chrome-count]){display:none!important}
+[data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),
+[data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 }
 @media (min-width:1280px){
 .pw-visual-desktop{display:block!important}
-[data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-chrome-count]),
-[data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-chrome-count]){display:none!important}
+[data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),
+[data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 }
 @media (max-width:767px){
-[data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-chrome-count]),
-[data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-chrome-count]){display:none!important}
+[data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),
+[data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 }`
 
 const VISUAL_TABLET_DESKTOP_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-tablet{display:none!important}
@@ -708,10 +727,10 @@ const VISUAL_TABLET_DESKTOP_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-tablet{di
 }
 @media (min-width:1280px){
 .pw-visual-desktop{display:block!important}
-[data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-chrome-count]){display:none!important}
+[data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 }
 @media (max-width:767px){
-[data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-chrome-count]){display:none!important}
+[data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 }`
 
 /** One document: desktop + tablet + mobile bodies, shown via CSS breakpoint. */

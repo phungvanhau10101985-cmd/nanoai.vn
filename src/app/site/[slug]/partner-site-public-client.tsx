@@ -108,7 +108,10 @@ function PartnerSitePublicFrame({
   const desktopLocked = forceDevice === 'desktop'
   const [desktopWindowLock, setDesktopWindowLock] = useState(false)
   useLayoutEffect(() => {
-    if (forceDevice) {
+    // Custom-domain live HTML must stay in-page. A srcDoc iframe keeps the address
+    // bar on `/` while inner links hit nanoai.vn and Chrome blocks them
+    // (X-Frame-Options: SAMEORIGIN → "nanoai.vn đã từ chối kết nối").
+    if (inlineHtml || forceDevice) {
       setDesktopWindowLock(false)
       return
     }
@@ -116,15 +119,15 @@ function PartnerSitePublicFrame({
     sync()
     window.addEventListener('resize', sync)
     return () => window.removeEventListener('resize', sync)
-  }, [forceDevice])
+  }, [forceDevice, inlineHtml])
   /** Keep desktop iframe ≥1280px when the Chrome window is desktop — F12 docked does not shrink outerWidth. */
   const frameLocked = desktopLocked || desktopWindowLock
   const previewFrameStyle = visualDevicePreviewFrameStyle(
     forceDevice ?? (desktopWindowLock ? 'desktop' : null)
   )
   const previewHtml = forceDevice ? isolateVisualHtmlForDevice(html, forceDevice) || html : html
-  /** Desktop + F12 must stay in an iframe: in-page HTML uses the shrunk window for media queries. */
-  if (inlineHtml && !compactPreview && !frameLocked) {
+  /** Live custom domain: never srcDoc-iframe (except compact ?pw-device= preview). */
+  if (inlineHtml && !compactPreview) {
     return (
       <PartnerSiteChatWidgetProvider
         chatPath={chatPath}
@@ -139,8 +142,8 @@ function PartnerSitePublicFrame({
   }
 
   const sandbox = allowScripts
-    ? 'allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms'
-    : 'allow-same-origin allow-popups allow-popups-to-escape-sandbox'
+    ? 'allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-top-navigation-by-user-activation'
+    : 'allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation'
   return (
     <PartnerSiteChatWidgetProvider
       chatPath={chatPath}

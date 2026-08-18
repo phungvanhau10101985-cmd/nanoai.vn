@@ -347,6 +347,8 @@ export async function runStudioImagePipeline(input: {
       caption = `Logo reference ${i + 1} — use as visual direction for the new logo (colors, lettering, mark), not a mockup scene:`
     } else if (input.kind === 'packaging_face') {
       caption = `Approved reference image ${i + 1} — embed as flat 2D print on the full-bleed panel edge-to-edge; NEVER as a 3D box on grey studio background:`
+    } else if (input.kind === 'product_photo') {
+      caption = `Product photo ${i + 1} — keep this exact product identity (color, cut, print, fabric). Use as the source item, not a packaging panel:`
     } else {
       caption = `Approved reference image ${i + 1} — composite logo/brand/approved face artwork onto the flat print panel:`
     }

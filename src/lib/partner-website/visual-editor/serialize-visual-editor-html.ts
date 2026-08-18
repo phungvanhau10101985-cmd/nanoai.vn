@@ -41,6 +41,15 @@ function stripEditorAndRuntimeNodes(clone: Element) {
   clone.querySelectorAll('[contenteditable]').forEach((el) => {
     el.removeAttribute('contenteditable')
   })
+  clone.querySelectorAll('[data-pw-edit-placeholder]').forEach((el) => {
+    if (el instanceof HTMLInputElement) {
+      const typed = el.value.trim()
+      if (typed) el.setAttribute('placeholder', typed)
+      el.value = ''
+      el.removeAttribute('value')
+    }
+    el.removeAttribute('data-pw-edit-placeholder')
+  })
   clone
     .querySelectorAll(
       '.nanoai-ve-resize-handle,.nanoai-ve-ignore,.nanoai-ve-chrome-delete,.nanoai-ve-move-handle,.nanoai-ve-delete-handle,.nanoai-ve-drop-line,.nanoai-ve-guides,.nanoai-ve-layer-switch,.nanoai-ve-logo-btn,.nanoai-ve-logo-rect'
@@ -62,13 +71,20 @@ function ensureViewportMeta(clone: Element) {
   head.insertBefore(meta, head.firstChild)
 }
 
-function ensureBaseHref(clone: Element, origin: string) {
-  if (!origin) return
+function ensureBaseHref(clone: Element) {
   const head = clone.querySelector('head')
-  if (!head || head.querySelector('base')) return
+  if (!head) return
+  const existing = head.querySelector('base')
+  // Root-relative base stays valid on custom domains. An origin like https://nanoai.vn/
+  // makes inner-page clicks leave the customer host and fail inside an iframe
+  // (Chrome: "nanoai.vn refused to connect" / X-Frame-Options SAMEORIGIN).
+  if (existing) {
+    existing.setAttribute('href', '/')
+    return
+  }
   const base = clone.ownerDocument?.createElement('base')
   if (!base) return
-  base.setAttribute('href', `${origin.replace(/\/$/, '')}/`)
+  base.setAttribute('href', '/')
   head.insertBefore(base, head.firstChild)
 }
 
@@ -144,7 +160,7 @@ export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceV
   resetChromeCountBadges(clone)
   inlineSameOriginStylesheets(doc, clone)
   ensureViewportMeta(clone)
-  ensureBaseHref(clone, documentOrigin(doc))
+  ensureBaseHref(clone)
   const raw = injectPartnerShopChromeLayoutCss(
     stripEmptyLogoPlaceholdersFromHtml(`<!DOCTYPE html>\n${clone.outerHTML}`)
   )
