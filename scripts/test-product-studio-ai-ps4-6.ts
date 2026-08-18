@@ -75,7 +75,14 @@ async function main() {
     assert(prompt.toLowerCase().includes('studio') || prompt.toLowerCase().includes('catalog'), 'prompt màu phải là catalog photo')
     const galleryPrompt = buildProductStudioSlotPrompt(payload, 'gallery', undefined, undefined)
     assert(galleryPrompt.toLowerCase().includes('different'), 'prompt gallery phải đổi góc so với ref')
-    console.log('OK buildProductStudioSlotPrompt — màu giữ góc mẫu, gallery đổi góc (giống 188)')
+    const materialPrompt = buildProductStudioSlotPrompt(payload, 'material', undefined, undefined, {
+      locale: 'vi',
+      materialCallouts: ['Vân da rõ nét', 'Đường may chắc tay', 'Khóa tinh tế', 'Phom dáng sang trọng'],
+    })
+    assert(materialPrompt.includes('MAGNIFYING-GLASS'), 'prompt chất liệu phải có kính lúp vải')
+    assert(materialPrompt.includes('CAM KẾT: BAO ĐỔI TRẢ 7 NGÀY'), 'prompt chất liệu phải có footer cam kết')
+    assert(materialPrompt.includes('3-column cross'), 'prompt chất liệu phải đúng layout 2-1-2')
+    console.log('OK buildProductStudioSlotPrompt — màu giữ góc mẫu, gallery đổi góc, chất liệu infographic')
 
     const job = await insertProductStudioJobPg({
       partnerId,

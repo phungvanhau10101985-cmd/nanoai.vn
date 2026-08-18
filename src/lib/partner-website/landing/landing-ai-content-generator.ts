@@ -129,14 +129,16 @@ export async function generateLandingMaterialText(
 Material/USP to explain: ${material}${extra}
 
 Task: write a short paragraph (60-90 words) explaining why "${material}" is a compelling reason to buy now
-(durability, feel, unique quality — premium angle), plus 3 short callout labels (3-6 words each) to overlay
-on a detail image. Each callout must express a specific, non-generic benefit of "${material}" — avoid
-generic phrases usable for any material (e.g. "premium quality", "great value", "comfortable").
-Return ONLY this JSON: {"body": "paragraph", "callouts": ["...", "...", "..."]}`
+(durability, feel, unique quality — premium angle), plus 4 short callout labels (3-6 words each) for a
+material-quality infographic. Return labels in this exact order/role:
+1) fabric/material texture  2) stitching/construction  3) trim/detail that exists on the product  4) silhouette/form.
+Each callout must be specific to "${material}" — avoid generic phrases usable for any material
+(e.g. "premium quality", "great value", "comfortable").
+Return ONLY this JSON: {"body": "paragraph", "callouts": ["...", "...", "...", "..."]}`
   const data = await callJson(system, user, 'ladipage-ai-material')
   if (!data) return null
   const callouts = Array.isArray(data.callouts)
-    ? (data.callouts as unknown[]).map((x) => String(x ?? '').trim()).filter(Boolean).slice(0, 3)
+    ? (data.callouts as unknown[]).map((x) => String(x ?? '').trim()).filter(Boolean).slice(0, 4)
     : []
   return { body: String(data.body ?? '').trim(), callouts }
 }

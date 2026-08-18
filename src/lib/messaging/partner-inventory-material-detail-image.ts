@@ -9,30 +9,15 @@ import {
 } from '@/lib/messaging/partner-inventory-material-enrichment'
 import { uploadPartnerChatImageBuffer } from '@/lib/messaging/guest-chat-image'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
+import {
+  MATERIAL_QUALITY_INFOGRAPHIC_ASPECT_RATIO,
+  buildMaterialQualityInfographicPrompt,
+} from '@/lib/partner-website/material-quality-infographic-prompt'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
 const IMAGE_MODEL = GEMINI_3_PRO_IMAGE.model
-
-const MATERIAL_COLLAGE_PROMPT_BASE = `You are an e-commerce creative assistant. The user attached EXACTLY ONE **primary product image** — the main listing photo of ONE real product (Image A — full product or packshot). This is the authoritative product photo, not an optional reference.
-
-Task: generate ONE composite "material & fabric detail" image (Image B) that looks like a professional listing zoom sheet for THAT SAME garment/accessory only, derived only from Image A.
-
-Rules (strict):
-- Treat Image A as the only source of truth for silhouette, color, fabric type, trims, hardware, and patterns. Do NOT depict a different product, different colorway, or generic stock fabric.
-- Simulate extreme close-ups and tight crops AS IF the camera zoomed into specific regions of Image A (neckline/collar, sleeve/cuff, side seam, hem, zipper/buttons, strap, bag leather grain, shoe upper stitching, etc.—pick regions that exist on this product). Panels should read as magnified fragments of this item, not unrelated textiles.
-- Layout: one larger panel may echo the overall product context; surrounding panels are macro detail shots (texture, weave/knit, sheer vs opaque layers, stitching, hem). Optional small comparison strips with pinked/zigzag edges showing color/material consistency with Image A.
-- Photorealistic, soft bright lighting, clean neutral accents.
-
-Typography & sales copy ON the image (required — Vietnamese):
-- Add a short benefit-led headline strip (1 line, e.g. "Chất liệu cao cấp — cảm nhận rõ từng chi tiết" or similar — vary wording).
-- Add 3–4 compact callout labels near detail panels (each 2–6 words): plausible material benefits such as mềm mại, thoáng mát, bền đẹp, giữ form, dễ chăm sóc, sang trọng, ôm dáng… — pick only benefits that fit the visible material in Image A and any shop catalog context provided.
-- Add one closing confidence line (e.g. "Chất liệu này đáng chọn — mặc lên tự tin hơn" — vary wording) in a footer or side strip.
-- Use clean sans-serif, high contrast, readable at mobile size; professional e-commerce infographic — not cluttered.
-- No fake brand logos, no watermark, no price tags, no medical/weight-loss claims.
-
-Output only the generated image.`
 
 export type PartnerMaterialDetailFollowup = {
   publicUrl: string
@@ -49,22 +34,14 @@ function mergeInventoryTextForPitch(row: InvRow): string {
     .join('\n')
 }
 
-function buildProductContextBlock(row: InvRow): string {
-  const lines: string[] = []
-  const name = (row.name ?? '').trim()
-  if (name) lines.push(`Product name: ${name}`)
-  const material = (row.material_note ?? '').trim()
-  if (material) lines.push(`Material (shop catalog): ${material}`)
-  const desc = (row.description ?? '').trim().slice(0, 400)
-  if (desc) lines.push(`Description excerpt: ${desc}`)
-  const consult = (row.consult_note ?? '').trim().slice(0, 280)
-  if (consult) lines.push(`Consult note excerpt: ${consult}`)
-  if (!lines.length) return ''
-  return `\n\nShop catalog context (use for accurate on-image text — do not invent material type or claims beyond this):\n${lines.join('\n')}`
-}
-
 function buildMaterialCollagePrompt(row: InvRow): string {
-  return `${MATERIAL_COLLAGE_PROMPT_BASE}${buildProductContextBlock(row)}`
+  return buildMaterialQualityInfographicPrompt({
+    productName: row.name,
+    material: row.material_note,
+    description: row.description,
+    consultNote: row.consult_note,
+    locale: 'vi',
+  })
 }
 
 /** Copy ngắn ưu điểm chất liệu — gửi kèm ảnh chi tiết trong chat. */
@@ -154,7 +131,7 @@ async function generateMaterialDetailCollageBuffer(
     model: IMAGE_MODEL,
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: '2K', aspectRatio: '1:1' },
+      imageConfig: { imageSize: '2K', aspectRatio: MATERIAL_QUALITY_INFOGRAPHIC_ASPECT_RATIO },
     },
   })
   const safetySettings = [

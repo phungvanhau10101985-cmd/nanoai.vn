@@ -74,6 +74,9 @@ export async function generateOrRegenerateLandingSection(
           productImageUrl: sourceImage,
           material,
           callouts: (current.callouts as string[] | undefined) ?? [],
+          productName: context.products[0]?.name,
+          locale: context.locale,
+          description: context.products[0]?.description,
         })
         if (img) {
           current.imageUrl = img.imageUrl

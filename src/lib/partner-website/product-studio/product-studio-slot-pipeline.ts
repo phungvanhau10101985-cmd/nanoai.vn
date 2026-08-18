@@ -11,7 +11,11 @@ import {
 } from '@/lib/partner-website/product-studio/product-studio-vision-naming'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
-  STUDIO_MATERIAL_ASPECT_RATIO,
+  MATERIAL_QUALITY_INFOGRAPHIC_ASPECT_RATIO,
+  buildMaterialQualityInfographicPrompt,
+  fallbackMaterialQualityCallouts,
+} from '@/lib/partner-website/material-quality-infographic-prompt'
+import {
   STUDIO_REF_PICKER_MAX,
   firstApprovedColor,
   isWearableProductType,
@@ -47,27 +51,12 @@ function modelLookBrief(payload: ProductStudioJobPayload): string {
   return `Include a ${who} model wearing/using the product naturally.`
 }
 
-function fallbackMaterialCallouts(material: string, locale: WebLocale): string[] {
-  const m = material.toLowerCase()
-  if (locale === 'vi') {
-    if (/lụa|silk|satin/.test(m)) return ['Óng ánh tự nhiên', 'Mát, thoáng da', 'Rũ mềm thanh lịch']
-    if (/da|leather|pu/.test(m)) return ['Vân da rõ nét', 'Bền, chắc tay', 'Sang trọng lâu dài']
-    if (/cotton|bông/.test(m)) return ['Mềm mại thoáng khí', 'Thấm hút tốt', 'Dễ giặt, bền màu']
-    if (/len|wool|knit/.test(m)) return ['Ấm, giữ form', 'Sợi mềm không xù', 'Mặc cả ngày']
-    return ['Chất lượng cao', 'Mềm mại thoải mái', 'Bền theo thời gian']
-  }
-  if (/silk|satin/.test(m)) return ['Natural sheen', 'Cool on skin', 'Elegant drape']
-  if (/leather|pu/.test(m)) return ['Clear grain', 'Durable hand-feel', 'Long-lasting look']
-  if (/cotton/.test(m)) return ['Soft and breathable', 'Good absorbency', 'Easy care']
-  return ['Premium quality', 'Soft and comfortable', 'Long-lasting']
-}
-
 export function buildProductStudioSlotPrompt(
   payload: ProductStudioJobPayload,
   kind: ProductStudioSlotKind,
   colorName: string | undefined,
   customPrompt: string | undefined,
-  opts?: { colorIndex?: number; materialCallouts?: string[] }
+  opts?: { colorIndex?: number; materialCallouts?: string[]; locale?: WebLocale }
 ): string {
   const notes = (customPrompt || '').trim()
   const noteBlock = notes ? ` ADMIN NOTE (HIGH PRIORITY): ${notes}.` : ''
@@ -93,16 +82,15 @@ Do not copy the reference photo's viewing angle or framing.
 Photorealistic, macro/close-up framing, soft studio lighting. No watermark, no text overlay.`
   }
   if (kind === 'material') {
-    const callouts = (opts?.materialCallouts || []).filter(Boolean).slice(0, 3)
-    const benefits = callouts.length ? callouts.join('; ') : material
-    return `Create a premium e-commerce MATERIAL DETAILS collage of the EXACT same product as the attached reference.
-Layout (mandatory):
-- TOP PANEL (~55% of frame height): one wide horizontal crop — the hero material zone.
-- BOTTOM ROW: four equal vertical strip panels side-by-side — each a DIFFERENT tight macro crop.
-- Thin clean white gutters between every panel; warm neutral beige/sand studio backdrop.
-Declared material: ${material}.
-Print EXACTLY these callout labels as small elegant badges in outer margins only (verbatim): ${benefits}.
-${STUDIO_MATERIAL_ASPECT_RATIO} landscape. No watermark, no extra logos.`
+    const callouts = (opts?.materialCallouts || []).filter(Boolean).slice(0, 4)
+    return buildMaterialQualityInfographicPrompt({
+      productName: payload.productName,
+      material,
+      description: payload.description,
+      locale: opts?.locale || 'vi',
+      callouts,
+      extraNotes: notes,
+    })
   }
 
   const colorBrief = colorName ? `Colorway name: "${colorName}".` : 'Match the exact color of the product sample.'
@@ -265,7 +253,7 @@ export async function generateProductStudioSlot(
   }
 
   const materialCallouts =
-    kind === 'material' ? fallbackMaterialCallouts(payload.material, locale) : studio.materialCallouts
+    kind === 'material' ? fallbackMaterialQualityCallouts(payload.material, locale) : studio.materialCallouts
   if (kind === 'material') {
     studio.materialCallouts = materialCallouts
   }
@@ -273,9 +261,12 @@ export async function generateProductStudioSlot(
   const prompt = buildProductStudioSlotPrompt(payload, kind, colorName, colorPrompt, {
     colorIndex,
     materialCallouts,
+    locale,
   })
   const aspectRatio =
-    kind === 'material' ? STUDIO_MATERIAL_ASPECT_RATIO : opts.aspectRatio || payload.aspectRatio || '1:1'
+    kind === 'material'
+      ? MATERIAL_QUALITY_INFOGRAPHIC_ASPECT_RATIO
+      : opts.aspectRatio || payload.aspectRatio || '1:1'
 
   const slot: ProductStudioCurrentSlot = {
     kind,

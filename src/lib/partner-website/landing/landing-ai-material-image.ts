@@ -2,12 +2,15 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { uploadPartnerChatImageBuffer } from '@/lib/messaging/guest-chat-image'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
+import {
+  MATERIAL_QUALITY_INFOGRAPHIC_ASPECT_RATIO,
+  buildMaterialQualityInfographicPrompt,
+} from '@/lib/partner-website/material-quality-infographic-prompt'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 /**
- * L3.4 — Ảnh section "material": chỉnh sửa (image-edit) ẢNH SẢN PHẨM THẬT thành collage chi tiết
- * chất liệu + callout — cùng kỹ thuật `partner-inventory-material-detail-image.ts` (material-detail
- * chat feature), viết lại gọn cho Ladipage AI để không đụng luồng chat hiện có.
+ * L3.4 — Ảnh section "material": image-edit ảnh SP thật thành infographic chất liệu
+ * (cùng prompt `buildMaterialQualityInfographicPrompt` với inbox + Product Studio).
  */
 
 const IMAGE_MODEL = GEMINI_3_PRO_IMAGE.model
@@ -27,14 +30,20 @@ async function fetchImageAsInlinePart(url: string): Promise<{ mimeType: string; 
   }
 }
 
-function buildMaterialCollagePrompt(material: string, callouts: string[]): string {
-  const calloutStr = callouts.length ? callouts.join('; ') : 'high quality; worth the price; durable'
-  return `Edit the attached real product photo into a professional e-commerce "material detail" collage
-for the material "${material}": one larger panel plus 4 macro close-up crops of DIFFERENT regions of the
-SAME product (fabric weave/leather grain/stitching/hem/trim...). Keep the exact product type, color and
-pattern from the source photo — do NOT depict a different product. Thin white borders between panels, warm
-neutral studio background, soft lighting. Overlay short callout labels near the panels (do not cover the
-detail itself): ${calloutStr}. Landscape 4:3. No watermark, no other brand logos.`
+function buildMaterialCollagePrompt(input: {
+  material: string
+  callouts: string[]
+  productName?: string
+  locale?: string
+  description?: string
+}): string {
+  return buildMaterialQualityInfographicPrompt({
+    productName: input.productName,
+    material: input.material,
+    description: input.description,
+    callouts: input.callouts,
+    locale: input.locale,
+  })
 }
 
 export async function generateLandingMaterialImage(input: {
@@ -43,6 +52,9 @@ export async function generateLandingMaterialImage(input: {
   productImageUrl: string
   material: string
   callouts: string[]
+  productName?: string
+  locale?: string
+  description?: string
 }): Promise<{ imageUrl: string } | null> {
   const key = process.env.GOOGLE_API_KEY?.trim()
   if (!key) return null
@@ -52,7 +64,10 @@ export async function generateLandingMaterialImage(input: {
   const genAI = new GoogleGenerativeAI(key)
   const model = genAI.getGenerativeModel({
     model: IMAGE_MODEL,
-    generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '4:3' } },
+    generationConfig: {
+      responseModalities: ['TEXT', 'IMAGE'],
+      imageConfig: { imageSize: '2K', aspectRatio: MATERIAL_QUALITY_INFOGRAPHIC_ASPECT_RATIO },
+    },
   })
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -61,7 +76,7 @@ export async function generateLandingMaterialImage(input: {
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
   ]
   try {
-    const prompt = buildMaterialCollagePrompt(input.material, input.callouts)
+    const prompt = buildMaterialCollagePrompt(input)
     const result = await model.generateContent(
       [prompt, { inlineData: { mimeType: inline.mimeType, data: inline.data } }] as never,
       { safetySettings } as never

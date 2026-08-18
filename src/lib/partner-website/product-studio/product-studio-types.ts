@@ -55,7 +55,7 @@ export const STUDIO_MIN_COLOR_IMAGES = 1
 export const STUDIO_MIN_GALLERY_IMAGES = 2
 export const STUDIO_MIN_MATERIAL_IMAGES = 1
 export const STUDIO_REF_PICKER_MAX = 3
-export const STUDIO_MATERIAL_ASPECT_RATIO = '4:3'
+export { MATERIAL_QUALITY_INFOGRAPHIC_ASPECT_RATIO as STUDIO_MATERIAL_ASPECT_RATIO } from '@/lib/partner-website/material-quality-infographic-prompt'
 
 export function isWearableProductType(t: string | undefined | null): boolean {
   return PRODUCT_STUDIO_WEARABLE_TYPES.includes((t || '').trim() as ProductStudioProductType)
