@@ -2113,6 +2113,31 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function isUserMoved(el) {
     return !!(el && el.getAttribute && el.getAttribute('data-pw-user-move'))
   }
+  function deletedChromeFeatureKey(el) {
+    if (!el || !el.getAttribute) return ''
+    var kind = chromeKindOf(el)
+    if (kind) return 'btn:' + kind
+    if (catToggleElOf(el)) return 'categories'
+    if (searchImageElOf(el)) return 'search-image'
+    if (searchSubmitElOf(el)) return 'search-submit'
+    if (isSearchEl(el) || searchElOf(el)) return 'search'
+    var href = String(el.getAttribute('href') || '').trim()
+    return href && isAddedChrome(el) ? 'href:' + href : ''
+  }
+  function rememberDeletedChromeFeature(el) {
+    var key = deletedChromeFeatureKey(el)
+    if (!key || !document.body) return
+    var markers = document.querySelectorAll('[data-pw-deleted-chrome-feature]')
+    for (var i = 0; i < markers.length; i++) {
+      if (markers[i].getAttribute('data-pw-deleted-chrome-feature') === key) return
+    }
+    var marker = document.createElement('span')
+    marker.setAttribute('data-pw-deleted-chrome-feature', key)
+    marker.setAttribute('data-pw-device', pwStampDevice())
+    marker.setAttribute('hidden', '')
+    marker.style.display = 'none'
+    document.body.appendChild(marker)
+  }
   function isChromeNav(el) {
     if (isChromeBtn(el)) return false
     return !!(el && el.closest && el.closest('.pw-bottom-nav,.pw-header-search,.pw-account-panel,.pw-cat-panel,.pw-nav-main,.pw-topbar'))
@@ -5852,7 +5877,6 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     } else {
       var moveEl2 = searchMoveEl(selected) || logoMoveEl(selected) || selected
-      if (!isSearchEl(moveEl2) && isHeaderChromeEl(moveEl2)) releasePinnedChrome(moveEl2)
       var p2 = parseTransform(moveEl2)
       drag.baseX = p2.x
       drag.baseY = p2.y
@@ -5992,6 +6016,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var brandHost = deletingLogo ? brandHostOf(selected) : null
     if (frame && (isLogoImg(selected) || isLogoFrame(selected) || selected === frame)) removeEl = frame
     if (!removeEl || !removeEl.parentNode) return
+    if (isHeaderChromeEl(selected) || isAddedChrome(selected)) rememberDeletedChromeFeature(selected)
     removeEl.parentNode.removeChild(removeEl)
     selected = null
     try { pruneEmptyLogoFrames() } catch (errPrune) {}
@@ -6094,6 +6119,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     selected = el
     selected.classList.add('nanoai-ve-highlight')
     selected.setAttribute('data-nanoai-ve-selected', '1')
+    if (isHeaderChromeEl(selected) && !isLogoTarget(selected)) markUserMoved(searchMoveEl(selected) || selected)
     var payload = buildPayload(selected)
     if (canEditChromeLabel(selected)) {
       var labelEdit = chromeLabelEl(selected) || (isSearchSubmitEl(selected) ? selected : null)

@@ -150,6 +150,61 @@ function htmlHasChromeFeature(html: string, key: string): boolean {
   return false
 }
 
+function deletedChromeFeatureKeys(...htmls: string[]): Set<string> {
+  const keys = new Set<string>()
+  for (const html of htmls) {
+    if (!html) continue
+    const re = /\bdata-pw-deleted-chrome-feature=(["'])([^"']+)\1/gi
+    let match: RegExpExecArray | null
+    while ((match = re.exec(html))) {
+      const key = (match[2] || '').trim()
+      if (key) keys.add(key)
+    }
+  }
+  return keys
+}
+
+function stripDeletedChromeFeaturesFromBlock(html: string, deleted: Set<string>): string {
+  if (!html || deleted.size === 0) return html
+  const masked = maskHtmlForTagScan(html)
+  const openRe =
+    /<(a|button|div)\b(?=[^>]*(?:\bdata-pw-chrome-added="1"|\bdata-pw-chrome-btn=|\bdata-pw-cat-toggle\b|\bdata-pw-image-search\b|\bdata-pw-search-form\b|\bdata-pw-el=["'](?:search|cat-toggle)["']|\bpw-header-search\b|\bpw-shop-search-wrap\b|\bpw-search-submit\b|\bpw-shop-search-submit\b))[^>]*>/gi
+  const ranges: Array<{ start: number; end: number }> = []
+  let match: RegExpExecArray | null
+  while ((match = openRe.exec(masked))) {
+    const tag = (match[1] || 'div').toLowerCase()
+    const start = match.index
+    const close = closingTagIndex(masked, start + match[0].length, tag)
+    if (close < 0) continue
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
+    const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
+    const snippet = html.slice(start, end)
+    const key =
+      chromeFeatureKey(snippet) ||
+      (/pw-search-submit|pw-shop-search-submit/i.test(snippet) ? 'search-submit' : null)
+    if (key && deleted.has(key)) ranges.push({ start, end })
+    openRe.lastIndex = end
+  }
+  if (!ranges.length) return html
+  let out = ''
+  let cursor = 0
+  for (const range of ranges) {
+    out += html.slice(cursor, range.start)
+    cursor = range.end
+  }
+  return out + html.slice(cursor)
+}
+
+function stripDeletedChromeFeatures(chrome: SharedChrome, deleted: Set<string>): SharedChrome {
+  if (deleted.size === 0) return chrome
+  return {
+    topbar: stripDeletedChromeFeaturesFromBlock(chrome.topbar, deleted),
+    header: stripDeletedChromeFeaturesFromBlock(chrome.header, deleted),
+    footer: stripDeletedChromeFeaturesFromBlock(chrome.footer, deleted),
+    bottomNav: stripDeletedChromeFeaturesFromBlock(chrome.bottomNav, deleted),
+  }
+}
+
 function extractAddedChromeWidgets(
   regionHtml: string,
   fallbackHost: ChromeFeatureHost
@@ -231,6 +286,7 @@ export function mergeMissingChromeFeatures(
   variant: SharedChromeDevice
 ): string {
   if (!targetHtml.trim() || !hasSharedChrome(chrome)) return targetHtml
+  const deleted = deletedChromeFeatureKeys(targetHtml)
   const widgets = [
     ...extractAddedChromeWidgets(chrome.topbar, 'topbar'),
     ...extractAddedChromeWidgets(chrome.header, 'actions'),
@@ -240,6 +296,7 @@ export function mergeMissingChromeFeatures(
   if (!widgets.length) return targetHtml
   let next = targetHtml
   for (const widget of widgets) {
+    if (deleted.has(widget.key)) continue
     if (htmlHasChromeFeature(next, widget.key)) continue
     const prepared = restampChromeDevice(stripLayoutCoordsFromHtml(widget.html), variant)
     const hosts: ChromeFeatureHost[] = [widget.host, 'actions', 'nav', 'footer', 'topbar', 'mid']
@@ -373,7 +430,8 @@ function isSystemHtmlPath(path: string): boolean {
 }
 
 function stampWithHomeChrome(html: string, homeHtml: string, variant: SharedChromeDevice): string {
-  const chrome = extractSharedChrome(homeHtml)
+  const deleted = deletedChromeFeatureKeys(html, homeHtml)
+  const chrome = stripDeletedChromeFeatures(extractSharedChrome(homeHtml), deleted)
   if (!hasSharedChrome(chrome)) return html
   const next = applySharedChrome(html, chrome, { targetVariant: variant })
   return mergeVisualHomeStylesIntoHtml(next, homeHtml)

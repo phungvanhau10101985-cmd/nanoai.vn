@@ -206,6 +206,37 @@ test('saving a non-home page stamps that page from home and does not rewrite hom
   assert.match(productsHtml, /Products mid/)
 })
 
+test('saving a non-home page keeps deleted chrome widgets deleted', () => {
+  const homeWithWidget = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header">
+  <a class="pw-brand">HomeLogo</a>
+  <div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="products" href="/products">Products</a></div>
+</header>
+<main>Home mid</main>
+<footer class="pw-footer">Home footer</footer>
+</body></html>`
+  const aboutWithTombstone = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header"><a class="pw-brand">EditedAboutHead</a><div class="pw-header-actions"></div></header>
+<main><h1>About shop</h1></main>
+<span data-pw-deleted-chrome-feature="btn:products" data-pw-device="desktop" hidden></span>
+<footer class="pw-footer">EditedAboutFoot</footer>
+</body></html>`
+  const project = {
+    files: [
+      { path: 'index.html', kind: 'html', content: homeWithWidget },
+      { path: 'about.html', kind: 'html', content: about },
+    ],
+  }
+  const next = syncSharedChromeAcrossProjectFiles(project, 'about.html', aboutWithTombstone)
+  const homeHtml = next.files.find((f) => f.path === 'index.html')?.content || ''
+  const aboutHtml = next.files.find((f) => f.path === 'about.html')?.content || ''
+  assert.match(homeHtml, /data-pw-chrome-btn="products"/)
+  assert.match(aboutHtml, /HomeLogo/)
+  assert.equal(aboutHtml.includes('data-pw-chrome-btn="products"'), false)
+  assert.match(aboutHtml, /data-pw-deleted-chrome-feature="btn:products"/)
+  assert.match(aboutHtml, /<h1>About shop<\/h1>/)
+})
+
 test('saving home copies chrome CSS onto other pages of the same device', () => {
   const styledHome = `<!DOCTYPE html><html><head>
 <style>.pw-header{background:#c2410c}</style>
