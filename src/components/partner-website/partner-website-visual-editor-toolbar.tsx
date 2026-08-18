@@ -1791,6 +1791,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     editKind === 'search' ||
     editKind === 'search-submit' ||
     editKind === 'search-image'
+  const showInlineChromeTools = false
   const showStickHeader = Boolean(selection?.canStickHeader)
   const showBlockTools = Boolean(selection?.isBlock && !chromeLikeKind)
   const showLayerSwitch = Boolean(
@@ -2102,7 +2103,7 @@ export function PartnerWebsiteVisualEditorToolbar({
             </Button>
           </div>
         </div>
-        {chromeLikeKind && selection ? (
+        {showInlineChromeTools && chromeLikeKind && selection ? (
           <div className="flex flex-wrap items-center gap-1.5 border-t px-2 py-1.5">
             {showChromeStyle ? (
               <div className="flex flex-wrap items-center gap-1">
