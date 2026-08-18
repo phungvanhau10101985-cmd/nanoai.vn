@@ -4817,6 +4817,13 @@ export function PartnerGuestChatClient({
         setBuyOptionsOpen(false)
       }
       const baselineLatestOutbound = latestOutboundCursor(messages)
+      const sendingImages = imageStoragePaths.length >= 1
+      if (sendingImages) {
+        setShopTyping({
+          deadline: Date.now() + FALLBACK_SHOP_TYPING_WAIT_MS,
+          baselineLatestOutbound,
+        })
+      }
       setSending(true)
       try {
         const seedText =
@@ -4867,9 +4874,11 @@ export function PartnerGuestChatClient({
         }
         if (res.status === 401) {
           setUserId(null)
+          if (sendingImages) setShopTyping(null)
           return false
         }
         if (!res.ok) {
+          if (sendingImages) setShopTyping(null)
           if (data.requireAuth) {
             setAuthGateRequired(true)
             toast({
@@ -4913,25 +4922,21 @@ export function PartnerGuestChatClient({
         }
         if (data.paymentVerificationHandled === true) {
           setProofOrderId(null)
-          setShopTyping(null)
           toast({ title: 'Đã gửi biên lai. Kết quả đối chiếu hiển thị trong chat.' })
-        } else if (data.visionPickRequired === true) {
-          // For image-first flow waiting for customer product selection, do not show "shop is typing" yet.
-          setShopTyping(null)
-        } else {
-          const waitMs =
-            data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0
-              ? data.shopTyping.maxWaitMs
-              : FALLBACK_SHOP_TYPING_WAIT_MS
-          setShopTyping({
-            deadline: Date.now() + waitMs,
-            baselineLatestOutbound,
-          })
         }
+        const waitMs =
+          data.shopTyping?.maxWaitMs && data.shopTyping.maxWaitMs > 0
+            ? data.shopTyping.maxWaitMs
+            : FALLBACK_SHOP_TYPING_WAIT_MS
+        setShopTyping({
+          deadline: Date.now() + waitMs,
+          baselineLatestOutbound,
+        })
         await load()
         scrollGuestChatToBottomOnce('smooth')
         return true
       } catch {
+        if (sendingImages) setShopTyping(null)
         toast({ title: t.sendError, variant: 'destructive' })
         return false
       } finally {
@@ -6259,7 +6264,11 @@ export function PartnerGuestChatClient({
                 Đang tải tin cũ...
               </div>
             ) : null}
-            {shopTyping ? <GuestShopTypingPill label={t.shopTypingHint} /> : null}
+            {shopTyping ? (
+              <GuestShopTypingPill
+                label={t.shopTypingHint.replace('{shop}', shopDisplayName.trim() || 'Shop')}
+              />
+            ) : null}
             <div ref={scrollAnchorRef} className="h-px w-full shrink-0" aria-hidden />
           </div>
 
@@ -6324,7 +6333,7 @@ export function PartnerGuestChatClient({
                               <img
                                 src={msgImgSrc(item.image_url)}
                                 alt={item.name}
-                                className="h-16 w-full rounded object-cover"
+                                className="h-auto w-full rounded object-contain"
                               />
                             </a>
                           ) : (
@@ -6332,7 +6341,7 @@ export function PartnerGuestChatClient({
                             <img
                               src={msgImgSrc(item.image_url)}
                               alt={item.name}
-                              className="h-16 w-full rounded object-cover"
+                              className="h-auto w-full rounded object-contain"
                             />
                           )}
                           {item.price_hint ? (

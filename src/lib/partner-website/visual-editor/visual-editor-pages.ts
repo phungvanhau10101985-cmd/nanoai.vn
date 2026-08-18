@@ -565,13 +565,28 @@ function closingTagIndex(masked: string, from: number, tag: string): number {
  * mobile wrapper and the viewer fell back to the desktop slice.
  */
 function extractDeviceWrapperBody(html: string, variant: VisualDeviceVariant): string {
-  const masked = maskHtmlForTagScan(html)
-  const open = new RegExp(`<div[^>]*\\bdata-pw-visual-device="${variant}"[^>]*>`, 'i').exec(masked)
-  if (!open) return ''
-  const start = open.index + open[0].length
-  const end = closingTagIndex(masked, start, 'div')
-  if (end < 0) return ''
-  return html.slice(start, end).trim()
+  const body = extractHtmlParts(html).body
+  if (!body.trim()) return ''
+  const masked = maskHtmlForTagScan(body)
+  const isTarget = new RegExp(`\\bdata-pw-visual-device="${variant}"`, 'i')
+  const tagRe = /<div\b[^>]*>|<\/div\s*>/gi
+  let depth = 0
+  let match: RegExpExecArray | null
+  while ((match = tagRe.exec(masked))) {
+    const token = match[0]
+    if (token.startsWith('</')) {
+      depth -= 1
+      continue
+    }
+    if (depth === 0 && isTarget.test(token)) {
+      const start = match.index + token.length
+      const end = closingTagIndex(masked, start, 'div')
+      if (end < 0) return ''
+      return body.slice(start, end).trim()
+    }
+    if (!/\/>$/.test(token)) depth += 1
+  }
+  return ''
 }
 
 /** A composed page always carries wrappers — never guess another device inside one. */

@@ -423,6 +423,456 @@ function buildVisionPickPurchaseIntentReminder(
   return `Dạ, em gửi ${viAddress} danh sách mẫu ${typeLabel} gần giống ảnh ${viAddress} gửi để tham khảo. ${cap} chọn mẫu ưng ý rồi bấm **Mua ngay** để lên đơn mua hàng, hoặc bấm **Tư vấn** để bên em hỗ trợ thêm ạ.`
 }
 
+/** Poll widget: OCR + vision + tin shop sau khi đã lưu ảnh inbound. */
+export const GUEST_IMAGE_FOLLOW_UP_TYPING_MS = 75_000
+
+type GuestImageFollowUpContext = {
+  partnerId: string
+  externalThreadId: string
+  linkedUserId?: string | null
+  guestAccountId?: string | null
+  conversationId: string
+  messageId: string
+  imagePath: string
+  imagePublicUrl: string | null
+  mime: string
+  text: string
+  body: string
+  uiLocale?: string | null
+  locNorm: ReturnType<typeof normalizeWebLocale>
+  isProductCardConsult: boolean
+  trustedEmbedProductAnchor: boolean
+  deferImageBatchReply: boolean
+  pageContextSku: string
+  pageContextInventoryId: string
+  pageContextHasAny: boolean
+  pageContextImageForPayload: string
+  pageContextImageUrl2: string
+  pageContextProductUrl: string
+  pageContextSource: string
+  configuredGuestGender: GuestProfileGender | null
+}
+
+async function processGuestImageFollowUp(
+  ctx: GuestImageFollowUpContext
+): Promise<WidgetGuestImageBatchItemResult> {
+  let productPickCandidates: GuestVisionCandidatePayload[] = []
+  let detectedProductGender: GuestProfileGender | null = null
+  let detectedProductType: string | null = null
+  let imageMatchedInventoryContext: { inventoryId: string; sku: string } | null = null
+  let autoSelectedTopCandidate: GuestVisionCandidatePayload | null = null
+  let imageSkuMatchDirectConsult = false
+  let deferredPaymentVerify: { orderId: string; ocr: TransferReceiptOcrResult } | null = null
+  let afterSalesPending: AfterSalesImageDetection | null = null
+  let paymentVerificationHandled = false
+  let afterSalesHandled = false
+  const imageCaption = ctx.text.trim()
+  const linkedUserId = ctx.linkedUserId ?? null
+
+  try {
+    if (isPgConfigured() && ctx.imagePublicUrl) {
+      const prep = await prepareDeferredGuestPaymentVerification({
+        partnerId: ctx.partnerId,
+        externalThreadId: ctx.externalThreadId,
+        imagePublicUrl: ctx.imagePublicUrl,
+      })
+      if (prep.defer) {
+        deferredPaymentVerify = { orderId: prep.orderId, ocr: prep.ocr }
+      }
+    }
+  } catch (e) {
+    console.warn('[widget-guest-post] payment receipt detection', e)
+  }
+
+  let aiEnabled = false
+  if (isPgConfigured()) {
+    const fromPg = await fetchMessagingPartnerAiEnabledFromPg(ctx.partnerId)
+    if (fromPg !== null) {
+      aiEnabled = fromPg.enabled
+    }
+  }
+
+  try {
+    if (aiEnabled && ctx.imagePublicUrl && !deferredPaymentVerify && !ctx.isProductCardConsult) {
+      afterSalesPending = await detectAfterSalesGuestImage({
+        partnerId: ctx.partnerId,
+        externalThreadId: ctx.externalThreadId,
+        caption: imageCaption,
+        imagePublicUrl: ctx.imagePublicUrl,
+      })
+    }
+  } catch (e) {
+    console.warn('[widget-guest-post] after-sales image detect', e)
+  }
+
+  try {
+    if (
+      aiEnabled &&
+      !deferredPaymentVerify &&
+      !afterSalesPending &&
+      !ctx.isProductCardConsult &&
+      !ctx.trustedEmbedProductAnchor
+    ) {
+      const buf = await downloadTryOnObject(ctx.imagePath)
+      if (buf) {
+        const imageSignal = await analyzeProductSignalFromImage(buf, ctx.mime)
+        if (imageSignal?.gender) {
+          detectedProductGender = imageSignal.gender
+        }
+        if (imageSignal?.productType) {
+          detectedProductType = imageSignal.productType
+        }
+        if (imageSignal?.productCode) {
+          const matchedBySku = await fetchPartnerInventoryRowByComparableSkuFromPg(
+            ctx.partnerId,
+            imageSignal.productCode
+          )
+          if (matchedBySku) {
+            imageSkuMatchDirectConsult = true
+            imageMatchedInventoryContext = {
+              inventoryId: matchedBySku.id,
+              sku: (matchedBySku.sku ?? imageSignal.productCode).trim().slice(0, 128),
+            }
+            detectedProductGender =
+              inferInventoryRowGender({
+                name: matchedBySku.name,
+                description: matchedBySku.description,
+                consult_note: matchedBySku.consult_note,
+              }) ?? detectedProductGender
+            detectedProductType =
+              inferInventoryRowProductType({
+                name: matchedBySku.name,
+                description: matchedBySku.description,
+                consult_note: matchedBySku.consult_note,
+              }) ?? detectedProductType
+          }
+        }
+
+        if (!imageSkuMatchDirectConsult) {
+          const search = await geminiProductSearchFromImageBufferViaVectorDb(buf, ctx.partnerId, {
+            maxResults: WIDGET_PRODUCT_VECTOR_PICK_MAX,
+            userId: linkedUserId,
+          })
+          if (search.error) {
+            console.error('[widget-guest-post] image candidate search error', {
+              partnerId: ctx.partnerId,
+              error: search.error,
+            })
+          }
+          const candidateIds = search.candidates.map((c) => c.inventoryId)
+          const priceById = new Map<string, string>()
+          if (candidateIds.length > 0 && isPgConfigured()) {
+            const priceFromPg = await fetchPartnerInventoryPriceHintsByIdsFromPg(ctx.partnerId, candidateIds)
+            if (priceFromPg !== null) {
+              for (const [id, hint] of priceFromPg) priceById.set(id, hint)
+            }
+          }
+          productPickCandidates = search.candidates.map((c) => ({
+            inventoryId: c.inventoryId,
+            name: c.name,
+            sku: c.sku,
+            image_url: c.image_url,
+            ...(c.product_url ? { product_url: c.product_url } : {}),
+            ...(c.price_hint?.trim()
+              ? { price_hint: c.price_hint.trim() }
+              : priceById.get(c.inventoryId)?.trim()
+                ? { price_hint: priceById.get(c.inventoryId) }
+                : {}),
+            ...(typeof c.score === 'number' ? { score: c.score } : {}),
+          }))
+
+          if (!detectedProductType && productPickCandidates.length > 0) {
+            detectedProductType = inferProductTypeFromText(productPickCandidates[0].name)
+          }
+          if (!detectedProductGender && productPickCandidates.length > 0) {
+            detectedProductGender = inferGenderFromText(productPickCandidates[0].name)
+          }
+
+          if (detectedProductGender && productPickCandidates.length > 1 && isPgConfigured()) {
+            const rows = await fetchPartnerInventoryRowsByIdsInOrderFromPg(ctx.partnerId, candidateIds)
+            const scoreById = new Map<string, number>()
+            for (const row of rows ?? []) {
+              scoreById.set(
+                row.id,
+                genderAffinityScore(
+                  { name: row.name, description: row.description, consult_note: row.consult_note },
+                  detectedProductGender
+                )
+              )
+            }
+            productPickCandidates = [...productPickCandidates].sort((a, b) => {
+              const sa = scoreById.get(a.inventoryId) ?? 0
+              const sb = scoreById.get(b.inventoryId) ?? 0
+              if (sb !== sa) return sb - sa
+              return (b.score ?? 0) - (a.score ?? 0)
+            })
+          }
+
+          const caption = imageCaption.trim()
+          const topVisionScore =
+            typeof productPickCandidates[0]?.score === 'number' ? productPickCandidates[0].score : null
+          const lockTopPhotoItem = shouldLockTopVisionMatch({ topScore: topVisionScore })
+          const holdImageSearchCarouselForPurchaseIntent =
+            caption.length > 0 &&
+            inboundTextLooksLikePurchasePickListIntent(caption) &&
+            !lockTopPhotoItem
+
+          if (lockTopPhotoItem && productPickCandidates[0] && !autoSelectedTopCandidate) {
+            autoSelectedTopCandidate = productPickCandidates[0]
+            imageMatchedInventoryContext = {
+              inventoryId: productPickCandidates[0].inventoryId,
+              sku: (productPickCandidates[0].sku ?? '').trim().slice(0, 128),
+            }
+            detectedProductType =
+              detectedProductType ?? inferProductTypeFromText(productPickCandidates[0].name)
+          }
+
+          if (caption && productPickCandidates.length > 1 && !lockTopPhotoItem) {
+            const rerank = rankVisionCandidatesByCaption(productPickCandidates, caption)
+            productPickCandidates = rerank.ranked
+            if (rerank.preferred && !holdImageSearchCarouselForPurchaseIntent) {
+              autoSelectedTopCandidate = rerank.preferred
+              imageMatchedInventoryContext = {
+                inventoryId: rerank.preferred.inventoryId,
+                sku: (rerank.preferred.sku ?? '').trim().slice(0, 128),
+              }
+              detectedProductType = detectedProductType ?? inferProductTypeFromText(rerank.preferred.name)
+            }
+          }
+
+          if (!holdImageSearchCarouselForPurchaseIntent && !autoSelectedTopCandidate) {
+            const vectorAutoByImage =
+              shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType) ??
+              (caption
+                ? shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType, {
+                    ignoreTypeMismatch: true,
+                  })
+                : null)
+            const topCandidate =
+              vectorAutoByImage ??
+              shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType, {
+                ignoreTypeMismatch: caption.length > 0,
+              })
+            if (topCandidate) {
+              autoSelectedTopCandidate = topCandidate
+              imageMatchedInventoryContext = {
+                inventoryId: topCandidate.inventoryId,
+                sku: (topCandidate.sku ?? '').trim().slice(0, 128),
+              }
+              detectedProductType = detectedProductType ?? inferProductTypeFromText(topCandidate.name)
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[widget-guest-post] image candidate search', e)
+  }
+
+  const visionPatch: Record<string, unknown> = {}
+  if (productPickCandidates.length > 0 && !autoSelectedTopCandidate) {
+    visionPatch.vision_pick_required = true
+    visionPatch.vision_candidates = productPickCandidates
+  }
+  if (autoSelectedTopCandidate) {
+    visionPatch.vision_auto_selected = true
+    visionPatch.vision_selected_inventory_id = autoSelectedTopCandidate.inventoryId
+    visionPatch.vision_selected_product_label = `${autoSelectedTopCandidate.name}${
+      autoSelectedTopCandidate.sku ? ` (SKU ${autoSelectedTopCandidate.sku})` : ''
+    }`
+    visionPatch.vision_selected_at = new Date().toISOString()
+  }
+  if (ctx.pageContextHasAny || imageMatchedInventoryContext) {
+    const src =
+      ctx.pageContextSource ||
+      (imageSkuMatchDirectConsult
+        ? 'image_sku_match'
+        : imageMatchedInventoryContext
+          ? 'image_visual_lock'
+          : '')
+    visionPatch.page_context = {
+      ...((ctx.pageContextSku || imageMatchedInventoryContext?.sku)
+        ? { sku: ctx.pageContextSku || imageMatchedInventoryContext?.sku }
+        : {}),
+      ...(ctx.pageContextImageForPayload ? { image_url: ctx.pageContextImageForPayload } : {}),
+      ...(ctx.pageContextImageUrl2 ? { image_url_2: ctx.pageContextImageUrl2 } : {}),
+      ...(src === 'product_card_consult' && ctx.pageContextProductUrl
+        ? { product_url: ctx.pageContextProductUrl }
+        : {}),
+      ...(ctx.pageContextInventoryId || imageMatchedInventoryContext?.inventoryId
+        ? { inventory_id: ctx.pageContextInventoryId || imageMatchedInventoryContext?.inventoryId }
+        : {}),
+      ...(src ? { source: src } : {}),
+    }
+  }
+  if (detectedProductGender) visionPatch.product_gender_intent = detectedProductGender
+  if (detectedProductType) visionPatch.product_type_intent = detectedProductType
+  if (Object.keys(visionPatch).length > 0) {
+    try {
+      await mergeCustomerCareMessageRawPayloadPatchPg(ctx.messageId, visionPatch)
+    } catch (e) {
+      console.warn('[widget-guest-post] patch image analysis payload', e)
+    }
+  }
+
+  if (deferredPaymentVerify) {
+    try {
+      const v = await verifyOrderPaymentProof({
+        partnerId: ctx.partnerId,
+        externalThreadId: ctx.externalThreadId,
+        orderId: deferredPaymentVerify.orderId,
+        proofImageStoragePath: ctx.imagePath,
+        linkedUserId: ctx.linkedUserId,
+        guestAccountId: ctx.guestAccountId,
+        preReadOcr: deferredPaymentVerify.ocr,
+      })
+      if ('error' in v) console.warn('[widget-guest-post] verifyOrderPaymentProof', v.error)
+      else paymentVerificationHandled = true
+    } catch (e) {
+      console.warn('[widget-guest-post] verifyOrderPaymentProof', e)
+    }
+  }
+
+  if (afterSalesPending) {
+    try {
+      const orderProduct = await tryResolveOrderProductConsultFromAfterSalesImage({
+        partnerId: ctx.partnerId,
+        conversationId: ctx.conversationId,
+        caption: imageCaption,
+        detection: afterSalesPending,
+      })
+      if (orderProduct) {
+        await mergeCustomerCareMessageRawPayloadPatchPg(ctx.messageId, {
+          page_context: {
+            sku: orderProduct.sku,
+            inventory_id: orderProduct.inventoryId,
+            source: 'product_card_consult',
+          },
+          order_product_consult: true,
+          ...(orderProduct.orderCode ? { order_code: orderProduct.orderCode } : {}),
+          ...(orderProduct.orderCode
+            ? {
+                bound_order: {
+                  order_code: orderProduct.orderCode,
+                  status: '',
+                  status_label: '',
+                  payment_status_label: '',
+                  items: [
+                    {
+                      product_name: '',
+                      selected_size: '',
+                      selected_color_name: '',
+                      quantity: 1,
+                      product_sku: orderProduct.sku,
+                    },
+                  ],
+                  source: 'order_image',
+                  bound_at: new Date().toISOString(),
+                },
+              }
+            : {}),
+        })
+        imageMatchedInventoryContext = {
+          inventoryId: orderProduct.inventoryId,
+          sku: orderProduct.sku,
+        }
+        afterSalesPending = null
+      } else {
+        afterSalesHandled = await sendAfterSalesGuestImageReply({
+          partnerId: ctx.partnerId,
+          conversationId: ctx.conversationId,
+          triggerMessageId: ctx.messageId,
+          caption: imageCaption,
+          detection: afterSalesPending,
+          uiLocale: ctx.uiLocale,
+          externalThreadId: ctx.externalThreadId,
+        })
+      }
+    } catch (e) {
+      console.warn('[widget-guest-post] after-sales image reply', e)
+    }
+  }
+
+  const visionPickRequired = productPickCandidates.length > 0 && !autoSelectedTopCandidate
+  const shouldSendVisionPickReminder =
+    !ctx.deferImageBatchReply && visionPickRequired && !imageSkuMatchDirectConsult
+
+  if (shouldSendVisionPickReminder && !afterSalesHandled) {
+    const captionTrim = imageCaption
+    const purchaseIntentOnImage =
+      captionTrim.length > 0 && inboundTextLooksLikePurchasePickListIntent(captionTrim)
+    await insertMessage({
+      conversationId: ctx.conversationId,
+      direction: 'outbound',
+      body: purchaseIntentOnImage
+        ? buildVisionPickPurchaseIntentReminder(
+            ctx.uiLocale,
+            detectedProductGender,
+            ctx.configuredGuestGender,
+            detectedProductType
+          )
+        : buildVisionPickReminder(
+            ctx.uiLocale,
+            detectedProductGender,
+            detectedProductType,
+            captionTrim,
+            ctx.configuredGuestGender
+          ),
+      rawPayload: {
+        source: purchaseIntentOnImage
+          ? 'guest_vision_pick_purchase_intent_reminder'
+          : 'guest_vision_pick_reminder',
+        trigger_message_id: ctx.messageId,
+        vision_pick_required: true,
+        vision_candidates: productPickCandidates,
+      },
+    })
+  }
+
+  const aiContextSku = ctx.pageContextSku || imageMatchedInventoryContext?.sku || ''
+  const aiContextInventoryId = ctx.pageContextInventoryId || imageMatchedInventoryContext?.inventoryId || ''
+  const aiContextHints = [
+    aiContextSku ? `[Customer product SKU: ${aiContextSku}]` : '',
+    aiContextInventoryId ? `[Customer product inventory id: ${aiContextInventoryId}]` : '',
+    detectedProductGender ? `[Customer product gender intent: ${detectedProductGender}]` : '',
+    detectedProductType ? `[Customer product type intent: ${detectedProductType}]` : '',
+    buildAddressingHintByProductGender(detectedProductGender),
+  ]
+    .filter(Boolean)
+    .join('\n')
+  if (
+    !ctx.deferImageBatchReply &&
+    !visionPickRequired &&
+    !deferredPaymentVerify &&
+    !afterSalesHandled
+  ) {
+    const inboundForAi = [inboundTextForPartnerAi(ctx.body, ctx.imagePublicUrl), aiContextHints]
+      .filter(Boolean)
+      .join('\n')
+    await handlePartnerInboundForAi({
+      partnerId: ctx.partnerId,
+      conversationId: ctx.conversationId,
+      messageId: ctx.messageId,
+      inboundBody: inboundForAi,
+      channel: 'widget',
+      scheduleAiAfterSeconds: ctx.isProductCardConsult || Boolean(imageMatchedInventoryContext) ? 0 : undefined,
+      skipEagerBatchRun: true,
+      widgetUiLocale: ctx.locNorm ?? null,
+      intentClassifyText: imageCaption ? imageCaption : null,
+    })
+  }
+
+  return {
+    imageStoragePath: ctx.imagePath,
+    imagePublicUrl: ctx.imagePublicUrl,
+    messageId: ctx.messageId,
+    productPickCandidates,
+    autoSelectedTopCandidate,
+    paymentVerificationHandled,
+    afterSalesHandled,
+  }
+}
+
 /**
  * Tin inbound từ khách qua widget (trang hosted NanoAI — bắt buộc đăng nhập; hoặc embed API ẩn danh trên site shop).
  * Cho phép chỉ chữ, chỉ ảnh (đã upload), hoặc ảnh + chú thích. Chỉ Postgres cho đếm/AI settings/giá kho.
@@ -464,6 +914,7 @@ export async function postWidgetGuestMessage(params: {
       conversationId?: string
       messageId?: string | null
       imageBatchItem?: WidgetGuestImageBatchItemResult
+      runImageFollowUp?: () => Promise<WidgetGuestImageBatchItemResult>
     }
   | { error: string; requireAuth?: boolean }
 > {
@@ -561,17 +1012,9 @@ export async function postWidgetGuestMessage(params: {
   let body: string
   let rawPayload: Json | null = null
   let imagePublicUrl: string | null = null
+  let imageMime = ''
   /** Gợi ý theo vector (ảnh hoặc chữ) — giống nhau; không lên lịch LLM cho đến khi khách chọn SP. */
   let productPickCandidates: GuestVisionCandidatePayload[] = []
-  let detectedProductGender: GuestProfileGender | null = null
-  let detectedProductType: string | null = null
-  let imageMatchedInventoryContext: { inventoryId: string; sku: string } | null = null
-  let autoSelectedTopCandidate: GuestVisionCandidatePayload | null = null
-  let imageSkuMatchDirectConsult = false
-  /** Ảnh biên lai CK — đối chiếu sau khi lưu tin inbound (tránh LLM gợi ý SP). */
-  let deferredPaymentVerify: { orderId: string; ocr: TransferReceiptOcrResult } | null = null
-  /** Ảnh đơn / vận đơn / cọc / đổi size — trả lời hậu mãi, không vision pick. */
-  let afterSalesPending: AfterSalesImageDetection | null = null
 
   if (imagePath) {
     if (!isGuestMessagingStoragePathForPartner(imagePath, params.partnerId)) {
@@ -579,268 +1022,30 @@ export async function postWidgetGuestMessage(params: {
     }
     const exists = await tryOnObjectExistsByPath(imagePath)
     if (!exists) return { error: 'Image not found.' }
-    const mime = mimeFromGuestImagePath(imagePath)
+    imageMime = mimeFromGuestImagePath(imagePath)
     imagePublicUrl = getTryOnPublicUrlFromPath(imagePath)
-    const basePayload = guestMediaPayloadToJson(buildGuestMediaPayload(imagePublicUrl, imagePath, mime))
+    const basePayload = guestMediaPayloadToJson(buildGuestMediaPayload(imagePublicUrl, imagePath, imageMime))
     const imageCaption = text.trim()
-
-    try {
-      if (isPgConfigured() && imagePublicUrl) {
-        const prep = await prepareDeferredGuestPaymentVerification({
-          partnerId: params.partnerId,
-          externalThreadId: params.externalThreadId,
-          imagePublicUrl,
-        })
-        if (prep.defer) {
-          deferredPaymentVerify = { orderId: prep.orderId, ocr: prep.ocr }
-        }
-      }
-    } catch (e) {
-      console.warn('[widget-guest-post] payment receipt detection', e)
-    }
-
-    let aiEnabled = false
-    if (isPgConfigured()) {
-      const fromPg = await fetchMessagingPartnerAiEnabledFromPg(params.partnerId)
-      if (fromPg !== null) {
-        aiEnabled = fromPg.enabled
-      }
-    }
-
-    try {
-      if (
-        aiEnabled &&
-        imagePublicUrl &&
-        !deferredPaymentVerify &&
-        !isProductCardConsult &&
-        !isAutoOpening
-      ) {
-        afterSalesPending = await detectAfterSalesGuestImage({
-          partnerId: params.partnerId,
-          externalThreadId: params.externalThreadId,
-          caption: imageCaption,
-          imagePublicUrl,
-        })
-      }
-    } catch (e) {
-      console.warn('[widget-guest-post] after-sales image detect', e)
-    }
-
-    try {
-      if (
-        aiEnabled &&
-        !deferredPaymentVerify &&
-        !afterSalesPending &&
-        !isProductCardConsult &&
-        !trustedEmbedProductAnchor
-      ) {
-        const buf = await downloadTryOnObject(imagePath)
-        if (buf) {
-          const imageSignal = await analyzeProductSignalFromImage(buf, mime)
-          if (imageSignal?.gender) {
-            detectedProductGender = imageSignal.gender
+    const pageContextSource =
+      typeof params.pageContext?.source === 'string' ? params.pageContext.source.trim() : ''
+    rawPayload = {
+      ...(basePayload && typeof basePayload === 'object' ? (basePayload as Record<string, unknown>) : {}),
+      ...(imageCaption ? { image_caption: imageCaption } : {}),
+      ...(pageContextHasAny
+        ? {
+            page_context: {
+              ...(pageContextSku ? { sku: pageContextSku } : {}),
+              ...(pageContextImageForPayload ? { image_url: pageContextImageForPayload } : {}),
+              ...(pageContextImageUrl2 ? { image_url_2: pageContextImageUrl2 } : {}),
+              ...(pageContextSource === 'product_card_consult' && pageContextProductUrl
+                ? { product_url: pageContextProductUrl }
+                : {}),
+              ...(pageContextInventoryId ? { inventory_id: pageContextInventoryId } : {}),
+              ...(pageContextSource ? { source: pageContextSource } : {}),
+            },
           }
-          if (imageSignal?.productType) {
-            detectedProductType = imageSignal.productType
-          }
-          if (imageSignal?.productCode) {
-            const matchedBySku = await fetchPartnerInventoryRowByComparableSkuFromPg(
-              params.partnerId,
-              imageSignal.productCode
-            )
-            if (matchedBySku) {
-              imageSkuMatchDirectConsult = true
-              imageMatchedInventoryContext = {
-                inventoryId: matchedBySku.id,
-                sku: (matchedBySku.sku ?? imageSignal.productCode).trim().slice(0, 128),
-              }
-              detectedProductGender =
-                inferInventoryRowGender({
-                  name: matchedBySku.name,
-                  description: matchedBySku.description,
-                  consult_note: matchedBySku.consult_note,
-                }) ?? detectedProductGender
-              detectedProductType =
-                inferInventoryRowProductType({
-                  name: matchedBySku.name,
-                  description: matchedBySku.description,
-                  consult_note: matchedBySku.consult_note,
-                }) ?? detectedProductType
-            }
-          }
-
-          if (!imageSkuMatchDirectConsult) {
-            const search = await geminiProductSearchFromImageBufferViaVectorDb(buf, params.partnerId, {
-              maxResults: WIDGET_PRODUCT_VECTOR_PICK_MAX,
-              userId: linkedUserId,
-            })
-            if (search.error) {
-              console.error('[widget-guest-post] image candidate search error', {
-                partnerId: params.partnerId,
-                error: search.error,
-              })
-            }
-            const candidateIds = search.candidates.map((c) => c.inventoryId)
-            const priceById = new Map<string, string>()
-            if (candidateIds.length > 0 && isPgConfigured()) {
-              const priceFromPg = await fetchPartnerInventoryPriceHintsByIdsFromPg(params.partnerId, candidateIds)
-              if (priceFromPg !== null) {
-                for (const [id, hint] of priceFromPg) priceById.set(id, hint)
-              }
-            }
-            productPickCandidates = search.candidates.map((c) => ({
-              inventoryId: c.inventoryId,
-              name: c.name,
-              sku: c.sku,
-              image_url: c.image_url,
-              ...(c.product_url ? { product_url: c.product_url } : {}),
-              ...(c.price_hint?.trim()
-                ? { price_hint: c.price_hint.trim() }
-                : priceById.get(c.inventoryId)?.trim()
-                  ? { price_hint: priceById.get(c.inventoryId) }
-                  : {}),
-              ...(typeof c.score === 'number' ? { score: c.score } : {}),
-            }))
-
-            if (!detectedProductType && productPickCandidates.length > 0) {
-              detectedProductType = inferProductTypeFromText(productPickCandidates[0].name)
-            }
-            if (!detectedProductGender && productPickCandidates.length > 0) {
-              detectedProductGender = inferGenderFromText(productPickCandidates[0].name)
-            }
-
-            if (detectedProductGender && productPickCandidates.length > 1 && isPgConfigured()) {
-              const rows = await fetchPartnerInventoryRowsByIdsInOrderFromPg(params.partnerId, candidateIds)
-              const scoreById = new Map<string, number>()
-              for (const row of rows ?? []) {
-                scoreById.set(
-                  row.id,
-                  genderAffinityScore(
-                    { name: row.name, description: row.description, consult_note: row.consult_note },
-                    detectedProductGender
-                  )
-                )
-              }
-              productPickCandidates = [...productPickCandidates].sort((a, b) => {
-                const sa = scoreById.get(a.inventoryId) ?? 0
-                const sb = scoreById.get(b.inventoryId) ?? 0
-                if (sb !== sa) return sb - sa
-                return (b.score ?? 0) - (a.score ?? 0)
-              })
-            }
-
-            const caption = imageCaption.trim()
-            const topVisionScore =
-              typeof productPickCandidates[0]?.score === 'number' ? productPickCandidates[0].score : null
-            /** Vector ≥ 86%: tư vấn luôn mẫu gần nhất. Dưới 86%: 36 thẻ. */
-            const lockTopPhotoItem = shouldLockTopVisionMatch({ topScore: topVisionScore })
-            /** Ý mua kèm ảnh, chưa chỉ một món: carousel — trừ khi đã khóa ≥ 86%. */
-            const holdImageSearchCarouselForPurchaseIntent =
-              caption.length > 0 &&
-              inboundTextLooksLikePurchasePickListIntent(caption) &&
-              !lockTopPhotoItem
-
-            if (lockTopPhotoItem && productPickCandidates[0] && !autoSelectedTopCandidate) {
-              autoSelectedTopCandidate = productPickCandidates[0]
-              imageMatchedInventoryContext = {
-                inventoryId: productPickCandidates[0].inventoryId,
-                sku: (productPickCandidates[0].sku ?? '').trim().slice(0, 128),
-              }
-              detectedProductType =
-                detectedProductType ?? inferProductTypeFromText(productPickCandidates[0].name)
-            }
-
-            if (caption && productPickCandidates.length > 1 && !lockTopPhotoItem) {
-              const rerank = rankVisionCandidatesByCaption(productPickCandidates, caption)
-              productPickCandidates = rerank.ranked
-              if (rerank.preferred && !holdImageSearchCarouselForPurchaseIntent) {
-                autoSelectedTopCandidate = rerank.preferred
-                imageMatchedInventoryContext = {
-                  inventoryId: rerank.preferred.inventoryId,
-                  sku: (rerank.preferred.sku ?? '').trim().slice(0, 128),
-                }
-                detectedProductType = detectedProductType ?? inferProductTypeFromText(rerank.preferred.name)
-              }
-            }
-
-            if (!holdImageSearchCarouselForPurchaseIntent && !autoSelectedTopCandidate) {
-              const vectorAutoByImage =
-                shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType) ??
-                (caption
-                  ? shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType, {
-                      ignoreTypeMismatch: true,
-                    })
-                  : null)
-              const topCandidate =
-                vectorAutoByImage ??
-                shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType, {
-                  ignoreTypeMismatch: caption.length > 0,
-                })
-              if (topCandidate) {
-                autoSelectedTopCandidate = topCandidate
-                imageMatchedInventoryContext = {
-                  inventoryId: topCandidate.inventoryId,
-                  sku: (topCandidate.sku ?? '').trim().slice(0, 128),
-                }
-                detectedProductType = detectedProductType ?? inferProductTypeFromText(topCandidate.name)
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error('[widget-guest-post] image candidate search', e)
-    }
-
-    rawPayload =
-      productPickCandidates.length > 0 && !autoSelectedTopCandidate
-        ? ({
-            ...(basePayload && typeof basePayload === 'object' ? (basePayload as Record<string, unknown>) : {}),
-            vision_pick_required: true,
-            vision_candidates: productPickCandidates,
-            ...(imageCaption ? { image_caption: imageCaption } : {}),
-          } as Json)
-        : ({
-            ...(basePayload && typeof basePayload === 'object' ? (basePayload as Record<string, unknown>) : {}),
-            ...(autoSelectedTopCandidate
-              ? {
-                  vision_auto_selected: true,
-                  vision_selected_inventory_id: autoSelectedTopCandidate.inventoryId,
-                  vision_selected_product_label: `${autoSelectedTopCandidate.name}${
-                    autoSelectedTopCandidate.sku ? ` (SKU ${autoSelectedTopCandidate.sku})` : ''
-                  }`,
-                  vision_selected_at: new Date().toISOString(),
-                }
-              : {}),
-            ...(imageCaption ? { image_caption: imageCaption } : {}),
-          } as Json)
-    if ((pageContextHasAny || imageMatchedInventoryContext) && rawPayload && typeof rawPayload === 'object') {
-      const srcRaw = typeof params.pageContext?.source === 'string' ? params.pageContext.source : ''
-      const src =
-        srcRaw ||
-        (imageSkuMatchDirectConsult
-          ? 'image_sku_match'
-          : imageMatchedInventoryContext
-            ? 'image_visual_lock'
-            : '')
-      rawPayload = {
-        ...(rawPayload as Record<string, unknown>),
-        page_context: {
-          ...((pageContextSku || imageMatchedInventoryContext?.sku)
-            ? { sku: pageContextSku || imageMatchedInventoryContext?.sku }
-            : {}),
-          ...(pageContextImageForPayload ? { image_url: pageContextImageForPayload } : {}),
-          ...(pageContextImageUrl2 ? { image_url_2: pageContextImageUrl2 } : {}),
-          ...(src === 'product_card_consult' && pageContextProductUrl ? { product_url: pageContextProductUrl } : {}),
-          ...(pageContextInventoryId || imageMatchedInventoryContext?.inventoryId
-            ? { inventory_id: pageContextInventoryId || imageMatchedInventoryContext?.inventoryId }
-            : {}),
-          ...(src ? { source: src } : {}),
-        },
-        ...(detectedProductGender ? { product_gender_intent: detectedProductGender } : {}),
-        ...(detectedProductType ? { product_type_intent: detectedProductType } : {}),
-      } as Json
-    }
+        : {}),
+    } as Json
     body = text ? `📷 ${text}` : '📷'
   } else {
     rawPayload =
@@ -977,159 +1182,62 @@ export async function postWidgetGuestMessage(params: {
   /** Không ghi «đã tư vấn» ở đây — chỉ khi khách bấm «Tư vấn» (`POST …/consult-product`). Tin mở link kèm ảnh/URL chỉ là ngữ cảnh, chưa coi là đã chọn tư vấn. */
 
   let shopTyping: { maxWaitMs: number } | undefined
-  const visionPickRequired = productPickCandidates.length > 0 && !autoSelectedTopCandidate
-  const shouldSendVisionPickReminder =
-    !params.deferImageBatchReply && Boolean(imagePath) && visionPickRequired && !imageSkuMatchDirectConsult
-  let paymentVerificationHandled = false
-  let afterSalesHandled = false
+  let runImageFollowUp: (() => Promise<WidgetGuestImageBatchItemResult>) | undefined
 
-  if (newMessageId && imagePath && deferredPaymentVerify) {
-    try {
-      const v = await verifyOrderPaymentProof({
-        partnerId: params.partnerId,
-        externalThreadId: params.externalThreadId,
-        orderId: deferredPaymentVerify.orderId,
-        proofImageStoragePath: imagePath,
-        linkedUserId: params.linkedUserId,
-        guestAccountId: params.guestAccountId,
-        preReadOcr: deferredPaymentVerify.ocr,
-      })
-      if ('error' in v) console.warn('[widget-guest-post] verifyOrderPaymentProof', v.error)
-      else paymentVerificationHandled = true
-    } catch (e) {
-      console.warn('[widget-guest-post] verifyOrderPaymentProof', e)
+  if (newMessageId && imagePath && !isAutoOpening) {
+    const followUpCtx: GuestImageFollowUpContext = {
+      partnerId: params.partnerId,
+      externalThreadId: params.externalThreadId,
+      linkedUserId: params.linkedUserId,
+      guestAccountId: params.guestAccountId,
+      conversationId,
+      messageId: newMessageId,
+      imagePath,
+      imagePublicUrl,
+      mime: imageMime,
+      text,
+      body,
+      uiLocale: params.uiLocale,
+      locNorm,
+      isProductCardConsult,
+      trustedEmbedProductAnchor,
+      deferImageBatchReply: Boolean(params.deferImageBatchReply),
+      pageContextSku,
+      pageContextInventoryId,
+      pageContextHasAny,
+      pageContextImageForPayload,
+      pageContextImageUrl2,
+      pageContextProductUrl,
+      pageContextSource: typeof params.pageContext?.source === 'string' ? params.pageContext.source.trim() : '',
+      configuredGuestGender,
     }
-  }
-
-  if (newMessageId && afterSalesPending) {
-    try {
-      const orderProduct = await tryResolveOrderProductConsultFromAfterSalesImage({
-        partnerId: params.partnerId,
-        conversationId,
-        caption: text.trim(),
-        detection: afterSalesPending,
-      })
-      if (orderProduct) {
-        await mergeCustomerCareMessageRawPayloadPatchPg(newMessageId, {
-          page_context: {
-            sku: orderProduct.sku,
-            inventory_id: orderProduct.inventoryId,
-            source: 'product_card_consult',
-          },
-          order_product_consult: true,
-          ...(orderProduct.orderCode ? { order_code: orderProduct.orderCode } : {}),
-          ...(orderProduct.orderCode
-            ? {
-                bound_order: {
-                  order_code: orderProduct.orderCode,
-                  status: '',
-                  status_label: '',
-                  payment_status_label: '',
-                  items: [
-                    {
-                      product_name: '',
-                      selected_size: '',
-                      selected_color_name: '',
-                      quantity: 1,
-                      product_sku: orderProduct.sku,
-                    },
-                  ],
-                  source: 'order_image',
-                  bound_at: new Date().toISOString(),
-                },
-              }
-            : {}),
-        })
-        imageMatchedInventoryContext = {
-          inventoryId: orderProduct.inventoryId,
-          sku: orderProduct.sku,
-        }
-        afterSalesPending = null
-      } else {
-        afterSalesHandled = await sendAfterSalesGuestImageReply({
-          partnerId: params.partnerId,
-          conversationId,
-          triggerMessageId: newMessageId,
-          caption: text.trim(),
-          detection: afterSalesPending,
-          uiLocale: params.uiLocale,
-          externalThreadId: params.externalThreadId,
-        })
-      }
-    } catch (e) {
-      console.warn('[widget-guest-post] after-sales image reply', e)
-    }
-  }
-
-  if (newMessageId) {
-    if (shouldSendVisionPickReminder && !afterSalesHandled) {
-      const captionTrim = text.trim()
-      const purchaseIntentOnImage =
-        captionTrim.length > 0 && inboundTextLooksLikePurchasePickListIntent(captionTrim)
-      await insertMessage({
-        conversationId,
-        direction: 'outbound',
-        body: purchaseIntentOnImage
-          ? buildVisionPickPurchaseIntentReminder(
-              params.uiLocale,
-              detectedProductGender,
-              configuredGuestGender,
-              detectedProductType
-            )
-          : buildVisionPickReminder(
-              params.uiLocale,
-              detectedProductGender,
-              detectedProductType,
-              captionTrim,
-              configuredGuestGender
-            ),
-        rawPayload: {
-          source: purchaseIntentOnImage
-            ? 'guest_vision_pick_purchase_intent_reminder'
-            : 'guest_vision_pick_reminder',
-          trigger_message_id: newMessageId,
-          vision_pick_required: true,
-          vision_candidates: productPickCandidates,
-        },
+    runImageFollowUp = () => processGuestImageFollowUp(followUpCtx)
+    shopTyping = { maxWaitMs: GUEST_IMAGE_FOLLOW_UP_TYPING_MS }
+    if (!params.deferImageBatchReply) {
+      void processGuestImageFollowUp(followUpCtx).catch((e) => {
+        console.warn('[widget-guest-post] image follow-up', e)
       })
     }
-
-    const aiContextSku = pageContextSku || imageMatchedInventoryContext?.sku || ''
-    const aiContextInventoryId = pageContextInventoryId || imageMatchedInventoryContext?.inventoryId || ''
+  } else if (newMessageId && !isAutoOpening) {
     const aiContextHints = [
-      aiContextSku ? `[Customer product SKU: ${aiContextSku}]` : '',
-      aiContextInventoryId ? `[Customer product inventory id: ${aiContextInventoryId}]` : '',
-      detectedProductGender ? `[Customer product gender intent: ${detectedProductGender}]` : '',
-      detectedProductType ? `[Customer product type intent: ${detectedProductType}]` : '',
-      buildAddressingHintByProductGender(detectedProductGender),
+      pageContextSku ? `[Customer product SKU: ${pageContextSku}]` : '',
+      pageContextInventoryId ? `[Customer product inventory id: ${pageContextInventoryId}]` : '',
     ]
       .filter(Boolean)
       .join('\n')
-    // Khi đã có gợi ý vector (ảnh hoặc chữ), chờ khách chọn SP — không gọi LLM tư vấn trước.
-    // Ảnh biên lai CK: đã định tuyến đối chiếu thanh toán — không gọi LLM gợi ý SP.
-    if (
-      !params.deferImageBatchReply &&
-      !isAutoOpening &&
-      !visionPickRequired &&
-      !deferredPaymentVerify &&
-      !afterSalesHandled
-    ) {
-      const inboundForAi = [inboundTextForPartnerAi(body, imagePublicUrl), aiContextHints].filter(Boolean).join('\n')
-      const hint = await handlePartnerInboundForAi({
-        partnerId: params.partnerId,
-        conversationId,
-        messageId: newMessageId,
-        inboundBody: inboundForAi,
-        channel: 'widget',
-        // Button-based consults should reply quickly, but the POST must return so the widget stops spinning.
-        scheduleAiAfterSeconds: isProductCardConsult || Boolean(imageMatchedInventoryContext) ? 0 : undefined,
-        skipEagerBatchRun: true,
-        /** Đã merge vào DB — dùng để bỏ FAQ tiếng Việt khi khách chọn UI khác `vi`. */
-        widgetUiLocale: locNorm ?? null,
-        intentClassifyText: text?.trim() ? text.trim() : null,
-      })
-      if (hint.show) shopTyping = { maxWaitMs: hint.maxWaitMs }
-    }
+    const inboundForAi = [inboundTextForPartnerAi(body, imagePublicUrl), aiContextHints].filter(Boolean).join('\n')
+    const hint = await handlePartnerInboundForAi({
+      partnerId: params.partnerId,
+      conversationId,
+      messageId: newMessageId,
+      inboundBody: inboundForAi,
+      channel: 'widget',
+      scheduleAiAfterSeconds: isProductCardConsult ? 0 : undefined,
+      skipEagerBatchRun: true,
+      widgetUiLocale: locNorm ?? null,
+      intentClassifyText: text?.trim() ? text.trim() : null,
+    })
+    if (hint.show) shopTyping = { maxWaitMs: hint.maxWaitMs }
   }
 
   return {
@@ -1137,19 +1245,16 @@ export async function postWidgetGuestMessage(params: {
     conversationId,
     messageId: newMessageId,
     shopTyping,
-    visionPickRequired: afterSalesHandled ? undefined : visionPickRequired || undefined,
-    paymentVerificationHandled: paymentVerificationHandled || undefined,
-    afterSalesHandled: afterSalesHandled || undefined,
+    runImageFollowUp,
     imageBatchItem:
       params.deferImageBatchReply && imagePath
         ? {
             imageStoragePath: imagePath,
             imagePublicUrl,
             messageId: newMessageId,
-            productPickCandidates,
-            autoSelectedTopCandidate,
-            paymentVerificationHandled,
-            afterSalesHandled,
+            productPickCandidates: [],
+            autoSelectedTopCandidate: null,
+            paymentVerificationHandled: false,
           }
         : undefined,
   }

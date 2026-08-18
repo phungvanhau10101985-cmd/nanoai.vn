@@ -342,6 +342,24 @@ test('mobile-only visual html does not leak added chrome onto desktop', () => {
   assert.equal(desktopBody.includes('data-pw-chrome-added'), false)
 })
 
+test('isolate does not treat nested chrome device wrappers as a composed page', () => {
+  const html = `<!DOCTYPE html><html><head>
+<style>.pw-header{background:#c2410c}</style>
+</head><body>
+<div class="pw-shop">
+<style>.pw-topbar{color:#fff}</style>
+<div class="pw-visual-desktop" data-pw-visual-device="desktop"><header class="pw-header">Head</header></div>
+<main>Products mid</main>
+<div class="pw-visual-desktop" data-pw-visual-device="desktop"><footer class="pw-footer">Foot</footer></div>
+</div>
+</body></html>`
+  const out = isolateVisualHtmlForDevice(html, 'desktop')
+  assert.match(out, /Products mid/)
+  assert.match(out, /pw-header\{background:#c2410c\}/)
+  assert.match(out, /pw-topbar\{color:#fff\}/)
+  assert.match(out, /<footer class="pw-footer">Foot<\/footer>/)
+})
+
 test('isolate desktop html keeps nested sections from composed page', () => {
   const desktop =
     '<!DOCTYPE html><html><body><div class="pw-header"><span>Logo</span></div><h1>Hero saved</h1></body></html>'

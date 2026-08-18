@@ -10,6 +10,7 @@ import {
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import {
+  GUEST_IMAGE_FOLLOW_UP_TYPING_MS,
   postWidgetGuestMessage,
   type WidgetGuestImageBatchItemResult,
 } from '@/lib/messaging/widget-guest-post'
@@ -413,8 +414,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     posted = await postOne(imageStoragePaths[0], body?.pageContext)
   } else {
     let conversationId: string | null = null
-    const batchItems: WidgetGuestImageBatchItemResult[] = []
-    let anyPaymentVerificationHandled = false
+    const followUps: Array<() => Promise<WidgetGuestImageBatchItemResult>> = []
     let batchError: Awaited<ReturnType<typeof postWidgetGuestMessage>> | null = null
     for (let i = 0; i < imageStoragePaths.length; i += 1) {
       const one = await postOne(imageStoragePaths[i], i === 0 ? body?.pageContext : undefined, true)
@@ -423,14 +423,23 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
         break
       }
       if (one.conversationId) conversationId = one.conversationId
-      if (one.imageBatchItem) batchItems.push(one.imageBatchItem)
-      anyPaymentVerificationHandled =
-        anyPaymentVerificationHandled || one.paymentVerificationHandled === true
+      if (one.runImageFollowUp) followUps.push(one.runImageFollowUp)
       if (i < imageStoragePaths.length - 1) {
         await sleep(BATCH_IMAGE_MESSAGE_GAP_MS)
       }
     }
-    if (!batchError && conversationId && batchItems.length > 0) {
+    const batchConversationId = conversationId
+    const batchUiLocale = typeof body?.uiLocale === 'string' ? body.uiLocale : undefined
+    void (async () => {
+      const batchItems: WidgetGuestImageBatchItemResult[] = []
+      for (const run of followUps) {
+        try {
+          batchItems.push(await run())
+        } catch (e) {
+          console.warn('[guest-post] image batch follow-up', e)
+        }
+      }
+      if (!batchConversationId || batchItems.length < 1) return
       const productBatchItems = batchItems.filter(
         (item) => !item.paymentVerificationHandled && !item.afterSalesHandled
       )
@@ -445,14 +454,14 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       const hasProductSearchResult = cards.length > 0
       if (productBatchItems.length > 0 && (hasProductSearchResult || matchedCandidates.length < productBatchItems.length)) {
         const replyBody = buildImageBatchReplyBody({
-          uiLocale: typeof body?.uiLocale === 'string' ? body.uiLocale : undefined,
+          uiLocale: batchUiLocale,
           totalImages: productBatchItems.length,
           matchedImageCount: matchedCandidates.length,
           cards,
           usingNearMatches,
         })
         await insertMessage({
-          conversationId,
+          conversationId: batchConversationId,
           direction: 'outbound',
           body: replyBody,
           rawPayload: {
@@ -467,10 +476,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
           },
         })
       }
-    }
+    })().catch((e) => {
+      console.warn('[guest-post] image batch follow-up', e)
+    })
     posted = batchError ?? {
       ok: true,
-      paymentVerificationHandled: anyPaymentVerificationHandled || undefined,
+      shopTyping: { maxWaitMs: GUEST_IMAGE_FOLLOW_UP_TYPING_MS },
     }
   }
 

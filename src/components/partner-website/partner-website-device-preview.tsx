@@ -308,8 +308,28 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     if (id) setPreviewProductId(id)
   }, [previewProductKey, previewProductId, productOptions])
 
+  function isEditingHomePage() {
+    return previewPageKey === 'home' && !previewCategoryPath && !previewProductId && !previewCmsSlug
+  }
+
+  function applyHomeChromeToEditorHtml(html: string): string {
+    if (isEditingHomePage()) return html
+    const homeRaw = resolveExactVisualPageHtml(
+      { htmlSource, project, theme: liveTheme },
+      'home',
+      editVariant
+    )
+    if (!visualHtmlLooksUsable(homeRaw)) return html
+    const home = isolateVisualHtmlForDevice(homeRaw, editVariant)
+    const chrome = extractSharedChrome(home.length >= 40 ? home : homeRaw)
+    if (!hasSharedChrome(chrome)) return html
+    const next = applySharedChrome(html, chrome, { targetVariant: editVariant })
+    return mergeVisualHomeStylesIntoHtml(next, preferredVisualHomeStyleSource(home, homeRaw))
+  }
+
   function visualEditSrcDoc(html: string): string {
-    const laidOut = injectPartnerShopChromeLayoutCss(stripEmptyLogoPlaceholdersFromHtml(html))
+    const withChrome = applyHomeChromeToEditorHtml(html)
+    const laidOut = injectPartnerShopChromeLayoutCss(stripEmptyLogoPlaceholdersFromHtml(withChrome))
     return liveTheme ? rewriteThemeCssVarsInHtml(laidOut, liveTheme) : laidOut
   }
 
@@ -643,27 +663,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
 
     const freezeFromDoc = (doc: Document | null): boolean => {
       if (cancelled || !doc?.documentElement || isBlankDoc(doc)) return false
-      let html = freezeDocumentForVisualEditor(doc, editVariant)
-      const editingHome =
-        previewPageKey === 'home' && !previewCategoryPath && !previewProductId && !previewCmsSlug
-      if (!editingHome) {
-        const homeRaw = resolveExactVisualPageHtml(
-          { htmlSource, project, theme: liveTheme },
-          'home',
-          editVariant
-        )
-        if (visualHtmlLooksUsable(homeRaw)) {
-          const home = isolateVisualHtmlForDevice(homeRaw, editVariant)
-          const chrome = extractSharedChrome(home.length >= 40 ? home : homeRaw)
-          if (hasSharedChrome(chrome)) {
-            html = applySharedChrome(html, chrome, { targetVariant: editVariant })
-            html = mergeVisualHomeStylesIntoHtml(
-              html,
-              preferredVisualHomeStyleSource(home, homeRaw)
-            )
-          }
-        }
-      }
+      const html = freezeDocumentForVisualEditor(doc, editVariant)
       if (!visualHtmlLooksUsable(html)) return false
       freezeLockRef.current = true
       setEditSrcDoc(visualEditSrcDoc(html))
@@ -739,12 +739,19 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const previewSrc = useMemo(() => {
     if (!hasWebsite) return null
     const v = encodeURIComponent(previewVersion || '0')
+    const deviceQuery = visualEditorDeviceVariant(device)
     if (siteSlug?.trim()) {
-      return `${visualEditorPreviewPath(siteSlug.trim(), previewPageKey, previewCategoryPath, previewProductKey, previewCmsSlug)}?v=${v}`
+      return appendVisualDeviceQuery(
+        `${visualEditorPreviewPath(siteSlug.trim(), previewPageKey, previewCategoryPath, previewProductKey, previewCmsSlug)}?v=${v}`,
+        deviceQuery
+      )
     }
     if (!partnerId) return null
-    return `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/preview?v=${v}`
-  }, [partnerId, hasWebsite, previewVersion, siteSlug, previewPageKey, previewCategoryPath, previewProductKey, previewCmsSlug])
+    return appendVisualDeviceQuery(
+      `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/preview?v=${v}`,
+      deviceQuery
+    )
+  }, [partnerId, hasWebsite, previewVersion, siteSlug, previewPageKey, previewCategoryPath, previewProductKey, previewCmsSlug, device])
 
   useEffect(() => {
     const iframe = iframeRef.current
