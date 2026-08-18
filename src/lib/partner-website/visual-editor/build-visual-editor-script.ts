@@ -4771,6 +4771,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function canDeleteEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false
     if (isLockedCatalogEl(el) || isProductCardEl(el) || isShopRegionHost(el)) return false
+    if (isHeaderChromeEl(el) || searchElOf(el) || catToggleElOf(el) || isAddedChrome(el)) return true
     var tag = el.tagName.toLowerCase()
     if (tag === 'header' || tag === 'main' || tag === 'html' || tag === 'form') return false
     var cls = clsOf(el)

@@ -87,6 +87,111 @@ import {
 
 export type PartnerWebsitePreviewDevice = 'mobile' | 'tablet' | 'laptop' | 'desktop'
 
+type PersistedVisualEditState = {
+  device: PartnerWebsitePreviewDevice
+  pageKey: PartnerWebsitePageKey
+  categoryPath: string | null
+  productId: string | null
+  productKey: string | null
+  cmsSlug: string | null
+  active: boolean
+}
+
+const VISUAL_EDIT_STATE_PREFIX = 'nanoai:partner-website-visual-edit-state:'
+
+function visualEditStateStorageKey(partnerId: string): string {
+  return `${VISUAL_EDIT_STATE_PREFIX}${partnerId || 'unknown'}`
+}
+
+function parsePreviewDevice(raw: string | null | undefined): PartnerWebsitePreviewDevice | null {
+  return raw === 'mobile' || raw === 'tablet' || raw === 'laptop' || raw === 'desktop' ? raw : null
+}
+
+function safeDecode(raw: string | null | undefined): string | null {
+  const value = String(raw || '').trim()
+  if (!value) return null
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+function normalizePersistedVisualEditState(raw: Partial<PersistedVisualEditState> | null): PersistedVisualEditState {
+  const productId = safeDecode(raw?.productId)
+  const productKey = safeDecode(raw?.productKey)
+  const categoryPath = safeDecode(raw?.categoryPath)
+  const cmsSlug = safeDecode(raw?.cmsSlug)
+  const pageKey =
+    raw?.pageKey && isVisualEditorPageKey(raw.pageKey)
+      ? raw.pageKey
+      : productId || productKey
+        ? 'product_detail'
+        : categoryPath
+          ? 'collection'
+          : 'home'
+  return {
+    device: parsePreviewDevice(raw?.device) ?? 'desktop',
+    pageKey,
+    categoryPath: pageKey === 'collection' ? categoryPath : null,
+    productId: pageKey === 'product_detail' ? productId : null,
+    productKey: pageKey === 'product_detail' ? productKey || productId : null,
+    cmsSlug: cmsSlug,
+    active: Boolean(raw?.active),
+  }
+}
+
+function readPersistedVisualEditState(partnerId: string): PersistedVisualEditState {
+  if (typeof window === 'undefined') return normalizePersistedVisualEditState(null)
+  const params = new URLSearchParams(window.location.search)
+  const fromQuery: Partial<PersistedVisualEditState> = {
+    device: parsePreviewDevice(params.get('veDevice')) ?? undefined,
+    pageKey: isVisualEditorPageKey(params.get('vePage') || '') ? (params.get('vePage') as PartnerWebsitePageKey) : undefined,
+    categoryPath: params.get('veCat'),
+    productId: params.get('veProduct'),
+    productKey: params.get('veProductKey'),
+    cmsSlug: params.get('veCms'),
+    active: params.get('ve') === '1',
+  }
+  if (fromQuery.device || fromQuery.pageKey || fromQuery.categoryPath || fromQuery.productId || fromQuery.cmsSlug || fromQuery.active) {
+    return normalizePersistedVisualEditState(fromQuery)
+  }
+  try {
+    const raw = window.localStorage.getItem(visualEditStateStorageKey(partnerId))
+    if (raw) return normalizePersistedVisualEditState(JSON.parse(raw) as Partial<PersistedVisualEditState>)
+  } catch {
+    /* ignore */
+  }
+  return normalizePersistedVisualEditState(null)
+}
+
+function persistVisualEditState(partnerId: string, state: PersistedVisualEditState): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(visualEditStateStorageKey(partnerId), JSON.stringify(state))
+  } catch {
+    /* ignore */
+  }
+  try {
+    const url = new URL(window.location.href)
+    url.searchParams.set('veDevice', state.device)
+    url.searchParams.set('vePage', state.pageKey)
+    if (state.categoryPath) url.searchParams.set('veCat', state.categoryPath)
+    else url.searchParams.delete('veCat')
+    if (state.productId) url.searchParams.set('veProduct', state.productId)
+    else url.searchParams.delete('veProduct')
+    if (state.productKey) url.searchParams.set('veProductKey', state.productKey)
+    else url.searchParams.delete('veProductKey')
+    if (state.cmsSlug) url.searchParams.set('veCms', state.cmsSlug)
+    else url.searchParams.delete('veCms')
+    if (state.active) url.searchParams.set('ve', '1')
+    else url.searchParams.delete('ve')
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  } catch {
+    /* ignore */
+  }
+}
+
 export type PartnerWebsiteDevicePreviewHandle = {
   openVisualEdit: () => void
 }
@@ -170,12 +275,15 @@ export const PartnerWebsiteDevicePreview = forwardRef<
 ) {
   const t = getPartnerWebsiteCopy(locale)
   const pageLabels = pageCatalogLabels(locale)
-  const [device, setDevice] = useState<PartnerWebsitePreviewDevice>('desktop')
-  const [previewPageKey, setPreviewPageKey] = useState<PartnerWebsitePageKey>('home')
-  const [previewCategoryPath, setPreviewCategoryPath] = useState<string | null>(null)
-  const [previewProductId, setPreviewProductId] = useState<string | null>(null)
-  const [previewProductKey, setPreviewProductKey] = useState<string | null>(null)
-  const [previewCmsSlug, setPreviewCmsSlug] = useState<string | null>(null)
+  const initialVisualEditStateRef = useRef<PersistedVisualEditState | null>(null)
+  if (!initialVisualEditStateRef.current) initialVisualEditStateRef.current = readPersistedVisualEditState(partnerId)
+  const initialVisualEditState = initialVisualEditStateRef.current
+  const [device, setDevice] = useState<PartnerWebsitePreviewDevice>(initialVisualEditState.device)
+  const [previewPageKey, setPreviewPageKey] = useState<PartnerWebsitePageKey>(initialVisualEditState.pageKey)
+  const [previewCategoryPath, setPreviewCategoryPath] = useState<string | null>(initialVisualEditState.categoryPath)
+  const [previewProductId, setPreviewProductId] = useState<string | null>(initialVisualEditState.productId)
+  const [previewProductKey, setPreviewProductKey] = useState<string | null>(initialVisualEditState.productKey)
+  const [previewCmsSlug, setPreviewCmsSlug] = useState<string | null>(initialVisualEditState.cmsSlug)
   const [categoryOptions, setCategoryOptions] = useState<Array<{ path: string; name: string; depth: number }>>(
     []
   )
@@ -194,6 +302,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const freezeLockRef = useRef(false)
   const flushedHtmlByVariantRef = useRef<Partial<Record<VisualDeviceVariant, string>>>({})
   const saveFnRef = useRef<(() => Promise<boolean>) | null>(null)
+  const restoredVisualEditActiveRef = useRef(false)
   projectRef.current = project ?? null
 
   const { saving: themeSaving, schedule: scheduleThemeSave } = useDebouncedThemeSave(
@@ -211,6 +320,18 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   useEffect(() => {
     setPortalReady(true)
   }, [])
+
+  useEffect(() => {
+    persistVisualEditState(partnerId, {
+      device,
+      pageKey: previewPageKey,
+      categoryPath: previewCategoryPath,
+      productId: previewProductId,
+      productKey: previewProductKey,
+      cmsSlug: previewCmsSlug,
+      active: visualEditActive,
+    })
+  }, [partnerId, device, previewPageKey, previewCategoryPath, previewProductId, previewProductKey, previewCmsSlug, visualEditActive])
 
   useEffect(() => {
     const slug = siteSlug?.trim()
@@ -838,6 +959,17 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     }
   }, [liveTheme, previewSrc, editSrcDoc])
 
+  const canVisualEdit = visualEditEnabled && Boolean(onVisualEditSave || onShopHomeSave)
+
+  useEffect(() => {
+    if (restoredVisualEditActiveRef.current) return
+    if (!initialVisualEditStateRef.current?.active) return
+    if (!canVisualEdit || quickEditDisabled || !hasWebsite || visualEditActive) return
+    restoredVisualEditActiveRef.current = true
+    const timer = window.setTimeout(() => startVisualEdit(), 0)
+    return () => window.clearTimeout(timer)
+  }, [canVisualEdit, quickEditDisabled, hasWebsite, visualEditActive])
+
   const frameWidth = DEVICE_WIDTH[device]
 
   if (!hasWebsite || !previewSrc) {
@@ -863,7 +995,6 @@ export const PartnerWebsiteDevicePreview = forwardRef<
           : 'min-h-[calc(100dvh-12rem)] h-[min(80vh,960px)]'
         : 'min-h-[640px] h-[min(78vh,860px)]'
 
-  const canVisualEdit = visualEditEnabled && Boolean(onVisualEditSave || onShopHomeSave)
   const editFrameWidth = frameWidth
   const deviceFrameIsFull = frameWidth === 'full'
   const lockComputerCanvas = device === 'desktop' || device === 'laptop'
