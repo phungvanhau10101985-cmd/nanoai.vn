@@ -69,7 +69,15 @@ function main() {
     statusLabel: 'Đang giao hàng',
     paymentStatusLabel: 'Chờ thanh toán',
     shippingMethod: 'EMS',
-    items: [{ product_name: 'Áo thun', selected_size: 'XL', selected_color_name: 'Đen', quantity: 2 }],
+    items: [
+      {
+        product_name: 'Áo thun',
+        selected_size: 'XL',
+        selected_color_name: 'Đen',
+        quantity: 2,
+        product_sku: 'C0156/XL',
+      },
+    ],
     emsStatus: 'Giao bưu tá phát hàng',
     emsEvents: [
       { description: 'Giao bưu tá phát hàng', address: 'Hà Nội', tracedAt: '2026-08-12T08:10:00' },
@@ -83,6 +91,23 @@ function main() {
   assert.doesNotMatch(vi, /0901234567/)
   assert.doesNotMatch(vi, /bấm \*\*Mua/i)
   assert.doesNotMatch(vi, /Trạng thái vận chuyển/)
+
+  const waitingDeposit: PartnerShippingLookupHit = {
+    ...hit,
+    query: 'DH464',
+    orderCode: 'DH464',
+    status: 'waiting_deposit',
+    statusLabel: 'Chờ đặt cọc',
+    paymentStatusLabel: 'Chờ đặt cọc',
+    trackingNumber: '',
+    emsStatus: '',
+    emsEvents: [],
+  }
+  const waitVi = formatShippingLookupCustomerReply(waitingDeposit, 'vi')
+  assert.match(waitVi, /DH464/)
+  assert.match(waitVi, /Chờ đặt cọc/)
+  assert.doesNotMatch(waitVi, /đóng hàng xuất kho/)
+  assert.doesNotMatch(waitVi, /8–12 ngày/)
 
   const phoneDelivered: PartnerShippingLookupHit = {
     query: '0369597965',

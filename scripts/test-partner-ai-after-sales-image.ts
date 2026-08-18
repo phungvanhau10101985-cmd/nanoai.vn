@@ -4,12 +4,15 @@
  */
 import assert from 'node:assert/strict'
 import {
+  afterSalesKindAllowsOrderProductConsult,
   buildAfterSalesImageReply,
+  captionLooksLikeConsultProductInOrder,
   captionLooksLikeSkuProductConsult,
   classifyAfterSalesImage,
   conversationHasSizeExchangeIntent,
   extractAfterSalesCodes,
   shouldOcrGuestImageForAfterSales,
+  skuCandidatesFromOrderProductSku,
 } from '../src/lib/messaging/partner-ai-after-sales-image'
 
 function expectKind(
@@ -55,7 +58,23 @@ function main() {
     'return_waybill'
   )
 
-  // Ảnh 4 = 5 — xác nhận đặt cọc
+  // Ảnh CK Vietcombank — SEVQR DH… (không dump vận chuyển vì chữ «giao dịch»)
+  expectKind(
+    {
+      caption: 'Em đã cọc rồi đây ạ',
+      ocrText: 'Giao dịch thành công!\n573.000 VND\nNội dung SEVQR DH453\nVCB Digibank',
+      conversationContext: '',
+    },
+    'deposit_notice'
+  )
+  expectKind(
+    {
+      caption: '',
+      ocrText: 'Giao dịch thành công!\n573,000 VND\nSEVQR DH453\nVietcombank',
+      conversationContext: '',
+    },
+    'deposit_notice'
+  )
   expectKind(
     {
       caption: '',
@@ -86,6 +105,25 @@ function main() {
   )
   assert.equal(captionLooksLikeSkuProductConsult('📷 Mình quan tâm mẫu này "B9583"'), true)
   assert.equal(shouldOcrGuestImageForAfterSales('📷 Mình quan tâm mẫu này "B9583"', ''), false)
+
+  assert.equal(captionLooksLikeConsultProductInOrder('áo này'), true)
+  assert.equal(captionLooksLikeConsultProductInOrder('📷 em muốn mua áo này'), true)
+  assert.equal(captionLooksLikeConsultProductInOrder('mẫu này'), true)
+  assert.equal(captionLooksLikeConsultProductInOrder('hàng gửi chưa shop'), false)
+  assert.equal(captionLooksLikeConsultProductInOrder(''), false)
+  assert.equal(afterSalesKindAllowsOrderProductConsult('shipping_status_notice'), true)
+  assert.equal(afterSalesKindAllowsOrderProductConsult('deposit_notice'), false)
+  assert.deepEqual(skuCandidatesFromOrderProductSku('C0156/XL'), ['C0156/XL', 'C0156'])
+
+  // Ảnh đơn + caption tư vấn SP: vẫn xếp loại chứng từ (divert tư vấn SKU sau lookup, không đổi classify)
+  expectKind(
+    {
+      caption: 'áo này',
+      ocrText: 'Hàng đang được giao\nĐơn hàng DH446\nMã vận đơn HO3082606',
+      conversationContext: '',
+    },
+    'shipping_status_notice'
+  )
 
   const codes = extractAfterSalesCodes('Đơn hàng DH349\nMã vận đơn HO3082606')
   assert.equal(codes.orderCode, 'DH349')

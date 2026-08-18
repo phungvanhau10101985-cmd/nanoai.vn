@@ -10,6 +10,7 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopProductClient } from '@/components/partner-website/shop/partner-site-shop-product-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
+import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { resolvePartnerShopProductByKey } from '@/lib/partner-website/shop/resolve-partner-shop-product-by-key'
 import { buildPartnerSiteProductKey } from '@/lib/partner-website/shop/partner-site-product-slug'
@@ -91,10 +92,11 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     )
   }
 
+  const device = await readVisualPreviewDevice(searchParams)
   const visual = maybePartnerSiteVisualProductPage(
     shop.site,
     row.id,
-    await readVisualPreviewDevice(searchParams)
+    device
   )
   if (visual) return visual
 
@@ -239,6 +241,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
       pageKind={PW_PAGE.product}
+      {...visualHomeChromeShellProps(shop.site, device)}
     >
       <JsonLd data={productJsonLd} />
       {breadcrumbJsonLd ? <JsonLd data={breadcrumbJsonLd} /> : null}

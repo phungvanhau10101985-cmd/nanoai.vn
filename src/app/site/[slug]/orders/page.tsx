@@ -6,6 +6,7 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopOrdersClient } from '@/components/partner-website/shop/partner-site-shop-orders-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
+import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
 import {
   maybePartnerSiteVisualPage,
   readVisualPreviewDevice,
@@ -37,11 +38,12 @@ export default async function PartnerSiteOrdersPage({ params, searchParams }: Pr
   const { slug } = await params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
+  const device = await readVisualPreviewDevice(searchParams)
 
   const visual = maybePartnerSiteVisualPage(
     shop.site,
     'orders',
-    await readVisualPreviewDevice(searchParams)
+    device
   )
   if (visual) return visual
 
@@ -59,6 +61,7 @@ export default async function PartnerSiteOrdersPage({ params, searchParams }: Pr
       navJson={shop.site.navJson}
       activeNav="account"
       pageKind={PW_PAGE.account}
+      {...visualHomeChromeShellProps(shop.site, device)}
     >
       <PartnerSiteShopOrdersClient
         siteSlug={shop.site.siteSlug}

@@ -17,6 +17,8 @@ export type PartnerShippingLookupOrderItem = {
   selected_size: string
   selected_color_name: string
   quantity: number
+  /** Mã kho từ cổng shop (vd. 188 `product_sku`: `C0156/XL`). */
+  product_sku: string
 }
 
 export type PartnerShippingLookupHit = {
@@ -180,6 +182,7 @@ function parseHit(payload: Record<string, unknown>, httpStatus: number): Partner
       selected_size: str(row.selected_size, 32),
       selected_color_name: str(row.selected_color_name || row.selected_color, 48),
       quantity: Math.max(0, Math.floor(Number(row.quantity) || 0)),
+      product_sku: str(row.product_sku || row.sku || row.item_sku || row.product_code, 64),
     })
   }
   const eventsRaw = emsTracking && Array.isArray(emsTracking.events) ? emsTracking.events : []
@@ -605,7 +608,10 @@ export function formatShippingLookupCustomerReply(
     : ''
   const items = formatItemsLine(hit.items, loc)
   const events = formatEmsEvents(hit.emsEvents, loc, delivered)
-  const depositLike = /deposit|cọc|coc|waiting_deposit|deposit_paid/i.test(`${hit.status} ${hit.statusLabel}`)
+  const blob = `${hit.status} ${hit.statusLabel} ${hit.paymentStatusLabel}`
+  const waitingDeposit = /waiting_deposit|chờ\s*đặt\s*cọc|cho\s*dat\s*coc|unpaid|pending_payment/i.test(blob)
+  const depositLike =
+    !waitingDeposit && /deposit_paid|đã\s*(?:nhận\s*)?cọc|đã\s*thanh\s*toán|paid_verified|paid\b/i.test(blob)
   const shippingLike = /ship|giao|gửi|delivered|transit|đang phát/i.test(
     `${hit.status} ${hit.statusLabel} ${hit.emsStatus}`
   )

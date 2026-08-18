@@ -6,15 +6,17 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopAccountClient } from '@/components/partner-website/shop/partner-site-shop-account-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
+import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
 import {
   isPartnerSiteAccountTab,
   type PartnerSiteAccountTab,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { readVisualPreviewDevice } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 
 type Props = {
   params: Promise<{ slug: string; tab: string }>
-  searchParams: Promise<{ tab?: string }>
+  searchParams?: Promise<{ tab?: string; 'pw-device'?: string }>
 }
 
 /** Overview lives at `/account` — reject `overview` as a path segment. */
@@ -71,6 +73,7 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
 
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
+  const device = await readVisualPreviewDevice(searchParams)
 
   const sp = await searchParams
   const ordersFilter = normalized === 'orders' ? sp.tab?.trim() || null : null
@@ -89,6 +92,7 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
       navJson={shop.site.navJson}
       activeNav="account"
       pageKind={PW_PAGE.account}
+      {...visualHomeChromeShellProps(shop.site, device)}
     >
       <PartnerSiteShopAccountClient
         siteSlug={shop.site.siteSlug}

@@ -58,12 +58,7 @@ import {
   visualEditorHtmlPath,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
-import {
-  applySharedChrome,
-  extractSharedChrome,
-  hasSharedChrome,
-  syncSharedChromeAcrossProjectFiles,
-} from '@/lib/partner-website/shop/sync-shared-chrome'
+import { syncSharedChromeAcrossProjectFiles } from '@/lib/partner-website/shop/sync-shared-chrome'
 
 export async function GET(
   req: NextRequest,
@@ -571,16 +566,8 @@ export async function PATCH(
       : project
   const syncedHomeHtml =
     projectToSave?.files.find((f) => f.path === 'index.html' && f.kind === 'html')?.content?.trim() || ''
-  const savedChrome = extractSharedChrome(targetVisualHtml)
   const htmlSourceFromSharedChrome =
-    syncedHomeHtml.length >= 40
-      ? syncedHomeHtml
-      : (existing.htmlSource?.trim().length ?? 0) >= 40 && hasSharedChrome(savedChrome)
-        ? applySharedChrome(existing.htmlSource as string, savedChrome, {
-            targetVariant: 'desktop',
-            stripLogoFloat: visualDevice !== 'desktop',
-          })
-        : existing.htmlSource
+    syncedHomeHtml.length >= 40 ? syncedHomeHtml : existing.htmlSource
 
   const updated = await updatePartnerWebsiteDraftPg({
     partnerId: pid,

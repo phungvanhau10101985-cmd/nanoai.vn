@@ -61,6 +61,15 @@ import {
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import { copyMissingChromeCountBadgeWidgets } from '@/lib/partner-website/shop/chrome-count-badges'
+import {
+  applySharedChrome,
+  extractSharedChrome,
+  hasSharedChrome,
+} from '@/lib/partner-website/shop/sync-shared-chrome'
+import {
+  mergeVisualHomeStylesIntoHtml,
+  preferredVisualHomeStyleSource,
+} from '@/lib/partner-website/shop/merge-visual-home-styles'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
 import {
   resolvePartnerCategoryDisplayName,
@@ -634,7 +643,27 @@ export const PartnerWebsiteDevicePreview = forwardRef<
 
     const freezeFromDoc = (doc: Document | null): boolean => {
       if (cancelled || !doc?.documentElement || isBlankDoc(doc)) return false
-      const html = freezeDocumentForVisualEditor(doc, editVariant)
+      let html = freezeDocumentForVisualEditor(doc, editVariant)
+      const editingHome =
+        previewPageKey === 'home' && !previewCategoryPath && !previewProductId && !previewCmsSlug
+      if (!editingHome) {
+        const homeRaw = resolveExactVisualPageHtml(
+          { htmlSource, project, theme: liveTheme },
+          'home',
+          editVariant
+        )
+        if (visualHtmlLooksUsable(homeRaw)) {
+          const home = isolateVisualHtmlForDevice(homeRaw, editVariant)
+          const chrome = extractSharedChrome(home.length >= 40 ? home : homeRaw)
+          if (hasSharedChrome(chrome)) {
+            html = applySharedChrome(html, chrome, { targetVariant: editVariant })
+            html = mergeVisualHomeStylesIntoHtml(
+              html,
+              preferredVisualHomeStyleSource(home, homeRaw)
+            )
+          }
+        }
+      }
       if (!visualHtmlLooksUsable(html)) return false
       freezeLockRef.current = true
       setEditSrcDoc(visualEditSrcDoc(html))
@@ -689,7 +718,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       window.clearInterval(poll)
       window.clearTimeout(failSafe)
     }
-  }, [visualEditActive, useVisualHtml, htmlSource, project, editSrcDoc, freezeTick, previewPageKey, previewCategoryPath, previewProductId, previewCmsSlug, editVariant])
+  }, [visualEditActive, useVisualHtml, htmlSource, project, liveTheme, editSrcDoc, freezeTick, previewPageKey, previewCategoryPath, previewProductId, previewCmsSlug, editVariant])
 
   useEffect(() => {
     if (!visualEditActive) return

@@ -1,11 +1,12 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useLayoutEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   isolateVisualHtmlForDevice,
+  isDesktopBrowserWindow,
   visualDevicePreviewFrameStyle,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
@@ -105,10 +106,25 @@ function PartnerSitePublicFrame({
 }) {
   const compactPreview = forceDevice === 'mobile' || forceDevice === 'tablet'
   const desktopLocked = forceDevice === 'desktop'
-  const previewFrameStyle = visualDevicePreviewFrameStyle(forceDevice)
+  const [desktopWindowLock, setDesktopWindowLock] = useState(false)
+  useLayoutEffect(() => {
+    if (forceDevice) {
+      setDesktopWindowLock(false)
+      return
+    }
+    const sync = () => setDesktopWindowLock(isDesktopBrowserWindow(window))
+    sync()
+    window.addEventListener('resize', sync)
+    return () => window.removeEventListener('resize', sync)
+  }, [forceDevice])
+  /** Keep desktop iframe ≥1280px when the Chrome window is desktop — F12 docked does not shrink outerWidth. */
+  const frameLocked = desktopLocked || desktopWindowLock
+  const previewFrameStyle = visualDevicePreviewFrameStyle(
+    forceDevice ?? (desktopWindowLock ? 'desktop' : null)
+  )
   const previewHtml = forceDevice ? isolateVisualHtmlForDevice(html, forceDevice) || html : html
   /** Desktop + F12 must stay in an iframe: in-page HTML uses the shrunk window for media queries. */
-  if (inlineHtml && !compactPreview && !desktopLocked) {
+  if (inlineHtml && !compactPreview && !frameLocked) {
     return (
       <PartnerSiteChatWidgetProvider
         chatPath={chatPath}
@@ -137,7 +153,7 @@ function PartnerSitePublicFrame({
         className={
           compactPreview
             ? 'flex min-h-screen justify-center bg-neutral-200'
-            : desktopLocked
+            : frameLocked
               ? 'min-h-screen overflow-x-auto bg-white'
               : 'min-h-screen bg-white'
         }
@@ -149,11 +165,11 @@ function PartnerSitePublicFrame({
           className={
             compactPreview
               ? 'block h-[100dvh] max-w-full border-0 bg-white shadow-lg'
-              : desktopLocked
+              : frameLocked
                 ? 'block h-[100dvh] border-0 bg-white'
                 : 'fixed inset-0 h-full w-full border-0 bg-white'
           }
-          style={compactPreview || desktopLocked ? previewFrameStyle : undefined}
+          style={compactPreview || frameLocked ? previewFrameStyle : undefined}
         />
       </div>
     </PartnerSiteChatWidgetProvider>

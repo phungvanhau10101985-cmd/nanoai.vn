@@ -52,8 +52,30 @@ import {
   resolvePartnerSiteNavHref,
   visibleSortedNavLinks,
 } from '@/lib/partner-website/shop/partner-site-nav-footer'
+import { buildPartnerSiteChromeToggleBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-chrome-toggle-bootstrap-script'
+import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-search-bootstrap-script'
+import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
 import { buildPartnerSiteShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
+import {
+  PARTNER_SHOP_CHROME_LAYOUT_CSS,
+  PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID,
+  PARTNER_SHOP_LOGO_HOST_SCRIPT,
+  PARTNER_SHOP_LOGO_HOST_SCRIPT_ID,
+} from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import {
+  extractVisualDocumentCssText,
+  extractVisualDocumentStyleLinks,
+} from '@/lib/partner-website/shop/merge-visual-home-styles'
+import {
+  VISUAL_HOME_CHROME_SPLIT_CSS,
+  hasVisualHomeChrome,
+  pickVisualHomeChrome,
+  visualChromeAfterMain,
+  visualChromeBeforeMain,
+  type VisualHomeChromeByDevice,
+} from '@/lib/partner-website/shop/visual-home-chrome'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import {
@@ -86,6 +108,10 @@ type Props = {
   /** W2.3 — optional merchant nav/footer overrides. */
   navJson?: unknown | null
   footerJson?: unknown | null
+  /** Homepage visual HTML chrome, copied onto every React shop page of that device. */
+  visualChromeByDevice?: VisualHomeChromeByDevice | null
+  visualChromeStyles?: string
+  previewDevice?: VisualDeviceVariant | null
   children: React.ReactNode
 }
 
@@ -104,6 +130,91 @@ const ACCOUNT_MENU_ICONS: Record<PartnerSiteAccountMenuItemId, LucideIcon> = {
   contact: MessageCircle,
 }
 
+function mountHtmlBootstraps(hostId: string, html: string) {
+  if (typeof document === 'undefined') return
+  if (document.getElementById(hostId)) return
+  const host = document.createElement('div')
+  host.id = hostId
+  host.setAttribute('hidden', '')
+  host.innerHTML = html
+  document.body.appendChild(host)
+  host.querySelectorAll('script').forEach((old) => {
+    const next = document.createElement('script')
+    next.textContent = old.textContent
+    Array.from(old.attributes).forEach((attr) => next.setAttribute(attr.name, attr.value))
+    old.replaceWith(next)
+  })
+}
+
+function VisualHomeChromeRuntime({
+  siteSlug,
+  locale,
+}: {
+  siteSlug: string
+  locale: WebLocale
+}) {
+  useEffect(() => {
+    mountHtmlBootstraps(
+      `pw-visual-home-chrome-runtime-${siteSlug}`,
+      [
+        buildPartnerSiteChromeToggleBootstrapScript({ siteSlug, locale }),
+        buildPartnerSiteSearchBootstrapScript({ siteSlug, locale }),
+        buildPartnerSiteShopActionsBootstrapScript({ siteSlug, locale }),
+      ].join('\n')
+    )
+    if (!document.getElementById(PARTNER_SHOP_LOGO_HOST_SCRIPT_ID)) {
+      const s = document.createElement('script')
+      s.id = PARTNER_SHOP_LOGO_HOST_SCRIPT_ID
+      s.textContent = PARTNER_SHOP_LOGO_HOST_SCRIPT
+      document.body.appendChild(s)
+    }
+  }, [locale, siteSlug])
+  return null
+}
+
+function visualHomeChromeHtml(
+  byDevice: VisualHomeChromeByDevice,
+  previewDevice: VisualDeviceVariant | null,
+  slot: 'before' | 'after'
+): { html: string; split: boolean } {
+  const slice = (chrome: NonNullable<ReturnType<typeof pickVisualHomeChrome>>) =>
+    slot === 'before' ? visualChromeBeforeMain(chrome) : visualChromeAfterMain(chrome)
+  if (previewDevice) {
+    const chrome = pickVisualHomeChrome(byDevice, previewDevice)
+    return { html: chrome ? slice(chrome) : '', split: false }
+  }
+  const desk = byDevice.desktop ? slice(byDevice.desktop) : ''
+  const tab = byDevice.tablet ? slice(byDevice.tablet) : desk
+  const mob = byDevice.mobile ? slice(byDevice.mobile) : tab || desk
+  const parts: string[] = []
+  if (desk) parts.push(`<div class="pw-visual-desktop" data-pw-visual-device="desktop">${desk}</div>`)
+  if (tab) parts.push(`<div class="pw-visual-tablet" data-pw-visual-device="tablet">${tab}</div>`)
+  if (mob) parts.push(`<div class="pw-visual-mobile" data-pw-visual-device="mobile">${mob}</div>`)
+  return { html: parts.join('\n'), split: parts.length > 1 }
+}
+
+function VisualHomeDocumentStyles({ html }: { html: string }) {
+  if (!html.trim()) return null
+  const css = extractVisualDocumentCssText(html)
+  const links = extractVisualDocumentStyleLinks(html)
+  if (!css && links.length === 0) return null
+  return (
+    <>
+      {links.map((link) => (
+        <link
+          key={`${link.rel}:${link.href}`}
+          rel={link.rel}
+          href={link.href}
+          {...(link.as ? { as: link.as } : {})}
+          {...(link.crossOrigin ? { crossOrigin: link.crossOrigin } : {})}
+          data-pw-home-chrome-css="1"
+        />
+      ))}
+      {css ? <style data-pw-home-chrome-css="1" dangerouslySetInnerHTML={{ __html: css }} /> : null}
+    </>
+  )
+}
+
 function PartnerSiteShopShellInner({
   siteSlug,
   title,
@@ -114,6 +225,9 @@ function PartnerSiteShopShellInner({
   activeNav = 'products',
   pageKind,
   footerJson = null,
+  visualChromeByDevice = null,
+  visualChromeStyles = '',
+  previewDevice = null,
   children,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
@@ -291,13 +405,38 @@ function PartnerSiteShopShellInner({
   }, [siteSlug])
 
   const hasCategoryTree = Boolean(categoryTree && categoryTree.length > 0)
+  const useVisualChrome = hasVisualHomeChrome(visualChromeByDevice)
+  const visualBefore =
+    useVisualChrome && visualChromeByDevice
+      ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'before')
+      : null
+  const visualAfter =
+    useVisualChrome && visualChromeByDevice
+      ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'after')
+      : null
 
   return (
     <div className="pw-shop" {...(pageKind ? { 'data-pw-page': pageKind } : {})}>
       <PartnerSiteShopTrackingBootstrap tracking={tracking} />
       <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} />
       <style dangerouslySetInnerHTML={{ __html: buildPartnerSiteShopThemeCss(theme) }} />
-
+      {useVisualChrome ? (
+        <>
+          <style
+            id={PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID}
+            dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_CHROME_LAYOUT_CSS }}
+          />
+          {visualBefore?.split || visualAfter?.split ? (
+            <style dangerouslySetInnerHTML={{ __html: VISUAL_HOME_CHROME_SPLIT_CSS }} />
+          ) : null}
+          <VisualHomeChromeRuntime siteSlug={siteSlug} locale={locale} />
+          <VisualHomeDocumentStyles html={visualChromeStyles} />
+          {visualBefore?.html ? (
+            <div style={{ display: 'contents' }} dangerouslySetInnerHTML={{ __html: visualBefore.html }} />
+          ) : null}
+        </>
+      ) : (
+      <>
       <div className="pw-shop-topbar" data-pw-region={PW_REGION.topbar}>
         <div className="pw-shop-topbar-inner">
           <Link href={partnerSiteAccountTabPath(siteSlug, 'contact', { customDomain })} data-pw-el={PW_EL.link}>{n.contact}</Link>
@@ -462,9 +601,17 @@ function PartnerSiteShopShellInner({
           </Link>
         </nav>
       </header>
+      </>
+      )}
 
       <main className="pw-shop-main">{children}</main>
 
+      {useVisualChrome ? (
+        visualAfter?.html ? (
+          <div style={{ display: 'contents' }} dangerouslySetInnerHTML={{ __html: visualAfter.html }} />
+        ) : null
+      ) : (
+      <>
       <footer className="pw-shop-footer" data-pw-region={PW_REGION.footer}>
         <div className="pw-shop-footer-inner">
           <div className="pw-shop-footer-brand">
@@ -528,6 +675,8 @@ function PartnerSiteShopShellInner({
           <span>{t.navAccount}</span>
         </Link>
       </nav>
+      </>
+      )}
 
       {theme.floatingCta?.enabled && theme.floatingCta.href ? (
         <a

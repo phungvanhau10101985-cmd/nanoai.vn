@@ -26,6 +26,7 @@ import {
   partnerSiteHomePath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
+import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { JsonLd } from '@/components/seo-json-ld'
 import {
@@ -104,10 +105,11 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
   const ctx = await resolveCategoryContext(slug, path)
   if (!ctx) notFound()
   const { shop, category, ancestors, children } = ctx
+  const device = await readVisualPreviewDevice(searchParams)
   const visual = maybePartnerSiteVisualCategoryPage(
     shop.site,
     category.path,
-    await readVisualPreviewDevice(searchParams)
+    device
   )
   if (visual) return visual
   const t = getPartnerSiteShopCopy(shop.site.locale)
@@ -176,6 +178,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
       navJson={shop.site.navJson}
       activeNav="products"
       pageKind={PW_PAGE.listing}
+      {...visualHomeChromeShellProps(shop.site, device)}
     >
       <JsonLd data={breadcrumbJsonLd} />
       <JsonLd data={collectionPageJsonLd} />

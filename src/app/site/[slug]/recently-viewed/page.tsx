@@ -6,6 +6,7 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website/shop/partner-site-shop-saved-products-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
+import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
 import {
   maybePartnerSiteVisualPage,
   readVisualPreviewDevice,
@@ -42,10 +43,11 @@ export default async function PartnerSiteRecentlyViewedPage({ params, searchPara
   const { slug } = await params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
+  const device = await readVisualPreviewDevice(searchParams)
   const visual = maybePartnerSiteVisualPage(
     shop.site,
     'recently_viewed',
-    await readVisualPreviewDevice(searchParams)
+    device
   )
   if (visual) return visual
 
@@ -63,6 +65,7 @@ export default async function PartnerSiteRecentlyViewedPage({ params, searchPara
       navJson={shop.site.navJson}
       activeNav="account"
       pageKind={PW_PAGE.account}
+      {...visualHomeChromeShellProps(shop.site, device)}
     >
       <PartnerSiteShopSavedProductsClient
         siteSlug={shop.site.siteSlug}

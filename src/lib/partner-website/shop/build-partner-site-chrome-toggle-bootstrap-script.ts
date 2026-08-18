@@ -49,7 +49,7 @@ function catHref(path){
 }
 function catSel(){return '[data-pw-el="cat-toggle"],[data-pw-cat-toggle],.pw-cat-btn,.pw-shop-cat-btn'}
 function panelSel(){return '#pw-shop-cat-panel,#pw-cat-panel,[data-pw-cat-panel],.pw-shop-cat-panel,.pw-cat-panel'}
-function accBtnSel(){return '[data-pw-account-toggle],.pw-account-btn'}
+function accBtnSel(){return '[data-pw-account-toggle],.pw-account-btn,.pw-shop-account-wrap > .pw-shop-icon-btn,.pw-account-wrap > button'}
 function accPanelSel(){return '#pw-shop-account-panel,#pw-account-panel,[data-pw-account-panel],.pw-shop-account-panel,.pw-account-panel'}
 function ensureCatPanel(btn){
   var panel=document.querySelector(panelSel());

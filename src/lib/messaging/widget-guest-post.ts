@@ -20,6 +20,7 @@ import {
 import {
   fetchLastOutboundCustomerCareMessageBodyPg,
   mergeConversationUiLocaleFromPg,
+  mergeCustomerCareMessageRawPayloadPatchPg,
   resolveLinkedUserIdForCustomerCarePg,
   touchGuestViewerLastSeenFromPg,
 } from '@/lib/db/customer-care-pg'
@@ -47,9 +48,11 @@ import {
 import { partnerAiMessageAloneSuggestsClarifyIntent } from '@/lib/messaging/partner-ai-unclear-intent'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
 import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
+import { shouldLockTopVisionMatch } from '@/lib/messaging/partner-ai-photo-item-consult'
 import {
   detectAfterSalesGuestImage,
   sendAfterSalesGuestImageReply,
+  tryResolveOrderProductConsultFromAfterSalesImage,
   type AfterSalesImageDetection,
 } from '@/lib/messaging/partner-ai-after-sales-image'
 import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
@@ -727,11 +730,27 @@ export async function postWidgetGuestMessage(params: {
             }
 
             const caption = imageCaption.trim()
-            /** Ý mua kèm ảnh: luôn hiện carousel kết quả tìm trong kho — không auto-chọn 1 mẫu (tránh gọi nhánh list «đã tư vấn»). */
+            const topVisionScore =
+              typeof productPickCandidates[0]?.score === 'number' ? productPickCandidates[0].score : null
+            /** Vector ≥ 86%: tư vấn luôn mẫu gần nhất. Dưới 86%: 36 thẻ. */
+            const lockTopPhotoItem = shouldLockTopVisionMatch({ topScore: topVisionScore })
+            /** Ý mua kèm ảnh, chưa chỉ một món: carousel — trừ khi đã khóa ≥ 86%. */
             const holdImageSearchCarouselForPurchaseIntent =
-              caption.length > 0 && inboundTextLooksLikePurchasePickListIntent(caption)
+              caption.length > 0 &&
+              inboundTextLooksLikePurchasePickListIntent(caption) &&
+              !lockTopPhotoItem
 
-            if (caption && productPickCandidates.length > 1) {
+            if (lockTopPhotoItem && productPickCandidates[0] && !autoSelectedTopCandidate) {
+              autoSelectedTopCandidate = productPickCandidates[0]
+              imageMatchedInventoryContext = {
+                inventoryId: productPickCandidates[0].inventoryId,
+                sku: (productPickCandidates[0].sku ?? '').trim().slice(0, 128),
+              }
+              detectedProductType =
+                detectedProductType ?? inferProductTypeFromText(productPickCandidates[0].name)
+            }
+
+            if (caption && productPickCandidates.length > 1 && !lockTopPhotoItem) {
               const rerank = rankVisionCandidatesByCaption(productPickCandidates, caption)
               productPickCandidates = rerank.ranked
               if (rerank.preferred && !holdImageSearchCarouselForPurchaseIntent) {
@@ -744,7 +763,7 @@ export async function postWidgetGuestMessage(params: {
               }
             }
 
-            if (!holdImageSearchCarouselForPurchaseIntent) {
+            if (!holdImageSearchCarouselForPurchaseIntent && !autoSelectedTopCandidate) {
               const vectorAutoByImage =
                 shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType) ??
                 (caption
@@ -753,12 +772,11 @@ export async function postWidgetGuestMessage(params: {
                     })
                   : null)
               const topCandidate =
-                autoSelectedTopCandidate ??
                 vectorAutoByImage ??
                 shouldAutoPickTopImageCandidate(productPickCandidates, detectedProductType, {
                   ignoreTypeMismatch: caption.length > 0,
                 })
-              if (topCandidate && !autoSelectedTopCandidate) {
+              if (topCandidate) {
                 autoSelectedTopCandidate = topCandidate
                 imageMatchedInventoryContext = {
                   inventoryId: topCandidate.inventoryId,
@@ -798,7 +816,13 @@ export async function postWidgetGuestMessage(params: {
           } as Json)
     if ((pageContextHasAny || imageMatchedInventoryContext) && rawPayload && typeof rawPayload === 'object') {
       const srcRaw = typeof params.pageContext?.source === 'string' ? params.pageContext.source : ''
-      const src = srcRaw || (imageMatchedInventoryContext ? 'image_sku_match' : '')
+      const src =
+        srcRaw ||
+        (imageSkuMatchDirectConsult
+          ? 'image_sku_match'
+          : imageMatchedInventoryContext
+            ? 'image_visual_lock'
+            : '')
       rawPayload = {
         ...(rawPayload as Record<string, unknown>),
         page_context: {
@@ -979,15 +1003,59 @@ export async function postWidgetGuestMessage(params: {
 
   if (newMessageId && afterSalesPending) {
     try {
-      afterSalesHandled = await sendAfterSalesGuestImageReply({
+      const orderProduct = await tryResolveOrderProductConsultFromAfterSalesImage({
         partnerId: params.partnerId,
         conversationId,
-        triggerMessageId: newMessageId,
         caption: text.trim(),
         detection: afterSalesPending,
-        uiLocale: params.uiLocale,
-        externalThreadId: params.externalThreadId,
       })
+      if (orderProduct) {
+        await mergeCustomerCareMessageRawPayloadPatchPg(newMessageId, {
+          page_context: {
+            sku: orderProduct.sku,
+            inventory_id: orderProduct.inventoryId,
+            source: 'product_card_consult',
+          },
+          order_product_consult: true,
+          ...(orderProduct.orderCode ? { order_code: orderProduct.orderCode } : {}),
+          ...(orderProduct.orderCode
+            ? {
+                bound_order: {
+                  order_code: orderProduct.orderCode,
+                  status: '',
+                  status_label: '',
+                  payment_status_label: '',
+                  items: [
+                    {
+                      product_name: '',
+                      selected_size: '',
+                      selected_color_name: '',
+                      quantity: 1,
+                      product_sku: orderProduct.sku,
+                    },
+                  ],
+                  source: 'order_image',
+                  bound_at: new Date().toISOString(),
+                },
+              }
+            : {}),
+        })
+        imageMatchedInventoryContext = {
+          inventoryId: orderProduct.inventoryId,
+          sku: orderProduct.sku,
+        }
+        afterSalesPending = null
+      } else {
+        afterSalesHandled = await sendAfterSalesGuestImageReply({
+          partnerId: params.partnerId,
+          conversationId,
+          triggerMessageId: newMessageId,
+          caption: text.trim(),
+          detection: afterSalesPending,
+          uiLocale: params.uiLocale,
+          externalThreadId: params.externalThreadId,
+        })
+      }
     } catch (e) {
       console.warn('[widget-guest-post] after-sales image reply', e)
     }
@@ -1054,7 +1122,7 @@ export async function postWidgetGuestMessage(params: {
         inboundBody: inboundForAi,
         channel: 'widget',
         // Button-based consults should reply quickly, but the POST must return so the widget stops spinning.
-        scheduleAiAfterSeconds: isProductCardConsult ? 0 : undefined,
+        scheduleAiAfterSeconds: isProductCardConsult || Boolean(imageMatchedInventoryContext) ? 0 : undefined,
         skipEagerBatchRun: true,
         /** Đã merge vào DB — dùng để bỏ FAQ tiếng Việt khi khách chọn UI khác `vi`. */
         widgetUiLocale: locNorm ?? null,

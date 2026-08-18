@@ -5,6 +5,7 @@ import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-sit
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
+import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
 import { fetchPublishedPartnerStaticPageBySlugFromPg } from '@/lib/db/messaging-partner-static-pages-pg'
 import { splitStaticPageContentToParagraphs } from '@/lib/partner-website/pages/partner-static-page-types'
 import {
@@ -58,11 +59,12 @@ export default async function PartnerSiteCustomPage({ params, searchParams }: Pr
 
   const page = await fetchPublishedPartnerStaticPageBySlugFromPg(shop.partnerId, pageSlug)
   if (!page) notFound()
+  const device = await readVisualPreviewDevice(searchParams)
 
   const visual = maybePartnerSiteVisualCmsPage(
     shop.site,
     page.slug,
-    await readVisualPreviewDevice(searchParams)
+    device
   )
   if (visual) return visual
 
@@ -81,6 +83,7 @@ export default async function PartnerSiteCustomPage({ params, searchParams }: Pr
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
       pageKind={PW_PAGE.info}
+      {...visualHomeChromeShellProps(shop.site, device)}
     >
       <article className="pw-shop-info" data-pw-region={PW_REGION.content}>
         <h1 data-pw-el={PW_EL.heading}>{page.title}</h1>

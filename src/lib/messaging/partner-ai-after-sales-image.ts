@@ -3,10 +3,21 @@ import { insertMessage } from '@/lib/customer-care/conversation-service'
 import {
   fetchGuestWidgetConversationIdFromPg,
   fetchGuestWidgetMessagesWindowFromPg,
+  mergeCustomerCareMessageRawPayloadPatchPg,
 } from '@/lib/db/customer-care-pg'
 import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import { fetchPartnerOrdersForConversationFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import {
+  fetchPartnerInventoryRowByComparableSkuFromPg,
+  fetchPartnerInventoryRowByIdForPartnerFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
 import { inboundTextLooksLikeAfterSalesNotCheckout } from '@/lib/messaging/partner-ai-purchase-intent'
+import { extractExplicitSkuCandidates } from '@/lib/messaging/partner-inventory-ai-search'
+import {
+  formatBoundOrderDepositConfirmReply,
+  looksLikeBankTransferReceipt,
+  snapshotFromShippingHit,
+} from '@/lib/messaging/partner-ai-bound-order'
 import {
   extractShippingLookupQuery,
   formatShippingLookupCustomerReply,
@@ -87,6 +98,145 @@ export function captionLooksLikeSkuProductConsult(caption: string): boolean {
   return /["“”'][A-Za-z0-9][A-Za-z0-9._-]{1,24}["“”']|\b[A-Z]{1,3}\d{3,}\b/.test(c)
 }
 
+const ORDER_PRODUCT_CONSULT_CAPTION_RE = new RegExp(
+  [
+    String.raw`(?:áo|ao|quần|quan|túi|tui|giày|giay|váy|vay|đầm|dam|balo|ví|vi)\s*này`,
+    String.raw`mẫu\s*này`,
+    String.raw`sp\s*này`,
+    String.raw`sản\s*phẩm\s*này`,
+    String.raw`em\s*muốn\s*mua`,
+    String.raw`muốn\s*mua`,
+    String.raw`tư\s*vấn`,
+    String.raw`tu\s*van`,
+    String.raw`đặt\s*(?:áo|mẫu|cái)\s*này`,
+    String.raw`this\s+(?:one|item|shirt|jacket|bag)`,
+  ].join('|'),
+  'i'
+)
+
+const TRACKING_ONLY_CAPTION_RE =
+  /(?:hàng\s*(?:đâu|gửi|gui)|gửi\s*chưa|gui\s*chua|check\s*đơn|check\s*don|đơn\s*(?:đâu|gửi)|ship\s*(?:đâu|chưa)|tracking|vận\s*đơn)/i
+
+/** Caption kiểu «áo này» / «muốn mua» — ảnh đơn thì tư vấn SKU trong đơn, không dump trạng thái. */
+export function captionLooksLikeConsultProductInOrder(caption: string): boolean {
+  const c = norm(caption).replace(/^📷\s*/u, '').trim()
+  if (!c) return false
+  if (TRACKING_ONLY_CAPTION_RE.test(c) && !ORDER_PRODUCT_CONSULT_CAPTION_RE.test(c)) return false
+  if (ORDER_PRODUCT_CONSULT_CAPTION_RE.test(c)) return true
+  return /^(?:áo|ao|quần|quan|túi|tui|giày|giay|váy|vay|đầm|dam|balo|ví|vi)(?:\s*này)?$/i.test(c)
+}
+
+export function afterSalesKindAllowsOrderProductConsult(kind: AfterSalesImageKind): boolean {
+  return kind === 'shipping_status_notice' || kind === 'order_chat_screenshot'
+}
+
+/** `C0156/XL` → thử cả mã gốc trước dấu `/`. */
+export function skuCandidatesFromOrderProductSku(raw: string): string[] {
+  const s = String(raw ?? '').trim()
+  if (!s) return []
+  const out: string[] = []
+  const add = (x: string) => {
+    const t = x.trim()
+    if (!t) return
+    if (out.some((y) => y.toLowerCase() === t.toLowerCase())) return
+    out.push(t)
+  }
+  add(s)
+  const base = s.split(/[/|_]/)[0]?.trim() ?? ''
+  if (base) add(base)
+  for (const tok of extractExplicitSkuCandidates(s)) add(tok)
+  return out.slice(0, 8)
+}
+
+export type OrderProductConsultAnchor = {
+  inventoryId: string
+  sku: string
+  orderCode: string | null
+}
+
+async function resolveInventoryFromOrderCodeOnConversation(input: {
+  partnerId: string
+  conversationId: string
+  orderCode: string | null
+  lookupText: string
+}): Promise<OrderProductConsultAnchor | null> {
+  const partnerId = input.partnerId.trim()
+  if (!partnerId) return null
+  const orderCode = input.orderCode?.trim() || null
+
+  if (orderCode) {
+    const orders = await fetchPartnerOrdersForConversationFromPg(partnerId, input.conversationId, 40)
+    if (orders?.length) {
+      const needle = orderCode.replace(/\s+/g, '').toLowerCase()
+      const compact = needle.replace(/^dh/, '')
+      const local = orders.find((o) => {
+        const blob = `${o.payment_reference} ${o.note} ${o.product_name}`.toLowerCase()
+        return blob.includes(needle) || (compact.length >= 2 && blob.includes(compact))
+      })
+      const invId = local?.product_inventory_id?.trim() ?? ''
+      if (invId) {
+        const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, invId)
+        if (row) {
+          return {
+            inventoryId: row.id,
+            sku: (row.sku ?? '').trim().slice(0, 128),
+            orderCode,
+          }
+        }
+      }
+    }
+  }
+
+  const query =
+    extractShippingLookupQuery(input.lookupText, { allowPhone: false }) ||
+    (orderCode ? extractShippingLookupQuery(orderCode, { allowPhone: false }) : null)
+  if (!query) return null
+  try {
+    const live = await lookupPartnerShippingFromPg(partnerId, query)
+    if (!live?.ok) return null
+    const liveOrderCode = live.hit.orderCode?.trim() || orderCode
+    for (const it of live.hit.items) {
+      const skuBits = [
+        ...skuCandidatesFromOrderProductSku(it.product_sku),
+        ...extractExplicitSkuCandidates(it.product_name),
+      ]
+      for (const sku of skuBits) {
+        const row = await fetchPartnerInventoryRowByComparableSkuFromPg(partnerId, sku)
+        if (row) {
+          return {
+            inventoryId: row.id,
+            sku: (row.sku ?? sku).trim().slice(0, 128),
+            orderCode: liveOrderCode,
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[after-sales-image] order product sku lookup', e)
+  }
+  return null
+}
+
+/**
+ * Ảnh đơn + caption tư vấn SP («áo này»): neo đúng SKU trong đơn, để job đi nhánh thẻ / một dòng kho.
+ */
+export async function tryResolveOrderProductConsultFromAfterSalesImage(input: {
+  partnerId: string
+  conversationId: string
+  caption: string
+  detection: AfterSalesImageDetection
+}): Promise<OrderProductConsultAnchor | null> {
+  if (!afterSalesKindAllowsOrderProductConsult(input.detection.kind)) return null
+  if (!captionLooksLikeConsultProductInOrder(input.caption)) return null
+  const codes = extractAfterSalesCodes(`${input.detection.ocrText}\n${input.caption}`)
+  return resolveInventoryFromOrderCodeOnConversation({
+    partnerId: input.partnerId,
+    conversationId: input.conversationId,
+    orderCode: codes.orderCode,
+    lookupText: `${input.detection.ocrText}\n${input.caption}`,
+  })
+}
+
 export function conversationHasSizeExchangeIntent(text: string): boolean {
   return SIZE_EXCHANGE_RE.test(norm(text))
 }
@@ -152,6 +302,8 @@ export function classifyAfterSalesImage(input: {
 
   if (captionLooksLikeSkuProductConsult(caption)) return 'product_consult'
 
+  if (looksLikeBankTransferReceipt(ocr) || looksLikeBankTransferReceipt(caption)) return 'deposit_notice'
+
   if (looksLikeReturnWaybill(ocr)) return 'return_waybill'
   if (looksLikeShippingStatusNotice(ocr)) return 'shipping_status_notice'
   if (looksLikeDepositNotice(ocr) || looksLikeDepositNotice(caption)) return 'deposit_notice'
@@ -161,7 +313,12 @@ export function classifyAfterSalesImage(input: {
     return 'fit_issue_product_photo'
   }
 
-  if (ORDER_CODE_RE.test(ocr) && /đang|giao|gửi|gui|ship/i.test(ocr)) return 'shipping_status_notice'
+  if (
+    ORDER_CODE_RE.test(ocr) &&
+    /(?:hàng\s*đang|đang\s*(?:được\s*)?(?:giao|gửi)|mã\s*vận|ma\s*van|tracking|in\s*transit)/i.test(ocr)
+  ) {
+    return 'shipping_status_notice'
+  }
   if (inboundTextLooksLikeAfterSalesNotCheckout(combined) && ocr.trim().length >= 40) {
     if (looksLikeReturnWaybill(ocr)) return 'return_waybill'
     if (looksLikeDepositNotice(ocr)) return 'deposit_notice'
@@ -605,19 +762,37 @@ export async function sendAfterSalesGuestImageReply(input: {
     input.conversationId,
     codes.orderCode
   )
+  const isDepositKind = input.detection.kind === 'deposit_notice'
+  const isBankReceipt = looksLikeBankTransferReceipt(
+    `${input.detection.ocrText}\n${input.caption}`
+  )
   const lookupQuery =
     extractShippingLookupQuery(`${input.detection.ocrText}\n${input.caption}`, { allowPhone: false }) ||
-    extractShippingLookupQuery(`${input.caption}\n${context}`, { allowPhone: true })
+    (isDepositKind
+      ? null
+      : extractShippingLookupQuery(`${input.caption}\n${context}`, { allowPhone: true }))
   let liveBody = ''
+  let boundOrderPayload: Record<string, unknown> | null = null
   if (
     lookupQuery &&
     (input.detection.kind === 'shipping_status_notice' ||
-      input.detection.kind === 'deposit_notice' ||
+      isDepositKind ||
       input.detection.kind === 'return_waybill')
   ) {
     try {
       const live = await lookupPartnerShippingFromPg(input.partnerId, lookupQuery)
-      if (live?.ok) liveBody = formatShippingLookupCustomerReply(live.hit, input.uiLocale)
+      if (live?.ok) {
+        const source = isBankReceipt || isDepositKind ? 'bank_transfer_receipt' : 'shipping_lookup'
+        const snap = snapshotFromShippingHit(live.hit, source)
+        if (snap) boundOrderPayload = snap
+        liveBody =
+          isDepositKind || isBankReceipt
+            ? formatBoundOrderDepositConfirmReply(live.hit, {
+                uiLocale: input.uiLocale,
+                amountText: codes.amountText,
+              })
+            : formatShippingLookupCustomerReply(live.hit, input.uiLocale)
+      }
     } catch (e) {
       console.warn('[after-sales-image] shipping lookup', e)
     }
@@ -632,6 +807,15 @@ export async function sendAfterSalesGuestImageReply(input: {
     localShippingStatus,
   })
   const body = liveBody || templateBody
+  if (boundOrderPayload && input.triggerMessageId) {
+    try {
+      await mergeCustomerCareMessageRawPayloadPatchPg(input.triggerMessageId, {
+        bound_order: boundOrderPayload,
+      })
+    } catch (e) {
+      console.warn('[after-sales-image] bind order payload', e)
+    }
+  }
   const ins = await insertMessage({
     conversationId: input.conversationId,
     direction: 'outbound',
@@ -641,6 +825,7 @@ export async function sendAfterSalesGuestImageReply(input: {
       after_sales_kind: input.detection.kind,
       trigger_message_id: input.triggerMessageId,
       ...(liveBody ? { shipping_lookup: true } : {}),
+      ...(boundOrderPayload ? { bound_order: boundOrderPayload } : {}),
     },
   })
   return !('error' in ins)

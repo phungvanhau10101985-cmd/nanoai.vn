@@ -4,6 +4,7 @@ import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-ca
 import {
   fetchConversationUiLocaleFromPg,
   fetchCustomerCareConversationByIdPg,
+  fetchCustomerCareTranscriptLinesFromPg,
   fetchLastOutboundCustomerCareMessageBodyPg,
   fetchRecentInboundCustomerCareMessageBodiesPg,
   fetchTwoCareMessagesImmediatelyBeforePg,
@@ -26,6 +27,18 @@ import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliv
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { inboundTextLooksLikeOrderStatusAsk, inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
+import { inboundTextLooksLikeFollowUpConsultHeuristic } from '@/lib/messaging/partner-inventory-ai-search'
+import {
+  findLatestBoundOrderSnapshot,
+  firstBoundOrderSku,
+  formatBoundOrderDepositConfirmReply,
+  formatBoundOrderRecapReply,
+  inboundTextFollowsBoundOrder,
+  inboundTextLooksLikeBoundOrderVariantFollowUp,
+  inboundTextLooksLikeDepositConfirmAsk,
+  inboundTextSwitchesOffBoundOrder,
+  snapshotFromShippingHit,
+} from '@/lib/messaging/partner-ai-bound-order'
 import {
   buildPurchasePickListCardsFromConversation,
   purchasePickListMessageBody,
@@ -189,6 +202,7 @@ async function runInstantShippingLookupReply(ctx: {
   conversationId: string
   settings: SettingsRow
   body: string
+  boundOrder?: Record<string, unknown> | null
 }) {
   let conv: Database['public']['Tables']['customer_care_conversations']['Row'] | null = null
   try {
@@ -202,7 +216,10 @@ async function runInstantShippingLookupReply(ctx: {
     conversation: conv,
     settings: ctx.settings,
     body: ctx.body,
-    rawPayload: { source: 'guest_shipping_lookup_reply' } as unknown as Json,
+    rawPayload: {
+      source: 'guest_shipping_lookup_reply',
+      ...(ctx.boundOrder ? { bound_order: ctx.boundOrder } : {}),
+    } as unknown as Json,
   })
   if (err.error) console.error('[partner-ai] instant shipping lookup deliver', err.error)
 }
@@ -315,7 +332,30 @@ export async function handlePartnerInboundForAi(input: {
         ? input.intentClassifyText
         : input.inboundBody
     )
+    let boundOrder = null as ReturnType<typeof findLatestBoundOrderSnapshot>
+    if (isPgConfigured()) {
+      try {
+        const lines = await fetchCustomerCareTranscriptLinesFromPg(input.conversationId, 16)
+        boundOrder = findLatestBoundOrderSnapshot(lines ?? [])
+      } catch (e) {
+        console.warn('[partner-ai-inbound] bound order transcript', e)
+      }
+    }
+    const switchOffBound = Boolean(
+      boundOrder && inboundTextSwitchesOffBoundOrder(probeForLookup, boundOrder)
+    )
+    const activeBound = boundOrder && !switchOffBound ? boundOrder : null
+    const depositAsk = inboundTextLooksLikeDepositConfirmAsk(probeForLookup)
+    const variantAsk = Boolean(activeBound && inboundTextLooksLikeBoundOrderVariantFollowUp(probeForLookup))
+    const followsBound = Boolean(activeBound && inboundTextFollowsBoundOrder(probeForLookup, activeBound))
     const orderStatusAsk = inboundTextLooksLikeOrderStatusAsk(probeForLookup)
+    const boundProductFollowUp =
+      Boolean(activeBound) &&
+      inboundTextLooksLikeFollowUpConsultHeuristic(probeForLookup) &&
+      !depositAsk &&
+      !variantAsk &&
+      !orderStatusAsk
+
     if (orderStatusAsk && routeDecision?.intent !== 'policy_or_order_support') {
       routeDecision = createPartnerAiRouteDecision('policy_or_order_support', {
         source: 'hard_rule',
@@ -331,12 +371,35 @@ export async function handlePartnerInboundForAi(input: {
         console.warn('[partner-ai-inbound] order-status hard-rule payload', e)
       }
     }
+
+    if (activeBound && boundProductFollowUp) {
+      const sku = firstBoundOrderSku(activeBound)
+      try {
+        await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, {
+          bound_order: activeBound,
+          ...(sku
+            ? { page_context: { sku, source: 'product_card_consult' } }
+            : {}),
+        })
+      } catch (e) {
+        console.warn('[partner-ai-inbound] bound order product follow-up payload', e)
+      }
+    }
+
     const skipPurchasePickForAfterSales =
-      routeDecision?.intent === 'policy_or_order_support' || orderStatusAsk
-    const allowPhoneLookup = orderStatusAsk || skipPurchasePickForAfterSales
+      routeDecision?.intent === 'policy_or_order_support' ||
+      orderStatusAsk ||
+      followsBound ||
+      variantAsk ||
+      depositAsk ||
+      Boolean(activeBound && boundProductFollowUp)
+    const allowPhoneLookup = !activeBound && (orderStatusAsk || skipPurchasePickForAfterSales)
     let shippingQuery = extractShippingLookupQuery(probeForLookup, {
       allowPhone: allowPhoneLookup,
     })
+    if (activeBound && !boundProductFollowUp && (followsBound || orderStatusAsk || depositAsk || variantAsk)) {
+      shippingQuery = { type: 'order_code', value: activeBound.order_code }
+    }
     if (!shippingQuery && allowPhoneLookup && isPgConfigured()) {
       try {
         const recentInbound = await fetchRecentInboundCustomerCareMessageBodiesPg(
@@ -350,18 +413,43 @@ export async function handlePartnerInboundForAi(input: {
         console.warn('[partner-ai-inbound] shipping lookup thread phone', e)
       }
     }
-    if (shippingQuery && (allowPhoneLookup || shippingQuery.type !== 'phone')) {
+    if (
+      !boundProductFollowUp &&
+      shippingQuery &&
+      (allowPhoneLookup || shippingQuery.type !== 'phone')
+    ) {
       try {
         const live = await lookupPartnerShippingFromPg(input.partnerId, shippingQuery)
         if (live) {
           await cancelPendingAiJobsForConversation(input.conversationId)
-          const body = live.ok
-            ? formatShippingLookupCustomerReply(live.hit, pickUiLocale)
-            : formatShippingLookupMissReply(shippingQuery, live, pickUiLocale)
+          const snap = live.ok
+            ? snapshotFromShippingHit(live.hit, activeBound?.source ?? 'shipping_lookup')
+            : null
+          if (snap) {
+            try {
+              await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, { bound_order: snap })
+            } catch (e) {
+              console.warn('[partner-ai-inbound] bind order after lookup', e)
+            }
+          }
+          let body: string
+          if (!live.ok) {
+            body = formatShippingLookupMissReply(shippingQuery, live, pickUiLocale)
+          } else if (
+            depositAsk &&
+            (activeBound?.source === 'bank_transfer_receipt' || snap?.source === 'bank_transfer_receipt')
+          ) {
+            body = formatBoundOrderDepositConfirmReply(live.hit, { uiLocale: pickUiLocale })
+          } else if (variantAsk) {
+            body = formatBoundOrderRecapReply(live.hit, { uiLocale: pickUiLocale })
+          } else {
+            body = formatShippingLookupCustomerReply(live.hit, pickUiLocale)
+          }
           void runInstantShippingLookupReply({
             conversationId: input.conversationId,
             settings,
             body,
+            boundOrder: snap,
           })
           const typingHi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
           return { show: true, maxWaitMs: typingHi + 10_000 }
@@ -370,7 +458,7 @@ export async function handlePartnerInboundForAi(input: {
         console.warn('[partner-ai-inbound] shipping lookup', e)
       }
     }
-    if (orderStatusAsk && !shippingQuery) {
+    if (orderStatusAsk && !shippingQuery && !activeBound) {
       await cancelPendingAiJobsForConversation(input.conversationId)
       void runInstantShippingLookupReply({
         conversationId: input.conversationId,

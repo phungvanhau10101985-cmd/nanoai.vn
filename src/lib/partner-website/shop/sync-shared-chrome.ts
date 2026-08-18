@@ -1,8 +1,13 @@
 /**
  * Shared shop chrome: header, footer, and mobile/tablet bottom nav.
- * Page HTML files keep their own middle content; chrome is copied across
- * every page and every device so Sửa nhanh / live stay consistent.
+ *
+ * Homepage of each device is the source of truth (`index.html` / `index.tablet.html` /
+ * `index.mobile.html`). Saving home copies chrome + CSS onto every other page of that
+ * device. Saving a non-home page stamps that page from home and never rewrites home.
+ * Other devices: keep logo/layout; only add missing feature buttons (no coords).
  */
+
+import { mergeVisualHomeStylesIntoHtml } from '@/lib/partner-website/shop/merge-visual-home-styles'
 
 export type SharedChromeDevice = 'desktop' | 'tablet' | 'mobile'
 
@@ -83,35 +88,173 @@ export function extractSharedChrome(html: string): SharedChrome {
   }
 }
 
-function stripLogoFloatCoords(html: string): string {
-  if (!html || !/data-pw-logo-float/i.test(html)) return html
-  return html.replace(/<[^>]*\bdata-pw-logo-float="1"[^>]*>/gi, (full) =>
-    full.replace(/\sstyle=(["'])([\s\S]*?)\1/gi, (_m, q: string, css: string) => {
-      const cleaned = css
-        .split(';')
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .filter((part) => !/^(left|top|right|bottom|transform|position)\s*:/i.test(part))
-        .join('; ')
-      return cleaned ? ` style=${q}${cleaned}${q}` : ''
-    })
-  )
+function stripLayoutCoordsFromHtml(html: string): string {
+  if (!html || !/\sstyle=/i.test(html)) return html
+  return html.replace(/\sstyle=(["'])([\s\S]*?)\1/gi, (_m, q: string, css: string) => {
+    const cleaned = css
+      .split(';')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .filter((part) => !/^(left|top|right|bottom|transform|position)\s*:/i.test(part))
+      .join('; ')
+    return cleaned ? ` style=${q}${cleaned}${q}` : ''
+  })
 }
 
 function restampChromeDevice(html: string, variant: SharedChromeDevice): string {
   if (!html) return html
-  return html.replace(/<(a|button)\b([^>]*)>/gi, (full, tag: string, attrs: string) => {
+  return html.replace(/<(a|button|div)\b([^>]*)>/gi, (full, tag: string, attrs: string) => {
     const isAdded = /\bdata-pw-chrome-added="1"/i.test(attrs)
     const isCount = /\bdata-pw-chrome-count=/i.test(attrs)
-    if (!isAdded && !isCount) return full
+    const isBtn = /\bdata-pw-chrome-btn=/i.test(attrs)
+    if (!isAdded && !isCount && !isBtn) return full
     let next = attrs
     if (/\bdata-pw-device=/.test(next)) {
       next = next.replace(/\sdata-pw-device=(["'])[^"']*\1/gi, ` data-pw-device="${variant}"`)
-    } else if (isAdded || isCount) {
+    } else {
       next += ` data-pw-device="${variant}"`
     }
     return `<${tag}${next}>`
   })
+}
+
+type ChromeFeatureHost = 'actions' | 'nav' | 'mid' | 'topbar' | 'footer'
+
+function escapeRe(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function chromeFeatureKey(snippet: string): string | null {
+  const btn = snippet.match(/data-pw-chrome-btn=["']([^"']+)["']/i)?.[1]?.trim().toLowerCase()
+  if (btn) return `btn:${btn}`
+  if (/data-pw-cat-toggle/i.test(snippet)) return 'categories'
+  if (/data-pw-search-form|data-pw-el=["']search["']|pw-header-search|pw-shop-search-wrap/i.test(snippet)) {
+    return 'search'
+  }
+  if (/data-pw-image-search/i.test(snippet)) return 'search-image'
+  if (!/\bdata-pw-chrome-added="1"/i.test(snippet)) return null
+  const href = snippet.match(/\bhref=["']([^"']*)["']/i)?.[1] || ''
+  return href ? `href:${href}` : null
+}
+
+function htmlHasChromeFeature(html: string, key: string): boolean {
+  if (key.startsWith('btn:')) {
+    return new RegExp(`data-pw-chrome-btn=["']${escapeRe(key.slice(4))}["']`, 'i').test(html)
+  }
+  if (key === 'search') {
+    return /data-pw-search-form|data-pw-el=["']search["']|pw-header-search|pw-shop-search-wrap/i.test(html)
+  }
+  if (key === 'search-image') return /data-pw-image-search/i.test(html)
+  if (key === 'categories') return /data-pw-cat-toggle|data-pw-el=["']cat-toggle["']/i.test(html)
+  if (key.startsWith('href:')) return html.includes(key.slice(5))
+  return false
+}
+
+function extractAddedChromeWidgets(
+  regionHtml: string,
+  fallbackHost: ChromeFeatureHost
+): Array<{ key: string; html: string; host: ChromeFeatureHost }> {
+  if (!regionHtml || !/\bdata-pw-chrome-added="1"/i.test(regionHtml)) return []
+  const out: Array<{ key: string; html: string; host: ChromeFeatureHost }> = []
+  const seen = new Set<string>()
+  const masked = maskHtmlForTagScan(regionHtml)
+  const openRe = /<(a|button|div)\b(?=[^>]*\bdata-pw-chrome-added="1")[^>]*>/gi
+  let match: RegExpExecArray | null
+  while ((match = openRe.exec(masked))) {
+    const tag = (match[1] || 'div').toLowerCase()
+    const start = match.index
+    const close = closingTagIndex(masked, start + match[0].length, tag)
+    if (close < 0) continue
+    const closeTok = regionHtml.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
+    const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
+    const snippet = regionHtml.slice(start, end)
+    const key = chromeFeatureKey(snippet)
+    if (!key || seen.has(key)) {
+      openRe.lastIndex = end
+      continue
+    }
+    seen.add(key)
+    const place = snippet.match(/data-pw-chrome-place=["']([^"']+)["']/i)?.[1]?.toLowerCase()
+    let host = fallbackHost
+    if (place === 'nav') host = 'nav'
+    else if (place === 'mid') host = 'mid'
+    else if (place === 'header') host = 'actions'
+    out.push({ key, html: snippet, host })
+    openRe.lastIndex = end
+  }
+  return out
+}
+
+const FEATURE_HOST_OPEN: Record<ChromeFeatureHost, RegExp> = {
+  actions:
+    /<(div)\b([^>]*class=["'][^"']*\b(?:pw-header-actions|pw-shop-header-actions)\b[^"']*["'][^>]*)>/i,
+  nav: /<(nav)\b([^>]*class=["'][^"']*\b(?:pw-bottom-nav|pw-shop-bottom-nav)\b[^"']*["'][^>]*)>/i,
+  mid: /<(nav)\b([^>]*class=["'][^"']*\b(?:pw-nav-main|pw-shop-nav-row)\b[^"']*["'][^>]*)>/i,
+  topbar:
+    /<(div)\b([^>]*class=["'][^"']*\b(?:pw-topbar-inner|pw-shop-topbar-inner|pw-topbar)\b[^"']*["'][^>]*)>/i,
+  footer: FOOTER_RE,
+}
+
+function insertBeforeBlockClose(html: string, block: ExtractedBlock, snippet: string): string {
+  const closeMatch = html.slice(block.start, block.end).match(/<\/[a-z0-9]+\s*>\s*$/i)
+  if (!closeMatch) return html.slice(0, block.end) + snippet + html.slice(block.end)
+  const closeAt = block.end - closeMatch[0].length
+  return html.slice(0, closeAt) + snippet + html.slice(closeAt)
+}
+
+function insertFeatureWidget(html: string, host: ChromeFeatureHost, widget: string): string | null {
+  const open = html.match(FEATURE_HOST_OPEN[host])
+  if (open && open.index != null) {
+    const tag = (open[1] || 'div').toLowerCase()
+    const close = closingTagIndex(maskHtmlForTagScan(html), open.index + open[0].length, tag)
+    if (close >= 0) return `${html.slice(0, close)}${widget}${html.slice(close)}`
+  }
+  if (host === 'actions' || host === 'mid' || host === 'topbar') {
+    const header = extractFirst(html, HEADER_RE)
+    if (header) return insertBeforeBlockClose(html, header, widget)
+  }
+  if (host === 'footer') {
+    const footer = extractFirst(html, FOOTER_RE)
+    if (footer) return insertBeforeBlockClose(html, footer, widget)
+  }
+  if (host === 'nav') {
+    const nav = extractFirst(html, BOTTOM_RE)
+    if (nav) return insertBeforeBlockClose(html, nav, widget)
+  }
+  return null
+}
+
+/** Add missing chrome feature buttons without copying logo/layout from another device. */
+export function mergeMissingChromeFeatures(
+  targetHtml: string,
+  chrome: SharedChrome,
+  variant: SharedChromeDevice
+): string {
+  if (!targetHtml.trim() || !hasSharedChrome(chrome)) return targetHtml
+  const widgets = [
+    ...extractAddedChromeWidgets(chrome.topbar, 'topbar'),
+    ...extractAddedChromeWidgets(chrome.header, 'actions'),
+    ...extractAddedChromeWidgets(chrome.footer, 'footer'),
+    ...extractAddedChromeWidgets(chrome.bottomNav, 'nav'),
+  ]
+  if (!widgets.length) return targetHtml
+  let next = targetHtml
+  for (const widget of widgets) {
+    if (htmlHasChromeFeature(next, widget.key)) continue
+    const prepared = restampChromeDevice(stripLayoutCoordsFromHtml(widget.html), variant)
+    const hosts: ChromeFeatureHost[] = [widget.host, 'actions', 'nav', 'footer', 'topbar', 'mid']
+    const tried = new Set<ChromeFeatureHost>()
+    for (const host of hosts) {
+      if (tried.has(host)) continue
+      tried.add(host)
+      const attempt = insertFeatureWidget(next, host, prepared)
+      if (attempt) {
+        next = attempt
+        break
+      }
+    }
+  }
+  return next
 }
 
 function insertAfterBodyOpen(html: string, snippet: string): string {
@@ -149,10 +292,10 @@ export function applySharedChrome(
   let footer = chrome.footer
   let bottomNav = chrome.bottomNav
   if (opts?.stripLogoFloat) {
-    header = stripLogoFloatCoords(header)
-    topbar = stripLogoFloatCoords(topbar)
-    footer = stripLogoFloatCoords(footer)
-    bottomNav = stripLogoFloatCoords(bottomNav)
+    header = stripLayoutCoordsFromHtml(header)
+    topbar = stripLayoutCoordsFromHtml(topbar)
+    footer = stripLayoutCoordsFromHtml(footer)
+    bottomNav = stripLayoutCoordsFromHtml(bottomNav)
   }
   if (opts?.targetVariant) {
     header = restampChromeDevice(header, opts.targetVariant)
@@ -210,27 +353,80 @@ function variantFromHtmlPath(path: string): SharedChromeDevice {
   return 'desktop'
 }
 
+function fileNameOf(path: string): string {
+  return path.replace(/\\/g, '/').split('/').pop() || path
+}
+
+/** Homepage HTML of a device — the only chrome source when syncing. */
+export function isHomeSharedChromePath(path: string): boolean {
+  return /^index(\.(tablet|mobile))?\.html$/i.test(fileNameOf(path))
+}
+
+export function homeSharedChromePath(variant: SharedChromeDevice): string {
+  if (variant === 'mobile') return 'index.mobile.html'
+  if (variant === 'tablet') return 'index.tablet.html'
+  return 'index.html'
+}
+
 function isSystemHtmlPath(path: string): boolean {
   return /(^|\/)404(\.mobile|\.tablet)?\.html$/i.test(path.replace(/\\/g, '/'))
+}
+
+function stampWithHomeChrome(html: string, homeHtml: string, variant: SharedChromeDevice): string {
+  const chrome = extractSharedChrome(homeHtml)
+  if (!hasSharedChrome(chrome)) return html
+  const next = applySharedChrome(html, chrome, { targetVariant: variant })
+  return mergeVisualHomeStylesIntoHtml(next, homeHtml)
+}
+
+function readHomeHtmlForVariant<T extends { files: Array<{ path: string; kind: string; content: string }> }>(
+  project: T,
+  variant: SharedChromeDevice,
+  sourcePath: string,
+  sourceHtml: string
+): string {
+  if (isHomeSharedChromePath(sourcePath) && variantFromHtmlPath(sourcePath) === variant) {
+    return sourceHtml
+  }
+  const homePath = homeSharedChromePath(variant)
+  return project.files.find((f) => f.path === homePath && f.kind === 'html')?.content?.trim() || ''
 }
 
 export function syncSharedChromeAcrossProjectFiles<
   T extends { files: Array<{ path: string; kind: string; content: string }> },
 >(project: T, sourcePath: string, sourceHtml: string): T {
-  const chrome = extractSharedChrome(sourceHtml)
-  if (!hasSharedChrome(chrome)) return project
   const path = sourcePath.trim() || 'index.html'
   const sourceVariant = variantFromHtmlPath(path)
+  const sourceIsHome = isHomeSharedChromePath(path)
+  const homeHtml = readHomeHtmlForVariant(project, sourceVariant, path, sourceHtml)
+  const chromeSource = homeHtml.length >= 40 ? homeHtml : sourceIsHome ? sourceHtml : ''
+  const chrome = extractSharedChrome(chromeSource || sourceHtml)
+  if (!hasSharedChrome(chrome)) {
+    const files = project.files.map((file) =>
+      file.path === path && file.kind === 'html' ? { ...file, content: sourceHtml } : file
+    )
+    return { ...project, files }
+  }
+
   const files = project.files.map((file) => {
-    if (file.path === path && file.kind === 'html') return { ...file, content: sourceHtml }
+    if (file.path === path && file.kind === 'html') {
+      const content =
+        sourceIsHome || chromeSource.length < 40
+          ? sourceHtml
+          : stampWithHomeChrome(sourceHtml, chromeSource, sourceVariant)
+      return content === file.content ? file : { ...file, content }
+    }
     if (file.kind !== 'html' || !/\.html$/i.test(file.path) || isSystemHtmlPath(file.path)) return file
     const current = file.content || ''
     if (!current.trim()) return file
     const targetVariant = variantFromHtmlPath(file.path)
-    const next = applySharedChrome(current, chrome, {
-      targetVariant,
-      stripLogoFloat: targetVariant !== sourceVariant,
-    })
+    if (targetVariant !== sourceVariant) {
+      if (!sourceIsHome) return file
+      const next = mergeMissingChromeFeatures(current, chrome, targetVariant)
+      return next === current ? file : { ...file, content: next }
+    }
+    if (!sourceIsHome) return file
+    const next = stampWithHomeChrome(current, chromeSource || sourceHtml, targetVariant)
     return next === current ? file : { ...file, content: next }
   })
   return { ...project, files }

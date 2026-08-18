@@ -15,6 +15,10 @@ import {
   parsePartnerSiteProductKey,
   partnerInventoryIdSlugSuffix,
 } from '@/lib/partner-website/shop/partner-site-product-slug'
+import {
+  mergeVisualHomeStylesIntoHtml,
+  preferredVisualHomeStyleSource,
+} from '@/lib/partner-website/shop/merge-visual-home-styles'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import {
   chromeCountBadgeKindFromHtmlSnippet,
@@ -87,6 +91,17 @@ export function visualDevicePreviewFrameStyle(
   if (device === 'tablet') return { width: VISUAL_TABLET_PREVIEW_PX }
   if (device === 'desktop') return { width: '100%', minWidth: VISUAL_DESKTOP_MIN_PX }
   return {}
+}
+
+/**
+ * Docked DevTools shrinks `innerWidth` (CSS viewport) but not `outerWidth` (browser window).
+ * Use this so F12 does not switch the composed shop from desktop to tablet.
+ * Phones/tablets keep outerWidth below 1280 — do not lock them to desktop.
+ */
+export function isDesktopBrowserWindow(win?: { outerWidth?: number } | null): boolean {
+  const outer =
+    win?.outerWidth ?? (typeof window !== 'undefined' ? window.outerWidth : 0)
+  return (outer || 0) >= VISUAL_DESKTOP_MIN_PX
 }
 
 export function parseVisualDeviceVariant(raw: unknown): VisualDeviceVariant {
@@ -491,17 +506,13 @@ function withCanonicalSharedChrome(
 ): string {
   const trimmed = html.trim()
   if (trimmed.length < 40) return html
-  let homeRaw = readExactVisualPageHtml(website, 'home', variant)
-  let stripLogoFloat = false
-  if (homeRaw.length < 40 && variant !== 'desktop') {
-    homeRaw = readExactVisualPageHtml(website, 'home', 'desktop')
-    stripLogoFloat = true
-  }
+  const homeRaw = readExactVisualPageHtml(website, 'home', variant)
   if (homeRaw.length < 40) return html
   const home = isolateVisualHtmlForDevice(homeRaw, variant)
   const chrome = extractSharedChrome(home.length >= 40 ? home : homeRaw)
   if (!hasSharedChrome(chrome)) return html
-  return applySharedChrome(trimmed, chrome, { targetVariant: variant, stripLogoFloat })
+  const next = applySharedChrome(trimmed, chrome, { targetVariant: variant })
+  return mergeVisualHomeStylesIntoHtml(next, preferredVisualHomeStyleSource(home, homeRaw))
 }
 
 export function resolveExactVisualPageHtml(

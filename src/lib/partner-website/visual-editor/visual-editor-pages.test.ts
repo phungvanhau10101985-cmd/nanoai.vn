@@ -31,6 +31,7 @@ import {
   resolveVisualProductIdFromKey,
   shouldServeVisualPageHtml,
   visualDevicePreviewFrameStyle,
+  isDesktopBrowserWindow,
   visualEditorDeviceVariant,
   visualEditorHtmlPath,
   visualEditorPreviewPath,
@@ -65,6 +66,12 @@ test('visual editor paths map catalog pages', () => {
     minWidth: VISUAL_DESKTOP_MIN_PX,
   })
   assert.deepEqual(visualDevicePreviewFrameStyle(null), {})
+  assert.equal(isDesktopBrowserWindow({ outerWidth: 1920 }), true)
+  assert.equal(isDesktopBrowserWindow({ outerWidth: VISUAL_DESKTOP_MIN_PX }), true)
+  assert.equal(isDesktopBrowserWindow({ outerWidth: VISUAL_DESKTOP_MIN_PX - 1 }), false)
+  assert.equal(isDesktopBrowserWindow({ outerWidth: VISUAL_MOBILE_PREVIEW_PX }), false)
+  assert.equal(isDesktopBrowserWindow({ outerWidth: 0 }), false)
+  assert.equal(isDesktopBrowserWindow(null), false)
   assert.equal(VISUAL_MOBILE_PREVIEW_PX, 390)
   assert.equal(VISUAL_TABLET_PREVIEW_PX, 768)
   assert.equal(visualEditorPreviewPath('188-shop', 'products'), '/site/188-shop/products')
@@ -114,8 +121,10 @@ test('saved visual page html is isolated from homepage', () => {
   assert.equal(resolveExactVisualPageHtml(website, 'faq'), '')
 })
 
-test('non-home visual html uses shared home header footer and bottom nav', () => {
-  const home = `<!DOCTYPE html><html><body>
+test('non-home visual html uses shared home header footer bottom nav and CSS', () => {
+  const home = `<!DOCTYPE html><html><head>
+<style>.pw-shop-topbar{background:#c2410c}</style>
+</head><body>
 <header class="pw-header">SharedHead</header>
 <section>Home mid</section>
 <footer class="pw-footer">SharedFoot</footer>
@@ -146,8 +155,53 @@ test('non-home visual html uses shared home header footer and bottom nav', () =>
   assert.match(out, /SharedFoot/)
   assert.match(out, /SharedNav/)
   assert.match(out, /About mid/)
+  assert.match(out, /pw-shop-topbar/)
+  assert.match(out, /data-pw-home-chrome-css/)
   assert.equal(out.includes('AboutHead'), false)
   assert.equal(out.includes('Home mid'), false)
+})
+
+test('mobile about uses that device home chrome, not desktop home chrome', () => {
+  const deskHome = `<!DOCTYPE html><html><body>
+<header class="pw-header">DeskHead</header>
+<section>Desk mid</section>
+<footer class="pw-footer">DeskFoot</footer>
+</body></html>`
+  const mobHome = `<!DOCTYPE html><html><body>
+<header class="pw-header">MobHead</header>
+<section>Mob mid</section>
+<footer class="pw-footer">MobFoot</footer>
+<nav class="pw-bottom-nav">MobNav</nav>
+</body></html>`
+  const aboutMob = `<!DOCTYPE html><html><body>
+<header class="pw-header">AboutHead</header>
+<main>About mobile mid</main>
+<footer class="pw-footer">AboutFoot</footer>
+</body></html>`
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      useVisualHtml: true,
+      useVisualMobileHtml: true,
+      visualPageKeys: ['about'],
+      visualMobilePageKeys: ['about'],
+    },
+    htmlSource: deskHome,
+    project: {
+      entryPath: 'index.html',
+      files: [
+        { path: 'index.html', kind: 'html' as const, content: deskHome },
+        { path: 'index.mobile.html', kind: 'html' as const, content: mobHome },
+        { path: 'about.mobile.html', kind: 'html' as const, content: aboutMob },
+      ],
+    },
+  }
+  const out = resolveExactVisualPageHtml(website, 'about', 'mobile')
+  assert.match(out, /MobHead/)
+  assert.match(out, /MobFoot/)
+  assert.match(out, /About mobile mid/)
+  assert.equal(out.includes('DeskHead'), false)
+  assert.equal(out.includes('AboutHead'), false)
 })
 
 test('without visualPageKeys there is no non-home override', () => {

@@ -40,6 +40,11 @@ import {
 } from '@/lib/messaging/partner-inventory-ai-search'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import {
+  findLatestLockedVisionTop,
+  inboundTextLooksLikeConsultThisPhotoItem,
+  lockedVisionTopFromRaw,
+} from '@/lib/messaging/partner-ai-photo-item-consult'
+import {
   fetchInventoryRowsSimilarToAnchorProductImage,
   fetchInventoryRowsSimilarToExternalImageUrl,
 } from '@/lib/messaging/partner-gemini-image-search'
@@ -318,6 +323,8 @@ export function rawPayloadHasInboundProductPageContext(raw: Json | null | undefi
   const pc = (raw as { page_context?: Record<string, unknown> }).page_context
   if (!pc || typeof pc !== 'object' || Array.isArray(pc)) return false
   const source = typeof pc.source === 'string' ? pc.source.trim() : ''
+  /** Ảnh gần giống — không khóa Nhánh B một dòng kho. */
+  if (source === 'image_nearest_visual') return false
   const sku = typeof pc.sku === 'string' ? pc.sku.trim() : ''
   const inv = typeof pc.inventory_id === 'string' ? pc.inventory_id.trim() : ''
   const pu = typeof pc.product_url === 'string' ? pc.product_url.trim() : ''
@@ -1003,6 +1010,26 @@ export async function buildPartnerAiContext(
   }
   const humanShopFactsBlock = buildRecentHumanShopFactsBlock(chronological, isFashionPartner)
 
+  if (
+    explicitSkuRows.length === 0 &&
+    inboundTextLooksLikeConsultThisPhotoItem(latestCustomerMessage) &&
+    isPgConfigured()
+  ) {
+    const vis = lockedVisionTopFromRaw(triggerRawPayload) ?? findLatestLockedVisionTop(chronological)
+    if (vis?.inventoryId) {
+      try {
+        const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, vis.inventoryId)
+        if (row) {
+          explicitSkuRows = [row]
+          lastConsultedRow = row
+          if (!partnerAiRouteIntent) partnerAiRouteIntent = 'explicit_sku_consult'
+        }
+      } catch (e) {
+        console.warn('[partner-ai-llm] vision top photo-item lock', e)
+      }
+    }
+  }
+
   /** Tin hỏi tiếp («có màu gì») vẫn neo SP dù payload còn `vision_selected_inventory_id` từ lượt trước. */
   const followUpStyleMessage = inboundTextLooksLikeFollowUpConsultHeuristic(latestCustomerMessage)
   const colorAlternativesVersusLastConsulted =
@@ -1359,20 +1386,23 @@ ${humanShopFactsBlock}`,
     }
   }
 
-  if (cardConsultIsolatedThread && lastConsultedRow) {
-    let row = lastConsultedRow
-    if (isPgConfigured()) {
-      try {
-        const fresh = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, lastConsultedRow.id)
-        if (fresh) row = fresh
-      } catch (e) {
-        console.warn('[partner-ai-llm] pre-enrich refresh row for card consult isolation', e)
+  if (cardConsultIsolatedThread) {
+    const isolationRow = isConsultCardPick ? explicitSkuRows[0] ?? null : lastConsultedRow
+    if (isolationRow) {
+      let row = isolationRow
+      if (isPgConfigured()) {
+        try {
+          const fresh = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, isolationRow.id)
+          if (fresh) row = fresh
+        } catch (e) {
+          console.warn('[partner-ai-llm] pre-enrich refresh row for card consult isolation', e)
+        }
       }
+      lastConsultedRow = row
+      invForContext = [row]
+      explicitSkuRows = [row]
+      selectedRowForEnrich = null
     }
-    lastConsultedRow = row
-    invForContext = [row]
-    explicitSkuRows = [row]
-    selectedRowForEnrich = null
   }
 
   const materialEnriched = await enrichInventoryRowsWithMaterialIfNeeded(partnerId, latestCustomerMessage, {
@@ -1441,22 +1471,27 @@ ${humanShopFactsBlock}`,
     selectedRowForEnrich = null
   }
 
-  if (cardConsultIsolatedThread && lastConsultedRow) {
-    let row = lastConsultedRow
-    if (isPgConfigured()) {
-      try {
-        const fresh = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, lastConsultedRow.id)
-        if (fresh) row = fresh
-      } catch (e) {
-        console.warn('[partner-ai-llm] refresh row for card consult isolation', e)
+  if (cardConsultIsolatedThread) {
+    const isolationRow = isConsultCardPick
+      ? explicitSkuRows[0] || inboundAnchoredConsultRow || null
+      : inboundAnchoredConsultRow || lastConsultedRow
+    if (isolationRow) {
+      let row = isolationRow
+      if (isPgConfigured()) {
+        try {
+          const fresh = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, isolationRow.id)
+          if (fresh) row = fresh
+        } catch (e) {
+          console.warn('[partner-ai-llm] refresh row for card consult isolation', e)
+        }
       }
+      lastConsultedRow = row
+      invForContext = [row]
+      explicitSkuRows = [row]
+      selectedRowForEnrich = null
+      inboundAnchoredConsultRow = row
+      inboundAnchoredProductConsultBranch = true
     }
-    lastConsultedRow = row
-    invForContext = [row]
-    explicitSkuRows = [row]
-    selectedRowForEnrich = null
-    inboundAnchoredConsultRow = row
-    inboundAnchoredProductConsultBranch = true
   }
 
   const specificAnglePhotoTemplateInventoryRows = specificAnglePhotoRequest
