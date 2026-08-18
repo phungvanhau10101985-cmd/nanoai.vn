@@ -2175,64 +2175,6 @@ export function PartnerWebsiteVisualEditorToolbar({
                 />
               </label>
             ) : null}
-            {showWidgetColors ? (
-              <>
-                <div className="flex items-center gap-1 text-[10px]">
-                  <span className="text-muted-foreground">{t.visualEditAddButtonColor}</span>
-                  <ThemeColorConfirmPicker
-                    value={cssColorToHex(selection.btnColor || selection.bgColor || '', '#ffffff')}
-                    disabled={busy}
-                    compact={compact}
-                    okLabel={t.themeColorOk}
-                    onConfirm={(color) => {
-                      postToIframe(iframeRef.current, 'setButtonColor', { color })
-                      setDirty(true)
-                    }}
-                  />
-                </div>
-                <div className="flex items-center gap-1 text-[10px]">
-                  <span className="text-muted-foreground">{t.visualEditAddButtonBorder}</span>
-                  <ThemeColorConfirmPicker
-                    value={cssColorToHex(selection.btnBorder || '', '#e5e7eb')}
-                    disabled={busy}
-                    compact={compact}
-                    okLabel={t.themeColorOk}
-                    onConfirm={(color) => {
-                      postToIframe(iframeRef.current, 'setButtonBorder', { color })
-                      setDirty(true)
-                    }}
-                  />
-                </div>
-                {showWidgetIconColor ? (
-                  <div className="flex items-center gap-1 text-[10px]">
-                    <span className="text-muted-foreground">{t.visualEditIconColor}</span>
-                    <ThemeColorConfirmPicker
-                      value={cssColorToHex(selection.iconColor || selection.textColor || '', '#374151')}
-                      disabled={busy}
-                      compact={compact}
-                      okLabel={t.themeColorOk}
-                      onConfirm={(color) => {
-                        postToIframe(iframeRef.current, 'setIconColor', { color })
-                        setDirty(true)
-                      }}
-                    />
-                  </div>
-                ) : null}
-                <div className="flex items-center gap-1 text-[10px]">
-                  <span className="text-muted-foreground">{t.visualEditTextColor}</span>
-                  <ThemeColorConfirmPicker
-                    value={cssColorToHex(selection.textColor, '#111827')}
-                    disabled={busy}
-                    compact={compact}
-                    okLabel={t.themeColorOk}
-                    onConfirm={(color) => {
-                      postToIframe(iframeRef.current, 'setColor', { color })
-                      setDirty(true)
-                    }}
-                  />
-                </div>
-              </>
-            ) : null}
           </div>
         ) : null}
         {typeof document !== 'undefined' && openPanel && panelPos
