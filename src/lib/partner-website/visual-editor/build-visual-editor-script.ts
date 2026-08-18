@@ -2377,6 +2377,36 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     markAll(document, '.pw-cat-btn, .pw-shop-cat-btn', 'data-pw-el', 'cat-toggle')
     markAll(document, '.pw-account-btn, [data-pw-account-toggle]', 'data-pw-el', 'account')
     markAll(document, '[data-pw-chrome-btn="cart"]', 'data-pw-el', 'cart')
+    function inferLegacyChromeKind(el) {
+      if (!el || !el.getAttribute) return ''
+      var existing = String(el.getAttribute('data-pw-chrome-btn') || '').trim().toLowerCase()
+      if (existing) return existing
+      if (catToggleElOf(el) || searchElOf(el) || isLogoSlot(el)) return ''
+      var cls = clsOf(el).toLowerCase()
+      var href = String(el.getAttribute('href') || '').toLowerCase()
+      var label = String((el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('title') || '') + ' ' + (el.textContent || '')).replace(/\s+/g, ' ').trim().toLowerCase()
+      if (cls.indexOf('account') >= 0 || href.indexOf('/account') >= 0 || label.indexOf('tài khoản') >= 0 || label.indexOf('tai khoan') >= 0 || label.indexOf('account') >= 0) return 'account'
+      if (cls.indexOf('cart') >= 0 || href.indexOf('/cart') >= 0 || label.indexOf('giỏ') >= 0 || label.indexOf('gio hang') >= 0 || label.indexOf('cart') >= 0) return 'cart'
+      if (cls.indexOf('notification') >= 0 || href.indexOf('/notifications') >= 0 || label.indexOf('thông báo') >= 0 || label.indexOf('thong bao') >= 0 || label.indexOf('notification') >= 0) return 'notifications'
+      if (href.indexOf('/orders') >= 0 || label.indexOf('đơn hàng') >= 0 || label.indexOf('don hang') >= 0 || label.indexOf('orders') >= 0) return 'orders'
+      if (href.indexOf('/wishlist') >= 0 || href.indexOf('/favorites') >= 0 || label.indexOf('yêu thích') >= 0 || label.indexOf('yeu thich') >= 0 || label.indexOf('wishlist') >= 0 || label.indexOf('favorite') >= 0) return 'wishlist'
+      if (href.indexOf('/login') >= 0 || label.indexOf('đăng nhập') >= 0 || label.indexOf('dang nhap') >= 0 || label.indexOf('login') >= 0) return 'login'
+      return ''
+    }
+    function normalizeLegacyChromeButtons() {
+      var nodes = document.querySelectorAll('header a, header button, .pw-header a, .pw-header button, .pw-shop-header a, .pw-shop-header button, .pw-topbar a, .pw-shop-topbar a, .pw-bottom-nav a, .pw-bottom-nav button, .pw-shop-bottom-nav a, .pw-shop-bottom-nav button, .pw-icon-btn, .pw-shop-icon-btn, [data-pw-el="account"], [data-pw-el="cart"]')
+      for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i]
+        var kind = inferLegacyChromeKind(node)
+        if (!kind) continue
+        setAttrIfEmpty(node, 'data-pw-chrome-btn', kind)
+        setAttrIfEmpty(node, 'data-pw-chrome-style', String(node.textContent || '').replace(/[0-9]+/g, '').trim() ? 'icon-label' : 'icon')
+        if (kind === 'account') setAttrIfEmpty(node, 'data-pw-el', 'account')
+        if (kind === 'cart') setAttrIfEmpty(node, 'data-pw-el', 'cart')
+        if (kind === 'cart' || kind === 'wishlist' || kind === 'notifications') setAttrIfEmpty(node, 'data-pw-chrome-count', '1')
+      }
+    }
+    normalizeLegacyChromeButtons()
     markAll(document, '.pw-bottom-nav > a, .pw-shop-bottom-nav > a', 'data-pw-el', 'nav-link')
     markAll(document, '.pw-search-submit, .pw-shop-search-submit', 'data-pw-el', 'submit')
     markAll(document, '.pw-topbar a, .pw-shop-topbar a', 'data-pw-el', 'link')
