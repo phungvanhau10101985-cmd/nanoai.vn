@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
@@ -47,10 +48,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) {
-    return buildMetadata({
-      title: 'Account',
-      description: 'Account',
-      path: `/site/${slug}/account/${normalized}`,
+    const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
+    if (!site) {
+      return buildMetadata({
+        title: 'Account',
+        description: 'Account',
+        path: `/site/${slug}/account/${normalized}`,
+        noIndex: true,
+      })
+    }
+    return buildPartnerSiteMetadata({
+      siteSlug: site.siteSlug,
+      siteName: site.title,
+      title: `${site.title} — Account`,
+      description: site.partnerDisplayName,
+      path: `/account/${normalized}`,
       noIndex: true,
     })
   }
@@ -71,8 +83,13 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
   const normalized = tab.trim().toLowerCase()
   if (!isPartnerSiteAccountTab(normalized) || !ROUTE_TABS.has(normalized)) notFound()
 
+  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
+  if (!site) notFound()
+
   const shop = await loadPartnerSiteShopContext(slug)
-  if (!shop) notFound()
+  const partnerSlug = shop?.partnerSlug ?? site.partnerSlug
+  if (!partnerSlug.trim()) notFound()
+  const shellSite = shop?.site ?? site
   const device = await readVisualPreviewDevice(searchParams)
 
   const sp = (await searchParams) ?? {}
@@ -80,25 +97,25 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
 
   return (
     <PartnerSiteShopShell
-      siteSlug={shop.site.siteSlug}
-      partnerSlug={shop.partnerSlug}
-      title={shop.site.title}
-      logoUrl={shop.site.logoUrl}
-      theme={shop.site.theme}
-      locale={shop.site.locale}
-      chatPath={shop.site.chatPath}
-      tracking={partnerSiteTrackingFromPublicRow(shop.site)}
-      footerJson={shop.site.footerJson}
-      navJson={shop.site.navJson}
+      siteSlug={shellSite.siteSlug}
+      partnerSlug={partnerSlug}
+      title={shellSite.title}
+      logoUrl={shellSite.logoUrl}
+      theme={shellSite.theme}
+      locale={shellSite.locale}
+      chatPath={shellSite.chatPath}
+      tracking={partnerSiteTrackingFromPublicRow(shellSite)}
+      footerJson={shellSite.footerJson}
+      navJson={shellSite.navJson}
       activeNav="account"
       pageKind={PW_PAGE.account}
-      {...visualHomeChromeShellProps(shop.site, device)}
+      {...visualHomeChromeShellProps(shellSite, device)}
     >
       <PartnerSiteShopAccountClient
-        siteSlug={shop.site.siteSlug}
-        partnerSlug={shop.partnerSlug}
-        shopTitle={shop.site.title}
-        locale={shop.site.locale}
+        siteSlug={shellSite.siteSlug}
+        partnerSlug={partnerSlug}
+        shopTitle={shellSite.title}
+        locale={shellSite.locale}
         initialTab={normalized}
         initialOrdersFilter={ordersFilter}
       />

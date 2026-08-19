@@ -3,6 +3,7 @@ import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import { readGuestAccountIdFromRequest } from '@/lib/messaging/guest-account-session'
 import { readGuestSessionIdFromRequestStrictOrLoose } from '@/lib/messaging/guest-auth-session'
 import { upsertGuestAccountForGoogleIdentity } from '@/lib/messaging/guest-widget-identity'
+import { requestSkipsPartnerSiteShopAuthResume } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 
 /**
  * Ngữ cảnh thread cho đơn widget — khớp `guest/[slug]/route.ts`:
@@ -20,7 +21,8 @@ export async function resolveWidgetOrderThreadFromRequest(
   request: NextRequest,
   partnerId: string
 ): Promise<WidgetOrderThreadContext | null> {
-  const user = await getEmailSessionUser()
+  const skipPlatformResume = requestSkipsPartnerSiteShopAuthResume(request)
+  const user = skipPlatformResume ? null : await getEmailSessionUser()
   const sessionFromRequest = readGuestSessionIdFromRequestStrictOrLoose(request)?.trim() ?? null
 
   if (user?.id) {

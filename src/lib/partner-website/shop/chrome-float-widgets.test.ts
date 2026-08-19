@@ -49,6 +49,9 @@ test('top-up stays hidden until the page is scrolled on every device', () => {
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('visualViewport'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('h < 900'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('__pwChromeTopupSync'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('dedupeFloats'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('data-pw-float-dup'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('[data-pw-float-dup="1"]'), true)
 })
 
 test('resetChromeFloatUserMoveInHtml drops leftover Desktop pins on Tư vấn', () => {

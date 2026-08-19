@@ -50,10 +50,20 @@ test('chrome toggle bootstrap hydrates the category panel from the public API', 
   assert.match(s, /pw-bottom-nav a\[href\$="\/account"\]/)
   assert.match(s, /closest\('\.pw-bottom-nav,\.\pw-shop-bottom-nav'\)/)
   assert.match(s, /data-pw-account-fallback-href/)
-  assert.match(s, /aria-haspopup/)
-  assert.match(s, /placePanelFixed/)
-  assert.match(s, /getBoundingClientRect/)
-  assert.match(s, /data-pw-panel-fixed/)
+  assert.match(s, /navigateAccountLogin/)
+  assert.match(s, /expandAccountHref/)
+  assert.match(s, /window\.top\.location\.href/)
+  assert.match(s, /isAccountSubpathLink/)
+  assert.match(s, /handleAccountClick/)
+  assert.doesNotMatch(s, /function openAccountMenu/)
+  // Old bug: srcDoc iframe pathname is not /site/… → bare /account → NanoAI 404.
+  assert.doesNotMatch(s, /test\(p\)\)return '\/account'/)
+})
+
+test('chrome toggle account login prefers /site/{slug}/account over bare /account', () => {
+  const s = buildPartnerSiteChromeToggleBootstrapScript({ siteSlug: '188-shop', locale: 'vi' })
+  assert.match(s, /ACCOUNT_LOGIN_PATH="\/site\/188-shop\/account"/)
+  assert.match(s, /return ACCOUNT_LOGIN_PATH\|\|'\/account'/)
 })
 
 test('shop actions bootstrap hydrates Zalo\/Facebook from contact-channels API', async () => {

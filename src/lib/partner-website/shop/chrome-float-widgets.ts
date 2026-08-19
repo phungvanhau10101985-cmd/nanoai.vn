@@ -131,6 +131,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_CSS = `
 [data-pw-chrome-btn="topup"].${PW_CHROME_TOPUP_ON_CLASS},
 [data-pw-chrome-btn="topup"][data-nanoai-ve-selected],
 [data-pw-chrome-btn="topup"].nanoai-ve-highlight{opacity:1!important;visibility:visible!important;pointer-events:auto!important}
+[data-pw-chrome-btn][data-pw-float-dup="1"]{display:none!important;visibility:hidden!important;pointer-events:none!important;opacity:0!important}
 `.trim()
 
 export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
@@ -143,6 +144,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
   ${PARTNER_SHOP_CHROME_FLOAT_POS_JS}
   function bake(el){
     if (!el || !el.setAttribute) return;
+    if (el.getAttribute('data-pw-float-dup') === '1') return;
     var placed = el.getAttribute('data-pw-user-move') === '1';
     el.setAttribute(ATTR, '1');
     if (el.style) el.style.setProperty('z-index', '${PW_CHROME_FLOAT_Z_INDEX}', 'important');
@@ -157,10 +159,45 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
     }
     pwChromeFloatRemap(el);
   }
+  function rootVisible(el){
+    if(!el||!el.closest)return true;
+    var wrap=el.closest('.pw-visual-desktop,.pw-visual-laptop,.pw-visual-tablet,.pw-visual-mobile');
+    if(!wrap)return true;
+    try{
+      var cs=window.getComputedStyle(wrap);
+      if(cs.display==='none'||cs.visibility==='hidden'||cs.opacity==='0')return false;
+    }catch(errVis){}
+    return true;
+  }
+  function dedupeFloats(){
+    for(var ki=0;ki<KINDS.length;ki++){
+      var kind=KINDS[ki];
+      var nodes=document.querySelectorAll('[data-pw-chrome-btn="'+kind+'"]');
+      var kept=null;
+      for(var i=0;i<nodes.length;i++){
+        var el=nodes[i];
+        if(!rootVisible(el)||el.getAttribute('data-pw-float-dup')==='1'){
+          el.style.setProperty('display','none','important');
+          el.style.setProperty('visibility','hidden','important');
+          el.style.setProperty('pointer-events','none','important');
+          el.setAttribute('data-pw-float-dup','1');
+          continue;
+        }
+        if(!kept){kept=el;continue;}
+        el.style.setProperty('display','none','important');
+        el.style.setProperty('visibility','hidden','important');
+        el.style.setProperty('pointer-events','none','important');
+        el.setAttribute('data-pw-float-dup','1');
+      }
+    }
+  }
   function stamp(){
     for (var i = 0; i < KINDS.length; i++) {
       var nodes = document.querySelectorAll('[data-pw-chrome-btn="' + KINDS[i] + '"]');
-      for (var n = 0; n < nodes.length; n++) bake(nodes[n]);
+      for (var n = 0; n < nodes.length; n++) {
+        if (nodes[n].getAttribute('data-pw-float-dup') === '1') continue;
+        bake(nodes[n]);
+      }
     }
   }
   function pageY(){
@@ -186,6 +223,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
     var nodes = document.querySelectorAll('[data-pw-chrome-btn="topup"]');
     var show = y > thresh();
     for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].getAttribute('data-pw-float-dup') === '1') continue;
       if (show) nodes[i].classList.add(ON);
       else nodes[i].classList.remove(ON);
     }
@@ -203,6 +241,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
     raf = requestAnimationFrame(function () { raf = 0; syncTopup(); });
   }
   window.__pwChromeTopupSync = syncTopup;
+  dedupeFloats();
   stamp();
   window.addEventListener('resize', function(){
     for (var i = 0; i < KINDS.length; i++) {
@@ -215,6 +254,12 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
   document.addEventListener('scroll', onScroll, { passive: true, capture: true });
   window.addEventListener('touchmove', onScroll, { passive: true });
   window.addEventListener('resize', onScroll);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ stamp(); syncTopup(); });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ dedupeFloats(); stamp(); syncTopup(); });
   else syncTopup();
+  var mo=typeof MutationObserver!=='undefined'?new MutationObserver(function(){
+    dedupeFloats();
+    stamp();
+    syncTopup();
+  }):null;
+  if(mo)mo.observe(document.documentElement,{childList:true,subtree:true});
 })();`

@@ -2,11 +2,9 @@ import { escapeAttr, escapeHtml } from '@/lib/packaging/mockup-share-html'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
-  getPartnerSiteAccountMenuItems,
   getPartnerSiteCategoryNavLabels,
   getPartnerSitePromoNavLabel,
   getPartnerSiteShopNavPaths,
-  partnerSiteAccountMenuIconSvg,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
@@ -61,60 +59,28 @@ function buildCategoryLinks(productsHref: string, saleHref: string, locale: WebL
     <a class="pw-nav-sale" href="${saleHref}" ${pwElAttr(PW_EL.navLink)}>${escapeHtml(n.sale)}</a>`
 }
 
-function buildAccountMenuHtml(items: ReturnType<typeof getPartnerSiteAccountMenuItems>): string {
-  return items
-    .filter((item) => !item.isHeader)
-    .map((item) => {
-      const classes = [item.isAccent ? 'is-accent' : ''].filter(Boolean).join(' ')
-      const classAttr = classes ? ` class="${classes}"` : ''
-      return `<a href="${escapeAttr(item.href)}"${classAttr} data-pw-el="menu-item">${partnerSiteAccountMenuIconSvg(item.id)}<span>${escapeHtml(item.label)}</span></a>`
-    })
-    .join('\n        ')
-}
-
 function buildHeaderInteractionScripts(): string {
   return `<script data-pw-header-toggle>(function(){
   var catBtn=document.querySelector('[data-pw-cat-toggle]');
   var catPanel=document.querySelector('[data-pw-cat-panel]');
-  var accBtn=document.querySelector('[data-pw-account-toggle]');
-  var accPanel=document.querySelector('[data-pw-account-panel]');
   function closeCat(){
     if(!catPanel||!catBtn)return;
     catPanel.classList.remove('is-open');
     catBtn.setAttribute('aria-expanded','false');
-  }
-  function closeAcc(){
-    if(!accPanel||!accBtn)return;
-    accPanel.classList.remove('is-open');
-    accBtn.setAttribute('aria-expanded','false');
   }
   if(catBtn&&catPanel){
     catBtn.addEventListener('click',function(e){
       e.stopPropagation();
       var open=catPanel.classList.toggle('is-open');
       catBtn.setAttribute('aria-expanded',open?'true':'false');
-      if(open)closeAcc();
-    });
-  }
-  if(accBtn&&accPanel){
-    accBtn.addEventListener('click',function(e){
-      e.stopPropagation();
-      var open=accPanel.classList.toggle('is-open');
-      accBtn.setAttribute('aria-expanded',open?'true':'false');
-      if(open)closeCat();
-    });
-    accPanel.querySelectorAll('a').forEach(function(link){
-      link.addEventListener('click',function(){closeAcc();});
     });
   }
   document.addEventListener('click',function(e){
     if(catPanel&&(catPanel.contains(e.target)||(catBtn&&catBtn.contains(e.target))))return;
-    if(accPanel&&(accPanel.contains(e.target)||(accBtn&&accBtn.contains(e.target))))return;
     closeCat();
-    closeAcc();
   });
   document.addEventListener('keydown',function(e){
-    if(e.key==='Escape'){closeCat();closeAcc();}
+    if(e.key==='Escape'){closeCat();}
   });
 })();</script>`
 }
@@ -175,7 +141,6 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const saleHref = escapeAttr(paths.sale)
   const contactHref = escapeAttr(paths.contact)
   const accountHref = escapeAttr(paths.account)
-  const accountMenuItems = getPartnerSiteAccountMenuItems({ siteSlug, locale: input.locale })
   const search = searchLabels(input.locale)
   const promoLabel = getPartnerSitePromoNavLabel(input.locale)
   const logo = input.logoUrl?.trim() ?? ''
@@ -199,7 +164,6 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   </div>`
 
   const categoryLinks = buildCategoryLinks(productsHref, saleHref, input.locale)
-  const accountMenuHtml = buildAccountMenuHtml(accountMenuItems)
 
   const header = `<header class="pw-header" ${pwRegionAttr(PW_REGION.header)}>
   ${topbar}
@@ -213,15 +177,10 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
     </div>
     ${searchBar}
     <div class="pw-header-actions">
-      <div class="pw-account-wrap">
-        <button type="button" class="pw-account-btn" ${pwElAttr(PW_EL.account)} data-pw-account-toggle aria-expanded="false" aria-controls="pw-account-panel" aria-label="${escapeAttr(shop.navAccount)}">
-          ${svgIcon('user')}
-          <span class="pw-account-btn-label">${escapeHtml(shop.navAccount)}</span>
-        </button>
-        <nav id="pw-account-panel" class="pw-account-panel" data-pw-account-panel aria-label="${escapeAttr(shop.navAccount)}">
-          ${accountMenuHtml}
-        </nav>
-      </div>
+      <a class="pw-account-btn" href="${accountHref}" ${pwElAttr(PW_EL.account)} data-pw-chrome-btn="account" aria-label="${escapeAttr(shop.navAccount)}">
+        ${svgIcon('user')}
+        <span class="pw-account-btn-label">${escapeHtml(shop.navAccount)}</span>
+      </a>
       <a class="pw-icon-btn" ${pwElAttr(PW_EL.cart)} data-pw-chrome-btn="cart" href="${cartHref}" aria-label="${escapeAttr(shop.navCart)}">${svgIcon('cart')}<span class="pw-cart-badge" data-pw-chrome-badge hidden>0</span></a>
     </div>
   </div>
@@ -234,7 +193,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
     <a class="is-active" href="${homeHref}">${svgIcon('home')}<span>${escapeHtml(shop.navHome)}</span></a>
     <a href="${productsHref}">${svgIcon('box')}<span>${escapeHtml(shop.navProducts)}</span></a>
     <a href="${saleHref}">${svgIcon('tag')}<span>${escapeHtml(promoLabel)}</span></a>
-    <a href="${accountHref}" ${pwElAttr(PW_EL.account)} data-pw-account-toggle data-pw-chrome-btn="account" aria-expanded="false" aria-haspopup="menu">${svgIcon('user')}<span>${escapeHtml(shop.navAccount)}</span></a>
+    <a href="${accountHref}" ${pwElAttr(PW_EL.account)} data-pw-chrome-btn="account">${svgIcon('user')}<span>${escapeHtml(shop.navAccount)}</span></a>
   </nav>`
 
   return {

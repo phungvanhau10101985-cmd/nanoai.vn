@@ -1235,7 +1235,7 @@ export function PartnerMessagingSettingsClient({
         else toast({ title: String(e), variant: 'destructive' })
         return
       }
-      toast({ title: t.teamInviteOk })
+      toast({ title: res && 'emailSent' in res && res.emailSent === false ? t.teamInviteOkEmailFailed : t.teamInviteOk })
       setStaffInviteEmail('')
       await loadStaffRowsForOwner(selectedPartnerId)
     })

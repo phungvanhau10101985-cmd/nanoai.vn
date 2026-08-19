@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
@@ -7,26 +8,22 @@ import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-
 import { PartnerSiteShopAccountClient } from '@/components/partner-website/shop/partner-site-shop-account-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
-import {
-  maybePartnerSiteVisualPage,
-  readVisualPreviewDevice,
-  type PartnerSiteSearchParams,
-} from '@/components/partner-website/shop/partner-site-visual-html-screen'
+import { readVisualPreviewDevice, type PartnerSiteSearchParams } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = { params: Promise<{ slug: string }>; searchParams?: PartnerSiteSearchParams }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const shop = await loadPartnerSiteShopContext(slug)
-  if (!shop) {
+  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
+  if (!site) {
     return buildMetadata({ title: 'Account', description: 'Account', path: `/site/${slug}/account`, noIndex: true })
   }
   return buildPartnerSiteMetadata({
-    siteSlug: shop.site.siteSlug,
-    siteName: shop.site.title,
-    title: `${shop.site.title} — Account`,
-    description: shop.site.partnerDisplayName,
+    siteSlug: site.siteSlug,
+    siteName: site.title,
+    title: `${site.title} — Account`,
+    description: site.partnerDisplayName,
     path: '/account',
     noIndex: true,
   })
@@ -34,39 +31,40 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export const dynamic = 'force-dynamic'
 
+/** Account always uses React auth shell — never frozen visual HTML (login form must work). */
 export default async function PartnerSiteAccountPage({ params, searchParams }: Props) {
   const { slug } = await params
+  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
+  if (!site) notFound()
+
   const shop = await loadPartnerSiteShopContext(slug)
-  if (!shop) notFound()
   const device = await readVisualPreviewDevice(searchParams)
-  const visual = maybePartnerSiteVisualPage(
-    shop.site,
-    'account',
-    device
-  )
-  if (visual) return visual
+  const partnerSlug = shop?.partnerSlug ?? site.partnerSlug
+  if (!partnerSlug.trim()) notFound()
+
+  const shellSite = shop?.site ?? site
 
   return (
     <PartnerSiteShopShell
-      siteSlug={shop.site.siteSlug}
-      partnerSlug={shop.partnerSlug}
-      title={shop.site.title}
-      logoUrl={shop.site.logoUrl}
-      theme={shop.site.theme}
-      locale={shop.site.locale}
-      chatPath={shop.site.chatPath}
-      tracking={partnerSiteTrackingFromPublicRow(shop.site)}
-      footerJson={shop.site.footerJson}
-      navJson={shop.site.navJson}
+      siteSlug={shellSite.siteSlug}
+      partnerSlug={partnerSlug}
+      title={shellSite.title}
+      logoUrl={shellSite.logoUrl}
+      theme={shellSite.theme}
+      locale={shellSite.locale}
+      chatPath={shellSite.chatPath}
+      tracking={partnerSiteTrackingFromPublicRow(shellSite)}
+      footerJson={shellSite.footerJson}
+      navJson={shellSite.navJson}
       activeNav="account"
       pageKind={PW_PAGE.account}
-      {...visualHomeChromeShellProps(shop.site, device)}
+      {...visualHomeChromeShellProps(shellSite, device)}
     >
       <PartnerSiteShopAccountClient
-        siteSlug={shop.site.siteSlug}
-        partnerSlug={shop.partnerSlug}
-        shopTitle={shop.site.title}
-        locale={shop.site.locale}
+        siteSlug={shellSite.siteSlug}
+        partnerSlug={partnerSlug}
+        shopTitle={shellSite.title}
+        locale={shellSite.locale}
         initialTab="overview"
       />
     </PartnerSiteShopShell>

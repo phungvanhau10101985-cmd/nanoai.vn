@@ -1,9 +1,5 @@
 import type { WebLocale } from '@/lib/i18n/config'
-import {
-  getPartnerSiteAccountMenuItems,
-  getPartnerSiteCategoryNavLabels,
-  partnerSiteAccountMenuIconSvg,
-} from '@/lib/partner-website/shop/partner-site-shop-nav-config'
+import { getPartnerSiteCategoryNavLabels } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { normalizeContactHttpUrl } from '@/lib/partner-website/shop/partner-site-contact-channels'
 import { isChromeFloatKind } from '@/lib/partner-website/shop/chrome-float-widgets'
@@ -15,7 +11,6 @@ import {
   partnerSiteCartPath,
   partnerSiteHomePath,
   partnerSiteInfoPath,
-  partnerSiteNanoAiLoginHref,
   partnerSiteOrdersPath,
   partnerSiteOrderTrackingPath,
   partnerSiteProductsPath,
@@ -358,7 +353,8 @@ export function chromeWidgetHref(kind: VisualEditorChromeWidgetKind, siteSlug: s
   if (kind === 'blog') return partnerSiteInfoPath(slug, 'blog')
   if (kind === 'privacy') return partnerSiteInfoPath(slug, 'privacy')
   if (kind === 'terms') return partnerSiteInfoPath(slug, 'terms')
-  return partnerSiteNanoAiLoginHref(partnerSiteAccountPath(slug))
+  if (kind === 'login') return partnerSiteAccountPath(slug)
+  return partnerSiteAccountPath(slug)
 }
 
 export function chromeWidgetLabel(kind: VisualEditorChromeWidgetKind, locale: WebLocale): string {
@@ -516,23 +512,15 @@ export function buildVisualEditorChromeWidgetHtml(input: {
   if (kind === 'account') {
     const svg = SVG.account || ''
     const appearance = chromeWidgetAppearance(kind, style)
-    const menu = getPartnerSiteAccountMenuItems({ siteSlug: slug, locale: input.locale })
-      .filter((item) => !item.isHeader)
-      .map((item) => {
-        const classes = [item.isAccent ? 'is-accent' : ''].filter(Boolean).join(' ')
-        const classAttr = classes ? ` class="${classes}"` : ''
-        return `<a href="${escapeAttr(item.href)}"${classAttr} data-pw-el="menu-item">${partnerSiteAccountMenuIconSvg(item.id)}<span>${escapeHtml(item.label)}</span></a>`
-      })
-      .join('')
-    const panel = `<nav id="pw-shop-account-panel" class="pw-shop-account-panel pw-account-panel" data-pw-account-panel="1" aria-label="${labelAttr}">${menu}</nav>`
+    const href = escapeAttr(chromeWidgetHref(kind, slug))
     if (appearance === 'link') {
-      return `<div class="pw-account-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-account-btn pw-chrome-link" data-pw-el="account" data-pw-account-toggle="1" data-pw-chrome-btn="account" data-pw-chrome-style="text" aria-expanded="false" aria-controls="pw-shop-account-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>${panel}</div>`
+      return `<a class="pw-account-btn pw-chrome-link" href="${href}" data-pw-el="account" data-pw-chrome-btn="account" data-pw-chrome-style="text" data-pw-chrome-added="1"${placeAttr}${sizeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</a>`
     }
     const face = chromeFaceClass(style)
     const labelHtml = face.withLabel
       ? `<span class="pw-shop-nav-label pw-chrome-btn-label">${escapeHtml(label)}</span>`
       : ''
-    return `<div class="pw-account-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-account-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-el="account" data-pw-account-toggle="1" data-pw-chrome-btn="account" data-pw-chrome-style="${face.styleAttr}" aria-expanded="false" aria-controls="pw-shop-account-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>${panel}</div>`
+    return `<a class="pw-account-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" href="${href}" data-pw-el="account" data-pw-chrome-btn="account" data-pw-chrome-style="${face.styleAttr}" data-pw-chrome-added="1"${placeAttr}${sizeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</a>`
   }
   const isContactChat = isChromeContactChatKind(kind)
   const contactHref = isContactChat ? normalizeContactHttpUrl(input.href) : null

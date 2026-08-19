@@ -5,6 +5,8 @@ export type GoogleOAuthStatePayload = {
   state: string
   next: string
   redirectUri: string
+  /** Absolute URL on verified partner shop domain — after Google, handoff back with pw_auth. */
+  shopReturnUrl?: string | null
 }
 
 export function getGoogleOAuthStateCookieOptions() {
@@ -22,8 +24,9 @@ export function parseGoogleOAuthStateCookie(raw: string | undefined | null): Goo
     const state = String(parsed.state || '').trim()
     const next = String(parsed.next || '/').trim() || '/'
     const redirectUri = String(parsed.redirectUri || '').trim()
+    const shopReturnUrl = String(parsed.shopReturnUrl || '').trim() || null
     if (!state) return null
-    return { state, next, redirectUri }
+    return { state, next, redirectUri, shopReturnUrl }
   } catch {
     return null
   }

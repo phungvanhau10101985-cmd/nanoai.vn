@@ -9,7 +9,14 @@ import {
 import { mergeGuestTrialUserDataAfterLogin } from '@/lib/auth/merge-guest-trial-user-data'
 import { getAuthFlowOrigin } from '@/lib/auth/public-app-url'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
-import { markNewUserSignupSource, signupSourceFromLoginNext } from '@/lib/auth/signup-source'
+import {
+  extractPathSlugFromLoginNext,
+  markNewUserSignupSource,
+  signupSourceFromLoginNext,
+} from '@/lib/auth/signup-source'
+import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
+import { upsertGuestAccountForGoogleIdentity } from '@/lib/messaging/guest-widget-identity'
+import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
 import { readGuestSessionIdFromRequestStrictOrLoose } from '@/lib/messaging/guest-auth-session'
@@ -74,6 +81,7 @@ export async function GET(req: NextRequest) {
     }
 
     const next = sanitizeLoginNext(saved.next)
+    const shopReturnUrl = saved.shopReturnUrl?.trim() || ''
     const redirectUri =
       saved.redirectUri ||
       `${getAuthFlowOrigin(req).replace(/\/$/, '')}/auth/callback`
@@ -124,6 +132,66 @@ export async function GET(req: NextRequest) {
       return res
     }
 
+    const siteFromNext = extractPathSlugFromLoginNext(next)
+    let shopGuestAccountId: string | null = null
+    if (siteFromNext?.kind === 'site') {
+      try {
+        const shop = await loadPartnerSiteShopContext(siteFromNext.slug)
+        if (shop) {
+          shopGuestAccountId = await upsertGuestAccountForGoogleIdentity(
+            shop.partnerId,
+            req,
+            { id: uidRow.id, email, aud: 'authenticated' },
+            { signupSource: 'customer_website', partnerSlug: shop.partnerSlug }
+          )
+
+          // Custom-domain return: handoff token → shop host sets its own cookies.
+          if (shopReturnUrl) {
+            const {
+              issuePartnerSiteGoogleAuthHandoff,
+              PARTNER_SITE_GOOGLE_AUTH_HANDOFF_QUERY_KEY,
+              resolveVerifiedPartnerShopReturnUrlForSite,
+            } = await import('@/lib/partner-website/shop/partner-site-google-auth-handoff')
+            const verifiedReturn = await resolveVerifiedPartnerShopReturnUrlForSite({
+              rawReturnUrl: shopReturnUrl,
+              siteSlug: shop.site.siteSlug,
+              partnerId: shop.partnerId,
+            })
+            if (verifiedReturn) {
+              const handoff = issuePartnerSiteGoogleAuthHandoff({
+                email,
+                siteSlug: shop.site.siteSlug,
+                partnerId: shop.partnerId,
+                path: `${verifiedReturn.pathname}${verifiedReturn.search || ''}` || '/account',
+                authUserId: uidRow.id,
+              })
+              const dest = new URL(verifiedReturn.href)
+              dest.searchParams.set(PARTNER_SITE_GOOGLE_AUTH_HANDOFF_QUERY_KEY, handoff)
+              if (isNewUser) dest.searchParams.set('meta_complete_registration', '1')
+              const res = NextResponse.redirect(dest.toString())
+              clearGoogleOAuthStateCookie(res)
+              const opts = getEmailSessionCookieOptions()
+              res.cookies.set(EMAIL_SESSION_COOKIE, jwt, opts)
+              res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, jwt, opts)
+              await mergeGuestTrialUserDataAfterLogin({
+                guestTrialUserId: req.cookies.get('nano_guest_trial_user_id')?.value ?? null,
+                realUserId: uidRow.id,
+                response: res,
+              })
+              await syncBrowserGuestSessionToUser({
+                guestSessionId: readGuestSessionIdFromRequestStrictOrLoose(req),
+                userId: uidRow.id,
+                email,
+              })
+              return res
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[auth/callback/google] shop guest account', e)
+      }
+    }
+
     const redirectPath = isNewUser ? appendQueryFlag(next, 'meta_complete_registration', '1') : next
     const res = absoluteRedirect(req, redirectPath)
     clearGoogleOAuthStateCookie(res)
@@ -140,6 +208,7 @@ export async function GET(req: NextRequest) {
       userId: uidRow.id,
       email,
     })
+    if (shopGuestAccountId) writeGuestAccountCookie(res, req, shopGuestAccountId)
     return res
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

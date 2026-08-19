@@ -10,6 +10,8 @@ import {
   Download,
   Gift,
   Heart,
+  LayoutDashboard,
+  LogOut,
   MapPin,
   MessageCircle,
   Pencil,
@@ -23,6 +25,7 @@ import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-
 import {
   getPartnerSiteCategoryNavLabels,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
+import { shouldPartnerSiteShopSkipAuthSync } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import {
   isPartnerSiteAccountTab,
   partnerSiteAccountTabPath,
@@ -89,6 +92,7 @@ export function PartnerSiteShopAccountClient({
   const customDomain = usePartnerSiteCustomDomain()
   const { ready, authHeaders, captureFromResponse, clearSession } = usePartnerSiteGuestSession(siteSlug)
   const [profile, setProfile] = useState<PartnerSiteVisitorProfile | null>(null)
+  const [shopAdminHref, setShopAdminHref] = useState<string | null>(null)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [loading, setLoading] = useState(true)
@@ -119,6 +123,14 @@ export function PartnerSiteShopAccountClient({
   )
 
   const loadProfile = useCallback(async () => {
+    if (shouldPartnerSiteShopSkipAuthSync(siteSlug)) {
+      setProfile(null)
+      setShopAdminHref(null)
+      setCustomerName('')
+      setCustomerPhone('')
+      setNeedsAuth(true)
+      return null
+    }
     const res = await fetch(partnerSitePersonalizationApiPath(siteSlug, 'profile'), {
       credentials: 'same-origin',
       headers: authHeaders(),
@@ -127,9 +139,11 @@ export function PartnerSiteShopAccountClient({
     const json = (await res.json().catch(() => ({}))) as {
       profile?: PartnerSiteVisitorProfile
       requireAuth?: boolean
+      shopAdmin?: { href?: string } | null
     }
     const next = json.profile ?? null
     setProfile(next)
+    setShopAdminHref(json.shopAdmin?.href?.trim() || null)
     setCustomerName(next?.customer_name ?? '')
     setCustomerPhone(next?.customer_phone ?? '')
     setNeedsAuth(!next?.email)
@@ -387,6 +401,25 @@ export function PartnerSiteShopAccountClient({
                     ) : null}
                   </button>
                 ))}
+                {shopAdminHref ? (
+                  <a
+                    href={shopAdminHref}
+                    className="pw-shop-account-link-card is-accent"
+                    data-pw-el={PW_EL.menuItem}
+                  >
+                    <LayoutDashboard className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} />
+                    <span>{t.accountOpenShopAdmin}</span>
+                  </a>
+                ) : null}
+                <button
+                  type="button"
+                  className="pw-shop-account-link-card is-logout"
+                  data-pw-el={PW_EL.menuItem}
+                  onClick={() => void clearSession()}
+                >
+                  <LogOut className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} />
+                  <span>{t.navLogout}</span>
+                </button>
               </div>
             </section>
           </aside>
@@ -412,6 +445,14 @@ export function PartnerSiteShopAccountClient({
                   <p className="pw-shop-muted">
                     {t.checkoutAddress}: {profile.shipping_address}
                   </p>
+                ) : null}
+                {shopAdminHref ? (
+                  <div className="pw-shop-account-admin-cta">
+                    <p className="pw-shop-muted">{t.accountOpenShopAdminHint}</p>
+                    <a href={shopAdminHref} className="pw-shop-btn">
+                      {t.accountOpenShopAdmin}
+                    </a>
+                  </div>
                 ) : null}
               </div>
             ) : null}

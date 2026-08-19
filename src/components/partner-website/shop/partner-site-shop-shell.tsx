@@ -3,21 +3,12 @@
 import Link from 'next/link'
 import {
   Bell,
-  ClipboardList,
-  Clock,
-  Download,
-  Gift,
   Heart,
   Home,
-  MapPin,
   Menu,
-  MessageCircle,
   Package,
-  Pencil,
-  Shield,
   ShoppingBag,
   UserRound,
-  type LucideIcon,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -42,10 +33,8 @@ import {
   type PartnerCategoryTreeNode,
 } from '@/lib/partner-website/category/partner-category-types'
 import {
-  getPartnerSiteAccountMenuItems,
   getPartnerSiteCategoryNavLabels,
   getPartnerSiteShopNavPaths,
-  type PartnerSiteAccountMenuItemId,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import {
   DEFAULT_PARTNER_SITE_FOOTER_LINKS,
@@ -117,21 +106,6 @@ type Props = {
   visualChromeStyles?: string
   previewDevice?: VisualDeviceVariant | null
   children: React.ReactNode
-}
-
-const ACCOUNT_MENU_ICONS: Record<PartnerSiteAccountMenuItemId, LucideIcon> = {
-  account: UserRound,
-  'edit-profile': Pencil,
-  cart: ShoppingBag,
-  orders: ClipboardList,
-  wallet: Gift,
-  wishlist: Heart,
-  'recently-viewed': Clock,
-  addresses: MapPin,
-  security: Shield,
-  notifications: Bell,
-  'install-app': Download,
-  contact: MessageCircle,
 }
 
 function mountHtmlBootstraps(hostId: string, html: string) {
@@ -266,7 +240,6 @@ function PartnerSiteShopShellInner({
   const { openChat } = usePartnerSiteChatWidget()
   const customDomain = usePartnerSiteCustomDomain()
   const paths = getPartnerSiteShopNavPaths(siteSlug, customDomain)
-  const accountMenuItems = getPartnerSiteAccountMenuItems({ siteSlug, locale, customDomain })
   const footerLinks = visibleSortedNavLinks(
     normalizePartnerSiteNavLinks(footerJson, DEFAULT_PARTNER_SITE_FOOTER_LINKS)
   )
@@ -326,26 +299,18 @@ function PartnerSiteShopShellInner({
   const { cartCount, setCartCount, registerCartLoader } = usePartnerSiteShop()
   const [categoryTree, setCategoryTree] = useState<PartnerCategoryTreeNode[] | null>(null)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
-  const [accountOpen, setAccountOpen] = useState(false)
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const categoriesRef = useRef<HTMLDivElement | null>(null)
-  const accountRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    if (!categoriesOpen && !accountOpen) return
+    if (!categoriesOpen) return
     const onPointerDown = (event: MouseEvent) => {
-      if (categoriesOpen && !categoriesRef.current?.contains(event.target as Node)) {
+      if (!categoriesRef.current?.contains(event.target as Node)) {
         setCategoriesOpen(false)
-      }
-      if (accountOpen && !accountRef.current?.contains(event.target as Node)) {
-        setAccountOpen(false)
       }
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setCategoriesOpen(false)
-        setAccountOpen(false)
-      }
+      if (event.key === 'Escape') setCategoriesOpen(false)
     }
     document.addEventListener('mousedown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
@@ -353,7 +318,7 @@ function PartnerSiteShopShellInner({
       document.removeEventListener('mousedown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [categoriesOpen, accountOpen])
+  }, [categoriesOpen])
 
   const loadCartCount = useCallback(async (): Promise<number> => {
     const res = await fetch(partnerSiteCartApiPath(siteSlug), {
@@ -492,10 +457,9 @@ function PartnerSiteShopShellInner({
               data-pw-el={PW_EL.catToggle}
               aria-expanded={categoriesOpen}
               aria-controls="pw-shop-cat-panel"
-              onClick={() => {
-                setCategoriesOpen((open) => !open)
-                setAccountOpen(false)
-              }}
+                onClick={() => {
+                  setCategoriesOpen((open) => !open)
+                }}
             >
               <Menu className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span>{t.navCategories}</span>
@@ -556,41 +520,17 @@ function PartnerSiteShopShellInner({
           <PartnerSiteShopSearchBar siteSlug={siteSlug} locale={locale} />
 
           <div className="pw-shop-header-actions">
-            <div className="pw-shop-account-wrap" ref={accountRef}>
-              <button
-                type="button"
-                className="pw-shop-icon-btn"
-                data-pw-el={PW_EL.account}
-                aria-expanded={accountOpen}
-                aria-controls="pw-shop-account-panel"
-                aria-label={t.navAccount}
-                onClick={() => {
-                  setAccountOpen((open) => !open)
-                  setCategoriesOpen(false)
-                }}
-              >
-                <UserRound className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
-                <span className="pw-shop-icon-label">{t.navAccount}</span>
-              </button>
-              {accountOpen ? (
-                <nav id="pw-shop-account-panel" className="pw-shop-account-panel" aria-label={t.navAccount}>
-                  {accountMenuItems.filter((item) => !item.isHeader).map((item) => {
-                    const Icon = ACCOUNT_MENU_ICONS[item.id]
-                    return (
-                      <Link
-                        key={item.id}
-                        href={item.href}
-                        className={item.isAccent ? 'is-accent' : undefined}
-                        onClick={() => setAccountOpen(false)}
-                      >
-                        {Icon ? <Icon className="pw-shop-account-icon" aria-hidden="true" strokeWidth={2} /> : null}
-                        <span>{item.label}</span>
-                      </Link>
-                    )
-                  })}
-                </nav>
-              ) : null}
-            </div>
+            <Link
+              href={paths.account}
+              className="pw-shop-icon-btn"
+              data-pw-el={PW_EL.account}
+              data-pw-chrome-btn="account"
+              aria-label={t.navAccount}
+              onClick={() => setCategoriesOpen(false)}
+            >
+              <UserRound className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
+              <span className="pw-shop-icon-label">{t.navAccount}</span>
+            </Link>
             <Link
               href={partnerSiteAccountTabPath(siteSlug, 'notifications', { customDomain })}
               className="pw-shop-icon-btn"

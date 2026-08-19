@@ -26,6 +26,7 @@ import {
 } from '@/lib/messaging/guest-auth-session'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import { upsertGuestAccountForGoogleIdentity } from '@/lib/messaging/guest-widget-identity'
+import { requestSkipsPartnerSiteShopAuthResume } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 
 export type ResumeGuestWebAuthSource =
   | 'existing_account'
@@ -135,6 +136,10 @@ export async function applyResumeGuestWebAuth(input: {
   }
   mirrorGuestSessionToClient(input.response, input.request, sessionId)
 
+  if (requestSkipsPartnerSiteShopAuthResume(input.request)) {
+    return { synced: false, source: 'none', accountId: null, email: null, sessionId }
+  }
+
   const existingAccountId = readGuestAccountIdFromRequest(input.request)
   if (existingAccountId) {
     writeGuestAccountCookie(input.response, input.request, existingAccountId)
@@ -153,7 +158,8 @@ export async function applyResumeGuestWebAuth(input: {
     const accountId = await upsertGuestAccountForGoogleIdentity(
       input.partnerId,
       input.request,
-      platformUser
+      platformUser,
+      { signupSource, partnerSlug: input.partnerSlug }
     )
     if (accountId) {
       writeGuestAccountCookie(input.response, input.request, accountId)

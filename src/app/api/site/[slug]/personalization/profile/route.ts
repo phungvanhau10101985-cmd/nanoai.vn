@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { resolvePartnerShopAdminAccessByEmail } from '@/lib/messaging/partner-staff-shop-admin-access'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   getSiteVisitorProfile,
@@ -23,10 +24,21 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     thread: visitor.thread,
     email,
   })
+  const shopAdmin = email
+    ? await resolvePartnerShopAdminAccessByEmail({
+        partnerId: shop.partnerId,
+        email,
+        industryKey: shop.industryKey,
+      })
+    : null
 
   return jsonSitePersonalization(
     request,
-    { ok: true, profile },
+    {
+      ok: true,
+      profile,
+      shopAdmin: shopAdmin ? { href: shopAdmin.href, role: shopAdmin.role } : null,
+    },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
   )

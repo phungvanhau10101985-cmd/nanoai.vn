@@ -1,6 +1,7 @@
 import type { AppUser } from '@/lib/auth/app-user'
 import type { NextRequest } from 'next/server'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
+import type { SignupSource } from '@/lib/auth/signup-source'
 import {
   createGuestSessionId,
   readGuestSessionIdFromRequestStrictOrLoose,
@@ -68,7 +69,8 @@ function normalizeEmail(v: string): string {
 export async function upsertGuestAccountForGoogleIdentity(
   partnerId: string,
   request: NextRequest,
-  user: AppUser | null
+  user: AppUser | null,
+  opts?: { signupSource?: SignupSource; partnerSlug?: string | null }
 ): Promise<string | null> {
   if (!user?.email) return null
   if (!isPgConfigured()) return null
@@ -116,7 +118,8 @@ export async function upsertGuestAccountForGoogleIdentity(
       partnerId,
       email: user.email,
       guestAccountId: accountId,
-      signupSource: 'partner_website',
+      signupSource: opts?.signupSource ?? 'partner_website',
+      partnerSlug: opts?.partnerSlug,
     })
   }
   return accountId ?? null

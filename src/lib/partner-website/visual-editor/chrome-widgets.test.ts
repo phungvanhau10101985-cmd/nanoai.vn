@@ -21,7 +21,6 @@ import {
   partnerSiteCartPath,
   partnerSiteHomePath,
   partnerSiteInfoPath,
-  partnerSiteNanoAiLoginHref,
   partnerSiteOrdersPath,
   partnerSiteOrderTrackingPath,
   partnerSiteProductsPath,
@@ -117,7 +116,7 @@ test('chrome widgets wire each kind to the real shop route', () => {
   assert.equal(chromeWidgetHref('about', '188-shop'), partnerSiteInfoPath('188-shop', 'about'))
   assert.equal(
     chromeWidgetHref('login', '188-shop'),
-    partnerSiteNanoAiLoginHref(partnerSiteAccountPath('188-shop'))
+    partnerSiteAccountPath('188-shop')
   )
 })
 
@@ -246,24 +245,20 @@ test('chrome widgets emit category toggle as cat-toggle button', () => {
   assert.doesNotMatch(html, /data-pw-chrome-btn/)
 })
 
-test('chrome widgets emit account toggle with menu panel routes', () => {
+test('chrome widgets emit account link to account page (no dropdown)', () => {
   const html = buildVisualEditorChromeWidgetHtml({
     kind: 'account',
     siteSlug: '188-shop',
     locale: 'vi',
     style: 'icon',
   })
-  assert.match(html, /pw-account-wrap/)
-  assert.match(html, /data-pw-account-toggle/)
   assert.match(html, /data-pw-chrome-btn="account"/)
-  assert.match(html, /data-pw-account-panel/)
-  assert.match(html, /id="pw-shop-account-panel"/)
-  assert.match(html, /data-pw-el="menu-item"/)
-  assert.match(html, /pw-shop-account-icon/)
+  assert.match(html, /data-pw-el="account"/)
+  assert.ok(html.includes(partnerSiteAccountPath('188-shop')))
+  assert.doesNotMatch(html, /data-pw-account-toggle/)
+  assert.doesNotMatch(html, /data-pw-account-panel/)
+  assert.doesNotMatch(html, /data-pw-el="menu-item"/)
   assert.doesNotMatch(html, />Tài khoản<\/span>/)
-  assert.ok(html.includes(partnerSiteAccountTabPath('188-shop', 'orders')))
-  assert.ok(html.includes(partnerSiteAccountTabPath('188-shop', 'wishlist')))
-  assert.doesNotMatch(html, / href="#"/)
 })
 
 test('chrome Chat Zalo without settings URL stays pending (no # href)', () => {

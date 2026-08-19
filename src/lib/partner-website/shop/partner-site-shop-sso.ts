@@ -9,8 +9,12 @@ export type PartnerSiteShopSsoConfig = {
   customerTokenPath: string
   /** true khi shopOrigin là domain shop riêng (188.com.vn), không phải domain NanoAI. */
   customerTokenOnShopDomain: boolean
-  /** Hiển thị nút Google — chỉ khi partner có web shop riêng (tự suy hoặc cấu hình workspace). */
+  /** Redirect Google qua web shop riêng (khi có shopOrigin). */
   googleSsoAvailable: boolean
+  /** Nút Google dùng OAuth NanoAI trên /site/{slug}. */
+  platformGoogleAuthEnabled: boolean
+  /** Origin NanoAI cho bridge Google (domain khách → nanoai → Google → handoff). */
+  platformAuthOrigin: string
 }
 
 export function normalizePartnerShopOrigin(raw: string | null | undefined): string | null {
@@ -67,5 +71,7 @@ export async function fetchPartnerSiteShopSsoConfig(siteSlug: string): Promise<P
     customerTokenPath: json.customerTokenPath?.trim() || PARTNER_SITE_CUSTOMER_TOKEN_PATH,
     customerTokenOnShopDomain: Boolean(json.customerTokenOnShopDomain),
     googleSsoAvailable: Boolean(json.googleSsoAvailable),
+    platformGoogleAuthEnabled: Boolean(json.platformGoogleAuthEnabled),
+    platformAuthOrigin: String(json.platformAuthOrigin || '').trim().replace(/\/$/, ''),
   }
 }

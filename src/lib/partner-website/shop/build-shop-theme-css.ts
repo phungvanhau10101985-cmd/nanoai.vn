@@ -67,12 +67,17 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-account-links{margin-top:0}
 .pw-shop-account-links h2,.pw-shop-account-edit h2{font-size:1rem;margin:0 0 10px;text-transform:uppercase;letter-spacing:.04em;color:var(--pw-primary)}
 .pw-shop-account-links-grid{display:flex;flex-direction:column;gap:6px}
-.pw-shop-account-link-card{display:flex;flex-direction:row;align-items:center;gap:8px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;font-weight:600;font-size:13px;color:#374151;cursor:pointer;width:100%;text-align:left}
+.pw-shop-account-link-card{display:flex;flex-direction:row;align-items:center;gap:8px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;font-weight:600;font-size:13px;color:#374151;cursor:pointer;width:100%;text-align:left;text-decoration:none}
 .pw-shop-account-link-card:hover{border-color:var(--pw-primary);color:var(--pw-primary);background:var(--pw-surface)}
 .pw-shop-account-link-card.is-active{border-color:var(--pw-primary);background:var(--pw-primary);color:#fff}
 .pw-shop-account-link-card.is-active .pw-shop-account-link-icon{color:#fff;opacity:1}
 .pw-shop-account-link-card.is-accent{border-color:var(--pw-primary);background:var(--pw-surface);color:var(--pw-accent)}
 .pw-shop-account-link-card.is-accent.is-active{background:var(--pw-accent);color:#fff;border-color:var(--pw-accent)}
+.pw-shop-account-admin-cta{margin-top:16px;display:grid;gap:8px;max-width:420px}
+.pw-shop-account-admin-cta .pw-shop-btn{width:100%}
+.pw-shop-account-link-card.is-logout{margin-top:6px;border-color:#fecaca;color:#b91c1c;background:#fff}
+.pw-shop-account-link-card.is-logout:hover{border-color:#f87171;color:#991b1b;background:#fef2f2}
+.pw-shop-account-link-card.is-logout .pw-shop-account-link-icon{color:#b91c1c;opacity:1}
 .pw-shop-account-link-icon{width:20px;height:20px}
 .pw-shop-account-edit{margin-top:0;padding-top:0;border-top:none}
 .pw-shop-page-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}

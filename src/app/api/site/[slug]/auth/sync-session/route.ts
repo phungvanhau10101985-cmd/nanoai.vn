@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { MESSAGING_GUEST_ACCOUNT_HEADER } from '@/lib/messaging/guest-account-session'
 import { applyResumeGuestWebAuth } from '@/lib/messaging/resume-guest-web-auth'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import { requestSkipsPartnerSiteShopAuthResume } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,17 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const { slug } = await ctx.params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Explicit shop sign-out: do not re-bind platform / trusted-device session.
+  if (requestSkipsPartnerSiteShopAuthResume(request)) {
+    return NextResponse.json({
+      ok: true,
+      synced: false,
+      source: 'none',
+      accountId: null,
+      email: null,
+    })
+  }
 
   const cookieRes = NextResponse.json({ ok: true })
   const result = await applyResumeGuestWebAuth({

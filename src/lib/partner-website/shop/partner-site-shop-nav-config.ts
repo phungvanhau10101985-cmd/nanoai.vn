@@ -27,6 +27,7 @@ export type PartnerSiteAccountMenuItemId =
   | 'security'
   | 'notifications'
   | 'install-app'
+  | 'logout'
 
 export type PartnerSiteAccountMenuItem = {
   id: PartnerSiteAccountMenuItemId
@@ -34,6 +35,7 @@ export type PartnerSiteAccountMenuItem = {
   label: string
   isHeader?: boolean
   isAccent?: boolean
+  isLogout?: boolean
 }
 
 export type PartnerSiteCategoryNavLabels = {
@@ -250,6 +252,7 @@ export function getPartnerSiteAccountMenuItems(input: {
     { id: 'notifications', href: tab('notifications', paths.account), label: t.accountNotifications },
     { id: 'install-app', href: tab('install-app', paths.account), label: t.accountInstallApp },
     { id: 'contact', href: tab('contact', paths.contact), label: getPartnerSiteCategoryNavLabels(input.locale).contact },
+    { id: 'logout', href: '#', label: t.navLogout, isLogout: true },
   ]
 }
 
@@ -273,6 +276,8 @@ export function partnerSiteAccountMenuIconSvg(id: PartnerSiteAccountMenuItemId):
     'install-app': '<path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M4 21h16"/>',
     contact:
       '<path d="M6 4h4l2 5-2 1a12 12 0 0 0 6 6l1-2 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 4 6a2 2 0 0 1 2-2z"/>',
+    logout:
+      '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
   }
   return `<svg class="pw-shop-account-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[id]}</svg>`
 }

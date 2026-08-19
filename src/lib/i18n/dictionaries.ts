@@ -690,6 +690,14 @@ export type Dictionary = {
     teamInviteErrorBadEmail: string
     teamInviteErrorOwner: string
     teamInviteOk: string
+    teamInviteOkEmailFailed: string
+    teamInviteMailSubject: string
+    teamInviteMailTitle: string
+    teamInviteMailBody: string
+    teamInviteMailCta: string
+    teamInviteMailNeedLogin: string
+    teamInviteMailOrLink: string
+    teamInviteMailIgnore: string
     teamStaffRestrictedNote: string
     teamPermInbox: string
     teamPermOrders: string
@@ -3825,7 +3833,7 @@ const VI_DICTIONARY: Dictionary = {
     deleteWorkspaceScheduleCancelled: 'Đã hủy lịch xóa workspace.',
     teamStaffSectionTitle: 'Nhân viên workspace',
     teamStaffSectionHint:
-      'Mời bằng email đăng nhập của tài khoản NanoAI. Chọn quyền từng người; chỉ nên cho quyền nhạy cảm khi tin tưởng hoàn toàn.',
+      'Mời bằng Gmail/email. Chưa có tài khoản NanoAI thì hệ thống tạo khi họ đăng nhập Google trên web shop. Email kèm link quản trị. Chọn quyền từng người; chỉ nên cho quyền nhạy cảm khi tin tưởng hoàn toàn.',
     badgeStaffWorkspace: 'được mời',
     teamInviteEmailLabel: 'Email đăng nhập',
     teamInviteEmailPlaceholder: 'email@vidu.com',
@@ -3837,7 +3845,18 @@ const VI_DICTIONARY: Dictionary = {
       'Không tìm thấy tài khoản với email này — người được mời cần đăng ký NanoAI và xác nhận email.',
     teamInviteErrorBadEmail: 'Email không hợp lệ.',
     teamInviteErrorOwner: 'Không thể mời chủ workspace hoặc chủ của shop này.',
-    teamInviteOk: 'Đã mời nhân viên.',
+    teamInviteOk: 'Đã mời nhân viên. Email kèm link quản trị shop đã được gửi.',
+    teamInviteOkEmailFailed:
+      'Đã thêm nhân viên. Không gửi được email — kiểm tra SMTP hoặc bấm Mời lại để gửi link quản trị.',
+    teamInviteMailSubject: '{shop} — lời mời quản trị shop trên NanoAI',
+    teamInviteMailTitle: 'Bạn được mời quản trị {shop}',
+    teamInviteMailBody:
+      '{inviter} đã mời bạn làm quản trị viên shop {shop} trên NanoAI. Bấm nút bên dưới để vào trang quản trị shop.',
+    teamInviteMailCta: 'Vào trang quản trị shop',
+    teamInviteMailNeedLogin:
+      'Đăng nhập NanoAI bằng đúng email được mời rồi mở liên kết. Nếu chưa có tài khoản, hãy đăng ký bằng email này.',
+    teamInviteMailOrLink: 'Hoặc mở liên kết:',
+    teamInviteMailIgnore: 'Nếu bạn không nhận lời mời này, hãy bỏ qua email.',
     teamStaffRestrictedNote:
       'Đang vào vai trò nhân viên: chỉ chủ workspace mới xem/sửa thanh toán, API nhúng, xóa workspace và các mục nhạy cảm khác.',
     teamPermInbox: 'Hộp thư khách',
@@ -6976,7 +6995,7 @@ const EN_DICTIONARY: Dictionary = {
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     teamStaffSectionTitle: 'Workspace team',
     teamStaffSectionHint:
-      'Invite people by their NanoAI login email. Choose permissions carefully; sensitive areas should only go to trusted users.',
+      'Invite by Gmail/email. If they do not have a NanoAI account yet, one is created when they sign in with Google on the shop. We email a shop admin link. Choose permissions carefully; sensitive areas should only go to trusted users.',
     badgeStaffWorkspace: 'invited',
     teamInviteEmailLabel: 'Login email',
     teamInviteEmailPlaceholder: 'user@example.com',
@@ -6988,7 +7007,18 @@ const EN_DICTIONARY: Dictionary = {
       'No account found for this email — the person needs a NanoAI account with a verified login email.',
     teamInviteErrorBadEmail: 'Invalid email.',
     teamInviteErrorOwner: 'Cannot invite the workspace owner for this shop.',
-    teamInviteOk: 'Invite sent.',
+    teamInviteOk: 'Staff invited. An email with the shop admin link was sent.',
+    teamInviteOkEmailFailed:
+      'Staff was added, but the email could not be sent. Check SMTP or invite again to resend the admin link.',
+    teamInviteMailSubject: '{shop} — shop admin invitation on NanoAI',
+    teamInviteMailTitle: 'You were invited to manage {shop}',
+    teamInviteMailBody:
+      '{inviter} invited you as a shop admin for {shop} on NanoAI. Use the button below to open the shop admin page.',
+    teamInviteMailCta: 'Open shop admin',
+    teamInviteMailNeedLogin:
+      'Sign in to NanoAI with the invited email, then open the link. If you do not have an account yet, register with this email.',
+    teamInviteMailOrLink: 'Or open this link:',
+    teamInviteMailIgnore: 'If you were not expecting this invite, you can ignore this email.',
     teamStaffRestrictedNote:
       'You are accessing this workspace as staff. Only the workspace owner can change payments, embedded API secrets, deletion, and some other sensitive sections.',
     teamPermInbox: 'Customer inbox',
@@ -10120,7 +10150,8 @@ const ZH_DICTIONARY: Dictionary = {
     deleteWorkspaceOtpSentToast: 'OTP sent to your email.',
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     teamStaffSectionTitle: '团队成员',
-    teamStaffSectionHint: '按 NanoAI 登录邮箱邀请。按需勾选权限；敏感权限仅授予可信人员。',
+    teamStaffSectionHint:
+      '按 NanoAI 登录邮箱邀请。系统会发送带店铺管理页链接的邮件。按需勾选权限；敏感权限仅授予可信人员。',
     badgeStaffWorkspace: '受邀成员',
     teamInviteEmailLabel: '登录邮箱',
     teamInviteEmailPlaceholder: 'user@example.com',
@@ -10132,7 +10163,15 @@ const ZH_DICTIONARY: Dictionary = {
       '未找到使用该邮箱的账户 — 被邀请者需先有 NanoAI 账号并完成邮箱验证。',
     teamInviteErrorBadEmail: '邮箱格式无效。',
     teamInviteErrorOwner: '不可邀请店主或店主账号。',
-    teamInviteOk: '已邀请。',
+    teamInviteOk: '已邀请员工。已发送带店铺管理页链接的邮件。',
+    teamInviteOkEmailFailed: '已添加员工，但邮件未能发送。请检查 SMTP 或再次点击邀请以重发管理链接。',
+    teamInviteMailSubject: '{shop} — NanoAI 店铺管理邀请',
+    teamInviteMailTitle: '你被邀请管理 {shop}',
+    teamInviteMailBody: '{inviter} 邀请你成为 NanoAI 上 {shop} 的店铺管理员。点击下方按钮进入店铺管理页。',
+    teamInviteMailCta: '进入店铺管理页',
+    teamInviteMailNeedLogin: '请用被邀请的邮箱登录 NanoAI 后再打开链接。若还没有账号，请用此邮箱注册。',
+    teamInviteMailOrLink: '或打开此链接：',
+    teamInviteMailIgnore: '若你并未收到此邀请，请忽略本邮件。',
     teamStaffRestrictedNote:
       '您以团队成员身份访问。仅店主可更改付款、嵌入式 API、删除店铺等敏感项。',
     teamPermInbox: '客户收件箱',
@@ -13174,7 +13213,7 @@ const JA_DICTIONARY: Dictionary = {
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     teamStaffSectionTitle: 'ワークスペースのメンバー',
     teamStaffSectionHint:
-      'NanoAI のログインメールで招待してください。権限は最小限にし、決済情報など機密機能は十分信頼できる人のみに許可しましょう。',
+      'NanoAI のログインメールで招待してください。店舗管理ページへのリンク付きメールを送ります。権限は最小限にし、決済情報など機密機能は十分信頼できる人のみに許可しましょう。',
     badgeStaffWorkspace: '招待済み',
     teamInviteEmailLabel: 'ログインメール',
     teamInviteEmailPlaceholder: 'user@example.com',
@@ -13186,7 +13225,18 @@ const JA_DICTIONARY: Dictionary = {
       'このメールのユーザーが見つかりません。招待先には NanoAI のアカウントと確認済みメールが必要です。',
     teamInviteErrorBadEmail: 'メールの形式が正しくありません。',
     teamInviteErrorOwner: 'このワークスペースのオーナーは招待できません。',
-    teamInviteOk: '招待しました。',
+    teamInviteOk: 'スタッフを招待しました。店舗管理ページのリンクをメールで送信しました。',
+    teamInviteOkEmailFailed:
+      'スタッフは追加されましたが、メールを送信できませんでした。SMTP を確認するか、もう一度招待して管理リンクを再送してください。',
+    teamInviteMailSubject: '{shop} — NanoAI 店舗管理への招待',
+    teamInviteMailTitle: '{shop} の管理に招待されました',
+    teamInviteMailBody:
+      '{inviter} が NanoAI 上のショップ {shop} の管理者としてあなたを招待しました。下のボタンから店舗管理ページを開けます。',
+    teamInviteMailCta: '店舗管理ページを開く',
+    teamInviteMailNeedLogin:
+      '招待されたメールで NanoAI にログインしてからリンクを開いてください。アカウントがない場合は、このメールで登録してください。',
+    teamInviteMailOrLink: 'または次のリンクを開く：',
+    teamInviteMailIgnore: 'この招待に心当たりがない場合は、このメールを無視してください。',
     teamStaffRestrictedNote:
       'スタッフ権限です。決済や埋め込み API・ワークスペース削除などの重要設定は店主のみ変更できます。',
     teamPermInbox: '受信箱',
@@ -16296,7 +16346,7 @@ const KO_DICTIONARY: Dictionary = {
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     teamStaffSectionTitle: '워크스페이스 팀원',
     teamStaffSectionHint:
-      'NanoAI 로그인 이메일로 초대합니다. 권한은 최소만 부여하고, 민감 항목은 신뢰하는 사람에게만 허용하세요.',
+      'NanoAI 로그인 이메일로 초대합니다. 샵 관리 페이지 링크가 포함된 이메일을 보냅니다. 권한은 최소만 부여하고, 민감 항목은 신뢰하는 사람에게만 허용하세요.',
     badgeStaffWorkspace: '초대됨',
     teamInviteEmailLabel: '로그인 이메일',
     teamInviteEmailPlaceholder: 'user@example.com',
@@ -16308,7 +16358,18 @@ const KO_DICTIONARY: Dictionary = {
       '해당 이메일 계정을 찾을 수 없습니다. 초대대상은 NanoAI 계정과 확인된 로그인 이메일이 필요합니다.',
     teamInviteErrorBadEmail: '이메일 형식이 올바르지 않습니다.',
     teamInviteErrorOwner: '워크스페이스 또는 샵 소유자 계정은 초대할 수 없습니다.',
-    teamInviteOk: '초대되었습니다.',
+    teamInviteOk: '직원을 초대했습니다. 샵 관리 링크가 포함된 이메일을 보냈습니다.',
+    teamInviteOkEmailFailed:
+      '직원은 추가되었지만 이메일을 보내지 못했습니다. SMTP를 확인하거나 초대를 다시 눌러 관리 링크를 재전송하세요.',
+    teamInviteMailSubject: '{shop} — NanoAI 샵 관리 초대',
+    teamInviteMailTitle: '{shop} 관리자로 초대되었습니다',
+    teamInviteMailBody:
+      '{inviter}님이 NanoAI의 {shop} 샵 관리자로 초대했습니다. 아래 버튼으로 샵 관리 페이지를 여세요.',
+    teamInviteMailCta: '샵 관리 페이지 열기',
+    teamInviteMailNeedLogin:
+      '초대받은 이메일로 NanoAI에 로그인한 뒤 링크를 여세요. 계정이 없으면 이 이메일로 가입하세요.',
+    teamInviteMailOrLink: '또는 이 링크를 여세요:',
+    teamInviteMailIgnore: '이 초대를 요청하지 않았다면 이 이메일을 무시하세요.',
     teamStaffRestrictedNote:
       '직원 역할입니다. 결제·임베드 API·워크스페이스 삭제 등 민감 설정은 소유자만 변경할 수 있습니다.',
     teamPermInbox: '고객 수신함',

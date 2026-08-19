@@ -145,6 +145,8 @@ import {
   verifyDeletionOtpAndSchedulePartnerPurgeFromPg,
 } from '@/lib/db/messaging-partner-purge-pg'
 import { sendSmtpMail, isSmtpConfigured } from '@/lib/email/smtp'
+import { sendPartnerStaffInviteEmail } from '@/lib/messaging/partner-staff-invite-email'
+import { resolveCanonicalUserIdByEmail } from '@/lib/auth/resolve-canonical-email-user'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { isPgConfigured } from '@/lib/db/pool'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -3183,16 +3185,34 @@ export async function inviteMessagingPartnerStaffByEmail(partnerId: string, emai
     ownerUserId: auth.user.id,
     partnerId,
   })
+  let memberUserId: string | null = found.ok ? found.userId : null
   if (!found.ok) {
     if (found.reason === 'invalid_email') return { error: 'INVALID_EMAIL' as const }
     if (found.reason === 'is_owner') return { error: 'INVITE_OWNER' as const }
     if (found.reason === 'duplicate_owner') return { error: 'INVITE_OWNER_ACCOUNT' as const }
-    return { error: 'USER_NOT_FOUND' as const }
+    const created = await resolveCanonicalUserIdByEmail(emailRaw.trim().toLowerCase(), {
+      source: 'customer_website',
+      partnerId,
+    })
+    if (!created) return { error: 'USER_NOT_FOUND' as const }
+    const again = await lookupAuthUserIdByEmailExcludeOwnerFromPg({
+      email: emailRaw,
+      ownerUserId: auth.user.id,
+      partnerId,
+    })
+    if (!again.ok) {
+      if (again.reason === 'is_owner' || again.reason === 'duplicate_owner') {
+        return { error: 'INVITE_OWNER' as const }
+      }
+      return { error: 'USER_NOT_FOUND' as const }
+    }
+    memberUserId = again.userId
   }
+  if (!memberUserId) return { error: 'INVITE_FAILED' as const }
   const invite = await upsertMessagingPartnerMemberForOwnerFromPg({
     partnerId,
     ownerUserId: auth.user.id,
-    memberUserId: found.userId,
+    memberUserId,
     permissions: defaultInviteStaffPermissions(),
   })
   if (!invite.ok) {
@@ -3200,7 +3220,21 @@ export async function inviteMessagingPartnerStaffByEmail(partnerId: string, emai
     return { error: 'INVITE_FAILED' as const }
   }
   revalidateMessagingDashboard()
-  return { ok: true as const }
+
+  let emailSent = false
+  try {
+    const sent = await sendPartnerStaffInviteEmail({
+      to: emailRaw,
+      partnerId,
+      memberUserId,
+      invitedByEmail: auth.user.email,
+      locale: getCurrentWebLocale(),
+    })
+    emailSent = sent.ok
+  } catch (e) {
+    console.warn('[inviteMessagingPartnerStaffByEmail] invite email', e)
+  }
+  return { ok: true as const, emailSent }
 }
 
 export async function updateMessagingPartnerStaffMemberPermissions(input: {

@@ -29,6 +29,7 @@ import {
 } from '@/lib/messaging/guest-chat-ordering'
 import { headlessAccountKey } from '@/lib/messaging/partner-headless-cart-utils'
 import { resolveWidgetOrderThreadFromRequest } from '@/lib/messaging/resolve-widget-order-thread'
+import { requestSkipsPartnerSiteShopAuthResume } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
 export type PartnerSitePersonalizationProduct = {
@@ -433,9 +434,11 @@ export async function resolveSiteVisitorEmail(
   request: NextRequest,
   partnerId?: string
 ): Promise<string | null> {
-  const user = await getEmailSessionUser()
-  const fromSession = user?.email?.trim().toLowerCase() || ''
-  if (fromSession) return fromSession
+  if (!requestSkipsPartnerSiteShopAuthResume(request)) {
+    const user = await getEmailSessionUser()
+    const fromSession = user?.email?.trim().toLowerCase() || ''
+    if (fromSession) return fromSession
+  }
 
   if (!partnerId) return null
   const thread = await resolveWidgetOrderThreadFromRequest(request, partnerId)

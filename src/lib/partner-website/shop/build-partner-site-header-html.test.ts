@@ -30,7 +30,8 @@ describe('listing native UI contract stamps', () => {
     expect(src).toContain('pwRegionAttr(PW_REGION.topbar)')
     expect(src).toContain('pwElAttr(PW_EL.link)')
     expect(src).toContain('pwElAttr(PW_EL.navLink)')
-    expect(src).toContain('data-pw-account-toggle data-pw-chrome-btn="account"')
+    expect(src).toContain('data-pw-chrome-btn="account"')
+    expect(src).not.toContain('data-pw-account-toggle')
   })
 
   it('stamps React catalog and category listing regions', () => {

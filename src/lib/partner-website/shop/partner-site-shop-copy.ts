@@ -180,6 +180,7 @@ export type PartnerSiteShopCopy = {
   consentAccept: string
   consentReject: string
   navAccount: string
+  navLogout: string
   navWallet: string
   walletTitle: string
   walletHint: string
@@ -198,6 +199,8 @@ export type PartnerSiteShopCopy = {
   addressesHint: string
   accountWelcome: string
   accountQuickLinks: string
+  accountOpenShopAdmin: string
+  accountOpenShopAdminHint: string
   accountSectionEditProfile: string
   /** W5.1 */
   accountSecurity: string
@@ -476,6 +479,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     consentAccept: 'Đồng ý',
     consentReject: 'Từ chối',
     navAccount: 'Tài khoản',
+    navLogout: 'Đăng xuất',
     navWallet: 'Ví quà',
     walletTitle: 'Ví quà của bạn',
     walletHint: 'Sao chép mã và dán vào ô mã giảm giá ở giỏ hàng để áp dụng.',
@@ -494,6 +498,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     addressesHint: 'Địa chỉ mặc định khi thanh toán.',
     accountWelcome: 'Xin chào',
     accountQuickLinks: 'Truy cập nhanh',
+    accountOpenShopAdmin: 'Vào trang quản trị shop',
+    accountOpenShopAdminHint: 'Gmail này được mời làm quản trị — mở nhanh trang quản trị shop.',
     accountSectionEditProfile: 'Chỉnh sửa hồ sơ',
     accountSecurity: 'Bảo mật',
     accountSecurityTitle: 'Bảo mật tài khoản',
@@ -766,6 +772,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     consentAccept: 'Accept',
     consentReject: 'Decline',
     navAccount: 'Account',
+    navLogout: 'Log out',
     navWallet: 'My vouchers',
     walletTitle: 'Your vouchers',
     walletHint: 'Copy a code and paste it into the promo code field at checkout to apply it.',
@@ -784,6 +791,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     addressesHint: 'Default address used at checkout.',
     accountWelcome: 'Hello',
     accountQuickLinks: 'Quick links',
+    accountOpenShopAdmin: 'Open shop admin',
+    accountOpenShopAdminHint: 'This Gmail was invited as shop admin — open the shop admin page.',
     accountSectionEditProfile: 'Edit profile',
     accountSecurity: 'Security',
     accountSecurityTitle: 'Account security',
@@ -1056,6 +1065,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     consentAccept: '同意',
     consentReject: '拒绝',
     navAccount: '账户',
+    navLogout: '退出登录',
     navWallet: '我的优惠券',
     walletTitle: '您的优惠券',
     walletHint: '复制代码并粘贴到结账时的优惠码栏即可使用。',
@@ -1074,6 +1084,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     addressesHint: '结账时使用的默认地址。',
     accountWelcome: '您好',
     accountQuickLinks: '快捷入口',
+    accountOpenShopAdmin: '进入店铺管理页',
+    accountOpenShopAdminHint: '此 Gmail 已被邀请为店铺管理员 — 可快速打开管理页。',
     accountSectionEditProfile: '编辑资料',
     accountSecurity: '安全',
     accountSecurityTitle: '账户安全',
@@ -1346,6 +1358,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     consentAccept: '同意する',
     consentReject: '拒否する',
     navAccount: 'アカウント',
+    navLogout: 'ログアウト',
     navWallet: 'マイクーポン',
     walletTitle: 'あなたのクーポン',
     walletHint: 'コードをコピーしてカートのプロモコード欄に貼り付けてください。',
@@ -1364,6 +1377,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     addressesHint: '決済時に使用する既定の住所。',
     accountWelcome: 'こんにちは',
     accountQuickLinks: 'クイックリンク',
+    accountOpenShopAdmin: '店舗管理ページを開く',
+    accountOpenShopAdminHint: 'この Gmail は店舗管理者に招待されています。管理ページをすぐ開けます。',
     accountSectionEditProfile: 'プロフィール編集',
     accountSecurity: 'セキュリティ',
     accountSecurityTitle: 'アカウントのセキュリティ',
@@ -1636,6 +1651,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     consentAccept: '동의',
     consentReject: '거부',
     navAccount: '계정',
+    navLogout: '로그아웃',
     navWallet: '내 쿠폰함',
     walletTitle: '내 쿠폰함',
     walletHint: '코드를 복사해 장바구니의 할인 코드란에 붙여넣으면 적용됩니다.',
@@ -1654,6 +1670,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     addressesHint: '결제 시 사용하는 기본 주소입니다.',
     accountWelcome: '안녕하세요',
     accountQuickLinks: '빠른 메뉴',
+    accountOpenShopAdmin: '샵 관리 페이지 열기',
+    accountOpenShopAdminHint: '이 Gmail은 샵 관리자로 초대되었습니다. 관리 페이지를 바로 여세요.',
     accountSectionEditProfile: '프로필 수정',
     accountSecurity: '보안',
     accountSecurityTitle: '계정 보안',
