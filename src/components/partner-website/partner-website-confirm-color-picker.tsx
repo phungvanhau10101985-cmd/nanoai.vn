@@ -81,6 +81,26 @@ function hsvToHex(hsv: Hsv): string {
   return rgbToHex(r, g, b)
 }
 
+/** White/gray/black lose hue in hex; keep the last hue (and sat for black). */
+function hsvFromHexPreserving(hex: string, prev: Hsv): Hsv {
+  const next = hexToHsv(hex)
+  if (next.s < 1e-3) next.h = prev.h
+  if (next.v < 1e-3) {
+    next.h = prev.h
+    next.s = prev.s
+  }
+  return next
+}
+
+/** Dragging hue on white/black must still produce a visible color. */
+function hsvAfterHueDrag(prev: Hsv, h: number): Hsv {
+  return {
+    h,
+    s: prev.s < 1e-3 ? 1 : prev.s,
+    v: prev.v < 1e-3 ? 1 : prev.v,
+  }
+}
+
 export function cssColorToHex(color: string, fallback = '#111827'): string {
   const raw = String(color || '').trim()
   if (isHexColor(raw)) return normalizeHexColor(raw, fallback)
@@ -108,14 +128,14 @@ export function ThemeColorConfirmPicker({
   const svRef = useRef<HTMLDivElement>(null)
   const hueRef = useRef<HTMLDivElement>(null)
   const rgbFocusRef = useRef<'r' | 'g' | 'b' | null>(null)
-  const hsvRef = useRef<Hsv>({ h: 0, s: 0, v: 0 })
   const draggingRef = useRef(false)
   const [open, setOpen] = useState(false)
   const [panelPos, setPanelPos] = useState({ top: 0, left: 0 })
   const [draft, setDraft] = useState(value)
-  const validDraft = isHexColor(draft) ? normalizeHexColor(draft, value) : normalizeHexColor(value, '#000000')
-  const hsv = hexToHsv(validDraft)
+  const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(value))
+  const hsvRef = useRef(hsv)
   hsvRef.current = hsv
+  const validDraft = isHexColor(draft) ? normalizeHexColor(draft, value) : normalizeHexColor(value, '#000000')
   const rgb = hexToRgb(validDraft)
   const [rgbText, setRgbText] = useState({ r: String(rgb.r), g: String(rgb.g), b: String(rgb.b) })
 
@@ -141,6 +161,9 @@ export function ThemeColorConfirmPicker({
   function openPicker() {
     if (disabled) return
     const hex = normalizeHexColor(value, value)
+    const nextHsv = hexToHsv(hex)
+    hsvRef.current = nextHsv
+    setHsv(nextHsv)
     setDraft(hex)
     syncRgbText(hex)
     placePanel()
@@ -149,7 +172,11 @@ export function ThemeColorConfirmPicker({
 
   function closeWithoutSave() {
     setOpenState(false)
-    setDraft(value)
+    const hex = normalizeHexColor(value, value)
+    const nextHsv = hexToHsv(hex)
+    hsvRef.current = nextHsv
+    setHsv(nextHsv)
+    setDraft(hex)
     rgbFocusRef.current = null
   }
 
@@ -193,7 +220,16 @@ export function ThemeColorConfirmPicker({
 
   function applyHsv(next: Hsv) {
     hsvRef.current = next
+    setHsv(next)
     const hex = hsvToHex(next)
+    setDraft(hex)
+    if (!rgbFocusRef.current) syncRgbText(hex)
+  }
+
+  function applyHexDraft(hex: string) {
+    const nextHsv = hsvFromHexPreserving(hex, hsvRef.current)
+    hsvRef.current = nextHsv
+    setHsv(nextHsv)
     setDraft(hex)
     if (!rgbFocusRef.current) syncRgbText(hex)
   }
@@ -227,16 +263,16 @@ export function ThemeColorConfirmPicker({
       } catch {
         /* already released */
       }
-      el.removeEventListener('pointermove', move)
-      el.removeEventListener('pointerup', up)
-      el.removeEventListener('pointercancel', up)
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
       window.setTimeout(() => {
         draggingRef.current = false
       }, 0)
     }
-    el.addEventListener('pointermove', move)
-    el.addEventListener('pointerup', up)
-    el.addEventListener('pointercancel', up)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
   }
 
   function commitRgbChannel(ch: 'r' | 'g' | 'b', raw: string) {
@@ -245,7 +281,7 @@ export function ThemeColorConfirmPicker({
     const next = clamp(Number(raw) || 0, 0, 255)
     const cur = hexToRgb(validDraft)
     const rgbNext = { ...cur, [ch]: next }
-    setDraft(rgbToHex(rgbNext.r, rgbNext.g, rgbNext.b))
+    applyHexDraft(rgbToHex(rgbNext.r, rgbNext.g, rgbNext.b))
   }
 
   const hueColor = hsvToHex({ h: hsv.h, s: 1, v: 1 })
@@ -307,11 +343,12 @@ export function ThemeColorConfirmPicker({
             }}
             onPointerDown={(e) => {
               startSurfaceDrag(e, (rect, x) => {
-                applyHsv({
-                  h: clamp(((x - rect.left) / rect.width) * 360, 0, 359.9),
-                  s: hsvRef.current.s,
-                  v: hsvRef.current.v,
-                })
+                applyHsv(
+                  hsvAfterHueDrag(
+                    hsvRef.current,
+                    clamp(((x - rect.left) / rect.width) * 360, 0, 359.9)
+                  )
+                )
               })
             }}
           >
@@ -330,9 +367,7 @@ export function ThemeColorConfirmPicker({
                   const raw = e.target.value
                   setDraft(raw)
                   if (isHexColor(raw)) {
-                    const hex = normalizeHexColor(raw, draft)
-                    setDraft(hex)
-                    syncRgbText(hex)
+                    applyHexDraft(normalizeHexColor(raw, draft))
                   }
                 }}
                 className="h-7 w-full rounded border border-border/70 bg-muted/30 px-1 font-mono text-[10px] uppercase"

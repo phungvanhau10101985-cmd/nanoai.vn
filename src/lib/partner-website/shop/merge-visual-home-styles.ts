@@ -1,5 +1,7 @@
-const SKIP_STYLE_ID =
+const SKIP_HOME_STYLE_ID =
   /^(nanoai-visual-editor-styles|nanoai-visual-editor-script|pw-visual-device-split)$/i
+const SKIP_INLINE_STYLE_ID =
+  /^(nanoai-visual-editor-styles|nanoai-visual-editor-script)$/i
 
 const HOME_STYLE_ATTR = 'data-pw-home-chrome-css'
 
@@ -47,7 +49,7 @@ export function extractVisualDocumentStyles(html: string): string {
 
   html.replace(/<style\b([^>]*)>([\s\S]*?)<\/style>/gi, (full, attrs: string) => {
     const id = styleIdFromAttrs(attrs)
-    if (id && SKIP_STYLE_ID.test(id)) return full
+    if (id && SKIP_HOME_STYLE_ID.test(id)) return full
     const open = stampTag(`<style${attrs}>`)
     push(`${open}${full.slice(full.indexOf('>') + 1)}`)
     return full
@@ -69,7 +71,7 @@ export function extractVisualDocumentCssText(html: string): string {
   const parts: string[] = []
   html.replace(/<style\b([^>]*)>([\s\S]*?)<\/style>/gi, (full, attrs: string, css: string) => {
     const id = styleIdFromAttrs(attrs)
-    if (id && SKIP_STYLE_ID.test(id)) return full
+    if (id && SKIP_INLINE_STYLE_ID.test(id)) return full
     if (css.trim()) parts.push(css)
     return full
   })

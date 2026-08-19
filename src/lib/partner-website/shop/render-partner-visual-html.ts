@@ -31,12 +31,24 @@ export type PartnerVisualHtmlTarget =
 
 export function preparePartnerVisualHtmlForEditor(
   html: string,
-  input: { variant: VisualDeviceVariant; theme?: PartnerWebsiteTheme | null }
+  input: {
+    variant: VisualDeviceVariant
+    theme?: PartnerWebsiteTheme | null
+    siteSlug?: string | null
+    locale?: WebLocale | null
+  }
 ): string {
   const normalized = injectPartnerShopChromeLayoutCss(
     isolateVisualHtmlForDevice(stripEmptyLogoPlaceholdersFromHtml(html), input.variant)
   )
-  return input.theme ? rewriteThemeCssVarsInHtml(normalized, input.theme) : normalized
+  const themed = input.theme ? rewriteThemeCssVarsInHtml(normalized, input.theme) : normalized
+  return input.siteSlug?.trim()
+    ? preparePartnerVisualHtmlForPublic(themed, {
+        siteSlug: input.siteSlug,
+        locale: input.locale,
+        onCustomDomain: false,
+      })
+    : themed
 }
 
 export function preparePartnerVisualHtmlForPublic(

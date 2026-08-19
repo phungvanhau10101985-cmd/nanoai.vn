@@ -54,7 +54,7 @@ Bốn bản file `*.html` / `*.laptop.html` / `*.tablet.html` / `*.mobile.html` 
 
 Mọi đường xem HTML visual phải đi qua `render-partner-visual-html.ts`:
 
-- Sửa nhanh `srcdoc`: `preparePartnerVisualHtmlForEditor()` — lấy đúng file máy đang sửa, overlay chrome cùng máy, inject CSS chrome + theme vars, **không** inject runtime live.
+- Sửa nhanh `srcdoc`: `preparePartnerVisualHtmlForEditor()` — lấy đúng file máy đang sửa, overlay chrome cùng máy, inject CSS chrome + theme vars; khi có `siteSlug` phải inject runtime live để search/catalog/badge khớp trang thật.
 - Xem thử/public/domain: `renderPartnerVisualHtmlForPublic()` hoặc `preparePartnerVisualHtmlForPublic()` — cùng HTML đã normalize, thêm runtime live, logo-home script và custom-domain rewrite khi cần.
 - `?pw-device=mobile|tablet|laptop|desktop` luôn là bản **isolated** đúng file đã lưu của máy đó. Không lấy bản responsive rồi tách lại ở client nếu server đã trả đúng máy.
 - Không tạo route preview/render mới tự gọi `resolvePublicVisualPageHtml()` rồi tự inject CSS/script riêng. Nếu cần entry mới, thêm target vào gateway trước.

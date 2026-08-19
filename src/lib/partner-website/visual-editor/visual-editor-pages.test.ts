@@ -747,19 +747,21 @@ test('public visual render gateway serves one device with chrome theme and runti
   assert.match(view, /--pw-primary:\s*#123456/)
 })
 
-test('editor visual render gateway matches device chrome but omits live runtime', () => {
+test('editor visual render gateway matches device chrome and live runtime when site slug exists', () => {
   const html =
     '<!DOCTYPE html><html><body><header class="pw-header"><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="chat">Chat</a></div></header><h1>Tablet edit</h1></body></html>'
   const edit = preparePartnerVisualHtmlForEditor(html, {
     variant: 'tablet',
     theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, primaryColor: '#654321' },
+    siteSlug: '188-shop',
+    locale: 'vi',
   })
   assert.match(edit, /Tablet edit/)
   assert.match(edit, /data-pw-device="tablet"/)
   assert.match(edit, /id="pw-shop-chrome-layout"/)
   assert.match(edit, /--pw-primary:\s*#654321/)
-  assert.doesNotMatch(edit, /data-pw-search-bootstrap/)
-  assert.doesNotMatch(edit, /data-pw-shop-actions-bootstrap/)
+  assert.match(edit, /data-pw-search-bootstrap/)
+  assert.match(edit, /data-pw-shop-actions-bootstrap/)
 })
 
 test('save and pw-device view keep dragged notification position', () => {

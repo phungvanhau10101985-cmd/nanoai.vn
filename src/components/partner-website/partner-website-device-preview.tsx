@@ -471,7 +471,12 @@ export const PartnerWebsiteDevicePreview = forwardRef<
 
   function visualEditSrcDoc(html: string): string {
     const withChrome = applyHomeChromeToEditorHtml(html)
-    return preparePartnerVisualHtmlForEditor(withChrome, { variant: editVariant, theme: liveTheme })
+    return preparePartnerVisualHtmlForEditor(withChrome, {
+      variant: editVariant,
+      theme: liveTheme,
+      siteSlug,
+      locale,
+    })
   }
 
   function savedHtmlForVariant(variant: VisualDeviceVariant): string {

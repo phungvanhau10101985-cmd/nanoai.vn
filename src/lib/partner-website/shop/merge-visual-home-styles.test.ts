@@ -26,8 +26,11 @@ test('extractVisualDocumentStyles keeps shop CSS and fonts, skips editor split',
   assert.match(css, /data-pw-home-chrome-css="1"/)
   assert.equal(css.includes('nanoai-ve-selected'), false)
   assert.equal(css.includes('pw-visual-device-split'), false)
-  assert.match(extractVisualDocumentCssText(home), /pw-shop-topbar/)
-  assert.equal(extractVisualDocumentCssText(home).includes('<style'), false)
+  const inlineCss = extractVisualDocumentCssText(home)
+  assert.match(inlineCss, /pw-shop-topbar/)
+  assert.match(inlineCss, /pw-visual-mobile/)
+  assert.equal(inlineCss.includes('<style'), false)
+  assert.equal(inlineCss.includes('nanoai-ve-selected'), false)
 })
 
 test('mergeVisualHomeStylesIntoHtml copies home CSS into target head', () => {
