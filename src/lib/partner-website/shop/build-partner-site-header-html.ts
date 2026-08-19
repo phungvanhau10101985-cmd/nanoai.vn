@@ -234,7 +234,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
     <a class="is-active" href="${homeHref}">${svgIcon('home')}<span>${escapeHtml(shop.navHome)}</span></a>
     <a href="${productsHref}">${svgIcon('box')}<span>${escapeHtml(shop.navProducts)}</span></a>
     <a href="${saleHref}">${svgIcon('tag')}<span>${escapeHtml(promoLabel)}</span></a>
-    <a href="${accountHref}">${svgIcon('user')}<span>${escapeHtml(shop.navAccount)}</span></a>
+    <a href="${accountHref}" ${pwElAttr(PW_EL.account)} data-pw-account-toggle data-pw-chrome-btn="account" aria-expanded="false" aria-haspopup="menu">${svgIcon('user')}<span>${escapeHtml(shop.navAccount)}</span></a>
   </nav>`
 
   return {

@@ -47,6 +47,8 @@ test('chrome toggle bootstrap hydrates the category panel from the public API', 
   assert.match(s, /ACCOUNT_MENU/)
   assert.match(s, /deviceRoot/)
   assert.match(s, /ensureAccountWrap/)
+  assert.match(s, /pw-bottom-nav a\[href\$="\/account"\]/)
+  assert.match(s, /closest\('\.pw-bottom-nav,\.\pw-shop-bottom-nav'\)/)
   assert.match(s, /data-pw-account-fallback-href/)
   assert.match(s, /aria-haspopup/)
   assert.match(s, /placePanelFixed/)
