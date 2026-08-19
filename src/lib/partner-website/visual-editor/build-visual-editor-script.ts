@@ -162,6 +162,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return false
   }
   function snapshotPage() {
+    restoreAllChromeDupCenters()
     var clone = document.body.cloneNode(true)
     var kill = clone.querySelectorAll('#nanoai-visual-editor-script,#nanoai-visual-editor-styles,#nanoai-ve-guides,.nanoai-ve-ignore,[data-nanoai-ve-ignore],[data-pw-ve-chat-preview]')
     for (var i = 0; i < kill.length; i++) kill[i].remove()
@@ -3840,32 +3841,113 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     return null
   }
-  function centerChromeInView(el) {
+  function resetVisualScroll() {
+    try { window.scrollTo(0, 0) } catch (errWin) {}
+    var roots = [document.scrollingElement, document.documentElement, document.body]
+    for (var i = 0; i < roots.length; i++) {
+      var n = roots[i]
+      if (!n) continue
+      try { n.scrollLeft = 0 } catch (errX) {}
+      try { n.scrollTop = 0 } catch (errY) {}
+    }
+  }
+  function restoreChromeDupCenter(el) {
+    if (!el || !el.getAttribute || el.getAttribute('data-pw-ve-dup-center') !== '1') return
+    var left = el.getAttribute('data-pw-ve-dup-left')
+    var top = el.getAttribute('data-pw-ve-dup-top')
+    var pos = el.getAttribute('data-pw-ve-dup-pos')
+    var z = el.getAttribute('data-pw-ve-dup-z')
+    var tf = el.getAttribute('data-pw-ve-dup-tf')
+    var mg = el.getAttribute('data-pw-ve-dup-mg')
+    var right = el.getAttribute('data-pw-ve-dup-right')
+    var bottom = el.getAttribute('data-pw-ve-dup-bottom')
+    var hadMove = el.getAttribute('data-pw-ve-dup-had-move')
+    el.removeAttribute('data-pw-ve-dup-center')
+    el.removeAttribute('data-pw-ve-dup-left')
+    el.removeAttribute('data-pw-ve-dup-top')
+    el.removeAttribute('data-pw-ve-dup-pos')
+    el.removeAttribute('data-pw-ve-dup-z')
+    el.removeAttribute('data-pw-ve-dup-tf')
+    el.removeAttribute('data-pw-ve-dup-mg')
+    el.removeAttribute('data-pw-ve-dup-right')
+    el.removeAttribute('data-pw-ve-dup-bottom')
+    el.removeAttribute('data-pw-ve-dup-had-move')
+    if (el.classList) el.classList.remove('nanoai-ve-chrome-dup')
+    if (!el.style) return
+    if (pos) el.style.position = pos
+    else el.style.removeProperty('position')
+    if (left) el.style.left = left
+    else el.style.removeProperty('left')
+    if (top) el.style.top = top
+    else el.style.removeProperty('top')
+    if (right) el.style.right = right
+    else el.style.removeProperty('right')
+    if (bottom) el.style.bottom = bottom
+    else el.style.removeProperty('bottom')
+    if (z) el.style.zIndex = z
+    else el.style.removeProperty('z-index')
+    if (tf) el.style.transform = tf
+    else el.style.removeProperty('transform')
+    if (mg) el.style.margin = mg
+    else el.style.removeProperty('margin')
+    if (hadMove !== '1') {
+      try { el.removeAttribute('data-pw-user-move') } catch (errMove) {}
+    }
+  }
+  function restoreAllChromeDupCenters() {
+    var nodes = document.querySelectorAll('[data-pw-ve-dup-center="1"]')
+    for (var i = 0; i < nodes.length; i++) restoreChromeDupCenter(nodes[i])
+    try { window.clearTimeout(window.__nanoaiVeDupCenterT) } catch (errT) {}
+  }
+  function liftChromeToViewportCenter(el) {
+    if (!el || !el.style) return
+    if (el.getAttribute('data-pw-ve-dup-center') !== '1') {
+      el.setAttribute('data-pw-ve-dup-center', '1')
+      el.setAttribute('data-pw-ve-dup-left', el.style.left || '')
+      el.setAttribute('data-pw-ve-dup-top', el.style.top || '')
+      el.setAttribute('data-pw-ve-dup-right', el.style.right || '')
+      el.setAttribute('data-pw-ve-dup-bottom', el.style.bottom || '')
+      el.setAttribute('data-pw-ve-dup-pos', el.style.position || '')
+      el.setAttribute('data-pw-ve-dup-z', el.style.zIndex || '')
+      el.setAttribute('data-pw-ve-dup-tf', el.style.transform || '')
+      el.setAttribute('data-pw-ve-dup-mg', el.style.margin || '')
+      el.setAttribute('data-pw-ve-dup-had-move', isUserMoved(el) ? '1' : '0')
+    }
+    var r
+    try { r = el.getBoundingClientRect() } catch (errBox) { r = null }
+    var w = Math.max(24, r && r.width ? r.width : 40)
+    var h = Math.max(24, r && r.height ? r.height : 40)
+    var viewW = window.innerWidth || document.documentElement.clientWidth || 390
+    var viewH = window.innerHeight || document.documentElement.clientHeight || 640
+    el.style.setProperty('position', 'fixed', 'important')
+    el.style.setProperty('left', Math.round((viewW - w) / 2) + 'px', 'important')
+    el.style.setProperty('top', Math.round((viewH - h) / 2) + 'px', 'important')
+    el.style.setProperty('right', 'auto', 'important')
+    el.style.setProperty('bottom', 'auto', 'important')
+    el.style.setProperty('transform', 'none', 'important')
+    el.style.setProperty('margin', '0', 'important')
+    el.style.setProperty('z-index', '2147483002', 'important')
+    if (el.classList) el.classList.add('nanoai-ve-chrome-dup')
+  }
+  function focusExistingChrome(el, kind) {
     if (!el) return
+    restoreAllChromeDupCenters()
+    resetVisualScroll()
     if (isChromeFloatEl(el)) {
       revealChromeFloat(el)
       try { sizeChromeIcons(el) } catch (errSizeDup) {}
       try { pinChromeIconBadges(el) } catch (errPinDup) {}
     }
-    try {
-      if (typeof el.scrollIntoView === 'function') {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
-      }
-    } catch (errScroll) {
-      try { el.scrollIntoView(true) } catch (errScroll2) {}
-    }
-    if (el.classList) {
-      el.classList.add('nanoai-ve-chrome-dup')
-      window.setTimeout(function () {
-        try { if (el.classList) el.classList.remove('nanoai-ve-chrome-dup') } catch (errPulse) {}
-      }, 1800)
-    }
-  }
-  function focusExistingChrome(el, kind) {
-    if (!el) return
-    centerChromeInView(el)
     selectEl(el)
+    resetVisualScroll()
+    liftChromeToViewportCenter(el)
+    try { positionAllHandles() } catch (errPosDup) {}
     post('chromeDuplicate', { kind: kind || '' })
+    try { window.clearTimeout(window.__nanoaiVeDupCenterT) } catch (errClearT) {}
+    window.__nanoaiVeDupCenterT = window.setTimeout(function () {
+      try { restoreChromeDupCenter(el) } catch (errRest) {}
+      try { positionAllHandles() } catch (errPosBack) {}
+    }, 2200)
   }
   function insertChromeBtn(kind, html, host) {
     var k = String(kind || '').replace(/[^a-z0-9-]/g, '')
@@ -5753,6 +5835,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function clearEditorMarks(el) {
     if (!el || el.nodeType !== 1) return
+    restoreChromeDupCenter(el)
     el.classList.remove('nanoai-ve-highlight')
     el.classList.remove('nanoai-ve-chrome-dup')
     el.classList.remove('nanoai-ve-dragging')

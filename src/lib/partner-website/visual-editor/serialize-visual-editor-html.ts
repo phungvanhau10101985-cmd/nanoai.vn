@@ -62,6 +62,46 @@ function stripEditorAndRuntimeNodes(clone: Element) {
     el.removeAttribute('data-nanoai-ve-selected')
     el.removeAttribute('data-nanoai-ve-ignore')
   })
+  clone.querySelectorAll('[data-pw-ve-dup-center]').forEach((el) => {
+    const pos = el.getAttribute('data-pw-ve-dup-pos')
+    const left = el.getAttribute('data-pw-ve-dup-left')
+    const top = el.getAttribute('data-pw-ve-dup-top')
+    const right = el.getAttribute('data-pw-ve-dup-right')
+    const bottom = el.getAttribute('data-pw-ve-dup-bottom')
+    const z = el.getAttribute('data-pw-ve-dup-z')
+    const tf = el.getAttribute('data-pw-ve-dup-tf')
+    const mg = el.getAttribute('data-pw-ve-dup-mg')
+    const hadMove = el.getAttribute('data-pw-ve-dup-had-move')
+    if (el instanceof HTMLElement) {
+      if (pos) el.style.position = pos
+      else el.style.removeProperty('position')
+      if (left) el.style.left = left
+      else el.style.removeProperty('left')
+      if (top) el.style.top = top
+      else el.style.removeProperty('top')
+      if (right) el.style.right = right
+      else el.style.removeProperty('right')
+      if (bottom) el.style.bottom = bottom
+      else el.style.removeProperty('bottom')
+      if (z) el.style.zIndex = z
+      else el.style.removeProperty('z-index')
+      if (tf) el.style.transform = tf
+      else el.style.removeProperty('transform')
+      if (mg) el.style.margin = mg
+      else el.style.removeProperty('margin')
+    }
+    el.removeAttribute('data-pw-ve-dup-center')
+    el.removeAttribute('data-pw-ve-dup-left')
+    el.removeAttribute('data-pw-ve-dup-top')
+    el.removeAttribute('data-pw-ve-dup-right')
+    el.removeAttribute('data-pw-ve-dup-bottom')
+    el.removeAttribute('data-pw-ve-dup-pos')
+    el.removeAttribute('data-pw-ve-dup-z')
+    el.removeAttribute('data-pw-ve-dup-tf')
+    el.removeAttribute('data-pw-ve-dup-mg')
+    el.removeAttribute('data-pw-ve-dup-had-move')
+    if (hadMove !== '1') el.removeAttribute('data-pw-user-move')
+  })
 }
 
 function ensureViewportMeta(clone: Element) {
