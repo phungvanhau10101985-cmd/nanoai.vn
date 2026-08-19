@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  chromeFloatDefaultBottomPx,
   isChromeFloatKind,
   PARTNER_SHOP_CHROME_FLOAT_CSS,
+  PARTNER_SHOP_CHROME_FLOAT_POS_JS,
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
+  PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX,
   PW_CHROME_FLOAT_KINDS,
   PW_CHROME_FLOAT_Z_INDEX,
   resetChromeFloatUserMoveInHtml,
@@ -25,6 +28,10 @@ test('chat Zalo Facebook and top-up are viewport-fixed chrome', () => {
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('data-pw-user-move'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('pwChromeFloatRemap'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('pwChromeFloatBakePct'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('pwChromeFloatSeatDefault'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('pwChromeFloatSeatDefault'), true)
+  assert.equal(chromeFloatDefaultBottomPx('topup'), PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.topup)
+  assert.equal(chromeFloatDefaultBottomPx('chat'), PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("toFixed(2)+'%'"), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('getBoundingClientRect'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('pointer-events:auto!important'), true)

@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import type { Json } from '@/types/database.types'
 import { insertMessage } from '@/lib/customer-care/conversation-service'
 import {
   fetchGuestWidgetConversationIdFromPg,
@@ -826,7 +827,7 @@ export async function sendAfterSalesGuestImageReply(input: {
       trigger_message_id: input.triggerMessageId,
       ...(liveBody ? { shipping_lookup: true } : {}),
       ...(boundOrderPayload ? { bound_order: boundOrderPayload } : {}),
-    },
+    } as Json,
   })
   return !('error' in ins)
 }

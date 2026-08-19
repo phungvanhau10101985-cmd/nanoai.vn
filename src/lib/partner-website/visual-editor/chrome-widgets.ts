@@ -536,7 +536,7 @@ export function buildVisualEditorChromeWidgetHtml(input: {
   }
   const isContactChat = isChromeContactChatKind(kind)
   const contactHref = isContactChat ? normalizeContactHttpUrl(input.href) : null
-  const routeHref = isContactChat || isChromeFloatKind(kind) || kind === 'chat' ? '' : chromeWidgetHref(kind, slug)
+  const routeHref = isContactChat || isChromeFloatKind(kind) ? '' : chromeWidgetHref(kind, slug)
   const href = escapeAttr(contactHref || routeHref)
   const isChat = kind === 'chat'
   const isActionBtn = isChat || kind === 'topup'

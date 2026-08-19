@@ -5,12 +5,14 @@ import {
   fetchPartnerProfileForWebsitePg,
   fetchPartnerWebsiteByPartnerIdPg,
 } from '@/lib/db/messaging-partner-websites-pg'
-import { composePartnerWebsiteHtmlAsync, resolveExactVisualHomepageHtml } from '@/lib/partner-website/compose-partner-website-html'
+import { composePartnerWebsiteHtmlAsync } from '@/lib/partner-website/compose-partner-website-html'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import { renderPartnerWebsiteHtml } from '@/lib/partner-website/partner-website-render'
+import { renderPartnerVisualHtmlForPublic } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-partner-website-full-landing'
+import { parseVisualDeviceQuery } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
-export async function GET(_req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
   if (!isPgConfigured()) {
     return new NextResponse('Database not configured', { status: 503 })
@@ -35,9 +37,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ partnerId: str
   const profile = await fetchPartnerProfileForWebsitePg(pid)
   const chatPath = profile ? `/messaging/p/${encodeURIComponent(profile.slug)}` : undefined
 
+  const { searchParams } = new URL(req.url)
+  const previewDevice = parseVisualDeviceQuery(searchParams.get('pw-device'))
   const skipHtmlRefresh = Boolean(website.theme?.useVisualHtml)
   if (skipHtmlRefresh) {
-    const visualHtml = resolveExactVisualHomepageHtml(website)
+    const visualHtml = renderPartnerVisualHtmlForPublic(
+      { ...website, siteSlug: website.siteSlug, locale: website.locale },
+      { kind: 'page', pageKey: 'home' },
+      { device: previewDevice }
+    )
     if (visualHtml.length >= 40) {
       return new NextResponse(visualHtml, {
         status: 200,

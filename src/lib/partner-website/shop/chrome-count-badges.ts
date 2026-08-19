@@ -62,7 +62,7 @@ export function formatChromeCountBadge(n: number): string {
 
 export const PW_CHROME_COUNT_ATTR = 'data-pw-chrome-count'
 
-export type ChromeCountBadgeDevice = 'desktop' | 'mobile' | 'tablet'
+export type ChromeCountBadgeDevice = 'desktop' | 'laptop' | 'mobile' | 'tablet'
 export type ChromeCountBadgeHost = 'actions' | 'nav' | 'mid' | 'topbar'
 
 export function chromeCountBadgeKindFromHtmlSnippet(html: string): ChromeCountBadgeKind | null {

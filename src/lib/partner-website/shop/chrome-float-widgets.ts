@@ -10,8 +10,21 @@ export const PW_CHROME_FLOAT_Z_INDEX = 9999
 export const PW_CHROME_FLOAT_KINDS = ['chat', 'chat-zalo', 'chat-facebook', 'topup'] as const
 export type PwChromeFloatKind = (typeof PW_CHROME_FLOAT_KINDS)[number]
 
+export const PW_CHROME_FLOAT_DEFAULT_RIGHT_PX = 16
+export const PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX: Record<PwChromeFloatKind, number> = {
+  chat: 88,
+  'chat-zalo': 144,
+  'chat-facebook': 200,
+  topup: 256,
+}
+
 export function isChromeFloatKind(kind: string | null | undefined): kind is PwChromeFloatKind {
   return (PW_CHROME_FLOAT_KINDS as readonly string[]).includes(String(kind || ''))
+}
+
+export function chromeFloatDefaultBottomPx(kind: string | null | undefined): number {
+  if (isChromeFloatKind(kind)) return PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX[kind]
+  return PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.topup
 }
 
 const FLOAT_BTN_RE = new RegExp(
@@ -42,6 +55,24 @@ export const PARTNER_SHOP_CHROME_FLOAT_POS_JS = `function pwChromeFloatViewSize(
   var h=window.innerHeight||(document.documentElement&&document.documentElement.clientHeight)||720;
   if(w<1)w=1280;if(h<1)h=720;
   return {w:w,h:h};
+}
+function pwChromeFloatDefaultBottom(kind){
+  if(kind==='chat')return ${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat};
+  if(kind==='chat-zalo')return ${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX['chat-zalo']};
+  if(kind==='chat-facebook')return ${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX['chat-facebook']};
+  return ${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.topup};
+}
+function pwChromeFloatSeatDefault(el){
+  if(!el||!el.style)return;
+  var kind=el.getAttribute?String(el.getAttribute('data-pw-chrome-btn')||''):'';
+  el.style.setProperty('position','fixed','important');
+  el.style.setProperty('left','auto','important');
+  el.style.setProperty('top','auto','important');
+  el.style.setProperty('right','${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}px','important');
+  el.style.setProperty('bottom',pwChromeFloatDefaultBottom(kind)+'px','important');
+  el.style.setProperty('transform','none','important');
+  el.style.setProperty('margin','0','important');
+  el.style.setProperty('z-index','${PW_CHROME_FLOAT_Z_INDEX}','important');
 }
 function pwChromeFloatBakePct(el){
   if(!el||!el.style)return;
@@ -86,11 +117,11 @@ function pwChromeFloatRemap(el){
 
 export const PARTNER_SHOP_CHROME_FLOAT_CSS = `
 [${PW_CHROME_FLOAT_ATTR}="1"]{position:fixed!important;z-index:${PW_CHROME_FLOAT_Z_INDEX}!important;isolation:isolate!important;margin:0!important;flex:0 0 auto!important;max-width:none!important;max-height:none!important;pointer-events:auto!important}
-[${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){left:auto!important;top:auto!important;right:16px!important}
-[data-pw-chrome-btn="chat"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:88px!important}
-[data-pw-chrome-btn="chat-zalo"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:144px!important}
-[data-pw-chrome-btn="chat-facebook"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:200px!important}
-[data-pw-chrome-btn="topup"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:256px!important}
+[${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){left:auto!important;top:auto!important;right:${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}px!important}
+[data-pw-chrome-btn="chat"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat}px!important}
+[data-pw-chrome-btn="chat-zalo"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX['chat-zalo']}px!important}
+[data-pw-chrome-btn="chat-facebook"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX['chat-facebook']}px!important}
+[data-pw-chrome-btn="topup"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.topup}px!important}
 [${PW_CHROME_FLOAT_ATTR}="1"].pw-chrome-icon-only,[${PW_CHROME_FLOAT_ATTR}="1"].pw-chrome-icon-square{
   width:calc(var(--pw-chrome-size,22px) + 14px)!important;height:calc(var(--pw-chrome-size,22px) + 14px)!important;
   min-width:calc(var(--pw-chrome-size,22px) + 14px)!important;min-height:calc(var(--pw-chrome-size,22px) + 14px)!important;
@@ -119,7 +150,11 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
     try {
       if (el.parentNode && el.parentNode !== document.body) document.body.appendChild(el);
     } catch (errHost) {}
-    if (!placed || !el.style) return;
+    if (!el.style) return;
+    if (!placed) {
+      pwChromeFloatSeatDefault(el);
+      return;
+    }
     pwChromeFloatRemap(el);
   }
   function stamp(){

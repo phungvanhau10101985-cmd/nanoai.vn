@@ -4,6 +4,7 @@ import {
   PW_CHROME_COUNT_BADGE_RUNTIME_JS,
 } from '../shop/chrome-count-badges'
 import {
+  PARTNER_SHOP_CHROME_FLOAT_CSS,
   PARTNER_SHOP_CHROME_FLOAT_POS_JS,
   PW_CHROME_FLOAT_KINDS,
   PW_CHROME_FLOAT_Z_INDEX,
@@ -1395,11 +1396,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     return { x: isNaN(pct(parts[0], 50)) ? 50 : pct(parts[0], 50), y: isNaN(pct(parts[1], 50)) ? 50 : pct(parts[1], 50) }
   }
+  function isLogoPlaceholderSrc(src) {
+    var s = String(src || '').trim()
+    return !s || s.indexOf('data:image/') === 0
+  }
   function isFilledLogo(el) {
     if (!isImgEl(el)) return false
     if (el.getAttribute && el.getAttribute('data-pw-logo-empty') === '1') return false
     var src = (el.getAttribute('src') || '').trim()
-    return src.length > 4 && src.indexOf('data:image/') !== 0
+    return src.length > 4 && !isLogoPlaceholderSrc(src)
   }
   function listLogoSlots() {
     var out = []
@@ -1435,18 +1440,16 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function clearLogoSlotPaint(img) {
     if (!img) return
-    if (img.style) {
-      img.style.removeProperty('background')
-      img.style.removeProperty('background-color')
-      img.style.removeProperty('background-image')
-      img.style.backgroundColor = 'transparent'
-    }
-    var frame = logoFrameOf(img)
-    if (frame && frame.style) {
-      frame.style.removeProperty('background')
-      frame.style.removeProperty('background-color')
-      frame.style.removeProperty('background-image')
-      frame.style.backgroundColor = 'transparent'
+    var nodes = [img, logoFrameOf(img), headerLogoUnit(img)]
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      var node = nodes[i]
+      if (!node || !node.style) continue
+      node.style.removeProperty('background')
+      node.style.removeProperty('background-color')
+      node.style.removeProperty('background-image')
+      node.style.setProperty('background', 'transparent', 'important')
+      node.style.setProperty('background-color', 'transparent', 'important')
     }
   }
   function resetLogoImageLayout(img) {
@@ -1492,7 +1495,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function afterLogoImageReady(img, fn) {
     if (!img || typeof fn !== 'function') return
     var run = function () { try { fn() } catch (eReady) {} }
-    if (img.complete && img.naturalWidth > 0) {
+    var src = String(img.getAttribute('src') || img.src || '').trim()
+    var real = src && !isLogoPlaceholderSrc(src) && img.complete && img.naturalWidth > 4
+    if (real) {
       run()
       return
     }
@@ -1529,18 +1534,30 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     })
     return img
   }
+  function paintLogoSrc(img, url) {
+    if (!img || !url) return img
+    img.removeAttribute('srcset')
+    img.removeAttribute('data-pw-logo-empty')
+    img.setAttribute('referrerpolicy', 'no-referrer')
+    img.setAttribute('decoding', 'async')
+    img.style.objectFit = 'contain'
+    img.style.opacity = '1'
+    img.style.visibility = 'visible'
+    img.style.display = 'block'
+    img.style.backgroundColor = 'transparent'
+    if (img.src === url) {
+      try { img.src = '' } catch (eClear) {}
+    }
+    img.setAttribute('src', url)
+    try { img.src = url } catch (eSrc) {}
+    return img
+  }
   function applyLogoToEl(el, url) {
     if (!el || !url) return el
     if (isImgEl(el)) {
-      el.setAttribute('src', url)
-      el.removeAttribute('srcset')
+      paintLogoSrc(el, url)
       el.style.transform = ''
-      el.style.objectFit = 'contain'
-      el.style.backgroundColor = 'transparent'
-      if (el.setAttribute) {
-        el.setAttribute('data-pw-logo-slot', logoSlotKind(el))
-        el.removeAttribute('data-pw-logo-empty')
-      }
+      if (el.setAttribute) el.setAttribute('data-pw-logo-slot', logoSlotKind(el))
       hideSiblingWordmarks(el)
       hideBrandLinkText(el.closest ? el.closest('a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home]') : null)
       return sealAppliedLogo(ensureLogoHomeLink(el) || el)
@@ -1551,18 +1568,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (footTarget && footTarget.querySelector) {
         var footImg = footTarget.querySelector('img.pw-shop-footer-logo, img.pw-logo, img.pw-shop-logo')
         if (footImg) {
-          footImg.setAttribute('src', url)
-          footImg.removeAttribute('srcset')
-          footImg.removeAttribute('data-pw-logo-empty')
-          footImg.style.objectFit = 'contain'
-          footImg.style.backgroundColor = 'transparent'
+          paintLogoSrc(footImg, url)
         } else {
           footImg = document.createElement('img')
           footImg.className = 'pw-shop-footer-logo pw-logo'
           footImg.setAttribute('data-pw-logo-slot', 'footer')
           footImg.setAttribute('alt', String(el.textContent || 'logo').replace(/\\s+/g, ' ').trim() || 'logo')
-          footImg.setAttribute('src', url)
-          footImg.style.objectFit = 'contain'
+          paintLogoSrc(footImg, url)
           footTarget.insertBefore(footImg, el)
         }
         el.setAttribute('data-pw-logo-wordmark-hidden', '1')
@@ -1574,11 +1586,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var existing = brandHostOf(el)
     var hostImg = existing && existing.querySelector ? existing.querySelector('img.pw-logo, img.pw-shop-logo, img.pw-shop-footer-logo, img.site-logo, [data-pw-logo-added]') : null
     if (hostImg) {
-      hostImg.setAttribute('src', url)
-      hostImg.removeAttribute('srcset')
-      hostImg.removeAttribute('data-pw-logo-empty')
-      hostImg.style.objectFit = 'contain'
-      hostImg.style.backgroundColor = 'transparent'
+      paintLogoSrc(hostImg, url)
       hideSiblingWordmarks(hostImg)
       hideBrandLinkText(isBrandLink(existing) ? existing : (hostImg.closest ? hostImg.closest('a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home]') : null))
       return sealAppliedLogo(ensureLogoHomeLink(hostImg) || hostImg)
@@ -1587,8 +1595,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     img.className = kind === 'footer' ? 'pw-shop-footer-logo pw-logo' : 'pw-logo pw-shop-logo'
     img.setAttribute('data-pw-logo-slot', kind)
     img.setAttribute('alt', String(el.textContent || 'logo').replace(/\\s+/g, ' ').trim() || 'logo')
-    img.setAttribute('src', url)
-    img.style.objectFit = 'contain'
+    paintLogoSrc(img, url)
     var link = isBrandLink(el) ? el : (el.closest ? el.closest('a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home]') : null)
     if (clsOf(el).indexOf('pw-shop-footer-brand') >= 0) {
       el.insertBefore(img, el.firstChild)
@@ -1635,28 +1642,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function keepChromeIconCenter(el, before) {
     if (!el || !el.style || !before) return
     if (!(before.width > 0 || before.height > 0)) return
+    // Float chrome is viewport-fixed. Recalculating left/top from the box
+    // (or baking %) on every slider tick makes the icon jump around the page.
+    if (isChromeFloatEl(el)) return
     var after = null
     try { after = el.getBoundingClientRect() } catch (errAfter) { return }
     if (!after) return
     var shiftX = (before.left + before.width / 2) - (after.left + after.width / 2)
     var shiftY = (before.top + before.height / 2) - (after.top + after.height / 2)
     if (Math.abs(shiftX) < 0.5 && Math.abs(shiftY) < 0.5) return
-    // Newly added floats sit on CSS right/bottom. Pinning left/top or transform
-    // drops them at the header origin (0,0) as soon as size changes.
-    if (isChromeFloatEl(el) && !isUserMoved(el)) return
     var pos = ''
     try { pos = String(cs(el).position || '') } catch (errPos) { pos = '' }
-    if (isChromeFloatEl(el) && (pos === 'absolute' || pos === 'fixed')) {
-      el.style.setProperty('position', 'fixed', 'important')
-      el.style.setProperty('left', Math.round(after.left + shiftX) + 'px', 'important')
-      el.style.setProperty('top', Math.round(after.top + shiftY) + 'px', 'important')
-      el.style.setProperty('right', 'auto', 'important')
-      el.style.setProperty('bottom', 'auto', 'important')
-      el.style.setProperty('transform', 'none', 'important')
-      markUserMoved(el)
-      try { pwChromeFloatBakePct(el) } catch (errBakeSize) {}
-      return
-    }
     var leftRaw = String(el.style.left || '')
     var topRaw = String(el.style.top || '')
     var left = parseFloat(leftRaw)
@@ -2303,23 +2299,21 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try {
       if (el.parentNode && el.parentNode !== document.body) document.body.appendChild(el)
     } catch (errHostFloat) {}
+    if (!isUserMoved(el)) {
+      try { pwChromeFloatSeatDefault(el) } catch (errSeatStamp) {}
+    }
   }
   function releaseChromeFloatPin(el) {
     if (!el || !el.style || !isChromeFloatEl(el)) return
     stampChromeFloat(el)
     if (el.getAttribute && el.getAttribute('data-pw-user-move') === '1') return
     try {
-      el.style.removeProperty('position')
-      el.style.removeProperty('left')
-      el.style.removeProperty('top')
-      el.style.removeProperty('right')
-      el.style.removeProperty('bottom')
-      el.style.removeProperty('transform')
       el.style.removeProperty('width')
       el.style.removeProperty('height')
       el.style.removeProperty('max-width')
       el.style.removeProperty('max-height')
     } catch (errRelFloat) {}
+    try { pwChromeFloatSeatDefault(el) } catch (errSeatRel) {}
   }
   function pinExistingChromeFloat(el) {
     if (!el || !isChromeFloatEl(el)) return
@@ -2344,16 +2338,16 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { el.removeAttribute('data-pw-hidden') } catch (errHid) {}
     stampChromeFloat(el)
     var kind = chromeKindOf(el)
-    var stuckTop = false
+    if (kind === 'topup' && el.classList) el.classList.add('pw-chrome-topup-on')
+    var stuckOrigin = false
     try {
       var box = el.getBoundingClientRect()
-      stuckTop = !!(kind === 'topup' && box && box.top < 140 && box.bottom < 200)
+      stuckOrigin = !!(box && box.top < 8 && box.left < 8 && box.bottom < 80)
     } catch (errBox) {}
-    if (chromeFloatOffViewport(el) || stuckTop) {
+    if (chromeFloatOffViewport(el) || stuckOrigin) {
       if (el.removeAttribute) el.removeAttribute('data-pw-user-move')
       releaseChromeFloatPin(el)
     }
-    if (kind === 'topup' && el.classList) el.classList.add('pw-chrome-topup-on')
   }
   function stampAllChromeFloats() {
     var kinds = ${JSON.stringify(PW_CHROME_FLOAT_KINDS)}
@@ -3899,7 +3893,6 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (existing.setAttribute) existing.setAttribute('data-pw-device', pwStampDevice())
       if (isChromeFloatKind(k)) {
         revealChromeFloat(existing)
-        if (hostEl && existing.parentNode !== hostEl) hostEl.appendChild(existing)
         sizeChromeIcons(existing)
         pinChromeIconBadges(existing)
       }
@@ -3923,7 +3916,16 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     }
     if (node.setAttribute) node.setAttribute('data-pw-device', pwStampDevice())
-    if (isChromeFloatKind(k)) releaseChromeFloatPin(node)
+    if (isChromeFloatKind(k)) {
+      try { document.body.appendChild(node) } catch (errFloatInsert) {}
+      releaseChromeFloatPin(node)
+      sizeChromeIcons(node)
+      pinChromeIconBadges(node)
+      if (k === 'topup' && node.classList) node.classList.add('pw-chrome-topup-on')
+      selectEl(node)
+      post('dirty', {})
+      return
+    }
     if (k === 'search') {
       var searchActions = hostEl.querySelector
         ? hostEl.querySelector('.pw-header-actions, .pw-shop-header-actions')
@@ -4114,7 +4116,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return isFinite(inline) ? inline : 0
   }
   function writeUserZ(el, z) {
-    if (!el || isFullBleedChrome(el)) return
+    if (!el || isFullBleedChrome(el) || isChromeFloatEl(el)) return
     var n = Math.max(0, Math.min(SCENE.zMax, Math.round(Number(z) || 0)))
     el.setAttribute('data-pw-z', String(n))
     try {
@@ -4158,7 +4160,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return sceneIndexOfZ(readUserZ(el))
   }
   function writeSceneIndex(el, index) {
-    if (!el || isFullBleedChrome(el)) return
+    if (!el || isFullBleedChrome(el) || isChromeFloatEl(el)) return
     var i = sceneClampIndex(index)
     el.setAttribute(SCENE.attr, String(i))
     writeUserZ(el, sceneZ(i, sceneLocalOfZ(readUserZ(el))))
@@ -4184,8 +4186,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function setElementScene(index) {
     if (!selected) return
+    if (isChromeFloatEl(selected)) return
     var el = isAddedOverlay(selected) ? selected : layerPromoteHost(selected)
-    if (!el) return
+    if (!el || isChromeFloatEl(el)) return
     // Lớp nền (0) chỉ là mặt đất — không đặt phần tử rời lên đó.
     var i = sceneClampIndex(index)
     if (i <= SCENE.minIndex) i = SCENE.minIndex + 1
@@ -5416,7 +5419,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return { beforeEl: kids.length ? kids[kids.length - 1] : null, before: false }
   }
   function snapChromeToHost(el, host, beforeEl, before) {
-    if (!el || !host) return
+    if (!el || !host || isChromeFloatEl(el)) return
     if (beforeEl && beforeEl.parentNode === host && beforeEl !== el) {
       if (before) host.insertBefore(el, beforeEl)
       else host.insertBefore(el, beforeEl.nextSibling)
@@ -7441,6 +7444,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       'html,body{overflow-x:hidden!important;max-width:100%}',
       '.pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]){transform:none!important;left:auto!important;top:auto!important}',
       '[data-pw-chrome-float="1"]{position:fixed!important;z-index:${PW_CHROME_FLOAT_Z_INDEX}!important;isolation:isolate!important;pointer-events:auto!important}',
+      ${JSON.stringify(PARTNER_SHOP_CHROME_FLOAT_CSS)},
       '.nanoai-ve-highlight[data-pw-region="banner"],.nanoai-ve-hover[data-pw-region="banner"]{outline:2px dashed #2563eb!important}',
       '.nanoai-ve-highlight[data-pw-move-block="1"],.nanoai-ve-hover[data-pw-move-block="1"]{outline:2px dashed #2563eb!important}',
       '[contenteditable=true]{cursor:text!important;min-width:0;outline:none!important}',
@@ -7755,8 +7759,48 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     return n
   }
-  function applyImageUrl(url, allSlots) {
+  function headerLogoImg() {
+    var header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
+    if (!header || !header.querySelector) return null
+    return header.querySelector('img.pw-logo, img.pw-shop-logo, [data-pw-logo-added]')
+  }
+  function applyLogoUrl(url, allSlots) {
+    var u = String(url || '').trim()
+    if (!u) return
+    var img = headerLogoImg()
+    if (!img && selected && (isLogoSlot(selected) || isLogoImg(selected) || isLogoFrame(selected))) {
+      img = logoImgOf(selected) || (isImgEl(selected) ? selected : null)
+    }
+    if (!img) {
+      placeHeaderLogoFromToolbar({ width: 140, height: 36, bgColor: 'transparent' })
+      img = headerLogoImg()
+    }
+    if (!img) return
+    var applyAll = allSlots !== false
+    var next = img
+    if (applyAll) {
+      var slots = listLogoSlots()
+      var i
+      for (i = 0; i < slots.length; i++) {
+        var applied = applyLogoToEl(slots[i], u)
+        if (slots[i] === img || (img.contains && img.contains(slots[i])) || slots[i] === selected) next = applied
+      }
+      if (!slots.length) next = applyLogoToEl(img, u)
+    } else {
+      next = applyLogoToEl(canonicalLogoEl(img) || img, u)
+      applyLeftoverTextLogos(u)
+    }
+    post('dirty', {})
+    if (next) selectEl(next)
+    else refreshSelect()
+    syncLogoButtons()
+  }
+  function applyImageUrl(url, allSlots, asLogo) {
     if (!url) return
+    if (asLogo) {
+      applyLogoUrl(url, allSlots !== false)
+      return
+    }
     if (selected && (isLogoSlot(selected) || isLogoImg(selected))) {
       var filled = countFilledLogoSlots()
       var applyAll = allSlots === true || (allSlots !== false && filled === 0)
@@ -7908,7 +7952,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       post('dirty', {})
       refreshSelect()
     }
-    if (d.type === 'setImageSrc' && d.url) applyImageUrl(d.url, d.allSlots)
+    if (d.type === 'setImageSrc' && d.url) applyImageUrl(d.url, d.allSlots, d.asLogo)
+    if (d.type === 'setLogoSrc' && d.url) applyLogoUrl(d.url, d.allSlots !== false)
     if (d.type === 'setBannerZoom' && selected) {
       var zoomHost = bannerHostOf(selected)
       if (zoomHost && (isBannerPhotoTarget(selected) || isBgLayerEl(selected) || layerMode === 'image')) {

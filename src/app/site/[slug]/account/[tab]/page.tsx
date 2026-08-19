@@ -75,7 +75,7 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
   if (!shop) notFound()
   const device = await readVisualPreviewDevice(searchParams)
 
-  const sp = await searchParams
+  const sp = (await searchParams) ?? {}
   const ordersFilter = normalized === 'orders' ? sp.tab?.trim() || null : null
 
   return (

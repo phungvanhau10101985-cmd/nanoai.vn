@@ -1130,7 +1130,8 @@ export function PartnerWebsiteVisualEditorToolbar({
           setTextDraft(String(data.text ?? ''))
         }
         if (next.editKind === 'search' && !textDraftFocusedRef.current) {
-          setTextDraft(String(data.placeholder ?? ''))
+          const placeholder = (data as { placeholder?: unknown }).placeholder
+          setTextDraft(String(placeholder ?? ''))
         }
       }
       if (data.type === 'deselect') {
@@ -1326,17 +1327,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     setUploadBusy(true)
     try {
       const url = await uploadPartnerImageFile(partnerId, file)
-      if (!selection?.isLogo) {
-        const device: LogoDeviceKind = visualDeviceVariantFromHtmlPath(htmlPath)
-        const size = logoSizeFromAspect(logoAspect, device)
-        postToIframe(iframeRef.current, 'placeHeaderLogo', {
-          width: size.w,
-          height: size.h,
-          bgColor: 'transparent',
-        })
-        await new Promise((resolve) => window.setTimeout(resolve, 80))
-      }
-      postToIframe(iframeRef.current, 'setImageSrc', { url, allSlots: true })
+      postToIframe(iframeRef.current, 'setLogoSrc', { url, allSlots: true })
       setDirty(true)
       await persistAdminLogo(url)
       setOpenPanel(null)
@@ -1357,10 +1348,17 @@ export function PartnerWebsiteVisualEditorToolbar({
     setUploadBusy(true)
     try {
       const url = await uploadPartnerImageFile(partnerId, file)
-      postToIframe(iframeRef.current, 'setImageSrc', {
-        url,
-        allSlots: Boolean(selection?.isLogo && selection.logoFilledCount === 0),
-      })
+      if (selection?.isLogo) {
+        postToIframe(iframeRef.current, 'setLogoSrc', {
+          url,
+          allSlots: selection.logoFilledCount === 0,
+        })
+      } else {
+        postToIframe(iframeRef.current, 'setImageSrc', {
+          url,
+          allSlots: false,
+        })
+      }
       setDirty(true)
       if (selection?.isLogo) await persistAdminLogo(url)
     } catch (e) {
@@ -1458,9 +1456,17 @@ export function PartnerWebsiteVisualEditorToolbar({
       if (input.target === 'chat-icon') {
         await applySharedChatIconLogo(json.publicUrl)
       } else {
-        postToIframe(iframeRef.current, 'setImageSrc', { url: json.publicUrl, allSlots: Boolean(input.allSlots) })
-        setDirty(true)
-        if (input.kind === 'logo') await persistAdminLogo(json.publicUrl)
+        if (input.kind === 'logo') {
+          postToIframe(iframeRef.current, 'setLogoSrc', {
+            url: json.publicUrl,
+            allSlots: Boolean(input.allSlots),
+          })
+          setDirty(true)
+          await persistAdminLogo(json.publicUrl)
+        } else {
+          postToIframe(iframeRef.current, 'setImageSrc', { url: json.publicUrl, allSlots: Boolean(input.allSlots) })
+          setDirty(true)
+        }
       }
     } catch (e) {
       onError(e instanceof Error ? e.message : t.visualEditAiFailed)

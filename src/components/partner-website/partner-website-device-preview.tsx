@@ -20,7 +20,6 @@ import type { FashionHomeCopyPatch } from '@/lib/partner-website/shop/build-fash
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import {
   applyThemeCssVarsToFrameWindow,
-  rewriteThemeCssVarsInHtml,
   themeCssVarMap,
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { NANOAI_VE_MESSAGE } from '@/lib/partner-website/visual-editor/build-visual-editor-script'
@@ -61,7 +60,7 @@ import {
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { resetChromeFloatUserMoveInHtml } from '@/lib/partner-website/shop/chrome-float-widgets'
-import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import { preparePartnerVisualHtmlForEditor } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { copyMissingChromeCountBadgeWidgets } from '@/lib/partner-website/shop/chrome-count-badges'
 import {
   applySharedChrome,
@@ -72,7 +71,6 @@ import {
   mergeVisualHomeStylesIntoHtml,
   preferredVisualHomeStyleSource,
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
-import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
 import {
   resolvePartnerCategoryDisplayName,
   type PartnerCategoryTreeNode,
@@ -473,8 +471,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
 
   function visualEditSrcDoc(html: string): string {
     const withChrome = applyHomeChromeToEditorHtml(html)
-    const laidOut = injectPartnerShopChromeLayoutCss(stripEmptyLogoPlaceholdersFromHtml(withChrome))
-    return liveTheme ? rewriteThemeCssVarsInHtml(laidOut, liveTheme) : laidOut
+    return preparePartnerVisualHtmlForEditor(withChrome, { variant: editVariant, theme: liveTheme })
   }
 
   function savedHtmlForVariant(variant: VisualDeviceVariant): string {

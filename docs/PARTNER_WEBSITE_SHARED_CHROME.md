@@ -46,8 +46,18 @@ React (trang platform chưa có HTML visual): `PartnerSiteShopShell` bọc `chil
 | CSS thanh đáy / header sticky | `src/lib/partner-website/shop/partner-shop-chrome-layout-css.ts` |
 | Đồng bộ khi Lưu Sửa nhanh | `syncSharedChromeAcrossProjectFiles` trong `src/lib/partner-website/shop/sync-shared-chrome.ts` |
 | Overlay khi mở / xem trang | `withCanonicalSharedChrome` trong `src/lib/partner-website/visual-editor/visual-editor-pages.ts` |
+| Render Sửa nhanh / preview / live / domain | `src/lib/partner-website/shop/render-partner-visual-html.ts` |
 
 Bốn bản file `*.html` / `*.laptop.html` / `*.tablet.html` / `*.mobile.html` **tách cả phần giữa lẫn layout chrome**. Engine chỉ copy chrome **trong cùng một máy** (`index.html` → `about.html`; `index.laptop.html` → `about.laptop.html`). Không dán header desktop lên file laptop/mobile.
+
+## Gateway hiển thị thống nhất
+
+Mọi đường xem HTML visual phải đi qua `render-partner-visual-html.ts`:
+
+- Sửa nhanh `srcdoc`: `preparePartnerVisualHtmlForEditor()` — lấy đúng file máy đang sửa, overlay chrome cùng máy, inject CSS chrome + theme vars, **không** inject runtime live.
+- Xem thử/public/domain: `renderPartnerVisualHtmlForPublic()` hoặc `preparePartnerVisualHtmlForPublic()` — cùng HTML đã normalize, thêm runtime live, logo-home script và custom-domain rewrite khi cần.
+- `?pw-device=mobile|tablet|laptop|desktop` luôn là bản **isolated** đúng file đã lưu của máy đó. Không lấy bản responsive rồi tách lại ở client nếu server đã trả đúng máy.
+- Không tạo route preview/render mới tự gọi `resolvePublicVisualPageHtml()` rồi tự inject CSS/script riêng. Nếu cần entry mới, thêm target vào gateway trước.
 
 ## Breakpoint thanh đáy
 
@@ -68,6 +78,7 @@ Bốn bản file `*.html` / `*.laptop.html` / `*.tablet.html` / `*.mobile.html` 
 - [ ] Class `pw-header` / `pw-footer` / `pw-bottom-nav` (hoặc `pw-shop-*`) — engine mới sync được.
 - [ ] Không hardcode hex thương hiệu; màu từ `--pw-*`.
 - [ ] Sửa nhanh Mobile = Xem `?pw-device=mobile`; Tablet = `pw-device=tablet`; Laptop = `pw-device=laptop`; Desktop = `pw-device=desktop`.
+- [ ] Dashboard preview, `/site/{slug}`, `?pw-device=...` và custom domain đều đi qua `render-partner-visual-html.ts`.
 
 ## Không làm
 
@@ -76,3 +87,4 @@ Bốn bản file `*.html` / `*.laptop.html` / `*.tablet.html` / `*.mobile.html` 
 - `@media (max-width: 899px)` làm điểm ẩn/hiện thanh đáy (tablet 768–1279 sẽ mất thanh).
 - Nhân đôi HTML chrome trong từng file trang **cùng một máy** rồi quên đồng bộ — Lưu Sửa nhanh đã gọi `syncSharedChromeAcrossProjectFiles` (chỉ trong cùng device).
 - Copy nguyên header Desktop sang Mobile khi chỉ cần thêm nút tính năng còn thiếu.
+- Route public/preview tự inject `partner-shop-chrome-layout-css`, runtime shop, theme vars hoặc custom-domain link rewrite theo thứ tự riêng.

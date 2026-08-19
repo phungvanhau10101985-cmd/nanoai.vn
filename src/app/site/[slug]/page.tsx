@@ -8,6 +8,7 @@ import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { renderPartnerWebsiteHtml } from '@/lib/partner-website/partner-website-render'
 import { PartnerSitePublicClient } from './partner-site-public-client'
+import { maybePartnerSiteVisualPage, readVisualPreviewDevice } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { PartnerSiteFashionHome } from '@/components/partner-website/shop/partner-site-fashion-home'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
@@ -24,14 +25,6 @@ import { isPartnerFlashSaleActive } from '@/lib/partner-website/shop/partner-sho
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
 import { injectPartnerCustomDomainLinkRewriteScript } from '@/lib/partner-website/shop/inject-partner-custom-domain-link-script'
 import { injectPartnerLogoHomeLinkScript } from '@/lib/partner-website/shop/inject-partner-logo-home-link'
-import { injectPartnerShopRuntimeScriptsIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
-import { resolveExactVisualHomepageHtml } from '@/lib/partner-website/compose-partner-website-html'
-import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
-import {
-  parseVisualDeviceQuery,
-  resolvePublicVisualPageHtml,
-} from '@/lib/partner-website/visual-editor/visual-editor-pages'
-import { visualHtmlLooksUsable } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -97,41 +90,9 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
   const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
   if (!site) notFound()
 
-  const previewDevice = parseVisualDeviceQuery((await searchParams)['pw-device'])
-  // Sửa nhanh → Xem (`?pw-device=`) must serve the same isolated file as the editor.
-  const visualHtml = injectPartnerShopChromeLayoutCss(
-    resolvePublicVisualPageHtml(site, 'home', previewDevice) || resolveExactVisualHomepageHtml(site)
-  )
-
-  if (visualHtmlLooksUsable(visualHtml)) {
-    const headerStore = headers()
-    const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
-    const withLogoHome = injectPartnerLogoHomeLinkScript(
-      injectPartnerShopRuntimeScriptsIntoHtml(visualHtml, {
-        siteSlug: site.siteSlug,
-        locale: site.locale,
-      }),
-      site.siteSlug,
-      onCustomDomain
-    )
-    const publicHtml = onCustomDomain
-      ? injectPartnerCustomDomainLinkRewriteScript(withLogoHome, site.siteSlug)
-      : withLogoHome
-
-    return (
-      <PartnerSitePublicClient
-        html={publicHtml}
-        allowScripts
-        chatPath={site.chatPath}
-        shopName={site.title}
-        logoUrl={site.logoUrl}
-        locale={site.locale}
-        inlineHtml={onCustomDomain}
-        initialDevice={previewDevice}
-        hideChatLauncher={site.theme?.hideChatLauncher}
-      />
-    )
-  }
+  const previewDevice = await readVisualPreviewDevice(searchParams)
+  const visual = maybePartnerSiteVisualPage(site, 'home', previewDevice)
+  if (visual) return visual
 
   const useShopHome = isFullLandingV1Template(site) && site.renderMode === 'template'
 

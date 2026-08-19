@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
+import {
+  preparePartnerVisualHtmlForEditor,
+  renderPartnerVisualHtmlForPublic,
+} from '@/lib/partner-website/shop/render-partner-visual-html'
 import { visualHtmlLooksUsable, sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import { PW_SCENE_DESIGN_WIDTH } from '@/lib/partner-website/visual-editor/pw-scene'
 import {
@@ -703,6 +707,59 @@ test('pw-device view serves the saved file for that device untouched', () => {
   assert.doesNotMatch(view, /Desk home/)
   assert.doesNotMatch(view, /data-pw-visual-device=/)
   assert.doesNotMatch(view, /pw-visual-device-split/)
+})
+
+test('public visual render gateway serves one device with chrome theme and runtime', () => {
+  const website = {
+    siteSlug: '188-shop',
+    locale: 'vi' as const,
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      useVisualHtml: true,
+      useVisualMobileHtml: true,
+      primaryColor: '#123456',
+    },
+    htmlSource: '<!DOCTYPE html><html><body><h1>Desk home</h1></body></html>',
+    project: {
+      entryPath: 'index.html',
+      files: [
+        {
+          path: 'index.mobile.html',
+          kind: 'html' as const,
+          content:
+            '<!DOCTYPE html><html><body><header class="pw-header"><img class="pw-logo" src="/logo.png"/></header><h1>Mob home</h1></body></html>',
+        },
+      ],
+    },
+  }
+  const view = renderPartnerVisualHtmlForPublic(
+    website,
+    { kind: 'page', pageKey: 'home' },
+    { device: 'mobile' }
+  )
+  assert.match(view, /Mob home/)
+  assert.doesNotMatch(view, /Desk home/)
+  assert.doesNotMatch(view, /data-pw-visual-device=/)
+  assert.match(view, /id="pw-shop-chrome-layout"/)
+  assert.match(view, /data-pw-search-bootstrap/)
+  assert.match(view, /data-pw-catalog-bootstrap/)
+  assert.match(view, /id="pw-logo-home-link"/)
+  assert.match(view, /--pw-primary:\s*#123456/)
+})
+
+test('editor visual render gateway matches device chrome but omits live runtime', () => {
+  const html =
+    '<!DOCTYPE html><html><body><header class="pw-header"><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="chat">Chat</a></div></header><h1>Tablet edit</h1></body></html>'
+  const edit = preparePartnerVisualHtmlForEditor(html, {
+    variant: 'tablet',
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, primaryColor: '#654321' },
+  })
+  assert.match(edit, /Tablet edit/)
+  assert.match(edit, /data-pw-device="tablet"/)
+  assert.match(edit, /id="pw-shop-chrome-layout"/)
+  assert.match(edit, /--pw-primary:\s*#654321/)
+  assert.doesNotMatch(edit, /data-pw-search-bootstrap/)
+  assert.doesNotMatch(edit, /data-pw-shop-actions-bootstrap/)
 })
 
 test('save and pw-device view keep dragged notification position', () => {

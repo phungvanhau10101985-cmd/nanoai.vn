@@ -104,6 +104,7 @@ export function PartnerSitePublicClient({
   locale,
   inlineHtml = false,
   initialDevice = null,
+  deviceHtmlAlreadyIsolated = false,
   hideChatLauncher,
 }: {
   html: string
@@ -116,6 +117,8 @@ export function PartnerSitePublicClient({
   inlineHtml?: boolean
   /** From `?pw-device=` on the server so the first paint already locks desktop width. */
   initialDevice?: VisualDeviceVariant | null
+  /** Server already returned the exact `?pw-device=` file, so the client should not slice again. */
+  deviceHtmlAlreadyIsolated?: boolean
   /** Omit or true = hide legacy embed FAB; false = opt-in to platform bubble. */
   hideChatLauncher?: boolean
 }) {
@@ -131,6 +134,7 @@ export function PartnerSitePublicClient({
           locale={locale}
           inlineHtml={inlineHtml}
           forceDevice={initialDevice}
+          deviceHtmlAlreadyIsolated={deviceHtmlAlreadyIsolated}
           hideChatLauncher={hideChatLauncher}
         />
       }
@@ -144,6 +148,7 @@ export function PartnerSitePublicClient({
         locale={locale}
         inlineHtml={inlineHtml}
         initialDevice={initialDevice}
+        deviceHtmlAlreadyIsolated={deviceHtmlAlreadyIsolated}
         hideChatLauncher={hideChatLauncher}
       />
     </Suspense>
@@ -159,6 +164,7 @@ function PartnerSitePublicClientWithParams(props: {
   locale: WebLocale
   inlineHtml?: boolean
   initialDevice?: VisualDeviceVariant | null
+  deviceHtmlAlreadyIsolated?: boolean
   hideChatLauncher?: boolean
 }) {
   const params = useSearchParams()
@@ -179,6 +185,7 @@ function PartnerSitePublicFrame({
   locale,
   inlineHtml = false,
   forceDevice,
+  deviceHtmlAlreadyIsolated = false,
   hideChatLauncher,
 }: {
   html: string
@@ -189,6 +196,7 @@ function PartnerSitePublicFrame({
   locale: WebLocale
   inlineHtml?: boolean
   forceDevice: VisualDeviceVariant | null
+  deviceHtmlAlreadyIsolated?: boolean
   hideChatLauncher?: boolean
 }) {
   const hideEmbedFab = hideChatLauncher !== false || htmlHasChromeChatMua(html)
@@ -214,7 +222,7 @@ function PartnerSitePublicFrame({
     forceDevice ?? (desktopWindowLock ? 'desktop' : null)
   )
   const previewHtml = hideChatLaunchersInHtml(
-    forceDevice ? isolateVisualHtmlForDevice(html, forceDevice) || html : html,
+    forceDevice && !deviceHtmlAlreadyIsolated ? isolateVisualHtmlForDevice(html, forceDevice) || html : html,
     hideEmbedFab
   )
   /** Live custom domain: never srcDoc-iframe (except compact ?pw-device= preview). */

@@ -1014,7 +1014,7 @@ export async function postWidgetGuestMessage(params: {
   let imagePublicUrl: string | null = null
   let imageMime = ''
   /** Gợi ý theo vector (ảnh hoặc chữ) — giống nhau; không lên lịch LLM cho đến khi khách chọn SP. */
-  let productPickCandidates: GuestVisionCandidatePayload[] = []
+  const productPickCandidates: GuestVisionCandidatePayload[] = []
 
   if (imagePath) {
     if (!isGuestMessagingStoragePathForPartner(imagePath, params.partnerId)) {
